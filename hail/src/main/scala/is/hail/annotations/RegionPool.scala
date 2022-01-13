@@ -3,6 +3,10 @@ package is.hail.annotations
 import is.hail.expr.ir.LongArrayBuilder
 import is.hail.utils._
 
+import java.util.TreeMap
+import java.util.function.BiConsumer
+import scala.collection.mutable
+
 object RegionPool {
 
   def apply(strictMemoryCheck: Boolean = false): RegionPool = {
@@ -11,6 +15,14 @@ object RegionPool {
   }
 
   def scoped[T](f: RegionPool => T): T = using(RegionPool(false))(f)
+
+  lazy val maxRegionPoolSize: Long = {
+    val s = System.getenv("HAIL_WORKER_OFF_HEAP_MEMORY_PER_CORE_MB")
+    if (s != null && s.nonEmpty)
+      s.toLong * 1024 * 1024
+    else
+      Long.MaxValue
+  }
 }
 
 final class RegionPool private(strictMemoryCheck: Boolean, threadName: String, threadID: Long) extends AutoCloseable {
@@ -22,7 +34,9 @@ final class RegionPool private(strictMemoryCheck: Boolean, threadName: String, t
   private[this] var totalAllocatedBytes: Long = 0L
   private[this] var allocationEchoThreshold: Long = 256 * 1024
   private[this] var numJavaObjects: Long = 0L
-  private[this] var maxNumJavaObjects: Long = 0L
+  private[this] var highestTotalUsage = 0L
+  private[this] val chunkCache = new ChunkCache(Memory.malloc, Memory.free)
+  private[this] val maxSize = RegionPool.maxRegionPoolSize
 
   def addJavaObject(): Unit = {
     numJavaObjects += 1
@@ -34,11 +48,26 @@ final class RegionPool private(strictMemoryCheck: Boolean, threadName: String, t
 
   def getTotalAllocatedBytes: Long = totalAllocatedBytes
 
-  private def incrementAllocatedBytes(toAdd: Long): Unit = {
+  def getHighestTotalUsage: Long = highestTotalUsage
+  def getUsage: (Int, Int) = chunkCache.getUsage()
+
+  private[annotations] def decrementAllocatedBytes(toSubtract: Long): Unit = totalAllocatedBytes -= toSubtract
+
+  def closeAndThrow(msg: String): Unit = {
+    close()
+    fatal(msg)
+  }
+  private[annotations] def incrementAllocatedBytes(toAdd: Long): Unit = {
     totalAllocatedBytes += toAdd
     if (totalAllocatedBytes >= allocationEchoThreshold) {
       report("REPORT_THRESHOLD")
       allocationEchoThreshold *= 2
+    }
+    if (totalAllocatedBytes >= highestTotalUsage) {
+      highestTotalUsage = totalAllocatedBytes
+      if (totalAllocatedBytes > maxSize) {
+        closeAndThrow(s"Hail off-heap memory exceeded maximum threshold: limit ${ formatSpace(maxSize) }, allocated ${ formatSpace(totalAllocatedBytes) }")
+      }
     }
   }
 
@@ -51,24 +80,23 @@ final class RegionPool private(strictMemoryCheck: Boolean, threadName: String, t
     if (pool.size > 0) {
       pool.pop()
     } else {
-      blocks(size) += 1
+      chunkCache.freeChunksFromCacheToFit(this, size.toLong)
       val blockByteSize = Region.SIZES(size)
       incrementAllocatedBytes(blockByteSize)
+      blocks(size) += 1
       Memory.malloc(blockByteSize)
     }
   }
 
-  protected[annotations] def getChunk(size: Long): Long = {
-    incrementAllocatedBytes(size)
-    Memory.malloc(size)
+  protected[annotations] def getChunk(size: Long): (Long, Long) = {
+    chunkCache.getChunk(this, size)
   }
 
   protected[annotations] def freeChunks(ab: LongArrayBuilder, totalSize: Long): Unit = {
-    while (ab.size > 0) {
-      val addr = ab.pop()
-      Memory.free(addr)
-    }
-    totalAllocatedBytes -= totalSize
+    chunkCache.freeChunksToCache(ab)
+  }
+  protected[annotations] def freeChunk(chunkPointer: Long): Unit = {
+    chunkCache.freeChunkToCache(chunkPointer)
   }
 
   protected[annotations] def getMemory(size: Int): RegionMemory = {
@@ -123,7 +151,7 @@ final class RegionPool private(strictMemoryCheck: Boolean, threadName: String, t
 
     log.info(s"RegionPool: $context: ${readableBytes(totalAllocatedBytes)} allocated (${readableBytes(inBlocks)} blocks / " +
       s"${readableBytes(totalAllocatedBytes - inBlocks)} chunks), regions.size = ${regions.size}, " +
-      s"$numJavaObjects current java objects, $maxNumJavaObjects max java objects, thread $threadID: $threadName")
+      s"$numJavaObjects current java objects, thread $threadID: $threadName")
 //    log.info("-----------STACK_TRACES---------")
 //    val stacks: String = regions.result().toIndexedSeq.flatMap(r => r.stackTrace.map((r.getTotalChunkMemory(), _))).foldLeft("")((a: String, b) => a + "\n" + b.toString())
 //    log.info(stacks)
@@ -138,7 +166,13 @@ final class RegionPool private(strictMemoryCheck: Boolean, threadName: String, t
 
   override def finalize(): Unit = close()
 
+  private[this] var closed: Boolean = false
+
   def close(): Unit = {
+    if (closed)
+      return
+    closed = true
+
     report("FREE")
 
     var i = 0
@@ -152,12 +186,13 @@ final class RegionPool private(strictMemoryCheck: Boolean, threadName: String, t
       val blockSize = Region.SIZES(i)
       val blocks = freeBlocks(i)
       while (blocks.size > 0) {
-        Memory.free(blocks.pop())
+        val popped = blocks.pop()
+        Memory.free(popped)
         totalAllocatedBytes -= blockSize
       }
       i += 1
     }
-
+    chunkCache.freeAll(pool = this)
     if (totalAllocatedBytes != 0) {
       val msg = s"RegionPool: total allocated bytes not 0 after closing! total allocated: " +
         s"$totalAllocatedBytes (${ readableBytes(totalAllocatedBytes) })"

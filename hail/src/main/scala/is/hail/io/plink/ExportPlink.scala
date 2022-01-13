@@ -1,10 +1,9 @@
 package is.hail.io.plink
 
-import is.hail.expr.ir.ExecuteContext
 import java.io.{OutputStream, OutputStreamWriter}
-
 import is.hail.HailContext
 import is.hail.annotations.Region
+import is.hail.backend.ExecuteContext
 import is.hail.expr.ir.MatrixValue
 import is.hail.types._
 import is.hail.types.physical.{PString, PStruct}

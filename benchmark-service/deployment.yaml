@@ -22,6 +22,8 @@ spec:
       tolerations:
        - key: preemptible
          value: "true"
+       - key: "kubernetes.azure.com/scalesetpriority"
+         value: "spot"
       containers:
         - name: benchmark
           command:
@@ -34,7 +36,10 @@ spec:
           image: "{{ benchmark_image.image }}"
           env:
           - name: HAIL_DOMAIN
-            value: "{{ global.domain }}"
+            valueFrom:
+              secretKeyRef:
+                name: global-config
+                key: domain
           - name: HAIL_DEPLOY_CONFIG_FILE
             value: /deploy-config/deploy-config.json
           - name: HAIL_SHA
@@ -50,7 +55,10 @@ spec:
             value: "WetqnMQMoqq2"
 {% else %}
           - name: HAIL_BENCHMARK_BUCKET_NAME
-            value: hail-test-dmk9z
+            valueFrom:
+              secretKeyRef:
+                name: global-config
+                key: hail_test_gcs_bucket
 {% endif %}
 {% if scope == "dev" %}
           - name: INSTANCE_ID
@@ -60,11 +68,11 @@ spec:
             - containerPort: 5000
           resources:
             requests:
-              memory: "10M"
-              cpu: "40m"
+              cpu: "20m"
+              memory: "20M"
             limits:
-              memory: "1G"
               cpu: "1"
+              memory: "1G"
           volumeMounts:
             - name: session-secret-key
               mountPath: /session-secret-key
@@ -108,3 +116,17 @@ spec:
         - name: benchmark-tokens
           secret:
             secretName: benchmark-tokens
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: benchmark
+  labels:
+    app: benchmark
+spec:
+  ports:
+    - port: 443
+      protocol: TCP
+      targetPort: 5000
+  selector:
+    app: benchmark

@@ -15,12 +15,15 @@ spec:
       labels:
         app: monitoring
         hail.is/sha: "{{ code.sha }}"
+        grafanak8sapp: "true"
     spec:
       nodeSelector:
         preemptible: "true"
       tolerations:
        - key: preemptible
          value: "true"
+       - key: "kubernetes.azure.com/scalesetpriority"
+         value: "spot"
       containers:
         - name: monitoring
           image: "{{ monitoring_image.image }}"
@@ -32,13 +35,31 @@ spec:
            - -m
            - monitoring
           env:
-          - name: HAIL_DOMAIN
-            value: "{{ global.domain }}"
           - name: HAIL_DEPLOY_CONFIG_FILE
             value: /deploy-config/deploy-config.json
           - name: HAIL_SHA
             value: "{{ code.sha }}"
-{% if deploy or scope == "dev" %}
+          - name: HAIL_DOMAIN
+            valueFrom:
+              secretKeyRef:
+                name: global-config
+                key: domain
+          - name: PROJECT
+            valueFrom:
+              secretKeyRef:
+                name: global-config
+                key: gcp_project
+          - name: HAIL_GCP_REGION
+            valueFrom:
+              secretKeyRef:
+                name: global-config
+                key: gcp_region
+          - name: HAIL_BATCH_GCP_REGIONS
+            valueFrom:
+              secretKeyRef:
+                name: global-config
+                key: batch_gcp_regions
+{% if scope != "test" and scope != "dev" %}
           - name: HAIL_USE_FULL_QUERY
             value: "1"
 {% endif %}
@@ -46,11 +67,11 @@ spec:
             - containerPort: 5000
           resources:
             requests:
+              cpu: "20m"
               memory: "20M"
-              cpu: "10m"
             limits:
-              memory: "1G"
               cpu: "1"
+              memory: "1G"
           volumeMounts:
             - name: session-secret-key
               mountPath: /session-secret-key
@@ -88,3 +109,17 @@ spec:
         - name: billing-monitor-gsa-key
           secret:
             secretName: billing-monitor-gsa-key
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: monitoring
+  labels:
+    app: monitoring
+spec:
+  ports:
+    - port: 443
+      protocol: TCP
+      targetPort: 5000
+  selector:
+    app: monitoring

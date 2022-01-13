@@ -50,7 +50,7 @@ object UnsafeRow {
     new UnsafeRow(t, region, offset)
 
   def readString(boff: Long, t: PString): String =
-    new String(readBinary(boff, t.fundamentalType))
+    new String(readBinary(boff, t.binaryRepresentation))
 
   def readLocus(offset: Long, t: PLocus): Locus = {
     Locus(
@@ -244,6 +244,7 @@ object SafeRow {
     a match {
       case _: UnsafeRow => false
       case _: UnsafeIndexedSeq => false
+      case _: UnsafeNDArray => false
 
       case r: Row =>
         r.toSeq.forall(isSafe)
@@ -251,6 +252,8 @@ object SafeRow {
         a.forall(isSafe)
       case i: Interval =>
         isSafe(i.start) && isSafe(i.end)
+      case nd: NDArray =>
+        nd.getRowMajorElements().forall(isSafe)
 
       case _ => true
     }
@@ -328,7 +331,7 @@ class UnsafeNDArray(val pnd: PNDArray, val region: Region, val ndAddr: Long) ext
 
   def lookupElement(indices: IndexedSeq[Long]): Annotation = {
     val elementAddress = pnd.getElementAddress(indices, ndAddr)
-    UnsafeRow.read(pnd.elementType, region, elementAddress)
+    UnsafeRow.read(pnd.elementType, region, pnd.elementType.unstagedLoadFromNested(elementAddress))
   }
 
   def getRowMajorElements(): IndexedSeq[Annotation] = {
@@ -388,7 +391,7 @@ class UnsafeNDArray(val pnd: PNDArray, val region: Region, val ndAddr: Long) ext
   }
 }
 
-class SafeNDArray(val shape: IndexedSeq[Long], rowMajorElements: IndexedSeq[Annotation]) extends NDArray {
+case class SafeNDArray(val shape: IndexedSeq[Long], rowMajorElements: IndexedSeq[Annotation]) extends NDArray {
   assert(shape.foldLeft(1L)(_ * _) == rowMajorElements.size)
   override def getRowMajorElements: IndexedSeq[Annotation] = rowMajorElements
 

@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <title>Hail | {% block title %}{% endblock %}</title>
+
+    {% include "base-head.html" %}
+
+    {% block head %}{% endblock %}
+  </head>
+  <body>
+    {% include "nav-top.html" %}
+    <div id="main">
+      {% block content %}{% endblock %}
+    </div>
+    {% include "nav-bottom.html" %}
+    {% include "base-foot.html" %}
+  </body>
+</html>

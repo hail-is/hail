@@ -1,32 +1,36 @@
 package is.hail.expr.ir
 
-import java.io.PrintWriter
-
 import is.hail.annotations._
 import is.hail.asm4s._
-import is.hail.expr.ir.Stream.Source
+import is.hail.backend.ExecuteContext
 import is.hail.expr.ir.agg.AggStateSig
 import is.hail.expr.ir.lowering.LoweringPipeline
+import is.hail.expr.ir.streams.{EmitStream, StreamArgType}
+import is.hail.io.fs.FS
 import is.hail.rvd.RVDContext
-import is.hail.types.physical.{PStream, PStruct, PType}
+import is.hail.types.physical.stypes.{PTypeReferenceSingleCodeType, SingleCodeType, StreamSingleCodeType}
+import is.hail.types.physical.stypes.interfaces.SStream
+import is.hail.types.physical.{PStruct, PType}
 import is.hail.types.virtual.Type
 import is.hail.utils._
 
-case class CodeCacheKey(aggSigs: IndexedSeq[AggStateSig], args: Seq[(String, PType)], body: IR)
+import java.io.PrintWriter
 
-case class CodeCacheValue(typ: PType, f: (Int, Region) => Any)
+case class CodeCacheKey(aggSigs: IndexedSeq[AggStateSig], args: Seq[(String, EmitParamType)], body: IR)
+
+case class CodeCacheValue(typ: Option[SingleCodeType], f: (FS, Int, Region) => Any)
 
 object Compile {
   private[this] val codeCache: Cache[CodeCacheKey, CodeCacheValue] = new Cache(50)
 
   def apply[F: TypeInfo](
     ctx: ExecuteContext,
-    params: IndexedSeq[(String, PType)],
+    params: IndexedSeq[(String, EmitParamType)],
     expectedCodeParamTypes: IndexedSeq[TypeInfo[_]], expectedCodeReturnType: TypeInfo[_],
     body: IR,
     optimize: Boolean = true,
     print: Option[PrintWriter] = None
-  ): (PType, (Int, Region) => F) = {
+  ): (Option[SingleCodeType], (FS, Int, Region) => F) = {
 
     val normalizeNames = new NormalizeNames(_.toString)
     val normalizedBody = normalizeNames(body,
@@ -34,7 +38,7 @@ object Compile {
     val k = CodeCacheKey(FastIndexedSeq[AggStateSig](), params.map { case (n, pt) => (n, pt) }, normalizedBody)
     codeCache.get(k) match {
       case Some(v) =>
-        return (v.typ, v.f.asInstanceOf[(Int, Region) => F])
+        return (v.typ, v.f.asInstanceOf[(FS, Int, Region) => F])
       case None =>
     }
 
@@ -46,16 +50,12 @@ object Compile {
 
     TypeCheck(ir, BindingEnv.empty)
 
-    val usesAndDefs = ComputeUsesAndDefs(ir, errorIfFreeVariables = false)
-    val requiredness = Requiredness.apply(ir, usesAndDefs, null, Env.empty) // Value IR inference doesn't need context
-    InferPType(ir, Env.empty, requiredness, usesAndDefs)
-
-    val returnType = ir.pType
+    val returnParam = CodeParamType(SingleCodeType.typeInfoFromType(ir.typ))
 
     val fb = EmitFunctionBuilder[F](ctx, "Compiled",
       CodeParamType(typeInfo[Region]) +: params.map { case (_, pt) =>
-        pt.asEmitParam
-      }, returnType.asEmitParam, Some("Emit.scala"))
+        pt
+      }, returnParam, Some("Emit.scala"))
 
     /*
     {
@@ -73,13 +73,13 @@ object Compile {
     assert(fb.mb.parameterTypeInfo == expectedCodeParamTypes, s"expected $expectedCodeParamTypes, got ${ fb.mb.parameterTypeInfo }")
     assert(fb.mb.returnTypeInfo == expectedCodeReturnType, s"expected $expectedCodeReturnType, got ${ fb.mb.returnTypeInfo }")
 
-    val emitContext = new EmitContext(ctx, requiredness)
-    Emit(emitContext, ir, fb)
+    val emitContext = EmitContext.analyze(ctx, ir)
+    val rt = Emit(emitContext, ir, fb, expectedCodeReturnType, params.length)
 
     val f = fb.resultWithIndex(print)
-    codeCache += k -> CodeCacheValue(ir.pType, f)
+    codeCache += k -> CodeCacheValue(rt, f)
 
-    (returnType, f)
+    (rt, f)
   }
 }
 
@@ -89,18 +89,18 @@ object CompileWithAggregators {
   def apply[F: TypeInfo](
     ctx: ExecuteContext,
     aggSigs: Array[AggStateSig],
-    params: IndexedSeq[(String, PType)],
+    params: IndexedSeq[(String, EmitParamType)],
     expectedCodeParamTypes: IndexedSeq[TypeInfo[_]], expectedCodeReturnType: TypeInfo[_],
     body: IR,
     optimize: Boolean = true
-  ): (PType, (Int, Region) => (F with FunctionWithAggRegion)) = {
+  ): (Option[SingleCodeType], (FS, Int, Region) => (F with FunctionWithAggRegion)) = {
     val normalizeNames = new NormalizeNames(_.toString)
     val normalizedBody = normalizeNames(body,
       Env(params.map { case (n, _) => n -> n }: _*))
     val k = CodeCacheKey(aggSigs, params.map { case (n, pt) => (n, pt) }, normalizedBody)
     codeCache.get(k) match {
       case Some(v) =>
-        return (v.typ, v.f.asInstanceOf[(Int, Region) => (F with FunctionWithAggRegion)])
+        return (v.typ, v.f.asInstanceOf[(FS, Int, Region) => (F with FunctionWithAggRegion)])
       case None =>
     }
 
@@ -112,15 +112,9 @@ object CompileWithAggregators {
 
     TypeCheck(ir, BindingEnv(Env.fromSeq[Type](params.map { case (name, t) => name -> t.virtualType })))
 
-    val usesAndDefs = ComputeUsesAndDefs(ir, errorIfFreeVariables = false)
-    val requiredness = Requiredness.apply(ir, usesAndDefs, null, Env.empty) // Value IR inference doesn't need context
-    InferPType(ir, Env.empty, requiredness, usesAndDefs)
-
-    val returnType = ir.pType
     val fb = EmitFunctionBuilder[F](ctx, "CompiledWithAggs",
-      CodeParamType(typeInfo[Region]) +: params.map { case (_, pt) =>
-        pt.asEmitParam
-      }, returnType.asEmitParam, Some("Emit.scala"))
+      CodeParamType(typeInfo[Region]) +: params.map { case (_, pt) => pt },
+      SingleCodeType.typeInfoFromType(ir.typ), Some("Emit.scala"))
 
     /*
     {
@@ -135,18 +129,16 @@ object CompileWithAggregators {
     }
      */
 
-    val emitContext = new EmitContext(ctx, requiredness)
-    Emit(emitContext, ir, fb, Some(aggSigs))
+    val emitContext = EmitContext.analyze(ctx, ir)
+    val rt = Emit(emitContext, ir, fb, expectedCodeReturnType, params.length, Some(aggSigs))
 
     val f = fb.resultWithIndex()
-    codeCache += k -> CodeCacheValue(ir.pType, f)
-    (ir.pType, f.asInstanceOf[(Int, Region) => (F with FunctionWithAggRegion)])
+    codeCache += k -> CodeCacheValue(rt, f)
+    (rt, f.asInstanceOf[(FS, Int, Region) => (F with FunctionWithAggRegion)])
   }
 }
 
 object CompileIterator {
-
-  import is.hail.asm4s.joinpoint._
 
   private trait StepFunctionBase {
     def loadAddress(): Long
@@ -154,11 +146,13 @@ object CompileIterator {
 
   private trait TableStageToRVDStepFunction extends StepFunctionBase {
     def apply(o: Object, a: Long, b: Long): Boolean
+
     def setRegions(outerRegion: Region, eltRegion: Region): Unit
   }
 
   private trait TMPStepFunction extends StepFunctionBase {
     def apply(o: Object, a: Long, b: StreamArgType): Boolean
+
     def setRegions(outerRegion: Region, eltRegion: Region): Unit
   }
 
@@ -190,7 +184,7 @@ object CompileIterator {
     body: IR,
     argTypeInfo: Array[ParamType],
     printWriter: Option[PrintWriter]
-  ): (PType, (Int, Region) => F) = {
+  ): (PType, (FS, Int, Region) => F) = {
 
     val fb = EmitFunctionBuilder.apply[F](ctx, "stream", argTypeInfo.toFastIndexedSeq, CodeParamType(BooleanInfo))
     val outerRegionField = fb.genFieldThisRef[Region]("outerRegion")
@@ -201,62 +195,68 @@ object CompileIterator {
     val stepF = fb.apply_method
     val stepFECB = stepF.ecb
 
-    val outerRegion = StagedRegion(outerRegionField, allowSubregions = false)
-    val eltRegion = outerRegion.createChildRegion(stepF)
+    val outerRegion = outerRegionField
 
     val ir = LoweringPipeline.compileLowerer(true)(ctx, body).asInstanceOf[IR].noSharing
     TypeCheck(ir)
 
-    val usesAndDefs = ComputeUsesAndDefs(ir, errorIfFreeVariables = false)
-    val requiredness = Requiredness.apply(ir, usesAndDefs, null, Env.empty) // Value IR inference doesn't need context
-    InferPType(ir, Env.empty, requiredness, usesAndDefs)
+    var elementAddress: Settable[Long] = null
+    var returnType: PType = null
 
-    val emitContext = new EmitContext(ctx, requiredness)
-    val emitter = new Emit(emitContext, stepFECB)
+    stepF.emitWithBuilder[Boolean] { cb =>
+      val emitContext = EmitContext.analyze(ctx, ir)
+      val emitter = new Emit(emitContext, stepFECB)
 
-    val returnType = ir.pType.asInstanceOf[PStream].elementType.asInstanceOf[PStruct].setRequired(true)
+      val env = EmitEnv(Env.empty, argTypeInfo.indices.filter(i => argTypeInfo(i).isInstanceOf[EmitParamType]).map(i => stepF.storeEmitParam(i + 1, cb)))
+      val optStream = EmitCode.fromI(stepF)(cb => EmitStream.produce(emitter, ir, cb, outerRegion, env, None))
+      returnType = optStream.st.asInstanceOf[SStream].elementEmitType.storageType.setRequired(true)
 
-    val optStream = EmitStream.emit(emitter, ir, stepF, outerRegion, Env.empty, None)
+      elementAddress = stepF.genFieldThisRef[Long]("elementAddr")
 
-    val elementAddress = stepF.genFieldThisRef[Long]("elementAddr")
+      val didSetup = stepF.genFieldThisRef[Boolean]("didSetup")
+      stepF.cb.emitInit(didSetup := false)
 
-    val didSetup = stepF.genFieldThisRef[Boolean]("didSetup")
-    stepF.cb.emitInit(didSetup := false)
+      val eosField = stepF.genFieldThisRef[Boolean]("eos")
 
-    implicit val ecc: EmitStreamContext = EmitStreamContext(stepF)
+      val producer = optStream.pv.asStream.producer
 
-    val pullLabel = CodeLabel()
-    val eosField = stepF.genFieldThisRef[Boolean]("eos")
-    val eosLabel = CodeLabel()
+      val ret = cb.newLocal[Boolean]("stepf_ret")
+      val Lreturn = CodeLabel()
 
-    val source: Source[EmitCode] = optStream.pv.asStream.stream.getStream(eltRegion).apply(
-      eosLabel.goto,
-      { element =>
-        EmitCodeBuilder.scopedVoid(stepF) { cb =>
-          val pc = element.toI(cb).get(cb)
-          assert(pc.pt.isInstanceOf[PStruct])
-          cb.assign(elementAddress, pc.tcode[Long])
-          cb += Code._return[Boolean](true)
-        }
+      cb.ifx(!didSetup, {
+        optStream.toI(cb).get(cb) // handle missing, but bound stream producer above
+
+        cb.assign(producer.elementRegion, eltRegionField)
+        producer.initialize(cb)
+        cb.assign(didSetup, true)
+        cb.assign(eosField, false)
       })
 
-    Code(eosLabel, source.close, source.close0, eosField := true, Code._return[Boolean](false))
+      cb.ifx(eosField, {
+        cb.assign(ret, false)
+        cb.goto(Lreturn)
+      })
 
-    stepF.emit(
-      didSetup.mux(
-        eosField.mux(Code._return[Boolean](false), pullLabel.goto),
-        Code(
-          optStream.setup,
-          optStream.m.mux(
-            Code._fatal[Unit]("bad stream"),
-            Code(
-              source.setup0,
-              source.setup,
-              elementAddress := 0L,
-              eosField := false,
-              didSetup := true,
-              pullLabel,
-              source.pull)))))
+      cb.goto(producer.LproduceElement)
+
+      stepF.implementLabel(producer.LendOfStream) { cb =>
+        producer.close(cb)
+        cb.assign(eosField, true)
+        cb.assign(ret, false)
+        cb.goto(Lreturn)
+      }
+
+      stepF.implementLabel(producer.LproduceElementDone) { cb =>
+        val pc = producer.element.toI(cb).get(cb)
+        cb.assign(elementAddress, returnType.store(cb, producer.elementRegion, pc, false))
+        cb.assign(ret, true)
+        cb.goto(Lreturn)
+      }
+
+      cb.define(Lreturn)
+      ret
+    }
+
 
     val getMB = fb.newEmitMethod("loadAddress", FastIndexedSeq(), LongInfo)
     getMB.emit(elementAddress.load())
@@ -266,20 +266,20 @@ object CompileIterator {
 
   def forTableMapPartitions(
     ctx: ExecuteContext,
-    typ0: PStruct, typ1: PStream,
+    typ0: PStruct, streamElementType: PType,
     ir: IR
-  ): (PType, (Int, RVDContext, Long, StreamArgType) => Iterator[java.lang.Long]) = {
+  ): (PType, (FS, Int, RVDContext, Long, streams.StreamArgType) => Iterator[java.lang.Long]) = {
     assert(typ0.required)
-    assert(typ1.required)
+    assert(streamElementType.required)
     val (eltPType, makeStepper) = compileStepper[TMPStepFunction](
       ctx, ir,
       Array[ParamType](
         CodeParamType(typeInfo[Object]),
-        EmitParamType(typ0),
-        EmitParamType(typ1)),
+        SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(typ0)),
+        SingleCodeEmitParamType(true, StreamSingleCodeType(true, streamElementType))),
       None)
-    (eltPType, (idx, consumerCtx, v0, part) => {
-      val stepper = makeStepper(idx, consumerCtx.partitionRegion)
+    (eltPType, (fs, idx, consumerCtx, v0, part) => {
+      val stepper = makeStepper(fs, idx, consumerCtx.partitionRegion)
       stepper.setRegions(consumerCtx.partitionRegion, consumerCtx.region)
       new LongIteratorWrapper {
         val stepFunction: TMPStepFunction = stepper
@@ -293,18 +293,18 @@ object CompileIterator {
     ctx: ExecuteContext,
     ctxType: PStruct, bcValsType: PType,
     ir: IR
-  ): (PType, (Int, RVDContext, Long, Long) => Iterator[java.lang.Long]) = {
+  ): (PType, (FS, Int, RVDContext, Long, Long) => Iterator[java.lang.Long]) = {
     assert(ctxType.required)
     assert(bcValsType.required)
     val (eltPType, makeStepper) = compileStepper[TableStageToRVDStepFunction](
       ctx, ir,
       Array[ParamType](
         CodeParamType(typeInfo[Object]),
-        EmitParamType(ctxType),
-        EmitParamType(bcValsType)),
+        SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(ctxType)),
+        SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(bcValsType))),
       None)
-    (eltPType, (idx, consumerCtx, v0, v1) => {
-      val stepper = makeStepper(idx, consumerCtx.partitionRegion)
+    (eltPType, (fs, idx, consumerCtx, v0, v1) => {
+      val stepper = makeStepper(fs, idx, consumerCtx.partitionRegion)
       stepper.setRegions(consumerCtx.partitionRegion, consumerCtx.region)
       new LongIteratorWrapper {
         val stepFunction: TableStageToRVDStepFunction = stepper

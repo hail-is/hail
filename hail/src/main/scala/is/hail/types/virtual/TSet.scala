@@ -9,8 +9,6 @@ import org.json4s.jackson.JsonMethods
 import scala.reflect.{ClassTag, classTag}
 
 final case class TSet(elementType: Type) extends TContainer {
-  override lazy val fundamentalType: TArray = TArray(elementType.fundamentalType)
-
   def _toPretty = s"Set[$elementType]"
 
   override def pyString(sb: StringBuilder): Unit = {
@@ -61,4 +59,6 @@ final case class TSet(elementType: Type) extends TContainer {
     assert(elementType == subtype.asInstanceOf[TSet].elementType)
     identity
   }
+
+  override def arrayElementsRepr: TArray = TArray(elementType)
 }

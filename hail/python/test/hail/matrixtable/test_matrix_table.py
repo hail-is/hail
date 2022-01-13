@@ -125,6 +125,7 @@ class Tests(unittest.TestCase):
         assert mt1.tail(1, None).count() == (1, 10)
         assert mt1.tail(None, 1).count() == (10, 1)
 
+    @fails_service_backend()
     def test_tail_entries(self):
         mt = hl.utils.range_matrix_table(100, 30)
         mt = mt.filter_cols(mt.col_idx != 29)
@@ -140,7 +141,7 @@ class Tests(unittest.TestCase):
         assert tail(30, None) == expected(30, 29)
         assert tail(30, 10) == expected(30, 10)
 
-    @fails_local_backend()
+    @fails_service_backend()
     def test_tail_scan(self):
         mt = hl.utils.range_matrix_table(30, 40)
         mt = mt.annotate_rows(i = hl.scan.count())
@@ -163,7 +164,7 @@ class Tests(unittest.TestCase):
         mt = mt.filter_entries((mt.z1 < 5) & (mt.y1 == 3) & (mt.x1 == 5) & (mt.foo == 2))
         mt.count_rows()
 
-    @fails_local_backend()
+    @fails_service_backend()
     def test_aggregate(self):
         mt = self.get_mt()
 
@@ -195,6 +196,10 @@ class Tests(unittest.TestCase):
         mt = hl.utils.range_matrix_table(10, 10)
         mt = mt.annotate_rows(maf_flag = hl.empty_array('bool'))
         mt.aggregate_rows(hl.agg.array_agg(lambda x: hl.agg.counter(x), mt.maf_flag))
+
+    def test_aggregate_rows_bn_counter(self):
+        r = hl.balding_nichols_model(3, 10, 10).rows()
+        r.aggregate(hl.agg.counter(r.locus.in_x_nonpar()))
 
     def test_col_agg_no_rows(self):
         mt = hl.utils.range_matrix_table(3, 3).filter_rows(False)
@@ -424,7 +429,7 @@ class Tests(unittest.TestCase):
         assert mt.semi_join_cols(ht).count() == (3, 3)
         assert mt.anti_join_cols(ht).count() == (3, 7)
 
-    @fails_local_backend()
+    @fails_service_backend()
     def test_joins(self):
         mt = self.get_mt().select_rows(x1=1, y1=1)
         mt2 = mt.select_rows(x2=1, y2=2)
@@ -443,7 +448,7 @@ class Tests(unittest.TestCase):
         self.assertTrue(rt.all(rt.y2 == 2))
         self.assertTrue(ct.all(ct.c2 == 2))
 
-    @fails_local_backend()
+    @fails_service_backend()
     def test_joins_with_key_structs(self):
         mt = self.get_mt()
 
@@ -470,6 +475,10 @@ class Tests(unittest.TestCase):
         self.assertTrue(ds.union_cols(ds.drop(ds.info))
                         .count_rows(), 346)
 
+    @skip_when_service_backend('''The Service and Shuffler have no way of knowing the order in which rows appear in the original
+dataset, as such it is impossible to guarantee the ordering in `matches`.
+
+https://hail.zulipchat.com/#narrow/stream/123011-Hail-Dev/topic/test_drop/near/235425714''')
     def test_table_product_join(self):
         left = hl.utils.range_matrix_table(5, 1)
         right = hl.utils.range_table(5)
@@ -478,6 +487,7 @@ class Tests(unittest.TestCase):
         rows = left.rows()
         self.assertTrue(rows.all(rows.matches.map(lambda x: x.idx) == hl.range(0, rows.row_idx)))
 
+    @fails_service_backend()
     @fails_local_backend()
     def test_naive_coalesce(self):
         mt = self.get_mt(min_partitions=8)
@@ -494,7 +504,7 @@ class Tests(unittest.TestCase):
         mt = mt.annotate_rows(x=hl.if_else(hl.literal([1,2,3])[mt.row_idx] < hl.rand_unif(10, 11), mt.globals, hl.struct()))
         mt._force_count_rows()
 
-    @fails_local_backend()
+    @fails_service_backend()
     def test_globals_lowering(self):
         mt = hl.utils.range_matrix_table(1, 1).annotate_globals(x=1)
         lit = hl.literal(hl.utils.Struct(x = 0))
@@ -513,6 +523,7 @@ class Tests(unittest.TestCase):
          .aggregate(bar=hl.agg.collect(mt.globals == lit))
          ._force_count_rows())
 
+    @skip_when_service_backend('ShuffleRead non-deterministically causes segfaults')
     def test_unions(self):
         dataset = hl.import_vcf(resource('sample2.vcf'))
 
@@ -534,6 +545,7 @@ class Tests(unittest.TestCase):
         for s, count in ds.aggregate_cols(agg.counter(ds.s)).items():
             self.assertEqual(count, 3)
 
+    @skip_when_service_backend('Shuffler encoding/decoding is broken.')
     def test_union_cols_example(self):
         joined = hl.import_vcf(resource('joined.vcf'))
 
@@ -547,6 +559,7 @@ class Tests(unittest.TestCase):
         mt = mt.key_rows_by(x = mt.row_idx // 2)
         assert mt.union_cols(mt).count_rows() == 5
 
+    @skip_when_service_backend('flaky https://hail.zulipchat.com/#narrow/stream/127527-team/topic/CI.20Deploy.20Failure/near/237593731')
     def test_union_cols_outer(self):
         r, c = 10, 10
         mt = hl.utils.range_matrix_table(2*r, c)
@@ -594,6 +607,7 @@ class Tests(unittest.TestCase):
         self.assertEqual(ds.choose_cols(list(range(10))).s.collect(),
                          old_order[:10])
 
+    @skip_when_service_backend('Shuffler encoding/decoding is broken.')
     def test_choose_cols_vs_explode(self):
         ds = self.get_mt()
 
@@ -620,6 +634,7 @@ class Tests(unittest.TestCase):
         self.assertEqual(mt.group_rows_by(mt.row_idx).aggregate().count_rows(), 3)
         self.assertEqual(mt.group_cols_by(mt.col_idx).aggregate().count_cols(), 3)
 
+    @fails_service_backend()
     def test_computed_key_join_1(self):
         ds = self.get_mt()
         kt = hl.Table.parallelize(
@@ -633,6 +648,7 @@ class Tests(unittest.TestCase):
         self.assertTrue(
             rt.all(((rt.locus.position % 2) == 0) == rt['value']))
 
+    @fails_service_backend()
     def test_computed_key_join_2(self):
         # multiple keys
         ds = self.get_mt()
@@ -649,6 +665,7 @@ class Tests(unittest.TestCase):
         self.assertTrue(
             rt.all((rt.locus.position % 2) - 2 * (rt.info.DP % 2) == rt['value']))
 
+    @fails_service_backend()
     def test_computed_key_join_3(self):
         # duplicate row keys
         ds = self.get_mt()
@@ -668,6 +685,7 @@ class Tests(unittest.TestCase):
                 rt['value'] == "IB",
                 hl.is_missing(rt['value']))))
 
+    @fails_service_backend()
     @fails_local_backend()
     def test_interval_join(self):
         left = hl.utils.range_matrix_table(50, 1, n_partitions=10)
@@ -679,6 +697,7 @@ class Tests(unittest.TestCase):
                                  .when(rows.row_idx % 10 < 5, rows.interval_matches.idx == rows.row_idx // 10)
                                  .default(hl.is_missing(rows.interval_matches))))
 
+    @fails_service_backend()
     @fails_local_backend()
     def test_interval_product_join(self):
         left = hl.utils.range_matrix_table(50, 1, n_partitions=8)
@@ -703,6 +722,7 @@ class Tests(unittest.TestCase):
 
         self.assertTrue(mt_join_entries.all(mt_join_entries.x == mt_join_entries.x2))
 
+    @fails_service_backend()
     def test_entry_join_const(self):
         mt1 = hl.utils.range_matrix_table(10, 10, n_partitions=4)
         mt1 = mt1.annotate_entries(x=mt1.row_idx + mt1.col_idx)
@@ -752,6 +772,7 @@ class Tests(unittest.TestCase):
         assert mt.key_rows_by().key_cols_by().entries().collect() == original_order
         assert mt.key_rows_by().entries().collect() == sorted(original_order, key=lambda x: x.col_idx)
 
+    @fails_service_backend()
     def test_entries_table_with_out_of_order_row_key_fields(self):
         mt = hl.utils.range_matrix_table(10, 10, 1)
         mt = mt.select_rows(key2=0, key1=mt.row_idx)
@@ -793,6 +814,7 @@ class Tests(unittest.TestCase):
               (df.GT == df.entry_struct.GT)) &
              (df.AD == df.entry_struct.AD))))
 
+    @fails_service_backend()
     @fails_local_backend()
     def test_filter_partitions(self):
         ds = self.get_mt(min_partitions=8)
@@ -805,6 +827,7 @@ class Tests(unittest.TestCase):
                 ds._filter_partitions([0, 3, 7]),
                 ds._filter_partitions([0, 3, 7], keep=False))))
 
+    @skip_when_service_backend('Shuffler encoding/decoding is broken.')
     def test_from_rows_table(self):
         mt = hl.import_vcf(resource('sample.vcf'))
         mt = mt.annotate_globals(foo='bar')
@@ -817,15 +840,16 @@ class Tests(unittest.TestCase):
         ds_small = ds.sample_rows(0.01)
         self.assertTrue(ds_small.count_rows() < ds.count_rows())
 
-    @fails_local_backend()
+    @fails_service_backend()
     def test_read_stored_cols(self):
         ds = self.get_mt()
         ds = ds.annotate_globals(x='foo')
         f = new_temp_file(extension='mt')
         ds.write(f)
         t = hl.read_table(f + '/cols')
-        self.assertTrue(ds.cols()._same(t))
+        self.assertTrue(ds.cols().key_by()._same(t))
 
+    @skip_when_service_backend('Shuffler encoding/decoding is broken.')
     def test_read_stored_rows(self):
         ds = self.get_mt()
         ds = ds.annotate_globals(x='foo')
@@ -842,7 +866,7 @@ class Tests(unittest.TestCase):
         t = hl.read_table(f + '/globals')
         self.assertTrue(ds.globals_table()._same(t))
 
-    @fails_local_backend()
+    @fails_service_backend()
     def test_indexed_read(self):
         mt = hl.utils.range_matrix_table(2000, 100, 10)
         f = new_temp_file(extension='mt')
@@ -861,7 +885,7 @@ class Tests(unittest.TestCase):
         self.assertEqual(mt2.n_partitions(), 3)
         self.assertTrue(mt.filter_rows((mt.row_idx >= 150) & (mt.row_idx < 500))._same(mt2))
 
-    @fails_local_backend()
+    @fails_service_backend()
     def test_indexed_read_vcf(self):
         vcf = self.get_mt(10)
         f = new_temp_file(extension='mt')
@@ -876,6 +900,7 @@ class Tests(unittest.TestCase):
         q = (vcf.locus >= l3) & (vcf.locus < l4)
         self.assertTrue(vcf.filter_rows(p | q)._same(mt))
 
+    @fails_service_backend()
     def test_codecs_matrix(self):
         from hail.utils.java import scala_object
         supported_codecs = scala_object(Env.hail().io, 'BufferSpec').specs()
@@ -886,6 +911,7 @@ class Tests(unittest.TestCase):
             ds2 = hl.read_matrix_table(temp)
             self.assertTrue(ds._same(ds2))
 
+    @fails_service_backend()
     def test_codecs_table(self):
         from hail.utils.java import scala_object
         supported_codecs = scala_object(Env.hail().io, 'BufferSpec').specs()
@@ -896,6 +922,7 @@ class Tests(unittest.TestCase):
             rt2 = hl.read_table(temp)
             self.assertTrue(rt._same(rt2))
 
+    @fails_service_backend()
     def test_fix3307_read_mt_wrong(self):
         mt = hl.import_vcf(resource('sample2.vcf'))
         mt = hl.split_multi_hts(mt)
@@ -951,6 +978,7 @@ class Tests(unittest.TestCase):
         self.assertEqual(mt.filter_cols(hl.missing(hl.tbool)).count_cols(), 0)
         self.assertEqual(mt.filter_entries(hl.missing(hl.tbool)).entries().count(), 0)
 
+    @fails_service_backend()
     def test_to_table_on_various_fields(self):
         mt = hl.utils.range_matrix_table(3, 4)
 
@@ -999,6 +1027,7 @@ class Tests(unittest.TestCase):
         self.assertEqual(mt.rows().r.collect(), sorted_rows)
         self.assertEqual(mt.rows().r.take(1), [sorted_rows[0]])
 
+    @fails_service_backend()
     def test_order_by(self):
         ht = hl.utils.range_table(10)
         self.assertEqual(ht.order_by('idx').idx.collect(), list(range(10)))
@@ -1009,6 +1038,7 @@ class Tests(unittest.TestCase):
         ht = hl.utils.range_table(10)
         assert ht.order_by(-ht.idx).idx.collect() == list(range(10))[::-1]
 
+    @fails_service_backend()
     def test_order_by_intervals(self):
         intervals = {0: hl.Interval(0, 3, includes_start=True, includes_end=False),
                      1: hl.Interval(0, 4, includes_start=True, includes_end=True),
@@ -1140,17 +1170,19 @@ class Tests(unittest.TestCase):
         self.assertTrue(hl.Table.parallelize([actual]),
                         hl.Table.parallelize([expected]))
 
+    @fails_service_backend()
     @fails_local_backend()
     def test_hardy_weinberg_test(self):
         mt = hl.import_vcf(resource('HWE_test.vcf'))
-        mt = mt.select_rows(**hl.agg.hardy_weinberg_test(mt.GT))
-        rt = mt.rows()
-        expected = hl.Table.parallelize([
+        mt_two_sided = mt.select_rows(**hl.agg.hardy_weinberg_test(mt.GT, one_sided=False))
+        rt_two_sided = mt_two_sided.rows()
+        expected_two_sided = hl.Table.parallelize([
             hl.struct(
                 locus=hl.locus('20', pos),
                 alleles=alleles,
                 het_freq_hwe=r,
-                p_value=p)
+                p_value=p
+            )
             for (pos, alleles, r, p) in [
                 (1, ['A', 'G'], 0.0, 0.5),
                 (2, ['A', 'G'], 0.25, 0.5),
@@ -1158,24 +1190,67 @@ class Tests(unittest.TestCase):
                 (4, ['T', 'A'], 0.5714285714285714, 0.6571428571428573),
                 (5, ['G', 'A'], 0.3333333333333333, 0.5)]],
             key=['locus', 'alleles'])
-        self.assertTrue(rt.filter(rt.locus.position != 6)._same(expected))
 
-        rt6 = rt.filter(rt.locus.position == 6).collect()[0]
-        self.assertEqual(rt6['p_value'], 0.5)
-        self.assertTrue(math.isnan(rt6['het_freq_hwe']))
+        self.assertTrue(rt_two_sided.filter(rt_two_sided.locus.position != 6)._same(expected_two_sided))
+        rt6_two_sided = rt_two_sided.filter(rt_two_sided.locus.position == 6).collect()[0]
+        self.assertEqual(rt6_two_sided['p_value'], 0.5)
+        self.assertTrue(math.isnan(rt6_two_sided['het_freq_hwe']))
+
+        mt_one_sided = mt.select_rows(**hl.agg.hardy_weinberg_test(mt.GT, one_sided=True))
+        rt_one_sided = mt_one_sided.rows()
+        expected_one_sided = hl.Table.parallelize([
+            hl.struct(
+                locus=hl.locus('20', pos),
+                alleles=alleles,
+                het_freq_hwe=r,
+                p_value=p
+            )
+            for (pos, alleles, r, p) in [
+                (1, ['A', 'G'], 0.0, 0.5),
+                (2, ['A', 'G'], 0.25, 0.5),
+                (3, ['T', 'C'], 0.5357142857142857, 0.7857142857142857),
+                (4, ['T', 'A'], 0.5714285714285714, 0.5714285714285715),
+                (5, ['G', 'A'], 0.3333333333333333, 0.5)]],
+            key=['locus', 'alleles'])
+
+        self.assertTrue(rt_one_sided.filter(rt_one_sided.locus.position != 6)._same(expected_one_sided))
+        rt6_one_sided = rt_one_sided.filter(rt_one_sided.locus.position == 6).collect()[0]
+        self.assertEqual(rt6_one_sided['p_value'], 0.5)
+        self.assertTrue(math.isnan(rt6_one_sided['het_freq_hwe']))
 
     def test_hw_func_and_agg_agree(self):
         mt = hl.import_vcf(resource('sample.vcf'))
-        mt = mt.annotate_rows(
+        mt_two_sided = mt.annotate_rows(
             stats=hl.agg.call_stats(mt.GT, mt.alleles),
-            hw=hl.agg.hardy_weinberg_test(mt.GT))
-        mt = mt.annotate_rows(
-            hw2=hl.hardy_weinberg_test(mt.stats.homozygote_count[0],
-                                       mt.stats.AC[1] - 2 * mt.stats.homozygote_count[1],
-                                       mt.stats.homozygote_count[1]))
-        rt = mt.rows()
-        self.assertTrue(rt.all(rt.hw == rt.hw2))
+            hw=hl.agg.hardy_weinberg_test(mt.GT, one_sided=False)
+        )
+        mt_two_sided = mt_two_sided.annotate_rows(
+            hw2=hl.hardy_weinberg_test(
+                mt_two_sided.stats.homozygote_count[0],
+                mt_two_sided.stats.AC[1] - 2 * mt_two_sided.stats.homozygote_count[1],
+                mt_two_sided.stats.homozygote_count[1],
+                one_sided=False
+            )
+        )
+        rt_two_sided = mt_two_sided.rows()
+        self.assertTrue(rt_two_sided.all(rt_two_sided.hw == rt_two_sided.hw2))
 
+        mt_one_sided = mt.annotate_rows(
+            stats=hl.agg.call_stats(mt.GT, mt.alleles),
+            hw=hl.agg.hardy_weinberg_test(mt.GT, one_sided=True)
+        )
+        mt_one_sided = mt_one_sided.annotate_rows(
+            hw2=hl.hardy_weinberg_test(
+                mt_one_sided.stats.homozygote_count[0],
+                mt_one_sided.stats.AC[1] - 2 * mt_one_sided.stats.homozygote_count[1],
+                mt_one_sided.stats.homozygote_count[1],
+                one_sided=True
+            )
+        )
+        rt_one_sided = mt_one_sided.rows()
+        self.assertTrue(rt_one_sided.all(rt_one_sided.hw == rt_one_sided.hw2))
+
+    @fails_service_backend()
     @fails_local_backend()
     def test_write_stage_locally(self):
         mt = self.get_mt()
@@ -1184,6 +1259,24 @@ class Tests(unittest.TestCase):
 
         mt2 = hl.read_matrix_table(f)
         self.assertTrue(mt._same(mt2))
+
+    @skip_when_service_backend('ShuffleRead non-deterministically causes segfaults')
+    def test_write_checkpoint_file(self):
+        mt = self.get_mt()
+        f = new_temp_file(extension='mt')
+        cp = new_temp_file()
+        mt.write(f, _checkpoint_file=cp)
+
+        mt2 = hl.read_matrix_table(f)
+        self.assertTrue(mt._same(mt2))
+
+    @fails_service_backend()
+    def test_write_no_parts(self):
+        mt = hl.utils.range_matrix_table(10, 10, 2).filter_rows(False)
+        path = new_temp_file(extension='mt')
+        path2 = new_temp_file(extension='mt')
+        assert mt.checkpoint(path)._same(mt)
+        hl.read_matrix_table(path, _drop_rows=True).write(path2)
 
     def test_nulls_in_distinct_joins(self):
 
@@ -1223,6 +1316,7 @@ class Tests(unittest.TestCase):
 
         self.assertTrue(matrix1.union_cols(matrix2)._same(expected))
 
+    @fails_service_backend()
     @fails_local_backend()
     def test_row_joins_into_table(self):
         rt = hl.utils.range_matrix_table(9, 13, 3)
@@ -1388,6 +1482,7 @@ class Tests(unittest.TestCase):
         assert [[x * y for x in range(0, 10)] for y in range(0, 10)] == localized.entries.collect()
         assert range(0, 10) == localized.cols.collect()
 
+    @fails_service_backend()
     @fails_local_backend()
     def test_multi_write(self):
         mt = self.get_mt()
@@ -1473,19 +1568,15 @@ class Tests(unittest.TestCase):
         mt = mt.annotate_entries(x=1)
         mt = mt.key_cols_by(col_idx=mt.col_idx + 10)
 
-        def assert_res(x):
-            expect = ('+---------+-------+\n'
-                      '| row_idx |  10.x |\n'
-                      '+---------+-------+\n'
-                      '|   int32 | int32 |\n'
-                      '+---------+-------+\n'
-                      '|       0 |     1 |\n'
-                      '+---------+-------+\n')
-            s = str(x)
-            assert s == expect
-
-        mt.show(handler=assert_res)
-
+        expected = ('+---------+-------+\n'
+                    '| row_idx |  10.x |\n'
+                    '+---------+-------+\n'
+                    '|   int32 | int32 |\n'
+                    '+---------+-------+\n'
+                    '|       0 |     1 |\n'
+                    '+---------+-------+\n')
+        actual = mt.show(handler=str)
+        assert actual == expected
 
     def test_partitioned_write(self):
         mt = hl.utils.range_matrix_table(40, 3, 5)
@@ -1526,6 +1617,7 @@ class Tests(unittest.TestCase):
         ],
                    mt.filter_rows((mt.row_idx >= 5) & (mt.row_idx < 35)))
 
+    @skip_when_service_backend('Shuffler encoding/decoding is broken.')
     def test_partitioned_write_coerce(self):
         mt = hl.import_vcf(resource('sample.vcf'))
         parts = [
@@ -1562,6 +1654,7 @@ class Tests(unittest.TestCase):
         mt.write(f)
         assert hl.read_matrix_table(f)._same(mt)
 
+    @fails_service_backend()
     @fails_local_backend()
     def test_matrix_multi_write_range(self):
         mts = [
@@ -1610,6 +1703,15 @@ def test_read_write_all_types():
     mt.write(tmp_file)
     assert hl.read_matrix_table(tmp_file)._same(mt)
 
+@fails_service_backend()
+@fails_local_backend()
+def test_read_write_balding_nichols_model():
+    mt = hl.balding_nichols_model(3, 10, 10)
+    tmp_file = new_temp_file()
+    mt.write(tmp_file)
+    assert hl.read_matrix_table(tmp_file)._same(mt)
+
+@fails_service_backend()
 @fails_local_backend()
 def test_read_partitions():
     ht = hl.utils.range_matrix_table(n_rows=100, n_cols=10, n_partitions=3)

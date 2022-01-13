@@ -1,13 +1,18 @@
 package is.hail
 
 import javax.net.ssl.SSLException
-import java.net.SocketException
+import java.net._
 import java.io.EOFException
+import is.hail.utils._
 
+import org.apache.http.NoHttpResponseException
 import org.apache.http.conn.HttpHostConnectException
 import org.apache.log4j.{LogManager, Logger}
 
 import scala.util.Random
+import java.io._
+import com.google.cloud.storage.StorageException
+import com.google.api.client.googleapis.json.GoogleJsonResponseException
 
 package object services {
   lazy val log: Logger = LogManager.getLogger("is.hail.services")
@@ -28,15 +33,29 @@ package object services {
 
   def isTransientError(e: Throwable): Boolean = {
     e match {
+      case e: NoHttpResponseException =>
+        true
       case e: ClientResponseException =>
         RETRYABLE_HTTP_STATUS_CODES.contains(e.status)
+      case e: GoogleJsonResponseException =>
+        RETRYABLE_HTTP_STATUS_CODES.contains(e.getStatusCode())
       case e: HttpHostConnectException =>
         true
+      case e: NoRouteToHostException =>
+        true
+      case e: SocketTimeoutException =>
+        true
+      case e: UnknownHostException =>
+        true
       case e: SocketException =>
-        e.getMessage.contains("Connection reset") || e.getMessage.contains("Broken pipe")
+        e.getMessage != null && (
+          e.getMessage.contains("Connection reset") ||
+            e.getMessage.contains("Broken pipe") ||
+            e.getMessage.contains("Connection refused"))
       case e: EOFException =>
-        e.getMessage.contains("SSL peer shut down incorrectly")
-      case e: SSLException =>
+        e.getMessage != null && (
+          e.getMessage.contains("SSL peer shut down incorrectly"))
+      case e @ (_: SSLException | _: StorageException | _: IOException) =>
         val cause = e.getCause
         cause != null && isTransientError(cause)
       case _ =>
@@ -62,5 +81,14 @@ package object services {
     }
 
     throw new AssertionError("unreachable")
+  }
+
+  def formatException(e: Throwable): String = {
+    using(new StringWriter()) { sw =>
+      using(new PrintWriter(sw)) { pw =>
+        e.printStackTrace(pw)
+        sw.toString
+      }
+    }
   }
 }

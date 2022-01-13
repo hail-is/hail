@@ -1,9 +1,9 @@
-from typing import Optional, Dict
-import aiohttp
+from typing import Optional, Dict, Any
 import asyncio
 
 from ..config import DeployConfig
 from . import aioclient
+from .. import httpx
 
 
 def async_to_blocking(coro):
@@ -82,6 +82,8 @@ class Job:
     # {
     #   batch_id: int
     #   job_id: int
+    #   user: str
+    #   billing_project: str
     #   name: optional(str)
     #   state: str (Ready, Running, Success, Error, Failure, Cancelled)
     #   exit_code: optional(int)
@@ -109,8 +111,8 @@ class Batch:
         b._async_batch = batch
         return b
 
-    def __init__(self, client, id, attributes, n_jobs):
-        self._async_batch: aioclient.Batch = aioclient.Batch(client, id, attributes, n_jobs)
+    def __init__(self, client, id, attributes, n_jobs, token):
+        self._async_batch: aioclient.Batch = aioclient.Batch(client, id, attributes, n_jobs, token)
 
     @property
     def id(self) -> int:
@@ -120,12 +122,22 @@ class Batch:
     def attributes(self):
         return self._async_batch.attributes
 
+    @property
+    def token(self):
+        return self._async_batch.token
+
+    @property
+    def submission_info(self):
+        return self._async_batch.submission_info
+
     def cancel(self):
         async_to_blocking(self._async_batch.cancel())
 
     # {
-    #   id: int,
+    #   id: int
+    #   user: str
     #   billing_project: str
+    #   token: str
     #   state: str, (open, failure, cancelled, success, running)
     #   complete: bool
     #   closed: bool
@@ -151,11 +163,18 @@ class Batch:
     def jobs(self, q=None):
         return agen_to_blocking(self._async_batch.jobs(q=q))
 
-    def get_job_log(self, job_id: int):
+    def get_job(self, job_id: int) -> Job:
+        j = async_to_blocking(self._async_batch.get_job(job_id))
+        return Job.from_async_job(j)
+
+    def get_job_log(self, job_id: int) -> Optional[Dict[str, Any]]:
         return async_to_blocking(self._async_batch.get_job_log(job_id))
 
     def wait(self):
         return async_to_blocking(self._async_batch.wait())
+
+    def debug_info(self):
+        return async_to_blocking(self._async_batch.debug_info())
 
     def delete(self):
         async_to_blocking(self._async_batch.delete())
@@ -168,8 +187,10 @@ class BatchBuilder:
         b._async_builder = builder
         return b
 
-    def __init__(self, client, attributes, callback):
-        self._async_builder: aioclient.BatchBuilder = aioclient.BatchBuilder(client, attributes, callback)
+    def __init__(self, client, attributes, callback, token: Optional[str] = None,
+                 cancel_after_n_failures: Optional[int] = None):
+        self._async_builder: aioclient.BatchBuilder = aioclient.BatchBuilder(client, attributes, callback, token,
+                                                                             cancel_after_n_failures)
 
     @property
     def attributes(self):
@@ -179,12 +200,17 @@ class BatchBuilder:
     def callback(self):
         return self._async_builder.callback
 
+    @property
+    def token(self):
+        return self._async_builder.token
+
     def create_job(self, image, command, env=None, mount_docker_socket=False,
                    port=None, resources=None, secrets=None,
                    service_account=None, attributes=None, parents=None,
                    input_files=None, output_files=None, always_run=False,
                    timeout=None, gcsfuse=None, requester_pays_project=None,
-                   mount_tokens=False, network: Optional[str] = None) -> Job:
+                   mount_tokens=False, network: Optional[str] = None,
+                   unconfined: bool = False, user_code: Optional[str] = None) -> Job:
         if parents:
             parents = [parent._async_job for parent in parents]
 
@@ -196,13 +222,16 @@ class BatchBuilder:
             input_files=input_files, output_files=output_files, always_run=always_run,
             timeout=timeout, gcsfuse=gcsfuse,
             requester_pays_project=requester_pays_project, mount_tokens=mount_tokens,
-            network=network)
+            network=network, unconfined=unconfined, user_code=user_code)
 
         return Job.from_async_job(async_job)
 
-    def _create(self, *args, **kwargs):
-        async_batch = async_to_blocking(self._async_builder._create(*args, **kwargs))
+    def _open_batch(self) -> Batch:
+        async_batch = async_to_blocking(self._async_builder._open_batch())
         return Batch.from_async_batch(async_batch)
+
+    def _close_batch(self, id: int):
+        async_to_blocking(self._async_builder._close_batch(id))
 
     def submit(self, *args, **kwargs) -> Batch:
         async_batch = async_to_blocking(self._async_builder.submit(*args, **kwargs))
@@ -213,11 +242,11 @@ class BatchClient:
     def __init__(self,
                  billing_project: str,
                  deploy_config: Optional[DeployConfig] = None,
-                 session: Optional[aiohttp.ClientSession] = None,
+                 session: Optional[httpx.ClientSession] = None,
                  headers: Optional[Dict[str, str]] = None,
                  _token: Optional[str] = None):
-        self._async_client = aioclient.BatchClient(
-            billing_project, deploy_config, session, headers=headers, _token=_token)
+        self._async_client = async_to_blocking(aioclient.BatchClient.create(
+            billing_project, deploy_config, session, headers=headers, _token=_token))
 
     @property
     def billing_project(self):
@@ -231,16 +260,26 @@ class BatchClient:
         j = async_to_blocking(self._async_client.get_job(batch_id, job_id))
         return Job.from_async_job(j)
 
-    def get_job_log(self, batch_id, job_id):
+    def get_job_log(self, batch_id, job_id) -> Optional[Dict[str, Any]]:
         log = async_to_blocking(self._async_client.get_job_log(batch_id, job_id))
         return log
+
+    def get_job_attempts(self, batch_id, job_id):
+        attempts = async_to_blocking(self._async_client.get_job_attempts(batch_id, job_id))
+        return attempts
 
     def get_batch(self, id):
         b = async_to_blocking(self._async_client.get_batch(id))
         return Batch.from_async_batch(b)
 
-    def create_batch(self, attributes=None, callback=None):
-        builder = self._async_client.create_batch(attributes=attributes, callback=callback)
+    def create_batch(self,
+                     attributes=None,
+                     callback=None,
+                     token=None,
+                     cancel_after_n_failures=None
+                     ) -> 'BatchBuilder':
+        builder = self._async_client.create_batch(attributes=attributes, callback=callback, token=token,
+                                                  cancel_after_n_failures=cancel_after_n_failures)
         return BatchBuilder.from_async_builder(builder)
 
     def get_billing_project(self, billing_project):
@@ -272,3 +311,9 @@ class BatchClient:
 
     def close(self):
         async_to_blocking(self._async_client.close())
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.close()

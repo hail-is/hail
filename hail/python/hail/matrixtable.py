@@ -805,6 +805,21 @@ class MatrixTable(ExprContainer):
                     key_fields
                 )))
 
+    @typecheck_method(new_key=str)
+    def _key_rows_by_assert_sorted(self, *new_key):
+        rk_names = list(self.row_key)
+        i = 0
+        while (i < min(len(new_key), len(rk_names))):
+            if new_key[i] != rk_names[i]:
+                break
+            i += 1
+
+        if i < 1:
+            raise ValueError(
+                f'cannot implement an unsafe sort with no shared key:\n  new key: {new_key}\n  old key: {rk_names}')
+
+        return MatrixTable(ir.MatrixKeyRowsBy(self._mir, list(new_key), is_sorted=True))
+
     @typecheck_method(keys=oneof(str, Expression),
                       named_keys=expr_any)
     def key_rows_by(self, *keys, **named_keys) -> 'MatrixTable':
@@ -1984,7 +1999,7 @@ class MatrixTable(ExprContainer):
 
         agg_ir = ir.TableAggregate(ir.MatrixRowsTable(base._mir), subst_query)
         if _localize:
-            return Env.backend().execute(agg_ir)
+            return Env.backend().execute(ir.MakeTuple([agg_ir]))[0]
         else:
             return construct_expr(ir.LiftMeOut(agg_ir), expr.dtype)
 
@@ -2034,7 +2049,7 @@ class MatrixTable(ExprContainer):
 
         agg_ir = ir.TableAggregate(ir.MatrixColsTable(base._mir), subst_query)
         if _localize:
-            return Env.backend().execute(agg_ir)
+            return Env.backend().execute(ir.MakeTuple([agg_ir]))[0]
         else:
             return construct_expr(ir.LiftMeOut(agg_ir), expr.dtype)
 
@@ -2492,9 +2507,10 @@ class MatrixTable(ExprContainer):
                       overwrite=bool,
                       stage_locally=bool,
                       _codec_spec=nullable(str),
-                      _partitions=nullable(expr_any))
+                      _partitions=nullable(expr_any),
+                      _checkpoint_file=nullable(str))
     def write(self, output: str, overwrite: bool = False, stage_locally: bool = False,
-              _codec_spec: Optional[str] = None, _partitions=None):
+              _codec_spec: Optional[str] = None, _partitions=None, _checkpoint_file=None):
         """Write to disk.
 
         Examples
@@ -2524,7 +2540,7 @@ class MatrixTable(ExprContainer):
         else:
             _partitions_type = None
 
-        writer = ir.MatrixNativeWriter(output, overwrite, stage_locally, _codec_spec, _partitions, _partitions_type)
+        writer = ir.MatrixNativeWriter(output, overwrite, stage_locally, _codec_spec, _partitions, _partitions_type, _checkpoint_file)
         Env.backend().execute(ir.MatrixWrite(self._mir, writer))
 
     class _Show:
@@ -2625,7 +2641,7 @@ class MatrixTable(ExprContainer):
             **entries)
         if handler is None:
             handler = default_handler()
-        handler(MatrixTable._Show(t, n_rows, actual_n_cols, displayed_n_cols, width, truncate, types))
+        return handler(MatrixTable._Show(t, n_rows, actual_n_cols, displayed_n_cols, width, truncate, types))
 
     def globals_table(self) -> Table:
         """Returns a table with a single row with the globals of the matrix table.
@@ -2701,6 +2717,21 @@ class MatrixTable(ExprContainer):
         Extract the entry table:
 
         >>> entries_table = dataset.entries()
+
+        Notes
+        -----
+        The coordinate table representation of the source matrix table contains
+        one row for each **non-filtered** entry of the matrix -- if a matrix table
+        has no filtered entries and contains N rows and M columns, the table will contain
+        ``M * N`` rows, which can be **a very large number**.
+
+        This representation can be useful for aggregating over both axes of a matrix table
+        at the same time -- it is not possible to aggregate over a matrix table using
+        :meth:`group_rows_by` and :meth:`group_cols_by` at the same time (aggregating
+        by population and chromosome from a variant-by-sample genetics representation,
+        for instance). After moving to the coordinate representation with :meth:`entries`,
+        it is possible to group and aggregate the resulting table much more flexibly,
+        albeit with potentially poorer computational performance.
 
         Warning
         -------
@@ -3669,15 +3700,15 @@ class MatrixTable(ExprContainer):
 
         return MatrixTable(ir.MatrixUnionCols(self._mir, other._mir, row_join_type))
 
-    @typecheck_method(n=nullable(int), n_cols=nullable(int))
-    def head(self, n: Optional[int], n_cols: Optional[int] = None) -> 'MatrixTable':
-        """Subset matrix to first `n` rows.
+    @typecheck_method(n_rows=nullable(int), n_cols=nullable(int), n=nullable(int))
+    def head(self, n_rows: Optional[int], n_cols: Optional[int] = None, *, n: Optional[int] = None) -> 'MatrixTable':
+        """Subset matrix to first `n_rows` rows and `n_cols` cols.
 
         Examples
         --------
         >>> mt_range = hl.utils.range_matrix_table(100, 100)
 
-        Passing only one argument will take the first `n` rows:
+        Passing only one argument will take the first `n_rows` rows:
 
         >>> mt_range.head(10).count()
         (10, 100)
@@ -3701,29 +3732,38 @@ class MatrixTable(ExprContainer):
 
         Notes
         -----
-        For backwards compatibility, the `n` parameter is not named `n_rows`,
-        but the parameter refers to the number of rows to keep.
-
         The number of partitions in the new matrix is equal to the number of
-        partitions containing the first `n` rows.
+        partitions containing the first `n_rows` rows.
 
         Parameters
         ----------
-        n : :obj:`int`
+        n_rows : :obj:`int`
             Number of rows to include (all rows included if ``None``).
         n_cols : :obj:`int`, optional
             Number of cols to include (all cols included if ``None``).
+        n : :obj:`int`
+            Deprecated in favor of n_rows.
 
         Returns
         -------
         :class:`.MatrixTable`
-            Matrix including the first `n` rows and first `n_cols` cols.
+            Matrix including the first `n_rows` rows and first `n_cols` cols.
+
         """
+        if n_rows is not None and n is not None:
+            raise ValueError('Both n and n_rows specified. Only one may be specified.')
+
+        if n_rows is not None:
+            n_rows_name = 'n_rows'
+        else:
+            n_rows = n
+            n_rows_name = 'n'
+
         mt = self
-        if n is not None:
-            if n < 0:
-                raise ValueError(f"MatrixTable.head: expect 'n' to be non-negative or None, found '{n}'")
-            mt = MatrixTable(ir.MatrixRowsHead(mt._mir, n))
+        if n_rows is not None:
+            if n_rows < 0:
+                raise ValueError(f"MatrixTable.head: expect '{n_rows_name}' to be non-negative or None, found '{n_rows}'")
+            mt = MatrixTable(ir.MatrixRowsHead(mt._mir, n_rows))
         if n_cols is not None:
             if n_cols < 0:
                 raise ValueError(f"MatrixTable.head: expect 'n_cols' to be non-negative or None, found '{n_cols}'")
@@ -4112,13 +4152,9 @@ class MatrixTable(ExprContainer):
     def _write_block_matrix(self, path, overwrite, entry_field, block_size):
         mt = self
         mt = mt._select_all(entry_exprs={entry_field: mt[entry_field]})
-        Env.backend().execute(ir.MatrixToValueApply(
-            mt._mir,
-            {'name': 'MatrixWriteBlockMatrix',
-             'path': path,
-             'overwrite': overwrite,
-             'entryField': entry_field,
-             'blockSize': block_size}))
+
+        writer = ir.MatrixBlockMatrixWriter(path, overwrite, entry_field, block_size)
+        Env.backend().execute(ir.MatrixWrite(self._mir, writer))
 
     def _calculate_new_partitions(self, n_partitions):
         """returns a set of range bounds that can be passed to write"""

@@ -1,9 +1,9 @@
 package is.hail.types.physical
 
 import is.hail.asm4s._
-import is.hail.annotations.CodeOrdering
 import is.hail.annotations.{UnsafeOrdering, _}
-import is.hail.expr.ir.{EmitMethodBuilder, EmitCodeBuilder}
+import is.hail.expr.ir.orderings.{CodeOrdering, CodeOrderingCompareConsistentWithOthers}
+import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder}
 import is.hail.types.physical.stypes.interfaces.{SStringCode, SStringValue}
 import is.hail.types.virtual.TString
 
@@ -12,20 +12,7 @@ abstract class PString extends PType {
 
   override def unsafeOrdering(): UnsafeOrdering = PCanonicalBinary(required).unsafeOrdering()
 
-  def codeOrdering(mb: EmitMethodBuilder[_], other: PType): CodeOrdering = {
-    assert(this isOfType other)
-    new CodeOrderingCompareConsistentWithOthers {
-      val ord = PCanonicalBinary(required).codeOrdering(mb, PCanonicalBinary(other.required))
-      def compareNonnull(cb: EmitCodeBuilder, x: PCode, y: PCode): Code[Int] =
-        ord.compareNonnull(cb, x.asString.asBytes(), y.asString.asBytes())
-    }
-  }
-
-  protected val binaryFundamentalType: PBinary
-  override lazy val fundamentalType: PBinary = binaryFundamentalType
-
-  protected val binaryEncodableType: PBinary
-  override lazy val encodableType: PBinary = binaryFundamentalType
+  val binaryRepresentation: PBinary
 
   def loadLength(boff: Long): Int
 
@@ -37,17 +24,5 @@ abstract class PString extends PType {
 
   def allocateAndStoreString(region: Region, str: String): Long
 
-  def allocateAndStoreString(mb: EmitMethodBuilder[_], region: Value[Region], str: Code[String]): Code[Long]
-}
-
-abstract class PStringCode extends PCode with SStringCode {
-  def pt: PString
-
-  def asBytes(): PBinaryCode
-}
-
-abstract class PStringValue extends PValue with SStringValue {
-  def pt: PString
-
-  def get: PStringCode
+  def allocateAndStoreString(cb: EmitCodeBuilder, region: Value[Region], str: Code[String]): Value[Long]
 }

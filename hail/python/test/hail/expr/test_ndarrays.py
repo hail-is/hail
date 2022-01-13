@@ -1,6 +1,5 @@
 import numpy as np
 from ..helpers import *
-import tempfile
 import pytest
 
 from hail.utils.java import FatalError, HailUserError
@@ -27,6 +26,7 @@ def assert_ndarrays_almost_eq(*expr_and_expected):
     assert_ndarrays(np.allclose, expr_and_expected)
 
 
+@fails_service_backend()
 def test_ndarray_ref():
 
     scalar = 5.0
@@ -59,9 +59,10 @@ def test_ndarray_ref():
 
     with pytest.raises(HailUserError) as exc:
         hl.eval(hl.nd.array([1, 2, 3])[4])
-    assert "Index 4 is out of bounds for axis 0 with size 3" in str(exc)
+    assert "Index 4 is out of bounds for axis 0 with size 3" in str(exc.value)
 
 
+@fails_service_backend()
 def test_ndarray_slice():
     np_rect_prism = np.arange(24).reshape((2, 3, 4))
     rect_prism = hl.nd.array(np_rect_prism)
@@ -72,7 +73,8 @@ def test_ndarray_slice():
     a = [0, 1]
     an = np.array(a)
     ah = hl.nd.array(a)
-
+    ae_np = np.arange(4*4*5*6*5*4).reshape((4, 4, 5, 6, 5, 4))
+    ae = hl.nd.array(ae_np)
     assert_ndarrays_eq(
         (rect_prism[:, :, :], np_rect_prism[:, :, :]),
         (rect_prism[:, :, 1], np_rect_prism[:, :, 1]),
@@ -86,7 +88,26 @@ def test_ndarray_slice():
          np_rect_prism[0:, :, 1:4:2] + np_rect_prism[:, :1, 1:4:2]),
         (rect_prism[0, 0, -3:-1], np_rect_prism[0, 0, -3:-1]),
         (rect_prism[-1, 0:1, 3:0:-1], np_rect_prism[-1, 0:1, 3:0:-1]),
-
+        # partial indexing
+        (rect_prism[1], np_rect_prism[1]),
+        (rect_prism[1:2], np_rect_prism[1:2]),
+        (rect_prism[1:2:2], np_rect_prism[1:2:2]),
+        (rect_prism[1, 2], np_rect_prism[1, 2]),
+        (rect_prism[-1, 1:2:2], np_rect_prism[-1, 1:2:2]),
+        # ellipses inclusion
+        (rect_prism[...], np_rect_prism[...]),
+        (rect_prism[1, ...], np_rect_prism[1, ...]),
+        (rect_prism[..., 1], np_rect_prism[..., 1]),
+        # np.newaxis inclusion
+        (rect_prism[hl.nd.newaxis, :, :], np_rect_prism[np.newaxis, :, :]),
+        (rect_prism[hl.nd.newaxis], np_rect_prism[np.newaxis]),
+        (rect_prism[hl.nd.newaxis, np.newaxis, np.newaxis], np_rect_prism[np.newaxis, np.newaxis, np.newaxis]),
+        (rect_prism[hl.nd.newaxis, np.newaxis, 1:4:2], np_rect_prism[np.newaxis, np.newaxis, 1:4:2]),
+        (rect_prism[1, :, hl.nd.newaxis], np_rect_prism[1, :, np.newaxis]),
+        (rect_prism[1, hl.nd.newaxis, 1], np_rect_prism[1, np.newaxis, 1]),
+        (rect_prism[..., hl.nd.newaxis, 1], np_rect_prism[..., np.newaxis, 1]),
+    )
+    assert_ndarrays_eq(
         (flat[15:5:-1], np_flat[15:5:-1]),
         (flat[::-1], np_flat[::-1]),
         (flat[::22], np_flat[::22]),
@@ -97,6 +118,9 @@ def test_ndarray_slice():
         (flat[4:1:-2], np_flat[4:1:-2]),
         (flat[0:0:1], np_flat[0:0:1]),
         (flat[-4:-1:2], np_flat[-4:-1:2]),
+        # ellipses inclusion
+        (flat[...], np_flat[...]),
+
 
         (mat[::-1, :], np_mat[::-1, :]),
         (mat[0, 1:4:2] + mat[:, 1:4:2], np_mat[0, 1:4:2] + np_mat[:, 1:4:2]),
@@ -127,11 +151,24 @@ def test_ndarray_slice():
         (mat[:-5:-1, 0], np_mat[:-5:-1, 0]),
         (mat[0:-5, 0], np_mat[0:-5, 0]),
         (mat[0:-5:-1, 0], np_mat[0:-5:-1, 0]),
+        # partial indexing
+        (mat[1], np_mat[1]),
+        (mat[0:1], np_mat[0:1]),
+        # ellipses inclusion
+        (mat[...], np_mat[...]),
 
         (ah[:-3:1], an[:-3:1]),
         (ah[:-3:-1], an[:-3:-1]),
         (ah[-3::-1], an[-3::-1]),
-        (ah[-3::1], an[-3::1])
+        (ah[-3::1], an[-3::1]),
+
+        # ellipses inclusion
+        (ae[..., 3], ae_np[..., 3]),
+        (ae[3, ...], ae_np[3, ...]),
+        (ae[2, 3, 1:2:2, ...], ae_np[2, 3, 1:2:2, ...]),
+        (ae[3, 2, 3, ..., 2], ae_np[3, 2, 3, ..., 2]),
+        (ae[3, 2, 2, ..., 2, 1:2:2], ae_np[3, 2, 2, ..., 2, 1:2:2]),
+        (ae[3, :, hl.nd.newaxis, ..., :, hl.nd.newaxis, 2], ae_np[3, :, np.newaxis, ..., :, np.newaxis, 2])
     )
 
     assert hl.eval(flat[hl.missing(hl.tint32):4:1]) is None
@@ -149,6 +186,12 @@ def test_ndarray_slice():
     with pytest.raises(HailUserError, match="Index -4 is out of bounds for axis 0 with size 2"):
         hl.eval(mat[-4, 0:3])
 
+    with pytest.raises(IndexError, match="an index can only have a single ellipsis"):
+        hl.eval(rect_prism[..., ...])
+
+    with pytest.raises(IndexError, match="too many indices for array: array is 3-dimensional, but 4 were indexed"):
+        hl.eval(rect_prism[1, 1, 1, 1])
+
 
 def test_ndarray_transposed_slice():
     a = hl.nd.array([[1, 2, 3, 4, 5], [6, 7, 8, 9, 10]])
@@ -161,6 +204,7 @@ def test_ndarray_transposed_slice():
     )
 
 
+@fails_service_backend()
 def test_ndarray_eval():
     data_list = [[1, 2, 3], [4, 5, 6], [7, 8, 9]]
     mishapen_data_list1 = [[4], [1, 2, 3]]
@@ -173,9 +217,7 @@ def test_ndarray_eval():
     np_equiv_fortran_style = np.asfortranarray(np_equiv)
     np_equiv_extra_dimension = np_equiv.reshape((3, 1, 3))
     assert(np.array_equal(evaled, np_equiv))
-    assert(evaled.strides == np_equiv.strides)
 
-    assert hl.eval(hl.nd.array([[], []])).strides == (8, 8)
     assert np.array_equal(hl.eval(hl.nd.array([])), np.array([]))
 
     zero_array = np.zeros((10, 10), dtype=np.int64)
@@ -214,6 +256,9 @@ def test_ndarray_eval():
     with pytest.raises(ValueError) as exc:
         hl.nd.array(mishapen_data_list3)
     assert "inner dimensions do not match" in str(exc.value)
+
+    with pytest.raises(HailUserError) as exc:
+        hl.eval(hl.nd.array([1, hl.missing(hl.tint32), 3]))
 
 
 def test_ndarray_shape():
@@ -288,53 +333,56 @@ def test_ndarray_reshape():
     assert hl.eval(hl.nd.array(hl.range(20)).reshape(
         hl.missing(hl.ttuple(hl.tint64, hl.tint64)))) is None
 
-    with pytest.raises(FatalError) as exc:
+    with pytest.raises(HailUserError) as exc:
         hl.eval(hl.literal(np_cube).reshape((-1, -1)))
-    assert "more than one -1" in str(exc)
+    assert "more than one -1" in str(exc.value)
 
-    with pytest.raises(FatalError) as exc:
+    with pytest.raises(HailUserError) as exc:
         hl.eval(hl.literal(np_cube).reshape((20,)))
-    assert "requested shape is incompatible with number of elements" in str(exc)
+    assert "requested shape is incompatible with number of elements" in str(exc.value)
 
-    with pytest.raises(FatalError) as exc:
+    with pytest.raises(HailUserError) as exc:
         hl.eval(a.reshape((3,)))
-    assert "requested shape is incompatible with number of elements" in str(exc)
+    assert "requested shape is incompatible with number of elements" in str(exc.value)
 
-    with pytest.raises(FatalError) as exc:
+    with pytest.raises(HailUserError) as exc:
         hl.eval(a.reshape(()))
-    assert "requested shape is incompatible with number of elements" in str(exc)
+    assert "requested shape is incompatible with number of elements" in str(exc.value)
 
-    with pytest.raises(FatalError) as exc:
+    with pytest.raises(HailUserError) as exc:
         hl.eval(hl.literal(np_cube).reshape((0, 2, 2)))
-    assert "requested shape is incompatible with number of elements" in str(exc)
+    assert "requested shape is incompatible with number of elements" in str(exc.value)
 
-    with pytest.raises(FatalError) as exc:
+    with pytest.raises(HailUserError) as exc:
         hl.eval(hl.literal(np_cube).reshape((2, 2, -2)))
-    assert "must contain only nonnegative numbers or -1" in str(exc)
+    assert "must contain only nonnegative numbers or -1" in str(exc.value)
 
-    with pytest.raises(FatalError) as exc:
+    with pytest.raises(HailUserError) as exc:
         hl.eval(shape_zero.reshape((0, -1)))
-    assert "Can't reshape" in str(exc)
+    assert "Can't reshape" in str(exc.value)
 
     with pytest.raises(TypeError):
         a.reshape(hl.tuple(['4', '5']))
 
 
-def test_ndarray_map():
+def test_ndarray_map1():
     a = hl.nd.array([[2, 3, 4], [5, 6, 7]])
     b = hl.map(lambda x: -x, a)
+    b2 = b.map(lambda x: x * x)
     c = hl.map(lambda x: True, a)
 
     assert_ndarrays_eq(
         (b, [[-2, -3, -4], [-5, -6, -7]]),
+        (b2, [[4, 9, 16], [25, 36, 49]]),
         (c, [[True, True, True],
              [True, True, True]]))
 
     assert hl.eval(hl.missing(hl.tndarray(hl.tfloat, 1)).map(lambda x: x * 2)) is None
 
-    s = hl.nd.array(["hail", "is", "great"])
-    s_lens = s.map(lambda e: hl.len(e))
-    assert np.array_equal(hl.eval(s_lens), np.array([4, 2, 5]))
+    # NDArrays don't correctly support elements that contain pointers at the moment.
+    # s = hl.nd.array(["hail", "is", "great"])
+    # s_lens = s.map(lambda e: hl.len(e))
+    # assert np.array_equal(hl.eval(s_lens), np.array([4, 2, 5]))
 
     structs = hl.nd.array([hl.struct(x=5, y=True), hl.struct(x=9, y=False)])
     assert np.array_equal(hl.eval(structs.map(lambda e: e.y)), np.array([True, False]))
@@ -369,11 +417,11 @@ def test_ndarray_map2():
         (b + na, np.array(a + b)),
         (nx + y, x + y),
         (ncube1 + cube2, cube1 + cube2),
-
-        # Addition
         (na + na, np.array(a + a)),
         (nx + ny, x + y),
         (ncube1 + ncube2, cube1 + cube2),
+        (nx.map2(y, lambda c, d: c+d), x + y),
+        (ncube1.map2(cube2, lambda c, d: c+d), cube1 + cube2),
         # Broadcasting
         (ncube1 + na, cube1 + a),
         (na + ncube1, a + cube1),
@@ -381,6 +429,9 @@ def test_ndarray_map2():
         (ny + ncube1, y + cube1),
         (nrow_vec + ncube1, row_vec + cube1),
         (ncube1 + nrow_vec, cube1 + row_vec),
+        (ncube1.map2(na, lambda c, d: c+d), cube1 + a),
+        (nrow_vec.map2(ncube1, lambda c, d: c+d), row_vec + cube1),
+
 
         # Subtraction
         (na - na, np.array(a - a)),
@@ -408,6 +459,7 @@ def test_ndarray_map2():
         (ncube1 * nrow_vec, cube1 * row_vec),
         (nrow_vec * ncube1, row_vec * cube1),
 
+
         # Floor div
         (na // na, np.array(a // a)),
         (nx // nx, x // x),
@@ -420,7 +472,8 @@ def test_ndarray_map2():
         (ncube1 // ny, cube1 // y),
         (ny // ncube1, y // cube1),
         (ncube1 // nrow_vec, cube1 // row_vec),
-        (nrow_vec // ncube1, row_vec // cube1))
+        (nrow_vec // ncube1, row_vec // cube1)
+    )
 
     # Division
     assert_ndarrays_almost_eq(
@@ -445,45 +498,28 @@ def test_ndarray_map2():
     assert hl.eval(missing + present) is None
     assert hl.eval(present + missing) is None
 
-
-@skip_unless_spark_backend()
-@run_with_cxx_compile()
-def test_ndarray_to_numpy():
-    nd = np.array([[1, 2, 3], [4, 5, 6]])
-    np.array_equal(hl.nd.array(nd).to_numpy(), nd)
-
-
-@skip_unless_spark_backend()
-@run_with_cxx_compile()
-def test_ndarray_save():
-    arrs = [
-        np.array([[[1, 2, 3], [4, 5, 6]],
-                  [[7, 8, 9], [10, 11, 12]]], dtype=np.int32),
-        np.array([[1, 2, 3], [4, 5, 6]], dtype=np.int64),
-        np.array(3.0, dtype=np.float32),
-        np.array([3.0], dtype=np.float64),
-        np.array([True, False, True, True])
-    ]
-
-    for expected in arrs:
-        with tempfile.NamedTemporaryFile(suffix='.npy') as f:
-            hl.nd.array(expected).save(f.name)
-            actual = np.load(f.name)
-
-            assert expected.dtype == actual.dtype, f'expected: {expected.dtype}, actual: {actual.dtype}'
-            assert np.array_equal(expected, actual)
-
-
-@skip_unless_spark_backend()
-@run_with_cxx_compile()
 def test_ndarray_sum():
     np_m = np.array([[1, 2], [3, 4]])
     m = hl.nd.array(np_m)
 
-    assert_all_eval_to(
+    assert_ndarrays_eq(
         (m.sum(axis=0), np_m.sum(axis=0)),
         (m.sum(axis=1), np_m.sum(axis=1)),
-        (m.sum(), np_m.sum()))
+        (m.sum(tuple([])), np_m.sum(tuple([]))))
+
+    assert hl.eval(m.sum()) == 10
+    assert hl.eval(m.sum((0, 1))) == 10
+
+    bool_nd = hl.nd.array([[True, False, True], [False, True, True]])
+    assert hl.eval(bool_nd.sum()) == 4
+
+    with pytest.raises(ValueError) as exc:
+        m.sum(3)
+    assert "out of bounds for ndarray of dimension 2" in str(exc.value)
+
+    with pytest.raises(ValueError) as exc:
+        m.sum((1, 1))
+    assert "duplicate" in str(exc.value)
 
 
 def test_ndarray_transpose():
@@ -600,14 +636,30 @@ def test_ndarray_matmul():
     with pytest.raises(ValueError):
         cube @ hl.nd.array(5)
 
-    with pytest.raises(FatalError) as exc:
+    with pytest.raises(HailUserError) as exc:
         hl.eval(r @ r)
-    assert "Matrix dimensions incompatible: 3 2" in str(exc)
+    assert "Matrix dimensions incompatible: (2, 3) can't be multiplied by matrix with dimensions (2, 3)" in str(exc.value), str(exc.value)
 
-    with pytest.raises(FatalError) as exc:
+    with pytest.raises(HailUserError) as exc:
         hl.eval(hl.nd.array([1, 2]) @ hl.nd.array([1, 2, 3]))
-    assert "Matrix dimensions incompatible" in str(exc)
+    assert "Matrix dimensions incompatible" in str(exc.value)
 
+def test_ndarray_matmul_dgemv():
+    np_mat_3_4 = np.arange(12, dtype=np.float64).reshape((3, 4))
+    np_mat_4_3 = np.arange(12, dtype=np.float64).reshape((4, 3))
+    np_vec_3 = np.array([4, 2, 7], dtype=np.float64)
+    np_vec_4 = np.array([9, 17, 3, 1], dtype=np.float64)
+
+    mat_3_4 = hl.nd.array(np_mat_3_4)
+    mat_4_3 = hl.nd.array(np_mat_4_3)
+    vec_3 = hl.nd.array(np_vec_3)
+    vec_4 = hl.nd.array(np_vec_4)
+
+    assert_ndarrays_eq(
+        (mat_3_4 @ vec_4, np_mat_3_4 @ np_vec_4),
+        (mat_4_3 @ vec_3, np_mat_4_3 @ np_vec_3),
+        (mat_3_4.T @ vec_3, np_mat_3_4.T @ np_vec_3)
+    )
 
 def test_ndarray_big():
     assert hl.eval(hl.nd.array(hl.range(100_000))).size == 100_000
@@ -635,9 +687,9 @@ def test_ndarray_arange():
         (hl.nd.arange(2, 47, 13), np.arange(2, 47, 13))
     )
 
-    with pytest.raises(FatalError) as exc:
+    with pytest.raises(HailUserError) as exc:
         hl.eval(hl.nd.arange(5, 20, 0))
-    assert "Array range cannot have step size 0" in str(exc)
+    assert "Array range cannot have step size 0" in str(exc.value)
 
 
 def test_ndarray_mixed():
@@ -666,7 +718,40 @@ def test_ndarray_diagonal():
 
     with pytest.raises(AssertionError) as exc:
         hl.nd.diagonal(hl.nd.array([1, 2]))
-    assert "2 dimensional" in str(exc)
+    assert "2 dimensional" in str(exc.value)
+
+
+def test_ndarray_solve_triangular():
+    a = hl.nd.array([[1, 1], [0, 1]])
+    b = hl.nd.array([2, 1])
+    b2 = hl.nd.array([[11, 5], [6, 3]])
+
+    a_low = hl.nd.array([[4, 0], [2, 1]])
+    b_low = hl.nd.array([4, 5])
+
+    a_sing = hl.nd.array([[0, 1], [0, 1]])
+    b_sing = hl.nd.array([2, 2])
+
+    assert np.allclose(hl.eval(hl.nd.solve_triangular(a, b)), np.array([1., 1.]))
+    assert np.allclose(hl.eval(hl.nd.solve_triangular(a, b2)), np.array([[5., 2.], [6., 3.]]))
+    assert np.allclose(hl.eval(hl.nd.solve_triangular(a_low, b_low, True)), np.array([[1., 3.]]))
+    with pytest.raises(HailUserError) as exc:
+        hl.eval(hl.nd.solve_triangular(a_sing, b_sing))
+    assert "singular" in str(exc.value), str(exc.value)
+
+
+def test_ndarray_solve():
+    a = hl.nd.array([[1, 2], [3, 5]])
+    b = hl.nd.array([1, 2])
+    b2 = hl.nd.array([[1, 8], [2, 12]])
+
+    assert np.allclose(hl.eval(hl.nd.solve(a, b)), np.array([-1., 1.]))
+    assert np.allclose(hl.eval(hl.nd.solve(a, b2)), np.array([[-1., -16.], [1, 12]]))
+    assert np.allclose(hl.eval(hl.nd.solve(a.T, b2.T)), np.array([[19., 26.], [-6, -8]]))
+
+    with pytest.raises(HailUserError) as exc:
+        hl.eval(hl.nd.solve(hl.nd.array([[1, 2], [1, 2]]), hl.nd.array([8, 10])))
+    assert "singular" in str(exc.value), str(exc.value)
 
 
 def test_ndarray_qr():
@@ -729,6 +814,16 @@ def test_ndarray_qr():
 
     assert_same_qr(identity4, np_identity4)
 
+    np_size_zero_n = np.zeros((10, 0))
+    size_zero_n = hl.nd.zeros((10, 0))
+
+    assert_same_qr(size_zero_n, np_size_zero_n)
+
+    np_size_zero_m = np.zeros((0, 10))
+    size_zero_m = hl.nd.zeros((0, 10))
+
+    assert_same_qr(size_zero_m, np_size_zero_m)
+
     np_all3 = np.full((3, 3), 3)
     all3 = hl.nd.full((3, 3), 3)
 
@@ -768,11 +863,11 @@ def test_ndarray_qr():
 
     with pytest.raises(ValueError) as exc:
         hl.nd.qr(wiki_example, mode="invalid")
-    assert "Unrecognized mode" in str(exc)
+    assert "Unrecognized mode" in str(exc.value)
 
     with pytest.raises(AssertionError) as exc:
         hl.nd.qr(hl.nd.arange(6))
-    assert "requires 2 dimensional" in str(exc)
+    assert "requires 2 dimensional" in str(exc.value)
 
 
 def test_svd():
@@ -1006,13 +1101,11 @@ def test_hstack():
 
 def test_eye():
     for i in range(13):
-        for y in range(13):
-            assert(np.array_equal(hl.eval(hl.nd.eye(i, y)), np.eye(i, y)))
+        assert_ndarrays_eq(*[(hl.nd.eye(i, y), np.eye(i, y)) for y in range(13)])
 
 
 def test_identity():
-    for i in range(13):
-        assert(np.array_equal(hl.eval(hl.nd.identity(i)), np.identity(i)))
+    assert_ndarrays_eq(*[(hl.nd.identity(i), np.identity(i)) for i in range(13)])
 
 
 def test_agg_ndarray_sum():
@@ -1039,4 +1132,59 @@ def test_agg_ndarray_sum():
         mismatched = hl.utils.range_table(5)
         mismatched = mismatched.annotate(x=hl.nd.ones((mismatched.idx,)))
         mismatched.aggregate(hl.agg.ndarray_sum(mismatched.x))
-    assert "Can't sum" in str(exc)
+    assert "Can't sum" in str(exc.value)
+
+
+def test_maximum_minimuim():
+    x = np.arange(4)
+    y = np.array([7, 0, 2, 4])
+    z = [5, 2, 3, 1]
+    nan_elem = np.array([1.0, float("nan"), 3.0, 6.0])
+    f = np.array([1.0, 3.0, 6.0, 4.0])
+    nx = hl.nd.array(x)
+    ny = hl.nd.array(y)
+    nf = hl.nd.array(f)
+    ndnan_elem = hl.nd.array([1.0, hl.float64(float("NaN")), 3.0, 6.0])
+
+    assert_ndarrays_eq(
+        (hl.nd.maximum(nx, ny), np.maximum(x, y)),
+        (hl.nd.maximum(ny, z), np.maximum(y, z)),
+        (hl.nd.minimum(nx, ny), np.minimum(x, y)),
+         (hl.nd.minimum(ny, z), np.minimum(y, z)),
+    )
+
+    np_nan_max = np.maximum(nan_elem, f)
+    nan_max = hl.eval(hl.nd.maximum(ndnan_elem, nf))
+    np_nan_min = np.minimum(nan_elem, f)
+    nan_min = hl.eval(hl.nd.minimum(ndnan_elem, nf))
+    max_matches = 0
+    min_matches = 0
+    for a, b in zip(np_nan_max, nan_max):
+        if a == b:
+            max_matches += 1
+        elif np.isnan(a) and np.isnan(b):
+            max_matches += 1
+    for a, b in zip(np_nan_min, nan_min):
+        if a == b:
+            min_matches += 1
+        elif np.isnan(a) and np.isnan(b):
+            min_matches += 1
+
+    assert(nan_max.size == max_matches)
+    assert(nan_min.size == min_matches)
+
+def test_ndarray_broadcasting_with_decorator():
+    nd = hl.nd.array([[1, 4, 9], [16, 25, 36]])
+    nd_sqrt = hl.eval(hl.nd.array([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]))
+    nd = hl.eval(hl.sqrt(nd))
+    assert(np.array_equal(nd, nd_sqrt))
+
+    nd = hl.nd.array([[10, 100, 1000], [10000, 100000, 1000000]])
+    nd_log10 = hl.eval(hl.nd.array([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]))
+    nd = hl.eval(hl.log10(nd))
+    assert(np.array_equal(nd, nd_log10))
+
+    nd = hl.nd.array([[1.2, 2.3, 3.3], [4.3, 5.3, 6.3]])
+    nd_floor = hl.eval(hl.nd.array([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]))
+    nd = hl.eval(hl.floor(nd))
+    assert(np.array_equal(nd, nd_floor))

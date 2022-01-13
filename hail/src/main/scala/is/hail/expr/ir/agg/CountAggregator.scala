@@ -1,42 +1,47 @@
 package is.hail.expr.ir.agg
 
+import freemarker.template.utility.Execute
 import is.hail.annotations.Region
 import is.hail.asm4s._
-import is.hail.expr.ir.{EmitCode, EmitCodeBuilder}
+import is.hail.backend.ExecuteContext
+import is.hail.expr.ir.{EmitCode, EmitCodeBuilder, EmitContext, IEmitCode}
 import is.hail.types.physical._
+import is.hail.types.physical.stypes.EmitType
+import is.hail.types.physical.stypes.interfaces.primitive
+import is.hail.types.physical.stypes.primitives.SInt64
 import is.hail.types.virtual.Type
 
 object CountAggregator extends StagedAggregator {
   type State = PrimitiveRVAState
 
-  val resultType: PType = PInt64(true)
+  val resultEmitType: EmitType = EmitType(SInt64, true)
   val initOpTypes: Seq[Type] = Array[Type]()
   val seqOpTypes: Seq[Type] = Array[Type]()
 
   protected def _initOp(cb: EmitCodeBuilder, state: State, init: Array[EmitCode]): Unit = {
     assert(init.length == 0)
     assert(state.vtypes.head.r.required)
-    val (_, v, _) = state.fields(0)
-    cb.assignAny(v, 0L)
+    val ev = state.fields(0)
+    cb.assign(ev, EmitCode.present(cb.emb, primitive(const(0L))))
   }
 
   protected def _seqOp(cb: EmitCodeBuilder, state: State, seq: Array[EmitCode]): Unit = {
     assert(seq.length == 0)
     assert(state.vtypes.head.r.required)
-    val (_, v, _) = state.fields(0)
-    cb.assignAny(v, coerce[Long](v) + 1L)
+    val ev = state.fields(0)
+    cb.assign(ev, EmitCode.present(cb.emb, primitive(cb.memoize(ev.pv.asInt64.longCode(cb) + 1L))))
   }
 
-  protected def _combOp(cb: EmitCodeBuilder, state: State, other: State): Unit = {
+  protected def _combOp(ctx: ExecuteContext, cb: EmitCodeBuilder, state: PrimitiveRVAState, other: PrimitiveRVAState): Unit = {
     assert(state.vtypes.head.r.required)
-    val (_, v1, _) = state.fields(0)
-    val (_, v2, _) = other.fields(0)
-    cb.assignAny(v1, coerce[Long](v1) + coerce[Long](v2))
+    val v1 = state.fields(0)
+    val v2 = other.fields(0)
+    cb.assign(v1, EmitCode.present(cb.emb, primitive(cb.memoize(v1.pv.asInt64.longCode(cb) + v2.pv.asInt64.longCode(cb)))))
   }
 
-  protected def _storeResult(cb: EmitCodeBuilder, state: State, pt: PType, addr: Value[Long], region: Value[Region], ifMissing: EmitCodeBuilder => Unit): Unit = {
+  protected def _result(cb: EmitCodeBuilder, state: State, region: Value[Region]): IEmitCode = {
     assert(state.vtypes.head.r.required)
-    val (_, v, _) = state.fields(0)
-    pt.storeAtAddress(cb, addr, region, PCode(PInt64Required, v), deepCopy = true)
+    val ev = state.fields(0)
+    ev.toI(cb).map(cb)(sv => sv.copyToRegion(cb, region, sv.st))
   }
 }

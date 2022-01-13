@@ -1,9 +1,9 @@
-FROM {{ service_base_image.image }}
+FROM {{ service_java_run_base_image.image }}
 
-COPY query/setup.py /query/
-COPY query/query /query/query/
+COPY log4j.properties /
+COPY hail.jar /
+COPY setup.py /query/
+COPY query /query/query/
 RUN hail-pip-install /query && rm -rf /query
-
-COPY query/hail.jar /
 
 EXPOSE 5000

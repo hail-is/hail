@@ -1,76 +1,84 @@
 package is.hail.expr.ir
 
-import is.hail.utils._
-import is.hail.annotations.{BroadcastRow, Region, UnsafeRow}
-import is.hail.asm4s.Code
+import is.hail.annotations.{BroadcastRow, Region}
+import is.hail.asm4s.{Code, CodeLabel, Settable, Value}
+import is.hail.backend.ExecuteContext
 import is.hail.backend.spark.SparkBackend
-import is.hail.expr.ir.EmitStream.SizedStream
+import is.hail.expr.ir.functions.UtilFunctions
 import is.hail.expr.ir.lowering.{TableStage, TableStageDependency}
-import is.hail.types.TableType
-import is.hail.types.physical.{PCanonicalStream, PCode, PStruct, PType}
-import is.hail.types.virtual.{TArray, TStruct, Type}
-import is.hail.rvd.{RVD, RVDCoercer, RVDContext, RVDPartitioner, RVDType}
+import is.hail.expr.ir.streams.StreamProducer
+import is.hail.io.fs.FS
+import is.hail.rvd._
 import is.hail.sparkextras.ContextRDD
-import is.hail.types.physical.stypes.interfaces
-import org.apache.spark.{Partition, TaskContext}
+import is.hail.types.physical.stypes.interfaces.{SStream, SStreamValue}
+import is.hail.types.physical.{PStruct, PType}
+import is.hail.types.virtual.{TArray, TStruct, Type}
+import is.hail.types.{TableType, TypeWithRequiredness}
+import is.hail.utils._
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
+import org.apache.spark.{Partition, TaskContext}
+import org.json4s.JsonAST.{JObject, JString}
 import org.json4s.{Extraction, JValue}
-import org.json4s.JsonAST.JObject
 
 class PartitionIteratorLongReader(
   val fullRowType: TStruct,
   val contextType: Type,
   bodyPType: Type => PType,
-  body: Type => (Region, Any) => Iterator[Long]) extends PartitionReader {
+  body: Type => (Region, FS, Any) => Iterator[Long]) extends PartitionReader {
 
-  def rowPType(requestedType: Type): PType = bodyPType(requestedType.asInstanceOf[TStruct])
+  def rowRequiredness(requestedType: Type): TypeWithRequiredness = {
+    val tr = TypeWithRequiredness.apply(requestedType)
+    tr.fromPType(bodyPType(requestedType.asInstanceOf[TStruct]))
+    tr
+  }
 
-  def emitStream[C](ctx: ExecuteContext,
-    context: IR,
-    requestedType: Type,
-    emitter: Emit[C],
+  def emitStream(
+    ctx: ExecuteContext,
     cb: EmitCodeBuilder,
-    region: StagedRegion,
-    env: Emit.E,
-    container: Option[AggContainer]): IEmitCode = {
-
-    def emitIR(ir: IR, env: Emit.E = env, region: StagedRegion = region, container: Option[AggContainer] = container): IEmitCode =
-      emitter.emitI(ir, cb, region, env, container, None)
+    context: EmitCode,
+    partitionRegion: Value[Region],
+    requestedType: Type): IEmitCode = {
 
     val eltPType = bodyPType(requestedType)
+    val mb = cb.emb
 
-    emitIR(context).map(cb) { contextPC =>
-      // FIXME SafeRow.read can only handle address values
-      assert(contextPC.pt.isInstanceOf[PStruct])
+    context.toI(cb).map(cb) { contextPC =>
+      val ctxJavaValue = UtilFunctions.scodeToJavaValue(cb, partitionRegion, contextPC)
+      val region = mb.genFieldThisRef[Region]("pilr_region")
+      val it = mb.genFieldThisRef[Iterator[java.lang.Long]]("pilr_it")
+      val rv = mb.genFieldThisRef[Long]("pilr_rv")
 
-      val it = cb.newLocal[Iterator[java.lang.Long]]("pilr_it")
-      val hasNext = cb.newLocal[Boolean]("pilr_hasNext")
-      val next = cb.newLocal[Long]("pilr_next")
+      val producer = new StreamProducer {
+        override val length: Option[EmitCodeBuilder => Code[Int]] = None
 
-      val newStream = SizedStream.unsized { eltRegion =>
-        Stream
-          .unfold[Code[Long]](
-            (_, k) =>
-              Code(
-                hasNext := it.get.hasNext,
-                hasNext.orEmpty(next := Code.longValue(it.get.next())),
-                k(COption(!hasNext, next))),
-            setup = Some(
-              it := cb.emb.getObject(body(requestedType))
-                .invoke[java.lang.Object, java.lang.Object, Iterator[java.lang.Long]]("apply",
-                  region.code,
-                  Code.invokeScalaObject3[PType, Region, Long, java.lang.Object](UnsafeRow.getClass, "read",
-                    cb.emb.getPType(contextPC.pt), region.code, contextPC.tcode[Long]))))
-          .map(rv => EmitCode.fromI(cb.emb)(cb => IEmitCode.present(cb, eltPType.loadCheapPCode(cb, rv))))
+        override def initialize(cb: EmitCodeBuilder): Unit = {
+          cb.assign(it, cb.emb.getObject(body(requestedType))
+            .invoke[java.lang.Object, java.lang.Object, java.lang.Object, Iterator[java.lang.Long]](
+              "apply", region, cb.emb.getFS, ctxJavaValue))
+        }
+
+        override val elementRegion: Settable[Region] = region
+        override val requiresMemoryManagementPerElement: Boolean = true
+        override val LproduceElement: CodeLabel = mb.defineAndImplementLabel { cb =>
+          cb.ifx(!it.get.hasNext,
+            cb.goto(LendOfStream))
+          cb.assign(rv, Code.longValue(it.get.next()))
+
+          cb.goto(LproduceElementDone)
+        }
+        override val element: EmitCode = EmitCode.fromI(mb)(cb => IEmitCode.present(cb, eltPType.loadCheapSCode(cb, rv)))
+
+        override def close(cb: EmitCodeBuilder): Unit = {}
       }
 
-      interfaces.SStreamCode(interfaces.SStream(eltPType.sType), newStream)
+      SStreamValue(SStream(producer.element.emitType), producer)
     }
   }
 
   def toJValue: JValue = {
     JObject(
+      "category" -> JString("PartitionIteratorLongReader"),
       "fullRowType" -> Extraction.decompose(fullRowType)(PartitionReader.formats),
       "contextType" -> Extraction.decompose(contextType)(PartitionReader.formats))
   }
@@ -110,7 +118,7 @@ class GenericTableValue(
   val contextType: Type,
   var contexts: IndexedSeq[Any],
   val bodyPType: TStruct => PStruct,
-  val body: TStruct => (Region, Any) => Iterator[Long]) {
+  val body: TStruct => (Region, FS, Any) => Iterator[Long]) {
 
   var ltrCoercer: LoweredTableReaderCoercer = _
   def getLTVCoercer(ctx: ExecuteContext): LoweredTableReaderCoercer = {
@@ -155,8 +163,10 @@ class GenericTableValue(
     }
   }
 
-  def toContextRDD(requestedRowType: TStruct): ContextRDD[Long] =
-    ContextRDD(new GenericTableValueRDD(contexts, body(requestedRowType)))
+  def toContextRDD(fs: FS, requestedRowType: TStruct): ContextRDD[Long] = {
+    val localBody = body(requestedRowType)
+    ContextRDD(new GenericTableValueRDD(contexts, localBody(_, fs, _)))
+  }
 
   private[this] var rvdCoercer: RVDCoercer = _
 
@@ -166,7 +176,7 @@ class GenericTableValue(
         ctx,
         RVDType(bodyPType(fullTableType.rowType), fullTableType.key),
         1,
-        toContextRDD(fullTableType.keyType))
+        toContextRDD(ctx.fs, fullTableType.keyType))
     }
     rvdCoercer
   }
@@ -174,7 +184,7 @@ class GenericTableValue(
   def toTableValue(ctx: ExecuteContext, requestedType: TableType): TableValue = {
     val requestedRowType = requestedType.rowType
     val requestedRowPType = bodyPType(requestedType.rowType)
-    val crdd = toContextRDD(requestedRowType)
+    val crdd = toContextRDD(ctx.fs, requestedRowType)
 
     val rvd = partitioner match {
       case Some(partitioner) =>

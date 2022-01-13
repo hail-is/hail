@@ -6,21 +6,31 @@ import hail as hl
 import pkg_resources
 
 
+def _read_dataset(path: str) -> Union[hl.Table, hl.MatrixTable, hl.linalg.BlockMatrix]:
+    if path.endswith('.ht'):
+        return hl.read_table(path)
+    elif path.endswith('.mt'):
+        return hl.read_matrix_table(path)
+    elif path.endswith('.bm'):
+        return hl.linalg.BlockMatrix.read(path)
+    raise ValueError(f'Invalid path: {path}. Can only load datasets with .ht, .mt, or .bm extensions.')
+
+
 def load_dataset(name: str,
                  version: Optional[str],
                  reference_genome: Optional[str],
                  region: str = 'us',
-                 cloud: str = 'gcp') -> Union[hl.Table, hl.MatrixTable]:
+                 cloud: str = 'gcp') -> Union[hl.Table, hl.MatrixTable, hl.linalg.BlockMatrix]:
     """Load a genetic dataset from Hail's repository.
 
     Example
     -------
-    >>> # Load the 1000_Genomes_autosomes MatrixTable with GRCh38 coordinates.
-    >>> mt_1kg = hl.experimental.load_dataset(name='1000_Genomes_autosomes',   # doctest: +SKIP
-    ...                                       version='phase_3',
-    ...                                       reference_genome='GRCh38',
-    ...                                       region='us',
-    ...                                       cloud='gcp')
+    >>> # Load the gnomAD "HGDP + 1000 Genomes" MatrixTable with GRCh38 coordinates.
+    >>> mt = hl.experimental.load_dataset(name='gnomad_hgdp_1kg_callset',
+    ...                                   version='3.1',
+    ...                                   reference_genome='GRCh38',
+    ...                                   region='us',
+    ...                                   cloud='gcp')
 
     Parameters
     ----------
@@ -104,12 +114,11 @@ def load_dataset(name: str,
                     dataset['reference_genome'] == reference_genome])]
     assert len(path) == 1
     path = path[0]
-
-    if path.endswith('.ht'):
-        return hl.read_table(path)
-    elif path.endswith('.mt'):
-        return hl.read_matrix_table(path)
-    elif path.endswith('.bm'):
-        return hl.linalg.BlockMatrix.read(path)
-    raise ValueError(f'Invalid path {repr(path)}: can only load'
-                     f' datasets with .ht, .mt, or .bm extensions.')
+    if path.startswith('s3://'):
+        try:
+            dataset = _read_dataset(path)
+        except hl.utils.java.FatalError:
+            dataset = _read_dataset(path.replace('s3://', 's3a://'))
+    else:
+        dataset = _read_dataset(path)
+    return dataset

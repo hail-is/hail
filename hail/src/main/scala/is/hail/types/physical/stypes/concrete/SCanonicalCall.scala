@@ -1,77 +1,84 @@
 package is.hail.types.physical.stypes.concrete
 
-import is.hail.annotations.{CodeOrdering, Region}
+import is.hail.annotations.Region
 import is.hail.asm4s._
-import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder, SortOrder}
-import is.hail.types.physical.stypes.interfaces.SCall
-import is.hail.types.physical.stypes.{SCode, SType}
-import is.hail.types.physical.{PCall, PCallCode, PCallValue, PCanonicalCall, PCode, PSettable, PType}
+import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder}
+import is.hail.types.physical.stypes.interfaces.{SCall, SCallCode, SCallValue, SIndexableValue}
+import is.hail.types.physical.stypes.{SCode, SSettable, SType, SValue}
+import is.hail.types.physical.{PCall, PCanonicalCall, PType}
+import is.hail.types.virtual.{TCall, Type}
 import is.hail.utils._
-import is.hail.variant.Genotype
+import is.hail.variant._
 
 
-case class SCanonicalCall(required: Boolean) extends SCall {
-  override def pType: PCall = PCanonicalCall(required)
-
-  def codeOrdering(mb: EmitMethodBuilder[_], other: SType, so: SortOrder): CodeOrdering = pType.codeOrdering(mb, other.pType, so)
-
-  def coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): SCode = {
+case object SCanonicalCall extends SCall {
+  def _coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SValue, deepCopy: Boolean): SValue = {
     value.st match {
-      case SCanonicalCall(_) =>
-        new SCanonicalCallCode(required, value.asInstanceOf[SCanonicalCallCode].call)
+      case SCanonicalCall => value
     }
   }
 
-  def codeTupleTypes(): IndexedSeq[TypeInfo[_]] = FastIndexedSeq(IntInfo)
+  lazy val virtualType: Type = TCall
 
-  def loadFrom(cb: EmitCodeBuilder, region: Value[Region], pt: PType, addr: Code[Long]): SCode = {
-    pt match {
-      case PCanonicalCall(_) =>
-        new SCanonicalCallCode(required, Region.loadInt(addr))
-    }
-  }
+  override def castRename(t: Type): SType = this
+
+  def settableTupleTypes(): IndexedSeq[TypeInfo[_]] = FastIndexedSeq(IntInfo)
 
   def fromSettables(settables: IndexedSeq[Settable[_]]): SCanonicalCallSettable = {
     val IndexedSeq(call: Settable[Int@unchecked]) = settables
     assert(call.ti == IntInfo)
-    new SCanonicalCallSettable(required, call)
+    new SCanonicalCallSettable(call)
   }
 
-  def fromCodes(codes: IndexedSeq[Code[_]]): SCanonicalCallCode = {
-    val IndexedSeq(call: Code[Int@unchecked]) = codes
+  def fromValues(values: IndexedSeq[Value[_]]): SCanonicalCallValue = {
+    val IndexedSeq(call: Value[Int@unchecked]) = values
     assert(call.ti == IntInfo)
-    new SCanonicalCallCode(required, call)
+    new SCanonicalCallValue(call)
   }
 
-  def canonicalPType(): PType = pType
+  def storageType(): PType = PCanonicalCall(false)
+
+  def copiedType: SType = this
+
+  def containsPointers: Boolean = false
+
+  def constructFromIntRepr(cb: EmitCodeBuilder, c: Code[Int]): SCanonicalCallValue =
+    new SCanonicalCallValue(cb.memoize(c))
 }
 
-object SCanonicalCallSettable {
-  def apply(sb: SettableBuilder, name: String, required: Boolean): SCanonicalCallSettable =
-    new SCanonicalCallSettable(required, sb.newSettable[Int](s"${ name }_call"))
-}
+class SCanonicalCallValue(val call: Value[Int]) extends SCallValue {
+  val pt: PCall = PCanonicalCall(false)
 
-class SCanonicalCallSettable(required: Boolean, call: Settable[Int]) extends PCallValue with PSettable {
+  override def unphase(cb: EmitCodeBuilder): SCanonicalCallValue = {
+    val repr = cb.newLocal[Int]("unphase_call", call)
+    cb.ifx(isPhased(cb),
+      cb.assign(repr, Code.invokeScalaObject1[Int, Int](Call.getClass, "unphase", call)),
+      cb.assign(repr, call))
+    new SCanonicalCallValue(repr)
+  }
 
-  val pt: PCall = PCanonicalCall(required)
+  def containsAllele(cb: EmitCodeBuilder, allele: Value[Int]): Value[Boolean] = {
+    cb.memoize[Boolean](Code.invokeScalaObject2[Int, Int, Boolean](
+      Call.getClass, "containsAllele", call, allele), "contains_allele")
+  }
 
-  override def store(cb: EmitCodeBuilder, v: PCode): Unit = cb.assign(call, v.asInstanceOf[SCanonicalCallCode].call)
+  override def canonicalCall(cb: EmitCodeBuilder): Value[Int] = call
 
-  val st: SCanonicalCall = SCanonicalCall(required)
+  override val st: SCanonicalCall.type = SCanonicalCall
 
-  def get: PCallCode = new SCanonicalCallCode(required, call)
+  override def get: SCallCode = new SCanonicalCallCode(call)
 
-  def settableTuple(): IndexedSeq[Settable[_]] = FastIndexedSeq(call)
+  override lazy val valueTuple: IndexedSeq[Value[_]] = FastIndexedSeq(call)
 
-  def store(pc: PCode): Code[Unit] = call.store(pc.asInstanceOf[SCanonicalCallCode].call)
+  override def ploidy(cb: EmitCodeBuilder): Value[Int] =
+    cb.memoize((call >>> 1) & 0x3)
 
-  def ploidy(): Code[Int] = get.ploidy()
+  override def isPhased(cb: EmitCodeBuilder): Value[Boolean] =
+    cb.memoize((call & 0x1).ceq(1))
 
-  def isPhased(): Code[Boolean] = get.isPhased()
-
-  def forEachAllele(cb: EmitCodeBuilder)(alleleCode: Value[Int] => Unit): Unit = {
-    val call2 = cb.newLocal[Int]("fea_call2", call >>> 3)
-    val p = cb.newLocal[Int]("fea_ploidy", ploidy())
+  override def forEachAllele(cb: EmitCodeBuilder)(alleleCode: Value[Int] => Unit): Unit = {
+    val call2 = cb.memoize(call >>> 3)
+    val p = ploidy(cb)
     val j = cb.newLocal[Int]("fea_j")
     val k = cb.newLocal[Int]("fea_k")
 
@@ -84,7 +91,7 @@ class SCanonicalCallSettable(required: Boolean, call: Settable[Int]) extends PCa
         cb.assign(j, call2 - (k * (k + 1) / 2))
       })
       alleleCode(j)
-      cb.ifx(isPhased(), cb.assign(k, k - j))
+      cb.ifx(isPhased(cb), cb.assign(k, k - j))
       alleleCode(k)
     }, {
       cb.ifx(p.ceq(1),
@@ -93,31 +100,77 @@ class SCanonicalCallSettable(required: Boolean, call: Settable[Int]) extends PCa
           cb.append(Code._fatal[Unit](const("invalid ploidy: ").concat(p.toS)))))
     })
   }
+
+  override def lgtToGT(cb: EmitCodeBuilder, localAlleles: SIndexableValue, errorID: Value[Int]): SCallValue = {
+
+    def checkAndTranslate(cb: EmitCodeBuilder, allele: Code[Int]): Code[Int] = {
+      val av = cb.newLocal[Int](s"allele", allele)
+      cb.ifx(av >= localAlleles.loadLength(),
+        cb._fatalWithError(errorID,
+          s"lgt_to_gt: found allele ", av.toS, ", but there are only ", localAlleles.loadLength().toS, " local alleles"))
+      localAlleles.loadElement(cb, av).get(cb, const("lgt_to_gt: found missing value in local alleles at index ").concat(av.toS), errorID = errorID)
+        .asInt.intCode(cb)
+    }
+
+    val repr = cb.newLocal[Int]("lgt_to_gt_repr")
+    cb += Code.switch(ploidy(cb),
+      EmitCodeBuilder.scopedVoid(cb.emb)(cb => cb._fatalWithError(errorID, s"ploidy above 2 is not currently supported")),
+      FastIndexedSeq(
+        EmitCodeBuilder.scopedVoid(cb.emb)(cb => cb.assign(repr, call)), // ploidy 0
+        EmitCodeBuilder.scopedVoid(cb.emb) { cb =>
+          val allele = Code.invokeScalaObject1[Int, Int](Call.getClass, "alleleRepr", call)
+          val newCall = Code.invokeScalaObject2[Int, Boolean, Int](Call1.getClass, "apply",
+            checkAndTranslate(cb, allele), isPhased(cb))
+          cb.assign(repr, newCall)
+        }, // ploidy 1
+        EmitCodeBuilder.scopedVoid(cb.emb) { cb =>
+          val allelePair = cb.newLocal[Int]("allelePair", Code.invokeScalaObject1[Int, Int](Call.getClass, "allelePairUnchecked", call))
+          val j = cb.newLocal[Int]("allele_j", Code.invokeScalaObject1[Int, Int](AllelePair.getClass, "j", allelePair))
+          val k = cb.newLocal[Int]("allele_k", Code.invokeScalaObject1[Int, Int](AllelePair.getClass, "k", allelePair))
+
+          cb.ifx(j >= localAlleles.loadLength(), cb._fatalWithError(errorID, "invalid lgt_to_gt: allele "))
+
+          cb.assign(repr, Code.invokeScalaObject4[Int, Int, Boolean, Int, Int](Call2.getClass, "withErrorID",
+            checkAndTranslate(cb, j),
+            checkAndTranslate(cb, k),
+            isPhased(cb),
+            errorID))
+        } // ploidy 2
+      )
+    )
+    new SCanonicalCallValue(repr)
+  }
 }
 
-class SCanonicalCallCode(required: Boolean, val call: Code[Int]) extends PCallCode {
+object SCanonicalCallSettable {
+  def apply(sb: SettableBuilder, name: String): SCanonicalCallSettable =
+    new SCanonicalCallSettable(sb.newSettable[Int](s"${ name }_call"))
+}
 
-  val pt: PCall = PCanonicalCall(required)
+final class SCanonicalCallSettable(override val call: Settable[Int]) extends SCanonicalCallValue(call) with SSettable {
+  override def store(cb: EmitCodeBuilder, v: SCode): Unit =
+    cb.assign(call, v.asInstanceOf[SCanonicalCallCode].call)
 
-  val st: SCanonicalCall = SCanonicalCall(required)
+  override def settableTuple(): IndexedSeq[Settable[_]] = FastIndexedSeq(call)
+}
+
+class SCanonicalCallCode(val call: Code[Int]) extends SCallCode {
+
+  val pt: PCall = PCanonicalCall(false)
+
+  val st: SCanonicalCall.type = SCanonicalCall
 
   def code: Code[_] = call
 
-  def codeTuple(): IndexedSeq[Code[_]] = FastIndexedSeq(call)
-
-  def ploidy(): Code[Int] = (call >>> 1) & 0x3
-
-  def isPhased(): Code[Boolean] = (call & 0x1).ceq(1)
-
-  def memoize(cb: EmitCodeBuilder, name: String, sb: SettableBuilder): PCallValue = {
-    val s = SCanonicalCallSettable(sb, name, required)
-    cb.assign(s, this)
+  def memoize(cb: EmitCodeBuilder, name: String, sb: SettableBuilder): SCanonicalCallValue = {
+    val s = SCanonicalCallSettable(sb, name)
+    s.store(cb, this)
     s
   }
 
-  def memoize(cb: EmitCodeBuilder, name: String): PCallValue = memoize(cb, name, cb.localBuilder)
+  def memoize(cb: EmitCodeBuilder, name: String): SCanonicalCallValue = memoize(cb, name, cb.localBuilder)
 
-  def memoizeField(cb: EmitCodeBuilder, name: String): PCallValue = memoize(cb, name, cb.fieldBuilder)
+  def memoizeField(cb: EmitCodeBuilder, name: String): SCanonicalCallValue = memoize(cb, name, cb.fieldBuilder)
 
-  def store(mb: EmitMethodBuilder[_], r: Value[Region], dst: Code[Long]): Code[Unit] = Region.storeInt(dst, call)
+  def loadCanonicalRepresentation(cb: EmitCodeBuilder): Code[Int] = call
 }

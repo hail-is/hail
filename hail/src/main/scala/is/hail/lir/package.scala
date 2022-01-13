@@ -5,13 +5,15 @@ import is.hail.utils.FastIndexedSeq
 import org.objectweb.asm.Opcodes._
 
 package object lir {
-  var counter: Long = 0
+  private[this] var counter: Long = 0
 
-  def genName(tag: String, baseName: String): String = {
+  def genName(tag: String, baseName: String): String = synchronized {
     counter += 1
-    if (baseName != null)
+    if (baseName != null) {
+      if (baseName.contains("."))
+        throw new RuntimeException(s"genName has invalid character(s): $baseName")
       s"__$tag$counter$baseName"
-    else
+    } else
       s"__$tag${ counter }null"
   }
 

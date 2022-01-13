@@ -1,15 +1,18 @@
 package is.hail.types.physical
 
-import is.hail.annotations.{Annotation, CodeOrdering, Region, UnsafeOrdering}
+import is.hail.annotations.{Annotation, Region, UnsafeOrdering}
 import is.hail.asm4s._
+import is.hail.expr.ir.orderings.CodeOrdering
 import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder}
-import is.hail.types.physical.stypes.SCode
-import is.hail.types.physical.stypes.concrete.{SCanonicalCall, SCanonicalCallCode}
+import is.hail.types.physical.stypes.{SCode, SValue}
+import is.hail.types.physical.stypes.concrete.{SCanonicalCall, SCanonicalCallCode, SCanonicalCallValue}
 import is.hail.types.physical.stypes.interfaces.SCall
 import is.hail.utils._
 
 final case class PCanonicalCall(required: Boolean = false) extends PCall {
   def _asIdent = "call"
+
+  override def copiedType: PType = this
 
   override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean): Unit = sb.append("PCCall")
 
@@ -17,14 +20,8 @@ final case class PCanonicalCall(required: Boolean = false) extends PCall {
 
   def byteSize: Long = representation.byteSize
   override def alignment: Long = representation.alignment
-  override lazy val fundamentalType: PInt32 = representation
 
   override def unsafeOrdering(): UnsafeOrdering = representation.unsafeOrdering() // this was a terrible idea
-
-  def codeOrdering(mb: EmitMethodBuilder[_], other: PType): CodeOrdering = {
-    assert(other isOfType this)
-    PInt32().codeOrdering(mb)
-  }
 
   def setRequired(required: Boolean) = if (required == this.required) this else PCanonicalCall(required)
 
@@ -35,31 +32,33 @@ final case class PCanonicalCall(required: Boolean = false) extends PCall {
     }
   }
 
-  override def encodableType: PType = representation.encodableType
-
   override def containsPointers: Boolean = representation.containsPointers
 
   def _copyFromAddress(region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Long = {
     srcPType match {
-      case pt: PCanonicalLocus => representation._copyFromAddress(region, pt.representation, srcAddress, deepCopy)
+      case pt: PCanonicalCall => representation._copyFromAddress(region, pt.representation, srcAddress, deepCopy)
     }
   }
 
-  def sType: SCall = SCanonicalCall(required)
+  def sType: SCall = SCanonicalCall
 
-  def loadCheapPCode(cb: EmitCodeBuilder, addr: Code[Long]): PCode = new SCanonicalCallCode(required, Region.loadInt(addr))
+  def loadCheapSCode(cb: EmitCodeBuilder, addr: Code[Long]): SCanonicalCallValue =
+    new SCanonicalCallCode(Region.loadInt(addr)).memoize(cb, "loadCheapSCode")
 
-  def store(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): Code[Long] = {
+  def loadCheapSCodeField(cb: EmitCodeBuilder, addr: Code[Long]): SCanonicalCallValue =
+    new SCanonicalCallCode(Region.loadInt(addr)).memoizeField(cb, "loadCheapSCodeField")
+
+  def store(cb: EmitCodeBuilder, region: Value[Region], value: SValue, deepCopy: Boolean): Value[Long] = {
     value.st match {
-      case SCanonicalCall(r) =>
-        val newAddr = cb.newLocal[Long]("pcanonicalcall_store_addr", region.allocate(representation.alignment, representation.byteSize))
+      case SCanonicalCall =>
+        val newAddr = cb.memoize(region.allocate(representation.alignment, representation.byteSize))
         storeAtAddress(cb, newAddr, region, value, deepCopy)
         newAddr
     }
   }
 
-  def storeAtAddress(cb: EmitCodeBuilder, addr: Code[Long], region: Value[Region], value: SCode, deepCopy: Boolean): Unit = {
-    cb += Region.storeInt(addr, value.asInstanceOf[SCanonicalCallCode].call)
+  def storeAtAddress(cb: EmitCodeBuilder, addr: Code[Long], region: Value[Region], value: SValue, deepCopy: Boolean): Unit = {
+    cb += Region.storeInt(addr, value.asCall.canonicalCall(cb))
   }
 
   def loadFromNested(addr: Code[Long]): Code[Long] = representation.loadFromNested(addr)

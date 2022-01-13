@@ -1,8 +1,9 @@
 import numpy as np
 import hail as hl
 import unittest
+import pytest
 from ..helpers import *
-from hail.utils import new_temp_file, new_local_temp_dir
+from hail.utils import new_temp_file
 
 setUpModule = startTestHailContext
 tearDownModule = stopTestHailContext
@@ -92,8 +93,32 @@ class Tests(unittest.TestCase):
         ht = x.annotate(fp=hl.if_else(~x.tp, hl.rand_bool(0.2), False))
         _, aucs = hl.experimental.plot_roc_curve(ht, ['score1', 'score2', 'score3'])
 
+    def test_import_keyby_count_ldsc_lowered_shuffle(self):
+        # integration test pulled out of test_ld_score_regression to isolate issues with lowered shuffles
+        # and RDD serialization, 2021-07-06
+        # if this comment no longer reflects the backend system, that's a really good thing
+        ht_scores = hl.import_table(
+            doctest_resource('ld_score_regression.univariate_ld_scores.tsv'),
+            key='SNP', types={'L2': hl.tfloat, 'BP': hl.tint})
+
+        ht_20160 = hl.import_table(
+            doctest_resource('ld_score_regression.20160.sumstats.tsv'),
+            key='SNP', types={'N': hl.tint, 'Z': hl.tfloat})
+
+        j1 = ht_scores[ht_20160['SNP']]
+        ht_20160 = ht_20160.annotate(
+            ld_score=j1['L2'],
+            locus=hl.locus(j1['CHR'],
+                           j1['BP']),
+            alleles=hl.array([ht_20160['A2'], ht_20160['A1']]))
+
+        ht_20160 = ht_20160.key_by(ht_20160['locus'],
+                                   ht_20160['alleles'])
+        assert ht_20160._force_count() == 151
+
+
     @pytest.mark.unchecked_allocator
-    @fails_local_backend()
+    @fails_service_backend(reason='''fails this assertion in ShuffleWrite assert(keyPType == shuffleType.keyDecodedPType)''')
     def test_ld_score_regression(self):
 
         ht_scores = hl.import_table(
@@ -262,6 +287,7 @@ class Tests(unittest.TestCase):
             results[1]['snp_heritability_standard_error'],
             0.0416, places=4)
 
+    @fails_service_backend()
     def test_sparse(self):
         expected_split_mt = hl.import_vcf(resource('sparse_split_test_b.vcf'))
         unsplit_mt = hl.import_vcf(resource('sparse_split_test.vcf'), call_fields=['LGT', 'LPGT'])
@@ -269,6 +295,7 @@ class Tests(unittest.TestCase):
               .drop('a_index', 'was_split').select_entries(*expected_split_mt.entry.keys()))
         assert mt._same(expected_split_mt)
 
+    @fails_service_backend()
     def test_define_function(self):
         f1 = hl.experimental.define_function(
             lambda a, b: (a + 7) * b, hl.tint32, hl.tint32)
@@ -277,7 +304,8 @@ class Tests(unittest.TestCase):
             lambda a, b: (a + 7) * b, hl.tint32, hl.tint32)
         self.assertEqual(hl.eval(f1(1, 3)), 24) # idempotent
         self.assertEqual(hl.eval(f2(1, 3)), 24) # idempotent
-        
+
+    @fails_service_backend()
     @fails_local_backend()
     def test_pc_project(self):
         mt = hl.balding_nichols_model(3, 100, 50)
@@ -316,6 +344,7 @@ class Tests(unittest.TestCase):
         assert jmt.filter_rows(hl.is_defined(jmt.left_row) & hl.is_defined(jmt.right_row)).count_rows() == mt.count_rows()
         assert jmt.filter_entries(hl.is_defined(jmt.left_entry) & hl.is_defined(jmt.right_entry)).entries().count() == mt.entries().count()
 
+    @fails_service_backend()
     @fails_local_backend()
     def test_block_matrices_tofiles(self):
         data = [
@@ -330,13 +359,15 @@ class Tests(unittest.TestCase):
             hl.linalg.BlockMatrix._create(11, 12, data[0].tolist(), block_size=4),
             hl.linalg.BlockMatrix._create(5, 17, data[1].tolist(), block_size=8)
         ]
-        prefix = new_local_temp_dir()
-        hl.experimental.block_matrices_tofiles(bms, f'{prefix}/files')
-        for i in range(len(bms)):
-            a = data[i]
-            a2 = np.fromfile(f'{prefix}/files/{i}')
-            self.assertTrue(np.array_equal(a, a2))
+        with hl.TemporaryDirectory() as prefix:
+            hl.experimental.block_matrices_tofiles(bms, f'{prefix}/files')
+            for i in range(len(bms)):
+                a = data[i]
+                a2 = np.frombuffer(
+                    hl.current_backend().fs.open(f'{prefix}/files/{i}', mode='rb').read())
+                self.assertTrue(np.array_equal(a, a2))
 
+    @fails_service_backend()
     @fails_local_backend()
     def test_export_block_matrices(self):
         data = [
@@ -351,20 +382,22 @@ class Tests(unittest.TestCase):
             hl.linalg.BlockMatrix._create(11, 12, data[0].tolist(), block_size=4),
             hl.linalg.BlockMatrix._create(5, 17, data[1].tolist(), block_size=8)
         ]
-        prefix = new_local_temp_dir()
-        hl.experimental.export_block_matrices(bms, f'{prefix}/files')
-        for i in range(len(bms)):
-            a = arrs[i]
-            a2 = np.loadtxt(f'{prefix}/files/{i}.tsv')
-            self.assertTrue(np.array_equal(a, a2))
+        with hl.TemporaryDirectory() as prefix:
+            hl.experimental.export_block_matrices(bms, f'{prefix}/files')
+            for i in range(len(bms)):
+                a = arrs[i]
+                a2 = np.loadtxt(
+                    hl.current_backend().fs.open(f'{prefix}/files/{i}.tsv'))
+                self.assertTrue(np.array_equal(a, a2))
 
-        prefix2 = new_local_temp_dir()
-        custom_names = ["nameA", "inner/nameB.tsv"]
-        hl.experimental.export_block_matrices(bms, f'{prefix2}/files', custom_filenames=custom_names)
-        for i in range(len(bms)):
-            a = arrs[i]
-            a2 = np.loadtxt(f'{prefix2}/files/{custom_names[i]}')
-            self.assertTrue(np.array_equal(a, a2))
+        with hl.TemporaryDirectory() as prefix2:
+            custom_names = ["nameA", "inner/nameB.tsv"]
+            hl.experimental.export_block_matrices(bms, f'{prefix2}/files', custom_filenames=custom_names)
+            for i in range(len(bms)):
+                a = arrs[i]
+                a2 = np.loadtxt(
+                    hl.current_backend().fs.open(f'{prefix2}/files/{custom_names[i]}'))
+                self.assertTrue(np.array_equal(a, a2))
 
     def test_loop(self):
         def triangle_with_ints(n):
@@ -419,3 +452,24 @@ class Tests(unittest.TestCase):
             'int32', 0, 0)
 
         assert_evals_to(calls_recur_from_nested_loop, 15 + 10 + 6 + 3 + 1)
+
+    def test_loop_errors(self):
+        with pytest.raises(TypeError, match="requested type ndarray<int32, 2> does not match inferred type ndarray<float64, 2>"):
+            result = hl.experimental.loop(
+                lambda f, my_nd:
+                hl.if_else(my_nd[0, 0] == 1000, my_nd, f(my_nd + 1)),
+                hl.tndarray(hl.tint32, 2), hl.nd.zeros((20, 10), hl.tfloat64))
+
+    def test_loop_with_struct_of_strings(self):
+        def loop_func(recur_f, my_struct):
+            return hl.if_else(hl.len(my_struct.s1) > hl.len(my_struct.s2),
+                              my_struct,
+                              recur_f(hl.struct(s1=my_struct.s1 + my_struct.s2[-1], s2=my_struct.s2[:-1])))
+
+        initial_struct = hl.struct(s1="a", s2="gfedcb")
+        assert hl.eval(hl.experimental.loop(loop_func, hl.tstruct(s1=hl.tstr, s2=hl.tstr), initial_struct)) == hl.Struct(s1="abcd", s2="gfe")
+
+    def test_loop_memory(self):
+        def foo(recur, arr, idx): return hl.if_else(idx > 10, arr, recur(arr.append(hl.str(idx)), idx+1))
+
+        assert hl.eval(hl.experimental.loop(foo, hl.tarray(hl.tstr), hl.literal(['foo']), 1)) == ['foo', '1', '2', '3', '4', '5', '6', '7', '8', '9', '10']

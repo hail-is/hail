@@ -22,6 +22,6 @@ class LIRSplitSuite extends HailSuite {
       cb.invokeVoid(mb, const(1L))
       Code._empty
     }
-    f.resultWithIndex()(0, ctx.r)()
+    f.resultWithIndex()(ctx.fs, 0, ctx.r)()
   }
 }

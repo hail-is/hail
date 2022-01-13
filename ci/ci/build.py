@@ -1,27 +1,26 @@
 import abc
-import os.path
 import json
 import logging
 from collections import defaultdict, Counter
 from shlex import quote as shq
 import yaml
 import jinja2
-from hailtop.utils import RETRY_FUNCTION_SCRIPT, flatten
+from typing import Dict, List
+from hailtop.utils import flatten
 from .utils import generate_token
 from .environment import (
-    GCP_PROJECT,
-    GCP_ZONE,
+    DOCKER_PREFIX,
     DOMAIN,
-    IP,
     CI_UTILS_IMAGE,
+    BUILDKIT_IMAGE,
     DEFAULT_NAMESPACE,
-    KUBERNETES_SERVER_URL,
-    BUCKET,
+    STORAGE_URI,
+    CLOUD,
 )
 from .globals import is_test_deployment
+from gear.cloud_config import get_global_config
 
 log = logging.getLogger('ci')
-
 
 pretty_print_log = "jq -Rr '. as $raw | try \
 (fromjson | if .hail_log == 1 then \
@@ -88,42 +87,47 @@ class BuildConfigurationError(Exception):
 
 
 class BuildConfiguration:
-    def __init__(self, code, config_str, scope, requested_step_names=()):
-        config = yaml.safe_load(config_str)
-        name_step = {}
-        self.steps = []
+    def __init__(self, code, config_str, scope, *, requested_step_names=(), excluded_step_names=()):
+        if len(excluded_step_names) > 0 and scope != 'dev':
+            raise BuildConfigurationError('Excluding build steps is only permitted in a dev scope')
 
+        config = yaml.safe_load(config_str)
         if requested_step_names:
             log.info(f"Constructing build configuration with steps: {requested_step_names}")
 
+        runnable_steps: List[Step] = []
+        name_step: Dict[str, Step] = {}
         for step_config in config['steps']:
-            step_params = StepParameters(code, scope, step_config, name_step)
-            step = Step.from_json(step_params)
-            if not step.run_if_requested or step.name in requested_step_names:
-                self.steps.append(step)
+            step = Step.from_json(StepParameters(code, scope, step_config, name_step))
+            if step.name not in excluded_step_names and step.can_run_in_current_cloud():
                 name_step[step.name] = step
-            else:
-                name_step[step.name] = None
+                runnable_steps.append(step)
 
-        # transitively close requested_step_names over dependencies
         if requested_step_names:
+            # transitively close requested_step_names over dependencies
             visited = set()
 
-            def request(step):
-                if step not in visited:
+            def visit_dependent(step: Step):
+                if step not in visited and step.name not in excluded_step_names:
+                    if not step.can_run_in_current_cloud():
+                        raise BuildConfigurationError(f'Step {step.name} cannot be run in cloud {CLOUD}')
                     visited.add(step)
                     for s2 in step.deps:
-                        request(s2)
+                        if not s2.run_if_requested:
+                            visit_dependent(s2)
 
             for step_name in requested_step_names:
-                request(name_step[step_name])
-            self.steps = [s for s in self.steps if s in visited]
+                visit_dependent(name_step[step_name])
+            self.steps = [step for step in runnable_steps if step in visited]
+        else:
+            self.steps = [step for step in runnable_steps if not step.run_if_requested]
 
     def build(self, batch, code, scope):
         assert scope in ('deploy', 'test', 'dev')
 
         for step in self.steps:
-            if step.scopes is None or scope in step.scopes:
+            if step.can_run_in_scope(scope):
+                assert step.can_run_in_current_cloud()
                 step.build(batch, code, scope)
 
         if scope == 'dev':
@@ -141,7 +145,7 @@ class BuildConfiguration:
                 f"Cleanup {step.name} after running {[parent_step.name for parent_step in step_to_parent_steps[step]]}"
             )
 
-            if step.scopes is None or scope in step.scopes:
+            if step.can_run_in_scope(scope):
                 step.cleanup(batch, scope, parent_jobs)
 
 
@@ -154,23 +158,18 @@ class Step(abc.ABC):
             duplicates = [name for name, count in Counter(json['dependsOn']).items() if count > 1]
             if duplicates:
                 raise BuildConfigurationError(f'found duplicate dependencies of {self.name}: {duplicates}')
-            self.deps = [params.name_step[d] for d in json['dependsOn'] if params.name_step[d]]
+            self.deps = [params.name_step[d] for d in json['dependsOn'] if d in params.name_step]
         else:
             self.deps = []
         self.scopes = json.get('scopes')
+        self.clouds = json.get('clouds')
         self.run_if_requested = json.get('runIfRequested', False)
 
         self.token = generate_token()
 
     def input_config(self, code, scope):
         config = {}
-        config['global'] = {
-            'project': GCP_PROJECT,
-            'zone': GCP_ZONE,
-            'domain': DOMAIN,
-            'ip': IP,
-            'k8s_server_url': KUBERNETES_SERVER_URL,
-        }
+        config['global'] = get_global_config()
         config['token'] = self.token
         config['deploy'] = scope == 'deploy'
         config['scope'] = scope
@@ -197,11 +196,19 @@ class Step(abc.ABC):
                     frontier.append(d)
         return visited
 
+    def can_run_in_current_cloud(self):
+        return self.clouds is None or CLOUD in self.clouds
+
+    def can_run_in_scope(self, scope: str):
+        return self.scopes is None or scope in self.scopes
+
     @staticmethod
     def from_json(params):
         kind = params.json['kind']
         if kind == 'buildImage':
-            return BuildImageStep.from_json(params)
+            return BuildImage2Step.from_json(params)
+        if kind == 'buildImage2':
+            return BuildImage2Step.from_json(params)
         if kind == 'runImage':
             return RunImageStep.from_json(params)
         if kind == 'createNamespace':
@@ -227,18 +234,28 @@ class Step(abc.ABC):
         pass
 
 
-class BuildImageStep(Step):
-    def __init__(self, params, dockerfile, context_path, publish_as, inputs):  # pylint: disable=unused-argument
+class BuildImage2Step(Step):
+    def __init__(
+        self, params, dockerfile, context_path, publish_as, inputs, resources
+    ):  # pylint: disable=unused-argument
         super().__init__(params)
         self.dockerfile = dockerfile
         self.context_path = context_path
         self.publish_as = publish_as
         self.inputs = inputs
+        self.resources = resources
+        self.extra_cache_repository = None
+        if publish_as:
+            self.extra_cache_repository = f'{DOCKER_PREFIX}/{self.publish_as}'
         if params.scope == 'deploy' and publish_as and not is_test_deployment:
-            self.base_image = f'gcr.io/{GCP_PROJECT}/{self.publish_as}'
+            self.base_image = f'{DOCKER_PREFIX}/{self.publish_as}'
         else:
-            self.base_image = f'gcr.io/{GCP_PROJECT}/ci-intermediate'
+            self.base_image = f'{DOCKER_PREFIX}/ci-intermediate'
         self.image = f'{self.base_image}:{self.token}'
+        if publish_as:
+            self.cache_repository = f'{DOCKER_PREFIX}/{self.publish_as}:cache'
+        else:
+            self.cache_repository = f'{DOCKER_PREFIX}/ci-intermediate:cache'
         self.job = None
 
     def wrapped_job(self):
@@ -249,8 +266,13 @@ class BuildImageStep(Step):
     @staticmethod
     def from_json(params):
         json = params.json
-        return BuildImageStep(
-            params, json['dockerFile'], json.get('contextPath'), json.get('publishAs'), json.get('inputs')
+        return BuildImage2Step(
+            params,
+            json['dockerFile'],
+            json.get('contextPath'),
+            json.get('publishAs'),
+            json.get('inputs'),
+            json.get('resources'),
         )
 
     def config(self, scope):  # pylint: disable=unused-argument
@@ -260,128 +282,120 @@ class BuildImageStep(Step):
         if self.inputs:
             input_files = []
             for i in self.inputs:
-                input_files.append(
-                    (f'gs://{BUCKET}/build/{batch.attributes["token"]}{i["from"]}', f'/io/{os.path.basename(i["to"])}')
-                )
+                input_files.append((f'{STORAGE_URI}/build/{batch.attributes["token"]}{i["from"]}', i["to"]))
         else:
             input_files = None
 
         config = self.input_config(code, scope)
 
-        if self.context_path:
-            context = f'repo/{self.context_path}'
-            init_context = ''
-        else:
-            context = 'context'
-            init_context = 'mkdir context'
+        context = self.context_path
+        if not context:
+            context = '/io'
 
-        rendered_dockerfile = 'Dockerfile'
         if isinstance(self.dockerfile, dict):
             assert ['inline'] == list(self.dockerfile.keys())
-            render_dockerfile = f'echo {shq(self.dockerfile["inline"])} > Dockerfile.{self.token};\n'
-            unrendered_dockerfile = f'Dockerfile.{self.token}'
+            unrendered_dockerfile = f'/home/user/Dockerfile.in.{self.token}'
+            create_inline_dockerfile_if_present = f'echo {shq(self.dockerfile["inline"])} > {unrendered_dockerfile};\n'
         else:
             assert isinstance(self.dockerfile, str)
-            render_dockerfile = ''
-            unrendered_dockerfile = f'repo/{self.dockerfile}'
-        render_dockerfile += (
-            f'time python3 jinja2_render.py {shq(json.dumps(config))} '
-            f'{shq(unrendered_dockerfile)} {shq(rendered_dockerfile)}'
-        )
-
-        if self.publish_as:
-            published_latest = shq(f'gcr.io/{GCP_PROJECT}/{self.publish_as}:latest')
-            pull_published_latest = f'time retry docker pull {shq(published_latest)} || true'
-            cache_from_published_latest = f'--cache-from {shq(published_latest)}'
-        else:
-            pull_published_latest = ''
-            cache_from_published_latest = ''
-
-        push_image = f'''
-time retry docker push {self.image}
-'''
-        if scope == 'deploy' and self.publish_as and not is_test_deployment:
-            push_image = (
-                f'''
-docker tag {shq(self.image)} {self.base_image}:latest
-time retry docker push {self.base_image}:latest
-'''
-                + push_image
-            )
-
-        copy_inputs = ''
-        if self.inputs:
-            for i in self.inputs:
-                # to is relative to docker context
-                copy_inputs = (
-                    copy_inputs
-                    + f'''
-mkdir -p {shq(os.path.dirname(f'{context}{i["to"]}'))}
-cp {shq(f'/io/{os.path.basename(i["to"])}')} {shq(f'{context}{i["to"]}')}
-'''
-                )
+            unrendered_dockerfile = self.dockerfile
+            create_inline_dockerfile_if_present = ''
 
         script = f'''
 set -ex
-date
 
-{ RETRY_FUNCTION_SCRIPT }
+{create_inline_dockerfile_if_present}
 
-rm -rf repo
-mkdir repo
-(cd repo; {code.checkout_script()})
-{render_dockerfile}
-{init_context}
-{copy_inputs}
+time python3 \
+     ~/jinja2_render.py \
+     {shq(json.dumps(config))} \
+     {unrendered_dockerfile} \
+     /home/user/Dockerfile
 
-FROM_IMAGE=$(awk '$1 == "FROM" {{ print $2; exit }}' {shq(rendered_dockerfile)})
+set +x
+/bin/sh /home/user/convert-cloud-credentials-to-docker-auth-config
+set -x
 
-time gcloud -q auth activate-service-account \
-  --key-file=/secrets/gcr-push-service-account-key/gcr-push-service-account-key.json
-time gcloud -q auth configure-docker
-
-time retry docker pull $FROM_IMAGE
-{pull_published_latest}
-CPU_PERIOD=100000
-CPU_QUOTA=$(( $(grep -c ^processor /proc/cpuinfo) * $(cat /sys/fs/cgroup/cpu/cpu.shares) * $CPU_PERIOD / 1024 ))
-MEMORY=$(cat /sys/fs/cgroup/memory/memory.limit_in_bytes)
-time docker build --memory="$MEMORY" --cpu-period="$CPU_PERIOD" --cpu-quota="$CPU_QUOTA" -t {shq(self.image)} \
-  -f {rendered_dockerfile} \
-  --cache-from $FROM_IMAGE {cache_from_published_latest} \
-  {context}
-{push_image}
-
-date
+export BUILDKITD_FLAGS='--oci-worker-no-process-sandbox --oci-worker-snapshotter=overlayfs'
+export BUILDCTL_CONNECT_RETRIES_MAX=100 # https://github.com/moby/buildkit/issues/1423
+buildctl-daemonless.sh \
+     build \
+     --frontend dockerfile.v0 \
+     --local context={shq(context)} \
+     --local dockerfile=/home/user \
+     --output 'type=image,"name={shq(self.image)},{shq(self.cache_repository)}",push=true' \
+     --export-cache type=inline \
+     --import-cache type=registry,ref={shq(self.cache_repository)} \
+     --trace=/home/user/trace
+cat /home/user/trace
 '''
 
         log.info(f'step {self.name}, script:\n{script}')
 
+        docker_registry = DOCKER_PREFIX.split('/')[0]
+        job_env = {'REGISTRY': docker_registry}
+        if CLOUD == 'gcp':
+            credentials_name = 'GOOGLE_APPLICATION_CREDENTIALS'
+        else:
+            assert CLOUD == 'azure'
+            credentials_name = 'AZURE_APPLICATION_CREDENTIALS'
+        credentials_secret = {
+            'namespace': DEFAULT_NAMESPACE,
+            'name': 'registry-push-credentials',
+            'mount_path': '/secrets/registry-push-credentials',
+        }
+        job_env[credentials_name] = '/secrets/registry-push-credentials/credentials.json'
+
         self.job = batch.create_job(
-            CI_UTILS_IMAGE,
-            command=['bash', '-c', script],
-            mount_docker_socket=True,
-            secrets=[
-                {
-                    'namespace': DEFAULT_NAMESPACE,
-                    'name': 'gcr-push-service-account-key',
-                    'mount_path': '/secrets/gcr-push-service-account-key',
-                }
-            ],
+            BUILDKIT_IMAGE,
+            command=['/bin/sh', '-c', script],
+            secrets=[credentials_secret],
+            env=job_env,
             attributes={'name': self.name},
+            resources=self.resources,
             input_files=input_files,
             parents=self.deps_parents(),
+            network='private',
+            unconfined=True,
         )
 
     def cleanup(self, batch, scope, parents):
         if scope == 'deploy' and self.publish_as and not is_test_deployment:
             return
 
-        script = f'''
+        if CLOUD == 'azure':
+            image = 'mcr.microsoft.com/azure-cli'
+            assert self.image.startswith(DOCKER_PREFIX)
+            image_name = self.image[len(f'{DOCKER_PREFIX}/') :]
+            script = f'''
+set -x
+date
+
+set +x
+USERNAME=$(cat /secrets/registry-push-credentials/credentials.json | jq -j '.appId')
+PASSWORD=$(cat /secrets/registry-push-credentials/credentials.json | jq -j '.password')
+TENANT=$(cat /secrets/registry-push-credentials/credentials.json | jq -j '.tenant')
+az login --service-principal -u $USERNAME -p $PASSWORD --tenant $TENANT
+set -x
+
+until az acr repository untag -n {shq(DOCKER_PREFIX)} --image {shq(image_name)} || ! az acr repository show -n {shq(DOCKER_PREFIX)} --image {shq(image_name)}
+do
+    echo 'failed, will sleep 2 and retry'
+    sleep 2
+done
+
+date
+true
+'''
+        else:
+            assert CLOUD == 'gcp'
+            image = CI_UTILS_IMAGE
+            script = f'''
 set -x
 date
 
 gcloud -q auth activate-service-account \
-  --key-file=/secrets/gcr-push-service-account-key/gcr-push-service-account-key.json
+  --key-file=/secrets/registry-push-credentials/credentials.json
 
 until gcloud -q container images untag {shq(self.image)} || ! gcloud -q container images describe {shq(self.image)}
 do
@@ -394,19 +408,20 @@ true
 '''
 
         self.job = batch.create_job(
-            CI_UTILS_IMAGE,
+            image,
             command=['bash', '-c', script],
             attributes={'name': f'cleanup_{self.name}'},
             secrets=[
                 {
                     'namespace': DEFAULT_NAMESPACE,
-                    'name': 'gcr-push-service-account-key',
-                    'mount_path': '/secrets/gcr-push-service-account-key',
+                    'name': 'registry-push-credentials',
+                    'mount_path': '/secrets/registry-push-credentials',
                 }
             ],
             parents=parents,
             always_run=True,
             network='private',
+            timeout=5 * 60,
         )
 
 
@@ -467,14 +482,14 @@ class RunImageStep(Step):
         if self.inputs:
             input_files = []
             for i in self.inputs:
-                input_files.append((f'gs://{BUCKET}/build/{batch.attributes["token"]}{i["from"]}', i["to"]))
+                input_files.append((f'{STORAGE_URI}/build/{batch.attributes["token"]}{i["from"]}', i["to"]))
         else:
             input_files = None
 
         if self.outputs:
             output_files = []
             for o in self.outputs:
-                output_files.append((o["from"], f'gs://{BUCKET}/build/{batch.attributes["token"]}{o["to"]}'))
+                output_files.append((o["from"], f'{STORAGE_URI}/build/{batch.attributes["token"]}{o["to"]}'))
         else:
             output_files = None
 
@@ -633,29 +648,6 @@ roleRef:
 '''
             )
 
-        if self.public:
-            config = (
-                config
-                + f'''\
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: router
-  namespace: {self._name}
-  labels:
-    app: router
-spec:
-  ports:
-  - name: http
-    port: 443
-    protocol: TCP
-    targetPort: 443
-  selector:
-    app: router
-'''
-            )
-
         script = f'''
 set -ex
 date
@@ -672,8 +664,15 @@ kubectl -n {self.namespace_name} get -o json secret global-config \
 '''
 
             for s in self.secrets:
-                script += f'''
-kubectl -n {self.namespace_name} get -o json --export secret {s} | jq '.metadata.name = "{s}"' | kubectl -n {self._name} apply -f -
+                if isinstance(s, str):
+                    script += f'''
+kubectl -n {self.namespace_name} get -o json secret {s} | jq 'del(.metadata) | .metadata.name = "{s}"' | kubectl -n {self._name} apply -f -
+'''
+                else:
+                    clouds = s.get('clouds')
+                    if clouds is None or CLOUD in clouds:
+                        script += f'''
+kubectl -n {self.namespace_name} get -o json secret {s["name"]} | jq 'del(.metadata) | .metadata.name = "{s["name"]}"' | kubectl -n {self._name} apply -f -
 '''
 
         script += '''
@@ -949,6 +948,7 @@ class CreateDatabaseStep(Step):
 
     def build(self, batch, code, scope):  # pylint: disable=unused-argument
         create_database_config = {
+            'cloud': CLOUD,
             'namespace': self.namespace,
             'scope': scope,
             'database_name': self.database_name,
@@ -981,15 +981,15 @@ EOF
         input_files = []
         if self.inputs:
             for i in self.inputs:
-                input_files.append((f'gs://{BUCKET}/build/{batch.attributes["token"]}{i["from"]}', i["to"]))
+                input_files.append((f'{STORAGE_URI}/build/{batch.attributes["token"]}{i["from"]}', i["to"]))
 
         if not self.cant_create_database:
             password_files_input = [
                 (
-                    f'gs://{BUCKET}/build/{batch.attributes["token"]}/{self.admin_password_file}',
+                    f'{STORAGE_URI}/build/{batch.attributes["token"]}/{self.admin_password_file}',
                     self.admin_password_file,
                 ),
-                (f'gs://{BUCKET}/build/{batch.attributes["token"]}/{self.user_password_file}', self.user_password_file),
+                (f'{STORAGE_URI}/build/{batch.attributes["token"]}/{self.user_password_file}', self.user_password_file),
             ]
             input_files.extend(password_files_input)
 

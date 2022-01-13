@@ -19,41 +19,92 @@ spec:
       priorityClassName: infrastructure
       securityContext:
         fsGroup: 472
-        runAsNonRoot: true
-        runAsUser: 472
       volumes:
         - name: grafana-configmap-volume
           configMap:
             name: grafana-config
+        - name: grafana-datasources-configmap-volume
+          configMap:
+            name: grafana-datasources-config
+        - name: ssl-config-grafana
+          secret:
+            optional: false
+            secretName: ssl-config-grafana
+        - name: grafana-tokens
+          secret:
+            secretName: grafana-tokens
+        - name: grafana-shared
+          emptyDir: {}
+      initContainers:
+       - name: setup-tokens
+         image: {{ base_image.image }}
+         command: ["/bin/bash"]
+         args: ["-c", "jq -r '.{{ default_ns.name }}' /grafana-tokens/tokens.json > /grafana-shared/token"]
+         volumeMounts:
+           - mountPath: /grafana-tokens
+             name: grafana-tokens
+           - mountPath: /grafana-shared
+             name: grafana-shared
       containers:
        - name: grafana
-         image: grafana/grafana:7.3.7
+         image: grafana/grafana:8.0.2
          env:
 {% if deploy %}
           - name: GF_SERVER_DOMAIN
-            value: grafana.hail.is
+            value: grafana.{{ global.domain }}
           - name: GF_SERVER_ROOT_URL
             value: "%(protocol)s://%(domain)s/"
 {% else %}
           - name: GF_SERVER_DOMAIN
-            value: internal.hail.is
+            value: internal.{{ global.domain }}
           - name: GF_SERVER_ROOT_URL
             value: "%(protocol)s://%(domain)s/{{ default_ns.name }}/grafana/"
+{% endif %}
+{% if global.cloud == 'gcp' %}
+          - name: GCP_PROJECT
+            valueFrom:
+              secretKeyRef:
+                name: global-config
+                key: gcp_project
 {% endif %}
          volumeMounts:
           - mountPath: /var/lib/grafana
             name: grafana-storage
           - mountPath: /etc/grafana
             name: grafana-configmap-volume
+          - mountPath: /etc/grafana/provisioning/datasources
+            name: grafana-datasources-configmap-volume
+          - mountPath: /grafana-shared
+            name: grafana-shared
          resources:
            requests:
-             cpu: "10m"
-             memory: "10M"
+             cpu: "100m"
+             memory: "200M"
            limits:
              cpu: "1"
              memory: "1G"
          ports:
           - containerPort: 3000
+       - name: nginx
+         image: {{ grafana_nginx_image.image }}
+         resources:
+           requests:
+             cpu: "20m"
+             memory: "20M"
+           limits:
+             cpu: "1"
+             memory: "1G"
+         ports:
+          - containerPort: 443
+         volumeMounts:
+          - name: ssl-config-grafana
+            mountPath: /ssl-config
+            readOnly: true
+         readinessProbe:
+           tcpSocket:
+             port: 443
+           initialDelaySeconds: 5
+           periodSeconds: 5
   volumeClaimTemplates:
   - metadata:
       name: grafana-storage
@@ -72,9 +123,55 @@ data:
   grafana.ini: |
     [server]
 {% if deploy %}
-    domain = grafana.hail.is
+    domain = grafana.{{ global.domain }}
 {% else %}
-    domain = internal.hail.is
+    domain = internal.{{ global.domain }}
     root_url = %(protocol)s://%(domain)/{{ default_ns.name }}/grafana/
     serve_from_sub_path = true
 {% endif %}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-datasources-config
+data:
+  datasources.yaml: |
+    apiVersion: 1
+    datasources:
+{% if global.cloud == 'gcp' %}
+      - name: Google Cloud Monitoring
+        type: stackdriver
+        access: proxy
+        isDefault: true
+        jsonData:
+          authenticationType: gce
+          defaultProject: $GCP_PROJECT
+        editable: true
+{% endif %}
+      - name: Prometheus
+        type: prometheus
+        url: https://prometheus/
+        jsonData:
+          httpHeaderName1: 'Authorization'
+          tlsSkipVerify: true
+          tlsAuth: true
+          oauthPassThru: true
+          keepCookies:
+            - session
+            - sesh
+        secureJsonData:
+          httpHeaderValue1: 'Bearer $__file{/grafana-shared/token}'
+        editable: true
+        withCredentials: true
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: grafana
+spec:
+  ports:
+   - port: 443
+     protocol: TCP
+     targetPort: 443
+  selector:
+    app: grafana

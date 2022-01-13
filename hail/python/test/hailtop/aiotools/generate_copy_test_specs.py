@@ -2,7 +2,8 @@ import secrets
 from concurrent.futures import ThreadPoolExecutor
 import pprint
 import asyncio
-from hailtop.aiotools import LocalAsyncFS, RouterAsyncFS, Transfer
+from hailtop.aiotools import LocalAsyncFS, Transfer, Copier
+from hailtop.aiotools.router_fs import RouterAsyncFS
 
 
 def remove_prefix(s, prefix):
@@ -60,7 +61,7 @@ def copy_test_configurations():
     for src_type in ['file', 'dir', 'noexist']:
         for dest_type in ['file', 'dir', 'noexist']:
             for dest_basename in [None, 'a', 'x']:
-                for treat_dest_as in [Transfer.TARGET_DIR, Transfer.TARGET_FILE, Transfer.INFER_TARGET]:
+                for treat_dest_as in [Transfer.DEST_DIR, Transfer.DEST_IS_TARGET, Transfer.INFER_DEST]:
                     for src_trailing_slash in [True, False]:
                         for dest_trailing_slash in [True, False]:
                             yield {
@@ -73,7 +74,7 @@ def copy_test_configurations():
                             }
 
 
-async def run_test_spec(fs, spec, src_base, dest_base):
+async def run_test_spec(sema, fs, spec, src_base, dest_base):
     await create_test_data(fs, 'src', src_base, 'a', spec['src_type'])
     await create_test_data(fs, 'dest', dest_base, 'a', spec['dest_type'])
 
@@ -95,7 +96,7 @@ async def run_test_spec(fs, spec, src_base, dest_base):
     result = None
     exc_type = None
     try:
-        await fs.copy(Transfer(src, dest, treat_dest_as=spec['treat_dest_as']))
+        await Copier.copy(fs, sema, Transfer(src, dest, treat_dest_as=spec['treat_dest_as']))
     except Exception as e:
         exc_type = type(e)
         if exc_type not in (NotADirectoryError, IsADirectoryError, FileNotFoundError):
@@ -121,7 +122,8 @@ async def copy_test_specs():
 
     with ThreadPoolExecutor() as thread_pool:
         async with RouterAsyncFS(
-                'file', [LocalAsyncFS(thread_pool)]) as fs:
+                'file',
+                filesystems=[LocalAsyncFS(thread_pool)]) as fs:
             for config in copy_test_configurations():
                 token = secrets.token_hex(16)
 
@@ -136,13 +138,15 @@ async def copy_test_specs():
                 async with await fs.create(f'{dest_base}keep'):
                     pass
 
-                result = await run_test_spec(fs, config, src_base, dest_base)
-                config['result'] = result
+                sema = asyncio.Semaphore(50)
+                async with sema:
+                    result = await run_test_spec(sema, fs, config, src_base, dest_base)
+                    config['result'] = result
 
-                test_specs.append(config)
+                    test_specs.append(config)
 
-                await fs.rmtree(base)
-                assert not await fs.isdir(base)
+                    await fs.rmtree(sema, base)
+                    assert not await fs.isdir(base)
 
     return test_specs
 

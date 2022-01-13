@@ -12,12 +12,6 @@ final case class TArray(elementType: Type) extends TContainer {
     elementType.pyString(sb)
     sb.append('>')
   }
-  override val fundamentalType: TArray = {
-    if (elementType == elementType.fundamentalType)
-      this
-    else
-      this.copy(elementType = elementType.fundamentalType)
-  }
 
   def _toPretty = s"Array[$elementType]"
 
@@ -66,4 +60,6 @@ final case class TArray(elementType: Type) extends TContainer {
     val subsetElem = elementType.valueSubsetter(subtype.asInstanceOf[TArray].elementType)
     (a: Any) => a.asInstanceOf[IndexedSeq[Any]].map(subsetElem)
   }
+
+  override def arrayElementsRepr: TArray = this
 }

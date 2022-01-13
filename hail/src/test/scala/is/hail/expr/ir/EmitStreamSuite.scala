@@ -1,18 +1,25 @@
 package is.hail.expr.ir
 
-import is.hail.annotations.{Region, RegionValue, RegionValueBuilder, SafeRow, ScalaToRegionValue}
+import is.hail.TestUtils._
+import is.hail.annotations.{Region, SafeRow, ScalaToRegionValue}
 import is.hail.asm4s._
-import is.hail.asm4s.joinpoint._
+import is.hail.backend.ExecuteContext
+import is.hail.expr.ir.lowering.LoweringPipeline
+import is.hail.expr.ir.streams.{EmitStream, StreamArgType, StreamUtils}
 import is.hail.types.physical._
+import is.hail.types.physical.stypes.interfaces.SStreamValue
+import is.hail.types.physical.stypes.{PTypeReferenceSingleCodeType, SingleCodeSCode, StreamSingleCodeType}
 import is.hail.types.virtual._
 import is.hail.utils._
 import is.hail.variant.Call2
-import is.hail.HailSuite
-import is.hail.expr.ir.lowering.LoweringPipeline
+import is.hail.{ExecStrategy, HailSuite}
 import org.apache.spark.sql.Row
 import org.testng.annotations.Test
 
 class EmitStreamSuite extends HailSuite {
+
+  implicit val execStrats = ExecStrategy.compileOnly
+
   private def compile1[T: TypeInfo, R: TypeInfo](f: (EmitMethodBuilder[_], Value[T]) => Code[R]): T => R = {
     val fb = EmitFunctionBuilder[T, R](ctx, "stream_test")
     val mb = fb.apply_method
@@ -40,299 +47,47 @@ class EmitStreamSuite extends HailSuite {
   def log(str: Code[String], enabled: Boolean = false): Code[Unit] =
     if (enabled) Code._println(str) else Code._empty
 
-  def range(start: Code[Int], stop: Code[Int], name: String, print: Boolean = false)(implicit ctx: EmitStreamContext): Stream[Code[Int]] =
-    Stream.range(ctx.mb, start, 1, stop - start).map(
-      a => a,
-      setup0 = Some(log(const(s"$name setup0"), print)),
-      setup = Some(log(const(s"$name setup"), print)),
-      close0 = Some(log(const(s"$name close0"), print)),
-      close = Some(log(const(s"$name close"), print)))
-
-  class CheckedStream[T](_stream: Stream[T], name: String, mb: EmitMethodBuilder[_], print: Boolean = false) {
-    val outerBit = mb.newLocal[Boolean]()
-    val innerBit = mb.newLocal[Boolean]()
-    val innerCount = mb.newLocal[Int]()
-
-    def init: Code[Unit] = Code(outerBit := false, innerBit := false, innerCount := 0)
-
-    val stream: Stream[T] = _stream.mapCPS(
-      (ctx, a, k) => (outerBit & innerBit).mux(
-        k(a),
-        Code._fatal[Unit](s"$name: pulled from when not setup")),
-      setup0 = Some((!outerBit & !innerBit).mux(
-        Code(outerBit := true,
-             log(const(s"$name setup0"), print)),
-        Code._fatal[Unit](s"$name: setup0 run out of order"))),
-      setup = Some((outerBit & !innerBit).mux(
-        Code(innerBit := true,
-             innerCount := innerCount.load + 1,
-             log(const(s"$name setup"), print)),
-        Code._fatal[Unit](s"$name: setup run out of order"))),
-      close0 = Some((outerBit & !innerBit).mux(
-        Code(outerBit := false,
-             log(const(s"$name close0"), print)),
-        Code._fatal[Unit](s"$name: close0 run out of order"))),
-      close = Some((outerBit & innerBit).mux(
-        Code(innerBit := false,
-             log(const(s"$name close"), print)),
-        Code._fatal[Unit](s"$name: close run out of order"))))
-
-    def assertClosed(expectedRuns: Code[Int]): Code[Unit] =
-      Code.memoize(innerCount, "inner_count", expectedRuns, "expected_runs") { (innerCount, expectedRuns) =>
-        (outerBit | innerBit).mux(
-          Code._fatal[Unit](s"$name: not closed"),
-          innerCount.cne(expectedRuns).mux(
-            Code._fatal[Unit](const(s"$name: expected ").concat(expectedRuns.toS).concat(" runs, found ").concat(innerCount.toS)),
-            Code._empty))
-      }
-
-    def assertClosed: Code[Unit] =
-      (outerBit | innerBit).mux(
-        Code._fatal[Unit](s"$name: not closed"),
-        Code._empty)
-  }
-
-  def checkedRange(start: Code[Int], stop: Code[Int], name: String, mb: EmitMethodBuilder[_], print: Boolean = false): CheckedStream[Code[Int]] = {
-    val tstart = mb.newLocal[Int]()
-    val len = mb.newLocal[Int]()
-    val s = Stream.range(mb, tstart, 1, len)
-      .map(
-        f = x => x,
-        setup0 = Some(Code(tstart := 0, len := 0)),
-        setup = Some(Code(tstart := start, len := stop - tstart)))
-    new CheckedStream(s, name, mb, print)
-  }
-
-  @Test def testES2Range() {
-    val f = compile1[Int, Unit] { (mb, n) =>
-      val r = checkedRange(0, n, "range", mb)
-
-      Code(
-        r.init,
-        r.stream.forEach(mb, i => log(i.toS)),
-        r.assertClosed(1))
-    }
-    for (i <- 0 to 2) { f(i) }
-  }
-
-  @Test def testES2Zip() {
-    val f = compile2[Int, Int, Unit] { (mb, m, n) =>
-      val l = checkedRange(0, m, "left", mb)
-      val r = checkedRange(0, n, "right", mb)
-      val z = Stream.zip(l.stream, r.stream)
-
-      Code(
-        l.init, r.init,
-        z.forEach(mb, x => log(const("(").concat(x._1.toS).concat(", ").concat(x._2.toS).concat(")"))),
-        l.assertClosed(1), r.assertClosed(1))
-    }
-    for {
-      i <- 0 to 2
-      j <- 0 to 2
-    } {
-      f(i, j)
-    }
-  }
-
-  @Test def testES2FlatMap() {
-    val f = compile1[Int, Unit] { (mb, n) =>
-      val outer = checkedRange(1, n, "outer", mb)
-      var inner: CheckedStream[Code[Int]] = null
-      def f(i: Code[Int]) = {
-        inner = checkedRange(0, i, "inner", mb)
-        inner.stream
-      }
-      val run = outer.stream.flatMap(f).forEach(mb, i => log(i.toS))
-
-      Code(
-        outer.init, inner.init,
-        run,
-        outer.assertClosed(1),
-        inner.assertClosed(n - 1))
-    }
-    for (n <- 1 to 5) { f(n) }
-  }
-
-  @Test def testES2ZipNested() {
-    val f = compile2[Int, Int, Unit] { (mb, m, n) =>
-      val l = checkedRange(1, m, "left", mb)
-
-      val rOuter = checkedRange(1, n, "right outer", mb)
-      var rInner: CheckedStream[Code[Int]] = null
-
-      def f(i: Code[Int]) = {
-        rInner = checkedRange(0, i, "right inner", mb)
-        rInner.stream
-      }
-      val run = Stream
-        .zip(l.stream, rOuter.stream.flatMap(f))
-        .forEach(mb, x => log(const("(").concat(x._1.toS).concat(", ").concat(x._2.toS).concat(")")))
-
-      Code(
-        l.init, rOuter.init, rInner.init,
-        run,
-        l.assertClosed(1),
-        rOuter.assertClosed(1),
-        rInner.assertClosed)
-    }
-    f(1, 1)
-    f(1, 2)
-    f(2, 1)
-    f(2, 2)
-    f(2, 3)
-    f(10, 3)
-  }
-
-  @Test def testES2Grouped() {
-    val f = compile1[Int, Unit] { (mb, n) =>
-      val r = checkedRange(0, n, "range", mb)
-      var checkedInner: CheckedStream[Code[Int]] = null
-      val rootRegion = StagedRegion(new Value[Region] { def get: Code[Region] = Code._null[Region] }, allowSubregions = false)
-      val eltRegion = rootRegion.createChildRegion(mb)
-      val innerStreamType = PCanonicalStream(PInt32())
-      val outer = Stream.grouped(mb, _ => r.stream, innerStreamType, 2, eltRegion).map { inner =>
-        checkedInner = new CheckedStream(inner(eltRegion), "inner", mb)
-        checkedInner.stream
-      }
-      val checkedOuter = new CheckedStream(outer, "outer", mb)
-      val run = checkedOuter.stream.forEach(mb, { inner =>
-        inner.forEach(mb, i => log(i.toS))
-      })
-
-      Code(
-        r.init, checkedOuter.init, checkedInner.init,
-        run,
-        r.assertClosed(1),
-        checkedOuter.assertClosed(1),
-        checkedInner.assertClosed((n + 1) / 2))
-    }
-    for (i <- 0 to 5) { f(i) }
-  }
-
-  @Test def testES2GroupedTake() {
-    val f = compile1[Int, Unit] { (mb, n) =>
-      val r = checkedRange(0, n, "range", mb)
-      var checkedInner: CheckedStream[Code[Int]] = null
-      val rootRegion = StagedRegion(new Value[Region] { def get: Code[Region] = Code._null[Region] }, allowSubregions = false)
-      val eltRegion = rootRegion.createChildRegion(mb)
-      val innerStreamType = PCanonicalStream(PInt32())
-      val outer = Stream.grouped(mb, _ => r.stream, innerStreamType, 2, eltRegion).map { inner =>
-        val take = Stream.zip(inner(eltRegion), Stream.range(mb, 0, 1, 1))
-                         .map { case (i, count) => i }
-        checkedInner = new CheckedStream(take, "inner", mb)
-        checkedInner.stream
-      }
-      val checkedOuter = new CheckedStream(outer, "outer", mb)
-      val run = checkedOuter.stream.forEach(mb, { inner =>
-        inner.forEach(mb, i => log(i.toS))
-      })
-
-      Code(
-        r.init, checkedOuter.init, checkedInner.init,
-        run,
-        r.assertClosed(1),
-        checkedOuter.assertClosed(1),
-        checkedInner.assertClosed((n + 1) / 2))
-    }
-    for (i <- 0 to 5) { f(i) }
-  }
-
-  @Test def testES2MultiZip() {
-    val f = compile3[Int, Int, Int, Unit] { (mb, n1, n2, n3) =>
-      val s1 = checkedRange(0, n1, "s1", mb)
-      val s2 = checkedRange(0, n2, "s2", mb)
-      val s3 = checkedRange(0, n3, "s3", mb)
-      val z = Stream.multiZip(IndexedSeq(s1.stream, s2.stream, s3.stream))
-
-      Code(
-        s1.init, s2.init, s3.init,
-        z.forEach(mb, x => log(const("(").concat(x(0).toS).concat(", ").concat(x(1).toS).concat(", ").concat(x(2).toS).concat(")"))),
-        s1.assertClosed(1),
-        s2.assertClosed(1),
-        s3.assertClosed(1))
-    }
-    for {
-      n1 <- 0 to 2
-      n2 <- 0 to 2
-      n3 <- 0 to 2
-    } {
-      f(n1, n2, n3)
-    }
-  }
-
-  @Test def testES2kWayMerge() {
-    def merge(k: Int) {
-      val f = compile1[Int, Unit] { (mb, _) =>
-        val rootRegion = StagedRegion(new Value[Region] { def get: Code[Region] = Code._null[Region] }, allowSubregions = false)
-        val eltRegion = rootRegion.createChildRegion(mb)
-        val ranges = Array.tabulate(k)(i => checkedRange(0 + i, 5 + i, s"s$i", mb, print = false))
-
-        val z = Stream.kWayMerge[Int](
-           mb, ranges.map(cs => (_: StagedRegion) => cs.stream), eltRegion,
-           (li, lv, ri, rv) => Code.memoize(lv, "lv", rv, "rv") { (lv, rv) =>
-             lv < rv || (lv.ceq(rv) && li < ri)
-           })
-
-
-        Code(
-          Code(ranges.map(_.init)),
-          z.forEach(mb, { case (i, l) =>
-            log(const("(").concat(i.toS).concat(", ").concat(l.toS).concat(")"), enabled = false)
-          }),
-          Code(ranges.map(_.assertClosed(1))))
-      }
-      f(0)
-    }
-    for {
-      k <- 0 to 5
-    } {
-//      println(s"k = $k")
-      merge(k)
-//      println()
-    }
-
-  }
-
   private def compileStream[F: TypeInfo, T](
     streamIR: IR,
-    inputTypes: IndexedSeq[PType]
+    inputTypes: IndexedSeq[EmitParamType]
   )(call: (F, Region, T) => Long): T => IndexedSeq[Any] = {
-    val fb = EmitFunctionBuilder[F](ctx, "F", (classInfo[Region]: ParamType) +: inputTypes.map(pt => EmitParamType(pt): ParamType), LongInfo)
+    val fb = EmitFunctionBuilder[F](ctx, "F", (classInfo[Region]: ParamType) +: inputTypes.map(pt => pt: ParamType), LongInfo)
     val mb = fb.apply_method
-    val region = StagedRegion(mb.getCodeParam[Region](1), allowSubregions = false)
     val ir = streamIR.deepCopy()
-    val usesAndDefs = ComputeUsesAndDefs(ir, errorIfFreeVariables = false)
-    val requiredness = Requiredness.apply(ir, usesAndDefs, null, Env.empty) // Value IR inference doesn't need context
-    InferPType(ir, Env.empty, requiredness, usesAndDefs)
 
-    val emitContext = new EmitContext(ctx, requiredness)
-    val eltType = ir.pType.asInstanceOf[PStream].elementType
-    val stream = ExecuteContext.scoped() { ctx =>
+    val emitContext = EmitContext.analyze(ctx, ir)
+
+    var arrayType: PType = null
+    mb.emit(EmitCodeBuilder.scopedCode(mb) { cb =>
+      val region = mb.getCodeParam[Region](1)
       val s = ir match {
         case ToArray(s) => s
         case s => s
       }
       TypeCheck(s)
-      EmitStream.emit(new Emit(emitContext, fb.ecb), s, mb, region, Env.empty, None)
-    }
-    mb.emit(EmitCodeBuilder.scopedCode(mb) { cb =>
-      stream.toI(cb).consumeCode[Long](cb, 0L, { s =>
-        EmitStream.toArray(cb, PCanonicalArray(eltType), s.asStream, region).tcode[Long]
-      })
+      EmitStream.produce(new Emit(emitContext, fb.ecb), s, cb, region, EmitEnv(Env.empty, inputTypes.indices.map(i => mb.storeEmitParam(i + 2, cb))), None)
+        .consumeCode[Long](cb, 0L, { s =>
+          val arr = StreamUtils.toArray(cb, s.asStream.producer, region)
+          val scp = SingleCodeSCode.fromSCode(cb, arr, region, false)
+          arrayType = scp.typ.asInstanceOf[PTypeReferenceSingleCodeType].pt
+
+          coerce[Long](scp.code)
+        })
     })
     val f = fb.resultWithIndex()
-    (arg: T) => pool.scopedRegion { r =>
-      val off = call(f(0, r), r, arg)
-      if (off == 0L)
-        null
-      else
-        SafeRow.read(PCanonicalArray(eltType), off).asInstanceOf[IndexedSeq[Any]]
-    }
+    (arg: T) =>
+      pool.scopedRegion { r =>
+        val off = call(f(ctx.fs, 0, r), r, arg)
+        if (off == 0L)
+          null
+        else
+          SafeRow.read(arrayType, off).asInstanceOf[IndexedSeq[Any]]
+      }
   }
 
   private def compileStream(ir: IR, inputType: PType): Any => IndexedSeq[Any] = {
     type F = AsmFunction3RegionLongBooleanLong
-    compileStream[F, Any](ir, FastIndexedSeq(inputType)) { (f: F, r: Region, arg: Any) =>
+    compileStream[F, Any](ir, FastIndexedSeq(SingleCodeEmitParamType(false, PTypeReferenceSingleCodeType(inputType)))) { (f: F, r: Region, arg: Any) =>
       if (arg == null)
         f(r, 0L, true)
       else
@@ -340,21 +95,24 @@ class EmitStreamSuite extends HailSuite {
     }
   }
 
-  private def compileStreamWithIter(ir: IR, streamType: PStream): Iterator[Any] => IndexedSeq[Any] = {
+  private def compileStreamWithIter(ir: IR, requiresMemoryManagementPerElement: Boolean, elementType: PType): Iterator[Any] => IndexedSeq[Any] = {
     trait F {
-      def apply(o: Region, a: StreamArgType, b: Boolean): Long
+      def apply(o: Region, a: StreamArgType): Long
     }
-    compileStream[F, Iterator[Any]](ir, IndexedSeq(streamType)) { (f: F, r: Region, it: Iterator[Any]) =>
+    compileStream[F, Iterator[Any]](ir,
+      IndexedSeq(SingleCodeEmitParamType(true, StreamSingleCodeType(requiresMemoryManagementPerElement, elementType)))) { (f: F, r: Region, it: Iterator[Any]) =>
       val rvi = new StreamArgType {
         def apply(outerRegion: Region, eltRegion: Region): Iterator[java.lang.Long] =
           new Iterator[java.lang.Long] {
             def hasNext: Boolean = it.hasNext
+
             def next(): java.lang.Long = {
-              ScalaToRegionValue(eltRegion, streamType.elementType, it.next())
+              ScalaToRegionValue(eltRegion, elementType, it.next())
             }
           }
       }
-      f(r, rvi, it == null)
+      assert(it != null, "null iterators not supported")
+      f(r, rvi)
     }
   }
 
@@ -365,32 +123,31 @@ class EmitStreamSuite extends HailSuite {
   private def evalStreamLen(streamIR: IR): Option[Int] = {
     val fb = EmitFunctionBuilder[Region, Int](ctx, "eval_stream_len")
     val mb = fb.apply_method
-    val region = StagedRegion(mb.getCodeParam[Region](1), allowSubregions = false)
+    val region = mb.getCodeParam[Region](1)
     val ir = streamIR.deepCopy()
-    val usesAndDefs = ComputeUsesAndDefs(ir, errorIfFreeVariables = false)
-    val requiredness = Requiredness.apply(ir, usesAndDefs, null, Env.empty) // Value IR inference doesn't need context
-    InferPType(ir, Env.empty, requiredness, usesAndDefs)
+    val emitContext = EmitContext.analyze(ctx, ir)
 
-    val emitContext = new EmitContext(ctx, requiredness)
-
-    val optStream = ExecuteContext.scoped() { ctx =>
+    fb.emitWithBuilder { cb =>
       TypeCheck(ir)
-      EmitStream.emit(new Emit(emitContext, fb.ecb), ir, mb, region, Env.empty, None)
+      val len = cb.newLocal[Int]("len", 0)
+      val len2 = cb.newLocal[Int]("len2", -1)
+
+      EmitStream.produce(new Emit(emitContext, fb.ecb), ir, cb, region, EmitEnv(Env.empty, FastIndexedSeq()), None)
+        .consume(cb,
+          {},
+          { case stream: SStreamValue =>
+            stream.producer.memoryManagedConsume(region, cb, { cb => stream.producer.length.foreach(computeLen => cb.assign(len2, computeLen(cb))) }) { cb =>
+              cb.assign(len, len + 1)
+            }
+          })
+      cb.ifx(len2.cne(-1) && (len2.cne(len)),
+        cb._fatal(s"length mismatch between computed and iteration length: computed=", len2.toS, ", iter=", len.toS))
+
+      len2
     }
-    val len = mb.newLocal[Int]()
-    implicit val emitStreamCtx = EmitStreamContext(mb)
-    fb.emit(Code(
-      optStream.setup,
-      optStream.m.mux(
-        len := 0,
-        {
-          val EmitStream.SizedStream(setup, _, length) = optStream.pv.asStream.stream
-          Code(setup, len := length.getOrElse(-1))
-        }),
-      len))
     val f = fb.resultWithIndex()
     pool.scopedRegion { r =>
-      val len = f(0, r)(r)
+      val len = f(ctx.fs, 0, r)(r)
       if (len < 0) None else Some(len)
     }
   }
@@ -418,12 +175,15 @@ class EmitStreamSuite extends HailSuite {
   @Test def testEmitRange() {
     val tripleType = PCanonicalStruct(false, "start" -> PInt32(), "stop" -> PInt32(), "step" -> PInt32())
     val range = compileStream(
-      StreamRange(GetField(In(0, tripleType), "start"), GetField(In(0, tripleType), "stop"), GetField(In(0, tripleType), "step")),
+      StreamRange(
+        GetField(In(0, SingleCodeEmitParamType(false, PTypeReferenceSingleCodeType(tripleType))), "start"),
+        GetField(In(0, SingleCodeEmitParamType(false, PTypeReferenceSingleCodeType(tripleType))), "stop"),
+        GetField(In(0, SingleCodeEmitParamType(false, PTypeReferenceSingleCodeType(tripleType))), "step")),
       tripleType)
     for {
       start <- -2 to 2
-      stop <- -2 to 8
-      step <- 1 to 3
+        stop <- -2 to 8
+        step <- 1 to 3
     } {
       assert(range(Row(start, stop, step)) == Array.range(start, stop, step).toFastIndexedSeq,
         s"($start, $stop, $step)")
@@ -434,6 +194,38 @@ class EmitStreamSuite extends HailSuite {
     assert(range(null) == null)
   }
 
+  @Test def testEmitSeqSample(): Unit = {
+    val N = 20
+    val n = 2
+
+    val seqIr = SeqSample(
+        I32(N),
+        I32(n),
+        false
+      )
+
+    val compiled = compileStream[AsmFunction1RegionLong, Unit](seqIr, FastIndexedSeq()) { (f, r, _) => f(r) }
+
+    // Generate many pairs of numbers between 0 and N, every pair should be equally likely
+    val results = Array.tabulate(N, N){ case(i, j) => 0}
+    (0 until 1000000).foreach { i =>
+      val seq = compiled.apply(()).map(_.asInstanceOf[Int])
+      assert(seq.size == n)
+      results(seq(0))(seq(1)) += 1
+      assert(seq.toSet.size == n)
+      assert(seq.forall(e => e >= 0 && e < N))
+    }
+
+
+    (0 until N).foreach { i =>
+      (i + 1 until N).foreach { j =>
+        val entry = results(i)(j)
+        // Expected value of entry is 5263.
+        assert(entry > 4880 && entry < 5650)
+      }
+    }
+  }
+
   @Test def testEmitToStream() {
     val tests: Array[(IR, IndexedSeq[Any])] = Array(
       ToStream(MakeArray(Seq[IR](), TArray(TInt32))) -> IndexedSeq(),
@@ -441,7 +233,7 @@ class EmitStreamSuite extends HailSuite {
       ToStream(NA(TArray(TInt32))) -> null
     )
     for ((ir, v) <- tests) {
-      val expectedLen = Some(if(v == null) 0 else v.length)
+      val expectedLen = Option(v).map(_.length)
       assert(evalStream(ir) == v, Pretty(ir))
       assert(evalStreamLen(ir) == expectedLen, Pretty(ir))
     }
@@ -462,8 +254,11 @@ class EmitStreamSuite extends HailSuite {
 
   @Test def testEmitMap() {
     def ten = StreamRange(I32(0), I32(10), I32(1))
+
     def x = Ref("x", TInt32)
+
     def y = Ref("y", TInt32)
+
     val tests: Array[(IR, IndexedSeq[Any])] = Array(
       StreamMap(ten, "x", x * 2) -> (0 until 10).map(_ * 2),
       StreamMap(ten, "x", x.toL) -> (0 until 10).map(_.toLong),
@@ -478,8 +273,11 @@ class EmitStreamSuite extends HailSuite {
 
   @Test def testEmitFilter() {
     def ten = StreamRange(I32(0), I32(10), I32(1))
+
     def x = Ref("x", TInt32)
+
     def y = Ref("y", TInt64)
+
     val tests: Array[(IR, IndexedSeq[Any])] = Array(
       StreamFilter(ten, "x", x cne 5) -> (0 until 10).filter(_ != 5),
       StreamFilter(StreamMap(ten, "x", (x * 2).toL), "y", y > 5L) -> (3 until 10).map(x => (x * 2).toLong),
@@ -494,7 +292,9 @@ class EmitStreamSuite extends HailSuite {
 
   @Test def testEmitFlatMap() {
     def x = Ref("x", TInt32)
+
     def y = Ref("y", TInt32)
+
     val tests: Array[(IR, IndexedSeq[Any])] = Array(
       StreamFlatMap(StreamRange(0, 6, 1), "x", StreamRange(0, x, 1)) ->
         (0 until 6).flatMap(0 until _),
@@ -530,7 +330,9 @@ class EmitStreamSuite extends HailSuite {
           GetField(Ref("l", eltType), "v"),
           GetField(Ref("r", eltType), "v"))),
         joinType)
+
     def leftjoin(lstream: IR, rstream: IR): IR = join(lstream, rstream, "left")
+
     def outerjoin(lstream: IR, rstream: IR): IR = join(lstream, rstream, "outer")
 
     def pairs(xs: Seq[(Int, String)]): IR =
@@ -569,15 +371,62 @@ class EmitStreamSuite extends HailSuite {
     }
   }
 
+  @Test def testStreamJoinOuterWithKeyRepeats() {
+    val lEltType = TStruct("k" -> TInt32, "idx_left" -> TInt32)
+    val lRows = FastIndexedSeq(
+      Row(1, 1),
+      Row(1, 2),
+      Row(1, 3),
+      Row(3, 4)
+    )
+
+    val a = ToStream(
+      Literal(
+        TArray(lEltType),
+        lRows
+    ))
+
+    val rEltType = TStruct("k" -> TInt32, "idx_right" -> TInt32)
+    val rRows = FastIndexedSeq(
+      Row(1, 1),
+      Row(2, 2),
+      Row(4, 3)
+    )
+    val b = ToStream(
+      Literal(
+        TArray(rEltType),
+        rRows
+      ))
+
+    val ir = StreamJoinRightDistinct(a, b,
+      FastIndexedSeq("k"), FastIndexedSeq("k"),
+      "L", "R",
+      MakeStruct(FastSeq("left" -> Ref("L", lEltType), "right" -> Ref("R", rEltType))),
+      "outer")
+
+    val compiled = evalStream(ir)
+    val expected = FastIndexedSeq(
+      Row( Row(1, 1), Row(1, 1)),
+      Row( Row(1, 2), Row(1, 1)),
+      Row( Row(1, 3), Row(1, 1)),
+      Row( null,  Row(2, 2)),
+      Row( Row(3, 4), null),
+      Row(null, Row(4, 3)))
+    assert(compiled == expected)
+  }
+
   @Test def testEmitScan() {
     def a = Ref("a", TInt32)
+
     def v = Ref("v", TInt32)
+
     def x = Ref("x", TInt32)
+
     val tests: Array[(IR, IndexedSeq[Any])] = Array(
       StreamScan(MakeStream(Seq(), TStream(TInt32)),
         9, "a", "v", a + v) -> IndexedSeq(9),
       StreamScan(StreamMap(StreamRange(0, 4, 1), "x", x * x),
-        1, "a", "v", a + v) -> IndexedSeq(1, 1/*1+0*0*/, 2/*1+1*1*/, 6/*2+2*2*/, 15/*6+3*3*/)
+        1, "a", "v", a + v) -> IndexedSeq(1, 1 /*1+0*0*/ , 2 /*1+1*1*/ , 6 /*2+2*2*/ , 15 /*6+3*3*/)
     )
     for ((ir, v) <- tests) {
       assert(evalStream(ir) == v, Pretty(ir))
@@ -636,35 +485,36 @@ class EmitStreamSuite extends HailSuite {
   }
 
   @Test def testEmitFromIterator() {
-    val intsPType = PCanonicalStream(PInt32())
+    val intsPType = PInt32(true)
 
     val f1 = compileStreamWithIter(
-      StreamScan(In(0, intsPType),
+      StreamScan(In(0, SingleCodeEmitParamType(true, StreamSingleCodeType(true, PInt32(true)))),
         zero = 0,
         "a", "x", Ref("a", TInt32) + Ref("x", TInt32) * Ref("x", TInt32)
-      ), intsPType)
-    assert(f1((1 to 4).iterator) == IndexedSeq(0, 1, 1+4, 1+4+9, 1+4+9+16))
+      ), false, intsPType)
+    assert(f1((1 to 4).iterator) == IndexedSeq(0, 1, 1 + 4, 1 + 4 + 9, 1 + 4 + 9 + 16))
     assert(f1(Iterator.empty) == IndexedSeq(0))
-    assert(f1(null) == null)
 
     val f2 = compileStreamWithIter(
       StreamFlatMap(
-        In(0, intsPType),
+        In(0, SingleCodeEmitParamType(true, StreamSingleCodeType(false, PInt32(true)))),
         "n", StreamRange(0, Ref("n", TInt32), 1)
-      ), intsPType)
+      ), false, intsPType)
     assert(f2(Seq(1, 5, 2, 9).iterator) == IndexedSeq(1, 5, 2, 9).flatMap(0 until _))
-    assert(f2(null) == null)
 
     val f3 = compileStreamWithIter(
-      StreamRange(0, StreamLen(In(0, intsPType)), 1), intsPType)
+      StreamRange(0, StreamLen(In(0, SingleCodeEmitParamType(true, StreamSingleCodeType(false, PInt32(true))))), 1), false, intsPType)
     assert(f3(Seq(1, 5, 2, 9).iterator) == IndexedSeq(0, 1, 2, 3))
     assert(f3(Seq().iterator) == IndexedSeq())
   }
 
   @Test def testEmitIf() {
     def xs = MakeStream(Seq[IR](5, 3, 6), TStream(TInt32))
+
     def ys = StreamRange(0, 4, 1)
+
     def na = NA(TStream(TInt32))
+
     val tests: Array[(IR, IndexedSeq[Any])] = Array(
       If(True(), xs, ys) -> IndexedSeq(5, 3, 6),
       If(False(), xs, ys) -> IndexedSeq(0, 1, 2, 3),
@@ -677,7 +527,7 @@ class EmitStreamSuite extends HailSuite {
         If(Ref("x", TBoolean), xs, ys))
         -> IndexedSeq(0, 1, 2, 3, 5, 3, 6, 0, 1, 2, 3)
     )
-    val lens: Array[Option[Int]] = Array(Some(3), Some(4), Some(3), Some(0), Some(0), None)
+    val lens: Array[Option[Int]] = Array(Some(3), Some(4), Some(3), None, None, None)
     for (((ir, v), len) <- tests zip lens) {
       assert(evalStream(ir) == v, Pretty(ir))
       assert(evalStreamLen(ir) == len, Pretty(ir))
@@ -705,16 +555,109 @@ class EmitStreamSuite extends HailSuite {
       Ref("foldAcc", TFloat64) + Ref("foldVal", TFloat64)
     )))
 
-    val (pt, f) = Compile[AsmFunction2RegionLongLong](ctx,
-      FastIndexedSeq(("in", t)),
+    val (Some(PTypeReferenceSingleCodeType(pt)), f) = Compile[AsmFunction2RegionLongLong](ctx,
+      FastIndexedSeq(("in", SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(t)))),
       FastIndexedSeq(classInfo[Region], LongInfo), LongInfo,
       ir)
 
     pool.scopedSmallRegion { r =>
       val input = t.unstagedStoreJavaObject(Row(null, IndexedSeq(1d, 2d), IndexedSeq(3d, 4d)), r)
 
-      assert(SafeRow.read(pt, f(0, r)(r, input)) == Row(null))
+      assert(SafeRow.read(pt, f(ctx.fs, 0, r)(r, input)) == Row(null))
     }
+  }
+
+  @Test def testFold() {
+    val ints = Literal(TArray(TInt32), IndexedSeq(1, 2, 3, 4))
+    val strsLit = Literal(TArray(TString), IndexedSeq("one", "two", "three", "four"))
+    val strs = MakeStream(FastIndexedSeq(Str("one"), Str("two"), Str("three"), Str("four")), TStream(TString), true)
+
+    assertEvalsTo(
+      foldIR(ToStream(ints, requiresMemoryManagementPerElement = false), I32(-1)) { (acc, elt) => acc + elt },
+      9
+    )
+
+    assertEvalsTo(
+      foldIR(ToStream(strsLit, requiresMemoryManagementPerElement = false), Str("")) { (acc, elt) => invoke("concat", TString, acc, elt) },
+      "onetwothreefour"
+    )
+
+    assertEvalsTo(
+      foldIR(strs, Str("")) { (acc, elt) => invoke("concat", TString, acc, elt) },
+      "onetwothreefour"
+    )
+  }
+
+  @Test def testGrouped() {
+    // empty => empty
+    assertEvalsTo(
+      ToArray(
+        mapIR(
+          StreamGrouped(
+            StreamRange(0, 0, 1, false),
+            I32(5)
+          )) { inner => ToArray(inner) }
+      ),
+      IndexedSeq())
+
+    // general case where stream ends in inner group
+    assertEvalsTo(
+      ToArray(
+        mapIR(
+          StreamGrouped(
+            StreamRange(0, 10, 1, false),
+            I32(3)
+          )) { inner => ToArray(inner) }
+      ),
+      IndexedSeq(
+        IndexedSeq(0, 1, 2),
+        IndexedSeq(3, 4, 5),
+        IndexedSeq(6, 7, 8),
+        IndexedSeq(9)))
+
+    // stream ends at end of inner group
+    assertEvalsTo(
+      ToArray(
+        mapIR(
+          StreamGrouped(
+            StreamRange(0, 10, 1, false),
+            I32(5)
+          )) { inner => ToArray(inner) }
+      ),
+      IndexedSeq(
+        IndexedSeq(0, 1, 2, 3, 4),
+        IndexedSeq(5, 6, 7, 8, 9)))
+
+    // separate regions
+    assertEvalsTo(
+      ToArray(
+        mapIR(
+          StreamGrouped(
+            MakeStream((0 until 10).map(x => Str(x.toString)), TStream(TString), true),
+            I32(4)
+          )) { inner => ToArray(inner) }
+      ),
+      IndexedSeq(
+        IndexedSeq("0", "1", "2", "3"),
+        IndexedSeq("4", "5", "6", "7"),
+        IndexedSeq("8", "9")))
+
+  }
+
+  @Test def testMakeStream() {
+    assertEvalsTo(
+      ToArray(
+        MakeStream(IndexedSeq(I32(1), NA(TInt32), I32(2)), TStream(TInt32))
+      ),
+      IndexedSeq(1, null, 2)
+    )
+
+    assertEvalsTo(
+      ToArray(
+        MakeStream(IndexedSeq(Literal(TArray(TInt32), IndexedSeq(1)), NA(TArray(TInt32))), TStream(TArray(TInt32)))
+      ),
+      IndexedSeq(IndexedSeq(1), null)
+    )
   }
 
   @Test def testMultiplicity() {
@@ -733,7 +676,141 @@ class EmitStreamSuite extends HailSuite {
       StreamScan(StreamMap(target, "i", i), 0, "a", "i", i) -> 1,
       StreamScan(StreamScan(target, 0, "a", "i", i), 0, "a", "i", i) -> 1
     )) {
-      assert(EmitStream.multiplicity(ir, "target") == v, Pretty(ir))
+      assert(StreamUtils.multiplicity(ir, "target") == v, Pretty(ir))
     }
+  }
+
+  def assertMemoryDoesNotScaleWithStreamSize(lowSize: Int = 50, highSize: Int = 2500)(f: IR => IR): Unit = {
+    val memUsed1 = ExecuteContext.scoped() { ctx =>
+      eval(f(lowSize), Env.empty, FastIndexedSeq(), None, None, false, ctx)
+      ctx.r.pool.getHighestTotalUsage
+    }
+
+    val memUsed2 = ExecuteContext.scoped() { ctx =>
+      eval(f(highSize), Env.empty, FastIndexedSeq(), None, None, false, ctx)
+      ctx.r.pool.getHighestTotalUsage
+    }
+
+    if (memUsed1 != memUsed2)
+      throw new RuntimeException(s"memory usage scales with stream size!" +
+        s"\n  at size=$lowSize, memory=$memUsed1" +
+        s"\n  at size=$highSize, memory=$memUsed2" +
+        s"\n  IR: ${ Pretty(f(lowSize)) }")
+
+  }
+
+  def sumIR(x: IR): IR = foldIR(x, 0) { case (acc, value) => acc + value }
+
+  def foldLength(x: IR): IR = sumIR(mapIR(x) { _ => I32(1) })
+
+  def rangeStructs(size: IR): IR = mapIR(StreamRange(0, size, 1, true)) { i =>
+    makestruct(("idx", i), ("foo", invoke("str", TString, i)), ("bigArray", ToArray(rangeIR(10000))))
+  }
+
+  def filteredRangeStructs(size: IR): IR = mapIR(filterIR(
+    StreamRange(0, size, 1, true)
+  ) { i => i < (size / 2).toI }) { i =>
+    makestruct(("idx", i), ("foo2", invoke("str", TString, i)), ("bigArray2", ToArray(rangeIR(10000))))
+  }
+
+  @Test def testMemoryRangeFold(): Unit = {
+
+    assertMemoryDoesNotScaleWithStreamSize() { size =>
+      foldIR(mapIR(flatMapIR(StreamRange(0, size, 1, true)) { x => StreamRange(0, x, 1, true) }) { i =>
+        invoke("str", TString, i)
+      }, I32(0)) { case (acc, value) => maxIR(acc, invoke("length", TInt32, value)) }
+    }
+  }
+
+  @Test def testStreamJoinMemory(): Unit = {
+
+    assertMemoryDoesNotScaleWithStreamSize() { size =>
+      sumIR(joinIR(rangeStructs(size), filteredRangeStructs(size), IndexedSeq("idx"), IndexedSeq("idx"), "inner") { case (l, r) => I32(1) })
+    }
+    assertMemoryDoesNotScaleWithStreamSize() { size =>
+      sumIR(joinIR(rangeStructs(size), filteredRangeStructs(size), IndexedSeq("idx"), IndexedSeq("idx"), "left") { case (l, r) => I32(1) })
+    }
+    assertMemoryDoesNotScaleWithStreamSize() { size =>
+      sumIR(joinIR(rangeStructs(size), filteredRangeStructs(size), IndexedSeq("idx"), IndexedSeq("idx"), "right") { case (l, r) => I32(1) })
+    }
+    assertMemoryDoesNotScaleWithStreamSize() { size =>
+      sumIR(joinIR(rangeStructs(size), filteredRangeStructs(size), IndexedSeq("idx"), IndexedSeq("idx"), "outer") { case (l, r) => I32(1) })
+    }
+  }
+
+  @Test def testStreamGroupedMemory(): Unit = {
+    assertMemoryDoesNotScaleWithStreamSize() { size =>
+      sumIR(mapIR(StreamGrouped(rangeIR(size), 100)) { stream => I32(1) })
+    }
+
+    assertMemoryDoesNotScaleWithStreamSize() { size =>
+      sumIR(mapIR(StreamGrouped(rangeIR(size), 100)) { stream => sumIR(stream) })
+    }
+  }
+
+  @Test def testStreamFilterMemory(): Unit = {
+    assertMemoryDoesNotScaleWithStreamSize(highSize = 100000) { size =>
+      StreamLen(filterIR(mapIR(StreamRange(0, size, 1, true)) { i => invoke("str", TString, i) }) { str => invoke("length", TInt32, str) > (size * 9 / 10).toString.size })
+    }
+  }
+
+  @Test def testStreamFlatMapMemory(): Unit = {
+    assertMemoryDoesNotScaleWithStreamSize() { size =>
+      sumIR(flatMapIR(filteredRangeStructs(size)) { struct =>
+        StreamRange(0, invoke("length", TInt32, GetField(struct, "foo2")), 1, true)
+      })
+    }
+
+    assertMemoryDoesNotScaleWithStreamSize() { size =>
+      sumIR(flatMapIR(filteredRangeStructs(size)) { struct =>
+        StreamRange(0, invoke("length", TInt32, GetField(struct, "foo2")), 1, false)
+      })
+    }
+  }
+
+  @Test def testGroupedFlatMapMemManagementMismatch(): Unit = {
+    assertMemoryDoesNotScaleWithStreamSize() { size =>
+      foldLength(flatMapIR(mapIR(StreamGrouped(rangeStructs(size), 16)) { x => ToArray(x) }) { a => ToStream(a, false) })
+    }
+  }
+
+  @Test def testStreamTakeWhile(): Unit = {
+    val makestream = MakeStream(FastSeq(I32(1), I32(2), I32(0), I32(1), I32(-1)), TStream(TInt32))
+    assert(evalStream(takeWhile(makestream) { r => r > 0 }) == IndexedSeq(1, 2))
+    assert(evalStream(StreamTake(makestream, I32(3))) == IndexedSeq(1, 2, 0))
+    assert(evalStream(takeWhile(makestream) { r => NA(TBoolean) }) == IndexedSeq())
+    assert(evalStream(takeWhile(makestream) { r => If(r > 0, True(), NA(TBoolean)) }) == IndexedSeq(1, 2))
+  }
+
+  @Test def testStreamDropWhile(): Unit = {
+    val makestream = MakeStream(FastSeq(I32(1), I32(2), I32(0), I32(1), I32(-1)), TStream(TInt32))
+    assert(evalStream(dropWhile(makestream) { r => r > 0 }) == IndexedSeq(0, 1, -1))
+    assert(evalStream(StreamDrop(makestream, I32(3))) == IndexedSeq(1, -1))
+    assert(evalStream(dropWhile(makestream) { r => NA(TBoolean) }) == IndexedSeq(1, 2, 0, 1, -1))
+    assert(evalStream(dropWhile(makestream) { r => If(r > 0, True(), NA(TBoolean)) }) == IndexedSeq(0, 1, -1))
+
+  }
+
+  @Test def testStreamTakeDropMemory(): Unit = {
+    assertMemoryDoesNotScaleWithStreamSize() { size =>
+      foldLength(StreamTake(rangeStructs(size), (size / 2).toI))
+    }
+
+    assertMemoryDoesNotScaleWithStreamSize() { size =>
+      foldLength(StreamDrop(rangeStructs(size), (size / 2).toI))
+    }
+
+    assertMemoryDoesNotScaleWithStreamSize() { size =>
+      foldLength(dropWhile(rangeStructs(size)) { elt => GetField(elt, "idx") < (size / 2).toI })
+    }
+
+    assertMemoryDoesNotScaleWithStreamSize() { size =>
+      foldLength(takeWhile(rangeStructs(size)) { elt => GetField(elt, "idx") < (size / 2).toI })
+    }
+  }
+
+  @Test def testStreamIota(): Unit = {
+    assert(evalStream(takeWhile(iota(0, 2))(elt => elt < 10)) == IndexedSeq(0, 2, 4, 6, 8))
+    assert(evalStream(StreamTake(iota(5, -5), 3)) == IndexedSeq(5, 0, -5))
   }
 }

@@ -1,16 +1,23 @@
 package is.hail.utils.richUtils
 
-import is.hail.annotations.{Region, RegionPool}
+import is.hail.annotations.{Region, RegionMemory, RegionPool}
 import is.hail.asm4s._
+import is.hail.expr.ir.EmitCodeBuilder
 
 class RichCodeRegion(val region: Code[Region]) extends AnyVal {
   def allocate(alignment: Code[Long], n: Code[Long]): Code[Long] =
     region.invoke[Long, Long, Long]("allocate", alignment, n)
 
-  def clear(): Code[Unit] = { region.invoke[Unit]("clear") }
+  def clearRegion(): Code[Unit] = {
+    region.invoke[Unit]("clear")
+  }
 
-  def reference(other: Code[Region]): Code[Unit] =
-    region.invoke[Region, Unit]("reference", other)
+  def getMemory(): Code[RegionMemory] = region.invoke[RegionMemory]("getMemory")
+
+  def trackAndIncrementReferenceCountOf(other: Code[Region]): Code[Unit] =
+    region.invoke[Region, Unit]("addReferenceTo", other)
+
+  def takeOwnershipOfAndClear(other: Code[Region]): Code[Unit] = other.invoke[Region, Unit]("move", region)
 
   def setNumParents(n: Code[Int]): Code[Unit] =
     region.invoke[Int, Unit]("setNumParents", n)
@@ -40,4 +47,10 @@ class RichCodeRegion(val region: Code[Region]) extends AnyVal {
   def getPool(): Code[RegionPool] = region.invoke[RegionPool]("getPool")
 
   def totalManagedBytes(): Code[Long] = region.invoke[Long]("totalManagedBytes")
+
+  def allocateSharedChunk(nBytes: Code[Long]): Code[Long] =
+    region.invoke[Long, Long]("allocateSharedChunk", nBytes)
+
+  def trackSharedChunk(cb: EmitCodeBuilder, addr: Code[Long]): Unit =
+    cb += region.invoke[Long, Unit]("trackSharedChunk", addr)
 }

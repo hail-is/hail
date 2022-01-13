@@ -26,11 +26,17 @@ def setup(path):
 
 @benchmark(args=empty_gvcf.handle())
 def compile_2k_merge(path):
-    vcf = setup(path)
-    vcfs = [vc_all.transform_gvcf(vcf)] * COMBINE_GVCF_MAX
-    combined = [vc_all.combine_gvcfs(vcfs)] * 20
-    with TemporaryDirectory() as tmpdir:
-        hl.experimental.write_matrix_tables(combined, os.path.join(tmpdir, 'combiner-multi-write'), overwrite=True)
+    flagname = 'no_ir_logging'
+    prev_flag_value = hl._get_flags(flagname).get(flagname)
+    try:
+        hl._set_flags(**{flagname: '1'})
+        vcf = setup(path)
+        vcfs = [vc_all.transform_gvcf(vcf)] * COMBINE_GVCF_MAX
+        combined = [vc_all.combine_gvcfs(vcfs)] * 20
+        with TemporaryDirectory() as tmpdir:
+            hl.experimental.write_matrix_tables(combined, os.path.join(tmpdir, 'combiner-multi-write'), overwrite=True)
+    finally:
+        hl._set_flags(**{flagname: prev_flag_value})
 
 
 @benchmark(args=empty_gvcf.handle())
@@ -73,3 +79,20 @@ def full_combiner_chr22(*paths):
                             reference_genome='GRCh38',
                             overwrite=True,
                             use_exome_default_intervals=True)
+
+@benchmark(args=[chr22_gvcfs.handle(name) for name in chr22_gvcfs.samples])
+def vds_combiner_chr22(*paths):
+    with TemporaryDirectory() as tmpdir:
+        with TemporaryDirectory() as outpath:
+            parts = hl.eval([hl.parse_locus_interval('chr22:start-end', reference_genome='GRCh38')])
+
+            from hail.vds.combiner import new_combiner
+            combiner = new_combiner(output_path=outpath,
+                                           intervals=parts,
+                                           temp_path=tmpdir,
+                                           gvcf_paths=paths,
+                                           reference_genome='GRCh38',
+                                           branch_factor=16,
+                                           target_records=10000000)
+            combiner.run()
+

@@ -1,9 +1,22 @@
 import pkg_resources
 import sys
+import asyncio
+import nest_asyncio
 
 if sys.version_info < (3, 6):
     raise EnvironmentError('Hail requires Python 3.6 or later, found {}.{}'.format(
         sys.version_info.major, sys.version_info.minor))
+
+if sys.version_info[:2] == (3, 6):
+    if asyncio._get_running_loop() is not None:
+        nest_asyncio.apply()
+else:
+    try:
+        asyncio.get_running_loop()
+        nest_asyncio.apply()
+    except RuntimeError as err:
+        assert 'no running event loop' in err.args[0]
+
 
 __pip_version__ = pkg_resources.resource_string(__name__, 'hail_pip_version').decode().strip()
 del pkg_resources
@@ -43,14 +56,16 @@ from . import experimental  # noqa: E402
 from . import ir  # noqa: E402
 from . import backend  # noqa: E402
 from . import nd  # noqa: E402
+from . import vds  # noqa: E402
 from hail.expr import aggregators as agg  # noqa: E402
 from hail.utils import (Struct, Interval, hadoop_copy, hadoop_open, hadoop_ls,  # noqa: E402
                         hadoop_stat, hadoop_exists, hadoop_is_file,
-                        hadoop_is_dir, copy_log)
+                        hadoop_is_dir, hadoop_scheme_supported, copy_log)
 
 from .context import (init, init_local, stop, spark_context, tmp_dir, default_reference,  # noqa: E402
                       get_reference, set_global_seed, _set_flags, _get_flags, current_backend,
-                      debug_info, citation, cite_hail, cite_hail_bibtex, version)
+                      debug_info, citation, cite_hail, cite_hail_bibtex, version, TemporaryFilename,
+                      TemporaryDirectory)
 
 scan = agg.aggregators.ScanFunctions({name: getattr(agg, name) for name in agg.__all__})
 
@@ -60,6 +75,8 @@ __all__ = [
     'stop',
     'spark_context',
     'tmp_dir',
+    'TemporaryFilename',
+    'TemporaryDirectory',
     'default_reference',
     'get_reference',
     'set_global_seed',
@@ -78,6 +95,7 @@ __all__ = [
     'hadoop_stat',
     'hadoop_exists',
     'hadoop_ls',
+    'hadoop_scheme_supported',
     'copy_log',
     'Struct',
     'Interval',
@@ -91,6 +109,7 @@ __all__ = [
     'plot',
     'experimental',
     'ir',
+    'vds',
     'backend',
     'current_backend',
     'debug_info',

@@ -1,30 +1,157 @@
 {
+  "1000_Genomes_HighCov_autosomes": {
+    "description": "1000 Genomes Project: The New York Genome Center (NYGC), funded by NHGRI, has sequenced 3202 samples from the 1000 Genomes Project sample collection to 30x coverage. Initially, the 2504 unrelated samples from the phase three panel from the 1000 Genomes Project were sequenced. Thereafter, an additional 698 samples, related to samples in the 2504 panel, were also sequenced.",
+    "url": "https://www.internationalgenome.org/data-portal/data-collection/30x-grch38",
+    "versions": [
+      {
+        "reference_genome": "GRCh38",
+        "url": {
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/1000_Genomes/NYGC_30x/GRCh38/autosomes_phased.mt"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/1000_Genomes/NYGC_30x/GRCh38/autosomes_phased.mt",
+            "us": "gs://hail-datasets-us/1000_Genomes/NYGC_30x/GRCh38/autosomes_phased.mt"
+          }
+        },
+        "version": "NYGC_30x_phased"
+      },
+      {
+        "reference_genome": "GRCh38",
+        "url": {
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/1000_Genomes/NYGC_30x/GRCh38/autosomes_unphased.mt"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/1000_Genomes/NYGC_30x/GRCh38/autosomes_unphased.mt",
+            "us": "gs://hail-datasets-us/1000_Genomes/NYGC_30x/GRCh38/autosomes_unphased.mt"
+          }
+        },
+        "version": "NYGC_30x_unphased"
+      }
+    ]
+  },
+  "1000_Genomes_HighCov_chrX": {
+    "description": "1000 Genomes Project: The New York Genome Center (NYGC), funded by NHGRI, has sequenced 3202 samples from the 1000 Genomes Project sample collection to 30x coverage. Initially, the 2504 unrelated samples from the phase three panel from the 1000 Genomes Project were sequenced. Thereafter, an additional 698 samples, related to samples in the 2504 panel, were also sequenced.",
+    "url": "https://www.internationalgenome.org/data-portal/data-collection/30x-grch38",
+    "versions": [
+      {
+        "reference_genome": "GRCh38",
+        "url": {
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/1000_Genomes/NYGC_30x/GRCh38/chrX_phased.mt"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/1000_Genomes/NYGC_30x/GRCh38/chrX_phased.mt",
+            "us": "gs://hail-datasets-us/1000_Genomes/NYGC_30x/GRCh38/chrX_phased.mt"
+          }
+        },
+        "version": "NYGC_30x_phased"
+      },
+      {
+        "reference_genome": "GRCh38",
+        "url": {
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/1000_Genomes/NYGC_30x/GRCh38/chrX_unphased.mt"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/1000_Genomes/NYGC_30x/GRCh38/chrX_unphased.mt",
+            "us": "gs://hail-datasets-us/1000_Genomes/NYGC_30x/GRCh38/chrX_unphased.mt"
+          }
+        },
+        "version": "NYGC_30x_unphased"
+      }
+    ]
+  },
+  "1000_Genomes_HighCov_chrY": {
+    "description": "1000 Genomes Project: The New York Genome Center (NYGC), funded by NHGRI, has sequenced 3202 samples from the 1000 Genomes Project sample collection to 30x coverage. Initially, the 2504 unrelated samples from the phase three panel from the 1000 Genomes Project were sequenced. Thereafter, an additional 698 samples, related to samples in the 2504 panel, were also sequenced.",
+    "url": "https://www.internationalgenome.org/data-portal/data-collection/30x-grch38",
+    "versions": [
+      {
+        "reference_genome": "GRCh38",
+        "url": {
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/1000_Genomes/NYGC_30x/GRCh38/chrY_unphased.mt"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/1000_Genomes/NYGC_30x/GRCh38/chrY_unphased.mt",
+            "us": "gs://hail-datasets-us/1000_Genomes/NYGC_30x/GRCh38/chrY_unphased.mt"
+          }
+        },
+        "version": "NYGC_30x_unphased"
+      }
+    ]
+  },
+  "1000_Genomes_Retracted_autosomes": {
+    "description": "1000 Genomes Project: These datasets have been retracted due to a number of known issues on GRCh38, see link for more details.",
+    "url": "http://ftp.1000genomes.ebi.ac.uk/vol1/ftp/release/20130502/supporting/GRCh38_positions/README_GRCh38_liftover_20170504.txt",
+    "versions": [
+      {
+        "reference_genome": "GRCh38",
+        "url": {
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/1000_Genomes/phase_3/GRCh38/autosomes.mt"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/1000_Genomes/phase_3/GRCh38/autosomes.mt",
+            "us": "gs://hail-datasets-us/1000_Genomes/phase_3/GRCh38/autosomes.mt"
+          }
+        },
+        "version": "phase_3"
+      }
+    ]
+  },
+  "1000_Genomes_Retracted_chrX": {
+    "description": "1000 Genomes Project: These datasets have been retracted due to a number of known issues on GRCh38, see link for more details.",
+    "url": "http://ftp.1000genomes.ebi.ac.uk/vol1/ftp/release/20130502/supporting/GRCh38_positions/README_GRCh38_liftover_20170504.txt",
+    "versions": [
+      {
+        "reference_genome": "GRCh38",
+        "url": {
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/1000_Genomes/phase_3/GRCh38/chrX.mt"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/1000_Genomes/phase_3/GRCh38/chrX.mt",
+            "us": "gs://hail-datasets-us/1000_Genomes/phase_3/GRCh38/chrX.mt"
+          }
+        },
+        "version": "phase_3"
+      }
+    ]
+  },
+  "1000_Genomes_Retracted_chrY": {
+    "description": "1000 Genomes Project: These datasets have been retracted due to a number of known issues on GRCh38, see link for more details.",
+    "url": "http://ftp.1000genomes.ebi.ac.uk/vol1/ftp/release/20130502/supporting/GRCh38_positions/README_GRCh38_liftover_20170504.txt",
+    "versions": [
+      {
+        "reference_genome": "GRCh38",
+        "url": {
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/1000_Genomes/phase_3/GRCh38/chrY.mt"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/1000_Genomes/phase_3/GRCh38/chrY.mt",
+            "us": "gs://hail-datasets-us/1000_Genomes/phase_3/GRCh38/chrY.mt"
+          }
+        },
+        "version": "phase_3"
+      }
+    ]
+  },
   "1000_Genomes_autosomes": {
-    "description": "1000 Genomes Project: the largest public catalogue of human variation and genotype data.",
+    "description": "1000 Genomes Project: The GRCh38 phase_3 version has been retracted, but is still available (see the 1000_Genomes_Retracted_autosomes dataset). For GRCh38, the NYGC 30x coverage autosomes phased dataset is available as 1000_Genomes_HighCov_autosomes.",
     "url": "https://www.internationalgenome.org/home",
     "versions": [
       {
         "reference_genome": "GRCh37",
         "url": {
           "aws": {
-            "us": "s3://hail-datasets-us-east-1/1000_Genomes_autosomes.phase_3.GRCh37.mt"
+            "us": "s3://hail-datasets-us-east-1/1000_Genomes/phase_3/GRCh37/autosomes.mt"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/1000_Genomes_autosomes.phase_3.GRCh37.mt",
-            "us": "gs://hail-datasets-us/1000_Genomes_autosomes.phase_3.GRCh37.mt"
-          }
-        },
-        "version": "phase_3"
-      },
-      {
-        "reference_genome": "GRCh38",
-        "url": {
-          "aws": {
-            "us": "s3://hail-datasets-us-east-1/1000_Genomes_autosomes.phase_3.GRCh38.mt"
-          },
-          "gcp": {
-            "eu": "gs://hail-datasets-eu/1000_Genomes_autosomes.phase_3.GRCh38.mt",
-            "us": "gs://hail-datasets-us/1000_Genomes_autosomes.phase_3.GRCh38.mt"
+            "eu": "gs://hail-datasets-eu/1000_Genomes/phase_3/GRCh37/autosomes.mt",
+            "us": "gs://hail-datasets-us/1000_Genomes/phase_3/GRCh37/autosomes.mt"
           }
         },
         "version": "phase_3"
@@ -32,18 +159,18 @@
     ]
   },
   "1000_Genomes_chrMT": {
-    "description": "1000 Genomes Project: the largest public catalogue of human variation and genotype data.",
+    "description": "1000 Genomes Project: Mitochondrial chromosome variants.",
     "url": "https://www.internationalgenome.org/home",
     "versions": [
       {
         "reference_genome": "GRCh37",
         "url": {
           "aws": {
-            "us": "s3://hail-datasets-us-east-1/1000_Genomes_chrMT.phase_3.GRCh37.mt"
+            "us": "s3://hail-datasets-us-east-1/1000_Genomes/phase_3/GRCh37/chrMT.mt"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/1000_Genomes_chrMT.phase_3.GRCh37.mt",
-            "us": "gs://hail-datasets-us/1000_Genomes_chrMT.phase_3.GRCh37.mt"
+            "eu": "gs://hail-datasets-eu/1000_Genomes/phase_3/GRCh37/chrMT.mt",
+            "us": "gs://hail-datasets-us/1000_Genomes/phase_3/GRCh37/chrMT.mt"
           }
         },
         "version": "phase_3"
@@ -51,31 +178,18 @@
     ]
   },
   "1000_Genomes_chrX": {
-    "description": "1000 Genomes Project: the largest public catalogue of human variation and genotype data.",
+    "description": "1000 Genomes Project: The GRCh38 phase_3 version has been retracted, but is still available (see the 1000_Genomes_Retracted_chrX dataset). For GRCh38, the NYGC 30x coverage chrX phased dataset is available as 1000_Genomes_HighCov_chrX.",
     "url": "https://www.internationalgenome.org/home",
     "versions": [
       {
         "reference_genome": "GRCh37",
         "url": {
           "aws": {
-            "us": "s3://hail-datasets-us-east-1/1000_Genomes_chrX.phase_3.GRCh37.mt"
+            "us": "s3://hail-datasets-us-east-1/1000_Genomes/phase_3/GRCh37/chrX.mt"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/1000_Genomes_chrX.phase_3.GRCh37.mt",
-            "us": "gs://hail-datasets-us/1000_Genomes_chrX.phase_3.GRCh37.mt"
-          }
-        },
-        "version": "phase_3"
-      },
-      {
-        "reference_genome": "GRCh38",
-        "url": {
-          "aws": {
-            "us": "s3://hail-datasets-us-east-1/1000_Genomes_chrX.phase_3.GRCh38.mt"
-          },
-          "gcp": {
-            "eu": "gs://hail-datasets-eu/1000_Genomes_chrX.phase_3.GRCh38.mt",
-            "us": "gs://hail-datasets-us/1000_Genomes_chrX.phase_3.GRCh38.mt"
+            "eu": "gs://hail-datasets-eu/1000_Genomes/phase_3/GRCh37/chrX.mt",
+            "us": "gs://hail-datasets-us/1000_Genomes/phase_3/GRCh37/chrX.mt"
           }
         },
         "version": "phase_3"
@@ -83,31 +197,18 @@
     ]
   },
   "1000_Genomes_chrY": {
-    "description": "1000 Genomes Project: the largest public catalogue of human variation and genotype data.",
+    "description": "1000 Genomes Project: The GRCh38 phase_3 version has been retracted, but is still available (see the 1000_Genomes_Retracted_chrY dataset). For GRCh38, the NYGC 30x coverage chrY dataset is available as 1000_Genomes_HighCov_chrY.",
     "url": "https://www.internationalgenome.org/home",
     "versions": [
       {
         "reference_genome": "GRCh37",
         "url": {
           "aws": {
-            "us": "s3://hail-datasets-us-east-1/1000_Genomes_chrY.phase_3.GRCh37.mt"
+            "us": "s3://hail-datasets-us-east-1/1000_Genomes/phase_3/GRCh37/chrY.mt"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/1000_Genomes_chrY.phase_3.GRCh37.mt",
-            "us": "gs://hail-datasets-us/1000_Genomes_chrY.phase_3.GRCh37.mt"
-          }
-        },
-        "version": "phase_3"
-      },
-      {
-        "reference_genome": "GRCh38",
-        "url": {
-          "aws": {
-            "us": "s3://hail-datasets-us-east-1/1000_Genomes_chrY.phase_3.GRCh38.mt"
-          },
-          "gcp": {
-            "eu": "gs://hail-datasets-eu/1000_Genomes_chrY.phase_3.GRCh38.mt",
-            "us": "gs://hail-datasets-us/1000_Genomes_chrY.phase_3.GRCh38.mt"
+            "eu": "gs://hail-datasets-eu/1000_Genomes/phase_3/GRCh37/chrY.mt",
+            "us": "gs://hail-datasets-us/1000_Genomes/phase_3/GRCh37/chrY.mt"
           }
         },
         "version": "phase_3"
@@ -127,11 +228,11 @@
         "reference_genome": "GRCh37",
         "url": {
           "aws": {
-            "us": "s3://hail-datasets-us-east-1/annotations/CADD.v1.4.GRCh37.ht"
+            "us": "s3://hail-datasets-us-east-1/CADD/v1.4/GRCh37/table.ht"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/annotations/CADD.v1.4.GRCh37.ht",
-            "us": "gs://hail-datasets-us/annotations/CADD.v1.4.GRCh37.ht"
+            "eu": "gs://hail-datasets-eu/CADD/v1.4/GRCh37/table.ht",
+            "us": "gs://hail-datasets-us/CADD/v1.4/GRCh37/table.ht"
           }
         },
         "version": "1.4"
@@ -140,14 +241,40 @@
         "reference_genome": "GRCh38",
         "url": {
           "aws": {
-            "us": "s3://hail-datasets-us-east-1/annotations/CADD.v1.4.GRCh38.ht"
+            "us": "s3://hail-datasets-us-east-1/CADD/v1.4/GRCh38/table.ht"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/annotations/CADD.v1.4.GRCh38.ht",
-            "us": "gs://hail-datasets-us/annotations/CADD.v1.4.GRCh38.ht"
+            "eu": "gs://hail-datasets-eu/CADD/v1.4/GRCh38/table.ht",
+            "us": "gs://hail-datasets-us/CADD/v1.4/GRCh38/table.ht"
           }
         },
         "version": "1.4"
+      },
+      {
+        "reference_genome": "GRCh37",
+        "url": {
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/CADD/v1.6/GRCh37/table.ht"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/CADD/v1.6/GRCh37/table.ht",
+            "us": "gs://hail-datasets-us/CADD/v1.6/GRCh37/table.ht"
+          }
+        },
+        "version": "1.6"
+      },
+      {
+        "reference_genome": "GRCh38",
+        "url": {
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/CADD/v1.6/GRCh38/table.ht"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/CADD/v1.6/GRCh38/table.ht",
+            "us": "gs://hail-datasets-us/CADD/v1.6/GRCh38/table.ht"
+          }
+        },
+        "version": "1.6"
       }
     ]
   },
@@ -164,11 +291,11 @@
         "reference_genome": "GRCh37",
         "url": {
           "aws": {
-            "us": "s3://hail-datasets-us-east-1/annotations/DANN.GRCh37.ht"
+            "us": "s3://hail-datasets-us-east-1/DANN/GRCh37/table.ht"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/annotations/DANN.GRCh37.ht",
-            "us": "gs://hail-datasets-us/annotations/DANN.GRCh37.ht"
+            "eu": "gs://hail-datasets-eu/DANN/GRCh37/table.ht",
+            "us": "gs://hail-datasets-us/DANN/GRCh37/table.ht"
           }
         },
         "version": null
@@ -177,11 +304,11 @@
         "reference_genome": "GRCh38",
         "url": {
           "aws": {
-            "us": "s3://hail-datasets-us-east-1/annotations/DANN.GRCh38.ht"
+            "us": "s3://hail-datasets-us-east-1/DANN/GRCh38/table.ht"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/annotations/DANN.GRCh38.ht",
-            "us": "gs://hail-datasets-us/annotations/DANN.GRCh38.ht"
+            "eu": "gs://hail-datasets-eu/DANN/GRCh38/table.ht",
+            "us": "gs://hail-datasets-us/DANN/GRCh38/table.ht"
           }
         },
         "version": null
@@ -201,11 +328,11 @@
         "reference_genome": "GRCh37",
         "url": {
           "aws": {
-            "us": "s3://hail-datasets-us-east-1/annotations/Ensembl_homo_sapiens_low_complexity_regions.release_95.GRCh37.ht"
+            "us": "s3://hail-datasets-us-east-1/Ensembl/release_95/GRCh37/homo_sapiens_low_complexity_regions.ht"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/annotations/Ensembl_homo_sapiens_low_complexity_regions.release_95.GRCh37.ht",
-            "us": "gs://hail-datasets-us/annotations/Ensembl_homo_sapiens_low_complexity_regions.release_95.GRCh37.ht"
+            "eu": "gs://hail-datasets-eu/Ensembl/release_95/GRCh37/homo_sapiens_low_complexity_regions.ht",
+            "us": "gs://hail-datasets-us/Ensembl/release_95/GRCh37/homo_sapiens_low_complexity_regions.ht"
           }
         },
         "version": "release_95"
@@ -214,11 +341,11 @@
         "reference_genome": "GRCh38",
         "url": {
           "aws": {
-            "us": "s3://hail-datasets-us-east-1/annotations/Ensembl_homo_sapiens_low_complexity_regions.release_95.GRCh38.ht"
+            "us": "s3://hail-datasets-us-east-1/Ensembl/release_95/GRCh38/homo_sapiens_low_complexity_regions.ht"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/annotations/Ensembl_homo_sapiens_low_complexity_regions.release_95.GRCh38.ht",
-            "us": "gs://hail-datasets-us/annotations/Ensembl_homo_sapiens_low_complexity_regions.release_95.GRCh38.ht"
+            "eu": "gs://hail-datasets-eu/Ensembl/release_95/GRCh38/homo_sapiens_low_complexity_regions.ht",
+            "us": "gs://hail-datasets-us/Ensembl/release_95/GRCh38/homo_sapiens_low_complexity_regions.ht"
           }
         },
         "version": "release_95"
@@ -238,11 +365,11 @@
         "reference_genome": "GRCh37",
         "url": {
           "aws": {
-            "us": "s3://hail-datasets-us-east-1/annotations/Ensembl_homo_sapiens_reference_genome.release_95.GRCh37.ht"
+            "us": "s3://hail-datasets-us-east-1/Ensembl/release_95/GRCh37/homo_sapiens_reference_genome.ht"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/annotations/Ensembl_homo_sapiens_reference_genome.release_95.GRCh37.ht",
-            "us": "gs://hail-datasets-us/annotations/Ensembl_homo_sapiens_reference_genome.release_95.GRCh37.ht"
+            "eu": "gs://hail-datasets-eu/Ensembl/release_95/GRCh37/homo_sapiens_reference_genome.ht",
+            "us": "gs://hail-datasets-us/Ensembl/release_95/GRCh37/homo_sapiens_reference_genome.ht"
           }
         },
         "version": "release_95"
@@ -251,11 +378,11 @@
         "reference_genome": "GRCh38",
         "url": {
           "aws": {
-            "us": "s3://hail-datasets-us-east-1/annotations/Ensembl_homo_sapiens_reference_genome.release_95.GRCh38.ht"
+            "us": "s3://hail-datasets-us-east-1/Ensembl/release_95/GRCh38/homo_sapiens_reference_genome.ht"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/annotations/Ensembl_homo_sapiens_reference_genome.release_95.GRCh38.ht",
-            "us": "gs://hail-datasets-us/annotations/Ensembl_homo_sapiens_reference_genome.release_95.GRCh38.ht"
+            "eu": "gs://hail-datasets-eu/Ensembl/release_95/GRCh38/homo_sapiens_reference_genome.ht",
+            "us": "gs://hail-datasets-us/Ensembl/release_95/GRCh38/homo_sapiens_reference_genome.ht"
           }
         },
         "version": "release_95"
@@ -270,11 +397,11 @@
         "reference_genome": "GRCh37",
         "url": {
           "aws": {
-            "us": "s3://hail-datasets-us-east-1/GTEx_RNA_seq_gene_TPMs.v7.GRCh37.mt"
+            "us": "s3://hail-datasets-us-east-1/GTEx/v7/GRCh37/RNA_seq_gene_TPMs.mt"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/GTEx_RNA_seq_gene_TPMs.v7.GRCh37.mt",
-            "us": "gs://hail-datasets-us/GTEx_RNA_seq_gene_TPMs.v7.GRCh37.mt"
+            "eu": "gs://hail-datasets-eu/GTEx/v7/GRCh37/RNA_seq_gene_TPMs.mt",
+            "us": "gs://hail-datasets-us/GTEx/v7/GRCh37/RNA_seq_gene_TPMs.mt"
           }
         },
         "version": "v7"
@@ -289,11 +416,11 @@
         "reference_genome": "GRCh37",
         "url": {
           "aws": {
-            "us": "s3://hail-datasets-us-east-1/GTEx_RNA_seq_gene_read_counts.v7.GRCh37.mt"
+            "us": "s3://hail-datasets-us-east-1/GTEx/v7/GRCh37/RNA_seq_gene_read_counts.mt"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/GTEx_RNA_seq_gene_read_counts.v7.GRCh37.mt",
-            "us": "gs://hail-datasets-us/GTEx_RNA_seq_gene_read_counts.v7.GRCh37.mt"
+            "eu": "gs://hail-datasets-eu/GTEx/v7/GRCh37/RNA_seq_gene_read_counts.mt",
+            "us": "gs://hail-datasets-us/GTEx/v7/GRCh37/RNA_seq_gene_read_counts.mt"
           }
         },
         "version": "v7"
@@ -308,14 +435,2189 @@
         "reference_genome": "GRCh37",
         "url": {
           "aws": {
-            "us": "s3://hail-datasets-us-east-1/GTEx_RNA_seq_junction_read_counts.v7.GRCh37.mt"
+            "us": "s3://hail-datasets-us-east-1/GTEx/v7/GRCh37/RNA_seq_junction_read_counts.mt"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/GTEx_RNA_seq_junction_read_counts.v7.GRCh37.mt",
-            "us": "gs://hail-datasets-us/GTEx_RNA_seq_junction_read_counts.v7.GRCh37.mt"
+            "eu": "gs://hail-datasets-eu/GTEx/v7/GRCh37/RNA_seq_junction_read_counts.mt",
+            "us": "gs://hail-datasets-us/GTEx/v7/GRCh37/RNA_seq_junction_read_counts.mt"
           }
         },
         "version": "v7"
+      }
+    ]
+  },
+  "GTEx_eQTL_Adipose_Subcutaneous_all_snp_gene_associations": {
+    "annotation_db": {
+      "key_properties": []
+    },
+    "description": "GTEx: Adipose_Subcutaneous eQTL tissue-specific all SNP gene associations Hail Table. All variant-gene cis-eQTL associations tested in each tissue (including non-significant associations).",
+    "url": "https://gtexportal.org/home/datasets",
+    "versions": [
+      {
+        "reference_genome": "GRCh38",
+        "url": {
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/GTEx/v8/eQTL/GRCh38/Adipose_Subcutaneous_all_snp_gene_associations.ht"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/GTEx/v8/eQTL/GRCh38/Adipose_Subcutaneous_all_snp_gene_associations.ht",
+            "us": "gs://hail-datasets-us/GTEx/v8/eQTL/GRCh38/Adipose_Subcutaneous_all_snp_gene_associations.ht"
+          }
+        },
+        "version": "v8"
+      }
+    ]
+  },
+  "GTEx_eQTL_Adipose_Visceral_Omentum_all_snp_gene_associations": {
+    "annotation_db": {
+      "key_properties": []
+    },
+    "description": "GTEx: Adipose_Visceral_Omentum eQTL tissue-specific all SNP gene associations Hail Table. All variant-gene cis-eQTL associations tested in each tissue (including non-significant associations).",
+    "url": "https://gtexportal.org/home/datasets",
+    "versions": [
+      {
+        "reference_genome": "GRCh38",
+        "url": {
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/GTEx/v8/eQTL/GRCh38/Adipose_Visceral_Omentum_all_snp_gene_associations.ht"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/GTEx/v8/eQTL/GRCh38/Adipose_Visceral_Omentum_all_snp_gene_associations.ht",
+            "us": "gs://hail-datasets-us/GTEx/v8/eQTL/GRCh38/Adipose_Visceral_Omentum_all_snp_gene_associations.ht"
+          }
+        },
+        "version": "v8"
+      }
+    ]
+  },
+  "GTEx_eQTL_Adrenal_Gland_all_snp_gene_associations": {
+    "annotation_db": {
+      "key_properties": []
+    },
+    "description": "GTEx: Adrenal_Gland eQTL tissue-specific all SNP gene associations Hail Table. All variant-gene cis-eQTL associations tested in each tissue (including non-significant associations).",
+    "url": "https://gtexportal.org/home/datasets",
+    "versions": [
+      {
+        "reference_genome": "GRCh38",
+        "url": {
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/GTEx/v8/eQTL/GRCh38/Adrenal_Gland_all_snp_gene_associations.ht"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/GTEx/v8/eQTL/GRCh38/Adrenal_Gland_all_snp_gene_associations.ht",
+            "us": "gs://hail-datasets-us/GTEx/v8/eQTL/GRCh38/Adrenal_Gland_all_snp_gene_associations.ht"
+          }
+        },
+        "version": "v8"
+      }
+    ]
+  },
+  "GTEx_eQTL_Artery_Aorta_all_snp_gene_associations": {
+    "annotation_db": {
+      "key_properties": []
+    },
+    "description": "GTEx: Artery_Aorta eQTL tissue-specific all SNP gene associations Hail Table. All variant-gene cis-eQTL associations tested in each tissue (including non-significant associations).",
+    "url": "https://gtexportal.org/home/datasets",
+    "versions": [
+      {
+        "reference_genome": "GRCh38",
+        "url": {
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/GTEx/v8/eQTL/GRCh38/Artery_Aorta_all_snp_gene_associations.ht"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/GTEx/v8/eQTL/GRCh38/Artery_Aorta_all_snp_gene_associations.ht",
+            "us": "gs://hail-datasets-us/GTEx/v8/eQTL/GRCh38/Artery_Aorta_all_snp_gene_associations.ht"
+          }
+        },
+        "version": "v8"
+      }
+    ]
+  },
+  "GTEx_eQTL_Artery_Coronary_all_snp_gene_associations": {
+    "annotation_db": {
+      "key_properties": []
+    },
+    "description": "GTEx: Artery_Coronary eQTL tissue-specific all SNP gene associations Hail Table. All variant-gene cis-eQTL associations tested in each tissue (including non-significant associations).",
+    "url": "https://gtexportal.org/home/datasets",
+    "versions": [
+      {
+        "reference_genome": "GRCh38",
+        "url": {
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/GTEx/v8/eQTL/GRCh38/Artery_Coronary_all_snp_gene_associations.ht"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/GTEx/v8/eQTL/GRCh38/Artery_Coronary_all_snp_gene_associations.ht",
+            "us": "gs://hail-datasets-us/GTEx/v8/eQTL/GRCh38/Artery_Coronary_all_snp_gene_associations.ht"
+          }
+        },
+        "version": "v8"
+      }
+    ]
+  },
+  "GTEx_eQTL_Artery_Tibial_all_snp_gene_associations": {
+    "annotation_db": {
+      "key_properties": []
+    },
+    "description": "GTEx: Artery_Tibial eQTL tissue-specific all SNP gene associations Hail Table. All variant-gene cis-eQTL associations tested in each tissue (including non-significant associations).",
+    "url": "https://gtexportal.org/home/datasets",
+    "versions": [
+      {
+        "reference_genome": "GRCh38",
+        "url": {
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/GTEx/v8/eQTL/GRCh38/Artery_Tibial_all_snp_gene_associations.ht"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/GTEx/v8/eQTL/GRCh38/Artery_Tibial_all_snp_gene_associations.ht",
+            "us": "gs://hail-datasets-us/GTEx/v8/eQTL/GRCh38/Artery_Tibial_all_snp_gene_associations.ht"
+          }
+        },
+        "version": "v8"
+      }
+    ]
+  },
+  "GTEx_eQTL_Brain_Amygdala_all_snp_gene_associations": {
+    "annotation_db": {
+      "key_properties": []
+    },
+    "description": "GTEx: Brain_Amygdala eQTL tissue-specific all SNP gene associations Hail Table. All variant-gene cis-eQTL associations tested in each tissue (including non-significant associations).",
+    "url": "https://gtexportal.org/home/datasets",
+    "versions": [
+      {
+        "reference_genome": "GRCh38",
+        "url": {
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/GTEx/v8/eQTL/GRCh38/Brain_Amygdala_all_snp_gene_associations.ht"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/GTEx/v8/eQTL/GRCh38/Brain_Amygdala_all_snp_gene_associations.ht",
+            "us": "gs://hail-datasets-us/GTEx/v8/eQTL/GRCh38/Brain_Amygdala_all_snp_gene_associations.ht"
+          }
+        },
+        "version": "v8"
+      }
+    ]
+  },
+  "GTEx_eQTL_Brain_Anterior_cingulate_cortex_BA24_all_snp_gene_associations": {
+    "annotation_db": {
+      "key_properties": []
+    },
+    "description": "GTEx: Brain_Anterior_cingulate_cortex_BA24 eQTL tissue-specific all SNP gene associations Hail Table. All variant-gene cis-eQTL associations tested in each tissue (including non-significant associations).",
+    "url": "https://gtexportal.org/home/datasets",
+    "versions": [
+      {
+        "reference_genome": "GRCh38",
+        "url": {
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/GTEx/v8/eQTL/GRCh38/Brain_Anterior_cingulate_cortex_BA24_all_snp_gene_associations.ht"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/GTEx/v8/eQTL/GRCh38/Brain_Anterior_cingulate_cortex_BA24_all_snp_gene_associations.ht",
+            "us": "gs://hail-datasets-us/GTEx/v8/eQTL/GRCh38/Brain_Anterior_cingulate_cortex_BA24_all_snp_gene_associations.ht"
+          }
+        },
+        "version": "v8"
+      }
+    ]
+  },
+  "GTEx_eQTL_Brain_Caudate_basal_ganglia_all_snp_gene_associations": {
+    "annotation_db": {
+      "key_properties": []
+    },
+    "description": "GTEx: Brain_Caudate_basal_ganglia eQTL tissue-specific all SNP gene associations Hail Table. All variant-gene cis-eQTL associations tested in each tissue (including non-significant associations).",
+    "url": "https://gtexportal.org/home/datasets",
+    "versions": [
+      {
+        "reference_genome": "GRCh38",
+        "url": {
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/GTEx/v8/eQTL/GRCh38/Brain_Caudate_basal_ganglia_all_snp_gene_associations.ht"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/GTEx/v8/eQTL/GRCh38/Brain_Caudate_basal_ganglia_all_snp_gene_associations.ht",
+            "us": "gs://hail-datasets-us/GTEx/v8/eQTL/GRCh38/Brain_Caudate_basal_ganglia_all_snp_gene_associations.ht"
+          }
+        },
+        "version": "v8"
+      }
+    ]
+  },
+  "GTEx_eQTL_Brain_Cerebellar_Hemisphere_all_snp_gene_associations": {
+    "annotation_db": {
+      "key_properties": []
+    },
+    "description": "GTEx: Brain_Cerebellar_Hemisphere eQTL tissue-specific all SNP gene associations Hail Table. All variant-gene cis-eQTL associations tested in each tissue (including non-significant associations).",
+    "url": "https://gtexportal.org/home/datasets",
+    "versions": [
+      {
+        "reference_genome": "GRCh38",
+        "url": {
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/GTEx/v8/eQTL/GRCh38/Brain_Cerebellar_Hemisphere_all_snp_gene_associations.ht"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/GTEx/v8/eQTL/GRCh38/Brain_Cerebellar_Hemisphere_all_snp_gene_associations.ht",
+            "us": "gs://hail-datasets-us/GTEx/v8/eQTL/GRCh38/Brain_Cerebellar_Hemisphere_all_snp_gene_associations.ht"
+          }
+        },
+        "version": "v8"
+      }
+    ]
+  },
+  "GTEx_eQTL_Brain_Cerebellum_all_snp_gene_associations": {
+    "annotation_db": {
+      "key_properties": []
+    },
+    "description": "GTEx: Brain_Cerebellum eQTL tissue-specific all SNP gene associations Hail Table. All variant-gene cis-eQTL associations tested in each tissue (including non-significant associations).",
+    "url": "https://gtexportal.org/home/datasets",
+    "versions": [
+      {
+        "reference_genome": "GRCh38",
+        "url": {
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/GTEx/v8/eQTL/GRCh38/Brain_Cerebellum_all_snp_gene_associations.ht"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/GTEx/v8/eQTL/GRCh38/Brain_Cerebellum_all_snp_gene_associations.ht",
+            "us": "gs://hail-datasets-us/GTEx/v8/eQTL/GRCh38/Brain_Cerebellum_all_snp_gene_associations.ht"
+          }
+        },
+        "version": "v8"
+      }
+    ]
+  },
+  "GTEx_eQTL_Brain_Cortex_all_snp_gene_associations": {
+    "annotation_db": {
+      "key_properties": []
+    },
+    "description": "GTEx: Brain_Cortex eQTL tissue-specific all SNP gene associations Hail Table. All variant-gene cis-eQTL associations tested in each tissue (including non-significant associations).",
+    "url": "https://gtexportal.org/home/datasets",
+    "versions": [
+      {
+        "reference_genome": "GRCh38",
+        "url": {
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/GTEx/v8/eQTL/GRCh38/Brain_Cortex_all_snp_gene_associations.ht"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/GTEx/v8/eQTL/GRCh38/Brain_Cortex_all_snp_gene_associations.ht",
+            "us": "gs://hail-datasets-us/GTEx/v8/eQTL/GRCh38/Brain_Cortex_all_snp_gene_associations.ht"
+          }
+        },
+        "version": "v8"
+      }
+    ]
+  },
+  "GTEx_eQTL_Brain_Frontal_Cortex_BA9_all_snp_gene_associations": {
+    "annotation_db": {
+      "key_properties": []
+    },
+    "description": "GTEx: Brain_Frontal_Cortex_BA9 eQTL tissue-specific all SNP gene associations Hail Table. All variant-gene cis-eQTL associations tested in each tissue (including non-significant associations).",
+    "url": "https://gtexportal.org/home/datasets",
+    "versions": [
+      {
+        "reference_genome": "GRCh38",
+        "url": {
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/GTEx/v8/eQTL/GRCh38/Brain_Frontal_Cortex_BA9_all_snp_gene_associations.ht"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/GTEx/v8/eQTL/GRCh38/Brain_Frontal_Cortex_BA9_all_snp_gene_associations.ht",
+            "us": "gs://hail-datasets-us/GTEx/v8/eQTL/GRCh38/Brain_Frontal_Cortex_BA9_all_snp_gene_associations.ht"
+          }
+        },
+        "version": "v8"
+      }
+    ]
+  },
+  "GTEx_eQTL_Brain_Hippocampus_all_snp_gene_associations": {
+    "annotation_db": {
+      "key_properties": []
+    },
+    "description": "GTEx: Brain_Hippocampus eQTL tissue-specific all SNP gene associations Hail Table. All variant-gene cis-eQTL associations tested in each tissue (including non-significant associations).",
+    "url": "https://gtexportal.org/home/datasets",
+    "versions": [
+      {
+        "reference_genome": "GRCh38",
+        "url": {
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/GTEx/v8/eQTL/GRCh38/Brain_Hippocampus_all_snp_gene_associations.ht"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/GTEx/v8/eQTL/GRCh38/Brain_Hippocampus_all_snp_gene_associations.ht",
+            "us": "gs://hail-datasets-us/GTEx/v8/eQTL/GRCh38/Brain_Hippocampus_all_snp_gene_associations.ht"
+          }
+        },
+        "version": "v8"
+      }
+    ]
+  },
+  "GTEx_eQTL_Brain_Hypothalamus_all_snp_gene_associations": {
+    "annotation_db": {
+      "key_properties": []
+    },
+    "description": "GTEx: Brain_Hypothalamus eQTL tissue-specific all SNP gene associations Hail Table. All variant-gene cis-eQTL associations tested in each tissue (including non-significant associations).",
+    "url": "https://gtexportal.org/home/datasets",
+    "versions": [
+      {
+        "reference_genome": "GRCh38",
+        "url": {
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/GTEx/v8/eQTL/GRCh38/Brain_Hypothalamus_all_snp_gene_associations.ht"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/GTEx/v8/eQTL/GRCh38/Brain_Hypothalamus_all_snp_gene_associations.ht",
+            "us": "gs://hail-datasets-us/GTEx/v8/eQTL/GRCh38/Brain_Hypothalamus_all_snp_gene_associations.ht"
+          }
+        },
+        "version": "v8"
+      }
+    ]
+  },
+  "GTEx_eQTL_Brain_Nucleus_accumbens_basal_ganglia_all_snp_gene_associations": {
+    "annotation_db": {
+      "key_properties": []
+    },
+    "description": "GTEx: Brain_Nucleus_accumbens_basal_ganglia eQTL tissue-specific all SNP gene associations Hail Table. All variant-gene cis-eQTL associations tested in each tissue (including non-significant associations).",
+    "url": "https://gtexportal.org/home/datasets",
+    "versions": [
+      {
+        "reference_genome": "GRCh38",
+        "url": {
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/GTEx/v8/eQTL/GRCh38/Brain_Nucleus_accumbens_basal_ganglia_all_snp_gene_associations.ht"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/GTEx/v8/eQTL/GRCh38/Brain_Nucleus_accumbens_basal_ganglia_all_snp_gene_associations.ht",
+            "us": "gs://hail-datasets-us/GTEx/v8/eQTL/GRCh38/Brain_Nucleus_accumbens_basal_ganglia_all_snp_gene_associations.ht"
+          }
+        },
+        "version": "v8"
+      }
+    ]
+  },
+  "GTEx_eQTL_Brain_Putamen_basal_ganglia_all_snp_gene_associations": {
+    "annotation_db": {
+      "key_properties": []
+    },
+    "description": "GTEx: Brain_Putamen_basal_ganglia eQTL tissue-specific all SNP gene associations Hail Table. All variant-gene cis-eQTL associations tested in each tissue (including non-significant associations).",
+    "url": "https://gtexportal.org/home/datasets",
+    "versions": [
+      {
+        "reference_genome": "GRCh38",
+        "url": {
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/GTEx/v8/eQTL/GRCh38/Brain_Putamen_basal_ganglia_all_snp_gene_associations.ht"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/GTEx/v8/eQTL/GRCh38/Brain_Putamen_basal_ganglia_all_snp_gene_associations.ht",
+            "us": "gs://hail-datasets-us/GTEx/v8/eQTL/GRCh38/Brain_Putamen_basal_ganglia_all_snp_gene_associations.ht"
+          }
+        },
+        "version": "v8"
+      }
+    ]
+  },
+  "GTEx_eQTL_Brain_Spinal_cord_cervical_c-1_all_snp_gene_associations": {
+    "annotation_db": {
+      "key_properties": []
+    },
+    "description": "GTEx: Brain_Spinal_cord_cervical_c-1 eQTL tissue-specific all SNP gene associations Hail Table. All variant-gene cis-eQTL associations tested in each tissue (including non-significant associations).",
+    "url": "https://gtexportal.org/home/datasets",
+    "versions": [
+      {
+        "reference_genome": "GRCh38",
+        "url": {
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/GTEx/v8/eQTL/GRCh38/Brain_Spinal_cord_cervical_c-1_all_snp_gene_associations.ht"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/GTEx/v8/eQTL/GRCh38/Brain_Spinal_cord_cervical_c-1_all_snp_gene_associations.ht",
+            "us": "gs://hail-datasets-us/GTEx/v8/eQTL/GRCh38/Brain_Spinal_cord_cervical_c-1_all_snp_gene_associations.ht"
+          }
+        },
+        "version": "v8"
+      }
+    ]
+  },
+  "GTEx_eQTL_Brain_Substantia_nigra_all_snp_gene_associations": {
+    "annotation_db": {
+      "key_properties": []
+    },
+    "description": "GTEx: Brain_Substantia_nigra eQTL tissue-specific all SNP gene associations Hail Table. All variant-gene cis-eQTL associations tested in each tissue (including non-significant associations).",
+    "url": "https://gtexportal.org/home/datasets",
+    "versions": [
+      {
+        "reference_genome": "GRCh38",
+        "url": {
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/GTEx/v8/eQTL/GRCh38/Brain_Substantia_nigra_all_snp_gene_associations.ht"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/GTEx/v8/eQTL/GRCh38/Brain_Substantia_nigra_all_snp_gene_associations.ht",
+            "us": "gs://hail-datasets-us/GTEx/v8/eQTL/GRCh38/Brain_Substantia_nigra_all_snp_gene_associations.ht"
+          }
+        },
+        "version": "v8"
+      }
+    ]
+  },
+  "GTEx_eQTL_Breast_Mammary_Tissue_all_snp_gene_associations": {
+    "annotation_db": {
+      "key_properties": []
+    },
+    "description": "GTEx: Breast_Mammary_Tissue eQTL tissue-specific all SNP gene associations Hail Table. All variant-gene cis-eQTL associations tested in each tissue (including non-significant associations).",
+    "url": "https://gtexportal.org/home/datasets",
+    "versions": [
+      {
+        "reference_genome": "GRCh38",
+        "url": {
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/GTEx/v8/eQTL/GRCh38/Breast_Mammary_Tissue_all_snp_gene_associations.ht"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/GTEx/v8/eQTL/GRCh38/Breast_Mammary_Tissue_all_snp_gene_associations.ht",
+            "us": "gs://hail-datasets-us/GTEx/v8/eQTL/GRCh38/Breast_Mammary_Tissue_all_snp_gene_associations.ht"
+          }
+        },
+        "version": "v8"
+      }
+    ]
+  },
+  "GTEx_eQTL_Cells_Cultured_fibroblasts_all_snp_gene_associations": {
+    "annotation_db": {
+      "key_properties": []
+    },
+    "description": "GTEx: Cells_Cultured_fibroblasts eQTL tissue-specific all SNP gene associations Hail Table. All variant-gene cis-eQTL associations tested in each tissue (including non-significant associations).",
+    "url": "https://gtexportal.org/home/datasets",
+    "versions": [
+      {
+        "reference_genome": "GRCh38",
+        "url": {
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/GTEx/v8/eQTL/GRCh38/Cells_Cultured_fibroblasts_all_snp_gene_associations.ht"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/GTEx/v8/eQTL/GRCh38/Cells_Cultured_fibroblasts_all_snp_gene_associations.ht",
+            "us": "gs://hail-datasets-us/GTEx/v8/eQTL/GRCh38/Cells_Cultured_fibroblasts_all_snp_gene_associations.ht"
+          }
+        },
+        "version": "v8"
+      }
+    ]
+  },
+  "GTEx_eQTL_Cells_EBV-transformed_lymphocytes_all_snp_gene_associations": {
+    "annotation_db": {
+      "key_properties": []
+    },
+    "description": "GTEx: Cells_EBV-transformed_lymphocytes eQTL tissue-specific all SNP gene associations Hail Table. All variant-gene cis-eQTL associations tested in each tissue (including non-significant associations).",
+    "url": "https://gtexportal.org/home/datasets",
+    "versions": [
+      {
+        "reference_genome": "GRCh38",
+        "url": {
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/GTEx/v8/eQTL/GRCh38/Cells_EBV-transformed_lymphocytes_all_snp_gene_associations.ht"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/GTEx/v8/eQTL/GRCh38/Cells_EBV-transformed_lymphocytes_all_snp_gene_associations.ht",
+            "us": "gs://hail-datasets-us/GTEx/v8/eQTL/GRCh38/Cells_EBV-transformed_lymphocytes_all_snp_gene_associations.ht"
+          }
+        },
+        "version": "v8"
+      }
+    ]
+  },
+  "GTEx_eQTL_Colon_Sigmoid_all_snp_gene_associations": {
+    "annotation_db": {
+      "key_properties": []
+    },
+    "description": "GTEx: Colon_Sigmoid eQTL tissue-specific all SNP gene associations Hail Table. All variant-gene cis-eQTL associations tested in each tissue (including non-significant associations).",
+    "url": "https://gtexportal.org/home/datasets",
+    "versions": [
+      {
+        "reference_genome": "GRCh38",
+        "url": {
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/GTEx/v8/eQTL/GRCh38/Colon_Sigmoid_all_snp_gene_associations.ht"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/GTEx/v8/eQTL/GRCh38/Colon_Sigmoid_all_snp_gene_associations.ht",
+            "us": "gs://hail-datasets-us/GTEx/v8/eQTL/GRCh38/Colon_Sigmoid_all_snp_gene_associations.ht"
+          }
+        },
+        "version": "v8"
+      }
+    ]
+  },
+  "GTEx_eQTL_Colon_Transverse_all_snp_gene_associations": {
+    "annotation_db": {
+      "key_properties": []
+    },
+    "description": "GTEx: Colon_Transverse eQTL tissue-specific all SNP gene associations Hail Table. All variant-gene cis-eQTL associations tested in each tissue (including non-significant associations).",
+    "url": "https://gtexportal.org/home/datasets",
+    "versions": [
+      {
+        "reference_genome": "GRCh38",
+        "url": {
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/GTEx/v8/eQTL/GRCh38/Colon_Transverse_all_snp_gene_associations.ht"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/GTEx/v8/eQTL/GRCh38/Colon_Transverse_all_snp_gene_associations.ht",
+            "us": "gs://hail-datasets-us/GTEx/v8/eQTL/GRCh38/Colon_Transverse_all_snp_gene_associations.ht"
+          }
+        },
+        "version": "v8"
+      }
+    ]
+  },
+  "GTEx_eQTL_Esophagus_Gastroesophageal_Junction_all_snp_gene_associations": {
+    "annotation_db": {
+      "key_properties": []
+    },
+    "description": "GTEx: Esophagus_Gastroesophageal_Junction eQTL tissue-specific all SNP gene associations Hail Table. All variant-gene cis-eQTL associations tested in each tissue (including non-significant associations).",
+    "url": "https://gtexportal.org/home/datasets",
+    "versions": [
+      {
+        "reference_genome": "GRCh38",
+        "url": {
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/GTEx/v8/eQTL/GRCh38/Esophagus_Gastroesophageal_Junction_all_snp_gene_associations.ht"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/GTEx/v8/eQTL/GRCh38/Esophagus_Gastroesophageal_Junction_all_snp_gene_associations.ht",
+            "us": "gs://hail-datasets-us/GTEx/v8/eQTL/GRCh38/Esophagus_Gastroesophageal_Junction_all_snp_gene_associations.ht"
+          }
+        },
+        "version": "v8"
+      }
+    ]
+  },
+  "GTEx_eQTL_Esophagus_Mucosa_all_snp_gene_associations": {
+    "annotation_db": {
+      "key_properties": []
+    },
+    "description": "GTEx: Esophagus_Mucosa eQTL tissue-specific all SNP gene associations Hail Table. All variant-gene cis-eQTL associations tested in each tissue (including non-significant associations).",
+    "url": "https://gtexportal.org/home/datasets",
+    "versions": [
+      {
+        "reference_genome": "GRCh38",
+        "url": {
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/GTEx/v8/eQTL/GRCh38/Esophagus_Mucosa_all_snp_gene_associations.ht"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/GTEx/v8/eQTL/GRCh38/Esophagus_Mucosa_all_snp_gene_associations.ht",
+            "us": "gs://hail-datasets-us/GTEx/v8/eQTL/GRCh38/Esophagus_Mucosa_all_snp_gene_associations.ht"
+          }
+        },
+        "version": "v8"
+      }
+    ]
+  },
+  "GTEx_eQTL_Esophagus_Muscularis_all_snp_gene_associations": {
+    "annotation_db": {
+      "key_properties": []
+    },
+    "description": "GTEx: Esophagus_Muscularis eQTL tissue-specific all SNP gene associations Hail Table. All variant-gene cis-eQTL associations tested in each tissue (including non-significant associations).",
+    "url": "https://gtexportal.org/home/datasets",
+    "versions": [
+      {
+        "reference_genome": "GRCh38",
+        "url": {
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/GTEx/v8/eQTL/GRCh38/Esophagus_Muscularis_all_snp_gene_associations.ht"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/GTEx/v8/eQTL/GRCh38/Esophagus_Muscularis_all_snp_gene_associations.ht",
+            "us": "gs://hail-datasets-us/GTEx/v8/eQTL/GRCh38/Esophagus_Muscularis_all_snp_gene_associations.ht"
+          }
+        },
+        "version": "v8"
+      }
+    ]
+  },
+  "GTEx_eQTL_Heart_Atrial_Appendage_all_snp_gene_associations": {
+    "annotation_db": {
+      "key_properties": []
+    },
+    "description": "GTEx: Heart_Atrial_Appendage eQTL tissue-specific all SNP gene associations Hail Table. All variant-gene cis-eQTL associations tested in each tissue (including non-significant associations).",
+    "url": "https://gtexportal.org/home/datasets",
+    "versions": [
+      {
+        "reference_genome": "GRCh38",
+        "url": {
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/GTEx/v8/eQTL/GRCh38/Heart_Atrial_Appendage_all_snp_gene_associations.ht"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/GTEx/v8/eQTL/GRCh38/Heart_Atrial_Appendage_all_snp_gene_associations.ht",
+            "us": "gs://hail-datasets-us/GTEx/v8/eQTL/GRCh38/Heart_Atrial_Appendage_all_snp_gene_associations.ht"
+          }
+        },
+        "version": "v8"
+      }
+    ]
+  },
+  "GTEx_eQTL_Heart_Left_Ventricle_all_snp_gene_associations": {
+    "annotation_db": {
+      "key_properties": []
+    },
+    "description": "GTEx: Heart_Left_Ventricle eQTL tissue-specific all SNP gene associations Hail Table. All variant-gene cis-eQTL associations tested in each tissue (including non-significant associations).",
+    "url": "https://gtexportal.org/home/datasets",
+    "versions": [
+      {
+        "reference_genome": "GRCh38",
+        "url": {
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/GTEx/v8/eQTL/GRCh38/Heart_Left_Ventricle_all_snp_gene_associations.ht"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/GTEx/v8/eQTL/GRCh38/Heart_Left_Ventricle_all_snp_gene_associations.ht",
+            "us": "gs://hail-datasets-us/GTEx/v8/eQTL/GRCh38/Heart_Left_Ventricle_all_snp_gene_associations.ht"
+          }
+        },
+        "version": "v8"
+      }
+    ]
+  },
+  "GTEx_eQTL_Kidney_Cortex_all_snp_gene_associations": {
+    "annotation_db": {
+      "key_properties": []
+    },
+    "description": "GTEx: Kidney_Cortex eQTL tissue-specific all SNP gene associations Hail Table. All variant-gene cis-eQTL associations tested in each tissue (including non-significant associations).",
+    "url": "https://gtexportal.org/home/datasets",
+    "versions": [
+      {
+        "reference_genome": "GRCh38",
+        "url": {
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/GTEx/v8/eQTL/GRCh38/Kidney_Cortex_all_snp_gene_associations.ht"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/GTEx/v8/eQTL/GRCh38/Kidney_Cortex_all_snp_gene_associations.ht",
+            "us": "gs://hail-datasets-us/GTEx/v8/eQTL/GRCh38/Kidney_Cortex_all_snp_gene_associations.ht"
+          }
+        },
+        "version": "v8"
+      }
+    ]
+  },
+  "GTEx_eQTL_Liver_all_snp_gene_associations": {
+    "annotation_db": {
+      "key_properties": []
+    },
+    "description": "GTEx: Liver eQTL tissue-specific all SNP gene associations Hail Table. All variant-gene cis-eQTL associations tested in each tissue (including non-significant associations).",
+    "url": "https://gtexportal.org/home/datasets",
+    "versions": [
+      {
+        "reference_genome": "GRCh38",
+        "url": {
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/GTEx/v8/eQTL/GRCh38/Liver_all_snp_gene_associations.ht"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/GTEx/v8/eQTL/GRCh38/Liver_all_snp_gene_associations.ht",
+            "us": "gs://hail-datasets-us/GTEx/v8/eQTL/GRCh38/Liver_all_snp_gene_associations.ht"
+          }
+        },
+        "version": "v8"
+      }
+    ]
+  },
+  "GTEx_eQTL_Lung_all_snp_gene_associations": {
+    "annotation_db": {
+      "key_properties": []
+    },
+    "description": "GTEx: Lung eQTL tissue-specific all SNP gene associations Hail Table. All variant-gene cis-eQTL associations tested in each tissue (including non-significant associations).",
+    "url": "https://gtexportal.org/home/datasets",
+    "versions": [
+      {
+        "reference_genome": "GRCh38",
+        "url": {
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/GTEx/v8/eQTL/GRCh38/Lung_all_snp_gene_associations.ht"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/GTEx/v8/eQTL/GRCh38/Lung_all_snp_gene_associations.ht",
+            "us": "gs://hail-datasets-us/GTEx/v8/eQTL/GRCh38/Lung_all_snp_gene_associations.ht"
+          }
+        },
+        "version": "v8"
+      }
+    ]
+  },
+  "GTEx_eQTL_Minor_Salivary_Gland_all_snp_gene_associations": {
+    "annotation_db": {
+      "key_properties": []
+    },
+    "description": "GTEx: Minor_Salivary_Gland eQTL tissue-specific all SNP gene associations Hail Table. All variant-gene cis-eQTL associations tested in each tissue (including non-significant associations).",
+    "url": "https://gtexportal.org/home/datasets",
+    "versions": [
+      {
+        "reference_genome": "GRCh38",
+        "url": {
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/GTEx/v8/eQTL/GRCh38/Minor_Salivary_Gland_all_snp_gene_associations.ht"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/GTEx/v8/eQTL/GRCh38/Minor_Salivary_Gland_all_snp_gene_associations.ht",
+            "us": "gs://hail-datasets-us/GTEx/v8/eQTL/GRCh38/Minor_Salivary_Gland_all_snp_gene_associations.ht"
+          }
+        },
+        "version": "v8"
+      }
+    ]
+  },
+  "GTEx_eQTL_Muscle_Skeletal_all_snp_gene_associations": {
+    "annotation_db": {
+      "key_properties": []
+    },
+    "description": "GTEx: Muscle_Skeletal eQTL tissue-specific all SNP gene associations Hail Table. All variant-gene cis-eQTL associations tested in each tissue (including non-significant associations).",
+    "url": "https://gtexportal.org/home/datasets",
+    "versions": [
+      {
+        "reference_genome": "GRCh38",
+        "url": {
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/GTEx/v8/eQTL/GRCh38/Muscle_Skeletal_all_snp_gene_associations.ht"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/GTEx/v8/eQTL/GRCh38/Muscle_Skeletal_all_snp_gene_associations.ht",
+            "us": "gs://hail-datasets-us/GTEx/v8/eQTL/GRCh38/Muscle_Skeletal_all_snp_gene_associations.ht"
+          }
+        },
+        "version": "v8"
+      }
+    ]
+  },
+  "GTEx_eQTL_Nerve_Tibial_all_snp_gene_associations": {
+    "annotation_db": {
+      "key_properties": []
+    },
+    "description": "GTEx: Nerve_Tibial eQTL tissue-specific all SNP gene associations Hail Table. All variant-gene cis-eQTL associations tested in each tissue (including non-significant associations).",
+    "url": "https://gtexportal.org/home/datasets",
+    "versions": [
+      {
+        "reference_genome": "GRCh38",
+        "url": {
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/GTEx/v8/eQTL/GRCh38/Nerve_Tibial_all_snp_gene_associations.ht"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/GTEx/v8/eQTL/GRCh38/Nerve_Tibial_all_snp_gene_associations.ht",
+            "us": "gs://hail-datasets-us/GTEx/v8/eQTL/GRCh38/Nerve_Tibial_all_snp_gene_associations.ht"
+          }
+        },
+        "version": "v8"
+      }
+    ]
+  },
+  "GTEx_eQTL_Ovary_all_snp_gene_associations": {
+    "annotation_db": {
+      "key_properties": []
+    },
+    "description": "GTEx: Ovary eQTL tissue-specific all SNP gene associations Hail Table. All variant-gene cis-eQTL associations tested in each tissue (including non-significant associations).",
+    "url": "https://gtexportal.org/home/datasets",
+    "versions": [
+      {
+        "reference_genome": "GRCh38",
+        "url": {
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/GTEx/v8/eQTL/GRCh38/Ovary_all_snp_gene_associations.ht"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/GTEx/v8/eQTL/GRCh38/Ovary_all_snp_gene_associations.ht",
+            "us": "gs://hail-datasets-us/GTEx/v8/eQTL/GRCh38/Ovary_all_snp_gene_associations.ht"
+          }
+        },
+        "version": "v8"
+      }
+    ]
+  },
+  "GTEx_eQTL_Pancreas_all_snp_gene_associations": {
+    "annotation_db": {
+      "key_properties": []
+    },
+    "description": "GTEx: Pancreas eQTL tissue-specific all SNP gene associations Hail Table. All variant-gene cis-eQTL associations tested in each tissue (including non-significant associations).",
+    "url": "https://gtexportal.org/home/datasets",
+    "versions": [
+      {
+        "reference_genome": "GRCh38",
+        "url": {
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/GTEx/v8/eQTL/GRCh38/Pancreas_all_snp_gene_associations.ht"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/GTEx/v8/eQTL/GRCh38/Pancreas_all_snp_gene_associations.ht",
+            "us": "gs://hail-datasets-us/GTEx/v8/eQTL/GRCh38/Pancreas_all_snp_gene_associations.ht"
+          }
+        },
+        "version": "v8"
+      }
+    ]
+  },
+  "GTEx_eQTL_Pituitary_all_snp_gene_associations": {
+    "annotation_db": {
+      "key_properties": []
+    },
+    "description": "GTEx: Pituitary eQTL tissue-specific all SNP gene associations Hail Table. All variant-gene cis-eQTL associations tested in each tissue (including non-significant associations).",
+    "url": "https://gtexportal.org/home/datasets",
+    "versions": [
+      {
+        "reference_genome": "GRCh38",
+        "url": {
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/GTEx/v8/eQTL/GRCh38/Pituitary_all_snp_gene_associations.ht"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/GTEx/v8/eQTL/GRCh38/Pituitary_all_snp_gene_associations.ht",
+            "us": "gs://hail-datasets-us/GTEx/v8/eQTL/GRCh38/Pituitary_all_snp_gene_associations.ht"
+          }
+        },
+        "version": "v8"
+      }
+    ]
+  },
+  "GTEx_eQTL_Prostate_all_snp_gene_associations": {
+    "annotation_db": {
+      "key_properties": []
+    },
+    "description": "GTEx: Prostate eQTL tissue-specific all SNP gene associations Hail Table. All variant-gene cis-eQTL associations tested in each tissue (including non-significant associations).",
+    "url": "https://gtexportal.org/home/datasets",
+    "versions": [
+      {
+        "reference_genome": "GRCh38",
+        "url": {
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/GTEx/v8/eQTL/GRCh38/Prostate_all_snp_gene_associations.ht"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/GTEx/v8/eQTL/GRCh38/Prostate_all_snp_gene_associations.ht",
+            "us": "gs://hail-datasets-us/GTEx/v8/eQTL/GRCh38/Prostate_all_snp_gene_associations.ht"
+          }
+        },
+        "version": "v8"
+      }
+    ]
+  },
+  "GTEx_eQTL_Skin_Not_Sun_Exposed_Suprapubic_all_snp_gene_associations": {
+    "annotation_db": {
+      "key_properties": []
+    },
+    "description": "GTEx: Skin_Not_Sun_Exposed_Suprapubic eQTL tissue-specific all SNP gene associations Hail Table. All variant-gene cis-eQTL associations tested in each tissue (including non-significant associations).",
+    "url": "https://gtexportal.org/home/datasets",
+    "versions": [
+      {
+        "reference_genome": "GRCh38",
+        "url": {
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/GTEx/v8/eQTL/GRCh38/Skin_Not_Sun_Exposed_Suprapubic_all_snp_gene_associations.ht"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/GTEx/v8/eQTL/GRCh38/Skin_Not_Sun_Exposed_Suprapubic_all_snp_gene_associations.ht",
+            "us": "gs://hail-datasets-us/GTEx/v8/eQTL/GRCh38/Skin_Not_Sun_Exposed_Suprapubic_all_snp_gene_associations.ht"
+          }
+        },
+        "version": "v8"
+      }
+    ]
+  },
+  "GTEx_eQTL_Skin_Sun_Exposed_Lower_leg_all_snp_gene_associations": {
+    "annotation_db": {
+      "key_properties": []
+    },
+    "description": "GTEx: Skin_Sun_Exposed_Lower_leg eQTL tissue-specific all SNP gene associations Hail Table. All variant-gene cis-eQTL associations tested in each tissue (including non-significant associations).",
+    "url": "https://gtexportal.org/home/datasets",
+    "versions": [
+      {
+        "reference_genome": "GRCh38",
+        "url": {
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/GTEx/v8/eQTL/GRCh38/Skin_Sun_Exposed_Lower_leg_all_snp_gene_associations.ht"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/GTEx/v8/eQTL/GRCh38/Skin_Sun_Exposed_Lower_leg_all_snp_gene_associations.ht",
+            "us": "gs://hail-datasets-us/GTEx/v8/eQTL/GRCh38/Skin_Sun_Exposed_Lower_leg_all_snp_gene_associations.ht"
+          }
+        },
+        "version": "v8"
+      }
+    ]
+  },
+  "GTEx_eQTL_Small_Intestine_Terminal_Ileum_all_snp_gene_associations": {
+    "annotation_db": {
+      "key_properties": []
+    },
+    "description": "GTEx: Small_Intestine_Terminal_Ileum eQTL tissue-specific all SNP gene associations Hail Table. All variant-gene cis-eQTL associations tested in each tissue (including non-significant associations).",
+    "url": "https://gtexportal.org/home/datasets",
+    "versions": [
+      {
+        "reference_genome": "GRCh38",
+        "url": {
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/GTEx/v8/eQTL/GRCh38/Small_Intestine_Terminal_Ileum_all_snp_gene_associations.ht"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/GTEx/v8/eQTL/GRCh38/Small_Intestine_Terminal_Ileum_all_snp_gene_associations.ht",
+            "us": "gs://hail-datasets-us/GTEx/v8/eQTL/GRCh38/Small_Intestine_Terminal_Ileum_all_snp_gene_associations.ht"
+          }
+        },
+        "version": "v8"
+      }
+    ]
+  },
+  "GTEx_eQTL_Spleen_all_snp_gene_associations": {
+    "annotation_db": {
+      "key_properties": []
+    },
+    "description": "GTEx: Spleen eQTL tissue-specific all SNP gene associations Hail Table. All variant-gene cis-eQTL associations tested in each tissue (including non-significant associations).",
+    "url": "https://gtexportal.org/home/datasets",
+    "versions": [
+      {
+        "reference_genome": "GRCh38",
+        "url": {
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/GTEx/v8/eQTL/GRCh38/Spleen_all_snp_gene_associations.ht"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/GTEx/v8/eQTL/GRCh38/Spleen_all_snp_gene_associations.ht",
+            "us": "gs://hail-datasets-us/GTEx/v8/eQTL/GRCh38/Spleen_all_snp_gene_associations.ht"
+          }
+        },
+        "version": "v8"
+      }
+    ]
+  },
+  "GTEx_eQTL_Stomach_all_snp_gene_associations": {
+    "annotation_db": {
+      "key_properties": []
+    },
+    "description": "GTEx: Stomach eQTL tissue-specific all SNP gene associations Hail Table. All variant-gene cis-eQTL associations tested in each tissue (including non-significant associations).",
+    "url": "https://gtexportal.org/home/datasets",
+    "versions": [
+      {
+        "reference_genome": "GRCh38",
+        "url": {
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/GTEx/v8/eQTL/GRCh38/Stomach_all_snp_gene_associations.ht"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/GTEx/v8/eQTL/GRCh38/Stomach_all_snp_gene_associations.ht",
+            "us": "gs://hail-datasets-us/GTEx/v8/eQTL/GRCh38/Stomach_all_snp_gene_associations.ht"
+          }
+        },
+        "version": "v8"
+      }
+    ]
+  },
+  "GTEx_eQTL_Testis_all_snp_gene_associations": {
+    "annotation_db": {
+      "key_properties": []
+    },
+    "description": "GTEx: Testis eQTL tissue-specific all SNP gene associations Hail Table. All variant-gene cis-eQTL associations tested in each tissue (including non-significant associations).",
+    "url": "https://gtexportal.org/home/datasets",
+    "versions": [
+      {
+        "reference_genome": "GRCh38",
+        "url": {
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/GTEx/v8/eQTL/GRCh38/Testis_all_snp_gene_associations.ht"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/GTEx/v8/eQTL/GRCh38/Testis_all_snp_gene_associations.ht",
+            "us": "gs://hail-datasets-us/GTEx/v8/eQTL/GRCh38/Testis_all_snp_gene_associations.ht"
+          }
+        },
+        "version": "v8"
+      }
+    ]
+  },
+  "GTEx_eQTL_Thyroid_all_snp_gene_associations": {
+    "annotation_db": {
+      "key_properties": []
+    },
+    "description": "GTEx: Thyroid eQTL tissue-specific all SNP gene associations Hail Table. All variant-gene cis-eQTL associations tested in each tissue (including non-significant associations).",
+    "url": "https://gtexportal.org/home/datasets",
+    "versions": [
+      {
+        "reference_genome": "GRCh38",
+        "url": {
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/GTEx/v8/eQTL/GRCh38/Thyroid_all_snp_gene_associations.ht"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/GTEx/v8/eQTL/GRCh38/Thyroid_all_snp_gene_associations.ht",
+            "us": "gs://hail-datasets-us/GTEx/v8/eQTL/GRCh38/Thyroid_all_snp_gene_associations.ht"
+          }
+        },
+        "version": "v8"
+      }
+    ]
+  },
+  "GTEx_eQTL_Uterus_all_snp_gene_associations": {
+    "annotation_db": {
+      "key_properties": []
+    },
+    "description": "GTEx: Uterus eQTL tissue-specific all SNP gene associations Hail Table. All variant-gene cis-eQTL associations tested in each tissue (including non-significant associations).",
+    "url": "https://gtexportal.org/home/datasets",
+    "versions": [
+      {
+        "reference_genome": "GRCh38",
+        "url": {
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/GTEx/v8/eQTL/GRCh38/Uterus_all_snp_gene_associations.ht"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/GTEx/v8/eQTL/GRCh38/Uterus_all_snp_gene_associations.ht",
+            "us": "gs://hail-datasets-us/GTEx/v8/eQTL/GRCh38/Uterus_all_snp_gene_associations.ht"
+          }
+        },
+        "version": "v8"
+      }
+    ]
+  },
+  "GTEx_eQTL_Vagina_all_snp_gene_associations": {
+    "annotation_db": {
+      "key_properties": []
+    },
+    "description": "GTEx: Vagina eQTL tissue-specific all SNP gene associations Hail Table. All variant-gene cis-eQTL associations tested in each tissue (including non-significant associations).",
+    "url": "https://gtexportal.org/home/datasets",
+    "versions": [
+      {
+        "reference_genome": "GRCh38",
+        "url": {
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/GTEx/v8/eQTL/GRCh38/Vagina_all_snp_gene_associations.ht"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/GTEx/v8/eQTL/GRCh38/Vagina_all_snp_gene_associations.ht",
+            "us": "gs://hail-datasets-us/GTEx/v8/eQTL/GRCh38/Vagina_all_snp_gene_associations.ht"
+          }
+        },
+        "version": "v8"
+      }
+    ]
+  },
+  "GTEx_eQTL_Whole_Blood_all_snp_gene_associations": {
+    "annotation_db": {
+      "key_properties": []
+    },
+    "description": "GTEx: Whole_Blood eQTL tissue-specific all SNP gene associations Hail Table. All variant-gene cis-eQTL associations tested in each tissue (including non-significant associations).",
+    "url": "https://gtexportal.org/home/datasets",
+    "versions": [
+      {
+        "reference_genome": "GRCh38",
+        "url": {
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/GTEx/v8/eQTL/GRCh38/Whole_Blood_all_snp_gene_associations.ht"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/GTEx/v8/eQTL/GRCh38/Whole_Blood_all_snp_gene_associations.ht",
+            "us": "gs://hail-datasets-us/GTEx/v8/eQTL/GRCh38/Whole_Blood_all_snp_gene_associations.ht"
+          }
+        },
+        "version": "v8"
+      }
+    ]
+  },
+  "GTEx_eQTL_all_snp_gene_associations": {
+    "description": "GTEx: eQTL tissue-specific all SNP gene associations MatrixTable. All variant-gene cis-eQTL associations tested in each tissue (including non-significant associations). Contains all available tissues, with columns keyed by tissue.",
+    "url": "https://gtexportal.org/home/datasets",
+    "versions": [
+      {
+        "reference_genome": "GRCh38",
+        "url": {
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/GTEx/v8/eQTL/GRCh38/all_snp_gene_associations.mt"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/GTEx/v8/eQTL/GRCh38/all_snp_gene_associations.mt",
+            "us": "gs://hail-datasets-us/GTEx/v8/eQTL/GRCh38/all_snp_gene_associations.mt"
+          }
+        },
+        "version": "v8"
+      }
+    ]
+  },
+  "GTEx_sQTL_Adipose_Subcutaneous_all_snp_gene_associations": {
+    "annotation_db": {
+      "key_properties": []
+    },
+    "description": "GTEx: Adipose_Subcutaneous sQTL tissue-specific all SNP gene associations Hail Table. All variant-gene cis-sQTL associations tested in each tissue (including non-significant associations).",
+    "url": "https://gtexportal.org/home/datasets",
+    "versions": [
+      {
+        "reference_genome": "GRCh38",
+        "url": {
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/GTEx/v8/sQTL/GRCh38/Adipose_Subcutaneous_all_snp_gene_associations.ht"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/GTEx/v8/sQTL/GRCh38/Adipose_Subcutaneous_all_snp_gene_associations.ht",
+            "us": "gs://hail-datasets-us/GTEx/v8/sQTL/GRCh38/Adipose_Subcutaneous_all_snp_gene_associations.ht"
+          }
+        },
+        "version": "v8"
+      }
+    ]
+  },
+  "GTEx_sQTL_Adipose_Visceral_Omentum_all_snp_gene_associations": {
+    "annotation_db": {
+      "key_properties": []
+    },
+    "description": "GTEx: Adipose_Visceral_Omentum sQTL tissue-specific all SNP gene associations Hail Table. All variant-gene cis-sQTL associations tested in each tissue (including non-significant associations).",
+    "url": "https://gtexportal.org/home/datasets",
+    "versions": [
+      {
+        "reference_genome": "GRCh38",
+        "url": {
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/GTEx/v8/sQTL/GRCh38/Adipose_Visceral_Omentum_all_snp_gene_associations.ht"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/GTEx/v8/sQTL/GRCh38/Adipose_Visceral_Omentum_all_snp_gene_associations.ht",
+            "us": "gs://hail-datasets-us/GTEx/v8/sQTL/GRCh38/Adipose_Visceral_Omentum_all_snp_gene_associations.ht"
+          }
+        },
+        "version": "v8"
+      }
+    ]
+  },
+  "GTEx_sQTL_Adrenal_Gland_all_snp_gene_associations": {
+    "annotation_db": {
+      "key_properties": []
+    },
+    "description": "GTEx: Adrenal_Gland sQTL tissue-specific all SNP gene associations Hail Table. All variant-gene cis-sQTL associations tested in each tissue (including non-significant associations).",
+    "url": "https://gtexportal.org/home/datasets",
+    "versions": [
+      {
+        "reference_genome": "GRCh38",
+        "url": {
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/GTEx/v8/sQTL/GRCh38/Adrenal_Gland_all_snp_gene_associations.ht"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/GTEx/v8/sQTL/GRCh38/Adrenal_Gland_all_snp_gene_associations.ht",
+            "us": "gs://hail-datasets-us/GTEx/v8/sQTL/GRCh38/Adrenal_Gland_all_snp_gene_associations.ht"
+          }
+        },
+        "version": "v8"
+      }
+    ]
+  },
+  "GTEx_sQTL_Artery_Aorta_all_snp_gene_associations": {
+    "annotation_db": {
+      "key_properties": []
+    },
+    "description": "GTEx: Artery_Aorta sQTL tissue-specific all SNP gene associations Hail Table. All variant-gene cis-sQTL associations tested in each tissue (including non-significant associations).",
+    "url": "https://gtexportal.org/home/datasets",
+    "versions": [
+      {
+        "reference_genome": "GRCh38",
+        "url": {
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/GTEx/v8/sQTL/GRCh38/Artery_Aorta_all_snp_gene_associations.ht"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/GTEx/v8/sQTL/GRCh38/Artery_Aorta_all_snp_gene_associations.ht",
+            "us": "gs://hail-datasets-us/GTEx/v8/sQTL/GRCh38/Artery_Aorta_all_snp_gene_associations.ht"
+          }
+        },
+        "version": "v8"
+      }
+    ]
+  },
+  "GTEx_sQTL_Artery_Coronary_all_snp_gene_associations": {
+    "annotation_db": {
+      "key_properties": []
+    },
+    "description": "GTEx: Artery_Coronary sQTL tissue-specific all SNP gene associations Hail Table. All variant-gene cis-sQTL associations tested in each tissue (including non-significant associations).",
+    "url": "https://gtexportal.org/home/datasets",
+    "versions": [
+      {
+        "reference_genome": "GRCh38",
+        "url": {
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/GTEx/v8/sQTL/GRCh38/Artery_Coronary_all_snp_gene_associations.ht"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/GTEx/v8/sQTL/GRCh38/Artery_Coronary_all_snp_gene_associations.ht",
+            "us": "gs://hail-datasets-us/GTEx/v8/sQTL/GRCh38/Artery_Coronary_all_snp_gene_associations.ht"
+          }
+        },
+        "version": "v8"
+      }
+    ]
+  },
+  "GTEx_sQTL_Artery_Tibial_all_snp_gene_associations": {
+    "annotation_db": {
+      "key_properties": []
+    },
+    "description": "GTEx: Artery_Tibial sQTL tissue-specific all SNP gene associations Hail Table. All variant-gene cis-sQTL associations tested in each tissue (including non-significant associations).",
+    "url": "https://gtexportal.org/home/datasets",
+    "versions": [
+      {
+        "reference_genome": "GRCh38",
+        "url": {
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/GTEx/v8/sQTL/GRCh38/Artery_Tibial_all_snp_gene_associations.ht"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/GTEx/v8/sQTL/GRCh38/Artery_Tibial_all_snp_gene_associations.ht",
+            "us": "gs://hail-datasets-us/GTEx/v8/sQTL/GRCh38/Artery_Tibial_all_snp_gene_associations.ht"
+          }
+        },
+        "version": "v8"
+      }
+    ]
+  },
+  "GTEx_sQTL_Brain_Amygdala_all_snp_gene_associations": {
+    "annotation_db": {
+      "key_properties": []
+    },
+    "description": "GTEx: Brain_Amygdala sQTL tissue-specific all SNP gene associations Hail Table. All variant-gene cis-sQTL associations tested in each tissue (including non-significant associations).",
+    "url": "https://gtexportal.org/home/datasets",
+    "versions": [
+      {
+        "reference_genome": "GRCh38",
+        "url": {
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/GTEx/v8/sQTL/GRCh38/Brain_Amygdala_all_snp_gene_associations.ht"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/GTEx/v8/sQTL/GRCh38/Brain_Amygdala_all_snp_gene_associations.ht",
+            "us": "gs://hail-datasets-us/GTEx/v8/sQTL/GRCh38/Brain_Amygdala_all_snp_gene_associations.ht"
+          }
+        },
+        "version": "v8"
+      }
+    ]
+  },
+  "GTEx_sQTL_Brain_Anterior_cingulate_cortex_BA24_all_snp_gene_associations": {
+    "annotation_db": {
+      "key_properties": []
+    },
+    "description": "GTEx: Brain_Anterior_cingulate_cortex_BA24 sQTL tissue-specific all SNP gene associations Hail Table. All variant-gene cis-sQTL associations tested in each tissue (including non-significant associations).",
+    "url": "https://gtexportal.org/home/datasets",
+    "versions": [
+      {
+        "reference_genome": "GRCh38",
+        "url": {
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/GTEx/v8/sQTL/GRCh38/Brain_Anterior_cingulate_cortex_BA24_all_snp_gene_associations.ht"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/GTEx/v8/sQTL/GRCh38/Brain_Anterior_cingulate_cortex_BA24_all_snp_gene_associations.ht",
+            "us": "gs://hail-datasets-us/GTEx/v8/sQTL/GRCh38/Brain_Anterior_cingulate_cortex_BA24_all_snp_gene_associations.ht"
+          }
+        },
+        "version": "v8"
+      }
+    ]
+  },
+  "GTEx_sQTL_Brain_Caudate_basal_ganglia_all_snp_gene_associations": {
+    "annotation_db": {
+      "key_properties": []
+    },
+    "description": "GTEx: Brain_Caudate_basal_ganglia sQTL tissue-specific all SNP gene associations Hail Table. All variant-gene cis-sQTL associations tested in each tissue (including non-significant associations).",
+    "url": "https://gtexportal.org/home/datasets",
+    "versions": [
+      {
+        "reference_genome": "GRCh38",
+        "url": {
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/GTEx/v8/sQTL/GRCh38/Brain_Caudate_basal_ganglia_all_snp_gene_associations.ht"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/GTEx/v8/sQTL/GRCh38/Brain_Caudate_basal_ganglia_all_snp_gene_associations.ht",
+            "us": "gs://hail-datasets-us/GTEx/v8/sQTL/GRCh38/Brain_Caudate_basal_ganglia_all_snp_gene_associations.ht"
+          }
+        },
+        "version": "v8"
+      }
+    ]
+  },
+  "GTEx_sQTL_Brain_Cerebellar_Hemisphere_all_snp_gene_associations": {
+    "annotation_db": {
+      "key_properties": []
+    },
+    "description": "GTEx: Brain_Cerebellar_Hemisphere sQTL tissue-specific all SNP gene associations Hail Table. All variant-gene cis-sQTL associations tested in each tissue (including non-significant associations).",
+    "url": "https://gtexportal.org/home/datasets",
+    "versions": [
+      {
+        "reference_genome": "GRCh38",
+        "url": {
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/GTEx/v8/sQTL/GRCh38/Brain_Cerebellar_Hemisphere_all_snp_gene_associations.ht"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/GTEx/v8/sQTL/GRCh38/Brain_Cerebellar_Hemisphere_all_snp_gene_associations.ht",
+            "us": "gs://hail-datasets-us/GTEx/v8/sQTL/GRCh38/Brain_Cerebellar_Hemisphere_all_snp_gene_associations.ht"
+          }
+        },
+        "version": "v8"
+      }
+    ]
+  },
+  "GTEx_sQTL_Brain_Cerebellum_all_snp_gene_associations": {
+    "annotation_db": {
+      "key_properties": []
+    },
+    "description": "GTEx: Brain_Cerebellum sQTL tissue-specific all SNP gene associations Hail Table. All variant-gene cis-sQTL associations tested in each tissue (including non-significant associations).",
+    "url": "https://gtexportal.org/home/datasets",
+    "versions": [
+      {
+        "reference_genome": "GRCh38",
+        "url": {
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/GTEx/v8/sQTL/GRCh38/Brain_Cerebellum_all_snp_gene_associations.ht"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/GTEx/v8/sQTL/GRCh38/Brain_Cerebellum_all_snp_gene_associations.ht",
+            "us": "gs://hail-datasets-us/GTEx/v8/sQTL/GRCh38/Brain_Cerebellum_all_snp_gene_associations.ht"
+          }
+        },
+        "version": "v8"
+      }
+    ]
+  },
+  "GTEx_sQTL_Brain_Cortex_all_snp_gene_associations": {
+    "annotation_db": {
+      "key_properties": []
+    },
+    "description": "GTEx: Brain_Cortex sQTL tissue-specific all SNP gene associations Hail Table. All variant-gene cis-sQTL associations tested in each tissue (including non-significant associations).",
+    "url": "https://gtexportal.org/home/datasets",
+    "versions": [
+      {
+        "reference_genome": "GRCh38",
+        "url": {
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/GTEx/v8/sQTL/GRCh38/Brain_Cortex_all_snp_gene_associations.ht"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/GTEx/v8/sQTL/GRCh38/Brain_Cortex_all_snp_gene_associations.ht",
+            "us": "gs://hail-datasets-us/GTEx/v8/sQTL/GRCh38/Brain_Cortex_all_snp_gene_associations.ht"
+          }
+        },
+        "version": "v8"
+      }
+    ]
+  },
+  "GTEx_sQTL_Brain_Frontal_Cortex_BA9_all_snp_gene_associations": {
+    "annotation_db": {
+      "key_properties": []
+    },
+    "description": "GTEx: Brain_Frontal_Cortex_BA9 sQTL tissue-specific all SNP gene associations Hail Table. All variant-gene cis-sQTL associations tested in each tissue (including non-significant associations).",
+    "url": "https://gtexportal.org/home/datasets",
+    "versions": [
+      {
+        "reference_genome": "GRCh38",
+        "url": {
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/GTEx/v8/sQTL/GRCh38/Brain_Frontal_Cortex_BA9_all_snp_gene_associations.ht"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/GTEx/v8/sQTL/GRCh38/Brain_Frontal_Cortex_BA9_all_snp_gene_associations.ht",
+            "us": "gs://hail-datasets-us/GTEx/v8/sQTL/GRCh38/Brain_Frontal_Cortex_BA9_all_snp_gene_associations.ht"
+          }
+        },
+        "version": "v8"
+      }
+    ]
+  },
+  "GTEx_sQTL_Brain_Hippocampus_all_snp_gene_associations": {
+    "annotation_db": {
+      "key_properties": []
+    },
+    "description": "GTEx: Brain_Hippocampus sQTL tissue-specific all SNP gene associations Hail Table. All variant-gene cis-sQTL associations tested in each tissue (including non-significant associations).",
+    "url": "https://gtexportal.org/home/datasets",
+    "versions": [
+      {
+        "reference_genome": "GRCh38",
+        "url": {
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/GTEx/v8/sQTL/GRCh38/Brain_Hippocampus_all_snp_gene_associations.ht"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/GTEx/v8/sQTL/GRCh38/Brain_Hippocampus_all_snp_gene_associations.ht",
+            "us": "gs://hail-datasets-us/GTEx/v8/sQTL/GRCh38/Brain_Hippocampus_all_snp_gene_associations.ht"
+          }
+        },
+        "version": "v8"
+      }
+    ]
+  },
+  "GTEx_sQTL_Brain_Hypothalamus_all_snp_gene_associations": {
+    "annotation_db": {
+      "key_properties": []
+    },
+    "description": "GTEx: Brain_Hypothalamus sQTL tissue-specific all SNP gene associations Hail Table. All variant-gene cis-sQTL associations tested in each tissue (including non-significant associations).",
+    "url": "https://gtexportal.org/home/datasets",
+    "versions": [
+      {
+        "reference_genome": "GRCh38",
+        "url": {
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/GTEx/v8/sQTL/GRCh38/Brain_Hypothalamus_all_snp_gene_associations.ht"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/GTEx/v8/sQTL/GRCh38/Brain_Hypothalamus_all_snp_gene_associations.ht",
+            "us": "gs://hail-datasets-us/GTEx/v8/sQTL/GRCh38/Brain_Hypothalamus_all_snp_gene_associations.ht"
+          }
+        },
+        "version": "v8"
+      }
+    ]
+  },
+  "GTEx_sQTL_Brain_Nucleus_accumbens_basal_ganglia_all_snp_gene_associations": {
+    "annotation_db": {
+      "key_properties": []
+    },
+    "description": "GTEx: Brain_Nucleus_accumbens_basal_ganglia sQTL tissue-specific all SNP gene associations Hail Table. All variant-gene cis-sQTL associations tested in each tissue (including non-significant associations).",
+    "url": "https://gtexportal.org/home/datasets",
+    "versions": [
+      {
+        "reference_genome": "GRCh38",
+        "url": {
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/GTEx/v8/sQTL/GRCh38/Brain_Nucleus_accumbens_basal_ganglia_all_snp_gene_associations.ht"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/GTEx/v8/sQTL/GRCh38/Brain_Nucleus_accumbens_basal_ganglia_all_snp_gene_associations.ht",
+            "us": "gs://hail-datasets-us/GTEx/v8/sQTL/GRCh38/Brain_Nucleus_accumbens_basal_ganglia_all_snp_gene_associations.ht"
+          }
+        },
+        "version": "v8"
+      }
+    ]
+  },
+  "GTEx_sQTL_Brain_Putamen_basal_ganglia_all_snp_gene_associations": {
+    "annotation_db": {
+      "key_properties": []
+    },
+    "description": "GTEx: Brain_Putamen_basal_ganglia sQTL tissue-specific all SNP gene associations Hail Table. All variant-gene cis-sQTL associations tested in each tissue (including non-significant associations).",
+    "url": "https://gtexportal.org/home/datasets",
+    "versions": [
+      {
+        "reference_genome": "GRCh38",
+        "url": {
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/GTEx/v8/sQTL/GRCh38/Brain_Putamen_basal_ganglia_all_snp_gene_associations.ht"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/GTEx/v8/sQTL/GRCh38/Brain_Putamen_basal_ganglia_all_snp_gene_associations.ht",
+            "us": "gs://hail-datasets-us/GTEx/v8/sQTL/GRCh38/Brain_Putamen_basal_ganglia_all_snp_gene_associations.ht"
+          }
+        },
+        "version": "v8"
+      }
+    ]
+  },
+  "GTEx_sQTL_Brain_Spinal_cord_cervical_c-1_all_snp_gene_associations": {
+    "annotation_db": {
+      "key_properties": []
+    },
+    "description": "GTEx: Brain_Spinal_cord_cervical_c-1 sQTL tissue-specific all SNP gene associations Hail Table. All variant-gene cis-sQTL associations tested in each tissue (including non-significant associations).",
+    "url": "https://gtexportal.org/home/datasets",
+    "versions": [
+      {
+        "reference_genome": "GRCh38",
+        "url": {
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/GTEx/v8/sQTL/GRCh38/Brain_Spinal_cord_cervical_c-1_all_snp_gene_associations.ht"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/GTEx/v8/sQTL/GRCh38/Brain_Spinal_cord_cervical_c-1_all_snp_gene_associations.ht",
+            "us": "gs://hail-datasets-us/GTEx/v8/sQTL/GRCh38/Brain_Spinal_cord_cervical_c-1_all_snp_gene_associations.ht"
+          }
+        },
+        "version": "v8"
+      }
+    ]
+  },
+  "GTEx_sQTL_Brain_Substantia_nigra_all_snp_gene_associations": {
+    "annotation_db": {
+      "key_properties": []
+    },
+    "description": "GTEx: Brain_Substantia_nigra sQTL tissue-specific all SNP gene associations Hail Table. All variant-gene cis-sQTL associations tested in each tissue (including non-significant associations).",
+    "url": "https://gtexportal.org/home/datasets",
+    "versions": [
+      {
+        "reference_genome": "GRCh38",
+        "url": {
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/GTEx/v8/sQTL/GRCh38/Brain_Substantia_nigra_all_snp_gene_associations.ht"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/GTEx/v8/sQTL/GRCh38/Brain_Substantia_nigra_all_snp_gene_associations.ht",
+            "us": "gs://hail-datasets-us/GTEx/v8/sQTL/GRCh38/Brain_Substantia_nigra_all_snp_gene_associations.ht"
+          }
+        },
+        "version": "v8"
+      }
+    ]
+  },
+  "GTEx_sQTL_Breast_Mammary_Tissue_all_snp_gene_associations": {
+    "annotation_db": {
+      "key_properties": []
+    },
+    "description": "GTEx: Breast_Mammary_Tissue sQTL tissue-specific all SNP gene associations Hail Table. All variant-gene cis-sQTL associations tested in each tissue (including non-significant associations).",
+    "url": "https://gtexportal.org/home/datasets",
+    "versions": [
+      {
+        "reference_genome": "GRCh38",
+        "url": {
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/GTEx/v8/sQTL/GRCh38/Breast_Mammary_Tissue_all_snp_gene_associations.ht"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/GTEx/v8/sQTL/GRCh38/Breast_Mammary_Tissue_all_snp_gene_associations.ht",
+            "us": "gs://hail-datasets-us/GTEx/v8/sQTL/GRCh38/Breast_Mammary_Tissue_all_snp_gene_associations.ht"
+          }
+        },
+        "version": "v8"
+      }
+    ]
+  },
+  "GTEx_sQTL_Cells_Cultured_fibroblasts_all_snp_gene_associations": {
+    "annotation_db": {
+      "key_properties": []
+    },
+    "description": "GTEx: Cells_Cultured_fibroblasts sQTL tissue-specific all SNP gene associations Hail Table. All variant-gene cis-sQTL associations tested in each tissue (including non-significant associations).",
+    "url": "https://gtexportal.org/home/datasets",
+    "versions": [
+      {
+        "reference_genome": "GRCh38",
+        "url": {
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/GTEx/v8/sQTL/GRCh38/Cells_Cultured_fibroblasts_all_snp_gene_associations.ht"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/GTEx/v8/sQTL/GRCh38/Cells_Cultured_fibroblasts_all_snp_gene_associations.ht",
+            "us": "gs://hail-datasets-us/GTEx/v8/sQTL/GRCh38/Cells_Cultured_fibroblasts_all_snp_gene_associations.ht"
+          }
+        },
+        "version": "v8"
+      }
+    ]
+  },
+  "GTEx_sQTL_Cells_EBV-transformed_lymphocytes_all_snp_gene_associations": {
+    "annotation_db": {
+      "key_properties": []
+    },
+    "description": "GTEx: Cells_EBV-transformed_lymphocytes sQTL tissue-specific all SNP gene associations Hail Table. All variant-gene cis-sQTL associations tested in each tissue (including non-significant associations).",
+    "url": "https://gtexportal.org/home/datasets",
+    "versions": [
+      {
+        "reference_genome": "GRCh38",
+        "url": {
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/GTEx/v8/sQTL/GRCh38/Cells_EBV-transformed_lymphocytes_all_snp_gene_associations.ht"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/GTEx/v8/sQTL/GRCh38/Cells_EBV-transformed_lymphocytes_all_snp_gene_associations.ht",
+            "us": "gs://hail-datasets-us/GTEx/v8/sQTL/GRCh38/Cells_EBV-transformed_lymphocytes_all_snp_gene_associations.ht"
+          }
+        },
+        "version": "v8"
+      }
+    ]
+  },
+  "GTEx_sQTL_Colon_Sigmoid_all_snp_gene_associations": {
+    "annotation_db": {
+      "key_properties": []
+    },
+    "description": "GTEx: Colon_Sigmoid sQTL tissue-specific all SNP gene associations Hail Table. All variant-gene cis-sQTL associations tested in each tissue (including non-significant associations).",
+    "url": "https://gtexportal.org/home/datasets",
+    "versions": [
+      {
+        "reference_genome": "GRCh38",
+        "url": {
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/GTEx/v8/sQTL/GRCh38/Colon_Sigmoid_all_snp_gene_associations.ht"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/GTEx/v8/sQTL/GRCh38/Colon_Sigmoid_all_snp_gene_associations.ht",
+            "us": "gs://hail-datasets-us/GTEx/v8/sQTL/GRCh38/Colon_Sigmoid_all_snp_gene_associations.ht"
+          }
+        },
+        "version": "v8"
+      }
+    ]
+  },
+  "GTEx_sQTL_Colon_Transverse_all_snp_gene_associations": {
+    "annotation_db": {
+      "key_properties": []
+    },
+    "description": "GTEx: Colon_Transverse sQTL tissue-specific all SNP gene associations Hail Table. All variant-gene cis-sQTL associations tested in each tissue (including non-significant associations).",
+    "url": "https://gtexportal.org/home/datasets",
+    "versions": [
+      {
+        "reference_genome": "GRCh38",
+        "url": {
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/GTEx/v8/sQTL/GRCh38/Colon_Transverse_all_snp_gene_associations.ht"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/GTEx/v8/sQTL/GRCh38/Colon_Transverse_all_snp_gene_associations.ht",
+            "us": "gs://hail-datasets-us/GTEx/v8/sQTL/GRCh38/Colon_Transverse_all_snp_gene_associations.ht"
+          }
+        },
+        "version": "v8"
+      }
+    ]
+  },
+  "GTEx_sQTL_Esophagus_Gastroesophageal_Junction_all_snp_gene_associations": {
+    "annotation_db": {
+      "key_properties": []
+    },
+    "description": "GTEx: Esophagus_Gastroesophageal_Junction sQTL tissue-specific all SNP gene associations Hail Table. All variant-gene cis-sQTL associations tested in each tissue (including non-significant associations).",
+    "url": "https://gtexportal.org/home/datasets",
+    "versions": [
+      {
+        "reference_genome": "GRCh38",
+        "url": {
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/GTEx/v8/sQTL/GRCh38/Esophagus_Gastroesophageal_Junction_all_snp_gene_associations.ht"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/GTEx/v8/sQTL/GRCh38/Esophagus_Gastroesophageal_Junction_all_snp_gene_associations.ht",
+            "us": "gs://hail-datasets-us/GTEx/v8/sQTL/GRCh38/Esophagus_Gastroesophageal_Junction_all_snp_gene_associations.ht"
+          }
+        },
+        "version": "v8"
+      }
+    ]
+  },
+  "GTEx_sQTL_Esophagus_Mucosa_all_snp_gene_associations": {
+    "annotation_db": {
+      "key_properties": []
+    },
+    "description": "GTEx: Esophagus_Mucosa sQTL tissue-specific all SNP gene associations Hail Table. All variant-gene cis-sQTL associations tested in each tissue (including non-significant associations).",
+    "url": "https://gtexportal.org/home/datasets",
+    "versions": [
+      {
+        "reference_genome": "GRCh38",
+        "url": {
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/GTEx/v8/sQTL/GRCh38/Esophagus_Mucosa_all_snp_gene_associations.ht"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/GTEx/v8/sQTL/GRCh38/Esophagus_Mucosa_all_snp_gene_associations.ht",
+            "us": "gs://hail-datasets-us/GTEx/v8/sQTL/GRCh38/Esophagus_Mucosa_all_snp_gene_associations.ht"
+          }
+        },
+        "version": "v8"
+      }
+    ]
+  },
+  "GTEx_sQTL_Esophagus_Muscularis_all_snp_gene_associations": {
+    "annotation_db": {
+      "key_properties": []
+    },
+    "description": "GTEx: Esophagus_Muscularis sQTL tissue-specific all SNP gene associations Hail Table. All variant-gene cis-sQTL associations tested in each tissue (including non-significant associations).",
+    "url": "https://gtexportal.org/home/datasets",
+    "versions": [
+      {
+        "reference_genome": "GRCh38",
+        "url": {
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/GTEx/v8/sQTL/GRCh38/Esophagus_Muscularis_all_snp_gene_associations.ht"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/GTEx/v8/sQTL/GRCh38/Esophagus_Muscularis_all_snp_gene_associations.ht",
+            "us": "gs://hail-datasets-us/GTEx/v8/sQTL/GRCh38/Esophagus_Muscularis_all_snp_gene_associations.ht"
+          }
+        },
+        "version": "v8"
+      }
+    ]
+  },
+  "GTEx_sQTL_Heart_Atrial_Appendage_all_snp_gene_associations": {
+    "annotation_db": {
+      "key_properties": []
+    },
+    "description": "GTEx: Heart_Atrial_Appendage sQTL tissue-specific all SNP gene associations Hail Table. All variant-gene cis-sQTL associations tested in each tissue (including non-significant associations).",
+    "url": "https://gtexportal.org/home/datasets",
+    "versions": [
+      {
+        "reference_genome": "GRCh38",
+        "url": {
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/GTEx/v8/sQTL/GRCh38/Heart_Atrial_Appendage_all_snp_gene_associations.ht"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/GTEx/v8/sQTL/GRCh38/Heart_Atrial_Appendage_all_snp_gene_associations.ht",
+            "us": "gs://hail-datasets-us/GTEx/v8/sQTL/GRCh38/Heart_Atrial_Appendage_all_snp_gene_associations.ht"
+          }
+        },
+        "version": "v8"
+      }
+    ]
+  },
+  "GTEx_sQTL_Heart_Left_Ventricle_all_snp_gene_associations": {
+    "annotation_db": {
+      "key_properties": []
+    },
+    "description": "GTEx: Heart_Left_Ventricle sQTL tissue-specific all SNP gene associations Hail Table. All variant-gene cis-sQTL associations tested in each tissue (including non-significant associations).",
+    "url": "https://gtexportal.org/home/datasets",
+    "versions": [
+      {
+        "reference_genome": "GRCh38",
+        "url": {
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/GTEx/v8/sQTL/GRCh38/Heart_Left_Ventricle_all_snp_gene_associations.ht"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/GTEx/v8/sQTL/GRCh38/Heart_Left_Ventricle_all_snp_gene_associations.ht",
+            "us": "gs://hail-datasets-us/GTEx/v8/sQTL/GRCh38/Heart_Left_Ventricle_all_snp_gene_associations.ht"
+          }
+        },
+        "version": "v8"
+      }
+    ]
+  },
+  "GTEx_sQTL_Kidney_Cortex_all_snp_gene_associations": {
+    "annotation_db": {
+      "key_properties": []
+    },
+    "description": "GTEx: Kidney_Cortex sQTL tissue-specific all SNP gene associations Hail Table. All variant-gene cis-sQTL associations tested in each tissue (including non-significant associations).",
+    "url": "https://gtexportal.org/home/datasets",
+    "versions": [
+      {
+        "reference_genome": "GRCh38",
+        "url": {
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/GTEx/v8/sQTL/GRCh38/Kidney_Cortex_all_snp_gene_associations.ht"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/GTEx/v8/sQTL/GRCh38/Kidney_Cortex_all_snp_gene_associations.ht",
+            "us": "gs://hail-datasets-us/GTEx/v8/sQTL/GRCh38/Kidney_Cortex_all_snp_gene_associations.ht"
+          }
+        },
+        "version": "v8"
+      }
+    ]
+  },
+  "GTEx_sQTL_Liver_all_snp_gene_associations": {
+    "annotation_db": {
+      "key_properties": []
+    },
+    "description": "GTEx: Liver sQTL tissue-specific all SNP gene associations Hail Table. All variant-gene cis-sQTL associations tested in each tissue (including non-significant associations).",
+    "url": "https://gtexportal.org/home/datasets",
+    "versions": [
+      {
+        "reference_genome": "GRCh38",
+        "url": {
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/GTEx/v8/sQTL/GRCh38/Liver_all_snp_gene_associations.ht"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/GTEx/v8/sQTL/GRCh38/Liver_all_snp_gene_associations.ht",
+            "us": "gs://hail-datasets-us/GTEx/v8/sQTL/GRCh38/Liver_all_snp_gene_associations.ht"
+          }
+        },
+        "version": "v8"
+      }
+    ]
+  },
+  "GTEx_sQTL_Lung_all_snp_gene_associations": {
+    "annotation_db": {
+      "key_properties": []
+    },
+    "description": "GTEx: Lung sQTL tissue-specific all SNP gene associations Hail Table. All variant-gene cis-sQTL associations tested in each tissue (including non-significant associations).",
+    "url": "https://gtexportal.org/home/datasets",
+    "versions": [
+      {
+        "reference_genome": "GRCh38",
+        "url": {
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/GTEx/v8/sQTL/GRCh38/Lung_all_snp_gene_associations.ht"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/GTEx/v8/sQTL/GRCh38/Lung_all_snp_gene_associations.ht",
+            "us": "gs://hail-datasets-us/GTEx/v8/sQTL/GRCh38/Lung_all_snp_gene_associations.ht"
+          }
+        },
+        "version": "v8"
+      }
+    ]
+  },
+  "GTEx_sQTL_Minor_Salivary_Gland_all_snp_gene_associations": {
+    "annotation_db": {
+      "key_properties": []
+    },
+    "description": "GTEx: Minor_Salivary_Gland sQTL tissue-specific all SNP gene associations Hail Table. All variant-gene cis-sQTL associations tested in each tissue (including non-significant associations).",
+    "url": "https://gtexportal.org/home/datasets",
+    "versions": [
+      {
+        "reference_genome": "GRCh38",
+        "url": {
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/GTEx/v8/sQTL/GRCh38/Minor_Salivary_Gland_all_snp_gene_associations.ht"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/GTEx/v8/sQTL/GRCh38/Minor_Salivary_Gland_all_snp_gene_associations.ht",
+            "us": "gs://hail-datasets-us/GTEx/v8/sQTL/GRCh38/Minor_Salivary_Gland_all_snp_gene_associations.ht"
+          }
+        },
+        "version": "v8"
+      }
+    ]
+  },
+  "GTEx_sQTL_Muscle_Skeletal_all_snp_gene_associations": {
+    "annotation_db": {
+      "key_properties": []
+    },
+    "description": "GTEx: Muscle_Skeletal sQTL tissue-specific all SNP gene associations Hail Table. All variant-gene cis-sQTL associations tested in each tissue (including non-significant associations).",
+    "url": "https://gtexportal.org/home/datasets",
+    "versions": [
+      {
+        "reference_genome": "GRCh38",
+        "url": {
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/GTEx/v8/sQTL/GRCh38/Muscle_Skeletal_all_snp_gene_associations.ht"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/GTEx/v8/sQTL/GRCh38/Muscle_Skeletal_all_snp_gene_associations.ht",
+            "us": "gs://hail-datasets-us/GTEx/v8/sQTL/GRCh38/Muscle_Skeletal_all_snp_gene_associations.ht"
+          }
+        },
+        "version": "v8"
+      }
+    ]
+  },
+  "GTEx_sQTL_Nerve_Tibial_all_snp_gene_associations": {
+    "annotation_db": {
+      "key_properties": []
+    },
+    "description": "GTEx: Nerve_Tibial sQTL tissue-specific all SNP gene associations Hail Table. All variant-gene cis-sQTL associations tested in each tissue (including non-significant associations).",
+    "url": "https://gtexportal.org/home/datasets",
+    "versions": [
+      {
+        "reference_genome": "GRCh38",
+        "url": {
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/GTEx/v8/sQTL/GRCh38/Nerve_Tibial_all_snp_gene_associations.ht"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/GTEx/v8/sQTL/GRCh38/Nerve_Tibial_all_snp_gene_associations.ht",
+            "us": "gs://hail-datasets-us/GTEx/v8/sQTL/GRCh38/Nerve_Tibial_all_snp_gene_associations.ht"
+          }
+        },
+        "version": "v8"
+      }
+    ]
+  },
+  "GTEx_sQTL_Ovary_all_snp_gene_associations": {
+    "annotation_db": {
+      "key_properties": []
+    },
+    "description": "GTEx: Ovary sQTL tissue-specific all SNP gene associations Hail Table. All variant-gene cis-sQTL associations tested in each tissue (including non-significant associations).",
+    "url": "https://gtexportal.org/home/datasets",
+    "versions": [
+      {
+        "reference_genome": "GRCh38",
+        "url": {
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/GTEx/v8/sQTL/GRCh38/Ovary_all_snp_gene_associations.ht"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/GTEx/v8/sQTL/GRCh38/Ovary_all_snp_gene_associations.ht",
+            "us": "gs://hail-datasets-us/GTEx/v8/sQTL/GRCh38/Ovary_all_snp_gene_associations.ht"
+          }
+        },
+        "version": "v8"
+      }
+    ]
+  },
+  "GTEx_sQTL_Pancreas_all_snp_gene_associations": {
+    "annotation_db": {
+      "key_properties": []
+    },
+    "description": "GTEx: Pancreas sQTL tissue-specific all SNP gene associations Hail Table. All variant-gene cis-sQTL associations tested in each tissue (including non-significant associations).",
+    "url": "https://gtexportal.org/home/datasets",
+    "versions": [
+      {
+        "reference_genome": "GRCh38",
+        "url": {
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/GTEx/v8/sQTL/GRCh38/Pancreas_all_snp_gene_associations.ht"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/GTEx/v8/sQTL/GRCh38/Pancreas_all_snp_gene_associations.ht",
+            "us": "gs://hail-datasets-us/GTEx/v8/sQTL/GRCh38/Pancreas_all_snp_gene_associations.ht"
+          }
+        },
+        "version": "v8"
+      }
+    ]
+  },
+  "GTEx_sQTL_Pituitary_all_snp_gene_associations": {
+    "annotation_db": {
+      "key_properties": []
+    },
+    "description": "GTEx: Pituitary sQTL tissue-specific all SNP gene associations Hail Table. All variant-gene cis-sQTL associations tested in each tissue (including non-significant associations).",
+    "url": "https://gtexportal.org/home/datasets",
+    "versions": [
+      {
+        "reference_genome": "GRCh38",
+        "url": {
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/GTEx/v8/sQTL/GRCh38/Pituitary_all_snp_gene_associations.ht"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/GTEx/v8/sQTL/GRCh38/Pituitary_all_snp_gene_associations.ht",
+            "us": "gs://hail-datasets-us/GTEx/v8/sQTL/GRCh38/Pituitary_all_snp_gene_associations.ht"
+          }
+        },
+        "version": "v8"
+      }
+    ]
+  },
+  "GTEx_sQTL_Prostate_all_snp_gene_associations": {
+    "annotation_db": {
+      "key_properties": []
+    },
+    "description": "GTEx: Prostate sQTL tissue-specific all SNP gene associations Hail Table. All variant-gene cis-sQTL associations tested in each tissue (including non-significant associations).",
+    "url": "https://gtexportal.org/home/datasets",
+    "versions": [
+      {
+        "reference_genome": "GRCh38",
+        "url": {
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/GTEx/v8/sQTL/GRCh38/Prostate_all_snp_gene_associations.ht"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/GTEx/v8/sQTL/GRCh38/Prostate_all_snp_gene_associations.ht",
+            "us": "gs://hail-datasets-us/GTEx/v8/sQTL/GRCh38/Prostate_all_snp_gene_associations.ht"
+          }
+        },
+        "version": "v8"
+      }
+    ]
+  },
+  "GTEx_sQTL_Skin_Not_Sun_Exposed_Suprapubic_all_snp_gene_associations": {
+    "annotation_db": {
+      "key_properties": []
+    },
+    "description": "GTEx: Skin_Not_Sun_Exposed_Suprapubic sQTL tissue-specific all SNP gene associations Hail Table. All variant-gene cis-sQTL associations tested in each tissue (including non-significant associations).",
+    "url": "https://gtexportal.org/home/datasets",
+    "versions": [
+      {
+        "reference_genome": "GRCh38",
+        "url": {
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/GTEx/v8/sQTL/GRCh38/Skin_Not_Sun_Exposed_Suprapubic_all_snp_gene_associations.ht"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/GTEx/v8/sQTL/GRCh38/Skin_Not_Sun_Exposed_Suprapubic_all_snp_gene_associations.ht",
+            "us": "gs://hail-datasets-us/GTEx/v8/sQTL/GRCh38/Skin_Not_Sun_Exposed_Suprapubic_all_snp_gene_associations.ht"
+          }
+        },
+        "version": "v8"
+      }
+    ]
+  },
+  "GTEx_sQTL_Skin_Sun_Exposed_Lower_leg_all_snp_gene_associations": {
+    "annotation_db": {
+      "key_properties": []
+    },
+    "description": "GTEx: Skin_Sun_Exposed_Lower_leg sQTL tissue-specific all SNP gene associations Hail Table. All variant-gene cis-sQTL associations tested in each tissue (including non-significant associations).",
+    "url": "https://gtexportal.org/home/datasets",
+    "versions": [
+      {
+        "reference_genome": "GRCh38",
+        "url": {
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/GTEx/v8/sQTL/GRCh38/Skin_Sun_Exposed_Lower_leg_all_snp_gene_associations.ht"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/GTEx/v8/sQTL/GRCh38/Skin_Sun_Exposed_Lower_leg_all_snp_gene_associations.ht",
+            "us": "gs://hail-datasets-us/GTEx/v8/sQTL/GRCh38/Skin_Sun_Exposed_Lower_leg_all_snp_gene_associations.ht"
+          }
+        },
+        "version": "v8"
+      }
+    ]
+  },
+  "GTEx_sQTL_Small_Intestine_Terminal_Ileum_all_snp_gene_associations": {
+    "annotation_db": {
+      "key_properties": []
+    },
+    "description": "GTEx: Small_Intestine_Terminal_Ileum sQTL tissue-specific all SNP gene associations Hail Table. All variant-gene cis-sQTL associations tested in each tissue (including non-significant associations).",
+    "url": "https://gtexportal.org/home/datasets",
+    "versions": [
+      {
+        "reference_genome": "GRCh38",
+        "url": {
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/GTEx/v8/sQTL/GRCh38/Small_Intestine_Terminal_Ileum_all_snp_gene_associations.ht"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/GTEx/v8/sQTL/GRCh38/Small_Intestine_Terminal_Ileum_all_snp_gene_associations.ht",
+            "us": "gs://hail-datasets-us/GTEx/v8/sQTL/GRCh38/Small_Intestine_Terminal_Ileum_all_snp_gene_associations.ht"
+          }
+        },
+        "version": "v8"
+      }
+    ]
+  },
+  "GTEx_sQTL_Spleen_all_snp_gene_associations": {
+    "annotation_db": {
+      "key_properties": []
+    },
+    "description": "GTEx: Spleen sQTL tissue-specific all SNP gene associations Hail Table. All variant-gene cis-sQTL associations tested in each tissue (including non-significant associations).",
+    "url": "https://gtexportal.org/home/datasets",
+    "versions": [
+      {
+        "reference_genome": "GRCh38",
+        "url": {
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/GTEx/v8/sQTL/GRCh38/Spleen_all_snp_gene_associations.ht"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/GTEx/v8/sQTL/GRCh38/Spleen_all_snp_gene_associations.ht",
+            "us": "gs://hail-datasets-us/GTEx/v8/sQTL/GRCh38/Spleen_all_snp_gene_associations.ht"
+          }
+        },
+        "version": "v8"
+      }
+    ]
+  },
+  "GTEx_sQTL_Stomach_all_snp_gene_associations": {
+    "annotation_db": {
+      "key_properties": []
+    },
+    "description": "GTEx: Stomach sQTL tissue-specific all SNP gene associations Hail Table. All variant-gene cis-sQTL associations tested in each tissue (including non-significant associations).",
+    "url": "https://gtexportal.org/home/datasets",
+    "versions": [
+      {
+        "reference_genome": "GRCh38",
+        "url": {
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/GTEx/v8/sQTL/GRCh38/Stomach_all_snp_gene_associations.ht"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/GTEx/v8/sQTL/GRCh38/Stomach_all_snp_gene_associations.ht",
+            "us": "gs://hail-datasets-us/GTEx/v8/sQTL/GRCh38/Stomach_all_snp_gene_associations.ht"
+          }
+        },
+        "version": "v8"
+      }
+    ]
+  },
+  "GTEx_sQTL_Testis_all_snp_gene_associations": {
+    "annotation_db": {
+      "key_properties": []
+    },
+    "description": "GTEx: Testis sQTL tissue-specific all SNP gene associations Hail Table. All variant-gene cis-sQTL associations tested in each tissue (including non-significant associations).",
+    "url": "https://gtexportal.org/home/datasets",
+    "versions": [
+      {
+        "reference_genome": "GRCh38",
+        "url": {
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/GTEx/v8/sQTL/GRCh38/Testis_all_snp_gene_associations.ht"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/GTEx/v8/sQTL/GRCh38/Testis_all_snp_gene_associations.ht",
+            "us": "gs://hail-datasets-us/GTEx/v8/sQTL/GRCh38/Testis_all_snp_gene_associations.ht"
+          }
+        },
+        "version": "v8"
+      }
+    ]
+  },
+  "GTEx_sQTL_Thyroid_all_snp_gene_associations": {
+    "annotation_db": {
+      "key_properties": []
+    },
+    "description": "GTEx: Thyroid sQTL tissue-specific all SNP gene associations Hail Table. All variant-gene cis-sQTL associations tested in each tissue (including non-significant associations).",
+    "url": "https://gtexportal.org/home/datasets",
+    "versions": [
+      {
+        "reference_genome": "GRCh38",
+        "url": {
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/GTEx/v8/sQTL/GRCh38/Thyroid_all_snp_gene_associations.ht"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/GTEx/v8/sQTL/GRCh38/Thyroid_all_snp_gene_associations.ht",
+            "us": "gs://hail-datasets-us/GTEx/v8/sQTL/GRCh38/Thyroid_all_snp_gene_associations.ht"
+          }
+        },
+        "version": "v8"
+      }
+    ]
+  },
+  "GTEx_sQTL_Uterus_all_snp_gene_associations": {
+    "annotation_db": {
+      "key_properties": []
+    },
+    "description": "GTEx: Uterus sQTL tissue-specific all SNP gene associations Hail Table. All variant-gene cis-sQTL associations tested in each tissue (including non-significant associations).",
+    "url": "https://gtexportal.org/home/datasets",
+    "versions": [
+      {
+        "reference_genome": "GRCh38",
+        "url": {
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/GTEx/v8/sQTL/GRCh38/Uterus_all_snp_gene_associations.ht"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/GTEx/v8/sQTL/GRCh38/Uterus_all_snp_gene_associations.ht",
+            "us": "gs://hail-datasets-us/GTEx/v8/sQTL/GRCh38/Uterus_all_snp_gene_associations.ht"
+          }
+        },
+        "version": "v8"
+      }
+    ]
+  },
+  "GTEx_sQTL_Vagina_all_snp_gene_associations": {
+    "annotation_db": {
+      "key_properties": []
+    },
+    "description": "GTEx: Vagina sQTL tissue-specific all SNP gene associations Hail Table. All variant-gene cis-sQTL associations tested in each tissue (including non-significant associations).",
+    "url": "https://gtexportal.org/home/datasets",
+    "versions": [
+      {
+        "reference_genome": "GRCh38",
+        "url": {
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/GTEx/v8/sQTL/GRCh38/Vagina_all_snp_gene_associations.ht"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/GTEx/v8/sQTL/GRCh38/Vagina_all_snp_gene_associations.ht",
+            "us": "gs://hail-datasets-us/GTEx/v8/sQTL/GRCh38/Vagina_all_snp_gene_associations.ht"
+          }
+        },
+        "version": "v8"
+      }
+    ]
+  },
+  "GTEx_sQTL_Whole_Blood_all_snp_gene_associations": {
+    "annotation_db": {
+      "key_properties": []
+    },
+    "description": "GTEx: Whole_Blood sQTL tissue-specific all SNP gene associations Hail Table. All variant-gene cis-sQTL associations tested in each tissue (including non-significant associations).",
+    "url": "https://gtexportal.org/home/datasets",
+    "versions": [
+      {
+        "reference_genome": "GRCh38",
+        "url": {
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/GTEx/v8/sQTL/GRCh38/Whole_Blood_all_snp_gene_associations.ht"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/GTEx/v8/sQTL/GRCh38/Whole_Blood_all_snp_gene_associations.ht",
+            "us": "gs://hail-datasets-us/GTEx/v8/sQTL/GRCh38/Whole_Blood_all_snp_gene_associations.ht"
+          }
+        },
+        "version": "v8"
       }
     ]
   },
@@ -327,11 +2629,11 @@
         "reference_genome": "GRCh37",
         "url": {
           "aws": {
-            "us": "s3://hail-datasets-us-east-1/UK_Biobank_Rapid_GWAS_both_sexes.v2.GRCh37.mt"
+            "us": "s3://hail-datasets-us-east-1/UK_Biobank/Rapid_GWAS/v2/GRCh37/both_sexes.mt"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/UK_Biobank_Rapid_GWAS_both_sexes.v2.GRCh37.mt",
-            "us": "gs://hail-datasets-us/UK_Biobank_Rapid_GWAS_both_sexes.v2.GRCh37.mt"
+            "eu": "gs://hail-datasets-eu/UK_Biobank/Rapid_GWAS/v2/GRCh37/both_sexes.mt",
+            "us": "gs://hail-datasets-us/UK_Biobank/Rapid_GWAS/v2/GRCh37/both_sexes.mt"
           }
         },
         "version": "v2"
@@ -346,11 +2648,11 @@
         "reference_genome": "GRCh37",
         "url": {
           "aws": {
-            "us": "s3://hail-datasets-us-east-1/UK_Biobank_Rapid_GWAS_female.v2.GRCh37.mt"
+            "us": "s3://hail-datasets-us-east-1/UK_Biobank/Rapid_GWAS/v2/GRCh37/female.mt"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/UK_Biobank_Rapid_GWAS_female.v2.GRCh37.mt",
-            "us": "gs://hail-datasets-us/UK_Biobank_Rapid_GWAS_female.v2.GRCh37.mt"
+            "eu": "gs://hail-datasets-eu/UK_Biobank/Rapid_GWAS/v2/GRCh37/female.mt",
+            "us": "gs://hail-datasets-us/UK_Biobank/Rapid_GWAS/v2/GRCh37/female.mt"
           }
         },
         "version": "v2"
@@ -365,11 +2667,11 @@
         "reference_genome": "GRCh37",
         "url": {
           "aws": {
-            "us": "s3://hail-datasets-us-east-1/UK_Biobank_Rapid_GWAS_male.v2.GRCh37.mt"
+            "us": "s3://hail-datasets-us-east-1/UK_Biobank/Rapid_GWAS/v2/GRCh37/male.mt"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/UK_Biobank_Rapid_GWAS_male.v2.GRCh37.mt",
-            "us": "gs://hail-datasets-us/UK_Biobank_Rapid_GWAS_male.v2.GRCh37.mt"
+            "eu": "gs://hail-datasets-eu/UK_Biobank/Rapid_GWAS/v2/GRCh37/male.mt",
+            "us": "gs://hail-datasets-us/UK_Biobank/Rapid_GWAS/v2/GRCh37/male.mt"
           }
         },
         "version": "v2"
@@ -390,11 +2692,11 @@
         "reference_genome": null,
         "url": {
           "aws": {
-            "us": "s3://hail-datasets-us-east-1/annotations/gene_specific_summary_2019-07.txt.gz.ht"
+            "us": "s3://hail-datasets-us-east-1/ClinVar/2019-07/gene_specific_summary.ht"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/annotations/gene_specific_summary_2019-07.txt.gz.ht",
-            "us": "gs://hail-datasets-us/annotations/gene_specific_summary_2019-07.txt.gz.ht"
+            "eu": "gs://hail-datasets-eu/ClinVar/2019-07/gene_specific_summary.ht",
+            "us": "gs://hail-datasets-us/ClinVar/2019-07/gene_specific_summary.ht"
           }
         },
         "version": "2019-07"
@@ -412,11 +2714,11 @@
         "reference_genome": "GRCh37",
         "url": {
           "aws": {
-            "us": "s3://hail-datasets-us-east-1/annotations/variant_summary_2019-07.GRCh37.txt.gz.ht"
+            "us": "s3://hail-datasets-us-east-1/ClinVar/2019-07/GRCh37/variant_summary.ht"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/annotations/variant_summary_2019-07.GRCh37.txt.gz.ht",
-            "us": "gs://hail-datasets-us/annotations/variant_summary_2019-07.GRCh37.txt.gz.ht"
+            "eu": "gs://hail-datasets-eu/ClinVar/2019-07/GRCh37/variant_summary.ht",
+            "us": "gs://hail-datasets-us/ClinVar/2019-07/GRCh37/variant_summary.ht"
           }
         },
         "version": "2019-07"
@@ -425,11 +2727,11 @@
         "reference_genome": "GRCh38",
         "url": {
           "aws": {
-            "us": "s3://hail-datasets-us-east-1/annotations/variant_summary_2019-07.GRCh38.txt.gz.ht"
+            "us": "s3://hail-datasets-us-east-1/ClinVar/2019-07/GRCh38/variant_summary.ht"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/annotations/variant_summary_2019-07.GRCh38.txt.gz.ht",
-            "us": "gs://hail-datasets-us/annotations/variant_summary_2019-07.GRCh38.txt.gz.ht"
+            "eu": "gs://hail-datasets-eu/ClinVar/2019-07/GRCh38/variant_summary.ht",
+            "us": "gs://hail-datasets-us/ClinVar/2019-07/GRCh38/variant_summary.ht"
           }
         },
         "version": "2019-07"
@@ -450,11 +2752,11 @@
         "reference_genome": null,
         "url": {
           "aws": {
-            "us": "s3://hail-datasets-us-east-1/annotations/dbnsfp/dbNSFP4.0_gene.complete.bgz.ht"
+            "us": "s3://hail-datasets-us-east-1/dbNSFP/v4.0a/gene_complete.ht"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/annotations/dbnsfp/dbNSFP4.0_gene.complete.bgz.ht",
-            "us": "gs://hail-datasets-us/annotations/dbnsfp/dbNSFP4.0_gene.complete.bgz.ht"
+            "eu": "gs://hail-datasets-eu/dbNSFP/v4.0a/gene_complete.ht",
+            "us": "gs://hail-datasets-us/dbNSFP/v4.0a/gene_complete.ht"
           }
         },
         "version": "4.0"
@@ -472,11 +2774,11 @@
         "reference_genome": "GRCh37",
         "url": {
           "aws": {
-            "us": "s3://hail-datasets-us-east-1/annotations/dbnsfp4.0a.GRCh37.ht"
+            "us": "s3://hail-datasets-us-east-1/dbNSFP/v4.0a/GRCh37/variant.ht"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/annotations/dbnsfp4.0a.GRCh37.ht",
-            "us": "gs://hail-datasets-us/annotations/dbnsfp4.0a.GRCh37.ht"
+            "eu": "gs://hail-datasets-eu/dbNSFP/v4.0a/GRCh37/variant.ht",
+            "us": "gs://hail-datasets-us/dbNSFP/v4.0a/GRCh37/variant.ht"
           }
         },
         "version": "4.0"
@@ -485,14 +2787,84 @@
         "reference_genome": "GRCh38",
         "url": {
           "aws": {
-            "us": "s3://hail-datasets-us-east-1/annotations/dbnsfp4.0a.GRCh38.ht"
+            "us": "s3://hail-datasets-us-east-1/dbNSFP/v4.0a/GRCh38/variant.ht"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/annotations/dbnsfp4.0a.GRCh38.ht",
-            "us": "gs://hail-datasets-us/annotations/dbnsfp4.0a.GRCh38.ht"
+            "eu": "gs://hail-datasets-eu/dbNSFP/v4.0a/GRCh38/variant.ht",
+            "us": "gs://hail-datasets-us/dbNSFP/v4.0a/GRCh38/variant.ht"
           }
         },
         "version": "4.0"
+      }
+    ]
+  },
+  "dbSNP": {
+    "annotation_db": {
+      "key_properties": []
+    },
+    "description": "dbSNP: Reference SNP (rs or RefSNP) Hail Table. The database includes both common and rare single-base nucleotide variation (SNV), short (=< 50bp) deletion/insertion polymorphisms, and other classes of small genetic variations.",
+    "url": "https://www.ncbi.nlm.nih.gov/snp/docs/RefSNP_about/",
+    "versions": [
+      {
+        "reference_genome": "GRCh37",
+        "url": {
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/dbSNP/build_154/GRCh37/full_table.ht"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/dbSNP/build_154/GRCh37/full_table.ht",
+            "us": "gs://hail-datasets-us/dbSNP/build_154/GRCh37/full_table.ht"
+          }
+        },
+        "version": "154"
+      },
+      {
+        "reference_genome": "GRCh38",
+        "url": {
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/dbSNP/build_154/GRCh38/full_table.ht"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/dbSNP/build_154/GRCh38/full_table.ht",
+            "us": "gs://hail-datasets-us/dbSNP/build_154/GRCh38/full_table.ht"
+          }
+        },
+        "version": "154"
+      }
+    ]
+  },
+  "dbSNP_rsid": {
+    "annotation_db": {
+      "key_properties": []
+    },
+    "description": "dbSNP: This Hail Table contains a mapping from locus/allele pairs to Reference SNP IDs (rsID). For the full dataset, see dbSNP.",
+    "url": "https://www.ncbi.nlm.nih.gov/snp/docs/RefSNP_about/",
+    "versions": [
+      {
+        "reference_genome": "GRCh37",
+        "url": {
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/dbSNP/build_154/GRCh37/rsid_only_table.ht"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/dbSNP/build_154/GRCh37/rsid_only_table.ht",
+            "us": "gs://hail-datasets-us/dbSNP/build_154/GRCh37/rsid_only_table.ht"
+          }
+        },
+        "version": "154"
+      },
+      {
+        "reference_genome": "GRCh38",
+        "url": {
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/dbSNP/build_154/GRCh38/rsid_only_table.ht"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/dbSNP/build_154/GRCh38/rsid_only_table.ht",
+            "us": "gs://hail-datasets-us/dbSNP/build_154/GRCh38/rsid_only_table.ht"
+          }
+        },
+        "version": "154"
       }
     ]
   },
@@ -507,11 +2879,11 @@
         "reference_genome": "GRCh37",
         "url": {
           "aws": {
-            "us": "s3://hail-datasets-us-east-1/annotations/gencode.v19.annotation.GRCh37.ht"
+            "us": "s3://hail-datasets-us-east-1/GENCODE/v19/GRCh37/annotation.ht"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/annotations/gencode.v19.annotation.GRCh37.ht",
-            "us": "gs://hail-datasets-us/annotations/gencode.v19.annotation.GRCh37.ht"
+            "eu": "gs://hail-datasets-eu/GENCODE/v19/GRCh37/annotation.ht",
+            "us": "gs://hail-datasets-us/GENCODE/v19/GRCh37/annotation.ht"
           }
         },
         "version": "v19"
@@ -520,11 +2892,11 @@
         "reference_genome": "GRCh38",
         "url": {
           "aws": {
-            "us": "s3://hail-datasets-us-east-1/annotations/gencode.v31.annotation.GRCh38.ht"
+            "us": "s3://hail-datasets-us-east-1/GENCODE/v31/GRCh38/annotation.ht"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/annotations/gencode.v31.annotation.GRCh38.ht",
-            "us": "gs://hail-datasets-us/annotations/gencode.v31.annotation.GRCh38.ht"
+            "eu": "gs://hail-datasets-eu/GENCODE/v31/GRCh38/annotation.ht",
+            "us": "gs://hail-datasets-us/GENCODE/v31/GRCh38/annotation.ht"
           }
         },
         "version": "v31"
@@ -544,11 +2916,11 @@
         "reference_genome": "GRCh37",
         "url": {
           "aws": {
-            "us": "s3://hail-datasets-us-east-1/annotations/GERP_elements.GERP++.GRCh37.ht"
+            "us": "s3://hail-datasets-us-east-1/GERP/GERP++/GRCh37/elements.ht"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/annotations/GERP_elements.GERP++.GRCh37.ht",
-            "us": "gs://hail-datasets-us/annotations/GERP_elements.GERP++.GRCh37.ht"
+            "eu": "gs://hail-datasets-eu/GERP/GERP++/GRCh37/elements.ht",
+            "us": "gs://hail-datasets-us/GERP/GERP++/GRCh37/elements.ht"
           }
         },
         "version": "hg19"
@@ -557,11 +2929,11 @@
         "reference_genome": "GRCh38",
         "url": {
           "aws": {
-            "us": "s3://hail-datasets-us-east-1/annotations/GERP_elements.GERP++.GRCh38.ht"
+            "us": "s3://hail-datasets-us-east-1/GERP/GERP++/GRCh38/elements.ht"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/annotations/GERP_elements.GERP++.GRCh38.ht",
-            "us": "gs://hail-datasets-us/annotations/GERP_elements.GERP++.GRCh38.ht"
+            "eu": "gs://hail-datasets-eu/GERP/GERP++/GRCh38/elements.ht",
+            "us": "gs://hail-datasets-us/GERP/GERP++/GRCh38/elements.ht"
           }
         },
         "version": "hg19"
@@ -581,11 +2953,11 @@
         "reference_genome": "GRCh37",
         "url": {
           "aws": {
-            "us": "s3://hail-datasets-us-east-1/annotations/GERP_scores.GERP++.GRCh37.ht"
+            "us": "s3://hail-datasets-us-east-1/GERP/GERP++/GRCh37/scores.ht"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/annotations/GERP_scores.GERP++.GRCh37.ht",
-            "us": "gs://hail-datasets-us/annotations/GERP_scores.GERP++.GRCh37.ht"
+            "eu": "gs://hail-datasets-eu/GERP/GERP++/GRCh37/scores.ht",
+            "us": "gs://hail-datasets-us/GERP/GERP++/GRCh37/scores.ht"
           }
         },
         "version": "hg19"
@@ -594,18 +2966,620 @@
         "reference_genome": "GRCh38",
         "url": {
           "aws": {
-            "us": "s3://hail-datasets-us-east-1/annotations/GERP_scores.GERP++.GRCh38.ht"
+            "us": "s3://hail-datasets-us-east-1/GERP/GERP++/GRCh38/scores.ht"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/annotations/GERP_scores.GERP++.GRCh38.ht",
-            "us": "gs://hail-datasets-us/annotations/GERP_scores.GERP++.GRCh38.ht"
+            "eu": "gs://hail-datasets-eu/GERP/GERP++/GRCh38/scores.ht",
+            "us": "gs://hail-datasets-us/GERP/GERP++/GRCh38/scores.ht"
           }
         },
         "version": "hg19"
       }
     ]
   },
+  "giant_bmi_exome_AFR": {
+    "annotation_db": {
+      "key_properties": [
+        "unique"
+      ]
+    },
+    "description": "GIANT (Genetic Investigation of ANthropometric Traits): body mass index (BMI) exome array summary statistics Hail Table for African/African-American population(s).",
+    "url": "https://portals.broadinstitute.org/collaboration/giant/index.php/GIANT_consortium_data_files",
+    "versions": [
+      {
+        "reference_genome": "GRCh37",
+        "url": {
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/GIANT/2018_exome_array/GRCh37/bmi_AFR.ht"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/GIANT/2018_exome_array/GRCh37/bmi_AFR.ht",
+            "us": "gs://hail-datasets-us/GIANT/2018_exome_array/GRCh37/bmi_AFR.ht"
+          }
+        },
+        "version": "2018"
+      }
+    ]
+  },
+  "giant_bmi_exome_ALL": {
+    "annotation_db": {
+      "key_properties": [
+        "unique"
+      ]
+    },
+    "description": "GIANT (Genetic Investigation of ANthropometric Traits): body mass index (BMI) exome array summary statistics Hail Table for all population(s).",
+    "url": "https://portals.broadinstitute.org/collaboration/giant/index.php/GIANT_consortium_data_files",
+    "versions": [
+      {
+        "reference_genome": "GRCh37",
+        "url": {
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/GIANT/2018_exome_array/GRCh37/bmi_ALL.ht"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/GIANT/2018_exome_array/GRCh37/bmi_ALL.ht",
+            "us": "gs://hail-datasets-us/GIANT/2018_exome_array/GRCh37/bmi_ALL.ht"
+          }
+        },
+        "version": "2018"
+      }
+    ]
+  },
+  "giant_bmi_exome_AMR": {
+    "annotation_db": {
+      "key_properties": [
+        "unique"
+      ]
+    },
+    "description": "GIANT (Genetic Investigation of ANthropometric Traits): body mass index (BMI) exome array summary statistics Hail Table for Latino/Admixed American population(s).",
+    "url": "https://portals.broadinstitute.org/collaboration/giant/index.php/GIANT_consortium_data_files",
+    "versions": [
+      {
+        "reference_genome": "GRCh37",
+        "url": {
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/GIANT/2018_exome_array/GRCh37/bmi_AMR.ht"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/GIANT/2018_exome_array/GRCh37/bmi_AMR.ht",
+            "us": "gs://hail-datasets-us/GIANT/2018_exome_array/GRCh37/bmi_AMR.ht"
+          }
+        },
+        "version": "2018"
+      }
+    ]
+  },
+  "giant_bmi_exome_EAS": {
+    "annotation_db": {
+      "key_properties": [
+        "unique"
+      ]
+    },
+    "description": "GIANT (Genetic Investigation of ANthropometric Traits): body mass index (BMI) exome array summary statistics Hail Table for East Asian population(s).",
+    "url": "https://portals.broadinstitute.org/collaboration/giant/index.php/GIANT_consortium_data_files",
+    "versions": [
+      {
+        "reference_genome": "GRCh37",
+        "url": {
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/GIANT/2018_exome_array/GRCh37/bmi_EAS.ht"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/GIANT/2018_exome_array/GRCh37/bmi_EAS.ht",
+            "us": "gs://hail-datasets-us/GIANT/2018_exome_array/GRCh37/bmi_EAS.ht"
+          }
+        },
+        "version": "2018"
+      }
+    ]
+  },
+  "giant_bmi_exome_EUR": {
+    "annotation_db": {
+      "key_properties": [
+        "unique"
+      ]
+    },
+    "description": "GIANT (Genetic Investigation of ANthropometric Traits): body mass index (BMI) exome array summary statistics Hail Table for European population(s).",
+    "url": "https://portals.broadinstitute.org/collaboration/giant/index.php/GIANT_consortium_data_files",
+    "versions": [
+      {
+        "reference_genome": "GRCh37",
+        "url": {
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/GIANT/2018_exome_array/GRCh37/bmi_EUR.ht"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/GIANT/2018_exome_array/GRCh37/bmi_EUR.ht",
+            "us": "gs://hail-datasets-us/GIANT/2018_exome_array/GRCh37/bmi_EUR.ht"
+          }
+        },
+        "version": "2018"
+      }
+    ]
+  },
+  "giant_bmi_exome_SAS": {
+    "annotation_db": {
+      "key_properties": [
+        "unique"
+      ]
+    },
+    "description": "GIANT (Genetic Investigation of ANthropometric Traits): body mass index (BMI) exome array summary statistics Hail Table for South Asian population(s).",
+    "url": "https://portals.broadinstitute.org/collaboration/giant/index.php/GIANT_consortium_data_files",
+    "versions": [
+      {
+        "reference_genome": "GRCh37",
+        "url": {
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/GIANT/2018_exome_array/GRCh37/bmi_SAS.ht"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/GIANT/2018_exome_array/GRCh37/bmi_SAS.ht",
+            "us": "gs://hail-datasets-us/GIANT/2018_exome_array/GRCh37/bmi_SAS.ht"
+          }
+        },
+        "version": "2018"
+      }
+    ]
+  },
+  "giant_height_exome_AFR": {
+    "annotation_db": {
+      "key_properties": [
+        "unique"
+      ]
+    },
+    "description": "GIANT (Genetic Investigation of ANthropometric Traits): height exome array summary statistics for African/African-American population(s).",
+    "url": "https://portals.broadinstitute.org/collaboration/giant/index.php/GIANT_consortium_data_files",
+    "versions": [
+      {
+        "reference_genome": "GRCh37",
+        "url": {
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/GIANT/2018_exome_array/GRCh37/height_AFR.ht"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/GIANT/2018_exome_array/GRCh37/height_AFR.ht",
+            "us": "gs://hail-datasets-us/GIANT/2018_exome_array/GRCh37/height_AFR.ht"
+          }
+        },
+        "version": "2018"
+      }
+    ]
+  },
+  "giant_height_exome_ALL": {
+    "annotation_db": {
+      "key_properties": [
+        "unique"
+      ]
+    },
+    "description": "GIANT (Genetic Investigation of ANthropometric Traits): height exome array summary statistics for all population(s).",
+    "url": "https://portals.broadinstitute.org/collaboration/giant/index.php/GIANT_consortium_data_files",
+    "versions": [
+      {
+        "reference_genome": "GRCh37",
+        "url": {
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/GIANT/2018_exome_array/GRCh37/height_ALL.ht"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/GIANT/2018_exome_array/GRCh37/height_ALL.ht",
+            "us": "gs://hail-datasets-us/GIANT/2018_exome_array/GRCh37/height_ALL.ht"
+          }
+        },
+        "version": "2018"
+      }
+    ]
+  },
+  "giant_height_exome_AMR": {
+    "annotation_db": {
+      "key_properties": [
+        "unique"
+      ]
+    },
+    "description": "GIANT (Genetic Investigation of ANthropometric Traits): height exome array summary statistics for Latino/Admixed American population(s).",
+    "url": "https://portals.broadinstitute.org/collaboration/giant/index.php/GIANT_consortium_data_files",
+    "versions": [
+      {
+        "reference_genome": "GRCh37",
+        "url": {
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/GIANT/2018_exome_array/GRCh37/height_AMR.ht"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/GIANT/2018_exome_array/GRCh37/height_AMR.ht",
+            "us": "gs://hail-datasets-us/GIANT/2018_exome_array/GRCh37/height_AMR.ht"
+          }
+        },
+        "version": "2018"
+      }
+    ]
+  },
+  "giant_height_exome_EAS": {
+    "annotation_db": {
+      "key_properties": [
+        "unique"
+      ]
+    },
+    "description": "GIANT (Genetic Investigation of ANthropometric Traits): height exome array summary statistics for East Asian population(s).",
+    "url": "https://portals.broadinstitute.org/collaboration/giant/index.php/GIANT_consortium_data_files",
+    "versions": [
+      {
+        "reference_genome": "GRCh37",
+        "url": {
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/GIANT/2018_exome_array/GRCh37/height_EAS.ht"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/GIANT/2018_exome_array/GRCh37/height_EAS.ht",
+            "us": "gs://hail-datasets-us/GIANT/2018_exome_array/GRCh37/height_EAS.ht"
+          }
+        },
+        "version": "2018"
+      }
+    ]
+  },
+  "giant_height_exome_EUR": {
+    "annotation_db": {
+      "key_properties": [
+        "unique"
+      ]
+    },
+    "description": "GIANT (Genetic Investigation of ANthropometric Traits): height exome array summary statistics for European population(s).",
+    "url": "https://portals.broadinstitute.org/collaboration/giant/index.php/GIANT_consortium_data_files",
+    "versions": [
+      {
+        "reference_genome": "GRCh37",
+        "url": {
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/GIANT/2018_exome_array/GRCh37/height_EUR.ht"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/GIANT/2018_exome_array/GRCh37/height_EUR.ht",
+            "us": "gs://hail-datasets-us/GIANT/2018_exome_array/GRCh37/height_EUR.ht"
+          }
+        },
+        "version": "2018"
+      }
+    ]
+  },
+  "giant_height_exome_SAS": {
+    "annotation_db": {
+      "key_properties": [
+        "unique"
+      ]
+    },
+    "description": "GIANT (Genetic Investigation of ANthropometric Traits): height exome array summary statistics for South Asian population(s).",
+    "url": "https://portals.broadinstitute.org/collaboration/giant/index.php/GIANT_consortium_data_files",
+    "versions": [
+      {
+        "reference_genome": "GRCh37",
+        "url": {
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/GIANT/2018_exome_array/GRCh37/height_SAS.ht"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/GIANT/2018_exome_array/GRCh37/height_SAS.ht",
+            "us": "gs://hail-datasets-us/GIANT/2018_exome_array/GRCh37/height_SAS.ht"
+          }
+        },
+        "version": "2018"
+      }
+    ]
+  },
+  "giant_whr_exome_C_ALL_Add": {
+    "annotation_db": {
+      "key_properties": [
+        "unique"
+      ]
+    },
+    "description": "GIANT (Genetic Investigation of ANthropometric Traits): waist-hip ratio (WHR) adjusted for BMI exome array summary statistics Hail Table. Note the following abbreviations used in filenames: C-combined sexes, M-men, W-women, ALL-all ancestries, EUR-european descent only, Add-additive genetic model, and Rec-recessive genetic model.",
+    "url": "https://portals.broadinstitute.org/collaboration/giant/index.php/GIANT_consortium_data_files",
+    "versions": [
+      {
+        "reference_genome": "GRCh37",
+        "url": {
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/GIANT/2018_exome_array/GRCh37/whr_C_ALL_Add.ht"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/GIANT/2018_exome_array/GRCh37/whr_C_ALL_Add.ht",
+            "us": "gs://hail-datasets-us/GIANT/2018_exome_array/GRCh37/whr_C_ALL_Add.ht"
+          }
+        },
+        "version": "2018"
+      }
+    ]
+  },
+  "giant_whr_exome_C_ALL_Rec": {
+    "annotation_db": {
+      "key_properties": [
+        "unique"
+      ]
+    },
+    "description": "GIANT (Genetic Investigation of ANthropometric Traits): waist-hip ratio (WHR) adjusted for BMI exome array summary statistics Hail Table. Note the following abbreviations used in filenames: C-combined sexes, M-men, W-women, ALL-all ancestries, EUR-european descent only, Add-additive genetic model, and Rec-recessive genetic model.",
+    "url": "https://portals.broadinstitute.org/collaboration/giant/index.php/GIANT_consortium_data_files",
+    "versions": [
+      {
+        "reference_genome": "GRCh37",
+        "url": {
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/GIANT/2018_exome_array/GRCh37/whr_C_ALL_Rec.ht"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/GIANT/2018_exome_array/GRCh37/whr_C_ALL_Rec.ht",
+            "us": "gs://hail-datasets-us/GIANT/2018_exome_array/GRCh37/whr_C_ALL_Rec.ht"
+          }
+        },
+        "version": "2018"
+      }
+    ]
+  },
+  "giant_whr_exome_C_EUR_Add": {
+    "annotation_db": {
+      "key_properties": [
+        "unique"
+      ]
+    },
+    "description": "GIANT (Genetic Investigation of ANthropometric Traits): waist-hip ratio (WHR) adjusted for BMI exome array summary statistics Hail Table. Note the following abbreviations used in filenames: C-combined sexes, M-men, W-women, ALL-all ancestries, EUR-european descent only, Add-additive genetic model, and Rec-recessive genetic model.",
+    "url": "https://portals.broadinstitute.org/collaboration/giant/index.php/GIANT_consortium_data_files",
+    "versions": [
+      {
+        "reference_genome": "GRCh37",
+        "url": {
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/GIANT/2018_exome_array/GRCh37/whr_C_EUR_Add.ht"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/GIANT/2018_exome_array/GRCh37/whr_C_EUR_Add.ht",
+            "us": "gs://hail-datasets-us/GIANT/2018_exome_array/GRCh37/whr_C_EUR_Add.ht"
+          }
+        },
+        "version": "2018"
+      }
+    ]
+  },
+  "giant_whr_exome_C_EUR_Rec": {
+    "annotation_db": {
+      "key_properties": [
+        "unique"
+      ]
+    },
+    "description": "GIANT (Genetic Investigation of ANthropometric Traits): waist-hip ratio (WHR) adjusted for BMI exome array summary statistics Hail Table. Note the following abbreviations used in filenames: C-combined sexes, M-men, W-women, ALL-all ancestries, EUR-european descent only, Add-additive genetic model, and Rec-recessive genetic model.",
+    "url": "https://portals.broadinstitute.org/collaboration/giant/index.php/GIANT_consortium_data_files",
+    "versions": [
+      {
+        "reference_genome": "GRCh37",
+        "url": {
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/GIANT/2018_exome_array/GRCh37/whr_C_EUR_Rec.ht"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/GIANT/2018_exome_array/GRCh37/whr_C_EUR_Rec.ht",
+            "us": "gs://hail-datasets-us/GIANT/2018_exome_array/GRCh37/whr_C_EUR_Rec.ht"
+          }
+        },
+        "version": "2018"
+      }
+    ]
+  },
+  "giant_whr_exome_M_ALL_Add": {
+    "annotation_db": {
+      "key_properties": [
+        "unique"
+      ]
+    },
+    "description": "GIANT (Genetic Investigation of ANthropometric Traits): waist-hip ratio (WHR) adjusted for BMI exome array summary statistics Hail Table. Note the following abbreviations used in filenames: C-combined sexes, M-men, W-women, ALL-all ancestries, EUR-european descent only, Add-additive genetic model, and Rec-recessive genetic model.",
+    "url": "https://portals.broadinstitute.org/collaboration/giant/index.php/GIANT_consortium_data_files",
+    "versions": [
+      {
+        "reference_genome": "GRCh37",
+        "url": {
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/GIANT/2018_exome_array/GRCh37/whr_M_ALL_Add.ht"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/GIANT/2018_exome_array/GRCh37/whr_M_ALL_Add.ht",
+            "us": "gs://hail-datasets-us/GIANT/2018_exome_array/GRCh37/whr_M_ALL_Add.ht"
+          }
+        },
+        "version": "2018"
+      }
+    ]
+  },
+  "giant_whr_exome_M_ALL_Rec": {
+    "annotation_db": {
+      "key_properties": [
+        "unique"
+      ]
+    },
+    "description": "GIANT (Genetic Investigation of ANthropometric Traits): waist-hip ratio (WHR) adjusted for BMI exome array summary statistics Hail Table. Note the following abbreviations used in filenames: C-combined sexes, M-men, W-women, ALL-all ancestries, EUR-european descent only, Add-additive genetic model, and Rec-recessive genetic model.",
+    "url": "https://portals.broadinstitute.org/collaboration/giant/index.php/GIANT_consortium_data_files",
+    "versions": [
+      {
+        "reference_genome": "GRCh37",
+        "url": {
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/GIANT/2018_exome_array/GRCh37/whr_M_ALL_Rec.ht"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/GIANT/2018_exome_array/GRCh37/whr_M_ALL_Rec.ht",
+            "us": "gs://hail-datasets-us/GIANT/2018_exome_array/GRCh37/whr_M_ALL_Rec.ht"
+          }
+        },
+        "version": "2018"
+      }
+    ]
+  },
+  "giant_whr_exome_M_EUR_Add": {
+    "annotation_db": {
+      "key_properties": [
+        "unique"
+      ]
+    },
+    "description": "GIANT (Genetic Investigation of ANthropometric Traits): waist-hip ratio (WHR) adjusted for BMI exome array summary statistics Hail Table. Note the following abbreviations used in filenames: C-combined sexes, M-men, W-women, ALL-all ancestries, EUR-european descent only, Add-additive genetic model, and Rec-recessive genetic model.",
+    "url": "https://portals.broadinstitute.org/collaboration/giant/index.php/GIANT_consortium_data_files",
+    "versions": [
+      {
+        "reference_genome": "GRCh37",
+        "url": {
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/GIANT/2018_exome_array/GRCh37/whr_M_EUR_Add.ht"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/GIANT/2018_exome_array/GRCh37/whr_M_EUR_Add.ht",
+            "us": "gs://hail-datasets-us/GIANT/2018_exome_array/GRCh37/whr_M_EUR_Add.ht"
+          }
+        },
+        "version": "2018"
+      }
+    ]
+  },
+  "giant_whr_exome_M_EUR_Rec": {
+    "annotation_db": {
+      "key_properties": [
+        "unique"
+      ]
+    },
+    "description": "GIANT (Genetic Investigation of ANthropometric Traits): waist-hip ratio (WHR) adjusted for BMI exome array summary statistics Hail Table. Note the following abbreviations used in filenames: C-combined sexes, M-men, W-women, ALL-all ancestries, EUR-european descent only, Add-additive genetic model, and Rec-recessive genetic model.",
+    "url": "https://portals.broadinstitute.org/collaboration/giant/index.php/GIANT_consortium_data_files",
+    "versions": [
+      {
+        "reference_genome": "GRCh37",
+        "url": {
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/GIANT/2018_exome_array/GRCh37/whr_M_EUR_Rec.ht"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/GIANT/2018_exome_array/GRCh37/whr_M_EUR_Rec.ht",
+            "us": "gs://hail-datasets-us/GIANT/2018_exome_array/GRCh37/whr_M_EUR_Rec.ht"
+          }
+        },
+        "version": "2018"
+      }
+    ]
+  },
+  "giant_whr_exome_W_ALL_Add": {
+    "annotation_db": {
+      "key_properties": [
+        "unique"
+      ]
+    },
+    "description": "GIANT (Genetic Investigation of ANthropometric Traits): waist-hip ratio (WHR) adjusted for BMI exome array summary statistics Hail Table. Note the following abbreviations used in filenames: C-combined sexes, M-men, W-women, ALL-all ancestries, EUR-european descent only, Add-additive genetic model, and Rec-recessive genetic model.",
+    "url": "https://portals.broadinstitute.org/collaboration/giant/index.php/GIANT_consortium_data_files",
+    "versions": [
+      {
+        "reference_genome": "GRCh37",
+        "url": {
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/GIANT/2018_exome_array/GRCh37/whr_W_ALL_Add.ht"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/GIANT/2018_exome_array/GRCh37/whr_W_ALL_Add.ht",
+            "us": "gs://hail-datasets-us/GIANT/2018_exome_array/GRCh37/whr_W_ALL_Add.ht"
+          }
+        },
+        "version": "2018"
+      }
+    ]
+  },
+  "giant_whr_exome_W_ALL_Rec": {
+    "annotation_db": {
+      "key_properties": [
+        "unique"
+      ]
+    },
+    "description": "GIANT (Genetic Investigation of ANthropometric Traits): waist-hip ratio (WHR) adjusted for BMI exome array summary statistics Hail Table. Note the following abbreviations used in filenames: C-combined sexes, M-men, W-women, ALL-all ancestries, EUR-european descent only, Add-additive genetic model, and Rec-recessive genetic model.",
+    "url": "https://portals.broadinstitute.org/collaboration/giant/index.php/GIANT_consortium_data_files",
+    "versions": [
+      {
+        "reference_genome": "GRCh37",
+        "url": {
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/GIANT/2018_exome_array/GRCh37/whr_W_ALL_Rec.ht"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/GIANT/2018_exome_array/GRCh37/whr_W_ALL_Rec.ht",
+            "us": "gs://hail-datasets-us/GIANT/2018_exome_array/GRCh37/whr_W_ALL_Rec.ht"
+          }
+        },
+        "version": "2018"
+      }
+    ]
+  },
+  "giant_whr_exome_W_EUR_Add": {
+    "annotation_db": {
+      "key_properties": [
+        "unique"
+      ]
+    },
+    "description": "GIANT (Genetic Investigation of ANthropometric Traits): waist-hip ratio (WHR) adjusted for BMI exome array summary statistics Hail Table. Note the following abbreviations used in filenames: C-combined sexes, M-men, W-women, ALL-all ancestries, EUR-european descent only, Add-additive genetic model, and Rec-recessive genetic model.",
+    "url": "https://portals.broadinstitute.org/collaboration/giant/index.php/GIANT_consortium_data_files",
+    "versions": [
+      {
+        "reference_genome": "GRCh37",
+        "url": {
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/GIANT/2018_exome_array/GRCh37/whr_W_EUR_Add.ht"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/GIANT/2018_exome_array/GRCh37/whr_W_EUR_Add.ht",
+            "us": "gs://hail-datasets-us/GIANT/2018_exome_array/GRCh37/whr_W_EUR_Add.ht"
+          }
+        },
+        "version": "2018"
+      }
+    ]
+  },
+  "giant_whr_exome_W_EUR_Rec": {
+    "annotation_db": {
+      "key_properties": [
+        "unique"
+      ]
+    },
+    "description": "GIANT (Genetic Investigation of ANthropometric Traits): waist-hip ratio (WHR) adjusted for BMI exome array summary statistics Hail Table. Note the following abbreviations used in filenames: C-combined sexes, M-men, W-women, ALL-all ancestries, EUR-european descent only, Add-additive genetic model, and Rec-recessive genetic model.",
+    "url": "https://portals.broadinstitute.org/collaboration/giant/index.php/GIANT_consortium_data_files",
+    "versions": [
+      {
+        "reference_genome": "GRCh37",
+        "url": {
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/GIANT/2018_exome_array/GRCh37/whr_W_EUR_Rec.ht"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/GIANT/2018_exome_array/GRCh37/whr_W_EUR_Rec.ht",
+            "us": "gs://hail-datasets-us/GIANT/2018_exome_array/GRCh37/whr_W_EUR_Rec.ht"
+          }
+        },
+        "version": "2018"
+      }
+    ]
+  },
+  "gnomad_annotation_pext": {
+    "annotation_db": {
+      "key_properties": [
+        "unique"
+      ]
+    },
+    "description": "gnomAD: annotation-level proportion expressed across transcripts (pext) for all possible SNVs Hail Table.",
+    "url": "https://gnomad.broadinstitute.org/",
+    "versions": [
+      {
+        "reference_genome": "GRCh37",
+        "url": {
+          "aws": {
+            "us": "s3://gnomad-public-us-east-1/papers/2019-tx-annotation/pre_computed/all.possible.snvs.tx_annotated.021520.ht"
+          },
+          "gcp": {
+            "us": "gs://gcp-public-data--gnomad/papers/2019-tx-annotation/pre_computed/all.possible.snvs.tx_annotated.021520.ht"
+          }
+        },
+        "version": "2.1.1"
+      }
+    ]
+  },
   "gnomad_base_pext": {
+    "annotation_db": {
+      "key_properties": []
+    },
     "description": "gnomAD: base-level proportion expressed across transcripts (pext) Hail Table.",
     "url": "https://gnomad.broadinstitute.org/",
     "versions": [
@@ -624,6 +3598,11 @@
     ]
   },
   "gnomad_chrM_coverage": {
+    "annotation_db": {
+      "key_properties": [
+        "unique"
+      ]
+    },
     "description": "gnomAD: mitochondrial DNA (mtDNA) coverage Hail Table.",
     "url": "https://gnomad.broadinstitute.org/blog/2020-11-gnomad-v3-1-mitochondrial-dna-variants/",
     "versions": [
@@ -665,6 +3644,11 @@
     ]
   },
   "gnomad_exome_coverage": {
+    "annotation_db": {
+      "key_properties": [
+        "unique"
+      ]
+    },
     "description": "gnomAD: exome coverage Hail Table.",
     "url": "https://gnomad.broadinstitute.org/",
     "versions": [
@@ -718,6 +3702,11 @@
     ]
   },
   "gnomad_genome_coverage": {
+    "annotation_db": {
+      "key_properties": [
+        "unique"
+      ]
+    },
     "description": "gnomAD: genome coverage Hail Table.",
     "url": "https://gnomad.broadinstitute.org/",
     "versions": [
@@ -975,6 +3964,11 @@
     ]
   },
   "gnomad_ld_scores_afr": {
+    "annotation_db": {
+      "key_properties": [
+        "unique"
+      ]
+    },
     "description": "gnomAD: linkage disequilibrium (LD) scores Hail Table for African/African-American population.",
     "url": "https://gnomad.broadinstitute.org/",
     "versions": [
@@ -993,6 +3987,11 @@
     ]
   },
   "gnomad_ld_scores_amr": {
+    "annotation_db": {
+      "key_properties": [
+        "unique"
+      ]
+    },
     "description": "gnomAD: linkage disequilibrium (LD) scores Hail Table for Latino/Admixed American population.",
     "url": "https://gnomad.broadinstitute.org/",
     "versions": [
@@ -1011,6 +4010,11 @@
     ]
   },
   "gnomad_ld_scores_asj": {
+    "annotation_db": {
+      "key_properties": [
+        "unique"
+      ]
+    },
     "description": "gnomAD: linkage disequilibrium (LD) scores Hail Table for Ashkenazi Jewish population.",
     "url": "https://gnomad.broadinstitute.org/",
     "versions": [
@@ -1029,6 +4033,11 @@
     ]
   },
   "gnomad_ld_scores_eas": {
+    "annotation_db": {
+      "key_properties": [
+        "unique"
+      ]
+    },
     "description": "gnomAD: linkage disequilibrium (LD) scores Hail Table for East Asian population.",
     "url": "https://gnomad.broadinstitute.org/",
     "versions": [
@@ -1047,6 +4056,11 @@
     ]
   },
   "gnomad_ld_scores_est": {
+    "annotation_db": {
+      "key_properties": [
+        "unique"
+      ]
+    },
     "description": "gnomAD: linkage disequilibrium (LD) scores Hail Table for Estonian population.",
     "url": "https://gnomad.broadinstitute.org/",
     "versions": [
@@ -1065,6 +4079,11 @@
     ]
   },
   "gnomad_ld_scores_fin": {
+    "annotation_db": {
+      "key_properties": [
+        "unique"
+      ]
+    },
     "description": "gnomAD: linkage disequilibrium (LD) scores Hail Table for European (Finnish) population.",
     "url": "https://gnomad.broadinstitute.org/",
     "versions": [
@@ -1083,6 +4102,11 @@
     ]
   },
   "gnomad_ld_scores_nfe": {
+    "annotation_db": {
+      "key_properties": [
+        "unique"
+      ]
+    },
     "description": "gnomAD: linkage disequilibrium (LD) scores Hail Table for European (non-Finnish) population.",
     "url": "https://gnomad.broadinstitute.org/",
     "versions": [
@@ -1101,6 +4125,11 @@
     ]
   },
   "gnomad_ld_scores_nwe": {
+    "annotation_db": {
+      "key_properties": [
+        "unique"
+      ]
+    },
     "description": "gnomAD: linkage disequilibrium (LD) scores Hail Table for North-western European population.",
     "url": "https://gnomad.broadinstitute.org/",
     "versions": [
@@ -1119,6 +4148,11 @@
     ]
   },
   "gnomad_ld_scores_seu": {
+    "annotation_db": {
+      "key_properties": [
+        "unique"
+      ]
+    },
     "description": "gnomAD: linkage disequilibrium (LD) scores Hail Table for Southern European population.",
     "url": "https://gnomad.broadinstitute.org/",
     "versions": [
@@ -1137,6 +4171,11 @@
     ]
   },
   "gnomad_ld_variant_indices_afr": {
+    "annotation_db": {
+      "key_properties": [
+        "unique"
+      ]
+    },
     "description": "gnomAD: variant indices Hail Table for African/African-American population.",
     "url": "https://gnomad.broadinstitute.org/",
     "versions": [
@@ -1155,6 +4194,11 @@
     ]
   },
   "gnomad_ld_variant_indices_amr": {
+    "annotation_db": {
+      "key_properties": [
+        "unique"
+      ]
+    },
     "description": "gnomAD: variant indices Hail Table for Latino/Admixed American population.",
     "url": "https://gnomad.broadinstitute.org/",
     "versions": [
@@ -1173,6 +4217,11 @@
     ]
   },
   "gnomad_ld_variant_indices_asj": {
+    "annotation_db": {
+      "key_properties": [
+        "unique"
+      ]
+    },
     "description": "gnomAD: variant indices Hail Table for Ashkenazi Jewish population.",
     "url": "https://gnomad.broadinstitute.org/",
     "versions": [
@@ -1191,6 +4240,11 @@
     ]
   },
   "gnomad_ld_variant_indices_eas": {
+    "annotation_db": {
+      "key_properties": [
+        "unique"
+      ]
+    },
     "description": "gnomAD: variant indices Hail Table for East Asian population.",
     "url": "https://gnomad.broadinstitute.org/",
     "versions": [
@@ -1209,6 +4263,11 @@
     ]
   },
   "gnomad_ld_variant_indices_est": {
+    "annotation_db": {
+      "key_properties": [
+        "unique"
+      ]
+    },
     "description": "gnomAD: variant indices Hail Table for Estonian population.",
     "url": "https://gnomad.broadinstitute.org/",
     "versions": [
@@ -1227,6 +4286,11 @@
     ]
   },
   "gnomad_ld_variant_indices_fin": {
+    "annotation_db": {
+      "key_properties": [
+        "unique"
+      ]
+    },
     "description": "gnomAD: variant indices Hail Table for European (Finnish) population.",
     "url": "https://gnomad.broadinstitute.org/",
     "versions": [
@@ -1245,6 +4309,11 @@
     ]
   },
   "gnomad_ld_variant_indices_nfe": {
+    "annotation_db": {
+      "key_properties": [
+        "unique"
+      ]
+    },
     "description": "gnomAD: variant indices Hail Table for European (non-Finnish) population.",
     "url": "https://gnomad.broadinstitute.org/",
     "versions": [
@@ -1263,6 +4332,11 @@
     ]
   },
   "gnomad_ld_variant_indices_nwe": {
+    "annotation_db": {
+      "key_properties": [
+        "unique"
+      ]
+    },
     "description": "gnomAD: variant indices Hail Table for North-western European population.",
     "url": "https://gnomad.broadinstitute.org/",
     "versions": [
@@ -1281,6 +4355,11 @@
     ]
   },
   "gnomad_ld_variant_indices_seu": {
+    "annotation_db": {
+      "key_properties": [
+        "unique"
+      ]
+    },
     "description": "gnomAD: variant indices Hail Table for Southern European population.",
     "url": "https://gnomad.broadinstitute.org/",
     "versions": [
@@ -1299,6 +4378,11 @@
     ]
   },
   "gnomad_mnv_genome_d01": {
+    "annotation_db": {
+      "key_properties": [
+        "unique"
+      ]
+    },
     "description": "gnomAD: genome wide multi-nucleotide variants (MNVs) Hail Table, for distance between two SNVs of 1.",
     "url": "https://gnomad.broadinstitute.org/",
     "versions": [
@@ -1317,6 +4401,11 @@
     ]
   },
   "gnomad_mnv_genome_d02": {
+    "annotation_db": {
+      "key_properties": [
+        "unique"
+      ]
+    },
     "description": "gnomAD: genome wide multi-nucleotide variants (MNVs) Hail Table, for distance between two SNVs of 2.",
     "url": "https://gnomad.broadinstitute.org/",
     "versions": [
@@ -1335,6 +4424,11 @@
     ]
   },
   "gnomad_mnv_genome_d03": {
+    "annotation_db": {
+      "key_properties": [
+        "unique"
+      ]
+    },
     "description": "gnomAD: genome wide multi-nucleotide variants (MNVs) Hail Table, for distance between two SNVs of 3.",
     "url": "https://gnomad.broadinstitute.org/",
     "versions": [
@@ -1353,6 +4447,11 @@
     ]
   },
   "gnomad_mnv_genome_d04": {
+    "annotation_db": {
+      "key_properties": [
+        "unique"
+      ]
+    },
     "description": "gnomAD: genome wide multi-nucleotide variants (MNVs) Hail Table, for distance between two SNVs of 4.",
     "url": "https://gnomad.broadinstitute.org/",
     "versions": [
@@ -1371,6 +4470,11 @@
     ]
   },
   "gnomad_mnv_genome_d05": {
+    "annotation_db": {
+      "key_properties": [
+        "unique"
+      ]
+    },
     "description": "gnomAD: genome wide multi-nucleotide variants (MNVs) Hail Table, for distance between two SNVs of 5.",
     "url": "https://gnomad.broadinstitute.org/",
     "versions": [
@@ -1389,6 +4493,11 @@
     ]
   },
   "gnomad_mnv_genome_d06": {
+    "annotation_db": {
+      "key_properties": [
+        "unique"
+      ]
+    },
     "description": "gnomAD: genome wide multi-nucleotide variants (MNVs) Hail Table, for distance between two SNVs of 6.",
     "url": "https://gnomad.broadinstitute.org/",
     "versions": [
@@ -1407,6 +4516,11 @@
     ]
   },
   "gnomad_mnv_genome_d07": {
+    "annotation_db": {
+      "key_properties": [
+        "unique"
+      ]
+    },
     "description": "gnomAD: genome wide multi-nucleotide variants (MNVs) Hail Table, for distance between two SNVs of 7.",
     "url": "https://gnomad.broadinstitute.org/",
     "versions": [
@@ -1425,6 +4539,11 @@
     ]
   },
   "gnomad_mnv_genome_d08": {
+    "annotation_db": {
+      "key_properties": [
+        "unique"
+      ]
+    },
     "description": "gnomAD: genome wide multi-nucleotide variants (MNVs) Hail Table, for distance between two SNVs of 8.",
     "url": "https://gnomad.broadinstitute.org/",
     "versions": [
@@ -1443,6 +4562,11 @@
     ]
   },
   "gnomad_mnv_genome_d09": {
+    "annotation_db": {
+      "key_properties": [
+        "unique"
+      ]
+    },
     "description": "gnomAD: genome wide multi-nucleotide variants (MNVs) Hail Table, for distance between two SNVs of 9.",
     "url": "https://gnomad.broadinstitute.org/",
     "versions": [
@@ -1461,6 +4585,11 @@
     ]
   },
   "gnomad_mnv_genome_d10": {
+    "annotation_db": {
+      "key_properties": [
+        "unique"
+      ]
+    },
     "description": "gnomAD: genome wide multi-nucleotide variants (MNVs) Hail Table, for distance between two SNVs of 10.",
     "url": "https://gnomad.broadinstitute.org/",
     "versions": [
@@ -1491,11 +4620,11 @@
         "reference_genome": "GRCh37",
         "url": {
           "aws": {
-            "us": "s3://hail-datasets-us-east-1/annotations/gnomad_v2.1.1_lof_metrics_by_gene.ht"
+            "us": "s3://hail-datasets-us-east-1/gnomAD/v2.1.1/lof_metrics_by_gene.ht"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/annotations/gnomad_v2.1.1_lof_metrics_by_gene.ht",
-            "us": "gs://hail-datasets-us/annotations/gnomad_v2.1.1_lof_metrics_by_gene.ht"
+            "eu": "gs://hail-datasets-eu/gnomAD/v2.1.1/lof_metrics_by_gene.ht",
+            "us": "gs://hail-datasets-us/gnomAD/v2.1.1/lof_metrics_by_gene.ht"
           }
         },
         "version": "2.1.1"
@@ -1503,6 +4632,11 @@
     ]
   },
   "gnomad_plof_metrics_transcript": {
+    "annotation_db": {
+      "key_properties": [
+        "unique"
+      ]
+    },
     "description": "gnomAD: pLoF metrics by transcript Hail Table.",
     "url": "https://gnomad.broadinstitute.org/",
     "versions": [
@@ -1533,11 +4667,11 @@
         "reference_genome": "GRCh37",
         "url": {
           "aws": {
-            "us": "s3://hail-datasets-us-east-1/annotations/LDSC_baselineLD_v2.2_ld_scores.GRCh37.ht"
+            "us": "s3://hail-datasets-us-east-1/LDSC/baseline-LD_v2.2/GRCh37/ld_scores.ht"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/annotations/LDSC_baselineLD_v2.2_ld_scores.GRCh37.ht",
-            "us": "gs://hail-datasets-us/annotations/LDSC_baselineLD_v2.2_ld_scores.GRCh37.ht"
+            "eu": "gs://hail-datasets-eu/LDSC/baseline-LD_v2.2/GRCh37/ld_scores.ht",
+            "us": "gs://hail-datasets-us/LDSC/baseline-LD_v2.2/GRCh37/ld_scores.ht"
           }
         },
         "version": "2.2"
@@ -1545,40 +4679,400 @@
     ]
   },
   "ldsc_baselineLD_ldscores": {
-    "description": "LDSC Baseline-LD Model: contains 75 annotations (additional annotations included in later versions) including functional regions, histone marks, GERP scores, LD-related annotations of population genetics forces, MAF bins, and more.",
+    "description": "LDSC Baseline-LD Model: contains 75 annotations (additional annotations included in later versions) including functional regions, histone marks, GERP scores, LD-related annotations of population genetics forces, MAF bins, and more. Represented as a matrix table whose columns are annotations and entries are the ld scores. For a table representation, see ldsc_baselineLD_annotations.",
     "url": "https://www.ncbi.nlm.nih.gov/pmc/articles/PMC6133304/",
     "versions": [
       {
         "reference_genome": "GRCh37",
         "url": {
           "aws": {
-            "us": "gs://hail-datasets-eu/LDSC_baselineLD_v2.2_ld_scores.GRCh37.mt"
+            "us": "s3://hail-datasets-us-east-1/LDSC/baseline-LD_v2.2/GRCh37/ld_scores.mt"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-us/LDSC_baselineLD_v2.2_ld_scores.GRCh37.mt",
-            "us": "gs://hail-datasets-eu/LDSC_baselineLD_v2.2_ld_scores.GRCh37.mt"
+            "eu": "gs://hail-datasets-eu/LDSC/baseline-LD_v2.2/GRCh37/ld_scores.mt",
+            "us": "gs://hail-datasets-us/LDSC/baseline-LD_v2.2/GRCh37/ld_scores.mt"
           }
         },
         "version": "2.2"
+      },
+      {
+        "reference_genome": "GRCh37",
+        "url": {
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/LDSC/baseline_v1.1/GRCh37/ld_scores.mt"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/LDSC/baseline_v1.1/GRCh37/ld_scores.mt",
+            "us": "gs://hail-datasets-us/LDSC/baseline_v1.1/GRCh37/ld_scores.mt"
+          }
+        },
+        "version": "1.1"
       }
     ]
   },
-  "ldsc_baseline_ldscores": {
-    "description": "LDSC Baseline Model: contains 53 annotations including functional regions, histone marks, GERP scores, LD-related annotations of population genetics forces, and MAF bins.",
-    "url": "https://www.ncbi.nlm.nih.gov/pmc/articles/PMC4626285/",
+  "panukb_ld_block_matrix_AFR": {
+    "description": "Pan-UKB: linkage disequilibrium (LD) matrix Hail BlockMatrix for African ancestry population. To determine which row/column corresponds to which variant, see the associated variant indices Hail Table: panukb_ld_variant_indices_AFR.",
+    "url": "https://pan.ukbb.broadinstitute.org/docs/technical-overview",
     "versions": [
       {
         "reference_genome": "GRCh37",
         "url": {
           "aws": {
-            "us": "gs://hail-datasets-eu/LDSC_baseline_v1.1_ld_scores.GRCh37.mt"
-          },
-          "gcp": {
-            "eu": "gs://hail-datasets-us/LDSC_baseline_v1.1_ld_scores.GRCh37.mt",
-            "us": "gs://hail-datasets-eu/LDSC_baseline_v1.1_ld_scores.GRCh37.mt"
+            "us": "s3://pan-ukb-us-east-1/ld_release/UKBB.AFR.ldadj.bm"
           }
         },
-        "version": "1.1"
+        "version": "0.2"
+      }
+    ]
+  },
+  "panukb_ld_block_matrix_AMR": {
+    "description": "Pan-UKB: linkage disequilibrium (LD) matrix Hail BlockMatrix for Admixed American ancestry population. To determine which row/column corresponds to which variant, see the associated variant indices Hail Table: panukb_ld_variant_indices_AMR.",
+    "url": "https://pan.ukbb.broadinstitute.org/docs/technical-overview",
+    "versions": [
+      {
+        "reference_genome": "GRCh37",
+        "url": {
+          "aws": {
+            "us": "s3://pan-ukb-us-east-1/ld_release/UKBB.AMR.ldadj.bm"
+          }
+        },
+        "version": "0.2"
+      }
+    ]
+  },
+  "panukb_ld_block_matrix_CSA": {
+    "description": "Pan-UKB: linkage disequilibrium (LD) matrix Hail BlockMatrix for Central/South Asian ancestry population. To determine which row/column corresponds to which variant, see the associated variant indices Hail Table: panukb_ld_variant_indices_CSA.",
+    "url": "https://pan.ukbb.broadinstitute.org/docs/technical-overview",
+    "versions": [
+      {
+        "reference_genome": "GRCh37",
+        "url": {
+          "aws": {
+            "us": "s3://pan-ukb-us-east-1/ld_release/UKBB.CSA.ldadj.bm"
+          }
+        },
+        "version": "0.2"
+      }
+    ]
+  },
+  "panukb_ld_block_matrix_EAS": {
+    "description": "Pan-UKB: linkage disequilibrium (LD) matrix Hail BlockMatrix for East Asian ancestry population. To determine which row/column corresponds to which variant, see the associated variant indices Hail Table: panukb_ld_variant_indices_EAS.",
+    "url": "https://pan.ukbb.broadinstitute.org/docs/technical-overview",
+    "versions": [
+      {
+        "reference_genome": "GRCh37",
+        "url": {
+          "aws": {
+            "us": "s3://pan-ukb-us-east-1/ld_release/UKBB.EAS.ldadj.bm"
+          }
+        },
+        "version": "0.2"
+      }
+    ]
+  },
+  "panukb_ld_block_matrix_EUR": {
+    "description": "Pan-UKB: linkage disequilibrium (LD) matrix Hail BlockMatrix for European ancestry population. To determine which row/column corresponds to which variant, see the associated variant indices Hail Table: panukb_ld_variant_indices_EUR.",
+    "url": "https://pan.ukbb.broadinstitute.org/docs/technical-overview",
+    "versions": [
+      {
+        "reference_genome": "GRCh37",
+        "url": {
+          "aws": {
+            "us": "s3://pan-ukb-us-east-1/ld_release/UKBB.EUR.ldadj.bm"
+          }
+        },
+        "version": "0.2"
+      }
+    ]
+  },
+  "panukb_ld_block_matrix_MID": {
+    "description": "Pan-UKB: linkage disequilibrium (LD) matrix Hail BlockMatrix for Middle Eastern ancestry population. To determine which row/column corresponds to which variant, see the associated variant indices Hail Table: panukb_ld_variant_indices_MID.",
+    "url": "https://pan.ukbb.broadinstitute.org/docs/technical-overview",
+    "versions": [
+      {
+        "reference_genome": "GRCh37",
+        "url": {
+          "aws": {
+            "us": "s3://pan-ukb-us-east-1/ld_release/UKBB.MID.ldadj.bm"
+          }
+        },
+        "version": "0.2"
+      }
+    ]
+  },
+  "panukb_ld_scores_AFR": {
+    "annotation_db": {
+      "key_properties": [
+        "unique"
+      ]
+    },
+    "description": "Pan-UKB: linkage disequilibrium (LD) scores Hail Table for African ancestry population.",
+    "url": "https://pan.ukbb.broadinstitute.org/docs/technical-overview",
+    "versions": [
+      {
+        "reference_genome": "GRCh37",
+        "url": {
+          "aws": {
+            "us": "s3://pan-ukb-us-east-1/ld_release/UKBB.AFR.ldscore.ht"
+          }
+        },
+        "version": "0.2"
+      }
+    ]
+  },
+  "panukb_ld_scores_AMR": {
+    "annotation_db": {
+      "key_properties": [
+        "unique"
+      ]
+    },
+    "description": "Pan-UKB: linkage disequilibrium (LD) scores Hail Table for Admixed American ancestry population.",
+    "url": "https://pan.ukbb.broadinstitute.org/docs/technical-overview",
+    "versions": [
+      {
+        "reference_genome": "GRCh37",
+        "url": {
+          "aws": {
+            "us": "s3://pan-ukb-us-east-1/ld_release/UKBB.AMR.ldscore.ht"
+          }
+        },
+        "version": "0.2"
+      }
+    ]
+  },
+  "panukb_ld_scores_CSA": {
+    "annotation_db": {
+      "key_properties": [
+        "unique"
+      ]
+    },
+    "description": "Pan-UKB: linkage disequilibrium (LD) scores Hail Table for Central/South Asian ancestry population.",
+    "url": "https://pan.ukbb.broadinstitute.org/docs/technical-overview",
+    "versions": [
+      {
+        "reference_genome": "GRCh37",
+        "url": {
+          "aws": {
+            "us": "s3://pan-ukb-us-east-1/ld_release/UKBB.CSA.ldscore.ht"
+          }
+        },
+        "version": "0.2"
+      }
+    ]
+  },
+  "panukb_ld_scores_EAS": {
+    "annotation_db": {
+      "key_properties": [
+        "unique"
+      ]
+    },
+    "description": "Pan-UKB: linkage disequilibrium (LD) scores Hail Table for East Asian ancestry population.",
+    "url": "https://pan.ukbb.broadinstitute.org/docs/technical-overview",
+    "versions": [
+      {
+        "reference_genome": "GRCh37",
+        "url": {
+          "aws": {
+            "us": "s3://pan-ukb-us-east-1/ld_release/UKBB.EAS.ldscore.ht"
+          }
+        },
+        "version": "0.2"
+      }
+    ]
+  },
+  "panukb_ld_scores_EUR": {
+    "annotation_db": {
+      "key_properties": [
+        "unique"
+      ]
+    },
+    "description": "Pan-UKB: linkage disequilibrium (LD) scores Hail Table for European ancestry population.",
+    "url": "https://pan.ukbb.broadinstitute.org/docs/technical-overview",
+    "versions": [
+      {
+        "reference_genome": "GRCh37",
+        "url": {
+          "aws": {
+            "us": "s3://pan-ukb-us-east-1/ld_release/UKBB.EUR.ldscore.ht"
+          }
+        },
+        "version": "0.2"
+      }
+    ]
+  },
+  "panukb_ld_scores_MID": {
+    "annotation_db": {
+      "key_properties": [
+        "unique"
+      ]
+    },
+    "description": "Pan-UKB: linkage disequilibrium (LD) scores Hail Table for Middle Eastern ancestry population.",
+    "url": "https://pan.ukbb.broadinstitute.org/docs/technical-overview",
+    "versions": [
+      {
+        "reference_genome": "GRCh37",
+        "url": {
+          "aws": {
+            "us": "s3://pan-ukb-us-east-1/ld_release/UKBB.MID.ldscore.ht"
+          }
+        },
+        "version": "0.2"
+      }
+    ]
+  },
+  "panukb_ld_variant_indices_AFR": {
+    "annotation_db": {
+      "key_properties": [
+        "unique"
+      ]
+    },
+    "description": "Pan-UKB: variant indices Hail Table for African ancestry population.",
+    "url": "https://pan.ukbb.broadinstitute.org/docs/technical-overview",
+    "versions": [
+      {
+        "reference_genome": "GRCh37",
+        "url": {
+          "aws": {
+            "us": "s3://pan-ukb-us-east-1/ld_release/UKBB.AFR.ldadj.variant.ht"
+          }
+        },
+        "version": "0.2"
+      }
+    ]
+  },
+  "panukb_ld_variant_indices_AMR": {
+    "annotation_db": {
+      "key_properties": [
+        "unique"
+      ]
+    },
+    "description": "Pan-UKB: variant indices Hail Table for Admixed American ancestry population.",
+    "url": "https://pan.ukbb.broadinstitute.org/docs/technical-overview",
+    "versions": [
+      {
+        "reference_genome": "GRCh37",
+        "url": {
+          "aws": {
+            "us": "s3://pan-ukb-us-east-1/ld_release/UKBB.AMR.ldadj.variant.ht"
+          }
+        },
+        "version": "0.2"
+      }
+    ]
+  },
+  "panukb_ld_variant_indices_CSA": {
+    "annotation_db": {
+      "key_properties": [
+        "unique"
+      ]
+    },
+    "description": "Pan-UKB: variant indices Hail Table for Central/South Asian ancestry population.",
+    "url": "https://pan.ukbb.broadinstitute.org/docs/technical-overview",
+    "versions": [
+      {
+        "reference_genome": "GRCh37",
+        "url": {
+          "aws": {
+            "us": "s3://pan-ukb-us-east-1/ld_release/UKBB.CSA.ldadj.variant.ht"
+          }
+        },
+        "version": "0.2"
+      }
+    ]
+  },
+  "panukb_ld_variant_indices_EAS": {
+    "annotation_db": {
+      "key_properties": [
+        "unique"
+      ]
+    },
+    "description": "Pan-UKB: variant indices Hail Table for East Asian ancestry population.",
+    "url": "https://pan.ukbb.broadinstitute.org/docs/technical-overview",
+    "versions": [
+      {
+        "reference_genome": "GRCh37",
+        "url": {
+          "aws": {
+            "us": "s3://pan-ukb-us-east-1/ld_release/UKBB.EAS.ldadj.variant.ht"
+          }
+        },
+        "version": "0.2"
+      }
+    ]
+  },
+  "panukb_ld_variant_indices_EUR": {
+    "annotation_db": {
+      "key_properties": [
+        "unique"
+      ]
+    },
+    "description": "Pan-UKB: variant indices Hail Table for European ancestry population.",
+    "url": "https://pan.ukbb.broadinstitute.org/docs/technical-overview",
+    "versions": [
+      {
+        "reference_genome": "GRCh37",
+        "url": {
+          "aws": {
+            "us": "s3://pan-ukb-us-east-1/ld_release/UKBB.EUR.ldadj.variant.ht"
+          }
+        },
+        "version": "0.2"
+      }
+    ]
+  },
+  "panukb_ld_variant_indices_MID": {
+    "annotation_db": {
+      "key_properties": [
+        "unique"
+      ]
+    },
+    "description": "Pan-UKB: variant indices Hail Table for Middle Eastern ancestry population.",
+    "url": "https://pan.ukbb.broadinstitute.org/docs/technical-overview",
+    "versions": [
+      {
+        "reference_genome": "GRCh37",
+        "url": {
+          "aws": {
+            "us": "s3://pan-ukb-us-east-1/ld_release/UKBB.MID.ldadj.variant.ht"
+          }
+        },
+        "version": "0.2"
+      }
+    ]
+  },
+  "panukb_meta_analysis": {
+    "description": "Pan-UKB: pan-ancestry GWAS of UK Biobank, full meta-analysis Hail MatrixTable.",
+    "url": "https://pan.ukbb.broadinstitute.org/docs/technical-overview/index.html",
+    "versions": [
+      {
+        "reference_genome": "GRCh37",
+        "url": {
+          "aws": {
+            "us": "s3://pan-ukb-us-east-1/sumstats_release/meta_analysis.mt"
+          },
+          "gcp": {
+            "us": "gs://ukb-diverse-pops-public/sumstats_release/meta_analysis.mt"
+          }
+        },
+        "version": "0.1"
+      }
+    ]
+  },
+  "panukb_summary_stats": {
+    "description": "Pan-UKB: pan-ancestry GWAS of UK Biobank, full summary statistics Hail MatrixTable.",
+    "url": "https://pan.ukbb.broadinstitute.org/docs/technical-overview/index.html",
+    "versions": [
+      {
+        "reference_genome": "GRCh37",
+        "url": {
+          "aws": {
+            "us": "s3://pan-ukb-us-east-1/sumstats_release/results_full.mt"
+          },
+          "gcp": {
+            "us": "gs://ukb-diverse-pops-public/sumstats_release/results_full.mt"
+          }
+        },
+        "version": "0.1"
       }
     ]
   }

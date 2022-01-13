@@ -28,6 +28,7 @@ class Tests(unittest.TestCase):
             'foo'
         )['foo'].dtype == hl.tstr
 
+    @fails_service_backend()
     @fails_local_backend()
     def test_annotate_intervals(self):
         ds = get_dataset()
@@ -185,6 +186,7 @@ class Tests(unittest.TestCase):
                                  hl.Struct(locus=hl.Locus('20', 10644700), alleles=['A', 'T']))]
         self.assertEqual(hl.filter_intervals(ds, intervals).count_rows(), 3)
 
+    @fails_service_backend()
     def test_summarize_variants(self):
         mt = hl.utils.range_matrix_table(3, 3)
         variants = hl.literal({0: hl.Struct(locus=hl.Locus('1', 1), alleles=['A', 'T', 'C']),
@@ -197,6 +199,7 @@ class Tests(unittest.TestCase):
         self.assertEqual(r.allele_types, {'SNP': 2, 'MNP': 1, 'Unknown': 1, 'Insertion': 1})
         self.assertEqual(r.allele_counts, {2: 1, 3: 2})
 
+    @fails_service_backend()
     def test_verify_biallelic(self):
         mt = hl.import_vcf(resource('sample2.vcf'))  # has multiallelics
         with self.assertRaises(hl.utils.HailUserError):
@@ -209,3 +212,33 @@ class Tests(unittest.TestCase):
         lgc2 = hl.lambda_gc(ht.x2)
         self.assertAlmostEqual(lgc, 1, places=1)  # approximate, 1 place is safe
         self.assertAlmostEqual(lgc2, 1.89, places=1)  # approximate, 1 place is safe
+
+    def test_lambda_gc_nans(self):
+        N = 5000000
+        ht = hl.utils.range_table(N).annotate(x = hl.scan.count() / N, is_even=hl.scan.count() % 2 == 0)
+        lgc_nan = hl.lambda_gc(hl.case().when(ht.is_even, hl.float('nan')).default(ht.x))
+        self.assertAlmostEqual(lgc_nan, 1, places=1)  # approximate, 1 place is safe
+
+    def test_segment_intervals(self):
+        intervals = hl.Table.parallelize(
+            [
+                hl.struct(interval=hl.interval(0, 10)),
+                hl.struct(interval=hl.interval(20, 50)),
+                hl.struct(interval=hl.interval(52, 52))
+            ],
+            schema=hl.tstruct(interval=hl.tinterval(hl.tint32)),
+            key='interval'
+        )
+
+        points1 = [-1, 5, 30, 40, 52, 53]
+
+        segmented1 = hl.segment_intervals(intervals, points1)
+
+        assert segmented1.aggregate(hl.agg.collect(segmented1.interval) == [
+            hl.interval(0, 5),
+            hl.interval(5, 10),
+            hl.interval(20, 30),
+            hl.interval(30, 40),
+            hl.interval(40, 50),
+            hl.interval(52, 52)
+        ])

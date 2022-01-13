@@ -1,10 +1,10 @@
-from typing import Tuple
+from typing import Tuple, Mapping
 import numpy as np
 
 import hail
 import hail as hl
 from hail.expr import expressions
-from hail.expr.types import HailType, is_numeric, is_compound, tint32, \
+from hail.expr.types import HailType, is_numeric, is_compound, is_setlike, tint32, \
     tint64, tfloat32, tfloat64, tstr, tbool, tarray, \
     tndarray, tset, tdict, tstruct, ttuple, tinterval, \
     tlocus, tcall, from_numpy
@@ -181,7 +181,8 @@ def _impute_type(x, partial_type):
             raise ExpressionException("Hail does not support heterogeneous arrays: "
                                       "found list with elements of types {} ".format(list(ts)))
         return tarray(unified_type)
-    elif isinstance(x, set):
+
+    elif is_setlike(x):
         partial_type = refine(partial_type, hl.tset(None))
         if len(x) == 0:
             return partial_type
@@ -191,7 +192,8 @@ def _impute_type(x, partial_type):
             raise ExpressionException("Hail does not support heterogeneous sets: "
                                       "found set with elements of types {} ".format(list(ts)))
         return tset(unified_type)
-    elif isinstance(x, dict):
+
+    elif isinstance(x, Mapping):
         user_partial_type = partial_type
         partial_type = refine(partial_type, hl.tdict(None, None))
         if len(x) == 0:
@@ -609,7 +611,7 @@ class Expression(object):
     def _div_ret_type_f(t):
         assert is_numeric(t)
         if t == tint32 or t == tint64:
-            return tfloat32
+            return tfloat64
         else:
             # Float64 or Float32
             return t
@@ -692,24 +694,6 @@ class Expression(object):
         key = to_expr(key)
         return self._method("index", ret_type, key)
 
-    def _slice(self, ret_type, start=None, stop=None, step=None):
-        if step is not None:
-            raise NotImplementedError('Variable slice step size is not currently supported')
-
-        if start is not None:
-            start = to_expr(start)
-            if stop is not None:
-                stop = to_expr(stop)
-                return self._method('slice', ret_type, start, stop)
-            else:
-                return self._method('sliceRight', ret_type, start)
-        else:
-            if stop is not None:
-                stop = to_expr(stop)
-                return self._method('sliceLeft', ret_type, stop)
-            else:
-                return self
-
     def _ir_lambda_method(self, irf, f, input_type, ret_type_f, *args):
         args = (to_expr(arg)._ir for arg in args)
         new_id = Env.get_uid()
@@ -718,6 +702,17 @@ class Expression(object):
 
         indices, aggregations = unify_all(self, lambda_result)
         x = irf(self._ir, new_id, lambda_result._ir, *args)
+        return expressions.construct_expr(x, ret_type_f(lambda_result._type), indices, aggregations)
+
+    def _ir_lambda_method2(self, other, irf, f, input_type1, input_type2, ret_type_f, *args):
+        args = (to_expr(arg)._ir for arg in args)
+        new_id1 = Env.get_uid()
+        new_id2 = Env.get_uid()
+        lambda_result = to_expr(
+            f(expressions.construct_variable(new_id1, input_type1, self._indices, self._aggregations),
+              expressions.construct_variable(new_id2, input_type2, other._indices, other._aggregations)))
+        indices, aggregations = unify_all(self, other, lambda_result)
+        x = irf(self._ir, other._ir, new_id1, new_id2, lambda_result._ir, *args)
         return expressions.construct_expr(x, ret_type_f(lambda_result._type), indices, aggregations)
 
     @property
@@ -730,6 +725,9 @@ class Expression(object):
 
         """
         return self._type
+
+    def __bool__(self):
+        raise TypeError("'Expression' objects cannot be converted to a 'bool'. Use 'hl.if_else' instead of Python if statements.")
 
     def __len__(self):
         raise TypeError("'Expression' objects have no static length: use 'hl.len' for the length of collections")
@@ -926,7 +924,7 @@ class Expression(object):
             kwargs['n_rows'] = kwargs['n']
         del kwargs['n']
         _, ds = self._to_relational_preserving_rows_and_cols('<expr>')
-        ds.show(**{k: v for k, v in kwargs.items() if v is not None})
+        return ds.show(**{k: v for k, v in kwargs.items() if v is not None})
 
     def _to_relational_preserving_rows_and_cols(self, fallback_name):
         source = self._indices.source

@@ -186,9 +186,9 @@ class ArrayFunctionsSuite extends HailSuite {
 
   @Test(dataProvider = "arrayOpsData")
   def arrayOpsFPDiv(a: IndexedSeq[Integer], b: IndexedSeq[Integer]) {
-    assertEvalsTo(invoke("div", TArray(TFloat32), toIRArray(a), toIRArray(b)),
+    assertEvalsTo(invoke("div", TArray(TFloat64), toIRArray(a), toIRArray(b)),
       Option(a).zip(Option(b)).headOption.map { case (a0, b0) =>
-        a0.zip(b0).map { case (i, j) => Option(i).zip(Option(j)).headOption.map[java.lang.Float] { case (m, n) => m.toFloat / n }.orNull }
+        a0.zip(b0).map { case (i, j) => Option(i).zip(Option(j)).headOption.map[java.lang.Double] { case (m, n) => m.toDouble / n }.orNull }
       }.orNull )
   }
 
@@ -208,43 +208,43 @@ class ArrayFunctionsSuite extends HailSuite {
 
   @Test def indexing() {
     val a = IRArray(0, null, 2)
-    assertEvalsTo(invoke("indexArray", TInt32, a, I32(0), Str("")), 0)
-    assertEvalsTo(invoke("indexArray", TInt32, a, I32(1), Str("")), null)
-    assertEvalsTo(invoke("indexArray", TInt32, a, I32(2), Str("")), 2)
-    assertEvalsTo(invoke("indexArray", TInt32, a, I32(-1), Str("")), 2)
-    assertEvalsTo(invoke("indexArray", TInt32, a, I32(-3), Str("")), 0)
-    assertFatal(invoke("indexArray", TInt32, a, I32(3), Str("")), "array index out of bounds")
-    assertFatal(invoke("indexArray", TInt32, a, I32(-4), Str("")), "array index out of bounds")
-    assertEvalsTo(invoke("indexArray", TInt32, naa, I32(2), Str("")), null)
-    assertEvalsTo(invoke("indexArray", TInt32, a, NA(TInt32), Str("")), null)
+    assertEvalsTo(invoke("indexArray", TInt32, a, I32(0)), 0)
+    assertEvalsTo(invoke("indexArray", TInt32, a, I32(1)), null)
+    assertEvalsTo(invoke("indexArray", TInt32, a, I32(2)), 2)
+    assertEvalsTo(invoke("indexArray", TInt32, a, I32(-1)), 2)
+    assertEvalsTo(invoke("indexArray", TInt32, a, I32(-3)), 0)
+    assertFatal(invoke("indexArray", TInt32, a, I32(3)), "array index out of bounds")
+    assertFatal(invoke("indexArray", TInt32, a, I32(-4)), "array index out of bounds")
+    assertEvalsTo(invoke("indexArray", TInt32, naa, I32(2)), null)
+    assertEvalsTo(invoke("indexArray", TInt32, a, NA(TInt32)), null)
   }
 
   @Test def slicing() {
     val a = IRArray(0, null, 2)
-    assertEvalsTo(invoke("sliceRight", TArray(TInt32), a, I32(1)), FastIndexedSeq(null, 2))
-    assertEvalsTo(invoke("sliceRight", TArray(TInt32), a, I32(-2)), FastIndexedSeq(null, 2))
-    assertEvalsTo(invoke("sliceRight", TArray(TInt32), a, I32(5)), FastIndexedSeq())
-    assertEvalsTo(invoke("sliceRight", TArray(TInt32), a, I32(-5)), FastIndexedSeq(0, null, 2))
-    assertEvalsTo(invoke("sliceRight", TArray(TInt32), naa, I32(1)), null)
-    assertEvalsTo(invoke("sliceRight", TArray(TInt32), a, NA(TInt32)), null)
+    assertEvalsTo(ArraySlice(a, I32(1), None), FastIndexedSeq(null, 2))
+    assertEvalsTo(ArraySlice(a, I32(-2), None), FastIndexedSeq(null, 2))
+    assertEvalsTo(ArraySlice(a, I32(5), None), FastIndexedSeq())
+    assertEvalsTo(ArraySlice(a, I32(-5), None), FastIndexedSeq(0, null, 2))
+    assertEvalsTo(ArraySlice(naa, I32(1), None), null)
+    assertEvalsTo(ArraySlice(a, NA(TInt32), None), null)
 
-    assertEvalsTo(invoke("sliceLeft", TArray(TInt32), a, I32(2)), FastIndexedSeq(0, null))
-    assertEvalsTo(invoke("sliceLeft", TArray(TInt32), a, I32(-1)), FastIndexedSeq(0, null))
-    assertEvalsTo(invoke("sliceLeft", TArray(TInt32), a, I32(5)), FastIndexedSeq(0, null, 2))
-    assertEvalsTo(invoke("sliceLeft", TArray(TInt32), a, I32(-5)), FastIndexedSeq())
-    assertEvalsTo(invoke("sliceLeft", TArray(TInt32), naa, I32(1)), null)
-    assertEvalsTo(invoke("sliceLeft", TArray(TInt32), a, NA(TInt32)), null)
+    assertEvalsTo(ArraySlice(a, I32(0), Some(I32(2))), FastIndexedSeq(0, null))
+    assertEvalsTo(ArraySlice(a, I32(0), Some(I32(-1))), FastIndexedSeq(0, null))
+    assertEvalsTo(ArraySlice(a, I32(0), Some(I32(5))), FastIndexedSeq(0, null, 2))
+    assertEvalsTo(ArraySlice(a, I32(0), Some(I32(-5))), FastIndexedSeq())
+    assertEvalsTo(ArraySlice(naa, I32(0), Some(I32(1))), null)
+    assertEvalsTo(ArraySlice(a, I32(0), Some(NA(TInt32))), null)
 
-    assertEvalsTo(invoke("slice", TArray(TInt32), a, I32(1), I32(3)), FastIndexedSeq(null, 2))
-    assertEvalsTo(invoke("slice", TArray(TInt32), a, I32(1), I32(2)), FastIndexedSeq(null))
-    assertEvalsTo(invoke("slice", TArray(TInt32), a, I32(0), I32(2)), FastIndexedSeq(0, null))
-    assertEvalsTo(invoke("slice", TArray(TInt32), a, I32(0), I32(3)), FastIndexedSeq(0, null, 2))
-    assertEvalsTo(invoke("slice", TArray(TInt32), a, I32(-1), I32(3)), FastIndexedSeq(2))
-    assertEvalsTo(invoke("slice", TArray(TInt32), a, I32(-4), I32(4)), FastIndexedSeq(0, null, 2))
-    assertEvalsTo(invoke("slice", TArray(TInt32), naa, I32(1), I32(2)), null)
-    assertEvalsTo(invoke("slice", TArray(TInt32), a, I32(1), NA(TInt32)), null)
-    assertEvalsTo(invoke("slice", TArray(TInt32), a, NA(TInt32), I32(1)), null)
-    assertEvalsTo(invoke("slice", TArray(TInt32), a, I32(3), I32(2)), FastIndexedSeq())
+    assertEvalsTo(ArraySlice(a, I32(1), Some(I32(3))), FastIndexedSeq(null, 2))
+    assertEvalsTo(ArraySlice(a, I32(1), Some(I32(2))), FastIndexedSeq(null))
+    assertEvalsTo(ArraySlice(a, I32(0), Some(I32(2))), FastIndexedSeq(0, null))
+    assertEvalsTo(ArraySlice(a, I32(0), Some(I32(3))), FastIndexedSeq(0, null, 2))
+    assertEvalsTo(ArraySlice(a, I32(-1),Some( I32(3))), FastIndexedSeq(2))
+    assertEvalsTo(ArraySlice(a, I32(-4), Some(I32(4))), FastIndexedSeq(0, null, 2))
+    assertEvalsTo(ArraySlice(naa, I32(1), Some(I32(2))), null)
+    assertEvalsTo(ArraySlice(a, I32(1), Some(NA(TInt32))), null)
+    assertEvalsTo(ArraySlice(a, NA(TInt32), Some(I32(1))), null)
+    assertEvalsTo(ArraySlice(a, I32(3), Some(I32(2))), FastIndexedSeq())
   }
 
   @DataProvider(name = "flatten")

@@ -5,6 +5,7 @@ from hail.utils import *
 from hail.utils.misc import escape_str, escape_id
 from hail.utils.java import Env
 from hail.utils.linkedlist import LinkedList
+
 from ..helpers import *
 
 setUpModule = startTestHailContext
@@ -13,7 +14,6 @@ tearDownModule = stopTestHailContext
 
 class Tests(unittest.TestCase):
 
-    @fails_local_backend()
     def test_hadoop_methods(self):
         data = ['foo', 'bar', 'baz']
         data.extend(map(str, range(100)))
@@ -45,12 +45,12 @@ class Tests(unittest.TestCase):
 
         self.assertEqual(data, data4)
 
-        with hadoop_open(resource('randomBytes'), buffer_size=100) as f:
-            with hadoop_open('/tmp/randomBytesOut', 'w', buffer_size=150) as out:
+        with hadoop_open(resource('randomBytes'), mode='rb', buffer_size=100) as f:
+            with hadoop_open('/tmp/randomBytesOut', mode='wb', buffer_size=150) as out:
                 b = f.read()
                 out.write(b)
 
-        with hadoop_open('/tmp/randomBytesOut', buffer_size=199) as f:
+        with hadoop_open('/tmp/randomBytesOut', mode='rb', buffer_size=199) as f:
             b2 = f.read()
 
         self.assertEqual(b, b2)
@@ -82,6 +82,7 @@ class Tests(unittest.TestCase):
 
         self.assertFalse(hl.hadoop_exists(resource('./some2')))
 
+    @skip_when_service_backend('service backend logs are not sent to a user-visible file')
     @fails_local_backend()
     def test_hadoop_copy_log(self):
         with with_local_temp_file('log') as r:
@@ -112,6 +113,7 @@ class Tests(unittest.TestCase):
         self.assertTrue('owner' in stat2)
         self.assertTrue('modification_time' in stat2)
 
+    @fails_service_backend()
     @fails_local_backend()
     def test_hadoop_ls(self):
         path1 = resource('ls_test/f_50')
@@ -179,10 +181,10 @@ class Tests(unittest.TestCase):
         self.assertEqual(s.annotate(**{'a': 5, 'x': 10, 'y': 15}),
                          Struct(a=5, b=2, c=3, x=10, y=15))
 
-    def test_expr_exception_results_in_fatal_error(self):
+    def test_expr_exception_results_in_hail_user_error(self):
         df = range_table(10)
         df = df.annotate(x=[1, 2])
-        with self.assertRaises(FatalError):
+        with self.assertRaises(HailUserError):
             df.filter(df.x[5] == 0).count()
 
     def test_interval_ops(self):
@@ -225,3 +227,17 @@ class Tests(unittest.TestCase):
         self.assertEqual(escape_id("cat"), "cat")
         self.assertEqual(escape_id("abc123"), "abc123")
         self.assertEqual(escape_id("123abc"), "`123abc`")
+
+    def test_frozen_dict(self):
+        self.assertEqual(frozendict({1:2, 4:7}), frozendict({1:2, 4:7}))
+        my_frozen_dict = frozendict({"a": "apple", "h": "hail"})
+        self.assertEqual(my_frozen_dict["a"], "apple")
+
+        # Make sure mutating old dict doesn't change frozen counterpart.
+        regular_dict = {"a": "b"}
+        frozen_counterpart = frozendict(regular_dict)
+        regular_dict["a"] = "d"
+        self.assertEqual(frozen_counterpart["a"], "b")
+
+        with pytest.raises(TypeError, match="does not support item assignment"):
+            my_frozen_dict["a"] = "b"

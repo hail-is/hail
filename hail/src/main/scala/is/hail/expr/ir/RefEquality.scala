@@ -52,6 +52,8 @@ class Memo[T] private(val m: mutable.HashMap[RefEquality[BaseIR], T]) {
 
   def delete(ir: BaseIR): Unit = delete(RefEquality(ir))
   def delete(ir: RefEquality[BaseIR]): Unit = m -= ir
+
+  override def toString: String = s"Memo(${m})"
 }
 
 

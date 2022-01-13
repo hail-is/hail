@@ -1,16 +1,15 @@
 package is.hail.variant
 
 import is.hail.annotations._
-import is.hail.types.physical.{PArray, PLocus, PString, PStruct}
+import is.hail.types.physical.{PArray, PInt32, PLocus, PString, PStruct}
 import is.hail.utils._
 
 class RegionValueVariant(rowType: PStruct) extends View {
   private val locusField = rowType.fieldByName("locus")
-  private val locusPType = locusField.typ.asInstanceOf[PLocus]
+  private val locusPType = locusField.typ
   private val allelesField = rowType.fieldByName("alleles")
   private val locusIdx = locusField.index
   private val allelesIdx = allelesField.index
-  private val tl: PStruct = locusPType.fundamentalType.asInstanceOf[PStruct]
   private val taa: PArray = allelesField.typ.asInstanceOf[PArray]
   private val allelePType = taa.elementType.asInstanceOf[PString]
   private var locusAddress: Long = _
@@ -32,13 +31,22 @@ class RegionValueVariant(rowType: PStruct) extends View {
   }
 
   def contig(): String = {
-    if (cachedContig == null)
-      cachedContig = locusPType.contig(locusAddress)
+    if (cachedContig == null) {
+      locusPType match {
+        case pl: PLocus =>
+          cachedContig = pl.contig(locusAddress)
+        case s: PStruct =>
+          cachedContig = s.types(0).asInstanceOf[PString].loadString(s.loadField(locusAddress, 0))
+      }
+    }
     cachedContig
   }
 
-  def position(): Int = {
-    Region.loadInt(tl.loadField(locusAddress, 1))
+  def position(): Int = locusPType match {
+    case pl: PLocus =>
+      pl.position(locusAddress)
+    case s: PStruct =>
+      s.types(1).asInstanceOf[PInt32].unstagedLoadFromAddress(s.loadField(locusAddress, 1))
   }
 
   def alleles(): Array[String] = {

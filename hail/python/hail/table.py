@@ -730,7 +730,7 @@ class Table(ExprContainer):
         +-------+------+---------+-------+-------+-------+-------+-------+
         | int32 | bool | str     | bool  | int32 | int32 | int32 | int32 |
         +-------+------+---------+-------+-------+-------+-------+-------+
-        |    32 | true | "hello" | false |     5 |     7 |     5 |     7 |
+        |    32 | True | "hello" | False |     5 |     7 |     5 |     7 |
         +-------+------+---------+-------+-------+-------+-------+-------+
 
         >>> table_result = table4.transmute(F=table4.A + 2 * table4.E.B)
@@ -740,7 +740,7 @@ class Table(ExprContainer):
         +------+---------+-------+-------+-------+-------+
         | bool | str     | bool  | int32 | int32 | int32 |
         +------+---------+-------+-------+-------+-------+
-        | true | "hello" | false |     5 |     7 |    46 |
+        | True | "hello" | False |     5 |     7 |    46 |
         +------+---------+-------+-------+-------+-------+
 
         Notes
@@ -1208,7 +1208,7 @@ class Table(ExprContainer):
         agg_ir = ir.TableAggregate(base._tir, expr._ir)
 
         if _localize:
-            return Env.backend().execute(agg_ir)
+            return Env.backend().execute(hl.ir.MakeTuple([agg_ir]))[0]
 
         return construct_expr(ir.LiftMeOut(agg_ir), expr.dtype)
 
@@ -1537,7 +1537,7 @@ class Table(ExprContainer):
         del n_rows
         if handler is None:
             handler = hl.utils.default_handler()
-        handler(self._show(n, width, truncate, types))
+        return handler(self._show(n, width, truncate, types))
 
     def index(self, *exprs, all_matches=False) -> 'Expression':
         """Expose the row values as if looked up in a dictionary, indexing
@@ -2410,11 +2410,13 @@ class Table(ExprContainer):
 
     @typecheck_method(right=table_type,
                       how=enumeration('inner', 'outer', 'left', 'right'),
-                      _mangle=anyfunc)
+                      _mangle=anyfunc,
+                      _join_key=nullable(int))
     def join(self,
              right: 'Table',
              how='inner',
-             _mangle: Callable[[str, int], str] = lambda s, i: f'{s}_{i}') -> 'Table':
+             _mangle: Callable[[str, int], str] = lambda s, i: f'{s}_{i}',
+             _join_key: int = None) -> 'Table':
         """Join two tables together.
 
         Examples
@@ -2475,14 +2477,17 @@ class Table(ExprContainer):
             Joined table.
 
         """
-        left_key_types = list(self.key.dtype.values())
-        right_key_types = list(right.key.dtype.values())
+        if _join_key is None:
+            _join_key = max(len(self.key), len(right.key))
+
+        left_key_types = list(self.key.dtype.values())[:_join_key]
+        right_key_types = list(right.key.dtype.values())[:_join_key]
         if not left_key_types == right_key_types:
             raise ValueError(f"'join': key mismatch:\n  "
                              f"  left:  [{', '.join(str(t) for t in left_key_types)}]\n  "
                              f"  right: [{', '.join(str(t) for t in right_key_types)}]")
         left_fields = set(self._fields)
-        right_fields = set(right._fields)
+        right_fields = set(right._fields) - set(right.key)
 
         renames, _ = deduplicate(
             right_fields, max_attempts=100, already_used=left_fields)
@@ -2493,7 +2498,7 @@ class Table(ExprContainer):
             info('Table.join: renamed the following fields on the right to avoid name conflicts:'
                  + ''.join(f'\n    {repr(k)} -> {repr(v)}' for k, v in renames.items()))
 
-        return Table(ir.TableJoin(self._tir, right._tir, how, len(self.key)))
+        return Table(ir.TableJoin(self._tir, right._tir, how, _join_key))
 
     @typecheck_method(expr=BooleanExpression)
     def all(self, expr):
@@ -3129,7 +3134,7 @@ class Table(ExprContainer):
             entries = hl.array([hl.struct(**{entry_field_name: field}) for field in fields])
 
         t = self.transmute(entries=entries)
-        t = t.annotate_globals(cols=hl.array([hl.struct(**{col_field_name: col}) for col in columns]))
+        t = t.annotate_globals(cols=hl.array(columns).map(lambda col: hl.struct(**{col_field_name: col})))
         return t._unlocalize_entries('entries', 'cols', [col_field_name])
 
     @property
@@ -3269,10 +3274,6 @@ class Table(ExprContainer):
     def to_pandas(self, flatten=True):
         """Converts this table to a Pandas DataFrame.
 
-        Because conversion to Pandas is done through Spark, and Spark
-        cannot represent complex types, types are expanded before
-        flattening or conversion.
-
         Parameters
         ----------
         flatten : :obj:`bool`
@@ -3283,7 +3284,22 @@ class Table(ExprContainer):
         :class:`.pandas.DataFrame`
 
         """
-        return Env.spark_backend('to_pandas').to_pandas(self, flatten)
+        table = self.flatten() if flatten else self
+        dtypes_struct = table.row.dtype
+        collect_dict = {key: hl.agg.collect(value) for key, value in table.row.items()}
+        column_struct_array = table.aggregate(hl.struct(**collect_dict))
+        columns = list(column_struct_array.keys())
+        data_dict = {}
+
+        for column in columns:
+            hl_dtype = dtypes_struct[column]
+            if hl_dtype == hl.tstr:
+                pd_dtype = 'string'
+            else:
+                pd_dtype = hl_dtype.to_numpy()
+            data_dict[column] = pandas.Series(column_struct_array[column], dtype=pd_dtype)
+
+        return pandas.DataFrame(data_dict)
 
     @staticmethod
     @typecheck(df=pandas.DataFrame,
@@ -3314,7 +3330,7 @@ class Table(ExprContainer):
         from hail.expr.functions import _values_similar
 
         if self._type != other._type:
-            print(f'Table._same: types differ: {self._type}, {other._type}')
+            print(f'Table._same: types differ:\n  {self._type}\n  {other._type}')
             return False
 
         left_global_value = Env.get_uid()
@@ -3502,6 +3518,10 @@ class Table(ExprContainer):
         to create the full Cartesian product of duplicate keys. Instead, there
         is exactly one entry in some `data_field_name` array for every row in
         the inputs.
+
+        The :meth:`multi_way_zip_join` method assumes that inputs have distinct
+        keys. If any input has duplicate keys, the row value that is included
+        in the result array for that key is undefined.
 
         Parameters
         ----------

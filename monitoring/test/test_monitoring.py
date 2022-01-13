@@ -8,12 +8,11 @@ from hailtop.auth import service_auth_headers
 from hailtop.httpx import client_session
 import hailtop.utils as utils
 
-pytestmark = pytest.mark.asyncio
-
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger(__name__)
 
 
+@pytest.mark.asyncio
 async def test_billing_monitoring():
     deploy_config = get_deploy_config()
     monitoring_deploy_config_url = deploy_config.url('monitoring', '/api/v1alpha/billing')
@@ -24,7 +23,8 @@ async def test_billing_monitoring():
             data = None
             while data is None:
                 resp = await utils.request_retry_transient_errors(
-                    session, 'GET', f'{monitoring_deploy_config_url}', headers=headers)
+                    session, 'GET', f'{monitoring_deploy_config_url}', headers=headers
+                )
                 data = await resp.json()
                 await asyncio.sleep(5)
             return data

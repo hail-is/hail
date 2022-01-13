@@ -33,15 +33,15 @@ spec:
         preemptible: "false"
       containers:
        - name: ukbb-rg-static
-         image: gcr.io/hail-vdc/ukbb-rg-static
+         image: {{ docker_prefix }}/ukbb-rg-static
          imagePullPolicy: Always
          resources:
            requests:
-             memory: "3.75G"
-             cpu: "800m"
+             cpu: "100m"
+             memory: "200M"
            limits:
-             memory: "3.75G"
              cpu: "1"
+             memory: "1G"
          ports:
           - containerPort: 80
             protocol: TCP
@@ -82,15 +82,15 @@ spec:
         preemptible: "false"
       containers:
        - name: ukbb-rg-browser
-         image: gcr.io/hail-vdc/ukbb-rg-browser
+         image: {{ docker_prefix }}/ukbb-rg-browser
          imagePullPolicy: Always
          resources:
            requests:
-             memory: "3.75G"
-             cpu: "800m"
+             cpu: "100m"
+             memory: "200M"
            limits:
-             memory: "3.75G"
              cpu: "1"
+             memory: "1G"
          ports:
           - containerPort: 3838
             protocol: TCP

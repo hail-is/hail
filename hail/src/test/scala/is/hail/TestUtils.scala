@@ -1,22 +1,25 @@
 package is.hail
 
 import java.io.{File, PrintWriter}
-
 import breeze.linalg.{DenseMatrix, Matrix, Vector}
 import is.hail.ExecStrategy.ExecStrategy
 import is.hail.annotations.{Region, RegionValueBuilder, SafeRow}
 import is.hail.asm4s._
+import is.hail.backend.ExecuteContext
 import is.hail.backend.spark.SparkBackend
 import is.hail.expr.ir._
 import is.hail.expr.ir.{BindingEnv, MakeTuple, Subst}
 import is.hail.expr.ir.lowering.LowererUnsupportedOperation
-import is.hail.types.physical.{PBaseStruct, PCanonicalArray, PType}
+import is.hail.types.physical.{PBaseStruct, PCanonicalArray, PType, stypes}
 import is.hail.types.virtual._
 import is.hail.io.vcf.MatrixVCFReader
+import is.hail.types.physical.stypes.PTypeReferenceSingleCodeType
 import is.hail.utils._
 import is.hail.variant._
 import org.apache.spark.SparkException
 import org.apache.spark.sql.Row
+
+import scala.collection.mutable
 
 object ExecStrategy extends Enumeration {
   type ExecStrategy = Value
@@ -148,7 +151,7 @@ object TestUtils {
       None
   }
 
-  def loweredExecute(x: IR, env: Env[(Any, Type)],
+  def loweredExecute(ctx: ExecuteContext, x: IR, env: Env[(Any, Type)],
     args: IndexedSeq[(Any, Type)],
     agg: Option[(IndexedSeq[Row], TStruct)],
     bytecodePrinter: Option[PrintWriter] = None
@@ -158,22 +161,24 @@ object TestUtils {
 
     ExecutionTimer.logTime("TestUtils.loweredExecute") { timer =>
       HailContext.sparkBackend("TestUtils.loweredExecute")
-        .jvmLowerAndExecute(timer, x, optimize = false, lowerTable = true, lowerBM = true, print = bytecodePrinter)
+        .jvmLowerAndExecute(ctx, timer, x, optimize = false, lowerTable = true, lowerBM = true, print = bytecodePrinter)
     }
   }
 
-  def eval(x: IR): Any = eval(x, Env.empty, FastIndexedSeq(), None)
+  def eval(x: IR): Any = ExecuteContext.scoped(){ ctx =>
+    eval(x, Env.empty, FastIndexedSeq(), None, None, true, ctx)
+  }
 
   def eval(x: IR,
     env: Env[(Any, Type)],
     args: IndexedSeq[(Any, Type)],
     agg: Option[(IndexedSeq[Row], TStruct)],
     bytecodePrinter: Option[PrintWriter] = None,
-    optimize: Boolean = true
+    optimize: Boolean = true,
+    ctx: ExecuteContext
   ): Any = {
-    ExecuteContext.scoped() { ctx =>
       val inputTypesB = new BoxedArrayBuilder[Type]()
-      val inputsB = new BoxedArrayBuilder[Any]()
+      val inputsB = new mutable.ArrayBuffer[Any]()
 
       args.foreach { case (v, t) =>
         inputsB += v
@@ -217,9 +222,9 @@ object TestUtils {
             aggElementVar,
             MakeTuple.ordered(FastSeq(rewrite(Subst(x, BindingEnv(eval = substEnv, agg = Some(substAggEnv)))))))
 
-          val (resultType2, f) = Compile[AsmFunction3RegionLongLongLong](ctx,
-            FastIndexedSeq((argsVar, argsPType),
-              (aggArrayVar, aggArrayPType)),
+          val (Some(PTypeReferenceSingleCodeType(resultType2)), f) = Compile[AsmFunction3RegionLongLongLong](ctx,
+            FastIndexedSeq((argsVar, SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(argsPType))),
+              (aggArrayVar, SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(aggArrayPType)))),
             FastIndexedSeq(classInfo[Region], LongInfo, LongInfo), LongInfo,
             aggIR,
             print = bytecodePrinter,
@@ -246,13 +251,13 @@ object TestUtils {
             rvb.endArray()
             val aggOff = rvb.end()
 
-            val resultOff = f(0, region)(region, argsOff, aggOff)
+            val resultOff = f(ctx.fs, 0, region)(region, argsOff, aggOff)
             SafeRow(resultType2.asInstanceOf[PBaseStruct], resultOff).get(0)
           }
 
         case None =>
-          val (resultType2, f) = Compile[AsmFunction2RegionLongLong](ctx,
-            FastIndexedSeq((argsVar, argsPType)),
+          val (Some(PTypeReferenceSingleCodeType(resultType2)), f) = Compile[AsmFunction2RegionLongLong](ctx,
+            FastIndexedSeq((argsVar, SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(argsPType)))),
             FastIndexedSeq(classInfo[Region], LongInfo), LongInfo,
             MakeTuple.ordered(FastSeq(rewrite(Subst(x, BindingEnv(substEnv))))),
             optimize = optimize,
@@ -271,11 +276,10 @@ object TestUtils {
             rvb.endTuple()
             val argsOff = rvb.end()
 
-            val resultOff = f(0, region)(region, argsOff)
+            val resultOff = f(ctx.fs, 0, region)(region, argsOff)
             SafeRow(resultType2.asInstanceOf[PBaseStruct], resultOff).get(0)
           }
       }
-    }
   }
 
   def assertEvalSame(x: IR) {
@@ -292,7 +296,7 @@ object TestUtils {
     val (i, i2, c) = ExecuteContext.scoped() { ctx =>
       val i = Interpret[Any](ctx, x, env, args)
       val i2 = Interpret[Any](ctx, x, env, args, optimize = false)
-      val c = eval(x, env, args, None)
+      val c = eval(x, env, args, None, None, true, ctx)
       (i, i2, c)
     }
 
@@ -345,7 +349,6 @@ object TestUtils {
         }
 
       filteredExecStrats.foreach { strat =>
-        InferPType.clearPTypes(x)
         try {
           val res = strat match {
             case ExecStrategy.Interpret =>
@@ -362,7 +365,7 @@ object TestUtils {
                     val pw = new PrintWriter(new File(path))
                     pw.print(s"/* JVM bytecode dump for IR:\n${Pretty(x)}\n */\n\n")
                     pw
-                  })
+                  }, true, ctx)
             case ExecStrategy.JvmCompileUnoptimized =>
               assert(Forall(x, node => Compilable(node)))
               eval(x, env, args, agg, bytecodePrinter =
@@ -372,9 +375,9 @@ object TestUtils {
                     pw.print(s"/* JVM bytecode dump for IR:\n${Pretty(x)}\n */\n\n")
                     pw
                   },
-                optimize = false)
+                optimize = false, ctx)
             case ExecStrategy.LoweredJVMCompile =>
-              loweredExecute(x, env, args, agg)
+              loweredExecute(ctx, x, env, args, agg)
           }
           if (t != TVoid) {
             assert(t.typeCheck(res), s"\n  t=$t\n  result=$res\n  strategy=$strat")
@@ -397,7 +400,7 @@ object TestUtils {
     ExecuteContext.scoped() { ctx =>
       interceptException[E](regex)(Interpret[Any](ctx, x, env, args))
       interceptException[E](regex)(Interpret[Any](ctx, x, env, args, optimize = false))
-      interceptException[E](regex)(eval(x, env, args, None))
+      interceptException[E](regex)(eval(x, env, args, None, None, true, ctx))
     }
   }
 
@@ -414,7 +417,9 @@ object TestUtils {
   }
 
   def assertCompiledThrows[E <: Throwable : Manifest](x: IR, env: Env[(Any, Type)], args: IndexedSeq[(Any, Type)], regex: String) {
-    interceptException[E](regex)(eval(x, env, args, None))
+    ExecuteContext.scoped() { ctx =>
+      interceptException[E](regex)(eval(x, env, args, None, None, true, ctx))
+    }
   }
 
   def assertCompiledThrows[E <: Throwable : Manifest](x: IR, regex: String) {

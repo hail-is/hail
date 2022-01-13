@@ -8,12 +8,7 @@ final class MemoryBufferWrapper {
 
   def buffer: InputBuffer = ib
 
-  def clearAndSetFrom(address: Long, size: Int): Unit = {
-    if (mb.capacity < size)
-      mb.grow(size)
-    mb.clear()
-    mb.writeBytes(address, size)
-  }
+  def set(bytes: Array[Byte]): Unit = mb.set(bytes)
 }
 
 final class MemoryWriterWrapper {

@@ -68,7 +68,7 @@ of jobs.
 
 In the example below, we have defined a :class:`.Batch` `b` with the name 'hello'.
 We use the method :meth:`.Batch.new_job` to create a job object which we call `j` and then
-use the method :meth:`.Job.command` to tell Batch that we want to execute `echo "hello world"`.
+use the method :meth:`.BashJob.command` to tell Batch that we want to execute `echo "hello world"`.
 However, at this point, Batch hasn't actually run the job to print "hello world". All we have
 done is specified the jobs and the order in which they should be run. To actually execute the
 Batch, we call :meth:`.Batch.run`. The `name` arguments to both :class:`.Batch` and
@@ -136,7 +136,7 @@ on the fly when we accessed an attribute of a :class:`.Job` that does not alread
 exist. Any time we access the attribute again (in this example `ofile`), we get the
 same :class:`.JobResourceFile` that was previously created. However, be aware that
 you cannot use an existing method or property name of :class:`.Job` objects such
-as :meth:`.Job.command` or :meth:`.Job.image`.
+as :meth:`.BashJob.command` or :meth:`.BashJob.image`.
 
 Note the 'f' character before the string in the command for `s`! We placed `s.ofile` in curly braces so
 when Python interpolates the :ref:`f-string <f-strings>`, it replaced the
@@ -328,7 +328,7 @@ stdout in :class:`.Job` `j`.
 Why do we need to explicitly add input files to batches rather than referring
 directly to the path in the command? You could refer directly to the path when using the
 :class:`.LocalBackend`, but only if you are not specifying a docker image to use when running
-the command with :meth:`.Job.image`. This is because Batch copies any input files to a special
+the command with :meth:`.BashJob.image`. This is because Batch copies any input files to a special
 temporary directory which gets mounted to the Docker container. When using the :class:`.ServiceBackend`,
 input files would be files in Google Storage. Many commands do not know how to handle file
 paths in Google Storage. Therefore, we suggest explicitly adding all input files as input resource
@@ -371,7 +371,7 @@ specific file extensions including when writing out a new dataset or outputting 
 To enable Batch to work with file groups, we added a :class:`.ResourceGroup` object
 that is essentially a dictionary from file extension name to file path. When creating
 a :class:`.ResourceGroup` in a :class:`.Job` (equivalent to a :class:`.JobResourceFile`),
-you first need to use the method :meth:`.Job.declare_resource_group` to declare the files
+you first need to use the method :meth:`.BashJob.declare_resource_group` to declare the files
 in the resource group explicitly before referring to the resource group in a command.
 This is because the default when referring to an attribute on a job that has not been defined
 before is to create a :class:`.JobResourceFile` and not a resource group.
@@ -433,6 +433,54 @@ then you'd need to create the resource group as follows:
     >>> b = hb.Batch(name='resource-file-extensions')
     >>> rg = b.read_input_group(**{'txt.gz': 'data/hello.txt.gz'})
     >>> rg['txt.gz']
+
+
+Python Jobs
+-----------
+
+Up until now we have used the :meth:`.Batch.new_job` method to create a new :class:`.BashJob`.
+The jobs run a command that is assumed to be a bash command. However, Batch also has an
+alternate type of job called a :class:`.PythonJob`. Unlike :class:`.BashJob`, :class:`.PythonJob`
+does not have a :meth:`.BashJob.command` method and instead have a :meth:`.PythonJob.call` method
+that takes a Python function to call and the positional arguments and key-word arguments to provide
+to the function. The result of :meth:`.PythonJob.call` is a :class:`.PythonResult` which can be
+used as either arguments to another :class:`.PythonJob` or to other :class:`.BashJob` by using one
+of the methods to convert a :class:`.PythonResult` to a file: :meth:`.PythonResult.as_str`,
+:meth:`.PythonResult.as_repr`, and :meth:`.PythonResult.as_json`.
+
+In the example below, we first define two Python functions: `hello_world()` and `upper()`.
+Next, we create a batch and then create a new PythonJob with :meth:`.Batch.new_python_job`.
+Then we use :meth:`.PythonJob.call` and pass the `hello_world` function that we want to call.
+Notice we just passed the reference to the function and not ``hello_world()``. We also add
+a Python string `alice` as an argument to the function. The result of the ``j.call()`` is
+a :class:`.PythonResult` which we've assigned to the variable `hello_str`.
+
+We want to use the `hello_str` result and make all the letters in upper case. We call
+:meth:`.PythonJob.call` and pass a reference to the `upper` function.
+But now the argument is `hello_str` which holds the result from calling `hello_world`
+above. We assign the new output to the variable `result`.
+
+At this point, we want to write out the transformed hello world result to a text file.
+However, `result` is a :class:`.PythonResult`. Therefore, we need to use the :meth:`.PythonResult.as_str`
+to convert `result` to a :class:`.JobResourceFile` with the string output `HELLO WORLD ALICE`. Now
+we can write the result to a file.
+
+.. code-block:: python
+
+    def hello_world(name):
+        return f'hello {name}'
+
+
+    def upper(s):
+        return s.upper()
+
+
+    b = hb.Batch(name='hello')
+    j = b.new_python_job()
+    hello_str = j.call(hello_world, 'alice')
+    result = j.call(upper, hello_str)
+    b.write_output(result.as_str(), 'output/hello-alice.txt')
+    b.run()
 
 
 Backends

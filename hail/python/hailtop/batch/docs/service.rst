@@ -7,9 +7,14 @@ Batch Service
 
 .. warning::
 
-    The Batch Service is currently only available to Broad Institute users. If you are interested
-    in using the Batch Service, please send us an email at hail-team@broadinstitute.org.
+    The Batch Service is currently only available to Broad Institute affiliates. Please `contact us
+    <mailto:hail-team@broadinstitute.org>`__ if you are interested in hosting a copy of the Batch
+    Service at your institution.
 
+.. warning::
+
+    Ensure you have installed the Google Cloud SDK as described in the Batch Service section of
+    :ref:`Getting Started <sec-getting_started>`.
 
 What is the Batch Service?
 --------------------------
@@ -20,7 +25,6 @@ and is called the Batch Service. The Batch Service consists of a scheduler that 
 submission requests from users and then executes jobs in Docker containers on Google Compute
 Engine VMs (workers) that are shared amongst all Batch users. A UI is available at `<https://batch.hail.is>`__
 that allows a user to see job progress and access logs.
-
 
 Sign Up
 -------
@@ -125,30 +129,46 @@ machines with 10 GB of persistent SSD boot disk and 375 GB of local SSD. The cos
 
    = $0.001685 per core per hour
 
+   - Storage
+
+     .. code-block:: text
+
+         Average number of days per month = 365.25 / 12 = 30.4375
+
+         Cost per GB per month = $0.17
+
+         Cost per GB per hour = $0.17 / 30.4375 / 24
+
+
 - IP network cost
    = $0.00025 per core per hour
 
 - Service cost
    = $0.01 per core per hour
 
+
 The sum of these costs is **$0.021935** per core/hour for standard workers, **$0.024388** per core/hour
-for highmem workers, and **$0.019393** per core/hour for highcpu workers.
+for highmem workers, and **$0.019393** per core/hour for highcpu workers. There is also an additional
+cost of **$0.00023** per GB per hour of extra storage requested.
 
 At any given moment as many as four cores of the cluster may come from a 4 core machine if the worker type
-is standard. If a job is scheduled on this machine, then the cost per core hour is **$0.02774**.
+is standard. If a job is scheduled on this machine, then the cost per core hour is **$0.02774** plus
+**$0.00023** per GB per hour storage of extra storage requested.
 
 
 .. note::
 
-    The amount of CPU reserved for a job can be rounded up if the equivalent memory and/or storage request
-    requires a larger fraction of the worker. Currently, each 1 core requested
-    gets 3.75 GB of memory and 21.875 GB of storage for standard worker types. Therefore, if a user requests
-    1 CPU and 7 GB of memory, the user will get 2 cores for their job and will be billed for 2 cores.
+    If the memory is specified as either 'lowmem', 'standard', or 'highmem', then the corresponding worker types
+    used are 'highcpu', 'standard', and 'highmem'. Otherwise, we will choose the cheapest worker type for you based
+    on the cpu and memory requests. In this case, it is possible a cheaper configuration will round up the cpu requested
+    to the next power of two in order to obtain more memory on a cheaper worker type.
 
 .. note::
 
-    The amount of CPU reserved for a job is rounded up to powers of two with a minimum of 0.25 cores.
-    For example, a job requesting 5 cores will be rounded up to 8 cores.
+    The storage for the root file system (`/`) is 5 Gi per job for jobs with at least 1 core. If a job requests less
+    than 1 core, then it receives that fraction of 5 Gi. If you need more storage than this,
+    you can request more storage explicitly with the :meth:`.Job.storage` method. The minimum storage request is 10 GB
+    which can be incremented in units of 1 GB maxing out at 64 TB. The additional storage is mounted at `/io`.
 
 .. note::
 
@@ -162,15 +182,16 @@ is standard. If a job is scheduled on this machine, then the cost per core hour 
 Setup
 -----
 
-We assume you've already installed Batch as described in the
-:ref:`Getting Started <sec-getting_started>` section and we have
-created a user account for you and given you a billing project.
+We assume you've already installed Batch and the Google Cloud SDK as described in the :ref:`Getting
+Started <sec-getting_started>` section and we have created a user account for you and given you a
+billing project.
 
 To authenticate your computer with the Batch service, run the following
 command in a terminal window:
 
 .. code-block:: sh
 
+    gcloud auth application-default login
     hailctl auth login
 
 Executing this command will take you to a login page in your browser window where
@@ -202,19 +223,19 @@ and execute the following batch:
 .. code-block:: python
 
     >>> import hailtop.batch as hb # doctest: +SKIP
-    >>> backend = hb.ServiceBackend('my-billing-project', 'my-bucket') # doctest: +SKIP
+    >>> backend = hb.ServiceBackend('my-billing-project', remote_tmpdir='gs://my-bucket/batch/tmp/') # doctest: +SKIP
     >>> b = hb.Batch(backend=backend, name='test') # doctest: +SKIP
     >>> j = b.new_job(name='hello') # doctest: +SKIP
     >>> j.command('echo "hello world"') # doctest: +SKIP
     >>> b.run(open=True) # doctest: +SKIP
 
-You may elide the ``billing_project`` and ``bucket`` parameters if you
+You may elide the ``billing_project`` and ``remote_tmpdir`` parameters if you
 have previously set them with ``hailctl``:
 
 .. code-block:: sh
 
     hailctl config set batch/billing_project my-billing-project
-    hailctl config set batch/bucket my-bucket
+    hailctl config set batch/remote_tmpdir my-remote-tmpdir
 
 .. note::
 

@@ -1,50 +1,52 @@
 package is.hail.types.physical.stypes.interfaces
 
-import is.hail.annotations.{CodeOrdering, Region}
+import is.hail.annotations.Region
 import is.hail.asm4s.{Code, Settable, TypeInfo, UnitInfo, Value}
+import is.hail.expr.ir.orderings.CodeOrdering
 import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder, SortOrder}
-import is.hail.types.physical.stypes.{SCode, SSettable, SType}
-import is.hail.types.physical.{PCode, PType, PUnrealizableCode, PValue, PVoid}
+import is.hail.types.{RPrimitive, TypeWithRequiredness}
+import is.hail.types.physical.stypes.{SCode, SSettable, SType, SUnrealizableCode, SUnrealizableValue, SValue}
+import is.hail.types.physical.{PType, PVoid}
+import is.hail.types.virtual.{TVoid, Type}
+import is.hail.utils.FastIndexedSeq
 
 case object SVoid extends SType {
 
-  def pType: PType = PVoid
+  override def virtualType: Type = TVoid
 
-  def coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): SCode = value
+  override def castRename(t: Type): SType = this
 
-  def codeOrdering(mb: EmitMethodBuilder[_], other: SType, so: SortOrder): CodeOrdering = throw new UnsupportedOperationException
+  override def _coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SValue, deepCopy: Boolean): SValue = value
 
-  def codeTupleTypes(): IndexedSeq[TypeInfo[_]] = IndexedSeq()
+  override def settableTupleTypes(): IndexedSeq[TypeInfo[_]] = IndexedSeq()
 
-  def loadFrom(cb: EmitCodeBuilder, region: Value[Region], pt: PType, addr: Code[Long]): SCode = throw new UnsupportedOperationException
+  override def fromSettables(settables: IndexedSeq[Settable[_]]): SSettable = throw new UnsupportedOperationException
 
-  def fromCodes(codes: IndexedSeq[Code[_]]): SCode = throw new UnsupportedOperationException
+  override def fromValues(values: IndexedSeq[Value[_]]): SValue = throw new UnsupportedOperationException
 
-  def fromSettables(settables: IndexedSeq[Settable[_]]): SSettable = throw new UnsupportedOperationException
+  override def storageType(): PType = throw new UnsupportedOperationException
 
-  def canonicalPType(): PType = pType
+  override def copiedType: SType = this
+
+  override def _typeWithRequiredness: TypeWithRequiredness = throw new UnsupportedOperationException
+
+  override def containsPointers: Boolean = false
 }
 
-case object PVoidCode extends PCode with PUnrealizableCode {
+case object SVoidCode extends SCode with SUnrealizableCode {
   self =>
-
-  override def pt: PType = PVoid
 
   override def st: SType = SVoid
 
-  override def typeInfo: TypeInfo[_] = UnitInfo
+  def memoize(cb: EmitCodeBuilder, name: String): SValue = SVoidValue
+}
 
-  override def code: Code[_] = Code._empty
+case object SVoidValue extends SValue with SUnrealizableValue {
+  self =>
 
-  override def tcode[T](implicit ti: TypeInfo[T]): Code[T] = {
-    assert(ti == typeInfo)
-    code.asInstanceOf[Code[T]]
-  }
+  override def st: SType = SVoid
 
-  def memoize(cb: EmitCodeBuilder, name: String): PValue = new PValue {
-    val pt: PType = PVoid
-    val st: SType = SVoid
+  override def valueTuple: IndexedSeq[Value[_]] = FastIndexedSeq()
 
-    def get: PCode = self
-  }
+  override def get: SCode = SVoidCode
 }

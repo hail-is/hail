@@ -352,16 +352,16 @@ def kyle_sex_specific_qc(mt_path):
 
 
 @benchmark()
-def matrix_table_scan_count_rows():
+def matrix_table_scan_count_rows_2():
     mt = hl.utils.range_matrix_table(n_rows=200_000_000, n_cols=10, n_partitions=16)
-    mt.annotate_rows(x=hl.scan.count())
+    mt = mt.annotate_rows(x=hl.scan.count())
     mt._force_count_rows()
 
 
 @benchmark()
-def matrix_table_scan_count_cols():
+def matrix_table_scan_count_cols_2():
     mt = hl.utils.range_matrix_table(n_cols=10_000_000, n_rows=10)
-    mt.annotate_cols(x=hl.scan.count())
+    mt = mt.annotate_cols(x=hl.scan.count())
     mt._force_count_rows()
 
 
@@ -371,3 +371,10 @@ def matrix_multi_write_nothing():
         mt = hl.utils.range_matrix_table(1, 1, n_partitions=1)
         mts = [mt] * 1000
         hl.experimental.write_matrix_tables(mts, path.join(tmpdir, 'multi-write'), overwrite=True)
+
+
+@benchmark(args=profile_25.handle("mt"))
+def mt_localize_and_collect(mt_path):
+    mt = hl.read_matrix_table(mt_path)
+    ht = mt.localize_entries("ent")
+    collected = ht.head(150).collect()

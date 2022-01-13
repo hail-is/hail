@@ -2,13 +2,16 @@ package is.hail.expr.ir
 
 import is.hail.asm4s._
 import is.hail.types._
+import is.hail.types.physical.stypes.{SCode, SType, SValue}
+import is.hail.types.physical.stypes.interfaces._
+import is.hail.types.physical.{PType, typeToTypeInfo}
 import is.hail.types.virtual._
 import is.hail.utils._
 
 object BinaryOp {
   private val returnType: ((BinaryOp, Type, Type)) => Option[Type] = lift {
-    case (FloatingPointDivide(), TInt32, TInt32) => TFloat32
-    case (FloatingPointDivide(), TInt64, TInt64) => TFloat32
+    case (FloatingPointDivide(), TInt32, TInt32) => TFloat64
+    case (FloatingPointDivide(), TInt64, TInt64) => TFloat64
     case (FloatingPointDivide(), TFloat32, TFloat32) => TFloat32
     case (FloatingPointDivide(), TFloat64, TFloat64) => TFloat64
     case (Add() | Subtract() | Multiply() | RoundToNegInfDivide() | BitAnd() | BitOr() | BitXOr(), TInt32, TInt32) => TInt32
@@ -32,7 +35,16 @@ object BinaryOp {
   private def incompatible[T](lt: Type, rt: Type, op: BinaryOp): T =
     throw new RuntimeException(s"Cannot apply $op to $lt and $rt")
 
-  def emit(op: BinaryOp, lt: Type, rt: Type, l: Code[_], r: Code[_]): Code[_] =
+  def emit(cb: EmitCodeBuilder, op: BinaryOp, l: SValue, r: SValue): SValue = {
+    val lt = l.st.virtualType
+    val rt = r.st.virtualType
+
+    val retCode = emit(op, lt, rt, SType.extractPrimValue(cb, l), SType.extractPrimValue(cb, r))
+    val retT = getReturnType(op, lt, rt)
+    primitive(retT, cb.memoizeAny(retCode, typeToTypeInfo(PType.canonical(retT))))
+  }
+
+  private[this] def emit(op: BinaryOp, lt: Type, rt: Type, l: Code[_], r: Code[_]): Code[_] =
     (lt, rt) match {
       case (TInt32, TInt32) =>
         val ll = coerce[Int](l)
@@ -41,7 +53,7 @@ object BinaryOp {
           case Add() => ll + rr
           case Subtract() => ll - rr
           case Multiply() => ll * rr
-          case FloatingPointDivide() => ll.toF / rr.toF
+          case FloatingPointDivide() => ll.toD / rr.toD
           case RoundToNegInfDivide() => Code.invokeStatic2[Math, Int, Int, Int]("floorDiv", ll, rr)
           case BitAnd() => ll & rr
           case BitOr() => ll | rr
@@ -67,7 +79,7 @@ object BinaryOp {
           case Add() => ll + rr
           case Subtract() => ll - rr
           case Multiply() => ll * rr
-          case FloatingPointDivide() => ll.toF / rr.toF
+          case FloatingPointDivide() => ll.toD / rr.toD
           case RoundToNegInfDivide() => Code.invokeStatic2[Math, Long, Long, Long]("floorDiv", ll, rr)
           case BitAnd() => ll & rr
           case BitOr() => ll | rr

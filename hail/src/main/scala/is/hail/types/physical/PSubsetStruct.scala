@@ -4,8 +4,8 @@ import is.hail.annotations.{Annotation, Region, UnsafeUtils}
 import is.hail.asm4s.{Code, Settable, SettableBuilder, Value, coerce, const}
 import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder, IEmitCode}
 import is.hail.types.BaseStruct
-import is.hail.types.physical.stypes.interfaces.SStruct
-import is.hail.types.physical.stypes.{SCode, SType}
+import is.hail.types.physical.stypes.interfaces.{SBaseStruct, SBaseStructCode, SBaseStructValue}
+import is.hail.types.physical.stypes.{SCode, SType, SValue}
 import is.hail.types.physical.stypes.concrete.SSubsetStruct
 import is.hail.types.virtual.TStruct
 import is.hail.utils._
@@ -19,7 +19,7 @@ object PSubsetStruct {
 
 // Semantics: PSubsetStruct is a non-constructible view of another PStruct, which is not allowed to mutate
 // that underlying PStruct's region data
-final case class PSubsetStruct(ps: PStruct, _fieldNames: Array[String]) extends PStruct {
+final case class PSubsetStruct(ps: PStruct, _fieldNames: IndexedSeq[String]) extends PStruct {
   val fields: IndexedSeq[PField] = _fieldNames.zipWithIndex.map { case (name, i) => PField(name, ps.fieldType(name), i)}
   val required = ps.required
 
@@ -27,7 +27,7 @@ final case class PSubsetStruct(ps: PStruct, _fieldNames: Array[String]) extends 
     log.warn("PSubsetStruct used without subsetting input PStruct")
   }
 
-  private val idxMap: Array[Int] = _fieldNames.map(f => ps.fieldIdx(f))
+  private val idxMap: Array[Int] = _fieldNames.map(f => ps.fieldIdx(f)).toArray
 
   lazy val missingIdx: Array[Int] = idxMap.map(i => ps.missingIdx(i))
   lazy val nMissing: Int = missingIdx.length
@@ -35,27 +35,15 @@ final case class PSubsetStruct(ps: PStruct, _fieldNames: Array[String]) extends 
   override lazy val virtualType = TStruct(fields.map(f => (f.name -> f.typ.virtualType)):_*)
   override val types: Array[PType] = fields.map(_.typ).toArray
 
-  lazy val structFundamentalType: PStruct = PSubsetStruct(ps.structFundamentalType, _fieldNames)
-  lazy val structEncodableType: PStruct = PSubsetStruct(ps.structEncodableType, _fieldNames)
   override val byteSize: Long = 8
 
   override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean) {
-    if (compact) {
-      sb.append("PSubsetStruct{")
-      fields.foreachBetween(_.pretty(sb, indent, compact))(sb += ',')
-      sb += '}'
-    } else {
-      if (size == 0)
-        sb.append("Struct { }")
-      else {
-        sb.append("Struct {")
-        sb += '\n'
-        fields.foreachBetween(_.pretty(sb, indent + 4, compact))(sb.append(",\n"))
-        sb += '\n'
-        sb.append(" " * indent)
-        sb += '}'
-      }
-    }
+    sb.append("PSubsetStruct{")
+    ps.pretty(sb, indent, compact)
+    sb += '{'
+    fieldNames.foreachBetween(f => sb.append(prettyIdentifier(f)))(sb += ',')
+    sb += '}'
+    sb += '}'
   }
 
   override def rename(m: Map[String, String]): PStruct = {
@@ -65,8 +53,8 @@ final case class PSubsetStruct(ps: PStruct, _fieldNames: Array[String]) extends 
     PSubsetStruct(newPStruct, newNames)
   }
 
-  override def isFieldMissing(structAddress: Code[Long], fieldName: String): Code[Boolean] =
-    ps.isFieldMissing(structAddress, fieldName)
+  override def isFieldMissing(cb: EmitCodeBuilder, structAddress: Code[Long], fieldName: String): Value[Boolean] =
+    ps.isFieldMissing(cb, structAddress, fieldName)
 
   override def fieldOffset(structAddress: Code[Long], fieldName: String): Code[Long] =
     ps.fieldOffset(structAddress, fieldName)
@@ -74,8 +62,8 @@ final case class PSubsetStruct(ps: PStruct, _fieldNames: Array[String]) extends 
   override def isFieldDefined(structAddress: Long, fieldIdx: Int): Boolean =
     ps.isFieldDefined(structAddress, idxMap(fieldIdx))
 
-  override def isFieldMissing(structAddress: Code[Long], fieldIdx: Int): Code[Boolean] =
-    ps.isFieldMissing(structAddress, idxMap(fieldIdx))
+  override def isFieldMissing(cb: EmitCodeBuilder, structAddress: Code[Long], fieldIdx: Int): Value[Boolean] =
+    ps.isFieldMissing(cb, structAddress, idxMap(fieldIdx))
 
   override def fieldOffset(structAddress: Long, fieldIdx: Int): Long =
     ps.fieldOffset(structAddress, idxMap(fieldIdx))
@@ -92,25 +80,25 @@ final case class PSubsetStruct(ps: PStruct, _fieldNames: Array[String]) extends 
   override def loadField(structAddress: Code[Long], fieldIdx: Int): Code[Long] =
     ps.loadField(structAddress, idxMap(fieldIdx))
 
-  override def setFieldPresent(structAddress: Code[Long], fieldName: String): Code[Unit] = ???
+  override def setFieldPresent(cb: EmitCodeBuilder, structAddress: Code[Long], fieldName: String): Unit = ???
 
-  override def setFieldMissing(structAddress: Code[Long], fieldName: String): Code[Unit] = ???
+  override def setFieldMissing(cb: EmitCodeBuilder, structAddress: Code[Long], fieldName: String): Unit = ???
 
   override def setFieldMissing(structAddress: Long, fieldIdx: Int): Unit = ???
 
-  override def setFieldMissing(structAddress: Code[Long], fieldIdx: Int): Code[Unit] = ???
+  override def setFieldMissing(cb: EmitCodeBuilder, structAddress: Code[Long], fieldIdx: Int): Unit = ???
 
   override def setFieldPresent(structAddress: Long, fieldIdx: Int): Unit = ???
 
-  override def setFieldPresent(structAddress: Code[Long], fieldIdx: Int): Code[Unit] = ???
+  override def setFieldPresent(cb: EmitCodeBuilder, structAddress: Code[Long], fieldIdx: Int): Unit = ???
 
   def insertFields(fieldsToInsert: TraversableOnce[(String, PType)]): PSubsetStruct = ???
 
   override def initialize(structAddress: Long, setMissing: Boolean): Unit =
     ps.initialize(structAddress, setMissing)
 
-  override def stagedInitialize(structAddress: Code[Long], setMissing: Boolean): Code[Unit] =
-    ps.stagedInitialize(structAddress, setMissing)
+  override def stagedInitialize(cb: EmitCodeBuilder, structAddress: Code[Long], setMissing: Boolean): Unit =
+    ps.stagedInitialize(cb, structAddress, setMissing)
 
   def allocate(region: Region): Long =
     ps.allocate(region)
@@ -127,15 +115,20 @@ final case class PSubsetStruct(ps: PStruct, _fieldNames: Array[String]) extends 
   override def _copyFromAddress(region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Long =
     throw new UnsupportedOperationException
 
-  def sType: SSubsetStruct = SSubsetStruct(ps.sType.asInstanceOf[SStruct], _fieldNames)
+  def sType: SSubsetStruct = SSubsetStruct(ps.sType.asInstanceOf[SBaseStruct], _fieldNames)
 
-  def store(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): Code[Long] = throw new UnsupportedOperationException
+  def store(cb: EmitCodeBuilder, region: Value[Region], value: SValue, deepCopy: Boolean): Value[Long] =
+    throw new UnsupportedOperationException
 
-  def storeAtAddress(cb: EmitCodeBuilder, addr: Code[Long], region: Value[Region], value: SCode, deepCopy: Boolean): Unit = {
+  def storeAtAddress(cb: EmitCodeBuilder, addr: Code[Long], region: Value[Region], value: SValue, deepCopy: Boolean): Unit = {
     throw new UnsupportedOperationException
   }
 
-  def loadCheapPCode(cb: EmitCodeBuilder, addr: Code[Long]): PCode = throw new UnsupportedOperationException
+  def loadCheapSCode(cb: EmitCodeBuilder, addr: Code[Long]): SBaseStructValue =
+    throw new UnsupportedOperationException
+
+  def loadCheapSCodeField(cb: EmitCodeBuilder, addr: Code[Long]): SBaseStructValue =
+    throw new UnsupportedOperationException
 
   def unstagedStoreAtAddress(addr: Long, region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Unit = {
     throw new UnsupportedOperationException
@@ -150,4 +143,6 @@ final case class PSubsetStruct(ps: PStruct, _fieldNames: Array[String]) extends 
 
   override def unstagedStoreJavaObjectAtAddress(addr: Long, annotation: Annotation, region: Region): Unit =
     throw new UnsupportedOperationException
+
+  override def copiedType: PType = ??? // PSubsetStruct on its way out
 }

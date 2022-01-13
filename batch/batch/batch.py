@@ -1,7 +1,7 @@
 import json
 import logging
 
-from hailtop.utils import (time_msecs_str, humanize_timedelta_msecs)
+from hailtop.utils import time_msecs_str, humanize_timedelta_msecs
 from gear import transaction
 
 from .batch_format_version import BatchFormatVersion
@@ -41,7 +41,9 @@ def batch_record_to_dict(record):
 
     d = {
         'id': record['id'],
+        'user': record['user'],
         'billing_project': record['billing_project'],
+        'token': record['token'],
         'state': state,
         'complete': record['state'] == 'complete',
         'closed': record['state'] != 'open',
@@ -53,7 +55,7 @@ def batch_record_to_dict(record):
         'time_created': time_created,
         'time_closed': time_closed,
         'time_completed': time_completed,
-        'duration': duration
+        'duration': duration,
     }
 
     attributes = json.loads(record['attributes'])
@@ -84,9 +86,11 @@ def job_record_to_dict(record, name):
         'batch_id': record['batch_id'],
         'job_id': record['job_id'],
         'name': name,
+        'user': record['user'],
+        'billing_project': record['billing_project'],
         'state': record['state'],
         'exit_code': exit_code,
-        'duration': duration
+        'duration': duration,
     }
 
     msec_mcpu = record['msec_mcpu']
@@ -98,21 +102,23 @@ def job_record_to_dict(record, name):
     return result
 
 
-async def cancel_batch_in_db(db, batch_id, user):
+async def cancel_batch_in_db(db, batch_id):
     @transaction(db)
     async def cancel(tx):
-        record = await tx.execute_and_fetchone('''
+        record = await tx.execute_and_fetchone(
+            '''
 SELECT `state` FROM batches
-WHERE user = %s AND id = %s AND NOT deleted
+WHERE id = %s AND NOT deleted
 FOR UPDATE;
 ''',
-                                               (user, batch_id))
+            (batch_id,),
+        )
         if not record:
             raise NonExistentBatchError(batch_id)
 
         if record['state'] == 'open':
             raise OpenBatchError(batch_id)
 
-        await tx.just_execute(
-            'CALL cancel_batch(%s);', (batch_id,))
+        await tx.just_execute('CALL cancel_batch(%s);', (batch_id,))
+
     await cancel()  # pylint: disable=no-value-for-parameter

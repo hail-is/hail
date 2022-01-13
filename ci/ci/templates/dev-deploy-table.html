@@ -1,0 +1,33 @@
+{% macro dev_deploy_table(dev_deploys) %}
+{% block head %}
+    <script src="{{ base_path }}/common_static/search_bar.js"></script>
+    <script src="{{ base_path }}/common_static/focus_on_keyup.js"></script>
+{% endblock %}
+<div class="searchbar-table">
+  <input type="text" id="devDepSearchBar" onkeyup="searchTable('dev-deploys', 'devDepSearchBar')" placeholder="Search terms...">
+  <table id="dev-deploys" class="data-table">
+    <thead>
+      <th>ID</th>
+      <th>Branch</th>
+      <th>Deploy State</th>
+    </thead>
+    <tbody>
+      {% for batch in dev_deploys %}
+      <tr>
+        <td class="numeric-cell">
+          <a href="{{ base_path }}/batches/{{ batch['id'] }}">{{ batch['id'] }}</a>
+        </td>
+        <td>
+          {{ batch['attributes']['target_branch'] }}
+        </td>
+        <td>
+          {% if 'state' in batch and batch['state'] %}
+          {{ batch['state'] }}
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endmacro %}

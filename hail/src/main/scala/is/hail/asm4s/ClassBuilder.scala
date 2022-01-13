@@ -1,18 +1,18 @@
 package is.hail.asm4s
 
 import java.io._
+import java.nio.charset.StandardCharsets
 
-import is.hail.utils._
+import is.hail.expr.ir.EmitCodeBuilder
 import is.hail.lir
-
+import is.hail.utils._
 import org.apache.spark.TaskContext
-import org.objectweb.asm.tree._
-import org.objectweb.asm.Opcodes._
-import org.objectweb.asm.util.{Textifier, TraceClassVisitor}
 import org.objectweb.asm.ClassReader
+import org.objectweb.asm.Opcodes._
+import org.objectweb.asm.tree._
+import org.objectweb.asm.util.{Textifier, TraceClassVisitor}
 
 import scala.collection.mutable
-import scala.reflect.ClassTag
 
 class Field[T: TypeInfo](classBuilder: ClassBuilder[_], val name: String) {
   val ti: TypeInfo[T] = implicitly
@@ -20,6 +20,10 @@ class Field[T: TypeInfo](classBuilder: ClassBuilder[_], val name: String) {
   val lf: lir.Field = classBuilder.lclass.newField(name, typeInfo[T])
 
   def get(obj: Code[_]): Code[T] = Code(obj, lir.getField(lf))
+
+  def get(obj: Value[_]): Value[T] = new Value[T] {
+    override def get: Code[T] = Code(obj, lir.getField(lf))
+  }
 
   def putAny(obj: Code[_], v: Code[_]): Code[Unit] = put(obj, coerce[T](v))
 
@@ -60,7 +64,10 @@ class ClassesBytes(classesBytes: Array[(String, Array[Byte])]) extends Serializa
               HailClassLoader.loadOrDefineClass(n, bytes)
             } catch {
               case e: Exception =>
-                FunctionBuilder.bytesToBytecodeString(bytes, FunctionBuilder.stderrAndLoggerErrorOS)
+                val buffer = new ByteArrayOutputStream()
+                FunctionBuilder.bytesToBytecodeString(bytes, buffer)
+                val classJVMByteCodeAsEscapedStr = buffer.toString(StandardCharsets.UTF_8.name())
+                log.error(s"Failed to load bytecode ${e}:\n" + classJVMByteCodeAsEscapedStr)
                 throw e
             }
           }
@@ -72,11 +79,13 @@ class ClassesBytes(classesBytes: Array[(String, Array[Byte])]) extends Serializa
 }
 
 class AsmTuple[C](val cb: ClassBuilder[C], val fields: IndexedSeq[Field[_]], val ctor: MethodBuilder[C]) {
+  val ti: TypeInfo[_] = cb.ti
+
   def newTuple(elems: IndexedSeq[Code[_]]): Code[C] = Code.newInstance(cb, ctor, elems)
 
-  def loadElementsAny(t: Value[_]): IndexedSeq[Code[_]] = fields.map(_.get(coerce[C](t) ))
+  def loadElementsAny(t: Value[_]): IndexedSeq[Value[_]] = fields.map(_.get(coerce[C](t) ))
 
-  def loadElements(t: Value[C]): IndexedSeq[Code[_]] = fields.map(_.get(t))
+  def loadElements(t: Value[C]): IndexedSeq[Value[_]] = fields.map(_.get(t))
 }
 
 trait WrappedModuleBuilder {
@@ -104,18 +113,29 @@ class ModuleBuilder() {
 
   def tupleClass(fieldTypes: IndexedSeq[TypeInfo[_]]): AsmTuple[_] = {
     tuples.getOrElseUpdate(fieldTypes, {
-      val cb = genClass[AnyRef]("Tuple")
+      val kb = genClass[Unit](s"Tuple${fieldTypes.length}")
       val fields = fieldTypes.zipWithIndex.map { case (ti, i) =>
-        cb.newField(s"_$i")(ti)
+        kb.newField(s"_$i")(ti)
       }
-      val ctor = cb.newMethod("<init>", fieldTypes, UnitInfo)
+      val ctor = kb.newMethod("<init>", fieldTypes, UnitInfo)
       ctor.emitWithBuilder { cb =>
+        // FIXME, maybe a more elegant way to do this?
+        val L = new lir.Block()
+        L.append(
+          lir.methodStmt(INVOKESPECIAL,
+            "java/lang/Object",
+            "<init>",
+            "()V",
+            false,
+            UnitInfo,
+            FastIndexedSeq(lir.load(ctor._this.asInstanceOf[LocalRef[_]].l))))
+        cb += new VCode(L, L, null)
         fields.zipWithIndex.foreach { case (f, i) =>
             cb += f.putAny(ctor._this, ctor.getArg(i + 1)(f.ti).get)
         }
         Code._empty
       }
-      new AsmTuple(cb, fields, ctor)
+      new AsmTuple(kb, fields, ctor)
     })
   }
 
@@ -212,7 +232,7 @@ class ClassBuilder[C](
   val sourceFile: Option[String]
 ) extends WrappedModuleBuilder {
 
-  val ti: TypeInfo[C] = new ClassInfo[C](className)
+  val ti: ClassInfo[C] = new ClassInfo[C](className)
 
   val lclass = new lir.Classx[C](className, "java/lang/Object", sourceFile)
 
@@ -272,11 +292,12 @@ class ClassBuilder[C](
     val m = newMethod(name, parameterTypeInfo, returnTypeInfo)
     if (maybeGenericParameterTypeInfo.exists(_.isGeneric) || maybeGenericReturnTypeInfo.isGeneric) {
       val generic = newMethod(name, maybeGenericParameterTypeInfo.map(_.generic), maybeGenericReturnTypeInfo.generic)
-      generic.emit(
-        maybeGenericReturnTypeInfo.castToGeneric(
-          m.invoke(maybeGenericParameterTypeInfo.zipWithIndex.map { case (ti, i) =>
-            ti.castFromGeneric(generic.getArg(i + 1)(ti.generic).get)
-          }: _*)))
+      generic.emitWithBuilder { cb =>
+        maybeGenericReturnTypeInfo.castToGeneric(cb,
+          m.invoke(cb, maybeGenericParameterTypeInfo.zipWithIndex.map { case (ti, i) =>
+            ti.castFromGeneric(cb, generic.getArg(i + 1)(ti.generic))
+          }: _*))
+}
     }
     m
   }
@@ -285,13 +306,6 @@ class ClassBuilder[C](
     val mb = new MethodBuilder[C](this, name, parameterTypeInfo, returnTypeInfo, isStatic = true)
     methods.append(mb)
     mb
-  }
-
-  def genDependentFunction[A1 : TypeInfo, R : TypeInfo](baseName: String): DependentFunctionBuilder[AsmFunction1[A1, R]] = {
-    val depCB = modb.genClass[AsmFunction1[A1, R]](baseName)
-    val apply = depCB.newMethod("apply", Array(GenericTypeInfo[A1]), GenericTypeInfo[R])
-    val dep_apply_method = new DependentMethodBuilder(apply)
-    new DependentFunctionBuilder[AsmFunction1[A1, R]](dep_apply_method)
   }
 
   def newField[T: TypeInfo](name: String): Field[T] = new Field[T](this, name)
@@ -404,8 +418,6 @@ class ClassBuilder[C](
 }
 
 object FunctionBuilder {
-  val stderrAndLoggerErrorOS = getStderrAndLogOutputStream[FunctionBuilder[_]]
-
   def bytesToBytecodeString(bytes: Array[Byte], out: OutputStream) {
     val tcv = new TraceClassVisitor(null, new Textifier, new PrintWriter(out))
     new ClassReader(bytes).accept(tcv, 0)
@@ -459,7 +471,9 @@ trait WrappedMethodBuilder[C] extends WrappedClassBuilder[C] {
 
   def emit(body: Code[_]): Unit = mb.emit(body)
 
-  def invoke[T](args: Code[_]*): Code[T] = mb.invoke(args: _*)
+  def emitWithBuilder[T](f: (CodeBuilder) => Code[T]): Unit = mb.emitWithBuilder(f)
+
+  def invoke[T](cb: EmitCodeBuilder, args: Value[_]*): Value[T] = mb.invoke(cb, args: _*)
 }
 
 class MethodBuilder[C](
@@ -492,7 +506,8 @@ class MethodBuilder[C](
       assert(ti == cb.ti, s"$ti != ${ cb.ti }")
     else {
       val static = (!isStatic).toInt
-      assert(ti == parameterTypeInfo(i - static), s"$ti != ${ parameterTypeInfo(i - static) }")
+      assert(ti == parameterTypeInfo(i - static),
+        s"$ti != ${ parameterTypeInfo(i - static) }\n  params: $parameterTypeInfo")
     }
     new LocalRef(lmethod.getParam(i))
   }
@@ -525,8 +540,8 @@ class MethodBuilder[C](
     body.clear()
   }
 
-  def invoke[T](args: Code[_]*): Code[T] = {
-    val (start, end, argvs) = Code.sequenceValues(args.toFastIndexedSeq)
+  def invokeCode[T](args: Value[_]*): Code[T] = {
+    val (start, end, argvs) = Code.sequenceValues(args.toFastIndexedSeq.map(_.get))
     if (returnTypeInfo eq UnitInfo) {
       if (isStatic) {
         end.append(lir.methodStmt(INVOKESTATIC, lmethod, argvs))
@@ -546,58 +561,29 @@ class MethodBuilder[C](
       new VCode(start, end, value)
     }
   }
-}
 
-class DependentMethodBuilder[C](val mb: MethodBuilder[C]) extends WrappedMethodBuilder[C] {
-  var setFields: mutable.ArrayBuffer[(lir.ValueX) => Code[Unit]] = new mutable.ArrayBuffer()
-
-  def newDepField[T : TypeInfo](value: Code[T]): Value[T] = {
-    val cfr = genFieldThisRef[T]()
-    setFields += { (obj: lir.ValueX) =>
-      value.end.append(lir.putField(cb.className, cfr.name, typeInfo[T], obj, value.v))
-      val newC = new VCode(value.start, value.end, null)
-      value.clear()
-      newC
+  def invoke[T](codeBuilder: CodeBuilderLike, args: Value[_]*): Value[T] = {
+    val (start, end, argvs) = Code.sequenceValues(args.toFastIndexedSeq.map(_.get))
+    if (returnTypeInfo eq UnitInfo) {
+      if (isStatic) {
+        end.append(lir.methodStmt(INVOKESTATIC, lmethod, argvs))
+      } else {
+        end.append(
+          lir.methodStmt(INVOKEVIRTUAL, lmethod,
+            lir.load(new lir.Parameter(null, 0, cb.ti)) +: argvs))
+      }
+      codeBuilder.append(new VCode(start, end, null))
+      coerce[T](Code._empty)
+    } else {
+      val value = if (isStatic) {
+        lir.methodInsn(INVOKESTATIC, lmethod, argvs)
+      } else {
+        lir.methodInsn(INVOKEVIRTUAL, lmethod,
+          lir.load(new lir.Parameter(null, 0, cb.ti)) +: argvs)
+      }
+      coerce[T](codeBuilder.memoizeAny(new VCode(start, end, value), returnTypeInfo))
     }
-    cfr
   }
-
-  def newDepFieldAny[T: TypeInfo](value: Code[_]): Value[T] =
-    newDepField(value.asInstanceOf[Code[T]])
-
-  def newInstance(mb: MethodBuilder[_]): Code[C] = {
-    val L = new lir.Block()
-
-    val obj = new lir.Local(null, "new_dep_fun", cb.ti)
-    L.append(lir.store(obj, lir.newInstance(cb.ti, cb.lInit, FastIndexedSeq.empty[lir.ValueX])))
-
-    var end = L
-    setFields.foreach { f =>
-      val c = f(lir.load(obj))
-      end.append(lir.goto(c.start))
-      end = c.end
-    }
-    new VCode(L, end, lir.load(obj))
-  }
-
-  override def result(pw: Option[PrintWriter]): () => C =
-    throw new UnsupportedOperationException("cannot call result() on a dependent function")
-}
-
-trait WrappedDependentMethodBuilder[C] extends WrappedMethodBuilder[C] {
-  def dmb: DependentMethodBuilder[C]
-
-  def mb: MethodBuilder[C] = dmb.mb
-
-  def newDepField[T : TypeInfo](value: Code[T]): Value[T] = dmb.newDepField(value)
-
-  def newDepFieldAny[T: TypeInfo](value: Code[_]): Value[T] = dmb.newDepFieldAny[T](value)
-
-  def newInstance(mb: MethodBuilder[_]): Code[C] = dmb.newInstance(mb)
-}
-
-class DependentFunctionBuilder[F](apply_method: DependentMethodBuilder[F]) extends WrappedDependentMethodBuilder[F] {
-  def dmb: DependentMethodBuilder[F] = apply_method
 }
 
 class FunctionBuilder[F](

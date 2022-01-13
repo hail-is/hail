@@ -161,6 +161,11 @@ a {
     left: 20px;
 }
 
+.ci-caret:after {
+    /* 18 (measured width of CI) / 2 + 9 - 20 / 2 = 8px */
+    left: 8px;
+}
+
 .monitoring-caret:after {
     /* 82 (measured width of Monitoring) / 2 + 9 - 20 / 2 = 42px */
     left: 40px;
@@ -238,9 +243,25 @@ a {
     }
 
     tr {
-        &:nth-of-type(even) {
-            background-color: #f2f2f2;
+        &:nth-of-type(7n+1) {
+            background-color: #fff4f4;
         }
+        &:nth-of-type(7n+2) {
+            background-color: #fff9f1;
+        }
+        &:nth-of-type(7n+3) {
+            background-color: #fdfdf1;
+        }
+        &:nth-of-type(7n+4) {
+            background-color: #f4fff4;
+        }
+        &:nth-of-type(7n+5) {
+            background-color: #f2f4ff;
+        }
+        &:nth-of-type(7n+6) {
+            background-color: #fff6ff;
+        }
+
         td.data-table-bad {
           color: red;
           border-color: red;
@@ -424,4 +445,10 @@ pre {
   overflow: auto;
   word-wrap: normal;
   white-space: pre;
+}
+
+td a.fill-td {
+  display: block;
+  width: 100%;
+  height: 100%;
 }

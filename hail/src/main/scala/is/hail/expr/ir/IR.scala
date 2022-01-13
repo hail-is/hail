@@ -2,15 +2,19 @@ package is.hail.expr.ir
 
 import is.hail.annotations.{Annotation, Region}
 import is.hail.asm4s.Value
+import is.hail.backend.ExecuteContext
 import is.hail.expr.ir.ArrayZipBehavior.ArrayZipBehavior
-import is.hail.expr.ir.EmitStream.SizedStream
 import is.hail.expr.ir.agg.{AggStateSig, PhysicalAggSig}
 import is.hail.expr.ir.functions._
 import is.hail.expr.ir.lowering.TableStageDependency
+import is.hail.expr.ir.streams.StreamProducer
+import is.hail.io.avro.{AvroPartitionReader, AvroSchemaSerializer}
 import is.hail.io.{AbstractTypedCodecSpec, BufferSpec, TypedCodecSpec}
 import is.hail.rvd.RVDSpecMaker
+import is.hail.types.{RIterable, TypeWithRequiredness}
 import is.hail.types.encoded._
 import is.hail.types.physical._
+import is.hail.types.physical.stypes.{BooleanSingleCodeType, Float32SingleCodeType, Float64SingleCodeType, Int32SingleCodeType, Int64SingleCodeType, PTypeReferenceSingleCodeType, SType}
 import is.hail.types.virtual._
 import is.hail.utils.{FastIndexedSeq, _}
 import org.json4s.{DefaultFormats, Extraction, Formats, JValue, ShortTypeHints}
@@ -18,14 +22,7 @@ import org.json4s.{DefaultFormats, Extraction, Formats, JValue, ShortTypeHints}
 import scala.language.existentials
 
 sealed trait IR extends BaseIR {
-  protected[ir] var _pType: PType = null
   private var _typ: Type = null
-
-  def pType = {
-    assert(_pType != null)
-
-    _pType
-  }
 
   def typ: Type = {
     if (_typ == null)
@@ -64,9 +61,8 @@ sealed trait IR extends BaseIR {
   def unwrap: IR = _unwrap(this)
 }
 
-sealed trait TypedIR[T <: Type, P <: PType] extends IR {
+sealed trait TypedIR[T <: Type] extends IR {
   override def typ: T = coerce[T](super.typ)
-  override def pType: P = coerce[P](super.pType)
 }
 
 object Literal {
@@ -94,33 +90,37 @@ final case class Literal(_typ: Type, value: Annotation) extends IR {
 }
 
 object EncodedLiteral {
-  def apply(codec: AbstractTypedCodecSpec, value: Array[Byte]): EncodedLiteral = {
-    EncodedLiteral(codec, new WrappedByteArray(value))
+  def apply(codec: AbstractTypedCodecSpec, value: Array[Array[Byte]]): EncodedLiteral = {
+    EncodedLiteral(codec, new WrappedByteArrays(value))
   }
 
-  def hailValueToByteArray(pt: PType, addr: Long, ctx: ExecuteContext): IR = {
+  def fromPTypeAndAddress(pt: PType, addr: Long, ctx: ExecuteContext): IR = {
     val etype = EType.defaultFromPType(pt)
     val codec = TypedCodecSpec(etype, pt.virtualType, BufferSpec.defaultUncompressed)
-    val bytes = codec.encode(ctx, pt, addr)
+    val bytes = codec.encodeArrays(ctx, pt, addr)
     EncodedLiteral(codec, bytes)
   }
 }
 
-final case class EncodedLiteral(codec: AbstractTypedCodecSpec, value: WrappedByteArray) extends IR {
+final case class EncodedLiteral(codec: AbstractTypedCodecSpec, value: WrappedByteArrays) extends IR {
   require(!CanEmit(codec.encodedVirtualType))
   require(value != null)
 }
 
-class WrappedByteArray(val ba: Array[Byte]) {
-  override def hashCode(): Int = java.util.Arrays.hashCode(ba)
+class WrappedByteArrays(val ba: Array[Array[Byte]]) {
+  override def hashCode(): Int = {
+    ba.foldLeft(31) { (h, b) => 37 * h + java.util.Arrays.hashCode(b) }
+  }
 
   override def equals(obj: Any): Boolean = {
-    if (!obj.isInstanceOf[WrappedByteArray]) {
-      false
-    }
-    else {
-      val other = obj.asInstanceOf[WrappedByteArray]
-      java.util.Arrays.equals(ba, other.ba)
+    this.eq(obj.asInstanceOf[AnyRef]) || {
+      if (!obj.isInstanceOf[WrappedByteArrays]) {
+        false
+      }
+      else {
+        val other = obj.asInstanceOf[WrappedByteArrays]
+        ba.length == other.ba.length && (ba, other.ba).zipped.forall(java.util.Arrays.equals)
+      }
     }
   }
 }
@@ -174,7 +174,7 @@ final case class Ref(name: String, var _typ: Type) extends BaseRef
 
 // Recur can't exist outside of loop
 // Loops can be nested, but we can't call outer loops in terms of inner loops so there can only be one loop "active" in a given context
-final case class TailLoop(name: String, params: IndexedSeq[(String, IR)], body: IR) extends IR with InferredState {
+final case class TailLoop(name: String, params: IndexedSeq[(String, IR)], body: IR) extends IR {
   lazy val paramIdx: Map[String, Int] = params.map(_._1).zipWithIndex.toMap
 }
 final case class Recur(name: String, args: IndexedSeq[IR], _typ: Type) extends BaseRef
@@ -210,31 +210,41 @@ object MakeArray {
 final case class MakeArray(args: Seq[IR], _typ: TArray) extends IR
 
 object MakeStream {
-  def unify(args: Seq[IR], separateRegions: Boolean = false, requestedType: TStream = null): MakeStream = {
+  def unify(args: Seq[IR], requiresMemoryManagementPerElement: Boolean = false, requestedType: TStream = null): MakeStream = {
     assert(requestedType != null || args.nonEmpty)
 
     if (args.nonEmpty)
       if (args.forall(_.typ == args.head.typ))
-        return MakeStream(args, TStream(args.head.typ), separateRegions)
+        return MakeStream(args, TStream(args.head.typ), requiresMemoryManagementPerElement)
 
     MakeStream(args.map { arg =>
       val upcast = PruneDeadFields.upcast(arg, requestedType.elementType)
       assert(upcast.typ == requestedType.elementType)
       upcast
-    }, requestedType, separateRegions)
+    }, requestedType, requiresMemoryManagementPerElement)
   }
 }
 
-final case class MakeStream(args: Seq[IR], _typ: TStream, separateRegions: Boolean = false) extends IR
+final case class MakeStream(args: Seq[IR], _typ: TStream, requiresMemoryManagementPerElement: Boolean = false) extends IR
 
 object ArrayRef {
-  def apply(a: IR, i: IR): ArrayRef = ArrayRef(a, i, Str(""))
+  def apply(a: IR, i: IR): ArrayRef = ArrayRef(a, i, ErrorIDs.NO_ERROR)
 }
 
-final case class ArrayRef(a: IR, i: IR, msg: IR) extends IR
+final case class ArrayRef(a: IR, i: IR, errorID: Int) extends IR
+final case class ArraySlice(a: IR, start: IR, stop: Option[IR], step:IR = I32(1), errorID: Int = ErrorIDs.NO_ERROR) extends IR
 final case class ArrayLen(a: IR) extends IR
 final case class ArrayZeros(length: IR) extends IR
-final case class StreamRange(start: IR, stop: IR, step: IR, separateRegions: Boolean = false) extends IR
+
+/**
+  * [[StreamIota]] is an infinite stream producer, whose element is an integer starting at `start`, updated by
+  * `step` at each iteration. The name comes from APL:
+  * [[https://stackoverflow.com/questions/9244879/what-does-iota-of-stdiota-stand-for]]
+  */
+final case class StreamIota(start: IR, stop: IR, requiresMemoryManagementPerElement: Boolean = false) extends IR
+
+final case class StreamRange(start: IR, stop: IR, step: IR, requiresMemoryManagementPerElement: Boolean = false,
+                             errorID: Int = ErrorIDs.NO_ERROR) extends IR
 
 object ArraySort {
   def apply(a: IR, ascending: IR = True(), onKey: Boolean = false): ArraySort = {
@@ -264,7 +274,7 @@ final case class ToSet(a: IR) extends IR
 final case class ToDict(a: IR) extends IR
 final case class ToArray(a: IR) extends IR
 final case class CastToArray(a: IR) extends IR
-final case class ToStream(a: IR, separateRegions: Boolean = false) extends IR
+final case class ToStream(a: IR, requiresMemoryManagementPerElement: Boolean = false) extends IR
 
 final case class LowerBoundOnOrderedCollection(orderedCollection: IR, elem: IR, onKey: Boolean) extends IR
 
@@ -280,8 +290,19 @@ final case class StreamMap(a: IR, name: String, body: IR) extends IR {
   def elementTyp: Type = typ.elementType
 }
 
+final case class StreamTakeWhile(a: IR, elementName: String, body: IR) extends IR
+
+final case class StreamDropWhile(a: IR, elementName: String, body: IR) extends IR
+
 final case class StreamTake(a: IR, num: IR) extends IR
 final case class StreamDrop(a: IR, num: IR) extends IR
+
+// Generate, in ascending order, a uniform random sample, without replacement, of numToSample integers in the range [0, totalRange)
+final case class SeqSample(totalRange: IR, numToSample: IR, requiresMemoryManagementPerElement: Boolean) extends IR
+
+// Take the child stream and sort each element into buckets based on the provided pivots. The first and last elements of
+// pivots are the endpoints of the first and last interval respectively, should not be contained in the dataset.
+final case class StreamDistribute(child: IR, pivots: IR, path: IR, spec: AbstractTypedCodecSpec) extends IR
 
 object ArrayZipBehavior extends Enumeration {
   type ArrayZipBehavior = Value
@@ -291,29 +312,22 @@ object ArrayZipBehavior extends Enumeration {
   val ExtendNA: Value = Value(3)
 }
 
-final case class StreamMerge(l: IR, r: IR, key: IndexedSeq[String]) extends IR {
-  override def typ: TStream = coerce[TStream](super.typ)
-}
-final case class StreamZip(as: IndexedSeq[IR], names: IndexedSeq[String], body: IR, behavior: ArrayZipBehavior) extends IR {
+final case class StreamZip(as: IndexedSeq[IR], names: IndexedSeq[String], body: IR, behavior: ArrayZipBehavior,
+                           errorID: Int = ErrorIDs.NO_ERROR) extends IR {
   lazy val nameIdx: Map[String, Int] = names.zipWithIndex.toMap
   override def typ: TStream = coerce[TStream](super.typ)
 }
 final case class StreamMultiMerge(as: IndexedSeq[IR], key: IndexedSeq[String]) extends IR {
   override def typ: TStream = coerce[TStream](super.typ)
-  override def pType: PStream = coerce[PStream](super.pType)
 }
+
+/**
+  * The StreamZipJoin node assumes that input streams have distinct keys. If input streams
+  * do not have distinct keys, the key that is included in the result is undefined, but
+  * is likely the last.
+ */
 final case class StreamZipJoin(as: IndexedSeq[IR], key: IndexedSeq[String], curKey: String, curVals: String, joinF: IR) extends IR {
   override def typ: TStream = coerce[TStream](super.typ)
-  override def pType: PStream = coerce[PStream](super.pType)
-  private var _curValsType: PCanonicalArray = null
-  def getOrComputeCurValsType(valsType: => PType): PCanonicalArray = {
-    if (_curValsType == null) _curValsType = valsType.asInstanceOf[PCanonicalArray]
-    _curValsType
-  }
-  def curValsType: PCanonicalArray = {
-    assert(_curValsType != null)
-    _curValsType
-  }
 }
 final case class StreamFilter(a: IR, name: String, cond: IR) extends IR {
   override def typ: TStream = coerce[TStream](super.typ)
@@ -322,11 +336,7 @@ final case class StreamFlatMap(a: IR, name: String, body: IR) extends IR {
   override def typ: TStream = coerce[TStream](super.typ)
 }
 
-trait InferredState extends IR { var accPTypes: Array[PType] = null }
-
-final case class StreamFold(a: IR, zero: IR, accumName: String, valueName: String, body: IR) extends IR with InferredState {
-  def accPType: PType = accPTypes.head
-}
+final case class StreamFold(a: IR, zero: IR, accumName: String, valueName: String, body: IR) extends IR
 
 object StreamFold2 {
   def apply(a: StreamFold): StreamFold2 = {
@@ -334,14 +344,12 @@ object StreamFold2 {
   }
 }
 
-final case class StreamFold2(a: IR, accum: IndexedSeq[(String, IR)], valueName: String, seq: IndexedSeq[IR], result: IR) extends IR with InferredState {
+final case class StreamFold2(a: IR, accum: IndexedSeq[(String, IR)], valueName: String, seq: IndexedSeq[IR], result: IR) extends IR {
   assert(accum.length == seq.length)
   val nameIdx: Map[String, Int] = accum.map(_._1).zipWithIndex.toMap
 }
 
-final case class StreamScan(a: IR, zero: IR, accumName: String, valueName: String, body: IR) extends IR with InferredState {
-  def accPType: PType = accPTypes.head
-}
+final case class StreamScan(a: IR, zero: IR, accumName: String, valueName: String, body: IR) extends IR
 
 final case class StreamFor(a: IR, valueName: String, body: IR) extends IR
 
@@ -367,53 +375,50 @@ object StreamJoin {
 
     // stream of {key, groupField}, where 'groupField' is an array of all rows
     // in 'right' with key 'key'
-    val rightGrouped =
-      mapIR(rightGroupedStream) { group =>
-        bindIR(ToArray(group)) { array =>
-          bindIR(ArrayRef(array, 0)) { head =>
-            MakeStruct(rKey.map { key => key -> GetField(head, key) } :+ groupField -> array)
-          }
+    val rightGrouped = mapIR(rightGroupedStream) { group =>
+      bindIR(ToArray(group)) { array =>
+        bindIR(ArrayRef(array, 0)) { head =>
+          MakeStruct(rKey.map { key => key -> GetField(head, key) } :+ groupField -> array)
         }
       }
+    }
     val rElt = Ref(genUID(), coerce[TStream](rightGrouped.typ).elementType)
-    val nested = bindIR(GetField(rElt, groupField)) { rGroup =>
-      if (joinType == "left" || joinType == "outer") {
-        // Given a left element in 'l' and array of right elements in 'rGroup',
-        // compute array of results of 'joinF'. If 'rGroup' is missing, apply
-        // 'joinF' once to a missing right element.
-        StreamMap(If(IsNA(rGroup), MakeStream.unify(FastSeq(NA(rEltType))), ToStream(rGroup)), r, joinF)
-      } else {
-        StreamMap(ToStream(rGroup), r, joinF)
+    val lElt = Ref(genUID(), lEltType)
+    val makeTupleFromJoin = MakeStruct(FastSeq("left" -> lElt, "rightGroup" -> rElt))
+    val joined = StreamJoinRightDistinct(left, rightGrouped, lKey, rKey, lElt.name, rElt.name, makeTupleFromJoin, joinType)
+
+    // joined is a stream of {leftElement, rightGroup}
+    bindIR(MakeArray(NA(rEltType))) { missingSingleton =>
+      flatMapIR(joined) { x =>
+        Let(l, GetField(x, "left"), bindIR(GetField(GetField(x, "rightGroup"), groupField)) { rightElts =>
+          joinType match {
+            case "left" | "outer" => StreamMap(ToStream(If(IsNA(rightElts), missingSingleton, rightElts)), r, joinF)
+            case "right" | "inner" => StreamMap(ToStream(rightElts), r, joinF)
+          }
+        })
       }
     }
-    val rightDistinctJoinType =
-      if (joinType == "left" || joinType == "inner") "left" else "outer"
-
-    val joined = StreamJoinRightDistinct(left, rightGrouped, lKey, rKey, l, rElt.name, nested, rightDistinctJoinType)
-    val exploded = flatMapIR(joined) { x => x }
-
-    exploded
   }
 }
 
 final case class StreamJoinRightDistinct(left: IR, right: IR, lKey: IndexedSeq[String], rKey: IndexedSeq[String], l: String, r: String, joinF: IR, joinType: String) extends IR
 
-sealed trait NDArrayIR extends TypedIR[TNDArray, PNDArray] {
+sealed trait NDArrayIR extends TypedIR[TNDArray] {
   def elementTyp: Type = typ.elementType
 }
 
 object MakeNDArray {
   def fill(elt: IR, shape: IndexedSeq[Long], rowMajor: IR): MakeNDArray =
     MakeNDArray(
-      ToArray(StreamMap(StreamRange(0, shape.product.toInt, 1), genUID(), elt)),
-      MakeTuple.ordered(shape.map(I64)), rowMajor)
+      ToArray(StreamMap(StreamRange(0, shape.product.toInt, 1, errorID = ErrorIDs.NO_ERROR), genUID(), elt)),
+      MakeTuple.ordered(shape.map(I64)), rowMajor, ErrorIDs.NO_ERROR)
 }
 
-final case class MakeNDArray(data: IR, shape: IR, rowMajor: IR) extends NDArrayIR
+final case class MakeNDArray(data: IR, shape: IR, rowMajor: IR, errorId: Int) extends NDArrayIR
 
 final case class NDArrayShape(nd: IR) extends IR
 
-final case class NDArrayReshape(nd: IR, shape: IR) extends NDArrayIR
+final case class NDArrayReshape(nd: IR, shape: IR, errorID: Int) extends NDArrayIR
 
 final case class NDArrayConcat(nds: IR, axis: Int) extends NDArrayIR
 
@@ -422,29 +427,32 @@ final case class NDArraySlice(nd: IR, slices: IR) extends NDArrayIR
 final case class NDArrayFilter(nd: IR, keep: IndexedSeq[IR]) extends NDArrayIR
 
 final case class NDArrayMap(nd: IR, valueName: String, body: IR) extends NDArrayIR
-final case class NDArrayMap2(l: IR, r: IR, lName: String, rName: String, body: IR) extends NDArrayIR
+final case class NDArrayMap2(l: IR, r: IR, lName: String, rName: String, body: IR, errorID: Int) extends NDArrayIR
 
 final case class NDArrayReindex(nd: IR, indexExpr: IndexedSeq[Int]) extends NDArrayIR
 final case class NDArrayAgg(nd: IR, axes: IndexedSeq[Int]) extends IR
 final case class NDArrayWrite(nd: IR, path: IR) extends IR
 
-final case class NDArrayMatMul(l: IR, r: IR) extends NDArrayIR
+final case class NDArrayMatMul(l: IR, r: IR, errorID: Int) extends NDArrayIR
 
 object NDArrayQR {
-  val pTypes: Map[String, PType] = Map(
-    "r" -> PCanonicalNDArray(PFloat64Required, 2),
-    "raw" -> PCanonicalTuple(false, PCanonicalNDArray(PFloat64Required, 2), PCanonicalNDArray(PFloat64Required, 1)),
-    "reduced" -> PCanonicalTuple(false, PCanonicalNDArray(PFloat64Required, 2), PCanonicalNDArray(PFloat64Required, 2)),
-    "complete" -> PCanonicalTuple(false, PCanonicalNDArray(PFloat64Required, 2), PCanonicalNDArray(PFloat64Required, 2)))
+  def pType(mode: String, req: Boolean): PType = {
+    mode match {
+      case "r" => PCanonicalNDArray(PFloat64Required, 2, req)
+      case "raw" => PCanonicalTuple(req, PCanonicalNDArray(PFloat64Required, 2, true), PCanonicalNDArray(PFloat64Required, 1, true))
+      case "reduced" => PCanonicalTuple(req, PCanonicalNDArray(PFloat64Required, 2, true), PCanonicalNDArray(PFloat64Required, 2, true))
+      case "complete" => PCanonicalTuple(req, PCanonicalNDArray(PFloat64Required, 2, true), PCanonicalNDArray(PFloat64Required, 2, true))
+    }
+  }
 }
 
 object NDArraySVD {
-  def pTypes(computeUV: Boolean): PType = {
+  def pTypes(computeUV: Boolean, req: Boolean): PType = {
     if (computeUV) {
-      PCanonicalTuple(false, PCanonicalNDArray(PFloat64Required, 2), PCanonicalNDArray(PFloat64Required, 1), PCanonicalNDArray(PFloat64Required, 2))
+      PCanonicalTuple(req, PCanonicalNDArray(PFloat64Required, 2, true), PCanonicalNDArray(PFloat64Required, 1, true), PCanonicalNDArray(PFloat64Required, 2, true))
     }
     else {
-      PCanonicalNDArray(PFloat64Required, 1)
+      PCanonicalNDArray(PFloat64Required, 1, req)
     }
   }
 }
@@ -453,11 +461,11 @@ object NDArrayInv {
   val pType = PCanonicalNDArray(PFloat64Required, 2)
 }
 
-final case class NDArrayQR(nd: IR, mode: String) extends IR
+final case class NDArrayQR(nd: IR, mode: String, errorID: Int) extends IR
 
-final case class NDArraySVD(nd: IR, fullMatrices: Boolean, computeUV: Boolean) extends IR
+final case class NDArraySVD(nd: IR, fullMatrices: Boolean, computeUV: Boolean, errorID: Int) extends IR
 
-final case class NDArrayInv(nd: IR) extends IR
+final case class NDArrayInv(nd: IR, errorID: Int) extends IR
 
 final case class AggFilter(cond: IR, aggIR: IR, isScan: Boolean) extends IR
 
@@ -481,6 +489,48 @@ final case class ApplyAggOp(initOpArgs: IndexedSeq[IR], seqOpArgs: IndexedSeq[IR
   def op: AggOp = aggSig.op
 }
 
+object AggFold {
+
+  def min(element: IR, keyType: TStruct): IR = {
+    minAndMaxHelper(element, keyType, LT(keyType))
+  }
+
+  def max(element: IR, keyType: TStruct): IR = {
+    minAndMaxHelper(element, keyType, GT(keyType))
+  }
+
+  def all(element: IR): IR = {
+    aggFoldIR(True(), element) { case (accum, element) =>
+      ApplySpecial("land", Seq.empty[Type], Seq(accum, element), TBoolean, ErrorIDs.NO_ERROR)
+    } { case (accum1, accum2) => ApplySpecial("land", Seq.empty[Type], Seq(accum1, accum2), TBoolean, ErrorIDs.NO_ERROR) }
+  }
+
+  private def minAndMaxHelper(element: IR, keyType: TStruct, comp: ComparisonOp[Boolean]): IR = {
+    val keyFields = keyType.fields.map(_.name)
+    // Folding for Min
+    val minAndMaxZero = NA(keyType)
+    val aggFoldMinAccumName1 = genUID()
+    val aggFoldMinAccumName2 = genUID()
+    val aggFoldMinAccumRef1 = Ref(aggFoldMinAccumName1, keyType)
+    val aggFoldMinAccumRef2 = Ref(aggFoldMinAccumName2, keyType)
+    val minSeq = bindIR(SelectFields(element, keyFields)) { keyOfCurElementRef =>
+      If(IsNA(aggFoldMinAccumRef1),
+        keyOfCurElementRef,
+        If(ApplyComparisonOp(comp, aggFoldMinAccumRef1, keyOfCurElementRef), aggFoldMinAccumRef1, keyOfCurElementRef)
+      )
+    }
+    val minComb =
+      If(IsNA(aggFoldMinAccumRef1),
+        aggFoldMinAccumRef2,
+        If (ApplyComparisonOp(comp, aggFoldMinAccumRef1, aggFoldMinAccumRef2), aggFoldMinAccumRef1, aggFoldMinAccumRef2)
+      )
+
+    AggFold(minAndMaxZero, minSeq, minComb, aggFoldMinAccumName1, aggFoldMinAccumName2, false)
+  }
+}
+
+final case class AggFold(zero: IR, seqOp: IR, combOp: IR, accumName: String, otherAccumName: String, isScan: Boolean) extends IR
+
 object ApplyScanOp {
   def apply(op: AggOp, initOpArgs: IR*)(seqOpArgs: IR*): ApplyScanOp =
     ApplyScanOp(initOpArgs.toIndexedSeq, seqOpArgs.toIndexedSeq, AggSignature(op, initOpArgs.map(_.typ), seqOpArgs.map(_.typ)))
@@ -498,8 +548,16 @@ final case class ApplyScanOp(initOpArgs: IndexedSeq[IR], seqOpArgs: IndexedSeq[I
 final case class InitOp(i: Int, args: IndexedSeq[IR], aggSig: PhysicalAggSig) extends IR
 final case class SeqOp(i: Int, args: IndexedSeq[IR], aggSig: PhysicalAggSig) extends IR
 final case class CombOp(i1: Int, i2: Int, aggSig: PhysicalAggSig) extends IR
-final case class ResultOp(startIdx: Int, aggSigs: IndexedSeq[PhysicalAggSig]) extends IR
-final case class CombOpValue(i: Int, value: IR, aggSig: PhysicalAggSig) extends IR
+object ResultOp {
+  def makeTuple(aggs: IndexedSeq[PhysicalAggSig]) = {
+    MakeTuple.ordered(aggs.zipWithIndex.map { case (aggSig, index) =>
+      ResultOp(index, aggSig)
+    })
+  }
+}
+final case class ResultOp(idx: Int, aggSig: PhysicalAggSig) extends IR
+
+private final case class CombOpValue(i: Int, value: IR, aggSig: PhysicalAggSig) extends IR
 final case class AggStateValue(i: Int, aggSig: AggStateSig) extends IR
 final case class InitFromSerializedValue(i: Int, value: IR, aggSig: AggStateSig) extends IR
 
@@ -519,8 +577,6 @@ object InsertFields {
 final case class InsertFields(old: IR, fields: Seq[(String, IR)], fieldOrder: Option[IndexedSeq[String]]) extends IR {
 
   override def typ: TStruct = coerce[TStruct](super.typ)
-
-  override def pType: PStruct = coerce[PStruct](super.pType)
 }
 
 object GetFieldByIdx {
@@ -542,26 +598,42 @@ final case class MakeTuple(fields: Seq[(Int, IR)]) extends IR
 final case class GetTupleElement(o: IR, idx: Int) extends IR
 
 object In {
-  def apply(i: Int, typ: Type): In = In(i, PType.canonical(typ))
+  def apply(i: Int, typ: Type): In = In(i, SingleCodeEmitParamType(false, typ match {
+    case TInt32 => Int32SingleCodeType
+    case TInt64 => Int64SingleCodeType
+    case TFloat32 => Float32SingleCodeType
+    case TFloat64 => Float64SingleCodeType
+    case TBoolean => BooleanSingleCodeType
+    case ts: TStream => throw new UnsupportedOperationException
+    case t => PTypeReferenceSingleCodeType(PType.canonical(t))
+  }))
 }
 
 // Function Input
-final case class In(i: Int, _typ: PType) extends IR
+final case class In(i: Int, _typ: EmitParamType) extends IR
 
 // FIXME: should be type any
 object Die {
-  def apply(message: String, typ: Type): Die = Die(Str(message), typ, -1)
+  def apply(message: String, typ: Type): Die = Die(Str(message), typ, ErrorIDs.NO_ERROR)
   def apply(message: String, typ: Type, errorId: Int): Die = Die(Str(message), typ, errorId)
 }
 
+/**
+  * the Trap node runs the `child` node with an exception handler. If the child
+  * throws a HailException (user exception), then we return the tuple ((msg, errorId), NA).
+  * If the child throws any other exception, we raise that exception. If the
+  * child does not throw, then we return the tuple (NA, child value).
+  */
+final case class Trap(child: IR) extends IR
 final case class Die(message: IR, _typ: Type, errorId: Int) extends IR
+final case class ConsoleLog(message: IR, result: IR) extends IR
 
-final case class ApplyIR(function: String, typeArgs: Seq[Type], args: Seq[IR]) extends IR {
-  var conversion: (Seq[Type], Seq[IR]) => IR = _
+final case class ApplyIR(function: String, typeArgs: Seq[Type], args: Seq[IR], errorID: Int) extends IR {
+  var conversion: (Seq[Type], Seq[IR], Int) => IR = _
   var inline: Boolean = _
 
   private lazy val refs = args.map(a => Ref(genUID(), a.typ)).toArray
-  lazy val body: IR = conversion(typeArgs, refs).deepCopy()
+  lazy val body: IR = conversion(typeArgs, refs, errorID).deepCopy()
   lazy val refIdx: Map[String, Int] = refs.map(_.name).zipWithIndex.toMap
 
   lazy val explicitNode: IR = {
@@ -580,13 +652,13 @@ sealed abstract class AbstractApplyNode[F <: JVMFunction] extends IR {
     .asInstanceOf[F]
 }
 
-final case class Apply(function: String, typeArgs: Seq[Type], args: Seq[IR], returnType: Type) extends AbstractApplyNode[UnseededMissingnessObliviousJVMFunction]
+final case class Apply(function: String, typeArgs: Seq[Type], args: Seq[IR], returnType: Type, errorID: Int) extends AbstractApplyNode[UnseededMissingnessObliviousJVMFunction]
 
 final case class ApplySeeded(function: String, args: Seq[IR], seed: Long, returnType: Type) extends AbstractApplyNode[SeededJVMFunction] {
   val typeArgs: Seq[Type] = Seq.empty[Type]
 }
 
-final case class ApplySpecial(function: String, typeArgs: Seq[Type], args: Seq[IR], returnType: Type) extends AbstractApplyNode[UnseededMissingnessAwareJVMFunction]
+final case class ApplySpecial(function: String, typeArgs: Seq[Type], args: Seq[IR], returnType: Type, errorID: Int) extends AbstractApplyNode[UnseededMissingnessAwareJVMFunction]
 
 final case class LiftMeOut(child: IR) extends IR
 final case class TableCount(child: TableIR) extends IR
@@ -621,25 +693,7 @@ final case class BlockMatrixWrite(child: BlockMatrixIR, writer: BlockMatrixWrite
 
 final case class BlockMatrixMultiWrite(blockMatrices: IndexedSeq[BlockMatrixIR], writer: BlockMatrixMultiWriter) extends IR
 
-final case class CollectDistributedArray(contexts: IR, globals: IR, cname: String, gname: String, body: IR, tsd: Option[TableStageDependency] = None) extends IR {
-  val bufferSpec: BufferSpec = BufferSpec.defaultUncompressed
-
-  lazy val contextPTuple: PTuple = PCanonicalTuple(required = true, coerce[PStream](contexts.pType).elementType)
-  lazy val globalPTuple: PTuple = PCanonicalTuple(required = true, globals.pType)
-  lazy val bodyPTuple: PTuple = PCanonicalTuple(required = true, body.pType)
-
-  lazy val contextSpec: TypedCodecSpec = TypedCodecSpec(contextPTuple, bufferSpec)
-  lazy val globalSpec: TypedCodecSpec = TypedCodecSpec(globalPTuple, bufferSpec)
-  lazy val bodySpec: TypedCodecSpec = TypedCodecSpec(bodyPTuple, bufferSpec)
-
-  lazy val decodedContextPTuple: PTuple = contextSpec.encodedType.decodedPType(contextPTuple.virtualType).asInstanceOf[PTuple]
-  lazy val decodedGlobalPTuple: PTuple = globalSpec.encodedType.decodedPType(globalPTuple.virtualType).asInstanceOf[PTuple]
-  lazy val decodedBodyPTuple: PTuple = bodySpec.encodedType.decodedPType(bodyPTuple.virtualType).asInstanceOf[PTuple]
-
-  def decodedContextPType: PType = decodedContextPTuple.types(0)
-  def decodedGlobalPType: PType = decodedGlobalPTuple.types(0)
-  def decodedBodyPType: PType = decodedBodyPTuple.types(0)
-}
+final case class CollectDistributedArray(contexts: IR, globals: IR, cname: String, gname: String, body: IR, tsd: Option[TableStageDependency] = None) extends IR
 
 object PartitionReader {
   implicit val formats: Formats = new DefaultFormats() {
@@ -648,15 +702,17 @@ object PartitionReader {
       classOf[PartitionNativeReader],
       classOf[PartitionNativeReaderIndexed],
       classOf[PartitionZippedNativeReader],
+      classOf[PartitionZippedIndexedNativeReader],
       classOf[AbstractTypedCodecSpec],
-      classOf[TypedCodecSpec])
-    ) + BufferSpec.shortTypeHints
-    override val typeHintFieldName = "name"
+      classOf[TypedCodecSpec],
+      classOf[AvroPartitionReader]),
+      typeHintFieldName = "name") + BufferSpec.shortTypeHints
   }  +
     new TStructSerializer +
     new TypeSerializer +
     new PTypeSerializer +
-    new ETypeSerializer
+    new ETypeSerializer +
+    new AvroSchemaSerializer
 }
 
 object PartitionWriter {
@@ -664,9 +720,8 @@ object PartitionWriter {
     override val typeHints = ShortTypeHints(List(
       classOf[PartitionNativeWriter],
       classOf[AbstractTypedCodecSpec],
-      classOf[TypedCodecSpec])
+      classOf[TypedCodecSpec]), typeHintFieldName = "name"
     ) + BufferSpec.shortTypeHints
-    override val typeHintFieldName = "name"
   }  +
     new TStructSerializer +
     new TypeSerializer +
@@ -683,9 +738,9 @@ object MetadataWriter {
       classOf[RelationalWriter],
       classOf[RVDSpecMaker],
       classOf[AbstractTypedCodecSpec],
-      classOf[TypedCodecSpec])
+      classOf[TypedCodecSpec]),
+      typeHintFieldName = "name"
     ) + BufferSpec.shortTypeHints
-    override val typeHintFieldName = "name"
   }  +
     new TStructSerializer +
     new TypeSerializer +
@@ -698,16 +753,14 @@ abstract class PartitionReader {
 
   def fullRowType: Type
 
-  def rowPType(requestedType: Type): PType
+  def rowRequiredness(requestedType: Type): TypeWithRequiredness
 
-  def emitStream[C](ctx: ExecuteContext,
-    context: IR,
-    requestedType: Type,
-    emitter: Emit[C],
+  def emitStream(
+    ctx: ExecuteContext,
     cb: EmitCodeBuilder,
-    partitionRegion: StagedRegion,
-    env0: Emit.E,
-    container: Option[AggContainer]): IEmitCode
+    context: EmitCode,
+    partitionRegion: Value[Region],
+    requestedType: Type): IEmitCode
 
   def toJValue: JValue
 }
@@ -715,15 +768,14 @@ abstract class PartitionReader {
 abstract class PartitionWriter {
   def consumeStream(
     ctx: ExecuteContext,
+    cb: EmitCodeBuilder,
+    stream: StreamProducer,
     context: EmitCode,
-    eltType: PStruct,
-    mb: EmitMethodBuilder[_],
-    region: ParentStagedRegion,
-    stream: SizedStream): EmitCode
+    region: Value[Region]): IEmitCode
 
   def ctxType: Type
   def returnType: Type
-  def returnPType(ctxType: PType, streamType: PStream): PType
+  def unionTypeRequiredness(r: TypeWithRequiredness, ctxType: TypeWithRequiredness, streamType: RIterable): Unit
 
   def toJValue: JValue = Extraction.decompose(this)(PartitionWriter.formats)
 }
@@ -777,30 +829,6 @@ class PrimitiveIR(val self: IR) extends AnyVal {
   def >=(other: IR): IR = ApplyComparisonOp(GTEQ(self.typ, other.typ), self, other)
 }
 
-final case class ShuffleWith(
-  keyFields: IndexedSeq[SortField],
-  rowType: TStruct,
-  rowEType: EBaseStruct,
-  keyEType: EBaseStruct,
-  name: String,
-  writer: IR,
-  readers: IR
-) extends IR {
-  val shuffleType = TShuffle(keyFields, rowType, rowEType, keyEType)
-  val shufflePType = PCanonicalShuffle(shuffleType, true)
+object ErrorIDs {
+  val NO_ERROR = -1
 }
-
-final case class ShuffleWrite(
-  id: IR,
-  rows: IR
-) extends IR
-
-final case class ShufflePartitionBounds(
-  id: IR,
-  nPartitions: IR
-) extends IR
-
-final case class ShuffleRead(
-  id: IR,
-  keyRange: IR
-) extends IR

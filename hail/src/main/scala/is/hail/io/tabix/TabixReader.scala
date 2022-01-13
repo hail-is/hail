@@ -4,10 +4,10 @@ import java.io.InputStream
 
 import htsjdk.samtools.util.FileExtensions
 import htsjdk.tribble.util.ParsingUtils
+import is.hail.expr.ir.IntArrayBuilder
 import is.hail.io.compress.BGzipLineReader
 import is.hail.io.fs.FS
 import is.hail.utils._
-import is.hail.backend.BroadcastValue
 
 import scala.collection.mutable
 import scala.language.implicitConversions
@@ -108,7 +108,7 @@ class TabixReader(val filePath: String, fs: FS, idxFilePath: Option[String] = No
     // read the sequence dictionary
     buf = new Array[Byte](readInt(is)) // # sequences
     var (i, j, k) = (0, 0, 0)
-    is.read(buf)
+    is.readFully(buf)
     while (i < buf.length) {
       if (buf(i) == 0) {
         val contig = new String(buf.slice(j, i))
@@ -256,7 +256,7 @@ class TabixReader(val filePath: String, fs: FS, idxFilePath: Option[String] = No
       new Array[Int](0)
     else {
       var end = _end
-      val bins = new BoxedArrayBuilder[Int](MaxBin)
+      val bins = new IntArrayBuilder(MaxBin)
       if (end >= (1 << 29)) {
         end = 1 << 29
       }
@@ -293,7 +293,7 @@ class TabixReader(val filePath: String, fs: FS, idxFilePath: Option[String] = No
 }
 
 final class TabixLineIterator(
-  private val fsBc: BroadcastValue[FS],
+  private val fs: FS,
   private val filePath: String,
   private val offsets: Array[TbiPair]
 )
@@ -301,7 +301,7 @@ final class TabixLineIterator(
 {
   private var i: Int = -1
   private var isEof = false
-  private var lines = new BGzipLineReader(fsBc, filePath)
+  private var lines = new BGzipLineReader(fs, filePath)
 
   def next(): String = {
     var s: String = null

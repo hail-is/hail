@@ -1,0 +1,52 @@
+{% macro pr_table(wb, id, searchBarId) %}
+<div class="searchbar-table">
+  <input type="text" id="{{ searchBarId }}" onkeyup="searchTable('{{ id }}', '{{ searchBarId }}')" placeholder="Search terms..."/>
+  <table id="{{ id }}" class="data-table">
+  <thead>
+    <tr>
+      <th>PR</th>
+      <th>Build State</th>
+      <th>Labels</th>
+      <th>Branch</th>
+      <th>Review State</th>
+      <th>Author</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for pr in wb.prs %}
+    <tr>
+      <td>
+        <a href="https://github.com/{{ wb.repo }}/pull/{{ pr.number }}">
+          {{ pr.title }} <span class="gh-number">#{{ pr.number }}</span>
+        </a>
+      </td>
+      <td>
+        {% if pr.build_state is not none %}
+          <a href="{{ base_path }}/watched_branches/{{ wb.index }}/pr/{{ pr.number }}">{{ pr.build_state }}</a>
+        {% else %}
+          pending
+        {% endif %}
+        {% if pr.build_state is not none and pr.out_of_date %}
+          *
+        {% endif %}
+      </td>
+      <td>
+        {{ pr.labels|join(", ") }}
+      </td>
+      <td>
+        {{ pr.source_branch_name }}
+      </td>
+      <td>
+        {% if pr.review_state %}
+        {{ pr.review_state }}
+        {% endif %}
+      </td>
+      <td>
+        {{ pr.author }}
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+  </table>
+</div>
+{% endmacro %}

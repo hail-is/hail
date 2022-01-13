@@ -1,8 +1,9 @@
 package is.hail.expr.ir.lowering
 
+import is.hail.backend.ExecuteContext
 import is.hail.expr.ir.agg.Extract
 import is.hail.expr.ir._
-import is.hail.utils.FastSeq
+import is.hail.utils._
 
 trait LoweringPass {
   val before: IRState
@@ -14,6 +15,7 @@ trait LoweringPass {
       ctx.timer.time("Verify")(before.verify(ir))
       val result = ctx.timer.time("LoweringTransformation")(transform(ctx: ExecuteContext, ir))
       ctx.timer.time("Verify")(after.verify(result))
+
       result
     }
   }
@@ -25,7 +27,7 @@ case class OptimizePass(_context: String) extends LoweringPass {
   val context = s"optimize: ${_context}"
   val before: IRState = AnyIR
   val after: IRState = AnyIR
-  def transform(ctx: ExecuteContext, ir: BaseIR): BaseIR = Optimize(ir, true, context, ctx)
+  def transform(ctx: ExecuteContext, ir: BaseIR): BaseIR = Optimize(ir, context, ctx)
 }
 
 case object LowerMatrixToTablePass extends LoweringPass {
@@ -56,15 +58,15 @@ case object LegacyInterpretNonCompilablePass extends LoweringPass {
   val after: IRState = ExecutableTableIR
   val context: String = "InterpretNonCompilable"
 
-  def transform(ctx: ExecuteContext, ir: BaseIR): BaseIR = InterpretNonCompilable(ctx, ir)
+  def transform(ctx: ExecuteContext, ir: BaseIR): BaseIR = LowerOrInterpretNonCompilable(ctx, ir)
 }
 
-case object InterpretNonCompilablePass extends LoweringPass {
+case object LowerOrInterpretNonCompilablePass extends LoweringPass {
   val before: IRState = MatrixLoweredToTable
   val after: IRState = CompilableIR
-  val context: String = "InterpretNonCompilable"
+  val context: String = "LowerOrInterpretNonCompilable"
 
-  def transform(ctx: ExecuteContext, ir: BaseIR): BaseIR = InterpretNonCompilable(ctx, ir)
+  def transform(ctx: ExecuteContext, ir: BaseIR): BaseIR = LowerOrInterpretNonCompilable(ctx, ir)
 }
 
 case class LowerToDistributedArrayPass(t: DArrayLowering.Type) extends LoweringPass {

@@ -1,16 +1,15 @@
+import timeit
+
 import contextlib
+import hail as hl
 import logging
 import os
 import re
-import signal
-import timeit
 import shutil
-
-import hail as hl
+import signal
 from py4j.protocol import Py4JError
 
 from .resources import all_resources
-from .. import init_logging
 
 
 class BenchmarkTimeoutError(KeyboardInterrupt):
@@ -23,6 +22,7 @@ _init_args = {}
 
 def recursive_delete(path):
     shutil.rmtree(path)
+
 
 # https://stackoverflow.com/questions/492519/timeout-on-a-function-call/494273#494273
 @contextlib.contextmanager
@@ -122,10 +122,16 @@ def _ensure_initialized():
                              "Are you running benchmark from the main module?")
 
 
+def stop():
+    global _initialized
+    _initialized = False
+    hl.stop()
+
+
 def initialize(config):
     global _initialized, _mt, _init_args
     assert not _initialized
-    _init_args = { 'master': f'local[{config.cores}]', 'quiet': not config.hail_verbose, 'log': config.log }
+    _init_args = {'master': f'local[{config.cores}]', 'quiet': not config.hail_verbose, 'log': config.log}
 
     if config.profile is not None:
         if config.prof_fmt == 'html':
@@ -164,11 +170,13 @@ def run_with_timeout(b, config):
     with timeout_signal(max_time):
         try:
             cleanup_container = []
+
             def runner():
                 result = b.run(config.data_dir)
                 if result is not None:
                     assert callable(result)
                     cleanup_container.append(result)
+
             timer = timeit.Timer(runner).timeit(1)
 
             if cleanup_container:
@@ -183,6 +191,18 @@ def run_with_timeout(b, config):
             raise
         except BenchmarkTimeoutError as e:
             return max_time, True
+
+
+def get_peak_task_memory(log_path) -> int:
+    peak_memory_per_task = []
+    with open(log_path, 'r') as f:
+        for line in f:
+            match = re.match(r'.*TaskReport:.*peakBytes=(\d+),.*', line)
+            if match is not None:
+                peak_memory_per_task.append(int(match.groups()[0]))
+    if len(peak_memory_per_task) == 0:
+        return 0
+    return max(peak_memory_per_task)
 
 
 def _run(benchmark: Benchmark, config: RunConfig, context):
@@ -226,10 +246,14 @@ def _run(benchmark: Benchmark, config: RunConfig, context):
             config.handler({'name': benchmark.name,
                             'failed': True})
             return
+
+    from hail.utils.java import Env
+    peak_task_memory = get_peak_task_memory(Env.hc()._log)
     config.handler({'name': benchmark.name,
                     'failed': False,
                     'timed_out': timed_out,
-                    'times': times})
+                    'times': times,
+                    'peak_task_memory': [peak_task_memory]})
 
 
 def run_all(config: RunConfig):
@@ -260,9 +284,10 @@ def run_list(tests, config: RunConfig):
             to_run.append(b)
     resources = {rg for b in to_run for rg in b.groups}
     ensure_resources(config.data_dir, resources)
-    initialize(config)
     for i, b in enumerate(to_run):
+        initialize(config)
         _run(b, config, f'[{i + 1}/{n_tests}] ')
+        stop()
 
 
 def list_benchmarks():

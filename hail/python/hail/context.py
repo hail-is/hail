@@ -1,3 +1,4 @@
+from typing import Optional
 import sys
 import os
 from urllib.parse import urlparse, urlunparse
@@ -11,6 +12,8 @@ from hail.typecheck import nullable, typecheck, typecheck_method, enumeration, d
 from hail.utils import get_env_or_default
 from hail.utils.java import Env, FatalError, warning
 from hail.backend import Backend
+from hailtop.utils import secret_alnum_string
+from .fs.fs import FS
 
 
 def _get_tmpdir(tmpdir):
@@ -32,7 +35,10 @@ def _get_local_tmpdir(local_tmpdir):
 def _get_log(log):
     if log is None:
         py_version = version()
-        log = hail.utils.timestamp_path(os.path.join(os.getcwd(), 'hail'),
+        log_dir = os.environ.get('HAIL_LOG_DIR')
+        if log_dir is None:
+            log_dir = os.getcwd()
+        log = hail.utils.timestamp_path(os.path.join(log_dir, 'hail'),
                                         suffix=f'-{py_version}.log')
     return log
 
@@ -116,7 +122,7 @@ class HailContext(object):
            append=bool,
            min_block_size=int,
            branching_factor=int,
-           tmp_dir=str,
+           tmp_dir=nullable(str),
            default_reference=enumeration('GRCh37', 'GRCh38', 'GRCm38', 'CanFam3'),
            idempotent=bool,
            global_seed=nullable(int),
@@ -126,7 +132,7 @@ class HailContext(object):
            _optimizer_iterations=nullable(int))
 def init(sc=None, app_name='Hail', master=None, local='local[*]',
          log=None, quiet=False, append=False,
-         min_block_size=0, branching_factor=50, tmp_dir='/tmp',
+         min_block_size=0, branching_factor=50, tmp_dir=None,
          default_reference='GRCh37', idempotent=False,
          global_seed=6348563392232659379,
          spark_conf=None,
@@ -156,6 +162,10 @@ def init(sc=None, app_name='Hail', master=None, local='local[*]',
     any Hail functionality requiring the backend (most of the libary!) is used.
     To initialize Hail explicitly with non-default arguments, be sure to do so
     directly after importing the module, as in the above example.
+
+    To facilitate the migration from Spark to the ServiceBackend, this method
+    calls init_service when the environment variable HAIL_QUERY_BACKEND is set
+    to "service".
 
     Note
     ----
@@ -211,14 +221,25 @@ def init(sc=None, app_name='Hail', master=None, local='local[*]',
         Local temporary directory.  Used on driver and executor nodes.
         Must use the file scheme.  Defaults to TMPDIR, or /tmp.
     """
-    from hail.backend.spark_backend import SparkBackend
-
     if Env._hc:
         if idempotent:
             return
         else:
             warning('Hail has already been initialized. If this call was intended to change configuration,'
                     ' close the session with hl.stop() first.')
+
+    if os.environ.get('HAIL_QUERY_BACKEND') == 'service':
+        return init_service(
+            log=log,
+            quiet=quiet,
+            append=append,
+            tmpdir=tmp_dir,
+            local_tmpdir=local_tmpdir,
+            default_reference=default_reference,
+            global_seed=global_seed,
+            skip_logging_configuration=skip_logging_configuration)
+
+    from hail.backend.spark_backend import SparkBackend
 
     log = _get_log(log)
     tmpdir = _get_tmpdir(tmp_dir)
@@ -230,8 +251,11 @@ def init(sc=None, app_name='Hail', master=None, local='local[*]',
         quiet, append, min_block_size, branching_factor, tmpdir, local_tmpdir,
         skip_logging_configuration, optimizer_iterations)
 
+    if not backend.fs.exists(tmpdir):
+        backend.fs.mkdir(tmpdir)
+
     HailContext(
-        log, quiet, append, tmp_dir, local_tmpdir, default_reference,
+        log, quiet, append, tmpdir, local_tmpdir, default_reference,
         global_seed, backend)
 
 
@@ -261,7 +285,9 @@ def init_service(
     backend = ServiceBackend(billing_project, bucket, skip_logging_configuration=skip_logging_configuration)
 
     log = _get_log(log)
-    tmpdir = _get_tmpdir(tmpdir)
+    if tmpdir is None:
+        tmpdir = 'gs://' + backend._bucket + '/tmp/hail/' + secret_alnum_string()
+    assert tmpdir.startswith('gs://')
     local_tmpdir = _get_local_tmpdir(local_tmpdir)
 
     HailContext(
@@ -298,6 +324,9 @@ def init_local(
     backend = LocalBackend(
         tmpdir, log, quiet, append, branching_factor,
         skip_logging_configuration, optimizer_iterations)
+
+    if not backend.fs.exists(tmpdir):
+        backend.fs.mkdir(tmpdir)
 
     HailContext(
         log, quiet, append, tmpdir, tmpdir, default_reference,
@@ -371,7 +400,7 @@ def spark_context():
     return Env.spark_backend('spark_context').sc
 
 
-def tmp_dir():
+def tmp_dir() -> str:
     """Returns the Hail shared temporary directory.
 
     Returns
@@ -381,7 +410,106 @@ def tmp_dir():
     return Env.hc()._tmpdir
 
 
-def current_backend():
+class _TemporaryFilenameManager:
+    def __init__(self, fs: FS, name: str):
+        self.fs = fs
+        self.name = name
+
+    def __enter__(self):
+        return self.name
+
+    def __exit__(self, type, value, traceback):
+        return self.fs.remove(self.name)
+
+
+def TemporaryFilename(*,
+                      prefix: str = '',
+                      suffix: str = '',
+                      dir: Optional[str] = None
+                      ) -> _TemporaryFilenameManager:
+    """A context manager which produces a temporary filename that is deleted when the context manager exits.
+
+    Warning
+    -------
+
+    The filename is generated randomly and is extraordinarly unlikely to already exist, but this
+    function does not satisfy the strict requirements of Python's :class:`.TemporaryFilename`.
+
+    Examples
+    --------
+
+    >>> with TemporaryFilename() as f:  # doctest: +SKIP
+    ...     open(f, 'w').write('hello hail')
+    ...     print(open(f).read())
+    hello hail
+
+    Returns
+    -------
+    :class:`.DeletingFile` or :class:`.DeletingDirectory`
+
+    """
+    if dir is None:
+        dir = tmp_dir()
+    if not dir.endswith('/'):
+        dir = dir + '/'
+    return _TemporaryFilenameManager(
+        current_backend().fs,
+        dir + prefix + secret_alnum_string(10) + suffix)
+
+
+class _TemporaryDirectoryManager:
+    def __init__(self, fs: FS, name: str):
+        self.fs = fs
+        self.name = name
+
+    def __enter__(self):
+        return self.name
+
+    def __exit__(self, type, value, traceback):
+        return self.fs.rmtree(self.name)
+
+
+def TemporaryDirectory(*,
+                       prefix: str = '',
+                       suffix: str = '',
+                       dir: Optional[str] = None,
+                       ensure_exists: bool = True
+                       ) -> _TemporaryDirectoryManager:
+    """A context manager which produces a temporary directory name that is recursively deleted when the context manager exits.
+
+    If the filesystem has a notion of directories, then we ensure the directory exists.
+
+    Warning
+    -------
+
+    The directory name is generated randomly and is extraordinarly unlikely to already exist, but
+    this function does not satisfy the strict requirements of Python's :class:`.TemporaryDirectory`.
+
+    Examples
+    --------
+
+    >>> with TemporaryDirectory() as dir:  # doctest: +SKIP
+    ...     open(f'{dir}/hello', 'w').write('hello hail')
+    ...     print(open(f'{dir}/hello').read())
+    hello hail
+
+    Returns
+    -------
+    :class:`.DeletingFile` or :class:`.DeletingDirectory`
+
+    """
+    if dir is None:
+        dir = tmp_dir()
+    if not dir.endswith('/'):
+        dir = dir + '/'
+    dirname = dir + prefix + secret_alnum_string(10) + suffix
+    fs = current_backend().fs
+    if ensure_exists:
+        fs.mkdir(dirname)
+    return _TemporaryDirectoryManager(fs, dirname)
+
+
+def current_backend() -> Backend:
     return Env.hc()._backend
 
 
@@ -461,11 +589,15 @@ def _get_flags(*flags):
 
 
 def debug_info():
+    from hail.backend.spark_backend import SparkBackend
     hail_jar_path = None
     if pkg_resources.resource_exists(__name__, "hail-all-spark.jar"):
         hail_jar_path = pkg_resources.resource_filename(__name__, "hail-all-spark.jar")
+    spark_conf = None
+    if isinstance(Env.backend(), SparkBackend):
+        spark_conf = spark_context()._conf.getAll()
     return {
-        'spark_conf': spark_context()._conf.getAll(),
+        'spark_conf': spark_conf,
         'hail_jar_path': hail_jar_path,
         'version': version()
     }

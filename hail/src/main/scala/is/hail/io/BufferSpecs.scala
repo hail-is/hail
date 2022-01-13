@@ -66,7 +66,7 @@ object BufferSpec {
       classOf[LEB128BufferSpec],
       classOf[BlockingBufferSpec],
       classOf[StreamBufferSpec]
-    ))
+    ), typeHintFieldName = "name")
 }
 
 trait BufferSpec extends Spec {

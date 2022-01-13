@@ -14,7 +14,9 @@ class SpecWriter:
     def get_index_file_offsets(job_id, start_job_id):
         assert job_id >= start_job_id
         idx_start = SpecWriter.bytes_per_offset * (job_id - start_job_id)
-        idx_end = (idx_start + 2 * SpecWriter.bytes_per_offset) - 1  # `end` parameter in gcs is inclusive of last byte to return
+        idx_end = (
+            idx_start + 2 * SpecWriter.bytes_per_offset
+        ) - 1  # `end` parameter in gcs is inclusive of last byte to return
         return (idx_start, idx_end)
 
     @staticmethod
@@ -33,13 +35,14 @@ WHERE batch_id = %s AND start_job_id <= %s
 ORDER BY start_job_id DESC
 LIMIT 1;
 ''',
-            (batch_id, job_id))
+            (batch_id, job_id),
+        )
         token = bunch_record['token']
         start_job_id = bunch_record['start_job_id']
         return (token, start_job_id)
 
-    def __init__(self, log_store, batch_id):
-        self.log_store = log_store
+    def __init__(self, file_store, batch_id):
+        self.file_store = file_store
         self.batch_id = batch_id
         self.token = secret_alnum_string(16)
 
@@ -60,6 +63,7 @@ LIMIT 1;
         end = len(self._data_bytes)
         self._offsets_bytes.extend(end.to_bytes(8, byteorder=SpecWriter.byteorder, signed=SpecWriter.signed))
 
-        await self.log_store.write_spec_file(self.batch_id, self.token,
-                                             bytes(self._data_bytes), bytes(self._offsets_bytes))
+        await self.file_store.write_spec_file(
+            self.batch_id, self.token, bytes(self._data_bytes), bytes(self._offsets_bytes)
+        )
         return self.token

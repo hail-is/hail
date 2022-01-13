@@ -26,7 +26,21 @@ class MaybeIndexedReadZippedIterator(
 
   private[this] var closed: Boolean = false
 
-  private[this] val idx = Option(idxr).map(_.queryByInterval(bounds).buffered)
+  private[this] val startAndEnd = Option(idxr).map(_.boundsByInterval(bounds))
+  private[this] val firstAnnotation = try {
+    startAndEnd.flatMap { case (start, end) =>
+      if (end == start || idxr.nKeys == 0) None else Some(idxr.queryByIndex(start))
+    }
+  } catch {
+    case e: Exception =>
+      if (idxr != null)
+        idxr.close()
+      isRows.close()
+      isEntries.close()
+      throw e
+  }
+
+  private[this] var n = startAndEnd.map(x => x._2 - x._1)
 
   private[this] val trackedRowsIn = new ByteTrackingInputStream(isRows)
   private[this] val trackedEntriesIn = new ByteTrackingInputStream(isEntries)
@@ -35,10 +49,9 @@ class MaybeIndexedReadZippedIterator(
   private[this] val entriesIdxField = Option(entriesOffsetField).map { f => idxr.annotationType.asInstanceOf[TStruct].fieldIdx(f) }
 
   private[this] val rows = try {
-    if (idx.forall(_.hasNext)) {
+    if (n.forall(_ > 0)) {
       val dec = mkRowsDec(trackedRowsIn)
-      idx.foreach { idx =>
-        val i = idx.head
+      firstAnnotation.foreach { i =>
         val off = rowsIdxField.map { j => i.annotation.asInstanceOf[Row].getAs[Long](j) }.getOrElse(i.recordOffset)
         dec.seek(off)
       }
@@ -61,8 +74,7 @@ class MaybeIndexedReadZippedIterator(
       null
     } else {
       val dec = mkEntriesDec(trackedEntriesIn)
-      idx.foreach { idx =>
-        val i = idx.head
+      firstAnnotation.foreach { i =>
         val off = entriesIdxField.map { j => i.annotation.asInstanceOf[Row].getAs[Long](j) }.getOrElse(i.recordOffset)
         dec.seek(off)
       }
@@ -88,7 +100,7 @@ class MaybeIndexedReadZippedIterator(
 
   private var cont: Byte = if (rows != null) nextCont() else 0
 
-  def hasNext: Boolean = cont != 0 && idx.forall(_.hasNext)
+  def hasNext: Boolean = cont != 0 && n.forall(_ > 0)
 
   def next(): Long = _next()
 
@@ -96,8 +108,8 @@ class MaybeIndexedReadZippedIterator(
     if (!hasNext)
       throw new NoSuchElementException("next on empty iterator")
 
+    n = n.map(_ - 1)
     try {
-      idx.map(_.next())
       val rowOff = rows.readRegionValue(region)
       val entOff = entries.readRegionValue(region)
       val off = inserter(region, rowOff, entOff)

@@ -1,24 +1,17 @@
 package is.hail.expr.ir.functions
 
 import java.io.DataOutputStream
-
 import is.hail.HailContext
-import is.hail.expr.ir.{ExecuteContext, MatrixValue}
+import is.hail.backend.ExecuteContext
+import is.hail.expr.ir.MatrixValue
 import is.hail.types.{MatrixType, RPrimitive, RTable, TypeWithRequiredness}
 import is.hail.types.virtual.{TVoid, Type}
 import is.hail.linalg.{BlockMatrix, BlockMatrixMetadata, GridPartitioner, WriteBlocksRDD}
 import is.hail.utils._
 import org.json4s.jackson
 
-case class MatrixWriteBlockMatrix(path: String,
-  overwrite: Boolean,
-  entryField: String,
-  blockSize: Int) extends MatrixToValueFunction {
-  def typ(childType: MatrixType): Type = TVoid
-
-  def unionRequiredness(childType: RTable, resultType: TypeWithRequiredness): Unit = ()
-
-  def execute(ctx: ExecuteContext, mv: MatrixValue): Any = {
+object MatrixWriteBlockMatrix {
+  def apply(ctx: ExecuteContext, mv: MatrixValue, entryField: String, path: String, overwrite: Boolean, blockSize: Int): Unit = {
     val rvd = mv.rvd
 
     // FIXME
@@ -62,7 +55,5 @@ case class MatrixWriteBlockMatrix(path: String,
     info(s"Wrote all $blockCount blocks of $nRows x $localNCols matrix with block size $blockSize.")
 
     using(fs.create(path + "/_SUCCESS"))(out => ())
-
-    null
   }
 }

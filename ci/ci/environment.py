@@ -1,13 +1,19 @@
+import json
 import os
+from gear.cloud_config import get_global_config
 
-GCP_PROJECT = os.environ['HAIL_GCP_PROJECT']
-assert GCP_PROJECT != ''
-GCP_ZONE = os.environ['HAIL_GCP_ZONE']
-assert GCP_ZONE != ''
-DOMAIN = os.environ['HAIL_DOMAIN']
-assert DOMAIN != ''
-IP = os.environ.get('HAIL_IP')
-CI_UTILS_IMAGE = os.environ.get('HAIL_CI_UTILS_IMAGE', 'gcr.io/hail-vdc/ci-utils:latest')
-DEFAULT_NAMESPACE = os.environ['HAIL_DEFAULT_NAMESPACE']
-KUBERNETES_SERVER_URL = os.environ['KUBERNETES_SERVER_URL']
-BUCKET = os.environ['HAIL_CI_BUCKET_NAME']
+global_config = get_global_config()
+
+CLOUD = global_config['cloud']
+assert CLOUD in ('gcp', 'azure'), CLOUD
+
+DOCKER_PREFIX = global_config['docker_prefix']
+DOCKER_ROOT_IMAGE = global_config['docker_root_image']
+DOMAIN = global_config['domain']
+KUBERNETES_SERVER_URL = global_config['kubernetes_server_url']
+DEFAULT_NAMESPACE = global_config['default_namespace']
+
+CI_UTILS_IMAGE = os.environ['HAIL_CI_UTILS_IMAGE']
+BUILDKIT_IMAGE = os.environ['HAIL_BUILDKIT_IMAGE']
+STORAGE_URI = os.environ['HAIL_CI_STORAGE_URI']
+DEPLOY_STEPS = tuple(json.loads(os.environ.get('HAIL_CI_DEPLOY_STEPS', '[]')))

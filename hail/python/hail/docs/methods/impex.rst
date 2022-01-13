@@ -55,6 +55,7 @@ from a :mod:`pandas` DataFrame with :meth:`.Table.from_pandas`.
 
     import_table
     import_matrix_table
+    import_lines
 
 Genetics
 ~~~~~~~~
@@ -121,6 +122,7 @@ Reference documentation
 .. autofunction:: import_matrix_table
 .. autofunction:: import_plink
 .. autofunction:: import_table
+.. autofunction:: import_lines
 .. autofunction:: import_vcf
 .. autofunction:: import_gvcfs
 .. autofunction:: export_vcf

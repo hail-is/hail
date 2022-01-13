@@ -144,7 +144,10 @@ trait FS extends Serializable {
 
   }
 
-  def open(path: String, gzAsBGZ: Boolean = false): InputStream =
+  def open(path: String): InputStream =
+    open(path, gzAsBGZ = false)
+
+  def open(path: String, gzAsBGZ: Boolean): InputStream =
     open(path, getCodecFromPath(path, gzAsBGZ))
 
   def create(path: String): OutputStream = {

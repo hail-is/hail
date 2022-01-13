@@ -1,90 +1,79 @@
 package is.hail.expr.ir
 
-import is.hail.annotations.{CodeOrdering, Region}
 import is.hail.asm4s._
+import is.hail.expr.ir.orderings.CodeOrdering
 import is.hail.types.physical._
 import is.hail.types.physical.stypes._
+import is.hail.types.physical.stypes.interfaces.{SBaseStruct, SBaseStructCode, SBaseStructValue, SContainer, SInterval, SIntervalCode, SIntervalValue}
 import is.hail.utils.FastIndexedSeq
 
 import scala.language.existentials
 
-class BinarySearch[C](mb: EmitMethodBuilder[C], typ: PContainer, eltType: PType, keyOnly: Boolean) {
+class BinarySearch[C](mb: EmitMethodBuilder[C], containerType: SContainer, eltType: EmitType, keyOnly: Boolean) {
 
-  val elt: PType = typ.elementType
-  val ti: TypeInfo[_] = typeToTypeInfo(elt)
+  val containerElementType: EmitType = containerType.elementEmitType
 
   val (compare: CodeOrdering.F[Int], equiv: CodeOrdering.F[Boolean], findElt: EmitMethodBuilder[C]) = if (keyOnly) {
-    val kt = elt match {
-      case t: PBaseStruct =>
-        require(t.size == 2)
-        t.types(0)
-      case t: PCanonicalInterval =>
-        t.pointType
+    val kt: EmitType = containerElementType.st match {
+      case s: SBaseStruct =>
+        require(s.size == 2)
+        s.fieldEmitTypes(0)
+      case interval: SInterval =>
+        interval.pointEmitType
     }
-    val findMB = mb.genEmitMethod("findElt", FastIndexedSeq[ParamType](typeInfo[Long], typeInfo[Boolean], typeToTypeInfo(kt)), typeInfo[Int])
+    val findMB = mb.genEmitMethod("findElt", FastIndexedSeq[ParamType](containerType.paramType, eltType.paramType), typeInfo[Int])
 
     val comp: CodeOrdering.F[Int] = {
-      (cb: EmitCodeBuilder, ec1: EmitCode, _ec2: EmitCode) =>
-        val ec2 = EmitCode.fromI(cb.emb) { cb =>
-          val iec = _ec2.toI(cb)
-          iec.flatMap(cb) {
-            case v2: PBaseStructCode =>
-              v2.memoize(cb, "bs_comp_v2").loadField(cb, 0)
-            case v2: PIntervalCode =>
-              v2.memoize(cb, "bs_comp_v2").loadStart(cb)
-          }.map(cb)(_.asPCode)
-        }
-        findMB.getCodeOrdering(eltType, kt, CodeOrdering.Compare())(cb, ec1, ec2)
+      (cb: EmitCodeBuilder, ec1: EmitValue, _ec2: EmitValue) =>
+        val ec2 = cb.memoize(EmitCode.fromI(cb.emb) { cb =>
+          _ec2.toI(cb).flatMap(cb) {
+            case v2: SBaseStructValue =>
+              v2.loadField(cb, 0)
+            case v2: SIntervalValue =>
+              v2.loadStart(cb)
+          }
+        })
+        findMB.ecb.getOrderingFunction(eltType.st, kt.st, CodeOrdering.Compare())(cb, ec1, ec2)
     }
     val ceq: CodeOrdering.F[Boolean] = {
-      (cb: EmitCodeBuilder, ec1: EmitCode, _ec2: EmitCode) =>
-        val ec2 = EmitCode.fromI(cb.emb) { cb =>
-          val iec = _ec2.toI(cb)
-          iec.flatMap(cb) {
-            case v2: PBaseStructCode =>
-              v2.memoize(cb, "bs_eq_v2").loadField(cb, 0)
-            case v2: PIntervalCode =>
-              v2.memoize(cb, "bs_comp_v2").loadStart(cb)
-          }.map(cb)(_.asPCode)
-        }
-      findMB.getCodeOrdering(eltType, kt, CodeOrdering.Equiv())(cb, ec1, ec2)
+      (cb: EmitCodeBuilder, ec1: EmitValue, _ec2: EmitValue) =>
+        val ec2 = cb.memoize(EmitCode.fromI(cb.emb) { cb =>
+          _ec2.toI(cb).flatMap(cb) {
+            case v2: SBaseStructValue =>
+              v2.loadField(cb, 0)
+            case v2: SIntervalValue =>
+              v2.loadStart(cb)
+          }
+        })
+      findMB.ecb.getOrderingFunction(eltType.st, kt.st, CodeOrdering.Equiv())(cb, ec1, ec2)
     }
     (comp, ceq, findMB)
   } else
-    (mb.getCodeOrdering(eltType, elt, CodeOrdering.Compare()),
-      mb.getCodeOrdering(eltType, elt, CodeOrdering.Equiv()),
-      mb.genEmitMethod("findElt", FastIndexedSeq[ParamType](typeInfo[Long], typeInfo[Boolean], elt.ti), typeInfo[Int]))
-
-  private[this] val array = findElt.getCodeParam[Long](1)
-  private[this] val m = findElt.getCodeParam[Boolean](2)
-  private[this] val e = findElt.getCodeParam(3)(eltType.ti)
-  private[this] val len = findElt.newLocal[Int]()
-  private[this] val i = findElt.newLocal[Int]()
-  private[this] val low = findElt.newLocal[Int]()
-  private[this] val high = findElt.newLocal[Int]()
-
-  def cmp(i: Code[Int]): Code[Int] = EmitCodeBuilder.scopedCode(findElt) { cb =>
-    val ec1 = EmitCode(Code._empty, m, PCode(eltType, e))
-    val ec2 = EmitCode.fromI(findElt) { cb =>
-      PCode(typ, array).asIndexable.memoize(cb, "binsearch_cmp_i").loadElement(cb, i).map(cb)(_.asPCode)
-    }
-    compare(cb, ec1, ec2)
-  }
+    (mb.ecb.getOrderingFunction(eltType.st, containerElementType.st, CodeOrdering.Compare()),
+      mb.ecb.getOrderingFunction(eltType.st, containerElementType.st, CodeOrdering.Equiv()),
+      mb.genEmitMethod("findElt", FastIndexedSeq[ParamType](containerType.paramType, eltType.paramType), typeInfo[Int]))
 
   // Returns smallest i, 0 <= i < n, for which a(i) >= key, or returns n if a(i) < key for all i
-  findElt.emit(Code(
-    len := typ.loadLength(array),
-    low := 0,
-    high := len,
-    Code.whileLoop(low < high,
-      i := (low + high) / 2,
-      (cmp(i) <= 0).mux(
-        high := i,
-        low := i + 1)),
-    low))
+  findElt.emitWithBuilder[Int] { cb =>
+    val indexable = findElt.getSCodeParam(1).asIndexable
+
+    val elt = findElt.getEmitParam(cb, 2, null) // no streams
+
+    val low = cb.newLocal("findelt_low", 0)
+    val high = cb.newLocal("findelt_high", indexable.loadLength())
+
+    cb.whileLoop(low < high, {
+      val i = cb.newLocal("findelt_i", (low + high) / 2)
+      cb.ifx(compare(cb, elt, cb.memoize(indexable.loadElement(cb, i))) <= 0,
+        cb.assign(high, i),
+        cb.assign(low, i + 1)
+      )
+    })
+    low
+  }
 
   // check missingness of v before calling
-  def getClosestIndex(array: Code[Long], m: Code[Boolean], v: Code[_]): Code[Int] = {
-    findElt.invokeCode[Int](array, m, v)
+  def getClosestIndex(cb: EmitCodeBuilder, array: SValue, v: EmitCode): Value[Int] = {
+    cb.memoize(cb.invokeCode[Int](findElt, array, v))
   }
 }

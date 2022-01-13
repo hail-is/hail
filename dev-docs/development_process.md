@@ -27,8 +27,7 @@ feature into smaller components.
 Before you can write code, there are some setup steps that will allow you to
 develop effectively.
 
-Hail currently does not support versions of python>3.7, so install either 3.6 or
-3.7 and then run
+Hail currently supports Python version 3.7 or greater.
 
 ```
 make install-dev-deps
@@ -47,26 +46,36 @@ changed files every commit. For example, services code uses the
 [Black python formatter](https://black.readthedocs.io/en/stable/)
 to enforce PEP8 compliance.
 
-#### Services
-If you are working on a services project, make sure you have Docker and Kubernetes
-installed. Then install the [gcloud cli](https://cloud.google.com/sdk/docs/install)
-and run the following to connect `kubectl` to the `hail-vdc` cluster.
+Sometimes large formatting or refactoring commits can muddle the git history
+for a file. If your change is one of these, follow up by adding the commit SHA to
+`.git-blame-ignore-revs`. To configure `git blame` to ignore these commits, run
 
+```
+git config blame.ignoreRevsFile $HAIL/.git-blame-ignore-revs
+```
+
+#### Services
+
+Install and configure tools necessary for working on the Hail Services:
+
+1. Install [Docker](https://docker.com)
+2. Install [`kubectl`](https://kubernetes.io/docs/tasks/tools/install-kubectl/)
+3. Install [`gcloud`](https://cloud.google.com/sdk/docs/install)
+4. Configure gcloud and Docker for Hail:
 ```
 gcloud auth login
 gcloud config set project hail-vdc
 gcloud container clusters get-credentials vdc --zone=us-central1-a
-gcloud auth configure-docker
+gcloud auth -q configure-docker gcr.io
 ```
 
-To use BuildKit with Docker for a much faster building experience, add
-
+5. Add these lines to `~/.zshrc` or `~/.bashrc` to configure your shell and environment for Hail:
 ```
+# BuildKit, a fast docker backend
 export DOCKER_BUILDKIT=1
+# Shell utilities for managing the Hail kubernetes cluster
+source /path/to/hail-repository/devbin/functions.sh
 ```
-
-to your `~/.bashrc` or `~/.zshrc`.
-
 
 ### Testing / Debugging
 There are different strategies for debugging depending on whether you are
@@ -98,12 +107,14 @@ hailctl dev deploy -b <github_user_name>/hail:<branch_name> -s <step1>,<step2>,.
 Dev deploy creates a batch that deploys the build steps specified by the `-s` in
 your own Kubernetes namespace, MySQL database. For example, if we want to test
 whether the Batch tests still pass, we would specify -s test_batch. This will
-run all the dependent steps for testing Batch such as a working router in your
-namespace, credentials, a live Auth service, a MySQL database for Batch, and a
-live Batch deployment. Your namespace name is the same as your
-username. Submitting a dev deploy with hailctl will give you the link to a UI
+run all the dependent steps for testing Batch such as creating credentials,
+a live Auth service, a MySQL database for Batch, and a live Batch deployment.
+Your namespace name is the same as your username.
+Submitting a dev deploy with hailctl will give you the link to a UI
 where you can monitor the progress of everything deploying and get the logs for
-any steps that fail.
+any steps that fail. You can also see a recent history of your dev deploys at
+[ci.hail.is/me](https://ci.hail.is/me).
+
 
 If the tests fail, you can then examine the Kubernetes logs for the service
 using something like
@@ -126,8 +137,11 @@ $ mysql
 Once you have a branch that you are happy with, then you create a Pull Request
 on the GitHub UI.
 
-You’ll want to add an appropriate reviewer as an “assignee” which is on the
-right hand side of the page.
+You’ll want to add an appropriate reviewer in the "Reviewers" box on the
+right hand side of the page. If you are an outside contributor and cannot
+request reviews, you can have CI automatically assign a reviewer. By writing
+`#assign services` or `#assign compiler` in the PR body, CI will randomly select
+a collaborator on the relevant team and assign them for you.
 
 You can also give the PR a set of labels. The important ones are “WIP” to make
 sure the pull request doesn’t get merged accidentally until you are ready,
@@ -141,9 +155,9 @@ PRs will not have any labels.
 
 For the PR title, start the title with the name of the service(s) the changes
 impact. For example, if it’s a Benchmark change, then you’d write
-[benchmark]. If it’s a Hail Query change, then it would be [query]. We also want
+`[benchmark]`. If it’s a Hail Query change, then it would be `[query]`. We also want
 the title to be descriptive enough to know what the change is without being too
-verbose. An example is “[batch] Added read_only option for gcsfuse”.
+verbose. An example is “`[batch]` Added read_only option for gcsfuse”.
 
 For the PR commit message, we want the message to be descriptive of the complete
 set of changes that occurred, especially if it’s a complicated set of
@@ -171,7 +185,7 @@ logs for your PR at [ci.hail.is](https://ci.hail.is).
 
 ## Review
 
-Once the PR has been created, it is the responsibility of the assignee(s) to
+Once the PR has been created, it is the responsibility of the reviewer(s) to
 review the PR. Our goal as a team is to give comments within 24 hours. To review
 someone else’s changes, click on “Files changed”. This will show the diff
 between the old code and the new proposed changes. You can make comments on
@@ -189,8 +203,13 @@ can “Approve” the PR.
 
 If you are the person whose code is being reviewed and your PR is in the Request
 Changes state, then you’ll need to address their comments by pushing new commit
-changes or answering questions. Once you are done, then you can dismiss their
-review towards the bottom of the Conversation page.
+changes or answering questions. Once you are done, then you can re-request a review
+in the "Reviewers" box.
+
+If your review is requested on a PR submitted by an outside contributor, you should
+"assign" yourself or the appropriate team member to the PR. The assignee is
+responsible for ensuring that the PR does not go stale and is eventually
+merged or closed.
 
 ![](dismiss_review.png)
 

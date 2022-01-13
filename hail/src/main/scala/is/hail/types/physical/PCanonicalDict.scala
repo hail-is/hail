@@ -1,14 +1,26 @@
 package is.hail.types.physical
 
 import is.hail.annotations.{Annotation, Region}
+import is.hail.expr.ir.EmitCodeBuilder
 import is.hail.types.virtual.{TDict, Type}
-import is.hail.types.physical.stypes.concrete.{SIndexablePointer, SIndexablePointerCode}
+import is.hail.types.physical.stypes.concrete.{SIndexablePointer, SIndexablePointerCode, SIndexablePointerValue}
+import is.hail.types.physical.stypes.interfaces.{SBaseStruct, SIndexableCode, SIndexableValue}
 import org.apache.spark.sql.Row
+
+object PCanonicalDict {
+  def coerceArrayCode(contents: SIndexableValue): SIndexableValue = {
+    contents.st match {
+      case SIndexablePointer(PCanonicalArray(ps: PBaseStruct, r)) =>
+        PCanonicalDict(ps.types(0), ps.types(1), r)
+          .construct(contents)
+    }
+  }
+}
 
 final case class PCanonicalDict(keyType: PType, valueType: PType, required: Boolean = false) extends PDict with PArrayBackedContainer {
   val elementType = PCanonicalStruct(required = true, "key" -> keyType, "value" -> valueType)
 
-  val arrayRep: PArray = PCanonicalArray(elementType, required)
+  val arrayRep: PCanonicalArray = PCanonicalArray(elementType, required)
 
   def setRequired(required: Boolean) = if(required == this.required) this else PCanonicalDict(keyType, valueType, required)
 
@@ -39,8 +51,22 @@ final case class PCanonicalDict(keyType: PType, valueType: PType, required: Bool
     this.arrayRep.unstagedStoreJavaObject(sortedArray, region)
   }
 
-  def construct(contents: PIndexableCode): PIndexableCode = {
-    assert(contents.pt == arrayRep)
-    new SIndexablePointerCode(SIndexablePointer(arrayRep), contents.tcode[Long])
+  def construct(contents: SIndexableValue): SIndexableValue = {
+    contents.st match {
+      case SIndexablePointer(PCanonicalArray(pbs: PBaseStruct, _))
+        if pbs.types.size == 2 && pbs.types(0) == keyType && pbs.types(1) == valueType =>
+      case t => throw new RuntimeException(s"PCDict.construct: contents=${t}, arrayrep=${arrayRep}")
+    }
+    val cont = contents.asInstanceOf[SIndexablePointerValue]
+    new SIndexablePointerValue(SIndexablePointer(this), cont.a, cont.length, cont.elementsAddress)
+  }
+
+  override def copiedType: PType = {
+    val copiedK = keyType.copiedType
+    val copiedV = valueType.copiedType
+    if (copiedK.eq(keyType) && copiedV.eq(valueType))
+      this
+    else
+      PCanonicalDict(copiedK, copiedV, required)
   }
 }

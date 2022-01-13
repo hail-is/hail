@@ -2,6 +2,7 @@ package is.hail.methods
 
 import is.hail.HailContext
 import is.hail.annotations._
+import is.hail.backend.ExecuteContext
 import is.hail.expr.ir._
 import is.hail.expr.ir.functions.MatrixToTableFunction
 import is.hail.types.physical.{PCanonicalString, PCanonicalStruct, PFloat64, PInt64, PString, PStruct}
@@ -10,7 +11,7 @@ import is.hail.types.{MatrixType, TableType}
 import is.hail.rvd.RVDContext
 import is.hail.sparkextras.ContextRDD
 import is.hail.utils._
-import is.hail.variant.{Call, Genotype, HardCallView}
+import is.hail.variant.{AllelePair, Call, Genotype, HardCallView}
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
 
@@ -115,7 +116,7 @@ object IBD {
 
   def countRefs(gtIdx: Int): Int = {
     val gt = Genotype.allelePair(gtIdx)
-    indicator(gt.j == 0) + indicator(gt.k == 0)
+    indicator(AllelePair.j(gt) == 0) + indicator(AllelePair.k(gt) == 0)
   }
 
   def ibsForGenotypes(gs: HardCallView, maybeMaf: Option[Double]): IBSExpectations = {

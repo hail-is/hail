@@ -3,7 +3,9 @@ package is.hail.asm4s
 import java.io.PrintStream
 import java.lang.reflect
 
+import is.hail.expr.ir.EmitCodeBuilder
 import is.hail.lir
+import is.hail.lir.{LdcX, ValueX}
 import is.hail.utils._
 import org.objectweb.asm.Opcodes._
 import org.objectweb.asm.Type
@@ -34,6 +36,17 @@ object Code {
     val newC = new VCode(c1.start, c2.end, null)
     c1.clear()
     c2.clear()
+    newC
+  }
+
+  def void[T](c1: Code[_], c2: Code[_], c3: Code[_], f: (lir.ValueX, lir.ValueX, lir.ValueX) => lir.StmtX): Code[T] = {
+    c3.end.append(f(c1.v, c2.v, c3.v))
+    c2.end.append(lir.goto(c3.start))
+    c1.end.append(lir.goto(c2.start))
+    val newC = new VCode(c1.start, c3.end, null)
+    c1.clear()
+    c2.clear()
+    c3.clear()
     newC
   }
 
@@ -277,6 +290,28 @@ object Code {
       cls, method, Array[Class[_]](
         a1ct.runtimeClass, a2ct.runtimeClass, a3ct.runtimeClass, a4ct.runtimeClass, a5ct.runtimeClass, a6ct.runtimeClass, a7ct.runtimeClass, a8ct.runtimeClass), Array(a1, a2, a3, a4, a5, a6, a7, a8))
 
+  def invokeScalaObject9[A1, A2, A3, A4, A5, A6, A7, A8, A9, S](
+     cls: Class[_], method: String, a1: Code[A1], a2: Code[A2], a3: Code[A3], a4: Code[A4], a5: Code[A5], a6: Code[A6], a7: Code[A7], a8: Code[A8], a9: Code[A9])(
+     implicit a1ct: ClassTag[A1], a2ct: ClassTag[A2], a3ct: ClassTag[A3], a4ct: ClassTag[A4], a5ct: ClassTag[A5], a6ct: ClassTag[A6], a7ct: ClassTag[A7], a8ct: ClassTag[A8], a9ct: ClassTag[A9], sct: ClassTag[S]
+   ): Code[S] =
+    invokeScalaObject[S](
+      cls, method, Array[Class[_]](
+        a1ct.runtimeClass, a2ct.runtimeClass, a3ct.runtimeClass, a4ct.runtimeClass, a5ct.runtimeClass, a6ct.runtimeClass, a7ct.runtimeClass, a8ct.runtimeClass, a9ct.runtimeClass), Array(a1, a2, a3, a4, a5, a6, a7, a8, a9))
+
+  def invokeScalaObject11[A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, S](
+    cls: Class[_], method: String, a1: Code[A1], a2: Code[A2], a3: Code[A3], a4: Code[A4], a5: Code[A5], a6: Code[A6], a7: Code[A7], a8: Code[A8],
+    a9: Code[A9], a10: Code[A10], a11: Code[A11])(
+    implicit a1ct: ClassTag[A1], a2ct: ClassTag[A2], a3ct: ClassTag[A3], a4ct: ClassTag[A4], a5ct: ClassTag[A5], a6ct: ClassTag[A6], a7ct: ClassTag[A7],
+    a8ct: ClassTag[A8], a9ct: ClassTag[A9], a10ct: ClassTag[A10], a11ct: ClassTag[A11], sct: ClassTag[S]
+  ): Code[S] =
+    invokeScalaObject[S](
+      cls, method,
+      Array[Class[_]](
+        a1ct.runtimeClass, a2ct.runtimeClass, a3ct.runtimeClass, a4ct.runtimeClass, a5ct.runtimeClass, a6ct.runtimeClass, a7ct.runtimeClass, a8ct.runtimeClass,
+        a9ct.runtimeClass, a10ct.runtimeClass, a11ct.runtimeClass),
+      Array(a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11)
+    )
+
   def invokeScalaObject13[A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, A12, A13, S](
     cls: Class[_], method: String, a1: Code[A1], a2: Code[A2], a3: Code[A3], a4: Code[A4], a5: Code[A5], a6: Code[A6], a7: Code[A7], a8: Code[A8],
     a9: Code[A9], a10: Code[A10], a11: Code[A11], a12: Code[A12], a13: Code[A13])(
@@ -289,6 +324,19 @@ object Code {
         a9ct.runtimeClass, a10ct.runtimeClass, a11ct.runtimeClass, a12ct.runtimeClass, a13ct.runtimeClass),
       Array(a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13)
     )
+
+  def invokeScalaObject16[A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, A12, A13, A14, A15, A16, S](
+    cls: Class[_], method: String, a1: Code[A1], a2: Code[A2], a3: Code[A3], a4: Code[A4], a5: Code[A5], a6: Code[A6], a7: Code[A7], a8: Code[A8],
+    a9: Code[A9], a10: Code[A10], a11: Code[A11], a12: Code[A12], a13: Code[A13], a14: Code[A14], a15: Code[A15], a16: Code[A16])(
+    implicit a1ct: ClassTag[A1], a2ct: ClassTag[A2], a3ct: ClassTag[A3], a4ct: ClassTag[A4], a5ct: ClassTag[A5], a6ct: ClassTag[A6], a7ct: ClassTag[A7],
+    a8ct: ClassTag[A8], a9ct: ClassTag[A9], a10ct: ClassTag[A10], a11ct: ClassTag[A11], a12ct: ClassTag[A12], a13ct: ClassTag[A13], a14ct: ClassTag[A14],
+    a15ct: ClassTag[A15], a16ct: ClassTag[A16], sct: ClassTag[S]): Code[S] =
+    invokeScalaObject[S](
+      cls, method,
+      Array[Class[_]](
+        a1ct.runtimeClass, a2ct.runtimeClass, a3ct.runtimeClass, a4ct.runtimeClass, a5ct.runtimeClass, a6ct.runtimeClass, a7ct.runtimeClass, a8ct.runtimeClass,
+        a9ct.runtimeClass, a10ct.runtimeClass, a11ct.runtimeClass, a12ct.runtimeClass, a13ct.runtimeClass, a14ct.runtimeClass, a15ct.runtimeClass, a16ct.runtimeClass),
+      Array(a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16))
 
   def invokeStatic[S](cls: Class[_], method: String, parameterTypes: Array[Class[_]], args: Array[Code[_]])(implicit sct: ClassTag[S]): Code[S] = {
     val m = Invokeable.lookupMethod(cls, method, parameterTypes)(sct)
@@ -314,9 +362,10 @@ object Code {
   def invokeStatic5[T, A1, A2, A3, A4, A5, S](method: String, a1: Code[A1], a2: Code[A2], a3: Code[A3], a4: Code[A4], a5: Code[A5])(implicit tct: ClassTag[T], sct: ClassTag[S], a1ct: ClassTag[A1], a2ct: ClassTag[A2], a3ct: ClassTag[A3], a4ct: ClassTag[A4], a5ct: ClassTag[A5]): Code[S] =
     invokeStatic[S](tct.runtimeClass, method, Array[Class[_]](a1ct.runtimeClass, a2ct.runtimeClass, a3ct.runtimeClass, a4ct.runtimeClass, a5ct.runtimeClass), Array[Code[_]](a1, a2, a3, a4, a5))(sct)
 
-  def _null[T >: Null](implicit tti: TypeInfo[T]): Code[T] = Code(lir.insn0(ACONST_NULL, tti))
+  def _null[T >: Null](implicit tti: TypeInfo[T]): Value[T] = Value.fromLIR[T](lir.insn0(ACONST_NULL, tti))
+  def _uncheckednull[T](tti: TypeInfo[T]): Value[T] = Value.fromLIR[T](lir.insn0(ACONST_NULL, tti))
 
-  def _empty: Code[Unit] = Code[Unit](null: lir.ValueX)
+  def _empty: Value[Unit] = Value.fromLIR[Unit](null: lir.ValueX)
 
   def _throwAny[T <: java.lang.Throwable]: Thrower[T] = new Thrower[T] {
     def apply[U](cerr: Code[T])(implicit uti: TypeInfo[U]): Code[U] = {
@@ -331,9 +380,10 @@ object Code {
   }
 
   private def getEmitLineNum: Int = {
-    val st = Thread.currentThread().getStackTrace
-    val i = st.indexWhere(ste => ste.getFileName == "Emit.scala")
-    if (i == -1) 0 else st(i).getLineNumber
+//    val st = Thread.currentThread().getStackTrace
+//    val i = st.indexWhere(ste => ste.getFileName == "Emit.scala")
+//    if (i == -1) 0 else st(i).getLineNumber
+    0
   }
 
   def _throw[T <: java.lang.Throwable, U](cerr: Code[T])(implicit uti: TypeInfo[U]): Code[U] =
@@ -361,7 +411,7 @@ object Code {
     Code._throw[is.hail.utils.HailException, U](cerr, lineNumber)
   }
 
-  def _fatalWithID[U](msg: Code[String], errorId: Int)(implicit uti: TypeInfo[U]): Code[U] =
+  def _fatalWithID[U](msg: Code[String], errorId: Code[Int])(implicit uti: TypeInfo[U]): Code[U] =
     Code._throw[is.hail.utils.HailException, U](Code.newInstance[is.hail.utils.HailException, String, Int](
       msg,
       errorId))
@@ -428,6 +478,12 @@ object Code {
     f.put(null, rhs)
   }
 
+  def constBoolValue(c: Code[Boolean]): Option[Boolean] =
+    c match {
+      case const: ConstCodeBoolean => Some(const.b)
+      case _ => None
+    }
+
   def currentTimeMillis(): Code[Long] = Code.invokeStatic0[java.lang.System, Long]("currentTimeMillis")
 
   def memoize[T, U](c: Code[T], name: String)(f: (Value[T]) => Code[U])(implicit tti: TypeInfo[T]): Code[U] = {
@@ -484,7 +540,7 @@ object Code {
     t.newTuple(elems)
   }
 
-  def loadTuple(modb: ModuleBuilder, elemTypes: IndexedSeq[TypeInfo[_]], v: Value[_]): IndexedSeq[Code[_]] = {
+  def loadTuple(modb: ModuleBuilder, elemTypes: IndexedSeq[TypeInfo[_]], v: Value[_]): IndexedSeq[Value[_]] = {
     val t = modb.tupleClass(elemTypes)
     t.loadElementsAny(v)
   }
@@ -678,6 +734,27 @@ class CCode(
   }
 }
 
+class ConstCodeBoolean(val b: Boolean) extends Code[Boolean] {
+
+  private[this] lazy val ldc = new lir.LdcX(if (b) 1 else 0, BooleanInfo, 0)
+  private[this] lazy val vc = {
+    val L = new lir.Block()
+    new VCode(L, L, ldc)
+  }
+
+  def toCCode: CCode = vc.toCCode
+
+  def start: lir.Block = vc.start
+
+  def end: lir.Block = vc.end
+
+  def v: lir.ValueX = vc.v
+
+  def check(): Unit = vc.check()
+
+  def clear(): Unit = vc.clear()
+}
+
 class CodeBoolean(val lhs: Code[Boolean]) extends AnyVal {
   def toCCode: CCode = lhs match {
     case x: CCode =>
@@ -701,7 +778,10 @@ class CodeBoolean(val lhs: Code[Boolean]) extends AnyVal {
       newC
   }
 
-  def unary_!(): Code[Boolean] = !lhs.toCCode
+  def unary_!(): Code[Boolean] = lhs match {
+    case const: ConstCodeBoolean => new ConstCodeBoolean(!const.b)
+    case _ => !lhs.toCCode
+  }
 
   def muxAny(cthen: Code[_], celse: Code[_]): Code[_] = {
     mux[Any](coerce[Any](cthen), coerce[Any](celse))
@@ -871,6 +951,12 @@ class CodeLong(val lhs: Code[Long]) extends AnyVal {
 
   def >=(rhs: Code[Long]): Code[Boolean] = compare(rhs) >= 0
 
+  def max(rhs: Code[Long]): Code[Long] =
+    Code.invokeStatic2[Math, Long, Long, Long]("max", lhs, rhs)
+
+  def min(rhs: Code[Long]): Code[Long] =
+    Code.invokeStatic2[Math, Long, Long, Long]("min", lhs, rhs)
+
   def ceq(rhs: Code[Long]): Code[Boolean] = compare(rhs) ceq 0
 
   def cne(rhs: Code[Long]): Code[Boolean] = compare(rhs) cne 0
@@ -1021,6 +1107,21 @@ class CodeArray[T](val lhs: Code[Array[T]])(implicit tti: TypeInfo[T]) {
     Code(lhs, lir.insn1(ARRAYLENGTH))
 }
 
+class UntypedCodeArray(val lhs: Value[_], tti: TypeInfo[_]) {
+  def apply(i: Code[Int]): Code[_] =
+    Code(lhs, i, lir.insn2(tti.aloadOp))
+
+  def index(cb: EmitCodeBuilder, i: Code[Int]): Value[_] = {
+    cb.memoizeAny(apply(i), tti)
+  }
+
+  def update(i: Code[Int], x: Code[_]): Code[Unit] =
+    Code.void(lhs.get, i, x, (lhs, i, x) => lir.stmtOp(tti.astoreOp, lhs, i, x))
+
+  def length(): Code[Int] =
+    Code(lhs, lir.insn1(ARRAYLENGTH))
+}
+
 object CodeLabel {
   def apply(): CodeLabel = {
     val L = new lir.Block()
@@ -1030,6 +1131,8 @@ object CodeLabel {
 
 class CodeLabel(val L: lir.Block) extends Code[Unit] {
   private var _start: lir.Block = L
+
+  def isImplemented: Boolean = L.wellFormed
 
   def start: lir.Block = {
     check()
@@ -1145,6 +1248,12 @@ object FieldRef {
   }
 }
 
+object Value {
+  def fromLIR[T](v: => lir.ValueX): Value[T] = new Value[T] {
+    def get: Code[T] = Code(v)
+  }
+}
+
 trait Value[+T] { self =>
   def get: Code[T]
 }
@@ -1166,8 +1275,7 @@ class ThisLazyFieldRef[T: TypeInfo](cb: ClassBuilder[_], name: String, setup: Co
   private[this] val setm = cb.genMethod[Unit](s"setup_$name")
   setm.emit(Code(value := setup, present := true))
 
-  def get: Code[T] =
-    Code(present.mux(Code._empty, setm.invoke()), value.load())
+  def get: Code[T] = Code(present.mux(Code._empty, setm.invokeCode()), value.load())
 }
 
 class ThisFieldRef[T: TypeInfo](cb: ClassBuilder[_], f: Field[T]) extends Settable[T] {

@@ -52,7 +52,7 @@ def merge(batch, results):
     Merge clumped results files together
     """
     merger = batch.new_job(name='merge-results')
-    merger.image('ubuntu:18.04')
+    merger.image('ubuntu:20.04')
     if results:
         merger.command(f'''
 head -n 1 {results[0]} > {merger.ofile}
@@ -60,7 +60,7 @@ for result in {" ".join(results)}
 do
     tail -n +2 "$result" >> {merger.ofile}
 done
-sed -i '/^$/d' {merger.ofile}
+sed -i -e '/^$/d' {merger.ofile}
 ''')
     return merger
 

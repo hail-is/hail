@@ -16,11 +16,12 @@
 # import sys
 # sys.path.insert(0, os.path.abspath('.'))
 import inspect
+import datetime
 
 # -- Project information -----------------------------------------------------
 
 project = 'Batch'
-copyright = '2020, Hail Team'
+copyright = '{}, Hail Team'.format(datetime.datetime.now().year)
 author = 'Hail Team'
 
 # The short X.Y version
@@ -28,6 +29,7 @@ version = ''
 # The full version, including alpha/beta/rc tags
 release = ''
 nitpicky = True
+nitpick_ignore = [('py:class', 'hailtop.batch_client.client.Batch')]
 
 # -- General configuration ---------------------------------------------------
 

@@ -1,4 +1,4 @@
-from typing import Mapping, Dict, Sequence
+from typing import Mapping, Dict, Sequence, Union
 
 from deprecated import deprecated
 
@@ -8,16 +8,17 @@ from .base_expression import Expression, ExpressionException, to_expr, \
     unify_all, unify_types
 from .expression_typecheck import coercer_from_dtype, \
     expr_any, expr_array, expr_set, expr_bool, expr_numeric, expr_int32, \
-    expr_int64, expr_str, expr_dict, expr_interval, expr_tuple, expr_oneof
+    expr_int64, expr_str, expr_dict, expr_interval, expr_tuple, expr_oneof, \
+    expr_ndarray
 from hail.expr.types import HailType, tint32, tint64, tfloat32, \
     tfloat64, tbool, tcall, tset, tarray, tstruct, tdict, ttuple, tstr, \
     tndarray, tlocus, tinterval, is_numeric
 import hail.ir as ir
 from hail.typecheck import typecheck, typecheck_method, func_spec, oneof, \
-    identity, nullable, tupleof, sliceof, dictof
+    identity, nullable, tupleof, sliceof, dictof, anyfunc
 from hail.utils.java import Env, warning
 from hail.utils.linkedlist import LinkedList
-from hail.utils.misc import wrap_to_list, get_nice_field_error, get_nice_attr_error
+from hail.utils.misc import wrap_to_list, wrap_to_tuple, get_nice_field_error, get_nice_attr_error
 
 import numpy as np
 
@@ -77,7 +78,7 @@ class CollectionExpression(Expression):
         [2, 4]
 
         >>> hl.eval(s3.filter(lambda x: ~(x[-1] == 'e')))  # doctest: +SKIP_OUTPUT_CHECK
-        {'Bob'}
+        frozenset({'Bob'})
 
         Notes
         -----
@@ -319,7 +320,7 @@ class CollectionExpression(Expression):
         [1.0, 8.0, 27.0, 64.0, 125.0]
 
         >>> hl.eval(s3.map(lambda x: x.length()))
-        {3, 5, 7}
+        frozenset({3, 5, 7})
 
         Parameters
         ----------
@@ -344,6 +345,29 @@ class CollectionExpression(Expression):
             return hl.set(array_map)
         assert isinstance(self._type, tarray)
         return array_map
+
+    @typecheck_method(f=anyfunc)
+    def starmap(self, f):
+        r"""Transform each element of a collection of tuples.
+
+        Examples
+        --------
+
+        >>> hl.eval(hl.array([(1, 2), (2, 3)]).starmap(lambda x, y: x+y))
+        [3, 5]
+
+        Parameters
+        ----------
+        f : function ( (\*args) -> :class:`.Expression`)
+            Function to transform each element of the collection.
+
+        Returns
+        -------
+        :class:`.CollectionExpression`.
+            Collection where each element has been transformed according to `f`.
+        """
+
+        return self.map(lambda e: f(*e))
 
     def length(self):
         """Returns the size of a collection.
@@ -448,37 +472,26 @@ class ArrayExpression(CollectionExpression):
             Element or array slice.
         """
         if isinstance(item, slice):
-            return self._slice(self.dtype, item.start, item.stop, item.step)
+            return self._slice(item.start, item.stop, item.step)
         item = to_expr(item)
         if not item.dtype == tint32:
             raise TypeError("array expects key to be type 'slice' or expression of type 'int32', "
                             "found expression of type '{}'".format(item._type))
         else:
-            import traceback
-            stack = traceback.format_stack()
-            i = len(stack)
-            while i > 0:
-                candidate = stack[i - 1]
-                if 'IPython' in candidate:
-                    break
-                i -= 1
-            filt_stack = []
+            return self._method("indexArray", self.dtype.element_type, item)
 
-            forbidden_phrases = [
-                '_ir_lambda_method',
-                'decorator.py',
-                'typecheck/check',
-                'interactiveshell.py',
-                'expressions.construct_variable',
-                'traceback.format_stack()'
-            ]
-            while i < len(stack):
-                candidate = stack[i]
-                i += 1
-                if any(phrase in candidate for phrase in forbidden_phrases):
-                    continue
-                filt_stack.append(candidate)
-            return self._method("indexArray", self.dtype.element_type, item, '\n'.join(filt_stack))
+    @typecheck_method(start=nullable(expr_int32), stop=nullable(expr_int32), step=nullable(expr_int32))
+    def _slice(self, start=None, stop=None, step=None):
+        if step is None:
+            step = hl.int(1)
+        if start is None:
+            start = hl.if_else(step >= 0, 0, -1)
+        if stop is not None:
+            slice_ir = ir.ArraySlice(self._ir, start._ir, stop._ir, step._ir)
+        else:
+            slice_ir = ir.ArraySlice(self._ir, start._ir, stop, step._ir)
+
+        return construct_expr(slice_ir, self.dtype, self._indices, self._aggregations)
 
     @typecheck_method(item=expr_any)
     def contains(self, item):
@@ -1083,7 +1096,7 @@ class SetExpression(CollectionExpression):
         --------
 
         >>> hl.eval(s1.remove(1))
-        {2, 3}
+        frozenset({2, 3})
 
         Parameters
         ----------
@@ -1138,10 +1151,10 @@ class SetExpression(CollectionExpression):
         --------
 
         >>> hl.eval(s1.difference(s2))
-        {2}
+        frozenset({2})
 
         >>> hl.eval(s2.difference(s1))
-        {5}
+        frozenset({5})
 
         Parameters
         ----------
@@ -1167,7 +1180,7 @@ class SetExpression(CollectionExpression):
         --------
 
         >>> hl.eval(s1.intersection(s2))
-        {1, 3}
+        frozenset({1, 3})
 
         Parameters
         ----------
@@ -1222,7 +1235,7 @@ class SetExpression(CollectionExpression):
         --------
 
         >>> hl.eval(s1.union(s2))
-        {1, 2, 3, 5}
+        frozenset({1, 2, 3, 5})
 
         Parameters
         ----------
@@ -1239,6 +1252,201 @@ class SetExpression(CollectionExpression):
                             "    set type:    '{}'\n"
                             "    type of 's': '{}'".format(self._type, s._type))
         return self._method("union", self._type, s)
+
+    def __le__(self, other):
+        """Test whether every element in the set is in `other`.
+
+        Parameters
+        ----------
+        other : :class:`.SetExpression`
+            Set expression of the same type.
+
+        Returns
+        -------
+        :class:`.BooleanExpression`
+            ``True`` if every element in the set is in `other`. ``False`` otherwise.
+        """
+        other = to_expr(other)
+        if isinstance(other.dtype, hl.tset):
+            return self.is_subset(other)
+
+        return NotImplemented
+
+    def __lt__(self, other):
+        """Test whether the set is a proper subset of `other` (``set <= other and set != other``).
+
+        Parameters
+        ----------
+        other : :class:`.SetExpression`
+            Set expression of the same type.
+
+        Returns
+        -------
+        :class:`.BooleanExpression`
+            ``True`` if the set is a proper subset of `other`. ``False`` otherwise.
+        """
+        other = to_expr(other)
+        if isinstance(other.dtype, hl.tset):
+            return self.is_subset(other) & (self != other)
+
+        return NotImplemented
+
+    def __ge__(self, other):
+        """Test whether every element in `other` is in the set.
+
+        Parameters
+        ----------
+        other : :class:`.SetExpression`
+            Set expression of the same type.
+
+        Returns
+        -------
+        :class:`.BooleanExpression`
+            ``True`` if every element in `other` is in the set. ``False`` otherwise.
+        """
+        other = to_expr(other)
+        if isinstance(other.dtype, hl.tset):
+            return other.is_subset(self)
+
+        return NotImplemented
+
+    def __gt__(self, other):
+        """Test whether `other` is a proper subset of the set (``other <= set and other != set``).
+
+        Parameters
+        ----------
+        other : :class:`.SetExpression`
+            Set expression of the same type.
+
+        Returns
+        -------
+        :class:`.BooleanExpression`
+            ``True`` if `other` is a proper subset of the set. ``False`` otherwise.
+        """
+        other = to_expr(other)
+        if isinstance(other.dtype, hl.tset):
+            return other.is_subset(self) & (self != other)
+
+        return NotImplemented
+
+    def __sub__(self, other):
+        """Return the difference of the set and `other`.
+
+        Examples
+        --------
+
+        >>> hl.eval(s1 - s2)
+        frozenset({2})
+
+        >>> hl.eval(s2 - s1)
+        frozenset({5})
+
+        Parameters
+        ----------
+        other : :class:`.SetExpression`
+            Set expression of the same type.
+
+        Returns
+        -------
+        :class:`.SetExpression`
+            Set of elements in the set that are not in `other`.
+        """
+        other = to_expr(other)
+        if isinstance(other.dtype, hl.tset):
+            return self.difference(other)
+
+        return NotImplemented
+
+    def __rsub__(self, other):
+        other = to_expr(other)
+        if isinstance(other.dtype, hl.tset):
+            return other.difference(self)
+
+        return NotImplemented
+
+    def __and__(self, other):
+        """Return the intersection of the set and `other`.
+
+        Examples
+        --------
+
+        >>> hl.eval(s1 & s2)
+        frozenset({1, 3})
+
+        Parameters
+        ----------
+        other : :class:`.SetExpression`
+            Set expression of the same type.
+
+        Returns
+        -------
+        :class:`.SetExpression`
+            Set of elements present in both the set and `other`.
+        """
+        other = to_expr(other)
+        if isinstance(other.dtype, hl.tset):
+            return self.intersection(other)
+
+        return NotImplemented
+
+    def __rand__(self, other):
+        return self.__and__(other)
+
+    def __or__(self, other):
+        """Return the union of the set and `other`.
+
+        Examples
+        --------
+
+        >>> hl.eval(s1 | s2)
+        frozenset({1, 2, 3, 5})
+
+        Parameters
+        ----------
+        other : :class:`.SetExpression`
+            Set expression of the same type.
+
+        Returns
+        -------
+        :class:`.SetExpression`
+            Set of elements present in either set.
+        """
+        other = to_expr(other)
+        if isinstance(other.dtype, hl.tset):
+            return self.union(other)
+
+        return NotImplemented
+
+    def __ror__(self, other):
+        return self.__or__(other)
+
+    def __xor__(self, other):
+        """Return the symmetric difference of the set and `other`.
+
+        Examples
+        --------
+
+        >>> hl.eval(s1 ^ s2)
+        frozenset({2, 5})
+
+        Parameters
+        ----------
+        other : :class:`.SetExpression`
+            Set expression of the same type.
+
+        Returns
+        -------
+        :class:`.SetExpression`
+            Set of elements present in either the set or `other` but not both.
+        """
+        other = to_expr(other)
+        if isinstance(other.dtype, hl.tset):
+            return self.union(other).difference(self.intersection(other))
+
+        return NotImplemented
+
+    def __rxor__(self, other):
+        return self.__xor__(other)
 
 
 class SetStructExpression(SetExpression):
@@ -1505,6 +1713,22 @@ class DictExpression(Expression):
         """
         return self._method("values", tarray(self.dtype.value_type))
 
+    def items(self):
+        """Returns an array of tuples containing key/value pairs in the dictionary.
+
+        Examples
+        --------
+
+        >>> hl.eval(d.items())  # doctest: +SKIP_OUTPUT_CHECK
+        [('Alice', 430), ('Bob', 330), ('Charles', 440)]
+
+        Returns
+        -------
+        :class:`.ArrayExpression`
+            All key/value pairs in the dictionary.
+        """
+        return hl.array(self)
+
     def _extra_summary_fields(self, agg_result):
         return {
             'Min Size': agg_result[0],
@@ -1530,7 +1754,7 @@ class DictExpression(Expression):
             hl.agg.explode(lambda elt: hl.tuple((elt[0]._all_summary_aggs(), elt[1]._all_summary_aggs())), hl.array(self))))
 
 
-class StructExpression(Mapping[str, Expression], Expression):
+class StructExpression(Mapping[Union[str, int], Expression], Expression):
     """Expression of type :class:`.tstruct`.
 
     >>> struct = hl.struct(a=5, b='Foo')
@@ -1602,6 +1826,9 @@ class StructExpression(Mapping[str, Expression], Expression):
 
     def __len__(self):
         return len(self._fields)
+
+    def __bool__(self):
+        return bool(len(self))
 
     @typecheck_method(item=oneof(str, int, slice))
     def __getitem__(self, item):
@@ -1933,6 +2160,9 @@ class TupleExpression(Expression, Sequence):
         """
         return len(self.dtype.types)
 
+    def __bool__(self):
+        return bool(len(self))
+
     def __iter__(self):
         for i in range(len(self)):
             yield self[i]
@@ -2179,27 +2409,10 @@ class NumericExpression(Expression):
         :class:`.NumericExpression`
             The left number divided by the left.
         """
-
-        def ret_type_f(t):
-            assert is_numeric(t)
-            if t == tint32 or t == tint64:
-                return tfloat32
-            else:
-                # Float64 or Float32
-                return t
-
-        return self._bin_op_numeric("/", other, ret_type_f)
+        return self._bin_op_numeric("/", other, self._div_ret_type_f)
 
     def __rtruediv__(self, other):
-        def ret_type_f(t):
-            assert is_numeric(t)
-            if t == tint32 or t == tint64:
-                return tfloat32
-            else:
-                # float64 or float32
-                return t
-
-        return self._bin_op_numeric_reverse("/", other, ret_type_f)
+        return self._bin_op_numeric_reverse("/", other, self._div_ret_type_f)
 
     def __floordiv__(self, other):
         """Divide two numbers with floor division.
@@ -2459,6 +2672,20 @@ class Int32Expression(NumericExpression):
     def _summary_aggs(self):
         return hl.agg.stats(self)
 
+    def __mul__(self, other):
+        other = to_expr(other)
+        if other.dtype == tstr:
+            return other * self
+        else:
+            return NumericExpression.__mul__(self, other)
+
+    def __rmul__(self, other):
+        other = to_expr(other)
+        if other.dtype == tstr:
+            return other * self
+        else:
+            return NumericExpression.__mul__(self, other)
+
 
 class Int64Expression(NumericExpression):
     """Expression of type :py:data:`.tint64`."""
@@ -2503,7 +2730,7 @@ class StringExpression(Expression):
             Substring or character at index `item`.
         """
         if isinstance(item, slice):
-            return self._slice(tstr, item.start, item.stop, item.step)
+            return self._slice(item.start, item.stop, item.step)
         else:
             item = to_expr(item)
             if not item.dtype == tint32:
@@ -2544,6 +2771,34 @@ class StringExpression(Expression):
         if not other.dtype == tstr:
             raise NotImplementedError("'{}' + '{}'".format(other.dtype, self.dtype))
         return self._bin_op_reverse("concat", other, self.dtype)
+
+    def __mul__(self, other):
+        other = to_expr(other)
+        if not other.dtype == tint32:
+            raise NotImplementedError("'{}' + '{}'".format(self.dtype, other.dtype))
+        return hl.delimit(hl.range(other).map(lambda x: self), delimiter='')
+
+    def __rmul__(self, other):
+        other = to_expr(other)
+        return other * self
+
+    def _slice(self, start=None, stop=None, step=None):
+        if step is not None:
+            raise NotImplementedError('Variable slice step size is not currently supported for strings')
+
+        if start is not None:
+            start = to_expr(start)
+            if stop is not None:
+                stop = to_expr(stop)
+                return self._method('slice', tstr, start, stop)
+            else:
+                return self._method('sliceRight', tstr, start)
+        else:
+            if stop is not None:
+                stop = to_expr(stop)
+                return self._method('sliceLeft', tstr, stop)
+            else:
+                return self
 
     def length(self):
         """Returns the length of the string.
@@ -2976,6 +3231,32 @@ class CallExpression(Expression):
                 raise TypeError("Call expects allele index to be an expression of type 'int32', "
                                 "found expression of type '{}'".format(item.dtype))
             return self._index(tint32, item)
+
+    def unphase(self):
+        """Returns an unphased version of this call.
+
+        Returns
+        -------
+        :class:`.CallExpression`
+        """
+        return self._method("unphase", tcall)
+
+    def contains_allele(self, allele):
+        """Returns true if the call has one or more called alleles of the given index.
+
+        >>> c = hl.call(0, 3)
+
+        >>> hl.eval(c.contains_allele(3))
+        True
+
+        >>> hl.eval(c.contains_allele(1))
+        False
+
+        Returns
+        -------
+        :class:`.BooleanExpression`
+        """
+        return self._method("containsAllele", tbool, allele)
 
     @property
     def ploidy(self):
@@ -3769,20 +4050,41 @@ class NDArrayExpression(Expression):
 
     _opt_long_slice = sliceof(nullable(expr_int64), nullable(expr_int64), nullable(expr_int64))
 
-    @typecheck_method(item=oneof(expr_int64, _opt_long_slice, tupleof(oneof(expr_int64, _opt_long_slice))))
+    @typecheck_method(item=nullable(oneof(expr_int64, type(...), _opt_long_slice, tupleof(nullable(oneof(expr_int64, type(...), _opt_long_slice))))))
     def __getitem__(self, item):
         if not isinstance(item, tuple):
             item = (item,)
 
-        if len(item) != self.ndim:
-            raise ValueError(f'Must specify one index per dimension. '
-                             f'Expected {self.ndim} dimensions but got {len(item)}')
+        num_ellipses = len([e for e in item if isinstance(e, type(...))])
+        if num_ellipses > 1:
+            raise IndexError("an index can only have a single ellipsis (\'...\')")
 
-        n_sliced_dims = len([s for s in item if isinstance(s, slice)])
+        num_nones = len([x for x in item if x is None])
+        list_item = list(item)
+
+        if num_ellipses == 1:
+            list_types = [type(e) for e in list_item]
+            ellipsis_location = list_types.index(type(...))
+            num_slices_to_add = self.ndim - (len(item) - num_nones) + 1
+            no_ellipses = list_item[:ellipsis_location] + [slice(None)] * num_slices_to_add + list_item[ellipsis_location + 1:]
+        else:
+            no_ellipses = list_item
+
+        no_nums = [x for x in no_ellipses if ((x is None) or (isinstance(x, slice)))]
+        indices_nones = [i for i, x in enumerate(no_nums) if x is None]
+        formatted_item = [x for x in no_ellipses if x is not None]
+
+        if len(formatted_item) > self.ndim:
+            raise IndexError(f'too many indices for array: array is '
+                             f'{self.ndim}-dimensional, but {len(item)} were indexed')
+        if len(formatted_item) < self.ndim:
+            formatted_item += [slice(None, None, None)] * (self.ndim - len(formatted_item))
+
+        n_sliced_dims = len([s for s in formatted_item if isinstance(s, slice)])
 
         if n_sliced_dims > 0:
             slices = []
-            for i, s in enumerate(item):
+            for i, s in enumerate(formatted_item):
                 dlen = self.shape[i]
                 if isinstance(s, slice):
 
@@ -3794,6 +4096,7 @@ class NDArrayExpression(Expression):
 
                     max_bound = hl.if_else(step > 0, dlen, dlen - 1)
                     min_bound = hl.if_else(step > 0, to_expr(0, tint64), to_expr(-1, tint64))
+
                     if s.start is not None:
                         # python treats start < -dlen as None when step < 0: [0,1][-3:0:-1]
                         # and 0 otherwise: [0,1][-3::1] == [0,1][0::1]
@@ -3823,15 +4126,35 @@ class NDArrayExpression(Expression):
                         hl.str("Index ") + hl.str(s) + hl.str(f" is out of bounds for axis {i} with size ") + hl.str(dlen)
                     )
                     slices.append(checked_int)
-            return construct_expr(ir.NDArraySlice(self._ir, hl.tuple(slices)._ir),
-                                  tndarray(self._type.element_type, n_sliced_dims),
-                                  self._indices,
-                                  self._aggregations)
+            product = construct_expr(ir.NDArraySlice(self._ir, hl.tuple(slices)._ir),
+                                     tndarray(self._type.element_type, n_sliced_dims),
+                                     self._indices,
+                                     self._aggregations)
 
-        return construct_expr(ir.NDArrayRef(self._ir, [idx._ir for idx in item]),
-                              self._type.element_type,
-                              self._indices,
-                              self._aggregations)
+            if len(indices_nones) > 0:
+                reshape_arg = []
+                index_non_nones = 0
+                for i in range(n_sliced_dims + num_nones):
+                    if i in indices_nones:
+                        reshape_arg.append(1)
+                    else:
+                        reshape_arg.append(product.shape[index_non_nones])
+                        index_non_nones += 1
+                product = product.reshape(tuple(reshape_arg))
+
+        else:
+            product = construct_expr(ir.NDArrayRef(self._ir, [idx._ir for idx in formatted_item]),
+                                     self._type.element_type,
+                                     self._indices,
+                                     self._aggregations)
+
+            if len(indices_nones) > 0:
+                reshape_arg = []
+                for i in indices_nones:
+                    reshape_arg.append(1)
+                product = hl.nd.array(product).reshape(tuple(reshape_arg))
+
+        return product
 
     @typecheck_method(shape=oneof(expr_int64, tupleof(expr_int64), expr_tuple()))
     def reshape(self, *shape):
@@ -3879,7 +4202,7 @@ class NDArrayExpression(Expression):
 
     @typecheck_method(f=func_spec(1, expr_any))
     def map(self, f):
-        """Transform each element of an NDArray.
+        """Applies an element-wise operation on an NDArray.
 
         Parameters
         ----------
@@ -3897,6 +4220,37 @@ class NDArrayExpression(Expression):
 
         assert isinstance(self._type, tndarray)
         return ndarray_map
+
+    @typecheck_method(other=oneof(expr_ndarray(), list), f=func_spec(2, expr_any))
+    def map2(self, other, f):
+        """Applies an element-wise binary operation on two NDArrays.
+
+        Parameters
+        ----------
+        other : class:`.NDArrayExpression`, :class:`.ArrayExpression`, numpy NDarray,
+            or nested python list/tuples. Both NDArrays must be the same shape or
+            broadcastable into common shape.
+        f : function ((arg1, arg2)-> :class:`.Expression`)
+            Function to be applied to each element of both NDArrays.
+
+        Returns
+        -------
+        :class:`.NDArrayExpression`.
+            Element-wise result of applying `f` to each index in NDArrays.
+        """
+
+        if isinstance(other, list) or isinstance(other, np.ndarray):
+            other = hl.nd.array(other)
+
+        self_broadcast, other_broadcast = self._broadcast_to_same_ndim(other)
+
+        element_type1 = self_broadcast._type.element_type
+        element_type2 = other_broadcast._type.element_type
+        ndarray_map2 = self_broadcast._ir_lambda_method2(other_broadcast, ir.NDArrayMap2, f, element_type1,
+                                                         element_type2, lambda t: tndarray(t, self_broadcast.ndim))
+
+        assert isinstance(self._type, tndarray)
+        return ndarray_map2
 
     def _broadcast_to_same_ndim(self, other):
         if isinstance(other, NDArrayExpression):
@@ -4098,6 +4452,46 @@ class NDArrayNumericExpression(NDArrayExpression):
         res = construct_expr(ir.NDArrayMatMul(left._ir, right._ir), ret_type, self._indices, self._aggregations)
 
         return res if result_ndim > 0 else res[()]
+
+    @typecheck_method(axis=nullable(oneof(int, tupleof(int))))
+    def sum(self, axis=None):
+        """Sum out one or more axes of an ndarray.
+
+        Parameters
+        ----------
+        axis : :class:`int` :class:`tuple`
+            The axis or axes to sum out.
+
+        Returns
+        -------
+        :class:`.NDArrayNumericExpression` or :class:`.NumericExpression`
+        """
+        if axis is None:
+            axis = tuple(range(self.ndim))
+
+        if self._type.element_type is hl.tbool:
+            return self.map(lambda x: hl.int(x)).sum(axis)
+
+        else:
+            axis = wrap_to_tuple(axis)
+            res_ir = ir.NDArrayAgg(self._ir, axis)
+
+            axes_set = set(axis)
+            if len(axes_set) < len(axis):
+                raise ValueError("duplicate value in 'axis'")
+            for element in axes_set:
+                if element < 0 or element >= self.ndim:
+                    raise ValueError(f"axis {element} is out of bounds for ndarray of dimension {self.ndim}")
+
+            num_axes_deleted = len(axes_set)
+
+            result_ndim = self.ndim - num_axes_deleted
+            result = construct_expr(res_ir, tndarray(self._type.element_type, result_ndim), self._indices, self._aggregations)
+
+            if result_ndim == 0:
+                return result[()]
+            else:
+                return result
 
 
 scalars = {tbool: BooleanExpression,

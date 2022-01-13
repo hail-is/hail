@@ -59,3 +59,32 @@ class Test(unittest.TestCase):
         self.assertEqual(deploy_config.base_url('foo'), 'https://foo.bar/bar/foo')
         self.assertEqual(deploy_config.url('foo', '/moo'), 'https://foo.bar/bar/foo/moo')
         self.assertEqual(deploy_config.external_url('foo', '/moo'), 'https://internal.organization.tld/bar/foo/moo')
+
+    def test_deploy_batch_job_default(self):
+        deploy_config = DeployConfig('gce', 'default', 'organization.tld')
+
+        self.assertEqual(deploy_config.location(), 'gce')
+        self.assertEqual(deploy_config.service_ns('quam'), 'default')
+        self.assertEqual(deploy_config.service_ns('foo'), 'default')
+        self.assertEqual(deploy_config.scheme(), 'http')
+        self.assertEqual(deploy_config.auth_session_cookie_name(), 'session')
+
+        self.assertEqual(deploy_config.domain('quam'), 'quam.hail')
+        self.assertEqual(deploy_config.base_path('quam'), '')
+        self.assertEqual(deploy_config.base_url('quam'), 'http://quam.hail')
+        self.assertEqual(deploy_config.url('quam', '/moo'), 'http://quam.hail/moo')
+        self.assertEqual(deploy_config.external_url('quam', '/moo'), 'https://quam.organization.tld/moo')
+
+    def test_deploy_batch_job_bar(self):
+        deploy_config = DeployConfig('gce', 'bar', 'organization.tld')
+
+        self.assertEqual(deploy_config.location(), 'gce')
+        self.assertEqual(deploy_config.service_ns('quam'), 'bar')
+        self.assertEqual(deploy_config.service_ns('foo'), 'bar')
+        self.assertEqual(deploy_config.scheme(), 'http')
+        self.assertEqual(deploy_config.auth_session_cookie_name(), 'sesh')
+
+        self.assertEqual(deploy_config.base_path('foo'), '/bar/foo')
+        self.assertEqual(deploy_config.base_url('foo'), 'http://internal.hail/bar/foo')
+        self.assertEqual(deploy_config.url('foo', '/moo'), 'http://internal.hail/bar/foo/moo')
+        self.assertEqual(deploy_config.external_url('foo', '/moo'), 'https://internal.organization.tld/bar/foo/moo')

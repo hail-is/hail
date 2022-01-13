@@ -8,8 +8,8 @@ import is.hail.utils._
 import breeze.linalg
 import breeze.linalg.DenseMatrix
 import breeze.numerics
-import is.hail.annotations.Region
-import is.hail.backend.BackendContext
+import is.hail.annotations.{NDArray, Region}
+import is.hail.backend.{BackendContext, ExecuteContext}
 import is.hail.backend.spark.SparkBackend
 import is.hail.expr.Nat
 import is.hail.expr.ir.lowering.{BlockMatrixStage, LowererUnsupportedOperation}
@@ -92,8 +92,8 @@ case class BlockMatrixRead(reader: BlockMatrixReader) extends BlockMatrixIR {
 object BlockMatrixReader {
   implicit val formats: Formats = new DefaultFormats() {
     override val typeHints = ShortTypeHints(
-      List(classOf[BlockMatrixNativeReader], classOf[BlockMatrixBinaryReader], classOf[BlockMatrixPersistReader]))
-    override val typeHintFieldName: String = "name"
+      List(classOf[BlockMatrixNativeReader], classOf[BlockMatrixBinaryReader], classOf[BlockMatrixPersistReader]),
+      typeHintFieldName = "name")
   }
 
   def fromJValue(ctx: ExecuteContext, jv: JValue): BlockMatrixReader = {
@@ -243,8 +243,6 @@ class BlockMatrixLiteral(value: BlockMatrix) extends BlockMatrixIR {
 }
 
 case class BlockMatrixMap(child: BlockMatrixIR, eltName: String, f: IR, needsDense: Boolean) extends BlockMatrixIR {
-  assert(f.isInstanceOf[ApplyUnaryPrimOp] || f.isInstanceOf[Apply] || f.isInstanceOf[ApplyBinaryPrimOp])
-
   override lazy val typ: BlockMatrixType = child.typ
   assert(!needsDense || !typ.isSparse)
 
@@ -268,17 +266,29 @@ case class BlockMatrixMap(child: BlockMatrixIR, eltName: String, f: IR, needsDen
     f(_, scalar)
 
   override protected[ir] def execute(ctx: ExecuteContext): BlockMatrix = {
+    assert(f.isInstanceOf[ApplyUnaryPrimOp] || f.isInstanceOf[Apply] || f.isInstanceOf[ApplyBinaryPrimOp])
     val prev = child.execute(ctx)
+
+    val functionArgs = f match {
+      case ApplyUnaryPrimOp(_, arg1) => IndexedSeq(arg1)
+      case Apply(_, _, args, _, _) => args
+      case ApplyBinaryPrimOp(_, l, r) => IndexedSeq(l, r)
+    }
+
+    assert(functionArgs.forall(ir => IsConstant(ir) || ir.isInstanceOf[Ref]),
+      "Spark backend without lowering does not support general mapping over " +
+        "BlockMatrix entries. Use predefined functions like `BlockMatrix.abs`.")
+
 
     val (name, breezeF): (String, DenseMatrix[Double] => DenseMatrix[Double]) = f match {
       case ApplyUnaryPrimOp(Negate(), _) => ("negate", BlockMatrix.negationOp)
-      case Apply("abs", _, _, _) => ("abs", numerics.abs(_))
-      case Apply("log", _, _, _) => ("log", numerics.log(_))
-      case Apply("sqrt", _, _, _) => ("sqrt", numerics.sqrt(_))
-      case Apply("ceil", _, _, _) => ("ceil", numerics.ceil(_))
-      case Apply("floor", _, _, _) => ("floor", numerics.floor(_))
+      case Apply("abs", _, _, _, _) => ("abs", numerics.abs(_))
+      case Apply("log", _, _, _, _) => ("log", numerics.log(_))
+      case Apply("sqrt", _, _, _,_) => ("sqrt", numerics.sqrt(_))
+      case Apply("ceil", _, _, _,_) => ("ceil", numerics.ceil(_))
+      case Apply("floor", _, _, _,_) => ("floor", numerics.floor(_))
 
-      case Apply("pow", _, Seq(Ref(`eltName`, _), r), _) if !Mentions(r, eltName) =>
+      case Apply("pow", _, Seq(Ref(`eltName`, _), r), _, _) if !Mentions(r, eltName) =>
         ("**", binaryOp(evalIR(ctx, r), numerics.pow(_, _)))
       case ApplyBinaryPrimOp(Add(), Ref(`eltName`, _), r) if !Mentions(r, eltName) =>
         ("+", binaryOp(evalIR(ctx, r), _ + _))
@@ -348,7 +358,6 @@ case object NeedsDense extends SparsityStrategy {
 }
 
 case class BlockMatrixMap2(left: BlockMatrixIR, right: BlockMatrixIR, leftName: String, rightName: String, f: IR, sparsityStrategy: SparsityStrategy) extends BlockMatrixIR {
-  assert(f.isInstanceOf[ApplyBinaryPrimOp] || f.isInstanceOf[Apply])
   assert(
     left.typ.nRows == right.typ.nRows &&
     left.typ.nCols == right.typ.nCols &&
@@ -371,6 +380,8 @@ case class BlockMatrixMap2(left: BlockMatrixIR, right: BlockMatrixIR, leftName: 
   }
 
   override protected[ir] def execute(ctx: ExecuteContext): BlockMatrix = {
+    assert(f.isInstanceOf[ApplyBinaryPrimOp] || f.isInstanceOf[Apply])
+
     left match {
       case BlockMatrixBroadcast(vectorIR: BlockMatrixIR, IndexedSeq(x), _, _) =>
         val vector = coerceToVector(ctx , vectorIR)
@@ -410,6 +421,11 @@ case class BlockMatrixMap2(left: BlockMatrixIR, right: BlockMatrixIR, leftName: 
       case ValueToBlockMatrix(child, _, _) =>
         Interpret[Any](ctx, child) match {
           case vector: IndexedSeq[_] => vector.asInstanceOf[IndexedSeq[Double]].toArray
+          case vector: NDArray => {
+            val IndexedSeq(numRows, numCols) = vector.shape
+            assert(numRows == 1L || numCols == 1L)
+            vector.getRowMajorElements().asInstanceOf[IndexedSeq[Double]].toArray
+          }
         }
       case _ => ir.execute(ctx).toBreezeMatrix().data
     }
@@ -457,7 +473,7 @@ case class BlockMatrixDot(left: BlockMatrixIR, right: BlockMatrixIR) extends Blo
 
     val (tensorShape, isRowVector) = BlockMatrixIR.matrixShapeToTensorShape(lRows, rCols)
     val sparsity = if (left.typ.isSparse || right.typ.isSparse)
-      BlockMatrixSparsity(
+      BlockMatrixSparsity.constructFromShapeAndFunction(
         BlockMatrixType.numBlocks(lRows, blockSize),
         BlockMatrixType.numBlocks(rCols, blockSize)) { (i: Int, j: Int) =>
         Array.tabulate(BlockMatrixType.numBlocks(rCols, blockSize)) { k =>
@@ -527,14 +543,14 @@ case class BlockMatrixBroadcast(
             BlockMatrixSparsity.dense
           case IndexedSeq(0) => // broadcast col vector
             assert(Set(1, shape(0)) == Set(child.typ.nRows, child.typ.nCols))
-            BlockMatrixSparsity(nRowBlocks, nColBlocks)((i: Int, j: Int) => child.typ.hasBlock(0 -> j))
+            BlockMatrixSparsity.constructFromShapeAndFunction(nRowBlocks, nColBlocks)((i: Int, j: Int) => child.typ.hasBlock(0 -> j))
           case IndexedSeq(1) => // broadcast row vector
             assert(Set(1, shape(1)) == Set(child.typ.nRows, child.typ.nCols))
-            BlockMatrixSparsity(nRowBlocks, nColBlocks)((i: Int, j: Int) => child.typ.hasBlock(i -> 0))
+            BlockMatrixSparsity.constructFromShapeAndFunction(nRowBlocks, nColBlocks)((i: Int, j: Int) => child.typ.hasBlock(i -> 0))
           case IndexedSeq(0, 0) => // diagonal as col vector
             assert(shape(0) == 1L)
             assert(shape(1) == java.lang.Math.min(child.typ.nRows, child.typ.nCols))
-            BlockMatrixSparsity(nRowBlocks, nColBlocks)((_, j: Int) => child.typ.hasBlock(j -> j))
+            BlockMatrixSparsity.constructFromShapeAndFunction(nRowBlocks, nColBlocks)((_, j: Int) => child.typ.hasBlock(j -> j))
           case IndexedSeq(1, 0) => // transpose
             assert(child.typ.blockSize == blockSize)
             assert(shape(0) == child.typ.nCols && shape(1) == child.typ.nRows)
@@ -597,27 +613,27 @@ case class BlockMatrixBroadcast(
 
 case class BlockMatrixAgg(
   child: BlockMatrixIR,
-  outIndexExpr: IndexedSeq[Int]) extends BlockMatrixIR {
+  axesToSumOut: IndexedSeq[Int]) extends BlockMatrixIR {
 
   val blockCostIsLinear: Boolean = child.blockCostIsLinear
 
-  assert(outIndexExpr.length < 2)
+  assert(axesToSumOut.length > 0)
 
   override lazy val typ: BlockMatrixType = {
     val matrixShape = BlockMatrixIR.tensorShapeToMatrixShape(child)
     val matrixShapeArr = Array[Long](matrixShape._1, matrixShape._2)
-    val shape = outIndexExpr.map({ i: Int => matrixShapeArr(i) }).toFastIndexedSeq
-    val isRowVector = outIndexExpr == FastIndexedSeq(1)
+    val shape = IndexedSeq(0, 1).filter(i => !axesToSumOut.contains(i)).map({ i: Int => matrixShapeArr(i) }).toFastIndexedSeq
+    val isRowVector = axesToSumOut == FastIndexedSeq(0)
 
     val sparsity = if (child.typ.isSparse) {
-      outIndexExpr match {
-        case IndexedSeq() => BlockMatrixSparsity.dense
-        case IndexedSeq(1) => // col vector result; agg over row
-          BlockMatrixSparsity(child.typ.nRowBlocks, 1) { (i, _) =>
+      axesToSumOut match {
+        case IndexedSeq(0, 1) => BlockMatrixSparsity.dense
+        case IndexedSeq(0) => // col vector result; agg over row
+          BlockMatrixSparsity.constructFromShapeAndFunction(child.typ.nRowBlocks, 1) { (i, _) =>
             (0 until child.typ.nColBlocks).exists(j => child.typ.hasBlock(i -> j))
           }
-        case IndexedSeq(0) => // row vector result; agg over col
-          BlockMatrixSparsity(1, child.typ.nColBlocks) { (_, j) =>
+        case IndexedSeq(1) => // row vector result; agg over col
+          BlockMatrixSparsity.constructFromShapeAndFunction(1, child.typ.nColBlocks) { (_, j) =>
             (0 until child.typ.nRowBlocks).exists(i => child.typ.hasBlock(i -> j))
           }
       }
@@ -630,16 +646,16 @@ case class BlockMatrixAgg(
 
   def copy(newChildren: IndexedSeq[BaseIR]): BlockMatrixAgg = {
     assert(newChildren.length == 1)
-    BlockMatrixAgg(newChildren(0).asInstanceOf[BlockMatrixIR], outIndexExpr)
+    BlockMatrixAgg(newChildren(0).asInstanceOf[BlockMatrixIR], axesToSumOut)
   }
 
   override protected[ir] def execute(ctx: ExecuteContext): BlockMatrix = {
     val childBm = child.execute(ctx)
 
-    outIndexExpr match {
-      case IndexedSeq() => BlockMatrixIR.toBlockMatrix(nRows = 1, nCols = 1, Array(childBm.sum()), typ.blockSize)
-      case IndexedSeq(1) => childBm.rowSum()
-      case IndexedSeq(0) => childBm.colSum()
+    axesToSumOut match {
+      case IndexedSeq(0, 1) => BlockMatrixIR.toBlockMatrix(nRows = 1, nCols = 1, Array(childBm.sum()), typ.blockSize)
+      case IndexedSeq(0) => childBm.rowSum()
+      case IndexedSeq(1) => childBm.colSum()
     }
   }
 }
@@ -733,7 +749,7 @@ case class BandSparsifier(blocksOnly: Boolean, l: Long, u: Long) extends BlockMa
     val leftBuffer = java.lang.Math.floorDiv(-l, childType.blockSize)
     val rightBuffer = java.lang.Math.floorDiv(u, childType.blockSize)
 
-    BlockMatrixSparsity(childType.nRowBlocks, childType.nColBlocks) { (i, j) =>
+    BlockMatrixSparsity.constructFromShapeAndFunction(childType.nRowBlocks, childType.nColBlocks) { (i, j) =>
       j >= (i - leftBuffer) && j <= (i + rightBuffer) && childType.hasBlock(i -> j)
     }
   }
@@ -753,7 +769,7 @@ case class RowIntervalSparsifier(blocksOnly: Boolean, starts: IndexedSeq[Long], 
     val blockStarts = starts.grouped(childType.blockSize).map(idxs => childType.getBlockIdx(idxs.min)).toArray
     val blockStops = stops.grouped(childType.blockSize).map(idxs => childType.getBlockIdx(idxs.max - 1)).toArray
 
-    BlockMatrixSparsity(childType.nRowBlocks, childType.nColBlocks) { (i, j) =>
+    BlockMatrixSparsity.constructFromShapeAndFunction(childType.nRowBlocks, childType.nColBlocks) { (i, j) =>
       blockStarts(i) <= j && blockStops(i) >= j && childType.hasBlock(i -> j)
     }
   }
@@ -800,7 +816,7 @@ case class PerBlockSparsifier(blocks: IndexedSeq[Int]) extends BlockMatrixSparsi
   val blockSet = blocks.toSet
 
   override def definedBlocks(childType: BlockMatrixType): BlockMatrixSparsity = {
-    BlockMatrixSparsity(childType.nRowBlocks, childType.nColBlocks){ case(i: Int, j: Int) =>
+    BlockMatrixSparsity.constructFromShapeAndFunction(childType.nRowBlocks, childType.nColBlocks){ case(i: Int, j: Int) =>
       blockSet.contains(i + j * childType.nRowBlocks)
     }
   }
@@ -901,6 +917,7 @@ case class ValueToBlockMatrix(
 
   private def elementType(childType: Type): Type = {
     childType match {
+      case ndarray: TNDArray => ndarray.elementType
       case array: TArray => array.elementType
       case _ => childType
     }
@@ -916,12 +933,14 @@ case class ValueToBlockMatrix(
   override protected[ir] def execute(ctx: ExecuteContext): BlockMatrix = {
     val IndexedSeq(nRows, nCols) = shape
     BlockMatrixIR.checkFitsIntoArray(nRows, nCols)
-    Interpret[Any](ctx, child) match {
+    CompileAndEvaluate[Any](ctx, child, true) match {
       case scalar: Double =>
         assert(nRows == 1 && nCols == 1)
         BlockMatrix.fill(nRows, nCols, scalar, blockSize)
       case data: IndexedSeq[_] =>
         BlockMatrixIR.toBlockMatrix(nRows.toInt, nCols.toInt, data.asInstanceOf[IndexedSeq[Double]].toArray, blockSize)
+      case ndData: NDArray =>
+        BlockMatrixIR.toBlockMatrix(nRows.toInt, nCols.toInt, ndData.getRowMajorElements().asInstanceOf[IndexedSeq[Double]].toArray, blockSize)
     }
   }
 }

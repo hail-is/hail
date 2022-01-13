@@ -4,6 +4,7 @@ import sass
 import jinja2
 import aiohttp_jinja2
 import aiohttp_session
+import aiohttp
 from hailtop.config import get_deploy_config
 from gear import new_csrf_token
 
@@ -18,19 +19,17 @@ def sass_compile(module_name):
 
     scss_path = f'{module_root}/styles'
     css_path = f'{module_root}/static/css'
+    os.makedirs(scss_path, exist_ok=True)
     os.makedirs(css_path, exist_ok=True)
 
-    sass.compile(
-        dirname=(scss_path, css_path), output_style='compressed',
-        include_paths=[f'{WEB_COMMON_ROOT}/styles'])
+    sass.compile(dirname=(scss_path, css_path), output_style='compressed', include_paths=[f'{WEB_COMMON_ROOT}/styles'])
 
 
-def setup_aiohttp_jinja2(app, module):
+def setup_aiohttp_jinja2(app: aiohttp.web.Application, module: str, *extra_loaders: jinja2.BaseLoader):
     aiohttp_jinja2.setup(
-        app, loader=jinja2.ChoiceLoader([
-            jinja2.PackageLoader('web_common'),
-            jinja2.PackageLoader(module)
-        ]))
+        app,
+        loader=jinja2.ChoiceLoader([jinja2.PackageLoader('web_common'), jinja2.PackageLoader(module), *extra_loaders]),
+    )
 
 
 _compiled = False
@@ -47,10 +46,7 @@ def setup_common_static_routes(routes):
 
 def set_message(session, text, type):
     assert type in ('info', 'error')
-    session['message'] = {
-        'text': text,
-        'type': type
-    }
+    session['message'] = {'text': text, 'type': type}
 
 
 def base_context(session, userdata, service):
@@ -64,10 +60,11 @@ def base_context(session, userdata, service):
         'batch_base_url': deploy_config.external_url('batch', ''),
         'batch_driver_base_url': deploy_config.external_url('batch-driver', ''),
         'ci_base_url': deploy_config.external_url('ci', ''),
-        'scorecard_base_url': deploy_config.external_url('scorecard', ''),
+        'grafana_base_url': deploy_config.external_url('grafana', ''),
         'monitoring_base_url': deploy_config.external_url('monitoring', ''),
         'benchmark_base_url': deploy_config.external_url('benchmark', ''),
-        'userdata': userdata
+        'blog_base_url': deploy_config.external_url('blog', ''),
+        'userdata': userdata,
     }
     if 'message' in session:
         context['message'] = session.pop('message')

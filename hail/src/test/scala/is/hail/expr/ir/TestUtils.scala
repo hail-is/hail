@@ -88,7 +88,7 @@ object TestUtils {
 
   def IRSet(a: Integer*): IR = toIRSet(a)
 
-  def IRCall(c: Call): IR = Cast(I32(c), TCall)
+  def IRCall(c: Call): IR = invoke("callFromRepr", TCall, I32(c))
 
     def IRAggCount: IR = {
     val aggSig = AggSignature(Count(), FastSeq.empty, FastSeq.empty)

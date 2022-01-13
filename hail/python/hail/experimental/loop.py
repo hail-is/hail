@@ -155,8 +155,9 @@ def loop(f: Callable, typ, *args):
         uid_irs.append((uid, expr._ir))
 
     loop_f = to_expr(f(make_loop, *loop_vars))
+    if loop_f.dtype != typ:
+        raise TypeError(f"requested type {typ} does not match inferred type {loop_f.dtype}")
     check_tail_recursive(loop_f._ir)
     indices, aggregations = unify_all(*args, loop_f)
-    if loop_f.dtype != typ:
-        raise TypeError(f"requested type {typ} does not match inferred type {loop_f.typ}")
+
     return construct_expr(ir.TailLoop(loop_name, loop_f._ir, uid_irs), loop_f.dtype, indices, aggregations)

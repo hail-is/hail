@@ -1,51 +1,59 @@
 package is.hail.types.physical.stypes.interfaces
 
-import is.hail.annotations.{CodeOrdering, Region}
+import is.hail.annotations.Region
 import is.hail.asm4s.{Code, Settable, TypeInfo, Value}
-import is.hail.expr.ir.EmitStream.SizedStream
-import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder, SortOrder}
-import is.hail.types.physical.stypes.{SCode, SSettable, SType}
-import is.hail.types.physical.{PCanonicalStream, PCode, PStream, PStreamCode, PType, PValue}
+import is.hail.expr.ir.EmitCodeBuilder
+import is.hail.expr.ir.streams.StreamProducer
+import is.hail.types.{RIterable, TypeWithRequiredness}
+import is.hail.types.physical.stypes.{EmitType, SCode, SSettable, SType, SUnrealizableCode, SUnrealizableValue, SValue}
+import is.hail.types.physical.PType
+import is.hail.types.virtual.{TStream, Type}
 
-case class SStream(elementType: SType, separateRegions: Boolean = false) extends SType {
-  def pType: PStream = PCanonicalStream(elementType.pType, separateRegions, false)
+final case class SStream(elementEmitType: EmitType) extends SType {
+  def elementType: SType = elementEmitType.st
 
-  def coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): SCode = {
-    if (deepCopy) throw new UnsupportedOperationException
+  override def _coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SValue, deepCopy: Boolean): SValue = {
+    if (deepCopy) throw new NotImplementedError()
 
     assert(value.st == this)
     value
   }
 
-  def codeTupleTypes(): IndexedSeq[TypeInfo[_]] = throw new UnsupportedOperationException
+  override def settableTupleTypes(): IndexedSeq[TypeInfo[_]] = throw new NotImplementedError()
 
-  def codeOrdering(mb: EmitMethodBuilder[_], other: SType, so: SortOrder): CodeOrdering = throw new UnsupportedOperationException
+  override def fromSettables(settables: IndexedSeq[Settable[_]]): SSettable = throw new NotImplementedError()
 
-  def loadFrom(cb: EmitCodeBuilder, region: Value[Region], pt: PType, addr: Code[Long]): SCode = throw new UnsupportedOperationException
+  override def fromValues(values: IndexedSeq[Value[_]]): SValue = throw new NotImplementedError()
 
-  def fromCodes(codes: IndexedSeq[Code[_]]): SCode = throw new UnsupportedOperationException
+  override def storageType(): PType = throw new NotImplementedError()
 
-  def fromSettables(settables: IndexedSeq[Settable[_]]): SSettable = throw new UnsupportedOperationException
+  override def copiedType: SType = throw new NotImplementedError()
 
-  def canonicalPType(): PType = pType
+  override def containsPointers: Boolean = throw new NotImplementedError()
+
+  override def virtualType: Type = TStream(elementType.virtualType)
+
+  override def castRename(t: Type): SType = throw new UnsupportedOperationException("rename on stream")
+
+  override def _typeWithRequiredness: TypeWithRequiredness = RIterable(elementEmitType.typeWithRequiredness.r)
 }
 
+object SStreamCode{
+  def apply(producer: StreamProducer): SStreamCode = SStreamCode(SStream(producer.element.emitType), producer)
+}
 
-final case class SStreamCode(st: SStream, stream: SizedStream) extends PStreamCode {
-  self =>
-  override def pt: PStream = st.pType
+final case class SStreamCode(st: SStream, producer: StreamProducer) extends SCode with SUnrealizableCode {
+  override def memoizeField(cb: EmitCodeBuilder, name: String): SValue = SStreamValue(st, producer)
 
-  def memoize(cb: EmitCodeBuilder, name: String): PValue = new PValue {
-    def pt: PStream = PCanonicalStream(st.pType)
+  override def memoize(cb: EmitCodeBuilder, name: String): SValue = SStreamValue(st, producer)
+}
 
-    override def st: SType = self.st
+object SStreamValue{
+  def apply(producer: StreamProducer): SStreamValue = SStreamValue(SStream(producer.element.emitType), producer)
+}
 
-    var used: Boolean = false
+final case class SStreamValue(st: SStream, producer: StreamProducer) extends SUnrealizableValue {
+  def valueTuple: IndexedSeq[Value[_]] = throw new NotImplementedError()
 
-    def get: PCode = {
-      assert(!used)
-      used = true
-      self
-    }
-  }
+  def get: SStreamCode = SStreamCode(st, producer)
 }

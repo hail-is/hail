@@ -2,7 +2,7 @@
 
 set -ex
 
-COMMAND=$*
+COMMAND=("$@")
 
 restart() {
     kill $PID
@@ -13,7 +13,7 @@ restart() {
         kill -9 $PID || true
     fi
 
-    $COMMAND &
+    "${COMMAND[@]}" &
     PID=$!
     restarted=yes
 }
@@ -25,7 +25,7 @@ term() {
 trap term SIGTERM
 
 
-$COMMAND &
+"${COMMAND[@]}" &
 PID=$!
 restarted=yes
 

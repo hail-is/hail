@@ -1,0 +1,49 @@
+{% macro job_table(jobs, id, searchBarId) %}
+{% block head %}
+    <script src="{{ base_path }}/common_static/search_bar.js"></script>
+{% endblock %}
+<div class="searchbar-table">
+  <input type="text" id="{{ searchBarId }}" onkeyup="searchTable('{{ id }}', '{{ searchBarId }}')" placeholder="Search terms...">
+  <table id="{{ id }}" class="data-table" style="line-height: 175%">
+    <thead>
+      <tr>
+        <th>id</th>
+        <th>name</th>
+        <th>state</th>
+        <th>exit_code</th>
+        <th>duration</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for job in jobs %}
+      <tr>
+        <td class="numeric-cell">
+          <a href="{{ base_path }}/batches/{{ job['batch_id'] }}/jobs/{{ job['job_id'] }}">{{ job['job_id'] }}</a>
+        </td>
+        <td>{{ job['name'] }}</td>
+        <td>{{ job['state'] }}</td>
+        <td>
+          {% if 'exit_code' in job and job['exit_code'] is not none %}
+          {% if job['exit_code'] == 0 %}
+          <span style="color: #55aa33;">
+            Success 🎉
+          </span>
+          {% else %}
+          <span style="color: #a93333;">
+            Failure 🤷‍♀️
+            ({{ job['exit_code'] }})
+          </span>
+          {% endif %}
+          {% endif %}
+        </td>
+        <td>
+          {% if 'duration' in job and job['duration'] %}
+          {{ job['duration'] }}
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endmacro %}

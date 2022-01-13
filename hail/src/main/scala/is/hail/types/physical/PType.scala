@@ -3,10 +3,11 @@ package is.hail.types.physical
 import is.hail.annotations._
 import is.hail.asm4s
 import is.hail.asm4s._
+import is.hail.backend.ExecuteContext
 import is.hail.check.{Arbitrary, Gen}
 import is.hail.expr.ir
 import is.hail.expr.ir._
-import is.hail.types.physical.stypes.{SCode, SType}
+import is.hail.types.physical.stypes.{SCode, SType, SValue}
 import is.hail.types.virtual._
 import is.hail.types.{Requiredness, coerce}
 import is.hail.utils._
@@ -110,7 +111,7 @@ object PType {
 
   implicit def arbType = Arbitrary(genArb)
 
-  def canonical(t: Type, required: Boolean): PType = {
+  def canonical(t: Type, required: Boolean, innerRequired: Boolean): PType = {
     t match {
       case TInt32 => PInt32(required)
       case TInt64 => PInt64(required)
@@ -118,23 +119,23 @@ object PType {
       case TFloat64 => PFloat64(required)
       case TBoolean => PBoolean(required)
       case TBinary => PCanonicalBinary(required)
-      case t: TShuffle => PCanonicalShuffle(t, required)
       case TString => PCanonicalString(required)
       case TCall => PCanonicalCall(required)
       case t: TLocus => PCanonicalLocus(t.rg, required)
-      case t: TInterval => PCanonicalInterval(canonical(t.pointType), required)
-      case t: TStream => PCanonicalStream(canonical(t.elementType), required = required)
-      case t: TArray => PCanonicalArray(canonical(t.elementType), required)
-      case t: TSet => PCanonicalSet(canonical(t.elementType), required)
-      case t: TDict => PCanonicalDict(canonical(t.keyType), canonical(t.valueType), required)
-      case t: TTuple => PCanonicalTuple(t._types.map(tf => PTupleField(tf.index, canonical(tf.typ))), required)
-      case t: TStruct => PCanonicalStruct(t.fields.map(f => PField(f.name, canonical(f.typ), f.index)), required)
-      case t: TNDArray => PCanonicalNDArray(canonical(t.elementType).setRequired(true), t.nDims, required)
+      case t: TInterval => PCanonicalInterval(canonical(t.pointType, innerRequired, innerRequired), required)
+      case t: TArray => PCanonicalArray(canonical(t.elementType, innerRequired, innerRequired), required)
+      case t: TSet => PCanonicalSet(canonical(t.elementType, innerRequired, innerRequired), required)
+      case t: TDict => PCanonicalDict(canonical(t.keyType, innerRequired, innerRequired), canonical(t.valueType, innerRequired, innerRequired), required)
+      case t: TTuple => PCanonicalTuple(t._types.map(tf => PTupleField(tf.index, canonical(tf.typ, innerRequired, innerRequired))), required)
+      case t: TStruct => PCanonicalStruct(t.fields.map(f => PField(f.name, canonical(f.typ, innerRequired, innerRequired), f.index)), required)
+      case t: TNDArray => PCanonicalNDArray(canonical(t.elementType, innerRequired, innerRequired).setRequired(true), t.nDims, required)
       case TVoid => PVoid
     }
   }
 
-  def canonical(t: Type): PType = canonical(t, false)
+  def canonical(t: Type, required: Boolean): PType = canonical(t, required, false)
+
+  def canonical(t: Type): PType = canonical(t, false, false)
 
   // currently identity
   def canonical(t: PType): PType = {
@@ -145,12 +146,10 @@ object PType {
       case t: PFloat64 => PFloat64(t.required)
       case t: PBoolean => PBoolean(t.required)
       case t: PBinary => PCanonicalBinary(t.required)
-      case t: PShuffle => PCanonicalShuffle(t.tShuffle, t.required)
       case t: PString => PCanonicalString(t.required)
       case t: PCall => PCanonicalCall(t.required)
       case t: PLocus => PCanonicalLocus(t.rg, t.required)
       case t: PInterval => PCanonicalInterval(canonical(t.pointType), t.required)
-      case t: PStream => PCanonicalStream(canonical(t.elementType), required = t.required)
       case t: PArray => PCanonicalArray(canonical(t.elementType), t.required)
       case t: PSet => PCanonicalSet(canonical(t.elementType), t.required)
       case t: PTuple => PCanonicalTuple(t._types.map(pf => PTupleField(pf.index, canonical(pf.typ))), t.required)
@@ -162,9 +161,9 @@ object PType {
   }
 
   def literalPType(t: Type, a: Annotation): PType = {
-    val rb = new BoxedArrayBuilder[Boolean]()
-    val crib = new BoxedArrayBuilder[Int]()
-    val cib = new BoxedArrayBuilder[Int]()
+    val rb = new BooleanArrayBuilder()
+    val crib = new IntArrayBuilder()
+    val cib = new IntArrayBuilder()
 
     def indexTypes(t: Type): Unit = {
       val ci = crib.size
@@ -194,6 +193,7 @@ object PType {
 
           crib.setSizeUninitialized(ci + n)
           cib.setSizeUninitialized(ci + n)
+          cib.setSize(ci + n)
 
           var j = 0
           while (j < n) {
@@ -301,6 +301,42 @@ object PType {
 
     canonical(t, 0, 0)
   }
+
+  def canonicalize(t: PType, ctx: ExecuteContext, path: List[String]): Option[() => AsmFunction2RegionLongLong] = {
+    def canonicalPath(pt: PType, path: List[String]): PType = {
+      if (path.isEmpty) {
+        PType.canonical(pt)
+      }
+
+      val head :: tail = path
+      pt match {
+        case t@PCanonicalStruct(fields, required) =>
+          assert(t.hasField(head))
+          PCanonicalStruct(fields.map(f => if (f.name == head) f.copy(typ = canonicalPath(f.typ, tail)) else f), required)
+        case PCanonicalArray(element, required) =>
+          assert(head == "element")
+          PCanonicalArray(canonicalPath(element, tail), required)
+        case other =>
+          throw new RuntimeException(s"cannot canonicalize nested path under type $other")
+      }
+    }
+
+    val cpt = canonicalPath(t, path)
+    if (cpt == t)
+      None
+    else {
+      val fb = EmitFunctionBuilder[AsmFunction2RegionLongLong](ctx,
+        "copyFromAddr",
+        FastIndexedSeq[ParamType](classInfo[Region], LongInfo), LongInfo)
+
+      fb.emitWithBuilder { cb =>
+        val region = fb.apply_method.getCodeParam[Region](1)
+        val srcAddr = fb.apply_method.getCodeParam[Long](2)
+        cpt.store(cb, region, t.loadCheapSCode(cb, srcAddr), deepCopy = false)
+      }
+      Some(fb.result())
+    }
+  }
 }
 
 abstract class PType extends Serializable with Requiredness {
@@ -314,6 +350,8 @@ abstract class PType extends Serializable with Requiredness {
   def virtualType: Type
 
   def sType: SType
+
+  def copiedType: PType
 
   override def toString: String = {
     val sb = new StringBuilder
@@ -342,30 +380,9 @@ abstract class PType extends Serializable with Requiredness {
 
   def _pretty(sb: StringBuilder, indent: Int, compact: Boolean)
 
-  def codeOrdering(mb: EmitMethodBuilder[_]): CodeOrdering =
-    codeOrdering(mb, this)
-
-  def codeOrdering(mb: EmitMethodBuilder[_], so: SortOrder): CodeOrdering =
-    codeOrdering(mb, this, so)
-
-  def codeOrdering(mb: EmitMethodBuilder[_], other: PType, so: SortOrder): CodeOrdering =
-    so match {
-      case Ascending => codeOrdering(mb, other)
-      case Descending => codeOrdering(mb, other).reverse
-    }
-
-  def codeOrdering(mb: EmitMethodBuilder[_], other: PType): CodeOrdering
-
   def byteSize: Long
 
   def alignment: Long = byteSize
-
-  /*  Fundamental types are types that can be handled natively by RegionValueBuilder: primitive
-      types, Array and Struct. */
-  def fundamentalType: PType = this
-
-  // Encodable types are types that can have corresponding ETypes
-  def encodableType: PType
 
   final def unary_+(): PType = setRequired(true)
 
@@ -385,15 +402,15 @@ abstract class PType extends Serializable with Requiredness {
   final def isOfType(t: PType): Boolean = this.virtualType == t.virtualType
 
   final def isPrimitive: Boolean =
-    fundamentalType.isInstanceOf[PBoolean] || isNumeric
+    isInstanceOf[PBoolean] || isNumeric
 
   final def isRealizable: Boolean = !isInstanceOf[PUnrealizable]
 
   final def isNumeric: Boolean =
-    fundamentalType.isInstanceOf[PInt32] ||
-      fundamentalType.isInstanceOf[PInt64] ||
-      fundamentalType.isInstanceOf[PFloat32] ||
-      fundamentalType.isInstanceOf[PFloat64]
+    isInstanceOf[PInt32] ||
+      isInstanceOf[PInt64] ||
+      isInstanceOf[PFloat32] ||
+      isInstanceOf[PFloat64]
 
   def containsPointers: Boolean
 
@@ -423,23 +440,6 @@ abstract class PType extends Serializable with Requiredness {
     }
   }
 
-  def deepInnerRequired(required: Boolean): PType =
-    this match {
-      case t: PArray => PCanonicalArray(t.elementType.deepInnerRequired(true), required)
-      case t: PSet => PCanonicalSet(t.elementType.deepInnerRequired(true), required)
-      case t: PDict => PCanonicalDict(t.keyType.deepInnerRequired(true), t.valueType.deepInnerRequired(true), required)
-      case t: PStruct =>
-        PCanonicalStruct(t.fields.map(f => PField(f.name, f.typ.deepInnerRequired(true), f.index)), required)
-      case t: PCanonicalTuple =>
-        PCanonicalTuple(t._types.map { f => f.copy(typ = f.typ.deepInnerRequired(true)) }, required)
-      case t: PInterval =>
-        PCanonicalInterval(t.pointType.deepInnerRequired(true), required)
-      case t: PStream =>
-        PCanonicalStream(t.elementType.deepInnerRequired(true), required = required)
-      case t =>
-        t.setRequired(required)
-    }
-
   protected[physical] def _copyFromAddress(region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Long
 
   def copyFromAddress(region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Long = {
@@ -453,37 +453,20 @@ abstract class PType extends Serializable with Requiredness {
     _copyFromAddress(region, srcPType, srcAddress, deepCopy)
   }
 
-  // return a PCode that can cheaply operate on the region representation. Generally a pointer type, but not necessarily (e.g. primitives).
-  def loadCheapPCode(cb: EmitCodeBuilder, addr: Code[Long]): PCode
+  // return a SCode that can cheaply operate on the region representation. Generally a pointer type, but not necessarily (e.g. primitives).
+  def loadCheapSCode(cb: EmitCodeBuilder, addr: Code[Long]): SValue
+
+  def loadCheapSCodeField(cb: EmitCodeBuilder, addr: Code[Long]): SValue
 
   // stores a stack value as a region value of this type
-  def store(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): Code[Long]
+  def store(cb: EmitCodeBuilder, region: Value[Region], value: SValue, deepCopy: Boolean): Value[Long]
 
   // stores a stack value inside pre-allocated memory of this type (in a nested structure, for instance).
-  def storeAtAddress(cb: EmitCodeBuilder, addr: Code[Long], region: Value[Region], value: SCode, deepCopy: Boolean): Unit
+  def storeAtAddress(cb: EmitCodeBuilder, addr: Code[Long], region: Value[Region], value: SValue, deepCopy: Boolean): Unit
 
   def unstagedStoreAtAddress(addr: Long, region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Unit
 
   def deepRename(t: Type): PType = this
-
-  def defaultValue(mb: EmitMethodBuilder[_]): PCode = PCode(this, is.hail.types.physical.defaultValue(this))
-
-  def ti: TypeInfo[_] = typeToTypeInfo(this)
-
-  def codeTupleTypes(): IndexedSeq[TypeInfo[_]] = FastIndexedSeq(ti)
-
-  def asParam: PCodeParamType = PCodeParamType(this)
-
-  def asEmitParam: EmitParamType = EmitParamType(this)
-
-  def nCodes: Int = 1
-
-  def codeReturnType(): TypeInfo[_] = ???
-
-  def fromCodeTuple(ct: IndexedSeq[Code[_]]): PCode = {
-    assert(ct.length == 1)
-    PCode(this, ct(0))
-  }
 
   // called to load a region value's start address from a nested representation.
   // Usually a no-op, but may need to dereference a pointer.

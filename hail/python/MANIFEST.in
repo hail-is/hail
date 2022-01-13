@@ -1,0 +1,8 @@
+include hail/hail_pip_version
+include hail/hail_version
+include hail/experimental/datasets.json
+include hail/backend/hail-all-spark.jar
+include hailtop/hail_version
+include hailtop/hailctl/deploy.yaml
+include hailtop/py.typed
+include requirements.txt

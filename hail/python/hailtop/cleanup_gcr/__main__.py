@@ -3,7 +3,8 @@ import time
 import logging
 import asyncio
 import aiohttp
-from hailtop import aiotools, aiogoogle
+from hailtop import aiotools
+from hailtop.aiocloud import aiogoogle
 
 log = logging.getLogger(__name__)
 
@@ -46,11 +47,22 @@ class CleanupImages:
     async def cleanup_digest(self, image, digest, tags):
         log.info(f'cleaning up digest {image}@{digest}')
 
+        async def delete_tag(tag):
+            try:
+                await self._client.delete(f'/{image}/manifests/{tag}')
+            except aiohttp.ClientResponseError as e:
+                if e.status != 404:
+                    raise
+
         await self._executor.gather([
-            self._client.delete(f'/{image}/manifests/{tag}')
+            delete_tag(tag)
             for tag in tags])
 
-        await self._executor.submit(self._client.delete(f'/{image}/manifests/{digest}'))
+        try:
+            await self._executor.submit(self._client.delete(f'/{image}/manifests/{digest}'))
+        except aiohttp.ClientResponseError as e:
+            if e.status != 404:
+                raise
 
         log.info(f'cleaned up digest  {image}@{digest}')
 
@@ -94,7 +106,7 @@ async def main():
         raise ValueError('usage: cleanup_gcr <project>')
     project = sys.argv[1]
 
-    async with aiogoogle.ContainerClient(
+    async with aiogoogle.GoogleContainerClient(
             project=project,
             timeout=aiohttp.ClientTimeout(total=5)) as client:
         cleanup_images = CleanupImages(client)

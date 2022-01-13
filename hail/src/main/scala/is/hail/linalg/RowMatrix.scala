@@ -2,9 +2,8 @@ package is.hail.linalg
 
 import breeze.linalg.DenseMatrix
 import is.hail.HailContext
-import is.hail.backend.BroadcastValue
+import is.hail.backend.{BroadcastValue, ExecuteContext}
 import is.hail.backend.spark.SparkBackend
-import is.hail.expr.ir.ExecuteContext
 import is.hail.types.virtual.{TInt64, TStruct}
 import is.hail.io.InputBuffer
 import is.hail.io.fs.FS

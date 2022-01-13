@@ -2,12 +2,13 @@ package is.hail.expr.ir
 
 import is.hail.HailContext
 import is.hail.annotations._
+import is.hail.backend.ExecuteContext
 import is.hail.backend.spark.SparkBackend
 import is.hail.expr.JSONAnnotationImpex
 import is.hail.types.physical.{PArray, PCanonicalStruct, PStruct, PType}
 import is.hail.types.virtual._
 import is.hail.types.{MatrixType, TableType}
-import is.hail.io.{BufferSpec, FileWriteMetadata}
+import is.hail.io.{BufferSpec, FileWriteMetadata, MatrixWriteCheckpoint}
 import is.hail.io.fs.FS
 import is.hail.linalg.RowMatrix
 import is.hail.rvd.{AbstractRVDSpec, RVD, _}
@@ -96,7 +97,7 @@ case class MatrixValue(
       FileFormat.version.rep,
       is.hail.HAIL_PRETTY_VERSION,
       "../references",
-      typ.colsTableType,
+      typ.colsTableType.copy(key = FastIndexedSeq[String]()),
       Map("globals" -> RVDComponentSpec("../globals/rows"),
         "rows" -> RVDComponentSpec("rows"),
         "partition_counts" -> PartitionCountsComponentSpec(partitionCounts)))
@@ -197,10 +198,13 @@ case class MatrixValue(
     val partitionBytesWritten = fileData.map(_.bytesWritten)
     val totalRowsEntriesBytes = partitionBytesWritten.sum
     val totalBytesWritten: Long = totalRowsEntriesBytes + colBytesWritten + globalBytesWritten
-    val smallestPartition = fileData.minBy(_.bytesWritten)
-    val largestPartition = fileData.maxBy(_.bytesWritten)
-    val smallestStr = s"${ smallestPartition.rowsWritten } rows (${ formatSpace(smallestPartition.bytesWritten) })"
-    val largestStr = s"${ largestPartition.rowsWritten } rows (${ formatSpace(largestPartition.bytesWritten) })"
+    val (smallestStr, largestStr) = if (fileData.isEmpty) ("N/A", "N/A") else {
+      val smallestPartition = fileData.minBy(_.bytesWritten)
+      val largestPartition = fileData.maxBy(_.bytesWritten)
+      val smallestStr = s"${ smallestPartition.rowsWritten } rows (${ formatSpace(smallestPartition.bytesWritten) })"
+      val largestStr = s"${ largestPartition.rowsWritten } rows (${ formatSpace(largestPartition.bytesWritten) })"
+      (smallestStr, largestStr)
+    }
 
     printer(s"wrote matrix table with $nRows ${ plural(nRows, "row") } " +
       s"and $nCols ${ plural(nCols, "column") } " +
@@ -220,21 +224,27 @@ case class MatrixValue(
     stageLocally: Boolean,
     codecSpecJSON: String,
     partitions: String,
-    partitionsTypeStr: String) = {
+    partitionsTypeStr: String,
+    checkpointFile: String): Unit = {
     assert(typ.isCanonical)
     val fs = ctx.fs
 
     val bufferSpec = BufferSpec.parseOrDefault(codecSpecJSON)
 
-    if (overwrite)
+    if (overwrite) {
+      if (checkpointFile != null)
+        fatal(s"cannot currently use a checkpoint file with overwrite=True")
       fs.delete(path, recursive = true)
-    else if (fs.exists(path))
-      fatal(s"file already exists: $path")
+    } else if (fs.exists(path))
+      if (checkpointFile == null || fs.exists(path + "/_SUCCESS"))
+        fatal(s"file already exists: $path")
 
     fs.mkDir(path)
 
     val targetPartitioner =
       if (partitions != null) {
+        if (checkpointFile != null)
+          fatal(s"cannot currently use a checkpoint file with `partitions` argument")
         val partitionsType = IRParser.parseType(partitionsTypeStr)
         val jv = JsonMethods.parse(partitions)
         val rangeBounds = JSONAnnotationImpex.importAnnotation(jv, partitionsType)
@@ -243,7 +253,9 @@ case class MatrixValue(
       } else
         null
 
-    val fileData = rvd.writeRowsSplit(ctx, path, bufferSpec, stageLocally, targetPartitioner)
+    val checkpoint = Option(checkpointFile).map(path => MatrixWriteCheckpoint.read(fs, path, path, rvd.getNumPartitions))
+
+    val fileData = rvd.writeRowsSplit(ctx, path, bufferSpec, stageLocally, targetPartitioner, checkpoint)
 
     finalizeWrite(ctx, path, bufferSpec, fileData, consoleInfo = true)
   }
@@ -317,17 +329,16 @@ object MatrixValue {
   def writeMultiple(
     ctx: ExecuteContext,
     mvs: IndexedSeq[MatrixValue],
-    prefix: String,
+    paths: IndexedSeq[String],
     overwrite: Boolean,
-    stageLocally: Boolean
+    stageLocally: Boolean,
+    bufferSpec: BufferSpec
   ): Unit = {
     val first = mvs.head
     require(mvs.forall(_.typ == first.typ))
+    require(mvs.length == paths.length, s"found ${ mvs.length } matrix tables but ${ paths.length } paths")
     val fs = ctx.fs
-    val bufferSpec = BufferSpec.default
 
-    val d = digitsNeeded(mvs.length)
-    val paths = (0 until mvs.length).map { i => prefix + StringUtils.leftPad(i.toString, d, '0') + ".mt" }
     paths.foreach { path =>
       if (overwrite)
         fs.delete(path, recursive = true)
@@ -336,7 +347,7 @@ object MatrixValue {
       fs.mkDir(path)
     }
 
-    val fileData = RVD.writeRowsSplitFiles(ctx, mvs.map(_.rvd), prefix, bufferSpec, stageLocally)
+    val fileData = RVD.writeRowsSplitFiles(ctx, mvs.map(_.rvd), paths, bufferSpec, stageLocally)
     for ((mv, path, fd) <- (mvs, paths, fileData).zipped) {
       mv.finalizeWrite(ctx, path, bufferSpec, fd, consoleInfo = false)
     }

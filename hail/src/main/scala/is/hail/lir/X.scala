@@ -342,7 +342,7 @@ class Parameter(method: Method, val i: Int, ti: TypeInfo[_]) extends Local(metho
 
 class Block {
   // for debugging
-  // val stack = Thread.currentThread().getStackTrace
+  // val stack = Thread.currentThread().getStackTrace.mkString("\n")
 
   var method: Method = _
 
@@ -831,6 +831,8 @@ class InsnX(val op: Int, _ti: TypeInfo[_], var lineNumber: Int = 0) extends Valu
       case L2I => IntInfo
       case F2I => IntInfo
       case D2I => IntInfo
+      case IALOAD => IntInfo
+      case ARRAYLENGTH => IntInfo
       // Long
       case LNEG => LongInfo
       case LADD => LongInfo
@@ -847,6 +849,7 @@ class InsnX(val op: Int, _ti: TypeInfo[_], var lineNumber: Int = 0) extends Valu
       case I2L => LongInfo
       case F2L => LongInfo
       case D2L => LongInfo
+      case LALOAD => LongInfo
       // Float
       case FNEG => FloatInfo
       case FADD => FloatInfo
@@ -857,6 +860,8 @@ class InsnX(val op: Int, _ti: TypeInfo[_], var lineNumber: Int = 0) extends Valu
       case I2F => FloatInfo
       case L2F => FloatInfo
       case D2F => FloatInfo
+      case FALOAD => FloatInfo
+
       // Double
       case DNEG => DoubleInfo
       case DADD => DoubleInfo
@@ -867,8 +872,10 @@ class InsnX(val op: Int, _ti: TypeInfo[_], var lineNumber: Int = 0) extends Valu
       case I2D => DoubleInfo
       case L2D => DoubleInfo
       case F2D => DoubleInfo
+      case DALOAD => DoubleInfo
       // Boolean
       case I2B => BooleanInfo
+      case BALOAD => BooleanInfo
     }
   }
 }

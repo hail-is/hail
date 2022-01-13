@@ -13,6 +13,9 @@ from .type_parsing import type_grammar, type_node_visitor
 from hail.genetics.reference_genome import reference_genome_type
 from hail.typecheck import typecheck, typecheck_method, oneof, transformed
 from hail.utils.java import escape_parsable
+from hail.utils import frozendict
+from hail.utils.misc import lookup_bit
+from hail.utils.byte_reader import ByteReader
 
 __all__ = [
     'dtype',
@@ -261,6 +264,12 @@ class HailType(object):
     def _convert_from_json(self, x):
         return x
 
+    def _from_encoding(self, encoding):
+        return self._convert_from_encoding(ByteReader(memoryview(encoding)))
+
+    def _convert_from_encoding(self, byte_reader):
+        raise ValueError("Not implemented yet")
+
     def _traverse(self, obj, f):
         """Traverse a nested type and object.
 
@@ -293,6 +302,9 @@ class HailType(object):
             self._context = self._get_context()
         return self._context
 
+    def to_numpy(self):
+        return object
+
 
 hail_type = oneof(HailType, transformed((str, dtype)), type(None))
 
@@ -318,6 +330,9 @@ class _tvoid(HailType):
 
     def clear(self):
         pass
+
+    def _convert_from_encoding(self, byte_reader):
+        return None
 
 
 class _tint32(HailType):
@@ -369,6 +384,12 @@ class _tint32(HailType):
     def to_numpy(self):
         return np.int32
 
+    def _convert_from_encoding(self, byte_reader):
+        return byte_reader.read_int32()
+
+    def _byte_size(self):
+        return 4
+
 
 class _tint64(HailType):
     """Hail type for signed 64-bit integers.
@@ -418,6 +439,12 @@ class _tint64(HailType):
     def to_numpy(self):
         return np.int64
 
+    def _convert_from_encoding(self, byte_reader):
+        return byte_reader.read_int64()
+
+    def _byte_size(self):
+        return 8
+
 
 class _tfloat32(HailType):
     """Hail type for 32-bit floating point numbers.
@@ -450,6 +477,9 @@ class _tfloat32(HailType):
         else:
             return str(x)
 
+    def _convert_from_encoding(self, byte_reader):
+        return byte_reader.read_float32()
+
     def unify(self, t):
         return t == tfloat32
 
@@ -461,6 +491,9 @@ class _tfloat32(HailType):
 
     def to_numpy(self):
         return np.float32
+
+    def _byte_size(self):
+        return 4
 
 
 class _tfloat64(HailType):
@@ -506,6 +539,12 @@ class _tfloat64(HailType):
     def to_numpy(self):
         return np.float64
 
+    def _convert_from_encoding(self, byte_reader):
+        return byte_reader.read_float64()
+
+    def _byte_size(self):
+        return 8
+
 
 class _tstr(HailType):
     """Hail type for text strings.
@@ -537,6 +576,12 @@ class _tstr(HailType):
 
     def clear(self):
         pass
+
+    def _convert_from_encoding(self, byte_reader):
+        length = byte_reader.read_int32()
+        str_literal = byte_reader.read_bytes(length).decode()
+
+        return str_literal
 
 
 class _tbool(HailType):
@@ -571,7 +616,13 @@ class _tbool(HailType):
         pass
 
     def to_numpy(self):
-        return np.bool
+        return bool
+
+    def _byte_size(self):
+        return 1
+
+    def _convert_from_encoding(self, byte_reader):
+        return byte_reader.read_bool()
 
 
 class tndarray(HailType):
@@ -690,6 +741,20 @@ class tndarray(HailType):
     def _get_context(self):
         return self.element_type.get_context()
 
+    def _convert_from_encoding(self, byte_reader):
+        shape = [byte_reader.read_int64() for i in range(self.ndim)]
+        total_num_elements = np.product(shape, dtype=np.int64)
+
+        if self.element_type in _numeric_types:
+            element_byte_size = self.element_type._byte_size
+            bytes_to_read = element_byte_size * total_num_elements
+            buffer = byte_reader.read_bytes_view(bytes_to_read)
+            np.frombuffer(buffer, self.element_type.to_numpy, count=total_num_elements).reshape(shape)
+        else:
+            elements = [self.element_type._convert_from_encoding(byte_reader) for i in range(total_num_elements)]
+            np_type = self.element_type.to_numpy()
+            return np.ndarray(shape=shape, buffer=np.array(elements, dtype=np_type), dtype=np_type, order="F")
+
 
 class tarray(HailType):
     """Hail type for variable-length arrays of elements.
@@ -773,6 +838,28 @@ class tarray(HailType):
     def _get_context(self):
         return self.element_type.get_context()
 
+    def _convert_from_encoding(self, byte_reader):
+        length = byte_reader.read_int32()
+
+        num_missing_bytes = math.ceil(length / 8)
+        missing_bytes = byte_reader.read_bytes_view(num_missing_bytes)
+
+        decoded = []
+        i = 0
+        current_missing_byte = None
+        while i < length:
+            which_missing_bit = i % 8
+            if which_missing_bit == 0:
+                current_missing_byte = missing_bytes[i // 8]
+
+            if lookup_bit(current_missing_byte, which_missing_bit):
+                decoded.append(None)
+            else:
+                element_decoded = self.element_type._convert_from_encoding(byte_reader)
+                decoded.append(element_decoded)
+            i += 1
+        return decoded
+
 
 class tstream(HailType):
     @typecheck_method(element_type=hail_type)
@@ -828,6 +915,10 @@ class tstream(HailType):
         return self.element_type.get_context()
 
 
+def is_setlike(maybe_setlike):
+    return isinstance(maybe_setlike, set) or isinstance(maybe_setlike, frozenset)
+
+
 class tset(HailType):
     """Hail type for collections of distinct elements.
 
@@ -852,6 +943,7 @@ class tset(HailType):
     @typecheck_method(element_type=hail_type)
     def __init__(self, element_type):
         self._element_type = element_type
+        self._array_repr = tarray(element_type)
         super(tset, self).__init__()
 
     @property
@@ -872,7 +964,7 @@ class tset(HailType):
 
     def _typecheck_one_level(self, annotation):
         if annotation is not None:
-            if not isinstance(annotation, set):
+            if not is_setlike(annotation):
                 raise TypeError("type 'set' expected Python 'set', but found type '%s'" % type(annotation))
 
     def __str__(self):
@@ -890,10 +982,13 @@ class tset(HailType):
         return "Set[" + self.element_type._parsable_string() + "]"
 
     def _convert_from_json(self, x):
-        return {self.element_type._convert_from_json_na(elt) for elt in x}
+        return frozenset({self.element_type._convert_from_json_na(elt) for elt in x})
 
     def _convert_to_json(self, x):
         return [self.element_type._convert_to_json_na(elt) for elt in x]
+
+    def _convert_from_encoding(self, byte_reader):
+        return frozenset(self._array_repr._convert_from_encoding(byte_reader))
 
     def _propagate_jtypes(self, jtype):
         self._element_type._add_jtype(jtype.elementType())
@@ -937,6 +1032,7 @@ class tdict(HailType):
     def __init__(self, key_type, value_type):
         self._key_type = key_type
         self._value_type = value_type
+        self._array_repr = tarray(tstruct(key=key_type, value=value_type))
         super(tdict, self).__init__()
 
     @property
@@ -973,8 +1069,8 @@ class tdict(HailType):
 
     def _typecheck_one_level(self, annotation):
         if annotation is not None:
-            if not isinstance(annotation, dict):
-                raise TypeError("type 'dict' expected Python 'dict', but found type '%s'" % type(annotation))
+            if not isinstance(annotation, Mapping):
+                raise TypeError("type 'dict' expected Python 'Mapping', but found type '%s'" % type(annotation))
 
     def __str__(self):
         return "dict<{}, {}>".format(self.key_type, self.value_type)
@@ -993,12 +1089,15 @@ class tdict(HailType):
         return "Dict[{},{}]".format(self.key_type._parsable_string(), self.value_type._parsable_string())
 
     def _convert_from_json(self, x):
-        return {self.key_type._convert_from_json_na(elt['key']): self.value_type._convert_from_json_na(elt['value']) for
-                elt in x}
+        return frozendict({self.key_type._convert_from_json_na(elt['key']): self.value_type._convert_from_json_na(elt['value']) for elt in x})
 
     def _convert_to_json(self, x):
         return [{'key': self.key_type._convert_to_json(k),
                  'value': self.value_type._convert_to_json(v)} for k, v in x.items()]
+
+    def _convert_from_encoding(self, byte_reader):
+        array_of_pairs = self._array_repr._convert_from_encoding(byte_reader)
+        return frozendict({pair.key: pair.value for pair in array_of_pairs})
 
     def _propagate_jtypes(self, jtype):
         self._key_type._add_jtype(jtype.keyType())
@@ -1122,6 +1221,9 @@ class tstruct(HailType, Mapping):
         return "struct{{{}}}".format(
             ', '.join('{}: {}'.format(escape_parsable(f), str(t)) for f, t in self.items()))
 
+    def items(self):
+        return self._field_types.items()
+
     def _eq(self, other):
         return (isinstance(other, tstruct)
                 and self._fields == other._fields
@@ -1151,11 +1253,30 @@ class tstruct(HailType, Mapping):
             ','.join('{}:{}'.format(escape_parsable(f), t._parsable_string()) for f, t in self.items()))
 
     def _convert_from_json(self, x):
-        from hail.utils import Struct
-        return Struct(**{f: t._convert_from_json_na(x.get(f)) for f, t in self.items()})
+        return hl.utils.Struct(**{f: t._convert_from_json_na(x.get(f)) for f, t in self._field_types.items()})
 
     def _convert_to_json(self, x):
         return {f: t._convert_to_json_na(x[f]) for f, t in self.items()}
+
+    def _convert_from_encoding(self, byte_reader):
+        num_missing_bytes = math.ceil(len(self) / 8)
+        missing_bytes = byte_reader.read_bytes_view(num_missing_bytes)
+
+        kwargs = {}
+
+        current_missing_byte = None
+        for i, (f, t) in enumerate(self._field_types.items()):
+            which_missing_bit = i % 8
+            if which_missing_bit == 0:
+                current_missing_byte = missing_bytes[i // 8]
+
+            if lookup_bit(current_missing_byte, which_missing_bit):
+                kwargs[f] = None
+            else:
+                field_decoded = t._convert_from_encoding(byte_reader)
+                kwargs[f] = field_decoded
+
+        return hl.utils.Struct(**kwargs)
 
     def _is_prefix_of(self, other):
         return (isinstance(other, tstruct)
@@ -1412,6 +1533,25 @@ class ttuple(HailType, Sequence):
     def _convert_to_json(self, x):
         return [self.types[i]._convert_to_json_na(x[i]) for i in range(len(self.types))]
 
+    def _convert_from_encoding(self, byte_reader):
+        num_missing_bytes = math.ceil(len(self) / 8)
+        missing_bytes = byte_reader.read_bytes_view(num_missing_bytes)
+
+        answer = []
+        current_missing_byte = None
+        for i, t in enumerate(self.types):
+            which_missing_bit = i % 8
+            if which_missing_bit == 0:
+                current_missing_byte = missing_bytes[i // 8]
+
+            if lookup_bit(current_missing_byte, which_missing_bit):
+                answer.append(None)
+            else:
+                field_decoded = t._convert_from_encoding(byte_reader)
+                answer.append(field_decoded)
+
+        return tuple(answer)
+
     def unify(self, t):
         if not (isinstance(t, ttuple) and len(self.types) == len(t.types)):
             return False
@@ -1429,6 +1569,31 @@ class ttuple(HailType, Sequence):
 
     def _get_context(self):
         return HailTypeContext.union(*self.types)
+
+
+def allele_pair(j, k):
+    assert j >= 0 and j <= 0xffff
+    assert k >= 0 and k <= 0xffff
+    return j | (k << 16)
+
+
+def allele_pair_sqrt(i):
+    k = int(math.sqrt(8 * float(i) + 1) / 2 - .5)
+    assert k * (k + 1) // 2 <= i
+    j = i - k * (k + 1) // 2
+    # TODO another assert
+    return allele_pair(j, k)
+
+
+small_allele_pair = [
+    allele_pair(0, 0), allele_pair(0, 1), allele_pair(1, 1),
+    allele_pair(0, 2), allele_pair(1, 2), allele_pair(2, 2),
+    allele_pair(0, 3), allele_pair(1, 3), allele_pair(2, 3), allele_pair(3, 3),
+    allele_pair(0, 4), allele_pair(1, 4), allele_pair(2, 4), allele_pair(3, 4), allele_pair(4, 4),
+    allele_pair(0, 5), allele_pair(1, 5), allele_pair(2, 5), allele_pair(3, 5), allele_pair(4, 5), allele_pair(5, 5),
+    allele_pair(0, 6), allele_pair(1, 6), allele_pair(2, 6), allele_pair(3, 6), allele_pair(4, 6), allele_pair(5, 6), allele_pair(6, 6),
+    allele_pair(0, 7), allele_pair(1, 7), allele_pair(2, 7), allele_pair(3, 7), allele_pair(4, 7), allele_pair(5, 7), allele_pair(6, 7), allele_pair(7, 7)
+]
 
 
 class _tcall(HailType):
@@ -1478,6 +1643,50 @@ class _tcall(HailType):
     def _convert_to_json(self, x):
         return str(x)
 
+    def _convert_from_encoding(self, byte_reader):
+        int_rep = byte_reader.read_int32()
+
+        ploidy = (int_rep >> 1) & 0x3
+        phased = (int_rep & 1) == 1
+
+        def allele_repr(c):
+            return c >> 3
+
+        def ap_j(p):
+            return p & 0xffff
+
+        def ap_k(p):
+            return (p >> 16) & 0xffff
+
+        def gt_allele_pair(i):
+            if i < len(small_allele_pair):
+                return small_allele_pair[i]
+            else:
+                return allele_pair_sqrt(i)
+
+        def call_allele_pair(i):
+            if phased:
+                rep = allele_repr(i)
+                p = gt_allele_pair(rep)
+                j = ap_j(p)
+                k = ap_k(p)
+                return allele_pair(j, k - j)
+            else:
+                rep = allele_repr(i)
+                return gt_allele_pair(rep)
+
+        if ploidy == 0:
+            alleles = []
+        elif ploidy == 1:
+            alleles = [allele_repr(int_rep)]
+        elif ploidy == 2:
+            p = call_allele_pair(int_rep)
+            alleles = [ap_j(p), ap_k(p)]
+        else:
+            raise ValueError("Unsupported Ploidy")
+
+        return hl.Call(alleles, phased)
+
     def unify(self, t):
         return t == tcall
 
@@ -1503,6 +1712,8 @@ class tlocus(HailType):
     :class:`.LocusExpression`, :func:`.locus`, :func:`.parse_locus`,
     :class:`.Locus`
     """
+
+    struct_repr = tstruct(contig=_tstr(), pos=_tint32())
 
     @typecheck_method(reference_genome=reference_genome_type)
     def __init__(self, reference_genome='default'):
@@ -1549,6 +1760,10 @@ class tlocus(HailType):
     def _convert_to_json(self, x):
         return {'contig': x.contig, 'position': x.position}
 
+    def _convert_from_encoding(self, byte_reader):
+        as_struct = tlocus.struct_repr._convert_from_encoding(byte_reader)
+        return genetics.Locus(as_struct.contig, as_struct.pos, self.reference_genome)
+
     def unify(self, t):
         return isinstance(t, tlocus) and self.reference_genome == t.reference_genome
 
@@ -1581,6 +1796,7 @@ class tinterval(HailType):
     @typecheck_method(point_type=hail_type)
     def __init__(self, point_type):
         self._point_type = point_type
+        self._struct_repr = tstruct(start=point_type, end=point_type, includes_start=hl.tbool, includes_end=hl.tbool)
         super(tinterval, self).__init__()
 
     @property
@@ -1628,13 +1844,18 @@ class tinterval(HailType):
         return Interval(self.point_type._convert_from_json_na(x['start']),
                         self.point_type._convert_from_json_na(x['end']),
                         x['includeStart'],
-                        x['includeEnd'])
+                        x['includeEnd'],
+                        point_type=self.point_type)
 
     def _convert_to_json(self, x):
         return {'start': self.point_type._convert_to_json_na(x.start),
                 'end': self.point_type._convert_to_json_na(x.end),
                 'includeStart': x.includes_start,
                 'includeEnd': x.includes_end}
+
+    def _convert_from_encoding(self, byte_reader):
+        interval_as_struct = self._struct_repr._convert_from_encoding(byte_reader)
+        return hl.Interval(interval_as_struct.start, interval_as_struct.end, interval_as_struct.includes_start, interval_as_struct.includes_end, point_type=self.point_type)
 
     def unify(self, t):
         return isinstance(t, tinterval) and self.point_type.unify(t.point_type)

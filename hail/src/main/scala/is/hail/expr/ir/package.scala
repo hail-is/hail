@@ -2,24 +2,19 @@ package is.hail.expr
 
 import is.hail.asm4s
 import is.hail.asm4s._
-import is.hail.annotations.RegionValue
-import is.hail.asm4s.joinpoint.Ctrl
 import is.hail.expr.ir.functions.IRFunctionRegistry
-import is.hail.types.{coerce => tycoerce, _}
 import is.hail.types.physical._
+import is.hail.types.physical.stypes.{SCode, SValue}
 import is.hail.types.virtual._
+import is.hail.types.{coerce => tycoerce, _}
 import is.hail.utils._
 
-import scala.language.implicitConversions
 import java.util.UUID
-
-import is.hail.types.physical.stypes.SCode
+import scala.language.implicitConversions
 
 package object ir {
   type TokenIterator = BufferedIterator[Token]
-
-  type IEmitCode = IEmitCodeGen[PCode]
-  type IEmitSCode = IEmitCodeGen[SCode]
+  type IEmitCode = IEmitCodeGen[SValue]
 
   var uidCounter: Long = 0
 
@@ -58,13 +53,18 @@ package object ir {
 
   private[ir] def coerce[T <: BaseTypeWithRequiredness](x: BaseTypeWithRequiredness): T = tycoerce[T](x)
 
-  def invoke(name: String, rt: Type, typeArgs: Array[Type], args: IR*): IR = IRFunctionRegistry.lookupUnseeded(name, rt, typeArgs, args.map(_.typ)) match {
-    case Some(f) => f(typeArgs, args)
+  def invoke(name: String, rt: Type, typeArgs: Array[Type], errorID: Int, args: IR*): IR = IRFunctionRegistry.lookupUnseeded(name, rt, typeArgs, args.map(_.typ)) match {
+    case Some(f) => f(typeArgs, args, errorID)
     case None => fatal(s"no conversion found for $name(${typeArgs.mkString(", ")}, ${args.map(_.typ).mkString(", ")}) => $rt")
   }
+  def invoke(name: String, rt: Type, typeArgs: Array[Type], args: IR*): IR =
+    invoke(name, rt, typeArgs, ErrorIDs.NO_ERROR, args:_*)
 
   def invoke(name: String, rt: Type, args: IR*): IR =
-    invoke(name, rt, Array.empty[Type], args:_*)
+    invoke(name, rt, Array.empty[Type], ErrorIDs.NO_ERROR, args:_*)
+
+  def invoke(name: String, rt: Type, errorID: Int, args: IR*): IR =
+    invoke(name, rt, Array.empty[Type], errorID, args:_*)
 
   def invokeSeeded(name: String, seed: Long, rt: Type, args: IR*): IR = IRFunctionRegistry.lookupSeeded(name, seed, rt, args.map(_.typ)) match {
     case Some(f) => f(args)
@@ -99,6 +99,18 @@ package object ir {
   def bindIR(v: IR)(body: Ref => IR): IR = {
     val ref = Ref(genUID(), v.typ)
     Let(ref.name, v, body(ref))
+  }
+
+  def iota(start: IR, step: IR): IR = StreamIota(start, step)
+
+  def dropWhile(v: IR)(f: Ref => IR): IR = {
+    val ref = Ref(genUID(), coerce[TStream](v.typ).elementType)
+    StreamDropWhile(v, ref.name, f(ref))
+  }
+
+  def takeWhile(v: IR)(f: Ref => IR): IR = {
+    val ref = Ref(genUID(), coerce[TStream](v.typ).elementType)
+    StreamTakeWhile(v, ref.name, f(ref))
   }
 
   def maxIR(a: IR, b: IR): IR = {
@@ -146,6 +158,16 @@ package object ir {
     ArraySort(stream, l.name, r.name, f(l, r))
   }
 
+  def sliceArrayIR(arrayIR: IR, startIR: IR, stopIR: IR): IR = {
+    ArraySlice(arrayIR, startIR, Some(stopIR))
+  }
+
+  def joinIR(left: IR, right: IR, lkey: IndexedSeq[String], rkey: IndexedSeq[String], joinType: String)(f: (Ref, Ref) => IR): IR = {
+    val lRef = Ref(genUID(), left.typ.asInstanceOf[TStream].elementType)
+    val rRef = Ref(genUID(), right.typ.asInstanceOf[TStream].elementType)
+    StreamJoin(left, right, lkey, rkey, lRef.name, rRef.name, f(lRef, rRef), joinType)
+  }
+
   def streamSumIR(stream: IR): IR = {
     foldIR(stream, 0){ case (accum, elt) => accum + elt}
   }
@@ -166,12 +188,47 @@ package object ir {
     StreamZip(FastSeq(s1, s2), FastSeq(r1.name, r2.name), f(r1, r2), behavior)
   }
 
+  def zipWithIndex(s: IR): IR = {
+    val r1 = Ref(genUID(), coerce[TStream](s.typ).elementType)
+    val r2 = Ref(genUID(), TInt32)
+    StreamZip(
+      FastIndexedSeq(s, StreamIota(I32(0), I32(1))),
+      FastIndexedSeq(r1.name, r2.name),
+      MakeStruct(FastSeq(("elt", r1), ("idx", r2))),
+      ArrayZipBehavior.TakeMinLength
+    )
+  }
+
   def zipIR(ss: IndexedSeq[IR], behavior: ArrayZipBehavior.ArrayZipBehavior)(f: IndexedSeq[Ref] => IR): IR = {
     val refs = ss.map(s => Ref(genUID(), coerce[TStream](s.typ).elementType))
-    StreamZip(ss, refs.map(_.name), f(refs), behavior)
+    StreamZip(ss, refs.map(_.name), f(refs), behavior, ErrorIDs.NO_ERROR)
   }
 
   def makestruct(fields: (String, IR)*): MakeStruct = MakeStruct(fields)
+  def maketuple(fields: IR*): MakeTuple = MakeTuple(fields.zipWithIndex.map{ case (field, idx) => (idx, field)})
+
+  def aggBindIR(v: IR, isScan: Boolean = false)(body: Ref => IR): IR = {
+    val ref = Ref(genUID(), v.typ)
+    AggLet(ref.name, v, body(ref), isScan = isScan)
+  }
+
+  def aggExplodeIR(v: IR, isScan: Boolean = false)(body: Ref => IR): AggExplode = {
+    val r = Ref(genUID(), v.typ.asInstanceOf[TIterable].elementType)
+    AggExplode(v, r.name, body(r), isScan)
+  }
+
+  def aggFoldIR(zero: IR, element: IR)(seqOp: (Ref, IR) => IR)(combOp: (Ref, Ref) => IR) : AggFold = {
+    val accum1 = Ref(genUID(), zero.typ)
+    val accum2 = Ref(genUID(), zero.typ)
+    AggFold(zero, seqOp(accum1, element), combOp(accum1, accum2), accum1.name, accum2.name, false)
+  }
+
+  def cdaIR(contexts: IR, globals: IR)(body: (Ref, Ref) => IR): CollectDistributedArray = {
+    val contextRef = Ref(genUID(), contexts.typ.asInstanceOf[TStream].elementType)
+    val globalRef = Ref(genUID(), globals.typ)
+
+    CollectDistributedArray(contexts, globals, contextRef.name, globalRef.name, body(contextRef, globalRef), None)
+  }
 
   implicit def toRichIndexedSeqEmitSettable(s: IndexedSeq[EmitSettable]): RichIndexedSeqEmitSettable = new RichIndexedSeqEmitSettable(s)
 
@@ -179,13 +236,9 @@ package object ir {
 
   implicit def toCodeParamType(ti: TypeInfo[_]): CodeParamType = CodeParamType(ti)
 
-  implicit def toCodeParam(c: Code[_]): CodeParam = CodeParam(c)
+  implicit def toCodeParam(c: Value[_]): CodeParam = CodeParam(c)
 
-  implicit def valueToCodeParam(v: Value[_]): CodeParam = CodeParam(v)
-
-  implicit def toPCodeParam(pc: PCode): PCodeParam = PCodeParam(pc)
-
-  implicit def pValueToPCodeParam(pv: PValue): PCodeParam = PCodeParam(pv)
+  implicit def sValueToSCodeParam(sv: SValue): SCodeParam = SCodeParam(sv)
 
   implicit def toEmitParam(ec: EmitCode): EmitParam = EmitParam(ec)
 

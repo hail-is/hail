@@ -1,5 +1,8 @@
-from typing import Union, Dict, Pattern, Callable, Any
+from typing import Union, Dict, Pattern, Callable, Any, List
 import re
+import logging
+
+log = logging.getLogger('foo')
 
 
 class ValidationError(Exception):
@@ -137,15 +140,39 @@ class NullableValidator:
             self.checker.validate(name, obj)
 
 
-def required(key: str):
+class TruthyValidator:
+    def validate(self, name: str, obj):  # pylint: disable=no-self-use
+        if not obj:
+            raise ValidationError(f'{name} cannot be {obj}')
+
+
+class MultipleValidator:
+    def __init__(self, checkers: List['Validator']):
+        self.checkers = checkers
+
+    def validate(self, name: str, obj):
+        excs = []
+        for checker in self.checkers:
+            try:
+                return checker.validate(name, obj)
+            except ValidationError as e:
+                excs.append(e)
+        if excs:
+            reasons = ' or '.join([e.reason for e in excs])
+            log.info(reasons)
+            raise ValidationError(f'{name} does not satisfy any conditions: {reasons}')
+
+
+def required(key: str) -> RequiredKey:
     return RequiredKey(key)
 
 
 str_type = TypedValidator(str)
+non_empty_str_type = MultipleValidator([str_type, TruthyValidator()])
 bool_type = TypedValidator(bool)
 int_type = TypedValidator(int)
 
-Validator = Union[TypedValidator, NumericValidator, NullableValidator, SetValidator]
+Validator = Union[TypedValidator, NumericValidator, NullableValidator, TruthyValidator, SetValidator, MultipleValidator]
 
 
 def dictof(vchecker: Validator):
@@ -178,3 +205,7 @@ def numeric(**conditions: Callable[[Any], Any]):
 
 def switch(key: str, checkers: Dict[str, Dict[Key, Validator]]):
     return SwitchValidator(key, checkers)
+
+
+def anyof(*checkers: Validator):
+    return MultipleValidator(list(checkers))

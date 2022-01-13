@@ -1,6 +1,7 @@
 package is.hail.expr.ir
 
 import is.hail.expr.ir.functions.{WrappedMatrixToTableFunction, WrappedMatrixToValueFunction}
+import is.hail.expr.ir._
 import is.hail.types._
 import is.hail.types.virtual.{TArray, TBaseStruct, TDict, TInt32, TInterval, TStruct}
 import is.hail.utils._
@@ -186,6 +187,11 @@ object LowerMatrixIR {
               builder += ((s, a))
               Ref(s, a.typ)
 
+            case a@AggFold(zero, seqOp, combOp, accumName, otherAccumName, true) =>
+              val s = genUID()
+              builder += ((s, a))
+              Ref(s, a.typ)
+
             case AggFilter(filt, body, true) =>
               val ab = new BoxedArrayBuilder[(String, IR)]
               val liftedBody = lift(body, ab)
@@ -289,6 +295,15 @@ object LowerMatrixIR {
           case a: ApplyAggOp =>
             val s = genUID()
             aggBindings += ((s, a))
+            Ref(s, a.typ)
+
+          case a@AggFold(zero, seqOp, combOp, accumName, otherAccumName, isScan) =>
+            val s = genUID()
+            if (isScan) {
+              scanBindings += ((s, a))
+            } else {
+              aggBindings += ((s, a))
+            }
             Ref(s, a.typ)
 
           case AggFilter(filt, body, isScan) =>
@@ -535,12 +550,12 @@ object LowerMatrixIR {
       case MatrixRowsTail(child, n) => TableTail(lower(child, ab), n)
 
       case MatrixColsHead(child, n) => lower(child, ab)
-        .mapGlobals('global.insertFields(colsField -> 'global (colsField).invoke("sliceLeft", TArray(child.typ.colType), n)))
-        .mapRows('row.insertFields(entriesField -> 'row (entriesField).invoke("sliceLeft", TArray(child.typ.entryType), n)))
+        .mapGlobals('global.insertFields(colsField -> 'global (colsField).arraySlice(0, Some(n), 1)))
+        .mapRows('row.insertFields(entriesField -> 'row (entriesField).arraySlice(0, Some(n), 1)))
 
       case MatrixColsTail(child, n) => lower(child, ab)
-        .mapGlobals('global.insertFields(colsField -> 'global (colsField).invoke("sliceRight", TArray(child.typ.colType), - n)))
-        .mapRows('row.insertFields(entriesField -> 'row (entriesField).invoke("sliceRight", TArray(child.typ.entryType), - n)))
+        .mapGlobals('global.insertFields(colsField -> 'global (colsField).arraySlice(-n, None, 1)))
+        .mapRows('row.insertFields(entriesField -> 'row (entriesField).arraySlice(-n, None, 1)))
 
       case MatrixExplodeCols(child, path) =>
         val loweredChild = lower(child, ab)
@@ -812,17 +827,23 @@ object LowerMatrixIR {
       case MatrixAggregate(child, query) =>
         val lc = lower(child, ab)
         val idx = Symbol(genUID())
-        lc
-          .aggregate(
-            aggLet(
-              __entries_field = 'row (entriesField),
-              __cols_field = 'global (colsField)) {
-              irRange(0, '__entries_field.len)
-                .filter(idx ~> !'__entries_field (idx).isNA)
-                .aggExplode(idx ~> aggLet(sa = '__cols_field (idx), g = '__entries_field (idx)) {
-                  subst(query, matrixSubstEnv(child))
-                })
-            })
+        TableAggregate(lc,
+          aggExplodeIR(
+            filterIR(
+              zip2(
+                ToStream(GetField(Ref("row", lc.typ.rowType), entriesFieldName)),
+                ToStream(GetField(Ref("global", lc.typ.globalType), colsFieldName)),
+                ArrayZipBehavior.AssertSameLength
+              ) { case (e, c) =>
+                MakeTuple.ordered(FastSeq(e, c))
+              }) { filterTuple =>
+              ApplyUnaryPrimOp(Bang(), IsNA(GetTupleElement(filterTuple, 0)))
+            }) { explodedTuple =>
+            AggLet("g", GetTupleElement(explodedTuple, 0),
+              AggLet("sa", GetTupleElement(explodedTuple, 1), Subst(query, matrixSubstEnvIR(child, lc)),
+                isScan = false),
+              isScan = false)
+          })
       case _ => lowerChildren(ir, ab).asInstanceOf[IR]
     }
     assertTypeUnchanged(ir, lowered)

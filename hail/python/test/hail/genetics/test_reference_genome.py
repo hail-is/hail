@@ -11,6 +11,7 @@ tearDownModule = stopTestHailContext
 
 class Tests(unittest.TestCase):
 
+    @fails_service_backend()
     def test_reference_genome(self):
         rg = hl.get_reference('GRCh37')
         self.assertEqual(rg.name, "GRCh37")
@@ -40,6 +41,7 @@ class Tests(unittest.TestCase):
         self.assertDictEqual(gr2.lengths, lengths)
         gr2.write("/tmp/my_gr.json")
 
+    @fails_service_backend()
     def test_reference_genome_sequence(self):
         gr3 = ReferenceGenome.read(resource("fake_ref_genome.json"))
         self.assertEqual(gr3.name, "my_reference_genome")
@@ -66,6 +68,7 @@ class Tests(unittest.TestCase):
         assert gr4.has_sequence()
         self.assertEqual(gr4._sequence_files, (resource("fake_reference.fasta"), resource("fake_reference.fasta.fai")))
 
+    @fails_service_backend()
     def test_reference_genome_liftover(self):
         grch37 = hl.get_reference('GRCh37')
         grch38 = hl.get_reference('GRCh38')
@@ -124,6 +127,7 @@ class Tests(unittest.TestCase):
         grch37.remove_liftover("GRCh38")
         grch38.remove_liftover("GRCh37")
 
+    @fails_service_backend()
     def test_liftover_strand(self):
         grch37 = hl.get_reference('GRCh37')
         grch37.add_liftover(resource('grch37_to_grch38_chr20.over.chain.gz'), 'GRCh38')
@@ -141,6 +145,7 @@ class Tests(unittest.TestCase):
 
         grch37.remove_liftover("GRCh38")
 
+    @fails_service_backend()
     def test_read_custom_reference_genome(self):
         # this test doesn't behave properly if these reference genomes are already defined in scope.
         available_rgs = set(hl.ReferenceGenome._references.keys())

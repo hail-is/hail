@@ -7,9 +7,9 @@ import java.security.SecureRandom
 import java.text.SimpleDateFormat
 import java.util.{Base64, Date}
 import java.util.zip.{Deflater, Inflater}
-
 import is.hail.annotations.ExtendedOrdering
 import is.hail.check.Gen
+import is.hail.expr.ir.ByteArrayBuilder
 import org.apache.commons.io.output.TeeOutputStream
 import org.apache.commons.lang3.StringUtils
 import org.apache.hadoop.fs.PathIOException
@@ -27,6 +27,7 @@ import scala.collection.{GenTraversableOnce, TraversableOnce, mutable}
 import scala.language.{higherKinds, implicitConversions}
 import scala.reflect.ClassTag
 import is.hail.io.fs.FS
+import org.apache.spark.sql.Row
 
 package utils {
   trait Truncatable {
@@ -294,6 +295,16 @@ package object utils extends Logging
     }
   }
 
+  def rowIterator(r: Row): Iterator[Any] = new Iterator[Any] {
+    var idx: Int = 0
+    def hasNext: Boolean = idx < r.size
+    def next: Any = {
+      val a = r(idx)
+      idx += 1
+      a
+    }
+  }
+
   // ignore size; atomic, like String
   def genDNAString: Gen[String] = Gen.stringOf(genBase)
     .resize(12)
@@ -309,6 +320,15 @@ package object utils extends Logging
   def formatDouble(d: Double, precision: Int): String = d.formatted(s"%.${ precision }f")
 
   def uriPath(uri: String): String = new URI(uri).getPath
+
+  def removeFileProtocol(uriString: String): String = {
+    val uri = new URI(uriString)
+    if (uri.getScheme == "file") {
+      uri.getPath
+    } else {
+      uri.toString
+    }
+  }
 
   // NB: can't use Nothing here because it is not a super type of Null
   private object flattenOrNullInstance extends FlattenOrNull[Array]
@@ -621,7 +641,6 @@ package object utils extends Logging
         caught = true
         try {
           r.close()
-          throw original
         } catch {
           case duringClose: Exception =>
             if (original == duringClose) {
@@ -633,6 +652,7 @@ package object utils extends Logging
               throw duringClose
             }
         }
+        throw original
     } finally {
       if (!caught) {
         r.close()
@@ -792,7 +812,7 @@ package object utils extends Logging
     }
   }
 
-  def compress(bb: BoxedArrayBuilder[Byte], input: Array[Byte]): Int = {
+  def compress(bb: ByteArrayBuilder, input: Array[Byte]): Int = {
     val compressor = new Deflater()
     compressor.setInput(input)
     compressor.finish()
@@ -898,6 +918,34 @@ package object utils extends Logging
     val random = new SecureRandom()
     random.nextBytes(bytes)
     Base64.getUrlEncoder.encodeToString(bytes)
+  }
+
+  // mutates byteOffsets and returns the byte size
+  def getByteSizeAndOffsets(byteSize: Array[Long], alignment: Array[Long], nMissingBytes: Long, byteOffsets: Array[Long]): Long = {
+    assert(byteSize.length == alignment.length)
+    assert(byteOffsets.length == byteSize.length)
+    val bp = new BytePacker()
+
+    var offset: Long = nMissingBytes
+    byteSize.indices.foreach { i =>
+      val fSize = byteSize(i)
+      val fAlignment = alignment(i)
+
+      bp.getSpace(fSize, fAlignment) match {
+        case Some(start) =>
+          byteOffsets(i) = start
+        case None =>
+          val mod = offset % fAlignment
+          if (mod != 0) {
+            val shift = fAlignment - mod
+            bp.insertSpace(shift, offset)
+            offset += (fAlignment - mod)
+          }
+          byteOffsets(i) = offset
+          offset += fSize
+      }
+    }
+    offset
   }
 }
 

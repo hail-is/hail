@@ -1,32 +1,44 @@
 package is.hail.types.physical.stypes.interfaces
 
 import is.hail.asm4s.{Code, Value}
-import is.hail.expr.ir.{EmitCodeBuilder, IEmitSCode}
+import is.hail.expr.ir.{EmitCodeBuilder, IEmitCode}
+import is.hail.types.{RInterval, TypeWithRequiredness}
 import is.hail.types.physical.PInterval
-import is.hail.types.physical.stypes.{SCode, SType, SValue}
+import is.hail.types.physical.stypes.{EmitType, SCode, SType, SValue}
 
-trait SInterval extends SType
+trait SInterval extends SType {
+  def pointType: SType
+  def pointEmitType: EmitType
+  override def _typeWithRequiredness: TypeWithRequiredness = {
+    val pt = pointEmitType.typeWithRequiredness.r
+    RInterval(pt, pt)
+  }
+}
 
 trait SIntervalValue extends SValue {
+  def st: SInterval
+
   def includesStart(): Value[Boolean]
 
   def includesEnd(): Value[Boolean]
 
-  def loadStart(cb: EmitCodeBuilder): IEmitSCode
+  def loadStart(cb: EmitCodeBuilder): IEmitCode
 
-  def startDefined(cb: EmitCodeBuilder): Code[Boolean]
+  def startDefined(cb: EmitCodeBuilder): Value[Boolean]
 
-  def loadEnd(cb: EmitCodeBuilder): IEmitSCode
+  def loadEnd(cb: EmitCodeBuilder): IEmitCode
 
-  def endDefined(cb: EmitCodeBuilder): Code[Boolean]
+  def endDefined(cb: EmitCodeBuilder): Value[Boolean]
 
-  def isEmpty(cb: EmitCodeBuilder): Code[Boolean]
+  def isEmpty(cb: EmitCodeBuilder): Value[Boolean]
 }
 
 trait SIntervalCode extends SCode {
-  def includesStart(): Code[Boolean]
+  def st: SInterval
 
-  def includesEnd(): Code[Boolean]
+  def codeIncludesStart(): Code[Boolean]
+
+  def codeIncludesEnd(): Code[Boolean]
 
   def memoize(cb: EmitCodeBuilder, name: String): SIntervalValue
 

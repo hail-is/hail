@@ -22,6 +22,286 @@ Please note that **forward compatibility should not be expected, especially
 relating to file formats**: this means that it may not be possible to use
 an earlier version of Hail to read files written in a later version.
 
+---
+
+## Version 0.2.81
+
+Release 2021-12-20
+
+### hailctl dataproc
+
+- (hail#11182) Updated Dataproc image version to mitigate yet more Log4j vulnerabilities.
+
+---
+
+## Version 0.2.80
+
+Release 2021-12-15
+
+### New features
+
+- (hail#11077) `hl.experimental.write_matrix_tables` now returns the paths of the written matrix tables.
+
+### hailctl dataproc
+
+- (hail#11157) Updated Dataproc image version to mitigate the Log4j vulnerability.
+- (hail#10900) Added `--region` parameter to `hailctl dataproc submit`.
+- (hail#11090) Teach `hailctl dataproc describe` how to read URLs with the protocols `s3` (Amazon S3), `hail-az` (Azure Blob Storage), and `file` (local file system) in addition to `gs` (Google Cloud Storage).
+
+---
+
+## Version 0.2.79
+
+Release 2021-11-17
+
+### Bug fixes
+
+- (hail#11023) Fixed bug in call decoding that was introduced in version 0.2.78.
+
+### New features
+
+- (hail#10993) New function `p_value_excess_het`.
+
+---
+
+## Version 0.2.78
+
+Release 2021-10-19
+
+### Bug fixes
+- (hail#10766) Don't throw out of memory error when broadcasting more than 2^(31) - 1 bytes.
+- (hail#10910) Filters on key field won't be slowed down by uses of `MatrixTable.localize_entries` or `Table.rename`.
+- (hail#10959) Don't throw an error in certain situations where some key fields are optimized away.
+
+### New features
+- (hail#10855) Arbitrary aggregations can be implemented using `hl.agg.fold`.
+
+
+### Performance Improvements
+- (hail#10971) Substantially improve the speed of `Table.collect` when collecting large amounts of data.
+
+---
+
+## Version 0.2.77
+
+Release 2021-09-21
+
+### Bug fixes
+
+- (hail#10888) Fix crash when calling `hl.liftover`.
+- (hail#10883) Fix crash / long compilation times writing matrix tables with many partitions.
+
+---
+
+## Version 0.2.76
+
+Released 2021-09-15
+
+### Bug fixes
+
+- (hail#10872) Fix long compile times or method size errors when writing tables with many partitions
+- (hail#10878) Fix crash importing or sorting tables with empty data partitions
+
+---
+
+## Version 0.2.75
+
+Released 2021-09-10
+
+### Bug fixes
+
+- (hail#10733) Fix a bug in tabix parsing when the size of the list of all sequences is large.
+- (hail#10765) Fix rare bug where valid pipelines would fail to compile if intervals were created conditionally.
+- (hail#10746) Various compiler improvements, decrease likelihood of `ClassTooLarge` errors.
+- (hail#10829) Fix a bug where `hl.missing` and `CaseBuilder.or_error` failed if their type was a struct containing a field starting with a number.
+
+### New features
+
+- (hail#10768) Support multiplying `StringExpression`s to repeat them, as with normal python strings.
+
+### Performance improvements
+
+- (hail#10625) Reduced need to copy strings around, pipelines with many string operations should get faster.
+- (hail#10775) Improved performance of `to_matrix_table_row_major` on both `BlockMatrix` and `Table`.
+
+---
+
+## Version 0.2.74
+
+Released 2021-07-26
+
+### Bug fixes
+
+- (hail#10697) Fixed bug in `read_table` when the table has missing keys and `_n_partitions` is specified.
+- (hail#10695) Fixed bug in hl.experimental.loop causing incorrect results when loop state contained pointers.
+
+---
+
+
+## Version 0.2.73
+
+Released 2021-07-22
+
+### Bug fixes
+
+- (hail#10684) Fixed a rare bug reading arrays from disk where short arrays would have their first elements corrupted and long arrays would cause segfaults.
+- (hail#10523) Fixed bug where liftover would fail with "Could not initialize class" errors.
+
+---
+
+## Version 0.2.72
+
+Released 2021-07-19
+
+### New Features
+
+- (hail#10655) Revamped many hail error messages to give useful python stack traces.
+- (hail#10663) Added `DictExpression.items()` to mirror python's `dict.items()`.
+- (hail#10657) `hl.map` now supports mapping over multiple lists like Python's built-in `map`.
+
+### Bug fixes
+
+- (hail#10662) Fixed partitioning logic in `hl.import_plink`.
+- (hail#10669) `NDArrayNumericExpression.sum()` now works correctly on ndarrays of booleans.
+
+---
+
+## Version 0.2.71
+
+Released 2021-07-08
+
+### New Features
+
+- (hail#10632) Added support for weighted linear regression to `hl.linear_regression_rows`.
+- (hail#10635) Added `hl.nd.maximum` and `hl.nd.minimum`.
+- (hail#10602) Added `hl.starmap`.
+
+### Bug fixes
+
+- (hail#10038) Fixed crashes when writing/reading matrix tables with 0 partitions.
+- (hail#10624) Fixed out of bounds bug with `_quantile_from_cdf`.
+
+
+### hailctl dataproc
+
+- (hail#10633) Added `--scopes` parameter to `hailctl dataproc start`.
+
+---
+
+## Version 0.2.70
+
+Released 2021-06-21
+
+---
+
+## Version 0.2.69
+
+Released 2021-06-14
+
+### New Features
+
+- (hail#10592) Added `hl.get_hgdp` function.
+- (hail#10555) Added `hl.hadoop_scheme_supported` function.
+- (hail#10551) Indexing ndarrays now supports ellipses.
+
+### Bug fixes
+
+- (hail#10553) Dividing two integers now returns a `float64`, not a `float32`.
+- (hail#10595) Don't include nans in `lambda_gc_agg`.
+
+### hailctl dataproc
+
+- (hail#10574) Hail logs will now be stored in `/home/hail` by default.
+
+---
+
+## Version 0.2.68
+
+Released 2021-05-27
+
+---
+
+## Version 0.2.67
+
+### Critical performance fix
+
+Released 2021-05-06
+
+- (hail#10451) Fixed a memory leak / performance bug triggered by `hl.literal(...).contains(...)`
+
+---
+
+## Version 0.2.66
+
+Released 2021-05-03
+
+### New features
+
+- (hail#10398) Added new method `BlockMatrix.to_ndarray`.
+- (hail#10251) Added suport for haploid GT calls to VCF combiner.
+
+---
+
+## Version 0.2.65
+
+Released 2021-04-14
+
+### Default Spark Version Change
+
+- Starting from version 0.2.65, Hail uses Spark 3.1.1 by default. This will also allow the use of all python versions >= 3.6. By building hail from source, it is still possible to use older versions of Spark.
+
+### New features
+
+- (hail#10290) Added `hl.nd.solve`.
+- (hail#10187) Added `NDArrayNumericExpression.sum`.
+
+### Performance improvements
+
+- (hail#10233) Loops created with `hl.experimental.loop` will now clean up unneeded memory between iterations.
+
+### Bug fixes
+
+- (hail#10227) `hl.nd.qr` now supports ndarrays that have 0 rows or columns.
+
+---
+
+## Version 0.2.64
+
+Released 2021-03-11
+
+### New features
+- (hail#10164) Add source_file_field parameter to hl.import_table to allow lines to be associated with their original source file.
+
+### Bug fixes
+
+- (hail#10182) Fixed serious memory leak in certain uses of `filter_intervals`.
+- (hail#10133) Fix bug where some pipelines incorrectly infer missingness, leading to a type error.
+- (hail#10134) Teach `hl.king` to treat filtered entries as missing values.
+- (hail#10158) Fixes hail usage in latest versions of jupyter that rely on `asyncio`.
+- (hail#10174) Fixed bad error message when incorrect return type specified with `hl.loop`.
+
+---
+
+
+## Version 0.2.63
+
+Released 2021-03-01
+
+- (hail#10105) Hail will now return `frozenset` and `hail.utils.frozendict` instead of normal sets and dicts.
+
+
+### Bug fixes
+
+- (hail#10035) Fix mishandling of NaN values in `hl.agg.hist`, where they were unintentionally included in the first bin.
+- (hail#10007) Improve error message from hadoop_ls when file does not exist.
+
+### Performance Improvements
+
+- (hail#10068) Make certain array copies faster.
+- (hail#10061) Improve code generation of `hl.if_else` and `hl.coalesce`.
+
+---
+
 ## Version 0.2.62
 
 Released 2021-02-03
@@ -58,7 +338,7 @@ Released 2020-12-03
 
 - (hail#9775) Fixed race condition leading to invalid intermediate files in VCF combiner.
 - (hail#9751) Fix bug where constructing an array of empty structs causes type error.
-- (hail#9731) Fix error and incorrect behavior when using `hl.import_matrix_table` with int64 data types. 
+- (hail#9731) Fix error and incorrect behavior when using `hl.import_matrix_table` with int64 data types.
 
 ---
 
@@ -109,7 +389,7 @@ Released 2020-10-08
 
 ### Bug fixes
 - (hail#9503) NDArrays can now hold arbitrary data types, though only ndarrays of primitives can be collected to Python.
-- (hail#9501) Remove memory leak in `BlockMatrix.to_matrix_table_row_major` and `BlockMatrix.to_table_row_major`. 
+- (hail#9501) Remove memory leak in `BlockMatrix.to_matrix_table_row_major` and `BlockMatrix.to_table_row_major`.
 - (hail#9424) `hl.experimental.writeBlockMatrices` didn't correctly support `overwrite` flag.
 
 ### Performance improvements
@@ -154,7 +434,7 @@ Released 2020-08-31
 
 ### hailctl dataproc
 
-- (hail#9263) Add support for `--expiration-time` argument to `hailctl dataproc start`. 
+- (hail#9263) Add support for `--expiration-time` argument to `hailctl dataproc start`.
 - (hail#9263) Add support for `--no-max-idle`, `no-max-age`, `--max-age`, and `--expiration-time` to `hailctl dataproc --modify`.
 
 ---
@@ -185,7 +465,7 @@ Released 2020-08-07
 ### VCF Combiner
 
 - (hail#9224)(hail#9237) **Breaking change**: Users are now required to pass a partitioning argument to the command-line interface or `run_combiner` method. See documentation for details.
-- (hail#8963) Improved performance of VCF combiner by ~4x. 
+- (hail#8963) Improved performance of VCF combiner by ~4x.
 
 
 ### New features
@@ -195,7 +475,7 @@ Released 2020-08-07
 ### Bug fixes
 
 - (hail#9206)(hail#9207) Improved error messages from invalid usages of Hail expressions.
-- (hail#9223) Fixed error in bounds checking for NDArray slicing. 
+- (hail#9223) Fixed error in bounds checking for NDArray slicing.
 
 ---
 
@@ -280,8 +560,8 @@ Released 2020-06-23
 ### Bug fixes
 
 - (hail#9009) Fix memory leak when counting per-partition. This caused excessive memory use in `BlockMatrix.write_from_entry_expr`, and likely in many other places.
-- (hail#9006) Fix memory leak in `hl.export_bgen`. 
-- (hail#9001) Fix double close error that showed up on Azure Cloud. 
+- (hail#9006) Fix memory leak in `hl.export_bgen`.
+- (hail#9001) Fix double close error that showed up on Azure Cloud.
 
 ## Version 0.2.46
 

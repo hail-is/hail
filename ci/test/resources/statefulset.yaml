@@ -20,13 +20,18 @@ spec:
       tolerations:
        - key: preemptible
          value: "true"
+       - key: "kubernetes.azure.com/scalesetpriority"
+         value: "spot"
       containers:
         - name: hello-stateful-set
           image: "{{ hello_image.image }}"
           resources:
             requests:
-              memory: "0.5G"
-              cpu: "0.5"
+              cpu: "20m"
+              memory: "20M"
+            limits:
+              cpu: "1"
+              memory: "1G"
           ports:
             - containerPort: 5000
           livenessProbe:
@@ -46,11 +51,20 @@ spec:
            - name: session-secret-key
              mountPath: /session-secret-key
              readOnly: true
+           - name: ssl-config
+             mountPath: /ssl-config
+             readOnly: true
           env:
            - name: HAIL_IP
-             value: "{{ global.ip }}"
+             valueFrom:
+               secretKeyRef:
+                 name: global-config
+                 key: ip
            - name: HAIL_DOMAIN
-             value: "{{ global.domain }}"
+             valueFrom:
+               secretKeyRef:
+                 name: global-config
+                 key: domain
            - name: HAIL_DEPLOY_CONFIG_FILE
              value: /deploy-config/deploy-config.json
            - name: HAIL_SHA
@@ -64,6 +78,10 @@ spec:
          secret:
            optional: false
            secretName: session-secret-key
+       - name: ssl-config
+         secret:
+           optional: false
+           secretName: ssl-config-hello
 ---
 apiVersion: v1
 kind: Service
@@ -73,8 +91,7 @@ metadata:
     app: hello-stateful-set
 spec:
   ports:
-    - name: http
-      port: 80
+    - port: 443
       protocol: TCP
       targetPort: 5000
   selector:

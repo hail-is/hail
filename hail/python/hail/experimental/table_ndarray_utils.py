@@ -3,7 +3,7 @@ from hail.expr import (check_entry_indexed, matrix_table_source)
 from hail.utils.java import Env
 
 
-def mt_to_table_of_ndarray(entry_expr, block_size=16):
+def mt_to_table_of_ndarray(entry_expr, block_size=16, return_checkpointed_table_also=False):
     check_entry_indexed('mt_to_table_of_ndarray/entry_expr', entry_expr)
     mt = matrix_table_source('mt_to_table_of_ndarray/entry_expr', entry_expr)
 
@@ -35,8 +35,11 @@ def mt_to_table_of_ndarray(entry_expr, block_size=16):
     ht = ht.checkpoint(temp_file_name)
     num_rows = ht.count()
     new_partitioning = get_even_partitioning(ht, block_size, num_rows)
-    ht = hl.read_table(temp_file_name, _intervals=new_partitioning)
+    new_part_ht = hl.read_table(temp_file_name, _intervals=new_partitioning)
 
-    grouped = ht._group_within_partitions("groups", block_size)
+    grouped = new_part_ht._group_within_partitions("groups", block_size)
     A = grouped.select(ndarray=hl.nd.array(grouped.groups.map(lambda group: group.xs)))
+
+    if return_checkpointed_table_also:
+        return A, ht
     return A

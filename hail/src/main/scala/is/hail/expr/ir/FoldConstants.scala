@@ -1,5 +1,6 @@
 package is.hail.expr.ir
 
+import is.hail.backend.ExecuteContext
 import is.hail.types.virtual.TStream
 import is.hail.utils.HailException
 
@@ -8,7 +9,6 @@ object FoldConstants {
     ExecuteContext.scopedNewRegion(ctx) { ctx =>
       foldConstants(ctx, ir)
     }
-
   private def foldConstants(ctx: ExecuteContext, ir: BaseIR): BaseIR =
     RewriteBottomUp(ir, {
       case _: Ref |
@@ -33,6 +33,7 @@ object FoldConstants {
            _: NDArrayAgg |
            _: NDArrayWrite |
            _: NDArrayMatMul |
+           _: Trap |
            _: Die => None
       case ir: IR if ir.typ.isInstanceOf[TStream] => None
       case ir: IR if !IsConstant(ir) &&

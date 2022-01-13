@@ -1,22 +1,37 @@
 import datetime
 import calendar
 import asyncio
+import os
+import json
 from aiohttp import web
 import aiohttp_session
 import logging
-from collections import defaultdict
+from collections import defaultdict, namedtuple
+from prometheus_async.aio.web import server_stats  # type: ignore
+import prometheus_client as pc  # type: ignore
 
-from hailtop import aiogoogle, aiotools
-from hailtop.aiogoogle import BigQueryClient
+from hailtop.aiocloud import aiogoogle
 from hailtop.config import get_deploy_config
 from hailtop.hail_logging import AccessLogger
 from hailtop.tls import internal_server_ssl_context
-from hailtop.utils import run_if_changed_idempotent, retry_long_running, time_msecs, cost_str
-from gear import (Database, setup_aiohttp_session,
-                  web_authenticated_developers_only, rest_authenticated_developers_only,
-                  transaction)
-from web_common import (setup_aiohttp_jinja2, setup_common_static_routes,
-                        render_template, set_message)
+from hailtop.utils import (
+    run_if_changed_idempotent,
+    retry_long_running,
+    time_msecs,
+    cost_str,
+    parse_timestamp_msecs,
+    url_basename,
+    periodically_call,
+)
+from hailtop import aiotools, httpx
+from gear import (
+    Database,
+    setup_aiohttp_session,
+    web_authenticated_developers_only,
+    rest_authenticated_developers_only,
+    transaction,
+)
+from web_common import setup_aiohttp_jinja2, setup_common_static_routes, render_template, set_message
 
 from .configuration import HAIL_USE_FULL_QUERY
 
@@ -25,6 +40,20 @@ log = logging.getLogger('monitoring')
 routes = web.RouteTableDef()
 
 deploy_config = get_deploy_config()
+
+GCP_REGION = os.environ['HAIL_GCP_REGION']
+BATCH_GCP_REGIONS = set(json.loads(os.environ['HAIL_BATCH_GCP_REGIONS']))
+BATCH_GCP_REGIONS.add(GCP_REGION)
+
+PROJECT = os.environ['PROJECT']
+
+DISK_SIZES_GB = pc.Summary('batch_disk_size_gb', 'Batch disk sizes (GB)', ['namespace', 'zone', 'state'])
+INSTANCES = pc.Gauge(
+    'batch_instances', 'Batch instances', ['namespace', 'zone', 'status', 'machine_type', 'preemptible']
+)
+
+DiskLabels = namedtuple('DiskLabels', ['zone', 'namespace', 'state'])
+InstanceLabels = namedtuple('InstanceLabels', ['namespace', 'zone', 'status', 'machine_type', 'preemptible'])
 
 
 def get_previous_month(dt):
@@ -55,16 +84,17 @@ def format_data(records):
         else:
             assert record['source'] is None
 
-    cost_by_service = sorted([{'service': k, 'cost': cost_str(v)} for k, v in cost_by_service.items()],
-                             key=lambda x: x['cost'],
-                             reverse=True)
+    cost_by_service = sorted(
+        [{'service': k, 'cost': cost_str(v)} for k, v in cost_by_service.items()], key=lambda x: x['cost'], reverse=True
+    )
 
-    compute_cost_breakdown = sorted([{'source': k, 'cost': cost_str(v)} for k, v in compute_cost_breakdown.items()],
-                                    key=lambda x: x['cost'],
-                                    reverse=True)
+    compute_cost_breakdown = sorted(
+        [{'source': k, 'cost': cost_str(v)} for k, v in compute_cost_breakdown.items()],
+        key=lambda x: x['cost'],
+        reverse=True,
+    )
 
-    cost_by_sku_source.sort(key=lambda x: x['cost'],
-                            reverse=True)
+    cost_by_sku_source.sort(key=lambda x: x['cost'], reverse=True)
     for record in cost_by_sku_source:
         record['cost'] = cost_str(record['cost'])
 
@@ -89,8 +119,9 @@ async def _billing(request):
         return ([], [], [], time_period_query)
 
     db = app['db']
-    records = db.execute_and_fetchall('SELECT * FROM monitoring_billing_data WHERE year = %s AND month = %s;',
-                                      (time_period.year, time_period.month))
+    records = db.execute_and_fetchall(
+        'SELECT * FROM monitoring_billing_data WHERE year = %s AND month = %s;', (time_period.year, time_period.month)
+    )
     records = [record async for record in records]
 
     cost_by_service, compute_cost_breakdown, cost_by_sku_source = format_data(records)
@@ -106,7 +137,7 @@ async def get_billing(request: web.Request, userdata) -> web.Response:  # pylint
         'cost_by_service': cost_by_service,
         'compute_cost_breakdown': compute_cost_breakdown,
         'cost_by_sku_label': cost_by_sku_label,
-        'time_period_query': time_period_query
+        'time_period_query': time_period_query,
     }
     return web.json_response(resp)
 
@@ -119,7 +150,7 @@ async def billing(request: web.Request, userdata) -> web.Response:  # pylint: di
         'cost_by_service': cost_by_service,
         'compute_cost_breakdown': compute_cost_breakdown,
         'cost_by_sku_label': cost_by_sku_label,
-        'time_period': time_period_query
+        'time_period': time_period_query,
     }
     return await render_template('monitoring', request, userdata, 'billing.html', context)
 
@@ -158,27 +189,42 @@ CASE
   ELSE NULL
 END AS source
 FROM `broad-ctsa.hail_billing.gcp_billing_export_v1_0055E5_9CA197_B9B894`
-WHERE DATE(_PARTITIONTIME) >= "{start_str}" AND DATE(_PARTITIONTIME) <= "{end_str}" AND project.name = "hail-vdc" AND invoice.month = "{invoice_month}"
+WHERE DATE(_PARTITIONTIME) >= "{start_str}" AND DATE(_PARTITIONTIME) <= "{end_str}" AND project.name = "{PROJECT}" AND invoice.month = "{invoice_month}"
 GROUP BY service_id, service_description, sku_id, sku_description, source;
 '''
 
         log.info(f'querying BigQuery with command: {cmd}')
 
-        records = [(year, month, record['service_id'], record['service_description'], record['sku_id'], record['sku_description'], record['source'], record['cost'])
-                   async for record in await bigquery_client.query(cmd)]
+        records = [
+            (
+                year,
+                month,
+                record['service_id'],
+                record['service_description'],
+                record['sku_id'],
+                record['sku_description'],
+                record['source'],
+                record['cost'],
+            )
+            async for record in await bigquery_client.query(cmd)
+        ]
 
         @transaction(db)
         async def insert(tx):
-            await tx.just_execute('''
+            await tx.just_execute(
+                '''
 DELETE FROM monitoring_billing_data WHERE year = %s AND month = %s;
 ''',
-                                  (year, month))
+                (year, month),
+            )
 
-            await tx.execute_many('''
+            await tx.execute_many(
+                '''
 INSERT INTO monitoring_billing_data (year, month, service_id, service_description, sku_id, sku_description, source, cost)
 VALUES (%s, %s, %s, %s, %s, %s, %s, %s);
 ''',
-                                  records)
+                records,
+            )
 
         await insert()  # pylint: disable=no-value-for-parameter
 
@@ -207,34 +253,109 @@ async def polling_loop(app):
         await asyncio.sleep(60)
 
 
+async def monitor_disks(app):
+    log.info('monitoring disks')
+    compute_client: aiogoogle.GoogleComputeClient = app['compute_client']
+
+    disk_counts = defaultdict(list)
+
+    for zone in app['zones']:
+        async for disk in await compute_client.list(f'/zones/{zone}/disks', params={'filter': '(labels.batch = 1)'}):
+            namespace = disk['labels']['namespace']
+            size_gb = int(disk['sizeGb'])
+
+            creation_timestamp_msecs = parse_timestamp_msecs(disk.get('creationTimestamp'))
+            last_attach_timestamp_msecs = parse_timestamp_msecs(disk.get('lastAttachTimestamp'))
+            last_detach_timestamp_msecs = parse_timestamp_msecs(disk.get('lastDetachTimestamp'))
+
+            if creation_timestamp_msecs is None:
+                state = 'creating'
+            elif last_attach_timestamp_msecs is None:
+                state = 'created'
+            elif last_attach_timestamp_msecs is not None and last_detach_timestamp_msecs is None:
+                state = 'attached'
+            elif last_attach_timestamp_msecs is not None and last_detach_timestamp_msecs is not None:
+                state = 'detached'
+            else:
+                state = 'unknown'
+                log.exception(f'disk is in unknown state {disk}')
+
+            disk_labels = DiskLabels(zone=zone, namespace=namespace, state=state)
+            disk_counts[disk_labels].append(size_gb)
+
+    DISK_SIZES_GB.clear()
+    for labels, sizes in disk_counts.items():
+        for size in sizes:
+            DISK_SIZES_GB.labels(**labels._asdict()).observe(size)
+
+
+async def monitor_instances(app):
+    log.info('monitoring instances')
+    compute_client: aiogoogle.GoogleComputeClient = app['compute_client']
+
+    instance_counts = defaultdict(int)
+
+    for zone in app['zones']:
+        async for instance in await compute_client.list(
+            f'/zones/{zone}/instances', params={'filter': '(labels.role = batch2-agent)'}
+        ):
+            instance_labels = InstanceLabels(
+                status=instance['status'],
+                zone=zone,
+                namespace=instance['labels']['namespace'],
+                machine_type=instance['machineType'].rsplit('/', 1)[1],
+                preemptible=instance['scheduling']['preemptible'],
+            )
+            instance_counts[instance_labels] += 1
+
+    INSTANCES.clear()
+    for labels, count in instance_counts.items():
+        INSTANCES.labels(**labels._asdict()).set(count)
+
+
 async def on_startup(app):
     db = Database()
     await db.async_init()
     app['db'] = db
+    app['client_session'] = httpx.client_session()
 
-    aiogoogle_credentials = aiogoogle.Credentials.from_file('/billing-monitoring-gsa-key/key.json')
-    bigquery_client = BigQueryClient('broad-ctsa', credentials=aiogoogle_credentials)
+    aiogoogle_credentials = aiogoogle.GoogleCredentials.from_file('/billing-monitoring-gsa-key/key.json')
+
+    bigquery_client = aiogoogle.GoogleBigQueryClient('broad-ctsa', credentials=aiogoogle_credentials)
     app['bigquery_client'] = bigquery_client
+
+    compute_client = aiogoogle.GoogleComputeClient(PROJECT, credentials=aiogoogle_credentials)
+    app['compute_client'] = compute_client
 
     query_billing_event = asyncio.Event()
     app['query_billing_event'] = query_billing_event
 
+    region_info = {name: await compute_client.get(f'/regions/{name}') for name in BATCH_GCP_REGIONS}
+    zones = [url_basename(z) for r in region_info.values() for z in r['zones']]
+    app['zones'] = zones
+
     app['task_manager'] = aiotools.BackgroundTaskManager()
 
-    app['task_manager'].ensure_future(retry_long_running(
-        'polling_loop',
-        polling_loop, app))
+    app['task_manager'].ensure_future(retry_long_running('polling_loop', polling_loop, app))
 
-    app['task_manager'].ensure_future(retry_long_running(
-        'query_billing_loop',
-        run_if_changed_idempotent, query_billing_event, query_billing_body, app))
+    app['task_manager'].ensure_future(
+        retry_long_running(
+            'query_billing_loop', run_if_changed_idempotent, query_billing_event, query_billing_body, app
+        )
+    )
+
+    app['task_manager'].ensure_future(periodically_call(60, monitor_disks, app))
+    app['task_manager'].ensure_future(periodically_call(60, monitor_instances, app))
 
 
 async def on_cleanup(app):
     try:
         await app['db'].async_close()
     finally:
-        app['task_manager'].shutdown()
+        try:
+            await app['client_session'].close()
+        finally:
+            app['task_manager'].shutdown()
 
 
 def run():
@@ -244,12 +365,15 @@ def run():
     setup_aiohttp_jinja2(app, 'monitoring')
     setup_common_static_routes(routes)
     app.add_routes(routes)
+    app.router.add_get("/metrics", server_stats)
 
     app.on_startup.append(on_startup)
     app.on_cleanup.append(on_cleanup)
 
-    web.run_app(deploy_config.prefix_application(app, 'monitoring'),
-                host='0.0.0.0',
-                port=5000,
-                access_log_class=AccessLogger,
-                ssl_context=internal_server_ssl_context())
+    web.run_app(
+        deploy_config.prefix_application(app, 'monitoring'),
+        host='0.0.0.0',
+        port=5000,
+        access_log_class=AccessLogger,
+        ssl_context=internal_server_ssl_context(),
+    )

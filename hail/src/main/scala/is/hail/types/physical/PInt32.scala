@@ -2,9 +2,9 @@ package is.hail.types.physical
 
 import is.hail.annotations.{Region, UnsafeOrdering, _}
 import is.hail.asm4s.{Code, coerce, const, _}
-import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder}
-import is.hail.types.physical.stypes.primitives.{SInt32, SInt32Code}
-import is.hail.types.physical.stypes.{SCode, SType}
+import is.hail.expr.ir.EmitCodeBuilder
+import is.hail.types.physical.stypes.primitives.{SInt32, SInt32Code, SInt32Value}
+import is.hail.types.physical.stypes.{SType, SValue}
 import is.hail.types.virtual.TInt32
 
 case object PInt32Optional extends PInt32(false)
@@ -22,24 +22,6 @@ class PInt32(override val required: Boolean) extends PNumeric with PPrimitive {
     }
   }
 
-  def codeOrdering(mb: EmitMethodBuilder[_], other: PType): CodeOrdering = {
-    assert(other isOfType this)
-    new CodeOrdering {
-      def compareNonnull(cb: EmitCodeBuilder, x: PCode, y: PCode): Code[Int] =
-        Code.invokeStatic2[java.lang.Integer, Int, Int, Int]("compare", x.tcode[Int], y.tcode[Int])
-
-      def ltNonnull(cb: EmitCodeBuilder, x: PCode, y: PCode): Code[Boolean] = x.tcode[Int] < y.tcode[Int]
-
-      def lteqNonnull(cb: EmitCodeBuilder, x: PCode, y: PCode): Code[Boolean] = x.tcode[Int] <= y.tcode[Int]
-
-      def gtNonnull(cb: EmitCodeBuilder, x: PCode, y: PCode): Code[Boolean] = x.tcode[Int] > y.tcode[Int]
-
-      def gteqNonnull(cb: EmitCodeBuilder, x: PCode, y: PCode): Code[Boolean] = x.tcode[Int] >= y.tcode[Int]
-
-      def equivNonnull(cb: EmitCodeBuilder, x: PCode, y: PCode): Code[Boolean] = x.tcode[Int].ceq(y.tcode[Int])
-    }
-  }
-
   override def byteSize: Long = 4
 
   override def zero = coerce[PInt32](const(0))
@@ -52,16 +34,22 @@ class PInt32(override val required: Boolean) extends PNumeric with PPrimitive {
     coerce[PInt32](coerce[Int](a) * coerce[Int](b))
   }
 
-  override def sType: SType = SInt32(required)
+  override def sType: SType = SInt32
 
-  def storePrimitiveAtAddress(cb: EmitCodeBuilder, addr: Code[Long], value: SCode): Unit =
+  def storePrimitiveAtAddress(cb: EmitCodeBuilder, addr: Code[Long], value: SValue): Unit =
     cb.append(Region.storeInt(addr, value.asInt.intCode(cb)))
 
-  override def loadCheapPCode(cb: EmitCodeBuilder, addr: Code[Long]): PCode = new SInt32Code(required, Region.loadInt(addr))
+  override def loadCheapSCode(cb: EmitCodeBuilder, addr: Code[Long]): SInt32Value =
+    new SInt32Code(Region.loadInt(addr)).memoize(cb, "loadCheapSCode")
+
+  override def loadCheapSCodeField(cb: EmitCodeBuilder, addr: Code[Long]): SInt32Value =
+    new SInt32Code(Region.loadInt(addr)).memoizeField(cb, "loadCheapSCodeField")
 
   override def unstagedStoreJavaObjectAtAddress(addr: Long, annotation: Annotation, region: Region): Unit = {
     Region.storeInt(addr, annotation.asInstanceOf[Int])
   }
+
+  def unstagedLoadFromAddress(addr: Long): Int = Region.loadInt(addr)
 }
 
 object PInt32 {

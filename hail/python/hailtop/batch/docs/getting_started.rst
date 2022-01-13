@@ -7,8 +7,8 @@ Getting Started
 Installation
 ------------
 
-Batch is a Python module available inside the Hail Python package located
-at `hailtop.batch`.
+Batch is a Python module available inside the Hail Python package located at `hailtop.batch`. The
+Batch Service additionally depends on the Google Cloud SDK.
 
 
 Installing Batch on Mac OS X or GNU/Linux with pip
@@ -20,10 +20,18 @@ Create a `conda enviroment
 
 .. code-block:: sh
 
-    conda create -n hail python'>=3.6,<3.8'
+    conda create -n hail python'>=3.7'
     conda activate hail
     pip install hail
 
+Installing the Google Cloud SDK
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+If you plan to use the Batch Service (as opposed to the local-only mode), then you must additionally
+`install the Google Cloud SDK <https://cloud.google.com/sdk/docs/install>`__.
+
+Try it out!
+~~~~~~~~~~~
 
 To try `batch` out, open iPython or a Jupyter notebook and run:
 

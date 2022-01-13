@@ -15,6 +15,9 @@ spec:
       labels:
         app: memory
         hail.is/sha: "{{ code.sha }}"
+        grafanak8sapp: "true"
+      annotations:
+        "cluster-autoscaler.kubernetes.io/safe-to-evict": "true"
     spec:
       serviceAccountName: memory
 {% if deploy %}
@@ -22,14 +25,14 @@ spec:
 {% endif %}
       containers:
         - name: redis
-          image: gcr.io/{{ global.project }}/redis:6.0.6-alpine
+          image: {{ global.docker_prefix }}/redis:6.0.6-alpine
           command:
            - redis-server
-           - --port 
+           - --port
            - "0"
            - --unixsocket
            - /redis/redis.sock
-           - --timeout 
+           - --timeout
            - "0"
            - --maxmemory
            - 2gb
@@ -40,16 +43,16 @@ spec:
              mountPath: /redis
           resources:
             requests:
-              memory: "2.5G"
-              cpu: "400m"
+              cpu: "50m"
+              memory: "2G"
             limits:
-              memory: "3.75G"
               cpu: "1"
+              memory: "2.5G"
           readinessProbe:
             exec:
               command:
                - redis-cli
-               - -s 
+               - -s
                - /redis/redis.sock
                - ping
             initialDelaySeconds: 5
@@ -65,7 +68,10 @@ spec:
            - memory
           env:
            - name: HAIL_DOMAIN
-             value: "{{ global.domain }}"
+             valueFrom:
+               secretKeyRef:
+                 name: global-config
+                 key: domain
            - name: HAIL_DEPLOY_CONFIG_FILE
              value: /deploy-config/deploy-config.json
            - name: HAIL_DEFAULT_NAMESPACE
@@ -86,10 +92,13 @@ spec:
            - name: ssl-config
              mountPath: /ssl-config
              readOnly: true
+           - mountPath: /global-config
+             name: global-config
+             readOnly: true
           resources:
             requests:
               memory: "1.25G"
-              cpu: "400m"
+              cpu: "100m"
             limits:
               memory: "3.75G"
               cpu: "1"
@@ -111,3 +120,21 @@ spec:
          secret:
            optional: false
            secretName: ssl-config-memory
+       - name: global-config
+         secret:
+           secretName: global-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: memory
+  labels:
+    app: memory
+spec:
+  ports:
+  - name: memory
+    port: 443
+    protocol: TCP
+    targetPort: 5000
+  selector:
+    app: memory

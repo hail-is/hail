@@ -3,10 +3,8 @@ package is.hail.io.reference
 import java.util
 import java.util.Map.Entry
 import java.util.concurrent.locks.{Lock, ReentrantLock}
-
 import htsjdk.samtools.reference.{ReferenceSequenceFile, ReferenceSequenceFileFactory}
-import is.hail.backend.BroadcastValue
-import is.hail.expr.ir.ExecuteContext
+import is.hail.backend.{BroadcastValue, ExecuteContext}
 import is.hail.utils._
 import is.hail.variant.{Locus, ReferenceGenome}
 import is.hail.io.fs.FS
@@ -14,9 +12,9 @@ import is.hail.io.fs.FS
 import scala.language.postfixOps
 import scala.collection.concurrent
 
-case class FASTAReaderConfig(val tmpdir: String, val fsBc: BroadcastValue[FS], val rg: ReferenceGenome,
-  val fastaFile: String, val indexFile: String, val blockSize: Int = 4096, val capacity: Int = 100
-) extends Serializable {
+case class FASTAReaderConfig(tmpdir: String, fs: FS, rg: ReferenceGenome,
+  fastaFile: String, indexFile: String, blockSize: Int = 4096, capacity: Int = 100
+) {
   if (blockSize <= 0)
     fatal(s"'blockSize' must be greater than 0. Found $blockSize.")
   if (capacity <= 0)
@@ -55,10 +53,10 @@ object FASTAReader {
 }
 
 class FASTAReader(val cfg: FASTAReaderConfig) {
-  val FASTAReaderConfig(tmpdir, fsBc, rg, fastaFile, indexFile, blockSize, capacity) = cfg
+  val FASTAReaderConfig(tmpdir, fs, rg, fastaFile, indexFile, blockSize, capacity) = cfg
 
   private[this] def newReader(): ReferenceSequenceFile = {
-    val localFastaFile = FASTAReader.getLocalFastaFile(tmpdir, fsBc.value, fastaFile, indexFile)
+    val localFastaFile = FASTAReader.getLocalFastaFile(tmpdir, fs, fastaFile, indexFile)
     ReferenceSequenceFileFactory.getReferenceSequenceFile(new java.io.File(uriPath(localFastaFile)))
   }
 

@@ -3,7 +3,13 @@
 {% block content %}
   <div id="profile" class="vcentered">
     <h1>{{ userdata['username'] }}</h1>
-    <p><b>Google Service Account: </b>{{ userdata['gsa_email'] }}</p>
+    {% if cloud == "gcp" %}
+    <p><b>Google Service Account: </b>{{ userdata['display_name'] }}</p>
+    {% endif %}
+    {% if cloud == "azure" %}
+    <p><b>Azure Service Principal Display Name: </b>{{ userdata['display_name'] }}</p>
+    <p><b>Azure Service Principal Application ID: </b>{{ userdata['hail_identity'] }}</p>
+    {% endif %}
     <p><b>Trial Billing Project: </b>{{ userdata['trial_bp_name'] }}</p>
     <form action="{{ auth_base_url }}/copy-paste-token" method="post">
       <input type="hidden" name="_csrf" value="{{ csrf_token }}"/>

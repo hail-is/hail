@@ -8,7 +8,6 @@ object Interpretable {
     (ir match {
       case
         _: EncodedLiteral |
-        _: StreamMerge |
         _: RunAgg |
         _: InitOp |
         _: SeqOp |
@@ -41,11 +40,7 @@ object Interpretable {
         _: WriteMetadata |
         _: ReadValue |
         _: WriteValue |
-        _: NDArrayWrite |
-        _: ShuffleWith |
-        _: ShuffleWrite |
-        _: ShufflePartitionBounds |
-        _: ShuffleRead => false
+        _: NDArrayWrite  => false
       case x: ApplyIR =>
         !Exists(x.body, {
           case n: IR => !Interpretable(n)

@@ -8,6 +8,9 @@ import is.hail.types.physical._
 import is.hail.types.virtual._
 import is.hail.io.{BufferSpec, TypedCodecSpec}
 import is.hail.stats.fetStruct
+import is.hail.types.physical.stypes.EmitType
+import is.hail.types.physical.stypes.interfaces.SStream
+import is.hail.types.physical.stypes.primitives.SInt32
 import is.hail.utils.{BoxedArrayBuilder, FastIndexedSeq, FastSeq}
 import org.apache.spark.sql.Row
 import org.testng.annotations.{DataProvider, Test}
@@ -51,12 +54,13 @@ class RequirednessSuite extends HailSuite {
   def nd(r: Boolean): IR =
     if (r) MakeNDArray.fill(int(optional), FastIndexedSeq(1, 2), True()) else NA(tnd)
 
-  def nestednd(r: Boolean, aelt: Boolean): IR = {
-    if (r)
-      MakeNDArray.fill(array(optional, aelt), FastIndexedSeq(1, 2), True())
-    else
-      NDArrayMap(NA(tnestednd), genUID(), array(optional, aelt))
-  }
+// FIXME: Currently ndarrays don't support elements that have pointers.
+//  def nestednd(r: Boolean, aelt: Boolean): IR = {
+//    if (r)
+//      MakeNDArray.fill(array(optional, aelt), FastIndexedSeq(1, 2), True())
+//    else
+//      NDArrayMap(NA(tnestednd), genUID(), array(optional, aelt))
+//  }
 
   def nestedstream(r: Boolean, a: Boolean, aelt: Boolean): IR = {
     if (r)
@@ -68,7 +72,7 @@ class RequirednessSuite extends HailSuite {
 
   def pint(r: Boolean): PInt32 = PInt32(r)
 
-  def pstream(r: Boolean, elt: Boolean): PStream = PCanonicalStream(pint(elt), required = r)
+  def pstream(r: Boolean, elt: Boolean): EmitType = EmitType(SStream(EmitType(SInt32, elt)), r)
 
   def parray(r: Boolean, elt: Boolean): PArray = PCanonicalArray(pint(elt), r)
 
@@ -81,8 +85,6 @@ class RequirednessSuite extends HailSuite {
   def pnd(r: Boolean): PNDArray = PCanonicalNDArray(pint(required), 2, r)
   def pnestednd(r: Boolean, aelt: Boolean): PNDArray =
     PCanonicalNDArray(parray(required, aelt), 2, r)
-  def pnestedstream(r: Boolean, a: Boolean, aelt: Boolean): PStream =
-    PCanonicalStream(parray(a, aelt), required = r)
   def pnestedarray(r: Boolean, a: Boolean, aelt: Boolean): PArray =
     PCanonicalArray(parray(a, aelt), r)
 
@@ -105,7 +107,7 @@ class RequirednessSuite extends HailSuite {
       MakeTuple.ordered(FastIndexedSeq(I32(5), Str("bar"))))
 
     allRequired.foreach { n =>
-      nodes += Array(n, PType.canonical(n.typ, required).deepInnerRequired(required))
+      nodes += Array(n, RequirednessSuite.deepInnerRequired(PType.canonical(n.typ, required), required))
     }
 
     val bools = Array(true, false)
@@ -114,7 +116,6 @@ class RequirednessSuite extends HailSuite {
       nodes += Array(nd(r1), pnd(r1))
       for (r2 <- bools) {
         nodes += Array(array(r2, r1), parray(r2, r1))
-        nodes += Array(nestednd(r2, r1), pnestednd(r2, r1))
         for (r3 <- bools) {
           nodes += Array(nestedarray(r3, r2, r1), pnestedarray(r3, r2, r1))
           for (r4 <- bools) {
@@ -151,7 +152,7 @@ class RequirednessSuite extends HailSuite {
       NA(TString) -> pDisc,
       Str("foo") -> pDisc.subsetTo(rt1),
       Str("foo") -> pDisc.subsetTo(rt2)).foreach { case (path, pt) =>
-      nodes += Array(ReadPartition(path, pt.virtualType, pr), PCanonicalStream(pt).setRequired(path.isInstanceOf[Str]))
+      nodes += Array(ReadPartition(path, pt.virtualType, pr), EmitType(SStream(EmitType(pt.sType, pt.required)), path.isInstanceOf[Str]))
       nodes += Array(ReadValue(path, spec, pt.virtualType), pt.setRequired(path.isInstanceOf[Str]))
     }
 
@@ -165,7 +166,7 @@ class RequirednessSuite extends HailSuite {
       PCanonicalArray(PInt32(optional), optional))
     // filter
     nodes += Array(StreamFilter(stream(optional, optional), "x", Ref("x", TInt32).ceq(0)),
-      PCanonicalStream(PInt32(optional), required = optional))
+      EmitType(SStream(EmitType(SInt32, optional)), optional))
     // StreamFold
     nodes += Array(StreamFold(
       nestedstream(optional, optional, optional),
@@ -184,7 +185,7 @@ class RequirednessSuite extends HailSuite {
         nestedstream(optional, optional, optional),
         I32(0), "a", "b",
         ArrayRef(Ref("b", tarray), Ref("a", TInt32))
-      ), PCanonicalStream(PInt32(optional), required = optional))
+      ), EmitType(SStream(EmitType(SInt32, optional)), optional))
     // TailLoop
     val param1 = Ref(genUID(), tarray)
     val param2 = Ref(genUID(), TInt32)
@@ -329,7 +330,7 @@ class RequirednessSuite extends HailSuite {
       PCanonicalStruct(required,
         "a" -> rowType.fieldType("a"),
         "collect" -> PCanonicalArray(rowType.fieldType("b"), required),
-        "callstats" -> CallStatsState.resultType),
+        "callstats" -> CallStatsState.resultPType.setRequired(true)),
       globalType)
 
     nodes += Array(
@@ -337,7 +338,7 @@ class RequirednessSuite extends HailSuite {
       PCanonicalStruct(required,
         "a" -> rowType.fieldType("a"),
         "collect" -> PCanonicalArray(rowType.fieldType("b"), required),
-        "callstats" -> CallStatsState.resultType),
+        "callstats" -> CallStatsState.resultPType.setRequired(true)),
       globalType)
 
     val left = TableMapGlobals(
@@ -432,9 +433,13 @@ class RequirednessSuite extends HailSuite {
   @Test
   def testDataProviders(): Unit = {
     val s = new BoxedArrayBuilder[String]()
-    valueIR().map(v => v(0) -> v(1)).foreach { case (n: IR, t: PType) =>
+    valueIR().map(v => v(0) -> v(1)).foreach {
+      case (n: IR, t: PType) =>
       if (n.typ != t.virtualType)
         s += s"${ n.typ } != ${ t.virtualType }: \n${ Pretty(n) }"
+      case (n: IR, et: EmitType) =>
+        if (n.typ != et.virtualType)
+          s += s"${ n.typ } != ${ et.virtualType }: \n${ Pretty(n) }"
     }
     tableIR().map(v => (v(0), v(1), v(2))).foreach { case (n: TableIR, row: PType, global: PType) =>
       if (n.typ.rowType != row.virtualType || n.typ.globalType != global.virtualType )
@@ -447,18 +452,22 @@ class RequirednessSuite extends HailSuite {
     assert(s.size == 0, s.result().mkString("\n\n"))
   }
 
-  def dump(m: Memo[BaseTypeWithRequiredness]): String = {
+  def /**/dump(m: Memo[BaseTypeWithRequiredness]): String = {
     m.m.map { case (node, t) =>
         s"${Pretty(node.t)}: \n$t"
     }.mkString("\n\n")
   }
 
   @Test(dataProvider = "valueIR")
-  def testRequiredness(node: IR, expected: PType): Unit = {
+  def testRequiredness(node: IR, expected: Any): Unit = {
     TypeCheck(node)
+    val et = expected match {
+      case pt: PType => EmitType(pt.sType, pt.required)
+      case et: EmitType => et
+    }
     val res = Requiredness.apply(node, ctx)
     val actual = res.r.lookup(node).asInstanceOf[TypeWithRequiredness]
-    assert(actual.canonicalPType(node.typ) == expected, s"\n\n${Pretty(node)}: \n$actual\n\n${ dump(res.r) }")
+    assert(actual.canonicalEmitType(node.typ) == et, s"\n\n${Pretty(node)}: \n$actual\n\n${ dump(res.r) }")
   }
 
   @Test def sharedNodesWorkCorrectly(): Unit = {
@@ -518,4 +527,21 @@ class RequirednessSuite extends HailSuite {
     val actual = coerce[TypeWithRequiredness](res.r.lookup(node)).canonicalPType(node.typ)
     assert(actual == expected)
   }
+}
+
+object RequirednessSuite {
+  def deepInnerRequired(t: PType, required: Boolean): PType =
+    t match {
+      case t: PCanonicalArray => PCanonicalArray(deepInnerRequired(t.elementType, true), required)
+      case t: PCanonicalSet => PCanonicalSet(deepInnerRequired(t.elementType, true), required)
+      case t: PCanonicalDict => PCanonicalDict(deepInnerRequired(t.keyType, true), deepInnerRequired(t.valueType, true), required)
+      case t: PCanonicalStruct =>
+        PCanonicalStruct(t.fields.map(f => PField(f.name, deepInnerRequired(f.typ, true), f.index)), required)
+      case t: PCanonicalTuple =>
+        PCanonicalTuple(t._types.map { f => f.copy(typ = deepInnerRequired(f.typ, true)) }, required)
+      case t: PCanonicalInterval =>
+        PCanonicalInterval(deepInnerRequired(t.pointType, true), required)
+      case t =>
+        t.setRequired(required)
+    }
 }

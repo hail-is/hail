@@ -15,7 +15,7 @@ case class TupleField(index: Int, typ: Type)
 final case class TTuple(_types: IndexedSeq[TupleField]) extends TBaseStruct {
   lazy val types: Array[Type] = _types.map(_.typ).toArray
 
-  lazy val fields: IndexedSeq[Field] = _types.map { tf => Field(s"${ tf.index }", tf.typ, tf.index) }
+  lazy val fields: IndexedSeq[Field] = _types.zipWithIndex.map { case (tf, i) => Field(s"${ tf.index }", tf.typ, i) }
 
   lazy val fieldIndex: Map[Int, Int] = _types.zipWithIndex.map { case (tf, idx) => tf.index -> idx }.toMap
 
@@ -50,8 +50,8 @@ final case class TTuple(_types: IndexedSeq[TupleField]) extends TBaseStruct {
   override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean) {
     if (!_isCanonical) {
       sb.append("TupleSubset[")
-      _types.foreachBetween { fd =>
-        sb.append(fd.index)
+      fields.foreachBetween { fd =>
+        sb.append(fd.name)
         sb.append(':')
         fd.typ.pretty(sb, indent, compact)
       }(sb += ',')
@@ -67,7 +67,7 @@ final case class TTuple(_types: IndexedSeq[TupleField]) extends TBaseStruct {
     sb.append("tuple(")
     if (!_isCanonical) {
       fields.foreachBetween({ field =>
-        sb.append(field.index)
+        sb.append(field.name)
         sb.append(':')
         field.typ.pyString(sb)
       }) { sb.append(", ") }
@@ -76,16 +76,6 @@ final case class TTuple(_types: IndexedSeq[TupleField]) extends TBaseStruct {
       fields.foreachBetween({ field => field.typ.pyString(sb) }) { sb.append(", ") }
     }
     sb.append(')')
-  }
-
-
-  override lazy val fundamentalType: TTuple = {
-    val fundamentalFieldTypes = _types.map(tf => tf.copy(typ = tf.typ.fundamentalType))
-    if ((_types, fundamentalFieldTypes).zipped
-      .forall { case (t, ft) => t == ft })
-      this
-    else
-      TTuple(fundamentalFieldTypes)
   }
 
   override def valueSubsetter(subtype: Type): Any => Any = {

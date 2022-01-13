@@ -24,7 +24,7 @@ object Type {
     Gen.oneOf(TBoolean, TInt32, TInt64, TFloat32,
       TFloat64, TString, TCall)
 
-  def genComplexType(): Gen[ComplexType] = {
+  def genComplexType(): Gen[Type] = {
     val rgDependents = ReferenceGenome.references.values.toArray.map(rg =>
       TLocus(rg))
     val others = Array(TCall)
@@ -208,10 +208,6 @@ abstract class Type extends BaseType with Serializable {
   def jsonWriter: JSONWriter[Annotation] = new JSONWriter[Annotation] {
     def toJSON(pk: Annotation): JValue = JSONAnnotationImpex.exportAnnotation(pk, self)
   }
-
-  /*  Fundamental types are types that can be handled natively by RegionValueBuilder: primitive
-      types, Array and Struct. */
-  def fundamentalType: Type = this
 
   def _typeCheck(a: Any): Boolean
 

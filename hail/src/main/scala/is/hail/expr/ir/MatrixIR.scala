@@ -3,7 +3,7 @@ package is.hail.expr.ir
 
 import is.hail.HailContext
 import is.hail.annotations._
-import is.hail.backend.Backend
+import is.hail.backend.{Backend, ExecuteContext}
 import is.hail.expr.ir.IRBuilder._
 import is.hail.expr.ir.functions.MatrixToMatrixFunction
 import is.hail.types._
@@ -11,7 +11,6 @@ import is.hail.types.virtual._
 import is.hail.io.TextMatrixReader
 import is.hail.io.bgen.MatrixBGENReader
 import is.hail.io.fs.FS
-import is.hail.io.gen.MatrixGENReader
 import is.hail.io.plink.MatrixPLINKReader
 import is.hail.io.vcf.MatrixVCFReader
 import is.hail.rvd._
@@ -20,6 +19,7 @@ import is.hail.variant._
 import org.apache.spark.sql.Row
 import org.apache.spark.storage.StorageLevel
 import org.json4s._
+import org.json4s.jackson.JsonMethods
 
 object MatrixIR {
   def read(fs: FS, path: String, dropCols: Boolean = false, dropRows: Boolean = false, requestedType: Option[MatrixType] = None): MatrixIR = {
@@ -86,7 +86,6 @@ object MatrixReader {
       case "MatrixNativeReader" => MatrixNativeReader.fromJValue(env.ctx.fs, jv)
       case "MatrixBGENReader" => MatrixBGENReader.fromJValue(env, jv)
       case "TextMatrixReader" => TextMatrixReader.fromJValue(env.ctx, jv)
-      case "MatrixGENReader" => MatrixGENReader.fromJValue(env.ctx, jv)
       case "MatrixPLINKReader" => MatrixPLINKReader.fromJValue(env.ctx, jv)
       case "MatrixVCFReader" => MatrixVCFReader.fromJValue(env.ctx, jv)
     }
@@ -105,10 +104,18 @@ trait MatrixReader {
   def lower(mr: MatrixRead): TableIR
 
   def toJValue: JValue
+
+  def renderShort(): String
+
+  def defaultRender(): String = {
+    StringEscapeUtils.escapeString(JsonMethods.compact(toJValue))
+  }
 }
 
 abstract class MatrixHybridReader extends TableReader with MatrixReader {
   lazy val fullType: TableType = fullMatrixType.canonicalTableType
+
+  override def defaultRender(): String = super.defaultRender()
 
   override def lower(mr: MatrixRead): TableIR = {
     var tr: TableIR = TableRead(mr.typ.canonicalTableType, mr.dropRows, this)
@@ -195,6 +202,8 @@ class MatrixNativeReader(
 ) extends MatrixReader {
   def pathsUsed: Seq[String] = FastSeq(params.path)
 
+  override def renderShort(): String = s"(MatrixNativeReader ${ params.path } ${ params.options.map(_.renderShort()).getOrElse("") })"
+
   lazy val columnCount: Option[Int] = Some(spec.colsSpec
     .partitionCounts
     .sum
@@ -267,6 +276,8 @@ class MatrixNativeReader(
     case that: MatrixNativeReader => params == that.params
     case _ => false
   }
+
+  def getSpec(): AbstractMatrixTableSpec = this.spec
 }
 
 object MatrixRangeReader {
@@ -300,6 +311,8 @@ class MatrixRangeReader(
     rowKey = Array("row_idx"),
     rowType = TStruct("row_idx" -> TInt32),
     entryType = TStruct.empty)
+
+  override def renderShort(): String = s"(MatrixRangeReader $params $nPartitionsAdj)"
 
   val columnCount: Option[Int] = Some(params.nCols)
 

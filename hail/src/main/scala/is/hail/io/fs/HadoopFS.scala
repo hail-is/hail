@@ -32,7 +32,7 @@ object HadoopFS {
 
       override def write(bytes: Array[Byte], off: Int, len: Int): Unit = os.write(bytes, off, len)
 
-      override def flush(): Unit = os.flush()
+      override def flush(): Unit = if (!closed) os.flush()
 
       override def close(): Unit = {
         if (!closed) {
@@ -105,14 +105,23 @@ class HadoopFS(val conf: SerializableHadoopConfiguration) extends FS {
     if (statuses == null) {
       throw new FileNotFoundException(filename)
     } else {
-      statuses.map(_.getPath)
+      statuses.par.map(_.getPath)
         .flatMap(fs.listStatus(_))
         .map(new HadoopFileStatus(_))
+        .toArray
     }
   }
 
   def mkDir(dirname: String): Unit = {
     getFileSystem(dirname).mkdirs(new hadoop.fs.Path(dirname))
+  }
+
+  def remove(fname: String): Unit = {
+    getFileSystem(fname).delete(new hadoop.fs.Path(fname), false)
+  }
+
+  def rmtree(dirname: String): Unit = {
+    getFileSystem(dirname).delete(new hadoop.fs.Path(dirname), true)
   }
 
   def delete(filename: String, recursive: Boolean) {
@@ -165,5 +174,19 @@ class HadoopFS(val conf: SerializableHadoopConfiguration) extends FS {
     val ppath = new hadoop.fs.Path(filename)
     val pathFS = ppath.getFileSystem(conf.value)
     pathFS.deleteOnExit(ppath)
+  }
+
+  def supportsScheme(scheme: String): Boolean = {
+    if (scheme == "") {
+      true
+    } else {
+      try {
+        hadoop.fs.FileSystem.getFileSystemClass(scheme, conf.value)
+        true
+      } catch {
+        case e: hadoop.fs.UnsupportedFileSystemException => false
+        case e: Exception => throw e
+      }
+    }
   }
 }

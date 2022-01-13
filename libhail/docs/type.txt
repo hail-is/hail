@@ -1,0 +1,26 @@
+The type hierarchy is implement using the [tagged
+union](tagged-union.txt) idiom and they are stored in an arena
+allocator managed by a `TypeContext` object.  Types are interned and
+have identity by address (that is, equality comparison compares
+pointers).  For that reason, constructors are private and types must
+be obtained through the TypeContext interface.  Types are immutable
+and are passed as const pointers.  They have a formatter (as
+pointers).
+
+Here is some example code.  Create a TypeContext and some types:
+
+  TypeContext tc(heap);
+  const Type *tint32 = tc.int32;
+  auto ai32 = tc.tarray(tint32);
+  auto t = tc.ttuple({tint32, ai32})
+  
+Display one:
+
+  print("t = ", t)
+
+prints:
+
+  t = (int32, array<int32>)
+
+See the definition of format1 for Type in type.cpp to see an example
+of switching off the Type type tag.

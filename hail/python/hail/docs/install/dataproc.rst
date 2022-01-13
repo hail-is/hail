@@ -2,9 +2,9 @@
 Use Hail on Google Dataproc
 ===========================
 
-First, install Hail on your `Mac OS X <macosx.rst>`__ or `Linux <linux.rst>`__
-laptop or desktop. The Hail pip package includes a tool called ``hailctl`` which
-starts, stops, and manipulates Hail-enabled Dataproc clusters.
+First, install Hail on your `Mac OS X <macosx.rst>`__ or `Linux <linux.rst>`__ laptop or
+desktop. The Hail pip package includes a tool called ``hailctl dataproc`` which starts, stops, and
+manipulates Hail-enabled Dataproc clusters.
 
 Start a dataproc cluster named "my-first-cluster". Cluster names may only
 contain a mix lowercase letters and dashes. Starting a cluster can take as long
@@ -57,6 +57,6 @@ When you are finished with the cluster stop it:
 Next Steps
 """"""""""
 
-- Read more about Hail on `Google Cloud <cloud/google_cloud.rst>`__
-- Get the `Hail cheatsheets <cheatsheets.rst>`__
-- Follow the Hail `GWAS Tutorial <tutorials/01-genome-wide-association-study.rst>`__
+- Read more about Hail on `Google Cloud <../cloud/google_cloud.rst>`__
+- Get the `Hail cheatsheets <../cheatsheets.rst>`__
+- Follow the Hail `GWAS Tutorial <../tutorials/01-genome-wide-association-study.rst>`__

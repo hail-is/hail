@@ -17,6 +17,7 @@ tearDownModule = stopTestHailContext
 
 
 class Tests(unittest.TestCase):
+    @skip_when_service_backend('flaky, not sure why yet')
     def test_annotate(self):
         schema = hl.tstruct(a=hl.tint32, b=hl.tint32, c=hl.tint32, d=hl.tint32, e=hl.tstr, f=hl.tarray(hl.tint32))
 
@@ -129,6 +130,10 @@ class Tests(unittest.TestCase):
         self.assertEqual(set(results.q4), {"hello", "cat"})
         self.assertAlmostEqual(results.q5, 4)
 
+    @skip_when_service_backend('''The Service and Shuffler have no way of knowing the order in which rows appear in the original
+dataset, as such it is impossible to guarantee the ordering in x2.
+
+https://hail.zulipchat.com/#narrow/stream/123011-Hail-Dev/topic/test_drop/near/235425714''')
     def test_aggregate2(self):
         schema = hl.tstruct(status=hl.tint32, GT=hl.tcall, qPheno=hl.tint32)
 
@@ -193,6 +198,7 @@ class Tests(unittest.TestCase):
         r = kt.aggregate(agg.filter(kt.idx % 2 != 0, agg.sum(kt.idx + 2)) + kt.g1)
         self.assertEqual(r, 40)
 
+    @skip_when_service_backend('Shuffler encoding/decoding is broken.')
     def test_to_matrix_table(self):
         N, M = 50, 50
         mt = hl.utils.range_matrix_table(N, M)
@@ -361,6 +367,7 @@ class Tests(unittest.TestCase):
         assert ht.semi_join(ht2).count() == 3
         assert ht.anti_join(ht2).count() == 7
 
+    @fails_service_backend()
     def test_indirected_joins(self):
         kt = hl.utils.range_table(1)
         kt = kt.annotate(a='foo')
@@ -379,6 +386,7 @@ class Tests(unittest.TestCase):
 
         assert kt.aggregate(agg.collect(kt4[kt3[kt2[kt1[kt.a].b].c].d].e)) == ['quam']
 
+    @fails_service_backend()
     def test_table_matrix_join_combinations(self):
         m = hl.import_vcf(resource('sample.vcf'))
         vkt = m.rows()
@@ -403,6 +411,7 @@ class Tests(unittest.TestCase):
         ht = hl.import_vcf(resource('sample.vcf')).rows()
         assert ht.filter(ht.locus > hl.locus('20', 17434581)).count() == 100
 
+    @fails_service_backend()
     @fails_local_backend()
     def test_interval_join(self):
         left = hl.utils.range_table(50, n_partitions=10)
@@ -413,6 +422,7 @@ class Tests(unittest.TestCase):
                                  .when(left.idx % 10 < 5, left.interval_matches.idx == left.idx // 10)
                                  .default(hl.is_missing(left.interval_matches))))
 
+    @fails_service_backend()
     @fails_local_backend()
     def test_interval_product_join(self):
         left = hl.utils.range_table(50, n_partitions=8)
@@ -425,6 +435,7 @@ class Tests(unittest.TestCase):
         self.assertTrue(left.all(hl.sorted(left.interval_matches.map(lambda x: x.i))
                                  == hl.range(0, hl.min(left.idx % 10, 10 - left.idx % 10))))
 
+    @fails_service_backend()
     @fails_local_backend()
     def test_interval_product_join_long_key(self):
         left = hl.utils.range_table(50, n_partitions=8)
@@ -451,6 +462,7 @@ class Tests(unittest.TestCase):
         ht1 = ht.annotate(foo=5)
         self.assertTrue(ht.all(ht1[ht.key].foo == 5))
 
+    @skip_when_service_backend('shuffler does not guarantee order of rows')
     def test_product_join(self):
         left = hl.utils.range_table(5)
         right = hl.utils.range_table(5)
@@ -466,13 +478,12 @@ class Tests(unittest.TestCase):
         mt.select_entries(a=mt2[mt.row_idx, mt.col_idx].x,
                           b=mt2[mt.row_idx, mt.col_idx].x)
 
-    @fails_local_backend()
+    @fails_service_backend()
     def test_multi_way_zip_join(self):
         d1 = [{"id": 0, "name": "a", "data": 0.0},
               {"id": 1, "name": "b", "data": 3.14},
               {"id": 2, "name": "c", "data": 2.78}]
         d2 = [{"id": 0, "name": "d", "data": 1.1},
-              {"id": 0, "name": "x", "data": 2.2},
               {"id": 2, "name": "v", "data": 7.89}]
         d3 = [{"id": 1, "name": "f", "data":  9.99},
               {"id": 2, "name": "g", "data": -1.0},
@@ -482,9 +493,6 @@ class Tests(unittest.TestCase):
         joined = hl.Table.multi_way_zip_join(ts, '__data', '__globals').drop('__globals')
         dexpected = [{"id": 0, "__data": [{"name": "a", "data": 0.0},
                                           {"name": "d", "data": 1.1},
-                                          None]},
-                     {"id": 0, "__data": [None,
-                                          {"name": "x", "data": 2.2},
                                           None]},
                      {"id": 1, "__data": [{"name": "b", "data": 3.14},
                                           None,
@@ -506,7 +514,7 @@ class Tests(unittest.TestCase):
         self.assertTrue(expected2._same(joined_same_name))
 
         joined_nothing = hl.Table.multi_way_zip_join(ts, 'data', 'globals').drop('data', 'globals')
-        self.assertEqual(joined_nothing._force_count(), 5)
+        self.assertEqual(joined_nothing._force_count(), 4)
 
     def test_multi_way_zip_join_globals(self):
         t1 = hl.utils.range_table(1).annotate_globals(x=hl.missing(hl.tint32))
@@ -526,6 +534,8 @@ class Tests(unittest.TestCase):
         j = hl.Table.multi_way_zip_join([ht, ht], 'd', 'g')
         j._force_count()
 
+    @skip_when_service_backend('''This blew memory once; seems flaky in the service.
+https://hail.zulipchat.com/#narrow/stream/123011-Hail-Dev/topic/test_multi_way_zip_join_key_downcast2.20blew.20memory.20in.20a.20test/near/236602960''')
     def test_multi_way_zip_join_key_downcast2(self):
         vcf2 = hl.import_vcf(resource('gvcfs/HG00268.g.vcf.gz'), force_bgz=True, reference_genome='GRCh38')
         vcf1 = hl.import_vcf(resource('gvcfs/HG00096.g.vcf.gz'), force_bgz=True, reference_genome='GRCh38')
@@ -562,6 +572,11 @@ class Tests(unittest.TestCase):
         ht = hl.utils.range_table(3)
         self.assertEqual(ht.group_by(ht.idx).aggregate().count(), 3)
 
+    @skip_when_service_backend('''The Shuffler does not guarantee the ordering of records that share a key. It can't really do that
+unless we send some preferred ordering of the values (like global index). I don't undrestand how
+this test passes in the Spark backend.
+
+https://hail.zulipchat.com/#narrow/stream/123011-Hail-Dev/topic/test_drop/near/235399459''')
     def test_drop(self):
         kt = hl.utils.range_table(10)
         kt = kt.annotate(sq=kt.idx ** 2, foo='foo', bar='bar').key_by('foo')
@@ -673,6 +688,10 @@ class Tests(unittest.TestCase):
         self.assertTrue(dist.all(hl.len(dist.values) == 1))
         self.assertEqual(dist.count(), len(t1.aggregate(hl.agg.collect_as_set(t1.a))))
 
+    @skip_when_service_backend('''The Service and Shuffler have no way of knowing the order in which rows appear in the original
+dataset, as such it is impossible to guarantee the ordering in `matches`.
+
+https://hail.zulipchat.com/#narrow/stream/123011-Hail-Dev/topic/test_drop/near/235425714''')
     def test_group_by_key(self):
         t1 = hl.Table.parallelize([
             {'a': 'foo', 'b': 1},
@@ -746,6 +765,7 @@ class Tests(unittest.TestCase):
         with pytest.raises(ValueError):
             t.explode(t.foo.bar, name='baz')
 
+    @fails_service_backend()
     @fails_local_backend()
     def test_export(self):
         t = hl.utils.range_table(1).annotate(foo=3)
@@ -755,6 +775,7 @@ class Tests(unittest.TestCase):
         with hl.hadoop_open(tmp_file, 'r') as f_in:
             assert f_in.read() == 'idx\tfoo\n0\t3\n'
 
+    @fails_service_backend()
     @fails_local_backend()
     def test_export_delim(self):
         t = hl.utils.range_table(1).annotate(foo = 3)
@@ -764,6 +785,7 @@ class Tests(unittest.TestCase):
         with hl.hadoop_open(tmp_file, 'r') as f_in:
             assert f_in.read() == 'idx,foo\n0,3\n'
 
+    @fails_service_backend()
     @fails_local_backend()
     def test_write_stage_locally(self):
         t = hl.utils.range_table(5)
@@ -772,9 +794,18 @@ class Tests(unittest.TestCase):
         t2 = hl.read_table(f)
         self.assertTrue(t._same(t2))
 
+    @fails_service_backend()
+    def test_write_no_parts(self):
+        ht = hl.utils.range_table(10, n_partitions=2).filter(False)
+        path = new_temp_file(extension='ht')
+        path2 = new_temp_file(extension='ht')
+        assert ht.checkpoint(path)._same(ht)
+        hl.read_table(path).write(path2)
+
     def test_min_partitions(self):
         assert hl.import_table(resource('variantAnnotations.tsv'), min_partitions=50).n_partitions() == 50
 
+    @fails_service_backend()
     @fails_local_backend()
     def test_read_back_same_as_exported(self):
         t, _ = create_all_values_datasets()
@@ -783,6 +814,10 @@ class Tests(unittest.TestCase):
         t_read_back = hl.import_table(tmp_file, types=dict(t.row.dtype)).key_by('idx')
         self.assertTrue(t.select_globals()._same(t_read_back, tolerance=1e-4, absolute=True))
 
+    @skip_when_service_backend('''Mysteriously fails the first _same check but nothing is written to stdout. I cannot
+replicate on my laptop.
+
+https://hail.zulipchat.com/#narrow/stream/123011-Hail-Dev/topic/missing.20logs.3F''')
     def test_indexed_read(self):
         t = hl.utils.range_table(2000, 10)
         f = new_temp_file(extension='ht')
@@ -802,14 +837,42 @@ class Tests(unittest.TestCase):
         self.assertEqual(t2.n_partitions(), 3)
         self.assertTrue(t.filter((t.idx >= 150) & (t.idx < 500))._same(t2))
 
+    @skip_when_service_backend('''Flaky test. Type does not parse correctly on worker.
+
+2021-05-03 15:43:33 INFO  WorkerTimer$:41 - readInputs took 2634.286074 ms.
+2021-05-03 15:43:35 INFO  Hail:28 - Running Hail version 0.2.65-11b564f90eb6
+2021-05-03 15:43:36 INFO  root:17 - RegionPool: initialized for thread 1: main
+Exception in thread "main" java.lang.RuntimeException: invalid sort order: b
+	at is.hail.expr.ir.SortOrder$.parse(AbstractTableSpec.scala:23)
+	at is.hail.expr.ir.IRParser$.sort_field(Parser.scala:565)
+	at is.hail.expr.ir.IRParser$.$anonfun$sort_fields$1(Parser.scala:560)
+	at is.hail.expr.ir.IRParser$.repUntilNonStackSafe(Parser.scala:322)
+	at is.hail.expr.ir.IRParser$.base_seq_parser(Parser.scala:329)
+	at is.hail.expr.ir.IRParser$.sort_fields(Parser.scala:560)
+	at is.hail.expr.ir.IRParser$.type_expr(Parser.scala:546)
+	at is.hail.expr.ir.IRParser$.$anonfun$parseType$1(Parser.scala:1972)
+	at is.hail.expr.ir.IRParser$.parse(Parser.scala:1951)
+	at is.hail.expr.ir.IRParser$.parseType(Parser.scala:1972)
+	at is.hail.expr.ir.IRParser$.parseType(Parser.scala:1986)
+	at __C1477collect_distributed_array.__m1495setup_null(Unknown Source)
+	at __C1477collect_distributed_array.apply(Unknown Source)
+	at __C1477collect_distributed_array.apply(Unknown Source)
+	at is.hail.backend.BackendUtils.$anonfun$collectDArray$2(BackendUtils.scala:31)
+	at is.hail.utils.package$.using(package.scala:627)
+	at is.hail.annotations.RegionPool.scopedRegion(RegionPool.scala:141)
+	at is.hail.backend.BackendUtils.$anonfun$collectDArray$1(BackendUtils.scala:30)
+	at is.hail.backend.service.Worker$.main(Worker.scala:105)
+	at is.hail.backend.service.Worker.main(Worker.scala)''')
     def test_order_by_parsing(self):
         hl.utils.range_table(1).annotate(**{'a b c' : 5}).order_by('a b c')._force_count()
 
+    @fails_service_backend()
     def test_take_order(self):
         t = hl.utils.range_table(20, n_partitions=2)
         t = t.key_by(rev_idx=-t.idx)
         assert t.take(10) == [hl.Struct(idx=idx, rev_idx=-idx) for idx in range(19, 9, -1)]
 
+    @fails_service_backend()
     @fails_local_backend()
     def test_filter_partitions(self):
         ht = hl.utils.range_table(23, n_partitions=8)
@@ -851,6 +914,7 @@ class Tests(unittest.TestCase):
         t = t.join(t, how='outer')
         self.assertTrue(t._same(ref_tab))
 
+    @fails_service_backend()
     def test_union(self):
         t1 = hl.utils.range_table(5)
 
@@ -864,7 +928,7 @@ class Tests(unittest.TestCase):
         self.assertTrue(t1.key_by().union(t2.key_by(), t3.key_by())
                         ._same(hl.utils.range_table(15).key_by()))
 
-    @fails_local_backend()
+    @fails_service_backend()
     def test_nested_union(self):
         N = 10
         M = 200
@@ -898,22 +962,6 @@ class Tests(unittest.TestCase):
             hl.utils.Struct(idx=11, x=None, y=None, z=None),
         ]
 
-    def test_table_head_returns_right_number(self):
-        rt = hl.utils.range_table(10, 11)
-        par = hl.Table.parallelize([hl.Struct(x=x) for x in range(10)], schema='struct{x: int32}', n_partitions=11)
-
-        # test TableRange and TableParallelize rewrite rules
-        tables = [rt, par, rt.cache()]
-        for table in tables:
-            self.assertEqual(table.head(10).count(), 10)
-            self.assertEqual(table.head(10)._force_count(), 10)
-            self.assertEqual(table.head(9).count(), 9)
-            self.assertEqual(table.head(9)._force_count(), 9)
-            self.assertEqual(table.head(11).count(), 10)
-            self.assertEqual(table.head(11)._force_count(), 10)
-            self.assertEqual(table.head(0).count(), 0)
-            self.assertEqual(table.head(0)._force_count(), 0)
-
     def test_table_order_by_head_rewrite(self):
         rt = hl.utils.range_table(10, 2)
         rt = rt.annotate(x = 10 - rt.idx)
@@ -921,6 +969,7 @@ class Tests(unittest.TestCase):
         self.assertEqual(rt.order_by('x').idx.take(10), expected)
         self.assertEqual(rt.order_by('x').idx.collect(), expected)
 
+    @fails_service_backend()
     def test_order_by_expr(self):
         ht = hl.utils.range_table(10, 3)
         ht = ht.annotate(xs = hl.range(0, 1).map(lambda x: hl.int(hl.rand_unif(0, 100))))
@@ -937,6 +986,7 @@ class Tests(unittest.TestCase):
         assert desc.xs[0].collect() == res_desc
         assert [s['xs'][0] for s in desc.take(5)] == res_desc[:5]
 
+    @fails_service_backend()
     def test_null_joins(self):
         tr = hl.utils.range_table(7, 1)
         table1 = tr.key_by(new_key=hl.if_else((tr.idx == 3) | (tr.idx == 5),
@@ -977,6 +1027,7 @@ class Tests(unittest.TestCase):
         self.assertEqual(inner_join.collect(), inner_join_expected)
         self.assertEqual(outer_join.collect(), outer_join_expected)
 
+    @skip_when_service_backend('Shuffler encoding/decoding is broken.')
     def test_null_joins_2(self):
         tr = hl.utils.range_table(7, 1)
         table1 = tr.key_by(new_key=hl.if_else((tr.idx == 3) | (tr.idx == 5),
@@ -1006,16 +1057,17 @@ class Tests(unittest.TestCase):
 
         inner_join_expected = [row(0, 0, 0, 0), row(1, 1, 1, 1), row(2, 2, 2, 2)]
 
-        outer_join_expected = [row(0, 0, 0, 0), row(1, 1, 1, 1), row(2, 2, 2, 2),
-                               row(3, 3, None, 3), row(4, 4, 4, None),
-                               row(5, 5, None, 5), row(6, 6, 6, None),
-                               row(None, 3, 3, None), row(None, 4, None, 4),
-                               row(None, 5, 5, None), row(None, 6, None, 6)]
+        def check_outer(actual):
+            assert actual[:7] == [row(0, 0, 0, 0), row(1, 1, 1, 1), row(2, 2, 2, 2),
+                                  row(3, 3, None, 3), row(4, 4, 4, None),
+                                  row(5, 5, None, 5), row(6, 6, 6, None)]
+            assert set(actual[7:]) == {row(None, 3, 3, None), row(None, 4, None, 4),
+                                       row(None, 5, 5, None), row(None, 6, None, 6)}
 
         self.assertEqual(left_join.collect(), left_join_expected)
         self.assertEqual(right_join.collect(), right_join_expected)
         self.assertEqual(inner_join.collect(), inner_join_expected)
-        self.assertEqual(outer_join.collect(), outer_join_expected)
+        check_outer(outer_join.collect())
 
     def test_joins_one_null(self):
         tr = hl.utils.range_table(7, 1)
@@ -1051,6 +1103,28 @@ class Tests(unittest.TestCase):
         self.assertEqual(inner_join.collect(), inner_join_expected)
         self.assertEqual(outer_join.collect(), outer_join_expected)
 
+    def test_join_types(self):
+        ht1 = hl.utils.range_table(3, 3)
+        ht1 = ht1.key_by(idx=ht1.idx + 1)
+        ht1 = ht1.annotate(L_DUP=hl.range(ht1.idx)).explode('L_DUP')
+        assert ht1.idx.collect() == [1, *([2] * 2), *([3] * 3)]
+
+        ht2 = hl.utils.range_table(3, 3)
+        ht2 = ht2.key_by(idx=ht2.idx + 2)
+        ht2 = ht2.annotate(R_DUP=hl.range(ht2.idx)).explode('R_DUP')
+        assert ht2.idx.collect() == [*([2] * 2), *([3] * 3), *([4] * 4)]
+
+        left = ht1.join(ht2, 'left')
+        right = ht1.join(ht2, 'right')
+        inner = ht1.join(ht2, 'inner')
+        outer = ht1.join(ht2, 'outer')
+
+        assert left.idx.collect() == [1, *([2] * 4), *([3] * 9)]
+        assert right.idx.collect() == [*([2] * 4), *([3] * 9), *([4] * 4)]
+        assert inner.idx.collect() == [*([2] * 4), *([3] * 9)]
+        assert outer.idx.collect() == [1, *([2] * 4), *([3] * 9), *([4] * 4)]
+
+    @fails_service_backend()
     @fails_local_backend()
     def test_partitioning_rewrite(self):
         ht = hl.utils.range_table(10, 3)
@@ -1058,6 +1132,7 @@ class Tests(unittest.TestCase):
         self.assertEqual(ht1.x.collect()[:5], ht1.head(5).x.collect())
         self.assertEqual(ht1.x.collect()[-5:], ht1.tail(5).x.collect())
 
+    @fails_service_backend()
     def test_flatten(self):
         t1 = hl.utils.range_table(10)
         t1 = t1.key_by(x = hl.struct(a=t1.idx, b=0)).flatten()
@@ -1065,6 +1140,7 @@ class Tests(unittest.TestCase):
         t2 = t2.annotate(**{'x.a': t2.idx, 'x.b': 0})
         self.assertTrue(t1._same(t2))
 
+    @fails_service_backend()
     def test_expand_types(self):
         t1 = hl.utils.range_table(10)
         t1 = t1.key_by(x = hl.locus('1', t1.idx+1)).expand_types()
@@ -1216,13 +1292,13 @@ class Tests(unittest.TestCase):
         self.assertFalse(t1._same(t3))
 
     def test_rvd_key_write(self):
-        tempfile = new_temp_file(extension='ht')
-        ht1 = hl.utils.range_table(1).key_by(foo='a', bar='b')
-        ht1.write(tempfile)  # write ensures that table is written with both key fields
+        with hl.TemporaryDirectory(suffix='.ht', ensure_exists=False) as tempfile:
+            ht1 = hl.utils.range_table(1).key_by(foo='a', bar='b')
+            ht1.write(tempfile)  # write ensures that table is written with both key fields
 
-        ht1 = hl.read_table(tempfile)
-        ht2 = hl.utils.range_table(1).annotate(foo='a')
-        assert ht2.annotate(x = ht1.key_by('foo')[ht2.foo])._force_count() == 1
+            ht1 = hl.read_table(tempfile)
+            ht2 = hl.utils.range_table(1).annotate(foo='a')
+            assert ht2.annotate(x = ht1.key_by('foo')[ht2.foo])._force_count() == 1
 
     def test_show_long_field_names(self):
         hl.utils.range_table(1).annotate(**{'a' * 256: 5}).show()
@@ -1239,9 +1315,34 @@ class Tests(unittest.TestCase):
             x7 = hl.tuple(('3',)),
             x8 = hl.tuple(('3', 3)),
             x9 = 4.2,
-            x10 = hl.dict({'hello': 3, 'bar': 5})
+            x10 = hl.dict({'hello': 3, 'bar': 5}),
+            x11 = (True, False)
         )
-        ht.show()
+        result = ht.show(handler=str)
+        assert result == '''+-------+--------------+--------------------------------+------------+
+|   idx | x1           | x2                             | x3         |
++-------+--------------+--------------------------------+------------+
+| int32 | array<int32> | array<struct{y: array<int32>}> | set<int32> |
++-------+--------------+--------------------------------+------------+
+|     0 | [1]          | [([1])]                        | {1}        |
++-------+--------------+--------------------------------+------------+
+
++------------------+-------------------------------+---------+------------+
+| x4               | x5                            | x6      | x7         |
++------------------+-------------------------------+---------+------------+
+| dict<int32, str> | dict<struct{foo: int32}, str> | tuple() | tuple(str) |
++------------------+-------------------------------+---------+------------+
+| {1:"foo"}        | {(5):"bar"}                   | ()      | ("3")      |
++------------------+-------------------------------+---------+------------+
+
++-------------------+----------+---------------------+-------------------+
+| x8                |       x9 | x10                 | x11               |
++-------------------+----------+---------------------+-------------------+
+| tuple(str, int32) |  float64 | dict<str, int32>    | tuple(bool, bool) |
++-------------------+----------+---------------------+-------------------+
+| ("3",3)           | 4.20e+00 | {"bar":5,"hello":3} | (True,False)      |
++-------------------+----------+---------------------+-------------------+
+'''
 
     def test_import_filter_replace(self):
         def assert_filter_equals(filter, find_replace, to):
@@ -1271,6 +1372,7 @@ class Tests(unittest.TestCase):
         hl.import_vcf(resource('sample.vcf')).rows().key_by('locus').write(path)
         hl.read_table(path).select()._force_count()
 
+    @fails_service_backend()
     @fails_local_backend()
     def test_repartition_empty_key(self):
         data = [{'x': i} for i in range(1000)]
@@ -1278,6 +1380,7 @@ class Tests(unittest.TestCase):
         assert ht.naive_coalesce(4)._same(ht)
         assert ht.repartition(3, shuffle=False)._same(ht)
 
+    @fails_service_backend()
     def test_path_collision_error(self):
         path = new_temp_file(extension='ht')
         ht = hl.utils.range_table(10)
@@ -1287,16 +1390,16 @@ class Tests(unittest.TestCase):
             ht.write(path)
         assert "both an input and output source" in str(exc.value)
 
-def test_large_number_of_fields(tmpdir):
+def test_large_number_of_fields():
     ht = hl.utils.range_table(100)
     ht = ht.annotate(**{
         str(k): k for k in range(1000)
     })
-    f = tmpdir.join("foo.ht")
-    assert_time(lambda: ht.count(), 5)
-    assert_time(lambda: ht.write(str(f)), 5)
-    ht = assert_time(lambda: hl.read_table(str(f)), 5)
-    assert_time(lambda: ht.count(), 5)
+    with hl.TemporaryDirectory(ensure_exists=False) as f:
+        assert_time(lambda: ht.count(), 5)
+        assert_time(lambda: ht.write(str(f)), 5)
+        ht = assert_time(lambda: hl.read_table(str(f)), 5)
+        assert_time(lambda: ht.count(), 5)
 
 def test_import_many_fields():
     assert_time(lambda: hl.import_table(resource('many_cols.txt')), 5)
@@ -1349,6 +1452,7 @@ def test_maybe_flexindex_table_by_expr_prefix_match():
     assert t1._maybe_flexindex_table_by_expr((hl.str(mt1.row_idx), mt1.row_idx)) is None
 
 
+@fails_service_backend()
 @fails_local_backend()
 def test_maybe_flexindex_table_by_expr_direct_interval_match():
     t1 = hl.utils.range_table(1)
@@ -1370,6 +1474,7 @@ def test_maybe_flexindex_table_by_expr_direct_interval_match():
     assert t1._maybe_flexindex_table_by_expr(hl.str(mt1.row_key)) is None
 
 
+@fails_service_backend()
 @fails_local_backend()
 def test_maybe_flexindex_table_by_expr_prefix_interval_match():
     t1 = hl.utils.range_table(1)
@@ -1391,7 +1496,7 @@ def test_maybe_flexindex_table_by_expr_prefix_interval_match():
     assert t1._maybe_flexindex_table_by_expr((hl.str(mt1.row_idx), mt1.row_idx)) is None
 
 
-widths = [256, 512, 1024, 2048, 4096]
+widths = [256, 512, 1024, 2048, 3072]
 
 
 def test_can_process_wide_tables():
@@ -1436,6 +1541,7 @@ def create_width_scale_files():
         write_file(w)
 
 
+@fails_service_backend()
 def test_join_distinct_preserves_count():
     left_pos = [1, 2, 4, 4, 5, 5, 9, 13, 13, 14, 15]
     right_pos = [1, 1, 1, 3, 4, 4, 6, 6, 8, 9, 13, 15]
@@ -1538,6 +1644,8 @@ def test_map_partitions_indexed():
     assert [inner.idx for outer in ht.foo.collect() for inner in outer] == list(range(11, 55))
 
 
+
+@fails_service_backend()
 @lower_only()
 def test_lowered_persist():
     ht = hl.utils.range_table(100, 10).persist()
@@ -1545,15 +1653,122 @@ def test_lowered_persist():
     assert ht.filter(ht.idx == 55).count() == 1
 
 
+
+@fails_service_backend()
 @lower_only()
 def test_lowered_shuffle():
     ht = hl.utils.range_table(100, 10)
     ht = ht.order_by(-ht.idx)
     assert ht.aggregate(hl.agg.take(ht.idx, 3)) == [99, 98, 97]
 
+@fails_service_backend()
 @fails_local_backend()
 def test_read_partitions():
     ht = hl.utils.range_table(100, 3)
     path = new_temp_file()
     ht.write(path)
     assert hl.read_table(path, _n_partitions=10).n_partitions() == 10
+
+
+@fails_service_backend()
+@fails_local_backend()
+def test_read_partitions_with_missing_key():
+    ht = hl.utils.range_table(100, 3).key_by(idx=hl.missing(hl.tint32))
+    path = new_temp_file()
+    ht.write(path)
+    assert hl.read_table(path, _n_partitions=10).n_partitions() == 1  # one key => one partition
+
+
+def test_grouped_flatmap_streams():
+    ht = hl.import_vcf(resource('sample.vcf')).rows()
+    ht = ht.annotate(x=hl.str(ht.locus))  # add a map node
+    ht = ht._map_partitions(lambda part: hl.flatmap(
+        lambda group: hl.range(hl.len(group)).map(lambda i: group[i].annotate(z=group[0])),
+        part.grouped(8)))
+    ht._force_count()
+
+
+def make_test(table_name: str, num_parts: int, counter: str, truncator, n: int):
+    # NOTE: we cannot use Hail during test parameter initialization
+    def test():
+        if table_name == 'rt':
+            table = hl.utils.range_table(10, n_partitions=num_parts)
+        elif table_name == 'par':
+            table = hl.Table.parallelize([hl.Struct(x=x) for x in range(10)], schema='struct{x: int32}',
+                                         n_partitions=num_parts)
+        elif table_name == 'rtcache':
+            table = hl.utils.range_table(10, n_partitions=num_parts).cache()
+        else:
+            assert table_name == 'chkpt'
+            table = hl.utils.range_table(10, n_partitions=num_parts).checkpoint(new_temp_file(extension='ht'))
+        assert counter(truncator(table, n)) == min(10, n)
+    return test
+
+
+head_tail_test_data = [
+    pytest.param(make_test(table_name, num_parts, counter, truncator, n),
+                 id='__'.join([table_name, str(num_parts), str(n), truncator_name, counter_name]))
+    for table_name in ['rt', 'par', 'rtcache', 'chkpt']
+    for num_parts in [3, 11]
+    for n in (10, 9, 11, 0, 7)
+    for truncator_name, truncator in (('head', hl.Table.head), ('tail', hl.Table.tail))
+    for counter_name, counter in (('count', hl.Table.count), ('_force_count', hl.Table._force_count))]
+
+
+@skip_when_service_backend()
+@pytest.mark.parametrize("test", head_tail_test_data)
+def test_table_head_and_tail(test):
+    test()
+
+
+def test_to_pandas():
+    import numpy as np
+    ht = hl.utils.range_table(3)
+    strs = ["foo", "bar", "baz"]
+    ht = ht.annotate(s = hl.array(strs)[ht.idx], nested=hl.struct(foo = ht.idx, bar=hl.range(ht.idx)))
+    df_from_hail = ht.to_pandas(flatten=False)
+    print(df_from_hail)
+    print(df_from_hail.dtypes)
+
+    python_data = {
+        "idx": pd.Series([0, 1, 2], dtype=np.int32),
+        "s": pd.Series(["foo", "bar", "baz"], dtype='string'),
+        "nested": pd.Series([hl.Struct(foo=0, bar=[]), hl.Struct(foo=1, bar=[0]),
+                             hl.Struct(foo=2, bar=[0, 1])], dtype=object)
+    }
+
+    df_from_python = pd.DataFrame(python_data)
+    pd.testing.assert_frame_equal(df_from_hail, df_from_python)
+
+
+def test_to_pandas_flatten():
+    import numpy as np
+    ht = hl.utils.range_table(3)
+    strs = ["foo", "bar", "baz"]
+    ht = ht.annotate(s = hl.array(strs)[ht.idx], nested = hl.struct(foo = ht.idx, bar=hl.range(ht.idx)))
+    df_from_hail = ht.to_pandas(flatten=True)
+
+    python_data = {
+        "idx": pd.Series([0, 1, 2], dtype=np.int32),
+        "s": pd.Series(["foo", "bar", "baz"], dtype='string'),
+        "nested.foo": pd.Series([0, 1, 2], dtype=np.int32),
+        "nested.bar": pd.Series([[], [0], [0, 1]], dtype=object)
+    }
+
+    df_from_python = pd.DataFrame(python_data)
+    pd.testing.assert_frame_equal(df_from_hail, df_from_python)
+
+
+def test_to_pandas_nd_array():
+    import numpy as np
+    ht = hl.utils.range_table(3)
+    ht = ht.annotate(nd=hl.nd.arange(3))
+    df_from_hail = ht.to_pandas()
+
+    python_data = {
+        "idx": pd.Series([0, 1, 2], dtype=np.int32),
+        "nd": pd.Series([np.arange(3), np.arange(3), np.arange(3)])
+    }
+
+    df_from_python = pd.DataFrame(python_data)
+    pd.testing.assert_frame_equal(df_from_hail, df_from_python)

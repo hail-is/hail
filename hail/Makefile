@@ -3,6 +3,7 @@
 HAIL_DIR := $(shell dirname $(realpath $(firstword $(MAKEFILE_LIST))))
 
 include env_var.mk
+
 .DEFAULT_GOAL := shadowJar
 MAKEFLAGS += --no-builtin-rules
 .SUFFIXES:
@@ -10,10 +11,10 @@ MAKEFLAGS += --no-builtin-rules
 REVISION := $(shell git rev-parse HEAD)
 SHORT_REVISION := $(shell git rev-parse --short=12 HEAD)
 BRANCH := $(shell git rev-parse --abbrev-ref HEAD)
-SCALA_VERSION ?= 2.11.12
-SPARK_VERSION ?= 2.4.5
+SCALA_VERSION ?= 2.12.13
+SPARK_VERSION ?= 3.1.2
 HAIL_MAJOR_MINOR_VERSION := 0.2
-HAIL_PATCH_VERSION := 62
+HAIL_PATCH_VERSION := 81
 HAIL_PIP_VERSION := $(HAIL_MAJOR_MINOR_VERSION).$(HAIL_PATCH_VERSION)
 HAIL_VERSION := $(HAIL_PIP_VERSION)-$(SHORT_REVISION)
 ELASTIC_MAJOR_VERSION ?= 7
@@ -50,7 +51,7 @@ PY_FILES := $(shell git ls-files python)
 INIT_SCRIPTS := python/hailtop/hailctl/deploy.yaml
 PYTHON_VERSION_INFO := python/hail/hail_version
 PYTHON_VERSION_INFO += python/hail/hail_pip_version
-PYTHON_VERSION_INFO += python/hailtop/hailctl/hail_version
+PYTHON_VERSION_INFO += python/hailtop/hail_version
 PYTHON_VERSION_INFO += python/hail/docs/_static/hail_version.js
 SCALA_BUILD_INFO := src/main/resources/build-info.properties
 
@@ -59,11 +60,22 @@ SHADOW_TEST_JAR := build/libs/hail-all-spark-test.jar
 PYTHON_JAR := python/hail/backend/hail-all-spark.jar
 WHEEL := build/deploy/dist/hail-$(HAIL_PIP_VERSION)-py3-none-any.whl
 EGG := build/deploy/dist/hail-$(HAIL_PIP_VERSION)-py3.6.egg
+ELASTICSEARCH_311_JAR := libs/elasticsearch-spark-30_2.12-8.0.0-SNAPSHOT-custom-hail-spark311.jar
 
 GRADLE_ARGS += -Dscala.version=$(SCALA_VERSION) -Dspark.version=$(SPARK_VERSION) -Delasticsearch.major-version=$(ELASTIC_MAJOR_VERSION)
 
+.PHONY: elasticsearchJar
+elasticsearchJar: $(ELASTICSEARCH_311_JAR)
+
+$(ELASTICSEARCH_311_JAR):
+	@mkdir -p libs
+	curl https://storage.googleapis.com/hail-common/elasticsearch-libs/elasticsearch-spark-30_2.12-8.0.0-SNAPSHOT-custom-hail-spark311.jar >  libs/elasticsearch-spark-30_2.12-8.0.0-SNAPSHOT-custom-hail-spark311.jar
+
 .PHONY: shadowJar
 shadowJar: $(SHADOW_JAR)
+
+$(JAR_SOURCES): $(ELASTICSEARCH_311_JAR)
+$(JAR_TEST_SOURCES): $(ELASTICSEARCH_311_JAR)
 
 ifdef HAIL_COMPILE_NATIVES
 $(SHADOW_JAR): native-lib-prebuilt
@@ -128,7 +140,7 @@ python/hail/docs/_static/hail_version.js: python/hail/hail_version python/hail/h
 	printf 'hail_version="$(shell cat python/hail/hail_version)";' > $@
 	printf 'hail_pip_version="$(shell cat python/hail/hail_pip_version)"' >> $@
 
-python/hailtop/hailctl/hail_version: python/hail/hail_version
+python/hailtop/hail_version: python/hail/hail_version
 	cp -f $< $@
 
 python/README.md: ../README.md
@@ -180,7 +192,7 @@ copy-py-files: $(PYTHON_VERSION_INFO) $(SHADOW_JAR) $(INIT_SCRIPTS) $(PY_FILES) 
 	mkdir -p build/deploy
 	mkdir -p build/deploy/src
 	cp ../README.md build/deploy/
-	rsync -rv \
+	rsync -r \
 	    --exclude '.eggs/' \
 	    --exclude '.pytest_cache/' \
 	    --exclude '__pycache__/' \
@@ -206,17 +218,14 @@ $(EGG): copy-py-files
 
 # if the DEPLOY_REMOTE flag is not set, then deploy init scripts into a dev-username location
 ifndef DEPLOY_REMOTE
-DEV_CLARIFIER ?= $(shell whoami)-dev/
-CLOUD_SUB_FOLDER := $(HAIL_VERSION)
+DEV_CLARIFIER ?= $(shell whoami)-dev
+cloud_base ?= gs://hail-30-day/hailctl/dataproc/$(DEV_CLARIFIER)/$(HAIL_VERSION)
 UPLOAD_RETENTION =
 else
-CLOUD_SUB_FOLDER := $(HAIL_PIP_VERSION)
+cloud_base := gs://hail-common/hailctl/dataproc/$(HAIL_PIP_VERSION)
 UPLOAD_RETENTION = gsutil -m retention temp set "$(cloud_base)/*"
 endif
 
-HAILCTL_BUCKET_BASE ?= gs://hail-common/hailctl/dataproc
-
-cloud_base := $(HAILCTL_BUCKET_BASE)/$(DEV_CLARIFIER)$(CLOUD_SUB_FOLDER)
 wheel_cloud_path := $(cloud_base)/hail-$(HAIL_PIP_VERSION)-py3-none-any.whl
 resources := $(wildcard python/hailtop/hailctl/dataproc/resources/*)
 $(eval $(call ENV_VAR,cloud_base))
@@ -229,7 +238,7 @@ python/hailtop/hailctl/deploy.yaml: $(resources) python/requirements.txt
 	for FILE in $(notdir $(resources)); do \
 	  echo "  $$FILE: $(cloud_base)/$$FILE" >> $@ || exit 1; done
 	echo "  wheel: $(wheel_cloud_path)" >> $@
-	echo "  pip_dependencies: $(shell cat python/requirements.txt | grep -v pyspark | tr "\n" "|||")" >> $@
+	echo "  pip_dependencies: $(shell cat python/requirements.txt | sed '/^[[:blank:]]*#/d;s/#.*//' | grep -v pyspark | tr "\n" "|||")" >> $@
 
 .PHONY: upload-artifacts
 upload-artifacts: $(WHEEL)
@@ -250,7 +259,7 @@ install: $(WHEEL)
 
 .PHONY: install-on-cluster
 install-on-cluster: $(WHEEL)
-	sed '/^pyspark/d' python/requirements.txt | xargs $(PIP) install -U
+	sed '/^pyspark/d' python/requirements.txt | grep -v '^#' | xargs $(PIP) install -U
 	-$(PIP) uninstall -y hail
 	$(PIP) install $(WHEEL) --no-deps
 
@@ -261,14 +270,25 @@ install-hailctl: install upload-artifacts
 test-dataproc: install-hailctl
 	bash scripts/test-dataproc.sh
 
+# install skopeo
 # use curl version >=7.55.0
+#
 # set DEPLOY_REMOTE to the hail-is/hail remote
+#
 # create an access token with full repo privileges at https://github.com/settings/tokens
 # create a file that contains "Authorization: token YOUR_ACCESS_TOKEN_HERE"
 # set GITHUB_OAUTH_HEADER_FILE to that filename
+#
+# create the hailgenetics/hail image (see /docker) and place it somewhere skopeo can access it
+# set HAIL_GENETICS_HAIL_IMAGE to that image's full name including the protocol, e.g. docker://gcr.io/hail-vdc/hailgenetics/hail:1234abcd
+#
+# build a Azure-HDInsight-compatible wheel file (see build.yaml "build_wheel_for_azure" or start a
+# cluster to find the correct Scala and Spark versions because the version webpage does not include
+# sufficient detail)
+# set WHEEL_FOR_AZURE to the path to that wheel file
 .PHONY: deploy
 deploy: test-dataproc $(WHEEL)
-	bash scripts/deploy.sh $(HAIL_PIP_VERSION) $(HAIL_VERSION) $(REVISION) $(DEPLOY_REMOTE) $(WHEEL) $(GITHUB_OAUTH_HEADER_FILE)
+	bash scripts/deploy.sh $(HAIL_PIP_VERSION) $(HAIL_VERSION) $(REVISION) $(DEPLOY_REMOTE) $(WHEEL) $(GITHUB_OAUTH_HEADER_FILE) $(HAIL_GENETICS_HAIL_IMAGE) $(WHEEL_FOR_AZURE)
 
 .PHONY: install-dev-deps
 install-dev-deps:
@@ -291,24 +311,31 @@ python/hail/docs/change_log.rst: python/hail/docs/change_log.md
 	  < $< \
 	  | pandoc -o $@
 
+ifeq ($(shell uname -s),Darwin)
+SED_INPLACE := sed -i ''
+else
+SED_INPLACE := sed -i
+endif
+
 .PHONY: batch-docs
 batch-docs:
 	$(MAKE) -C python/hailtop/batch/docs \
 	      BUILDDIR=$(HAIL_DIR)/build/docs/batch \
 	      html
 	rm -rf build/www/docs/batch
+	mkdir -p build/www/docs
 	cp -R build/docs/batch/html build/www/docs/batch
 	find build/www/docs/batch \
 	     -iname *.html \
 	     -type f \
-	     -exec sed -i -e "s/\.css/\.css\?v\=$(HAIL_CACHE_VERSION)/" {} +;
+	     -exec $(SED_INPLACE) -e "s/\.css/\.css\?v\=$(HAIL_CACHE_VERSION)/" {} +;
 	@echo Built Batch docs: build/www/docs/batch/index.html
 
 HAIL_CACHE_VERSION = $(shell cat python/hail/hail_version)
 .PHONY: hail-docs
 hail-docs: $(PYTHON_VERSION_INFO) python/hail/docs/change_log.rst
 	$(MAKE) -C python/hail/docs \
-	        SPHINXOPTS='-tchecktutorial' \
+	        SPHINXOPTS='-tgenerate_notebook_outputs' \
 	        BUILDDIR=$(HAIL_DIR)/build/docs/hail \
 	        html
 	mkdir -p build/www/docs
@@ -317,7 +344,7 @@ hail-docs: $(PYTHON_VERSION_INFO) python/hail/docs/change_log.rst
 	find build/www/docs/$(HAIL_MAJOR_MINOR_VERSION) \
 	     -iname *.html \
 	     -type f \
-	     -exec sed -i -e "s/\.css/\.css\?v\=$(HAIL_CACHE_VERSION)/" {} +;
+	     -exec $(SED_INPLACE) -e "s/\.css/\.css\?v\=$(HAIL_CACHE_VERSION)/" {} +;
 	@echo Built Hail docs: build/www/docs/$(HAIL_MAJOR_MINOR_VERSION)/index.html
 
 .PHONY: hail-docs-no-test
@@ -331,7 +358,7 @@ hail-docs-no-test: $(PYTHON_VERSION_INFO) python/hail/docs/change_log.rst
 	find build/www/docs/$(HAIL_MAJOR_MINOR_VERSION) \
 	     -iname *.html \
 	     -type f \
-	     -exec sed -i -e "s/\.css/\.css\?v\=$(HAIL_CACHE_VERSION)/" {} +;
+	     -exec $(SED_INPLACE) -e "s/\.css/\.css\?v\=$(HAIL_CACHE_VERSION)/" {} +;
 	@echo Built docs: file://$(HAIL_DIR)/build/www/docs/$(HAIL_MAJOR_MINOR_VERSION)/index.html
 
 .PHONY: upload-docs
@@ -356,7 +383,10 @@ native-lib-prebuilt:
 native-lib-reset-prebuilt:
 	$(MAKE) -C src/main/c reset-prebuilt
 
-clean: clean-env native-lib-clean
+clean-libs:
+	rm -rf libs
+
+clean: clean-env clean-libs native-lib-clean
 	$(MAKE) -C python/hail/docs clean
 	$(MAKE) -C python/hailtop/batch/docs clean
 	./gradlew clean $(GRADLE_ARGS)

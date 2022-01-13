@@ -31,6 +31,8 @@ pc_relate = relatedness.pc_relate
 identity_by_descent = relatedness.identity_by_descent
 _blanczos_pca = pca._blanczos_pca
 _hwe_normalized_blanczos = pca._hwe_normalized_blanczos
+_spectral_moments = pca._spectral_moments
+_pca_and_moments = pca._pca_and_moments
 hwe_normalized_pca = pca.hwe_normalized_pca
 pca = pca.pca
 
@@ -201,8 +203,9 @@ def _get_regression_row_fields(mt, pass_through, method) -> Dict[str, str]:
            x=expr_float64,
            covariates=sequenceof(expr_float64),
            block_size=int,
-           pass_through=sequenceof(oneof(str, Expression)))
-def linear_regression_rows(y, x, covariates, block_size=16, pass_through=()) -> hail.Table:
+           pass_through=sequenceof(oneof(str, Expression)),
+           weights=nullable(oneof(expr_float64, sequenceof(expr_float64))))
+def linear_regression_rows(y, x, covariates, block_size=16, pass_through=(), *, weights=None) -> hail.Table:
     r"""For each row, test an input variable for association with
     response variables using linear regression.
 
@@ -303,13 +306,16 @@ def linear_regression_rows(y, x, covariates, block_size=16, pass_through=()) -> 
         require more memory but may improve performance.
     pass_through : :obj:`list` of :class:`str` or :class:`.Expression`
         Additional row fields to include in the resulting table.
+    weights : :class:`.Float64Expression` or :obj:`list` of :class:`.Float64Expression`
+        Optional column-indexed weighting for doing weighted least squares regression. Specify a single weight if a
+        single y or list of ys is specified. If a list of lists of ys is specified, specify one weight per inner list.
 
     Returns
     -------
     :class:`.Table`
     """
-    if not isinstance(Env.backend(), SparkBackend):
-        return _linear_regression_rows_nd(y, x, covariates, block_size, pass_through)
+    if not isinstance(Env.backend(), SparkBackend) or weights is not None:
+        return _linear_regression_rows_nd(y, x, covariates, block_size, weights, pass_through)
 
     mt = matrix_table_source('linear_regression_rows/x', x)
     check_entry_indexed('linear_regression_rows/x', x)
@@ -374,8 +380,9 @@ def linear_regression_rows(y, x, covariates, block_size=16, pass_through=()) -> 
            x=expr_float64,
            covariates=sequenceof(expr_float64),
            block_size=int,
+           weights=nullable(oneof(expr_float64, sequenceof(expr_float64))),
            pass_through=sequenceof(oneof(str, Expression)))
-def _linear_regression_rows_nd(y, x, covariates, block_size=16, pass_through=()) -> hail.Table:
+def _linear_regression_rows_nd(y, x, covariates, block_size=16, weights=None, pass_through=()) -> hail.Table:
     mt = matrix_table_source('linear_regression_rows_nd/x', x)
     check_entry_indexed('linear_regression_rows_nd/x', x)
 
@@ -389,6 +396,16 @@ def _linear_regression_rows_nd(y, x, covariates, block_size=16, pass_through=())
 
     y = wrap_to_list(y)
 
+    if weights is not None:
+        if y_is_list and is_chained and not isinstance(weights, list):
+            raise ValueError("When y is a list of lists, weights should be a list.")
+        elif y_is_list and not is_chained and isinstance(weights, list):
+            raise ValueError("When y is a single list, weights should be a single expression.")
+        elif not y_is_list and isinstance(weights, list):
+            raise ValueError("When y is a single expression, weights should be a single expression.")
+
+    weights = wrap_to_list(weights) if weights is not None else None
+
     for e in (itertools.chain.from_iterable(y) if is_chained else y):
         analyze('linear_regression_rows_nd/y', e, mt._col_indices)
 
@@ -399,19 +416,27 @@ def _linear_regression_rows_nd(y, x, covariates, block_size=16, pass_through=())
 
     x_field_name = Env.get_uid()
     if is_chained:
-        y_field_names = [[f'__y_{i}_{j}' for j in range(len(y[i]))] for i in range(len(y))]
-        y_dict = dict(zip(itertools.chain.from_iterable(y_field_names), itertools.chain.from_iterable(y)))
-
+        y_field_name_groups = [[f'__y_{i}_{j}' for j in range(len(y[i]))] for i in range(len(y))]
+        y_dict = dict(zip(itertools.chain.from_iterable(y_field_name_groups), itertools.chain.from_iterable(y)))
+        if weights is not None and len(weights) != len(y):
+            raise ValueError("Must specify same number of weights as groups of phenotypes")
     else:
-        y_field_names = list(f'__y_{i}' for i in range(len(y)))
-        y_dict = dict(zip(y_field_names, y))
+        y_field_name_groups = list(f'__y_{i}' for i in range(len(y)))
+        y_dict = dict(zip(y_field_name_groups, y))
+        # Wrapping in a list since the code is written for the more general chained case.
+        y_field_name_groups = [y_field_name_groups]
+        if weights is not None and len(weights) != 1:
+            raise ValueError("Must specify same number of weights as groups of phenotypes")
 
     cov_field_names = list(f'__cov{i}' for i in range(len(covariates)))
+    weight_field_names = list(f'__weight_for_group_{i}' for i in range(len(weights))) if weights is not None else None
+    weight_dict = dict(zip(weight_field_names, weights)) if weights is not None else {}
 
     row_field_names = _get_regression_row_fields(mt, pass_through, 'linear_regression_rows_nd')
 
     # FIXME: selecting an existing entry field should be emitted as a SelectFields
     mt = mt._select_all(col_exprs=dict(**y_dict,
+                                       **weight_dict,
                                        **dict(zip(cov_field_names, covariates))),
                         row_exprs=row_field_names,
                         col_key=[],
@@ -420,17 +445,7 @@ def _linear_regression_rows_nd(y, x, covariates, block_size=16, pass_through=())
     entries_field_name = 'ent'
     sample_field_name = "by_sample"
 
-    if not is_chained:
-        y_field_names = [y_field_names]
-
-    num_y_lists = len(y_field_names)
-
-    def all_defined(struct_root, field_names):
-        if field_names:
-            defined_array = hl.array([hl.is_defined(struct_root[field_name]) for field_name in field_names])
-            return defined_array.all(lambda a: a)
-        else:
-            return hl.bool(True)
+    num_y_lists = len(y_field_name_groups)
 
     # Given a hail array, get the mean of the nonmissing entries and
     # return new array where the missing entries are the mean.
@@ -442,53 +457,81 @@ def _linear_regression_rows_nd(y, x, covariates, block_size=16, pass_through=())
         return indices.map(lambda i: hl_array[i])
 
     def dot_rows_with_themselves(matrix):
-        return (matrix * matrix) @ hl.nd.ones(matrix.shape[1])
+        return (matrix * matrix).sum(1)
 
-    def array_from_struct(struct, field_names):
-        return hl.array([struct[field_name] for field_name in field_names])
+    def no_missing(hail_array):
+        return hail_array.all(lambda element: hl.is_defined(element))
 
     ht_local = mt._localize_entries(entries_field_name, sample_field_name)
 
     ht = ht_local.transmute(**{entries_field_name: ht_local[entries_field_name][x_field_name]})
 
-    def make_one_cov_matrix(ys_and_covs_to_keep):
-        return hl.nd.array(ys_and_covs_to_keep.map(lambda struct: array_from_struct(struct, cov_field_names))) \
-            if cov_field_names else hl.nd.zeros((hl.len(ys_and_covs_to_keep), 0))
-
-    def make_one_y_matrix(ys_and_covs_to_keep, one_y_field_name_set):
-        return hl.nd.array(ys_and_covs_to_keep.map(lambda struct: array_from_struct(struct, one_y_field_name_set)))
-
     def setup_globals(ht):
-        all_covs_defined = ht[sample_field_name].map(lambda sample_struct: all_defined(sample_struct, cov_field_names))
-        list_of_ys_and_covs_to_keep_with_indices = [
-            hl.enumerate(ht[sample_field_name]).filter(
-                lambda struct_with_index:
-                all_covs_defined[struct_with_index[0]] & all_defined(struct_with_index[1], one_y_field_name_set))
-            for one_y_field_name_set in y_field_names
-        ]
+        # cov_arrays is per sample, then per cov.
+        if covariates:
+            ht = ht.annotate_globals(cov_arrays=ht[sample_field_name].map(lambda sample_struct: [sample_struct[cov_name] for cov_name in cov_field_names]))
+        else:
+            ht = ht.annotate_globals(cov_arrays=ht[sample_field_name].map(lambda sample_struct: hl.empty_array(hl.tfloat64)))
 
-        list_of_ys_and_covs_to_keep = [inner_list.map(lambda pair: pair[1]) for inner_list in list_of_ys_and_covs_to_keep_with_indices]
-        kept_samples = [inner_list.map(lambda pair: pair[0]) for inner_list in list_of_ys_and_covs_to_keep_with_indices]
+        y_arrays_per_group = [ht[sample_field_name].map(lambda sample_struct: [sample_struct[y_name] for y_name in one_y_field_name_set]) for one_y_field_name_set in y_field_name_groups]
 
-        cov_nds = hl.array([make_one_cov_matrix(ys_and_covs_to_keep) for ys_and_covs_to_keep in list_of_ys_and_covs_to_keep])
+        if weight_field_names:
+            weight_arrays = ht[sample_field_name].map(lambda sample_struct: [sample_struct[weight_name] for weight_name in weight_field_names])
+        else:
+            weight_arrays = ht[sample_field_name].map(lambda sample_struct: hl.empty_array(hl.tfloat64))
 
-        y_nds = hl.array([make_one_y_matrix(ys_and_covs_to_keep, one_y_field_name_set)
-                          for ys_and_covs_to_keep, one_y_field_name_set in zip(list_of_ys_and_covs_to_keep, y_field_names)])
+        ht = ht.annotate_globals(
+            y_arrays_per_group=y_arrays_per_group,
+            weight_arrays=weight_arrays
+        )
+        ht = ht.annotate_globals(all_covs_defined=ht.cov_arrays.map(lambda sample_covs: no_missing(sample_covs)))
+
+        def get_kept_samples(group_idx, sample_ys):
+            # sample_ys is an array of samples, with each element being an array of the y_values
+            return hl.enumerate(sample_ys).filter(
+                lambda idx_and_y_values: ht.all_covs_defined[idx_and_y_values[0]] & no_missing(idx_and_y_values[1]) & (hl.is_defined(ht.weight_arrays[idx_and_y_values[0]][group_idx]) if weights else True)
+            ).map(lambda idx_and_y_values: idx_and_y_values[0])
+
+        ht = ht.annotate_globals(kept_samples=hl.enumerate(ht.y_arrays_per_group).starmap(get_kept_samples))
+        ht = ht.annotate_globals(y_nds=hl.zip(ht.kept_samples, ht.y_arrays_per_group).starmap(
+            lambda sample_indices, y_arrays: hl.nd.array(sample_indices.map(lambda idx: y_arrays[idx]))))
+        ht = ht.annotate_globals(cov_nds=ht.kept_samples.map(lambda group: hl.nd.array(group.map(lambda idx: ht.cov_arrays[idx]))))
+
+        if weights is None:
+            ht = ht.annotate_globals(sqrt_weights=hl.missing(hl.tarray(hl.tndarray(hl.tfloat64, 2))))
+            ht = ht.annotate_globals(scaled_y_nds=ht.y_nds)
+            ht = ht.annotate_globals(scaled_cov_nds=ht.cov_nds)
+        else:
+            ht = ht.annotate_globals(weight_nds=hl.enumerate(ht.kept_samples).starmap(
+                lambda group_idx, group_sample_indices: hl.nd.array(group_sample_indices.map(lambda group_sample_idx: ht.weight_arrays[group_sample_idx][group_idx]))))
+            ht = ht.annotate_globals(sqrt_weights=ht.weight_nds.map(lambda weight_nd: weight_nd.map(lambda e: hl.sqrt(e))))
+            ht = ht.annotate_globals(scaled_y_nds=hl.zip(ht.y_nds, ht.sqrt_weights).starmap(lambda y, sqrt_weight: y * sqrt_weight.reshape(-1, 1)))
+            ht = ht.annotate_globals(scaled_cov_nds=hl.zip(ht.cov_nds, ht.sqrt_weights).starmap(lambda cov, sqrt_weight: cov * sqrt_weight.reshape(-1, 1)))
 
         k = builtins.len(covariates)
-        ns = hl.array(kept_samples).map(lambda one_sample_set: hl.len(one_sample_set))
-        cov_Qts = hl.if_else(k > 0,
-                             cov_nds.map(lambda one_cov_nd: hl.nd.qr(one_cov_nd)[0].T),
-                             ns.map(lambda n: hl.nd.zeros((0, n))))
-        Qtys = hl.range(num_y_lists).map(lambda i: cov_Qts[i] @ hl.array(y_nds)[i])
-        return ht.annotate_globals(
-            kept_samples=kept_samples,
-            __y_nds=y_nds,
-            ns=ns,
-            ds=ns.map(lambda n: n - k - 1),
-            __cov_Qts=cov_Qts,
-            __Qtys=Qtys,
-            __yyps=hl.range(num_y_lists).map(lambda i: dot_rows_with_themselves(y_nds[i].T) - dot_rows_with_themselves(Qtys[i].T)))
+        ht = ht.annotate_globals(ns=ht.kept_samples.map(lambda one_sample_set: hl.len(one_sample_set)))
+
+        def log_message(i):
+            if is_chained:
+                return "linear regression_rows[" + hl.str(i) + "] running on " + hl.str(ht.ns[i]) + " samples for " + hl.str(ht.scaled_y_nds[i].shape[1]) + f" response variables y, with input variables x, and {len(covariates)} additional covariates..."
+            else:
+                return "linear_regression_rows running on " + hl.str(ht.ns[0]) + " samples for " + hl.str(ht.scaled_y_nds[i].shape[1]) + f" response variables y, with input variables x, and {len(covariates)} additional covariates..."
+
+        ht = ht.annotate_globals(ns=hl.range(num_y_lists).map(lambda i: hl._console_log(log_message(i), ht.ns[i])))
+        ht = ht.annotate_globals(cov_Qts=hl.if_else(k > 0,
+                                 ht.scaled_cov_nds.map(lambda one_cov_nd: hl.nd.qr(one_cov_nd)[0].T),
+                                 ht.ns.map(lambda n: hl.nd.zeros((0, n)))))
+        ht = ht.annotate_globals(Qtys=hl.zip(ht.cov_Qts, ht.scaled_y_nds).starmap(lambda cov_qt, y: cov_qt @ y))
+
+        return ht.select_globals(
+            kept_samples=ht.kept_samples,
+            __scaled_y_nds=ht.scaled_y_nds,
+            __sqrt_weight_nds=ht.sqrt_weights,
+            ns=ht.ns,
+            ds=ht.ns.map(lambda n: n - k - 1),
+            __cov_Qts=ht.cov_Qts,
+            __Qtys=ht.Qtys,
+            __yyps=hl.range(num_y_lists).map(lambda i: dot_rows_with_themselves(ht.scaled_y_nds[i].T) - dot_rows_with_themselves(ht.Qtys[i].T)))
 
     ht = setup_globals(ht)
 
@@ -497,11 +540,14 @@ def _linear_regression_rows_nd(y, x, covariates, block_size=16, pass_through=())
 
         # Processes one block group based on given idx. Returns a single struct.
         def process_y_group(idx):
-            X = hl.nd.array(block[entries_field_name].map(lambda row: mean_impute(select_array_indices(row, ht.kept_samples[idx])))).T
+            if weights is not None:
+                X = (hl.nd.array(block[entries_field_name].map(lambda row: mean_impute(select_array_indices(row, ht.kept_samples[idx])))) * ht.__sqrt_weight_nds[idx]).T
+            else:
+                X = hl.nd.array(block[entries_field_name].map(lambda row: mean_impute(select_array_indices(row, ht.kept_samples[idx])))).T
             n = ht.ns[idx]
-            sum_x = (X.T @ hl.nd.ones((n,)))
+            sum_x = X.sum(0)
             Qtx = ht.__cov_Qts[idx] @ X
-            ytx = ht.__y_nds[idx].T @ X
+            ytx = ht.__scaled_y_nds[idx].T @ X
             xyp = ytx - (ht.__Qtys[idx].T @ Qtx)
             xxpRec = (dot_rows_with_themselves(X.T) - dot_rows_with_themselves(Qtx.T)).map(lambda entry: 1 / entry)
             b = xyp * xxpRec
@@ -555,7 +601,7 @@ def _linear_regression_rows_nd(y, x, covariates, block_size=16, pass_through=())
 
 
 @typecheck(test=enumeration('wald', 'lrt', 'score', 'firth'),
-           y=oneof(expr_float64, sequenceof(expr_float64), sequenceof(sequenceof(expr_float64))),
+           y=oneof(expr_float64, sequenceof(expr_float64)),
            x=expr_float64,
            covariates=sequenceof(expr_float64),
            pass_through=sequenceof(oneof(str, Expression)))
@@ -821,6 +867,460 @@ def logistic_regression_rows(test, y, x, covariates, pass_through=()) -> hail.Ta
         result = result.transmute(**result.logistic_regression[0])
 
     return result.persist()
+
+
+# Helpers for logreg:
+def mean_impute(hl_array):
+    non_missing_mean = hl.mean(hl_array, filter_missing=True)
+    return hl_array.map(lambda entry: hl.if_else(hl.is_defined(entry), entry, non_missing_mean))
+
+
+def sigmoid(hl_nd):
+    return hl_nd.map(lambda x: hl.expit(x))
+
+
+def nd_max(hl_nd):
+    return hl.max(hl_nd.reshape(-1)._data_array())
+
+
+def logreg_fit(X, y, null_fit=None, max_iter=25, tol=1E-6):
+    assert(X.ndim == 2)
+    assert(y.ndim == 1)
+    # X is samples by covs.
+    # y is length num samples, for one cov.
+    n = X.shape[0]
+    m = X.shape[1]
+
+    if null_fit is None:
+        avg = y.sum() / n
+        logit_avg = hl.log(avg / (1 - avg))
+        b = hl.nd.hstack([hl.nd.array([logit_avg]), hl.nd.zeros((hl.int32(m - 1)))])
+        mu = sigmoid(X @ b)
+        score = X.T @ (y - mu)
+        # Reshape so we do a rowwise multiply
+        fisher = X.T @ (X * (mu * (1 - mu)).reshape(-1, 1))
+    else:
+        # num covs used to fit null model.
+        m0 = null_fit.b.shape[0]
+        m_diff = m - m0
+
+        X0 = X[:, 0:m0]
+        X1 = X[:, m0:]
+
+        b = hl.nd.hstack([null_fit.b, hl.nd.zeros((m_diff,))])
+        mu = sigmoid(X @ b)
+        score = hl.nd.hstack([null_fit.score, X1.T @ (y - mu)])
+
+        fisher00 = null_fit.fisher
+        fisher01 = X0.T @ (X1 * (mu * (1 - mu)).reshape(-1, 1))
+        fisher10 = fisher01.T
+        fisher11 = X1.T @ (X1 * (mu * (1 - mu)).reshape(-1, 1))
+
+        fisher = hl.nd.vstack([
+            hl.nd.hstack([fisher00, fisher01]),
+            hl.nd.hstack([fisher10, fisher11])
+        ])
+
+    # Useful type abbreviations
+    tvector64 = hl.tndarray(hl.tfloat64, 1)
+    tmatrix64 = hl.tndarray(hl.tfloat64, 2)
+    search_return_type = hl.tstruct(b=tvector64, score=tvector64, fisher=tmatrix64, num_iter=hl.tint32, log_lkhd=hl.tfloat64, converged=hl.tbool, exploded=hl.tbool)
+
+    def na(field_name):
+        return hl.missing(search_return_type[field_name])
+
+    # Need to do looping now.
+    def search(recur, cur_iter, b, mu, score, fisher):
+        delta_b_struct = hl.nd.solve(fisher, score, no_crash=True)
+
+        exploded = delta_b_struct.failed
+        delta_b = delta_b_struct.solution
+        max_delta_b = nd_max(delta_b.map(lambda e: hl.abs(e)))
+        log_lkhd = ((y * mu) + (1 - y) * (1 - mu)).map(lambda e: hl.log(e)).sum()
+
+        def compute_next_iter(cur_iter, b, mu, score, fisher):
+            cur_iter = cur_iter + 1
+            b = b + delta_b
+            mu = sigmoid(X @ b)
+            score = X.T @ (y - mu)
+            fisher = X.T @ (X * (mu * (1 - mu)).reshape(-1, 1))
+            return recur(cur_iter, b, mu, score, fisher)
+
+        return (hl.case()
+                .when(exploded | hl.is_nan(delta_b[0]), hl.struct(b=na('b'), score=na('score'), fisher=na('fisher'), num_iter=cur_iter, log_lkhd=log_lkhd, converged=False, exploded=True))
+                .when(cur_iter > max_iter, hl.struct(b=na('b'), score=na('score'), fisher=na('fisher'), num_iter=cur_iter, log_lkhd=log_lkhd, converged=False, exploded=False))
+                .when(max_delta_b < tol, hl.struct(b=b, score=score, fisher=fisher, num_iter=cur_iter, log_lkhd=log_lkhd, converged=True, exploded=False))
+                .default(compute_next_iter(cur_iter, b, mu, score, fisher)))
+
+    res_struct = hl.experimental.loop(search, search_return_type, 1, b, mu, score, fisher)
+
+    return res_struct
+
+
+def wald_test(X, y, null_fit, link):
+    assert link == "logistic"
+    fit = logreg_fit(X, y, null_fit)
+
+    se = hl.nd.diagonal(hl.nd.inv(fit.fisher)).map(lambda e: hl.sqrt(e))
+    z = fit.b / se
+    p = z.map(lambda e: 2 * hl.pnorm(-hl.abs(e)))
+    return hl.struct(
+        beta=fit.b[X.shape[1] - 1],
+        standard_error=se[X.shape[1] - 1],
+        z_stat=z[X.shape[1] - 1],
+        p_value=p[X.shape[1] - 1],
+        fit=hl.struct(n_iterations=fit.num_iter, converged=fit.converged, exploded=fit.exploded))
+
+
+def lrt_test(X, y, null_fit, link):
+    assert link == "logistic"
+    fit = logreg_fit(X, y, null_fit)
+
+    chi_sq = hl.if_else(~fit.converged, hl.missing(hl.tfloat64), 2 * (fit.log_lkhd - null_fit.log_lkhd))
+    p = hl.pchisqtail(chi_sq, X.shape[1] - null_fit.b.shape[0])
+
+    return hl.struct(
+        beta=fit.b[X.shape[1] - 1],
+        chi_sq_stat=chi_sq,
+        p_value=p,
+        fit=hl.struct(n_iterations=fit.num_iter, converged=fit.converged, exploded=fit.exploded))
+
+
+def logistic_score_test(X, y, null_fit, link):
+    assert link == "logistic"
+    m = X.shape[1]
+    m0 = null_fit.b.shape[0]
+    b = hl.nd.hstack([null_fit.b, hl.nd.zeros((hl.int32(m - m0)))])
+
+    X0 = X[:, 0:m0]
+    X1 = X[:, m0:]
+
+    mu = (X @ b).map(lambda e: hl.expit(e))
+
+    score_0 = null_fit.score
+    score_1 = X1.T @ (y - mu)
+    score = hl.nd.hstack([score_0, score_1])
+
+    fisher00 = null_fit.fisher
+    fisher01 = X0.T @ (X1 * (mu * (1 - mu)).reshape(-1, 1))
+    fisher10 = fisher01.T
+    fisher11 = X1.T @ (X1 * (mu * (1 - mu)).reshape(-1, 1))
+
+    fisher = hl.nd.vstack([
+        hl.nd.hstack([fisher00, fisher01]),
+        hl.nd.hstack([fisher10, fisher11])
+    ])
+
+    solve_attempt = hl.nd.solve(fisher, score, no_crash=True)
+
+    chi_sq = hl.if_else(solve_attempt.failed,
+                        hl.missing(hl.tfloat64),
+                        (score * solve_attempt.solution).sum())
+
+    p = hl.pchisqtail(chi_sq, m - m0)
+
+    return hl.struct(chi_sq_stat=chi_sq, p_value=p)
+
+
+def firth_test(X, y, null_fit, link):
+    assert link == "logistic"
+    raise ValueError("firth not yet supported on lowered backends")
+
+
+@typecheck(test=enumeration('wald', 'lrt', 'score', 'firth'),
+           y=oneof(expr_float64, sequenceof(expr_float64)),
+           x=expr_float64,
+           covariates=sequenceof(expr_float64),
+           pass_through=sequenceof(oneof(str, Expression)))
+def _logistic_regression_rows_nd(test, y, x, covariates, pass_through=()) -> hail.Table:
+    r"""For each row, test an input variable for association with a
+    binary response variable using logistic regression.
+
+    Examples
+    --------
+    Run the logistic regression Wald test per variant using a Boolean
+    phenotype, intercept and two covariates stored in column-indexed
+    fields:
+
+    >>> result_ht = hl.logistic_regression_rows(
+    ...     test='wald',
+    ...     y=dataset.pheno.is_case,
+    ...     x=dataset.GT.n_alt_alleles(),
+    ...     covariates=[1, dataset.pheno.age, dataset.pheno.is_female])
+
+    Run the logistic regression Wald test per variant using a list of binary (0/1)
+    phenotypes, intercept and two covariates stored in column-indexed
+    fields:
+
+    >>> result_ht = hl.logistic_regression_rows(
+    ...     test='wald',
+    ...     y=[dataset.pheno.is_case, dataset.pheno.is_case],  # where pheno values are 0, 1, or missing
+    ...     x=dataset.GT.n_alt_alleles(),
+    ...     covariates=[1, dataset.pheno.age, dataset.pheno.is_female])
+
+    Warning
+    -------
+    :func:`.logistic_regression_rows` considers the same set of
+    columns (i.e., samples, points) for every row, namely those columns for
+    which **all** response variables and covariates are defined. For each row, missing values of
+    `x` are mean-imputed over these columns. As in the example, the
+    intercept covariate ``1`` must be included **explicitly** if desired.
+
+    Notes
+    -----
+    This method performs, for each row, a significance test of the input
+    variable in predicting a binary (case-control) response variable based
+    on the logistic regression model. The response variable type must either
+    be numeric (with all present values 0 or 1) or Boolean, in which case
+    true and false are coded as 1 and 0, respectively.
+
+    Hail supports the Wald test ('wald'), likelihood ratio test ('lrt'),
+    Rao score test ('score'), and Firth test ('firth'). Hail only includes
+    columns for which the response variable and all covariates are defined.
+    For each row, Hail imputes missing input values as the mean of the
+    non-missing values.
+
+    The example above considers a model of the form
+
+    .. math::
+
+        \mathrm{Prob}(\mathrm{is\_case}) =
+            \mathrm{sigmoid}(\beta_0 + \beta_1 \, \mathrm{gt}
+                            + \beta_2 \, \mathrm{age}
+                            + \beta_3 \, \mathrm{is\_female} + \varepsilon),
+        \quad
+        \varepsilon \sim \mathrm{N}(0, \sigma^2)
+
+    where :math:`\mathrm{sigmoid}` is the `sigmoid function`_, the genotype
+    :math:`\mathrm{gt}` is coded as 0 for HomRef, 1 for Het, and 2 for
+    HomVar, and the Boolean covariate :math:`\mathrm{is\_female}` is coded as
+    for ``True`` (female) and 0 for ``False`` (male). The null model sets
+    :math:`\beta_1 = 0`.
+
+    .. _sigmoid function: https://en.wikipedia.org/wiki/Sigmoid_function
+
+    The structure of the emitted row field depends on the test statistic as
+    shown in the tables below.
+
+    ========== ================== ======= ============================================
+    Test       Field              Type    Value
+    ========== ================== ======= ============================================
+    Wald       `beta`             float64 fit effect coefficient,
+                                          :math:`\hat\beta_1`
+    Wald       `standard_error`   float64 estimated standard error,
+                                          :math:`\widehat{\mathrm{se}}`
+    Wald       `z_stat`           float64 Wald :math:`z`-statistic, equal to
+                                          :math:`\hat\beta_1 / \widehat{\mathrm{se}}`
+    Wald       `p_value`          float64 Wald p-value testing :math:`\beta_1 = 0`
+    LRT, Firth `beta`             float64 fit effect coefficient,
+                                          :math:`\hat\beta_1`
+    LRT, Firth `chi_sq_stat`      float64 deviance statistic
+    LRT, Firth `p_value`          float64 LRT / Firth p-value testing
+                                          :math:`\beta_1 = 0`
+    Score      `chi_sq_stat`      float64 score statistic
+    Score      `p_value`          float64 score p-value testing :math:`\beta_1 = 0`
+    ========== ================== ======= ============================================
+
+    For the Wald and likelihood ratio tests, Hail fits the logistic model for
+    each row using Newton iteration and only emits the above fields
+    when the maximum likelihood estimate of the coefficients converges. The
+    Firth test uses a modified form of Newton iteration. To help diagnose
+    convergence issues, Hail also emits three fields which summarize the
+    iterative fitting process:
+
+    ================ =================== ======= ===============================
+    Test             Field               Type    Value
+    ================ =================== ======= ===============================
+    Wald, LRT, Firth `fit.n_iterations`  int32   number of iterations until
+                                                 convergence, explosion, or
+                                                 reaching the max (25 for
+                                                 Wald, LRT; 100 for Firth)
+    Wald, LRT, Firth `fit.converged`      bool    ``True`` if iteration converged
+    Wald, LRT, Firth `fit.exploded`       bool    ``True`` if iteration exploded
+    ================ =================== ======= ===============================
+
+    We consider iteration to have converged when every coordinate of
+    :math:`\beta` changes by less than :math:`10^{-6}`. For Wald and LRT,
+    up to 25 iterations are attempted; in testing we find 4 or 5 iterations
+    nearly always suffice. Convergence may also fail due to explosion,
+    which refers to low-level numerical linear algebra exceptions caused by
+    manipulating ill-conditioned matrices. Explosion may result from (nearly)
+    linearly dependent covariates or complete separation_.
+
+    .. _separation: https://en.wikipedia.org/wiki/Separation_(statistics)
+
+    A more common situation in genetics is quasi-complete seperation, e.g.
+    variants that are observed only in cases (or controls). Such variants
+    inevitably arise when testing millions of variants with very low minor
+    allele count. The maximum likelihood estimate of :math:`\beta` under
+    logistic regression is then undefined but convergence may still occur
+    after a large number of iterations due to a very flat likelihood
+    surface. In testing, we find that such variants produce a secondary bump
+    from 10 to 15 iterations in the histogram of number of iterations per
+    variant. We also find that this faux convergence produces large standard
+    errors and large (insignificant) p-values. To not miss such variants,
+    consider using Firth logistic regression, linear regression, or
+    group-based tests.
+
+    Here's a concrete illustration of quasi-complete seperation in R. Suppose
+    we have 2010 samples distributed as follows for a particular variant:
+
+    ======= ====== === ======
+    Status  HomRef Het HomVar
+    ======= ====== === ======
+    Case    1000   10  0
+    Control 1000   0   0
+    ======= ====== === ======
+
+    The following R code fits the (standard) logistic, Firth logistic,
+    and linear regression models to this data, where ``x`` is genotype,
+    ``y`` is phenotype, and ``logistf`` is from the logistf package:
+
+    .. code-block:: R
+
+        x <- c(rep(0,1000), rep(1,1000), rep(1,10)
+        y <- c(rep(0,1000), rep(0,1000), rep(1,10))
+        logfit <- glm(y ~ x, family=binomial())
+        firthfit <- logistf(y ~ x)
+        linfit <- lm(y ~ x)
+
+    The resulting p-values for the genotype coefficient are 0.991, 0.00085,
+    and 0.0016, respectively. The erroneous value 0.991 is due to
+    quasi-complete separation. Moving one of the 10 hets from case to control
+    eliminates this quasi-complete separation; the p-values from R are then
+    0.0373, 0.0111, and 0.0116, respectively, as expected for a less
+    significant association.
+
+    The Firth test reduces bias from small counts and resolves the issue of
+    separation by penalizing maximum likelihood estimation by the `Jeffrey's
+    invariant prior <https://en.wikipedia.org/wiki/Jeffreys_prior>`__. This
+    test is slower, as both the null and full model must be fit per variant,
+    and convergence of the modified Newton method is linear rather than
+    quadratic. For Firth, 100 iterations are attempted for the null model
+    and, if that is successful, for the full model as well. In testing we
+    find 20 iterations nearly always suffices. If the null model fails to
+    converge, then the `logreg.fit` fields reflect the null model;
+    otherwise, they reflect the full model.
+
+    See
+    `Recommended joint and meta-analysis strategies for case-control association testing of single low-count variants <http://www.ncbi.nlm.nih.gov/pmc/articles/PMC4049324/>`__
+    for an empirical comparison of the logistic Wald, LRT, score, and Firth
+    tests. The theoretical foundations of the Wald, likelihood ratio, and score
+    tests may be found in Chapter 3 of Gesine Reinert's notes
+    `Statistical Theory <http://www.stats.ox.ac.uk/~reinert/stattheory/theoryshort09.pdf>`__.
+    Firth introduced his approach in
+    `Bias reduction of maximum likelihood estimates, 1993 <http://www2.stat.duke.edu/~scs/Courses/Stat376/Papers/GibbsFieldEst/BiasReductionMLE.pdf>`__.
+    Heinze and Schemper further analyze Firth's approach in
+    `A solution to the problem of separation in logistic regression, 2002 <https://cemsiis.meduniwien.ac.at/fileadmin/msi_akim/CeMSIIS/KB/volltexte/Heinze_Schemper_2002_Statistics_in_Medicine.pdf>`__.
+
+    Hail's logistic regression tests correspond to the ``b.wald``,
+    ``b.lrt``, and ``b.score`` tests in `EPACTS`_. For each variant, Hail
+    imputes missing input values as the mean of non-missing input values,
+    whereas EPACTS subsets to those samples with called genotypes. Hence,
+    Hail and EPACTS results will currently only agree for variants with no
+    missing genotypes.
+
+    .. _EPACTS: http://genome.sph.umich.edu/wiki/EPACTS#Single_Variant_Tests
+
+    Note
+    ----
+    Use the `pass_through` parameter to include additional row fields from
+    matrix table underlying ``x``. For example, to include an "rsid" field, set
+    ``pass_through=['rsid']`` or ``pass_through=[mt.rsid]``.
+
+    Parameters
+    ----------
+    test : {'wald', 'lrt', 'score', 'firth'}
+        Statistical test.
+    y : :class:`.Float64Expression` or :obj:`list` of :class:`.Float64Expression`
+        One or more column-indexed response expressions.
+        All non-missing values must evaluate to 0 or 1.
+        Note that a :class:`.BooleanExpression` will be implicitly converted to
+        a :class:`.Float64Expression` with this property.
+    x : :class:`.Float64Expression`
+        Entry-indexed expression for input variable.
+    covariates : :obj:`list` of :class:`.Float64Expression`
+        Non-empty list of column-indexed covariate expressions.
+    pass_through : :obj:`list` of :class:`str` or :class:`.Expression`
+        Additional row fields to include in the resulting table.
+
+    Returns
+    -------
+    :class:`.Table`
+    """
+    if len(covariates) == 0:
+        raise ValueError('logistic regression requires at least one covariate expression')
+
+    mt = matrix_table_source('logistic_regresion_rows/x', x)
+    check_entry_indexed('logistic_regresion_rows/x', x)
+
+    y_is_list = isinstance(y, list)
+    if y_is_list and len(y) == 0:
+        raise ValueError("'logistic_regression_rows': found no values for 'y'")
+    y = wrap_to_list(y)
+
+    for e in covariates:
+        analyze('logistic_regression_rows/covariates', e, mt._col_indices)
+
+    # _warn_if_no_intercept('logistic_regression_rows', covariates)
+
+    x_field_name = Env.get_uid()
+    y_field_names = [f'__y_{i}' for i in range(len(y))]
+    num_y_fields = len(y_field_names)
+
+    y_dict = dict(zip(y_field_names, y))
+
+    cov_field_names = [f'__cov{i}' for i in range(len(covariates))]
+    row_fields = _get_regression_row_fields(mt, pass_through, 'logistic_regression_rows')
+
+    # Handle filtering columns with missing values:
+    mt = mt.filter_cols(hl.array(y + covariates).all(hl.is_defined))
+
+    # FIXME: selecting an existing entry field should be emitted as a SelectFields
+    mt = mt._select_all(col_exprs=dict(**y_dict,
+                                       **dict(zip(cov_field_names, covariates))),
+                        row_exprs=row_fields,
+                        col_key=[],
+                        entry_exprs={x_field_name: x})
+
+    sample_field_name = "samples"
+    ht = mt._localize_entries("entries", sample_field_name)
+
+    # cov_nd rows are samples, columns are the different covariates
+    if covariates:
+        ht = ht.annotate_globals(cov_nd=hl.nd.array(ht[sample_field_name].map(lambda sample_struct: [sample_struct[cov_name] for cov_name in cov_field_names])))
+    else:
+        ht = ht.annotate_globals(cov_nd=hl.nd.array(ht[sample_field_name].map(lambda sample_struct: hl.empty_array(hl.tfloat64))))
+
+    # y_nd rows are samples, columns are the various dependent variables.
+    ht = ht.annotate_globals(y_nd=hl.nd.array(ht[sample_field_name].map(lambda sample_struct: [sample_struct[y_name] for y_name in y_field_names])))
+
+    # Fit null models, which means doing a logreg fit with just the covariates for each phenotype.
+    null_models = hl.range(num_y_fields).map(lambda idx: logreg_fit(ht.cov_nd, ht.y_nd[:, idx]))
+    ht = ht.annotate_globals(nulls=null_models)
+    ht = ht.transmute(x=hl.nd.array(mean_impute(ht.entries[x_field_name])))
+
+    if test == "wald":
+        test_func = wald_test
+    elif test == "lrt":
+        test_func = lrt_test
+    elif test == "score":
+        test_func = logistic_score_test
+    elif test == "firth":
+        test_func = firth_test
+    else:
+        raise ValueError(f"Illegal test type {test}")
+
+    covs_and_x = hl.nd.hstack([ht.cov_nd, ht.x.reshape((-1, 1))])
+    test_structs = hl.range(num_y_fields).map(lambda idx: test_func(covs_and_x, ht.y_nd[:, idx], ht.nulls[idx], "logistic"))
+    ht = ht.annotate(logistic_regression=test_structs)
+
+    if not y_is_list:
+        ht = ht.transmute(**ht.logistic_regression[0])
+
+    ht = ht.drop("x")
+
+    return ht
 
 
 @typecheck(test=enumeration('wald', 'lrt', 'score'),
@@ -1465,9 +1965,9 @@ def lambda_gc(p_value, approximate=True):
 def _lambda_gc_agg(p_value, approximate=True):
     chisq = hl.qchisqtail(p_value, 1)
     if approximate:
-        med_chisq = hl.agg.approx_quantiles(chisq, 0.5)
+        med_chisq = hl.agg.filter(~hl.is_nan(p_value), hl.agg.approx_quantiles(chisq, 0.5))
     else:
-        med_chisq = hl.median(hl.agg.collect(chisq))
+        med_chisq = hl.agg.filter(~hl.is_nan(p_value), hl.median(hl.agg.collect(chisq)))
     return med_chisq / hl.qchisqtail(0.5, 1)
 
 
@@ -1504,6 +2004,24 @@ def split_multi(ds, keep_star=False, left_aligned=False, *, permit_shuffle=False
      - `old_alleles` (*array<str>*) -- The original, unsplit alleles.
 
      All other fields are left unchanged.
+
+    Warning
+    -------
+    This method assumes `ds` contains one non-split variant per locus. This assumption permits the
+    most efficient implementation of this method.
+
+    If each locus in `ds` contains one multiallelic variant and one or more biallelic variants, you
+    can filter to the multiallelic variants, split those, and then combine the split variants with
+    the original biallelic variants.
+
+    For example, the following code splits a dataset `mt` which contains a mixture of split and
+    non-split variants.
+
+    >>> bi = mt.filter_rows(hl.len(mt.alleles) == 2)
+    >>> bi = bi.annotate_rows(was_split=False)
+    >>> multi = mt.filter_rows(hl.len(mt.alleles) > 2)
+    >>> split = hl.split_multi_hts(multi)
+    >>> mt = split.union_rows(bi)
 
     Example
     -------
@@ -1660,6 +2178,24 @@ def split_multi_hts(ds, keep_star=False, left_aligned=False, vep_root='vep', *, 
     --------
 
     >>> hl.split_multi_hts(dataset).write('output/split.mt')
+
+    Warning
+    -------
+    This method assumes `ds` contains one non-split variant per locus. This assumption permits the
+    most efficient implementation of this method.
+
+    If each locus in `ds` contains one multiallelic variant and one or more biallelic variants, you
+    can filter to the multiallelic variants, split those, and then combine the split variants with
+    the original biallelic variants.
+
+    For example, the following code splits a dataset `mt` which contains a mixture of split and
+    non-split variants.
+
+    >>> bi = mt.filter_rows(hl.len(mt.alleles) == 2)
+    >>> bi = bi.annotate_rows(a_index=1, was_split=False)
+    >>> multi = mt.filter_rows(hl.len(mt.alleles) > 2)
+    >>> split = hl.split_multi_hts(multi)
+    >>> mt = split.union_rows(bi)
 
     Notes
     -----

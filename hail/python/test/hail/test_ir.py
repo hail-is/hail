@@ -50,7 +50,7 @@ class ValueIRTests(unittest.TestCase):
             ir.ApplyUnaryPrimOp('-', i),
             ir.ApplyComparisonOp('EQ', i, j),
             ir.MakeArray([i, ir.NA(hl.tint32), ir.I32(-3)], hl.tarray(hl.tint32)),
-            ir.ArrayRef(a, i, ir.Str('foo')),
+            ir.ArrayRef(a, i),
             ir.ArrayLen(a),
             ir.ArraySort(ir.ToStream(a), 'l', 'r', ir.ApplyComparisonOp("LT", ir.Ref('l'), ir.Ref('r'))),
             ir.ToSet(a),
@@ -103,14 +103,16 @@ class ValueIRTests(unittest.TestCase):
             ir.TableWrite(table, ir.TableNativeWriter(new_temp_file(), False, True, "fake_codec_spec$$")),
             ir.TableWrite(table, ir.TableTextWriter(new_temp_file(), None, True, "concatenated", ",")),
             ir.MatrixAggregate(matrix_read, ir.MakeStruct([('foo', ir.ApplyAggOp('Collect', [], [ir.I32(0)]))])),
-            ir.MatrixWrite(matrix_read, ir.MatrixNativeWriter(new_temp_file(), False, False, "", None, None)),
+            ir.MatrixWrite(matrix_read, ir.MatrixNativeWriter(new_temp_file(), False, False, "", None, None, None)),
             ir.MatrixWrite(matrix_read, ir.MatrixNativeWriter(new_temp_file(), False, False, "",
                                                               '[{"start":{"row_idx":0},"end":{"row_idx": 10},"includeStart":true,"includeEnd":false}]',
-                                                              hl.dtype('array<interval<struct{row_idx:int32}>>'))),
+                                                              hl.dtype('array<interval<struct{row_idx:int32}>>'),
+                                                              'some_file')),
             ir.MatrixWrite(matrix_read, ir.MatrixVCFWriter(new_temp_file(), None, ir.ExportType.CONCATENATED, None, False)),
             ir.MatrixWrite(matrix_read, ir.MatrixGENWriter(new_temp_file(), 4)),
             ir.MatrixWrite(matrix_read, ir.MatrixPLINKWriter(new_temp_file())),
-            ir.MatrixMultiWrite([matrix_read, matrix_read], ir.MatrixNativeMultiWriter(new_temp_file(), False, False)),
+            ir.MatrixMultiWrite([matrix_read, matrix_read],
+                                ir.MatrixNativeMultiWriter([new_temp_file(), new_temp_file()], False, False, None)),
             ir.BlockMatrixWrite(block_matrix_read, ir.BlockMatrixNativeWriter('fake.bm', False, False, False)),
             ir.LiftMeOut(ir.I32(1)),
             ir.BlockMatrixWrite(block_matrix_read, ir.BlockMatrixPersistWriter('x', 'MEMORY_ONLY')),
@@ -146,7 +148,7 @@ class TableIRTests(unittest.TestCase):
     def table_irs(self):
         b = ir.TrueIR()
         table_read = ir.TableRead(
-            ir.TableNativeReader(resource('backward_compatability/1.0.0/table/0.ht'), None, False), False)
+            ir.TableNativeReader(resource('backward_compatability/1.1.0/table/0.ht'), None, False), False)
         table_read_row_type = hl.dtype('struct{idx: int32, f32: float32, i64: int64, m: float64, astruct: struct{a: int32, b: float64}, mstruct: struct{x: int32, y: str}, aset: set<str>, mset: set<float64>, d: dict<array<str>, float64>, md: dict<int32, str>, h38: locus<GRCh38>, ml: locus<GRCh37>, i: interval<locus<GRCh37>>, c: call, mc: call, t: tuple(call, str, str), mt: tuple(locus<GRCh37>, bool)}')
 
         matrix_read = ir.MatrixRead(
@@ -227,7 +229,7 @@ class MatrixIRTests(unittest.TestCase):
                 resource('backward_compatability/1.0.0/matrix_table/0.hmt'), None, False),
             False, False)
         table_read = ir.TableRead(
-            ir.TableNativeReader(resource('backward_compatability/1.0.0/table/0.ht'), None, False), False)
+            ir.TableNativeReader(resource('backward_compatability/1.1.0/table/0.ht'), None, False), False)
 
         matrix_range = ir.MatrixRead(ir.MatrixRangeReader(1, 1, 10))
         matrix_irs = [

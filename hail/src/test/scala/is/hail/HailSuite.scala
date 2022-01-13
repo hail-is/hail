@@ -1,9 +1,8 @@
 package is.hail
 
 import is.hail.annotations.{Region, RegionPool}
-import is.hail.backend.BroadcastValue
+import is.hail.backend.{BroadcastValue, ExecuteContext}
 import is.hail.backend.spark.SparkBackend
-import is.hail.expr.ir.ExecuteContext
 import is.hail.utils.{ExecutionTimer, using}
 import is.hail.io.fs.FS
 import org.apache.spark.SparkContext
@@ -59,7 +58,7 @@ class HailSuite extends TestNGSuite {
     timer = new ExecutionTimer("HailSuite")
     assert(ctx == null)
     pool = RegionPool()
-    ctx = new ExecuteContext(backend.tmpdir, backend.localTmpdir, backend, fs, Region(pool=pool), timer)
+    ctx = new ExecuteContext(backend.tmpdir, backend.localTmpdir, backend, fs, Region(pool=pool), timer, null)
   }
 
   @AfterMethod
@@ -69,6 +68,9 @@ class HailSuite extends TestNGSuite {
     timer.finish()
     timer = null
     pool.close()
+
+    if (backend.sc.isStopped)
+      throw new RuntimeException(s"method stopped spark context!")
   }
 
   def withExecuteContext[T]()(f: ExecuteContext => T): T = {

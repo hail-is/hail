@@ -4,7 +4,6 @@ import is.hail.expr.Nat
 import is.hail.types.virtual._
 import is.hail.utils._
 
-// FIXME: strip all requiredness logic when possible
 object InferType {
   def apply(ir: IR): Type = {
     ir match {
@@ -30,18 +29,20 @@ object InferType {
       case In(_, t) => t.virtualType
       case MakeArray(_, t) => t
       case MakeStream(_, t, _) => t
-      case MakeNDArray(data, shape, _) =>
-        TNDArray(coerce[TArray](data.typ).elementType, Nat(shape.typ.asInstanceOf[TTuple].size))
+      case MakeNDArray(data, shape, _, _) =>
+        TNDArray(coerce[TIterable](data.typ).elementType, Nat(shape.typ.asInstanceOf[TTuple].size))
       case _: ArrayLen => TInt32
+      case _: StreamIota => TStream(TInt32)
       case _: StreamRange => TStream(TInt32)
+      case _: SeqSample => TStream(TInt32)
       case _: ArrayZeros => TArray(TInt32)
       case _: LowerBoundOnOrderedCollection => TInt32
       case _: StreamFor => TVoid
       case _: InitOp => TVoid
       case _: SeqOp => TVoid
       case _: CombOp => TVoid
-      case ResultOp(_, aggSigs) =>
-        TTuple(aggSigs.map(_.resultType): _*)
+      case ResultOp(_, aggSig) =>
+        aggSig.resultType
       case AggStateValue(i, sig) => TBinary
       case _: CombOpValue => TVoid
       case _: InitFromSerializedValue => TVoid
@@ -49,6 +50,8 @@ object InferType {
       case _: DeserializeAggs => TVoid
       case _: Begin => TVoid
       case Die(_, t, _) => t
+      case Trap(child) => TTuple(TTuple(TString, TInt32), child.typ)
+      case ConsoleLog(message, result) => result.typ
       case If(cond, cnsq, altr) =>
         assert(cond.typ == TBoolean)
         assert(cnsq.typ == altr.typ)
@@ -68,7 +71,7 @@ object InferType {
       case ApplyComparisonOp(op, l, r) =>
         assert(l.typ == r.typ)
         op match {
-          case _: Compare | _: CompareStructs => TInt32
+          case _: Compare => TInt32
           case _ => TBoolean
         }
       case a: ApplyIR => a.explicitNode.typ
@@ -77,9 +80,14 @@ object InferType {
         val argTypes = a.args.map(_.typ)
         assert(a.implementation.unify(typeArgs, argTypes, a.returnType))
         a.returnType
-      case ArrayRef(a, i, s) =>
+      case ArrayRef(a, i, _) =>
         assert(i.typ == TInt32)
         coerce[TArray](a.typ).elementType
+      case ArraySlice(a, start, stop, step, _) =>
+        assert(start.typ == TInt32)
+        stop.foreach(ir => assert(ir.typ == TInt32))
+        assert(step.typ == TInt32)
+        coerce[TArray](a.typ)
       case ArraySort(a, _, _, lessThan) =>
         assert(lessThan.typ == TBoolean)
         val et = coerce[TStream](a.typ).elementType
@@ -90,7 +98,7 @@ object InferType {
       case ToDict(a) =>
         val elt = coerce[TBaseStruct](coerce[TStream](a.typ).elementType)
         TDict(elt.types(0), elt.types(1))
-      case ToArray(a) =>
+      case ta@ToArray(a) =>
         val elt = coerce[TStream](a.typ).elementType
         TArray(elt)
       case CastToArray(a) =>
@@ -113,10 +121,7 @@ object InferType {
         TStream(a.typ)
       case StreamMap(a, name, body) =>
         TStream(body.typ)
-      case StreamMerge(l, r, key) =>
-        assert(l.typ == r.typ)
-        l.typ
-      case StreamZip(as, _, body, _) =>
+      case StreamZip(as, _, body, _, _) =>
         TStream(body.typ)
       case StreamZipJoin(_, _, _, _, joinF) =>
         TStream(joinF.typ)
@@ -124,12 +129,19 @@ object InferType {
         TStream(coerce[TStream](as.head.typ).elementType)
       case StreamFilter(a, name, cond) =>
         a.typ
+      case StreamTakeWhile(a, name, cond) =>
+        a.typ
+      case StreamDropWhile(a, name, cond) =>
+        a.typ
       case StreamFlatMap(a, name, body) =>
         TStream(coerce[TStream](body.typ).elementType)
       case StreamFold(a, zero, accumName, valueName, body) =>
         assert(body.typ == zero.typ)
         zero.typ
       case StreamFold2(_, _, _, _, result) => result.typ
+      case StreamDistribute(child, pivots, pathPrefix, _) =>
+        val keyType = pivots.typ.asInstanceOf[TContainer].elementType
+        TArray(TStruct(("interval", TInterval(keyType)), ("fileName", TString), ("numElements", TInt32)))
       case StreamScan(a, zero, accumName, valueName, body) =>
         assert(body.typ == zero.typ)
         TStream(zero.typ)
@@ -146,13 +158,13 @@ object InferType {
       case NDArrayShape(nd) =>
         val ndType = nd.typ.asInstanceOf[TNDArray]
         ndType.shapeType
-      case NDArrayReshape(nd, shape) =>
+      case NDArrayReshape(nd, shape, _) =>
         TNDArray(coerce[TNDArray](nd.typ).elementType, Nat(shape.typ.asInstanceOf[TTuple].size))
       case NDArrayConcat(nds, _) =>
         coerce[TArray](nds.typ).elementType
       case NDArrayMap(nd, _, body) =>
         TNDArray(body.typ, coerce[TNDArray](nd.typ).nDimsBase)
-      case NDArrayMap2(l, _, _, _, body) =>
+      case NDArrayMap2(l, _, _, _, body, _) =>
         TNDArray(body.typ, coerce[TNDArray](l.typ).nDimsBase)
       case NDArrayReindex(nd, indexExpr) =>
         TNDArray(coerce[TNDArray](nd.typ).elementType, Nat(indexExpr.length))
@@ -170,11 +182,11 @@ object InferType {
         TNDArray(childTyp.elementType, remainingDims)
       case NDArrayFilter(nd, _) =>
         nd.typ
-      case NDArrayMatMul(l, r) =>
+      case NDArrayMatMul(l, r, _) =>
         val lTyp = coerce[TNDArray](l.typ)
         val rTyp = coerce[TNDArray](r.typ)
         TNDArray(lTyp.elementType, Nat(TNDArray.matMulNDims(lTyp.nDims, rTyp.nDims)))
-      case NDArrayQR(nd, mode) =>
+      case NDArrayQR(nd, mode, _) =>
         if (Array("complete", "reduced").contains(mode)) {
           TTuple(TNDArray(TFloat64, Nat(2)), TNDArray(TFloat64, Nat(2)))
         } else if (mode == "raw") {
@@ -184,13 +196,13 @@ object InferType {
         } else {
           throw new NotImplementedError(s"Cannot infer type for mode $mode")
         }
-      case NDArraySVD(nd, _, compute_uv) =>
+      case NDArraySVD(nd, _, compute_uv, _) =>
         if (compute_uv) {
           TTuple(TNDArray(TFloat64, Nat(2)), TNDArray(TFloat64, Nat(1)), TNDArray(TFloat64, Nat(2)))
         } else {
           TNDArray(TFloat64, Nat(1))
         }
-      case NDArrayInv(_) =>
+      case NDArrayInv(_, _) =>
         TNDArray(TFloat64, Nat(2))
       case NDArrayWrite(_, _) => TVoid
       case AggFilter(_, aggIR, _) =>
@@ -204,6 +216,8 @@ object InferType {
         aggSig.returnType
       case ApplyScanOp(_, _, aggSig) =>
         aggSig.returnType
+      case AggFold(zero, _, _, _, _, _) =>
+        zero.typ
       case MakeStruct(fields) =>
         TStruct(fields.map { case (name, a) =>
           (name, a.typ)
@@ -215,7 +229,7 @@ object InferType {
         val tbs = coerce[TStruct](old.typ)
         val s = tbs.insertFields(fields.map(f => (f._1, f._2.typ)))
         fieldOrder.map { fds =>
-          assert(fds.length == s.size)
+          assert(fds.length == s.size, s"${fds} != ${s.types.toIndexedSeq}")
           TStruct(fds.map(f => f -> s.fieldType(f)): _*)
         }.getOrElse(s)
       case GetField(o, name) =>
@@ -254,14 +268,6 @@ object InferType {
       case ReadValue(_, _, typ) => typ
       case WriteValue(value, path, spec) => TString
       case LiftMeOut(child) => child.typ
-      case ShuffleWith(_, _, _, _, _, _, readers) =>
-        readers.typ
-      case ShuffleWrite(id, _) =>
-        TBinary
-      case ShufflePartitionBounds(id, _) =>
-        TStream(coerce[TShuffle](id.typ).keyType)
-      case ShuffleRead(id, _) =>
-        TStream(coerce[TShuffle](id.typ).rowType)
     }
   }
 }

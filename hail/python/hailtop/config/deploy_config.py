@@ -8,14 +8,15 @@ from aiohttp import web
 from ..utils import retry_transient_errors, first_extant_file
 from ..tls import internal_client_ssl_context
 
+from .user_config import get_user_config
+
 log = logging.getLogger('deploy_config')
 
 
 class DeployConfig:
     @staticmethod
     def from_config(config) -> 'DeployConfig':
-        domain = config.get('domain', 'hail.is')
-        return DeployConfig(config['location'], config['default_namespace'], domain)
+        return DeployConfig(config['location'], config['default_namespace'], config['domain'])
 
     def get_config(self) -> Dict[str, str]:
         return {
@@ -41,7 +42,7 @@ class DeployConfig:
             config = {
                 'location': 'external',
                 'default_namespace': 'default',
-                'domain': 'hail.is'
+                'domain': get_user_config().get('global', 'domain', fallback='hail.is'),
             }
         return DeployConfig.from_config(config)
 
@@ -117,10 +118,15 @@ class DeployConfig:
         async def get_healthcheck(request):  # pylint: disable=unused-argument,unused-variable
             return web.Response()
 
+        @root_routes.get('/metrics')
+        async def get_metrics(request):  # pylint: disable=unused-argument,unused-variable
+            return web.HTTPFound(location=f'{base_path}/metrics')
+
         root_app = web.Application(**kwargs)
         root_app.add_routes(root_routes)
         root_app.add_subapp(base_path, app)
 
+        log.info(f'serving paths at {base_path}')
         return root_app
 
     async def addresses(self, service: str) -> List[Tuple[str, int]]:

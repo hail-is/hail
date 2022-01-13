@@ -1,6 +1,7 @@
 package is.hail.io.plink
 
 import is.hail.annotations.{Region, RegionValueBuilder}
+import is.hail.backend.ExecuteContext
 import is.hail.expr.JSONAnnotationImpex
 import is.hail.expr.ir._
 import is.hail.expr.ir.lowering.TableStage
@@ -201,8 +202,8 @@ object MatrixPLINKReader {
     var nPartitions = params.nPartitions match {
       case Some(nPartitions) => nPartitions
       case None =>
-        val blockSizeInB = params.blockSizeInMB.getOrElse(128) * 1024 * 1024
-        (nVariants + blockSizeInB - 1) / blockSizeInB
+        val blockSizeInB = params.blockSizeInMB.getOrElse(16) * 1024 * 1024
+        ((bedSize + blockSizeInB - 1) / blockSizeInB).toInt
     }
     params.minPartitions match {
       case Some(minPartitions) =>
@@ -217,20 +218,20 @@ object MatrixPLINKReader {
     val partSize = partition(nVariants, nPartitions)
     val partScan = partSize.scanLeft(0)(_ + _)
 
-    val cb = new BoxedArrayBuilder[Any]()
+    val cb = new BoxedArrayBuilder[Row]()
     val ib = new BoxedArrayBuilder[Interval]()
 
     var p = 0
     var prevEnd = 0
     val lOrd = locusType.ordering
-    while (p < nPartitions) {
+    while (p < nPartitions && prevEnd < nVariants) {
       val start = prevEnd
 
       var end = partScan(p + 1)
       if (start < end) {
-        while (end + 1 < nVariants
-          && lOrd.equiv(variants(end).locusAlleles.asInstanceOf[Row].get(0),
-            variants(end + 1).locusAlleles.asInstanceOf[Row].get(0)))
+        while (end < nVariants
+          && lOrd.equiv(variants(end - 1).locusAlleles.asInstanceOf[Row].get(0),
+            variants(end).locusAlleles.asInstanceOf[Row].get(0)))
           end += 1
         
         cb += Row(params.bed, start, end)
@@ -247,7 +248,7 @@ object MatrixPLINKReader {
     }
     assert(prevEnd == nVariants)
 
-    val contexts = cb.result()
+    val contexts = cb.result().map(r => r: Any)
 
     val partitioner = new RVDPartitioner(locusAllelesType, ib.result(), 0)
 
@@ -349,7 +350,7 @@ class MatrixPLINKReader(
 
       val requestedPType = bodyPType(requestedType)
 
-      { (region: Region, context: Any) =>
+      { (region: Region, fs: FS, context: Any) =>
         val c = context.asInstanceOf[Row]
         val bed = c.getString(0)
         val start = c.getInt(1)
@@ -473,6 +474,8 @@ class MatrixPLINKReader(
     implicit val formats: Formats = DefaultFormats
     decomposeWithName(params, "MatrixPLINKReader")
   }
+
+  def renderShort(): String = defaultRender()
 
   override def hashCode(): Int = params.hashCode()
 

@@ -2,29 +2,33 @@
 Install Hail on a Spark Cluster
 ===============================
 
-If you are using Google Dataproc, please see `these simpler instructions
-<dataproc.rst>`__.
+If you are using Google Dataproc, please see `these simpler instructions <dataproc.rst>`__. If you
+are using Azure HDInsight please see `these simpler instructions <azure.rst>`__.
 
-Hail should work with any Spark 2.4.x cluster built with Scala 2.11.
+Hail should work with any Spark 3.1.1 cluster built with Scala 2.12.
 
 Hail needs to be built from source on the leader node. Building Hail from source
 requires:
 
 - Java 8 JDK.
-- Python 3.6 or 3.7.
+- Python 3.7 or later.
 - A recent C and a C++ compiler, GCC 5.0, LLVM 3.4, or later versions of either
   suffice.
+- The LZ4 library.
 - BLAS and LAPACK.
 
 On a Debian-like system, the following should suffice:
 
 .. code-block:: sh
 
+   apt-get update
    apt-get install \
        openjdk-8-jdk-headless \
        g++ \
        python3 python3-pip \
-       libopenblas-dev liblapack-dev
+       libopenblas-dev liblapack-dev \
+       liblz4-dev
+
 
 The next block of commands downloads, builds, and installs Hail from source.
 
@@ -32,7 +36,11 @@ The next block of commands downloads, builds, and installs Hail from source.
 
     git clone https://github.com/hail-is/hail.git
     cd hail/hail
-    make install-on-cluster HAIL_COMPILE_NATIVES=1 SCALA_VERSION=2.11.12 SPARK_VERSION=2.4.5
+    make install-on-cluster HAIL_COMPILE_NATIVES=1 SCALA_VERSION=2.12.13 SPARK_VERSION=3.1.1
+
+If you forget to install any of the requirements before running `make install-on-cluster`, it's possible
+to get into a bad state where `make` insists you don't have a requirement that you have in fact installed.
+Try doing `make clean` and then a fresh invocation of the `make install-on-cluster` line if this happens.
 
 On every worker node of the cluster, you must install a BLAS and LAPACK library
 such as the Intel MKL or OpenBLAS. On a Debian-like system you might try the
@@ -86,5 +94,5 @@ Slightly more configuration is necessary to ``spark-submit`` a Hail script:
 Next Steps
 """"""""""
 
-- Get the `Hail cheatsheets <cheatsheets.rst>`__
-- Follow the Hail `GWAS Tutorial <tutorials/01-genome-wide-association-study.rst>`__
+- Get the `Hail cheatsheets <../cheatsheets.rst>`__
+- Follow the Hail `GWAS Tutorial <../tutorials/01-genome-wide-association-study.rst>`__

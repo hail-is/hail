@@ -1,3 +1,4 @@
+from typing import List, TYPE_CHECKING
 import json
 import logging
 import asyncio
@@ -5,42 +6,45 @@ import aiohttp
 import base64
 import traceback
 
-from hailtop.utils import (
-    time_msecs, sleep_and_backoff, is_transient_error, Notice)
-from hailtop.httpx import client_session
+from hailtop.aiotools import BackgroundTaskManager
+from hailtop.utils import time_msecs, Notice, retry_transient_errors
+from hailtop import httpx
 from gear import Database
 
 from ..batch import batch_record_to_dict
 from ..globals import complete_states, tasks, STATUS_FORMAT_VERSION
-from ..batch_configuration import KUBERNETES_TIMEOUT_IN_SECONDS, \
-    KUBERNETES_SERVER_URL
+from ..batch_configuration import KUBERNETES_SERVER_URL
 from ..batch_format_version import BatchFormatVersion
 from ..spec_writer import SpecWriter
-from ..log_store import LogStore
+from ..file_store import FileStore
+from ..instance_config import QuantifiedResource
+from .instance import Instance
 
 from .k8s_cache import K8sCache
 
-from typing import TYPE_CHECKING
 if TYPE_CHECKING:
-    from .instance_collection_manager import InstanceCollectionManager  # pylint: disable=cyclic-import
+    from .instance_collection import InstanceCollectionManager  # pylint: disable=cyclic-import
 
 log = logging.getLogger('job')
 
 
-async def notify_batch_job_complete(db, batch_id):
+async def notify_batch_job_complete(db: Database, client_session: httpx.ClientSession, batch_id):
     record = await db.select_and_fetchone(
         '''
-SELECT batches.*, SUM(`usage` * rate) AS cost
+SELECT batches.*, COALESCE(SUM(`usage` * rate), 0) AS cost, batches_cancelled.id IS NOT NULL AS cancelled
 FROM batches
 LEFT JOIN aggregated_batch_resources
   ON batches.id = aggregated_batch_resources.batch_id
 LEFT JOIN resources
   ON aggregated_batch_resources.resource = resources.resource
-WHERE id = %s AND NOT deleted AND callback IS NOT NULL AND
+LEFT JOIN batches_cancelled
+  ON batches.id = batches_cancelled.id
+WHERE batches.id = %s AND NOT deleted AND callback IS NOT NULL AND
    batches.`state` = 'complete'
 GROUP BY batches.id;
 ''',
-        (batch_id,))
+        (batch_id,),
+    )
 
     if not record:
         return
@@ -48,17 +52,19 @@ GROUP BY batches.id;
 
     log.info(f'making callback for batch {batch_id}: {callback}')
 
-    if record['user'] == 'ci':
-        # only jobs from CI may use batch's TLS identity
-        http_client_session = client_session(
-            timeout=aiohttp.ClientTimeout(total=5))
-    else:
-        http_client_session = aiohttp.ClientSession(
-            raise_for_status=True, timeout=aiohttp.ClientTimeout(total=5))
+    async def request(session):
+        await session.post(callback, json=batch_record_to_dict(record))
+        log.info(f'callback for batch {batch_id} successful')
+
     try:
-        async with http_client_session as session:
-            await session.post(callback, json=batch_record_to_dict(record))
-            log.info(f'callback for batch {batch_id} successful')
+        if record['user'] == 'ci':
+            # only jobs from CI may use batch's TLS identity
+            await request(client_session)
+        else:
+            async with aiohttp.ClientSession(raise_for_status=True, timeout=aiohttp.ClientTimeout(total=5)) as session:
+                await request(session)
+    except asyncio.CancelledError:
+        raise
     except Exception:
         log.exception(f'callback for batch {batch_id} failed, will not retry.')
 
@@ -66,26 +72,33 @@ GROUP BY batches.id;
 async def add_attempt_resources(db, batch_id, job_id, attempt_id, resources):
     if attempt_id:
         try:
-            resource_args = [(batch_id, job_id, attempt_id, resource['name'], resource['quantity'])
-                             for resource in resources]
+            resource_args = [
+                (batch_id, job_id, attempt_id, resource['name'], resource['quantity']) for resource in resources
+            ]
 
-            await db.execute_many('''
+            await db.execute_many(
+                '''
 INSERT INTO `attempt_resources` (batch_id, job_id, attempt_id, resource, quantity)
 VALUES (%s, %s, %s, %s, %s)
 ON DUPLICATE KEY UPDATE quantity = quantity;
 ''',
-                                  resource_args)
+                resource_args,
+            )
         except Exception:
             log.exception(f'error while inserting resources for job {id}, attempt {attempt_id}')
             raise
 
 
-async def mark_job_complete(app, batch_id, job_id, attempt_id, instance_name, new_state,
-                            status, start_time, end_time, reason, resources):
+async def mark_job_complete(
+    app, batch_id, job_id, attempt_id, instance_name, new_state, status, start_time, end_time, reason, resources
+):
     scheduler_state_changed: Notice = app['scheduler_state_changed']
     cancel_ready_state_changed: asyncio.Event = app['cancel_ready_state_changed']
     db: Database = app['db']
-    inst_coll_manager: 'InstanceCollectionManager' = app['inst_coll_manager']
+    client_session: httpx.ClientSession = app['client_session']
+
+    inst_coll_manager: 'InstanceCollectionManager' = app['driver'].inst_coll_manager
+    task_manager: BackgroundTaskManager = app['task_manager']
 
     id = (batch_id, job_id)
 
@@ -96,15 +109,27 @@ async def mark_job_complete(app, batch_id, job_id, attempt_id, instance_name, ne
     try:
         rv = await db.execute_and_fetchone(
             'CALL mark_job_complete(%s, %s, %s, %s, %s, %s, %s, %s, %s, %s);',
-            (batch_id, job_id, attempt_id, instance_name, new_state,
-             json.dumps(status) if status is not None else None,
-             start_time, end_time, reason, now))
+            (
+                batch_id,
+                job_id,
+                attempt_id,
+                instance_name,
+                new_state,
+                json.dumps(status) if status is not None else None,
+                start_time,
+                end_time,
+                reason,
+                now,
+            ),
+        )
     except Exception:
         log.exception(f'error while marking job {id} complete on instance {instance_name}')
         raise
 
     scheduler_state_changed.notify()
     cancel_ready_state_changed.set()
+
+    instance = None
 
     if instance_name:
         instance = inst_coll_manager.get_instance(instance_name)
@@ -129,7 +154,10 @@ async def mark_job_complete(app, batch_id, job_id, attempt_id, instance_name, ne
 
     log.info(f'job {id} changed state: {rv["old_state"]} => {new_state}')
 
-    await notify_batch_job_complete(db, batch_id)
+    await notify_batch_job_complete(db, client_session, batch_id)
+
+    if instance and not instance.inst_coll.is_pool and instance.state == 'active':
+        task_manager.ensure_future(instance.kill())
 
 
 async def mark_job_started(app, batch_id, job_id, attempt_id, instance, start_time, resources):
@@ -142,14 +170,48 @@ async def mark_job_started(app, batch_id, job_id, attempt_id, instance, start_ti
     try:
         rv = await db.execute_and_fetchone(
             '''
-    CALL mark_job_started(%s, %s, %s, %s, %s);
-    ''',
-            (batch_id, job_id, attempt_id, instance.name, start_time))
+CALL mark_job_started(%s, %s, %s, %s, %s);
+''',
+            (batch_id, job_id, attempt_id, instance.name, start_time),
+        )
     except Exception:
-        log.exception(f'error while marking job {id} started on {instance}')
+        log.info(f'error while marking job {id} started on {instance}')
         raise
 
     if rv['delta_cores_mcpu'] != 0 and instance.state == 'active':
+        instance.adjust_free_cores_in_memory(rv['delta_cores_mcpu'])
+
+    await add_attempt_resources(db, batch_id, job_id, attempt_id, resources)
+
+
+async def mark_job_creating(
+    app,
+    batch_id: int,
+    job_id: int,
+    attempt_id: str,
+    instance: Instance,
+    start_time: int,
+    resources: List[QuantifiedResource],
+):
+    db: Database = app['db']
+
+    id = (batch_id, job_id)
+
+    log.info(f'mark job {id} creating')
+
+    try:
+        rv = await db.execute_and_fetchone(
+            '''
+CALL mark_job_creating(%s, %s, %s, %s, %s);
+''',
+            (batch_id, job_id, attempt_id, instance.name, start_time),
+        )
+    except Exception:
+        log.info(f'error while marking job {id} creating on {instance}')
+        raise
+
+    log.info(rv)
+    if rv['delta_cores_mcpu'] != 0 and instance.state == 'pending':
         instance.adjust_free_cores_in_memory(rv['delta_cores_mcpu'])
 
     await add_attempt_resources(db, batch_id, job_id, attempt_id, resources)
@@ -159,7 +221,8 @@ async def unschedule_job(app, record):
     cancel_ready_state_changed: asyncio.Event = app['cancel_ready_state_changed']
     scheduler_state_changed: Notice = app['scheduler_state_changed']
     db: Database = app['db']
-    inst_coll_manager = app['inst_coll_manager']
+    client_session: httpx.ClientSession = app['client_session']
+    inst_coll_manager = app['driver'].inst_coll_manager
 
     batch_id = record['batch_id']
     job_id = record['job_id']
@@ -176,7 +239,8 @@ async def unschedule_job(app, record):
     try:
         rv = await db.execute_and_fetchone(
             'CALL unschedule_job(%s, %s, %s, %s, %s, %s);',
-            (batch_id, job_id, attempt_id, instance_name, end_time, 'cancelled'))
+            (batch_id, job_id, attempt_id, instance_name, end_time, 'cancelled'),
+        )
     except Exception:
         log.exception(f'error while unscheduling job {id} on instance {instance_name}')
         raise
@@ -196,29 +260,28 @@ async def unschedule_job(app, record):
         scheduler_state_changed.notify()
         log.info(f'unschedule job {id}, attempt {attempt_id}: updated {instance} free cores')
 
-    url = (f'http://{instance.ip_address}:5000'
-           f'/api/v1alpha/batches/{batch_id}/jobs/{job_id}/delete')
-    delay = 0.1
-    while True:
+    url = f'http://{instance.ip_address}:5000/api/v1alpha/batches/{batch_id}/jobs/{job_id}/delete'
+
+    async def make_request():
         if instance.state in ('inactive', 'deleted'):
-            break
+            return
         try:
-            async with aiohttp.ClientSession(
-                    raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
-                await session.delete(url)
-                await instance.mark_healthy()
-                break
-        except Exception as e:
-            if (isinstance(e, aiohttp.ClientResponseError)
-                    and e.status == 404):  # pylint: disable=no-member
-                await instance.mark_healthy()
-                break
+            await client_session.delete(url)
+            await instance.mark_healthy()
+        except asyncio.TimeoutError:
             await instance.incr_failed_request_count()
-            if is_transient_error(e):
-                pass
-            else:
-                raise
-        delay = await sleep_and_backoff(delay)
+            return
+        except aiohttp.ClientResponseError as err:
+            if err.status == 404:
+                await instance.mark_healthy()
+                return
+            await instance.incr_failed_request_count()
+            raise
+
+    await retry_transient_errors(make_request)
+
+    if not instance.inst_coll.is_pool:
+        await instance.kill()
 
     log.info(f'unschedule job {id}, attempt {attempt_id}: called delete job')
 
@@ -233,10 +296,10 @@ async def job_config(app, record, attempt_id):
 
     db_spec = json.loads(record['spec'])
 
-    if format_version.has_full_spec_in_gcs():
+    if format_version.has_full_spec_in_cloud():
         job_spec = {
             'secrets': format_version.get_spec_secrets(db_spec),
-            'service_account': format_version.get_spec_service_account(db_spec)
+            'service_account': format_version.get_spec_service_account(db_spec),
         }
     else:
         job_spec = db_spec
@@ -246,16 +309,17 @@ async def job_config(app, record, attempt_id):
     userdata = json.loads(record['userdata'])
 
     secrets = job_spec.get('secrets', [])
-    k8s_secrets = await asyncio.gather(*[
-        k8s_cache.read_secret(
-            secret['name'], secret['namespace'],
-            KUBERNETES_TIMEOUT_IN_SECONDS)
-        for secret in secrets
-    ])
+    k8s_secrets = await asyncio.gather(
+        *[k8s_cache.read_secret(secret['name'], secret['namespace']) for secret in secrets]
+    )
 
     gsa_key = None
+
+    # backwards compatibility
+    gsa_key_secret_name = userdata.get('hail_credentials_secret_name') or userdata['gsa_key_secret_name']
+
     for secret, k8s_secret in zip(secrets, k8s_secrets):
-        if secret['name'] == userdata['gsa_key_secret_name']:
+        if secret['name'] == gsa_key_secret_name:
             gsa_key = k8s_secret.data
         secret['data'] = k8s_secret.data
 
@@ -266,14 +330,12 @@ async def job_config(app, record, attempt_id):
         namespace = service_account['namespace']
         name = service_account['name']
 
-        sa = await k8s_cache.read_service_account(
-            name, namespace, KUBERNETES_TIMEOUT_IN_SECONDS)
+        sa = await k8s_cache.read_service_account(name, namespace)
         assert len(sa.secrets) == 1
 
         token_secret_name = sa.secrets[0].name
 
-        secret = await k8s_cache.read_secret(
-            token_secret_name, namespace, KUBERNETES_TIMEOUT_IN_SECONDS)
+        secret = await k8s_cache.read_secret(token_secret_name, namespace)
 
         token = base64.b64decode(secret.data['token']).decode()
         cert = secret.data['ca.crt']
@@ -300,21 +362,21 @@ users:
     token: {token}
 '''
 
-        job_spec['secrets'].append({
-            'name': 'kube-config',
-            'mount_path': '/.kube',
-            'data': {'config': base64.b64encode(kube_config.encode()).decode(),
-                     'ca.crt': cert}
-        })
+        job_spec['secrets'].append(
+            {
+                'name': 'kube-config',
+                'mount_path': '/.kube',
+                'data': {'config': base64.b64encode(kube_config.encode()).decode(), 'ca.crt': cert},
+            }
+        )
 
         env = job_spec.get('env')
         if not env:
             env = []
             job_spec['env'] = env
-        env.append({'name': 'KUBECONFIG',
-                    'value': '/.kube/config'})
+        env.append({'name': 'KUBECONFIG', 'value': '/.kube/config'})
 
-    if format_version.has_full_spec_in_gcs():
+    if format_version.has_full_spec_in_cloud():
         token, start_job_id = await SpecWriter.get_token_start_id(db, batch_id, job_id)
     else:
         token = None
@@ -328,15 +390,16 @@ users:
         'start_job_id': start_job_id,
         'user': record['user'],
         'gsa_key': gsa_key,
-        'job_spec': job_spec
+        'job_spec': job_spec,
     }
 
 
 async def schedule_job(app, record, instance):
     assert instance.state == 'active'
 
-    log_store: LogStore = app['log_store']
+    file_store: FileStore = app['file_store']
     db: Database = app['db']
+    client_session: httpx.ClientSession = app['client_session']
 
     batch_id = record['batch_id']
     job_id = record['job_id']
@@ -359,32 +422,35 @@ async def schedule_job(app, record, instance):
                 'user': record['user'],
                 'state': 'error',
                 'error': traceback.format_exc(),
-                'container_statuses': {k: None for k in tasks}
+                'container_statuses': {k: None for k in tasks},
             }
 
             if format_version.has_full_status_in_gcs():
-                await log_store.write_status_file(batch_id, job_id, attempt_id, json.dumps(status))
+                await file_store.write_status_file(batch_id, job_id, attempt_id, json.dumps(status))
 
             db_status = format_version.db_status(status)
             resources = []
 
-            await mark_job_complete(app, batch_id, job_id, attempt_id, instance.name,
-                                    'Error', db_status, None, None, 'error', resources)
+            await mark_job_complete(
+                app, batch_id, job_id, attempt_id, instance.name, 'Error', db_status, None, None, 'error', resources
+            )
             raise
 
         log.info(f'schedule job {id} on {instance}: made job config')
 
         try:
-            async with aiohttp.ClientSession(
-                    raise_for_status=True, timeout=aiohttp.ClientTimeout(total=2)) as session:
-                url = (f'http://{instance.ip_address}:5000'
-                       f'/api/v1alpha/batches/jobs/create')
-                await session.post(url, json=body)
-                await instance.mark_healthy()
+            await client_session.post(
+                f'http://{instance.ip_address}:5000/api/v1alpha/batches/jobs/create',
+                json=body,
+                timeout=aiohttp.ClientTimeout(total=2),
+            )
+            await instance.mark_healthy()
         except aiohttp.ClientResponseError as e:
             await instance.mark_healthy()
             if e.status == 403:
                 log.info(f'attempt already exists for job {id} on {instance}, aborting')
+            if e.status == 503:
+                log.info(f'job {id} cannot be scheduled because {instance} is shutting down, aborting')
             raise e
         except Exception:
             await instance.incr_failed_request_count()
@@ -396,7 +462,8 @@ async def schedule_job(app, record, instance):
             '''
 CALL schedule_job(%s, %s, %s, %s);
 ''',
-            (batch_id, job_id, attempt_id, instance.name))
+            (batch_id, job_id, attempt_id, instance.name),
+        )
     except Exception:
         log.exception(f'error while scheduling job {id} on {instance}')
         if instance.state == 'active':

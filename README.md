@@ -29,7 +29,7 @@ Hail uses a continuous deployment approach to software development, which means 
 
 Hail is maintained by a team in the [Neale lab](https://nealelab.is/) at the [Stanley Center for Psychiatric Research](https://www.broadinstitute.org/stanley) of the [Broad Institute of MIT and Harvard](https://www.broadinstitute.org) and the [Analytic and Translational Genetics Unit](https://www.atgu.mgh.harvard.edu/) of [Massachusetts General Hospital](https://www.massgeneral.org/).
 
-Contact the Hail team at <a href="mailto:hail@broadinstitute.org"><code>hail@broadinstitute.org</code></a>.
+Contact the Hail team at <code><a href="mailto:hail@broadinstitute.org">hail@broadinstitute.org</a></code>.
 
 ### Citing Hail
 

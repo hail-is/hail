@@ -1,17 +1,14 @@
 buildscript {
     repositories {
         mavenCentral()
-        jcenter()
     }
 }
 
 plugins {
-  id "com.gradle.build-scan" version "2.3"
   id 'java'
   id 'scala'
   id 'idea'
-  id 'maven'
-  id 'com.github.johnrengelman.shadow' version '5.0.0'
+  id 'com.github.johnrengelman.shadow' version '6.1.0'
   id "de.undercouch.download" version "3.2.0"
   id 'eclipse'
 }
@@ -19,10 +16,11 @@ plugins {
 import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
 
 repositories {
+    flatDir {
+        dirs 'libs'
+    }
     mavenCentral()
-    jcenter()
     maven { url "https://repository.cloudera.com/artifactory/cloudera-repos/" }
-    maven { url "https://repo.spring.io/plugins-release/" }
 }
 
 sourceSets.main.scala.srcDir "src/main/java"
@@ -47,8 +45,12 @@ tasks.withType(JavaCompile) {
 project.ext {
     cachedBreezeVersion = null
 
-    sparkVersion = System.getProperty("spark.version", "2.4.5")
-    scalaVersion = System.getProperty("scala.version", "2.11.12")
+    sparkVersion = System.getProperty("spark.version", "3.1.2")
+
+    if (sparkVersion != "3.1.2") {
+        project.logger.lifecycle("WARNING: Hail primarily tested with Spark 3.1.2, use other versions at your own risk.")
+    }
+    scalaVersion = System.getProperty("scala.version", "2.12.13")
     scalaMajorVersion = (scalaVersion =~ /^\d+.\d+/)[0]
 }
 
@@ -101,19 +103,6 @@ String breezeVersion() {
   return cachedBreezeVersion
 }
 
-String elasticHadoopVersion() {
-    def elasticMajorVersion = System.getProperty("elasticsearch.major-version", "7")
-    if (elasticMajorVersion == "6") {
-        return "6.8.13"
-    }
-    else if (elasticMajorVersion == "7") {
-        return "7.8.1"
-    }
-    else {
-        throw new UnsupportedOperationException("elasticsearch.major-version must be 6 or 7")
-    }
-}
-
 configurations {
     justSpark
 
@@ -127,9 +116,8 @@ configurations {
                 }
 	        }
             eachDependency { DependencyResolveDetails details ->
-                if (details.requested.group == 'org.json4s') {
-                    // JSON4S 3.6.0+ contain a known bug (https://github.com/json4s/json4s/issues/507)
-                    details.useVersion('3.5.3')
+                if (details.requested.group == 'org.apache.spark') {
+                    details.useVersion(sparkVersion)
                 } else if (details.requested.group == 'org.scalanlp' && details.requested.version == '1.0') {
                     // Breeze 1.0 contains a known bug (https://github.com/scalanlp/breeze/issues/772)
                     details.useVersion('1.1')
@@ -167,7 +155,11 @@ dependencies {
     unbundled 'org.apache.spark:spark-sql_' + scalaMajorVersion + ':' + sparkVersion
     unbundled 'org.apache.spark:spark-mllib_' + scalaMajorVersion + ':' + sparkVersion
 
-    bundled 'org.lz4:lz4-java:1.4.0'
+    bundled('org.json4s:json4s-jackson_' + scalaMajorVersion + ':3.7.0-M5') {
+        exclude group: 'com.fasterxml.jackson.core'
+    }
+
+    bundled 'org.lz4:lz4-java:1.8.0'
 
     // Breeze 1.0 has a known bug (https://github.com/scalanlp/breeze/issues/772)
     unbundled 'org.scalanlp:breeze-natives_' + scalaMajorVersion + ':' + breezeVersion()
@@ -176,18 +168,38 @@ dependencies {
     }
 
     bundled 'com.github.fommil.netlib:all:1.1.2'
-    bundled('com.github.samtools:htsjdk:2.21.0') {
+    bundled('com.github.samtools:htsjdk:2.24.1') {
         transitive = false
     }
 
     bundled group: 'org.slf4j', name: 'slf4j-api', version: '1.7.25'
 
-    bundled 'org.elasticsearch:elasticsearch-spark-20_2.11:' + elasticHadoopVersion()
+    def elasticMajorVersion = System.getProperty("elasticsearch.major-version", "7")
+    if (elasticMajorVersion != "7") {
+        throw new UnsupportedOperationException("elasticsearch.major-version must be 7")
+    }
+
+    if (sparkVersion.startsWith("3.1.")) {
+        // This comes from a local libs directory, see Makefile
+        assert(scalaMajorVersion == "2.12")
+        bundled 'org.elasticsearch:elasticsearch-spark-30_2.12-8.0.0-SNAPSHOT-custom-hail-spark311'
+    }
+    else if (sparkVersion.startsWith("3.0.")) {
+        assert(scalaMajorVersion == "2.12")
+        bundled 'org.elasticsearch:elasticsearch-spark-30_2.12:7.13.1'
+    }
+    else if (sparkVersion.startsWith("2.4.")) {
+        assert(scalaMajorVersion == "2.11")
+        bundled 'org.elasticsearch:elasticsearch-spark-20_2.11:7.8.1'
+    }
+    else {
+        throw new UnsupportedOperationException("Couldn't pick a valid elasticsearch.")
+    }
 
     bundled 'com.google.cloud:google-cloud-storage:1.106.0'
 
-    bundled 'org.apache.httpcomponents:httpcore:4.4.13'
-    bundled('org.apache.httpcomponents:httpclient:4.5.12') {
+    bundled 'org.apache.httpcomponents:httpcore:4.4.14'
+    bundled('org.apache.httpcomponents:httpclient:4.5.13') {
         transitive = false
     }
 
@@ -206,11 +218,16 @@ dependencies {
     unbundled group: 'org.apache.commons', name: 'commons-math3', version: '3.6.1'
     bundled group: 'commons-codec', name: 'commons-codec', version: '1.11'
     bundled group: 'org.apache.commons', name: 'commons-lang3', version: '3.0'
+    bundled(group: 'org.apache.avro', name: 'avro', version: '1.10.2') {
+        exclude group: 'com.fasterxml.jackson.core'
+    }
 
     bundled 'com.indeed:lsmtree-core:1.0.7'
-    bundled 'com.indeed:util-serialization:1.0.31'
-    bundled 'com.indeed:util-mmap:1.0.31'
+    bundled 'com.indeed:util-serialization:1.0.36'
+    bundled 'com.indeed:util-mmap:1.0.36'
     bundled group: 'org.freemarker', name: 'freemarker', version: '2.3.14'
+
+    bundled 'com.kohlschutter.junixsocket:junixsocket-core:2.3.2'
 }
 
 task(checkSettings) doLast {
@@ -288,15 +305,38 @@ task testServices(type: Test) {
     }
 }
 
+task testFS(type: Test) {
+    useTestNG() {
+        suites 'testng-fs.xml'
+    }
+
+    testLogging {
+        events "passed", "skipped", "failed"
+    }
+
+    // listen to events in the test execution lifecycle
+    beforeTest { descriptor ->
+        logger.lifecycle("Running test: " + descriptor)
+    }
+
+    maxParallelForks((System.env.PARALLELISM == null ? "1" : System.env.PARALLELISM).toInteger())
+
+    testLogging {
+        outputs.upToDateWhen {false}
+        showStandardStreams = true
+    }
+}
+
 test.dependsOn(checkSettings)
 testServices.dependsOn(checkSettings)
+testFS.dependsOn(checkSettings)
 
 tasks.withType(ShadowJar) {
     manifest {
         attributes 'Implementation-Title': 'Hail',
                    'Implementation-Version': '0.0.1-SNAPSHOT'
     }
-    baseName = project.name + '-all'
+    archiveBaseName = project.name + '-all'
     mergeServiceFiles()
     zip64 true
 
@@ -309,10 +349,11 @@ tasks.withType(ShadowJar) {
     // we should really shade indeed, but it has native libraries
     // relocate 'com.indeed', 'is.hail.relocated.com.indeed'
     relocate 'com.google.cloud', 'is.hail.relocated.com.google.cloud'
-    relocate 'org.elasticsearch', 'is.hail.relocated.org.elasticsearch'
     relocate 'com.github.samtools', 'is.hail.relocated.com.github.samtools'
     relocate 'org.lz4', 'is.hail.relocated.org.lz4'
     relocate 'org.freemarker', 'is.hail.relocated.org.freemarker'
+    relocate 'org.json4s', 'is.hail.relocated.org.json4s'
+    relocate 'org.elasticsearch', 'is.hail.relocated.org.elasticsearch'
 
     exclude 'META-INF/*.RSA'
     exclude 'META-INF/*.SF'

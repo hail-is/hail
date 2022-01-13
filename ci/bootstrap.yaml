@@ -1,0 +1,90 @@
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: infrastructure
+value: 1000000
+globalDefault: false
+description: "For infrastructure like gateway."
+---
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: production
+value: 900000
+globalDefault: false
+description: "For production services like apiserver, batch, etc."
+---
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: user
+value: 500000
+globalDefault: true
+description: "For user activities like notebooks, developer workloads, etc."
+---
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: test
+value: 0
+globalDefault: false
+description: "For tests."
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: ci-agent
+---
+kind: ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: ci-agent-cluster-admin
+subjects:
+- kind: ServiceAccount
+  name: ci-agent
+  namespace: default
+roleRef:
+  kind: ClusterRole
+  name: cluster-admin
+  apiGroup: ""
+---
+kind: ClusterRole
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: auth-driver
+rules:
+- apiGroups: [""]
+  resources: ["namespaces", "secrets"]
+  verbs: ["*"]
+---
+kind: ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: auth-driver
+subjects:
+- kind: ServiceAccount
+  name: auth-driver
+  namespace: default
+roleRef:
+  kind: ClusterRole
+  name: auth-driver
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: admin
+  namespace: default
+---
+kind: ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: default-admin-cluster-admin-binding
+subjects:
+- kind: ServiceAccount
+  name: admin
+  namespace: default
+roleRef:
+  kind: ClusterRole
+  name: cluster-admin
+  apiGroup: ""

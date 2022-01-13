@@ -1,58 +1,52 @@
 package is.hail.types.physical.stypes.primitives
 
-import is.hail.annotations.{CodeOrdering, Region}
+import is.hail.annotations.Region
 import is.hail.asm4s.{BooleanInfo, Code, Settable, SettableBuilder, TypeInfo, Value}
 import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder, SortOrder}
-import is.hail.types.physical.stypes.{SCode, SType}
-import is.hail.types.physical.{PBoolean, PCode, PSettable, PType, PValue}
+import is.hail.types.physical.stypes.{SCode, SSettable, SType, SValue}
+import is.hail.types.physical.{PBoolean, PType}
+import is.hail.types.virtual.{TBoolean, Type}
 import is.hail.utils.FastIndexedSeq
 
 
-case class SBoolean(required: Boolean) extends SType {
-  override def pType: PBoolean = PBoolean(required)
+case object SBoolean extends SPrimitive {
+  override def ti: TypeInfo[_] = BooleanInfo
 
-  def codeOrdering(mb: EmitMethodBuilder[_], other: SType, so: SortOrder): CodeOrdering = pType.codeOrdering(mb, other.pType, so)
+  override lazy val virtualType: Type = TBoolean
 
-  def coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): SCode = {
+  override def castRename(t: Type): SType = this
+
+  override def _coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SValue, deepCopy: Boolean): SValue = {
     value.st match {
-      case SBoolean(_) =>
-        value.asInstanceOf[SBooleanCode]
+      case SBoolean =>
+        value
     }
   }
 
-  def codeTupleTypes(): IndexedSeq[TypeInfo[_]] = FastIndexedSeq(BooleanInfo)
+  override def settableTupleTypes(): IndexedSeq[TypeInfo[_]] = FastIndexedSeq(BooleanInfo)
 
-  def loadFrom(cb: EmitCodeBuilder, region: Value[Region], pt: PType, addr: Code[Long]): SCode = {
-    pt match {
-      case PBoolean(_) =>
-        new SBooleanCode(required: Boolean, Region.loadBoolean(addr))
-    }
-  }
-
-  def fromSettables(settables: IndexedSeq[Settable[_]]): SBooleanSettable = {
+  override def fromSettables(settables: IndexedSeq[Settable[_]]): SBooleanSettable = {
     val IndexedSeq(x: Settable[Boolean@unchecked]) = settables
     assert(x.ti == BooleanInfo)
-    new SBooleanSettable(required, x)
+    new SBooleanSettable( x)
   }
 
-  def fromCodes(codes: IndexedSeq[Code[_]]): SBooleanCode = {
-    val IndexedSeq(x: Code[Boolean@unchecked]) = codes
+  override def fromValues(values: IndexedSeq[Value[_]]): SBooleanValue = {
+    val IndexedSeq(x: Value[Boolean@unchecked]) = values
     assert(x.ti == BooleanInfo)
-    new SBooleanCode(required, x)
+    new SBooleanValue( x)
   }
 
-  def canonicalPType(): PType = pType
+  override def storageType(): PType = PBoolean()
 }
 
-class SBooleanCode(required: Boolean, val code: Code[Boolean]) extends PCode {
-  val pt: PBoolean = PBoolean(required)
+class SBooleanCode(val code: Code[Boolean]) extends SPrimitiveCode {
+  override def _primitiveCode: Code[_] = code
 
-  def st: SBoolean = SBoolean(required)
-
-  def codeTuple(): IndexedSeq[Code[_]] = FastIndexedSeq(code)
+  def st: SBoolean.type = SBoolean
 
   private[this] def memoizeWithBuilder(cb: EmitCodeBuilder, name: String, sb: SettableBuilder): SBooleanSettable = {
-    val s = new SBooleanSettable(required, sb.newSettable[Boolean]("sboolean_memoize"))
+    val s = new SBooleanSettable(sb.newSettable[Boolean]("sboolean_memoize"))
     s.store(cb, this)
     s
   }
@@ -64,22 +58,31 @@ class SBooleanCode(required: Boolean, val code: Code[Boolean]) extends PCode {
   def boolCode(cb: EmitCodeBuilder): Code[Boolean] = code
 }
 
+class SBooleanValue(x: Value[Boolean]) extends SPrimitiveValue {
+  val pt: PBoolean = PBoolean()
+
+  override def st: SBoolean.type = SBoolean
+
+  override lazy val valueTuple: IndexedSeq[Value[_]] = FastIndexedSeq(x)
+
+  override def _primitiveValue: Value[_] = x
+
+  override def get: SBooleanCode = new SBooleanCode(x)
+
+  def boolCode(cb: EmitCodeBuilder): Value[Boolean] = x
+
+  override def hash(cb: EmitCodeBuilder): SInt32Value =
+    new SInt32Value(cb.memoize(boolCode(cb).toI))
+}
+
 object SBooleanSettable {
-  def apply(sb: SettableBuilder, name: String, required: Boolean): SBooleanSettable = {
-    new SBooleanSettable(required, sb.newSettable[Boolean](name))
+  def apply(sb: SettableBuilder, name: String): SBooleanSettable = {
+    new SBooleanSettable( sb.newSettable[Boolean](name))
   }
 }
 
-class SBooleanSettable(required: Boolean, x: Settable[Boolean]) extends PValue with PSettable {
-  val pt: PBoolean = PBoolean(required)
+class SBooleanSettable(x: Settable[Boolean]) extends SBooleanValue(x) with SSettable {
+  override def settableTuple(): IndexedSeq[Settable[_]] = FastIndexedSeq(x)
 
-  def st: SBoolean = SBoolean(required)
-
-  def store(cb: EmitCodeBuilder, v: PCode): Unit = cb.assign(x, v.asBoolean.boolCode(cb))
-
-  def settableTuple(): IndexedSeq[Settable[_]] = FastIndexedSeq(x)
-
-  def get: PCode = new SBooleanCode(required, x)
-
-  def boolCode(cb: EmitCodeBuilder): Code[Boolean] = x
+  override def store(cb: EmitCodeBuilder, v: SCode): Unit = cb.assign(x, v.asBoolean.boolCode(cb))
 }

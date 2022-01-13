@@ -60,30 +60,50 @@ object Copy {
       case MakeArray(args, typ) =>
         assert(args.length == newChildren.length)
         MakeArray(newChildren.map(_.asInstanceOf[IR]), typ)
-      case MakeStream(args, typ, separateRegions) =>
+      case MakeStream(args, typ, requiresMemoryManagementPerElement) =>
         assert(args.length == newChildren.length)
-        MakeStream(newChildren.map(_.asInstanceOf[IR]), typ, separateRegions)
-      case ArrayRef(_, _, _) =>
-        assert(newChildren.length == 3)
-        ArrayRef(newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR], newChildren(2).asInstanceOf[IR])
+        MakeStream(newChildren.map(_.asInstanceOf[IR]), typ, requiresMemoryManagementPerElement)
+      case ArrayRef(_, _, errorID) =>
+        assert(newChildren.length == 2)
+        ArrayRef(newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR], errorID)
+      case ArraySlice(_,_, stop, _, errorID) =>
+        if (stop.isEmpty) {
+          assert(newChildren.length == 3)
+          ArraySlice(newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR], None,
+            newChildren(2).asInstanceOf[IR], errorID)
+        }
+        else {
+            assert(newChildren.length == 4)
+            ArraySlice(newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR], Some(newChildren(2).asInstanceOf[IR]),
+              newChildren(3).asInstanceOf[IR], errorID)
+          }
       case ArrayLen(_) =>
         assert(newChildren.length == 1)
         ArrayLen(newChildren(0).asInstanceOf[IR])
-      case StreamRange(_, _, _, separateRegions) =>
+      case StreamIota(_, _, requiresMemoryManagementPerElement) =>
+        assert(newChildren.length == 2)
+        StreamIota(newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR], requiresMemoryManagementPerElement)
+      case StreamRange(_, _, _, requiresMemoryManagementPerElement, errorID) =>
         assert(newChildren.length == 3)
-        StreamRange(newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR], newChildren(2).asInstanceOf[IR], separateRegions)
+        StreamRange(newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR], newChildren(2).asInstanceOf[IR],
+          requiresMemoryManagementPerElement, errorID)
+      case SeqSample(_, _, requiresMemoryManagementPerElement) =>
+        assert(newChildren.length == 2)
+        SeqSample(newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR], requiresMemoryManagementPerElement)
+      case StreamDistribute(_, _, _, spec) =>
+        StreamDistribute(newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR], newChildren(2).asInstanceOf[IR], spec)
       case ArrayZeros(_) =>
         assert(newChildren.length == 1)
         ArrayZeros(newChildren(0).asInstanceOf[IR])
-      case MakeNDArray(_, _, _) =>
+      case MakeNDArray(_, _, _, errorId) =>
         assert(newChildren.length == 3)
-        MakeNDArray(newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR], newChildren(2).asInstanceOf[IR])
+        MakeNDArray(newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR], newChildren(2).asInstanceOf[IR], errorId)
       case NDArrayShape(_) =>
         assert(newChildren.length == 1)
         NDArrayShape(newChildren(0).asInstanceOf[IR])
-      case NDArrayReshape(_, _) =>
+      case NDArrayReshape(_, _, errorID) =>
         assert(newChildren.length ==  2)
-        NDArrayReshape(newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR])
+        NDArrayReshape(newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR], errorID)
       case NDArrayConcat(_, axis) =>
         assert(newChildren.length ==  1)
         NDArrayConcat(newChildren(0).asInstanceOf[IR], axis)
@@ -97,27 +117,27 @@ object Copy {
       case NDArrayMap(_, name, _) =>
         assert(newChildren.length ==  2)
         NDArrayMap(newChildren(0).asInstanceOf[IR], name, newChildren(1).asInstanceOf[IR])
-      case NDArrayMap2(_, _, lName, rName, _) =>
+      case NDArrayMap2(_, _, lName, rName, _, errorID) =>
         assert(newChildren.length ==  3)
-        NDArrayMap2(newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR], lName, rName, newChildren(2).asInstanceOf[IR])
+        NDArrayMap2(newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR], lName, rName, newChildren(2).asInstanceOf[IR], errorID)
       case NDArrayReindex(_, indexExpr) =>
         assert(newChildren.length == 1)
         NDArrayReindex(newChildren(0).asInstanceOf[IR], indexExpr)
       case NDArrayAgg(_, axes) =>
         assert(newChildren.length == 1)
         NDArrayAgg(newChildren(0).asInstanceOf[IR], axes)
-      case NDArrayMatMul(_, _) =>
+      case NDArrayMatMul(_, _, errorID) =>
         assert(newChildren.length == 2)
-        NDArrayMatMul(newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR])
-      case NDArrayQR(_, mode) =>
+        NDArrayMatMul(newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR], errorID)
+      case NDArrayQR(_, mode, errorID) =>
         assert(newChildren.length == 1)
-        NDArrayQR(newChildren(0).asInstanceOf[IR], mode)
-      case NDArraySVD(_, fullMatrices, computeUV) =>
+        NDArrayQR(newChildren(0).asInstanceOf[IR], mode, errorID)
+      case NDArraySVD(_, fullMatrices, computeUV, errorID) =>
         assert(newChildren.length == 1)
-        NDArraySVD(newChildren(0).asInstanceOf[IR], fullMatrices, computeUV)
-      case NDArrayInv(_) =>
+        NDArraySVD(newChildren(0).asInstanceOf[IR], fullMatrices, computeUV, errorID)
+      case NDArrayInv(_, errorID) =>
         assert(newChildren.length == 1)
-        NDArrayInv(newChildren(0).asInstanceOf[IR])
+        NDArrayInv(newChildren(0).asInstanceOf[IR], errorID)
       case NDArrayWrite(_, _) =>
         assert(newChildren.length == 2)
         NDArrayWrite(newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR])
@@ -136,9 +156,9 @@ object Copy {
       case CastToArray(_) =>
         assert(newChildren.length == 1)
         CastToArray(newChildren(0).asInstanceOf[IR])
-      case ToStream(_, separateRegions) =>
+      case ToStream(_, requiresMemoryManagementPerElement) =>
         assert(newChildren.length == 1)
-        ToStream(newChildren(0).asInstanceOf[IR], separateRegions)
+        ToStream(newChildren(0).asInstanceOf[IR], requiresMemoryManagementPerElement)
       case LowerBoundOnOrderedCollection(_, _, asKey) =>
         assert(newChildren.length == 2)
         LowerBoundOnOrderedCollection(newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR], asKey)
@@ -162,12 +182,10 @@ object Copy {
       case StreamMap(_, name, _) =>
         assert(newChildren.length == 2)
         StreamMap(newChildren(0).asInstanceOf[IR], name, newChildren(1).asInstanceOf[IR])
-      case StreamMerge(_, _, key) =>
-        assert(newChildren.length == 2)
-        StreamMerge(newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR], key)
-      case StreamZip(_, names, _, behavior) =>
+      case StreamZip(_, names, _, behavior, errorID) =>
         assert(newChildren.length == names.length + 1)
-        StreamZip(newChildren.init.asInstanceOf[IndexedSeq[IR]], names, newChildren(names.length).asInstanceOf[IR], behavior)
+        StreamZip(newChildren.init.asInstanceOf[IndexedSeq[IR]], names, newChildren(names.length).asInstanceOf[IR],
+          behavior, errorID)
       case StreamZipJoin(as, key, curKey, curVals, _) =>
         assert(newChildren.length == as.length + 1)
         StreamZipJoin(newChildren.init.asInstanceOf[IndexedSeq[IR]], key, curKey, curVals, newChildren(as.length).asInstanceOf[IR])
@@ -177,6 +195,12 @@ object Copy {
       case StreamFilter(_, name, _) =>
         assert(newChildren.length == 2)
         StreamFilter(newChildren(0).asInstanceOf[IR], name, newChildren(1).asInstanceOf[IR])
+      case StreamTakeWhile(_, name, _) =>
+        assert(newChildren.length == 2)
+        StreamTakeWhile(newChildren(0).asInstanceOf[IR], name, newChildren(1).asInstanceOf[IR])
+      case StreamDropWhile(_, name, _) =>
+        assert(newChildren.length == 2)
+        StreamDropWhile(newChildren(0).asInstanceOf[IR], name, newChildren(1).asInstanceOf[IR])
       case StreamFlatMap(_, name, _) =>
         assert(newChildren.length == 2)
         StreamFlatMap(newChildren(0).asInstanceOf[IR], name, newChildren(1).asInstanceOf[IR])
@@ -273,6 +297,8 @@ object Copy {
           args.take(x.nInitArgs),
           args.drop(x.nInitArgs),
           aggSig)
+      case AggFold(_, _, _, accumName, otherAccumName, isScan) =>
+        AggFold(newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR], newChildren(2).asInstanceOf[IR], accumName, otherAccumName, isScan)
       case MakeTuple(fields) =>
         assert(fields.length == newChildren.length)
         MakeTuple(fields.zip(newChildren).map { case ((i, _), newValue) => (i, newValue.asInstanceOf[IR]) })
@@ -283,17 +309,23 @@ object Copy {
       case Die(_, typ, errorId) =>
         assert(newChildren.length == 1)
         Die(newChildren(0).asInstanceOf[IR], typ, errorId)
-      case x@ApplyIR(fn, typeArgs, args) =>
-        val r = ApplyIR(fn, typeArgs, newChildren.map(_.asInstanceOf[IR]))
+      case Trap(child) =>
+        assert(newChildren.length == 1)
+        Trap(newChildren(0).asInstanceOf[IR])
+      case ConsoleLog(message, result) =>
+        assert(newChildren.length == 2)
+        ConsoleLog(newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR])
+      case x@ApplyIR(fn, typeArgs, args, errorID) =>
+        val r = ApplyIR(fn, typeArgs, newChildren.map(_.asInstanceOf[IR]), errorID)
         r.conversion = x.conversion
         r.inline = x.inline
         r
-      case Apply(fn, typeArgs, args, t) =>
-        Apply(fn, typeArgs, newChildren.map(_.asInstanceOf[IR]), t)
+      case Apply(fn, typeArgs, args, t, errorID) =>
+        Apply(fn, typeArgs, newChildren.map(_.asInstanceOf[IR]), t, errorID)
       case ApplySeeded(fn, args, seed, t) =>
         ApplySeeded(fn, newChildren.map(_.asInstanceOf[IR]), seed, t)
-      case ApplySpecial(fn, typeArgs, args, t) =>
-        ApplySpecial(fn, typeArgs, newChildren.map(_.asInstanceOf[IR]), t)
+      case ApplySpecial(fn, typeArgs, args, t, errorID) =>
+        ApplySpecial(fn, typeArgs, newChildren.map(_.asInstanceOf[IR]), t, errorID)
       // from MatrixIR
       case MatrixWrite(_, writer) =>
         assert(newChildren.length == 1)
@@ -361,22 +393,6 @@ object Copy {
         WriteValue(newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR], spec)
       case LiftMeOut(_) =>
         LiftMeOut(newChildren(0).asInstanceOf[IR])
-      case ShuffleWith(keyFields, rowType, rowEType, keyEType, name, _, _) =>
-        assert(newChildren.length == 2)
-        ShuffleWith(keyFields, rowType, rowEType, keyEType, name,
-          newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR])
-      case ShuffleWrite(_, _) =>
-        assert(newChildren.length == 2)
-        ShuffleWrite(
-          newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR])
-      case ShufflePartitionBounds(_, _) =>
-        assert(newChildren.length == 2)
-        ShufflePartitionBounds(
-          newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR])
-      case ShuffleRead(_, _) =>
-        assert(newChildren.length == 2)
-        ShuffleRead(
-          newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR])
     }
   }
 }

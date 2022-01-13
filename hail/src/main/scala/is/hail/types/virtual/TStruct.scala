@@ -1,7 +1,7 @@
 package is.hail.types.virtual
 
 import is.hail.annotations.{Annotation, AnnotationPathException, _}
-import is.hail.expr.ir.{Env, IRParser}
+import is.hail.expr.ir.{Env, IRParser, IntArrayBuilder}
 import is.hail.types.physical.{PField, PStruct}
 import is.hail.utils._
 import org.apache.spark.sql.Row
@@ -32,14 +32,17 @@ object TStruct {
 
     TStruct(sNames.zip(sTypes): _*)
   }
+
+  def concat(struct1: TStruct, struct2: TStruct): TStruct = {
+    struct2.fieldNames.foreach { field => assert(!struct1.hasField(field)) }
+    TStruct(struct1.fields ++ struct2.fields.map(field => field.copy(index = field.index + struct1.size)))
+  }
 }
 
 final case class TStruct(fields: IndexedSeq[Field]) extends TBaseStruct {
   assert(fields.zipWithIndex.forall { case (f, i) => f.index == i })
 
   lazy val types: Array[Type] = fields.map(_.typ).toArray
-
-  lazy val fieldIdx: collection.Map[String, Int] = toMapFast(fields)(_.name, _.index)
 
   lazy val fieldNames: Array[String] = fields.map(_.name).toArray
 
@@ -185,7 +188,7 @@ final case class TStruct(fields: IndexedSeq[Field]) extends TBaseStruct {
 
   def annotate(other: TStruct): (TStruct, Merger) = {
     val newFieldsBuilder = new BoxedArrayBuilder[(String, Type)]()
-    val fieldIdxBuilder = new BoxedArrayBuilder[Int]()
+    val fieldIdxBuilder = new IntArrayBuilder()
     // In fieldIdxBuilder, positive integers are field indices from the left.
     // Negative integers are the complement of field indices from the right.
 
@@ -371,17 +374,7 @@ final case class TStruct(fields: IndexedSeq[Field]) extends TBaseStruct {
   def typeAfterSelect(keep: IndexedSeq[Int]): TStruct =
     TStruct(keep.map(i => fieldNames(i) -> types(i)): _*)
 
-  override lazy val fundamentalType: TStruct = {
-    val fundamentalFieldTypes = fields.map(f => f.typ.fundamentalType)
-    if ((fields, fundamentalFieldTypes).zipped
-      .forall { case (f, ft) => f.typ == ft })
-      this
-    else
-      TStruct((fields, fundamentalFieldTypes).zipped.map { case (f, ft) => (f.name, ft) }: _*)
-  }
-
   def toEnv: Env[Type] = Env(fields.map(f => (f.name, f.typ)): _*)
-
 
   override def valueSubsetter(subtype: Type): Any => Any = {
     if (this == subtype)

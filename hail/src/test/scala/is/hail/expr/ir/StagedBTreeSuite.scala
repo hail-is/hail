@@ -1,45 +1,52 @@
 package is.hail.expr.ir
 
 import java.io.{ByteArrayInputStream, ByteArrayOutputStream}
-
 import is.hail.HailSuite
-import is.hail.annotations.{CodeOrdering, Region}
+import is.hail.annotations.Region
 import is.hail.asm4s._
+import is.hail.backend.ExecuteContext
 import is.hail.check.{Gen, Prop}
 import is.hail.expr.ir.agg._
+import is.hail.expr.ir.orderings.CodeOrdering
 import is.hail.types.physical._
 import is.hail.io.{InputBuffer, OutputBuffer, StreamBufferSpec}
+import is.hail.types.physical.stypes.Int64SingleCodeType
+import is.hail.types.physical.stypes.interfaces.primitive
+import is.hail.types.physical.stypes.primitives.SInt64
 import is.hail.utils._
 import org.testng.annotations.Test
 
 import scala.collection.mutable
 class TestBTreeKey(mb: EmitMethodBuilder[_]) extends BTreeKey {
-  private val comp = mb.getCodeOrdering(PInt64(), CodeOrdering.Compare())
-  def storageType: PTuple = PCanonicalTuple(required = true, PInt64(), PCanonicalTuple(false))
-  def compType: PType = PInt64()
-  def isEmpty(cb: EmitCodeBuilder, off: Code[Long]): Code[Boolean] =
-    storageType.isFieldMissing(off, 1)
-  def initializeEmpty(cb: EmitCodeBuilder, off: Code[Long]): Unit =
-    cb += storageType.setFieldMissing(off, 1)
+  private val comp = mb.ecb.getOrderingFunction(SInt64, SInt64, CodeOrdering.Compare())
+  override def storageType: PTuple = PCanonicalTuple(required = true, PInt64(), PCanonicalTuple(false))
+  override def compType: PType = PInt64()
+  override def isEmpty(cb: EmitCodeBuilder, off: Code[Long]): Value[Boolean] =
+    storageType.isFieldMissing(cb, off, 1)
+  override def initializeEmpty(cb: EmitCodeBuilder, off: Code[Long]): Unit =
+    storageType.setFieldMissing(cb, off, 1)
 
-  def storeKey(cb: EmitCodeBuilder, off: Code[Long], m: Code[Boolean], v: Code[Long]): Unit =
-    cb += Code.memoize(off, "off") { off =>
-      Code(
-        storageType.stagedInitialize(off),
-        m.mux(
-          storageType.setFieldMissing(off, 0),
-          Region.storeLong(storageType.fieldOffset(off, 0), v)))
-    }
+  def storeKey(cb: EmitCodeBuilder, _off: Code[Long], m: Code[Boolean], v: Code[Long]): Unit = {
+    val off = cb.memoize[Long](_off)
+    storageType.stagedInitialize(cb, off)
+    cb.ifx(m,
+      storageType.setFieldMissing(cb, off, 0),
+      cb += Region.storeLong(storageType.fieldOffset(off, 0), v)
+    )
+  }
 
-  def copy(cb: EmitCodeBuilder, src: Code[Long], dest: Code[Long]): Unit =
+  override def copy(cb: EmitCodeBuilder, src: Code[Long], dest: Code[Long]): Unit =
     cb += Region.copyFrom(src, dest, storageType.byteSize)
-  def deepCopy(cb: EmitCodeBuilder, er: EmitRegion, src: Code[Long], dest: Code[Long]): Unit =
+  override def deepCopy(cb: EmitCodeBuilder, er: EmitRegion, src: Code[Long], dest: Code[Long]): Unit =
     copy(cb, src, dest)
 
-  def compKeys(cb: EmitCodeBuilder, k1: EmitCode, k2: EmitCode): Code[Int] = comp(cb, k1, k2)
+  override def compKeys(cb: EmitCodeBuilder, k1: EmitValue, k2: EmitValue): Value[Int] =
+    comp(cb, k1, k2)
 
-  def loadCompKey(cb: EmitCodeBuilder, off: Value[Long]): EmitCode =
-    EmitCode(Code._empty, storageType.isFieldMissing(off, 0), PCode(compType, Region.loadLong(storageType.fieldOffset(off, 0))))
+  override def loadCompKey(cb: EmitCodeBuilder, off: Value[Long]): EmitValue =
+    EmitValue(
+      Some(storageType.isFieldMissing(cb, off, 0)),
+      primitive(cb.memoize(Region.loadLong(storageType.fieldOffset(off, 0)))))
 }
 
 object BTreeBackedSet {
@@ -69,7 +76,7 @@ object BTreeBackedSet {
 
     val inputBuffer = new StreamBufferSpec().buildInputBuffer(new ByteArrayInputStream(serialized))
     val set = new BTreeBackedSet(ctx, region, n)
-    set.root = fb.resultWithIndex()(0, region)(region, inputBuffer)
+    set.root = fb.resultWithIndex()(ctx.fs, 0, region)(region, inputBuffer)
     set
   }
 }
@@ -92,7 +99,7 @@ class BTreeBackedSet(ctx: ExecuteContext, region: Region, n: Int) {
       root
     }
 
-    fb.resultWithIndex()(0, region)
+    fb.resultWithIndex()(ctx.fs, 0, region)
   }
 
   private val getF = {
@@ -108,7 +115,7 @@ class BTreeBackedSet(ctx: ExecuteContext, region: Region, n: Int) {
     val btree = new AppendOnlyBTree(cb, key, r, root, maxElements = n)
 
     fb.emitWithBuilder { cb =>
-      val ec = EmitCode(Code._empty, m, PCode(PInt64Optional, v))
+      val ec = EmitCode(Code._empty, m, primitive(v))
       cb.assign(r, fb.getCodeParam[Region](1))
       cb.assign(root, fb.getCodeParam[Long](2))
       cb.assign(elt, btree.getOrElseInitialize(cb, ec))
@@ -117,7 +124,7 @@ class BTreeBackedSet(ctx: ExecuteContext, region: Region, n: Int) {
       })
       root
     }
-    fb.resultWithIndex()(0, region)
+    fb.resultWithIndex()(ctx.fs, 0, region)
   }
 
   private val getResultsF = {
@@ -129,7 +136,7 @@ class BTreeBackedSet(ctx: ExecuteContext, region: Region, n: Int) {
     val key = new TestBTreeKey(fb.apply_method)
     val btree = new AppendOnlyBTree(cb, key, r, root, maxElements = n)
 
-    val sab = new StagedArrayBuilder(PInt64(), fb.apply_method, 16)
+    val sab = new StagedArrayBuilder(Int64SingleCodeType, true, fb.apply_method, 16)
     val idx = fb.newLocal[Int]()
     val returnArray = fb.newLocal[Array[java.lang.Long]]()
 
@@ -137,12 +144,12 @@ class BTreeBackedSet(ctx: ExecuteContext, region: Region, n: Int) {
       cb += (r := fb.getCodeParam[Region](1))
       cb += (root := fb.getCodeParam[Long](2))
       cb += sab.clear
-      btree.foreach(cb) { (cb, koff) =>
-        cb += Code.memoize(koff, "koff") { koff =>
-          val ec = key.loadCompKey(cb, koff)
-          ec.m.mux(sab.addMissing(),
-            sab.add(ec.v))
-        }
+      btree.foreach(cb) { (cb, _koff) =>
+        val koff = cb.memoize(_koff)
+        val ec = key.loadCompKey(cb, koff)
+        cb.ifx(ec.m,
+          cb += sab.addMissing(),
+          cb += sab.add(ec.pv.asInt64.longCode(cb)))
       }
       cb += (returnArray := Code.newArray[java.lang.Long](sab.size))
       cb += (idx := 0)
@@ -154,7 +161,7 @@ class BTreeBackedSet(ctx: ExecuteContext, region: Region, n: Int) {
       )
       returnArray
     }
-    fb.resultWithIndex()(0, region)
+    fb.resultWithIndex()(ctx.fs, 0, region)
   }
 
   private val bulkStoreF = {
@@ -177,13 +184,13 @@ class BTreeBackedSet(ctx: ExecuteContext, region: Region, n: Int) {
         val ev = cb.memoize(key.loadCompKey(cb, off), "ev")
         cb += ob.writeBoolean(ev.m)
         cb.ifx(!ev.m, {
-          cb += ob.writeLong(ev.value[Long])
+          cb += ob.writeLong(ev.pv.asInt64.longCode(cb))
         })
       }
       ob2.flush()
     }
 
-    fb.resultWithIndex()(0, region)
+    fb.resultWithIndex()(ctx.fs, 0, region)
   }
 
   def clear(): Unit = {

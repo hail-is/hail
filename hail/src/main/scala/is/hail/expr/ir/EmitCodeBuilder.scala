@@ -1,12 +1,12 @@
 package is.hail.expr.ir
 
-import is.hail.annotations.Region
 import is.hail.asm4s.{coerce => _, _}
 import is.hail.expr.ir.functions.StringFunctions
+import is.hail.expr.ir.streams.StreamProducer
 import is.hail.lir
-import is.hail.types.physical.stypes.{SType, SValue}
-import is.hail.types.physical.{PCode, PSettable, PType, PValue}
-import is.hail.utils.FastIndexedSeq
+import is.hail.types.physical.stypes.interfaces.{SStream, SStreamValue}
+import is.hail.types.physical.stypes.{SCode, SSettable, SValue}
+import is.hail.utils._
 
 object EmitCodeBuilder {
   def apply(mb: EmitMethodBuilder[_]): EmitCodeBuilder = new EmitCodeBuilder(mb, Code._empty)
@@ -53,7 +53,8 @@ class EmitCodeBuilder(val emb: EmitMethodBuilder[_], var code: Code[Unit]) exten
     tmp
   }
 
-  def assign(s: PSettable, v: PCode): Unit = {
+  def assign(s: SSettable, v: SValue): Unit = {
+    assert(s.st == v.st, s"type mismatch!\n  settable=${s.st}\n     passed=${v.st}")
     s.store(this, v)
   }
 
@@ -66,62 +67,118 @@ class EmitCodeBuilder(val emb: EmitMethodBuilder[_], var code: Code[Unit]) exten
   }
 
   def assign(is: IndexedSeq[EmitSettable], ix: IndexedSeq[EmitCode]): Unit = {
-    (is, ix).zipped.foreach { case (s, c) => s.store(this, c) }
+    (is, ix).zipped.foreach { (s, c) => s.store(this, c) }
   }
 
-  def assign(s: PresentEmitSettable, v: PCode): Unit = {
-    s.store(this, v)
-  }
-
-  def memoize(pc: PCode, name: String): PValue = pc.memoize(this, name)
-
-  def memoizeField(pc: PCode, name: String): PValue = {
-    val f = emb.newPField(name, pc.pt)
+  def memoizeField(pc: SValue, name: String): SValue = {
+    val f = emb.newPField(name, pc.st)
     assign(f, pc)
     f
   }
 
+  def memoizeField[T: TypeInfo](v: Code[T]): Value[T] = {
+    newField[T]("memoize", v)
+  }
+
+  def memoize(v: EmitCode): EmitValue =
+    memoize(v, "memoize")
+
   def memoize(v: EmitCode, name: String): EmitValue = {
-    val l = emb.newEmitLocal(name, v.pt)
+    require(v.st.isRealizable)
+    val l = emb.newEmitLocal(name, v.emitType)
     assign(l, v)
     l
   }
 
+  def memoize(v: IEmitCode): EmitValue =
+    memoize(v, "memoize")
+
   def memoize(v: IEmitCode, name: String): EmitValue = {
-    val l = emb.newEmitLocal(name, v.pt)
+    require(v.st.isRealizable)
+    val l = emb.newEmitLocal(name, v.emitType)
     assign(l, v)
     l
   }
 
   def memoizeField[T](ec: EmitCode, name: String): EmitValue = {
-    val l = emb.newEmitField(name, ec.pt)
+    require(ec.st.isRealizable)
+    val l = emb.newEmitField(name, ec.emitType)
     l.store(this, ec)
     l
   }
 
+  def withScopedMaybeStreamValue[T](ec: EmitCode, name: String)(f: EmitValue => T): T = {
+    if (ec.st.isRealizable) {
+      f(memoizeField(ec, name))
+    } else {
+      assert(ec.st.isInstanceOf[SStream])
+      val ev = if (ec.required)
+        EmitValue(None, ec.toI(this).get(this, ""))
+      else {
+        val m = emb.genFieldThisRef[Boolean](name + "_missing")
+        ec.toI(this).consume(this, assign(m, true), _ => assign(m, false))
+        EmitValue(Some(m), ec.pv)
+      }
+      val res = f(ev)
+      ec.pv match {
+        case SStreamValue(_, producer) => StreamProducer.defineUnusedLabels(producer, emb)
+      }
+      res
+    }
+  }
+
   def memoizeField(v: IEmitCode, name: String): EmitValue = {
-    val l = emb.newEmitField(name, v.pt)
+    require(v.st.isRealizable)
+    val l = emb.newEmitField(name, v.emitType)
     assign(l, v)
     l
   }
 
-  private def _invoke[T](callee: EmitMethodBuilder[_], args: Param*): Code[T] = {
-      val codeArgs = args.flatMap {
-        case CodeParam(c) =>
+  private def _invoke[T](callee: EmitMethodBuilder[_], _args: Param*): Value[T] = {
+    val expectedArgs = callee.emitParamTypes
+    val args = _args.toArray
+    if (expectedArgs.size != args.length)
+      throw new RuntimeException(s"invoke ${ callee.mb.methodName }: wrong number of parameters: " +
+        s"expected ${ expectedArgs.size }, found ${ args.length }")
+    val codeArgs = args.indices.flatMap { i =>
+      val arg = args(i)
+      val pt = expectedArgs(i)
+      (arg, pt) match {
+        case (CodeParam(c), cpt: CodeParamType) =>
+          if (c.ti != cpt.ti)
+            throw new RuntimeException(s"invoke ${ callee.mb.methodName }: arg $i: type mismatch:" +
+              s"\n  got ${ c.ti }" +
+              s"\n  expected ${ cpt.ti }" +
+              s"\n  all param types: ${expectedArgs}-")
           FastIndexedSeq(c)
-        case PCodeParam(pc) =>
-          pc.codeTuple()
-        case EmitParam(ec) =>
-          if (ec.pt.required) {
-            append(ec.setup)
-            append(Code.toUnit(ec.m))
-            ec.codeTuple()
-          } else {
-            val ev = memoize(ec, "cb_invoke_setup_params")
-            ev.codeTuple()
+        case (SCodeParam(pc), pcpt: SCodeParamType) =>
+          if (pc.st != pcpt.st)
+            throw new RuntimeException(s"invoke ${ callee.mb.methodName }: arg $i: type mismatch:" +
+              s"\n  got ${ pc.st }" +
+              s"\n  expected ${ pcpt.st }")
+          pc.valueTuple
+        case (EmitParam(ec), SCodeEmitParamType(et)) =>
+          if (!ec.emitType.equalModuloRequired(et)) {
+            throw new RuntimeException(s"invoke ${callee.mb.methodName}: arg $i: type mismatch:" +
+              s"\n  got ${ec.st}" +
+              s"\n  expected ${et.st}")
           }
+
+          val castEc = (ec.required, et.required) match {
+            case (true, false) => ec.setOptional
+            case (false, true) =>
+              EmitCode.fromI(emb) { cb => IEmitCode.present(cb, ec.toI(cb).get(cb)) }
+            case _ => ec
+          }
+          val castEv = memoize(castEc, "_invoke")
+          castEv.valueTuple()
+        case (arg, expected) =>
+          throw new RuntimeException(s"invoke ${ callee.mb.methodName }: arg $i: type mismatch:" +
+            s"\n  got ${ arg }" +
+            s"\n  expected ${ expected }")
       }
-      callee.mb.invoke(codeArgs: _*)
+    }
+    callee.mb.invoke(this, codeArgs: _*)
   }
 
   def invokeVoid(callee: EmitMethodBuilder[_], args: Param*): Unit = {
@@ -129,7 +186,7 @@ class EmitCodeBuilder(val emb: EmitMethodBuilder[_], var code: Code[Unit]) exten
     append(_invoke[Unit](callee, args: _*))
   }
 
-  def invokeCode[T](callee: EmitMethodBuilder[_], args: Param*): Code[T] = {
+  def invokeCode[T](callee: EmitMethodBuilder[_], args: Param*): Value[T] = {
     callee.emitReturnType match {
       case CodeParamType(UnitInfo) =>
         throw new AssertionError("CodeBuilder.invokeCode had unit return type, use invokeVoid")
@@ -139,23 +196,35 @@ class EmitCodeBuilder(val emb: EmitMethodBuilder[_], var code: Code[Unit]) exten
     _invoke[T](callee, args: _*)
   }
 
-  def invokeEmit(callee: EmitMethodBuilder[_], args: Param*): IEmitCode = {
-    val pt = callee.emitReturnType.asInstanceOf[EmitParamType].pt
-    val r = newLocal("invokeEmit_r")(pt.codeReturnType())
-    assignAny(r, _invoke(callee, args: _*))
-    IEmitCode.fromCodeTuple(this, pt, Code.loadTuple(callee.modb, EmitCode.codeTupleTypes(pt), r))
+  def invokeSCode(callee: EmitMethodBuilder[_], args: Param*): SValue = {
+    val st = callee.emitReturnType.asInstanceOf[SCodeParamType].st
+    if (st.nSettables == 1)
+      st.fromValues(FastIndexedSeq(_invoke(callee, args: _*)))
+    else {
+      val tup = _invoke(callee, args: _*)
+      st.fromValues(callee.asmTuple.loadElementsAny(tup))
+    }
   }
 
   // for debugging
-  def printRegionValue(value: Code[_], typ: PType, region: Value[Region]): Unit = {
-    append(Code._println(StringFunctions.boxArg(EmitRegion(emb, region), typ)(value)))
+  def strValue(sc: SValue): Code[String] = {
+    StringFunctions.scodeToJavaValue(this, emb.partitionRegion, sc).invoke[String]("toString")
+  }
+
+  def strValue(ec: EmitCode): Code[String] = {
+    val s = newLocal[String]("s")
+    ec.toI(this).consume(this, assign(s, "NA"), sc => assign(s, strValue(sc)))
+    s
   }
 
   // for debugging
-  def strValue(r: Value[Region], t: PType, code: Code[_]): Code[String] = {
-    StringFunctions.boxArg(EmitRegion(emb, r), t)(code).invoke[String]("toString")
+  def println(cString: Code[String]*) = this += Code._printlns(cString: _*)
+
+  def logInfo(cs: Code[String]*): Unit = {
+    this += Code.invokeScalaObject1[String, Unit](LogHelper.getClass, "logInfo", cs.reduce[Code[String]] { case (l, r) => (l.concat(r)) })
   }
 
-  // for debugging
-  def println(cString: Code[String]*) = this += Code._printlns(cString:_*)
+  def consoleInfo(cs: Code[String]*): Unit = {
+    this += Code.invokeScalaObject1[String, Unit](LogHelper.getClass, "consoleInfo", cs.reduce[Code[String]] { case (l, r) => (l.concat(r)) })
+  }
 }

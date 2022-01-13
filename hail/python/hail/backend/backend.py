@@ -1,4 +1,5 @@
 import abc
+from ..fs.fs import FS
 
 
 class Backend(abc.ABC):
@@ -69,7 +70,7 @@ class Backend(abc.ABC):
 
     @property
     @abc.abstractmethod
-    def fs(self):
+    def fs(self) -> FS:
         pass
 
     @abc.abstractmethod

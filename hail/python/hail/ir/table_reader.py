@@ -1,10 +1,12 @@
 import abc
 import json
 
+import avro.schema
+
 import hail as hl
 
 from hail.ir.utils import make_filter_and_replace
-from hail.typecheck import typecheck_method, sequenceof, nullable, anytype
+from hail.typecheck import typecheck_method, sequenceof, nullable, anytype, oneof
 from hail.utils.misc import escape_str
 
 
@@ -67,7 +69,7 @@ class TextTableReader(TableReader):
     def __init__(self, paths, min_partitions, types, comment,
                  delimiter, missing, no_header, quote,
                  skip_blank_lines, force_bgz, filter, find_replace,
-                 force_gz):
+                 force_gz, source_file_field):
         self.config = {
             'files': paths,
             'typeMapStr': {f: t._parsable_string() for f, t in types.items()},
@@ -80,7 +82,8 @@ class TextTableReader(TableReader):
             'skipBlankLines': skip_blank_lines,
             'forceBGZ': force_bgz,
             'filterAndReplace': make_filter_and_replace(filter, find_replace),
-            'forceGZ': force_gz
+            'forceGZ': force_gz,
+            'sourceFileField': source_file_field
         }
 
     def render(self):
@@ -91,6 +94,24 @@ class TextTableReader(TableReader):
     def __eq__(self, other):
         return isinstance(other, TextTableReader) and \
             other.config == self.config
+
+
+class StringTableReader(TableReader):
+    @typecheck_method(paths=oneof(str, sequenceof(str)), min_partitions=nullable(int))
+    def __init__(self, paths, min_partitions):
+        self.paths = paths
+        self.min_partitions = min_partitions
+
+    def render(self):
+        reader = {'name': 'StringTableReader',
+                  'files': self.paths,
+                  'minPartitions': self.min_partitions}
+        return escape_str(json.dumps(reader))
+
+    def __eq__(self, other):
+        return isinstance(other, StringTableReader) and \
+            other.path == self.path and \
+            other.min_partitions == self.min_partitions
 
 
 class TableFromBlockMatrixNativeReader(TableReader):
@@ -112,3 +133,56 @@ class TableFromBlockMatrixNativeReader(TableReader):
             other.path == self.path and \
             other.n_partitions == self.n_partitions and \
             other.maximum_cache_memory_in_bytes == self.maximum_cache_memory_in_bytes
+
+
+class AvroTableReader(TableReader):
+    @typecheck_method(schema=avro.schema.Schema,
+                      paths=sequenceof(str),
+                      key=nullable(sequenceof(str)),
+                      intervals=nullable(sequenceof(anytype)))
+    def __init__(self, schema, paths, key, intervals):
+        assert (key is None) == (intervals is None)
+        self.schema = schema
+        self.paths = paths
+        self.key = key
+
+        if intervals is not None:
+            t = hl.expr.impute_type(intervals)
+            if not isinstance(t, hl.tarray) and not isinstance(t.element_type, hl.tinterval):
+                raise TypeError("'intervals' must be an array of tintervals")
+            pt = t.element_type.point_type
+            if isinstance(pt, hl.tstruct):
+                self._interval_type = t
+            else:
+                self._interval_type = hl.tarray(hl.tinterval(hl.tstruct(__point=pt)))
+
+        if intervals is not None and t != self._interval_type:
+            self.intervals = [hl.Interval(hl.Struct(__point=i.start),
+                                          hl.Struct(__point=i.end),
+                                          i.includes_start,
+                                          i.includes_end) for i in intervals]
+        else:
+            self.intervals = intervals
+
+    def render(self):
+        reader = {'name': 'AvroTableReader',
+                  'partitionReader': {'name': 'AvroPartitionReader',
+                                      'schema': self.schema.to_json()},
+                  'paths': self.paths}
+        if self.key is not None:
+            assert self.intervals is not None
+            assert self._interval_type is not None
+            reader['unsafeOptions'] = {
+                'name': 'UnsafeAvroTableReaderOptions',
+                'key': self.key,
+                'intervals': self._interval_type._convert_to_json(self.intervals),
+                'intervalPointType': self._interval_type.element_type.point_type._parsable_string(),
+            }
+        return escape_str(json.dumps(reader))
+
+    def __eq__(self, other):
+        return isinstance(other, AvroTableReader) and \
+            other.schema == self.schema and \
+            other.paths == self.paths and \
+            other.key == self.key and \
+            other.intervals == self.intervals

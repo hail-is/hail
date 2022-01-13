@@ -171,8 +171,8 @@ class SwitchBuilder(ConditionalBuilder):
         """
         if len(self._cases) == 0:
             raise ExpressionException("'or_missing' cannot be called without at least one 'when' call")
-        from hail.expr.functions import null
-        return self._finish(null(self._ret_type))
+        from hail.expr.functions import missing
+        return self._finish(missing(self._ret_type))
 
     @typecheck_method(message=expr_str)
     def or_error(self, message):
@@ -309,8 +309,8 @@ class CaseBuilder(ConditionalBuilder):
         """
         if len(self._cases) == 0:
             raise ExpressionException("'or_missing' cannot be called without at least one 'when' call")
-        from hail.expr.functions import null
-        return self._finish(null(self._ret_type))
+        from hail.expr.functions import missing
+        return self._finish(missing(self._ret_type))
 
     @typecheck_method(message=expr_str)
     def or_error(self, message):

@@ -14,7 +14,7 @@ def haplotype_freq_em(gt_counts) -> ArrayExpression:
     [AABB, AABb, AAbb, AaBB, AaBb, Aabb, aaBB, aaBb, aabb]
 
     The estimated haplotype counts are returned in an array in the following order:
-    [AB, Ab, aB, ab]
+    [AB, aB, Ab, ab]
 
     Where _A_ and _a_ are the reference and non-reference alleles for the first variant, resp.
     And _B_ and _b_ are the reference and non-reference alleles for the second variant, resp.

@@ -3,13 +3,14 @@ from functools import reduce
 import hail as hl
 from hail.expr.functions import _ndarray
 from hail.expr.functions import array as aarray
-from hail.expr.types import HailType, tfloat64, ttuple, tndarray
+from hail.expr.types import HailType, tfloat64, tfloat32, ttuple, tndarray
 from hail.typecheck import typecheck, nullable, oneof, tupleof, sequenceof
 from hail.expr.expressions import (
     expr_int32, expr_int64, expr_tuple, expr_any, expr_array, expr_ndarray,
-    expr_numeric, Int64Expression, cast_expr, construct_expr)
+    expr_numeric, Int64Expression, cast_expr, construct_expr, expr_bool)
 from hail.expr.expressions.typed_expressions import NDArrayNumericExpression
-from hail.ir import NDArrayQR, NDArrayInv, NDArrayConcat, NDArraySVD
+from hail.ir import NDArrayQR, NDArrayInv, NDArrayConcat, NDArraySVD, Apply
+
 
 tsequenceof_nd = oneof(sequenceof(expr_ndarray()), expr_array(expr_ndarray()))
 shape_type = oneof(expr_int64, tupleof(expr_int64), expr_tuple())
@@ -93,7 +94,7 @@ def arange(start, stop=None, step=1) -> NDArrayNumericExpression:
     :class:`.NDArrayNumericExpression`
         A 1-dimensional ndarray from `start` to `stop` by `step`.
     """
-    return array(hl.range(start, stop, step))
+    return _ndarray(hl.range(start, stop, step))
 
 
 @typecheck(shape=shape_type, value=expr_any, dtype=nullable(HailType))
@@ -219,6 +220,87 @@ def diagonal(nd):
     assert nd.ndim == 2, "diagonal requires 2 dimensional ndarray"
     shape_min = hl.min(nd.shape[0], nd.shape[1])
     return hl.nd.array(hl.range(hl.int32(shape_min)).map(lambda i: nd[i, i]))
+
+
+@typecheck(a=expr_ndarray(), b=expr_ndarray(), no_crash=bool)
+def solve(a, b, no_crash=False):
+    """Solve a linear system.
+
+    Parameters
+    ----------
+    a : :class:`.NDArrayNumericExpression`, (N, N)
+        Coefficient matrix.
+    b : :class:`.NDArrayNumericExpression`, (N,) or (N, K)
+        Dependent variables.
+
+    Returns
+    -------
+    :class:`.NDArrayNumericExpression`, (N,) or (N, K)
+        Solution to the system Ax = B. Shape is same as shape of B.
+
+    """
+    b_ndim_orig = b.ndim
+    a, b = solve_helper(a, b, b_ndim_orig)
+    if no_crash:
+        name = "linear_solve_no_crash"
+        return_type = hl.tstruct(solution=hl.tndarray(hl.tfloat64, 2), failed=hl.tbool)
+    else:
+        name = "linear_solve"
+        return_type = hl.tndarray(hl.tfloat64, 2)
+
+    ir = Apply(name, return_type, a._ir, b._ir)
+    result = construct_expr(ir, return_type, a._indices, a._aggregations)
+
+    if b_ndim_orig == 1:
+        if no_crash:
+            result = hl.struct(solution=result.solution.reshape((-1)), failed=result.failed)
+        else:
+            result = result.reshape((-1))
+    return result
+
+
+@typecheck(nd_coef=expr_ndarray(), nd_dep=expr_ndarray(), lower=expr_bool)
+def solve_triangular(nd_coef, nd_dep, lower=False):
+    """Solve a triangular linear system.
+
+    Parameters
+    ----------
+    nd_coef : :class:`.NDArrayNumericExpression`, (N, N)
+        Triangular coefficient matrix.
+    nd_dep : :class:`.NDArrayNumericExpression`, (N,) or (N, K)
+        Dependent variables.
+    lower : `bool`:
+        If true, nd_coef is interpreted as a lower triangular matrix
+        If false, nd_coef is interpreted as a upper triangular matrix
+
+    Returns
+    -------
+    :class:`.NDArrayNumericExpression`, (N,) or (N, K)
+        Solution to the triangular system Ax = B. Shape is same as shape of B.
+
+    """
+    nd_dep_ndim_orig = nd_dep.ndim
+    nd_coef, nd_dep = solve_helper(nd_coef, nd_dep, nd_dep_ndim_orig)
+    return_type = hl.tndarray(hl.tfloat64, 2)
+    ir = Apply("linear_triangular_solve", return_type, nd_coef._ir, nd_dep._ir, lower._ir)
+    result = construct_expr(ir, return_type, nd_coef._indices, nd_coef._aggregations)
+    if nd_dep_ndim_orig == 1:
+        result = result.reshape((-1))
+    return result
+
+
+def solve_helper(nd_coef, nd_dep, nd_dep_ndim_orig):
+    assert nd_coef.ndim == 2
+    assert nd_dep_ndim_orig == 1 or nd_dep_ndim_orig == 2
+
+    if nd_dep_ndim_orig == 1:
+        nd_dep = nd_dep.reshape((-1, 1))
+
+    if nd_coef.dtype.element_type != hl.tfloat64:
+        nd_coef = nd_coef.map(lambda e: hl.float64(e))
+    if nd_dep.dtype.element_type != hl.tfloat64:
+        nd_dep = nd_dep.map(lambda e: hl.float64(e))
+    return nd_coef, nd_dep
 
 
 @typecheck(nd=expr_ndarray(), mode=str)
@@ -508,7 +590,7 @@ def hstack(arrs):
     Examples
     --------
     >>> a = hl.nd.array([1,2,3])
-    >>> b = hl.nd.array([2,3,4])
+    >>> b = hl.nd.array([2, 3, 4])
     >>> hl.eval(hl.nd.hstack((a,b)))
     array([1, 2, 3, 2, 3, 4], dtype=int32)
     >>> a = hl.nd.array([[1],[2],[3]])
@@ -526,3 +608,85 @@ def hstack(arrs):
         axis = 1
 
     return concatenate(arrs, axis)
+
+
+@typecheck(nd1=expr_ndarray(), nd2=oneof(expr_ndarray(), list))
+def maximum(nd1, nd2):
+    """
+    Compares elements at corresponding indexes in  arrays
+    and returns an array of the maximum element found
+    at each compared index.
+
+    If an array element being compared has the value NaN,
+    the maximum for that index will be NaN.
+
+    Parameters
+    ----------
+    nd1 : :class:`.NDArrayExpression`
+    nd2 : class:`.NDArrayExpression`, `.ArrayExpression`, numpy ndarray, or nested python lists/tuples.
+        Nd1 and nd2 must be the same shape or broadcastable into common shape. Nd1 and nd2 must
+        have elements of comparable types
+
+    Returns
+    -------
+    max_array : :class:`.NDArrayExpression` Element-wise maximums of nd1 and nd2. If nd1 has the
+        same shape as nd2, the resulting array will be of that shape. If nd1 and nd2 were broadcasted
+        into a common shape, the resulting array will be of that shape
+
+    Examples
+    --------
+    >>> a = hl.nd.array([1, 5, 3])
+    >>> b = hl.nd.array([2, 3, 4])
+    >>> hl.eval(hl.nd.maximum(a, b))
+    array([2, 5, 4], dtype=int32)
+    >>> a = hl.nd.array([hl.float64(float("NaN")), 5.0, 3.0])
+    >>> b = hl.nd.array([2.0, 3.0, hl.float64(float("NaN"))])
+    >>> hl.eval(hl.nd.maximum(a, b))
+    array([nan, 5., nan])
+    """
+
+    if (nd1.dtype.element_type or nd2.dtype.element_type) == (tfloat64 or tfloat32):
+        return nd1.map2(nd2, lambda a, b: hl.if_else(hl.is_nan(a) | hl.is_nan(b),
+                        hl.float64(float("NaN")), hl.if_else(a > b, a, b)))
+    return nd1.map2(nd2, lambda a, b: hl.if_else(a > b, a, b))
+
+
+@typecheck(nd1=expr_ndarray(), nd2=oneof(expr_ndarray(), list))
+def minimum(nd1, nd2):
+    """
+    Compares elements at corresponding indexes in arrays
+    and returns an array of the minimum element found
+    at each compared index.
+
+    If an array element being compared has the value NaN,
+    the minimum for that index will be NaN.
+
+    Parameters
+    ----------
+    nd1 : :class:`.NDArrayExpression`
+    nd2 : class:`.NDArrayExpression`, `.ArrayExpression`, numpy ndarray, or nested python lists/tuples.
+        nd1 and nd2 must be the same shape or broadcastable into common shape. Nd1 and nd2 must
+        have elements of comparable types
+
+    Returns
+    -------
+    min_array : :class:`.NDArrayExpression` Element-wise minimums of nd1 and nd2. If nd1 has the
+        same shape as nd2, the resulting array will be of that shape. If nd1 and nd2 were broadcasted
+        into a common shape, resulting array will be of that shape
+
+    Examples
+    --------
+    >>> a = hl.nd.array([1, 5, 3])
+    >>> b = hl.nd.array([2, 3, 4])
+    >>> hl.eval(hl.nd.minimum(a, b))
+    array([1, 3, 3], dtype=int32)
+    >>> a = hl.nd.array([hl.float64(float("NaN")), 5.0, 3.0])
+    >>> b = hl.nd.array([2.0, 3.0, hl.float64(float("NaN"))])
+    >>> hl.eval(hl.nd.minimum(a, b))
+    array([nan, 3., nan])
+    """
+
+    if (nd1.dtype.element_type or nd2.dtype.element_type) == (tfloat64 or tfloat32):
+        return nd1.map2(nd2, lambda a, b: hl.if_else(hl.is_nan(a) | hl.is_nan(b),
+                        hl.float64(float("NaN")), hl.if_else(a < b, a, b)))
+    return nd1.map2(nd2, lambda a, b: hl.if_else(a < b, a, b))

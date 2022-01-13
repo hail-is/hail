@@ -1,10 +1,11 @@
-states = {'Pending', 'Ready', 'Running', 'Cancelled', 'Error', 'Failed', 'Success'}
+states = {'Pending', 'Ready', 'Creating', 'Running', 'Cancelled', 'Error', 'Failed', 'Success'}
 
 complete_states = ('Cancelled', 'Error', 'Failed', 'Success')
 
 valid_state_transitions = {
     'Pending': {'Ready'},
-    'Ready': {'Running', 'Cancelled', 'Error'},
+    'Ready': {'Creating', 'Running', 'Cancelled', 'Error'},
+    'Creating': {'Ready', 'Running'},
     'Running': {'Ready', 'Cancelled', 'Error', 'Failed', 'Success'},
     'Cancelled': set(),
     'Error': set(),
@@ -14,11 +15,13 @@ valid_state_transitions = {
 
 tasks = ('input', 'main', 'output')
 
-valid_worker_types = {'standard', 'highmem', 'highcpu'}
+memory_types = ('lowmem', 'standard', 'highmem')
 
 HTTP_CLIENT_MAX_SIZE = 8 * 1024 * 1024
 
-BATCH_FORMAT_VERSION = 4
-STATUS_FORMAT_VERSION = 3
-INSTANCE_VERSION = 14
-WORKER_CONFIG_VERSION = 2
+BATCH_FORMAT_VERSION = 6
+STATUS_FORMAT_VERSION = 5
+INSTANCE_VERSION = 21
+
+MAX_PERSISTENT_SSD_SIZE_GIB = 64 * 1024
+RESERVED_STORAGE_GB_PER_CORE = 5

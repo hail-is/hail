@@ -7,6 +7,7 @@ import java.security.KeyStore
 
 import javax.net.ssl.{KeyManagerFactory, SSLContext, TrustManagerFactory}
 import org.apache.log4j.{LogManager, Logger}
+import org.json4s.JsonAST.JString
 import org.json4s.jackson.JsonMethods
 
 class NoSSLConfigFound(
@@ -31,9 +32,10 @@ package object tls {
   lazy val log: Logger = LogManager.getLogger("is.hail.tls")
 
   private[this] lazy val _getSSLConfig: SSLConfig = {
-    var configFile = System.getenv("HAIL_SSL_CONFIG_FILE")
-    if (configFile == null)
-      configFile = "/ssl-config/ssl-config.json"
+    var configDir = System.getenv("HAIL_SSL_CONFIG_DIR")
+    if (configDir == null)
+      configDir = "/ssl-config"
+    val configFile = s"$configDir/ssl-config.json"
     if (!new File(configFile).isFile)
       throw new NoSSLConfigFound(s"no ssl config file found at $configFile")
 
@@ -41,7 +43,7 @@ package object tls {
 
     using(new FileInputStream(configFile)) { is =>
       implicit val formats: Formats = DefaultFormats
-      JsonMethods.parse(is).extract[SSLConfig]
+      JsonMethods.parse(is).mapField { case (k, JString(v)) => (k, JString(s"$configDir/$v")) }.extract[SSLConfig]
     }
   }
 

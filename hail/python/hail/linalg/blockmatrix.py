@@ -9,11 +9,11 @@ import scipy.linalg as spla
 import hail as hl
 import hail.expr.aggregators as agg
 from hail.expr import construct_expr, construct_variable
-from hail.expr.expressions import (expr_float64, matrix_table_source,
+from hail.expr.expressions import (expr_float64, matrix_table_source, expr_ndarray,
                                    check_entry_indexed, expr_tuple, expr_array, expr_int32, expr_int64)
 from hail.ir import (BlockMatrixWrite, BlockMatrixMap2, ApplyBinaryPrimOp, F64,
                      BlockMatrixBroadcast, ValueToBlockMatrix, BlockMatrixRead, JavaBlockMatrix,
-                     BlockMatrixMap, ApplyUnaryPrimOp, BlockMatrixDot,
+                     BlockMatrixMap, ApplyUnaryPrimOp, BlockMatrixDot, BlockMatrixCollect,
                      tensor_shape_to_matrix_shape, BlockMatrixAgg, BlockMatrixRandom,
                      BlockMatrixToValueApply, BlockMatrixToTable, BlockMatrixFilter,
                      TableFromBlockMatrixNativeReader, TableRead, BlockMatrixSlice,
@@ -507,6 +507,19 @@ class BlockMatrix(object):
             block_size = BlockMatrix.default_block_size()
 
         return BlockMatrix(ValueToBlockMatrix(hl.literal(data)._ir, [n_rows, n_cols], block_size))
+
+    @classmethod
+    @typecheck_method(ndarray_expression=expr_ndarray(), block_size=int)
+    def from_ndarray(cls, ndarray_expression, block_size=4096):
+        """Create a BlockMatrix from an ndarray"""
+        if ndarray_expression.dtype.element_type != hl.tfloat64:
+            raise ValueError("BlockMatrix.from_ndarray expects an ndarray of type float64")
+
+        shape = hl.eval(ndarray_expression.shape)
+
+        if shape is None:
+            raise ValueError("Cannot make a BlockMatrix from a missing NDArray")
+        return BlockMatrix(ValueToBlockMatrix(ndarray_expression._ir, shape, block_size))
 
     @staticmethod
     def default_block_size():
@@ -1205,6 +1218,17 @@ class BlockMatrix(object):
             self.tofile(uri)
             return np.fromfile(path).reshape((self.n_rows, self.n_cols))
 
+    def to_ndarray(self):
+        """Collects a BlockMatrix into a local hail ndarray expression on driver. This should not
+        be done for large matrices.
+
+        Returns
+        -------
+        :class:`.NDArrayExpression`
+        """
+        ir = BlockMatrixCollect(self._bmir)
+        return construct_expr(ir, hl.tndarray(hl.tfloat64, 2))
+
     @property
     def is_sparse(self):
         """Returns ``True`` if block-sparse.
@@ -1375,6 +1399,8 @@ class BlockMatrix(object):
         -------
         :class:`.BlockMatrix`
         """
+        if isinstance(b, (int, float)):
+            return self._map_dense(lambda entry: entry + b)
         return self._apply_map2(BlockMatrix._binary_op('+'), b, sparsity_strategy="Union")
 
     @typecheck_method(b=oneof(numeric, np.ndarray, block_matrix_type))
@@ -1389,6 +1415,8 @@ class BlockMatrix(object):
         -------
         :class:`.BlockMatrix`
         """
+        if isinstance(b, (int, float)):
+            return self._map_dense(lambda entry: entry - b)
         return self._apply_map2(BlockMatrix._binary_op('-'), b, sparsity_strategy="Union")
 
     @typecheck_method(b=oneof(numeric, np.ndarray, block_matrix_type))
@@ -1403,6 +1431,9 @@ class BlockMatrix(object):
         -------
         :class:`.BlockMatrix`
         """
+        if isinstance(b, (int, float)):
+            # sparse since multiplying by zero is zero
+            return self._map_sparse(lambda entry: entry * b)
         return self._apply_map2(BlockMatrix._binary_op('*'), b, sparsity_strategy="Intersection")
 
     @typecheck_method(b=oneof(numeric, np.ndarray, block_matrix_type))
@@ -1417,6 +1448,9 @@ class BlockMatrix(object):
         -------
         :class:`.BlockMatrix`
         """
+        if isinstance(b, (int, float)):
+            # sparse since dividing by zero is zero
+            return self._map_sparse(lambda entry: entry / b)
         return self._apply_map2(BlockMatrix._binary_op('/'), b, sparsity_strategy="NeedsDense")
 
     @typecheck_method(b=numeric)
@@ -1528,6 +1562,12 @@ class BlockMatrix(object):
         """
         return self._apply_map(lambda i: i ** x, needs_dense=False)
 
+    def _map_dense(self, func):
+        return self._apply_map(func, True)
+
+    def _map_sparse(self, func):
+        return self._apply_map(func, False)
+
     def sqrt(self):
         """Element-wise square root.
 
@@ -1622,10 +1662,10 @@ class BlockMatrix(object):
             If ``1``, returns a block matrix with a single column.
         """
         if axis is None:
-            bmir = BlockMatrixAgg(self._bmir, [])
+            bmir = BlockMatrixAgg(self._bmir, [0, 1])
             return BlockMatrix(bmir)[0, 0]
         elif axis == 0 or axis == 1:
-            out_index_expr = [dim for dim in range(len(self.shape)) if dim != axis]
+            out_index_expr = [axis]
 
             bmir = BlockMatrixAgg(self._bmir, out_index_expr)
             return BlockMatrix(bmir)
@@ -1762,7 +1802,7 @@ class BlockMatrix(object):
         """
         t = self.to_table_row_major(n_partitions, maximum_cache_memory_in_bytes)
         t = t.transmute(entries=t.entries.map(lambda i: hl.struct(element=i)))
-        t = t.annotate_globals(cols=hl.array([hl.struct(col_idx=hl.int64(i)) for i in range(self.n_cols)]))
+        t = t.annotate_globals(cols=hl.range(self.n_cols).map(lambda i: hl.struct(col_idx=hl.int64(i))))
         return t._unlocalize_entries('entries', 'cols', ['col_idx'])
 
     @staticmethod

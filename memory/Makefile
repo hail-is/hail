@@ -2,34 +2,27 @@ include ../config.mk
 
 PYTHONPATH := $${PYTHONPATH:+$${PYTHONPATH}:}../hail/python:../gear
 PYTHON := PYTHONPATH=$(PYTHONPATH) python3
+BLACK := $(PYTHON) -m black . --line-length=120 --skip-string-normalization
 
-MEMORY_LATEST = gcr.io/$(PROJECT)/memory:latest
-MEMORY_IMAGE = gcr.io/$(PROJECT)/memory:$(shell docker images -q --no-trunc memory | sed -e 's,[^:]*:,,')
+TOKEN = $(shell cat /dev/urandom | LC_ALL=C tr -dc 'a-z0-9' | head -c 12)
+
+MEMORY_IMAGE := $(DOCKER_PREFIX)/memory:$(TOKEN)
 
 .PHONY: check
 check:
 	$(PYTHON) -m flake8  --config ../setup.cfg memory
 	$(PYTHON) -m pylint --rcfile ../pylintrc memory --score=n
+	$(BLACK) --check --diff
 
 .PHONY: build
 build:
-	$(MAKE) -C ../docker build
-	-docker pull $(MEMORY_LATEST)
-	python3 ../ci/jinja2_render.py '{"service_base_image":{"image":"service-base"}}' Dockerfile Dockerfile.out
-	docker build -t memory -f Dockerfile.out --cache-from memory,$(MEMORY_LATEST),service-base ..
-
-.PHONY: push
-push: build
-	docker tag memory $(MEMORY_LATEST)
-	docker push $(MEMORY_LATEST)
-	docker tag memory $(MEMORY_IMAGE)
-	docker push $(MEMORY_IMAGE)
+	$(MAKE) -C ../docker service-base
+	python3 ../ci/jinja2_render.py '{"service_base_image":{"image":"'$$(cat ../docker/service-base-image-ref)'"}}' Dockerfile Dockerfile.out
+	../docker-build.sh .. memory/Dockerfile.out $(MEMORY_IMAGE)
 
 .PHONY: deploy
-
-deploy: push
+deploy: build
 	! [ -z $(NAMESPACE) ]  # call this like: make deploy NAMESPACE=default
 	kubectl -n $(NAMESPACE) apply -f service-account.yaml
-	python3 ../ci/jinja2_render.py '{"default_ns":{"name":"$(NAMESPACE)"}}' service-account-batch-pods.yaml service-account-batch-pods.yaml.out
-	python3 ../ci/jinja2_render.py '{"code":{"sha":"$(shell git rev-parse --short=12 HEAD)"},"deploy":$(DEPLOY),"memory_image":{"image":"$(MEMORY_IMAGE)"},"global":{"project":"$(PROJECT)","domain":"$(DOMAIN)"}}' deployment.yaml deployment.yaml.out
+	python3 ../ci/jinja2_render.py '{"code":{"sha":"$(shell git rev-parse --short=12 HEAD)"},"deploy":$(DEPLOY),"memory_image":{"image":"$(MEMORY_IMAGE)"},"global":{"docker_prefix":"$(DOCKER_PREFIX)"},"default_ns":{"name":"$(NAMESPACE)"}}' deployment.yaml deployment.yaml.out
 	kubectl -n $(NAMESPACE) apply -f deployment.yaml.out

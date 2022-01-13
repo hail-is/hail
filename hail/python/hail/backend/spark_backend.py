@@ -8,6 +8,9 @@ from threading import Thread
 import py4j
 import pyspark
 
+from typing import List
+
+import hail as hl
 from hail.utils.java import Env, scala_package_object, scala_object
 from hail.expr.types import dtype
 from hail.expr.table_type import ttable
@@ -21,9 +24,8 @@ from hail.matrixtable import MatrixTable
 from .py4j_backend import Py4JBackend, handle_java_exception
 from ..hail_logging import Logger
 
-
 if pyspark.__version__ < '3' and sys.version_info > (3, 8):
-    raise EnvironmentError('Hail with spark {} requires Python 3.6 or 3.7, found {}.{}'.format(
+    raise EnvironmentError('Hail with spark {} requires Python 3.7, found {}.{}'.format(
         pyspark.__version__, sys.version_info.major, sys.version_info.minor))
 
 _installed = False
@@ -120,6 +122,8 @@ class SparkBackend(Py4JBackend):
     def __init__(self, idempotent, sc, spark_conf, app_name, master,
                  local, log, quiet, append, min_block_size,
                  branching_factor, tmpdir, local_tmpdir, skip_logging_configuration, optimizer_iterations):
+        super(SparkBackend, self).__init__()
+
         if pkg_resources.resource_exists(__name__, "hail-all-spark.jar"):
             hail_jar_path = pkg_resources.resource_filename(__name__, "hail-all-spark.jar")
             assert os.path.exists(hail_jar_path), f'{hail_jar_path} does not exist'
@@ -131,14 +135,20 @@ class SparkBackend(Py4JBackend):
 
             jars = [hail_jar_path]
 
-            if os.environ.get('HAIL_SPARK_MONITOR'):
+            if os.environ.get('HAIL_SPARK_MONITOR') or os.environ.get('AZURE_SPARK') == '1':
                 import sparkmonitor
                 jars.append(os.path.join(os.path.dirname(sparkmonitor.__file__), 'listener.jar'))
                 conf.set("spark.extraListeners", "sparkmonitor.listener.JupyterSparkMonitorListener")
 
             conf.set('spark.jars', ','.join(jars))
-            conf.set('spark.driver.extraClassPath', ','.join(jars))
-            conf.set('spark.executor.extraClassPath', './hail-all-spark.jar')
+            if os.environ.get('AZURE_SPARK') == '1':
+                print('AZURE_SPARK environment variable is set to "1", assuming you are in HDInsight.')
+                # Setting extraClassPath in HDInsight overrides the classpath entirely so you can't
+                # load the Scala standard library. Interestingly, setting extraClassPath is not
+                # necessary in HDInsight.
+            else:
+                conf.set('spark.driver.extraClassPath', ','.join(jars))
+                conf.set('spark.executor.extraClassPath', './hail-all-spark.jar')
             if sc is None:
                 pyspark.SparkContext._ensure_initialized(conf=conf)
             elif not quiet:
@@ -146,8 +156,8 @@ class SparkBackend(Py4JBackend):
                     'pip-installed Hail requires additional configuration options in Spark referring\n'
                     '  to the path to the Hail Python module directory HAIL_DIR,\n'
                     '  e.g. /path/to/python/site-packages/hail:\n'
-                    '    spark.jars=HAIL_DIR/hail-all-spark.jar\n'
-                    '    spark.driver.extraClassPath=HAIL_DIR/hail-all-spark.jar\n'
+                    '    spark.jars=HAIL_DIR/backend/hail-all-spark.jar\n'
+                    '    spark.driver.extraClassPath=HAIL_DIR/backend/hail-all-spark.jar\n'
                     '    spark.executor.extraClassPath=./hail-all-spark.jar')
         else:
             pyspark.SparkContext._ensure_initialized()
@@ -216,6 +226,7 @@ class SparkBackend(Py4JBackend):
         return self._utils_package_object
 
     def stop(self):
+        self._jbackend.close()
         self._jhc.stop()
         self._jhc = None
         self.sc.stop()
@@ -307,10 +318,8 @@ class SparkBackend(Py4JBackend):
         t = t.expand_types()
         if flatten:
             t = t.flatten()
-        return pyspark.sql.DataFrame(self._jbackend.pyToDF(self._to_java_table_ir(t._tir)), Env.spark_session()._wrapped)
-
-    def to_pandas(self, t, flatten):
-        return self.to_spark(t, flatten).toPandas()
+        return pyspark.sql.DataFrame(self._jbackend.pyToDF(self._to_java_table_ir(t._tir)),
+                                     Env.spark_session()._wrapped)
 
     def from_pandas(self, df, key):
         return Table.from_spark(Env.spark_session().createDataFrame(df), key)
@@ -368,3 +377,13 @@ class SparkBackend(Py4JBackend):
 
     def persist_ir(self, ir):
         return JavaIR(self._jhc.backend().executeLiteral(self._to_java_value_ir(ir)))
+
+    def read_multiple_matrix_tables(self, paths: 'List[str]', intervals: 'List[hl.Interval]', intervals_type):
+        json_repr = {
+            'paths': paths,
+            'intervals': intervals_type._convert_to_json(intervals),
+            'intervalPointType': intervals_type.element_type.point_type._parsable_string(),
+        }
+
+        results = self._jhc.backend().pyReadMultipleMatrixTables(json.dumps(json_repr))
+        return [MatrixTable._from_java(jm) for jm in results]

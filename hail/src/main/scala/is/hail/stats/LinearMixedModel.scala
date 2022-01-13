@@ -1,18 +1,17 @@
 package is.hail.stats
 
 import breeze.linalg.{DenseMatrix => BDM, DenseVector => BDV}
-import is.hail.HailContext
 import is.hail.annotations.{BroadcastRow, Region, RegionValue, RegionValueBuilder}
-import is.hail.backend.HailTaskContext
-import is.hail.expr.ir.{ExecuteContext, TableIR, TableLiteral, TableValue}
-import is.hail.types.TableType
-import is.hail.types.physical.{PCanonicalStruct, PFloat64, PInt64, PStruct}
-import is.hail.types.virtual.{TFloat64, TInt64, TStruct}
+import is.hail.backend.ExecuteContext
+import is.hail.backend.spark.SparkTaskContext
+import is.hail.expr.ir.{TableIR, TableLiteral, TableValue}
 import is.hail.linalg.RowMatrix
-import is.hail.rvd.{RVD, RVDContext, RVDType}
+import is.hail.rvd.{RVD, RVDType}
 import is.hail.sparkextras.ContextRDD
+import is.hail.types.TableType
+import is.hail.types.physical.{PCanonicalStruct, PFloat64, PInt64}
+import is.hail.types.virtual.TStruct
 import is.hail.utils._
-import org.apache.spark.sql.Row
 import org.apache.spark.storage.StorageLevel
 
 case class LMMData(gamma: Double, residualSq: Double, py: BDV[Double], px: BDM[Double], d: BDV[Double],
@@ -27,7 +26,7 @@ object LinearMixedModel {
     new LinearMixedModel(
       LMMData(gamma, residualSq, BDV(py), px, BDV(d), ydy, BDV(xdy), xdx, Option(yOpt).map(BDV(_)), Option(xOpt)))
   }
-  
+
   private val rowType = PCanonicalStruct(true,
       "idx" -> PInt64(),
       "beta" -> PFloat64(),
@@ -71,7 +70,7 @@ class LinearMixedModel(lmmData: LMMData) {
       val r0 = 0 to 0
       val r1 = 1 until f
 
-      val region = Region(pool = HailTaskContext.get().getRegionPool())
+      val region = Region(pool = SparkTaskContext.get().getRegionPool())
       val rv = RegionValue(region)
       val rvb = new RegionValueBuilder(region)
 
@@ -86,7 +85,7 @@ class LinearMixedModel(lmmData: LMMData) {
         xdx(0, 0) = (pa dot dpa) + gamma * (a dot a)
         xdx(r1, r0) := (dpa.t * px).t + gamma * (a.t * x).t // if px and x are not copied, the forms px.t * dpa and x.t * a result in a subtle bug
         xdx(r0, r1) := xdx(r1, r0).t
-       
+
         region.clear()
         rvb.start(rowType)
         try {
@@ -94,7 +93,7 @@ class LinearMixedModel(lmmData: LMMData) {
           val residualSq = ydy - (xdy dot beta)
           val sigmaSq = residualSq / dof
           val chiSq = n * math.log(nullResidualSq / residualSq)
-          val pValue = chiSquaredTail(chiSq, 1)
+          val pValue = pchisqtail(chiSq, 1)
 
           rvb.startStruct()
           rvb.addLong(i)
@@ -124,11 +123,11 @@ class LinearMixedModel(lmmData: LMMData) {
 
     LinearMixedModel.toTableIR(ctx, rvd)
   }
-  
+
   def fitFullRank(ctx: ExecuteContext, pa_t: RowMatrix): TableIR = {
     val lmmDataBc = ctx.backend.broadcast(lmmData)
     val rowType = LinearMixedModel.rowType
-    
+
     val rdd = pa_t.rows.mapPartitions { itPAt =>
       val LMMData(_, nullResidualSq, py, px, d, ydy, xdy0, xdx0, _, _) = lmmDataBc.value
       val xdy = xdy0.copy
@@ -138,8 +137,8 @@ class LinearMixedModel(lmmData: LMMData) {
       val dof = n - f
       val r0 = 0 to 0
       val r1 = 1 until f
-      
-      val region = Region(pool=HailTaskContext.get().getRegionPool())
+
+      val region = Region(pool = SparkTaskContext.get().getRegionPool())
       val rv = RegionValue(region)
       val rvb = new RegionValueBuilder(region)
 
@@ -151,15 +150,15 @@ class LinearMixedModel(lmmData: LMMData) {
         xdx(0, 0) = pa dot dpa
         xdx(r1, r0) := (dpa.t * px).t // if px is not copied, the form px.t * dpa results in a subtle bug
         xdx(r0, r1) := xdx(r1, r0).t
-        
+
         region.clear()
         rvb.start(rowType)
-        try {          
+        try {
           val beta = xdx \ xdy
           val residualSq = ydy - (xdy dot beta)
           val sigmaSq = residualSq / dof
           val chiSq = n * math.log(nullResidualSq / residualSq)
-          val pValue = chiSquaredTail(chiSq, 1)
+          val pValue = pchisqtail(chiSq, 1)
 
           rvb.startStruct()
           rvb.addLong(i)

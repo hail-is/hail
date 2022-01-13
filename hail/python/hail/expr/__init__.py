@@ -36,7 +36,7 @@ from .functions import literal, chi_squared_test, if_else, cond, switch, case, \
     is_star, is_complex, is_strand_ambiguous, allele_type, hamming, \
     mendel_error_code, triangle, downcode, gq_from_pl, parse_call, \
     unphased_diploid_gt_index_call, argmax, argmin, zip, _zip_func, enumerate, zip_with_index, map, \
-    flatmap, flatten, any, all, filter, sorted, find, group_by, fold, \
+    flatmap, starmap, flatten, any, all, filter, sorted, find, group_by, fold, \
     array_scan, len, min, nanmin, max, nanmax, mean, median, product, sum, \
     cumulative_sum, struct, tuple, set, empty_set, array, empty_array, \
     empty_dict, delimit, abs, sign, floor, ceil, float, float32, float64, \
@@ -44,9 +44,9 @@ from .functions import literal, chi_squared_test, if_else, cond, switch, case, \
     parse_int32, parse_int64, bool, get_sequence, reverse_complement, \
     is_valid_contig, is_valid_locus, contig_length, liftover, min_rep, \
     uniroot, format, approx_equal, reversed, bit_and, bit_or, bit_xor, \
-    bit_lshift, bit_rshift, bit_not, binary_search, \
+    bit_lshift, bit_rshift, bit_not, binary_search, logit, expit, \
     _values_similar, _showstr, _sort_by, _compare, _locus_windows_per_contig, \
-    shuffle
+    shuffle, _console_log, dnorm, dchisq
 
 __all__ = ['HailType',
            'hail_type',
@@ -126,6 +126,8 @@ __all__ = ['HailType',
            'parse_json',
            'log',
            'log10',
+           'logit',
+           'expit',
            'null',
            'missing',
            'or_else',
@@ -182,6 +184,7 @@ __all__ = ['HailType',
            'zip_with_index',
            'map',
            'flatmap',
+           'starmap',
            'flatten',
            'any',
            'all',
@@ -303,4 +306,7 @@ __all__ = ['HailType',
            'expr_struct',
            'expr_oneof',
            'expr_numeric',
-           'coercer_from_dtype']
+           'coercer_from_dtype',
+           '_console_log',
+           'dnorm',
+           'dchisq']

@@ -2,9 +2,9 @@ package is.hail.types.physical
 
 import is.hail.annotations._
 import is.hail.asm4s.{Code, _}
-import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder}
-import is.hail.types.physical.stypes.primitives.{SFloat32, SFloat32Code}
-import is.hail.types.physical.stypes.{SCode, SType}
+import is.hail.expr.ir.EmitCodeBuilder
+import is.hail.types.physical.stypes.primitives.{SFloat32, SFloat32Code, SFloat32Value}
+import is.hail.types.physical.stypes.{SType, SValue}
 import is.hail.types.virtual.TFloat32
 
 case object PFloat32Optional extends PFloat32(false)
@@ -25,24 +25,6 @@ class PFloat32(override val required: Boolean) extends PNumeric with PPrimitive 
     }
   }
 
-  def codeOrdering(mb: EmitMethodBuilder[_], other: PType): CodeOrdering = {
-    assert(other isOfType this)
-    new CodeOrdering {
-      def compareNonnull(cb: EmitCodeBuilder, x: PCode, y: PCode): Code[Int] =
-        Code.invokeStatic2[java.lang.Float, Float, Float, Int]("compare", x.tcode[Float], y.tcode[Float])
-
-      def ltNonnull(cb: EmitCodeBuilder, x: PCode, y: PCode): Code[Boolean] = x.tcode[Float] < y.tcode[Float]
-
-      def lteqNonnull(cb: EmitCodeBuilder, x: PCode, y: PCode): Code[Boolean] = x.tcode[Float] <= y.tcode[Float]
-
-      def gtNonnull(cb: EmitCodeBuilder, x: PCode, y: PCode): Code[Boolean] = x.tcode[Float] > y.tcode[Float]
-
-      def gteqNonnull(cb: EmitCodeBuilder, x: PCode, y: PCode): Code[Boolean] = x.tcode[Float] >= y.tcode[Float]
-
-      def equivNonnull(cb: EmitCodeBuilder, x: PCode, y: PCode): Code[Boolean] = x.tcode[Float].ceq(y.tcode[Float])
-    }
-  }
-
   override def byteSize: Long = 4
 
   override def zero = coerce[PFloat32](const(0.0f))
@@ -55,12 +37,16 @@ class PFloat32(override val required: Boolean) extends PNumeric with PPrimitive 
     coerce[PFloat32](coerce[Float](a) * coerce[Float](b))
   }
 
-  override def sType: SType = SFloat32(required)
+  override def sType: SType = SFloat32
 
-  def storePrimitiveAtAddress(cb: EmitCodeBuilder, addr: Code[Long], value: SCode): Unit =
+  def storePrimitiveAtAddress(cb: EmitCodeBuilder, addr: Code[Long], value: SValue): Unit =
     cb.append(Region.storeFloat(addr, value.asFloat.floatCode(cb)))
 
-  override def loadCheapPCode(cb: EmitCodeBuilder, addr: Code[Long]): PCode = new SFloat32Code(required, Region.loadFloat(addr))
+  override def loadCheapSCode(cb: EmitCodeBuilder, addr: Code[Long]): SFloat32Value =
+    new SFloat32Code(Region.loadFloat(addr)).memoize(cb, "loadCheapSCode")
+
+  override def loadCheapSCodeField(cb: EmitCodeBuilder, addr: Code[Long]): SFloat32Value =
+    new SFloat32Code(Region.loadFloat(addr)).memoizeField(cb, "loadCheapSCodeField")
 
   override def unstagedStoreJavaObjectAtAddress(addr: Long, annotation: Annotation, region: Region): Unit = {
     Region.storeFloat(addr, annotation.asInstanceOf[Float])

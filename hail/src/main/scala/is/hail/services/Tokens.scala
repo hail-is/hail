@@ -16,7 +16,9 @@ object Tokens {
     if (new File(file).isFile) {
       using(new FileInputStream(file)) { is =>
         implicit val formats: Formats = DefaultFormats
-        new Tokens(JsonMethods.parse(is).extract[Map[String, String]])
+        val tokens = JsonMethods.parse(is).extract[Map[String, String]]
+        log.info(s"tokens found for namespaces {${ tokens.keys.mkString(", ") }}")
+        new Tokens(tokens)
       }
     } else {
       log.info(s"tokens file not found: $file")
@@ -25,7 +27,10 @@ object Tokens {
   }
 
   def getTokensFile(): String = {
-    if (DeployConfig.get.location == "external")
+    val file = System.getenv("HAIL_TOKENS_FILE")
+    if (file != null)
+      file
+    else if (DeployConfig.get.location == "external")
       s"${ System.getenv("HOME") }/.hail/tokens.json"
     else
       "/user-tokens/tokens.json"

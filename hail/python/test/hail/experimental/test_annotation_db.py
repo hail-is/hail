@@ -1,5 +1,4 @@
 import unittest
-import tempfile
 
 import hail as hl
 from ..helpers import startTestHailContext, stopTestHailContext
@@ -10,12 +9,12 @@ class AnnotationDBTests(unittest.TestCase):
     def setupAnnotationDBTests(cls):
         startTestHailContext()
         t = hl.utils.range_table(10)
-        t = t.annotate(locus=hl.locus('1', t.idx + 1))
+        t = t.key_by(locus=hl.locus('1', t.idx + 1))
         t = t.annotate(annotation=hl.str(t.idx))
-        d = tempfile.TemporaryDirectory()
-        fname = d.name + '/f.mt'
+        cls.tempdir_manager = hl.TemporaryDirectory()
+        d = cls.tempdir_manager.__enter__()
+        fname = d + '/f.mt'
         t.write(fname)
-        cls.temp_dir = d
         cls.db_json = {
             'unique_dataset': {
                 'description': 'now with unique rows!',
@@ -44,7 +43,7 @@ class AnnotationDBTests(unittest.TestCase):
     @classmethod
     def tearDownAnnotationDBTests(cls):
         stopTestHailContext()
-        AnnotationDBTests.temp_dir.cleanup()
+        cls.tempdir_manager.__exit__(None, None, None)
 
     setUpClass = setupAnnotationDBTests
     tearDownClass = tearDownAnnotationDBTests
@@ -52,7 +51,7 @@ class AnnotationDBTests(unittest.TestCase):
     def test_uniqueness(self):
         db = hl.experimental.DB(region='us', cloud='gcp', config=AnnotationDBTests.db_json)
         t = hl.utils.range_table(10)
-        t = t.annotate(locus=hl.locus('1', t.idx + 1))
+        t = t.key_by(locus=hl.locus('1', t.idx + 1))
         t = db.annotate_rows_db(t, 'unique_dataset', 'nonunique_dataset')
-        t.unique_dataset.dtype == hl.tstruct(annotation=hl.tstr)
-        t.nonunique_dataset.dtype == hl.tstruct(annotation=hl.tarray(hl.tstr))
+        assert t.unique_dataset.dtype == hl.dtype('struct{idx: int32, annotation: str}')
+        assert t.nonunique_dataset.dtype == hl.dtype('array<struct{idx: int32, annotation: str}>')

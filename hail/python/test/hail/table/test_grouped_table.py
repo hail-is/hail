@@ -27,6 +27,7 @@ class GroupedTableTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             grouped.aggregate(group=hl.agg.sum(ht.idx))
 
+    @fails_service_backend()
     def test_aggregate_by_with_joins(self):
         ht = hl.utils.range_table(4)
         ht2 = hl.utils.range_table(4)

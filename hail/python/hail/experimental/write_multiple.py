@@ -10,11 +10,16 @@ from hail.utils.java import Env
 @typecheck(mts=sequenceof(MatrixTable),
            prefix=str,
            overwrite=bool,
-           stage_locally=bool)
+           stage_locally=bool,
+           codec_spec=nullable(str))
 def write_matrix_tables(mts: List[MatrixTable], prefix: str, overwrite: bool = False,
-                        stage_locally: bool = False):
-    writer = MatrixNativeMultiWriter(prefix, overwrite, stage_locally)
+                        stage_locally: bool = False, codec_spec=None):
+    length = len(str(len(mts) - 1))
+    paths = [f"{prefix}{str(i).rjust(length, '0')}.mt" for i in range(len(mts))]
+    writer = MatrixNativeMultiWriter(paths, overwrite, stage_locally, codec_spec)
     Env.backend().execute(MatrixMultiWrite([mt._mir for mt in mts], writer))
+
+    return paths
 
 
 @typecheck(bms=sequenceof(BlockMatrix),

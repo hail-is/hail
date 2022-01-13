@@ -2,22 +2,38 @@ package is.hail.expr.ir.agg
 
 import is.hail.annotations.Region
 import is.hail.asm4s._
-import is.hail.expr.ir.{EmitClassBuilder, EmitCode, EmitCodeBuilder}
+import is.hail.backend.ExecuteContext
+import is.hail.expr.ir.{EmitClassBuilder, EmitCode, EmitCodeBuilder, IEmitCode}
 import is.hail.types.physical._
-import is.hail.types.virtual.{TInt32, TString, Type}
+import is.hail.types.physical.stypes.EmitType
+import is.hail.types.physical.stypes.concrete.{SBaseStructPointer, SBaseStructPointerValue, SStackStruct}
+import is.hail.types.physical.stypes.interfaces._
+import is.hail.types.physical.stypes.primitives.{SBoolean, SBooleanCode}
+import is.hail.types.virtual.{TBaseStruct, TBoolean, TInt32, TString, TStruct, Type}
 import is.hail.types.{RPrimitive, VirtualTypeWithReq}
 import is.hail.utils._
 
 import scala.language.existentials
 
 object ImputeTypeState {
-  val resultType = PCanonicalStruct(required = true,
-    "anyNonMissing" -> PBooleanRequired,
-    "allDefined" -> PBooleanRequired,
-    "supportsBool" -> PBooleanRequired,
-    "supportsInt32" -> PBooleanRequired,
-    "supportsInt64" -> PBooleanRequired,
-    "supportsFloat64" -> PBooleanRequired)
+  val resultVirtualType = TStruct(
+    "anyNonMissing" -> TBoolean,
+    "allDefined" -> TBoolean,
+    "supportsBool" -> TBoolean,
+    "supportsInt32" -> TBoolean,
+    "supportsInt64" -> TBoolean,
+    "supportsFloat64" -> TBoolean
+  )
+  val resultSType = SStackStruct(resultVirtualType, IndexedSeq(
+    EmitType(SBoolean, true),
+    EmitType(SBoolean, true),
+    EmitType(SBoolean, true),
+    EmitType(SBoolean, true),
+    EmitType(SBoolean, true),
+    EmitType(SBoolean, true)
+  ))
+
+  val resultEmitType = EmitType(resultSType, true)
 
   def matchBoolean(x: String): Boolean = try {
     x.toBoolean
@@ -51,20 +67,20 @@ object ImputeTypeState {
 }
 
 class ImputeTypeState(kb: EmitClassBuilder[_]) extends PrimitiveRVAState(Array(VirtualTypeWithReq(TInt32,RPrimitive()).setRequired(true)), kb) {
+  private def repr: Code[Int] = _repr.pv.asInt32.intCode(null) // hack, emitcodebuilder unused in this function
+  private val _repr = fields(0)
 
-  private val repr = fields(0)._2.asInstanceOf[Settable[Int]]
+  def getAnyNonMissing: Code[Boolean] = (repr & 1).cne(0)
 
-  def getAnyNonMissing: Code[Boolean] = (repr.load() & 1).cne(0)
+  def getAllDefined: Code[Boolean] = (repr & 1 << 1).cne(0)
 
-  def getAllDefined: Code[Boolean] = (repr.load() & 1 << 1).cne(0)
+  def getSupportsBool: Code[Boolean] = (repr & 1 << 2).cne(0)
 
-  def getSupportsBool: Code[Boolean] = (repr.load() & 1 << 2).cne(0)
+  def getSupportsI32: Code[Boolean] = (repr & 1 << 3).cne(0)
 
-  def getSupportsI32: Code[Boolean] = (repr.load() & 1 << 3).cne(0)
+  def getSupportsI64: Code[Boolean] = (repr & 1 << 4).cne(0)
 
-  def getSupportsI64: Code[Boolean] = (repr.load() & 1 << 4).cne(0)
-
-  def getSupportsF64: Code[Boolean] = (repr.load() & 1 << 5).cne(0)
+  def getSupportsF64: Code[Boolean] = (repr & 1 << 5).cne(0)
 
   private def setRepr(cb: EmitCodeBuilder,
     anyNonMissing: Code[Boolean],
@@ -74,14 +90,13 @@ class ImputeTypeState(kb: EmitClassBuilder[_]) extends PrimitiveRVAState(Array(V
     supportsI64: Code[Boolean],
     supportsF64: Code[Boolean]
   ): Unit = {
-
-    cb += repr.store(anyNonMissing.toI
+    val value = cb.memoize(anyNonMissing.toI
       | (allDefined.toI << 1)
       | (supportsBool.toI << 2)
       | (supportsI32.toI << 3)
       | (supportsI64.toI << 4)
-      | (supportsF64.toI << 5)
-    )
+      | (supportsF64.toI << 5))
+    cb.assign(_repr, EmitCode.present(cb.emb, primitive(value)))
   }
 
   def initialize(cb: EmitCodeBuilder): Unit = {
@@ -91,10 +106,10 @@ class ImputeTypeState(kb: EmitClassBuilder[_]) extends PrimitiveRVAState(Array(V
   def seqOp(cb: EmitCodeBuilder, ec: EmitCode): Unit = {
     ec.toI(cb)
       .consume(cb,
-        cb += repr.store(repr & (~(1 << 1))),
-        { case (pc: PStringCode) =>
+        cb.assign(_repr, EmitCode.present(cb.emb, primitive(cb.memoize(repr & (~(1 << 1)))))),
+        { case (pc: SStringValue) =>
           val s = cb.newLocal[String]("impute_type_agg_seq_str")
-          cb.assign(s, pc.loadString())
+          cb.assign(s, pc.loadString(cb))
 
           setRepr(cb,
             true,
@@ -127,7 +142,7 @@ class ImputeTypeAggregator() extends StagedAggregator {
 
   type State = ImputeTypeState
 
-  def resultType: PStruct = ImputeTypeState.resultType
+  def resultEmitType = ImputeTypeState.resultEmitType
 
   protected def _initOp(cb: EmitCodeBuilder, state: State, init: Array[EmitCode]): Unit = {
     assert(init.length == 0)
@@ -140,18 +155,14 @@ class ImputeTypeAggregator() extends StagedAggregator {
     state.seqOp(cb, s)
   }
 
-  protected def _combOp(cb: EmitCodeBuilder, state: State, other: State): Unit = {
+  protected def _combOp(ctx: ExecuteContext, cb: EmitCodeBuilder, state: ImputeTypeState, other: ImputeTypeState): Unit = {
     state.combOp(cb, other)
   }
 
-  protected def _storeResult(cb: EmitCodeBuilder, state: State, pt: PType, addr: Value[Long], region: Value[Region], ifMissing: EmitCodeBuilder => Unit): Unit = {
-    val rt = ImputeTypeState.resultType
-    assert(pt == rt)
-    cb += rt.stagedInitialize(addr, setMissing = false)
-    Array(state.getAnyNonMissing, state.getAllDefined, state.getSupportsBool,
-      state.getSupportsI32, state.getSupportsI64, state.getSupportsF64)
-      .zipWithIndex.foreach { case (b, idx) =>
-      rt.types(idx).storeAtAddress(cb, rt.fieldOffset(addr, idx), region, PCode(PBooleanRequired, b), deepCopy = true)
-    }
+  protected def _result(cb: EmitCodeBuilder, state: State, region: Value[Region]): IEmitCode = {
+    val emitCodes = Array(state.getAnyNonMissing, state.getAllDefined, state.getSupportsBool, state.getSupportsI32, state.getSupportsI64, state.getSupportsF64).
+      map(bool => new SBooleanCode(bool).memoize(cb, "impute_type_bools")).map(sbv => EmitCode.present(cb.emb, sbv))
+    val sv = SStackStruct.constructFromArgs(cb, region, resultEmitType.virtualType.asInstanceOf[TBaseStruct], emitCodes:_*)
+    IEmitCode.present(cb, sv)
   }
 }

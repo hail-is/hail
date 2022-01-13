@@ -1,24 +1,28 @@
 import json
+import os
 import re
+from typing import List
 
-from hail.typecheck import typecheck, nullable, oneof, dictof, anytype, \
-    sequenceof, enumeration, sized_tupleof, numeric, table_key_type, char
-from hail.utils.java import Env, FatalError, jindexed_seq_args, warning
-from hail.utils import wrap_to_list
-from hail.matrixtable import MatrixTable
-from hail.table import Table
-from hail.expr.types import hail_type, tarray, tfloat64, tstr, tint32, tstruct, \
-    tcall, tbool, tint64, tfloat32
+import avro.schema
+from avro.datafile import DataFileReader
+from avro.io import DatumReader
+
+import hail as hl
+from hail import ir
 from hail.expr import StructExpression, LocusExpression, \
     expr_array, expr_float64, expr_str, expr_numeric, expr_call, expr_bool, \
     expr_any, \
     to_expr, analyze
-from hail import ir
+from hail.expr.types import hail_type, tarray, tfloat64, tstr, tint32, tstruct, \
+    tcall, tbool, tint64, tfloat32
 from hail.genetics.reference_genome import reference_genome_type
-from hail.methods.misc import require_biallelic, require_row_key_variant, require_row_key_variant_w_struct_locus, require_col_key_str
-import hail as hl
-
-from typing import List
+from hail.matrixtable import MatrixTable
+from hail.methods.misc import require_biallelic, require_row_key_variant, require_col_key_str
+from hail.table import Table
+from hail.typecheck import typecheck, nullable, oneof, dictof, anytype, \
+    sequenceof, enumeration, sized_tupleof, numeric, table_key_type, char
+from hail.utils import wrap_to_list
+from hail.utils.java import Env, FatalError, jindexed_seq_args, warning
 
 
 def locus_interval_expr(contig, start, end, includes_start, includes_end,
@@ -323,8 +327,7 @@ def export_plink(dataset, output, call=None, fam_id=None, ind_id=None, pat_id=No
         The default value is ``0.0``. The missing value is ``0.0``.
     """
 
-    require_biallelic(dataset, 'export_plink')
-    require_row_key_variant_w_struct_locus(dataset, 'export_plink')
+    require_biallelic(dataset, 'export_plink', tolerate_generic_locus=True)
 
     if ind_id is None:
         require_col_key_str(dataset, "export_plink")
@@ -490,7 +493,7 @@ def export_vcf(dataset, output, append_to_header=None, parallel=None, metadata=N
         ``'separate_header'``, return a separate VCF header file and a set of
         VCF files (one per partition) without the header. If ``None``,
         concatenate the header and all partitions into one VCF file.
-    metadata : :obj:`dict` [:obj:`str`, :obj:`dict` [:obj:`str`, :obj:`dict` [obj:`str`, obj:`str`]]]`, optional
+    metadata : :obj:`dict` [:obj:`str`, :obj:`dict` [:obj:`str`, :obj:`dict` [:obj:`str`, :obj:`str`]]], optional
         Dictionary with information to fill in the VCF header. See
         :func:`get_vcf_metadata` for how this
         dictionary should be structured.
@@ -499,12 +502,22 @@ def export_vcf(dataset, output, append_to_header=None, parallel=None, metadata=N
         **Note**: This feature is experimental, and the interface and defaults
         may change in future versions.
     """
+    _, ext = os.path.splitext(output)
+    if ext == '.gz':
+        warning('VCF export with standard gzip compression requested. This is almost *never* desired and will '
+                'cause issues with other tools that consume VCF files. The compression format used for VCF '
+                'files is traditionally *block* gzip compression. To use block gzip compression with hail VCF '
+                'export, use a path ending in `.bgz`.')
     if isinstance(dataset, Table):
         mt = MatrixTable.from_rows_table(dataset)
         dataset = mt.key_cols_by(sample="")
 
     require_col_key_str(dataset, 'export_vcf')
     require_row_key_variant(dataset, 'export_vcf')
+
+    if 'filters' in dataset.row and dataset.filters.dtype != hl.tset(hl.tstr):
+        raise ValueError(f"'export_vcf': expect the 'filters' field to be set<str>, found {dataset.filters.dtype}"
+                         f"\n  Either transform this field to set<str> to export as VCF FILTERS field, or drop it from the dataset.")
 
     info_fields = list(dataset.info) if "info" in dataset.row else []
     invalid_info_fields = [f for f in info_fields if not re.fullmatch(r"^([A-Za-z_][0-9A-Za-z_.]*|1000G)", f)]
@@ -926,7 +939,7 @@ def grep(regex, path, max_count=100, *, show=True):
 
     Print all lines containing digits in *file1.txt* and *file2.txt*:
 
-    >>> hl.grep('\d', ['data/file1.txt','data/file2.txt'])
+    >>> hl.grep('\\d', ['data/file1.txt','data/file2.txt'])
 
     Notes
     -----
@@ -1244,7 +1257,7 @@ def import_gen(path,
 
     - `locus` (:class:`.tlocus` or :class:`.tstruct`) -- Row key. The genomic
       location consisting of the chromosome (1st column if present, otherwise
-      given by `chromosome`) and position (3rd column if `chromosome` is not
+      given by `chromosome`) and position (4th column if `chromosome` is not
       defined). If `reference_genome` is defined, the type will be
       :class:`.tlocus` parameterized by `reference_genome`. Otherwise, the type
       will be a :class:`.tstruct` with two fields: `contig` with type
@@ -1295,12 +1308,72 @@ def import_gen(path,
     -------
     :class:`.MatrixTable`
     """
-    path = wrap_to_list(path)
+    gen_table = import_lines(path, min_partitions)
+    sample_table = import_lines(sample_file)
     rg = reference_genome.name if reference_genome else None
+    contig_recoding = contig_recoding
     if contig_recoding is None:
-        contig_recoding = {}
-    return MatrixTable(ir.MatrixRead(ir.MatrixGENReader(
-        path, sample_file, chromosome, min_partitions, tolerance, rg, contig_recoding, skip_invalid_loci)))
+        contig_recoding = hl.empty_dict(hl.tstr, hl.tstr)
+    else:
+        contig_recoding = hl.dict(contig_recoding)
+
+    gen_table = gen_table.transmute(data=gen_table.text.split(' '))
+
+    if chromosome is None:
+        last_rowf_idx = 5
+        contig_holder = gen_table.data[0]
+    else:
+        last_rowf_idx = 4
+        contig_holder = chromosome
+
+    contig_holder = contig_recoding.get(contig_holder, contig_holder)
+
+    position = hl.int(gen_table.data[last_rowf_idx - 2])
+    alleles = hl.array([hl.str(gen_table.data[last_rowf_idx - 1]), hl.str(gen_table.data[last_rowf_idx])])
+    rsid = gen_table.data[last_rowf_idx - 3]
+    varid = gen_table.data[last_rowf_idx - 4]
+    if rg is None:
+        locus = hl.struct(contig=contig_holder, position=position)
+    else:
+        if skip_invalid_loci:
+            locus = hl.if_else(hl.is_valid_locus(contig_holder, position, rg),
+                               hl.locus(contig_holder, position, rg),
+                               hl.missing(hl.tlocus(rg)))
+        else:
+            locus = hl.locus(contig_holder, position, rg)
+
+    gen_table = gen_table.annotate(locus=locus, alleles=alleles, rsid=rsid, varid=varid)
+    gen_table = gen_table.annotate(entries=gen_table.data[last_rowf_idx + 1:].map(lambda x: hl.float64(x))
+                                   .grouped(3).map(lambda x: hl.struct(GP=x)))
+    if skip_invalid_loci:
+        gen_table = gen_table.filter(hl.is_defined(gen_table.locus))
+
+    sample_table_count = sample_table.count() - 2  # Skipping first 2 unneeded rows in sample file
+    gen_table = gen_table.annotate_globals(cols=hl.range(sample_table_count).map(lambda x: hl.struct(col_idx=x)))
+    mt = gen_table._unlocalize_entries('entries', 'cols', ['col_idx'])
+
+    sample_table = sample_table.tail(sample_table_count).add_index()
+    sample_table = sample_table.annotate(s=sample_table.text.split(' ')[0])
+    sample_table = sample_table.key_by(sample_table.idx)
+    mt = mt.annotate_cols(s=sample_table[hl.int64(mt.col_idx)].s)
+
+    mt = mt.annotate_entries(GP=hl.rbind(hl.sum(mt.GP), lambda gp_sum: hl.if_else(hl.abs(1.0 - gp_sum) > tolerance,
+                                                                                  hl.missing(hl.tarray(hl.tfloat64)),
+                                                                                  hl.abs((1 / gp_sum) * mt.GP))))
+    mt = mt.annotate_entries(GT=hl.rbind(hl.argmax(mt.GP),
+                                         lambda max_idx: hl.if_else(
+                                             hl.len(mt.GP.filter(lambda y: y == mt.GP[max_idx])) == 1,
+                                             hl.switch(max_idx)
+                                             .when(0, hl.call(0, 0))
+                                             .when(1, hl.call(0, 1))
+                                             .when(2, hl.call(1, 1))
+                                             .or_error("error creating gt field."),
+                                             hl.missing(hl.tcall))))
+    mt = mt.filter_entries(hl.is_defined(mt.GP))
+
+    mt = mt.key_cols_by('s').drop('col_idx', 'file', 'data')
+    mt = mt.key_rows_by('locus', 'alleles').select_entries('GT', 'GP')
+    return mt
 
 
 @typecheck(paths=oneof(str, sequenceof(str)),
@@ -1317,7 +1390,8 @@ def import_gen(path,
            force_bgz=bool,
            filter=nullable(str),
            find_replace=nullable(sized_tupleof(str, str)),
-           force=bool)
+           force=bool,
+           source_file_field=nullable(str))
 def import_table(paths,
                  key=None,
                  min_partitions=None,
@@ -1332,7 +1406,8 @@ def import_table(paths,
                  force_bgz=False,
                  filter=None,
                  find_replace=None,
-                 force=False) -> Table:
+                 force=False,
+                 source_file_field=None) -> Table:
     """Import delimited text file (text table) as :class:`.Table`.
 
     The resulting :class:`.Table` will have no key fields. Use
@@ -1520,7 +1595,9 @@ def import_table(paths,
         If ``True``, load gzipped files serially on one core. This should
         be used only when absolutely necessary, as processing time will be
         increased due to lack of parallelism.
-
+    source_file_field : :class:`str`, optional
+        If defined, the source file name for each line will be a field of the table
+        with this name. Can be useful when importing multiple tables using glob patterns.
     Returns
     -------
     :class:`.Table`
@@ -1532,7 +1609,7 @@ def import_table(paths,
     tr = ir.TextTableReader(paths, min_partitions, types, comment,
                             delimiter, missing, no_header, quote,
                             skip_blank_lines, force_bgz, filter, find_replace,
-                            force)
+                            force, source_file_field)
     ht = Table(ir.TableRead(tr))
 
     strs = []
@@ -1572,7 +1649,7 @@ def import_table(paths,
         tr = ir.TextTableReader(paths, min_partitions, all_types, comment,
                                 delimiter, missing, no_header, quote,
                                 skip_blank_lines, force_bgz, filter, find_replace,
-                                force)
+                                force, source_file_field)
         ht = Table(ir.TableRead(tr))
 
     else:
@@ -1595,6 +1672,48 @@ def import_table(paths,
         key = wrap_to_list(key)
         ht = ht.key_by(*key)
     return ht
+
+
+@typecheck(paths=oneof(str, sequenceof(str)), min_partitions=nullable(int))
+def import_lines(paths, min_partitions=None) -> Table:
+    """Import lines of file(s) as a :class:`.Table` of strings.
+
+    Examples
+    --------
+
+    To import a file as a table of strings:
+
+    >>> ht = hl.import_lines('data/matrix2.tsv')
+    >>> ht.describe()
+    ----------------------------------------
+    Global fields:
+        None
+    ----------------------------------------
+    Row fields:
+        'file': str
+        'text': str
+    ----------------------------------------
+    Key: []
+    ----------------------------------------
+
+    Parameters
+    ----------
+    paths: :class:`str` or :obj:`list` of :obj:`str`
+        Files to import.
+    min_partitions: :obj:`int` or :obj:`None`
+        Minimum number of partitions.
+
+    Returns
+    -------
+    :class:`.Table`
+        Table constructed from imported data.
+    """
+    paths = wrap_to_list(paths)
+
+    st_reader = ir.StringTableReader(paths, min_partitions)
+    string_table = Table(ir.TableRead(st_reader))
+
+    return string_table
 
 
 @typecheck(paths=oneof(str, sequenceof(str)),
@@ -2492,3 +2611,16 @@ def export_elasticsearch(t, host, port, index, index_type, block_size, config=No
 
     jdf = t.expand_types().to_spark(flatten=False)._jdf
     Env.hail().io.ElasticsearchConnector.export(jdf, host, port, index, index_type, block_size, config, verbose)
+
+
+@typecheck(paths=sequenceof(str), key=nullable(sequenceof(str)), intervals=nullable(sequenceof(anytype)))
+def import_avro(paths, *, key=None, intervals=None):
+    if not paths:
+        raise ValueError('import_avro requires at least one path')
+    if (key is None) != (intervals is None):
+        raise ValueError('key and intervals must either be both defined or both undefined')
+
+    with hl.current_backend().fs.open(paths[0], 'rb') as avro_file:
+        with DataFileReader(avro_file, DatumReader()) as data_file_reader:
+            tr = ir.AvroTableReader(avro.schema.parse(data_file_reader.schema), paths, key, intervals)
+    return Table(ir.TableRead(tr))

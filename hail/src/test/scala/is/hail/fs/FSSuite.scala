@@ -1,9 +1,8 @@
 package is.hail.fs
 
 import java.io.FileNotFoundException
-
 import is.hail.HailSuite
-import is.hail.expr.ir.ExecuteContext
+import is.hail.backend.ExecuteContext
 import is.hail.io.fs.{FS, FileStatus}
 import is.hail.utils._
 import org.apache.commons.io.IOUtils
@@ -215,6 +214,28 @@ trait FSSuite {
 
   @Test def testStripCodecExtension(): Unit = {
     assert(fs.stripCodecExtension("foo.vcf.bgz") == "foo.vcf")
+  }
+
+  @Test def testReadWriteBytes(): Unit = {
+    val f = t()
+
+    using(fs.create(f)) { os =>
+      os.write(1)
+      os.write(127)
+      os.write(255)
+    }
+
+    assert(fs.exists(f))
+
+    using(fs.open(f)) { is =>
+      assert(is.read() == 1)
+      assert(is.read() == 127)
+      assert(is.read() == 255)
+    }
+
+    fs.delete(f, false)
+
+    assert(!fs.exists(f))
   }
 }
 

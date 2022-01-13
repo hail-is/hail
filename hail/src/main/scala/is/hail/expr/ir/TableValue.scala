@@ -2,20 +2,60 @@ package is.hail.expr.ir
 
 import is.hail.HailContext
 import is.hail.annotations._
+import is.hail.backend.{BroadcastValue, ExecuteContext}
 import is.hail.expr.TableAnnotationImpex
+import is.hail.expr.ir.lowering.{RVDToTableStage, TableStage, TableStageToRVD}
+import is.hail.io.fs.FS
 import is.hail.types.physical.{PArray, PCanonicalArray, PCanonicalStruct, PStruct}
 import is.hail.types.virtual.{Field, TArray, TStruct}
 import is.hail.types.{MatrixType, TableType}
 import is.hail.io.{BufferSpec, TypedCodecSpec, exportTypes}
-import is.hail.rvd.{AbstractRVDSpec, RVD, RVDType, RVDContext}
+import is.hail.rvd.{AbstractRVDSpec, RVD, RVDContext, RVDPartitioner, RVDType}
 import is.hail.sparkextras.ContextRDD
 import is.hail.utils._
 import is.hail.variant.ReferenceGenome
+import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.types.StructType
 import org.apache.spark.sql.{DataFrame, Row}
 import org.apache.spark.storage.StorageLevel
 import org.json4s.jackson.JsonMethods
+
+object TableExecuteIntermediate {
+  def apply(tv: TableValue): TableExecuteIntermediate = new TableValueIntermediate(tv)
+
+  def apply(ts: TableStage): TableExecuteIntermediate = new TableStageIntermediate(ts)
+}
+
+sealed trait TableExecuteIntermediate {
+  def asTableStage(ctx: ExecuteContext): TableStage
+
+  def asTableValue(ctx: ExecuteContext): TableValue
+
+  def partitioner: RVDPartitioner
+}
+
+class TableValueIntermediate(tv: TableValue) extends TableExecuteIntermediate {
+  def asTableStage(ctx: ExecuteContext): TableStage = {
+    RVDToTableStage(tv.rvd, tv.globals.toEncodedLiteral())
+  }
+
+  def asTableValue(ctx: ExecuteContext): TableValue = tv
+
+  def partitioner: RVDPartitioner = tv.rvd.partitioner
+}
+
+class TableStageIntermediate(ts: TableStage) extends TableExecuteIntermediate {
+  def asTableStage(ctx: ExecuteContext): TableStage = ts
+
+  def asTableValue(ctx: ExecuteContext): TableValue = {
+    val (globals, rvd) = TableStageToRVD(ctx, ts, Map.empty)
+    TableValue(ctx, TableType(ts.rowType, ts.key, ts.globalType), globals, rvd)
+  }
+
+  def partitioner: RVDPartitioner = ts.partitioner
+}
+
 
 object TableValue {
   def apply(ctx: ExecuteContext, rowType: PStruct, key: IndexedSeq[String], rdd: ContextRDD[Long]): TableValue = {
@@ -56,17 +96,17 @@ case class TableValue(ctx: ExecuteContext, typ: TableType, globals: BroadcastRow
   def persist(ctx: ExecuteContext, level: StorageLevel) =
     TableValue(ctx, typ, globals, rvd.persist(ctx, level))
 
-  def filterWithPartitionOp[P](partitionOp: (Int, Region) => P)(pred: (P, RVDContext, Long, Long) => Boolean): TableValue = {
+  def filterWithPartitionOp[P](fs: BroadcastValue[FS], partitionOp: (FS, Int, Region) => P)(pred: (P, RVDContext, Long, Long) => Boolean): TableValue = {
     val localGlobals = globals.broadcast
     copy(rvd = rvd.filterWithContext[(P, Long)](
       { (partitionIdx, ctx) =>
         val globalRegion = ctx.partitionRegion
-        (partitionOp(partitionIdx, globalRegion), localGlobals.value.readRegionValue(globalRegion))
+        (partitionOp(fs.value, partitionIdx, globalRegion), localGlobals.value.readRegionValue(globalRegion))
       }, { case ((p, glob), ctx, ptr) => pred(p, ctx, ptr, glob) }))
   }
 
-  def filter(p: (RVDContext, Long, Long) => Boolean): TableValue = {
-    filterWithPartitionOp((_, _) => ())((_, ctx, ptr, glob) => p(ctx, ptr, glob))
+  def filter(fs: BroadcastValue[FS], p: (RVDContext, Long, Long) => Boolean): TableValue = {
+    filterWithPartitionOp(fs, (_, _, _) => ())((_, ctx, ptr, glob) => p(ctx, ptr, glob))
   }
 
   def export(ctx: ExecuteContext, path: String, typesFile: String = null, header: Boolean = true, exportType: String = ExportType.CONCATENATED, delimiter: String = "\t") {

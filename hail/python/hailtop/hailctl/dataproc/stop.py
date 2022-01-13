@@ -9,7 +9,7 @@ def init_parser(parser):
                         help="Print gcloud dataproc command, but don't run it.")
 
 
-def main(args, pass_through_args):
+async def main(args, pass_through_args):
     print("Stopping cluster '{}'...".format(args.name))
 
     cmd = ['dataproc', 'clusters', 'delete', '--quiet', args.name]

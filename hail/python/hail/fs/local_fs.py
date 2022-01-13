@@ -2,7 +2,7 @@ import os
 from stat import S_ISREG, S_ISDIR
 from typing import Dict, List
 from hurry.filesize import size
-from shutil import copy2
+from shutil import copy2, rmtree
 
 from .fs import FS
 
@@ -56,4 +56,18 @@ class LocalFS(FS):
         return S_ISDIR(stats.st_mode)
 
     def ls(self, path: str) -> List[Dict]:
-        return [self._format_stat_local_file(os.stat(file), file) for file in os.listdir(path)]
+        return [self._format_stat_local_file(os.stat(os.path.join(path, file)),
+                                             os.path.join(path, file))
+                for file in os.listdir(path)]
+
+    def mkdir(self, path: str):
+        os.mkdir(path)
+
+    def remove(self, path: str):
+        os.remove(path)
+
+    def rmtree(self, path: str):
+        rmtree(path)
+
+    def supports_scheme(self, scheme: str) -> bool:
+        return scheme == ""

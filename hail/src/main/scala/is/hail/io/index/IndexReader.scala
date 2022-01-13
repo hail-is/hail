@@ -3,10 +3,10 @@ package is.hail.io.index
 import java.io.InputStream
 import java.util
 import java.util.Map.Entry
-
 import is.hail.annotations._
+import is.hail.backend.ExecuteContext
 import is.hail.types.virtual.{TStruct, Type, TypeSerializer}
-import is.hail.expr.ir.{ExecuteContext, IRParser}
+import is.hail.expr.ir.IRParser
 import is.hail.types.physical.{PStruct, PType}
 import is.hail.io._
 import is.hail.io.bgen.BgenSettings
@@ -201,13 +201,22 @@ class IndexReader(fs: FS,
     node.children(localIdx.toInt)
   }
 
+  def boundsByInterval(interval: Interval): (Long, Long) = {
+    boundsByInterval(interval.start, interval.end, interval.includesStart, interval.includesEnd)
+  }
+
+  def boundsByInterval(start: Annotation, end: Annotation, includesStart: Boolean, includesEnd: Boolean): (Long, Long) = {
+    require(Interval.isValid(ordering, start, end, includesStart, includesEnd))
+    val startIdx = if (includesStart) lowerBound(start) else upperBound(start)
+    val endIdx = if (includesEnd) upperBound(end) else lowerBound(end)
+    startIdx -> endIdx
+  }
+
   def queryByInterval(interval: Interval): Iterator[LeafChild] =
     queryByInterval(interval.start, interval.end, interval.includesStart, interval.includesEnd)
 
   def queryByInterval(start: Annotation, end: Annotation, includesStart: Boolean, includesEnd: Boolean): Iterator[LeafChild] = {
-    require(Interval.isValid(ordering, start, end, includesStart, includesEnd))
-    val startIdx = if (includesStart) lowerBound(start) else upperBound(start)
-    val endIdx = if (includesEnd) upperBound(end) else lowerBound(end)
+    val (startIdx, endIdx) = boundsByInterval(start, end, includesStart, includesEnd)
     iterator(startIdx, endIdx)
   }
 
@@ -282,7 +291,10 @@ final case class InternalNode(children: IndexedSeq[InternalChild]) extends Index
 final case class LeafChild(
   key: Annotation,
   recordOffset: Long,
-  annotation: Annotation)
+  annotation: Annotation) {
+
+  def longChild(j: Int): Long = annotation.asInstanceOf[Row].getAs[Long](j)
+}
 
 object LeafNode {
   def apply(r: Row): LeafNode = {

@@ -13,13 +13,12 @@ import org.apache.spark.sql.Row
 
 import scala.annotation.meta.param
 
-abstract class CloseableIterator[T] extends Iterator[T] with AutoCloseable
+trait CloseableIterator[T] extends Iterator[T] with AutoCloseable
 
 object GenericLines {
   def read(fs: FS, contexts: IndexedSeq[Any], gzAsBGZ: Boolean): GenericLines = {
 
-    val fsBc = fs.broadcast
-    val body: (Any) => CloseableIterator[GenericLine] = { (context: Any) =>
+    val body: (FS, Any) => CloseableIterator[GenericLine] = { (fs: FS, context: Any) =>
       val contextRow = context.asInstanceOf[Row]
       val index = contextRow.getAs[Int](0)
       val file = contextRow.getAs[String](1)
@@ -30,7 +29,6 @@ object GenericLines {
       new CloseableIterator[GenericLine] {
         private var splitCompressed = false
         private val is: PositionedInputStream = {
-          val fs = fsBc.value
           val rawIS = fs.openNoCompression(file)
           val codec = fs.getCodecFromPath(file, gzAsBGZ)
           if (codec == null) {
@@ -160,7 +158,19 @@ object GenericLines {
             // move scanned input from buf to lineData
             val n = bufPos - begin
             if (linePos + n > lineData.length) {
-              val newLineData = new Array[Byte]((linePos + n) * 2)
+              val copySize = linePos.toLong + n
+
+              // Maximum array size compatible with common JDK implementations
+              // https://github.com/openjdk/jdk14u/blob/84917a040a81af2863fddc6eace3dda3e31bf4b5/src/java.base/share/classes/jdk/internal/util/ArraysSupport.java#L577
+              val maxArraySize = Int.MaxValue - 8
+              if (copySize > maxArraySize)
+                fatal(s"GenericLines: line size reached: cannot read a line with more than 2^31-1 bytes")
+              val newSize = Math.min(copySize * 2, maxArraySize).toInt
+              if (newSize > (1 << 20)) {
+                log.info(s"GenericLines: growing line buffer to $newSize")
+              }
+
+              val newLineData = new Array[Byte](newSize)
               System.arraycopy(lineData, 0, newLineData, 0, linePos)
               lineData = newLineData
               line.data = newLineData
@@ -285,9 +295,9 @@ object GenericLines {
     GenericLines.read(fs, contexts, gzAsBGZ)
   }
 
-  def collect(lines: GenericLines): IndexedSeq[String] = {
+  def collect(fs: FS, lines: GenericLines): IndexedSeq[String] = {
     lines.contexts.flatMap { context =>
-      using(lines.body(context)) { it =>
+      using(lines.body(fs, context)) { it =>
         it.map(_.toString).toArray
       }
     }
@@ -355,9 +365,12 @@ class GenericLinesRDD(
 class GenericLines(
   val contextType: Type,
   val contexts: IndexedSeq[Any],
-  val body: (Any) => CloseableIterator[GenericLine]) {
+  val body: (FS, Any) => CloseableIterator[GenericLine]) {
 
   def nPartitions: Int = contexts.length
 
-  def toRDD(): RDD[GenericLine] = new GenericLinesRDD(contexts, body)
+  def toRDD(fs: FS): RDD[GenericLine] = {
+    val localBody = body
+    new GenericLinesRDD(contexts, localBody(fs, _))
+  }
 }

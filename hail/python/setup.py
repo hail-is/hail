@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 import os
+import re
 from setuptools import setup, find_packages
 
 with open('hail/hail_pip_version') as f:
@@ -12,12 +13,18 @@ with open("README.md", "r") as fh:
 dependencies = []
 with open('requirements.txt', 'r') as f:
     for line in f:
-        if line.startswith('pyspark') and os.path.exists('../env/SPARK_VERSION'):
+        stripped = line.strip()
+        if stripped.startswith('#') or len(stripped) == 0:
+            continue
+
+        pkg = stripped
+
+        if pkg.startswith('pyspark') and os.path.exists('../env/SPARK_VERSION'):
             with open('../env/SPARK_VERSION', 'r') as file:
                 spark_version = file.read()
             dependencies.append(f'pyspark=={spark_version}')
         else:
-            dependencies.append(line.strip())
+            dependencies.append(pkg)
 
 setup(
     name="hail",
@@ -31,6 +38,7 @@ setup(
     project_urls={
         'Documentation': 'https://hail.is/docs/0.2/',
         'Repository': 'https://github.com/hail-is/hail',
+        'Change Log': 'https://hail.is/docs/0.2/change_log.html',
     },
     packages=find_packages('.'),
     package_dir={
@@ -41,16 +49,18 @@ setup(
                  'hail_version',
                  'experimental/datasets.json'],
         'hail.backend': ['hail-all-spark.jar'],
+        'hailtop': ['hail_version', 'py.typed'],
         'hailtop.hailctl': ['hail_version', 'deploy.yaml']},
     classifiers=[
         "Programming Language :: Python :: 3",
         "License :: OSI Approved :: MIT License",
     ],
-    python_requires=">=3.6",
+    python_requires=">=3.7",
     install_requires=dependencies,
     entry_points={
         'console_scripts': ['hailctl = hailtop.hailctl.__main__:main']
     },
     setup_requires=["pytest-runner", "wheel"],
-    tests_require=["pytest"]
+    tests_require=["pytest"],
+    include_package_data=True,
 )

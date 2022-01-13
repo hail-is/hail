@@ -1,5 +1,9 @@
+{% from "job-table.html" import job_table with context %}
 {% extends "layout.html" %}
 {% block title %}Batch {{ batch['id'] }}{% endblock %}
+{% block head %}
+    <script src="{{ base_path }}/common_static/focus_on_keyup.js"></script>
+{% endblock %}
 {% block content %}
     <h1>Batch {{ batch['id'] }}</h1>
     <h2>Timing</h2>
@@ -10,53 +14,23 @@
       {% endif %}
       {% endfor %}
     </div>
+
     {% if 'attributes' in batch %}
     <h2>Attributes</h2>
     <div class="attributes">
       {% for name, value in batch['attributes'].items() %}
+      {% if name == "pr" and wb is not none %}
+      <div>{{ name }}: <a href="{{ base_path }}/watched_branches/{{ wb }}/pr/{{ value }}">{{ value }}</a></div>
+      {% else %}
       <div>{{ name }}: {{ value }}</div>
+      {% endif %}
       {% endfor %}
     </div>
     {% endif %}
+
     <h2>Jobs</h2>
-    <table class="data-table" style="line-height: 175%">
-      <thead>
-        <tr>
-          <th>id</th>
-          <th>name</th>
-          <th>state</th>
-          <th>exit_code</th>
-          <th>duration</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for job in jobs %}
-        <tr>
-          <td class="numeric-cell">
-	    <a href="{{ base_path }}/batches/{{ job['batch_id'] }}/jobs/{{ job['job_id'] }}">{{ job['job_id'] }}</a>
-	  </td>
-          <td>{{ job['name'] }}</td>
-          <td>{{ job['state'] }}</td>
-          <td>
-            {% if 'exit_code' in job and job['exit_code'] is not none %}
-            {% if job['exit_code'] == 0 %}
-            <span style="color: #55aa33;">
-              Success 🎉
-              {% else %}
-              <span style="color: #a93333;">
-                Failure 🤷‍♀️
-                {% endif %}
-                ({{ job['exit_code'] }})
-              </span>
-              {% endif %}
-          </td>
-          <td>
-            {% if 'duration' in job and job['duration'] is not none %}
-            {{ job['duration'] }}
-            {% endif %}
-          </td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
+    {{ job_table(jobs, "jobs", "jobsSearchBar") }}
+    <script type="text/javascript">
+      focusOnSlash("jobsSearchBar");
+    </script>
 {% endblock %}

@@ -16,7 +16,7 @@ abstract class PContainer extends PIterable {
 
   def loadLength(aoff: Code[Long]): Code[Int]
 
-  def storeLength(aoff: Code[Long], length: Code[Int]): Code[Unit]
+  def storeLength(cb: EmitCodeBuilder, aoff: Code[Long], length: Code[Int]): Unit
 
   def nMissingBytes(len: Code[Int]): Code[Int]
 
@@ -36,11 +36,11 @@ abstract class PContainer extends PIterable {
 
   def setElementMissing(aoff: Long, i: Int)
 
-  def setElementMissing(aoff: Code[Long], i: Code[Int]): Code[Unit]
+  def setElementMissing(cb: EmitCodeBuilder, aoff: Code[Long], i: Code[Int]): Unit
 
   def setElementPresent(aoff: Long, i: Int)
 
-  def setElementPresent(aoff: Code[Long], i: Code[Int]): Code[Unit]
+  def setElementPresent(cb: EmitCodeBuilder, aoff: Code[Long], i: Code[Int]): Unit
 
   def firstElementOffset(aoff: Long, length: Int): Long
 
@@ -74,27 +74,15 @@ abstract class PContainer extends PIterable {
 
   def initialize(aoff: Long, length: Int, setMissing: Boolean = false)
 
-  def stagedInitialize(aoff: Code[Long], length: Code[Int], setMissing: Boolean = false): Code[Unit]
+  def stagedInitialize(cb: EmitCodeBuilder, aoff: Code[Long], length: Code[Int], setMissing: Boolean = false): Unit
 
   def zeroes(region: Region, length: Int): Long
 
-  def zeroes(mb: EmitMethodBuilder[_], region: Value[Region], length: Code[Int]): Code[Long]
-
-  def forEach(mb: EmitMethodBuilder[_], aoff: Code[Long], body: Code[Long] => Code[Unit]): Code[Unit]
+  def zeroes(cb: EmitCodeBuilder, region: Value[Region], length: Code[Int]): Code[Long]
 
   def hasMissingValues(sourceOffset: Code[Long]): Code[Boolean]
 
   def nextElementAddress(currentOffset: Long): Long
 
   def nextElementAddress(currentOffset: Code[Long]): Code[Long]
-}
-
-abstract class PIndexableValue extends PValue with SIndexableValue
-
-abstract class PIndexableCode extends PCode with SIndexableCode {
-  def pt: PContainer
-
-  def memoize(cb: EmitCodeBuilder, name: String): PIndexableValue
-
-  def memoizeField(cb: EmitCodeBuilder, name: String): PIndexableValue
 }

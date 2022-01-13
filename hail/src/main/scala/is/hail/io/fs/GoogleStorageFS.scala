@@ -5,15 +5,19 @@ import java.net.URI
 import java.nio.ByteBuffer
 import java.nio.file.FileSystems
 
+import org.apache.log4j.{LogManager, Logger}
 import com.google.auth.oauth2.ServiceAccountCredentials
 import com.google.cloud.{ReadChannel, WriteChannel}
 import com.google.cloud.storage.Storage.BlobListOption
 import com.google.cloud.storage.{Blob, BlobId, BlobInfo, Storage, StorageOptions}
+import is.hail.HailContext
 
 import scala.collection.JavaConverters._
 import scala.collection.mutable
 
 object GoogleStorageFS {
+  private val log = Logger.getLogger(getClass.getName())
+
   def containsWildcard(path: String): Boolean = {
     var i = 0
     while (i < path.length) {
@@ -37,7 +41,7 @@ object GoogleStorageFS {
     val uri = new URI(filename).normalize()
 
     val scheme = uri.getScheme
-    assert(scheme != null && scheme == "gs", uri.getScheme)
+    assert(scheme != null && scheme == "gs", (uri.getScheme, filename))
 
     val bucket = uri.getHost
     assert(bucket != null)
@@ -94,16 +98,27 @@ class GoogleStorageFileStatus(path: String, modificationTime: java.lang.Long, si
   def getOwner: String = null
 }
 
-class GoogleStorageFS(serviceAccountKey: String) extends FS {
+class GoogleStorageFS(val serviceAccountKey: Option[String] = None) extends FS {
   import GoogleStorageFS._
 
-  @transient private lazy val storage: Storage = {
-    StorageOptions.newBuilder()
-      .setCredentials(
-        ServiceAccountCredentials.fromStream(new ByteArrayInputStream(serviceAccountKey.getBytes)))
-      .build()
-      .getService
+  @transient private lazy val storage: Storage = serviceAccountKey match {
+    case None =>
+      log.info("Initializing google storage client from latent credentials")
+      StorageOptions.newBuilder()
+        .build()
+        .getService
+    case Some(keyData) =>
+      log.info("Initializing google storage client from service account key")
+      StorageOptions.newBuilder()
+        .setCredentials(
+          ServiceAccountCredentials.fromStream(new ByteArrayInputStream(keyData.getBytes)))
+        .build()
+        .getService
   }
+
+  def asCacheable(): CacheableGoogleStorageFS = new CacheableGoogleStorageFS(serviceAccountKey, null)
+
+  def asCacheable(sessionID: String): CacheableGoogleStorageFS = new CacheableGoogleStorageFS(serviceAccountKey, sessionID)
 
   def openNoCompression(filename: String): SeekableDataInputStream = {
     val (bucket, path) = getBucketPath(filename)
@@ -152,7 +167,7 @@ class GoogleStorageFS(serviceAccountKey: String) extends FS {
         }
 
         pos += 1
-        bb.get()
+        bb.get().toInt & 0xff
       }
 
       override def read(bytes: Array[Byte], off: Int, len: Int): Int = {
@@ -317,8 +332,8 @@ class GoogleStorageFS(serviceAccountKey: String) extends FS {
     val blobs = storage.list(bucket, BlobListOption.prefix(path), BlobListOption.currentDirectory())
 
     blobs.getValues.iterator.asScala
+      .filter(b => b.getName != path) // elide directory markers created by Hadoop
       .map(b => GoogleStorageFileStatus(b))
-      .filter(fs => !(fs.isDirectory && fs.getPath == path))
       .toArray
   }
 
@@ -357,4 +372,7 @@ class GoogleStorageFS(serviceAccountKey: String) extends FS {
           def run(): Unit = delete(filename, recursive = false)
         }))
   }
+}
+
+class CacheableGoogleStorageFS(serviceAccountKey: Option[String], @transient val sessionID: String) extends GoogleStorageFS(serviceAccountKey) with ServiceCacheableFS {
 }

@@ -2,7 +2,7 @@ include ../config.mk
 
 .PHONY: deployment.yaml build push deploy clean test render render-hail-too watch watch-hail-too
 
-IMAGE = gcr.io/$(PROJECT)/site:$(shell docker images -q --no-trunc site | sed -e 's,[^:]*:,,')
+IMAGE = $(DOCKER_PREFIX)/site:$(shell docker images -q --no-trunc site | sed -e 's,[^:]*:,,')
 RENDER_COMMAND := PYTHONPATH=$$PYTHONPATH:../web_common:../gear python3 render.py
 
 render:
@@ -49,7 +49,7 @@ push: build
 deploy: push
 	! [ -z $(NAMESPACE) ]  # call this like: make deploy NAMESPACE=default
 	$(MAKE) -C ../docker hail-ubuntu
-	python3 ../ci/jinja2_render.py '{"global": {"domain":"hail.is"},"default_ns":{"name":"$(NAMESPACE)"},"code":{"sha":"$(shell git rev-parse --short=12 HEAD)"},"deploy":$(DPELOY),"site_image":{"image":"$(IMAGE)"},"hail_ubuntu_image":{"image":"hail-ubuntu"}' deployment.yaml deployment.yaml.out
+	python3 ../ci/jinja2_render.py '{"default_ns":{"name":"$(NAMESPACE)"},"code":{"sha":"$(shell git rev-parse --short=12 HEAD)"},"deploy":$(DEPLOY),"site_image":{"image":"$(IMAGE)"},"hail_ubuntu_image":{"image":"'$$(cat ../docker/hail-ubuntu-image-ref)'"}' deployment.yaml deployment.yaml.out
 	kubectl -n $(NAMESPACE) apply -f deployment.yaml.out
 
 clean:

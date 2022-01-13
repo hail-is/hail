@@ -22,7 +22,7 @@ class BatchClientSuite extends TestNGSuite {
           "job_id" -> JInt(0),
           "parent_ids" -> JArray(List()),
           "process" -> JObject(
-            "image" -> JString("ubuntu:18.04"),
+            "image" -> JString("ubuntu:20.04"),
             "mount_docker_socket" -> JBool(false),
             "command" -> JArray(List(
               JString("/bin/bash"),

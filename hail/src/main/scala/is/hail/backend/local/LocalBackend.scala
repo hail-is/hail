@@ -1,10 +1,9 @@
 package is.hail.backend.local
 
-import java.io.PrintWriter
-
+import is.hail.HailContext
 import is.hail.annotations.{Region, SafeRow, UnsafeRow}
 import is.hail.asm4s._
-import is.hail.backend.{Backend, BackendContext, BroadcastValue, HailTaskContext}
+import is.hail.backend._
 import is.hail.expr.ir.lowering._
 import is.hail.expr.ir.{IRParser, _}
 import is.hail.expr.{JSONAnnotationImpex, Validate}
@@ -15,7 +14,8 @@ import is.hail.io.{BufferSpec, TypedCodecSpec}
 import is.hail.linalg.BlockMatrix
 import is.hail.types._
 import is.hail.types.encoded.EType
-import is.hail.types.physical.{PTuple, PType, PVoid}
+import is.hail.types.physical.PTuple
+import is.hail.types.physical.stypes.{PTypeReferenceSingleCodeType, SingleCodeType}
 import is.hail.types.virtual.TVoid
 import is.hail.utils._
 import is.hail.variant.ReferenceGenome
@@ -23,16 +23,13 @@ import org.apache.hadoop
 import org.json4s.DefaultFormats
 import org.json4s.jackson.{JsonMethods, Serialization}
 
+import java.io.PrintWriter
 import scala.collection.JavaConverters._
 import scala.reflect.ClassTag
 
 class LocalBroadcastValue[T](val value: T) extends BroadcastValue[T] with Serializable
 
-class LocalTaskContext(val partitionId: Int) extends HailTaskContext {
-  override type BackendType = LocalBackend
-
-  override def stageId(): Int = 0
-
+class LocalTaskContext(val partitionId: Int, val stageId: Int) extends HailTaskContext {
   override def attemptNumber(): Int = 0
 }
 
@@ -68,16 +65,25 @@ class LocalBackend(
   val fs: FS = new HadoopFS(new SerializableHadoopConfiguration(hadoopConf))
 
   def withExecuteContext[T](timer: ExecutionTimer)(f: ExecuteContext => T): T = {
-    ExecuteContext.scoped(tmpdir, tmpdir, this, fs, timer)(f)
+    ExecuteContext.scoped(tmpdir, tmpdir, this, fs, timer, null)(f)
   }
 
-  def broadcast[T : ClassTag](value: T): BroadcastValue[T] = new LocalBroadcastValue[T](value)
+  def broadcast[T: ClassTag](value: T): BroadcastValue[T] = new LocalBroadcastValue[T](value)
 
-  def parallelizeAndComputeWithIndex(backendContext: BackendContext, collection: Array[Array[Byte]], dependency: Option[TableStageDependency] = None)(f: (Array[Byte], HailTaskContext) => Array[Byte]): Array[Array[Byte]] = {
+  private[this] var stageIdx: Int = 0
+
+  private[this] def nextStageId(): Int = {
+    val current = stageIdx
+    stageIdx += 1
+    current
+  }
+
+  def parallelizeAndComputeWithIndex(backendContext: BackendContext, fs: FS, collection: Array[Array[Byte]], dependency: Option[TableStageDependency] = None)(f: (Array[Byte], HailTaskContext, FS) => Array[Byte]): Array[Array[Byte]] = {
+    val stageId = nextStageId()
     collection.zipWithIndex.map { case (c, i) =>
-      HailTaskContext.setTaskContext(new LocalTaskContext(i))
-      val bytes = f(c, HailTaskContext.get())
-      HailTaskContext.finish()
+      val htc = new LocalTaskContext(i, stageId)
+      val bytes = f(c, htc, fs)
+      htc.finish()
       bytes
     }
   }
@@ -86,7 +92,7 @@ class LocalBackend(
 
   def stop(): Unit = LocalBackend.stop()
 
-  private[this] def _jvmLowerAndExecute(ctx: ExecuteContext, ir0: IR, print: Option[PrintWriter] = None): (PType, Long) = {
+  private[this] def _jvmLowerAndExecute(ctx: ExecuteContext, ir0: IR, print: Option[PrintWriter] = None): (Option[SingleCodeType], Long) = {
     val ir = LoweringPipeline.darrayLowerer(true)(DArrayLowering.All).apply(ctx, ir0).asInstanceOf[IR]
 
     if (!Compilable(ir))
@@ -95,85 +101,88 @@ class LocalBackend(
     if (ir.typ == TVoid) {
       val (pt, f) = ctx.timer.time("Compile") {
         Compile[AsmFunction1RegionUnit](ctx,
-          FastIndexedSeq[(String, PType)](),
+          FastIndexedSeq(),
           FastIndexedSeq(classInfo[Region]), UnitInfo,
           ir,
           print = print)
       }
 
       ctx.timer.time("Run") {
-        f(0, ctx.r).apply(ctx.r)
+        f(fs, 0, ctx.r).apply(ctx.r)
         (pt, 0)
       }
     } else {
       val (pt, f) = ctx.timer.time("Compile") {
         Compile[AsmFunction1RegionLong](ctx,
-          FastIndexedSeq[(String, PType)](),
+          FastIndexedSeq(),
           FastIndexedSeq(classInfo[Region]), LongInfo,
           MakeTuple.ordered(FastSeq(ir)),
           print = print)
       }
 
       ctx.timer.time("Run") {
-        (pt, f(0, ctx.r).apply(ctx.r))
+        (pt, f(fs, 0, ctx.r).apply(ctx.r))
       }
     }
   }
 
-  private[this] def _execute(ctx: ExecuteContext, ir: IR): (PType, Long) = {
+  private[this] def _execute(ctx: ExecuteContext, ir: IR): (Option[SingleCodeType], Long) = {
     TypeCheck(ir)
     Validate(ir)
-    _jvmLowerAndExecute(ctx, ir)
+    val queryID = Backend.nextID()
+    log.info(s"starting execution of query $queryID of initial size ${ IRSize(ir) }")
+    val res = _jvmLowerAndExecute(ctx, ir)
+    log.info(s"finished execution of query $queryID")
+    res
   }
 
-  def execute(timer: ExecutionTimer, ir: IR): Any =
+
+  def executeToJavaValue(timer: ExecutionTimer, ir: IR): Any =
     withExecuteContext(timer) { ctx =>
-      val queryID = Backend.nextID()
-      log.info(s"starting execution of query $queryID of initial size ${ IRSize(ir) }")
       val (pt, a) = _execute(ctx, ir)
-      log.info(s"finished execution of query $queryID")
       val result = pt match {
-        case PVoid =>
+        case None =>
           (null, ctx.timer)
-        case pt: PTuple =>
+        case Some(PTypeReferenceSingleCodeType(pt: PTuple)) =>
           (SafeRow(pt, a).get(0), ctx.timer)
       }
       result
     }
 
-  def executeJSON(ir: IR): String = {
-    val (jsonValue, timer) = ExecutionTimer.time("LocalBackend.executeJSON") { timer =>
-      val t = ir.typ
-      val (value, timings) = execute(timer, ir)
-      JsonMethods.compact(JSONAnnotationImpex.exportAnnotation(value, t))
+  def executeToEncoded(timer: ExecutionTimer, ir: IR, bs: BufferSpec): Array[Byte] =
+    withExecuteContext(timer) { ctx =>
+      val (pt, a) = _execute(ctx, ir)
+      val result = pt match {
+        case None =>
+          Array[Byte]()
+        case Some(PTypeReferenceSingleCodeType(pt: PTuple)) =>
+          val elementType = pt.fields(0).typ
+          assert(pt.isFieldDefined(a, 0))
+          val codec = TypedCodecSpec(
+            EType.fromTypeAllOptional(elementType.virtualType), elementType.virtualType, bs)
+          codec.encode(ctx, elementType, pt.loadField(a, 0))
+      }
+      result
     }
-    timer.logInfo()
-    Serialization.write(Map("value" -> jsonValue, "timings" -> timer.toMap))(new DefaultFormats {})
-  }
+
 
   def executeLiteral(ir: IR): IR = {
     ExecutionTimer.logTime("LocalBackend.executeLiteral") { timer =>
       val t = ir.typ
       assert(t.isRealizable)
-      val (value, timings) = execute(timer, ir)
+      val (value, timings) = executeToJavaValue(timer, ir)
       Literal.coerce(t, value)
     }
   }
 
-  def encodeToBytes(ir: IR, bufferSpecString: String): (String, Array[Byte]) = {
-    ExecutionTimer.logTime("LocalBackend.encodeToBytes") { timer =>
+  def executeEncode(ir: IR, bufferSpecString: String): (Array[Byte], String) = {
+    val (bytes, timer) = ExecutionTimer.time("LocalBackend.encodeToBytes") { timer =>
       val bs = BufferSpec.parseOrDefault(bufferSpecString)
       withExecuteContext(timer) { ctx =>
-        assert(ir.typ != TVoid)
-        val (pt: PTuple, a) = _execute(ctx, ir)
-        assert(pt.size == 1)
-        val elementType = pt.fields(0).typ
-        val codec = TypedCodecSpec(
-          EType.defaultFromPType(elementType), elementType.virtualType, bs)
-        assert(pt.isFieldDefined(a, 0))
-        (elementType.toString, codec.encode(ctx, elementType, pt.loadField(a, 0)))
+        executeToEncoded(timer, ir, bs)
       }
     }
+    (bytes, Serialization.write(Map("timings" -> timer.toMap))(new DefaultFormats {}))
   }
 
   def decodeToJSON(ptypeString: String, b: Array[Byte], bufferSpecString: String): String = {
@@ -270,10 +279,14 @@ class LocalBackend(
     stage: TableStage,
     sortFields: IndexedSeq[SortField],
     relationalLetsAbove: Map[String, IR],
-    tableTypeRequiredness: RTable
+    rowTypeRequiredness: RStruct
   ): TableStage = {
-    // Use a local sort for the moment to enable larger pipelines to run
-    LowerDistributedSort.localSort(ctx, stage, sortFields, relationalLetsAbove)
+
+    if (HailContext.getFlag("shuffle_cutoff_to_local_sort") != null) {
+      LowerDistributedSort.distributedSort(ctx, stage, sortFields, relationalLetsAbove, rowTypeRequiredness)
+    } else {
+      LowerDistributedSort.localSort(ctx, stage, sortFields, relationalLetsAbove)
+    }
   }
 
   def pyLoadReferencesFromDataset(path: String): String =

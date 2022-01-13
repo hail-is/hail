@@ -4,15 +4,16 @@ import is.hail.annotations.{Annotation, ExtendedOrdering, Region, SafeRow, Unsaf
 import is.hail.asm4s._
 import is.hail.expr.ir.IRParser
 import is.hail.types.encoded.EType
-import is.hail.io.{BufferSpec, TypedCodecSpec}
+import is.hail.io.{BufferSpec, StreamBufferSpec, TypedCodecSpec}
 import is.hail.HailContext
 import is.hail.expr.{JSONAnnotationImpex, SparkAnnotationImpex, Validate}
 import is.hail.expr.ir.lowering._
 import is.hail.expr.ir._
 import is.hail.types.physical.{PStruct, PTuple, PType}
-import is.hail.types.virtual.{TStruct, TVoid, Type}
-import is.hail.backend.{Backend, BackendContext, BroadcastValue, HailTaskContext}
-import is.hail.io.fs.HadoopFS
+import is.hail.types.virtual.{TArray, TInterval, TStruct, TVoid, Type}
+import is.hail.backend._
+import is.hail.expr.ir.IRParser.parseType
+import is.hail.io.fs.{FS, HadoopFS}
 import is.hail.utils._
 import is.hail.io.bgen.IndexBgen
 import org.json4s.DefaultFormats
@@ -24,18 +25,19 @@ import org.apache.spark.sql.{DataFrame, SparkSession}
 import scala.collection.mutable
 import scala.reflect.ClassTag
 import scala.collection.JavaConverters._
-import java.io.PrintWriter
-
+import java.io.{Closeable, PrintWriter}
 import is.hail.io.plink.LoadPlink
 import is.hail.io.vcf.VCFsReader
 import is.hail.linalg.{BlockMatrix, RowMatrix}
 import is.hail.rvd.RVD
 import is.hail.stats.LinearMixedModel
 import is.hail.types._
+import is.hail.types.physical.stypes.PTypeReferenceSingleCodeType
 import is.hail.variant.ReferenceGenome
 import org.apache.spark.rdd.RDD
 import org.apache.spark.storage.StorageLevel
 import org.apache.spark.util.TaskCompletionListener
+import org.json4s
 import org.json4s.JsonAST.{JInt, JObject}
 
 
@@ -43,17 +45,34 @@ class SparkBroadcastValue[T](bc: Broadcast[T]) extends BroadcastValue[T] with Se
   def value: T = bc.value
 }
 
-class SparkTaskContext(ctx: TaskContext) extends HailTaskContext {
-  self=>
+object SparkTaskContext {
+  def get(): SparkTaskContext = taskContext.get
 
-  type BackendType = SparkBackend
+  private[this] val taskContext: ThreadLocal[SparkTaskContext] = new ThreadLocal[SparkTaskContext]() {
+    override def initialValue(): SparkTaskContext = {
+      val sparkTC = TaskContext.get()
+      assert(sparkTC != null, "Spark Task Context was null, maybe this ran on the driver?")
+      sparkTC.addTaskCompletionListener[Unit] { (_: TaskContext) =>
+        SparkTaskContext.finish()
+      }
+
+      // this must be the only place where SparkTaskContext classes are created
+      new SparkTaskContext(sparkTC)
+    }
+  }
+
+  def finish(): Unit = {
+    taskContext.get().finish()
+    taskContext.remove()
+  }
+}
+
+
+class SparkTaskContext private[spark](ctx: TaskContext) extends HailTaskContext {
+  self=>
   override def stageId(): Int = ctx.stageId()
   override def partitionId(): Int = ctx.partitionId()
   override def attemptNumber(): Int = ctx.attemptNumber()
-
-  ctx.addTaskCompletionListener(new TaskCompletionListener {
-    override def onTaskCompletion(context: TaskContext): Unit = self.getRegionPool().close()
-  })
 }
 
 object SparkBackend {
@@ -233,10 +252,11 @@ class SparkBackend(
   val tmpdir: String,
   val localTmpdir: String,
   val sc: SparkContext
-) extends Backend {
+) extends Backend with Closeable {
   lazy val sparkSession: SparkSession = SparkSession.builder().config(sc.getConf).getOrCreate()
 
   val fs: HadoopFS = new HadoopFS(new SerializableHadoopConfiguration(sc.hadoopConfiguration))
+  private[this] val longLifeTempFileManager: TempFileManager = new OwningTempFileManager(fs)
 
   val bmCache: SparkBlockMatrixCache = SparkBlockMatrixCache()
 
@@ -250,18 +270,20 @@ class SparkBackend(
 
   def unpersist(id: String): Unit = bmCache.unpersistBlockMatrix(id)
 
-  def withExecuteContext[T](timer: ExecutionTimer)(f: ExecuteContext => T): T = {
-    ExecuteContext.scoped(tmpdir, localTmpdir, this, fs, timer)(f)
+  def withExecuteContext[T](timer: ExecutionTimer, selfContainedExecution: Boolean = true)(f: ExecuteContext => T): T = {
+    ExecuteContext.scoped(tmpdir, localTmpdir, this, fs, timer,
+      if (selfContainedExecution) null else new NonOwningTempFileManager(longLifeTempFileManager))(f)
   }
 
   def broadcast[T : ClassTag](value: T): BroadcastValue[T] = new SparkBroadcastValue[T](sc.broadcast(value))
 
-  def parallelizeAndComputeWithIndex(backendContext: BackendContext, collection: Array[Array[Byte]], dependency: Option[TableStageDependency] = None)(f: (Array[Byte], HailTaskContext) => Array[Byte]): Array[Array[Byte]] = {
+  def parallelizeAndComputeWithIndex(backendContext: BackendContext, fs: FS, collection: Array[Array[Byte]], dependency: Option[TableStageDependency] = None)(f: (Array[Byte], HailTaskContext, FS) => Array[Byte]): Array[Array[Byte]] = {
+    val fsBc = fs.broadcast
 
     val sparkDeps = dependency.toIndexedSeq
       .flatMap(dep => dep.deps.map(rvdDep => new AnonymousDependency(rvdDep.asInstanceOf[RVDDependency].rvd.crdd.rdd)))
 
-    new SparkBackendComputeRDD(sc, collection, f, sparkDeps).collect()
+    new SparkBackendComputeRDD(fsBc, sc, collection, f, sparkDeps).collect()
   }
 
   def defaultParallelism: Int = sc.defaultParallelism
@@ -280,6 +302,7 @@ class SparkBackend(
   }
 
   def jvmLowerAndExecute(
+    ctx: ExecuteContext,
     timer: ExecutionTimer,
     ir0: IR,
     optimize: Boolean,
@@ -287,10 +310,8 @@ class SparkBackend(
     lowerBM: Boolean,
     print: Option[PrintWriter] = None
   ): Any = {
-    withExecuteContext(timer) { ctx =>
-      val l = _jvmLowerAndExecute(ctx, ir0, optimize, lowerTable, lowerBM, print)
-      executionResultToAnnotation(ctx, l)
-    }
+    val l = _jvmLowerAndExecute(ctx, ir0, optimize, lowerTable, lowerBM, print)
+    executionResultToAnnotation(ctx, l)
   }
 
   private[this] def _jvmLowerAndExecute(
@@ -316,22 +337,22 @@ class SparkBackend(
       case TVoid =>
         val (_, f) = ctx.timer.time("Compile") {
           Compile[AsmFunction1RegionUnit](ctx,
-            FastIndexedSeq[(String, PType)](),
+            FastIndexedSeq(),
             FastIndexedSeq(classInfo[Region]), UnitInfo,
             ir,
             print = print)
         }
-        ctx.timer.time("Run")(Left(f(0, ctx.r)(ctx.r)))
+        ctx.timer.time("Run")(Left(f(ctx.fs, 0, ctx.r)(ctx.r)))
 
       case _ =>
-        val (pt: PTuple, f) = ctx.timer.time("Compile") {
+        val (Some(PTypeReferenceSingleCodeType(pt: PTuple)), f) = ctx.timer.time("Compile") {
           Compile[AsmFunction1RegionLong](ctx,
-            FastIndexedSeq[(String, PType)](),
+            FastIndexedSeq(),
             FastIndexedSeq(classInfo[Region]), LongInfo,
             MakeTuple.ordered(FastSeq(ir)),
             print = print)
         }
-        ctx.timer.time("Run")(Right((pt, f(0, ctx.r).apply(ctx.r))))
+        ctx.timer.time("Run")(Right((pt, f(ctx.fs, 0, ctx.r).apply(ctx.r))))
     }
 
     res
@@ -371,7 +392,7 @@ class SparkBackend(
         val retVal = _execute(ctx, ir, true)
         val literalIR = retVal match {
           case Left(x) => throw new HailException("Can't create literal")
-          case Right((pt, addr)) => GetFieldByIdx(EncodedLiteral.hailValueToByteArray(pt, addr, ctx), 0)
+          case Right((pt, addr)) => GetFieldByIdx(EncodedLiteral.fromPTypeAndAddress(pt, addr, ctx), 0)
         }
         log.info(s"finished execution of query $queryID")
         literalIR
@@ -388,23 +409,30 @@ class SparkBackend(
     Serialization.write(Map("value" -> jsonValue, "timings" -> timer.toMap))(new DefaultFormats {})
   }
 
-  // Called from python
-  def encodeToBytes(ir: IR, bufferSpecString: String): (String, Array[Byte]) = {
-    ExecutionTimer.logTime("SparkBackend.encodeToBytes") { timer =>
-      val bs = BufferSpec.parseOrDefault(bufferSpecString)
+  def executeEncode(ir: IR, bufferSpecString: String): (Array[Byte], String) = {
+    val (encodedValue, timer) = ExecutionTimer.time("SparkBackend.executeEncode") { timer =>
       withExecuteContext(timer) { ctx =>
-        _execute(ctx, ir, true) match {
-          case Left(_) => throw new RuntimeException("expression returned void")
-          case Right((t, off)) =>
-            assert(t.size == 1)
-            val elementType = t.fields(0).typ
-            val codec = TypedCodecSpec(
-              EType.defaultFromPType(elementType), elementType.virtualType, bs)
-            assert(t.isFieldDefined(off, 0))
-            (elementType.toString, codec.encode(ctx, elementType, t.loadField(off, 0)))
+        val queryID = Backend.nextID()
+        log.info(s"starting execution of query $queryID of initial size ${ IRSize(ir) }")
+        val res = _execute(ctx, ir, true) match {
+          case Left(_) => Array[Byte]()
+          case Right((t, off)) => encodeToBytes(ctx, t, off, bufferSpecString)
         }
+        log.info(s"finished execution of query $queryID")
+        res
       }
     }
+    (encodedValue, Serialization.write(Map("timings" -> timer.toMap))(new DefaultFormats {}))
+  }
+
+  def encodeToBytes(ctx: ExecuteContext, t: PTuple, off: Long, bufferSpecString: String): Array[Byte] = {
+    val bs = BufferSpec.parseOrDefault(bufferSpecString)
+    assert(t.size == 1)
+    val elementType = t.fields(0).typ
+    val codec = TypedCodecSpec(
+      EType.fromTypeAllOptional(elementType.virtualType), elementType.virtualType, bs)
+    assert(t.isFieldDefined(off, 0))
+    codec.encode(ctx, elementType, t.loadField(off, 0))
   }
 
   def decodeToJSON(ptypeString: String, b: Array[Byte], bufferSpecString: String): String = {
@@ -439,7 +467,7 @@ class SparkBackend(
     ExecutionTimer.logTime("SparkBackend.pyFromDF") { timer =>
       val key = jKey.asScala.toArray.toFastIndexedSeq
       val signature = SparkAnnotationImpex.importType(df.schema).setRequired(true).asInstanceOf[PStruct]
-      withExecuteContext(timer) { ctx =>
+      withExecuteContext(timer, selfContainedExecution = false) { ctx =>
         TableLiteral(TableValue(ctx, signature.virtualType.asInstanceOf[TStruct], key, df.rdd, Some(signature)))
       }
     }
@@ -454,7 +482,7 @@ class SparkBackend(
           fatal(s"unknown StorageLevel: $storageLevel")
       }
 
-      withExecuteContext(timer) { ctx =>
+      withExecuteContext(timer, selfContainedExecution = false) { ctx =>
         val tv = Interpret(mir, ctx, optimize = true)
         MatrixLiteral(mir.typ, TableLiteral(tv.persist(ctx, level)))
       }
@@ -470,7 +498,7 @@ class SparkBackend(
           fatal(s"unknown StorageLevel: $storageLevel")
       }
 
-      withExecuteContext(timer) { ctx =>
+      withExecuteContext(timer, selfContainedExecution = false) { ctx =>
         val tv = Interpret(tir, ctx, optimize = true)
         TableLiteral(tv.persist(ctx, level))
       }
@@ -479,7 +507,7 @@ class SparkBackend(
 
   def pyToDF(tir: TableIR): DataFrame = {
     ExecutionTimer.logTime("SparkBackend.pyToDF") { timer =>
-      withExecuteContext(timer) { ctx =>
+      withExecuteContext(timer, selfContainedExecution = false) { ctx =>
         Interpret(tir, ctx).toDF()
       }
     }
@@ -529,6 +557,28 @@ class SparkBackend(
         JsonMethods.compact(out)
       }
     }
+  }
+
+  def pyReadMultipleMatrixTables(jsonQuery: String): java.util.List[MatrixIR] = {
+    log.info("pyReadMultipleMatrixTables: got query")
+    val kvs = JsonMethods.parse(jsonQuery) match {
+      case json4s.JObject(values) => values.toMap
+    }
+
+    val paths = kvs("paths").asInstanceOf[json4s.JArray].arr.toArray.map { case json4s.JString(s) => s }
+
+    val intervalPointType = parseType(kvs("intervalPointType").asInstanceOf[json4s.JString].s)
+    val intervalObjects = JSONAnnotationImpex.importAnnotation(kvs("intervals"), TArray(TInterval(intervalPointType)))
+      .asInstanceOf[IndexedSeq[Interval]]
+
+    val opts = NativeReaderOptions(intervalObjects, intervalPointType, filterIntervals = false)
+    val matrixReaders: IndexedSeq[MatrixIR] = paths.map { p =>
+      log.info(s"creating MatrixRead node for $p")
+      val mnr = MatrixNativeReader(fs, p, Some(opts))
+      MatrixRead(mnr.fullMatrixType, false, false, mnr): MatrixIR
+    }
+    log.info("pyReadMultipleMatrixTables: returning N matrix tables")
+    matrixReaders.asJava
   }
 
   def pyReferenceAddLiftover(name: String, chainFile: String, destRGName: String): Unit = {
@@ -582,7 +632,7 @@ class SparkBackend(
 
   def pyFitLinearMixedModel(lmm: LinearMixedModel, pa_t: RowMatrix, a_t: RowMatrix): TableIR = {
     ExecutionTimer.logTime("SparkBackend.pyAddSequence") { timer =>
-      withExecuteContext(timer) { ctx =>
+      withExecuteContext(timer, selfContainedExecution = false) { ctx =>
         lmm.fit(ctx, pa_t, Option(a_t))
       }
     }
@@ -598,7 +648,7 @@ class SparkBackend(
 
   def parse_table_ir(s: String, refMap: java.util.Map[String, String], irMap: java.util.Map[String, BaseIR]): TableIR = {
     ExecutionTimer.logTime("SparkBackend.parse_table_ir") { timer =>
-      withExecuteContext(timer) { ctx =>
+      withExecuteContext(timer, selfContainedExecution = false) { ctx =>
         IRParser.parse_table_ir(s, IRParserEnvironment(ctx, refMap.asScala.toMap.mapValues(IRParser.parseType), irMap.asScala.toMap))
       }
     }
@@ -606,7 +656,7 @@ class SparkBackend(
 
   def parse_matrix_ir(s: String, refMap: java.util.Map[String, String], irMap: java.util.Map[String, BaseIR]): MatrixIR = {
     ExecutionTimer.logTime("SparkBackend.parse_matrix_ir") { timer =>
-      withExecuteContext(timer) { ctx =>
+      withExecuteContext(timer, selfContainedExecution = false) { ctx =>
         IRParser.parse_matrix_ir(s, IRParserEnvironment(ctx, refMap.asScala.toMap.mapValues(IRParser.parseType), irMap.asScala.toMap))
       }
     }
@@ -616,7 +666,7 @@ class SparkBackend(
     s: String, refMap: java.util.Map[String, String], irMap: java.util.Map[String, BaseIR]
   ): BlockMatrixIR = {
     ExecutionTimer.logTime("SparkBackend.parse_blockmatrix_ir") { timer =>
-      withExecuteContext(timer) { ctx =>
+      withExecuteContext(timer, selfContainedExecution = false) { ctx =>
         IRParser.parse_blockmatrix_ir(s, IRParserEnvironment(ctx, refMap.asScala.toMap.mapValues(IRParser.parseType), irMap.asScala.toMap))
       }
     }
@@ -627,7 +677,7 @@ class SparkBackend(
     stage: TableStage,
     sortFields: IndexedSeq[SortField],
     relationalLetsAbove: Map[String, IR],
-    tableTypeRequiredness: RTable
+    rowTypeRequiredness: RStruct
   ): TableStage = {
     val (globals, rvd) = TableStageToRVD(ctx, stage, relationalLetsAbove)
 
@@ -655,14 +705,19 @@ class SparkBackend(
 
   def pyImportFam(path: String, isQuantPheno: Boolean, delimiter: String, missingValue: String): String =
     LoadPlink.importFamJSON(fs, path, isQuantPheno, delimiter, missingValue)
+
+  def close(): Unit = {
+    longLifeTempFileManager.cleanup()
+  }
 }
 
 case class SparkBackendComputeRDDPartition(data: Array[Byte], index: Int) extends Partition
 
 class SparkBackendComputeRDD(
+  fsBc: BroadcastValue[FS],
   sc: SparkContext,
   @transient private val collection: Array[Array[Byte]],
-  f: (Array[Byte], HailTaskContext) => Array[Byte],
+  f: (Array[Byte], HailTaskContext, FS) => Array[Byte],
   deps: Seq[Dependency[_]])
   extends RDD[Array[Byte]](sc, deps) {
 
@@ -672,6 +727,6 @@ class SparkBackendComputeRDD(
 
   override def compute(partition: Partition, context: TaskContext): Iterator[Array[Byte]] = {
     val sp = partition.asInstanceOf[SparkBackendComputeRDDPartition]
-    Iterator.single(f(sp.data, HailTaskContext.get()))
+    Iterator.single(f(sp.data, SparkTaskContext.get(), fsBc.value))
   }
 }

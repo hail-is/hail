@@ -8,9 +8,10 @@ from hail.expr import (ExpressionException, Expression, ArrayExpression,
                        NDArrayNumericExpression, expr_any, expr_oneof, expr_array, expr_set,
                        expr_bool, expr_numeric, expr_int32, expr_int64, expr_float64, expr_call,
                        expr_str, expr_ndarray, unify_all, construct_expr, Indices, Aggregation,
-                       to_expr)
+                       to_expr, unify_types, cast_expr)
 from hail.expr.types import (hail_type, tint32, tint64, tfloat32, tfloat64,
                              tbool, tcall, tset, tarray, tstruct, tdict, ttuple, tstr)
+from hail.expr.expressions.typed_expressions import construct_variable
 from hail.expr.functions import rbind, float32, _quantile_from_cdf
 import hail.ir as ir
 from hail.typecheck import (TypeChecker, typecheck_method, typecheck,
@@ -88,6 +89,47 @@ class AggFunc(object):
                               [expr._ir for expr in seq_op_args])
             aggs = aggregations.push(Aggregation(*seq_op_args, *init_op_args))
         return construct_expr(x, ret_type, Indices(indices.source, set()), aggs)
+
+    def _fold(self, initial_value, seq_op, comb_op):
+        indices, aggregations = unify_all(initial_value)
+        accum_name = Env.get_uid()
+        other_accum_name = Env.get_uid()
+
+        accum_ref = construct_variable(accum_name, initial_value.dtype, indices, aggregations)
+        other_accum_ref = construct_variable(other_accum_name, initial_value.dtype, indices, aggregations)
+        seq_op_expr = to_expr(seq_op(accum_ref))
+        comb_op_expr = to_expr(comb_op(accum_ref, other_accum_ref))
+
+        # Tricky, all of initial_value, seq_op, comb_op need to be same type. Need to see if any change the others.
+        unified_type = unify_types(initial_value.dtype, seq_op_expr.dtype)
+        if unified_type is None:
+            raise ExpressionException("'hl.agg.fold' initial value and seq_op could not be resolved to same expression type."
+                                      f"   initial_value.dtype: {initial_value.dtype}\n"
+                                      f"   seq_op.dtype: {seq_op_expr.dtype}\n")
+
+        accum_ref = construct_variable(accum_name, unified_type, indices, aggregations)
+        other_accum_ref = construct_variable(other_accum_name, unified_type, indices, aggregations)
+        seq_op_expr = to_expr(seq_op(accum_ref))
+        comb_op_expr = to_expr(comb_op(accum_ref, other_accum_ref))
+
+        # Now, that might have changed comb_op type? Could be more general than other 2.
+        unified_type = unify_types(unified_type, seq_op_expr.dtype, comb_op_expr.dtype)
+        if unified_type is None:
+            raise ExpressionException("'hl.agg.fold' initial value, seq_op, and comb_op could not be resolved to same expression type."
+                                      f"   initial_value.dtype: {initial_value.dtype}\n"
+                                      f"   seq_op.dtype: {seq_op_expr.dtype}\n"
+                                      f"   comb_op.dtype: {comb_op_expr.dtype}")
+
+        accum_ref = construct_variable(accum_name, unified_type, indices, aggregations)
+        other_accum_ref = construct_variable(other_accum_name, unified_type, indices, aggregations)
+        initial_value_casted = cast_expr(initial_value, unified_type)
+        seq_op_expr = to_expr(seq_op(accum_ref))
+        comb_op_expr = to_expr(comb_op(accum_ref, other_accum_ref))
+
+        return construct_expr(ir.AggFold(initial_value_casted._ir, seq_op_expr._ir, comb_op_expr._ir, accum_name, other_accum_name, self._as_scan),
+                              initial_value.dtype,
+                              indices,
+                              aggregations)
 
     @typecheck_method(f=func_spec(1, expr_any),
                       array_agg_expr=expr_oneof(expr_array(), expr_set()))
@@ -390,7 +432,7 @@ def collect_as_set(expr) -> SetExpression:
     Collect the unique `ID` field where `HT` is greater than 68:
 
     >>> table1.aggregate(hl.agg.filter(table1.HT > 68, hl.agg.collect_as_set(table1.ID)))
-    {2, 3}
+    frozenset({2, 3})
 
     Warning
     -------
@@ -478,8 +520,8 @@ def any(condition) -> BooleanExpression:
     +-----+-------------+
     | str | bool        |
     +-----+-------------+
-    | "F" | false       |
-    | "M" | true        |
+    | "F" | False       |
+    | "M" | True        |
     +-----+-------------+
 
     Notes
@@ -516,8 +558,8 @@ def all(condition) -> BooleanExpression:
     +-----+--------------+
     | str | bool         |
     +-----+--------------+
-    | "F" | false        |
-    | "M" | false        |
+    | "F" | False        |
+    | "M" | False        |
     +-----+--------------+
 
     Notes
@@ -548,13 +590,13 @@ def counter(expr, *, weight=None) -> DictExpression:
     Count the number of individuals for each unique `SEX` value:
 
     >>> table1.aggregate(hl.agg.counter(table1.SEX))
-    {'F': 2, 'M': 2}
+    frozendict({'F': 2, 'M': 2})
     <BLANKLINE>
 
     Compute the total height for each unique `SEX` value:
 
     >>> table1.aggregate(hl.agg.counter(table1.SEX, weight=table1.HT))
-    {'F': 130, 'M': 137}
+    frozendict({'F': 130, 'M': 137})
     <BLANKLINE>
 
     Notes
@@ -862,8 +904,7 @@ def stats(expr) -> StructExpression:
             lambda aggs: hl.bind(
                 lambda mean: hl.struct(
                     mean=mean,
-                    stdev=hl.sqrt(hl.float64(
-                        aggs.sumsq - (2 * mean * aggs.sum) + (aggs.n_def * mean ** 2)) / aggs.n_def),
+                    stdev=hl.sqrt(hl.float64(aggs.sumsq - mean * aggs.sum) / aggs.n_def),
                     min=hl.float64(aggs.min),
                     max=hl.float64(aggs.max),
                     n=aggs.n_def,
@@ -946,8 +987,8 @@ def fraction(predicate) -> Float64Expression:
                    count())
 
 
-@typecheck(expr=expr_call)
-def hardy_weinberg_test(expr) -> StructExpression:
+@typecheck(expr=expr_call, one_sided=expr_bool)
+def hardy_weinberg_test(expr, one_sided=False) -> StructExpression:
     """Performs test of Hardy-Weinberg equilibrium.
 
     Examples
@@ -975,10 +1016,14 @@ def hardy_weinberg_test(expr) -> StructExpression:
     - `p_value` (:py:data:`.tfloat64`) - p-value from test of Hardy-Weinberg
       equilibrium.
 
-    Hail computes the exact p-value with mid-p-value correction, i.e. the
+    By default, Hail computes the exact p-value with mid-p-value correction, i.e. the
     probability of a less-likely outcome plus one-half the probability of an
-    equally-likely outcome. See this `document <LeveneHaldane.pdf>`__ for
+    equally-likely outcome. See this `document <_static/LeveneHaldane.pdf>`__ for
     details on the Levene-Haldane distribution and references.
+
+    To perform one-sided exact test of excess heterozygosity with mid-p-value
+    correction instead, set `one_sided=True` and the p-value returned will be
+    from the one-sided exact test.
 
     Warning
     -------
@@ -991,6 +1036,8 @@ def hardy_weinberg_test(expr) -> StructExpression:
     ----------
     expr : :class:`.CallExpression`
         Call to test for Hardy-Weinberg equilibrium.
+    one_sided: :obj:`bool`
+        ``False`` by default. When ``True``, perform one-sided test for excess heterozygosity.
 
     Returns
     -------
@@ -1005,7 +1052,7 @@ def hardy_weinberg_test(expr) -> StructExpression:
                                             .when(i < 1 << 31, hl.int(i))
                                             .or_error('hardy_weinberg_test: count greater than MAX_INT'))),
             _ctx=_agg_func.context),
-        lambda counts: hl.hardy_weinberg_test(counts.get(0, 0), counts.get(1, 0), counts.get(2, 0)))
+        lambda counts: hl.hardy_weinberg_test(counts.get(0, 0), counts.get(1, 0), counts.get(2, 0), one_sided=one_sided))
 
 
 @typecheck(f=func_spec(1, agg_expr(expr_any)), array_agg_expr=expr_oneof(expr_array(), expr_set()))
@@ -1022,7 +1069,7 @@ def explode(f, array_agg_expr) -> Expression:
     Compute the set of all observed elements in the `filters` field (``Set[String]``):
 
     >>> dataset.aggregate_rows(hl.agg.explode(lambda elt: hl.agg.collect_as_set(elt), dataset.filters))
-    {'VQSRTrancheINDEL97.00to99.00'}
+    frozenset({'VQSRTrancheINDEL97.00to99.00'})
 
     Notes
     -----
@@ -1842,3 +1889,34 @@ class ScanFunctions(object):
             raise AttributeError("hl.scan.{} does not exist. Did you mean:\n    {}".format(
                 field,
                 "\n    ".join(field_matches)))
+
+
+@typecheck(initial_value=expr_any, seq_op=func_spec(1, expr_any), comb_op=func_spec(2, expr_any))
+def fold(initial_value, seq_op, comb_op):
+    """
+    Perform an arbitrary aggregation in terms of python functions.
+
+    Examples
+    --------
+
+    Start with a range table with its default `idx` field:
+
+    >>> ht = hl.utils.range_table(100)
+
+    Now, using fold, can reimplement `hl.agg.sum` (for non-missing values) as:
+
+    >>> ht.aggregate(hl.agg.fold(0, lambda accum: accum + ht.idx, lambda comb_left, comb_right: comb_left + comb_right))
+    4950
+
+    Parameters
+    ----------
+    initial_value : :class:`.Expression`
+        The initial value to start the aggregator with. This is a value of type `A`.
+    seq_op : function ( (:class:`.Expression`) -> :class:`.Expression`)
+        The function used to combine the current aggregator state with the next element you're aggregating over. Type is
+        `A => A`
+    comb_op : function ( (:class:`.Expression`, :class:`.Expression`) -> :class:`.Expression`)
+        The function used to combine two aggregator states together and produce final result. Type is `(A, A) => A`.
+    """
+
+    return _agg_func._fold(initial_value, seq_op, comb_op)

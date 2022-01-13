@@ -218,21 +218,12 @@ object Region {
     false
   }
 
-  def loadPrimitive(typ: PType): Code[Long] => Code[_] = typ.fundamentalType match {
-    case _: PBoolean => loadBoolean
-    case _: PInt32 => loadInt
-    case _: PInt64 => loadLong
-    case _: PFloat32 => loadFloat
-    case _: PFloat64 => loadDouble
-  }
-
-  def storePrimitive(typ: PType, dest: Code[Long]): Code[_] => Code[Unit] = typ.fundamentalType match {
-    case _: PBoolean => v => storeBoolean(dest, coerce[Boolean](v))
-    case _: PInt32 => v => storeInt(dest, coerce[Int](v))
-    case _: PInt64 => v => storeLong(dest, coerce[Long](v))
-    case _: PFloat32 => v => storeFloat(dest, coerce[Float](v))
-    case _: PFloat64 => v => storeDouble(dest, coerce[Double](v))
-  }
+  val sharedChunkHeaderBytes = 16L
+  def getSharedChunkRefCount(ndAddr: Long): Long = Region.loadLong(ndAddr - sharedChunkHeaderBytes)
+  def storeSharedChunkRefCount(ndAddr: Long, newCount: Long): Unit = Region.storeLong(ndAddr - sharedChunkHeaderBytes, newCount)
+  def getSharedChunkByteSize(ndAddr: Long): Long = Region.loadLong(ndAddr - 8L)
+  def getSharedChunkByteSize(ndAddr: Code[Long]): Code[Long] = Region.loadLong(ndAddr - 8L)
+  def storeSharedChunkByteSize(ndAddr: Long, byteSize: Long): Unit = Region.storeLong(ndAddr - 8L, byteSize)
 
   def stagedCreate(blockSize: Size, pool: Code[RegionPool]): Code[Region] =
     Code.invokeScalaObject2[Int, RegionPool, Region](Region.getClass, "apply", asm4s.const(blockSize), pool)
@@ -327,6 +318,7 @@ object Region {
 }
 
 final class Region protected[annotations](var blockSize: Region.Size, var pool: RegionPool, var memory: RegionMemory = null) extends AutoCloseable {
+  def getMemory(): RegionMemory = memory
 
   def isValid(): Boolean = memory != null
 
@@ -354,6 +346,15 @@ final class Region protected[annotations](var blockSize: Region.Size, var pool: 
       memory.release()
       memory = pool.getMemory(blockSize)
     }
+  }
+
+  def allocateSharedChunk(nBytes: Long): Long = {
+    assert(nBytes >= 0L)
+    memory.allocateSharedChunk(nBytes)
+  }
+
+  def trackSharedChunk(addr: Long): Unit = {
+    memory.trackSharedChunk(addr)
   }
 
   def close(): Unit = {
@@ -384,6 +385,8 @@ final class Region protected[annotations](var blockSize: Region.Size, var pool: 
   def setParentReference(child: Region, idx: Int): Unit = {
     memory.setReferenceAtIndex(child.memory, idx)
   }
+
+  def getReferenceCount(): Long = memory.getReferenceCount
 
   def getParentReference(idx: Int, blockSize: Region.Size): Region = {
     new Region(blockSize, pool, memory.getReferenceAtIndex(idx, blockSize))
@@ -438,6 +441,7 @@ object RegionUtils {
     val nUsed = region.numBlocks
     val off = region.currentOffset
     val numChunks = region.numChunks
+    val ndarrays = region.numNDArrays
     val addr = "%016x".format(region.getCurrentBlock())
 
     val nReferenced = region.nReferencedRegions()
@@ -449,11 +453,12 @@ object RegionUtils {
          | blocks used: $nUsed
          | current off: $off
          |  big chunks: $numChunks
+         |  ndarrays: $ndarrays
          |  block addr: $addr
          |  referenced: $nReferenced
        """.stripMargin)
   }
 
   def logRegionStats(header: String, region: Code[Region]): Code[Unit] =
-    Code.invokeScalaObject2[String, Region, Unit](RegionUtils.getClass, "logRegionStats", header, region)
+    Code.invokeScalaObject2[String, RegionMemory, Unit](RegionUtils.getClass, "logRegionStats", header, region.invoke[RegionMemory]("getMemory"))
 }

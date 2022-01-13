@@ -6,9 +6,10 @@ import is.hail.annotations._
 import is.hail.asm4s._
 import is.hail.expr.ir.agg._
 import is.hail.types.{MatrixType, RPrimitive, TypeWithRequiredness, VirtualTypeWithReq}
-import is.hail.types.physical._
+import is.hail.types.physical.{stypes, _}
 import is.hail.types.virtual._
 import is.hail.io.BufferSpec
+import is.hail.types.physical.stypes.PTypeReferenceSingleCodeType
 import is.hail.utils._
 import is.hail.variant.{Call0, Call1, Call2}
 import is.hail.{ExecStrategy, HailSuite}
@@ -44,11 +45,11 @@ class Aggregators2Suite extends HailSuite {
           SerializeAggs(0, 0, spec, Array(aggSig.state)) :+
           DeserializeAggs(1, 0, spec, Array(aggSig.state))))
 
-    val (rt: PTuple, resF) = CompileWithAggregators[AsmFunction1RegionLong](ctx,
+    val (Some(PTypeReferenceSingleCodeType(rt: PTuple)), resF) = CompileWithAggregators[AsmFunction1RegionLong](ctx,
       Array.fill(nPartitions)(aggSig.state),
       FastIndexedSeq(),
       FastIndexedSeq(classInfo[Region]), LongInfo,
-      ResultOp(0, Array(aggSig, aggSig)))
+      ResultOp.makeTuple(Array(aggSig, aggSig)))
     assert(rt.types(0) == rt.types(1))
 
     val resultType = rt.types(0)
@@ -61,7 +62,7 @@ class Aggregators2Suite extends HailSuite {
       def withArgs(foo: IR) = {
         CompileWithAggregators[AsmFunction2RegionLongUnit](ctx,
           Array(aggSig.state),
-          FastIndexedSeq((argRef.name, argT)),
+          FastIndexedSeq((argRef.name, SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(argT)))),
           FastIndexedSeq(classInfo[Region], LongInfo), UnitInfo,
           args.map(_._1).foldLeft[IR](foo) { case (op, name) =>
             Let(name, GetField(argRef, name), op)
@@ -78,14 +79,14 @@ class Aggregators2Suite extends HailSuite {
       val initF = withArgs(initOp)
 
       expectedInit.foreach { v =>
-        val (rt: PBaseStruct, resOneF) = CompileWithAggregators[AsmFunction1RegionLong](ctx,
+        val (Some(PTypeReferenceSingleCodeType(rt: PBaseStruct)), resOneF) = CompileWithAggregators[AsmFunction1RegionLong](ctx,
           Array(aggSig.state),
           FastIndexedSeq(),
           FastIndexedSeq(classInfo[Region]), LongInfo,
-          ResultOp(0, Array(aggSig)))
+          ResultOp.makeTuple(Array(aggSig)))
 
-        val init = initF(0, region)
-        val res = resOneF(0, region)
+        val init = initF(ctx.fs, 0, region)
+        val res = resOneF(ctx.fs, 0, region)
 
         pool.scopedSmallRegion { aggRegion =>
           init.newAggState(aggRegion)
@@ -97,9 +98,9 @@ class Aggregators2Suite extends HailSuite {
       }
 
       val serializedParts = seqOps.grouped(math.ceil(seqOps.length / nPartitions.toDouble).toInt).map { seqs =>
-        val init = initF(0, region)
-        val seq = withArgs(Begin(seqs))(0, region)
-        val write = writeF(0, region)
+        val init = initF(ctx.fs, 0, region)
+        val seq = withArgs(Begin(seqs))(ctx.fs, 0, region)
+        val write = writeF(ctx.fs, 0, region)
         pool.scopedSmallRegion { aggRegion =>
           init.newAggState(aggRegion)
           init(region, argOff)
@@ -114,13 +115,13 @@ class Aggregators2Suite extends HailSuite {
       }.toArray
 
       pool.scopedSmallRegion { aggRegion =>
-        val combOp = combAndDuplicate(0, region)
+        val combOp = combAndDuplicate(ctx.fs, 0, region)
         combOp.newAggState(aggRegion)
         serializedParts.zipWithIndex.foreach { case (s, i) =>
           combOp.setSerializedAgg(i, s)
         }
         combOp(region)
-        val res = resF(0, region)
+        val res = resF(ctx.fs, 0, region)
         res.setAggState(aggRegion, combOp.getAggOffset())
         val double = SafeRow(rt, res(region))
         transformResult match {
@@ -701,7 +702,7 @@ class Aggregators2Suite extends HailSuite {
       "foo",
       InitOp(0, FastSeq(), sig),
       SeqOp(0, FastIndexedSeq(Ref("foo", TInt32).toD), sig),
-      GetTupleElement(ResultOp(0, Array(sig)), 0),
+      ResultOp(0, sig),
       Array(sig.state)))
     assertEvalsTo(x, FastIndexedSeq(0.0, 0.0, 1.0, 3.0, 6.0))
   }
@@ -719,7 +720,7 @@ class Aggregators2Suite extends HailSuite {
             "foo",
             InitOp(0, FastSeq(), sig),
             SeqOp(0, FastIndexedSeq(Ref("foo", TInt32).toD), sig),
-            GetTupleElement(ResultOp(0, Array(sig)), 0),
+            ResultOp(0, sig),
             Array(sig.state))))
     assertEvalsTo(x, FastIndexedSeq(
       0.0, 0.0, 1.0,
@@ -735,7 +736,7 @@ class Aggregators2Suite extends HailSuite {
         InitOp(0, FastSeq(), sig),
         SeqOp(0, FastSeq(F64(1.0)), sig),
         SeqOp(0, FastSeq(F64(-5.0)), sig))),
-      ResultOp(0, FastIndexedSeq(sig)),
+      ResultOp.makeTuple(FastIndexedSeq(sig)),
       FastIndexedSeq(sig.state))
     assertEvalsTo(x, Row(-4.0))
   }
@@ -756,12 +757,12 @@ class Aggregators2Suite extends HailSuite {
                 InitOp(0, FastSeq(), sumSig),
                 SeqOp(0, FastSeq(F64(-1.0)), sumSig),
                 SeqOp(0, FastSeq(Ref("foo", TInt32).toD), sumSig))),
-              GetTupleElement(ResultOp(0, FastIndexedSeq(sumSig)), 0),
+              ResultOp(0, sumSig),
               FastIndexedSeq(sumSig.state))
           ), takeSig)
         ))
       ),
-      GetTupleElement(ResultOp(0, FastIndexedSeq(takeSig)), 0),
+      ResultOp(0, takeSig),
       FastIndexedSeq(takeSig.state))
     assertEvalsTo(x, FastIndexedSeq(-1d, 0d, 1d, 2d, 3d))
   }
@@ -787,7 +788,7 @@ class Aggregators2Suite extends HailSuite {
           SeqOp(0, FastSeq(I64(3l)), takeSig),
           CombOpValue(0, Ref("x", TBinary), takeSig),
           SeqOp(0, FastSeq(I64(0l)), takeSig))),
-        GetTupleElement(ResultOp(0, FastIndexedSeq(takeSig)), 0),
+        ResultOp(0, takeSig),
         FastIndexedSeq(takeSig.state)))
 
     assertEvalsTo(x, FastIndexedSeq(null, -1l, 2l, 3l, null, null, -1l, 2l, 0l))

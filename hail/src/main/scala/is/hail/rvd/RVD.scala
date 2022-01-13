@@ -1,9 +1,9 @@
 package is.hail.rvd
 
 import java.util
-
 import is.hail.HailContext
 import is.hail.annotations._
+import is.hail.backend.ExecuteContext
 import is.hail.backend.spark.SparkBackend
 import is.hail.expr.ir.PruneDeadFields.isSupertype
 import is.hail.types._
@@ -14,7 +14,7 @@ import is.hail.io.index.IndexWriter
 import is.hail.io.{AbstractTypedCodecSpec, BufferSpec, RichContextRDDRegionValue, TypedCodecSpec}
 import is.hail.sparkextras._
 import is.hail.utils._
-import is.hail.expr.ir.{ExecuteContext, InferPType}
+import is.hail.expr.ir.InferPType
 import is.hail.utils.PartitionCounts.{PCSubsetOffset, getPCSubsetOffset, incrementalPCSubsetOffset}
 import org.apache.commons.lang3.StringUtils
 import org.apache.spark.TaskContext
@@ -114,49 +114,16 @@ class RVD(
   ): RVD = {
     require(newKey.forall(rowType.hasField))
     val sharedPrefixLength = typ.key.zip(newKey).takeWhile { case (l, r) => l == r }.length
-    val maybeKeys = if (newKey.toSet.subsetOf(typ.key.toSet)) {
-      partitioner.keysIfOneToOne()
-    } else None
-    if (isSorted && sharedPrefixLength == 0 && !newKey.isEmpty && maybeKeys.isEmpty) {
-      throw new IllegalArgumentException(s"$isSorted, $sharedPrefixLength, $newKey, ${maybeKeys.isDefined}, ${typ}, ${partitioner}")
+    if (isSorted && sharedPrefixLength == 0 && newKey.nonEmpty) {
+      throw new IllegalArgumentException(s"$isSorted, $sharedPrefixLength, $newKey, ${ typ }, ${ partitioner }")
     }
 
     if (sharedPrefixLength == newKey.length)
       this
     else if (isSorted)
-      maybeKeys match {
-        case None =>
-          truncateKey(newKey.take(sharedPrefixLength))
-            .extendKeyPreservesPartitioning(execCtx, newKey)
-            .checkKeyOrdering()
-        case Some(keys) =>
-          val oldRVDType = typ
-          val oldKeyPType = oldRVDType.kType
-          val oldKeyVType = oldKeyPType.virtualType
-          val newRVDType = oldRVDType.copy(key = newKey)
-          val newKeyPType = newRVDType.kType
-          val newKeyVType = newKeyPType.virtualType
-          var keyInfo = keys.zipWithIndex.map { case (oldKey, partitionIndex) =>
-            val newKey = new SelectFieldsRow(oldKey, oldKeyPType, newKeyPType)
-            RVDPartitionInfo(
-              partitionIndex,
-              1,
-              newKey,
-              newKey,
-              Array[Any](newKey),
-              RVDPartitionInfo.KSORTED,
-              s"out-of-order partitions $newKey")
-          }
-          val kOrd = PartitionBoundOrdering(newKeyVType).toOrdering
-          keyInfo = keyInfo.sortBy(_.min)(kOrd)
-          val bounds = keyInfo.map(_.interval).toFastIndexedSeq
-          val pids = keyInfo.map(_.partitionIndex).toArray
-          val unfixedPartitioner = new RVDPartitioner(newKeyVType, bounds)
-          val newPartitioner = RVDPartitioner.generate(
-            newRVDType.key, newKeyVType, bounds)
-          RVD(newRVDType, unfixedPartitioner, crdd.reorderPartitions(pids))
-            .repartition(execCtx, newPartitioner, shuffle = false)
-      }
+      truncateKey(newKey.take(sharedPrefixLength))
+        .extendKeyPreservesPartitioning(execCtx, newKey)
+        .checkKeyOrdering()
     else
       changeKey(execCtx, newKey)
   }
@@ -629,15 +596,15 @@ class RVD(
     val kRowFieldIdx = typ.kFieldIdx
     val rowPType = typ.rowType
 
-    mapPartitions(typ) { (ctx, it) =>
-      val kUR = new UnsafeRow(kPType)
-      it.filter { ptr =>
+    filterWithContext[UnsafeRow](
+      { (_, _) => new UnsafeRow(kPType) },
+      { case (kUR, ctx, ptr) =>
         ctx.rvb.start(kType)
         ctx.rvb.selectRegionValue(rowPType, kRowFieldIdx, ctx.r, ptr)
         kUR.set(ctx.region, ctx.rvb.end())
         !intervalsBc.value.contains(kUR)
       }
-    }
+    )
   }
 
   def filterToIntervals(intervals: RVDPartitioner): RVD = {
@@ -806,8 +773,11 @@ class RVD(
     path: String,
     bufferSpec: BufferSpec,
     stageLocally: Boolean,
-    targetPartitioner: RVDPartitioner
+    targetPartitioner: RVDPartitioner,
+    checkpointFile: Option[MatrixWriteCheckpoint]
   ): Array[FileWriteMetadata] = {
+    assert(!(targetPartitioner != null && checkpointFile.isDefined))
+
     val localTmpdir = execCtx.localTmpdir
     val fs = execCtx.fs
     val fsBc = fs.broadcast
@@ -933,24 +903,66 @@ class RVD(
             }
           }.collect()
       } else {
-        crdd.cmapPartitionsWithIndex { (i, ctx, it) =>
-          val fs = fsBc.value
-          val partFileAndCount = RichContextRDDRegionValue.writeSplitRegion(
-            localTmpdir,
-            fs,
-            path,
-            localTyp,
-            it,
-            i,
-            ctx,
-            d,
-            stageLocally,
-            makeIndexWriter,
-            makeRowsEnc,
-            makeEntriesEnc)
 
-          Iterator.single(partFileAndCount)
-        }.collect()
+        checkpointFile match {
+          case Some(checkpoint) =>
+
+            val partitionsToCompute = sparkContext.broadcast(checkpoint.uncomputedPartitions())
+            val computedRDD = crdd.cmapPartitionsWithIndex { (i, ctx, it) =>
+              val fs = fsBc.value
+              if (partitionsToCompute.value.contains(i)) {
+                val partFileAndCount = RichContextRDDRegionValue.writeSplitRegion(
+                  localTmpdir,
+                  fs,
+                  path,
+                  localTyp,
+                  it,
+                  i,
+                  ctx,
+                  d,
+                  stageLocally,
+                  makeIndexWriter,
+                  makeRowsEnc,
+                  makeEntriesEnc)
+
+                Iterator.single((i, partFileAndCount))
+              } else Iterator.empty
+            }.run
+
+            try {
+              sparkContext.runJob[(Int, FileWriteMetadata), Array[(Int, FileWriteMetadata)]](computedRDD,
+                (_: TaskContext, it: Iterator[(Int, FileWriteMetadata)]) => it.toArray,
+                (_: Int, data: Array[(Int, FileWriteMetadata)]) => data.foreach { case (partIdx, fwm) => checkpoint.append(partIdx, fwm) })
+            } catch {
+              case e: Throwable =>
+                checkpoint.close()
+                throw e
+            }
+
+            checkpoint.result()
+
+          case None =>
+            crdd.cmapPartitionsWithIndex { (i, ctx, it) =>
+              val fs = fsBc.value
+              val partFileAndCount = RichContextRDDRegionValue.writeSplitRegion(
+                localTmpdir,
+                fs,
+                path,
+                localTyp,
+                it,
+                i,
+                ctx,
+                d,
+                stageLocally,
+                makeIndexWriter,
+                makeRowsEnc,
+                makeEntriesEnc)
+
+              Iterator.single(partFileAndCount)
+            }.collect()
+        }
+
+
       }
 
 
@@ -1444,7 +1456,7 @@ object RVD {
   def writeRowsSplitFiles(
     execCtx: ExecuteContext,
     rvds: IndexedSeq[RVD],
-    path: String,
+    paths: IndexedSeq[String],
     bufferSpec: BufferSpec,
     stageLocally: Boolean
   ): Array[Array[FileWriteMetadata]] = {
@@ -1482,17 +1494,15 @@ object RVD {
     val partDigits = digitsNeeded(nPartitions)
     val fileDigits = digitsNeeded(rvds.length)
     for (i <- 0 until nRVDs) {
-      val s = StringUtils.leftPad(i.toString, fileDigits, '0')
-      fs.mkDir(path + s + ".mt" + "/rows/rows/parts")
-      fs.mkDir(path + s + ".mt" + "/entries/rows/parts")
-      fs.mkDir(path + s + ".mt" + "/index")
+      val path = paths(i)
+      fs.mkDir(path + "/rows/rows/parts")
+      fs.mkDir(path + "/entries/rows/parts")
+      fs.mkDir(path + "/index")
     }
 
     val partF = { (originIdx: Int, originPartIdx: Int, it: Iterator[RVDContext => Iterator[Long]]) =>
       Iterator.single { ctx: RVDContext =>
-        val fs = fsBc.value
-        val s = StringUtils.leftPad(originIdx.toString, fileDigits, '0')
-        val fullPath = path + s + ".mt"
+        val fullPath = paths(originIdx)
         val fileData = RichContextRDDRegionValue.writeSplitRegion(
           localTmpdir,
           fsBc.value,
@@ -1528,7 +1538,7 @@ object RVD {
         .foreach { case (partFiles, i) =>
           val fs = fsBc.value
           val s = StringUtils.leftPad(i.toString, fileDigits, '0')
-          val basePath = path + s + ".mt"
+          val basePath = paths(i)
           RichContextRDDRegionValue.writeSplitSpecs(fs, basePath,
             rowsCodecSpec, entriesCodecSpec, rowsIndexSpec, entriesIndexSpec,
             localTyp, rowsRVType, entriesRVType, partFiles.map(_.path), partitionerBc.value)
@@ -1540,6 +1550,7 @@ object RVD {
 
 class BroadcastRVD(backend: SparkBackend, rvd: RVD) extends Serializable {
   private[this] val crdd = rvd.crdd
+
   private[this] val bcPartitions = backend.broadcast(rvd.crdd.partitions)
 
   def computePartition(idx: Int, region: Region, partitionRegion: Region): Iterator[Long] = {

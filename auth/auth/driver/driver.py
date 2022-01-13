@@ -9,14 +9,16 @@ import aiohttp
 import kubernetes_asyncio as kube
 from hailtop.utils import time_msecs, secret_alnum_string
 from hailtop.auth.sql_config import create_secret_data_from_config, SQLConfig
-from hailtop import aiogoogle, aiotools
-from hailtop import batch_client as bc
+from hailtop import aiotools
+from hailtop import batch_client as bc, httpx
 from gear import create_session, Database
+from gear.cloud_config import get_gcp_config, get_global_config
+from gear.clients import get_identity_client
 
 log = logging.getLogger('auth.driver')
 
-PROJECT = os.environ['PROJECT']
-ZONE = os.environ['ZONE']
+
+CLOUD = get_global_config()['cloud']
 DEFAULT_NAMESPACE = os.environ['HAIL_DEFAULT_NAMESPACE']
 
 is_test_deployment = DEFAULT_NAMESPACE != 'default'
@@ -58,9 +60,7 @@ class EventHandler:
                 await asyncio.sleep(t)
 
                 ran_for_secs = (end_time - start_time) * 1000
-                delay_secs = min(
-                    max(self.min_delay_secs, 2 * delay_secs - min(0, (ran_for_secs - t) / 2)),
-                    30.0)
+                delay_secs = min(max(self.min_delay_secs, 2 * delay_secs - min(0, (ran_for_secs - t) / 2)), 30.0)
 
     async def bump_loop(self):
         while True:
@@ -88,11 +88,13 @@ class SessionResource:
         if self.session_id is None:
             return
 
-        await self.db.just_execute('''
+        await self.db.just_execute(
+            '''
 DELETE FROM sessions
 WHERE session_id = %s;
 ''',
-                                   (self.session_id,))
+            (self.session_id,),
+        )
         self.session_id = None
 
 
@@ -110,19 +112,16 @@ class K8sSecretResource:
         await self.k8s_client.create_namespaced_secret(
             namespace,
             kube.client.V1Secret(
-                metadata=kube.client.V1ObjectMeta(
-                    name=name),
-                data={
-                    k: base64.b64encode(v.encode('utf-8')).decode('utf-8')
-                    for k, v in data.items()
-                }))
+                metadata=kube.client.V1ObjectMeta(name=name),
+                data={k: base64.b64encode(v.encode('utf-8')).decode('utf-8') for k, v in data.items()},
+            ),
+        )
         self.name = name
         self.namespace = namespace
 
     async def _delete(self, name, namespace):
         try:
-            await self.k8s_client.delete_namespaced_secret(
-                name, namespace)
+            await self.k8s_client.delete_namespaced_secret(name, namespace)
         except kube.client.rest.ApiException as e:
             if e.status == 404:
                 pass
@@ -145,23 +144,18 @@ class GSAResource:
     async def create(self, username):
         assert self.gsa_email is None
 
-        gsa_email = f'{username}@{PROJECT}.iam.gserviceaccount.com'
+        project = get_gcp_config().project
+        gsa_email = f'{username}@{project}.iam.gserviceaccount.com'
 
         await self._delete(gsa_email)
 
         service_account = await self.iam_client.post(
-            '/serviceAccounts',
-            json={
-                "accountId": username,
-                "serviceAccount": {
-                    "displayName": username
-                }
-            })
+            '/serviceAccounts', json={"accountId": username, "serviceAccount": {"displayName": username}}
+        )
         assert service_account['email'] == gsa_email
         self.gsa_email = gsa_email
 
-        key = await self.iam_client.post(
-            f'/serviceAccounts/{self.gsa_email}/keys')
+        key = await self.iam_client.post(f'/serviceAccounts/{self.gsa_email}/keys')
 
         return (self.gsa_email, key)
 
@@ -181,6 +175,60 @@ class GSAResource:
         self.gsa_email = None
 
 
+class AzureServicePrincipalResource:
+    def __init__(self, graph_client, app_obj_id=None):
+        self.graph_client = graph_client
+        self.app_obj_id = app_obj_id
+
+    async def create(self, username):
+        assert self.app_obj_id is None
+
+        params = {'$filter': f"displayName eq '{username}'"}
+        applications = await self.graph_client.get('/applications', params=params)
+        assert len(applications['value']) <= 1, applications
+        for application in applications['value']:
+            await self._delete(application['id'])
+
+        config = {'displayName': username, 'signInAudience': 'AzureADMyOrg'}
+        application = await self.graph_client.post('/applications', json=config)
+
+        self.app_obj_id = application['id']
+
+        config = {'appId': application['appId']}
+        service_principal = await self.graph_client.post('/servicePrincipals', json=config)
+
+        assert application['appId'] == service_principal['appId']
+
+        password = await self.graph_client.post(f'/applications/{application["id"]}/addPassword', json={})
+
+        credentials = {
+            'appId': application['appId'],
+            'displayName': service_principal['appDisplayName'],
+            'name': service_principal['servicePrincipalNames'][0],
+            'password': password['secretText'],
+            'tenant': service_principal['appOwnerOrganizationId'],
+            'objectId': service_principal['id'],
+            'appObjectId': application['id'],
+        }
+
+        return (self.app_obj_id, credentials)
+
+    async def _delete(self, app_obj_id):
+        try:
+            await self.graph_client.delete(f'/applications/{app_obj_id}')
+        except aiohttp.ClientResponseError as e:
+            if e.status == 404:
+                pass
+            else:
+                raise
+
+    async def delete(self):
+        if self.app_obj_id is None:
+            return
+        await self._delete(self.app_obj_id)
+        self.app_obj_id = None
+
+
 class DatabaseResource:
     def __init__(self, db_instance, name=None):
         self.db_instance = db_instance
@@ -196,12 +244,14 @@ class DatabaseResource:
         await self._delete(name)
 
         self.password = secrets.token_urlsafe(16)
-        await self.db_instance.just_execute(f'''
+        await self.db_instance.just_execute(
+            f'''
 CREATE DATABASE `{name}`;
 
 CREATE USER '{name}'@'%' IDENTIFIED BY '{self.password}';
 GRANT ALL ON `{name}`.* TO '{name}'@'%';
-''')
+'''
+        )
         self.name = name
 
     def secret_data(self):
@@ -215,8 +265,7 @@ GRANT ALL ON `{name}`.* TO '{name}'@'%';
             client_key = f.read()
 
         if is_test_deployment:
-            return create_secret_data_from_config(
-                server_config, server_ca, client_cert, client_key)
+            return create_secret_data_from_config(server_config, server_ca, client_cert, client_key)
 
         assert self.name is not None
         assert self.password is not None
@@ -224,7 +273,7 @@ GRANT ALL ON `{name}`.* TO '{name}'@'%';
         config = SQLConfig(
             host=server_config.host,
             port=server_config.port,
-            user=self.name,
+            user=self.name if CLOUD != 'azure' else f'{self.name}@{server_config.instance}',
             password=self.password,
             instance=server_config.instance,
             connection_name=server_config.connection_name,
@@ -232,17 +281,16 @@ GRANT ALL ON `{name}`.* TO '{name}'@'%';
             ssl_ca='/sql-config/server-ca.pem',
             ssl_cert='/sql-config/client-cert.pem',
             ssl_key='/sql-config/client-key.pem',
-            ssl_mode='VERIFY_CA')
-        return create_secret_data_from_config(
-            config, server_ca, client_cert, client_key)
+            ssl_mode='VERIFY_CA',
+        )
+        return create_secret_data_from_config(config, server_ca, client_cert, client_key)
 
     async def _delete(self, name):
         if is_test_deployment:
             return
 
         # no DROP USER IF EXISTS in current db version
-        row = await self.db_instance.execute_and_fetchone(
-            'SELECT 1 FROM mysql.user WHERE User = %s;', (name,))
+        row = await self.db_instance.execute_and_fetchone('SELECT 1 FROM mysql.user WHERE User = %s;', (name,))
         if row is not None:
             await self.db_instance.just_execute(f"DROP USER '{name}';")
 
@@ -261,17 +309,16 @@ class K8sNamespaceResource:
         self.name = name
 
     async def create(self, name):
+        assert name not in ('default', DEFAULT_NAMESPACE)
         assert self.name is None
 
         await self._delete(name)
 
-        await self.k8s_client.create_namespace(
-            kube.client.V1Namespace(
-                metadata=kube.client.V1ObjectMeta(
-                    name=name)))
+        await self.k8s_client.create_namespace(kube.client.V1Namespace(metadata=kube.client.V1ObjectMeta(name=name)))
         self.name = name
 
     async def _delete(self, name):
+        assert name not in ('default', DEFAULT_NAMESPACE)
         try:
             await self.k8s_client.delete_namespace(name)
         except kube.client.rest.ApiException as e:
@@ -349,28 +396,26 @@ class BillingProjectResource:
         self.billing_project = None
 
 
-async def _create_user(app, user, cleanup):
+async def _create_user(app, user, skip_trial_bp, cleanup):
     db_instance = app['db_instance']
     db = app['db']
     k8s_client = app['k8s_client']
-    iam_client = app['iam_client']
-    batch_client = app['batch_client']
+    identity_client = app['identity_client']
 
+    username = user['username']
     if user['is_service_account'] != 1:
         token = secret_alnum_string(5, case='lower')
-        ident_token = f'{user["username"]}-{token}'
+        ident_token = f'{username}-{token}'
     else:
         token = secret_alnum_string(3, case='numbers')
-        ident_token = f'{user["username"]}-{token}'
+        ident_token = f'{username}-{token}'
 
-    if user['is_developer'] == 1 or user['is_service_account'] == 1:
-        ident = user['username']
+    if user['is_developer'] == 1 or user['is_service_account'] == 1 or username == 'test':
+        ident = username
     else:
         ident = ident_token
 
-    updates = {
-        'state': 'active'
-    }
+    updates = {'state': 'active'}
 
     tokens_secret_name = user['tokens_secret_name']
     if tokens_secret_name is None:
@@ -381,31 +426,46 @@ async def _create_user(app, user, cleanup):
         tokens_secret_name = f'{ident}-tokens'
         tokens_secret = K8sSecretResource(k8s_client)
         cleanup.append(tokens_secret.delete)
-        await tokens_secret.create(tokens_secret_name, DEFAULT_NAMESPACE, {
-            'tokens.json': json.dumps({
-                DEFAULT_NAMESPACE: tokens_session.session_id
-            })
-        })
+        await tokens_secret.create(
+            tokens_secret_name,
+            DEFAULT_NAMESPACE,
+            {'tokens.json': json.dumps({DEFAULT_NAMESPACE: tokens_session.session_id})},
+        )
         updates['tokens_secret_name'] = tokens_secret_name
 
-    gsa_email = user['gsa_email']
-    if gsa_email is None:
-        gsa = GSAResource(iam_client)
-        cleanup.append(gsa.delete)
+    hail_identity = user['hail_identity']
+    if hail_identity is None:
+        if CLOUD == 'gcp':
+            gsa = GSAResource(identity_client)
+            cleanup.append(gsa.delete)
 
-        # length of gsa account_id must be >= 6
-        assert len(ident_token) >= 6
+            # length of gsa account_id must be >= 6
+            assert len(ident_token) >= 6
 
-        gsa_email, key = await gsa.create(ident_token)
-        updates['gsa_email'] = gsa_email
+            gsa_email, key = await gsa.create(ident_token)
+            secret_data = base64.b64decode(key['privateKeyData']).decode('utf-8')
+            updates['hail_identity'] = gsa_email
+            updates['display_name'] = gsa_email
+        else:
+            assert CLOUD == 'azure'
 
-        gsa_key_secret_name = f'{ident}-gsa-key'
-        gsa_key_secret = K8sSecretResource(k8s_client)
-        cleanup.append(gsa_key_secret.delete)
-        await gsa_key_secret.create(gsa_key_secret_name, DEFAULT_NAMESPACE, {
-            'key.json': base64.b64decode(key['privateKeyData']).decode('utf-8')
-        })
-        updates['gsa_key_secret_name'] = gsa_key_secret_name
+            azure_sp = AzureServicePrincipalResource(identity_client)
+            cleanup.append(azure_sp.delete)
+
+            azure_app_obj_id, credentials = await azure_sp.create(ident_token)
+            secret_data = json.dumps(credentials)
+            updates['hail_identity'] = azure_app_obj_id
+            updates['display_name'] = ident_token
+
+        hail_credentials_secret_name = f'{ident}-gsa-key'
+        hail_identity_secret = K8sSecretResource(k8s_client)
+        cleanup.append(hail_identity_secret.delete)
+        await hail_identity_secret.create(
+            hail_credentials_secret_name,
+            DEFAULT_NAMESPACE,
+            {'key.json': secret_data},
+        )
+        updates['hail_credentials_secret_name'] = hail_credentials_secret_name
 
     namespace_name = user['namespace_name']
     if namespace_name is None and user['is_developer'] == 1:
@@ -421,35 +481,37 @@ async def _create_user(app, user, cleanup):
 
         db_secret = K8sSecretResource(k8s_client)
         cleanup.append(db_secret.delete)
-        await db_secret.create(
-            'database-server-config', namespace_name, db_resource.secret_data())
+        await db_secret.create('database-server-config', namespace_name, db_resource.secret_data())
 
-    trial_bp = user['trial_bp_name']
-    if trial_bp is None:
-        username = user['username']
-        billing_project_name = f'{username}-trial'
-        billing_project = BillingProjectResource(batch_client)
-        cleanup.append(billing_project.delete)
-        await billing_project.create(username, billing_project_name)
-        updates['trial_bp_name'] = billing_project_name
+    if not skip_trial_bp and user['is_service_account'] != 1:
+        trial_bp = user['trial_bp_name']
+        if trial_bp is None:
+            batch_client = app['batch_client']
+            billing_project_name = f'{username}-trial'
+            billing_project = BillingProjectResource(batch_client)
+            cleanup.append(billing_project.delete)
+            await billing_project.create(username, billing_project_name)
+            updates['trial_bp_name'] = billing_project_name
 
-    n_rows = await db.execute_update(f'''
+    n_rows = await db.execute_update(
+        f'''
 UPDATE users
 SET {', '.join([f'{k} = %({k})s' for k in updates])}
 WHERE id = %(id)s AND state = 'creating';
 ''',
-                                     {'id': user['id'], **updates})
+        {'id': user['id'], **updates},
+    )
     if n_rows != 1:
         assert n_rows == 0
         raise DatabaseConflictError
 
 
-async def create_user(app, user):
+async def create_user(app, user, skip_trial_bp=False):
     cleanup = []
     try:
-        await _create_user(app, user, cleanup)
+        await _create_user(app, user, skip_trial_bp, cleanup)
     except Exception:
-        log.exception(f'create user {user} failed, will retry')
+        log.exception(f'create user {user} failed')
 
         for f in cleanup:
             try:
@@ -464,8 +526,7 @@ async def delete_user(app, user):
     db_instance = app['db_instance']
     db = app['db']
     k8s_client = app['k8s_client']
-    iam_client = app['iam_client']
-    batch_client = app['batch_client']
+    identity_client = app['identity_client']
 
     tokens_secret_name = user['tokens_secret_name']
     if tokens_secret_name is not None:
@@ -474,18 +535,23 @@ async def delete_user(app, user):
         tokens_secret = K8sSecretResource(k8s_client, tokens_secret_name, DEFAULT_NAMESPACE)
         await tokens_secret.delete()
 
-    gsa_email = user['gsa_email']
-    if gsa_email is not None:
-        gsa = GSAResource(iam_client, gsa_email)
-        await gsa.delete()
+    hail_identity = user['hail_identity']
+    if hail_identity is not None:
+        if CLOUD == 'gcp':
+            gsa = GSAResource(identity_client, hail_identity)
+            await gsa.delete()
+        else:
+            assert CLOUD == 'azure'
+            azure_sp = AzureServicePrincipalResource(identity_client, hail_identity)
+            await azure_sp.delete()
 
-    gsa_key_secret_name = user['gsa_key_secret_name']
-    if gsa_key_secret_name is not None:
-        gsa_key_secret = K8sSecretResource(k8s_client, gsa_key_secret_name, DEFAULT_NAMESPACE)
-        await gsa_key_secret.delete()
+    hail_credentials_secret_name = user['hail_credentials_secret_name']
+    if hail_credentials_secret_name is not None:
+        hail_identity_secret = K8sSecretResource(k8s_client, hail_credentials_secret_name, DEFAULT_NAMESPACE)
+        await hail_identity_secret.delete()
 
     namespace_name = user['namespace_name']
-    if namespace_name is not None:
+    if namespace_name is not None and namespace_name != DEFAULT_NAMESPACE:
         assert user['is_developer'] == 1
 
         # don't bother deleting database-server-config since we're
@@ -498,14 +564,17 @@ async def delete_user(app, user):
 
     trial_bp_name = user['trial_bp_name']
     if trial_bp_name is not None:
+        batch_client = app['batch_client']
         bp = BillingProjectResource(batch_client, user['username'], trial_bp_name)
         await bp.delete()
 
-    await db.just_execute('''
+    await db.just_execute(
+        '''
 DELETE FROM sessions WHERE user_id = %s;
 UPDATE users SET state = 'deleted' WHERE id = %s;
 ''',
-                          (user['id'], user['id']))
+        (user['id'], user['id']),
+    )
 
 
 async def update_users(app):
@@ -513,16 +582,12 @@ async def update_users(app):
 
     db = app['db']
 
-    creating_users = [
-        x async for x in
-        db.execute_and_fetchall('SELECT * FROM users WHERE state = %s;', 'creating')]
+    creating_users = [x async for x in db.execute_and_fetchall('SELECT * FROM users WHERE state = %s;', 'creating')]
 
     for user in creating_users:
         await create_user(app, user)
 
-    deleting_users = [
-        x async for x in
-        db.execute_and_fetchall('SELECT * FROM users WHERE state = %s;', 'deleting')]
+    deleting_users = [x async for x in db.execute_and_fetchall('SELECT * FROM users WHERE state = %s;', 'deleting')]
 
     for user in deleting_users:
         await delete_user(app, user)
@@ -539,18 +604,18 @@ async def async_main():
         await db.async_init(maxsize=50)
         app['db'] = db
 
+        app['client_session'] = httpx.client_session()
+
         db_instance = Database()
         await db_instance.async_init(maxsize=50, config_file='/database-server-config/sql-config.json')
         app['db_instance'] = db_instance
 
         kube.config.load_incluster_config()
-        k8s_client = kube.client.CoreV1Api()
-        app['k8s_client'] = k8s_client
+        app['k8s_client'] = kube.client.CoreV1Api()
 
-        app['iam_client'] = aiogoogle.IAmClient(
-            PROJECT, credentials=aiogoogle.Credentials.from_file('/gsa-key/key.json'))
+        app['identity_client'] = get_identity_client()
 
-        app['batch_client'] = bc.aioclient.BatchClient(None)
+        app['batch_client'] = await bc.aioclient.BatchClient.create(None)
 
         users_changed_event = asyncio.Event()
         app['users_changed_event'] = users_changed_event
@@ -558,10 +623,7 @@ async def async_main():
         async def users_changed_handler():
             return await update_users(app)
 
-        user_creation_loop = EventHandler(
-            users_changed_handler,
-            event=users_changed_event,
-            min_delay_secs=1.0)
+        user_creation_loop = EventHandler(users_changed_handler, event=users_changed_event, min_delay_secs=1.0)
         await user_creation_loop.start()
 
         while True:
@@ -575,5 +637,15 @@ async def async_main():
                 if 'db_instance_pool' in app:
                     await app['db_instance_pool'].async_close()
             finally:
-                if user_creation_loop is not None:
-                    user_creation_loop.shutdown()
+                try:
+                    await app['client_session'].close()
+                finally:
+                    try:
+                        if user_creation_loop is not None:
+                            user_creation_loop.shutdown()
+                    finally:
+                        try:
+                            await app['identity_client'].close()
+                        finally:
+                            k8s_client: kube.client.CoreV1Api = app['k8s_client']
+                            await k8s_client.api_client.rest_client.pool_manager.close()
