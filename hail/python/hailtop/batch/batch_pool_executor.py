@@ -93,7 +93,7 @@ class BatchPoolExecutor:
         Backend used to execute the jobs. Must be a :class:`.ServiceBackend`.
     image:
         The name of a Docker image used for each submitted job. The image must
-        include Python 3.6 or later and must have the ``dill`` Python package
+        include Python 3.7 or later and must have the ``dill`` Python package
         installed. If you intend to use ``numpy``, ensure that OpenBLAS is also
         installed. If unspecified, an image with a matching Python verison and
         ``numpy``, ``scipy``, and ``sklearn`` installed is used.
