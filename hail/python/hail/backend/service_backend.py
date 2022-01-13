@@ -210,33 +210,29 @@ class ServiceBackend(Backend):
         token = secret_alnum_string()
         iodir = TemporaryDirectory(ensure_exists=False).name  # FIXME: actually cleanup
         with TemporaryDirectory(ensure_exists=False) as _:
-            async def create_inputs():
-                async with await self._async_fs.create(iodir + '/in') as infile:
-                    await inputs(infile, token)
+            async with await self._async_fs.create(iodir + '/in') as infile:
+                await inputs(infile, token)
 
-            async def create_batch():
-                batch_attributes = self.batch_attributes
-                if 'name' not in batch_attributes:
-                    batch_attributes = {**batch_attributes, 'name': name}
-                bb = self.async_bc.create_batch(token=token, attributes=batch_attributes)
+            batch_attributes = self.batch_attributes
+            if 'name' not in batch_attributes:
+                batch_attributes = {**batch_attributes, 'name': name}
+            bb = self.async_bc.create_batch(token=token, attributes=batch_attributes)
 
-                j = bb.create_jvm_job([
-                    'is.hail.backend.service.ServiceBackendSocketAPI2',
-                    os.environ['HAIL_SHA'],
-                    os.environ['HAIL_JAR_URL'],
-                    batch_attributes['name'],
-                    iodir + '/in',
-                    iodir + '/out',
-                ], mount_tokens=True)
-                b = await bb.submit(disable_progress_bar=self.disable_progress_bar)
-                try:
-                    status = await b.wait(disable_progress_bar=self.disable_progress_bar)
-                    return (j, b, status)
-                except Exception:
-                    await b.cancel()
-                    raise
-
-            _, (j, b, status) = await asyncio.gather(create_inputs(), create_batch())
+            j = bb.create_jvm_job([
+                'is.hail.backend.service.ServiceBackendSocketAPI2',
+                os.environ['HAIL_SHA'],
+                os.environ['HAIL_JAR_URL'],
+                batch_attributes['name'],
+                iodir + '/in',
+                iodir + '/out',
+            ], mount_tokens=True)
+            b = await bb.submit(disable_progress_bar=self.disable_progress_bar)
+            try:
+                status = await b.wait(disable_progress_bar=self.disable_progress_bar)
+                (j, b, status) = (j, b, status)
+            except Exception:
+                await b.cancel()
+                raise
 
             if status['n_succeeded'] != 1:
                 job_status = await j.status()
