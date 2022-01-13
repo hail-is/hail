@@ -39,11 +39,9 @@ async def test_copy_dir():
         write_file(f'{test_dir}/subdir1/file1', 'hello world\n')
 
         res = await copy_test( 
-        None,[{"from": f"{test_dir}/subdir1/file1", "into": f"{test_dir}/subdir2"}]
+        None,[{"from": f"{test_dir}/subdir1", "into": f"{test_dir}/subdir2"}]
         )
-        files = [ f'{test_dir}/subdir2/file1', f'{test_dir}/subdir1/file1']
-        for file in files :
-            assert read_file(file)  == 'hello world\n'
+        assert read_file(f'{test_dir}/subdir2/subdir1/file1')  == 'hello world\n'
 
 # Find how in python to check whether a file exsist 
 # something like os.path.exsist dir1/file1 also test file2.exsist, file3.exsist and dir1/file1
