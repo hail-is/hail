@@ -110,6 +110,13 @@ spec:
                key: batch_logs_storage_uri
          - name: STANDING_WORKER_MAX_IDLE_TIME_SECS
            value: "7200" # 2 hours
+         - name: HAIL_QUERY_STORAGE_URI
+           valueFrom:
+             secretKeyRef:
+               name: global-config
+               key: query_storage_uri
+         - name: HAIL_QUERY_ACCEPTABLE_JAR_SUBFOLDER
+           value: "/jars"
 {% else %}
          - name: HAIL_BATCH_STORAGE_URI
            valueFrom:
@@ -118,6 +125,13 @@ spec:
                key: test_storage_uri
          - name: STANDING_WORKER_MAX_IDLE_TIME_SECS
            value: "300"
+         - name: HAIL_QUERY_STORAGE_URI
+           valueFrom:
+             secretKeyRef:
+               name: global-config
+               key: test_storage_uri
+         - name: HAIL_QUERY_ACCEPTABLE_JAR_SUBFOLDER
+           value: "/{{ token }}/jars"
 {% endif %}
         ports:
          - containerPort: 5000

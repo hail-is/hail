@@ -136,6 +136,8 @@ BATCH_WORKER_IMAGE_ID = os.environ['BATCH_WORKER_IMAGE_ID']
 INTERNET_INTERFACE = os.environ['INTERNET_INTERFACE']
 UNRESERVED_WORKER_DATA_DISK_SIZE_GB = int(os.environ['UNRESERVED_WORKER_DATA_DISK_SIZE_GB'])
 assert UNRESERVED_WORKER_DATA_DISK_SIZE_GB >= 0
+ACCEPTABLE_QUERY_JAR_URL_PREFIX = os.environ['ACCEPTABLE_QUERY_JAR_URL_PREFIX']
+assert isinstance(ACCEPTABLE_QUERY_JAR_URL_PREFIX, str) and len(ACCEPTABLE_QUERY_JAR_URL_PREFIX) > 3  # x:// where x is one or more characters
 
 CLOUD_WORKER_API: CloudWorkerAPI = GCPWorkerAPI.from_env() if CLOUD == 'gcp' else AzureWorkerAPI.from_env()
 
@@ -153,6 +155,7 @@ log.info(f'CLOUD_WORKER_API {CLOUD_WORKER_API}')
 log.info(f'MAX_IDLE_TIME_MSECS {MAX_IDLE_TIME_MSECS}')
 log.info(f'INTERNET_INTERFACE {INTERNET_INTERFACE}')
 log.info(f'UNRESERVED_WORKER_DATA_DISK_SIZE_GB {UNRESERVED_WORKER_DATA_DISK_SIZE_GB}')
+log.info(f'ACCEPTABLE_QUERY_JAR_URL_PREFIX {ACCEPTABLE_QUERY_JAR_URL_PREFIX}')
 
 instance_config = CLOUD_WORKER_API.instance_config_from_config_dict(INSTANCE_CONFIG)
 assert instance_config.cores == CORES
@@ -1622,6 +1625,9 @@ class JVMJob(Job):
     def step(self, name):
         return self.timings.step(name)
 
+    def verify_is_acceptable_query_jar_url(self, url: str):
+        self.worker.verify_is_acceptable_query_jar_url(url, self)
+
     async def run(self):
         async with self.worker.cpu_sem(self.cpu_in_mcpu):
             self.start_time = time_msecs()
@@ -1655,6 +1661,7 @@ class JVMJob(Job):
                     async with self.worker.jar_download_locks[self.revision]:
                         local_jar_location = f'/hail-jars/{self.revision}.jar'
                         if not os.path.isfile(local_jar_location):
+                            self.verify_is_acceptable_query_jar_url(self.jar_url)
                             async with await self.worker.fs.open(self.jar_url) as jar_data:
                                 await self.worker.fs.makedirs('/hail-jars/', exist_ok=True)
                                 async with await self.worker.fs.create(local_jar_location) as local_file:
@@ -2145,6 +2152,12 @@ class Worker:
     def return_jvm(self, jvm: JVM):
         jvm.reset()
         self.jvms.append(jvm)
+
+    def verify_is_acceptable_query_jar_url(self, url: str, job: Job):
+        n = len(ACCEPTABLE_QUERY_JAR_URL_PREFIX)
+        if url[:n] != ACCEPTABLE_QUERY_JAR_URL_PREFIX:
+            log.error(f'user submitted unacceptable JAR url: {url} for {job}. {ACCEPTABLE_QUERY_JAR_URL_PREFIX}')
+            raise ValueError(f'unacceptable JAR url: {url}')
 
     async def shutdown(self):
         log.info('Worker.shutdown')
