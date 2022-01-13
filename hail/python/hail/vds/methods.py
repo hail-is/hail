@@ -447,7 +447,6 @@ def filter_variants(vds: 'VariantDataset', variants_table: 'Table', *, keep: boo
            intervals=expr_array(expr_interval(expr_any)),
            keep=bool,
            mode=enumeration('variants_only', 'split_at_boundaries', 'unchecked_filter_both'))
-
 def _parameterized_filter_intervals(vds: 'VariantDataset',
                                     intervals: 'ArrayExpression',
                                     keep: bool,
