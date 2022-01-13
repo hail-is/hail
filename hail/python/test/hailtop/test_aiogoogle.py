@@ -24,8 +24,10 @@ async def gs_filesystem(request):
             assert request.param.endswith('gs')
             fs = GoogleStorageAsyncFS()
         async with fs:
-            bucket = os.environ['HAIL_TEST_GCS_BUCKET']
-            base = f'gs://{bucket}/tmp/{token}/'
+            test_storage_uri = os.environ['HAIL_TEST_STORAGE_URI']
+            protocol = 'gs://'
+            assert test_storage_uri[:len(protocol)] == protocol
+            base = f'{test_storage_uri}/tmp/{token}/'
 
             await fs.mkdir(base)
             sema = asyncio.Semaphore(50)
@@ -35,10 +37,15 @@ async def gs_filesystem(request):
             assert not await fs.isdir(base)
 
 
+@pytest.fixture
+def bucket_and_temporary_file():
+    bucket, prefix = GoogleStorageAsyncFS.get_bucket_name(os.environ['HAIL_TEST_STORAGE_URI'])
+    return bucket, prefix + '/' + secrets.token_hex(16)
+
+
 @pytest.mark.asyncio
-async def test_get_object_metadata():
-    bucket = os.environ['HAIL_TEST_GCS_BUCKET']
-    file = secrets.token_hex(16)
+async def test_get_object_metadata(bucket_and_temporary_file):
+    bucket, file = bucket_and_temporary_file
 
     async with GoogleStorageClient() as client:
         async def upload():
@@ -53,9 +60,8 @@ async def test_get_object_metadata():
 
 
 @pytest.mark.asyncio
-async def test_get_object_headers():
-    bucket = os.environ['HAIL_TEST_GCS_BUCKET']
-    file = secrets.token_hex(16)
+async def test_get_object_headers(bucket_and_temporary_file):
+    bucket, file = bucket_and_temporary_file
 
     async with GoogleStorageClient() as client:
         async def upload():
@@ -70,9 +76,8 @@ async def test_get_object_headers():
 
 
 @pytest.mark.asyncio
-async def test_compose():
-    bucket = os.environ['HAIL_TEST_GCS_BUCKET']
-    token = secret_alnum_string()
+async def test_compose(bucket_and_temporary_file):
+    bucket, file = bucket_and_temporary_file
 
     part_data = [b'a', b'bb', b'ccc']
 

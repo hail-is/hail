@@ -19,9 +19,9 @@ tearDownModule = stopTestHailContext
 class Tests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        remote_tmpdir = get_remote_tmpdir('test_google_fs_utils.py::Tests.setUpClass')
-        assert remote_tmpdir[-1] == '/'
-        cls.remote_tmpdir = remote_tmpdir[:-1]
+        cls.remote_tmpdir = os.environ['HAIL_TEST_STORAGE_URI']
+        if cls.remote_tmpdir[-1] == '/':
+            cls.remote_tmpdir = cls.remote_tmpdir[:-1]
 
         local_tmpdir = _get_local_tmpdir(None)
         local_tmpdir = local_tmpdir[len('file://'):]
@@ -121,7 +121,7 @@ class Tests(unittest.TestCase):
         if prefix is None:
             prefix = self.remote_tmpdir
 
-        stat1 = hl.hadoop_stat(f'{prefix}/')
+        stat1 = hl.hadoop_stat(f'{prefix}')
         self.assertEqual(stat1['is_dir'], True)
 
         stat2 = hl.hadoop_stat(f'{prefix}/test_out.copy.txt.gz')
