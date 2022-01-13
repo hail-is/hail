@@ -47,8 +47,8 @@ object TableNativeWriter {
     // write out partitioner key, which may be stricter than table key
     val partitioner = ts.partitioner
     val pKey: PStruct = coerce[PStruct](rowSpec.decodedPType(partitioner.kType))
-    val rowWriter = PartitionNativeWriter(rowSpec, s"$path/rows/parts/", Some(s"$path/index/" -> pKey), if (stageLocally) Some(ctx.localTmpdir) else None)
-    val globalWriter = PartitionNativeWriter(globalSpec, s"$path/globals/parts/", None, None)
+    val rowWriter = PartitionNativeWriter(rowSpec, Some(pKey.virtualType), s"$path/rows/parts/", Some(s"$path/index/" -> pKey), if (stageLocally) Some(ctx.localTmpdir) else None)
+    val globalWriter = PartitionNativeWriter(globalSpec, None, s"$path/globals/parts/", None, None)
 
     ts.mapContexts { oldCtx =>
       val d = digitsNeeded(ts.numPartitions)
@@ -164,16 +164,13 @@ case class TableNativeWriter(
   }
 }
 
-case class PartitionNativeWriter(spec: AbstractTypedCodecSpec, partPrefix: String, index: Option[(String, PStruct)], localDir: Option[String]) extends PartitionWriter {
+case class PartitionNativeWriter(spec: AbstractTypedCodecSpec, optKeyType: Option[TStruct], partPrefix: String, index: Option[(String, PStruct)], localDir: Option[String]) extends PartitionWriter {
   def stageLocally: Boolean = localDir.isDefined
   def hasIndex: Boolean = index.isDefined
   val filenameType = PCanonicalString(required = true)
   def pContextType = PCanonicalString()
 
-  val tmp = ifIndexed { index.get._2 }
-  val indexKeyPType = if (tmp == null) PCanonicalStruct() else tmp
-
-  val keyType = indexKeyPType.virtualType
+  val keyType = optKeyType.getOrElse(TStruct())
 
   def ctxType: Type = TString
   def returnType: Type = TStruct("filePath" -> TString, "partitionCounts" -> TInt64, "distinctlyKeyed" -> TBoolean, "firstKey" -> keyType, "lastKey" -> keyType)
@@ -223,6 +220,7 @@ case class PartitionNativeWriter(spec: AbstractTypedCodecSpec, partPrefix: Strin
 
         if (hasIndex) {
           indexWriter.add(cb, {
+            val indexKeyPType = index.get._2
             IEmitCode.present(cb, indexKeyPType.asInstanceOf[PCanonicalBaseStruct]
               .constructFromFields(cb, stream.elementRegion,
                 indexKeyPType.fields.map{ f =>

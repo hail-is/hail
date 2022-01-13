@@ -105,13 +105,13 @@ case class MatrixNativeWriter(
     val partitioner = lowered.partitioner
     val pKey: PStruct = coerce[PStruct](rowSpec.decodedPType(partitioner.kType))
 
-    val emptyWriter = PartitionNativeWriter(emptySpec, s"$path/globals/globals/parts/", None, None)
-    val globalWriter = PartitionNativeWriter(globalSpec, s"$path/globals/rows/parts/", None, None)
-    val colWriter = PartitionNativeWriter(colSpec, s"$path/cols/rows/parts/", None, None)
+    val emptyWriter = PartitionNativeWriter(emptySpec, None, s"$path/globals/globals/parts/", None, None)
+    val globalWriter = PartitionNativeWriter(globalSpec, None, s"$path/globals/rows/parts/", None, None)
+    val colWriter = PartitionNativeWriter(colSpec, None, s"$path/cols/rows/parts/", None, None)
     val rowWriter = SplitPartitionNativeWriter(
       rowSpec, s"$path/rows/rows/parts/",
       entrySpec, s"$path/entries/rows/parts/",
-      Some(s"$path/index/" -> pKey), if (stageLocally) Some(ctx.localTmpdir) else None)
+      Some(pKey.virtualType), Some(s"$path/index/" -> pKey), if (stageLocally) Some(ctx.localTmpdir) else None)
 
     lowered.mapContexts { oldCtx =>
       val d = digitsNeeded(lowered.numPartitions)
@@ -182,17 +182,14 @@ case class MatrixNativeWriter(
 case class SplitPartitionNativeWriter(
   spec1: AbstractTypedCodecSpec, partPrefix1: String,
   spec2: AbstractTypedCodecSpec, partPrefix2: String,
+  optKeyType: Option[TStruct],
   index: Option[(String, PStruct)], localDir: Option[String]) extends PartitionWriter {
   def stageLocally: Boolean = localDir.isDefined
   def hasIndex: Boolean = index.isDefined
   val filenameType = PCanonicalString(required = true)
   def pContextType = PCanonicalString()
 
-  val tmp = ifIndexed { index.get._2 }
-  val indexKeyPType = if (tmp == null) PCanonicalStruct() else tmp
-
-  val keyType = indexKeyPType.virtualType
-
+  val keyType = optKeyType.getOrElse(TStruct())
 
   def ctxType: Type = TString
   def returnType: Type = TStruct("filePath" -> TString, "partitionCounts" -> TInt64, "distinctlyKeyed" -> TBoolean, "firstKey" -> keyType, "lastKey" -> keyType)
@@ -217,10 +214,9 @@ case class SplitPartitionNativeWriter(
     val iAnnotationType = PCanonicalStruct(required = true, "entries_offset" -> PInt64())
     val mb = cb.emb
 
-    val indexWriter = ifIndexed { StagedIndexWriter.withDefaults(indexKeyPType, mb.ecb, annotationType = iAnnotationType) }
+    val indexWriter = ifIndexed { StagedIndexWriter.withDefaults(index.get._2, mb.ecb, annotationType = iAnnotationType) }
 
     context.toI(cb).map(cb) { pctx =>
-      val result = mb.newLocal[Long]("write_result")
       val filename1 = mb.newLocal[String]("filename1")
       val os1 = mb.newLocal[ByteTrackingOutputStream]("write_os1")
       val ob1 = mb.newLocal[OutputBuffer]("write_ob1")
@@ -245,6 +241,7 @@ case class SplitPartitionNativeWriter(
 
         if (hasIndex) {
           indexWriter.add(cb, {
+            val indexKeyPType = index.get._2
             IEmitCode.present(cb, indexKeyPType.asInstanceOf[PCanonicalBaseStruct]
               .constructFromFields(cb, stream.elementRegion,
                 indexKeyPType.fields.map(f => EmitCode.fromI(cb.emb)(cb => row.loadField(cb, f.name))),
