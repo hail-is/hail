@@ -13,9 +13,8 @@ def write_file(path, data):
          f.write(data)
 
 def read_file(path):
-    with open(path, 'r') as f: 
+    with open(path, 'r') as f:
        return f.read()
-       
 # TEMP DIRECTORY FOR FILE1 TEST
 @pytest.mark.asyncio
 async def test_copy_file():
@@ -23,7 +22,7 @@ async def test_copy_file():
         write_file(f'{test_dir}/file1', 'hello world\n')
 
         res = await copy_test( 
-        None,[{"from": f"{test_dir}/file1", "to":f"{test_dir}/file2"}, 
+        None,[{"from": f"{test_dir}/file1", "to":f"{test_dir}/file2"},
         {"from": f"{test_dir}/file1", "into": f"{test_dir}/dir1"}]
         )
 
@@ -42,7 +41,7 @@ async def test_copy_dir():
         None,[{"from": f"{test_dir}/subdir1", "into": f"{test_dir}/subdir2"},
         {"from": f"{test_dir}/subdir1/file1", "into": f"{test_dir}/subdir2"}]
         )
-        
+
         files = [f'{test_dir}/subdir2/file1', f'{test_dir}/subdir2/subdir1/file1']
         assert read_file(f'{test_dir}/subdir1/file1')  == 'hello world\n'
 
@@ -68,5 +67,5 @@ async def test_copy_dir():
 # Add a read function like we did for the write file
 # use that function in the asserts 
 # Reviewing code and check formatting (spacing )look up tools for formatting after 
-# saving all the changes 
-# import copy and make_transfer 
+# saving all the changes
+# import copy and make_transfer
