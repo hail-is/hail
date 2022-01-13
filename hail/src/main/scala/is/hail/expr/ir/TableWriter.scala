@@ -204,7 +204,7 @@ case class PartitionNativeWriter(spec: AbstractTypedCodecSpec, optKeyType: Optio
       val ob = mb.newLocal[OutputBuffer]("write_ob")
       val n = mb.newLocal[Long]("partition_count")
       val distinctlyKeyed = mb.newLocal[Boolean]("distinctlyKeyed")
-      cb.assign(distinctlyKeyed, true) // True until proven otherwise
+      cb.assign(distinctlyKeyed, optKeyType.isDefined) // True until proven otherwise, if there's a key to care about at all.
 
       val keyEmitType = EmitType(spec.decodedPType(keyType).sType, false)
 
@@ -236,19 +236,21 @@ case class PartitionNativeWriter(spec: AbstractTypedCodecSpec, optKeyType: Optio
           EmitCode.fromI(cb.emb)(cb => row.loadField(cb, f.name))
         }:_*)
 
-        cb.ifx(distinctlyKeyed, {
-          lastSeenSettable.loadI(cb).consume(cb, {
-            // If there's no last seen, we are in the first row.
-            cb.assign(firstSeenSettable, EmitValue.present(key.copyToRegion(cb, region, firstSeenSettable.st)))
-          }, { lastSeen =>
-            val comparator = EQ(lastSeenSettable.emitType.virtualType).codeOrdering(cb.emb.ecb, lastSeenSettable.st, key.st)
-            val equalToLast = comparator(cb, lastSeenSettable, EmitValue.present(key))
-            cb.ifx(equalToLast.asInstanceOf[Value[Boolean]], {
-              cb.assign(distinctlyKeyed, false)
+        if (optKeyType.isDefined) {
+          cb.ifx(distinctlyKeyed, {
+            lastSeenSettable.loadI(cb).consume(cb, {
+              // If there's no last seen, we are in the first row.
+              cb.assign(firstSeenSettable, EmitValue.present(key.copyToRegion(cb, region, firstSeenSettable.st)))
+            }, { lastSeen =>
+              val comparator = EQ(lastSeenSettable.emitType.virtualType).codeOrdering(cb.emb.ecb, lastSeenSettable.st, key.st)
+              val equalToLast = comparator(cb, lastSeenSettable, EmitValue.present(key))
+              cb.ifx(equalToLast.asInstanceOf[Value[Boolean]], {
+                cb.assign(distinctlyKeyed, false)
+              })
             })
           })
-        })
-        cb.assign(lastSeenSettable, IEmitCode.present(cb, key.copyToRegion(cb, region, lastSeenSettable.st)))
+          cb.assign(lastSeenSettable, IEmitCode.present(cb, key.copyToRegion(cb, region, lastSeenSettable.st)))
+        }
 
         cb += ob.writeByte(1.asInstanceOf[Byte])
 
@@ -346,9 +348,8 @@ case class TableSpecWriter(path: String, typ: TableType, rowRelPath: String, glo
     cb: EmitCodeBuilder,
     region: Value[Region]): Unit = {
     cb += cb.emb.getFS.invoke[String, Unit]("mkDir", path)
-    // Previously a was just a SIndexableValue of Longs. Now it's full of structs which have to be passed to helper accordingly
-    // Probably we want the current partCounts Array[Long], plus a boolean of whether all parts were distinctly keyed and
-    // there was no overlap between keys.
+
+    val hasKey = !this.typ.keyType.fields.isEmpty
 
     val a = writeAnnotations.get(cb, "write annotations can't be missing!").asIndexable
     val partCounts = cb.newLocal[Array[Long]]("partCounts")
@@ -358,7 +359,7 @@ case class TableSpecWriter(path: String, typ: TableType, rowRelPath: String, glo
 
     val lastSeenSettable = cb.emb.newEmitLocal(EmitType(keySType, false))
     cb.assign(lastSeenSettable, EmitCode.missing(cb.emb, keySType))
-    val distinctlyKeyed = cb.newLocal[Boolean]("tsw_write_metadata_distinctlyKeyed", true)
+    val distinctlyKeyed = cb.newLocal[Boolean]("tsw_write_metadata_distinctlyKeyed", hasKey)
 
     val n = cb.newLocal[Int]("n", a.loadLength())
     val i = cb.newLocal[Int]("i", 0)
@@ -367,17 +368,19 @@ case class TableSpecWriter(path: String, typ: TableType, rowRelPath: String, glo
       val curElement =  a.loadElement(cb, i).get(cb, "writeMetadata annotation can't be missing").asBaseStruct
       val count = curElement.asBaseStruct.loadField(cb, "partitionCounts").get(cb, "part count can't be missing!").asLong.longCode(cb)
 
-      // Only nonempty partitions affect first, last, and distinctlyKeyed.
-      cb.ifx(count cne 0L, {
-        val curFirst = curElement.loadField(cb, "firstKey").get(cb, const("firstKey of curElement can't be missing, part size was ") concat count.toS)
+      if (hasKey) {
+        // Only nonempty partitions affect first, last, and distinctlyKeyed.
+        cb.ifx(count cne 0L, {
+          val curFirst = curElement.loadField(cb, "firstKey").get(cb, const("firstKey of curElement can't be missing, part size was ") concat count.toS)
 
-        val comparator = NEQ(lastSeenSettable.emitType.virtualType).codeOrdering(cb.emb.ecb, lastSeenSettable.st, curFirst.st)
-        val notEqualToLast = comparator(cb, lastSeenSettable, EmitValue.present(curFirst)).asInstanceOf[Value[Boolean]]
+          val comparator = NEQ(lastSeenSettable.emitType.virtualType).codeOrdering(cb.emb.ecb, lastSeenSettable.st, curFirst.st)
+          val notEqualToLast = comparator(cb, lastSeenSettable, EmitValue.present(curFirst)).asInstanceOf[Value[Boolean]]
 
-        val partWasDistinctlyKeyed = curElement.loadField(cb, "distinctlyKeyed").get(cb).asBoolean.boolCode(cb)
-        cb.assign(distinctlyKeyed, distinctlyKeyed && partWasDistinctlyKeyed && notEqualToLast)
-        cb.assign(lastSeenSettable, curElement.loadField(cb, "lastKey"))
-      })
+          val partWasDistinctlyKeyed = curElement.loadField(cb, "distinctlyKeyed").get(cb).asBoolean.boolCode(cb)
+          cb.assign(distinctlyKeyed, distinctlyKeyed && partWasDistinctlyKeyed && notEqualToLast)
+          cb.assign(lastSeenSettable, curElement.loadField(cb, "lastKey"))
+        })
+      }
 
       cb += partCounts.update(i, count)
       cb.assign(i, i + 1)

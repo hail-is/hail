@@ -225,7 +225,7 @@ case class SplitPartitionNativeWriter(
       val ob2 = mb.newLocal[OutputBuffer]("write_ob2")
       val n = mb.newLocal[Long]("partition_count")
       val distinctlyKeyed = mb.newLocal[Boolean]("distinctlyKeyed")
-      cb.assign(distinctlyKeyed, true) // True until proven otherwise
+      cb.assign(distinctlyKeyed, optKeyType.isDefined) // True until proven otherwise, if there's a key to care about all.
 
       val keyEmitType = EmitType(spec1.decodedPType(keyType).sType, false)
 
@@ -258,19 +258,21 @@ case class SplitPartitionNativeWriter(
           EmitCode.fromI(cb.emb)(cb => row.loadField(cb, f.name))
         }:_*)
 
-        cb.ifx(distinctlyKeyed, {
-          lastSeenSettable.loadI(cb).consume(cb, {
-            // If there's no last seen, we are in the first row.
-            cb.assign(firstSeenSettable, EmitValue.present(key.copyToRegion(cb, region, firstSeenSettable.st)))
-          }, { lastSeen =>
-            val comparator = EQ(lastSeenSettable.emitType.virtualType).codeOrdering(cb.emb.ecb, lastSeenSettable.st, key.st)
-            val equalToLast = comparator(cb, lastSeenSettable, EmitValue.present(key))
-            cb.ifx(equalToLast.asInstanceOf[Value[Boolean]], {
-              cb.assign(distinctlyKeyed, false)
+        if (optKeyType.isDefined) {
+          cb.ifx(distinctlyKeyed, {
+            lastSeenSettable.loadI(cb).consume(cb, {
+              // If there's no last seen, we are in the first row.
+              cb.assign(firstSeenSettable, EmitValue.present(key.copyToRegion(cb, region, firstSeenSettable.st)))
+            }, { lastSeen =>
+              val comparator = EQ(lastSeenSettable.emitType.virtualType).codeOrdering(cb.emb.ecb, lastSeenSettable.st, key.st)
+              val equalToLast = comparator(cb, lastSeenSettable, EmitValue.present(key))
+              cb.ifx(equalToLast.asInstanceOf[Value[Boolean]], {
+                cb.assign(distinctlyKeyed, false)
+              })
             })
           })
-        })
-        cb.assign(lastSeenSettable, IEmitCode.present(cb, key.copyToRegion(cb, region, lastSeenSettable.st)))
+          cb.assign(lastSeenSettable, IEmitCode.present(cb, key.copyToRegion(cb, region, lastSeenSettable.st)))
+        }
 
         cb += ob1.writeByte(1.asInstanceOf[Byte])
 
