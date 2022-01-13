@@ -121,7 +121,7 @@ class Tests(unittest.TestCase):
         if prefix is None:
             prefix = self.remote_tmpdir
 
-        stat1 = hl.hadoop_stat(f'{prefix}/')
+        stat1 = hl.hadoop_stat(f'{prefix}')
         self.assertEqual(stat1['is_dir'], True)
 
         stat2 = hl.hadoop_stat(f'{prefix}/test_out.copy.txt.gz')
