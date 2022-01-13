@@ -85,33 +85,29 @@ object Parser extends JavaTokenParsers {
   }
 
   def oneOfLiteral(a: Array[String]): Parser[String] = new Parser[String] {
-    val root = ParseTrieNode.generate(a)
-
-    val sb: StringBuilder = new StringBuilder()
+    private[this] val root = ParseTrieNode.generate(a)
 
     def apply(in: Input): ParseResult[String] = {
 
-      sb.clear()
       var _in = in
       var node = root
       while (true) {
         if (_in.atEnd)
-          if (node.hasEnd)
-            return Success(sb.result(), _in)
+          if (node.value != null)
+            return Success(node.value, _in)
           else
             return Failure("", in)
 
         val nextChar = _in.first
         val nextNode = node.search(nextChar)
         if (nextNode == null) {
-          if (node.hasEnd)
-            return Success(sb.result(), _in)
+          if (node.value != null)
+            return Success(node.value, _in)
           else
             return Failure("", in)
         }
         _in = _in.rest
         node = nextNode
-        sb += nextChar
       }
       return null // unreachable
     }

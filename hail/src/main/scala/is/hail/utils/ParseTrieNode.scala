@@ -10,23 +10,36 @@ import scala.collection.mutable.ArrayBuffer
   * small (small enough that a O(n log n) binary search or O(1) hash lookup would be more
   * expensive)
   */
-class ParseTrieNode(val prev: Char, var hasEnd: Boolean, var children: ArrayBuffer[ParseTrieNode]) {
+
+class ParseTrieNode(val value: String,
+  val children: Array[ParseTrieNode],
+  val nextChar: Array[Char]) {
+
   def search(next: Char): ParseTrieNode = {
     var i = 0
-    while (i < children.size) {
-      val child = children(i)
-      if (child.prev == next)
-        return child
+    while (i < children.length) {
+      if (nextChar(i) == next)
+        return children(i)
       i += 1
     }
     null
   }
-
 }
 
+
 object ParseTrieNode {
+
   def generate(data: Array[String]): ParseTrieNode = {
-    val root = new ParseTrieNode(null.asInstanceOf[Char], false, new ArrayBuffer[ParseTrieNode])
+    class ParseTrieNodeBuilder(var value: String,
+      var children: ArrayBuffer[ParseTrieNodeBuilder],
+      var nextChar: ArrayBuffer[Char]) {
+
+      def result(): ParseTrieNode = {
+        new ParseTrieNode(value, children.toArray.map(_.result()), nextChar.toArray)
+      }
+    }
+
+    val root = new ParseTrieNodeBuilder(null, new ArrayBuffer[ParseTrieNodeBuilder], new ArrayBuffer[Char])
 
     def insert(s: String): Unit = {
       var idx = 0
@@ -34,16 +47,18 @@ object ParseTrieNode {
       while (idx < s.length) {
         val next = s(idx)
         val buff = node.children
+        val charBuff = node.nextChar
         var continue = true
         var i = 0
         while (continue) {
-          if (i >= buff.size) {
-            node = new ParseTrieNode(next, false, new ArrayBuffer[ParseTrieNode])
+          if (i >= charBuff.size) {
+            node.nextChar += next
+            node = new ParseTrieNodeBuilder(null, new ArrayBuffer[ParseTrieNodeBuilder], new ArrayBuffer[Char])
             buff += node
             continue = false
           } else {
             val child = buff(i)
-            if (child.prev == next) {
+            if (charBuff(i) == next) {
               node = child
               continue = false
             }
@@ -54,11 +69,11 @@ object ParseTrieNode {
         idx += 1
       }
 
-      node.hasEnd = true
+      node.value = s
     }
 
     data.foreach(insert)
 
-    root
+    root.result()
   }
 }
