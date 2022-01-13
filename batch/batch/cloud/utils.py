@@ -1,4 +1,5 @@
 from typing import Any, Dict, Set
+import os
 
 from gear.cloud_config import get_azure_config, get_gcp_config
 
@@ -22,3 +23,9 @@ def possible_cloud_locations(cloud: str) -> Set[str]:
     assert cloud == 'gcp'
     gcp_config = get_gcp_config()
     return gcp_config.regions
+
+
+ACCEPTABLE_QUERY_JAR_URL_PREFIX = (
+    os.environ['HAIL_QUERY_STORAGE_URI'] + os.environ['HAIL_QUERY_ACCEPTABLE_JAR_SUBFOLDER']
+)
+assert len(ACCEPTABLE_QUERY_JAR_URL_PREFIX) > 3  # x:// where x is one or more characters

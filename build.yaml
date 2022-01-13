@@ -2781,7 +2781,7 @@ steps:
       {% if deploy %}
       destination={{ global.query_storage_uri }}/jars/
       {% else %}
-      destination={{ global.test_storage_uri }}/{{ token }}/jars/
+      destination={{ global.test_storage_uri }}/{{ deploy_batch.token }}/jars/
       {% endif %}
 
       python3 -m hailtop.aiotools.copy 'null' '[
@@ -2821,8 +2821,8 @@ steps:
       export HAIL_SHA="$(cat /io/git_version)"
       export HAIL_JAR_URL="{{ global.query_storage_uri }}/jars/$(cat /io/git_version).jar"
       {% else %}
-      export HAIL_SHA="$(cat /io/git_version)-{{ upload_query_jar.token }}"
-      export HAIL_JAR_URL="{{ global.test_storage_uri }}/{{ upload_query_jar.token }}/jars/$(cat /io/git_version).jar"
+      export HAIL_SHA="$(cat /io/git_version)-{{ deploy_batch.token }}"
+      export HAIL_JAR_URL="{{ global.test_storage_uri }}/{{ deploy_batch.token }}/jars/$(cat /io/git_version).jar"
       {% endif %}
       export HAIL_TEST_RESOURCES_DIR="{{ global.test_storage_uri }}/{{ upload_test_resources_to_blob_storage.token }}/test/resources/"
       export HAIL_DOCTEST_DATA_DIR="{{ global.test_storage_uri }}/{{ upload_test_resources_to_blob_storage.token }}/doctest/data/"
@@ -2886,8 +2886,8 @@ steps:
       export HAIL_SHA="$(cat /io/git_version)"
       export HAIL_JAR_URL="{{ global.query_storage_uri }}/jars/$(cat /io/git_version).jar"
       {% else %}
-      export HAIL_SHA="$(cat /io/git_version)-{{ upload_query_jar.token }}"
-      export HAIL_JAR_URL="{{ global.test_storage_uri }}/{{ upload_query_jar.token }}/jars/$(cat /io/git_version).jar"
+      export HAIL_SHA="$(cat /io/git_version)-{{ deploy_batch.token }}"
+      export HAIL_JAR_URL="{{ global.test_storage_uri }}/{{ deploy_batch.token }}/jars/$(cat /io/git_version).jar"
       {% endif %}
       export HAIL_TEST_RESOURCES_DIR="{{ global.test_storage_uri }}/{{ upload_test_resources_to_blob_storage.token }}/test/resources/"
       export HAIL_DOCTEST_DATA_DIR="{{ global.test_storage_uri }}/{{ upload_test_resources_to_blob_storage.token }}/doctest/data/"
@@ -2951,8 +2951,8 @@ steps:
       export HAIL_SHA="$(cat /io/git_version)"
       export HAIL_JAR_URL="{{ global.query_storage_uri }}/jars/$(cat /io/git_version).jar"
       {% else %}
-      export HAIL_SHA="$(cat /io/git_version)-{{ upload_query_jar.token }}"
-      export HAIL_JAR_URL="{{ global.test_storage_uri }}/{{ upload_query_jar.token }}/jars/$(cat /io/git_version).jar"
+      export HAIL_SHA="$(cat /io/git_version)-{{ deploy_batch.token }}"
+      export HAIL_JAR_URL="{{ global.test_storage_uri }}/{{ deploy_batch.token }}/jars/$(cat /io/git_version).jar"
       {% endif %}
       export HAIL_TEST_RESOURCES_DIR="{{ global.test_storage_uri }}/{{ upload_test_resources_to_blob_storage.token }}/test/resources/"
       export HAIL_DOCTEST_DATA_DIR="{{ global.test_storage_uri }}/{{ upload_test_resources_to_blob_storage.token }}/doctest/data/"
@@ -3016,8 +3016,8 @@ steps:
       export HAIL_SHA="$(cat /io/git_version)"
       export HAIL_JAR_URL="{{ global.query_storage_uri }}/jars/$(cat /io/git_version).jar"
       {% else %}
-      export HAIL_SHA="$(cat /io/git_version)-{{ upload_query_jar.token }}"
-      export HAIL_JAR_URL="{{ global.test_storage_uri }}/{{ upload_query_jar.token }}/jars/$(cat /io/git_version).jar"
+      export HAIL_SHA="$(cat /io/git_version)-{{ deploy_batch.token }}"
+      export HAIL_JAR_URL="{{ global.test_storage_uri }}/{{ deploy_batch.token }}/jars/$(cat /io/git_version).jar"
       {% endif %}
       export HAIL_TEST_RESOURCES_DIR="{{ global.test_storage_uri }}/{{ upload_test_resources_to_blob_storage.token }}/test/resources/"
       export HAIL_DOCTEST_DATA_DIR="{{ global.test_storage_uri }}/{{ upload_test_resources_to_blob_storage.token }}/doctest/data/"
@@ -3081,8 +3081,8 @@ steps:
       export HAIL_SHA="$(cat /io/git_version)"
       export HAIL_JAR_URL="{{ global.query_storage_uri }}/jars/$(cat /io/git_version).jar"
       {% else %}
-      export HAIL_SHA="$(cat /io/git_version)-{{ upload_query_jar.token }}"
-      export HAIL_JAR_URL="{{ global.test_storage_uri }}/{{ upload_query_jar.token }}/jars/$(cat /io/git_version).jar"
+      export HAIL_SHA="$(cat /io/git_version)-{{ deploy_batch.token }}"
+      export HAIL_JAR_URL="{{ global.test_storage_uri }}/{{ deploy_batch.token }}/jars/$(cat /io/git_version).jar"
       {% endif %}
       export HAIL_TEST_RESOURCES_DIR="{{ global.test_storage_uri }}/{{ upload_test_resources_to_blob_storage.token }}/test/resources/"
       export HAIL_DOCTEST_DATA_DIR="{{ global.test_storage_uri }}/{{ upload_test_resources_to_blob_storage.token }}/doctest/data/"
