@@ -19,7 +19,8 @@ tearDownModule = stopTestHailContext
 class Tests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        remote_tmpdir = get_remote_tmpdir('test_google_fs_utils.py::Tests.setUpClass')
+        remote_tmpdir = get_remote_tmpdir('test_google_fs_utils.py::Tests.setUpClass',
+                                          remote_tmpdir=os.environ.get('HAIL_TEST_GCS_BUCKET'))
         assert remote_tmpdir[-1] == '/'
         cls.remote_tmpdir = remote_tmpdir[:-1]
 
