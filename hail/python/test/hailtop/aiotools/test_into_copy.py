@@ -23,11 +23,11 @@ async def test_copy_file():
         write_file(f'{test_dir}/file1', 'hello world\n')
 
         res = await copy_test( 
-        None, [{"from": f"{test_dir}/file1", "to":f"{test_dir}/file2"}, 
-        {"from": f"{test_dir}/file1", "into": f"{test_dir}/dir1"} ]
+        None,[{"from": f"{test_dir}/file1", "to":f"{test_dir}/file2"}, 
+        {"from": f"{test_dir}/file1", "into": f"{test_dir}/dir1"}]
         )
 
-        files = [f'{test_dir}/file1', f'{test_dir}/file2', f'{test_dir}/dir1/file1' ]
+        files = [f'{test_dir}/file1', f'{test_dir}/file2', f'{test_dir}/dir1/file1']
         assert read_file(f'{test_dir}/file1')  == 'hello world\n'
 
 
