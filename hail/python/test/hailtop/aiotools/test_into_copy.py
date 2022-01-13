@@ -7,7 +7,6 @@ import tempfile
 
 
 
-
 def write_file(path, data):
     with open(path, 'w') as f:
          f.write(data)
@@ -15,6 +14,7 @@ def write_file(path, data):
 def read_file(path):
     with open(path, 'r') as f:
        return f.read()
+       
 # TEMP DIRECTORY FOR FILE1 TEST
 @pytest.mark.asyncio
 async def test_copy_file():
@@ -27,7 +27,8 @@ async def test_copy_file():
         )
 
         files = [f'{test_dir}/file1', f'{test_dir}/file2', f'{test_dir}/dir1/file1']
-        assert read_file(f'{test_dir}/file1')  == 'hello world\n'
+        for file in files :
+            assert read_file(file)  == 'hello world\n'
 
 
 # TEMP DIRECTORY FOR SUB DIRECTORY TEST
@@ -38,12 +39,10 @@ async def test_copy_dir():
         write_file(f'{test_dir}/subdir1/file1', 'hello world\n')
 
         res = await copy_test( 
-        None,[{"from": f"{test_dir}/subdir1", "into": f"{test_dir}/subdir2"},
-        {"from": f"{test_dir}/subdir1/file1", "into": f"{test_dir}/subdir2"}]
+        None,[{"from": f"{test_dir}/subdir1/file1", "into": f"{test_dir}/subdir2"}]
         )
 
-        files = [f'{test_dir}/subdir2/file1', f'{test_dir}/subdir2/subdir1/file1']
-        assert read_file(f'{test_dir}/subdir1/file1')  == 'hello world\n'
+        assert read_file(f'{test_dir}/subdir2/file1')  == 'hello world\n'
 
 # Find how in python to check whether a file exsist 
 # something like os.path.exsist dir1/file1 also test file2.exsist, file3.exsist and dir1/file1
