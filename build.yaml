@@ -1299,7 +1299,7 @@ steps:
       python3 -m pytest \
               --ignore=test/hailtop/batch/ \
               --ignore=test/hailtop/aiotools/test_copy.py \
-              --ignore=test/hailtop/aiotools/test_fs.py \
+              --ignore=test/hailtop/test_fs.py \
               --log-cli-level=INFO \
               -s \
               -vv \
@@ -1351,7 +1351,7 @@ steps:
       python3 -m pytest \
               --ignore=test/hailtop/batch/ \
               --ignore=test/hailtop/aiotools/test_copy.py \
-              --ignore=test/hailtop/aiotools/test_fs.py \
+              --ignore=test/hailtop/test_fs.py \
               --log-cli-level=INFO \
               -s \
               -vv \
@@ -1403,7 +1403,7 @@ steps:
       python3 -m pytest \
               --ignore=test/hailtop/batch/ \
               --ignore=test/hailtop/aiotools/test_copy.py \
-              --ignore=test/hailtop/aiotools/test_fs.py \
+              --ignore=test/hailtop/test_fs.py \
               --log-cli-level=INFO \
               -s \
               -vv \
@@ -1455,7 +1455,7 @@ steps:
       python3 -m pytest \
               --ignore=test/hailtop/batch/ \
               --ignore=test/hailtop/aiotools/test_copy.py \
-              --ignore=test/hailtop/aiotools/test_fs.py \
+              --ignore=test/hailtop/test_fs.py \
               --log-cli-level=INFO \
               -s \
               -vv \
@@ -1507,7 +1507,7 @@ steps:
       python3 -m pytest \
               --ignore=test/hailtop/batch/ \
               --ignore=test/hailtop/aiotools/test_copy.py \
-              --ignore=test/hailtop/aiotools/test_fs.py \
+              --ignore=test/hailtop/test_fs.py \
               --log-cli-level=INFO \
               -s \
               -vv \
@@ -1559,7 +1559,7 @@ steps:
       python3 -m pytest \
               --ignore=test/hailtop/batch/ \
               --ignore=test/hailtop/aiotools/test_copy.py \
-              --ignore=test/hailtop/aiotools/test_fs.py \
+              --ignore=test/hailtop/test_fs.py \
               --log-cli-level=INFO \
               -s \
               -vv \
@@ -1611,7 +1611,7 @@ steps:
       python3 -m pytest \
               --ignore=test/hailtop/batch/ \
               --ignore=test/hailtop/aiotools/test_copy.py \
-              --ignore=test/hailtop/aiotools/test_fs.py \
+              --ignore=test/hailtop/test_fs.py \
               --log-cli-level=INFO \
               -s \
               -vv \
@@ -1669,7 +1669,7 @@ steps:
               --instafail \
               --durations=50 \
               test/hailtop/aiotools/test_copy.py \
-              test/hailtop/aiotools/test_fs.py
+              test/hailtop/test_fs.py
     inputs:
       - from: /debug-wheel-container.tar
         to: /io/debug-wheel-container.tar
@@ -1718,7 +1718,7 @@ steps:
       python3 -m pytest \
               --ignore=test/hailtop/batch/ \
               --ignore=test/hailtop/aiotools/test_copy.py \
-              --ignore=test/hailtop/aiotools/test_fs.py \
+              --ignore=test/hailtop/test_fs.py \
               --log-cli-level=INFO \
               -s \
               -vv \
