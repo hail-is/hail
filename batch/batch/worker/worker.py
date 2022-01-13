@@ -1,5 +1,4 @@
-from typing import (Optional, Dict, Callable, Tuple, Awaitable, Any, Union, MutableMapping, List,
-                    Iterator)
+from typing import Optional, Dict, Callable, Tuple, Awaitable, Any, Union, MutableMapping, List, Iterator
 import os
 import json
 import sys
@@ -137,7 +136,9 @@ INTERNET_INTERFACE = os.environ['INTERNET_INTERFACE']
 UNRESERVED_WORKER_DATA_DISK_SIZE_GB = int(os.environ['UNRESERVED_WORKER_DATA_DISK_SIZE_GB'])
 assert UNRESERVED_WORKER_DATA_DISK_SIZE_GB >= 0
 ACCEPTABLE_QUERY_JAR_URL_PREFIX = os.environ['ACCEPTABLE_QUERY_JAR_URL_PREFIX']
-assert isinstance(ACCEPTABLE_QUERY_JAR_URL_PREFIX, str) and len(ACCEPTABLE_QUERY_JAR_URL_PREFIX) > 3  # x:// where x is one or more characters
+assert (
+    isinstance(ACCEPTABLE_QUERY_JAR_URL_PREFIX, str) and len(ACCEPTABLE_QUERY_JAR_URL_PREFIX) > 3
+)  # x:// where x is one or more characters
 
 CLOUD_WORKER_API: CloudWorkerAPI = GCPWorkerAPI.from_env() if CLOUD == 'gcp' else AzureWorkerAPI.from_env()
 
@@ -1650,8 +1651,7 @@ class JVMJob(Job):
 
                 if self.secrets:
                     for secret in self.secrets:
-                        populate_secret_host_path(self.scratch + '/' + secret["mount_path"][1:],
-                                                  secret['data'])
+                        populate_secret_host_path(self.scratch + '/' + secret["mount_path"][1:], secret['data'])
 
                 populate_secret_host_path(self.credentials_host_dirname(), self.credentials.secret_data)
                 self.state = 'running'
@@ -1674,9 +1674,9 @@ class JVMJob(Job):
 
                 log.info(f'{self}: running jvm process')
                 with self.step('running'):
-                    await self.jvm.execute(f'{local_jar_location}',
-                                           self.user_command_string[0],
-                                           self.user_command_string[1:])
+                    await self.jvm.execute(
+                        f'{local_jar_location}', self.user_command_string[0], self.user_command_string[1:]
+                    )
                 self.state = 'succeeded'
                 log.info(f'{self} main: {self.state}')
             except asyncio.CancelledError:
@@ -1872,17 +1872,12 @@ class BufferedOutputProcess:
         assert 'stderr' not in kwargs
 
         process = await asyncio.create_subprocess_exec(
-            *args,
-            **kwargs,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE
+            *args, **kwargs, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
         )
         stop_event = asyncio.Event()  # FIXME: this seems unused
         return cls(process, stop_event)
 
-    def __init__(self,
-                 process,
-                 stop_event: asyncio.Event):
+    def __init__(self, process, stop_event: asyncio.Event):
         self.process = process
         self.stop_event = stop_event
         self.buf = bytearray()
@@ -1938,7 +1933,8 @@ class JVM:
             '-cp',
             f'/jvm-entryway:/jvm-entryway/junixsocket-selftest-2.3.3-jar-with-dependencies.jar:{JVM.SPARK_HOME}/jars/*',
             'is.hail.JVMEntryway',
-            socket_file)
+            socket_file,
+        )
 
     @classmethod
     async def create_process_and_connect(cls, index: int, socket_file: str) -> Tuple[BufferedOutputProcess, str]:
@@ -1965,7 +1961,9 @@ class JVM:
                 except FileNotFoundError as err:
                     attempts += 1
                     if attempts == 240:
-                        raise ValueError(f'JVM-{index}: failed to establish connection after {240 * delay} seconds') from err
+                        raise ValueError(
+                            f'JVM-{index}: failed to establish connection after {240 * delay} seconds'
+                        ) from err
                     await asyncio.sleep(delay)
             startup_output = process.retrieve_and_clear_output()
             return process, startup_output
@@ -2006,13 +2004,15 @@ class JVM:
                 self.process = process
                 log.info(f'JVM-{self.index}: startup output: {startup_output}')
 
-    def __init__(self,
-                 index: int,
-                 socket_file: str,
-                 root_dir: str,
-                 output_file: str,
-                 should_interrupt: asyncio.Event,
-                 process: BufferedOutputProcess):
+    def __init__(
+        self,
+        index: int,
+        socket_file: str,
+        root_dir: str,
+        output_file: str,
+        should_interrupt: asyncio.Event,
+        process: BufferedOutputProcess,
+    ):
         self.index = index
         self.socket_file = socket_file
         self.root_dir = root_dir
@@ -2054,11 +2054,7 @@ class JVM:
             stack.callback(writer.close)
             log.info(f'{self}: connection acquired')
 
-            command_string = [
-                classpath,
-                mainclass,
-                self.root_dir,
-                *command_string]
+            command_string = [classpath, mainclass, self.root_dir, *command_string]
 
             write_int(writer, len(command_string))
             for arg in command_string:
