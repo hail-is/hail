@@ -16,7 +16,6 @@ from .indices import Indices, Aggregation
 
 from hail.expr.types import summary_type
 
-from ... import tvariable
 
 
 class Summary(object):
@@ -210,6 +209,7 @@ def _impute_type(x, partial_type):
         if not unified_value_type:
             if unified_key_type == hl.tstr and user_partial_type is None:
                 return tstruct(**{k: _impute_type(x[k], None) for k in x})
+
             raise ExpressionException("Hail does not support heterogeneous dicts: "
                                       "found dict with values of types {} ".format(list(vts)))
         return tdict(unified_key_type, unified_value_type)
@@ -480,7 +480,7 @@ def super_unify_types(*ts):
         vt = super_unify_types(*[t.value_type for t in ts])
         return tdict(kt, vt)
     if isinstance(t0, tstruct):
-        keys = list({k for t in ts for k in t.fields})
+        keys = [k for t in ts for k in t.fields]
         kvs = {k: super_unify_types(*[t.get(k, None) for t in ts])
                for k in keys}
         return tstruct(**kvs)

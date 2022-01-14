@@ -24,8 +24,6 @@ from hail.utils.misc import wrap_to_tuple, storage_level, plural, \
     get_select_exprs, check_annotate_exprs, process_joins
 import hail as hl
 
-from python.hail import impute_type
-
 table_type = lazy()
 
 

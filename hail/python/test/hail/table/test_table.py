@@ -661,6 +661,28 @@ https://hail.zulipchat.com/#narrow/stream/123011-Hail-Dev/topic/test_drop/near/2
         with pytest.raises(TypeError, match='literal\': object did not match the passed type'):
             hl.Table.from_pandas(df)
 
+    def test_table_parallelize_infer_types(self):
+        a = hl.array([{"b": 1, "c": "d"}, {"b": 1, "c": "d"}])
+        d = hl.array([[3, 4, 5], [1, 2, 3]])
+        e = hl.array([{"a": 1, "b": 2}, {"a": 3, "b": 4}])
+        data = [{"idx": 0, "a": {"b": 1, "c": "d"}, "d": [3, 4, 5], "e": {"a": 1, "b": 2}},
+                {"idx": 1, "a": {"b": 1, "c": "d"}, "d": [1, 2, 3], "e": {"a": 3, "b": 4}}]
+        table = hl.Table.parallelize(data)
+        # table = table.key_by('idx')
+        table.describe()
+
+        ht = hl.utils.range_table(2)
+        ht = ht.annotate(a=hl.struct(b=a[ht.idx]['b'], c=a[ht.idx]['c']), d=d[ht.idx], e=e[ht.idx])
+        ht.describe()
+
+        self.assertTrue(table._same(ht))
+
+    def test_table_parallelize_partial_infer_types(self):
+        data = [{"a": 1, "b": {"c": {1, 2, 3}, "d": {3, 4, 5}}, "e": [[3], [4], [5]], "f": {"a": 1, "b": 2}},
+                {"a": 3, "b": {"c": {6, 7, 8}, "d": {9, 10, 11}}, "e": [[1], [2], [3]], "f": {"a": 3, "b": 4}}]
+        partial_type = hl.tstruct(a=hl.tint32, f=hl.tdict(hl.tstr, hl.tint32))
+        table = hl.Table.parallelize(data, partial_type=partial_type)
+
     def test_rename(self):
         kt = hl.utils.range_table(10)
         kt = kt.annotate_globals(foo=5, fi=3)
@@ -1794,3 +1816,5 @@ def test_to_pandas_nd_array():
 
     df_from_python = pd.DataFrame(python_data)
     pd.testing.assert_frame_equal(df_from_hail, df_from_python)
+
+
