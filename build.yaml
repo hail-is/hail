@@ -2778,16 +2778,17 @@ steps:
       export HAIL_TEST_AZURE_CONTAINER=hail-test-4nxei
       export AZURE_APPLICATION_CREDENTIALS=/test-azure-key/credentials.json
 
-      {% if deploy %}
-      destination={{ global.query_storage_uri }}/jars/
+      {% if scope == "deploy" %}
+      HAIL_JAR_URL={{ global.query_storage_uri }}
+      {% elif scope == "test" %}
+      HAIL_JAR_URL={{ global.test_storage_uri }}/{{ deploy_batch.token }}
       {% else %}
-      destination={{ global.test_storage_uri }}/{{ deploy_batch.token }}/jars/
+      {{ assert(scope == "dev", 'unknown scope: ' + scope) }}
+      HAIL_JAR_URL={{ global.test_storage_uri }}/{{ default_ns.name }}
       {% endif %}
+      HAIL_JAR_URL=${HAIL_JAR_URL}/jars/$(cat /io/git_version).jar
 
-      python3 -m hailtop.aiotools.copy 'null' '[
-      {"from": "/io/hail.jar",
-       "to":   "'${destination}$(cat /io/git_version)'.jar"}
-      ]'
+      python3 -m hailtop.aiotools.copy 'null' '[{"from": "/io/hail.jar", "to": "'${HAIL_JAR_URL}'"}]'
     secrets:
       - name: query-gsa-key
         namespace:
@@ -2817,13 +2818,18 @@ steps:
       tar xvf wheel-container.tar
       python3 -m pip install --no-dependencies hail-*-py3-none-any.whl
       export HAIL_TEST_STORAGE_URI={{ global.test_storage_uri }}/{{ token }}
-      {% if deploy %}
+
       export HAIL_SHA="$(cat /io/git_version)"
-      export HAIL_JAR_URL="{{ global.query_storage_uri }}/jars/$(cat /io/git_version).jar"
+      {% if scope == "deploy" %}
+      export HAIL_JAR_URL={{ global.query_storage_uri }}
+      {% elif scope == "test" %}
+      export HAIL_JAR_URL={{ global.test_storage_uri }}/{{ deploy_batch.token }}
       {% else %}
-      export HAIL_SHA="$(cat /io/git_version)-{{ deploy_batch.token }}"
-      export HAIL_JAR_URL="{{ global.test_storage_uri }}/{{ deploy_batch.token }}/jars/$(cat /io/git_version).jar"
+      {{ assert(scope == "dev", 'unknown scope: ' + scope) }}
+      export HAIL_JAR_URL={{ global.test_storage_uri }}/{{ default_ns.name }}
       {% endif %}
+      export HAIL_JAR_URL=${HAIL_JAR_URL}/jars/$(cat /io/git_version).jar
+
       export HAIL_TEST_RESOURCES_DIR="{{ global.test_storage_uri }}/{{ upload_test_resources_to_blob_storage.token }}/test/resources/"
       export HAIL_DOCTEST_DATA_DIR="{{ global.test_storage_uri }}/{{ upload_test_resources_to_blob_storage.token }}/doctest/data/"
       export GOOGLE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
@@ -2882,13 +2888,18 @@ steps:
       tar xvf wheel-container.tar
       python3 -m pip install --no-dependencies hail-*-py3-none-any.whl
       export HAIL_TEST_STORAGE_URI={{ global.test_storage_uri }}/{{ token }}
-      {% if deploy %}
+
       export HAIL_SHA="$(cat /io/git_version)"
-      export HAIL_JAR_URL="{{ global.query_storage_uri }}/jars/$(cat /io/git_version).jar"
+      {% if scope == "deploy" %}
+      export HAIL_JAR_URL={{ global.query_storage_uri }}
+      {% elif scope == "test" %}
+      export HAIL_JAR_URL={{ global.test_storage_uri }}/{{ deploy_batch.token }}
       {% else %}
-      export HAIL_SHA="$(cat /io/git_version)-{{ deploy_batch.token }}"
-      export HAIL_JAR_URL="{{ global.test_storage_uri }}/{{ deploy_batch.token }}/jars/$(cat /io/git_version).jar"
+      {{ assert(scope == "dev", 'unknown scope: ' + scope) }}
+      export HAIL_JAR_URL={{ global.test_storage_uri }}/{{ default_ns.name }}
       {% endif %}
+      export HAIL_JAR_URL=${HAIL_JAR_URL}/jars/$(cat /io/git_version).jar
+
       export HAIL_TEST_RESOURCES_DIR="{{ global.test_storage_uri }}/{{ upload_test_resources_to_blob_storage.token }}/test/resources/"
       export HAIL_DOCTEST_DATA_DIR="{{ global.test_storage_uri }}/{{ upload_test_resources_to_blob_storage.token }}/doctest/data/"
       export GOOGLE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
@@ -2947,13 +2958,18 @@ steps:
       tar xvf wheel-container.tar
       python3 -m pip install --no-dependencies hail-*-py3-none-any.whl
       export HAIL_TEST_STORAGE_URI={{ global.test_storage_uri }}/{{ token }}
-      {% if deploy %}
+
       export HAIL_SHA="$(cat /io/git_version)"
-      export HAIL_JAR_URL="{{ global.query_storage_uri }}/jars/$(cat /io/git_version).jar"
+      {% if scope == "deploy" %}
+      export HAIL_JAR_URL={{ global.query_storage_uri }}
+      {% elif scope == "test" %}
+      export HAIL_JAR_URL={{ global.test_storage_uri }}/{{ deploy_batch.token }}
       {% else %}
-      export HAIL_SHA="$(cat /io/git_version)-{{ deploy_batch.token }}"
-      export HAIL_JAR_URL="{{ global.test_storage_uri }}/{{ deploy_batch.token }}/jars/$(cat /io/git_version).jar"
+      {{ assert(scope == "dev", 'unknown scope: ' + scope) }}
+      export HAIL_JAR_URL={{ global.test_storage_uri }}/{{ default_ns.name }}
       {% endif %}
+      export HAIL_JAR_URL=${HAIL_JAR_URL}/jars/$(cat /io/git_version).jar
+
       export HAIL_TEST_RESOURCES_DIR="{{ global.test_storage_uri }}/{{ upload_test_resources_to_blob_storage.token }}/test/resources/"
       export HAIL_DOCTEST_DATA_DIR="{{ global.test_storage_uri }}/{{ upload_test_resources_to_blob_storage.token }}/doctest/data/"
       export GOOGLE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
@@ -3012,13 +3028,18 @@ steps:
       tar xvf wheel-container.tar
       python3 -m pip install --no-dependencies hail-*-py3-none-any.whl
       export HAIL_TEST_STORAGE_URI={{ global.test_storage_uri }}/{{ token }}
-      {% if deploy %}
+
       export HAIL_SHA="$(cat /io/git_version)"
-      export HAIL_JAR_URL="{{ global.query_storage_uri }}/jars/$(cat /io/git_version).jar"
+      {% if scope == "deploy" %}
+      export HAIL_JAR_URL={{ global.query_storage_uri }}
+      {% elif scope == "test" %}
+      export HAIL_JAR_URL={{ global.test_storage_uri }}/{{ deploy_batch.token }}
       {% else %}
-      export HAIL_SHA="$(cat /io/git_version)-{{ deploy_batch.token }}"
-      export HAIL_JAR_URL="{{ global.test_storage_uri }}/{{ deploy_batch.token }}/jars/$(cat /io/git_version).jar"
+      {{ assert(scope == "dev", 'unknown scope: ' + scope) }}
+      export HAIL_JAR_URL={{ global.test_storage_uri }}/{{ default_ns.name }}
       {% endif %}
+      export HAIL_JAR_URL=${HAIL_JAR_URL}/jars/$(cat /io/git_version).jar
+
       export HAIL_TEST_RESOURCES_DIR="{{ global.test_storage_uri }}/{{ upload_test_resources_to_blob_storage.token }}/test/resources/"
       export HAIL_DOCTEST_DATA_DIR="{{ global.test_storage_uri }}/{{ upload_test_resources_to_blob_storage.token }}/doctest/data/"
       export GOOGLE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
@@ -3077,13 +3098,18 @@ steps:
       tar xvf wheel-container.tar
       python3 -m pip install --no-dependencies hail-*-py3-none-any.whl
       export HAIL_TEST_STORAGE_URI={{ global.test_storage_uri }}/{{ token }}
-      {% if deploy %}
+
       export HAIL_SHA="$(cat /io/git_version)"
-      export HAIL_JAR_URL="{{ global.query_storage_uri }}/jars/$(cat /io/git_version).jar"
+      {% if scope == "deploy" %}
+      export HAIL_JAR_URL={{ global.query_storage_uri }}
+      {% elif scope == "test" %}
+      export HAIL_JAR_URL={{ global.test_storage_uri }}/{{ deploy_batch.token }}
       {% else %}
-      export HAIL_SHA="$(cat /io/git_version)-{{ deploy_batch.token }}"
-      export HAIL_JAR_URL="{{ global.test_storage_uri }}/{{ deploy_batch.token }}/jars/$(cat /io/git_version).jar"
+      {{ assert(scope == "dev", 'unknown scope: ' + scope) }}
+      export HAIL_JAR_URL={{ global.test_storage_uri }}/{{ default_ns.name }}
       {% endif %}
+      export HAIL_JAR_URL=${HAIL_JAR_URL}/jars/$(cat /io/git_version).jar
+
       export HAIL_TEST_RESOURCES_DIR="{{ global.test_storage_uri }}/{{ upload_test_resources_to_blob_storage.token }}/test/resources/"
       export HAIL_DOCTEST_DATA_DIR="{{ global.test_storage_uri }}/{{ upload_test_resources_to_blob_storage.token }}/doctest/data/"
       export GOOGLE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
