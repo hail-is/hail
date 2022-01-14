@@ -62,7 +62,7 @@ class HailContext(object):
                          global_seed=global_seed,
                          backend=backend)
         references = await backend._async_get_references(BUILTIN_REFERENCES)
-        hc.initailize_references(references, default_reference)
+        hc.initialize_references(references, default_reference)
         return hc
 
     @staticmethod
@@ -82,7 +82,7 @@ class HailContext(object):
                          global_seed=global_seed,
                          backend=backend)
         references = backend.get_references(BUILTIN_REFERENCES)
-        hc.initailize_references(references, default_reference)
+        hc.initialize_references(references, default_reference)
         return hc
 
     @typecheck_method(log=str,
@@ -127,7 +127,7 @@ class HailContext(object):
         Env.set_seed(global_seed)
         Env._hc = self
 
-    def initailize_references(self, references, default_reference):
+    def initialize_references(self, references, default_reference):
         for ref in references:
             ReferenceGenome._from_config(ref, True)
 
