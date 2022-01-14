@@ -66,9 +66,9 @@ async def copy_from_dict(*,
                          s3_kwargs: Optional[dict] = None,
                          files: List[Dict[str, str]]
                          ) -> None:
-    transfers = [make_transfer(json_object) for json_object in files]                
+    transfers = [make_transfer(json_object) for json_object in files]            
     await copy(
-        max_simultaneous_transfers=max_simultaneous_transfers, 
+        max_simultaneous_transfers=max_simultaneous_transfers,
         local_kwargs=local_kwargs,
         gcs_kwargs=gcs_kwargs,
         azure_kwargs=azure_kwargs,
@@ -103,7 +103,7 @@ async def main() -> None:
         gcs_kwargs=gcs_kwargs,
         files=files
     )
-        
+
 
 if __name__ == '__main__':
     uvloop.install()
