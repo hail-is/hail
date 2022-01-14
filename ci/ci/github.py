@@ -552,7 +552,7 @@ mkdir -p {shq(repo_dir)}
             return
 
         if self.source_sha:
-            last_posted_status = self.last_known_github_status[GITHUB_STATUS_CONTEXT]
+            last_posted_status = self.last_known_github_status.get(GITHUB_STATUS_CONTEXT)
             if self.intended_github_status != last_posted_status:
                 log.info(f'Intended github status for {self.short_str()} is: {last_posted_status}')
                 log.info(f'Last known github status for {self.short_str()} is: {last_posted_status}')
@@ -572,13 +572,14 @@ mkdir -p {shq(repo_dir)}
         return self.batch is not None and self.target_branch.sha == self.batch.attributes['target_sha']
 
     def is_mergeable(self) -> bool:
-        if self.last_known_github_status[GITHUB_STATUS_CONTEXT] == GithubStatus.SUCCESS:
+        if self.last_known_github_status.get(GITHUB_STATUS_CONTEXT) == GithubStatus.SUCCESS:
             assert self.build_state == 'success', (
                 self.last_known_github_status[GITHUB_STATUS_CONTEXT],
                 self.build_state,
             )
         return (
             self.review_state == 'approved'
+            and len(self.last_known_github_status.items()) > 0
             and all(status == GithubStatus.SUCCESS for status in self.last_known_github_status)
             and self.is_up_to_date()
             and all(label not in DO_NOT_MERGE for label in self.labels)
