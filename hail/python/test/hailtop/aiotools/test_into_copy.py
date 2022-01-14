@@ -19,7 +19,7 @@ async def test_copy_file():
     with tempfile.TemporaryDirectory() as test_dir:
         write_file(f"{test_dir}/file1", "hello world\n")
 
-        res = await copy_from_dict(
+        await copy_from_dict(
             None,
             [
                 {"from": f"{test_dir}/file1", "to": f"{test_dir}/file2"},
@@ -38,8 +38,8 @@ async def test_copy_dir():
         os.makedirs(f"{test_dir}/subdir1")
         write_file(f"{test_dir}/subdir1/file1", "hello world\n")
 
-        res = await copy_from_dict(
-            None, 
+        await copy_from_dict(
+            None,
             [
                 {"from": f"{test_dir}/subdir1", "into": f"{test_dir}/subdir2"}
             ]

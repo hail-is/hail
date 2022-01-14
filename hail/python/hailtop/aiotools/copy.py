@@ -1,4 +1,7 @@
+<<<<<<< HEAD
 from re import X
+=======
+>>>>>>> ab6fc1690 (Done)
 from typing import List, Optional, Dict
 import json
 import asyncio
@@ -51,16 +54,13 @@ async def copy(*,
                         files_listener=make_tqdm_listener(file_pbar),
                         bytes_listener=make_tqdm_listener(byte_pbar))
                 copy_report.summarize()
-        
 
-def make_transfer(json_object):
-    print(json_object)
-    if 'to' in json_object: #checks if the key "to" is in the json object 
-        return Transfer(json_object['from'], json_object['to'], treat_dest_as=Transfer.DEST_IS_TARGET) #if it is we want it to tranfer the files 
-    else:
-        assert 'into' in json_object #continues executing given condition checking if into if present 
-        return Transfer(json_object['from'], json_object['into'], treat_dest_as=Transfer.DEST_DIR)
 
+def make_transfer(json_object: Dict[str, str]) -> Transfer:
+    if 'to' in json_object:
+        return Transfer(json_object['from'], json_object['to'], treat_dest_as=Transfer.DEST_IS_TARGET)
+    assert 'into' in json_object
+    return Transfer(json_object['from'], json_object['into'], treat_dest_as=Transfer.DEST_DIR)
 
 async def copy_from_dict(*,
                          max_simultaneous_transfers: Optional[int] = None,
@@ -97,6 +97,7 @@ async def main() -> None:
     if args.verbose:
         logging.basicConfig()
         logging.root.setLevel(logging.INFO)
+
     requester_pays_project = json.loads(args.requester_pays_project)
     files = json.loads(args.files)
     gcs_kwargs = {'project': requester_pays_project}
@@ -111,29 +112,3 @@ async def main() -> None:
 if __name__ == '__main__':
     uvloop.install()
     asyncio.run(main())
-
-
-
-
-
-
-# put this into a new function with two argumests usisng rquest_pays_project
-# we want to create test to test that it copies files 
-
-#       def make_transfer(json_object):
-
-#         if 'to' in json_object:
-#             return Transfer(json_object['from'], json_object['to'], treat_dest_as=Transfer.DEST_IS_TARGET)
-#         else:
-#             assert 'into' in json_object
-#             return Transfer(json_object['from'], json_object['into'], treat_dest_as=Transfer.DEST_DIR)
-
-#     transfers = [make_transfer(json_object) for json_object in files]                
-#     await copy(
-#         requester_pays_project, transfers
-#     )
-
-
-    # def copy_tool_test (requester_pays_project, files)
-
-    # add copy test function into line 115 await 
