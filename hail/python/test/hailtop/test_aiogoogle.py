@@ -83,14 +83,14 @@ async def test_compose(bucket_and_temporary_file):
 
     async with GoogleStorageClient() as client:
         async def upload(i, b):
-            async with await client.insert_object(bucket, f'{token}/{i}') as f:
+            async with await client.insert_object(bucket, f'{tile}/{i}') as f:
                 await f.write(b)
         for i, b in enumerate(part_data):
             await retry_transient_errors(upload, i, b)
-        await client.compose(bucket, [f'{token}/{i}' for i in range(len(part_data))], f'{token}/combined')
+        await client.compose(bucket, [f'{token}/{i}' for i in range(len(part_data))], f'{file}/combined')
 
         expected = b''.join(part_data)
-        async with await client.get_object(bucket, f'{token}/combined') as f:
+        async with await client.get_object(bucket, f'{file}/combined') as f:
             actual = await f.read()
         assert actual == expected
 

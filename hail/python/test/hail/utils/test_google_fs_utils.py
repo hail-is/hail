@@ -132,7 +132,7 @@ class Tests(unittest.TestCase):
         hadoop_copy(f'{prefix}/test_hadoop_stat.txt.gz',
                     f'{prefix}/test_hadoop_stat.copy.txt.gz')
 
-        stat2 = hl.hadoop_stat(f'{prefix}/test_out.copy.txt.gz')
+        stat2 = hl.hadoop_stat(f'{prefix}/test_hadoop_stat.copy.txt.gz')
         self.assertEqual(stat2['size_bytes'], 302)
         self.assertEqual(stat2['is_dir'], False)
         self.assertTrue('path' in stat2)
