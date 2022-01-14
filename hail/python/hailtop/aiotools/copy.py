@@ -1,7 +1,3 @@
-<<<<<<< HEAD
-from re import X
-=======
->>>>>>> ab6fc1690 (Done)
 from typing import List, Optional, Dict
 import json
 import asyncio
