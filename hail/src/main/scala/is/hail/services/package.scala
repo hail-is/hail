@@ -31,16 +31,14 @@ package object services {
     math.min(delay * 2, 60.0)
   }
 
-  def isTransientError(e: Throwable, transient404: Boolean = false): Boolean = {
-    def recur(e: Throwable): Boolean = isTransientError(e, transient404)
-
+  def isTransientError(e: Throwable): Boolean = {
     e match {
       case e: NoHttpResponseException =>
         true
       case e: ClientResponseException =>
-        RETRYABLE_HTTP_STATUS_CODES.contains(e.status) || (transient404 && e.status == 404)
+        RETRYABLE_HTTP_STATUS_CODES.contains(e.status)
       case e: GoogleJsonResponseException =>
-        RETRYABLE_HTTP_STATUS_CODES.contains(e.getStatusCode()) ||  (transient404 && e.getStatusCode() == 404)
+        RETRYABLE_HTTP_STATUS_CODES.contains(e.getStatusCode())
       case e: HttpHostConnectException =>
         true
       case e: NoRouteToHostException =>
@@ -59,13 +57,13 @@ package object services {
           e.getMessage.contains("SSL peer shut down incorrectly"))
       case e @ (_: SSLException | _: StorageException | _: IOException) =>
         val cause = e.getCause
-        cause != null && recur(cause)
+        cause != null && isTransientError(cause)
       case _ =>
         false
     }
   }
 
-  def retryTransientErrors[T](f: => T, retry404: Boolean = false): T = {
+  def retryTransientErrors[T](f: => T): T = {
     var delay = 0.1
     var errors = 0
     while (true) {
@@ -73,7 +71,7 @@ package object services {
         return f
       } catch {
         case e: Exception =>
-          if (!isTransientError(e, retry404))
+          if (!isTransientError(e))
             throw e
           errors += 1
           if (errors % 10 == 0)

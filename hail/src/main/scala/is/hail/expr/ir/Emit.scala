@@ -24,7 +24,6 @@ import is.hail.utils._
 import java.io._
 import scala.collection.mutable
 import scala.language.{existentials, postfixOps}
-import is.hail.io.fs.FS
 
 // class for holding all information computed ahead-of-time that we need in the emitter
 object EmitContext {
