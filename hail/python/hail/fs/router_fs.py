@@ -1,8 +1,10 @@
-from typing import AsyncIterator, Dict, List, Any, AsyncContextManager
-import io
+from typing import Dict, List, Any, AsyncContextManager, BinaryIO
+import warnings
 import asyncio
-import nest_asyncio
+import gzip
 import hurry
+import io
+import nest_asyncio
 
 from hailtop.aiotools.router_fs import RouterAsyncFS
 from hailtop.aiotools.fs import Copier, Transfer, FileListEntry, ReadableStream, WritableStream
@@ -12,10 +14,20 @@ from hailtop.utils import async_to_blocking, OnlineBoundedGather2
 from .fs import FS
 
 
-class SyncReadableStream(io.RawIOBase):
-    def __init__(self, ars: ReadableStream):
+class SyncReadableStream(io.RawIOBase, BinaryIO):  # type: ignore # https://github.com/python/typeshed/blob/a40d79a4e63c4e750a8d3a8012305da942251eb4/stdlib/http/client.pyi#L81
+    def __init__(self, ars: ReadableStream, name: str):
         super().__init__()
         self.ars = ars
+        self._mode = 'rb'
+        self._name = name
+
+    @property
+    def mode(self):
+        return self._mode
+
+    @property
+    def name(self):
+        return self._name
 
     def close(self):
         self.ars.close()
@@ -61,18 +73,28 @@ class SyncReadableStream(io.RawIOBase):
     def readall(self) -> bytes:
         return async_to_blocking(self.ars.read(-1))
 
-    def readinto(self, b: bytearray):
+    def readinto(self, b):
         b[:] = async_to_blocking(self.ars.readexactly(len(b)))
 
     def write(self, b):
         raise OSError
 
 
-class SyncWritableStream(io.RawIOBase):
-    def __init__(self, cm: AsyncContextManager[WritableStream]):
+class SyncWritableStream(io.RawIOBase, BinaryIO):  # type: ignore # https://github.com/python/typeshed/blob/a40d79a4e63c4e750a8d3a8012305da942251eb4/stdlib/http/client.pyi#L81
+    def __init__(self, cm: AsyncContextManager[WritableStream], name: str):
         super().__init__()
         self.cm = cm
         self.aws = async_to_blocking(self.cm.__aenter__())
+        self._mode = 'wb'
+        self._name = name
+
+    @property
+    def mode(self):
+        return self._mode
+
+    @property
+    def name(self):
+        return self._name
 
     def close(self):
         self.aws.close()
@@ -123,131 +145,9 @@ class SyncWritableStream(io.RawIOBase):
 
     def readinto(self, b):
         raise OSError
-
-    def write(self, b: bytes):
-        return async_to_blocking(self.aws.write(b))
-
-
-class SyncReadableStreamText(io.TextIOBase):
-    def __init__(self, ars: ReadableStream):
-        super().__init__()
-        self.ars = ars
-
-    def close(self):
-        self.ars.close()
-        async_to_blocking(self.ars.wait_closed())
-
-    @property
-    def closed(self) -> bool:
-        return self.ars.closed
-
-    def detach(self):
-        raise io.UnsupportedOperation
-
-    def fileno(self) -> int:
-        raise OSError
-
-    def flush(self):
-        pass
-
-    def isatty(self):
-        return False
-
-    def readable(self):
-        return True
-
-    def seek(self, offset, whence=None):
-        raise OSError
-
-    def seekable(self):
-        return True
-
-    def tell(self):
-        raise io.UnsupportedOperation
-
-    def truncate(self):
-        raise io.UnsupportedOperation
-
-    def writable(self):
-        return False
-
-    def writelines(self, lines):
-        raise OSError
-
-    def read(self, size=-1) -> str:
-        return async_to_blocking(self.ars.read(size)).decode(self.encoding or 'utf-8')
-
-    def readall(self) -> str:
-        return async_to_blocking(self.ars.read(-1)).decode(self.encoding or 'utf-8')
 
     def write(self, b):
-        raise OSError
-
-
-class SyncWritableStreamText(io.TextIOBase):
-    def __init__(self, cm: AsyncContextManager[WritableStream]):
-        super().__init__()
-        self.cm = cm
-        self.aws = async_to_blocking(self.cm.__aenter__())
-
-    def close(self):
-        self.aws.close()
-        async_to_blocking(self.cm.__aexit__())
-
-    @property
-    def closed(self) -> bool:
-        return self.aws.closed
-
-    def fileno(self) -> int:
-        raise OSError
-
-    def flush(self):
-        pass
-
-    def isatty(self):
-        return False
-
-    def readable(self):
-        return False
-
-    def readline(self, size=-1):
-        raise OSError
-
-    def readlines(self, hint=-1):
-        raise OSError
-
-    def seek(self, offset, whence=None):
-        raise OSError
-
-    def seekable(self):
-        return False
-
-    def tell(self):
-        raise io.UnsupportedOperation
-
-    def truncate(self):
-        raise io.UnsupportedOperation
-
-    def writable(self):
-        return True
-
-    def read(self, size=-1):
-        raise OSError
-
-    def readall(self):
-        raise OSError
-
-    def readinto(self, b):
-        raise OSError
-
-    def write(self, s: str):
-        b = s.encode(self.encoding or 'utf-8')
         return async_to_blocking(self.aws.write(b))
-
-
-class SyncIterator:
-    def __init__(self, ai: AsyncIterator):
-        self.ai = ai
 
 
 def _stat_dict(is_dir: bool, size_bytes: int, path: str) -> Dict[str, Any]:
@@ -264,17 +164,24 @@ class RouterFS(FS):
         nest_asyncio.apply()
         self.afs = afs
 
-    def open(self, path: str, mode: str = 'r', buffer_size: int = 8192):
+    def open(self, path: str, mode: str = 'r', buffer_size: int = 8192) -> io.IOBase:
         del buffer_size
-        if mode == 'r':
-            return io.TextIOWrapper(SyncReadableStream(async_to_blocking(self.afs.open(path))), encoding='utf-8')
-        if mode == 'rb':
-            return SyncReadableStream(async_to_blocking(self.afs.open(path)))
-        if mode == 'w':
-            return io.TextIOWrapper(SyncWritableStream(async_to_blocking(self.afs.create(path))), encoding='utf-8')
-        if mode == 'wb':
-            return SyncWritableStream(async_to_blocking(self.afs.create(path)))
-        raise ValueError(f'Unknown mode: {mode}')
+
+        if mode not in ('r', 'rb', 'w', 'wb'):
+            raise ValueError(f'Unsupported mode: {repr(mode)}')
+
+        strm: io.IOBase
+        if mode[0] == 'r':
+            strm = SyncReadableStream(async_to_blocking(self.afs.open(path)), path)
+        else:
+            assert mode[0] == 'w'
+            strm = SyncWritableStream(async_to_blocking(self.afs.create(path)), path)
+
+        if path[-3:] == '.gz' or path[-4:] == '.bgz':
+            strm = gzip.GzipFile(fileobj=strm, mode=mode)
+        if 'b' not in mode:
+            strm = io.TextIOWrapper(strm, encoding='utf-8')  # type: ignore # typeshed is wrong, this *is* an IOBase
+        return strm
 
     def copy(self, src: str, dest: str, *, max_simultaneous_transfers=75):
         transfer = Transfer(src, dest)
@@ -311,7 +218,16 @@ class RouterFS(FS):
             if not is_dir:
                 raise FileNotFoundError(path)
             return _stat_dict(True, 0, path)
-        return _stat_dict(is_dir, size_bytes, path)
+        if path[-3:] == '.gz' or path[-4:] == '.bgz':
+            warnings.warn('stat on a compressed file requires reading the entire file to report the uncompressed size')
+            with self.open(path, 'rb') as f:
+                uncompressed_size_bytes = 0
+                while True:
+                    k = len(f.read(4096))
+                    if k == 0:
+                        break
+                    uncompressed_size_bytes += k
+        return _stat_dict(is_dir, uncompressed_size_bytes, path)
 
     async def _fle_to_dict(self, fle: FileListEntry) -> Dict[str, Any]:
         async def size():

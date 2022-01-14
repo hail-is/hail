@@ -1,6 +1,9 @@
+from typing import Dict, List, BinaryIO
+import gzip
+import io
 import os
+import warnings
 from stat import S_ISREG, S_ISDIR
-from typing import Dict, List
 from hurry.filesize import size
 from shutil import copy2, rmtree
 
@@ -12,7 +15,21 @@ class LocalFS(FS):
         pass
 
     def open(self, path: str, mode: str = 'r', buffer_size: int = 0):
-        return open(path, mode)
+        if mode not in ('r', 'rb', 'w', 'wb'):
+            raise ValueError(f'Unsupported mode: {repr(mode)}')
+
+        strm: BinaryIO
+        if mode[0] == 'r':
+            strm = open(path, 'rb')
+        else:
+            assert mode[0] == 'w'
+            strm = open(path, 'wb')
+
+        if path[-3:] == '.gz' or path[-4:] == '.bgz':
+            strm = gzip.GzipFile(fileobj=strm, mode=mode)  # type: ignore # GzipFile should be a BinaryIO
+        if 'b' not in mode:
+            strm = io.TextIOWrapper(strm, encoding='utf-8')  # type: ignore # TextIOWrapper should be a BinaryIO
+        return strm
 
     def copy(self, src: str, dest: str):
         dst_w_file = dest
@@ -40,13 +57,22 @@ class LocalFS(FS):
             return False
 
     def stat(self, path: str) -> Dict:
-        return self._format_stat_local_file(os.stat(path), path)
-
-    def _format_stat_local_file(self, stats: os.stat_result, path: str) -> Dict:
+        stats = os.stat(path)
+        if path[-3:] == '.gz' or path[-4:] == '.bgz':
+            warnings.warn('stat on a compressed file requires reading the entire file to report the uncompressed size')
+            uncompressed_size_bytes = 0
+            with self.open(path, 'rb') as f:
+                while True:
+                    k = len(f.read(4096))
+                    if k == 0:
+                        break
+                    uncompressed_size_bytes += k
+        else:
+            uncompressed_size_bytes = stats.st_size
         return {
             'is_dir': self._stat_is_local_dir(stats),
-            'size_bytes': stats.st_size,
-            'size': size(stats.st_size),
+            'size_bytes': uncompressed_size_bytes,
+            'size': size(uncompressed_size_bytes),
             'path': path,
             'owner': stats.st_uid,
             'modification_time': stats.st_mtime,
@@ -56,8 +82,7 @@ class LocalFS(FS):
         return S_ISDIR(stats.st_mode)
 
     def ls(self, path: str) -> List[Dict]:
-        return [self._format_stat_local_file(os.stat(os.path.join(path, file)),
-                                             os.path.join(path, file))
+        return [self.stat(os.path.join(path, file))
                 for file in os.listdir(path)]
 
     def mkdir(self, path: str):
