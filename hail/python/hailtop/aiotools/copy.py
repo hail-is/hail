@@ -51,24 +51,25 @@ async def copy(*,
                         files_listener=make_tqdm_listener(file_pbar),
                         bytes_listener=make_tqdm_listener(byte_pbar))
                 copy_report.summarize()
-
+        
 
 def make_transfer(json_object):
+    print(json_object)
     if 'to' in json_object: #checks if the key "to" is in the json object 
         return Transfer(json_object['from'], json_object['to'], treat_dest_as=Transfer.DEST_IS_TARGET) #if it is we want it to tranfer the files 
     else:
         assert 'into' in json_object #continues executing given condition checking if into if present 
-        return Transfer(json_object['from'], json_object['into'], treat_dest_as=Transfer.DEST_DIR) 
+        return(Transfer(json_object['from'], json_object['into'], treat_dest_as=Transfer.DEST_DIR) )
 
 
-async def copy_test(*,
-                    max_simultaneous_transfers: Optional[int] = None,
-                    local_kwargs: Optional[dict] = None,
-                    gcs_kwargs: Optional[dict] = None,
-                    azure_kwargs: Optional[dict] = None,
-                    s3_kwargs: Optional[dict] = None,
-                    files: List[Dict[str, str]]
-                    ) -> None:
+async def copy_from_dict(*,
+                         max_simultaneous_transfers: Optional[int] = None,
+                         local_kwargs: Optional[dict] = None,
+                         gcs_kwargs: Optional[dict] = None,
+                         azure_kwargs: Optional[dict] = None,
+                         s3_kwargs: Optional[dict] = None,
+                         files: List[Dict[str, str]]
+                         ) -> None:
     transfers = [make_transfer(json_object) for json_object in files]                
     await copy(
         max_simultaneous_transfers=max_simultaneous_transfers, 
@@ -92,6 +93,7 @@ async def main() -> None:
                         const=True, default=False,
                         help='show logging information')
     args = parser.parse_args()
+
     if args.verbose:
         logging.basicConfig()
         logging.root.setLevel(logging.INFO)
@@ -99,7 +101,7 @@ async def main() -> None:
     files = json.loads(args.files)
     gcs_kwargs = {'project': requester_pays_project}
 
-    await copy_test(
+    await copy_from_dict(
         max_simultaneous_transfers=args.max_simultaneous_transfers,
         gcs_kwargs=gcs_kwargs,
         files=files

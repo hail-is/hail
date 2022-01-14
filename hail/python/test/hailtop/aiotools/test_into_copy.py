@@ -2,7 +2,7 @@ from os import path, read
 import pytest
 import asyncio
 import os.path
-from hailtop.aiotools.copy import  copy_test
+from hailtop.aiotools.copy import copy_from_dict
 import tempfile
 
 
@@ -21,7 +21,7 @@ async def test_copy_file():
     with tempfile.TemporaryDirectory() as test_dir:
         write_file(f'{test_dir}/file1', 'hello world\n')
 
-        res = await copy_test( 
+        res = await copy_from_dict( 
         None,[{"from": f"{test_dir}/file1", "to":f"{test_dir}/file2"},
         {"from": f"{test_dir}/file1", "into": f"{test_dir}/dir1"}]
         )
@@ -38,7 +38,7 @@ async def test_copy_dir():
         os.makedirs(f'{test_dir}/subdir1')
         write_file(f'{test_dir}/subdir1/file1', 'hello world\n')
 
-        res = await copy_test( 
+        res = await copy_from_dict( 
         None,[{"from": f"{test_dir}/subdir1", "into": f"{test_dir}/subdir2"}]
         )
         assert read_file(f'{test_dir}/subdir2/subdir1/file1')  == 'hello world\n'
