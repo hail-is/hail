@@ -667,21 +667,25 @@ https://hail.zulipchat.com/#narrow/stream/123011-Hail-Dev/topic/test_drop/near/2
         e = hl.array([{"a": 1, "b": 2}, {"a": 3, "b": 4}])
         data = [{"idx": 0, "a": {"b": 1, "c": "d"}, "d": [3, 4, 5], "e": {"a": 1, "b": 2}},
                 {"idx": 1, "a": {"b": 1, "c": "d"}, "d": [1, 2, 3], "e": {"a": 3, "b": 4}}]
-        table = hl.Table.parallelize(data)
-        # table = table.key_by('idx')
-        table.describe()
+        table = hl.Table.parallelize(data, key='idx')
 
         ht = hl.utils.range_table(2)
         ht = ht.annotate(a=hl.struct(b=a[ht.idx]['b'], c=a[ht.idx]['c']), d=d[ht.idx], e=e[ht.idx])
-        ht.describe()
 
         self.assertTrue(table._same(ht))
 
     def test_table_parallelize_partial_infer_types(self):
-        data = [{"a": 1, "b": {"c": {1, 2, 3}, "d": {3, 4, 5}}, "e": [[3], [4], [5]], "f": {"a": 1, "b": 2}},
-                {"a": 3, "b": {"c": {6, 7, 8}, "d": {9, 10, 11}}, "e": [[1], [2], [3]], "f": {"a": 3, "b": 4}}]
-        partial_type = hl.tstruct(a=hl.tint32, f=hl.tdict(hl.tstr, hl.tint32))
-        table = hl.Table.parallelize(data, partial_type=partial_type)
+        b = hl.array([{"c": {1, 2, 3}, "d": {3, 4, 5}}, {"c": {6, 7, 8}, "d": {9, 10, 11}}])
+        e = hl.array([[[3], [4], [5]], [[1], [2], [3]]])
+        f = hl.array([{"a": 1, "b": 2}, {"a": 3, "b": 4}])
+        data = [{"idx": 0, "b": {"c": {1, 2, 3}, "d": {3, 4, 5}}, "e": [[3], [4], [5]], "f": {"a": 1, "b": 2}},
+                {"idx": 1, "b": {"c": {6, 7, 8}, "d": {9, 10, 11}}, "e": [[1], [2], [3]], "f": {"a": 3, "b": 4}}]
+        partial_type = hl.tstruct(idx=hl.tint32, f=hl.tdict(hl.tstr, hl.tint32))
+        table = hl.Table.parallelize(data, partial_type=partial_type, key='idx')
+        ht = hl.utils.range_table(2)
+        ht = ht.annotate(b=b[ht.idx], e=e[ht.idx], f=f[ht.idx])
+
+        self.assertTrue(table._same(ht))
 
     def test_rename(self):
         kt = hl.utils.range_table(10)

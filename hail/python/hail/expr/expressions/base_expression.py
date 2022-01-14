@@ -242,7 +242,7 @@ def raise_for_holes(t):
                 raise ExpressionException(f'cannot impute field {k}') from exc
         return
     if isinstance(t, ttuple):
-        for k, vt in t.items():
+        for k, vt in enumerate(t):
             try:
                 raise_for_holes(vt)
             except ExpressionException as exc:
