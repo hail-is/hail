@@ -282,7 +282,7 @@ object EmitStream {
             val tupleFieldTypes = aggSignatures.map(_ => TBinary)
             val tupleFields = (0 to tupleFieldTypes.length).zip(tupleFieldTypes).map { case (fieldIdx, fieldType) => TupleField(fieldIdx, fieldType) }
             val serializedAggSType = SStackStruct(TTuple(tupleFields), tupleFieldTypes.map(_ => EmitType(SBinaryPointer(PCanonicalBinary()), true)).toIndexedSeq)
-            val keyAndAggFields = newKeyVType.canonicalPType.asInstanceOf[PCanonicalStruct].sType.fieldEmitTypes :+ EmitType(serializedAggSType, true) // TODO is this required?
+            val keyAndAggFields = newKeyVType.canonicalPType.asInstanceOf[PCanonicalStruct].sType.fieldEmitTypes :+ EmitType(serializedAggSType, true)
             val returnElemSType = SStackStruct(returnElemType.asInstanceOf[TBaseStruct], keyAndAggFields)
             val newStreamElem = mb.newEmitField("stream_buff_agg_new_stream_elem", EmitType(returnElemSType, true))
             val numElemInArray = mb.genFieldThisRef[Int]("stream_buff_agg_num_elem_in_size")
@@ -311,7 +311,6 @@ object EmitStream {
 
               override val requiresMemoryManagementPerElement: Boolean = false
 
-
               override val LproduceElement: CodeLabel = mb.defineAndImplementLabel { cb =>
                 val elementProduceLabel = CodeLabel()
                 val getElemLabel = CodeLabel()
@@ -322,6 +321,7 @@ object EmitStream {
                   cb.goto(elementProduceLabel)
                 })
 
+                // Garbage collects old aggregator state if moving onto new group
                 dictState.newState(cb)
                 val initContainer = AggContainer(aggSignatures.toArray.map(sig => sig.state), dictState.initContainer, cleanup = () => ())
                 dictState.init(cb, { cb => emitVoid(initAggs, cb, container = Some(initContainer)) })
@@ -397,7 +397,9 @@ object EmitStream {
 
               override def close(cb: EmitCodeBuilder): Unit = {
                 childProducer.close(cb)
-                dictState.region.invalidate()
+                if (childProducer.requiresMemoryManagementPerElement)
+                  cb += childProducer.elementRegion.invalidate()
+                cb += dictState.region.invalidate()
               }
             }
             SStreamCode(producer).memoize(cb, "stream_buff_producer")

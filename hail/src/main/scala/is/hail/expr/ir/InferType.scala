@@ -35,10 +35,8 @@ object InferType {
       case MakeNDArray(data, shape, _, _) =>
         TNDArray(coerce[TIterable](data.typ).elementType, Nat(shape.typ.asInstanceOf[TTuple].size))
       case StreamBufferedAggregate(_, _, newKey, _, _, aggSignatures) =>
-        val tupleFieldTypes = aggSignatures.map(_ => TBinary)
-        val tupleFields = (0 to tupleFieldTypes.length).zip(tupleFieldTypes).map { case (fieldIdx, fieldType) => TupleField(fieldIdx, fieldType) }.toIndexedSeq
-        val serializedAggSType = SStackStruct(TTuple(tupleFields), tupleFieldTypes.map(_ => EmitType(SBinaryPointer(PCanonicalBinary()), true)).toIndexedSeq)
-        TStream(newKey.typ.asInstanceOf[TStruct].insertFields(IndexedSeq(("agg", serializedAggSType.virtualType))))
+        val tupleFieldTypes = TTuple(aggSignatures.map(_ => TBinary):_*)
+        TStream(newKey.typ.asInstanceOf[TStruct].insertFields(IndexedSeq(("agg", tupleFieldTypes))))
       case _: ArrayLen => TInt32
       case _: StreamIota => TStream(TInt32)
       case _: StreamRange => TStream(TInt32)
