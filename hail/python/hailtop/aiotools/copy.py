@@ -3,7 +3,6 @@ import json
 import asyncio
 import logging
 import argparse
-from hail.python.hailtop.aiotools.fs.fs import FileStatus
 import uvloop
 from concurrent.futures import ThreadPoolExecutor
 
@@ -58,6 +57,7 @@ def make_transfer(json_object: Dict[str, str]) -> Transfer:
     assert 'into' in json_object
     return Transfer(json_object['from'], json_object['into'], treat_dest_as=Transfer.DEST_DIR)
 
+
 async def copy_from_dict(*,
                          max_simultaneous_transfers: Optional[int] = None,
                          local_kwargs: Optional[dict] = None,
@@ -66,7 +66,7 @@ async def copy_from_dict(*,
                          s3_kwargs: Optional[dict] = None,
                          files: List[Dict[str, str]]
                          ) -> None:
-    transfers = [make_transfer(json_object) for json_object in files]            
+    transfers = [make_transfer(json_object) for json_object in files]
     await copy(
         max_simultaneous_transfers=max_simultaneous_transfers,
         local_kwargs=local_kwargs,

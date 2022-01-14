@@ -19,16 +19,13 @@ async def test_copy_file():
     with tempfile.TemporaryDirectory() as test_dir:
         write_file(f"{test_dir}/file1", "hello world\n")
 
-        await copy_from_dict(
-            None,
-            [
-                {"from": f"{test_dir}/file1", "to": f"{test_dir}/file2"},
-                {"from": f"{test_dir}/file1", "into": f"{test_dir}/dir1"},
-            ],
-        )
+        inputs = [{"from": f"{test_dir}/file1", "to": f"{test_dir}/file2"},
+                  {"from": f"{test_dir}/file1", "into": f"{test_dir}/dir1"}]
+       
+        await copy_from_dict(files=inputs)
 
-        files = [f"{test_dir}/file1", f"{test_dir}/file2", f"{test_dir}/dir1/file1"]
-        for file in files:
+        expected_files = [f"{test_dir}/file1", f"{test_dir}/file2", f"{test_dir}/dir1/file1"]
+        for file in expected_files:
             assert read_file(file) == "hello world\n"
 
 
@@ -38,10 +35,7 @@ async def test_copy_dir():
         os.makedirs(f"{test_dir}/subdir1")
         write_file(f"{test_dir}/subdir1/file1", "hello world\n")
 
-        await copy_from_dict(
-            None,
-            [
-                {"from": f"{test_dir}/subdir1", "into": f"{test_dir}/subdir2"}
-            ]
-        )
+        inputs = [{"from": f"{test_dir}/subdir1", "into": f"{test_dir}/subdir2"}]
+
+        await copy_from_dict(files=inputs)
         assert read_file(f"{test_dir}/subdir2/subdir1/file1") == "hello world\n"
