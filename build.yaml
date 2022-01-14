@@ -2782,9 +2782,11 @@ steps:
       HAIL_JAR_URL={{ global.query_storage_uri }}
       {% elif scope == "test" %}
       HAIL_JAR_URL={{ global.test_storage_uri }}/{{ deploy_batch.token }}
-      {% else %}
-      {{ assert(scope == "dev", 'unknown scope: ' + scope) }}
+      {% elif scope == "dev" %}
       HAIL_JAR_URL={{ global.test_storage_uri }}/{{ default_ns.name }}
+      {% else %}
+      echo "!!! unexpected scope {{ scope }} !!!"
+      exit 1
       {% endif %}
       HAIL_JAR_URL=${HAIL_JAR_URL}/jars/$(cat /io/git_version).jar
 
@@ -2824,9 +2826,11 @@ steps:
       export HAIL_JAR_URL={{ global.query_storage_uri }}
       {% elif scope == "test" %}
       export HAIL_JAR_URL={{ global.test_storage_uri }}/{{ deploy_batch.token }}
-      {% else %}
-      {{ assert(scope == "dev", 'unknown scope: ' + scope) }}
+      {% elif scope == "dev" %}
       export HAIL_JAR_URL={{ global.test_storage_uri }}/{{ default_ns.name }}
+      {% else %}
+      echo "!!! unexpected scope {{ scope }} !!!"
+      exit 1
       {% endif %}
       export HAIL_JAR_URL=${HAIL_JAR_URL}/jars/$(cat /io/git_version).jar
 
@@ -2894,9 +2898,11 @@ steps:
       export HAIL_JAR_URL={{ global.query_storage_uri }}
       {% elif scope == "test" %}
       export HAIL_JAR_URL={{ global.test_storage_uri }}/{{ deploy_batch.token }}
-      {% else %}
-      {{ assert(scope == "dev", 'unknown scope: ' + scope) }}
+      {% elif scope == "dev" %}
       export HAIL_JAR_URL={{ global.test_storage_uri }}/{{ default_ns.name }}
+      {% else %}
+      echo "!!! unexpected scope {{ scope }} !!!"
+      exit 1
       {% endif %}
       export HAIL_JAR_URL=${HAIL_JAR_URL}/jars/$(cat /io/git_version).jar
 
@@ -2964,9 +2970,11 @@ steps:
       export HAIL_JAR_URL={{ global.query_storage_uri }}
       {% elif scope == "test" %}
       export HAIL_JAR_URL={{ global.test_storage_uri }}/{{ deploy_batch.token }}
-      {% else %}
-      {{ assert(scope == "dev", 'unknown scope: ' + scope) }}
+      {% elif scope == "dev" %}
       export HAIL_JAR_URL={{ global.test_storage_uri }}/{{ default_ns.name }}
+      {% else %}
+      echo "!!! unexpected scope {{ scope }} !!!"
+      exit 1
       {% endif %}
       export HAIL_JAR_URL=${HAIL_JAR_URL}/jars/$(cat /io/git_version).jar
 
@@ -3034,9 +3042,11 @@ steps:
       export HAIL_JAR_URL={{ global.query_storage_uri }}
       {% elif scope == "test" %}
       export HAIL_JAR_URL={{ global.test_storage_uri }}/{{ deploy_batch.token }}
-      {% else %}
-      {{ assert(scope == "dev", 'unknown scope: ' + scope) }}
+      {% elif scope == "dev" %}
       export HAIL_JAR_URL={{ global.test_storage_uri }}/{{ default_ns.name }}
+      {% else %}
+      echo "!!! unexpected scope {{ scope }} !!!"
+      exit 1
       {% endif %}
       export HAIL_JAR_URL=${HAIL_JAR_URL}/jars/$(cat /io/git_version).jar
 
@@ -3104,9 +3114,11 @@ steps:
       export HAIL_JAR_URL={{ global.query_storage_uri }}
       {% elif scope == "test" %}
       export HAIL_JAR_URL={{ global.test_storage_uri }}/{{ deploy_batch.token }}
-      {% else %}
-      {{ assert(scope == "dev", 'unknown scope: ' + scope) }}
+      {% elif scope == "dev" %}
       export HAIL_JAR_URL={{ global.test_storage_uri }}/{{ default_ns.name }}
+      {% else %}
+      echo "!!! unexpected scope {{ scope }} !!!"
+      exit 1
       {% endif %}
       export HAIL_JAR_URL=${HAIL_JAR_URL}/jars/$(cat /io/git_version).jar
 

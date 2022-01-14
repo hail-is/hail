@@ -135,8 +135,7 @@ spec:
                key: test_storage_uri
          - name: HAIL_QUERY_ACCEPTABLE_JAR_SUBFOLDER
            value: "/{{ token }}/jars"
-{% else %}
-{{ assert(scope == "dev", 'unknown scope: ' + scope) }}
+{% elif scope == "dev" %}
          - name: HAIL_QUERY_STORAGE_URI
            valueFrom:
              secretKeyRef:
@@ -144,6 +143,8 @@ spec:
                key: query_storage_uri
          - name: HAIL_QUERY_ACCEPTABLE_JAR_SUBFOLDER
            value: "/{{ default_ns.name }}/jars"
+{% else %}
+!!! unexpected scope {{ scope }} !!!
 {% endif %}
         ports:
          - containerPort: 5000
