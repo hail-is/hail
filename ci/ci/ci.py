@@ -77,6 +77,7 @@ async def pr_config(app, pr: PR) -> PRConfig:
         # FIXME generate links to the merge log
         'batch_id': batch_id,
         'build_state': build_state,
+        'gh_statuses': {k: v.value for k, v in pr.last_known_github_status.items()},
         'source_branch_name': pr.source_branch.name,
         'review_state': pr.review_state,
         'author': pr.author,
