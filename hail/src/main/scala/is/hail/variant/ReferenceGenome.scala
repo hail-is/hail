@@ -141,7 +141,7 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
   private var fastaIndexPath: String = _
   @transient private var fastaReaderCfg: FASTAReaderConfig = _
 
-  def contigParser = Parser.oneOfLiteral(contigs)
+  @transient lazy val contigParser = Parser.oneOfLiteral(contigs)
 
   val globalPosContigStarts = {
     var pos = 0L
