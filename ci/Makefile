@@ -35,7 +35,8 @@ build-ci-utils: service-base
 
 .PHONY: build-hail-buildkit
 build-hail-buildkit:
-	../docker-build.sh . buildkit/Dockerfile $(HAIL_BUILDKIT_IMAGE)
+	python3 jinja2_render.py '{"global":{"docker_prefix":"$(DOCKER_PREFIX)"}}' buildkit/Dockerfile buildkit/Dockerfile.out
+	../docker-build.sh . buildkit/Dockerfile.out $(HAIL_BUILDKIT_IMAGE)
 
 .PHONY: build
 build: service-base
