@@ -1289,10 +1289,13 @@ steps:
       tar xzf data.tar.gz
       tar xvf debug-wheel-container.tar
       python3 -m pip install --no-dependencies hail-*-py3-none-any.whl
+
+      # pyspark/conf/core-site.xml already points at /gsa-key/key.json
+      mv /test-gsa-key/key.json /gsa-key/key.json
+
       export HAIL_TEST_RESOURCES_DIR=./resources
       export HAIL_DOCTEST_DATA_DIR=./data
       export HAIL_TEST_STORAGE_URI={{ global.test_storage_uri }}/{{ token }}
-      export GOOGLE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
       export PYSPARK_SUBMIT_ARGS="--driver-memory 6g pyspark-shell"
       export PYTEST_SPLITS=7
       export PYTEST_SPLIT_INDEX=0
@@ -1341,10 +1344,13 @@ steps:
       tar xzf data.tar.gz
       tar xvf debug-wheel-container.tar
       python3 -m pip install --no-dependencies hail-*-py3-none-any.whl
+
+      # pyspark/conf/core-site.xml already points at /gsa-key/key.json
+      mv /test-gsa-key/key.json /gsa-key/key.json
+
       export HAIL_TEST_RESOURCES_DIR=./resources
       export HAIL_DOCTEST_DATA_DIR=./data
       export HAIL_TEST_STORAGE_URI={{ global.test_storage_uri }}/{{ token }}
-      export GOOGLE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
       export PYSPARK_SUBMIT_ARGS="--driver-memory 6g pyspark-shell"
       export PYTEST_SPLITS=7
       export PYTEST_SPLIT_INDEX=1
@@ -1393,10 +1399,13 @@ steps:
       tar xzf data.tar.gz
       tar xvf debug-wheel-container.tar
       python3 -m pip install --no-dependencies hail-*-py3-none-any.whl
+
+      # pyspark/conf/core-site.xml already points at /gsa-key/key.json
+      mv /test-gsa-key/key.json /gsa-key/key.json
+
       export HAIL_TEST_RESOURCES_DIR=./resources
       export HAIL_DOCTEST_DATA_DIR=./data
       export HAIL_TEST_STORAGE_URI={{ global.test_storage_uri }}/{{ token }}
-      export GOOGLE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
       export PYSPARK_SUBMIT_ARGS="--driver-memory 6g pyspark-shell"
       export PYTEST_SPLITS=7
       export PYTEST_SPLIT_INDEX=2
@@ -1445,10 +1454,13 @@ steps:
       tar xzf data.tar.gz
       tar xvf debug-wheel-container.tar
       python3 -m pip install --no-dependencies hail-*-py3-none-any.whl
+
+      # pyspark/conf/core-site.xml already points at /gsa-key/key.json
+      mv /test-gsa-key/key.json /gsa-key/key.json
+
       export HAIL_TEST_RESOURCES_DIR=./resources
       export HAIL_DOCTEST_DATA_DIR=./data
       export HAIL_TEST_STORAGE_URI={{ global.test_storage_uri }}/{{ token }}
-      export GOOGLE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
       export PYSPARK_SUBMIT_ARGS="--driver-memory 6g pyspark-shell"
       export PYTEST_SPLITS=7
       export PYTEST_SPLIT_INDEX=3
@@ -1497,10 +1509,13 @@ steps:
       tar xzf data.tar.gz
       tar xvf debug-wheel-container.tar
       python3 -m pip install --no-dependencies hail-*-py3-none-any.whl
+
+      # pyspark/conf/core-site.xml already points at /gsa-key/key.json
+      mv /test-gsa-key/key.json /gsa-key/key.json
+
       export HAIL_TEST_RESOURCES_DIR=./resources
       export HAIL_DOCTEST_DATA_DIR=./data
       export HAIL_TEST_STORAGE_URI={{ global.test_storage_uri }}/{{ token }}
-      export GOOGLE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
       export PYSPARK_SUBMIT_ARGS="--driver-memory 6g pyspark-shell"
       export PYTEST_SPLITS=7
       export PYTEST_SPLIT_INDEX=4
@@ -1549,10 +1564,13 @@ steps:
       tar xzf data.tar.gz
       tar xvf debug-wheel-container.tar
       python3 -m pip install --no-dependencies hail-*-py3-none-any.whl
+
+      # pyspark/conf/core-site.xml already points at /gsa-key/key.json
+      mv /test-gsa-key/key.json /gsa-key/key.json
+
       export HAIL_TEST_RESOURCES_DIR=./resources
       export HAIL_DOCTEST_DATA_DIR=./data
       export HAIL_TEST_STORAGE_URI={{ global.test_storage_uri }}/{{ token }}
-      export GOOGLE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
       export PYSPARK_SUBMIT_ARGS="--driver-memory 6g pyspark-shell"
       export PYTEST_SPLITS=7
       export PYTEST_SPLIT_INDEX=5
@@ -1601,10 +1619,13 @@ steps:
       tar xzf data.tar.gz
       tar xvf debug-wheel-container.tar
       python3 -m pip install --no-dependencies hail-*-py3-none-any.whl
+
+      # pyspark/conf/core-site.xml already points at /gsa-key/key.json
+      mv /test-gsa-key/key.json /gsa-key/key.json
+
       export HAIL_TEST_RESOURCES_DIR=./resources
       export HAIL_DOCTEST_DATA_DIR=./data
       export HAIL_TEST_STORAGE_URI={{ global.test_storage_uri }}/{{ token }}
-      export GOOGLE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
       export PYSPARK_SUBMIT_ARGS="--driver-memory 6g pyspark-shell"
       export PYTEST_SPLITS=7
       export PYTEST_SPLIT_INDEX=6
@@ -1710,10 +1731,12 @@ steps:
       tar xvf wheel-container.tar
       python3 -m pip install --no-dependencies hail-*-py3-none-any.whl
 
+      # pyspark/conf/core-site.xml already points at /gsa-key/key.json
+      mv /test-gsa-key/key.json /gsa-key/key.json
+
       export HAIL_TEST_RESOURCES_DIR=./resources
       export HAIL_DOCTEST_DATA_DIR=./data
       export HAIL_TEST_STORAGE_URI={{ global.test_storage_uri }}/{{ token }}
-      export GOOGLE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
       export PYSPARK_SUBMIT_ARGS="--driver-memory 6g pyspark-shell"
       python3 -m pytest \
               --ignore=test/hailtop/batch/ \
