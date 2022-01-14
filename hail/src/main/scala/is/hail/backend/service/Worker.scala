@@ -84,15 +84,15 @@ object Worker {
     }
 
     val fFuture = Future {
-      retryTransientErrors( {
+      retryTransientErrors {
         using(new ObjectInputStream(fs.openCachedNoCompression(s"$root/f"))) { is =>
           is.readObject().asInstanceOf[(Array[Byte], HailTaskContext, HailClassLoader, FS) => Array[Byte]]
         }
-      }, retry404 = true)
+      }
     }
 
     val contextFuture = Future {
-      retryTransientErrors( {
+      retryTransientErrors {
         using(fs.openCachedNoCompression(s"$root/contexts")) { is =>
           is.seek(i * 12)
           val offset = is.readLong()
@@ -102,7 +102,7 @@ object Worker {
           is.readFully(context)
           context
         }
-      }, retry404 = true)
+      }
     }
 
     val f = Await.result(fFuture, Duration.Inf)

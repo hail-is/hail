@@ -1627,7 +1627,10 @@ class JVMJob(Job):
         return self.timings.step(name)
 
     def verify_is_acceptable_query_jar_url(self, url: str):
-        self.worker.verify_is_acceptable_query_jar_url(url, self)
+        n = len(ACCEPTABLE_QUERY_JAR_URL_PREFIX)
+        if url[:n] != ACCEPTABLE_QUERY_JAR_URL_PREFIX:
+            log.error(f'user submitted unacceptable JAR url: {url} for {self}. {ACCEPTABLE_QUERY_JAR_URL_PREFIX}')
+            raise ValueError(f'unacceptable JAR url: {url}')
 
     async def run(self):
         async with self.worker.cpu_sem(self.cpu_in_mcpu):
@@ -2148,12 +2151,6 @@ class Worker:
     def return_jvm(self, jvm: JVM):
         jvm.reset()
         self.jvms.append(jvm)
-
-    def verify_is_acceptable_query_jar_url(self, url: str, job: Job):
-        n = len(ACCEPTABLE_QUERY_JAR_URL_PREFIX)
-        if url[:n] != ACCEPTABLE_QUERY_JAR_URL_PREFIX:
-            log.error(f'user submitted unacceptable JAR url: {url} for {job}. {ACCEPTABLE_QUERY_JAR_URL_PREFIX}')
-            raise ValueError(f'unacceptable JAR url: {url}')
 
     async def shutdown(self):
         log.info('Worker.shutdown')

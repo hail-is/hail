@@ -475,16 +475,16 @@ object ServiceBackendSocketAPI2 {
     tls.setSSLConfigFromDir(s"$scratchDir/ssl-config")
 
     val sessionId = userTokens.namespaceToken(deployConfig.defaultNamespace)
-    retryTransientErrors( {
+    retryTransientErrors {
       using(fs.openNoCompression(input)) { in =>
-        retryTransientErrors( {
+        retryTransientErrors {
           using(fs.createNoCompression(output)) { out =>
             new ServiceBackendSocketAPI2(backend, in, out, sessionId).executeOneCommand()
             out.flush()
           }
-        }, retry404 = true)
+        }
       }
-    }, retry404 = true)
+    }
   }
 }
 

@@ -42,6 +42,7 @@ async def get_object(request, userdata):
     filepath = request.query.get('q')
     userinfo = await get_or_add_user(request.app, userdata)
     username = userdata['username']
+    log.info(f'memory: request for object {filepath} from user {username}')
     maybe_file = await get_file_or_none(request.app, username, userinfo['fs'], filepath)
     if maybe_file is None:
         raise web.HTTPNotFound()

@@ -59,7 +59,7 @@ class Tests(unittest.TestCase):
             hadoop_open('/tmp/randomBytesOut', 'xb')
 
     def test_hadoop_exists(self):
-        assert hl.hadoop_exists(resource('ls_test')), str((resource('ls_test'), hl.hadoop_ls(resource('ls_test')), hl.hadoop_ls(resource(''))))
+        self.assertTrue(hl.hadoop_exists(resource('ls_test')))
         self.assertFalse(hl.hadoop_exists(resource('doesnt.exist')))
 
     def test_hadoop_mkdir_p(self):
