@@ -2,9 +2,6 @@ buildscript {
     repositories {
         mavenCentral()
     }
-    dependencies {
-        classpath 'ch.epfl.scala:gradle-bloop_2.12:1.4.11'
-    }
 }
 
 plugins {
@@ -14,10 +11,6 @@ plugins {
   id 'com.github.johnrengelman.shadow' version '6.1.0'
   id "de.undercouch.download" version "3.2.0"
   id 'eclipse'
-}
-
-allprojects {
-  apply plugin: 'bloop'
 }
 
 import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
