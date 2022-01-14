@@ -1,7 +1,6 @@
 import sys
-import tabulate
 
-from .batch_cli_utils import make_formatter
+from .batch_cli_utils import make_formatter, choices
 
 
 def init_parser(parser):
@@ -15,11 +14,10 @@ def init_parser(parser):
                         help='when output is tabular, print more information')
     parser.add_argument('--no-header', action='store_true', help='do not print a table header')
     parser.add_argument('-o', type=str, default='grid',
-                        help='specify output format (json, yaml, csv, tsv, or any tabulate format)')
+                        choices=choices)
 
 
 def main(args, passthrough_args, client):  # pylint: disable=unused-argument
-    choices = ['json', 'yaml', 'csv', 'tsv', *tabulate.tabulate_formats]
     if args.o not in choices:
         print('invalid output format:', args.o, file=sys.stderr)
         print('must be one of:', *choices, file=sys.stderr)
@@ -30,17 +28,16 @@ def main(args, passthrough_args, client):  # pylint: disable=unused-argument
 
     if len(statuses) == 0:
         print("No batches to display.")
+        return
 
     for status in statuses:
         status['state'] = status['state'].capitalize()
 
     if args.full:
         for status in statuses:
-            del status['attributes']
+            status = {k: v for k, v in status.items() if k != 'attributes'}
     else:
         statuses = [{'id': status['id'], 'state': status['state']} for status in statuses]
 
-    # create a format function based on the format option
     format = make_formatter(args.o)
-    # each format function takes in a list of dictionaries
-    format(statuses)
+    print(format(statuses))
