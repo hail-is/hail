@@ -59,7 +59,7 @@ def make_transfer(json_object):
         return Transfer(json_object['from'], json_object['to'], treat_dest_as=Transfer.DEST_IS_TARGET) #if it is we want it to tranfer the files 
     else:
         assert 'into' in json_object #continues executing given condition checking if into if present 
-        return(Transfer(json_object['from'], json_object['into'], treat_dest_as=Transfer.DEST_DIR) )
+        return Transfer(json_object['from'], json_object['into'], treat_dest_as=Transfer.DEST_DIR)
 
 
 async def copy_from_dict(*,
