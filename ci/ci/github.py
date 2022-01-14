@@ -579,8 +579,8 @@ mkdir -p {shq(repo_dir)}
             )
         return (
             self.review_state == 'approved'
-            and len(self.last_known_github_status.items()) > 0
-            and all(status == GithubStatus.SUCCESS for status in self.last_known_github_status)
+            and len(self.last_known_github_status) > 0
+            and all(status == GithubStatus.SUCCESS for status in self.last_known_github_status.values())
             and self.is_up_to_date()
             and all(label not in DO_NOT_MERGE for label in self.labels)
         )
