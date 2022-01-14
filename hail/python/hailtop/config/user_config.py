@@ -15,18 +15,18 @@ def xdg_config_home() -> Path:
     return Path(value)
 
 
-def get_user_local_cache_dir(ensure_exists=False):
+def get_user_local_cache_dir(ensure_exists: bool = False) -> Path:
     cache_dir = Path(xdg_config_home(), 'hail', 'cache')
     if ensure_exists:
         os.makedirs(cache_dir, exist_ok=True)
     return cache_dir
 
 
-def get_user_config_path():
+def get_user_config_path() -> Path:
     return Path(xdg_config_home(), 'hail', 'config.ini')
 
 
-def get_user_config():
+def get_user_config() -> configparser.ConfigParser:
     global user_config
     if user_config is None:
         user_config = configparser.ConfigParser()
