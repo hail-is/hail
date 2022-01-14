@@ -1768,7 +1768,14 @@ steps:
       export PYTEST_SPLITS=7
       export PYTEST_SPLIT_INDEX=0
       export HAIL_QUERY_BACKEND=local
-      python3 -m pytest --ignore=test/hailtop/ --log-cli-level=INFO -s -vv --instafail --durations=50 test
+      python3 -m pytest \
+              --ignore=test/hailtop/ \
+              --log-cli-level=INFO \
+              -s \
+              -vv \
+              --instafail \
+              --durations=50 \
+              test
     inputs:
       - from: /debug-wheel-container.tar
         to: /io/debug-wheel-container.tar
@@ -1810,7 +1817,14 @@ steps:
       export PYTEST_SPLITS=7
       export PYTEST_SPLIT_INDEX=1
       export HAIL_QUERY_BACKEND=local
-      python3 -m pytest --ignore=test/hailtop/ --log-cli-level=INFO -s -vv --instafail --durations=50 test
+      python3 -m pytest \
+              --ignore=test/hailtop/ \
+              --log-cli-level=INFO \
+              -s \
+              -vv \
+              --instafail \
+              --durations=50 \
+              test
     inputs:
       - from: /debug-wheel-container.tar
         to: /io/debug-wheel-container.tar
@@ -1852,7 +1866,14 @@ steps:
       export PYTEST_SPLITS=7
       export PYTEST_SPLIT_INDEX=2
       export HAIL_QUERY_BACKEND=local
-      python3 -m pytest --ignore=test/hailtop/ --log-cli-level=INFO -s -vv --instafail --durations=50 test
+      python3 -m pytest \
+              --ignore=test/hailtop/ \
+              --log-cli-level=INFO \
+              -s \
+              -vv \
+              --instafail \
+              --durations=50 \
+              test
     inputs:
       - from: /debug-wheel-container.tar
         to: /io/debug-wheel-container.tar
@@ -1894,7 +1915,14 @@ steps:
       export PYTEST_SPLITS=7
       export PYTEST_SPLIT_INDEX=3
       export HAIL_QUERY_BACKEND=local
-      python3 -m pytest --ignore=test/hailtop/ --log-cli-level=INFO -s -vv --instafail --durations=50 test
+      python3 -m pytest \
+              --ignore=test/hailtop/ \
+              --log-cli-level=INFO \
+              -s \
+              -vv \
+              --instafail \
+              --durations=50 \
+              test
     inputs:
       - from: /debug-wheel-container.tar
         to: /io/debug-wheel-container.tar
@@ -1936,7 +1964,14 @@ steps:
       export PYTEST_SPLITS=7
       export PYTEST_SPLIT_INDEX=4
       export HAIL_QUERY_BACKEND=local
-      python3 -m pytest --ignore=test/hailtop/ --log-cli-level=INFO -s -vv --instafail --durations=50 test
+      python3 -m pytest \
+              --ignore=test/hailtop/ \
+              --log-cli-level=INFO \
+              -s \
+              -vv \
+              --instafail \
+              --durations=50 \
+              test
     inputs:
       - from: /debug-wheel-container.tar
         to: /io/debug-wheel-container.tar
@@ -1978,7 +2013,14 @@ steps:
       export PYTEST_SPLITS=7
       export PYTEST_SPLIT_INDEX=5
       export HAIL_QUERY_BACKEND=local
-      python3 -m pytest --ignore=test/hailtop/ --log-cli-level=INFO -s -vv --instafail --durations=50 test
+      python3 -m pytest \
+              --ignore=test/hailtop/ \
+              --log-cli-level=INFO \
+              -s \
+              -vv \
+              --instafail \
+              --durations=50 \
+              test
     inputs:
       - from: /debug-wheel-container.tar
         to: /io/debug-wheel-container.tar
@@ -2020,7 +2062,14 @@ steps:
       export PYTEST_SPLITS=7
       export PYTEST_SPLIT_INDEX=6
       export HAIL_QUERY_BACKEND=local
-      python3 -m pytest --ignore=test/hailtop/ --log-cli-level=INFO -s -vv --instafail --durations=50 test
+      python3 -m pytest \
+              --ignore=test/hailtop/ \
+              --log-cli-level=INFO \
+              -s \
+              -vv \
+              --instafail \
+              --durations=50 \
+              test
     inputs:
       - from: /debug-wheel-container.tar
         to: /io/debug-wheel-container.tar
@@ -2844,7 +2893,15 @@ steps:
       hailctl config set batch/billing_project test
       hailctl config set batch/remote_tmpdir {{ global.test_storage_uri }}
 
-      python3 -m pytest --ignore=test/hailtop/ --log-cli-level=INFO -s -vv --instafail --durations=50 -n 4 test
+      python3 -m pytest \
+              --ignore=test/hailtop/ \
+              --log-cli-level=INFO \
+              -s \
+              -vv \
+              --instafail \
+              --durations=50 \
+              -n 4 \
+              test
     inputs:
       - from: /wheel-container.tar
         to: /io/wheel-container.tar
@@ -2916,7 +2973,15 @@ steps:
       hailctl config set batch/billing_project test
       hailctl config set batch/remote_tmpdir {{ global.test_storage_uri }}
 
-      python3 -m pytest --ignore=test/hailtop/ --log-cli-level=INFO -s -vv --instafail --durations=50 -n 4 test
+      python3 -m pytest \
+              --ignore=test/hailtop/ \
+              --log-cli-level=INFO \
+              -s \
+              -vv \
+              --instafail \
+              --durations=50 \
+              -n 4 \
+              test
     inputs:
       - from: /wheel-container.tar
         to: /io/wheel-container.tar
@@ -2988,7 +3053,15 @@ steps:
       hailctl config set batch/billing_project test
       hailctl config set batch/remote_tmpdir {{ global.test_storage_uri }}
 
-      python3 -m pytest --ignore=test/hailtop/ --log-cli-level=INFO -s -vv --instafail --durations=50 -n 4 test
+      python3 -m pytest \
+              --ignore=test/hailtop/ \
+              --log-cli-level=INFO \
+              -s \
+              -vv \
+              --instafail \
+              --durations=50 \
+              -n 4 \
+              test
     inputs:
       - from: /wheel-container.tar
         to: /io/wheel-container.tar
@@ -3060,7 +3133,15 @@ steps:
       hailctl config set batch/billing_project test
       hailctl config set batch/remote_tmpdir {{ global.test_storage_uri }}
 
-      python3 -m pytest --ignore=test/hailtop/ --log-cli-level=INFO -s -vv --instafail --durations=50 -n 4 test
+      python3 -m pytest \
+              --ignore=test/hailtop/ \
+              --log-cli-level=INFO \
+              -s \
+              -vv \
+              --instafail \
+              --durations=50 \
+              -n 4 \
+              test
     inputs:
       - from: /wheel-container.tar
         to: /io/wheel-container.tar
@@ -3132,7 +3213,15 @@ steps:
       hailctl config set batch/billing_project test
       hailctl config set batch/remote_tmpdir {{ global.test_storage_uri }}
 
-      python3 -m pytest --ignore=test/hailtop/ --log-cli-level=INFO -s -vv --instafail --durations=50 -n 4 test
+      python3 -m pytest \
+              --ignore=test/hailtop/ \
+              --log-cli-level=INFO \
+              -s \
+              -vv \
+              --instafail \
+              --durations=50 \
+              -n 4 \
+              test
     inputs:
       - from: /wheel-container.tar
         to: /io/wheel-container.tar
