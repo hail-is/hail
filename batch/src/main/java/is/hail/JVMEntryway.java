@@ -10,8 +10,6 @@ import java.util.concurrent.*;
 import org.newsclub.net.unix.*;
 
 class JVMEntryway {
-  // private static final HashMap<String, ClassLoader> classLoaders = new HashMap<>();
-
   public static String throwableToString(Throwable t) throws IOException {
     try (StringWriter sw = new StringWriter();
          PrintWriter pw = new PrintWriter(sw)) {
@@ -73,25 +71,6 @@ class JVMEntryway {
         }
         ClassLoader cl = new URLClassLoader(urls.toArray(new URL[0]));
 
-        // if (hailRootCL == null) {
-        //   System.err.println("no extant classLoader for " + classPath);
-        //   String[] urlStrings = classPath.split(",");
-        //   ArrayList<URL> urls = new ArrayList<>();
-        //   for (int i = 0; i < urlStrings.length; ++i) {
-        //     File file = new File(urlStrings[i]);
-        //     urls.add(file.toURI().toURL());
-        //     if (file.isDirectory()) {
-        //       for (final File f : file.listFiles()) {
-        //         urls.add(f.toURI().toURL());
-        //       }
-        //     }
-        //   }
-        //   hailRootCL = new URLClassLoader(urls.toArray(new URL[0]));
-        //   classLoaders.put(classPath, hailRootCL);
-        // }
-        // System.err.println("have classLoader for " + classPath);
-        // URL[] emptyURLArray = {};
-        // ClassLoader cl = new URLClassLoader(emptyURLArray, hailRootCL);
         System.err.println("have fresh classLoader for this job");
         Class<?> klass = cl.loadClass(mainClass);
         System.err.println("class loaded ");
