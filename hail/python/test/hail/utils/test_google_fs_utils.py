@@ -121,9 +121,6 @@ class Tests(unittest.TestCase):
         if prefix is None:
             prefix = self.remote_tmpdir
 
-        stat1 = hl.hadoop_stat(f'{prefix}')
-        self.assertEqual(stat1['is_dir'], True)
-
         data = ['foo', 'bar', 'baz']
         data.extend(map(str, range(100)))
         with hadoop_open(f'{prefix}/test_hadoop_stat.txt.gz', 'w') as f:
@@ -131,15 +128,17 @@ class Tests(unittest.TestCase):
                 f.write(d)
                 f.write('\n')
 
-        expected_uncompressed_bytes = ('\n'.join(data) + '\n').encode('utf-8')
-        expected_compressed_length = len(gzip.compress(expected_uncompressed_bytes))
-        assert expected_compressed_length == 175
+        stat1 = hl.hadoop_stat(f'{prefix}')
+        self.assertEqual(stat1['is_dir'], True)
 
         hadoop_copy(f'{prefix}/test_hadoop_stat.txt.gz',
                     f'{prefix}/test_hadoop_stat.copy.txt.gz')
 
         stat2 = hl.hadoop_stat(f'{prefix}/test_hadoop_stat.copy.txt.gz')
-        self.assertEqual(stat2['size_bytes'], expected_compressed_length)
+        # The gzip format permits metadata which makes the compressed file's size unpredictable. In
+        # practice, Hadoop creates a 175 byte file and gzip.GzipFile creates a 202 byte file. The 27
+        # extra bytes appear to include at least the filename (20 bytes) and a modification timestamp.
+        assert stat2['size_bytes'] == 175 or stat2['size_bytes'] == 202
         self.assertEqual(stat2['is_dir'], False)
         self.assertTrue('path' in stat2)
 

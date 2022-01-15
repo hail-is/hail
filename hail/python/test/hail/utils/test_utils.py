@@ -59,7 +59,7 @@ class Tests(unittest.TestCase):
             hadoop_open('/tmp/randomBytesOut', 'xb')
 
     def test_hadoop_exists(self):
-        self.assertTrue(hl.hadoop_exists(resource('ls_test')))
+        self.assertTrue(hl.hadoop_exists(resource('ls_test/f_50')))
         self.assertFalse(hl.hadoop_exists(resource('doesnt.exist')))
 
     def test_hadoop_mkdir_p(self):
@@ -96,6 +96,7 @@ class Tests(unittest.TestCase):
         self.assertFalse(hl.hadoop_is_file(resource('ls_test/invalid-path')))
 
     def test_hadoop_is_dir(self):
+        self.assertTrue(hl.hadoop_is_dir(resource('ls_test')))
         self.assertTrue(hl.hadoop_is_dir(resource('ls_test/subdir')))
         self.assertFalse(hl.hadoop_is_dir(resource('ls_test/f_50')))
         self.assertFalse(hl.hadoop_is_dir(resource('ls_test/invalid-path')))

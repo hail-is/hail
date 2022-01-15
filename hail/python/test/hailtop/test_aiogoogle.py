@@ -83,7 +83,7 @@ async def test_compose(bucket_and_temporary_file):
 
     async with GoogleStorageClient() as client:
         async def upload(i, b):
-            async with await client.insert_object(bucket, f'{tile}/{i}') as f:
+            async with await client.insert_object(bucket, f'{file}/{i}') as f:
                 await f.write(b)
         for i, b in enumerate(part_data):
             await retry_transient_errors(upload, i, b)
