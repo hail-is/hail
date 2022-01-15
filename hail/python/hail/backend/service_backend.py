@@ -271,7 +271,10 @@ class ServiceBackend(Backend):
                                     failed_jobs.append({
                                         'status': j,
                                         'log': main_log.strip()})
-                            message = {'id': batch_id, 'batch_status': b2_status, 'failed_jobs': failed_jobs}
+                            message = {
+                                'id': b.id,
+                                'stacktrace': jstacktrace,
+                                'cause': {'id': batch_id, 'batch_status': b2_status, 'failed_jobs': failed_jobs}}
                             log.error(yaml.dump(message))
                             raise ValueError(orjson.dumps(message).decode('utf-8'))
                         raise FatalError(f'batch id was {b.id}\n' + jstacktrace)
