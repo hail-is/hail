@@ -1,4 +1,5 @@
 from typing import Optional
+import gzip
 import unittest
 import secrets
 import os
@@ -129,11 +130,16 @@ class Tests(unittest.TestCase):
             for d in data:
                 f.write(d)
                 f.write('\n')
+
+        expected_uncompressed_bytes = ('\n'.join(data) + '\n').encode('utf-8')
+        expected_compressed_length = len(gzip.compress(expected_uncompressed_bytes))
+        assert expected_compressed_length == 175
+
         hadoop_copy(f'{prefix}/test_hadoop_stat.txt.gz',
                     f'{prefix}/test_hadoop_stat.copy.txt.gz')
 
         stat2 = hl.hadoop_stat(f'{prefix}/test_hadoop_stat.copy.txt.gz')
-        self.assertEqual(stat2['size_bytes'], 302)
+        self.assertEqual(stat2['size_bytes'], expected_compressed_length)
         self.assertEqual(stat2['is_dir'], False)
         self.assertTrue('path' in stat2)
 

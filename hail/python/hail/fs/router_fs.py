@@ -218,16 +218,7 @@ class RouterFS(FS):
             if not is_dir:
                 raise FileNotFoundError(path)
             return _stat_dict(True, 0, path)
-        if path[-3:] == '.gz' or path[-4:] == '.bgz':
-            warnings.warn('stat on a compressed file requires reading the entire file to report the uncompressed size')
-            with self.open(path, 'rb') as f:
-                uncompressed_size_bytes = 0
-                while True:
-                    k = len(f.read(4096))
-                    if k == 0:
-                        break
-                    uncompressed_size_bytes += k
-        return _stat_dict(is_dir, uncompressed_size_bytes, path)
+        return _stat_dict(is_dir, size_bytes, path)
 
     async def _fle_to_dict(self, fle: FileListEntry) -> Dict[str, Any]:
         async def size():

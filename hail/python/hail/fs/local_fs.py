@@ -57,22 +57,13 @@ class LocalFS(FS):
             return False
 
     def stat(self, path: str) -> Dict:
-        stats = os.stat(path)
-        if path[-3:] == '.gz' or path[-4:] == '.bgz':
-            warnings.warn('stat on a compressed file requires reading the entire file to report the uncompressed size')
-            uncompressed_size_bytes = 0
-            with self.open(path, 'rb') as f:
-                while True:
-                    k = len(f.read(4096))
-                    if k == 0:
-                        break
-                    uncompressed_size_bytes += k
-        else:
-            uncompressed_size_bytes = stats.st_size
+        return self._format_stat_local_file(os.stat(path), path)
+
+    def _format_stat_local_file(self, stats: os.stat_result, path: str) -> Dict:
         return {
             'is_dir': self._stat_is_local_dir(stats),
-            'size_bytes': uncompressed_size_bytes,
-            'size': size(uncompressed_size_bytes),
+            'size_bytes': stats.st_size,
+            'size': size(stats.st_size),
             'path': path,
             'owner': stats.st_uid,
             'modification_time': stats.st_mtime,
