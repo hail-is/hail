@@ -1,5 +1,4 @@
 from typing import Dict, List, Any, AsyncContextManager, BinaryIO
-import warnings
 import asyncio
 import gzip
 import hurry

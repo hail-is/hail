@@ -2,7 +2,6 @@ from typing import Dict, List, BinaryIO
 import gzip
 import io
 import os
-import warnings
 from stat import S_ISREG, S_ISDIR
 from hurry.filesize import size
 from shutil import copy2, rmtree
