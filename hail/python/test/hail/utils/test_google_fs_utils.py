@@ -135,7 +135,7 @@ class Tests(unittest.TestCase):
                     f'{prefix}/test_hadoop_stat.copy.txt.gz')
 
         stat2 = hl.hadoop_stat(f'{prefix}/test_hadoop_stat.copy.txt.gz')
-        # the gzip format permits metadata which makes the compressed file's size unpredictable. In
+        # The gzip format permits metadata which makes the compressed file's size unpredictable. In
         # practice, Hadoop creates a 175 byte file and gzip.GzipFile creates a 202 byte file. The 27
         # extra bytes appear to include at least the filename (20 bytes) and a modification timestamp.
         assert stat2['size_bytes'] == 175 or stat2['size_bytes'] == 202
