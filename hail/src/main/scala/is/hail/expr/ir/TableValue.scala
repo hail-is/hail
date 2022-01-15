@@ -38,7 +38,7 @@ sealed trait TableExecuteIntermediate {
 
 class TableValueIntermediate(tv: TableValue) extends TableExecuteIntermediate {
   def asTableStage(ctx: ExecuteContext): TableStage = {
-    RVDToTableStage(tv.rvd, tv.globals.toEncodedLiteral())
+    RVDToTableStage(tv.rvd, tv.globals.toEncodedLiteral(ctx.theHailClassLoader))
   }
 
   def asTableValue(ctx: ExecuteContext): TableValue = tv
@@ -98,11 +98,11 @@ case class TableValue(ctx: ExecuteContext, typ: TableType, globals: BroadcastRow
     TableValue(ctx, typ, globals, rvd.persist(ctx, level))
 
   def filterWithPartitionOp[P](theHailClassLoader: HailClassLoader, fs: BroadcastValue[FS], partitionOp: (HailClassLoader, FS, Int, Region) => P)(pred: (P, RVDContext, Long, Long) => Boolean): TableValue = {
-    val localGlobals = globals.broadcast
+    val localGlobals = globals.broadcast(theHailClassLoader)
     copy(rvd = rvd.filterWithContext[(P, Long)](
       { (partitionIdx, ctx) =>
         val globalRegion = ctx.partitionRegion
-        (partitionOp(theHailClassLoader, fs.value, partitionIdx, globalRegion), localGlobals.value.readRegionValue(globalRegion))
+        (partitionOp(theHailClassLoader, fs.value, partitionIdx, globalRegion), localGlobals.value.readRegionValue(globalRegion, theHailClassLoader))
       }, { case ((p, glob), ctx, ptr) => pred(p, ctx, ptr, glob) }))
   }
 

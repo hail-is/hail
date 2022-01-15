@@ -28,17 +28,17 @@ abstract class EType extends BaseType with Serializable with Requiredness {
   type StagedDecoder = (EmitCodeBuilder, Value[Region], Value[InputBuffer]) => SValue
   type StagedInplaceDecoder = (EmitCodeBuilder, Value[Region], Value[Long], Value[InputBuffer]) => Unit
 
-  final def buildEncoder(ctx: ExecuteContext, t: PType): (OutputBuffer) => Encoder = {
+  final def buildEncoder(ctx: ExecuteContext, t: PType): (OutputBuffer, HailClassLoader) => Encoder = {
     val f = EType.buildEncoder(ctx, this, t)
-    out: OutputBuffer => new CompiledEncoder(out, ctx.theHailClassLoader, f)
+    (out: OutputBuffer, theHailClassLoader: HailClassLoader) => new CompiledEncoder(out, theHailClassLoader, f)
   }
 
-  final def buildDecoder(ctx: ExecuteContext, requestedType: Type): (PType, (InputBuffer) => Decoder) = {
+  final def buildDecoder(ctx: ExecuteContext, requestedType: Type): (PType, (InputBuffer, HailClassLoader) => Decoder) = {
     val (rt, f) = EType.buildDecoderToRegionValue(ctx, this, requestedType)
-    (rt, (in: InputBuffer) => new CompiledDecoder(in, ctx.theHailClassLoader, f))
+    (rt, (in: InputBuffer, theHailClassLoader: HailClassLoader) => new CompiledDecoder(in, theHailClassLoader, f))
   }
 
-  final def buildStructDecoder(ctx: ExecuteContext, requestedType: TStruct): (PStruct, (InputBuffer) => Decoder) = {
+  final def buildStructDecoder(ctx: ExecuteContext, requestedType: TStruct): (PStruct, (InputBuffer, HailClassLoader) => Decoder) = {
     val (pType: PStruct, makeDec) = buildDecoder(ctx, requestedType)
     pType -> makeDec
   }

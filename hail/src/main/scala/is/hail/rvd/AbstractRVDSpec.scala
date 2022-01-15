@@ -66,7 +66,7 @@ object AbstractRVDSpec {
 
     val f = partPath(path, partFiles(0))
     using(fs.open(f)) { in =>
-      val Array(rv) = HailContext.readRowsPartition(dec)(r, in).toArray
+      val Array(rv) = HailContext.readRowsPartition(dec)(ctx.theHailClassLoader, r, in).toArray
       (rType, rv)
     }
   }
@@ -94,7 +94,8 @@ object AbstractRVDSpec {
       using(fs.create(partsPath + "/" + filePath)) { os =>
         using(RVDContext.default(execCtx.r.pool)) { ctx =>
           val rvb = ctx.rvb
-          RichContextRDDRegionValue.writeRowsPartition(codecSpec.buildEncoder(execCtx, rowType))(ctx,
+          RichContextRDDRegionValue.writeRowsPartition(codecSpec.buildEncoder(execCtx, rowType))(
+            ctx,
             rows.iterator.map { a =>
               rowType.unstagedStoreJavaObject(a, ctx.r)
             }, os, null)

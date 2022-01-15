@@ -161,8 +161,9 @@ object HailContext {
   }
 
   def readRowsPartition(
-    makeDec: (InputStream) => Decoder
-  )(r: Region,
+    makeDec: (InputStream, HailClassLoader) => Decoder
+  )(theHailClassLoader: HailClassLoader,
+    r: Region,
     in: InputStream,
     metrics: InputMetrics = null
   ): Iterator[Long] =
@@ -172,7 +173,7 @@ object HailContext {
       private val trackedIn = new ByteTrackingInputStream(in)
       private val dec =
         try {
-          makeDec(trackedIn)
+          makeDec(trackedIn, theHailClassLoader)
         } catch {
           case e: Exception =>
             in.close()
@@ -216,8 +217,9 @@ object HailContext {
     }
 
   def readRowsIndexedPartition(
-    makeDec: (InputStream) => Decoder
-  )(ctx: RVDContext,
+    makeDec: (InputStream, HailClassLoader) => Decoder
+  )(theHailClassLoader: HailClassLoader,
+    ctx: RVDContext,
     in: InputStream,
     idxr: IndexReader,
     offsetField: Option[String],
@@ -226,17 +228,17 @@ object HailContext {
   ): Iterator[Long] =
     bounds match {
       case Some(b) =>
-        new IndexReadIterator(makeDec, ctx.r, in, idxr, offsetField.orNull, b, metrics)
+        new IndexReadIterator(theHailClassLoader, makeDec, ctx.r, in, idxr, offsetField.orNull, b, metrics)
       case None =>
         idxr.close()
-        HailContext.readRowsPartition(makeDec)(ctx.r, in, metrics)
+        HailContext.readRowsPartition(makeDec)(theHailClassLoader, ctx.r, in, metrics)
     }
 
   def readSplitRowsPartition(
     theHailClassLoader: HailClassLoader,
     fs: BroadcastValue[FS],
-    mkRowsDec: (InputStream) => Decoder,
-    mkEntriesDec: (InputStream) => Decoder,
+    mkRowsDec: (InputStream, HailClassLoader) => Decoder,
+    mkEntriesDec: (InputStream, HailClassLoader) => Decoder,
     mkInserter: (HailClassLoader, FS, Int, Region) => AsmFunction3RegionLongLongLong
   )(ctx: RVDContext,
     isRows: InputStream,
@@ -247,7 +249,10 @@ object HailContext {
     bounds: Option[Interval],
     partIdx: Int,
     metrics: InputMetrics = null
-  ): Iterator[Long] = new MaybeIndexedReadZippedIterator(mkRowsDec, mkEntriesDec, mkInserter(theHailClassLoader, fs.value, partIdx, ctx.partitionRegion),
+  ): Iterator[Long] = new MaybeIndexedReadZippedIterator(
+    is => mkRowsDec(is, theHailClassLoaderForSparkWorkers),
+    is => mkEntriesDec(is, theHailClassLoaderForSparkWorkers),
+    mkInserter(theHailClassLoader, fs.value, partIdx, ctx.partitionRegion),
     ctx.r,
     isRows, isEntries,
     idxr.orNull, rowsOffsetField.orNull, entriesOffsetField.orNull, bounds.orNull, metrics)
@@ -295,7 +300,7 @@ object HailContext {
         assert(it.hasNext)
         val (is, m) = it.next
         assert(!it.hasNext)
-        HailContext.readRowsPartition(makeDec)(ctx.r, is, m)
+        HailContext.readRowsPartition(makeDec)(theHailClassLoaderForSparkWorkers, ctx.r, is, m)
       })
   }
 
@@ -314,7 +319,7 @@ object HailContext {
         assert(it.hasNext)
         val (is, idxr, bounds, m) = it.next
         assert(!it.hasNext)
-        readRowsIndexedPartition(makeDec)(ctx, is, idxr, indexSpec.offsetField, bounds, m)
+        readRowsIndexedPartition(makeDec)(theHailClassLoaderForSparkWorkers, ctx, is, idxr, indexSpec.offsetField, bounds, m)
       })
   }
 
@@ -340,7 +345,7 @@ object HailContext {
       val fs = fsBc.value
       val idxname = s"$path/$idxPath/${ p.file }.idx"
       val filename = s"$path/parts/${ p.file }"
-      val idxr = mkIndexReader(fs, idxname, 8, SparkTaskContext.get().getRegionPool()) // default cache capacity
+      val idxr = mkIndexReader(theHailClassLoaderForSparkWorkers, fs, idxname, 8, SparkTaskContext.get().getRegionPool()) // default cache capacity
       val in = fs.open(filename)
       (in, idxr, p.bounds, context.taskMetrics().inputMetrics)
     })
@@ -355,8 +360,8 @@ object HailContext {
     indexSpecEntries: Option[AbstractIndexSpec],
     partFiles: Array[String],
     bounds: Array[Interval],
-    makeRowsDec: InputStream => Decoder,
-    makeEntriesDec: InputStream => Decoder,
+    makeRowsDec: (InputStream, HailClassLoader) => Decoder,
+    makeEntriesDec: (InputStream, HailClassLoader) => Decoder,
     makeInserter: (HailClassLoader, FS, Int, Region) => AsmFunction3RegionLongLongLong
   ): ContextRDD[Long] = {
     require(!(indexSpecRows.isEmpty ^ indexSpecEntries.isEmpty))
@@ -379,7 +384,7 @@ object HailContext {
       val fs = fsBc.value
       val idxr = mkIndexReader.map { mk =>
         val idxname = s"$pathRows/${ indexSpecRows.get.relPath }/${ p.file }.idx"
-        mk(fs, idxname, 8, SparkTaskContext.get().getRegionPool()) // default cache capacity
+        mk(theHailClassLoaderForSparkWorkers, fs, idxname, 8, SparkTaskContext.get().getRegionPool()) // default cache capacity
       }
       val inRows = fs.open(s"$pathRows/parts/${ p.file }")
       val inEntries = fs.open(s"$pathEntries/parts/${ p.file }")

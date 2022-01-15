@@ -150,7 +150,7 @@ object BgenRDD {
 private class BgenRDD(
   fsBc: BroadcastValue[FS],
   f: (HailClassLoader, FS, Int, Region) => AsmFunction4[Region, BgenPartition, HadoopFSDataBinaryReader, BgenSettings, Long],
-  indexBuilder: (FS, String, Int, RegionPool) => IndexReader,
+  indexBuilder: (HailClassLoader, FS, String, Int, RegionPool) => IndexReader,
   parts: Array[Partition],
   settings: BgenSettings,
   keys: RDD[Row]
@@ -165,7 +165,7 @@ private class BgenRDD(
           assert(keys == null)
           new IndexBgenRecordIterator(ctx, p, settings, f(theHailClassLoaderForSparkWorkers, fsBc.value, p.partitionIndex, ctx.partitionRegion)).flatten
         case p: LoadBgenPartition =>
-          val index: IndexReader = indexBuilder(p.fsBc.value, p.indexPath, 8, SparkTaskContext.get().getRegionPool())
+          val index: IndexReader = indexBuilder(theHailClassLoaderForSparkWorkers, p.fsBc.value, p.indexPath, 8, SparkTaskContext.get().getRegionPool())
           context.addTaskCompletionListener[Unit] { (context: TaskContext) =>
             index.close()
           }

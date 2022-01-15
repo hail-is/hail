@@ -76,8 +76,8 @@ abstract sealed class TableIR extends BaseIR {
 class TableRunContext(val req: RequirednessAnalysis)
 
 object TableLiteral {
-  def apply(value: TableValue): TableLiteral = {
-    TableLiteral(value.typ, value.rvd, value.globals.encoding, value.globals.encodeToByteArrays())
+  def apply(value: TableValue, theHailClassLoader: HailClassLoader): TableLiteral = {
+    TableLiteral(value.typ, value.rvd, value.globals.encoding, value.globals.encodeToByteArrays(theHailClassLoader))
   }
 }
 
@@ -95,7 +95,7 @@ case class TableLiteral(typ: TableType, rvd: RVD, enc: AbstractTypedCodecSpec, e
     val (globalPType: PStruct, dec) = enc.buildDecoder(ctx, typ.globalType)
 
     val bais = new ArrayOfByteArrayInputStream(encodedGlobals)
-    val globalOffset = dec.apply(bais).readRegionValue(ctx.r)
+    val globalOffset = dec.apply(bais, ctx.theHailClassLoader).readRegionValue(ctx.r)
     new TableValueIntermediate(TableValue(ctx, typ, BroadcastRow(ctx, RegionValue(ctx.r, globalOffset), globalPType), rvd))
   }
 }
@@ -518,7 +518,8 @@ case class PartitionRVDReader(rvd: RVD) extends PartitionReader {
         override def initialize(cb: EmitCodeBuilder): Unit = {
           cb.assign(iterator, broadcastRVD.invoke[Int, Region, Region, Iterator[Long]](
             "computePartition", EmitCodeBuilder.scopedCode[Int](mb)(idx.asInt.intCode(_)), region, partitionRegion))
-          cb.assign(upcastF, Code.checkcast[AsmFunction2RegionLongLong](upcastCode.invoke[AnyRef, AnyRef, AnyRef, AnyRef]("apply", cb.emb.ecb.emodb.getFS, Code.boxInt(0), partitionRegion)))
+          cb.assign(upcastF, Code.checkcast[AsmFunction2RegionLongLong](upcastCode.invoke[AnyRef, AnyRef, AnyRef, AnyRef, AnyRef](
+            "apply", cb.emb.ecb.emodb.getHailClassLoader, cb.emb.ecb.emodb.getFS, Code.boxInt(0), partitionRegion)))
         }
         override val elementRegion: Settable[Region] = region
         override val requiresMemoryManagementPerElement: Boolean = true
@@ -616,8 +617,8 @@ case class PartitionNativeReaderIndexed(spec: AbstractTypedCodecSpec, indexSpec:
     val (intPType: PStruct, intDec) = indexSpec.internalNodeCodec.buildDecoder(ctx, indexSpec.internalNodeCodec.encodedVirtualType)
     val mkIndexReader = IndexReaderBuilder.withDecoders(leafDec, intDec, keyType, annotationType, leafPType, intPType)
 
-    val makeIndexCode = mb.getObject[Function4[FS, String, Int, RegionPool, IndexReader]](mkIndexReader)
-    val makeDecCode = mb.getObject[(InputStream => Decoder)](makeDec)
+    val makeIndexCode = mb.getObject[Function5[HailClassLoader, FS, String, Int, RegionPool, IndexReader]](mkIndexReader)
+    val makeDecCode = mb.getObject[(InputStream, HailClassLoader) => Decoder](makeDec)
 
     context.toI(cb).map(cb) { case ctxStruct: SBaseStructValue =>
 
@@ -642,14 +643,17 @@ case class PartitionNativeReaderIndexed(spec: AbstractTypedCodecSpec, indexSpec:
             .asString
             .loadString(cb)))
           cb.assign(it,
-            Code.newInstance7[IndexReadIterator,
-              (InputStream) => Decoder,
+            Code.newInstance8[IndexReadIterator,
+              HailClassLoader,
+              (InputStream, HailClassLoader) => Decoder,
               Region,
               InputStream,
               IndexReader,
               String,
               Interval,
-              InputMetrics](makeDecCode,
+              InputMetrics](
+              mb.ecb.getHailClassLoader,
+              makeDecCode,
               region,
               mb.open(ctxStruct.loadField(cb, "partitionPath")
                 .get(cb)
@@ -843,7 +847,7 @@ case class PartitionZippedIndexedNativeReader(specLeft: AbstractTypedCodecSpec, 
       val (intPType: PStruct, intDec) = indexSpecLeft.internalNodeCodec.buildDecoder(ctx, indexSpecLeft.internalNodeCodec.encodedVirtualType)
       val mkIndexReader = IndexReaderBuilder.withDecoders(leafDec, intDec, keyType, annotationType, leafPType, intPType)
 
-      mb.getObject[Function4[FS, String, Int, RegionPool, IndexReader]](mkIndexReader)
+      mb.getObject[Function5[HailClassLoader, FS, String, Int, RegionPool, IndexReader]](mkIndexReader)
     }
 
     val leftOffsetFieldIndex = indexSpecLeft.offsetFieldIndex
@@ -1281,7 +1285,7 @@ case class TableParallelize(rowsAndGlobal: IR, nPartitions: Option[Int] = None) 
     val nSplits = math.min(nPartitions.getOrElse(16), math.max(nRows, 1))
     val parts = partition(nRows, nSplits)
 
-    val bae = new ByteArrayEncoder(makeEnc)
+    val bae = new ByteArrayEncoder(ctx.theHailClassLoader, makeEnc)
     var idx = 0
     val encRows = Array.tabulate(nSplits) { splitIdx =>
       val n = parts(splitIdx)
@@ -1305,7 +1309,7 @@ case class TableParallelize(rowsAndGlobal: IR, nPartitions: Option[Int] = None) 
     val rvd = ContextRDD.parallelize(encRows, encRows.length)
       .cmapPartitions { (ctx, it) =>
         it.flatMap { case (nRowPartition, arr) =>
-          val bais = new ByteArrayDecoder(makeDec)
+          val bais = new ByteArrayDecoder(theHailClassLoaderForSparkWorkers, makeDec)
           bais.set(arr)
           Iterator.range(0, nRowPartition)
             .map { _ =>
@@ -1953,7 +1957,7 @@ case class TableMapPartitions(child: TableIR,
         globalName -> In(0, SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(globalPType))),
         partitionStreamName -> In(1, SingleCodeEmitParamType(true, StreamSingleCodeType(requiresMemoryManagementPerElement = true, rowPType)))))))
 
-    val globalsBc = tv.globals.broadcast
+    val globalsBc = tv.globals.broadcast(ctx.theHailClassLoader)
 
     val fsBc = tv.ctx.fsBc
     val itF = { (idx: Int, consumerCtx: RVDContext, partition: (RVDContext) => Iterator[Long]) =>
@@ -1962,7 +1966,7 @@ case class TableMapPartitions(child: TableIR,
           partition(new RVDContext(outerRegion, eltRegion)).map(box)
       }
       makeIterator(theHailClassLoaderForSparkWorkers, fsBc.value, idx, consumerCtx,
-        globalsBc.value.readRegionValue(consumerCtx.partitionRegion),
+        globalsBc.value.readRegionValue(consumerCtx.partitionRegion, theHailClassLoaderForSparkWorkers),
         boxedPartition
       ).map(l => l.longValue())
     }
@@ -2010,7 +2014,7 @@ case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
       val rowIterationNeedsGlobals = Mentions(extracted.postAggIR, "global")
       val globalsBc =
         if (rowIterationNeedsGlobals)
-          tv.globals.broadcast
+          tv.globals.broadcast(ctx.theHailClassLoader)
         else
           null
 
@@ -2018,7 +2022,7 @@ case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
       val itF = { (i: Int, ctx: RVDContext, it: Iterator[Long]) =>
         val globalRegion = ctx.partitionRegion
         val globals = if (rowIterationNeedsGlobals)
-          globalsBc.value.readRegionValue(globalRegion)
+          globalsBc.value.readRegionValue(globalRegion, theHailClassLoaderForSparkWorkers)
         else
           0
 
@@ -2040,7 +2044,7 @@ case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
 
     val globalsBc =
       if (rowIterationNeedsGlobals || scanInitNeedsGlobals || scanSeqNeedsGlobals)
-        tv.globals.broadcast
+        tv.globals.broadcast(ctx.theHailClassLoader)
       else
         null
 
@@ -2085,7 +2089,7 @@ case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
     // 1. init op on all aggs and write out to initPath
     val initAgg = ctx.r.pool.scopedRegion { aggRegion =>
       ctx.r.pool.scopedRegion { fRegion =>
-        val init = initF(fsBc.value, 0, fRegion)
+        val init = initF(ctx.theHailClassLoader, fsBc.value, 0, fRegion)
         init.newAggState(aggRegion)
         init(fRegion, tv.globals.value.offset)
         serializeF(aggRegion, init.getAggOffset())
@@ -2099,10 +2103,10 @@ case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
       val files = tv.rvd.mapPartitionsWithIndex { (i, ctx, it) =>
         val path = tmpBase + "/" + partFile(d, i, TaskContext.get)
         val globalRegion = ctx.freshRegion()
-        val globals = if (scanSeqNeedsGlobals) globalsBc.value.readRegionValue(globalRegion) else 0
+        val globals = if (scanSeqNeedsGlobals) globalsBc.value.readRegionValue(globalRegion, theHailClassLoaderForSparkWorkers) else 0
 
         ctx.r.pool.scopedSmallRegion { aggRegion =>
-          val seq = eltSeqF(fsBc.value, i, globalRegion)
+          val seq = eltSeqF(theHailClassLoaderForSparkWorkers, fsBc.value, i, globalRegion)
 
           seq.setAggState(aggRegion, read(aggRegion, initAgg))
           it.foreach { ptr =>
@@ -2155,7 +2159,7 @@ case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
       val itF = { (i: Int, ctx: RVDContext, it: Iterator[Long]) =>
         val globalRegion = ctx.freshRegion()
         val globals = if (rowIterationNeedsGlobals || scanSeqNeedsGlobals)
-          globalsBc.value.readRegionValue(globalRegion)
+          globalsBc.value.readRegionValue(globalRegion, theHailClassLoaderForSparkWorkers)
         else
           0
         val partitionAggs = {
@@ -2188,8 +2192,8 @@ case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
         }
 
         val aggRegion = ctx.freshRegion()
-        val newRow = f(fsBc.value, i, globalRegion)
-        val seq = eltSeqF(fsBc.value, i, globalRegion)
+        val newRow = f(theHailClassLoaderForSparkWorkers, fsBc.value, i, globalRegion)
+        val seq = eltSeqF(theHailClassLoaderForSparkWorkers, fsBc.value, i, globalRegion)
         var aggOff = read(aggRegion, partitionAggs)
 
         val res = it.map { ptr =>
@@ -2212,10 +2216,10 @@ case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
     // 2. load in init op on each partition, seq op over partition, write out.
     val scanPartitionAggs = SpillingCollectIterator(ctx.localTmpdir, ctx.fs, tv.rvd.mapPartitionsWithIndex { (i, ctx, it) =>
       val globalRegion = ctx.partitionRegion
-      val globals = if (scanSeqNeedsGlobals) globalsBc.value.readRegionValue(globalRegion) else 0
+      val globals = if (scanSeqNeedsGlobals) globalsBc.value.readRegionValue(globalRegion, theHailClassLoaderForSparkWorkers) else 0
 
       SparkTaskContext.get().getRegionPool().scopedSmallRegion { aggRegion =>
-        val seq = eltSeqF(fsBc.value, i, globalRegion)
+        val seq = eltSeqF(theHailClassLoaderForSparkWorkers, fsBc.value, i, globalRegion)
 
         seq.setAggState(aggRegion, read(aggRegion, initAgg))
         it.foreach { ptr =>
@@ -2247,7 +2251,7 @@ case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
     val itF = { (i: Int, ctx: RVDContext, filePosition: Long, it: Iterator[Long]) =>
       val globalRegion = ctx.partitionRegion
       val globals = if (rowIterationNeedsGlobals || scanSeqNeedsGlobals)
-        globalsBc.value.readRegionValue(globalRegion)
+        globalsBc.value.readRegionValue(globalRegion, theHailClassLoaderForSparkWorkers)
       else
         0
       val partitionAggs = using(fsBc.value.openNoCompression(scanAggsPerPartitionFile)) { is =>
@@ -2267,8 +2271,8 @@ case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
       }
 
       val aggRegion = ctx.freshRegion()
-      val newRow = f(fsBc.value, i, globalRegion)
-      val seq = eltSeqF(fsBc.value, i, globalRegion)
+      val newRow = f(theHailClassLoaderForSparkWorkers, fsBc.value, i, globalRegion)
+      val seq = eltSeqF(theHailClassLoaderForSparkWorkers, fsBc.value, i, globalRegion)
       var aggOff = read(aggRegion, partitionAggs)
 
       var idx = 0
@@ -2531,7 +2535,7 @@ case class TableKeyByAndAggregate(
         newKey,
         Die("Internal error: TableKeyByAndAggregate: newKey missing", newKey.typ))))
 
-    val globalsBc = prev.globals.broadcast
+    val globalsBc = prev.globals.broadcast(ctx.theHailClassLoader)
 
     val spec = BufferSpec.defaultUncompressed
     val res = genUID()
@@ -2562,7 +2566,7 @@ case class TableKeyByAndAggregate(
     val deserialize = extracted.deserialize(ctx, spec)
     val combOp = extracted.combOpFSerializedWorkersOnly(ctx, spec)
 
-    val initF = makeInit(fsBc.value, 0, ctx.r)
+    val initF = makeInit(theHailClassLoaderForSparkWorkers, fsBc.value, 0, ctx.r)
     val globalsOffset = prev.globals.value.offset
     val initAggs = ctx.r.pool.scopedRegion { aggRegion =>
       initF.newAggState(aggRegion)
@@ -2578,7 +2582,7 @@ case class TableKeyByAndAggregate(
       .boundary
       .mapPartitionsWithIndex { (i, ctx, it) =>
         val partRegion = ctx.partitionRegion
-        val globals = globalsBc.value.readRegionValue(partRegion)
+        val globals = globalsBc.value.readRegionValue(partRegion, theHailClassLoaderForSparkWorkers)
         val makeKey = {
           val f = makeKeyF(theHailClassLoaderForSparkWorkers, fsBc.value, i, partRegion)
           ptr: Long => {
@@ -2592,7 +2596,7 @@ case class TableKeyByAndAggregate(
         }
 
         val seqOp = {
-          val f = makeSeq(fsBc.value, i, partRegion)
+          val f = makeSeq(theHailClassLoaderForSparkWorkers, fsBc.value, i, partRegion)
           (ptr: Long, agg: RegionValue) => {
             f.setAggState(agg.region, agg.offset)
             f(ctx.region, globals, ptr)
@@ -2620,8 +2624,8 @@ case class TableKeyByAndAggregate(
 
         val rvb = new RegionValueBuilder()
         val partRegion = ctx.partitionRegion
-        val globals = globalsBc.value.readRegionValue(partRegion)
-        val annotate = makeAnnotate(fsBc.value, i, partRegion)
+        val globals = globalsBc.value.readRegionValue(partRegion, theHailClassLoaderForSparkWorkers)
+        val annotate = makeAnnotate(theHailClassLoaderForSparkWorkers, fsBc.value, i, partRegion)
 
         it.map { case (key, aggs) =>
           rvb.set(region)
@@ -2704,7 +2708,7 @@ case class TableAggregateByKey(child: TableIR, expr: IR) extends TableIR {
     val localChildRowType = prevRVD.rowPType
     val keyIndices = prevRVD.typ.kFieldIdx
     val keyOrd = prevRVD.typ.kRowOrd
-    val globalsBc = prev.globals.broadcast
+    val globalsBc = prev.globals.broadcast(ctx.theHailClassLoader)
 
     val newRVDType = prevRVD.typ.copy(rowType = rowType)
 
@@ -2713,11 +2717,11 @@ case class TableAggregateByKey(child: TableIR, expr: IR) extends TableIR {
       .boundary
       .mapPartitionsWithIndex(newRVDType) { (i, ctx, it) =>
         val partRegion = ctx.partitionRegion
-        val globalsOff = globalsBc.value.readRegionValue(partRegion)
+        val globalsOff = globalsBc.value.readRegionValue(partRegion, theHailClassLoaderForSparkWorkers)
 
-        val initialize = makeInit(fsBc.value, i, partRegion)
-        val sequence = makeSeq(fsBc.value, i, partRegion)
-        val newRowF = makeRow(fsBc.value, i, partRegion)
+        val initialize = makeInit(theHailClassLoaderForSparkWorkers, fsBc.value, i, partRegion)
+        val sequence = makeSeq(theHailClassLoaderForSparkWorkers, fsBc.value, i, partRegion)
+        val newRowF = makeRow(theHailClassLoaderForSparkWorkers, fsBc.value, i, partRegion)
 
         val aggRegion = ctx.freshRegion()
 

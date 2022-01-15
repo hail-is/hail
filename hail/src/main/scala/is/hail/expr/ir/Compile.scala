@@ -93,14 +93,14 @@ object CompileWithAggregators {
     expectedCodeParamTypes: IndexedSeq[TypeInfo[_]], expectedCodeReturnType: TypeInfo[_],
     body: IR,
     optimize: Boolean = true
-  ): (Option[SingleCodeType], (FS, Int, Region) => (F with FunctionWithAggRegion)) = {
+  ): (Option[SingleCodeType], (HailClassLoader, FS, Int, Region) => (F with FunctionWithAggRegion)) = {
     val normalizeNames = new NormalizeNames(_.toString)
     val normalizedBody = normalizeNames(body,
       Env(params.map { case (n, _) => n -> n }: _*))
     val k = CodeCacheKey(aggSigs, params.map { case (n, pt) => (n, pt) }, normalizedBody)
     codeCache.get(k) match {
       case Some(v) =>
-        return (v.typ, v.f.asInstanceOf[(FS, Int, Region) => (F with FunctionWithAggRegion)])
+        return (v.typ, v.f.asInstanceOf[(HailClassLoader, FS, Int, Region) => (F with FunctionWithAggRegion)])
       case None =>
     }
 
@@ -134,7 +134,7 @@ object CompileWithAggregators {
 
     val f = fb.resultWithIndex()
     codeCache += k -> CodeCacheValue(rt, f)
-    (rt, f.asInstanceOf[(FS, Int, Region) => (F with FunctionWithAggRegion)])
+    (rt, f.asInstanceOf[(HailClassLoader, FS, Int, Region) => (F with FunctionWithAggRegion)])
   }
 }
 

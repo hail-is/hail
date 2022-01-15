@@ -33,10 +33,11 @@ final class CompiledDecoder(in: InputBuffer, theHailClassLoader: HailClassLoader
 }
 
 final class ByteArrayDecoder(
-  makeDec: InputStream => Decoder
+  theHailClassLoader: HailClassLoader,
+  makeDec: (InputStream, HailClassLoader) => Decoder
 ) extends Closeable {
   private[this] val bais = new RestartableByteArrayInputStream()
-  private[this] val dec = makeDec(bais)
+  private[this] val dec = makeDec(bais, theHailClassLoader)
 
   override def close(): Unit = {
     dec.close()

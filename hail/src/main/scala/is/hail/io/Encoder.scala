@@ -40,10 +40,11 @@ final class CompiledEncoder(out: OutputBuffer, theHailClassLoader: HailClassLoad
 }
 
 final class ByteArrayEncoder(
-  makeEnc: OutputStream => Encoder
+  theHailClassLoader: HailClassLoader,
+  makeEnc: (OutputStream, HailClassLoader) => Encoder
 ) extends Closeable {
   private[this] val baos = new ByteArrayOutputStream()
-  private[this] val enc = makeEnc(baos)
+  private[this] val enc = makeEnc(baos, theHailClassLoader)
 
   def close(): Unit = {
     enc.close()

@@ -470,7 +470,7 @@ class SparkBackend(
       val key = jKey.asScala.toArray.toFastIndexedSeq
       val signature = SparkAnnotationImpex.importType(df.schema).setRequired(true).asInstanceOf[PStruct]
       withExecuteContext(timer, selfContainedExecution = false) { ctx =>
-        TableLiteral(TableValue(ctx, signature.virtualType.asInstanceOf[TStruct], key, df.rdd, Some(signature)))
+        TableLiteral(TableValue(ctx, signature.virtualType.asInstanceOf[TStruct], key, df.rdd, Some(signature)), ctx.theHailClassLoader)
       }
     }
   }
@@ -486,7 +486,7 @@ class SparkBackend(
 
       withExecuteContext(timer, selfContainedExecution = false) { ctx =>
         val tv = Interpret(mir, ctx, optimize = true)
-        MatrixLiteral(mir.typ, TableLiteral(tv.persist(ctx, level)))
+        MatrixLiteral(mir.typ, TableLiteral(tv.persist(ctx, level), ctx.theHailClassLoader))
       }
     }
   }
@@ -502,7 +502,7 @@ class SparkBackend(
 
       withExecuteContext(timer, selfContainedExecution = false) { ctx =>
         val tv = Interpret(tir, ctx, optimize = true)
-        TableLiteral(tv.persist(ctx, level))
+        TableLiteral(tv.persist(ctx, level), ctx.theHailClassLoader)
       }
     }
   }
@@ -684,7 +684,7 @@ class SparkBackend(
     val (globals, rvd) = TableStageToRVD(ctx, stage, relationalLetsAbove)
 
     if (sortFields.forall(_.sortOrder == Ascending)) {
-      return RVDToTableStage(rvd.changeKey(ctx, sortFields.map(_.field)), globals.toEncodedLiteral())
+      return RVDToTableStage(rvd.changeKey(ctx, sortFields.map(_.field)), globals.toEncodedLiteral(ctx.theHailClassLoader))
     }
 
     val rowType = rvd.rowType
@@ -702,7 +702,7 @@ class SparkBackend(
     val codec = TypedCodecSpec(rvd.rowPType, BufferSpec.wireSpec)
     val rdd = rvd.keyedEncodedRDD(ctx, codec, sortFields.map(_.field)).sortBy(_._1)(ord, act)
     val (rowPType: PStruct, orderedCRDD) = codec.decodeRDD(ctx, rowType, rdd.map(_._2))
-    RVDToTableStage(RVD.unkeyed(rowPType, orderedCRDD), globals.toEncodedLiteral())
+    RVDToTableStage(RVD.unkeyed(rowPType, orderedCRDD), globals.toEncodedLiteral(ctx.theHailClassLoader))
   }
 
   def pyImportFam(path: String, isQuantPheno: Boolean, delimiter: String, missingValue: String): String =

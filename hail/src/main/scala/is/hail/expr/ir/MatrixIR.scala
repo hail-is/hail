@@ -61,7 +61,8 @@ object MatrixLiteral {
       TableLiteral(
         TableValue(ctx, tt,
           BroadcastRow(ctx, Row.fromSeq(globals.toSeq :+ colValues), typ.canonicalTableType.globalType),
-          rvd)))
+          rvd),
+        ctx.theHailClassLoader))
   }
 }
 
