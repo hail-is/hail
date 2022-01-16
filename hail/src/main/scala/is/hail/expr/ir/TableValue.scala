@@ -1,6 +1,6 @@
 package is.hail.expr.ir
 
-import is.hail.asm4s.HailClassLoader
+import is.hail.asm4s.{HailClassLoader, theHailClassLoaderForSparkWorkers}
 import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.backend.{BroadcastValue, ExecuteContext}
@@ -102,7 +102,10 @@ case class TableValue(ctx: ExecuteContext, typ: TableType, globals: BroadcastRow
     copy(rvd = rvd.filterWithContext[(P, Long)](
       { (partitionIdx, ctx) =>
         val globalRegion = ctx.partitionRegion
-        (partitionOp(theHailClassLoader, fs.value, partitionIdx, globalRegion), localGlobals.value.readRegionValue(globalRegion, theHailClassLoader))
+        (
+          partitionOp(theHailClassLoaderForSparkWorkers, fs.value, partitionIdx, globalRegion),
+          localGlobals.value.readRegionValue(globalRegion, theHailClassLoaderForSparkWorkers)
+        )
       }, { case ((p, glob), ctx, ptr) => pred(p, ctx, ptr, glob) }))
   }
 
