@@ -61,15 +61,19 @@ trait BroadcastRegionValue {
     baos.toByteArrays()
   }
 
-  private[this] var broadcasted: BroadcastValue[SerializableRegionValue] = null
+  @volatile private[this] var broadcasted: BroadcastValue[SerializableRegionValue] = null
 
   def broadcast(theHailClassLoader: HailClassLoader): BroadcastValue[SerializableRegionValue] = {
     if (broadcasted == null) {
-      val arrays = encodeToByteArrays(theHailClassLoader)
-      val totalSize = arrays.map(_.length).sum
-      log.info(s"BroadcastRegionValue.broadcast: broadcasting ${ arrays.length } byte arrays of total size $totalSize (${ formatSpace(totalSize) }")
-      val srv = SerializableRegionValue(arrays, decodedPType, makeDec)
-      broadcasted = ctx.backend.broadcast(srv)
+      this.synchronized {
+        if (broadcasted == null) {
+          val arrays = encodeToByteArrays(theHailClassLoader)
+          val totalSize = arrays.map(_.length).sum
+          log.info(s"BroadcastRegionValue.broadcast: broadcasting ${ arrays.length } byte arrays of total size $totalSize (${ formatSpace(totalSize) }")
+          val srv = SerializableRegionValue(arrays, decodedPType, makeDec)
+          broadcasted = ctx.backend.broadcast(srv)
+        }
+      }
     }
     broadcasted
   }
