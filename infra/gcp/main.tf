@@ -411,17 +411,6 @@ module "batch_gsa_secret" {
   ]
 }
 
-module "query_gsa_secret" {
-  source = "./gsa_k8s_secret"
-  name = "query"
-}
-
-resource "google_storage_bucket_iam_member" "query_hail_query_bucket_storage_admin" {
-  bucket = module.hail_query.name
-  role = "roles/storage.admin"
-  member = "serviceAccount:${module.query_gsa_secret.email}"
-}
-
 resource "google_storage_bucket_iam_member" "batch_hail_query_bucket_storage_viewer" {
   bucket = module.hail_query.name
   role = "roles/storage.objectViewer"

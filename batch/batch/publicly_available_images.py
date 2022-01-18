@@ -6,5 +6,5 @@ def publicly_available_images(docker_prefix: str) -> List[str]:
     # variables
     return [
         f'{docker_prefix}/{name}'
-        for name in ('query', 'hailgenetics/hail', 'hailgenetics/genetics', 'python-dill', 'batch-worker')
+        for name in ('hailgenetics/hail', 'hailgenetics/genetics', 'python-dill', 'batch-worker')
     ]
