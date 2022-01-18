@@ -218,7 +218,7 @@ case class PartitionNativeWriter(spec: AbstractTypedCodecSpec, optKeyType: Optio
       cb.assign(lastSeenSettable, EmitCode.missing(cb.emb, keyEmitType.st))
 
 
-      def writeFile(cb: EmitCodeBuilder, codeRow: EmitCode, lastSeenSettable: EmitSettable): Unit = {
+      def writeFile(cb: EmitCodeBuilder, codeRow: EmitCode): Unit = {
         val row = codeRow.toI(cb).get(cb, "row can't be missing").asBaseStruct
 
         if (hasIndex) {
@@ -275,7 +275,7 @@ case class PartitionNativeWriter(spec: AbstractTypedCodecSpec, optKeyType: Optio
       cb.assign(n, 0L)
 
       stream.memoryManagedConsume(region, cb) { cb =>
-        writeFile(cb, stream.element, lastSeenSettable)
+        writeFile(cb, stream.element)
       }
 
       cb += ob.writeByte(0.asInstanceOf[Byte])
