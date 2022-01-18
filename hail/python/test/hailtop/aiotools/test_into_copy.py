@@ -39,3 +39,43 @@ async def test_copy_dir():
 
         await copy_from_dict(files=inputs)
         assert read_file(f"{test_dir}/subdir2/subdir1/file1") == "hello world\n"
+
+
+# @pytest.mark.asyncio
+# async def test_dangerous_function():
+#     with tempfile.TemporaryDirectory() as test_dir:
+#         write_file(f"{test_dir}/foo", "hello world\n")
+#         write_file(f"{test_dir}/bar", "hello world\n")
+           
+#         inputs = [{"from": f"{test_dir}/bar", "into": f"{test_dir}/foo"}]
+
+#         await copy_from_dict(files=inputs)
+
+#         expected_files = [f"{test_dir}/bar", f"{test_dir}/foo"]
+#         for file in expected_files:
+#             assert read_file(file) == "hello world\n"
+
+# try:
+#     # ... try to do the thing that causes an error here ...
+#          test_dangerous_function()
+# except NotADirectoryError:
+#         pass
+# else:
+#         assert False  # we come to "else:" if there was no error
+
+
+@pytest.mark.asyncio
+async def test_error_function():
+    with tempfile.TemporaryDirectory() as test_dir:
+        # write_file(f"{test_dir}/foo", "hello world\n")
+        write_file(f"{test_dir}/bar", "hello world\n")
+           
+        inputs = [{"from": f"{test_dir}/bar", "into": f"{test_dir}/foo"}]
+
+    try:
+    # ... try to do the thing that causes an error here ...
+         await copy_from_dict(files=inputs)
+    except NotADirectoryError:
+        pass
+    else:
+        assert False  # we come to "else:" if there was no error
