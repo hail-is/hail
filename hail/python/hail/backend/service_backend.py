@@ -267,10 +267,16 @@ class ServiceBackend(Backend):
                         failed_jobs = []
                         async for j in b2.jobs():
                             if j['state'] != 'Success':
-                                main_log = (await self.async_bc.get_job_log(j['batch_id'], j['job_id'])).get('main', '')
+                                logs, full_status = await asyncio.gather(
+                                    self.async_bc.get_job_log(j['batch_id'], j['job_id']),
+                                    self.async_bc.get_job(j['batch_id'], j['job_id']),
+                                )
+                                main_log = logs.get('main', '')
                                 failed_jobs.append({
-                                    'status': j,
-                                    'log': main_log.strip()})
+                                    'partial_status': j,
+                                    'status': full_status,
+                                    'log': main_log.strip(),
+                                })
                         message = {
                             'id': b.id,
                             'stacktrace': jstacktrace,
