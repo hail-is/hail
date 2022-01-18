@@ -621,7 +621,7 @@ def default_handler():
         return print
 
 
-def guess_cloud_spark_provider() -> Optional[Literal['dataproc', 'hdinsight']]]:
+def guess_cloud_spark_provider() -> Optional[Literal['dataproc', 'hdinsight']]:
     hail_dataproc = os.environ.get('HAIL_DATAPROC')
     azure_spark_env = os.environ.get('AZURE_SPARK')
     hdinsight_classpath = 'hdinsight' in os.getenv('CLASSPATH', '')
