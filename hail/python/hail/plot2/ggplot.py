@@ -9,7 +9,8 @@ import hail as hl
 from .coord_cartesian import CoordCartesian
 from .geoms import Geom, FigureAttribute
 from .labels import Labels
-from .scale import Scale, ScaleContinuous, ScaleDiscrete, scale_x_continuous, scale_x_genomic, scale_y_continuous, scale_x_discrete, scale_y_discrete
+from .scale import Scale, ScaleContinuous, ScaleDiscrete, scale_x_continuous, scale_x_genomic, scale_y_continuous, \
+    scale_x_discrete, scale_y_discrete, scale_color_discrete, scale_color_continuous
 from .aes import Aesthetic, aes
 
 
@@ -79,6 +80,10 @@ class GGPlot:
                         raise ValueError("Don't yet support y axis genomic")
                     else:
                         self.scales["y"] = scale_y_discrete()
+                elif aesthetic_str == "color" and not is_continuous:
+                    self.scales["color"] = scale_color_discrete()
+                elif aesthetic_str == "color" and is_continuous:
+                    self.scales["color"] = scale_color_continuous()
                 else:
                     if is_continuous:
                         self.scales[aesthetic_str] = ScaleContinuous(aesthetic_str)
@@ -120,18 +125,26 @@ class GGPlot:
         for geom, (label, agg_result) in zip(self.geoms, aggregated.items()):
             listified_agg_result = labels_to_stats[label].listify(agg_result)
 
-            # Ok, need to identify every possible value of every discrete scale.
             if listified_agg_result:
-                relevant_aesthetics = [scale_name for scale_name in list(listified_agg_result[0]) if scale_name in self.scales and self.scales[scale_name].is_discrete()]
-                subsetted_to_relevant = tuple([one_struct.select(*relevant_aesthetics) for one_struct in listified_agg_result])
-                group_counter = 0
+                # apply local scales here
+                # grab list of aesthetic names, loop through, grab scale associated with it, called new function with
+                # each scale
+                relevant_aesthetics =\
+                    [scale_name for scale_name in list(listified_agg_result[0]) if scale_name in self.scales]
+                for relevant_aesthetic in relevant_aesthetics:
+                    listified_agg_result =\
+                        self.scales[relevant_aesthetic].transform_data_local(listified_agg_result, self)
 
+                # Ok, need to identify every possible value of every discrete scale.
+                discrete_aesthetics = [scale_name for scale_name in relevant_aesthetics if self.scales[scale_name].is_discrete()]
+                subsetted_to_discrete = tuple([one_struct.select(*discrete_aesthetics) for one_struct in listified_agg_result])
+                group_counter = 0
                 def increment_and_return_old():
                     nonlocal group_counter
                     group_counter += 1
                     return group_counter - 1
                 numberer = defaultdict(increment_and_return_old)
-                numbering = [numberer[data_tuple] for data_tuple in subsetted_to_relevant]
+                numbering = [numberer[data_tuple] for data_tuple in subsetted_to_discrete]
 
                 numbered_result = []
                 for s, i in zip(listified_agg_result, numbering):
