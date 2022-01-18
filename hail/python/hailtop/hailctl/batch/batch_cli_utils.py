@@ -42,7 +42,7 @@ def separated_format(table_data: TableData, delim: str) -> str:
     header = {k: k for k in table_data[0].keys()}
     writer.writerow(header)
     for d in table_data:
-        writer.writerow([v for v in d.values()])
+        writer.writerow(d.values())
 
     contents = output.getvalue()
     output.close()
