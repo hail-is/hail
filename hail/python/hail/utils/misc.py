@@ -1,3 +1,4 @@
+from typing import Literal, Optional
 import os
 import atexit
 import datetime
@@ -618,3 +619,14 @@ def default_handler():
         return display
     except ImportError:
         return print
+
+
+def guess_cloud_spark_provider() -> Optional[Literal['dataproc', 'hdinsight']]]:
+    hail_dataproc = os.environ.get('HAIL_DATAPROC')
+    azure_spark_env = os.environ.get('AZURE_SPARK')
+    hdinsight_classpath = 'hdinsight' in os.getenv('CLASSPATH', '')
+    if 'HAIL_DATAPROC' in os.environ:
+        return 'dataproc'
+    if 'AZURE_SPARK' in os.environ or 'hdinsight' in os.getenv('CLASSPATH', ''):
+        return 'hdinsight'
+    return None
