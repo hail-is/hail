@@ -195,8 +195,11 @@ case class SplitPartitionNativeWriter(
   def returnType: Type = TStruct("filePath" -> TString, "partitionCounts" -> TInt64, "distinctlyKeyed" -> TBoolean, "firstKey" -> keyType, "lastKey" -> keyType)
   def unionTypeRequiredness(r: TypeWithRequiredness, ctxType: TypeWithRequiredness, streamType: RIterable): Unit = {
     val rs = r.asInstanceOf[RStruct]
+    val rKeyType = streamType.elementType.asInstanceOf[RStruct].select(keyType.fieldNames)
     rs.field("firstKey").union(false)
+    rs.field("firstKey").unionFrom(rKeyType)
     rs.field("lastKey").union(false)
+    rs.field("lastKey").unionFrom(rKeyType)
     r.union(ctxType.required)
     r.union(streamType.required)
   }
