@@ -279,7 +279,7 @@ class ServiceBackend(Backend):
                                 })
                         message = {
                             'id': b.id,
-                            'stacktrace': jstacktrace,
+                            'stacktrace': jstacktrace.strip(),
                             'cause': {'id': batch_id, 'batch_status': b2_status, 'failed_jobs': failed_jobs}}
                         log.error(yaml.dump(message))
                         raise ValueError(json.dumps(message))
