@@ -1,6 +1,6 @@
 import sys
 
-from .batch_cli_utils import make_formatter, choices
+from .batch_cli_utils import make_formatter, TABLE_FORMAT_OPTIONS
 
 
 def init_parser(parser):
@@ -14,13 +14,13 @@ def init_parser(parser):
                         help='when output is tabular, print more information')
     parser.add_argument('--no-header', action='store_true', help='do not print a table header')
     parser.add_argument('-o', type=str, default='grid',
-                        choices=choices)
+                        choices=TABLE_FORMAT_OPTIONS)
 
 
 def main(args, passthrough_args, client):  # pylint: disable=unused-argument
-    if args.o not in choices:
+    if args.o not in TABLE_FORMAT_OPTIONS:
         print('invalid output format:', args.o, file=sys.stderr)
-        print('must be one of:', *choices, file=sys.stderr)
+        print('must be one of:', *TABLE_FORMAT_OPTIONS, file=sys.stderr)
         sys.exit(1)
 
     batch_list = client.list_batches(q=args.query, last_batch_id=args.before, limit=args.limit)
