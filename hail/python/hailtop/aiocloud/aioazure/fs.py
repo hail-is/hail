@@ -157,7 +157,7 @@ class AzureReadableStream(ReadableStream):
             try:
                 downloader = await self._client.download_blob(offset=self._offset)
             except azure.core.exceptions.ResourceNotFoundError as e:
-                raise FileNotFoundError from e
+                raise FileNotFoundError(self._blob_full_name()) from e
             data = await downloader.readall()
             self._eof = True
             return data
@@ -166,12 +166,7 @@ class AzureReadableStream(ReadableStream):
             try:
                 self._downloader = await self._client.download_blob(offset=self._offset)
             except azure.core.exceptions.ResourceNotFoundError as e:
-                full_name = (
-                    f'{self._client.account_name}/'
-                    f'{self._client.container_name}/'
-                    f'{self._client.blob_name}'
-                )
-                raise FileNotFoundError(full_name) from e
+                raise FileNotFoundError(self._blob_full_name()) from e
 
         if self._chunk_it is None:
             self._chunk_it = self._downloader.chunks()
@@ -208,6 +203,13 @@ class AzureReadableStream(ReadableStream):
     async def _wait_closed(self) -> None:
         self._downloader = None
         self._chunk_it = None
+
+    def _blob_full_name(self):
+        return (
+            f'{self._client.account_name}/'
+            f'{self._client.container_name}/'
+            f'{self._client.blob_name}'
+        )
 
 
 class AzureFileListEntry(FileListEntry):
