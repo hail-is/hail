@@ -334,7 +334,6 @@ async def init_service(
     log = _get_log(log)
     if tmpdir is None:
         tmpdir = backend.remote_tmpdir + 'tmp/hail/' + secret_alnum_string()
-    assert tmpdir.startswith('gs://')
     local_tmpdir = _get_local_tmpdir(local_tmpdir)
 
     await HailContext.async_create(
