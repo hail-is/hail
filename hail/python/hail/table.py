@@ -451,7 +451,7 @@ class Table(ExprContainer):
                       schema=nullable(hail_type),
                       key=table_key_type,
                       n_partitions=nullable(int),
-                      partial_type=nullable(hail_type))
+                      partial_type=nullable(dict))
     def parallelize(cls, rows, schema=None, key=None, n_partitions=None, partial_type=None) -> 'Table':
         """Parallelize a local array of structs into a distributed table.
 
@@ -472,7 +472,7 @@ class Table(ExprContainer):
                      {"number":10033,"state":"open","user":{"login":"tpoterba","site_admin":False,"id":10562794},"milestone":None,"labels":[]}]
         >>> t = hl.Table.parallelize(
         ...     dicts,
-        ...     partial_type=hl.tstruct(milestone=hl.tstr, labels=hl.tarray(hl.tstr)))
+        ...     partial_type={"milestone":hl.tstr, "labels":hl.tarray(hl.tstr)})
         >>> t.show()
         +--------+--------+--------------------+-----------------+----------+-----------+------------+
         | number | state  | user.login         | user.site_admin |  user.id | milestone | labels     |
@@ -499,7 +499,7 @@ class Table(ExprContainer):
         key : Union[str, List[str]]], optional
             Key field(s).
         n_partitions : int, optional
-        partial_type : hail type :ref:`hail_types`, optional
+        partial_type : :obj:`dict`, optional
             A value type which may elide fields or have ``None`` in arbitrary places. The partial
             type is used by hail where the type cannot be imputed.
 
@@ -508,11 +508,14 @@ class Table(ExprContainer):
         :class:`.Table`
 
         """
+        if schema and partial_type:
+            raise ValueError("define either schema or partial type, not both")
+
         dtype = schema
         if schema is not None:
             dtype = hl.tarray(schema)
         if partial_type is not None:
-            partial_type = hl.tarray(partial_type)
+            partial_type = hl.tarray(hl.tstruct(**partial_type))
         rows = to_expr(rows, dtype=dtype, partial_type=partial_type)
         if not isinstance(rows.dtype.element_type, tstruct):
             raise TypeError("'parallelize' expects an array with element type 'struct', found '{}'"
@@ -3340,7 +3343,7 @@ class Table(ExprContainer):
             if type_hint:
                 hl_type_hints[field] = type_hint
 
-        new_table = hl.Table.parallelize(data, type_hint=hl_type_hints)
+        new_table = hl.Table.parallelize(data, partial_type=hl_type_hints)
         return new_table if not key else new_table.key_by(*key)
 
     @typecheck_method(other=table_type, tolerance=nullable(numeric), absolute=bool)
