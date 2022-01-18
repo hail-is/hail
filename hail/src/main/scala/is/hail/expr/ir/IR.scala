@@ -491,12 +491,16 @@ final case class ApplyAggOp(initOpArgs: IndexedSeq[IR], seqOpArgs: IndexedSeq[IR
 
 object AggFold {
 
-  def min(element: IR, keyType: TStruct): IR = {
-    minAndMaxHelper(element, keyType, LT(keyType))
+  def min(element: IR, sortFields: IndexedSeq[SortField]): IR = {
+    val elementType = element.typ.asInstanceOf[TStruct]
+    val keyType = elementType.select(sortFields.map(_.field))._1
+    minAndMaxHelper(element, keyType, StructLT(keyType, sortFields))
   }
 
-  def max(element: IR, keyType: TStruct): IR = {
-    minAndMaxHelper(element, keyType, GT(keyType))
+  def max(element: IR, sortFields: IndexedSeq[SortField]): IR = {
+    val elementType = element.typ.asInstanceOf[TStruct]
+    val keyType = elementType.select(sortFields.map(_.field))._1
+    minAndMaxHelper(element, keyType, StructGT(keyType, sortFields))
   }
 
   def all(element: IR): IR = {
@@ -507,7 +511,7 @@ object AggFold {
 
   private def minAndMaxHelper(element: IR, keyType: TStruct, comp: ComparisonOp[Boolean]): IR = {
     val keyFields = keyType.fields.map(_.name)
-    // Folding for Min
+
     val minAndMaxZero = NA(keyType)
     val aggFoldMinAccumName1 = genUID()
     val aggFoldMinAccumName2 = genUID()

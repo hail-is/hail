@@ -2,7 +2,7 @@ package is.hail.expr.ir.lowering
 
 import is.hail.HailContext
 import is.hail.annotations.{Annotation, ExtendedOrdering, Region, RegionValueBuilder, SafeRow, UnsafeRow}
-import is.hail.asm4s.{AsmFunction1RegionLong, AsmFunction2RegionLongLong, AsmFunction3RegionLongLongLong, LongInfo, classInfo}
+import is.hail.asm4s.{AsmFunction1RegionLong, LongInfo, classInfo}
 import is.hail.backend.ExecuteContext
 import is.hail.expr.ir._
 import is.hail.expr.ir.functions.{ArrayFunctions, IRRandomness}
@@ -14,9 +14,6 @@ import is.hail.types.RStruct
 import is.hail.types.physical.stypes.PTypeReferenceSingleCodeType
 import is.hail.utils._
 import org.apache.spark.sql.Row
-
-import java.io.PrintWriter
-import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
 
 object LowerDistributedSort {
@@ -165,7 +162,7 @@ object LowerDistributedSort {
             SelectFields(partitionElement, newKType.fields.map(_.name))
           }
         }
-        MakeStruct(IndexedSeq("segmentIdx" -> GetField(ctxRef, "segmentIdx"), "partData" -> samplePartition(partitionStream, samples)))
+        MakeStruct(IndexedSeq("segmentIdx" -> GetField(ctxRef, "segmentIdx"), "partData" -> samplePartition(partitionStream, samples, sortFields)))
       }
 
 
@@ -179,19 +176,19 @@ object LowerDistributedSort {
           bindIR(StreamAgg(oneGroup, streamElementRef.name, {
             AggLet(dataRef.name, GetField(streamElementRef, "partData"),
               MakeStruct(Seq(
-                ("min", AggFold.min(GetField(dataRef, "min"), newKType)),
-                ("max", AggFold.max(GetField(dataRef, "max"), newKType)),
+                ("min", AggFold.min(GetField(dataRef, "min"), sortFields)),
+                ("max", AggFold.max(GetField(dataRef, "max"), sortFields)),
                 ("samples", ApplyAggOp(Collect())(GetField(dataRef, "samples"))),
                 ("eachPartSorted", AggFold.all(GetField(dataRef, "isSorted"))),
                 ("perPartIntervalTuples", ApplyAggOp(Collect())(MakeTuple.ordered(Seq(GetField(dataRef, "min"), GetField(dataRef, "max")))))
               )), false)
           })) { aggResults =>
             val sortedOversampling = sortIR(flatMapIR(ToStream(GetField(aggResults, "samples"))) { onePartCollectedArray => ToStream(onePartCollectedArray)}) { case (left, right) =>
-              ApplyComparisonOp(LT(newKType), left, right)
+              ApplyComparisonOp(StructLT(newKType, sortFields), left, right)
             }
             val minArray = MakeArray(GetField(aggResults, "min"))
             val maxArray = MakeArray(GetField(aggResults, "max"))
-            val tuplesInSortedOrder = tuplesAreSorted(GetField(aggResults, "perPartIntervalTuples"))
+            val tuplesInSortedOrder = tuplesAreSorted(GetField(aggResults, "perPartIntervalTuples"), sortFields)
             bindIR(sortedOversampling) { sortedOversampling =>
               val sortedSampling = ToArray(mapIR(StreamRange(I32(oversamplingNum - 1), ArrayLen(sortedOversampling), I32(oversamplingNum))) { idx =>
                 ArrayRef(sortedOversampling, idx)
@@ -310,10 +307,11 @@ object LowerDistributedSort {
       val partitionInputStream = flatMapIR(ToStream(filenames)) { fileName =>
         ReadPartition(fileName, spec._vType, reader)
       }
+      val newKeyFieldNames = newKType.fields.map(_.name)
       If(GetField(ctxRef, "isSorted"),
         partitionInputStream,
         ToStream(sortIR(partitionInputStream) { (refLeft, refRight) =>
-          ApplyComparisonOp(LT(newKType), SelectFields(refLeft, newKType.fields.map(_.name)), SelectFields(refRight, newKType.fields.map(_.name)))
+          ApplyComparisonOp(StructLT(newKType, sortFields), SelectFields(refLeft, newKeyFieldNames), SelectFields(refRight, newKeyFieldNames))
         })
       )
     })
@@ -405,8 +403,7 @@ object LowerDistributedSort {
     ans
   }
 
-  // TODO: Probably wrong for this to not take SortOrder?
-  def samplePartition(dataStream: IR, sampleIndices: IR): IR = {
+  def samplePartition(dataStream: IR, sampleIndices: IR, sortFields: IndexedSeq[SortField]): IR = {
     // Step 1: Join the dataStream zippedWithIdx on sampleIndices?
     // That requires sampleIndices to be a stream of structs
     val samplingIndexName = "samplingPartitionIndex"
@@ -440,7 +437,7 @@ object LowerDistributedSort {
       bindIR(GetField(aggFoldSortedAccumRef1, "lastKeySeen")) { lastKeySeenRef =>
         If(!GetField(aggFoldSortedAccumRef1, "haveSeenAny"),
           MakeStruct(Seq("lastKeySeen" -> eltRef, "sortedSoFar" -> true, "haveSeenAny" -> true)),
-          If (ApplyComparisonOp(LTEQ(eltType), lastKeySeenRef, eltRef),
+          If (ApplyComparisonOp(StructLTEQ(eltType, sortFields), lastKeySeenRef, eltRef),
             MakeStruct(Seq("lastKeySeen" -> eltRef, "sortedSoFar" -> GetField(aggFoldSortedAccumRef1, "sortedSoFar"), "haveSeenAny" -> true)),
             MakeStruct(Seq("lastKeySeen" -> eltRef, "sortedSoFar" -> false, "haveSeenAny" -> true))
           )
@@ -452,8 +449,8 @@ object LowerDistributedSort {
     StreamAgg(joined, streamElementName, {
       AggLet(eltName, GetField(streamElementRef, "elt"),
         MakeStruct(Seq(
-          ("min", AggFold.min(eltRef, eltType)),
-          ("max", AggFold.max(eltRef, eltType)),
+          ("min", AggFold.min(eltRef, sortFields)),
+          ("max", AggFold.max(eltRef, sortFields)),
           ("samples", AggFilter(GetField(streamElementRef, "shouldKeep"), ApplyAggOp(Collect())(eltRef), false)),
           ("isSorted", GetField(AggFold(aggFoldSortedZero, isSortedSeq, isSortedComb, aggFoldSortedAccumName1, aggFoldSortedAccumName2, false), "sortedSoFar"))
         )), false)
@@ -461,11 +458,11 @@ object LowerDistributedSort {
   }
 
   // Given an IR of type TArray(TTuple(minKey, maxKey)), determine if there's any overlap between these closed intervals.
-  def tuplesAreSorted(arrayOfTuples: IR): IR = {
+  def tuplesAreSorted(arrayOfTuples: IR, sortFields: IndexedSeq[SortField]): IR = {
     val intervalElementType = arrayOfTuples.typ.asInstanceOf[TArray].elementType.asInstanceOf[TTuple].types(0)
 
     foldIR(mapIR(rangeIR(1, ArrayLen(arrayOfTuples))) { idxOfTuple =>
-      ApplyComparisonOp(LTEQ(intervalElementType), GetTupleElement(ArrayRef(arrayOfTuples, idxOfTuple - 1), 1), GetTupleElement(ArrayRef(arrayOfTuples, idxOfTuple), 0))
+      ApplyComparisonOp(StructLTEQ(intervalElementType, sortFields), GetTupleElement(ArrayRef(arrayOfTuples, idxOfTuple - 1), 1), GetTupleElement(ArrayRef(arrayOfTuples, idxOfTuple), 0))
     }, True()) { case (accum, elt) =>
       ApplySpecial("land", Seq.empty[Type], Seq(accum, elt), TBoolean, ErrorIDs.NO_ERROR)
     }
