@@ -206,6 +206,7 @@ class AzureReadableStream(ReadableStream):
 
     def _blob_full_name(self):
         return (
+            'hail-az://'
             f'{self._client.account_name}/'
             f'{self._client.container_name}/'
             f'{self._client.blob_name}'
