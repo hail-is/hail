@@ -251,6 +251,7 @@ ip -n {self.network_ns_name} route add default via {self.host_ip}'''
 
     async def enable_iptables_forwarding(self):
         await check_shell(
+            # FIXME: this just accumulates on the host, right?
             f'''
 iptables -w {IPTABLES_WAIT_TIMEOUT_SECS} --append FORWARD --out-interface {self.veth_host} --in-interface {self.internet_interface} --jump ACCEPT && \
 iptables -w {IPTABLES_WAIT_TIMEOUT_SECS} --append FORWARD --out-interface {self.veth_host} --in-interface {self.veth_host} --jump ACCEPT'''
