@@ -568,8 +568,10 @@ def segment_reference_blocks(ref: 'MatrixTable', intervals: 'Table') -> 'MatrixT
     return refl_filtered._unlocalize_entries('_ref_entries', '_ref_cols', list(ref.col_key))
 
 
-@typecheck(vds=VariantDataset, intervals=Table, gq_thresholds=sequenceof(int), dp_thresholds=sequenceof(int), dp_field=nullable(str))
-def interval_coverage(vds: VariantDataset, intervals: hl.Table, gq_thresholds=(0, 20,), dp_thresholds=(0,10,20,30), dp_field=None) -> 'MatrixTable':
+@typecheck(vds=VariantDataset, intervals=Table, gq_thresholds=sequenceof(int), dp_thresholds=sequenceof(int),
+           dp_field=nullable(str))
+def interval_coverage(vds: VariantDataset, intervals: hl.Table, gq_thresholds=(0, 20,), dp_thresholds=(0, 10, 20, 30),
+                      dp_field=None) -> 'MatrixTable':
     """Compute statistics about base coverage by interval.
 
     Returns a :class:`.MatrixTable` with interval row keys and sample column keys.
