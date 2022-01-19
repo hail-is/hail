@@ -76,8 +76,18 @@ class EmitCodeBuilder(val emb: EmitMethodBuilder[_], var code: Code[Unit]) exten
     f
   }
 
+  def memoizeField[T: TypeInfo](v: Code[T], name: String): Value[T] = {
+    newField[T](name, v)
+  }
+
   def memoizeField[T: TypeInfo](v: Code[T]): Value[T] = {
-    newField[T]("memoize", v)
+    memoizeField[T](v, "memoize")
+  }
+
+  def memoizeFieldAny(v: Code[_], name: String, ti: TypeInfo[_]): Value[_] = {
+    val l = newField(name)(ti)
+    append(l.storeAny(v))
+    l
   }
 
   def memoize(v: EmitCode): EmitValue =
