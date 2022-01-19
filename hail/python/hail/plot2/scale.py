@@ -151,6 +151,8 @@ class ScaleColorContinuous(ScaleContinuous):
 
         return updated_data
 
+
+# Legend names messed up for scale color identity
 class ScaleColorDiscreteIdentity(ScaleDiscrete):
     def transform_data_local(self, data, parent):
         return data
