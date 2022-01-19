@@ -136,9 +136,7 @@ INTERNET_INTERFACE = os.environ['INTERNET_INTERFACE']
 UNRESERVED_WORKER_DATA_DISK_SIZE_GB = int(os.environ['UNRESERVED_WORKER_DATA_DISK_SIZE_GB'])
 assert UNRESERVED_WORKER_DATA_DISK_SIZE_GB >= 0
 ACCEPTABLE_QUERY_JAR_URL_PREFIX = os.environ['ACCEPTABLE_QUERY_JAR_URL_PREFIX']
-assert (
-    isinstance(ACCEPTABLE_QUERY_JAR_URL_PREFIX, str) and len(ACCEPTABLE_QUERY_JAR_URL_PREFIX) > 3
-)  # x:// where x is one or more characters
+assert len(ACCEPTABLE_QUERY_JAR_URL_PREFIX) > 3  # x:// where x is one or more characters
 
 CLOUD_WORKER_API: CloudWorkerAPI = GCPWorkerAPI.from_env() if CLOUD == 'gcp' else AzureWorkerAPI.from_env()
 
@@ -1614,7 +1612,6 @@ class JVMJob(Job):
         assert len(self.user_command_string) >= 3, self.user_command_string
         self.revision = self.user_command_string[1]
         self.jar_url = self.user_command_string[2]
-        # self.classpath = f'{find_spark_home()}/jars/*:/hail-jars/{self.revision}.jar:/log4j.properties'
 
         self.deleted = False
         self.timings = Timings(lambda: self.deleted)
@@ -1915,9 +1912,13 @@ class BufferedOutputProcess:
         return self.process.returncode
 
     def close(self):
-        self.kill()
-        self.stdout_pump.cancel()
-        self.stderr_pump.cancel()
+        try:
+            self.kill()
+        finally:
+            try:
+                self.stdout_pump.cancel()
+            finally:
+                self.stderr_pump.cancel()
 
 
 class JVM:
