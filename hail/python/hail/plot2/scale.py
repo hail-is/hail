@@ -148,7 +148,6 @@ class ScaleColorContinuous(ScaleContinuous):
         updated_data = []
         for data_idx, data_entry in enumerate(data):
             updated_data.append(data_entry.annotate(color=color_mapping[data_idx], color_legend=data_entry["color"]))
-
         return updated_data
 
 

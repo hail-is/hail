@@ -134,7 +134,6 @@ class GGPlot:
                 for relevant_aesthetic in relevant_aesthetics:
                     listified_agg_result =\
                         self.scales[relevant_aesthetic].transform_data_local(listified_agg_result, self)
-
                 # Ok, need to identify every possible value of every discrete scale.
                 discrete_aesthetics = [scale_name for scale_name in relevant_aesthetics if self.scales[scale_name].is_discrete()]
                 subsetted_to_discrete = tuple([one_struct.select(*discrete_aesthetics) for one_struct in listified_agg_result])

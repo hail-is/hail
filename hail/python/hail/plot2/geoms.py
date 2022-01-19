@@ -114,7 +114,7 @@ class StatCount(Stat):
         # aesthetics in geom_struct are just pointers to x_expr, that's fine.
         # Maybe I just do a `take(1) for every field of parent_struct and geom_struct?
         # Or better, a collect_as_set where I error if size is greater than 1?
-        return hl.agg.group_by(mapping.select("x", "color"), hl.struct(count=hl.agg.count(), other=hl.agg.take(mapping.drop("x"), 1)))
+        return hl.agg.group_by(mapping["x"], hl.struct(count=hl.agg.count(), other=hl.agg.take(mapping.drop("x"), 1)))
 
     def listify(self, agg_result):
         unflattened_items = agg_result.items()
@@ -273,10 +273,14 @@ class GeomBar(Geom):
 
         if self.color is not None:
             plot_group(agg_result, self.color)
+
+        # continuous colors is working differently than in johnc-plotly, its because all bars are showing
+        # up in the same group
         elif "color" in parent.aes or "color" in self.aes:
             groups = set([element["group"] for element in agg_result])
             for group in groups:
                 just_one_group = [element for element in agg_result if element["group"] == group]
+                import pdb; pdb.set_trace()
                 plot_group(just_one_group, just_one_group[0]["color"])
         else:
             plot_group(agg_result, "black")
