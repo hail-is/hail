@@ -21,7 +21,8 @@ b = hb.Batch(backend=backend, name='load-test')
 max_concurrent_quarter_core_jobs = 64 * n
 # the amount of time for which each job sleeps
 sleep_time = math.floor(max_concurrent_quarter_core_jobs / msr)
-# the number of jobs to schedule such that the load test lasts for the given duration
+# the number of jobs is the max scheduling rate times the scheduling duration (which is sleep_time less
+# than the total duration since the batch completes sleep_time seconds after the last job is scheduled)
 n_jobs = msr * (duration - sleep_time)
 
 for idx in range(n_jobs):
