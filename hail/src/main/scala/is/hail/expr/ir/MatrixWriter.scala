@@ -105,13 +105,13 @@ case class MatrixNativeWriter(
     val partitioner = lowered.partitioner
     val pKey: PStruct = coerce[PStruct](rowSpec.decodedPType(partitioner.kType))
 
-    val emptyWriter = PartitionNativeWriter(emptySpec, None, s"$path/globals/globals/parts/", None, None)
-    val globalWriter = PartitionNativeWriter(globalSpec, None, s"$path/globals/rows/parts/", None, None)
-    val colWriter = PartitionNativeWriter(colSpec, None, s"$path/cols/rows/parts/", None, None)
+    val emptyWriter = PartitionNativeWriter(emptySpec, IndexedSeq(), s"$path/globals/globals/parts/", None, None)
+    val globalWriter = PartitionNativeWriter(globalSpec, IndexedSeq(), s"$path/globals/rows/parts/", None, None)
+    val colWriter = PartitionNativeWriter(colSpec, IndexedSeq(), s"$path/cols/rows/parts/", None, None)
     val rowWriter = SplitPartitionNativeWriter(
       rowSpec, s"$path/rows/rows/parts/",
       entrySpec, s"$path/entries/rows/parts/",
-      Some(pKey.virtualType), Some(s"$path/index/" -> pKey), if (stageLocally) Some(ctx.localTmpdir) else None)
+      pKey.virtualType.fieldNames, Some(s"$path/index/" -> pKey), if (stageLocally) Some(ctx.localTmpdir) else None)
 
     lowered.mapContexts { oldCtx =>
       val d = digitsNeeded(lowered.numPartitions)
@@ -182,20 +182,20 @@ case class MatrixNativeWriter(
 case class SplitPartitionNativeWriter(
   spec1: AbstractTypedCodecSpec, partPrefix1: String,
   spec2: AbstractTypedCodecSpec, partPrefix2: String,
-  optKeyType: Option[TStruct],
+  keyFieldNames: IndexedSeq[String],
   index: Option[(String, PStruct)], localDir: Option[String]) extends PartitionWriter {
   def stageLocally: Boolean = localDir.isDefined
   def hasIndex: Boolean = index.isDefined
   val filenameType = PCanonicalString(required = true)
   def pContextType = PCanonicalString()
 
-  val keyType = optKeyType.getOrElse(TStruct())
+  val keyType = spec1.encodedVirtualType.asInstanceOf[TStruct].select(keyFieldNames)._1
 
   def ctxType: Type = TString
   def returnType: Type = TStruct("filePath" -> TString, "partitionCounts" -> TInt64, "distinctlyKeyed" -> TBoolean, "firstKey" -> keyType, "lastKey" -> keyType)
   def unionTypeRequiredness(r: TypeWithRequiredness, ctxType: TypeWithRequiredness, streamType: RIterable): Unit = {
     val rs = r.asInstanceOf[RStruct]
-    val rKeyType = streamType.elementType.asInstanceOf[RStruct].select(keyType.fieldNames)
+    val rKeyType = streamType.elementType.asInstanceOf[RStruct].select(keyFieldNames.toArray)
     rs.field("firstKey").union(false)
     rs.field("firstKey").unionFrom(rKeyType)
     rs.field("lastKey").union(false)
@@ -228,7 +228,7 @@ case class SplitPartitionNativeWriter(
       val ob2 = mb.newLocal[OutputBuffer]("write_ob2")
       val n = mb.newLocal[Long]("partition_count")
       val distinctlyKeyed = mb.newLocal[Boolean]("distinctlyKeyed")
-      cb.assign(distinctlyKeyed, optKeyType.isDefined) // True until proven otherwise, if there's a key to care about all.
+      cb.assign(distinctlyKeyed, !keyFieldNames.isEmpty) // True until proven otherwise, if there's a key to care about all.
 
       val keyEmitType = EmitType(spec1.decodedPType(keyType).sType, false)
 
@@ -261,7 +261,7 @@ case class SplitPartitionNativeWriter(
           EmitCode.fromI(cb.emb)(cb => row.loadField(cb, f.name))
         }:_*)
 
-        if (optKeyType.isDefined) {
+        if (!keyFieldNames.isEmpty) {
           cb.ifx(distinctlyKeyed, {
             lastSeenSettable.loadI(cb).consume(cb, {
               // If there's no last seen, we are in the first row.

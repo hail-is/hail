@@ -47,8 +47,8 @@ object TableNativeWriter {
     // write out partitioner key, which may be stricter than table key
     val partitioner = ts.partitioner
     val pKey: PStruct = coerce[PStruct](rowSpec.decodedPType(partitioner.kType))
-    val rowWriter = PartitionNativeWriter(rowSpec, Some(pKey.virtualType), s"$path/rows/parts/", Some(s"$path/index/" -> pKey), if (stageLocally) Some(ctx.localTmpdir) else None)
-    val globalWriter = PartitionNativeWriter(globalSpec, None, s"$path/globals/parts/", None, None)
+    val rowWriter = PartitionNativeWriter(rowSpec, pKey.fieldNames, s"$path/rows/parts/", Some(s"$path/index/" -> pKey), if (stageLocally) Some(ctx.localTmpdir) else None)
+    val globalWriter = PartitionNativeWriter(globalSpec, IndexedSeq(), s"$path/globals/parts/", None, None)
 
     ts.mapContexts { oldCtx =>
       val d = digitsNeeded(ts.numPartitions)
@@ -164,19 +164,19 @@ case class TableNativeWriter(
   }
 }
 
-case class PartitionNativeWriter(spec: AbstractTypedCodecSpec, optKeyType: Option[TStruct], partPrefix: String, index: Option[(String, PStruct)], localDir: Option[String]) extends PartitionWriter {
+case class PartitionNativeWriter(spec: AbstractTypedCodecSpec, keyFields: IndexedSeq[String], partPrefix: String, index: Option[(String, PStruct)], localDir: Option[String]) extends PartitionWriter {
   def stageLocally: Boolean = localDir.isDefined
   def hasIndex: Boolean = index.isDefined
   val filenameType = PCanonicalString(required = true)
   def pContextType = PCanonicalString()
 
-  val keyType = optKeyType.getOrElse(TStruct())
+  val keyType = spec.encodedVirtualType.asInstanceOf[TStruct].select(keyFields)._1
 
   def ctxType: Type = TString
   def returnType: Type = TStruct("filePath" -> TString, "partitionCounts" -> TInt64, "distinctlyKeyed" -> TBoolean, "firstKey" -> keyType, "lastKey" -> keyType)
   def unionTypeRequiredness(r: TypeWithRequiredness, ctxType: TypeWithRequiredness, streamType: RIterable): Unit = {
     val rs = r.asInstanceOf[RStruct]
-    val rKeyType = streamType.elementType.asInstanceOf[RStruct].select(keyType.fieldNames)
+    val rKeyType = streamType.elementType.asInstanceOf[RStruct].select(keyFields.toArray)
     rs.field("firstKey").union(false)
     rs.field("firstKey").unionFrom(rKeyType)
     rs.field("lastKey").union(false)
@@ -207,7 +207,7 @@ case class PartitionNativeWriter(spec: AbstractTypedCodecSpec, optKeyType: Optio
       val ob = mb.newLocal[OutputBuffer]("write_ob")
       val n = mb.newLocal[Long]("partition_count")
       val distinctlyKeyed = mb.newLocal[Boolean]("distinctlyKeyed")
-      cb.assign(distinctlyKeyed, optKeyType.isDefined) // True until proven otherwise, if there's a key to care about at all.
+      cb.assign(distinctlyKeyed, !keyFields.isEmpty) // True until proven otherwise, if there's a key to care about at all.
 
       val keyEmitType = EmitType(spec.decodedPType(keyType).sType, false)
 
@@ -239,7 +239,7 @@ case class PartitionNativeWriter(spec: AbstractTypedCodecSpec, optKeyType: Optio
           EmitCode.fromI(cb.emb)(cb => row.loadField(cb, f.name))
         }:_*)
 
-        if (optKeyType.isDefined) {
+        if (!keyFields.isEmpty) {
           cb.ifx(distinctlyKeyed, {
             lastSeenSettable.loadI(cb).consume(cb, {
               // If there's no last seen, we are in the first row.
