@@ -1,5 +1,3 @@
-import sys
-
 from .batch_cli_utils import make_formatter, TABLE_FORMAT_OPTIONS
 
 
@@ -18,11 +16,6 @@ def init_parser(parser):
 
 
 def main(args, passthrough_args, client):  # pylint: disable=unused-argument
-    if args.o not in TABLE_FORMAT_OPTIONS:
-        print('invalid output format:', args.o, file=sys.stderr)
-        print('must be one of:', *TABLE_FORMAT_OPTIONS, file=sys.stderr)
-        sys.exit(1)
-
     batch_list = client.list_batches(q=args.query, last_batch_id=args.before, limit=args.limit)
     statuses = [batch.last_known_status() for batch in batch_list]
 
