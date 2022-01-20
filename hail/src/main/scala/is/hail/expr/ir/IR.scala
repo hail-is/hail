@@ -302,7 +302,7 @@ final case class SeqSample(totalRange: IR, numToSample: IR, requiresMemoryManage
 
 // Take the child stream and sort each element into buckets based on the provided pivots. The first and last elements of
 // pivots are the endpoints of the first and last interval respectively, should not be contained in the dataset.
-final case class StreamDistribute(child: IR, pivots: IR, path: IR, spec: AbstractTypedCodecSpec) extends IR
+final case class StreamDistribute(child: IR, pivots: IR, path: IR, comparisonOp: ComparisonOp[_],spec: AbstractTypedCodecSpec) extends IR
 
 object ArrayZipBehavior extends Enumeration {
   type ArrayZipBehavior = Value
