@@ -195,23 +195,24 @@ def test_interval_coverage():
         key='interval')
 
     checkpoint_path = new_temp_file()
-    r = hl.vds.interval_coverage(vds, intervals, dp_thresholds=(0,1,6)).checkpoint(checkpoint_path)
+    r = hl.vds.interval_coverage(vds, intervals, gq_thresholds=(1, 21), dp_thresholds=(0, 1, 6)).checkpoint(
+        checkpoint_path)
     assert r.aggregate_rows(hl.agg.collect((hl.format('%s:%d-%d', r.interval.start.contig, r.interval.start.position,
                                                       r.interval.end.position), r.interval_size))) == [(interval1, 10),
                                                                                                        (interval2, 9)]
 
     observed = r.aggregate_entries(hl.agg.collect(r.entry))
     expected = [
-        hl.Struct(bases_over_gq_threshold=(10, 0), bases_over_dp_threshold=(10, 10, 0), sum_dp=55,
-                  fraction_over_gq_threshold=(1.0, 0.0), fraction_over_dp_threshold=(1.0, 1.0, 0.0), mean_dp=5.5),
+        hl.Struct(bases_over_gq_threshold=(10, 0), bases_over_dp_threshold=(10, 10, 5), sum_dp=55,
+                  fraction_over_gq_threshold=(1.0, 0.0), fraction_over_dp_threshold=(1.0, 1.0, 0.5), mean_dp=5.5),
         hl.Struct(bases_over_gq_threshold=(10, 0), bases_over_dp_threshold=(10, 10, 0), sum_dp=45,
                   fraction_over_gq_threshold=(1.0, 0.0), fraction_over_dp_threshold=(1.0, 1.0, 0), mean_dp=4.5),
-        hl.Struct(bases_over_gq_threshold=(0, 0), bases_over_dp_threshold=(0, 0, 0), sum_dp=0,
-                  fraction_over_gq_threshold=(0.0, 0.0), fraction_over_dp_threshold=(0, 0, 0), mean_dp=0),
+        hl.Struct(bases_over_gq_threshold=(0, 0), bases_over_dp_threshold=(10, 0, 0), sum_dp=0,
+                  fraction_over_gq_threshold=(0.0, 0.0), fraction_over_dp_threshold=(1.0, 0, 0), mean_dp=0),
         hl.Struct(bases_over_gq_threshold=(10, 0), bases_over_dp_threshold=(10, 10, 0), sum_dp=30,
                   fraction_over_gq_threshold=(1.0, 0.0), fraction_over_dp_threshold=(1.0, 1.0, 0.0), mean_dp=3.0),
-        hl.Struct(bases_over_gq_threshold=(9, 0), bases_over_dp_threshold=(10, 0, 0), sum_dp=10,
-                  fraction_over_gq_threshold=(0.9, 0.0), fraction_over_dp_threshold=(1.0, 0.0, 0.0), mean_dp=1.0),
+        hl.Struct(bases_over_gq_threshold=(9, 0), bases_over_dp_threshold=(10, 10, 0), sum_dp=10,
+                  fraction_over_gq_threshold=(0.9, 0.0), fraction_over_dp_threshold=(1.0, 1.0, 0.0), mean_dp=1.0),
 
         hl.Struct(bases_over_gq_threshold=(9, 9), bases_over_dp_threshold=(9, 9, 9), sum_dp=153,
                   fraction_over_gq_threshold=(1.0, 1.0), fraction_over_dp_threshold=(1.0, 1.0, 1.0), mean_dp=17.0),

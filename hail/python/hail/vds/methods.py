@@ -216,7 +216,7 @@ def sample_qc(vds: 'VariantDataset', *, name='sample_qc', gq_bins: 'Sequence[int
 
     gq_exprs = hl.agg.filter(
         hl.is_defined(vmt.GT),
-        hl.struct(**{f'gq_over_{x}': hl.agg.count_where(vmt.GQ > x) for x in gq_bins})
+        hl.struct(**{f'gq_over_{x}': hl.agg.count_where(vmt.GQ >= x) for x in gq_bins})
     )
 
     result_struct = hl.rbind(
@@ -248,7 +248,7 @@ def sample_qc(vds: 'VariantDataset', *, name='sample_qc', gq_bins: 'Sequence[int
     rmt = vds.reference_data
     ref_results = rmt.select_cols(
         gq_exprs=hl.struct(**{
-            f'gq_over_{x}': hl.agg.filter(rmt.GQ > x, hl.agg.sum(1 + rmt.END - rmt.locus.position)) for x in gq_bins
+            f'gq_over_{x}': hl.agg.filter(rmt.GQ >= x, hl.agg.sum(1 + rmt.END - rmt.locus.position)) for x in gq_bins
         })
     ).cols()
 
@@ -570,7 +570,7 @@ def segment_reference_blocks(ref: 'MatrixTable', intervals: 'Table') -> 'MatrixT
 
 @typecheck(vds=VariantDataset, intervals=Table, gq_thresholds=sequenceof(int), dp_thresholds=sequenceof(int),
            dp_field=nullable(str))
-def interval_coverage(vds: VariantDataset, intervals: hl.Table, gq_thresholds=(0, 20,), dp_thresholds=(0, 10, 20, 30),
+def interval_coverage(vds: VariantDataset, intervals: hl.Table, gq_thresholds=(0, 10, 20,), dp_thresholds=(0, 1, 10, 20, 30),
                       dp_field=None) -> 'MatrixTable':
     """Compute statistics about base coverage by interval.
 
@@ -641,7 +641,7 @@ def interval_coverage(vds: VariantDataset, intervals: hl.Table, gq_thresholds=(0
         dp = split[dp_field_to_use]
         dp_field_dict = {'sum_dp': hl.agg.sum(ref_block_length * dp),
                          'bases_over_dp_threshold': tuple(
-                             hl.agg.filter(dp > dp_threshold, hl.agg.sum(ref_block_length)) for dp_threshold in
+                             hl.agg.filter(dp >= dp_threshold, hl.agg.sum(ref_block_length)) for dp_threshold in
                              dp_thresholds)}
     else:
         dp_field_dict = dict()
@@ -649,7 +649,7 @@ def interval_coverage(vds: VariantDataset, intervals: hl.Table, gq_thresholds=(0
     per_interval = split.group_rows_by(interval=intervals[split.row_key[0]].interval_dup) \
         .aggregate(
         bases_over_gq_threshold=tuple(
-            hl.agg.filter(split.GQ > gq_threshold, hl.agg.sum(ref_block_length)) for gq_threshold in
+            hl.agg.filter(split.GQ >= gq_threshold, hl.agg.sum(ref_block_length)) for gq_threshold in
             gq_thresholds),
         **dp_field_dict
     )
