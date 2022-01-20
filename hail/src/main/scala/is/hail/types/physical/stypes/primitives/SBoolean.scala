@@ -40,20 +40,16 @@ case object SBoolean extends SPrimitive {
   override def storageType(): PType = PBoolean()
 }
 
-class SBooleanCode(val code: Code[Boolean]) extends SCode
-
-class SBooleanValue(x: Value[Boolean]) extends SPrimitiveValue {
+class SBooleanValue(val value: Value[Boolean]) extends SPrimitiveValue {
   val pt: PBoolean = PBoolean()
 
   override def st: SBoolean.type = SBoolean
 
-  override lazy val valueTuple: IndexedSeq[Value[_]] = FastIndexedSeq(x)
+  override lazy val valueTuple: IndexedSeq[Value[_]] = FastIndexedSeq(value)
 
-  override def _primitiveValue: Value[_] = x
+  override def _primitiveValue: Value[_] = value
 
-  override def get: SBooleanCode = new SBooleanCode(x)
-
-  def boolCode(cb: EmitCodeBuilder): Value[Boolean] = x
+  def boolCode(cb: EmitCodeBuilder): Value[Boolean] = value
 
   override def hash(cb: EmitCodeBuilder): SInt32Value =
     new SInt32Value(cb.memoize(boolCode(cb).toI))
@@ -68,5 +64,6 @@ object SBooleanSettable {
 class SBooleanSettable(x: Settable[Boolean]) extends SBooleanValue(x) with SSettable {
   override def settableTuple(): IndexedSeq[Settable[_]] = FastIndexedSeq(x)
 
-  override def store(cb: EmitCodeBuilder, v: SCode): Unit = cb.assign(x, v.asInstanceOf[SBooleanCode].code)
+  override def store(cb: EmitCodeBuilder, v: SValue): Unit =
+    cb.assign(x, v.asInstanceOf[SBooleanValue].value)
 }

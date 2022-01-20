@@ -58,15 +58,11 @@ final case class SJavaArrayString(elementRequired: Boolean) extends SContainer {
     new SJavaArrayStringValue(this, cb.memoize(arr))
 }
 
-class SJavaArrayStringCode(val st: SJavaArrayString, val array: Code[Array[String]]) extends SCode
-
 class SJavaArrayStringValue(
   val st: SJavaArrayString,
   val array: Value[Array[String]]
 ) extends SIndexableValue {
   override lazy val valueTuple: IndexedSeq[Value[_]] = FastIndexedSeq(array)
-
-  override def get: SCode = new SJavaArrayStringCode(st, array)
 
   override def loadLength(): Value[Int] = new Value[Int] {
     override def get: Code[Int] = array.length()
@@ -109,7 +105,7 @@ final class SJavaArrayStringSettable(
 ) extends SJavaArrayStringValue(st, array) with SSettable {
   override def settableTuple(): IndexedSeq[Settable[_]] = FastIndexedSeq(array)
 
-  override def store(cb: EmitCodeBuilder, pc: SCode): Unit = {
-    cb.assign(array, pc.asInstanceOf[SJavaArrayStringCode].array)
+  override def store(cb: EmitCodeBuilder, v: SValue): Unit = {
+    cb.assign(array, v.asInstanceOf[SJavaArrayStringValue].array)
   }
 }

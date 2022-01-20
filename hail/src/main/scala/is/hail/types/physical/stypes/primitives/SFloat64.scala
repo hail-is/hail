@@ -24,13 +24,6 @@ case object SFloat64 extends SPrimitive {
 
   override def settableTupleTypes(): IndexedSeq[TypeInfo[_]] = FastIndexedSeq(DoubleInfo)
 
-  def loadFrom(cb: EmitCodeBuilder, region: Value[Region], pt: PType, addr: Code[Long]): SCode = {
-    pt match {
-      case _: PFloat64 =>
-        new SFloat64Code(Region.loadDouble(addr))
-    }
-  }
-
   override def fromSettables(settables: IndexedSeq[Settable[_]]): SFloat64Settable = {
     val IndexedSeq(x: Settable[Double@unchecked]) = settables
     assert(x.ti == DoubleInfo)
@@ -46,28 +39,20 @@ case object SFloat64 extends SPrimitive {
   override def storageType(): PType = PFloat64()
 }
 
-object SFloat64Code {
-  def apply(code: Code[Double]): SFloat64Code = new SFloat64Code(code)
-}
-
-class SFloat64Code(val code: Code[Double]) extends SCode
-
 object SFloat64Value {
   def apply(code: Value[Double]): SFloat64Value = new SFloat64Value(code)
 }
 
-class SFloat64Value(x: Value[Double]) extends SPrimitiveValue {
+class SFloat64Value(val value: Value[Double]) extends SPrimitiveValue {
   val pt: PFloat64 = PFloat64(false)
 
-  override def valueTuple: IndexedSeq[Value[_]] = FastIndexedSeq(x)
+  override def valueTuple: IndexedSeq[Value[_]] = FastIndexedSeq(value)
 
   override def st: SFloat64.type = SFloat64
 
-  override def _primitiveValue: Value[_] = x
+  override def _primitiveValue: Value[_] = value
 
-  override def get: SCode = new SFloat64Code(x)
-
-  def doubleCode(cb: EmitCodeBuilder): Value[Double] = x
+  def doubleCode(cb: EmitCodeBuilder): Value[Double] = value
 
   override def hash(cb: EmitCodeBuilder): SInt32Value =
     new SInt32Value(cb.memoize(invokeStatic1[java.lang.Double, Double, Int]("hashCode", doubleCode(cb))))
@@ -82,5 +67,6 @@ object SFloat64Settable {
 final class SFloat64Settable(x: Settable[Double]) extends SFloat64Value(x) with SSettable {
   override def settableTuple(): IndexedSeq[Settable[_]] = FastIndexedSeq(x)
 
-  override def store(cb: EmitCodeBuilder, v: SCode): Unit = cb.assign(x, v.asInstanceOf[SFloat64Code].code)
+  override def store(cb: EmitCodeBuilder, v: SValue): Unit =
+    cb.assign(x, v.asInstanceOf[SFloat64Value].value)
 }

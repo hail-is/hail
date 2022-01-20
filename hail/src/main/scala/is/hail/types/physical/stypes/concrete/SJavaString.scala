@@ -47,14 +47,10 @@ case object SJavaString extends SString {
     new SJavaStringValue(cb.memoize(s))
 }
 
-class SJavaStringCode(val s: Code[String]) extends SCode
-
 class SJavaStringValue(val s: Value[String]) extends SStringValue {
   override def st: SString = SJavaString
 
   override lazy val valueTuple: IndexedSeq[Value[_]] = FastIndexedSeq(s)
-
-  override def get: SJavaStringCode = new SJavaStringCode(s)
 
   override def loadLength(cb: EmitCodeBuilder): Value[Int] =
     cb.memoize(s.invoke[Int]("length"))
@@ -74,7 +70,7 @@ object SJavaStringSettable {
 final class SJavaStringSettable(override val s: Settable[String]) extends SJavaStringValue(s) with SSettable {
   override def settableTuple(): IndexedSeq[Settable[_]] = FastIndexedSeq(s)
 
-  override def store(cb: EmitCodeBuilder, v: SCode): Unit = {
-    cb.assign(s, v.asInstanceOf[SJavaStringCode].s)
+  override def store(cb: EmitCodeBuilder, v: SValue): Unit = {
+    cb.assign(s, v.asInstanceOf[SJavaStringValue].s)
   }
 }

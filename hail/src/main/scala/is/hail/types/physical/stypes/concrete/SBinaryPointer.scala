@@ -56,8 +56,6 @@ class SBinaryPointerValue(
 
   def bytesAddress(): Code[Long] = st.pType.bytesAddress(a)
 
-  override def get: SBinaryPointerCode = new SBinaryPointerCode(st, a)
-
   override lazy val valueTuple: IndexedSeq[Value[_]] = FastIndexedSeq(a)
 
   override def loadLength(cb: EmitCodeBuilder): Value[Int] =
@@ -81,7 +79,6 @@ final class SBinaryPointerSettable(
 ) extends SBinaryPointerValue(st, a) with SSettable {
   override def settableTuple(): IndexedSeq[Settable[_]] = FastIndexedSeq(a)
 
-  override def store(cb: EmitCodeBuilder, pc: SCode): Unit = cb.assign(a, pc.asInstanceOf[SBinaryPointerCode].a)
+  override def store(cb: EmitCodeBuilder, v: SValue): Unit =
+    cb.assign(a, v.asInstanceOf[SBinaryPointerValue].a)
 }
-
-class SBinaryPointerCode(val st: SBinaryPointer, val a: Code[Long]) extends SCode

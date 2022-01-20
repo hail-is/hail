@@ -135,11 +135,9 @@ final case class SInsertFieldsStruct(virtualType: TStruct, parent: SBaseStruct, 
 
 class SInsertFieldsStructValue(
   val st: SInsertFieldsStruct,
-  parent: SBaseStructValue,
-  newFields: IndexedSeq[EmitValue]
+  val parent: SBaseStructValue,
+  val newFields: IndexedSeq[EmitValue]
 ) extends SBaseStructValue {
-  override def get: SInsertFieldsStructCode = new SInsertFieldsStructCode(st, parent.get, newFields.map(_.load))
-
   override lazy val valueTuple: IndexedSeq[Value[_]] = parent.valueTuple ++ newFields.flatMap(_.valueTuple())
 
   override def loadField(cb: EmitCodeBuilder, fieldIdx: Int): IEmitCode = {
@@ -172,11 +170,11 @@ final class SInsertFieldsStructSettable(
 ) extends SInsertFieldsStructValue(st, parent, newFields) with SBaseStructSettable {
   override def settableTuple(): IndexedSeq[Settable[_]] = parent.settableTuple() ++ newFields.flatMap(_.settableTuple())
 
-  override def store(cb: EmitCodeBuilder, pv: SCode): Unit = {
-    val sifc = pv.asInstanceOf[SInsertFieldsStructCode]
-    parent.store(cb, sifc.parent)
-    newFields.zip(sifc.newFields).foreach { case (settable, code) => cb.assign(settable, code) }
+  override def store(cb: EmitCodeBuilder, sv: SValue): Unit = sv match {
+    case sv: SInsertFieldsStructValue =>
+      parent.store(cb, sv.parent)
+      (newFields, sv.newFields).zipped.foreach { (settable, value) =>
+        cb.assign(settable, value)
+      }
   }
 }
-
-class SInsertFieldsStructCode(val st: SInsertFieldsStruct, val parent: SCode, val newFields: IndexedSeq[EmitCode]) extends SCode

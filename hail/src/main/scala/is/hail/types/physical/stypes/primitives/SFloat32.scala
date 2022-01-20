@@ -38,20 +38,16 @@ case object SFloat32 extends SPrimitive {
   override def storageType(): PType = PFloat32()
 }
 
-class SFloat32Code(val code: Code[Float]) extends SCode
-
-class SFloat32Value(x: Value[Float]) extends SPrimitiveValue {
+class SFloat32Value(val value: Value[Float]) extends SPrimitiveValue {
   val pt: PFloat32 = PFloat32()
 
-  override def valueTuple: IndexedSeq[Value[_]] = FastIndexedSeq(x)
+  override def valueTuple: IndexedSeq[Value[_]] = FastIndexedSeq(value)
 
   override def st: SFloat32.type = SFloat32
 
-  override def _primitiveValue: Value[_] = x
+  override def _primitiveValue: Value[_] = value
 
-  override def get: SCode = new SFloat32Code(x)
-
-  def floatCode(cb: EmitCodeBuilder): Value[Float] = x
+  def floatCode(cb: EmitCodeBuilder): Value[Float] = value
 
   override def hash(cb: EmitCodeBuilder): SInt32Value =
     new SInt32Value(cb.memoize(Code.invokeStatic1[java.lang.Float, Float, Int]("floatToIntBits", floatCode(cb))))
@@ -66,5 +62,6 @@ object SFloat32Settable {
 final class SFloat32Settable(x: Settable[Float]) extends SFloat32Value(x) with SSettable {
   override def settableTuple(): IndexedSeq[Settable[_]] = FastIndexedSeq(x)
 
-  override def store(cb: EmitCodeBuilder, v: SCode): Unit = cb.assign(x, v.asInstanceOf[SFloat32Code].code)
+  override def store(cb: EmitCodeBuilder, v: SValue): Unit =
+    cb.assign(x, v.asInstanceOf[SFloat32Value].value)
 }

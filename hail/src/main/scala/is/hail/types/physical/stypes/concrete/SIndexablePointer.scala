@@ -53,9 +53,6 @@ final case class SIndexablePointer(pType: PContainer) extends SContainer {
   override def containsPointers: Boolean = pType.containsPointers
 }
 
-
-class SIndexablePointerCode(val st: SIndexablePointer, val a: Code[Long]) extends SCode
-
 class SIndexablePointerValue(
   override val st: SIndexablePointer,
   val a: Value[Long],
@@ -63,8 +60,6 @@ class SIndexablePointerValue(
   val elementsAddress: Value[Long]
 ) extends SIndexableValue {
   val pt: PContainer = st.pType
-
-  override def get: SIndexablePointerCode = new SIndexablePointerCode(st, a)
 
   override lazy val valueTuple: IndexedSeq[Value[_]] = FastIndexedSeq(a, length, elementsAddress)
 
@@ -129,9 +124,10 @@ final class SIndexablePointerSettable(
 ) extends SIndexablePointerValue(st, a, length, elementsAddress) with SSettable {
   def settableTuple(): IndexedSeq[Settable[_]] = FastIndexedSeq(a, length, elementsAddress)
 
-  def store(cb: EmitCodeBuilder, pc: SCode): Unit = {
-    cb.assign(a, pc.asInstanceOf[SIndexablePointerCode].a)
-    cb.assign(length, pt.loadLength(a))
-    cb.assign(elementsAddress, pt.firstElementOffset(a, length))
+  def store(cb: EmitCodeBuilder, v: SValue): Unit = v match {
+    case v: SIndexablePointerValue =>
+      cb.assign(a, v.a)
+      cb.assign(length, v.length)
+      cb.assign(elementsAddress, v.elementsAddress)
   }
 }

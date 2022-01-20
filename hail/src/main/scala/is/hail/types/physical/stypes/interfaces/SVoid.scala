@@ -32,14 +32,10 @@ case object SVoid extends SType {
   override def containsPointers: Boolean = false
 }
 
-case object SVoidCode extends SCode
-
 case object SVoidValue extends SValue with SUnrealizableValue {
   self =>
 
   override def st: SType = SVoid
 
   override def valueTuple: IndexedSeq[Value[_]] = FastIndexedSeq()
-
-  override def get: SCode = SVoidCode
 }
