@@ -2498,7 +2498,7 @@ case class TableKeyByAndAggregate(
   expr: IR,
   newKey: IR,
   nPartitions: Option[Int] = None,
-  bufferSize: Int = 50) extends TableIR {
+  bufferSize: Int) extends TableIR {
   require(expr.typ.isInstanceOf[TStruct])
   require(newKey.typ.isInstanceOf[TStruct])
   require(bufferSize > 0)
