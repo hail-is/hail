@@ -1,9 +1,9 @@
 package is.hail.types.physical.stypes.concrete
 
 import is.hail.annotations.Region
-import is.hail.asm4s.{Code, Settable, TypeInfo, Value}
+import is.hail.asm4s.{Settable, TypeInfo, Value}
 import is.hail.expr.ir.{EmitCode, EmitCodeBuilder, EmitSettable, EmitValue, IEmitCode}
-import is.hail.types.physical.stypes.interfaces.{SBaseStruct, SBaseStructCode, SBaseStructSettable, SBaseStructValue}
+import is.hail.types.physical.stypes.interfaces.{SBaseStruct, SBaseStructSettable, SBaseStructValue}
 import is.hail.types.physical.stypes.{EmitType, SCode, SType, SValue}
 import is.hail.types.physical.{PCanonicalStruct, PType}
 import is.hail.types.virtual.{TStruct, Type}
@@ -179,38 +179,4 @@ final class SInsertFieldsStructSettable(
   }
 }
 
-class SInsertFieldsStructCode(val st: SInsertFieldsStruct, val parent: SBaseStructCode, val newFields: IndexedSeq[EmitCode]) extends SBaseStructCode {
-  override def memoize(cb: EmitCodeBuilder, name: String): SInsertFieldsStructSettable = {
-    new SInsertFieldsStructSettable(st, parent.memoize(cb, name + "_parent").asInstanceOf[SBaseStructSettable], newFields.indices.map { i =>
-      val code = newFields(i)
-      val es = cb.emb.newEmitLocal(s"${ name }_nf_$i", code.emitType)
-      es.store(cb, code)
-      es
-    })
-  }
-
-  override def memoizeField(cb: EmitCodeBuilder, name: String): SInsertFieldsStructSettable = {
-    new SInsertFieldsStructSettable(st, parent.memoizeField(cb, name + "_parent").asInstanceOf[SBaseStructSettable], newFields.indices.map { i =>
-      val code = newFields(i)
-      val es = cb.emb.newEmitField(s"${ name }_nf_$i", code.emitType)
-      es.store(cb, code)
-      es
-    })
-  }
-
-  override def _insert(newType: TStruct, fields: (String, EmitCode)*): SBaseStructCode = {
-    val newFieldSet = fields.map(_._1).toSet
-    val filteredNewFields = st.insertedFields.map(_._1)
-      .zipWithIndex
-      .filter { case (name, idx) => !newFieldSet.contains(name) }
-      .map { case (name, idx) => (name, newFields(idx)) }
-    parent._insert(newType, filteredNewFields ++ fields: _*)
-  }
-
-  override def loadSingleField(cb: EmitCodeBuilder, fieldIdx: Int): IEmitCode = {
-    st.getFieldIndexInNewOrParent(fieldIdx) match {
-      case Left(parentIdx) => parent.loadSingleField(cb, parentIdx)
-      case Right(newIdx) => newFields(newIdx).toI(cb)
-    }
-  }
-}
+class SInsertFieldsStructCode(val st: SInsertFieldsStruct, val parent: SCode, val newFields: IndexedSeq[EmitCode]) extends SCode

@@ -583,7 +583,7 @@ final class SizeValueStatic(val v: Long) extends SizeValue {
 trait SNDArrayValue extends SValue {
   def st: SNDArray
 
-  override def get: SNDArrayCode
+  override def get: SCode
 
   def loadElement(indices: IndexedSeq[Value[Long]], cb: EmitCodeBuilder): SValue
 
@@ -737,9 +737,3 @@ trait SNDArrayValue extends SValue {
 }
 
 trait SNDArraySettable extends SNDArrayValue with SSettable
-
-trait SNDArrayCode extends SCode {
-  def st: SNDArray
-
-  def memoize(cb: EmitCodeBuilder, name: String): SNDArrayValue
-}

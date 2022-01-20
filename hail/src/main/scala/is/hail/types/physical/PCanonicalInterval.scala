@@ -75,11 +75,12 @@ final case class PCanonicalInterval(pointType: PType, override val required: Boo
 
   override def sType: SIntervalPointer = SIntervalPointer(setRequired(false))
 
-  override def loadCheapSCode(cb: EmitCodeBuilder, addr: Code[Long]): SIntervalPointerValue =
-    new SIntervalPointerCode(sType, addr).memoize(cb, "loadCheapSCode")
-
-  override def loadCheapSCodeField(cb: EmitCodeBuilder, addr: Code[Long]): SIntervalPointerValue =
-    new SIntervalPointerCode(sType, addr).memoizeField(cb, "loadCheapSCodeField")
+  override def loadCheapSCode(cb: EmitCodeBuilder, addr: Code[Long]): SIntervalPointerValue = {
+    val a = cb.memoize(addr)
+    val incStart = cb.memoize(includesStart(a))
+    val incEnd = cb.memoize(includesEnd(a))
+    new SIntervalPointerValue(sType, a, incStart, incEnd)
+  }
 
   override def store(cb: EmitCodeBuilder, region: Value[Region], value: SValue, deepCopy: Boolean): Value[Long] = {
     value.st match {

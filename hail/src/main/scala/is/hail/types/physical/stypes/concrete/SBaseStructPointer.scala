@@ -3,7 +3,7 @@ package is.hail.types.physical.stypes.concrete
 import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.expr.ir.{EmitCodeBuilder, IEmitCode}
-import is.hail.types.physical.stypes.interfaces.{SBaseStruct, SBaseStructCode, SBaseStructSettable, SBaseStructValue}
+import is.hail.types.physical.stypes.interfaces.{SBaseStruct, SBaseStructSettable, SBaseStructValue}
 import is.hail.types.physical.stypes.{EmitType, SCode, SType, SValue}
 import is.hail.types.physical.{PBaseStruct, PType}
 import is.hail.types.virtual.{TBaseStruct, Type}
@@ -87,18 +87,4 @@ final class SBaseStructPointerSettable(
   }
 }
 
-class SBaseStructPointerCode(val st: SBaseStructPointer, val a: Code[Long]) extends SBaseStructCode {
-  val pt: PBaseStruct = st.pType
-
-  def code: Code[_] = a
-
-  def memoize(cb: EmitCodeBuilder, name: String, sb: SettableBuilder): SBaseStructPointerValue = {
-    val s = SBaseStructPointerSettable(sb, st, name)
-    s.store(cb, this)
-    s
-  }
-
-  def memoize(cb: EmitCodeBuilder, name: String): SBaseStructPointerValue = memoize(cb, name, cb.localBuilder)
-
-  def memoizeField(cb: EmitCodeBuilder, name: String): SBaseStructPointerValue = memoize(cb, name, cb.fieldBuilder)
-}
+class SBaseStructPointerCode(val st: SBaseStructPointer, val a: Code[Long]) extends SCode

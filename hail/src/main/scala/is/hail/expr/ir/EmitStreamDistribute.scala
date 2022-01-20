@@ -55,7 +55,7 @@ object EmitStreamDistribute {
       val splittersWasDuplicatedLength = paddedSplittersSize
       val splittersWasDuplicatedAddr = cb.memoize[Long](splittersWasDuplicatedPType.allocate(region, splittersWasDuplicatedLength))
       splittersWasDuplicatedPType.stagedInitialize(cb, splittersWasDuplicatedAddr, splittersWasDuplicatedLength)
-      val splitters: SIndexableValue = new SIndexablePointerCode(SIndexablePointer(paddedSplittersPType), paddedSplittersAddr).memoize(cb, "stream_distribute_splitters_deduplicated") // last element is duplicated, otherwise this is sorted without duplicates.
+      val splitters: SIndexableValue = paddedSplittersPType.loadCheapSCode(cb, paddedSplittersAddr)
 
       val requestedSplittersIdx = cb.newLocal[Int]("stream_distribute_splitters_index")
       val lastKeySeen = cb.emb.newEmitLocal("stream_distribute_last_seen", keyType, false)
@@ -88,7 +88,7 @@ object EmitStreamDistribute {
         paddedSplittersPType.elementType.storeAtAddress(cb, loaded, region, lastKeySeen.get(cb), false)
       })
 
-      val splitterWasDuplicated = new SIndexablePointerCode(SIndexablePointer(splittersWasDuplicatedPType), splittersWasDuplicatedAddr).memoize(cb, "stream_distrib_was_duplicated") // Same length as splitters, but full of booleans of whether it was initially duplicated.
+      val splitterWasDuplicated = splittersWasDuplicatedPType.loadCheapSCode(cb, splittersWasDuplicatedAddr)
       (splitters, numUniqueSplitters, splitterWasDuplicated)
     }
 
@@ -113,7 +113,7 @@ object EmitStreamDistribute {
         })
       })
       // 0th element is garbage, tree elements start at idx 1.
-      new SIndexablePointerCode(SIndexablePointer(treePType), treeAddr).memoize(cb, "stream_dist_tree")
+      treePType.loadCheapSCode(cb, treeAddr)
     }
 
     def createFileMapping(numFilesToWrite: Value[Int], splitterWasDuplicated: SIndexableValue, numberOfBuckets: Value[Int], shouldUseIdentityBuckets: Value[Boolean]): SIndexablePointerValue = {
@@ -139,7 +139,7 @@ object EmitStreamDistribute {
         cb.assign(currentFileToMapTo, currentFileToMapTo + 1)
       })
 
-      new SIndexablePointerCode(SIndexablePointer(fileMappingType), fileMappingAddr).memoize(cb, "stream_dist_file_map")
+      fileMappingType.loadCheapSCode(cb, fileMappingAddr)
     }
 
     val (paddedSplitters, numUniqueSplitters, splitterWasDuplicated) = cleanupSplitters()

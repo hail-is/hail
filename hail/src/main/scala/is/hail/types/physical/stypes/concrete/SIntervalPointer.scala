@@ -4,8 +4,8 @@ import is.hail.annotations.Region
 import is.hail.asm4s.{BooleanInfo, Code, LongInfo, Settable, SettableBuilder, TypeInfo, Value}
 import is.hail.expr.ir.orderings.CodeOrdering
 import is.hail.expr.ir.{EmitCodeBuilder, IEmitCode}
-import is.hail.types.physical.stypes.interfaces.{SInterval, SIntervalCode, SIntervalValue}
 import is.hail.types.physical.stypes._
+import is.hail.types.physical.stypes.interfaces.{SInterval, SIntervalValue}
 import is.hail.types.physical.{PInterval, PType}
 import is.hail.types.virtual.Type
 import is.hail.utils.FastIndexedSeq
@@ -120,22 +120,4 @@ final class SIntervalPointerSettable(
   }
 }
 
-class SIntervalPointerCode(val st: SIntervalPointer, val a: Code[Long]) extends SIntervalCode {
-  val pt = st.pType
-
-  def code: Code[_] = a
-
-  def codeIncludesStart(): Code[Boolean] = pt.includesStart(a)
-
-  def codeIncludesEnd(): Code[Boolean] = pt.includesEnd(a)
-
-  def memoize(cb: EmitCodeBuilder, name: String, sb: SettableBuilder): SIntervalPointerValue = {
-    val s = SIntervalPointerSettable(sb, st, name)
-    s.store(cb, this)
-    s
-  }
-
-  def memoize(cb: EmitCodeBuilder, name: String): SIntervalPointerValue = memoize(cb, name, cb.localBuilder)
-
-  def memoizeField(cb: EmitCodeBuilder, name: String): SIntervalPointerValue = memoize(cb, name, cb.fieldBuilder)
-}
+class SIntervalPointerCode(val st: SIntervalPointer, val a: Code[Long]) extends SCode
