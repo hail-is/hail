@@ -130,24 +130,32 @@ class ScaleDiscrete(Scale):
 
 class ScaleColorDiscrete(ScaleDiscrete):
     def transform_data_local(self, data, parent):
-        categorical_strings = set([element["color"] for element in data])
+        categorical_strings = set([element[self.aesthetic_name] for element in data])
         unique_color_mapping = categorical_strings_to_colors(categorical_strings, parent)
 
         updated_data = []
         for category in categorical_strings:
             for data_entry in data:
-                if data_entry["color"] == category:
-                    updated_data.append(data_entry.annotate(color=unique_color_mapping[category], color_legend=category))
+                if data_entry[self.aesthetic_name] == category:
+                    annotate_args = {
+                        self.aesthetic_name: unique_color_mapping[category],
+                        "color_legend": category
+                    }
+                    updated_data.append(data_entry.annotate(**annotate_args))
         return updated_data
 
 
 class ScaleColorContinuous(ScaleContinuous):
     def transform_data_local(self, data, parent):
-        color_list = [element["color"] for element in data]
+        color_list = [element[self.aesthetic_name] for element in data]
         color_mapping = continuous_nums_to_colors(color_list, parent.continuous_color_scale)
         updated_data = []
         for data_idx, data_entry in enumerate(data):
-            updated_data.append(data_entry.annotate(color=color_mapping[data_idx], color_legend=data_entry["color"]))
+            annotate_args = {
+                self.aesthetic_name: color_mapping[data_idx],
+                "color_legend": data_entry[self.aesthetic_name]
+            }
+            updated_data.append(data_entry.annotate(**annotate_args))
         return updated_data
 
 
@@ -203,3 +211,15 @@ def scale_color_continuous():
 
 def scale_color_identity():
     return ScaleColorDiscreteIdentity("color")
+
+
+def scale_fill_discrete():
+    return ScaleColorDiscrete("fill")
+
+
+def scale_fill_continuous():
+    return ScaleColorContinuous("fill")
+
+
+def scale_fill_identity():
+    return ScaleColorDiscreteIdentity("fill")

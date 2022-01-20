@@ -49,15 +49,10 @@ class GeomLineBasic(Geom):
         if self.color is not None:
             plot_group(agg_result, self.color)
         elif "color" in parent.aes or "color" in self.aes:
-            if isinstance(agg_result[0]["color"], int):
-                # Should show colors in continuous scale.
-                raise ValueError("Do not currently support continuous color changing of lines")
-            # Groups messed up so that if there is a break in group, line not continuous
-            else:
-                groups = set([element["group"] for element in agg_result])
-                for group in groups:
-                    just_one_group = [element for element in agg_result if element["group"] == group]
-                    plot_group(just_one_group, just_one_group[0]["color"])
+            groups = set([element["group"] for element in agg_result])
+            for group in groups:
+                just_one_group = [element for element in agg_result if element["group"] == group]
+                plot_group(just_one_group, just_one_group[0]["color"])
         else:
             plot_group(agg_result, "black")
 
@@ -162,7 +157,7 @@ class GeomPoint(Geom):
                 "x": [element["x"] for element in data],
                 "y": [element["y"] for element in data],
                 "mode": "markers",
-                "marker_color": color
+                "marker_color": color if color is not None else [element["color"] for element in data]
             }
 
             if "color_legend" in data[0]:
@@ -180,7 +175,7 @@ class GeomPoint(Geom):
             groups = set([element["group"] for element in agg_result])
             for group in groups:
                 just_one_group = [element for element in agg_result if element["group"] == group]
-                plot_group(just_one_group, just_one_group[0]["color"])
+                plot_group(just_one_group)
         else:
             plot_group(agg_result, "black")
 
@@ -264,7 +259,7 @@ class GeomBar(Geom):
             bar_args = {
                 "x": [element["x"] for element in data],
                 "y": [element["y"] for element in data],
-                "marker_color": color
+                "marker_color": color if color is not None else [element["color"] for element in data]
             }
             if "color_legend" in data[0]:
                 bar_args["name"] = data[0]["color_legend"]
@@ -274,14 +269,11 @@ class GeomBar(Geom):
         if self.color is not None:
             plot_group(agg_result, self.color)
 
-        # continuous colors is working differently than in johnc-plotly, its because all bars are showing
-        # up in the same group
         elif "color" in parent.aes or "color" in self.aes:
             groups = set([element["group"] for element in agg_result])
             for group in groups:
                 just_one_group = [element for element in agg_result if element["group"] == group]
-                import pdb; pdb.set_trace()
-                plot_group(just_one_group, just_one_group[0]["color"])
+                plot_group(just_one_group)
         else:
             plot_group(agg_result, "black")
 
@@ -394,8 +386,8 @@ class GeomTile(Geom):
         self.aes = aes
 
     def apply_to_fig(self, parent, agg_result, fig_so_far):
-        def plot_continuous_color(agg_results, colors):
-            for idx, row in enumerate(agg_results):
+        def plot_group(data, fill=None):
+            for idx, row in enumerate(data):
                 x_center = row['x']
                 y_center = row['y']
                 width = row['width']
@@ -405,36 +397,16 @@ class GeomTile(Geom):
                 x_right = x_center + width / 2
                 y_up = y_center + height / 2
                 y_down = y_center - height / 2
-                fig_so_far.add_shape(type="rect", x0=x_left, y0=y_down, x1=x_right, y1=y_up, fillcolor=colors[idx], opacity=alpha)
-
-        def plot_one_color(agg_results, color):
-            for idx, row in enumerate(agg_results):
-                x_center = row['x']
-                y_center = row['y']
-                width = row['width']
-                height = row['height']
-                alpha= row.get('alpha', 1.0)
-                x_left = x_center - width / 2
-                x_right = x_center + width / 2
-                y_up = y_center + height / 2
-                y_down = y_center - height / 2
-                fig_so_far.add_shape(type="rect", x0=x_left, y0=y_down, x1=x_right, y1=y_up, fillcolor=color, opacity=alpha)
+                fill = fill if fill is not None else row['fill']
+                fig_so_far.add_shape(type="rect", x0=x_left, y0=y_down, x1=x_right, y1=y_up, fillcolor=fill, opacity=alpha)
 
         if "fill" in parent.aes or "fill" in self.aes:
-            if isinstance(agg_result[0]["fill"], int):
-                input_color_nums = [element["fill"] for element in agg_result]
-                color_mapping = continuous_nums_to_colors(input_color_nums, parent.continuous_color_scale)
-                plot_continuous_color(agg_result, color_mapping)
-            else:
-                categorical_strings = set([element["fill"] for element in agg_result])
-                unique_color_mapping = categorical_strings_to_colors(categorical_strings, parent)
-
-                for category in categorical_strings:
-                    filtered_data = [element for element in agg_result if element["fill"] == category]
-                    plot_one_color(filtered_data, unique_color_mapping[category])
-
+            groups = set([element["group"] for element in agg_result])
+            for group in groups:
+                just_one_group = [element for element in agg_result if element["group"] == group]
+                plot_group(just_one_group)
         else:
-            plot_one_color(agg_result, "black")
+            plot_group(agg_result, "black")
 
     def get_stat(self):
         return StatIdentity()

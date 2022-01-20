@@ -10,8 +10,10 @@ from .coord_cartesian import CoordCartesian
 from .geoms import Geom, FigureAttribute
 from .labels import Labels
 from .scale import Scale, ScaleContinuous, ScaleDiscrete, scale_x_continuous, scale_x_genomic, scale_y_continuous, \
-    scale_x_discrete, scale_y_discrete, scale_color_discrete, scale_color_continuous
+    scale_x_discrete, scale_y_discrete, scale_color_discrete, scale_color_continuous, scale_fill_discrete, \
+    scale_fill_continuous
 from .aes import Aesthetic, aes
+from ..ir.utils import is_continuous_type, check_scale_continuity
 
 
 class GGPlot:
@@ -55,8 +57,6 @@ class GGPlot:
         return copied
 
     def add_default_scales(self, aesthetic):
-        def is_continuous_type(dtype):
-            return dtype in [hl.tint32, hl.tint64, hl.float32, hl.float64]
 
         def is_genomic_type(dtype):
             return isinstance(dtype, hl.tlocus)
@@ -84,6 +84,10 @@ class GGPlot:
                     self.scales["color"] = scale_color_discrete()
                 elif aesthetic_str == "color" and is_continuous:
                     self.scales["color"] = scale_color_continuous()
+                elif aesthetic_str == "fill" and not is_continuous:
+                    self.scales["fill"] = scale_fill_discrete()
+                elif aesthetic_str == "fill" and is_continuous:
+                    self.scales["fill"] = scale_fill_continuous()
                 else:
                     if is_continuous:
                         self.scales[aesthetic_str] = ScaleContinuous(aesthetic_str)
@@ -94,6 +98,12 @@ class GGPlot:
         return GGPlot(self.ht, self.aes, self.geoms[:], self.labels, self.coord_cartesian, self.scales,
                       self.discrete_color_scale, self.continuous_color_scale)
 
+    def verify_scales(self):
+        for geom_idx, geom in enumerate(self.geoms):
+            aesthetic_dict = geom.aes.properties
+            for aes_key in aesthetic_dict.keys():
+                check_scale_continuity(self.scales[aes_key], aesthetic_dict[aes_key].dtype, aes_key)
+
     def render(self):
         fields_to_select = {"figure_mapping": hl.struct(**self.aes)}
         for geom_idx, geom in enumerate(self.geoms):
@@ -101,6 +111,7 @@ class GGPlot:
             fields_to_select[label] = hl.struct(**geom.aes.properties)
 
         selected = self.ht.select(**fields_to_select)
+        self.verify_scales()
         aggregators = {}
         labels_to_stats = {}
 
