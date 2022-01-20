@@ -95,7 +95,6 @@ def compose_auth_header_urlsafe(orig_f):
         auth = json.loads(base64.b64decode(orig_auth_header))
         auth_json = json.dumps(auth).encode('ascii')
         return base64.urlsafe_b64encode(auth_json).decode('ascii')
-
     return compose
 
 
@@ -478,7 +477,6 @@ class Container:
 
     async def run(self):
         try:
-
             async def localize_rootfs():
                 async def _localize_rootfs():
                     async with image_lock.reader_lock:
