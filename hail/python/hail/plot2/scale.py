@@ -3,6 +3,8 @@ from .geoms import FigureAttribute
 
 from hail import get_reference
 
+from .utils import categorical_strings_to_colors, continuous_nums_to_colors
+
 
 class Scale(FigureAttribute):
     def __init__(self, aesthetic_name):
@@ -11,6 +13,9 @@ class Scale(FigureAttribute):
     @abc.abstractmethod
     def transform_data(self, field_expr):
         pass
+
+    def transform_data_local(self, data, parent):
+        return data
 
     @abc.abstractmethod
     def is_discrete(self):
@@ -123,6 +128,43 @@ class ScaleDiscrete(Scale):
         return True
 
 
+class ScaleColorDiscrete(ScaleDiscrete):
+    def transform_data_local(self, data, parent):
+        categorical_strings = set([element[self.aesthetic_name] for element in data])
+        unique_color_mapping = categorical_strings_to_colors(categorical_strings, parent)
+
+        updated_data = []
+        for category in categorical_strings:
+            for data_entry in data:
+                if data_entry[self.aesthetic_name] == category:
+                    annotate_args = {
+                        self.aesthetic_name: unique_color_mapping[category],
+                        "color_legend": category
+                    }
+                    updated_data.append(data_entry.annotate(**annotate_args))
+        return updated_data
+
+
+class ScaleColorContinuous(ScaleContinuous):
+    def transform_data_local(self, data, parent):
+        color_list = [element[self.aesthetic_name] for element in data]
+        color_mapping = continuous_nums_to_colors(color_list, parent.continuous_color_scale)
+        updated_data = []
+        for data_idx, data_entry in enumerate(data):
+            annotate_args = {
+                self.aesthetic_name: color_mapping[data_idx],
+                "color_legend": data_entry[self.aesthetic_name]
+            }
+            updated_data.append(data_entry.annotate(**annotate_args))
+        return updated_data
+
+
+# Legend names messed up for scale color identity
+class ScaleColorDiscreteIdentity(ScaleDiscrete):
+    def transform_data_local(self, data, parent):
+        return data
+
+
 def scale_x_log10():
     return PositionScaleContinuous("x", transformation="log10")
 
@@ -157,3 +199,27 @@ def scale_y_discrete(name=None, breaks=None, labels=None):
 
 def scale_x_genomic(reference_genome, name=None):
     return PositionScaleGenomic("x", reference_genome, name=name)
+
+
+def scale_color_discrete():
+    return ScaleColorDiscrete("color")
+
+
+def scale_color_continuous():
+    return ScaleColorContinuous("color")
+
+
+def scale_color_identity():
+    return ScaleColorDiscreteIdentity("color")
+
+
+def scale_fill_discrete():
+    return ScaleColorDiscrete("fill")
+
+
+def scale_fill_continuous():
+    return ScaleColorContinuous("fill")
+
+
+def scale_fill_identity():
+    return ScaleColorDiscreteIdentity("fill")
