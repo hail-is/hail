@@ -414,7 +414,7 @@ class Job:
         warnings.warn("The 'gcsfuse' method has been deprecated. Use the 'cloudfuse' method instead.")
         return self.cloudfuse(bucket, mount_point, read_only=read_only)
 
-    def cloudfuse(self, location: str, mount_point: str, *, read_only: bool = True):
+    def cloudfuse(self, bucket: str, mount_point: str, *, read_only: bool = True):
         """
         Add a bucket to mount with gcsfuse in GCP or a storage container with blobfuse in Azure.
 
@@ -431,14 +431,23 @@ class Job:
         Examples
         --------
 
+        Google Cloud Platform:
+
         >>> b = Batch(backend=backend.ServiceBackend('test'))
         >>> j = b.new_job()
         >>> (j.cloudfuse('my-bucket', '/my-bucket')
-        ...   .command(f'cat /my-bucket/my-file'))
+        ...   .command(f'cat /my-bucket/my-blob-object'))
+
+        Azure:
+
+        >>> b = Batch(backend=backend.ServiceBackend('test'))
+        >>> j = b.new_job()
+        >>> (j.cloudfuse('my-account/my-container', '/dest')
+        ...   .command(f'cat /dest/my-blob-object'))
 
         Parameters
         ----------
-        location:
+        bucket:
             Name of the google storage bucket to mount or the path to an Azure container in the
             format of `<account>/<container>`.
         mount_point:
@@ -455,13 +464,13 @@ class Job:
         if not isinstance(self._batch._backend, backend.ServiceBackend):
             raise NotImplementedError("A ServiceBackend is required to use the 'cloudfuse' option")
 
-        if location == '':
+        if bucket == '':
             raise BatchException('location cannot be the empty string')
 
         if mount_point == '':
             raise BatchException('mount_point cannot be the empty string')
 
-        self._cloudfuse.append((location, mount_point, read_only))
+        self._cloudfuse.append((bucket, mount_point, read_only))
         return self
 
     async def _compile(self, local_tmpdir, remote_tmpdir, *, dry_run=False):

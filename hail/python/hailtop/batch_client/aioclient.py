@@ -521,8 +521,8 @@ class BatchBuilder:
         if output_files:
             job_spec['output_files'] = [{"from": src, "to": dst} for (src, dst) in output_files]
         if cloudfuse:
-            job_spec['cloudfuse'] = [{"location": location, "mount_path": mount_path, "read_only": read_only}
-                                     for (location, mount_path, read_only) in cloudfuse]
+            job_spec['cloudfuse'] = [{"bucket": bucket, "mount_path": mount_path, "read_only": read_only}
+                                     for (bucket, mount_path, read_only) in cloudfuse]
         if requester_pays_project:
             job_spec['requester_pays_project'] = requester_pays_project
         if mount_tokens:

@@ -50,7 +50,7 @@ job_validator = keyed(
         'cloudfuse': listof(
             keyed(
                 {
-                    required('location'): non_empty_str_type,
+                    required('bucket'): non_empty_str_type,
                     required('mount_path'): non_empty_str_type,
                     required('read_only'): bool_type,
                 }
@@ -174,20 +174,12 @@ def handle_deprecated_job_keys(i, job):
             )
 
     if 'gcsfuse' in job:
-        gcsfuse = job['gcsfuse']
-        for config in gcsfuse:
-            config['location'] = config['bucket']
-            del config['bucket']
-        job['cloudfuse'] = gcsfuse
+        job['cloudfuse'] = job.pop('gcsfuse')
 
 
 def handle_job_backwards_compatibility(job):
     if 'cloudfuse' in job:
-        cloudfuse = job['cloudfuse']
-        for config in cloudfuse:
-            config['bucket'] = config['location']
-            del config['location']
-        job['gcsfuse'] = cloudfuse
+        job['gcsfuse'] = job.pop('cloudfuse')
 
 
 def validate_batch(batch):

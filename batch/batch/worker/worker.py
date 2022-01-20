@@ -1071,18 +1071,24 @@ class Job:
 
     def cloudfuse_base_path(self):
         # Make sure this path isn't in self.scratch to avoid accidental bucket deletions!
-        return f'/cloudfuse/{self.token}'
+        path = f'/cloudfuse/{self.token}'
+        assert os.path.commonpath([path, self.scratch]) == '/'
+        return path
 
-    def cloudfuse_data_path(self, location: str) -> str:
+    def cloudfuse_data_path(self, bucket: str) -> str:
         # Make sure this path isn't in self.scratch to avoid accidental bucket deletions!
-        return f'{self.cloudfuse_base_path()}/{location}/data'
+        path = f'{self.cloudfuse_base_path()}/{bucket}/data'
+        assert os.path.commonpath([path, self.scratch]) == '/'
+        return path
 
-    def cloudfuse_tmp_path(self, location: str) -> str:
+    def cloudfuse_tmp_path(self, bucket: str) -> str:
         # Make sure this path isn't in self.scratch to avoid accidental bucket deletions!
-        return f'{self.cloudfuse_base_path()}/{location}/tmp'
+        path = f'{self.cloudfuse_base_path()}/{bucket}/tmp'
+        assert os.path.commonpath([path, self.scratch]) == '/'
+        return path
 
-    def cloudfuse_credentials_path(self, location: str) -> str:
-        return f'{self.scratch}/cloudfuse/{location}'
+    def cloudfuse_credentials_path(self, bucket: str) -> str:
+        return f'{self.scratch}/cloudfuse/{bucket}'
 
     def credentials_host_dirname(self) -> str:
         return f'{self.scratch}/{self.credentials.secret_name}'
@@ -1183,11 +1189,11 @@ class Job:
         if cloudfuse:
             for config in cloudfuse:
                 config['mounted'] = False
-                location = config.get('location') or config['bucket']
-                assert location
+                bucket = config['bucket']
+                assert bucket
                 self.main_volume_mounts.append(
                     {
-                        'source': f'{self.cloudfuse_data_path(location)}',
+                        'source': f'{self.cloudfuse_data_path(bucket)}',
                         'destination': config['mount_path'],
                         'type': 'none',
                         'options': ['rbind', 'rw', 'shared'],
@@ -1431,23 +1437,19 @@ class DockerJob(Job):
                         )
 
                         for config in self.cloudfuse:
-                            location = config.get('location') or config['bucket']
-                            assert location
+                            bucket = config['bucket']
+                            assert bucket
 
-                            cloudfuse_credentials = self.credentials.cloudfuse_credentials(config)
-                            cloudfuse_credentials_path = self.cloudfuse_credentials_path(location)
+                            credentials = self.credentials.cloudfuse_credentials(config)
+                            credentials_path = CLOUD_WORKER_API.write_cloudfuse_credentials(credentials, self.scratch, bucket)
 
-                            os.makedirs(os.path.dirname(cloudfuse_credentials_path), exist_ok=True)
-                            with open(cloudfuse_credentials_path, 'w') as f:
-                                f.write(cloudfuse_credentials)
-
-                            os.makedirs(self.cloudfuse_data_path(location), exist_ok=True)
-                            os.makedirs(self.cloudfuse_tmp_path(location), exist_ok=True)
+                            os.makedirs(self.cloudfuse_data_path(bucket), exist_ok=True)
+                            os.makedirs(self.cloudfuse_tmp_path(bucket), exist_ok=True)
 
                             await CLOUD_WORKER_API.mount_cloudfuse(
-                                cloudfuse_credentials_path,
-                                self.cloudfuse_data_path(location),
-                                self.cloudfuse_tmp_path(location),
+                                credentials_path,
+                                self.cloudfuse_data_path(bucket),
+                                self.cloudfuse_tmp_path(bucket),
                                 config,
                             )
                             config['mounted'] = True
@@ -1519,11 +1521,11 @@ class DockerJob(Job):
             if self.cloudfuse:
                 for config in self.cloudfuse:
                     if config['mounted']:
-                        location = config.get('location') or config.get('bucket')
-                        assert location
-                        mount_path = self.cloudfuse_data_path(location)
+                        bucket = config['bucket']
+                        assert bucket
+                        mount_path = self.cloudfuse_data_path(bucket)
                         await CLOUD_WORKER_API.unmount_cloudfuse(mount_path)
-                        log.info(f'unmounted fuse blob storage {location} from {mount_path}')
+                        log.info(f'unmounted fuse blob storage {bucket} from {mount_path}')
                         config['mounted'] = False
 
             await check_shell(f'xfs_quota -x -c "limit -p bsoft=0 bhard=0 {self.project_id}" /host')

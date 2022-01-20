@@ -32,6 +32,10 @@ class CloudWorkerAPI(abc.ABC):
         raise NotImplementedError
 
     @abc.abstractmethod
+    def write_cloudfuse_credentials(self, root_dir: str, credentials: str, bucket: str) -> str:
+        raise NotImplementedError
+
+    @abc.abstractmethod
     def _mount_cloudfuse(
         self, fuse_credentials_path: str, mount_base_path_data: str, mount_base_path_tmp: str, config: dict
     ) -> str:

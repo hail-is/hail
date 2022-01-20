@@ -53,10 +53,18 @@ class GCPWorkerAPI(CloudWorkerAPI):
     def instance_config_from_config_dict(self, config_dict: Dict[str, str]) -> GCPSlimInstanceConfig:
         return GCPSlimInstanceConfig.from_dict(config_dict)
 
+    def write_cloudfuse_credentials(self, root_dir: str, credentials: str, bucket: str) -> str:  # pylint: disable=unused-argument
+        path = f'{root_dir}/cloudfuse/key.json'
+        if not os.path.exists(path):
+            os.makedirs(os.path.dirname(path))
+            with open(path, 'w') as f:
+                f.write(credentials)
+        return path
+
     def _mount_cloudfuse(
         self, fuse_credentials_path: str, mount_base_path_data: str, mount_base_path_tmp: str, config: dict
     ) -> str:  # pylint: disable=unused-argument
-        bucket = config.get('location') or config.get('bucket')
+        bucket = config['bucket']
         assert bucket
 
         options = ['allow_other']

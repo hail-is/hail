@@ -46,12 +46,19 @@ class AzureWorkerAPI(CloudWorkerAPI):
     def instance_config_from_config_dict(self, config_dict: Dict[str, str]) -> AzureSlimInstanceConfig:
         return AzureSlimInstanceConfig.from_dict(config_dict)
 
+    def write_cloudfuse_credentials(self, root_dir: str, credentials: str, bucket: str) -> str:
+        path = f'{root_dir}/cloudfuse/{bucket}/credentials'
+        os.makedirs(os.path.dirname(path))
+        with open(path, 'w') as f:
+            f.write(credentials)
+        return path
+
     def _mount_cloudfuse(
         self, credentials_path: str, mount_base_path_data: str, mount_base_path_tmp: str, config: dict
     ) -> str:
         # https://docs.microsoft.com/en-us/azure/storage/blobs/storage-how-to-mount-container-linux#mount
-        location = config.get('location') or config['bucket']
-        account, container = location.split('/', maxsplit=1)
+        bucket = config['bucket']
+        account, container = bucket.split('/', maxsplit=1)
         assert account and container
 
         options = ['allow_other']
