@@ -4,14 +4,18 @@ import hail as hl
 
 
 def check_scale_continuity(scale, dtype, aes_key):
-    if scale.is_discrete() and is_continuous_type(dtype):
+    if scale.is_discrete() and not is_discrete_type(dtype):
         raise ValueError(f"Aesthetic {aes_key} has continuous dtype but non continuous scale")
-    if not scale.is_discrete() and not is_continuous_type(dtype):
+    if not scale.is_discrete() and is_discrete_type(dtype):
         raise ValueError(f"Aesthetic {aes_key} has non continuous dtype but continuous scale")
 
 
 def is_continuous_type(dtype):
-    return dtype in [hl.tint32, hl.tint64, hl.float32, hl.float64]
+    return dtype in [hl.tint32, hl.tint64, hl.tfloat32, hl.tfloat64]
+
+
+def is_discrete_type(dtype):
+    return not is_continuous_type(dtype)
 
 
 def filter_predicate_with_keep(ir_pred, keep):
