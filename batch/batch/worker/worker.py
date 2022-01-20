@@ -95,6 +95,7 @@ def compose_auth_header_urlsafe(orig_f):
         auth = json.loads(base64.b64decode(orig_auth_header))
         auth_json = json.dumps(auth).encode('ascii')
         return base64.urlsafe_b64encode(auth_json).decode('ascii')
+
     return compose
 
 
@@ -477,6 +478,7 @@ class Container:
 
     async def run(self):
         try:
+
             async def localize_rootfs():
                 async def _localize_rootfs():
                     async with image_lock.reader_lock:
@@ -1439,7 +1441,9 @@ class DockerJob(Job):
                             assert bucket
 
                             credentials = self.credentials.cloudfuse_credentials(config)
-                            credentials_path = CLOUD_WORKER_API.write_cloudfuse_credentials(credentials, self.scratch, bucket)
+                            credentials_path = CLOUD_WORKER_API.write_cloudfuse_credentials(
+                                credentials, self.scratch, bucket
+                            )
 
                             os.makedirs(self.cloudfuse_data_path(bucket), exist_ok=True)
                             os.makedirs(self.cloudfuse_tmp_path(bucket), exist_ok=True)
