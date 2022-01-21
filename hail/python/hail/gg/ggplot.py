@@ -174,7 +174,13 @@ class GGPlot:
 
         return fig
 
-    def debug_print(self):
+    def show(self):
+        self.render().show()
+
+    def write_image(self, path):
+        self.render().write_image(path)
+
+    def _debug_print(self):
         print("Ggplot Object:")
         print("Aesthetics")
         pprint(self.aes)
