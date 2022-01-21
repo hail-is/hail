@@ -17,6 +17,7 @@ from aiohttp import web
 import struct
 import async_timeout
 import concurrent
+import tempfile
 
 import aiodocker  # type: ignore
 import aiodocker.images
@@ -1637,17 +1638,16 @@ class JVMJob(Job):
                 with self.step('connecting_to_jvm'):
                     self.jvm = await self.worker.borrow_jvm()
                     self.jvm_name = str(self.jvm)
-                    self.scratch = self.jvm.root_dir
 
                 self.task_manager.ensure_future(self.worker.post_job_started(self))
 
                 log.info(f'{self}: initializing')
                 self.state = 'initializing'
 
-                # await check_shell_output(f'xfs_quota -x -c "project -s -p {self.scratch} {self.project_id}" /host/')
-                # await check_shell_output(
-                #     f'xfs_quota -x -c "limit -p bsoft={self.data_disk_storage_in_gib} bhard={self.data_disk_storage_in_gib} {self.project_id}" /host/'
-                # )
+                await check_shell_output(f'xfs_quota -x -c "project -s -p {self.scratch} {self.project_id}" /host/')
+                await check_shell_output(
+                    f'xfs_quota -x -c "limit -p bsoft={self.data_disk_storage_in_gib} bhard={self.data_disk_storage_in_gib} {self.project_id}" /host/'
+                )
 
                 if self.secrets:
                     for secret in self.secrets:
@@ -1662,15 +1662,16 @@ class JVMJob(Job):
                         local_jar_location = f'/hail-jars/{self.revision}.jar'
                         if not os.path.isfile(local_jar_location):
                             self.verify_is_acceptable_query_jar_url(self.jar_url)
-                            async with await self.worker.fs.open(self.jar_url) as jar_data:
-                                await self.worker.fs.makedirs('/hail-jars/', exist_ok=True)
-                                async with await self.worker.fs.create(local_jar_location) as local_file:
+                            with tempfile.NamedTemporaryFile() as temporary_file:
+                                async with await self.worker.fs.open(self.jar_url) as jar_data:
+                                    await self.worker.fs.makedirs('/hail-jars/', exist_ok=True)
                                     while True:
                                         b = await jar_data.read(256 * 1024)
                                         if not b:
                                             break
-                                        written = await local_file.write(b)
+                                        written = await blocking_to_async(worker.thread_pool, temporary_file.write, b)
                                         assert written == len(b)
+                                os.rename(temporary_file.name, local_jar_location)
 
                 log.info(f'{self}: running jvm process')
                 with self.step('running'):
