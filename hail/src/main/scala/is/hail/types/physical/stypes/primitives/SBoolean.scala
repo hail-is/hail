@@ -40,23 +40,7 @@ case object SBoolean extends SPrimitive {
   override def storageType(): PType = PBoolean()
 }
 
-class SBooleanCode(val code: Code[Boolean]) extends SPrimitiveCode {
-  override def _primitiveCode: Code[_] = code
-
-  def st: SBoolean.type = SBoolean
-
-  private[this] def memoizeWithBuilder(cb: EmitCodeBuilder, name: String, sb: SettableBuilder): SBooleanSettable = {
-    val s = new SBooleanSettable(sb.newSettable[Boolean]("sboolean_memoize"))
-    s.store(cb, this)
-    s
-  }
-
-  def memoize(cb: EmitCodeBuilder, name: String): SBooleanSettable = memoizeWithBuilder(cb, name, cb.localBuilder)
-
-  def memoizeField(cb: EmitCodeBuilder, name: String): SBooleanSettable = memoizeWithBuilder(cb, name, cb.fieldBuilder)
-
-  def boolCode(cb: EmitCodeBuilder): Code[Boolean] = code
-}
+class SBooleanCode(val code: Code[Boolean]) extends SCode
 
 class SBooleanValue(x: Value[Boolean]) extends SPrimitiveValue {
   val pt: PBoolean = PBoolean()
@@ -84,5 +68,5 @@ object SBooleanSettable {
 class SBooleanSettable(x: Settable[Boolean]) extends SBooleanValue(x) with SSettable {
   override def settableTuple(): IndexedSeq[Settable[_]] = FastIndexedSeq(x)
 
-  override def store(cb: EmitCodeBuilder, v: SCode): Unit = cb.assign(x, v.asBoolean.boolCode(cb))
+  override def store(cb: EmitCodeBuilder, v: SCode): Unit = cb.assign(x, v.asInstanceOf[SBooleanCode].code)
 }

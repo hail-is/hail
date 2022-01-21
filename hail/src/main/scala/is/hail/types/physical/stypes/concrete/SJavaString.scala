@@ -47,27 +47,7 @@ case object SJavaString extends SString {
     new SJavaStringValue(cb.memoize(s))
 }
 
-class SJavaStringCode(val s: Code[String]) extends SStringCode {
-  def st: SString = SJavaString
-
-  def loadLength(): Code[Int] = s.invoke[Int]("length")
-
-  def loadString(): Code[String] = s
-
-  def toBytes(): SBinaryCode = {
-    new SJavaBytesCode(s.invoke[Array[Byte]]("getBytes"))
-  }
-
-  private[this] def memoizeWithBuilder(cb: EmitCodeBuilder, name: String, sb: SettableBuilder): SValue = {
-    val s = new SJavaStringSettable(sb.newSettable[String](s"${name}_javastring"))
-    s.store(cb, this)
-    s
-  }
-
-  def memoize(cb: EmitCodeBuilder, name: String): SValue = memoizeWithBuilder(cb, name, cb.localBuilder)
-
-  def memoizeField(cb: EmitCodeBuilder, name: String): SValue = memoizeWithBuilder(cb, name, cb.fieldBuilder)
-}
+class SJavaStringCode(val s: Code[String]) extends SCode
 
 class SJavaStringValue(val s: Value[String]) extends SStringValue {
   override def st: SString = SJavaString

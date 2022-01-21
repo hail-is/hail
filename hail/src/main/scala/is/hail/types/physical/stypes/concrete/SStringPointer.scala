@@ -2,11 +2,10 @@ package is.hail.types.physical.stypes.concrete
 
 import is.hail.annotations.Region
 import is.hail.asm4s.{Code, LongInfo, Settable, SettableBuilder, TypeInfo, Value}
-import is.hail.expr.ir.orderings.CodeOrdering
-import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder, SortOrder}
-import is.hail.types.physical.stypes.interfaces.{SBinaryCode, SString, SStringCode, SStringValue}
+import is.hail.expr.ir.EmitCodeBuilder
+import is.hail.types.physical.stypes.interfaces.{SString, SStringValue}
 import is.hail.types.physical.stypes.{SCode, SSettable, SType, SValue}
-import is.hail.types.physical.{PCanonicalString, PString, PType}
+import is.hail.types.physical.{PString, PType}
 import is.hail.types.virtual.Type
 import is.hail.utils.FastIndexedSeq
 
@@ -47,29 +46,7 @@ final case class SStringPointer(pType: PString) extends SString {
 }
 
 
-class SStringPointerCode(val st: SStringPointer, val a: Code[Long]) extends SStringCode {
-  val pt: PString = st.pType
-
-  def loadLength(): Code[Int] = pt.loadLength(a)
-
-  def loadString(): Code[String] = pt.loadString(a)
-
-  def toBytes(): SBinaryPointerCode = new SBinaryPointerCode(SBinaryPointer(pt.binaryRepresentation), a)
-
-  private[this] def memoizeWithBuilder(cb: EmitCodeBuilder, name: String, sb: SettableBuilder): SStringPointerValue = {
-    val s = new SStringPointerSettable(st, sb.newSettable[Long]("sstringpointer_memoize"))
-    s.store(cb, this)
-    s
-  }
-
-  def memoize(cb: EmitCodeBuilder, name: String): SStringPointerValue =
-    memoizeWithBuilder(cb, name, cb.localBuilder)
-
-  def memoizeField(cb: EmitCodeBuilder, name: String): SStringPointerValue =
-    memoizeWithBuilder(cb, name, cb.fieldBuilder)
-
-  def binaryRepr: SBinaryPointerCode = new SBinaryPointerCode(SBinaryPointer(st.pType.binaryRepresentation), a)
-}
+class SStringPointerCode(val st: SStringPointer, val a: Code[Long]) extends SCode
 
 class SStringPointerValue(val st: SStringPointer, val a: Value[Long]) extends SStringValue {
   val pt: PString = st.pType

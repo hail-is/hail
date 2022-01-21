@@ -39,7 +39,7 @@ abstract class SUnreachable extends SType {
 
   val sv: SUnreachableValue
 
-  val sc: SUnreachableCode
+  val sc: SCode
 
   override def fromSettables(settables: IndexedSeq[Settable[_]]): SSettable = sv
 
@@ -51,8 +51,6 @@ abstract class SUnreachable extends SType {
 
   override def containsPointers: Boolean = false
 }
-
-abstract class SUnreachableCode extends SCode
 
 abstract class SUnreachableValue extends SSettable {
   override def settableTuple(): IndexedSeq[Settable[_]] = FastIndexedSeq()
@@ -75,17 +73,7 @@ case class SUnreachableStruct(virtualType: TBaseStruct) extends SUnreachable wit
   override val sc = new SUnreachableStructCode(this)
 }
 
-class SUnreachableStructCode(override val st: SUnreachableStruct) extends SUnreachableCode with SBaseStructCode {
-  override def memoizeField(cb: EmitCodeBuilder, name: String): SBaseStructValue = st.sv
-
-  override def memoize(cb: EmitCodeBuilder, name: String): SBaseStructValue = st.sv
-
-  override def loadSingleField(cb: EmitCodeBuilder, fieldIdx: Int): IEmitCode =
-    IEmitCode.present(cb, SUnreachable.fromVirtualType(st.virtualType.types(fieldIdx)).defaultValue)
-
-  override def _insert(newType: TStruct, fields: (String, EmitCode)*): SBaseStructCode =
-    new SUnreachableStructCode(SUnreachableStruct(newType))
-}
+class SUnreachableStructCode(val st: SUnreachableStruct) extends SCode
 
 class SUnreachableStructValue(override val st: SUnreachableStruct) extends SUnreachableValue with SBaseStructValue {
   override def loadField(cb: EmitCodeBuilder, fieldIdx: Int): IEmitCode =
@@ -105,7 +93,7 @@ class SUnreachableStructValue(override val st: SUnreachableStruct) extends SUnre
   override def _insert(newType: TStruct, fields: (String, EmitValue)*): SBaseStructValue =
     new SUnreachableStructValue(SUnreachableStruct(newType))
 
-  override def get: SBaseStructCode = st.sc
+  override def get: SCode = st.sc
 }
 
 case object SUnreachableBinary extends SUnreachable with SBinary {
@@ -116,17 +104,7 @@ case object SUnreachableBinary extends SUnreachable with SBinary {
   override val sc = new SUnreachableBinaryCode
 }
 
-class SUnreachableBinaryCode extends SUnreachableCode with SBinaryCode {
-  override def st: SUnreachableBinary.type = SUnreachableBinary
-
-  override def memoizeField(cb: EmitCodeBuilder, name: String): SUnreachableBinaryValue = st.sv
-
-  override def memoize(cb: EmitCodeBuilder, name: String): SUnreachableBinaryValue = st.sv
-
-  override def loadBytes(): Code[Array[Byte]] = Code._null[Array[Byte]]
-
-  override def loadLength(): Code[Int] = const(0)
-}
+class SUnreachableBinaryCode extends SCode
 
 class SUnreachableBinaryValue extends SUnreachableValue with SBinaryValue {
   override def loadByte(cb: EmitCodeBuilder, i: Code[Int]): Value[Byte] = const(0.toByte)
@@ -150,19 +128,7 @@ case object SUnreachableString extends SUnreachable with SString {
   override def constructFromString(cb: EmitCodeBuilder, r: Value[Region], s: Code[String]): SStringValue = sv
 }
 
-class SUnreachableStringCode extends SUnreachableCode with SStringCode {
-  override def st: SUnreachableString.type = SUnreachableString
-
-  override def memoizeField(cb: EmitCodeBuilder, name: String): SUnreachableStringValue = st.sv
-
-  override def memoize(cb: EmitCodeBuilder, name: String): SUnreachableStringValue = st.sv
-
-  override def toBytes(): SBinaryCode = SUnreachableBinary.sc
-
-  override def loadLength(): Code[Int] = const(0)
-
-  override def loadString(): Code[String] = Code._null[String]
-}
+class SUnreachableStringCode extends SCode
 
 class SUnreachableStringValue extends SUnreachableValue with SStringValue {
   override def st: SUnreachableString.type = SUnreachableString
@@ -198,15 +164,7 @@ class SUnreachableLocusValue(override val st: SUnreachableLocus) extends SUnreac
   override def get: SUnreachableLocusCode = st.sc
 }
 
-class SUnreachableLocusCode(override val st: SUnreachableLocus) extends SUnreachableCode with SLocusCode {
-  override def memoizeField(cb: EmitCodeBuilder, name: String): SUnreachableLocusValue = st.sv
-
-  override def memoize(cb: EmitCodeBuilder, name: String): SUnreachableLocusValue = st.sv
-
-  override def position(cb: EmitCodeBuilder): Code[Int] = const(0)
-
-  override def getLocusObj(cb: EmitCodeBuilder): Code[Locus] = Code._null[Locus]
-}
+class SUnreachableLocusCode(val st: SUnreachableLocus) extends SCode
 
 case object SUnreachableCall extends SUnreachable with SCall {
   override def virtualType: Type = TCall
@@ -216,15 +174,7 @@ case object SUnreachableCall extends SUnreachable with SCall {
   override val sc = new SUnreachableCallCode
 }
 
-class SUnreachableCallCode extends SUnreachableCode with SCallCode {
-  override def st: SUnreachableCall.type = SUnreachableCall
-
-  override def memoizeField(cb: EmitCodeBuilder, name: String): SUnreachableCallValue = st.sv
-
-  override def memoize(cb: EmitCodeBuilder, name: String): SUnreachableCallValue = st.sv
-
-  override def loadCanonicalRepresentation(cb: EmitCodeBuilder): Code[Int] = const(0)
-}
+class SUnreachableCallCode extends SCode
 
 class SUnreachableCallValue extends SUnreachableValue with SCallValue {
   override def unphase(cb: EmitCodeBuilder): SCallValue = this
@@ -257,15 +207,7 @@ case class SUnreachableInterval(virtualType: TInterval) extends SUnreachable wit
   override def pointEmitType: EmitType = EmitType(pointType, true)
 }
 
-class SUnreachableIntervalCode(override val st: SUnreachableInterval) extends SUnreachableCode with SIntervalCode {
-  override def memoizeField(cb: EmitCodeBuilder, name: String): SUnreachableIntervalValue = st.sv
-
-  override def memoize(cb: EmitCodeBuilder, name: String): SUnreachableIntervalValue = st.sv
-
-  override def codeIncludesStart(): Code[Boolean] = const(false)
-
-  override def codeIncludesEnd(): Code[Boolean] = const(false)
-}
+class SUnreachableIntervalCode(val st: SUnreachableInterval) extends SCode
 
 class SUnreachableIntervalValue(override val st: SUnreachableInterval) extends SUnreachableValue with SIntervalValue {
   override def includesStart(): Value[Boolean] = const(false)
@@ -302,11 +244,7 @@ case class SUnreachableNDArray(virtualType: TNDArray) extends SUnreachable with 
   override def elementByteSize: Long = 0L
 }
 
-class SUnreachableNDArrayCode(override val st: SUnreachableNDArray) extends SUnreachableCode with SNDArrayCode {
-  override def memoizeField(cb: EmitCodeBuilder, name: String): SUnreachableNDArrayValue = st.sv
-
-  override def memoize(cb: EmitCodeBuilder, name: String): SUnreachableNDArrayValue = st.sv
-}
+class SUnreachableNDArrayCode(val st: SUnreachableNDArray) extends SCode
 
 class SUnreachableNDArrayValue(override val st: SUnreachableNDArray) extends SUnreachableValue with SNDArraySettable {
   override def loadElement(indices: IndexedSeq[Value[Long]], cb: EmitCodeBuilder): SValue = SUnreachable.fromVirtualType(st.virtualType.elementType).defaultValue
@@ -360,10 +298,4 @@ class SUnreachableContainerValue(override val st: SUnreachableContainer) extends
   override def get: SUnreachableContainerCode = st.sc
 }
 
-class SUnreachableContainerCode(override val st: SUnreachableContainer) extends SUnreachableCode with SIndexableCode {
-  override def memoizeField(cb: EmitCodeBuilder, name: String): SUnreachableContainerValue = st.sv
-
-  override def memoize(cb: EmitCodeBuilder, name: String): SUnreachableContainerValue = st.sv
-
-  override def codeLoadLength(): Code[Int] = const(0)
-}
+class SUnreachableContainerCode(val st: SUnreachableContainer) extends SCode

@@ -39,23 +39,7 @@ case object SInt64 extends SPrimitive {
   override def storageType(): PType = PInt64()
 }
 
-class SInt64Code(val code: Code[Long]) extends SPrimitiveCode {
-  override def _primitiveCode: Code[_] = code
-
-  def st: SInt64.type = SInt64
-
-  private[this] def memoizeWithBuilder(cb: EmitCodeBuilder, name: String, sb: SettableBuilder): SInt64Value = {
-    val s = new SInt64Settable(sb.newSettable[Long]("sint64_memoize"))
-    s.store(cb, this)
-    s
-  }
-
-  def memoize(cb: EmitCodeBuilder, name: String): SInt64Value = memoizeWithBuilder(cb, name, cb.localBuilder)
-
-  def memoizeField(cb: EmitCodeBuilder, name: String): SInt64Value = memoizeWithBuilder(cb, name, cb.fieldBuilder)
-
-  def longCode(cb: EmitCodeBuilder): Code[Long] = code
-}
+class SInt64Code(val code: Code[Long]) extends SCode
 
 class SInt64Value(x: Value[Long]) extends SPrimitiveValue {
   val pt: PInt64 = PInt64(false)
@@ -83,5 +67,5 @@ object SInt64Settable {
 final class SInt64Settable(x: Settable[Long]) extends SInt64Value(x) with SSettable {
   override def settableTuple(): IndexedSeq[Settable[_]] = FastIndexedSeq(x)
 
-  override def store(cb: EmitCodeBuilder, v: SCode): Unit = cb.assign(x, v.asLong.longCode(cb))
+  override def store(cb: EmitCodeBuilder, v: SCode): Unit = cb.assign(x, v.asInstanceOf[SInt64Code].code)
 }

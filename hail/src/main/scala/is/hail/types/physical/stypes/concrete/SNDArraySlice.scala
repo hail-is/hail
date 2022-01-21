@@ -2,10 +2,10 @@ package is.hail.types.physical.stypes.concrete
 
 import is.hail.annotations.Region
 import is.hail.asm4s._
-import is.hail.expr.ir.{EmitCode, EmitCodeBuilder, EmitValue}
+import is.hail.expr.ir.{EmitCodeBuilder, EmitValue}
+import is.hail.types.physical.stypes._
 import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.physical.stypes.primitives.SInt64
-import is.hail.types.physical.stypes._
 import is.hail.types.physical.{PCanonicalNDArray, PType}
 import is.hail.types.virtual.{TNDArray, Type}
 import is.hail.utils.toRichIterable
@@ -129,16 +129,4 @@ final class SNDArraySliceSettable(
   }
 }
 
-class SNDArraySliceCode(val st: SNDArraySlice, val shape: IndexedSeq[Code[Long]], val strides: IndexedSeq[Code[Long]], val dataFirstElement: Code[Long]) extends SNDArrayCode {
-  def memoize(cb: EmitCodeBuilder, name: String, sb: SettableBuilder): SNDArrayValue = {
-    val s = SNDArraySliceSettable(sb, st, name)
-    s.store(cb, this)
-    s
-  }
-
-  override def memoize(cb: EmitCodeBuilder, name: String): SNDArrayValue =
-    memoize(cb, name, cb.localBuilder)
-
-  override def memoizeField(cb: EmitCodeBuilder, name: String): SValue =
-    memoize(cb, name, cb.fieldBuilder)
-}
+class SNDArraySliceCode(val st: SNDArraySlice, val shape: IndexedSeq[Code[Long]], val strides: IndexedSeq[Code[Long]], val dataFirstElement: Code[Long]) extends SCode

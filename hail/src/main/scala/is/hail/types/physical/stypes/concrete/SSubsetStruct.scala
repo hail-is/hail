@@ -1,9 +1,9 @@
 package is.hail.types.physical.stypes.concrete
 
 import is.hail.annotations.Region
-import is.hail.asm4s.{Code, Settable, TypeInfo, Value}
+import is.hail.asm4s.{Settable, TypeInfo, Value}
 import is.hail.expr.ir.{EmitCodeBuilder, IEmitCode}
-import is.hail.types.physical.stypes.interfaces.{SBaseStruct, SBaseStructCode, SBaseStructSettable, SBaseStructValue}
+import is.hail.types.physical.stypes.interfaces.{SBaseStruct, SBaseStructSettable, SBaseStructValue}
 import is.hail.types.physical.stypes.{EmitType, SCode, SType, SValue}
 import is.hail.types.physical.{PCanonicalStruct, PType}
 import is.hail.types.virtual.{TStruct, Type}
@@ -86,7 +86,7 @@ final case class SSubsetStruct(parent: SBaseStruct, fieldNames: IndexedSeq[Strin
 class SSubsetStructValue(val st: SSubsetStruct, prev: SBaseStructValue) extends SBaseStructValue {
   override lazy val valueTuple: IndexedSeq[Value[_]] = prev.valueTuple
 
-  override def get: SSubsetStructCode = new SSubsetStructCode(st, prev.get.asBaseStruct)
+  override def get: SSubsetStructCode = new SSubsetStructCode(st, prev.get)
 
   override def loadField(cb: EmitCodeBuilder, fieldIdx: Int): IEmitCode = {
     prev.loadField(cb, st.newToOldFieldMapping(fieldIdx))
@@ -102,12 +102,4 @@ final class SSubsetStructSettable(st: SSubsetStruct, prev: SBaseStructSettable) 
   override def store(cb: EmitCodeBuilder, pv: SCode): Unit = prev.store(cb, pv.asInstanceOf[SSubsetStructCode].prev)
 }
 
-class SSubsetStructCode(val st: SSubsetStruct, val prev: SBaseStructCode) extends SBaseStructCode {
-  def memoize(cb: EmitCodeBuilder, name: String): SBaseStructValue = {
-    new SSubsetStructSettable(st, prev.memoize(cb, name).asInstanceOf[SBaseStructSettable])
-  }
-
-  def memoizeField(cb: EmitCodeBuilder, name: String): SBaseStructValue = {
-    new SSubsetStructSettable(st, prev.memoizeField(cb, name).asInstanceOf[SBaseStructSettable])
-  }
-}
+class SSubsetStructCode(val st: SSubsetStruct, val prev: SCode) extends SCode

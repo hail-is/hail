@@ -135,18 +135,4 @@ final class SNDArrayPointerSettable(
   }
 }
 
-class SNDArrayPointerCode(val st: SNDArrayPointer, val a: Code[Long]) extends SNDArrayCode {
-  val pt: PCanonicalNDArray = st.pType
-
-  def memoize(cb: EmitCodeBuilder, name: String, sb: SettableBuilder): SNDArrayPointerValue = {
-    val s = SNDArrayPointerSettable(sb, st, name)
-    s.store(cb, this)
-    s
-  }
-
-  override def memoize(cb: EmitCodeBuilder, name: String): SNDArrayPointerValue =
-    memoize(cb, name, cb.localBuilder)
-
-  override def memoizeField(cb: EmitCodeBuilder, name: String): SNDArrayPointerValue =
-    memoize(cb, name, cb.fieldBuilder)
-}
+class SNDArrayPointerCode(val st: SNDArrayPointer, val a: Code[Long]) extends SCode

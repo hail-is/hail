@@ -95,11 +95,11 @@ final case class PCanonicalLocus(rgBc: BroadcastRG, required: Boolean = false) e
 
   def sType: SCanonicalLocusPointer = SCanonicalLocusPointer(setRequired(false))
 
-  def loadCheapSCode(cb: EmitCodeBuilder, addr: Code[Long]): SCanonicalLocusPointerValue =
-    new SCanonicalLocusPointerCode(sType, addr).memoize(cb, "loadCheapSCode")
+  def loadCheapSCode(cb: EmitCodeBuilder, addr: Code[Long]): SCanonicalLocusPointerValue = {
+    val a = cb.memoize(addr)
+    new SCanonicalLocusPointerValue(sType, a, cb.memoize(contigAddr(a)), cb.memoize(position(a)))
+  }
 
-  def loadCheapSCodeField(cb: EmitCodeBuilder, addr: Code[Long]): SCanonicalLocusPointerValue =
-    new SCanonicalLocusPointerCode(sType, addr).memoizeField(cb, "loadCheapSCodeField")
 
   def store(cb: EmitCodeBuilder, region: Value[Region], value: SValue, deepCopy: Boolean): Value[Long] = {
     value.st match {
