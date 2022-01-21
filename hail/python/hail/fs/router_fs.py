@@ -221,7 +221,10 @@ class RouterFS(FS):
 
     async def _fle_to_dict(self, fle: FileListEntry) -> Dict[str, Any]:
         async def size():
-            return await (await fle.status()).size()
+            try:
+                return await (await fle.status()).size()
+            except IsADirectoryError:
+                return 0
         return _stat_dict(
             *await asyncio.gather(fle.is_dir(), size(), fle.url()))
 
