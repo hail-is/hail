@@ -1875,7 +1875,7 @@ class BufferedOutputProcess:
         process = await asyncio.create_subprocess_exec(
             *args, **kwargs, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
         )
-        stop_event = asyncio.Event()  # FIXME: this seems unused
+        stop_event = asyncio.Event()
         return cls(process, stop_event)
 
     def __init__(self, process, stop_event: asyncio.Event):
