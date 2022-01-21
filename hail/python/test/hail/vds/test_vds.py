@@ -123,6 +123,18 @@ def test_sampleqc_old_new_equivalence():
     ))
 
 
+def test_sampleqc_gq_dp():
+    vds = hl.vds.read_vds(os.path.join(resource('vds'), '1kg_chr22_5_samples.vds'))
+    sqc = hl.vds.sample_qc(vds)
+
+    assert hl.eval(sqc.index_globals()) == hl.Struct(gq_bins=(0, 20, 60), dp_bins=(0, 1, 10, 20, 30))
+
+    hg00320 = sqc.filter(sqc.s == 'HG00320').select('bases_over_gq_threshold', 'bases_over_dp_threshold').collect()[0]
+    assert hg00320 == hl.Struct(s='HG00320',
+                                bases_over_gq_threshold=(334822, 515, 82),
+                                bases_over_dp_threshold=(334822, 10484, 388, 111, 52))
+
+
 def test_filter_samples_and_merge():
     vds = hl.vds.read_vds(os.path.join(resource('vds'), '1kg_chr22_5_samples.vds'))
 
