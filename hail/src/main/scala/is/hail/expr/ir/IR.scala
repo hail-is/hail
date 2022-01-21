@@ -481,7 +481,6 @@ object ApplyAggOp {
 }
 
 final case class ApplyAggOp(initOpArgs: IndexedSeq[IR], seqOpArgs: IndexedSeq[IR], aggSig: AggSignature) extends IR {
-  val trace = Thread.currentThread().getStackTrace.mkString("\n")
   def nSeqOpArgs = seqOpArgs.length
 
   def nInitArgs = initOpArgs.length
