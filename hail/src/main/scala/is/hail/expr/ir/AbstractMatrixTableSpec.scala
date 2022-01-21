@@ -94,7 +94,7 @@ abstract class RelationalSpec {
 
   def partitionCounts: Array[Long] = getComponent[PartitionCountsComponentSpec]("partition_counts").counts.toArray
 
-  def isDistinctlyKeyed: Boolean = getOptionalComponent[PropertiesSpec]("properties").flatMap(_.properties.get("distinctlyKeyed")).map(_ == "true").getOrElse(false)
+  def isDistinctlyKeyed: Boolean = getOptionalComponent[PropertiesSpec]("properties").flatMap(_.properties.values.get("distinctlyKeyed")).map(_ == "true").getOrElse(false)
 
   def indexed: Boolean
 
@@ -132,7 +132,7 @@ case class RVDComponentSpec(rel_path: String) extends ComponentSpec {
 
 case class PartitionCountsComponentSpec(counts: Seq[Long]) extends ComponentSpec
 
-case class PropertiesSpec(properties: Map[String, String]) extends ComponentSpec
+case class PropertiesSpec(properties: JObject) extends ComponentSpec
 
 abstract class AbstractMatrixTableSpec extends RelationalSpec {
   def matrix_type: MatrixType
