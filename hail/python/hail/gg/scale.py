@@ -1,7 +1,7 @@
 import abc
 from .geoms import FigureAttribute
 
-from hail import get_reference
+from hail.context import get_reference
 
 from .utils import categorical_strings_to_colors, continuous_nums_to_colors
 
