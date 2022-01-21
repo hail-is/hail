@@ -259,11 +259,12 @@ def geom_text(mapping=aes(), *, color=None):
 
 class GeomBar(Geom):
 
-    def __init__(self, aes, fill=None, color=None, position="stack"):
+    def __init__(self, aes, fill=None, color=None, position="stack", size=None):
         super().__init__(aes)
         self.fill = fill
         self.color = color
         self.position = position
+        self.size = size
 
     def apply_to_fig(self, parent, agg_result, fig_so_far):
         def plot_group(data):
@@ -288,6 +289,10 @@ class GeomBar(Geom):
             elif self.color is not None:
                 bar_args["marker_line_color"] = self.color
 
+
+            if self.size is not None:
+                bar_args["marker_line_width"] = self.size
+
             fig_so_far.add_bar(**bar_args)
 
         groups = set([element["group"] for element in agg_result])
@@ -302,13 +307,13 @@ class GeomBar(Geom):
         return StatCount()
 
 
-def geom_bar(mapping=aes(), *, fill=None, color=None, position="stack"):
-    return GeomBar(mapping, fill=fill, color=color, position=position)
+def geom_bar(mapping=aes(), *, fill=None, color=None, position="stack", size=None):
+    return GeomBar(mapping, fill=fill, color=color, position=position, size=size)
 
 
 class GeomHistogram(Geom):
 
-    def __init__(self, aes, min_bin=0, max_bin=100, bins=30, fill=None, color=None, position='stack'):
+    def __init__(self, aes, min_bin=0, max_bin=100, bins=30, fill=None, color=None, position='stack', size=None):
         super().__init__(aes)
         self.min_bin = min_bin
         self.max_bin = max_bin
@@ -316,6 +321,7 @@ class GeomHistogram(Geom):
         self.fill = fill
         self.color = color
         self.position = position
+        self.size = size
 
     def apply_to_fig(self, parent, agg_result, fig_so_far):
         bin_width = (self.max_bin - self.min_bin) / self.bins
@@ -353,10 +359,12 @@ class GeomHistogram(Geom):
             elif self.color is not None:
                 hist_args["marker_line_color"] = self.color
 
+            if self.size is not None:
+                hist_args["marker_line_width"] = self.size
+
             width = bin_width if self.position == 'stack' else bin_width / num_groups
             hist_args["width"] = [width] * len(data)
 
-            print(hist_args)
             fig_so_far.add_bar(**hist_args)
 
         groups = set([element["group"] for element in agg_result])
@@ -371,10 +379,11 @@ class GeomHistogram(Geom):
         return StatBin(self.min_bin, self.max_bin, self.bins)
 
 
-def geom_histogram(mapping=aes(), min_bin=None, max_bin=None, bins=30, *, fill=None, color=None, position='stack'):
+def geom_histogram(mapping=aes(), min_bin=None, max_bin=None, bins=30, *, fill=None, color=None, position='stack',
+                   size=None):
     assert(min_bin is not None)
     assert(max_bin is not None)
-    return GeomHistogram(mapping, min_bin, max_bin, bins, fill, color, position)
+    return GeomHistogram(mapping, min_bin, max_bin, bins, fill, color, position, size)
 
 
 linetype_dict = {
