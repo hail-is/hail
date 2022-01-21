@@ -475,7 +475,7 @@ steps:
       set -ex
       export NAMESPACE={{ default_ns.name }}
       export CLOUD={{ global.cloud }}
-      python3 /io/create_initial_account.py {{ code.user }} {{ code.user }}@broadinstitute.org
+      python3 /io/create_initial_account.py {{ code.username }} {{ code.login_id }}
     serviceAccount:
       name: admin
       namespace:
