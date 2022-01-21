@@ -1304,8 +1304,7 @@ steps:
       export PYTEST_SPLIT_INDEX=0
       python3 -m pytest \
               --ignore=test/hailtop/batch/ \
-              --ignore=test/hailtop/aiotools/test_copy.py \
-              --ignore=test/hailtop/test_fs.py \
+              --ignore=test/hailtop/inter-cloud \
               --log-cli-level=INFO \
               -s \
               -vv \
@@ -1359,8 +1358,7 @@ steps:
       export PYTEST_SPLIT_INDEX=1
       python3 -m pytest \
               --ignore=test/hailtop/batch/ \
-              --ignore=test/hailtop/aiotools/test_copy.py \
-              --ignore=test/hailtop/test_fs.py \
+              --ignore=test/hailtop/inter-cloud \
               --log-cli-level=INFO \
               -s \
               -vv \
@@ -1414,8 +1412,7 @@ steps:
       export PYTEST_SPLIT_INDEX=2
       python3 -m pytest \
               --ignore=test/hailtop/batch/ \
-              --ignore=test/hailtop/aiotools/test_copy.py \
-              --ignore=test/hailtop/test_fs.py \
+              --ignore=test/hailtop/inter-cloud \
               --log-cli-level=INFO \
               -s \
               -vv \
@@ -1469,8 +1466,7 @@ steps:
       export PYTEST_SPLIT_INDEX=3
       python3 -m pytest \
               --ignore=test/hailtop/batch/ \
-              --ignore=test/hailtop/aiotools/test_copy.py \
-              --ignore=test/hailtop/test_fs.py \
+              --ignore=test/hailtop/inter-cloud \
               --log-cli-level=INFO \
               -s \
               -vv \
@@ -1524,8 +1520,7 @@ steps:
       export PYTEST_SPLIT_INDEX=4
       python3 -m pytest \
               --ignore=test/hailtop/batch/ \
-              --ignore=test/hailtop/aiotools/test_copy.py \
-              --ignore=test/hailtop/test_fs.py \
+              --ignore=test/hailtop/inter-cloud \
               --log-cli-level=INFO \
               -s \
               -vv \
@@ -1579,8 +1574,7 @@ steps:
       export PYTEST_SPLIT_INDEX=5
       python3 -m pytest \
               --ignore=test/hailtop/batch/ \
-              --ignore=test/hailtop/aiotools/test_copy.py \
-              --ignore=test/hailtop/test_fs.py \
+              --ignore=test/hailtop/inter-cloud \
               --log-cli-level=INFO \
               -s \
               -vv \
@@ -1634,8 +1628,7 @@ steps:
       export PYTEST_SPLIT_INDEX=6
       python3 -m pytest \
               --ignore=test/hailtop/batch/ \
-              --ignore=test/hailtop/aiotools/test_copy.py \
-              --ignore=test/hailtop/test_fs.py \
+              --ignore=test/hailtop/inter-cloud \
               --log-cli-level=INFO \
               -s \
               -vv \
@@ -1692,8 +1685,7 @@ steps:
               -vv \
               --instafail \
               --durations=50 \
-              test/hailtop/aiotools/test_copy.py \
-              test/hailtop/test_fs.py
+              test/hailtop/inter-cloud
     inputs:
       - from: /debug-wheel-container.tar
         to: /io/debug-wheel-container.tar
@@ -1743,8 +1735,7 @@ steps:
       export PYSPARK_SUBMIT_ARGS="--driver-memory 6g pyspark-shell"
       python3 -m pytest \
               --ignore=test/hailtop/batch/ \
-              --ignore=test/hailtop/aiotools/test_copy.py \
-              --ignore=test/hailtop/test_fs.py \
+              --ignore=test/hailtop/inter-cloud \
               --log-cli-level=INFO \
               -s \
               -vv \
