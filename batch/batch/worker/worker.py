@@ -1651,7 +1651,7 @@ class JVMJob(Job):
 
                 if self.secrets:
                     for secret in self.secrets:
-                        populate_secret_host_path(self.scratch + '/' + secret["mount_path"][1:], secret['data'])
+                        populate_secret_host_path(self.secret_host_path(secret), secret['data'])
 
                 populate_secret_host_path(self.credentials_host_dirname(), self.credentials.secret_data)
                 self.state = 'running'
@@ -1935,7 +1935,7 @@ class JVM:
             try:
                 interim_output = self.process.retrieve_and_clear_output()
                 if len(interim_output) > 0:
-                    log.warning(f'{self}: unexpected output between jobs: {interim_output}')
+                    log.warning(f'{self}: unexpected output between jobs')
 
                 return await asyncio.open_unix_connection(self.socket_file)
             except ConnectionRefusedError:
@@ -2009,10 +2009,6 @@ class JVM:
             stack.callback(wait_for_interrupt.cancel)
 
             await asyncio.wait([wait_for_message_from_process, wait_for_interrupt], return_when=asyncio.FIRST_COMPLETED)
-
-            for entry in os.listdir(self.root_dir):
-                if entry not in ('hail-jars', 'jvm-entryway', 'spark'):
-                    await blocking_to_async(worker.pool, shutil.rmtree, self.root_dir + '/' + entry)
 
             if wait_for_interrupt.done():
                 await wait_for_interrupt  # retrieve exceptions
