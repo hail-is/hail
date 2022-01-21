@@ -94,59 +94,34 @@ case class Compare(t1: Type, t2: Type) extends ComparisonOp[Int] {
 }
 object Compare { def apply(typ: Type): Compare = Compare(typ, typ) }
 
-case class StructLT(t1: Type, t2: Type, sortFields: Array[SortField]) extends ComparisonOp[Boolean] {
-  val op: CodeOrdering.Op = CodeOrdering.StructLt()
+trait StructComparisonOp[T] extends ComparisonOp[T] {
+  val sortFields: Array[SortField]
 
-  override def codeOrdering(ecb: EmitClassBuilder[_], t1p: SType, t2p: SType): F[op.ReturnType] = {
-    ComparisonOp.checkCompatible(t1p.virtualType, t2p.virtualType)
-    val ord = StructOrdering.make(t1p.asInstanceOf[SBaseStruct], t2p.asInstanceOf[SBaseStruct], ecb, sortFields.map(_.sortOrder))
-
-    { (cb: EmitCodeBuilder, v1: EmitValue, v2: EmitValue) =>
-
-      val r: Code[_] = op match {
-        case CodeOrdering.StructLt(missingEqual) => ord.lt(cb, v1, v2, missingEqual)
-      }
-      cb.memoize[op.ReturnType](coerce[op.ReturnType](r))(op.rtti)
-    }
+  override def codeOrdering(ecb: EmitClassBuilder[_], t1: SType, t2: SType): F[op.ReturnType] = {
+    ComparisonOp.checkCompatible(t1.virtualType, t2.virtualType)
+    ecb.getStructOrderingFunction(t1.asInstanceOf[SBaseStruct], t2.asInstanceOf[SBaseStruct], sortFields, op).asInstanceOf[CodeOrdering.F[op.ReturnType]]
   }
+}
+
+case class StructCompare(t1: Type, t2: Type, sortFields: Array[SortField]) extends StructComparisonOp[Int] {
+  val op: CodeOrdering.Op = CodeOrdering.StructCompare()
+  override val strict: Boolean = false
+}
+
+case class StructLT(t1: Type, t2: Type, sortFields: Array[SortField]) extends StructComparisonOp[Boolean] {
+  val op: CodeOrdering.Op = CodeOrdering.StructLt()
 }
 
 object StructLT { def apply(typ: Type, sortFields: IndexedSeq[SortField]): StructLT = StructLT(typ, typ, sortFields.toArray) }
 
-case class StructLTEQ(t1: Type, t2: Type, sortFields: Array[SortField]) extends ComparisonOp[Boolean] {
+case class StructLTEQ(t1: Type, t2: Type, sortFields: Array[SortField]) extends StructComparisonOp[Boolean] {
   val op: CodeOrdering.Op = CodeOrdering.StructLteq()
-
-  override def codeOrdering(ecb: EmitClassBuilder[_], t1p: SType, t2p: SType): F[op.ReturnType] = {
-    ComparisonOp.checkCompatible(t1p.virtualType, t2p.virtualType)
-    val ord = StructOrdering.make(t1p.asInstanceOf[SBaseStruct], t2p.asInstanceOf[SBaseStruct], ecb, sortFields.map(_.sortOrder))
-
-    { (cb: EmitCodeBuilder, v1: EmitValue, v2: EmitValue) =>
-
-      val r: Code[_] = op match {
-        case CodeOrdering.StructLteq(missingEqual) => ord.lteq(cb, v1, v2, missingEqual)
-      }
-      cb.memoize[op.ReturnType](coerce[op.ReturnType](r))(op.rtti)
-    }
-  }
 }
 
 object StructLTEQ { def apply(typ: Type, sortFields: IndexedSeq[SortField]): StructLTEQ = StructLTEQ(typ, typ, sortFields.toArray) }
 
-case class StructGT(t1: Type, t2: Type, sortFields: Array[SortField]) extends ComparisonOp[Boolean] {
+case class StructGT(t1: Type, t2: Type, sortFields: Array[SortField]) extends StructComparisonOp[Boolean] {
   val op: CodeOrdering.Op = CodeOrdering.StructGt()
-
-  override def codeOrdering(ecb: EmitClassBuilder[_], t1p: SType, t2p: SType): F[op.ReturnType] = {
-    ComparisonOp.checkCompatible(t1p.virtualType, t2p.virtualType)
-    val ord = StructOrdering.make(t1p.asInstanceOf[SBaseStruct], t2p.asInstanceOf[SBaseStruct], ecb, sortFields.map(_.sortOrder))
-
-    { (cb: EmitCodeBuilder, v1: EmitValue, v2: EmitValue) =>
-
-      val r: Code[_] = op match {
-        case CodeOrdering.StructGt(missingEqual) => ord.gt(cb, v1, v2, missingEqual)
-      }
-      cb.memoize[op.ReturnType](coerce[op.ReturnType](r))(op.rtti)
-    }
-  }
 }
 
 object StructGT { def apply(typ: Type, sortFields: IndexedSeq[SortField]): StructGT = StructGT(typ, typ, sortFields.toArray) }

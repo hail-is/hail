@@ -44,6 +44,8 @@ object CodeOrdering {
 
   final case class StructGt(missingEqual: Boolean = true) extends BooleanOp
 
+  final case class StructCompare(missingEqual: Boolean = true) extends BooleanOp
+
   type F[R] = (EmitCodeBuilder, EmitValue, EmitValue) => Value[R]
 
   def makeOrdering(t1: SType, t2: SType, ecb: EmitClassBuilder[_]): CodeOrdering = {

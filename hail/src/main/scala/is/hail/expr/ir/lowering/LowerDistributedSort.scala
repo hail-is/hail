@@ -247,7 +247,7 @@ object LowerDistributedSort {
           val partitionStream = flatMapIR(ToStream(filenames)) { fileName =>
             ReadPartition(fileName, spec._vType, reader)
           }
-          MakeTuple.ordered(IndexedSeq(segmentIdx, StreamDistribute(partitionStream, ArrayRef(pivotsWithEndpointsGroupedBySegmentIdx, indexIntoPivotsArray), path, ???, spec)))
+          MakeTuple.ordered(IndexedSeq(segmentIdx, StreamDistribute(partitionStream, ArrayRef(pivotsWithEndpointsGroupedBySegmentIdx, indexIntoPivotsArray), path, StructCompare(newKType, newKType, sortFields.toArray), spec)))
         }
 
         val (Some(PTypeReferenceSingleCodeType(resultPType)), f) = ctx.timer.time("LowerDistributedSort.distributedSort.compile")(Compile[AsmFunction1RegionLong](ctx,
