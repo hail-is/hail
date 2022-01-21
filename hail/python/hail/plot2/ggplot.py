@@ -183,5 +183,6 @@ class GGPlot:
         print("Geoms:")
         pprint(self.geoms)
 
+
 def ggplot(table, aes=aes()):
     return GGPlot(table, aes)
