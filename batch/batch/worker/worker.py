@@ -33,7 +33,6 @@ from hailtop.utils import (
     time_msecs_str,
     request_retry_transient_errors,
     sleep_and_backoff,
-    TransientError,
     retry_all_errors,
     check_shell,
     CalledProcessError,
@@ -72,6 +71,7 @@ from ..cloud.azure.worker.instance_env import AzureWorkerAPI
 from ..cloud.resource_utils import storage_gib_to_bytes, is_valid_storage_request
 
 from .credentials import CloudUserCredentials
+from .jvm_entryway_protocol import read_bool, read_int, read_str, write_int, write_str
 
 # uvloop.install()
 
@@ -1791,70 +1791,6 @@ class ImageData:
             f'last_accessed={time_msecs_str(self.last_accessed)}'
             f')'
         )
-
-
-def write_int(writer: asyncio.StreamWriter, v: int):
-    writer.write(struct.pack('>i', v))
-
-
-def write_long(writer: asyncio.StreamWriter, v: int):
-    writer.write(struct.pack('>q', v))
-
-
-def write_bytes(writer: asyncio.StreamWriter, b: bytes):
-    n = len(b)
-    write_int(writer, n)
-    writer.write(b)
-
-
-def write_str(writer: asyncio.StreamWriter, s: str):
-    write_bytes(writer, s.encode('utf-8'))
-
-
-class EndOfStream(TransientError):
-    pass
-
-
-async def read(reader: asyncio.StreamReader, n: int) -> bytes:
-    b = bytearray()
-    left = n
-    while left > 0:
-        t = await reader.read(left)
-        if not t:
-            log.warning(f'unexpected EOS, Java violated protocol ({b})')
-            raise EndOfStream()
-        left -= len(t)
-        b.extend(t)
-    return b
-
-
-async def read_byte(reader: asyncio.StreamReader) -> int:
-    b = await read(reader, 1)
-    return b[0]
-
-
-async def read_bool(reader: asyncio.StreamReader) -> bool:
-    return await read_byte(reader) != 0
-
-
-async def read_int(reader: asyncio.StreamReader) -> int:
-    b = await read(reader, 4)
-    return struct.unpack('>i', b)[0]
-
-
-async def read_long(reader: asyncio.StreamReader) -> int:
-    b = await read(reader, 8)
-    return struct.unpack('>q', b)[0]
-
-
-async def read_bytes(reader: asyncio.StreamReader) -> bytes:
-    n = await read_int(reader)
-    return await read(reader, n)
-
-
-async def read_str(reader: asyncio.StreamReader) -> str:
-    b = await read_bytes(reader)
-    return b.decode('utf-8')
 
 
 @contextmanager

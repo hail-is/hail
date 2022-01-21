@@ -146,6 +146,10 @@ spec:
 {% else %}
 !!! unexpected scope {{ scope }} !!!
 {% endif %}
+{% if scope == "test" %}
+         - name: HAIL_SHOULD_CHECK_INVARIANTS
+            value: "1"
+{% endif %}
         ports:
          - containerPort: 5000
         volumeMounts:
