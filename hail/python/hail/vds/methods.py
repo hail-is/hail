@@ -144,9 +144,14 @@ def to_merged_sparse_mt(vds: 'VariantDataset') -> 'MatrixTable':
     return ht._unlocalize_entries('_entries', '_var_cols', list(vds.variant_data.col_key))
 
 
-@typecheck(vds=VariantDataset, name=str, gq_bins=sequenceof(int))
-def sample_qc(vds: 'VariantDataset', *, name='sample_qc', gq_bins: 'Sequence[int]' = (0, 20, 60)) -> 'Table':
-    """Run sample_qc on dataset in the split :class:`.VariantDataset` representation.
+@typecheck(vds=VariantDataset, gq_bins=sequenceof(int), dp_bins=sequenceof(int), dp_field=nullable(str))
+def sample_qc(vds: 'VariantDataset', *, gq_bins: 'Sequence[int]' = (0, 20, 60),
+              dp_bins: 'Sequence[int]' = (0, 1, 10, 20, 30), dp_field=None) -> 'Table':
+    """Compute sample quality metrics about a :class:`.VariantDataset`.
+
+    If the `dp_field` parameter is not specified, the ``DP`` is used for depth
+    if present. If no ``DP`` field is present, the ``MIN_DP`` field is used. If no ``DP``
+    or ``MIN_DP`` field is present, no depth statistics will be calculated.
 
     Parameters
     ----------
@@ -156,6 +161,10 @@ def sample_qc(vds: 'VariantDataset', *, name='sample_qc', gq_bins: 'Sequence[int
         Name for resulting field.
     gq_bins : :class:`tuple` of :obj:`int`
         Tuple containing cutoffs for genotype quality (GQ) scores.
+    dp_bins : :class:`tuple` of :obj:`int`
+        Tuple containing cutoffs for depth (DP) scores.
+    dp_field : :obj:`str`
+        Name of depth field. If not supplied, DP or MIN_DP will be used, in that order.
 
     Returns
     -------
@@ -165,6 +174,17 @@ def sample_qc(vds: 'VariantDataset', *, name='sample_qc', gq_bins: 'Sequence[int
 
     require_first_key_field_locus(vds.reference_data, 'sample_qc')
     require_first_key_field_locus(vds.variant_data, 'sample_qc')
+
+    ref = vds.reference_data
+
+    if 'DP' in ref.entry:
+        ref_dp_field_to_use = 'DP'
+    elif 'MIN_DP' in ref.entry:
+        ref_dp_field_to_use = 'MIN_DP'
+    else:
+        ref_dp_field_to_use = dp_field
+
+
 
     from hail.expr.functions import _num_allele_type, _allele_types
 
@@ -214,16 +234,18 @@ def sample_qc(vds: 'VariantDataset', *, name='sample_qc', gq_bins: 'Sequence[int
          .map(lambda allele_idx: vmt[variant_atypes][allele_idx - 1]))
     )
 
-    gq_exprs = hl.agg.filter(
-        hl.is_defined(vmt.GT),
-        hl.struct(**{f'gq_over_{x}': hl.agg.count_where(vmt.GQ >= x) for x in gq_bins})
-    )
+    dp_exprs = {}
+    if ref_dp_field_to_use is not None and 'DP' in vmt.entry:
+        dp_exprs['dp'] = hl.tuple(hl.agg.count_where(vmt.DP >= x) for x in dp_bins)
+
+    gq_dp_exprs =  hl.struct(**{'gq': hl.tuple(hl.agg.count_where(vmt.GQ >= x) for x in gq_bins)},
+                  **dp_exprs)
 
     result_struct = hl.rbind(
         hl.struct(**bound_exprs),
         lambda x: hl.rbind(
             hl.struct(**{
-                'gq_exprs': gq_exprs,
+                'gq_dp_exprs': gq_dp_exprs,
                 'n_het': x.n_het,
                 'n_hom_var': x.n_hom_var,
                 'n_non_ref': x.n_het + x.n_hom_var,
@@ -246,16 +268,32 @@ def sample_qc(vds: 'VariantDataset', *, name='sample_qc', gq_bins: 'Sequence[int
     variant_results = vmt.select_cols(**result_struct).cols()
 
     rmt = vds.reference_data
-    ref_results = rmt.select_cols(
-        gq_exprs=hl.struct(**{
-            f'gq_over_{x}': hl.agg.filter(rmt.GQ >= x, hl.agg.sum(1 + rmt.END - rmt.locus.position)) for x in gq_bins
-        })
-    ).cols()
 
-    joined = ref_results[variant_results.key].gq_exprs
-    joined_results = variant_results.transmute(**{
-        f'gq_over_{x}': variant_results.gq_exprs[f'gq_over_{x}'] + joined[f'gq_over_{x}'] for x in gq_bins
-    })
+    ref_dp_expr = {}
+    if ref_dp_field_to_use is not None:
+        ref_dp_expr['ref_bases_over_dp_threshold'] = hl.tuple(
+            hl.agg.filter(rmt[ref_dp_field_to_use] >= x, hl.agg.sum(1 + rmt.END - rmt.locus.position)) for x in
+            dp_bins)
+    ref_results = rmt.select_cols(
+        ref_bases_over_gq_threshold=hl.tuple(
+            hl.agg.filter(rmt.GQ >= x, hl.agg.sum(1 + rmt.END - rmt.locus.position)) for x in gq_bins),
+        **ref_dp_expr).cols()
+
+    joined = ref_results[variant_results.key]
+
+    joined_dp_expr = {}
+    dp_bins_field = {}
+    if ref_dp_field_to_use is not None:
+        joined_dp_expr['bases_over_dp_threshold'] = hl.tuple(
+            x + y for x, y in zip(variant_results.gq_dp_exprs.dp, joined.ref_bases_over_dp_threshold))
+        dp_bins_field['dp_bins'] = hl.tuple(dp_bins)
+
+    joined_results = variant_results.transmute(
+        bases_over_gq_threshold=hl.tuple(
+            x + y for x, y in zip(variant_results.gq_dp_exprs.gq, joined.ref_bases_over_gq_threshold)),
+        **joined_dp_expr)
+
+    joined_results = joined_results.annotate_globals(gq_bins = hl.tuple(gq_bins), **dp_bins_field)
     return joined_results
 
 
@@ -597,7 +635,7 @@ def interval_coverage(vds: VariantDataset, intervals: hl.Table, gq_thresholds=(0
      -  ``mean_dp`` (*float64*): Mean depth of bases across the interval. Computed by dividing
         *mean_dp* by *interval_size*.
 
-    If the `dp_field_to_use` parameter is not specified, the ``DP`` is used for depth
+    If the `dp_field` parameter is not specified, the ``DP`` is used for depth
     if present. If no ``DP`` field is present, the ``MIN_DP`` field is used. If no ``DP``
     or ``MIN_DP`` field is present, no depth statistics will be calculated.
 
