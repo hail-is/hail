@@ -460,8 +460,8 @@ class Table(ExprContainer):
         Parallelize a list of dictionaries:
 
         >>> a = [ {'a': 5, 'b': 10}, {'a': 0, 'b': 200} ]
-        >>> table = hl.Table.parallelize(hl.literal(a, 'array<struct{a: int, b: int}>'))
-        >>> table.show()
+        >>> t = hl.Table.parallelize(hl.literal(a, 'array<struct{a: int, b: int}>'))
+        >>> t.show()
 
         Parallelize complex JSON with a `partial_type`:
 
@@ -3327,7 +3327,7 @@ class Table(ExprContainer):
         :class:`.Table`
         """
 
-        key = [key] if isinstance(key, str) else key 
+        key = [key] if isinstance(key, str) else key
         fields = list(df.columns)
         pd_dtypes = df.dtypes
         hl_type_hints = {}

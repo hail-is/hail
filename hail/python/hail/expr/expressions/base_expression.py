@@ -17,7 +17,6 @@ from .indices import Indices, Aggregation
 from hail.expr.types import summary_type
 
 
-
 class Summary(object):
     def __init__(self, type, count, summ_fields, nested, header=None):
         self.count = count
