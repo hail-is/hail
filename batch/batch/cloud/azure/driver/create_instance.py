@@ -174,6 +174,7 @@ CORES=$(nproc)
 NAMESPACE=$(jq -r '.namespace' userdata)
 ACTIVATION_TOKEN=$(jq -r '.activation_token' userdata)
 IP_ADDRESS=$(curl -s -H Metadata:true --noproxy "*" "http://169.254.169.254/metadata/instance/network/interface/0/ipv4/ipAddress/0/privateIpAddress?api-version=2021-02-01&format=text")
+EXTERNAL_IP_ADDRESS=$(curl -s -H Metadata:true --noproxy "*" "http://169.254.169.254/metadata/instance/network/interface/0/ipv4/ipAddress/0/publicIpAddress?api-version=2017-08-01&format=text")
 
 BATCH_LOGS_STORAGE_URI=$(jq -r '.batch_logs_storage_uri' userdata)
 INSTANCE_ID=$(jq -r '.instance_id' userdata)
@@ -228,6 +229,7 @@ docker run \
 -e NAMESPACE=$NAMESPACE \
 -e ACTIVATION_TOKEN=$ACTIVATION_TOKEN \
 -e IP_ADDRESS=$IP_ADDRESS \
+-e EXTERNAL_IP_ADDRESS=$EXTERNAL_IP_ADDRESS \
 -e BATCH_LOGS_STORAGE_URI=$BATCH_LOGS_STORAGE_URI \
 -e INSTANCE_ID=$INSTANCE_ID \
 -e SUBSCRIPTION_ID=$SUBSCRIPTION_ID \

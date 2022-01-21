@@ -120,6 +120,7 @@ NAME = os.environ['NAME']
 NAMESPACE = os.environ['NAMESPACE']
 # ACTIVATION_TOKEN
 IP_ADDRESS = os.environ['IP_ADDRESS']
+EXTERNAL_IP_ADDRESS = os.environ['EXTERNAL_IP_ADDRESS']
 INTERNAL_GATEWAY_IP = os.environ['INTERNAL_GATEWAY_IP']
 BATCH_LOGS_STORAGE_URI = os.environ['BATCH_LOGS_STORAGE_URI']
 INSTANCE_ID = os.environ['INSTANCE_ID']
@@ -140,6 +141,7 @@ log.info(f'NAME {NAME}')
 log.info(f'NAMESPACE {NAMESPACE}')
 # ACTIVATION_TOKEN
 log.info(f'IP_ADDRESS {IP_ADDRESS}')
+log.info(f'EXTERNAL_IP_ADDRESS {EXTERNAL_IP_ADDRESS}')
 log.info(f'BATCH_LOGS_STORAGE_URI {BATCH_LOGS_STORAGE_URI}')
 log.info(f'INSTANCE_ID {INSTANCE_ID}')
 log.info(f'DOCKER_PREFIX {DOCKER_PREFIX}')
@@ -202,7 +204,6 @@ class NetworkNamespace:
 
     async def init(self):
         await self.create_netns()
-        await self.enable_iptables_forwarding()
 
         os.makedirs(f'/etc/netns/{self.network_ns_name}')
         with open(f'/etc/netns/{self.network_ns_name}/hosts', 'w') as hosts:
@@ -236,12 +237,6 @@ ip -n {self.network_ns_name} link set dev {self.veth_job} up && \
 ip -n {self.network_ns_name} link set dev lo up && \
 ip -n {self.network_ns_name} address add {self.job_ip}/24 dev {self.veth_job} && \
 ip -n {self.network_ns_name} route add default via {self.host_ip}'''
-        )
-
-    async def enable_iptables_forwarding(self):
-        await check_shell(
-            f'''
-iptables -w {IPTABLES_WAIT_TIMEOUT_SECS} --append FORWARD --out-interface {self.veth_host} --in-interface {self.veth_host} --jump ACCEPT'''
         )
 
     async def expose_port(self, port, host_port):
@@ -883,7 +878,7 @@ class Container:
         if self.port is not None:
             assert self.host_port is not None
             env.append(f'HAIL_BATCH_WORKER_PORT={self.host_port}')
-            env.append(f'HAIL_BATCH_WORKER_IP={IP_ADDRESS}')
+            env.append(f'HAIL_BATCH_WORKER_IP={EXTERNAL_IP_ADDRESS}')
         return env
 
     async def delete_container(self):
