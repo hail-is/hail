@@ -137,18 +137,20 @@ class StatBin(Stat):
         self.bins = bins
 
     def make_agg(self, mapping):
-        return hl.agg.hist(mapping["x"], self.start, self.end, self.bins)
+        discrete_variables = {aes_key: mapping[aes_key] for aes_key in mapping.keys()
+                              if not is_continuous_type(mapping[aes_key].dtype)}
+        return hl.agg.group_by(hl.struct(**discrete_variables), hl.agg.hist(mapping["x"], self.start, self.end, self.bins))
 
     def listify(self, agg_result):
-        x_edges = agg_result.bin_edges
-        y_values = agg_result.bin_freq
+        items = list(agg_result.items())
+        x_edges = items[0][1].bin_edges
         num_edges = len(x_edges)
         data_rows = []
-        for i, x in enumerate(x_edges[:num_edges - 1]):
-            x_value = (x_edges[i + 1] - x) / 2 + x
-            width_value = x_edges[i + 1] - x
-            data_rows.append(hl.Struct(x=x_value, y=y_values[i], width=width_value))
-
+        for key, hist in items:
+            y_values = hist.bin_freq
+            for i, x in enumerate(x_edges[:num_edges - 1]):
+                x_value = x
+                data_rows.append(hl.Struct(x=x_value, y=y_values[i], **key))
         return data_rows
 
 
@@ -257,33 +259,41 @@ def geom_text(mapping=aes(), *, color=None):
 
 class GeomBar(Geom):
 
-    def __init__(self, aes, color=None, position="stack"):
+    def __init__(self, aes, fill=None, color=None, position="stack"):
         super().__init__(aes)
+        self.fill = fill
         self.color = color
         self.position = position
 
     def apply_to_fig(self, parent, agg_result, fig_so_far):
-        def plot_group(data, color=None):
+        def plot_group(data):
+            if self.fill is None:
+                if "fill" in data[0]:
+                    fill = [element["fill"] for element in data]
+                else:
+                    fill = "black"
+            else:
+                fill = self.fill
+
             bar_args = {
                 "x": [element["x"] for element in data],
                 "y": [element["y"] for element in data],
-                "marker_color": color if color is not None else [element["color"] for element in data]
+                "marker_color": fill
             }
             if "color_legend" in data[0]:
                 bar_args["name"] = data[0]["color_legend"]
 
+            if self.color is None and "color" in data[0]:
+                bar_args["marker_line_color"] = [element["color"] for element in data]
+            elif self.color is not None:
+                bar_args["marker_line_color"] = self.color
+
             fig_so_far.add_bar(**bar_args)
 
-        if self.color is not None:
-            plot_group(agg_result, self.color)
-
-        elif "color" in parent.aes or "color" in self.aes:
-            groups = set([element["group"] for element in agg_result])
-            for group in groups:
-                just_one_group = [element for element in agg_result if element["group"] == group]
-                plot_group(just_one_group)
-        else:
-            plot_group(agg_result, "black")
+        groups = set([element["group"] for element in agg_result])
+        for group in groups:
+            just_one_group = [element for element in agg_result if element["group"] == group]
+            plot_group(just_one_group)
 
         ggplot_to_plotly = {'dodge': 'group', 'stack': 'stack'}
         fig_so_far.update_layout(barmode=ggplot_to_plotly[self.position])
@@ -292,41 +302,79 @@ class GeomBar(Geom):
         return StatCount()
 
 
-def geom_bar(mapping=aes(), *, color=None, position="stack"):
-    return GeomBar(mapping, color=color, position=position)
+def geom_bar(mapping=aes(), *, fill=None, color=None, position="stack"):
+    return GeomBar(mapping, fill=fill, color=color, position=position)
 
 
 class GeomHistogram(Geom):
 
-    def __init__(self, aes, min_bin=0, max_bin=100, bins=30, color=None):
+    def __init__(self, aes, min_bin=0, max_bin=100, bins=30, fill=None, color=None, position='stack'):
         super().__init__(aes)
         self.min_bin = min_bin
         self.max_bin = max_bin
         self.bins = bins
+        self.fill = fill
         self.color = color
+        self.position = position
 
     def apply_to_fig(self, parent, agg_result, fig_so_far):
-        x_values = [item.x for item in agg_result]
-        y_values = [item.y for item in agg_result]
-        widths = [item.width for item in agg_result]
+        bin_width = (self.max_bin - self.min_bin) / self.bins
 
-        if self.color is not None:
-            color = self.color
-        elif "color" in parent.aes or "color" in self.aes:
-            color = [self.aes["color"](y_value) for y_value in y_values]
-        else:
-            color = "black"
+        def plot_group(data, num_groups):
+            x = []
 
-        fig_so_far.add_bar(x=x_values, y=y_values, width=widths, marker_color=color)
+            for element in data:
+                left_x = element.x
+                if self.position == "dodge":
+                    group = element.group
+                    center_x = left_x + bin_width * (2 * group + 1) / (2 * num_groups)
+
+                elif self.position == "stack":
+                    center_x = left_x + bin_width / 2
+
+                x.append(center_x)
+
+            if self.fill is None:
+                if "fill" in data[0]:
+                    fill = [element["fill"] for element in data]
+                else:
+                    fill = "black"
+            else:
+                fill = self.fill
+
+            hist_args = {
+                "x": x,
+                "y": [element["y"] for element in data],
+                "marker_color": fill
+            }
+
+            if self.color is None and "color" in data[0]:
+                hist_args["marker_line_color"] = [element["color"] for element in data]
+            elif self.color is not None:
+                hist_args["marker_line_color"] = self.color
+
+            width = bin_width if self.position == 'stack' else bin_width / num_groups
+            hist_args["width"] = [width] * len(data)
+
+            print(hist_args)
+            fig_so_far.add_bar(**hist_args)
+
+        groups = set([element["group"] for element in agg_result])
+        for group in groups:
+            just_one_group = [element for element in agg_result if element["group"] == group]
+            plot_group(just_one_group, len(groups))
+
+        ggplot_to_plotly = {'dodge': 'group', 'stack': 'stack'}
+        fig_so_far.update_layout(barmode=ggplot_to_plotly[self.position])
 
     def get_stat(self):
         return StatBin(self.min_bin, self.max_bin, self.bins)
 
 
-def geom_histogram(mapping=aes(), min_bin=None, max_bin=None, bins=30, *, color=None):
+def geom_histogram(mapping=aes(), min_bin=None, max_bin=None, bins=30, *, fill=None, color=None, position='stack'):
     assert(min_bin is not None)
     assert(max_bin is not None)
-    return GeomHistogram(mapping, min_bin, max_bin, bins, color)
+    return GeomHistogram(mapping, min_bin, max_bin, bins, fill, color, position)
 
 
 linetype_dict = {
@@ -396,27 +444,29 @@ class GeomTile(Geom):
         self.aes = aes
 
     def apply_to_fig(self, parent, agg_result, fig_so_far):
-        def plot_group(data, fill=None):
+        def plot_group(data):
             for idx, row in enumerate(data):
                 x_center = row['x']
                 y_center = row['y']
                 width = row['width']
                 height = row['height']
-                alpha= row.get('alpha', 1.0)
-                x_left = x_center - width / 2
-                x_right = x_center + width / 2
-                y_up = y_center + height / 2
-                y_down = y_center - height / 2
-                fill = fill if fill is not None else row['fill']
-                fig_so_far.add_shape(type="rect", x0=x_left, y0=y_down, x1=x_right, y1=y_up, fillcolor=fill, opacity=alpha)
+                shape_args = {
+                    "type": "rect",
+                    "x0": x_center - width / 2,
+                    "y0": y_center - height / 2,
+                    "x1": x_center + width / 2,
+                    "y1": y_center + height / 2,
+                    "fillcolor": "black" if "fill" not in row else row["fill"],
+                    "opacity": row.get('alpha', 1.0)
+                }
+                if "color" in row:
+                    shape_args["line_color"] = row["color"]
+                fig_so_far.add_shape(**shape_args)
 
-        if "fill" in parent.aes or "fill" in self.aes:
-            groups = set([element["group"] for element in agg_result])
-            for group in groups:
-                just_one_group = [element for element in agg_result if element["group"] == group]
-                plot_group(just_one_group)
-        else:
-            plot_group(agg_result, "black")
+        groups = set([element["group"] for element in agg_result])
+        for group in groups:
+            just_one_group = [element for element in agg_result if element["group"] == group]
+            plot_group(just_one_group)
 
     def get_stat(self):
         return StatIdentity()

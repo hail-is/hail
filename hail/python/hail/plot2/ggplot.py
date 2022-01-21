@@ -135,6 +135,7 @@ class GGPlot:
 
         for geom, (label, agg_result) in zip(self.geoms, aggregated.items()):
             listified_agg_result = labels_to_stats[label].listify(agg_result)
+            print(listified_agg_result)
 
             if listified_agg_result:
                 # apply local scales here
