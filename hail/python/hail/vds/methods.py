@@ -184,8 +184,6 @@ def sample_qc(vds: 'VariantDataset', *, gq_bins: 'Sequence[int]' = (0, 20, 60),
     else:
         ref_dp_field_to_use = dp_field
 
-
-
     from hail.expr.functions import _num_allele_type, _allele_types
 
     allele_types = _allele_types[:]
@@ -238,8 +236,8 @@ def sample_qc(vds: 'VariantDataset', *, gq_bins: 'Sequence[int]' = (0, 20, 60),
     if ref_dp_field_to_use is not None and 'DP' in vmt.entry:
         dp_exprs['dp'] = hl.tuple(hl.agg.count_where(vmt.DP >= x) for x in dp_bins)
 
-    gq_dp_exprs =  hl.struct(**{'gq': hl.tuple(hl.agg.count_where(vmt.GQ >= x) for x in gq_bins)},
-                  **dp_exprs)
+    gq_dp_exprs = hl.struct(**{'gq': hl.tuple(hl.agg.count_where(vmt.GQ >= x) for x in gq_bins)},
+                            **dp_exprs)
 
     result_struct = hl.rbind(
         hl.struct(**bound_exprs),
@@ -293,7 +291,7 @@ def sample_qc(vds: 'VariantDataset', *, gq_bins: 'Sequence[int]' = (0, 20, 60),
             x + y for x, y in zip(variant_results.gq_dp_exprs.gq, joined.ref_bases_over_gq_threshold)),
         **joined_dp_expr)
 
-    joined_results = joined_results.annotate_globals(gq_bins = hl.tuple(gq_bins), **dp_bins_field)
+    joined_results = joined_results.annotate_globals(gq_bins=hl.tuple(gq_bins), **dp_bins_field)
     return joined_results
 
 
