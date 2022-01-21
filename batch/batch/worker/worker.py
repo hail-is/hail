@@ -1442,7 +1442,7 @@ class DockerJob(Job):
 
                             credentials = self.credentials.cloudfuse_credentials(config)
                             credentials_path = CLOUD_WORKER_API.write_cloudfuse_credentials(
-                                credentials, self.scratch, bucket
+                                self.scratch, credentials, bucket
                             )
 
                             os.makedirs(self.cloudfuse_data_path(bucket), exist_ok=True)
