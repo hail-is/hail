@@ -61,8 +61,8 @@ def parser():
         description='Modify active Dataproc clusters.')
     describe_parser = subparsers.add_parser(
         'describe',
-        help='Gather information about a hail file (including the schema)',
-        description='Gather information about a hail file (including the schema)')
+        help='DEPRECATED. Describe Hail Matrix Table and Table files.',
+        description='DEPRECATED. Describe Hail Matrix Table and Table files.')
 
     start_parser.set_defaults(module='start')
     start.init_parser(start_parser)

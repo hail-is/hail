@@ -455,7 +455,7 @@ abstract class RegistryFunctions {
       case t if t.isPrimitive => SType.extractPrimValue(cb, code)
       case TCall => code.asCall.canonicalCall(cb)
       case TArray(TString) => code.st match {
-        case _: SJavaArrayString => cb.memoize(code.asInstanceOf[SJavaArrayStringCode].array)
+        case _: SJavaArrayString => cb.memoize(code.asInstanceOf[SJavaArrayStringValue].array)
         case _ =>
           val sv = code.asIndexable
           val arr = cb.newLocal[Array[String]]("scode_array_string", Code.newArray[String](sv.loadLength()))
@@ -640,6 +640,12 @@ abstract class RegistryFunctions {
     registerSeeded(name, Array(arg1, arg2), returnType, unwrappedApply(pt)) { case
       (cb, r, rt, seed, Array(a1, a2)) =>
       impl(cb, r, rt, seed, a1, a2)
+    }
+
+  def registerSeeded3(name: String, arg1: Type, arg2: Type, arg3: Type, returnType: Type, pt: (Type, SType, SType, SType) => SType)
+    (impl: (EmitCodeBuilder, Value[Region], SType, Long, SValue, SValue, SValue) => SValue): Unit =
+    registerSeeded(name, Array(arg1, arg2, arg3), returnType, unwrappedApply(pt)) {
+      case (cb, r, rt, seed, Array(a1, a2, a3)) => impl(cb, r, rt, seed, a1, a2, a3)
     }
 
   def registerSeeded4(name: String, arg1: Type, arg2: Type, arg3: Type, arg4: Type, returnType: Type, pt: (Type, SType, SType, SType, SType) => SType)

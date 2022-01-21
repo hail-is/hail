@@ -2,10 +2,6 @@ variable az_resource_group_name {
   type = string
 }
 
-variable subscription_id {
-  type = string
-}
-
 variable domain {
   type = string
 }
@@ -23,6 +19,10 @@ variable acr_sku {
 variable k8s_machine_type {
   type = string
   default = "Standard_D2_v2"
+}
+
+variable organization_domain {
+  type = string
 }
 
 variable "ci_config" {

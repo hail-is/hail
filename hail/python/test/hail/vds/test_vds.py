@@ -92,8 +92,6 @@ def test_conversion_equivalence():
     assert svcr._same(svcr_readback)
 
 
-@fails_local_backend
-@fails_service_backend
 def test_sampleqc_old_new_equivalence():
     vds = hl.vds.read_vds(os.path.join(resource('vds'), '1kg_chr22_5_samples.vds'))
     sqc = hl.vds.sample_qc(vds)
@@ -120,8 +118,6 @@ def test_sampleqc_old_new_equivalence():
         'r_insertion_deletion'
     ]
 
-    res.sample_qc.describe()
-    sqc.describe()
     assert res.aggregate_cols(hl.all(
         *(hl.agg.all(res.sample_qc[field] == res.sample_qc_new[field]) for field in fields_to_test)
     ))
@@ -199,26 +195,34 @@ def test_interval_coverage():
         key='interval')
 
     checkpoint_path = new_temp_file()
-    r = hl.vds.interval_coverage(vds, intervals).checkpoint(checkpoint_path)
+    r = hl.vds.interval_coverage(vds, intervals, dp_thresholds=(0,1,6)).checkpoint(checkpoint_path)
     assert r.aggregate_rows(hl.agg.collect((hl.format('%s:%d-%d', r.interval.start.contig, r.interval.start.position,
                                                       r.interval.end.position), r.interval_size))) == [(interval1, 10),
                                                                                                        (interval2, 9)]
 
-    r.entries().show(width=10000, n_rows=10000)
-
     observed = r.aggregate_entries(hl.agg.collect(r.entry))
     expected = [
-        hl.Struct(bases_over_gq_threshold=(10, 0), sum_dp=55, fraction_over_gq_threshold=(1.0, 0.0), mean_dp=5.5),
-        hl.Struct(bases_over_gq_threshold=(10, 0), sum_dp=45, fraction_over_gq_threshold=(1.0, 0.0), mean_dp=4.5),
-        hl.Struct(bases_over_gq_threshold=(0, 0), sum_dp=0, fraction_over_gq_threshold=(0.0, 0.0), mean_dp=0),
-        hl.Struct(bases_over_gq_threshold=(10, 0), sum_dp=30, fraction_over_gq_threshold=(1.0, 0.0), mean_dp=3.0),
-        hl.Struct(bases_over_gq_threshold=(9, 0), sum_dp=10, fraction_over_gq_threshold=(0.9, 0.0), mean_dp=1.0),
+        hl.Struct(bases_over_gq_threshold=(10, 0), bases_over_dp_threshold=(10, 10, 0), sum_dp=55,
+                  fraction_over_gq_threshold=(1.0, 0.0), fraction_over_dp_threshold=(1.0, 1.0, 0.0), mean_dp=5.5),
+        hl.Struct(bases_over_gq_threshold=(10, 0), bases_over_dp_threshold=(10, 10, 0), sum_dp=45,
+                  fraction_over_gq_threshold=(1.0, 0.0), fraction_over_dp_threshold=(1.0, 1.0, 0), mean_dp=4.5),
+        hl.Struct(bases_over_gq_threshold=(0, 0), bases_over_dp_threshold=(0, 0, 0), sum_dp=0,
+                  fraction_over_gq_threshold=(0.0, 0.0), fraction_over_dp_threshold=(0, 0, 0), mean_dp=0),
+        hl.Struct(bases_over_gq_threshold=(10, 0), bases_over_dp_threshold=(10, 10, 0), sum_dp=30,
+                  fraction_over_gq_threshold=(1.0, 0.0), fraction_over_dp_threshold=(1.0, 1.0, 0.0), mean_dp=3.0),
+        hl.Struct(bases_over_gq_threshold=(9, 0), bases_over_dp_threshold=(10, 0, 0), sum_dp=10,
+                  fraction_over_gq_threshold=(0.9, 0.0), fraction_over_dp_threshold=(1.0, 0.0, 0.0), mean_dp=1.0),
 
-        hl.Struct(bases_over_gq_threshold=(9, 9), sum_dp=153, fraction_over_gq_threshold=(1.0, 1.0), mean_dp=17.0),
-        hl.Struct(bases_over_gq_threshold=(9, 9), sum_dp=159, fraction_over_gq_threshold=(1.0, 1.0), mean_dp=159 / 9),
-        hl.Struct(bases_over_gq_threshold=(9, 9), sum_dp=98, fraction_over_gq_threshold=(1.0, 1.0), mean_dp=98 / 9),
-        hl.Struct(bases_over_gq_threshold=(9, 9), sum_dp=72, fraction_over_gq_threshold=(1.0, 1.0), mean_dp=8),
-        hl.Struct(bases_over_gq_threshold=(9, 0), sum_dp=20, fraction_over_gq_threshold=(1.0, 0.0), mean_dp=2 / 9),
+        hl.Struct(bases_over_gq_threshold=(9, 9), bases_over_dp_threshold=(9, 9, 9), sum_dp=153,
+                  fraction_over_gq_threshold=(1.0, 1.0), fraction_over_dp_threshold=(1.0, 1.0, 1.0), mean_dp=17.0),
+        hl.Struct(bases_over_gq_threshold=(9, 9), bases_over_dp_threshold=(9, 9, 9), sum_dp=159,
+                  fraction_over_gq_threshold=(1.0, 1.0), fraction_over_dp_threshold=(1.0, 1.0, 1.0), mean_dp=159 / 9),
+        hl.Struct(bases_over_gq_threshold=(9, 9), bases_over_dp_threshold=(9, 9, 9), sum_dp=98,
+                  fraction_over_gq_threshold=(1.0, 1.0), fraction_over_dp_threshold=(1.0, 1.0, 1.0), mean_dp=98 / 9),
+        hl.Struct(bases_over_gq_threshold=(9, 9), bases_over_dp_threshold=(9, 9, 9), sum_dp=72,
+                  fraction_over_gq_threshold=(1.0, 1.0), fraction_over_dp_threshold=(1.0, 1.0, 1.0), mean_dp=8),
+        hl.Struct(bases_over_gq_threshold=(9, 0), bases_over_dp_threshold=(9, 9, 0), sum_dp=20,
+                  fraction_over_gq_threshold=(1.0, 0.0), fraction_over_dp_threshold=(1.0, 1.0, 0.0), mean_dp=2 / 9),
     ]
 
     for i in range(len(expected)):
@@ -226,5 +230,57 @@ def test_interval_coverage():
         exp = expected[i]
         assert obs.bases_over_gq_threshold == exp.bases_over_gq_threshold, i
         assert obs.sum_dp == exp.sum_dp, i
+        assert obs.bases_over_dp_threshold == exp.bases_over_dp_threshold, i
         assert obs.fraction_over_gq_threshold == exp.fraction_over_gq_threshold, i
+        assert obs.fraction_over_dp_threshold == exp.fraction_over_dp_threshold, i
         pytest.approx(obs.mean_dp, exp.mean_dp)
+
+
+@fails_local_backend
+@fails_service_backend
+def test_impute_sex_chromosome_ploidy():
+    x_par_end = 2699521
+    y_par_end = 2649521
+    rg = hl.get_reference('GRCh37')
+    ref_blocks = [
+        hl.Struct(s='sample_xx', ref_allele='A', locus=hl.Locus('22', 1000000, rg), END=2000000, GQ=15, DP=5),
+        hl.Struct(s='sample_xx', ref_allele='A', locus=hl.Locus('X', x_par_end-10, rg), END=x_par_end+9, GQ=18, DP=6),
+        hl.Struct(s='sample_xx', ref_allele='A', locus=hl.Locus('X', x_par_end+10, rg), END=x_par_end+29, GQ=15, DP=5),
+        hl.Struct(s='sample_xy', ref_allele='A', locus=hl.Locus('22', 1000000, rg), END=2000000, GQ=15, DP=5),
+        hl.Struct(s='sample_xy', ref_allele='A', locus=hl.Locus('X', x_par_end-10, rg), END=x_par_end+9, GQ=9, DP=3),
+        hl.Struct(s='sample_xy', ref_allele='A', locus=hl.Locus('X', x_par_end+10, rg), END=x_par_end+29, GQ=6, DP=2),
+        hl.Struct(s='sample_xy', ref_allele='A', locus=hl.Locus('Y', y_par_end-10, rg), END=y_par_end+9, GQ=12, DP=4),
+        hl.Struct(s='sample_xy', ref_allele='A', locus=hl.Locus('Y', y_par_end + 10, rg), END=y_par_end + 29, GQ=9, DP=3),
+    ]
+
+    ref_mt = hl.Table.parallelize(ref_blocks,
+                                  schema=hl.dtype('struct{s:str,locus:locus<GRCh37>,ref_allele:str,END:int32,GQ:int32,DP:int32}')) \
+        .to_matrix_table(row_key=['locus'], row_fields=['ref_allele'], col_key=['s'])
+    var_mt = hl.Table.parallelize([],
+                                  schema=hl.dtype('struct{locus:locus<GRCh37>,alleles:array<str>,s:str,LA:array<int32>,LGT:call,GQ:int32}'))\
+    .to_matrix_table(row_key=['locus', 'alleles'], col_key=['s'])
+
+    vds = hl.vds.VariantDataset(ref_mt, var_mt)
+
+    calling_intervals = [
+        hl.parse_locus_interval('22:1000010-1000020', reference_genome='GRCh37'),
+        hl.parse_locus_interval(f'X:{x_par_end}-{x_par_end+20}', reference_genome='GRCh37'),
+        hl.parse_locus_interval(f'Y:{y_par_end}-{y_par_end+20}', reference_genome='GRCh37'),
+    ]
+
+    r = hl.vds.impute_sex_chromosome_ploidy(vds, calling_intervals, normalization_contig='22')
+
+    assert r.collect() == [
+        hl.Struct(s='sample_xx',
+                  autosomal_mean_dp=5.0,
+                  x_mean_dp=5.5,
+                  x_ploidy=2.2,
+                  y_mean_dp=0.0,
+                  y_ploidy=0.0),
+        hl.Struct(s='sample_xy',
+                  autosomal_mean_dp=5.0,
+                  x_mean_dp=2.5,
+                  x_ploidy=1.0,
+                  y_mean_dp=3.5,
+                  y_ploidy=1.4)
+    ]

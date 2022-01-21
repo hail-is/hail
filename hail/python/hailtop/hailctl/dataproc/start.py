@@ -1,6 +1,5 @@
 import re
 
-import pkg_resources
 import yaml
 
 from . import gcloud
@@ -136,7 +135,7 @@ REGION_TO_REPLICATE_MAPPING = {
 
 ANNOTATION_DB_BUCKETS = ["hail-datasets-us", "hail-datasets-eu", "gnomad-public-requester-pays"]
 
-IMAGE_VERSION = '2.0.22-debian10'
+IMAGE_VERSION = '2.0.27-debian10'
 
 
 def init_parser(parser):
@@ -226,6 +225,8 @@ def init_parser(parser):
 
 
 async def main(args, pass_through_args):
+    import pkg_resources  # pylint: disable=import-outside-toplevel
+
     conf = ClusterConfig()
     conf.extend_flag('image-version', IMAGE_VERSION)
 

@@ -199,7 +199,7 @@ def test_nonzero_storage(client: BatchClient):
     assert status['state'] == 'Success', str((status, b.debug_info()))
 
 
-@fails_in_azure()
+@skip_in_azure()
 def test_attached_disk(client: BatchClient):
     builder = client.create_batch()
     resources = {'cpu': '0.25', 'memory': '10M', 'storage': '400Gi'}
@@ -630,8 +630,8 @@ def test_create_idempotence(client: BatchClient):
     token = secrets.token_urlsafe(32)
     builder1 = client.create_batch(token=token)
     builder2 = client.create_batch(token=token)
-    b1 = builder1._create()
-    b2 = builder2._create()
+    b1 = builder1._open_batch()
+    b2 = builder2._open_batch()
     assert b1.id == b2.id
 
 
@@ -943,7 +943,6 @@ def test_pool_highmem_instance(client: BatchClient):
     assert 'highmem' in status['status']['worker'], str((status, b.debug_info()))
 
 
-@fails_in_azure()
 def test_pool_highmem_instance_cheapest(client: BatchClient):
     builder = client.create_batch()
     resources = {'cpu': '1', 'memory': '5Gi'}
@@ -974,10 +973,9 @@ def test_pool_highcpu_instance_cheapest(client: BatchClient):
     assert 'highcpu' in status['status']['worker'], str((status, b.debug_info()))
 
 
-@fails_in_azure
 def test_pool_standard_instance(client: BatchClient):
     builder = client.create_batch()
-    resources = {'cpu': '0.25', 'memory': '500Mi'}
+    resources = {'cpu': '0.25', 'memory': 'standard'}
     j = builder.create_job(DOCKER_ROOT_IMAGE, ['true'], resources=resources)
     b = builder.submit()
     status = j.wait()
@@ -985,10 +983,9 @@ def test_pool_standard_instance(client: BatchClient):
     assert 'standard' in status['status']['worker'], str((status, b.debug_info()))
 
 
-@fails_in_azure()
 def test_pool_standard_instance_cheapest(client: BatchClient):
     builder = client.create_batch()
-    resources = {'cpu': '0.5', 'memory': '1Gi'}
+    resources = {'cpu': '1', 'memory': '2.5Gi'}
     j = builder.create_job(DOCKER_ROOT_IMAGE, ['true'], resources=resources)
     b = builder.submit()
     status = j.wait()

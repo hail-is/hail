@@ -15,8 +15,9 @@ import azure.core.exceptions
 
 from hailtop.utils import retry_transient_errors, flatten
 from hailtop.aiotools import WriteBuffer
-from hailtop.aiotools.fs import (AsyncFS, ReadableStream, WritableStream, MultiPartCreate, FileListEntry, FileStatus,
-                                 FileAndDirectoryError, UnexpectedEOFError)
+from hailtop.aiotools.fs import (AsyncFS, AsyncFSFactory, ReadableStream, WritableStream,
+                                 MultiPartCreate, FileListEntry, FileStatus, FileAndDirectoryError,
+                                 UnexpectedEOFError)
 
 from .credentials import AzureCredentials
 
@@ -436,3 +437,17 @@ class AzureAsyncFS(AsyncFS):
 
         if self._blob_service_clients:
             await asyncio.wait([client.close() for client in self._blob_service_clients.values()])
+
+
+class AzureAsyncFSFactory(AsyncFSFactory[AzureAsyncFS]):
+    def from_credentials_data(self, credentials_data: dict) -> AzureAsyncFS:  # pylint: disable=no-self-use
+        return AzureAsyncFS(
+            credentials=AzureCredentials.from_credentials_data(credentials_data))
+
+    def from_credentials_file(self, credentials_file: str) -> AzureAsyncFS:  # pylint: disable=no-self-use
+        return AzureAsyncFS(
+            credentials=AzureCredentials.from_file(credentials_file))
+
+    def from_default_credentials(self) -> AzureAsyncFS:  # pylint: disable=no-self-use
+        return AzureAsyncFS(
+            credentials=AzureCredentials.default_credentials())

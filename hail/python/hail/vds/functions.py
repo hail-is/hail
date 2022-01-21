@@ -19,4 +19,4 @@ def lgt_to_gt(lgt, la):
     -------
     :class:`.CallExpression`
     """
-    return _func("lgt_to_gt", hl.tcall, lgt, la)
+    return hl.rbind(lgt, lambda lgt: hl.if_else(lgt.is_non_ref(), _func("lgt_to_gt", hl.tcall, lgt, la), lgt))

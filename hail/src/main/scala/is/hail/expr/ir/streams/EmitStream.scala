@@ -218,10 +218,10 @@ object EmitStream {
 
       case In(n, _) =>
         // this, Code[Region], ...
-        val param = env.inputValues(n).apply(outerRegion)
+        val param = env.inputValues(n).apply(cb, outerRegion)
         if (!param.st.isInstanceOf[SStream])
           throw new RuntimeException(s"parameter ${ 2 + n } is not a stream! t=${ param.st } }, params=${ mb.emitParamTypes }")
-        param.load.toI(cb)
+        param
 
       case ToStream(a, _requiresMemoryManagementPerElement) =>
 
@@ -547,9 +547,9 @@ object EmitStream {
             val len = mb.genFieldThisRef[Int]("seq_sample_len")
             val regionVar = mb.genFieldThisRef[Region]("seq_sample_region")
 
-            val nRemaining = cb.newLocal[Int]("seq_sample_num_remaining", numToSampleVal.intCode(cb))
-            val candidate = cb.newLocal[Int]("seq_sample_candidate", 0)
-            val elementToReturn = cb.newLocal[Int]("seq_sample_element_to_return", -1) // -1 should never be returned.
+            val nRemaining = cb.newField[Int]("seq_sample_num_remaining", numToSampleVal.intCode(cb))
+            val candidate = cb.newField[Int]("seq_sample_candidate", 0)
+            val elementToReturn = cb.newField[Int]("seq_sample_element_to_return", -1) // -1 should never be returned.
 
             val producer = new StreamProducer {
               override val length: Option[EmitCodeBuilder => Code[Int]] = Some(_ => len)

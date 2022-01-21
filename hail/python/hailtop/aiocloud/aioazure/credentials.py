@@ -14,13 +14,17 @@ log = logging.getLogger(__name__)
 
 class AzureCredentials(CloudCredentials):
     @staticmethod
+    def from_credentials_data(credentials: dict, scopes: Optional[List[str]] = None):
+        credential = ClientSecretCredential(tenant_id=credentials['tenant'],
+                                            client_id=credentials['appId'],
+                                            client_secret=credentials['password'])
+        return AzureCredentials(credential, scopes)
+
+    @staticmethod
     def from_file(credentials_file: str, scopes: Optional[List[str]] = None):
         with open(credentials_file, 'r') as f:
-            data = json.loads(f.read())
-            credential = ClientSecretCredential(tenant_id=data['tenant'],
-                                                client_id=data['appId'],
-                                                client_secret=data['password'])
-            return AzureCredentials(credential, scopes)
+            credentials = json.loads(f.read())
+            return AzureCredentials.from_credentials_data(credentials, scopes)
 
     @staticmethod
     def default_credentials(scopes: Optional[List[str]] = None):

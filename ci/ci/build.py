@@ -5,7 +5,7 @@ from collections import defaultdict, Counter
 from shlex import quote as shq
 import yaml
 import jinja2
-from typing import Dict, List, Optional
+from typing import Dict, List
 from hailtop.utils import flatten
 from .utils import generate_token
 from .environment import (
@@ -92,40 +92,42 @@ class BuildConfiguration:
             raise BuildConfigurationError('Excluding build steps is only permitted in a dev scope')
 
         config = yaml.safe_load(config_str)
-        name_step: Dict[str, Optional[Step]] = {}
-        self.steps: List[Step] = []
-
         if requested_step_names:
             log.info(f"Constructing build configuration with steps: {requested_step_names}")
 
+        runnable_steps: List[Step] = []
+        name_step: Dict[str, Step] = {}
         for step_config in config['steps']:
-            step_params = StepParameters(code, scope, step_config, name_step)
-            step = Step.from_json(step_params)
-            if not step.run_if_requested or step.name in requested_step_names:
-                self.steps.append(step)
+            step = Step.from_json(StepParameters(code, scope, step_config, name_step))
+            if step.name not in excluded_step_names and step.can_run_in_current_cloud():
                 name_step[step.name] = step
-            else:
-                name_step[step.name] = None
+                runnable_steps.append(step)
 
-        # transitively close requested_step_names over dependencies
         if requested_step_names:
+            # transitively close requested_step_names over dependencies
             visited = set()
 
-            def request(step: Step):
+            def visit_dependent(step: Step):
                 if step not in visited and step.name not in excluded_step_names:
+                    if not step.can_run_in_current_cloud():
+                        raise BuildConfigurationError(f'Step {step.name} cannot be run in cloud {CLOUD}')
                     visited.add(step)
                     for s2 in step.deps:
-                        request(s2)
+                        if not s2.run_if_requested:
+                            visit_dependent(s2)
 
             for step_name in requested_step_names:
-                request(name_step[step_name])
-            self.steps = [s for s in self.steps if s in visited]
+                visit_dependent(name_step[step_name])
+            self.steps = [step for step in runnable_steps if step in visited]
+        else:
+            self.steps = [step for step in runnable_steps if not step.run_if_requested]
 
     def build(self, batch, code, scope):
         assert scope in ('deploy', 'test', 'dev')
 
         for step in self.steps:
-            if (step.scopes is None or scope in step.scopes) and (step.clouds is None or CLOUD in step.clouds):
+            if step.can_run_in_scope(scope):
+                assert step.can_run_in_current_cloud()
                 step.build(batch, code, scope)
 
         if scope == 'dev':
@@ -143,7 +145,7 @@ class BuildConfiguration:
                 f"Cleanup {step.name} after running {[parent_step.name for parent_step in step_to_parent_steps[step]]}"
             )
 
-            if (step.scopes is None or scope in step.scopes) and (step.clouds is None or CLOUD in step.clouds):
+            if step.can_run_in_scope(scope):
                 step.cleanup(batch, scope, parent_jobs)
 
 
@@ -156,7 +158,7 @@ class Step(abc.ABC):
             duplicates = [name for name, count in Counter(json['dependsOn']).items() if count > 1]
             if duplicates:
                 raise BuildConfigurationError(f'found duplicate dependencies of {self.name}: {duplicates}')
-            self.deps = [params.name_step[d] for d in json['dependsOn'] if params.name_step[d]]
+            self.deps = [params.name_step[d] for d in json['dependsOn'] if d in params.name_step]
         else:
             self.deps = []
         self.scopes = json.get('scopes')
@@ -193,6 +195,12 @@ class Step(abc.ABC):
                     visited.add(d)
                     frontier.append(d)
         return visited
+
+    def can_run_in_current_cloud(self):
+        return self.clouds is None or CLOUD in self.clouds
+
+    def can_run_in_scope(self, scope: str):
+        return self.scopes is None or scope in self.scopes
 
     @staticmethod
     def from_json(params):

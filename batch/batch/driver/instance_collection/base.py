@@ -14,19 +14,19 @@ from ...instance_config import QuantifiedResource
 from ...batch_configuration import WORKER_MAX_IDLE_TIME_MSECS
 from ..instance import Instance
 from ..location import CloudLocationMonitor
-from ..resource_manager import (CloudResourceManager, VMStateCreating, VMStateRunning,
-                                VMStateTerminated, VMDoesNotExist)
+from ..resource_manager import CloudResourceManager, VMStateCreating, VMStateRunning, VMStateTerminated, VMDoesNotExist
 
 
 log = logging.getLogger('inst_coll_manager')
 
 
 class InstanceCollectionManager:
-    def __init__(self,
-                 db: Database,  # BORROWED
-                 machine_name_prefix: str,
-                 location_monitor: CloudLocationMonitor
-                 ):
+    def __init__(
+        self,
+        db: Database,  # BORROWED
+        machine_name_prefix: str,
+        location_monitor: CloudLocationMonitor,
+    ):
         self.db: Database = db
         self.machine_name_prefix = machine_name_prefix
         self.location_monitor = location_monitor
@@ -38,15 +38,10 @@ class InstanceCollectionManager:
         assert inst_coll.name not in self.name_inst_coll
         self.name_inst_coll[inst_coll.name] = inst_coll
 
-    def choose_location(self,
-                        cores: int,
-                        local_ssd_data_disk: bool,
-                        data_disk_size_gb: int
-                        ) -> str:
+    def choose_location(self, cores: int, local_ssd_data_disk: bool, data_disk_size_gb: int) -> str:
         if self.global_live_total_cores_mcpu // 1000 < 1_000:
             return self.location_monitor.default_location()
-        return self.location_monitor.choose_location(
-            cores, local_ssd_data_disk, data_disk_size_gb)
+        return self.location_monitor.choose_location(cores, local_ssd_data_disk, data_disk_size_gb)
 
     @property
     def pools(self) -> Dict[str, 'InstanceCollection']:
@@ -94,18 +89,19 @@ class InstanceCollectionManager:
 
 
 class InstanceCollection:
-    def __init__(self,
-                 db: Database,  # BORROWED
-                 inst_coll_manager: InstanceCollectionManager,
-                 resource_manager: CloudResourceManager,
-                 cloud: str,
-                 name: str,
-                 machine_name_prefix: str,
-                 is_pool: bool,
-                 max_instances: int,
-                 max_live_instances: int,
-                 task_manager: aiotools.BackgroundTaskManager  # BORROWED
-                 ):
+    def __init__(
+        self,
+        db: Database,  # BORROWED
+        inst_coll_manager: InstanceCollectionManager,
+        resource_manager: CloudResourceManager,
+        cloud: str,
+        name: str,
+        machine_name_prefix: str,
+        is_pool: bool,
+        max_instances: int,
+        max_live_instances: int,
+        task_manager: aiotools.BackgroundTaskManager,  # BORROWED
+    ):
         self.db = db
         self.inst_coll_manager = inst_coll_manager
         self.resource_manager = resource_manager
@@ -134,14 +130,8 @@ class InstanceCollection:
     def n_instances(self) -> int:
         return len(self.name_instance)
 
-    def choose_location(self,
-                        cores: int,
-                        local_ssd_data_disk: bool,
-                        data_disk_size_gb: int
-                        ) -> str:
-        return self.inst_coll_manager.choose_location(cores,
-                                                      local_ssd_data_disk,
-                                                      data_disk_size_gb)
+    def choose_location(self, cores: int, local_ssd_data_disk: bool, data_disk_size_gb: int) -> str:
+        return self.inst_coll_manager.choose_location(cores, local_ssd_data_disk, data_disk_size_gb)
 
     def generate_machine_name(self) -> str:
         while True:
@@ -164,10 +154,7 @@ class InstanceCollection:
             self.live_total_cores_mcpu -= instance.cores_mcpu
             self.live_free_cores_mcpu_by_location[instance.location] -= max(0, instance.free_cores_mcpu)
 
-    async def remove_instance(self,
-                              instance: Instance,
-                              reason: str,
-                              timestamp: Optional[int] = None):
+    async def remove_instance(self, instance: Instance, reason: str, timestamp: Optional[int] = None):
         await instance.deactivate(reason, timestamp)
 
         await self.db.just_execute('UPDATE instances SET removed = 1 WHERE name = %s;', (instance.name,))
@@ -192,22 +179,22 @@ class InstanceCollection:
         self.name_instance[instance.name] = instance
         self.adjust_for_add_instance(instance)
 
-    async def _create_instance(self,
-                               app,
-                               cores: int,
-                               machine_type: str,
-                               job_private: bool,
-                               location: Optional[str],
-                               preemptible: bool,
-                               max_idle_time_msecs: Optional[int],
-                               local_ssd_data_disk,
-                               data_disk_size_gb,
-                               boot_disk_size_gb,
-                               ) -> Tuple[Instance, List[QuantifiedResource]]:
+    async def _create_instance(
+        self,
+        app,
+        cores: int,
+        machine_type: str,
+        job_private: bool,
+        location: Optional[str],
+        preemptible: bool,
+        max_idle_time_msecs: Optional[int],
+        local_ssd_data_disk,
+        data_disk_size_gb,
+        boot_disk_size_gb,
+    ) -> Tuple[Instance, List[QuantifiedResource]]:
         if location is None:
-            location = self.choose_location(cores,
-                                            local_ssd_data_disk,
-                                            data_disk_size_gb)
+            location = self.choose_location(cores, local_ssd_data_disk, data_disk_size_gb)
+
         if max_idle_time_msecs is None:
             max_idle_time_msecs = WORKER_MAX_IDLE_TIME_MSECS
 
@@ -220,6 +207,7 @@ class InstanceCollection:
             data_disk_size_gb=data_disk_size_gb,
             boot_disk_size_gb=boot_disk_size_gb,
             job_private=job_private,
+            location=location,
         )
         instance = await Instance.create(
             app=app,
@@ -230,12 +218,11 @@ class InstanceCollection:
             location=location,
             machine_type=machine_type,
             preemptible=True,
-            instance_config=instance_config
+            instance_config=instance_config,
         )
         self.add_instance(instance)
         total_resources_on_instance = await self.resource_manager.create_vm(
             file_store=app['file_store'],
-            resource_rates=app['resource_rates'],
             machine_name=machine_name,
             activation_token=activation_token,
             max_idle_time_msecs=max_idle_time_msecs,
@@ -251,11 +238,9 @@ class InstanceCollection:
 
         return (instance, total_resources_on_instance)
 
-    async def call_delete_instance(self,
-                                   instance: Instance,
-                                   reason: str,
-                                   timestamp: Optional[int] = None,
-                                   force: bool = False):
+    async def call_delete_instance(
+        self, instance: Instance, reason: str, timestamp: Optional[int] = None, force: bool = False
+    ):
         if instance.state == 'deleted' and not force:
             return
         if instance.state not in ('inactive', 'deleted'):
@@ -270,10 +255,14 @@ class InstanceCollection:
     async def check_on_instance(self, instance: Instance):
         active_and_healthy = await instance.check_is_active_and_healthy()
 
-        if (instance.state == 'active'
-                and instance.failed_request_count > 5
-                and time_msecs() - instance.last_updated > 5 * 60 * 1000):
-            log.exception(f'deleting {instance} with {instance.failed_request_count} failed request counts after more than 5 minutes')
+        if (
+            instance.state == 'active'
+            and instance.failed_request_count > 5
+            and time_msecs() - instance.last_updated > 5 * 60 * 1000
+        ):
+            log.exception(
+                f'deleting {instance} with {instance.failed_request_count} failed request counts after more than 5 minutes'
+            )
             await self.call_delete_instance(instance, 'not_responding')
             return
 
@@ -288,9 +277,11 @@ class InstanceCollection:
 
         log.info(f'{instance} vm_state {vm_state}')
 
-        if (instance.state == 'pending'
-                and isinstance(vm_state, (VMStateCreating, VMStateRunning))
-                and vm_state.time_since_last_state_change() > 5 * 60 * 1000):
+        if (
+            instance.state == 'pending'
+            and isinstance(vm_state, (VMStateCreating, VMStateRunning))
+            and vm_state.time_since_last_state_change() > 5 * 60 * 1000
+        ):
             log.exception(f'{instance} (state: {str(vm_state)}) has made no progress in last 5m, deleting')
             await self.call_delete_instance(instance, 'activation_timeout')
         elif isinstance(vm_state, VMStateTerminated):

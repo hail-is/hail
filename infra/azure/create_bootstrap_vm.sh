@@ -15,7 +15,7 @@ VM_NAME=bootstrap-vm
 ip=$(az vm create \
     --name $VM_NAME \
     --resource-group $RESOURCE_GROUP \
-    --image Canonical:UbuntuServer:18.04-LTS:latest \
+    --image Canonical:0001-com-ubuntu-server-focal:20_04-lts:latest \
     --vnet-name default \
     --subnet k8s-subnet \
     --public-ip-sku Standard \
@@ -26,6 +26,6 @@ az vm identity assign \
     --name $VM_NAME \
     --resource-group $RESOURCE_GROUP \
     --role Owner \
-    --scope /subscriptions/$SUBSCRIPTION_ID/resourcegroups/$RESOURCE_GROUP
+    --scope /subscriptions/$SUBSCRIPTION_ID
 
 echo "Successfully created a vm. SSH into it with ssh -i ~/.ssh/id_rsa <username>@$ip"

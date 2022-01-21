@@ -12,7 +12,7 @@ class AzureConfig:
             global_config['azure_location'],
         )
 
-    def __init__(self, subscription_id, resource_group, region):
+    def __init__(self, subscription_id: str, resource_group: str, region: str):
         self.subscription_id = subscription_id
         self.resource_group = resource_group
         self.region = region

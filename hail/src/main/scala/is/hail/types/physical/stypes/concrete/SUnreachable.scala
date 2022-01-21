@@ -227,6 +227,10 @@ class SUnreachableCallCode extends SUnreachableCode with SCallCode {
 }
 
 class SUnreachableCallValue extends SUnreachableValue with SCallValue {
+  override def unphase(cb: EmitCodeBuilder): SCallValue = this
+
+  def containsAllele(cb: EmitCodeBuilder, allele: Value[Int]): Value[Boolean] = const(false)
+
   override def forEachAllele(cb: EmitCodeBuilder)(alleleCode: Value[Int] => Unit): Unit = {}
 
   override def isPhased(cb: EmitCodeBuilder): Value[Boolean] = const(false)

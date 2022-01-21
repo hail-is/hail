@@ -1,4 +1,4 @@
-from typing import Deque, Set, Tuple
+from typing import Deque, Set, Tuple, Dict, Any
 import logging
 import json
 import secrets
@@ -110,6 +110,12 @@ class ExceededSharesCounter:
         return f'global {self._global_counter}'
 
 
+def accrued_cost_from_cost_and_msec_mcpu(record: Dict[str, Any]) -> float:
+    cost_msec_mcpu = cost_from_msec_mcpu(record['msec_mcpu'])
+    cost_resources = record['cost']
+    return coalesce(cost_msec_mcpu, 0) + coalesce(cost_resources, 0)
+
+
 async def query_billing_projects(db, user=None, billing_project=None):
     args = []
 
@@ -150,9 +156,7 @@ LOCK IN SHARE MODE;
 '''
 
     def record_to_dict(record):
-        cost_msec_mcpu = cost_from_msec_mcpu(record['msec_mcpu'])
-        cost_resources = record['cost']
-        record['accrued_cost'] = coalesce(cost_msec_mcpu, 0) + coalesce(cost_resources, 0)
+        record['accrued_cost'] = accrued_cost_from_cost_and_msec_mcpu(record)
         del record['msec_mcpu']
         del record['cost']
 

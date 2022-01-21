@@ -1,4 +1,5 @@
-from typing import Callable, TypeVar, Awaitable, Optional, Type, List, Dict
+from typing import Callable, TypeVar, Awaitable, Optional, Type, List, Dict, Iterable, Tuple
+from typing_extensions import Literal
 from types import TracebackType
 import concurrent
 import subprocess
@@ -27,6 +28,11 @@ from urllib3.poolmanager import PoolManager
 
 from .time import time_msecs
 
+try:
+    import aiodocker  # pylint: disable=import-error
+except ModuleNotFoundError:
+    aiodocker = None
+
 
 log = logging.getLogger('hailtop.utils')
 
@@ -48,8 +54,17 @@ def unpack_comma_delimited_inputs(inputs):
             for s in step.split(',') if s.strip()]
 
 
+def unpack_key_value_inputs(inputs):
+    key_values = [i.split('=') for i in unpack_comma_delimited_inputs(inputs)]
+    return {kv[0]: kv[1] for kv in key_values}
+
+
 def flatten(xxs):
     return [x for xs in xxs for x in xs]
+
+
+def filter_none(xs: Iterable[Optional[T]]) -> List[T]:
+    return [x for x in xs if x is not None]
 
 
 def first_extant_file(*files: Optional[str]) -> Optional[str]:
@@ -623,6 +638,9 @@ def is_transient_error(e):
         return True
     if isinstance(e, botocore.exceptions.ConnectionClosedError):
         return True
+    if aiodocker is not None and isinstance(e, aiodocker.exceptions.DockerError):
+        # aiodocker.exceptions.DockerError: DockerError(500, 'Get https://gcr.io/v2/: net/http: request canceled (Client.Timeout exceeded while awaiting headers)')
+        return e.status == 500 and 'Client.Timeout exceeded while awaiting headers' in e.message
     if isinstance(e, TransientError):
         return True
     return False
@@ -877,6 +895,20 @@ def url_scheme(url: str) -> str:
     return parsed.scheme
 
 
+def url_and_params(url: str) -> Tuple[str, Dict[str, str]]:
+    """Strip the query parameters from `url` and parse them into a dictionary.
+       Assumes that all query parameters are used only once, so have only one
+       value.
+    """
+    parsed = urllib.parse.urlparse(url)
+    params = {k: v[0] for k, v in urllib.parse.parse_qs(parsed.query).items()}
+    without_query = urllib.parse.urlunparse(parsed._replace(query=''))
+    return without_query, params
+
+
+RegistryProvider = Literal['google', 'azure', 'dockerhub']
+
+
 class ParsedDockerImageReference:
     def __init__(self, domain: str, path: str, tag: str, digest: str):
         self.domain = domain
@@ -888,6 +920,14 @@ class ParsedDockerImageReference:
         if self.domain:
             return self.domain + '/' + self.path
         return self.path
+
+    def hosted_in(self, registry: RegistryProvider) -> bool:
+        if registry == 'google':
+            return self.domain is not None and (self.domain == 'gcr.io' or self.domain.endswith('docker.pkg.dev'))
+        if registry == 'azure':
+            return self.domain is not None and self.domain.endswith('azurecr.io')
+        assert registry == 'dockerhub'
+        return self.domain is None or self.domain == 'docker.io'
 
     def __str__(self):
         s = self.name()
@@ -910,22 +950,6 @@ def parse_docker_image_reference(reference_string: str) -> ParsedDockerImageRefe
         raise ValueError(f'could not parse {reference_string!r} as a docker image reference')
     domain, path, tag, digest = (match.group(i + 1) for i in range(4))
     return ParsedDockerImageReference(domain, path, tag, digest)
-
-
-def is_google_registry_domain(domain: Optional[str]) -> bool:
-    """Returns true if the given Docker image path points to either the Google
-    Container Registry or the Artifact Registry."""
-    if domain is None:
-        return False
-    return domain == 'gcr.io' or domain.endswith('docker.pkg.dev')
-
-
-def is_azure_registry_domain(domain: Optional[str]) -> bool:
-    """Returns true if the given Docker image path points to the Azure
-    Container Registry."""
-    if domain is None:
-        return False
-    return domain.endswith('azurecr.io')
 
 
 class Notice:

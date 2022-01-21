@@ -14,7 +14,7 @@ BRANCH := $(shell git rev-parse --abbrev-ref HEAD)
 SCALA_VERSION ?= 2.12.13
 SPARK_VERSION ?= 3.1.2
 HAIL_MAJOR_MINOR_VERSION := 0.2
-HAIL_PATCH_VERSION := 79
+HAIL_PATCH_VERSION := 81
 HAIL_PIP_VERSION := $(HAIL_MAJOR_MINOR_VERSION).$(HAIL_PATCH_VERSION)
 HAIL_VERSION := $(HAIL_PIP_VERSION)-$(SHORT_REVISION)
 ELASTIC_MAJOR_VERSION ?= 7
@@ -270,14 +270,25 @@ install-hailctl: install upload-artifacts
 test-dataproc: install-hailctl
 	bash scripts/test-dataproc.sh
 
+# install skopeo
 # use curl version >=7.55.0
+#
 # set DEPLOY_REMOTE to the hail-is/hail remote
+#
 # create an access token with full repo privileges at https://github.com/settings/tokens
 # create a file that contains "Authorization: token YOUR_ACCESS_TOKEN_HERE"
 # set GITHUB_OAUTH_HEADER_FILE to that filename
+#
+# create the hailgenetics/hail image (see /docker) and place it somewhere skopeo can access it
+# set HAIL_GENETICS_HAIL_IMAGE to that image's full name including the protocol, e.g. docker://gcr.io/hail-vdc/hailgenetics/hail:1234abcd
+#
+# build a Azure-HDInsight-compatible wheel file (see build.yaml "build_wheel_for_azure" or start a
+# cluster to find the correct Scala and Spark versions because the version webpage does not include
+# sufficient detail)
+# set WHEEL_FOR_AZURE to the path to that wheel file
 .PHONY: deploy
 deploy: test-dataproc $(WHEEL)
-	bash scripts/deploy.sh $(HAIL_PIP_VERSION) $(HAIL_VERSION) $(REVISION) $(DEPLOY_REMOTE) $(WHEEL) $(GITHUB_OAUTH_HEADER_FILE)
+	bash scripts/deploy.sh $(HAIL_PIP_VERSION) $(HAIL_VERSION) $(REVISION) $(DEPLOY_REMOTE) $(WHEEL) $(GITHUB_OAUTH_HEADER_FILE) $(HAIL_GENETICS_HAIL_IMAGE) $(WHEEL_FOR_AZURE)
 
 .PHONY: install-dev-deps
 install-dev-deps:

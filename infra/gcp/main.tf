@@ -24,6 +24,7 @@ variable "gcp_region" {}
 variable "gcp_zone" {}
 variable "gcp_location" {}
 variable "domain" {}
+variable "organization_domain" {}
 variable "use_artifact_registry" {
   type = bool
   description = "pull the ubuntu image from Artifact Registry. Otherwise, GCR"
@@ -265,10 +266,10 @@ resource "kubernetes_secret" "global_config" {
     gcp_region = var.gcp_region
     gcp_zone = var.gcp_zone
     docker_prefix = local.docker_prefix
-    gsuite_organization = var.gsuite_organization
     internal_ip = google_compute_address.internal_gateway.address
     ip = google_compute_address.gateway.address
     kubernetes_server_url = "https://${google_container_cluster.vdc.endpoint}"
+    organization_domain = var.organization_domain
   }
 }
 

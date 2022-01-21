@@ -382,3 +382,61 @@ def filter_intervals(ds, intervals, keep=True) -> Union[Table, MatrixTable]:
         return MatrixTable(ir.MatrixFilterIntervals(ds._mir, intervals, point_type, keep))
     else:
         return Table(ir.TableFilterIntervals(ds._tir, intervals, point_type, keep))
+
+
+@typecheck(ht=Table,
+           points=oneof(Table, expr_array(expr_any)))
+def segment_intervals(ht, points):
+    """Segment the interval keys of `ht` at a given set of points.
+
+    Parameters
+    ----------
+    ht : :class:`.Table`
+        Table with interval keys.
+    points : :class:`.Table` or :class:`.ArrayExpression`
+        Points at which to segment the intervals, a table or an array.
+
+    Returns
+    -------
+    :class:`.Table`
+    """
+    if len(ht.key) != 1 or not isinstance(ht.key[0].dtype, hl.tinterval):
+        raise ValueError("'segment_intervals' expects a table with interval keys")
+    point_type = ht.key[0].dtype.point_type
+    if isinstance(points, Table):
+        if len(points.key) != 1 or points.key[0].dtype != point_type:
+            raise ValueError("'segment_intervals' expects points to be a table with a single"
+                             " key of the same type as the intervals in 'ht', or an array of those points:"
+                             f"\n  expect {point_type}, found {list(points.key.dtype.values())}")
+        points = hl.array(hl.set(points.collect(_localize=False)))
+    if points.dtype.element_type != point_type:
+        raise ValueError(f"'segment_intervals' expects points to be a table with a single"
+                         f" key of the same type as the intervals in 'ht', or an array of those points:"
+                         f"\n  expect {point_type}, found {points.dtype.element_type}")
+
+    points = hl._sort_by(points, lambda l, r: hl._compare(l, r) < 0)
+
+    ht = ht.annotate_globals(__points=points)
+
+    interval = ht.key[0]
+    points = ht.__points
+    lower = hl.expr.functions._lower_bound(points, interval.start)
+    higher = hl.expr.functions._lower_bound(points, interval.end)
+    n_points = hl.len(points)
+    lower = hl.if_else((lower < n_points) & (points[lower] == interval.start), lower + 1, lower)
+    higher = hl.if_else((higher < n_points) & (points[higher] == interval.end), higher - 1, higher)
+    interval_results = hl.rbind(lower, higher,
+                                lambda lower, higher: hl.cond(
+                                    lower >= higher,
+                                    [interval],
+                                    hl.flatten([
+                                        [hl.interval(interval.start, points[lower],
+                                                     includes_start=interval.includes_start, includes_end=False)],
+                                        hl.range(lower, higher - 1).map(
+                                            lambda x: hl.interval(points[x], points[x + 1], includes_start=True,
+                                                                  includes_end=False)),
+                                        [hl.interval(points[higher - 1], interval.end, includes_start=True,
+                                                     includes_end=interval.includes_end)],
+                                    ])))
+    ht = ht.annotate(__new_intervals=interval_results, lower=lower, higher=higher).explode('__new_intervals')
+    return ht.key_by(**{list(ht.key)[0]: ht.__new_intervals}).drop('__new_intervals')

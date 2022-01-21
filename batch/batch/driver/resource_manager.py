@@ -1,4 +1,4 @@
-from typing import Dict, List, Any, Tuple
+from typing import List, Any, Tuple
 import abc
 import logging
 
@@ -73,14 +73,16 @@ class CloudResourceManager:
         raise NotImplementedError
 
     @abc.abstractmethod
-    def instance_config(self,
-                        machine_type: str,
-                        preemptible: bool,
-                        local_ssd_data_disk: bool,
-                        data_disk_size_gb: int,
-                        boot_disk_size_gb: int,
-                        job_private: bool,
-                        ) -> InstanceConfig:
+    def instance_config(
+        self,
+        machine_type: str,
+        preemptible: bool,
+        local_ssd_data_disk: bool,
+        data_disk_size_gb: int,
+        boot_disk_size_gb: int,
+        job_private: bool,
+        location: str,
+    ) -> InstanceConfig:
         raise NotImplementedError
 
     @abc.abstractmethod
@@ -88,21 +90,21 @@ class CloudResourceManager:
         raise NotImplementedError
 
     @abc.abstractmethod
-    async def create_vm(self,
-                        file_store: FileStore,
-                        resource_rates: Dict[str, float],
-                        machine_name: str,
-                        activation_token: str,
-                        max_idle_time_msecs: int,
-                        local_ssd_data_disk: bool,
-                        data_disk_size_gb: int,
-                        boot_disk_size_gb: int,
-                        preemptible: bool,
-                        job_private: bool,
-                        location: str,
-                        machine_type: str,
-                        instance_config: InstanceConfig,
-                        ) -> List[QuantifiedResource]:
+    async def create_vm(
+        self,
+        file_store: FileStore,
+        machine_name: str,
+        activation_token: str,
+        max_idle_time_msecs: int,
+        local_ssd_data_disk: bool,
+        data_disk_size_gb: int,
+        boot_disk_size_gb: int,
+        preemptible: bool,
+        job_private: bool,
+        location: str,
+        machine_type: str,
+        instance_config: InstanceConfig,
+    ) -> List[QuantifiedResource]:
         raise NotImplementedError
 
     @abc.abstractmethod

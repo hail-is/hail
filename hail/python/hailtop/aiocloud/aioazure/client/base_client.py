@@ -1,7 +1,7 @@
-from typing import Optional
+from typing import Optional, AsyncGenerator, Any
 
 import aiohttp
-from hailtop.utils import RateLimit, sleep_and_backoff
+from hailtop.utils import RateLimit, sleep_and_backoff, url_and_params
 
 from ...common import CloudBaseClient
 from ..session import AzureSession
@@ -15,6 +15,18 @@ class AzureBaseClient(CloudBaseClient):
         if session is None:
             session = AzureSession(**kwargs)
         super().__init__(base_url, session, rate_limit=rate_limit)
+
+    async def _paged_get(self, path, **kwargs) -> AsyncGenerator[Any, None]:
+        page = await self.get(path, **kwargs)
+        for v in page.get('value', []):
+            yield v
+        next_link = page.get('nextLink')
+        while next_link is not None:
+            url, params = url_and_params(next_link)
+            page = await self.get(url=url, params=params)
+            for v in page['value']:
+                yield v
+            next_link = page.get('nextLink')
 
     async def delete(self, path: Optional[str] = None, *, url: Optional[str] = None, **kwargs) -> aiohttp.ClientResponse:
         if url is None:

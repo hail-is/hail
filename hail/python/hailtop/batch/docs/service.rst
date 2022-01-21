@@ -7,8 +7,9 @@ Batch Service
 
 .. warning::
 
-    The Batch Service is currently only available to Broad Institute users. If you are interested
-    in using the Batch Service, please send us an email at hail-team@broadinstitute.org.
+    The Batch Service is currently only available to Broad Institute affiliates. Please `contact us
+    <mailto:hail-team@broadinstitute.org>`__ if you are interested in hosting a copy of the Batch
+    Service at your institution.
 
 .. warning::
 

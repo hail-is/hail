@@ -12,20 +12,22 @@ from ....inst_coll_config import InstanceCollectionConfigs
 
 from .disks import delete_orphaned_disks
 from .activity_logs import process_activity_log_events_since
+from .billing_manager import GCPBillingManager
 from .zones import ZoneMonitor
 from .resource_manager import GCPResourceManager
 
 
 class GCPDriver(CloudDriver):
     @staticmethod
-    async def create(app,
-                     db: Database,  # BORROWED
-                     machine_name_prefix: str,
-                     namespace: str,
-                     inst_coll_configs: InstanceCollectionConfigs,
-                     credentials_file: str,
-                     task_manager: aiotools.BackgroundTaskManager,  # BORROWED
-                     ) -> 'GCPDriver':
+    async def create(
+        app,
+        db: Database,  # BORROWED
+        machine_name_prefix: str,
+        namespace: str,
+        inst_coll_configs: InstanceCollectionConfigs,
+        credentials_file: str,
+        task_manager: aiotools.BackgroundTaskManager,  # BORROWED
+    ) -> 'GCPDriver':
         gcp_config = get_gcp_config()
         project = gcp_config.project
         zone = gcp_config.zone
@@ -46,52 +48,70 @@ class GCPDriver(CloudDriver):
         )
 
         zone_monitor = await ZoneMonitor.create(compute_client, regions, zone)
+        billing_manager = await GCPBillingManager.create(db)
         inst_coll_manager = InstanceCollectionManager(db, machine_name_prefix, zone_monitor)
-        resource_manager = GCPResourceManager(project, compute_client)
+        resource_manager = GCPResourceManager(project, compute_client, billing_manager)
 
         create_pools_coros = [
-            Pool.create(app,
-                        db,
-                        inst_coll_manager,
-                        resource_manager,
-                        machine_name_prefix,
-                        config,
-                        app['async_worker_pool'],
-                        task_manager)
+            Pool.create(
+                app,
+                db,
+                inst_coll_manager,
+                resource_manager,
+                machine_name_prefix,
+                config,
+                app['async_worker_pool'],
+                task_manager,
+            )
             for pool_name, config in inst_coll_configs.name_pool_config.items()
         ]
 
         jpim, *_ = await asyncio.gather(
             JobPrivateInstanceManager.create(
-                app, db, inst_coll_manager, resource_manager, machine_name_prefix, inst_coll_configs.jpim_config, task_manager),
-            *create_pools_coros)
+                app,
+                db,
+                inst_coll_manager,
+                resource_manager,
+                machine_name_prefix,
+                inst_coll_configs.jpim_config,
+                task_manager,
+            ),
+            *create_pools_coros
+        )
 
-        driver = GCPDriver(db,
-                           machine_name_prefix,
-                           compute_client,
-                           activity_logs_client,
-                           project,
-                           namespace,
-                           zone_monitor,
-                           inst_coll_manager,
-                           jpim)
+        driver = GCPDriver(
+            db,
+            machine_name_prefix,
+            compute_client,
+            activity_logs_client,
+            project,
+            namespace,
+            zone_monitor,
+            inst_coll_manager,
+            jpim,
+            billing_manager,
+        )
 
         task_manager.ensure_future(periodically_call(15, driver.process_activity_logs))
         task_manager.ensure_future(periodically_call(60, zone_monitor.update_region_quotas))
         task_manager.ensure_future(periodically_call(60, driver.delete_orphaned_disks))
+        task_manager.ensure_future(periodically_call(300, billing_manager.refresh_resources))
 
         return driver
 
-    def __init__(self,
-                 db: Database,
-                 machine_name_prefix: str,
-                 compute_client: aiogoogle.GoogleComputeClient,
-                 activity_logs_client: aiogoogle.GoogleLoggingClient,
-                 project: str,
-                 namespace: str,
-                 zone_monitor: ZoneMonitor,
-                 inst_coll_manager: InstanceCollectionManager,
-                 job_private_inst_manager: JobPrivateInstanceManager):
+    def __init__(
+        self,
+        db: Database,
+        machine_name_prefix: str,
+        compute_client: aiogoogle.GoogleComputeClient,
+        activity_logs_client: aiogoogle.GoogleLoggingClient,
+        project: str,
+        namespace: str,
+        zone_monitor: ZoneMonitor,
+        inst_coll_manager: InstanceCollectionManager,
+        job_private_inst_manager: JobPrivateInstanceManager,
+        billing_manager: GCPBillingManager,
+    ):
         self.db = db
         self.machine_name_prefix = machine_name_prefix
         self.compute_client = compute_client
@@ -101,6 +121,7 @@ class GCPDriver(CloudDriver):
         self.zone_monitor = zone_monitor
         self.inst_coll_manager = inst_coll_manager
         self.job_private_inst_manager = job_private_inst_manager
+        self.billing_manager = billing_manager
 
     async def shutdown(self) -> None:
         try:
@@ -110,15 +131,19 @@ class GCPDriver(CloudDriver):
 
     async def process_activity_logs(self) -> None:
         async def _process_activity_log_events_since(mark):
-            return await process_activity_log_events_since(self.db,
-                                                           self.inst_coll_manager,
-                                                           self.activity_logs_client,
-                                                           self.zone_monitor.zone_success_rate,
-                                                           self.machine_name_prefix,
-                                                           self.project,
-                                                           mark)
+            return await process_activity_log_events_since(
+                self.db,
+                self.inst_coll_manager,
+                self.activity_logs_client,
+                self.zone_monitor.zone_success_rate,
+                self.machine_name_prefix,
+                self.project,
+                mark,
+            )
 
         await process_outstanding_events(self.db, _process_activity_log_events_since)
 
     async def delete_orphaned_disks(self) -> None:
-        await delete_orphaned_disks(self.compute_client, self.zone_monitor.zones, self.inst_coll_manager, self.namespace)
+        await delete_orphaned_disks(
+            self.compute_client, self.zone_monitor.zones, self.inst_coll_manager, self.namespace
+        )

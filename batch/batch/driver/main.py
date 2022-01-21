@@ -61,11 +61,7 @@ from .instance_collection import Pool
 from .driver import CloudDriver
 from ..utils import query_billing_projects, batch_only, authorization_token
 from ..cloud.driver import get_cloud_driver
-from ..cloud.resource_utils import (
-    unreserved_worker_data_disk_size_gib,
-    possible_cores_from_worker_type,
-    local_ssd_size
-)
+from ..cloud.resource_utils import unreserved_worker_data_disk_size_gib, possible_cores_from_worker_type, local_ssd_size
 from ..exceptions import BatchUserError
 
 uvloop.install()
@@ -453,11 +449,17 @@ async def pool_config_update(request, userdata):  # pylint: disable=unused-argum
         )
 
         if not worker_local_ssd_data_disk and worker_external_ssd_data_disk_size_gb == 0:
-            set_message(session, 'Either the worker must use a local SSD or the external SSD data disk must be non-zero.', 'error')
+            set_message(
+                session,
+                'Either the worker must use a local SSD or the external SSD data disk must be non-zero.',
+                'error',
+            )
             raise ConfigError()
 
         if worker_local_ssd_data_disk and worker_external_ssd_data_disk_size_gb > 0:
-            set_message(session, 'Worker cannot both use local SSD and have a non-zero external SSD data disk.', 'error')
+            set_message(
+                session, 'Worker cannot both use local SSD and have a non-zero external SSD data disk.', 'error'
+            )
             raise ConfigError()
 
         max_instances = validate_int(
@@ -499,7 +501,9 @@ async def pool_config_update(request, userdata):  # pylint: disable=unused-argum
         )
 
         if not worker_local_ssd_data_disk:
-            unreserved_disk_storage_gb = unreserved_worker_data_disk_size_gib(worker_external_ssd_data_disk_size_gb, worker_cores)
+            unreserved_disk_storage_gb = unreserved_worker_data_disk_size_gib(
+                worker_external_ssd_data_disk_size_gb, worker_cores
+            )
             if unreserved_disk_storage_gb < 0:
                 min_disk_storage = worker_external_ssd_data_disk_size_gb - unreserved_disk_storage_gb
                 set_message(session, f'External SSD must be at least {min_disk_storage} GB', 'error')
@@ -516,7 +520,7 @@ async def pool_config_update(request, userdata):  # pylint: disable=unused-argum
             standing_worker_cores,
             boot_disk_size_gb,
             max_instances,
-            max_live_instances
+            max_live_instances,
         )
         await pool_config.update_database(db)
         pool.configure(pool_config)
@@ -745,10 +749,11 @@ FROM
   FROM
   (
     SELECT batches.user, jobs.state, jobs.cores_mcpu, jobs.inst_coll,
-      (jobs.always_run OR NOT (jobs.cancelled OR batches.cancelled)) AS runnable,
-      (NOT jobs.always_run AND (jobs.cancelled OR batches.cancelled)) AS cancelled
+      (jobs.always_run OR NOT (jobs.cancelled OR batches_cancelled.id IS NOT NULL)) AS runnable,
+      (NOT jobs.always_run AND (jobs.cancelled OR batches_cancelled.id IS NOT NULL)) AS cancelled
     FROM batches
     INNER JOIN jobs ON batches.id = jobs.batch_id
+    LEFT JOIN batches_cancelled ON batches.id = batches_cancelled.id
     WHERE batches.`state` = 'running'
   ) as v
   GROUP BY user, inst_coll
@@ -1045,7 +1050,6 @@ GROUP BY user, inst_coll;
 
 
 def monitor_instances(app) -> None:
-    resource_rates: Dict[str, float] = app['resource_rates']
     driver: CloudDriver = app['driver']
     inst_coll_manager = driver.inst_coll_manager
 
@@ -1061,11 +1065,13 @@ def monitor_instances(app) -> None:
 
             if instance.state != 'deleted':
                 actual_cost_per_hour_labels = CostPerHourLabels(measure='actual', inst_coll=instance.inst_coll.name)
-                actual_rate = instance.instance_config.actual_cost_per_hour(resource_rates)
+                actual_rate = instance.instance_config.actual_cost_per_hour(driver.billing_manager.resource_rates)
                 cost_per_hour[actual_cost_per_hour_labels].append(actual_rate)
 
                 billed_cost_per_hour_labels = CostPerHourLabels(measure='billed', inst_coll=instance.inst_coll.name)
-                billed_rate = instance.instance_config.cost_per_hour_from_cores(resource_rates, utilized_cores_mcpu)
+                billed_rate = instance.instance_config.cost_per_hour_from_cores(
+                    driver.billing_manager.resource_rates, utilized_cores_mcpu
+                )
                 cost_per_hour[billed_cost_per_hour_labels].append(billed_rate)
 
                 inst_coll_labels = InstCollLabels(inst_coll=instance.inst_coll.name)
@@ -1133,9 +1139,6 @@ SELECT instance_id, internal_token, frozen FROM globals;
 
     app['frozen'] = row['frozen']
 
-    resources = db.select_and_fetchall('SELECT resource, rate FROM resources;')
-    app['resource_rates'] = {record['resource']: record['rate'] async for record in resources}
-
     scheduler_state_changed = Notice()
     app['scheduler_state_changed'] = scheduler_state_changed
 
@@ -1158,7 +1161,8 @@ SELECT instance_id, internal_token, frozen FROM globals;
     inst_coll_configs = await InstanceCollectionConfigs.create(db)
 
     app['driver'] = await get_cloud_driver(
-        app, db, MACHINE_NAME_PREFIX, DEFAULT_NAMESPACE, inst_coll_configs, credentials_file, task_manager)
+        app, db, MACHINE_NAME_PREFIX, DEFAULT_NAMESPACE, inst_coll_configs, credentials_file, task_manager
+    )
 
     canceller = await Canceller.create(app)
     app['canceller'] = canceller

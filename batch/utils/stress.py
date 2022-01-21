@@ -4,6 +4,7 @@ import os
 
 DOCKER_ROOT_IMAGE = os.environ['DOCKER_ROOT_IMAGE']
 
+
 def flip(p):
     return random.random() <= p
 
