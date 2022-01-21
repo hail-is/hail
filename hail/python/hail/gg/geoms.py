@@ -193,6 +193,8 @@ class GeomPoint(Geom):
 
 
 def geom_point(mapping=aes(), *, color=None):
+    """Create a scatter plot.
+    """
     return GeomPoint(mapping, color=color)
 
 
@@ -210,6 +212,8 @@ class GeomLine(GeomLineBasic):
 
 
 def geom_line(mapping=aes(), *, color=None):
+    """Create a line plot.
+    """
     return GeomLine(mapping, color=color)
 
 
@@ -254,6 +258,8 @@ class GeomText(Geom):
 
 
 def geom_text(mapping=aes(), *, color=None):
+    """Create a scatter plot where each point is text from the 'text' aesthetic.
+    """
     return GeomText(mapping, color=color)
 
 
@@ -308,6 +314,8 @@ class GeomBar(Geom):
 
 
 def geom_bar(mapping=aes(), *, fill=None, color=None, position="stack", size=None):
+    """Create a bar chart that counts occurences of the various values of the `x` aesthetic.
+    """
     return GeomBar(mapping, fill=fill, color=color, position=position, size=size)
 
 

@@ -27,12 +27,48 @@ class Labels(FigureAttribute):
 
 
 def ggtitle(label):
+    """Sets the title of a plot.
+
+    Parameters
+    ----------
+    label : :class:`str`
+        The desired title of the plot.
+
+    Returns
+    -------
+    :class:`.Labels`
+        Label object to change the title.
+    """
     return Labels(title=label)
 
 
 def xlab(label):
+    """Sets the x-axis label of a plot.
+
+    Parameters
+    ----------
+    label : :class:`str`
+        The desired x-axis label of the plot.
+
+    Returns
+    -------
+    :class:`.Labels`
+        Label object to change the x-axis label.
+    """
     return Labels(xlabel=label)
 
 
 def ylab(label):
+    """Sets the y-axis label of a plot.
+
+    Parameters
+    ----------
+    label : :class:`str`
+        The desired y-axis label of the plot.
+
+    Returns
+    -------
+    :class:`.Labels`
+        Label object to change the y-axis label.
+    """
     return Labels(ylabel=label)

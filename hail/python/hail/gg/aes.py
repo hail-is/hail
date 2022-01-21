@@ -3,6 +3,7 @@ import itertools
 from hail.expr import Expression
 from hail import literal
 
+
 class Aesthetic(Mapping):
     # kwargs values should either be strings or fields of a table. We will have to resolve the fact that all tables
     # need to match the base ggplot table at some point.
@@ -37,6 +38,8 @@ class Aesthetic(Mapping):
 
 
 def aes(**kwargs):
+    """Create an aesthetic mapping.
+    """
     hail_field_properties = {}
     lambda_properties = {}
 

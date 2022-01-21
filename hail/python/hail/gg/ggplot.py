@@ -104,7 +104,7 @@ class GGPlot:
             for aes_key in aesthetic_dict.keys():
                 check_scale_continuity(self.scales[aes_key], aesthetic_dict[aes_key].dtype, aes_key)
 
-    def render(self):
+    def to_plotly(self):
         fields_to_select = {"figure_mapping": hl.struct(**self.aes)}
         for geom_idx, geom in enumerate(self.geoms):
             label = f"geom{geom_idx}"
@@ -175,10 +175,13 @@ class GGPlot:
         return fig
 
     def show(self):
-        self.render().show()
+        self.to_plotly().show()
 
     def write_image(self, path):
-        self.render().write_image(path)
+        self.to_plotly().write_image(path)
+
+    def _repr_html_(self):
+        return self.to_plotly()._repr_html_()
 
     def _debug_print(self):
         print("Ggplot Object:")
@@ -190,5 +193,18 @@ class GGPlot:
         pprint(self.geoms)
 
 
-def ggplot(table, aes=aes()):
-    return GGPlot(table, aes)
+def ggplot(table, mapping=aes()):
+    """Create the initial plot object.
+
+    Parameters
+    ----------
+    table
+        The table containing the data to plot.
+    mapping
+        Default list of aesthetic mappings from table data to plot attributes.
+
+    Returns
+    -------
+    :class:`.GGPlot`
+    """
+    return GGPlot(table, mapping)
