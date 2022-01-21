@@ -967,6 +967,7 @@ Exception in thread "main" java.lang.RuntimeException: invalid sort order: b
     def test_order_by_parsing(self):
         hl.utils.range_table(1).annotate(**{'a b c' : 5}).order_by('a b c')._force_count()
 
+    @skip_when_service_backend(message='intermittently hangs')
     def test_take_order(self):
         t = hl.utils.range_table(20, n_partitions=2)
         t = t.key_by(rev_idx=-t.idx)
