@@ -2462,9 +2462,9 @@ async def async_main():
 
     port_allocator = PortAllocator()
     network_allocator = NetworkAllocator()
-    await network_allocator.reserve()
 
     worker = Worker(httpx.client_session())
+    worker.task_manager.ensure_future(network_allocator.reserve())
     try:
         await worker.run()
     finally:
