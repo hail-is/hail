@@ -2954,6 +2954,8 @@ steps:
       - upload_query_jar
       - upload_test_resources_to_blob_storage
       - build_hail_jar_and_wheel_only
+    clouds:
+      - gcp
   - kind: runImage
     name: test_hail_python_service_backend_1
     image:
@@ -3034,6 +3036,8 @@ steps:
       - upload_query_jar
       - upload_test_resources_to_blob_storage
       - build_hail_jar_and_wheel_only
+    clouds:
+      - gcp
   - kind: runImage
     name: test_hail_python_service_backend_2
     image:
@@ -3114,6 +3118,8 @@ steps:
       - upload_query_jar
       - upload_test_resources_to_blob_storage
       - build_hail_jar_and_wheel_only
+    clouds:
+      - gcp
   - kind: runImage
     name: test_hail_python_service_backend_3
     image:
@@ -3194,6 +3200,8 @@ steps:
       - upload_query_jar
       - upload_test_resources_to_blob_storage
       - build_hail_jar_and_wheel_only
+    clouds:
+      - gcp
   - kind: runImage
     name: test_hail_python_service_backend_4
     image:
@@ -3274,6 +3282,8 @@ steps:
       - upload_query_jar
       - upload_test_resources_to_blob_storage
       - build_hail_jar_and_wheel_only
+    clouds:
+      - gcp
   - kind: deploy
     name: deploy_memory
     namespace:
