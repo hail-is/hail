@@ -2840,7 +2840,7 @@ class IRSuite extends HailSuite {
         PartitionNativeReader(TypedCodecSpec(PCanonicalStruct("foo" -> PInt32(), "bar" -> PCanonicalString()), BufferSpec.default))),
       WritePartition(
         MakeStream(FastSeq(), TStream(TStruct())), NA(TString),
-        PartitionNativeWriter(TypedCodecSpec(PType.canonical(TStruct()), BufferSpec.default), "path", None, None)),
+        PartitionNativeWriter(TypedCodecSpec(PType.canonical(TStruct()), BufferSpec.default), IndexedSeq(), "path", None, None)),
       WriteMetadata(
         NA(TStruct("global" -> TString, "partitions" -> TStruct("filePath" -> TString, "partitionCounts" -> TInt64))),
         RelationalWriter("path", overwrite = false, None)),

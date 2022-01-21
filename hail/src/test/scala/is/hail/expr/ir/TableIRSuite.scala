@@ -758,9 +758,46 @@ class TableIRSuite extends HailSuite {
     val path = ctx.createTmpPath("test-table-write", "ht")
     Interpret[Unit](ctx, TableWrite(table, TableNativeWriter(path)))
     val before = table.analyzeAndExecute(ctx).asTableValue(ctx)
-    val after = Interpret(TableIR.read(fs, path), ctx, false)
+    val read = TableIR.read(fs, path)
+    assert(read.isDistinctlyKeyed)
+    val after = Interpret(read, ctx, false)
     assert(before.globals.javaValue == after.globals.javaValue)
     assert(before.rdd.collect().toFastIndexedSeq == after.rdd.collect().toFastIndexedSeq)
+  }
+
+  @Test def testWriteKeyDistinctness(): Unit = {
+    implicit val execStrats = ExecStrategy.interpretOnly
+    val rt = TableRange(40, 4)
+    val idxRef =  GetField(Ref("row", rt.typ.rowType), "idx")
+    val at = TableMapRows(rt, MakeStruct(Seq(
+      "idx" -> idxRef,
+      "const" -> 5,
+      "half" ->  idxRef.floorDiv(2),
+      "oneRepeat" -> If(idxRef ceq I32(10), I32(9), idxRef)
+    )))
+    val keyedByConst = TableKeyBy(at, IndexedSeq("const"))
+    val pathConst = ctx.createTmpPath("test-table-write-distinctness", "ht")
+    Interpret[Unit](ctx, TableWrite(keyedByConst, TableNativeWriter(pathConst)))
+    val readConst = TableIR.read(fs, pathConst)
+    assert(!readConst.isDistinctlyKeyed)
+
+    val keyedByHalf = TableKeyBy(at, IndexedSeq("half"))
+    val pathHalf = ctx.createTmpPath("test-table-write-distinctness", "ht")
+    Interpret[Unit](ctx, TableWrite(keyedByHalf, TableNativeWriter(pathHalf)))
+    val readHalf = TableIR.read(fs, pathHalf)
+    assert(!readHalf.isDistinctlyKeyed)
+
+    val keyedByIdxAndHalf = TableKeyBy(at, IndexedSeq("idx", "half"))
+    val pathIdxAndHalf = ctx.createTmpPath("test-table-write-distinctness", "ht")
+    Interpret[Unit](ctx, TableWrite(keyedByIdxAndHalf, TableNativeWriter(pathIdxAndHalf)))
+    val readIdxAndHalf = TableIR.read(fs, pathIdxAndHalf)
+    assert(readIdxAndHalf.isDistinctlyKeyed)
+
+    val keyedByOneRepeat = TableKeyBy(at, IndexedSeq("oneRepeat"))
+    val pathOneRepeat = ctx.createTmpPath("test-table-write-distinctness", "ht")
+    Interpret[Unit](ctx, TableWrite(keyedByOneRepeat, TableNativeWriter(pathOneRepeat)))
+    val readOneRepeat = TableIR.read(fs, pathOneRepeat)
+    assert(!readOneRepeat.isDistinctlyKeyed)
   }
 
   @Test def testPartitionCountsWithDropRows() {
