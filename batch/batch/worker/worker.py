@@ -1618,8 +1618,8 @@ class JVMJob(Job):
         self.state = 'pending'
         self.log: Optional[str] = None
 
-        self.jvm = None
-        self.jvm_name = None
+        self.jvm: Optional[JVM] = None
+        self.jvm_name: Optionanl[str] = None
 
     def step(self, name):
         return self.timings.step(name)
