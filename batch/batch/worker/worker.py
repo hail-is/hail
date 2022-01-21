@@ -129,7 +129,6 @@ INSTANCE_CONFIG = json.loads(base64.b64decode(os.environ['INSTANCE_CONFIG']).dec
 MAX_IDLE_TIME_MSECS = int(os.environ['MAX_IDLE_TIME_MSECS'])
 BATCH_WORKER_IMAGE = os.environ['BATCH_WORKER_IMAGE']
 BATCH_WORKER_IMAGE_ID = os.environ['BATCH_WORKER_IMAGE_ID']
-INTERNET_INTERFACE = os.environ['INTERNET_INTERFACE']
 UNRESERVED_WORKER_DATA_DISK_SIZE_GB = int(os.environ['UNRESERVED_WORKER_DATA_DISK_SIZE_GB'])
 assert UNRESERVED_WORKER_DATA_DISK_SIZE_GB >= 0
 
@@ -147,7 +146,6 @@ log.info(f'DOCKER_PREFIX {DOCKER_PREFIX}')
 log.info(f'INSTANCE_CONFIG {INSTANCE_CONFIG}')
 log.info(f'CLOUD_WORKER_API {CLOUD_WORKER_API}')
 log.info(f'MAX_IDLE_TIME_MSECS {MAX_IDLE_TIME_MSECS}')
-log.info(f'INTERNET_INTERFACE {INTERNET_INTERFACE}')
 log.info(f'UNRESERVED_WORKER_DATA_DISK_SIZE_GB {UNRESERVED_WORKER_DATA_DISK_SIZE_GB}')
 
 instance_config = CLOUD_WORKER_API.instance_config_from_config_dict(INSTANCE_CONFIG)
@@ -183,11 +181,10 @@ class PortAllocator:
 
 
 class NetworkNamespace:
-    def __init__(self, subnet_index: int, private: bool, internet_interface: str):
+    def __init__(self, subnet_index: int, private: bool):
         assert subnet_index <= 255
         self.subnet_index = subnet_index
         self.private = private
-        self.internet_interface = internet_interface
         self.network_ns_name = uuid.uuid4().hex[:5]
         self.hostname = 'hostname-' + uuid.uuid4().hex[:10]
         self.veth_host = self.network_ns_name + '-host'
@@ -244,7 +241,6 @@ ip -n {self.network_ns_name} route add default via {self.host_ip}'''
     async def enable_iptables_forwarding(self):
         await check_shell(
             f'''
-iptables -w {IPTABLES_WAIT_TIMEOUT_SECS} --append FORWARD --out-interface {self.veth_host} --in-interface {self.internet_interface} --jump ACCEPT && \
 iptables -w {IPTABLES_WAIT_TIMEOUT_SECS} --append FORWARD --out-interface {self.veth_host} --in-interface {self.veth_host} --jump ACCEPT'''
         )
 
@@ -282,15 +278,14 @@ class NetworkAllocator:
     def __init__(self):
         self.private_networks = asyncio.Queue()
         self.public_networks = asyncio.Queue()
-        self.internet_interface = INTERNET_INTERFACE
 
     async def reserve(self, netns_pool_min_size: int = 64):
         for subnet_index in range(netns_pool_min_size):
-            public = NetworkNamespace(subnet_index, private=False, internet_interface=self.internet_interface)
+            public = NetworkNamespace(subnet_index, private=False)
             await public.init()
             self.public_networks.put_nowait(public)
 
-            private = NetworkNamespace(subnet_index, private=True, internet_interface=self.internet_interface)
+            private = NetworkNamespace(subnet_index, private=True)
 
             await private.init()
             self.private_networks.put_nowait(private)
