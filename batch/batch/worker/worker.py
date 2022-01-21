@@ -1619,14 +1619,13 @@ class JVMJob(Job):
         self.log: Optional[str] = None
 
         self.jvm: Optional[JVM] = None
-        self.jvm_name: Optionanl[str] = None
+        self.jvm_name: Optional[str] = None
 
     def step(self, name):
         return self.timings.step(name)
 
     def verify_is_acceptable_query_jar_url(self, url: str):
-        n = len(ACCEPTABLE_QUERY_JAR_URL_PREFIX)
-        if url[:n] != ACCEPTABLE_QUERY_JAR_URL_PREFIX:
+        if not url.startswith(ACCEPTABLE_QUERY_JAR_URL_PREFIX):
             log.error(f'user submitted unacceptable JAR url: {url} for {self}. {ACCEPTABLE_QUERY_JAR_URL_PREFIX}')
             raise ValueError(f'unacceptable JAR url: {url}')
 
