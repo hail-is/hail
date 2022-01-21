@@ -467,6 +467,8 @@ def super_unify_types(*ts):
     if len(ts) == 0:
         return None
     t0 = ts[0]
+    if all(is_numeric(t) for t in ts):
+        return unify_types_limited(*ts)
     if any(not isinstance(t, type(t0)) for t in ts):
         return None
     if isinstance(t0, tarray):
@@ -486,6 +488,7 @@ def super_unify_types(*ts):
         return tstruct(**kvs)
     if all(t0 == t for t in ts):
         return t0
+
     return None
 
 
