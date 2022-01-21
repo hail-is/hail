@@ -99,4 +99,4 @@ Caused by: java.lang.AssertionError: assertion failed
                 f = os.path.join(matrix_table_dir, '{}.hmt'.format(i))
                 n += 1
 
-        assert n == 72
+        assert n == 88

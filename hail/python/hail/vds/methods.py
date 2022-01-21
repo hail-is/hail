@@ -144,9 +144,14 @@ def to_merged_sparse_mt(vds: 'VariantDataset') -> 'MatrixTable':
     return ht._unlocalize_entries('_entries', '_var_cols', list(vds.variant_data.col_key))
 
 
-@typecheck(vds=VariantDataset, name=str, gq_bins=sequenceof(int))
-def sample_qc(vds: 'VariantDataset', *, name='sample_qc', gq_bins: 'Sequence[int]' = (0, 20, 60)) -> 'Table':
-    """Run sample_qc on dataset in the split :class:`.VariantDataset` representation.
+@typecheck(vds=VariantDataset, gq_bins=sequenceof(int), dp_bins=sequenceof(int), dp_field=nullable(str))
+def sample_qc(vds: 'VariantDataset', *, gq_bins: 'Sequence[int]' = (0, 20, 60),
+              dp_bins: 'Sequence[int]' = (0, 1, 10, 20, 30), dp_field=None) -> 'Table':
+    """Compute sample quality metrics about a :class:`.VariantDataset`.
+
+    If the `dp_field` parameter is not specified, the ``DP`` is used for depth
+    if present. If no ``DP`` field is present, the ``MIN_DP`` field is used. If no ``DP``
+    or ``MIN_DP`` field is present, no depth statistics will be calculated.
 
     Parameters
     ----------
@@ -156,6 +161,10 @@ def sample_qc(vds: 'VariantDataset', *, name='sample_qc', gq_bins: 'Sequence[int
         Name for resulting field.
     gq_bins : :class:`tuple` of :obj:`int`
         Tuple containing cutoffs for genotype quality (GQ) scores.
+    dp_bins : :class:`tuple` of :obj:`int`
+        Tuple containing cutoffs for depth (DP) scores.
+    dp_field : :obj:`str`
+        Name of depth field. If not supplied, DP or MIN_DP will be used, in that order.
 
     Returns
     -------
@@ -165,6 +174,15 @@ def sample_qc(vds: 'VariantDataset', *, name='sample_qc', gq_bins: 'Sequence[int
 
     require_first_key_field_locus(vds.reference_data, 'sample_qc')
     require_first_key_field_locus(vds.variant_data, 'sample_qc')
+
+    ref = vds.reference_data
+
+    if 'DP' in ref.entry:
+        ref_dp_field_to_use = 'DP'
+    elif 'MIN_DP' in ref.entry:
+        ref_dp_field_to_use = 'MIN_DP'
+    else:
+        ref_dp_field_to_use = dp_field
 
     from hail.expr.functions import _num_allele_type, _allele_types
 
@@ -214,16 +232,18 @@ def sample_qc(vds: 'VariantDataset', *, name='sample_qc', gq_bins: 'Sequence[int
          .map(lambda allele_idx: vmt[variant_atypes][allele_idx - 1]))
     )
 
-    gq_exprs = hl.agg.filter(
-        hl.is_defined(vmt.GT),
-        hl.struct(**{f'gq_over_{x}': hl.agg.count_where(vmt.GQ > x) for x in gq_bins})
-    )
+    dp_exprs = {}
+    if ref_dp_field_to_use is not None and 'DP' in vmt.entry:
+        dp_exprs['dp'] = hl.tuple(hl.agg.count_where(vmt.DP >= x) for x in dp_bins)
+
+    gq_dp_exprs = hl.struct(**{'gq': hl.tuple(hl.agg.count_where(vmt.GQ >= x) for x in gq_bins)},
+                            **dp_exprs)
 
     result_struct = hl.rbind(
         hl.struct(**bound_exprs),
         lambda x: hl.rbind(
             hl.struct(**{
-                'gq_exprs': gq_exprs,
+                'gq_dp_exprs': gq_dp_exprs,
                 'n_het': x.n_het,
                 'n_hom_var': x.n_hom_var,
                 'n_non_ref': x.n_het + x.n_hom_var,
@@ -246,16 +266,32 @@ def sample_qc(vds: 'VariantDataset', *, name='sample_qc', gq_bins: 'Sequence[int
     variant_results = vmt.select_cols(**result_struct).cols()
 
     rmt = vds.reference_data
-    ref_results = rmt.select_cols(
-        gq_exprs=hl.struct(**{
-            f'gq_over_{x}': hl.agg.filter(rmt.GQ > x, hl.agg.sum(1 + rmt.END - rmt.locus.position)) for x in gq_bins
-        })
-    ).cols()
 
-    joined = ref_results[variant_results.key].gq_exprs
-    joined_results = variant_results.transmute(**{
-        f'gq_over_{x}': variant_results.gq_exprs[f'gq_over_{x}'] + joined[f'gq_over_{x}'] for x in gq_bins
-    })
+    ref_dp_expr = {}
+    if ref_dp_field_to_use is not None:
+        ref_dp_expr['ref_bases_over_dp_threshold'] = hl.tuple(
+            hl.agg.filter(rmt[ref_dp_field_to_use] >= x, hl.agg.sum(1 + rmt.END - rmt.locus.position)) for x in
+            dp_bins)
+    ref_results = rmt.select_cols(
+        ref_bases_over_gq_threshold=hl.tuple(
+            hl.agg.filter(rmt.GQ >= x, hl.agg.sum(1 + rmt.END - rmt.locus.position)) for x in gq_bins),
+        **ref_dp_expr).cols()
+
+    joined = ref_results[variant_results.key]
+
+    joined_dp_expr = {}
+    dp_bins_field = {}
+    if ref_dp_field_to_use is not None:
+        joined_dp_expr['bases_over_dp_threshold'] = hl.tuple(
+            x + y for x, y in zip(variant_results.gq_dp_exprs.dp, joined.ref_bases_over_dp_threshold))
+        dp_bins_field['dp_bins'] = hl.tuple(dp_bins)
+
+    joined_results = variant_results.transmute(
+        bases_over_gq_threshold=hl.tuple(
+            x + y for x, y in zip(variant_results.gq_dp_exprs.gq, joined.ref_bases_over_gq_threshold)),
+        **joined_dp_expr)
+
+    joined_results = joined_results.annotate_globals(gq_bins=hl.tuple(gq_bins), **dp_bins_field)
     return joined_results
 
 
@@ -568,8 +604,10 @@ def segment_reference_blocks(ref: 'MatrixTable', intervals: 'Table') -> 'MatrixT
     return refl_filtered._unlocalize_entries('_ref_entries', '_ref_cols', list(ref.col_key))
 
 
-@typecheck(vds=VariantDataset, intervals=Table, gq_thresholds=sequenceof(int), dp_field=nullable(str))
-def interval_coverage(vds: VariantDataset, intervals: hl.Table, gq_thresholds=(0, 20,), dp_field=None) -> 'MatrixTable':
+@typecheck(vds=VariantDataset, intervals=Table, gq_thresholds=sequenceof(int), dp_thresholds=sequenceof(int),
+           dp_field=nullable(str))
+def interval_coverage(vds: VariantDataset, intervals: hl.Table, gq_thresholds=(0, 10, 20,), dp_thresholds=(0, 1, 10, 20, 30),
+                      dp_field=None) -> 'MatrixTable':
     """Compute statistics about base coverage by interval.
 
     Returns a :class:`.MatrixTable` with interval row keys and sample column keys.
@@ -586,9 +624,18 @@ def interval_coverage(vds: VariantDataset, intervals: hl.Table, gq_thresholds=(0
      -  ``fraction_over_gq_threshold`` (*tuple of float64*): Fraction of interval (in bases)
         above each GQ threshold. Computed by dividing each member of *bases_over_gq_threshold*
         by *interval_size*.
+     -  ``bases_over_dp_threshold`` (*tuple of int64*): Number of bases in the interval
+        over each DP threshold.
+     -  ``fraction_over_dp_threshold`` (*tuple of float64*): Fraction of interval (in bases)
+        above each DP threshold. Computed by dividing each member of *bases_over_dp_threshold*
+        by *interval_size*.
      -  ``sum_dp`` (*int64*): Sum of depth values by base across the interval.
      -  ``mean_dp`` (*float64*): Mean depth of bases across the interval. Computed by dividing
         *mean_dp* by *interval_size*.
+
+    If the `dp_field` parameter is not specified, the ``DP`` is used for depth
+    if present. If no ``DP`` field is present, the ``MIN_DP`` field is used. If no ``DP``
+    or ``MIN_DP`` field is present, no depth statistics will be calculated.
 
     Note
     ----
@@ -625,15 +672,20 @@ def interval_coverage(vds: VariantDataset, intervals: hl.Table, gq_thresholds=(0
     else:
         dp_field_to_use = dp_field
 
+    ref_block_length = (split.END - split.locus.position + 1)
     if dp_field_to_use is not None:
-        dp_field_dict = {'sum_dp': hl.agg.sum((split.END - split.locus.position + 1) * split[dp_field_to_use])}
+        dp = split[dp_field_to_use]
+        dp_field_dict = {'sum_dp': hl.agg.sum(ref_block_length * dp),
+                         'bases_over_dp_threshold': tuple(
+                             hl.agg.filter(dp >= dp_threshold, hl.agg.sum(ref_block_length)) for dp_threshold in
+                             dp_thresholds)}
     else:
         dp_field_dict = dict()
 
     per_interval = split.group_rows_by(interval=intervals[split.row_key[0]].interval_dup) \
         .aggregate(
         bases_over_gq_threshold=tuple(
-            hl.agg.filter(split.GQ > gq_threshold, hl.agg.sum(split.END - split.locus.position + 1)) for gq_threshold in
+            hl.agg.filter(split.GQ >= gq_threshold, hl.agg.sum(ref_block_length)) for gq_threshold in
             gq_thresholds),
         **dp_field_dict
     )
@@ -641,12 +693,17 @@ def interval_coverage(vds: VariantDataset, intervals: hl.Table, gq_thresholds=(0
     interval = per_interval.interval
     interval_size = interval.end.position + interval.includes_end - interval.start.position - 1 + interval.includes_start
     per_interval = per_interval.annotate_rows(interval_size=interval_size)
+
+    dp_mod_dict = {}
+    if dp_field_to_use is not None:
+        dp_mod_dict['fraction_over_dp_threshold'] = tuple(
+            hl.float(x) / per_interval.interval_size for x in per_interval.bases_over_dp_threshold)
+        dp_mod_dict['mean_dp'] = per_interval.sum_dp / per_interval.interval_size
+
     per_interval = per_interval.annotate_entries(
         fraction_over_gq_threshold=tuple(
-            hl.float(x) / per_interval.interval_size for x in per_interval.bases_over_gq_threshold))
-
-    if dp_field_to_use is not None:
-        per_interval = per_interval.annotate_entries(mean_dp=per_interval.sum_dp / per_interval.interval_size)
+            hl.float(x) / per_interval.interval_size for x in per_interval.bases_over_gq_threshold),
+        **dp_mod_dict)
 
     per_interval = per_interval.annotate_globals(gq_thresholds=hl.tuple(gq_thresholds))
 

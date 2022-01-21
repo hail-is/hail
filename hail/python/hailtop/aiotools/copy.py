@@ -1,4 +1,4 @@
-from typing import List, Optional
+from typing import List, Optional, Dict
 import json
 import asyncio
 import logging
@@ -51,6 +51,32 @@ async def copy(*,
                 copy_report.summarize()
 
 
+def make_transfer(json_object: Dict[str, str]) -> Transfer:
+    if 'to' in json_object:
+        return Transfer(json_object['from'], json_object['to'], treat_dest_as=Transfer.DEST_IS_TARGET)
+    assert 'into' in json_object
+    return Transfer(json_object['from'], json_object['into'], treat_dest_as=Transfer.DEST_DIR)
+
+
+async def copy_from_dict(*,
+                         max_simultaneous_transfers: Optional[int] = None,
+                         local_kwargs: Optional[dict] = None,
+                         gcs_kwargs: Optional[dict] = None,
+                         azure_kwargs: Optional[dict] = None,
+                         s3_kwargs: Optional[dict] = None,
+                         files: List[Dict[str, str]]
+                         ) -> None:
+    transfers = [make_transfer(json_object) for json_object in files]
+    await copy(
+        max_simultaneous_transfers=max_simultaneous_transfers,
+        local_kwargs=local_kwargs,
+        gcs_kwargs=gcs_kwargs,
+        azure_kwargs=azure_kwargs,
+        s3_kwargs=s3_kwargs,
+        transfers=transfers
+    )
+
+
 async def main() -> None:
     parser = argparse.ArgumentParser(description='Hail copy tool')
     parser.add_argument('requester_pays_project', type=str,
@@ -63,18 +89,19 @@ async def main() -> None:
                         const=True, default=False,
                         help='show logging information')
     args = parser.parse_args()
+
     if args.verbose:
         logging.basicConfig()
         logging.root.setLevel(logging.INFO)
+
     requester_pays_project = json.loads(args.requester_pays_project)
     files = json.loads(args.files)
-
     gcs_kwargs = {'project': requester_pays_project}
 
-    await copy(
+    await copy_from_dict(
         max_simultaneous_transfers=args.max_simultaneous_transfers,
         gcs_kwargs=gcs_kwargs,
-        transfers=[Transfer(f['from'], f['to'], treat_dest_as=Transfer.DEST_IS_TARGET) for f in files]
+        files=files
     )
 
 
