@@ -406,11 +406,11 @@ class ServiceTests(unittest.TestCase):
         self.remote_tmpdir = remote_tmpdir
 
         if remote_tmpdir.startswith('gs://'):
-            self.cloud_location = re.fullmatch('gs://(?P<bucket_name>[^/]+).*', remote_tmpdir).groupdict()['bucket_name']
+            self.bucket = re.fullmatch('gs://(?P<bucket_name>[^/]+).*', remote_tmpdir).groupdict()['bucket_name']
         else:
             assert remote_tmpdir.startswith('hail-az://')
             storage_account, container_name = re.fullmatch('hail-az://(?P<storage_account>[^/]+)/(?P<container_name>[^/]+).*', remote_tmpdir).groups()
-            self.cloud_location = f'{storage_account}/{container_name}'
+            self.bucket = f'{storage_account}/{container_name}'
 
         self.cloud_input_dir = f'{self.remote_tmpdir}batch-tests/resources'
 
@@ -596,17 +596,17 @@ class ServiceTests(unittest.TestCase):
         assert res_status['state'] == 'success', str((res_status, res.debug_info()))
 
     def test_cloudfuse(self):
-        assert self.cloud_location
-        path = f'/{self.cloud_location}{self.cloud_output_path}'
+        assert self.bucket
+        path = f'/{self.bucket}{self.cloud_output_path}'
 
         b = self.batch()
         head = b.new_job()
         head.command(f'mkdir -p {path}; echo head > {path}/cloudfuse_test_1')
-        head.cloudfuse(self.cloud_location, f'/{self.cloud_location}', read_only=False)
+        head.cloudfuse(self.bucket, f'/{self.bucket}', read_only=False)
 
         tail = b.new_job()
         tail.command(f'cat {path}/cloudfuse_test_1')
-        tail.cloudfuse(self.cloud_location, f'/{self.cloud_location}', read_only=True)
+        tail.cloudfuse(self.bucket, f'/{self.bucket}', read_only=True)
         tail.depends_on(head)
 
         res = b.run()
@@ -614,30 +614,30 @@ class ServiceTests(unittest.TestCase):
         assert res_status['state'] == 'success', str((res_status, res.debug_info()))
 
     def test_cloudfuse_read_only(self):
-        assert self.cloud_location
-        path = f'/{self.cloud_location}{self.cloud_output_path}'
+        assert self.bucket
+        path = f'/{self.bucket}{self.cloud_output_path}'
 
         b = self.batch()
         j = b.new_job()
         j.command(f'mkdir -p {path}; echo head > {path}/cloudfuse_test_1')
-        j.cloudfuse(self.cloud_location, f'/{self.cloud_location}', read_only=True)
+        j.cloudfuse(self.bucket, f'/{self.bucket}', read_only=True)
 
         res = b.run()
         res_status = res.status()
         assert res_status['state'] == 'failure', str((res_status, res.debug_info()))
 
     def test_cloudfuse_implicit_dirs(self):
-        assert self.cloud_location
-        path = f'/{self.cloud_location}{self.cloud_output_path}'
+        assert self.bucket
+        path = f'/{self.bucket}{self.cloud_output_path}'
 
         b = self.batch()
         head = b.new_job()
         head.command(f'mkdir -p {path}/cloudfuse/; echo head > {path}/cloudfuse/data')
-        head.cloudfuse(self.cloud_location, f'/{self.cloud_location}', read_only=False)
+        head.cloudfuse(self.bucket, f'/{self.bucket}', read_only=False)
 
         tail = b.new_job()
         tail.command(f'cat {path}/cloudfuse/data')
-        tail.cloudfuse(self.cloud_location, f'/{self.cloud_location}', read_only=True)
+        tail.cloudfuse(self.bucket, f'/{self.bucket}', read_only=True)
         tail.depends_on(head)
 
         res = b.run()
@@ -645,13 +645,13 @@ class ServiceTests(unittest.TestCase):
         assert res_status['state'] == 'success', str((res_status, res.debug_info()))
 
     def test_cloudfuse_empty_string_bucket_fails(self):
-        assert self.cloud_location
+        assert self.bucket
         b = self.batch()
         j = b.new_job()
         with self.assertRaises(BatchException):
             j.cloudfuse('', '/empty_bucket')
         with self.assertRaises(BatchException):
-            j.cloudfuse(self.cloud_location, '')
+            j.cloudfuse(self.bucket, '')
 
     @skip_in_azure
     def test_requester_pays(self):
