@@ -1720,6 +1720,7 @@ class JVMJob(Job):
         log.info(f'{self}: cleaning up')
         try:
             await check_shell(f'xfs_quota -x -c "limit -p bsoft=0 bhard=0 {self.project_id}" /host')
+            await blocking_to_async(self.pool, shutil.rmtree, self.scratch, ignore_errors=True)
         except asyncio.CancelledError:
             raise
         except Exception:
@@ -2118,8 +2119,6 @@ class Worker:
         except Exception as e:
             if not user_error(e):
                 log.exception(f'while running {job}, ignoring')
-            else:
-                log.exception(f'user error while running {job}, ignoring')
 
     async def create_job_1(self, request):
         body = await request.json()

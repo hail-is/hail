@@ -22,7 +22,7 @@ WHERE `name` = 'standard';
     await db.execute_update(
         '''
 UPDATE pools
-SET worker_cores = 16, standing_worker_cores = 16
+SET worker_cores = 16, standing_worker_cores = 16, enable_standing_worker = 1
 WHERE `name` = 'standard' AND `worker_type` = 'standard';
 ''')
 
