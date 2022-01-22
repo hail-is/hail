@@ -31,6 +31,13 @@ resource "azurerm_mysql_configuration" "example" {
   value               = "ON"
 }
 
+resource "azurerm_mysql_configuration" "max_connections" {
+  name                = "max_connections"
+  resource_group_name = var.resource_group.name
+  server_name         = azurerm_mysql_server.db.name
+  value               = 500
+}
+
 data "http" "db_ca_cert" {
   url = "https://www.digicert.com/CACerts/BaltimoreCyberTrustRoot.crt.pem"
 }
