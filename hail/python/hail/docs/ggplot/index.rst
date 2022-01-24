@@ -5,7 +5,7 @@ Plotting Overview
 .. warning::
     Plotting functionality is in early stages and is experimental.
 
-The ``hl.gg`` module is designed based on R's ``ggplot2`` library. This module provides a subset of ``ggplot2``'s
+The ``hl.ggplot`` module is designed based on R's ``ggplot2`` library. This module provides a subset of ``ggplot2``'s
 functionality to allow users to generate plots in much the same way they would in ``ggplot2``.
 
 .. toctree::

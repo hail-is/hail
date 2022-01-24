@@ -1,6 +1,6 @@
 # These tests only check that the functions don't error out, they don't check what the output plot looks like.
 import hail as hl
-from hail.gg import *
+from hail.ggplot import *
 
 
 def test_geom_point_line_text():
