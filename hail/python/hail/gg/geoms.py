@@ -194,6 +194,13 @@ class GeomPoint(Geom):
 
 def geom_point(mapping=aes(), *, color=None):
     """Create a scatter plot.
+
+    Supported aesthetics: ``x``, ``y``, ``color``, ``tooltip``
+
+    Returns
+    -------
+    :class:`Geom`
+        The geom to be applied.
     """
     return GeomPoint(mapping, color=color)
 
@@ -213,6 +220,13 @@ class GeomLine(GeomLineBasic):
 
 def geom_line(mapping=aes(), *, color=None):
     """Create a line plot.
+
+    Supported aesthetics: ``x``, ``y``, ``color``, ``tooltip``
+
+    Returns
+    -------
+    :class:`Geom`
+        The geom to be applied.
     """
     return GeomLine(mapping, color=color)
 
@@ -258,7 +272,14 @@ class GeomText(Geom):
 
 
 def geom_text(mapping=aes(), *, color=None):
-    """Create a scatter plot where each point is text from the 'text' aesthetic.
+    """Create a scatter plot where each point is text from the ``text`` aesthetic.
+
+    Supported aesthetics: ``x``, ``y``, ``text``, ``color``, ``tooltip``
+
+    Returns
+    -------
+    :class:`Geom`
+        The geom to be applied.
     """
     return GeomText(mapping, color=color)
 
@@ -295,7 +316,6 @@ class GeomBar(Geom):
             elif self.color is not None:
                 bar_args["marker_line_color"] = self.color
 
-
             if self.size is not None:
                 bar_args["marker_line_width"] = self.size
 
@@ -314,7 +334,10 @@ class GeomBar(Geom):
 
 
 def geom_bar(mapping=aes(), *, fill=None, color=None, position="stack", size=None):
-    """Create a bar chart that counts occurences of the various values of the `x` aesthetic.
+    """Create a bar chart that counts occurrences of the various values of the ``x`` aesthetic.
+
+    Supported aesthetics: ``x``, ``color``, ``fill``
+
     """
     return GeomBar(mapping, fill=fill, color=color, position=position, size=size)
 
@@ -387,11 +410,39 @@ class GeomHistogram(Geom):
         return StatBin(self.min_bin, self.max_bin, self.bins)
 
 
-def geom_histogram(mapping=aes(), min_bin=None, max_bin=None, bins=30, *, fill=None, color=None, position='stack',
+def geom_histogram(mapping=aes(), *, min_val=None, max_val=None, bins=30, fill=None, color=None, position='stack',
                    size=None):
-    assert(min_bin is not None)
-    assert(max_bin is not None)
-    return GeomHistogram(mapping, min_bin, max_bin, bins, fill, color, position, size)
+    """Creates a histogram.
+
+    Note: this function currently does not support same interface as R's ggplot.
+
+    Supported aesthetics: ``x``, ``color``, ``fill``
+
+    Parameters
+    ----------
+    mapping: :class:`Aesthetic`
+        Any aesthetics specific to this geom.
+    min_val: `int` or `float`
+        Minimum value to include in histogram
+    max_val: `int` or `float`
+        Maximum value to include in histogram
+    bins: `int`
+        Number of bins to plot. 30 by default.
+    fill:
+        A single fill color for all bars of histogram, overrides ``fill`` aesthetic.
+    color:
+        A single outline color for all bars of histogram, overrides ``color`` aesthetic.
+    position: :class:`str`
+        Tells how to deal with different groups of data at same point. Options are "stack" and "dodge".
+    size
+
+    Returns
+    -------
+
+    """
+    assert min_val is not None
+    assert max_val is not None
+    return GeomHistogram(mapping, min_val, max_val, bins, fill, color, position, size)
 
 
 linetype_dict = {

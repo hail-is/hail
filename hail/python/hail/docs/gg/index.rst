@@ -24,6 +24,7 @@ functionality to allow users to generate plots in much the same way they would i
 
 .. autofunction:: ggplot
 .. autofunction:: aes
+.. autofunction:: coord_cartesian
 
 .. rubric:: Geoms
 
@@ -36,6 +37,13 @@ functionality to allow users to generate plots in much the same way they would i
     geom_bar
     geom_histogram
 
+.. autofunction:: geom_point
+.. autofunction:: geom_line
+.. autofunction:: geom_text
+.. autofunction:: geom_bar
+.. autofunction:: geom_histogram
+
+
 .. rubric:: Scales
 
 .. autosummary::
@@ -44,14 +52,34 @@ functionality to allow users to generate plots in much the same way they would i
     scale_x_continuous
     scale_x_discrete
     scale_x_genomic
+    scale_x_log10
+    scale_x_reverse
     scale_y_continuous
     scale_y_discrete
+    scale_y_log10
+    scale_y_reverse
     scale_color_continuous
     scale_color_discrete
     scale_color_identity
     scale_fill_continuous
     scale_fill_discrete
     scale_fill_identity
+
+.. autofunction:: scale_x_continuous
+.. autofunction:: scale_x_discrete
+.. autofunction:: scale_x_genomic
+.. autofunction:: scale_x_log10
+.. autofunction:: scale_x_reverse
+.. autofunction:: scale_y_continuous
+.. autofunction:: scale_y_discrete
+.. autofunction:: scale_y_log10
+.. autofunction:: scale_y_reverse
+.. autofunction:: scale_color_continuous
+.. autofunction:: scale_color_discrete
+.. autofunction:: scale_color_identity
+.. autofunction:: scale_fill_continuous
+.. autofunction:: scale_fill_discrete
+.. autofunction:: scale_fill_identity
 
 .. rubric:: Labels
 
@@ -61,3 +89,16 @@ functionality to allow users to generate plots in much the same way they would i
     xlab
     ylab
     ggtitle
+
+.. autofunction:: xlab
+.. autofunction:: ylab
+.. autofunction:: ggtitle
+
+.. rubric:: Classes
+
+.. autoclass:: GGPlot
+.. autoclass:: Aesthetic
+.. autoclass:: Geom
+.. autoclass:: Labels
+.. autoclass:: Scale
+.. autoclass:: CoordCartesian

@@ -14,4 +14,19 @@ class CoordCartesian(FigureAttribute):
 
 
 def coord_cartesian(xlim=None, ylim=None):
+    """Set the boundaries of the plot.
+
+    Parameters
+    ----------
+    xlim : :obj:`tuple` with two int
+        The minimum and maximum x value to show on the plot.
+    ylim : :obj:`tuple` with two int
+        The minimum and maximum y value to show on the plot.
+
+    Returns
+    -------
+    :class:`.CoordCartesian`
+        The coordinate object to be applied.
+
+    """
     return CoordCartesian(xlim, ylim)

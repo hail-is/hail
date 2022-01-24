@@ -38,7 +38,18 @@ class Aesthetic(Mapping):
 
 
 def aes(**kwargs):
-    """Create an aesthetic mapping.
+    """Create an aesthetic mapping
+
+    Parameters
+    ----------
+    kwargs:
+        Map aesthetic names to hail expressions based on table's plot.
+
+    Returns
+    -------
+    :class:`.Aesthetic`
+        The aesthetic mapping to be applied.
+
     """
     hail_field_properties = {}
     lambda_properties = {}

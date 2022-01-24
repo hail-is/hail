@@ -165,61 +165,233 @@ class ScaleColorDiscreteIdentity(ScaleDiscrete):
         return data
 
 
-def scale_x_log10():
-    return PositionScaleContinuous("x", transformation="log10")
+def scale_x_log10(name=None):
+    """Transforms x axis to be log base 10 scaled.
+
+    Parameters
+    ----------
+    name: :class:`str`
+        The label to show on x-axis
+
+    Returns
+    -------
+    :class:`.Scale`
+        The scale to be applied.
+    """
+    return PositionScaleContinuous("x", name=name, transformation="log10")
 
 
-def scale_y_log10():
-    return PositionScaleContinuous("y", transformation="log10")
+def scale_y_log10(name=None):
+    """Transforms y-axis to be log base 10 scaled.
+
+    Parameters
+    ----------
+    name: :class:`str`
+        The label to show on y-axis
+
+    Returns
+    -------
+    :class:`.Scale`
+        The scale to be applied.
+    """
+    return PositionScaleContinuous("y", name=name, transformation="log10")
 
 
-def scale_x_reverse():
-    return PositionScaleContinuous("x", transformation="reverse")
+def scale_x_reverse(name=None):
+    """Transforms x-axis to be vertically reversed.
+
+    Parameters
+    ----------
+    name: :class:`str`
+        The label to show on x-axis
+
+    Returns
+    -------
+    :class:`.Scale`
+        The scale to be applied.
+    """
+    return PositionScaleContinuous("x", name=name, transformation="reverse")
 
 
-def scale_y_reverse():
-    return PositionScaleContinuous("y", transformation="reverse")
+def scale_y_reverse(name=None):
+    """Transforms y-axis to be vertically reversed.
+
+    Parameters
+    ----------
+    name: :class:`str`
+        The label to show on y-axis
+
+    Returns
+    -------
+    :class:`.Scale`
+        The scale to be applied.
+    """
+    return PositionScaleContinuous("y", name=name, transformation="reverse")
 
 
 def scale_x_continuous(name=None, breaks=None, labels=None, trans="identity"):
+    """The default continuous x scale.
+
+    Parameters
+    ----------
+    name: :class:`str`
+        The label to show on x-axis
+    breaks: :class:`list` of :class:`float`
+        The locations to draw ticks on the x-axis.
+    labels: :class:`list` of :class:`str`
+        The labels of the ticks on the axis.
+    trans: :class:`str`
+        The transformation to apply to the x-axis. Supports "identity", "reverse", "log10".
+
+    Returns
+    -------
+    :class:`.Scale`
+        The scale to be applied.
+    """
     return PositionScaleContinuous("x", name=name, breaks=breaks, labels=labels, transformation=trans)
 
 
 def scale_y_continuous(name=None, breaks=None, labels=None, trans="identity"):
+    """The default continuous y scale.
+
+    Parameters
+    ----------
+    name: :class:`str`
+        The label to show on y-axis
+    breaks: :class:`list` of :class:`float`
+        The locations to draw ticks on the y-axis.
+    labels: :class:`list` of :class:`str`
+        The labels of the ticks on the axis.
+    trans: :class:`str`
+        The transformation to apply to the y-axis. Supports "identity", "reverse", "log10".
+
+    Returns
+    -------
+    :class:`.Scale`
+        The scale to be applied.
+    """
     return PositionScaleContinuous("y", name=name, breaks=breaks, labels=labels, transformation=trans)
 
 
 def scale_x_discrete(name=None, breaks=None, labels=None):
+    """The default discrete x scale.
+
+    Parameters
+    ----------
+    name: :class:`str`
+        The label to show on x-axis
+    breaks: :class:`list` of :class:`str`
+        The locations to draw ticks on the x-axis.
+    labels: :class:`list` of :class:`str`
+        The labels of the ticks on the axis.
+
+    Returns
+    -------
+    :class:`.Scale`
+        The scale to be applied.
+    """
     return PositionScaleDiscrete("x", name=name, breaks=breaks, labels=labels)
 
 
 def scale_y_discrete(name=None, breaks=None, labels=None):
+    """The default discrete y scale.
+
+    Parameters
+    ----------
+    name: :class:`str`
+        The label to show on y-axis
+    breaks: :class:`list` of :class:`str`
+        The locations to draw ticks on the y-axis.
+    labels: :class:`list` of :class:`str`
+        The labels of the ticks on the axis.
+
+    Returns
+    -------
+    :class:`.Scale`
+        The scale to be applied.
+    """
     return PositionScaleDiscrete("y", name=name, breaks=breaks, labels=labels)
 
 
 def scale_x_genomic(reference_genome, name=None):
+    """The default genomic x scale. This is used when the ``x`` aesthetic corresponds to a :class:`.LocusExpression`.
+
+    Parameters
+    ----------
+    reference_genome:
+        The reference genome being used.
+    name: :class:`str`
+        The label to show on y-axis
+
+    Returns
+    -------
+    :class:`.Scale`
+        The scale to be applied.
+    """
     return PositionScaleGenomic("x", reference_genome, name=name)
 
 
 def scale_color_discrete():
+    """The default discrete color scale. This maps each discrete value to a color.
+
+    Returns
+    -------
+    :class:`.Scale`
+        The scale to be applied.
+    """
     return ScaleColorDiscrete("color")
 
 
 def scale_color_continuous():
+    """The default continuous color scale. This linearly interpolates colors between the min and max observed values.
+
+    Returns
+    -------
+    :class:`.Scale`
+        The scale to be applied.
+    """
     return ScaleColorContinuous("color")
 
 
 def scale_color_identity():
+    """A color scale that assumes the expression specified in the ``color`` aesthetic can be used as a color.
+
+    Returns
+    -------
+    :class:`.Scale`
+        The scale to be applied.
+    """
     return ScaleColorDiscreteIdentity("color")
 
 
 def scale_fill_discrete():
+    """The default discrete fill scale. This maps each discrete value to a fill color.
+
+    Returns
+    -------
+    :class:`.Scale`
+        The scale to be applied.
+    """
     return ScaleColorDiscrete("fill")
 
 
 def scale_fill_continuous():
+    """The default discrete fill scale. This linearly interpolates colors between the min and max observed values.
+
+    Returns
+    -------
+    :class:`.Scale`
+        The scale to be applied.
+    """
     return ScaleColorContinuous("fill")
 
 
 def scale_fill_identity():
+    """A color scale that assumes the expression specified in the ``fill`` aesthetic can be used as a fill color.
+
+    Returns
+    -------
+    :class:`.Scale`
+        The scale to be applied.
+    """
     return ScaleColorDiscreteIdentity("fill")
