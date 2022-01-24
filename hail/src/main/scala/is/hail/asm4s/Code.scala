@@ -1430,7 +1430,7 @@ class CodeObject[T <: AnyRef : ClassTag](val lhs: Code[T]) {
   }
 }
 
-class CodeNullable[T >: Null : TypeInfo](val lhs: Code[T]) {
+class CodeNullable[T >: Null](val lhs: Code[T]) {
   def isNull: Code[Boolean] = {
     val Ltrue = new lir.Block()
     val Lfalse = new lir.Block()

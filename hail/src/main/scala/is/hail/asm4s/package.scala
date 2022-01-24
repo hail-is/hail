@@ -312,7 +312,7 @@ package object asm4s {
 
   implicit def valueToCodeBoolean(f: Value[Boolean]): CodeBoolean = new CodeBoolean(f.get)
 
-  implicit def valueToCodeNullable[T >: Null : TypeInfo](c: Value[T]): CodeNullable[T] = new CodeNullable(c)
+  implicit def valueToCodeNullable[T >: Null](c: Value[T]): CodeNullable[T] = new CodeNullable(c)
 
   implicit def toCode[T](f: Readable[T]): Code[T] = f.load()
 

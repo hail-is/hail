@@ -109,24 +109,29 @@ class ArraySorter(r: EmitRegion, array: StagedArrayBuilder) {
       }
 
       // these arrays should be allocated once and reused
-      cb.ifx(workingArray1.isNull || arrayRef(cb.memoize(workingArray1)).length() < newEnd, {
-        cb.assignAny(workingArray1, Code.newArray(newEnd)(array.ti))
-        cb.assignAny(workingArray2, Code.newArray(newEnd)(array.ti))
+      cb.ifx(workingArray1.isNull || arrayRef(coerce[Array[Any]](cb.memoizeAny(workingArray1, workingArrayInfo))).length() < valueToCode(newEnd), {
+        cb.assignAny(workingArray1, Code.newArray(valueToCode(newEnd))(array.ti))
+        cb.assignAny(workingArray2, Code.newArray(valueToCode(newEnd))(array.ti))
       })
 
+      val wa1mem = coerce[Array[Any]](cb.memoizeAny(workingArray1, workingArrayInfo))
+      val wa2mem = coerce[Array[Any]](cb.memoizeAny(workingArray2, workingArrayInfo))
+      val wa1ref = arrayRef(wa1mem)
+      val wa2ref = arrayRef(wa2mem)
       cb.assign(i, 0)
       cb.whileLoop(i < newEnd, {
-        cb += arrayRef(cb.memoize(workingArray1)).update(i, array(i))
-        cb += arrayRef(cb.memoize(workingArray2)).update(i, array(i))
+        cb += wa1ref.update(i, array(i))
+        cb += wa2ref.update(i, array(i))
         cb.assign(i, i + 1)
       })
 
       // elements are sorted in workingArray2 after calling splitMergeMB
-      cb.invokeVoid(splitMergeMB, sortMB.getCodeParam[Region](1), const(0), cb.memoize(newEnd), cb.memoize(workingArray1), cb.memoize(workingArray2))
+      cb.invokeVoid(splitMergeMB, sortMB.getCodeParam[Region](1),
+        const(0), cb.memoize(newEnd), wa1mem, wa2mem)
 
       cb.assign(i, 0)
       cb.whileLoop(i < newEnd, {
-        cb += array.update(i, arrayRef(cb.memoize(workingArray2))(i))
+        cb += array.update(i, wa2ref(i))
         cb.assign(i, i + 1)
       })
 
