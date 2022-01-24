@@ -4,6 +4,8 @@ import shutil
 import subprocess
 import tempfile
 
+from hailtop.utils import secret_alnum_string
+
 from . import gcloud
 
 
@@ -100,5 +102,5 @@ async def main(args, pass_through_args):  # pylint: disable=unused-argument
                 '--proxy-server=socks5://localhost:{}'.format(args.port),
                 '--host-resolver-rules=MAP * 0.0.0.0 , EXCLUDE localhost',
                 '--proxy-bypass-list=<-loopback>',  # https://chromium.googlesource.com/chromium/src/+/da790f920bbc169a6805a4fb83b4c2ab09532d91
-                '--user-data-dir={}'.format(tempfile.gettempdir())
+                '--user-data-dir={}'.format(os.path.join(tempfile.gettempdir(), secret_alnum_string(6)))
             ], stdout=f, stderr=f)
