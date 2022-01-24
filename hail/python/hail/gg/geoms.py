@@ -438,7 +438,8 @@ def geom_histogram(mapping=aes(), *, min_val=None, max_val=None, bins=30, fill=N
 
     Returns
     -------
-
+    :class:`Geom`
+        The geom to be applied.
     """
     assert min_val is not None
     assert max_val is not None
@@ -477,6 +478,23 @@ class GeomHLine(Geom):
 
 
 def geom_hline(yintercept, *, linetype="solid", color=None):
+    """Plots a horizontal line at ``yintercept``.
+
+
+    Parameters
+    ----------
+    yintercept : :class:`float`
+        Location to draw line.
+    linetype : :class:`str`
+        Type of line to draw. Choose from "solid", "dashed", "dotted", "longdash", "dotdash".
+    color : :class:`str`
+        Color of line to draw, black by default.
+
+    Returns
+    -------
+    :class:`Geom`
+        The geom to be applied.
+    """
     return GeomHLine(yintercept, linetype=linetype, color=color)
 
 
@@ -503,6 +521,23 @@ class GeomVLine(Geom):
 
 
 def geom_vline(xintercept, *, linetype="solid", color=None):
+    """Plots a vertical line at ``xintercept``.
+
+
+    Parameters
+    ----------
+    xintercept : :class:`float`
+        Location to draw line.
+    linetype : :class:`str`
+        Type of line to draw. Choose from "solid", "dashed", "dotted", "longdash", "dotdash".
+    color : :class:`str`
+        Color of line to draw, black by default.
+
+    Returns
+    -------
+    :class:`Geom`
+        The geom to be applied.
+    """
     return GeomVLine(xintercept, linetype=linetype, color=color)
 
 
