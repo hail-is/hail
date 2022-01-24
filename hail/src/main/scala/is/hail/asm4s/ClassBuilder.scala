@@ -128,7 +128,7 @@ class ModuleBuilder() {
             "()V",
             false,
             UnitInfo,
-            FastIndexedSeq(lir.load(ctor._this.asInstanceOf[LocalRef[_]].l))))
+            FastIndexedSeq(lir.load(ctor.lmethod.getParam(0)))))
         cb += new VCode(L, L, null)
         fields.zipWithIndex.foreach { case (f, i) =>
             cb += f.putAny(ctor._this, ctor.getArg(i + 1)(f.ti).get)
