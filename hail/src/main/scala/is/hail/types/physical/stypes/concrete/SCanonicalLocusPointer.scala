@@ -25,7 +25,12 @@ final case class SCanonicalLocusPointer(pType: PCanonicalLocus) extends SLocus {
   override def _coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SValue, deepCopy: Boolean): SValue =
     value match {
       case value: SLocusValue =>
-        new SCanonicalLocusPointerValue(this, pType.store(cb, region, value, deepCopy), value.contigLong(cb), value.position(cb))
+        val locusCopy = pType.store(cb, region, value, deepCopy)
+        val contigCopy = if (deepCopy)
+          cb.memoize(pType.contigAddr(locusCopy))
+        else
+          value.contigLong(cb)
+        new SCanonicalLocusPointerValue(this, locusCopy, contigCopy, value.position(cb))
     }
 
   override def settableTupleTypes(): IndexedSeq[TypeInfo[_]] = FastIndexedSeq(LongInfo, LongInfo, IntInfo)
