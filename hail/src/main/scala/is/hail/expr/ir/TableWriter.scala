@@ -24,7 +24,7 @@ import is.hail.utils._
 import is.hail.utils.richUtils.ByteTrackingOutputStream
 import is.hail.variant.ReferenceGenome
 import org.json4s.JsonAST.JString
-import org.json4s.{DefaultFormats, Formats, JObject, ShortTypeHints}
+import org.json4s.{DefaultFormats, Formats, JBool, JObject, ShortTypeHints}
 
 object TableWriter {
   implicit val formats: Formats = new DefaultFormats()  {
@@ -331,7 +331,7 @@ class TableSpecHelper(path: String, rowRelPath: String, globalRelPath: String, r
         "rows" -> RVDComponentSpec(rowRelPath),
         "partition_counts" -> PartitionCountsComponentSpec(partCounts),
         "properties" -> PropertiesSpec(JObject(
-          "distinctlyKeyed" -> JString(distinctlyKeyed.toString)
+          "distinctlyKeyed" -> JBool(distinctlyKeyed)
         ))
       ))
 

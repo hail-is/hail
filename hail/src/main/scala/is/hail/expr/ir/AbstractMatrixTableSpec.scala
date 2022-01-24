@@ -94,7 +94,7 @@ abstract class RelationalSpec {
 
   def partitionCounts: Array[Long] = getComponent[PartitionCountsComponentSpec]("partition_counts").counts.toArray
 
-  def isDistinctlyKeyed: Boolean = getOptionalComponent[PropertiesSpec]("properties").flatMap(_.properties.values.get("distinctlyKeyed")).map(_ == "true").getOrElse(false)
+  def isDistinctlyKeyed: Boolean = getOptionalComponent[PropertiesSpec]("properties").flatMap(_.properties.values.get("distinctlyKeyed").map(_.asInstanceOf[Boolean])).getOrElse(false)
 
   def indexed: Boolean
 
