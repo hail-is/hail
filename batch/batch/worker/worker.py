@@ -14,7 +14,6 @@ import signal
 import aiohttp
 import aiohttp.client_exceptions
 from aiohttp import web
-import struct
 import async_timeout
 import concurrent
 import tempfile
@@ -72,7 +71,7 @@ from ..cloud.azure.worker.instance_env import AzureWorkerAPI
 from ..cloud.resource_utils import storage_gib_to_bytes, is_valid_storage_request
 
 from .credentials import CloudUserCredentials
-from .jvm_entryway_protocol import read_bool, read_int, read_str, write_int, write_str
+from .jvm_entryway_protocol import read_bool, read_int, read_str, write_int, write_str, EndOfStream
 
 # uvloop.install()
 
