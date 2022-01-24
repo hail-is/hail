@@ -13,7 +13,7 @@ from .scale import Scale, ScaleContinuous, ScaleDiscrete, scale_x_continuous, sc
     scale_x_discrete, scale_y_discrete, scale_color_discrete, scale_color_continuous, scale_fill_discrete, \
     scale_fill_continuous
 from .aes import Aesthetic, aes
-from ..ir.utils import is_continuous_type, check_scale_continuity
+from ..ir.utils import is_continuous_type, is_genomic_type, check_scale_continuity
 
 
 class GGPlot:
@@ -57,9 +57,6 @@ class GGPlot:
         return copied
 
     def add_default_scales(self, aesthetic):
-
-        def is_genomic_type(dtype):
-            return isinstance(dtype, hl.tlocus)
 
         for aesthetic_str, mapped_expr in aesthetic.items():
             dtype = mapped_expr.dtype
