@@ -227,7 +227,14 @@ class ReferenceGenome(object):
             raise KeyError("Contig `{}' is not in reference genome.".format(contig))
 
     @property
-    def _global_positions_dict(self):
+    def global_positions_dict(self):
+        """Get a dictionary mapping contig names to their global genomic positions.
+
+        Returns
+        -------
+        :class:`dict`
+            A dictionary of contig names to global genomic positions.
+        """
         if self._global_positions is None:
             gp = {}
             lengths = self._lengths

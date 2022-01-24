@@ -56,7 +56,7 @@ class PositionScaleGenomic(PositionScale):
         self.reference_genome = reference_genome
 
     def apply_to_fig(self, parent, fig_so_far):
-        contig_offsets = dict(list(self.reference_genome._global_positions_dict.items())[:24])
+        contig_offsets = dict(list(self.reference_genome.global_positions_dict.items())[:24])
         breaks = list(contig_offsets.values())
         labels = list(contig_offsets.keys())
         self.update_axis(fig_so_far)(tickvals=breaks, ticktext=labels)

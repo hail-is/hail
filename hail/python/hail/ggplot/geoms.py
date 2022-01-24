@@ -1,14 +1,12 @@
 import abc
-import plotly
 
 from .aes import aes
-from .utils import categorical_strings_to_colors, continuous_nums_to_colors
 import hail as hl
 
 from ..ir.utils import is_continuous_type
 
 
-class FigureAttribute:
+class FigureAttribute(abc.ABC):
     pass
 
 
