@@ -481,6 +481,7 @@ object ApplyAggOp {
 }
 
 final case class ApplyAggOp(initOpArgs: IndexedSeq[IR], seqOpArgs: IndexedSeq[IR], aggSig: AggSignature) extends IR {
+
   def nSeqOpArgs = seqOpArgs.length
 
   def nInitArgs = initOpArgs.length

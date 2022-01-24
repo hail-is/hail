@@ -247,7 +247,7 @@ class ReferenceGenome(object):
 
     @typecheck_method(contig=str)
     def _contig_global_position(self, contig):
-        return self._global_positions_dict[contig]
+        return self.global_positions_dict[contig]
 
     @classmethod
     @typecheck_method(path=str)
