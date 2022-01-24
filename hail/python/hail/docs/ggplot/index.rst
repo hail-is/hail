@@ -11,7 +11,7 @@ functionality to allow users to generate plots in much the same way they would i
 .. toctree::
     :maxdepth: 2
 
-.. currentmodule:: hail.gg
+.. currentmodule:: hail.ggplot
 
 .. rubric:: Core functions
 

@@ -40,7 +40,7 @@ Modules
     stats <stats/index>
     genetics <genetics/index>
     plot <plot>
-    gg <gg/index>
+    ggplot <ggplot/index>
     vds <vds/index>
     experimental <experimental/index>
 
