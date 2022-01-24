@@ -108,7 +108,7 @@ __all__ = [
     'linalg',
     'nd',
     'plot',
-    'gg',
+    'ggplot',
     'experimental',
     'ir',
     'vds',

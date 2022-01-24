@@ -13,7 +13,7 @@ from .scale import Scale, ScaleContinuous, ScaleDiscrete, scale_x_continuous, sc
     scale_x_discrete, scale_y_discrete, scale_color_discrete, scale_color_continuous, scale_fill_discrete, \
     scale_fill_continuous
 from .aes import Aesthetic, aes
-from ..ir.utils import is_continuous_type, is_genomic_type, check_scale_continuity
+from .utils import is_continuous_type, is_genomic_type, check_scale_continuity
 
 
 class GGPlot:

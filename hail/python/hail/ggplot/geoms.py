@@ -68,7 +68,7 @@ class Stat:
 
     @abc.abstractmethod
     def listify(self, agg_result):
-        #Turns the agg result into a data list to be plotted.
+        # Turns the agg result into a data list to be plotted.
         return
 
 
@@ -105,16 +105,10 @@ class StatNone(Stat):
 
 class StatCount(Stat):
     def make_agg(self, mapping):
-        # Let's see. x_expr is the thing to group by. If any of the
-        # aesthetics in geom_struct are just pointers to x_expr, that's fine.
-        # Maybe I just do a `take(1) for every field of parent_struct and geom_struct?
-        # Or better, a collect_as_set where I error if size is greater than 1?
-        #group by all discrete variables and x
         discrete_variables = {aes_key: mapping[aes_key] for aes_key in mapping.keys()
                               if not is_continuous_type(mapping[aes_key].dtype)}
         discrete_variables["x"] = mapping["x"]
         return hl.agg.group_by(hl.struct(**discrete_variables), hl.agg.count())
-
 
     def listify(self, agg_result):
         unflattened_items = agg_result.items()
