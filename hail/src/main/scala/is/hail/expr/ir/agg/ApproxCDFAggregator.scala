@@ -51,7 +51,7 @@ class ApproxCDFState(val kb: EmitClassBuilder[_]) extends AggregatorState {
   def newState(cb: EmitCodeBuilder, off: Value[Long]): Unit = cb += region.getNewRegion(regionSize)
 
   def createState(cb: EmitCodeBuilder): Unit =
-    cb.ifx(region.isNull, cb.assign(r, Region.stagedCreate(regionSize, kb.pool())))
+    cb.ifx(region.isNull, cb.assign(r, Region.stagedCreate(regionSize, kb.pool(cb))))
 
   override def load(cb: EmitCodeBuilder, regionLoader: (EmitCodeBuilder, Value[Region]) => Unit, src: Value[Long]): Unit = {
     regionLoader(cb, r)

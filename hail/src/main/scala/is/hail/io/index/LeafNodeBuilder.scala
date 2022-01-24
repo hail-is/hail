@@ -55,7 +55,7 @@ class StagedLeafNodeBuilder(maxSize: Int, keyType: PType, annotationType: PType,
   }
 
   def create(cb: EmitCodeBuilder, firstIdx: Code[Long]): Unit = {
-    cb.assign(region, Region.stagedCreate(Region.REGULAR, cb.emb.ecb.pool()))
+    cb.assign(region, Region.stagedCreate(Region.REGULAR, cb.emb.ecb.pool(cb)))
     node.store(cb, pType.loadCheapSCode(cb, pType.allocate(region)))
     idxType.storePrimitiveAtAddress(cb, pType.fieldOffset(node.a, "first_idx"), primitive(cb.memoize(firstIdx)))
     ab.create(cb, pType.fieldOffset(node.a, "keys"))

@@ -501,8 +501,13 @@ object Code {
       }
     }
 
-    val lr = new LocalRef[T](new lir.Local(null, name, tti))
-    Code(lr := c, f(lr))
+    val local = new lir.Local(null, name, tti)
+    assert(c.v != null)
+    c.end.append(lir.store(local, c.v))
+    val setup = new VCode(c.start, c.end, null)
+    c.clear()
+
+    Code(setup, f(Value.fromLIR(lir.load(local))))
   }
 
   def memoizeAny[T, U](c: Code[_], name: String)(f: (Value[_]) => Code[U])(implicit tti: TypeInfo[T]): Code[U] =
@@ -1248,24 +1253,36 @@ object FieldRef {
   }
 }
 
+trait Readable[+T] {
+  def load(): Code[T]
+
+  def load(cb: CodeBuilderLike): Value[T]
+}
+
 object Value {
   def fromLIR[T](v: => lir.ValueX): Value[T] = new Value[T] {
     def get: Code[T] = Code(v)
   }
 }
 
-trait Value[+T] { self =>
+trait Value[+T] extends Readable[T] { self =>
   def get: Code[T]
+
+  def load(): Code[T] = get
+
+  def load(cb: CodeBuilderLike): Value[T] = this
 }
 
-trait Settable[T] extends Value[T] {
+trait Settable[T] extends Readable[T] with Value[T] {
   def store(rhs: Code[T]): Code[Unit]
 
   def :=(rhs: Code[T]): Code[Unit] = store(rhs)
 
   def storeAny(rhs: Code[_]): Code[Unit] = store(coerce[T](rhs))
 
-  def load(): Code[T] = get
+  def toValueUnsafe: Value[T]
+
+  def get: Code[T] = load()
 }
 
 class ThisLazyFieldRef[T: TypeInfo](cb: ClassBuilder[_], name: String, setup: Code[T]) extends Value[T] {
@@ -1275,35 +1292,54 @@ class ThisLazyFieldRef[T: TypeInfo](cb: ClassBuilder[_], name: String, setup: Co
   private[this] val setm = cb.genMethod[Unit](s"setup_$name")
   setm.emit(Code(value := setup, present := true))
 
-  def get: Code[T] = Code(present.mux(Code._empty, setm.invokeCode()), value.load())
+  override def get: Code[T] = Code(present.mux(Code._empty, setm.invokeCode()), value.load())
+
+  override def load(cb: CodeBuilderLike): Value[T] = cb.memoize(get)
 }
 
 class ThisFieldRef[T: TypeInfo](cb: ClassBuilder[_], f: Field[T]) extends Settable[T] {
   def name: String = f.name
 
-  def get: Code[T] = f.get(cb._this)
+  override def load(): Code[T] = f.get(cb._this)
 
-  def store(rhs: Code[T]): Code[Unit] = f.put(cb._this, rhs)
+  override def load(cb: CodeBuilderLike): Value[T] = cb.memoize(load())
+
+  override def store(rhs: Code[T]): Code[Unit] = f.put(cb._this, rhs)
+
+  override def toValueUnsafe: Value[T] = new Value[T] {
+    def get: Code[T] = f.get(cb._this)
+  }
 }
 
 class StaticFieldRef[T: TypeInfo](f: StaticField[T]) extends Settable[T] {
   def name: String = f.name
 
-  def get: Code[T] = f.get()
+  override def load(): Code[T] = f.get()
 
-  def store(rhs: Code[T]): Code[Unit] = f.put(rhs)
+  override def load(cb: CodeBuilderLike): Value[T] = cb.memoize(load())
+
+  override def store(rhs: Code[T]): Code[Unit] = f.put(rhs)
+
+  override def toValueUnsafe: Value[T] = new Value[T] {
+    def get: Code[T] = f.get()
+  }
 }
 
 class LocalRef[T](val l: lir.Local) extends Settable[T] {
-  def get: Code[T] = Code(lir.load(l))
+  override def load(): Code[T] = Code(lir.load(l))
 
-  def store(rhs: Code[T]): Code[Unit] = {
+  override def load(cb: CodeBuilderLike): Value[T] =
+    coerce[T](cb.memoizeAny(load(), l.ti))
+
+  override def store(rhs: Code[T]): Code[Unit] = {
     assert(rhs.v != null)
     rhs.end.append(lir.store(l, rhs.v))
     val newC = new VCode(rhs.start, rhs.end, null)
     rhs.clear()
     newC
   }
+
+  override def toValueUnsafe: Value[T] = Value.fromLIR(lir.load(l))
 }
 
 class LocalRefInt(val v: LocalRef[Int]) extends AnyRef {

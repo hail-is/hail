@@ -135,9 +135,10 @@ class ASM4SSuite extends TestNGSuite {
 
   @Test def fact(): Unit = {
     val fb = FunctionBuilder[Int, Int]("Fact")
-    val i = fb.getArg[Int](1)
+    val i = fb.newLocal[Int]()
     val r = fb.newLocal[Int]()
     fb.emit(Code(
+      i.store(fb.getArg[Int](1)),
       r.store(1),
       whileLoop(
         fb.getArg[Int](1) > 1,
@@ -183,12 +184,12 @@ class ASM4SSuite extends TestNGSuite {
 
   @Test def fibonacci(): Unit = {
     val fb = FunctionBuilder[Int, Int]("Fib")
-    val i = fb.getArg[Int](1)
-    val n = fb.newLocal[Int]()
+    val i = fb.newLocal[Int]()
     val vn_2 = fb.newLocal[Int]()
     val vn_1 = fb.newLocal[Int]()
     val temp = fb.newLocal[Int]()
-    fb.emit(
+    fb.emit(Code(
+      i.store(fb.getArg[Int](1)),
       (i < 3).mux(1, Code(
         vn_2.store(1),
         vn_1.store(1),
@@ -201,7 +202,7 @@ class ASM4SSuite extends TestNGSuite {
             i.store(i - 1)
           )
         ),
-        vn_2 + vn_1)))
+        vn_2 + vn_1))))
     val f = fb.result()()
 
     Prop.forAll(Gen.choose(0, 100)) { i =>

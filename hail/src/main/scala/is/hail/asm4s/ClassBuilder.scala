@@ -376,7 +376,7 @@ class ClassBuilder[C](
     }
   }
 
-  def _this: Value[C] = new LocalRef[C](new lir.Parameter(null, 0, ti))
+  def _this: Value[C] = Value.fromLIR(lir.load(new lir.Parameter(null, 0, ti)))
 
   val fieldBuilder: SettableBuilder = new SettableBuilder {
     def newSettable[T](name: String)(implicit tti: TypeInfo[T]): Settable[T] = genFieldThisRef[T](name)
@@ -465,7 +465,7 @@ trait WrappedMethodBuilder[C] extends WrappedClassBuilder[C] {
 
   def localBuilder: SettableBuilder = mb.localBuilder
 
-  def getArg[T: TypeInfo](i: Int): LocalRef[T] = mb.getArg[T](i)
+  def getArg[T: TypeInfo](i: Int): Value[T] = mb.getArg[T](i)
 
   def emitStartup(c: Code[Unit]): Unit = mb.emitStartup(c)
 
@@ -499,7 +499,7 @@ class MethodBuilder[C](
   def newLocal[T: TypeInfo](name: String = null): LocalRef[T] =
     new LocalRef[T](lmethod.newLocal(name, typeInfo[T]))
 
-  def getArg[T: TypeInfo](i: Int): LocalRef[T] = {
+  def getArg[T: TypeInfo](i: Int): Value[T] = {
     val ti = implicitly[TypeInfo[T]]
 
     if (i == 0 && !isStatic)
@@ -509,7 +509,7 @@ class MethodBuilder[C](
       assert(ti == parameterTypeInfo(i - static),
         s"$ti != ${ parameterTypeInfo(i - static) }\n  params: $parameterTypeInfo")
     }
-    new LocalRef(lmethod.getParam(i))
+    Value.fromLIR(lir.load(lmethod.getParam(i)))
   }
 
   private var emitted = false

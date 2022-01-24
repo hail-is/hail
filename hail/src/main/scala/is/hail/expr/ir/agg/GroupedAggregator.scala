@@ -14,7 +14,7 @@ import is.hail.types.physical.stypes.{EmitType, SValue}
 import is.hail.types.virtual.{TVoid, Type}
 import is.hail.utils._
 
-class GroupedBTreeKey(kt: PType, kb: EmitClassBuilder[_], region: Value[Region], val offset: Value[Long], states: StateTuple) extends BTreeKey {
+class GroupedBTreeKey(kt: PType, kb: EmitClassBuilder[_], region: Readable[Region], val offset: Value[Long], states: StateTuple) extends BTreeKey {
   override val storageType: PStruct = PCanonicalStruct(required = true,
     "kt" -> kt,
     "regionIdx" -> PInt32(true),
@@ -60,7 +60,7 @@ class GroupedBTreeKey(kt: PType, kb: EmitClassBuilder[_], region: Value[Region],
         { sc =>
           storageType.setFieldPresent(cb, dest, 0)
           storageType.fieldType("kt")
-            .storeAtAddress(cb, storageType.fieldOffset(dest, 0), region, sc, deepCopy = true)
+            .storeAtAddress(cb, storageType.fieldOffset(dest, 0), region.load(cb), sc, deepCopy = true)
         })
     storeRegionIdx(cb, dest, rIdx)
     container.newState(cb)
@@ -86,11 +86,11 @@ class GroupedBTreeKey(kt: PType, kb: EmitClassBuilder[_], region: Value[Region],
     cb += Region.storeInt(storageType.fieldOffset(off, 1), -1)
 
   override def copy(cb: EmitCodeBuilder, src: Code[Long], dest: Code[Long]): Unit =
-    storageType.storeAtAddress(cb, dest, region, storageType.loadCheapSCode(cb, src), deepCopy = false)
+    storageType.storeAtAddress(cb, dest, region.load(cb), storageType.loadCheapSCode(cb, src), deepCopy = false)
 
   override def deepCopy(cb: EmitCodeBuilder, er: EmitRegion, dest: Code[Long], srcCode: Code[Long]): Unit = {
     val src = cb.newLocal("ga_deep_copy_src", srcCode)
-    storageType.storeAtAddress(cb, dest, region, storageType.loadCheapSCode(cb, src), deepCopy = true)
+    storageType.storeAtAddress(cb, dest, region.load(cb), storageType.loadCheapSCode(cb, src), deepCopy = true)
     container.copyFrom(cb, containerOffset(src))
     container.store(cb)
   }
@@ -123,7 +123,7 @@ class DictState(val kb: EmitClassBuilder[_], val keyVType: VirtualTypeWithReq, v
   }
   val initContainer: TupleAggregatorState = new TupleAggregatorState(kb, nested, region, initStatesOffset)
 
-  val keyed = new GroupedBTreeKey(keyType, kb, region, _elt, nested)
+  val keyed = new GroupedBTreeKey(keyType, kb, region, _elt.toValueUnsafe, nested)
   val tree = new AppendOnlyBTree(kb, keyed, region, root, maxElements = 6)
 
   def initElement(cb: EmitCodeBuilder, eltOff: Code[Long], k: EmitCode): Unit = {

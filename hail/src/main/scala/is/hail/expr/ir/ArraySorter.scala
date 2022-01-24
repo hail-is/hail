@@ -98,7 +98,7 @@ class ArraySorter(r: EmitRegion, array: StagedArrayBuilder) {
         val arrayA = splitMergeMB.getCodeParam(5)(workingArrayInfo)
 
         cb.ifx(end - begin > 1, {
-          val mid = cb.newLocal[Int]("splitMerge_mid", (begin + end) / 2)
+          val mid = cb.memoize((begin + end) / 2)
 
           cb.invokeVoid(splitMergeMB, r, begin, mid, arrayA, arrayB)
           cb.invokeVoid(splitMergeMB, r, mid, end, arrayA, arrayB)
@@ -109,24 +109,24 @@ class ArraySorter(r: EmitRegion, array: StagedArrayBuilder) {
       }
 
       // these arrays should be allocated once and reused
-      cb.ifx(workingArray1.isNull || arrayRef(workingArray1).length() < newEnd, {
+      cb.ifx(workingArray1.isNull || arrayRef(cb.memoize(workingArray1)).length() < newEnd, {
         cb.assignAny(workingArray1, Code.newArray(newEnd)(array.ti))
         cb.assignAny(workingArray2, Code.newArray(newEnd)(array.ti))
       })
 
       cb.assign(i, 0)
       cb.whileLoop(i < newEnd, {
-        cb += arrayRef(workingArray1).update(i, array(i))
-        cb += arrayRef(workingArray2).update(i, array(i))
+        cb += arrayRef(cb.memoize(workingArray1)).update(i, array(i))
+        cb += arrayRef(cb.memoize(workingArray2)).update(i, array(i))
         cb.assign(i, i + 1)
       })
 
       // elements are sorted in workingArray2 after calling splitMergeMB
-      cb.invokeVoid(splitMergeMB, sortMB.getCodeParam[Region](1), const(0), newEnd, workingArray1, workingArray2)
+      cb.invokeVoid(splitMergeMB, sortMB.getCodeParam[Region](1), const(0), cb.memoize(newEnd), cb.memoize(workingArray1), cb.memoize(workingArray2))
 
       cb.assign(i, 0)
       cb.whileLoop(i < newEnd, {
-        cb += array.update(i, arrayRef(workingArray2)(i))
+        cb += array.update(i, arrayRef(cb.memoize(workingArray2))(i))
         cb.assign(i, i + 1)
       })
 
@@ -139,7 +139,7 @@ class ArraySorter(r: EmitRegion, array: StagedArrayBuilder) {
   def toRegion(cb: EmitCodeBuilder, t: Type): SIndexableValue = {
     t match {
       case pca: TArray =>
-        val len = cb.newLocal[Int]("arraysorter_to_region_len", array.size)
+        val len = cb.memoize[Int](array.size)
         // fixme element requiredness should be set here
         val arrayType = PCanonicalArray(array.elt.loadedSType.storageType().setRequired(this.prunedMissing || array.eltRequired))
 

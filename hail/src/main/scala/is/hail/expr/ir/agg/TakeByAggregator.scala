@@ -78,7 +78,7 @@ class TakeByRVAS(val valueVType: VirtualTypeWithReq, val keyVType: VirtualTypeWi
 
   def createState(cb: EmitCodeBuilder): Unit =
     cb.ifx(region.isNull, {
-      cb.assign(r, Region.stagedCreate(regionSize, kb.pool()))
+      cb.assign(r, Region.stagedCreate(regionSize, kb.pool(cb)))
       cb += region.invalidate()
     })
 
@@ -299,7 +299,7 @@ class TakeByRVAS(val valueVType: VirtualTypeWithReq, val keyVType: VirtualTypeWi
         cb.ifx(garbage >= maxGarbage,
           {
             cb.assign(oldRegion, region)
-            cb.assign(r, Region.stagedCreate(regionSize, kb.pool()))
+            cb.assign(r, Region.stagedCreate(regionSize, kb.pool(cb)))
             ab.reallocateData(cb)
             initStaging(cb)
             cb.assign(garbage, 0)
@@ -457,15 +457,6 @@ class TakeByRVAS(val valueVType: VirtualTypeWithReq, val keyVType: VirtualTypeWi
       val partition: (EmitCodeBuilder, Value[Long], Value[Int], Value[Int]) => Value[Int] = {
         val mb = kb.genEmitMethod("quicksort_partition", FastIndexedSeq[ParamType](LongInfo, IntInfo, IntInfo), IntInfo)
 
-        val indices = mb.getCodeParam[Long](1)
-        val low = mb.getCodeParam[Int](2)
-        val high = mb.getCodeParam[Int](3)
-
-        val pivotIndex = mb.newLocal[Int]("pivotIndex")
-        val pivotOffset = mb.newLocal[Long]("pivot")
-        val tmpOffset = mb.newLocal[Long]("tmpOffset")
-        val continue = mb.newLocal[Boolean]("continue")
-
         def indexOffset(cb: EmitCodeBuilder, idx: Value[Int]): Value[Long] =
           cb.memoize(indices + idx.toL * 4L)
 
@@ -473,20 +464,26 @@ class TakeByRVAS(val valueVType: VirtualTypeWithReq, val keyVType: VirtualTypeWi
           cb.memoize(Region.loadInt(indexOffset(cb, idx)))
 
         mb.emitWithBuilder { cb =>
+          val indices = mb.getCodeParam[Long](1)
+          val low = cb.newLocal("low", mb.getCodeParam[Int](2))
+          val high = cb.newLocal("high", mb.getCodeParam[Int](3))
+
           cb.ifx(low.ceq(high), cb.append(Code._return(low)))
-          cb.assign(pivotIndex, (low + high) / 2)
-          cb.assign(pivotOffset, elementOffset(cb, indexAt(cb, pivotIndex)))
-          cb.assign(continue, true)
+
+          val pivotIndex = cb.memoize[Int]((low + high) / 2)
+          val pivotOffset = cb.memoize[Long](elementOffset(cb, indexAt(cb, pivotIndex)))
+          val continue = cb.newLocal[Boolean]("continue", true)
+
           cb.whileLoop(continue, {
             cb.whileLoop({
-              cb.assign(tmpOffset, elementOffset(cb, indexAt(cb, low)))
-              compareElt(cb, tmpOffset, pivotOffset) < 0
+              val eltOffset = elementOffset(cb, indexAt(cb, low))
+              compareElt(cb, eltOffset, pivotOffset) < 0
             }, {
               cb.assign(low, low + 1)
             })
             cb.whileLoop({
-              cb.assign(tmpOffset, elementOffset(cb, indexAt(cb, high)))
-              compareElt(cb, tmpOffset, pivotOffset) > 0
+              val eltOffset = elementOffset(cb, indexAt(cb, high))
+              compareElt(cb, eltOffset, pivotOffset) > 0
             }, {
               cb.assign(high, high - 1)
             })

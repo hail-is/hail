@@ -25,7 +25,7 @@ class CollectAggState(val elemVType: VirtualTypeWithReq, val kb: EmitClassBuilde
 
   def createState(cb: EmitCodeBuilder): Unit =
     cb.ifx(region.isNull, {
-      cb.assign(r, Region.stagedCreate(regionSize, kb.pool()))
+      cb.assign(r, Region.stagedCreate(regionSize, kb.pool(cb)))
       cb += region.invalidate()
     })
 

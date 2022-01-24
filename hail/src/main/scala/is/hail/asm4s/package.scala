@@ -314,27 +314,27 @@ package object asm4s {
 
   implicit def valueToCodeNullable[T >: Null : TypeInfo](c: Value[T]): CodeNullable[T] = new CodeNullable(c)
 
-  implicit def toCode[T](f: Settable[T]): Code[T] = f.load()
+  implicit def toCode[T](f: Readable[T]): Code[T] = f.load()
 
-  implicit def toCodeInt(f: Settable[Int]): CodeInt = new CodeInt(f.load())
+  implicit def toCodeInt(f: Readable[Int]): CodeInt = new CodeInt(f.load())
 
-  implicit def toCodeLong(f: Settable[Long]): CodeLong = new CodeLong(f.load())
+  implicit def toCodeLong(f: Readable[Long]): CodeLong = new CodeLong(f.load())
 
-  implicit def toCodeFloat(f: Settable[Float]): CodeFloat = new CodeFloat(f.load())
+  implicit def toCodeFloat(f: Readable[Float]): CodeFloat = new CodeFloat(f.load())
 
-  implicit def toCodeDouble(f: Settable[Double]): CodeDouble = new CodeDouble(f.load())
+  implicit def toCodeDouble(f: Readable[Double]): CodeDouble = new CodeDouble(f.load())
 
-  implicit def toCodeChar(f: Settable[Char]): CodeChar = new CodeChar(f.load())
+  implicit def toCodeChar(f: Readable[Char]): CodeChar = new CodeChar(f.load())
 
-  implicit def toCodeString(f: Settable[String]): CodeString = new CodeString(f.load())
+  implicit def toCodeString(f: Readable[String]): CodeString = new CodeString(f.load())
 
-  implicit def toCodeArray[T](f: Settable[Array[T]])(implicit tti: TypeInfo[T]): CodeArray[T] = new CodeArray(f.load())
+  implicit def toCodeArray[T](f: Readable[Array[T]])(implicit tti: TypeInfo[T]): CodeArray[T] = new CodeArray(f.load())
 
-  implicit def toCodeBoolean(f: Settable[Boolean]): CodeBoolean = new CodeBoolean(f.load())
+  implicit def toCodeBoolean(f: Readable[Boolean]): CodeBoolean = new CodeBoolean(f.load())
 
-  implicit def toCodeObject[T <: AnyRef : ClassTag](f: Settable[T]): CodeObject[T] = new CodeObject[T](f.load())
+  implicit def toCodeObject[T <: AnyRef : ClassTag](f: Readable[T]): CodeObject[T] = new CodeObject[T](f.load())
 
-  implicit def toCodeNullable[T >: Null : TypeInfo](f: Settable[T]): CodeNullable[T] = new CodeNullable[T](f.load())
+  implicit def toCodeNullable[T >: Null : TypeInfo](f: Readable[T]): CodeNullable[T] = new CodeNullable[T](f.load())
 
   implicit def toLocalRefInt(f: LocalRef[Int]): LocalRefInt = new LocalRefInt(f)
 

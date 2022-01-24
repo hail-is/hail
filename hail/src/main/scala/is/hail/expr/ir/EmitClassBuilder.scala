@@ -35,13 +35,13 @@ class EmitModuleBuilder(val ctx: ExecuteContext, val modb: ModuleBuilder) {
 
   def setFS(cb: EmitCodeBuilder, fs: Code[FS]): Unit = cb += _staticFS.put(fs)
 
-  def getFS: Value[FS] = new StaticFieldRef(_staticFS)
+  def getFS: Code[FS] = new StaticFieldRef(_staticFS)
 
   private val rgContainers: mutable.Map[ReferenceGenome, StaticField[ReferenceGenome]] = mutable.Map.empty
 
   def hasReferences: Boolean = rgContainers.nonEmpty
 
-  def getReferenceGenome(rg: ReferenceGenome): Value[ReferenceGenome] = {
+  def getReferenceGenome(rg: ReferenceGenome): Code[ReferenceGenome] = {
     val rgField = rgContainers.getOrElseUpdate(rg, {
       val cls = genEmitClass[Unit](s"RGContainer_${rg.name}")
       cls.newStaticField("reference_genome", Code._null[ReferenceGenome])
@@ -64,7 +64,7 @@ trait WrappedEmitModuleBuilder {
 
   def genEmitClass[C](baseName: String)(implicit cti: TypeInfo[C]): EmitClassBuilder[C] = emodb.genEmitClass[C](baseName)
 
-  def getReferenceGenome(rg: ReferenceGenome): Value[ReferenceGenome] = emodb.getReferenceGenome(rg)
+  def getReferenceGenome(rg: ReferenceGenome): Code[ReferenceGenome] = emodb.getReferenceGenome(rg)
 }
 
 trait WrappedEmitClassBuilder[C] extends WrappedEmitModuleBuilder {
@@ -150,7 +150,7 @@ trait WrappedEmitClassBuilder[C] extends WrappedEmitModuleBuilder {
 
   def addAggStates(aggSigs: Array[agg.AggStateSig]): agg.TupleAggregatorState = ecb.addAggStates(aggSigs)
 
-  def newRNG(seed: Long): Value[IRRandomness] = ecb.newRNG(seed)
+  def newRNG(seed: Long): Readable[IRRandomness] = ecb.newRNG(seed)
 
   def resultWithIndex(print: Option[PrintWriter] = None): (FS, Int, Region) => C = ecb.resultWithIndex(print)
 
@@ -273,12 +273,13 @@ class EmitClassBuilder[C](
 
     mb2.voidWithBuilder { cb =>
       val allEncodedFields = mb2.getCodeParam[Array[AnyRef]](1)
+      val partRegion = partitionRegion.load(cb)
 
-      val ib = cb.newLocal[InputBuffer]("ib",
+      val ib = cb.memoize[InputBuffer](
         spec.buildCodeInputBuffer(Code.newInstance[ByteArrayInputStream, Array[Byte]](Code.checkcast[Array[Byte]](allEncodedFields(0)))))
 
       val lits = spec.encodedType.buildDecoder(spec.encodedVirtualType, this)
-        .apply(cb, partitionRegion, ib)
+        .apply(cb, partRegion, ib)
         .asBaseStruct
       literals.zipWithIndex.foreach { case (((_, _), f), i) =>
         lits.loadField(cb, i)
@@ -289,9 +290,10 @@ class EmitClassBuilder[C](
       // Handle the pre-encoded literals, which only need to be decoded.
       preEncodedLiterals.zipWithIndex.foreach { case ((encLit, f), index) =>
         val spec = encLit.codec
-        cb.assign(ib, spec.buildCodeInputBuffer(Code.newInstance[ArrayOfByteArrayInputStream, Array[Array[Byte]]](Code.checkcast[Array[Array[Byte]]](allEncodedFields(index + 1)))))
+        val ib = cb.memoize(
+          spec.buildCodeInputBuffer(Code.newInstance[ArrayOfByteArrayInputStream, Array[Array[Byte]]](Code.checkcast[Array[Array[Byte]]](allEncodedFields(index + 1)))))
         val decodedValue = encLit.codec.encodedType.buildDecoder(encLit.typ, this)
-          .apply(cb, partitionRegion, ib)
+          .apply(cb, partRegion, ib)
         assert(decodedValue.st == f.st)
 
         // Because 0th index is for the regular literals
@@ -350,7 +352,7 @@ class EmitClassBuilder[C](
       val states = agg.StateTuple(aggSigs.map(a => agg.AggStateSig.getState(a, cb.emb.ecb)).toArray)
       _aggState = new agg.TupleAggregatorState(this, states, _aggRegion, _aggOff)
       cb += (_aggRegion := newF.getCodeParam[Region](1))
-      cb += _aggState.topRegion.setNumParents(aggSigs.length)
+      cb += _aggState.topRegion.load().setNumParents(aggSigs.length)
       cb += (_aggOff := _aggRegion.load().allocate(states.storageType.alignment, states.storageType.byteSize))
       states.createStates(cb)
       _aggState.newState(cb)
@@ -362,7 +364,7 @@ class EmitClassBuilder[C](
 
     setF.emitWithBuilder { cb =>
       cb += (_aggRegion := setF.getCodeParam[Region](1))
-      cb += _aggState.topRegion.setNumParents(aggSigs.length)
+      cb += _aggState.topRegion.load().setNumParents(aggSigs.length)
       states.createStates(cb)
       cb += (_aggOff := setF.getCodeParam[Long](2))
       _aggState.load(cb)
@@ -421,8 +423,8 @@ class EmitClassBuilder[C](
     _backendField
   }
 
-  def pool(): Value[RegionPool] = {
-    poolField
+  def pool(cb: CodeBuilderLike): Value[RegionPool] = {
+    poolField.load(cb)
   }
 
   def addModule(name: String, mod: (FS, Int, Region) => AsmFunction3[Region, Array[Byte], Array[Byte], Array[Byte]]): Unit = {
@@ -614,7 +616,7 @@ class EmitClassBuilder[C](
       reseed))
   }
 
-  def newRNG(seed: Long): Value[IRRandomness] = {
+  def newRNG(seed: Long): Readable[IRRandomness] = {
     val rng = genFieldThisRef[IRRandomness]()
     rngs += rng -> Code.newInstance[IRRandomness, Long](seed)
     rng
@@ -869,7 +871,7 @@ class EmitMethodBuilder[C](
       i + paramType.nCodes
   }
 
-  def getCodeParam[T: TypeInfo](emitIndex: Int): Settable[T] = {
+  def getCodeParam[T: TypeInfo](emitIndex: Int): Value[T] = {
     if (emitIndex == 0 && !mb.isStatic)
       mb.getArg[T](0)
     else {
@@ -1046,7 +1048,7 @@ trait WrappedEmitMethodBuilder[C] extends WrappedEmitClassBuilder[C] {
   def emitWithBuilder[T](f: (EmitCodeBuilder) => Code[T]): Unit = emb.emitWithBuilder(f)
 
   // EmitMethodBuilder methods
-  def getCodeParam[T: TypeInfo](emitIndex: Int): Settable[T] = emb.getCodeParam[T](emitIndex)
+  def getCodeParam[T: TypeInfo](emitIndex: Int): Value[T] = emb.getCodeParam[T](emitIndex)
 
   def getEmitParam(cb: EmitCodeBuilder, emitIndex: Int, r: Value[Region]): EmitValue = emb.getEmitParam(cb, emitIndex, r)
 

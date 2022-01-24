@@ -77,7 +77,7 @@ class EmitCodeBuilder(val emb: EmitMethodBuilder[_], var code: Code[Unit]) exten
   }
 
   def memoizeField[T: TypeInfo](v: Code[T], name: String): Value[T] = {
-    newField[T](name, v)
+    newField[T](name, v).toValueUnsafe
   }
 
   def memoizeField[T: TypeInfo](v: Code[T]): Value[T] = {
@@ -87,7 +87,7 @@ class EmitCodeBuilder(val emb: EmitMethodBuilder[_], var code: Code[Unit]) exten
   def memoizeFieldAny(v: Code[_], name: String, ti: TypeInfo[_]): Value[_] = {
     val l = newField(name)(ti)
     append(l.storeAny(v))
-    l
+    l.toValueUnsafe
   }
 
   def memoize(v: EmitCode): EmitValue =
@@ -127,7 +127,7 @@ class EmitCodeBuilder(val emb: EmitMethodBuilder[_], var code: Code[Unit]) exten
       else {
         val m = emb.genFieldThisRef[Boolean](name + "_missing")
         ec.toI(this).consume(this, assign(m, true), _ => assign(m, false))
-        EmitValue(Some(m), ec.pv)
+        EmitValue(Some(m.toValueUnsafe), ec.pv)
       }
       val res = f(ev)
       ec.pv match {
@@ -218,7 +218,7 @@ class EmitCodeBuilder(val emb: EmitMethodBuilder[_], var code: Code[Unit]) exten
 
   // for debugging
   def strValue(sc: SValue): Code[String] = {
-    StringFunctions.scodeToJavaValue(this, emb.partitionRegion, sc).invoke[String]("toString")
+    StringFunctions.scodeToJavaValue(this, emb.partitionRegion.load(this), sc).invoke[String]("toString")
   }
 
   def strValue(ec: EmitCode): Code[String] = {

@@ -63,7 +63,7 @@ trait RegionBackedAggState extends AggregatorState {
   def newState(cb: EmitCodeBuilder, off: Value[Long]): Unit = cb += region.getNewRegion(const(regionSize))
 
   def createState(cb: EmitCodeBuilder): Unit = {
-    cb.ifx(region.isNull, cb.assign(r, Region.stagedCreate(regionSize, kb.pool())))
+    cb.ifx(region.isNull, cb.assign(r, Region.stagedCreate(regionSize, kb.pool(cb))))
   }
 
   def load(cb: EmitCodeBuilder, regionLoader: (EmitCodeBuilder, Value[Region]) => Unit, src: Value[Long]): Unit = regionLoader(cb, r)
@@ -263,7 +263,7 @@ case class StateTuple(states: Array[AggregatorState]) {
     toCode((i, s) => s.createState(cb))
 }
 
-class TupleAggregatorState(val kb: EmitClassBuilder[_], val states: StateTuple, val topRegion: Value[Region], val off: Value[Long], val rOff: Value[Int] = const(0)) {
+class TupleAggregatorState(val kb: EmitClassBuilder[_], val states: StateTuple, val topRegion: Readable[Region], val off: Readable[Long], val rOff: Value[Int] = const(0)) {
   val storageType: PTuple = states.storageType
 
   private def getRegion(i: Int): (EmitCodeBuilder, Value[Region]) => Unit = { (cb: EmitCodeBuilder, r: Value[Region]) =>
@@ -271,7 +271,7 @@ class TupleAggregatorState(val kb: EmitClassBuilder[_], val states: StateTuple, 
   }
 
   private def setRegion(i: Int): (EmitCodeBuilder, Value[Region]) => Unit = { (cb: EmitCodeBuilder, r: Value[Region]) =>
-    cb += topRegion.setParentReference(r, rOff + const(i))
+    cb += topRegion.load().setParentReference(r, rOff + const(i))
   }
 
   private def getStateOffset(cb: EmitCodeBuilder, i: Int): Value[Long] = cb.memoize(storageType.loadField(off, i))

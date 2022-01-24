@@ -240,7 +240,7 @@ class AppendOnlyBTree(kb: EmitClassBuilder[_], val key: BTreeKey, region: Value[
   private def getF(cb: EmitCodeBuilder, root: Value[Long], kc: EmitCode): Value[Long] = {
     val get = kb.genEmitMethod("btree_get", FastIndexedSeq[ParamType](typeInfo[Long], kc.emitParamType), typeInfo[Long])
     get.emitWithBuilder { cb =>
-      val node = get.getCodeParam[Long](1)
+      val node = cb.newLocal("btree_get_node", get.getCodeParam[Long](1))
       val k = get.getEmitParam(cb, 2, region)
 
       val cmp = cb.newLocal("btree_get_cmp", -1)

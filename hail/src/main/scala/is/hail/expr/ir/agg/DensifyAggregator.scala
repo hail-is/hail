@@ -40,7 +40,7 @@ class DensifyState(val arrayVType: VirtualTypeWithReq, val kb: EmitClassBuilder[
 
   def createState(cb: EmitCodeBuilder): Unit =
     cb.ifx(region.isNull, {
-      cb.assign(r, Region.stagedCreate(regionSize, kb.pool()))
+      cb.assign(r, Region.stagedCreate(regionSize, kb.pool(cb)))
     })
 
   override def load(cb: EmitCodeBuilder, regionLoader: (EmitCodeBuilder, Value[Region]) => Unit, src: Value[Long]): Unit = {
@@ -89,7 +89,7 @@ class DensifyState(val arrayVType: VirtualTypeWithReq, val kb: EmitClassBuilder[
 
   private def gc(cb: EmitCodeBuilder): Unit = {
     cb.ifx(region.totalManagedBytes() > maxRegionSize, {
-      val newRegion = cb.newLocal[Region]("densify_gc", Region.stagedCreate(regionSize, kb.pool()))
+      val newRegion = cb.newLocal[Region]("densify_gc", Region.stagedCreate(regionSize, kb.pool(cb)))
       cb.assign(arrayAddr, arrayStorageType.store(cb, newRegion, arrayStorageType.loadCheapSCode(cb, arrayAddr), deepCopy = true))
       cb += region.invalidate()
       cb.assign(r, newRegion)

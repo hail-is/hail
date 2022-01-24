@@ -1043,7 +1043,7 @@ object EmitStream {
               cb.assign(innerUnclosed, false)
 
               if (outerProducer.requiresMemoryManagementPerElement)
-                cb.assign(outerProducer.elementRegion, Region.stagedCreate(Region.REGULAR, cb.emb.ecb.pool()))
+                cb.assign(outerProducer.elementRegion, Region.stagedCreate(Region.REGULAR, cb.emb.ecb.pool(cb)))
               else
                 cb.assign(outerProducer.elementRegion, outerRegion)
 

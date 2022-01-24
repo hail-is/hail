@@ -79,7 +79,7 @@ class ArrayElementState(val kb: EmitClassBuilder[_], val nested: StateTuple) ext
 
   def initLength(cb: EmitCodeBuilder, len: Code[Int]): Unit = {
     cb.assign(lenRef, len)
-    seq(cb, container.copyFrom(cb, initContainer.off))
+    seq(cb, container.copyFrom(cb, initContainer.off.load(cb)))
   }
 
   def checkLength(cb: EmitCodeBuilder, len: Code[Int]): Unit = {
