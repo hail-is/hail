@@ -1,5 +1,4 @@
 from collections.abc import Mapping
-import itertools
 from hail.expr import Expression
 from hail import literal
 
@@ -51,4 +50,3 @@ def aes(**kwargs):
             v = literal(v)
         hail_field_properties[k] = v
     return Aesthetic(hail_field_properties)
-

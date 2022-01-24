@@ -1,4 +1,5 @@
 import plotly
+import hail as hl
 
 
 def check_scale_continuity(scale, dtype, aes_key):

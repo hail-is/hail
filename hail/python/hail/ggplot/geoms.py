@@ -3,7 +3,7 @@ import abc
 from .aes import aes
 import hail as hl
 
-from ..ir.utils import is_continuous_type
+from .utils import is_continuous_type
 
 
 class FigureAttribute(abc.ABC):
@@ -17,11 +17,11 @@ class Geom(FigureAttribute):
 
     @abc.abstractmethod
     def apply_to_fig(self, parent, agg_result, fig_so_far):
-        return
+        pass
 
     @abc.abstractmethod
     def get_stat(self):
-        return ...
+        pass
 
 
 class GeomLineBasic(Geom):
