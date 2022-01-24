@@ -24,6 +24,30 @@ an earlier version of Hail to read files written in a later version.
 
 ---
 
+## Version 0.2.82
+
+Release 2022-01-24
+
+### Bug fixes
+
+- (hail#11209) Significantly improved usefulness and speed of `Table.to_pandas`, resolved several bugs with output.
+
+### New features
+
+- (hail#11247) Introduces a new experimental plotting interface `hail.ggplot`, based on R's ggplot library.
+- (hail#11173) Many math functions like `hail.sqrt` now automatically broadcast over ndarrays.
+
+### Performance Improvements
+
+- (hail#11216) Significantly improve performance of `parse_locus_interval`
+
+### Python and Java Support
+
+- (hail#11219) We no longer officially support Python 3.6, though it may continue to work in the short term.
+- (hail#11220) We support building hail with Java 11.
+
+---
+
 ## Version 0.2.81
 
 Release 2021-12-20
