@@ -15,7 +15,7 @@ resource "azurerm_mysql_server" "db" {
   administrator_login_password = random_password.db_root_password.result
 
   version    = "5.7"
-  sku_name   = "GP_Gen5_2" # 2 vCPU, 10GiB
+  sku_name   = "MO_Gen5_2" # 2 vCPU, 10GiB per vCPU
   storage_mb = 5120
 
   ssl_enforcement_enabled       = true
