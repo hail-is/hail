@@ -296,6 +296,7 @@ class StagedIndexWriter(branchingFactor: Int, keyType: PType, annotationType: PT
       internalBuilder.loadFrom(cb, utils, level)
       cb += ob.writeByte(1.toByte)
       internalBuilder.encode(cb, ob)
+      cb += ob.flush()
 
       val next = m.newLocal[Int]("next")
       cb.assign(next, level + 1)
@@ -327,6 +328,7 @@ class StagedIndexWriter(branchingFactor: Int, keyType: PType, annotationType: PT
       cb.assign(idxOff, utils.bytesWritten)
       cb += ob.writeByte(0.toByte)
       leafBuilder.encode(cb, ob)
+      cb += ob.flush()
 
       cb.ifx(utils.getLength(0).ceq(branchingFactor),
         writeInternalNode.invokeCode[Unit](cb, CodeParam(0), CodeParam(false)))
@@ -368,6 +370,8 @@ class StagedIndexWriter(branchingFactor: Int, keyType: PType, annotationType: PT
   }
   def close(cb: EmitCodeBuilder): Unit = {
     val off = flush.invokeCode[Long](cb)
+    cb += ob.flush()
+    cb += ob.close()
     leafBuilder.close(cb)
     utils.close(cb)
     utils.writeMetadata(cb, utils.size + 1, off, elementIdx)
