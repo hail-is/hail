@@ -174,6 +174,7 @@ CORES=$(nproc)
 NAMESPACE=$(jq -r '.namespace' userdata)
 ACTIVATION_TOKEN=$(jq -r '.activation_token' userdata)
 IP_ADDRESS=$(curl -s -H Metadata:true --noproxy "*" "http://169.254.169.254/metadata/instance/network/interface/0/ipv4/ipAddress/0/privateIpAddress?api-version=2021-02-01&format=text")
+EXTERNAL_IP_ADDRESS=$(curl -s -H Metadata:true --noproxy "*" "http://169.254.169.254/metadata/instance/network/interface/0/ipv4/ipAddress/0/publicIpAddress?api-version=2017-08-01&format=text")
 
 BATCH_LOGS_STORAGE_URI=$(jq -r '.batch_logs_storage_uri' userdata)
 INSTANCE_ID=$(jq -r '.instance_id' userdata)
@@ -202,6 +203,8 @@ iptables --append FORWARD --destination $IP_ADDRESS --jump ACCEPT
 # Forbid outgoing requests to cluster-internal IP addresses
 INTERNET_INTERFACE=eth0
 iptables --append FORWARD --out-interface $INTERNET_INTERFACE ! --destination 10.128.0.0/16 --jump ACCEPT
+# Allow incoming packets to job network namespaces only from the internet
+iptables --append FORWARD --in-interface $INTERNET_INTERFACE --destination 172.20.0.0/15 --jump ACCEPT
 
 cat >> /etc/hosts <<EOF
 $INTERNAL_GATEWAY_IP batch-driver.hail
@@ -226,6 +229,7 @@ docker run \
 -e NAMESPACE=$NAMESPACE \
 -e ACTIVATION_TOKEN=$ACTIVATION_TOKEN \
 -e IP_ADDRESS=$IP_ADDRESS \
+-e EXTERNAL_IP_ADDRESS=$EXTERNAL_IP_ADDRESS \
 -e BATCH_LOGS_STORAGE_URI=$BATCH_LOGS_STORAGE_URI \
 -e INSTANCE_ID=$INSTANCE_ID \
 -e SUBSCRIPTION_ID=$SUBSCRIPTION_ID \
@@ -237,7 +241,6 @@ docker run \
 -e MAX_IDLE_TIME_MSECS=$MAX_IDLE_TIME_MSECS \
 -e BATCH_WORKER_IMAGE=$BATCH_WORKER_IMAGE \
 -e BATCH_WORKER_IMAGE_ID=$BATCH_WORKER_IMAGE_ID \
--e INTERNET_INTERFACE=$INTERNET_INTERFACE \
 -e UNRESERVED_WORKER_DATA_DISK_SIZE_GB=$UNRESERVED_WORKER_DATA_DISK_SIZE_GB \
 -e INTERNAL_GATEWAY_IP=$INTERNAL_GATEWAY_IP \
 -v /var/run/docker.sock:/var/run/docker.sock \

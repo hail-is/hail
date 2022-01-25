@@ -120,6 +120,7 @@ NAME = os.environ['NAME']
 NAMESPACE = os.environ['NAMESPACE']
 # ACTIVATION_TOKEN
 IP_ADDRESS = os.environ['IP_ADDRESS']
+EXTERNAL_IP_ADDRESS = os.environ['EXTERNAL_IP_ADDRESS']
 INTERNAL_GATEWAY_IP = os.environ['INTERNAL_GATEWAY_IP']
 BATCH_LOGS_STORAGE_URI = os.environ['BATCH_LOGS_STORAGE_URI']
 INSTANCE_ID = os.environ['INSTANCE_ID']
@@ -129,7 +130,6 @@ INSTANCE_CONFIG = json.loads(base64.b64decode(os.environ['INSTANCE_CONFIG']).dec
 MAX_IDLE_TIME_MSECS = int(os.environ['MAX_IDLE_TIME_MSECS'])
 BATCH_WORKER_IMAGE = os.environ['BATCH_WORKER_IMAGE']
 BATCH_WORKER_IMAGE_ID = os.environ['BATCH_WORKER_IMAGE_ID']
-INTERNET_INTERFACE = os.environ['INTERNET_INTERFACE']
 UNRESERVED_WORKER_DATA_DISK_SIZE_GB = int(os.environ['UNRESERVED_WORKER_DATA_DISK_SIZE_GB'])
 assert UNRESERVED_WORKER_DATA_DISK_SIZE_GB >= 0
 
@@ -141,13 +141,13 @@ log.info(f'NAME {NAME}')
 log.info(f'NAMESPACE {NAMESPACE}')
 # ACTIVATION_TOKEN
 log.info(f'IP_ADDRESS {IP_ADDRESS}')
+log.info(f'EXTERNAL_IP_ADDRESS {EXTERNAL_IP_ADDRESS}')
 log.info(f'BATCH_LOGS_STORAGE_URI {BATCH_LOGS_STORAGE_URI}')
 log.info(f'INSTANCE_ID {INSTANCE_ID}')
 log.info(f'DOCKER_PREFIX {DOCKER_PREFIX}')
 log.info(f'INSTANCE_CONFIG {INSTANCE_CONFIG}')
 log.info(f'CLOUD_WORKER_API {CLOUD_WORKER_API}')
 log.info(f'MAX_IDLE_TIME_MSECS {MAX_IDLE_TIME_MSECS}')
-log.info(f'INTERNET_INTERFACE {INTERNET_INTERFACE}')
 log.info(f'UNRESERVED_WORKER_DATA_DISK_SIZE_GB {UNRESERVED_WORKER_DATA_DISK_SIZE_GB}')
 
 instance_config = CLOUD_WORKER_API.instance_config_from_config_dict(INSTANCE_CONFIG)
@@ -183,11 +183,10 @@ class PortAllocator:
 
 
 class NetworkNamespace:
-    def __init__(self, subnet_index: int, private: bool, internet_interface: str):
+    def __init__(self, subnet_index: int, private: bool):
         assert subnet_index <= 255
         self.subnet_index = subnet_index
         self.private = private
-        self.internet_interface = internet_interface
         self.network_ns_name = uuid.uuid4().hex[:5]
         self.hostname = 'hostname-' + uuid.uuid4().hex[:10]
         self.veth_host = self.network_ns_name + '-host'
@@ -205,7 +204,6 @@ class NetworkNamespace:
 
     async def init(self):
         await self.create_netns()
-        await self.enable_iptables_forwarding()
 
         os.makedirs(f'/etc/netns/{self.network_ns_name}')
         with open(f'/etc/netns/{self.network_ns_name}/hosts', 'w') as hosts:
@@ -239,13 +237,6 @@ ip -n {self.network_ns_name} link set dev {self.veth_job} up && \
 ip -n {self.network_ns_name} link set dev lo up && \
 ip -n {self.network_ns_name} address add {self.job_ip}/24 dev {self.veth_job} && \
 ip -n {self.network_ns_name} route add default via {self.host_ip}'''
-        )
-
-    async def enable_iptables_forwarding(self):
-        await check_shell(
-            f'''
-iptables -w {IPTABLES_WAIT_TIMEOUT_SECS} --append FORWARD --out-interface {self.veth_host} --in-interface {self.internet_interface} --jump ACCEPT && \
-iptables -w {IPTABLES_WAIT_TIMEOUT_SECS} --append FORWARD --out-interface {self.veth_host} --in-interface {self.veth_host} --jump ACCEPT'''
         )
 
     async def expose_port(self, port, host_port):
@@ -282,15 +273,14 @@ class NetworkAllocator:
     def __init__(self):
         self.private_networks = asyncio.Queue()
         self.public_networks = asyncio.Queue()
-        self.internet_interface = INTERNET_INTERFACE
 
     async def reserve(self, netns_pool_min_size: int = 64):
         for subnet_index in range(netns_pool_min_size):
-            public = NetworkNamespace(subnet_index, private=False, internet_interface=self.internet_interface)
+            public = NetworkNamespace(subnet_index, private=False)
             await public.init()
             self.public_networks.put_nowait(public)
 
-            private = NetworkNamespace(subnet_index, private=True, internet_interface=self.internet_interface)
+            private = NetworkNamespace(subnet_index, private=True)
 
             await private.init()
             self.private_networks.put_nowait(private)
@@ -888,7 +878,7 @@ class Container:
         if self.port is not None:
             assert self.host_port is not None
             env.append(f'HAIL_BATCH_WORKER_PORT={self.host_port}')
-            env.append(f'HAIL_BATCH_WORKER_IP={IP_ADDRESS}')
+            env.append(f'HAIL_BATCH_WORKER_IP={EXTERNAL_IP_ADDRESS}')
         return env
 
     async def delete_container(self):
