@@ -461,7 +461,7 @@ def _parameterized_filter_intervals(vds: 'VariantDataset',
         par_intervals = hl.Table.parallelize([hl.Struct(interval=x) for x in intervals],
                                              schema=hl.tstruct(interval=intervals.dtype.element_type), key='interval')
         ref = segment_reference_blocks(vds.reference_data, par_intervals)
-        return VariantDataset(hl.filter_intervals(ref, intervals, keep),
+        return VariantDataset(ref,
                               hl.filter_intervals(vds.variant_data, intervals, keep))
 
     return VariantDataset(hl.filter_intervals(vds.reference_data, intervals, keep),
@@ -538,10 +538,10 @@ def filter_chromosomes(vds: 'VariantDataset', *, keep=None, remove=None, keep_au
                                            mode='unchecked_filter_both')
 
 
-@typecheck(vds=VariantDataset, intervals=expr_array(expr_interval(expr_any)), keep=bool)
-def filter_intervals(vds: 'VariantDataset', intervals: 'ArrayExpression', *, keep: bool = False) -> 'VariantDataset':
-    """Filter intervals in a :class:`.VariantDataset` (only on variant data for
-    now).
+@typecheck(vds=VariantDataset, intervals=expr_array(expr_interval(expr_any)), split_reference_blocks=bool, keep=bool)
+def filter_intervals(vds: 'VariantDataset', intervals: 'ArrayExpression', *, split_reference_blocks: bool = False,
+                     keep: bool = False) -> 'VariantDataset':
+    """Filter intervals in a :class:`.VariantDataset`.
 
     Parameters
     ----------
@@ -549,6 +549,10 @@ def filter_intervals(vds: 'VariantDataset', intervals: 'ArrayExpression', *, kee
         Dataset in VariantDataset representation.
     intervals : :class:`.ArrayExpression` of type :class:`.tinterval`
         Intervals to filter on.
+    split_reference_blocks: :obj:`bool`
+        If true, remove reference data outside the given intervals by segmenting reference
+        blocks at interval boundaries. Results in a smaller result, but this filter mode
+        is more computationally expensive to evaluate.
     keep : :obj:`bool`
         Whether to keep, or filter out (default) rows that fall within any
         interval in `intervals`.
@@ -557,10 +561,10 @@ def filter_intervals(vds: 'VariantDataset', intervals: 'ArrayExpression', *, kee
     -------
     :class:`.VariantDataset`
     """
-    # for now, don't touch reference data.
-    # should remove large regions and scan forward ref blocks to the start of the next kept region
-    variant_data = hl.filter_intervals(vds.variant_data, intervals, keep)
-    return VariantDataset(vds.reference_data, variant_data)
+    if split_reference_blocks and not keep:
+        raise ValueError(f"'filter_intervals': cannot use 'split_reference_blocks' with keep=False")
+    return _parameterized_filter_intervals(vds, intervals, keep=keep,
+                                           mode='split_at_boundaries' if split_reference_blocks else 'variants_only')
 
 
 @typecheck(vds=VariantDataset, filter_changed_loci=bool)
