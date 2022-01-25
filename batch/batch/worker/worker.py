@@ -1631,6 +1631,7 @@ class JVMJob(Job):
     async def run(self):
         async with self.worker.cpu_sem(self.cpu_in_mcpu):
             self.start_time = time_msecs()
+            os.makedirs(f'{self.scratch}/')
 
             try:
                 with self.step('connecting_to_jvm'):
