@@ -775,7 +775,7 @@ class TableIRSuite extends HailSuite {
       "half" ->  idxRef.floorDiv(2),
       "oneRepeat" -> If(idxRef ceq I32(10), I32(9), idxRef),
       "oneMissing" -> If(idxRef ceq I32(4), NA(TInt32), idxRef),
-      "twoMissing" -> If((idxRef ceq 10) || (idxRef ceq 2), NA(TInt32), idxRef),
+      "twoMissing" -> If((idxRef ceq 10) || (idxRef ceq 2), NA(TInt32), idxRef)
     )))
     val keyedByConst = TableKeyBy(at, IndexedSeq("const"))
     val pathConst = ctx.createTmpPath("test-table-write-distinctness", "ht")
