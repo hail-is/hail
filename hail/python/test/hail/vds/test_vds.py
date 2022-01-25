@@ -327,3 +327,34 @@ def test_filter_chromosomes():
 
     vds_auto = hl.vds.filter_chromosomes(vds, keep_autosomes=True)
     assert_contigs(vds_auto, autosomes)
+
+
+def test_to_dense_mt():
+    vds = hl.vds.read_vds(os.path.join(resource('vds'), '1kg_2samples_starts.vds'))
+    vds = hl.vds.filter_chromosomes(vds, keep='chr22')
+
+    dense = hl.vds.to_dense_mt(vds).select_entries('LGT', 'LA', 'GQ', 'DP')
+
+    assert dense.rows().select()._same(
+        vds.variant_data.rows().select()), "rows differ between variant data and dense mt"
+
+    assert dense.filter_entries(hl.is_defined(dense.LA))._same(
+        vds.variant_data.select_entries('LGT', 'LA', 'GQ', 'DP')), "cannot recover variant data"
+
+    as_dict = dense.aggregate_entries(
+        hl.dict(hl.zip(hl.agg.collect((hl.str(dense.locus), dense.s)), hl.agg.collect(dense.entry))))
+
+    assert as_dict.get(('chr22:10514784', 'NA12891')) == None
+    assert as_dict.get(('chr22:10514784', 'NA12878')) == hl.Struct(LGT=hl.Call([0, 1]), LA=[0, 1], GQ=23, DP=4)
+
+    assert as_dict.get(('chr22:10516150', 'NA12891')) == hl.Struct(LGT=hl.Call([0, 1]), LA=[0, 1], GQ=64, DP=4)
+    assert as_dict.get(('chr22:10516150', 'NA12878')) == hl.Struct(LGT=hl.Call([0, 1]), LA=[0, 1], GQ=99, DP=10)
+
+    assert as_dict.get(('chr22:10519088', 'NA12891')) == hl.Struct(LGT=hl.Call([0, 1]), LA=[0, 1], GQ=99, DP=21)
+    assert as_dict.get(('chr22:10519088', 'NA12878')) == None
+
+    assert as_dict.get(('chr22:10562435', 'NA12891')) == hl.Struct(LGT=hl.Call([0, 1]), LA=[0, 1], GQ=99, DP=15)
+    assert as_dict.get(('chr22:10562435', 'NA12878')) == hl.Struct(LGT=hl.Call([0, 0]), LA=None, GQ=21, DP=9)
+
+    assert as_dict.get(('chr22:10562436', 'NA12891')) == hl.Struct(LGT=hl.Call([0, 1]), LA=[0, 1], GQ=99, DP=15)
+    assert as_dict.get(('chr22:10562436', 'NA12878')) == hl.Struct(LGT=hl.Call([0, 0]), LA=None, GQ=21, DP=9)
