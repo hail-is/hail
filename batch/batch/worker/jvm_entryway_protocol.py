@@ -1,7 +1,7 @@
 import asyncio
 import struct
 import logging
-from hailtop.utils import  TransientError
+from hailtop.utils import TransientError
 
 
 log = logging.getLogger('jvm_entryway_protocol')
