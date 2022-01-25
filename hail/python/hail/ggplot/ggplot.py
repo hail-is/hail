@@ -191,6 +191,18 @@ class GGPlot:
 def ggplot(table, mapping=aes()):
     """Create the initial plot object.
 
+    This function is the beginning of all plots using the ``hail.ggplot`` interface. Plots are constructed
+    by calling this function, then adding attributes to the plot to get the desired result.
+
+    Examples
+    --------
+
+    Create a y = x^2 scatter plot
+
+    >>> ht = hl.utils.range_table(10)
+    >>> ht = ht.annotate(squared = ht.idx**2)
+    >>> my_plot = hail.ggplot.ggplot(ht, hail.ggplot.aes(x=ht.idx, y=ht.idx)) + hail.ggplot.geom_point()
+
     Parameters
     ----------
     table
