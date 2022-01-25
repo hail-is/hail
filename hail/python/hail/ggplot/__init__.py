@@ -1,4 +1,4 @@
-from .coord_cartesian import CoordCartesian, coord_cartesian
+from .coord_cartesian import CoordCartesian, coord_cartesian # noqa F401
 from .ggplot import ggplot, GGPlot # noqa F401
 from .aes import aes, Aesthetic # noqa F401
 from .geoms import Geom, geom_line, geom_point, geom_text, geom_bar, geom_histogram, geom_hline, geom_func, geom_vline, \
