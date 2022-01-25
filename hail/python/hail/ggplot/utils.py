@@ -5,9 +5,9 @@ import hail as hl
 def check_scale_continuity(scale, dtype, aes_key):
 
     if scale.is_discrete() and not is_discrete_type(dtype):
-        raise ValueError(f"Aesthetic {aes_key} has continuous dtype but non continuous scale")
-    if not scale.is_discrete() and is_discrete_type(dtype):
-        raise ValueError(f"Aesthetic {aes_key} has non continuous dtype but continuous scale")
+        raise ValueError(f"Aesthetic {aes_key} has discrete scale but not a discrete type.")
+    if scale.is_continuous() and not is_continuous_type(dtype):
+        raise ValueError(f"Aesthetic {aes_key} has continuous scale but not a continuous type.")
 
 
 def is_genomic_type(dtype):

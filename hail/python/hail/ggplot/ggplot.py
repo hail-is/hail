@@ -203,7 +203,7 @@ def ggplot(table, mapping=aes()):
 
     >>> ht = hl.utils.range_table(10)
     >>> ht = ht.annotate(squared = ht.idx**2)
-    >>> my_plot = hail.ggplot.ggplot(ht, hail.ggplot.aes(x=ht.idx, y=ht.idx)) + hail.ggplot.geom_point()
+    >>> my_plot = hl.ggplot.ggplot(ht, hl.ggplot.aes(x=ht.idx, y=ht.squared)) + hl.ggplot.geom_point()
 
     Parameters
     ----------
@@ -216,4 +216,5 @@ def ggplot(table, mapping=aes()):
     -------
     :class:`.GGPlot`
     """
+    assert isinstance(mapping, Aesthetic)
     return GGPlot(table, mapping)

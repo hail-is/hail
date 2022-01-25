@@ -1,12 +1,15 @@
------------------
-Plotting Overview
------------------
+----------------------------------
+Plotting With hail.ggplot Overview
+----------------------------------
 
 .. warning::
     Plotting functionality is in early stages and is experimental.
 
-The ``hl.ggplot`` module is designed based on R's ``ggplot2`` library. This module provides a subset of ``ggplot2``'s
+The ``hl.ggplot`` module is designed based on R's tidyverse ``ggplot2`` library. This module provides a subset of ``ggplot2``'s
 functionality to allow users to generate plots in much the same way they would in ``ggplot2``.
+
+This module is intended to be a new, more flexible way of plotting compared to the ``hl.plot`` module. This module
+currently uses plotly to generate plots, as opposed to ``hl.plot``, which uses bokeh.
 
 .. toctree::
     :maxdepth: 2

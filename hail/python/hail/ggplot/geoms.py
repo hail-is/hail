@@ -31,7 +31,7 @@ class GeomLineBasic(Geom):
 
     def apply_to_fig(self, parent, agg_result, fig_so_far):
 
-        def plot_group(data, color=None):
+        def plot_group(data, color):
             scatter_args = {
                 "x": [element["x"] for element in data],
                 "y": [element["y"] for element in data],

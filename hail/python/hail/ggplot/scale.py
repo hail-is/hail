@@ -21,6 +21,10 @@ class Scale(FigureAttribute):
     def is_discrete(self):
         pass
 
+    @abc.abstractmethod
+    def is_continuous(self):
+        pass
+
 
 class PositionScale(Scale):
     def __init__(self, aesthetic_name, name, breaks, labels):
@@ -67,6 +71,9 @@ class PositionScaleGenomic(PositionScale):
     def is_discrete(self):
         return False
 
+    def is_continuous(self):
+        return False
+
 
 class PositionScaleContinuous(PositionScale):
 
@@ -91,6 +98,9 @@ class PositionScaleContinuous(PositionScale):
     def is_discrete(self):
         return False
 
+    def is_continuous(self):
+        return True
+
 
 class PositionScaleDiscrete(PositionScale):
     def __init__(self, axis=None, name=None, breaks=None, labels=None):
@@ -105,6 +115,9 @@ class PositionScaleDiscrete(PositionScale):
     def is_discrete(self):
         return True
 
+    def is_continuous(self):
+        return False
+
 
 class ScaleContinuous(Scale):
     def __init__(self, aesthetic_name):
@@ -116,6 +129,9 @@ class ScaleContinuous(Scale):
     def is_discrete(self):
         return False
 
+    def is_continuous(self):
+        return True
+
 
 class ScaleDiscrete(Scale):
     def __init__(self, aesthetic_name):
@@ -126,6 +142,9 @@ class ScaleDiscrete(Scale):
 
     def is_discrete(self):
         return True
+
+    def is_continuous(self):
+        return False
 
 
 class ScaleColorDiscrete(ScaleDiscrete):
