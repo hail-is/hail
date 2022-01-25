@@ -17,6 +17,10 @@ from .utils import is_continuous_type, is_genomic_type, check_scale_continuity
 
 
 class GGPlot:
+    """The class representing a figure created using the ``hail.ggplot` module.
+
+    Create one by using :func:`.ggplot`.
+    """
 
     def __init__(self, ht, aes, geoms=[], labels=Labels(), coord_cartesian=None, scales=None,
                  discrete_color_scale=plotly.colors.qualitative.D3, continuous_color_scale=plotly.colors.sequential.Viridis):
