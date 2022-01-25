@@ -562,7 +562,7 @@ def filter_intervals(vds: 'VariantDataset', intervals: 'ArrayExpression', *, spl
     :class:`.VariantDataset`
     """
     if split_reference_blocks and not keep:
-        raise ValueError(f"'filter_intervals': cannot use 'split_reference_blocks' with keep=False")
+        raise ValueError("'filter_intervals': cannot use 'split_reference_blocks' with keep=False")
     return _parameterized_filter_intervals(vds, intervals, keep=keep,
                                            mode='split_at_boundaries' if split_reference_blocks else 'variants_only')
 
