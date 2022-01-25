@@ -138,11 +138,9 @@ class GGPlot:
             listified_agg_result = labels_to_stats[label].listify(agg_result)
 
             if listified_agg_result:
-                relevant_aesthetics =\
-                    [scale_name for scale_name in list(listified_agg_result[0]) if scale_name in self.scales]
+                relevant_aesthetics = [scale_name for scale_name in list(listified_agg_result[0]) if scale_name in self.scales]
                 for relevant_aesthetic in relevant_aesthetics:
-                    listified_agg_result =\
-                        self.scales[relevant_aesthetic].transform_data_local(listified_agg_result, self)
+                    listified_agg_result = self.scales[relevant_aesthetic].transform_data_local(listified_agg_result, self)
                 # Need to identify every possible combination of discrete scale values.
                 discrete_aesthetics = [scale_name for scale_name in relevant_aesthetics if self.scales[scale_name].is_discrete() and scale_name != "x"]
                 subsetted_to_discrete = tuple([one_struct.select(*discrete_aesthetics) for one_struct in listified_agg_result])

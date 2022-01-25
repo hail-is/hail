@@ -63,7 +63,7 @@ class GeomLineBasic(Geom):
 
 class Stat:
     @abc.abstractmethod
-    def make_agg(self, x_expr, parent_struct, geom_struct):
+    def make_agg(self, mapping):
         return
 
     @abc.abstractmethod

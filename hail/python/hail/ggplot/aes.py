@@ -4,8 +4,6 @@ from hail import literal
 
 
 class Aesthetic(Mapping):
-    # kwargs values should either be strings or fields of a table. We will have to resolve the fact that all tables
-    # need to match the base ggplot table at some point.
 
     def __init__(self, properties):
         self.properties = properties
