@@ -191,7 +191,7 @@ def geom_point(mapping=aes(), *, color=None):
 
     Returns
     -------
-    :class:`Geom`
+    :class:`FigureAttribute`
         The geom to be applied.
     """
     return GeomPoint(mapping, color=color)
@@ -217,7 +217,7 @@ def geom_line(mapping=aes(), *, color=None):
 
     Returns
     -------
-    :class:`Geom`
+    :class:`FigureAttribute`
         The geom to be applied.
     """
     return GeomLine(mapping, color=color)
@@ -270,7 +270,7 @@ def geom_text(mapping=aes(), *, color=None):
 
     Returns
     -------
-    :class:`Geom`
+    :class:`FigureAttribute`
         The geom to be applied.
     """
     return GeomText(mapping, color=color)
@@ -330,6 +330,10 @@ def geom_bar(mapping=aes(), *, fill=None, color=None, position="stack", size=Non
 
     Supported aesthetics: ``x``, ``color``, ``fill``
 
+    Returns
+    -------
+    :class:`FigureAttribute`
+        The geom to be applied.
     """
     return GeomBar(mapping, fill=fill, color=color, position=position, size=size)
 
@@ -430,7 +434,7 @@ def geom_histogram(mapping=aes(), *, min_val=None, max_val=None, bins=30, fill=N
 
     Returns
     -------
-    :class:`Geom`
+    :class:`FigureAttribute`
         The geom to be applied.
     """
     assert min_val is not None
@@ -484,7 +488,7 @@ def geom_hline(yintercept, *, linetype="solid", color=None):
 
     Returns
     -------
-    :class:`Geom`
+    :class:`FigureAttribute`
         The geom to be applied.
     """
     return GeomHLine(yintercept, linetype=linetype, color=color)
@@ -527,7 +531,7 @@ def geom_vline(xintercept, *, linetype="solid", color=None):
 
     Returns
     -------
-    :class:`Geom`
+    :class:`FigureAttribute`
         The geom to be applied.
     """
     return GeomVLine(xintercept, linetype=linetype, color=color)

@@ -25,8 +25,8 @@ def coord_cartesian(xlim=None, ylim=None):
 
     Returns
     -------
-    :class:`.CoordCartesian`
-        The coordinate object to be applied.
+    :class:`.FigureAttribute`
+        The coordinate attribute to be applied.
 
     """
     return CoordCartesian(xlim, ylim)

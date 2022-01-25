@@ -102,7 +102,4 @@ functionality to allow users to generate plots in much the same way they would i
 
 .. autoclass:: GGPlot
 .. autoclass:: Aesthetic
-.. autoclass:: Geom
-.. autoclass:: Labels
-.. autoclass:: Scale
-.. autoclass:: CoordCartesian
+.. autoclass:: FigureAttribute

@@ -175,7 +175,7 @@ def scale_x_log10(name=None):
 
     Returns
     -------
-    :class:`.Scale`
+    :class:`.FigureAttribute`
         The scale to be applied.
     """
     return PositionScaleContinuous("x", name=name, transformation="log10")
@@ -191,7 +191,7 @@ def scale_y_log10(name=None):
 
     Returns
     -------
-    :class:`.Scale`
+    :class:`.FigureAttribute`
         The scale to be applied.
     """
     return PositionScaleContinuous("y", name=name, transformation="log10")
@@ -207,7 +207,7 @@ def scale_x_reverse(name=None):
 
     Returns
     -------
-    :class:`.Scale`
+    :class:`.FigureAttribute`
         The scale to be applied.
     """
     return PositionScaleContinuous("x", name=name, transformation="reverse")
@@ -223,7 +223,7 @@ def scale_y_reverse(name=None):
 
     Returns
     -------
-    :class:`.Scale`
+    :class:`.FigureAttribute`
         The scale to be applied.
     """
     return PositionScaleContinuous("y", name=name, transformation="reverse")
@@ -245,7 +245,7 @@ def scale_x_continuous(name=None, breaks=None, labels=None, trans="identity"):
 
     Returns
     -------
-    :class:`.Scale`
+    :class:`.FigureAttribute`
         The scale to be applied.
     """
     return PositionScaleContinuous("x", name=name, breaks=breaks, labels=labels, transformation=trans)
@@ -267,7 +267,7 @@ def scale_y_continuous(name=None, breaks=None, labels=None, trans="identity"):
 
     Returns
     -------
-    :class:`.Scale`
+    :class:`.FigureAttribute`
         The scale to be applied.
     """
     return PositionScaleContinuous("y", name=name, breaks=breaks, labels=labels, transformation=trans)
@@ -287,7 +287,7 @@ def scale_x_discrete(name=None, breaks=None, labels=None):
 
     Returns
     -------
-    :class:`.Scale`
+    :class:`.FigureAttribute`
         The scale to be applied.
     """
     return PositionScaleDiscrete("x", name=name, breaks=breaks, labels=labels)
@@ -307,7 +307,7 @@ def scale_y_discrete(name=None, breaks=None, labels=None):
 
     Returns
     -------
-    :class:`.Scale`
+    :class:`.FigureAttribute`
         The scale to be applied.
     """
     return PositionScaleDiscrete("y", name=name, breaks=breaks, labels=labels)
@@ -325,7 +325,7 @@ def scale_x_genomic(reference_genome, name=None):
 
     Returns
     -------
-    :class:`.Scale`
+    :class:`.FigureAttribute`
         The scale to be applied.
     """
     return PositionScaleGenomic("x", reference_genome, name=name)
@@ -336,7 +336,7 @@ def scale_color_discrete():
 
     Returns
     -------
-    :class:`.Scale`
+    :class:`.FigureAttribute`
         The scale to be applied.
     """
     return ScaleColorDiscrete("color")
@@ -347,7 +347,7 @@ def scale_color_continuous():
 
     Returns
     -------
-    :class:`.Scale`
+    :class:`.FigureAttribute`
         The scale to be applied.
     """
     return ScaleColorContinuous("color")
@@ -358,7 +358,7 @@ def scale_color_identity():
 
     Returns
     -------
-    :class:`.Scale`
+    :class:`.FigureAttribute`
         The scale to be applied.
     """
     return ScaleColorDiscreteIdentity("color")
@@ -369,7 +369,7 @@ def scale_fill_discrete():
 
     Returns
     -------
-    :class:`.Scale`
+    :class:`.FigureAttribute`
         The scale to be applied.
     """
     return ScaleColorDiscrete("fill")
@@ -380,7 +380,7 @@ def scale_fill_continuous():
 
     Returns
     -------
-    :class:`.Scale`
+    :class:`.FigureAttribute`
         The scale to be applied.
     """
     return ScaleColorContinuous("fill")
@@ -391,7 +391,7 @@ def scale_fill_identity():
 
     Returns
     -------
-    :class:`.Scale`
+    :class:`.FigureAttribute`
         The scale to be applied.
     """
     return ScaleColorDiscreteIdentity("fill")

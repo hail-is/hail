@@ -17,7 +17,7 @@ from .utils import is_continuous_type, is_genomic_type, check_scale_continuity
 
 
 class GGPlot:
-    """The class representing a figure created using the ``hail.ggplot` module.
+    """The class representing a figure created using the ``hail.ggplot`` module.
 
     Create one by using :func:`.ggplot`.
     """

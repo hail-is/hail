@@ -36,7 +36,7 @@ def ggtitle(label):
 
     Returns
     -------
-    :class:`.Labels`
+    :class:`.FigureAttribute`
         Label object to change the title.
     """
     return Labels(title=label)
@@ -52,7 +52,7 @@ def xlab(label):
 
     Returns
     -------
-    :class:`.Labels`
+    :class:`.FigureAttribute`
         Label object to change the x-axis label.
     """
     return Labels(xlabel=label)
@@ -68,7 +68,7 @@ def ylab(label):
 
     Returns
     -------
-    :class:`.Labels`
+    :class:`.FigureAttribute`
         Label object to change the y-axis label.
     """
     return Labels(ylabel=label)
