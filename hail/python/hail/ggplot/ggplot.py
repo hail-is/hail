@@ -20,6 +20,10 @@ class GGPlot:
     """The class representing a figure created using the ``hail.ggplot`` module.
 
     Create one by using :func:`.ggplot`.
+
+    .. automethod:: to_plotly
+    .. automethod:: show
+    .. automethod:: write_image
     """
 
     def __init__(self, ht, aes, geoms=[], labels=Labels(), coord_cartesian=None, scales=None,
@@ -106,6 +110,12 @@ class GGPlot:
                 check_scale_continuity(self.scales[aes_key], aesthetic_dict[aes_key].dtype, aes_key)
 
     def to_plotly(self):
+        """Turn the hail plot into a Plotly plot.
+
+        Returns
+        -------
+        A Plotly figure that can be updated with plotly methods.
+        """
         fields_to_select = {"figure_mapping": hl.struct(**self.aes)}
         for geom_idx, geom in enumerate(self.geoms):
             label = f"geom{geom_idx}"
@@ -172,9 +182,20 @@ class GGPlot:
         return fig
 
     def show(self):
+        """Render and show the plot, either in a browser or notebook.
+        """
         self.to_plotly().show()
 
     def write_image(self, path):
+        """Write out this plot as an image.
+
+        This requires you to have installed the python package kaleido from pypi.
+
+        Parameters
+        ----------
+        path: :class:`str`
+            The path to write the file to.
+        """
         self.to_plotly().write_image(path)
 
     def _repr_html_(self):
