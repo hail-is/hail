@@ -126,7 +126,7 @@ class LinearRegressionAggregator() extends StagedAggregator {
               {
                 cb += Code._fatal[Unit]("linreg: init args may not be missing")
               },
-              k0tCode => initOpF(state)(cb, ktCode.asInt.intCode(cb), k0tCode.asInt.intCode(cb))
+              k0tCode => initOpF(state)(cb, ktCode.asInt.value, k0tCode.asInt.value)
             )
         })
   }
@@ -185,7 +185,7 @@ class LinearRegressionAggregator() extends StagedAggregator {
           case _ =>
             cb.whileLoop(i < k,
               {
-                cb += Region.storeDouble(sptr, Region.loadDouble(sptr) + x.loadElement(cb, i).get(cb).asDouble.doubleCode(cb) * y)
+                cb += Region.storeDouble(sptr, Region.loadDouble(sptr) + x.loadElement(cb, i).get(cb).asDouble.value * y)
                 cb.assign(i, i + 1)
                 cb.assign(sptr, sptr + scalar.byteSize)
               })
@@ -200,7 +200,7 @@ class LinearRegressionAggregator() extends StagedAggregator {
                   {
                     // add x[i] * x[j] to the value at sptr
                     cb += Region.storeDouble(sptr, Region.loadDouble(sptr) +
-                      (x.loadElement(cb, i).get(cb).asDouble.doubleCode(cb) * x.loadElement(cb, j).get(cb).asDouble.doubleCode(cb)))
+                      (x.loadElement(cb, i).get(cb).asDouble.value * x.loadElement(cb, j).get(cb).asDouble.value))
                     cb.assign(j, j + 1)
                     cb.assign(sptr, sptr + scalar.byteSize)
                   })
@@ -219,7 +219,7 @@ class LinearRegressionAggregator() extends StagedAggregator {
           x.toI(cb)
             .consume(cb,
               {},
-              xCode => seqOpF(state)(cb, yCode.asDouble.doubleCode(cb), xCode.asIndexable)
+              xCode => seqOpF(state)(cb, yCode.asDouble.value, xCode.asIndexable)
             )
         })
   }

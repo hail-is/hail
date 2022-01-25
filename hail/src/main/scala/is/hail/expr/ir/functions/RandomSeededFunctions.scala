@@ -63,28 +63,28 @@ object RandomSeededFunctions extends RegistryFunctions {
     registerSeeded2("rand_unif", TFloat64, TFloat64, TFloat64, {
       case (_: Type, _: SType, _: SType) => SFloat64
     }) { case (cb, r, rt, seed, min, max) =>
-      primitive(cb.memoize(cb.emb.newRNG(seed).invoke[Double, Double, Double]("runif", min.asDouble.doubleCode(cb), max.asDouble.doubleCode(cb))))
+      primitive(cb.memoize(cb.emb.newRNG(seed).invoke[Double, Double, Double]("runif", min.asDouble.value, max.asDouble.value)))
     }
 
     registerSeeded2("rand_norm", TFloat64, TFloat64, TFloat64, {
       case (_: Type, _: SType, _: SType) => SFloat64
     }) { case (cb, r, rt, seed, mean, sd) =>
-      primitive(cb.memoize(cb.emb.newRNG(seed).invoke[Double, Double, Double]("rnorm", mean.asDouble.doubleCode(cb), sd.asDouble.doubleCode(cb))))
+      primitive(cb.memoize(cb.emb.newRNG(seed).invoke[Double, Double, Double]("rnorm", mean.asDouble.value, sd.asDouble.value)))
     }
 
     registerSeeded1("rand_bool", TFloat64, TBoolean, (_: Type, _: SType) => SBoolean) { case (cb, r, rt, seed, p) =>
-      primitive(cb.memoize(cb.emb.newRNG(seed).invoke[Double, Boolean]("rcoin", p.asDouble.doubleCode(cb))))
+      primitive(cb.memoize(cb.emb.newRNG(seed).invoke[Double, Boolean]("rcoin", p.asDouble.value)))
     }
 
     registerSeeded1("rand_pois", TFloat64, TFloat64, (_: Type, _: SType) => SFloat64) { case (cb, r, rt, seed, lambda) =>
-      primitive(cb.memoize(cb.emb.newRNG(seed).invoke[Double, Double]("rpois", lambda.asDouble.doubleCode(cb))))
+      primitive(cb.memoize(cb.emb.newRNG(seed).invoke[Double, Double]("rpois", lambda.asDouble.value)))
     }
 
     registerSeeded2("rand_pois", TInt32, TFloat64, TArray(TFloat64), {
       case (_: Type, _: SType, _: SType) => PCanonicalArray(PFloat64(true)).sType
     }) { case (cb, r, SIndexablePointer(rt: PCanonicalArray), seed, n, lambdaCode) =>
-      val len = n.asInt.intCode(cb)
-      val lambda = lambdaCode.asDouble.doubleCode(cb)
+      val len = n.asInt.value
+      val lambda = lambdaCode.asDouble.value
 
       rt.constructFromElements(cb, r, len, deepCopy = false) { case (cb, _) =>
         IEmitCode.present(cb, primitive(cb.memoize(cb.emb.newRNG(seed).invoke[Double, Double]("rpois", lambda))))
@@ -96,7 +96,7 @@ object RandomSeededFunctions extends RegistryFunctions {
     }) { case (cb, r, rt, seed, a, b) =>
       primitive(cb.memoize(
         cb.emb.newRNG(seed).invoke[Double, Double, Double]("rbeta",
-          a.asDouble.doubleCode(cb), b.asDouble.doubleCode(cb))))
+          a.asDouble.value, b.asDouble.value)))
     }
 
     registerSeeded4("rand_beta", TFloat64, TFloat64, TFloat64, TFloat64, TFloat64, {
@@ -104,10 +104,10 @@ object RandomSeededFunctions extends RegistryFunctions {
     }) {
       case (cb, r, rt, seed, a, b, min, max) =>
         val rng = cb.emb.newRNG(seed)
-        val la = a.asDouble.doubleCode(cb)
-        val lb = b.asDouble.doubleCode(cb)
-        val lmin = min.asDouble.doubleCode(cb)
-        val lmax = max.asDouble.doubleCode(cb)
+        val la = a.asDouble.value
+        val lb = b.asDouble.value
+        val lmin = min.asDouble.value
+        val lmax = max.asDouble.value
         val value = cb.newLocal[Double]("value", rng.invoke[Double, Double, Double]("rbeta", la, lb))
         cb.whileLoop(value < lmin || value > lmax, {
           cb.assign(value, rng.invoke[Double, Double, Double]("rbeta", la, lb))
@@ -119,7 +119,7 @@ object RandomSeededFunctions extends RegistryFunctions {
       case (_: Type, _: SType, _: SType) => SFloat64
     }) { case (cb, r, rt, seed, a, scale) =>
       primitive(cb.memoize(
-        cb.emb.newRNG(seed).invoke[Double, Double, Double]("rgamma", a.asDouble.doubleCode(cb), scale.asDouble.doubleCode(cb))
+        cb.emb.newRNG(seed).invoke[Double, Double, Double]("rgamma", a.asDouble.value, scale.asDouble.value)
       ))
     }
 
@@ -132,7 +132,7 @@ object RandomSeededFunctions extends RegistryFunctions {
       cb.whileLoop(i < len, {
         weights.loadElement(cb, i).consume(cb,
           cb._fatal("rand_cat requires all elements of input array to be present"),
-          sc => cb += a.update(i, sc.asDouble.doubleCode(cb))
+          sc => cb += a.update(i, sc.asDouble.value)
         )
         cb.assign(i, i + 1)
       })
@@ -146,13 +146,13 @@ object RandomSeededFunctions extends RegistryFunctions {
       val resultSize: Value[Int] = partitionCounts.loadLength()
       val i = cb.newLocal[Int]("scnspp_index", 0)
       cb.forLoop(cb.assign(i, 0), i < resultSize, cb.assign(i, i + 1), {
-        cb.assign(totalNumberOfRecords, totalNumberOfRecords + partitionCounts.loadElement(cb, i).get(cb).asInt32.intCode(cb))
+        cb.assign(totalNumberOfRecords, totalNumberOfRecords + partitionCounts.loadElement(cb, i).get(cb).asInt32.value)
       })
 
-      cb.ifx(initalNumSamplesToSelect.intCode(cb) > totalNumberOfRecords, cb._fatal("Requested selection of ", initalNumSamplesToSelect.intCode(cb).toS,
+      cb.ifx(initalNumSamplesToSelect.value > totalNumberOfRecords, cb._fatal("Requested selection of ", initalNumSamplesToSelect.value.toS,
         " samples from ", totalNumberOfRecords.toS, " records"))
 
-      val successStatesRemaining = cb.newLocal[Int]("scnspp_success", initalNumSamplesToSelect.intCode(cb))
+      val successStatesRemaining = cb.newLocal[Int]("scnspp_success", initalNumSamplesToSelect.value)
       val failureStatesRemaining = cb.newLocal[Int]("scnspp_failure", totalNumberOfRecords - successStatesRemaining)
 
       val arrayRt = rt.asInstanceOf[SIndexablePointer]
@@ -160,9 +160,9 @@ object RandomSeededFunctions extends RegistryFunctions {
 
       cb.forLoop(cb.assign(i, 0), i < resultSize, cb.assign(i, i + 1), {
         val numSuccesses = cb.memoize(cb.emb.newRNG(seed).invoke[Double, Double, Double, Double]("rhyper",
-          successStatesRemaining.toD, failureStatesRemaining.toD, partitionCounts.loadElement(cb, i).get(cb).asInt32.intCode(cb).toD).toI)
+          successStatesRemaining.toD, failureStatesRemaining.toD, partitionCounts.loadElement(cb, i).get(cb).asInt32.value.toD).toI)
         cb.assign(successStatesRemaining, successStatesRemaining - numSuccesses)
-        cb.assign(failureStatesRemaining, failureStatesRemaining - (partitionCounts.loadElement(cb, i).get(cb).asInt32.intCode(cb) - numSuccesses))
+        cb.assign(failureStatesRemaining, failureStatesRemaining - (partitionCounts.loadElement(cb, i).get(cb).asInt32.value - numSuccesses))
         push(cb, IEmitCode.present(cb, new SInt32Value(numSuccesses)))
       })
 

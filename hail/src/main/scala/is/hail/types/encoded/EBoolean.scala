@@ -15,7 +15,7 @@ case object EBooleanRequired extends EBoolean(true)
 
 class EBoolean(override val required: Boolean) extends EType {
   override def _buildEncoder(cb: EmitCodeBuilder, v: SValue, out: Value[OutputBuffer]): Unit = {
-    cb += out.writeBoolean(v.asBoolean.boolCode(cb))
+    cb += out.writeBoolean(v.asBoolean.value)
   }
 
   override def _buildDecoder(cb: EmitCodeBuilder, t: Type, region: Value[Region], in: Value[InputBuffer]): SValue = {

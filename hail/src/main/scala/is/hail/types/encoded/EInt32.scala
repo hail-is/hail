@@ -20,7 +20,7 @@ class EInt32(override val required: Boolean) extends EType {
   override def _buildEncoder(cb: EmitCodeBuilder, v: SValue, out: Value[OutputBuffer]): Unit = {
     val x = v.st match {
       case _: SCall => v.asInstanceOf[SCallValue].canonicalCall(cb)
-      case SInt32 => v.asInt32.intCode(cb)
+      case SInt32 => v.asInt32.value
     }
     cb += out.writeInt(x)
   }

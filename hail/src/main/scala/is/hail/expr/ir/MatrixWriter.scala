@@ -368,11 +368,11 @@ case class MatrixSpecWriter(path: String, typ: MatrixType, rowRelPath: String, g
     cb.assign(partCounts, Code.newArray[Long](n))
     cb.whileLoop(i < n, {
       val count = a.loadElement(cb, i).get(cb, "part count can't be missing!")
-      cb += partCounts.update(i, count.asInt64.longCode(cb))
+      cb += partCounts.update(i, count.asInt64.value)
       cb.assign(i, i + 1)
     })
     cb += cb.emb.getObject(new MatrixSpecHelper(path, rowRelPath, globalRelPath, colRelPath, entryRelPath, refRelPath, typ, log))
-      .invoke[FS, Long, Array[Long], Unit]("write", cb.emb.getFS, c.loadField(cb, "cols").get(cb).asInt64.longCode(cb), partCounts)
+      .invoke[FS, Long, Array[Long], Unit]("write", cb.emb.getFS, c.loadField(cb, "cols").get(cb).asInt64.value, partCounts)
   }
 }
 

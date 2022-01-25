@@ -155,7 +155,7 @@ class DensifyAggregator(val arrayVType: VirtualTypeWithReq) extends StagedAggreg
     sizeTriplet.toI(cb)
       .consume(cb,
         cb += Code._fatal[Unit](s"argument 'n' for 'hl.agg.densify' may not be missing"),
-        sc => state.init(cb, sc.asInt.intCode(cb))
+        sc => state.init(cb, sc.asInt.value)
       )
   }
 
