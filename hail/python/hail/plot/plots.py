@@ -197,7 +197,7 @@ def pdf(data, k=1000, confidence=5, legend=None, title=None, log=False, interact
                 new_y, keep = _max_entropy_cdf(min_x, max_x, x, y, err)
                 slopes = np.diff([0, *new_y[keep], 1]) / np.diff([min_x, *x[keep], max_x])
                 if log:
-                    new_data = {'x':[min_x, *x[keep], max_x], 'y':[*slopes, slopes[-1]]}
+                    new_data = {'x': [min_x, *x[keep], max_x], 'y': [*slopes, slopes[-1]]}
                 else:
                     new_data = {'left': [min_x, *x[keep]], 'right': [*x[keep], max_x], 'bottom': np.full(len(slopes), 0), 'top': slopes}
                 plot.data_source.data = new_data
