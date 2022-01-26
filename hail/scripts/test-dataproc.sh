@@ -25,6 +25,7 @@ hailctl dataproc \
         --max-idle 10m \
         --max-age 120m \
         --vep GRCh37 \
+        --num-preemptible-workers=8 \
         --requester-pays-allow-buckets hail-us-vep
 for file in $cluster_37_test_files
 do
@@ -38,6 +39,7 @@ hailctl dataproc \
         --max-idle 10m \
         --max-age 120m \
         --vep GRCh38 \
+        --num-preemptible-workers=8 \
         --requester-pays-allow-buckets hail-us-vep
 for file in $cluster_38_test_files
 do
