@@ -1,4 +1,5 @@
 from typing import Optional, Dict, Callable, Tuple, Awaitable, Any, Union, MutableMapping, List, Iterator
+import errno
 import os
 import json
 import sys
@@ -1661,16 +1662,24 @@ class JVMJob(Job):
                         local_jar_location = f'/hail-jars/{self.revision}.jar'
                         if not os.path.isfile(local_jar_location):
                             self.verify_is_acceptable_query_jar_url(self.jar_url)
-                            with tempfile.NamedTemporaryFile() as temporary_file:
+                            temporary_file = tempfile.NamedTemporaryFile(delete=False)
+                            try:
                                 async with await self.worker.fs.open(self.jar_url) as jar_data:
-                                    await self.worker.fs.makedirs('/hail-jars/', exist_ok=True)
                                     while True:
                                         b = await jar_data.read(256 * 1024)
                                         if not b:
                                             break
                                         written = await blocking_to_async(worker.pool, temporary_file.write, b)
                                         assert written == len(b)
+                                temporary_file.close()
                                 os.rename(temporary_file.name, local_jar_location)
+                            finally:
+                                temporary_file.close()  # close is idempotent
+                                try:
+                                    os.remove(temporary_file.name)
+                                except OSError as err:
+                                    if err.errno != errno.ENOENT:
+                                        raise
 
                 log.info(f'{self}: running jvm process')
                 with self.step('running'):
