@@ -15,7 +15,7 @@ import is.hail.utils._
 
 object EmitStreamDistribute {
 
-  def emit(cb: EmitCodeBuilder, region: Value[Region], requestedSplittersAndEndsVal: SIndexableValue, childStream: SStreamValue, pathVal: SValue, spec: AbstractTypedCodecSpec): SIndexableValue = {
+  def emit(cb: EmitCodeBuilder, region: Value[Region], requestedSplittersAndEndsVal: SIndexableValue, childStream: SStreamValue, pathVal: SValue, comparisonOp: ComparisonOp[_], spec: AbstractTypedCodecSpec): SIndexableValue = {
     val mb = cb.emb
     val pivotsPType = requestedSplittersAndEndsVal.st.storageType().asInstanceOf[PCanonicalArray]
     val requestedSplittersVal = requestedSplittersAndEndsVal.sliceArray(cb, region, pivotsPType, 1, requestedSplittersAndEndsVal.loadLength() - 1)
@@ -27,9 +27,8 @@ object EmitStreamDistribute {
     def compare(cb: EmitCodeBuilder, lelt: EmitValue, relt: EmitValue): Code[Int] = {
       val lhs = lelt.map(cb)(_.asBaseStruct.subset(keyFieldNames: _*))
       val rhs = relt.map(cb)(_.asBaseStruct.subset(keyFieldNames: _*))
-      StructOrdering.make(lhs.st.asInstanceOf[SBaseStruct], rhs.st.asInstanceOf[SBaseStruct],
-        cb.emb.ecb, missingFieldsEqual = true)
-        .compare(cb, lhs, rhs, missingEqual = true)
+      val codeOrdering = comparisonOp.codeOrdering(cb.emb.ecb, lhs.st.asInstanceOf[SBaseStruct], rhs.st.asInstanceOf[SBaseStruct])
+      codeOrdering(cb, lhs, rhs).asInstanceOf[Value[Int]]
     }
 
     def equal(cb: EmitCodeBuilder, lelt: EmitValue, relt: EmitValue): Code[Boolean] = compare(cb, lelt, relt) ceq 0

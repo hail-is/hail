@@ -4,11 +4,12 @@ import is.hail.annotations.{Region, RegionPool, RegionValueBuilder}
 import is.hail.asm4s._
 import is.hail.backend.{BackendUtils, BroadcastValue, ExecuteContext}
 import is.hail.expr.ir.functions.IRRandomness
-import is.hail.expr.ir.orderings.CodeOrdering
+import is.hail.expr.ir.orderings.{CodeOrdering, StructOrdering}
 import is.hail.io.fs.FS
 import is.hail.io.{BufferSpec, InputBuffer, TypedCodecSpec}
 import is.hail.types.VirtualTypeWithReq
 import is.hail.types.physical.stypes._
+import is.hail.types.physical.stypes.interfaces.SBaseStruct
 import is.hail.types.physical.{PCanonicalTuple, PType, typeToTypeInfo}
 import is.hail.types.virtual.Type
 import is.hail.utils._
@@ -496,6 +497,25 @@ class EmitClassBuilder[C](
         case CodeOrdering.Gt(missingEqual) => ord.gt(cb, v1, v2, missingEqual)
         case CodeOrdering.Gteq(missingEqual) => ord.gteq(cb, v1, v2, missingEqual)
         case CodeOrdering.Neq(missingEqual) => !ord.equiv(cb, v1, v2, missingEqual)
+      }
+      cb.memoize[op.ReturnType](coerce[op.ReturnType](r))(op.rtti)
+    }
+  }
+
+  def getStructOrderingFunction(
+    t1: SBaseStruct,
+    t2: SBaseStruct,
+    sortFields: Array[SortField],
+    op: CodeOrdering.Op
+  ): CodeOrdering.F[op.ReturnType] = {
+    { (cb: EmitCodeBuilder, v1: EmitValue, v2: EmitValue) =>
+      val ord = StructOrdering.make(t1, t2, cb.emb.ecb, sortFields.map(_.sortOrder))
+
+      val r: Code[_] = op match {
+        case CodeOrdering.StructLt(missingEqual) => ord.lt(cb, v1, v2, missingEqual)
+        case CodeOrdering.StructLteq(missingEqual) => ord.lteq(cb, v1, v2, missingEqual)
+        case CodeOrdering.StructGt(missingEqual) => ord.gt(cb, v1, v2, missingEqual)
+        case CodeOrdering.StructCompare(missingEqual) => ord.compare(cb, v1, v2, missingEqual)
       }
       cb.memoize[op.ReturnType](coerce[op.ReturnType](r))(op.rtti)
     }
