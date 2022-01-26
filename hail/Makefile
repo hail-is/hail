@@ -266,10 +266,6 @@ install-on-cluster: $(WHEEL)
 .PHONY: install-hailctl
 install-hailctl: install upload-artifacts
 
-.PHONY: test-dataproc
-test-dataproc: install-hailctl
-	bash scripts/test-dataproc.sh
-
 .PHONY: test-dataproc-37
 test-dataproc-37: install-hailctl
 	bash scripts/test-dataproc.sh "GRCh37"
