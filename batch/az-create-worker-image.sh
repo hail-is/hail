@@ -34,7 +34,7 @@ BATCH_WORKER_IDENTITY=$(az identity show \
 
 echo "Creating $BUILD_IMAGE_RESOURCE_GROUP resource group..."
 
-az group delete --name $BUILD_IMAGE_RESOURCE_GROUP || true
+az group delete --name $BUILD_IMAGE_RESOURCE_GROUP --yes || true
 az group create --name $BUILD_IMAGE_RESOURCE_GROUP --location ${REGION}
 
 az role assignment create \
@@ -59,11 +59,10 @@ python3 ../ci/jinja2_render.py "{\"global\":{\"container_registry_name\":\"${CON
 
 echo "Running image startup script..."
 
-az vm run-command invoke \
-    --resource-group $BUILD_IMAGE_RESOURCE_GROUP \
-    --command-id RunShellScript \
-    --name $VM_NAME \
-    --scripts "@build-batch-worker-image-startup-azure.sh.out"
+ssh -i '~/.ssh/id_rsa' \
+    -o StrictHostKeyChecking="accept-new" \
+    $USERNAME@$IP \
+    'sudo bash -s ' < build-batch-worker-image-startup-azure.sh.out
 
 echo "Startup script completed!"
 echo "Shutting down agent..."
@@ -102,6 +101,6 @@ az sig image-version create \
 echo "Image created!"
 echo "Deleting resource group $BUILD_IMAGE_RESOURCE_GROUP"
 
-az group delete --name $BUILD_IMAGE_RESOURCE_GROUP
+az group delete --name $BUILD_IMAGE_RESOURCE_GROUP --yes
 
 echo "Resource group $BUILD_IMAGE_RESOURCE_GROUP deleted successfully!"

@@ -18,7 +18,6 @@ apt-get install -y \
 curl --connect-timeout 5 \
      --max-time 10 \
      --retry 5 \
-     --retry-all-errors \
      --retry-max-time 40 \
      --location \
      --fail \
