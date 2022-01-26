@@ -3905,7 +3905,7 @@ steps:
       - blog_nginx_image
       - create_certs
   - kind: runImage
-    name: test_dataproc
+    name: test_dataproc-37
     image:
       valueFrom: ci_utils_image.image
     script: |
@@ -3926,8 +3926,49 @@ steps:
       cd hail
       chmod 755 ./gradlew
       time retry ./gradlew --version
-      make test-dataproc DEV_CLARIFIER=ci_test_dataproc
-    timeout: 7200
+      make test-dataproc-37 DEV_CLARIFIER=ci_test_dataproc
+    dependsOn:
+      - ci_utils_image
+      - default_ns
+      - merge_code
+    inputs:
+      - from: /hail_pip_version
+        to: /io/hail_pip_version
+      - from: /repo
+        to: /io/repo
+    secrets:
+      - name: test-dataproc-service-account-key
+        namespace:
+          valueFrom: default_ns.name
+        mountPath: /test-dataproc-service-account-key
+    scopes:
+      - deploy
+      - dev
+    clouds:
+      - gcp
+  - kind: runImage
+    name: test_dataproc-38
+    image:
+      valueFrom: ci_utils_image.image
+    script: |
+      set -ex
+
+      cd /io/repo
+
+      gcloud auth activate-service-account --key-file=/test-dataproc-service-account-key/test-dataproc-service-account-key.json
+      gcloud config set project hail-vdc
+      gcloud config set dataproc/region us-central1
+
+      if git ls-remote --exit-code --tags origin $(cat /io/hail_pip_version)
+      then
+          echo "tag $HAIL_PIP_VERSION already exists"
+          exit 0
+      fi
+
+      cd hail
+      chmod 755 ./gradlew
+      time retry ./gradlew --version
+      make test-dataproc-38 DEV_CLARIFIER=ci_test_dataproc
     dependsOn:
       - ci_utils_image
       - default_ns
