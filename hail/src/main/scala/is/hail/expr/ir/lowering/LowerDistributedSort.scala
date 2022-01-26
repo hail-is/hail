@@ -110,12 +110,12 @@ object LowerDistributedSort {
     val branchingFactor = 4
     val sizeCutoff = HailContext.getFlag("shuffle_cutoff_to_local_sort").toInt
 
-    val (newKType, _) = inputStage.rowType.select(sortFields.map(sf => sf.field))
+    val (keyToSortBy, _) = inputStage.rowType.select(sortFields.map(sf => sf.field))
 
     val spec = TypedCodecSpec(rowTypeRequiredness.canonicalPType(inputStage.rowType), BufferSpec.default)
     val reader = PartitionNativeReader(spec)
     val initialTmpPath = ctx.createTmpPath("hail_shuffle_temp_initial")
-    val writer = PartitionNativeWriter(spec, newKType.fieldNames, initialTmpPath, None, None)
+    val writer = PartitionNativeWriter(spec, keyToSortBy.fieldNames, initialTmpPath, None, None)
 
     val initialStageDataRow = CompileAndEvaluate[Annotation](ctx, inputStage.mapCollectWithGlobals(relationalLetsAbove) { part =>
       WritePartition(part, UUID4(), writer)
@@ -159,7 +159,7 @@ object LowerDistributedSort {
         val samples = SeqSample(GetField(ctxRef, "sizeOfPartition"), GetField(ctxRef, "numSamples"), false)
         val partitionStream = flatMapIR(ToStream(filenames)) { fileName =>
           mapIR(ReadPartition(fileName, spec._vType, reader)){ partitionElement =>
-            SelectFields(partitionElement, newKType.fields.map(_.name))
+            SelectFields(partitionElement, keyToSortBy.fields.map(_.name))
           }
         }
         MakeStruct(IndexedSeq("segmentIdx" -> GetField(ctxRef, "segmentIdx"), "partData" -> samplePartition(partitionStream, samples, sortFields)))
@@ -184,7 +184,7 @@ object LowerDistributedSort {
               )), false)
           })) { aggResults =>
             val sortedOversampling = sortIR(flatMapIR(ToStream(GetField(aggResults, "samples"))) { onePartCollectedArray => ToStream(onePartCollectedArray)}) { case (left, right) =>
-              ApplyComparisonOp(StructLT(newKType, sortFields), left, right)
+              ApplyComparisonOp(StructLT(keyToSortBy, sortFields), left, right)
             }
             val minArray = MakeArray(GetField(aggResults, "min"))
             val maxArray = MakeArray(GetField(aggResults, "max"))
@@ -225,7 +225,7 @@ object LowerDistributedSort {
 
         val pivotsWithEndpointsGroupedBySegmentNumber = unsortedPivotsWithEndpointsAndInfoGroupedBySegmentNumber.map{ case (r, _) => r._1 }
 
-        val pivotsWithEndpointsGroupedBySegmentNumberLiteral = Literal(TArray(TArray(newKType)), pivotsWithEndpointsGroupedBySegmentNumber)
+        val pivotsWithEndpointsGroupedBySegmentNumberLiteral = Literal(TArray(TArray(keyToSortBy)), pivotsWithEndpointsGroupedBySegmentNumber)
 
         val tmpPath = ctx.createTmpPath("hail_shuffle_temp")
         val unsortedPartitionDataPerSegment = unsortedPivotsWithEndpointsAndInfoGroupedBySegmentNumber.map { case (_, idx) => partitionDataPerSegment(idx)}
@@ -247,7 +247,7 @@ object LowerDistributedSort {
           val partitionStream = flatMapIR(ToStream(filenames)) { fileName =>
             ReadPartition(fileName, spec._vType, reader)
           }
-          MakeTuple.ordered(IndexedSeq(segmentIdx, StreamDistribute(partitionStream, ArrayRef(pivotsWithEndpointsGroupedBySegmentIdx, indexIntoPivotsArray), path, StructCompare(newKType, newKType, sortFields.toArray), spec)))
+          MakeTuple.ordered(IndexedSeq(segmentIdx, StreamDistribute(partitionStream, ArrayRef(pivotsWithEndpointsGroupedBySegmentIdx, indexIntoPivotsArray), path, StructCompare(keyToSortBy, keyToSortBy, sortFields.toArray), spec)))
         }
 
         val (Some(PTypeReferenceSingleCodeType(resultPType)), f) = ctx.timer.time("LowerDistributedSort.distributedSort.compile")(Compile[AsmFunction1RegionLong](ctx,
@@ -305,7 +305,7 @@ object LowerDistributedSort {
     // Note: If all of the sort fields are not ascending, the the resulting table is sorted, but not keyed.
     val keyed = sortFields.forall(sf => sf.sortOrder == Ascending)
     val (partitionerKey, intervals) = if (keyed) {
-      (newKType, orderedSegments.map{ case (segment, _) => segment.interval})
+      (keyToSortBy, orderedSegments.map{ case (segment, _) => segment.interval})
     } else {
       (TStruct(), orderedSegments.map{ _ => Interval(Row(), Row(), true, false)})
     }
@@ -315,11 +315,11 @@ object LowerDistributedSort {
       val partitionInputStream = flatMapIR(ToStream(filenames)) { fileName =>
         ReadPartition(fileName, spec._vType, reader)
       }
-      val newKeyFieldNames = newKType.fields.map(_.name)
+      val newKeyFieldNames = keyToSortBy.fields.map(_.name)
       If(GetField(ctxRef, "isSorted"),
         partitionInputStream,
         ToStream(sortIR(partitionInputStream) { (refLeft, refRight) =>
-          ApplyComparisonOp(StructLT(newKType, sortFields), SelectFields(refLeft, newKeyFieldNames), SelectFields(refRight, newKeyFieldNames))
+          ApplyComparisonOp(StructLT(keyToSortBy, sortFields), SelectFields(refLeft, newKeyFieldNames), SelectFields(refRight, newKeyFieldNames))
         })
       )
     })
