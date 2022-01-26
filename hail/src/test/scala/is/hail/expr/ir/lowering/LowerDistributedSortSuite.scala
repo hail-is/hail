@@ -84,5 +84,6 @@ class LowerDistributedSortSuite extends HailSuite {
     testDistributedSortHelper(tableWithExtraField, IndexedSeq(SortField("backwards", Ascending)))
     testDistributedSortHelper(tableWithExtraField, IndexedSeq(SortField("const", Ascending)))
     testDistributedSortHelper(tableWithExtraField, IndexedSeq(SortField("idx", Descending)))
+    testDistributedSortHelper(tableWithExtraField, IndexedSeq(SortField("foo", Descending), SortField("idx", Ascending)))
   }
 }

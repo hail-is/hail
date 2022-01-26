@@ -283,7 +283,6 @@ object LowerDistributedSort {
           val newSegmentIndices = priorIndices :+ newIndex
           SegmentResult(newSegmentIndices, interval, chunks)
         }
-        print("anchor")
 
         // Now I need to figure out how many partitions to allocate to each segment.
         dataPerSegment.partition { sr =>
