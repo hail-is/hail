@@ -270,6 +270,14 @@ install-hailctl: install upload-artifacts
 test-dataproc: install-hailctl
 	bash scripts/test-dataproc.sh
 
+.PHONY: test-dataproc-37
+test-dataproc-37: install-hailctl
+	bash scripts/test-dataproc.sh "GRCh37"
+
+.PHONY: test-dataproc-38
+test-dataproc-38: install-hailctl
+	bash scripts/test-dataproc.sh "GRCh38"
+
 # install skopeo
 # use curl version >=7.55.0
 #
