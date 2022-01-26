@@ -1675,7 +1675,10 @@ class JVMJob(Job):
                 log.info(f'{self}: running jvm process')
                 with self.step('running'):
                     await self.jvm.execute(
-                        f'{local_jar_location}', self.user_command_string[0], self.user_command_string[1:]
+                        f'{local_jar_location}',
+                        self.user_command_string[0],
+                        self.scratch_dir,
+                        self.user_command_string[1:]
                     )
                 self.state = 'succeeded'
                 log.info(f'{self} main: {self.state}')
@@ -1983,7 +1986,7 @@ class JVM:
     def retrieve_and_clear_output(self) -> str:
         return self.process.retrieve_and_clear_output()
 
-    async def execute(self, classpath: str, mainclass: str, command_string: List[str]):
+    async def execute(self, classpath: str, mainclass: str, scratch_dir: str, command_string: List[str]):
         assert worker is not None
 
         log.info(f'{self}: execute')
@@ -1995,7 +1998,7 @@ class JVM:
             stack.callback(writer.close)
             log.info(f'{self}: connection acquired')
 
-            command_string = [classpath, mainclass, self.root_dir, *command_string]
+            command_string = [classpath, mainclass, scratch_dir, *command_string]
 
             write_int(writer, len(command_string))
             for arg in command_string:
