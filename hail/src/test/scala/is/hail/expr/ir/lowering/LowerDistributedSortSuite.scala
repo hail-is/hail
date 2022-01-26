@@ -52,7 +52,11 @@ class LowerDistributedSortSuite extends HailSuite {
       var i = 0
       while (i < sortFields.size) {
         if (leftKey(i).asInstanceOf[Int] != rightKey(i).asInstanceOf[Int]) {
-          ans = leftKey(i).asInstanceOf[Int] < rightKey(i).asInstanceOf[Int]
+          if (sortFields(i).sortOrder == Ascending) {
+            ans = leftKey(i).asInstanceOf[Int] < rightKey(i).asInstanceOf[Int]
+          } else {
+            ans = leftKey(i).asInstanceOf[Int] > rightKey(i).asInstanceOf[Int]
+          }
           i = sortFields.size
         }
         i += 1
@@ -75,10 +79,10 @@ class LowerDistributedSortSuite extends HailSuite {
       ))
     )
 
-//    testDistributedSortHelper(tableWithExtraField, IndexedSeq(SortField("foo", Ascending), SortField("idx", Ascending)))
-//    testDistributedSortHelper(tableWithExtraField, IndexedSeq(SortField("idx", Ascending)))
-//    testDistributedSortHelper(tableWithExtraField, IndexedSeq(SortField("backwards", Ascending)))
-//    testDistributedSortHelper(tableWithExtraField, IndexedSeq(SortField("const", Ascending)))
+    testDistributedSortHelper(tableWithExtraField, IndexedSeq(SortField("foo", Ascending), SortField("idx", Ascending)))
+    testDistributedSortHelper(tableWithExtraField, IndexedSeq(SortField("idx", Ascending)))
+    testDistributedSortHelper(tableWithExtraField, IndexedSeq(SortField("backwards", Ascending)))
+    testDistributedSortHelper(tableWithExtraField, IndexedSeq(SortField("const", Ascending)))
     testDistributedSortHelper(tableWithExtraField, IndexedSeq(SortField("idx", Descending)))
   }
 }

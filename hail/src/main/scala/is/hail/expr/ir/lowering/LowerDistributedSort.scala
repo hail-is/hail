@@ -302,7 +302,15 @@ object LowerDistributedSort {
 
     val contextData = orderedSegments.map { case (segment, isSorted) => Row(segment.chunks.map(chunk => chunk.filename), isSorted) }
     val contexts = ToStream(Literal(TArray(TStruct("files" -> TArray(TString), "isSorted" -> TBoolean)), contextData))
-    val partitioner = new RVDPartitioner(newKType, orderedSegments.map{ case (segment, _) => segment.interval})
+
+    // Note: If all of the sort fields are not ascending, the the resulting table is sorted, but not keyed.
+    val keyed = sortFields.forall(sf => sf.sortOrder == Ascending)
+    val (partitionerKey, intervals) = if (keyed) {
+      (newKType, orderedSegments.map{ case (segment, _) => segment.interval})
+    } else {
+      (TStruct(), orderedSegments.map{ _ => Interval(Row(), Row(), true, false)})
+    }
+    val partitioner = new RVDPartitioner(partitionerKey, intervals)
     val finalTs = TableStage(initialGlobalsLiteral, partitioner, TableStageDependency.none, contexts, { ctxRef =>
       val filenames = GetField(ctxRef, "files")
       val partitionInputStream = flatMapIR(ToStream(filenames)) { fileName =>
