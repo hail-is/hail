@@ -29,10 +29,6 @@ object EmitStreamDistribute {
       val rhs = relt.map(cb)(_.asBaseStruct.subset(keyFieldNames: _*))
       val codeOrdering = comparisonOp.codeOrdering(cb.emb.ecb, lhs.st.asInstanceOf[SBaseStruct], rhs.st.asInstanceOf[SBaseStruct])
       codeOrdering(cb, lhs, rhs).asInstanceOf[Value[Int]]
-//      val oldCodeOrdering = StructOrdering.make(lhs.st.asInstanceOf[SBaseStruct], rhs.st.asInstanceOf[SBaseStruct],
-//        cb.emb.ecb, missingFieldsEqual = true)
-//
-//      oldCodeOrdering.compare(cb, lhs, rhs, missingEqual = true)
     }
 
     def equal(cb: EmitCodeBuilder, lelt: EmitValue, relt: EmitValue): Code[Boolean] = compare(cb, lelt, relt) ceq 0
