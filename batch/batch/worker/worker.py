@@ -1591,22 +1591,14 @@ class JVMJob(Job):
                 self.credentials.hail_env_name,
             }, envvar
 
-        self.env.append(
-            {'name': 'HAIL_DEPLOY_CONFIG_FILE', 'value': f'{self.scratch}/secrets/deploy-config/deploy-config.json'}
-        )
-        self.env.append({'name': 'HAIL_TOKENS_FILE', 'value': f'{self.scratch}/secrets/user-tokens/tokens.json'})
-        self.env.append({'name': 'HAIL_SSL_CONFIG_DIR', 'value': f'{self.scratch}/secrets/ssl-config'})
-        self.env.append({'name': 'HAIL_WORKER_SCRATCH_DIR', 'value': self.scratch})
-        self.env.append({'name': self.credentials.hail_env_name, 'value': self.credentials_host_file_path()})
-
-        # main container
-        self.main_spec = {
-            'command': job_spec['process']['command'],  # ['is.hail.backend.service.Worker', $root, $i]
-            'name': 'main',
-            'env': self.env,
-            'cpu': self.cpu_in_mcpu,
-            'memory': self.memory_in_bytes,
-        }
+        # self.env <= the JVM does not have a configurable environment
+        # self.env.append(
+        #     {'name': 'HAIL_DEPLOY_CONFIG_FILE', 'value': f'{self.scratch}/secrets/deploy-config/deploy-config.json'}
+        # )
+        # self.env.append({'name': 'HAIL_TOKENS_FILE', 'value': f'{self.scratch}/secrets/user-tokens/tokens.json'})
+        # self.env.append({'name': 'HAIL_SSL_CONFIG_DIR', 'value': f'{self.scratch}/secrets/ssl-config'})
+        # self.env.append({'name': 'HAIL_WORKER_SCRATCH_DIR', 'value': self.scratch})
+        # self.env.append({'name': self.credentials.hail_env_name, 'value': self.credentials_host_file_path()})
 
         self.user_command_string = job_spec['process']['command']
         assert len(self.user_command_string) >= 3, self.user_command_string

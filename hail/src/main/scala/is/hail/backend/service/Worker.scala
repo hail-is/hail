@@ -63,11 +63,11 @@ object Worker {
     val timer = new WorkerTimer()
 
     val deployConfig = DeployConfig.fromConfigFile(
-      s"$scratchDir/deploy-config/deploy-config.json")
+      s"$scratchDir/secrets/deploy-config/deploy-config.json")
     DeployConfig.set(deployConfig)
-    val userTokens = Tokens.fromFile(s"$scratchDir/user-tokens/tokens.json")
+    val userTokens = Tokens.fromFile(s"$scratchDir/secrets/user-tokens/tokens.json")
     Tokens.set(userTokens)
-    tls.setSSLConfigFromDir(s"$scratchDir/ssl-config")
+    tls.setSSLConfigFromDir(s"$scratchDir/secrets/ssl-config")
 
     log.info(s"is.hail.backend.service.Worker $myRevision")
     log.info(s"running job $i at root $root with scratch directory '$scratchDir'")
@@ -76,7 +76,7 @@ object Worker {
 
     timer.start("readInputs")
     val fs = retryTransientErrors {
-      using(new FileInputStream(s"$scratchDir/gsa-key/key.json")) { is =>
+      using(new FileInputStream(s"$scratchDir/secrets/gsa-key/key.json")) { is =>
         new GoogleStorageFS(Some(IOUtils.toString(is, Charset.defaultCharset().toString()))).asCacheable()
       }
     }

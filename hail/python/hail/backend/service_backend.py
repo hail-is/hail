@@ -103,6 +103,17 @@ class Timings:
         return self.timings
 
 
+class yaml_literally_shown_str(str):
+    pass
+
+
+def yaml_literally_shown_str_representer(dumper, data):
+    return dumper.represent_scalar(u'tag:yaml.org,2002:str', data, style='|')
+
+
+yaml.add_representer(yaml_literally_shown_str, yaml_literally_shown_str_representer)
+
+
 class ServiceBackend(Backend):
     HAIL_BATCH_FAILURE_EXCEPTION_MESSAGE_RE = re.compile("is.hail.backend.service.HailBatchFailure: ([0-9]+)\n")
 
@@ -238,10 +249,10 @@ class ServiceBackend(Backend):
                 job_status = await j.status()
                 if 'status' in job_status:
                     if 'error' in job_status['status']:
-                        job_status['status']['error'] = job_status['status']['error'].strip()
+                        job_status['status']['error'] = yaml_literally_shown_str(job_status['status']['error'].strip())
                 logs = await j.log()
                 for k in logs:
-                    logs[k] = logs[k].strip()
+                    logs[k] = yaml_literally_shown_str(logs[k].strip())
                 message = {'batch_status': status,
                            'job_status': job_status,
                            'log': logs}
@@ -271,15 +282,18 @@ class ServiceBackend(Backend):
                                     self.async_bc.get_job_log(j['batch_id'], j['job_id']),
                                     self.async_bc.get_job(j['batch_id'], j['job_id']),
                                 )
+                                if 'status' in full_status:
+                                    if 'error' in full_status['status']:
+                                        full_status['status']['error'] = yaml_literally_shown_str(full_status['status']['error'].strip())
                                 main_log = logs.get('main', '')
                                 failed_jobs.append({
                                     'partial_status': j,
                                     'status': full_status,
-                                    'log': main_log.strip(),
+                                    'log': yaml_literally_shown_str(main_log.strip()),
                                 })
                         message = {
                             'id': b.id,
-                            'stacktrace': jstacktrace.strip(),
+                            'stacktrace': yaml_literally_shown_str(jstacktrace.strip()),
                             'cause': {'id': batch_id, 'batch_status': b2_status, 'failed_jobs': failed_jobs}}
                         log.error(yaml.dump(message))
                         raise ValueError(json.dumps(message))
