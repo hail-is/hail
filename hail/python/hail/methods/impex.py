@@ -2411,13 +2411,15 @@ def import_gvcfs(path,
 
     .. include:: ../_templates/experimental.rst
 
-    The arguments to this function are almost identical to
-    :func:`.import_vcf`, the only difference is the `partitions`
-    argument, which is used to divide and filter the vcfs.  It must be
-    an expression or literal of type ``array<interval<struct{locus:locus<RG>}>>``.  A
-    partition will be created for every element of the array. Loci
-    that fall outside of any interval will not be imported. For
-    example:
+    All files described by the ``path`` argument must be block gzipped VCF
+    files. They must all be tabix indexed. Because of this requirement, no
+    ``force`` or ``force_bgz`` arguments are present. Otherwise, the arguments
+    to this function are almost identical to :func:`.import_vcf`.  However, this
+    function also requrires a ``partitions`` argument, which is used to divide
+    and filter the vcfs.  It must be an expression or literal of type
+    ``array<interval<struct{locus:locus<RG>}>>``. A partition will be created
+    for every element of the array. Loci that fall outside of any interval will
+    not be imported. For example:
 
     .. code-block:: python
 
