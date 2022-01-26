@@ -1582,24 +1582,6 @@ class JVMJob(Job):
         if input_files or output_files:
             raise Exception("i/o not supported")
 
-        for envvar in self.env:
-            assert envvar['name'] not in {
-                'HAIL_DEPLOY_CONFIG_FILE',
-                'HAIL_TOKENS_FILE',
-                'HAIL_SSL_CONFIG_DIR',
-                'HAIL_WORKER_SCRATCH_DIR',
-                self.credentials.hail_env_name,
-            }, envvar
-
-        # self.env <= the JVM does not have a configurable environment
-        # self.env.append(
-        #     {'name': 'HAIL_DEPLOY_CONFIG_FILE', 'value': f'{self.scratch}/secrets/deploy-config/deploy-config.json'}
-        # )
-        # self.env.append({'name': 'HAIL_TOKENS_FILE', 'value': f'{self.scratch}/secrets/user-tokens/tokens.json'})
-        # self.env.append({'name': 'HAIL_SSL_CONFIG_DIR', 'value': f'{self.scratch}/secrets/ssl-config'})
-        # self.env.append({'name': 'HAIL_WORKER_SCRATCH_DIR', 'value': self.scratch})
-        # self.env.append({'name': self.credentials.hail_env_name, 'value': self.credentials_host_file_path()})
-
         self.user_command_string = job_spec['process']['command']
         assert len(self.user_command_string) >= 3, self.user_command_string
         self.revision = self.user_command_string[1]
@@ -1645,7 +1627,6 @@ class JVMJob(Job):
                     for secret in self.secrets:
                         populate_secret_host_path(self.secret_host_path(secret), secret['data'])
 
-                populate_secret_host_path(self.credentials_host_dirname(), self.credentials.secret_data)
                 self.state = 'running'
 
                 log.info(f'{self}: downloading JAR')
