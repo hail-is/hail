@@ -1603,6 +1603,9 @@ class JVMJob(Job):
             log.error(f'user submitted unacceptable JAR url: {url} for {self}. {ACCEPTABLE_QUERY_JAR_URL_PREFIX}')
             raise ValueError(f'unacceptable JAR url: {url}')
 
+    def secret_host_path(self, secret):
+        return f'{self.scratch}/secrets/{secret["mount_path"]}'
+
     async def run(self):
         async with self.worker.cpu_sem(self.cpu_in_mcpu):
             self.start_time = time_msecs()

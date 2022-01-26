@@ -428,7 +428,7 @@ class ServiceBackend(
     remoteTmpDir: String
   )(body: ExecuteContext => T): T = ExecutionTimer.logTime(methodName) { timer =>
     val fs = retryTransientErrors {
-      using(new FileInputStream(s"$scratchDir/gsa-key/key.json")) { is =>
+      using(new FileInputStream(s"$scratchDir/secrets/gsa-key/key.json")) { is =>
         new GoogleStorageFS(Some(IOUtils.toString(is, Charset.defaultCharset().toString()))).asCacheable()
       }
     }
