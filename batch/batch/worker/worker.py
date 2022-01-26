@@ -1668,7 +1668,7 @@ class JVMJob(Job):
                                         b = await jar_data.read(256 * 1024)
                                         if not b:
                                             break
-                                        written = await blocking_to_async(worker.thread_pool, temporary_file.write, b)
+                                        written = await blocking_to_async(worker.pool, temporary_file.write, b)
                                         assert written == len(b)
                                 os.rename(temporary_file.name, local_jar_location)
 
