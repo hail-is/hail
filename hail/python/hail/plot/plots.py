@@ -419,9 +419,12 @@ def histogram(data, range=None, bins=50, legend=None, title=None, log=False, int
         legend = ""
 
     if log:
-        data.bin_freq = [math.log10(x) for x in data.bin_freq]
-        data.n_larger = math.log10(data.n_larger)
-        data.n_smaller = math.log10(data.n_smaller)
+        changes = {
+            "bin_freq": [math.log10(x) if x > 0.0 else x for x in data.bin_freq],
+            "n_larger": math.log10(data.n_larger) if data.n_larger > 0.0 else data.n_larger,
+            "n_smaller": math.log10(data.n_smaller) if data.n_smaller > 0.0 else data.n_smaller
+        }
+        data = data.annotate(**changes)
         y_axis_label = 'log10 Frequency'
     else:
         y_axis_label = 'Frequency'
