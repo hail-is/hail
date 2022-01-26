@@ -4063,7 +4063,8 @@ steps:
       - deploy
       - dev
     dependsOn:
-      - test_dataproc
+      - test_dataproc-37
+      - test_dataproc-38
       - default_ns
       - ci_utils_image
       - build_hail
