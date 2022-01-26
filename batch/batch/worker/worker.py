@@ -1677,7 +1677,7 @@ class JVMJob(Job):
                     await self.jvm.execute(
                         f'{local_jar_location}',
                         self.user_command_string[0],
-                        self.scratch_dir,
+                        self.scratch,
                         self.user_command_string[1:]
                     )
                 self.state = 'succeeded'
