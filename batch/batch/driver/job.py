@@ -121,6 +121,7 @@ async def mark_job_complete(
                 reason,
                 now,
             ),
+            'mark_job_complete',
         )
     except Exception:
         log.exception(f'error while marking job {id} complete on instance {instance_name}')
@@ -173,6 +174,7 @@ async def mark_job_started(app, batch_id, job_id, attempt_id, instance, start_ti
 CALL mark_job_started(%s, %s, %s, %s, %s);
 ''',
             (batch_id, job_id, attempt_id, instance.name, start_time),
+            'mark_job_started',
         )
     except Exception:
         log.info(f'error while marking job {id} started on {instance}')
@@ -463,6 +465,7 @@ async def schedule_job(app, record, instance):
 CALL schedule_job(%s, %s, %s, %s);
 ''',
             (batch_id, job_id, attempt_id, instance.name),
+            'schedule_job',
         )
     except Exception:
         log.exception(f'error while scheduling job {id} on {instance}')

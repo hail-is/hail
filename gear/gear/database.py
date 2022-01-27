@@ -8,7 +8,8 @@ import functools
 import ssl
 import traceback
 
-from hailtop.utils import sleep_and_backoff, LoggingTimer
+from gear.metrics import LoggingTimer
+from hailtop.utils import sleep_and_backoff
 from hailtop.auth.sql_config import SQLConfig
 
 
@@ -199,26 +200,26 @@ class Transaction:
         async with self.conn.cursor() as cursor:
             await cursor.execute(sql, args)
 
-    async def execute_and_fetchone(self, sql, args=None):
+    async def execute_and_fetchone(self, sql, args=None, query_name=None):
         assert self.conn
         async with self.conn.cursor() as cursor:
-            await cursor.execute(sql, args)
-            return await cursor.fetchone()
-
-    async def execute_and_fetchall(self, sql, args=None, timer_description=None):
-        assert self.conn
-        async with self.conn.cursor() as cursor:
-            if timer_description is None:
+            if query_name is None:
                 await cursor.execute(sql, args)
             else:
-                async with LoggingTimer(f'{timer_description}: execute_and_fetchall: execute', threshold_ms=20):
+                async with LoggingTimer(query_name):
+                    await cursor.execute(sql, args)
+            return await cursor.fetchone()
+
+    async def execute_and_fetchall(self, sql, args=None, query_name=None):
+        assert self.conn
+        async with self.conn.cursor() as cursor:
+            if query_name is None:
+                await cursor.execute(sql, args)
+            else:
+                async with LoggingTimer(query_name, threshold_ms=20):
                     await cursor.execute(sql, args)
             while True:
-                if timer_description is None:
-                    rows = await cursor.fetchmany(100)
-                else:
-                    async with LoggingTimer(f'{timer_description}: execute_and_fetchall: fetchmany', threshold_ms=20):
-                        rows = await cursor.fetchmany(100)
+                rows = await cursor.fetchmany(100)
                 if not rows:
                     break
                 for row in rows:
@@ -266,14 +267,14 @@ class Database:
         async with self.start(read_only=True) as tx:
             return await tx.execute_and_fetchone(sql, args)
 
-    async def execute_and_fetchall(self, sql, args=None, timer_description=None):
+    async def execute_and_fetchall(self, sql, args=None, query_name=None):
         async with self.start() as tx:
-            async for row in tx.execute_and_fetchall(sql, args, timer_description):
+            async for row in tx.execute_and_fetchall(sql, args, query_name):
                 yield row
 
-    async def select_and_fetchall(self, sql, args=None, timer_description=None):
+    async def select_and_fetchall(self, sql, args=None, query_name=None):
         async with self.start(read_only=True) as tx:
-            async for row in tx.execute_and_fetchall(sql, args, timer_description):
+            async for row in tx.execute_and_fetchall(sql, args, query_name):
                 yield row
 
     @retry_transient_mysql_errors

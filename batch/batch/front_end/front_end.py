@@ -27,7 +27,6 @@ from hailtop.utils import (
     request_retry_transient_errors,
     run_if_changed,
     retry_long_running,
-    LoggingTimer,
     cost_str,
     dump_all_stacktraces,
     periodically_call,
@@ -49,6 +48,7 @@ from gear import (
     monitor_endpoints_middleware,
 )
 from gear.clients import get_cloud_async_fs
+from gear.metrics import LoggingTimer
 from web_common import setup_aiohttp_jinja2, setup_common_static_routes, render_template, set_message
 
 # import uvloop
@@ -411,6 +411,7 @@ FROM job_attributes
 WHERE batch_id = %s AND job_id = %s;
 ''',
         (batch_id, job_id),
+        query_name='get_attributes',
     )
     return {record['key']: record['value'] async for record in records}
 
@@ -585,7 +586,9 @@ LIMIT 51;
 '''
     sql_args = where_args
 
-    batches = [batch_record_to_dict(batch) async for batch in db.select_and_fetchall(sql, sql_args)]
+    batches = [
+        batch_record_to_dict(batch) async for batch in db.select_and_fetchall(sql, sql_args, query_name='get_batches')
+    ]
 
     if len(batches) == 51:
         batches.pop()
@@ -1361,22 +1364,22 @@ async def _get_job(app, batch_id, job_id):
 
     record = await db.select_and_fetchone(
         '''
-SELECT jobs.*, user, billing_project, ip_address, format_version, COALESCE(SUM(`usage` * rate), 0) AS cost
-FROM jobs
-INNER JOIN batches
-  ON jobs.batch_id = batches.id
-LEFT JOIN attempts
-  ON jobs.batch_id = attempts.batch_id AND jobs.job_id = attempts.job_id AND jobs.attempt_id = attempts.attempt_id
-LEFT JOIN instances
-  ON attempts.instance_name = instances.name
-LEFT JOIN aggregated_job_resources
-  ON jobs.batch_id = aggregated_job_resources.batch_id AND
-     jobs.job_id = aggregated_job_resources.job_id
-LEFT JOIN resources
-  ON aggregated_job_resources.resource = resources.resource
-WHERE jobs.batch_id = %s AND NOT deleted AND jobs.job_id = %s
-GROUP BY jobs.batch_id, jobs.job_id;
-''',
+    SELECT jobs.*, user, billing_project, ip_address, format_version, COALESCE(SUM(`usage` * rate), 0) AS cost
+    FROM jobs
+    INNER JOIN batches
+      ON jobs.batch_id = batches.id
+    LEFT JOIN attempts
+      ON jobs.batch_id = attempts.batch_id AND jobs.job_id = attempts.job_id AND jobs.attempt_id = attempts.attempt_id
+    LEFT JOIN instances
+      ON attempts.instance_name = instances.name
+    LEFT JOIN aggregated_job_resources
+      ON jobs.batch_id = aggregated_job_resources.batch_id AND
+         jobs.job_id = aggregated_job_resources.job_id
+    LEFT JOIN resources
+      ON aggregated_job_resources.resource = resources.resource
+    WHERE jobs.batch_id = %s AND NOT deleted AND jobs.job_id = %s
+    GROUP BY jobs.batch_id, jobs.job_id;
+    ''',
         (batch_id, job_id),
     )
     if not record:
@@ -1406,6 +1409,7 @@ LEFT JOIN attempts ON jobs.batch_id = attempts.batch_id and jobs.job_id = attemp
 WHERE jobs.batch_id = %s AND NOT deleted AND jobs.job_id = %s;
 ''',
         (batch_id, job_id),
+        query_name='get_attempts',
     )
 
     attempts = [attempt async for attempt in attempts]

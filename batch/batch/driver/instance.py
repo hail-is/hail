@@ -159,7 +159,7 @@ VALUES (%s, %s);
         assert self._state == 'pending'
 
         rv = await check_call_procedure(
-            self.db, 'CALL activate_instance(%s, %s, %s);', (self.name, ip_address, timestamp)
+            self.db, 'CALL activate_instance(%s, %s, %s);', (self.name, ip_address, timestamp), 'activate'
         )
 
         self.inst_coll.adjust_for_remove_instance(self)
@@ -177,7 +177,9 @@ VALUES (%s, %s);
         if not timestamp:
             timestamp = time_msecs()
 
-        rv = await self.db.execute_and_fetchone('CALL deactivate_instance(%s, %s, %s);', (self.name, reason, timestamp))
+        rv = await self.db.execute_and_fetchone(
+            'CALL deactivate_instance(%s, %s, %s);', (self.name, reason, timestamp), 'deactivate'
+        )
 
         if rv['rc'] == 1:
             log.info(f'{self} with in-memory state {self._state} was already deactivated; {rv}')
