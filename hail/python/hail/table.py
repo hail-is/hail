@@ -478,11 +478,11 @@ class Table(ExprContainer):
         +--------+--------+--------------------+-----------------+----------+-----------+------------+
         |  int32 | str    | str                |            bool |    int32 | str       | array<str> |
         +--------+--------+--------------------+-----------------+----------+-----------+------------+
-        |  10038 | "open" | "tpoterba"         |           false | 10562794 | NA        | []         |
-        |  10037 | "open" | "daniel-goldstein" |           false | 24440116 | NA        | []         |
-        |  10036 | "open" | "jigold"           |           false |  1693348 | NA        | []         |
-        |  10035 | "open" | "tpoterba"         |           false | 10562794 | NA        | []         |
-        |  10033 | "open" | "tpoterba"         |           false | 10562794 | NA        | []         |
+        |  10038 | "open" | "tpoterba"         |           False | 10562794 | NA        | []         |
+        |  10037 | "open" | "daniel-goldstein" |           False | 24440116 | NA        | []         |
+        |  10036 | "open" | "jigold"           |           False |  1693348 | NA        | []         |
+        |  10035 | "open" | "tpoterba"         |           False | 10562794 | NA        | []         |
+        |  10033 | "open" | "tpoterba"         |           False | 10562794 | NA        | []         |
         +--------+--------+--------------------+-----------------+----------+-----------+------------+
 
         Warning
