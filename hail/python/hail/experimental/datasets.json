@@ -3613,7 +3613,7 @@
             "us": "s3://gnomad-public-us-east-1/release/3.1/coverage/genomes/gnomad.genomes.v3.1.chrM.coverage.ht"
           },
           "gcp": {
-            "us": "gs://gnomad-public-requester-pays/release/3.1/coverage/genomes/gnomad.genomes.v3.1.chrM.coverage.ht"
+            "us": "gs://gcp-public-data--gnomad/release/3.1/coverage/genomes/gnomad.genomes.v3.1.chrM.coverage.ht"
           }
         },
         "version": "3.1"
@@ -3636,7 +3636,7 @@
             "us": "s3://gnomad-public-us-east-1/release/3.1/ht/genomes/gnomad.genomes.v3.1.sites.chrM.ht"
           },
           "gcp": {
-            "us": "gs://gnomad-public-requester-pays/release/3.1/ht/genomes/gnomad.genomes.v3.1.sites.chrM.ht"
+            "us": "gs://gcp-public-data--gnomad/release/3.1/ht/genomes/gnomad.genomes.v3.1.sites.chrM.ht"
           }
         },
         "version": "3.1"
