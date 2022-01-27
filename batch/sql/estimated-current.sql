@@ -96,6 +96,7 @@ CREATE TABLE IF NOT EXISTS `instances` (
   `token` VARCHAR(100) NOT NULL,
   `cores_mcpu` INT NOT NULL,
   `time_created` BIGINT NOT NULL,
+  `time_created` BIGINT NOT NULL,
   `failed_request_count` INT NOT NULL DEFAULT 0,
   `last_updated` BIGINT NOT NULL,
   `ip_address` VARCHAR(100),
@@ -150,11 +151,6 @@ CREATE TABLE IF NOT EXISTS `batches` (
   `state` VARCHAR(40) NOT NULL,
   `deleted` BOOLEAN NOT NULL DEFAULT FALSE,
   `n_jobs` INT NOT NULL,
-  `n_completed` INT NOT NULL DEFAULT 0,
-  `n_succeeded` INT NOT NULL DEFAULT 0,
-  `n_failed` INT NOT NULL DEFAULT 0,
-  `n_cancelled` INT NOT NULL DEFAULT 0,
-  `time_created` BIGINT NOT NULL,
   `time_closed` BIGINT,
   `time_completed` BIGINT,
   `msec_mcpu` BIGINT NOT NULL DEFAULT 0,
@@ -169,6 +165,16 @@ CREATE INDEX `batches_deleted` ON `batches` (`deleted`);
 CREATE INDEX `batches_token` ON `batches` (`token`);
 CREATE INDEX `batches_time_completed` ON `batches` (`time_completed`);
 CREATE INDEX `batches_billing_project_state` ON `batches` (`billing_project`, `state`);
+
+CREATE TABLE IF NOT EXISTS `batches_n_jobs_in_ending_state` (
+  `id` BIGINT NOT NULL,
+  `n_completed` INT NOT NULL DEFAULT 0,
+  `n_succeeded` INT NOT NULL DEFAULT 0,
+  `n_failed` INT NOT NULL DEFAULT 0,
+  `n_cancelled` INT NOT NULL DEFAULT 0,
+  PRIMARY KEY (`id`),
+  FOREIGN KEY (`id`) REFERENCES batches(id) ON DELETE CASCADE
+) ENGINE = InnoDB;
 
 CREATE TABLE IF NOT EXISTS `batches_cancelled` (
   `id` BIGINT NOT NULL,
@@ -1161,9 +1167,13 @@ BEGIN
   DECLARE cur_cores_mcpu INT;
   DECLARE cur_end_time BIGINT;
   DECLARE delta_cores_mcpu INT DEFAULT 0;
+  DECLARE total_jobs_in_batch INT;
+  DECLARE new_n_completed INT DEFAULT 0;
   DECLARE expected_attempt_id VARCHAR(40);
 
   START TRANSACTION;
+
+  SELECT n_jobs INTO total_jobs_in_batch FROM batches WHERE id = in_batch_id;
 
   SELECT state, cores_mcpu
   INTO cur_job_state, cur_cores_mcpu
@@ -1205,18 +1215,19 @@ BEGIN
     SET state = new_state, status = new_status, attempt_id = in_attempt_id
     WHERE batch_id = in_batch_id AND job_id = in_job_id;
 
-    UPDATE batches SET n_completed = n_completed + 1 WHERE id = in_batch_id;
-    UPDATE batches
-      SET time_completed = new_timestamp,
-          `state` = 'complete'
-      WHERE id = in_batch_id AND n_completed = batches.n_jobs;
+    UPDATE batches_n_jobs_in_ending_state
+      SET n_completed = n_completed + 1
+      WHERE id = in_batch_id;
+    SELECT n_completed INTO new_n_completed
+    FROM batches_n_jobs_in_ending_state
+    WHERE id = in_batch_id;
 
     IF new_state = 'Cancelled' THEN
-      UPDATE batches SET n_cancelled = n_cancelled + 1 WHERE id = in_batch_id;
+      UPDATE batches_n_jobs_in_ending_state SET n_cancelled = n_cancelled + 1 WHERE id = in_batch_id;
     ELSEIF new_state = 'Error' OR new_state = 'Failed' THEN
-      UPDATE batches SET n_failed = n_failed + 1 WHERE id = in_batch_id;
+      UPDATE batches_n_jobs_in_ending_state SET n_failed = n_failed + 1 WHERE id = in_batch_id;
     ELSE
-      UPDATE batches SET n_succeeded = n_succeeded + 1 WHERE id = in_batch_id;
+      UPDATE batches_n_jobs_in_ending_state SET n_succeeded = n_succeeded + 1 WHERE id = in_batch_id;
     END IF;
 
     UPDATE jobs
@@ -1233,6 +1244,8 @@ BEGIN
     COMMIT;
     SELECT 0 as rc,
       cur_job_state as old_state,
+      total_jobs_in_batch,
+      new_n_completed,
       delta_cores_mcpu;
   ELSEIF cur_job_state = 'Cancelled' OR cur_job_state = 'Error' OR
          cur_job_state = 'Failed' OR cur_job_state = 'Success' THEN

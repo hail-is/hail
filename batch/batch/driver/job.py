@@ -46,8 +46,7 @@ GROUP BY batches.id;
         (batch_id,),
     )
 
-    if not record:
-        return
+    assert record, 'Called on incomplete job'
     callback = record['callback']
 
     log.info(f'making callback for batch {batch_id}: {callback}')
@@ -154,8 +153,17 @@ async def mark_job_complete(
         return
 
     log.info(f'job {id} changed state: {rv["old_state"]} => {new_state}')
-
-    await notify_batch_job_complete(db, client_session, batch_id)
+    if rv['new_n_completed'] == rv['total_jobs_in_batch']:
+        await db.just_execute(
+            '''
+UPDATE batches
+SET time_completed = %s,
+    `state` = 'complete'
+WHERE id = %s;
+''',
+            (now, batch_id),
+        )
+        await notify_batch_job_complete(db, client_session, batch_id)
 
     if instance and not instance.inst_coll.is_pool and instance.state == 'active':
         task_manager.ensure_future(instance.kill())

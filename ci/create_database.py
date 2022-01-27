@@ -217,8 +217,8 @@ VALUES (%s, %s, %s);
             f'SELECT * FROM `{database_name}_migrations` WHERE version = %s;', (to_version,)
         )
         assert row is not None
-        assert name == row['name']
-        assert script_sha1 == row['script_sha1']
+        assert name == row['name'], row
+        assert script_sha1 == row['script_sha1'], row
 
 
 async def async_main():
