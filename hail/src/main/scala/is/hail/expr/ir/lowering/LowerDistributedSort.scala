@@ -299,6 +299,29 @@ object LowerDistributedSort {
 
     // TODO: Partitions are not broken up evenly.
 
+    // Ok, what if I write out all the unsorted segments for the purposes of sorting them? Then I can just do
+    // segmentToPartitionData to make the partitions?
+
+    val (needSorting, alreadySorted) = orderedSegments.zipWithIndex.partition { case ((sr, isSorted), idx) => isSorted}
+    val needSortingFilenames = needSorting.map(_._1._1.chunks.map(_.filename))
+    val needSortingPositionInSegmentList = needSorting.map(x => x._2)
+    val needSortingFilenamesContext = Literal(TArray(TArray(TString)), needSortingFilenames)
+
+    val sortedFilenamesIR = cdaIR(ToStream(needSortingFilenamesContext), MakeStruct(Seq())) { case (ctxRef, _) =>
+      val filenames = ctxRef
+      val partitionInputStream = flatMapIR(ToStream(filenames)) { fileName =>
+        ReadPartition(fileName, spec._vType, reader)
+      }
+      val newKeyFieldNames = keyToSortBy.fields.map(_.name)
+      val sortedStream = ToStream(sortIR(partitionInputStream) { (refLeft, refRight) =>
+        ApplyComparisonOp(StructLT(keyToSortBy, sortFields), SelectFields(refLeft, newKeyFieldNames), SelectFields(refRight, newKeyFieldNames))
+      })
+      WritePartition(sortedStream, UUID4(), writer)
+    }
+
+    val mySortedFilenames = CompileAndEvaluate[Annotation](ctx, sortedFilenamesIR).asInstanceOf[IndexedSeq[Row]].map(_(0).asInstanceOf[String])
+    val filesWithPositions = mySortedFilenames.zip(needSortingPositionInSegmentList)
+
     val contextData = orderedSegments.map { case (segment, isSorted) => Row(segment.chunks.map(chunk => chunk.filename), isSorted) }
     val contexts = ToStream(Literal(TArray(TStruct("files" -> TArray(TString), "isSorted" -> TBoolean)), contextData))
 
