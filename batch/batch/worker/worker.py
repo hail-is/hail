@@ -1396,7 +1396,7 @@ class DockerJob(Job):
                     instance_name=NAME,
                     disk_name=f'batch-disk-{uid}',
                     size_in_gb=self.external_storage_in_gib,
-                    mount_path=self.io_host_path()
+                    mount_path=self.io_host_path(),
                 )
 
                 await asyncio.wait_for(self.disk.create(labels), DISK_OPERATION_TIMEOUT_SECONDS)
@@ -1501,7 +1501,9 @@ class DockerJob(Job):
                 with self.step('post-job finally block'):
                     if self.disk:
                         try:
-                            await asyncio.wait_for(CLOUD_WORKER_API.delete_disk(self.disk), DISK_OPERATION_TIMEOUT_SECONDS)
+                            await asyncio.wait_for(
+                                CLOUD_WORKER_API.delete_disk(self.disk), DISK_OPERATION_TIMEOUT_SECONDS
+                            )
                             log.info(f'deleted disk {self.disk.name} for {self.id}')
                         except asyncio.CancelledError:
                             raise

@@ -22,7 +22,15 @@ KNOWN_DISK_STATUS_CODES = [
 
 
 class AzureDisk(CloudDisk):
-    def __init__(self, disk_manager: 'AzureDiskManager', name: str, instance_name: str, size_in_gb: int, mount_path: str, lun: int):
+    def __init__(
+        self,
+        disk_manager: 'AzureDiskManager',
+        name: str,
+        instance_name: str,
+        size_in_gb: int,
+        mount_path: str,
+        lun: int,
+    ):
         # FIXME: how to handle the rounding up to the nearest power of two!
         assert size_in_gb >= 10
         # https://docs.microsoft.com/en-us/azure/azure-resource-manager/management/resource-name-rules#microsoftcompute
@@ -47,10 +55,8 @@ class AzureDisk(CloudDisk):
             'deleteOption': 'Delete',
             'diskSizeGB': self.size_in_gb,
             'lun': self.lun,
-            'managedDisk': {
-                'storageAccountType': 'Premium_LRS'
-            },
-            'name': self.name
+            'managedDisk': {'storageAccountType': 'Premium_LRS'},
+            'name': self.name,
         }
 
     def _extract_disk_from_disks(self, disks: List[dict]) -> Optional[dict]:
@@ -81,8 +87,14 @@ class AzureDisk(CloudDisk):
                             self.attached = True
                             return
 
-                        if status['code'] in ('ProvisioningState/failed', 'ProvisioningState/deleting', 'ProvisioningState/deleted'):
-                            raise Exception(f'disk creation for instance {self.instance_name} failed with code {status["code"]}: {disk}')
+                        if status['code'] in (
+                            'ProvisioningState/failed',
+                            'ProvisioningState/deleting',
+                            'ProvisioningState/deleted',
+                        ):
+                            raise Exception(
+                                f'disk creation for instance {self.instance_name} failed with code {status["code"]}: {disk}'
+                            )
 
                         if status['code'] not in KNOWN_DISK_STATUS_CODES:
                             raise Exception(f'unknown disk status code: {disk}')
@@ -113,7 +125,10 @@ class AzureDisk(CloudDisk):
                     params = {'api-version': '2020-12-01'}
                     await self.compute_client.delete(f'/disks/{self.name}', params=params)
                 except aiohttp.ClientResponseError as e:
-                    if e.status in (204, 404):  # https://docs.microsoft.com/en-us/rest/api/compute/disks/delete#response
+                    if e.status in (
+                        204,
+                        404,
+                    ):  # https://docs.microsoft.com/en-us/rest/api/compute/disks/delete#response
                         pass
 
                 self.created = False
@@ -137,28 +152,28 @@ class AzureDisk(CloudDisk):
 
 
 class AzureDiskManager(CloudDiskManager):
-    def __init__(self, machine_name: str, instance_config: AzureSlimInstanceConfig, subscription_id: str, resource_group: str):
+    def __init__(
+        self, machine_name: str, instance_config: AzureSlimInstanceConfig, subscription_id: str, resource_group: str
+    ):
         self.subscription_id = subscription_id
         self.resource_group = resource_group
 
-        self.disk_mapping: Dict[str, dict] = {config['name']: config for config in instance_config.data_disks(machine_name)}
+        self.disk_mapping: Dict[str, dict] = {
+            config['name']: config for config in instance_config.data_disks(machine_name)
+        }
 
         self.update_lock = asyncio.Lock()
         self.lun_queue: asyncio.Queue[int] = asyncio.Queue()
 
         start_lun = 0 if instance_config.local_ssd_data_disk else 1  # FIXME: double check this works!
-        max_lun = min(32, instance_config.cores * 2)  # https://docs.microsoft.com/en-us/azure/virtual-machines/ddv4-ddsv4-series
+        max_lun = min(
+            32, instance_config.cores * 2
+        )  # https://docs.microsoft.com/en-us/azure/virtual-machines/ddv4-ddsv4-series
         for lun in range(start_lun, max_lun):
             self.lun_queue.put_nowait(lun)
 
     def vm_disk_config(self):
-        return {
-            'properties': {
-                'storageProfile': {
-                    'dataDisks': list(self.disk_mapping.values())
-                }
-            }
-        }
+        return {'properties': {'storageProfile': {'dataDisks': list(self.disk_mapping.values())}}}
 
     def _add_disk(self, disk: AzureDisk) -> dict:
         self.disk_mapping[disk.name] = disk.spec()
