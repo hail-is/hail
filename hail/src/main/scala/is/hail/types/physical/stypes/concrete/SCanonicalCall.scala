@@ -66,8 +66,6 @@ class SCanonicalCallValue(val call: Value[Int]) extends SCallValue {
 
   override val st: SCanonicalCall.type = SCanonicalCall
 
-  override def get: SCode = new SCanonicalCallCode(call)
-
   override lazy val valueTuple: IndexedSeq[Value[_]] = FastIndexedSeq(call)
 
   override def ploidy(cb: EmitCodeBuilder): Value[Int] =
@@ -148,10 +146,8 @@ object SCanonicalCallSettable {
 }
 
 final class SCanonicalCallSettable(override val call: Settable[Int]) extends SCanonicalCallValue(call) with SSettable {
-  override def store(cb: EmitCodeBuilder, v: SCode): Unit =
-    cb.assign(call, v.asInstanceOf[SCanonicalCallCode].call)
+  override def store(cb: EmitCodeBuilder, v: SValue): Unit =
+    cb.assign(call, v.asInstanceOf[SCanonicalCallValue].call)
 
   override def settableTuple(): IndexedSeq[Settable[_]] = FastIndexedSeq(call)
 }
-
-class SCanonicalCallCode(val call: Code[Int]) extends SCode

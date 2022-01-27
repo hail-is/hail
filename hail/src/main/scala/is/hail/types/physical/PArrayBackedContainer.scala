@@ -2,10 +2,9 @@ package is.hail.types.physical
 
 import is.hail.annotations.{Annotation, Region, UnsafeOrdering}
 import is.hail.asm4s.{Code, Value}
-import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder}
-import is.hail.types.physical.stypes.{SCode, SValue}
-import is.hail.types.physical.stypes.concrete.{SIndexablePointer, SIndexablePointerCode, SIndexablePointerValue}
-import is.hail.types.physical.stypes.interfaces.SContainer
+import is.hail.expr.ir.EmitCodeBuilder
+import is.hail.types.physical.stypes.SValue
+import is.hail.types.physical.stypes.concrete.{SIndexablePointer, SIndexablePointerValue}
 
 trait PArrayBackedContainer extends PContainer {
   val arrayRep: PArray

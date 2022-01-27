@@ -38,14 +38,10 @@ final case class SStream(elementEmitType: EmitType) extends SType {
   override def _typeWithRequiredness: TypeWithRequiredness = RIterable(elementEmitType.typeWithRequiredness.r)
 }
 
-final case class SStreamCode(st: SStream, producer: StreamProducer) extends SCode
-
 object SStreamValue{
   def apply(producer: StreamProducer): SStreamValue = SStreamValue(SStream(producer.element.emitType), producer)
 }
 
 final case class SStreamValue(st: SStream, producer: StreamProducer) extends SUnrealizableValue {
   def valueTuple: IndexedSeq[Value[_]] = throw new NotImplementedError()
-
-  def get: SStreamCode = SStreamCode(st, producer)
 }

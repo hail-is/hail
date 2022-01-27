@@ -39,14 +39,10 @@ case object SJavaBytes extends SBinary {
   }
 }
 
-class SJavaBytesCode(val bytes: Code[Array[Byte]]) extends SCode
-
 class SJavaBytesValue(val bytes: Value[Array[Byte]]) extends SBinaryValue {
   override def st: SBinary = SJavaBytes
 
   override lazy val valueTuple: IndexedSeq[Value[_]] = FastIndexedSeq(bytes)
-
-  override def get: SJavaBytesCode = new SJavaBytesCode(bytes)
 
   override def loadLength(cb: EmitCodeBuilder): Value[Int] =
     cb.memoize(bytes.length())
@@ -66,7 +62,7 @@ object SJavaBytesSettable {
 final class SJavaBytesSettable(override val bytes: Settable[Array[Byte]]) extends SJavaBytesValue(bytes) with SSettable {
   override def settableTuple(): IndexedSeq[Settable[_]] = FastIndexedSeq(bytes)
 
-  override def store(cb: EmitCodeBuilder, v: SCode): Unit = {
-    cb.assign(bytes, v.asInstanceOf[SJavaBytesCode].bytes)
+  override def store(cb: EmitCodeBuilder, v: SValue): Unit = {
+    cb.assign(bytes, v.asInstanceOf[SJavaBytesValue].bytes)
   }
 }

@@ -83,10 +83,8 @@ final case class SSubsetStruct(parent: SBaseStruct, fieldNames: IndexedSeq[Strin
   override def containsPointers: Boolean = parent.containsPointers
 }
 
-class SSubsetStructValue(val st: SSubsetStruct, prev: SBaseStructValue) extends SBaseStructValue {
+class SSubsetStructValue(val st: SSubsetStruct, val prev: SBaseStructValue) extends SBaseStructValue {
   override lazy val valueTuple: IndexedSeq[Value[_]] = prev.valueTuple
-
-  override def get: SSubsetStructCode = new SSubsetStructCode(st, prev.get)
 
   override def loadField(cb: EmitCodeBuilder, fieldIdx: Int): IEmitCode = {
     prev.loadField(cb, st.newToOldFieldMapping(fieldIdx))
@@ -99,7 +97,6 @@ class SSubsetStructValue(val st: SSubsetStruct, prev: SBaseStructValue) extends 
 final class SSubsetStructSettable(st: SSubsetStruct, prev: SBaseStructSettable) extends SSubsetStructValue(st, prev) with SBaseStructSettable {
   override def settableTuple(): IndexedSeq[Settable[_]] = prev.settableTuple()
 
-  override def store(cb: EmitCodeBuilder, pv: SCode): Unit = prev.store(cb, pv.asInstanceOf[SSubsetStructCode].prev)
+  override def store(cb: EmitCodeBuilder, pv: SValue): Unit =
+    prev.store(cb, pv.asInstanceOf[SSubsetStructValue].prev)
 }
-
-class SSubsetStructCode(val st: SSubsetStruct, val prev: SCode) extends SCode

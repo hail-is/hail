@@ -25,7 +25,12 @@ final case class SCanonicalLocusPointer(pType: PCanonicalLocus) extends SLocus {
   override def _coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SValue, deepCopy: Boolean): SValue =
     value match {
       case value: SLocusValue =>
-        new SCanonicalLocusPointerValue(this, pType.store(cb, region, value, deepCopy), value.contigLong(cb), value.position(cb))
+        val locusCopy = pType.store(cb, region, value, deepCopy)
+        val contigCopy = if (deepCopy)
+          cb.memoize(pType.contigAddr(locusCopy))
+        else
+          value.contigLong(cb)
+        new SCanonicalLocusPointerValue(this, locusCopy, contigCopy, value.position(cb))
     }
 
   override def settableTupleTypes(): IndexedSeq[TypeInfo[_]] = FastIndexedSeq(LongInfo, LongInfo, IntInfo)
@@ -61,8 +66,6 @@ class SCanonicalLocusPointerValue(
 ) extends SLocusValue {
   val pt: PCanonicalLocus = st.pType
 
-  override def get = new SCanonicalLocusPointerCode(st, a)
-
   override lazy val valueTuple: IndexedSeq[Value[_]] = FastIndexedSeq(a, _contig, _position)
 
   override def contig(cb: EmitCodeBuilder): SStringValue = {
@@ -94,14 +97,13 @@ final class SCanonicalLocusPointerSettable(
 ) extends SCanonicalLocusPointerValue(st, a, _contig, _position) with SSettable {
   override def settableTuple(): IndexedSeq[Settable[_]] = FastIndexedSeq(a, _contig, _position)
 
-  override def store(cb: EmitCodeBuilder, pc: SCode): Unit = {
-    cb.assign(a, pc.asInstanceOf[SCanonicalLocusPointerCode].a)
-    cb.assign(_contig, pt.contigAddr(a))
-    cb.assign(_position, pt.position(a))
+  override def store(cb: EmitCodeBuilder, v: SValue): Unit = v match {
+    case v: SCanonicalLocusPointerValue =>
+      cb.assign(a, v.a)
+      cb.assign(_contig, v._contig)
+      cb.assign(_position, v._position)
   }
 
   override def structRepr(cb: EmitCodeBuilder): SBaseStructPointerSettable = new SBaseStructPointerSettable(
     SBaseStructPointer(st.pType.representation), a)
 }
-
-class SCanonicalLocusPointerCode(val st: SCanonicalLocusPointer, val a: Code[Long]) extends SCode

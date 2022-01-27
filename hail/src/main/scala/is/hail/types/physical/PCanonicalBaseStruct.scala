@@ -4,9 +4,8 @@ import is.hail.annotations.{Annotation, Region, UnsafeRow, UnsafeUtils}
 import is.hail.asm4s._
 import is.hail.expr.ir.{EmitCode, EmitCodeBuilder}
 import is.hail.types.BaseStruct
-import is.hail.types.physical.stypes.{SCode, SValue}
-import is.hail.types.physical.stypes.concrete.{SBaseStructPointer, SBaseStructPointerCode, SBaseStructPointerSettable, SBaseStructPointerValue}
-import is.hail.types.physical.stypes.interfaces.SBaseStruct
+import is.hail.types.physical.stypes.SValue
+import is.hail.types.physical.stypes.concrete.{SBaseStructPointer, SBaseStructPointerValue}
 import is.hail.utils._
 import org.apache.spark.sql.Row
 

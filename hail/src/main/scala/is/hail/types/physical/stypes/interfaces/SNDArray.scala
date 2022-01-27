@@ -3,13 +3,11 @@ package is.hail.types.physical.stypes.interfaces
 import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.expr.ir.EmitCodeBuilder
-import is.hail.types.{RNDArray, TypeWithRequiredness}
-import is.hail.types.physical.{PCanonicalNDArray, PNDArray, PType}
-import is.hail.types.physical.stypes.concrete.{SNDArraySlice, SNDArraySliceCode, SNDArraySliceValue}
 import is.hail.linalg.{BLAS, LAPACK}
-import is.hail.types.physical.stypes.primitives.SFloat64Code
+import is.hail.types.physical.stypes.concrete.{SNDArraySlice, SNDArraySliceValue}
+import is.hail.types.physical.stypes.{EmitType, SSettable, SType, SValue}
 import is.hail.types.physical.{PCanonicalNDArray, PNDArray, PType}
-import is.hail.types.physical.stypes.{EmitType, SCode, SSettable, SType, SValue}
+import is.hail.types.{RNDArray, TypeWithRequiredness}
 import is.hail.utils.{FastIndexedSeq, toRichIterable, valueToRichCodeRegion}
 
 import scala.collection.mutable
@@ -582,8 +580,6 @@ final class SizeValueStatic(val v: Long) extends SizeValue {
 
 trait SNDArrayValue extends SValue {
   def st: SNDArray
-
-  override def get: SCode
 
   def loadElement(indices: IndexedSeq[Value[Long]], cb: EmitCodeBuilder): SValue
 

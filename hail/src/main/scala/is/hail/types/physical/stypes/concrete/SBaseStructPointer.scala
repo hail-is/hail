@@ -55,8 +55,6 @@ class SBaseStructPointerValue(
 ) extends SBaseStructValue {
   val pt: PBaseStruct = st.pType
 
-  override def get: SBaseStructPointerCode = new SBaseStructPointerCode(st, a)
-
   override lazy val valueTuple: IndexedSeq[Value[_]] = FastIndexedSeq(a)
 
   override def loadField(cb: EmitCodeBuilder, fieldIdx: Int): IEmitCode = {
@@ -82,9 +80,7 @@ final class SBaseStructPointerSettable(
 ) extends SBaseStructPointerValue(st, a) with SBaseStructSettable {
   override def settableTuple(): IndexedSeq[Settable[_]] = FastIndexedSeq(a)
 
-  override def store(cb: EmitCodeBuilder, pv: SCode): Unit = {
-    cb.assign(a, pv.asInstanceOf[SBaseStructPointerCode].a)
+  override def store(cb: EmitCodeBuilder, v: SValue): Unit = {
+    cb.assign(a, v.asInstanceOf[SBaseStructPointerValue].a)
   }
 }
-
-class SBaseStructPointerCode(val st: SBaseStructPointer, val a: Code[Long]) extends SCode

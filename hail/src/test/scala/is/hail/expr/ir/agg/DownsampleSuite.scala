@@ -5,9 +5,8 @@ import is.hail.annotations.{Region, RegionPool}
 import is.hail.asm4s._
 import is.hail.expr.ir.{EmitCode, EmitFunctionBuilder}
 import is.hail.types.VirtualTypeWithReq
-import is.hail.types.physical.stypes.primitives.{SFloat64Code, SFloat64Value, SInt32Code}
+import is.hail.types.physical.stypes.primitives.SFloat64Value
 import is.hail.types.physical.{PCanonicalArray, PCanonicalString}
-import is.hail.utils.FastIndexedSeq
 import org.testng.annotations.Test
 
 class DownsampleSuite extends HailSuite {

@@ -59,8 +59,6 @@ class SIntervalPointerValue(
   val includesStart: Value[Boolean],
   val includesEnd: Value[Boolean]
 ) extends SIntervalValue {
-  override def get: SIntervalPointerCode = new SIntervalPointerCode(st, a)
-
   override lazy val valueTuple: IndexedSeq[Value[_]] = FastIndexedSeq(a, includesStart, includesEnd)
 
   val pt: PInterval = st.pType
@@ -113,11 +111,10 @@ final class SIntervalPointerSettable(
 ) extends SIntervalPointerValue(st, a, includesStart, includesEnd) with SSettable {
   override def settableTuple(): IndexedSeq[Settable[_]] = FastIndexedSeq(a, includesStart, includesEnd)
 
-  override def store(cb: EmitCodeBuilder, pc: SCode): Unit = {
-    cb.assign(a, pc.asInstanceOf[SIntervalPointerCode].a)
-    cb.assign(includesStart, pt.includesStart(a.load()))
-    cb.assign(includesEnd, pt.includesEnd(a.load()))
+  override def store(cb: EmitCodeBuilder, v: SValue): Unit = v match {
+    case v: SIntervalPointerValue =>
+      cb.assign(a, v.a)
+      cb.assign(includesStart, v.includesStart)
+      cb.assign(includesEnd, v.includesEnd)
   }
 }
-
-class SIntervalPointerCode(val st: SIntervalPointer, val a: Code[Long]) extends SCode

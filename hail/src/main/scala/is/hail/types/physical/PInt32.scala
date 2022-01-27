@@ -1,9 +1,9 @@
 package is.hail.types.physical
 
-import is.hail.annotations.{Region, UnsafeOrdering, _}
+import is.hail.annotations._
 import is.hail.asm4s.{Code, coerce, const, _}
 import is.hail.expr.ir.EmitCodeBuilder
-import is.hail.types.physical.stypes.primitives.{SInt32, SInt32Code, SInt32Value}
+import is.hail.types.physical.stypes.primitives.{SInt32, SInt32Value}
 import is.hail.types.physical.stypes.{SType, SValue}
 import is.hail.types.virtual.TInt32
 

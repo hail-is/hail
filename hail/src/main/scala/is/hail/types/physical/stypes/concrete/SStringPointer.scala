@@ -45,15 +45,10 @@ final case class SStringPointer(pType: PString) extends SString {
   override def containsPointers: Boolean = pType.containsPointers
 }
 
-
-class SStringPointerCode(val st: SStringPointer, val a: Code[Long]) extends SCode
-
 class SStringPointerValue(val st: SStringPointer, val a: Value[Long]) extends SStringValue {
   val pt: PString = st.pType
 
   override lazy val valueTuple: IndexedSeq[Value[_]] = FastIndexedSeq(a)
-
-  override def get: SStringPointerCode = new SStringPointerCode(st, a)
 
   def binaryRepr(): SBinaryPointerValue = new SBinaryPointerValue(SBinaryPointer(st.pType.binaryRepresentation), a)
 
@@ -77,8 +72,8 @@ object SStringPointerSettable {
 final class SStringPointerSettable(st: SStringPointer, override val a: Settable[Long]) extends SStringPointerValue(st, a) with SSettable {
   override def settableTuple(): IndexedSeq[Settable[_]] = FastIndexedSeq(a)
 
-  override def store(cb: EmitCodeBuilder, v: SCode): Unit = {
-    cb.assign(a, v.asInstanceOf[SStringPointerCode].a)
+  override def store(cb: EmitCodeBuilder, v: SValue): Unit = {
+    cb.assign(a, v.asInstanceOf[SStringPointerValue].a)
   }
 
   override def binaryRepr(): SBinaryPointerSettable = new SBinaryPointerSettable(SBinaryPointer(st.pType.binaryRepresentation), a)

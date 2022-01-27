@@ -3,10 +3,10 @@ package is.hail.types.physical
 import is.hail.annotations._
 import is.hail.asm4s._
 import is.hail.expr.ir.{EmitCode, EmitCodeBuilder}
-import is.hail.types.physical.stypes.{SCode, SValue}
-import is.hail.types.physical.stypes.concrete.{SIntervalPointer, SIntervalPointerCode, SIntervalPointerValue, SStackStruct, SUnreachableInterval}
-import is.hail.types.physical.stypes.interfaces.{SIntervalValue, primitive}
-import is.hail.types.physical.stypes.primitives.{SBooleanCode, SBooleanValue}
+import is.hail.types.physical.stypes.SValue
+import is.hail.types.physical.stypes.concrete.{SIntervalPointer, SIntervalPointerValue, SStackStruct}
+import is.hail.types.physical.stypes.interfaces.primitive
+import is.hail.types.physical.stypes.primitives.SBooleanValue
 import is.hail.types.virtual.{TInterval, Type}
 import is.hail.utils.{FastIndexedSeq, Interval}
 import org.apache.spark.sql.Row

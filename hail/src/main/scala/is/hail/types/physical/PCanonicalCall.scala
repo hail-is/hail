@@ -2,10 +2,9 @@ package is.hail.types.physical
 
 import is.hail.annotations.{Annotation, Region, UnsafeOrdering}
 import is.hail.asm4s._
-import is.hail.expr.ir.orderings.CodeOrdering
-import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder}
-import is.hail.types.physical.stypes.{SCode, SValue}
-import is.hail.types.physical.stypes.concrete.{SCanonicalCall, SCanonicalCallCode, SCanonicalCallValue}
+import is.hail.expr.ir.EmitCodeBuilder
+import is.hail.types.physical.stypes.SValue
+import is.hail.types.physical.stypes.concrete.{SCanonicalCall, SCanonicalCallValue}
 import is.hail.types.physical.stypes.interfaces.SCall
 import is.hail.utils._
 
