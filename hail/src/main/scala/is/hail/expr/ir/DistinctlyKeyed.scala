@@ -62,4 +62,5 @@ case class DistinctKeyedAnalysis(distinctMemo: Memo[Unit]) {
   def contains(tableIR: BaseIR): Boolean = {
     distinctMemo.contains(tableIR)
   }
+  override def toString: String = distinctMemo.toString
 }
