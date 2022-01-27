@@ -204,16 +204,7 @@ object LowerDistributedSort {
       })
 
       // Going to check now if it's fully sorted, as well as collect and sort all the samples.
-      val (Some(PTypeReferenceSingleCodeType(pivotsWithEndpointsGroupedBySegmentNumberP: PArray)), fPerPartStats) = ctx.timer.time("LowerDistributedSort.distributedSort.compilePerPartStats")(Compile[AsmFunction1RegionLong](ctx,
-        FastIndexedSeq(),
-        FastIndexedSeq(classInfo[Region]), LongInfo,
-        pivotsPerSegmentAndSortedCheck,
-        print = None,
-        optimize = true))
-
-      val fPivotsBySegmentNumberRunnable = ctx.timer.time("LowerDistributedSort.distributedSort.initialize")(fPerPartStats(ctx.fs, 0, ctx.r))
-      val pivotsWithEndpointsGroupedBySegmentNumberAddr = ctx.timer.time("LowerDistributedSort.distributedSort.run")(fPivotsBySegmentNumberRunnable(ctx.r))
-      val pivotsWithEndpointsAndInfoGroupedBySegmentNumber = ctx.timer.time("LowerDistributedSort.distributedSort.toJavaObject")(SafeRow.read(pivotsWithEndpointsGroupedBySegmentNumberP, pivotsWithEndpointsGroupedBySegmentNumberAddr))
+      val pivotsWithEndpointsAndInfoGroupedBySegmentNumber = CompileAndEvaluate[Annotation](ctx, pivotsPerSegmentAndSortedCheck)
         .asInstanceOf[IndexedSeq[Row]].map(x => (x(0).asInstanceOf[IndexedSeq[Row]], x(1).asInstanceOf[Boolean], x(2).asInstanceOf[Row]))
 
       val (sortedSegmentsTuples, unsortedPivotsWithEndpointsAndInfoGroupedBySegmentNumber) = pivotsWithEndpointsAndInfoGroupedBySegmentNumber.zipWithIndex.partition { case ((_, isSorted, _), _) => isSorted}
@@ -250,16 +241,7 @@ object LowerDistributedSort {
           MakeTuple.ordered(IndexedSeq(segmentIdx, StreamDistribute(partitionStream, ArrayRef(pivotsWithEndpointsGroupedBySegmentIdx, indexIntoPivotsArray), path, StructCompare(keyToSortBy, keyToSortBy, sortFields.toArray), spec)))
         }
 
-        val (Some(PTypeReferenceSingleCodeType(resultPType)), f) = ctx.timer.time("LowerDistributedSort.distributedSort.compile")(Compile[AsmFunction1RegionLong](ctx,
-          FastIndexedSeq(),
-          FastIndexedSeq(classInfo[Region]), LongInfo,
-          distribute,
-          print = None,
-          optimize = true))
-
-        val fRunnable = ctx.timer.time("LowerDistributedSort.distributedSort.initialize")(f(ctx.fs, 0, ctx.r))
-        val resultAddress = ctx.timer.time("LowerDistributedSort.distributedSort.run")(fRunnable(ctx.r))
-        val distributeResult = ctx.timer.time("LowerDistributedSort.distributedSort.toJavaObject")(SafeRow.read(resultPType, resultAddress))
+        val distributeResult = CompileAndEvaluate[Annotation](ctx, distribute)
           .asInstanceOf[IndexedSeq[Row]].map(row => (
           row(0).asInstanceOf[Int],
           row(1).asInstanceOf[IndexedSeq[Row]].map(innerRow => (
