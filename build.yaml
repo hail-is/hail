@@ -2105,7 +2105,7 @@ steps:
           git checkout $(cat hail/python/hail/hail_pip_version) || true
       fi
 
-      PYTHONPATH=$PYTHONPATH:$(pwd)/hail/python make -C hail hail-docs-no-test batch-docs
+      PYTHONPATH=$PYTHONPATH:$(pwd)/hail/python make -C hail hail-docs batch-docs
 
       python3 -m hailtop.aiotools.copy 'null' '[
       {"from": "gs://hail-common/builds/0.1/docs/hail-0.1-docs-5a6778710097.tar.gz",
