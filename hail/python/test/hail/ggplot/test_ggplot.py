@@ -4,11 +4,17 @@ from hail.ggplot import *
 import math
 
 
-def test_geom_point_line_text():
+def test_geom_point_line_text_col():
     ht = hl.utils.range_table(20)
     ht = ht.annotate(double=ht.idx * 2)
     ht = ht.annotate(triple=ht.idx * 3)
-    fig = ggplot(ht, aes(x=ht.idx)) + aes(y=ht.double) + geom_point() + geom_line(aes(y=ht.triple))
+    fig = (ggplot(ht, aes(x=ht.idx)) +
+           aes(y=ht.double) +
+           geom_point() +
+           geom_line(aes(y=ht.triple)) +
+           geom_text(aes(label=hl.str(ht.idx))) +
+           geom_col(aes(y=ht.triple + ht.double))
+           )
     fig.to_plotly()
 
 
