@@ -189,7 +189,7 @@ INSERT INTO user_inst_coll_resources(
   `n_cancelled_running_jobs`,
   `n_cancelled_creating_jobs`
 )
-select t.user,
+SELECT t.user,
        t.inst_coll,
        0,
        0,
