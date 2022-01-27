@@ -201,15 +201,15 @@ select t.user,
        0,
        t.n
 FROM (
-  select batches.user, jobs.inst_coll, count(*) as n
-  from jobs
-  left join batches_cancelled
-  on jobs.batch_id = batches_cancelled.id
-  left join batches
-  on jobs.batch_id = batches.id
-  where jobs.state = 'Creating'
-    and (NOT jobs.always_run AND (jobs.cancelled OR (batches_cancelled.id is not null)))
-  group by batches.user, jobs.inst_coll
+  SELECT batches.user, jobs.inst_coll, count(*) AS n
+  FROM jobs
+  LEFT JOIN batches_cancelled
+  ON jobs.batch_id = batches_cancelled.id
+  LEFT JOIN batches
+  ON jobs.batch_id = batches.id
+  WHERE jobs.state = 'Creating'
+    AND (NOT jobs.always_run AND (jobs.cancelled OR (batches_cancelled.id IS NOT NULL)))
+  GROUP BY batches.user, jobs.inst_coll
   LOCK IN SHARE MODE
 ) as t
 ON DUPLICATE KEY UPDATE n_cancelled_creating_jobs = t.n;
