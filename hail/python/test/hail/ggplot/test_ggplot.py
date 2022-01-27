@@ -12,7 +12,7 @@ def test_geom_point_line_text_col():
            aes(y=ht.double) +
            geom_point() +
            geom_line(aes(y=ht.triple)) +
-           geom_text(aes(text=hl.str(ht.idx))) +
+           geom_text(aes(label=hl.str(ht.idx))) +
            geom_col(aes(y=ht.triple + ht.double))
            )
     fig.to_plotly()

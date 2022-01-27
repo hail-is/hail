@@ -179,7 +179,7 @@ class GeomText(Geom):
 def geom_text(mapping=aes(), *, color=None):
     """Create a scatter plot where each point is text from the ``text`` aesthetic.
 
-    Supported aesthetics: ``x``, ``y``, ``text``, ``color``, ``tooltip``
+    Supported aesthetics: ``x``, ``y``, ``label``, ``color``, ``tooltip``
 
     Returns
     -------
