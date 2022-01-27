@@ -4,11 +4,12 @@ import is.hail.annotations.{Region, RegionPool, RegionValueBuilder}
 import is.hail.asm4s._
 import is.hail.backend.{BackendUtils, BroadcastValue, ExecuteContext}
 import is.hail.expr.ir.functions.IRRandomness
-import is.hail.expr.ir.orderings.CodeOrdering
+import is.hail.expr.ir.orderings.{CodeOrdering, StructOrdering}
 import is.hail.io.fs.FS
 import is.hail.io.{BufferSpec, InputBuffer, TypedCodecSpec}
 import is.hail.types.VirtualTypeWithReq
 import is.hail.types.physical.stypes._
+import is.hail.types.physical.stypes.interfaces.SBaseStruct
 import is.hail.types.physical.{PCanonicalTuple, PType, typeToTypeInfo}
 import is.hail.types.virtual.Type
 import is.hail.utils._
@@ -501,6 +502,25 @@ class EmitClassBuilder[C](
     }
   }
 
+  def getStructOrderingFunction(
+    t1: SBaseStruct,
+    t2: SBaseStruct,
+    sortFields: Array[SortField],
+    op: CodeOrdering.Op
+  ): CodeOrdering.F[op.ReturnType] = {
+    { (cb: EmitCodeBuilder, v1: EmitValue, v2: EmitValue) =>
+      val ord = StructOrdering.make(t1, t2, cb.emb.ecb, sortFields.map(_.sortOrder))
+
+      val r: Code[_] = op match {
+        case CodeOrdering.StructLt(missingEqual) => ord.lt(cb, v1, v2, missingEqual)
+        case CodeOrdering.StructLteq(missingEqual) => ord.lteq(cb, v1, v2, missingEqual)
+        case CodeOrdering.StructGt(missingEqual) => ord.gt(cb, v1, v2, missingEqual)
+        case CodeOrdering.StructCompare(missingEqual) => ord.compare(cb, v1, v2, missingEqual)
+      }
+      cb.memoize[op.ReturnType](coerce[op.ReturnType](r))(op.rtti)
+    }
+  }
+
   // derived functions
   def getOrderingFunction(t: SType, op: CodeOrdering.Op): CodeOrdering.F[op.ReturnType] =
     getOrderingFunction(t, t, sortOrder = Ascending, op)
@@ -893,7 +913,7 @@ class EmitMethodBuilder[C](
     })
   }
 
-  def storeEmitParam(emitIndex: Int, cb: EmitCodeBuilder): Value[Region] => EmitValue = {
+  def storeEmitParam(emitIndex: Int, cb: EmitCodeBuilder): (EmitCodeBuilder, Value[Region]) => IEmitCode = {
     assert(mb.isStatic || emitIndex != 0)
     val static = (!mb.isStatic).toInt
     val et = emitParamTypes(emitIndex - static) match {
@@ -904,25 +924,35 @@ class EmitMethodBuilder[C](
 
     et match {
       case SingleCodeEmitParamType(required, sct: StreamSingleCodeType) =>
-        val field = cb.newFieldAny(s"storeEmitParam_sct_$emitIndex", mb.getArg(codeIndex)(sct.ti).get)(sct.ti);
-        { region: Value[Region] =>
-          val m = if (required) None else Some(mb.getArg[Boolean](codeIndex + 1))
-          val v = sct.loadToSValue(cb, region, field)
+        val field = cb.memoizeFieldAny(
+          mb.getArg(codeIndex)(sct.ti).get,
+          s"storeEmitParam_sct_$emitIndex",
+          sct.ti)
+        val missing: Value[Boolean] = if (required)
+          const(false)
+        else
+          cb.memoizeField(mb.getArg[Boolean](codeIndex + 1), s"storeEmitParam_${emitIndex}_m")
 
-          EmitValue(m, v)
+        { (cb2: EmitCodeBuilder, region: Value[Region]) =>
+          IEmitCode(cb2, missing, sct.loadToSValue(cb2, region, field))
         }
 
       case SingleCodeEmitParamType(required, sct) =>
-        val v = sct.loadToSValue(cb, null, mb.getArg(codeIndex)(sct.ti));
-        { region: Value[Region] =>
-          val m = if (required) None else Some(mb.getArg[Boolean](codeIndex + 1))
+        val v = cb.memoizeField(
+          sct.loadToSValue(cb, null, mb.getArg(codeIndex)(sct.ti)),
+          s"storeEmitParam_$emitIndex")
+        val missing: Value[Boolean] = if (required)
+          const(false)
+        else
+          cb.memoizeField(mb.getArg[Boolean](codeIndex + 1), s"storeEmitParam_${emitIndex}_m")
 
-          EmitValue(m, v)
+        { (cb2: EmitCodeBuilder, _) =>
+          IEmitCode(cb2, missing, v)
         }
 
       case SCodeEmitParamType(et) =>
         val fd = cb.memoizeField(getEmitParam(cb, emitIndex, null), s"storeEmitParam_$emitIndex")
-        _ => fd
+        (cb2: EmitCodeBuilder, _) => fd.loadI(cb2)
     }
 
   }

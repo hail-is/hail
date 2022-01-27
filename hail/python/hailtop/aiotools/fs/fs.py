@@ -1,4 +1,5 @@
-from typing import Any, AsyncContextManager, Optional, Type, Set, AsyncIterator, Callable
+from typing import (Any, AsyncContextManager, Optional, Type, Set, AsyncIterator, Callable, TypeVar,
+                    Generic)
 from types import TracebackType
 import abc
 import asyncio
@@ -230,3 +231,20 @@ class AsyncFS(abc.ABC):
         '''Part size when copying using multi-part uploads.  The part size of
         the destination filesystem is used.'''
         return 128 * 1024 * 1024
+
+
+T = TypeVar('T', bound=AsyncFS)
+
+
+class AsyncFSFactory(abc.ABC, Generic[T]):
+    @abc.abstractmethod
+    def from_credentials_data(self, credentials_data: dict) -> T:
+        pass
+
+    @abc.abstractmethod
+    def from_credentials_file(self, credentials_file: str) -> T:
+        pass
+
+    @abc.abstractmethod
+    def from_default_credentials(self) -> T:
+        pass

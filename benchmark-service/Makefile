@@ -6,11 +6,13 @@ BENCHMARK_IMAGE := $(DOCKER_PREFIX)/benchmark:$(TOKEN)
 
 EXTRA_PYTHONPATH := ../hail/python:../gear:../web_common
 PYTHON := PYTHONPATH=$${PYTHONPATH:+$${PYTHONPATH}:}$(EXTRA_PYTHONPATH) python3
+BLACK := $(PYTHON) -m black . --line-length=120 --skip-string-normalization
 
 .PHONY: check
 check:
 	$(PYTHON) -m flake8 benchmark
 	$(PYTHON) -m pylint --rcfile ../pylintrc benchmark --score=n
+	$(BLACK) --check --diff
 	curlylint .
 
 .PHONY: build

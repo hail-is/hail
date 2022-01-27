@@ -7,16 +7,26 @@ import dateutil.parser
 from hailtop.aiocloud import aioazure
 
 from ....file_store import FileStore
-from ....driver.resource_manager import (CloudResourceManager, VMDoesNotExist, VMState,
-                                         UnknownVMState, VMStateCreating, VMStateRunning,
-                                         VMStateTerminated)
+from ....driver.resource_manager import (
+    CloudResourceManager,
+    VMDoesNotExist,
+    VMState,
+    UnknownVMState,
+    VMStateCreating,
+    VMStateRunning,
+    VMStateTerminated,
+)
 from ....driver.instance import Instance
 from ....instance_config import InstanceConfig, QuantifiedResource
 
 from ..instance_config import AzureSlimInstanceConfig
 from .create_instance import create_vm_config
-from ..resource_utils import (azure_machine_type_to_worker_type_and_cores, azure_worker_memory_per_core_mib,
-                              azure_worker_properties_to_machine_type, azure_local_ssd_size)
+from ..resource_utils import (
+    azure_machine_type_to_worker_type_and_cores,
+    azure_worker_memory_per_core_mib,
+    azure_worker_properties_to_machine_type,
+    azure_local_ssd_size,
+)
 from .billing_manager import AzureBillingManager
 
 
@@ -30,14 +40,15 @@ def parse_azure_timestamp(timestamp: Optional[str]) -> Optional[int]:
 
 
 class AzureResourceManager(CloudResourceManager):
-    def __init__(self,
-                 subscription_id: str,
-                 resource_group: str,
-                 ssh_public_key: str,
-                 arm_client: aioazure.AzureResourceManagerClient,  # BORROWED
-                 compute_client: aioazure.AzureComputeClient,  # BORROWED
-                 billing_manager: AzureBillingManager,
-                 ):
+    def __init__(
+        self,
+        subscription_id: str,
+        resource_group: str,
+        ssh_public_key: str,
+        arm_client: aioazure.AzureResourceManagerClient,  # BORROWED
+        compute_client: aioazure.AzureComputeClient,  # BORROWED
+        billing_manager: AzureBillingManager,
+    ):
         self.subscription_id = subscription_id
         self.resource_group = resource_group
         self.ssh_public_key = ssh_public_key
@@ -63,7 +74,11 @@ class AzureResourceManager(CloudResourceManager):
             # https://docs.microsoft.com/en-us/azure/virtual-machines/states-billing
             for status in spec['statuses']:
                 code = status['code']
-                if code == 'ProvisioningState/creating':
+                if code in (
+                    'ProvisioningState/creating',
+                    'ProvisioningState/updating',
+                    'ProvisioningState/creating/osProvisioningComplete',
+                ):
                     return VMStateCreating(spec, instance.time_created)
                 if code == 'ProvisioningState/succeeded':
                     last_start_timestamp_msecs = parse_azure_timestamp(status.get('time'))
@@ -86,15 +101,16 @@ class AzureResourceManager(CloudResourceManager):
     def worker_type_and_cores(self, machine_type: str) -> Tuple[str, int]:
         return azure_machine_type_to_worker_type_and_cores(machine_type)
 
-    def instance_config(self,
-                        machine_type: str,
-                        preemptible: bool,
-                        local_ssd_data_disk: bool,
-                        data_disk_size_gb: int,
-                        boot_disk_size_gb: int,
-                        job_private: bool,
-                        location: str,
-                        ) -> AzureSlimInstanceConfig:
+    def instance_config(
+        self,
+        machine_type: str,
+        preemptible: bool,
+        local_ssd_data_disk: bool,
+        data_disk_size_gb: int,
+        boot_disk_size_gb: int,
+        job_private: bool,
+        location: str,
+    ) -> AzureSlimInstanceConfig:
         return AzureSlimInstanceConfig.create(
             self.billing_manager.product_versions,
             machine_type,
@@ -109,20 +125,21 @@ class AzureResourceManager(CloudResourceManager):
     def instance_config_from_dict(self, data: dict) -> AzureSlimInstanceConfig:
         return AzureSlimInstanceConfig.from_dict(data)
 
-    async def create_vm(self,
-                        file_store: FileStore,
-                        machine_name: str,
-                        activation_token: str,
-                        max_idle_time_msecs: int,
-                        local_ssd_data_disk: bool,
-                        data_disk_size_gb: int,
-                        boot_disk_size_gb: int,
-                        preemptible: bool,
-                        job_private: bool,
-                        location: str,
-                        machine_type: str,
-                        instance_config: InstanceConfig,
-                        ) -> List[QuantifiedResource]:
+    async def create_vm(
+        self,
+        file_store: FileStore,
+        machine_name: str,
+        activation_token: str,
+        max_idle_time_msecs: int,
+        local_ssd_data_disk: bool,
+        data_disk_size_gb: int,
+        boot_disk_size_gb: int,
+        preemptible: bool,
+        job_private: bool,
+        location: str,
+        machine_type: str,
+        instance_config: InstanceConfig,
+    ) -> List[QuantifiedResource]:
         worker_type, cores = self.worker_type_and_cores(machine_type)
 
         if local_ssd_data_disk:
@@ -136,11 +153,24 @@ class AzureResourceManager(CloudResourceManager):
 
         resource_rates = self.billing_manager.resource_rates
 
-        vm_config = create_vm_config(file_store, resource_rates, location, machine_name,
-                                     machine_type, activation_token, max_idle_time_msecs,
-                                     local_ssd_data_disk, data_disk_size_gb, preemptible,
-                                     job_private, self.subscription_id, self.resource_group,
-                                     self.ssh_public_key, max_price, instance_config)
+        vm_config = create_vm_config(
+            file_store,
+            resource_rates,
+            location,
+            machine_name,
+            machine_type,
+            activation_token,
+            max_idle_time_msecs,
+            local_ssd_data_disk,
+            data_disk_size_gb,
+            preemptible,
+            job_private,
+            self.subscription_id,
+            self.resource_group,
+            self.ssh_public_key,
+            max_price,
+            instance_config,
+        )
 
         memory_mib = azure_worker_memory_per_core_mib(worker_type) * cores
         memory_in_bytes = memory_mib << 20

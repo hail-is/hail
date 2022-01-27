@@ -51,12 +51,12 @@ spec:
          env:
 {% if deploy %}
           - name: GF_SERVER_DOMAIN
-            value: grafana.hail.is
+            value: grafana.{{ global.domain }}
           - name: GF_SERVER_ROOT_URL
             value: "%(protocol)s://%(domain)s/"
 {% else %}
           - name: GF_SERVER_DOMAIN
-            value: internal.hail.is
+            value: internal.{{ global.domain }}
           - name: GF_SERVER_ROOT_URL
             value: "%(protocol)s://%(domain)s/{{ default_ns.name }}/grafana/"
 {% endif %}
@@ -123,9 +123,9 @@ data:
   grafana.ini: |
     [server]
 {% if deploy %}
-    domain = grafana.hail.is
+    domain = grafana.{{ global.domain }}
 {% else %}
-    domain = internal.hail.is
+    domain = internal.{{ global.domain }}
     root_url = %(protocol)s://%(domain)/{{ default_ns.name }}/grafana/
     serve_from_sub_path = true
 {% endif %}

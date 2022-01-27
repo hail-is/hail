@@ -2385,8 +2385,6 @@ def import_vcf(path,
 
 @typecheck(path=sequenceof(str),
            partitions=expr_any,
-           force=bool,
-           force_bgz=bool,
            call_fields=oneof(str, sequenceof(str)),
            entry_float_type=enumeration(tfloat32, tfloat64),
            reference_genome=nullable(reference_genome_type),
@@ -2399,8 +2397,6 @@ def import_vcf(path,
            _external_header=nullable(str))
 def import_gvcfs(path,
                  partitions,
-                 force=False,
-                 force_bgz=False,
                  call_fields=['PGT'],
                  entry_float_type=tfloat64,
                  reference_genome='default',
@@ -2415,13 +2411,15 @@ def import_gvcfs(path,
 
     .. include:: ../_templates/experimental.rst
 
-    The arguments to this function are almost identical to
-    :func:`.import_vcf`, the only difference is the `partitions`
-    argument, which is used to divide and filter the vcfs.  It must be
-    an expression or literal of type ``array<interval<struct{locus:locus<RG>}>>``.  A
-    partition will be created for every element of the array. Loci
-    that fall outside of any interval will not be imported. For
-    example:
+    All files described by the ``path`` argument must be block gzipped VCF
+    files. They must all be tabix indexed. Because of this requirement, no
+    ``force`` or ``force_bgz`` arguments are present. Otherwise, the arguments
+    to this function are almost identical to :func:`.import_vcf`.  However, this
+    function also requrires a ``partitions`` argument, which is used to divide
+    and filter the vcfs.  It must be an expression or literal of type
+    ``array<interval<struct{locus:locus<RG>}>>``. A partition will be created
+    for every element of the array. Loci that fall outside of any interval will
+    not be imported. For example:
 
     .. code-block:: python
 
@@ -2450,8 +2448,6 @@ def import_gvcfs(path,
         contig_recoding,
         array_elements_required,
         skip_invalid_loci,
-        force_bgz,
-        force,
         partitions, partitions_type._parsable_string(),
         filter,
         find_replace[0] if find_replace is not None else None,

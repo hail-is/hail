@@ -1,11 +1,11 @@
 package is.hail.types.physical.stypes.concrete
 
 import is.hail.annotations.Region
-import is.hail.asm4s.{Code, Settable, TypeInfo, Value}
+import is.hail.asm4s.{Settable, TypeInfo, Value}
 import is.hail.expr.ir.{EmitCode, EmitCodeBuilder, EmitSettable, EmitValue, IEmitCode}
-import is.hail.types.physical.stypes.interfaces.{SBaseStruct, SBaseStructCode, SBaseStructSettable, SBaseStructValue}
+import is.hail.types.physical.stypes.interfaces.{SBaseStruct, SBaseStructSettable, SBaseStructValue}
 import is.hail.types.physical.stypes.{EmitType, SCode, SType, SValue}
-import is.hail.types.physical.{PCanonicalBaseStruct, PCanonicalStruct, PCanonicalTuple, PTupleField, PType}
+import is.hail.types.physical._
 import is.hail.types.virtual.{TBaseStruct, TStruct, TTuple, Type}
 
 object SStackStruct {
@@ -24,7 +24,7 @@ object SStackStruct {
       structType.constructFromFields(cb, region, as, false)
     } else {
       val st = SStackStruct(t, as.map(_.emitType))
-      new SStackStructCode(st, as).memoize(cb, "SStackStruct_constructFromArgs")
+      st.fromEmitCodes(cb, as)
     }
   }
 }
@@ -67,6 +67,11 @@ final case class SStackStruct(virtualType: TBaseStruct, fieldEmitTypes: IndexedS
       val start = settableStarts(i)
       et.fromValues(values.slice(start, start + et.nSettables))
     })
+  }
+
+  def fromEmitCodes(cb: EmitCodeBuilder, values: IndexedSeq[EmitCode]): SStackStructValue = {
+    val s = new SStackStructValue(this, values.map(cb.memoize))
+    s
   }
 
   override def _coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SValue, deepCopy: Boolean): SValue = {
@@ -141,26 +146,4 @@ final class SStackStructSettable(
   }
 }
 
-class SStackStructCode(val st: SStackStruct, val codes: IndexedSeq[EmitCode]) extends SBaseStructCode {
-  override def memoize(cb: EmitCodeBuilder, name: String): SStackStructSettable = {
-    new SStackStructSettable(st, codes.indices.map { i =>
-      val code = codes(i)
-      val es = cb.emb.newEmitLocal(s"${ name }_$i", code.emitType)
-      es.store(cb, code)
-      es
-    })
-  }
-
-  override def memoizeField(cb: EmitCodeBuilder, name: String): SStackStructSettable = {
-    new SStackStructSettable(st, codes.indices.map { i =>
-      val code = codes(i)
-      val es = cb.emb.newEmitField(s"${ name }_$i", code.emitType)
-      es.store(cb, code)
-      es
-    })
-  }
-
-  override def loadSingleField(cb: EmitCodeBuilder, fieldIdx: Int): IEmitCode = {
-    codes(fieldIdx).toI(cb)
-  }
-}
+class SStackStructCode(val st: SStackStruct, val codes: IndexedSeq[EmitCode]) extends SCode

@@ -2,9 +2,9 @@
 Use Hail on Google Dataproc
 ===========================
 
-First, install Hail on your `Mac OS X <macosx.rst>`__ or `Linux <linux.rst>`__
-laptop or desktop. The Hail pip package includes a tool called ``hailctl`` which
-starts, stops, and manipulates Hail-enabled Dataproc clusters.
+First, install Hail on your `Mac OS X <macosx.rst>`__ or `Linux <linux.rst>`__ laptop or
+desktop. The Hail pip package includes a tool called ``hailctl dataproc`` which starts, stops, and
+manipulates Hail-enabled Dataproc clusters.
 
 Start a dataproc cluster named "my-first-cluster". Cluster names may only
 contain a mix lowercase letters and dashes. Starting a cluster can take as long

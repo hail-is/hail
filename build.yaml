@@ -591,7 +591,7 @@ steps:
       {% else %}
       DEPLOY=false
       {% endif %}
-      python3 ../ci/jinja2_render.py '{"deploy": '${DEPLOY}', "default_ns": {"name": "{{ default_ns.name }}"}}' nginx.conf nginx.conf.out
+      python3 ../ci/jinja2_render.py '{"deploy": '${DEPLOY}', "global": {"domain": "{{ global.domain }}"}, "default_ns": {"name": "{{ default_ns.name }}"}}' nginx.conf nginx.conf.out
     inputs:
       - from: /repo
         to: /io/repo
@@ -812,6 +812,30 @@ steps:
     inputs:
       - from: /repo
         to: /io/repo
+    dependsOn:
+      - hail_build_image
+      - merge_code
+  - kind: runImage
+    name: build_wheel_for_azure
+    image:
+      valueFrom: hail_build_image.image
+    resources:
+      memory: standard
+      cpu: '4'
+    script: |
+      set -ex
+      cd /io/repo/hail
+      chmod 755 ./gradlew
+      time retry ./gradlew --version
+      export SPARK_VERSION="3.0.2" SCALA_VERSION="2.12.10"
+      time retry make wheel
+      (cd build/deploy/dist/ && tar -cvf wheel-container.tar hail-*-py3-none-any.whl)
+    inputs:
+      - from: /repo
+        to: /io/repo
+    outputs:
+      - from: /io/repo/hail/build/deploy/dist/wheel-container.tar
+        to: /wheel-for-azure-container.tar
     dependsOn:
       - hail_build_image
       - merge_code
@@ -1132,10 +1156,10 @@ steps:
       - hail_ubuntu_image
       - merge_code
   - kind: buildImage2
-    name: hail_pip_installed_python36_image
-    dockerFile: /io/repo/hail/Dockerfile.hail-pip-installed-python36
+    name: hail_pip_installed_python38_image
+    dockerFile: /io/repo/hail/Dockerfile.hail-pip-installed-python38
     contextPath: /io/repo
-    publishAs: hail-pip-installed-python36
+    publishAs: hail-pip-installed-python38
     inputs:
       - from: /repo
         to: /io/repo
@@ -1165,9 +1189,9 @@ steps:
     dependsOn:
       - hail_pip_installed_python37_image
   - kind: runImage
-    name: check_hail_python36
+    name: check_hail_python38
     image:
-      valueFrom: hail_pip_installed_python36_image.image
+      valueFrom: hail_pip_installed_python38_image.image
     script: |
       set -x
       SITE_PACKAGES=$(pip3 show hail | grep Location | sed 's/Location: //')
@@ -1182,7 +1206,7 @@ steps:
 
       exit $exit_status
     dependsOn:
-      - hail_pip_installed_python36_image
+      - hail_pip_installed_python38_image
   - kind: buildImage2
     name: notebook_image
     dockerFile: /io/repo/notebook/Dockerfile
@@ -2568,6 +2592,12 @@ steps:
         script: /io/sql/add-latest-product-versions.sql
       - name: add-products-and-versions
         script: /io/sql/add_products_and_versions.py
+      - name: kill-more-deadlocks
+        script: /io/sql/kill-more-deadlocks.sql
+      - name: kill-more-deadlocks2
+        script: /io/sql/kill-more-deadlocks2.sql
+      - name: no-locks-add-attempt
+        script: /io/sql/no-locks-add-attempt.sql
     inputs:
       - from: /repo/batch/sql
         to: /io/sql
@@ -3875,7 +3905,7 @@ steps:
       - blog_nginx_image
       - create_certs
   - kind: runImage
-    name: test_dataproc
+    name: test_dataproc-37
     image:
       valueFrom: ci_utils_image.image
     script: |
@@ -3896,7 +3926,49 @@ steps:
       cd hail
       chmod 755 ./gradlew
       time retry ./gradlew --version
-      make test-dataproc DEV_CLARIFIER=ci_test_dataproc
+      make test-dataproc-37 DEV_CLARIFIER=ci_test_dataproc
+    dependsOn:
+      - ci_utils_image
+      - default_ns
+      - merge_code
+    inputs:
+      - from: /hail_pip_version
+        to: /io/hail_pip_version
+      - from: /repo
+        to: /io/repo
+    secrets:
+      - name: test-dataproc-service-account-key
+        namespace:
+          valueFrom: default_ns.name
+        mountPath: /test-dataproc-service-account-key
+    scopes:
+      - deploy
+      - dev
+    clouds:
+      - gcp
+  - kind: runImage
+    name: test_dataproc-38
+    image:
+      valueFrom: ci_utils_image.image
+    script: |
+      set -ex
+
+      cd /io/repo
+
+      gcloud auth activate-service-account --key-file=/test-dataproc-service-account-key/test-dataproc-service-account-key.json
+      gcloud config set project hail-vdc
+      gcloud config set dataproc/region us-central1
+
+      if git ls-remote --exit-code --tags origin $(cat /io/hail_pip_version)
+      then
+          echo "tag $HAIL_PIP_VERSION already exists"
+          exit 0
+      fi
+
+      cd hail
+      chmod 755 ./gradlew
+      time retry ./gradlew --version
+      make test-dataproc-38 DEV_CLARIFIER=ci_test_dataproc
     dependsOn:
       - ci_utils_image
       - default_ns
@@ -3949,13 +4021,16 @@ steps:
       time retry ./gradlew --version
       make wheel upload-artifacts DEPLOY_REMOTE=origin
 
+      (mkdir /io/wheel-for-azure && cd /io/wheel-for-azure && tar xvf /io/wheel-for-azure-container.tar)
+
       bash scripts/deploy.sh $(cat /io/hail_pip_version) \
                              $(cat /io/hail_version) \
                              $(cat /io/git_version) \
                              origin \
                              /io/repo/hail/build/deploy/dist/hail-*-py3-none-any.whl \
                              /io/github-oauth \
-                             docker://{{ hailgenetics_hail_image.image }}
+                             docker://{{ hailgenetics_hail_image.image }} \
+                             /io/wheel-for-azure/hail-*-py3-none-any.whl
     inputs:
       - from: /hail_version
         to: /io/hail_version
@@ -3965,6 +4040,8 @@ steps:
         to: /io/git_version
       - from: /repo
         to: /io/repo
+      - from: /wheel-for-azure-container.tar
+        to: /io/wheel-for-azure-container.tar
     secrets:
       - name: pypi-credentials
         namespace:
@@ -3986,12 +4063,14 @@ steps:
       - deploy
       - dev
     dependsOn:
-      - test_dataproc
+      - test_dataproc-37
+      - test_dataproc-38
       - default_ns
       - ci_utils_image
       - build_hail
       - merge_code
       - hailgenetics_hail_image
+      - build_wheel_for_azure
     clouds:
       - gcp
   - kind: buildImage2
@@ -4278,6 +4357,9 @@ steps:
       az network public-ip list --resource-group $AZURE_RESOURCE_GROUP -o tsv \
           --query "[?tags.namespace == '{{ default_ns.name }}'].name" \
         | xargs -n1 -r sh -c 'az network public-ip delete --resource-group $AZURE_RESOURCE_GROUP --name "$1" || true' argv0
+      az deployment group list --resource-group $AZURE_RESOURCE_GROUP -o tsv \
+          --query "[?tags.namespace == '{{ default_ns.name }}'].name" \
+        | xargs -n1 -r sh -c 'az deployment delete --name "$1" || true' argv0
     secrets:
       - name: test-gsa-key
         namespace:

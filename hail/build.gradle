@@ -1,7 +1,6 @@
 buildscript {
     repositories {
         mavenCentral()
-        jcenter()
     }
 }
 
@@ -21,7 +20,6 @@ repositories {
         dirs 'libs'
     }
     mavenCentral()
-    jcenter()
     maven { url "https://repository.cloudera.com/artifactory/cloudera-repos/" }
 }
 

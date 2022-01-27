@@ -32,46 +32,58 @@ log = logging.getLogger('pool')
 
 class Pool(InstanceCollection):
     @staticmethod
-    async def create(app,
-                     db: Database,  # BORROWED
-                     inst_coll_manager: InstanceCollectionManager,
-                     resource_manager: CloudResourceManager,
-                     machine_name_prefix: str,
-                     config: PoolConfig,
-                     async_worker_pool: AsyncWorkerPool,  # BORROWED
-                     task_manager: aiotools.BackgroundTaskManager
-                     ) -> 'Pool':
+    async def create(
+        app,
+        db: Database,  # BORROWED
+        inst_coll_manager: InstanceCollectionManager,
+        resource_manager: CloudResourceManager,
+        machine_name_prefix: str,
+        config: PoolConfig,
+        async_worker_pool: AsyncWorkerPool,  # BORROWED
+        task_manager: aiotools.BackgroundTaskManager,
+    ) -> 'Pool':
         pool = Pool(
-            app, db, inst_coll_manager, resource_manager, machine_name_prefix, config, async_worker_pool, task_manager)
+            app, db, inst_coll_manager, resource_manager, machine_name_prefix, config, async_worker_pool, task_manager
+        )
         log.info(f'initializing {pool}')
 
         async for record in db.select_and_fetchall(
-            'SELECT * FROM instances WHERE removed = 0 AND inst_coll = %s;', (pool.name,)
+            '''
+SELECT instances.*, instances_free_cores_mcpu.free_cores_mcpu
+FROM instances
+INNER JOIN instances_free_cores_mcpu
+ON instances.name = instances_free_cores_mcpu.name
+WHERE removed = 0 AND inst_coll = %s;
+''',
+            (pool.name,),
         ):
             pool.add_instance(Instance.from_record(app, pool, record))
 
         return pool
 
-    def __init__(self,
-                 app,
-                 db: Database,  # BORROWED
-                 inst_coll_manager: InstanceCollectionManager,
-                 resource_manager: CloudResourceManager,
-                 machine_name_prefix: str,
-                 config: PoolConfig,
-                 async_worker_pool: AsyncWorkerPool,  # BORROWED
-                 task_manager: aiotools.BackgroundTaskManager,  # BORROWED
-                 ):
-        super().__init__(db,
-                         inst_coll_manager,
-                         resource_manager,
-                         config.cloud,
-                         config.name,
-                         machine_name_prefix,
-                         is_pool=True,
-                         max_instances=config.max_instances,
-                         max_live_instances=config.max_live_instances,
-                         task_manager=task_manager)
+    def __init__(
+        self,
+        app,
+        db: Database,  # BORROWED
+        inst_coll_manager: InstanceCollectionManager,
+        resource_manager: CloudResourceManager,
+        machine_name_prefix: str,
+        config: PoolConfig,
+        async_worker_pool: AsyncWorkerPool,  # BORROWED
+        task_manager: aiotools.BackgroundTaskManager,  # BORROWED
+    ):
+        super().__init__(
+            db,
+            inst_coll_manager,
+            resource_manager,
+            config.cloud,
+            config.name,
+            machine_name_prefix,
+            is_pool=True,
+            max_instances=config.max_instances,
+            max_live_instances=config.max_live_instances,
+            task_manager=task_manager,
+        )
         self.app = app
         self.inst_coll_manager = inst_coll_manager
         global_scheduler_state_changed: Notice = self.app['scheduler_state_changed']
@@ -154,12 +166,13 @@ class Pool(InstanceCollection):
 
         return None
 
-    async def create_instance(self,
-                              cores: int,
-                              data_disk_size_gb: int,
-                              max_idle_time_msecs: Optional[int] = None,
-                              location: Optional[str] = None,
-                              ):
+    async def create_instance(
+        self,
+        cores: int,
+        data_disk_size_gb: int,
+        max_idle_time_msecs: Optional[int] = None,
+        location: Optional[str] = None,
+    ):
         machine_type = self.resource_manager.machine_type(cores, self.worker_type, self.worker_local_ssd_data_disk)
         _, _ = await self._create_instance(
             app=self.app,
@@ -171,7 +184,7 @@ class Pool(InstanceCollection):
             max_idle_time_msecs=max_idle_time_msecs,
             local_ssd_data_disk=self.worker_local_ssd_data_disk,
             data_disk_size_gb=data_disk_size_gb,
-            boot_disk_size_gb=self.boot_disk_size_gb
+            boot_disk_size_gb=self.boot_disk_size_gb,
         )
 
     async def create_instances_from_ready_cores(self, ready_cores_mcpu, location=None):
@@ -198,13 +211,14 @@ class Pool(InstanceCollection):
         if instances_needed > 0:
             log.info(f'creating {instances_needed} new instances')
             # parallelism will be bounded by thread pool
-            await asyncio.gather(*[
-                self.create_instance(
-                    cores=self.worker_cores,
-                    data_disk_size_gb=self.data_disk_size_gb,
-                    location=location
-                )
-                for _ in range(instances_needed)])
+            await asyncio.gather(
+                *[
+                    self.create_instance(
+                        cores=self.worker_cores, data_disk_size_gb=self.data_disk_size_gb, location=location
+                    )
+                    for _ in range(instances_needed)
+                ]
+            )
 
     async def create_instances(self):
         if self.app['frozen']:
@@ -251,7 +265,7 @@ GROUP BY user;
             await self.create_instance(
                 cores=self.standing_worker_cores,
                 data_disk_size_gb=self.data_disk_size_standing_gb,
-                max_idle_time_msecs=STANDING_WORKER_MAX_IDLE_TIME_MSECS
+                max_idle_time_msecs=STANDING_WORKER_MAX_IDLE_TIME_MSECS,
             )
 
     async def control_loop(self):
@@ -262,12 +276,13 @@ GROUP BY user;
 
 
 class PoolScheduler:
-    def __init__(self,
-                 app,
-                 pool: Pool,
-                 async_worker_pool: AsyncWorkerPool,  # BORROWED
-                 task_manager: aiotools.BackgroundTaskManager,  # BORROWED
-                 ):
+    def __init__(
+        self,
+        app,
+        pool: Pool,
+        async_worker_pool: AsyncWorkerPool,  # BORROWED
+        task_manager: aiotools.BackgroundTaskManager,  # BORROWED
+    ):
         self.app = app
         self.scheduler_state_changed = pool.scheduler_state_changed
         self.db: Database = app['db']
@@ -378,8 +393,10 @@ HAVING n_ready_jobs + n_running_jobs > 0;
         async def user_runnable_jobs(user, remaining):
             async for batch in self.db.select_and_fetchall(
                 '''
-SELECT id, cancelled, userdata, user, format_version
+SELECT batches.id,  batches_cancelled.id IS NOT NULL AS cancelled, userdata, user, format_version
 FROM batches
+LEFT JOIN batches_cancelled
+       ON batches.id = batches_cancelled.id
 WHERE user = %s AND `state` = 'running';
 ''',
                 (user,),

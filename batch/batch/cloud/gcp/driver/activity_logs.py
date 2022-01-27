@@ -23,8 +23,13 @@ def parse_resource_name(resource_name: str) -> Dict[str, str]:
     return match.groupdict()
 
 
-async def handle_activity_log_event(event: Dict[str, Any], db: Database, inst_coll_manager: InstanceCollectionManager,
-                                    zone_success_rate: ZoneSuccessRate, machine_name_prefix: str):
+async def handle_activity_log_event(
+    event: Dict[str, Any],
+    db: Database,
+    inst_coll_manager: InstanceCollectionManager,
+    zone_success_rate: ZoneSuccessRate,
+    machine_name_prefix: str,
+):
     payload = event.get('protoPayload')
     if payload is None:
         log.warning(f'event has no payload {json.dumps(event)}')
@@ -82,13 +87,15 @@ async def handle_activity_log_event(event: Dict[str, Any], db: Database, inst_co
                 await instance.mark_deleted('deleted', timestamp_msecs)
 
 
-async def process_activity_log_events_since(db: Database,
-                                            inst_coll_manager: InstanceCollectionManager,
-                                            activity_logs_client: aiogoogle.GoogleLoggingClient,
-                                            zone_success_rate: ZoneSuccessRate,
-                                            machine_name_prefix: str,
-                                            project: str,
-                                            mark: str) -> str:
+async def process_activity_log_events_since(
+    db: Database,
+    inst_coll_manager: InstanceCollectionManager,
+    activity_logs_client: aiogoogle.GoogleLoggingClient,
+    zone_success_rate: ZoneSuccessRate,
+    machine_name_prefix: str,
+    project: str,
+    mark: str,
+) -> str:
     filter = f'''
 (logName="projects/{project}/logs/cloudaudit.googleapis.com%2Factivity" OR
 logName="projects/{project}/logs/cloudaudit.googleapis.com%2Fsystem_event"

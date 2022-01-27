@@ -5,8 +5,7 @@ import is.hail.asm4s.{Code, _}
 import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder}
 import is.hail.types.physical.PCanonicalNDArray
 import is.hail.types.physical.stypes.concrete.SUnreachableNDArray
-import is.hail.types.physical.stypes.interfaces.{SNDArray, SNDArrayCode, SNDArraySettable, SNDArrayValue}
-import is.hail.utils.FastIndexedSeq
+import is.hail.types.physical.stypes.interfaces.{SNDArraySettable, SNDArrayValue}
 
 object LinalgCodeUtils {
   def checkColumnMajor(pndv: SNDArrayValue, cb: EmitCodeBuilder): Value[Boolean] = {

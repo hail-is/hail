@@ -41,10 +41,7 @@ class PInt64(override val required: Boolean) extends PNumeric with PPrimitive {
     cb.append(Region.storeLong(addr, value.asLong.longCode(cb)))
 
   override def loadCheapSCode(cb: EmitCodeBuilder, addr: Code[Long]): SInt64Value =
-    new SInt64Code(Region.loadLong(addr)).memoize(cb, "loadCheapSCode")
-
-  override def loadCheapSCodeField(cb: EmitCodeBuilder, addr: Code[Long]): SInt64Value =
-    new SInt64Code(Region.loadLong(addr)).memoizeField(cb, "loadCheapSCodeField")
+    new SInt64Value(cb.memoize(Region.loadLong(addr)))
 
   override def unstagedStoreJavaObjectAtAddress(addr: Long, annotation: Annotation, region: Region): Unit = {
     Region.storeLong(addr, annotation.asInstanceOf[Long])

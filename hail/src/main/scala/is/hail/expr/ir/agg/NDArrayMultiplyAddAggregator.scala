@@ -6,9 +6,9 @@ import is.hail.backend.ExecuteContext
 import is.hail.expr.ir.{CodeParamType, EmitCode, EmitCodeBuilder, IEmitCode}
 import is.hail.linalg.LinalgCodeUtils
 import is.hail.types.VirtualTypeWithReq
+import is.hail.types.physical.PCanonicalNDArray
 import is.hail.types.physical.stypes.EmitType
-import is.hail.types.physical.stypes.interfaces.{SNDArray, SNDArrayCode, SNDArrayValue}
-import is.hail.types.physical.{PCanonicalNDArray, PType}
+import is.hail.types.physical.stypes.interfaces.{SNDArray, SNDArrayValue}
 import is.hail.types.virtual.Type
 import is.hail.utils.{FastIndexedSeq, valueToRichCodeRegion}
 

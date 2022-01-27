@@ -50,23 +50,7 @@ object SFloat64Code {
   def apply(code: Code[Double]): SFloat64Code = new SFloat64Code(code)
 }
 
-class SFloat64Code(val code: Code[Double]) extends SPrimitiveCode {
-  override def _primitiveCode: Code[_] = code
-
-  def st: SFloat64.type = SFloat64
-
-  private[this] def memoizeWithBuilder(cb: EmitCodeBuilder, name: String, sb: SettableBuilder): SFloat64Value = {
-    val s = new SFloat64Settable(sb.newSettable[Double]("sint64_memoize"))
-    s.store(cb, this)
-    s
-  }
-
-  def memoize(cb: EmitCodeBuilder, name: String): SFloat64Value = memoizeWithBuilder(cb, name, cb.localBuilder)
-
-  def memoizeField(cb: EmitCodeBuilder, name: String): SFloat64Value = memoizeWithBuilder(cb, name, cb.fieldBuilder)
-
-  def doubleCode(cb: EmitCodeBuilder): Code[Double] = code
-}
+class SFloat64Code(val code: Code[Double]) extends SCode
 
 object SFloat64Value {
   def apply(code: Value[Double]): SFloat64Value = new SFloat64Value(code)
@@ -98,5 +82,5 @@ object SFloat64Settable {
 final class SFloat64Settable(x: Settable[Double]) extends SFloat64Value(x) with SSettable {
   override def settableTuple(): IndexedSeq[Settable[_]] = FastIndexedSeq(x)
 
-  override def store(cb: EmitCodeBuilder, v: SCode): Unit = cb.assign(x, v.asDouble.doubleCode(cb))
+  override def store(cb: EmitCodeBuilder, v: SCode): Unit = cb.assign(x, v.asInstanceOf[SFloat64Code].code)
 }

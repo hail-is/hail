@@ -47,7 +47,7 @@ class EmitContext(
   val tryingToSplit: Memo[Unit]
 )
 
-case class EmitEnv(bindings: Env[EmitValue], inputValues: IndexedSeq[Value[Region] => EmitValue]) {
+case class EmitEnv(bindings: Env[EmitValue], inputValues: IndexedSeq[(EmitCodeBuilder, Value[Region]) => IEmitCode]) {
   def bind(name: String, v: EmitValue): EmitEnv = copy(bindings = bindings.bind(name, v))
 
   def bind(newBindings: (String, EmitValue)*): EmitEnv = copy(bindings = bindings.bindIterable(newBindings))
@@ -711,7 +711,7 @@ class Emit[C](
         val msg = cm.consumeCode(cb, "<exception message missing>", _.asString.loadString(cb))
         cb._throw(Code.newInstance[HailException, String, Int](msg, errorId))
 
-      case x@WriteMetadata(annotations, writer) =>
+      case WriteMetadata(annotations, writer) =>
         writer.writeMetadata(emitI(annotations), cb, region)
 
       case CombOpValue(i, value, aggSig) =>
@@ -805,6 +805,9 @@ class Emit[C](
     def presentPC(pc: SValue): IEmitCode = IEmitCode.present(cb, pc)
 
     val result: IEmitCode = (ir: @unchecked) match {
+      case In(i, expectedPType) =>
+        val ev = env.inputValues(i).apply(cb, region)
+        ev
       case I32(x) =>
         presentPC(primitive(const(x)))
       case I64(x) =>
@@ -1282,11 +1285,11 @@ class Emit[C](
           }
         }
 
-      case StreamDistribute(child, pivots, path, spec) =>
+      case StreamDistribute(child, pivots, path, comparisonOp, spec) =>
         emitI(path).flatMap(cb) { pathValue =>
           emitI(pivots).flatMap(cb) { case pivotsVal: SIndexableValue =>
             emitStream(child, cb, region).map(cb) { case childStream: SStreamValue =>
-              EmitStreamDistribute.emit(cb, region, pivotsVal, childStream, pathValue, spec)
+              EmitStreamDistribute.emit(cb, region, pivotsVal, childStream, pathValue, comparisonOp, spec)
             }
           }
         }
@@ -2489,11 +2492,6 @@ class Emit[C](
         if (ev.st.virtualType != t)
           throw new RuntimeException(s"emit value type did not match specified type:\n name: $name\n  ev: ${ ev.st.virtualType }\n  ir: ${ ir.typ }")
         ev.load
-
-      case In(i, expectedPType) =>
-        // this, Code[Region], ...
-        val ev = env.inputValues(i).apply(region)
-        ev
 
       case ir@Apply(fn, typeArgs, args, rt, errorID) =>
         val impl = ir.implementation

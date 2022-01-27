@@ -30,14 +30,15 @@ class CloudDriver(abc.ABC):
 
     @staticmethod
     @abc.abstractmethod
-    async def create(app,
-                     db: Database,
-                     machine_name_prefix: str,
-                     namespace: str,
-                     inst_coll_configs: InstanceCollectionConfigs,
-                     credentials_file: str,
-                     task_manager: aiotools.BackgroundTaskManager,
-                     ) -> 'CloudDriver':
+    async def create(
+        app,
+        db: Database,
+        machine_name_prefix: str,
+        namespace: str,
+        inst_coll_configs: InstanceCollectionConfigs,
+        credentials_file: str,
+        task_manager: aiotools.BackgroundTaskManager,
+    ) -> 'CloudDriver':
         raise NotImplementedError
 
     @abc.abstractmethod

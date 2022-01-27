@@ -2,13 +2,13 @@ package is.hail.types.physical.stypes.concrete
 
 import is.hail.annotations.Region
 import is.hail.asm4s._
-import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder}
+import is.hail.expr.ir.EmitCodeBuilder
 import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.physical.stypes.{SCode, SSettable, SType, SValue}
 import is.hail.types.physical.{PCanonicalLocus, PType}
 import is.hail.types.virtual.Type
 import is.hail.utils.FastIndexedSeq
-import is.hail.variant.{Locus, ReferenceGenome}
+import is.hail.variant.ReferenceGenome
 
 
 final case class SCanonicalLocusPointer(pType: PCanonicalLocus) extends SLocus {
@@ -104,27 +104,4 @@ final class SCanonicalLocusPointerSettable(
     SBaseStructPointer(st.pType.representation), a)
 }
 
-class SCanonicalLocusPointerCode(val st: SCanonicalLocusPointer, val a: Code[Long]) extends SLocusCode {
-  val pt: PCanonicalLocus = st.pType
-
-  def code: Code[_] = a
-
-  def position(cb: EmitCodeBuilder): Code[Int] = pt.position(a)
-
-  def getLocusObj(cb: EmitCodeBuilder): Code[Locus] = {
-    val loc = memoize(cb, "get_locus_code_memo")
-    Code.newInstance[Locus, String, Int](loc.contig(cb).asString.loadString(cb), loc.position(cb))
-  }
-
-  def memoize(cb: EmitCodeBuilder, name: String, sb: SettableBuilder): SCanonicalLocusPointerSettable = {
-    val s = SCanonicalLocusPointerSettable(sb, st, name)
-    s.store(cb, this)
-    s
-  }
-
-  def memoize(cb: EmitCodeBuilder, name: String): SCanonicalLocusPointerSettable = memoize(cb, name, cb.localBuilder)
-
-  def memoizeField(cb: EmitCodeBuilder, name: String): SCanonicalLocusPointerSettable = memoize(cb, name, cb.fieldBuilder)
-
-  def structRepr(cb: EmitCodeBuilder): SBaseStructCode = new SBaseStructPointerCode(SBaseStructPointer(st.pType.representation), a)
-}
+class SCanonicalLocusPointerCode(val st: SCanonicalLocusPointer, val a: Code[Long]) extends SCode

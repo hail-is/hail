@@ -61,8 +61,9 @@ abstract class PCanonicalBaseStruct(val types: Array[PType]) extends PBaseStruct
   override def setFieldMissing(cb: EmitCodeBuilder, offset: Code[Long], fieldIdx: Int): Unit = {
     if (!fieldRequired(fieldIdx))
       cb += Region.setBit(offset, missingIdx(fieldIdx).toLong)
-    else
-      cb._fatal(s"Required field cannot be missing")
+    else {
+      cb._fatal(s"Required field cannot be missing.")
+    }
   }
 
   override def setFieldPresent(offset: Long, fieldIdx: Int) {
@@ -152,10 +153,7 @@ abstract class PCanonicalBaseStruct(val types: Array[PType]) extends PBaseStruct
   override def sType: SBaseStructPointer = SBaseStructPointer(setRequired(false).asInstanceOf[PCanonicalBaseStruct])
 
   override def loadCheapSCode(cb: EmitCodeBuilder, addr: Code[Long]): SBaseStructPointerValue =
-    new SBaseStructPointerCode(sType, addr).memoize(cb, "loadCheapSCode")
-
-  override def loadCheapSCodeField(cb: EmitCodeBuilder, addr: Code[Long]): SBaseStructPointerValue =
-    new SBaseStructPointerCode(sType, addr).memoizeField(cb, "loadCheapSCodeField")
+    new SBaseStructPointerValue(sType, cb.memoize(addr))
 
   override def store(cb: EmitCodeBuilder, region: Value[Region], value: SValue, deepCopy: Boolean): Value[Long] = {
     value.st match {

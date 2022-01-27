@@ -3,8 +3,8 @@ from collections import Counter
 import os
 from typing import Tuple, List, Union
 from hail.typecheck import typecheck, oneof, anytype, nullable
-from hail.utils.java import Env, info
-from hail.utils.misc import divide_null
+from hail.utils.java import Env, info, warning
+from hail.utils.misc import divide_null, guess_cloud_spark_provider
 from hail.matrixtable import MatrixTable
 from hail.table import Table
 from hail.ir import TableToTableApply
@@ -521,7 +521,7 @@ def vep(dataset: Union[Table, MatrixTable], config=None, block_size=1000, name='
     This VEP command only works if you have already installed VEP on your
     computing environment. If you use `hailctl dataproc` to start Hail clusters,
     installing VEP is achieved by specifying the `--vep` flag. For more detailed instructions,
-    see :ref:`vep_dataproc`.
+    see :ref:`vep_dataproc`. If you use `hailctl hdinsight`, see :ref:`vep_hdinsight`.
 
     **Configuration**
 
@@ -601,9 +601,13 @@ def vep(dataset: Union[Table, MatrixTable], config=None, block_size=1000, name='
 
     """
     if config is None:
+        maybe_cloud_spark_provider = guess_cloud_spark_provider()
         maybe_config = os.getenv("VEP_CONFIG_URI")
         if maybe_config is not None:
             config = maybe_config
+        elif maybe_cloud_spark_provider == 'hdinsight':
+            warning('Assuming you are in a hailctl hdinsight cluster. If not, specify the config parameter to `hl.vep`.')
+            config = 'file:/vep_data/vep-azure.json'
         else:
             raise ValueError("No config set and VEP_CONFIG_URI was not set.")
 
