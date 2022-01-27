@@ -212,6 +212,6 @@ FROM (
   group by batches.user, jobs.inst_coll
   LOCK IN SHARE MODE
 ) as t
-ON DUPLICATE KEY UPDATE n_cancelled_creating_jobs = t.n
+ON DUPLICATE KEY UPDATE n_cancelled_creating_jobs = t.n;
 
 COMMIT;
