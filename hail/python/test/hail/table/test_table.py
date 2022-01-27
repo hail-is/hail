@@ -1843,5 +1843,3 @@ def test_to_pandas_nd_array():
 
     df_from_python = pd.DataFrame(python_data)
     pd.testing.assert_frame_equal(df_from_hail, df_from_python)
-
-

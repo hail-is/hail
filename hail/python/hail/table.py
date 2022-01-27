@@ -452,7 +452,7 @@ class Table(ExprContainer):
                       key=table_key_type,
                       n_partitions=nullable(int),
                       partial_type=nullable(dict))
-    def parallelize(cls, rows, schema=None, key=None, n_partitions=None, partial_type=None) -> 'Table':
+    def parallelize(cls, rows, schema=None, key=None, n_partitions=None, *, partial_type=None) -> 'Table':
         """Parallelize a local array of structs into a distributed table.
 
         Examples
@@ -464,11 +464,10 @@ class Table(ExprContainer):
         >>> t.show()
 
         Parallelize complex JSON with a `partial_type`:
-        >>> dicts = [{"number":10038,"state":"open","user":{"login":"tpoterba","site_admin":False,"id":10562794},
-        "milestone":None,"labels":[]},
-                     {"number":10037,"state":"open","user":{"login":"daniel-goldstein","site_admin":False,"id":24440116},"milestone":None,"labels":[]},
-                     {"number":10036,"state":"open","user":{"login":"jigold","site_admin":False,"id":1693348},"milestone":None,"labels":[]},
-                     {"number":10035,"state":"open","user":{"login":"tpoterba","site_admin":False,"id":10562794},"milestone":None,"labels":[]},
+        >>> dicts = [{"number":10038,"state":"open","user":{"login":"tpoterba","site_admin":False,"id":10562794}, "milestone":None,"labels":[]},\
+                     {"number":10037,"state":"open","user":{"login":"daniel-goldstein","site_admin":False,"id":24440116},"milestone":None,"labels":[]},\
+                     {"number":10036,"state":"open","user":{"login":"jigold","site_admin":False,"id":1693348},"milestone":None,"labels":[]},\
+                     {"number":10035,"state":"open","user":{"login":"tpoterba","site_admin":False,"id":10562794},"milestone":None,"labels":[]},\
                      {"number":10033,"state":"open","user":{"login":"tpoterba","site_admin":False,"id":10562794},"milestone":None,"labels":[]}]
         >>> t = hl.Table.parallelize(
         ...     dicts,
