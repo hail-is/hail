@@ -73,7 +73,7 @@ class InstanceCollectionManager:
     def get_inst_coll(self, inst_coll_name):
         return self.name_inst_coll.get(inst_coll_name)
 
-    def get_instance(self, inst_name):
+    def get_instance(self, inst_name) -> Optional[Instance]:
         inst_coll_name = None
 
         match = re.search(self.inst_coll_regex, inst_name)

@@ -282,27 +282,27 @@ async def deactivate_instance(request, instance):  # pylint: disable=unused-argu
     return web.Response()
 
 
-@routes.post('/instances/{instance_name}/deactivate')
+@routes.post('/instances/{instance_name}/kill')
 @check_csrf_token
 @web_authenticated_developers_only()
-async def kill_instance(request, userdata):
+async def kill_instance(request, userdata):  # pylint: disable=unused-argument
     instance_name = request.match_info['instance_name']
 
     inst_coll_manager: InstanceCollectionManager = request.app['driver'].inst_coll_manager
     instance = inst_coll_manager.get_instance(instance_name)
 
-    if instance:
-        pool_name = instance.inst_coll.name
-        pool_url_path = f'/inst_coll/pool/{pool_name}'
-        session = await aiohttp_session.get_session(request)
-
-        if instance.state == 'active':
-            await asyncio.shield(instance.kill())
-            set_message(session, f'Deactivated instance {instance_name}', 'info')
-        else:
-            set_message(session, 'Cannot deactivate a non-active instance', 'error')
-    else:
+    if instance is None:
         return web.HTTPNotFound()
+
+    session = await aiohttp_session.get_session(request)
+    if instance.state == 'active':
+        await asyncio.shield(instance.kill())
+        set_message(session, f'Deactivated instance {instance_name}', 'info')
+    else:
+        set_message(session, 'Cannot deactivate a non-active instance', 'error')
+
+    pool_name = instance.inst_coll.name
+    pool_url_path = f'/inst_coll/pool/{pool_name}'
     return web.HTTPFound(deploy_config.external_url('batch-driver', pool_url_path))
 
 

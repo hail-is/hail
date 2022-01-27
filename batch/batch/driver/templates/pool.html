@@ -118,10 +118,7 @@
     <td>
       <form action="{{ base_path }}/instances/{{ instance.name }}/deactivate" method="post">
         <input type="hidden" name="_csrf" value="{{ csrf_token }}" />
-        {% if q is not none %}
-        <input type="hidden" name="q" value="{{ q }}" />
-        {% endif %}
-        <button>Deactivate</button>
+        <button>Delete</button>
       </form>
     </td>
   </tr>
