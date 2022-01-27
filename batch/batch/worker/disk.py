@@ -1,4 +1,4 @@
-from typing import Dict, Optional
+from typing import Dict, Optional, TypeVar, Generic
 
 import abc
 import logging
@@ -56,11 +56,14 @@ class CloudDisk(abc.ABC):
             )(check_shell_output, f'umount -v {self.disk_path} {self.mount_path}')
 
 
-class CloudDiskManager(abc.ABC):
+TDisk = TypeVar('TDisk', bound=CloudDisk)
+
+
+class CloudDiskManager(abc.ABC, Generic[TDisk]):
     @abc.abstractmethod
-    async def new_disk(self, instance_name: str, disk_name: str, size_in_gb: int, mount_path: str) -> CloudDisk:
+    async def new_disk(self, instance_name: str, disk_name: str, size_in_gb: int, mount_path: str) -> TDisk:
         pass
 
     @abc.abstractmethod
-    async def delete_disk(self, disk: CloudDisk):
+    async def delete_disk(self, disk: TDisk):
         pass

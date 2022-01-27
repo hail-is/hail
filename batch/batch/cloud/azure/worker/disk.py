@@ -165,21 +165,21 @@ class AzureDiskManager(CloudDiskManager):
         return self.vm_disk_config()
 
     def _remove_disk(self, disk: AzureDisk) -> dict:
-        self.disk_mapping.pop(disk.name)
+        del self.disk_mapping[disk.name]
         return self.vm_disk_config()
 
     async def new_disk(self, instance_name: str, disk_name: str, size_in_gb: int, mount_path: str) -> AzureDisk:
         lun = await self.lun_queue.get()
         return AzureDisk(self, disk_name, instance_name, size_in_gb, mount_path, lun)
 
-    async def delete_disk(self, disk: AzureDisk):  # type: ignore[override]
+    async def delete_disk(self, disk: AzureDisk):
         try:
             await disk.delete()
         finally:
             try:
+                await disk.close()
+            finally:
                 if not disk.attached:
                     self.lun_queue.put_nowait(disk.lun)
                 else:
                     log.exception(f'disk {disk.name} did not detach cleanly. not releasing lun {disk.lun}')
-            finally:
-                await disk.close()

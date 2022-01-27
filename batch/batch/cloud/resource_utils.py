@@ -119,14 +119,14 @@ def adjust_cores_for_packability(cores_in_mcpu: int) -> int:
     return int(2 ** power * 1000)
 
 
-def round_storage_bytes_to_gib(storage_bytes: int) -> int:
-    gib = storage_bytes / 1024 / 1024 / 1024
-    gib = math.ceil(gib)
-    return gib
+def round_storage_bytes_to_gib(storage_in_bytes: int) -> int:
+    one_gib = 1024 * 1024 * 1024
+    storage_in_gib = (storage_in_bytes - 1 + one_gib) // one_gib
+    return storage_in_gib
 
 
 def storage_gib_to_bytes(storage_gib: int) -> int:
-    return math.ceil(storage_gib * 1024 ** 3)
+    return storage_gib * 1024 ** 3
 
 
 def is_valid_cores_mcpu(cores_mcpu: int) -> bool:

@@ -1501,7 +1501,7 @@ class DockerJob(Job):
                 with self.step('post-job finally block'):
                     if self.disk:
                         try:
-                            await asyncio.wait_for(await CLOUD_WORKER_API.delete_disk(self.disk), DISK_OPERATION_TIMEOUT_SECONDS)
+                            await asyncio.wait_for(CLOUD_WORKER_API.delete_disk(self.disk), DISK_OPERATION_TIMEOUT_SECONDS)
                             log.info(f'deleted disk {self.disk.name} for {self.id}')
                         except asyncio.CancelledError:
                             raise

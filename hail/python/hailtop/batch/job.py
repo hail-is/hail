@@ -201,10 +201,17 @@ class Job:
         will be mounted at `/io`. Batch automatically writes all :class:`.ResourceFile` to
         `/io`.
 
-        The default storage size is 0 Gi. The minimum storage size is 0 Gi and the
+        The default storage size is 0 Gi.
+
+        When using the service in Google, the minimum storage size is 0 Gi and the
         maximum storage size is 64 Ti. If storage is set to a value between 0 Gi
         and 10 Gi, the storage request is rounded up to 10 Gi. All values are
         rounded up to the nearest Gi.
+
+        When using the service in Azure, the minimum storage size is 0 Gi and the maximum
+        storage size is 32 Ti. The storage requests are rounded up to the nearest power of
+        two with a minimum size of 4 Gi. For example, a 100 Gi storage request will receive
+        128 Gi and a 200 Gi storage request will receive 256 Gi.
 
         Parameters
         ----------

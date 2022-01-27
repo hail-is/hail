@@ -106,11 +106,11 @@ class GCPDiskManager(CloudDiskManager):
         await self.disk_slots.acquire()
         return GCPDisk(disk_name, self.zone, self.project, instance_name, size_in_gb, mount_path)
 
-    async def delete_disk(self, disk: GCPDisk):  # type: ignore[override]
+    async def delete_disk(self, disk: GCPDisk):
         try:
             await disk.delete()
         finally:
             try:
-                self.disk_slots.release()
-            finally:
                 await disk.close()
+            finally:
+                self.disk_slots.release()
