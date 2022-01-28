@@ -419,8 +419,20 @@ def histogram(data, range=None, bins=50, legend=None, title=None, log=False, int
         legend = ""
 
     if log:
+        bin_freq = []
+        count_problems = 0
+        for x in data.bin_freq:
+            if x == 0.0:
+                count_problems += 1
+                bin_freq.append(x)
+            else:
+                bin_freq.append(math.log10(x))
+
+        if count_problems > 0:
+            warning(f"There were {count_problems} bins with height 0, those cannot be log transformed and were left as 0s.")
+
         changes = {
-            "bin_freq": [math.log10(x) if x > 0.0 else x for x in data.bin_freq],
+            "bin_freq": bin_freq,
             "n_larger": math.log10(data.n_larger) if data.n_larger > 0.0 else data.n_larger,
             "n_smaller": math.log10(data.n_smaller) if data.n_smaller > 0.0 else data.n_smaller
         }
