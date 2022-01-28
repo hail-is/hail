@@ -106,7 +106,7 @@ class DeployConfig:
         return f'{base_scheme}s://internal.{self._domain}/{ns}/{service}{path}'
 
     def prefix_application(self, app, service, **kwargs):
-        from aiohttp import web # pylint: disable=import-outside-toplevel
+        from aiohttp import web  # pylint: disable=import-outside-toplevel
         base_path = self.base_path(service)
         if not base_path:
             return app
