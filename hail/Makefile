@@ -292,7 +292,7 @@ test-dataproc-38: install-hailctl
 # set WHEEL_FOR_AZURE to the path to that wheel file
 .PHONY: deploy
 deploy: test-dataproc $(WHEEL)
-	bash scripts/deploy.sh $(HAIL_PIP_VERSION) $(HAIL_VERSION) $(REVISION) $(DEPLOY_REMOTE) $(WHEEL) $(GITHUB_OAUTH_HEADER_FILE) $(HAIL_GENETICS_HAIL_IMAGE) $(WHEEL_FOR_AZURE)
+	bash scripts/deploy.sh $(HAIL_PIP_VERSION) $(HAIL_VERSION) $(REVISION) $(DEPLOY_REMOTE) $(WHEEL) $(GITHUB_OAUTH_HEADER_FILE) $(HAIL_GENETICS_HAIL_IMAGE) $(WHEEL_FOR_AZURE) $(WEBSITE_TAR)
 
 .PHONY: install-dev-deps
 install-dev-deps:
