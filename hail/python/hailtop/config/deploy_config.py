@@ -1,10 +1,8 @@
 from typing import List, Tuple, Dict
-import aiohttp
 import random
 import os
 import json
 import logging
-from aiohttp import web
 from ..utils import retry_transient_errors, first_extant_file
 from ..tls import internal_client_ssl_context
 
@@ -108,6 +106,7 @@ class DeployConfig:
         return f'{base_scheme}s://internal.{self._domain}/{ns}/{service}{path}'
 
     def prefix_application(self, app, service, **kwargs):
+        from aiohttp import web # pylint: disable=import-outside-toplevel
         base_path = self.base_path(service)
         if not base_path:
             return app
@@ -131,6 +130,7 @@ class DeployConfig:
 
     async def addresses(self, service: str) -> List[Tuple[str, int]]:
         from ..auth import service_auth_headers  # pylint: disable=cyclic-import,import-outside-toplevel
+        import aiohttp  # pylint: disable=import-outside-toplevel
         namespace = self.service_ns(service)
         headers = service_auth_headers(self, namespace)
         async with aiohttp.ClientSession(
