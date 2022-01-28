@@ -96,7 +96,7 @@ az sig image-version create \
     --gallery-image-version 0.0.12 \
     --target-regions ${REGION} \
     --replica-count 1 \
-    --managed-image "/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/build-batch-worker-image/providers/Microsoft.Compute/virtualMachines/$VM_NAME"
+    --managed-image "/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${BUILD_IMAGE_RESOURCE_GROUP}/providers/Microsoft.Compute/virtualMachines/$VM_NAME"
 
 echo "Image created!"
 echo "Deleting resource group $BUILD_IMAGE_RESOURCE_GROUP"
