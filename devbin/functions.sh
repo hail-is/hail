@@ -212,3 +212,20 @@ azsshworker() {
 
     ssh -i ~/.ssh/batch_worker_ssh_rsa batch-worker@$worker_ip
 }
+
+get_global_config_field() {
+    kubectl get secret global-config --template={{.data.$1}} | base64 --decode
+}
+
+confirm() {
+    printf "$1\n"
+    read -r -p "Are you sure? [y/N] " response
+    case "$response" in
+        [yY][eE][sS]|[yY])
+            true
+            ;;
+        *)
+            false
+            ;;
+    esac
+}
