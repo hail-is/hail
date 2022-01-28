@@ -4032,7 +4032,7 @@ steps:
                              /io/repo/hail/build/deploy/dist/hail-*-py3-none-any.whl \
                              /io/github-oauth \
                              docker://{{ hailgenetics_hail_image.image }} \
-                             /io/wheel-for-azure/hail-*-py3-none-any.whl
+                             /io/wheel-for-azure/hail-*-py3-none-any.whl \
                              /io/www.tar.gz
     inputs:
       - from: /hail_version
