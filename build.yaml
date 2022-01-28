@@ -2598,6 +2598,8 @@ steps:
         script: /io/sql/kill-more-deadlocks2.sql
       - name: no-locks-add-attempt
         script: /io/sql/no-locks-add-attempt.sql
+      - name: fix-n-cancelled-creating-jobs
+        script: /io/sql/fix-n-cancelled-creating-jobs.sql
     inputs:
       - from: /repo/batch/sql
         to: /io/sql
