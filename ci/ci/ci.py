@@ -27,7 +27,7 @@ from typing import Dict, Any, Optional, List
 from web_common import setup_aiohttp_jinja2, setup_common_static_routes, render_template, set_message
 
 from .environment import STORAGE_URI
-from .github import Repo, FQBranch, WatchedBranch, UnwatchedBranch, MergeFailureBatch, PR, select_random_teammate
+from .github import Repo, FQBranch, WatchedBranch, UnwatchedBranch, MergeFailureBatch, PR, select_random_teammate, WIP
 from .constants import AUTHORIZED_USERS, TEAMS
 
 with open(os.environ.get('HAIL_CI_OAUTH_TOKEN', 'oauth-token/oauth-token'), 'r') as f:
@@ -253,7 +253,8 @@ def pr_requires_action(gh_username, pr_config):
     build_state = pr_config['build_state']
     review_state = pr_config['review_state']
     return (
-        is_pr_author(gh_username, pr_config) and (build_state == 'failure' or review_state == 'changes_requested')
+        is_pr_author(gh_username, pr_config)
+        and (build_state == 'failure' or review_state == 'changes_requested' or WIP in pr_config['labels'])
     ) or (is_pr_reviewer(gh_username, pr_config) and review_state == 'pending')
 
 
