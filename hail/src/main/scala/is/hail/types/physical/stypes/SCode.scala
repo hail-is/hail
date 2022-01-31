@@ -100,6 +100,8 @@ trait SValue {
     destType.coerceOrCopy(cb, region, this, deepCopy = true)
 
   def hash(cb: EmitCodeBuilder): SInt32Value = throw new UnsupportedOperationException(s"Stype ${st} has no hashcode")
+
+  def sizeInBytes(cb: EmitCodeBuilder): SInt64Value
 }
 
 
