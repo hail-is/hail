@@ -71,7 +71,7 @@ curl -XPOST -H @$GITHUB_OAUTH_HEADER_FILE https://api.github.com/repos/hail-is/h
   "tag_name": "'$HAIL_PIP_VERSION'",
   "target_commitish": "main",
   "name": "'$HAIL_PIP_VERSION'",
-  "body": "Hail version '$HAIL_PIP_VERSION'",
+  "body": "Hail version '$HAIL_PIP_VERSION'\n\n[Change log](https://hail.is/docs/0.2/change_log.html#version-'${HAIL_PIP_VERSION//[\.]/-}')",
   "draft": false,
   "prerelease": false
 }'
