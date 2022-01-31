@@ -291,9 +291,8 @@ object LowerDistributedSort {
       WritePartition(sortedStream, UUID4(), writer)
     }
 
-    val myReturn = CompileAndEvaluate[Annotation](ctx, sortedFilenamesIR).asInstanceOf[IndexedSeq[Row]]
-    val mySortedFilenames = myReturn.map(_(0).asInstanceOf[String])
-    val newlySortedSegments = loopState.smallSegments.zip(mySortedFilenames).map { case (sr, newFilename) =>
+    val sortedFilenames = CompileAndEvaluate[Annotation](ctx, sortedFilenamesIR).asInstanceOf[IndexedSeq[Row]].map(_(0).asInstanceOf[String])
+    val newlySortedSegments = loopState.smallSegments.zip(sortedFilenames).map { case (sr, newFilename) =>
       SegmentResult(sr.indices, sr.interval, IndexedSeq(Chunk(initialTmpPath + newFilename, sr.chunks.foldLeft(0)((size, chunk) => size + chunk.size))))
     }
 
