@@ -46,69 +46,10 @@ object SCode {
   def _empty: SValue = SVoidValue
 }
 
-abstract class SCode {
-
-  def st: SType
-
-  def asBoolean: SBooleanCode = asInstanceOf[SBooleanCode]
-
-  def asInt: SInt32Code = asInstanceOf[SInt32Code]
-
-  def asInt32: SInt32Code = asInstanceOf[SInt32Code]
-
-  def asLong: SInt64Code = asInstanceOf[SInt64Code]
-
-  def asInt64: SInt64Code = asInstanceOf[SInt64Code]
-
-  def asFloat: SFloat32Code = asInstanceOf[SFloat32Code]
-
-  def asFloat32: SFloat32Code = asInstanceOf[SFloat32Code]
-
-  def asFloat64: SFloat64Code = asInstanceOf[SFloat64Code]
-
-  def asDouble: SFloat64Code = asInstanceOf[SFloat64Code]
-
-  def asPrimitive: SPrimitiveCode = asInstanceOf[SPrimitiveCode]
-
-  def asBinary: SBinaryCode = asInstanceOf[SBinaryCode]
-
-  def asIndexable: SIndexableCode = asInstanceOf[SIndexableCode]
-
-  def asBaseStruct: SBaseStructCode = asInstanceOf[SBaseStructCode]
-
-  def asString: SStringCode = asInstanceOf[SStringCode]
-
-  def asInterval: SIntervalCode = asInstanceOf[SIntervalCode]
-
-  def asNDArray: SNDArrayCode = asInstanceOf[SNDArrayCode]
-
-  def asLocus: SLocusCode = asInstanceOf[SLocusCode]
-
-  def asCall: SCallCode = asInstanceOf[SCallCode]
-
-  def asStream: SStreamCode = asInstanceOf[SStreamCode]
-
-  def castTo(cb: EmitCodeBuilder, region: Value[Region], destType: SType): SValue =
-    castTo(cb, region, destType, false)
-
-  def castTo(cb: EmitCodeBuilder, region: Value[Region], destType: SType, deepCopy: Boolean): SValue = {
-    destType.coerceOrCopy(cb, region, this.memoize(cb, "castTo"), deepCopy)
-  }
-
-  def copyToRegion(cb: EmitCodeBuilder, region: Value[Region], destType: SType): SValue =
-    destType.coerceOrCopy(cb, region, this.memoize(cb, "copyToRegion"), deepCopy = true)
-
-  def memoize(cb: EmitCodeBuilder, name: String): SValue
-
-  def memoizeField(cb: EmitCodeBuilder, name: String): SValue
-}
-
 trait SValue {
   def st: SType
 
   def valueTuple: IndexedSeq[Value[_]]
-
-  def get: SCode
 
   def asBoolean: SBooleanValue = asInstanceOf[SBooleanValue]
 
@@ -163,10 +104,7 @@ trait SValue {
 
 
 trait SSettable extends SValue {
-  def store(cb: EmitCodeBuilder, v: SCode): Unit
-
-  def store(cb: EmitCodeBuilder, v: SValue): Unit =
-    store(cb, v.get)
+  def store(cb: EmitCodeBuilder, v: SValue): Unit
 
   def settableTuple(): IndexedSeq[Settable[_]]
 }
@@ -177,13 +115,6 @@ object SSettable {
       sb.newSettable(s"${ name }_${ st.getClass.getSimpleName }_$i")(ti)
     })
   }
-}
-
-trait SUnrealizableCode extends SCode {
-  private def unsupported: Nothing =
-    throw new UnsupportedOperationException(s"$this is not realizable")
-
-  override def memoizeField(cb: EmitCodeBuilder, name: String): SValue = unsupported
 }
 
 trait SUnrealizableValue extends SValue

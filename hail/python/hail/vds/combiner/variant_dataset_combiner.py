@@ -454,7 +454,8 @@ def new_combiner(*,
         vds = hl.vds.read_vds(vds_paths[0])
         gvcf_reference_entry_fields_to_keep = set(vds.reference_data.entry) - {'END'}
     elif gvcf_reference_entry_fields_to_keep is None and gvcf_paths:
-        mt = hl.import_vcf(gvcf_paths[0], force_bgz=True, reference_genome=reference_genome)
+        mt = hl.import_vcf(gvcf_paths[0], force_bgz=True, reference_genome=reference_genome,
+                           contig_recoding=contig_recoding)
         mt = mt.filter_rows(hl.is_defined(mt.info.END))
         gvcf_reference_entry_fields_to_keep = defined_entry_fields(mt, 100_000) - {'GT', 'PGT', 'PL'}
 

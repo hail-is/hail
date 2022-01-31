@@ -133,9 +133,9 @@ REGION_TO_REPLICATE_MAPPING = {
     'australia-southeast1': 'aus-sydney'
 }
 
-ANNOTATION_DB_BUCKETS = ["hail-datasets-us", "hail-datasets-eu", "gnomad-public-requester-pays"]
+ANNOTATION_DB_BUCKETS = ["hail-datasets-us", "hail-datasets-eu"]
 
-IMAGE_VERSION = '2.0.27-debian10'
+IMAGE_VERSION = '2.0.29-debian10'
 
 
 def init_parser(parser):

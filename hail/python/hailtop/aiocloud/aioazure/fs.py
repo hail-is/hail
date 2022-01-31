@@ -136,10 +136,11 @@ class AzureCreateManager(AsyncContextManager[WritableStream]):
 
 
 class AzureReadableStream(ReadableStream):
-    def __init__(self, client: BlobClient, offset: Optional[int] = None):
+    def __init__(self, client: BlobClient, url: str, offset: Optional[int] = None):
         super().__init__()
         self._client = client
         self._buffer = bytearray()
+        self._url = url
 
         # cannot set the default to 0 because this will fail on an empty file
         # offset means to start at the first byte
@@ -157,7 +158,7 @@ class AzureReadableStream(ReadableStream):
             try:
                 downloader = await self._client.download_blob(offset=self._offset)
             except azure.core.exceptions.ResourceNotFoundError as e:
-                raise FileNotFoundError from e
+                raise FileNotFoundError(self._url) from e
             data = await downloader.readall()
             self._eof = True
             return data
@@ -166,7 +167,7 @@ class AzureReadableStream(ReadableStream):
             try:
                 self._downloader = await self._client.download_blob(offset=self._offset)
             except azure.core.exceptions.ResourceNotFoundError as e:
-                raise FileNotFoundError from e
+                raise FileNotFoundError(self._url) from e
 
         if self._chunk_it is None:
             self._chunk_it = self._downloader.chunks()
@@ -303,12 +304,12 @@ class AzureAsyncFS(AsyncFS):
 
     async def open(self, url: str) -> ReadableStream:
         client = self.get_blob_client(url)
-        stream = AzureReadableStream(client)
+        stream = AzureReadableStream(client, url)
         return stream
 
     async def open_from(self, url: str, start: int) -> ReadableStream:
         client = self.get_blob_client(url)
-        stream = AzureReadableStream(client, offset=start)
+        stream = AzureReadableStream(client, url, offset=start)
         return stream
 
     async def create(self, url: str, *, retry_writes: bool = True) -> AsyncContextManager[WritableStream]:  # pylint: disable=unused-argument

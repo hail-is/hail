@@ -6,8 +6,8 @@ import is.hail.expr.ir._
 import is.hail.io.{InputBuffer, OutputBuffer}
 import is.hail.types.encoded._
 import is.hail.types.physical._
-import is.hail.types.physical.stypes.{SCode, SValue}
-import is.hail.types.physical.stypes.concrete.{SIndexablePointerCode, SIndexablePointerSettable, SIndexablePointerValue}
+import is.hail.types.physical.stypes.SValue
+import is.hail.types.physical.stypes.concrete.SIndexablePointerValue
 import is.hail.utils._
 
 object StagedBlockLinkedList {

@@ -6,9 +6,9 @@ from hail.expr import ArrayExpression, expr_any, expr_array, expr_interval, expr
 from hail.matrixtable import MatrixTable
 from hail.methods.misc import require_first_key_field_locus
 from hail.table import Table
-from hail.typecheck import sequenceof, typecheck, nullable, oneof
+from hail.typecheck import sequenceof, typecheck, nullable, oneof, enumeration
 from hail.utils.java import Env, info
-from hail.utils.misc import divide_null, new_temp_file
+from hail.utils.misc import divide_null, new_temp_file, wrap_to_list
 from hail.vds.variant_dataset import VariantDataset
 
 
@@ -58,21 +58,23 @@ def to_dense_mt(vds: 'VariantDataset') -> 'MatrixTable':
         call_field = 'GT' if 'GT' in var else 'LGT'
         assert call_field in var, var.dtype
 
-        merged_fields = {}
-        merged_fields[call_field] = hl.coalesce(var[call_field], hl.call(0, 0))
-        for field in ref.dtype:
-            if field in var:
-                merged_fields[field] = hl.coalesce(var[field], ref[field])
+        shared_fields = [call_field] + list(f for f in ref.dtype if f in var.dtype)
+        shared_field_set = set(shared_fields)
+        var_fields = [f for f in var.dtype if f not in shared_field_set]
 
-        return hl.struct(**merged_fields).annotate(**{f: var[f] for f in var if f not in merged_fields})
+        return hl.if_else(hl.is_defined(var),
+                          var.select(*shared_fields, *var_fields),
+                          ref.annotate(**{call_field: hl.call(0, 0)})
+                          .select(*shared_fields, **{f: hl.null(var[f].dtype) for f in var_fields}))
 
     dr = dr.annotate(
         _dense=hl.zip(dr._var_entries, dr.dense_ref).map(
-            lambda tuple: coalesce_join(hl.or_missing(tuple[1].END <= dr.locus.position, tuple[1]), tuple[0])
-        )
+            lambda tuple: coalesce_join(hl.or_missing(tuple[1].END > dr.locus.position, tuple[1]), tuple[0])
+        ),
     )
+
     dr = dr._key_by_assert_sorted('locus', 'alleles')
-    dr = dr.drop('_var_entries', '_ref_entries', 'dense_ref', '_variant_defined')
+    dr = dr.drop('_var_entries', '_ref_entries', 'dense_ref', '_variant_defined', 'ref_allele')
     return dr._unlocalize_entries('_dense', '_var_cols', list(var.col_key))
 
 
@@ -479,10 +481,105 @@ def filter_variants(vds: 'VariantDataset', variants_table: 'Table', *, keep: boo
     return VariantDataset(vds.reference_data, variant_data)
 
 
-@typecheck(vds=VariantDataset, intervals=expr_array(expr_interval(expr_any)), keep=bool)
-def filter_intervals(vds: 'VariantDataset', intervals: 'ArrayExpression', *, keep: bool = False) -> 'VariantDataset':
-    """Filter intervals in a :class:`.VariantDataset` (only on variant data for
-    now).
+@typecheck(vds=VariantDataset,
+           intervals=expr_array(expr_interval(expr_any)),
+           keep=bool,
+           mode=enumeration('variants_only', 'split_at_boundaries', 'unchecked_filter_both'))
+def _parameterized_filter_intervals(vds: 'VariantDataset',
+                                    intervals: 'ArrayExpression',
+                                    keep: bool,
+                                    mode: str) -> 'VariantDataset':
+
+    if mode == 'variants_only':
+        variant_data = hl.filter_intervals(vds.variant_data, intervals, keep)
+        return VariantDataset(vds.reference_data, variant_data)
+    if mode == 'split_at_boundaries':
+        if not keep:
+            raise ValueError("filter_intervals mode 'split_at_boundaries' not implemented for keep=False")
+        par_intervals = hl.Table.parallelize([hl.Struct(interval=x) for x in intervals],
+                                             schema=hl.tstruct(interval=intervals.dtype.element_type), key='interval')
+        ref = segment_reference_blocks(vds.reference_data, par_intervals)
+        return VariantDataset(ref,
+                              hl.filter_intervals(vds.variant_data, intervals, keep))
+
+    return VariantDataset(hl.filter_intervals(vds.reference_data, intervals, keep),
+                          hl.filter_intervals(vds.variant_data, intervals, keep))
+
+
+@typecheck(vds=VariantDataset,
+           keep=nullable(oneof(str, sequenceof(str))),
+           remove=nullable(oneof(str, sequenceof(str))),
+           keep_autosomes=bool)
+def filter_chromosomes(vds: 'VariantDataset', *, keep=None, remove=None, keep_autosomes=False) -> 'VariantDataset':
+    """Filter chromosomes of a :class:`.VariantDataset` in several possible modes.
+
+    Notes
+    -----
+    There are three modes for :func:`filter_chromosomes`, based on which argument is passed
+    to the function. Exactly one of the below arguments must be passed by keyword.
+
+     - ``keep``: This argument expects a single chromosome identifier or a list of chromosome
+       identifiers, and the function returns a :class:`.VariantDataset` with only those
+       chromosomes.
+     - ``remove``: This argument expects a single chromosome identifier or a list of chromosome
+       identifiers, and the function returns a :class:`.VariantDataset` with those chromosomes
+       removed.
+     - ``keep_autosomes``: This argument expects the value ``True``, and returns a dataset without
+       sex and mitochondrial chromosomes.
+
+    Parameters
+    ----------
+    vds : :class:`.VariantDataset`
+        Dataset.
+    keep
+        Keep a specified list of contigs.
+    remove
+        Remove a specified list of contigs
+    keep_autosomes
+        If true, keep only autosomal chromosomes.
+
+    Returns
+    -------
+    :class:`.VariantDataset`.
+    """
+
+    n_args_passed = (keep is not None) + (remove is not None) + keep_autosomes
+    if n_args_passed == 0:
+        raise ValueError("filter_chromosomes: expect one of 'keep', 'remove', or 'keep_autosomes' arguments")
+    if n_args_passed > 1:
+        raise ValueError("filter_chromosomes: expect ONLY one of 'keep', 'remove', or 'keep_autosomes' arguments"
+                         "\n  In order use 'keep_autosomes' with 'keep' or 'remove', call the function twice")
+
+    rg = vds.reference_genome
+
+    to_keep = []
+
+    if keep is not None:
+        keep = wrap_to_list(keep)
+        to_keep.extend(keep)
+    elif remove is not None:
+        remove = set(wrap_to_list(remove))
+        for c in rg.contigs:
+            if c not in remove:
+                to_keep.append(c)
+    elif keep_autosomes:
+        to_remove = set(rg.x_contigs + rg.y_contigs + rg.mt_contigs)
+        for c in rg.contigs:
+            if c not in to_remove:
+                to_keep.append(c)
+
+    parsed_intervals = hl.literal(to_keep, hl.tarray(hl.tstr)).map(
+        lambda c: hl.parse_locus_interval(c, reference_genome=rg))
+    return _parameterized_filter_intervals(vds,
+                                           intervals=parsed_intervals,
+                                           keep=True,
+                                           mode='unchecked_filter_both')
+
+
+@typecheck(vds=VariantDataset, intervals=expr_array(expr_interval(expr_any)), split_reference_blocks=bool, keep=bool)
+def filter_intervals(vds: 'VariantDataset', intervals: 'ArrayExpression', *, split_reference_blocks: bool = False,
+                     keep: bool = False) -> 'VariantDataset':
+    """Filter intervals in a :class:`.VariantDataset`.
 
     Parameters
     ----------
@@ -490,6 +587,10 @@ def filter_intervals(vds: 'VariantDataset', intervals: 'ArrayExpression', *, kee
         Dataset in VariantDataset representation.
     intervals : :class:`.ArrayExpression` of type :class:`.tinterval`
         Intervals to filter on.
+    split_reference_blocks: :obj:`bool`
+        If true, remove reference data outside the given intervals by segmenting reference
+        blocks at interval boundaries. Results in a smaller result, but this filter mode
+        is more computationally expensive to evaluate.
     keep : :obj:`bool`
         Whether to keep, or filter out (default) rows that fall within any
         interval in `intervals`.
@@ -498,10 +599,10 @@ def filter_intervals(vds: 'VariantDataset', intervals: 'ArrayExpression', *, kee
     -------
     :class:`.VariantDataset`
     """
-    # for now, don't touch reference data.
-    # should remove large regions and scan forward ref blocks to the start of the next kept region
-    variant_data = hl.filter_intervals(vds.variant_data, intervals, keep)
-    return VariantDataset(vds.reference_data, variant_data)
+    if split_reference_blocks and not keep:
+        raise ValueError("'filter_intervals': cannot use 'split_reference_blocks' with keep=False")
+    return _parameterized_filter_intervals(vds, intervals, keep=keep,
+                                           mode='split_at_boundaries' if split_reference_blocks else 'variants_only')
 
 
 @typecheck(vds=VariantDataset, filter_changed_loci=bool)

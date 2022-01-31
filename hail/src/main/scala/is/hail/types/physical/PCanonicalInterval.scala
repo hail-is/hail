@@ -3,10 +3,10 @@ package is.hail.types.physical
 import is.hail.annotations._
 import is.hail.asm4s._
 import is.hail.expr.ir.{EmitCode, EmitCodeBuilder}
-import is.hail.types.physical.stypes.{SCode, SValue}
-import is.hail.types.physical.stypes.concrete.{SIntervalPointer, SIntervalPointerCode, SIntervalPointerValue, SStackStruct, SUnreachableInterval}
-import is.hail.types.physical.stypes.interfaces.{SIntervalValue, primitive}
-import is.hail.types.physical.stypes.primitives.{SBooleanCode, SBooleanValue}
+import is.hail.types.physical.stypes.SValue
+import is.hail.types.physical.stypes.concrete.{SIntervalPointer, SIntervalPointerValue, SStackStruct}
+import is.hail.types.physical.stypes.interfaces.primitive
+import is.hail.types.physical.stypes.primitives.SBooleanValue
 import is.hail.types.virtual.{TInterval, Type}
 import is.hail.utils.{FastIndexedSeq, Interval}
 import org.apache.spark.sql.Row
@@ -75,11 +75,12 @@ final case class PCanonicalInterval(pointType: PType, override val required: Boo
 
   override def sType: SIntervalPointer = SIntervalPointer(setRequired(false))
 
-  override def loadCheapSCode(cb: EmitCodeBuilder, addr: Code[Long]): SIntervalPointerValue =
-    new SIntervalPointerCode(sType, addr).memoize(cb, "loadCheapSCode")
-
-  override def loadCheapSCodeField(cb: EmitCodeBuilder, addr: Code[Long]): SIntervalPointerValue =
-    new SIntervalPointerCode(sType, addr).memoizeField(cb, "loadCheapSCodeField")
+  override def loadCheapSCode(cb: EmitCodeBuilder, addr: Code[Long]): SIntervalPointerValue = {
+    val a = cb.memoize(addr)
+    val incStart = cb.memoize(includesStart(a))
+    val incEnd = cb.memoize(includesEnd(a))
+    new SIntervalPointerValue(sType, a, incStart, incEnd)
+  }
 
   override def store(cb: EmitCodeBuilder, region: Value[Region], value: SValue, deepCopy: Boolean): Value[Long] = {
     value.st match {

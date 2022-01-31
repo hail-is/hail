@@ -46,9 +46,8 @@ class GroupedBTreeKey(kt: PType, kb: EmitClassBuilder[_], region: Value[Region],
   def isKeyMissing(cb: EmitCodeBuilder, off: Code[Long]): Value[Boolean] =
     storageType.isFieldMissing(cb, off, 0)
 
-  def loadKey(cb: EmitCodeBuilder, off: Code[Long]): SValue = {
-    kt.loadCheapSCodeField(cb, storageType.loadField(off, 0))
-  }
+  def loadKey(cb: EmitCodeBuilder, off: Code[Long]): SValue =
+    cb.memoizeField(kt.loadCheapSCode(cb, storageType.loadField(off, 0)), "loadKey")
 
   def initValue(cb: EmitCodeBuilder, destc: Code[Long], k: EmitCode, rIdx: Code[Int]): Unit = {
     val dest = cb.newLocal("ga_init_value_dest", destc)

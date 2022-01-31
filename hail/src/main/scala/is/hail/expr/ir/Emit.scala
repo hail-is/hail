@@ -1285,11 +1285,11 @@ class Emit[C](
           }
         }
 
-      case StreamDistribute(child, pivots, path, spec) =>
+      case StreamDistribute(child, pivots, path, comparisonOp, spec) =>
         emitI(path).flatMap(cb) { pathValue =>
           emitI(pivots).flatMap(cb) { case pivotsVal: SIndexableValue =>
             emitStream(child, cb, region).map(cb) { case childStream: SStreamValue =>
-              EmitStreamDistribute.emit(cb, region, pivotsVal, childStream, pathValue, spec)
+              EmitStreamDistribute.emit(cb, region, pivotsVal, childStream, pathValue, comparisonOp, spec)
             }
           }
         }

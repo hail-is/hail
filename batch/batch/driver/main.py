@@ -785,8 +785,9 @@ LOCK IN SHARE MODE;
 '''
         )
 
-        async for record in user_inst_coll_with_broken_resources:
-            log.error(f'user_inst_coll_resources corrupt: {record}')
+        failures = [record async for record in user_inst_coll_with_broken_resources]
+        if len(failures) > 0:
+            raise ValueError(json.dumps(failures))
 
     try:
         await check()  # pylint: disable=no-value-for-parameter

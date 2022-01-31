@@ -14,7 +14,7 @@ BRANCH := $(shell git rev-parse --abbrev-ref HEAD)
 SCALA_VERSION ?= 2.12.13
 SPARK_VERSION ?= 3.1.2
 HAIL_MAJOR_MINOR_VERSION := 0.2
-HAIL_PATCH_VERSION := 81
+HAIL_PATCH_VERSION := 82
 HAIL_PIP_VERSION := $(HAIL_MAJOR_MINOR_VERSION).$(HAIL_PATCH_VERSION)
 HAIL_VERSION := $(HAIL_PIP_VERSION)-$(SHORT_REVISION)
 ELASTIC_MAJOR_VERSION ?= 7
@@ -266,9 +266,13 @@ install-on-cluster: $(WHEEL)
 .PHONY: install-hailctl
 install-hailctl: install upload-artifacts
 
-.PHONY: test-dataproc
-test-dataproc: install-hailctl
-	bash scripts/test-dataproc.sh
+.PHONY: test-dataproc-37
+test-dataproc-37: install-hailctl
+	bash scripts/test-dataproc.sh "GRCh37"
+
+.PHONY: test-dataproc-38
+test-dataproc-38: install-hailctl
+	bash scripts/test-dataproc.sh "GRCh38"
 
 # install skopeo
 # use curl version >=7.55.0

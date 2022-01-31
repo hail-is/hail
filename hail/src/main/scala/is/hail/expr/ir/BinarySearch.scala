@@ -2,9 +2,8 @@ package is.hail.expr.ir
 
 import is.hail.asm4s._
 import is.hail.expr.ir.orderings.CodeOrdering
-import is.hail.types.physical._
 import is.hail.types.physical.stypes._
-import is.hail.types.physical.stypes.interfaces.{SBaseStruct, SBaseStructCode, SBaseStructValue, SContainer, SInterval, SIntervalCode, SIntervalValue}
+import is.hail.types.physical.stypes.interfaces._
 import is.hail.utils.FastIndexedSeq
 
 import scala.language.existentials
