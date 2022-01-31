@@ -13,7 +13,7 @@ variable acr_name {
 
 variable acr_sku {
   type = string
-  default = "Basic"
+  default = "Premium"
 }
 
 variable k8s_machine_type {
