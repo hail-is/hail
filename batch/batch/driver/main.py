@@ -151,7 +151,9 @@ def active_instances_only(fun):
 
         db = request.app['db']
         record = await db.select_and_fetchone(
-            'SELECT state FROM instances WHERE name = %s AND token = %s;', (instance.name, token)
+            'SELECT state FROM instances WHERE name = %s AND token = %s;',
+            (instance.name, token),
+            'activate_instances_only',
         )
         if not record:
             log.info(f'instance {instance.name}, token not found in database')
