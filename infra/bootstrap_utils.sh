@@ -5,9 +5,7 @@ if [[ -z "$HAIL" ]]; then
     exit 1
 fi
 
-get_global_config_field() {
-    kubectl get secret global-config --template={{.data.$1}} | base64 --decode
-}
+source $HAIL/devbin/functions.sh
 
 render_config_mk() {
     DOCKER_PREFIX=$(get_global_config_field docker_prefix)
