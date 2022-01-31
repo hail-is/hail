@@ -1660,10 +1660,7 @@ class JVMJob(Job):
                 log.info(f'{self}: running jvm process')
                 with self.step('running'):
                     await self.jvm.execute(
-                        f'{local_jar_location}',
-                        self.user_command_string[0],
-                        self.scratch,
-                        self.user_command_string[1:]
+                        f'{local_jar_location}', self.user_command_string[0], self.scratch, self.user_command_string[1:]
                     )
                 self.state = 'succeeded'
                 log.info(f'{self} main: {self.state}')
