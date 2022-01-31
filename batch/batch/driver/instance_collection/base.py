@@ -1,4 +1,4 @@
-from typing import Dict, Optional, Tuple, List
+from typing import Any, Dict, Optional, Tuple, List
 import asyncio
 import sortedcontainers
 import re
@@ -9,6 +9,7 @@ import logging
 from gear import Database
 from hailtop import aiotools
 from hailtop.utils import time_msecs, secret_alnum_string, periodically_call
+from hailtop.aiotools.time_limited_max_size_cache import TimeLimitedMaxSizeCache
 
 from ...instance_config import QuantifiedResource
 from ...batch_configuration import WORKER_MAX_IDLE_TIME_MSECS
@@ -16,6 +17,8 @@ from ..instance import Instance
 from ..location import CloudLocationMonitor
 from ..resource_manager import CloudResourceManager, VMStateCreating, VMStateRunning, VMStateTerminated, VMDoesNotExist
 
+SIXTY_SECONDS_NS = 60 * 1000 * 1000 * 1000
+CACHE_CAPACITY = 1000
 
 log = logging.getLogger('inst_coll_manager')
 
@@ -33,6 +36,9 @@ class InstanceCollectionManager:
 
         self.inst_coll_regex = re.compile(f'{self.machine_name_prefix}(?P<inst_coll>.*)-.*')
         self.name_inst_coll: Dict[str, InstanceCollection] = {}
+        self.name_token_cache: TimeLimitedMaxSizeCache[str, str] = TimeLimitedMaxSizeCache(
+            self.get_token_from_instance_name, SIXTY_SECONDS_NS, CACHE_CAPACITY
+        )
 
     def register_instance_collection(self, inst_coll: 'InstanceCollection'):
         assert inst_coll.name not in self.name_inst_coll
@@ -86,6 +92,15 @@ class InstanceCollectionManager:
         if inst_coll:
             return inst_coll.name_instance.get(inst_name)
         return None
+
+    async def get_token_from_instance_name(self, name):
+        record: Dict[str, Any] = await self.db.select_and_fetchone(
+            'SELECT token FROM instances WHERE name = %s',
+            (name),
+        )
+        if not record or 'token' not in record:
+            return None
+        return record['token']
 
 
 class InstanceCollection:
