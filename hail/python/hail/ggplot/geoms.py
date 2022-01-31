@@ -320,8 +320,8 @@ class GeomHistogram(Geom):
                 "marker_color": fill,
                 "customdata": list(zip(left_xs, right_xs)),
                 "hovertemplate":
-                    "Range: %{customdata[0]:.3f}-%{customdata[1]:.3f}<br>" +
-                    "Count: %{y}<br>" +
+                    "Range: [%{customdata[0]:.3f}-%{customdata[1]:.3f})<br>"
+                    "Count: %{y}<br>"
                     "<extra></extra>",
             }
 
