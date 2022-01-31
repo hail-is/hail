@@ -473,17 +473,28 @@ class Table(ExprContainer):
         ...     dicts,
         ...     partial_type={"milestone":hl.tstr, "labels":hl.tarray(hl.tstr)})
         >>> t.show()
-        +--------+--------+--------------------+-----------------+----------+-----------+------------+
-        | number | state  | user.login         | user.site_admin |  user.id | milestone | labels     |
-        +--------+--------+--------------------+-----------------+----------+-----------+------------+
-        |  int32 | str    | str                |            bool |    int32 | str       | array<str> |
-        +--------+--------+--------------------+-----------------+----------+-----------+------------+
-        |  10038 | "open" | "tpoterba"         |           False | 10562794 | NA        | []         |
-        |  10037 | "open" | "daniel-goldstein" |           False | 24440116 | NA        | []         |
-        |  10036 | "open" | "jigold"           |           False |  1693348 | NA        | []         |
-        |  10035 | "open" | "tpoterba"         |           False | 10562794 | NA        | []         |
-        |  10033 | "open" | "tpoterba"         |           False | 10562794 | NA        | []         |
-        +--------+--------+--------------------+-----------------+----------+-----------+------------+
+        +--------+--------+--------------------+-----------------+----------+
+        | number | state  | user.login         | user.site_admin |  user.id |
+        +--------+--------+--------------------+-----------------+----------+
+        |  int32 | str    | str                |            bool |    int32 |
+        +--------+--------+--------------------+-----------------+----------+
+        |  10038 | "open" | "tpoterba"         |           False | 10562794 |
+        |  10037 | "open" | "daniel-goldstein" |           False | 24440116 |
+        |  10036 | "open" | "jigold"           |           False |  1693348 |
+        |  10035 | "open" | "tpoterba"         |           False | 10562794 |
+        |  10033 | "open" | "tpoterba"         |           False | 10562794 |
+        +--------+--------+--------------------+-----------------+----------+
+        +-----------+------------+
+        | milestone | labels     |
+        +-----------+------------+
+        | str       | array<str> |
+        +-----------+------------+
+        | NA        | []         |
+        | NA        | []         |
+        | NA        | []         |
+        | NA        | []         |
+        | NA        | []         |
+        +-----------+------------+
 
         Warning
         -------
@@ -508,7 +519,7 @@ class Table(ExprContainer):
 
         """
         if schema and partial_type:
-            raise ValueError("define either schema or partial type, not both")
+            raise ValueError("define either schema or partial type, not both.")
 
         dtype = schema
         if schema is not None:
