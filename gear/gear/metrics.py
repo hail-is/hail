@@ -1,7 +1,6 @@
 from aiohttp import web
 import prometheus_client as pc  # type: ignore
 from prometheus_async.aio import time as prom_async_time  # type: ignore
-from hailtop.utils import time_msecs
 
 REQUEST_TIME = pc.Summary('http_request_latency_seconds', 'Endpoint latency in seconds', ['endpoint', 'verb'])
 REQUEST_COUNT = pc.Counter('http_request_count', 'Number of HTTP requests', ['endpoint', 'verb', 'status'])
@@ -30,13 +29,10 @@ async def monitor_endpoints_middleware(request, handler):
         CONCURRENT_REQUESTS.labels(endpoint=endpoint, verb=verb).dec()
 
 
-class LoggingTimer:
-    def __init__(self, query_name):
+class PrometheusSQLTimer:
+    def __init__(self, query_name: str):
         self.query_name = query_name
         self.sql_query_latency_manager = None
-
-    def step(self, name):
-        return LoggingTimerStep(self, name)
 
     async def __aenter__(self):
         SQL_QUERY_COUNT.labels(query_name=self.query_name).inc()
@@ -46,17 +42,3 @@ class LoggingTimer:
 
     async def __aexit__(self, exc_type, exc, tb):
         self.sql_query_latency_manager.__exit__(exc_type, exc, tb)
-
-
-class LoggingTimerStep:
-    def __init__(self, timer, name):
-        self.timer = timer
-        self.name = name
-        self.start_time = None
-
-    async def __aenter__(self):
-        self.start_time = time_msecs()
-
-    async def __aexit__(self, exc_type, exc, tb):
-        finish_time = time_msecs()
-        self.timer.timing[self.name] = finish_time - self.start_time

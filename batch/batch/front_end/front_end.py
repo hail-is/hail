@@ -12,6 +12,7 @@ import aiohttp
 import signal
 from aiohttp import web
 import aiohttp_session
+from hailtop.utils.utils import LoggingTimer
 import pandas as pd
 import pymysql
 import plotly.express as px
@@ -48,7 +49,6 @@ from gear import (
     monitor_endpoints_middleware,
 )
 from gear.clients import get_cloud_async_fs
-from gear.metrics import LoggingTimer
 from web_common import setup_aiohttp_jinja2, setup_common_static_routes, render_template, set_message
 
 # import uvloop

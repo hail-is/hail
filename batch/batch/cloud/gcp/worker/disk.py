@@ -1,9 +1,9 @@
 import logging
 from typing import Dict, Optional
 
-from gear.metrics import LoggingTimer
 from hailtop.utils import check_shell_output, retry_all_errors_n_times
 from hailtop.aiocloud import aiogoogle
+from hailtop.utils.utils import LoggingTimer
 
 from ....worker.disk import CloudDisk
 

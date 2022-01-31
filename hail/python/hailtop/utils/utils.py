@@ -842,6 +842,42 @@ async def periodically_call(period, f, *args, **kwargs):
     await retry_long_running(f.__name__, loop)
 
 
+class LoggingTimerStep:
+    def __init__(self, timer, name):
+        self.timer = timer
+        self.name = name
+        self.start_time = None
+
+    async def __aenter__(self):
+        self.start_time = time_msecs()
+
+    async def __aexit__(self, exc_type, exc, tb):
+        finish_time = time_msecs()
+        self.timer.timing[self.name] = finish_time - self.start_time
+
+
+class LoggingTimer:
+    def __init__(self, description, threshold_ms=None):
+        self.description = description
+        self.threshold_ms = threshold_ms
+        self.timing = {}
+        self.start_time = None
+
+    def step(self, name):
+        return LoggingTimerStep(self, name)
+
+    async def __aenter__(self):
+        self.start_time = time_msecs()
+        return self
+
+    async def __aexit__(self, exc_type, exc, tb):
+        finish_time = time_msecs()
+        total = finish_time - self.start_time
+        if self.threshold_ms is None or total > self.threshold_ms:
+            self.timing['total'] = total
+            log.info(f'{self.description} timing {self.timing}')
+
+
 def url_basename(url: str) -> str:
     """Return the basename of the path of the URL `url`."""
     return os.path.basename(urllib.parse.urlparse(url).path)

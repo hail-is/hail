@@ -8,7 +8,7 @@ import functools
 import ssl
 import traceback
 
-from gear.metrics import LoggingTimer
+from gear.metrics import PrometheusSQLTimer
 from hailtop.utils import sleep_and_backoff
 from hailtop.auth.sql_config import SQLConfig
 
@@ -206,7 +206,7 @@ class Transaction:
             if query_name is None:
                 await cursor.execute(sql, args)
             else:
-                async with LoggingTimer(query_name):
+                async with PrometheusSQLTimer(query_name):
                     await cursor.execute(sql, args)
             return await cursor.fetchone()
 
@@ -216,7 +216,7 @@ class Transaction:
             if query_name is None:
                 await cursor.execute(sql, args)
             else:
-                async with LoggingTimer(query_name):
+                async with PrometheusSQLTimer(query_name):
                     await cursor.execute(sql, args)
             while True:
                 rows = await cursor.fetchmany(100)
