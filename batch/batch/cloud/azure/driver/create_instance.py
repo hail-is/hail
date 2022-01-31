@@ -212,7 +212,7 @@ EOF
 {make_global_config_str}
 
 # retry once
-az acr login --name $RESOURCE_GROUP
+az acr login --name $DOCKER_PREFIX
 docker pull $BATCH_WORKER_IMAGE || \
 (echo 'pull failed, retrying' && sleep 15 && docker pull $BATCH_WORKER_IMAGE)
 
