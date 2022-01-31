@@ -290,6 +290,8 @@ class GeomHistogram(Geom):
 
         def plot_group(data, num_groups):
             x = []
+            left_xs = []
+            right_xs = []
 
             for element in data:
                 left_x = element.x
@@ -300,7 +302,9 @@ class GeomHistogram(Geom):
                 elif self.position == "stack":
                     center_x = left_x + bin_width / 2
 
+                left_xs.append(left_x)
                 x.append(center_x)
+                right_xs.append(left_x + bin_width)
 
             if self.fill is None:
                 if "fill" in data[0]:
@@ -313,7 +317,12 @@ class GeomHistogram(Geom):
             hist_args = {
                 "x": x,
                 "y": [element["y"] for element in data],
-                "marker_color": fill
+                "marker_color": fill,
+                "customdata": list(zip(left_xs, right_xs)),
+                "hovertemplate":
+                    "Range: %{customdata[0]:.3f}-%{customdata[1]:.3f}<br>" +
+                    "Count: %{y}<br>" +
+                    "<extra></extra>",
             }
 
             if self.color is None and "color" in data[0]:
