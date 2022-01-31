@@ -141,30 +141,32 @@ class ServiceBackend(
       }
     }
 
-    val batchClient = BatchClient.fromSessionID(backendContext.sessionID) // FIXME: how is this working?
-    val createBatch = scalaConcurrent.Future {
-      val jobs = new Array[JObject](n)
-      var i = 0
-      while (i < n) {
-        jobs(i) = JObject(
-          "always_run" -> JBool(false),
-          "job_id" -> JInt(i + 1),
-          "parent_ids" -> JArray(List()),
-          "process" -> JObject(
-            "command" -> JArray(List(
-              JString("is.hail.backend.service.Worker"),
-              JString(revision),
-              JString(jarLocation),
-              JString(root),
-              JString(s"$i"))),
-            "type" -> JString("jvm")),
-          "mount_tokens" -> JBool(true))
-        i += 1
-      }
+    scalaConcurrent.Await.result(uploadFunction, scalaConcurrent.duration.Duration.Inf)
+    scalaConcurrent.Await.result(uploadContexts, scalaConcurrent.duration.Duration.Inf)
 
-      log.info(s"parallelizeAndComputeWithIndex: $token: running job")
+    val batchClient = BatchClient.fromSessionID(backendContext.sessionID)
+    val jobs = new Array[JObject](n)
+    var i = 0
+    while (i < n) {
+      jobs(i) = JObject(
+        "always_run" -> JBool(false),
+        "job_id" -> JInt(i + 1),
+        "parent_ids" -> JArray(List()),
+        "process" -> JObject(
+          "command" -> JArray(List(
+            JString("is.hail.backend.service.Worker"),
+            JString(revision),
+            JString(jarLocation),
+            JString(root),
+            JString(s"$i"))),
+          "type" -> JString("jvm")),
+        "mount_tokens" -> JBool(true))
+      i += 1
+    }
 
-      batchClient.create(
+    log.info(s"parallelizeAndComputeWithIndex: $token: running job")
+
+    val batchId = batchClient.create(
         JObject(
           "billing_project" -> JString(backendContext.billingProject),
           "n_jobs" -> JInt(n),
@@ -172,10 +174,6 @@ class ServiceBackend(
           "attributes" -> JObject("name" -> JString(name + "_" + batchCount))),
         jobs)
     }
-
-    scalaConcurrent.Await.result(uploadFunction, scalaConcurrent.duration.Duration.Inf)
-    scalaConcurrent.Await.result(uploadContexts, scalaConcurrent.duration.Duration.Inf)
-    val batchId = scalaConcurrent.Await.result(createBatch, scalaConcurrent.duration.Duration.Inf)
 
     val batch = batchClient.waitForBatch(batchId)
     batchCount += 1
