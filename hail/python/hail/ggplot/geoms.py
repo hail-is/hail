@@ -271,7 +271,7 @@ def geom_col(mapping=aes(), *, fill=None, color=None, position="stack", size=Non
 
 class GeomHistogram(Geom):
 
-    def __init__(self, aes, min_val=None, max_val=None, bins=30, fill=None, color=None, position='stack', size=None):
+    def __init__(self, aes, min_val=None, max_val=None, bins=None, fill=None, color=None, position='stack', size=None):
         super().__init__(aes)
         self.min_val = min_val
         self.max_val = max_val
@@ -284,7 +284,9 @@ class GeomHistogram(Geom):
     def apply_to_fig(self, parent, agg_result, fig_so_far, precomputed):
         min_val = self.min_val if self.min_val is not None else precomputed.min_val
         max_val = self.max_val if self.max_val is not None else precomputed.max_val
-        bin_width = (max_val - min_val) / self.bins
+        # This assumes it doesn't really make sense to use another stat for geom_histogram
+        bins = self.bins if self.bins is not None else self.get_stat().DEFAULT_BINS
+        bin_width = (max_val - min_val) / bins
 
         def plot_group(data, num_groups):
             x = []
@@ -339,7 +341,7 @@ class GeomHistogram(Geom):
         return StatBin(self.min_val, self.max_val, self.bins)
 
 
-def geom_histogram(mapping=aes(), *, min_val=None, max_val=None, bins=30, fill=None, color=None, position='stack',
+def geom_histogram(mapping=aes(), *, min_val=None, max_val=None, bins=None, fill=None, color=None, position='stack',
                    size=None):
     """Creates a histogram.
 

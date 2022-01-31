@@ -1,6 +1,7 @@
 import abc
 
 import hail as hl
+from hail.utils.java import warning
 from .utils import is_continuous_type
 
 
@@ -68,6 +69,7 @@ class StatCount(Stat):
 
 
 class StatBin(Stat):
+    DEFAULT_BINS = 30
 
     def __init__(self, min_val, max_val, bins):
         self.min_val = min_val
@@ -89,7 +91,12 @@ class StatBin(Stat):
 
         start = self.min_val if self.min_val is not None else precomputed.min_val
         end = self.max_val if self.max_val is not None else precomputed.max_val
-        return hl.agg.group_by(hl.struct(**discrete_variables), hl.agg.hist(mapping["x"], start, end, self.bins))
+        if self.bins is None:
+            warning(f"No number of bins was specfied for geom_histogram, defaulting to {self.DEFAULT_BINS} bins")
+            bins = self.DEFAULT_BINS
+        else:
+            bins = self.bins
+        return hl.agg.group_by(hl.struct(**discrete_variables), hl.agg.hist(mapping["x"], start, end, bins))
 
     def listify(self, agg_result):
         items = list(agg_result.items())
