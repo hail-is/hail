@@ -116,7 +116,7 @@
     <td>{{ instance.time_created_str() }}</td>
     <td>{{ instance.last_updated_str() }} ago</td>
     <td>
-      <form action="{{ base_path }}/instances/{{ instance.name }}/deactivate" method="post">
+      <form action="{{ base_path }}/instances/{{ instance.name }}/kill" method="post">
         <input type="hidden" name="_csrf" value="{{ csrf_token }}" />
         <button>Delete</button>
       </form>

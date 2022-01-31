@@ -297,9 +297,9 @@ async def kill_instance(request, userdata):  # pylint: disable=unused-argument
     session = await aiohttp_session.get_session(request)
     if instance.state == 'active':
         await asyncio.shield(instance.kill())
-        set_message(session, f'Deactivated instance {instance_name}', 'info')
+        set_message(session, f'Killed instance {instance_name}', 'info')
     else:
-        set_message(session, 'Cannot deactivate a non-active instance', 'error')
+        set_message(session, 'Cannot kill a non-active instance', 'error')
 
     pool_name = instance.inst_coll.name
     pool_url_path = f'/inst_coll/pool/{pool_name}'
