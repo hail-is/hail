@@ -116,36 +116,63 @@ class GGPlot:
         -------
         A Plotly figure that can be updated with plotly methods.
         """
-        fields_to_select = {"figure_mapping": hl.struct(**self.aes)}
-        for geom_idx, geom in enumerate(self.geoms):
-            label = f"geom{geom_idx}"
-            fields_to_select[label] = hl.struct(**geom.aes.properties)
 
-        selected = self.ht.select(**fields_to_select)
+        def make_geom_label(geom_idx):
+            return f"geom{geom_idx}"
+
+        def select_table():
+            fields_to_select = {"figure_mapping": hl.struct(**self.aes)}
+            for geom_idx, geom in enumerate(self.geoms):
+                geom_label = make_geom_label(geom_idx)
+                fields_to_select[geom_label] = hl.struct(**geom.aes.properties)
+
+            return self.ht.select(**fields_to_select)
+
+        def collect_mappings_and_precomputed(selected):
+            mapping_per_geom = []
+            precomputes = {}
+            for geom_idx, geom in enumerate(self.geoms):
+                geom_label = make_geom_label(geom_idx)
+
+                combined_mapping = selected["figure_mapping"].annotate(**selected[geom_label])
+
+                for key in combined_mapping:
+                    if key in self.scales:
+                        combined_mapping = combined_mapping.annotate(**{key: self.scales[key].transform_data(combined_mapping[key])})
+                mapping_per_geom.append(combined_mapping)
+                precomputes[geom_label] = geom.get_stat().get_precomputes(combined_mapping)
+
+            # Is there anything to precompute?
+            should_precompute = any([len(precompute) > 0 for precompute in precomputes.values()])
+
+            if should_precompute:
+                precomputed = selected.aggregate(hl.struct(**precomputes))
+            else:
+                precomputed = hl.Struct(**{key: hl.Struct() for key in precomputes.keys()})
+
+            return mapping_per_geom, precomputed
+
+        def get_aggregation_result(selected, mapping_per_geom, precomputed):
+            aggregators = {}
+            labels_to_stats = {}
+            for geom_idx, combined_mapping in enumerate(mapping_per_geom):
+                stat = self.geoms[geom_idx].get_stat()
+                geom_label = make_geom_label(geom_idx)
+                agg = stat.make_agg(combined_mapping, precomputed[geom_label])
+                aggregators[geom_label] = agg
+                labels_to_stats[geom_label] = stat
+
+            return labels_to_stats, selected.aggregate(hl.struct(**aggregators))
+
         self.verify_scales()
-        aggregators = {}
-        labels_to_stats = {}
-
-        for geom_idx, geom in enumerate(self.geoms):
-            label = f"geom{geom_idx}"
-            stat = geom.get_stat()
-
-            combined_mapping = selected["figure_mapping"].annotate(**selected[label])
-
-            for key in combined_mapping:
-                if key in self.scales:
-                    combined_mapping = combined_mapping.annotate(**{key: self.scales[key].transform_data(combined_mapping[key])})
-
-            agg = stat.make_agg(combined_mapping)
-            aggregators[label] = agg
-            labels_to_stats[label] = stat
-
-        aggregated = selected.aggregate(hl.struct(**aggregators))
+        selected = select_table()
+        mapping_per_geom, precomputed = collect_mappings_and_precomputed(selected)
+        labels_to_stats, aggregated = get_aggregation_result(selected, mapping_per_geom, precomputed)
 
         fig = go.Figure()
 
-        for geom, (label, agg_result) in zip(self.geoms, aggregated.items()):
-            listified_agg_result = labels_to_stats[label].listify(agg_result)
+        for geom, (geom_label, agg_result) in zip(self.geoms, aggregated.items()):
+            listified_agg_result = labels_to_stats[geom_label].listify(agg_result)
 
             if listified_agg_result:
                 relevant_aesthetics = [scale_name for scale_name in list(listified_agg_result[0]) if scale_name in self.scales]
@@ -168,7 +195,7 @@ class GGPlot:
                     numbered_result.append(s.annotate(group=i))
                 listified_agg_result = numbered_result
 
-            geom.apply_to_fig(self, listified_agg_result, fig)
+            geom.apply_to_fig(self, listified_agg_result, fig, precomputed[geom_label])
 
         # Important to update axes after labels, axes names take precedence.
         self.labels.apply_to_fig(fig)
