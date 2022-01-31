@@ -362,30 +362,6 @@ class ServiceBackend(
     }
   }
 
-  def flags(): String = {
-    JsonMethods.compact(JObject(HailContext.get.flags.available.toArray().map { case f: String =>
-      val v = HailContext.getFlag(f)
-      f -> (if (v == null) JNull else JString(v))
-    }: _*))
-  }
-
-  def getFlag(name: String): String = {
-    val v = HailContext.getFlag(name)
-    JsonMethods.compact(if (v == null) JNull else JString(v))
-  }
-
-  def setFlag(name: String, value: String): String = {
-    val v = HailContext.getFlag(name)
-    HailContext.setFlag(name, value)
-    JsonMethods.compact(if (v == null) JNull else JString(v))
-  }
-
-  def unsetFlag(name: String): String = {
-    val v = HailContext.getFlag(name)
-    HailContext.setFlag(name, null)
-    JsonMethods.compact(if (v == null) JNull else JString(v))
-  }
-
   def lowerDistributedSort(
     ctx: ExecuteContext,
     stage: TableStage,
@@ -500,11 +476,6 @@ class ServiceBackendSocketAPI2(
   private[this] val BLOCK_MATRIX_TYPE = 5
   private[this] val REFERENCE_GENOME = 6
   private[this] val EXECUTE = 7
-  private[this] val FLAGS = 8
-  private[this] val GET_FLAG = 9
-  private[this] val UNSET_FLAG = 10
-  private[this] val SET_FLAG = 11
-  private[this] val ADD_USER = 12
   private[this] val GOODBYE = 254
 
   private[this] val dummy = new Array[Byte](8)
@@ -666,66 +637,6 @@ class ServiceBackendSocketAPI2(
           val result = backend.execute(tmpdir, sessionId, billingProject, remoteTmpDir, code, token)
           writeBool(true)
           writeString(result)
-        } catch {
-          case t: Throwable =>
-            writeBool(false)
-            writeString(formatException(t))
-        }
-
-      case FLAGS =>
-        try {
-          val result = backend.flags()
-          writeBool(true)
-          writeString(result)
-        } catch {
-          case t: Throwable =>
-            writeBool(false)
-            writeString(formatException(t))
-        }
-
-      case GET_FLAG =>
-        val name = readString()
-        try {
-          val result = backend.getFlag(name)
-          writeBool(true)
-          writeString(result)
-        } catch {
-          case t: Throwable =>
-            writeBool(false)
-            writeString(formatException(t))
-        }
-
-      case SET_FLAG =>
-        val name = readString()
-        val value = readString()
-        try {
-          val result = backend.setFlag(name, value)
-          writeBool(true)
-          writeString(result)
-        } catch {
-          case t: Throwable =>
-            writeBool(false)
-            writeString(formatException(t))
-        }
-
-      case UNSET_FLAG =>
-        val name = readString()
-        try {
-          val result = backend.unsetFlag(name)
-          writeBool(true)
-          writeString(result)
-        } catch {
-          case t: Throwable =>
-            writeBool(false)
-            writeString(formatException(t))
-        }
-
-      case ADD_USER =>
-        val name = readString()
-        val gsaKey = readString()
-        try {
-          val result = backend.addUser(name, gsaKey)
-          writeBool(true)
         } catch {
           case t: Throwable =>
             writeBool(false)

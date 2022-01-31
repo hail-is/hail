@@ -124,11 +124,6 @@ class ServiceBackend(Backend):
     BLOCK_MATRIX_TYPE = 5
     REFERENCE_GENOME = 6
     EXECUTE = 7
-    FLAGS = 8
-    GET_FLAG = 9
-    UNSET_FLAG = 10
-    SET_FLAG = 11
-    ADD_USER = 12
     GOODBYE = 254
 
     @staticmethod
