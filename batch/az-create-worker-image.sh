@@ -15,6 +15,7 @@ CONTAINER_REGISTRY_NAME=${RESOURCE_GROUP}
 SHARED_GALLERY_NAME="${RESOURCE_GROUP}_batch"
 BUILD_IMAGE_RESOURCE_GROUP="${RESOURCE_GROUP}-build-batch-worker-image"
 VM_NAME=build-batch-worker-image
+WORKER_VERSION=0.0.12
 
 DOCKER_ROOT_IMAGE=$(kubectl get secret global-config \
     --template={{.data.docker_root_image}} \
@@ -85,7 +86,7 @@ az sig image-version delete \
     --gallery-image-definition batch-worker \
     --gallery-name ${SHARED_GALLERY_NAME} \
     --resource-group ${RESOURCE_GROUP} \
-    --gallery-image-version 0.0.12 || true
+    --gallery-image-version ${WORKER_VERSION} || true
 
 echo "Creating image..."
 
@@ -93,10 +94,10 @@ az sig image-version create \
     --resource-group ${RESOURCE_GROUP} \
     --gallery-name ${SHARED_GALLERY_NAME} \
     --gallery-image-definition batch-worker \
-    --gallery-image-version 0.0.12 \
+    --gallery-image-version ${WORKER_VERSION} \
     --target-regions ${REGION} \
     --replica-count 1 \
-    --managed-image "/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${BUILD_IMAGE_RESOURCE_GROUP}/providers/Microsoft.Compute/virtualMachines/$VM_NAME"
+    --managed-image "/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${BUILD_IMAGE_RESOURCE_GROUP}/providers/Microsoft.Compute/virtualMachines/${VM_NAME}"
 
 echo "Image created!"
 echo "Deleting resource group $BUILD_IMAGE_RESOURCE_GROUP"
