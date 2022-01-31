@@ -305,6 +305,7 @@ def test_impute_sex_chromosome_ploidy():
     ]
 
 
+@skip_when_service_backend(message='uses set flags')
 def test_filter_chromosomes():
     hl._set_flags(no_whole_stage_codegen='1')
     vds = hl.vds.read_vds(os.path.join(resource('vds'), '1kg_2samples_starts.vds'))
