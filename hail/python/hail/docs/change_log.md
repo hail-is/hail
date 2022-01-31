@@ -32,6 +32,7 @@ Release 2022-02-01
 
 - (hail#11268) Fixed `log` argument in `hail.plot.histogram`.
 - (hail#11276) Fixed `log` argument in `hail.plot.pdf`.
+- (hail#11256) Fixed memory leak in LD Prune.
 
 ### New features
 
