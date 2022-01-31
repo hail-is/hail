@@ -8,7 +8,7 @@ download-secret global-config
 SUBSCRIPTION_ID=$(cat contents/azure_subscription_id)
 RESOURCE_GROUP=$(cat contents/azure_resource_group)
 LOCATION=$(cat contents/azure_location)
-CONTAINER_REGISTRY_NAME=$(cat contents/container_registry_name)
+DOCKER_PREFIX=$(cat contents/docker_prefix)
 DOCKER_ROOT_IMAGE=$(cat contents/docker_root_image)
 cd -
 
@@ -53,7 +53,7 @@ IP=$(az vm create \
 
 echo "$VM_NAME VM created successfully!"
 
-python3 ../ci/jinja2_render.py "{\"global\":{\"container_registry_name\":\"${CONTAINER_REGISTRY_NAME}\",\"docker_root_image\":\"${DOCKER_ROOT_IMAGE}\"}}" build-batch-worker-image-startup-azure.sh build-batch-worker-image-startup-azure.sh.out
+python3 ../ci/jinja2_render.py "{\"global\":{\"docker_prefix\":\"${DOCKER_PREFIX}\",\"docker_root_image\":\"${DOCKER_ROOT_IMAGE}\"}}" build-batch-worker-image-startup-azure.sh build-batch-worker-image-startup-azure.sh.out
 
 echo "Running image startup script..."
 

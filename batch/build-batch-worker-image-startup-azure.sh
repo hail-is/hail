@@ -40,7 +40,7 @@ rm -rf /var/lib/apt/lists/*
 curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
 
 az login --identity
-az acr login --name {{ global.container_registry_name }}
+az acr login --name {{ global.docker_prefix }}
 
 # avoid "unable to get current user home directory: os/user lookup failed"
 export HOME=/root
