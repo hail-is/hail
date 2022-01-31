@@ -2,13 +2,6 @@
 
 set -ex
 
-if [ -z "$1" ] || [ -z  "$2" ] || [ -z "$3" ]; then
-    echo "Usage: ./az-create-worker-image.sh <SSH_USERNAME>"
-    exit 1
-fi
-
-USERNAME=$1
-
 download-secret global-config
 SUBSCRIPTION_ID=$(cat contents/azure_subscription_id)
 RESOURCE_GROUP=$(cat contents/azure_resource_group)
@@ -21,6 +14,8 @@ SHARED_GALLERY_NAME="${RESOURCE_GROUP}_batch"
 BUILD_IMAGE_RESOURCE_GROUP="${RESOURCE_GROUP}-build-batch-worker-image"
 VM_NAME=build-batch-worker-image
 WORKER_VERSION=0.0.12
+
+USERNAME=$(az ad signed-in-user show --output tsv --query mailNickname)
 
 BATCH_WORKER_PRINCIPAL_ID=$(az identity show \
     --resource-group ${RESOURCE_GROUP} \
