@@ -2,6 +2,8 @@
 
 set -ex
 
+source $HAIL/devbin/functions.sh
+
 download-secret global-config
 SUBSCRIPTION_ID=$(cat contents/azure_subscription_id)
 RESOURCE_GROUP=$(cat contents/azure_resource_group)
@@ -13,7 +15,7 @@ cd -
 SHARED_GALLERY_NAME="${RESOURCE_GROUP}_batch"
 BUILD_IMAGE_RESOURCE_GROUP="${RESOURCE_GROUP}-build-batch-worker-image"
 VM_NAME=build-batch-worker-image
-WORKER_VERSION=0.0.12
+WORKER_VERSION=0.0.3010
 
 USERNAME=$(az ad signed-in-user show --output tsv --query mailNickname)
 
