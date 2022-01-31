@@ -7,7 +7,7 @@ REQUEST_TIME = pc.Summary('http_request_latency_seconds', 'Endpoint latency in s
 REQUEST_COUNT = pc.Counter('http_request_count', 'Number of HTTP requests', ['endpoint', 'verb', 'status'])
 CONCURRENT_REQUESTS = pc.Gauge('http_concurrent_requests', 'Number of in progress HTTP requests', ['endpoint', 'verb'])
 SQL_QUERY_COUNT = pc.Counter('sql_query_count', 'Number of SQL Queries', ['query_name'])
-SQL_QUERY_LATENCY = pc.Summary('sql_query_latency', 'SQL Query latency in seconds', ['query_name'])
+SQL_QUERY_LATENCY = pc.Summary('sql_query_latency_seconds', 'SQL Query latency in seconds', ['query_name'])
 
 
 @web.middleware
@@ -31,11 +31,8 @@ async def monitor_endpoints_middleware(request, handler):
 
 
 class LoggingTimer:
-    def __init__(self, query_name, threshold_ms=None):
+    def __init__(self, query_name):
         self.query_name = query_name
-        self.threshold_ms = threshold_ms
-        self.timing = {}
-        self.start_time = None
         self.sql_query_latency_manager = None
 
     def step(self, name):

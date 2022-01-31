@@ -1364,22 +1364,22 @@ async def _get_job(app, batch_id, job_id):
 
     record = await db.select_and_fetchone(
         '''
-    SELECT jobs.*, user, billing_project, ip_address, format_version, COALESCE(SUM(`usage` * rate), 0) AS cost
-    FROM jobs
-    INNER JOIN batches
-      ON jobs.batch_id = batches.id
-    LEFT JOIN attempts
-      ON jobs.batch_id = attempts.batch_id AND jobs.job_id = attempts.job_id AND jobs.attempt_id = attempts.attempt_id
-    LEFT JOIN instances
-      ON attempts.instance_name = instances.name
-    LEFT JOIN aggregated_job_resources
-      ON jobs.batch_id = aggregated_job_resources.batch_id AND
-         jobs.job_id = aggregated_job_resources.job_id
-    LEFT JOIN resources
-      ON aggregated_job_resources.resource = resources.resource
-    WHERE jobs.batch_id = %s AND NOT deleted AND jobs.job_id = %s
-    GROUP BY jobs.batch_id, jobs.job_id;
-    ''',
+SELECT jobs.*, user, billing_project, ip_address, format_version, COALESCE(SUM(`usage` * rate), 0) AS cost
+FROM jobs
+INNER JOIN batches
+    ON jobs.batch_id = batches.id
+LEFT JOIN attempts
+    ON jobs.batch_id = attempts.batch_id AND jobs.job_id = attempts.job_id AND jobs.attempt_id = attempts.attempt_id
+LEFT JOIN instances
+    ON attempts.instance_name = instances.name
+LEFT JOIN aggregated_job_resources
+    ON jobs.batch_id = aggregated_job_resources.batch_id AND
+        jobs.job_id = aggregated_job_resources.job_id
+LEFT JOIN resources
+    ON aggregated_job_resources.resource = resources.resource
+WHERE jobs.batch_id = %s AND NOT deleted AND jobs.job_id = %s
+GROUP BY jobs.batch_id, jobs.job_id;
+''',
         (batch_id, job_id),
     )
     if not record:

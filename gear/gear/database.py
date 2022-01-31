@@ -216,7 +216,7 @@ class Transaction:
             if query_name is None:
                 await cursor.execute(sql, args)
             else:
-                async with LoggingTimer(query_name, threshold_ms=20):
+                async with LoggingTimer(query_name):
                     await cursor.execute(sql, args)
             while True:
                 rows = await cursor.fetchmany(100)
