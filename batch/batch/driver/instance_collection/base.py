@@ -74,13 +74,13 @@ class InstanceCollectionManager:
         return self.name_inst_coll.get(inst_coll_name)
 
     def get_instance(self, inst_name) -> Optional[Instance]:
-        inst_coll_name = None
-
         match = re.search(self.inst_coll_regex, inst_name)
         if match:
             inst_coll_name = match.groupdict()['inst_coll']
         elif inst_name.startswith(self.machine_name_prefix):
             inst_coll_name = 'standard'
+        else:
+            return None
 
         inst_coll = self.name_inst_coll.get(inst_coll_name)
         if inst_coll:
