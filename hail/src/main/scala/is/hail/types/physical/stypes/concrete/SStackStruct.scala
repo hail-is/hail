@@ -1,11 +1,13 @@
 package is.hail.types.physical.stypes.concrete
 
 import is.hail.annotations.Region
-import is.hail.asm4s.{Settable, TypeInfo, Value}
+import is.hail.asm4s.{Settable, TypeInfo, Value, const}
 import is.hail.expr.ir.{EmitCode, EmitCodeBuilder, EmitSettable, EmitValue, IEmitCode}
 import is.hail.types.physical.stypes.interfaces.{SBaseStruct, SBaseStructSettable, SBaseStructValue}
 import is.hail.types.physical.stypes.{EmitType, SCode, SType, SValue}
 import is.hail.types.physical._
+import is.hail.utils._
+import is.hail.types.physical.stypes.primitives.SInt64Value
 import is.hail.types.virtual.{TBaseStruct, TStruct, TTuple, Type}
 
 object SStackStruct {
@@ -129,6 +131,14 @@ class SStackStructValue(val st: SStackStruct, val values: IndexedSeq[EmitValue])
     val oldVType = st.virtualType.asInstanceOf[TStruct]
     val newVirtualType = TStruct(newToOld.map(i => (oldVType.fieldNames(i), oldVType.types(i))): _*)
     new SStackStructValue(SStackStruct(newVirtualType, newToOld.map(st.fieldEmitTypes)), newToOld.map(values))
+  }
+
+  override def sizeInBytes(cb: EmitCodeBuilder): SInt64Value = {
+    new SInt64Value((0 until st.size).foldLeft(const(0L))((sizeSoFar, idx) => sizeSoFar + loadField(cb, idx).consumeCode(cb, {
+      const(0L)
+    }, { child =>
+      child.sizeInBytes(cb).value
+    })))
   }
 }
 
