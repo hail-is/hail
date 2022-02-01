@@ -695,7 +695,7 @@ https://hail.zulipchat.com/#narrow/stream/123011-Hail-Dev/topic/test_drop/near/2
         f = hl.array([hl.struct(a=1, b=2), hl.struct(a=3, b=4)])
         data = [{"idx": 0, "b": {"c": {1, 2, 3}, "d": {3, 4, 5}}, "e": [[3], [4], [5]], "f": {"a": 1, "b": 2}},
                 {"idx": 1, "b": {"c": {6, 7, 8}, "d": {9, 10, 11}}, "e": [[1], [2], [3]], "f": {"a": 3, "b": 4}}]
-        partial_type = {"idx": hl.tint32, "f": hl.tstruct(hl.tstr, hl.tint32)}
+        partial_type = {"idx": hl.tint32, "f": hl.tstruct(a=hl.tint32, b=hl.tint32)}
         table = hl.Table.parallelize(data, partial_type=partial_type, key='idx')
         ht = hl.utils.range_table(2)
         ht = ht.annotate(b=b[ht.idx], e=e[ht.idx], f=f[ht.idx])

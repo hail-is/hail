@@ -3350,7 +3350,7 @@ class Table(ExprContainer):
 
         for data_idx, field in enumerate(fields):
             type_hint = dtypes_from_pandas(pd_dtypes[field])
-            if type_hint:
+            if type_hint is not None:
                 hl_type_hints[field] = type_hint
 
         new_table = hl.Table.parallelize(data, partial_type=hl_type_hints)
