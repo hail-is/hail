@@ -147,8 +147,14 @@ object MathFunctions extends RegistryFunctions {
 
     registerScalaFunction("dbeta", Array(TFloat64, TFloat64, TFloat64), TFloat64, null)(statsPackageClass, "dbeta")
 
+    registerScalaFunction("dnorm", Array(TFloat64), TFloat64, null)(statsPackageClass, "dnorm")
+    registerScalaFunction("dnorm", Array(TFloat64, TFloat64, TFloat64, TBoolean), TFloat64, null)(statsPackageClass, "dnorm")
+
     registerScalaFunction("pnorm", Array(TFloat64), TFloat64, null)(statsPackageClass, "pnorm")
+    registerScalaFunction("pnorm", Array(TFloat64, TFloat64, TFloat64, TBoolean, TBoolean), TFloat64, null)(statsPackageClass, "pnorm")
+
     registerScalaFunction("qnorm", Array(TFloat64), TFloat64, null)(statsPackageClass, "qnorm")
+    registerScalaFunction("qnorm", Array(TFloat64, TFloat64, TFloat64, TBoolean, TBoolean), TFloat64, null)(statsPackageClass, "qnorm")
 
     registerScalaFunction("pT", Array(TFloat64, TFloat64, TBoolean, TBoolean), TFloat64, null)(statsPackageClass, "pT")
     registerScalaFunction("pF", Array(TFloat64, TFloat64, TFloat64, TBoolean, TBoolean), TFloat64, null)(statsPackageClass, "pF")
@@ -162,9 +168,23 @@ object MathFunctions extends RegistryFunctions {
     registerScalaFunction("qpois", Array(TFloat64, TFloat64), TInt32, null)(statsPackageClass, "qpois")
     registerScalaFunction("qpois", Array(TFloat64, TFloat64, TBoolean, TBoolean), TInt32, null)(statsPackageClass, "qpois")
 
-    registerScalaFunction("pchisqtail", Array(TFloat64, TFloat64), TFloat64, null)(statsPackageClass, "chiSquaredTail")
-    registerScalaFunction("pnchisqtail", Array(TFloat64, TFloat64, TFloat64), TFloat64, null)(statsPackageClass, "nonCentralChiSquaredTail")
-    registerScalaFunction("qchisqtail", Array(TFloat64, TFloat64), TFloat64, null)(statsPackageClass, "inverseChiSquaredTail")
+    registerScalaFunction("dchisq", Array(TFloat64, TFloat64), TFloat64, null)(statsPackageClass, "dchisq")
+    registerScalaFunction("dchisq", Array(TFloat64, TFloat64, TBoolean), TFloat64, null)(statsPackageClass, "dchisq")
+
+    registerScalaFunction("dnchisq", Array(TFloat64, TFloat64, TFloat64), TFloat64, null)(statsPackageClass, "dnchisq")
+    registerScalaFunction("dnchisq", Array(TFloat64, TFloat64, TFloat64, TBoolean), TFloat64, null)(statsPackageClass, "dnchisq")
+
+    registerScalaFunction("pchisqtail", Array(TFloat64, TFloat64), TFloat64, null)(statsPackageClass, "pchisqtail")
+    registerScalaFunction("pchisqtail", Array(TFloat64, TFloat64, TBoolean, TBoolean), TFloat64, null)(statsPackageClass, "pchisqtail")
+
+    registerScalaFunction("pnchisqtail", Array(TFloat64, TFloat64, TFloat64), TFloat64, null)(statsPackageClass, "pnchisqtail")
+    registerScalaFunction("pnchisqtail", Array(TFloat64, TFloat64, TFloat64, TBoolean, TBoolean), TFloat64, null)(statsPackageClass, "pnchisqtail")
+
+    registerScalaFunction("qchisqtail", Array(TFloat64, TFloat64), TFloat64, null)(statsPackageClass, "qchisqtail")
+    registerScalaFunction("qchisqtail", Array(TFloat64, TFloat64, TBoolean, TBoolean), TFloat64, null)(statsPackageClass, "qchisqtail")
+
+    registerScalaFunction("qnchisqtail", Array(TFloat64, TFloat64, TFloat64), TFloat64, null)(statsPackageClass, "qnchisqtail")
+    registerScalaFunction("qnchisqtail", Array(TFloat64, TFloat64, TFloat64, TBoolean, TBoolean), TFloat64, null)(statsPackageClass, "qnchisqtail")
 
     registerScalaFunction("floor", Array(TFloat32), TFloat32, null)(thisClass, "floor")
     registerScalaFunction("floor", Array(TFloat64), TFloat64, null)(thisClass, "floor")

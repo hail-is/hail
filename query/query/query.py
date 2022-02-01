@@ -40,7 +40,10 @@ async def add_user(app, userdata):
 
     k8s_client = app['k8s_client']
     gsa_key_secret = await retry_transient_errors(
-        k8s_client.read_namespaced_secret, userdata['hail_credentials_secret_name'], DEFAULT_NAMESPACE, _request_timeout=5.0
+        k8s_client.read_namespaced_secret,
+        userdata['hail_credentials_secret_name'],
+        DEFAULT_NAMESPACE,
+        _request_timeout=5.0,
     )
 
     if username in users:
@@ -251,7 +254,8 @@ async def on_startup(app):
 async def on_cleanup(app):
     try:
         if 'k8s_client' in app:
-            del app['k8s_client']
+            k8s_client: kube.client.CoreV1Api = app['k8s_client']
+            await k8s_client.api_client.rest_client.pool_manager.close()
     finally:
         try:
             await app['client_session'].close()

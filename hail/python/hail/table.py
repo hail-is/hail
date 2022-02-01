@@ -2454,7 +2454,7 @@ class Table(ExprContainer):
                              f"  left:  [{', '.join(str(t) for t in left_key_types)}]\n  "
                              f"  right: [{', '.join(str(t) for t in right_key_types)}]")
         left_fields = set(self._fields)
-        right_fields = set(right._fields)
+        right_fields = set(right._fields) - set(right.key)
 
         renames, _ = deduplicate(
             right_fields, max_attempts=100, already_used=left_fields)
@@ -3241,10 +3241,6 @@ class Table(ExprContainer):
     def to_pandas(self, flatten=True):
         """Converts this table to a Pandas DataFrame.
 
-        Because conversion to Pandas is done through Spark, and Spark
-        cannot represent complex types, types are expanded before
-        flattening or conversion.
-
         Parameters
         ----------
         flatten : :obj:`bool`
@@ -3255,7 +3251,22 @@ class Table(ExprContainer):
         :class:`.pandas.DataFrame`
 
         """
-        return Env.spark_backend('to_pandas').to_pandas(self, flatten)
+        table = self.flatten() if flatten else self
+        dtypes_struct = table.row.dtype
+        collect_dict = {key: hl.agg.collect(value) for key, value in table.row.items()}
+        column_struct_array = table.aggregate(hl.struct(**collect_dict))
+        columns = list(column_struct_array.keys())
+        data_dict = {}
+
+        for column in columns:
+            hl_dtype = dtypes_struct[column]
+            if hl_dtype == hl.tstr:
+                pd_dtype = 'string'
+            else:
+                pd_dtype = hl_dtype.to_numpy()
+            data_dict[column] = pandas.Series(column_struct_array[column], dtype=pd_dtype)
+
+        return pandas.DataFrame(data_dict)
 
     @staticmethod
     @typecheck(df=pandas.DataFrame,

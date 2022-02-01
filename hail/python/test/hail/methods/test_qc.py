@@ -42,7 +42,7 @@ class Tests(unittest.TestCase):
         self.assertEqual(r[0].sqc.n_hom_var, 3)
         self.assertEqual(r[0].sqc.n_insertion, 2)
         self.assertEqual(r[0].sqc.n_deletion, 0)
-        self.assertEqual(r[0].sqc.n_singleton, 3)
+        self.assertEqual(r[0].sqc.n_singleton, 2)
         self.assertEqual(r[0].sqc.n_transition, 1)
         self.assertEqual(r[0].sqc.n_transversion, 3)
         self.assertEqual(r[0].sqc.n_star, 0)

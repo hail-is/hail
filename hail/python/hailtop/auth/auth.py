@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Optional, Dict
 import os
 import aiohttp
 from hailtop.config import get_deploy_config, DeployConfig
@@ -44,17 +44,26 @@ def get_userinfo(deploy_config=None, session_id=None, client_session=None):
         client_session=client_session))
 
 
-def namespace_auth_headers(deploy_config, ns, authorize_target=True, *, token_file=None):
-    tokens = get_tokens(token_file)
+def namespace_auth_headers(deploy_config: DeployConfig,
+                           ns: str,
+                           authorize_target: bool = True,
+                           *,
+                           token_file: Optional[str] = None
+                           ) -> Dict[str, str]:
     headers = {}
     if authorize_target:
-        headers['Authorization'] = f'Bearer {tokens.namespace_token_or_error(ns)}'
+        headers['Authorization'] = f'Bearer {get_tokens(token_file).namespace_token_or_error(ns)}'
     if deploy_config.location() == 'external' and ns != 'default':
-        headers['X-Hail-Internal-Authorization'] = f'Bearer {tokens.namespace_token_or_error("default")}'
+        headers['X-Hail-Internal-Authorization'] = f'Bearer {get_tokens(token_file).namespace_token_or_error("default")}'
     return headers
 
 
-def service_auth_headers(deploy_config, service, authorize_target=True, *, token_file=None):
+def service_auth_headers(deploy_config: DeployConfig,
+                         service: str,
+                         authorize_target: bool = True,
+                         *,
+                         token_file: Optional[str] = None
+                         ) -> Dict[str, str]:
     ns = deploy_config.service_ns(service)
     return namespace_auth_headers(deploy_config, ns, authorize_target, token_file=token_file)
 

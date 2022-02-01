@@ -66,3 +66,4 @@ COPY batch/batch /batch/batch/
 RUN hail-pip-install --no-deps /batch && rm -rf /batch
 
 COPY query/log4j.properties /
+COPY letsencrypt/subdomains.txt /

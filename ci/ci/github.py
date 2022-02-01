@@ -1,3 +1,4 @@
+from enum import Enum
 from typing import Dict, Optional
 import secrets
 from shlex import quote as shq
@@ -16,6 +17,7 @@ from hailtop.utils import check_shell, check_shell_output, RETRY_FUNCTION_SCRIPT
 from .constants import GITHUB_CLONE_URL, AUTHORIZED_USERS, GITHUB_STATUS_CONTEXT, SERVICES_TEAM, COMPILER_TEAM
 from .build import BuildConfiguration, Code
 from .globals import is_test_deployment
+from .environment import DEPLOY_STEPS
 
 
 repos_lock = asyncio.Lock()
@@ -29,6 +31,12 @@ CALLBACK_URL = deploy_config.url('ci', '/api/v1alpha/batch_callback')
 zulip_client = None  # zulip.Client(config_file="/zulip-config/.zuliprc")
 
 TRACKED_PRS = None  # pc.Gauge('ci_tracked_prs', 'PRs currently being monitored by CI', ['build_state', 'review_state'])
+
+
+class GithubStatus(Enum):
+    SUCCESS = 'success'
+    PENDING = 'pending'
+    FAILURE = 'failure'
 
 
 def select_random_teammate(team):
@@ -192,10 +200,8 @@ class PR(Code):
         # 'error', 'success', 'failure', None
         self.build_state = None
 
-        # the build_state as communicated to GitHub:
-        # 'failure', 'success', 'pending'
-        self.intended_github_status = self.github_status_from_build_state()
-        self.last_known_github_status = None
+        self.intended_github_status: GithubStatus = self.github_status_from_build_state()
+        self.last_known_github_status: Dict[str, GithubStatus] = {}
 
         # don't need to set github_changed because we are refreshing github
         self.target_branch.batch_changed = True
@@ -314,14 +320,14 @@ class PR(Code):
             'sha': self.sha,
         }
 
-    def github_status_from_build_state(self):
+    def github_status_from_build_state(self) -> GithubStatus:
         if self.build_state == 'failure' or self.build_state == 'error':
-            return 'failure'
+            return GithubStatus.FAILURE
         if self.build_state == 'success' and self.batch.attributes['target_sha'] == self.target_branch.sha:
-            return 'success'
-        return 'pending'
+            return GithubStatus.SUCCESS
+        return GithubStatus.PENDING
 
-    async def post_github_status(self, gh_client, gh_status):
+    async def post_github_status(self, gh_client, gh_status: GithubStatus):
         assert self.source_sha is not None
 
         log.info(f'{self.short_str()}: notify github state: {gh_status}')
@@ -333,10 +339,10 @@ class PR(Code):
             assert self.batch.id is not None
             target_url = deploy_config.external_url('ci', f'/batches/{self.batch.id}')
         data = {
-            'state': gh_status,
+            'state': gh_status.value,
             'target_url': target_url,
             # FIXME improve
-            'description': gh_status,
+            'description': gh_status.value,
             'context': GITHUB_STATUS_CONTEXT,
         }
         try:
@@ -370,18 +376,18 @@ class PR(Code):
         await self._update_github_review_state(gh)
 
     @staticmethod
-    def _hail_github_status_from_statuses(statuses_json):
+    def _hail_github_status_from_statuses(statuses_json) -> Dict[str, GithubStatus]:
         statuses = statuses_json["statuses"]
-        hail_status = [s for s in statuses if s["context"] == GITHUB_STATUS_CONTEXT]
-        n_hail_status = len(hail_status)
-        if n_hail_status == 0:
-            return None
-        if n_hail_status == 1:
-            return hail_status[0]['state']
-        raise ValueError(
-            f'github sent multiple status summaries for our one '
-            f'context {GITHUB_STATUS_CONTEXT}: {hail_status}\n\n{statuses_json}'
-        )
+        hail_statuses = {}
+        for s in statuses:
+            context = s['context']
+            if context == GITHUB_STATUS_CONTEXT or context.startswith('hail-ci'):
+                if context in hail_statuses:
+                    raise ValueError(
+                        f'github sent multiple status summaries for context {context}: {s}\n\n{statuses_json}'
+                    )
+                hail_statuses[context] = GithubStatus(s['state'])
+        return hail_statuses
 
     async def _update_last_known_github_status(self, gh):
         if self.source_sha:
@@ -532,11 +538,12 @@ mkdir -p {shq(repo_dir)}
             return
 
         if self.source_sha:
-            if self.intended_github_status != self.last_known_github_status:
-                log.info(f'Intended github status for {self.short_str()} is: {self.intended_github_status}')
-                log.info(f'Last known github status for {self.short_str()} is: {self.last_known_github_status}')
+            last_posted_status = self.last_known_github_status.get(GITHUB_STATUS_CONTEXT)
+            if self.intended_github_status != last_posted_status:
+                log.info(f'Intended github status for {self.short_str()} is: {last_posted_status}')
+                log.info(f'Last known github status for {self.short_str()} is: {last_posted_status}')
                 await self.post_github_status(gh, self.intended_github_status)
-                self.last_known_github_status = self.intended_github_status
+                self.last_known_github_status[GITHUB_STATUS_CONTEXT] = self.intended_github_status
 
         if not await self.authorized(dbpool):
             return
@@ -550,10 +557,16 @@ mkdir -p {shq(repo_dir)}
     def is_up_to_date(self):
         return self.batch is not None and self.target_branch.sha == self.batch.attributes['target_sha']
 
-    def is_mergeable(self):
+    def is_mergeable(self) -> bool:
+        if self.last_known_github_status.get(GITHUB_STATUS_CONTEXT) == GithubStatus.SUCCESS:
+            assert self.build_state == 'success', (
+                self.last_known_github_status[GITHUB_STATUS_CONTEXT],
+                self.build_state,
+            )
         return (
             self.review_state == 'approved'
-            and self.build_state == 'success'
+            and len(self.last_known_github_status) > 0
+            and all(status == GithubStatus.SUCCESS for status in self.last_known_github_status.values())
             and self.is_up_to_date()
             and all(label not in DO_NOT_MERGE for label in self.labels)
         )
@@ -582,10 +595,11 @@ git merge {shq(self.source_sha)} -m 'merge PR'
 
 
 class WatchedBranch(Code):
-    def __init__(self, index, branch, deployable):
+    def __init__(self, index, branch, deployable, mergeable):
         self.index = index
         self.branch = branch
         self.deployable = deployable
+        self.mergeable = mergeable
 
         self.prs: Optional[Dict[str, PR]] = None
         self.sha = None
@@ -664,12 +678,14 @@ class WatchedBranch(Code):
                 if self.state_changed:
                     self.state_changed = False
                     await self._heal(batch_client, dbpool, gh)
-                    await self.try_to_merge(gh)
+                    if self.mergeable:
+                        await self.try_to_merge(gh)
         finally:
             log.info(f'update done {self.short_str()}')
             self.updating = False
 
     async def try_to_merge(self, gh):
+        assert self.mergeable
         for pr in self.prs.values():
             if pr.is_mergeable():
                 if await pr.merge(gh):
@@ -806,7 +822,7 @@ class WatchedBranch(Code):
                 log.info(f'cancel batch {batch.id} for {attrs["pr"]} {attrs["source_sha"]} => {attrs["target_sha"]}')
                 await batch.cancel()
 
-    async def _start_deploy(self, batch_client, steps=()):
+    async def _start_deploy(self, batch_client, steps=DEPLOY_STEPS):
         # not deploying
         assert not self.deploy_batch or self.deploy_state
 
@@ -823,7 +839,7 @@ mkdir -p {shq(repo_dir)}
 '''
             )
             with open(f'{repo_dir}/build.yaml', 'r') as f:
-                config = BuildConfiguration(self, f.read(), scope='deploy', requested_step_names=steps)
+                config = BuildConfiguration(self, f.read(), requested_step_names=steps, scope='deploy')
 
             log.info(f'creating deploy batch for {self.branch.short_str()}')
             deploy_batch = batch_client.create_batch(
@@ -860,11 +876,12 @@ git checkout {shq(self.sha)}
 
 
 class UnwatchedBranch(Code):
-    def __init__(self, branch, sha, userdata):
+    def __init__(self, branch, sha, userdata, extra_config=None):
         self.branch = branch
         self.user = userdata['username']
         self.namespace = userdata['namespace_name']
         self.sha = sha
+        self.extra_config = extra_config
 
         self.deploy_batch = None
 
@@ -875,7 +892,7 @@ class UnwatchedBranch(Code):
         return f'repos/{self.branch.repo.short_str()}'
 
     def config(self):
-        return {
+        config = {
             'checkout_script': self.checkout_script(),
             'branch': self.branch.name,
             'repo': self.branch.repo.short_str(),
@@ -883,6 +900,9 @@ class UnwatchedBranch(Code):
             'sha': self.sha,
             'user': self.user,
         }
+        if self.extra_config is not None:
+            config.update(self.extra_config)
+        return config
 
     async def deploy(self, batch_client, steps, excluded_steps=()):
         assert not self.deploy_batch

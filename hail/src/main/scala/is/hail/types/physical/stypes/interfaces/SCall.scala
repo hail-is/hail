@@ -11,6 +11,10 @@ trait SCall extends SType {
 }
 
 trait SCallValue extends SValue {
+  def unphase(cb: EmitCodeBuilder): SCallValue
+
+  def containsAllele(cb: EmitCodeBuilder, allele: Value[Int]): Value[Boolean]
+
   def ploidy(cb: EmitCodeBuilder): Value[Int]
 
   def isPhased(cb: EmitCodeBuilder): Value[Boolean]
@@ -23,12 +27,4 @@ trait SCallValue extends SValue {
 
   override def hash(cb: EmitCodeBuilder): SInt32Value =
     new SInt32Value(canonicalCall(cb))
-}
-
-trait SCallCode extends SCode {
-  def memoize(cb: EmitCodeBuilder, name: String): SCallValue
-
-  def memoizeField(cb: EmitCodeBuilder, name: String): SCallValue
-
-  def loadCanonicalRepresentation(cb: EmitCodeBuilder): Code[Int]
 }

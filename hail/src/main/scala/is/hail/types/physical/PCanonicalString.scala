@@ -2,9 +2,9 @@ package is.hail.types.physical
 
 import is.hail.annotations.{Annotation, Region}
 import is.hail.asm4s.{Code, Value}
-import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder}
-import is.hail.types.physical.stypes.{SCode, SValue}
-import is.hail.types.physical.stypes.concrete.{SStringPointer, SStringPointerCode, SStringPointerValue}
+import is.hail.expr.ir.EmitCodeBuilder
+import is.hail.types.physical.stypes.SValue
+import is.hail.types.physical.stypes.concrete.{SStringPointer, SStringPointerValue}
 
 case object PCanonicalStringOptional extends PCanonicalString(false)
 
@@ -63,10 +63,7 @@ class PCanonicalString(val required: Boolean) extends PString {
   def sType: SStringPointer = SStringPointer(setRequired(false))
 
   def loadCheapSCode(cb: EmitCodeBuilder, addr: Code[Long]): SStringPointerValue =
-    new SStringPointerCode(sType, addr).memoize(cb, "loadCheapSCode")
-
-  def loadCheapSCodeField(cb: EmitCodeBuilder, addr: Code[Long]): SStringPointerValue =
-    new SStringPointerCode(sType, addr).memoizeField(cb, "loadCheapSCodeField")
+    new SStringPointerValue(sType, cb.memoize(addr))
 
   def store(cb: EmitCodeBuilder, region: Value[Region], value: SValue, deepCopy: Boolean): Value[Long] = {
     value.st match {

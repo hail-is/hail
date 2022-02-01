@@ -144,6 +144,11 @@ case class Aggs(postAggIR: IR, init: IR, seqPerElt: IR, aggs: Array[PhysicalAggS
       case NDArraySum() => true
       case NDArrayMultiplyAdd() => true
       case Densify() => true
+      case Group() => true
+      case Take() => true
+      case TakeBy(_) => true
+      case Fold() => !agg.resultType.isPrimitive
+      case CollectAsSet() => true
       case _ => false
     }
     aggs.exists(containsBigAggregator)

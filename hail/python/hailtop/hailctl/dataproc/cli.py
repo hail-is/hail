@@ -1,5 +1,6 @@
 import sys
 
+import asyncio
 import argparse
 
 from . import connect
@@ -60,8 +61,8 @@ def parser():
         description='Modify active Dataproc clusters.')
     describe_parser = subparsers.add_parser(
         'describe',
-        help='Gather information about a hail file (including the schema)',
-        description='Gather information about a hail file (including the schema)')
+        help='DEPRECATED. Describe Hail Matrix Table and Table files.',
+        description='DEPRECATED. Describe Hail Matrix Table and Table files.')
 
     start_parser.set_defaults(module='start')
     start.init_parser(start_parser)
@@ -119,4 +120,5 @@ def main(args):
         # then continue and attempt to run gcloud.
         print("Warning: unable to determine Google Cloud SDK version", file=sys.stderr)
 
-    jmp[args.module].main(args, pass_through_args)
+    asyncio.get_event_loop().run_until_complete(
+        jmp[args.module].main(args, pass_through_args))

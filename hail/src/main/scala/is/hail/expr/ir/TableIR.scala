@@ -3,25 +3,27 @@ package is.hail.expr.ir
 import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.asm4s._
-import is.hail.backend.{ExecuteContext, HailTaskContext}
+import is.hail.backend.ExecuteContext
 import is.hail.backend.spark.{SparkBackend, SparkTaskContext}
 import is.hail.expr.ir
 import is.hail.expr.ir.functions.{BlockMatrixToTableFunction, MatrixToTableFunction, StringFunctions, TableToTableFunction}
 import is.hail.expr.ir.lowering.{LowererUnsupportedOperation, TableStage, TableStageDependency}
 import is.hail.expr.ir.streams.{StreamArgType, StreamProducer}
 import is.hail.io._
+import is.hail.io.avro.AvroTableReader
 import is.hail.io.fs.FS
-import is.hail.io.index.{IndexReadIterator, IndexReader, IndexReaderBuilder, LeafChild, MaybeIndexedReadZippedIterator}
+import is.hail.io.index.{IndexReadIterator, IndexReader, IndexReaderBuilder, LeafChild}
 import is.hail.linalg.{BlockMatrix, BlockMatrixMetadata, BlockMatrixReadRowBlockedRDD}
 import is.hail.rvd._
 import is.hail.sparkextras.ContextRDD
 import is.hail.types._
+import is.hail.types.physical._
 import is.hail.types.physical.stypes.concrete.SInsertFieldsStruct
-import is.hail.types.physical.{stypes, _}
+import is.hail.types.physical.stypes.interfaces.{SBaseStructValue, SStreamValue}
 import is.hail.types.physical.stypes.{BooleanSingleCodeType, Int32SingleCodeType, PTypeReferenceSingleCodeType, StreamSingleCodeType}
-import is.hail.types.physical.stypes.interfaces.{SBaseStructValue, SStream, SStreamCode, SStreamValue}
 import is.hail.types.virtual._
 import is.hail.utils._
+import is.hail.utils.prettyPrint.ArrayOfByteArrayInputStream
 import org.apache.spark.TaskContext
 import org.apache.spark.executor.InputMetrics
 import org.apache.spark.sql.Row
@@ -29,13 +31,11 @@ import org.json4s.JsonAST.JString
 import org.json4s.jackson.JsonMethods
 import org.json4s.{DefaultFormats, Extraction, Formats, JValue, ShortTypeHints}
 
-import java.io.{ByteArrayInputStream, DataInputStream, DataOutputStream, InputStream}
-import is.hail.io.avro.AvroTableReader
-
+import java.io.{DataInputStream, DataOutputStream, InputStream}
 import scala.reflect.ClassTag
 
 object TableIR {
-  def read(fs: FS, path: String, dropRows: Boolean = false, requestedType: Option[TableType] = None): TableIR = {
+  def read(fs: FS, path: String, dropRows: Boolean = false, requestedType: Option[TableType] = None): TableRead = {
     val successFile = path + "/_SUCCESS"
     if (!fs.exists(path + "/_SUCCESS"))
       fatal(s"write failed: file not found: $successFile")
@@ -76,16 +76,11 @@ class TableRunContext(val req: RequirednessAnalysis)
 
 object TableLiteral {
   def apply(value: TableValue): TableLiteral = {
-    val globalPType = PType.canonical(value.globals.t)
-    val enc = TypedCodecSpec(globalPType, BufferSpec.wireSpec) // use wireSpec to save memory
-    using(new ByteArrayEncoder(enc.buildEncoder(value.ctx, value.globals.t))) { encoder =>
-      TableLiteral(value.typ, value.rvd, enc,
-        encoder.regionValueToBytes(value.globals.value.offset))
-    }
+    TableLiteral(value.typ, value.rvd, value.globals.encoding, value.globals.encodeToByteArrays())
   }
 }
 
-case class TableLiteral(typ: TableType, rvd: RVD, enc: AbstractTypedCodecSpec, encodedGlobals: Array[Byte]) extends TableIR {
+case class TableLiteral(typ: TableType, rvd: RVD, enc: AbstractTypedCodecSpec, encodedGlobals: Array[Array[Byte]]) extends TableIR {
   val children: IndexedSeq[BaseIR] = Array.empty[BaseIR]
 
   lazy val rowCountUpperBound: Option[Long] = None
@@ -98,7 +93,7 @@ case class TableLiteral(typ: TableType, rvd: RVD, enc: AbstractTypedCodecSpec, e
   protected[ir] override def execute(ctx: ExecuteContext, r: TableRunContext): TableExecuteIntermediate = {
     val (globalPType: PStruct, dec) = enc.buildDecoder(ctx, typ.globalType)
 
-    val bais = new ByteArrayInputStream(encodedGlobals)
+    val bais = new ArrayOfByteArrayInputStream(encodedGlobals)
     val globalOffset = dec.apply(bais).readRegionValue(ctx.r)
     new TableValueIntermediate(TableValue(ctx, typ, BroadcastRow(ctx, RegionValue(ctx.r, globalOffset), globalPType), rvd))
   }
@@ -423,6 +418,8 @@ abstract class TableReader {
   def apply(tr: TableRead, ctx: ExecuteContext): TableValue
 
   def partitionCounts: Option[IndexedSeq[Long]]
+
+  def isDistinctlyKeyed: Boolean = false // FIXME: No default value
 
   def fullType: TableType
 
@@ -973,6 +970,8 @@ class TableNativeReader(
 
   def partitionCounts: Option[IndexedSeq[Long]] = if (params.options.isDefined) None else Some(spec.partitionCounts)
 
+  override def isDistinctlyKeyed: Boolean = spec.isDistinctlyKeyed
+
   def fullType: TableType = spec.table_type
 
   def rowAndGlobalPTypes(ctx: ExecuteContext, requestedType: TableType): (PStruct, PStruct) = {
@@ -1229,6 +1228,8 @@ case class TableRead(typ: TableType, dropRows: Boolean, tr: TableReader) extends
     s"\n  original:  ${ tr.fullType }\n  requested: $typ")
 
   override def partitionCounts: Option[IndexedSeq[Long]] = if (dropRows) Some(FastIndexedSeq(0L)) else tr.partitionCounts
+
+  def isDistinctlyKeyed: Boolean = tr.isDistinctlyKeyed
 
   lazy val rowCountUpperBound: Option[Long] = partitionCounts.map(_.sum)
 
@@ -2502,7 +2503,7 @@ case class TableKeyByAndAggregate(
   expr: IR,
   newKey: IR,
   nPartitions: Option[Int] = None,
-  bufferSize: Int = 50) extends TableIR {
+  bufferSize: Int) extends TableIR {
   require(expr.typ.isInstanceOf[TStruct])
   require(newKey.typ.isInstanceOf[TStruct])
   require(bufferSize > 0)

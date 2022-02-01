@@ -9,6 +9,6 @@ auth
 ukbb-rg
 query
 workshop
-atgu
 grafana
 prometheus
+hello

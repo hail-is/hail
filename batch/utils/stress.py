@@ -1,8 +1,8 @@
 import hailtop.batch as hb
 import random
+import os
 
-
-DOCKER_ROOT_IMAGE = 'gcr.io/hail-vdc/ubuntu:18.04'
+DOCKER_ROOT_IMAGE = os.environ['DOCKER_ROOT_IMAGE']
 
 
 def flip(p):

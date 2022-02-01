@@ -6,9 +6,9 @@ import is.hail.backend.ExecuteContext
 import is.hail.expr.ir.{CodeParamType, EmitCode, EmitCodeBuilder, IEmitCode}
 import is.hail.linalg.LinalgCodeUtils
 import is.hail.types.VirtualTypeWithReq
+import is.hail.types.physical.PCanonicalNDArray
 import is.hail.types.physical.stypes.EmitType
-import is.hail.types.physical.stypes.interfaces.{SNDArray, SNDArrayCode, SNDArrayValue}
-import is.hail.types.physical.{PCanonicalNDArray, PType}
+import is.hail.types.physical.stypes.interfaces.{SNDArray, SNDArrayValue}
 import is.hail.types.virtual.Type
 import is.hail.utils.{FastIndexedSeq, valueToRichCodeRegion}
 
@@ -52,10 +52,10 @@ class NDArrayMultiplyAddAggregator(ndVTyp: VirtualTypeWithReq) extends StagedAgg
               val shape = IndexedSeq(NDArrayA.shapes(0), NDArrayB.shapes(1))
               val uninitializedNDArray = ndTyp.constructUnintialized(shape, ndTyp.makeColumnMajorStrides(shape, tempRegionForCreation, cb), cb, tempRegionForCreation)
               state.storeNonmissing(cb, uninitializedNDArray)
-              SNDArray.gemm(cb, "N", "N", const(1.0), NDArrayA.get, NDArrayB.get, const(0.0), uninitializedNDArray.get)
+              SNDArray.gemm(cb, "N", "N", const(1.0), NDArrayA, NDArrayB, const(0.0), uninitializedNDArray)
             },
             { currentNDPValue =>
-              SNDArray.gemm(cb, "N", "N", NDArrayA.get, NDArrayB.get, currentNDPValue.asNDArray.get)
+              SNDArray.gemm(cb, "N", "N", NDArrayA, NDArrayB, currentNDPValue.asNDArray)
             }
           )
           cb += tempRegionForCreation.clearRegion()

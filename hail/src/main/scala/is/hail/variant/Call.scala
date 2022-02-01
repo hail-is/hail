@@ -43,6 +43,19 @@ object Call2 {
 
     Call(alleleRepr, phased, ploidy = 2)
   }
+
+  def withErrorID(aj: Int, ak: Int, phased: Boolean, errorID: Int): Call = {
+    if (aj < 0 || ak < 0)
+      fatal(s"allele indices must be >= 0. Found j=$aj and k=$ak.", errorID)
+
+    val alleleRepr =
+      if (phased)
+        Genotype.diploidGtIndex(aj, aj + ak)
+      else
+        Genotype.diploidGtIndexWithSwap(aj, ak)
+
+    Call(alleleRepr, phased, ploidy = 2, errorID = errorID)
+  }
 }
 
 object CallN {
@@ -60,11 +73,11 @@ object CallN {
 }
 
 object Call extends Serializable {
-  def apply(ar: Int, phased: Boolean, ploidy: Int): Call = {
+  def apply(ar: Int, phased: Boolean, ploidy: Int, errorID: Int = -1): Call = {
     if (ploidy < 0 || ploidy > 2)
-      fatal(s"invalid ploidy: $ploidy. Only support ploidy in range [0, 2]")
+      fatal(s"invalid ploidy: $ploidy. Only support ploidy in range [0, 2]", errorID)
     if (ar < 0)
-      fatal(s"invalid allele representation: $ar. Must be positive.")
+      fatal(s"invalid allele representation: $ar. Must be positive.", errorID)
 
     var c = 0
     c |= phased.toInt
@@ -75,7 +88,7 @@ object Call extends Serializable {
       c |= (ploidy << 1)
 
     if ((ar >>> 29) != 0)
-      fatal(s"invalid allele representation: $ar. Max value is 2^29 - 1")
+      fatal(s"invalid allele representation: $ar. Max value is 2^29 - 1", errorID)
 
     c |= ar << 3
     c
@@ -161,6 +174,28 @@ object Call extends Serializable {
         Call2(if (AllelePair.j(p) == i) 1 else 0, if (AllelePair.k(p) == i) 1 else 0, Call.isPhased(c))
       case _ =>
         CallN(Call.alleles(c).map(a => if (a == i) 1 else 0), Call.isPhased(c))
+    }
+  }
+
+  def unphase(c: Call): Call = {
+    (Call.ploidy(c): @switch) match {
+      case 0 => c
+      case 1 => Call1(Call.alleleByIndex(c, 0))
+      case 2 =>
+        val p = allelePair(c)
+        val j = AllelePair.j(p)
+        val k = AllelePair.k(p)
+        if (j <= k) Call2(j, k) else Call2(k, j)
+    }
+  }
+
+  def containsAllele(c: Call, allele: Int): Boolean = {
+    (Call.ploidy(c): @switch) match {
+      case 0 => false
+      case 1 => Call.alleleByIndex(c, 0) == allele
+      case 2 =>
+        val p = allelePair(c)
+        AllelePair.j(p) == allele || AllelePair.k(p) == allele
     }
   }
 

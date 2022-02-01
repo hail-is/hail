@@ -5,8 +5,7 @@ import is.hail.asm4s.{Code, _}
 import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder}
 import is.hail.types.physical.PCanonicalNDArray
 import is.hail.types.physical.stypes.concrete.SUnreachableNDArray
-import is.hail.types.physical.stypes.interfaces.{SNDArray, SNDArrayCode, SNDArraySettable, SNDArrayValue}
-import is.hail.utils.FastIndexedSeq
+import is.hail.types.physical.stypes.interfaces.{SNDArraySettable, SNDArrayValue}
 
 object LinalgCodeUtils {
   def checkColumnMajor(pndv: SNDArrayValue, cb: EmitCodeBuilder): Value[Boolean] = {
@@ -45,7 +44,7 @@ object LinalgCodeUtils {
     answer
   }
 
-  def createColumnMajorCode(pndv: SNDArrayValue, cb: EmitCodeBuilder, region: Value[Region]): SNDArrayCode = {
+  def createColumnMajorCode(pndv: SNDArrayValue, cb: EmitCodeBuilder, region: Value[Region]): SNDArrayValue = {
     val shape = pndv.shapes
     val pt = PCanonicalNDArray(pndv.st.elementType.storageType().setRequired(true), pndv.st.nDims, false)
     val strides = pt.makeColumnMajorStrides(shape, region, cb)
@@ -55,13 +54,13 @@ object LinalgCodeUtils {
     val result = dataFinisher(cb)
 
     result.coiterateMutate(cb, region, (pndv, "pndv")) { case Seq(l, r) => r }
-    result.get
+    result
   }
 
   def checkColMajorAndCopyIfNeeded(aInput: SNDArrayValue, cb: EmitCodeBuilder, region: Value[Region]): SNDArrayValue = {
     val aIsColumnMajor = LinalgCodeUtils.checkColumnMajor(aInput, cb)
     val aColMajor = cb.emb.newPField("ndarray_output_column_major", aInput.st).asInstanceOf[SNDArraySettable]
-    cb.ifx(aIsColumnMajor, {cb.assign(aColMajor, aInput.get)},
+    cb.ifx(aIsColumnMajor, {cb.assign(aColMajor, aInput)},
       {
         cb.assign(aColMajor, LinalgCodeUtils.createColumnMajorCode(aInput, cb, region))
       })
@@ -74,9 +73,9 @@ object LinalgCodeUtils {
 
     val aIsColumnMajor = LinalgCodeUtils.checkColumnMajor(aInput, cb)
     val a = cb.emb.newPField("ndarray_output_standardized", aInput.st).asInstanceOf[SNDArraySettable]
-    cb.ifx(aIsColumnMajor, {cb.assign(a, aInput.get)}, {
+    cb.ifx(aIsColumnMajor, {cb.assign(a, aInput)}, {
       val isRowMajor = LinalgCodeUtils.checkRowMajor(aInput, cb)
-      cb.ifx(isRowMajor, {cb.assign(a, aInput.get)}, {
+      cb.ifx(isRowMajor, {cb.assign(a, aInput)}, {
         cb.assign(a, LinalgCodeUtils.createColumnMajorCode(aInput, cb, region))
       })
     })

@@ -24,6 +24,90 @@ an earlier version of Hail to read files written in a later version.
 
 ---
 
+## Version 0.2.83
+
+Release 2022-02-01
+
+### Bug fixes
+
+- (hail#11268) Fixed `log` argument in `hail.plot.histogram`.
+- (hail#11276) Fixed `log` argument in `hail.plot.pdf`.
+- (hail#11256) Fixed memory leak in LD Prune.
+
+### New features
+
+- (hail#11274) Added `geom_col` to `hail.ggplot`.
+
+### hailctl dataproc
+
+- (hail#11280) Updated dataproc image version to one not affected by log4j vulnerabilities.
+
+---
+
+## Version 0.2.82
+
+Release 2022-01-24
+
+### Bug fixes
+
+- (hail#11209) Significantly improved usefulness and speed of `Table.to_pandas`, resolved several bugs with output.
+
+### New features
+
+- (hail#11247) Introduces a new experimental plotting interface `hail.ggplot`, based on R's ggplot library.
+- (hail#11173) Many math functions like `hail.sqrt` now automatically broadcast over ndarrays.
+
+### Performance Improvements
+
+- (hail#11216) Significantly improve performance of `parse_locus_interval`
+
+### Python and Java Support
+
+- (hail#11219) We no longer officially support Python 3.6, though it may continue to work in the short term.
+- (hail#11220) We support building hail with Java 11.
+
+---
+
+## Version 0.2.81
+
+Release 2021-12-20
+
+### hailctl dataproc
+
+- (hail#11182) Updated Dataproc image version to mitigate yet more Log4j vulnerabilities.
+
+---
+
+## Version 0.2.80
+
+Release 2021-12-15
+
+### New features
+
+- (hail#11077) `hl.experimental.write_matrix_tables` now returns the paths of the written matrix tables.
+
+### hailctl dataproc
+
+- (hail#11157) Updated Dataproc image version to mitigate the Log4j vulnerability.
+- (hail#10900) Added `--region` parameter to `hailctl dataproc submit`.
+- (hail#11090) Teach `hailctl dataproc describe` how to read URLs with the protocols `s3` (Amazon S3), `hail-az` (Azure Blob Storage), and `file` (local file system) in addition to `gs` (Google Cloud Storage).
+
+---
+
+## Version 0.2.79
+
+Release 2021-11-17
+
+### Bug fixes
+
+- (hail#11023) Fixed bug in call decoding that was introduced in version 0.2.78.
+
+### New features
+
+- (hail#10993) New function `p_value_excess_het`.
+
+---
+
 ## Version 0.2.78
 
 Release 2021-10-19

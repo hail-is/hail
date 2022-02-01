@@ -105,7 +105,8 @@ class StagedArrayBuilder(eltType: PType, kb: EmitClassBuilder[_], region: Value[
     eltArray.stagedInitialize(cb, data, capacity, setMissing = true)
   }
 
-  def elementOffset(idx: Value[Int]): Code[Long] = eltArray.elementOffset(data, capacity, idx)
+  def elementOffset(cb: EmitCodeBuilder, idx: Value[Int]): Value[Long] =
+    cb.memoize(eltArray.elementOffset(data, capacity, idx))
 
 
   def loadElement(cb: EmitCodeBuilder, idx: Value[Int]): EmitCode = {

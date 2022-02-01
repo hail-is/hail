@@ -6,9 +6,9 @@ ENV PATH "$PATH:$SPARK_HOME/sbin:$SPARK_HOME/bin"
 ENV PYSPARK_PYTHON python3
 
 # source: https://cloud.google.com/storage/docs/gsutil_install#linux
-RUN curl -sSLO https://dl.google.com/dl/cloudsdk/channels/rapid/downloads/google-cloud-sdk-334.0.0-linux-x86_64.tar.gz && \
+RUN curl --remote-name https://dl.google.com/dl/cloudsdk/channels/rapid/downloads/google-cloud-sdk-334.0.0-linux-x86_64.tar.gz && \
     tar -xf google-cloud-sdk-334.0.0-linux-x86_64.tar.gz && \
-    curl -sSLO https://dl.k8s.io/release/v1.19.7/bin/linux/amd64/kubectl && \
+    curl --remote-name https://dl.k8s.io/release/v1.19.7/bin/linux/amd64/kubectl && \
     install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
 ENV PATH $PATH:/google-cloud-sdk/bin
 
@@ -19,7 +19,6 @@ RUN hail-apt-get-install \
     wget curl \
     rsync \
     emacs-nox \
-    mysql-client \
     xsltproc pandoc \
     jq \
     openjdk-8-jdk-headless \
@@ -30,6 +29,13 @@ RUN hail-apt-get-install \
     && \
     update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-10 10 && \
     update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-10 10
+
+# https://bugs.mysql.com/bug.php?id=105288&thanks=sub
+RUN hail-apt-get-install xz-utils libncurses5 && \
+    curl --remote-name https://downloads.mysql.com/archives/get/p/23/file/mysql-8.0.26-linux-glibc2.17-x86_64-minimal-rebuild.tar.xz && \
+    mkdir -p /opt && \
+    tar -vx -C /opt -f mysql-8.0.26-linux-glibc2.17-x86_64-minimal-rebuild.tar.xz && \
+    ln -s /opt/mysql-8.0.26-linux-glibc2.17-x86_64-minimal-rebuild/bin/* /usr/bin/
 
 # Regarding explicitly selecting 2.0.1: https://github.com/hail-is/hail/issues/8343
 RUN wget -nv -O ${SPARK_HOME}/jars/gcs-connector-hadoop2-2.0.1.jar https://storage.googleapis.com/hadoop-lib/gcs/gcs-connector-hadoop2-2.0.1.jar

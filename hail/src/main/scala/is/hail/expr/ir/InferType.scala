@@ -4,7 +4,6 @@ import is.hail.expr.Nat
 import is.hail.types.virtual._
 import is.hail.utils._
 
-// FIXME: strip all requiredness logic when possible
 object InferType {
   def apply(ir: IR): Type = {
     ir match {
@@ -140,7 +139,7 @@ object InferType {
         assert(body.typ == zero.typ)
         zero.typ
       case StreamFold2(_, _, _, _, result) => result.typ
-      case StreamDistribute(child, pivots, pathPrefix, _) =>
+      case StreamDistribute(child, pivots, pathPrefix, _, _) =>
         val keyType = pivots.typ.asInstanceOf[TContainer].elementType
         TArray(TStruct(("interval", TInterval(keyType)), ("fileName", TString), ("numElements", TInt32)))
       case StreamScan(a, zero, accumName, valueName, body) =>
@@ -230,7 +229,7 @@ object InferType {
         val tbs = coerce[TStruct](old.typ)
         val s = tbs.insertFields(fields.map(f => (f._1, f._2.typ)))
         fieldOrder.map { fds =>
-          assert(fds.length == s.size)
+          assert(fds.length == s.size, s"${fds} != ${s.types.toIndexedSeq}")
           TStruct(fds.map(f => f -> s.fieldType(f)): _*)
         }.getOrElse(s)
       case GetField(o, name) =>

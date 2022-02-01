@@ -48,9 +48,7 @@ redirect('/docs/0.1/', 'index.html')
 
 
 DOCS_PATH = f'{MODULE_PATH}/docs/'
-STATIC_DOCS_PATHS = ['0.2/_static', '0.2/_sources',
-                     'batch',
-                     '0.1']
+STATIC_DOCS_PATHS = ['0.2/_static', '0.2/_sources', 'batch', '0.1']
 FQ_STATIC_DOCS_PATHS: Set[str] = set()
 
 

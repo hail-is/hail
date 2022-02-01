@@ -1,0 +1,6 @@
+CREATE TABLE IF NOT EXISTS `latest_product_versions` (
+  `product` VARCHAR(100) NOT NULL,
+  `version` VARCHAR(100) NOT NULL,
+  `time_updated` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`product`)
+) ENGINE = InnoDB;

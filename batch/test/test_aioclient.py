@@ -2,7 +2,7 @@ import os
 import pytest
 from hailtop.batch_client.aioclient import BatchClient
 
-DOCKER_ROOT_IMAGE = os.environ.get('DOCKER_ROOT_IMAGE', 'gcr.io/hail-vdc/ubuntu:18.04')
+DOCKER_ROOT_IMAGE = os.environ['DOCKER_ROOT_IMAGE']
 
 pytestmark = pytest.mark.asyncio
 

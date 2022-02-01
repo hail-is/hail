@@ -1,13 +1,13 @@
 package is.hail.types.physical.stypes.interfaces
 
 import is.hail.annotations.Region
-import is.hail.asm4s.{Code, Settable, TypeInfo, Value}
+import is.hail.asm4s.{Settable, TypeInfo, Value}
 import is.hail.expr.ir.EmitCodeBuilder
 import is.hail.expr.ir.streams.StreamProducer
-import is.hail.types.{RIterable, TypeWithRequiredness}
-import is.hail.types.physical.stypes.{EmitType, SCode, SSettable, SType, SUnrealizableCode, SUnrealizableValue, SValue}
 import is.hail.types.physical.PType
+import is.hail.types.physical.stypes._
 import is.hail.types.virtual.{TStream, Type}
+import is.hail.types.{RIterable, TypeWithRequiredness}
 
 final case class SStream(elementEmitType: EmitType) extends SType {
   def elementType: SType = elementEmitType.st
@@ -38,22 +38,10 @@ final case class SStream(elementEmitType: EmitType) extends SType {
   override def _typeWithRequiredness: TypeWithRequiredness = RIterable(elementEmitType.typeWithRequiredness.r)
 }
 
-object SStreamCode{
-  def apply(producer: StreamProducer): SStreamCode = SStreamCode(SStream(producer.element.emitType), producer)
-}
-
-final case class SStreamCode(st: SStream, producer: StreamProducer) extends SCode with SUnrealizableCode {
-  override def memoizeField(cb: EmitCodeBuilder, name: String): SValue = SStreamValue(st, producer)
-
-  override def memoize(cb: EmitCodeBuilder, name: String): SValue = SStreamValue(st, producer)
-}
-
 object SStreamValue{
   def apply(producer: StreamProducer): SStreamValue = SStreamValue(SStream(producer.element.emitType), producer)
 }
 
 final case class SStreamValue(st: SStream, producer: StreamProducer) extends SUnrealizableValue {
   def valueTuple: IndexedSeq[Value[_]] = throw new NotImplementedError()
-
-  def get: SStreamCode = SStreamCode(st, producer)
 }

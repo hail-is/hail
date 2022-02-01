@@ -46,6 +46,15 @@ def _seeded_func(name, ret_type, seed, *args):
     return construct_expr(ir.ApplySeeded(name, seed, ret_type, *(a._ir for a in args)), ret_type, indices, aggregations)
 
 
+def ndarray_broadcasting(func):
+    def broadcast_or_not(x):
+        if isinstance(x.dtype, tndarray):
+            return x.map(lambda term: func(term))
+        else:
+            return func(x)
+    return broadcast_or_not
+
+
 @typecheck(a=expr_array(), x=expr_any)
 def _lower_bound(a, x):
     if a.dtype.element_type != x.dtype:
@@ -705,6 +714,82 @@ def dbeta(x, a, b) -> Float64Expression:
     return _func("dbeta", tfloat64, x, a, b)
 
 
+@typecheck(x=expr_float64, df=expr_float64, ncp=nullable(expr_float64), log_p=expr_bool)
+def dchisq(x, df, ncp=None, log_p=False) -> Float64Expression:
+    """Compute the probability density at `x` of a chi-squared distribution with `df`
+    degrees of freedom.
+
+    Examples
+    --------
+
+    >>> hl.eval(hl.dchisq(1, 2))
+    0.3032653298563167
+
+    >>> hl.eval(hl.dchisq(1, 2, ncp=2))
+    0.17472016746112667
+
+    >>> hl.eval(hl.dchisq(1, 2, log_p=True))
+    -1.1931471805599454
+
+    Parameters
+    ----------
+    x : float or :class:`.Expression` of type :py:data:`.tfloat64`
+        Non-negative number at which to compute the probability density.
+    df : float or :class:`.Expression` of type :py:data:`.tfloat64`
+        Degrees of freedom.
+    ncp: float or :class:`.Expression` of type :py:data:`.tfloat64`
+        Noncentrality parameter, defaults to 0 if unspecified.
+    log_p : bool or :class:`.BooleanExpression`
+        If ``True``, the natural logarithm of the probability density is returned.
+
+    Returns
+    -------
+    :class:`.Expression` of type :py:data:`.tfloat64`
+        The probability density.
+    """
+    if ncp is None:
+        return _func("dchisq", tfloat64, x, df, log_p)
+    else:
+        return _func("dnchisq", tfloat64, x, df, ncp, log_p)
+
+
+@typecheck(x=expr_float64, mu=expr_float64, sigma=expr_float64, log_p=expr_bool)
+def dnorm(x, mu=0, sigma=1, log_p=False) -> Float64Expression:
+    """Compute the probability density at `x` of a normal distribution with mean
+    `mu` and standard deviation `sigma`. Returns density of standard normal
+    distribution by default.
+
+    Examples
+    --------
+
+    >>> hl.eval(hl.dnorm(1))
+    0.24197072451914337
+
+    >>> hl.eval(hl.dnorm(1, mu=1, sigma=2))
+    0.19947114020071635
+
+    >>> hl.eval(hl.dnorm(1, log_p=True))
+    -1.4189385332046727
+
+    Parameters
+    ----------
+    x : :obj:`float` or :class:`.Expression` of type :py:data:`.tfloat64`
+        Real number at which to compute the probability density.
+    mu : float or :class:`.Expression` of type :py:data:`.tfloat64`
+        Mean (default = 0).
+    sigma: float or :class:`.Expression` of type :py:data:`.tfloat64`
+        Standard deviation (default = 1).
+    log_p : :obj:`bool` or :class:`.BooleanExpression`
+        If ``True``, the natural logarithm of the probability density is returned.
+
+    Returns
+    -------
+    :class:`.Expression` of type :py:data:`.tfloat64`
+        The probability density.
+    """
+    return _func("dnorm", tfloat64, x, mu, sigma, log_p)
+
+
 @typecheck(x=expr_float64, lamb=expr_float64, log_p=expr_bool)
 def dpois(x, lamb, log_p=False) -> Float64Expression:
     """Compute the (log) probability density at x of a Poisson distribution with rate parameter `lamb`.
@@ -722,7 +807,7 @@ def dpois(x, lamb, log_p=False) -> Float64Expression:
     lamb : :obj:`float` or :class:`.Expression` of type :py:data:`.tfloat64`
         Poisson rate parameter. Must be non-negative.
     log_p : :obj:`bool` or :class:`.BooleanExpression`
-        If true, the natural logarithm of the probability density is returned.
+        If ``True``, the natural logarithm of the probability density is returned.
 
     Returns
     -------
@@ -732,7 +817,8 @@ def dpois(x, lamb, log_p=False) -> Float64Expression:
     return _func("dpois", tfloat64, x, lamb, log_p)
 
 
-@typecheck(x=expr_float64)
+@typecheck(x=oneof(expr_float64, expr_ndarray(expr_float64)))
+@ndarray_broadcasting
 def exp(x) -> Float64Expression:
     """Computes `e` raised to the power `x`.
 
@@ -744,11 +830,11 @@ def exp(x) -> Float64Expression:
 
     Parameters
     ----------
-    x : float or :class:`.Expression` of type :py:data:`.tfloat64`
+    x : float or :class:`.Expression` of type :py:data:`.tfloat64` or :class:`.NDArrayNumericExpression`
 
     Returns
     -------
-    :class:`.Expression` of type :py:data:`.tfloat64`
+    :class:`.Expression` of type :py:data:`.tfloat64` or :class:`.NDArrayNumericExpression`
     """
     return _func("exp", tfloat64, x)
 
@@ -803,7 +889,8 @@ def fisher_exact_test(c1, c2, c3, c4) -> StructExpression:
     return _func("fisher_exact_test", ret_type, c1, c2, c3, c4)
 
 
-@typecheck(x=expr_oneof(expr_float32, expr_float64))
+@typecheck(x=expr_oneof(expr_float32, expr_float64, expr_ndarray(expr_float64)))
+@ndarray_broadcasting
 def floor(x):
     """The largest integral value that is less than or equal to `x`.
 
@@ -815,16 +902,17 @@ def floor(x):
 
     Parameters
     ----------
-    x : :class:`.Float32Expression` or :class:`.Float64Expression`
+    x : :class:`.Float32Expression`, :class:`.Float64Expression`, or :class:`.NDArrayNumericExpression`
 
     Returns
     -------
-    :class:`.Float32Expression` or :class:`.Float64Expression`
+    :class:`.Float32Expression`, :class:`.Float64Expression`, or :class:`.NDArrayNumericExpression`
     """
     return _func("floor", x.dtype, x)
 
 
-@typecheck(x=expr_oneof(expr_float32, expr_float64))
+@typecheck(x=expr_oneof(expr_float32, expr_float64, expr_ndarray(expr_float64)))
+@ndarray_broadcasting
 def ceil(x):
     """The smallest integral value that is greater than or equal to `x`.
 
@@ -836,11 +924,11 @@ def ceil(x):
 
     Parameters
     ----------
-    x : :class:`.Float32Expression` or :class:`.Float64Expression`
+    x : :class:`.Float32Expression`,:class:`.Float64Expression` or :class:`.NDArrayNumericExpression`
 
     Returns
     -------
-    :class:`.Float32Expression` or :class:`.Float64Expression`
+    :class:`.Float32Expression`, :class:`.Float64Expression`,  or :class:`.NDArrayNumericExpression`
     """
     return _func("ceil", x.dtype, x)
 
@@ -1492,7 +1580,8 @@ def is_missing(expression) -> BooleanExpression:
     return apply_expr(lambda x: ir.IsNA(x), tbool, expression)
 
 
-@typecheck(x=expr_oneof(expr_float32, expr_float64))
+@typecheck(x=expr_oneof(expr_float32, expr_float64, expr_ndarray(expr_float64)))
+@ndarray_broadcasting
 def is_nan(x) -> BooleanExpression:
     """Returns ``True`` if the argument is ``nan`` (not a number).
 
@@ -1517,17 +1606,19 @@ def is_nan(x) -> BooleanExpression:
     Parameters
     ----------
     x : float or :class:`.Expression` of type :py:data:`.tfloat64`
-        Expression to test.
+        Expression to test or  or :class:`.NDArrayNumericExpression`.
 
     Returns
     -------
     :class:`.BooleanExpression`
-        ``True`` if `x` is ``nan``, ``False`` otherwise.
+        ``True`` if `x` is ``nan``, ``False`` otherwise or
+         :class:`.NDArrayNumericExpression` filled with such values
     """
     return _func("isnan", tbool, x)
 
 
-@typecheck(x=expr_oneof(expr_float32, expr_float64))
+@typecheck(x=expr_oneof(expr_float32, expr_float64, expr_ndarray(expr_float64)))
+@ndarray_broadcasting
 def is_finite(x) -> BooleanExpression:
     """Returns ``True`` if the argument is a finite floating-point number.
 
@@ -1551,16 +1642,18 @@ def is_finite(x) -> BooleanExpression:
 
     Parameters
     ----------
-    x : float or :class:`.Expression` of type :py:data:`.tfloat64`
+    x : float or :class:`.Expression` of type :py:data:`.tfloat64` or :class:`.NDArrayNumericExpression`
+
 
     Returns
     -------
-    :class:`.BooleanExpression`
+    :class:`.BooleanExpression`  or :class:`.NDArrayNumericExpression` filled with such expressions
     """
     return _func("is_finite", tbool, x)
 
 
-@typecheck(x=expr_oneof(expr_float32, expr_float64))
+@typecheck(x=expr_oneof(expr_float32, expr_float64, expr_ndarray(expr_float64)))
+@ndarray_broadcasting
 def is_infinite(x) -> BooleanExpression:
     """Returns ``True`` if the argument is positive or negative infinity.
 
@@ -1584,11 +1677,11 @@ def is_infinite(x) -> BooleanExpression:
 
     Parameters
     ----------
-    x : float or :class:`.Expression` of type :py:data:`.tfloat64`
+    x : float or :class:`.Expression` of type :py:data:`.tfloat64` or :class:`.NDArrayNumericExpression`
 
     Returns
     -------
-    :class:`.BooleanExpression`
+    :class:`.BooleanExpression` or :class:`.NDArrayNumericExpression` filled with such expressions
     """
     return _func("is_infinite", tbool, x)
 
@@ -1680,7 +1773,8 @@ def log(x, base=None) -> Float64Expression:
         return _func("log", tfloat64, x)
 
 
-@typecheck(x=expr_float64)
+@typecheck(x=oneof(expr_float64, expr_ndarray(expr_float64)))
+@ndarray_broadcasting
 def log10(x) -> Float64Expression:
     """Take the logarithm of the `x` with base 10.
 
@@ -1695,16 +1789,17 @@ def log10(x) -> Float64Expression:
 
     Parameters
     ----------
-    x : float or :class:`.Expression` of type :py:data:`.tfloat64`
+    x : float or :class:`.Expression` of type :py:data:`.tfloat64` or :class:`.NDArrayNumericExpression`
 
     Returns
     -------
-    :class:`.Expression` of type :py:data:`.tfloat64`
+    :class:`.Expression` of type :py:data:`.tfloat64` or :class:`.NDArrayNumericExpression`
     """
     return _func("log10", tfloat64, x)
 
 
-@typecheck(x=expr_float64)
+@typecheck(x=oneof(expr_float64, expr_ndarray(expr_float64)))
+@ndarray_broadcasting
 def logit(x) -> Float64Expression:
     """The logistic function.
 
@@ -1717,16 +1812,17 @@ def logit(x) -> Float64Expression:
 
     Parameters
     ----------
-    x : float or :class:`.Expression` of type :py:data:`.tfloat64`
+    x : float or :class:`.Expression` of type :py:data:`.tfloat64` or :class:`.NDArrayNumericExpression`
 
     Returns
     -------
-    :class:`.Expression` of type :py:data:`.tfloat64`
+    :class:`.Expression` of type :py:data:`.tfloat64` or :class:`.NDArrayNumericExpression`
     """
     return hl.log(x / (1 - x))
 
 
-@typecheck(x=expr_float64)
+@typecheck(x=oneof(expr_float64, expr_ndarray(expr_float64)))
+@ndarray_broadcasting
 def expit(x) -> Float64Expression:
     """The logistic sigmoid function.
 
@@ -1740,11 +1836,11 @@ def expit(x) -> Float64Expression:
 
     Parameters
     ----------
-    x : float or :class:`.Expression` of type :py:data:`.tfloat64`
+    x : float or :class:`.Expression` of type :py:data:`.tfloat64` or :class:`.NDArrayNumericExpression`
 
     Returns
     -------
-    :class:`.Expression` of type :py:data:`.tfloat64`
+    :class:`.Expression` of type :py:data:`.tfloat64` or :class:`.NDArrayNumericExpression`
     """
     return hl.if_else(x >= 0, 1 / (1 + hl.exp(-x)), hl.rbind(hl.exp(x), lambda exped: exped / (exped + 1)))
 
@@ -1916,8 +2012,8 @@ def binom_test(x, n, p, alternative: str) -> Float64Expression:
     return _func("binomTest", tfloat64, x, n, p, to_expr(alt_enum))
 
 
-@typecheck(x=expr_float64, df=expr_float64, ncp=nullable(expr_float64))
-def pchisqtail(x, df, ncp=None) -> Float64Expression:
+@typecheck(x=expr_float64, df=expr_float64, ncp=nullable(expr_float64), lower_tail=expr_bool, log_p=expr_bool)
+def pchisqtail(x, df, ncp=None, lower_tail=False, log_p=False) -> Float64Expression:
     """Returns the probability under the right-tail starting at x for a chi-squared
     distribution with df degrees of freedom.
 
@@ -1927,8 +2023,14 @@ def pchisqtail(x, df, ncp=None) -> Float64Expression:
     >>> hl.eval(hl.pchisqtail(5, 1))
     0.025347318677468304
 
-    >>> hl.eval(hl.pchisqtail(3, 1, 2))
-    0.3761310507217904
+    >>> hl.eval(hl.pchisqtail(5, 1, ncp=2))
+    0.20571085634347097
+
+    >>> hl.eval(hl.pchisqtail(5, 1, lower_tail=True))
+    0.9746526813225317
+
+    >>> hl.eval(hl.pchisqtail(5, 1, log_p=True))
+    -3.6750823266311876
 
     Parameters
     ----------
@@ -1936,21 +2038,28 @@ def pchisqtail(x, df, ncp=None) -> Float64Expression:
     df : float or :class:`.Expression` of type :py:data:`.tfloat64`
         Degrees of freedom.
     ncp: float or :class:`.Expression` of type :py:data:`.tfloat64`
-        Noncentrality parameter. Defaults to 0 if unspecified.
+        Noncentrality parameter, defaults to 0 if unspecified.
+    lower_tail : bool or :class:`.BooleanExpression`
+        If ``True``, compute the probability of an outcome at or below `x`,
+        otherwise greater than `x`.
+    log_p : bool or :class:`.BooleanExpression`
+        Return the natural logarithm of the probability.
 
     Returns
     -------
     :class:`.Expression` of type :py:data:`.tfloat64`
     """
     if ncp is None:
-        return _func("pchisqtail", tfloat64, x, df)
+        return _func("pchisqtail", tfloat64, x, df, lower_tail, log_p)
     else:
-        return _func("pnchisqtail", tfloat64, x, df, ncp)
+        return _func("pnchisqtail", tfloat64, x, df, ncp, lower_tail, log_p)
 
 
-@typecheck(x=expr_float64)
-def pnorm(x) -> Float64Expression:
-    """The cumulative probability function of a standard normal distribution.
+@typecheck(x=expr_float64, mu=expr_float64, sigma=expr_float64, lower_tail=expr_bool, log_p=expr_bool)
+def pnorm(x, mu=0, sigma=1, lower_tail=True, log_p=False) -> Float64Expression:
+    """The cumulative probability function of a normal distribution with mean
+    `mu` and standard deviation `sigma`. Returns cumulative probability of
+    standard normal distribution by default.
 
     Examples
     --------
@@ -1958,25 +2067,38 @@ def pnorm(x) -> Float64Expression:
     >>> hl.eval(hl.pnorm(0))
     0.5
 
-    >>> hl.eval(hl.pnorm(1))
-    0.8413447460685429
+    >>> hl.eval(hl.pnorm(1, mu=2, sigma=2))
+    0.30853753872598694
 
-    >>> hl.eval(hl.pnorm(2))
-    0.9772498680518208
+    >>> hl.eval(hl.pnorm(2, lower_tail=False))
+    0.022750131948179212
+
+    >>> hl.eval(hl.pnorm(2, log_p=True))
+    -0.023012909328963493
 
     Notes
     -----
-    Returns the left-tail probability `p` = Prob(:math:`Z < x`) with :math:`Z` a standard normal random variable.
+    Returns the left-tail probability `p` = Prob(:math:`Z < x`) with :math:`Z`
+    a normal random variable. Defaults to a standard normal random variable.
 
     Parameters
     ----------
     x : float or :class:`.Expression` of type :py:data:`.tfloat64`
+    mu : float or :class:`.Expression` of type :py:data:`.tfloat64`
+        Mean (default = 0).
+    sigma: float or :class:`.Expression` of type :py:data:`.tfloat64`
+        Standard deviation (default = 1).
+    lower_tail : bool or :class:`.BooleanExpression`
+        If ``True``, compute the probability of an outcome at or below `x`,
+        otherwise greater than `x`.
+    log_p : bool or :class:`.BooleanExpression`
+        Return the natural logarithm of the probability.
 
     Returns
     -------
     :class:`.Expression` of type :py:data:`.tfloat64`
     """
-    return _func("pnorm", tfloat64, x)
+    return _func("pnorm", tfloat64, x, mu, sigma, lower_tail, log_p)
 
 
 @typecheck(x=expr_float64, n=expr_float64, lower_tail=expr_bool, log_p=expr_bool)
@@ -2106,20 +2228,31 @@ def ppois(x, lamb, lower_tail=True, log_p=False) -> Float64Expression:
     return _func("ppois", tfloat64, x, lamb, lower_tail, log_p)
 
 
-@typecheck(p=expr_float64, df=expr_float64)
-def qchisqtail(p, df) -> Float64Expression:
-    """Inverts :func:`~.pchisqtail`.
+@typecheck(p=expr_float64, df=expr_float64, ncp=nullable(expr_float64), lower_tail=expr_bool, log_p=expr_bool)
+def qchisqtail(p, df, ncp=None, lower_tail=False, log_p=False) -> Float64Expression:
+    """The quantile function of a chi-squared distribution with `df` degrees of
+    freedom, inverts :func:`~.pchisqtail`.
 
     Examples
     --------
 
-    >>> hl.eval(hl.qchisqtail(0.01, 1))
-    6.634896601021213
+    >>> hl.eval(hl.qchisqtail(0.05, 2))
+    5.991464547107979
+
+    >>> hl.eval(hl.qchisqtail(0.05, 2, ncp=2))
+    10.838131614372958
+
+    >>> hl.eval(hl.qchisqtail(0.05, 2, lower_tail=True))
+    0.10258658877510107
+
+    >>> hl.eval(hl.qchisqtail(hl.log(0.05), 2, log_p=True))
+    5.991464547107979
 
     Notes
     -----
-    Returns right-quantile `x` for which `p` = Prob(:math:`Z^2` > x) with :math:`Z^2` a chi-squared random
-    variable with degrees of freedom specified by `df`. `p` must satisfy 0 < `p` <= 1.
+    Returns right-quantile `x` for which `p` = Prob(:math:`Z^2` > x) with
+    :math:`Z^2` a chi-squared random variable with degrees of freedom specified
+    by `df`. The probability `p` must satisfy 0 < `p` < 1.
 
     Parameters
     ----------
@@ -2127,17 +2260,28 @@ def qchisqtail(p, df) -> Float64Expression:
         Probability.
     df : float or :class:`.Expression` of type :py:data:`.tfloat64`
         Degrees of freedom.
+    ncp: float or :class:`.Expression` of type :py:data:`.tfloat64`
+        Corresponds to `ncp` parameter in :func:`.pchisqtail`.
+    lower_tail : bool or :class:`.BooleanExpression`
+        Corresponds to `lower_tail` parameter in :func:`.pchisqtail`.
+    log_p : bool or :class:`.BooleanExpression`
+        Exponentiate `p`, corresponds to `log_p` parameter in :func:`.pchisqtail`.
 
     Returns
     -------
     :class:`.Expression` of type :py:data:`.tfloat64`
     """
-    return _func("qchisqtail", tfloat64, p, df)
+    if ncp is None:
+        return _func("qchisqtail", tfloat64, p, df, lower_tail, log_p)
+    else:
+        return _func("qnchisqtail", tfloat64, p, df, ncp, lower_tail, log_p)
 
 
-@typecheck(p=expr_float64)
-def qnorm(p) -> Float64Expression:
-    """Inverts :func:`~.pnorm`.
+@typecheck(p=expr_float64, mu=expr_float64, sigma=expr_float64, lower_tail=expr_bool, log_p=expr_bool)
+def qnorm(p, mu=0, sigma=1, lower_tail=True, log_p=False) -> Float64Expression:
+    """The quantile function of a normal distribution with mean `mu` and
+    standard deviation `sigma`, inverts :func:`~.pnorm`. Returns quantile of
+    standard normal distribution by default.
 
     Examples
     --------
@@ -2145,26 +2289,46 @@ def qnorm(p) -> Float64Expression:
     >>> hl.eval(hl.qnorm(0.90))
     1.2815515655446008
 
+    >>> hl.eval(hl.qnorm(0.90, mu=1, sigma=2))
+    3.5631031310892016
+
+    >>> hl.eval(hl.qnorm(0.90, lower_tail=False))
+    -1.2815515655446008
+
+    >>> hl.eval(hl.qnorm(hl.log(0.90), log_p=True))
+    1.2815515655446008
+
     Notes
     -----
-    Returns left-quantile `x` for which p = Prob(:math:`Z` < x) with :math:`Z` a standard normal random variable.
-    `p` must satisfy 0 < `p` < 1.
+    Returns left-quantile `x` for which p = Prob(:math:`Z` < x) with :math:`Z`
+    a normal random variable with mean `mu` and standard deviation `sigma`.
+    Defaults to a standard normal random variable, and the probability `p` must
+    satisfy 0 < `p` < 1.
 
     Parameters
     ----------
     p : float or :class:`.Expression` of type :py:data:`.tfloat64`
         Probability.
+    mu : float or :class:`.Expression` of type :py:data:`.tfloat64`
+        Mean (default = 0).
+    sigma: float or :class:`.Expression` of type :py:data:`.tfloat64`
+        Standard deviation (default = 1).
+    lower_tail : bool or :class:`.BooleanExpression`
+        Corresponds to `lower_tail` parameter in :func:`.pnorm`.
+    log_p : bool or :class:`.BooleanExpression`
+        Exponentiate `p`, corresponds to `log_p` parameter in :func:`.pnorm`.
 
     Returns
     -------
     :class:`.Expression` of type :py:data:`.tfloat64`
     """
-    return _func("qnorm", tfloat64, p)
+    return _func("qnorm", tfloat64, p, mu, sigma, lower_tail, log_p)
 
 
 @typecheck(p=expr_float64, lamb=expr_float64, lower_tail=expr_bool, log_p=expr_bool)
 def qpois(p, lamb, lower_tail=True, log_p=False) -> Float64Expression:
-    r"""Inverts :func:`~.ppois`.
+    r"""The quantile function of a Poisson distribution with rate parameter
+    `lamb`, inverts :func:`~.ppois`.
 
     Examples
     --------
@@ -2588,7 +2752,8 @@ def rand_dirichlet(a, seed=None) -> ArrayExpression:
                                     hl.rand_gamma(p, 1, seed=seed))))
 
 
-@typecheck(x=expr_float64)
+@typecheck(x=oneof(expr_float64, expr_ndarray(expr_float64)))
+@ndarray_broadcasting
 def sqrt(x) -> Float64Expression:
     """Returns the square root of `x`.
 
@@ -2605,11 +2770,11 @@ def sqrt(x) -> Float64Expression:
 
     Parameters
     ----------
-    x : float or :class:`.Expression` of type :py:data:`.tfloat64`
+    x : float or :class:`.Expression` of type :py:data:`.tfloat64`  or :class:`.NDArrayNumericExpression`
 
     Returns
     -------
-    :class:`.Expression` of type :py:data:`.tfloat64`
+    :class:`.Expression` of type :py:data:`.tfloat64`  or :class:`.NDArrayNumericExpression`
     """
     return _func("sqrt", tfloat64, x)
 
