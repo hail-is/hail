@@ -1,23 +1,45 @@
 package is.hail.expr.ir
 
-import is.hail.{HailContext, HailFeatureFlags}
+import is.hail.HailContext
 import is.hail.expr.JSONAnnotationImpex
-import is.hail.expr.ir.Bindings.empty
-import is.hail.expr.ir.agg.{AggElementsAggSig, AggStateSig, ArrayLenAggSig, FoldStateSig, GroupedAggSig, PhysicalAggSig}
+import is.hail.expr.ir.agg._
 import is.hail.expr.ir.functions.RelationalFunctions
 import is.hail.types.TableType
-import is.hail.types.virtual.{TArray, TInt32, TInt64, TInterval, TNDArray, TStream, TStruct, TTuple, Type}
-import is.hail.utils.{space => _, _}
+import is.hail.types.virtual.{TArray, TInterval, TStream, Type}
 import is.hail.utils.prettyPrint._
 import is.hail.utils.richUtils.RichIterable
+import is.hail.utils.{space => _, _}
 import org.json4s.jackson.{JsonMethods, Serialization}
 
 import scala.collection.mutable
 
 object Pretty {
+  def apply(ir: BaseIR, width: Int = 100, ribbonWidth: Int = 50, elideLiterals: Boolean = true, maxLen: Int = -1, allowUnboundRefs: Boolean = false): String = {
+    val useSSA = HailContext.getFlag("use_ssa_logs") != null
+    val pretty = new Pretty(width, ribbonWidth, elideLiterals, maxLen, allowUnboundRefs, useSSA)
+    pretty(ir)
+  }
 
-  def short(ir: BaseIR, elideLiterals: Boolean = true, maxLen: Int = 100): String = {
-    val s = Pretty(ir, elideLiterals = elideLiterals, maxLen = maxLen)
+  def sexprStyle(ir: BaseIR, width: Int = 100, ribbonWidth: Int = 50, elideLiterals: Boolean = true, maxLen: Int = -1, allowUnboundRefs: Boolean = false): String = {
+    val pretty = new Pretty(width, ribbonWidth, elideLiterals, maxLen, allowUnboundRefs, useSSA = false)
+    pretty(ir)
+  }
+
+  def ssaStyle(ir: BaseIR, width: Int = 100, ribbonWidth: Int = 50, elideLiterals: Boolean = true, maxLen: Int = -1, allowUnboundRefs: Boolean = false): String = {
+    val pretty = new Pretty(width, ribbonWidth, elideLiterals, maxLen, allowUnboundRefs, useSSA = true)
+    pretty(ir)
+  }
+
+  def prettyBooleanLiteral(b: Boolean): String =
+    if (b) "True" else "False"
+
+  def prettyClass(x: AnyRef): String =
+    x.getClass.getName.split("\\.").last
+}
+
+class Pretty(width: Int, ribbonWidth: Int, elideLiterals: Boolean, maxLen: Int, allowUnboundRefs: Boolean, useSSA: Boolean) {
+  def short(ir: BaseIR): String = {
+    val s = apply(ir)
     if (s.length < maxLen) s else s.substring(0, maxLen) + "..."
   }
 
@@ -48,12 +70,6 @@ object Pretty {
 
   def prettySortFieldsString(x: Seq[SortField]): String =
     x.view.map(_.parsableString()).mkString("(", " ", ")")
-
-  def prettyBooleanLiteral(b: Boolean): String =
-    if (b) "True" else "False"
-
-  def prettyClass(x: AnyRef): String =
-    x.getClass.getName.split("\\.").last
 
   val MAX_VALUES_TO_LOG: Int = 25
 
@@ -89,12 +105,12 @@ object Pretty {
   def prettyAggStateSignature(state: AggStateSig): Doc = {
     state match {
       case FoldStateSig(resultEmitType, accumName, otherAccumName, combOpIR) =>
-        fillList(IndexedSeq(text(prettyClass(state)), text(resultEmitType.typeWithRequiredness.canonicalPType.toString),
-          text(accumName), text(otherAccumName), text(Pretty(combOpIR))))
+        fillList(IndexedSeq(text(Pretty.prettyClass(state)), text(resultEmitType.typeWithRequiredness.canonicalPType.toString),
+          text(accumName), text(otherAccumName), text(apply(combOpIR))))
       case _ =>
         fillList(state.n match {
-          case None => text(prettyClass(state)) +: state.t.view.map(typ => text(typ.canonicalPType.toString))
-          case Some(nested) => text(prettyClass(state)) +: state.t.view.map(typ => text(typ.canonicalPType.toString)) :+ prettyAggStateSignatures(nested)
+          case None => text(Pretty.prettyClass(state)) +: state.t.view.map(typ => text(typ.canonicalPType.toString))
+          case Some(nested) => text(Pretty.prettyClass(state)) +: state.t.view.map(typ => text(typ.canonicalPType.toString)) :+ prettyAggStateSignatures(nested)
         })
     }
   }
@@ -107,19 +123,19 @@ object Pretty {
       case GroupedAggSig(t, nested) =>
         fillList("Grouped", t.canonicalPType.toString, prettyPhysicalAggSigs(nested))
       case ArrayLenAggSig(kl, nested) =>
-        fillList("ArrayLen", prettyBooleanLiteral(kl), prettyPhysicalAggSigs(nested))
+        fillList("ArrayLen", Pretty.prettyBooleanLiteral(kl), prettyPhysicalAggSigs(nested))
       case AggElementsAggSig(nested) =>
         fillList("AggElements", prettyPhysicalAggSigs(nested))
       case PhysicalAggSig(op, state) =>
-        fillList(prettyClass(op), prettyAggStateSignature(state))
+        fillList(Pretty.prettyClass(op), prettyAggStateSignature(state))
     }
   }
 
   def single(d: Doc): Iterable[Doc] = RichIterable.single(d)
 
-  def header(ir: BaseIR, elideLiterals: Boolean, elideBindings: Boolean = false): Iterable[Doc] = ir match {
-    case ApplyAggOp(initOpArgs, seqOpArgs, aggSig) => single(prettyClass(aggSig.op))
-    case ApplyScanOp(initOpArgs, seqOpArgs, aggSig) => single(prettyClass(aggSig.op))
+  def header(ir: BaseIR, elideBindings: Boolean = false): Iterable[Doc] = ir match {
+    case ApplyAggOp(initOpArgs, seqOpArgs, aggSig) => single(Pretty.prettyClass(aggSig.op))
+    case ApplyScanOp(initOpArgs, seqOpArgs, aggSig) => single(Pretty.prettyClass(aggSig.op))
     case InitOp(i, args, aggSig) => FastSeq(i.toString, prettyPhysicalAggSig(aggSig))
     case SeqOp(i, args, aggSig) => FastSeq(i.toString, prettyPhysicalAggSig(aggSig))
     case CombOp(i1, i2, aggSig) => FastSeq(i1.toString, i2.toString, prettyPhysicalAggSig(aggSig))
@@ -153,9 +169,9 @@ object Pretty {
     case EncodedLiteral(codec, _) => single(codec.encodedVirtualType.parsableString())
     case Let(name, _, _) if !elideBindings => single(prettyIdentifier(name))
     case AggLet(name, _, _, isScan) => if (elideBindings)
-      single(prettyBooleanLiteral(isScan))
+      single(Pretty.prettyBooleanLiteral(isScan))
     else
-      FastSeq(prettyIdentifier(name), prettyBooleanLiteral(isScan))
+      FastSeq(prettyIdentifier(name), Pretty.prettyBooleanLiteral(isScan))
     case TailLoop(name, args, _) if !elideBindings =>
       FastSeq(prettyIdentifier(name), prettyIdentifiers(args.map(_._1).toFastIndexedSeq))
     case Recur(name, _, t) => if (elideBindings)
@@ -169,18 +185,18 @@ object Pretty {
     else
       FastSeq(prettyIdentifier(name), t.parsableString())
     case RelationalLet(name, _, _) if !elideBindings => single(prettyIdentifier(name))
-    case ApplyBinaryPrimOp(op, _, _) => single(prettyClass(op))
-    case ApplyUnaryPrimOp(op, _) => single(prettyClass(op))
+    case ApplyBinaryPrimOp(op, _, _) => single(Pretty.prettyClass(op))
+    case ApplyUnaryPrimOp(op, _) => single(Pretty.prettyClass(op))
     case ApplyComparisonOp(op, _, _) => single(op.render())
     case GetField(_, name) => single(prettyIdentifier(name))
     case GetTupleElement(_, idx) => single(idx.toString)
     case MakeTuple(fields) => FastSeq(prettyInts(fields.map(_._1).toFastIndexedSeq, elideLiterals))
     case MakeArray(_, typ) => single(typ.parsableString())
     case MakeStream(_, typ, requiresMemoryManagementPerElement) =>
-      FastSeq(typ.parsableString(), prettyBooleanLiteral(requiresMemoryManagementPerElement))
-    case StreamIota(_, _, requiresMemoryManagementPerElement) => FastSeq(prettyBooleanLiteral(requiresMemoryManagementPerElement))
-    case StreamRange(_, _, _, requiresMemoryManagementPerElement, errorID) => FastSeq(errorID.toString, prettyBooleanLiteral(requiresMemoryManagementPerElement))
-    case ToStream(_, requiresMemoryManagementPerElement) => single(prettyBooleanLiteral(requiresMemoryManagementPerElement))
+      FastSeq(typ.parsableString(), Pretty.prettyBooleanLiteral(requiresMemoryManagementPerElement))
+    case StreamIota(_, _, requiresMemoryManagementPerElement) => FastSeq(Pretty.prettyBooleanLiteral(requiresMemoryManagementPerElement))
+    case StreamRange(_, _, _, requiresMemoryManagementPerElement, errorID) => FastSeq(errorID.toString, Pretty.prettyBooleanLiteral(requiresMemoryManagementPerElement))
+    case ToStream(_, requiresMemoryManagementPerElement) => single(Pretty.prettyBooleanLiteral(requiresMemoryManagementPerElement))
     case StreamMap(_, name, _) if !elideBindings => single(prettyIdentifier(name))
     case StreamZip(_, names, _, behavior, errorID) => if (elideBindings)
       FastSeq(errorID.toString, behavior match {
@@ -215,19 +231,19 @@ object Pretty {
     case StreamAggScan(a, name, query) if !elideBindings => single(prettyIdentifier(name))
     case StreamGroupByKey(a, key) => single(prettyIdentifiers(key))
     case AggFold(_, _, _, accumName, otherAccumName, isScan) => if (elideBindings)
-      single(prettyBooleanLiteral(isScan))
+      single(Pretty.prettyBooleanLiteral(isScan))
     else
-      FastSeq(prettyIdentifier(accumName), prettyIdentifier(otherAccumName), prettyBooleanLiteral(isScan))
+      FastSeq(prettyIdentifier(accumName), prettyIdentifier(otherAccumName), Pretty.prettyBooleanLiteral(isScan))
     case AggExplode(_, name, _, isScan) => if (elideBindings)
-      single(prettyBooleanLiteral(isScan))
+      single(Pretty.prettyBooleanLiteral(isScan))
     else
-      FastSeq(prettyIdentifier(name), prettyBooleanLiteral(isScan))
-    case AggFilter(_, _, isScan) => single(prettyBooleanLiteral(isScan))
-    case AggGroupBy(_, _, isScan) => single(prettyBooleanLiteral(isScan))
+      FastSeq(prettyIdentifier(name), Pretty.prettyBooleanLiteral(isScan))
+    case AggFilter(_, _, isScan) => single(Pretty.prettyBooleanLiteral(isScan))
+    case AggGroupBy(_, _, isScan) => single(Pretty.prettyBooleanLiteral(isScan))
     case AggArrayPerElement(_, elementName, indexName, _, knownLength, isScan) => if (elideBindings)
-      FastSeq(prettyBooleanLiteral(isScan), prettyBooleanLiteral(knownLength.isDefined))
+      FastSeq(Pretty.prettyBooleanLiteral(isScan), Pretty.prettyBooleanLiteral(knownLength.isDefined))
     else
-      FastSeq(prettyIdentifier(elementName), prettyIdentifier(indexName), prettyBooleanLiteral(isScan), prettyBooleanLiteral(knownLength.isDefined))
+      FastSeq(prettyIdentifier(elementName), prettyIdentifier(indexName), Pretty.prettyBooleanLiteral(isScan), Pretty.prettyBooleanLiteral(knownLength.isDefined))
     case NDArrayMap(_, name, _) if !elideBindings => single(prettyIdentifier(name))
     case NDArrayMap2(_, _, lName, rName, _, errorID) => if (elideBindings)
       single(s"$errorID")
@@ -249,15 +265,15 @@ object Pretty {
     case ApplySeeded(function, _, seed, t) => FastSeq(prettyIdentifier(function), seed.toString, t.parsableString())
     case ApplySpecial(function, typeArgs, _, t, errorID) => FastSeq(s"$errorID", prettyIdentifier(function), prettyTypes(typeArgs), t.parsableString())
     case SelectFields(_, fields) => single(fillList(fields.view.map(f => text(prettyIdentifier(f)))))
-    case LowerBoundOnOrderedCollection(_, _, onKey) => single(prettyBooleanLiteral(onKey))
+    case LowerBoundOnOrderedCollection(_, _, onKey) => single(Pretty.prettyBooleanLiteral(onKey))
     case In(i, typ) => FastSeq(typ.toString, i.toString)
     case Die(message, typ, errorID) => FastSeq(typ.parsableString(), errorID.toString)
     case CollectDistributedArray(_, _, cname, gname, _, _) if !elideBindings =>
       FastSeq(prettyIdentifier(cname), prettyIdentifier(gname))
     case MatrixRead(typ, dropCols, dropRows, reader) =>
       FastSeq(if (typ == reader.fullMatrixType) "None" else typ.parsableString(),
-        prettyBooleanLiteral(dropCols),
-        prettyBooleanLiteral(dropRows),
+        Pretty.prettyBooleanLiteral(dropCols),
+        Pretty.prettyBooleanLiteral(dropRows),
         if (elideLiterals) reader.renderShort() else '"' + StringEscapeUtils.escapeString(JsonMethods.compact(reader.toJValue)) + '"')
     case MatrixWrite(_, writer) =>
       single('"' + StringEscapeUtils.escapeString(Serialization.write(writer)(MatrixWriter.formats)) + '"')
@@ -284,23 +300,23 @@ object Pretty {
       single(sparsifier.pretty())
     case BlockMatrixRandom(seed, gaussian, shape, blockSize) =>
       FastSeq(seed.toString,
-        prettyBooleanLiteral(gaussian),
+        Pretty.prettyBooleanLiteral(gaussian),
         prettyLongs(shape, elideLiterals),
         blockSize.toString)
     case BlockMatrixMap(_, name, _, needsDense) => if (elideBindings)
-      single(prettyBooleanLiteral(needsDense))
+      single(Pretty.prettyBooleanLiteral(needsDense))
     else
-      FastSeq(prettyIdentifier(name), prettyBooleanLiteral(needsDense))
+      FastSeq(prettyIdentifier(name), Pretty.prettyBooleanLiteral(needsDense))
     case BlockMatrixMap2(_, _, lName, rName, _, sparsityStrategy) => if (elideBindings)
-      single(prettyClass(sparsityStrategy))
+      single(Pretty.prettyClass(sparsityStrategy))
     else
-      FastSeq(prettyIdentifier(lName), prettyIdentifier(rName), prettyClass(sparsityStrategy))
+      FastSeq(prettyIdentifier(lName), prettyIdentifier(rName), Pretty.prettyClass(sparsityStrategy))
     case MatrixRowsHead(_, n) => single(n.toString)
     case MatrixColsHead(_, n) => single(n.toString)
     case MatrixRowsTail(_, n) => single(n.toString)
     case MatrixColsTail(_, n) => single(n.toString)
     case MatrixAnnotateRowsTable(_, _, uid, product) =>
-      FastSeq(prettyStringLiteral(uid), prettyBooleanLiteral(product))
+      FastSeq(prettyStringLiteral(uid), Pretty.prettyBooleanLiteral(product))
     case MatrixAnnotateColsTable(_, _, uid) => single(prettyStringLiteral(uid))
     case MatrixExplodeRows(_, path) => single(prettyIdentifiers(path))
     case MatrixExplodeCols(_, path) => single(prettyIdentifiers(path))
@@ -309,17 +325,17 @@ object Pretty {
     case MatrixMapCols(_, _, newKey) => single(prettyStringsOpt(newKey))
     case MatrixUnionCols(l, r, joinType) => single(joinType)
     case MatrixKeyRowsBy(_, keys, isSorted) =>
-      FastSeq(prettyIdentifiers(keys), prettyBooleanLiteral(isSorted))
+      FastSeq(prettyIdentifiers(keys), Pretty.prettyBooleanLiteral(isSorted))
     case TableRead(typ, dropRows, tr) =>
       FastSeq(if (typ == tr.fullType) "None" else typ.parsableString(),
-        prettyBooleanLiteral(dropRows),
+        Pretty.prettyBooleanLiteral(dropRows),
         if (elideLiterals) tr.renderShort() else '"' + StringEscapeUtils.escapeString(JsonMethods.compact(tr.toJValue)) + '"')
     case TableWrite(_, writer) =>
       single('"' + StringEscapeUtils.escapeString(Serialization.write(writer)(TableWriter.formats)) + '"')
     case TableMultiWrite(_, writer) =>
       single('"' + StringEscapeUtils.escapeString(Serialization.write(writer)(WrappedMatrixNativeMultiWriter.formats)) + '"')
     case TableKeyBy(_, keys, isSorted) =>
-      FastSeq(prettyIdentifiers(keys), prettyBooleanLiteral(isSorted))
+      FastSeq(prettyIdentifiers(keys), Pretty.prettyBooleanLiteral(isSorted))
     case TableRange(n, nPartitions) => FastSeq(n.toString, nPartitions.toString)
     case TableRepartition(_, n, strategy) => FastSeq(n.toString, strategy.toString)
     case TableHead(_, n) => single(n.toString)
@@ -327,7 +343,7 @@ object Pretty {
     case TableJoin(_, _, joinType, joinKey) => FastSeq(joinType, joinKey.toString)
     case TableLeftJoinRightDistinct(_, _, root) => single(prettyIdentifier(root))
     case TableIntervalJoin(_, _, root, product) =>
-      FastSeq(prettyIdentifier(root), prettyBooleanLiteral(product))
+      FastSeq(prettyIdentifier(root), Pretty.prettyBooleanLiteral(product))
     case TableMultiWayZipJoin(_, dataName, globalName) =>
       FastSeq(prettyStringLiteral(dataName), prettyStringLiteral(globalName))
     case TableKeyByAndAggregate(_, _, _, nPartitions, bufferSize) =>
@@ -373,13 +389,13 @@ object Pretty {
         prettyStringLiteral(Serialization.write(
           JSONAnnotationImpex.exportAnnotation(intervals, TArray(TInterval(child.typ.keyType)))
         )(RelationalSpec.formats)),
-        prettyBooleanLiteral(keep))
+        Pretty.prettyBooleanLiteral(keep))
     case MatrixFilterIntervals(child, intervals, keep) =>
       FastSeq(
         prettyStringLiteral(Serialization.write(
           JSONAnnotationImpex.exportAnnotation(intervals, TArray(TInterval(child.typ.rowKeyStruct)))
         )(RelationalSpec.formats)),
-        prettyBooleanLiteral(keep))
+        Pretty.prettyBooleanLiteral(keep))
     case RelationalLetTable(name, _, _) => single(prettyIdentifier(name))
     case RelationalLetMatrixTable(name, _, _) => single(prettyIdentifier(name))
     case RelationalLetBlockMatrix(name, _, _) => single(prettyIdentifier(name))
@@ -398,13 +414,12 @@ object Pretty {
     case _ => Iterable.empty
   }
 
-  def apply(ir: BaseIR, width: Int = 100, ribbonWidth: Int = 50, elideLiterals: Boolean = true, maxLen: Int = -1, allowUnboundRefs: Boolean = false): String =
-    if (HailContext.getFlag("use_ssa_logs") != null)
-      ssaStyle(ir, width, ribbonWidth, elideLiterals, maxLen, allowUnboundRefs)
-    else
-      sexprStyle(ir, width, ribbonWidth, elideLiterals, maxLen)
+  def apply(ir: BaseIR): String = if (useSSA)
+    ssaStyle(ir)
+  else
+    sexprStyle(ir)
 
-  def sexprStyle(ir: BaseIR, width: Int = 100, ribbonWidth: Int = 50, elideLiterals: Boolean = true, maxLen: Int = -1): String = {
+  def sexprStyle(ir: BaseIR): String = {
     def prettySeq(xs: Seq[BaseIR]): Doc =
       list(xs.view.map(pretty))
 
@@ -436,13 +451,13 @@ object Pretty {
       }
       list(fillSep(text(prettyClass(ir)) +: pt ++ header(ir, elideLiterals)) +: body)
       */
-      list(fillSep(text(prettyClass(ir)) +: header(ir, elideLiterals)) +: body)
+      list(fillSep(text(Pretty.prettyClass(ir)) +: header(ir, elideLiterals)) +: body)
     }
 
     pretty(ir).render(width, ribbonWidth, maxLen)
   }
 
-  def ssaStyle(ir: BaseIR, width: Int = 100, ribbonWidth: Int = 100, elideLiterals: Boolean = true, maxLen: Int = -1, allowUnboundRefs: Boolean = false): String = {
+  def ssaStyle(ir: BaseIR): String = {
     def childIsStrict(ir: BaseIR, i: Int): Boolean = blockArgs(ir, i).isEmpty
 
     def blockArgs(ir: BaseIR, i: Int): Option[IndexedSeq[(String, String)]] = ir match {
@@ -654,7 +669,7 @@ object Pretty {
           if !childIsStrict(ir, i)
         } yield prettyBlock(ir.children(i), blockArgs(ir, i).get, bindings)
 
-        val attsIterable = header(ir, elideLiterals, elideBindings = true)
+        val attsIterable = header(ir, elideBindings = true)
         val attributes = if (attsIterable.isEmpty) Iterable.empty else
           RichIterable.single(concat(attsIterable.intersperse[Doc]("[", ", ", "]")))
 
@@ -668,23 +683,23 @@ object Pretty {
             val args = (fields.map(_._1), strictChildIdents).zipped.map { (field, value) =>
               s"$field: $value"
             }.mkString("(", ", ", ")")
-            hsep(text(prettyClass(ir) + args) +: (attributes ++ nestedBlocks))
+            hsep(text(Pretty.prettyClass(ir) + args) +: (attributes ++ nestedBlocks))
           case InsertFields(_, fields, _) =>
             val newFields = (fields.map(_._1), strictChildIdents.tail).zipped.map { (field, value) =>
               s"$field: $value"
             }.mkString("(", ", ", ")")
             val args = s" ${strictChildIdents.head} $newFields"
-            hsep(text(prettyClass(ir) + args) +: (attributes ++ nestedBlocks))
+            hsep(text(Pretty.prettyClass(ir) + args) +: (attributes ++ nestedBlocks))
           case ir: If =>
             hsep(
-              text(s"${prettyClass(ir)} ${strictChildIdents.head}"),
+              text(s"${Pretty.prettyClass(ir)} ${strictChildIdents.head}"),
               text("then"),
               nestedBlocks(0),
               text("else"),
               nestedBlocks(1))
           case _ =>
             val args = strictChildIdents.mkString("(", ", ", ")")
-            hsep(text(prettyClass(ir) + standardArgs) +: (attributes ++ nestedBlocks))
+            hsep(text(Pretty.prettyClass(ir) + standardArgs) +: (attributes ++ nestedBlocks))
         }
 
         (hsep(strictChildBodies.result()), head)
