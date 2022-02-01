@@ -2130,6 +2130,58 @@ steps:
       - merge_code
     clouds:
       - gcp
+ - kind: runImage
+    name: get_pip_versioned_docs
+    image:
+      valueFrom: hail_pip_installed_image.image
+    script: |
+      set -ex
+
+      cd /io/repo
+      make -C hail python/hail/hail_pip_version
+
+      # First, test if this is a deploy
+      {% if deploy %}
+      # In this case, we want to get the docs from make_docs
+      # TODO: FILL IN
+
+      {% else %}
+
+      # In this case, we want to get the docs from Google Storage.
+      PIP_VERSION = $(cat hail/python/hail/hail_pip_version)
+      python3 -m hailtop.aiotools.copy 'null' '[
+      {"from": "gs://hail-common/website/$PIP_VERSION/www.tar.gz",
+       "to": "hail-0.2-docs-$PIP_VERSION.tar.gz"}
+      ]'
+
+      mkdir hail/build/www/docs/0.2
+      tar -xvf hail-0.2-docs-$PIP_VERSION.tar.gz -C hail/build/www/docs/0.2 --strip-components 2
+
+      {% endif %}
+
+      python3 -m hailtop.aiotools.copy 'null' '[
+      {"from": "gs://hail-common/builds/0.1/docs/hail-0.1-docs-5a6778710097.tar.gz",
+       "to": "hail-0.1-docs-5a6778710097.tar.gz"}
+      ]'
+
+      mkdir hail/build/www/docs/0.1
+      tar -xvf hail-0.1-docs-5a6778710097.tar.gz -C hail/build/www/docs/0.1 --strip-components 2
+
+      tar czf /io/docs.tar.gz -C hail/build/www .
+    resources:
+      memory: standard
+      cpu: '2'
+    inputs:
+      - from: /repo
+        to: /io/repo
+    outputs:
+      - from: /io/docs.tar.gz
+        to: /docs.tar.gz
+    dependsOn:
+      - hail_pip_installed_image
+      - merge_code
+    clouds:
+      - gcp
   - kind: deploy
     name: deploy_grafana
     namespace:
@@ -4091,7 +4143,7 @@ steps:
         to: /io/website/docs.tar.gz
     dependsOn:
       - service_base_image
-      - make_pip_versioned_docs
+      - get_pip_versioned_docs
     clouds:
       - gcp
     resources:
