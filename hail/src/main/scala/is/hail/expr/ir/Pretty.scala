@@ -398,10 +398,13 @@ object Pretty {
     case _ => Iterable.empty
   }
 
-  def apply(ir: BaseIR, width: Int = 100, ribbonWidth: Int = 50, elideLiterals: Boolean = true, maxLen: Int = -1): String = {
+  def apply(ir: BaseIR, width: Int = 100, ribbonWidth: Int = 50, elideLiterals: Boolean = true, maxLen: Int = -1, allowUnboundRefs: Boolean = false): String =
     if (HailContext.getFlag("use_ssa_logs") != null)
-      return ssaStyle(ir, width, ribbonWidth, elideLiterals, maxLen)
+      ssaStyle(ir, width, ribbonWidth, elideLiterals, maxLen, allowUnboundRefs)
+    else
+      sexprStyle(ir, width, ribbonWidth, elideLiterals, maxLen)
 
+  def sexprStyle(ir: BaseIR, width: Int = 100, ribbonWidth: Int = 50, elideLiterals: Boolean = true, maxLen: Int = -1): String = {
     def prettySeq(xs: Seq[BaseIR]): Doc =
       list(xs.view.map(pretty))
 
@@ -439,7 +442,7 @@ object Pretty {
     pretty(ir).render(width, ribbonWidth, maxLen)
   }
 
-  def ssaStyle(ir: BaseIR, width: Int = 100, ribbonWidth: Int = 100, elideLiterals: Boolean = true, maxLen: Int = -1): String = {
+  def ssaStyle(ir: BaseIR, width: Int = 100, ribbonWidth: Int = 100, elideLiterals: Boolean = true, maxLen: Int = -1, allowUnboundRefs: Boolean = false): String = {
     def childIsStrict(ir: BaseIR, i: Int): Boolean = blockArgs(ir, i).isEmpty
 
     def blockArgs(ir: BaseIR, i: Int): Option[IndexedSeq[(String, String)]] = ir match {
@@ -563,6 +566,7 @@ object Pretty {
 
     var identCounter: Int = 0
     val idents = collection.mutable.Map.empty[String, Int]
+
     def getIdentBase(ir: BaseIR): String = ir match {
       case True() => "true"
       case False() => "false"
@@ -572,8 +576,12 @@ object Pretty {
       case mt if mt.typ.isInstanceOf[TableType] => "mt"
       case _ => ""
     }
+
     def uniqueify(base: String): String = {
-      if (idents.contains(base)) {
+      if (base.isEmpty) {
+        identCounter += 1
+        identCounter.toString
+      } else if (idents.contains(base)) {
         idents(base) += 1
         if (base.last.isDigit)
           s"${base}_${idents(base)}"
@@ -584,19 +592,10 @@ object Pretty {
         base
       }
     }
-    def getResultIdent(ir: BaseIR): String = {
-      val base = getIdentBase(ir)
-      if (base.isEmpty) {
-        identCounter += 1
-        identCounter.toString
-      } else {
-        uniqueify(base)
-      }
-    }
 
     def prettyWithIdent(ir: BaseIR, bindings: Env[String], prefix: String): (Doc, String) = {
       val (pre, body) = pretty(ir, bindings)
-      val ident = prefix + getResultIdent(ir)
+      val ident = prefix + uniqueify(getIdentBase(ir))
       val doc = vsep(pre, hsep(text(ident), "=", body))
       (doc, ident)
     }
@@ -641,7 +640,8 @@ object Pretty {
         } yield {
           val child = ir.children(i)
           child match {
-            case Ref(name, _) => bindings.lookup(name)
+            case Ref(name, _) =>
+              bindings.lookupOption(name).getOrElse(uniqueify("%undefined_ref"))
             case _ =>
               val (body, ident) = prettyWithIdent(ir.children(i), bindings, "!")
               strictChildBodies += body
