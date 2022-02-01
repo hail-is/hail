@@ -52,6 +52,10 @@ object DistinctlyKeyed {
       case BlockMatrixToTableApply(_, _, _) =>
       case BlockMatrixToTable(_) =>
       case RelationalLetTable(_, _, body) => basicChildrenCheck(IndexedSeq(body))
+      case _: MatrixIR =>
+        throw new IllegalArgumentException("MatrixIR should be lowered when it reaches distinct analysis")
+      case ir: IR =>
+        ir.children.foreach(child => analyze(child, memo))
     }
 
   }

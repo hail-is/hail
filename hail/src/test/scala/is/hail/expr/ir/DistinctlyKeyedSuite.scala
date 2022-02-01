@@ -77,4 +77,15 @@ class DistinctlyKeyedSuite extends HailSuite{
     val distinctlyKeyedAnalysis = DistinctlyKeyed.apply(tableDistinct)
     assert(distinctlyKeyedAnalysis.contains(tableDistinct))
   }
+
+  @Test def IRparent(): Unit = {
+    val tableRange = TableRange(10, 2)
+    val tableFilter = TableFilter(tableRange, ApplyComparisonOp(LT(TInt32),
+      GetField(Ref("row", tableRange.typ.rowType), "idx"), I32(5)))
+    val tableDistinct = TableDistinct(tableFilter)
+    val tableCollect = TableCollect(tableDistinct)
+    val distinctlyKeyedAnalysis = DistinctlyKeyed.apply(tableCollect)
+    assert(distinctlyKeyedAnalysis.contains(tableDistinct))
+    assert(!distinctlyKeyedAnalysis.contains(tableCollect))
+  }
 }
