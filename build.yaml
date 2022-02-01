@@ -2150,8 +2150,8 @@ steps:
       # In this case, we want to get the docs from Google Storage.
       export PIP_VERSION=$(cat hail/python/hail/hail_pip_version)
       python3 -m hailtop.aiotools.copy 'null' '[
-      {"from": "gs://hail-common/website/$PIP_VERSION/www.tar.gz",
-       "to": "hail-0.2-docs-$PIP_VERSION.tar.gz"}
+      {"from": "gs://hail-common/website/'$PIP_VERSION'/www.tar.gz",
+       "to": "hail-0.2-docs-'$PIP_VERSION'.tar.gz"}
       ]'
 
       mkdir hail/build/www/docs/0.2
