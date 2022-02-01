@@ -484,7 +484,7 @@ object HailFeatureFlags {
     ("use_new_shuffle", ("HAIL_USE_NEW_SHUFFLE" -> null)),
     ("shuffle_cutoff_to_local_sort", ("HAIL_SHUFFLE_CUTOFF" -> null)),
     ("grouped_aggregate_buffer_size", ("HAIL_GROUPED_AGGREGATE_BUFFER_SIZE" -> "50")),
-    ("use_ssa_logs", "HAIL_USE_SSA_LOGS" -> null),
+    ("use_ssa_logs", "HAIL_USE_SSA_LOGS" -> null)
   )
 }
 
