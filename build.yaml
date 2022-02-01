@@ -2154,7 +2154,7 @@ steps:
        "to": "hail-0.2-docs-'$PIP_VERSION'.tar.gz"}
       ]'
 
-      mkdir hail/build/www/docs/0.2
+      mkdir -p hail/build/www/docs/0.2
       tar -xvf hail-0.2-docs-$PIP_VERSION.tar.gz -C hail/build/www/docs/0.2 --strip-components 2
 
       {% endif %}
@@ -2164,7 +2164,7 @@ steps:
        "to": "hail-0.1-docs-5a6778710097.tar.gz"}
       ]'
 
-      mkdir hail/build/www/docs/0.1
+      mkdir -p hail/build/www/docs/0.1
       tar -xvf hail-0.1-docs-5a6778710097.tar.gz -C hail/build/www/docs/0.1 --strip-components 2
 
       tar czf /io/docs.tar.gz -C hail/build/www .
