@@ -8,12 +8,15 @@ import is.hail.expr.ir.lowering.LoweringPipeline
 import is.hail.expr.ir.streams.{EmitStream, StreamArgType, StreamUtils}
 import is.hail.types.physical._
 import is.hail.types.physical.stypes.interfaces.SStreamValue
-import is.hail.types.physical.stypes.{PTypeReferenceSingleCodeType, SingleCodeSCode, StreamSingleCodeType}
 import is.hail.types.virtual._
 import is.hail.utils._
 import is.hail.variant.Call2
 import is.hail.{ExecStrategy, HailSuite}
 import org.apache.spark.sql.Row
+import is.hail.TestUtils._
+import is.hail.expr.ir.agg.{CollectStateSig, PhysicalAggSig, TypedStateSig}
+import is.hail.types.VirtualTypeWithReq
+import is.hail.types.physical.stypes.{PTypeReferenceSingleCodeType, SingleCodeSCode, StreamSingleCodeType}
 import org.testng.annotations.Test
 
 class EmitStreamSuite extends HailSuite {
@@ -318,6 +321,125 @@ class EmitStreamSuite extends HailSuite {
       if (v != null)
         assert(evalStreamLen(ir) == None, Pretty(ir))
     }
+  }
+
+  @Test def testStreamBufferedAggregator(): Unit = {
+    val resultArrayToCompare = (0 until 12).map(i => Row(Row(i, i + 1), 1))
+    val streamType = TStream(TStruct("a" -> TInt64, "b" -> TInt64))
+    val numSeq = (0 until 12).map(i => Seq(I64(i), I64(i + 1)))
+    val numTupleSeq = numSeq.map(_ => Seq("a", "b")).zip(numSeq)
+    val countStructSeq = numTupleSeq.map { case (s, i) => s.zip(i)}.map(is => MakeStruct(is))
+    val countStructStream = MakeStream(countStructSeq, streamType, false)
+    val countAggSig = PhysicalAggSig(Count(), TypedStateSig(VirtualTypeWithReq.fullyOptional(TInt64).setRequired(true)))
+    val initOps = InitOp(0, FastIndexedSeq(), countAggSig)
+    val seqOps = SeqOp(0, FastIndexedSeq(), countAggSig)
+    val newKey = MakeStruct(Seq("count" -> SelectFields(Ref("foo", streamType.elementType), Seq("a", "b"))))
+    val streamBuffAggCount = StreamBufferedAggregate(countStructStream, initOps, newKey, seqOps, "foo",  IndexedSeq(countAggSig))
+    val result = mapIR(streamBuffAggCount) { elem =>
+      MakeStruct(Seq(
+        "key" -> GetField(elem, "count"),
+        "aggResult" ->
+          RunAgg(InitFromSerializedValue(0, GetTupleElement(GetField(elem, "agg"), 0), countAggSig.state), ResultOp(0, countAggSig), IndexedSeq(countAggSig.state))
+      ))}
+    assert(evalStream(result).equals(resultArrayToCompare))
+
+  }
+  @Test def testStreamBufferedAggregatorCombine(): Unit = {
+    val resultArrayToCompare = IndexedSeq(Row(Row(1), 2))
+    val streamType = TStream(TStruct("a" -> TInt64))
+    val elemOne = MakeStruct(Seq(("a", I64(1))))
+    val elemTwo = MakeStruct(Seq(("a", I64(1))))
+    val countStructStream = MakeStream(Seq(elemOne, elemTwo), streamType)
+    val countAggSig = PhysicalAggSig(Count(), TypedStateSig(VirtualTypeWithReq.fullyOptional(TInt64).setRequired(true)))
+    val initOps = InitOp(0, FastIndexedSeq(), countAggSig)
+    val seqOps = SeqOp(0, FastIndexedSeq(), countAggSig)
+    val newKey = MakeStruct(Seq("count" -> SelectFields(Ref("foo", streamType.elementType), Seq("a"))))
+    val streamBuffAggCount = StreamBufferedAggregate(countStructStream, initOps, newKey, seqOps, "foo",  IndexedSeq(countAggSig))
+    val result = mapIR(streamBuffAggCount) { elem =>
+      MakeStruct(Seq(
+        "key" -> GetField(elem, "count"),
+        "aggResult" ->
+      RunAgg(InitFromSerializedValue(0, GetTupleElement(GetField(elem, "agg"), 0), countAggSig.state), ResultOp(0, countAggSig), IndexedSeq(countAggSig.state))
+    ))}
+    assert(evalStream(result) == resultArrayToCompare)
+  }
+
+  @Test def testStreamBufferedAggregatorCollectAggregator(): Unit = {
+    val resultArrayToCompare = IndexedSeq(Row(Row(1), IndexedSeq(1, 3)), Row(Row(2), IndexedSeq(2, 4)))
+    val streamType = TStream(TStruct("a" -> TInt64, "b" -> TInt64))
+    val elemOne = MakeStruct(Seq(("a", I64(1)), ("b", I64(1))))
+    val elemTwo = MakeStruct(Seq(("a", I64(2)), ("b", I64(2))))
+    val elemThree = MakeStruct(Seq(("a", I64(1)), ("b", I64(3))))
+    val elemFour = MakeStruct(Seq(("a", I64(2)), ("b", I64(4))))
+    val collectStructStream = MakeStream(Seq(elemOne, elemTwo, elemThree, elemFour), streamType)
+    val collectAggSig =  PhysicalAggSig(Collect(), CollectStateSig(VirtualTypeWithReq(PType.canonical(TInt64))))
+    val initOps = InitOp(0, FastIndexedSeq(), collectAggSig)
+    val seqOps = SeqOp(0, FastIndexedSeq(GetField(Ref("foo", streamType.elementType), "b")), collectAggSig)
+    val newKey = MakeStruct(Seq("collect" -> SelectFields(Ref("foo", streamType.elementType), Seq("a"))))
+    val streamBuffAggCollect = StreamBufferedAggregate(collectStructStream, initOps, newKey, seqOps, "foo",  IndexedSeq(collectAggSig))
+    val result = mapIR(streamBuffAggCollect) { elem =>
+      MakeStruct(Seq(
+        "key" -> GetField(elem, "collect"),
+        "aggResult" ->
+          RunAgg(InitFromSerializedValue(0, GetTupleElement(GetField(elem, "agg"), 0), collectAggSig.state), ResultOp(0, collectAggSig), IndexedSeq(collectAggSig.state))
+      ))}
+    assert(evalStream(result) == resultArrayToCompare)
+  }
+
+  @Test def testStreamBufferedAggregatorMultipleAggregators(): Unit = {
+    val resultArrayToCompare = IndexedSeq(Row(Row(1), Row(3, IndexedSeq(1L, 3L, 2L))), Row(Row(2), Row(2, IndexedSeq(2L, 4L))),
+                                Row(Row(3), Row(3, IndexedSeq(1L, 2L, 3L))), Row(Row(4), Row(1, IndexedSeq(4L))),
+                                Row(Row(5), Row(1, IndexedSeq(1L))), Row(Row(6), Row(1, IndexedSeq(3L))),
+                                Row(Row(7), Row(1, IndexedSeq(4L))), Row(Row(8), Row(1, IndexedSeq(1L))),
+                                Row(Row(8), Row(1, IndexedSeq(2L))), Row(Row(9), Row(1, IndexedSeq(3L))),
+                                Row(Row(10), Row(2, IndexedSeq(4L, 4L))))
+    val streamType = TStream(TStruct("a" -> TInt64, "b" -> TInt64))
+    val elemOne = MakeStruct(Seq(("a", I64(1)), ("b", I64(1))))
+    val elemTwo = MakeStruct(Seq(("a", I64(2)), ("b", I64(2))))
+    val elemThree = MakeStruct(Seq(("a", I64(1)), ("b", I64(3))))
+    val elemFour = MakeStruct(Seq(("a", I64(2)), ("b", I64(4))))
+    val elemFive = MakeStruct(Seq(("a", I64(3)), ("b", I64(1))))
+    val elemSix = MakeStruct(Seq(("a", I64(3)), ("b", I64(2))))
+    val elemSeven = MakeStruct(Seq(("a", I64(3)), ("b", I64(3))))
+    val elemEight = MakeStruct(Seq(("a", I64(4)), ("b", I64(4))))
+    val elemNine = MakeStruct(Seq(("a", I64(5)), ("b", I64(1))))
+    val elemTen = MakeStruct(Seq(("a", I64(1)), ("b", I64(2))))
+    val elemEleven = MakeStruct(Seq(("a", I64(6)), ("b", I64(3))))
+    val elemTwelve = MakeStruct(Seq(("a", I64(7)), ("b", I64(4))))
+    val elemThirteen = MakeStruct(Seq(("a", I64(8)), ("b", I64(1))))
+    val elemFourteen = MakeStruct(Seq(("a", I64(8)), ("b", I64(2))))
+    val elemFifteen = MakeStruct(Seq(("a", I64(9)), ("b", I64(3))))
+    val elemSixteen = MakeStruct(Seq(("a", I64(10)), ("b", I64(4))))
+    val elemSeventeen = MakeStruct(Seq(("a", I64(10)), ("b", I64(4))))
+    val collectStructStream = MakeStream(Seq(elemOne, elemTwo, elemThree, elemFour, elemFive, elemSix, elemSeven,
+                                          elemEight, elemNine, elemTen, elemEleven, elemTwelve, elemThirteen,
+                                          elemFourteen, elemFifteen, elemSixteen, elemSeventeen), streamType)
+    val collectAggSig =  PhysicalAggSig(Collect(), CollectStateSig(VirtualTypeWithReq(PType.canonical(TInt64))))
+    val countAggSig = PhysicalAggSig(Count(), TypedStateSig(VirtualTypeWithReq.fullyOptional(TInt64).setRequired(true)))
+    val initOps = Begin(IndexedSeq(
+      InitOp(0, FastIndexedSeq(), countAggSig),
+      InitOp(1, FastIndexedSeq(), collectAggSig)
+    ))
+    val seqOps = Begin(IndexedSeq(
+      SeqOp(0, FastIndexedSeq(), countAggSig),
+      SeqOp(1, FastIndexedSeq(GetField(Ref("foo", streamType.elementType), "b")), collectAggSig)
+    ))
+    val newKey = MakeStruct(Seq("collect" -> SelectFields(Ref("foo", streamType.elementType), Seq("a"))))
+    val streamBuffAggCollect = StreamBufferedAggregate(collectStructStream, initOps, newKey, seqOps, "foo",
+                                IndexedSeq(countAggSig, collectAggSig))
+    val result = mapIR(streamBuffAggCollect) { elem =>
+      MakeStruct(Seq(
+        "key" -> GetField(elem, "collect"),
+        "aggResult" ->
+          RunAgg(
+            Begin(IndexedSeq(
+              InitFromSerializedValue(0, GetTupleElement(GetField(elem, "agg"), 0), countAggSig.state),
+              InitFromSerializedValue(1, GetTupleElement(GetField(elem, "agg"), 1), collectAggSig.state))
+            ),
+            MakeTuple.ordered(IndexedSeq(ResultOp(0, countAggSig), ResultOp(1, collectAggSig))),
+            IndexedSeq(countAggSig.state, collectAggSig.state))
+      ))}
+    assert(evalStream(result) == resultArrayToCompare)
   }
 
   @Test def testEmitJoinRightDistinct() {

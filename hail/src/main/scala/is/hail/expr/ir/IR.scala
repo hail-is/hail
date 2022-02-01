@@ -275,6 +275,8 @@ final case class ToDict(a: IR) extends IR
 final case class ToArray(a: IR) extends IR
 final case class CastToArray(a: IR) extends IR
 final case class ToStream(a: IR, requiresMemoryManagementPerElement: Boolean = false) extends IR
+final case class StreamBufferedAggregate(streamChild: IR, initAggs: IR, newKey: IR, seqOps: IR, name: String,
+  aggSignatures: IndexedSeq[PhysicalAggSig]) extends IR
 
 final case class LowerBoundOnOrderedCollection(orderedCollection: IR, elem: IR, onKey: Boolean) extends IR
 
