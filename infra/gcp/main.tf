@@ -395,10 +395,6 @@ resource "kubernetes_secret" "registry_push_credentials" {
   }
 }
 
-module "ukbb" {
-  source = "../ukbb"
-}
-
 module "auth_gsa_secret" {
   source = "./gsa_k8s_secret"
   name = "auth"
