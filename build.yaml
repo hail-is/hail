@@ -2130,7 +2130,7 @@ steps:
       - merge_code
     clouds:
       - gcp
- - kind: runImage
+  - kind: runImage
     name: get_pip_versioned_docs
     image:
       valueFrom: hail_pip_installed_image.image
