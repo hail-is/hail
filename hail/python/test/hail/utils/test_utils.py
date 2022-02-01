@@ -1,3 +1,4 @@
+import json
 import unittest
 
 import hail as hl
@@ -241,3 +242,24 @@ class Tests(unittest.TestCase):
 
         with pytest.raises(TypeError, match="does not support item assignment"):
             my_frozen_dict["a"] = "b"
+
+    def test_json_encoder(self):
+        self.assertEqual(
+            json.dumps(frozendict({"foo": "bar"}), cls=hl.utils.JSONEncoder),
+            '{"foo": "bar"}'
+        )
+
+        self.assertEqual(
+            json.dumps(Struct(foo="bar"), cls=hl.utils.JSONEncoder),
+            '{"foo": "bar"}'
+        )
+
+        self.assertEqual(
+            json.dumps(Interval(start=1, end=10), cls=hl.utils.JSONEncoder),
+            '{"start": 1, "end": 10, "includes_start": true, "includes_end": false}'
+        )
+
+        self.assertEqual(
+            json.dumps(hl.Locus(1, 100, "GRCh38"), cls=hl.utils.JSONEncoder),
+            '{"contig": "1", "position": 100, "reference_genome": "GRCh38"}'
+        )
