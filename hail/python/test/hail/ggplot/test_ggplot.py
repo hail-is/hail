@@ -24,3 +24,11 @@ def test_manhattan_plot():
     ht = ht.annotate(pval=.02)
     fig = ggplot(ht, aes(x=ht.locus, y=-hl.log10(ht.pval))) + geom_point() + geom_hline(yintercept=-math.log10(5e-8))
     fig.to_plotly()
+
+
+def test_histogram():
+    ht = hl.utils.range_table(10)
+    fig = (ggplot(ht, aes(x=ht.idx)) +
+           geom_histogram()
+           )
+    fig.to_plotly()
