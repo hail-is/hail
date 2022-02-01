@@ -402,7 +402,7 @@ object EmitStream {
                 cb += dictState.region.invalidate()
               }
             }
-            SStreamCode(producer).memoize(cb, "stream_buff_producer")
+            SStreamValue(producer)
           }
 
       case x@MakeStream(args, _, _requiresMemoryManagementPerElement) =>
