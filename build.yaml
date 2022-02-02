@@ -2155,7 +2155,7 @@ steps:
       ]'
 
       mkdir -p hail/build/www/docs/0.2
-      tar -xvf hail-0.2-docs-$PIP_VERSION.tar.gz -C hail/build/www/docs/0.2 --strip-components 2
+      tar -xvf hail-0.2-docs-$PIP_VERSION.tar.gz -C hail/build/www/docs --strip-components 2
 
       {% endif %}
 
