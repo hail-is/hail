@@ -335,7 +335,7 @@ class StagedIndexWriter(branchingFactor: Int, keyType: PType, annotationType: PT
       parentBuilder.loadFrom(cb, utils, 0)
 
       leafBuilder.loadChild(cb, 0)
-      parentBuilder.add(cb, idxOff, leafBuilder.firstIdx(cb).asLong.longCode(cb), leafBuilder.getLoadedChild)
+      parentBuilder.add(cb, idxOff, leafBuilder.firstIdx(cb).asLong.value, leafBuilder.getLoadedChild)
       parentBuilder.store(cb, utils, 0)
       leafBuilder.reset(cb, elementIdx)
       Code._empty

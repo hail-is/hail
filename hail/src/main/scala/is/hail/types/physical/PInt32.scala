@@ -37,7 +37,7 @@ class PInt32(override val required: Boolean) extends PNumeric with PPrimitive {
   override def sType: SType = SInt32
 
   def storePrimitiveAtAddress(cb: EmitCodeBuilder, addr: Code[Long], value: SValue): Unit =
-    cb.append(Region.storeInt(addr, value.asInt.intCode(cb)))
+    cb.append(Region.storeInt(addr, value.asInt.value))
 
   override def loadCheapSCode(cb: EmitCodeBuilder, addr: Code[Long]): SInt32Value =
     new SInt32Value(cb.memoize(Region.loadInt(addr)))

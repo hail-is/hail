@@ -456,7 +456,7 @@ object EmitStream {
       case x@If(cond, cnsq, altr) =>
         emit(cond, cb).flatMap(cb) { cond =>
           val xCond = mb.genFieldThisRef[Boolean]("stream_if_cond")
-          cb.assign(xCond, cond.asBoolean.boolCode(cb))
+          cb.assign(xCond, cond.asBoolean.value)
 
           val Lmissing = CodeLabel()
           val Lpresent = CodeLabel()
@@ -539,8 +539,8 @@ object EmitStream {
               override val length: Option[EmitCodeBuilder => Code[Int]] = None
 
               override def initialize(cb: EmitCodeBuilder): Unit = {
-                val startVar = cb.newLocal[Int]("start", startCode.asInt.intCode(cb))
-                cb.assign(stepVar, stepCode.asInt.intCode(cb))
+                val startVar = startCode.asInt.value
+                cb.assign(stepVar, stepCode.asInt.value)
                 cb.assign(curr, startVar - stepVar)
               }
 
@@ -583,8 +583,8 @@ object EmitStream {
               })
 
               override def initialize(cb: EmitCodeBuilder): Unit = {
-                cb.assign(startVar, startCode.asInt.intCode(cb))
-                cb.assign(stopVar, stopCode.asInt.intCode(cb))
+                cb.assign(startVar, startCode.asInt.value)
+                cb.assign(stopVar, stopCode.asInt.value)
                 start match {
                   case I32(x) if step < 0 && ((x.toLong - Int.MinValue.toLong) / step.toLong + 1) < Int.MaxValue =>
                   case I32(x) if step > 0 && ((Int.MaxValue.toLong - x.toLong) / step.toLong + 1) < Int.MaxValue =>
@@ -638,9 +638,9 @@ object EmitStream {
                 override def initialize(cb: EmitCodeBuilder): Unit = {
                   val llen = cb.newLocal[Long]("streamrange_llen")
 
-                  cb.assign(start, startc.asInt.intCode(cb))
-                  cb.assign(stop, stopc.asInt.intCode(cb))
-                  cb.assign(step, stepc.asInt.intCode(cb))
+                  cb.assign(start, startc.asInt.value)
+                  cb.assign(stop, stopc.asInt.value)
+                  cb.assign(step, stepc.asInt.value)
 
                   cb.ifx(step ceq const(0), cb._fatalWithError(errorID, "Array range cannot have step size 0."))
                   cb.ifx(step < const(0), {
@@ -694,7 +694,7 @@ object EmitStream {
             val len = mb.genFieldThisRef[Int]("seq_sample_len")
             val regionVar = mb.genFieldThisRef[Region]("seq_sample_region")
 
-            val nRemaining = cb.newField[Int]("seq_sample_num_remaining", numToSampleVal.intCode(cb))
+            val nRemaining = cb.newField[Int]("seq_sample_num_remaining", numToSampleVal.value)
             val candidate = cb.newField[Int]("seq_sample_candidate", 0)
             val elementToReturn = cb.newField[Int]("seq_sample_element_to_return", -1) // -1 should never be returned.
 
@@ -702,8 +702,8 @@ object EmitStream {
               override val length: Option[EmitCodeBuilder => Code[Int]] = Some(_ => len)
 
               override def initialize(cb: EmitCodeBuilder): Unit = {
-                cb.assign(len, numToSampleVal.asInt.intCode(cb))
-                cb.assign(nRemaining, numToSampleVal.intCode(cb))
+                cb.assign(len, numToSampleVal.asInt.value)
+                cb.assign(nRemaining, numToSampleVal.value)
                 cb.assign(candidate, 0)
                 cb.assign(elementToReturn, -1)
               }
@@ -716,11 +716,11 @@ object EmitStream {
                 cb.ifx(nRemaining <= 0, cb.goto(LendOfStream))
 
                 val u = cb.newLocal[Double]("seq_sample_rand_unif", Code.invokeStatic0[Math, Double]("random"))
-                val fC = cb.newLocal[Double]("seq_sample_Fc", (totalSizeVal.intCode(cb) - candidate - nRemaining).toD / (totalSizeVal.intCode(cb) - candidate).toD)
+                val fC = cb.newLocal[Double]("seq_sample_Fc", (totalSizeVal.value - candidate - nRemaining).toD / (totalSizeVal.value - candidate).toD)
 
                 cb.whileLoop(fC > u, {
                   cb.assign(candidate, candidate + 1)
-                  cb.assign(fC, fC * (const(1.0) - (nRemaining.toD / (totalSizeVal.intCode(cb) - candidate).toD)))
+                  cb.assign(fC, fC * (const(1.0) - (nRemaining.toD / (totalSizeVal.value - candidate).toD)))
                 })
                 cb.assign(nRemaining, nRemaining - 1)
                 cb.assign(elementToReturn, candidate)
@@ -772,7 +772,7 @@ object EmitStream {
                   .consume(cb,
                     cb.goto(Lfiltered),
                     { sc =>
-                      cb.ifx(!sc.asBoolean.boolCode(cb), cb.goto(Lfiltered))
+                      cb.ifx(!sc.asBoolean.value, cb.goto(Lfiltered))
                     })
 
                 if (requiresMemoryManagementPerElement)
@@ -813,7 +813,7 @@ object EmitStream {
                   childProducer.length.map(compLen => (cb: EmitCodeBuilder) => compLen(cb).min(n))
 
                 override def initialize(cb: EmitCodeBuilder): Unit = {
-                  cb.assign(n, num.intCode(cb))
+                  cb.assign(n, num.value)
                   cb.ifx(n < 0, cb._fatal(s"stream take: negative number of elements to take: ", n.toS))
                   cb.assign(idx, 0)
                   childProducer.initialize(cb)
@@ -857,7 +857,7 @@ object EmitStream {
                 }
 
                 override def initialize(cb: EmitCodeBuilder): Unit = {
-                  cb.assign(n, num.intCode(cb))
+                  cb.assign(n, num.value)
                   cb.ifx(n < 0, cb._fatal(s"stream drop: negative number of elements to drop: ", n.toS))
                   cb.assign(idx, 0)
                   childProducer.initialize(cb)
@@ -914,7 +914,7 @@ object EmitStream {
                 emit(condIR, cb, region = childProducer.elementRegion, env = env.bind(elt, eltSettable))
                   .consume(cb,
                     cb.goto(LendOfStream),
-                    code => cb.ifx(code.asBoolean.boolCode(cb),
+                    code => cb.ifx(code.asBoolean.value,
                       cb.goto(LproduceElementDone),
                       cb.goto(LendOfStream)))
 
@@ -962,7 +962,7 @@ object EmitStream {
                 emit(condIR, cb, region = childProducer.elementRegion, env = env.bind(elt, eltSettable))
                   .consume(cb,
                     cb.goto(LdoneDropping),
-                    code => cb.ifx(code.asBoolean.boolCode(cb),
+                    code => cb.ifx(code.asBoolean.value,
                       cb.goto(LdropThis),
                       cb.goto(LdoneDropping)))
 
@@ -2014,7 +2014,7 @@ object EmitStream {
                 childProducer.length.map(compL => (cb: EmitCodeBuilder) => ((compL(cb).toL + n.toL - 1L) / n.toL).toI)
 
               override def initialize(cb: EmitCodeBuilder): Unit = {
-                cb.assign(n, groupSize.intCode(cb))
+                cb.assign(n, groupSize.value)
                 cb.ifx(n <= 0, cb._fatal(s"stream grouped: non-positive size: ", n.toS))
                 cb.assign(eos, false)
                 cb.assign(xCounter, n)

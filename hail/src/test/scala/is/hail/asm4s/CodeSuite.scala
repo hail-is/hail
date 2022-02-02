@@ -44,7 +44,7 @@ class CodeSuite extends HailSuite {
     val mb = fb.apply_method
     mb.emit(EmitCodeBuilder.scopedCode(mb) { cb =>
       val hash = v.hash(cb)
-      hash.intCode(cb)
+      hash.value
     })
     fb.result()()()
   }
@@ -59,7 +59,7 @@ class CodeSuite extends HailSuite {
       val stringToHash = st.constructFromString(cb, region, toHash)
       val i = stringToHash
       val hash = i.hash(cb)
-      hash.intCode(cb)
+      hash.value
     })
     val region = Region(pool=pool)
     fb.result()()(region)
@@ -73,7 +73,7 @@ class CodeSuite extends HailSuite {
       val arrayPointer = fb.emb.getCodeParam[Long](1)
       val arrayToHash = pArray.loadCheapSCode(cb, arrayPointer)
       val hash = arrayToHash.hash(cb)
-      hash.intCode(cb)
+      hash.value
     })
     val region = Region(pool=pool)
     val arrayPointer = pArray.unstagedStoreJavaObject(toHash, region)
@@ -88,7 +88,7 @@ class CodeSuite extends HailSuite {
       val structPointer = fb.emb.getCodeParam[Long](1)
       val structToHash = pStruct.loadCheapSCode(cb, structPointer)
       val hash = structToHash.hash(cb)
-      hash.intCode(cb)
+      hash.value
     })
     val region = Region(pool=pool)
     val structPointer = pStruct.unstagedStoreJavaObject(toHash, region)

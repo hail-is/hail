@@ -370,7 +370,7 @@ case class TableSpecWriter(path: String, typ: TableType, rowRelPath: String, glo
     cb.assign(partCounts, Code.newArray[Long](n))
     cb.whileLoop(i < n, {
       val curElement =  a.loadElement(cb, i).get(cb, "writeMetadata annotation can't be missing").asBaseStruct
-      val count = curElement.asBaseStruct.loadField(cb, "partitionCounts").get(cb, "part count can't be missing!").asLong.longCode(cb)
+      val count = curElement.asBaseStruct.loadField(cb, "partitionCounts").get(cb, "part count can't be missing!").asLong.value
 
       if (hasKey) {
         // Only nonempty partitions affect first, last, and distinctlyKeyed.
@@ -380,7 +380,7 @@ case class TableSpecWriter(path: String, typ: TableType, rowRelPath: String, glo
           val comparator = NEQ(lastSeenSettable.emitType.virtualType).codeOrdering(cb.emb.ecb, lastSeenSettable.st, curFirst.st)
           val notEqualToLast = comparator(cb, lastSeenSettable, EmitValue.present(curFirst)).asInstanceOf[Value[Boolean]]
 
-          val partWasDistinctlyKeyed = curElement.loadField(cb, "distinctlyKeyed").get(cb).asBoolean.boolCode(cb)
+          val partWasDistinctlyKeyed = curElement.loadField(cb, "distinctlyKeyed").get(cb).asBoolean.value
           cb.assign(distinctlyKeyed, distinctlyKeyed && partWasDistinctlyKeyed && notEqualToLast)
           cb.assign(lastSeenSettable, curElement.loadField(cb, "lastKey"))
         })

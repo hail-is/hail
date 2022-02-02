@@ -107,7 +107,7 @@ class SCanonicalCallValue(val call: Value[Int]) extends SCallValue {
         cb._fatalWithError(errorID,
           s"lgt_to_gt: found allele ", av.toS, ", but there are only ", localAlleles.loadLength().toS, " local alleles"))
       localAlleles.loadElement(cb, av).get(cb, const("lgt_to_gt: found missing value in local alleles at index ").concat(av.toS), errorID = errorID)
-        .asInt.intCode(cb)
+              .asInt.value
     }
 
     val repr = cb.newLocal[Int]("lgt_to_gt_repr")

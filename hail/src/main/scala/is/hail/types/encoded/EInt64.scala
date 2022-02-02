@@ -15,7 +15,7 @@ case object EInt64Required extends EInt64(true)
 
 class EInt64(override val required: Boolean) extends EType {
   override def _buildEncoder(cb: EmitCodeBuilder, v: SValue, out: Value[OutputBuffer]): Unit = {
-    cb += out.writeLong(v.asLong.longCode(cb))
+    cb += out.writeLong(v.asLong.value)
   }
 
   override def _buildDecoder(cb: EmitCodeBuilder, t: Type, region: Value[Region], in: Value[InputBuffer]): SValue = {

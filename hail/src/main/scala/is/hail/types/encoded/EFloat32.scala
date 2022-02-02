@@ -15,7 +15,7 @@ case object EFloat32Required extends EFloat32(true)
 
 class EFloat32(override val required: Boolean) extends EType {
   override def _buildEncoder(cb: EmitCodeBuilder, v: SValue, out: Value[OutputBuffer]): Unit = {
-    cb += out.writeFloat(v.asFloat.floatCode(cb))
+    cb += out.writeFloat(v.asFloat.value)
   }
 
   override def _buildDecoder(cb: EmitCodeBuilder, t: Type, region: Value[Region], in: Value[InputBuffer]): SValue = {
