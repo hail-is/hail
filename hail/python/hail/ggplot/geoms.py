@@ -333,6 +333,9 @@ class GeomHistogram(Geom):
             if self.size is not None:
                 hist_args["marker_line_width"] = self.size
 
+            if "fill_legend" in data[0]:
+                hist_args["name"] = data[0]["fill_legend"]
+
             width = bin_width if self.position == 'stack' else bin_width / num_groups
             hist_args["width"] = [width] * len(data)
 
