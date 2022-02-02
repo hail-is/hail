@@ -154,6 +154,9 @@ instance_config = CLOUD_WORKER_API.instance_config_from_config_dict(INSTANCE_CON
 assert instance_config.cores == CORES
 assert instance_config.cloud == CLOUD
 
+
+N_SLOTS = 4 * CORES  # Jobs are allowed at minimum a quarter core
+
 deploy_config = DeployConfig('gce', NAMESPACE, {})
 
 docker: Optional[aiodocker.Docker] = None
@@ -284,8 +287,8 @@ class NetworkAllocator:
         self.public_networks = asyncio.Queue()
         self.internet_interface = INTERNET_INTERFACE
 
-    async def reserve(self, netns_pool_min_size: int = 64):
-        for subnet_index in range(netns_pool_min_size):
+    async def reserve(self):
+        for subnet_index in range(N_SLOTS):
             public = NetworkNamespace(subnet_index, private=False, internet_interface=self.internet_interface)
             await public.init()
             self.public_networks.put_nowait(public)
