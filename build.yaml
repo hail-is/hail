@@ -2140,11 +2140,11 @@ steps:
       cd /io/repo
       make -C hail python/hail/hail_pip_version
 
-      # First, test if this is a deploy
-      {% if deploy %}
-      # In this case, we want to get the docs from make_docs
-      # TODO: FILL IN
+      # First, test if this is a deploy. If it is, we want the docs from make_docs.
+      # Either way, www.tar.gz contains the 0.2 and batch docs that need to be packaged up.
 
+      {% if deploy %}
+        cp /io/www.tar.gz .
       {% else %}
 
       # In this case, we want to get the docs from Google Storage.
@@ -2153,11 +2153,10 @@ steps:
       {"from": "gs://hail-common/website/'$PIP_VERSION'/www.tar.gz",
        "to": "hail-0.2-docs-'$PIP_VERSION'.tar.gz"}
       ]'
+      {% endif %}
 
       mkdir -p hail/build/www/docs/0.2
       tar -xvf hail-0.2-docs-$PIP_VERSION.tar.gz -C hail/build/www/docs --strip-components 2
-
-      {% endif %}
 
       python3 -m hailtop.aiotools.copy 'null' '[
       {"from": "gs://hail-common/builds/0.1/docs/hail-0.1-docs-5a6778710097.tar.gz",
@@ -2174,12 +2173,15 @@ steps:
     inputs:
       - from: /repo
         to: /io/repo
+      - from: /www.tar.gz
+        to: /io/www.tar.gz
     outputs:
       - from: /io/docs.tar.gz
         to: /docs.tar.gz
     dependsOn:
       - hail_pip_installed_image
       - merge_code
+      - make_docs
     clouds:
       - gcp
   - kind: deploy
