@@ -167,13 +167,12 @@ class ServiceBackend(
     log.info(s"parallelizeAndComputeWithIndex: $token: running job")
 
     val batchId = batchClient.create(
-        JObject(
-          "billing_project" -> JString(backendContext.billingProject),
-          "n_jobs" -> JInt(n),
-          "token" -> JString(token),
-          "attributes" -> JObject("name" -> JString(name + "_" + batchCount))),
-        jobs)
-    }
+      JObject(
+        "billing_project" -> JString(backendContext.billingProject),
+        "n_jobs" -> JInt(n),
+        "token" -> JString(token),
+        "attributes" -> JObject("name" -> JString(name + "_" + batchCount))),
+      jobs)
 
     val batch = batchClient.waitForBatch(batchId)
     batchCount += 1
