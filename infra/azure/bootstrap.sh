@@ -56,4 +56,8 @@ run_terraform() {
     terraform apply -var-file=global.tfvars
 }
 
+post_terraform() {
+    az ad app permission admin-consent --id "$(terraform output -raw auth_sp_application_id)"
+}
+
 $@

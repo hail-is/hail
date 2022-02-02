@@ -32,6 +32,13 @@ Once terraform has completed successfully, note the `gateway_ip` in the
 output and create an A record for the domain of your choosing for that
 IP with a DNS provider.
 
+There are some resources which, unfortunately, cannot be configured directly
+with terraform. You must now configure those resources by running:
+
+```
+./bootstrap.sh post_terraform
+```
+
 ## Bootstrap the cluster
 
 We'll complete the rest of the process on a VM. To create one, run
