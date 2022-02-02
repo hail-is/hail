@@ -134,11 +134,20 @@ class SStackStructValue(val st: SStackStruct, val values: IndexedSeq[EmitValue])
   }
 
   override def sizeInBytes(cb: EmitCodeBuilder): SInt64Value = {
-    new SInt64Value((0 until st.size).foldLeft(const(0L))((sizeSoFar, idx) => sizeSoFar + loadField(cb, idx).consumeCode(cb, {
-      const(0L)
-    }, { child =>
-      child.sizeInBytes(cb).value
-    })))
+    // Size in bytes of the struct that must represent this thing, plus recursive call on any non-missing children.
+    val pStructSize = this.st.storageType().byteSize
+    new SInt64Value((0 until st.size).foldLeft(const(pStructSize)) { (sizeSoFar, idx) =>
+      if (!this.st.fieldTypes(idx).isPrimitive) {
+        val sizePlusThisIdx: Value[Long] = sizeSoFar + this.loadField(cb, idx).consumeCode(cb, {
+          const(0L)
+        }, { sv =>
+          sv.sizeInBytes(cb).value
+        })
+        sizePlusThisIdx
+      } else {
+        sizeSoFar
+      }
+    })
   }
 }
 
