@@ -1,5 +1,5 @@
 from enum import Enum
-from typing import Dict, Optional
+from typing import Dict, Optional, Set, Union
 import secrets
 from shlex import quote as shq
 import json
@@ -191,26 +191,26 @@ class PR(Code):
     def __init__(
         self, number, title, body, source_branch, source_sha, target_branch, author, assignees, reviewers, labels
     ):
-        self.number = number
-        self.title = title
-        self.body = body
-        self.source_branch = source_branch
-        self.source_sha = source_sha
-        self.target_branch = target_branch
-        self.author = author
-        self.assignees = assignees
-        self.reviewers = reviewers
-        self.labels = labels
+        self.number: int = number
+        self.title: str = title
+        self.body: str = body
+        self.source_branch: FQBranch = source_branch
+        self.source_sha: str = source_sha
+        self.target_branch: 'WatchedBranch' = target_branch
+        self.author: str = author
+        self.assignees: Set[str] = assignees
+        self.reviewers: Set[str] = reviewers
+        self.labels: Set[str] = labels
 
         # pending, changes_requested, approve
-        self.review_state = None
+        self.review_state: Optional[str] = None
 
-        self.sha = None
-        self.batch = None
-        self.source_sha_failed = None
+        self.sha: Optional[str] = None
+        self.batch: Union[Batch, MergeFailureBatch, None] = None
+        self.source_sha_failed: Optional[str] = None
 
         # 'error', 'success', 'failure', None
-        self.build_state = None
+        self.build_state: Optional[str] = None
 
         self.intended_github_status: GithubStatus = self.github_status_from_build_state()
         self.last_known_github_status: Dict[str, GithubStatus] = {}
@@ -337,7 +337,11 @@ class PR(Code):
     def github_status_from_build_state(self) -> GithubStatus:
         if self.build_state == 'failure' or self.build_state == 'error':
             return GithubStatus.FAILURE
-        if self.build_state == 'success' and self.batch.attributes['target_sha'] == self.target_branch.sha:
+        if (
+            self.build_state == 'success'
+            and self.batch
+            and self.batch.attributes['target_sha'] == self.target_branch.sha
+        ):
             return GithubStatus.SUCCESS
         return GithubStatus.PENDING
 
@@ -610,24 +614,24 @@ git merge {shq(self.source_sha)} -m 'merge PR'
 
 class WatchedBranch(Code):
     def __init__(self, index, branch, deployable, mergeable):
-        self.index = index
-        self.branch = branch
-        self.deployable = deployable
-        self.mergeable = mergeable
+        self.index: int = index
+        self.branch: FQBranch = branch
+        self.deployable: bool = deployable
+        self.mergeable: bool = mergeable
 
         self.prs: Optional[Dict[str, PR]] = None
-        self.sha = None
+        self.sha: Optional[str] = None
 
+        self.deploy_batch: Optional[Batch] = None
         # success, failure, pending
-        self.deploy_batch = None
-        self._deploy_state = None
+        self._deploy_state: Optional[str] = None
 
-        self.updating = False
-        self.github_changed = True
-        self.batch_changed = True
-        self.state_changed = True
+        self.updating: bool = False
+        self.github_changed: bool = True
+        self.batch_changed: bool = True
+        self.state_changed: bool = True
 
-        self.n_running_batches = None
+        self.n_running_batches: Optional[int] = None
 
     @property
     def deploy_state(self):
