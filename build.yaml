@@ -4163,6 +4163,7 @@ steps:
       - default_ns
       - website_image
       - create_certs
+      - create_session_key
     clouds:
       - gcp
   - kind: runImage
