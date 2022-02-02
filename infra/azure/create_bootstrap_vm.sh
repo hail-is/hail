@@ -10,7 +10,7 @@ fi
 RESOURCE_GROUP=$1
 
 SUBSCRIPTION_ID=$(az account list | jq -rj '.[0].id')
-VM_NAME=bootstrap-vm
+VM_NAME=bootstrap-vm-$(cat /dev/urandom | LC_ALL=C tr -dc 'a-z0-9' | head -c 5)
 
 ip=$(az vm create \
     --name $VM_NAME \
