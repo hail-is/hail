@@ -28,9 +28,13 @@ To setup and run the terraform, run
 ./bootstrap.sh run_terraform <RESOURCE_GROUP>
 ```
 
-Once terraform has completed successfully, note the `gateway_ip` in the
-output and create an A record for the domain of your choosing for that
-IP with a DNS provider.
+Once terraform has completed successfully, you must create an A record for the
+domain of your choosing pointing at the `gateway_ip` with a DNS provider. The
+`gateway_ip` may be retrieved by executing the following command.
+
+```
+terraform output -raw gateway_ip
+```
 
 ## Bootstrap the cluster
 
