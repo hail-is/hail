@@ -673,7 +673,7 @@ class ServiceBackend(Backend[bc.Batch]):
                                     output_files=outputs if len(outputs) > 0 else None,
                                     always_run=job._always_run,
                                     timeout=job._timeout,
-                                    gcsfuse=job._gcsfuse if len(job._gcsfuse) > 0 else None,
+                                    cloudfuse=job._cloudfuse if len(job._cloudfuse) > 0 else None,
                                     env=env,
                                     requester_pays_project=batch.requester_pays_project,
                                     mount_tokens=True,

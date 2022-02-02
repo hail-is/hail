@@ -15,7 +15,7 @@ from hailtop.config import get_user_config
 from hailtop.batch.utils import concatenate
 from hailtop.aiotools.router_fs import RouterAsyncFS
 
-from ..utils import fails_in_azure, skip_in_azure
+from ..utils import skip_in_azure
 
 
 DOCKER_ROOT_IMAGE = os.environ['DOCKER_ROOT_IMAGE']
@@ -406,9 +406,11 @@ class ServiceTests(unittest.TestCase):
         self.remote_tmpdir = remote_tmpdir
 
         if remote_tmpdir.startswith('gs://'):
-            self.bucket_name = re.fullmatch('gs://(?P<bucket_name>[^/]+).*', remote_tmpdir).groupdict()['bucket_name']
+            self.bucket = re.fullmatch('gs://(?P<bucket_name>[^/]+).*', remote_tmpdir).groupdict()['bucket_name']
         else:
-            self.bucket_name = None
+            assert remote_tmpdir.startswith('hail-az://')
+            storage_account, container_name = re.fullmatch('hail-az://(?P<storage_account>[^/]+)/(?P<container_name>[^/]+).*', remote_tmpdir).groups()
+            self.bucket = f'{storage_account}/{container_name}'
 
         self.cloud_input_dir = f'{self.remote_tmpdir}batch-tests/resources'
 
@@ -593,67 +595,63 @@ class ServiceTests(unittest.TestCase):
         res_status = res.status()
         assert res_status['state'] == 'success', str((res_status, res.debug_info()))
 
-    @fails_in_azure
-    def test_gcsfuse(self):
-        assert self.bucket_name
-        path = f'/{self.bucket_name}{self.cloud_output_path}'
+    def test_cloudfuse(self):
+        assert self.bucket
+        path = f'/{self.bucket}{self.cloud_output_path}'
 
         b = self.batch()
         head = b.new_job()
-        head.command(f'mkdir -p {path}; echo head > {path}/gcsfuse_test_1')
-        head.gcsfuse(self.bucket_name, f'/{self.bucket_name}', read_only=False)
+        head.command(f'mkdir -p {path}; echo head > {path}/cloudfuse_test_1')
+        head.cloudfuse(self.bucket, f'/{self.bucket}', read_only=False)
 
         tail = b.new_job()
-        tail.command(f'cat {path}/gcsfuse_test_1')
-        tail.gcsfuse(self.bucket_name, f'/{self.bucket_name}', read_only=True)
+        tail.command(f'cat {path}/cloudfuse_test_1')
+        tail.cloudfuse(self.bucket, f'/{self.bucket}', read_only=True)
         tail.depends_on(head)
 
         res = b.run()
         res_status = res.status()
         assert res_status['state'] == 'success', str((res_status, res.debug_info()))
 
-    @fails_in_azure
-    def test_gcsfuse_read_only(self):
-        assert self.bucket_name
-        path = f'/{self.bucket_name}{self.cloud_output_path}'
+    def test_cloudfuse_read_only(self):
+        assert self.bucket
+        path = f'/{self.bucket}{self.cloud_output_path}'
 
         b = self.batch()
         j = b.new_job()
-        j.command(f'mkdir -p {path}; echo head > {path}/gcsfuse_test_1')
-        j.gcsfuse(self.bucket_name, f'/{self.bucket_name}', read_only=True)
+        j.command(f'mkdir -p {path}; echo head > {path}/cloudfuse_test_1')
+        j.cloudfuse(self.bucket, f'/{self.bucket}', read_only=True)
 
         res = b.run()
         res_status = res.status()
         assert res_status['state'] == 'failure', str((res_status, res.debug_info()))
 
-    @fails_in_azure
-    def test_gcsfuse_implicit_dirs(self):
-        assert self.bucket_name
-        path = f'/{self.bucket_name}{self.cloud_output_path}'
+    def test_cloudfuse_implicit_dirs(self):
+        assert self.bucket
+        path = f'/{self.bucket}{self.cloud_output_path}'
 
         b = self.batch()
         head = b.new_job()
-        head.command(f'mkdir -p {path}/gcsfuse/; echo head > {path}/gcsfuse/data')
-        head.gcsfuse(self.bucket_name, f'/{self.bucket_name}', read_only=False)
+        head.command(f'mkdir -p {path}/cloudfuse/; echo head > {path}/cloudfuse/data')
+        head.cloudfuse(self.bucket, f'/{self.bucket}', read_only=False)
 
         tail = b.new_job()
-        tail.command(f'cat {path}/gcsfuse/data')
-        tail.gcsfuse(self.bucket_name, f'/{self.bucket_name}', read_only=True)
+        tail.command(f'cat {path}/cloudfuse/data')
+        tail.cloudfuse(self.bucket, f'/{self.bucket}', read_only=True)
         tail.depends_on(head)
 
         res = b.run()
         res_status = res.status()
         assert res_status['state'] == 'success', str((res_status, res.debug_info()))
 
-    @fails_in_azure
-    def test_gcsfuse_empty_string_bucket_fails(self):
-        assert self.bucket_name
+    def test_cloudfuse_empty_string_bucket_fails(self):
+        assert self.bucket
         b = self.batch()
         j = b.new_job()
         with self.assertRaises(BatchException):
-            j.gcsfuse('', '/empty_bucket')
+            j.cloudfuse('', '/empty_bucket')
         with self.assertRaises(BatchException):
-            j.gcsfuse(self.bucket_name, '')
+            j.cloudfuse(self.bucket, '')
 
     @skip_in_azure
     def test_requester_pays(self):
