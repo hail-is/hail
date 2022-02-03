@@ -58,6 +58,7 @@ class EmitStreamSuite extends HailSuite {
     val mb = fb.apply_method
     val ir = streamIR.deepCopy()
 
+    TypeCheck(ir)
     val emitContext = EmitContext.analyze(ctx, ir)
 
     var arrayType: PType = null
@@ -490,6 +491,67 @@ class EmitStreamSuite extends HailSuite {
       assert(evalStream(o) == expectedOuter, Pretty(o))
       assert(evalStreamLen(l) == Some(expectedLeft.length), Pretty(l))
       assert(evalStreamLen(o) == None, Pretty(o))
+    }
+  }
+
+  @Test def testEmitJoinRightDistinctInterval() {
+    val lEltType = TStruct("k" -> TInt32, "v" -> TString)
+    val rEltType = TStruct("k" -> TInterval(TInt32), "v" -> TString)
+
+    def join(lstream: IR, rstream: IR, joinType: String): IR =
+      StreamJoinRightDistinct(
+        lstream, rstream, FastIndexedSeq("k"), FastIndexedSeq("k"), "l", "r",
+        MakeTuple.ordered(Seq(
+          GetField(Ref("l", lEltType), "v"),
+          GetField(Ref("r", rEltType), "v"))),
+        joinType)
+
+    def leftjoin(lstream: IR, rstream: IR): IR = join(lstream, rstream, "left")
+
+    def innerjoin(lstream: IR, rstream: IR): IR = join(lstream, rstream, "inner")
+
+    def lElts(xs: (Int, String)*): IR =
+      MakeStream(xs.map { case (a, b) => MakeStruct(Seq("k" -> I32(a), "v" -> Str(b))) }, TStream(lEltType))
+
+    def rElts(xs: ((Char, Int, Int, Char), String)*): IR =
+      MakeStream(xs.map {
+      case ((is, s, e, ie), v) =>
+        val includesStart = is == '['
+        val includesEnd = ie == ']'
+        val interval = ApplySpecial("Interval", FastSeq(), FastSeq(I32(s), I32(e), includesStart, includesEnd), TInterval(TInt32), 0)
+        MakeStruct(Seq("k" -> interval, "v" -> Str(v)))
+      }, TStream(rEltType))
+
+    val tests: Array[(IR, IR, IndexedSeq[Any], IndexedSeq[Any])] = Array(
+      (lElts(), rElts(), IndexedSeq(), IndexedSeq()),
+      (lElts(3 -> "A"),
+        rElts(),
+        IndexedSeq(Row("A", null)),
+        IndexedSeq()),
+      (lElts(),
+        rElts(('[', 1, 2, ']') -> "B"),
+        IndexedSeq(),
+        IndexedSeq()),
+      (lElts(0 -> "A"),
+        rElts(('[', 0, 1, ')') -> "B"),
+        IndexedSeq(Row("A", "B")),
+        IndexedSeq(Row("A", "B"))),
+      (lElts(0 -> "A"),
+        rElts(('(', 0, 1, ')') -> "B"),
+        IndexedSeq(Row("A", null)),
+        IndexedSeq()),
+      (lElts(0 -> "A", 2 -> "B", 3 -> "C", 4 -> "D"),
+        rElts(('[', 0, 2, ')') -> "a", ('(', 0, 1, ']') -> ".", ('[', 1, 4, ')') -> "b", ('[', 2, 4, ')') -> ".."),
+        IndexedSeq(Row("A", "a"), Row("B", "b"), Row("C", "b"), Row("D", null)),
+        IndexedSeq(Row("A", "a"), Row("B", "b"), Row("C", "b"))),
+    )
+    for ((lstream, rstream, expectedLeft, expectedInner) <- tests) {
+      val l = leftjoin(lstream, rstream)
+      val i = innerjoin(lstream, rstream)
+      assert(evalStream(l) == expectedLeft, Pretty(l))
+      assert(evalStream(i) == expectedInner, Pretty(i))
+      assert(evalStreamLen(l) == Some(expectedLeft.length), Pretty(l))
+      assert(evalStreamLen(i) == None, Pretty(i))
     }
   }
 

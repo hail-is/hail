@@ -3,17 +3,15 @@ package is.hail.expr.ir.streams
 import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.expr.ir._
-import is.hail.expr.ir.agg.{AggStateSig, AppendOnlyBTree, DictState, GroupedBTreeKey, PhysicalAggSig, StateTuple, TupleAggregatorState}
-import is.hail.expr.ir.orderings.StructOrdering
-import is.hail.types.physical.stypes.concrete.{SBinaryPointer, SStackStruct, SUnreachable}
-import is.hail.types.physical.{PCanonicalArray, PCanonicalBinary, PCanonicalBinaryRequired, PCanonicalStruct, PInt32, PInt64, PInt64Required}
-import is.hail.types.virtual.{TBaseStruct, TBinary, TInt64, TInterval, TStream, TStruct, TTuple, TupleField}
+import is.hail.expr.ir.agg.{AggStateSig, DictState, PhysicalAggSig, StateTuple}
+import is.hail.expr.ir.functions.IntervalFunctions
+import is.hail.expr.ir.orderings.{CodeOrdering, StructOrdering}
 import is.hail.types.physical.stypes.EmitType
-import is.hail.types.physical.stypes.concrete.SUnreachable
+import is.hail.types.physical.stypes.concrete.{SBinaryPointer, SStackStruct, SUnreachable}
 import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.physical.stypes.primitives.SInt32Value
-import is.hail.types.physical.{PCanonicalArray, PCanonicalStruct}
-import is.hail.types.virtual.TStream
+import is.hail.types.physical.{PCanonicalArray, PCanonicalBinary, PCanonicalStruct}
+import is.hail.types.virtual._
 import is.hail.types.{TypeWithRequiredness, VirtualTypeWithReq}
 import is.hail.utils._
 
@@ -1294,19 +1292,30 @@ object EmitStream {
             val lEltType = leftProducer.element.emitType
             val rEltType = rightProducer.element.emitType
 
-            // these variables are used as inputs to the joinF
-
             def compare(cb: EmitCodeBuilder, lelt: EmitValue, relt: EmitValue): Code[Int] = {
               assert(lelt.emitType == lEltType)
               assert(relt.emitType == rEltType)
-
-              val lhs = lelt.map(cb)(_.asBaseStruct.subset(lKey: _*))
-              val rhs = relt.map(cb)(_.asBaseStruct.subset(rKey: _*))
-              StructOrdering.make(lhs.st.asInstanceOf[SBaseStruct], rhs.st.asInstanceOf[SBaseStruct],
-                cb.emb.ecb, missingFieldsEqual = false)
-                .compare(cb, lhs, rhs, missingEqual = false)
+              if (x.isIntervalJoin) {
+                val lhs = cb.memoize(lelt.toI(cb).flatMap(cb)(_.asBaseStruct.loadField(cb, lKey(0))))
+                val rhs = cb.memoize(relt.toI(cb).flatMap(cb)(_.asBaseStruct.loadField(cb, rKey(0))))
+                val pointOrdering = cb.emb.ecb.getOrderingFunction(lhs.st, rhs.st.asInstanceOf[SInterval].pointType, CodeOrdering.Compare(missingEqual=false))
+                val result = cb.newLocal[Int]("SJRD-interval-compare-result")
+                rhs.toI(cb).consume(cb, {
+                  cb.assign(result, -1)
+                }, { case interval: SIntervalValue =>
+                  cb.assign(result, IntervalFunctions.pointIntervalCompare(cb, lelt, interval))
+                })
+                result
+              } else {
+                val lhs = lelt.map(cb)(_.asBaseStruct.subset(lKey: _*))
+                val rhs = relt.map(cb)(_.asBaseStruct.subset(rKey: _*))
+                StructOrdering.make(lhs.st.asInstanceOf[SBaseStruct], rhs.st.asInstanceOf[SBaseStruct],
+                  cb.emb.ecb, missingFieldsEqual = false)
+                  .compare(cb, lhs, rhs, missingEqual = false)
+              }
             }
 
+            // these variables are used as inputs to the joinF
             val lx = mb.newEmitField("streamjoin_lx", lEltType) // last value received from left
             val rx = mb.newEmitField("streamjoin_rx", rEltType) // last value received from right
 
@@ -1547,7 +1556,7 @@ object EmitStream {
                 val pulledRight = mb.genFieldThisRef[Boolean]("left_join_right_distinct_pulledRight]")
 
                 val producer = new StreamProducer {
-                  override val length: Option[EmitCodeBuilder => Code[Int]] = leftProducer.length
+                  override val length: Option[EmitCodeBuilder => Code[Int]] = None
 
                   override def initialize(cb: EmitCodeBuilder): Unit = {
                     cb.assign(pulledRight, false)

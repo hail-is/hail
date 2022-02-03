@@ -7,10 +7,41 @@ import is.hail.types.physical._
 import is.hail.types.physical.stypes.concrete.SIntervalPointer
 import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.physical.stypes.primitives.{SBoolean, SBooleanValue}
-import is.hail.types.physical.stypes.{EmitType, SType}
+import is.hail.types.physical.stypes.{EmitType, SType, SValue}
 import is.hail.types.virtual._
 
 object IntervalFunctions extends RegistryFunctions {
+
+  def pointIntervalCompare(cb: EmitCodeBuilder, point: EmitValue, interval: SIntervalValue): Value[Int] = {
+    val compare = cb.emb.ecb.getOrderingFunction(point.st, interval.st.pointType, CodeOrdering.Compare(missingEqual=false))
+
+    val result = cb.newLocal[Int]("pointIntervalCompare")
+    val startComp = compare(cb, point, cb.memoize(interval.loadStart(cb)))
+    cb.ifx(startComp < 0 || (startComp.ceq(0) && !interval.includesStart()), {
+      cb.assign(result, -1)
+    }, {
+      val endComp = compare(cb, point, cb.memoize(interval.loadEnd(cb)))
+      cb.ifx(endComp < 0 || (endComp.ceq(0) && interval.includesEnd()), {
+        cb.assign(result, 0)
+      }, {
+        cb.assign(result, 1)
+      })
+    })
+    result
+  }
+
+  def intervalContains(cb: EmitCodeBuilder, interval: SIntervalValue, point: EmitValue): Value[Boolean] = {
+    val compare = cb.emb.ecb.getOrderingFunction(point.st, interval.st.pointType, CodeOrdering.Compare())
+
+    val startComp = compare(cb, point, cb.memoize(interval.loadStart(cb)))
+    val contains = cb.newLocal[Boolean]("contains", false)
+    cb.ifx(startComp > 0 || (startComp.ceq(0) && interval.includesStart()), {
+      val endComp = compare(cb, point, cb.memoize(interval.loadEnd(cb)))
+      cb.assign(contains, endComp < 0 || (endComp.ceq(0) && interval.includesEnd()))
+    })
+
+    contains
+  }
 
   def registerAll(): Unit = {
 
@@ -69,18 +100,7 @@ object IntervalFunctions extends RegistryFunctions {
       case (cb, r, rt, _, int, point) =>
         int.toI(cb).map(cb) { case interval: SIntervalValue =>
           val pointv = cb.memoize(point, "point")
-          val compare = cb.emb.ecb.getOrderingFunction(pointv.st, interval.st.pointType, CodeOrdering.Compare())
-
-          val start = cb.memoize(interval.loadStart(cb))
-          val cmp = cb.newLocal("cmp", compare(cb, pointv, start))
-          val contains = cb.newLocal[Boolean]("contains", false)
-          cb.ifx(cmp > 0 || (cmp.ceq(0) && interval.includesStart()), {
-            val end = cb.memoize(interval.loadEnd(cb))
-            cb.assign(cmp, compare(cb, pointv, end))
-            cb.assign(contains, cmp < 0 || (cmp.ceq(0) && interval.includesEnd()))
-          })
-
-          primitive(contains)
+          primitive(intervalContains(cb, interval, pointv))
         }
     }
 
