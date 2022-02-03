@@ -204,16 +204,7 @@ object LowerDistributedSort {
       })
 
       // Going to check now if it's fully sorted, as well as collect and sort all the samples.
-      val (Some(PTypeReferenceSingleCodeType(pivotsWithEndpointsGroupedBySegmentNumberP: PArray)), fPerPartStats) = ctx.timer.time("LowerDistributedSort.distributedSort.compilePerPartStats")(Compile[AsmFunction1RegionLong](ctx,
-        FastIndexedSeq(),
-        FastIndexedSeq(classInfo[Region]), LongInfo,
-        pivotsPerSegmentAndSortedCheck,
-        print = None,
-        optimize = true))
-
-      val fPivotsBySegmentNumberRunnable = ctx.timer.time("LowerDistributedSort.distributedSort.initialize")(fPerPartStats(ctx.fs, 0, ctx.r))
-      val pivotsWithEndpointsGroupedBySegmentNumberAddr = ctx.timer.time("LowerDistributedSort.distributedSort.run")(fPivotsBySegmentNumberRunnable(ctx.r))
-      val pivotsWithEndpointsAndInfoGroupedBySegmentNumber = ctx.timer.time("LowerDistributedSort.distributedSort.toJavaObject")(SafeRow.read(pivotsWithEndpointsGroupedBySegmentNumberP, pivotsWithEndpointsGroupedBySegmentNumberAddr))
+      val pivotsWithEndpointsAndInfoGroupedBySegmentNumber = CompileAndEvaluate[Annotation](ctx, pivotsPerSegmentAndSortedCheck)
         .asInstanceOf[IndexedSeq[Row]].map(x => (x(0).asInstanceOf[IndexedSeq[Row]], x(1).asInstanceOf[Boolean], x(2).asInstanceOf[Row]))
 
       val (sortedSegmentsTuples, unsortedPivotsWithEndpointsAndInfoGroupedBySegmentNumber) = pivotsWithEndpointsAndInfoGroupedBySegmentNumber.zipWithIndex.partition { case ((_, isSorted, _), _) => isSorted}
@@ -250,16 +241,7 @@ object LowerDistributedSort {
           MakeTuple.ordered(IndexedSeq(segmentIdx, StreamDistribute(partitionStream, ArrayRef(pivotsWithEndpointsGroupedBySegmentIdx, indexIntoPivotsArray), path, StructCompare(keyToSortBy, keyToSortBy, sortFields.toArray), spec)))
         }
 
-        val (Some(PTypeReferenceSingleCodeType(resultPType)), f) = ctx.timer.time("LowerDistributedSort.distributedSort.compile")(Compile[AsmFunction1RegionLong](ctx,
-          FastIndexedSeq(),
-          FastIndexedSeq(classInfo[Region]), LongInfo,
-          distribute,
-          print = None,
-          optimize = true))
-
-        val fRunnable = ctx.timer.time("LowerDistributedSort.distributedSort.initialize")(f(ctx.fs, 0, ctx.r))
-        val resultAddress = ctx.timer.time("LowerDistributedSort.distributedSort.run")(fRunnable(ctx.r))
-        val distributeResult = ctx.timer.time("LowerDistributedSort.distributedSort.toJavaObject")(SafeRow.read(resultPType, resultAddress))
+        val distributeResult = CompileAndEvaluate[Annotation](ctx, distribute)
           .asInstanceOf[IndexedSeq[Row]].map(row => (
           row(0).asInstanceOf[Int],
           row(1).asInstanceOf[IndexedSeq[Row]].map(innerRow => (
@@ -294,34 +276,51 @@ object LowerDistributedSort {
       i = i + 1
     }
 
-    val unorderedSegments = loopState.smallSegments.map(x => (x, false)) ++ loopState.largeSortedSegments.map(x => (x, true))
-    val orderedSegments = unorderedSegments.sortWith{ (srt1, srt2) => lessThanForSegmentIndices(srt1._1.indices, srt2._1.indices)}
+    val needSortingFilenames = loopState.smallSegments.map(_.chunks.map(_.filename))
+    val needSortingFilenamesContext = Literal(TArray(TArray(TString)), needSortingFilenames)
 
-    // TODO: Partitions are not broken up evenly.
+    val sortedFilenamesIR = cdaIR(ToStream(needSortingFilenamesContext), MakeStruct(Seq())) { case (ctxRef, _) =>
+      val filenames = ctxRef
+      val partitionInputStream = flatMapIR(ToStream(filenames)) { fileName =>
+        ReadPartition(fileName, spec._vType, reader)
+      }
+      val newKeyFieldNames = keyToSortBy.fields.map(_.name)
+      val sortedStream = ToStream(sortIR(partitionInputStream) { (refLeft, refRight) =>
+        ApplyComparisonOp(StructLT(keyToSortBy, sortFields), SelectFields(refLeft, newKeyFieldNames), SelectFields(refRight, newKeyFieldNames))
+      })
+      WritePartition(sortedStream, UUID4(), writer)
+    }
 
-    val contextData = orderedSegments.map { case (segment, isSorted) => Row(segment.chunks.map(chunk => chunk.filename), isSorted) }
-    val contexts = ToStream(Literal(TArray(TStruct("files" -> TArray(TString), "isSorted" -> TBoolean)), contextData))
+    val sortedFilenames = CompileAndEvaluate[Annotation](ctx, sortedFilenamesIR).asInstanceOf[IndexedSeq[Row]].map(_(0).asInstanceOf[String])
+    val newlySortedSegments = loopState.smallSegments.zip(sortedFilenames).map { case (sr, newFilename) =>
+      SegmentResult(sr.indices, sr.interval, IndexedSeq(Chunk(initialTmpPath + newFilename, sr.chunks.foldLeft(0)((size, chunk) => size + chunk.size))))
+    }
+
+    val unorderedSegments = newlySortedSegments ++ loopState.largeSortedSegments
+    val orderedSegments = unorderedSegments.sortWith{ (srt1, srt2) => lessThanForSegmentIndices(srt1.indices, srt2.indices)}
+
+    // Now let's treat the whole thing as one segment that can be partitioned by the segmentToPartitionData method.
+    val megaSegment = SegmentResult(IndexedSeq(), null, orderedSegments.flatMap(sr => sr.chunks))
+    val partitioned = segmentsToPartitionData(IndexedSeq(megaSegment), idealNumberOfRowsPerPart).flatten
+
+    val contextData = partitioned.map { part => Row(part.files) }
+    val contexts = ToStream(Literal(TArray(TStruct("files" -> TArray(TString))), contextData))
 
     // Note: If all of the sort fields are not ascending, the the resulting table is sorted, but not keyed.
     val keyed = sortFields.forall(sf => sf.sortOrder == Ascending)
     val (partitionerKey, intervals) = if (keyed) {
-      (keyToSortBy, orderedSegments.map{ case (segment, _) => segment.interval})
+      (keyToSortBy, orderedSegments.map{ segment => segment.interval})
     } else {
       (TStruct(), orderedSegments.map{ _ => Interval(Row(), Row(), true, false)})
     }
+
     val partitioner = new RVDPartitioner(partitionerKey, intervals)
     val finalTs = TableStage(initialGlobalsLiteral, partitioner, TableStageDependency.none, contexts, { ctxRef =>
       val filenames = GetField(ctxRef, "files")
       val partitionInputStream = flatMapIR(ToStream(filenames)) { fileName =>
         ReadPartition(fileName, spec._vType, reader)
       }
-      val newKeyFieldNames = keyToSortBy.fields.map(_.name)
-      If(GetField(ctxRef, "isSorted"),
-        partitionInputStream,
-        ToStream(sortIR(partitionInputStream) { (refLeft, refRight) =>
-          ApplyComparisonOp(StructLT(keyToSortBy, sortFields), SelectFields(refLeft, newKeyFieldNames), SelectFields(refRight, newKeyFieldNames))
-        })
-      )
+      partitionInputStream
     })
 
     finalTs
@@ -379,7 +378,7 @@ object LowerDistributedSort {
         if (chunk.size > 0) {
           currentFiles.append(chunk.filename)
           currentPartSize += chunk.size
-          if (currentPartSize > idealNumberOfRowsPerPart) {
+          if (currentPartSize >= idealNumberOfRowsPerPart) {
             groupedIntoParts.append(PartitionInfo(sr.indices, currentFiles.result().toIndexedSeq, currentPartSize))
             currentFiles.clear()
             currentPartSize = 0
