@@ -262,7 +262,7 @@ async def get_job(request, userdata):
     return await render_template('ci', request, userdata, 'job.html', page_context)
 
 
-def filter_wbs(wbs, pred: Callable[[PRConfig], bool]):
+def filter_wbs(wbs: List[WatchedBranchConfig], pred: Callable[[PRConfig], bool]):
     return [{**wb, 'prs': [pr for pr in wb['prs'] if pred(pr)]} for wb in wbs]
 
 
