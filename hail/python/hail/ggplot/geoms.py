@@ -194,12 +194,13 @@ def geom_text(mapping=aes(), *, color=None):
 
 class GeomBar(Geom):
 
-    def __init__(self, aes, fill=None, color=None, position="stack", size=None, stat=None):
+    def __init__(self, aes, fill=None, color=None, alpha=None, position="stack", size=None, stat=None):
         super().__init__(aes)
         self.fill = fill
         self.color = color
         self.position = position
         self.size = size
+        self.alpha = alpha
 
         if stat is None:
             stat = StatCount()
@@ -232,6 +233,9 @@ class GeomBar(Geom):
             if self.size is not None:
                 bar_args["marker_line_width"] = self.size
 
+            if self.alpha is not None:
+                bar_args["marker_opacity"] = self.alpha
+
             fig_so_far.add_bar(**bar_args)
 
         groups = set(agg_result["group"])
@@ -246,7 +250,7 @@ class GeomBar(Geom):
         return self.stat
 
 
-def geom_bar(mapping=aes(), *, fill=None, color=None, position="stack", size=None):
+def geom_bar(mapping=aes(), *, fill=None, color=None, alpha=None, position="stack", size=None):
     """Create a bar chart that counts occurrences of the various values of the ``x`` aesthetic.
 
     Supported aesthetics: ``x``, ``color``, ``fill``
@@ -257,10 +261,10 @@ def geom_bar(mapping=aes(), *, fill=None, color=None, position="stack", size=Non
         The geom to be applied.
     """
 
-    return GeomBar(mapping, fill=fill, color=color, position=position, size=size)
+    return GeomBar(mapping, fill=fill, color=color, alpha=alpha, position=position, size=size)
 
 
-def geom_col(mapping=aes(), *, fill=None, color=None, position="stack", size=None):
+def geom_col(mapping=aes(), *, fill=None, color=None, alpha=None, position="stack", size=None):
     """Create a bar chart that uses bar heights specified in y aesthetic.
 
     Supported aesthetics: ``x``, ``y``, ``color``, ``fill``
@@ -270,18 +274,19 @@ def geom_col(mapping=aes(), *, fill=None, color=None, position="stack", size=Non
     :class:`FigureAttribute`
         The geom to be applied.
     """
-    return GeomBar(mapping, stat=StatIdentity(), fill=fill, color=color, position=position, size=size)
+    return GeomBar(mapping, stat=StatIdentity(), fill=fill, color=color, alpha=alpha, position=position, size=size)
 
 
 class GeomHistogram(Geom):
 
-    def __init__(self, aes, min_val=None, max_val=None, bins=None, fill=None, color=None, position='stack', size=None):
+    def __init__(self, aes, min_val=None, max_val=None, bins=None, fill=None, color=None, alpha=None, position='stack', size=None):
         super().__init__(aes)
         self.min_val = min_val
         self.max_val = max_val
         self.bins = bins
         self.fill = fill
         self.color = color
+        self.alpha = alpha
         self.position = position
         self.size = size
 
@@ -330,6 +335,9 @@ class GeomHistogram(Geom):
             if self.size is not None:
                 hist_args["marker_line_width"] = self.size
 
+            if self.alpha is not None:
+                hist_args["marker_opacity"] = self.alpha
+
             if "fill_legend" in df.columns:
                 hist_args["name"] = df.fill_legend.iloc[0]
 
@@ -350,7 +358,7 @@ class GeomHistogram(Geom):
         return StatBin(self.min_val, self.max_val, self.bins)
 
 
-def geom_histogram(mapping=aes(), *, min_val=None, max_val=None, bins=None, fill=None, color=None, position='stack',
+def geom_histogram(mapping=aes(), *, min_val=None, max_val=None, bins=None, fill=None, color=None, alpha=None, position='stack',
                    size=None):
     """Creates a histogram.
 
@@ -374,14 +382,13 @@ def geom_histogram(mapping=aes(), *, min_val=None, max_val=None, bins=None, fill
         A single outline color for all bars of histogram, overrides ``color`` aesthetic.
     position: :class:`str`
         Tells how to deal with different groups of data at same point. Options are "stack" and "dodge".
-    size
 
     Returns
     -------
     :class:`FigureAttribute`
         The geom to be applied.
     """
-    return GeomHistogram(mapping, min_val, max_val, bins, fill, color, position, size)
+    return GeomHistogram(mapping, min_val=min_val, max_val=max_val, bins=bins, fill=fill, color=color, alpha=alpha, position=position, size=size)
 
 
 linetype_dict = {
