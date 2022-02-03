@@ -51,7 +51,7 @@ class GeomLineBasic(Geom):
             for group in groups:
                 rows_for_this_group = agg_result["group"] == group
                 just_one_group = agg_result[rows_for_this_group]
-                plot_group(just_one_group)
+                plot_group(just_one_group, just_one_group.color.iloc[0])
         else:
             plot_group(agg_result, "black")
 
@@ -293,27 +293,20 @@ class GeomHistogram(Geom):
         bins = self.bins if self.bins is not None else self.get_stat().DEFAULT_BINS
         bin_width = (max_val - min_val) / bins
 
-        def plot_group(data, num_groups):
-            x = []
-            left_xs = []
-            right_xs = []
+        def plot_group(df, num_groups):
+            left_xs = df.x
 
-            for element in data:
-                left_x = element.x
-                if self.position == "dodge":
-                    group = element.group
-                    center_x = left_x + bin_width * (2 * group + 1) / (2 * num_groups)
+            if self.position == "dodge":
+                x = left_xs + bin_width * (2 * df.group + 1) / (2 * num_groups)
 
-                elif self.position == "stack":
-                    center_x = left_x + bin_width / 2
+            elif self.position == "stack":
+                x = left_xs + bin_width / 2
 
-                left_xs.append(left_x)
-                x.append(center_x)
-                right_xs.append(left_x + bin_width)
+            right_xs = left_xs + bin_width
 
             if self.fill is None:
-                if "fill" in data[0]:
-                    fill = [element["fill"] for element in data]
+                if "fill" in df.columns:
+                    fill = df.fill
                 else:
                     fill = "black"
             else:
@@ -321,7 +314,7 @@ class GeomHistogram(Geom):
 
             hist_args = {
                 "x": x,
-                "y": [element["y"] for element in data],
+                "y": df.y,
                 "marker_color": fill,
                 "customdata": list(zip(left_xs, right_xs)),
                 "hovertemplate":
@@ -330,25 +323,26 @@ class GeomHistogram(Geom):
                     "<extra></extra>",
             }
 
-            if self.color is None and "color" in data[0]:
-                hist_args["marker_line_color"] = [element["color"] for element in data]
+            if self.color is None and "color" in df.columns:
+                hist_args["marker_line_color"] = df.color
             elif self.color is not None:
                 hist_args["marker_line_color"] = self.color
 
             if self.size is not None:
                 hist_args["marker_line_width"] = self.size
 
-            if "fill_legend" in data[0]:
-                hist_args["name"] = data[0]["fill_legend"]
+            if "fill_legend" in df.columns:
+                hist_args["name"] = df.fill_legend.iloc[0]
 
             width = bin_width if self.position == 'stack' else bin_width / num_groups
-            hist_args["width"] = [width] * len(data)
+            hist_args["width"] = [width] * len(df)
 
             fig_so_far.add_bar(**hist_args)
 
-        groups = set([element["group"] for element in agg_result])
+        groups = set(agg_result["group"])
         for group in groups:
-            just_one_group = [element for element in agg_result if element["group"] == group]
+            rows_for_this_group = agg_result["group"] == group
+            just_one_group = agg_result[rows_for_this_group]
             plot_group(just_one_group, len(groups))
 
         ggplot_to_plotly = {'dodge': 'group', 'stack': 'stack'}
@@ -493,8 +487,9 @@ class GeomTile(Geom):
         self.aes = aes
 
     def apply_to_fig(self, parent, agg_result, fig_so_far, precomputed):
-        def plot_group(data):
-            for idx, row in enumerate(data):
+        def plot_group(df):
+
+            for idx, row in df.iterrows():
                 x_center = row['x']
                 y_center = row['y']
                 width = row['width']
@@ -512,9 +507,10 @@ class GeomTile(Geom):
                     shape_args["line_color"] = row["color"]
                 fig_so_far.add_shape(**shape_args)
 
-        groups = set([element["group"] for element in agg_result])
+        groups = set(agg_result["group"])
         for group in groups:
-            just_one_group = [element for element in agg_result if element["group"] == group]
+            rows_for_this_group = agg_result["group"] == group
+            just_one_group = agg_result[rows_for_this_group]
             plot_group(just_one_group)
 
     def get_stat(self):
