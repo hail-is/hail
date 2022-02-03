@@ -29,28 +29,29 @@ class GeomLineBasic(Geom):
 
     def apply_to_fig(self, parent, agg_result, fig_so_far, precomputed):
 
-        def plot_group(data, color):
+        def plot_group(df, color):
             scatter_args = {
-                "x": [element["x"] for element in data],
-                "y": [element["y"] for element in data],
+                "x": df.x,
+                "y": df.y,
                 "mode": "lines",
                 "line_color": color
 
             }
-            if "color_legend" in data[0]:
-                scatter_args["name"] = data[0]["color_legend"]
+            if "color_legend" in df.columns:
+                scatter_args["name"] = df.color_legend.iloc[0]
 
             if "tooltip" in parent.aes or "tooltip" in self.aes:
-                scatter_args["hovertext"] = [element["tooltip"] for element in data]
+                scatter_args["hovertext"] = df.tooltip
             fig_so_far.add_scatter(**scatter_args)
 
         if self.color is not None:
             plot_group(agg_result, self.color)
         elif "color" in parent.aes or "color" in self.aes:
-            groups = set([element["group"] for element in agg_result])
+            groups = set(agg_result["group"])
             for group in groups:
-                just_one_group = [element for element in agg_result if element["group"] == group]
-                plot_group(just_one_group, just_one_group[0]["color"])
+                rows_for_this_group = agg_result["group"] == group
+                just_one_group = agg_result[rows_for_this_group]
+                plot_group(just_one_group)
         else:
             plot_group(agg_result, "black")
 
@@ -66,29 +67,30 @@ class GeomPoint(Geom):
         self.color = color
 
     def apply_to_fig(self, parent, agg_result, fig_so_far, precomputed):
-        def plot_group(data, color=None):
+        def plot_group(df, color=None):
             scatter_args = {
-                "x": [element["x"] for element in data],
-                "y": [element["y"] for element in data],
+                "x": df["x"],
+                "y": df["y"],
                 "mode": "markers",
-                "marker_color": color if color is not None else [element["color"] for element in data]
+                "marker_color": color if color is not None else df["color"]
             }
 
-            if "color_legend" in data[0]:
-                scatter_args["name"] = data[0]["color_legend"]
+            if "color_legend" in df.columns:
+                scatter_args["name"] = df["color_legend"].iloc[0]
 
             if "size" in parent.aes or "size" in self.aes:
-                scatter_args["marker_size"] = [element["size"] for element in data]
+                scatter_args["marker_size"] = df["size"]
             if "tooltip" in parent.aes or "tooltip" in self.aes:
-                scatter_args["hovertext"] = [element["tooltip"] for element in data]
+                scatter_args["hovertext"] = df["tooltip"]
             fig_so_far.add_scatter(**scatter_args)
 
         if self.color is not None:
             plot_group(agg_result, self.color)
         elif "color" in parent.aes or "color" in self.aes:
-            groups = set([element["group"] for element in agg_result])
+            groups = set(agg_result["group"])
             for group in groups:
-                just_one_group = [element for element in agg_result if element["group"] == group]
+                rows_for_this_group = agg_result["group"] == group
+                just_one_group = agg_result[rows_for_this_group]
                 plot_group(just_one_group)
         else:
             plot_group(agg_result, "black")
@@ -143,32 +145,33 @@ class GeomText(Geom):
         self.color = color
 
     def apply_to_fig(self, parent, agg_result, fig_so_far, precomputed):
-        def plot_group(data, color=None):
+        def plot_group(df, color=None):
             scatter_args = {
-                "x": [element["x"] for element in data],
-                "y": [element["y"] for element in data],
-                "text": [element["label"] for element in data],
+                "x": df.x,
+                "y": df.y,
+                "text": df.label,
                 "mode": "text",
                 "textfont_color": color
             }
 
-            if "color_legend" in data[0]:
-                scatter_args["name"] = data[0]["color_legend"]
+            if "color_legend" in df.columns:
+                scatter_args["name"] = df.color_legend.iloc[0]
 
             if "tooltip" in parent.aes or "tooltip" in self.aes:
-                scatter_args["hovertext"] = [element["tooltip"] for element in data]
+                scatter_args["hovertext"] = df.tooltip
 
             if "size" in parent.aes or "size" in self.aes:
-                scatter_args["marker_size"] = [element["size"] for element in data]
+                scatter_args["marker_size"] = df.size
             fig_so_far.add_scatter(**scatter_args)
 
         if self.color is not None:
             plot_group(agg_result, self.color)
         elif "color" in parent.aes or "color" in self.aes:
-            groups = set([element["group"] for element in agg_result])
+            groups = set(agg_result["group"])
             for group in groups:
-                just_one_group = [element for element in agg_result if element["group"] == group]
-                plot_group(just_one_group, just_one_group[0]["color"])
+                rows_for_this_group = agg_result["group"] == group
+                just_one_group = agg_result[rows_for_this_group]
+                plot_group(just_one_group)
         else:
             plot_group(agg_result, "black")
 
@@ -203,25 +206,26 @@ class GeomBar(Geom):
         self.stat = stat
 
     def apply_to_fig(self, parent, agg_result, fig_so_far, precomputed):
-        def plot_group(data):
+        def plot_group(df):
             if self.fill is None:
-                if "fill" in data[0]:
-                    fill = [element["fill"] for element in data]
+                if "fill" in df.columns:
+                    fill = df.fill
                 else:
                     fill = "black"
             else:
                 fill = self.fill
 
             bar_args = {
-                "x": [element["x"] for element in data],
-                "y": [element["y"] for element in data],
+                "x": df.x,
+                "y": df.y,
                 "marker_color": fill
             }
-            if "color_legend" in data[0]:
-                bar_args["name"] = data[0]["color_legend"]
 
-            if self.color is None and "color" in data[0]:
-                bar_args["marker_line_color"] = [element["color"] for element in data]
+            if "color_legend" in df.columns:
+                bar_args["name"] = df.color_legend.iloc[0]
+
+            if self.color is None and "color" in df.columns:
+                bar_args["marker_line_color"] = df.color
             elif self.color is not None:
                 bar_args["marker_line_color"] = self.color
 
@@ -230,9 +234,10 @@ class GeomBar(Geom):
 
             fig_so_far.add_bar(**bar_args)
 
-        groups = set([element["group"] for element in agg_result])
+        groups = set(agg_result["group"])
         for group in groups:
-            just_one_group = [element for element in agg_result if element["group"] == group]
+            rows_for_this_group = agg_result["group"] == group
+            just_one_group = agg_result[rows_for_this_group]
             plot_group(just_one_group)
 
         ggplot_to_plotly = {'dodge': 'group', 'stack': 'stack'}

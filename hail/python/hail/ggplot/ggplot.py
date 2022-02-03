@@ -174,13 +174,16 @@ class GGPlot:
         for geom, (geom_label, agg_result) in zip(self.geoms, aggregated.items()):
             listified_agg_result = labels_to_stats[geom_label].listify(agg_result)
 
-            if listified_agg_result:
-                relevant_aesthetics = [scale_name for scale_name in list(listified_agg_result[0]) if scale_name in self.scales]
+            if not listified_agg_result.empty:
+                relevant_aesthetics = [scale_name for scale_name in listified_agg_result.columns if scale_name in self.scales]
                 for relevant_aesthetic in relevant_aesthetics:
                     listified_agg_result = self.scales[relevant_aesthetic].transform_data_local(listified_agg_result, self)
                 # Need to identify every possible combination of discrete scale values.
                 discrete_aesthetics = [scale_name for scale_name in relevant_aesthetics if self.scales[scale_name].is_discrete() and scale_name != "x"]
-                subsetted_to_discrete = tuple([one_struct.select(*discrete_aesthetics) for one_struct in listified_agg_result])
+
+                subsetted_to_discrete = listified_agg_result[discrete_aesthetics]
+
+
                 group_counter = 0
 
                 def increment_and_return_old():
@@ -188,12 +191,7 @@ class GGPlot:
                     group_counter += 1
                     return group_counter - 1
                 numberer = defaultdict(increment_and_return_old)
-                numbering = [numberer[data_tuple] for data_tuple in subsetted_to_discrete]
-
-                numbered_result = []
-                for s, i in zip(listified_agg_result, numbering):
-                    numbered_result.append(s.annotate(group=i))
-                listified_agg_result = numbered_result
+                listified_agg_result["group"] = [numberer[tuple(x)] for _, x in subsetted_to_discrete.iterrows()]
 
             geom.apply_to_fig(self, listified_agg_result, fig, precomputed[geom_label])
 

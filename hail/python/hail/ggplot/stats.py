@@ -1,5 +1,7 @@
 import abc
 
+import pandas as pd
+
 import hail as hl
 from hail.utils.java import warning
 from .utils import is_continuous_type
@@ -25,10 +27,20 @@ class StatIdentity(Stat):
 
     def listify(self, agg_result):
         # Collect aggregator returns a list, nothing to do.
+
+        columns = list(agg_result[0].keys())
+        data_dict = {}
+
+        for column in columns:
+            col_data = [row[column] for row in agg_result]
+            data_dict[column] = pd.Series(col_data)
+
+        return pd.DataFrame(data_dict)
+
         return agg_result
 
 
-class StatFunction(Stat):
+class StatFunction(StatIdentity):
 
     def __init__(self, fun):
         self.fun = fun
@@ -37,17 +49,13 @@ class StatFunction(Stat):
         with_y_value = combined.annotate(y=self.fun(combined.x))
         return hl.agg.collect(with_y_value)
 
-    def listify(self, agg_result):
-        # Collect aggregator returns a list, nothing to do.
-        return agg_result
-
 
 class StatNone(Stat):
     def make_agg(self, mapping, precomputed):
         return hl.struct()
 
     def listify(self, agg_result):
-        return []
+        return pd.DataFrame({})
 
 
 class StatCount(Stat):
@@ -59,13 +67,13 @@ class StatCount(Stat):
 
     def listify(self, agg_result):
         unflattened_items = agg_result.items()
-        res = []
+        data = []
         for discrete_variables, count in unflattened_items:
             arg_dict = {key: value for key, value in discrete_variables.items()}
             arg_dict["y"] = count
-            new_struct = hl.Struct(**arg_dict)
-            res.append(new_struct)
-        return res
+            data.append(arg_dict)
+
+        return pd.DataFrame.from_records(data)
 
 
 class StatBin(Stat):
@@ -107,5 +115,5 @@ class StatBin(Stat):
             y_values = hist.bin_freq
             for i, x in enumerate(x_edges[:num_edges - 1]):
                 x_value = x
-                data_rows.append(hl.Struct(x=x_value, y=y_values[i], **key))
-        return data_rows
+                data_rows.append({"x": x_value, "y":y_values[i], **key})
+        return pd.DataFrame.from_records(data_rows)
