@@ -14,7 +14,7 @@ class Geom(FigureAttribute):
         self.aes = aes
 
     @abc.abstractmethod
-    def apply_to_fig(self, parent, agg_result, fig_so_far):
+    def apply_to_fig(self, parent, agg_result, fig_so_far, precomputed):
         pass
 
     @abc.abstractmethod
@@ -27,7 +27,7 @@ class GeomLineBasic(Geom):
         super().__init__(aes)
         self.color = color
 
-    def apply_to_fig(self, parent, agg_result, fig_so_far):
+    def apply_to_fig(self, parent, agg_result, fig_so_far, precomputed):
 
         def plot_group(data, color):
             scatter_args = {
@@ -65,7 +65,7 @@ class GeomPoint(Geom):
         super().__init__(aes)
         self.color = color
 
-    def apply_to_fig(self, parent, agg_result, fig_so_far):
+    def apply_to_fig(self, parent, agg_result, fig_so_far, precomputed):
         def plot_group(data, color=None):
             scatter_args = {
                 "x": [element["x"] for element in data],
@@ -116,8 +116,8 @@ class GeomLine(GeomLineBasic):
         super().__init__(aes, color)
         self.color = color
 
-    def apply_to_fig(self, parent, agg_result, fig_so_far):
-        super().apply_to_fig(parent, agg_result, fig_so_far)
+    def apply_to_fig(self, parent, agg_result, fig_so_far, precomputed):
+        super().apply_to_fig(parent, agg_result, fig_so_far, precomputed)
 
     def get_stat(self):
         return StatIdentity()
@@ -142,7 +142,7 @@ class GeomText(Geom):
         super().__init__(aes)
         self.color = color
 
-    def apply_to_fig(self, parent, agg_result, fig_so_far):
+    def apply_to_fig(self, parent, agg_result, fig_so_far, precomputed):
         def plot_group(data, color=None):
             scatter_args = {
                 "x": [element["x"] for element in data],
@@ -202,7 +202,7 @@ class GeomBar(Geom):
             stat = StatCount()
         self.stat = stat
 
-    def apply_to_fig(self, parent, agg_result, fig_so_far):
+    def apply_to_fig(self, parent, agg_result, fig_so_far, precomputed):
         def plot_group(data):
             if self.fill is None:
                 if "fill" in data[0]:
@@ -271,21 +271,27 @@ def geom_col(mapping=aes(), *, fill=None, color=None, position="stack", size=Non
 
 class GeomHistogram(Geom):
 
-    def __init__(self, aes, min_bin=0, max_bin=100, bins=30, fill=None, color=None, position='stack', size=None):
+    def __init__(self, aes, min_val=None, max_val=None, bins=None, fill=None, color=None, position='stack', size=None):
         super().__init__(aes)
-        self.min_bin = min_bin
-        self.max_bin = max_bin
+        self.min_val = min_val
+        self.max_val = max_val
         self.bins = bins
         self.fill = fill
         self.color = color
         self.position = position
         self.size = size
 
-    def apply_to_fig(self, parent, agg_result, fig_so_far):
-        bin_width = (self.max_bin - self.min_bin) / self.bins
+    def apply_to_fig(self, parent, agg_result, fig_so_far, precomputed):
+        min_val = self.min_val if self.min_val is not None else precomputed.min_val
+        max_val = self.max_val if self.max_val is not None else precomputed.max_val
+        # This assumes it doesn't really make sense to use another stat for geom_histogram
+        bins = self.bins if self.bins is not None else self.get_stat().DEFAULT_BINS
+        bin_width = (max_val - min_val) / bins
 
         def plot_group(data, num_groups):
             x = []
+            left_xs = []
+            right_xs = []
 
             for element in data:
                 left_x = element.x
@@ -296,7 +302,9 @@ class GeomHistogram(Geom):
                 elif self.position == "stack":
                     center_x = left_x + bin_width / 2
 
+                left_xs.append(left_x)
                 x.append(center_x)
+                right_xs.append(left_x + bin_width)
 
             if self.fill is None:
                 if "fill" in data[0]:
@@ -309,7 +317,12 @@ class GeomHistogram(Geom):
             hist_args = {
                 "x": x,
                 "y": [element["y"] for element in data],
-                "marker_color": fill
+                "marker_color": fill,
+                "customdata": list(zip(left_xs, right_xs)),
+                "hovertemplate":
+                    "Range: [%{customdata[0]:.3f}-%{customdata[1]:.3f})<br>"
+                    "Count: %{y}<br>"
+                    "<extra></extra>",
             }
 
             if self.color is None and "color" in data[0]:
@@ -319,6 +332,9 @@ class GeomHistogram(Geom):
 
             if self.size is not None:
                 hist_args["marker_line_width"] = self.size
+
+            if "fill_legend" in data[0]:
+                hist_args["name"] = data[0]["fill_legend"]
 
             width = bin_width if self.position == 'stack' else bin_width / num_groups
             hist_args["width"] = [width] * len(data)
@@ -334,10 +350,10 @@ class GeomHistogram(Geom):
         fig_so_far.update_layout(barmode=ggplot_to_plotly[self.position])
 
     def get_stat(self):
-        return StatBin(self.min_bin, self.max_bin, self.bins)
+        return StatBin(self.min_val, self.max_val, self.bins)
 
 
-def geom_histogram(mapping=aes(), *, min_val=None, max_val=None, bins=30, fill=None, color=None, position='stack',
+def geom_histogram(mapping=aes(), *, min_val=None, max_val=None, bins=None, fill=None, color=None, position='stack',
                    size=None):
     """Creates a histogram.
 
@@ -368,8 +384,6 @@ def geom_histogram(mapping=aes(), *, min_val=None, max_val=None, bins=30, fill=N
     :class:`FigureAttribute`
         The geom to be applied.
     """
-    assert min_val is not None
-    assert max_val is not None
     return GeomHistogram(mapping, min_val, max_val, bins, fill, color, position, size)
 
 
@@ -390,7 +404,7 @@ class GeomHLine(Geom):
         self.linetype = linetype
         self.color = color
 
-    def apply_to_fig(self, parent, agg_result, fig_so_far):
+    def apply_to_fig(self, parent, agg_result, fig_so_far, precomputed):
         line_attributes = {
             "y": self.yintercept,
             "line_dash": linetype_dict[self.linetype]
@@ -433,7 +447,7 @@ class GeomVLine(Geom):
         self.linetype = linetype
         self.color = color
 
-    def apply_to_fig(self, parent, agg_result, fig_so_far):
+    def apply_to_fig(self, parent, agg_result, fig_so_far, precomputed):
         line_attributes = {
             "x": self.xintercept,
             "line_dash": linetype_dict[self.linetype]
@@ -473,7 +487,7 @@ class GeomTile(Geom):
     def __init__(self, aes):
         self.aes = aes
 
-    def apply_to_fig(self, parent, agg_result, fig_so_far):
+    def apply_to_fig(self, parent, agg_result, fig_so_far, precomputed):
         def plot_group(data):
             for idx, row in enumerate(data):
                 x_center = row['x']
@@ -511,8 +525,8 @@ class GeomFunction(GeomLineBasic):
         super().__init__(aes, color)
         self.fun = fun
 
-    def apply_to_fig(self, parent, agg_result, fig_so_far):
-        super().apply_to_fig(parent, agg_result, fig_so_far)
+    def apply_to_fig(self, parent, agg_result, fig_so_far, precomputed):
+        super().apply_to_fig(parent, agg_result, fig_so_far, precomputed)
 
     def get_stat(self):
         return StatFunction(self.fun)

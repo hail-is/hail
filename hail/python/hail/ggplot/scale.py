@@ -158,7 +158,7 @@ class ScaleColorDiscrete(ScaleDiscrete):
                 if data_entry[self.aesthetic_name] == category:
                     annotate_args = {
                         self.aesthetic_name: unique_color_mapping[category],
-                        "color_legend": category
+                        f"{self.aesthetic_name}_legend": category
                     }
                     updated_data.append(data_entry.annotate(**annotate_args))
         return updated_data
