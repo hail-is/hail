@@ -49,6 +49,7 @@ from gear import (
     monitor_endpoints_middleware,
 )
 from gear.clients import get_cloud_async_fs
+from gear.database import CallError
 from web_common import setup_aiohttp_jinja2, setup_common_static_routes, render_template, set_message
 
 # import uvloop
@@ -71,7 +72,6 @@ from ..exceptions import (
 )
 from ..inst_coll_config import InstanceCollectionConfigs
 from ..file_store import FileStore
-from ..database import CallError, check_call_procedure
 from ..batch_configuration import BATCH_STORAGE_URI, DEFAULT_NAMESPACE, SCOPE, CLOUD
 from ..globals import HTTP_CLIENT_MAX_SIZE, BATCH_FORMAT_VERSION
 from ..spec_writer import SpecWriter
