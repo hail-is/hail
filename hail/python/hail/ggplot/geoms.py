@@ -4,6 +4,7 @@ from .aes import aes
 from .stats import StatCount, StatIdentity, StatBin, StatNone, StatFunction
 from .utils import bar_position_plotly_to_gg
 
+
 class FigureAttribute(abc.ABC):
     pass
 
@@ -23,37 +24,44 @@ class Geom(FigureAttribute):
 
 
 class GeomLineBasic(Geom):
+    aes_to_arg = {
+        "color": ("line_color", "black", True),
+        "size": ("marker_size", None, False),
+        "tooltip": ("hovertext", None, False),
+        "color_legend": ("name", None, True)
+    }
+
     def __init__(self, aes, color):
         super().__init__(aes)
         self.color = color
 
     def apply_to_fig(self, parent, agg_result, fig_so_far, precomputed):
 
-        def plot_group(df, color):
+        def plot_group(df):
             scatter_args = {
                 "x": df.x,
                 "y": df.y,
                 "mode": "lines",
-                "line_color": color
-
             }
-            if "color_legend" in df.columns:
-                scatter_args["name"] = df.color_legend.iloc[0]
 
-            if "tooltip" in parent.aes or "tooltip" in self.aes:
-                scatter_args["hovertext"] = df.tooltip
+            for aes_name, (plotly_name, default, take_one) in self.aes_to_arg.items():
+                if hasattr(self, aes_name) and getattr(self, aes_name) is not None:
+                    scatter_args[plotly_name] = getattr(self, aes_name)
+                elif aes_name in df.columns:
+                    if take_one:
+                        scatter_args[plotly_name] = df[aes_name].iloc[0]
+                    else:
+                        scatter_args[plotly_name] = df[aes_name]
+                elif default is not None:
+                    scatter_args[plotly_name] = default
+
             fig_so_far.add_scatter(**scatter_args)
 
-        if self.color is not None:
-            plot_group(agg_result, self.color)
-        elif "color" in parent.aes or "color" in self.aes:
-            groups = set(agg_result["group"])
-            for group in groups:
-                rows_for_this_group = agg_result["group"] == group
-                just_one_group = agg_result[rows_for_this_group]
-                plot_group(just_one_group, just_one_group.color.iloc[0])
-        else:
-            plot_group(agg_result, "black")
+        groups = set(agg_result["group"])
+        for group in groups:
+            rows_for_this_group = agg_result["group"] == group
+            just_one_group = agg_result[rows_for_this_group]
+            plot_group(just_one_group)
 
     @abc.abstractmethod
     def get_stat(self):
@@ -62,38 +70,43 @@ class GeomLineBasic(Geom):
 
 class GeomPoint(Geom):
 
+    aes_to_arg = {
+        "color": ("marker_color", "black", False),
+        "size": ("marker_size", None, False),
+        "tooltip": ("hovertext", None, False),
+        "color_legend": ("name", None, True)
+    }
+
     def __init__(self, aes, color=None):
         super().__init__(aes)
         self.color = color
 
     def apply_to_fig(self, parent, agg_result, fig_so_far, precomputed):
-        def plot_group(df, color=None):
+        def plot_group(df):
             scatter_args = {
-                "x": df["x"],
-                "y": df["y"],
+                "x": df.x,
+                "y": df.y,
                 "mode": "markers",
-                "marker_color": color if color is not None else df["color"]
             }
 
-            if "color_legend" in df.columns:
-                scatter_args["name"] = df["color_legend"].iloc[0]
+            for aes_name, (plotly_name, default, take_one) in self.aes_to_arg.items():
+                if hasattr(self, aes_name) and getattr(self, aes_name) is not None:
+                    scatter_args[plotly_name] = getattr(self, aes_name)
+                elif aes_name in df.columns:
+                    if take_one:
+                        scatter_args[plotly_name] = df[aes_name].iloc[0]
+                    else:
+                        scatter_args[plotly_name] = df[aes_name]
+                elif default is not None:
+                    scatter_args[plotly_name] = default
 
-            if "size" in parent.aes or "size" in self.aes:
-                scatter_args["marker_size"] = df["size"]
-            if "tooltip" in parent.aes or "tooltip" in self.aes:
-                scatter_args["hovertext"] = df["tooltip"]
             fig_so_far.add_scatter(**scatter_args)
 
-        if self.color is not None:
-            plot_group(agg_result, self.color)
-        elif "color" in parent.aes or "color" in self.aes:
-            groups = set(agg_result["group"])
-            for group in groups:
-                rows_for_this_group = agg_result["group"] == group
-                just_one_group = agg_result[rows_for_this_group]
-                plot_group(just_one_group)
-        else:
-            plot_group(agg_result, "black")
+        groups = set(agg_result["group"])
+        for group in groups:
+            rows_for_this_group = agg_result["group"] == group
+            just_one_group = agg_result[rows_for_this_group]
+            plot_group(just_one_group)
 
     def get_stat(self):
         return StatIdentity()
@@ -139,6 +152,12 @@ def geom_line(mapping=aes(), *, color=None):
 
 
 class GeomText(Geom):
+    aes_to_arg = {
+        "color": ("textfont_color", "black", False),
+        "size": ("marker_size", None, False),
+        "tooltip": ("hovertext", None, False),
+        "color_legend": ("name", None, True),
+    }
 
     def __init__(self, aes, color=None):
         super().__init__(aes)
@@ -154,26 +173,24 @@ class GeomText(Geom):
                 "textfont_color": color
             }
 
-            if "color_legend" in df.columns:
-                scatter_args["name"] = df.color_legend.iloc[0]
+            for aes_name, (plotly_name, default, take_one) in self.aes_to_arg.items():
+                if hasattr(self, aes_name) and getattr(self, aes_name) is not None:
+                    scatter_args[plotly_name] = getattr(self, aes_name)
+                elif aes_name in df.columns:
+                    if take_one:
+                        scatter_args[plotly_name] = df[aes_name].iloc[0]
+                    else:
+                        scatter_args[plotly_name] = df[aes_name]
+                elif default is not None:
+                    scatter_args[plotly_name] = default
 
-            if "tooltip" in parent.aes or "tooltip" in self.aes:
-                scatter_args["hovertext"] = df.tooltip
-
-            if "size" in parent.aes or "size" in self.aes:
-                scatter_args["marker_size"] = df.size
             fig_so_far.add_scatter(**scatter_args)
 
-        if self.color is not None:
-            plot_group(agg_result, self.color)
-        elif "color" in parent.aes or "color" in self.aes:
-            groups = set(agg_result["group"])
-            for group in groups:
-                rows_for_this_group = agg_result["group"] == group
-                just_one_group = agg_result[rows_for_this_group]
-                plot_group(just_one_group)
-        else:
-            plot_group(agg_result, "black")
+        groups = set(agg_result["group"])
+        for group in groups:
+            rows_for_this_group = agg_result["group"] == group
+            just_one_group = agg_result[rows_for_this_group]
+            plot_group(just_one_group)
 
     def get_stat(self):
         return StatIdentity()
@@ -194,6 +211,14 @@ def geom_text(mapping=aes(), *, color=None):
 
 class GeomBar(Geom):
 
+    aes_to_arg = {
+        "fill": ("marker_color", "black", False),
+        "color": ("marker_line_color", None, True),
+        "tooltip": ("hovertext", None, False),
+        "color_legend": ("name", None, True),
+        "alpha": ("marker_opacity", None, False)
+    }
+
     def __init__(self, aes, fill=None, color=None, alpha=None, position="stack", size=None, stat=None):
         super().__init__(aes)
         self.fill = fill
@@ -208,33 +233,21 @@ class GeomBar(Geom):
 
     def apply_to_fig(self, parent, agg_result, fig_so_far, precomputed):
         def plot_group(df):
-            if self.fill is None:
-                if "fill" in df.columns:
-                    fill = df.fill
-                else:
-                    fill = "black"
-            else:
-                fill = self.fill
-
             bar_args = {
                 "x": df.x,
-                "y": df.y,
-                "marker_color": fill
+                "y": df.y
             }
 
-            if "color_legend" in df.columns:
-                bar_args["name"] = df.color_legend.iloc[0]
-
-            if self.color is None and "color" in df.columns:
-                bar_args["marker_line_color"] = df.color
-            elif self.color is not None:
-                bar_args["marker_line_color"] = self.color
-
-            if self.size is not None:
-                bar_args["marker_line_width"] = self.size
-
-            if self.alpha is not None:
-                bar_args["marker_opacity"] = self.alpha
+            for aes_name, (plotly_name, default, take_one) in self.aes_to_arg.items():
+                if hasattr(self, aes_name) and getattr(self, aes_name) is not None:
+                    bar_args[plotly_name] = getattr(self, aes_name)
+                elif aes_name in df.columns:
+                    if take_one:
+                        bar_args[plotly_name] = df[aes_name].iloc[0]
+                    else:
+                        bar_args[plotly_name] = df[aes_name]
+                elif default is not None:
+                    bar_args[plotly_name] = default
 
             fig_so_far.add_bar(**bar_args)
 
