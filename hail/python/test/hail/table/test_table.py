@@ -9,6 +9,8 @@ import hail as hl
 import hail.expr.aggregators as agg
 from hail.utils import new_temp_file
 from hail.utils.java import Env
+
+from hail import ExpressionException
 from ..helpers import *
 from test.hail.matrixtable.test_file_formats import create_all_values_datasets
 
@@ -628,16 +630,85 @@ https://hail.zulipchat.com/#narrow/stream/123011-Hail-Dev/topic/test_drop/near/2
         self.assertEqual(rows[0].x, 5)
         self.assertEqual(rows[0].y, 'foo')
 
-    @skip_unless_spark_backend()
     def test_from_pandas_works(self):
         d = {'a': [1, 2], 'b': ['foo', 'bar']}
         df = pd.DataFrame(data=d)
         t = hl.Table.from_pandas(df, key='a')
 
-        d2 = [hl.struct(a=hl.int64(1), b='foo'), hl.struct(a=hl.int64(2), b='bar')]
+        d2 = [hl.struct(a=hl.int32(1), b='foo'), hl.struct(a=hl.int32(2), b='bar')]
         t2 = hl.Table.parallelize(d2, key='a')
 
         self.assertTrue(t._same(t2))
+
+    def test_from_pandas_objects(self):
+        import numpy as np
+
+        d = {'a': [[1, 2], [3, 4]], 'b': [{'a': 22, 'b': 21}, {'a': 23, 'b': 23}], 'c':
+             [np.array([np.array([1], dtype=np.int32), np.array([1], dtype=np.int32)]),
+              np.array([np.array([2], dtype=np.int32), np.array([2], dtype=np.int32)])]}
+        df = pd.DataFrame(data=d)
+        t = hl.Table.from_pandas(df)
+
+        d2 = [hl.struct(a=hl.array([1, 2]), b=hl.literal({'a': 22, 'b': 21}),
+                        c=hl.nd.array([[1], [1]])),
+              hl.struct(a=hl.array([3, 4]), b=hl.literal({'a': 23, 'b': 23}),
+                        c=hl.nd.array([[2], [2]]))]
+        t2 = hl.Table.parallelize(d2)
+
+        self.assertTrue(t._same(t2))
+
+    def test_from_pandas_mismatched_object_rows(self):
+        d = {'a': [[1, 2], {1, 2}]}
+        df = pd.DataFrame(data=d)
+
+        with pytest.raises(ExpressionException, match='cannot impute array elements'):
+            hl.Table.from_pandas(df)
+
+    def test_table_parallelize_infer_types(self):
+        import numpy as np
+        a = hl.array([{"b": 1, "c": "d"}, {"b": 1, "c": "d"}])
+        d = hl.array([[3, 4, 5], [1, 2, 3]])
+        e = hl.array([{"a": 1, "b": 2}, {"a": 3, "b": 4}])
+        f = hl.array([.01, .00000002])
+        g = hl.array([(True, False), (False, True)])
+        h = hl.array([np.array([1, 2, 3]), np.array([3, 4, 5])])
+        i = hl.array([hl.Call([0, 0]), hl.Call([0, 1])])
+        j = hl.array([hl.locus('20', 17434581), hl.locus('19', 15434581)])
+        k = hl.array([hl.struct(a=1, b="2"), hl.struct(a=3, b="5")])
+        data = [{"idx": 0, "a": {"b": 1, "c": "d"}, "d": [3, 4, 5], "e": {"a": 1, "b": 2}, "f": .01,
+                 "g": (True, False), "h": np.array([1, 2, 3]), "i": hl.Call([0, 0]), "j": hl.locus('20', 17434581),
+                 "k": hl.struct(a=1, b="2")},
+                {"idx": 1, "a": {"b": 1, "c": "d"}, "d": [1, 2, 3], "e": {"a": 3, "b": 4}, "f": .00000002,
+                 "g": (False, True), "h": np.array([3, 4, 5]), "i": hl.Call([0, 1]), "j": hl.locus('19', 15434581),
+                 "k": hl.struct(a=3, b="5")}]
+        table = hl.Table.parallelize(data, key='idx')
+
+        ht = hl.utils.range_table(2)
+        ht = ht.annotate(a=hl.struct(b=a[ht.idx]['b'], c=a[ht.idx]['c']), d=d[ht.idx], e=e[ht.idx], f=f[ht.idx]
+                         , g=g[ht.idx], h=h[ht.idx], i=i[ht.idx], j=j[ht.idx], k=k[ht.idx])
+
+        self.assertTrue(table._same(ht))
+
+    def test_table_parallelize_partial_infer_types(self):
+        b = hl.array([{"c": {1, 2, 3}, "d": {3, 4, 5}}, {"c": {6, 7, 8}, "d": {9, 10, 11}}])
+        e = hl.array([[[3], [4], [5]], [[1], [2], [3]]])
+        f = hl.array([hl.struct(a=1, b=2), hl.struct(a=3, b=4)])
+        data = [{"idx": 0, "b": {"c": {1, 2, 3}, "d": {3, 4, 5}}, "e": [[3], [4], [5]], "f": {"a": 1, "b": 2}},
+                {"idx": 1, "b": {"c": {6, 7, 8}, "d": {9, 10, 11}}, "e": [[1], [2], [3]], "f": {"a": 3, "b": 4}}]
+        partial_type = {"idx": hl.tint32, "f": hl.tstruct(a=hl.tint32, b=hl.tint32)}
+        table = hl.Table.parallelize(data, partial_type=partial_type, key='idx')
+        ht = hl.utils.range_table(2)
+        ht = ht.annotate(b=b[ht.idx], e=e[ht.idx], f=f[ht.idx])
+
+        self.assertTrue(table._same(ht))
+
+    def test_table_parallelize_error_both_schema_partial_type_defined(self):
+        data= [{"a": 1, "b": "a"}, {"a": 2, "b": "c"}]
+        schema = 'array<struct{a: int, b: str}>'
+        partial_type = {"a": hl.tint32}
+
+        with pytest.raises(ValueError, match='define either schema or partial type'):
+            hl.Table.parallelize(data, schema=schema, partial_type=partial_type)
 
     def test_rename(self):
         kt = hl.utils.range_table(10)
