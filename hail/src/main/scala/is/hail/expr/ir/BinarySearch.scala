@@ -287,7 +287,7 @@ class BinarySearch[C](mb: EmitMethodBuilder[C], containerType: SContainer, eltTy
           interval.pointEmitType
       }
 
-      val keyLT = mb.ecb.getOrderingFunction(eltType.st, kt.st, CodeOrdering.Lt())
+      val keyLT = mb.ecb.getOrderingFunction(kt.st, eltType.st, CodeOrdering.Lt())
 
       val key = cb.memoize(x.flatMap(cb) {
         case x: SBaseStructValue =>
@@ -298,7 +298,7 @@ class BinarySearch[C](mb: EmitMethodBuilder[C], containerType: SContainer, eltTy
 
       keyLT(cb, key, needle)
     } else {
-      val lt = mb.ecb.getOrderingFunction(eltType.st, containerElementType.st, CodeOrdering.Lt())
+      val lt = mb.ecb.getOrderingFunction(containerElementType.st, eltType.st, CodeOrdering.Lt())
       lt(cb, cb.memoize(x), needle)
     }
 
