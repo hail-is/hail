@@ -58,7 +58,6 @@ class EmitStreamSuite extends HailSuite {
     val mb = fb.apply_method
     val ir = streamIR.deepCopy()
 
-    TypeCheck(ir)
     val emitContext = EmitContext.analyze(ctx, ir)
 
     var arrayType: PType = null
