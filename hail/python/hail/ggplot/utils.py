@@ -44,3 +44,8 @@ def continuous_nums_to_colors(input_color_nums, continuous_color_scale):
 
     color_mapping = plotly.colors.sample_colorscale(continuous_color_scale, [adjust_color(input_color) for input_color in input_color_nums])
     return color_mapping
+
+
+def bar_position_plotly_to_gg(plotly_pos):
+    ggplot_to_plotly = {'dodge': 'group', 'stack': 'stack', 'identity': 'overlay'}
+    return ggplot_to_plotly[plotly_pos]

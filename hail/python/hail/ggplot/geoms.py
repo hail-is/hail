@@ -2,7 +2,7 @@ import abc
 
 from .aes import aes
 from .stats import StatCount, StatIdentity, StatBin, StatNone, StatFunction
-
+from .utils import bar_position_plotly_to_gg
 
 class FigureAttribute(abc.ABC):
     pass
@@ -240,8 +240,7 @@ class GeomBar(Geom):
             just_one_group = agg_result[rows_for_this_group]
             plot_group(just_one_group)
 
-        ggplot_to_plotly = {'dodge': 'group', 'stack': 'stack'}
-        fig_so_far.update_layout(barmode=ggplot_to_plotly[self.position])
+        fig_so_far.update_layout(barmode=bar_position_plotly_to_gg(self.position))
 
     def get_stat(self):
         return self.stat
@@ -345,8 +344,7 @@ class GeomHistogram(Geom):
             just_one_group = agg_result[rows_for_this_group]
             plot_group(just_one_group, len(groups))
 
-        ggplot_to_plotly = {'dodge': 'group', 'stack': 'stack'}
-        fig_so_far.update_layout(barmode=ggplot_to_plotly[self.position])
+        fig_so_far.update_layout(barmode=bar_position_plotly_to_gg(self.position))
 
     def get_stat(self):
         return StatBin(self.min_val, self.max_val, self.bins)
