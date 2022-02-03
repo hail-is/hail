@@ -388,7 +388,6 @@ object StreamJoin {
     val rElt = Ref(genUID(), coerce[TStream](rightGrouped.typ).elementType)
     val lElt = Ref(genUID(), lEltType)
     val joinFunction = if (!rightKeyIsDistinct) MakeStruct(FastSeq("left" -> lElt, "rightGroup" -> rElt)) else joinF
-    print(joinF.typ)
     val joined: IR = StreamJoinRightDistinct(left, rightStream, lKey, rKey, lElt.name, rElt.name, joinFunction, joinType)
 
     // joined is a stream of {leftElement, rightGroup}

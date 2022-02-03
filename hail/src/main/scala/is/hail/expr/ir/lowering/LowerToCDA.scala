@@ -13,7 +13,7 @@ import org.apache.spark.sql.Row
 object LowerToCDA {
 
   def apply(ir: IR, typesToLower: DArrayLowering.Type, ctx: ExecuteContext): IR = {
-    val analyses = Analyses(ir, ctx)
+    val analyses = Analyses.apply(ir, ctx)
 
     lower(ir, typesToLower, ctx, analyses, Map())
   }
