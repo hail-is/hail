@@ -283,15 +283,15 @@ class TableStage(
                 ToStream(GetField(ctxRef, "oldContexts"), true),
                 prevContextUIDPartition,
                 body)) { elt =>
-              !invoke("partitionIntervalEndpointGreaterThan", TBoolean,
-                GetField(interval, "left"),
+              invoke("pointLessThanPartitionIntervalLeftEndpoint", TBoolean,
                 SelectFields(elt, newPartitioner.kType.fieldNames),
+                GetField(interval, "left"),
                 GetField(interval, "includesLeft"))
 
             }) { elt =>
-            invoke("partitionIntervalEndpointLessThan", TBoolean,
-              GetField(interval, "right"),
+            invoke("pointLessThanPartitionIntervalRightEndpoint", TBoolean,
               SelectFields(elt, newPartitioner.kType.fieldNames),
+              GetField(interval, "right"),
               GetField(interval, "includesRight"))
           }
         }
