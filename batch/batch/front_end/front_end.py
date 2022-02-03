@@ -12,7 +12,6 @@ import aiohttp
 import signal
 from aiohttp import web
 import aiohttp_session
-from hailtop.utils.utils import LoggingTimer
 import pandas as pd
 import pymysql
 import plotly.express as px
@@ -28,6 +27,7 @@ from hailtop.utils import (
     request_retry_transient_errors,
     run_if_changed,
     retry_long_running,
+    LoggingTimer,
     cost_str,
     dump_all_stacktraces,
     periodically_call,
@@ -1266,7 +1266,7 @@ async def _close_batch(app: aiohttp.web.Application, batch_id: int, user: str, d
     client_session: httpx.ClientSession = app['client_session']
     try:
         now = time_msecs()
-        await check_call_procedure(db, 'CALL close_batch(%s, %s);', (batch_id, now))
+        await db.check_call_procedure('CALL close_batch(%s, %s);', (batch_id, now))
     except CallError as e:
         # 2: wrong number of jobs
         if e.rv['rc'] == 2:
@@ -1367,16 +1367,16 @@ async def _get_job(app, batch_id, job_id):
 SELECT jobs.*, user, billing_project, ip_address, format_version, COALESCE(SUM(`usage` * rate), 0) AS cost
 FROM jobs
 INNER JOIN batches
-    ON jobs.batch_id = batches.id
+  ON jobs.batch_id = batches.id
 LEFT JOIN attempts
-    ON jobs.batch_id = attempts.batch_id AND jobs.job_id = attempts.job_id AND jobs.attempt_id = attempts.attempt_id
+  ON jobs.batch_id = attempts.batch_id AND jobs.job_id = attempts.job_id AND jobs.attempt_id = attempts.attempt_id
 LEFT JOIN instances
-    ON attempts.instance_name = instances.name
+  ON attempts.instance_name = instances.name
 LEFT JOIN aggregated_job_resources
-    ON jobs.batch_id = aggregated_job_resources.batch_id AND
-        jobs.job_id = aggregated_job_resources.job_id
+  ON jobs.batch_id = aggregated_job_resources.batch_id AND
+     jobs.job_id = aggregated_job_resources.job_id
 LEFT JOIN resources
-    ON aggregated_job_resources.resource = resources.resource
+  ON aggregated_job_resources.resource = resources.resource
 WHERE jobs.batch_id = %s AND NOT deleted AND jobs.job_id = %s
 GROUP BY jobs.batch_id, jobs.job_id;
 ''',

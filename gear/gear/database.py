@@ -242,6 +242,12 @@ class Transaction:
             return await cursor.executemany(sql, args_array)
 
 
+class CallError(Exception):
+    def __init__(self, rv):
+        super().__init__(rv)
+        self.rv = rv
+
+
 class Database:
     def __init__(self):
         self.pool = None
@@ -258,14 +264,14 @@ class Database:
             await tx.just_execute(sql, args)
 
     @retry_transient_mysql_errors
-    async def execute_and_fetchone(self, sql, args=None):
+    async def execute_and_fetchone(self, sql, args=None, query_name=None):
         async with self.start() as tx:
-            return await tx.execute_and_fetchone(sql, args)
+            return await tx.execute_and_fetchone(sql, args, query_name)
 
     @retry_transient_mysql_errors
-    async def select_and_fetchone(self, sql, args=None):
+    async def select_and_fetchone(self, sql, args=None, query_name=None):
         async with self.start(read_only=True) as tx:
-            return await tx.execute_and_fetchone(sql, args)
+            return await tx.execute_and_fetchone(sql, args, query_name)
 
     async def execute_and_fetchall(self, sql, args=None, query_name=None):
         async with self.start() as tx:
@@ -291,6 +297,13 @@ class Database:
     async def execute_many(self, sql, args_array):
         async with self.start() as tx:
             return await tx.execute_many(sql, args_array)
+
+    @retry_transient_mysql_errors
+    async def check_call_procedure(self, sql, args=None, query_name=None):
+        rv = await self.execute_and_fetchone(sql, args, query_name)
+        if rv['rc'] != 0:
+            raise CallError(rv)
+        return rv
 
     async def async_close(self):
         self.pool.close()
