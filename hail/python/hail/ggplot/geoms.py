@@ -326,9 +326,13 @@ class GeomHistogram(Geom):
 
             if self.position == "dodge":
                 x = left_xs + bin_width * (2 * df.group + 1) / (2 * num_groups)
+                bar_width = bin_width / num_groups
 
-            elif self.position == "stack":
+            elif self.position in {"stack", "identity"}:
                 x = left_xs + bin_width / 2
+                bar_width = bin_width
+            else:
+                raise ValueError(f"Histogram does not support position = {self.position}")
 
             right_xs = left_xs + bin_width
 
@@ -336,14 +340,12 @@ class GeomHistogram(Geom):
                 "x": x,
                 "y": df.y,
                 "customdata": list(zip(left_xs, right_xs)),
+                "width": bar_width,
                 "hovertemplate":
                     "Range: [%{customdata[0]:.3f}-%{customdata[1]:.3f})<br>"
                     "Count: %{y}<br>"
                     "<extra></extra>",
             }
-
-            width = bin_width if self.position == 'stack' else bin_width / num_groups
-            bar_args["width"] = [width] * len(df)
 
             for aes_name, (plotly_name, default, take_one) in self.aes_to_arg.items():
                 if hasattr(self, aes_name) and getattr(self, aes_name) is not None:
