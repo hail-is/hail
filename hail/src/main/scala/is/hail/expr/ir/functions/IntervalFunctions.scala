@@ -95,7 +95,7 @@ object IntervalFunctions extends RegistryFunctions {
         val endpointField = cb.memoize(endpoint.loadField(cb, idx))
         val pointField = cb.memoize(point.loadField(cb, idx))
         cb.assign(c,
-          cb.emb.ecb.getOrderingFunction(endpointField.st, pointField.st, CodeOrdering.Compare())
+          cb.emb.ecb.getOrderingFunction(pointField.st, endpointField.st, CodeOrdering.Compare())
             .apply(cb, pointField, endpointField))
       })
     }
