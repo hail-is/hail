@@ -391,6 +391,8 @@ def geom_histogram(mapping=aes(), *, min_val=None, max_val=None, bins=None, fill
         A single fill color for all bars of histogram, overrides ``fill`` aesthetic.
     color:
         A single outline color for all bars of histogram, overrides ``color`` aesthetic.
+    alpha: `float`
+        A measure of transparency between 0 and 1.
     position: :class:`str`
         Tells how to deal with different groups of data at same point. Options are "stack" and "dodge".
 

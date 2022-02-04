@@ -13,7 +13,11 @@ def test_geom_point_line_text_col():
            geom_point() +
            geom_line(aes(y=ht.triple)) +
            geom_text(aes(label=hl.str(ht.idx))) +
-           geom_col(aes(y=ht.triple + ht.double))
+           geom_col(aes(y=ht.triple + ht.double)) +
+           coord_cartesian((0, 100), (0, 80)) +
+           xlab("my_x") +
+           ylab("my_y") +
+           ggtitle("Title")
            )
     fig.to_plotly()
 
@@ -29,6 +33,6 @@ def test_manhattan_plot():
 def test_histogram():
     ht = hl.utils.range_table(10)
     fig = (ggplot(ht, aes(x=ht.idx)) +
-           geom_histogram()
+           geom_histogram(alpha=0.5)
            )
     fig.to_plotly()
