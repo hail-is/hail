@@ -4,7 +4,7 @@ import pandas as pd
 
 import hail as hl
 from hail.utils.java import warning
-from .utils import is_continuous_type
+from .utils import is_continuous_type, should_use_for_grouping
 
 
 class Stat:
@@ -60,16 +60,16 @@ class StatNone(Stat):
 
 class StatCount(Stat):
     def make_agg(self, mapping, precomputed):
-        discrete_variables = {aes_key: mapping[aes_key] for aes_key in mapping.keys()
-                              if not is_continuous_type(mapping[aes_key].dtype)}
-        discrete_variables["x"] = mapping["x"]
-        return hl.agg.group_by(hl.struct(**discrete_variables), hl.agg.count())
+        grouping_variables = {aes_key: mapping[aes_key] for aes_key in mapping.keys()
+                              if should_use_for_grouping(aes_key, mapping[aes_key].dtype)}
+        grouping_variables["x"] = mapping["x"]
+        return hl.agg.group_by(hl.struct(**grouping_variables), hl.agg.count())
 
     def listify(self, agg_result):
         unflattened_items = agg_result.items()
         data = []
-        for discrete_variables, count in unflattened_items:
-            arg_dict = {key: value for key, value in discrete_variables.items()}
+        for grouping_variables, count in unflattened_items:
+            arg_dict = {key: value for key, value in grouping_variables.items()}
             arg_dict["y"] = count
             data.append(arg_dict)
 
@@ -94,8 +94,8 @@ class StatBin(Stat):
         return hl.struct(**precomputes)
 
     def make_agg(self, mapping, precomputed):
-        discrete_variables = {aes_key: mapping[aes_key] for aes_key in mapping.keys()
-                              if not is_continuous_type(mapping[aes_key].dtype)}
+        grouping_variables = {aes_key: mapping[aes_key] for aes_key in mapping.keys()
+                              if should_use_for_grouping(aes_key, mapping[aes_key].dtype)}
 
         start = self.min_val if self.min_val is not None else precomputed.min_val
         end = self.max_val if self.max_val is not None else precomputed.max_val
@@ -104,7 +104,7 @@ class StatBin(Stat):
             bins = self.DEFAULT_BINS
         else:
             bins = self.bins
-        return hl.agg.group_by(hl.struct(**discrete_variables), hl.agg.hist(mapping["x"], start, end, bins))
+        return hl.agg.group_by(hl.struct(**grouping_variables), hl.agg.hist(mapping["x"], start, end, bins))
 
     def listify(self, agg_result):
         items = list(agg_result.items())

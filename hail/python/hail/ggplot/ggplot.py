@@ -13,7 +13,7 @@ from .scale import Scale, ScaleContinuous, ScaleDiscrete, scale_x_continuous, sc
     scale_x_discrete, scale_y_discrete, scale_color_discrete, scale_color_continuous, scale_fill_discrete, \
     scale_fill_continuous
 from .aes import Aesthetic, aes
-from .utils import is_continuous_type, is_genomic_type, check_scale_continuity
+from .utils import is_continuous_type, is_genomic_type, check_scale_continuity, should_use_scale_for_grouping
 
 
 class GGPlot:
@@ -172,16 +172,16 @@ class GGPlot:
         fig = go.Figure()
 
         for geom, (geom_label, agg_result) in zip(self.geoms, aggregated.items()):
-            listified_agg_result = labels_to_stats[geom_label].listify(agg_result)
+            df_agg_result = labels_to_stats[geom_label].listify(agg_result)
 
-            if not listified_agg_result.empty:
-                relevant_aesthetics = [scale_name for scale_name in listified_agg_result.columns if scale_name in self.scales]
+            if not df_agg_result.empty:
+                relevant_aesthetics = [scale_name for scale_name in df_agg_result.columns if scale_name in self.scales]
                 for relevant_aesthetic in relevant_aesthetics:
-                    listified_agg_result = self.scales[relevant_aesthetic].transform_data_local(listified_agg_result, self)
+                    df_agg_result = self.scales[relevant_aesthetic].transform_data_local(df_agg_result, self)
                 # Need to identify every possible combination of discrete scale values.
-                discrete_aesthetics = [scale_name for scale_name in relevant_aesthetics if self.scales[scale_name].is_discrete() and scale_name != "x"]
+                grouping_aesthetics = [scale_name for scale_name in relevant_aesthetics if should_use_scale_for_grouping(self.scales[scale_name]) and scale_name != "x"]
 
-                subsetted_to_discrete = listified_agg_result[discrete_aesthetics]
+                subsetted_to_discrete = df_agg_result[grouping_aesthetics]
 
                 group_counter = 0
 
@@ -190,9 +190,9 @@ class GGPlot:
                     group_counter += 1
                     return group_counter - 1
                 numberer = defaultdict(increment_and_return_old)
-                listified_agg_result["group"] = [numberer[tuple(x)] for _, x in subsetted_to_discrete.iterrows()]
+                df_agg_result["group"] = [numberer[tuple(x)] for _, x in subsetted_to_discrete.iterrows()]
 
-            geom.apply_to_fig(self, listified_agg_result, fig, precomputed[geom_label], group_counter)
+            geom.apply_to_fig(self, df_agg_result, fig, precomputed[geom_label], group_counter)
 
         # Important to update axes after labels, axes names take precedence.
         self.labels.apply_to_fig(fig)

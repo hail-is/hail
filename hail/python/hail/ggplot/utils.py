@@ -22,6 +22,16 @@ def is_discrete_type(dtype):
     return dtype in [hl.tstr]
 
 
+excluded_from_grouping = {"tooltip"}
+
+
+def should_use_for_grouping(name, type):
+    return (name not in excluded_from_grouping) and is_discrete_type(type)
+
+
+def should_use_scale_for_grouping(scale):
+    return (scale.aesthetic_name not in excluded_from_grouping) and scale.is_discrete()
+
 # Map strings to numbers that will index into a color scale.
 def categorical_strings_to_colors(string_set, parent_plot):
 
