@@ -2602,6 +2602,7 @@ case class TableKeyByAndAggregate(
             f.setAggState(agg.region, agg.offset)
             f(ctx.region, globals, ptr)
             agg.setOffset(f.getAggOffset())
+            ctx.region.clear()
           }
         }
         val serializeAndCleanupAggs = { rv: RegionValue =>
