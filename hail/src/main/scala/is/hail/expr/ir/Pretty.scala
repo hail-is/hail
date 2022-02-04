@@ -43,8 +43,14 @@ class Pretty(width: Int, ribbonWidth: Int, elideLiterals: Boolean, maxLen: Int, 
     if (s.length < maxLen) s else s.substring(0, maxLen) + "..."
   }
 
-  def prettyStringLiteral(s: String): String =
-    "\"" + StringEscapeUtils.escapeString(s) + "\""
+  def prettyStringLiteral(s: String, elide: Boolean = false, maxLen = 1000): String = {
+    val esc = StringEscapeUtils.escapeString(s)
+    if (elide && esc.length > maxLen) {
+      s"\"${esc.substring(0, maxLen)}...\""
+    } else {
+      s"\"$esc\""
+    }
+  }
 
   def fillList(docs: Iterable[Doc], indent: Int = 2): Doc =
     group(lineAlt, nest(indent, prettyPrint.fillList(docs)))
@@ -405,7 +411,7 @@ class Pretty(width: Int, ribbonWidth: Int, elideLiterals: Boolean, maxLen: Int, 
     case WritePartition(value, writeCtx, writer) =>
       single(prettyStringLiteral(JsonMethods.compact(writer.toJValue)))
     case WriteMetadata(writeAnnotations, writer) =>
-      single(prettyStringLiteral(JsonMethods.compact(writer.toJValue)))
+      single(prettyStringLiteral(JsonMethods.compact(writer.toJValue), elide = elideLiterals))
     case ReadValue(_, spec, reqType) =>
       FastSeq(prettyStringLiteral(spec.toString), reqType.parsableString())
     case WriteValue(_, _, spec) => single(prettyStringLiteral(spec.toString))
