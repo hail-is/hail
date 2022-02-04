@@ -10,7 +10,6 @@ gcp_region = "australia-southeast1"
 gcp_zone = "australia-southeast1-b"
 domain = "hail.populationgenomics.org.au"
 use_artifact_registry = true
-cloud = "gcp"
 
 # This is the bucket location that spans the regions you're going to
 # schedule across in Batch. If you are running on one region, it can

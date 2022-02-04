@@ -14,8 +14,6 @@ terraform {
   }
 }
 
-variable "cloud" {}
-variable "gsuite_organization" {}
 variable "batch_gcp_regions" {}
 variable "gcp_project" {}
 variable "batch_logs_bucket_location" {}
