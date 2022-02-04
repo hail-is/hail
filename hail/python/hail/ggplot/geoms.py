@@ -545,3 +545,22 @@ class GeomFunction(GeomLineBasic):
 
 def geom_func(mapping=aes(), fun=None, color=None):
     return GeomFunction(mapping, fun=fun, color=color)
+
+class GeomArea(Geom):
+    def __init__(self, aes, fill, color):
+        self.fill = fill
+        self.color = color
+
+    def apply_to_fig(self, parent, agg_result, fig_so_far):
+        def plot_group(data):
+            scatter_args = {
+                "x": [element["x"] for element in data]
+                "y": [element["y"] for element in data]
+                "fill": 'tozeroy'
+            }
+            if self.color is None and "color" in data[0]:
+                #unsure 
+                scatter_args["line_color"] = [element["color"] for element in data]
+            elif self.color is not None:
+                scatter_args["line_color"] = self.color
+
