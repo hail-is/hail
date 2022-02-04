@@ -1298,12 +1298,11 @@ object EmitStream {
               if (x.isIntervalJoin) {
                 val lhs = cb.memoize(lelt.toI(cb).flatMap(cb)(_.asBaseStruct.loadField(cb, lKey(0))))
                 val rhs = cb.memoize(relt.toI(cb).flatMap(cb)(_.asBaseStruct.loadField(cb, rKey(0))))
-                val pointOrdering = cb.emb.ecb.getOrderingFunction(lhs.st, rhs.st.asInstanceOf[SInterval].pointType, CodeOrdering.Compare(missingEqual=false))
                 val result = cb.newLocal[Int]("SJRD-interval-compare-result")
                 rhs.toI(cb).consume(cb, {
                   cb.assign(result, -1)
                 }, { case interval: SIntervalValue =>
-                  cb.assign(result, IntervalFunctions.pointIntervalCompare(cb, lelt, interval))
+                  cb.assign(result, IntervalFunctions.pointIntervalCompare(cb, lhs, interval, missingEqual = false))
                 })
                 result
               } else {
