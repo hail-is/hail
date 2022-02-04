@@ -74,12 +74,15 @@ class GeomPoint(Geom):
         "color": ("marker_color", "black", False),
         "size": ("marker_size", None, False),
         "tooltip": ("hovertext", None, False),
-        "color_legend": ("name", None, True)
+        "color_legend": ("name", None, True),
+        "alpha": ("marker_opacity", None, False)
     }
 
-    def __init__(self, aes, color=None):
+    def __init__(self, aes, color=None, size=None, alpha=None):
         super().__init__(aes)
         self.color = color
+        self.size = size
+        self.alpha = alpha
 
     def apply_to_fig(self, parent, agg_result, fig_so_far, precomputed, num_groups):
         def plot_group(df):
@@ -111,7 +114,7 @@ class GeomPoint(Geom):
         return StatIdentity()
 
 
-def geom_point(mapping=aes(), *, color=None):
+def geom_point(mapping=aes(), *, color=None, size=None, alpha=None):
     """Create a scatter plot.
 
     Supported aesthetics: ``x``, ``y``, ``color``, ``tooltip``
@@ -121,7 +124,7 @@ def geom_point(mapping=aes(), *, color=None):
     :class:`FigureAttribute`
         The geom to be applied.
     """
-    return GeomPoint(mapping, color=color)
+    return GeomPoint(mapping, color=color, size=size, alpha=alpha)
 
 
 class GeomLine(GeomLineBasic):
@@ -137,7 +140,7 @@ class GeomLine(GeomLineBasic):
         return StatIdentity()
 
 
-def geom_line(mapping=aes(), *, color=None):
+def geom_line(mapping=aes(), *, color=None, size=None, alpha=None):
     """Create a line plot.
 
     Supported aesthetics: ``x``, ``y``, ``color``, ``tooltip``
@@ -156,11 +159,14 @@ class GeomText(Geom):
         "size": ("marker_size", None, False),
         "tooltip": ("hovertext", None, False),
         "color_legend": ("name", None, True),
+        "alpha": ("marker_opacity", None, False)
     }
 
-    def __init__(self, aes, color=None):
+    def __init__(self, aes, color=None, size=None, alpha=None):
         super().__init__(aes)
         self.color = color
+        self.size = size
+        self.alpha = alpha
 
     def apply_to_fig(self, parent, agg_result, fig_so_far, precomputed, num_groups):
         def plot_group(df, color=None):
@@ -194,7 +200,7 @@ class GeomText(Geom):
         return StatIdentity()
 
 
-def geom_text(mapping=aes(), *, color=None):
+def geom_text(mapping=aes(), *, color=None, size=None, alpha=None):
     """Create a scatter plot where each point is text from the ``text`` aesthetic.
 
     Supported aesthetics: ``x``, ``y``, ``label``, ``color``, ``tooltip``
@@ -204,7 +210,7 @@ def geom_text(mapping=aes(), *, color=None):
     :class:`FigureAttribute`
         The geom to be applied.
     """
-    return GeomText(mapping, color=color)
+    return GeomText(mapping, color=color, size=size, alpha=alpha)
 
 
 class GeomBar(Geom):
