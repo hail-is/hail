@@ -213,24 +213,28 @@ object BinarySearch {
     // - range [right, end) is > needle
     // - left <= right
     // terminates b/c (right - left) strictly decreases each iteration
-    cb.whileLoop(left < right, break => {
+    cb.loop { recur =>
+      cb.ifx(left < right, {
       val mid = cb.memoize((left + right) >>> 1) // works even when sum overflows
       compare(cb, haystack.loadElement(cb, mid), {
         // range [start, mid] is < needle
         cb.assign(left, mid + 1)
+          cb.goto(recur)
       }, {
         // range [mid, end) is > needle
         cb.assign(right, mid)
+          cb.goto(recur)
       }, {
         // haystack(mid) is incomparable to needle
         found(left, mid, right)
-        cb.goto(break)
-      })
     })
+      }, {
     // now loop invariants hold, with left = right, so
     // - range [start, left) is < needle
     // - range [left, end) is > needle
     notFound(left)
+      })
+    }
   }
 
   private def runSearchUnit(
