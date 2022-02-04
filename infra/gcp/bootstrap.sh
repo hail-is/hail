@@ -7,7 +7,7 @@ function configure_gcloud() {
 
     gcloud -q auth configure-docker
     # If you are using the Artifact Registry:
-    # gcloud -q auth configure-docker $REGION-docker.pkg.dev
+    gcloud -q auth configure-docker $REGION-docker.pkg.dev
     gcloud container clusters get-credentials --zone $ZONE vdc
 }
 
