@@ -4,7 +4,7 @@ import pandas as pd
 
 import hail as hl
 from hail.utils.java import warning
-from .utils import is_continuous_type, should_use_for_grouping
+from .utils import should_use_for_grouping
 
 
 class Stat:
@@ -115,5 +115,5 @@ class StatBin(Stat):
             y_values = hist.bin_freq
             for i, x in enumerate(x_edges[:num_edges - 1]):
                 x_value = x
-                data_rows.append({"x": x_value, "y":y_values[i], **key})
+                data_rows.append({"x": x_value, "y": y_values[i], **key})
         return pd.DataFrame.from_records(data_rows)
