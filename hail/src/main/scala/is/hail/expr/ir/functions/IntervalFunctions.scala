@@ -76,11 +76,11 @@ object IntervalFunctions extends RegistryFunctions {
     val lEnd = cb.memoize(lhs.loadEnd(cb))
     val rStart = cb.memoize(rhs.loadStart(cb))
     val overlaps = cb.newLocal[Boolean]("contains", false)
-    cb.ifx(intervalEndpointCompare(cb, lEnd, lhs.includesEnd(), rStart, !rhs.includesStart()) >= 0, {
+    cb.ifx(intervalEndpointCompare(cb, lEnd, lhs.includesEnd(), rStart, !rhs.includesStart()) > 0, {
       val lStart = cb.memoize(lhs.loadStart(cb))
       val rEnd = cb.memoize(rhs.loadEnd(cb))
       cb.assign(overlaps,
-        intervalEndpointCompare(cb, rEnd, rhs.includesEnd(), lStart, !lhs.includesStart()) >= 0)
+        intervalEndpointCompare(cb, rEnd, rhs.includesEnd(), lStart, !lhs.includesStart()) > 0)
     })
     overlaps
   }
