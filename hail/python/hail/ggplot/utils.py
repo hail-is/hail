@@ -49,3 +49,14 @@ def continuous_nums_to_colors(input_color_nums, continuous_color_scale):
 def bar_position_plotly_to_gg(plotly_pos):
     ggplot_to_plotly = {'dodge': 'group', 'stack': 'stack', 'identity': 'overlay'}
     return ggplot_to_plotly[plotly_pos]
+
+
+def linetype_plotly_to_gg(plotly_linetype):
+    linetype_dict = {
+        "solid": "solid",
+        "dashed": "dash",
+        "dotted": "dot",
+        "longdash": "longdash",
+        "dotdash": "dashdot"
+    }
+    return linetype_dict[plotly_linetype]

@@ -183,7 +183,6 @@ class GGPlot:
 
                 subsetted_to_discrete = listified_agg_result[discrete_aesthetics]
 
-
                 group_counter = 0
 
                 def increment_and_return_old():
@@ -193,7 +192,7 @@ class GGPlot:
                 numberer = defaultdict(increment_and_return_old)
                 listified_agg_result["group"] = [numberer[tuple(x)] for _, x in subsetted_to_discrete.iterrows()]
 
-            geom.apply_to_fig(self, listified_agg_result, fig, precomputed[geom_label])
+            geom.apply_to_fig(self, listified_agg_result, fig, precomputed[geom_label], group_counter)
 
         # Important to update axes after labels, axes names take precedence.
         self.labels.apply_to_fig(fig)
