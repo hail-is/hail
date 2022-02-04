@@ -6,6 +6,7 @@ import is.hail.expr.ir.{EmitCodeBuilder, IEmitCode}
 import is.hail.types.physical.stypes._
 import is.hail.types.physical.stypes.interfaces.{SContainer, SIndexableValue}
 import is.hail.types.physical._
+import is.hail.types.physical.stypes.primitives.SInt64Value
 import is.hail.types.virtual.Type
 import is.hail.utils.FastIndexedSeq
 
@@ -104,6 +105,19 @@ class SIndexablePointerValue(
         })
       case _ => super.forEachDefined(cb)(f)
     }
+  }
+
+  override def sizeInBytes(cb: EmitCodeBuilder): SInt64Value = {
+    val totalSize = cb.newLocal[Long]("sindexableptr_size_in_bytes", pt.nMissingBytes(this.length).toL)
+    if (this.st.elementType.containsPointers) {
+      this.forEachDefined(cb) { (cb, _, element) =>
+        cb.assign(totalSize, totalSize + element.sizeInBytes(cb).value)
+      }
+    } else {
+      cb.assign(totalSize, totalSize + (this.length.toL * this.pt.elementByteSize))
+    }
+
+    new SInt64Value(totalSize)
   }
 }
 
