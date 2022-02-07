@@ -57,12 +57,11 @@ python3 ../ci/jinja2_render.py "{\"global\":{\"docker_prefix\":\"${DOCKER_PREFIX
 
 echo "Running image startup script..."
 
-# The VM's ssh server isn't immediately ready on start so might need retrying
-ssh -i '~/.ssh/id_rsa' \
-    -o StrictHostKeyChecking="accept-new" \
-    -o ConnectionAttempts=10 \
-    $USERNAME@$IP \
-    'sudo bash -s' < build-batch-worker-image-startup-azure.sh.out
+az vm run-command invoke \
+    --resource-group $BUILD_IMAGE_RESOURCE_GROUP \
+    --command-id RunShellScript \
+    --name $VM_NAME \
+    --scripts "@build-batch-worker-image-startup-azure.sh.out"
 
 echo "Startup script completed!"
 echo "Shutting down agent..."
