@@ -438,13 +438,29 @@ class Batch:
         Examples
         --------
 
-        Write a single job intermediate to a permanent location:
+        Write a single job intermediate to a local file:
 
         >>> b = Batch()
         >>> j = b.new_job()
         >>> j.command(f'echo "hello" > {j.ofile}')
         >>> b.write_output(j.ofile, 'output/hello.txt')
         >>> b.run()
+
+        Write a single job intermediate to a permanent location in GCS:
+
+        >>> b = Batch()
+        >>> j = b.new_job()
+        >>> j.command(f'echo "hello" > {j.ofile}')
+        >>> b.write_output(j.ofile, 'gs://mybucket/output/hello.txt')
+        >>> b.run()  # doctest: +SKIP
+
+        Write a single job intermediate to a permanent location in Azure:
+
+        >>> b = Batch()
+        >>> j = b.new_job()
+        >>> j.command(f'echo "hello" > {j.ofile}')
+        >>> b.write_output(j.ofile, 'hail-az://my-account/my-container/output/hello.txt')
+        >>> b.run()  # doctest: +SKIP
 
         .. warning::
 
