@@ -32,11 +32,14 @@ Once terraform has completed successfully, note the `gateway_ip` in the
 output and create an A record for the domain of your choosing for that
 IP with a DNS provider.
 
-There are some resources which, unfortunately, cannot be configured directly
-with terraform. You must now configure those resources by running:
+There is one resource which, unfortunately, cannot be configured directly with
+Terraform. The service principal used by the `auth` service needs "admin
+consent" to create new service accounts for new users. After you first run
+terraform and whenever you recreate the auth service principal, you must grant
+this new service principal admin consent:
 
 ```
-./bootstrap.sh post_terraform
+./bootstrap.sh grant_auth_sp_admin_consent
 ```
 
 ## Bootstrap the cluster
