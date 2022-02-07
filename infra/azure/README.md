@@ -19,23 +19,13 @@ Every resource in Azure must belong to a Resource Group. First, obtain
 a resource group and make sure you have Owner permissions for that
 resource group.
 
-We will first create a Service Principal which we will use to
-create resources through terraform. Run the following
-(this only needs to be run once for a resource group, but it is ok to run it
-more than once).
-
-```
-./create_terraform_sp.sh <RESOURCE_GROUP>
-```
-
 Create a `global.tfvars` file with the necessary variables
 from $HAIL/infra/azure/variables.tf.
 
 To setup and run the terraform, run
 
 ```
-./bootstrap.sh run_azure_terraform <RESOURCE_GROUP>
-./bootstrap.sh run_k8s_terraform <RESOURCE_GROUP>
+./bootstrap.sh run_terraform <RESOURCE_GROUP>
 ```
 
 Once terraform has completed successfully, note the `gateway_ip` in the
@@ -102,9 +92,16 @@ cd ~/hail/infra/azure
 ./bootstrap.sh bootstrap <REPO>/hail:<BRANCH> deploy_batch
 ```
 
+Create the initial (developer) user. The OBJECT_ID is the Azure Active
+Directory user's object ID.
 
-Create the initial (developer) user.
+```
+./bootstrap.sh bootstrap <REPO>/hail:<BRANCH> create_initial_user <USERNAME> <OBJECT_ID>
+```
 
-  ```
-  ./bootstrap.sh bootstrap <REPO>/hail:<BRANCH> create_initial_user <USERNAME> <EMAIL>
-  ```
+Deploy the gateway service. First trim down `$HAIL/letsencrypt/subdomains.txt`
+to only the services that are deployed and then run
+
+```
+make -C $HAIL/gateway deploy
+```

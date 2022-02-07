@@ -2,10 +2,10 @@ package is.hail.types.physical.stypes.concrete
 
 import is.hail.annotations.Region
 import is.hail.asm4s._
-import is.hail.expr.ir.{EmitCode, EmitCodeBuilder, EmitValue}
+import is.hail.expr.ir.{EmitCodeBuilder, EmitValue}
+import is.hail.types.physical.stypes._
 import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.physical.stypes.primitives.SInt64
-import is.hail.types.physical.stypes._
 import is.hail.types.physical.{PCanonicalNDArray, PType}
 import is.hail.types.virtual.{TNDArray, Type}
 import is.hail.utils.toRichIterable
@@ -77,8 +77,6 @@ class SNDArraySliceValue(
   override def loadElement(indices: IndexedSeq[Value[Long]], cb: EmitCodeBuilder): SValue =
     pt.elementType.loadCheapSCode(cb, loadElementAddress(indices, cb))
 
-  override def get: SNDArraySliceCode = new SNDArraySliceCode(st, shapes, strides, firstDataAddress)
-
   def coerceToShape(cb: EmitCodeBuilder, otherShape: IndexedSeq[SizeValue]): SNDArrayValue = {
     cb.ifx(!hasShape(cb, otherShape), cb._fatal("incompatible shapes"))
     new SNDArraySliceValue(st, otherShape, strides, firstDataAddress)
@@ -121,29 +119,10 @@ final class SNDArraySliceSettable(
 ) extends SNDArraySliceValue(st, shape.map(SizeValueDyn.apply), strides, firstDataAddress) with SSettable {
   override def settableTuple(): IndexedSeq[Settable[_]] = shape ++ strides :+ firstDataAddress
 
-  override def store(cb: EmitCodeBuilder, v: SCode): Unit = {
-    val vSlice = v.asInstanceOf[SNDArraySliceCode]
-    shape.zip(vSlice.shape).foreach { case (x, s) => cb.assign(x, s) }
-    strides.zip(vSlice.strides).foreach { case (x, s) => cb.assign(x, s) }
-    cb.assign(firstDataAddress, vSlice.dataFirstElement)
-  }
-}
-
-class SNDArraySliceCode(val st: SNDArraySlice, val shape: IndexedSeq[Code[Long]], val strides: IndexedSeq[Code[Long]], val dataFirstElement: Code[Long]) extends SNDArrayCode {
-  def memoize(cb: EmitCodeBuilder, name: String, sb: SettableBuilder): SNDArrayValue = {
-    val s = SNDArraySliceSettable(sb, st, name)
-    cb.assign(s, this)
-    s
-  }
-
-  override def memoize(cb: EmitCodeBuilder, name: String): SNDArrayValue =
-    memoize(cb, name, cb.localBuilder)
-
-  override def memoizeField(cb: EmitCodeBuilder, name: String): SValue =
-    memoize(cb, name, cb.fieldBuilder)
-
-  override def shape(cb: EmitCodeBuilder): SStackStructCode = {
-    val shapeType = SStackStruct(st.virtualType.shapeType, Array.fill(st.nDims)(EmitType(SInt64, true)))
-    new SStackStructCode(shapeType, shape.map(x => EmitCode.present(cb.emb, primitive(cb.memoize(x)))))
+  override def store(cb: EmitCodeBuilder, v: SValue): Unit = v match {
+    case v: SNDArraySliceValue =>
+      (shape, v.shapes).zipped.foreach { (x, s) => cb.assign(x, s) }
+      (strides, v.strides).zipped.foreach { (x, s) => cb.assign(x, s) }
+      cb.assign(firstDataAddress, v.firstDataAddress)
   }
 }

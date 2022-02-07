@@ -146,7 +146,8 @@ class ArrayElementState(val kb: EmitClassBuilder[_], val nested: StateTuple) ext
     }
   }
 
-  def copyFromAddress(cb: EmitCodeBuilder, src: Code[Long]): Unit = {
+  def copyFromAddress(cb: EmitCodeBuilder, src: Value[Long]): Unit = {
+    // FIXME: does this really need to be a field?
     val srcOff = cb.newField("aelca_copyfromaddr_srcoff", src)
     val initOffset = cb.memoize(typ.loadField(srcOff, 0))
     val eltOffset = cb.memoize(arrayType.loadElement(typ.loadField(srcOff, 1), idx))

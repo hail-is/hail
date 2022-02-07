@@ -90,33 +90,37 @@ final case class Literal(_typ: Type, value: Annotation) extends IR {
 }
 
 object EncodedLiteral {
-  def apply(codec: AbstractTypedCodecSpec, value: Array[Byte]): EncodedLiteral = {
-    EncodedLiteral(codec, new WrappedByteArray(value))
+  def apply(codec: AbstractTypedCodecSpec, value: Array[Array[Byte]]): EncodedLiteral = {
+    EncodedLiteral(codec, new WrappedByteArrays(value))
   }
 
   def fromPTypeAndAddress(pt: PType, addr: Long, ctx: ExecuteContext): IR = {
     val etype = EType.defaultFromPType(pt)
     val codec = TypedCodecSpec(etype, pt.virtualType, BufferSpec.defaultUncompressed)
-    val bytes = codec.encode(ctx, pt, addr)
+    val bytes = codec.encodeArrays(ctx, pt, addr)
     EncodedLiteral(codec, bytes)
   }
 }
 
-final case class EncodedLiteral(codec: AbstractTypedCodecSpec, value: WrappedByteArray) extends IR {
+final case class EncodedLiteral(codec: AbstractTypedCodecSpec, value: WrappedByteArrays) extends IR {
   require(!CanEmit(codec.encodedVirtualType))
   require(value != null)
 }
 
-class WrappedByteArray(val ba: Array[Byte]) {
-  override def hashCode(): Int = java.util.Arrays.hashCode(ba)
+class WrappedByteArrays(val ba: Array[Array[Byte]]) {
+  override def hashCode(): Int = {
+    ba.foldLeft(31) { (h, b) => 37 * h + java.util.Arrays.hashCode(b) }
+  }
 
   override def equals(obj: Any): Boolean = {
-    if (!obj.isInstanceOf[WrappedByteArray]) {
-      false
-    }
-    else {
-      val other = obj.asInstanceOf[WrappedByteArray]
-      java.util.Arrays.equals(ba, other.ba)
+    this.eq(obj.asInstanceOf[AnyRef]) || {
+      if (!obj.isInstanceOf[WrappedByteArrays]) {
+        false
+      }
+      else {
+        val other = obj.asInstanceOf[WrappedByteArrays]
+        ba.length == other.ba.length && (ba, other.ba).zipped.forall(java.util.Arrays.equals)
+      }
     }
   }
 }
@@ -298,7 +302,7 @@ final case class SeqSample(totalRange: IR, numToSample: IR, requiresMemoryManage
 
 // Take the child stream and sort each element into buckets based on the provided pivots. The first and last elements of
 // pivots are the endpoints of the first and last interval respectively, should not be contained in the dataset.
-final case class StreamDistribute(child: IR, pivots: IR, path: IR, spec: AbstractTypedCodecSpec) extends IR
+final case class StreamDistribute(child: IR, pivots: IR, path: IR, comparisonOp: ComparisonOp[_],spec: AbstractTypedCodecSpec) extends IR
 
 object ArrayZipBehavior extends Enumeration {
   type ArrayZipBehavior = Value
@@ -483,6 +487,50 @@ final case class ApplyAggOp(initOpArgs: IndexedSeq[IR], seqOpArgs: IndexedSeq[IR
   def nInitArgs = initOpArgs.length
 
   def op: AggOp = aggSig.op
+}
+
+object AggFold {
+
+  def min(element: IR, sortFields: IndexedSeq[SortField]): IR = {
+    val elementType = element.typ.asInstanceOf[TStruct]
+    val keyType = elementType.select(sortFields.map(_.field))._1
+    minAndMaxHelper(element, keyType, StructLT(keyType, sortFields))
+  }
+
+  def max(element: IR, sortFields: IndexedSeq[SortField]): IR = {
+    val elementType = element.typ.asInstanceOf[TStruct]
+    val keyType = elementType.select(sortFields.map(_.field))._1
+    minAndMaxHelper(element, keyType, StructGT(keyType, sortFields))
+  }
+
+  def all(element: IR): IR = {
+    aggFoldIR(True(), element) { case (accum, element) =>
+      ApplySpecial("land", Seq.empty[Type], Seq(accum, element), TBoolean, ErrorIDs.NO_ERROR)
+    } { case (accum1, accum2) => ApplySpecial("land", Seq.empty[Type], Seq(accum1, accum2), TBoolean, ErrorIDs.NO_ERROR) }
+  }
+
+  private def minAndMaxHelper(element: IR, keyType: TStruct, comp: ComparisonOp[Boolean]): IR = {
+    val keyFields = keyType.fields.map(_.name)
+
+    val minAndMaxZero = NA(keyType)
+    val aggFoldMinAccumName1 = genUID()
+    val aggFoldMinAccumName2 = genUID()
+    val aggFoldMinAccumRef1 = Ref(aggFoldMinAccumName1, keyType)
+    val aggFoldMinAccumRef2 = Ref(aggFoldMinAccumName2, keyType)
+    val minSeq = bindIR(SelectFields(element, keyFields)) { keyOfCurElementRef =>
+      If(IsNA(aggFoldMinAccumRef1),
+        keyOfCurElementRef,
+        If(ApplyComparisonOp(comp, aggFoldMinAccumRef1, keyOfCurElementRef), aggFoldMinAccumRef1, keyOfCurElementRef)
+      )
+    }
+    val minComb =
+      If(IsNA(aggFoldMinAccumRef1),
+        aggFoldMinAccumRef2,
+        If (ApplyComparisonOp(comp, aggFoldMinAccumRef1, aggFoldMinAccumRef2), aggFoldMinAccumRef1, aggFoldMinAccumRef2)
+      )
+
+    AggFold(minAndMaxZero, minSeq, minComb, aggFoldMinAccumName1, aggFoldMinAccumName2, false)
+  }
 }
 
 final case class AggFold(zero: IR, seqOp: IR, combOp: IR, accumName: String, otherAccumName: String, isScan: Boolean) extends IR

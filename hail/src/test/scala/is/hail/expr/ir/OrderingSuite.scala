@@ -460,7 +460,7 @@ class OrderingSuite extends HailSuite {
 
         val bs = new BinarySearch(fb.apply_method, pset.sType, EmitType(pset.elementType.sType, true), keyOnly = false)
         fb.emitWithBuilder(cb =>
-          bs.getClosestIndex(cb, pset.loadCheapSCode(cb, cset).get,
+          bs.getClosestIndex(cb, pset.loadCheapSCode(cb, cset),
             EmitCode.fromI(fb.apply_method)(cb => IEmitCode.present(cb, pt.loadCheapSCode(cb, pTuple.loadField(cetuple, 0))))))
 
         val asArray = SafeIndexedSeq(pArray, soff)
@@ -496,7 +496,7 @@ class OrderingSuite extends HailSuite {
         val bs = new BinarySearch(fb.apply_method, pDict.sType, EmitType(pDict.keyType.sType, false), keyOnly = true)
 
         fb.emitWithBuilder(cb =>
-          bs.getClosestIndex(cb, pDict.loadCheapSCode(cb, cdict).get,
+          bs.getClosestIndex(cb, pDict.loadCheapSCode(cb, cdict),
             EmitCode.fromI(fb.apply_method)(cb => IEmitCode.present(cb, pDict.keyType.loadCheapSCode(cb, ptuple.loadField(cktuple, 0))))))
 
         val asArray = SafeIndexedSeq(PCanonicalArray(pDict.elementType), soff)

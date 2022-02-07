@@ -47,7 +47,7 @@ class EmitContext(
   val tryingToSplit: Memo[Unit]
 )
 
-case class EmitEnv(bindings: Env[EmitValue], inputValues: IndexedSeq[Value[Region] => EmitValue]) {
+case class EmitEnv(bindings: Env[EmitValue], inputValues: IndexedSeq[(EmitCodeBuilder, Value[Region]) => IEmitCode]) {
   def bind(name: String, v: EmitValue): EmitEnv = copy(bindings = bindings.bind(name, v))
 
   def bind(newBindings: (String, EmitValue)*): EmitEnv = copy(bindings = bindings.bindIterable(newBindings))
@@ -711,7 +711,7 @@ class Emit[C](
         val msg = cm.consumeCode(cb, "<exception message missing>", _.asString.loadString(cb))
         cb._throw(Code.newInstance[HailException, String, Int](msg, errorId))
 
-      case x@WriteMetadata(annotations, writer) =>
+      case WriteMetadata(annotations, writer) =>
         writer.writeMetadata(emitI(annotations), cb, region)
 
       case CombOpValue(i, value, aggSig) =>
@@ -805,6 +805,9 @@ class Emit[C](
     def presentPC(pc: SValue): IEmitCode = IEmitCode.present(cb, pc)
 
     val result: IEmitCode = (ir: @unchecked) match {
+      case In(i, expectedPType) =>
+        val ev = env.inputValues(i).apply(cb, region)
+        ev
       case I32(x) =>
         presentPC(primitive(const(x)))
       case I64(x) =>
@@ -1071,7 +1074,7 @@ class Emit[C](
         emitI(orderedCollection).map(cb) { a =>
           val e = EmitCode.fromI(cb.emb)(cb => this.emitI(elem, cb, region, env, container, loopEnv))
           val bs = new BinarySearch[C](mb, a.st.asInstanceOf[SContainer], e.emitType, keyOnly = onKey)
-          primitive(cb.memoize(bs.getClosestIndex(cb, a.get, e)))
+          primitive(bs.getClosestIndex(cb, a, e))
         }
 
       case x@ArraySort(a, left, right, lessThan) =>
@@ -1282,11 +1285,11 @@ class Emit[C](
           }
         }
 
-      case StreamDistribute(child, pivots, path, spec) =>
+      case StreamDistribute(child, pivots, path, comparisonOp, spec) =>
         emitI(path).flatMap(cb) { pathValue =>
           emitI(pivots).flatMap(cb) { case pivotsVal: SIndexableValue =>
             emitStream(child, cb, region).map(cb) { case childStream: SStreamValue =>
-              EmitStreamDistribute.emit(cb, region, pivotsVal, childStream, pathValue, spec)
+              EmitStreamDistribute.emit(cb, region, pivotsVal, childStream, pathValue, comparisonOp, spec)
             }
           }
         }
@@ -1332,7 +1335,7 @@ class Emit[C](
                     }
                   })
 
-                  xP.constructByCopyingArray(shapeValues, stridesSettables, dataValue.get.asIndexable, cb, region)
+                  xP.constructByCopyingArray(shapeValues, stridesSettables, dataValue.asIndexable, cb, region)
                 }
               case _: TStream =>
                 EmitStream.produce(this, dataIR, cb, region, env, container)
@@ -1539,7 +1542,7 @@ class Emit[C](
               val eVti = typeToTypeInfo(numericElementType)
 
               val emitter = new NDArrayEmitter(unifiedShape, leftPVal.st.elementType) {
-                override def outputElement(cb: EmitCodeBuilder, idxVars: IndexedSeq[Value[Long]]): SCode = {
+                override def outputElement(cb: EmitCodeBuilder, idxVars: IndexedSeq[Value[Long]]): SValue = {
                   val element = coerce[Any](cb.newField("matmul_element")(eVti))
                   val k = cb.newField[Long]("ndarray_matmul_k")
 
@@ -1557,7 +1560,7 @@ class Emit[C](
                       (lStackVars :+ n :+ k, rStackVars :+ k :+ m)
                   }
 
-                  def multiply(l: SCode, r: SCode): Code[_] = {
+                  def multiply(l: SValue, r: SValue): Code[_] = {
                     (l.st, r.st) match {
                       case (SInt32, SInt32) =>
                         l.asInt.intCode(cb) * r.asInt.intCode(cb)
@@ -1576,13 +1579,13 @@ class Emit[C](
                   cb.forLoop(cb.assign(k, 0L), k < kLen, cb.assign(k, k + 1L), {
                     val lElem = leftPVal.loadElement(lIndices, cb)
                     val rElem = rightPVal.loadElement(rIndices, cb)
-                    cb.assign(element, numericElementType.add(multiply(lElem.get, rElem.get), element))
+                    cb.assign(element, numericElementType.add(multiply(lElem, rElem), element))
                   })
 
                   primitive(outputPType.elementType.virtualType, element)
                 }
               }
-              emitter.emit(cb, outputPType, region).memoize(cb, "NDArrayMatMul")
+              emitter.emit(cb, outputPType, region)
             }
           }
         }
@@ -1984,7 +1987,7 @@ class Emit[C](
         val codeRes = emitI(result, container = Some(newContainer))
 
         codeRes.map(cb) { pc =>
-          val res = cb.memoizeField(pc.get, "agg_res")
+          val res = cb.memoizeField(pc, "agg_res")
           newContainer.cleanup()
           res
         }
@@ -2179,7 +2182,7 @@ class Emit[C](
       case WriteValue(value, path, spec) =>
         emitI(path).flatMap(cb) { case pv: SStringValue =>
           emitI(value).map(cb) { v =>
-            val ob = cb.memoize[OutputBuffer](spec.buildCodeOutputBuffer(mb.create(pv.get.asString.loadString())))
+            val ob = cb.memoize[OutputBuffer](spec.buildCodeOutputBuffer(mb.create(pv.asString.loadString(cb))))
             spec.encodedType.buildEncoder(v.st, cb.emb.ecb)
               .apply(cb, v, ob)
             cb += ob.invoke[Unit]("close")
@@ -2490,11 +2493,6 @@ class Emit[C](
           throw new RuntimeException(s"emit value type did not match specified type:\n name: $name\n  ev: ${ ev.st.virtualType }\n  ir: ${ ir.typ }")
         ev.load
 
-      case In(i, expectedPType) =>
-        // this, Code[Region], ...
-        val ev = env.inputValues(i).apply(region)
-        ev
-
       case ir@Apply(fn, typeArgs, args, rt, errorID) =>
         val impl = ir.implementation
         val unified = impl.unify(typeArgs, args.map(_.typ), rt)
@@ -2518,7 +2516,6 @@ class Emit[C](
           val emitArgs = args.map(a => EmitCode.fromI(cb.emb)(emitI(a, _))).toFastIndexedSeq
           IEmitCode.multiMapEmitCodes(cb, emitArgs) { codeArgs =>
             cb.invokeSCode(meth, FastIndexedSeq[Param](CodeParam(region), CodeParam(errorID)) ++ codeArgs.map(pc => pc: Param): _*)
-              .memoize(cb, "Apply")
           }
         }
 
@@ -2686,9 +2683,9 @@ object NDArrayEmitter {
 abstract class NDArrayEmitter(val outputShape: IndexedSeq[Value[Long]], val elementType: SType) {
   val nDims = outputShape.length
 
-  def outputElement(cb: EmitCodeBuilder, idxVars: IndexedSeq[Value[Long]]): SCode
+  def outputElement(cb: EmitCodeBuilder, idxVars: IndexedSeq[Value[Long]]): SValue
 
-  def emit(cb: EmitCodeBuilder, targetType: PCanonicalNDArray, region: Value[Region]): SCode = {
+  def emit(cb: EmitCodeBuilder, targetType: PCanonicalNDArray, region: Value[Region]): SValue = {
     val shapeArray = outputShape
 
     val idx = cb.newLocal[Int]("ndarrayemitter_emitloops_idx", 0)
@@ -2700,7 +2697,7 @@ abstract class NDArrayEmitter(val outputShape: IndexedSeq[Value[Long]], val elem
       region)
 
     SNDArray.forEachIndexColMajor(cb, shapeArray, "ndarrayemitter_emitloops") { case (cb, idxVars) =>
-      val element = IEmitCode.present(cb, outputElement(cb, idxVars).memoize(cb, "NDArray_emit")).consume(cb, {
+      IEmitCode.present(cb, outputElement(cb, idxVars)).consume(cb, {
         cb._fatal("NDArray elements cannot be missing")
       }, { elementPc =>
         targetType.elementType.storeAtAddress(cb, firstElementAddress + (idx.toL * targetType.elementType.byteSize), region, elementPc, true)
@@ -2708,6 +2705,6 @@ abstract class NDArrayEmitter(val outputShape: IndexedSeq[Value[Long]], val elem
       cb.assign(idx, idx + 1)
     }
 
-    finish(cb).get
+    finish(cb)
   }
 }

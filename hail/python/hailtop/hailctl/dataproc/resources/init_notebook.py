@@ -43,7 +43,7 @@ if role == 'Master':
         'ipykernel==4.10.*',
         'ipywidgets==7.4.*',
         'jupyter-console==6.0.*',
-        'nbconvert==5.5.*',
+        'nbconvert==5.6.*',
         'notebook==5.7.*',
         'qtconsole==4.5.*'
     ]
@@ -83,6 +83,7 @@ if role == 'Master':
         'PYSPARK_PYTHON': '/opt/conda/default/bin/python',
         'PYSPARK_DRIVER_PYTHON': '/opt/conda/default/bin/python',
         'HAIL_LOG_DIR': '/home/hail',
+        'HAIL_DATAPROC': '1',
     }
 
     # VEP ENV

@@ -94,7 +94,7 @@ class CallStatsState(val kb: EmitClassBuilder[_]) extends PointerBasedRVAState {
     }
   }
 
-  def copyFromAddress(cb: EmitCodeBuilder, src: Code[Long]): Unit = {
+  def copyFromAddress(cb: EmitCodeBuilder, src: Value[Long]): Unit = {
     cb.assign(off, CallStatsState.stateType.store(cb, region, CallStatsState.stateType.loadCheapSCode(cb, src), deepCopy = true))
     loadNAlleles(cb)
   }

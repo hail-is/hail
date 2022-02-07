@@ -40,7 +40,8 @@ Modules
     stats <stats/index>
     genetics <genetics/index>
     plot <plot>
-    variant dataset <vds/index>
+    ggplot <ggplot/index>
+    vds <vds/index>
     experimental <experimental/index>
 
 Top-Level Functions

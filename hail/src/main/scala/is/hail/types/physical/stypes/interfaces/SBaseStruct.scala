@@ -34,8 +34,6 @@ trait SBaseStructSettable extends SBaseStructValue with SSettable
 trait SBaseStructValue extends SValue {
   def st: SBaseStruct
 
-  override def get: SBaseStructCode
-
   def isFieldMissing(cb: EmitCodeBuilder, fieldIdx: Int): Value[Boolean]
 
   def isFieldMissing(cb: EmitCodeBuilder, fieldName: String): Value[Boolean] =
@@ -77,42 +75,5 @@ trait SBaseStructValue extends SValue {
 
     val pcs = PCanonicalStruct(false, allFields.map { case (f, ec) => (f, ec.emitType.storageType) }: _*)
     pcs.constructFromFields(cb, region, allFields.map(_._2.load), false)
-  }
-}
-
-trait SBaseStructCode extends SCode {
-  self =>
-  def st: SBaseStruct
-
-  def memoize(cb: EmitCodeBuilder, name: String): SBaseStructValue
-
-  def memoizeField(cb: EmitCodeBuilder, name: String): SBaseStructValue
-
-  final def loadSingleField(cb: EmitCodeBuilder, fieldName: String): IEmitCode = loadSingleField(cb, st.fieldIdx(fieldName))
-
-  def loadSingleField(cb: EmitCodeBuilder, fieldIdx: Int): IEmitCode = {
-    memoize(cb, "structcode_loadsinglefield")
-      .loadField(cb, fieldIdx)
-  }
-
-  protected[stypes] def _insert(newType: TStruct, fields: (String, EmitCode)*): SBaseStructCode = {
-    new SInsertFieldsStructCode(
-      SInsertFieldsStruct(newType, st, fields.map { case (name, ec) => (name, ec.emitType) }.toFastIndexedSeq),
-      this,
-      fields.map(_._2).toFastIndexedSeq
-    )
-  }
-
-  def insert(cb: EmitCodeBuilder, region: Value[Region], newType: TStruct, fields: (String, EmitCode)*): SBaseStructCode = {
-    if (newType.size < 64 || fields.length < 16)
-      return _insert(newType, fields: _*)
-
-    val newFieldMap = fields.toMap
-    val oldPV = memoize(cb, "insert_fields_old")
-    val allFields = newType.fieldNames.map { f =>
-      (f, newFieldMap.getOrElse(f, EmitCode.fromI(cb.emb)(cb => oldPV.loadField(cb, f)))) }
-
-    val pcs = PCanonicalStruct(false, allFields.map { case (f, ec) => (f, ec.emitType.storageType) }: _*)
-    pcs.constructFromFields(cb, region, allFields.map(_._2), false).get
   }
 }

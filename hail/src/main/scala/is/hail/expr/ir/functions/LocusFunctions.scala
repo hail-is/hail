@@ -237,8 +237,8 @@ object LocusFunctions extends RegistryFunctions {
       (returnType: Type, _: SType, _: SType) => PCanonicalLocus(returnType.asInstanceOf[TLocus].rg).sType
     }) {
       case (r, cb, SCanonicalLocusPointer(rt: PCanonicalLocus), contig, pos, _) =>
-        cb += rgCode(r.mb, rt.rg).invoke[String, Int, Unit]("checkLocus", contig.get.asString.loadString(), pos.asInt.intCode(cb))
-        rt.constructFromPositionAndString(cb, r.region, contig.get.asString.loadString(), pos.asInt.intCode(cb))
+        cb += rgCode(r.mb, rt.rg).invoke[String, Int, Unit]("checkLocus", contig.asString.loadString(cb), pos.asInt.intCode(cb))
+        rt.constructFromPositionAndString(cb, r.region, contig.asString.loadString(cb), pos.asInt.intCode(cb))
     }
 
     registerSCode1("LocusAlleles", TString, tvariant("T"), {

@@ -2840,7 +2840,7 @@ class IRSuite extends HailSuite {
         PartitionNativeReader(TypedCodecSpec(PCanonicalStruct("foo" -> PInt32(), "bar" -> PCanonicalString()), BufferSpec.default))),
       WritePartition(
         MakeStream(FastSeq(), TStream(TStruct())), NA(TString),
-        PartitionNativeWriter(TypedCodecSpec(PType.canonical(TStruct()), BufferSpec.default), "path", None, None)),
+        PartitionNativeWriter(TypedCodecSpec(PType.canonical(TStruct()), BufferSpec.default), IndexedSeq(), "path", None, None)),
       WriteMetadata(
         NA(TStruct("global" -> TString, "partitions" -> TStruct("filePath" -> TString, "partitionCounts" -> TInt64))),
         RelationalWriter("path", overwrite = false, None)),
@@ -3581,7 +3581,7 @@ class IRSuite extends HailSuite {
     val child = ToStream(MakeArray(data.map(makeRowStruct):_*))
     val pivots = MakeArray(splitters.map(makeKeyStruct):_*)
     val spec = TypedCodecSpec(PCanonicalStruct(("rowIdx", PInt32Required), ("extraInfo", PInt32Required)), BufferSpec.default)
-    val dist = StreamDistribute(child, pivots, Str(ctx.localTmpdir), spec)
+    val dist = StreamDistribute(child, pivots, Str(ctx.localTmpdir), Compare(pivots.typ.asInstanceOf[TArray].elementType), spec)
     val result = eval(dist).asInstanceOf[IndexedSeq[Row]].map(row => (row(0).asInstanceOf[Interval], row(1).asInstanceOf[String], row(2).asInstanceOf[Int]))
     val kord: ExtendedOrdering = PartitionBoundOrdering(pivots.typ.asInstanceOf[TArray].elementType)
 

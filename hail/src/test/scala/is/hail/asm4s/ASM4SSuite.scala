@@ -305,12 +305,20 @@ class ASM4SSuite extends TestNGSuite {
     sub.emit(sub.getArg[Int](1) - sub.getArg[Int](2))
     mul.emit(mul.getArg[Int](1) * mul.getArg[Int](2))
 
-    fb.emit(fb.getArg[Int](1).ceq(0).mux(
-      add.invoke(fb.getArg[Int](2), fb.getArg[Int](3)),
-      fb.getArg[Int](1).ceq(1).mux(
-        sub.invoke(fb.getArg[Int](2), fb.getArg[Int](3)),
-        mul.invoke(fb.getArg[Int](2), fb.getArg[Int](3))
-      )))
+    fb.emitWithBuilder { cb =>
+      val a = fb.getArg[Int](1)
+      val b = fb.getArg[Int](2)
+      val c = fb.getArg[Int](3)
+      val res = cb.newLocal[Int]("res")
+      cb.ifx(a.ceq(0), {
+        cb.assign(res, add.invoke(cb, b, c))
+      }, {
+        cb.ifx(a.ceq(1),
+          cb.assign(res, sub.invoke(cb, b, c)),
+          cb.assign(res, mul.invoke(cb, b, c)))
+      })
+      res
+    }
     val f = fb.result(Some(new PrintWriter(System.out)))()
     assert(f(0, 1, 1) == 2)
     assert(f(1, 5, 1) == 4)
@@ -329,7 +337,7 @@ class ASM4SSuite extends TestNGSuite {
       v2 := add.getArg[Int](2),
       v1 + v2))
 
-    fb.emit(add.invoke(fb.getArg[Int](1), fb.getArg[Int](2)))
+    fb.emitWithBuilder(add.invoke(_, fb.getArg[Int](1), fb.getArg[Int](2)))
     val f = fb.result()()
     assert(f(1, 1) == 2)
   }
@@ -377,7 +385,7 @@ class ASM4SSuite extends TestNGSuite {
         case LongInfo => mb.emit(Code(c, longField.load()))
         case BooleanInfo => mb.emit(Code(c, booleanField.load()))
       }
-      fb.emit(mb.invoke(fb.getArg[Int](1), fb.getArg[Long](2), fb.getArg[Boolean](3)))
+      fb.emitWithBuilder(mb.invoke(_, fb.getArg[Int](1), fb.getArg[Long](2), fb.getArg[Boolean](3)))
       val f = fb.result()()
       f(arg1, arg2, arg3)
     }

@@ -6,7 +6,8 @@ import pytest
 import concurrent
 import functools
 from hailtop.utils import secret_alnum_string, bounded_gather2, retry_transient_errors
-from hailtop.aiotools import LocalAsyncFS, RouterAsyncFS
+from hailtop.aiotools import LocalAsyncFS
+from hailtop.aiotools.router_fs import RouterAsyncFS
 from hailtop.aiocloud.aiogoogle import GoogleStorageClient, GoogleStorageAsyncFS
 
 
@@ -17,8 +18,8 @@ async def gs_filesystem(request):
     with ThreadPoolExecutor() as thread_pool:
         if request.param.startswith('router/'):
             fs = RouterAsyncFS(
-                'file', [LocalAsyncFS(thread_pool),
-                         GoogleStorageAsyncFS()])
+                'file', filesystems=[LocalAsyncFS(thread_pool),
+                                     GoogleStorageAsyncFS()])
         else:
             assert request.param.endswith('gs')
             fs = GoogleStorageAsyncFS()

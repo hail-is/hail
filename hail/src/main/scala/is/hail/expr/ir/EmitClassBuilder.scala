@@ -4,14 +4,16 @@ import is.hail.annotations.{Region, RegionPool, RegionValueBuilder}
 import is.hail.asm4s._
 import is.hail.backend.{BackendUtils, BroadcastValue, ExecuteContext}
 import is.hail.expr.ir.functions.IRRandomness
-import is.hail.expr.ir.orderings.CodeOrdering
+import is.hail.expr.ir.orderings.{CodeOrdering, StructOrdering}
 import is.hail.io.fs.FS
 import is.hail.io.{BufferSpec, InputBuffer, TypedCodecSpec}
 import is.hail.types.VirtualTypeWithReq
 import is.hail.types.physical.stypes._
+import is.hail.types.physical.stypes.interfaces.SBaseStruct
 import is.hail.types.physical.{PCanonicalTuple, PType, typeToTypeInfo}
 import is.hail.types.virtual.Type
 import is.hail.utils._
+import is.hail.utils.prettyPrint.ArrayOfByteArrayInputStream
 import is.hail.variant.ReferenceGenome
 import org.apache.spark.TaskContext
 
@@ -260,21 +262,21 @@ class EmitClassBuilder[C](
     encodedLiteralsMap.getOrElseUpdate(encodedLiteral, SSettable(fieldBuilder, encodedLiteral.codec.encodedType.decodedSType(encodedLiteral.typ), "encodedLiteral"))
   }
 
-  private[this] def encodeLiterals(): Array[Array[Byte]] = {
+  private[this] def encodeLiterals(): Array[AnyRef] = {
     val literals = literalsMap.toArray
     val litType = PCanonicalTuple(true, literals.map(_._1._1.canonicalPType.setRequired(true)): _*)
     val spec = TypedCodecSpec(litType, BufferSpec.defaultUncompressed)
 
     cb.addInterface(typeInfo[FunctionWithLiterals].iname)
-    val mb2 = newEmitMethod("addLiterals", FastIndexedSeq[ParamType](typeInfo[Array[Array[Byte]]]), typeInfo[Unit])
+    val mb2 = newEmitMethod("addLiterals", FastIndexedSeq[ParamType](typeInfo[Array[AnyRef]]), typeInfo[Unit])
 
     val preEncodedLiterals = encodedLiteralsMap.toArray
 
     mb2.voidWithBuilder { cb =>
-      val allEncodedFields = mb2.getCodeParam[Array[Array[Byte]]](1)
+      val allEncodedFields = mb2.getCodeParam[Array[AnyRef]](1)
 
       val ib = cb.newLocal[InputBuffer]("ib",
-        spec.buildCodeInputBuffer(Code.newInstance[ByteArrayInputStream, Array[Byte]](allEncodedFields(0))))
+        spec.buildCodeInputBuffer(Code.newInstance[ByteArrayInputStream, Array[Byte]](Code.checkcast[Array[Byte]](allEncodedFields(0)))))
 
       val lits = spec.encodedType.buildDecoder(spec.encodedVirtualType, this)
         .apply(cb, partitionRegion, ib)
@@ -283,18 +285,18 @@ class EmitClassBuilder[C](
         lits.loadField(cb, i)
           .consume(cb,
             cb._fatal("expect non-missing literals!"),
-            { pc => f.store(cb, pc.get) })
+            { pc => f.store(cb, pc) })
       }
       // Handle the pre-encoded literals, which only need to be decoded.
       preEncodedLiterals.zipWithIndex.foreach { case ((encLit, f), index) =>
         val spec = encLit.codec
-        cb.assign(ib, spec.buildCodeInputBuffer(Code.newInstance[ByteArrayInputStream, Array[Byte]](allEncodedFields(index + 1))))
+        cb.assign(ib, spec.buildCodeInputBuffer(Code.newInstance[ArrayOfByteArrayInputStream, Array[Array[Byte]]](Code.checkcast[Array[Array[Byte]]](allEncodedFields(index + 1)))))
         val decodedValue = encLit.codec.encodedType.buildDecoder(encLit.typ, this)
           .apply(cb, partitionRegion, ib)
         assert(decodedValue.st == f.st)
 
         // Because 0th index is for the regular literals
-        f.store(cb, decodedValue.get)
+        f.store(cb, decodedValue)
       }
     }
 
@@ -369,7 +371,7 @@ class EmitClassBuilder[C](
     }
 
     getF.emitWithBuilder { cb =>
-      cb += storeF.invokeCode[Unit]()
+      storeF.invokeCode[Unit](cb)
       _aggOff
     }
 
@@ -495,6 +497,25 @@ class EmitClassBuilder[C](
         case CodeOrdering.Gt(missingEqual) => ord.gt(cb, v1, v2, missingEqual)
         case CodeOrdering.Gteq(missingEqual) => ord.gteq(cb, v1, v2, missingEqual)
         case CodeOrdering.Neq(missingEqual) => !ord.equiv(cb, v1, v2, missingEqual)
+      }
+      cb.memoize[op.ReturnType](coerce[op.ReturnType](r))(op.rtti)
+    }
+  }
+
+  def getStructOrderingFunction(
+    t1: SBaseStruct,
+    t2: SBaseStruct,
+    sortFields: Array[SortField],
+    op: CodeOrdering.Op
+  ): CodeOrdering.F[op.ReturnType] = {
+    { (cb: EmitCodeBuilder, v1: EmitValue, v2: EmitValue) =>
+      val ord = StructOrdering.make(t1, t2, cb.emb.ecb, sortFields.map(_.sortOrder))
+
+      val r: Code[_] = op match {
+        case CodeOrdering.StructLt(missingEqual) => ord.lt(cb, v1, v2, missingEqual)
+        case CodeOrdering.StructLteq(missingEqual) => ord.lteq(cb, v1, v2, missingEqual)
+        case CodeOrdering.StructGt(missingEqual) => ord.gt(cb, v1, v2, missingEqual)
+        case CodeOrdering.StructCompare(missingEqual) => ord.compare(cb, v1, v2, missingEqual)
       }
       cb.memoize[op.ReturnType](coerce[op.ReturnType](r))(op.rtti)
     }
@@ -814,7 +835,7 @@ trait FunctionWithPartitionRegion {
 }
 
 trait FunctionWithLiterals {
-  def addLiterals(lit: Array[Array[Byte]]): Unit
+  def addLiterals(lit: Array[AnyRef]): Unit
 }
 
 trait FunctionWithSeededRandomness {
@@ -892,7 +913,7 @@ class EmitMethodBuilder[C](
     })
   }
 
-  def storeEmitParam(emitIndex: Int, cb: EmitCodeBuilder): Value[Region] => EmitValue = {
+  def storeEmitParam(emitIndex: Int, cb: EmitCodeBuilder): (EmitCodeBuilder, Value[Region]) => IEmitCode = {
     assert(mb.isStatic || emitIndex != 0)
     val static = (!mb.isStatic).toInt
     val et = emitParamTypes(emitIndex - static) match {
@@ -903,25 +924,35 @@ class EmitMethodBuilder[C](
 
     et match {
       case SingleCodeEmitParamType(required, sct: StreamSingleCodeType) =>
-        val field = cb.newFieldAny(s"storeEmitParam_sct_$emitIndex", mb.getArg(codeIndex)(sct.ti).get)(sct.ti);
-        { region: Value[Region] =>
-          val m = if (required) None else Some(mb.getArg[Boolean](codeIndex + 1))
-          val v = sct.loadToSValue(cb, region, field)
+        val field = cb.memoizeFieldAny(
+          mb.getArg(codeIndex)(sct.ti).get,
+          s"storeEmitParam_sct_$emitIndex",
+          sct.ti)
+        val missing: Value[Boolean] = if (required)
+          const(false)
+        else
+          cb.memoizeField(mb.getArg[Boolean](codeIndex + 1), s"storeEmitParam_${emitIndex}_m")
 
-          EmitValue(m, v)
+        { (cb2: EmitCodeBuilder, region: Value[Region]) =>
+          IEmitCode(cb2, missing, sct.loadToSValue(cb2, region, field))
         }
 
       case SingleCodeEmitParamType(required, sct) =>
-        val v = sct.loadToSValue(cb, null, mb.getArg(codeIndex)(sct.ti));
-        { region: Value[Region] =>
-          val m = if (required) None else Some(mb.getArg[Boolean](codeIndex + 1))
+        val v = cb.memoizeField(
+          sct.loadToSValue(cb, null, mb.getArg(codeIndex)(sct.ti)),
+          s"storeEmitParam_$emitIndex")
+        val missing: Value[Boolean] = if (required)
+          const(false)
+        else
+          cb.memoizeField(mb.getArg[Boolean](codeIndex + 1), s"storeEmitParam_${emitIndex}_m")
 
-          EmitValue(m, v)
+        { (cb2: EmitCodeBuilder, _) =>
+          IEmitCode(cb2, missing, v)
         }
 
       case SCodeEmitParamType(et) =>
         val fd = cb.memoizeField(getEmitParam(cb, emitIndex, null), s"storeEmitParam_$emitIndex")
-        _ => fd
+        (cb2: EmitCodeBuilder, _) => fd.loadI(cb2)
     }
 
   }
@@ -955,10 +986,10 @@ class EmitMethodBuilder[C](
   }
 
 
-  def invokeCode[T](args: Param*): Code[T] = {
+  def invokeCode[T](cb: CodeBuilderLike, args: Param*): Value[T] = {
     assert(emitReturnType.isInstanceOf[CodeParamType])
     assert(args.forall(_.isInstanceOf[CodeParam]))
-    mb.invoke(args.flatMap {
+    mb.invoke(cb, args.flatMap {
       case CodeParam(c) => FastIndexedSeq(c)
       // If you hit this assertion, it means that an EmitParam was passed to
       // invokeCode. Code with EmitParams must be invoked using the EmitCodeBuilder

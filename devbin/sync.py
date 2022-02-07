@@ -70,25 +70,28 @@ class Sync:
     async def monitor_pods(self, apps, namespace):
         await kube.config.load_kube_config()
         k8s = kube.client.CoreV1Api()
-        while True:
-            log.info('monitor_pods: start loop')
-            updated_pods = await retry_transient_errors(
-                k8s.list_namespaced_pod, namespace, label_selector=f'app in ({",".join(apps)})'
-            )
-            updated_pods = [
-                x
-                for x in updated_pods.items
-                if x.status.phase == 'Running'
-                if all(s.ready for s in x.status.container_statuses)
-            ]
-            updated_pods = {(pod.metadata.name, namespace) for pod in updated_pods}
-            fresh_pods = updated_pods - self.pods
-            dead_pods = self.pods - updated_pods
-            log.info(f'monitor_pods: fresh_pods: {fresh_pods}')
-            log.info(f'monitor_pods: dead_pods: {dead_pods}')
-            self.pods = self.pods - dead_pods
-            await asyncio.gather(*[self.initialize_pod(name, namespace) for name, namespace in fresh_pods])
-            await asyncio.sleep(5)
+        try:
+            while True:
+                log.info('monitor_pods: start loop')
+                updated_pods = await retry_transient_errors(
+                    k8s.list_namespaced_pod, namespace, label_selector=f'app in ({",".join(apps)})'
+                )
+                updated_pods = [
+                    x
+                    for x in updated_pods.items
+                    if x.status.phase == 'Running'
+                    if all(s.ready for s in x.status.container_statuses)
+                ]
+                updated_pods = {(pod.metadata.name, namespace) for pod in updated_pods}
+                fresh_pods = updated_pods - self.pods
+                dead_pods = self.pods - updated_pods
+                log.info(f'monitor_pods: fresh_pods: {fresh_pods}')
+                log.info(f'monitor_pods: dead_pods: {dead_pods}')
+                self.pods = self.pods - dead_pods
+                await asyncio.gather(*[self.initialize_pod(name, namespace) for name, namespace in fresh_pods])
+                await asyncio.sleep(5)
+        finally:
+            await k8s.api_client.rest_client.pool_manager.close()
 
     async def update_loop(self):
         while True:

@@ -111,7 +111,7 @@ class DownsampleState(val kb: EmitClassBuilder[_], labelType: VirtualTypeWithReq
   def allocateSpace(cb: EmitCodeBuilder): Unit =
     cb.assign(off, region.allocate(storageType.alignment, storageType.byteSize))
 
-  def init(cb: EmitCodeBuilder, nDivisions: Code[Int]): Unit = {
+  def init(cb: EmitCodeBuilder, nDivisions: Value[Int]): Unit = {
     val mb = kb.genEmitMethod("downsample_init", FastIndexedSeq[ParamType](IntInfo), UnitInfo)
     mb.voidWithBuilder { cb =>
       allocateSpace(cb)
@@ -191,7 +191,7 @@ class DownsampleState(val kb: EmitClassBuilder[_], labelType: VirtualTypeWithReq
       cb.assign(bottom, Region.loadDouble(storageType.loadField(src, "top")))
       cb.assign(top, Region.loadDouble(storageType.loadField(src, "bottom")))
       cb.assign(treeSize, Region.loadInt(storageType.loadField(src, "treeSize")))
-      tree.deepCopy(cb, Region.loadAddress(storageType.loadField(src, "tree")))
+      tree.deepCopy(cb, cb.memoize(Region.loadAddress(storageType.loadField(src, "tree"))))
       buffer.copyFrom(cb, storageType.loadField(src, "buffer"))
     }
     cb.invokeVoid(mb, _src)
@@ -251,8 +251,8 @@ class DownsampleState(val kb: EmitClassBuilder[_], labelType: VirtualTypeWithReq
         tree.init(cb)
         tree.bulkLoad(cb, ib) { (cb, ib, destCode) =>
           val dest = cb.newLocal("dss_deser_dest", destCode)
-          cb += binDec.invokeCode(region, key.storageType.fieldOffset(dest, "bin"), ib)
-          cb += pointDec.invokeCode(region, key.storageType.fieldOffset(dest, "point"), ib)
+          binDec.invokeCode(cb, region, cb.memoize(key.storageType.fieldOffset(dest, "bin")), ib)
+          pointDec.invokeCode(cb, region, cb.memoize(key.storageType.fieldOffset(dest, "point")), ib)
           cb += Region.storeBoolean(key.storageType.fieldOffset(dest, "empty"), false)
         }
         buffer.initialize(cb)
@@ -266,21 +266,21 @@ class DownsampleState(val kb: EmitClassBuilder[_], labelType: VirtualTypeWithReq
     }
   }
 
-  val xBinCoordinate: Code[Double] => Code[Int] = {
+  val xBinCoordinate: (EmitCodeBuilder, Value[Double]) => Value[Int] = {
     val mb = kb.genEmitMethod("downsample_x_bin_coordinate", FastIndexedSeq[ParamType](DoubleInfo), IntInfo)
     val x = mb.getCodeParam[Double](1)
     mb.emit(right.ceq(left).mux(0, (((x - left) / (right - left)) * nDivisions.toD).toI))
-    mb.invokeCode(_)
+    mb.invokeCode(_, _)
   }
 
-  val yBinCoordinate: Code[Double] => Code[Int] = {
+  val yBinCoordinate: (EmitCodeBuilder, Value[Double]) => Value[Int] = {
     val mb = kb.genEmitMethod("downsample_y_bin_coordinate", FastIndexedSeq[ParamType](DoubleInfo), IntInfo)
     val y = mb.getCodeParam[Double](1)
     mb.emit(top.ceq(bottom).mux(0, (((y - bottom) / (top - bottom)) * nDivisions.toD).toI))
-    mb.invokeCode(_)
+    mb.invokeCode(_, _)
   }
 
-  def insertIntoTree(cb: EmitCodeBuilder, binX: Code[Int], binY: Code[Int], point: Code[Long], deepCopy: Boolean): Unit = {
+  def insertIntoTree(cb: EmitCodeBuilder, binX: Value[Int], binY: Value[Int], point: Value[Long], deepCopy: Boolean): Unit = {
     val name = s"downsample_insert_into_tree_${ deepCopy.toString }"
     val mb = kb.getOrGenEmitMethod(name, (this, name, deepCopy), FastIndexedSeq[ParamType](IntInfo, IntInfo, LongInfo), UnitInfo) { mb =>
       val binX = mb.getCodeParam[Int](1)
@@ -323,7 +323,7 @@ class DownsampleState(val kb: EmitClassBuilder[_], labelType: VirtualTypeWithReq
           val point = cb.memoize(key.storageType.loadField(value, "point"))
           val pointX = cb.memoize(Region.loadDouble(pointType.loadField(point, "x")))
           val pointY = cb.memoize(Region.loadDouble(pointType.loadField(point, "y")))
-          insertIntoTree(cb, xBinCoordinate(pointX), yBinCoordinate(pointY), point, deepCopy = true)
+          insertIntoTree(cb, xBinCoordinate(cb, pointX), yBinCoordinate(cb, pointY), point, deepCopy = true)
         }
         cb.invokeVoid(mb, v)
       }
@@ -366,7 +366,7 @@ class DownsampleState(val kb: EmitClassBuilder[_], labelType: VirtualTypeWithReq
               val x = point.loadField(cb, "x").get(cb).asFloat64.doubleCode(cb)
               val y = point.loadField(cb, "y").get(cb).asFloat64.doubleCode(cb)
               val pointc = coerce[Long](SingleCodeSCode.fromSCode(cb, point, region).code)
-              insertIntoTree(cb, xBinCoordinate(x), yBinCoordinate(y), pointc, deepCopy = true)
+              insertIntoTree(cb, xBinCoordinate(cb, x), yBinCoordinate(cb, y), pointc, deepCopy = true)
             })
             cb.assign(i, i + 1)
           })
@@ -379,7 +379,7 @@ class DownsampleState(val kb: EmitClassBuilder[_], labelType: VirtualTypeWithReq
     cb.invokeVoid(mb)
   }
 
-  def insertPointIntoBuffer(cb: EmitCodeBuilder, x: Code[Double], y: Code[Double], point: Code[Long], deepCopy: Boolean): Unit = {
+  def insertPointIntoBuffer(cb: EmitCodeBuilder, x: Value[Double], y: Value[Double], point: Value[Long], deepCopy: Boolean): Unit = {
     val name = "downsample_insert_into_buffer"
     val mb = kb.getOrGenEmitMethod(name, (this, name, deepCopy), FastIndexedSeq[ParamType](DoubleInfo, DoubleInfo, LongInfo), UnitInfo) { mb =>
       val x = mb.getCodeParam[Double](1)
@@ -399,7 +399,7 @@ class DownsampleState(val kb: EmitClassBuilder[_], labelType: VirtualTypeWithReq
     cb.invokeVoid(mb, x, y, point)
   }
 
-  def checkBounds(xBin: Code[Int], yBin: Code[Int]): Code[Boolean] = {
+  def checkBounds(cb: EmitCodeBuilder, xBin: Value[Int], yBin: Value[Int]): Value[Boolean] = {
     val name = "downsample_check_bounds"
     val mb = kb.getOrGenEmitMethod(name, (this, name), FastIndexedSeq[ParamType](IntInfo, IntInfo), BooleanInfo) { mb =>
       val xBin = mb.getCodeParam[Int](1)
@@ -414,10 +414,10 @@ class DownsampleState(val kb: EmitClassBuilder[_], labelType: VirtualTypeWithReq
           || (yBin > nDivisions + factor)))
     }
 
-    mb.invokeCode(xBin, yBin)
+    mb.invokeCode(cb, xBin, yBin)
   }
 
-  def binAndInsert(cb: EmitCodeBuilder, x: Code[Double], y: Code[Double], point: Code[Long], deepCopy: Boolean): Unit = {
+  def binAndInsert(cb: EmitCodeBuilder, x: Value[Double], y: Value[Double], point: Value[Long], deepCopy: Boolean): Unit = {
     val name = "downsample_bin_and_insert"
     val mb = kb.getOrGenEmitMethod(name, (this, name, deepCopy), FastIndexedSeq[ParamType](DoubleInfo, DoubleInfo, LongInfo), UnitInfo) { mb =>
       val x = mb.getCodeParam[Double](1)
@@ -428,9 +428,9 @@ class DownsampleState(val kb: EmitClassBuilder[_], labelType: VirtualTypeWithReq
       val binY = mb.newLocal[Int]("bin_y")
 
       mb.voidWithBuilder { cb =>
-        cb.assign(binX, xBinCoordinate(x))
-        cb.assign(binY, yBinCoordinate(y))
-        cb.ifx(checkBounds(binX, binY),
+        cb.assign(binX, xBinCoordinate(cb, x))
+        cb.assign(binY, yBinCoordinate(cb, y))
+        cb.ifx(checkBounds(cb, binX, binY),
           insertPointIntoBuffer(cb, x, y, point, deepCopy = deepCopy),
           insertIntoTree(cb, binX, binY, point, deepCopy = deepCopy)
         )
@@ -485,7 +485,7 @@ class DownsampleState(val kb: EmitClassBuilder[_], labelType: VirtualTypeWithReq
         })
   }
 
-  def deepCopyAndInsertPoint(cb: EmitCodeBuilder, point: Code[Long]): Unit = {
+  def deepCopyAndInsertPoint(cb: EmitCodeBuilder, point: Value[Long]): Unit = {
     val name = "downsample_deep_copy_insert_point"
     val mb = kb.getOrGenEmitMethod(name, (this, name), IndexedSeq[ParamType](LongInfo), UnitInfo) { mb =>
       val point = mb.getCodeParam[Long](1)
@@ -515,7 +515,7 @@ class DownsampleState(val kb: EmitClassBuilder[_], labelType: VirtualTypeWithReq
         cb.assign(i, i + 1)
       })
       other.tree.foreach(cb) { (cb, value) =>
-        deepCopyAndInsertPoint(cb, key.storageType.loadField(value, "point"))
+        deepCopyAndInsertPoint(cb, cb.memoize(key.storageType.loadField(value, "point")))
       }
       Code._empty
     }

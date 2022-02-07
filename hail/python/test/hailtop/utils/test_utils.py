@@ -1,5 +1,5 @@
 from hailtop.utils import (partition, url_basename, url_join, url_scheme,
-                           parse_docker_image_reference)
+                           url_and_params, parse_docker_image_reference)
 
 
 def test_partition_zero_empty():
@@ -40,6 +40,11 @@ def test_url_join():
 def test_url_scheme():
     assert url_scheme('https://hail.is/path/to') == 'https'
     assert url_scheme('/path/to') == ''
+
+def test_url_and_params():
+    assert url_and_params('https://example.com/') == ('https://example.com/', {})
+    assert url_and_params('https://example.com/foo?') == ('https://example.com/foo', {})
+    assert url_and_params('https://example.com/foo?a=b&c=d') == ('https://example.com/foo', {'a': 'b', 'c': 'd'})
 
 def test_parse_docker_image_reference():
     x = parse_docker_image_reference('animage')

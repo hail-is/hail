@@ -10,7 +10,7 @@ import sys
 from hailtop.utils import secret_alnum_string, partition
 import hailtop.batch_client.aioclient as low_level_batch_client
 from hailtop.batch_client.parse import parse_cpu_in_mcpu
-from hailtop.aiocloud import aiogoogle
+from hailtop.aiotools.router_fs import RouterAsyncFS
 
 from .batch import Batch
 from .backend import ServiceBackend
@@ -93,7 +93,7 @@ class BatchPoolExecutor:
         Backend used to execute the jobs. Must be a :class:`.ServiceBackend`.
     image:
         The name of a Docker image used for each submitted job. The image must
-        include Python 3.6 or later and must have the ``dill`` Python package
+        include Python 3.7 or later and must have the ``dill`` Python package
         installed. If you intend to use ``numpy``, ensure that OpenBLAS is also
         installed. If unspecified, an image with a matching Python verison and
         ``numpy``, ``scipy``, and ``sklearn`` installed is used.
@@ -132,7 +132,7 @@ class BatchPoolExecutor:
         self.directory = self.backend.remote_tmpdir + f'batch-pool-executor/{self.name}/'
         self.inputs = self.directory + 'inputs/'
         self.outputs = self.directory + 'outputs/'
-        self.fs = aiogoogle.GoogleStorageAsyncFS(project=project)
+        self.fs = RouterAsyncFS('file', gcs_kwargs={'project': project})
         self.futures: List[BatchPoolFuture] = []
         self.finished_future_count = 0
         self._shutdown = False

@@ -6,7 +6,7 @@ import is.hail.asm4s._
 import is.hail.backend.ExecuteContext
 import is.hail.expr.ir.{EmitClassBuilder, EmitCode, EmitCodeBuilder, EmitContext, IEmitCode}
 import is.hail.types.physical._
-import is.hail.types.physical.stypes.{EmitType, SCode}
+import is.hail.types.physical.stypes.{EmitType, SCode, SValue}
 import is.hail.types.physical.stypes.concrete.{SBaseStructPointer, SIndexablePointer, SIndexablePointerSettable}
 import is.hail.types.physical.stypes.interfaces.SIndexableValue
 import is.hail.types.virtual.{TArray, TFloat64, TInt32, Type}
@@ -131,15 +131,13 @@ class LinearRegressionAggregator() extends StagedAggregator {
         })
   }
 
-  def seqOpF(state: State)(cb: EmitCodeBuilder, y: Code[Double], xc: SCode): Unit = {
+  def seqOpF(state: State)(cb: EmitCodeBuilder, y: Code[Double], x: SIndexableValue): Unit = {
     val k = cb.newLocal[Int]("linreg_agg_seqop_k")
     val i = cb.newLocal[Int]("linreg_agg_seqop_i")
     val j = cb.newLocal[Int]("linreg_agg_seqop_j")
     val sptr = cb.newLocal[Long]("linreg_agg_seqop_sptr")
     val xty = cb.newLocal[Long]("linreg_agg_seqop_xty")
     val xtx = cb.newLocal[Long]("linreg_agg_seqop_xtx")
-
-    val x = xc.memoize(cb, "lra_seqop_x").asInstanceOf[SIndexableValue]
 
     cb.ifx(!x.hasMissingValues(cb),
       {
@@ -148,7 +146,7 @@ class LinearRegressionAggregator() extends StagedAggregator {
         cb.assign(k, vector.loadLength(xty))
         cb.assign(sptr, vector.firstElementOffset(xty, k))
         cb.assign(i, 0)
-        xc.st match {
+        x.st match {
           case SIndexablePointer(pt: PCanonicalArray) =>
             assert(pt.elementType.isInstanceOf[PFloat64])
 
@@ -221,7 +219,7 @@ class LinearRegressionAggregator() extends StagedAggregator {
           x.toI(cb)
             .consume(cb,
               {},
-              xCode => seqOpF(state)(cb, yCode.asDouble.doubleCode(cb), xCode.get)
+              xCode => seqOpF(state)(cb, yCode.asDouble.doubleCode(cb), xCode.asIndexable)
             )
         })
   }

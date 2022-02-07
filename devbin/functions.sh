@@ -171,6 +171,10 @@ upload-secret() {
 	      | kubectl apply -f -
 }
 
+get_global_config_field() {
+    kubectl get secret global-config --template={{.data.$1}} | base64 --decode
+}
+
 gcpsetcluster() {
     if [ -z "$1" ]; then
         echo "Usage: gcpsetcluster <PROJECT>"
@@ -178,6 +182,7 @@ gcpsetcluster() {
     fi
 
     gcloud config set project $1
+    gcloud auth application-default login
     gcloud container clusters get-credentials --zone us-central1-a vdc
 }
 
@@ -189,5 +194,21 @@ azsetcluster() {
 
     RESOURCE_GROUP=$1
     az aks get-credentials --name vdc --resource-group $RESOURCE_GROUP
-    az acr login --name $RESOURCE_GROUP
+    az acr login --name $(get_global_config_field docker_prefix)
+}
+
+azsshworker() {
+    if [ -z "$1" ] || [ -z "$2" ]; then
+        echo "Usage: azsshworker <RESOURCE_GROUP> <WORKER_NAME>"
+        return
+    fi
+
+    RESOURCE_GROUP=$1
+    WORKER_NAME=$2
+    SSH_PRIVATE_KEY_PATH=$3
+
+    worker_ip=$(az vm list-ip-addresses -g $RESOURCE_GROUP -n $WORKER_NAME \
+        | jq -jr '.[0].virtualMachine.network.publicIpAddresses[0].ipAddress')
+
+    ssh -i ~/.ssh/batch_worker_ssh_rsa batch-worker@$worker_ip
 }

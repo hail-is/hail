@@ -1275,8 +1275,7 @@ class ThisLazyFieldRef[T: TypeInfo](cb: ClassBuilder[_], name: String, setup: Co
   private[this] val setm = cb.genMethod[Unit](s"setup_$name")
   setm.emit(Code(value := setup, present := true))
 
-  def get: Code[T] =
-    Code(present.mux(Code._empty, setm.invoke()), value.load())
+  def get: Code[T] = Code(present.mux(Code._empty, setm.invokeCode()), value.load())
 }
 
 class ThisFieldRef[T: TypeInfo](cb: ClassBuilder[_], f: Field[T]) extends Settable[T] {

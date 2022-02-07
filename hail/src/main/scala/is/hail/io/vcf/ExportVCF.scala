@@ -356,9 +356,10 @@ object ExportVCF {
       }
     }
     val filtersType = TSet(TString)
-    val filtersPType = if (typ.rowType.hasField("filters"))
+    val filtersPType = if (typ.rowType.hasField("filters")) {
+      assert(typ.rowType.fieldType("filters") == TSet(TString))
       mv.rvRowPType.field("filters").typ.asInstanceOf[PSet]
-    else null
+    } else null
 
     val (idExists, idIdx) = lookupVAField("rsid", "ID", Some(TString))
     val (qualExists, qualIdx) = lookupVAField("qual", "QUAL", Some(TFloat64))

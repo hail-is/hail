@@ -44,6 +44,11 @@ spec:
              value: /deploy-config/deploy-config.json
            - name: HAIL_CI_OAUTH_TOKEN
              value: /secrets/oauth-token/oauth-token
+           - name: HAIL_CI_GITHUB_CONTEXT
+             valueFrom:
+               secretKeyRef:
+                 name: ci-config
+                 key: github_context
            - name: HAIL_WATCHED_BRANCHES
              value: '[]'
            - name: HAIL_DOCKER_PREFIX
@@ -72,15 +77,6 @@ spec:
              value: "{{ hail_buildkit_image.image }}"
            - name: HAIL_DEFAULT_NAMESPACE
              value: "{{ default_ns.name }}"
-           - name: HAIL_CI_BUCKET_NAME
-{% if deploy %}
-             value: "cpg-hail-ci"
-{% else %}
-             valueFrom:
-               secretKeyRef:
-                 name: global-config
-                 key: hail_test_gcs_bucket
-{% endif %}
           ports:
             - containerPort: 5000
           volumeMounts:

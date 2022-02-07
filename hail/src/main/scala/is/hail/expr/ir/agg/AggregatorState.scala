@@ -7,7 +7,7 @@ import is.hail.io.{BufferSpec, InputBuffer, OutputBuffer, TypedCodecSpec}
 import is.hail.types.VirtualTypeWithReq
 import is.hail.types.physical._
 import is.hail.types.physical.stypes.SValue
-import is.hail.types.physical.stypes.concrete.{SBaseStructPointerCode, SStackStruct}
+import is.hail.types.physical.stypes.concrete.SStackStruct
 import is.hail.types.physical.stypes.interfaces.SBinaryValue
 import is.hail.utils._
 
@@ -95,9 +95,10 @@ trait PointerBasedRVAState extends RegionBackedAggState {
       })
   }
 
-  def copyFrom(cb: EmitCodeBuilder, src: Value[Long]): Unit = copyFromAddress(cb, Region.loadAddress(src))
+  def copyFrom(cb: EmitCodeBuilder, src: Value[Long]): Unit =
+    copyFromAddress(cb, cb.memoize(Region.loadAddress(src)))
 
-  def copyFromAddress(cb: EmitCodeBuilder, src: Code[Long]): Unit
+  def copyFromAddress(cb: EmitCodeBuilder, src: Value[Long]): Unit
 }
 
 class TypedRegionBackedAggState(val typ: VirtualTypeWithReq, val kb: EmitClassBuilder[_]) extends AbstractTypedRegionBackedAggState(typ.canonicalPType)
@@ -184,7 +185,7 @@ class PrimitiveRVAState(val vtypes: Array[VirtualTypeWithReq], val kb: EmitClass
   def createState(cb: EmitCodeBuilder): Unit = {}
 
   private[this] def loadVarsFromRegion(cb: EmitCodeBuilder, srcc: Code[Long]): Unit = {
-    val pv = new SBaseStructPointerCode(sStorageType, srcc).memoize(cb, "prim_rvastate_load_vars")
+    val pv = storageType.loadCheapSCode(cb, srcc)
     foreachField { (i, es) =>
       cb.assign(es, pv.loadField(cb, i))
     }
@@ -208,13 +209,13 @@ class PrimitiveRVAState(val vtypes: Array[VirtualTypeWithReq], val kb: EmitClass
     (cb, ob: Value[OutputBuffer]) =>
       foreachField { case (_, es) =>
         if (es.emitType.required) {
-          ob.writePrimitive(cb, es.get(cb).get)
+          ob.writePrimitive(cb, es.get(cb))
         } else {
           es.toI(cb).consume(cb,
             cb += ob.writeBoolean(true),
             { sc =>
               cb += ob.writeBoolean(false)
-              ob.writePrimitive(cb, sc.get)
+              ob.writePrimitive(cb, sc)
             })
         }
       }
@@ -224,11 +225,11 @@ class PrimitiveRVAState(val vtypes: Array[VirtualTypeWithReq], val kb: EmitClass
     (cb, ib: Value[InputBuffer]) =>
       foreachField { case (_, es) =>
         if (es.emitType.required) {
-          cb.assign(es, EmitCode.present(cb.emb, ib.readPrimitive(es.st.virtualType).memoize(cb, "deserialize")))
+          cb.assign(es, EmitCode.present(cb.emb, ib.readPrimitive(cb, es.st.virtualType)))
         } else {
           cb.ifx(ib.readBoolean(),
             cb.assign(es, EmitCode.missing(cb.emb, es.st)),
-            cb.assign(es, EmitCode.present(cb.emb, ib.readPrimitive(es.st.virtualType).memoize(cb, "deserialize"))))
+            cb.assign(es, EmitCode.present(cb.emb, ib.readPrimitive(cb, es.st.virtualType))))
         }
       }
   }

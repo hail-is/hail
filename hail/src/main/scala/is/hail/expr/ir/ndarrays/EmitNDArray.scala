@@ -1,15 +1,13 @@
 package is.hail.expr.ir.ndarrays
 
 import is.hail.annotations.Region
-import is.hail.expr.ir._
-import is.hail.types.physical.{PCanonicalArray, PCanonicalNDArray, PFloat32, PFloat32Required, PFloat64, PFloat64Required, PInt32, PInt32Required, PInt64, PInt64Required, PNumeric, PType}
-import is.hail.types.physical.stypes.interfaces.{SNDArray, SNDArrayCode}
-import is.hail.types.physical.stypes.{SCode, SType, SValue}
-import is.hail.utils._
 import is.hail.asm4s._
+import is.hail.expr.ir._
 import is.hail.types.physical.stypes.interfaces._
-import is.hail.types.physical.stypes.primitives.{SFloat32, SFloat64, SInt32, SInt64}
-import is.hail.types.virtual.{TFloat32, TFloat64, TInt32, TInt64, TNDArray}
+import is.hail.types.physical.stypes.{SType, SValue}
+import is.hail.types.physical._
+import is.hail.types.virtual._
+import is.hail.utils._
 
 abstract class NDArrayProducer {
   outer =>
@@ -571,7 +569,7 @@ object EmitNDArray {
                   val stepsToSumOut = axesToSumOut.map(idx => (cb: EmitCodeBuilder) => childProducer.stepAxis(idx)(cb, 1L))
 
                   SNDArray.forEachIndexWithInitAndIncColMajor(cb, newOutputShapeComplement, initsToSumOut, stepsToSumOut, "ndarray_producer_ndarray_agg") { (cb, _) =>
-                    cb.assign(runningSum, numericElementType.add(runningSum, SType.extractPrimCode(cb, childProducer.loadElementAtCurrentAddr(cb).get)))
+                    cb.assign(runningSum, numericElementType.add(runningSum, SType.extractPrimValue(cb, childProducer.loadElementAtCurrentAddr(cb))))
                   }
                   primitive(numericElementType.virtualType, runningSum)
                 }

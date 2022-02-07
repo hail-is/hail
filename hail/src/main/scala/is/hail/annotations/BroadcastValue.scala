@@ -44,7 +44,7 @@ trait BroadcastRegionValue {
     (pt, md)
   }
 
-  lazy val broadcast: BroadcastValue[SerializableRegionValue] = {
+  def encodeToByteArrays(): Array[Array[Byte]] = {
     val makeEnc = encoding.buildEncoder(ctx, t)
 
     val baos = new ArrayOfByteArrayOutputStream()
@@ -54,7 +54,11 @@ trait BroadcastRegionValue {
     enc.flush()
     enc.close()
 
-    val arrays = baos.toByteArrays()
+    baos.toByteArrays()
+  }
+
+  lazy val broadcast: BroadcastValue[SerializableRegionValue] = {
+    val arrays = encodeToByteArrays()
     val totalSize = arrays.map(_.length).sum
     log.info(s"BroadcastRegionValue.broadcast: broadcasting ${ arrays.length } byte arrays of total size $totalSize (${ formatSpace(totalSize) }")
     val srv = SerializableRegionValue(arrays, decodedPType, makeDec)
@@ -93,8 +97,7 @@ case class BroadcastRow(ctx: ExecuteContext,
   }
 
   def toEncodedLiteral(): EncodedLiteral = {
-    val spec = TypedCodecSpec(t, BufferSpec.wireSpec)
-    EncodedLiteral(spec, spec.encodeValue(ctx, t, value.offset))
+    EncodedLiteral(encoding, encodeToByteArrays())
   }
 }
 

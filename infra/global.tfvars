@@ -1,4 +1,4 @@
-gsuite_organization = "populationgenomics.org.au"
+organization_domain = "populationgenomics.org.au"
 
 # batch_gcp_regions is a JSON array of string, the names of the gcp
 # regions to schedule over in Batch.
@@ -10,7 +10,6 @@ gcp_region = "australia-southeast1"
 gcp_zone = "australia-southeast1-b"
 domain = "hail.populationgenomics.org.au"
 use_artifact_registry = true
-cloud = "gcp"
 
 # This is the bucket location that spans the regions you're going to
 # schedule across in Batch. If you are running on one region, it can

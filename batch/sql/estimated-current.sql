@@ -11,12 +11,20 @@ CREATE TABLE IF NOT EXISTS `resources` (
   PRIMARY KEY (`resource`)
 ) ENGINE = InnoDB;
 
+CREATE TABLE IF NOT EXISTS `latest_product_versions` (
+  `product` VARCHAR(100) NOT NULL,
+  `version` VARCHAR(100) NOT NULL,
+  `time_updated` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`product`)
+) ENGINE = InnoDB;
+
 CREATE TABLE IF NOT EXISTS `inst_colls` (
   `name` VARCHAR(255) NOT NULL,
   `is_pool` BOOLEAN NOT NULL,
   `boot_disk_size_gb` BIGINT NOT NULL,
   `max_instances` BIGINT NOT NULL,
   `max_live_instances` BIGINT NOT NULL,
+  `cloud` VARCHAR(100) NOT NULL,
   PRIMARY KEY (`name`)
 ) ENGINE = InnoDB;
 CREATE INDEX `inst_colls_pool` ON `inst_colls` (`pool`);
@@ -31,7 +39,7 @@ CREATE TABLE IF NOT EXISTS `pools` (
   `worker_type` VARCHAR(100) NOT NULL,
   `worker_cores` BIGINT NOT NULL,
   `worker_local_ssd_data_disk` BOOLEAN NOT NULL DEFAULT 1,
-  `worker_pd_ssd_data_disk_size_gb` BIGINT NOT NULL DEFAULT 0,
+  `worker_external_ssd_data_disk_size_gb` BIGINT NOT NULL DEFAULT 0,
   `enable_standing_worker` BOOLEAN NOT NULL DEFAULT FALSE,
   `standing_worker_cores` BIGINT NOT NULL DEFAULT 0,
   PRIMARY KEY (`name`),
@@ -39,22 +47,22 @@ CREATE TABLE IF NOT EXISTS `pools` (
 ) ENGINE = InnoDB;
 
 INSERT INTO pools (`name`, `worker_type`, `worker_cores`, `worker_local_ssd_data_disk`,
-  `worker_pd_ssd_data_disk_size_gb`, `enable_standing_worker`, `standing_worker_cores`)
+  `worker_external_ssd_data_disk_size_gb`, `enable_standing_worker`, `standing_worker_cores`)
 VALUES ('standard', 'standard', 16, 1, 0, 1, 4);
 
 INSERT INTO pools (`name`, `worker_type`, `worker_cores`, `worker_local_ssd_data_disk`,
-  `worker_pd_ssd_data_disk_size_gb`, `enable_standing_worker`, `standing_worker_cores`)
+  `worker_external_ssd_data_disk_size_gb`, `enable_standing_worker`, `standing_worker_cores`)
 VALUES ('highmem', 'highmem', 16, 10, 1, 0, 0, 4);
 
 INSERT INTO pools (`name`, `worker_type`, `worker_cores`, `worker_local_ssd_data_disk`,
-  `worker_pd_ssd_data_disk_size_gb`, `enable_standing_worker`, `standing_worker_cores`)
+  `worker_external_ssd_data_disk_size_gb`, `enable_standing_worker`, `standing_worker_cores`)
 VALUES ('highcpu', 'highcpu', 16, 10, 1, 0, 0, 4);
 
 CREATE TABLE IF NOT EXISTS `billing_projects` (
   `name` VARCHAR(100) NOT NULL,
   `status` ENUM('open', 'closed', 'deleted') NOT NULL DEFAULT 'open',
   `limit` DOUBLE DEFAULT NULL,
-  `msec_mcpu` BIGINT DEFAULT 0
+  `msec_mcpu` BIGINT DEFAULT 0,
   PRIMARY KEY (`name`)
 ) ENGINE = InnoDB;
 CREATE INDEX `billing_project_status` ON `billing_projects` (`status`);
@@ -87,7 +95,6 @@ CREATE TABLE IF NOT EXISTS `instances` (
   `activation_token` VARCHAR(100),
   `token` VARCHAR(100) NOT NULL,
   `cores_mcpu` INT NOT NULL,
-  `free_cores_mcpu` INT NOT NULL,
   `time_created` BIGINT NOT NULL,
   `failed_request_count` INT NOT NULL DEFAULT 0,
   `last_updated` BIGINT NOT NULL,
@@ -96,10 +103,11 @@ CREATE TABLE IF NOT EXISTS `instances` (
   `time_deactivated` BIGINT,
   `removed` BOOLEAN NOT NULL DEFAULT FALSE,
   `version` INT NOT NULL,
+  `location` VARCHAR(40) NOT NULL,
   `inst_coll` VARCHAR(255) NOT NULL,
   `machine_type` VARCHAR(255) NOT NULL,
   `preemptible` BOOLEAN NOT NULL,
-  `worker_config` MEDIUMTEXT,
+  `instance_config` MEDIUMTEXT,
   PRIMARY KEY (`name`),
   FOREIGN KEY (`inst_coll`) REFERENCES inst_colls(`name`)
 ) ENGINE = InnoDB;
@@ -107,6 +115,13 @@ CREATE INDEX `instances_removed` ON `instances` (`removed`);
 CREATE INDEX `instances_inst_coll` ON `instances` (`inst_coll`);
 CREATE INDEX `instances_removed_inst_coll` ON `instances` (`removed`, `inst_coll`);
 CREATE INDEX `instances_time_activated` ON `instances` (`time_activated`);
+
+CREATE TABLE IF NOT EXISTS `instances_free_cores_mcpu` (
+  `name` VARCHAR(100) NOT NULL,
+  `free_cores_mcpu` INT NOT NULL,
+  PRIMARY KEY (`name`),
+  FOREIGN KEY (`name`) REFERENCES instances(`name`) ON DELETE CASCADE
+) ENGINE = InnoDB;
 
 CREATE TABLE IF NOT EXISTS `user_inst_coll_resources` (
   `user` VARCHAR(100) NOT NULL,
@@ -134,7 +149,6 @@ CREATE TABLE IF NOT EXISTS `batches` (
   `callback` TEXT,
   `state` VARCHAR(40) NOT NULL,
   `deleted` BOOLEAN NOT NULL DEFAULT FALSE,
-  `cancelled` BOOLEAN NOT NULL DEFAULT FALSE,
   `n_jobs` INT NOT NULL,
   `n_completed` INT NOT NULL DEFAULT 0,
   `n_succeeded` INT NOT NULL DEFAULT 0,
@@ -150,11 +164,17 @@ CREATE TABLE IF NOT EXISTS `batches` (
   PRIMARY KEY (`id`),
   FOREIGN KEY (`billing_project`) REFERENCES billing_projects(name)
 ) ENGINE = InnoDB;
-CREATE INDEX `batches_user_state_cancelled` ON `batches` (`user`, `state`, `cancelled`);
+CREATE INDEX `batches_user_state` ON `batches` (`user`, `state`);
 CREATE INDEX `batches_deleted` ON `batches` (`deleted`);
 CREATE INDEX `batches_token` ON `batches` (`token`);
 CREATE INDEX `batches_time_completed` ON `batches` (`time_completed`);
 CREATE INDEX `batches_billing_project_state` ON `batches` (`billing_project`, `state`);
+
+CREATE TABLE IF NOT EXISTS `batches_cancelled` (
+  `id` BIGINT NOT NULL,
+  PRIMARY KEY (`id`),
+  FOREIGN KEY (`id`) REFERENCES batches(id) ON DELETE CASCADE
+) ENGINE = InnoDB;
 
 CREATE TABLE IF NOT EXISTS `batches_inst_coll_staging` (
   `batch_id` BIGINT NOT NULL,
@@ -389,9 +409,12 @@ BEGIN
   DECLARE cur_n_tokens INT;
   DECLARE rand_token INT;
 
-  SELECT user, cancelled INTO cur_user, cur_batch_cancelled FROM batches
-  WHERE id = NEW.batch_id
-  LOCK IN SHARE MODE;
+  SELECT user INTO cur_user FROM batches WHERE id = NEW.batch_id;
+
+  SET cur_batch_cancelled = EXISTS (SELECT TRUE
+                                    FROM batches_cancelled
+                                    WHERE id = NEW.batch_id
+                                    LOCK IN SHARE MODE);
 
   SELECT n_tokens INTO cur_n_tokens FROM globals LOCK IN SHARE MODE;
   SET rand_token = FLOOR(RAND() * cur_n_tokens);
@@ -460,7 +483,7 @@ BEGIN
       INSERT INTO user_inst_coll_resources (user, inst_coll, token, n_cancelled_creating_jobs)
       VALUES (cur_user, OLD.inst_coll, rand_token, -1)
       ON DUPLICATE KEY UPDATE
-        n_cancelled_creating_jobs = n_creating_creating_jobs - 1;
+        n_cancelled_creating_jobs = n_cancelled_creating_jobs - 1;
     ELSE
       # creating
       INSERT INTO user_inst_coll_resources (user, inst_coll, token, n_creating_jobs)
@@ -721,7 +744,11 @@ BEGIN
         jobs.attempt_id = NULL
     WHERE instance_name = in_instance_name AND (state = 'Running' OR state = 'Creating');
 
-    UPDATE instances SET state = 'inactive', free_cores_mcpu = cores_mcpu WHERE name = in_instance_name;
+    UPDATE instances, instances_free_cores_mcpu
+    SET state = 'inactive',
+        free_cores_mcpu = cores_mcpu
+    WHERE instances.name = in_instance_name
+      AND instances.name = instances_free_cores_mcpu.name;
 
     COMMIT;
     SELECT 0 as rc;
@@ -828,9 +855,14 @@ BEGIN
 
   START TRANSACTION;
 
-  SELECT user, `state`, cancelled INTO cur_user, cur_batch_state, cur_cancelled FROM batches
+  SELECT user, `state` INTO cur_user, cur_batch_state FROM batches
   WHERE id = in_batch_id
   FOR UPDATE;
+
+  SET cur_cancelled = EXISTS (SELECT TRUE
+                              FROM batches_cancelled
+                              WHERE id = in_batch_id
+                              FOR UPDATE);
 
   IF cur_batch_state = 'running' AND NOT cur_cancelled THEN
     INSERT INTO user_inst_coll_resources (user, inst_coll, token,
@@ -864,7 +896,7 @@ BEGIN
     # there are no cancellable jobs left, they have been cancelled
     DELETE FROM batch_inst_coll_cancellable_resources WHERE batch_id = in_batch_id;
 
-    UPDATE batches SET cancelled = 1 WHERE id = in_batch_id;
+    INSERT INTO batches_cancelled VALUES (in_batch_id);
   END IF;
 
   COMMIT;
@@ -880,21 +912,20 @@ CREATE PROCEDURE add_attempt(
   OUT delta_cores_mcpu INT
 )
 BEGIN
-  DECLARE attempt_exists BOOLEAN;
-  DECLARE cur_instance_state VARCHAR(40);
   SET delta_cores_mcpu = IFNULL(delta_cores_mcpu, 0);
 
-  SET attempt_exists = EXISTS (SELECT * FROM attempts
-                               WHERE batch_id = in_batch_id AND
-                                 job_id = in_job_id AND attempt_id = in_attempt_id
-                               FOR UPDATE);
+  IF in_attempt_id IS NOT NULL THEN
+    INSERT INTO attempts (batch_id, job_id, attempt_id, instance_name)
+    VALUES (in_batch_id, in_job_id, in_attempt_id, in_instance_name)
+    ON DUPLICATE KEY UPDATE batch_id = batch_id;
 
-  IF NOT attempt_exists AND in_attempt_id IS NOT NULL THEN
-    INSERT INTO attempts (batch_id, job_id, attempt_id, instance_name) VALUES (in_batch_id, in_job_id, in_attempt_id, in_instance_name);
-    SELECT state INTO cur_instance_state FROM instances WHERE name = in_instance_name LOCK IN SHARE MODE;
-    # instance pending when attempt is from a job private instance
-    IF cur_instance_state = 'pending' OR cur_instance_state = 'active' THEN
-      UPDATE instances SET free_cores_mcpu = free_cores_mcpu - in_cores_mcpu WHERE name = in_instance_name;
+    IF ROW_COUNT() != 0 THEN
+      UPDATE instances, instances_free_cores_mcpu
+      SET free_cores_mcpu = free_cores_mcpu - in_cores_mcpu
+      WHERE instances.name = in_instance_name
+        AND instances.name = instances_free_cores_mcpu.name
+        AND (instances.state = 'pending' OR instances.state = 'active');
+
       SET delta_cores_mcpu = -1 * in_cores_mcpu;
     END IF;
   END IF;
@@ -924,10 +955,10 @@ BEGIN
   WHERE batch_id = in_batch_id AND job_id = in_job_id
   FOR UPDATE;
 
-  SELECT (jobs.cancelled OR batches.cancelled) AND NOT jobs.always_run
+  SELECT (jobs.cancelled OR batches_cancelled.id IS NOT NULL) AND NOT jobs.always_run
   INTO cur_job_cancel
   FROM jobs
-  INNER JOIN batches ON batches.id = jobs.batch_id
+  LEFT JOIN batches_cancelled ON batches_cancelled.id = jobs.batch_id
   WHERE batch_id = in_batch_id AND job_id = in_job_id
   LOCK IN SHARE MODE;
 
@@ -1003,9 +1034,9 @@ BEGIN
   SELECT state INTO cur_instance_state FROM instances WHERE name = in_instance_name LOCK IN SHARE MODE;
 
   IF cur_instance_state = 'active' AND cur_end_time IS NULL THEN
-    UPDATE instances
+    UPDATE instances_free_cores_mcpu
     SET free_cores_mcpu = free_cores_mcpu + cur_cores_mcpu
-    WHERE name = in_instance_name;
+    WHERE instances_free_cores_mcpu.name = in_instance_name;
 
     SET delta_cores_mcpu = cur_cores_mcpu;
   END IF;
@@ -1044,10 +1075,10 @@ BEGIN
   WHERE batch_id = in_batch_id AND job_id = in_job_id
   FOR UPDATE;
 
-  SELECT (jobs.cancelled OR batches.cancelled) AND NOT jobs.always_run
+  SELECT (jobs.cancelled OR batches_cancelled.id IS NOT NULL) AND NOT jobs.always_run
   INTO cur_job_cancel
   FROM jobs
-  INNER JOIN batches ON batches.id = jobs.batch_id
+  LEFT JOIN batches_cancelled ON batches_cancelled.id = jobs.batch_id
   WHERE batch_id = in_batch_id AND job_id = in_job_id
   LOCK IN SHARE MODE;
 
@@ -1089,10 +1120,10 @@ BEGIN
   WHERE batch_id = in_batch_id AND job_id = in_job_id
   FOR UPDATE;
 
-  SELECT (jobs.cancelled OR batches.cancelled) AND NOT jobs.always_run
+  SELECT (jobs.cancelled OR batches_cancelled.id IS NOT NULL) AND NOT jobs.always_run
   INTO cur_job_cancel
   FROM jobs
-  INNER JOIN batches ON batches.id = jobs.batch_id
+  LEFT JOIN batches_cancelled ON batches_cancelled.id = jobs.batch_id
   WHERE batch_id = in_batch_id AND job_id = in_job_id
   LOCK IN SHARE MODE;
 
@@ -1152,9 +1183,9 @@ BEGIN
 
   SELECT state INTO cur_instance_state FROM instances WHERE name = in_instance_name LOCK IN SHARE MODE;
   IF cur_instance_state = 'active' AND cur_end_time IS NULL THEN
-    UPDATE instances
+    UPDATE instances_free_cores_mcpu
     SET free_cores_mcpu = free_cores_mcpu + cur_cores_mcpu
-    WHERE name = in_instance_name;
+    WHERE instances_free_cores_mcpu.name = in_instance_name;
 
     SET delta_cores_mcpu = delta_cores_mcpu + cur_cores_mcpu;
   END IF;
