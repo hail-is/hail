@@ -57,7 +57,7 @@ run_terraform() {
 }
 
 post_terraform() {
-    az ad app permission admin-consent --id "$(terraform output -raw auth_sp_application_id)"
+    az ad app permission admin-consent --id "$(terraform output -raw modules.auth.sp_application_id)"
 }
 
 $@
