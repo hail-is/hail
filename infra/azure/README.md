@@ -19,10 +19,24 @@ Every resource in Azure must belong to a Resource Group. First, obtain
 a resource group and make sure you have Owner permissions for that
 resource group.
 
-Create a `global.tfvars` file with the necessary variables
-from $HAIL/infra/azure/variables.tf.
+You will also need a storage account and container for remotely storing
+terraform state. The following command creates these and stores their names in
+`remote_storage.tfvars`:
 
-To setup and run the terraform, run
+```
+./bootstrap.sh create_terraform_remote_storage <RESOURCE_GROUP>
+```
+
+Initialize terraform:
+
+```
+./bootstrap.sh init_terraform <RESOURCE_GROUP>
+```
+
+Create a `global.tfvars` file with the necessary variables from
+$HAIL/infra/azure/variables.tf.
+
+Setup and run terraform:
 
 ```
 ./bootstrap.sh run_terraform <RESOURCE_GROUP>
