@@ -149,11 +149,11 @@ def active_instances_only(fun):
             log.info(f'token not found for instance {instance.name}')
             raise web.HTTPUnauthorized()
 
-        db = request.app['db']
+        db: Database = request.app['db']
         record = await db.select_and_fetchone(
             'SELECT state FROM instances WHERE name = %s AND token = %s;',
             (instance.name, token),
-            'activate_instances_only',
+            'active_instances_only',
         )
         if not record:
             log.info(f'instance {instance.name}, token not found in database')
