@@ -35,7 +35,7 @@ object IntervalFunctions extends RegistryFunctions {
 
   def intervalEndpointCompare(cb: EmitCodeBuilder,
     lhs: SValue, lhsLeansRight: Code[Boolean],
-    rhs: SValue, rhsLeansRight: Code[Boolean],
+    rhs: SValue, rhsLeansRight: Code[Boolean]
   ): Value[Int] = {
     val ord = cb.emb.ecb.getOrdering(lhs.st, rhs.st)
     val result = cb.newLocal[Int]("intervalEndpointCompare")
@@ -179,8 +179,11 @@ object IntervalFunctions extends RegistryFunctions {
         val i2ST = i2t.st.asInstanceOf[SInterval]
         val required = i1t.required && i2t.required && i1ST.pointEmitType.required && i2ST.pointEmitType.required
         EmitType(SBoolean, required)
-    }) { case (cb, r, rt, interval1: SIntervalValue, interval2: SIntervalValue, _) =>
-      intervalsOverlap(cb, interval1, interval2)
+    }) { case (cb, r, rt, _, interval1: EmitCode, interval2: EmitCode) =>
+      IEmitCode.multiFlatMap(cb, FastIndexedSeq(interval1.toI, interval2.toI)) {
+        case Seq(interval1: SIntervalValue, interval2: SIntervalValue) =>
+        intervalsOverlap(cb, interval1, interval2)
+      }
     }
 
     registerIR2("sortedNonOverlappingIntervalsContain",
