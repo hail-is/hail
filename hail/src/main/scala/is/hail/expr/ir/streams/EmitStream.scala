@@ -1296,13 +1296,25 @@ object EmitStream {
               assert(lelt.emitType == lEltType)
               assert(relt.emitType == rEltType)
               if (x.isIntervalJoin) {
-                val lhs = cb.memoize(lelt.toI(cb).flatMap(cb)(_.asBaseStruct.loadField(cb, lKey(0))))
-                val rhs = cb.memoize(relt.toI(cb).flatMap(cb)(_.asBaseStruct.loadField(cb, rKey(0))))
+                val rhs = relt.toI(cb).flatMap(cb)(_.asBaseStruct.loadField(cb, rKey(0)))
                 val result = cb.newLocal[Int]("SJRD-interval-compare-result")
-                rhs.toI(cb).consume(cb, {
+                rhs.consume(cb, {
                   cb.assign(result, -1)
                 }, { case interval: SIntervalValue =>
-                  cb.assign(result, IntervalFunctions.pointIntervalCompare(cb, lhs, interval, missingEqual = false))
+                  val lhs = lelt.toI(cb).flatMap(cb)(_.asBaseStruct.loadField(cb, lKey(0)))
+                  lhs.consume(cb, {
+                    cb.assign(result, 1)
+                  }, { point =>
+                    val c = IntervalFunctions.pointIntervalCompare(cb, point, interval)
+                    c.consume(cb, {
+                      // One of the interval endpoints is missing. In this case,
+                      // consider the point greater, so that the join advances
+                      // past the bad interval, keeping the point.
+                      cb.assign(result, 1)
+                    }, { c =>
+                      cb.assign(result, c.asInt.value)
+                    })
+                  })
                 })
                 result
               } else {

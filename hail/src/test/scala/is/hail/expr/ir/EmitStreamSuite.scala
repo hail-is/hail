@@ -512,12 +512,14 @@ class EmitStreamSuite extends HailSuite {
     def lElts(xs: (Int, String)*): IR =
       MakeStream(xs.map { case (a, b) => MakeStruct(Seq("k" -> I32(a), "v" -> Str(b))) }, TStream(lEltType))
 
-    def rElts(xs: ((Char, Int, Int, Char), String)*): IR =
+    def rElts(xs: ((Char, Any, Any, Char), String)*): IR =
       MakeStream(xs.map {
       case ((is, s, e, ie), v) =>
+        val start = if (s == null) NA(TInt32) else I32(s.asInstanceOf[Int])
+        val end = if (e == null) NA(TInt32) else I32(e.asInstanceOf[Int])
         val includesStart = is == '['
         val includesEnd = ie == ']'
-        val interval = ApplySpecial("Interval", FastSeq(), FastSeq(I32(s), I32(e), includesStart, includesEnd), TInterval(TInt32), 0)
+        val interval = ApplySpecial("Interval", FastSeq(), FastSeq(start, end, includesStart, includesEnd), TInterval(TInt32), 0)
         MakeStruct(Seq("k" -> interval, "v" -> Str(v)))
       }, TStream(rEltType))
 
@@ -542,7 +544,13 @@ class EmitStreamSuite extends HailSuite {
       (lElts(0 -> "A", 2 -> "B", 3 -> "C", 4 -> "D"),
         rElts(('[', 0, 2, ')') -> "a", ('(', 0, 1, ']') -> ".", ('[', 1, 4, ')') -> "b", ('[', 2, 4, ')') -> ".."),
         IndexedSeq(Row("A", "a"), Row("B", "b"), Row("C", "b"), Row("D", null)),
-        IndexedSeq(Row("A", "a"), Row("B", "b"), Row("C", "b"))))
+        IndexedSeq(Row("A", "a"), Row("B", "b"), Row("C", "b"))),
+      (lElts(1 -> "A", 2 -> "B", 3 -> "C", 4 -> "D"),
+        rElts(('[', 0, null, ')') -> ".", ('(', 0, 1, ']') -> "a", ('[', 1, 4, ')') -> "b", ('[', 2, 4, ')') -> ".."),
+        IndexedSeq(Row("A", "a"), Row("B", "b"), Row("C", "b"), Row("D", null)),
+        IndexedSeq(Row("A", "a"), Row("B", "b"), Row("C", "b"))),
+
+    )
     for ((lstream, rstream, expectedLeft, expectedInner) <- tests) {
       val l = leftjoin(lstream, rstream)
       val i = innerjoin(lstream, rstream)

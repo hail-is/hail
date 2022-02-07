@@ -9,80 +9,83 @@ import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.physical.stypes.primitives.{SBoolean, SBooleanValue}
 import is.hail.types.physical.stypes.{EmitType, SType, SValue}
 import is.hail.types.virtual._
+import is.hail.utils.FastIndexedSeq
 
 object IntervalFunctions extends RegistryFunctions {
 
   def pointLTIntervalEndpoint(cb: EmitCodeBuilder,
-    point: EmitValue, endpoint: EmitValue, leansRight: Code[Boolean], missingEqual: Boolean = true
+    point: SValue, endpoint: SValue, leansRight: Code[Boolean]
   ): Code[Boolean] = {
-    val compare = cb.emb.ecb.getOrderingFunction(point.st, endpoint.st, CodeOrdering.Compare(missingEqual))
-
+    val ord = cb.emb.ecb.getOrdering(point.st, endpoint.st)
     val result = cb.newLocal[Int]("comparePointWithIntervalEndpoint")
-    cb.assign(result, compare(cb, point, endpoint))
+
+    cb.assign(result, ord.compareNonnull(cb, point, endpoint))
     (result < 0) || (result.ceq(0) && leansRight)
   }
 
   def pointGTIntervalEndpoint(cb: EmitCodeBuilder,
-    point: EmitValue, endpoint: EmitValue, leansRight: Code[Boolean], missingEqual: Boolean = true
+    point: SValue, endpoint: SValue, leansRight: Code[Boolean]
   ): Code[Boolean] = {
-    val compare = cb.emb.ecb.getOrderingFunction(point.st, endpoint.st, CodeOrdering.Compare(missingEqual))
-
+    val ord = cb.emb.ecb.getOrdering(point.st, endpoint.st)
     val result = cb.newLocal[Int]("comparePointWithIntervalEndpoint")
-    cb.assign(result, compare(cb, point, endpoint))
+
+    cb.assign(result, ord.compareNonnull(cb, point, endpoint))
     (result > 0) || (result.ceq(0) && !leansRight)
   }
 
   def intervalEndpointCompare(cb: EmitCodeBuilder,
-    lhs: EmitValue, lhsLeansRight: Code[Boolean],
-    rhs: EmitValue, rhsLeansRight: Code[Boolean],
-    missingEqual: Boolean = true
+    lhs: SValue, lhsLeansRight: Code[Boolean],
+    rhs: SValue, rhsLeansRight: Code[Boolean],
   ): Value[Int] = {
-    val compare = cb.emb.ecb.getOrderingFunction(lhs.st, rhs.st, CodeOrdering.Compare(missingEqual))
-
+    val ord = cb.emb.ecb.getOrdering(lhs.st, rhs.st)
     val result = cb.newLocal[Int]("intervalEndpointCompare")
-    cb.assign(result, compare(cb, lhs, rhs))
+
+    cb.assign(result, ord.compareNonnull(cb, lhs, rhs))
     cb.ifx(result.ceq(0),
       cb.assign(result, lhsLeansRight.toI - rhsLeansRight.toI))
     result
   }
 
-  def pointIntervalCompare(cb: EmitCodeBuilder, point: EmitValue, interval: SIntervalValue, missingEqual: Boolean = true): Value[Int] = {
-    val result = cb.newLocal[Int]("pointIntervalCompare")
-    val start = cb.memoize(interval.loadStart(cb))
-    cb.ifx(pointLTIntervalEndpoint(cb, point, start, !interval.includesStart(), missingEqual), {
-      cb.assign(result, -1)
-    }, {
-      val end = cb.memoize(interval.loadEnd(cb))
-      cb.ifx(pointLTIntervalEndpoint(cb, point, end, interval.includesEnd(), missingEqual), {
-        cb.assign(result, 0)
+  def pointIntervalCompare(cb: EmitCodeBuilder, point: SValue, interval: SIntervalValue): IEmitCode = {
+    interval.loadStart(cb).flatMap(cb) { start =>
+      cb.ifx(pointLTIntervalEndpoint(cb, point, start, !interval.includesStart()), {
+        IEmitCode.present(cb, primitive(const(-1)))
       }, {
-        cb.assign(result, 1)
+        interval.loadEnd(cb).map(cb) { end =>
+          cb.ifx(pointLTIntervalEndpoint(cb, point, end, interval.includesEnd()), {
+            primitive(const(0))
+          }, {
+            primitive(const(1))
+          })
+        }
       })
-    })
-    result
+    }
   }
 
-  def intervalContains(cb: EmitCodeBuilder, interval: SIntervalValue, point: EmitValue): Value[Boolean] = {
-    val start = cb.memoize(interval.loadStart(cb))
-    val contains = cb.newLocal[Boolean]("contains", false)
-    cb.ifx(pointGTIntervalEndpoint(cb, point, start, !interval.includesStart()), {
-      val end = cb.memoize(interval.loadEnd(cb))
-      cb.assign(contains, pointLTIntervalEndpoint(cb, point, end, interval.includesEnd()))
-    })
-    contains
+  def intervalContains(cb: EmitCodeBuilder, interval: SIntervalValue, point: SValue): IEmitCode = {
+    interval.loadStart(cb).flatMap(cb) { start =>
+      cb.ifx(pointGTIntervalEndpoint(cb, point, start, !interval.includesStart()),
+        interval.loadEnd(cb).map(cb) { end =>
+          primitive(cb.memoize(pointLTIntervalEndpoint(cb, point, end, interval.includesEnd())))
+        },
+        IEmitCode.present(cb, primitive(false)))
+    }
   }
 
-  def intervalsOverlap(cb: EmitCodeBuilder, lhs: SIntervalValue, rhs: SIntervalValue): Value[Boolean] = {
-    val lEnd = cb.memoize(lhs.loadEnd(cb))
-    val rStart = cb.memoize(rhs.loadStart(cb))
-    val overlaps = cb.newLocal[Boolean]("contains", false)
-    cb.ifx(intervalEndpointCompare(cb, lEnd, lhs.includesEnd(), rStart, !rhs.includesStart()) > 0, {
-      val lStart = cb.memoize(lhs.loadStart(cb))
-      val rEnd = cb.memoize(rhs.loadEnd(cb))
-      cb.assign(overlaps,
-        intervalEndpointCompare(cb, rEnd, rhs.includesEnd(), lStart, !lhs.includesStart()) > 0)
-    })
-    overlaps
+  def intervalsOverlap(cb: EmitCodeBuilder, lhs: SIntervalValue, rhs: SIntervalValue): IEmitCode = {
+    IEmitCode.multiFlatMap(cb,
+      FastIndexedSeq(lhs.loadEnd, rhs.loadStart)
+    ) { case Seq(lEnd, rStart) =>
+      cb.ifx(intervalEndpointCompare(cb, lEnd, lhs.includesEnd(), rStart, !rhs.includesStart()) > 0, {
+        IEmitCode.multiMap(cb,
+          FastIndexedSeq(lhs.loadStart, rhs.loadEnd)
+        ) { case Seq(lStart, rEnd) =>
+          primitive(cb.memoize(intervalEndpointCompare(cb, rEnd, rhs.includesEnd(), lStart, !lhs.includesStart()) > 0))
+        }
+      }, {
+        IEmitCode.present(cb, primitive(const(false)))
+      })
+    }
   }
 
   def compareStructWithIntervalEndpoint(cb: EmitCodeBuilder, point: SBaseStructValue, intervalEndpoint: SBaseStructValue): Value[Int] = {
@@ -153,13 +156,16 @@ object IntervalFunctions extends RegistryFunctions {
     }
 
     registerIEmitCode2("contains", TInterval(tv("T")), tv("T"), TBoolean, {
-      case(_: Type, intervalT: EmitType, _: EmitType) => EmitType(SBoolean, intervalT.required)
-    }) {
-      case (cb, r, rt, _, int, point) =>
-        int.toI(cb).map(cb) { case interval: SIntervalValue =>
-          val pointv = cb.memoize(point, "point")
-          primitive(intervalContains(cb, interval, pointv))
-        }
+      case(_: Type, intervalT: EmitType, pointT: EmitType) =>
+        val intervalST = intervalT.st.asInstanceOf[SInterval]
+        val required = intervalT.required && intervalST.pointEmitType.required && pointT.required
+        EmitType(SBoolean, required)
+    }) { case (cb, r, rt, _, int, point) =>
+      IEmitCode.multiFlatMap(cb,
+        FastIndexedSeq(int.toI, point.toI)
+      ) { case Seq(interval: SIntervalValue, point) =>
+        intervalContains(cb, interval, point)
+      }
     }
 
     registerSCode1("isEmpty", TInterval(tv("T")), TBoolean, (_: Type, pt: SType) => SBoolean) {
@@ -167,9 +173,14 @@ object IntervalFunctions extends RegistryFunctions {
         primitive(interval.isEmpty(cb))
     }
 
-    registerSCode2("overlaps", TInterval(tv("T")), TInterval(tv("T")), TBoolean, (_: Type, i1t: SType, i2t: SType) => SBoolean) {
-      case (r, cb, rt, interval1: SIntervalValue, interval2: SIntervalValue, _) =>
-        primitive(intervalsOverlap(cb, interval1, interval2))
+    registerIEmitCode2("overlaps", TInterval(tv("T")), TInterval(tv("T")), TBoolean, {
+      (_: Type, i1t: EmitType, i2t: EmitType) =>
+        val i1ST = i1t.st.asInstanceOf[SInterval]
+        val i2ST = i2t.st.asInstanceOf[SInterval]
+        val required = i1t.required && i2t.required && i1ST.pointEmitType.required && i2ST.pointEmitType.required
+        EmitType(SBoolean, required)
+    }) { case (cb, r, rt, interval1: SIntervalValue, interval2: SIntervalValue, _) =>
+      intervalsOverlap(cb, interval1, interval2)
     }
 
     registerIR2("sortedNonOverlappingIntervalsContain",
