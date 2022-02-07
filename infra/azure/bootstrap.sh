@@ -61,9 +61,4 @@ EOF
     terraform init -backend-config=$remote_storage_access_key -backend-config=remote_storage.tfvars
 }
 
-run_terraform() {
-    set -e
-    terraform apply -var-file=global.tfvars
-}
-
 $@

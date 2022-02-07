@@ -36,10 +36,10 @@ Initialize terraform:
 Create a `global.tfvars` file with the necessary variables from
 $HAIL/infra/azure/variables.tf.
 
-Setup and run terraform:
+Run terraform:
 
 ```
-./bootstrap.sh run_terraform <RESOURCE_GROUP>
+terraform apply -var-file=global.tfvars
 ```
 
 Once terraform has completed successfully, note the `gateway_ip` in the
