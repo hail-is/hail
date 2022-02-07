@@ -46,9 +46,9 @@ class Pretty(width: Int, ribbonWidth: Int, elideLiterals: Boolean, maxLen: Int, 
   def prettyStringLiteral(s: String, elide: Boolean = false, maxLen: Int = 1000): String = {
     val esc = StringEscapeUtils.escapeString(s)
     if (elide && esc.length > maxLen) {
-      s"\"${esc.substring(0, maxLen)}...\""
+      s""""${esc.substring(0, maxLen)}...""""
     } else {
-      s"\"$esc\""
+      s""""$esc""""
     }
   }
 
