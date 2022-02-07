@@ -163,7 +163,6 @@ ORDER BY instances.time_activated ASC
 LIMIT 300;
 ''',
             (self.name,),
-            timer_description=f'in schedule_jobs for {self}: get ready jobs with active instances',
         ):
             batch_id = record['batch_id']
             job_id = record['job_id']
@@ -221,7 +220,6 @@ GROUP BY user
 HAVING n_ready_jobs + n_creating_jobs + n_running_jobs > 0;
 ''',
             (self.name,),
-            timer_description=f'in compute_fair_share for {self}: aggregate user_inst_coll_resources',
         )
 
         async for record in records:
@@ -325,7 +323,6 @@ LEFT JOIN batches_cancelled
 WHERE user = %s AND `state` = 'running';
 ''',
                 (user,),
-                timer_description=f'in create_instances {self}: get {user} running batches',
             ):
                 async for record in self.db.select_and_fetchall(
                     '''
@@ -340,7 +337,6 @@ HAVING live_attempts = 0
 LIMIT %s;
 ''',
                     (batch['id'], self.name, remaining.value),
-                    timer_description=f'in create_instances {self}: get {user} batch {batch["id"]} runnable jobs (1)',
                 ):
                     record['batch_id'] = batch['id']
                     record['userdata'] = batch['userdata']
@@ -361,7 +357,6 @@ HAVING live_attempts = 0
 LIMIT %s;
 ''',
                         (batch['id'], self.name, remaining.value),
-                        timer_description=f'in create_instances {self}: get {user} batch {batch["id"]} runnable jobs (2)',
                     ):
                         record['batch_id'] = batch['id']
                         record['userdata'] = batch['userdata']
