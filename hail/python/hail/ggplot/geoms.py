@@ -117,7 +117,7 @@ class GeomPoint(Geom):
 def geom_point(mapping=aes(), *, color=None, size=None, alpha=None):
     """Create a scatter plot.
 
-    Supported aesthetics: ``x``, ``y``, ``color``, ``tooltip``
+    Supported aesthetics: ``x``, ``y``, ``color``, ``alpha``, ``tooltip``
 
     Returns
     -------
