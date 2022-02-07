@@ -73,8 +73,10 @@ module "db" {
 module "auth" {
   source = "./modules/auth"
 
-  resource_group_name = data.azurerm_resource_group.rg.name
-  domain              = var.domain
+  resource_group_name  = data.azurerm_resource_group.rg.name
+  oauth2_redirect_uris = concat(
+    var.oauth2_developer_redirect_uris,
+    ["https://auth.${var.domain}/oauth2callback", "http://127.0.0.1/oauth2callback"])
 }
 
 module "batch" {
