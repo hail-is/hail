@@ -1,4 +1,4 @@
-DOCKER_PREFIX := gcr.io/$(PROJECT)
+DOCKER_PREFIX := gcr.io/hail-vdc
 DOCKER_ROOT_IMAGE := $(DOCKER_PREFIX)/ubuntu:20.04
 DOMAIN := hail.is
 INTERNAL_IP := 10.128.0.57
