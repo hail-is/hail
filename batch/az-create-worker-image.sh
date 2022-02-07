@@ -53,7 +53,7 @@ IP=$(az vm create \
 
 echo "$VM_NAME VM created successfully!"
 
-python3 ../ci/jinja2_render.py "{\"global\":{\"docker_prefix\":\"haildev\",\"docker_root_image\":\"${DOCKER_ROOT_IMAGE}\"}}" build-batch-worker-image-startup-azure.sh build-batch-worker-image-startup-azure.sh.out
+python3 ../ci/jinja2_render.py "{\"global\":{\"docker_prefix\":\"${DOCKER_PREFIX}\",\"docker_root_image\":\"${DOCKER_ROOT_IMAGE}\"}}" build-batch-worker-image-startup-azure.sh build-batch-worker-image-startup-azure.sh.out
 
 echo "Running image startup script..."
 
