@@ -36,6 +36,16 @@ domain of your choosing pointing at the `gateway_ip` with a DNS provider. The
 terraform output -raw gateway_ip
 ```
 
+There is one resource which, unfortunately, cannot be configured directly with
+Terraform. The service principal used by the `auth` service needs "admin
+consent" to create new service accounts for new users. After you first run
+terraform and whenever you recreate the auth service principal, you must grant
+this new service principal admin consent:
+
+```
+./bootstrap.sh grant_auth_sp_admin_consent
+```
+
 ## Bootstrap the cluster
 
 We'll complete the rest of the process on a VM. To create one, run
