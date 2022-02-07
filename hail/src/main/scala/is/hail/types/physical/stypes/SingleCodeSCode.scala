@@ -54,7 +54,7 @@ case object Int32SingleCodeType extends SingleCodeType {
   def virtualType: Type = TInt32
 
   def coerceSCode(cb: EmitCodeBuilder, pc: SValue, region: Value[Region], deepCopy: Boolean): SingleCodeSCode =
-    SingleCodeSCode(this, pc.asInt.intCode(cb))
+    SingleCodeSCode(this, pc.asInt.value)
 }
 
 case object Int64SingleCodeType extends SingleCodeType {
@@ -67,7 +67,7 @@ case object Int64SingleCodeType extends SingleCodeType {
   def virtualType: Type = TInt64
 
   def coerceSCode(cb: EmitCodeBuilder, pc: SValue, region: Value[Region], deepCopy: Boolean): SingleCodeSCode =
-    SingleCodeSCode(this, pc.asLong.longCode(cb))
+    SingleCodeSCode(this, pc.asLong.value)
 }
 
 case object Float32SingleCodeType extends SingleCodeType {
@@ -80,7 +80,7 @@ case object Float32SingleCodeType extends SingleCodeType {
   def virtualType: Type = TFloat32
 
   def coerceSCode(cb: EmitCodeBuilder, pc: SValue, region: Value[Region], deepCopy: Boolean): SingleCodeSCode =
-    SingleCodeSCode(this, pc.asFloat.floatCode(cb))
+    SingleCodeSCode(this, pc.asFloat.value)
 }
 
 case object Float64SingleCodeType extends SingleCodeType {
@@ -93,7 +93,7 @@ case object Float64SingleCodeType extends SingleCodeType {
   def virtualType: Type = TFloat64
 
   def coerceSCode(cb: EmitCodeBuilder, pc: SValue, region: Value[Region], deepCopy: Boolean): SingleCodeSCode =
-    SingleCodeSCode(this, pc.asDouble.doubleCode(cb))
+    SingleCodeSCode(this, pc.asDouble.value)
 }
 
 case object BooleanSingleCodeType extends SingleCodeType {
@@ -106,7 +106,7 @@ case object BooleanSingleCodeType extends SingleCodeType {
   def virtualType: Type = TBoolean
 
   def coerceSCode(cb: EmitCodeBuilder, pc: SValue, region: Value[Region], deepCopy: Boolean): SingleCodeSCode =
-    SingleCodeSCode(this, pc.asBoolean.boolCode(cb))
+    SingleCodeSCode(this, pc.asBoolean.value)
 }
 
 case class StreamSingleCodeType(requiresMemoryManagementPerElement: Boolean, eltType: PType) extends SingleCodeType {

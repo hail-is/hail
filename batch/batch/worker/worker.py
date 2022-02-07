@@ -63,9 +63,9 @@ from ..globals import (
 from ..batch_format_version import BatchFormatVersion
 from ..publicly_available_images import publicly_available_images
 from ..utils import Box
-from ..worker.instance_env import CloudWorkerAPI
-from ..cloud.gcp.worker.instance_env import GCPWorkerAPI
-from ..cloud.azure.worker.instance_env import AzureWorkerAPI
+from ..worker.worker_api import CloudWorkerAPI
+from ..cloud.gcp.worker.worker_api import GCPWorkerAPI
+from ..cloud.azure.worker.worker_api import AzureWorkerAPI
 from ..cloud.resource_utils import storage_gib_to_bytes, is_valid_storage_request
 
 from .credentials import CloudUserCredentials
@@ -153,6 +153,9 @@ log.info(f'UNRESERVED_WORKER_DATA_DISK_SIZE_GB {UNRESERVED_WORKER_DATA_DISK_SIZE
 instance_config = CLOUD_WORKER_API.instance_config_from_config_dict(INSTANCE_CONFIG)
 assert instance_config.cores == CORES
 assert instance_config.cloud == CLOUD
+
+
+N_SLOTS = 4 * CORES  # Jobs are allowed at minimum a quarter core
 
 deploy_config = DeployConfig('gce', NAMESPACE, {})
 
@@ -284,8 +287,8 @@ class NetworkAllocator:
         self.public_networks = asyncio.Queue()
         self.internet_interface = INTERNET_INTERFACE
 
-    async def reserve(self, netns_pool_min_size: int = 64):
-        for subnet_index in range(netns_pool_min_size):
+    async def reserve(self):
+        for subnet_index in range(N_SLOTS):
             public = NetworkNamespace(subnet_index, private=False, internet_interface=self.internet_interface)
             await public.init()
             self.public_networks.put_nowait(public)
@@ -1021,37 +1024,6 @@ def populate_secret_host_path(host_path: str, secret_data: Optional[Dict[str, by
                 f.write(base64.b64decode(data))
 
 
-async def add_gcsfuse_bucket(mount_path, bucket, key_file, read_only):
-    assert CLOUD == 'gcp'
-    assert bucket
-    os.makedirs(mount_path)
-    options = ['allow_other']
-    if read_only:
-        options.append('ro')
-
-    delay = 0.1
-    error = 0
-    while True:
-        try:
-            return await check_shell(
-                f'''
-/usr/bin/gcsfuse \
-    -o {",".join(options)} \
-    --file-mode 770 \
-    --dir-mode 770 \
-    --implicit-dirs \
-    --key-file {key_file} \
-    {bucket} {mount_path}
-'''
-            )
-        except CalledProcessError:
-            error += 1
-            if error == 5:
-                raise
-
-        delay = await sleep_and_backoff(delay)
-
-
 def copy_container(
     job: 'Job',
     name: str,
@@ -1094,20 +1066,37 @@ class Job:
         Job.quota_project_id += 1
         return project_id
 
-    def secret_host_path(self, secret):
+    def secret_host_path(self, secret) -> str:
         return f'{self.scratch}/secrets/{secret["name"]}'
 
-    def io_host_path(self):
+    def io_host_path(self) -> str:
         return f'{self.scratch}/io'
 
-    def gcsfuse_path(self, bucket):
+    def cloudfuse_base_path(self):
         # Make sure this path isn't in self.scratch to avoid accidental bucket deletions!
-        return f'/gcsfuse/{self.token}/{bucket}'
+        path = f'/cloudfuse/{self.token}'
+        assert os.path.commonpath([path, self.scratch]) == '/'
+        return path
 
-    def credentials_host_dirname(self):
+    def cloudfuse_data_path(self, bucket: str) -> str:
+        # Make sure this path isn't in self.scratch to avoid accidental bucket deletions!
+        path = f'{self.cloudfuse_base_path()}/{bucket}/data'
+        assert os.path.commonpath([path, self.scratch]) == '/'
+        return path
+
+    def cloudfuse_tmp_path(self, bucket: str) -> str:
+        # Make sure this path isn't in self.scratch to avoid accidental bucket deletions!
+        path = f'{self.cloudfuse_base_path()}/{bucket}/tmp'
+        assert os.path.commonpath([path, self.scratch]) == '/'
+        return path
+
+    def cloudfuse_credentials_path(self, bucket: str) -> str:
+        return f'{self.scratch}/cloudfuse/{bucket}'
+
+    def credentials_host_dirname(self) -> str:
         return f'{self.scratch}/{self.credentials.secret_name}'
 
-    def credentials_host_file_path(self):
+    def credentials_host_file_path(self) -> str:
         return f'{self.credentials_host_dirname()}/{self.credentials.file_name}'
 
     @staticmethod
@@ -1198,16 +1187,17 @@ class Job:
         self.main_volume_mounts.append(io_volume_mount)
         self.output_volume_mounts.append(io_volume_mount)
 
-        gcsfuse = job_spec.get('gcsfuse')
-        self.gcsfuse = gcsfuse
-        if gcsfuse:
-            assert CLOUD == 'gcp'
-            for b in gcsfuse:
-                b['mounted'] = False
+        cloudfuse = job_spec.get('cloudfuse') or job_spec.get('gcsfuse')
+        self.cloudfuse = cloudfuse
+        if cloudfuse:
+            for config in cloudfuse:
+                config['mounted'] = False
+                bucket = config['bucket']
+                assert bucket
                 self.main_volume_mounts.append(
                     {
-                        'source': self.gcsfuse_path(b["bucket"]),
-                        'destination': b['mount_path'],
+                        'source': f'{self.cloudfuse_data_path(bucket)}',
+                        'destination': config['mount_path'],
                         'type': 'none',
                         'options': ['rbind', 'rw', 'shared'],
                     }
@@ -1441,18 +1431,33 @@ class DockerJob(Job):
                         for secret in self.secrets:
                             populate_secret_host_path(self.secret_host_path(secret), secret['data'])
 
-                with self.step('adding gcsfuse bucket'):
-                    if self.gcsfuse:
-                        populate_secret_host_path(self.credentials_host_dirname(), self.credentials.secret_data)
-                        for b in self.gcsfuse:
-                            bucket = b['bucket']
-                            await add_gcsfuse_bucket(
-                                mount_path=self.gcsfuse_path(bucket),
-                                bucket=bucket,
-                                key_file=self.credentials_host_file_path(),
-                                read_only=b['read_only'],
+                with self.step('adding cloudfuse support'):
+                    if self.cloudfuse:
+                        os.makedirs(self.cloudfuse_base_path())
+
+                        await check_shell_output(
+                            f'xfs_quota -x -c "project -s -p {self.cloudfuse_base_path()} {self.project_id}" /host/'
+                        )
+
+                        for config in self.cloudfuse:
+                            bucket = config['bucket']
+                            assert bucket
+
+                            credentials = self.credentials.cloudfuse_credentials(config)
+                            credentials_path = CLOUD_WORKER_API.write_cloudfuse_credentials(
+                                self.scratch, credentials, bucket
                             )
-                            b['mounted'] = True
+
+                            os.makedirs(self.cloudfuse_data_path(bucket), exist_ok=True)
+                            os.makedirs(self.cloudfuse_tmp_path(bucket), exist_ok=True)
+
+                            await CLOUD_WORKER_API.mount_cloudfuse(
+                                credentials_path,
+                                self.cloudfuse_data_path(bucket),
+                                self.cloudfuse_tmp_path(bucket),
+                                config,
+                            )
+                            config['mounted'] = True
 
                 self.state = 'running'
 
@@ -1518,14 +1523,15 @@ class DockerJob(Job):
 
         log.info(f'{self}: cleaning up')
         try:
-            if self.gcsfuse:
-                for b in self.gcsfuse:
-                    if b['mounted']:
-                        bucket = b['bucket']
-                        mount_path = self.gcsfuse_path(bucket)
-                        await check_shell(f'fusermount -u {mount_path}')
-                        log.info(f'unmounted gcsfuse bucket {bucket} from {mount_path}')
-                        b['mounted'] = False
+            if self.cloudfuse:
+                for config in self.cloudfuse:
+                    if config['mounted']:
+                        bucket = config['bucket']
+                        assert bucket
+                        mount_path = self.cloudfuse_data_path(bucket)
+                        await CLOUD_WORKER_API.unmount_cloudfuse(mount_path)
+                        log.info(f'unmounted fuse blob storage {bucket} from {mount_path}')
+                        config['mounted'] = False
 
             await check_shell(f'xfs_quota -x -c "limit -p bsoft=0 bhard=0 {self.project_id}" /host')
 

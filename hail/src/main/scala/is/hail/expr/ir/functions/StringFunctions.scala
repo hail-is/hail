@@ -108,7 +108,7 @@ object StringFunctions extends RegistryFunctions {
       (_: Type, _: SType, _: SType, _: SType) => SJavaString
     }) {
       case (r: EmitRegion, cb, st: SJavaString.type, s, start, end, _) =>
-        val str = s.asString.loadString(cb).invoke[Int, Int, String]("substring", start.asInt.intCode(cb), end.asInt.intCode(cb))
+        val str = s.asString.loadString(cb).invoke[Int, Int, String]("substring", start.asInt.value, end.asInt.value)
         st.construct(cb, str)
     }
 
@@ -141,7 +141,7 @@ object StringFunctions extends RegistryFunctions {
     registerIR2("sliceLeft", TString, TInt32, TString) { (_, s, end, _) => invoke("slice", TString, s, I32(0), end) }
 
     registerSCode1("str", tv("T"), TString, (_: Type, _: SType) => SJavaString) { case (r, cb, st: SJavaString.type, a, _) =>
-      val annotation = scodeToJavaValue(cb, r.region, a)
+      val annotation = svalueToJavaValue(cb, r.region, a)
       val str = cb.emb.getType(a.st.virtualType).invoke[Any, String]("str", annotation)
       st.construct(cb, str)
     }
@@ -152,7 +152,7 @@ object StringFunctions extends RegistryFunctions {
       val jObj = cb.newLocal("showstr_java_obj")(boxedTypeInfo(a.st.virtualType))
       a.toI(cb).consume(cb,
         cb.assignAny(jObj, Code._null(boxedTypeInfo(a.st.virtualType))),
-        sc => cb.assignAny(jObj, scodeToJavaValue(cb, r, sc)))
+        sc => cb.assignAny(jObj, svalueToJavaValue(cb, r, sc)))
 
       val str = cb.emb.getType(a.st.virtualType).invoke[Any, String]("showStr", jObj)
 
@@ -167,9 +167,9 @@ object StringFunctions extends RegistryFunctions {
 
         a.toI(cb).consume(cb,
           cb.assignAny(jObj, Code._null(boxedTypeInfo(a.st.virtualType))),
-          sc => cb.assignAny(jObj, scodeToJavaValue(cb, r, sc)))
+          sc => cb.assignAny(jObj, svalueToJavaValue(cb, r, sc)))
 
-        val str = cb.emb.getType(a.st.virtualType).invoke[Any, Int, String]("showStr", jObj, trunc.asInt.intCode(cb))
+        val str = cb.emb.getType(a.st.virtualType).invoke[Any, Int, String]("showStr", jObj, trunc.asInt.value)
         st.construct(cb, str)
       }
     }
@@ -181,7 +181,7 @@ object StringFunctions extends RegistryFunctions {
         a.toI(cb).consume(cb,
           cb.assignAny(inputJavaValue, Code._null(ti)),
           { sc =>
-            val jv = scodeToJavaValue(cb, r, sc)
+            val jv = svalueToJavaValue(cb, r, sc)
             cb.assignAny(inputJavaValue, jv)
           })
         val json = cb.emb.getType(a.st.virtualType).invoke[Any, JValue]("toJSON", inputJavaValue)

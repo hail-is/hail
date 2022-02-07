@@ -114,7 +114,7 @@ class TakeAggregator(typ: VirtualTypeWithReq) extends StagedAggregator {
     sizeTriplet.toI(cb)
       .consume(cb,
         cb += Code._fatal[Unit](s"argument 'n' for 'hl.agg.take' may not be missing"),
-        sc => state.init(cb, sc.asInt.intCode(cb))
+        sc => state.init(cb, sc.asInt.value)
       )
   }
 

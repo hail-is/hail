@@ -826,9 +826,6 @@ WHERE user = %s AND id = %s AND NOT deleted;
                     spec['env'] = env
                 assert isinstance(spec['env'], list)
 
-                if spec.get('gcsfuse') and cloud != 'gcp':
-                    raise web.HTTPBadRequest(reason=f'gcsfuse is not supported in {cloud}')
-
                 if cloud == 'gcp' and all(envvar['name'] != 'GOOGLE_APPLICATION_CREDENTIALS' for envvar in spec['env']):
                     spec['env'].append({'name': 'GOOGLE_APPLICATION_CREDENTIALS', 'value': '/gsa-key/key.json'})
 

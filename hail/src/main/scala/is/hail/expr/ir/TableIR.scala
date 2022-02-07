@@ -518,7 +518,7 @@ case class PartitionRVDReader(rvd: RVD) extends PartitionReader {
 
         override def initialize(cb: EmitCodeBuilder): Unit = {
           cb.assign(iterator, broadcastRVD.invoke[Int, Region, Region, Iterator[Long]](
-            "computePartition", EmitCodeBuilder.scopedCode[Int](mb)(idx.asInt.intCode(_)), region, partitionRegion))
+            "computePartition", EmitCodeBuilder.scopedCode[Int](mb)((cb: EmitCodeBuilder) => idx.asInt.value), region, partitionRegion))
           cb.assign(upcastF, Code.checkcast[AsmFunction2RegionLongLong](upcastCode.invoke[AnyRef, AnyRef, AnyRef, AnyRef]("apply", cb.emb.ecb.emodb.getFS, Code.boxInt(0), partitionRegion)))
         }
         override val elementRegion: Settable[Region] = region
@@ -866,7 +866,7 @@ case class PartitionZippedIndexedNativeReader(specLeft: AbstractTypedCodecSpec, 
         Code.invokeScalaObject1[AnyRef, Interval](
           PartitionBoundOrdering.getClass,
           "partitionBoundToInterval",
-          StringFunctions.scodeToJavaValue(cb, region, ctxMemo.loadField(cb, "interval").get(cb)))
+          StringFunctions.svalueToJavaValue(cb, region, ctxMemo.loadField(cb, "interval").get(cb)))
       }
 
       val indexReader = cb.emb.genFieldThisRef[IndexReader]("idx_reader")
@@ -2602,6 +2602,7 @@ case class TableKeyByAndAggregate(
             f.setAggState(agg.region, agg.offset)
             f(ctx.region, globals, ptr)
             agg.setOffset(f.getAggOffset())
+            ctx.region.clear()
           }
         }
         val serializeAndCleanupAggs = { rv: RegionValue =>

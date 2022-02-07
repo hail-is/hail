@@ -20,7 +20,7 @@ EOF
     exit 1
 fi
 
-VM_NAME=bootstrap-vm
+VM_NAME=bootstrap-vm-$(cat /dev/urandom | LC_ALL=C tr -dc 'a-z0-9' | head -c 5)
 
 ip=$(az vm create \
     --name $VM_NAME \

@@ -42,7 +42,7 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
     assert(settables.length == nDims, s"got ${ settables.length } settables, expect ${ nDims } dims")
     val shapeTuple = shapeType.loadCheapSCode(cb, representation.loadField(addr, "shape"))
     (0 until nDims).foreach { dimIdx =>
-      cb.assign(settables(dimIdx), shapeTuple.loadField(cb, dimIdx).get(cb).asLong.longCode(cb))
+      cb.assign(settables(dimIdx), shapeTuple.loadField(cb, dimIdx).get(cb).asLong.value)
     }
   }
 
@@ -50,7 +50,7 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
     assert(settables.length == nDims)
     val strideTuple = strideType.loadCheapSCode(cb, representation.loadField(addr, "strides"))
     (0 until nDims).foreach { dimIdx =>
-      cb.assign(settables(dimIdx), strideTuple.loadField(cb, dimIdx).get(cb).asLong.longCode(cb))
+      cb.assign(settables(dimIdx), strideTuple.loadField(cb, dimIdx).get(cb).asLong.value)
     }
   }
 
@@ -344,9 +344,9 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
   def loadCheapSCode(cb: EmitCodeBuilder, addr: Code[Long]): SNDArrayPointerValue = {
     val a = cb.memoize(addr)
     val shapeTuple = shapeType.loadCheapSCode(cb, representation.loadField(a, "shape"))
-    val shape = Array.tabulate(nDims)(i => SizeValueDyn(shapeTuple.loadField(cb, i).get(cb).asLong.longCode(cb)))
+    val shape = Array.tabulate(nDims)(i => SizeValueDyn(shapeTuple.loadField(cb, i).get(cb).asLong.value))
     val strideTuple = strideType.loadCheapSCode(cb, representation.loadField(a, "strides"))
-    val strides = Array.tabulate(nDims)(strideTuple.loadField(cb, _).get(cb).asLong.longCode(cb))
+    val strides = Array.tabulate(nDims)(strideTuple.loadField(cb, _).get(cb).asLong.value)
     val firstDataAddress = cb.memoize(dataFirstElementPointer(a))
     new SNDArrayPointerValue(sType, a, shape, strides, firstDataAddress)
   }

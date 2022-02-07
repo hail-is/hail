@@ -47,10 +47,8 @@ class SFloat32Value(val value: Value[Float]) extends SPrimitiveValue {
 
   override def _primitiveValue: Value[_] = value
 
-  def floatCode(cb: EmitCodeBuilder): Value[Float] = value
-
   override def hash(cb: EmitCodeBuilder): SInt32Value =
-    new SInt32Value(cb.memoize(Code.invokeStatic1[java.lang.Float, Float, Int]("floatToIntBits", floatCode(cb))))
+    new SInt32Value(cb.memoize(Code.invokeStatic1[java.lang.Float, Float, Int]("floatToIntBits", value)))
 }
 
 object SFloat32Settable {
