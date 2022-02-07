@@ -26,8 +26,6 @@ class StatIdentity(Stat):
         return hl.agg.collect(mapping)
 
     def listify(self, agg_result):
-        # Collect aggregator returns a list, nothing to do.
-
         columns = list(agg_result[0].keys())
         data_dict = {}
 
@@ -36,8 +34,6 @@ class StatIdentity(Stat):
             data_dict[column] = pd.Series(col_data)
 
         return pd.DataFrame(data_dict)
-
-        return agg_result
 
 
 class StatFunction(StatIdentity):
