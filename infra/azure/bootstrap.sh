@@ -52,7 +52,7 @@ init_terraform() {
         | jq -rj '.[0].value'
     )
     remote_storage_access_key="$(mktemp)"
-    trap 'rm -f -- "$backend_config_file"' EXIT
+    trap 'rm -f -- "$remote_storage_access_key"' EXIT
 
     cat >$remote_storage_access_key <<EOF
 access_key           = "$STORAGE_ACCOUNT_KEY"
