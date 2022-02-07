@@ -2091,9 +2091,7 @@ steps:
       cd /io/repo
       make -C hail python/hail/hail_pip_version
 
-      # First, test if this is a deploy. If it is, we want the docs from make_docs.
-      # Either way, www.tar.gz contains the 0.2 and batch docs that need to be packaged up.
-
+      # If this is a deploy and the tag doesn't exist, we should use be using the version from input.
       {% if deploy %}
         cp /io/www.tar.gz .
       {% else %}
