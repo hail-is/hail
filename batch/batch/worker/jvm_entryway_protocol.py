@@ -1,7 +1,6 @@
 import asyncio
 import struct
 import logging
-from hailtop.utils import TransientError
 
 
 log = logging.getLogger('jvm_entryway_protocol')
@@ -25,7 +24,7 @@ def write_str(writer: asyncio.StreamWriter, s: str):
     write_bytes(writer, s.encode('utf-8'))
 
 
-class EndOfStream(TransientError):
+class EndOfStream(Exception):
     pass
 
 
