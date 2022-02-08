@@ -100,7 +100,7 @@ gsutil cp python/hail/experimental/datasets.json $datasets_json_url
 gsutil -m retention temp set $datasets_json_url
 
 # Publish website
-website_url=gs://hail-common/website/$HAIL_VERSION/$WEBSITE_TAR
+website_url=gs://hail-common/website/$HAIL_PIP_VERSION/www.tar.gz
 gsutil cp $WEBSITE_TAR $website_url
 gsutil -m retention temp set $website_url
 
