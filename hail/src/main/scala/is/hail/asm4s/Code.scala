@@ -1089,6 +1089,7 @@ class CodeString(val lhs: Code[String]) extends AnyVal {
 }
 
 class CodeArray[T](val lhs: Code[Array[T]])(implicit tti: TypeInfo[T]) {
+  assert(lhs.ti.asInstanceOf[ArrayInfo].tti == tti)
   def apply(i: Code[Int]): Code[T] =
     Code(lhs, i, { case (v1: ValueX, v2: ValueX) => lir.insn(tti.aloadOp, tti, FastIndexedSeq(v1, v2)) })
 
