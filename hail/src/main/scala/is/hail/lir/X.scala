@@ -873,9 +873,12 @@ class InsnX(val op: Int, _ti: TypeInfo[_], var lineNumber: Int = 0) extends Valu
       case L2D => DoubleInfo
       case F2D => DoubleInfo
       case DALOAD => DoubleInfo
-      // Boolean
+
+      // Byte
       case I2B => ByteInfo
-      case BALOAD => ByteInfo
+
+      // FIXME: Byte or Boolean depending on array type
+      case BALOAD => BooleanInfo
     }
   }
 }
