@@ -327,7 +327,7 @@ class Batch:
                  last_known_status: bool = None,
                  submission_info: Optional[BatchSubmissionInfo] = None):
         self._client = client
-        self.id = id
+        self.id: int = id
         self.attributes = attributes
         self.n_jobs = n_jobs
         self.token = token
