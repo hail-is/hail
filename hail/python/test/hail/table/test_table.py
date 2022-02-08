@@ -1129,6 +1129,7 @@ Caused by: java.lang.NullPointerException
         assert union._force_count() == N * M
         assert union.count() == N * M
 
+    @skip_when_service_backend()
     def test_union_unify(self):
         t1 = hl.utils.range_table(2)
         t2 = t1.annotate(x=hl.int32(1), y='A')
@@ -1389,6 +1390,7 @@ Caused by: java.lang.NullPointerException
         ht = ht.annotate(y = ht.idx + ht.aggregate(hl.agg.max(ht.idx), _localize=False))
         assert ht.y.collect() == [x + 9 for x in range(10)]
 
+    @skip_when_service_backend()
     def test_collect_localize_false(self):
         ht = hl.utils.range_table(10)
         assert hl.eval(ht.collect(_localize=False)) == ht.collect()
