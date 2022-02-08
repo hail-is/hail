@@ -5,7 +5,7 @@ import os
 from hailtop.utils import request_retry_transient_errors
 from hailtop import httpx
 
-from ....worker.instance_env import CloudWorkerAPI
+from ....worker.worker_api import CloudWorkerAPI
 from .disk import GCPDisk
 from .credentials import GCPUserCredentials
 from ..instance_config import GCPSlimInstanceConfig
@@ -52,6 +52,39 @@ class GCPWorkerAPI(CloudWorkerAPI):
 
     def instance_config_from_config_dict(self, config_dict: Dict[str, str]) -> GCPSlimInstanceConfig:
         return GCPSlimInstanceConfig.from_dict(config_dict)
+
+    def write_cloudfuse_credentials(
+        self, root_dir: str, credentials: str, bucket: str
+    ) -> str:  # pylint: disable=unused-argument
+        path = f'{root_dir}/cloudfuse/key.json'
+        if not os.path.exists(path):
+            os.makedirs(os.path.dirname(path))
+            with open(path, 'w') as f:
+                f.write(credentials)
+        return path
+
+    def _mount_cloudfuse(
+        self, fuse_credentials_path: str, mount_base_path_data: str, mount_base_path_tmp: str, config: dict
+    ) -> str:  # pylint: disable=unused-argument
+        bucket = config['bucket']
+        assert bucket
+
+        options = ['allow_other']
+        if config['read_only']:
+            options.append('ro')
+
+        return f'''
+/usr/bin/gcsfuse \
+    -o {",".join(options)} \
+    --file-mode 770 \
+    --dir-mode 770 \
+    --implicit-dirs \
+    --key-file {fuse_credentials_path} \
+    {bucket} {mount_base_path_data}
+'''
+
+    def _unmount_cloudfuse(self, mount_base_path_data: str) -> str:
+        return f'fusermount -u {mount_base_path_data}'
 
     def __str__(self):
         return f'project={self.project} zone={self.zone}'

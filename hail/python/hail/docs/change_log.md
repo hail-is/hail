@@ -24,6 +24,26 @@ an earlier version of Hail to read files written in a later version.
 
 ---
 
+## Version 0.2.83
+
+Release 2022-02-01
+
+### Bug fixes
+
+- (hail#11268) Fixed `log` argument in `hail.plot.histogram`.
+- (hail#11276) Fixed `log` argument in `hail.plot.pdf`.
+- (hail#11256) Fixed memory leak in LD Prune.
+
+### New features
+
+- (hail#11274) Added `geom_col` to `hail.ggplot`.
+
+### hailctl dataproc
+
+- (hail#11280) Updated dataproc image version to one not affected by log4j vulnerabilities.
+
+---
+
 ## Version 0.2.82
 
 Release 2022-01-24

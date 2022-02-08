@@ -52,7 +52,7 @@ trait SBaseStructValue extends SValue {
     val hash_result = cb.newLocal[Int]("hash_result_struct", 1)
     (0 until st.size).foreach(i => {
       loadField(cb, i).consume(cb, { cb.assign(hash_result, hash_result * 31) },
-        {field => cb.assign(hash_result, (hash_result * 31) + field.hash(cb).intCode(cb))})
+        {field => cb.assign(hash_result, (hash_result * 31) + field.hash(cb).value)})
     })
     new SInt32Value(hash_result)
   }

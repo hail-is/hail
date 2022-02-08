@@ -48,10 +48,8 @@ class SInt64Value(val value: Value[Long]) extends SPrimitiveValue {
 
   override def _primitiveValue: Value[_] = value
 
-  def longCode(cb: EmitCodeBuilder): Value[Long] = value
-
   override def hash(cb: EmitCodeBuilder): SInt32Value =
-    new SInt32Value(cb.memoize(invokeStatic1[java.lang.Long, Long, Int]("hashCode", longCode(cb))))
+    new SInt32Value(cb.memoize(invokeStatic1[java.lang.Long, Long, Int]("hashCode", value)))
 }
 
 object SInt64Settable {

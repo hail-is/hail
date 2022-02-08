@@ -35,3 +35,8 @@ variable "ci_config" {
   })
   default = null
 }
+
+variable oauth2_developer_redirect_uris {
+  type = list(string)
+  default = null
+}

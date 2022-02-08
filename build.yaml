@@ -4517,7 +4517,8 @@ steps:
                              /io/repo/hail/build/deploy/dist/hail-*-py3-none-any.whl \
                              /io/github-oauth \
                              docker://{{ hailgenetics_hail_image.image }} \
-                             /io/wheel-for-azure/hail-*-py3-none-any.whl
+                             /io/wheel-for-azure/hail-*-py3-none-any.whl \
+                             /io/www.tar.gz
     inputs:
       - from: /hail_version
         to: /io/hail_version
@@ -4529,6 +4530,8 @@ steps:
         to: /io/repo
       - from: /wheel-for-azure-container.tar
         to: /io/wheel-for-azure-container.tar
+      - from: /www.tar.gz
+        to: /io/www.tar.gz
     secrets:
       - name: pypi-credentials
         namespace:
@@ -4558,6 +4561,7 @@ steps:
       - merge_code
       - hailgenetics_hail_image
       - build_wheel_for_azure
+      - make_docs
     clouds:
       - gcp
   - kind: buildImage2
