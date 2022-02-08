@@ -34,6 +34,8 @@ class DeployConfig:
             log.info(f'deploy config file found at {config_file}')
             with open(config_file, 'r') as f:
                 config = json.load(f)
+            if 'domain' not in config:
+                config['domain'] = get_user_config().get('global', 'domain', fallback='hail.is')
             log.info(f'deploy config location: {config["location"]}')
         else:
             log.info(f'deploy config file not found: {config_file}')
