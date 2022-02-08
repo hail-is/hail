@@ -165,12 +165,9 @@ class ScaleColorContinuous(ScaleContinuous):
         color_series = df[self.aesthetic_name]
         color_mapping = continuous_nums_to_colors(color_series, parent.continuous_color_scale)
 
-        new_column_name = f"{self.aesthetic_name}_legend"
-        new_df = df.assign(**{new_column_name: df[self.aesthetic_name]})
+        df[self.aesthetic_name] = df[self.aesthetic_name].map(lambda i: color_mapping[i])
 
-        new_df[self.aesthetic_name] = new_df[self.aesthetic_name].map(lambda i: color_mapping[i])
-
-        return new_df
+        return df
 
 
 # Legend names messed up for scale color identity

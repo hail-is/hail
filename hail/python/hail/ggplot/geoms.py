@@ -546,27 +546,52 @@ class GeomFunction(GeomLineBasic):
 def geom_func(mapping=aes(), fun=None, color=None):
     return GeomFunction(mapping, fun=fun, color=color)
 
+
 class GeomArea(Geom):
+    aes_to_arg = {
+        "fill": ("fillcolor", "black", True),
+        "color": ("line_color", None, True),
+        "tooltip": ("hovertext", None, False),
+        "fill_legend": ("name", None, True)
+    }
+
     def __init__(self, aes, fill, color):
         super().__init__(aes)
         self.fill = fill
         self.color = color
 
-    def apply_to_fig(self, parent, agg_result, fig_so_far):
-        def plot_group(data):
+    def apply_to_fig(self, parent, agg_result, fig_so_far, precomputed, num_groups):
+        def plot_group(df):
             scatter_args = {
-                "x": [element["x"] for element in data],
-                "y": [element["y"] for element in data],
+                "x": df.x,
+                "y": df.y,
                 "fill": 'tozeroy'
             }
-            if self.color is None and "color" in data[0]:
-                scatter_args["line_color"] = data[0]["color"]
-            elif self.color is not None:
-                scatter_args["line_color"] = self.color
-            else:
-                scatter_args["line_color"] = "black"
 
-            if self.fill is None and "fill" in data[0]:
+            for aes_name, (plotly_name, default, take_one) in self.aes_to_arg.items():
+                if hasattr(self, aes_name) and getattr(self, aes_name) is not None:
+                    scatter_args[plotly_name] = getattr(self, aes_name)
+                elif aes_name in df.columns:
+                    if take_one:
+                        scatter_args[plotly_name] = df[aes_name].iloc[0]
+                    else:
+                        scatter_args[plotly_name] = df[aes_name]
+                elif default is not None:
+                    scatter_args[plotly_name] = default
 
+            fig_so_far.add_scatter(**scatter_args)
+
+        groups = set(agg_result["group"])
+        for group in groups:
+            rows_for_this_group = agg_result["group"] == group
+            just_one_group = agg_result[rows_for_this_group]
+            plot_group(just_one_group)
+
+    def get_stat(self):
+        return StatIdentity()
+
+
+def geom_area(mapping=aes(), fill=None, color=None):
+    return GeomArea(mapping, fill=fill, color=color)
 
 
