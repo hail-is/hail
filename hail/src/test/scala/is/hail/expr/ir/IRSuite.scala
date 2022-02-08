@@ -2000,10 +2000,9 @@ class IRSuite extends HailSuite {
                   f.name -> GetField(Ref("_right", r.typ), f.name)
                 })))
     }
-    val mkStream = if (rightDistinct) StreamJoinRightDistinct.apply _ else StreamJoin.apply _
-    ToArray(mkStream(left, right, lKeys, rKeys, "_l", "_r",
+    ToArray(StreamJoin.apply(left, right, lKeys, rKeys, "_l", "_r",
                      joinF(Ref("_l", coerce[TStream](left.typ).elementType), Ref("_r", coerce[TStream](right.typ).elementType)),
-                     joinType))
+                     joinType, rightDistinct))
   }
 
   @Test def testStreamZipJoin() {
