@@ -450,7 +450,8 @@ class ServiceBackend(Backend[bc.Batch]):
         return self.__fs
 
     def _close(self):
-        self._batch_client.close()
+        if hasattr(self, '_batch_client'):
+            self._batch_client.close()
         async_to_blocking(self._fs.close())
 
     def _run(self,
