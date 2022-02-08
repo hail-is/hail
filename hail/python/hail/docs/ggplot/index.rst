@@ -42,6 +42,7 @@ currently uses plotly to generate plots, as opposed to ``hl.plot``, which uses b
     geom_histogram
     geom_hline
     geom_vline
+    geom_area
 
 .. autofunction:: geom_point
 .. autofunction:: geom_line
@@ -51,6 +52,7 @@ currently uses plotly to generate plots, as opposed to ``hl.plot``, which uses b
 .. autofunction:: geom_histogram
 .. autofunction:: geom_hline
 .. autofunction:: geom_vline
+.. autofunction:: geom_area
 
 
 .. rubric:: Scales

@@ -592,6 +592,24 @@ class GeomArea(Geom):
 
 
 def geom_area(mapping=aes(), fill=None, color=None):
+    """Creates a line plot with the area between the line and the x-axis filled in.
+
+    Supported aesthetics: ``x``, ``y``, ``fill``, ``color``, ``tooltip``
+
+        Parameters
+    ----------
+    mapping: :class:`Aesthetic`
+        Any aesthetics specific to this geom.
+    fill:
+        A single fill color for all bars of histogram, overrides ``fill`` aesthetic.
+    color:
+        A single outline color for all bars of histogram, overrides ``color`` aesthetic.
+    alpha: `float`
+        A measure of transparency between 0 and 1.
+
+    Returns
+    -------
+    :class:`FigureAttribute`
+        The geom to be applied.
+    """
     return GeomArea(mapping, fill=fill, color=color)
-
-
