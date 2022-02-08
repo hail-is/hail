@@ -548,19 +548,25 @@ def geom_func(mapping=aes(), fun=None, color=None):
 
 class GeomArea(Geom):
     def __init__(self, aes, fill, color):
+        super().__init__(aes)
         self.fill = fill
         self.color = color
 
     def apply_to_fig(self, parent, agg_result, fig_so_far):
         def plot_group(data):
             scatter_args = {
-                "x": [element["x"] for element in data]
-                "y": [element["y"] for element in data]
+                "x": [element["x"] for element in data],
+                "y": [element["y"] for element in data],
                 "fill": 'tozeroy'
             }
             if self.color is None and "color" in data[0]:
-                #unsure 
-                scatter_args["line_color"] = [element["color"] for element in data]
+                scatter_args["line_color"] = data[0]["color"]
             elif self.color is not None:
                 scatter_args["line_color"] = self.color
+            else:
+                scatter_args["line_color"] = "black"
+
+            if self.fill is None and "fill" in data[0]:
+
+
 
