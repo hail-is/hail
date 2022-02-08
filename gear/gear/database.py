@@ -16,10 +16,11 @@ from hailtop.auth.sql_config import SQLConfig
 log = logging.getLogger('gear.database')
 
 
+# 1040 - Too many connections
 # 1213 - Deadlock found when trying to get lock; try restarting transaction
 # 2003 - Can't connect to MySQL server on ...
 # 2013 - Lost connection to MySQL server during query ([Errno 104] Connection reset by peer)
-retry_codes = (1213, 2003, 2013)
+retry_codes = (1040, 1213, 2003, 2013)
 
 
 def retry_transient_mysql_errors(f):
