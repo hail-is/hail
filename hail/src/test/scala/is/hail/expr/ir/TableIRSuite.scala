@@ -73,11 +73,12 @@ class TableIRSuite extends HailSuite {
     implicit val execStrats = ExecStrategy.allRelational
 
     val r = TableRange(2, 2)
-    val tc = GetField(collect(r), "rows")
-    val m = TableMapRows(r, InsertFields(Ref("row", r.typ.rowType), FastIndexedSeq("collected" -> tc)))
+
+    val tc = GetField(collect(TableRange(2, 2)), "rows")
+    val m = TableMapRows(TableRange(2, 2), InsertFields(Ref("row", r.typ.rowType), FastIndexedSeq("collected" -> tc)))
     assertEvalsTo(collect(m),
       Row(FastIndexedSeq(
-        Row(0, FastIndexedSeq(Row(0), Row(1))),
+        Row(0, FastIndexedSeq(Row(0), Row(1))),000
         Row(1, FastIndexedSeq(Row(0), Row(1)))
     ), Row()))
   }

@@ -4,6 +4,7 @@ object DistinctlyKeyed {
   def apply(node: BaseIR): DistinctKeyedAnalysis = {
     val distinctMemo = Memo.empty[Unit]
     analyze(node, distinctMemo)
+    print(distinctMemo)
     DistinctKeyedAnalysis(distinctMemo)
   }
   private def analyze(node:BaseIR, memo: Memo[Unit]): Unit = {
