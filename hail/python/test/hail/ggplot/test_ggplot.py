@@ -30,6 +30,7 @@ def test_manhattan_plot():
     fig.to_plotly()
 
 
+@fails_service_backend()
 def test_histogram():
     ht = hl.utils.range_table(10)
     fig = (ggplot(ht, aes(x=ht.idx)) +
