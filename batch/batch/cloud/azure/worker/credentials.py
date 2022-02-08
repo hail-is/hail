@@ -41,3 +41,16 @@ class AzureUserCredentials(CloudUserCredentials):
     @property
     def mount_path(self):
         return f'/{self.secret_name}/{self.file_name}'
+
+    def cloudfuse_credentials(self, fuse_config: dict) -> str:
+        # https://github.com/Azure/azure-storage-fuse
+        bucket = fuse_config['bucket']
+        account, container = bucket.split('/', maxsplit=1)
+        return f'''
+accountName {account}
+authType SPN
+servicePrincipalClientId {self.username}
+servicePrincipalClientSecret {self.password}
+servicePrincipalTenantId {self._credentials['tenant']}
+containerName {container}
+'''

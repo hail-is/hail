@@ -22,6 +22,17 @@ def is_discrete_type(dtype):
     return dtype in [hl.tstr]
 
 
+excluded_from_grouping = {"tooltip"}
+
+
+def should_use_for_grouping(name, type):
+    return (name not in excluded_from_grouping) and is_discrete_type(type)
+
+
+def should_use_scale_for_grouping(scale):
+    return (scale.aesthetic_name not in excluded_from_grouping) and scale.is_discrete()
+
+
 # Map strings to numbers that will index into a color scale.
 def categorical_strings_to_colors(string_set, parent_plot):
 
@@ -44,3 +55,19 @@ def continuous_nums_to_colors(input_color_nums, continuous_color_scale):
 
     color_mapping = plotly.colors.sample_colorscale(continuous_color_scale, [adjust_color(input_color) for input_color in input_color_nums])
     return color_mapping
+
+
+def bar_position_plotly_to_gg(plotly_pos):
+    ggplot_to_plotly = {'dodge': 'group', 'stack': 'stack', 'identity': 'overlay'}
+    return ggplot_to_plotly[plotly_pos]
+
+
+def linetype_plotly_to_gg(plotly_linetype):
+    linetype_dict = {
+        "solid": "solid",
+        "dashed": "dash",
+        "dotted": "dot",
+        "longdash": "longdash",
+        "dotdash": "dashdot"
+    }
+    return linetype_dict[plotly_linetype]

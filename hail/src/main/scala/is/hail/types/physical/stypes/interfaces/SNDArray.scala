@@ -256,7 +256,7 @@ object SNDArray {
   }
 
   def scale(cb: EmitCodeBuilder, alpha: SValue, X: SNDArrayValue): Unit =
-    scale(cb, alpha.asFloat64.doubleCode(cb), X)
+    scale(cb, alpha.asFloat64.value, X)
 
   def scale(cb: EmitCodeBuilder, alpha: Value[Double], X: SNDArrayValue): Unit = {
     val Seq(n) = X.shapes

@@ -8,17 +8,19 @@ import functools
 import ssl
 import traceback
 
-from hailtop.utils import sleep_and_backoff, LoggingTimer
+from gear.metrics import PrometheusSQLTimer
+from hailtop.utils import sleep_and_backoff
 from hailtop.auth.sql_config import SQLConfig
 
 
 log = logging.getLogger('gear.database')
 
 
+# 1040 - Too many connections
 # 1213 - Deadlock found when trying to get lock; try restarting transaction
 # 2003 - Can't connect to MySQL server on ...
 # 2013 - Lost connection to MySQL server during query ([Errno 104] Connection reset by peer)
-retry_codes = (1213, 2003, 2013)
+retry_codes = (1040, 1213, 2003, 2013)
 
 
 def retry_transient_mysql_errors(f):
@@ -199,26 +201,26 @@ class Transaction:
         async with self.conn.cursor() as cursor:
             await cursor.execute(sql, args)
 
-    async def execute_and_fetchone(self, sql, args=None):
+    async def execute_and_fetchone(self, sql, args=None, query_name=None):
         assert self.conn
         async with self.conn.cursor() as cursor:
-            await cursor.execute(sql, args)
-            return await cursor.fetchone()
-
-    async def execute_and_fetchall(self, sql, args=None, timer_description=None):
-        assert self.conn
-        async with self.conn.cursor() as cursor:
-            if timer_description is None:
+            if query_name is None:
                 await cursor.execute(sql, args)
             else:
-                async with LoggingTimer(f'{timer_description}: execute_and_fetchall: execute', threshold_ms=20):
+                async with PrometheusSQLTimer(query_name):
+                    await cursor.execute(sql, args)
+            return await cursor.fetchone()
+
+    async def execute_and_fetchall(self, sql, args=None, query_name=None):
+        assert self.conn
+        async with self.conn.cursor() as cursor:
+            if query_name is None:
+                await cursor.execute(sql, args)
+            else:
+                async with PrometheusSQLTimer(query_name):
                     await cursor.execute(sql, args)
             while True:
-                if timer_description is None:
-                    rows = await cursor.fetchmany(100)
-                else:
-                    async with LoggingTimer(f'{timer_description}: execute_and_fetchall: fetchmany', threshold_ms=20):
-                        rows = await cursor.fetchmany(100)
+                rows = await cursor.fetchmany(100)
                 if not rows:
                     break
                 for row in rows:
@@ -241,6 +243,12 @@ class Transaction:
             return await cursor.executemany(sql, args_array)
 
 
+class CallError(Exception):
+    def __init__(self, rv):
+        super().__init__(rv)
+        self.rv = rv
+
+
 class Database:
     def __init__(self):
         self.pool = None
@@ -257,23 +265,23 @@ class Database:
             await tx.just_execute(sql, args)
 
     @retry_transient_mysql_errors
-    async def execute_and_fetchone(self, sql, args=None):
+    async def execute_and_fetchone(self, sql, args=None, query_name=None):
         async with self.start() as tx:
-            return await tx.execute_and_fetchone(sql, args)
+            return await tx.execute_and_fetchone(sql, args, query_name)
 
     @retry_transient_mysql_errors
-    async def select_and_fetchone(self, sql, args=None):
+    async def select_and_fetchone(self, sql, args=None, query_name=None):
         async with self.start(read_only=True) as tx:
-            return await tx.execute_and_fetchone(sql, args)
+            return await tx.execute_and_fetchone(sql, args, query_name)
 
-    async def execute_and_fetchall(self, sql, args=None, timer_description=None):
+    async def execute_and_fetchall(self, sql, args=None, query_name=None):
         async with self.start() as tx:
-            async for row in tx.execute_and_fetchall(sql, args, timer_description):
+            async for row in tx.execute_and_fetchall(sql, args, query_name):
                 yield row
 
-    async def select_and_fetchall(self, sql, args=None, timer_description=None):
+    async def select_and_fetchall(self, sql, args=None, query_name=None):
         async with self.start(read_only=True) as tx:
-            async for row in tx.execute_and_fetchall(sql, args, timer_description):
+            async for row in tx.execute_and_fetchall(sql, args, query_name):
                 yield row
 
     @retry_transient_mysql_errors
@@ -290,6 +298,13 @@ class Database:
     async def execute_many(self, sql, args_array):
         async with self.start() as tx:
             return await tx.execute_many(sql, args_array)
+
+    @retry_transient_mysql_errors
+    async def check_call_procedure(self, sql, args=None, query_name=None):
+        rv = await self.execute_and_fetchone(sql, args, query_name)
+        if rv['rc'] != 0:
+            raise CallError(rv)
+        return rv
 
     async def async_close(self):
         self.pool.close()

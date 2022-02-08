@@ -121,7 +121,7 @@ class ApproxCDFAggregator extends StagedAggregator {
     k.toI(cb)
       .consume(cb,
         cb += Code._fatal[Unit]("approx_cdf: 'k' may not be missing"),
-        pv => state.init(cb, pv.asInt.intCode(cb)))
+        pv => state.init(cb, pv.asInt.value))
   }
 
   protected def _seqOp(cb: EmitCodeBuilder, state: State, seq: Array[EmitCode]): Unit = {
@@ -129,7 +129,7 @@ class ApproxCDFAggregator extends StagedAggregator {
     x.toI(cb)
       .consume(cb,
         {},
-        pv => state.seq(cb, pv.asDouble.doubleCode(cb))
+        pv => state.seq(cb, pv.asDouble.value)
       )
   }
 

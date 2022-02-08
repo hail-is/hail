@@ -327,7 +327,7 @@ class Batch:
                  last_known_status: bool = None,
                  submission_info: Optional[BatchSubmissionInfo] = None):
         self._client = client
-        self.id = id
+        self.id: int = id
         self.attributes = attributes
         self.n_jobs = n_jobs
         self.token = token
@@ -408,9 +408,11 @@ class Batch:
 
     async def debug_info(self):
         batch_status = await self.status()
-        jobs = [
-            {'status': j, 'log': await self.get_job_log(j['job_id'])}
-            async for j in self.jobs()]
+        jobs = []
+        async for j_status in self.jobs():
+            id = j_status['job_id']
+            log, job = await asyncio.gather(self.get_job_log(id), self.get_job(id))
+            jobs.append({'log': log, 'status': job._status})
         return {'status': batch_status, 'jobs': jobs}
 
     async def delete(self):
@@ -447,8 +449,8 @@ class BatchBuilder:
                    input_files: Optional[List[Tuple[str, str]]] = None,
                    output_files: Optional[List[Tuple[str, str]]] = None,
                    always_run: bool = False,
-                   timeout=None,
-                   gcsfuse=None,
+                   timeout: Optional[Union[int, float]] = None,
+                   cloudfuse: Optional[List[Tuple[str, str, bool]]] = None,
                    requester_pays_project: Optional[str] = None,
                    mount_tokens: bool = False,
                    network: Optional[str] = None,
@@ -518,9 +520,9 @@ class BatchBuilder:
             job_spec['input_files'] = [{"from": src, "to": dst} for (src, dst) in input_files]
         if output_files:
             job_spec['output_files'] = [{"from": src, "to": dst} for (src, dst) in output_files]
-        if gcsfuse:
-            job_spec['gcsfuse'] = [{"bucket": bucket, "mount_path": mount_path, "read_only": read_only}
-                                   for (bucket, mount_path, read_only) in gcsfuse]
+        if cloudfuse:
+            job_spec['cloudfuse'] = [{"bucket": bucket, "mount_path": mount_path, "read_only": read_only}
+                                     for (bucket, mount_path, read_only) in cloudfuse]
         if requester_pays_project:
             job_spec['requester_pays_project'] = requester_pays_project
         if mount_tokens:

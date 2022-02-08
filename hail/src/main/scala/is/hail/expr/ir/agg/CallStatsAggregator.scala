@@ -120,7 +120,7 @@ class CallStatsAggregator extends StagedAggregator {
       .consume(cb,
         cb += Code._fatal[Unit]("call_stats: n_alleles may not be missing"),
         { sc =>
-          cb.assign(n, sc.asInt.intCode(cb))
+          cb.assign(n, sc.asInt.value)
           cb.assign(state.nAlleles, n)
           cb.assign(state.off, state.region.allocate(CallStatsState.stateType.alignment, CallStatsState.stateType.byteSize))
           cb.assign(addr, CallStatsState.callStatsInternalArrayType.allocate(state.region, n))

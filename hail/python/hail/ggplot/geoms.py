@@ -2,6 +2,7 @@ import abc
 
 from .aes import aes
 from .stats import StatCount, StatIdentity, StatBin, StatNone, StatFunction
+from .utils import bar_position_plotly_to_gg, linetype_plotly_to_gg
 
 
 class FigureAttribute(abc.ABC):
@@ -14,7 +15,7 @@ class Geom(FigureAttribute):
         self.aes = aes
 
     @abc.abstractmethod
-    def apply_to_fig(self, parent, agg_result, fig_so_far):
+    def apply_to_fig(self, parent, agg_result, fig_so_far, precomputed, num_groups):
         pass
 
     @abc.abstractmethod
@@ -23,36 +24,44 @@ class Geom(FigureAttribute):
 
 
 class GeomLineBasic(Geom):
+    aes_to_arg = {
+        "color": ("line_color", "black", True),
+        "size": ("marker_size", None, False),
+        "tooltip": ("hovertext", None, False),
+        "color_legend": ("name", None, True)
+    }
+
     def __init__(self, aes, color):
         super().__init__(aes)
         self.color = color
 
-    def apply_to_fig(self, parent, agg_result, fig_so_far):
+    def apply_to_fig(self, parent, agg_result, fig_so_far, precomputed, num_groups):
 
-        def plot_group(data, color):
+        def plot_group(df):
             scatter_args = {
-                "x": [element["x"] for element in data],
-                "y": [element["y"] for element in data],
+                "x": df.x,
+                "y": df.y,
                 "mode": "lines",
-                "line_color": color
-
             }
-            if "color_legend" in data[0]:
-                scatter_args["name"] = data[0]["color_legend"]
 
-            if "tooltip" in parent.aes or "tooltip" in self.aes:
-                scatter_args["hovertext"] = [element["tooltip"] for element in data]
+            for aes_name, (plotly_name, default, take_one) in self.aes_to_arg.items():
+                if hasattr(self, aes_name) and getattr(self, aes_name) is not None:
+                    scatter_args[plotly_name] = getattr(self, aes_name)
+                elif aes_name in df.columns:
+                    if take_one:
+                        scatter_args[plotly_name] = df[aes_name].iloc[0]
+                    else:
+                        scatter_args[plotly_name] = df[aes_name]
+                elif default is not None:
+                    scatter_args[plotly_name] = default
+
             fig_so_far.add_scatter(**scatter_args)
 
-        if self.color is not None:
-            plot_group(agg_result, self.color)
-        elif "color" in parent.aes or "color" in self.aes:
-            groups = set([element["group"] for element in agg_result])
-            for group in groups:
-                just_one_group = [element for element in agg_result if element["group"] == group]
-                plot_group(just_one_group, just_one_group[0]["color"])
-        else:
-            plot_group(agg_result, "black")
+        groups = set(agg_result["group"])
+        for group in groups:
+            rows_for_this_group = agg_result["group"] == group
+            just_one_group = agg_result[rows_for_this_group]
+            plot_group(just_one_group)
 
     @abc.abstractmethod
     def get_stat(self):
@@ -61,53 +70,61 @@ class GeomLineBasic(Geom):
 
 class GeomPoint(Geom):
 
-    def __init__(self, aes, color=None):
+    aes_to_arg = {
+        "color": ("marker_color", "black", False),
+        "size": ("marker_size", None, False),
+        "tooltip": ("hovertext", None, False),
+        "color_legend": ("name", None, True),
+        "alpha": ("marker_opacity", None, False)
+    }
+
+    def __init__(self, aes, color=None, size=None, alpha=None):
         super().__init__(aes)
         self.color = color
+        self.size = size
+        self.alpha = alpha
 
-    def apply_to_fig(self, parent, agg_result, fig_so_far):
-        def plot_group(data, color=None):
+    def apply_to_fig(self, parent, agg_result, fig_so_far, precomputed, num_groups):
+        def plot_group(df):
             scatter_args = {
-                "x": [element["x"] for element in data],
-                "y": [element["y"] for element in data],
+                "x": df.x,
+                "y": df.y,
                 "mode": "markers",
-                "marker_color": color if color is not None else [element["color"] for element in data]
             }
 
-            if "color_legend" in data[0]:
-                scatter_args["name"] = data[0]["color_legend"]
+            for aes_name, (plotly_name, default, take_one) in self.aes_to_arg.items():
+                if hasattr(self, aes_name) and getattr(self, aes_name) is not None:
+                    scatter_args[plotly_name] = getattr(self, aes_name)
+                elif aes_name in df.columns:
+                    if take_one:
+                        scatter_args[plotly_name] = df[aes_name].iloc[0]
+                    else:
+                        scatter_args[plotly_name] = df[aes_name]
+                elif default is not None:
+                    scatter_args[plotly_name] = default
 
-            if "size" in parent.aes or "size" in self.aes:
-                scatter_args["marker_size"] = [element["size"] for element in data]
-            if "tooltip" in parent.aes or "tooltip" in self.aes:
-                scatter_args["hovertext"] = [element["tooltip"] for element in data]
             fig_so_far.add_scatter(**scatter_args)
 
-        if self.color is not None:
-            plot_group(agg_result, self.color)
-        elif "color" in parent.aes or "color" in self.aes:
-            groups = set([element["group"] for element in agg_result])
-            for group in groups:
-                just_one_group = [element for element in agg_result if element["group"] == group]
-                plot_group(just_one_group)
-        else:
-            plot_group(agg_result, "black")
+        for group in range(num_groups):
+            rows_for_this_group = agg_result["group"] == group
+            just_one_group = agg_result[rows_for_this_group]
+            plot_group(just_one_group)
 
     def get_stat(self):
         return StatIdentity()
 
 
-def geom_point(mapping=aes(), *, color=None):
+def geom_point(mapping=aes(), *, color=None, size=None, alpha=None):
     """Create a scatter plot.
 
-    Supported aesthetics: ``x``, ``y``, ``color``, ``tooltip``
+    Supported aesthetics: ``x``, ``y``, ``color``, ``alpha``, ``tooltip``
 
     Returns
     -------
     :class:`FigureAttribute`
         The geom to be applied.
     """
-    return GeomPoint(mapping, color=color)
+    return GeomPoint(mapping, color=color, size=size, alpha=alpha)
 
 
 class GeomLine(GeomLineBasic):
@@ -116,14 +133,14 @@ class GeomLine(GeomLineBasic):
         super().__init__(aes, color)
         self.color = color
 
-    def apply_to_fig(self, parent, agg_result, fig_so_far):
-        super().apply_to_fig(parent, agg_result, fig_so_far)
+    def apply_to_fig(self, parent, agg_result, fig_so_far, precomputed, num_groups):
+        super().apply_to_fig(parent, agg_result, fig_so_far, precomputed, num_groups)
 
     def get_stat(self):
         return StatIdentity()
 
 
-def geom_line(mapping=aes(), *, color=None):
+def geom_line(mapping=aes(), *, color=None, size=None, alpha=None):
     """Create a line plot.
 
     Supported aesthetics: ``x``, ``y``, ``color``, ``tooltip``
@@ -137,46 +154,53 @@ def geom_line(mapping=aes(), *, color=None):
 
 
 class GeomText(Geom):
+    aes_to_arg = {
+        "color": ("textfont_color", "black", False),
+        "size": ("marker_size", None, False),
+        "tooltip": ("hovertext", None, False),
+        "color_legend": ("name", None, True),
+        "alpha": ("marker_opacity", None, False)
+    }
 
-    def __init__(self, aes, color=None):
+    def __init__(self, aes, color=None, size=None, alpha=None):
         super().__init__(aes)
         self.color = color
+        self.size = size
+        self.alpha = alpha
 
-    def apply_to_fig(self, parent, agg_result, fig_so_far):
-        def plot_group(data, color=None):
+    def apply_to_fig(self, parent, agg_result, fig_so_far, precomputed, num_groups):
+        def plot_group(df, color=None):
             scatter_args = {
-                "x": [element["x"] for element in data],
-                "y": [element["y"] for element in data],
-                "text": [element["label"] for element in data],
+                "x": df.x,
+                "y": df.y,
+                "text": df.label,
                 "mode": "text",
                 "textfont_color": color
             }
 
-            if "color_legend" in data[0]:
-                scatter_args["name"] = data[0]["color_legend"]
+            for aes_name, (plotly_name, default, take_one) in self.aes_to_arg.items():
+                if hasattr(self, aes_name) and getattr(self, aes_name) is not None:
+                    scatter_args[plotly_name] = getattr(self, aes_name)
+                elif aes_name in df.columns:
+                    if take_one:
+                        scatter_args[plotly_name] = df[aes_name].iloc[0]
+                    else:
+                        scatter_args[plotly_name] = df[aes_name]
+                elif default is not None:
+                    scatter_args[plotly_name] = default
 
-            if "tooltip" in parent.aes or "tooltip" in self.aes:
-                scatter_args["hovertext"] = [element["tooltip"] for element in data]
-
-            if "size" in parent.aes or "size" in self.aes:
-                scatter_args["marker_size"] = [element["size"] for element in data]
             fig_so_far.add_scatter(**scatter_args)
 
-        if self.color is not None:
-            plot_group(agg_result, self.color)
-        elif "color" in parent.aes or "color" in self.aes:
-            groups = set([element["group"] for element in agg_result])
-            for group in groups:
-                just_one_group = [element for element in agg_result if element["group"] == group]
-                plot_group(just_one_group, just_one_group[0]["color"])
-        else:
-            plot_group(agg_result, "black")
+        for group in range(num_groups):
+            rows_for_this_group = agg_result["group"] == group
+            just_one_group = agg_result[rows_for_this_group]
+            plot_group(just_one_group)
 
     def get_stat(self):
         return StatIdentity()
 
 
-def geom_text(mapping=aes(), *, color=None):
+def geom_text(mapping=aes(), *, color=None, size=None, alpha=None):
     """Create a scatter plot where each point is text from the ``text`` aesthetic.
 
     Supported aesthetics: ``x``, ``y``, ``label``, ``color``, ``tooltip``
@@ -186,63 +210,63 @@ def geom_text(mapping=aes(), *, color=None):
     :class:`FigureAttribute`
         The geom to be applied.
     """
-    return GeomText(mapping, color=color)
+    return GeomText(mapping, color=color, size=size, alpha=alpha)
 
 
 class GeomBar(Geom):
 
-    def __init__(self, aes, fill=None, color=None, position="stack", size=None, stat=None):
+    aes_to_arg = {
+        "fill": ("marker_color", "black", False),
+        "color": ("marker_line_color", None, True),
+        "tooltip": ("hovertext", None, False),
+        "fill_legend": ("name", None, True),
+        "alpha": ("marker_opacity", None, False)
+    }
+
+    def __init__(self, aes, fill=None, color=None, alpha=None, position="stack", size=None, stat=None):
         super().__init__(aes)
         self.fill = fill
         self.color = color
         self.position = position
         self.size = size
+        self.alpha = alpha
 
         if stat is None:
             stat = StatCount()
         self.stat = stat
 
-    def apply_to_fig(self, parent, agg_result, fig_so_far):
-        def plot_group(data):
-            if self.fill is None:
-                if "fill" in data[0]:
-                    fill = [element["fill"] for element in data]
-                else:
-                    fill = "black"
-            else:
-                fill = self.fill
-
+    def apply_to_fig(self, parent, agg_result, fig_so_far, precomputed, num_groups):
+        def plot_group(df):
             bar_args = {
-                "x": [element["x"] for element in data],
-                "y": [element["y"] for element in data],
-                "marker_color": fill
+                "x": df.x,
+                "y": df.y
             }
-            if "color_legend" in data[0]:
-                bar_args["name"] = data[0]["color_legend"]
 
-            if self.color is None and "color" in data[0]:
-                bar_args["marker_line_color"] = [element["color"] for element in data]
-            elif self.color is not None:
-                bar_args["marker_line_color"] = self.color
-
-            if self.size is not None:
-                bar_args["marker_line_width"] = self.size
+            for aes_name, (plotly_name, default, take_one) in self.aes_to_arg.items():
+                if hasattr(self, aes_name) and getattr(self, aes_name) is not None:
+                    bar_args[plotly_name] = getattr(self, aes_name)
+                elif aes_name in df.columns:
+                    if take_one:
+                        bar_args[plotly_name] = df[aes_name].iloc[0]
+                    else:
+                        bar_args[plotly_name] = df[aes_name]
+                elif default is not None:
+                    bar_args[plotly_name] = default
 
             fig_so_far.add_bar(**bar_args)
 
-        groups = set([element["group"] for element in agg_result])
-        for group in groups:
-            just_one_group = [element for element in agg_result if element["group"] == group]
+        for group in range(num_groups):
+            rows_for_this_group = agg_result["group"] == group
+            just_one_group = agg_result[rows_for_this_group]
             plot_group(just_one_group)
 
-        ggplot_to_plotly = {'dodge': 'group', 'stack': 'stack'}
-        fig_so_far.update_layout(barmode=ggplot_to_plotly[self.position])
+        fig_so_far.update_layout(barmode=bar_position_plotly_to_gg(self.position))
 
     def get_stat(self):
         return self.stat
 
 
-def geom_bar(mapping=aes(), *, fill=None, color=None, position="stack", size=None):
+def geom_bar(mapping=aes(), *, fill=None, color=None, alpha=None, position="stack", size=None):
     """Create a bar chart that counts occurrences of the various values of the ``x`` aesthetic.
 
     Supported aesthetics: ``x``, ``color``, ``fill``
@@ -253,10 +277,10 @@ def geom_bar(mapping=aes(), *, fill=None, color=None, position="stack", size=Non
         The geom to be applied.
     """
 
-    return GeomBar(mapping, fill=fill, color=color, position=position, size=size)
+    return GeomBar(mapping, fill=fill, color=color, alpha=alpha, position=position, size=size)
 
 
-def geom_col(mapping=aes(), *, fill=None, color=None, position="stack", size=None):
+def geom_col(mapping=aes(), *, fill=None, color=None, alpha=None, position="stack", size=None):
     """Create a bar chart that uses bar heights specified in y aesthetic.
 
     Supported aesthetics: ``x``, ``y``, ``color``, ``fill``
@@ -266,78 +290,88 @@ def geom_col(mapping=aes(), *, fill=None, color=None, position="stack", size=Non
     :class:`FigureAttribute`
         The geom to be applied.
     """
-    return GeomBar(mapping, stat=StatIdentity(), fill=fill, color=color, position=position, size=size)
+    return GeomBar(mapping, stat=StatIdentity(), fill=fill, color=color, alpha=alpha, position=position, size=size)
 
 
 class GeomHistogram(Geom):
 
-    def __init__(self, aes, min_bin=0, max_bin=100, bins=30, fill=None, color=None, position='stack', size=None):
+    aes_to_arg = {
+        "fill": ("marker_color", "black", False),
+        "color": ("marker_line_color", None, True),
+        "tooltip": ("hovertext", None, False),
+        "fill_legend": ("name", None, True),
+        "alpha": ("marker_opacity", None, False)
+    }
+
+    def __init__(self, aes, min_val=None, max_val=None, bins=None, fill=None, color=None, alpha=None, position='stack', size=None):
         super().__init__(aes)
-        self.min_bin = min_bin
-        self.max_bin = max_bin
+        self.min_val = min_val
+        self.max_val = max_val
         self.bins = bins
         self.fill = fill
         self.color = color
+        self.alpha = alpha
         self.position = position
         self.size = size
 
-    def apply_to_fig(self, parent, agg_result, fig_so_far):
-        bin_width = (self.max_bin - self.min_bin) / self.bins
+    def apply_to_fig(self, parent, agg_result, fig_so_far, precomputed, num_groups):
+        min_val = self.min_val if self.min_val is not None else precomputed.min_val
+        max_val = self.max_val if self.max_val is not None else precomputed.max_val
+        # This assumes it doesn't really make sense to use another stat for geom_histogram
+        bins = self.bins if self.bins is not None else self.get_stat().DEFAULT_BINS
+        bin_width = (max_val - min_val) / bins
 
-        def plot_group(data, num_groups):
-            x = []
+        def plot_group(df, num_groups):
+            left_xs = df.x
 
-            for element in data:
-                left_x = element.x
-                if self.position == "dodge":
-                    group = element.group
-                    center_x = left_x + bin_width * (2 * group + 1) / (2 * num_groups)
+            if self.position == "dodge":
+                x = left_xs + bin_width * (2 * df.group + 1) / (2 * num_groups)
+                bar_width = bin_width / num_groups
 
-                elif self.position == "stack":
-                    center_x = left_x + bin_width / 2
-
-                x.append(center_x)
-
-            if self.fill is None:
-                if "fill" in data[0]:
-                    fill = [element["fill"] for element in data]
-                else:
-                    fill = "black"
+            elif self.position in {"stack", "identity"}:
+                x = left_xs + bin_width / 2
+                bar_width = bin_width
             else:
-                fill = self.fill
+                raise ValueError(f"Histogram does not support position = {self.position}")
 
-            hist_args = {
+            right_xs = left_xs + bin_width
+
+            bar_args = {
                 "x": x,
-                "y": [element["y"] for element in data],
-                "marker_color": fill
+                "y": df.y,
+                "customdata": list(zip(left_xs, right_xs)),
+                "width": bar_width,
+                "hovertemplate":
+                    "Range: [%{customdata[0]:.3f}-%{customdata[1]:.3f})<br>"
+                    "Count: %{y}<br>"
+                    "<extra></extra>",
             }
 
-            if self.color is None and "color" in data[0]:
-                hist_args["marker_line_color"] = [element["color"] for element in data]
-            elif self.color is not None:
-                hist_args["marker_line_color"] = self.color
+            for aes_name, (plotly_name, default, take_one) in self.aes_to_arg.items():
+                if hasattr(self, aes_name) and getattr(self, aes_name) is not None:
+                    bar_args[plotly_name] = getattr(self, aes_name)
+                elif aes_name in df.columns:
+                    if take_one:
+                        bar_args[plotly_name] = df[aes_name].iloc[0]
+                    else:
+                        bar_args[plotly_name] = df[aes_name]
+                elif default is not None:
+                    bar_args[plotly_name] = default
 
-            if self.size is not None:
-                hist_args["marker_line_width"] = self.size
+            fig_so_far.add_bar(**bar_args)
 
-            width = bin_width if self.position == 'stack' else bin_width / num_groups
-            hist_args["width"] = [width] * len(data)
+        for group in range(num_groups):
+            rows_for_this_group = agg_result["group"] == group
+            just_one_group = agg_result[rows_for_this_group]
+            plot_group(just_one_group, num_groups)
 
-            fig_so_far.add_bar(**hist_args)
-
-        groups = set([element["group"] for element in agg_result])
-        for group in groups:
-            just_one_group = [element for element in agg_result if element["group"] == group]
-            plot_group(just_one_group, len(groups))
-
-        ggplot_to_plotly = {'dodge': 'group', 'stack': 'stack'}
-        fig_so_far.update_layout(barmode=ggplot_to_plotly[self.position])
+        fig_so_far.update_layout(barmode=bar_position_plotly_to_gg(self.position))
 
     def get_stat(self):
-        return StatBin(self.min_bin, self.max_bin, self.bins)
+        return StatBin(self.min_val, self.max_val, self.bins)
 
 
-def geom_histogram(mapping=aes(), *, min_val=None, max_val=None, bins=30, fill=None, color=None, position='stack',
+def geom_histogram(mapping=aes(), *, min_val=None, max_val=None, bins=None, fill=None, color=None, alpha=None, position='stack',
                    size=None):
     """Creates a histogram.
 
@@ -359,27 +393,17 @@ def geom_histogram(mapping=aes(), *, min_val=None, max_val=None, bins=30, fill=N
         A single fill color for all bars of histogram, overrides ``fill`` aesthetic.
     color:
         A single outline color for all bars of histogram, overrides ``color`` aesthetic.
+    alpha: `float`
+        A measure of transparency between 0 and 1.
     position: :class:`str`
         Tells how to deal with different groups of data at same point. Options are "stack" and "dodge".
-    size
 
     Returns
     -------
     :class:`FigureAttribute`
         The geom to be applied.
     """
-    assert min_val is not None
-    assert max_val is not None
-    return GeomHistogram(mapping, min_val, max_val, bins, fill, color, position, size)
-
-
-linetype_dict = {
-    "solid": "solid",
-    "dashed": "dash",
-    "dotted": "dot",
-    "longdash": "longdash",
-    "dotdash": "dashdot"
-}
+    return GeomHistogram(mapping, min_val=min_val, max_val=max_val, bins=bins, fill=fill, color=color, alpha=alpha, position=position, size=size)
 
 
 class GeomHLine(Geom):
@@ -390,10 +414,10 @@ class GeomHLine(Geom):
         self.linetype = linetype
         self.color = color
 
-    def apply_to_fig(self, parent, agg_result, fig_so_far):
+    def apply_to_fig(self, parent, agg_result, fig_so_far, precomputed, num_groups):
         line_attributes = {
             "y": self.yintercept,
-            "line_dash": linetype_dict[self.linetype]
+            "line_dash": linetype_plotly_to_gg(self.linetype)
         }
         if self.color is not None:
             line_attributes["line_color"] = self.color
@@ -433,10 +457,10 @@ class GeomVLine(Geom):
         self.linetype = linetype
         self.color = color
 
-    def apply_to_fig(self, parent, agg_result, fig_so_far):
+    def apply_to_fig(self, parent, agg_result, fig_so_far, precomputed, num_groups):
         line_attributes = {
             "x": self.xintercept,
-            "line_dash": linetype_dict[self.linetype]
+            "line_dash": linetype_plotly_to_gg(self.linetype)
         }
         if self.color is not None:
             line_attributes["line_color"] = self.color
@@ -473,9 +497,10 @@ class GeomTile(Geom):
     def __init__(self, aes):
         self.aes = aes
 
-    def apply_to_fig(self, parent, agg_result, fig_so_far):
-        def plot_group(data):
-            for idx, row in enumerate(data):
+    def apply_to_fig(self, parent, agg_result, fig_so_far, precomputed, num_groups):
+        def plot_group(df):
+
+            for idx, row in df.iterrows():
                 x_center = row['x']
                 y_center = row['y']
                 width = row['width']
@@ -493,9 +518,9 @@ class GeomTile(Geom):
                     shape_args["line_color"] = row["color"]
                 fig_so_far.add_shape(**shape_args)
 
-        groups = set([element["group"] for element in agg_result])
-        for group in groups:
-            just_one_group = [element for element in agg_result if element["group"] == group]
+        for group in range(num_groups):
+            rows_for_this_group = agg_result["group"] == group
+            just_one_group = agg_result[rows_for_this_group]
             plot_group(just_one_group)
 
     def get_stat(self):
@@ -511,8 +536,8 @@ class GeomFunction(GeomLineBasic):
         super().__init__(aes, color)
         self.fun = fun
 
-    def apply_to_fig(self, parent, agg_result, fig_so_far):
-        super().apply_to_fig(parent, agg_result, fig_so_far)
+    def apply_to_fig(self, parent, agg_result, fig_so_far, precomputed, num_groups):
+        super().apply_to_fig(parent, agg_result, fig_so_far, precomputed, num_groups)
 
     def get_stat(self):
         return StatFunction(self.fun)

@@ -47,10 +47,8 @@ class SInt32Value(val value: Value[Int]) extends SPrimitiveValue {
 
   override def _primitiveValue: Value[_] = value
 
-  def intCode(cb: EmitCodeBuilder): Value[Int] = value
-
   override def hash(cb: EmitCodeBuilder): SInt32Value =
-    new SInt32Value(intCode(cb))
+    new SInt32Value(value)
 }
 
 object SInt32Settable {

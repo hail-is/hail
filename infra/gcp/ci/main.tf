@@ -30,6 +30,17 @@ resource "kubernetes_secret" "ci_config" {
   }
 }
 
+resource "kubernetes_secret" "zulip_config" {
+  count = fileexists("~/.hail/.zuliprc") ? 1 : 0
+  metadata {
+    name = "zulip-config"
+  }
+
+  data = {
+    ".zuliprc" = fileexists("~/.hail/.zuliprc") ? file("~/.hail/.zuliprc") : ""
+  }
+}
+
 resource "kubernetes_secret" "hail_ci_0_1_github_oauth_token" {
   metadata {
     name = "hail-ci-0-1-github-oauth-token"

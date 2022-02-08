@@ -131,6 +131,11 @@ class DictState(val kb: EmitClassBuilder[_], val keyVType: VirtualTypeWithReq, v
     keyed.initValue(cb, _elt, k, size * nStates)
   }
 
+  def loadNode(cb: EmitCodeBuilder, node: Code[Long]): Unit = {
+    cb.assign(_elt, node)
+    keyed.loadStates(cb)
+  }
+  
   def loadContainer(cb: EmitCodeBuilder, kec: EmitCode): Unit = {
     val kev = cb.memoize(kec, "ga_load_cont_k")
     cb.assign(_elt, tree.getOrElseInitialize(cb, kev))

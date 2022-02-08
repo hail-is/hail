@@ -39,6 +39,7 @@ image_str = str_type
 # image -> process/image
 # mount_docker_socket -> process/mount_docker_socket
 # pvc_size -> resources/storage
+# gcsfuse -> cloudfuse
 
 
 job_validator = keyed(
@@ -46,7 +47,7 @@ job_validator = keyed(
         'always_run': bool_type,
         'attributes': dictof(str_type),
         'env': listof(keyed({'name': str_type, 'value': str_type})),
-        'gcsfuse': listof(
+        'cloudfuse': listof(
             keyed(
                 {
                     required('bucket'): non_empty_str_type,
@@ -111,6 +112,7 @@ def validate_and_clean_jobs(jobs):
     for i, job in enumerate(jobs):
         handle_deprecated_job_keys(i, job)
         job_validator.validate(f"jobs[{i}]", job)
+        handle_job_backwards_compatibility(job)
 
 
 def handle_deprecated_job_keys(i, job):
@@ -170,6 +172,14 @@ def handle_deprecated_job_keys(i, job):
                 f"'mount_docker_socket' are also present. "
                 f"Please remove deprecated keys."
             )
+
+    if 'gcsfuse' in job:
+        job['cloudfuse'] = job.pop('gcsfuse')
+
+
+def handle_job_backwards_compatibility(job):
+    if 'cloudfuse' in job:
+        job['gcsfuse'] = job.pop('cloudfuse')
 
 
 def validate_batch(batch):

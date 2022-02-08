@@ -29,9 +29,8 @@ object IntervalFunctions extends RegistryFunctions {
             pt.constructFromCodes(cb, r,
               start,
               end,
-              cb.memoize(includesStart.asBoolean.boolCode(cb)),
-              cb.memoize(includesEnd.asBoolean.boolCode(cb))
-            )
+              includesStart.asBoolean.value,
+              includesEnd.asBoolean.value)
           }
         }
     }
@@ -130,7 +129,7 @@ object IntervalFunctions extends RegistryFunctions {
     registerSCode3("partitionIntervalEndpointGreaterThan", endpointT, tv("T"), TBoolean, TBoolean, (_, _, _, _) => SBoolean) {
       case (_, cb, _, leftPartitionEndpoint: SBaseStructValue, point: SBaseStructValue, containsStart: SBooleanValue, _) =>
         val left = leftPartitionEndpoint.loadField(cb, 0).get(cb).asBaseStruct
-        val leftLen = cb.newLocal[Int]("partitionInterval_leftlen", leftPartitionEndpoint.loadField(cb, 1).get(cb).asInt.intCode(cb))
+        val leftLen = leftPartitionEndpoint.loadField(cb, 1).get(cb).asInt.value
 
         val c = cb.newLocal[Int]("partitionInterval_c", 0)
         (0 until left.st.size).foreach { idx =>
@@ -144,7 +143,7 @@ object IntervalFunctions extends RegistryFunctions {
 
         val isContained = cb.newLocal[Boolean]("partitionInterval_b")
         cb.ifx(c.ceq(0),
-          cb.assign(isContained, containsStart.boolCode(cb)),
+          cb.assign(isContained, containsStart.value),
           cb.assign(isContained, c < 0))
 
         primitive(isContained)
@@ -153,7 +152,7 @@ object IntervalFunctions extends RegistryFunctions {
     registerSCode3("partitionIntervalEndpointLessThan", endpointT, tv("T"), TBoolean, TBoolean, (_, _, _, _) => SBoolean) {
       case (_, cb, _, rightPartitionEndpoint: SBaseStructValue, point: SBaseStructValue, containsEnd: SBooleanValue, _) =>
         val right = rightPartitionEndpoint.loadField(cb, 0).get(cb).asBaseStruct
-        val rightLen = cb.newLocal[Int]("partitionInterval_rightlen", rightPartitionEndpoint.loadField(cb, 1).get(cb).asInt.intCode(cb))
+        val rightLen = rightPartitionEndpoint.loadField(cb, 1).get(cb).asInt.value
 
         val c = cb.newLocal[Int]("partitionInterval_c", 0)
         (0 until right.st.size).foreach { idx =>
@@ -167,7 +166,7 @@ object IntervalFunctions extends RegistryFunctions {
 
         val isContained = cb.newLocal[Boolean]("partitionInterval_b")
         cb.ifx(c.ceq(0),
-          cb.assign(isContained, containsEnd.boolCode(cb)),
+          cb.assign(isContained, containsEnd.value),
           cb.assign(isContained, c > 0))
 
         primitive(isContained)
@@ -183,7 +182,7 @@ object IntervalFunctions extends RegistryFunctions {
         val leftTuple = interval.loadField(cb, "left").get(cb).asBaseStruct
 
         val left = leftTuple.loadField(cb, 0).get(cb).asBaseStruct
-        val leftLen = cb.newLocal[Int]("partitionInterval_leftlen", leftTuple.loadField(cb, 1).get(cb).asInt.intCode(cb))
+        val leftLen = leftTuple.loadField(cb, 1).get(cb).asInt.value
 
         (0 until left.st.size).foreach { idx =>
           cb.ifx(c.ceq(0) && const(idx) < leftLen, {
@@ -196,7 +195,7 @@ object IntervalFunctions extends RegistryFunctions {
 
         val isContained = cb.newLocal[Boolean]("partitionInterval_b")
         cb.ifx(c.ceq(0),
-          cb.assign(isContained, interval.loadField(cb, "includesLeft").get(cb).asBoolean.boolCode(cb)),
+          cb.assign(isContained, interval.loadField(cb, "includesLeft").get(cb).asBoolean.value),
           cb.assign(isContained, c < 0))
 
         cb.ifx(isContained, {
@@ -204,7 +203,7 @@ object IntervalFunctions extends RegistryFunctions {
           val rightTuple = interval.loadField(cb, "right").get(cb).asBaseStruct
 
           val right = rightTuple.loadField(cb, 0).get(cb).asBaseStruct
-          val rightLen = cb.newLocal[Int]("partitionInterval_leftlen", rightTuple.loadField(cb, 1).get(cb).asInt.intCode(cb))
+          val rightLen = rightTuple.loadField(cb, 1).get(cb).asInt.value
 
           cb.assign(c, 0)
           (0 until right.st.size).foreach { idx =>
@@ -217,7 +216,7 @@ object IntervalFunctions extends RegistryFunctions {
           }
 
           cb.ifx(c.ceq(0),
-            cb.assign(isContained, interval.loadField(cb, "includesRight").get(cb).asBoolean.boolCode(cb)),
+            cb.assign(isContained, interval.loadField(cb, "includesRight").get(cb).asBoolean.value),
             cb.assign(isContained, c > 0))
         })
 

@@ -262,13 +262,13 @@ abstract class RegistryFunctions {
     case _ => classInfo[AnyRef]
   }
 
-  def scodeToJavaValue(cb: EmitCodeBuilder, r: Value[Region], sc: SValue): Value[AnyRef] = {
+  def svalueToJavaValue(cb: EmitCodeBuilder, r: Value[Region], sc: SValue): Value[AnyRef] = {
     sc.st match {
-      case SInt32 => cb.memoize(Code.boxInt(sc.asInt32.intCode(cb)))
-      case SInt64 => cb.memoize(Code.boxLong(sc.asInt64.longCode(cb)))
-      case SFloat32 => cb.memoize(Code.boxFloat(sc.asFloat32.floatCode(cb)))
-      case SFloat64 => cb.memoize(Code.boxDouble(sc.asFloat64.doubleCode(cb)))
-      case SBoolean => cb.memoize(Code.boxBoolean(sc.asBoolean.boolCode(cb)))
+      case SInt32 => cb.memoize(Code.boxInt(sc.asInt32.value))
+      case SInt64 => cb.memoize(Code.boxLong(sc.asInt64.value))
+      case SFloat32 => cb.memoize(Code.boxFloat(sc.asFloat32.value))
+      case SFloat64 => cb.memoize(Code.boxDouble(sc.asFloat64.value))
+      case SBoolean => cb.memoize(Code.boxBoolean(sc.asBoolean.value))
       case _: SCall => cb.memoize(Code.boxInt(sc.asCall.canonicalCall(cb)))
       case _: SString => sc.asString.loadString(cb)
       case _: SLocus => sc.asLocus.getLocusObj(cb)
@@ -464,7 +464,7 @@ abstract class RegistryFunctions {
           }
           arr
       }
-      case _ => scodeToJavaValue(cb, r, code)
+      case _ => svalueToJavaValue(cb, r, code)
     }
 
     registerSCode(name, valueParameterTypes, returnType, calculateReturnType) { case (r, cb, _, rt, args, _) =>

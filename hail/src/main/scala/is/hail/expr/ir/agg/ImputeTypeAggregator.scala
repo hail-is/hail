@@ -66,7 +66,7 @@ object ImputeTypeState {
 }
 
 class ImputeTypeState(kb: EmitClassBuilder[_]) extends PrimitiveRVAState(Array(VirtualTypeWithReq(TInt32,RPrimitive()).setRequired(true)), kb) {
-  private def repr: Code[Int] = _repr.pv.asInt32.intCode(null) // hack, emitcodebuilder unused in this function
+  private def repr: Code[Int] = _repr.pv.asInt32.value
   private val _repr = fields(0)
 
   def getAnyNonMissing: Code[Boolean] = (repr & 1).cne(0)

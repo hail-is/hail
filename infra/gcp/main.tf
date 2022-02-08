@@ -45,6 +45,12 @@ variable "ci_config" {
   default = null
 }
 
+variable deploy_ukbb {
+  type = bool
+  description = "Run the UKBB Genetic Correlation browser"
+  default = false
+}
+
 locals {
   docker_prefix = (
     var.use_artifact_registry ?

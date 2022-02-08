@@ -15,7 +15,7 @@ case object EFloat64Required extends EFloat64(true)
 
 class EFloat64(override val required: Boolean) extends EType {
   override def _buildEncoder(cb: EmitCodeBuilder, v: SValue, out: Value[OutputBuffer]): Unit = {
-    cb += out.writeDouble(v.asDouble.doubleCode(cb))
+    cb += out.writeDouble(v.asDouble.value)
   }
 
   override def _buildDecoder(cb: EmitCodeBuilder, t: Type, region: Value[Region], in: Value[InputBuffer]): SValue = {
