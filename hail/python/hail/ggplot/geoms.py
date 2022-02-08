@@ -550,7 +550,7 @@ def geom_func(mapping=aes(), fun=None, color=None):
 class GeomArea(Geom):
     aes_to_arg = {
         "fill": ("fillcolor", "black", True),
-        "color": ("line_color", None, True),
+        "color": ("line_color", "rgba(0, 0, 0, 0)", True),
         "tooltip": ("hovertext", None, False),
         "fill_legend": ("name", None, True)
     }
@@ -596,16 +596,14 @@ def geom_area(mapping=aes(), fill=None, color=None):
 
     Supported aesthetics: ``x``, ``y``, ``fill``, ``color``, ``tooltip``
 
-        Parameters
+    Parameters
     ----------
     mapping: :class:`Aesthetic`
         Any aesthetics specific to this geom.
     fill:
-        A single fill color for all bars of histogram, overrides ``fill`` aesthetic.
+        Color of fill to draw, black by default. Overrides ``fill`` aesthetic.
     color:
-        A single outline color for all bars of histogram, overrides ``color`` aesthetic.
-    alpha: `float`
-        A measure of transparency between 0 and 1.
+        Color of line to draw outlining non x-axis facing side, none by default. Overrides ``color`` aesthetic.
 
     Returns
     -------
@@ -615,10 +613,10 @@ def geom_area(mapping=aes(), fill=None, color=None):
     return GeomArea(mapping, fill=fill, color=color)
 
 
-class GeomRibbon(aes, fill, color):
+class GeomRibbon(Geom):
     aes_to_arg = {
         "fill": ("fillcolor", "black", True),
-        "color": ("line_color", None, True),
+        "color": ("line_color", "rgba(0, 0, 0, 0)", True),
         "tooltip": ("hovertext", None, False),
         "fill_legend": ("name", None, True)
     }
@@ -645,16 +643,47 @@ class GeomRibbon(aes, fill, color):
             scatter_args_bottom = {
                 "x": df.x,
                 "y": df.y_min,
-                "mode": "lines"
+                "mode": "lines",
+                "showlegend": False
             }
             insert_into_scatter(scatter_args_bottom)
 
             scatter_args_top = {
                 "x": df.x,
                 "y": df.y_max,
+                "mode": "lines",
                 "fill": 'tonexty'
             }
             insert_into_scatter(scatter_args_top)
 
             fig_so_far.add_scatter(**scatter_args_bottom)
             fig_so_far.add_scatter(**scatter_args_top)
+
+        for group in range(num_groups):
+            rows_for_this_group = agg_result["group"] == group
+            just_one_group = agg_result[rows_for_this_group]
+            plot_group(just_one_group)
+
+    def get_stat(self):
+        return StatIdentity()
+
+
+def geom_ribbon(mapping=aes(), fill=None, color=None):
+    """Creates filled in area between two lines specified by x, y_min, and y_max
+
+    Supported aesthetics: ``x``, ``y_min``, ``y_max``, ``color``, ``fill``, ``tooltip``
+
+    Parameters
+    ----------
+    mapping: :class:`Aesthetic`
+        Any aesthetics specific to this geom.
+    fill:
+        Color of fill to draw, black by default. Overrides ``fill`` aesthetic.
+    color:
+        Color of line to draw outlining both side, none by default. Overrides ``color`` aesthetic.
+
+    :return:
+    :class:`FigureAttribute`
+        The geom to be applied.
+    """
+    return GeomRibbon(mapping, fill=fill, color=color)
