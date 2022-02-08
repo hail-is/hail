@@ -445,14 +445,12 @@ class ServiceBackend(Backend[bc.Batch]):
         gcs_kwargs = {'project': google_project}
         self.__fs: AsyncFS = RouterAsyncFS(default_scheme='file', gcs_kwargs=gcs_kwargs)
 
-        self._batch_client: Optional[BatchClient] = None
-
     @property
     def _fs(self):
         return self.__fs
 
     def _close(self):
-        if self._batch_client is not None:
+        if hasattr(self, '_batch_client'):
             self._batch_client.close()
         async_to_blocking(self._fs.close())
 
