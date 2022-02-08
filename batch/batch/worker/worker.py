@@ -2061,21 +2061,26 @@ class Worker:
         self.headers = None
         self.compute_client = None
 
-        self.jvm_initializer_task = asyncio.ensure_future(self._initialize_jvms())
-        self.jvms: List[JVM] = []
+        self._jvm_initializer_task = asyncio.ensure_future(self._initialize_jvms())
+        self._jvms: List[JVM] = []
 
     async def _initialize_jvms(self):
-        self.jvms = await asyncio.gather(*[JVM.create(i) for i in range(CORES)])
-        log.info(f'JVMs initialized {self.jvms}')
+        if instance_config.worker_type() in ('standard', 'D'):
+            self._jvms = await asyncio.gather(*[JVM.create(i) for i in range(CORES)])
+        log.info(f'JVMs initialized {self._jvms}')
 
     async def borrow_jvm(self) -> JVM:
-        await self.jvm_initializer_task
-        assert self.jvms
-        return self.jvms.pop()
+        if instance_config.worker_type() not in ('standard', 'D'):
+            raise ValueError(f'JVM jobs not allowed on {instance_config.worker_type()}')
+        await self._jvm_initializer_task
+        assert self._jvms
+        return self._jvms.pop()
 
     def return_jvm(self, jvm: JVM):
+        if instance_config.worker_type() not in ('standard', 'D'):
+            raise ValueError(f'JVM jobs not allowed on {instance_config.worker_type()}')
         jvm.reset()
-        self.jvms.append(jvm)
+        self._jvms.append(jvm)
 
     async def shutdown(self):
         log.info('Worker.shutdown')
