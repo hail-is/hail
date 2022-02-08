@@ -14,7 +14,7 @@ log = logging.getLogger('deploy_config')
 class DeployConfig:
     @staticmethod
     def from_config(config) -> 'DeployConfig':
-        return DeployConfig(config['location'], config['default_namespace'], config['domain'])
+        return DeployConfig(config['location'], config['default_namespace'], config.get('domain') or 'hail.is')
 
     def get_config(self) -> Dict[str, str]:
         return {
@@ -40,7 +40,7 @@ class DeployConfig:
             config = {
                 'location': 'external',
                 'default_namespace': 'default',
-                'domain': get_user_config().get('global', 'domain', fallback='hail.is'),
+                'domain': get_user_config().get('global', 'domain', fallback=None),
             }
         return DeployConfig.from_config(config)
 
