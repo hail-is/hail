@@ -2086,7 +2086,7 @@ steps:
     image:
       valueFrom: hail_pip_installed_image.image
     script: |
-      set -x
+      set -ex
 
       cd /io/repo
       make -C hail python/hail/hail_pip_version
@@ -2095,10 +2095,11 @@ steps:
       git remote add hail-is https://github.com/hail-is/hail.git
       git fetch hail-is
 
-      if git ls-remote --exit-code --tags origin $(cat /io/hail_pip_version)
+      export PIP_VERSION=$(cat hail/python/hail/hail_pip_version)
+
+      if git ls-remote --exit-code --tags origin $PIP_VERSION
       then
         # In this case, we want to get the docs from Google Storage.
-        export PIP_VERSION=$(cat hail/python/hail/hail_pip_version)
         python3 -m hailtop.aiotools.copy 'null' '[
         {"from": "gs://hail-common/website/'$PIP_VERSION'/www.tar.gz",
         "to": "www.tar.gz"}
