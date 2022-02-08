@@ -548,8 +548,7 @@ class EmitStreamSuite extends HailSuite {
       (lElts(1 -> "A", 2 -> "B", 3 -> "C", 4 -> "D"),
         rElts(('[', 0, null, ')') -> ".", ('(', 0, 1, ']') -> "a", ('[', 1, 4, ')') -> "b", ('[', 2, 4, ')') -> ".."),
         IndexedSeq(Row("A", "a"), Row("B", "b"), Row("C", "b"), Row("D", null)),
-        IndexedSeq(Row("A", "a"), Row("B", "b"), Row("C", "b"))),
-
+        IndexedSeq(Row("A", "a"), Row("B", "b"), Row("C", "b")))
     )
     for ((lstream, rstream, expectedLeft, expectedInner) <- tests) {
       val l = leftjoin(lstream, rstream)
