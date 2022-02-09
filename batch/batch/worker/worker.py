@@ -1665,7 +1665,7 @@ class JVMJob(Job):
 
                 log.info(f'{self}: running jvm process')
                 with self.step('running'):
-                    await self.jvm.execute(local_jar_location, self.scratch, self.user_command_string[1:])
+                    await self.jvm.execute(local_jar_location, self.scratch, self.user_command_string)
                 self.state = 'succeeded'
                 log.info(f'{self} main: {self.state}')
             except asyncio.CancelledError:

@@ -154,7 +154,7 @@ class ServiceBackend(
         "parent_ids" -> JArray(List()),
         "process" -> JObject(
           "command" -> JArray(List(
-            JInt,
+            JString(Main.WORKER),
             JString(revision),
             JString(jarLocation),
             JString(root),

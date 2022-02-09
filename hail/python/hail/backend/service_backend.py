@@ -118,8 +118,8 @@ class ServiceBackend(Backend):
     HAIL_BATCH_FAILURE_EXCEPTION_MESSAGE_RE = re.compile("is.hail.backend.service.HailBatchFailure: ([0-9]+)\n")
 
     # is.hail.backend.service.Main protocol
-    WORKER = 1
-    DRIVER = 2
+    WORKER = "worker"
+    DRIVER = "driver"
 
     # is.hail.backend.service.ServiceBackendSocketAPI2 protocol
     LOAD_REFERENCES_FROM_DATASET = 1
@@ -230,7 +230,7 @@ class ServiceBackend(Backend):
             bb = self.async_bc.create_batch(token=token, attributes=batch_attributes)
 
             j = bb.create_jvm_job([
-                'is.hail.backend.service.ServiceBackendSocketAPI2',
+                ServiceBackend.DRIVER,
                 os.environ['HAIL_SHA'],
                 os.environ['HAIL_JAR_URL'],
                 batch_attributes['name'],

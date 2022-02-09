@@ -1,8 +1,8 @@
 package is.hail.backend.service
 
 object Main {
-  val WORKER = 1
-  val DRIVER = 2
+  val WORKER = "worker"
+  val DRIVER = "driver"
 
   def main(argv: Array[String]): Unit = {
     argv(0) match {
