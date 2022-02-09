@@ -55,9 +55,9 @@ object Worker {
     if (argv.length != 5) {
       throw new IllegalArgumentException(s"expected five arguments, not: ${ argv.length }")
     }
-    val kind = argv(0)
+    val scratchDir = argv(0)
+    val kind = argv(1)
     assert(kind == Main.WORKER)
-    val scratchDir = argv(1)
     val revision = argv(2)
     val jarGCSPath = argv(3)
     val root = argv(4)

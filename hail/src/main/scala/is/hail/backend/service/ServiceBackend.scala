@@ -419,9 +419,9 @@ object ServiceBackendSocketAPI2 {
   def main(argv: Array[String]): Unit = {
     assert(argv.length == 6, argv.toFastIndexedSeq)
 
-    val kind = argv(0)
+    val scratchDir = argv(0)
+    val kind = argv(1)
     assert(kind == Main.DRIVER)
-    val scratchDir = argv(1)
     val revision = argv(2)
     val jarLocation = argv(3)
     val name = argv(4)
