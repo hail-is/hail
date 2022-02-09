@@ -403,7 +403,15 @@ object StreamJoin {
   }
 }
 
-final case class StreamJoinRightDistinct(left: IR, right: IR, lKey: IndexedSeq[String], rKey: IndexedSeq[String], l: String, r: String, joinF: IR, joinType: String) extends IR
+final case class StreamJoinRightDistinct(left: IR, right: IR, lKey: IndexedSeq[String], rKey: IndexedSeq[String], l: String, r: String, joinF: IR, joinType: String) extends IR {
+  def isIntervalJoin: Boolean = {
+    if (rKey.size != 1) return false
+    val lKeyTyp = coerce[TStruct](coerce[TStream](left.typ).elementType).fieldType(lKey(0))
+    val rKeyTyp = coerce[TStruct](coerce[TStream](right.typ).elementType).fieldType(rKey(0))
+
+    rKeyTyp.isInstanceOf[TInterval] && lKeyTyp != rKeyTyp
+  }
+}
 
 sealed trait NDArrayIR extends TypedIR[TNDArray] {
   def elementTyp: Type = typ.elementType
