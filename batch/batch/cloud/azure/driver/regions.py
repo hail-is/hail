@@ -12,9 +12,10 @@ class RegionMonitor(CloudLocationMonitor):
     def default_location(self) -> str:
         return self._default_region
 
-    def choose_location(self,
-                        worker_cores: int,  # pylint: disable=unused-argument
-                        local_ssd_data_disk: bool,  # pylint: disable=unused-argument
-                        data_disk_size_gb: int  # pylint: disable=unused-argument
-                        ) -> str:
+    def choose_location(
+        self,
+        worker_cores: int,  # pylint: disable=unused-argument
+        local_ssd_data_disk: bool,  # pylint: disable=unused-argument
+        data_disk_size_gb: int,  # pylint: disable=unused-argument
+    ) -> str:
         return self._default_region

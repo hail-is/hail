@@ -1,4 +1,4 @@
-from typing import Optional, Dict, Callable, Tuple, Awaitable, Any
+from typing import Optional, Dict, Callable, Tuple, Awaitable, Any, Union, MutableMapping
 import os
 import json
 import sys
@@ -16,11 +16,13 @@ import aiohttp.client_exceptions
 from aiohttp import web
 import async_timeout
 import concurrent
+
 import aiodocker  # type: ignore
-import docker as syncdocker
+import aiodocker.images
+from aiodocker.exceptions import DockerError  # type: ignore
+
 import aiorwlock
 from collections import defaultdict
-from aiodocker.exceptions import DockerError  # type: ignore
 
 from gear.clients import get_compute_client, get_cloud_async_fs
 
@@ -34,8 +36,6 @@ from hailtop.utils import (
     CalledProcessError,
     check_exec_output,
     check_shell_output,
-    is_google_registry_domain,
-    is_azure_registry_domain,
     find_spark_home,
     dump_all_stacktraces,
     parse_docker_image_reference,
@@ -43,7 +43,8 @@ from hailtop.utils import (
     periodically_call,
 )
 from hailtop.batch.hail_genetics_images import HAIL_GENETICS_IMAGES
-from hailtop.aiotools import RouterAsyncFS, LocalAsyncFS
+from hailtop.aiotools.router_fs import RouterAsyncFS
+from hailtop.aiotools import LocalAsyncFS
 from hailtop import aiotools, httpx
 
 # import uvloop
@@ -62,14 +63,17 @@ from ..globals import (
 from ..batch_format_version import BatchFormatVersion
 from ..publicly_available_images import publicly_available_images
 from ..utils import Box
-from ..worker.instance_env import CloudWorkerAPI
-from ..cloud.gcp.worker.instance_env import GCPWorkerAPI
-from ..cloud.azure.worker.instance_env import AzureWorkerAPI
+from ..worker.worker_api import CloudWorkerAPI
+from ..cloud.gcp.worker.worker_api import GCPWorkerAPI
+from ..cloud.azure.worker.worker_api import AzureWorkerAPI
 from ..cloud.resource_utils import storage_gib_to_bytes, is_valid_storage_request
 
 from .credentials import CloudUserCredentials
 
 # uvloop.install()
+
+with open('/subdomains.txt', 'r') as subdomains_file:
+    HAIL_SERVICES = [line.rstrip() for line in subdomains_file.readlines()]
 
 oldwarn = warnings.warn
 
@@ -83,6 +87,23 @@ def deeper_stack_level_warn(*args, **kwargs):
 
 
 warnings.warn = deeper_stack_level_warn
+
+
+def compose_auth_header_urlsafe(orig_f):
+    def compose(auth: Union[MutableMapping, str, bytes], registry_addr: str = None):
+        orig_auth_header = orig_f(auth, registry_addr=registry_addr)
+        auth = json.loads(base64.b64decode(orig_auth_header))
+        auth_json = json.dumps(auth).encode('ascii')
+        return base64.urlsafe_b64encode(auth_json).decode('ascii')
+
+    return compose
+
+
+# We patched aiodocker's utility function `compose_auth_header` because it does not base64 encode strings
+# in urlsafe mode which is required for Azure's credentials.
+# https://github.com/aio-libs/aiodocker/blob/17e08844461664244ea78ecd08d1672b1779acc1/aiodocker/utils.py#L297
+aiodocker.images.compose_auth_header = compose_auth_header_urlsafe(aiodocker.images.compose_auth_header)
+
 
 configure_logging()
 log = logging.getLogger('batch-worker')
@@ -133,10 +154,12 @@ instance_config = CLOUD_WORKER_API.instance_config_from_config_dict(INSTANCE_CON
 assert instance_config.cores == CORES
 assert instance_config.cloud == CLOUD
 
+
+N_SLOTS = 4 * CORES  # Jobs are allowed at minimum a quarter core
+
 deploy_config = DeployConfig('gce', NAMESPACE, {})
 
 docker: Optional[aiodocker.Docker] = None
-docker_sync: Optional[syncdocker.DockerClient] = None
 
 port_allocator: Optional['PortAllocator'] = None
 network_allocator: Optional['NetworkAllocator'] = None
@@ -192,7 +215,8 @@ class NetworkNamespace:
             hosts.write('127.0.0.1 localhost\n')
             hosts.write(f'{self.job_ip} {self.hostname}\n')
             if NAMESPACE == 'default':
-                hosts.write(f'{INTERNAL_GATEWAY_IP} batch.hail\n')
+                for service in HAIL_SERVICES:
+                    hosts.write(f'{INTERNAL_GATEWAY_IP} {service}.hail\n')
             hosts.write(f'{INTERNAL_GATEWAY_IP} internal.hail\n')
 
         # Jobs on the private network should have access to the metadata server
@@ -263,8 +287,8 @@ class NetworkAllocator:
         self.public_networks = asyncio.Queue()
         self.internet_interface = INTERNET_INTERFACE
 
-    async def reserve(self, netns_pool_min_size: int = 64):
-        for subnet_index in range(netns_pool_min_size):
+    async def reserve(self):
+        for subnet_index in range(N_SLOTS):
             public = NetworkNamespace(subnet_index, private=False, internet_interface=self.internet_interface)
             await public.init()
             self.public_networks.put_nowait(public)
@@ -319,11 +343,6 @@ def docker_call_retry(timeout, name):
     return wrapper
 
 
-async def pull_docker_image(pool: concurrent.futures.ThreadPoolExecutor, image_ref_str: str, auth: dict):
-    assert docker_sync
-    return await blocking_to_async(pool, docker_sync.images.pull, image_ref_str, auth_config=auth)
-
-
 async def send_signal_and_wait(proc, signal, timeout=None):
     try:
         if signal == 'SIGTERM':
@@ -350,27 +369,28 @@ class Timings:
         self.timings: Dict[str, Dict[str, float]] = dict()
         self.is_deleted = is_deleted
 
-    def step(self, name: str):
+    def step(self, name: str, ignore_job_deletion: bool = False):
         assert name not in self.timings
         self.timings[name] = dict()
-        return ContainerStepManager(self.timings[name], self.is_deleted)
+        return ContainerStepManager(self.timings[name], self.is_deleted, ignore_job_deletion=ignore_job_deletion)
 
     def to_dict(self):
         return self.timings
 
 
 class ContainerStepManager:
-    def __init__(self, timing: Dict[str, float], is_deleted: Callable[[], bool]):
+    def __init__(self, timing: Dict[str, float], is_deleted: Callable[[], bool], ignore_job_deletion: bool = False):
         self.timing: Dict[str, float] = timing
         self.is_deleted = is_deleted
+        self.ignore_job_deletion = ignore_job_deletion
 
     def __enter__(self):
-        if self.is_deleted():
+        if self.is_deleted() and not self.ignore_job_deletion:
             raise JobDeletedError()
         self.timing['start_time'] = time_msecs()
 
     def __exit__(self, exc_type, exc, tb):
-        if self.is_deleted():
+        if self.is_deleted() and not self.ignore_job_deletion:
             return
         finish_time = time_msecs()
         self.timing['finish_time'] = finish_time
@@ -461,20 +481,35 @@ class Container:
 
     async def run(self):
         try:
-            async def localize_rootfs():
-                async with image_lock.reader_lock:
-                    # FIXME Authentication is entangled with pulling images. We need a way to test
-                    # that a user has access to a cached image without pulling.
-                    await self.pull_image()
-                    self.image_config = image_configs[self.image_ref_str]
-                    self.image_id = self.image_config['Id'].split(":")[1]
-                    self.worker.image_data[self.image_id] += 1
 
-                    self.rootfs_path = f'/host/rootfs/{self.image_id}'
-                    async with self.worker.image_data[self.image_id].lock:
-                        if not os.path.exists(self.rootfs_path):
-                            await asyncio.shield(self.extract_rootfs())
-                            log.info(f'Added expanded image to cache: {self.image_ref_str}, ID: {self.image_id}')
+            async def localize_rootfs():
+                async def _localize_rootfs():
+                    async with image_lock.reader_lock:
+                        # FIXME Authentication is entangled with pulling images. We need a way to test
+                        # that a user has access to a cached image without pulling.
+                        await self.pull_image()
+                        self.image_config = image_configs[self.image_ref_str]
+                        self.image_id = self.image_config['Id'].split(":")[1]
+                        self.worker.image_data[self.image_id] += 1
+
+                        self.rootfs_path = f'/host/rootfs/{self.image_id}'
+
+                        image_data = self.worker.image_data[self.image_id]
+                        async with image_data.lock:
+                            if not image_data.extracted:
+                                try:
+                                    await self.extract_rootfs()
+                                    image_data.extracted = True
+                                    log.info(
+                                        f'Added expanded image to cache: {self.image_ref_str}, ID: {self.image_id}'
+                                    )
+                                except asyncio.CancelledError:
+                                    raise
+                                except Exception:
+                                    log.exception(f'while extracting image {self.image_ref_str}, ID: {self.image_id}')
+                                    await blocking_to_async(worker.pool, shutil.rmtree, self.rootfs_path)
+
+                await asyncio.shield(_localize_rootfs())
 
             with self.step('pulling'):
                 await self.run_until_done_or_deleted(localize_rootfs)
@@ -510,7 +545,7 @@ class Container:
             self.error = traceback.format_exc()
         finally:
             try:
-                with self.step('uploading_log'):
+                with self.step('uploading_log', ignore_job_deletion=True):
                     await self.upload_log()
             finally:
                 try:
@@ -540,12 +575,13 @@ class Container:
     def is_job_deleted(self) -> bool:
         return self.job.deleted
 
-    def step(self, name: str):
-        return self.timings.step(name)
+    def step(self, name: str, ignore_job_deletion: bool = False):
+        return self.timings.step(name, ignore_job_deletion=ignore_job_deletion)
 
     async def pull_image(self):
-        is_cloud_image = (is_google_registry_domain(self.image_ref.domain)
-                          or is_azure_registry_domain(self.image_ref.domain))
+        is_cloud_image = (CLOUD == 'gcp' and self.image_ref.hosted_in('google')) or (
+            CLOUD == 'azure' and self.image_ref.hosted_in('azure')
+        )
         is_public_image = self.image_ref.name() in PUBLIC_IMAGES
 
         try:
@@ -561,20 +597,13 @@ class Container:
                 # per-user image cache.
                 auth = self.current_user_access_token()
                 await docker_call_retry(MAX_DOCKER_IMAGE_PULL_SECS, f'{self}')(
-                    pull_docker_image, worker.pool, self.image_ref_str, auth=auth
+                    docker.images.pull, self.image_ref_str, auth=auth
                 )
         except DockerError as e:
             if e.status == 404 and 'pull access denied' in e.message:
                 self.short_error = 'image cannot be pulled'
             elif 'not found: manifest unknown' in e.message:
                 self.short_error = 'image not found'
-            raise
-        except syncdocker.errors.NotFound:  # pylint: disable=maybe-no-member
-            self.short_error = 'image not found'
-            raise
-        except syncdocker.errors.APIError as e:  # pylint: disable=maybe-no-member
-            if e.is_server_error() and 'unauthorized: authentication required' in str(e):
-                self.short_error = 'image cannot be pulled'
             raise
 
         image_config, _ = await check_exec_output('docker', 'inspect', self.image_ref_str)
@@ -586,7 +615,7 @@ class Container:
         except DockerError as e:
             if e.status == 404:
                 await docker_call_retry(MAX_DOCKER_IMAGE_PULL_SECS, f'{self}')(
-                    pull_docker_image, worker.pool, self.image_ref_str, auth=auth
+                    docker.images.pull, self.image_ref_str, auth=auth
                 )
             else:
                 raise
@@ -603,7 +632,6 @@ class Container:
         await check_shell(
             f'id=$(docker create {self.image_id}) && docker export $id | tar -C {self.rootfs_path} -xf - && docker rm $id'
         )
-        log.info(f'Extracted rootfs for image {self.image_ref_str}')
 
     async def setup_overlay(self):
         lower_dir = self.rootfs_path
@@ -996,37 +1024,6 @@ def populate_secret_host_path(host_path: str, secret_data: Optional[Dict[str, by
                 f.write(base64.b64decode(data))
 
 
-async def add_gcsfuse_bucket(mount_path, bucket, key_file, read_only):
-    assert CLOUD == 'gcp'
-    assert bucket
-    os.makedirs(mount_path)
-    options = ['allow_other']
-    if read_only:
-        options.append('ro')
-
-    delay = 0.1
-    error = 0
-    while True:
-        try:
-            return await check_shell(
-                f'''
-/usr/bin/gcsfuse \
-    -o {",".join(options)} \
-    --file-mode 770 \
-    --dir-mode 770 \
-    --implicit-dirs \
-    --key-file {key_file} \
-    {bucket} {mount_path}
-'''
-            )
-        except CalledProcessError:
-            error += 1
-            if error == 5:
-                raise
-
-        delay = await sleep_and_backoff(delay)
-
-
 def copy_container(
     job: 'Job',
     name: str,
@@ -1069,36 +1066,56 @@ class Job:
         Job.quota_project_id += 1
         return project_id
 
-    def secret_host_path(self, secret):
+    def secret_host_path(self, secret) -> str:
         return f'{self.scratch}/secrets/{secret["name"]}'
 
-    def io_host_path(self):
+    def io_host_path(self) -> str:
         return f'{self.scratch}/io'
 
-    def gcsfuse_path(self, bucket):
+    def cloudfuse_base_path(self):
         # Make sure this path isn't in self.scratch to avoid accidental bucket deletions!
-        return f'/gcsfuse/{self.token}/{bucket}'
+        path = f'/cloudfuse/{self.token}'
+        assert os.path.commonpath([path, self.scratch]) == '/'
+        return path
 
-    def credentials_host_dirname(self):
+    def cloudfuse_data_path(self, bucket: str) -> str:
+        # Make sure this path isn't in self.scratch to avoid accidental bucket deletions!
+        path = f'{self.cloudfuse_base_path()}/{bucket}/data'
+        assert os.path.commonpath([path, self.scratch]) == '/'
+        return path
+
+    def cloudfuse_tmp_path(self, bucket: str) -> str:
+        # Make sure this path isn't in self.scratch to avoid accidental bucket deletions!
+        path = f'{self.cloudfuse_base_path()}/{bucket}/tmp'
+        assert os.path.commonpath([path, self.scratch]) == '/'
+        return path
+
+    def cloudfuse_credentials_path(self, bucket: str) -> str:
+        return f'{self.scratch}/cloudfuse/{bucket}'
+
+    def credentials_host_dirname(self) -> str:
         return f'{self.scratch}/{self.credentials.secret_name}'
 
-    def credentials_host_file_path(self):
+    def credentials_host_file_path(self) -> str:
         return f'{self.credentials_host_dirname()}/{self.credentials.file_name}'
 
     @staticmethod
-    def create(batch_id,
-               user,
-               credentials: CloudUserCredentials,
-               job_spec: dict,
-               format_version: BatchFormatVersion,
-               task_manager: aiotools.BackgroundTaskManager,
-               pool: concurrent.futures.ThreadPoolExecutor,
-               client_session: httpx.ClientSession,
-               worker: 'Worker'
-               ) -> 'Job':
+    def create(
+        batch_id,
+        user,
+        credentials: CloudUserCredentials,
+        job_spec: dict,
+        format_version: BatchFormatVersion,
+        task_manager: aiotools.BackgroundTaskManager,
+        pool: concurrent.futures.ThreadPoolExecutor,
+        client_session: httpx.ClientSession,
+        worker: 'Worker',
+    ) -> 'Job':
         type = job_spec['process']['type']
         if type == 'docker':
-            return DockerJob(batch_id, user, credentials, job_spec, format_version, task_manager, pool, client_session, worker)
+            return DockerJob(
+                batch_id, user, credentials, job_spec, format_version, task_manager, pool, client_session, worker
+            )
         assert type == 'jvm'
         return JVMJob(batch_id, user, credentials, job_spec, format_version, task_manager, pool, worker)
 
@@ -1152,7 +1169,9 @@ class Job:
                 RESERVED_STORAGE_GB_PER_CORE, self.cpu_in_mcpu / 1000 * RESERVED_STORAGE_GB_PER_CORE
             )
 
-        self.resources = instance_config.resources(self.cpu_in_mcpu, self.memory_in_bytes, self.external_storage_in_gib)
+        self.resources = instance_config.quantified_resources(
+            self.cpu_in_mcpu, self.memory_in_bytes, self.external_storage_in_gib
+        )
 
         self.input_volume_mounts = []
         self.main_volume_mounts = []
@@ -1168,16 +1187,17 @@ class Job:
         self.main_volume_mounts.append(io_volume_mount)
         self.output_volume_mounts.append(io_volume_mount)
 
-        gcsfuse = job_spec.get('gcsfuse')
-        self.gcsfuse = gcsfuse
-        if gcsfuse:
-            assert CLOUD == 'gcp'
-            for b in gcsfuse:
-                b['mounted'] = False
+        cloudfuse = job_spec.get('cloudfuse') or job_spec.get('gcsfuse')
+        self.cloudfuse = cloudfuse
+        if cloudfuse:
+            for config in cloudfuse:
+                config['mounted'] = False
+                bucket = config['bucket']
+                assert bucket
                 self.main_volume_mounts.append(
                     {
-                        'source': self.gcsfuse_path(b["bucket"]),
-                        'destination': b['mount_path'],
+                        'source': f'{self.cloudfuse_data_path(bucket)}',
+                        'destination': config['mount_path'],
                         'type': 'none',
                         'options': ['rbind', 'rw', 'shared'],
                     }
@@ -1411,18 +1431,33 @@ class DockerJob(Job):
                         for secret in self.secrets:
                             populate_secret_host_path(self.secret_host_path(secret), secret['data'])
 
-                with self.step('adding gcsfuse bucket'):
-                    if self.gcsfuse:
-                        populate_secret_host_path(self.credentials_host_dirname(), self.credentials.secret_data)
-                        for b in self.gcsfuse:
-                            bucket = b['bucket']
-                            await add_gcsfuse_bucket(
-                                mount_path=self.gcsfuse_path(bucket),
-                                bucket=bucket,
-                                key_file=self.credentials_host_file_path(),
-                                read_only=b['read_only'],
+                with self.step('adding cloudfuse support'):
+                    if self.cloudfuse:
+                        os.makedirs(self.cloudfuse_base_path())
+
+                        await check_shell_output(
+                            f'xfs_quota -x -c "project -s -p {self.cloudfuse_base_path()} {self.project_id}" /host/'
+                        )
+
+                        for config in self.cloudfuse:
+                            bucket = config['bucket']
+                            assert bucket
+
+                            credentials = self.credentials.cloudfuse_credentials(config)
+                            credentials_path = CLOUD_WORKER_API.write_cloudfuse_credentials(
+                                self.scratch, credentials, bucket
                             )
-                            b['mounted'] = True
+
+                            os.makedirs(self.cloudfuse_data_path(bucket), exist_ok=True)
+                            os.makedirs(self.cloudfuse_tmp_path(bucket), exist_ok=True)
+
+                            await CLOUD_WORKER_API.mount_cloudfuse(
+                                credentials_path,
+                                self.cloudfuse_data_path(bucket),
+                                self.cloudfuse_tmp_path(bucket),
+                                config,
+                            )
+                            config['mounted'] = True
 
                 self.state = 'running'
 
@@ -1468,6 +1503,8 @@ class DockerJob(Job):
                         try:
                             await self.disk.delete()
                             log.info(f'deleted disk {self.disk.name} for {self.id}')
+                        except asyncio.CancelledError:
+                            raise
                         except Exception:
                             log.exception(f'while detaching and deleting disk {self.disk.name} for {self.id}')
                         finally:
@@ -1486,14 +1523,15 @@ class DockerJob(Job):
 
         log.info(f'{self}: cleaning up')
         try:
-            if self.gcsfuse:
-                for b in self.gcsfuse:
-                    if b['mounted']:
-                        bucket = b['bucket']
-                        mount_path = self.gcsfuse_path(bucket)
-                        await check_shell(f'fusermount -u {mount_path}')
-                        log.info(f'unmounted gcsfuse bucket {bucket} from {mount_path}')
-                        b['mounted'] = False
+            if self.cloudfuse:
+                for config in self.cloudfuse:
+                    if config['mounted']:
+                        bucket = config['bucket']
+                        assert bucket
+                        mount_path = self.cloudfuse_data_path(bucket)
+                        await CLOUD_WORKER_API.unmount_cloudfuse(mount_path)
+                        log.info(f'unmounted fuse blob storage {bucket} from {mount_path}')
+                        config['mounted'] = False
 
             await check_shell(f'xfs_quota -x -c "limit -p bsoft=0 bhard=0 {self.project_id}" /host')
 
@@ -1734,6 +1772,7 @@ class ImageData:
         self.time_created = time_msecs()
         self.last_accessed = time_msecs()
         self.lock = asyncio.Lock()
+        self.extracted = False
 
     def __add__(self, other):
         self.ref_count += other
@@ -1860,7 +1899,7 @@ class Worker:
             self.task_manager,
             self.pool,
             self.client_session,
-            self
+            self,
         )
 
         log.info(f'created {job}, adding to jobs')
@@ -2139,10 +2178,9 @@ class Worker:
 
 
 async def async_main():
-    global port_allocator, network_allocator, worker, docker, docker_sync
+    global port_allocator, network_allocator, worker, docker
 
     docker = aiodocker.Docker()
-    docker_sync = syncdocker.DockerClient()
 
     port_allocator = PortAllocator()
     network_allocator = NetworkAllocator()
@@ -2157,23 +2195,19 @@ async def async_main():
             log.info('worker shutdown')
         finally:
             try:
-                docker_sync.close()
-                log.info('sync docker closed')
+                await docker.close()
+                log.info('docker closed')
             finally:
-                try:
-                    await docker.close()
-                    log.info('docker closed')
-                finally:
-                    asyncio.get_event_loop().set_debug(True)
-                    log.debug('Tasks immediately after docker close')
-                    dump_all_stacktraces()
-                    other_tasks = [t for t in asyncio.all_tasks() if t != asyncio.current_task()]
-                    if other_tasks:
-                        _, pending = await asyncio.wait(other_tasks, timeout=10 * 60, return_when=asyncio.ALL_COMPLETED)
-                        for t in pending:
-                            log.debug('Dangling task:')
-                            t.print_stack()
-                            t.cancel()
+                asyncio.get_event_loop().set_debug(True)
+                log.debug('Tasks immediately after docker close')
+                dump_all_stacktraces()
+                other_tasks = [t for t in asyncio.all_tasks() if t != asyncio.current_task()]
+                if other_tasks:
+                    _, pending = await asyncio.wait(other_tasks, timeout=10 * 60, return_when=asyncio.ALL_COMPLETED)
+                    for t in pending:
+                        log.debug('Dangling task:')
+                        t.print_stack()
+                        t.cancel()
 
 
 loop = asyncio.get_event_loop()

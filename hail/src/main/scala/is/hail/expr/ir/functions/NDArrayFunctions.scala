@@ -9,8 +9,8 @@ import is.hail.types.coerce
 import is.hail.types.physical.stypes.EmitType
 import is.hail.types.physical.stypes.concrete.{SBaseStructPointer, SNDArrayPointer}
 import is.hail.types.physical.stypes.interfaces._
-import is.hail.types.physical.stypes.primitives.{SBooleanCode, SBooleanValue}
-import is.hail.types.physical.{PBooleanRequired, PCanonicalNDArray, PCanonicalStruct, PFloat64Required, PType}
+import is.hail.types.physical.stypes.primitives.SBooleanValue
+import is.hail.types.physical._
 import is.hail.types.virtual._
 
 object  NDArrayFunctions extends RegistryFunctions {
@@ -48,7 +48,7 @@ object  NDArrayFunctions extends RegistryFunctions {
       cb.ifx(ndCoefRow  cne ndDepRow, cb._fatalWithError(errorID,"hail.nd.solve_triangular: Solve dimensions incompatible"))
 
       val uplo = cb.newLocal[String]("dtrtrs_uplo")
-      cb.ifx(lower.boolCode(cb), cb.assign(uplo, const("L")), cb.assign(uplo, const("U")))
+      cb.ifx(lower.value, cb.assign(uplo, const("L")), cb.assign(uplo, const("U")))
 
       val infoDTRTRSResult = cb.newLocal[Int]("dtrtrs_result")
 

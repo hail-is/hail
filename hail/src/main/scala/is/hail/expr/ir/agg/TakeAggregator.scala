@@ -8,7 +8,7 @@ import is.hail.io.{BufferSpec, InputBuffer, OutputBuffer}
 import is.hail.types.VirtualTypeWithReq
 import is.hail.types.physical._
 import is.hail.types.physical.stypes.EmitType
-import is.hail.types.physical.stypes.concrete.{SIndexablePointer, SIndexablePointerCode, SIndexablePointerValue}
+import is.hail.types.physical.stypes.concrete.{SIndexablePointer, SIndexablePointerValue}
 import is.hail.types.virtual.{TInt32, Type}
 import is.hail.utils._
 
@@ -114,7 +114,7 @@ class TakeAggregator(typ: VirtualTypeWithReq) extends StagedAggregator {
     sizeTriplet.toI(cb)
       .consume(cb,
         cb += Code._fatal[Unit](s"argument 'n' for 'hl.agg.take' may not be missing"),
-        sc => state.init(cb, sc.asInt.intCode(cb))
+        sc => state.init(cb, sc.asInt.value)
       )
   }
 

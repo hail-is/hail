@@ -149,7 +149,7 @@ class BTreeBackedSet(ctx: ExecuteContext, region: Region, n: Int) {
         val ec = key.loadCompKey(cb, koff)
         cb.ifx(ec.m,
           cb += sab.addMissing(),
-          cb += sab.add(ec.pv.asInt64.longCode(cb)))
+          cb += sab.add(ec.pv.asInt64.value))
       }
       cb += (returnArray := Code.newArray[java.lang.Long](sab.size))
       cb += (idx := 0)
@@ -184,7 +184,7 @@ class BTreeBackedSet(ctx: ExecuteContext, region: Region, n: Int) {
         val ev = cb.memoize(key.loadCompKey(cb, off), "ev")
         cb += ob.writeBoolean(ev.m)
         cb.ifx(!ev.m, {
-          cb += ob.writeLong(ev.pv.asInt64.longCode(cb))
+          cb += ob.writeLong(ev.pv.asInt64.value)
         })
       }
       ob2.flush()

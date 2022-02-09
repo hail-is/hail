@@ -1334,9 +1334,9 @@ object PruneDeadFields {
         val seqOpEnv = unifyEnvsSeq((seqOpArgs, prunedSig.seqOpArgs).zipped.map { (arg, req) => memoizeValueIR(arg, req, memo) })
         BindingEnv(eval = initEnv.eval, scan = Some(seqOpEnv.eval))
       case AggFold(zero, seqOp, combOp, accumName, otherAccumName, isScan) =>
-        val initEnv = memoizeValueIR(zero, requestedType, memo)
-        val seqEnv = memoizeValueIR(seqOp, requestedType, memo)
-        val combEnv = memoizeValueIR(combOp, requestedType, memo)
+        val initEnv = memoizeValueIR(zero, zero.typ, memo)
+        val seqEnv = memoizeValueIR(seqOp, seqOp.typ, memo)
+        memoizeValueIR(combOp, combOp.typ, memo)
 
         if (isScan)
           BindingEnv(eval = initEnv.eval, scan = Some(seqEnv.eval.delete(accumName)))

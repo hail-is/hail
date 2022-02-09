@@ -5,7 +5,7 @@ import is.hail.asm4s._
 import is.hail.expr.ir.EmitCodeBuilder
 import is.hail.linalg.{BLAS, LAPACK}
 import is.hail.types.physical.stypes.concrete.{SNDArraySlice, SNDArraySliceValue}
-import is.hail.types.physical.stypes._
+import is.hail.types.physical.stypes.{EmitType, SSettable, SType, SValue}
 import is.hail.types.physical.{PCanonicalNDArray, PNDArray, PPrimitive, PType}
 import is.hail.types.{RNDArray, TypeWithRequiredness}
 import is.hail.utils.{FastIndexedSeq, toRichIterable, valueToRichCodeRegion}
@@ -267,7 +267,7 @@ object SNDArray {
   }
 
   def scale(cb: EmitCodeBuilder, alpha: SValue, X: SNDArrayValue): Unit =
-    scale(cb, alpha.asFloat64.doubleCode(cb), X)
+    scale(cb, alpha.asFloat64.value, X)
 
   def scale(cb: EmitCodeBuilder, alpha: Value[Double], X: SNDArrayValue): Unit = {
     val Seq(n) = X.shapes
@@ -692,8 +692,6 @@ final class SizeValueStatic(val v: Long) extends SizeValue {
 trait SNDArrayValue extends SValue {
   def st: SNDArray
 
-  override def get: SNDArrayCode
-
   def loadElement(indices: IndexedSeq[Value[Long]], cb: EmitCodeBuilder): SValue
 
   def loadElementAddress(indices: IndexedSeq[Value[Long]], cb: EmitCodeBuilder): Code[Long]
@@ -913,9 +911,3 @@ trait SNDArrayValue extends SValue {
 }
 
 trait SNDArraySettable extends SNDArrayValue with SSettable
-
-trait SNDArrayCode extends SCode {
-  def st: SNDArray
-
-  def memoize(cb: EmitCodeBuilder, name: String): SNDArrayValue
-}

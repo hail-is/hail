@@ -4,9 +4,8 @@ import is.hail.annotations.{Annotation, Region, UnsafeRow, UnsafeUtils}
 import is.hail.asm4s._
 import is.hail.expr.ir.{EmitCode, EmitCodeBuilder}
 import is.hail.types.BaseStruct
-import is.hail.types.physical.stypes.{SCode, SValue}
-import is.hail.types.physical.stypes.concrete.{SBaseStructPointer, SBaseStructPointerCode, SBaseStructPointerSettable, SBaseStructPointerValue}
-import is.hail.types.physical.stypes.interfaces.SBaseStruct
+import is.hail.types.physical.stypes.SValue
+import is.hail.types.physical.stypes.concrete.{SBaseStructPointer, SBaseStructPointerValue}
 import is.hail.utils._
 import org.apache.spark.sql.Row
 
@@ -61,8 +60,9 @@ abstract class PCanonicalBaseStruct(val types: Array[PType]) extends PBaseStruct
   override def setFieldMissing(cb: EmitCodeBuilder, offset: Code[Long], fieldIdx: Int): Unit = {
     if (!fieldRequired(fieldIdx))
       cb += Region.setBit(offset, missingIdx(fieldIdx).toLong)
-    else
-      cb._fatal(s"Required field cannot be missing")
+    else {
+      cb._fatal(s"Required field cannot be missing.")
+    }
   }
 
   override def setFieldPresent(offset: Long, fieldIdx: Int) {
@@ -152,10 +152,7 @@ abstract class PCanonicalBaseStruct(val types: Array[PType]) extends PBaseStruct
   override def sType: SBaseStructPointer = SBaseStructPointer(setRequired(false).asInstanceOf[PCanonicalBaseStruct])
 
   override def loadCheapSCode(cb: EmitCodeBuilder, addr: Code[Long]): SBaseStructPointerValue =
-    new SBaseStructPointerCode(sType, addr).memoize(cb, "loadCheapSCode")
-
-  override def loadCheapSCodeField(cb: EmitCodeBuilder, addr: Code[Long]): SBaseStructPointerValue =
-    new SBaseStructPointerCode(sType, addr).memoizeField(cb, "loadCheapSCodeField")
+    new SBaseStructPointerValue(sType, cb.memoize(addr))
 
   override def store(cb: EmitCodeBuilder, region: Value[Region], value: SValue, deepCopy: Boolean): Value[Long] = {
     value.st match {

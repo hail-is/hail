@@ -275,6 +275,8 @@ final case class ToDict(a: IR) extends IR
 final case class ToArray(a: IR) extends IR
 final case class CastToArray(a: IR) extends IR
 final case class ToStream(a: IR, requiresMemoryManagementPerElement: Boolean = false) extends IR
+final case class StreamBufferedAggregate(streamChild: IR, initAggs: IR, newKey: IR, seqOps: IR, name: String,
+  aggSignatures: IndexedSeq[PhysicalAggSig]) extends IR
 
 final case class LowerBoundOnOrderedCollection(orderedCollection: IR, elem: IR, onKey: Boolean) extends IR
 
@@ -302,7 +304,7 @@ final case class SeqSample(totalRange: IR, numToSample: IR, requiresMemoryManage
 
 // Take the child stream and sort each element into buckets based on the provided pivots. The first and last elements of
 // pivots are the endpoints of the first and last interval respectively, should not be contained in the dataset.
-final case class StreamDistribute(child: IR, pivots: IR, path: IR, spec: AbstractTypedCodecSpec) extends IR
+final case class StreamDistribute(child: IR, pivots: IR, path: IR, comparisonOp: ComparisonOp[_],spec: AbstractTypedCodecSpec) extends IR
 
 // Takes a stream of structs, with two designated fields: `prevWindow` is the previous window, if there is one,
 // and `newChunk` is the new chunk to whiten
@@ -491,6 +493,50 @@ final case class ApplyAggOp(initOpArgs: IndexedSeq[IR], seqOpArgs: IndexedSeq[IR
   def nInitArgs = initOpArgs.length
 
   def op: AggOp = aggSig.op
+}
+
+object AggFold {
+
+  def min(element: IR, sortFields: IndexedSeq[SortField]): IR = {
+    val elementType = element.typ.asInstanceOf[TStruct]
+    val keyType = elementType.select(sortFields.map(_.field))._1
+    minAndMaxHelper(element, keyType, StructLT(keyType, sortFields))
+  }
+
+  def max(element: IR, sortFields: IndexedSeq[SortField]): IR = {
+    val elementType = element.typ.asInstanceOf[TStruct]
+    val keyType = elementType.select(sortFields.map(_.field))._1
+    minAndMaxHelper(element, keyType, StructGT(keyType, sortFields))
+  }
+
+  def all(element: IR): IR = {
+    aggFoldIR(True(), element) { case (accum, element) =>
+      ApplySpecial("land", Seq.empty[Type], Seq(accum, element), TBoolean, ErrorIDs.NO_ERROR)
+    } { case (accum1, accum2) => ApplySpecial("land", Seq.empty[Type], Seq(accum1, accum2), TBoolean, ErrorIDs.NO_ERROR) }
+  }
+
+  private def minAndMaxHelper(element: IR, keyType: TStruct, comp: ComparisonOp[Boolean]): IR = {
+    val keyFields = keyType.fields.map(_.name)
+
+    val minAndMaxZero = NA(keyType)
+    val aggFoldMinAccumName1 = genUID()
+    val aggFoldMinAccumName2 = genUID()
+    val aggFoldMinAccumRef1 = Ref(aggFoldMinAccumName1, keyType)
+    val aggFoldMinAccumRef2 = Ref(aggFoldMinAccumName2, keyType)
+    val minSeq = bindIR(SelectFields(element, keyFields)) { keyOfCurElementRef =>
+      If(IsNA(aggFoldMinAccumRef1),
+        keyOfCurElementRef,
+        If(ApplyComparisonOp(comp, aggFoldMinAccumRef1, keyOfCurElementRef), aggFoldMinAccumRef1, keyOfCurElementRef)
+      )
+    }
+    val minComb =
+      If(IsNA(aggFoldMinAccumRef1),
+        aggFoldMinAccumRef2,
+        If (ApplyComparisonOp(comp, aggFoldMinAccumRef1, aggFoldMinAccumRef2), aggFoldMinAccumRef1, aggFoldMinAccumRef2)
+      )
+
+    AggFold(minAndMaxZero, minSeq, minComb, aggFoldMinAccumName1, aggFoldMinAccumName2, false)
+  }
 }
 
 final case class AggFold(zero: IR, seqOp: IR, combOp: IR, accumName: String, otherAccumName: String, isScan: Boolean) extends IR

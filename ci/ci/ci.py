@@ -23,11 +23,12 @@ from gear import (
     create_database_pool,
     monitor_endpoints_middleware,
 )
-from typing import Dict, Any, Optional, List
+from typing import Optional, List, Set, Callable
+from typing_extensions import TypedDict
 from web_common import setup_aiohttp_jinja2, setup_common_static_routes, render_template, set_message
 
 from .environment import STORAGE_URI
-from .github import Repo, FQBranch, WatchedBranch, UnwatchedBranch, MergeFailureBatch, PR, select_random_teammate
+from .github import Repo, FQBranch, WatchedBranch, UnwatchedBranch, MergeFailureBatch, PR, select_random_teammate, WIP
 from .constants import AUTHORIZED_USERS, TEAMS
 
 with open(os.environ.get('HAIL_CI_OAUTH_TOKEN', 'oauth-token/oauth-token'), 'r') as f:
@@ -40,15 +41,29 @@ uvloop.install()
 deploy_config = get_deploy_config()
 
 watched_branches: List[WatchedBranch] = [
-    WatchedBranch(index, FQBranch.from_short_str(bss), deployable)
-    for (index, [bss, deployable]) in enumerate(json.loads(os.environ.get('HAIL_WATCHED_BRANCHES', '[]')))
+    WatchedBranch(index, FQBranch.from_short_str(bss), deployable, mergeable)
+    for (index, [bss, deployable, mergeable]) in enumerate(json.loads(os.environ.get('HAIL_WATCHED_BRANCHES', '[]')))
 ]
 
 routes = web.RouteTableDef()
 
 
-async def pr_config(app, pr: PR) -> Dict[str, Any]:
-    batch_id = pr.batch.id if pr.batch and hasattr(pr.batch, 'id') else None
+class PRConfig(TypedDict):
+    number: int
+    title: str
+    batch_id: Optional[int]
+    build_state: Optional[str]
+    source_branch_name: str
+    review_state: Optional[str]
+    author: str
+    assignees: Set[str]
+    reviewers: Set[str]
+    labels: Set[str]
+    out_of_date: bool
+
+
+async def pr_config(app, pr: PR) -> PRConfig:
+    batch_id = pr.batch.id if pr.batch and isinstance(pr.batch, Batch) else None
     build_state = pr.build_state if await pr.authorized(app['dbpool']) else 'unauthorized'
     if build_state is None and batch_id is not None:
         build_state = 'building'
@@ -56,7 +71,7 @@ async def pr_config(app, pr: PR) -> Dict[str, Any]:
         'number': pr.number,
         'title': pr.title,
         # FIXME generate links to the merge log
-        'batch_id': pr.batch.id if pr.batch and hasattr(pr.batch, 'id') else None,
+        'batch_id': batch_id,
         'build_state': build_state,
         'source_branch_name': pr.source_branch.name,
         'review_state': pr.review_state,
@@ -68,7 +83,17 @@ async def pr_config(app, pr: PR) -> Dict[str, Any]:
     }
 
 
-async def watched_branch_config(app, wb: WatchedBranch, index: int) -> Dict[str, Optional[Any]]:
+class WatchedBranchConfig(TypedDict):
+    index: int
+    branch: str
+    sha: Optional[str]
+    deploy_batch_id: Optional[int]
+    deploy_state: Optional[str]
+    repo: str
+    prs: List[PRConfig]
+
+
+async def watched_branch_config(app, wb: WatchedBranch, index: int) -> WatchedBranchConfig:
     if wb.prs:
         pr_configs = [await pr_config(app, pr) for pr in wb.prs.values()]
     else:
@@ -79,7 +104,7 @@ async def watched_branch_config(app, wb: WatchedBranch, index: int) -> Dict[str,
         'branch': wb.branch.short_str(),
         'sha': wb.sha,
         # FIXME generate links to the merge log
-        'deploy_batch_id': wb.deploy_batch.id if wb.deploy_batch and hasattr(wb.deploy_batch, 'id') else None,
+        'deploy_batch_id': wb.deploy_batch.id if wb.deploy_batch and isinstance(wb.deploy_batch, Batch) else None,
         'deploy_state': wb.deploy_state,
         'repo': wb.branch.repo.short_str(),
         'prs': pr_configs,
@@ -120,7 +145,7 @@ async def get_pr(request, userdata):  # pylint: disable=unused-argument
     # FIXME
     batch = pr.batch
     if batch:
-        if hasattr(batch, 'id'):
+        if isinstance(batch, Batch):
             status = await batch.last_known_status()
             jobs = await collect_agen(batch.jobs())
             for j in jobs:
@@ -145,10 +170,11 @@ async def get_pr(request, userdata):  # pylint: disable=unused-argument
 
 
 def storage_uri_to_url(uri: str) -> str:
-    protocol = 'gs://'
-    assert uri.startswith(protocol)
-    path = uri[len(protocol) :]
-    return f'https://console.cloud.google.com/storage/browser/{path}'
+    if uri.startswith('gs://'):
+        protocol = 'gs://'
+        path = uri[len(protocol) :]
+        return f'https://console.cloud.google.com/storage/browser/{path}'
+    return uri
 
 
 async def retry_pr(wb, pr, request):
@@ -236,52 +262,51 @@ async def get_job(request, userdata):
     return await render_template('ci', request, userdata, 'job.html', page_context)
 
 
-def filter_wbs(wbs, pred):
+def filter_wbs(wbs: List[WatchedBranchConfig], pred: Callable[[PRConfig], bool]):
     return [{**wb, 'prs': [pr for pr in wb['prs'] if pred(pr)]} for wb in wbs]
 
 
-def is_pr_author(gh_username, pr_config):
+def is_pr_author(gh_username: str, pr_config: PRConfig) -> bool:
     return gh_username == pr_config['author']
 
 
-def is_pr_reviewer(gh_username, pr_config):
+def is_pr_reviewer(gh_username: str, pr_config: PRConfig) -> bool:
     return gh_username in pr_config['assignees'] or gh_username in pr_config['reviewers']
 
 
-def pr_requires_action(gh_username, pr_config):
+def pr_requires_action(gh_username: str, pr_config: PRConfig) -> bool:
     build_state = pr_config['build_state']
     review_state = pr_config['review_state']
     return (
-        is_pr_author(gh_username, pr_config) and (build_state == 'failure' or review_state == 'changes_requested')
+        is_pr_author(gh_username, pr_config)
+        and (build_state == 'failure' or review_state == 'changes_requested' or WIP in pr_config['labels'])
     ) or (is_pr_reviewer(gh_username, pr_config) and review_state == 'pending')
 
 
 @routes.get('/me')
 @web_authenticated_developers_only()
 async def get_user(request, userdata):
-    username = userdata['username']
-    gh_username = None
-    pr_wbs = []
-    review_wbs = []
-    actionable_wbs = []
-    for user in AUTHORIZED_USERS:
-        if user.hail_username == username:
-            gh_username = user.gh_username
-            wbs = [await watched_branch_config(request.app, wb, i) for i, wb in enumerate(watched_branches)]
-            pr_wbs = filter_wbs(wbs, lambda pr: is_pr_author(gh_username, pr))
-            review_wbs = filter_wbs(wbs, lambda pr: is_pr_reviewer(gh_username, pr))
-            actionable_wbs = filter_wbs(wbs, lambda pr: pr_requires_action(gh_username, pr))
+    for authorized_user in AUTHORIZED_USERS:
+        if authorized_user.hail_username == userdata['username']:
+            user = authorized_user
             break
+    else:
+        raise web.HTTPForbidden()
+
+    wbs = [await watched_branch_config(request.app, wb, i) for i, wb in enumerate(watched_branches)]
+    pr_wbs = filter_wbs(wbs, lambda pr: is_pr_author(user.gh_username, pr))
+    review_wbs = filter_wbs(wbs, lambda pr: is_pr_reviewer(user.gh_username, pr))
+    actionable_wbs = filter_wbs(wbs, lambda pr: pr_requires_action(user.gh_username, pr))
 
     batch_client = request.app['batch_client']
-    dev_deploys = batch_client.list_batches(f'user={username} dev_deploy=1', limit=10)
+    dev_deploys = batch_client.list_batches(f'user={user.hail_username} dev_deploy=1', limit=10)
     dev_deploys = sorted([b async for b in dev_deploys], key=lambda b: b.id, reverse=True)
 
     team_random_member = {team: select_random_teammate(team).gh_username for team in TEAMS}
 
     page_context = {
-        'username': username,
-        'gh_username': gh_username,
+        'username': user.hail_username,
+        'gh_username': user.gh_username,
         'pr_wbs': pr_wbs,
         'review_wbs': review_wbs,
         'actionable_wbs': actionable_wbs,
@@ -395,7 +420,7 @@ async def deploy_status(request, userdata):  # pylint: disable=unused-argument
         {
             'branch': wb.branch.short_str(),
             'sha': wb.sha,
-            'deploy_batch_id': wb.deploy_batch.id if wb.deploy_batch and hasattr(wb.deploy_batch, 'id') else None,
+            'deploy_batch_id': wb.deploy_batch.id if wb.deploy_batch and isinstance(wb.deploy_batch, Batch) else None,
             'deploy_state': wb.deploy_state,
             'repo': wb.branch.repo.short_str(),
             'failure_information': None
@@ -437,6 +462,7 @@ async def dev_deploy_branch(request, userdata):
         branch = FQBranch.from_short_str(params['branch'])
         steps = params['steps']
         excluded_steps = params['excluded_steps']
+        extra_config = params.get('extra_config', {})
     except asyncio.CancelledError:
         raise
     except Exception as e:
@@ -457,7 +483,7 @@ async def dev_deploy_branch(request, userdata):
         log.info('dev deploy failed: ' + message, exc_info=True)
         raise web.HTTPBadRequest(text=message) from e
 
-    unwatched_branch = UnwatchedBranch(branch, sha, userdata)
+    unwatched_branch = UnwatchedBranch(branch, sha, userdata, extra_config)
 
     batch_client = app['batch_client']
 

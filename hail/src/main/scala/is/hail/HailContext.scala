@@ -480,7 +480,11 @@ object HailFeatureFlags {
     ("log_service_timing", ("HAIL_DEV_LOG_SERVICE_TIMING" -> null)),
     ("cache_service_input", ("HAIL_DEV_CACHE_SERVICE_INPUT" -> null)),
     ("write_ir_files", ("HAIL_WRITE_IR_FILES" -> null)),
-    ("method_split_ir_limit", ("HAIL_DEV_METHOD_SPLIT_LIMIT" -> "16"))
+    ("method_split_ir_limit", ("HAIL_DEV_METHOD_SPLIT_LIMIT" -> "16")),
+    ("use_new_shuffle", ("HAIL_USE_NEW_SHUFFLE" -> null)),
+    ("shuffle_cutoff_to_local_sort", ("HAIL_SHUFFLE_CUTOFF" -> null)),
+    ("grouped_aggregate_buffer_size", ("HAIL_GROUPED_AGGREGATE_BUFFER_SIZE" -> "50")),
+    ("use_ssa_logs", "HAIL_USE_SSA_LOGS" -> null)
   )
 }
 

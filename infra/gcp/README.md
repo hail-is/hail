@@ -56,7 +56,9 @@ Instructions:
 - Create `$HOME/.hail/global.tfvars` that looks like:
 
    ```
-   gsuite_organization = "<gsuite-organization>"
+   # organization_domain is a string that is the domain of the organization
+   # E.g. "broadinstitute.org"
+   organization_domain = "<organization-domain>"
 
    # batch_gcp_regions is a JSON array of string, the names of the gcp
    # regions to schedule over in Batch. E.g. "[\"us-central1\"]"
@@ -147,13 +149,13 @@ You can now install Hail:
 - Create the batch worker VM image. Run:
 
   ```
-  make -C $HAIL/batch create-build-worker-image-instance
+  make -C $HAIL/batch gcp-create-build-worker-image-instance
   ```
 
   Wait for the `build-batch-worker-image` instance to be stopped. Then run:
 
   ```
-  make -C $HAIL/batch create-worker-image
+  make -C $HAIL/batch gcp-create-worker-image
   ```
 
 - Download the global-config to be used by `bootstrap.py`.

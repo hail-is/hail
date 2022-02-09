@@ -1816,8 +1816,6 @@ class VCFsReader(
   contigRecoding: Map[String, String],
   arrayElementsRequired: Boolean,
   skipInvalidLoci: Boolean,
-  gzAsBGZ: Boolean,
-  forceGZ: Boolean,
   filterAndReplace: TextInputFilterAndReplace,
   partitionsJSON: String, partitionsTypeStr: String,
   externalSampleIds: Option[Array[Array[String]]],
@@ -1825,7 +1823,6 @@ class VCFsReader(
 
   require(!(externalSampleIds.isEmpty ^ externalHeader.isEmpty))
 
-  private val backend = ctx.backend
   private val fs = ctx.fs
   private val fsBc = fs.broadcast
 
@@ -1849,7 +1846,6 @@ class VCFsReader(
 
   private val file1 = files.head
   private val headerLines1 = getHeaderLines(fs, externalHeader.getOrElse(file1), filterAndReplace)
-  private val headerLines1Bc = backend.broadcast(headerLines1)
   private val entryFloatType = LoadVCF.getEntryFloatType(entryFloatTypeName)
   private val header1 = parseHeader(callFields, entryFloatType, headerLines1, arrayElementsRequired = arrayElementsRequired)
 
@@ -1875,12 +1871,12 @@ class VCFsReader(
     val rangeBounds = JSONAnnotationImpex.importAnnotation(jv, partitionsType)
       .asInstanceOf[IndexedSeq[Interval]]
 
-    rangeBounds.zipWithIndex.foreach { case (b, i) =>
-      if (!(b.includesStart && b.includesEnd))
+    rangeBounds.foreach { bound =>
+      if (!(bound.includesStart && bound.includesEnd))
         fatal("range bounds must be inclusive")
 
-      val start = b.start.asInstanceOf[Row].getAs[Locus](0)
-      val end = b.end.asInstanceOf[Row].getAs[Locus](0)
+      val start = bound.start.asInstanceOf[Row].getAs[Locus](0)
+      val end = bound.end.asInstanceOf[Row].getAs[Locus](0)
       if (start.contig != end.contig)
         fatal(s"partition spec must not cross contig boundaries, start: ${start.contig} | end: ${end.contig}")
     }
@@ -1891,10 +1887,10 @@ class VCFsReader(
       rangeBounds)
   }
 
-  val partitions = partitioner.rangeBounds.zipWithIndex.map { case (b, i) =>
+  val partitions: Array[Partition] = partitioner.rangeBounds.zipWithIndex.map { case (b, i) =>
     val start = b.start.asInstanceOf[Row].getAs[Locus](0)
     val end = b.end.asInstanceOf[Row].getAs[Locus](0)
-    PartitionedVCFPartition(i, start.contig, start.position, end.position): Partition
+    PartitionedVCFPartition(i, start.contig, start.position, end.position)
   }
 
   private val fileInfo: Array[Array[String]] = externalSampleIds.getOrElse {

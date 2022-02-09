@@ -25,7 +25,7 @@ from .py4j_backend import Py4JBackend, handle_java_exception
 from ..hail_logging import Logger
 
 if pyspark.__version__ < '3' and sys.version_info > (3, 8):
-    raise EnvironmentError('Hail with spark {} requires Python 3.6 or 3.7, found {}.{}'.format(
+    raise EnvironmentError('Hail with spark {} requires Python 3.7, found {}.{}'.format(
         pyspark.__version__, sys.version_info.major, sys.version_info.minor))
 
 _installed = False
@@ -135,14 +135,20 @@ class SparkBackend(Py4JBackend):
 
             jars = [hail_jar_path]
 
-            if os.environ.get('HAIL_SPARK_MONITOR'):
+            if os.environ.get('HAIL_SPARK_MONITOR') or os.environ.get('AZURE_SPARK') == '1':
                 import sparkmonitor
                 jars.append(os.path.join(os.path.dirname(sparkmonitor.__file__), 'listener.jar'))
                 conf.set("spark.extraListeners", "sparkmonitor.listener.JupyterSparkMonitorListener")
 
             conf.set('spark.jars', ','.join(jars))
-            conf.set('spark.driver.extraClassPath', ','.join(jars))
-            conf.set('spark.executor.extraClassPath', './hail-all-spark.jar')
+            if os.environ.get('AZURE_SPARK') == '1':
+                print('AZURE_SPARK environment variable is set to "1", assuming you are in HDInsight.')
+                # Setting extraClassPath in HDInsight overrides the classpath entirely so you can't
+                # load the Scala standard library. Interestingly, setting extraClassPath is not
+                # necessary in HDInsight.
+            else:
+                conf.set('spark.driver.extraClassPath', ','.join(jars))
+                conf.set('spark.executor.extraClassPath', './hail-all-spark.jar')
             if sc is None:
                 pyspark.SparkContext._ensure_initialized(conf=conf)
             elif not quiet:
@@ -150,8 +156,8 @@ class SparkBackend(Py4JBackend):
                     'pip-installed Hail requires additional configuration options in Spark referring\n'
                     '  to the path to the Hail Python module directory HAIL_DIR,\n'
                     '  e.g. /path/to/python/site-packages/hail:\n'
-                    '    spark.jars=HAIL_DIR/hail-all-spark.jar\n'
-                    '    spark.driver.extraClassPath=HAIL_DIR/hail-all-spark.jar\n'
+                    '    spark.jars=HAIL_DIR/backend/hail-all-spark.jar\n'
+                    '    spark.driver.extraClassPath=HAIL_DIR/backend/hail-all-spark.jar\n'
                     '    spark.executor.extraClassPath=./hail-all-spark.jar')
         else:
             pyspark.SparkContext._ensure_initialized()
@@ -314,12 +320,6 @@ class SparkBackend(Py4JBackend):
             t = t.flatten()
         return pyspark.sql.DataFrame(self._jbackend.pyToDF(self._to_java_table_ir(t._tir)),
                                      Env.spark_session()._wrapped)
-
-    def to_pandas(self, t, flatten):
-        return self.to_spark(t, flatten).toPandas()
-
-    def from_pandas(self, df, key):
-        return Table.from_spark(Env.spark_session().createDataFrame(df), key)
 
     def add_reference(self, config):
         Env.hail().variant.ReferenceGenome.fromJSON(json.dumps(config))

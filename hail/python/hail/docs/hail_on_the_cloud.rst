@@ -14,4 +14,5 @@ an up-front capital investment in hardware.
 
         General Advice <cloud/general_advice.rst>
         Google Cloud <cloud/google_cloud.rst>
+        Microsoft Azure <cloud/azure.rst>
         Other Cloud Providers <cloud/other_cloud_providers.rst>

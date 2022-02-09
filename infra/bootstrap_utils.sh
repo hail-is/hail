@@ -1,21 +1,24 @@
 #!/bin/bash
 
-export HAIL="$HOME/hail"
+if [[ -z "$HAIL" ]]; then
+    echo 1>&2 "Path to local clone of hail repository must be set."
+    exit 1
+fi
 
-get_global_config_field() {
-    kubectl get secret global-config --template={{.data.$1}} | base64 --decode
-}
+source $HAIL/devbin/functions.sh
 
 render_config_mk() {
     DOCKER_PREFIX=$(get_global_config_field docker_prefix)
     INTERNAL_IP=$(get_global_config_field internal_ip)
     IP=$(get_global_config_field ip)
     DOMAIN=$(get_global_config_field domain)
+    CLOUD=$(get_global_config_field cloud)
     cat >$HAIL/config.mk <<EOF
 DOCKER_PREFIX := $DOCKER_PREFIX
 INTERNAL_IP := $INTERNAL_IP
 IP := $IP
 DOMAIN := $DOMAIN
+CLOUD := $CLOUD
 
 ifeq (\$(NAMESPACE),default)
 SCOPE = deploy
@@ -32,6 +35,8 @@ copy_images() {
     DOCKER_PREFIX=$(get_global_config_field docker_prefix)
     DOCKER_PREFIX=$DOCKER_PREFIX ./copy_images.sh
     cd -
+
+    make -C $HAIL/docker/python-dill push DOCKER_PREFIX=$DOCKER_PREFIX
 }
 
 generate_ssl_certs() {
@@ -94,10 +99,11 @@ bootstrap() {
     export HAIL_BUILDKIT_IMAGE=$DOCKER_PREFIX/hail-buildkit:cache
     export HAIL_DEFAULT_NAMESPACE=$(get_global_config_field default_namespace)
     export HAIL_CI_STORAGE_URI=dummy
+    export HAIL_CI_GITHUB_CONTEXT=dummy
     export PYTHONPATH=$HAIL/ci:$HAIL/batch:$HAIL/hail/python:$HAIL/gear
 
     if [ -n "$3" ] && [ -n "$4" ]; then
-        extra_code_config="--extra-code-config {\"username\":\"""$3""\",\"email\":\"""$4""\"}"
+        extra_code_config="--extra-code-config {\"username\":\"""$3""\",\"login_id\":\"""$4""\"}"
     else
         extra_code_config=""
     fi

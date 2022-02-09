@@ -9,17 +9,6 @@ class AzureResourcesClient(AzureBaseClient):
         session = session or AzureSession(**kwargs)
         super().__init__(f'https://management.azure.com/subscriptions/{subscription_id}', session=session)
 
-    async def _paged_get(self, path, **kwargs) -> AsyncGenerator[Any, None]:
-        page = await self.get(path, **kwargs)
-        for v in page.get('value', []):
-            yield v
-        next_link = page.get('nextLink')
-        while next_link is not None:
-            page = await self.get(url=next_link)
-            for v in page['value']:
-                yield v
-            next_link = page.get('nextLink')
-
     async def _list_resources(self, filter: Optional[str] = None) -> AsyncGenerator[Any, None]:
         # https://docs.microsoft.com/en-us/rest/api/resources/resources/list
         params = {

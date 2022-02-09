@@ -44,7 +44,7 @@ class PartitionIteratorLongReader(
     val mb = cb.emb
 
     context.toI(cb).map(cb) { contextPC =>
-      val ctxJavaValue = UtilFunctions.scodeToJavaValue(cb, partitionRegion, contextPC)
+      val ctxJavaValue = UtilFunctions.svalueToJavaValue(cb, partitionRegion, contextPC)
       val region = mb.genFieldThisRef[Region]("pilr_region")
       val it = mb.genFieldThisRef[Iterator[java.lang.Long]]("pilr_it")
       val rv = mb.genFieldThisRef[Long]("pilr_rv")

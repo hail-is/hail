@@ -66,7 +66,11 @@ final class RegionPool private(strictMemoryCheck: Boolean, threadName: String, t
     if (totalAllocatedBytes >= highestTotalUsage) {
       highestTotalUsage = totalAllocatedBytes
       if (totalAllocatedBytes > maxSize) {
-        closeAndThrow(s"Hail off-heap memory exceeded maximum threshold: limit ${ formatSpace(maxSize) }, allocated ${ formatSpace(totalAllocatedBytes) }")
+        val inBlocks = bytesInBlocks()
+        closeAndThrow(s"Hail off-heap memory exceeded maximum threshold: limit ${ formatSpace(maxSize) }, allocated ${ formatSpace(totalAllocatedBytes) }\n"
+          + s"Report: ${readableBytes(totalAllocatedBytes)} allocated (${readableBytes(inBlocks)} blocks / "
+          + s"${readableBytes(totalAllocatedBytes - inBlocks)} chunks), regions.size = ${regions.size}, "
+          + s"$numJavaObjects current java objects, thread $threadID: $threadName")
       }
     }
   }
@@ -126,6 +130,8 @@ final class RegionPool private(strictMemoryCheck: Boolean, threadName: String, t
 
   def numFreeBlocks(): Int = freeBlocks.map(_.size).sum
 
+  def bytesInBlocks(): Long = Region.SIZES.zip(blocks).map { case (size, block) => size * block }.sum[Long]
+
   def logStats(context: String): Unit = {
     val nFree = this.numFreeRegions()
     val nRegions = this.numRegions()
@@ -142,12 +148,7 @@ final class RegionPool private(strictMemoryCheck: Boolean, threadName: String, t
   }
 
   def report(context: String): Unit = {
-    var inBlocks = 0L
-    var i = 0
-    while (i < 4) {
-      inBlocks += blocks(i) * Region.SIZES(i)
-      i += 1
-    }
+    val inBlocks = bytesInBlocks()
 
     log.info(s"RegionPool: $context: ${readableBytes(totalAllocatedBytes)} allocated (${readableBytes(inBlocks)} blocks / " +
       s"${readableBytes(totalAllocatedBytes - inBlocks)} chunks), regions.size = ${regions.size}, " +
@@ -156,8 +157,6 @@ final class RegionPool private(strictMemoryCheck: Boolean, threadName: String, t
 //    val stacks: String = regions.result().toIndexedSeq.flatMap(r => r.stackTrace.map((r.getTotalChunkMemory(), _))).foldLeft("")((a: String, b) => a + "\n" + b.toString())
 //    log.info(stacks)
 //    log.info("---------------END--------------")
-
-
   }
 
   def scopedRegion[T](f: Region => T): T = using(Region(pool = this))(f)
@@ -188,7 +187,7 @@ final class RegionPool private(strictMemoryCheck: Boolean, threadName: String, t
       while (blocks.size > 0) {
         val popped = blocks.pop()
         Memory.free(popped)
-        totalAllocatedBytes -= blockSize
+        decrementAllocatedBytes(blockSize)
       }
       i += 1
     }

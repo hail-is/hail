@@ -177,6 +177,28 @@ object Call extends Serializable {
     }
   }
 
+  def unphase(c: Call): Call = {
+    (Call.ploidy(c): @switch) match {
+      case 0 => c
+      case 1 => Call1(Call.alleleByIndex(c, 0))
+      case 2 =>
+        val p = allelePair(c)
+        val j = AllelePair.j(p)
+        val k = AllelePair.k(p)
+        if (j <= k) Call2(j, k) else Call2(k, j)
+    }
+  }
+
+  def containsAllele(c: Call, allele: Int): Boolean = {
+    (Call.ploidy(c): @switch) match {
+      case 0 => false
+      case 1 => Call.alleleByIndex(c, 0) == allele
+      case 2 =>
+        val p = allelePair(c)
+        AllelePair.j(p) == allele || AllelePair.k(p) == allele
+    }
+  }
+
   def parse(s: String): Call = Parser.parseCall(s)
 
   def toString(c: Call): String = {

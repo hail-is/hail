@@ -12,11 +12,12 @@ from azure.storage.blob import BlobProperties
 from azure.storage.blob.aio import BlobClient, ContainerClient, BlobServiceClient, StorageStreamDownloader
 from azure.storage.blob.aio._list_blobs_helper import BlobPrefix
 import azure.core.exceptions
-from hailtop.utils import retry_transient_errors, flatten, OnlineBoundedGather2
 
-from hailtop.aiotools.fs import (AsyncFS, ReadableStream, WritableStream, MultiPartCreate, FileListEntry, FileStatus,
-                                 FileAndDirectoryError, UnexpectedEOFError)
-from hailtop.aiotools.utils import WriteBuffer
+from hailtop.utils import retry_transient_errors, flatten
+from hailtop.aiotools import WriteBuffer
+from hailtop.aiotools.fs import (AsyncFS, AsyncFSFactory, ReadableStream, WritableStream,
+                                 MultiPartCreate, FileListEntry, FileStatus, FileAndDirectoryError,
+                                 UnexpectedEOFError)
 
 from .credentials import AzureCredentials
 
@@ -135,10 +136,11 @@ class AzureCreateManager(AsyncContextManager[WritableStream]):
 
 
 class AzureReadableStream(ReadableStream):
-    def __init__(self, client: BlobClient, offset: Optional[int] = None):
+    def __init__(self, client: BlobClient, url: str, offset: Optional[int] = None):
         super().__init__()
         self._client = client
         self._buffer = bytearray()
+        self._url = url
 
         # cannot set the default to 0 because this will fail on an empty file
         # offset means to start at the first byte
@@ -156,7 +158,7 @@ class AzureReadableStream(ReadableStream):
             try:
                 downloader = await self._client.download_blob(offset=self._offset)
             except azure.core.exceptions.ResourceNotFoundError as e:
-                raise FileNotFoundError from e
+                raise FileNotFoundError(self._url) from e
             data = await downloader.readall()
             self._eof = True
             return data
@@ -165,7 +167,7 @@ class AzureReadableStream(ReadableStream):
             try:
                 self._downloader = await self._client.download_blob(offset=self._offset)
             except azure.core.exceptions.ResourceNotFoundError as e:
-                raise FileNotFoundError from e
+                raise FileNotFoundError(self._url) from e
 
         if self._chunk_it is None:
             self._chunk_it = self._downloader.chunks()
@@ -302,12 +304,12 @@ class AzureAsyncFS(AsyncFS):
 
     async def open(self, url: str) -> ReadableStream:
         client = self.get_blob_client(url)
-        stream = AzureReadableStream(client)
+        stream = AzureReadableStream(client, url)
         return stream
 
     async def open_from(self, url: str, start: int) -> ReadableStream:
         client = self.get_blob_client(url)
-        stream = AzureReadableStream(client, offset=start)
+        stream = AzureReadableStream(client, url, offset=start)
         return stream
 
     async def create(self, url: str, *, retry_writes: bool = True) -> AsyncContextManager[WritableStream]:  # pylint: disable=unused-argument
@@ -374,7 +376,11 @@ class AzureAsyncFS(AsyncFS):
                 url = f'hail-az://{client.account_name}/{client.container_name}/{item.name}'
                 yield AzureFileListEntry(url, item)
 
-    async def listfiles(self, url: str, recursive: bool = False) -> AsyncIterator[FileListEntry]:
+    async def listfiles(self,
+                        url: str,
+                        recursive: bool = False,
+                        exclude_trailing_slash_files: bool = True
+                        ) -> AsyncIterator[FileListEntry]:
         _, _, name = self._get_account_container_name(url)
         if name and not name.endswith('/'):
             name = f'{name}/'
@@ -394,6 +400,9 @@ class AzureAsyncFS(AsyncFS):
         async def should_yield(entry):
             url = await entry.url()
             if url.endswith('/') and await entry.is_file():
+                if not exclude_trailing_slash_files:
+                    return True
+
                 stat = await entry.status()
                 if await stat.size() != 0:
                     raise FileAndDirectoryError(url)
@@ -422,25 +431,6 @@ class AzureAsyncFS(AsyncFS):
         except azure.core.exceptions.ResourceNotFoundError as e:
             raise FileNotFoundError(url) from e
 
-    async def _rmtree(self, sema: asyncio.Semaphore, url: str) -> None:
-        async with OnlineBoundedGather2(sema) as pool:
-            _, _, name = self._get_account_container_name(url)
-            if name and not name.endswith('/'):
-                name = f'{name}/'
-
-            client = self.get_container_client(url)
-            it = self._listfiles_recursive(client, name)
-            async for entry in it:
-                await pool.call(self._remove_doesnt_exist_ok, await entry.url())
-
-    async def rmtree(self, sema: Optional[asyncio.Semaphore], url: str) -> None:
-        if sema is None:
-            sema = asyncio.Semaphore(50)
-            async with sema:
-                return await self._rmtree(sema, url)
-
-        return await self._rmtree(sema, url)
-
     async def close(self) -> None:
         if self._credential:
             await self._credential.close()
@@ -448,3 +438,17 @@ class AzureAsyncFS(AsyncFS):
 
         if self._blob_service_clients:
             await asyncio.wait([client.close() for client in self._blob_service_clients.values()])
+
+
+class AzureAsyncFSFactory(AsyncFSFactory[AzureAsyncFS]):
+    def from_credentials_data(self, credentials_data: dict) -> AzureAsyncFS:  # pylint: disable=no-self-use
+        return AzureAsyncFS(
+            credentials=AzureCredentials.from_credentials_data(credentials_data))
+
+    def from_credentials_file(self, credentials_file: str) -> AzureAsyncFS:  # pylint: disable=no-self-use
+        return AzureAsyncFS(
+            credentials=AzureCredentials.from_file(credentials_file))
+
+    def from_default_credentials(self) -> AzureAsyncFS:  # pylint: disable=no-self-use
+        return AzureAsyncFS(
+            credentials=AzureCredentials.default_credentials())

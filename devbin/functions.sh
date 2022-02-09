@@ -171,6 +171,10 @@ upload-secret() {
 	      | kubectl apply -f -
 }
 
+get_global_config_field() {
+    kubectl get secret global-config --template={{.data.$1}} | base64 --decode
+}
+
 gcpsetcluster() {
     if [ -z "$1" ]; then
         echo "Usage: gcpsetcluster <PROJECT>"
@@ -190,7 +194,7 @@ azsetcluster() {
 
     RESOURCE_GROUP=$1
     az aks get-credentials --name vdc --resource-group $RESOURCE_GROUP
-    az acr login --name $RESOURCE_GROUP
+    az acr login --name $(get_global_config_field docker_prefix)
 }
 
 azsshworker() {

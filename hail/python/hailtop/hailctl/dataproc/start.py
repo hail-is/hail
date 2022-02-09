@@ -1,6 +1,5 @@
 import re
 
-import pkg_resources
 import yaml
 
 from . import gcloud
@@ -134,9 +133,9 @@ REGION_TO_REPLICATE_MAPPING = {
     'australia-southeast1': 'aus-sydney'
 }
 
-ANNOTATION_DB_BUCKETS = ["hail-datasets-us", "hail-datasets-eu", "gnomad-public-requester-pays"]
+ANNOTATION_DB_BUCKETS = ["hail-datasets-us", "hail-datasets-eu"]
 
-IMAGE_VERSION = '2.0.22-debian10'
+IMAGE_VERSION = '2.0.29-debian10'
 
 
 def init_parser(parser):
@@ -225,7 +224,9 @@ def init_parser(parser):
                         help="Enable debug features on created cluster (heap dump on out-of-memory error)")
 
 
-def main(args, pass_through_args):
+async def main(args, pass_through_args):
+    import pkg_resources  # pylint: disable=import-outside-toplevel
+
     conf = ClusterConfig()
     conf.extend_flag('image-version', IMAGE_VERSION)
 

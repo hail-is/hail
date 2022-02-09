@@ -1,10 +1,9 @@
 package is.hail.types.physical
 
 import is.hail.annotations.{Annotation, Region}
-import is.hail.expr.ir.EmitCodeBuilder
+import is.hail.types.physical.stypes.concrete.{SIndexablePointer, SIndexablePointerValue}
+import is.hail.types.physical.stypes.interfaces.SIndexableValue
 import is.hail.types.virtual.{TDict, Type}
-import is.hail.types.physical.stypes.concrete.{SIndexablePointer, SIndexablePointerCode, SIndexablePointerValue}
-import is.hail.types.physical.stypes.interfaces.{SBaseStruct, SIndexableCode, SIndexableValue}
 import org.apache.spark.sql.Row
 
 object PCanonicalDict {

@@ -14,7 +14,7 @@ from .statgen import (skat, impute_sex, genetic_relatedness_matrix, realized_rel
                       _logistic_regression_rows_nd, poisson_regression_rows,
                       linear_mixed_regression_rows, lambda_gc)
 from .qc import sample_qc, variant_qc, vep, concordance, nirvana, summarize_variants
-from .misc import rename_duplicates, maximal_independent_set, filter_intervals
+from .misc import rename_duplicates, maximal_independent_set, segment_intervals, filter_intervals
 from .relatedness import identity_by_descent, king, pc_relate
 
 __all__ = ['trio_matrix',
@@ -75,6 +75,7 @@ __all__ = ['trio_matrix',
            'balding_nichols_model',
            'ld_prune',
            'filter_intervals',
+           'segment_intervals',
            'de_novo',
            'filter_alleles',
            'filter_alleles_hts',

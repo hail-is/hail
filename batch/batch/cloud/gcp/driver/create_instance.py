@@ -157,8 +157,8 @@ sudo ln -s /mnt/disks/$WORKER_DATA_DISK_NAME/batch /batch
 sudo mkdir -p /mnt/disks/$WORKER_DATA_DISK_NAME/logs/
 sudo ln -s /mnt/disks/$WORKER_DATA_DISK_NAME/logs /logs
 
-sudo mkdir -p /mnt/disks/$WORKER_DATA_DISK_NAME/gcsfuse/
-sudo ln -s /mnt/disks/$WORKER_DATA_DISK_NAME/gcsfuse /gcsfuse
+sudo mkdir -p /mnt/disks/$WORKER_DATA_DISK_NAME/cloudfuse/
+sudo ln -s /mnt/disks/$WORKER_DATA_DISK_NAME/cloudfuse /cloudfuse
 
 sudo mkdir -p /etc/netns
 
@@ -295,7 +295,7 @@ docker run \
 -v /batch:/batch:shared \
 -v /logs:/logs \
 -v /global-config:/global-config \
--v /gcsfuse:/gcsfuse:shared \
+-v /cloudfuse:/cloudfuse:shared \
 -v /etc/netns:/etc/netns \
 -v /sys/fs/cgroup:/sys/fs/cgroup \
 --mount type=bind,source=/mnt/disks/$WORKER_DATA_DISK_NAME,target=/host \
@@ -339,7 +339,10 @@ journalctl -u docker.service > dockerd.log
                 {'key': 'batch_logs_storage_uri', 'value': file_store.batch_logs_storage_uri},
                 {'key': 'instance_id', 'value': file_store.instance_id},
                 {'key': 'max_idle_time_msecs', 'value': max_idle_time_msecs},
-                {'key': 'instance_config', 'value': base64.b64encode(json.dumps(instance_config.to_dict()).encode()).decode()},
+                {
+                    'key': 'instance_config',
+                    'value': base64.b64encode(json.dumps(instance_config.to_dict()).encode()).decode(),
+                },
             ]
         },
         'tags': {'items': ["batch2-agent"]},

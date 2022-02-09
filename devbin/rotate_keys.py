@@ -275,7 +275,8 @@ async def main():
     iam_manager = IAMManager(iam_client)
 
     await kube.config.load_kube_config()  # type: ignore
-    k8s_manager = KubeSecretManager(kube.client.CoreV1Api())  # type: ignore
+    k8s_client = kube.client.CoreV1Api()
+    k8s_manager = KubeSecretManager(k8s_client)  # type: ignore
 
     try:
         service_accounts = await iam_manager.get_all_service_accounts()
@@ -323,7 +324,10 @@ async def main():
         else:
             print('Doing nothing')
     finally:
-        await iam_client.close()
+        try:
+            await iam_client.close()
+        finally:
+            await k8s_client.api_client.rest_client.pool_manager.close()
 
 
 asyncio.get_event_loop().run_until_complete(main())

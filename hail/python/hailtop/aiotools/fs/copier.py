@@ -5,10 +5,9 @@ import asyncio
 import functools
 import humanize
 
-from hailtop.utils import (
-    retry_transient_errors, url_basename, url_join, bounded_gather2,
-    time_msecs, humanize_timedelta_msecs)
 
+from ...utils import (retry_transient_errors, url_basename, url_join, bounded_gather2, time_msecs,
+                      humanize_timedelta_msecs)
 from ..weighted_semaphore import WeightedSemaphore
 from .exceptions import FileAndDirectoryError, UnexpectedEOFError
 from .fs import MultiPartCreate, FileStatus, AsyncFS
@@ -162,7 +161,8 @@ class CopyReport:
         print(f'  Files: {total_files}')
         print(f'  Bytes: {humanize.naturalsize(total_bytes)}')
         print(f'  Time: {humanize_timedelta_msecs(self._duration)}')
-        print(f'  Average transfer rate: {humanize.naturalsize(total_bytes / (self._duration / 1000))}/s')
+        if self._duration > 0:
+            print(f'  Average transfer rate: {humanize.naturalsize(total_bytes / (self._duration / 1000))}/s')
 
         print('Sources:')
         for sr in source_reports:
@@ -445,7 +445,7 @@ class Copier:
         # This is essentially a limit on amount of memory in temporary
         # buffers during copying.  We allow ~10 full-sized copies to
         # run concurrently.
-        self.xfer_sema = WeightedSemaphore(10 * Copier.BUFFER_SIZE)
+        self.xfer_sema = WeightedSemaphore(100 * Copier.BUFFER_SIZE)
 
     async def _dest_type(self, transfer: Transfer):
         '''Return the (real or assumed) type of `dest`.

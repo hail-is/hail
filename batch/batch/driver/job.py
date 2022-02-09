@@ -31,13 +31,15 @@ log = logging.getLogger('job')
 async def notify_batch_job_complete(db: Database, client_session: httpx.ClientSession, batch_id):
     record = await db.select_and_fetchone(
         '''
-SELECT batches.*, SUM(`usage` * rate) AS cost
+SELECT batches.*, COALESCE(SUM(`usage` * rate), 0) AS cost, batches_cancelled.id IS NOT NULL AS cancelled
 FROM batches
 LEFT JOIN aggregated_batch_resources
   ON batches.id = aggregated_batch_resources.batch_id
 LEFT JOIN resources
   ON aggregated_batch_resources.resource = resources.resource
-WHERE id = %s AND NOT deleted AND callback IS NOT NULL AND
+LEFT JOIN batches_cancelled
+  ON batches.id = batches_cancelled.id
+WHERE batches.id = %s AND NOT deleted AND callback IS NOT NULL AND
    batches.`state` = 'complete'
 GROUP BY batches.id;
 ''',
@@ -119,6 +121,7 @@ async def mark_job_complete(
                 reason,
                 now,
             ),
+            'mark_job_complete',
         )
     except Exception:
         log.exception(f'error while marking job {id} complete on instance {instance_name}')
@@ -171,6 +174,7 @@ async def mark_job_started(app, batch_id, job_id, attempt_id, instance, start_ti
 CALL mark_job_started(%s, %s, %s, %s, %s);
 ''',
             (batch_id, job_id, attempt_id, instance.name, start_time),
+            'mark_job_started',
         )
     except Exception:
         log.info(f'error while marking job {id} started on {instance}')
@@ -182,13 +186,15 @@ CALL mark_job_started(%s, %s, %s, %s, %s);
     await add_attempt_resources(db, batch_id, job_id, attempt_id, resources)
 
 
-async def mark_job_creating(app,
-                            batch_id: int,
-                            job_id: int,
-                            attempt_id: str,
-                            instance: Instance,
-                            start_time: int,
-                            resources: List[QuantifiedResource]):
+async def mark_job_creating(
+    app,
+    batch_id: int,
+    job_id: int,
+    attempt_id: str,
+    instance: Instance,
+    start_time: int,
+    resources: List[QuantifiedResource],
+):
     db: Database = app['db']
 
     id = (batch_id, job_id)
@@ -292,7 +298,7 @@ async def job_config(app, record, attempt_id):
 
     db_spec = json.loads(record['spec'])
 
-    if format_version.has_full_spec_in_gcs():
+    if format_version.has_full_spec_in_cloud():
         job_spec = {
             'secrets': format_version.get_spec_secrets(db_spec),
             'service_account': format_version.get_spec_service_account(db_spec),
@@ -306,10 +312,7 @@ async def job_config(app, record, attempt_id):
 
     secrets = job_spec.get('secrets', [])
     k8s_secrets = await asyncio.gather(
-        *[
-            k8s_cache.read_secret(secret['name'], secret['namespace'])
-            for secret in secrets
-        ]
+        *[k8s_cache.read_secret(secret['name'], secret['namespace']) for secret in secrets]
     )
 
     gsa_key = None
@@ -375,7 +378,7 @@ users:
             job_spec['env'] = env
         env.append({'name': 'KUBECONFIG', 'value': '/.kube/config'})
 
-    if format_version.has_full_spec_in_gcs():
+    if format_version.has_full_spec_in_cloud():
         token, start_job_id = await SpecWriter.get_token_start_id(db, batch_id, job_id)
     else:
         token = None
@@ -441,7 +444,8 @@ async def schedule_job(app, record, instance):
             await client_session.post(
                 f'http://{instance.ip_address}:5000/api/v1alpha/batches/jobs/create',
                 json=body,
-                timeout=aiohttp.ClientTimeout(total=2))
+                timeout=aiohttp.ClientTimeout(total=2),
+            )
             await instance.mark_healthy()
         except aiohttp.ClientResponseError as e:
             await instance.mark_healthy()
@@ -461,6 +465,7 @@ async def schedule_job(app, record, instance):
 CALL schedule_job(%s, %s, %s, %s);
 ''',
             (batch_id, job_id, attempt_id, instance.name),
+            'schedule_job',
         )
     except Exception:
         log.exception(f'error while scheduling job {id} on {instance}')

@@ -8,11 +8,14 @@ BATCH_WORKER_IMAGE := $(DOCKER_PREFIX)/batch-worker:$(TOKEN)
 EXTRA_PYTHONPATH := ../hail/python:../gear:../web_common
 PYTHON := PYTHONPATH=$${PYTHONPATH:+$${PYTHONPATH}:}$(EXTRA_PYTHONPATH) python3
 
+BLACK := $(PYTHON) -m black . --line-length=120 --skip-string-normalization
+
 .PHONY: check
 check:
 	$(PYTHON) -m flake8  --config ../setup.cfg batch
 	$(PYTHON) -m pylint --rcfile ../pylintrc batch --score=n
 	$(PYTHON) -m mypy --config-file ../setup.cfg batch
+	$(BLACK) --check --diff
 	curlylint .
 	bash ../check-sql.sh
 
@@ -24,7 +27,7 @@ build-batch:
 
 .PHONY: build-worker
 build-worker:
-	python3 ../ci/jinja2_render.py '{"hail_ubuntu_image":{"image":"'$$(cat ../docker/hail-ubuntu-image-ref)'"}}' Dockerfile.worker Dockerfile.worker.out
+	python3 ../ci/jinja2_render.py '{"hail_ubuntu_image":{"image":"'$$(cat ../docker/hail-ubuntu-image-ref)'"},"global":{"cloud":"$(CLOUD)"}}' Dockerfile.worker Dockerfile.worker.out
 	../docker-build.sh .. batch/Dockerfile.worker.out $(BATCH_WORKER_IMAGE)
 
 .PHONY: build

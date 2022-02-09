@@ -3,7 +3,8 @@ CREATE TABLE `users` (
   `state` VARCHAR(100) NOT NULL,
   -- creating, active, deleting, deleted
   `username` varchar(255) NOT NULL,
-  `email` varchar(255) DEFAULT NULL,
+  `login_id` varchar(255) DEFAULT NULL,
+  `display_name` varchar(255) DEFAULT NULL,
   `is_developer` tinyint(1) NOT NULL DEFAULT 0,
   `is_service_account` tinyint(1) NOT NULL DEFAULT 0,
   -- session

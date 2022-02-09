@@ -6,7 +6,7 @@ import sys
 from hailtop.config import get_deploy_config
 from hailtop.auth import service_auth_headers
 from hailtop.httpx import client_session
-from hailtop.utils import unpack_comma_delimited_inputs
+from hailtop.utils import unpack_comma_delimited_inputs, unpack_key_value_inputs
 
 
 def init_parser(parser):
@@ -16,6 +16,8 @@ def init_parser(parser):
                         help="Comma or space-separated list of steps to run.", required=True)
     parser.add_argument("--excluded_steps", "-e", nargs='+', action='append', default=[],
                         help="Comma or space-separated list of steps to forcibly exclude. Use with caution!")
+    parser.add_argument("--extra-config", "-c", nargs="+", action='append', default=[],
+                        help="Comma or space-separate list of key=value pairs to add as extra config parameters.")
     parser.add_argument("--open", "-o",
                         action="store_true",
                         help="Open the deploy batch page in a web browser.")
@@ -32,7 +34,7 @@ class CIClient:
         headers = service_auth_headers(self._deploy_config, 'ci')
         self._session = client_session(
             raise_for_status=False,
-            timeout=aiohttp.ClientTimeout(total=60), headers=headers)
+            timeout=aiohttp.ClientTimeout(total=60), headers=headers)  # type: ignore
         return self
 
     async def __aexit__(self, exc_type, exc, tb):
@@ -43,11 +45,12 @@ class CIClient:
             await self._session.close()
             self._session = None
 
-    async def dev_deploy_branch(self, branch, steps, excluded_steps):
+    async def dev_deploy_branch(self, branch, steps, excluded_steps, extra_config):
         data = {
             'branch': branch,
             'steps': steps,
-            'excluded_steps': excluded_steps
+            'excluded_steps': excluded_steps,
+            'extra_config': extra_config,
         }
         async with self._session.post(
                 self._deploy_config.url('ci', '/api/v1alpha/dev_deploy_branch'), json=data) as resp:
@@ -63,8 +66,9 @@ async def submit(args):
     deploy_config = get_deploy_config()
     steps = unpack_comma_delimited_inputs(args.steps)
     excluded_steps = unpack_comma_delimited_inputs(args.excluded_steps)
+    extra_config = unpack_key_value_inputs(args.extra_config)
     async with CIClient(deploy_config) as ci_client:
-        batch_id = await ci_client.dev_deploy_branch(args.branch, steps, excluded_steps)
+        batch_id = await ci_client.dev_deploy_branch(args.branch, steps, excluded_steps, extra_config)
         url = deploy_config.url('ci', f'/batches/{batch_id}')
         print(f'Created deploy batch, see {url}')
         if args.open:

@@ -1,4 +1,5 @@
-from typing import Any, AsyncContextManager, Optional, Type, Set, AsyncIterator
+from typing import (Any, AsyncContextManager, Optional, Type, Set, AsyncIterator, Callable, TypeVar,
+                    Generic)
 from types import TracebackType
 import abc
 import asyncio
@@ -102,7 +103,10 @@ class AsyncFS(abc.ABC):
         pass
 
     @abc.abstractmethod
-    async def listfiles(self, url: str, recursive: bool = False) -> AsyncIterator[FileListEntry]:
+    async def listfiles(self,
+                        url: str,
+                        recursive: bool = False,
+                        exclude_trailing_slash_files: bool = True) -> AsyncIterator[FileListEntry]:
         pass
 
     @abc.abstractmethod
@@ -154,18 +158,30 @@ class AsyncFS(abc.ABC):
         except FileNotFoundError:
             pass
 
-    @abc.abstractmethod
-    async def rmtree(self, sema: Optional[asyncio.Semaphore], url: str) -> None:
-        pass
+    async def rmtree(self,
+                     sema: Optional[asyncio.Semaphore],
+                     url: str,
+                     listener: Optional[Callable[[int], None]] = None) -> None:
+        if listener is None:
+            listener = lambda _: None  # noqa: E731
+        if sema is None:
+            sema = asyncio.Semaphore(50)
 
-    async def _rmtree_with_recursive_listfiles(self, sema: asyncio.Semaphore, url: str) -> None:
+        async def rm(entry: FileListEntry):
+            assert listener is not None
+            listener(1)
+            await self._remove_doesnt_exist_ok(await entry.url())
+            listener(-1)
+
+        try:
+            it = await self.listfiles(url, recursive=True, exclude_trailing_slash_files=False)
+        except FileNotFoundError:
+            return
+
         async with OnlineBoundedGather2(sema) as pool:
-            try:
-                it = await self.listfiles(url, recursive=True)
-            except FileNotFoundError:
-                return
-            async for entry in it:
-                await pool.call(self._remove_doesnt_exist_ok, await entry.url())
+            tasks = [pool.call(rm, entry) async for entry in it]
+            if tasks:
+                await pool.wait(tasks)
 
     async def touch(self, url: str) -> None:
         async with await self.create(url):
@@ -215,3 +231,20 @@ class AsyncFS(abc.ABC):
         '''Part size when copying using multi-part uploads.  The part size of
         the destination filesystem is used.'''
         return 128 * 1024 * 1024
+
+
+T = TypeVar('T', bound=AsyncFS)
+
+
+class AsyncFSFactory(abc.ABC, Generic[T]):
+    @abc.abstractmethod
+    def from_credentials_data(self, credentials_data: dict) -> T:
+        pass
+
+    @abc.abstractmethod
+    def from_credentials_file(self, credentials_file: str) -> T:
+        pass
+
+    @abc.abstractmethod
+    def from_default_credentials(self) -> T:
+        pass

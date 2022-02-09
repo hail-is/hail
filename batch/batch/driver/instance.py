@@ -9,9 +9,8 @@ import humanize
 
 from hailtop.utils import time_msecs, time_msecs_str, retry_transient_errors
 from hailtop import httpx
-from gear import Database
+from gear import Database, transaction
 
-from ..database import check_call_procedure
 from ..globals import INSTANCE_VERSION
 from ..instance_config import InstanceConfig
 from ..cloud.utils import instance_config_from_config_dict
@@ -37,60 +36,73 @@ class Instance:
             record['location'],
             record['machine_type'],
             record['preemptible'],
-            instance_config_from_config_dict(
-                json.loads(base64.b64decode(record['instance_config']).decode())
-            )
+            instance_config_from_config_dict(json.loads(base64.b64decode(record['instance_config']).decode())),
         )
 
     @staticmethod
-    async def create(app,
-                     inst_coll,
-                     name: str,
-                     activation_token,
-                     cores: int,
-                     location: str,
-                     machine_type: str,
-                     preemptible: bool,
-                     instance_config: InstanceConfig,
-                     ) -> 'Instance':
+    async def create(
+        app,
+        inst_coll,
+        name: str,
+        activation_token,
+        cores: int,
+        location: str,
+        machine_type: str,
+        preemptible: bool,
+        instance_config: InstanceConfig,
+    ) -> 'Instance':
         db: Database = app['db']
 
         state = 'pending'
         now = time_msecs()
         token = secrets.token_urlsafe(32)
 
-        cores_mcpu = cores * 1000
+        worker_cores_mcpu = cores * 1000
 
-        await db.just_execute(
-            '''
-INSERT INTO instances (name, state, activation_token, token, cores_mcpu, free_cores_mcpu,
+        @transaction(db)
+        async def insert(tx):
+            await tx.just_execute(
+                '''
+INSERT INTO instances (name, state, activation_token, token, cores_mcpu,
   time_created, last_updated, version, location, inst_coll, machine_type, preemptible, instance_config)
-VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
+VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
 ''',
-            (
-                name,
-                state,
-                activation_token,
-                token,
-                cores_mcpu,
-                cores_mcpu,
-                now,
-                now,
-                INSTANCE_VERSION,
-                location,
-                inst_coll.name,
-                machine_type,
-                preemptible,
-                base64.b64encode(json.dumps(instance_config.to_dict()).encode()).decode(),
-            ),
-        )
+                (
+                    name,
+                    state,
+                    activation_token,
+                    token,
+                    worker_cores_mcpu,
+                    now,
+                    now,
+                    INSTANCE_VERSION,
+                    location,
+                    inst_coll.name,
+                    machine_type,
+                    preemptible,
+                    base64.b64encode(json.dumps(instance_config.to_dict()).encode()).decode(),
+                ),
+            )
+            await tx.just_execute(
+                '''
+INSERT INTO instances_free_cores_mcpu (name, free_cores_mcpu)
+VALUES (%s, %s);
+''',
+                (
+                    name,
+                    worker_cores_mcpu,
+                ),
+            )
+
+        await insert()  # pylint: disable=no-value-for-parameter
+
         return Instance(
             app,
             inst_coll,
             name,
             state,
-            cores_mcpu,
-            cores_mcpu,
+            worker_cores_mcpu,
+            worker_cores_mcpu,
             now,
             0,
             now,
@@ -145,8 +157,8 @@ VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
     async def activate(self, ip_address, timestamp):
         assert self._state == 'pending'
 
-        rv = await check_call_procedure(
-            self.db, 'CALL activate_instance(%s, %s, %s);', (self.name, ip_address, timestamp)
+        rv = await self.db.check_call_procedure(
+            'CALL activate_instance(%s, %s, %s);', (self.name, ip_address, timestamp), 'activate_instance'
         )
 
         self.inst_coll.adjust_for_remove_instance(self)
@@ -164,7 +176,9 @@ VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
         if not timestamp:
             timestamp = time_msecs()
 
-        rv = await self.db.execute_and_fetchone('CALL deactivate_instance(%s, %s, %s);', (self.name, reason, timestamp))
+        rv = await self.db.execute_and_fetchone(
+            'CALL deactivate_instance(%s, %s, %s);', (self.name, reason, timestamp), 'deactivate_instance'
+        )
 
         if rv['rc'] == 1:
             log.info(f'{self} with in-memory state {self._state} was already deactivated; {rv}')
@@ -184,8 +198,8 @@ VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
                 return
             try:
                 await self.client_session.post(
-                    f'http://{self.ip_address}:5000/api/v1alpha/kill',
-                    timeout=aiohttp.ClientTimeout(total=30))
+                    f'http://{self.ip_address}:5000/api/v1alpha/kill', timeout=aiohttp.ClientTimeout(total=30)
+                )
             except aiohttp.ClientResponseError as err:
                 if err.status == 403:
                     log.info(f'cannot kill {self} -- does not exist at {self.ip_address}')

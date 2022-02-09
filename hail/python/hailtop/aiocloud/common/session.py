@@ -80,10 +80,11 @@ class Session(BaseSession):
 
     async def request(self, method: str, url: str, **kwargs):
         auth_headers = await self._credentials.auth_headers()
-        if 'headers' in kwargs:
-            kwargs['headers'].update(auth_headers)
-        else:
-            kwargs['headers'] = auth_headers
+        if auth_headers:
+            if 'headers' in kwargs:
+                kwargs['headers'].update(auth_headers)
+            else:
+                kwargs['headers'] = auth_headers
 
         if self._params:
             if 'params' in kwargs:

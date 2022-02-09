@@ -15,7 +15,7 @@ import is.hail.utils._
 
 object EmitStreamDistribute {
 
-  def emit(cb: EmitCodeBuilder, region: Value[Region], requestedSplittersAndEndsVal: SIndexableValue, childStream: SStreamValue, pathVal: SValue, spec: AbstractTypedCodecSpec): SIndexableValue = {
+  def emit(cb: EmitCodeBuilder, region: Value[Region], requestedSplittersAndEndsVal: SIndexableValue, childStream: SStreamValue, pathVal: SValue, comparisonOp: ComparisonOp[_], spec: AbstractTypedCodecSpec): SIndexableValue = {
     val mb = cb.emb
     val pivotsPType = requestedSplittersAndEndsVal.st.storageType().asInstanceOf[PCanonicalArray]
     val requestedSplittersVal = requestedSplittersAndEndsVal.sliceArray(cb, region, pivotsPType, 1, requestedSplittersAndEndsVal.loadLength() - 1)
@@ -27,9 +27,8 @@ object EmitStreamDistribute {
     def compare(cb: EmitCodeBuilder, lelt: EmitValue, relt: EmitValue): Code[Int] = {
       val lhs = lelt.map(cb)(_.asBaseStruct.subset(keyFieldNames: _*))
       val rhs = relt.map(cb)(_.asBaseStruct.subset(keyFieldNames: _*))
-      StructOrdering.make(lhs.st.asInstanceOf[SBaseStruct], rhs.st.asInstanceOf[SBaseStruct],
-        cb.emb.ecb, missingFieldsEqual = true)
-        .compare(cb, lhs, rhs, missingEqual = true)
+      val codeOrdering = comparisonOp.codeOrdering(cb.emb.ecb, lhs.st.asInstanceOf[SBaseStruct], rhs.st.asInstanceOf[SBaseStruct])
+      codeOrdering(cb, lhs, rhs).asInstanceOf[Value[Int]]
     }
 
     def equal(cb: EmitCodeBuilder, lelt: EmitValue, relt: EmitValue): Code[Boolean] = compare(cb, lelt, relt) ceq 0
@@ -43,7 +42,7 @@ object EmitStreamDistribute {
 
     val uniqueSplittersIdx = cb.newLocal[Int]("unique_splitters_idx", 0)
 
-    def cleanupSplitters() = {
+    def cleanupSplitters()= {
       // Copy each unique splitter into array. If it is seen twice, set a boolean in a parallel array for that
       // splitter, so we know what identity buckets to make later
       val paddedSplittersPType = PCanonicalArray(keyPType)
@@ -55,7 +54,7 @@ object EmitStreamDistribute {
       val splittersWasDuplicatedLength = paddedSplittersSize
       val splittersWasDuplicatedAddr = cb.memoize[Long](splittersWasDuplicatedPType.allocate(region, splittersWasDuplicatedLength))
       splittersWasDuplicatedPType.stagedInitialize(cb, splittersWasDuplicatedAddr, splittersWasDuplicatedLength)
-      val splitters: SIndexableValue = new SIndexablePointerCode(SIndexablePointer(paddedSplittersPType), paddedSplittersAddr).memoize(cb, "stream_distribute_splitters_deduplicated") // last element is duplicated, otherwise this is sorted without duplicates.
+      val splitters: SIndexableValue = paddedSplittersPType.loadCheapSCode(cb, paddedSplittersAddr)
 
       val requestedSplittersIdx = cb.newLocal[Int]("stream_distribute_splitters_index")
       val lastKeySeen = cb.emb.newEmitLocal("stream_distribute_last_seen", keyType, false)
@@ -83,10 +82,12 @@ object EmitStreamDistribute {
 
       // Pad out the rest of the splitters array so tree later is balanced.
       cb.forLoop({}, uniqueSplittersIdx < paddedSplittersSize, cb.assign(uniqueSplittersIdx, uniqueSplittersIdx + 1), {
-        paddedSplittersPType.elementType.storeAtAddress(cb, paddedSplittersPType.loadElement(paddedSplittersAddr, paddedSplittersSize, uniqueSplittersIdx), region, lastKeySeen.get(cb), false)
+        cb.ifx(lastKeySeen.get(cb).asInstanceOf[SBaseStructPointerSettable].a ceq const(0L), cb._fatal("paddedSplitterSize was ", paddedSplittersSize.toS))
+        val loaded = paddedSplittersPType.loadElement(paddedSplittersAddr, paddedSplittersSize, uniqueSplittersIdx)
+        paddedSplittersPType.elementType.storeAtAddress(cb, loaded, region, lastKeySeen.get(cb), false)
       })
 
-      val splitterWasDuplicated = new SIndexablePointerCode(SIndexablePointer(splittersWasDuplicatedPType), splittersWasDuplicatedAddr).memoize(cb, "stream_distrib_was_duplicated") // Same length as splitters, but full of booleans of whether it was initially duplicated.
+      val splitterWasDuplicated = splittersWasDuplicatedPType.loadCheapSCode(cb, splittersWasDuplicatedAddr)
       (splitters, numUniqueSplitters, splitterWasDuplicated)
     }
 
@@ -111,7 +112,7 @@ object EmitStreamDistribute {
         })
       })
       // 0th element is garbage, tree elements start at idx 1.
-      new SIndexablePointerCode(SIndexablePointer(treePType), treeAddr).memoize(cb, "stream_dist_tree")
+      treePType.loadCheapSCode(cb, treeAddr)
     }
 
     def createFileMapping(numFilesToWrite: Value[Int], splitterWasDuplicated: SIndexableValue, numberOfBuckets: Value[Int], shouldUseIdentityBuckets: Value[Boolean]): SIndexablePointerValue = {
@@ -131,13 +132,13 @@ object EmitStreamDistribute {
       cb.forLoop(cb.assign(bucketIdx, 0), bucketIdx < numberOfBuckets, cb.assign(bucketIdx, bucketIdx + indexIncrement), {
         fileMappingType.elementType.storeAtAddress(cb, fileMappingType.loadElement(fileMappingAddr, numberOfBuckets, bucketIdx), region, destFileSCode(cb), false)
         cb.ifx(shouldUseIdentityBuckets, {
-          cb.assign(currentFileToMapTo, currentFileToMapTo + splitterWasDuplicated.loadElement(cb, bucketIdx / 2).get(cb).asBoolean.boolCode(cb).toI)
+          cb.assign(currentFileToMapTo, currentFileToMapTo + splitterWasDuplicated.loadElement(cb, bucketIdx / 2).get(cb).asBoolean.value.toI)
           fileMappingType.elementType.storeAtAddress(cb, fileMappingType.loadElement(fileMappingAddr, numberOfBuckets, bucketIdx + 1), region, destFileSCode(cb), false)
         })
         cb.assign(currentFileToMapTo, currentFileToMapTo + 1)
       })
 
-      new SIndexablePointerCode(SIndexablePointer(fileMappingType), fileMappingAddr).memoize(cb, "stream_dist_file_map")
+      fileMappingType.loadCheapSCode(cb, fileMappingAddr)
     }
 
     val (paddedSplitters, numUniqueSplitters, splitterWasDuplicated) = cleanupSplitters()
@@ -150,9 +151,10 @@ object EmitStreamDistribute {
       cb.assign(numberOfBuckets, const(1) << treeHeight))
 
     // Without identity buckets you'd have numUniqueSplitters + 1 buckets, but we have to add an extra for each identity bucket.
+    // FIXME: We should have less files if we aren't writing endpoint buckets.
     val numFilesToWrite = cb.newLocal[Int]("stream_dist_num_files_to_write", 1)
     cb.forLoop(cb.assign(uniqueSplittersIdx, 0), uniqueSplittersIdx < numUniqueSplitters, cb.assign(uniqueSplittersIdx, uniqueSplittersIdx + 1), {
-      cb.assign(numFilesToWrite, numFilesToWrite + 1 + splitterWasDuplicated.loadElement(cb, uniqueSplittersIdx).get(cb).asBoolean.boolCode(cb).toI)
+      cb.assign(numFilesToWrite, numFilesToWrite + 1 + splitterWasDuplicated.loadElement(cb, uniqueSplittersIdx).get(cb).asBoolean.value.toI)
     })
 
     val fileMapping = createFileMapping(numFilesToWrite, splitterWasDuplicated, numberOfBuckets, shouldUseIdentityBuckets)
@@ -189,7 +191,7 @@ object EmitStreamDistribute {
         cb.assign(b, const(2) * b + 1 - lessThan(cb, current, paddedSplitters.loadElement(cb, b - numberOfBuckets / 2).memoize(cb, "stream_dist_splitter_compare")).toI)
       })
 
-      val fileToUse = cb.memoize[Int](fileMapping.loadElement(cb, b - numberOfBuckets).get(cb).asInt.intCode(cb))
+      val fileToUse = cb.memoize[Int](fileMapping.loadElement(cb, b - numberOfBuckets).get(cb).asInt.value)
 
       val ob = cb.memoize[OutputBuffer](outputBuffers(fileToUse))
 
@@ -207,7 +209,15 @@ object EmitStreamDistribute {
     val intervalType = PCanonicalInterval(keyPType.setRequired(false), true)
     val returnType = PCanonicalArray(PCanonicalStruct(("interval", intervalType), ("fileName", PCanonicalStringRequired), ("numElements", PInt32Required)), true)
 
-    val (pushElement, finisher) = returnType.constructFromFunctions(cb, region, numFilesToWrite, false)
+    val min = requestedSplittersAndEndsVal.loadElement(cb, 0).memoize(cb, "stream_dist_min")
+    val firstSplitter = paddedSplitters.loadElement(cb, 0).memoize(cb, "stream_dist_first_splitter")
+    val max = requestedSplittersAndEndsVal.loadElement(cb, requestedSplittersAndEndsVal.loadLength() - 1).memoize(cb, "stream_dist_min")
+    val lastSplitter = paddedSplitters.loadElement(cb, paddedSplitters.loadLength() - 1).memoize(cb, "stream_dist_last_splitter")
+
+    val skipMinInterval = cb.memoize(equal(cb, min, firstSplitter) && splitterWasDuplicated.loadElement(cb, 0).get(cb).asBoolean.value)
+    val skipMaxInterval = cb.memoize(equal(cb, max, lastSplitter))
+
+    val (pushElement, finisher) = returnType.constructFromFunctions(cb, region, cb.memoize(numFilesToWrite - skipMinInterval.toI - skipMaxInterval.toI), false)
 
     val stackStructType = new SStackStruct(returnType.virtualType.elementType.asInstanceOf[TBaseStruct], IndexedSeq(
       EmitType(intervalType.sType, true),
@@ -215,19 +225,21 @@ object EmitStreamDistribute {
       EmitType(SInt32, true)
     ))
 
-    // Add first
-    val firstInterval = intervalType.constructFromCodes(cb, region,
-      EmitCode.fromI(cb.emb)(cb => requestedSplittersAndEndsVal.loadElement(cb, 0)),
-      EmitCode.fromI(cb.emb)(cb => paddedSplitters.loadElement(cb, 0)),
-      false,
-      cb.memoize(!splitterWasDuplicated.loadElement(cb, 0).get(cb).asBoolean.boolCode(cb))
-    )
+    // Add first, but only if min != first key.
+    cb.ifx(!skipMinInterval, {
+      val firstInterval = intervalType.constructFromCodes(cb, region,
+        min,
+        firstSplitter,
+        true,
+        cb.memoize(!splitterWasDuplicated.loadElement(cb, 0).get(cb).asBoolean.value)
+      )
 
-    pushElement(cb, IEmitCode.present(cb, new SStackStructValue(stackStructType, IndexedSeq(
-      EmitValue.present(firstInterval),
-      EmitValue.present(SJavaString.construct(cb, makeFileName(cb, 0))),
-      EmitValue.present(primitive(cb.memoize(numElementsPerFile(0))))
-    ))))
+      pushElement(cb, IEmitCode.present(cb, new SStackStructValue(stackStructType, IndexedSeq(
+        EmitValue.present(firstInterval),
+        EmitValue.present(SJavaString.construct(cb, makeFileName(cb, 0))),
+        EmitValue.present(primitive(cb.memoize(numElementsPerFile(0))))
+      ))))
+    })
 
     cb.forLoop({cb.assign(uniqueSplittersIdx, 0); cb.assign(fileArrayIdx, 1) }, uniqueSplittersIdx < numUniqueSplitters, cb.assign(uniqueSplittersIdx, uniqueSplittersIdx + 1), {
       cb.ifx(uniqueSplittersIdx cne 0, {
@@ -235,7 +247,7 @@ object EmitStreamDistribute {
           EmitCode.fromI(cb.emb)(cb => paddedSplitters.loadElement(cb, uniqueSplittersIdx - 1)),
           EmitCode.fromI(cb.emb)(cb => paddedSplitters.loadElement(cb, uniqueSplittersIdx)),
           false,
-          cb.memoize(!splitterWasDuplicated.loadElement(cb, uniqueSplittersIdx).get(cb).asBoolean.boolCode(cb))
+          cb.memoize(!splitterWasDuplicated.loadElement(cb, uniqueSplittersIdx).get(cb).asBoolean.value)
         )
 
         pushElement(cb, IEmitCode.present(cb, new SStackStructValue(stackStructType, IndexedSeq(
@@ -248,7 +260,7 @@ object EmitStreamDistribute {
       })
 
       // Now, maybe have to make an identity bucket.
-      cb.ifx(splitterWasDuplicated.loadElement(cb, uniqueSplittersIdx).get(cb).asBoolean.boolCode(cb), {
+      cb.ifx(splitterWasDuplicated.loadElement(cb, uniqueSplittersIdx).get(cb).asBoolean.value, {
         val identityInterval = intervalType.constructFromCodes(cb, region,
           EmitCode.fromI(cb.emb)(cb => paddedSplitters.loadElement(cb, uniqueSplittersIdx)),
           EmitCode.fromI(cb.emb)(cb => paddedSplitters.loadElement(cb, uniqueSplittersIdx)),
@@ -266,19 +278,21 @@ object EmitStreamDistribute {
       })
     })
 
-    // Add last
-    val lastInterval = intervalType.constructFromCodes(cb, region,
-      EmitCode.fromI(cb.emb)(cb => paddedSplitters.loadElement(cb, uniqueSplittersIdx - 1)),
-      EmitCode.fromI(cb.emb)(cb => requestedSplittersAndEndsVal.loadElement(cb, requestedSplittersAndEndsVal.loadLength() - 1)),
-      false,
-      false
-    )
+    // Add last, but only if max != last key
+    cb.ifx(!skipMaxInterval, {
+      val lastInterval = intervalType.constructFromCodes(cb, region,
+        EmitCode.fromI(cb.emb)(cb => paddedSplitters.loadElement(cb, uniqueSplittersIdx - 1)),
+        EmitCode.fromI(cb.emb)(cb => requestedSplittersAndEndsVal.loadElement(cb, requestedSplittersAndEndsVal.loadLength() - 1)),
+        false,
+        true
+      )
 
-    pushElement(cb, IEmitCode.present(cb, new SStackStructValue(stackStructType, IndexedSeq(
-      EmitValue.present(lastInterval),
-      EmitValue.present(SJavaString.construct(cb, makeFileName(cb, fileArrayIdx))),
-      EmitValue.present(primitive(cb.memoize(numElementsPerFile(fileArrayIdx))))
-    ))))
+      pushElement(cb, IEmitCode.present(cb, new SStackStructValue(stackStructType, IndexedSeq(
+        EmitValue.present(lastInterval),
+        EmitValue.present(SJavaString.construct(cb, makeFileName(cb, fileArrayIdx))),
+        EmitValue.present(primitive(cb.memoize(numElementsPerFile(fileArrayIdx))))
+      ))))
+    })
 
     finisher(cb)
   }

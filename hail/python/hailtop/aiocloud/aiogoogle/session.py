@@ -1,12 +1,12 @@
-from typing import Mapping, Optional
+from typing import Mapping, Optional, Union
 
-from ..common import Session as BaseSession
+from ..common import Session as BaseSession, AnonymousCloudCredentials
 
 from .credentials import GoogleCredentials
 
 
 class GoogleSession(BaseSession):
-    def __init__(self, *, credentials: Optional[GoogleCredentials] = None, credentials_file: Optional[str] = None,
+    def __init__(self, *, credentials: Optional[Union[GoogleCredentials, AnonymousCloudCredentials]] = None, credentials_file: Optional[str] = None,
                  params: Optional[Mapping[str, str]] = None, **kwargs):
         assert credentials is None or credentials_file is None, \
             f'specify only one of credentials or credentials_file: {(credentials, credentials_file)}'

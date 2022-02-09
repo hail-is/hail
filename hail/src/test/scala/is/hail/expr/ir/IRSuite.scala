@@ -2843,7 +2843,7 @@ class IRSuite extends HailSuite {
         PartitionNativeReader(TypedCodecSpec(PCanonicalStruct("foo" -> PInt32(), "bar" -> PCanonicalString()), BufferSpec.default))),
       WritePartition(
         MakeStream(FastSeq(), TStream(TStruct())), NA(TString),
-        PartitionNativeWriter(TypedCodecSpec(PType.canonical(TStruct()), BufferSpec.default), "path", None, None)),
+        PartitionNativeWriter(TypedCodecSpec(PType.canonical(TStruct()), BufferSpec.default), IndexedSeq(), "path", None, None)),
       WriteMetadata(
         NA(TStruct("global" -> TString, "partitions" -> TStruct("filePath" -> TString, "partitionCounts" -> TInt64))),
         RelationalWriter("path", overwrite = false, None)),
@@ -3073,7 +3073,7 @@ class IRSuite extends HailSuite {
       "bin" -> TBinary,
       "x" -> TInt32))
 
-    val s = Pretty(x, elideLiterals = false)
+    val s = Pretty.sexprStyle(x, elideLiterals = false)
 
     val x2 = IRParser.parse_value_ir(s, env)
 
@@ -3082,21 +3082,21 @@ class IRSuite extends HailSuite {
 
   @Test(dataProvider = "tableIRs")
   def testTableIRParser(x: TableIR) {
-    val s = Pretty(x, elideLiterals = false)
+    val s = Pretty.sexprStyle(x, elideLiterals = false)
     val x2 = IRParser.parse_table_ir(ctx, s)
     assert(x2 == x)
   }
 
   @Test(dataProvider = "matrixIRs")
   def testMatrixIRParser(x: MatrixIR) {
-    val s = Pretty(x, elideLiterals = false)
+    val s = Pretty.sexprStyle(x, elideLiterals = false)
     val x2 = IRParser.parse_matrix_ir(ctx, s)
     assert(x2 == x)
   }
 
   @Test(dataProvider = "blockMatrixIRs")
   def testBlockMatrixIRParser(x: BlockMatrixIR) {
-    val s = Pretty(x, elideLiterals = false)
+    val s = Pretty.sexprStyle(x, elideLiterals = false)
     val x2 = IRParser.parse_blockmatrix_ir(ctx, s)
     assert(x2 == x)
   }
@@ -3106,7 +3106,7 @@ class IRSuite extends HailSuite {
     backend.persist(ctx.backendContext, "x", bm, "MEMORY_ONLY")
     val persist = BlockMatrixRead(BlockMatrixPersistReader("x", BlockMatrixType.fromBlockMatrix(bm)))
 
-    val s = Pretty(persist, elideLiterals = false)
+    val s = Pretty.sexprStyle(persist, elideLiterals = false)
     val x2 = IRParser.parse_blockmatrix_ir(ctx, s)
     assert(x2 == persist)
     backend.unpersist(ctx.backendContext, "x")
@@ -3363,7 +3363,7 @@ class IRSuite extends HailSuite {
     val lit = Literal(t, Row(1L))
 
     assert(IRParser.parseType(t.parsableString()) == t)
-    assert(IRParser.parse_value_ir(ctx, Pretty(lit, elideLiterals = false)) == lit)
+    assert(IRParser.parse_value_ir(ctx, Pretty.sexprStyle(lit, elideLiterals = false)) == lit)
   }
 
   def regressionTestUnifyBug(): Unit = {
@@ -3586,7 +3586,7 @@ class IRSuite extends HailSuite {
     val child = ToStream(MakeArray(data.map(makeRowStruct):_*))
     val pivots = MakeArray(splitters.map(makeKeyStruct):_*)
     val spec = TypedCodecSpec(PCanonicalStruct(("rowIdx", PInt32Required), ("extraInfo", PInt32Required)), BufferSpec.default)
-    val dist = StreamDistribute(child, pivots, Str(ctx.localTmpdir), spec)
+    val dist = StreamDistribute(child, pivots, Str(ctx.localTmpdir), Compare(pivots.typ.asInstanceOf[TArray].elementType), spec)
     val result = eval(dist).asInstanceOf[IndexedSeq[Row]].map(row => (row(0).asInstanceOf[Interval], row(1).asInstanceOf[String], row(2).asInstanceOf[Int]))
     val kord: ExtendedOrdering = PartitionBoundOrdering(pivots.typ.asInstanceOf[TArray].elementType)
 

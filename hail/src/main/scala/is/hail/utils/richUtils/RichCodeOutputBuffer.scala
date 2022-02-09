@@ -60,10 +60,10 @@ class RichCodeOutputBuffer(
     ob.invoke[String, Unit]("writeUTF", s)
 
   def writePrimitive(cb: EmitCodeBuilder, pc: SValue): Unit = pc.st.virtualType match {
-    case TBoolean => cb += writeBoolean(pc.asBoolean.boolCode(cb))
-    case TInt32 => cb += writeInt(pc.asInt.intCode(cb))
-    case TInt64 => cb += writeLong(pc.asLong.longCode(cb))
-    case TFloat32 => cb += writeFloat(pc.asFloat.floatCode(cb))
-    case TFloat64 => cb += writeDouble(pc.asDouble.doubleCode(cb))
+    case TBoolean => cb += writeBoolean(pc.asBoolean.value)
+    case TInt32 => cb += writeInt(pc.asInt.value)
+    case TInt64 => cb += writeLong(pc.asLong.value)
+    case TFloat32 => cb += writeFloat(pc.asFloat.value)
+    case TFloat64 => cb += writeDouble(pc.asDouble.value)
   }
 }
