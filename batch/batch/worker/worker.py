@@ -1857,13 +1857,18 @@ class JVM:
 
     @classmethod
     async def create_process(cls, socket_file: str) -> BufferedOutputProcess:
+        # JVM and Hail both treat MB as 1024 * 1024 bytes.
+        # JVMs only start in standard workers which have 3.75 GiB == 3840 MiB per core.
+        # We only allocate 3700 MiB so that we stay well below the machine's max memory.
+        # We allocate 60% of memory per core to off heap memory: 1480 + 2220 = 3700.
         return await BufferedOutputProcess.create(
             'java',
-            '-Xmx3500M',
+            '-Xmx1480M',
             '-cp',
             f'/jvm-entryway:/jvm-entryway/junixsocket-selftest-2.3.3-jar-with-dependencies.jar:{JVM.SPARK_HOME}/jars/*',
             'is.hail.JVMEntryway',
             socket_file,
+            env={'HAIL_WORKER_OFF_HEAP_MEMORY_PER_CORE_MB': '2220'},
         )
 
     @classmethod
