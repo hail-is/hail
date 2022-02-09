@@ -305,7 +305,8 @@ object Simplify {
           MakeStruct(finalFields)
       }
 
-    case InsertFields(struct, Seq(), _) => struct
+    case InsertFields(struct, Seq(), None) => struct
+    case InsertFields(SelectFields(old, _), Seq(), Some(insertFieldOrder)) => SelectFields(old, insertFieldOrder)
 
     case top@Let(x, Let(y, yVal, yBody), xBody) if (x != y) => Let(y, yVal, Let(x, yBody, xBody))
 
