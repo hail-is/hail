@@ -244,12 +244,20 @@ object IEmitCode {
     IEmitCodeGen(Lmissing, CodeLabel(), defaultValue, false)
   }
 
-  def multiMapEmitCodes(cb: EmitCodeBuilder, seq: IndexedSeq[EmitCode])(f: IndexedSeq[SValue] => SValue): IEmitCode = {
+  def multiMapEmitCodes(cb: EmitCodeBuilder, seq: IndexedSeq[EmitCode])(f: IndexedSeq[SValue] => SValue): IEmitCode =
+    multiMap(cb, seq.map(ec => cb => ec.toI(cb)))(f)
+
+  def multiMap(cb: EmitCodeBuilder,
+    seq: IndexedSeq[EmitCodeBuilder => IEmitCode]
+  )(f: IndexedSeq[SValue] => SValue
+  ): IEmitCode = {
     val Lmissing = CodeLabel()
     val Lpresent = CodeLabel()
 
+    var required = true
     val pcs = seq.map { elem =>
-      val iec = elem.toI(cb)
+      val iec = elem(cb)
+      required = required & iec.required
 
       cb.define(iec.Lmissing)
       cb.goto(Lmissing)
@@ -260,8 +268,14 @@ object IEmitCode {
     val pc = f(pcs)
     cb.goto(Lpresent)
 
-    IEmitCodeGen(Lmissing, Lpresent, pc, seq.forall(_.required))
+    IEmitCodeGen(Lmissing, Lpresent, pc, required)
   }
+
+  def multiFlatMap(cb: EmitCodeBuilder,
+    seq: IndexedSeq[EmitCodeBuilder => IEmitCode]
+  )(f: IndexedSeq[SValue] => IEmitCode
+  ): IEmitCode =
+    multiFlatMap[EmitCodeBuilder => IEmitCode, SValue, SValue](seq, x => x(cb), cb)(f)
 
   def multiFlatMap[A, B, C](seq: IndexedSeq[A], toIec: A => IEmitCodeGen[B], cb: EmitCodeBuilder)
     (f: IndexedSeq[B] => IEmitCodeGen[C]): IEmitCodeGen[C] = {

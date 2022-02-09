@@ -85,11 +85,10 @@ class SIntervalPointerValue(
 
     val start = cb.memoize(loadStart(cb), "start")
     val end = cb.memoize(loadEnd(cb), "end")
-    val empty = cb.newLocal("is_empty", includesStart)
-    cb.ifx(empty,
-      cb.ifx(includesEnd,
-        cb.assign(empty, gt(cb, start, end)),
-        cb.assign(empty, gteq(cb, start, end))))
+    val empty = cb.newLocal[Boolean]("is_empty")
+    cb.ifx(includesStart && includesEnd,
+      cb.assign(empty, gt(cb, start, end)),
+      cb.assign(empty, gteq(cb, start, end)))
     empty
   }
 }
