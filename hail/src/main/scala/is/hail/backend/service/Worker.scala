@@ -52,7 +52,7 @@ object Worker {
 
   def main(argv: Array[String]): Unit = {
 
-    if (argv.length != 5) {
+    if (argv.length != 6) {
       throw new IllegalArgumentException(s"expected five arguments, not: ${ argv.length }")
     }
     val scratchDir = argv(0)
