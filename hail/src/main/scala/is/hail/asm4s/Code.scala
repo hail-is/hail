@@ -1089,8 +1089,11 @@ class CodeString(val lhs: Code[String]) extends AnyVal {
 }
 
 class CodeArray[T](val lhs: Code[Array[T]])(implicit tti: TypeInfo[T]) {
-  def apply(i: Code[Int]): Code[T] =
-    Code(lhs, i, lir.insn2(tti.aloadOp))
+  assert(lhs.ti.asInstanceOf[ArrayInfo[_]].tti == tti)
+  def apply(i: Code[Int]): Code[T] = {
+    val f: (ValueX, ValueX) => ValueX = (v1: ValueX, v2: ValueX) => lir.insn(tti.aloadOp, tti, FastIndexedSeq(v1, v2))
+    Code(lhs, i, f)
+  }
 
   def update(i: Code[Int], x: Code[T]): Code[Unit] = {
     lhs.start.append(lir.goto(i.end))
