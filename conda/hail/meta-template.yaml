@@ -48,6 +48,7 @@ requirements:
     - google-cloud-storage
     - google-api-core
     - janus >=0.6,<0.7
+    - botocore >=1.20,<2.0
 
 test:
   imports:
