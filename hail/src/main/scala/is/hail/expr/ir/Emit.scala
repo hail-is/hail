@@ -2190,7 +2190,9 @@ class Emit[C](
       case ReadValue(path, spec, requestedType) =>
         emitI(path).map(cb) { pv =>
           val ib = cb.memoize[InputBuffer](spec.buildCodeInputBuffer(mb.open(pv.asString.loadString(cb), checkCodec = true)))
-          spec.encodedType.buildDecoder(requestedType, mb.ecb)(cb, region, ib)
+          val decoded = spec.encodedType.buildDecoder(requestedType, mb.ecb)(cb, region, ib)
+          cb += ib.close()
+          decoded
         }
 
       case WriteValue(value, path, spec) =>
