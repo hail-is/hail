@@ -15,11 +15,15 @@ import is.hail.types.{RIterable, TypeWithRequiredness}
 import is.hail.types.encoded._
 import is.hail.types.physical._
 import is.hail.types.physical.stypes.{BooleanSingleCodeType, Float32SingleCodeType, Float64SingleCodeType, Int32SingleCodeType, Int64SingleCodeType, PTypeReferenceSingleCodeType, SType}
+import is.hail.types.physical.stypes.concrete.SJavaString
+import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.virtual._
 import is.hail.utils.{FastIndexedSeq, _}
 import org.json4s.{DefaultFormats, Extraction, Formats, JValue, ShortTypeHints}
 
 import scala.language.existentials
+
+import java.io.OutputStream
 
 sealed trait IR extends BaseIR {
   private var _typ: Type = null
@@ -733,6 +737,7 @@ object PartitionWriter {
   implicit val formats: Formats = new DefaultFormats() {
     override val typeHints = ShortTypeHints(List(
       classOf[PartitionNativeWriter],
+      classOf[TableTextPartitionWriter],
       classOf[AbstractTypedCodecSpec],
       classOf[TypedCodecSpec]), typeHintFieldName = "name"
     ) + BufferSpec.shortTypeHints
@@ -750,6 +755,7 @@ object MetadataWriter {
       classOf[RVDSpecWriter],
       classOf[TableSpecWriter],
       classOf[RelationalWriter],
+      classOf[TableTextFinalizer],
       classOf[RVDSpecMaker],
       classOf[AbstractTypedCodecSpec],
       classOf[TypedCodecSpec]),
@@ -792,6 +798,37 @@ abstract class PartitionWriter {
   def unionTypeRequiredness(r: TypeWithRequiredness, ctxType: TypeWithRequiredness, streamType: RIterable): Unit
 
   def toJValue: JValue = Extraction.decompose(this)(PartitionWriter.formats)
+}
+
+abstract class SimplePartitionWriter extends PartitionWriter {
+  def ctxType: Type = TString
+  def returnType: Type = TString
+  def unionTypeRequiredness(r: TypeWithRequiredness, ctxType: TypeWithRequiredness, streamType: RIterable): Unit = {
+    r.union(ctxType.required)
+    r.union(streamType.required)
+  }
+
+  def consumeElement(cb: EmitCodeBuilder, element: EmitCode, os: Value[OutputStream], region: Value[Region]): Unit
+  def preConsume(cb: EmitCodeBuilder, os: Value[OutputStream]): Unit = ()
+  def postConsume(cb: EmitCodeBuilder, os: Value[OutputStream]): Unit = ()
+
+  final def consumeStream(ctx: ExecuteContext, cb: EmitCodeBuilder, stream: StreamProducer,
+      context: EmitCode, region: Value[Region]): IEmitCode = {
+    context.toI(cb).map(cb) { case ctx: SStringValue =>
+      val filename = ctx.loadString(cb)
+      val os = cb.memoize(cb.emb.create(filename))
+
+      preConsume(cb, os)
+      stream.memoryManagedConsume(region, cb) { cb =>
+        consumeElement(cb, stream.element, os, stream.elementRegion)
+      }
+      postConsume(cb, os)
+
+      cb += os.invoke[Unit]("close")
+
+      SJavaString.construct(cb, filename)
+    }
+  }
 }
 
 abstract class MetadataWriter {

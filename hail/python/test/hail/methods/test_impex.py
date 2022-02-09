@@ -1634,8 +1634,6 @@ class GENTests(unittest.TestCase):
 
 
 class LocusIntervalTests(unittest.TestCase):
-    @fails_service_backend()
-    @fails_local_backend()
     def test_import_locus_intervals(self):
         interval_file = resource('annotinterall.interval_list')
         t = hl.import_locus_intervals(interval_file, reference_genome='GRCh37')
@@ -2017,8 +2015,6 @@ class ImportLinesTest(unittest.TestCase):
 
 
 class ImportTableTests(unittest.TestCase):
-    @fails_service_backend()
-    @fails_local_backend()
     def test_import_table_force_bgz(self):
         f = new_temp_file(extension="bgz")
         t = hl.utils.range_table(10, 5)
@@ -2070,8 +2066,6 @@ Caused by: java.lang.ClassCastException: __C2829collect_distributed_array cannot
         assert ht.row.dtype == hl.dtype(
             'struct{A:int64, B:int32}')
 
-    @fails_service_backend()
-    @fails_local_backend()
     def test_import_export_identity(self):
         ht = hl.import_table(resource('sampleAnnotations.tsv'))
         f = new_temp_file()
