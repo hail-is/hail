@@ -66,8 +66,8 @@ class PNDArraySuite extends PhysicalTestUtils {
 
         SNDArray.coiterate(cb, (A.slice(cb, ::, (n, null)), "A"), (Qout, "Qout")) {
           case Seq(l, r) =>
-            def lCode = l.asDouble.doubleCode(cb)
-            cb.assign(diff, lCode - r.asDouble.doubleCode(cb))
+            def lCode = l.asDouble.value
+            cb.assign(diff, lCode - r.asDouble.value)
             cb.assign(normDiff, normDiff + diff*diff)
             cb.assign(normA, normA + lCode*lCode)
         }
@@ -125,8 +125,8 @@ class PNDArraySuite extends PhysicalTestUtils {
 
         SNDArray.coiterate(cb, (A, "A"), (Q, "Q")) {
           case Seq(l, r) =>
-            def lCode: Code[Double] = l.asDouble.doubleCode(cb)
-            cb.assign(diff, lCode - r.asDouble.doubleCode(cb))
+            def lCode = l.asDouble.value
+            cb.assign(diff, lCode - r.asDouble.value)
             cb.assign(normDiff, normDiff + diff*diff)
             cb.assign(normA, normA + lCode*lCode)
         }
@@ -208,8 +208,8 @@ class PNDArraySuite extends PhysicalTestUtils {
 
         SNDArray.coiterate(cb, (Aorig.slice(cb, ::, (n, null)), "A"), (state.Q, "Qout")) {
           case Seq(l, r) =>
-            def lCode = l.asDouble.doubleCode(cb)
-            cb.assign(diff, lCode - r.asDouble.doubleCode(cb))
+            def lCode = l.asDouble.value
+            cb.assign(diff, lCode - r.asDouble.value)
             cb.assign(normDiff, normDiff + diff*diff)
             cb.assign(normA, normA + lCode*lCode)
         }
@@ -227,8 +227,8 @@ class PNDArraySuite extends PhysicalTestUtils {
 
         SNDArray.coiterate(cb, (W2, "W2"), (A, "A")) {
           case Seq(l, r) =>
-            def lCode = l.asDouble.doubleCode(cb)
-            cb.assign(diff, lCode - r.asDouble.doubleCode(cb))
+            def lCode = l.asDouble.value
+            cb.assign(diff, lCode - r.asDouble.value)
             cb.assign(normDiff, normDiff + diff*diff)
             cb.assign(normW2, normW2 + lCode*lCode)
         }
@@ -289,8 +289,8 @@ class PNDArraySuite extends PhysicalTestUtils {
 
         SNDArray.coiterate(cb, (W2, "W2"), (A, "A")) {
           case Seq(l, r) =>
-            def lCode = l.asDouble.doubleCode(cb)
-            cb.assign(diff, lCode - r.asDouble.doubleCode(cb))
+            def lCode = l.asDouble.value
+            cb.assign(diff, lCode - r.asDouble.value)
             cb.assign(normDiff, normDiff + diff*diff)
             cb.assign(normW2, normW2 + lCode*lCode)
         }

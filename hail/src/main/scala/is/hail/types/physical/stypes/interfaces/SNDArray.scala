@@ -457,8 +457,8 @@ object SNDArray {
       A.firstDataAddress, ldA,
       T.firstDataAddress, Tsize.toI,
       work.firstDataAddress, lwork.toI))
-    val optTsize = cb.memoize(T.loadElement(FastIndexedSeq(0), cb).get.asFloat64.code.toI)
-    val optLwork = cb.memoize(work.loadElement(FastIndexedSeq(0), cb).get.asFloat64.code.toI)
+    val optTsize = T.loadElement(FastIndexedSeq(0), cb).asFloat64.value.toI
+    val optLwork = work.loadElement(FastIndexedSeq(0), cb).asFloat64.value.toI
     cb.ifx(optTsize > Tsize.toI, cb._fatal(s"dgeqr: T too small"))
     cb.ifx(optLwork > lwork.toI, cb._fatal(s"dgeqr: work too small"))
     cb.ifx(info.cne(0), cb._fatal(s"LAPACK error dgeqr. Error code = ", info.toS))
