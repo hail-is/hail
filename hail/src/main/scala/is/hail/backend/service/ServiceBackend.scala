@@ -154,7 +154,7 @@ class ServiceBackend(
         "parent_ids" -> JArray(List()),
         "process" -> JObject(
           "command" -> JArray(List(
-            JString("is.hail.backend.service.Worker"),
+            JInt,
             JString(revision),
             JString(jarLocation),
             JString(root),
@@ -419,12 +419,14 @@ object ServiceBackendSocketAPI2 {
   def main(argv: Array[String]): Unit = {
     assert(argv.length == 6, argv.toFastIndexedSeq)
 
-    val scratchDir = argv(0)
-    val revision = argv(1)
-    val jarLocation = argv(2)
-    val name = argv(3)
-    val input = argv(4)
-    val output = argv(5)
+    val kind = argv(0)
+    assert(kind == Main.DRIVER)
+    val scratchDir = argv(1)
+    val revision = argv(2)
+    val jarLocation = argv(3)
+    val name = argv(4)
+    val input = argv(5)
+    val output = argv(6)
 
     val backend = new ServiceBackend(revision, jarLocation, name, scratchDir)
     if (HailContext.isInitialized) {

@@ -50,16 +50,18 @@ object Worker {
   private[this] implicit val ec = ExecutionContext.fromExecutorService(
     javaConcurrent.Executors.newCachedThreadPool())
 
-  def main(args: Array[String]): Unit = {
+  def main(argv: Array[String]): Unit = {
 
-    if (args.length != 5) {
-      throw new IllegalArgumentException(s"expected five arguments, not: ${ args.length }")
+    if (argv.length != 5) {
+      throw new IllegalArgumentException(s"expected five arguments, not: ${ argv.length }")
     }
-    val scratchDir = args(0)
-    val revision = args(1)
-    val jarGCSPath = args(2)
-    val root = args(3)
-    val i = args(4).toInt
+    val kind = argv(0)
+    assert(kind == Main.WORKER)
+    val scratchDir = argv(1)
+    val revision = argv(2)
+    val jarGCSPath = argv(3)
+    val root = argv(4)
+    val i = argv(5).toInt
     val timer = new WorkerTimer()
 
     val deployConfig = DeployConfig.fromConfigFile(

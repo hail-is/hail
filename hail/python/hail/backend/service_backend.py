@@ -117,6 +117,11 @@ yaml.add_representer(yaml_literally_shown_str, yaml_literally_shown_str_represen
 class ServiceBackend(Backend):
     HAIL_BATCH_FAILURE_EXCEPTION_MESSAGE_RE = re.compile("is.hail.backend.service.HailBatchFailure: ([0-9]+)\n")
 
+    # is.hail.backend.service.Main protocol
+    WORKER = 1
+    DRIVER = 2
+
+    # is.hail.backend.service.ServiceBackendSocketAPI2 protocol
     LOAD_REFERENCES_FROM_DATASET = 1
     VALUE_TYPE = 2
     TABLE_TYPE = 3
