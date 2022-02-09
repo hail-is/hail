@@ -165,7 +165,6 @@ class Tests(unittest.TestCase):
             with fs.open(filename, 'w') as fobj:
                 fobj.write('hello world')
 
-
         fs.mkdir(dir)
         touch(f'{dir}a')
         touch(f'{dir}b')

@@ -235,7 +235,6 @@ class ServiceBackend(Backend):
             b = await bb.submit(disable_progress_bar=self.disable_progress_bar)
             try:
                 status = await b.wait(disable_progress_bar=self.disable_progress_bar)
-                (j, b, status) = (j, b, status)
             except Exception:
                 await b.cancel()
                 raise
