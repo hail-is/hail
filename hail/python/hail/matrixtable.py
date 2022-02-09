@@ -1366,8 +1366,8 @@ class MatrixTable(ExprContainer):
         -----
         The row key type of the matrix table must match the key type of `other`.
 
-        This method does not change the schema of the matrix table; it is a
-        filtering the matrix table to row keys not present in another table.
+        This method does not change the schema of the matrix table; it is
+        filtering the matrix table to row keys present in another table.
 
         To discard rows whose key is present in `other`, use
         :meth:`.anti_join_rows`.
