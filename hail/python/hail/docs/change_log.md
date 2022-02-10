@@ -26,13 +26,15 @@ an earlier version of Hail to read files written in a later version.
 
 ## Version 0.2.84
 
-Release 2022-02-09
+Release 2022-02-10
 
 ### Bug fixes
 
 - (hail#11328) Fix bug where occasionally files written to disk would be unreadable.
 - (hail#11331) Fix bug that potentially caused files written to disk to be unreadable.
 - (hail#11312) Fix aggregator memory leak.
+- (hail#11340) Fix bug where repeatedly annotating same field name could cause failure to compile.
+- (hail#11342) Fix to possible issues about having too many open file handles.
 
 ### New features
 
