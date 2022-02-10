@@ -430,8 +430,14 @@ class Table(ExprContainer):
         """
         return Env.backend().execute(ir.TableCount(self._tir))
 
+    async def _async_count(self):
+        return await Env.backend()._async_execute(ir.TableCount(self._tir))
+
     def _force_count(self):
         return Env.backend().execute(ir.TableToValueApply(self._tir, {'name': 'ForceCountTable'}))
+
+    async def _async_force_count(self):
+        return await Env.backend()._async_execute(ir.TableToValueApply(self._tir, {'name': 'ForceCountTable'}))
 
     @typecheck_method(caller=str,
                       row=expr_struct())
@@ -1931,8 +1937,8 @@ class Table(ExprContainer):
         """
         return Env.backend().unpersist_table(self)
 
-    @typecheck_method(_localize=bool)
-    def collect(self, _localize=True):
+    @typecheck_method(_localize=bool, _timed=bool)
+    def collect(self, _localize=True, *, _timed=False):
         """Collect the rows of the table into a local list.
 
         Examples
@@ -1963,7 +1969,7 @@ class Table(ExprContainer):
         rows_ir = ir.GetField(ir.TableCollect(t._tir), 'rows')
         e = construct_expr(rows_ir, hl.tarray(t.row.dtype))
         if _localize:
-            return Env.backend().execute(e._ir)
+            return Env.backend().execute(e._ir, timed=_timed)
         else:
             return e
 

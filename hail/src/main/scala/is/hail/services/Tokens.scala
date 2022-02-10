@@ -9,20 +9,33 @@ import org.json4s.{DefaultFormats, Formats}
 import org.json4s.jackson.JsonMethods
 
 object Tokens {
-  lazy val log: Logger = LogManager.getLogger("Tokens")
+  private[this] val log: Logger = LogManager.getLogger("Tokens")
+
+  private[this] var _get: Tokens = null
+
+  def set(x: Tokens) = {
+    _get = x
+  }
 
   def get: Tokens = {
-    val file = getTokensFile()
-    if (new File(file).isFile) {
-      using(new FileInputStream(file)) { is =>
-        implicit val formats: Formats = DefaultFormats
-        val tokens = JsonMethods.parse(is).extract[Map[String, String]]
-        log.info(s"tokens found for namespaces {${ tokens.keys.mkString(", ") }}")
-        new Tokens(tokens)
+    if (_get == null) {
+      val file = getTokensFile()
+      if (new File(file).isFile) {
+        _get = fromFile(file)
+      } else {
+        log.info(s"tokens file not found: $file")
+        _get = new Tokens(Map())
       }
-    } else {
-      log.info(s"tokens file not found: $file")
-      new Tokens(Map())
+    }
+    return _get
+  }
+
+  def fromFile(file: String): Tokens = {
+    using(new FileInputStream(file)) { is =>
+      implicit val formats: Formats = DefaultFormats
+      val tokens = JsonMethods.parse(is).extract[Map[String, String]]
+      log.info(s"tokens found for namespaces {${ tokens.keys.mkString(", ") }}")
+      new Tokens(tokens)
     }
   }
 

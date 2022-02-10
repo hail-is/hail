@@ -15,14 +15,14 @@ class GoogleStorageFSSuite extends TestNGSuite with FSSuite {
     if (System.getenv("HAIL_CLOUD") != "gcp") {
       throw new SkipException("This test suite is only run in GCP.");
     } else {
-      assert(bucket != null)
+      assert(hail_test_storage_uri != null)
       assert(fsResourcesRoot != null)
     }
   }
 
-  val bucket: String = System.getenv("HAIL_TEST_GCS_BUCKET")
+  val hail_test_storage_uri: String = System.getenv("HAIL_TEST_STORAGE_URI")
 
-  val root: String = s"gs://$bucket"
+  val root: String = hail_test_storage_uri
 
   val fsResourcesRoot: String = System.getenv("HAIL_FS_TEST_CLOUD_RESOURCES_URI")
 
@@ -36,7 +36,7 @@ class GoogleStorageFSSuite extends TestNGSuite with FSSuite {
     }
   }
 
-  lazy val tmpdir: String = s"gs://$bucket/tmp"
+  lazy val tmpdir: String = hail_test_storage_uri
 
   @Test def testDropTailingSlash(): Unit = {
     import GoogleStorageFS._

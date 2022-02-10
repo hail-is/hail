@@ -322,32 +322,32 @@ class SparkBackend(Py4JBackend):
                                      Env.spark_session()._wrapped)
 
     def add_reference(self, config):
-        Env.hail().variant.ReferenceGenome.fromJSON(json.dumps(config))
+        self.hail_package().variant.ReferenceGenome.fromJSON(json.dumps(config))
 
     def load_references_from_dataset(self, path):
-        return json.loads(Env.hail().variant.ReferenceGenome.fromHailDataset(self.fs._jfs, path))
+        return json.loads(self.hail_package().variant.ReferenceGenome.fromHailDataset(self.fs._jfs, path))
 
     def from_fasta_file(self, name, fasta_file, index_file, x_contigs, y_contigs, mt_contigs, par):
         self._jbackend.pyFromFASTAFile(
             name, fasta_file, index_file, x_contigs, y_contigs, mt_contigs, par)
 
     def remove_reference(self, name):
-        Env.hail().variant.ReferenceGenome.removeReference(name)
+        self.hail_package().variant.ReferenceGenome.removeReference(name)
 
     def get_reference(self, name):
-        return json.loads(Env.hail().variant.ReferenceGenome.getReference(name).toJSONString())
+        return json.loads(self.hail_package().variant.ReferenceGenome.getReference(name).toJSONString())
 
     def add_sequence(self, name, fasta_file, index_file):
         self._jbackend.pyAddSequence(name, fasta_file, index_file)
 
     def remove_sequence(self, name):
-        scala_object(Env.hail().variant, 'ReferenceGenome').removeSequence(name)
+        scala_object(self.hail_package().variant, 'ReferenceGenome').removeSequence(name)
 
     def add_liftover(self, name, chain_file, dest_reference_genome):
         self._jbackend.pyReferenceAddLiftover(name, chain_file, dest_reference_genome)
 
     def remove_liftover(self, name, dest_reference_genome):
-        scala_object(Env.hail().variant, 'ReferenceGenome').referenceRemoveLiftover(
+        scala_object(self.hail_package().variant, 'ReferenceGenome').referenceRemoveLiftover(
             name, dest_reference_genome)
 
     def parse_vcf_metadata(self, path):
@@ -365,7 +365,7 @@ class SparkBackend(Py4JBackend):
         code = r(body._ir)
         jbody = (self._parse_value_ir(code, ref_map=dict(zip(argument_names, argument_types)), ir_map=r.jirs))
 
-        Env.hail().expr.ir.functions.IRFunctionRegistry.pyRegisterIR(
+        self.hail_package().expr.ir.functions.IRFunctionRegistry.pyRegisterIR(
             name,
             [ta._parsable_string() for ta in type_parameters],
             argument_names, [pt._parsable_string() for pt in argument_types],

@@ -4,7 +4,7 @@ import pytest
 import hail as hl
 from hail.utils import new_temp_file
 from hail.vds.combiner.combine import defined_entry_fields
-from ..helpers import startTestHailContext, stopTestHailContext, resource, fails_local_backend, fails_service_backend
+from ..helpers import startTestHailContext, stopTestHailContext, resource, fails_local_backend, fails_service_backend, skip_when_service_backend
 
 setUpModule = startTestHailContext
 tearDownModule = stopTestHailContext
@@ -92,6 +92,7 @@ def test_conversion_equivalence():
     assert svcr._same(svcr_readback)
 
 
+@fails_service_backend(reason='register_ir_function')
 def test_sampleqc_old_new_equivalence():
     vds = hl.vds.read_vds(os.path.join(resource('vds'), '1kg_chr22_5_samples.vds'))
     sqc = hl.vds.sample_qc(vds)
@@ -123,6 +124,7 @@ def test_sampleqc_old_new_equivalence():
     ))
 
 
+@skip_when_service_backend()
 def test_sampleqc_gq_dp():
     vds = hl.vds.read_vds(os.path.join(resource('vds'), '1kg_chr22_5_samples.vds'))
     sqc = hl.vds.sample_qc(vds)
@@ -135,6 +137,7 @@ def test_sampleqc_gq_dp():
                                 bases_over_dp_threshold=(334822, 10484, 388, 111, 52))
 
 
+@fails_service_backend(reason='persist')
 def test_filter_samples_and_merge():
     vds = hl.vds.read_vds(os.path.join(resource('vds'), '1kg_chr22_5_samples.vds'))
 
@@ -250,7 +253,10 @@ def test_interval_coverage():
 
 
 @fails_local_backend
-@fails_service_backend
+@skip_when_service_backend(message='''
+hangs >=9 minutes after "optimize optimize: darrayLowerer, initial IR ..."
+with no calls to parallelizeAndComputeWithIndex
+''')
 def test_impute_sex_chromosome_ploidy():
     x_par_end = 2699521
     y_par_end = 2649521
@@ -299,6 +305,7 @@ def test_impute_sex_chromosome_ploidy():
     ]
 
 
+@skip_when_service_backend(message='uses set flags')
 def test_filter_chromosomes():
     hl._set_flags(no_whole_stage_codegen='1')
     vds = hl.vds.read_vds(os.path.join(resource('vds'), '1kg_2samples_starts.vds'))
@@ -329,6 +336,7 @@ def test_filter_chromosomes():
     assert_contigs(vds_auto, autosomes)
 
 
+@skip_when_service_backend(message='hangs')
 def test_to_dense_mt():
     vds = hl.vds.read_vds(os.path.join(resource('vds'), '1kg_2samples_starts.vds'))
     vds = hl.vds.filter_chromosomes(vds, keep='chr22')

@@ -320,7 +320,7 @@ case class RVDSpecWriter(path: String, spec: RVDSpecMaker) extends MetadataWrite
   }
 }
 
-class TableSpecHelper(path: String, rowRelPath: String, globalRelPath: String, refRelPath: String, typ: TableType, log: Boolean) {
+class TableSpecHelper(path: String, rowRelPath: String, globalRelPath: String, refRelPath: String, typ: TableType, log: Boolean) extends Serializable {
   def write(fs: FS, partCounts: Array[Long], distinctlyKeyed: Boolean): Unit = {
     val spec = TableSpecParameters(
       FileFormat.version.rep,

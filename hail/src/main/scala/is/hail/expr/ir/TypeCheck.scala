@@ -341,9 +341,16 @@ object TypeCheck {
         assert(coerce[TStream](x.typ).elementType == join.typ)
         assert(lKey.forall(lEltTyp.hasField))
         assert(rKey.forall(rEltTyp.hasField))
-        assert((lKey, rKey).zipped.forall { case (lk, rk) =>
-          lEltTyp.fieldType(lk) == rEltTyp.fieldType(rk)
-        })
+        if (x.isIntervalJoin) {
+          val lKeyTyp = lEltTyp.fieldType(lKey(0))
+          val rKeyTyp = rEltTyp.fieldType(rKey(0)).asInstanceOf[TInterval]
+          assert(lKeyTyp == rKeyTyp.pointType)
+          assert((joinType == "left") || (joinType == "inner"))
+        } else {
+          assert((lKey, rKey).zipped.forall { case (lk, rk) =>
+            lEltTyp.fieldType(lk) == rEltTyp.fieldType(rk)
+          })
+        }
       case x@StreamFor(a, valueName, body) =>
         assert(a.typ.isInstanceOf[TStream])
         assert(body.typ == TVoid)
