@@ -37,7 +37,10 @@ class InstanceCollectionManager:
         self.inst_coll_regex = re.compile(f'{self.machine_name_prefix}(?P<inst_coll>.*)-.*')
         self.name_inst_coll: Dict[str, InstanceCollection] = {}
         self.name_token_cache: TimeLimitedMaxSizeCache[str, str] = TimeLimitedMaxSizeCache(
-            self.get_token_from_instance_name, SIXTY_SECONDS_NS, CACHE_CAPACITY
+            self.get_token_from_instance_name,
+            SIXTY_SECONDS_NS,
+            CACHE_CAPACITY,
+            'batch-driver instance name-token cache',
         )
 
     def register_instance_collection(self, inst_coll: 'InstanceCollection'):
