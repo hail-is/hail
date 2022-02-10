@@ -130,6 +130,47 @@ def analyze(caller: str,
         raise errors[0]
 
 
+def _eval_many(*expressions, timed=False, name='_eval_many'):
+    from hail.utils.java import Env
+
+    irs = []
+    for expression in expressions:
+        analyze(name, expression, Indices(expression._indices.source))
+        if expression._indices.source is None:
+            ir_type = expression._ir.typ
+            expression_type = expression.dtype
+            if ir_type != expression.dtype:
+                raise ExpressionException(f'Expression type and IR type differed: \n{ir_type}\n vs \n{expression_type}')
+            irs.append(expression._ir)
+        else:
+            uid = Env.get_uid()
+            ir = expression._indices.source.select_globals(**{uid: expression}).index_globals()[uid]._ir
+            irs.append(ir)
+
+    return Env.backend().execute_many(*irs, timed=timed)
+
+
+async def _async_eval_many(*expressions, timed=False, name='_eval_many'):
+    from hail.utils.java import Env
+
+    irs = []
+    for expression in expressions:
+        analyze(name, expression, Indices(expression._indices.source))
+        tupled_expression = hl.tuple([expression])
+        if tupled_expression._indices.source is None:
+            ir_type = expression._ir.typ
+            expression_type = expression.dtype
+            if ir_type != expression.dtype:
+                raise ExpressionException(f'Expression type and IR type differed: \n{ir_type}\n vs \n{expression_type}')
+            irs.append(tupled_expression._ir)
+        else:
+            uid = Env.get_uid()
+            ir = tupled_expression._indices.source.select_globals(**{uid: tupled_expression}).index_globals()[uid]._ir
+            irs.append(ir)
+
+    return [(x[0][0], x[1]) for x in await Env.backend()._async_execute_many(*irs, timed=timed)]
+
+
 @typecheck(expression=expr_any)
 def eval_timed(expression):
     """Evaluate a Hail expression, returning the result and the times taken for
@@ -145,23 +186,11 @@ def eval_timed(expression):
     (Any, dict)
         Result of evaluating `expression` and a dictionary of the timings
     """
-    from hail.utils.java import Env
+    return _eval_many(expression, timed=True, name='eval_timed')[0]
 
-    analyze('eval_timed', expression, Indices(expression._indices.source))
 
-    tupled_expression = hl.tuple([expression])
-    if tupled_expression._indices.source is None:
-        ir_type = expression._ir.typ
-        expression_type = expression.dtype
-        if ir_type != expression.dtype:
-            raise ExpressionException(f'Expression type and IR type differed: \n{ir_type}\n vs \n{expression_type}')
-        (tupled_ans, timing) = Env.backend().execute(tupled_expression._ir, True)
-    else:
-        uid = Env.get_uid()
-        ir = tupled_expression._indices.source.select_globals(**{uid: tupled_expression}).index_globals()[uid]._ir
-        (tupled_ans, timing) = Env.backend().execute(ir, True)
-
-    return tupled_ans[0], timing
+async def _async_eval_timed(expression):
+    return (await _async_eval_many(expression, timed=True, name='eval_timed'))[0]
 
 
 @typecheck(expression=expr_any)
@@ -194,6 +223,10 @@ def eval(expression):
     return eval_timed(expression)[0]
 
 
+async def _async_eval(expression):
+    return (await _async_eval_timed(expression))[0]
+
+
 @typecheck(expression=expr_any)
 def eval_typed(expression):
     """Evaluate a Hail expression, returning the result and the type of the result.
@@ -224,6 +257,10 @@ def eval_typed(expression):
 
     """
     return eval(expression), expression.dtype
+
+
+async def _async_eval_typed(expression):
+    return await _async_eval(expression), expression.dtype
 
 
 def _get_refs(expr: Expression, builder: Dict[str, Indices]) -> None:

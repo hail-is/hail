@@ -8,7 +8,6 @@ blog
 monitoring
 auth
 ukbb-rg
-query
 workshop
 grafana
 prometheus

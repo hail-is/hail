@@ -2,6 +2,7 @@
 import hail as hl
 from hail.ggplot import *
 import math
+from ..helpers import fails_service_backend
 
 
 def test_geom_point_line_text_col():
@@ -30,6 +31,7 @@ def test_manhattan_plot():
     fig.to_plotly()
 
 
+@fails_service_backend()
 def test_histogram():
     ht = hl.utils.range_table(10)
     fig = (ggplot(ht, aes(x=ht.idx)) +

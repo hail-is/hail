@@ -14,7 +14,7 @@ check-hail:
 
 .PHONY: check-services
 check-services: check-auth check-batch check-ci check-gear check-memory \
-  check-notebook check-query check-web-common check-website
+  check-notebook check-web-common check-website
 
 .PHONY: check-auth
 check-auth:
@@ -43,10 +43,6 @@ check-memory:
 .PHONY: check-notebook
 check-notebook:
 	$(MAKE) -C notebook check
-
-.PHONY: check-query
-check-query:
-	$(MAKE) -C query check
 
 .PHONY: check-web-common
 check-web-common:
