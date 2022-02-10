@@ -581,8 +581,7 @@ class GeomArea(Geom):
 
             fig_so_far.add_scatter(**scatter_args)
 
-        groups = set(agg_result["group"])
-        for group in groups:
+        for group in range(num_groups):
             rows_for_this_group = agg_result["group"] == group
             just_one_group = agg_result[rows_for_this_group]
             plot_group(just_one_group)
