@@ -36,3 +36,11 @@ def test_histogram():
            geom_histogram(alpha=0.5)
            )
     fig.to_plotly()
+
+
+def test_separate_traces_per_group():
+    ht = hl.utils.range_table(30)
+    fig = (ggplot(ht, aes(x=ht.idx)) +
+           geom_bar(aes(fill=hl.str(ht.idx)))
+           )
+    assert len(fig.to_plotly().data) == 30
