@@ -4,8 +4,9 @@ import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.expr.ir.EmitCodeBuilder
 import is.hail.types.physical.stypes.interfaces._
+import is.hail.types.physical.stypes.primitives.SInt64Value
 import is.hail.types.physical.stypes.{SCode, SType, SValue}
-import is.hail.types.physical.{PCanonicalNDArray, PType}
+import is.hail.types.physical.{PCanonicalNDArray, PNDArray, PType}
 import is.hail.types.virtual.Type
 import is.hail.utils.{FastIndexedSeq, toRichIterable}
 
@@ -103,6 +104,12 @@ class SNDArrayPointerValue(
       }
       pt.elementType.storeAtAddress(cb, ptrs.head, region, body(codes), deepCopy)
     }
+  }
+
+  override def sizeInBytes(cb: EmitCodeBuilder): SInt64Value = {
+    val storageType = st.storageType().asInstanceOf[PNDArray]
+    storageType.byteSize
+    new SInt64Value(???)
   }
 }
 

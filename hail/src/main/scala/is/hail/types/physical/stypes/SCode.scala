@@ -119,4 +119,7 @@ object SSettable {
   }
 }
 
-trait SUnrealizableValue extends SValue
+trait SUnrealizableValue extends SValue {
+  override def sizeInBytes(cb: EmitCodeBuilder): SInt64Value =
+    throw new UnsupportedOperationException(s"Unrealizable SValue has no size in bytes.")
+}

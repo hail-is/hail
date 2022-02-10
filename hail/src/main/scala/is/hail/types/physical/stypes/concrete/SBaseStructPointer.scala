@@ -67,23 +67,6 @@ class SBaseStructPointerValue(
   override def isFieldMissing(cb: EmitCodeBuilder, fieldIdx: Int): Value[Boolean] = {
     pt.isFieldMissing(cb, a, fieldIdx)
   }
-
-  override def sizeInBytes(cb: EmitCodeBuilder): SInt64Value = {
-    // Size in bytes of the struct that must represent this thing, plus recursive call on any non-missing children.
-    val pStructSize = this.st.storageType().byteSize
-    val sizeSoFar = cb.newLocal[Long]("sstackstruct_size_in_bytes", pStructSize)
-    (0 until st.size).foreach { idx =>
-      if (!this.st.fieldTypes(idx).isPrimitive) {
-        val sizeAtThisIdx: Value[Long] = this.loadField(cb, idx).consumeCode(cb, {
-          const(0L)
-        }, { sv =>
-          sv.sizeInBytes(cb).value
-        })
-        cb.assign(sizeSoFar, sizeSoFar + sizeAtThisIdx)
-      }
-    }
-    new SInt64Value(sizeSoFar)
-  }
 }
 
 object SBaseStructPointerSettable {
