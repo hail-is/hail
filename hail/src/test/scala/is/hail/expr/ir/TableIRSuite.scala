@@ -78,7 +78,7 @@ class TableIRSuite extends HailSuite {
     val m = TableMapRows(TableRange(2, 2), InsertFields(Ref("row", r.typ.rowType), FastIndexedSeq("collected" -> tc)))
     assertEvalsTo(collect(m),
       Row(FastIndexedSeq(
-        Row(0, FastIndexedSeq(Row(0), Row(1))),000
+        Row(0, FastIndexedSeq(Row(0), Row(1))),
         Row(1, FastIndexedSeq(Row(0), Row(1)))
     ), Row()))
   }
