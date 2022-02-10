@@ -541,8 +541,11 @@ class Container:
             if not isinstance(e, (JobDeletedError, JobTimeoutError)) and not user_error(e):
                 log.exception(f'while running {self}')
 
-            self.state = 'error'
-            self.error = traceback.format_exc()
+            if isinstance(e, JobDeletedError):
+                self.state = 'cancelled'
+            else:
+                self.state = 'error'
+                self.error = traceback.format_exc()
         finally:
             try:
                 with self.step('uploading_log', ignore_job_deletion=True):
@@ -1495,31 +1498,46 @@ class DockerJob(Job):
                 if not user_error(e):
                     log.exception(f'while running {self}')
 
-                self.state = 'error'
-                self.error = traceback.format_exc()
+                if isinstance(e, JobDeletedError):
+                    self.state = 'cancelled'
+                else:
+                    self.state = 'error'
+                    self.error = traceback.format_exc()
             finally:
                 with self.step('post-job finally block'):
-                    if self.disk:
-                        try:
-                            await self.disk.delete()
-                            log.info(f'deleted disk {self.disk.name} for {self.id}')
-                        except asyncio.CancelledError:
-                            raise
-                        except Exception:
-                            log.exception(f'while detaching and deleting disk {self.disk.name} for {self.id}')
-                        finally:
-                            await self.disk.close()
-                    else:
-                        self.worker.data_disk_space_remaining.value += self.external_storage_in_gib
-
-                    await self.cleanup()
+                    try:
+                        if self.disk:
+                            try:
+                                await self.disk.delete()
+                                log.info(f'deleted disk {self.disk.name} for {self.id}')
+                            except asyncio.CancelledError:
+                                raise
+                            except Exception:
+                                log.exception(f'while detaching and deleting disk {self.disk.name} for {self.id}')
+                            finally:
+                                await self.disk.close()
+                        else:
+                            self.worker.data_disk_space_remaining.value += self.external_storage_in_gib
+                    finally:
+                        await self.cleanup()
 
     async def cleanup(self):
         self.end_time = time_msecs()
 
+        full_status = await retry_all_errors(f'error while getting status for {self}')(self.status)
+
+        if self.format_version.has_full_status_in_gcs():
+            await retry_all_errors(f'error while writing status file to cloud storage for {self}')(
+                self.worker.file_store.write_status_file,
+                self.batch_id,
+                self.job_id,
+                self.attempt_id,
+                json.dumps(full_status),
+            )
+
         if not self.deleted:
             log.info(f'{self}: marking complete')
-            self.task_manager.ensure_future(self.worker.post_job_complete(self))
+            self.task_manager.ensure_future(self.worker.post_job_complete(self, full_status))
 
         log.info(f'{self}: cleaning up')
         try:
@@ -1667,11 +1685,15 @@ class JVMJob(Job):
                 self.state = 'failed'
                 self.error = traceback.format_exc()
                 await self.cleanup()
-            except Exception:
+            except Exception as e:
                 log.exception(f'while running {self}')
 
-                self.state = 'error'
-                self.error = traceback.format_exc()
+                if isinstance(e, JobDeletedError):
+                    self.state = 'cancelled'
+                else:
+                    self.state = 'error'
+                    self.error = traceback.format_exc()
+
                 await self.cleanup()
             else:
                 await self.cleanup()
@@ -1697,9 +1719,20 @@ class JVMJob(Job):
 
         self.end_time = time_msecs()
 
+        full_status = await retry_all_errors(f'error while getting status for {self}')(self.status)
+
+        if self.format_version.has_full_status_in_gcs():
+            await retry_all_errors(f'error while writing status file to cloud storage for {self}')(
+                self.worker.file_store.write_status_file,
+                self.batch_id,
+                self.job_id,
+                self.attempt_id,
+                json.dumps(full_status),
+            )
+
         if not self.deleted:
             log.info(f'{self}: marking complete')
-            self.task_manager.ensure_future(self.worker.post_job_complete(self))
+            self.task_manager.ensure_future(self.worker.post_job_complete(self, full_status))
 
         log.info(f'{self}: cleaning up')
         try:
@@ -1729,7 +1762,7 @@ class JVMJob(Job):
     #   job_id: int,
     #   attempt_id: int,
     #   user: str,
-    #   state: str, (pending, initializing, running, succeeded, error, failed)
+    #   state: str, (pending, initializing, running, succeeded, error, failed, cancelled)
     #   format_version: int
     #   error: str, (optional)
     #   container_statuses: [Container.status],
@@ -2288,16 +2321,8 @@ class Worker:
     async def kill(self, request):
         return await asyncio.shield(self.kill_1(request))
 
-    async def post_job_complete_1(self, job):
+    async def post_job_complete_1(self, job, full_status):
         run_duration = job.end_time - job.start_time
-
-        full_status = await retry_all_errors(f'error while getting status for {job}')(job.status)
-
-        if job.format_version.has_full_status_in_gcs():
-            await retry_all_errors(f'error while writing status file to gcs for {job}')(
-                self.file_store.write_status_file, job.batch_id, job.job_id, job.attempt_id, json.dumps(full_status)
-            )
-
         db_status = job.format_version.db_status(full_status)
 
         status = {
@@ -2343,9 +2368,9 @@ class Worker:
             # exponentially back off, up to (expected) max of 2m
             delay_secs = min(delay_secs * 2, 2 * 60.0)
 
-    async def post_job_complete(self, job):
+    async def post_job_complete(self, job, full_status):
         try:
-            await self.post_job_complete_1(job)
+            await self.post_job_complete_1(job, full_status)
         except asyncio.CancelledError:
             raise
         except Exception:

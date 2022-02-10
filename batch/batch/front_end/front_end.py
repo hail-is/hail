@@ -338,37 +338,44 @@ async def _get_job_log_from_record(app, batch_id, job_id, record):
                 return None
             raise
 
-    if state in ('Error', 'Failed', 'Success'):
-        file_store: FileStore = app['file_store']
-        batch_format_version = BatchFormatVersion(record['format_version'])
+    if state in ('Pending', 'Ready', 'Creating'):
+        return None
 
-        async def _read_log_from_gcs(task):
-            try:
-                data = await file_store.read_log_file(
-                    batch_format_version, batch_id, job_id, record['attempt_id'], task
-                )
-            except FileNotFoundError:
-                id = (batch_id, job_id)
-                log.exception(f'missing log file for {id} and task {task}')
-                data = 'ERROR: could not find log file'
-            return task, data
+    if state == 'Cancelled' and record['last_cancelled_attempt_id'] is None:
+        return None
 
-        spec = json.loads(record['spec'])
-        tasks = []
+    assert state in ('Error', 'Failed', 'Success', 'Cancelled')
 
-        has_input_files = batch_format_version.get_spec_has_input_files(spec)
-        if has_input_files:
-            tasks.append('input')
+    batch_format_version = BatchFormatVersion(record['format_version'])
+    attempt_id = record['attempt_id'] or record['last_cancelled_attempt_id']
+    assert attempt_id
 
-        tasks.append('main')
+    file_store: FileStore = app['file_store']
+    batch_format_version = BatchFormatVersion(record['format_version'])
 
-        has_output_files = batch_format_version.get_spec_has_output_files(spec)
-        if has_output_files:
-            tasks.append('output')
+    async def _read_log_from_gcs(task):
+        try:
+            data = await file_store.read_log_file(batch_format_version, batch_id, job_id, attempt_id, task)
+        except FileNotFoundError:
+            id = (batch_id, job_id)
+            log.exception(f'missing log file for {id} and task {task}')
+            data = 'ERROR: could not find log file'
+        return task, data
 
-        return dict(await asyncio.gather(*[_read_log_from_gcs(task) for task in tasks]))
+    spec = json.loads(record['spec'])
+    tasks = []
 
-    return None
+    has_input_files = batch_format_version.get_spec_has_input_files(spec)
+    if has_input_files:
+        tasks.append('input')
+
+    tasks.append('main')
+
+    has_output_files = batch_format_version.get_spec_has_output_files(spec)
+    if has_output_files:
+        tasks.append('output')
+
+    return dict(await asyncio.gather(*[_read_log_from_gcs(task) for task in tasks]))
 
 
 async def _get_job_log(app, batch_id, job_id):
@@ -376,7 +383,7 @@ async def _get_job_log(app, batch_id, job_id):
 
     record = await db.select_and_fetchone(
         '''
-SELECT jobs.state, jobs.spec, ip_address, format_version, jobs.attempt_id
+SELECT jobs.state, jobs.spec, ip_address, format_version, jobs.attempt_id, t.attempt_id AS last_cancelled_attempt_id
 FROM jobs
 INNER JOIN batches
   ON jobs.batch_id = batches.id
@@ -384,6 +391,14 @@ LEFT JOIN attempts
   ON jobs.batch_id = attempts.batch_id AND jobs.job_id = attempts.job_id AND jobs.attempt_id = attempts.attempt_id
 LEFT JOIN instances
   ON attempts.instance_name = instances.name
+LEFT JOIN (
+  SELECT batch_id, job_id, attempt_id
+  FROM attempts
+  WHERE reason = "cancelled"
+  ORDER BY end_time DESC
+  LIMIT 1
+) AS t
+  ON jobs.batch_id = t.batch_id AND jobs.job_id = t.job_id
 WHERE jobs.batch_id = %s AND NOT deleted AND jobs.job_id = %s;
 ''',
         (batch_id, job_id),
@@ -444,14 +459,19 @@ async def _get_full_job_status(app, record):
 
     batch_id = record['batch_id']
     job_id = record['job_id']
-    attempt_id = record['attempt_id']
     state = record['state']
     format_version = BatchFormatVersion(record['format_version'])
 
-    if state in ('Pending', 'Creating', 'Ready', 'Cancelled'):
+    if state in ('Pending', 'Creating', 'Ready'):
         return None
 
-    if state in ('Error', 'Failed', 'Success'):
+    if state == 'Cancelled' and record['last_cancelled_attempt_id'] is None:
+        return None
+
+    attempt_id = record['attempt_id'] or record['last_cancelled_attempt_id']
+    assert attempt_id
+
+    if state in ('Error', 'Failed', 'Success', 'Cancelled'):
         if not format_version.has_full_status_in_gcs():
             return json.loads(record['status'])
 
@@ -1381,7 +1401,8 @@ async def _get_job(app, batch_id, job_id):
 
     record = await db.select_and_fetchone(
         '''
-SELECT jobs.*, user, billing_project, ip_address, format_version, COALESCE(SUM(`usage` * rate), 0) AS cost
+SELECT jobs.*, user, billing_project, ip_address, format_version, COALESCE(SUM(`usage` * rate), 0) AS cost,
+  t.attempt_id AS last_cancelled_attempt_id
 FROM jobs
 INNER JOIN batches
   ON jobs.batch_id = batches.id
@@ -1394,6 +1415,14 @@ LEFT JOIN aggregated_job_resources
      jobs.job_id = aggregated_job_resources.job_id
 LEFT JOIN resources
   ON aggregated_job_resources.resource = resources.resource
+LEFT JOIN (
+  SELECT batch_id, job_id, attempt_id
+  FROM attempts
+  WHERE reason = "cancelled"
+  ORDER BY end_time DESC
+  LIMIT 1
+) AS t
+  ON jobs.batch_id = t.batch_id AND jobs.job_id = t.job_id
 WHERE jobs.batch_id = %s AND NOT deleted AND jobs.job_id = %s
 GROUP BY jobs.batch_id, jobs.job_id;
 ''',
