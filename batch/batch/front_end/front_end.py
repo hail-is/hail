@@ -571,10 +571,10 @@ async def _query_batches(request, user, q):
         where_args.extend(args)
 
     sql = f'''
-SELECT batches.*, batches_cancelled.id IS NOT NULL AS cancelled, COALESCE(SUM(`usage` * rate), 0) AS cost, batches_n_jobs_in_ending_state.n_completed, batches_n_jobs_in_ending_state.n_succeeded, batches_n_jobs_in_ending_state.n_failed, batches_n_jobs_in_ending_state.n_cancelled
+SELECT batches.*, batches_cancelled.id IS NOT NULL AS cancelled, COALESCE(SUM(`usage` * rate), 0) AS cost, batches_n_jobs_in_complete_states.n_completed, batches_n_jobs_in_complete_states.n_succeeded, batches_n_jobs_in_complete_states.n_failed, batches_n_jobs_in_complete_states.n_cancelled
 FROM batches
-LEFT JOIN batches_n_jobs_in_ending_state
-  ON batches.id = batches_n_jobs_in_ending_state.id
+LEFT JOIN batches_n_jobs_in_complete_states
+  ON batches.id = batches_n_jobs_in_complete_states.id
 LEFT JOIN batches_cancelled
   ON batches.id = batches_cancelled.id
 LEFT JOIN aggregated_batch_resources
@@ -1170,7 +1170,7 @@ VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
         )
         await tx.execute_insertone(
             '''
-INSERT INTO batches_n_jobs_in_ending_state (id) VALUES (%s);
+INSERT INTO batches_n_jobs_in_complete_states (id) VALUES (%s);
 ''',
             (id,),
         )
@@ -1193,10 +1193,10 @@ async def _get_batch(app, batch_id):
 
     record = await db.select_and_fetchone(
         '''
-SELECT batches.*, batches_cancelled.id IS NOT NULL AS cancelled, COALESCE(SUM(`usage` * rate), 0) AS cost, batches_n_jobs_in_ending_state.n_completed, batches_n_jobs_in_ending_state.n_succeeded, batches_n_jobs_in_ending_state.n_failed, batches_n_jobs_in_ending_state.n_cancelled
+SELECT batches.*, batches_cancelled.id IS NOT NULL AS cancelled, COALESCE(SUM(`usage` * rate), 0) AS cost, batches_n_jobs_in_complete_states.n_completed, batches_n_jobs_in_complete_states.n_succeeded, batches_n_jobs_in_complete_states.n_failed, batches_n_jobs_in_complete_states.n_cancelled
 FROM batches
-LEFT JOIN batches_n_jobs_in_ending_state
-       ON batches.id = batches_n_jobs_in_ending_state.id
+LEFT JOIN batches_n_jobs_in_complete_states
+       ON batches.id = batches_n_jobs_in_complete_states.id
 LEFT JOIN batches_cancelled
        ON batches.id = batches_cancelled.id
 LEFT JOIN aggregated_batch_resources

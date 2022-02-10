@@ -166,7 +166,7 @@ CREATE INDEX `batches_token` ON `batches` (`token`);
 CREATE INDEX `batches_time_completed` ON `batches` (`time_completed`);
 CREATE INDEX `batches_billing_project_state` ON `batches` (`billing_project`, `state`);
 
-CREATE TABLE IF NOT EXISTS `batches_n_jobs_in_ending_state` (
+CREATE TABLE IF NOT EXISTS `batches_n_jobs_in_complete_states` (
   `id` BIGINT NOT NULL,
   `n_completed` INT NOT NULL DEFAULT 0,
   `n_succeeded` INT NOT NULL DEFAULT 0,
@@ -1215,19 +1215,19 @@ BEGIN
     SET state = new_state, status = new_status, attempt_id = in_attempt_id
     WHERE batch_id = in_batch_id AND job_id = in_job_id;
 
-    UPDATE batches_n_jobs_in_ending_state
+    UPDATE batches_n_jobs_in_complete_states
       SET n_completed = n_completed + 1
       WHERE id = in_batch_id;
     SELECT n_completed INTO new_n_completed
-    FROM batches_n_jobs_in_ending_state
+    FROM batches_n_jobs_in_complete_states
     WHERE id = in_batch_id;
 
     IF new_state = 'Cancelled' THEN
-      UPDATE batches_n_jobs_in_ending_state SET n_cancelled = n_cancelled + 1 WHERE id = in_batch_id;
+      UPDATE batches_n_jobs_in_complete_states SET n_cancelled = n_cancelled + 1 WHERE id = in_batch_id;
     ELSEIF new_state = 'Error' OR new_state = 'Failed' THEN
-      UPDATE batches_n_jobs_in_ending_state SET n_failed = n_failed + 1 WHERE id = in_batch_id;
+      UPDATE batches_n_jobs_in_complete_states SET n_failed = n_failed + 1 WHERE id = in_batch_id;
     ELSE
-      UPDATE batches_n_jobs_in_ending_state SET n_succeeded = n_succeeded + 1 WHERE id = in_batch_id;
+      UPDATE batches_n_jobs_in_complete_states SET n_succeeded = n_succeeded + 1 WHERE id = in_batch_id;
     END IF;
 
     UPDATE jobs
