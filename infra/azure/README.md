@@ -4,6 +4,12 @@ This is a work in progress for setting up hail infrasture on Azure. The
 following should be executed in the `$HAIL/infra/azure` directory unless
 otherwise noted.
 
+Prerequisites:
+
+- You must have `jq`, `terraform` installed.
+- Export `HAIL` as the root of the checked out Hail repository
+- Generate a public-private SSH (using RSA) key at `~/.ssh/batch_worker_ssh_rsa`.
+
 ## Authenticating with the Azure CLI
 You will need an Azure account. Install the Azure CLI by running the following
 (on Mac) and log in:
@@ -30,6 +36,7 @@ terraform state. The following command creates these and stores their names in
 Initialize terraform:
 
 ```
+export STORAGE_ACCOUNT_NAME="<insert from remote_storage.tfvars>"
 ./bootstrap.sh init_terraform <RESOURCE_GROUP>
 ```
 
