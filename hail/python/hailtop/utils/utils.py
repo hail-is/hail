@@ -112,6 +112,8 @@ def grouped(n, ls):
         group = ls[:n]
         ls = ls[n:]
         yield group
+        if n < 1:
+           raise ValueError ('invalid value for n')
 
 
 def partition(k, ls):
