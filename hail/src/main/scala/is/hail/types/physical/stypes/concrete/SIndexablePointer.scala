@@ -106,19 +106,6 @@ class SIndexablePointerValue(
       case _ => super.forEachDefined(cb)(f)
     }
   }
-
-  override def sizeInBytes(cb: EmitCodeBuilder): SInt64Value = {
-    val totalSize = cb.newLocal[Long]("sindexableptr_size_in_bytes", pt.nMissingBytes(this.length).toL)
-    if (this.st.elementType.containsPointers) {
-      this.forEachDefined(cb) { (cb, _, element) =>
-        cb.assign(totalSize, totalSize + element.sizeInBytes(cb).value)
-      }
-    } else {
-      cb.assign(totalSize, totalSize + (this.length.toL * this.pt.elementByteSize))
-    }
-
-    new SInt64Value(totalSize)
-  }
 }
 
 object SIndexablePointerSettable {
