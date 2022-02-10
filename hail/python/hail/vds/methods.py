@@ -2,7 +2,7 @@ from typing import Sequence
 
 import hail as hl
 from hail import ir
-from hail.expr import ArrayExpression, expr_any, expr_array, expr_interval, expr_locus
+from hail.expr import expr_any, expr_array, expr_interval, expr_locus
 from hail.matrixtable import MatrixTable
 from hail.methods.misc import require_first_key_field_locus
 from hail.table import Table
