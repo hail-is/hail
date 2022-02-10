@@ -40,15 +40,15 @@ create_build_image_instance() {
 }
 
 create_worker_image() {
-	gcloud -q compute images delete batch-worker-${WORKER_IMAGE_VERSION} \
+    gcloud -q compute images delete batch-worker-${WORKER_IMAGE_VERSION} \
         --project ${PROJECT} || true
 
-	gcloud -q compute images create batch-worker-${WORKER_IMAGE_VERSION} \
+    gcloud -q compute images create batch-worker-${WORKER_IMAGE_VERSION} \
         --project ${PROJECT} \
         --source-disk-zone=${ZONE} \
         --source-disk=${BUILDER}
 
-	gcloud -q compute instances delete ${BUILDER} \
+    gcloud -q compute instances delete ${BUILDER} \
         --project ${PROJECT} \
         --zone=${ZONE}
 }
