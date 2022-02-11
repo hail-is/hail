@@ -134,54 +134,55 @@ def test_parse_docker_image_reference():
 def test_grouped_1():
     try:
         actual = list(grouped(0, [1,2,3,4,5,6,7,8,9]))
-        expected = [ 1,2,3,4,5,6,7,8,9]
+        expected = [1,2,3,4,5,6,7,8,9]
+        actual == expected
     except ValueError:
         pass
     else:
-        assert actual == expected
+        assert False 
 
-def test_grouped_2():
+def test_grouped_size_1_groups_9_elements():
     actual = list(grouped(1, [1,2,3,4,5,6,7,8,9]))
     expected = [[1], [2], [3], [4], [5], [6], [7], [8], [9]]
     assert actual == expected
 
-def test_grouped_3():
+def test_grouped_size_5_groups_9_elements():
     actual = list(grouped(5, [1,2,3,4,5,6,7,8,9]))
     expected = [[1, 2, 3, 4, 5], [6, 7, 8, 9]]
     assert actual == expected
 
-def test_grouped_4():
+def test_grouped_size_3_groups_0_elements():
     actual = list(grouped(3,[]))
     expected = []
     assert actual == expected
 
-def test_grouped_5():
+def test_grouped_size_2_groups_1_elements():
     actual = list(grouped(2,[1]))
     expected = [[1]]
     assert actual == expected
 
-def test_grouped_6():
+def test_grouped_size_1_groups_0_elements():
     actual = list(grouped(1,[0]))
     expected = [[0]]
     assert actual == expected
 
-def test_grouped_7():
+def test_grouped_size_1_groups_5_elements():
     actual = list(grouped(1,['abc', 'def', 'ghi', 'jkl', 'mno']))
     expected = [['abc'], ['def'], ['ghi'], ['jkl'], ['mno']]
     assert actual == expected
 
-def test_grouped_8():
+def test_grouped_size_2_groups_5_elements():
     actual = list(grouped(2,['abc', 'def', 'ghi', 'jkl', 'mno']))
     expected = [['abc', 'def'], ['ghi', 'jkl'], ['mno']]
     assert actual == expected
 
-def test_grouped_9():
+def test_grouped_size_3_groups_6_elements():
     actual = list(grouped(3,['abc', 'def', 'ghi', 'jkl', 'mno', '']))
     expected = [['abc', 'def', 'ghi'], ['jkl', 'mno', '']]
     assert actual == expected
 
 
-def test_grouped_10():
+def test_grouped_size_3_groups_7_elements():
     actual = list(grouped(3,['abc', 'def', 'ghi', 'jkl', 'mno', 'pqr', 'stu']))
     expected = [['abc', 'def', 'ghi'], ['jkl', 'mno', 'pqr'], ['stu']]
     assert actual == expected
