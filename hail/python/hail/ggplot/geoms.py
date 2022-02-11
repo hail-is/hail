@@ -545,3 +545,144 @@ class GeomFunction(GeomLineBasic):
 
 def geom_func(mapping=aes(), fun=None, color=None):
     return GeomFunction(mapping, fun=fun, color=color)
+
+
+class GeomArea(Geom):
+    aes_to_arg = {
+        "fill": ("fillcolor", "black", True),
+        "color": ("line_color", "rgba(0, 0, 0, 0)", True),
+        "tooltip": ("hovertext", None, False),
+        "fill_legend": ("name", None, True)
+    }
+
+    def __init__(self, aes, fill, color):
+        super().__init__(aes)
+        self.fill = fill
+        self.color = color
+
+    def apply_to_fig(self, parent, agg_result, fig_so_far, precomputed, num_groups):
+        def plot_group(df):
+            scatter_args = {
+                "x": df.x,
+                "y": df.y,
+                "fill": 'tozeroy'
+            }
+
+            for aes_name, (plotly_name, default, take_one) in self.aes_to_arg.items():
+                if hasattr(self, aes_name) and getattr(self, aes_name) is not None:
+                    scatter_args[plotly_name] = getattr(self, aes_name)
+                elif aes_name in df.columns:
+                    if take_one:
+                        scatter_args[plotly_name] = df[aes_name].iloc[0]
+                    else:
+                        scatter_args[plotly_name] = df[aes_name]
+                elif default is not None:
+                    scatter_args[plotly_name] = default
+
+            fig_so_far.add_scatter(**scatter_args)
+
+        for group in range(num_groups):
+            rows_for_this_group = agg_result["group"] == group
+            just_one_group = agg_result[rows_for_this_group]
+            plot_group(just_one_group)
+
+    def get_stat(self):
+        return StatIdentity()
+
+
+def geom_area(mapping=aes(), fill=None, color=None):
+    """Creates a line plot with the area between the line and the x-axis filled in.
+
+    Supported aesthetics: ``x``, ``y``, ``fill``, ``color``, ``tooltip``
+
+    Parameters
+    ----------
+    mapping: :class:`Aesthetic`
+        Any aesthetics specific to this geom.
+    fill:
+        Color of fill to draw, black by default. Overrides ``fill`` aesthetic.
+    color:
+        Color of line to draw outlining non x-axis facing side, none by default. Overrides ``color`` aesthetic.
+
+    Returns
+    -------
+    :class:`FigureAttribute`
+        The geom to be applied.
+    """
+    return GeomArea(mapping, fill=fill, color=color)
+
+
+class GeomRibbon(Geom):
+    aes_to_arg = {
+        "fill": ("fillcolor", "black", True),
+        "color": ("line_color", "rgba(0, 0, 0, 0)", True),
+        "tooltip": ("hovertext", None, False),
+        "fill_legend": ("name", None, True)
+    }
+
+    def __init__(self, aes, fill, color):
+        super().__init__(aes)
+        self.fill = fill
+        self.color = color
+
+    def apply_to_fig(self, parent, agg_result, fig_so_far, precomputed, num_groups):
+        def plot_group(df):
+            def insert_into_scatter(scatter_args):
+                for aes_name, (plotly_name, default, take_one) in self.aes_to_arg.items():
+                    if hasattr(self, aes_name) and getattr(self, aes_name) is not None:
+                        scatter_args[plotly_name] = getattr(self, aes_name)
+                    elif aes_name in df.columns:
+                        if take_one:
+                            scatter_args[plotly_name] = df[aes_name].iloc[0]
+                        else:
+                            scatter_args[plotly_name] = df[aes_name]
+                    elif default is not None:
+                        scatter_args[plotly_name] = default
+
+            scatter_args_bottom = {
+                "x": df.x,
+                "y": df.y_min,
+                "mode": "lines",
+                "showlegend": False
+            }
+            insert_into_scatter(scatter_args_bottom)
+
+            scatter_args_top = {
+                "x": df.x,
+                "y": df.y_max,
+                "mode": "lines",
+                "fill": 'tonexty'
+            }
+            insert_into_scatter(scatter_args_top)
+
+            fig_so_far.add_scatter(**scatter_args_bottom)
+            fig_so_far.add_scatter(**scatter_args_top)
+
+        for group in range(num_groups):
+            rows_for_this_group = agg_result["group"] == group
+            just_one_group = agg_result[rows_for_this_group]
+            plot_group(just_one_group)
+
+    def get_stat(self):
+        return StatIdentity()
+
+
+def geom_ribbon(mapping=aes(), fill=None, color=None):
+    """Creates filled in area between two lines specified by x, y_min, and y_max
+
+    Supported aesthetics: ``x``, ``y_min``, ``y_max``, ``color``, ``fill``, ``tooltip``
+
+    Parameters
+    ----------
+    mapping: :class:`Aesthetic`
+        Any aesthetics specific to this geom.
+    fill:
+        Color of fill to draw, black by default. Overrides ``fill`` aesthetic.
+    color:
+        Color of line to draw outlining both side, none by default. Overrides ``color`` aesthetic.
+
+    :return:
+    :class:`FigureAttribute`
+        The geom to be applied.
+    """
+    return GeomRibbon(mapping, fill=fill, color=color)
