@@ -3572,12 +3572,12 @@ class IRSuite extends HailSuite {
     val pivots = MakeArray(splitters.map(makeKeyStruct):_*)
     val spec = TypedCodecSpec(PCanonicalStruct(("rowIdx", PInt32Required), ("extraInfo", PInt32Required)), BufferSpec.default)
     val dist = StreamDistribute(child, pivots, Str(ctx.localTmpdir), Compare(pivots.typ.asInstanceOf[TArray].elementType), spec)
-    val result = eval(dist).asInstanceOf[IndexedSeq[Row]].map(row => (row(0).asInstanceOf[Interval], row(1).asInstanceOf[String], row(2).asInstanceOf[Int]))
+    val result = eval(dist).asInstanceOf[IndexedSeq[Row]].map(row => (row(0).asInstanceOf[Interval], row(1).asInstanceOf[String], row(2).asInstanceOf[Int], row(3).asInstanceOf[Long]))
     val kord: ExtendedOrdering = PartitionBoundOrdering(pivots.typ.asInstanceOf[TArray].elementType)
 
     var dataIdx = 0
 
-    result.foreach { case (interval, path, elementCount) =>
+    result.foreach { case (interval, path, elementCount, numBytes) =>
       val reader = PartitionNativeReader(spec)
       val read = ToArray(ReadPartition(Str(path), spec._vType, reader))
       val rowsFromDisk = eval(read).asInstanceOf[IndexedSeq[Row]]
