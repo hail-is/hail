@@ -224,6 +224,10 @@ class VCFTests(unittest.TestCase):
 
         self.assertTrue(mt.entries()._same(expected))
 
+    def test_vcf_unsorted_alleles(self):
+        mt = hl.import_vcf(resource('sample.pksorted.vcf'), n_partitions=4)
+        mt.rows()._force_count()
+
     @fails_service_backend()
     def test_import_vcf_skip_invalid_loci(self):
         mt = hl.import_vcf(resource('skip_invalid_loci.vcf'), reference_genome='GRCh37',
