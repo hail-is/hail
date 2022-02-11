@@ -5,6 +5,8 @@ from hail.context import get_reference
 
 from .utils import categorical_strings_to_colors, continuous_nums_to_colors
 
+import plotly.express as px
+
 
 class Scale(FigureAttribute):
     def __init__(self, aesthetic_name):
@@ -196,6 +198,29 @@ class ScaleColorContinuous(ScaleContinuous):
         return transform
 
 
+class ScaleColorHue(ScaleDiscrete):
+    def create_local_transformer(self, groups_of_dfs, parent):
+        categorical_strings = set()
+        for group_of_dfs in groups_of_dfs:
+            for df in group_of_dfs:
+                if self.aesthetic_name in df.attrs:
+                    categorical_strings.add(df.attrs[self.aesthetic_name])
+
+        num_categories = len(categorical_strings)
+        step = 1.0 / num_categories
+        interpolation_values = [step * i for i in range(num_categories)]
+        hsv_scale = px.colors.get_colorscale("HSV")
+        colors = px.colors.sample_colorscale(hsv_scale, interpolation_values)
+        unique_color_mapping = dict(zip(categorical_strings, colors))
+
+        def transform(df):
+            df.attrs[f"{self.aesthetic_name}_legend"] = df.attrs[self.aesthetic_name]
+            df.attrs[self.aesthetic_name] = unique_color_mapping[df.attrs[self.aesthetic_name]]
+            return df
+
+        return transform
+
+
 # Legend names messed up for scale color identity
 class ScaleColorDiscreteIdentity(ScaleDiscrete):
     pass
@@ -377,6 +402,8 @@ def scale_color_discrete():
     """
     return ScaleColorDiscrete("color")
 
+def scale_color_hue():
+    return ScaleColorHue("color")
 
 def scale_color_continuous():
     """The default continuous color scale. This linearly interpolates colors between the min and max observed values.
@@ -431,3 +458,6 @@ def scale_fill_identity():
         The scale to be applied.
     """
     return ScaleColorDiscreteIdentity("fill")
+
+def scale_fill_hue():
+    return ScaleColorHue("fill")
