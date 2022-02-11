@@ -129,9 +129,7 @@ def test_parse_docker_image_reference():
     assert str(x) == 'us-docker.pkg.dev/my-project/my-repo/test-image'
 
 
-
-
-def test_grouped_1():
+def test_grouped_size_0_groups_9_elements():
     try:
         actual = list(grouped(0, [1,2,3,4,5,6,7,8,9]))
         expected = [1,2,3,4,5,6,7,8,9]
@@ -180,7 +178,6 @@ def test_grouped_size_3_groups_6_elements():
     actual = list(grouped(3,['abc', 'def', 'ghi', 'jkl', 'mno', '']))
     expected = [['abc', 'def', 'ghi'], ['jkl', 'mno', '']]
     assert actual == expected
-
 
 def test_grouped_size_3_groups_7_elements():
     actual = list(grouped(3,['abc', 'def', 'ghi', 'jkl', 'mno', 'pqr', 'stu']))
