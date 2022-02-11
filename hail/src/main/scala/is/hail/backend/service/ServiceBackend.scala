@@ -406,7 +406,7 @@ class ServiceBackend(
         new GoogleStorageFS(Some(IOUtils.toString(is, Charset.defaultCharset().toString()))).asCacheable()
       }
     }
-    ExecuteContext.scoped(tmpdir, "file:///tmp", this, fs, timer, null) { ctx =>
+    ExecuteContext.scoped(tmpdir, "file:///tmp", this, fs, timer, null, theHailClassLoader) { ctx =>
       ctx.backendContext = new ServiceBackendContext(sessionId, billingProject, remoteTmpDir)
       body(ctx)
     }
