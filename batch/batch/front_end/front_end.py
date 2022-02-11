@@ -1424,7 +1424,7 @@ LEFT JOIN (
 ) AS t
   ON jobs.batch_id = t.batch_id AND jobs.job_id = t.job_id
 WHERE jobs.batch_id = %s AND NOT deleted AND jobs.job_id = %s
-GROUP BY jobs.batch_id, jobs.job_id;
+GROUP BY jobs.batch_id, jobs.job_id, t.attempt_id;
 ''',
         (batch_id, job_id),
     )
