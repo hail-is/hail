@@ -105,12 +105,6 @@ class SNDArrayPointerValue(
       pt.elementType.storeAtAddress(cb, ptrs.head, region, body(codes), deepCopy)
     }
   }
-
-  override def sizeInBytes(cb: EmitCodeBuilder): SInt64Value = {
-    val storageType = st.storageType().asInstanceOf[PNDArray]
-    storageType.byteSize
-    new SInt64Value(???)
-  }
 }
 
 object SNDArrayPointerSettable {
