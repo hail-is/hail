@@ -475,7 +475,7 @@ steps:
       set -ex
       export NAMESPACE={{ default_ns.name }}
       export CLOUD={{ global.cloud }}
-      python3 /io/create_initial_account.py {{ code.user }} {{ code.user }}@broadinstitute.org
+      python3 /io/create_initial_account.py {{ code.username }} {{ code.login_id }}
     serviceAccount:
       name: admin
       namespace:
@@ -4796,7 +4796,7 @@ steps:
   - kind: runImage
     name: delete_gcp_batch_instances
     image:
-      valueFrom: ci_utils_image.image
+      valueFrom: base_image.image
     alwaysRun: true
     script: |
       set -ex
@@ -4824,7 +4824,7 @@ steps:
       - gcp
     dependsOn:
       - default_ns
-      - ci_utils_image
+      - base_image
       - test_batch_invariants
       - test_batch_0
       - test_batch_1

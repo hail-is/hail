@@ -15,7 +15,6 @@ import signal
 import aiohttp
 import aiohttp.client_exceptions
 from aiohttp import web
-import struct
 import async_timeout
 import concurrent
 import tempfile
@@ -35,7 +34,6 @@ from hailtop.utils import (
     time_msecs_str,
     request_retry_transient_errors,
     sleep_and_backoff,
-    TransientError,
     retry_all_errors,
     check_shell,
     CalledProcessError,
@@ -255,7 +253,6 @@ ip -n {self.network_ns_name} route add default via {self.host_ip}'''
 
     async def enable_iptables_forwarding(self):
         await check_shell(
-            # FIXME: this just accumulates on the host, right?
             f'''
 iptables -w {IPTABLES_WAIT_TIMEOUT_SECS} --append FORWARD --out-interface {self.veth_host} --in-interface {self.internet_interface} --jump ACCEPT && \
 iptables -w {IPTABLES_WAIT_TIMEOUT_SECS} --append FORWARD --out-interface {self.veth_host} --in-interface {self.veth_host} --jump ACCEPT'''
@@ -1637,7 +1634,7 @@ class JVMJob(Job):
 
                 if self.secrets:
                     for secret in self.secrets:
-                        populate_secret_host_path(self.scratch + '/' + secret["mount_path"][1:], secret['data'])
+                        populate_secret_host_path(self.secret_host_path(secret), secret['data'])
 
                 self.state = 'running'
 
@@ -2120,8 +2117,6 @@ class Worker:
         except Exception as e:
             if not user_error(e):
                 log.exception(f'while running {job}, ignoring')
-            else:
-                log.exception(f'user error while running {job}, ignoring')
 
     async def create_job_1(self, request):
         body = await request.json()
