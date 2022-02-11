@@ -39,3 +39,6 @@ class GCPUserCredentials(CloudUserCredentials):
     @property
     def mount_path(self):
         return f'/{self.secret_name}/{self.file_name}'
+
+    def cloudfuse_credentials(self, fuse_config: dict) -> str:  # pylint: disable=unused-argument
+        return self.password

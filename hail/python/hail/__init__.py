@@ -52,6 +52,7 @@ from . import methods  # noqa: E402
 from . import stats  # noqa: E402
 from . import linalg  # noqa: E402
 from . import plot  # noqa: E402
+from . import ggplot  # noqa: E402
 from . import experimental  # noqa: E402
 from . import ir  # noqa: E402
 from . import backend  # noqa: E402
@@ -108,6 +109,7 @@ __all__ = [
     'linalg',
     'nd',
     'plot',
+    'ggplot',
     'experimental',
     'ir',
     'vds',

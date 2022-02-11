@@ -2,12 +2,11 @@ package is.hail.asm4s
 
 import is.hail.HailSuite
 import is.hail.annotations.Region
-import is.hail.expr.ir.{EmitCodeBuilder, EmitFunctionBuilder, IEmitCode}
-import is.hail.types.physical.{PCanonicalArray, PCanonicalBaseStruct, PCanonicalString, PCanonicalStruct, PField, PFloat32, PInt32, PType}
-import is.hail.types.physical.stypes.SCode
-import is.hail.types.physical.stypes.concrete.{SBaseStructPointer, SBaseStructPointerCode, SIndexablePointer, SIndexablePointerCode, SStringPointer}
-import is.hail.types.physical.stypes.interfaces.{SString, SStringCode}
-import is.hail.types.physical.stypes.primitives.{SFloat32Code, SFloat64Code, SInt32Code, SInt64Code}
+import is.hail.expr.ir.{EmitCodeBuilder, EmitFunctionBuilder}
+import is.hail.types.physical.stypes.SValue
+import is.hail.types.physical.stypes.concrete._
+import is.hail.types.physical.stypes.primitives.{SFloat32Value, SFloat64Value, SInt32Value, SInt64Value}
+import is.hail.types.physical._
 import org.apache.spark.sql.Row
 import org.testng.annotations.Test
 
@@ -29,10 +28,10 @@ class CodeSuite extends HailSuite {
   }
   @Test def testHash() {
     val fields = IndexedSeq(PField("a", PCanonicalString(), 0), PField("b", PInt32(), 1), PField("c", PFloat32(), 2))
-    assert(hashTestNumHelper(new SInt32Code(6)) == hashTestNumHelper(new SInt32Code(6)))
-    assert(hashTestNumHelper(new SInt64Code(5000000000l)) == hashTestNumHelper(new SInt64Code(5000000000l)))
-    assert(hashTestNumHelper(new SFloat32Code(3.14f)) == hashTestNumHelper(new SFloat32Code(3.14f)))
-    assert(hashTestNumHelper(new SFloat64Code(5000000000.89d)) == hashTestNumHelper(new SFloat64Code(5000000000.89d)))
+    assert(hashTestNumHelper(new SInt32Value(6)) == hashTestNumHelper(new SInt32Value(6)))
+    assert(hashTestNumHelper(new SInt64Value(5000000000l)) == hashTestNumHelper(new SInt64Value(5000000000l)))
+    assert(hashTestNumHelper(new SFloat32Value(3.14f)) == hashTestNumHelper(new SFloat32Value(3.14f)))
+    assert(hashTestNumHelper(new SFloat64Value(5000000000.89d)) == hashTestNumHelper(new SFloat64Value(5000000000.89d)))
     assert(hashTestStringHelper("dog")== hashTestStringHelper("dog"))
     assert(hashTestArrayHelper(IndexedSeq(1,2,3,4,5,6)) == hashTestArrayHelper(IndexedSeq(1,2,3,4,5,6)))
     assert(hashTestArrayHelper(IndexedSeq(1,2)) != hashTestArrayHelper(IndexedSeq(3,4,5,6,7)))
@@ -40,13 +39,12 @@ class CodeSuite extends HailSuite {
     assert(hashTestStructHelper(Row("w", 8, .009f), fields) != hashTestStructHelper(Row("opaque", 8, .009f), fields))
   }
 
-  def hashTestNumHelper(toHash: SCode): Int = {
+  def hashTestNumHelper(v: SValue): Int = {
     val fb = EmitFunctionBuilder[Int](ctx, "test_hash")
     val mb = fb.apply_method
     mb.emit(EmitCodeBuilder.scopedCode(mb) { cb =>
-      val i = toHash.memoize(cb, "value_to_hash")
-      val hash = i.hash(cb)
-      hash.intCode(cb)
+      val hash = v.hash(cb)
+      hash.value
     })
     fb.result()(theHailClassLoader)()
   }
@@ -61,7 +59,7 @@ class CodeSuite extends HailSuite {
       val stringToHash = st.constructFromString(cb, region, toHash)
       val i = stringToHash
       val hash = i.hash(cb)
-      hash.intCode(cb)
+      hash.value
     })
     val region = Region(pool=pool)
     fb.result()(theHailClassLoader)(region)
@@ -73,11 +71,9 @@ class CodeSuite extends HailSuite {
     val mb = fb.apply_method
     mb.emit(EmitCodeBuilder.scopedCode(mb) { cb =>
       val arrayPointer = fb.emb.getCodeParam[Long](1)
-      val sIndexPointer = SIndexablePointer(pArray)
-      val arrayToHash = new SIndexablePointerCode(sIndexPointer, arrayPointer)
-      val i = arrayToHash.memoize(cb, "value_to_hash")
-      val hash = i.hash(cb)
-      hash.intCode(cb)
+      val arrayToHash = pArray.loadCheapSCode(cb, arrayPointer)
+      val hash = arrayToHash.hash(cb)
+      hash.value
     })
     val region = Region(pool=pool)
     val arrayPointer = pArray.unstagedStoreJavaObject(toHash, region)
@@ -90,11 +86,9 @@ class CodeSuite extends HailSuite {
     val mb = fb.apply_method
     mb.emit(EmitCodeBuilder.scopedCode(mb) { cb =>
       val structPointer = fb.emb.getCodeParam[Long](1)
-      val sIndexPointer = SBaseStructPointer(pStruct)
-      val structToHash = new SBaseStructPointerCode(sIndexPointer, structPointer)
-      val i = structToHash.memoize(cb, "value_to_hash")
-      val hash = i.hash(cb)
-      hash.intCode(cb)
+      val structToHash = pStruct.loadCheapSCode(cb, structPointer)
+      val hash = structToHash.hash(cb)
+      hash.value
     })
     val region = Region(pool=pool)
     val structPointer = pStruct.unstagedStoreJavaObject(toHash, region)

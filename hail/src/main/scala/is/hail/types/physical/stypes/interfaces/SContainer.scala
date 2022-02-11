@@ -5,7 +5,7 @@ import is.hail.asm4s._
 import is.hail.expr.ir.{EmitCodeBuilder, IEmitCode}
 import is.hail.types.physical.PCanonicalArray
 import is.hail.types.physical.stypes.primitives.SInt32Value
-import is.hail.types.physical.stypes.{EmitType, SCode, SType, SValue}
+import is.hail.types.physical.stypes.{EmitType, SType, SValue}
 import is.hail.types.{RIterable, TypeWithRequiredness}
 
 trait SContainer extends SType {
@@ -16,8 +16,6 @@ trait SContainer extends SType {
 
 trait SIndexableValue extends SValue {
   def st: SContainer
-
-  override def get: SIndexableCode
 
   def loadLength(): Value[Int]
 
@@ -68,7 +66,7 @@ trait SIndexableValue extends SValue {
       case (cb, idx) => cb.assign(hash_result, hash_result * 31)
     }, {
       case (cb, idx, element) =>
-        cb.assign(hash_result, hash_result * 31 + element.hash(cb).intCode(cb))
+        cb.assign(hash_result, hash_result * 31 + element.hash(cb).value)
     })
     new SInt32Value(hash_result)
   }
@@ -80,14 +78,3 @@ trait SIndexableValue extends SValue {
     }
   }
 }
-
-trait SIndexableCode extends SCode {
-  def st: SContainer
-
-  def codeLoadLength(): Code[Int]
-
-  def memoize(cb: EmitCodeBuilder, name: String): SIndexableValue
-
-  def memoizeField(cb: EmitCodeBuilder, name: String): SIndexableValue
-}
-

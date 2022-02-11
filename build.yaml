@@ -1304,8 +1304,7 @@ steps:
       export PYTEST_SPLIT_INDEX=0
       python3 -m pytest \
               --ignore=test/hailtop/batch/ \
-              --ignore=test/hailtop/aiotools/test_copy.py \
-              --ignore=test/hailtop/test_fs.py \
+              --ignore=test/hailtop/inter_cloud \
               --log-cli-level=INFO \
               -s \
               -vv \
@@ -1359,8 +1358,7 @@ steps:
       export PYTEST_SPLIT_INDEX=1
       python3 -m pytest \
               --ignore=test/hailtop/batch/ \
-              --ignore=test/hailtop/aiotools/test_copy.py \
-              --ignore=test/hailtop/test_fs.py \
+              --ignore=test/hailtop/inter_cloud \
               --log-cli-level=INFO \
               -s \
               -vv \
@@ -1414,8 +1412,7 @@ steps:
       export PYTEST_SPLIT_INDEX=2
       python3 -m pytest \
               --ignore=test/hailtop/batch/ \
-              --ignore=test/hailtop/aiotools/test_copy.py \
-              --ignore=test/hailtop/test_fs.py \
+              --ignore=test/hailtop/inter_cloud \
               --log-cli-level=INFO \
               -s \
               -vv \
@@ -1469,8 +1466,7 @@ steps:
       export PYTEST_SPLIT_INDEX=3
       python3 -m pytest \
               --ignore=test/hailtop/batch/ \
-              --ignore=test/hailtop/aiotools/test_copy.py \
-              --ignore=test/hailtop/test_fs.py \
+              --ignore=test/hailtop/inter_cloud \
               --log-cli-level=INFO \
               -s \
               -vv \
@@ -1524,8 +1520,7 @@ steps:
       export PYTEST_SPLIT_INDEX=4
       python3 -m pytest \
               --ignore=test/hailtop/batch/ \
-              --ignore=test/hailtop/aiotools/test_copy.py \
-              --ignore=test/hailtop/test_fs.py \
+              --ignore=test/hailtop/inter_cloud \
               --log-cli-level=INFO \
               -s \
               -vv \
@@ -1579,8 +1574,7 @@ steps:
       export PYTEST_SPLIT_INDEX=5
       python3 -m pytest \
               --ignore=test/hailtop/batch/ \
-              --ignore=test/hailtop/aiotools/test_copy.py \
-              --ignore=test/hailtop/test_fs.py \
+              --ignore=test/hailtop/inter_cloud \
               --log-cli-level=INFO \
               -s \
               -vv \
@@ -1634,8 +1628,7 @@ steps:
       export PYTEST_SPLIT_INDEX=6
       python3 -m pytest \
               --ignore=test/hailtop/batch/ \
-              --ignore=test/hailtop/aiotools/test_copy.py \
-              --ignore=test/hailtop/test_fs.py \
+              --ignore=test/hailtop/inter_cloud \
               --log-cli-level=INFO \
               -s \
               -vv \
@@ -1692,8 +1685,7 @@ steps:
               -vv \
               --instafail \
               --durations=50 \
-              test/hailtop/aiotools/test_copy.py \
-              test/hailtop/test_fs.py
+              test/hailtop/inter_cloud
     inputs:
       - from: /debug-wheel-container.tar
         to: /io/debug-wheel-container.tar
@@ -1743,8 +1735,7 @@ steps:
       export PYSPARK_SUBMIT_ARGS="--driver-memory 6g pyspark-shell"
       python3 -m pytest \
               --ignore=test/hailtop/batch/ \
-              --ignore=test/hailtop/aiotools/test_copy.py \
-              --ignore=test/hailtop/test_fs.py \
+              --ignore=test/hailtop/inter_cloud \
               --log-cli-level=INFO \
               -s \
               -vv \
@@ -2176,37 +2167,41 @@ steps:
       - hail_base_image
       - build_hail
   - kind: runImage
-    name: make_pip_versioned_docs
+    name: get_pip_versioned_docs
     image:
       valueFrom: hail_pip_installed_image.image
     script: |
       set -ex
 
       cd /io/repo
-
       make -C hail python/hail/hail_pip_version
 
       # dev deploy elides the hail-is remote, add it and retrieve the tags
       git remote add hail-is https://github.com/hail-is/hail.git
       git fetch hail-is
 
-      # 0.2.63 was the last old-style docs
-      if [[ "$(cat hail/python/hail/hail_pip_version)" != "0.2.63" ]]
+      export HAIL_PIP_VERSION=$(cat hail/python/hail/hail_pip_version)
+
+      if git ls-remote --exit-code --tags origin $HAIL_PIP_VERSION
       then
-          # downloading files from GCS changes permissions, so we reset all of that first
-          git reset --hard HEAD
-          # if the tag doesn't exist, this commit is the release
-          git checkout $(cat hail/python/hail/hail_pip_version) || true
+        # In this case, we want to get the docs from Google Storage.
+        python3 -m hailtop.aiotools.copy 'null' '[
+        {"from": "gs://hail-common/website/'$HAIL_PIP_VERSION'/www.tar.gz",
+        "to": "www.tar.gz"}
+        ]'
+      else
+        cp /io/www.tar.gz .
       fi
 
-      PYTHONPATH=$PYTHONPATH:$(pwd)/hail/python make -C hail hail-docs-no-test batch-docs
+      mkdir -p hail/build/www/docs/0.2
+      tar -xvf www.tar.gz -C hail/build/www/docs --strip-components 2
 
       python3 -m hailtop.aiotools.copy 'null' '[
       {"from": "gs://hail-common/builds/0.1/docs/hail-0.1-docs-5a6778710097.tar.gz",
        "to": "hail-0.1-docs-5a6778710097.tar.gz"}
       ]'
 
-      mkdir hail/build/www/docs/0.1
+      mkdir -p hail/build/www/docs/0.1
       tar -xvf hail-0.1-docs-5a6778710097.tar.gz -C hail/build/www/docs/0.1 --strip-components 2
 
       tar czf /io/docs.tar.gz -C hail/build/www .
@@ -2216,12 +2211,15 @@ steps:
     inputs:
       - from: /repo
         to: /io/repo
+      - from: /www.tar.gz
+        to: /io/www.tar.gz
     outputs:
       - from: /io/docs.tar.gz
         to: /docs.tar.gz
     dependsOn:
       - hail_pip_installed_image
       - merge_code
+      - make_docs
     clouds:
       - gcp
   - kind: deploy
@@ -2692,6 +2690,8 @@ steps:
         script: /io/sql/kill-more-deadlocks2.sql
       - name: no-locks-add-attempt
         script: /io/sql/no-locks-add-attempt.sql
+      - name: fix-n-cancelled-creating-jobs
+        script: /io/sql/fix-n-cancelled-creating-jobs.sql
       - name: big-test-instances
         script: /io/sql/big-test-instances.py
     inputs:
@@ -2963,6 +2963,8 @@ steps:
       - upload_query_jar
       - upload_test_resources_to_blob_storage
       - build_hail_jar_and_wheel_only
+    clouds:
+      - gcp
   - kind: runImage
     name: test_hail_python_service_backend_1
     image:
@@ -3043,6 +3045,8 @@ steps:
       - upload_query_jar
       - upload_test_resources_to_blob_storage
       - build_hail_jar_and_wheel_only
+    clouds:
+      - gcp
   - kind: runImage
     name: test_hail_python_service_backend_2
     image:
@@ -3123,6 +3127,8 @@ steps:
       - upload_query_jar
       - upload_test_resources_to_blob_storage
       - build_hail_jar_and_wheel_only
+    clouds:
+      - gcp
   - kind: runImage
     name: test_hail_python_service_backend_3
     image:
@@ -3203,6 +3209,8 @@ steps:
       - upload_query_jar
       - upload_test_resources_to_blob_storage
       - build_hail_jar_and_wheel_only
+    clouds:
+      - gcp
   - kind: runImage
     name: test_hail_python_service_backend_4
     image:
@@ -3283,6 +3291,8 @@ steps:
       - upload_query_jar
       - upload_test_resources_to_blob_storage
       - build_hail_jar_and_wheel_only
+    clouds:
+      - gcp
   - kind: deploy
     name: deploy_memory
     namespace:
@@ -4389,7 +4399,7 @@ steps:
       - blog_nginx_image
       - create_certs
   - kind: runImage
-    name: test_dataproc
+    name: test_dataproc-37
     image:
       valueFrom: ci_utils_image.image
     script: |
@@ -4410,7 +4420,49 @@ steps:
       cd hail
       chmod 755 ./gradlew
       time retry ./gradlew --version
-      make test-dataproc DEV_CLARIFIER=ci_test_dataproc
+      make test-dataproc-37 DEV_CLARIFIER=ci_test_dataproc
+    dependsOn:
+      - ci_utils_image
+      - default_ns
+      - merge_code
+    inputs:
+      - from: /hail_pip_version
+        to: /io/hail_pip_version
+      - from: /repo
+        to: /io/repo
+    secrets:
+      - name: test-dataproc-service-account-key
+        namespace:
+          valueFrom: default_ns.name
+        mountPath: /test-dataproc-service-account-key
+    scopes:
+      - deploy
+      - dev
+    clouds:
+      - gcp
+  - kind: runImage
+    name: test_dataproc-38
+    image:
+      valueFrom: ci_utils_image.image
+    script: |
+      set -ex
+
+      cd /io/repo
+
+      gcloud auth activate-service-account --key-file=/test-dataproc-service-account-key/test-dataproc-service-account-key.json
+      gcloud config set project hail-vdc
+      gcloud config set dataproc/region us-central1
+
+      if git ls-remote --exit-code --tags origin $(cat /io/hail_pip_version)
+      then
+          echo "tag $HAIL_PIP_VERSION already exists"
+          exit 0
+      fi
+
+      cd hail
+      chmod 755 ./gradlew
+      time retry ./gradlew --version
+      make test-dataproc-38 DEV_CLARIFIER=ci_test_dataproc
     dependsOn:
       - ci_utils_image
       - default_ns
@@ -4463,7 +4515,7 @@ steps:
       time retry ./gradlew --version
       make wheel upload-artifacts DEPLOY_REMOTE=origin
 
-      (cd /io/wheel-for-azure && tar xvf /io/wheel-for-azure-container.tar)
+      (mkdir /io/wheel-for-azure && cd /io/wheel-for-azure && tar xvf /io/wheel-for-azure-container.tar)
 
       bash scripts/deploy.sh $(cat /io/hail_pip_version) \
                              $(cat /io/hail_version) \
@@ -4472,7 +4524,8 @@ steps:
                              /io/repo/hail/build/deploy/dist/hail-*-py3-none-any.whl \
                              /io/github-oauth \
                              docker://{{ hailgenetics_hail_image.image }} \
-                             /io/wheel-for-azure/hail-*-py3-none-any.whl
+                             /io/wheel-for-azure/hail-*-py3-none-any.whl \
+                             /io/www.tar.gz
     inputs:
       - from: /hail_version
         to: /io/hail_version
@@ -4484,6 +4537,8 @@ steps:
         to: /io/repo
       - from: /wheel-for-azure-container.tar
         to: /io/wheel-for-azure-container.tar
+      - from: /www.tar.gz
+        to: /io/www.tar.gz
     secrets:
       - name: pypi-credentials
         namespace:
@@ -4505,13 +4560,15 @@ steps:
       - deploy
       - dev
     dependsOn:
-      - test_dataproc
+      - test_dataproc-37
+      - test_dataproc-38
       - default_ns
       - ci_utils_image
       - build_hail
       - merge_code
       - hailgenetics_hail_image
       - build_wheel_for_azure
+      - make_docs
     clouds:
       - gcp
   - kind: buildImage2
@@ -4526,7 +4583,7 @@ steps:
         to: /io/website/docs.tar.gz
     dependsOn:
       - service_base_image
-      - make_pip_versioned_docs
+      - get_pip_versioned_docs
     clouds:
       - gcp
     resources:
@@ -4546,6 +4603,8 @@ steps:
       - default_ns
       - website_image
       - create_certs
+      - create_session_key
+      - create_deploy_config
     clouds:
       - gcp
   - kind: runImage

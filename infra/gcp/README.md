@@ -149,13 +149,13 @@ You can now install Hail:
 - Create the batch worker VM image. Run:
 
   ```
-  make -C $HAIL/batch create-build-worker-image-instance
+  make -C $HAIL/batch gcp-create-build-worker-image-instance
   ```
 
   Wait for the `build-batch-worker-image` instance to be stopped. Then run:
 
   ```
-  make -C $HAIL/batch create-worker-image
+  make -C $HAIL/batch gcp-create-worker-image
   ```
 
 - Download the global-config to be used by `bootstrap.py`.

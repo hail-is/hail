@@ -1,5 +1,6 @@
 package is.hail.expr.ir
 
+import is.hail.HailContext
 import is.hail.types.virtual._
 import is.hail.io.bgen.MatrixBGENReader
 import is.hail.rvd.{PartitionBoundOrdering, RVDPartitionInfo}
@@ -201,7 +202,7 @@ object Simplify {
     case StreamLen(StreamMap(s, _, _)) => StreamLen(s)
     case StreamLen(StreamFlatMap(a, name, body)) => streamSumIR(StreamMap(a, name, StreamLen(body)))
     case StreamLen(StreamGrouped(a, groupSize)) => bindIR(groupSize)(groupSizeRef => (StreamLen(a) + groupSizeRef - 1) floorDiv groupSizeRef)
-      
+
     case ArrayLen(ToArray(s)) if s.typ.isInstanceOf[TStream] => StreamLen(s)
     case ArrayLen(StreamFlatMap(a, _, MakeArray(args, _))) => ApplyBinaryPrimOp(Multiply(), I32(args.length), ArrayLen(a))
 
@@ -304,7 +305,8 @@ object Simplify {
           MakeStruct(finalFields)
       }
 
-    case InsertFields(struct, Seq(), _) => struct
+    case InsertFields(struct, Seq(), None) => struct
+    case InsertFields(SelectFields(old, _), Seq(), Some(insertFieldOrder)) => SelectFields(old, insertFieldOrder)
 
     case top@Let(x, Let(y, yVal, yBody), xBody) if (x != y) => Let(y, yVal, Let(x, yBody, xBody))
 
@@ -780,7 +782,7 @@ object Simplify {
       TableAggregateByKey(child, expr)
 
     case TableAggregateByKey(x@TableKeyBy(child, keys, false), expr) if canRepartition && !x.definitelyDoesNotShuffle =>
-      TableKeyByAndAggregate(child, expr, MakeStruct(keys.map(k => k -> GetField(Ref("row", child.typ.rowType), k))))
+      TableKeyByAndAggregate(child, expr, MakeStruct(keys.map(k => k -> GetField(Ref("row", child.typ.rowType), k))), bufferSize = HailContext.getFlag("grouped_aggregate_buffer_size").toInt)
 
     case TableParallelize(TableCollect(child), _) if isDeterministicallyRepartitionable(child) => child
 

@@ -144,3 +144,80 @@ class Tests(unittest.TestCase):
 
     def test_hadoop_stat_local(self):
         self.test_hadoop_stat(self.local_dir)
+
+    def test_subdirs(self, prefix: Optional[str] = None):
+        if prefix is None:
+            prefix = self.remote_tmpdir
+
+        fs = hl.current_backend().fs
+
+        dir = f'{prefix}foo/'
+        subdir1 = f'{dir}foo/'
+        subdir1subdir1 = f'{subdir1}foo/'
+        subdir1subdir2 = f'{subdir1}bar/'
+        subdir1subdir3 = f'{subdir1}baz/'
+        subdir1subdir4_empty = f'{subdir1}qux/'
+        subdir2 = f'{dir}bar/'
+        subdir3 = f'{dir}baz/'
+        subdir4_empty = f'{dir}qux/'
+
+        def touch(filename):
+            with fs.open(filename, 'w') as fobj:
+                fobj.write('hello world')
+
+        fs.mkdir(dir)
+        touch(f'{dir}a')
+        touch(f'{dir}b')
+
+        fs.mkdir(subdir1)
+        fs.mkdir(subdir1subdir1)
+        fs.mkdir(subdir1subdir2)
+        fs.mkdir(subdir1subdir3)
+        fs.mkdir(subdir1subdir4_empty)
+        fs.mkdir(subdir2)
+        fs.mkdir(subdir3)
+        fs.mkdir(subdir4_empty)
+
+        for subdir in [dir, subdir1, subdir2, subdir3, subdir1subdir1, subdir1subdir2, subdir1subdir3]:
+            for i in range(30):
+                touch(f'{subdir}a{i:02}')
+
+        assert fs.is_dir(dir)
+        assert fs.is_dir(subdir1)
+        assert fs.is_dir(subdir1subdir1)
+        assert fs.is_dir(subdir1subdir2)
+        assert fs.is_dir(subdir1subdir3)
+        # subdir1subdir4_empty: in cloud fses, empty dirs do not exist and thus are not dirs
+        assert fs.is_dir(subdir2)
+        assert fs.is_dir(subdir3)
+        # subdir4_empty: in cloud fses, empty dirs do not exist and thus are not dirs
+
+        fs.rmtree(subdir1subdir2)
+
+        assert fs.is_dir(dir)
+        assert fs.is_file(f'{dir}a')
+        assert fs.is_file(f'{dir}b')
+
+        assert fs.is_dir(subdir1)
+        assert fs.is_file(f'{subdir1}a00')
+
+        assert fs.is_dir(subdir1subdir1)
+        assert fs.is_file(f'{subdir1subdir1}a00')
+
+        assert not fs.is_dir(subdir1subdir2)
+        assert not fs.is_file(f'{subdir1subdir2}a00')
+
+        assert fs.is_dir(subdir1subdir3)
+        assert fs.is_file(f'{subdir1subdir3}a00')
+
+        assert fs.is_dir(subdir2)
+        assert fs.is_file(f'{subdir2}a00')
+        assert fs.is_dir(subdir3)
+        assert fs.is_file(f'{subdir3}a00')
+
+        fs.rmtree(dir)
+
+        assert not fs.is_dir(dir)
+
+    def test_subdirs_local(self):
+        self.test_subdirs(self.local_dir)

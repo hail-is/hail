@@ -220,10 +220,10 @@ object MathFunctions extends RegistryFunctions {
     ) { case (r, cb, rt, a: SInt32Value, b: SInt32Value, c: SInt32Value, d: SInt32Value, _) =>
       val res = cb.newLocal[Array[Double]]("fisher_exact_test_res",
         Code.invokeScalaObject4[Int, Int, Int, Int, Array[Double]](statsPackageClass, "fisherExactTest",
-          a.intCode(cb),
-          b.intCode(cb),
-          c.intCode(cb),
-          d.intCode(cb)))
+          a.value,
+          b.value,
+          c.value,
+          d.value))
 
       fetStruct.constructFromFields(cb, r.region, FastIndexedSeq(
         EmitValue.present(primitive(cb.memoize(res(0)))),
@@ -238,10 +238,10 @@ object MathFunctions extends RegistryFunctions {
     ) { case (r, cb, rt, a: SInt32Value, b: SInt32Value, c: SInt32Value, d: SInt32Value, _) =>
       val res = cb.newLocal[Array[Double]]("chi_squared_test_res",
         Code.invokeScalaObject4[Int, Int, Int, Int, Array[Double]](statsPackageClass, "chiSquaredTest",
-          a.intCode(cb),
-          b.intCode(cb),
-          c.intCode(cb),
-          d.intCode(cb)))
+          a.value,
+          b.value,
+          c.value,
+          d.value))
 
       chisqStruct.constructFromFields(cb, r.region, FastIndexedSeq(
         EmitValue.present(primitive(cb.memoize(res(0)))),
@@ -254,11 +254,11 @@ object MathFunctions extends RegistryFunctions {
     ) { case (r, cb, rt, a: SInt32Value, b: SInt32Value, c: SInt32Value, d: SInt32Value, mcc: SInt32Value, _) =>
       val res = cb.newLocal[Array[Double]]("contingency_table_test_res",
         Code.invokeScalaObject5[Int, Int, Int, Int, Int, Array[Double]](statsPackageClass, "contingencyTableTest",
-          a.intCode(cb),
-          b.intCode(cb),
-          c.intCode(cb),
-          d.intCode(cb),
-          mcc.intCode(cb)))
+          a.value,
+          b.value,
+          c.value,
+          d.value,
+          mcc.value))
 
       chisqStruct.constructFromFields(cb, r.region, FastIndexedSeq(
         EmitValue.present(primitive(cb.memoize(res(0)))),
@@ -271,10 +271,10 @@ object MathFunctions extends RegistryFunctions {
     ) { case (r, cb, rt, nHomRef: SInt32Value, nHet: SInt32Value, nHomVar: SInt32Value, oneSided: SBooleanValue, _) =>
       val res = cb.newLocal[Array[Double]]("hardy_weinberg_test_res",
         Code.invokeScalaObject4[Int, Int, Int, Boolean, Array[Double]](statsPackageClass, "hardyWeinbergTest",
-          nHomRef.intCode(cb),
-          nHet.intCode(cb),
-          nHomVar.intCode(cb),
-          oneSided.boolCode(cb)))
+          nHomRef.value,
+          nHet.value,
+          nHomVar.value,
+          oneSided.value))
 
       hweStruct.constructFromFields(cb, r.region, FastIndexedSeq(
         EmitValue.present(primitive(cb.memoize(res(0)))),

@@ -275,6 +275,8 @@ final case class ToDict(a: IR) extends IR
 final case class ToArray(a: IR) extends IR
 final case class CastToArray(a: IR) extends IR
 final case class ToStream(a: IR, requiresMemoryManagementPerElement: Boolean = false) extends IR
+final case class StreamBufferedAggregate(streamChild: IR, initAggs: IR, newKey: IR, seqOps: IR, name: String,
+  aggSignatures: IndexedSeq[PhysicalAggSig]) extends IR
 
 final case class LowerBoundOnOrderedCollection(orderedCollection: IR, elem: IR, onKey: Boolean) extends IR
 
@@ -302,7 +304,7 @@ final case class SeqSample(totalRange: IR, numToSample: IR, requiresMemoryManage
 
 // Take the child stream and sort each element into buckets based on the provided pivots. The first and last elements of
 // pivots are the endpoints of the first and last interval respectively, should not be contained in the dataset.
-final case class StreamDistribute(child: IR, pivots: IR, path: IR, spec: AbstractTypedCodecSpec) extends IR
+final case class StreamDistribute(child: IR, pivots: IR, path: IR, comparisonOp: ComparisonOp[_],spec: AbstractTypedCodecSpec) extends IR
 
 object ArrayZipBehavior extends Enumeration {
   type ArrayZipBehavior = Value
@@ -401,7 +403,15 @@ object StreamJoin {
   }
 }
 
-final case class StreamJoinRightDistinct(left: IR, right: IR, lKey: IndexedSeq[String], rKey: IndexedSeq[String], l: String, r: String, joinF: IR, joinType: String) extends IR
+final case class StreamJoinRightDistinct(left: IR, right: IR, lKey: IndexedSeq[String], rKey: IndexedSeq[String], l: String, r: String, joinF: IR, joinType: String) extends IR {
+  def isIntervalJoin: Boolean = {
+    if (rKey.size != 1) return false
+    val lKeyTyp = coerce[TStruct](coerce[TStream](left.typ).elementType).fieldType(lKey(0))
+    val rKeyTyp = coerce[TStruct](coerce[TStream](right.typ).elementType).fieldType(rKey(0))
+
+    rKeyTyp.isInstanceOf[TInterval] && lKeyTyp != rKeyTyp
+  }
+}
 
 sealed trait NDArrayIR extends TypedIR[TNDArray] {
   def elementTyp: Type = typ.elementType
@@ -491,12 +501,16 @@ final case class ApplyAggOp(initOpArgs: IndexedSeq[IR], seqOpArgs: IndexedSeq[IR
 
 object AggFold {
 
-  def min(element: IR, keyType: TStruct): IR = {
-    minAndMaxHelper(element, keyType, LT(keyType))
+  def min(element: IR, sortFields: IndexedSeq[SortField]): IR = {
+    val elementType = element.typ.asInstanceOf[TStruct]
+    val keyType = elementType.select(sortFields.map(_.field))._1
+    minAndMaxHelper(element, keyType, StructLT(keyType, sortFields))
   }
 
-  def max(element: IR, keyType: TStruct): IR = {
-    minAndMaxHelper(element, keyType, GT(keyType))
+  def max(element: IR, sortFields: IndexedSeq[SortField]): IR = {
+    val elementType = element.typ.asInstanceOf[TStruct]
+    val keyType = elementType.select(sortFields.map(_.field))._1
+    minAndMaxHelper(element, keyType, StructGT(keyType, sortFields))
   }
 
   def all(element: IR): IR = {
@@ -507,7 +521,7 @@ object AggFold {
 
   private def minAndMaxHelper(element: IR, keyType: TStruct, comp: ComparisonOp[Boolean]): IR = {
     val keyFields = keyType.fields.map(_.name)
-    // Folding for Min
+
     val minAndMaxZero = NA(keyType)
     val aggFoldMinAccumName1 = genUID()
     val aggFoldMinAccumName2 = genUID()

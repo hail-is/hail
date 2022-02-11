@@ -26,7 +26,7 @@ class DownsampleBTreeKey(binType: PBaseStruct, pointType: PBaseStruct, kb: EmitC
   private val kcomp = kb.getOrderingFunction(binType.sType, CodeOrdering.Compare())
 
   override def isEmpty(cb: EmitCodeBuilder, off: Code[Long]): Value[Boolean] =
-    PBooleanRequired.loadCheapSCode(cb, storageType.loadField(off, "empty")).boolCode(cb)
+    PBooleanRequired.loadCheapSCode(cb, storageType.loadField(off, "empty")).value
 
   override def initializeEmpty(cb: EmitCodeBuilder, off: Code[Long]): Unit = cb += Region.storeBoolean(storageType.fieldOffset(off, "empty"), true)
 
@@ -363,8 +363,8 @@ class DownsampleState(val kb: EmitClassBuilder[_], labelType: VirtualTypeWithReq
         cb.whileLoop(i < buffer.size,
           {
             buffer.loadElement(cb, i).toI(cb).consume(cb, {}, { case point: SBaseStructValue =>
-              val x = point.loadField(cb, "x").get(cb).asFloat64.doubleCode(cb)
-              val y = point.loadField(cb, "y").get(cb).asFloat64.doubleCode(cb)
+              val x = point.loadField(cb, "x").get(cb).asFloat64.value
+              val y = point.loadField(cb, "y").get(cb).asFloat64.value
               val pointc = coerce[Long](SingleCodeSCode.fromSCode(cb, point, region).code)
               insertIntoTree(cb, xBinCoordinate(cb, x), yBinCoordinate(cb, y), pointc, deepCopy = true)
             })
@@ -449,9 +449,9 @@ class DownsampleState(val kb: EmitClassBuilder[_], labelType: VirtualTypeWithReq
         val y = mb.getSCodeParam(2)
         val l = mb.getEmitParam(cb, 3, region)
 
-        def xx = x.asDouble.doubleCode(cb)
+        def xx = x.asDouble.value
 
-        def yy = y.asDouble.doubleCode(cb)
+        def yy = y.asDouble.value
 
         cb.ifx((!(isFinite(xx) && isFinite(yy))), cb += Code._return[Unit](Code._empty))
         cb.assign(pointStaging, storageType.loadField(off, "pointStaging"))
@@ -555,7 +555,7 @@ class DownsampleAggregator(arrayType: VirtualTypeWithReq) extends StagedAggregat
     nDivisions.toI(cb)
       .consume(cb,
         cb += Code._fatal[Unit]("downsample: n_divisions may not be missing"),
-        sc => state.init(cb, sc.asInt.intCode(cb))
+        sc => state.init(cb, sc.asInt.value)
       )
   }
 

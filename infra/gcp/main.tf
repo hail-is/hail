@@ -11,7 +11,6 @@ terraform {
   }
 }
 
-variable "gsuite_organization" {}
 variable "batch_gcp_regions" {}
 variable "gcp_project" {}
 variable "batch_logs_bucket_location" {}
@@ -41,6 +40,12 @@ variable "ci_config" {
     github_context = string
   })
   default = null
+}
+
+variable deploy_ukbb {
+  type = bool
+  description = "Run the UKBB Genetic Correlation browser"
+  default = false
 }
 
 locals {
@@ -388,7 +393,8 @@ resource "kubernetes_secret" "registry_push_credentials" {
 }
 
 module "ukbb" {
-  source = "../ukbb"
+  count = var.deploy_ukbb ? 1 : 0
+  source = "../k8s/ukbb"
 }
 
 module "auth_gsa_secret" {
@@ -409,17 +415,6 @@ module "batch_gsa_secret" {
     "logging.viewer",
     "storage.admin",
   ]
-}
-
-module "query_gsa_secret" {
-  source = "./gsa_k8s_secret"
-  name = "query"
-}
-
-resource "google_storage_bucket_iam_member" "query_hail_query_bucket_storage_admin" {
-  bucket = module.hail_query.name
-  role = "roles/storage.admin"
-  member = "serviceAccount:${module.query_gsa_secret.email}"
 }
 
 resource "google_storage_bucket_iam_member" "batch_hail_query_bucket_storage_viewer" {

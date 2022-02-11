@@ -2,8 +2,8 @@ package is.hail.types.physical.stypes.concrete
 
 import is.hail.annotations.Region
 import is.hail.asm4s._
-import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder}
-import is.hail.types.physical.stypes.interfaces.{SCall, SCallCode, SCallValue, SIndexableValue}
+import is.hail.expr.ir.EmitCodeBuilder
+import is.hail.types.physical.stypes.interfaces.{SCall, SCallValue, SIndexableValue}
 import is.hail.types.physical.stypes.{SCode, SSettable, SType, SValue}
 import is.hail.types.physical.{PCall, PCanonicalCall, PType}
 import is.hail.types.virtual.{TCall, Type}
@@ -66,8 +66,6 @@ class SCanonicalCallValue(val call: Value[Int]) extends SCallValue {
 
   override val st: SCanonicalCall.type = SCanonicalCall
 
-  override def get: SCallCode = new SCanonicalCallCode(call)
-
   override lazy val valueTuple: IndexedSeq[Value[_]] = FastIndexedSeq(call)
 
   override def ploidy(cb: EmitCodeBuilder): Value[Int] =
@@ -109,7 +107,7 @@ class SCanonicalCallValue(val call: Value[Int]) extends SCallValue {
         cb._fatalWithError(errorID,
           s"lgt_to_gt: found allele ", av.toS, ", but there are only ", localAlleles.loadLength().toS, " local alleles"))
       localAlleles.loadElement(cb, av).get(cb, const("lgt_to_gt: found missing value in local alleles at index ").concat(av.toS), errorID = errorID)
-        .asInt.intCode(cb)
+              .asInt.value
     }
 
     val repr = cb.newLocal[Int]("lgt_to_gt_repr")
@@ -148,29 +146,8 @@ object SCanonicalCallSettable {
 }
 
 final class SCanonicalCallSettable(override val call: Settable[Int]) extends SCanonicalCallValue(call) with SSettable {
-  override def store(cb: EmitCodeBuilder, v: SCode): Unit =
-    cb.assign(call, v.asInstanceOf[SCanonicalCallCode].call)
+  override def store(cb: EmitCodeBuilder, v: SValue): Unit =
+    cb.assign(call, v.asInstanceOf[SCanonicalCallValue].call)
 
   override def settableTuple(): IndexedSeq[Settable[_]] = FastIndexedSeq(call)
-}
-
-class SCanonicalCallCode(val call: Code[Int]) extends SCallCode {
-
-  val pt: PCall = PCanonicalCall(false)
-
-  val st: SCanonicalCall.type = SCanonicalCall
-
-  def code: Code[_] = call
-
-  def memoize(cb: EmitCodeBuilder, name: String, sb: SettableBuilder): SCanonicalCallValue = {
-    val s = SCanonicalCallSettable(sb, name)
-    s.store(cb, this)
-    s
-  }
-
-  def memoize(cb: EmitCodeBuilder, name: String): SCanonicalCallValue = memoize(cb, name, cb.localBuilder)
-
-  def memoizeField(cb: EmitCodeBuilder, name: String): SCanonicalCallValue = memoize(cb, name, cb.fieldBuilder)
-
-  def loadCanonicalRepresentation(cb: EmitCodeBuilder): Code[Int] = call
 }

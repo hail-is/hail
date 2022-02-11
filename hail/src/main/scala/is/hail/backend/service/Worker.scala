@@ -51,25 +51,27 @@ object Worker {
   private[this] implicit val ec = ExecutionContext.fromExecutorService(
     javaConcurrent.Executors.newCachedThreadPool())
 
-  def main(args: Array[String]): Unit = {
+  def main(argv: Array[String]): Unit = {
     val theHailClassLoader = new HailClassLoader(getClass().getClassLoader())
 
-    if (args.length != 5) {
-      throw new IllegalArgumentException(s"expected five arguments, not: ${ args.length }")
+    if (argv.length != 6) {
+      throw new IllegalArgumentException(s"expected five arguments, not: ${ argv.length }")
     }
-    val scratchDir = args(0)
-    val revision = args(1)
-    val jarGCSPath = args(2)
-    val root = args(3)
-    val i = args(4).toInt
+    val scratchDir = argv(0)
+    val kind = argv(1)
+    assert(kind == Main.WORKER)
+    val revision = argv(2)
+    val jarGCSPath = argv(3)
+    val root = argv(4)
+    val i = argv(5).toInt
     val timer = new WorkerTimer()
 
     val deployConfig = DeployConfig.fromConfigFile(
-      s"$scratchDir/deploy-config/deploy-config.json")
+      s"$scratchDir/secrets/deploy-config/deploy-config.json")
     DeployConfig.set(deployConfig)
-    val userTokens = Tokens.fromFile(s"$scratchDir/user-tokens/tokens.json")
+    val userTokens = Tokens.fromFile(s"$scratchDir/secrets/user-tokens/tokens.json")
     Tokens.set(userTokens)
-    tls.setSSLConfigFromDir(s"$scratchDir/ssl-config")
+    tls.setSSLConfigFromDir(s"$scratchDir/secrets/ssl-config")
 
     log.info(s"is.hail.backend.service.Worker $myRevision")
     log.info(s"running job $i at root $root with scratch directory '$scratchDir'")
@@ -78,7 +80,7 @@ object Worker {
 
     timer.start("readInputs")
     val fs = retryTransientErrors {
-      using(new FileInputStream(s"$scratchDir/gsa-key/key.json")) { is =>
+      using(new FileInputStream(s"$scratchDir/secrets/gsa-key/key.json")) { is =>
         new GoogleStorageFS(Some(IOUtils.toString(is, Charset.defaultCharset().toString()))).asCacheable()
       }
     }

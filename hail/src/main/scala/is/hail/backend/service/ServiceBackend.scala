@@ -142,41 +142,38 @@ class ServiceBackend(
       }
     }
 
-    val batchClient = BatchClient.fromSessionID(backendContext.sessionID) // FIXME: how is this working?
-    val createBatch = scalaConcurrent.Future {
-      val jobs = new Array[JObject](n)
-      var i = 0
-      while (i < n) {
-        jobs(i) = JObject(
-          "always_run" -> JBool(false),
-          "job_id" -> JInt(i + 1),
-          "parent_ids" -> JArray(List()),
-          "process" -> JObject(
-            "command" -> JArray(List(
-              JString("is.hail.backend.service.Worker"),
-              JString(revision),
-              JString(jarLocation),
-              JString(root),
-              JString(s"$i"))),
-            "type" -> JString("jvm")),
-          "mount_tokens" -> JBool(true))
-        i += 1
-      }
-
-      log.info(s"parallelizeAndComputeWithIndex: $token: running job")
-
-      batchClient.create(
-        JObject(
-          "billing_project" -> JString(backendContext.billingProject),
-          "n_jobs" -> JInt(n),
-          "token" -> JString(token),
-          "attributes" -> JObject("name" -> JString(name + "_" + batchCount))),
-        jobs)
-    }
-
     scalaConcurrent.Await.result(uploadFunction, scalaConcurrent.duration.Duration.Inf)
     scalaConcurrent.Await.result(uploadContexts, scalaConcurrent.duration.Duration.Inf)
-    val batchId = scalaConcurrent.Await.result(createBatch, scalaConcurrent.duration.Duration.Inf)
+
+    val batchClient = BatchClient.fromSessionID(backendContext.sessionID)
+    val jobs = new Array[JObject](n)
+    var i = 0
+    while (i < n) {
+      jobs(i) = JObject(
+        "always_run" -> JBool(false),
+        "job_id" -> JInt(i + 1),
+        "parent_ids" -> JArray(List()),
+        "process" -> JObject(
+          "command" -> JArray(List(
+            JString(Main.WORKER),
+            JString(revision),
+            JString(jarLocation),
+            JString(root),
+            JString(s"$i"))),
+          "type" -> JString("jvm")),
+        "mount_tokens" -> JBool(true))
+      i += 1
+    }
+
+    log.info(s"parallelizeAndComputeWithIndex: $token: running job")
+
+    val batchId = batchClient.create(
+      JObject(
+        "billing_project" -> JString(backendContext.billingProject),
+        "n_jobs" -> JInt(n),
+        "token" -> JString(token),
+        "attributes" -> JObject("name" -> JString(name + "_" + batchCount))),
+      jobs)
 
     val batch = batchClient.waitForBatch(batchId)
     batchCount += 1
@@ -363,30 +360,6 @@ class ServiceBackend(
     }
   }
 
-  def flags(): String = {
-    JsonMethods.compact(JObject(HailContext.get.flags.available.toArray().map { case f: String =>
-      val v = HailContext.getFlag(f)
-      f -> (if (v == null) JNull else JString(v))
-    }: _*))
-  }
-
-  def getFlag(name: String): String = {
-    val v = HailContext.getFlag(name)
-    JsonMethods.compact(if (v == null) JNull else JString(v))
-  }
-
-  def setFlag(name: String, value: String): String = {
-    val v = HailContext.getFlag(name)
-    HailContext.setFlag(name, value)
-    JsonMethods.compact(if (v == null) JNull else JString(v))
-  }
-
-  def unsetFlag(name: String): String = {
-    val v = HailContext.getFlag(name)
-    HailContext.setFlag(name, null)
-    JsonMethods.compact(if (v == null) JNull else JString(v))
-  }
-
   def lowerDistributedSort(
     ctx: ExecuteContext,
     stage: TableStage,
@@ -429,11 +402,11 @@ class ServiceBackend(
     remoteTmpDir: String
   )(body: ExecuteContext => T): T = ExecutionTimer.logTime(methodName) { timer =>
     val fs = retryTransientErrors {
-      using(new FileInputStream(s"$scratchDir/gsa-key/key.json")) { is =>
+      using(new FileInputStream(s"$scratchDir/secrets/gsa-key/key.json")) { is =>
         new GoogleStorageFS(Some(IOUtils.toString(is, Charset.defaultCharset().toString()))).asCacheable()
       }
     }
-    ExecuteContext.scoped(tmpdir, "file:///tmp", this, fs, timer, null, theHailClassLoader) { ctx =>
+    ExecuteContext.scoped(tmpdir, "file:///tmp", this, fs, timer, null) { ctx =>
       ctx.backendContext = new ServiceBackendContext(sessionId, billingProject, remoteTmpDir)
       body(ctx)
     }
@@ -445,14 +418,16 @@ class HailBatchFailure(message: String) extends RuntimeException(message)
 
 object ServiceBackendSocketAPI2 {
   def main(argv: Array[String]): Unit = {
-    assert(argv.length == 6, argv.toFastIndexedSeq)
+    assert(argv.length == 7, argv.toFastIndexedSeq)
 
     val scratchDir = argv(0)
-    val revision = argv(1)
-    val jarLocation = argv(2)
-    val name = argv(3)
-    val input = argv(4)
-    val output = argv(5)
+    val kind = argv(1)
+    assert(kind == Main.DRIVER)
+    val revision = argv(2)
+    val jarLocation = argv(3)
+    val name = argv(4)
+    val input = argv(5)
+    val output = argv(6)
 
     // FIXME: when can the classloader be shared? (optimizer benefits!)
     val backend = new ServiceBackend(
@@ -463,16 +438,16 @@ object ServiceBackendSocketAPI2 {
       HailContext(backend, "hail.log", false, false, 50, skipLoggingConfiguration = true, 3)
     }
     val fs = retryTransientErrors {
-      using(new FileInputStream(s"$scratchDir/gsa-key/key.json")) { is =>
+      using(new FileInputStream(s"$scratchDir/secrets/gsa-key/key.json")) { is =>
         new GoogleStorageFS(Some(IOUtils.toString(is, Charset.defaultCharset().toString()))).asCacheable()
       }
     }
     val deployConfig = DeployConfig.fromConfigFile(
-      s"$scratchDir/deploy-config/deploy-config.json")
+      s"$scratchDir/secrets/deploy-config/deploy-config.json")
     DeployConfig.set(deployConfig)
-    val userTokens = Tokens.fromFile(s"$scratchDir/user-tokens/tokens.json")
+    val userTokens = Tokens.fromFile(s"$scratchDir/secrets/user-tokens/tokens.json")
     Tokens.set(userTokens)
-    tls.setSSLConfigFromDir(s"$scratchDir/ssl-config")
+    tls.setSSLConfigFromDir(s"$scratchDir/secrets/ssl-config")
 
     val sessionId = userTokens.namespaceToken(deployConfig.defaultNamespace)
     retryTransientErrors {
@@ -503,11 +478,6 @@ class ServiceBackendSocketAPI2(
   private[this] val BLOCK_MATRIX_TYPE = 5
   private[this] val REFERENCE_GENOME = 6
   private[this] val EXECUTE = 7
-  private[this] val FLAGS = 8
-  private[this] val GET_FLAG = 9
-  private[this] val UNSET_FLAG = 10
-  private[this] val SET_FLAG = 11
-  private[this] val ADD_USER = 12
   private[this] val GOODBYE = 254
 
   private[this] val dummy = new Array[Byte](8)
@@ -614,21 +584,6 @@ class ServiceBackendSocketAPI2(
             writeString(formatException(t))
         }
 
-      case MATRIX_TABLE_TYPE =>
-        val tmpdir = readString()
-        val billingProject = readString()
-        val remoteTmpDir = readString()
-        val s = readString()
-        try {
-          val result = backend.matrixTableType(tmpdir, sessionId, billingProject, remoteTmpDir, s)
-          writeBool(true)
-          writeString(result)
-        } catch {
-          case t: Throwable =>
-            writeBool(false)
-            writeString(formatException(t))
-        }
-
       case BLOCK_MATRIX_TYPE =>
         val tmpdir = readString()
         val billingProject = readString()
@@ -669,66 +624,6 @@ class ServiceBackendSocketAPI2(
           val result = backend.execute(tmpdir, sessionId, billingProject, remoteTmpDir, code, token)
           writeBool(true)
           writeString(result)
-        } catch {
-          case t: Throwable =>
-            writeBool(false)
-            writeString(formatException(t))
-        }
-
-      case FLAGS =>
-        try {
-          val result = backend.flags()
-          writeBool(true)
-          writeString(result)
-        } catch {
-          case t: Throwable =>
-            writeBool(false)
-            writeString(formatException(t))
-        }
-
-      case GET_FLAG =>
-        val name = readString()
-        try {
-          val result = backend.getFlag(name)
-          writeBool(true)
-          writeString(result)
-        } catch {
-          case t: Throwable =>
-            writeBool(false)
-            writeString(formatException(t))
-        }
-
-      case SET_FLAG =>
-        val name = readString()
-        val value = readString()
-        try {
-          val result = backend.setFlag(name, value)
-          writeBool(true)
-          writeString(result)
-        } catch {
-          case t: Throwable =>
-            writeBool(false)
-            writeString(formatException(t))
-        }
-
-      case UNSET_FLAG =>
-        val name = readString()
-        try {
-          val result = backend.unsetFlag(name)
-          writeBool(true)
-          writeString(result)
-        } catch {
-          case t: Throwable =>
-            writeBool(false)
-            writeString(formatException(t))
-        }
-
-      case ADD_USER =>
-        val name = readString()
-        val gsaKey = readString()
-        try {
-          val result = backend.addUser(name, gsaKey)
-          writeBool(true)
         } catch {
           case t: Throwable =>
             writeBool(false)

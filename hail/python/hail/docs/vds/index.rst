@@ -34,6 +34,7 @@ sequencing datasets.
     filter_samples
     filter_variants
     filter_intervals
+    filter_chromosomes
     sample_qc
     split_multi
     interval_coverage

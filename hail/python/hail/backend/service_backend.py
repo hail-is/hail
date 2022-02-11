@@ -103,9 +103,25 @@ class Timings:
         return self.timings
 
 
+class yaml_literally_shown_str(str):
+    pass
+
+
+def yaml_literally_shown_str_representer(dumper, data):
+    return dumper.represent_scalar(u'tag:yaml.org,2002:str', data, style='|')
+
+
+yaml.add_representer(yaml_literally_shown_str, yaml_literally_shown_str_representer)
+
+
 class ServiceBackend(Backend):
     HAIL_BATCH_FAILURE_EXCEPTION_MESSAGE_RE = re.compile("is.hail.backend.service.HailBatchFailure: ([0-9]+)\n")
 
+    # is.hail.backend.service.Main protocol
+    WORKER = "worker"
+    DRIVER = "driver"
+
+    # is.hail.backend.service.ServiceBackendSocketAPI2 protocol
     LOAD_REFERENCES_FROM_DATASET = 1
     VALUE_TYPE = 2
     TABLE_TYPE = 3
@@ -113,11 +129,6 @@ class ServiceBackend(Backend):
     BLOCK_MATRIX_TYPE = 5
     REFERENCE_GENOME = 6
     EXECUTE = 7
-    FLAGS = 8
-    GET_FLAG = 9
-    UNSET_FLAG = 10
-    SET_FLAG = 11
-    ADD_USER = 12
     GOODBYE = 254
 
     @staticmethod
@@ -197,6 +208,24 @@ class ServiceBackend(Backend):
 
     def execute(self, ir, timed=False):
         return async_to_blocking(self._async_execute(ir, timed=timed))
+
+    async def _async_execute(self, ir, timed=False):
+        async def inputs(infile, token):
+            await write_int(infile, ServiceBackend.EXECUTE)
+            await write_str(infile, tmp_dir())
+            await write_str(infile, self.billing_project)
+            await write_str(infile, self.remote_tmpdir)
+            await write_str(infile, self.render(ir))
+            await write_str(infile, token)
+        _, resp, timings = await self._rpc('execute(...)', inputs)
+        typ = dtype(resp['type'])
+        if typ == tvoid:
+            ret = None
+        else:
+            ret = typ._convert_from_json_na(resp['value'])
+        if timed:
+            return ret, timings
+        return ret
 
     async def _rpc(self,
                    name: str,
@@ -284,24 +313,6 @@ class ServiceBackend(Backend):
                             log.error(yaml.dump(message))
                             raise ValueError(orjson.dumps(message).decode('utf-8'))
                         raise FatalError(f'batch id was {b.id}\n' + jstacktrace)
-
-    async def _async_execute(self, ir, timed=False):
-        async def inputs(infile, token):
-            await write_int(infile, ServiceBackend.EXECUTE)
-            await write_str(infile, tmp_dir())
-            await write_str(infile, self.billing_project)
-            await write_str(infile, self.remote_tmpdir)
-            await write_str(infile, self.render(ir))
-            await write_str(infile, token)
-        _, resp, timings = await self._rpc('execute(...)', inputs)
-        typ = dtype(resp['type'])
-        if typ == tvoid:
-            ret = None
-        else:
-            ret = typ._convert_from_json_na(resp['value'])
-        if timed:
-            return ret, timings
-        return ret
 
     def execute_many(self, *irs, timed=False):
         return async_to_blocking(self._async_execute_many(*irs, timed=timed))

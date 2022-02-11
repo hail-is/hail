@@ -34,3 +34,7 @@ class CloudUserCredentials(abc.ABC):
     @property
     def mount_path(self):
         return f'/{self.secret_name}/{self.file_name}'
+
+    @abc.abstractmethod
+    def cloudfuse_credentials(self, fuse_config: dict) -> str:
+        raise NotImplementedError

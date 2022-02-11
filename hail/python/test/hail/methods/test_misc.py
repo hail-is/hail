@@ -133,6 +133,7 @@ class Tests(unittest.TestCase):
         actual = hl.maximal_independent_set(t.l, t.r, keep=False, tie_breaker=lambda l,r: l.x - r.x).collect()
         assert actual == expected
 
+    @skip_when_service_backend(message='hangs')
     def test_matrix_filter_intervals(self):
         ds = hl.import_vcf(resource('sample.vcf'), min_partitions=20)
 

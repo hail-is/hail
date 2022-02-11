@@ -123,7 +123,7 @@ object LocusFunctions extends RegistryFunctions {
         val variantTuple = Code.invokeScalaObject2[Locus, IndexedSeq[String], (Locus, IndexedSeq[String])](
           VariantMethods.getClass, "minRep",
           locus.getLocusObj(cb),
-          Code.checkcast[IndexedSeq[String]](scodeToJavaValue(cb, r.region, alleles)))
+          Code.checkcast[IndexedSeq[String]](svalueToJavaValue(cb, r.region, alleles)))
 
         emitVariant(cb, r.region, variantTuple, rt)
     }
@@ -133,7 +133,7 @@ object LocusFunctions extends RegistryFunctions {
         PCanonicalTuple(false, PCanonicalArray(PInt32(true), true), PCanonicalArray(PInt32(true), true)).sType
     }) {
       case (r: EmitRegion, cb: EmitCodeBuilder, SBaseStructPointer(rt: PCanonicalTuple), grouped: SIndexableValue, radiusVal: SFloat64Value, errorID) =>
-        val radius = radiusVal.doubleCode(cb)
+        val radius = radiusVal.value
         val ncontigs = grouped.loadLength()
         val totalLen = cb.newLocal[Int]("locuswindows_totallen", 0)
 
@@ -164,14 +164,14 @@ object LocusFunctions extends RegistryFunctions {
             val len = coords.loadLength()
             cb.ifx(len.ceq(0),
               cb.assign(lastCoord, 0.0),
-              cb.assign(lastCoord, coords.loadElement(cb, 0).get(cb, "locus_windows: missing value for 'coord_expr'").asDouble.doubleCode(cb)))
+              cb.assign(lastCoord, coords.loadElement(cb, 0).get(cb, "locus_windows: missing value for 'coord_expr'").asDouble.value))
             cb.whileLoop(i < len, {
 
               coords.loadElement(cb, i).consume(cb,
                 cb._fatalWithError(errorID, const("locus_windows: missing value for 'coord_expr' at row ")
                     .concat((offset + i).toS)),
                 { sc =>
-                  val currentCoord = cb.newLocal[Double]("locuswindows_coord_i", sc.asDouble.doubleCode(cb))
+                  val currentCoord = cb.newLocal[Double]("locuswindows_coord_i", sc.asDouble.value)
                   cb.ifx(lastCoord > currentCoord,
                     cb._fatalWithError(errorID, "locus_windows: 'coord_expr' must be in ascending order within each contig."),
                     cb.assign(lastCoord, currentCoord)
@@ -210,14 +210,14 @@ object LocusFunctions extends RegistryFunctions {
         rt.constructFromFields(cb, r.region,
           FastIndexedSeq[EmitCode](
             EmitCode.fromI(cb.emb)(cb => addIdxWithCondition(cb) { case (cb, i, idx, coords) => coords.loadElement(cb, i)
-              .get(cb, "locus_windows: missing value for 'coord_expr'")
-              .asDouble.doubleCode(cb) > (coords.loadElement(cb, idx)
-              .get(cb, "locus_windows: missing value for 'coord_expr'").asDouble.doubleCode(cb) + radius)
+                          .get(cb, "locus_windows: missing value for 'coord_expr'")
+                          .asDouble.value > (coords.loadElement(cb, idx)
+                                        .get(cb, "locus_windows: missing value for 'coord_expr'").asDouble.value + radius)
             }),
             EmitCode.fromI(cb.emb)(cb => addIdxWithCondition(cb) { case (cb, i, idx, coords) => coords.loadElement(cb, i)
-              .get(cb, "locus_windows: missing value for 'coord_expr'")
-              .asDouble.doubleCode(cb) >= (coords.loadElement(cb, idx)
-              .get(cb, "locus_windows: missing value for 'coord_expr'").asDouble.doubleCode(cb) - radius)
+                          .get(cb, "locus_windows: missing value for 'coord_expr'")
+                          .asDouble.value >= (coords.loadElement(cb, idx)
+                                        .get(cb, "locus_windows: missing value for 'coord_expr'").asDouble.value - radius)
             })
           ), deepCopy = false)
     }
@@ -237,8 +237,8 @@ object LocusFunctions extends RegistryFunctions {
       (returnType: Type, _: SType, _: SType) => PCanonicalLocus(returnType.asInstanceOf[TLocus].rg).sType
     }) {
       case (r, cb, SCanonicalLocusPointer(rt: PCanonicalLocus), contig, pos, _) =>
-        cb += rgCode(r.mb, rt.rg).invoke[String, Int, Unit]("checkLocus", contig.asString.loadString(cb), pos.asInt.intCode(cb))
-        rt.constructFromPositionAndString(cb, r.region, contig.asString.loadString(cb), pos.asInt.intCode(cb))
+        cb += rgCode(r.mb, rt.rg).invoke[String, Int, Unit]("checkLocus", contig.asString.loadString(cb), pos.asInt.value)
+        rt.constructFromPositionAndString(cb, r.region, contig.asString.loadString(cb), pos.asInt.value)
     }
 
     registerSCode1("LocusAlleles", TString, tvariant("T"), {
@@ -277,7 +277,7 @@ object LocusFunctions extends RegistryFunctions {
               locusClass, "parseInterval",
               locusStr.asString.loadString(cb),
               rgCode(cb.emb, plocus.rg),
-              invalidMissing.asBoolean.boolCode(cb)))
+              invalidMissing.asBoolean.value))
 
           cb.ifx(interval.isNull, cb.goto(Lmissing))
 
@@ -319,12 +319,12 @@ object LocusFunctions extends RegistryFunctions {
                       Code.invokeScalaObject7[String, Int, Int, Boolean, Boolean, ReferenceGenome, Boolean, Interval](
                         locusClass, "makeInterval",
                         locusString.asString.loadString(cb),
-                        pos1.asInt.intCode(cb),
-                        pos2.asInt.intCode(cb),
-                        include1.asBoolean.boolCode(cb),
-                        include2.asBoolean.boolCode(cb),
+                        pos1.asInt.value,
+                        pos2.asInt.value,
+                        include1.asBoolean.value,
+                        include2.asBoolean.value,
                         rgCode(cb.emb, plocus.rg),
-                        invalidMissing.asBoolean.boolCode(cb)))
+                        invalidMissing.asBoolean.value))
 
                     cb.ifx(interval.isNull, cb.goto(Lmissing))
 
@@ -345,7 +345,7 @@ object LocusFunctions extends RegistryFunctions {
     }) {
       case (r, cb, SCanonicalLocusPointer(rt: PCanonicalLocus), globalPos, _) =>
         val locus = cb.newLocal[Locus]("global_pos_locus",
-          rgCode(r.mb, rt.rg).invoke[Long, Locus]("globalPosToLocus", globalPos.asLong.longCode(cb)))
+          rgCode(r.mb, rt.rg).invoke[Long, Locus]("globalPosToLocus", globalPos.asLong.value))
         rt.constructFromPositionAndString(cb, r.region, locus.invoke[String]("contig"), locus.invoke[Int]("position"))
     }
 
@@ -376,7 +376,7 @@ object LocusFunctions extends RegistryFunctions {
             val locusObj = loc.getLocusObj(cb)
             val lifted = cb.newLocal[(Locus, Boolean)]("lifterover_locus_ lifted",
               rgCode(cb.emb, srcRG).invoke[String, Locus, Double, (Locus, Boolean)]("liftoverLocus",
-                destRG.name, locusObj, minMatch.asDouble.doubleCode(cb)))
+                destRG.name, locusObj, minMatch.asDouble.value))
 
             cb.ifx(lifted.isNull, cb.goto(Lmissing))
 
@@ -413,10 +413,10 @@ object LocusFunctions extends RegistryFunctions {
             val srcRG = iT.pointType.asInstanceOf[SLocus].rg
             val destRG = rt.types(0).asInstanceOf[PInterval].pointType.asInstanceOf[PLocus].rg
             val er = EmitRegion(cb.emb, r)
-            val intervalObj = Code.checkcast[Interval](scodeToJavaValue(cb, r, interval))
+            val intervalObj = Code.checkcast[Interval](svalueToJavaValue(cb, r, interval))
             val lifted = cb.newLocal[(Interval, Boolean)]("liftover_locus_interval_lifted",
               rgCode(cb.emb, srcRG).invoke[String, Interval, Double, (Interval, Boolean)]("liftoverLocusInterval",
-                destRG.name, intervalObj, minMatch.asDouble.doubleCode(cb)))
+                destRG.name, intervalObj, minMatch.asDouble.value))
 
 
             cb.ifx(lifted.isNull, cb.goto(Lmissing))

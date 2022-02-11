@@ -34,8 +34,6 @@ trait SBaseStructSettable extends SBaseStructValue with SSettable
 trait SBaseStructValue extends SValue {
   def st: SBaseStruct
 
-  override def get: SBaseStructCode
-
   def isFieldMissing(cb: EmitCodeBuilder, fieldIdx: Int): Value[Boolean]
 
   def isFieldMissing(cb: EmitCodeBuilder, fieldName: String): Value[Boolean] =
@@ -54,7 +52,7 @@ trait SBaseStructValue extends SValue {
     val hash_result = cb.newLocal[Int]("hash_result_struct", 1)
     (0 until st.size).foreach(i => {
       loadField(cb, i).consume(cb, { cb.assign(hash_result, hash_result * 31) },
-        {field => cb.assign(hash_result, (hash_result * 31) + field.hash(cb).intCode(cb))})
+        {field => cb.assign(hash_result, (hash_result * 31) + field.hash(cb).value)})
     })
     new SInt32Value(hash_result)
   }
@@ -77,29 +75,5 @@ trait SBaseStructValue extends SValue {
 
     val pcs = PCanonicalStruct(false, allFields.map { case (f, ec) => (f, ec.emitType.storageType) }: _*)
     pcs.constructFromFields(cb, region, allFields.map(_._2.load), false)
-  }
-}
-
-trait SBaseStructCode extends SCode {
-  self =>
-  def st: SBaseStruct
-
-  def memoize(cb: EmitCodeBuilder, name: String): SBaseStructValue
-
-  def memoizeField(cb: EmitCodeBuilder, name: String): SBaseStructValue
-
-  final def loadSingleField(cb: EmitCodeBuilder, fieldName: String): IEmitCode = loadSingleField(cb, st.fieldIdx(fieldName))
-
-  def loadSingleField(cb: EmitCodeBuilder, fieldIdx: Int): IEmitCode = {
-    memoize(cb, "structcode_loadsinglefield")
-      .loadField(cb, fieldIdx)
-  }
-
-  protected[stypes] def _insert(newType: TStruct, fields: (String, EmitCode)*): SBaseStructCode = {
-    new SInsertFieldsStructCode(
-      SInsertFieldsStruct(newType, st, fields.map { case (name, ec) => (name, ec.emitType) }.toFastIndexedSeq),
-      this,
-      fields.map(_._2).toFastIndexedSeq
-    )
   }
 }

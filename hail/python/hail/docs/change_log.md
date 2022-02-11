@@ -24,6 +24,69 @@ an earlier version of Hail to read files written in a later version.
 
 ---
 
+## Version 0.2.84
+
+Release 2022-02-10
+
+### Bug fixes
+
+- (hail#11328) Fix bug where occasionally files written to disk would be unreadable.
+- (hail#11331) Fix bug that potentially caused files written to disk to be unreadable.
+- (hail#11312) Fix aggregator memory leak.
+- (hail#11340) Fix bug where repeatedly annotating same field name could cause failure to compile.
+- (hail#11342) Fix to possible issues about having too many open file handles.
+
+### New features
+
+- (hail#11300) `geom_histogram` infers min and max values automatically.
+- (hail#11317) Add support for `alpha` aesthetic and `identity` position to `geom_histogram`.
+
+---
+
+## Version 0.2.83
+
+Release 2022-02-01
+
+### Bug fixes
+
+- (hail#11268) Fixed `log` argument in `hail.plot.histogram`.
+- (hail#11276) Fixed `log` argument in `hail.plot.pdf`.
+- (hail#11256) Fixed memory leak in LD Prune.
+
+### New features
+
+- (hail#11274) Added `geom_col` to `hail.ggplot`.
+
+### hailctl dataproc
+
+- (hail#11280) Updated dataproc image version to one not affected by log4j vulnerabilities.
+
+---
+
+## Version 0.2.82
+
+Release 2022-01-24
+
+### Bug fixes
+
+- (hail#11209) Significantly improved usefulness and speed of `Table.to_pandas`, resolved several bugs with output.
+
+### New features
+
+- (hail#11247) Introduces a new experimental plotting interface `hail.ggplot`, based on R's ggplot library.
+- (hail#11173) Many math functions like `hail.sqrt` now automatically broadcast over ndarrays.
+
+### Performance Improvements
+
+- (hail#11216) Significantly improve performance of `parse_locus_interval`
+
+### Python and Java Support
+
+- (hail#11219) We no longer officially support Python 3.6, though it may continue to work in the short term.
+- (hail#11220) We support building hail with Java 11.
+
+---
+
 ## Version 0.2.81
 
 Release 2021-12-20

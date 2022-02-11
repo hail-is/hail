@@ -13,7 +13,7 @@ variable acr_name {
 
 variable acr_sku {
   type = string
-  default = "Basic"
+  default = "Premium"
 }
 
 variable k8s_machine_type {
@@ -33,5 +33,10 @@ variable "ci_config" {
     deploy_steps = list(string)
     github_context = string
   })
+  default = null
+}
+
+variable oauth2_developer_redirect_uris {
+  type = list(string)
   default = null
 }

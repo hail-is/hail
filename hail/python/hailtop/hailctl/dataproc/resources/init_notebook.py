@@ -83,6 +83,7 @@ if role == 'Master':
         'PYSPARK_PYTHON': '/opt/conda/default/bin/python',
         'PYSPARK_DRIVER_PYTHON': '/opt/conda/default/bin/python',
         'HAIL_LOG_DIR': '/home/hail',
+        'HAIL_DATAPROC': '1',
     }
 
     # VEP ENV

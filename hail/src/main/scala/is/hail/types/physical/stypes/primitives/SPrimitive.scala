@@ -14,13 +14,6 @@ trait SPrimitive extends SType {
   def containsPointers: Boolean = false
 }
 
-abstract class SPrimitiveCode extends SCode {
-  override def st: SPrimitive
-
-  protected[primitives] def _primitiveCode: Code[_]
-  final def primitiveCode[T]: Code[T] = coerce[T](_primitiveCode)
-}
-
 abstract class SPrimitiveValue extends SValue {
   override def st: SPrimitive
 

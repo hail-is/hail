@@ -24,6 +24,7 @@ class JVMEntryway {
   private static int FINISH_ENTRYWAY_EXCEPTION = 1;
   private static int FINISH_NORMAL = 2;
   private static int FINISH_CANCELLED = 3;
+  private static int FINISH_JVM_EOS = 4;  // NEVER USED ON JVM SIDE
 
   public static void main(String[] args) throws Exception {
     assert args.length == 1;

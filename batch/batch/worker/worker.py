@@ -1,4 +1,5 @@
 from typing import Optional, Dict, Callable, Tuple, Awaitable, Any, Union, MutableMapping, List, Iterator
+import errno
 import os
 import json
 import sys
@@ -17,6 +18,7 @@ from aiohttp import web
 import struct
 import async_timeout
 import concurrent
+import tempfile
 
 import aiodocker  # type: ignore
 import aiodocker.images
@@ -66,12 +68,13 @@ from ..globals import (
 from ..batch_format_version import BatchFormatVersion
 from ..publicly_available_images import publicly_available_images
 from ..utils import Box
-from ..worker.instance_env import CloudWorkerAPI
-from ..cloud.gcp.worker.instance_env import GCPWorkerAPI
-from ..cloud.azure.worker.instance_env import AzureWorkerAPI
+from ..worker.worker_api import CloudWorkerAPI
+from ..cloud.gcp.worker.worker_api import GCPWorkerAPI
+from ..cloud.azure.worker.worker_api import AzureWorkerAPI
 from ..cloud.resource_utils import storage_gib_to_bytes, is_valid_storage_request
 
 from .credentials import CloudUserCredentials
+from .jvm_entryway_protocol import read_bool, read_int, read_str, write_int, write_str, EndOfStream
 
 # uvloop.install()
 
@@ -136,9 +139,7 @@ INTERNET_INTERFACE = os.environ['INTERNET_INTERFACE']
 UNRESERVED_WORKER_DATA_DISK_SIZE_GB = int(os.environ['UNRESERVED_WORKER_DATA_DISK_SIZE_GB'])
 assert UNRESERVED_WORKER_DATA_DISK_SIZE_GB >= 0
 ACCEPTABLE_QUERY_JAR_URL_PREFIX = os.environ['ACCEPTABLE_QUERY_JAR_URL_PREFIX']
-assert (
-    isinstance(ACCEPTABLE_QUERY_JAR_URL_PREFIX, str) and len(ACCEPTABLE_QUERY_JAR_URL_PREFIX) > 3
-)  # x:// where x is one or more characters
+assert len(ACCEPTABLE_QUERY_JAR_URL_PREFIX) > 3  # x:// where x is one or more characters
 
 CLOUD_WORKER_API: CloudWorkerAPI = GCPWorkerAPI.from_env() if CLOUD == 'gcp' else AzureWorkerAPI.from_env()
 
@@ -161,6 +162,9 @@ log.info(f'ACCEPTABLE_QUERY_JAR_URL_PREFIX {ACCEPTABLE_QUERY_JAR_URL_PREFIX}')
 instance_config = CLOUD_WORKER_API.instance_config_from_config_dict(INSTANCE_CONFIG)
 assert instance_config.cores == CORES
 assert instance_config.cloud == CLOUD
+
+
+N_SLOTS = 4 * CORES  # Jobs are allowed at minimum a quarter core
 
 deploy_config = DeployConfig('gce', NAMESPACE, {})
 
@@ -293,8 +297,8 @@ class NetworkAllocator:
         self.public_networks = asyncio.Queue()
         self.internet_interface = INTERNET_INTERFACE
 
-    async def reserve(self, netns_pool_min_size: int = 64):
-        for subnet_index in range(netns_pool_min_size):
+    async def reserve(self):
+        for subnet_index in range(N_SLOTS):
             public = NetworkNamespace(subnet_index, private=False, internet_interface=self.internet_interface)
             await public.init()
             self.public_networks.put_nowait(public)
@@ -1030,37 +1034,6 @@ def populate_secret_host_path(host_path: str, secret_data: Optional[Dict[str, by
                 f.write(base64.b64decode(data))
 
 
-async def add_gcsfuse_bucket(mount_path, bucket, key_file, read_only):
-    assert CLOUD == 'gcp'
-    assert bucket
-    os.makedirs(mount_path)
-    options = ['allow_other']
-    if read_only:
-        options.append('ro')
-
-    delay = 0.1
-    error = 0
-    while True:
-        try:
-            return await check_shell(
-                f'''
-/usr/bin/gcsfuse \
-    -o {",".join(options)} \
-    --file-mode 770 \
-    --dir-mode 770 \
-    --implicit-dirs \
-    --key-file {key_file} \
-    {bucket} {mount_path}
-'''
-            )
-        except CalledProcessError:
-            error += 1
-            if error == 5:
-                raise
-
-        delay = await sleep_and_backoff(delay)
-
-
 def copy_container(
     job: 'Job',
     name: str,
@@ -1103,20 +1076,37 @@ class Job:
         Job.quota_project_id += 1
         return project_id
 
-    def secret_host_path(self, secret):
+    def secret_host_path(self, secret) -> str:
         return f'{self.scratch}/secrets/{secret["name"]}'
 
-    def io_host_path(self):
+    def io_host_path(self) -> str:
         return f'{self.scratch}/io'
 
-    def gcsfuse_path(self, bucket):
+    def cloudfuse_base_path(self):
         # Make sure this path isn't in self.scratch to avoid accidental bucket deletions!
-        return f'/gcsfuse/{self.token}/{bucket}'
+        path = f'/cloudfuse/{self.token}'
+        assert os.path.commonpath([path, self.scratch]) == '/'
+        return path
 
-    def credentials_host_dirname(self):
+    def cloudfuse_data_path(self, bucket: str) -> str:
+        # Make sure this path isn't in self.scratch to avoid accidental bucket deletions!
+        path = f'{self.cloudfuse_base_path()}/{bucket}/data'
+        assert os.path.commonpath([path, self.scratch]) == '/'
+        return path
+
+    def cloudfuse_tmp_path(self, bucket: str) -> str:
+        # Make sure this path isn't in self.scratch to avoid accidental bucket deletions!
+        path = f'{self.cloudfuse_base_path()}/{bucket}/tmp'
+        assert os.path.commonpath([path, self.scratch]) == '/'
+        return path
+
+    def cloudfuse_credentials_path(self, bucket: str) -> str:
+        return f'{self.scratch}/cloudfuse/{bucket}'
+
+    def credentials_host_dirname(self) -> str:
         return f'{self.scratch}/{self.credentials.secret_name}'
 
-    def credentials_host_file_path(self):
+    def credentials_host_file_path(self) -> str:
         return f'{self.credentials_host_dirname()}/{self.credentials.file_name}'
 
     @staticmethod
@@ -1207,16 +1197,17 @@ class Job:
         self.main_volume_mounts.append(io_volume_mount)
         self.output_volume_mounts.append(io_volume_mount)
 
-        gcsfuse = job_spec.get('gcsfuse')
-        self.gcsfuse = gcsfuse
-        if gcsfuse:
-            assert CLOUD == 'gcp'
-            for b in gcsfuse:
-                b['mounted'] = False
+        cloudfuse = job_spec.get('cloudfuse') or job_spec.get('gcsfuse')
+        self.cloudfuse = cloudfuse
+        if cloudfuse:
+            for config in cloudfuse:
+                config['mounted'] = False
+                bucket = config['bucket']
+                assert bucket
                 self.main_volume_mounts.append(
                     {
-                        'source': self.gcsfuse_path(b["bucket"]),
-                        'destination': b['mount_path'],
+                        'source': f'{self.cloudfuse_data_path(bucket)}',
+                        'destination': config['mount_path'],
                         'type': 'none',
                         'options': ['rbind', 'rw', 'shared'],
                     }
@@ -1450,18 +1441,33 @@ class DockerJob(Job):
                         for secret in self.secrets:
                             populate_secret_host_path(self.secret_host_path(secret), secret['data'])
 
-                with self.step('adding gcsfuse bucket'):
-                    if self.gcsfuse:
-                        populate_secret_host_path(self.credentials_host_dirname(), self.credentials.secret_data)
-                        for b in self.gcsfuse:
-                            bucket = b['bucket']
-                            await add_gcsfuse_bucket(
-                                mount_path=self.gcsfuse_path(bucket),
-                                bucket=bucket,
-                                key_file=self.credentials_host_file_path(),
-                                read_only=b['read_only'],
+                with self.step('adding cloudfuse support'):
+                    if self.cloudfuse:
+                        os.makedirs(self.cloudfuse_base_path())
+
+                        await check_shell_output(
+                            f'xfs_quota -x -c "project -s -p {self.cloudfuse_base_path()} {self.project_id}" /host/'
+                        )
+
+                        for config in self.cloudfuse:
+                            bucket = config['bucket']
+                            assert bucket
+
+                            credentials = self.credentials.cloudfuse_credentials(config)
+                            credentials_path = CLOUD_WORKER_API.write_cloudfuse_credentials(
+                                self.scratch, credentials, bucket
                             )
-                            b['mounted'] = True
+
+                            os.makedirs(self.cloudfuse_data_path(bucket), exist_ok=True)
+                            os.makedirs(self.cloudfuse_tmp_path(bucket), exist_ok=True)
+
+                            await CLOUD_WORKER_API.mount_cloudfuse(
+                                credentials_path,
+                                self.cloudfuse_data_path(bucket),
+                                self.cloudfuse_tmp_path(bucket),
+                                config,
+                            )
+                            config['mounted'] = True
 
                 self.state = 'running'
 
@@ -1527,14 +1533,15 @@ class DockerJob(Job):
 
         log.info(f'{self}: cleaning up')
         try:
-            if self.gcsfuse:
-                for b in self.gcsfuse:
-                    if b['mounted']:
-                        bucket = b['bucket']
-                        mount_path = self.gcsfuse_path(bucket)
-                        await check_shell(f'fusermount -u {mount_path}')
-                        log.info(f'unmounted gcsfuse bucket {bucket} from {mount_path}')
-                        b['mounted'] = False
+            if self.cloudfuse:
+                for config in self.cloudfuse:
+                    if config['mounted']:
+                        bucket = config['bucket']
+                        assert bucket
+                        mount_path = self.cloudfuse_data_path(bucket)
+                        await CLOUD_WORKER_API.unmount_cloudfuse(mount_path)
+                        log.info(f'unmounted fuse blob storage {bucket} from {mount_path}')
+                        config['mounted'] = False
 
             await check_shell(f'xfs_quota -x -c "limit -p bsoft=0 bhard=0 {self.project_id}" /host')
 
@@ -1584,80 +1591,54 @@ class JVMJob(Job):
         if input_files or output_files:
             raise Exception("i/o not supported")
 
-        for envvar in self.env:
-            assert envvar['name'] not in {
-                'HAIL_DEPLOY_CONFIG_FILE',
-                'HAIL_TOKENS_FILE',
-                'HAIL_SSL_CONFIG_DIR',
-                'HAIL_WORKER_SCRATCH_DIR',
-                self.credentials.hail_env_name,
-            }, envvar
-
-        self.env.append(
-            {'name': 'HAIL_DEPLOY_CONFIG_FILE', 'value': f'{self.scratch}/secrets/deploy-config/deploy-config.json'}
-        )
-        self.env.append({'name': 'HAIL_TOKENS_FILE', 'value': f'{self.scratch}/secrets/user-tokens/tokens.json'})
-        self.env.append({'name': 'HAIL_SSL_CONFIG_DIR', 'value': f'{self.scratch}/secrets/ssl-config'})
-        self.env.append({'name': 'HAIL_WORKER_SCRATCH_DIR', 'value': self.scratch})
-        self.env.append({'name': self.credentials.hail_env_name, 'value': self.credentials_host_file_path()})
-
-        # main container
-        self.main_spec = {
-            'command': job_spec['process']['command'],  # ['is.hail.backend.service.Worker', $root, $i]
-            'name': 'main',
-            'env': self.env,
-            'cpu': self.cpu_in_mcpu,
-            'memory': self.memory_in_bytes,
-        }
-
         self.user_command_string = job_spec['process']['command']
         assert len(self.user_command_string) >= 3, self.user_command_string
         self.revision = self.user_command_string[1]
         self.jar_url = self.user_command_string[2]
-        # self.classpath = f'{find_spark_home()}/jars/*:/hail-jars/{self.revision}.jar:/log4j.properties'
 
         self.deleted = False
         self.timings = Timings(lambda: self.deleted)
         self.state = 'pending'
         self.log: Optional[str] = None
 
-        self.jvm = None
-        self.jvm_name = None
+        self.jvm: Optional[JVM] = None
+        self.jvm_name: Optional[str] = None
 
     def step(self, name):
         return self.timings.step(name)
 
     def verify_is_acceptable_query_jar_url(self, url: str):
-        n = len(ACCEPTABLE_QUERY_JAR_URL_PREFIX)
-        if url[:n] != ACCEPTABLE_QUERY_JAR_URL_PREFIX:
+        if not url.startswith(ACCEPTABLE_QUERY_JAR_URL_PREFIX):
             log.error(f'user submitted unacceptable JAR url: {url} for {self}. {ACCEPTABLE_QUERY_JAR_URL_PREFIX}')
             raise ValueError(f'unacceptable JAR url: {url}')
+
+    def secret_host_path(self, secret):
+        return f'{self.scratch}/secrets/{secret["mount_path"]}'
 
     async def run(self):
         async with self.worker.cpu_sem(self.cpu_in_mcpu):
             self.start_time = time_msecs()
+            os.makedirs(f'{self.scratch}/')
 
             try:
                 with self.step('connecting_to_jvm'):
                     self.jvm = await self.worker.borrow_jvm()
                     self.jvm_name = str(self.jvm)
-                    self.scratch = self.jvm.root_dir
 
                 self.task_manager.ensure_future(self.worker.post_job_started(self))
 
                 log.info(f'{self}: initializing')
                 self.state = 'initializing'
 
-                # await check_shell_output(f'xfs_quota -x -c "project -s -p {self.scratch} {self.project_id}" /host/')
-                # await check_shell_output(
-                #     f'xfs_quota -x -c "limit -p bsoft={self.data_disk_storage_in_gib} bhard={self.data_disk_storage_in_gib} {self.project_id}" /host/'
-                # )
+                await check_shell_output(f'xfs_quota -x -c "project -s -p {self.scratch} {self.project_id}" /host/')
+                await check_shell_output(
+                    f'xfs_quota -x -c "limit -p bsoft={self.data_disk_storage_in_gib} bhard={self.data_disk_storage_in_gib} {self.project_id}" /host/'
+                )
 
                 if self.secrets:
                     for secret in self.secrets:
                         populate_secret_host_path(self.scratch + '/' + secret["mount_path"][1:], secret['data'])
 
-                populate_secret_host_path(self.credentials_host_dirname(), self.credentials.secret_data)
                 self.state = 'running'
 
                 log.info(f'{self}: downloading JAR')
@@ -1666,21 +1647,28 @@ class JVMJob(Job):
                         local_jar_location = f'/hail-jars/{self.revision}.jar'
                         if not os.path.isfile(local_jar_location):
                             self.verify_is_acceptable_query_jar_url(self.jar_url)
-                            async with await self.worker.fs.open(self.jar_url) as jar_data:
-                                await self.worker.fs.makedirs('/hail-jars/', exist_ok=True)
-                                async with await self.worker.fs.create(local_jar_location) as local_file:
+                            temporary_file = tempfile.NamedTemporaryFile(delete=False)
+                            try:
+                                async with await self.worker.fs.open(self.jar_url) as jar_data:
                                     while True:
                                         b = await jar_data.read(256 * 1024)
                                         if not b:
                                             break
-                                        written = await local_file.write(b)
+                                        written = await blocking_to_async(worker.pool, temporary_file.write, b)
                                         assert written == len(b)
+                                temporary_file.close()
+                                os.rename(temporary_file.name, local_jar_location)
+                            finally:
+                                temporary_file.close()  # close is idempotent
+                                try:
+                                    os.remove(temporary_file.name)
+                                except OSError as err:
+                                    if err.errno != errno.ENOENT:
+                                        raise
 
                 log.info(f'{self}: running jvm process')
                 with self.step('running'):
-                    await self.jvm.execute(
-                        f'{local_jar_location}', self.user_command_string[0], self.user_command_string[1:]
-                    )
+                    await self.jvm.execute(local_jar_location, self.scratch, self.user_command_string)
                 self.state = 'succeeded'
                 log.info(f'{self} main: {self.state}')
             except asyncio.CancelledError:
@@ -1723,6 +1711,7 @@ class JVMJob(Job):
         log.info(f'{self}: cleaning up')
         try:
             await check_shell(f'xfs_quota -x -c "limit -p bsoft=0 bhard=0 {self.project_id}" /host')
+            await blocking_to_async(self.pool, shutil.rmtree, self.scratch, ignore_errors=True)
         except asyncio.CancelledError:
             raise
         except Exception:
@@ -1796,70 +1785,6 @@ class ImageData:
         )
 
 
-def write_int(writer: asyncio.StreamWriter, v: int):
-    writer.write(struct.pack('>i', v))
-
-
-def write_long(writer: asyncio.StreamWriter, v: int):
-    writer.write(struct.pack('>q', v))
-
-
-def write_bytes(writer: asyncio.StreamWriter, b: bytes):
-    n = len(b)
-    write_int(writer, n)
-    writer.write(b)
-
-
-def write_str(writer: asyncio.StreamWriter, s: str):
-    write_bytes(writer, s.encode('utf-8'))
-
-
-class EndOfStream(TransientError):
-    pass
-
-
-async def read(reader: asyncio.StreamReader, n: int) -> bytes:
-    b = bytearray()
-    left = n
-    while left > 0:
-        t = await reader.read(left)
-        if not t:
-            log.warning(f'unexpected EOS, Java violated protocol ({b})')
-            raise EndOfStream()
-        left -= len(t)
-        b.extend(t)
-    return b
-
-
-async def read_byte(reader: asyncio.StreamReader) -> int:
-    b = await read(reader, 1)
-    return b[0]
-
-
-async def read_bool(reader: asyncio.StreamReader) -> bool:
-    return await read_byte(reader) != 0
-
-
-async def read_int(reader: asyncio.StreamReader) -> int:
-    b = await read(reader, 4)
-    return struct.unpack('>i', b)[0]
-
-
-async def read_long(reader: asyncio.StreamReader) -> int:
-    b = await read(reader, 8)
-    return struct.unpack('>q', b)[0]
-
-
-async def read_bytes(reader: asyncio.StreamReader) -> bytes:
-    n = await read_int(reader)
-    return await read(reader, n)
-
-
-async def read_str(reader: asyncio.StreamReader) -> str:
-    b = await read_bytes(reader)
-    return b.decode('utf-8')
-
-
 @contextmanager
 def scoped_ensure_future(coro_or_future, *, loop=None) -> Iterator[asyncio.Future]:
     fut = asyncio.ensure_future(coro_or_future, loop=loop)
@@ -1878,7 +1803,7 @@ class BufferedOutputProcess:
         process = await asyncio.create_subprocess_exec(
             *args, **kwargs, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
         )
-        stop_event = asyncio.Event()  # FIXME: this seems unused
+        stop_event = asyncio.Event()
         return cls(process, stop_event)
 
     def __init__(self, process, stop_event: asyncio.Event):
@@ -1915,9 +1840,13 @@ class BufferedOutputProcess:
         return self.process.returncode
 
     def close(self):
-        self.kill()
-        self.stdout_pump.cancel()
-        self.stderr_pump.cancel()
+        try:
+            self.kill()
+        finally:
+            try:
+                self.stdout_pump.cancel()
+            finally:
+                self.stderr_pump.cancel()
 
 
 class JVM:
@@ -1931,13 +1860,18 @@ class JVM:
 
     @classmethod
     async def create_process(cls, socket_file: str) -> BufferedOutputProcess:
+        # JVM and Hail both treat MB as 1024 * 1024 bytes.
+        # JVMs only start in standard workers which have 3.75 GiB == 3840 MiB per core.
+        # We only allocate 3700 MiB so that we stay well below the machine's max memory.
+        # We allocate 60% of memory per core to off heap memory: 1480 + 2220 = 3700.
         return await BufferedOutputProcess.create(
             'java',
-            '-Xmx3500M',
+            '-Xmx1480M',
             '-cp',
             f'/jvm-entryway:/jvm-entryway/junixsocket-selftest-2.3.3-jar-with-dependencies.jar:{JVM.SPARK_HOME}/jars/*',
             'is.hail.JVMEntryway',
             socket_file,
+            env={'HAIL_WORKER_OFF_HEAP_MEMORY_PER_CORE_MB': '2220'},
         )
 
     @classmethod
@@ -1998,7 +1932,7 @@ class JVM:
             try:
                 interim_output = self.process.retrieve_and_clear_output()
                 if len(interim_output) > 0:
-                    log.warning(f'{self}: unexpected output between jobs: {interim_output}')
+                    log.warning(f'{self}: unexpected output between jobs')
 
                 return await asyncio.open_unix_connection(self.socket_file)
             except ConnectionRefusedError:
@@ -2046,7 +1980,7 @@ class JVM:
     def retrieve_and_clear_output(self) -> str:
         return self.process.retrieve_and_clear_output()
 
-    async def execute(self, classpath: str, mainclass: str, command_string: List[str]):
+    async def execute(self, classpath: str, scratch_dir: str, command_string: List[str]):
         assert worker is not None
 
         log.info(f'{self}: execute')
@@ -2058,7 +1992,7 @@ class JVM:
             stack.callback(writer.close)
             log.info(f'{self}: connection acquired')
 
-            command_string = [classpath, mainclass, self.root_dir, *command_string]
+            command_string = [classpath, 'is.hail.backend.service.Main', scratch_dir, *command_string]
 
             write_int(writer, len(command_string))
             for arg in command_string:
@@ -2072,10 +2006,6 @@ class JVM:
             stack.callback(wait_for_interrupt.cancel)
 
             await asyncio.wait([wait_for_message_from_process, wait_for_interrupt], return_when=asyncio.FIRST_COMPLETED)
-
-            for entry in os.listdir(self.root_dir):
-                if entry not in ('hail-jars', 'jvm-entryway', 'spark'):
-                    await blocking_to_async(worker.pool, shutil.rmtree, self.root_dir + '/' + entry)
 
             if wait_for_interrupt.done():
                 await wait_for_interrupt  # retrieve exceptions
@@ -2137,21 +2067,26 @@ class Worker:
         self.headers = None
         self.compute_client = None
 
-        self.jvm_initializer_task = asyncio.ensure_future(self._initialize_jvms())
-        self.jvms: List[JVM] = []
+        self._jvm_initializer_task = asyncio.ensure_future(self._initialize_jvms())
+        self._jvms: List[JVM] = []
 
     async def _initialize_jvms(self):
-        self.jvms = await asyncio.gather(*[JVM.create(i) for i in range(CORES)])
-        log.info(f'JVMs initialized {self.jvms}')
+        if instance_config.worker_type() in ('standard', 'D'):
+            self._jvms = await asyncio.gather(*[JVM.create(i) for i in range(CORES)])
+        log.info(f'JVMs initialized {self._jvms}')
 
     async def borrow_jvm(self) -> JVM:
-        await self.jvm_initializer_task
-        assert self.jvms
-        return self.jvms.pop()
+        if instance_config.worker_type() not in ('standard', 'D'):
+            raise ValueError(f'JVM jobs not allowed on {instance_config.worker_type()}')
+        await self._jvm_initializer_task
+        assert self._jvms
+        return self._jvms.pop()
 
     def return_jvm(self, jvm: JVM):
+        if instance_config.worker_type() not in ('standard', 'D'):
+            raise ValueError(f'JVM jobs not allowed on {instance_config.worker_type()}')
         jvm.reset()
-        self.jvms.append(jvm)
+        self._jvms.append(jvm)
 
     async def shutdown(self):
         log.info('Worker.shutdown')
