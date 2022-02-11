@@ -374,12 +374,12 @@ object LoweredTableReader {
             body)
 
           pkPartitioned
-            .strictify()
+            .extendKeyPreservesPartitioning(key)
             .mapPartition(None) { part =>
               flatMapIR(StreamGroupByKey(part, pkType.fieldNames)) { inner =>
                 ToStream(sortIR(inner) { case (l, r) => ApplyComparisonOp(LT(l.typ), l, r) })
               }
-            }.changePartitionerNoRepartition(partitioner.extendKeySamePartitions(keyType))
+            }
         }
       }
     } else {
