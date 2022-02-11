@@ -8,6 +8,7 @@ DOMAIN := hail.populationgenomics.org.au
 INTERNAL_IP := 10.152.0.10
 IP := 35.201.29.236
 KUBERNETES_SERVER_URL := https://34.87.199.41
+CLOUD := gcp
 
 ifeq ($(NAMESPACE),default)
 SCOPE = deploy
