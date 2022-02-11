@@ -62,7 +62,7 @@ EOF
 }
 
 grant_auth_sp_admin_consent() {
-    az ad app permission admin-consent --id "$(terraform output -raw modules.auth.sp_application_id)"
+    az ad app permission admin-consent --id "$(terraform output -raw sp_application_id)"
 }
 
 $@

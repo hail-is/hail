@@ -11,6 +11,7 @@ Prerequisites:
 - Generate a public-private SSH (using RSA) key at `~/.ssh/batch_worker_ssh_rsa`.
 
 ## Authenticating with the Azure CLI
+
 You will need an Azure account. Install the Azure CLI by running the following
 (on Mac) and log in:
 
@@ -72,7 +73,7 @@ this new service principal admin consent:
 We'll complete the rest of the process on a VM. To create one, run
 
 ```
-./create_bootstrap_vm.sh <RESOURCE_GROUP>
+./create_bootstrap_vm.sh <RESOURCE_GROUP> <SUBSCRIPTION_ID>
 ```
 
 SSH into the VM (ssh -i ~/.ssh/id_rsa <username>@<public_ip>).
