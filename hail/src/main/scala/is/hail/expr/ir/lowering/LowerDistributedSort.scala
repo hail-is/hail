@@ -247,11 +247,13 @@ object LowerDistributedSort {
           row(1).asInstanceOf[IndexedSeq[Row]].map(innerRow => (
             innerRow(0).asInstanceOf[Interval],
             innerRow(1).asInstanceOf[String],
-            innerRow(2).asInstanceOf[Int]))))
+            innerRow(2).asInstanceOf[Int],
+            innerRow(3).asInstanceOf[Long])
+          )))
 
         // distributeResult is a numPartitions length array of arrays, where each inner array tells me what
         // files were written to for each partition, as well as the number of entries in that file.
-        val protoDataPerSegment = orderedGroupBy[(Int, IndexedSeq[(Interval, String, Int)]), Int](distributeResult, x => x._1).map { case (_, seqOfChunkData) => seqOfChunkData.map(_._2) }
+        val protoDataPerSegment = orderedGroupBy[(Int, IndexedSeq[(Interval, String, Int, Long)]), Int](distributeResult, x => x._1).map { case (_, seqOfChunkData) => seqOfChunkData.map(_._2) }
 
         val transposedIntoNewSegments = protoDataPerSegment.zip(remainingUnsortedSegments.map(_.indices)).flatMap { case (oneOldSegment, priorIndices) =>
           val headLen = oneOldSegment.head.length
@@ -261,7 +263,7 @@ object LowerDistributedSort {
 
         val dataPerSegment = transposedIntoNewSegments.zipWithIndex.map { case ((chunksWithSameInterval, priorIndices), newIndex) =>
           val interval = chunksWithSameInterval.head._1
-          val chunks = chunksWithSameInterval.map(chunk => Chunk(chunk._2, chunk._3))
+          val chunks = chunksWithSameInterval.map{ case (_, filename, numRows, numBytes) => Chunk(filename, numRows)}
           val newSegmentIndices = priorIndices :+ newIndex
           SegmentResult(newSegmentIndices, interval, chunks)
         }
