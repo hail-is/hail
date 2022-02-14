@@ -2,7 +2,7 @@ from typing import Dict, Optional, Callable, Awaitable, Tuple
 import asyncio
 import struct
 import os
-import orjson
+import json
 import logging
 import contextlib
 import re
@@ -206,101 +206,100 @@ class ServiceBackend(Backend):
         assert len(r.jirs) == 0
         return r(ir)
 
-    async def _rpc(self,
-                   name: str,
-                   inputs: Callable[[afs.WritableStream, str], Awaitable[Tuple[str, dict]]]):
-        timings = Timings()
-        token = secret_alnum_string()
-        iodir = TemporaryDirectory(ensure_exists=False).name  # FIXME: actually cleanup
-        with TemporaryDirectory(ensure_exists=False) as _:
-            with timings.step("write input"):
-                async with await self._async_fs.create(iodir + '/in') as infile:
-                    await inputs(infile, token)
-
-            with timings.step("submit batch"):
-                batch_attributes = self.batch_attributes
-                if 'name' not in batch_attributes:
-                    batch_attributes = {**batch_attributes, 'name': name}
-                bb = self.async_bc.create_batch(token=token, attributes=batch_attributes)
-
-                j = bb.create_jvm_job([
-                    ServiceBackend.DRIVER,
-                    os.environ['HAIL_SHA'],
-                    os.environ['HAIL_JAR_URL'],
-                    batch_attributes['name'],
-                    iodir + '/in',
-                    iodir + '/out',
-                ], mount_tokens=True)
-                b = await bb.submit(disable_progress_bar=self.disable_progress_bar)
-
-            with timings.step("wait batch"):
-                try:
-                    status = await b.wait(disable_progress_bar=self.disable_progress_bar)
-                except Exception:
-                    await b.cancel()
-                    raise
-
-            with timings.step("parse status"):
-                if status['n_succeeded'] != 1:
-                    job_status = await j.status()
-                    if 'status' in job_status:
-                        if 'error' in job_status['status']:
-                            job_status['status']['error'] = yaml_literally_shown_str(job_status['status']['error'].strip())
-                    logs = await j.log()
-                    for k in logs:
-                        logs[k] = yaml_literally_shown_str(logs[k].strip())
-                    message = {'batch_status': status,
-                               'job_status': job_status,
-                               'log': logs}
-                    log.error(yaml.dump(message))
-                    raise ValueError(message)
-
-            with timings.step("read output"):
-                async with await self._async_fs.open(iodir + '/out') as outfile:
-                    success = await read_bool(outfile)
-                    if success:
-                        b = await read_bytes(outfile)
-                        try:
-                            return token, orjson.loads(b), timings
-                        except orjson.JSONDecodeError as err:
-                            raise ValueError(f'batch id was {b.id}\ncould not decode {b}') from err
-                    else:
-                        jstacktrace = await read_str(outfile)
-                        maybe_id = ServiceBackend.HAIL_BATCH_FAILURE_EXCEPTION_MESSAGE_RE.match(jstacktrace)
-                        if maybe_id:
-                            batch_id = maybe_id.groups()[0]
-                            b2 = await self.async_bc.get_batch(batch_id)
-                            b2_status = await b2.status()
-                            assert b2_status['state'] != 'success'
-                            failed_jobs = []
-                            async for j in b2.jobs():
-                                if j['state'] != 'Success':
-                                    logs, job = await asyncio.gather(
-                                        self.async_bc.get_job_log(j['batch_id'], j['job_id']),
-                                        self.async_bc.get_job(j['batch_id'], j['job_id']),
-                                    )
-                                    full_status = job._status
-                                    if 'status' in full_status:
-                                        if 'error' in full_status['status']:
-                                            full_status['status']['error'] = yaml_literally_shown_str(full_status['status']['error'].strip())
-                                    main_log = logs.get('main', '')
-                                    failed_jobs.append({
-                                        'partial_status': j,
-                                        'status': full_status,
-                                        'log': yaml_literally_shown_str(main_log.strip()),
-                                    })
-                            message = {
-                                'id': b.id,
-                                'stacktrace': yaml_literally_shown_str(jstacktrace.strip()),
-                                'cause': {'id': batch_id, 'batch_status': b2_status, 'failed_jobs': failed_jobs}}
-                            log.error(yaml.dump(message))
-                            raise ValueError(orjson.dumps(message).decode('utf-8'))
-                        raise FatalError(f'batch id was {b.id}\n' + jstacktrace)
-
     def execute(self, ir, timed=False):
         return async_to_blocking(self._async_execute(ir, timed=timed))
 
     async def _async_execute(self, ir, timed=False):
+        result = await self._async_execute_untimed(ir)
+        if timed:
+            return result, dict()
+        return result
+
+    async def _rpc(self,
+                   name: str,
+                   inputs: Callable[[afs.ReadableStream, str], Awaitable[Tuple[str, dict]]]):
+        token = secret_alnum_string()
+        iodir = TemporaryDirectory(ensure_exists=False).name  # FIXME: actually cleanup
+        with TemporaryDirectory(ensure_exists=False) as _:
+            async with await self._async_fs.create(iodir + '/in') as infile:
+                await inputs(infile, token)
+
+            batch_attributes = self.batch_attributes
+            if 'name' not in batch_attributes:
+                batch_attributes = {**batch_attributes, 'name': name}
+            bb = self.async_bc.create_batch(token=token, attributes=batch_attributes)
+
+            j = bb.create_jvm_job([
+                ServiceBackend.DRIVER,
+                os.environ['HAIL_SHA'],
+                os.environ['HAIL_JAR_URL'],
+                batch_attributes['name'],
+                iodir + '/in',
+                iodir + '/out',
+            ], mount_tokens=True)
+            b = await bb.submit(disable_progress_bar=self.disable_progress_bar)
+            try:
+                status = await b.wait(disable_progress_bar=self.disable_progress_bar)
+            except Exception:
+                await b.cancel()
+                raise
+
+            if status['n_succeeded'] != 1:
+                job_status = await j.status()
+                if 'status' in job_status:
+                    if 'error' in job_status['status']:
+                        job_status['status']['error'] = yaml_literally_shown_str(job_status['status']['error'].strip())
+                logs = await j.log()
+                for k in logs:
+                    logs[k] = yaml_literally_shown_str(logs[k].strip())
+                message = {'batch_status': status,
+                           'job_status': job_status,
+                           'log': logs}
+                log.error(yaml.dump(message))
+                raise ValueError(message)
+
+            async with await self._async_fs.open(iodir + '/out') as outfile:
+                success = await read_bool(outfile)
+                if success:
+                    s = await read_str(outfile)
+                    try:
+                        return (token, json.loads(s))
+                    except json.decoder.JSONDecodeError as err:
+                        raise ValueError(f'batch id was {b.id}\ncould not decode {s}') from err
+                else:
+                    jstacktrace = await read_str(outfile)
+                    maybe_id = ServiceBackend.HAIL_BATCH_FAILURE_EXCEPTION_MESSAGE_RE.match(jstacktrace)
+                    if maybe_id:
+                        batch_id = maybe_id.groups()[0]
+                        b2 = await self.async_bc.get_batch(batch_id)
+                        b2_status = await b2.status()
+                        assert b2_status['state'] != 'success'
+                        failed_jobs = []
+                        async for j in b2.jobs():
+                            if j['state'] != 'Success':
+                                logs, job = await asyncio.gather(
+                                    self.async_bc.get_job_log(j['batch_id'], j['job_id']),
+                                    self.async_bc.get_job(j['batch_id'], j['job_id']),
+                                )
+                                full_status = job._status
+                                if 'status' in full_status:
+                                    if 'error' in full_status['status']:
+                                        full_status['status']['error'] = yaml_literally_shown_str(full_status['status']['error'].strip())
+                                main_log = logs.get('main', '')
+                                failed_jobs.append({
+                                    'partial_status': j,
+                                    'status': full_status,
+                                    'log': yaml_literally_shown_str(main_log.strip()),
+                                })
+                        message = {
+                            'id': b.id,
+                            'stacktrace': yaml_literally_shown_str(jstacktrace.strip()),
+                            'cause': {'id': batch_id, 'batch_status': b2_status, 'failed_jobs': failed_jobs}}
+                        log.error(yaml.dump(message))
+                        raise ValueError(json.dumps(message))
+                    raise FatalError(f'batch id was {b.id}\n' + jstacktrace)
+
+    async def _async_execute_untimed(self, ir):
         async def inputs(infile, token):
             await write_int(infile, ServiceBackend.EXECUTE)
             await write_str(infile, tmp_dir())
@@ -308,12 +307,11 @@ class ServiceBackend(Backend):
             await write_str(infile, self.remote_tmpdir)
             await write_str(infile, self.render(ir))
             await write_str(infile, token)
-        _, resp, timings = await self._rpc('execute(...)', inputs)
+        _, resp = await self._rpc('execute(...)', inputs)
         typ = dtype(resp['type'])
-        converted_value = typ._convert_from_json_na(resp['value'])
-        if timed:
-            return converted_value, timings
-        return converted_value
+        if typ == tvoid:
+            return None
+        return typ._convert_from_json_na(resp['value'])
 
     def execute_many(self, *irs, timed=False):
         return async_to_blocking(self._async_execute_many(*irs, timed=timed))
@@ -331,7 +329,7 @@ class ServiceBackend(Backend):
             await write_str(infile, self.billing_project)
             await write_str(infile, self.remote_tmpdir)
             await write_str(infile, self.render(ir))
-        _, resp, _ = await self._rpc('value_type(...)', inputs)
+        _, resp = await self._rpc('value_type(...)', inputs)
         return dtype(resp)
 
     def table_type(self, tir):
@@ -344,7 +342,7 @@ class ServiceBackend(Backend):
             await write_str(infile, self.billing_project)
             await write_str(infile, self.remote_tmpdir)
             await write_str(infile, self.render(tir))
-        _, resp, _ = await self._rpc('value_type(...)', inputs)
+        _, resp = await self._rpc('value_type(...)', inputs)
         return ttable._from_json(resp)
 
     def matrix_type(self, mir):
@@ -357,7 +355,7 @@ class ServiceBackend(Backend):
             await write_str(infile, self.billing_project)
             await write_str(infile, self.remote_tmpdir)
             await write_str(infile, self.render(mir))
-        _, resp, _ = await self._rpc('matrix_type(...)', inputs)
+        _, resp = await self._rpc('matrix_type(...)', inputs)
         return tmatrix._from_json(resp)
 
     def blockmatrix_type(self, bmir):
@@ -370,7 +368,7 @@ class ServiceBackend(Backend):
             await write_str(infile, self.billing_project)
             await write_str(infile, self.remote_tmpdir)
             await write_str(infile, self.render(bmir))
-        _, resp, _ = await self._rpc('blockmatrix_type(...)', inputs)
+        _, resp = await self._rpc('blockmatrix_type(...)', inputs)
         return tblockmatrix._from_json(resp)
 
     def add_reference(self, config):
@@ -389,7 +387,7 @@ class ServiceBackend(Backend):
         if name in BUILTIN_REFERENCES:
             try:
                 with open(Path(self.user_local_reference_cache_dir, name)) as f:
-                    return orjson.loads(f.read())
+                    return json.load(f)
             except FileNotFoundError:
                 pass
 
@@ -399,10 +397,10 @@ class ServiceBackend(Backend):
             await write_str(infile, self.billing_project)
             await write_str(infile, self.remote_tmpdir)
             await write_str(infile, name)
-        _, resp, _ = await self._rpc('get_reference(...)', inputs)
+        _, resp = await self._rpc('get_reference(...)', inputs)
         if name in BUILTIN_REFERENCES:
-            with open(Path(self.user_local_reference_cache_dir, name), 'wb') as f:
-                f.write(orjson.dumps(resp))
+            with open(Path(self.user_local_reference_cache_dir, name), 'w') as f:
+                json.dump(resp, f)
         return resp
 
     def get_references(self, names):
@@ -421,7 +419,7 @@ class ServiceBackend(Backend):
             await write_str(infile, self.billing_project)
             await write_str(infile, self.remote_tmpdir)
             await write_str(infile, path)
-        _, resp, _ = await self._rpc('get_reference(...)', inputs)
+        _, resp = await self._rpc('get_reference(...)', inputs)
         return resp
 
     def add_sequence(self, name, fasta_file, index_file):
