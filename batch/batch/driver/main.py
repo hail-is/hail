@@ -150,7 +150,7 @@ def active_instances_only(fun):
             raise web.HTTPUnauthorized()
 
         inst_coll_manager: InstanceCollectionManager = request.app['driver'].inst_coll_manager
-        retrieved_token: str = inst_coll_manager.name_token_cache.lookup(instance.name)
+        retrieved_token: str = await inst_coll_manager.name_token_cache.lookup(instance.name)
         if token != retrieved_token:
             log.info('authorization token does not match')
             raise web.HTTPUnauthorized()
