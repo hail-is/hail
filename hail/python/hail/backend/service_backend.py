@@ -206,27 +206,6 @@ class ServiceBackend(Backend):
         assert len(r.jirs) == 0
         return r(ir)
 
-    def execute(self, ir, timed=False):
-        return async_to_blocking(self._async_execute(ir, timed=timed))
-
-    async def _async_execute(self, ir, timed=False):
-        async def inputs(infile, token):
-            await write_int(infile, ServiceBackend.EXECUTE)
-            await write_str(infile, tmp_dir())
-            await write_str(infile, self.billing_project)
-            await write_str(infile, self.remote_tmpdir)
-            await write_str(infile, self.render(ir))
-            await write_str(infile, token)
-        _, resp, timings = await self._rpc('execute(...)', inputs)
-        typ = dtype(resp['type'])
-        if typ == tvoid:
-            ret = None
-        else:
-            ret = typ._convert_from_json_na(resp['value'])
-        if timed:
-            return ret, timings
-        return ret
-
     async def _rpc(self,
                    name: str,
                    inputs: Callable[[afs.WritableStream, str], Awaitable[Tuple[str, dict]]]):
@@ -313,6 +292,27 @@ class ServiceBackend(Backend):
                             log.error(yaml.dump(message))
                             raise ValueError(orjson.dumps(message).decode('utf-8'))
                         raise FatalError(f'batch id was {b.id}\n' + jstacktrace)
+
+    def execute(self, ir, timed=False):
+        return async_to_blocking(self._async_execute(ir, timed=timed))
+
+    async def _async_execute(self, ir, timed=False):
+        async def inputs(infile, token):
+            await write_int(infile, ServiceBackend.EXECUTE)
+            await write_str(infile, tmp_dir())
+            await write_str(infile, self.billing_project)
+            await write_str(infile, self.remote_tmpdir)
+            await write_str(infile, self.render(ir))
+            await write_str(infile, token)
+        _, resp, timings = await self._rpc('execute(...)', inputs)
+        typ = dtype(resp['type'])
+        if typ == tvoid:
+            ret = None
+        else:
+            ret = typ._convert_from_json_na(resp['value'])
+        if timed:
+            return ret, timings
+        return ret
 
     def execute_many(self, *irs, timed=False):
         return async_to_blocking(self._async_execute_many(*irs, timed=timed))
