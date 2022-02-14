@@ -344,7 +344,7 @@ class ServiceBackend(Backend):
             await write_str(infile, self.billing_project)
             await write_str(infile, self.remote_tmpdir)
             await write_str(infile, self.render(tir))
-        _, resp, _ = await self._rpc('value_type(...)', inputs)
+        _, resp, _ = await self._rpc('table_type(...)', inputs)
         return ttable._from_json(resp)
 
     def matrix_type(self, mir):
@@ -421,7 +421,7 @@ class ServiceBackend(Backend):
             await write_str(infile, self.billing_project)
             await write_str(infile, self.remote_tmpdir)
             await write_str(infile, path)
-        _, resp, _ = await self._rpc('get_reference(...)', inputs)
+        _, resp, _ = await self._rpc('load_references_from_dataset(...)', inputs)
         return resp
 
     def add_sequence(self, name, fasta_file, index_file):
