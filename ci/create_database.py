@@ -25,10 +25,14 @@ def generate_token(size=12):
 async def write_user_config(namespace: str, database_name: str, user: str, config: SQLConfig):
     with open('/sql-config/server-ca.pem', 'r') as f:
         server_ca = f.read()
-    with open('/sql-config/client-cert.pem', 'r') as f:
-        client_cert = f.read()
-    with open('/sql-config/client-key.pem', 'r') as f:
-        client_key = f.read()
+    if config.using_mtls():
+        with open('/sql-config/client-cert.pem', 'r') as f:
+            client_cert = f.read()
+        with open('/sql-config/client-key.pem', 'r') as f:
+            client_key = f.read()
+    else:
+        client_cert = None
+        client_key = None
     secret = create_secret_data_from_config(config, server_ca, client_cert, client_key)
     files = secret.keys()
     for fname, data in secret.items():
@@ -101,14 +105,6 @@ GRANT SELECT, INSERT, UPDATE, DELETE, EXECUTE ON `{_name}`.* TO '{user_username}
 '''
     )
 
-    # Azure MySQL requires that usernames follow username@servername format
-    if cloud == 'azure':
-        config_admin_username = admin_username + '@' + sql_config.instance
-        config_user_username = user_username + '@' + sql_config.instance
-    else:
-        assert cloud == 'gcp'
-        config_admin_username = admin_username
-        config_user_username = user_username
     await write_user_config(
         namespace,
         database_name,
@@ -118,7 +114,7 @@ GRANT SELECT, INSERT, UPDATE, DELETE, EXECUTE ON `{_name}`.* TO '{user_username}
             port=sql_config.port,
             instance=sql_config.instance,
             connection_name=sql_config.connection_name,
-            user=config_admin_username,
+            user=admin_username,
             password=admin_password,
             db=_name,
             ssl_ca=sql_config.ssl_ca,
@@ -137,7 +133,7 @@ GRANT SELECT, INSERT, UPDATE, DELETE, EXECUTE ON `{_name}`.* TO '{user_username}
             port=sql_config.port,
             instance=sql_config.instance,
             connection_name=sql_config.connection_name,
-            user=config_user_username,
+            user=user_username,
             password=user_password,
             db=_name,
             ssl_ca=sql_config.ssl_ca,

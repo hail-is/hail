@@ -2,7 +2,7 @@ terraform {
   required_providers {
     azurerm = {
       source  = "hashicorp/azurerm"
-      version = "=2.74.0"
+      version = "=2.97.0"
     }
     azuread = {
       source  = "hashicorp/azuread"
@@ -67,6 +67,7 @@ module "db" {
   source = "./modules/db"
 
   resource_group = data.azurerm_resource_group.rg
+  vnet_id        = module.vdc.vnet_id
   subnet_id      = module.vdc.db_subnet_id
 }
 

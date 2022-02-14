@@ -264,10 +264,14 @@ GRANT ALL ON `{name}`.* TO '{name}'@'%';
             server_config = SQLConfig.from_json(f.read())
         with open('/database-server-config/server-ca.pem', 'r', encoding='utf-8') as f:
             server_ca = f.read()
-        with open('/database-server-config/client-cert.pem', 'r', encoding='utf-8') as f:
-            client_cert = f.read()
-        with open('/database-server-config/client-key.pem', 'r', encoding='utf-8') as f:
-            client_key = f.read()
+        if server_config.using_mtls():
+            with open('/database-server-config/client-cert.pem', 'r') as f:
+                client_cert = f.read()
+            with open('/database-server-config/client-key.pem', 'r') as f:
+                client_key = f.read()
+        else:
+            client_cert = None
+            client_key = None
 
         if is_test_deployment:
             return create_secret_data_from_config(server_config, server_ca, client_cert, client_key)
@@ -278,14 +282,14 @@ GRANT ALL ON `{name}`.* TO '{name}'@'%';
         config = SQLConfig(
             host=server_config.host,
             port=server_config.port,
-            user=self.name if CLOUD != 'azure' else f'{self.name}@{server_config.instance}',
+            user=self.name,
             password=self.password,
             instance=server_config.instance,
             connection_name=server_config.connection_name,
             db=self.name,
-            ssl_ca='/sql-config/server-ca.pem',
-            ssl_cert='/sql-config/client-cert.pem',
-            ssl_key='/sql-config/client-key.pem',
+            ssl_ca=server_config.ssl_ca,
+            ssl_cert=server_config.ssl_cert,
+            ssl_key=server_config.ssl_key,
             ssl_mode='VERIFY_CA',
         )
         return create_secret_data_from_config(config, server_ca, client_cert, client_key)
