@@ -1,6 +1,7 @@
 from hailtop.utils import (partition, url_basename, url_join, url_scheme,
                            url_and_params, parse_docker_image_reference, grouped)
                         
+from hailtop.utils.utils import digits_needed
 
 
 def test_partition_zero_empty():
@@ -183,3 +184,13 @@ def test_grouped_size_3_groups_7_elements():
     actual = list(grouped(3,['abc', 'def', 'ghi', 'jkl', 'mno', 'pqr', 'stu']))
     expected = [['abc', 'def', 'ghi'], ['jkl', 'mno', 'pqr'], ['stu']]
     assert actual == expected
+
+
+def test_digits_needed():
+    assert digits_needed(0) == 1
+    assert digits_needed(12) == 2
+    assert digits_needed(100) == 3
+    assert digits_needed(3000) == 4
+    assert digits_needed(50000) == 5
+    assert digits_needed(100000) == 6
+

@@ -114,7 +114,7 @@ def grouped(n, ls):
         group = ls[:n]
         ls = ls[n:]
         yield group
-        
+
 
 def partition(k, ls):
     if k == 0:
