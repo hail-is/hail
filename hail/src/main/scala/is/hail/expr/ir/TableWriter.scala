@@ -439,10 +439,9 @@ case class TableTextWriter(
 
   def apply(ctx: ExecuteContext, tv: TableValue): Unit = tv.export(ctx, path, typesFile, header, exportType, delimiter)
 
-  override def canLowerEfficiently: Boolean = true
+  override def canLowerEfficiently: Boolean = exportType != ExportType.PARALLEL_COMPOSABLE
   override def lower(ctx: ExecuteContext, ts: TableStage, t: TableIR, r: RTable, relationalLetsAbove: Map[String, IR]): IR = {
-    if (exportType == ExportType.PARALLEL_COMPOSABLE)
-      throw new LowererUnsupportedOperation(s"cannot lower parallel_composable export")
+    require(exportType != ExportType.PARALLEL_COMPOSABLE)
 
     val ext = ctx.fs.getCodecExtension(path)
 
