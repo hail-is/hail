@@ -3,7 +3,6 @@ import sortedcontainers
 import logging
 import asyncio
 import random
-import collections
 
 from gear import Database
 from hailtop import aiotools
