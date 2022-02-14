@@ -224,7 +224,7 @@ class ServiceBackend(Backend):
                 bb = self.async_bc.create_batch(token=token, attributes=batch_attributes)
 
                 j = bb.create_jvm_job([
-                    SerivceBackend.DRIVER,
+                    ServiceBackend.DRIVER,
                     os.environ['HAIL_SHA'],
                     os.environ['HAIL_JAR_URL'],
                     batch_attributes['name'],
