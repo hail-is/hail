@@ -245,10 +245,10 @@ class ServiceBackend(Backend):
                     job_status = await j.status()
                     if 'status' in job_status:
                         if 'error' in job_status['status']:
-                            job_status['status']['error'] = job_status['status']['error'].strip()
+                            job_status['status']['error'] = yaml_literally_shown_str(job_status['status']['error'].strip())
                     logs = await j.log()
                     for k in logs:
-                        logs[k] = logs[k].strip()
+                        logs[k] = yaml_literally_shown_str(logs[k].strip())
                     message = {'batch_status': status,
                                'job_status': job_status,
                                'log': logs}
