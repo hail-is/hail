@@ -282,7 +282,8 @@ object LowerDistributedSort {
       loopState = LoopState(newBigUnsortedSegments, loopState.largeSortedSegments ++ sortedSegments, loopState.smallSegments ++ newSmallSegments)
       i = i + 1
 
-      if (i > 100) {
+      if (i > 40) {
+        val debugCheck = CompileAndEvaluate[Annotation](ctx, ToArray(ReadPartition(Str(newBigUnsortedSegments(0).chunks(0).filename), spec._vType, PartitionNativeReader(spec))))
         println("Check in")
       }
     }
