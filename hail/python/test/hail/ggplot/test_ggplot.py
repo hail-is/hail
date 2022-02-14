@@ -46,3 +46,9 @@ def test_separate_traces_per_group():
            geom_bar(aes(fill=hl.str(ht.idx)))
            )
     assert len(fig.to_plotly().data) == 30
+
+
+def test_geom_ribbon():
+    ht = hl.utils.range_table(20)
+    fig = ggplot(ht, aes(x=ht.idx, ymin=ht.idx * 2, ymax=ht.idx * 3)) + geom_ribbon()
+    fig.to_plotly()

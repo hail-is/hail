@@ -641,7 +641,7 @@ class GeomRibbon(Geom):
 
             scatter_args_bottom = {
                 "x": df.x,
-                "y": df.y_min,
+                "y": df.ymin,
                 "mode": "lines",
                 "showlegend": False
             }
@@ -649,7 +649,7 @@ class GeomRibbon(Geom):
 
             scatter_args_top = {
                 "x": df.x,
-                "y": df.y_max,
+                "y": df.ymax,
                 "mode": "lines",
                 "fill": 'tonexty'
             }
@@ -668,9 +668,9 @@ class GeomRibbon(Geom):
 
 
 def geom_ribbon(mapping=aes(), fill=None, color=None):
-    """Creates filled in area between two lines specified by x, y_min, and y_max
+    """Creates filled in area between two lines specified by x, ymin, and ymax
 
-    Supported aesthetics: ``x``, ``y_min``, ``y_max``, ``color``, ``fill``, ``tooltip``
+    Supported aesthetics: ``x``, ``ymin``, ``ymax``, ``color``, ``fill``, ``tooltip``
 
     Parameters
     ----------
