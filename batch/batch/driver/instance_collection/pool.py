@@ -159,11 +159,6 @@ WHERE removed = 0 AND inst_coll = %s;
             if user != 'ci' or (user == 'ci' and instance.location == self._default_location()):
                 return instance
             i += 1
-        histogram = collections.defaultdict(int)
-        for instance in self.healthy_instances_by_free_cores:
-            histogram[instance.free_cores_mcpu] += 1
-        log.info(f'schedule {self}: no viable instances for {cores_mcpu}: {histogram}')
-
         return None
 
     async def create_instance(
@@ -440,8 +435,6 @@ LIMIT %s;
 
             scheduled_cores_mcpu = 0
             share = user_share[user]
-
-            log.info(f'schedule {self.pool}: user-share: {user}: {allocated_cores_mcpu} {share}')
 
             remaining = Box(share)
             async for record in user_runnable_jobs(user, remaining):
