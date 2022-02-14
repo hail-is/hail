@@ -1,7 +1,7 @@
 import pytest
 import asyncio
 
-from hailtop.aiotools.time_limited_max_size_cache import TimeLimitedMaxSizeCache
+from gear.time_limited_max_size_cache import TimeLimitedMaxSizeCache
 
 
 pytestmark = pytest.mark.asyncio
@@ -15,7 +15,7 @@ async def test_simple():
     async def load_secret(k: int):
         return k ** 2
 
-    c = TimeLimitedMaxSizeCache(load_secret, one_day_ns, 2)
+    c = TimeLimitedMaxSizeCache(load_secret, one_day_ns, 2, 'test_cache')
     assert await c.lookup(3) == 9
     assert await c.lookup(10) == 100
     assert await c.lookup(3) == 9
@@ -33,7 +33,7 @@ async def test_num_slots():
         load_counts += 1
         return k ** 2
 
-    c = TimeLimitedMaxSizeCache(load_secret_only_twice, one_day_ns, 2)
+    c = TimeLimitedMaxSizeCache(load_secret_only_twice, one_day_ns, 2, 'test_cache')
     assert await c.lookup(3) == 9
     assert load_counts == 1
     assert await c.lookup(10) == 100
@@ -55,7 +55,7 @@ async def test_lifetime():
         load_counts += 1
         return k ** 2
 
-    c = TimeLimitedMaxSizeCache(load_secret, one_second_ns, 3)
+    c = TimeLimitedMaxSizeCache(load_secret, one_second_ns, 3, 'test_cache')
     assert await c.lookup(3) == 9
     assert load_counts == 1
 
@@ -89,7 +89,7 @@ async def test_num_slots_deletes_oldest():
         load_counts += 1
         return k ** 2
 
-    c = TimeLimitedMaxSizeCache(load_secret, one_day_ns, 3)
+    c = TimeLimitedMaxSizeCache(load_secret, one_day_ns, 3, 'test_cache')
     assert await c.lookup(0) == 0
     assert load_counts == 1
 
@@ -122,7 +122,7 @@ async def test_exception_propagates_everywhere():
         await asyncio.sleep(2)  # seconds
         raise ValueError('boom')
 
-    c = TimeLimitedMaxSizeCache(boom, one_day_ns, 3)
+    c = TimeLimitedMaxSizeCache(boom, one_day_ns, 3, 'test_cache')
     x = asyncio.create_task(c.lookup(0))  # this task will sleep then boom
     y = asyncio.create_task(c.lookup(0))
     z = asyncio.create_task(c.lookup(0))

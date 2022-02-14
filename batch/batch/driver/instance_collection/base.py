@@ -7,9 +7,9 @@ import collections
 import logging
 
 from gear import Database
+from gear.time_limited_max_size_cache import TimeLimitedMaxSizeCache
 from hailtop import aiotools
 from hailtop.utils import time_msecs, secret_alnum_string, periodically_call
-from hailtop.aiotools.time_limited_max_size_cache import TimeLimitedMaxSizeCache
 
 from ...instance_config import QuantifiedResource
 from ...batch_configuration import WORKER_MAX_IDLE_TIME_MSECS
@@ -101,8 +101,8 @@ class InstanceCollectionManager:
             'SELECT token FROM instances WHERE name = %s',
             (name),
         )
-        if not record or 'token' not in record:
-            return None
+
+        assert record
         return record['token']
 
 

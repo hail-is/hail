@@ -2,7 +2,7 @@ from typing import Tuple
 from hailtop.utils import retry_transient_errors
 import os
 
-from hailtop.aiotools.time_limited_max_size_cache import TimeLimitedMaxSizeCache
+from gear.time_limited_max_size_cache import TimeLimitedMaxSizeCache
 
 
 FIVE_SECONDS_NS = 5 * 1000 * 1000 * 1000
