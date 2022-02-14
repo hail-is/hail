@@ -316,7 +316,6 @@ GROUP BY user
 HAVING n_ready_jobs + n_running_jobs > 0;
 ''',
             (self.pool.name,),
-            timer_description=f'in compute_fair_share for {self.pool.name}: aggregate user_inst_coll_resources',
         )
 
         async for record in records:
@@ -400,7 +399,6 @@ LEFT JOIN batches_cancelled
 WHERE user = %s AND `state` = 'running';
 ''',
                 (user,),
-                timer_description=f'in schedule {self.pool}: get {user} running batches',
             ):
                 async for record in self.db.select_and_fetchall(
                     '''
@@ -410,7 +408,6 @@ WHERE batch_id = %s AND state = 'Ready' AND always_run = 1 AND inst_coll = %s
 LIMIT %s;
 ''',
                     (batch['id'], self.pool.name, remaining.value),
-                    timer_description=f'in schedule {self.pool}: get {user} batch {batch["id"]} runnable jobs (1)',
                 ):
                     record['batch_id'] = batch['id']
                     record['userdata'] = batch['userdata']
@@ -426,7 +423,6 @@ WHERE batch_id = %s AND state = 'Ready' AND always_run = 0 AND inst_coll = %s AN
 LIMIT %s;
 ''',
                         (batch['id'], self.pool.name, remaining.value),
-                        timer_description=f'in schedule {self.pool}: get {user} batch {batch["id"]} runnable jobs (2)',
                     ):
                         record['batch_id'] = batch['id']
                         record['userdata'] = batch['userdata']

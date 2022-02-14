@@ -2071,37 +2071,41 @@ steps:
       - hail_base_image
       - build_hail
   - kind: runImage
-    name: make_pip_versioned_docs
+    name: get_pip_versioned_docs
     image:
       valueFrom: hail_pip_installed_image.image
     script: |
       set -ex
 
       cd /io/repo
-
       make -C hail python/hail/hail_pip_version
 
       # dev deploy elides the hail-is remote, add it and retrieve the tags
       git remote add hail-is https://github.com/hail-is/hail.git
       git fetch hail-is
 
-      # 0.2.63 was the last old-style docs
-      if [[ "$(cat hail/python/hail/hail_pip_version)" != "0.2.63" ]]
+      export HAIL_PIP_VERSION=$(cat hail/python/hail/hail_pip_version)
+
+      if git ls-remote --exit-code --tags origin $HAIL_PIP_VERSION
       then
-          # downloading files from GCS changes permissions, so we reset all of that first
-          git reset --hard HEAD
-          # if the tag doesn't exist, this commit is the release
-          git checkout $(cat hail/python/hail/hail_pip_version) || true
+        # In this case, we want to get the docs from Google Storage.
+        python3 -m hailtop.aiotools.copy 'null' '[
+        {"from": "gs://hail-common/website/'$HAIL_PIP_VERSION'/www.tar.gz",
+        "to": "www.tar.gz"}
+        ]'
+      else
+        cp /io/www.tar.gz .
       fi
 
-      PYTHONPATH=$PYTHONPATH:$(pwd)/hail/python make -C hail hail-docs-no-test batch-docs
+      mkdir -p hail/build/www/docs/0.2
+      tar -xvf www.tar.gz -C hail/build/www/docs --strip-components 2
 
       python3 -m hailtop.aiotools.copy 'null' '[
       {"from": "gs://hail-common/builds/0.1/docs/hail-0.1-docs-5a6778710097.tar.gz",
        "to": "hail-0.1-docs-5a6778710097.tar.gz"}
       ]'
 
-      mkdir hail/build/www/docs/0.1
+      mkdir -p hail/build/www/docs/0.1
       tar -xvf hail-0.1-docs-5a6778710097.tar.gz -C hail/build/www/docs/0.1 --strip-components 2
 
       tar czf /io/docs.tar.gz -C hail/build/www .
@@ -2111,12 +2115,15 @@ steps:
     inputs:
       - from: /repo
         to: /io/repo
+      - from: /www.tar.gz
+        to: /io/www.tar.gz
     outputs:
       - from: /io/docs.tar.gz
         to: /docs.tar.gz
     dependsOn:
       - hail_pip_installed_image
       - merge_code
+      - make_docs
     clouds:
       - gcp
   - kind: deploy
@@ -4079,7 +4086,7 @@ steps:
         to: /io/website/docs.tar.gz
     dependsOn:
       - service_base_image
-      - make_pip_versioned_docs
+      - get_pip_versioned_docs
     clouds:
       - gcp
     resources:
@@ -4099,6 +4106,8 @@ steps:
       - default_ns
       - website_image
       - create_certs
+      - create_session_key
+      - create_deploy_config
     clouds:
       - gcp
   - kind: runImage

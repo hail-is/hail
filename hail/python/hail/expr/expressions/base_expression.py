@@ -124,9 +124,23 @@ class ExpressionWarning(Warning):
         super(ExpressionWarning, self).__init__(msg)
 
 
-def impute_type(x):
+def impute_type(x, partial_type=None):
+    t = _impute_type(x, partial_type=partial_type)
+    raise_for_holes(t)
+    return t
+
+
+def _impute_type(x, partial_type):
     from hail.genetics import Locus, Call
     from hail.utils import Interval, Struct
+
+    def refine(t, refined):
+        if t is None:
+            return refined
+        if not isinstance(t, type(refined)):
+            raise ExpressionException(
+                "Incompatible partial_type, {}, for value {}".format(partial_type, x))
+        return t
 
     if isinstance(x, Expression):
         return x.dtype
@@ -149,39 +163,52 @@ def impute_type(x):
         return tinterval(x.point_type)
     elif isinstance(x, Call):
         return tcall
-    elif isinstance(x, Struct):
-        return tstruct(**{k: impute_type(x[k]) for k in x})
+    elif isinstance(x, Struct) or isinstance(x, dict) and isinstance(partial_type, tstruct):
+        partial_type = refine(partial_type, hl.tstruct())
+        t = tstruct(**{k: _impute_type(x[k], partial_type.get(k)) for k in x})
+        return t
     elif isinstance(x, tuple):
-        return ttuple(*(impute_type(element) for element in x))
+        partial_type = refine(partial_type, hl.ttuple())
+        return ttuple(*[_impute_type(element, partial_type[index] if index < len(partial_type) else None)
+                        for index, element in enumerate(x)])
     elif isinstance(x, list):
+        partial_type = refine(partial_type, hl.tarray(None))
         if len(x) == 0:
-            raise ExpressionException("Cannot impute type of empty list. Use 'hl.empty_array' to create an empty array.")
-        ts = {impute_type(element) for element in x}
-        unified_type = unify_types_limited(*ts)
+            return partial_type
+        ts = {_impute_type(element, partial_type.element_type) for element in x}
+        unified_type = super_unify_types(*ts)
         if unified_type is None:
             raise ExpressionException("Hail does not support heterogeneous arrays: "
                                       "found list with elements of types {} ".format(list(ts)))
         return tarray(unified_type)
+
     elif is_setlike(x):
+        partial_type = refine(partial_type, hl.tset(None))
         if len(x) == 0:
-            raise ExpressionException("Cannot impute type of empty set. Use 'hl.empty_set' to create an empty set.")
-        ts = {impute_type(element) for element in x}
-        unified_type = unify_types_limited(*ts)
+            return partial_type
+        ts = {_impute_type(element, partial_type.element_type) for element in x}
+        unified_type = super_unify_types(*ts)
         if not unified_type:
             raise ExpressionException("Hail does not support heterogeneous sets: "
                                       "found set with elements of types {} ".format(list(ts)))
         return tset(unified_type)
+
     elif isinstance(x, Mapping):
+        user_partial_type = partial_type
+        partial_type = refine(partial_type, hl.tdict(None, None))
         if len(x) == 0:
-            raise ExpressionException("Cannot impute type of empty dict. Use 'hl.empty_dict' to create an empty dict.")
-        kts = {impute_type(element) for element in x.keys()}
-        vts = {impute_type(element) for element in x.values()}
-        unified_key_type = unify_types_limited(*kts)
-        unified_value_type = unify_types_limited(*vts)
+            return partial_type
+        kts = {_impute_type(element, partial_type.key_type) for element in x.keys()}
+        vts = {_impute_type(element, partial_type.value_type) for element in x.values()}
+        unified_key_type = super_unify_types(*kts)
+        unified_value_type = super_unify_types(*vts)
         if not unified_key_type:
             raise ExpressionException("Hail does not support heterogeneous dicts: "
-                                      "found dict with keys of types {} ".format(list(kts)))
+                                      "found dict with keys {} of types {} ".format(list(x.keys()), list(kts)))
         if not unified_value_type:
+            if unified_key_type == hl.tstr and user_partial_type is None:
+                return tstruct(**{k: _impute_type(x[k], None) for k in x})
+
             raise ExpressionException("Hail does not support heterogeneous dicts: "
                                       "found dict with values of types {} ".format(list(vts)))
         return tdict(unified_key_type, unified_value_type)
@@ -191,7 +218,7 @@ def impute_type(x):
         element_type = from_numpy(x.dtype)
         return tndarray(element_type, x.ndim)
     elif x is None:
-        raise ExpressionException("Hail cannot impute the type of 'None'")
+        return partial_type
     elif isinstance(x, (hl.expr.builders.CaseBuilder, hl.expr.builders.SwitchBuilder)):
         raise ExpressionException("'switch' and 'case' expressions must end with a call to either"
                                   "'default' or 'or_missing'")
@@ -199,17 +226,58 @@ def impute_type(x):
         raise ExpressionException("Hail cannot automatically impute type of {}: {}".format(type(x), x))
 
 
-def to_expr(e, dtype=None) -> 'Expression':
+def raise_for_holes(t):
+    if t is None:
+        raise ExpressionException("Hail cannot impute type")
+    if t in (tbool, tint32, tint64, tfloat32, tfloat64, tstr, tcall):
+        return
+    if isinstance(t, (tlocus, tinterval)):
+        return
+    if isinstance(t, tstruct):
+        for k, vt in t.items():
+            try:
+                raise_for_holes(vt)
+            except ExpressionException as exc:
+                raise ExpressionException(f'cannot impute field {k}') from exc
+        return
+    if isinstance(t, ttuple):
+        for k, vt in enumerate(t):
+            try:
+                raise_for_holes(vt)
+            except ExpressionException as exc:
+                raise ExpressionException(f'cannot impute {k}th element') from exc
+        return
+    if isinstance(t, (tarray, tset)):
+        try:
+            raise_for_holes(t.element_type)
+        except ExpressionException as exc:
+            raise ExpressionException('cannot impute array elements') from exc
+        return
+    if isinstance(t, tdict):
+        try:
+            raise_for_holes(t.key_type)
+        except ExpressionException as exc:
+            raise ExpressionException('cannot impute dict keys') from exc
+        try:
+            raise_for_holes(t.value_type)
+        except ExpressionException as exc:
+            raise ExpressionException('cannot impute dict values') from exc
+        return
+
+
+def to_expr(e, dtype=None, partial_type=None) -> 'Expression':
+    assert dtype is None or partial_type is None
     if isinstance(e, Expression):
         if dtype and not dtype == e.dtype:
             raise TypeError("expected expression of type '{}', found expression of type '{}'".format(dtype, e.dtype))
         return e
-    return cast_expr(e, dtype)
+    return cast_expr(e, dtype, partial_type)
 
 
-def cast_expr(e, dtype=None) -> 'Expression':
+def cast_expr(e, dtype=None, partial_type=None) -> 'Expression':
+    assert dtype is None or partial_type is None
     if not dtype:
-        dtype = impute_type(e)
+        dtype = impute_type(e, partial_type)
     x = _to_expr(e, dtype)
     if isinstance(x, Expression):
         return x
@@ -264,7 +332,7 @@ def _to_expr(e, dtype):
         if not found_expr:
             return e
         else:
-            assert (len(elements) > 0)
+            assert len(elements) > 0
             exprs = [element if isinstance(element, Expression)
                      else hl.literal(element, dtype.element_type)
                      for element in elements]
@@ -281,7 +349,7 @@ def _to_expr(e, dtype):
         if not found_expr:
             return e
         else:
-            assert (len(elements) > 0)
+            assert len(elements) > 0
             exprs = [element if isinstance(element, Expression)
                      else hl.literal(element, dtype.element_type)
                      for element in elements]
@@ -391,6 +459,36 @@ def unify_types(*ts):
             return None
     else:
         return None
+
+
+def super_unify_types(*ts):
+    ts = [t for t in ts if t is not None]
+    if len(ts) == 0:
+        return None
+    t0 = ts[0]
+    if all(is_numeric(t) for t in ts):
+        return unify_types_limited(*ts)
+    if any(not isinstance(t, type(t0)) for t in ts):
+        return None
+    if isinstance(t0, tarray):
+        et = super_unify_types(*[t.element_type for t in ts])
+        return tarray(et)
+    if isinstance(t0, tset):
+        et = super_unify_types(*[t.element_type for t in ts])
+        return tset(et)
+    if isinstance(t0, tdict):
+        kt = super_unify_types(*[t.key_type for t in ts])
+        vt = super_unify_types(*[t.value_type for t in ts])
+        return tdict(kt, vt)
+    if isinstance(t0, tstruct):
+        keys = [k for t in ts for k in t.fields]
+        kvs = {k: super_unify_types(*[t.get(k, None) for t in ts])
+               for k in keys}
+        return tstruct(**kvs)
+    if all(t0 == t for t in ts):
+        return t0
+
+    return None
 
 
 def unify_exprs(*exprs: 'Expression') -> Tuple:

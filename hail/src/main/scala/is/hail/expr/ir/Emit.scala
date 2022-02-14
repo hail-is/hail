@@ -244,12 +244,20 @@ object IEmitCode {
     IEmitCodeGen(Lmissing, CodeLabel(), defaultValue, false)
   }
 
-  def multiMapEmitCodes(cb: EmitCodeBuilder, seq: IndexedSeq[EmitCode])(f: IndexedSeq[SValue] => SValue): IEmitCode = {
+  def multiMapEmitCodes(cb: EmitCodeBuilder, seq: IndexedSeq[EmitCode])(f: IndexedSeq[SValue] => SValue): IEmitCode =
+    multiMap(cb, seq.map(ec => cb => ec.toI(cb)))(f)
+
+  def multiMap(cb: EmitCodeBuilder,
+    seq: IndexedSeq[EmitCodeBuilder => IEmitCode]
+  )(f: IndexedSeq[SValue] => SValue
+  ): IEmitCode = {
     val Lmissing = CodeLabel()
     val Lpresent = CodeLabel()
 
+    var required = true
     val pcs = seq.map { elem =>
-      val iec = elem.toI(cb)
+      val iec = elem(cb)
+      required = required & iec.required
 
       cb.define(iec.Lmissing)
       cb.goto(Lmissing)
@@ -260,8 +268,14 @@ object IEmitCode {
     val pc = f(pcs)
     cb.goto(Lpresent)
 
-    IEmitCodeGen(Lmissing, Lpresent, pc, seq.forall(_.required))
+    IEmitCodeGen(Lmissing, Lpresent, pc, required)
   }
+
+  def multiFlatMap(cb: EmitCodeBuilder,
+    seq: IndexedSeq[EmitCodeBuilder => IEmitCode]
+  )(f: IndexedSeq[SValue] => IEmitCode
+  ): IEmitCode =
+    multiFlatMap[EmitCodeBuilder => IEmitCode, SValue, SValue](seq, x => x(cb), cb)(f)
 
   def multiFlatMap[A, B, C](seq: IndexedSeq[A], toIec: A => IEmitCodeGen[B], cb: EmitCodeBuilder)
     (f: IndexedSeq[B] => IEmitCodeGen[C]): IEmitCodeGen[C] = {
@@ -618,7 +632,7 @@ class Emit[C](
       case If(cond, cnsq, altr) =>
         assert(cnsq.typ == TVoid && altr.typ == TVoid)
 
-        emitI(cond).consume(cb, {}, m => cb.ifx(m.asBoolean.boolCode(cb), emitVoid(cnsq), emitVoid(altr)))
+        emitI(cond).consume(cb, {}, m => cb.ifx(m.asBoolean.value, emitVoid(cnsq), emitVoid(altr)))
 
       case Let(name, value, body) =>
         val xVal = if (value.typ.isInstanceOf[TStream]) emitStream(value, region) else emit(value)
@@ -884,7 +898,7 @@ class Emit[C](
           val Lmissing = CodeLabel()
           val Ldefined = CodeLabel()
           val out = mb.newPLocal(outType)
-          cb.ifx(condValue.boolCode(cb), {
+          cb.ifx(condValue.value, {
             codeCnsq.toI(cb).consume(cb,
               {
                 cb.goto(Lmissing)
@@ -970,7 +984,7 @@ class Emit[C](
         emitI(length).map(cb) { case n: SInt32Value =>
           val outputPType = PCanonicalArray(PInt32Required)
           val elementSize = outputPType.elementByteSize
-          val numElements = n.intCode(cb)
+          val numElements = n.value
           val arrayAddress = cb.newLocal[Long]("array_addr", outputPType.allocate(region, numElements))
           outputPType.stagedInitialize(cb, arrayAddress, numElements)
           cb += Region.setMemory(outputPType.firstElementOffset(arrayAddress), numElements.toL * elementSize, 0.toByte)
@@ -999,7 +1013,7 @@ class Emit[C](
 
         emitI(a).flatMap(cb) { case av: SIndexableValue =>
           emitI(i).flatMap(cb) { case ic: SInt32Value =>
-            val iv = ic.intCode(cb)
+            val iv = ic.value
             boundsCheck(cb, iv, av.loadLength())
             av.loadElement(cb, iv)
           }
@@ -1009,7 +1023,7 @@ class Emit[C](
           emitI(start).flatMap(cb) { startCode =>
             emitI(step).flatMap(cb) { stepCode =>
               val arrayLength = arrayValue.loadLength()
-              val realStep = cb.newLocal[Int]("array_slice_requestedStep", stepCode.asInt.intCode(cb))
+              val realStep = cb.newLocal[Int]("array_slice_requestedStep", stepCode.asInt.value)
 
               cb.ifx(realStep ceq const(0), cb._fatalWithError(const(errorID), const("step cannot be 0 for array slice")))
 
@@ -1023,7 +1037,7 @@ class Emit[C](
 
               val stopI = stop.map(emitI(_)).getOrElse(IEmitCode.present(cb, new SInt32Value(noneStop)))
               stopI.map(cb) { stopCode =>
-                val requestedStart = cb.newLocal[Int]("array_slice_requestedStart", startCode.asInt.intCode(cb))
+                val requestedStart = cb.newLocal[Int]("array_slice_requestedStart", startCode.asInt.value)
                 val realStart = cb.newLocal[Int]("array_slice_realStart")
                 cb.ifx(requestedStart >= arrayLength,
                   cb.assign(realStart, maxBound),
@@ -1032,7 +1046,7 @@ class Emit[C](
                       cb.assign(realStart, arrayLength + requestedStart),
                       cb.assign(realStart, minBound))))
 
-                val requestedStop = cb.newLocal[Int]("array_slice_requestedStop", stopCode.asInt.intCode(cb))
+                val requestedStop = cb.newLocal[Int]("array_slice_requestedStop", stopCode.asInt.value)
                 val realStop = cb.newLocal[Int]("array_slice_realStop")
                 cb.ifx(requestedStop > arrayLength,
                   cb.assign(realStop, maxBound),
@@ -1322,7 +1336,7 @@ class Emit[C](
                     cb.newLocalAny[Long](s"make_ndarray_shape_${ i }", shape.code)
                   }
 
-                  cb.ifx(isRowMajorCode.asBoolean.boolCode(cb), {
+                  cb.ifx(isRowMajorCode.asBoolean.value, {
                     val strides = xP.makeRowMajorStrides(shapeValues, region, cb)
 
                     stridesSettables.zip(strides).foreach { case (settable, stride) =>
@@ -1350,10 +1364,10 @@ class Emit[C](
                       val stridesSettables = (0 until nDims).map(i => cb.newLocal[Long](s"make_ndarray_stride_$i"))
 
                       val shapeValues = (0 until nDims).map { i =>
-                        cb.newLocal[Long](s"make_ndarray_shape_${i}", shapeTupleValue.loadField(cb, i).get(cb).asLong.longCode(cb))
+                        cb.newLocal[Long](s"make_ndarray_shape_${i}", shapeTupleValue.loadField(cb, i).get(cb).asLong.value)
                       }
 
-                      cb.ifx(isRowMajorCode.asBoolean.boolCode(cb), {
+                      cb.ifx(isRowMajorCode.asBoolean.value, {
                         val strides = xP.makeRowMajorStrides(shapeValues, region, cb)
 
 
@@ -1410,7 +1424,7 @@ class Emit[C](
           val indexEmitCodes = idxs.map(idx => EmitCode.fromI(cb.emb)(emitInNewBuilder(_, idx)))
           IEmitCode.multiMapEmitCodes(cb, indexEmitCodes) { idxPCodes: IndexedSeq[SValue] =>
             val idxValues = idxPCodes.zipWithIndex.map { case (pc, idx) =>
-              pc.asInt64.longCode(cb)
+              pc.asInt64.value
             }
 
             ndValue.assertInBounds(idxValues, cb, errorId)
@@ -1563,13 +1577,13 @@ class Emit[C](
                   def multiply(l: SValue, r: SValue): Code[_] = {
                     (l.st, r.st) match {
                       case (SInt32, SInt32) =>
-                        l.asInt.intCode(cb) * r.asInt.intCode(cb)
+                        l.asInt.value * r.asInt.value
                       case (SInt64, SInt64) =>
-                        l.asLong.longCode(cb) * r.asLong.longCode(cb)
+                        l.asLong.value * r.asLong.value
                       case (SFloat32, SFloat32) =>
-                        l.asFloat.floatCode(cb) * r.asFloat.floatCode(cb)
+                        l.asFloat.value * r.asFloat.value
                       case (SFloat64, SFloat64) =>
-                        l.asDouble.doubleCode(cb) * r.asDouble.doubleCode(cb)
+                        l.asDouble.value * r.asDouble.value
                     }
                   }
 
@@ -1891,7 +1905,7 @@ class Emit[C](
                 cb.append(Region.storeDouble(
                   curWriteAddress,
                   (currCol >= currRow).mux(
-                    h.loadElement(IndexedSeq(currCol, currRow), cb).asDouble.doubleCode(cb),
+                    h.loadElement(IndexedSeq(currCol, currRow), cb).asDouble.value,
                     0.0
                   )
                 ))
@@ -2176,7 +2190,9 @@ class Emit[C](
       case ReadValue(path, spec, requestedType) =>
         emitI(path).map(cb) { pv =>
           val ib = cb.memoize[InputBuffer](spec.buildCodeInputBuffer(mb.open(pv.asString.loadString(cb), checkCodec = true)))
-          spec.encodedType.buildDecoder(requestedType, mb.ecb)(cb, region, ib)
+          val decoded = spec.encodedType.buildDecoder(requestedType, mb.ecb)(cb, region, ib)
+          cb += ib.close()
+          decoded
         }
 
       case WriteValue(value, path, spec) =>
@@ -2584,7 +2600,7 @@ class Emit[C](
       }
 
       val iec = emitter.emitI(ir, cb, newEnv, None)
-      iec.get(cb, "Result of sorting function cannot be missing").asBoolean.boolCode(cb)
+      iec.get(cb, "Result of sorting function cannot be missing").asBoolean.value
     }
     (cb: EmitCodeBuilder, region: Value[Region], l: Value[_], r: Value[_]) => cb.memoize(cb.invokeCode[Boolean](sort, region, l, r))
   }

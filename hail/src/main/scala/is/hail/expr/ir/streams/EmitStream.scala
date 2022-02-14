@@ -3,13 +3,15 @@ package is.hail.expr.ir.streams
 import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.expr.ir._
-import is.hail.expr.ir.orderings.StructOrdering
+import is.hail.expr.ir.agg.{AggStateSig, DictState, PhysicalAggSig, StateTuple}
+import is.hail.expr.ir.functions.IntervalFunctions
+import is.hail.expr.ir.orderings.{CodeOrdering, StructOrdering}
 import is.hail.types.physical.stypes.EmitType
-import is.hail.types.physical.stypes.concrete.SUnreachable
+import is.hail.types.physical.stypes.concrete.{SBinaryPointer, SStackStruct, SUnreachable}
 import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.physical.stypes.primitives.SInt32Value
-import is.hail.types.physical.{PCanonicalArray, PCanonicalStruct}
-import is.hail.types.virtual.TStream
+import is.hail.types.physical.{PCanonicalArray, PCanonicalBinary, PCanonicalStruct}
+import is.hail.types.virtual._
 import is.hail.types.{TypeWithRequiredness, VirtualTypeWithReq}
 import is.hail.utils._
 
@@ -257,6 +259,149 @@ object EmitStream {
             })
 
         }
+        
+      case x@StreamBufferedAggregate(streamChild, initAggs, newKey, seqOps, name,
+        aggSignatures: IndexedSeq[PhysicalAggSig]) =>
+        val region = mb.genFieldThisRef[Region]("stream_buff_agg_region")
+        produce(streamChild, cb)
+          .map(cb) { case childStream: SStreamValue =>
+            val childProducer = childStream.producer
+            val eltField = mb.newEmitField("stream_buff_agg_elt", childProducer.element.emitType)
+            val newKeyVType = typeWithReqx(newKey)
+            val kb = mb.ecb
+            val nestedStates = aggSignatures.toArray.map(sig => AggStateSig.getState(sig.state, kb))
+            val nested = StateTuple(nestedStates)
+            val dictState = new DictState(kb, newKeyVType, nested)
+            val maxSize = mb.genFieldThisRef[Int]("stream_buff_agg_max_size")
+            val nodeArray = mb.genFieldThisRef[Array[Long]]("stream_buff_agg_element_array")
+            val idx = mb.genFieldThisRef[Int]("stream_buff_agg_idx")
+            val returnStreamType= x.typ.asInstanceOf[TStream]
+            val returnElemType = returnStreamType.elementType
+            val tupleFieldTypes = aggSignatures.map(_ => TBinary)
+            val tupleFields = (0 to tupleFieldTypes.length).zip(tupleFieldTypes).map { case (fieldIdx, fieldType) => TupleField(fieldIdx, fieldType) }
+            val serializedAggSType = SStackStruct(TTuple(tupleFields), tupleFieldTypes.map(_ => EmitType(SBinaryPointer(PCanonicalBinary()), true)).toIndexedSeq)
+            val keyAndAggFields = newKeyVType.canonicalPType.asInstanceOf[PCanonicalStruct].sType.fieldEmitTypes :+ EmitType(serializedAggSType, true)
+            val returnElemSType = SStackStruct(returnElemType.asInstanceOf[TBaseStruct], keyAndAggFields)
+            val newStreamElem = mb.newEmitField("stream_buff_agg_new_stream_elem", EmitType(returnElemSType, true))
+            val numElemInArray = mb.genFieldThisRef[Int]("stream_buff_agg_num_elem_in_size")
+            val childStreamEnded = mb.genFieldThisRef[Boolean]("stream_buff_agg_child_stream_ended")
+            val produceElementMode = mb.genFieldThisRef[Boolean]("stream_buff_agg_child_produce_elt_mode")
+            val producer: StreamProducer = new StreamProducer {
+              override val length: Option[EmitCodeBuilder => Code[Int]] = None
+
+              override def initialize(cb: EmitCodeBuilder): Unit = {
+                if (childProducer.requiresMemoryManagementPerElement)
+                  cb.assign(childProducer.elementRegion, Region.stagedCreate(Region.REGULAR, outerRegion.getPool()))
+                else
+                  cb.assign(childProducer.elementRegion, region)
+
+                childProducer.initialize(cb)
+                cb.assign(childStreamEnded, false)
+                cb.assign(produceElementMode, false)
+                cb.assign(idx, 0)
+                cb.assign(maxSize, 8)
+                cb.assign(nodeArray, Code.newArray[Long](maxSize))
+                cb.assign(numElemInArray, 0)
+                dictState.createState(cb)
+              }
+
+              override val elementRegion: Settable[Region] = region
+
+              override val requiresMemoryManagementPerElement: Boolean = false
+
+              override val LproduceElement: CodeLabel = mb.defineAndImplementLabel { cb =>
+                val elementProduceLabel = CodeLabel()
+                val getElemLabel = CodeLabel()
+                val startLabel = CodeLabel()
+
+                cb.define(startLabel)
+                cb.ifx(produceElementMode, {
+                  cb.goto(elementProduceLabel)
+                })
+
+                // Garbage collects old aggregator state if moving onto new group
+                dictState.newState(cb)
+                val initContainer = AggContainer(aggSignatures.toArray.map(sig => sig.state), dictState.initContainer, cleanup = () => ())
+                dictState.init(cb, { cb => emitVoid(initAggs, cb, container = Some(initContainer)) })
+
+                cb.define(getElemLabel)
+                if (childProducer.requiresMemoryManagementPerElement)
+                  cb += childProducer.elementRegion.clearRegion()
+                cb.goto(childProducer.LproduceElement)
+
+                cb.define(childProducer.LproduceElementDone)
+                cb.assign(eltField, childProducer.element)
+                val newKeyResultCode = EmitCode.fromI(mb) { cb =>
+                  emit(newKey,
+                    cb = cb,
+                    env = env.bind(name, eltField),
+                    region = childProducer.elementRegion)
+                }
+                val resultKeyValue = newKeyResultCode.memoize(cb, "buff_agg_stream_result_key")
+                val keyedContainer = AggContainer(aggSignatures.toArray.map(sig => sig.state), dictState.keyed.container, cleanup = () => ())
+                dictState.withContainer(cb, resultKeyValue, { cb =>
+                  emitVoid(seqOps, cb, container = Some(keyedContainer), env = env.bind(name, eltField))
+                })
+                cb.ifx(dictState.size >= maxSize,{
+                  cb.assign(produceElementMode, true)
+                })
+
+                cb.ifx(produceElementMode, {
+                  cb.goto(elementProduceLabel)},
+                  {
+                  cb.goto(getElemLabel)
+                  }
+                )
+
+                cb.define(childProducer.LendOfStream)
+                cb.assign(childStreamEnded, true)
+                cb.assign(produceElementMode, true)
+
+                cb.define(elementProduceLabel)
+                cb.ifx(numElemInArray ceq 0, {
+                  dictState.tree.foreach(cb) { (cb, elementOff) =>
+                    cb += nodeArray.update(numElemInArray, elementOff)
+                    cb.assign(numElemInArray, numElemInArray + 1)
+                  }
+                })
+
+                cb.ifx(numElemInArray <= idx, {
+                  cb.assign(idx, 0)
+                  cb.assign(numElemInArray, 0)
+                  cb.assign(produceElementMode, false)
+                  cb.ifx(childStreamEnded , {
+                    cb.goto(LendOfStream)
+                  }, {
+                    cb.goto(startLabel)
+                  })
+                })
+                val nodeAddress = cb.memoize(nodeArray(idx))
+                cb.assign(idx, idx + 1)
+                dictState.loadNode(cb, nodeAddress)
+                val serializedAggValue = keyedContainer.container.states.states.map(state => state.serializeToRegion(cb, PCanonicalBinary(), region))
+                val key = dictState.keyed.storageType.loadCheapSCode(cb, nodeAddress).loadField(cb, "kt").memoize(cb, "steam_buff_agg_key")
+                val serializedAggEmitCodes = serializedAggValue.map(aggValue => EmitCode.present(mb, aggValue))
+                val serializedAggTupleSValue = SStackStruct.constructFromArgs(cb, region, serializedAggSType.virtualType, serializedAggEmitCodes: _*)
+                val keyValue = key.get(cb).asInstanceOf[SBaseStructValue]
+                val sStructToReturn = keyValue.insert(cb, region, returnElemType.asInstanceOf[TStruct], ("agg", EmitCode.present(mb, serializedAggTupleSValue)
+                  .memoize(cb, "stream_buff_agg_return_val")))
+                assert(returnElemSType.virtualType == sStructToReturn.st.virtualType)
+                val casted = sStructToReturn.castTo(cb, region, returnElemSType)
+                cb.assign(newStreamElem, EmitCode.present(mb, casted).toI(cb))
+                cb.goto(LproduceElementDone)
+              }
+
+              override val element: EmitCode = newStreamElem.load
+
+              override def close(cb: EmitCodeBuilder): Unit = {
+                childProducer.close(cb)
+                if (childProducer.requiresMemoryManagementPerElement)
+                  cb += childProducer.elementRegion.invalidate()
+                cb += dictState.region.invalidate()
+              }
+            }
+            SStreamValue(producer)
+          }
 
       case x@MakeStream(args, _, _requiresMemoryManagementPerElement) =>
         val region = mb.genFieldThisRef[Region]("makestream_region")
@@ -309,7 +454,7 @@ object EmitStream {
       case x@If(cond, cnsq, altr) =>
         emit(cond, cb).flatMap(cb) { cond =>
           val xCond = mb.genFieldThisRef[Boolean]("stream_if_cond")
-          cb.assign(xCond, cond.asBoolean.boolCode(cb))
+          cb.assign(xCond, cond.asBoolean.value)
 
           val Lmissing = CodeLabel()
           val Lpresent = CodeLabel()
@@ -392,8 +537,8 @@ object EmitStream {
               override val length: Option[EmitCodeBuilder => Code[Int]] = None
 
               override def initialize(cb: EmitCodeBuilder): Unit = {
-                val startVar = cb.newLocal[Int]("start", startCode.asInt.intCode(cb))
-                cb.assign(stepVar, stepCode.asInt.intCode(cb))
+                val startVar = startCode.asInt.value
+                cb.assign(stepVar, stepCode.asInt.value)
                 cb.assign(curr, startVar - stepVar)
               }
 
@@ -436,8 +581,8 @@ object EmitStream {
               })
 
               override def initialize(cb: EmitCodeBuilder): Unit = {
-                cb.assign(startVar, startCode.asInt.intCode(cb))
-                cb.assign(stopVar, stopCode.asInt.intCode(cb))
+                cb.assign(startVar, startCode.asInt.value)
+                cb.assign(stopVar, stopCode.asInt.value)
                 start match {
                   case I32(x) if step < 0 && ((x.toLong - Int.MinValue.toLong) / step.toLong + 1) < Int.MaxValue =>
                   case I32(x) if step > 0 && ((Int.MaxValue.toLong - x.toLong) / step.toLong + 1) < Int.MaxValue =>
@@ -491,9 +636,9 @@ object EmitStream {
                 override def initialize(cb: EmitCodeBuilder): Unit = {
                   val llen = cb.newLocal[Long]("streamrange_llen")
 
-                  cb.assign(start, startc.asInt.intCode(cb))
-                  cb.assign(stop, stopc.asInt.intCode(cb))
-                  cb.assign(step, stepc.asInt.intCode(cb))
+                  cb.assign(start, startc.asInt.value)
+                  cb.assign(stop, stopc.asInt.value)
+                  cb.assign(step, stepc.asInt.value)
 
                   cb.ifx(step ceq const(0), cb._fatalWithError(errorID, "Array range cannot have step size 0."))
                   cb.ifx(step < const(0), {
@@ -547,7 +692,7 @@ object EmitStream {
             val len = mb.genFieldThisRef[Int]("seq_sample_len")
             val regionVar = mb.genFieldThisRef[Region]("seq_sample_region")
 
-            val nRemaining = cb.newField[Int]("seq_sample_num_remaining", numToSampleVal.intCode(cb))
+            val nRemaining = cb.newField[Int]("seq_sample_num_remaining", numToSampleVal.value)
             val candidate = cb.newField[Int]("seq_sample_candidate", 0)
             val elementToReturn = cb.newField[Int]("seq_sample_element_to_return", -1) // -1 should never be returned.
 
@@ -555,8 +700,8 @@ object EmitStream {
               override val length: Option[EmitCodeBuilder => Code[Int]] = Some(_ => len)
 
               override def initialize(cb: EmitCodeBuilder): Unit = {
-                cb.assign(len, numToSampleVal.asInt.intCode(cb))
-                cb.assign(nRemaining, numToSampleVal.intCode(cb))
+                cb.assign(len, numToSampleVal.asInt.value)
+                cb.assign(nRemaining, numToSampleVal.value)
                 cb.assign(candidate, 0)
                 cb.assign(elementToReturn, -1)
               }
@@ -569,11 +714,11 @@ object EmitStream {
                 cb.ifx(nRemaining <= 0, cb.goto(LendOfStream))
 
                 val u = cb.newLocal[Double]("seq_sample_rand_unif", Code.invokeStatic0[Math, Double]("random"))
-                val fC = cb.newLocal[Double]("seq_sample_Fc", (totalSizeVal.intCode(cb) - candidate - nRemaining).toD / (totalSizeVal.intCode(cb) - candidate).toD)
+                val fC = cb.newLocal[Double]("seq_sample_Fc", (totalSizeVal.value - candidate - nRemaining).toD / (totalSizeVal.value - candidate).toD)
 
                 cb.whileLoop(fC > u, {
                   cb.assign(candidate, candidate + 1)
-                  cb.assign(fC, fC * (const(1.0) - (nRemaining.toD / (totalSizeVal.intCode(cb) - candidate).toD)))
+                  cb.assign(fC, fC * (const(1.0) - (nRemaining.toD / (totalSizeVal.value - candidate).toD)))
                 })
                 cb.assign(nRemaining, nRemaining - 1)
                 cb.assign(elementToReturn, candidate)
@@ -625,7 +770,7 @@ object EmitStream {
                   .consume(cb,
                     cb.goto(Lfiltered),
                     { sc =>
-                      cb.ifx(!sc.asBoolean.boolCode(cb), cb.goto(Lfiltered))
+                      cb.ifx(!sc.asBoolean.value, cb.goto(Lfiltered))
                     })
 
                 if (requiresMemoryManagementPerElement)
@@ -666,7 +811,7 @@ object EmitStream {
                   childProducer.length.map(compLen => (cb: EmitCodeBuilder) => compLen(cb).min(n))
 
                 override def initialize(cb: EmitCodeBuilder): Unit = {
-                  cb.assign(n, num.intCode(cb))
+                  cb.assign(n, num.value)
                   cb.ifx(n < 0, cb._fatal(s"stream take: negative number of elements to take: ", n.toS))
                   cb.assign(idx, 0)
                   childProducer.initialize(cb)
@@ -710,7 +855,7 @@ object EmitStream {
                 }
 
                 override def initialize(cb: EmitCodeBuilder): Unit = {
-                  cb.assign(n, num.intCode(cb))
+                  cb.assign(n, num.value)
                   cb.ifx(n < 0, cb._fatal(s"stream drop: negative number of elements to drop: ", n.toS))
                   cb.assign(idx, 0)
                   childProducer.initialize(cb)
@@ -767,7 +912,7 @@ object EmitStream {
                 emit(condIR, cb, region = childProducer.elementRegion, env = env.bind(elt, eltSettable))
                   .consume(cb,
                     cb.goto(LendOfStream),
-                    code => cb.ifx(code.asBoolean.boolCode(cb),
+                    code => cb.ifx(code.asBoolean.value,
                       cb.goto(LproduceElementDone),
                       cb.goto(LendOfStream)))
 
@@ -815,7 +960,7 @@ object EmitStream {
                 emit(condIR, cb, region = childProducer.elementRegion, env = env.bind(elt, eltSettable))
                   .consume(cb,
                     cb.goto(LdoneDropping),
-                    code => cb.ifx(code.asBoolean.boolCode(cb),
+                    code => cb.ifx(code.asBoolean.value,
                       cb.goto(LdropThis),
                       cb.goto(LdoneDropping)))
 
@@ -1147,19 +1292,41 @@ object EmitStream {
             val lEltType = leftProducer.element.emitType
             val rEltType = rightProducer.element.emitType
 
-            // these variables are used as inputs to the joinF
-
             def compare(cb: EmitCodeBuilder, lelt: EmitValue, relt: EmitValue): Code[Int] = {
               assert(lelt.emitType == lEltType)
               assert(relt.emitType == rEltType)
-
-              val lhs = lelt.map(cb)(_.asBaseStruct.subset(lKey: _*))
-              val rhs = relt.map(cb)(_.asBaseStruct.subset(rKey: _*))
-              StructOrdering.make(lhs.st.asInstanceOf[SBaseStruct], rhs.st.asInstanceOf[SBaseStruct],
-                cb.emb.ecb, missingFieldsEqual = false)
-                .compare(cb, lhs, rhs, missingEqual = false)
+              if (x.isIntervalJoin) {
+                val rhs = relt.toI(cb).flatMap(cb)(_.asBaseStruct.loadField(cb, rKey(0)))
+                val result = cb.newLocal[Int]("SJRD-interval-compare-result")
+                rhs.consume(cb, {
+                  cb.assign(result, -1)
+                }, { case interval: SIntervalValue =>
+                  val lhs = lelt.toI(cb).flatMap(cb)(_.asBaseStruct.loadField(cb, lKey(0)))
+                  lhs.consume(cb, {
+                    cb.assign(result, 1)
+                  }, { point =>
+                    val c = IntervalFunctions.pointIntervalCompare(cb, point, interval)
+                    c.consume(cb, {
+                      // One of the interval endpoints is missing. In this case,
+                      // consider the point greater, so that the join advances
+                      // past the bad interval, keeping the point.
+                      cb.assign(result, 1)
+                    }, { c =>
+                      cb.assign(result, c.asInt.value)
+                    })
+                  })
+                })
+                result
+              } else {
+                val lhs = lelt.map(cb)(_.asBaseStruct.subset(lKey: _*))
+                val rhs = relt.map(cb)(_.asBaseStruct.subset(rKey: _*))
+                StructOrdering.make(lhs.st.asInstanceOf[SBaseStruct], rhs.st.asInstanceOf[SBaseStruct],
+                  cb.emb.ecb, missingFieldsEqual = false)
+                  .compare(cb, lhs, rhs, missingEqual = false)
+              }
             }
 
+            // these variables are used as inputs to the joinF
             val lx = mb.newEmitField("streamjoin_lx", lEltType) // last value received from left
             val rx = mb.newEmitField("streamjoin_rx", rEltType) // last value received from right
 
@@ -1400,7 +1567,7 @@ object EmitStream {
                 val pulledRight = mb.genFieldThisRef[Boolean]("left_join_right_distinct_pulledRight]")
 
                 val producer = new StreamProducer {
-                  override val length: Option[EmitCodeBuilder => Code[Int]] = leftProducer.length
+                  override val length: Option[EmitCodeBuilder => Code[Int]] = None
 
                   override def initialize(cb: EmitCodeBuilder): Unit = {
                     cb.assign(pulledRight, false)
@@ -1867,7 +2034,7 @@ object EmitStream {
                 childProducer.length.map(compL => (cb: EmitCodeBuilder) => ((compL(cb).toL + n.toL - 1L) / n.toL).toI)
 
               override def initialize(cb: EmitCodeBuilder): Unit = {
-                cb.assign(n, groupSize.intCode(cb))
+                cb.assign(n, groupSize.value)
                 cb.ifx(n <= 0, cb._fatal(s"stream grouped: non-positive size: ", n.toS))
                 cb.assign(eos, false)
                 cb.assign(xCounter, n)

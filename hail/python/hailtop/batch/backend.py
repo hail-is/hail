@@ -453,7 +453,8 @@ class ServiceBackend(Backend[bc.Batch]):
         return self.__fs
 
     def _close(self):
-        self._batch_client.close()
+        if hasattr(self, '_batch_client'):
+            self._batch_client.close()
         async_to_blocking(self._fs.close())
 
     def _run(self,
@@ -676,7 +677,7 @@ class ServiceBackend(Backend[bc.Batch]):
                                     output_files=outputs if len(outputs) > 0 else None,
                                     always_run=job._always_run,
                                     timeout=job._timeout,
-                                    gcsfuse=job._gcsfuse if len(job._gcsfuse) > 0 else None,
+                                    cloudfuse=job._cloudfuse if len(job._cloudfuse) > 0 else None,
                                     env=env,
                                     requester_pays_project=batch.requester_pays_project,
                                     mount_tokens=True,

@@ -1,4 +1,6 @@
 import re
+
+import warnings
 import dill
 import os
 import functools
@@ -78,7 +80,7 @@ class Job:
         self._preemptible: Optional[bool] = None
         self._machine_type: Optional[str] = None
         self._timeout: Optional[Union[int, float]] = None
-        self._gcsfuse: List[Tuple[str, str, bool]] = []
+        self._cloudfuse: List[Tuple[str, str, bool]] = []
         self._env: Dict[str, str] = dict()
         self._wrapper_code: List[str] = []
         self._user_code: List[str] = []
@@ -379,7 +381,8 @@ class Job:
         Notes
         -----
         Can only be used with the :class:`.backend.ServiceBackend`. This method can
-        be called more than once.
+        be called more than once. This method has been deprecated. Use :meth:`.Job.cloudfuse`
+        instead.
 
         Warning
         -------
@@ -408,15 +411,66 @@ class Job:
         Same job object set with a bucket to mount with gcsfuse.
         """
 
+        warnings.warn("The 'gcsfuse' method has been deprecated. Use the 'cloudfuse' method instead.")
+        return self.cloudfuse(bucket, mount_point, read_only=read_only)
+
+    def cloudfuse(self, bucket: str, mount_point: str, *, read_only: bool = True):
+        """
+        Add a bucket to mount with gcsfuse in GCP or a storage container with blobfuse in Azure.
+
+        Notes
+        -----
+        Can only be used with the :class:`.backend.ServiceBackend`. This method can
+        be called more than once.
+
+        Warning
+        -------
+        There are performance and cost implications of using `gcsfuse <https://cloud.google.com/storage/docs/gcs-fuse>`__
+        or `blobfuse <https://github.com/Azure/azure-storage-fuse#considerations>`__.
+
+        Examples
+        --------
+
+        Google Cloud Platform:
+
+        >>> b = Batch(backend=backend.ServiceBackend('test'))
+        >>> j = b.new_job()
+        >>> (j.cloudfuse('my-bucket', '/my-bucket')
+        ...   .command(f'cat /my-bucket/my-blob-object'))
+
+        Azure:
+
+        >>> b = Batch(backend=backend.ServiceBackend('test'))
+        >>> j = b.new_job()
+        >>> (j.cloudfuse('my-account/my-container', '/dest')
+        ...   .command(f'cat /dest/my-blob-object'))
+
+        Parameters
+        ----------
+        bucket:
+            Name of the google storage bucket to mount or the path to an Azure container in the
+            format of `<account>/<container>`.
+        mount_point:
+            The path at which the cloud blob storage should be mounted to in the Docker
+            container.
+        read_only:
+            If ``True``, mount the cloud blob storage in read-only mode.
+
+        Returns
+        -------
+        Same job object set with a cloud storage path to mount with either gcsfuse or blobfuse.
+        """
+
         if not isinstance(self._batch._backend, backend.ServiceBackend):
-            raise NotImplementedError("A ServiceBackend is required to use the 'gcsfuse' option")
+            raise NotImplementedError("A ServiceBackend is required to use the 'cloudfuse' option")
 
         if bucket == '':
-            raise BatchException('bucket cannot be the empty string')
+            raise BatchException('location cannot be the empty string')
+
         if mount_point == '':
             raise BatchException('mount_point cannot be the empty string')
 
-        self._gcsfuse.append((bucket, mount_point, read_only))
+        self._cloudfuse.append((bucket, mount_point, read_only))
         return self
 
     async def _compile(self, local_tmpdir, remote_tmpdir, *, dry_run=False):

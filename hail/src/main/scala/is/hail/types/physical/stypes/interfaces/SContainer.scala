@@ -66,7 +66,7 @@ trait SIndexableValue extends SValue {
       case (cb, idx) => cb.assign(hash_result, hash_result * 31)
     }, {
       case (cb, idx, element) =>
-        cb.assign(hash_result, hash_result * 31 + element.hash(cb).intCode(cb))
+        cb.assign(hash_result, hash_result * 31 + element.hash(cb).value)
     })
     new SInt32Value(hash_result)
   }

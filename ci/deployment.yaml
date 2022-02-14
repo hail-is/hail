@@ -51,6 +51,16 @@ spec:
                  key: github_context
            - name: HAIL_WATCHED_BRANCHES
              value: '[]'
+           - name: HAIL_CI_DEPLOY_STEPS
+             valueFrom:
+               secretKeyRef:
+                 name: ci-config
+                 key: deploy_steps
+           - name: HAIL_CI_STORAGE_URI
+             valueFrom:
+               secretKeyRef:
+                 name: ci-config
+                 key: storage_uri
            - name: HAIL_DOCKER_PREFIX
              valueFrom:
                secretKeyRef:
@@ -126,6 +136,10 @@ spec:
        - name: ci-tokens
          secret:
            secretName: ci-tokens
+       - name: zulip-config
+         secret:
+           secretName: zulip-config
+           optional: true
        - name: ssl-config-ci
          secret:
            optional: false

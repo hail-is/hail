@@ -321,9 +321,6 @@ class SparkBackend(Py4JBackend):
         return pyspark.sql.DataFrame(self._jbackend.pyToDF(self._to_java_table_ir(t._tir)),
                                      Env.spark_session()._wrapped)
 
-    def from_pandas(self, df, key):
-        return Table.from_spark(Env.spark_session().createDataFrame(df), key)
-
     def add_reference(self, config):
         Env.hail().variant.ReferenceGenome.fromJSON(json.dumps(config))
 

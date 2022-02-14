@@ -6,7 +6,7 @@ import os
 from hailtop import httpx
 from hailtop.utils import request_retry_transient_errors, time_msecs
 
-from ....worker.instance_env import CloudWorkerAPI
+from ....worker.worker_api import CloudWorkerAPI
 from .disk import AzureDisk
 from .credentials import AzureUserCredentials
 from ..instance_config import AzureSlimInstanceConfig
@@ -45,6 +45,42 @@ class AzureWorkerAPI(CloudWorkerAPI):
 
     def instance_config_from_config_dict(self, config_dict: Dict[str, str]) -> AzureSlimInstanceConfig:
         return AzureSlimInstanceConfig.from_dict(config_dict)
+
+    def write_cloudfuse_credentials(self, root_dir: str, credentials: str, bucket: str) -> str:
+        path = f'{root_dir}/cloudfuse/{bucket}/credentials'
+        os.makedirs(os.path.dirname(path))
+        with open(path, 'w') as f:
+            f.write(credentials)
+        return path
+
+    def _mount_cloudfuse(
+        self, credentials_path: str, mount_base_path_data: str, mount_base_path_tmp: str, config: dict
+    ) -> str:
+        # https://docs.microsoft.com/en-us/azure/storage/blobs/storage-how-to-mount-container-linux#mount
+        bucket = config['bucket']
+        account, container = bucket.split('/', maxsplit=1)
+        assert account and container
+
+        options = ['allow_other']
+        if config['read_only']:
+            options.append('ro')
+
+        return f'''
+blobfuse \
+    {mount_base_path_data} \
+    --tmp-path={mount_base_path_tmp} \
+    --config-file={credentials_path} \
+    --pre-mount-validate=true \
+    -o {",".join(options)} \
+    -o attr_timeout=240 \
+    -o entry_timeout=240 \
+    -o negative_timeout=120
+'''
+
+    def _unmount_cloudfuse(self, mount_base_path_data: str) -> str:
+        return f'''
+fusermount -u {mount_base_path_data}  # blobfuse cleans up the temporary directory when unmounting
+'''
 
     def __str__(self):
         return f'subscription_id={self.subscription_id} resource_group={self.resource_group}'

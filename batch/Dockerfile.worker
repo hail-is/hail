@@ -25,12 +25,28 @@ COPY batch/download-gcs-connector.py /
 RUN python3 /download-gcs-connector.py
 COPY docker/core-site.xml ${SPARK_HOME}/conf/core-site.xml
 
+{% if global.cloud == "gcp" %}
 RUN echo "APT::Acquire::Retries \"5\";" > /etc/apt/apt.conf.d/80-retries && \
-    hail-apt-get-install curl gnupg xfsprogs && \
+    hail-apt-get-install curl gnupg && \
     export GCSFUSE_REPO=gcsfuse-bionic && \
     echo "deb http://packages.cloud.google.com/apt $GCSFUSE_REPO main" | tee /etc/apt/sources.list.d/gcsfuse.list && \
     curl https://packages.cloud.google.com/apt/doc/apt-key.gpg | apt-key add - && \
     hail-apt-get-install fuse gcsfuse
+
+{% elif global.cloud == "azure" %}
+# https://github.com/Azure/azure-storage-fuse/issues/603
+RUN hail-apt-get-install ca-certificates pkg-config libfuse-dev cmake libcurl4-gnutls-dev libgnutls28-dev uuid-dev libgcrypt20-dev wget && \
+    wget https://packages.microsoft.com/config/ubuntu/20.04/packages-microsoft-prod.deb && \
+    dpkg -i packages-microsoft-prod.deb && \
+    apt-get update && \
+    hail-apt-get-install blobfuse
+
+{% else %}
+RUN echo "!!! UNEXPECTED CLOUD {{global.cloud}} !!!" && exit 1
+{% endif %}
+
+# Install xfsprogs
+RUN hail-apt-get-install xfsprogs
 
 # Install crun runtime dependencies
 RUN hail-apt-get-install libyajl-dev

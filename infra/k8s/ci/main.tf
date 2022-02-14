@@ -12,12 +12,13 @@ resource "kubernetes_secret" "ci_config" {
 }
 
 resource "kubernetes_secret" "zulip_config" {
+  count = fileexists("~/.hail/.zuliprc") ? 1 : 0
   metadata {
     name = "zulip-config"
   }
 
   data = {
-    ".zuliprc" = file("~/.hail/.zuliprc")
+    ".zuliprc" = fileexists("~/.hail/.zuliprc") ? file("~/.hail/.zuliprc") : ""
   }
 }
 

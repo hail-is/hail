@@ -49,6 +49,7 @@ from gear import (
     monitor_endpoints_middleware,
 )
 from gear.clients import get_cloud_async_fs
+from gear.database import CallError
 from web_common import setup_aiohttp_jinja2, setup_common_static_routes, render_template, set_message
 
 # import uvloop
@@ -71,7 +72,6 @@ from ..exceptions import (
 )
 from ..inst_coll_config import InstanceCollectionConfigs
 from ..file_store import FileStore
-from ..database import CallError, check_call_procedure
 from ..batch_configuration import BATCH_STORAGE_URI, DEFAULT_NAMESPACE, SCOPE, CLOUD
 from ..globals import HTTP_CLIENT_MAX_SIZE, BATCH_FORMAT_VERSION
 from ..spec_writer import SpecWriter
@@ -411,6 +411,7 @@ FROM job_attributes
 WHERE batch_id = %s AND job_id = %s;
 ''',
         (batch_id, job_id),
+        query_name='get_attributes',
     )
     return {record['key']: record['value'] async for record in records}
 
@@ -585,7 +586,9 @@ LIMIT 51;
 '''
     sql_args = where_args
 
-    batches = [batch_record_to_dict(batch) async for batch in db.select_and_fetchall(sql, sql_args)]
+    batches = [
+        batch_record_to_dict(batch) async for batch in db.select_and_fetchall(sql, sql_args, query_name='get_batches')
+    ]
 
     if len(batches) == 51:
         batches.pop()
@@ -825,9 +828,6 @@ WHERE user = %s AND id = %s AND NOT deleted;
                     env = []
                     spec['env'] = env
                 assert isinstance(spec['env'], list)
-
-                if spec.get('gcsfuse') and cloud != 'gcp':
-                    raise web.HTTPBadRequest(reason=f'gcsfuse is not supported in {cloud}')
 
                 if cloud == 'gcp' and all(envvar['name'] != 'GOOGLE_APPLICATION_CREDENTIALS' for envvar in spec['env']):
                     spec['env'].append({'name': 'GOOGLE_APPLICATION_CREDENTIALS', 'value': '/gsa-key/key.json'})
@@ -1263,7 +1263,7 @@ async def _close_batch(app: aiohttp.web.Application, batch_id: int, user: str, d
     client_session: httpx.ClientSession = app['client_session']
     try:
         now = time_msecs()
-        await check_call_procedure(db, 'CALL close_batch(%s, %s);', (batch_id, now))
+        await db.check_call_procedure('CALL close_batch(%s, %s);', (batch_id, now))
     except CallError as e:
         # 2: wrong number of jobs
         if e.rv['rc'] == 2:
@@ -1406,6 +1406,7 @@ LEFT JOIN attempts ON jobs.batch_id = attempts.batch_id and jobs.job_id = attemp
 WHERE jobs.batch_id = %s AND NOT deleted AND jobs.job_id = %s;
 ''',
         (batch_id, job_id),
+        query_name='get_attempts',
     )
 
     attempts = [attempt async for attempt in attempts]

@@ -37,6 +37,7 @@ object Bindings {
         Array((valueName, coerce[TStream](a.typ).elementType)) ++ accum.map { case (name, value) => (name, value.typ) }
       else
         accum.map { case (name, value) => (name, value.typ) }
+    case StreamBufferedAggregate(stream, _,  _, _, name, _) => if (i > 0) Array(name -> coerce[TStream](stream.typ).elementType) else empty
     case RunAggScan(a, name, _, _, _, _) => if (i == 2 || i == 3) Array(name -> coerce[TStream](a.typ).elementType) else empty
     case StreamScan(a, zero, accumName, valueName, _) => if (i == 2) Array(accumName -> zero.typ, valueName -> coerce[TStream](a.typ).elementType) else empty
     case StreamAggScan(a, name, _) => if (i == 1) FastIndexedSeq(name -> a.typ.asInstanceOf[TStream].elementType) else empty

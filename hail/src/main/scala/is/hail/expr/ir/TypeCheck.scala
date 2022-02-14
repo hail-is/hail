@@ -34,6 +34,7 @@ object TypeCheck {
             case _: Let if i == 1 =>
             case _: StreamFor if i == 1 =>
             case _: RunAggScan if (i == 1 || i == 2) =>
+            case _: StreamBufferedAggregate if (i == 1 || i == 3) =>
             case _: RunAgg if i == 0 =>
             case _: SeqOp => // let seqop checking below catch bad void arguments
             case _: InitOp => // let initop checking below catch bad void arguments
@@ -340,9 +341,16 @@ object TypeCheck {
         assert(coerce[TStream](x.typ).elementType == join.typ)
         assert(lKey.forall(lEltTyp.hasField))
         assert(rKey.forall(rEltTyp.hasField))
-        assert((lKey, rKey).zipped.forall { case (lk, rk) =>
-          lEltTyp.fieldType(lk) == rEltTyp.fieldType(rk)
-        })
+        if (x.isIntervalJoin) {
+          val lKeyTyp = lEltTyp.fieldType(lKey(0))
+          val rKeyTyp = rEltTyp.fieldType(rKey(0)).asInstanceOf[TInterval]
+          assert(lKeyTyp == rKeyTyp.pointType)
+          assert((joinType == "left") || (joinType == "inner"))
+        } else {
+          assert((lKey, rKey).zipped.forall { case (lk, rk) =>
+            lEltTyp.fieldType(lk) == rEltTyp.fieldType(rk)
+          })
+        }
       case x@StreamFor(a, valueName, body) =>
         assert(a.typ.isInstanceOf[TStream])
         assert(body.typ == TVoid)
@@ -351,6 +359,12 @@ object TypeCheck {
       case x@StreamAggScan(a, name, query) =>
         assert(a.typ.isInstanceOf[TStream])
         assert(x.typ.asInstanceOf[TStream].elementType == query.typ)
+      case x@StreamBufferedAggregate(streamChild, initAggs, newKey, seqOps, _, _) =>
+        assert(streamChild.typ.isInstanceOf[TStream])
+        assert(initAggs.typ == TVoid)
+        assert(seqOps.typ == TVoid)
+        assert(newKey.typ.isInstanceOf[TStruct])
+        assert(x.typ.isInstanceOf[TStream])
       case x@RunAgg(body, result, _) =>
         assert(x.typ == result.typ)
         assert(body.typ == TVoid)

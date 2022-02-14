@@ -25,7 +25,7 @@ resource "azuread_application" "oauth2" {
   display_name = "${var.resource_group_name}-oauth2"
 
   web {
-    redirect_uris = ["https://auth.${var.domain}/oauth2callback", "http://127.0.0.1/oauth2callback"]
+    redirect_uris = var.oauth2_redirect_uris
 
     implicit_grant {
       access_token_issuance_enabled = true

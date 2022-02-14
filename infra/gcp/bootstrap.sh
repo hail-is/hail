@@ -3,7 +3,8 @@
 source ../bootstrap_utils.sh
 
 function configure_gcloud() {
-    ZONE=${1:-"us-central1-a"}
+    ZONE=${1:-"australia-southeast1-b"}
+    REGION=${2:-"australia-southeast1"}
 
     gcloud -q auth configure-docker
     # If you are using the Artifact Registry:

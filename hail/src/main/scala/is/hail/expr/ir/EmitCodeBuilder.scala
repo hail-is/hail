@@ -5,7 +5,7 @@ import is.hail.expr.ir.functions.StringFunctions
 import is.hail.expr.ir.streams.StreamProducer
 import is.hail.lir
 import is.hail.types.physical.stypes.interfaces.{SStream, SStreamValue}
-import is.hail.types.physical.stypes.{SCode, SSettable, SValue}
+import is.hail.types.physical.stypes.{SCode, SSettable, SType, SValue}
 import is.hail.utils._
 
 object EmitCodeBuilder {
@@ -52,6 +52,50 @@ class EmitCodeBuilder(val emb: EmitMethodBuilder[_], var code: Code[Unit]) exten
     code = Code._empty
     tmp
   }
+
+  def ifx(c: Code[Boolean], emitThen: => SValue, emitElse: => SValue): SValue = {
+    val Ltrue = CodeLabel()
+    val Lfalse = CodeLabel()
+    val Lafter = CodeLabel()
+    append(c.mux(Ltrue.goto, Lfalse.goto))
+    define(Ltrue)
+    val tval = emitThen
+    val value = newSLocal(tval.st, "ifx_value")
+    assign(value, tval)
+    goto(Lafter)
+    define(Lfalse)
+    assign(value, emitElse)
+    define(Lafter)
+    value
+  }
+
+  def ifx(c: Code[Boolean], emitThen: => IEmitCode, emitElse: => IEmitCode): IEmitCode = {
+    val Lmissing = CodeLabel()
+    val Lpresent = CodeLabel()
+    val Ltrue = CodeLabel()
+    val Lfalse = CodeLabel()
+    append(c.mux(Ltrue.goto, Lfalse.goto))
+    define(Ltrue)
+    val tval = emitThen
+    val value = newSLocal(tval.st, "ifx_value")
+    tval.consume(this, {
+      goto(Lmissing)
+    }, { tval =>
+      assign(value, tval)
+      goto(Lpresent)
+    })
+    define(Lfalse)
+    val fval = emitElse
+    fval.consume(this, {
+      goto(Lmissing)
+    }, { fval =>
+      assign(value, fval)
+      goto(Lpresent)
+    })
+    IEmitCode(Lmissing, Lpresent, value, tval.required && fval.required)
+  }
+
+  def newSLocal(st: SType, name: String): SSettable = emb.newPLocal(name, st)
 
   def assign(s: SSettable, v: SValue): Unit = {
     assert(s.st == v.st, s"type mismatch!\n  settable=${s.st}\n     passed=${v.st}")
@@ -218,7 +262,7 @@ class EmitCodeBuilder(val emb: EmitMethodBuilder[_], var code: Code[Unit]) exten
 
   // for debugging
   def strValue(sc: SValue): Code[String] = {
-    StringFunctions.scodeToJavaValue(this, emb.partitionRegion, sc).invoke[String]("toString")
+    StringFunctions.svalueToJavaValue(this, emb.partitionRegion, sc).invoke[String]("toString")
   }
 
   def strValue(ec: EmitCode): Code[String] = {

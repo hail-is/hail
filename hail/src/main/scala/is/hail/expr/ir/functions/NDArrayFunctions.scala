@@ -48,7 +48,7 @@ object  NDArrayFunctions extends RegistryFunctions {
       cb.ifx(ndCoefRow  cne ndDepRow, cb._fatalWithError(errorID,"hail.nd.solve_triangular: Solve dimensions incompatible"))
 
       val uplo = cb.newLocal[String]("dtrtrs_uplo")
-      cb.ifx(lower.boolCode(cb), cb.assign(uplo, const("L")), cb.assign(uplo, const("U")))
+      cb.ifx(lower.value, cb.assign(uplo, const("L")), cb.assign(uplo, const("U")))
 
       val infoDTRTRSResult = cb.newLocal[Int]("dtrtrs_result")
 

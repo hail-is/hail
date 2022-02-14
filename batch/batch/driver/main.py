@@ -149,9 +149,11 @@ def active_instances_only(fun):
             log.info(f'token not found for instance {instance.name}')
             raise web.HTTPUnauthorized()
 
-        db = request.app['db']
+        db: Database = request.app['db']
         record = await db.select_and_fetchone(
-            'SELECT state FROM instances WHERE name = %s AND token = %s;', (instance.name, token)
+            'SELECT state FROM instances WHERE name = %s AND token = %s;',
+            (instance.name, token),
+            'active_instances_only',
         )
         if not record:
             log.info(f'instance {instance.name}, token not found in database')
@@ -273,13 +275,37 @@ async def deactivate_instance_1(instance):
     log.info(f'deactivating {instance}')
     await instance.deactivate('deactivated')
     await instance.mark_healthy()
-    return web.Response()
 
 
 @routes.post('/api/v1alpha/instances/deactivate')
 @active_instances_only
 async def deactivate_instance(request, instance):  # pylint: disable=unused-argument
-    return await asyncio.shield(deactivate_instance_1(instance))
+    await asyncio.shield(deactivate_instance_1(instance))
+    return web.Response()
+
+
+@routes.post('/instances/{instance_name}/kill')
+@check_csrf_token
+@web_authenticated_developers_only()
+async def kill_instance(request, userdata):  # pylint: disable=unused-argument
+    instance_name = request.match_info['instance_name']
+
+    inst_coll_manager: InstanceCollectionManager = request.app['driver'].inst_coll_manager
+    instance = inst_coll_manager.get_instance(instance_name)
+
+    if instance is None:
+        return web.HTTPNotFound()
+
+    session = await aiohttp_session.get_session(request)
+    if instance.state == 'active':
+        await asyncio.shield(instance.kill())
+        set_message(session, f'Killed instance {instance_name}', 'info')
+    else:
+        set_message(session, 'Cannot kill a non-active instance', 'error')
+
+    pool_name = instance.inst_coll.name
+    pool_url_path = f'/inst_coll/pool/{pool_name}'
+    return web.HTTPFound(deploy_config.external_url('batch-driver', pool_url_path))
 
 
 async def job_complete_1(request, instance):

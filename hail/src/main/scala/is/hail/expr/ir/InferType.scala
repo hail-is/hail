@@ -1,6 +1,9 @@
 package is.hail.expr.ir
 
 import is.hail.expr.Nat
+import is.hail.types.physical.{PCanonicalBinary, PCanonicalBinaryRequired}
+import is.hail.types.physical.stypes.EmitType
+import is.hail.types.physical.stypes.concrete.{SBinaryPointer, SStackStruct}
 import is.hail.types.virtual._
 import is.hail.utils._
 
@@ -31,6 +34,9 @@ object InferType {
       case MakeStream(_, t, _) => t
       case MakeNDArray(data, shape, _, _) =>
         TNDArray(coerce[TIterable](data.typ).elementType, Nat(shape.typ.asInstanceOf[TTuple].size))
+      case StreamBufferedAggregate(_, _, newKey, _, _, aggSignatures) =>
+        val tupleFieldTypes = TTuple(aggSignatures.map(_ => TBinary):_*)
+        TStream(newKey.typ.asInstanceOf[TStruct].insertFields(IndexedSeq(("agg", tupleFieldTypes))))
       case _: ArrayLen => TInt32
       case _: StreamIota => TStream(TInt32)
       case _: StreamRange => TStream(TInt32)

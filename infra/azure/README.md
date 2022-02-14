@@ -19,18 +19,46 @@ Every resource in Azure must belong to a Resource Group. First, obtain
 a resource group and make sure you have Owner permissions for that
 resource group.
 
-Create a `global.tfvars` file with the necessary variables
-from $HAIL/infra/azure/variables.tf.
-
-To setup and run the terraform, run
+You will also need a storage account and container for remotely storing
+terraform state. The following command creates these and stores their names in
+`remote_storage.tfvars`:
 
 ```
-./bootstrap.sh run_terraform <RESOURCE_GROUP>
+./bootstrap.sh create_terraform_remote_storage <RESOURCE_GROUP>
 ```
 
-Once terraform has completed successfully, note the `gateway_ip` in the
-output and create an A record for the domain of your choosing for that
-IP with a DNS provider.
+Initialize terraform:
+
+```
+./bootstrap.sh init_terraform <RESOURCE_GROUP>
+```
+
+Create a `global.tfvars` file with the necessary variables from
+$HAIL/infra/azure/variables.tf.
+
+Run terraform:
+
+```
+terraform apply -var-file=global.tfvars
+```
+
+Once terraform has completed successfully, you must create an A record for the
+domain of your choosing pointing at the `gateway_ip` with a DNS provider. The
+`gateway_ip` may be retrieved by executing the following command.
+
+```
+terraform output -raw gateway_ip
+```
+
+There is one resource which, unfortunately, cannot be configured directly with
+Terraform. The service principal used by the `auth` service needs "admin
+consent" to create new service accounts for new users. After you first run
+terraform and whenever you recreate the auth service principal, you must grant
+this new service principal admin consent:
+
+```
+./bootstrap.sh grant_auth_sp_admin_consent
+```
 
 ## Bootstrap the cluster
 
@@ -79,14 +107,13 @@ Deploy unmanaged resources by running
 Build the batch worker image by running the following in $HAIL/batch:
 
 ```
-./az-create-worker-image.sh <RESOURCE_GROUP> <REGION> <YOUR_USERNAME>
+./az-create-worker-image.sh
 ```
 
 Finally, run the following to deploy Hail in the cluster.
 
 ```
 download-secret global-config && sudo cp -r contents /global-config
-download-secret zulip-config && sudo cp -r contents /zulip-config
 download-secret database-server-config && sudo cp -r contents /sql-config
 cd ~/hail/infra/azure
 ./bootstrap.sh bootstrap <REPO>/hail:<BRANCH> deploy_batch
