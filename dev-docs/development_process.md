@@ -35,7 +35,7 @@ make install-dev-deps
 
 to install the python dependencies.
 
-To install the python dependencies for Docker run
+If you are doing Batch or services development, run the following command to install relevant python dependencies
 
 ```
 pip install -r docker/requirements.txt
