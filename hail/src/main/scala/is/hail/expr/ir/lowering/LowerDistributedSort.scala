@@ -122,7 +122,7 @@ object LowerDistributedSort {
     }{ case (part, globals) => MakeTuple.ordered(Seq(part, globals))}).asInstanceOf[Row]
     val (initialPartInfo, initialGlobals) = (initialStageDataRow(0).asInstanceOf[IndexedSeq[Row]], initialStageDataRow(1).asInstanceOf[Row])
     val initialGlobalsLiteral = Literal(inputStage.globalType, initialGlobals)
-    val initialChunks = initialPartInfo.map(row => Chunk(initialTmpPath + row(0).asInstanceOf[String], row(1).asInstanceOf[Long].toInt))
+    val initialChunks = initialPartInfo.map(row => Chunk(initialTmpPath + row(0).asInstanceOf[String], row(1).asInstanceOf[Long].toInt, None))
     val initialSegment = SegmentResult(IndexedSeq(0), inputStage.partitioner.range.get, initialChunks)
 
     val totalNumberOfRows = initialChunks.map(_.size).sum
@@ -263,19 +263,28 @@ object LowerDistributedSort {
 
         val dataPerSegment = transposedIntoNewSegments.zipWithIndex.map { case ((chunksWithSameInterval, priorIndices), newIndex) =>
           val interval = chunksWithSameInterval.head._1
-          val chunks = chunksWithSameInterval.map{ case (_, filename, numRows, numBytes) => Chunk(filename, numRows)}
+          val chunks = chunksWithSameInterval.map{ case (_, filename, numRows, numBytes) => Chunk(filename, numRows, Some(numBytes))}
           val newSegmentIndices = priorIndices :+ newIndex
           SegmentResult(newSegmentIndices, interval, chunks)
         }
 
-        // Now I need to figure out how many partitions to allocate to each segment.
+        // Decide whether a segment is small enough to be removed from consideration.
         dataPerSegment.partition { sr =>
-          sr.chunks.map(_.size).sum > sizeCutoff && (sr.interval.left.point != sr.interval.right.point)
+          val isBig = if (sr.chunks.forall(_.byteSize.isDefined)) {
+            sr.chunks.map(_.byteSize.get).sum > sizeCutoff
+          } else {
+            true
+          }
+          // Need to call it "small" if it can't be further subdivided.
+          isBig && (sr.interval.left.point != sr.interval.right.point) && (sr.chunks.map(_.size).sum > 1)
         }
       } else { (IndexedSeq.empty[SegmentResult], IndexedSeq.empty[SegmentResult]) }
       loopState = LoopState(newBigUnsortedSegments, loopState.largeSortedSegments ++ sortedSegments, loopState.smallSegments ++ newSmallSegments)
-
       i = i + 1
+
+      if (i > 100) {
+        println("Check in")
+      }
     }
 
     val needSortingFilenames = loopState.smallSegments.map(_.chunks.map(_.filename))
@@ -295,7 +304,10 @@ object LowerDistributedSort {
 
     val sortedFilenames = CompileAndEvaluate[Annotation](ctx, sortedFilenamesIR).asInstanceOf[IndexedSeq[Row]].map(_(0).asInstanceOf[String])
     val newlySortedSegments = loopState.smallSegments.zip(sortedFilenames).map { case (sr, newFilename) =>
-      SegmentResult(sr.indices, sr.interval, IndexedSeq(Chunk(initialTmpPath + newFilename, sr.chunks.foldLeft(0)((size, chunk) => size + chunk.size))))
+      // "Small" segments are small because we decided they had a small enough number of bytes, so it must be present.
+      val totalNumRows = sr.chunks.map(_.size).sum
+      val totalByteSize = sr.chunks.map(_.byteSize.get).sum
+      SegmentResult(sr.indices, sr.interval, IndexedSeq(Chunk(initialTmpPath + newFilename, totalNumRows, Some(totalByteSize))))
     }
 
     val unorderedSegments = newlySortedSegments ++ loopState.largeSortedSegments
@@ -479,6 +491,6 @@ object LowerDistributedSort {
 
 }
 
-case class Chunk(filename: String, size: Int)
+case class Chunk(filename: String, size: Int, byteSize: Option[Long])
 case class SegmentResult(indices: IndexedSeq[Int], interval: Interval, chunks: IndexedSeq[Chunk])
 case class LoopState(largeUnsortedSegments: IndexedSeq[SegmentResult], largeSortedSegments: IndexedSeq[SegmentResult], smallSegments: IndexedSeq[SegmentResult])
