@@ -172,30 +172,18 @@ class GGPlot:
         fig = go.Figure()
 
         for geom, (geom_label, agg_result) in zip(self.geoms, aggregated.items()):
-            df_agg_result = labels_to_stats[geom_label].listify(agg_result)
+            grouped_dfs = labels_to_stats[geom_label].listify(agg_result)
 
-            if not df_agg_result.empty:
-                relevant_aesthetics = [scale_name for scale_name in df_agg_result.columns if scale_name in self.scales]
+            total_groups = len(grouped_dfs)
+            scaled_grouped_dfs = {}
+            for group_fields, df in grouped_dfs.items():
+                relevant_aesthetics = [scale_name for scale_name in df.columns if scale_name in self.scales]
+                scaled_df = df
                 for relevant_aesthetic in relevant_aesthetics:
-                    df_agg_result = self.scales[relevant_aesthetic].transform_data_local(df_agg_result, self)
-                # Need to identify every possible combination of discrete scale values.
-                grouping_aesthetics = [scale_name for scale_name in relevant_aesthetics if should_use_scale_for_grouping(self.scales[scale_name]) and scale_name != "x"]
-                if 'fill_legend' in df_agg_result.columns:
-                    grouping_aesthetics.append('fill_legend')
-                if 'color_legend' in df_agg_result.columns:
-                    grouping_aesthetics.append('color_legend')
-                subsetted_to_discrete = df_agg_result[grouping_aesthetics]
+                    scaled_df = self.scales[relevant_aesthetic].transform_data_local(scaled_df, self)
+                scaled_grouped_dfs[group_fields] = scaled_df
 
-                group_counter = 0
-
-                def increment_and_return_old():
-                    nonlocal group_counter
-                    group_counter += 1
-                    return group_counter - 1
-                numberer = defaultdict(increment_and_return_old)
-                df_agg_result["group"] = [numberer[tuple(x)] for _, x in subsetted_to_discrete.iterrows()]
-
-            geom.apply_to_fig(self, df_agg_result, fig, precomputed[geom_label], group_counter)
+            geom.apply_to_fig(self, scaled_grouped_dfs, fig, precomputed[geom_label], total_groups)
 
         # Important to update axes after labels, axes names take precedence.
         self.labels.apply_to_fig(fig)

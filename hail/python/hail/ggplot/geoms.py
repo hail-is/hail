@@ -71,11 +71,11 @@ class GeomLineBasic(Geom):
 class GeomPoint(Geom):
 
     aes_to_arg = {
-        "color": ("marker_color", "black", False),
-        "size": ("marker_size", None, False),
-        "tooltip": ("hovertext", None, False),
-        "color_legend": ("name", None, True),
-        "alpha": ("marker_opacity", None, False)
+        "color": ("marker_color", "black"),
+        "size": ("marker_size", None),
+        "tooltip": ("hovertext", None),
+        "color_legend": ("name", None),
+        "alpha": ("marker_opacity", None)
     }
 
     def __init__(self, aes, color=None, size=None, alpha=None):
@@ -84,31 +84,28 @@ class GeomPoint(Geom):
         self.size = size
         self.alpha = alpha
 
-    def apply_to_fig(self, parent, agg_result, fig_so_far, precomputed, num_groups):
-        def plot_group(df):
+    def apply_to_fig(self, parent, grouped_data, fig_so_far, precomputed, num_groups):
+        def plot_group(group_constants, df):
             scatter_args = {
                 "x": df.x,
                 "y": df.y,
                 "mode": "markers",
             }
 
-            for aes_name, (plotly_name, default, take_one) in self.aes_to_arg.items():
+            for aes_name, (plotly_name, default) in self.aes_to_arg.items():
                 if hasattr(self, aes_name) and getattr(self, aes_name) is not None:
                     scatter_args[plotly_name] = getattr(self, aes_name)
+                elif aes_name in group_constants:
+                    scatter_args[plotly_name] = group_constants[aes_name]
                 elif aes_name in df.columns:
-                    if take_one:
-                        scatter_args[plotly_name] = df[aes_name].iloc[0]
-                    else:
-                        scatter_args[plotly_name] = df[aes_name]
+                    scatter_args[plotly_name] = df[aes_name]
                 elif default is not None:
                     scatter_args[plotly_name] = default
 
             fig_so_far.add_scatter(**scatter_args)
 
-        for group in range(num_groups):
-            rows_for_this_group = agg_result["group"] == group
-            just_one_group = agg_result[rows_for_this_group]
-            plot_group(just_one_group)
+        for group_constants, group_df in grouped_data.items():
+            plot_group(group_constants, group_df)
 
     def get_stat(self):
         return StatIdentity()

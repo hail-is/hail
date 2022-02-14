@@ -29,17 +29,23 @@ class StatIdentity(Stat):
     def make_agg(self, mapping, precomputed):
         grouping_variables = {aes_key: mapping[aes_key] for aes_key in mapping.keys()
                               if should_use_for_grouping(aes_key, mapping[aes_key].dtype)}
-        return hl.agg.group_by(hl.struct(**grouping_variables), hl.agg.collect(mapping))
+        non_grouping_variables = {aes_key: mapping[aes_key] for aes_key in mapping.keys() if not aes_key in grouping_variables}
+        return hl.agg.group_by(hl.struct(**grouping_variables), hl.agg.collect(hl.struct(**non_grouping_variables)))
 
     def listify(self, agg_result):
-        columns = list(agg_result[0].keys())
-        data_dict = {}
+        # agg result is a dict of struct to collected list.
+        result = {}
+        for grouped_struct, collected in agg_result.items():
+            columns = list(collected[0].keys())
+            data_dict = {}
 
-        for column in columns:
-            col_data = [row[column] for row in agg_result]
-            data_dict[column] = pd.Series(col_data)
+            for column in columns:
+                col_data = [row[column] for row in collected]
+                data_dict[column] = pd.Series(col_data)
 
-        return pd.DataFrame(data_dict)
+            result[grouped_struct] = pd.DataFrame(data_dict)
+        import pdb; pdb.set_trace()
+        return result
 
 
 class StatFunction(StatIdentity):
