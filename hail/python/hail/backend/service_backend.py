@@ -283,11 +283,11 @@ class ServiceBackend(Backend):
                                     failed_jobs.append({
                                         'partial_status': j,
                                         'status': full_status,
-                                        'log': main_log.strip(),
+                                        'log': yaml_literally_shown_str(main_log.strip()),
                                     })
                             message = {
                                 'id': b.id,
-                                'stacktrace': jstacktrace.strip(),
+                                'stacktrace': yaml_literally_shown_str(jstacktrace.strip()),
                                 'cause': {'id': batch_id, 'batch_status': b2_status, 'failed_jobs': failed_jobs}}
                             log.error(yaml.dump(message))
                             raise ValueError(orjson.dumps(message).decode('utf-8'))
