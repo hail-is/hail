@@ -584,6 +584,21 @@ class ServiceBackendSocketAPI2(
             writeString(formatException(t))
         }
 
+      case MATRIX_TABLE_TYPE =>
+        val tmpdir = readString()
+        val billingProject = readString()
+        val remoteTmpDir = readString()
+        val s = readString()
+        try {
+          val result = backend.matrixTableType(tmpdir, sessionId, billingProject, remoteTmpDir, s)
+          writeBool(true)
+          writeString(result)
+        } catch {
+          case t: Throwable =>
+            writeBool(false)
+            writeString(formatException(t))
+        }
+
       case BLOCK_MATRIX_TYPE =>
         val tmpdir = readString()
         val billingProject = readString()
