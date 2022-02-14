@@ -12,4 +12,3 @@ class HailClassLoader(parent: ClassLoader) extends ClassLoader(parent) {
     }
   }
 }
-
