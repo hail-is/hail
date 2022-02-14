@@ -56,7 +56,7 @@ create_worker_image() {
 main() {
     set -x
     create_build_image_instance
-    while [ "$(gcloud compute instances describe ${BUILDER} --project ${PROJECT} --zone ${ZONE} --format='value(status)')" != "TERMINATED" ];
+    while [ "$(gcloud compute instances describe ${BUILDER} --project ${PROJECT} --zone ${ZONE} --format='value(status)')" == "RUNNING" ];
     do
         sleep 5
     done
