@@ -13,9 +13,9 @@ render_config_mk() {
     IP=$(get_global_config_field ip)
     DOMAIN=$(get_global_config_field domain)
     CLOUD=$(get_global_config_field cloud)
-    PROJECT=$(get_global_config_field project)
-    REGION=$(get_global_config_field region)
-    ZONE=$(get_global_config_field zone)
+    PROJECT=$(get_global_config_field gcp_project)
+    REGION=$(get_global_config_field gcp_region)
+    ZONE=$(get_global_config_field gcp_zone)
     cat >$HAIL/config.mk <<EOF
 DOCKER_PREFIX := $DOCKER_PREFIX
 INTERNAL_IP := $INTERNAL_IP

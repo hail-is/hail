@@ -2,13 +2,7 @@ ci
 notebook
 batch
 batch-driver
-benchmark
-blog
 monitoring
 auth
-ukbb-rg
 query
-workshop
-grafana
 prometheus
-hello
