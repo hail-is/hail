@@ -306,13 +306,10 @@ class ServiceBackend(Backend):
             await write_str(infile, token)
         _, resp, timings = await self._rpc('execute(...)', inputs)
         typ = dtype(resp['type'])
-        if typ == tvoid:
-            ret = None
-        else:
-            ret = typ._convert_from_json_na(resp['value'])
+        converted_value = typ._convert_from_json_na(resp['value'])
         if timed:
-            return ret, timings
-        return ret
+            return converted_value, timings
+        return converted_value
 
     def execute_many(self, *irs, timed=False):
         return async_to_blocking(self._async_execute_many(*irs, timed=timed))
