@@ -22,8 +22,14 @@ class Stat:
 
 
 class StatIdentity(Stat):
+
+    def __init__(self, downsample=False):
+        self.downsample = downsample
+
     def make_agg(self, mapping, precomputed):
-        return hl.agg.collect(mapping)
+        grouping_variables = {aes_key: mapping[aes_key] for aes_key in mapping.keys()
+                              if should_use_for_grouping(aes_key, mapping[aes_key].dtype)}
+        return hl.agg.group_by(hl.struct(**grouping_variables), hl.agg.collect(mapping))
 
     def listify(self, agg_result):
         columns = list(agg_result[0].keys())
