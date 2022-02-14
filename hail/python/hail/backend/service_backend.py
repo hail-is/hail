@@ -11,7 +11,7 @@ from pathlib import Path
 
 from hail.context import TemporaryDirectory, tmp_dir
 from hail.utils import FatalError
-from hail.expr.types import dtype, tvoid
+from hail.expr.types import dtype
 from hail.expr.table_type import ttable
 from hail.expr.matrix_type import tmatrix
 from hail.expr.blockmatrix_type import tblockmatrix
