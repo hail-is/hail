@@ -8,6 +8,7 @@ import asyncio
 import concurrent.futures
 import aiohttp
 import gidgethub
+import zulip
 import random
 import os
 import prometheus_client as pc  # type: ignore
