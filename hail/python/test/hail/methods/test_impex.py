@@ -2067,13 +2067,14 @@ Caused by: java.lang.ClassCastException: __C2829collect_distributed_array cannot
             'struct{A:int64, B:int32}')
 
     def test_import_export_identity(self):
+        fs = hl.current_backend().fs
         ht = hl.import_table(resource('sampleAnnotations.tsv'))
         f = new_temp_file()
         ht.export(f)
 
-        with open(resource('sampleAnnotations.tsv'), 'r') as i1:
+        with fs.open(resource('sampleAnnotations.tsv'), 'r') as i1:
             expected = list(line.strip() for line in i1)
-        with open(uri_path(f), 'r') as i2:
+        with fs.open(uri_path(f), 'r') as i2:
             observed = list(line.strip() for line in i2)
 
         assert expected == observed
