@@ -35,5 +35,5 @@ AUTHORIZED_USERS = [
     User('daniel-goldstein', 'dgoldste', [SERVICES_TEAM]),
     User('ammekk', 'ammekk'),
     User('vrautela', 'vrautela', [SERVICES_TEAM]),
-    User('dependabot'),
+    User('dependabot[bot]'),
 ]
