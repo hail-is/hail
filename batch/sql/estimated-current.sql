@@ -1217,17 +1217,22 @@ BEGIN
 
     UPDATE batches_n_jobs_in_complete_states
       SET n_completed = n_completed + 1
+      SET n_cancelled = n_cancelled + (new_state = 'Cancelled')
+      SET n_failed    = n_failed + (new_state = 'Error' OR new_state = 'Failed')
+      SET n_succeeded = n_succeeded + (new_state != 'Cancelled' AND new_state != 'Error' AND new_state != 'Failed')
       WHERE id = in_batch_id;
+
     SELECT n_completed INTO new_n_completed
     FROM batches_n_jobs_in_complete_states
     WHERE id = in_batch_id;
 
-    IF new_state = 'Cancelled' THEN
-      UPDATE batches_n_jobs_in_complete_states SET n_cancelled = n_cancelled + 1 WHERE id = in_batch_id;
-    ELSEIF new_state = 'Error' OR new_state = 'Failed' THEN
-      UPDATE batches_n_jobs_in_complete_states SET n_failed = n_failed + 1 WHERE id = in_batch_id;
-    ELSE
-      UPDATE batches_n_jobs_in_complete_states SET n_succeeded = n_succeeded + 1 WHERE id = in_batch_id;
+    # Grabbing an exclusive lock on batches here could deadlock,
+    # but this IF should only execute for the last job
+    IF new_n_completed = total_jobs_in_batch THEN
+      UPDATE batches
+      SET time_completed = new_timestamp,
+          `state` = 'complete'
+      WHERE id = in_batch_id;
     END IF;
 
     UPDATE jobs
@@ -1244,8 +1249,6 @@ BEGIN
     COMMIT;
     SELECT 0 as rc,
       cur_job_state as old_state,
-      total_jobs_in_batch,
-      new_n_completed,
       delta_cores_mcpu;
   ELSEIF cur_job_state = 'Cancelled' OR cur_job_state = 'Error' OR
          cur_job_state = 'Failed' OR cur_job_state = 'Success' THEN
