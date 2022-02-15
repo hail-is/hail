@@ -98,8 +98,7 @@ class InstanceCollectionManager:
 
     async def get_token_from_instance_name(self, name):
         record: Dict[str, Any] = await self.db.select_and_fetchone(
-            'SELECT token FROM instances WHERE name = %s',
-            (name),
+            'SELECT token FROM instances WHERE name = %s', (name), 'active_instances_only'
         )
 
         assert record
