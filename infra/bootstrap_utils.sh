@@ -9,6 +9,7 @@ source $HAIL/devbin/functions.sh
 
 render_config_mk() {
     DOCKER_PREFIX=$(get_global_config_field docker_prefix)
+    DOCKER_ROOT_IMAGE=$(get_global_config_field docker_root_image)
     INTERNAL_IP=$(get_global_config_field internal_ip)
     IP=$(get_global_config_field ip)
     DOMAIN=$(get_global_config_field domain)
@@ -18,6 +19,7 @@ render_config_mk() {
     ZONE=$(get_global_config_field gcp_zone)
     cat >$HAIL/config.mk <<EOF
 DOCKER_PREFIX := $DOCKER_PREFIX
+DOCKER_ROOT_IMAGE := $DOCKER_ROOT_IMAGE
 INTERNAL_IP := $INTERNAL_IP
 IP := $IP
 DOMAIN := $DOMAIN
