@@ -180,22 +180,6 @@ class Transaction:
         # await shield becuase we want to wait for commit/rollback to finish
         await asyncio.shield(self._aexit_1(exc_type))
 
-    async def commit(self):
-        assert self.conn
-        self.conn.commit()
-        self.conn = None
-
-        await aexit(self.conn_context_manager)
-        self.conn_context_manager = None
-
-    async def rollback(self):
-        assert self.conn
-        self.conn.rollback()
-        self.conn = None
-
-        await aexit(self.conn_context_manager)
-        self.conn_context_manager = None
-
     async def just_execute(self, sql, args=None):
         assert self.conn
         async with self.conn.cursor() as cursor:
