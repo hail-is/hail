@@ -149,14 +149,10 @@ def active_instances_only(fun):
             log.info(f'token not found for instance {instance.name}')
             raise web.HTTPUnauthorized()
 
-        db: Database = request.app['db']
-        record = await db.select_and_fetchone(
-            'SELECT state FROM instances WHERE name = %s AND token = %s;',
-            (instance.name, token),
-            'active_instances_only',
-        )
-        if not record:
-            log.info(f'instance {instance.name}, token not found in database')
+        inst_coll_manager: InstanceCollectionManager = request.app['driver'].inst_coll_manager
+        retrieved_token: str = await inst_coll_manager.name_token_cache.lookup(instance.name)
+        if token != retrieved_token:
+            log.info('authorization token does not match')
             raise web.HTTPUnauthorized()
 
         await instance.mark_healthy()
