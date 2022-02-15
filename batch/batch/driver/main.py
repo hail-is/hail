@@ -9,7 +9,8 @@ import signal
 import dictdiffer
 from aiohttp import web
 import aiohttp_session
-import kubernetes_asyncio as kube
+import kubernetes_asyncio.config
+import kubernetes_asyncio.client
 from prometheus_async.aio.web import server_stats
 import prometheus_client as pc  # type: ignore
 from gear import (
@@ -1138,8 +1139,8 @@ async def on_startup(app):
 
     app['client_session'] = httpx.client_session()
 
-    kube.config.load_incluster_config()
-    app['k8s_client'] = kube.client.CoreV1Api()
+    kubernetes_asyncio.config.load_incluster_config()
+    app['k8s_client'] = kubernetes_asyncio.client.CoreV1Api()
     app['k8s_cache'] = K8sCache(app['k8s_client'])
 
     db = Database()
@@ -1226,7 +1227,7 @@ async def on_cleanup(app):
                                 app['async_worker_pool'].shutdown()
                             finally:
                                 try:
-                                    k8s_client: kube.client.CoreV1Api = app['k8s_client']
+                                    k8s_client: kubernetes_asyncio.client.CoreV1Api = app['k8s_client']
                                     await k8s_client.api_client.rest_client.pool_manager.close()
                                 finally:
                                     await asyncio.gather(

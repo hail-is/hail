@@ -6,7 +6,8 @@ import base64
 import asyncio
 import argparse
 
-import kubernetes_asyncio as kube
+import kubernetes_asyncio.client
+import kubernetes_asyncio.config
 
 from hailtop.utils import check_shell_output
 
@@ -173,7 +174,7 @@ class LocalBatchBuilder:
                 # Note, that is in the kubenetes-client repo, the
                 # kubernetes_asyncio.  I'm assuming it has the same
                 # issue.
-                k8s_client = kube.client.CoreV1Api()
+                k8s_client = kubernetes_asyncio.client.CoreV1Api()
                 try:
                     k8s_cache = K8sCache(k8s_client)
 
@@ -343,7 +344,7 @@ git checkout {shq(self._sha)}
 
 
 async def main():
-    await kube.config.load_kube_config()
+    await kubernetes_asyncio.config.load_kube_config()
 
     parser = argparse.ArgumentParser(description='Bootstrap a Hail as a service installation.')
 
