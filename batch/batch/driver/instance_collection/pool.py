@@ -310,6 +310,7 @@ GROUP BY user
 HAVING n_ready_jobs + n_running_jobs > 0;
 ''',
             (self.pool.name,),
+            "compute_fair_share",
         )
 
         async for record in records:
@@ -386,13 +387,14 @@ HAVING n_ready_jobs + n_running_jobs > 0;
         async def user_runnable_jobs(user, remaining):
             async for batch in self.db.select_and_fetchall(
                 '''
-SELECT batches.id,  batches_cancelled.id IS NOT NULL AS cancelled, userdata, user, format_version
+SELECT batches.id, batches_cancelled.id IS NOT NULL AS cancelled, userdata, user, format_version
 FROM batches
 LEFT JOIN batches_cancelled
        ON batches.id = batches_cancelled.id
 WHERE user = %s AND `state` = 'running';
 ''',
                 (user,),
+                "user_runnable_jobs__select_running_batches",
             ):
                 async for record in self.db.select_and_fetchall(
                     '''
@@ -402,6 +404,7 @@ WHERE batch_id = %s AND state = 'Ready' AND always_run = 1 AND inst_coll = %s
 LIMIT %s;
 ''',
                     (batch['id'], self.pool.name, remaining.value),
+                    "user_runnable_jobs__select_ready_always_run_jobs",
                 ):
                     record['batch_id'] = batch['id']
                     record['userdata'] = batch['userdata']
@@ -417,6 +420,7 @@ WHERE batch_id = %s AND state = 'Ready' AND always_run = 0 AND inst_coll = %s AN
 LIMIT %s;
 ''',
                         (batch['id'], self.pool.name, remaining.value),
+                        "user_runnable_jobs__select_ready_jobs_batch_not_cancelled",
                     ):
                         record['batch_id'] = batch['id']
                         record['userdata'] = batch['userdata']
