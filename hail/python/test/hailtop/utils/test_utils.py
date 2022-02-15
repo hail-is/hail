@@ -7,7 +7,6 @@ from hailtop.utils.utils import digits_needed
 
 >>>>>>> c9f760ac2 (rebase updates)
 
-
 def test_partition_zero_empty():
     assert list(partition(0, [])) == []
 
@@ -205,4 +204,3 @@ def test_digits_needed():
     assert digits_needed(100) == 3
     assert digits_needed(3000) == 4
     assert digits_needed(50000) == 5
-
