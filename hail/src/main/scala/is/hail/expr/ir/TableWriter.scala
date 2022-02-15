@@ -526,7 +526,11 @@ case class TableTextFinalizer(outputPath: String, rowType: TStruct, delimiter: S
         }
 
         cb += cb.emb.getFS.invoke[Array[String], String, Unit]("concatenateFiles", jFiles, const(outputPath))
-        // can I rely on context managers to clean up?
+
+        val i = cb.newLocal[Int]("i")
+        cb.forLoop(cb.assign(i, 0), i.lt(jFiles.length), cb.assign(i, i + 1), {
+          cb += cb.emb.getFS.invoke[String, Boolean, Unit]("delete", jFiles(i), const(false))
+        })
 
       case ExportType.PARALLEL_HEADER_IN_SHARD =>
         cb += cb.emb.getFS.invoke[String, Unit]("touch", const(outputPath).concat("/_SUCCESS"))
