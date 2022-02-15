@@ -2016,12 +2016,13 @@ class ImportLinesTest(unittest.TestCase):
 
 class ImportTableTests(unittest.TestCase):
     def test_import_table_force_bgz(self):
+        fs = hl.current_backend().fs
         f = new_temp_file(extension="bgz")
         t = hl.utils.range_table(10, 5)
         t.export(f)
 
         f2 = new_temp_file(extension="gz")
-        run_command(["cp", uri_path(f), uri_path(f2)])
+        fs.copy(f, f2)
         t2 = hl.import_table(f2, force_bgz=True, impute=True).key_by('idx')
         self.assertTrue(t._same(t2))
 
