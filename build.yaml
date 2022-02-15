@@ -842,6 +842,7 @@ steps:
     dependsOn:
       - hail_build_image
       - merge_code
+  - kind: runImage
     name: compile_batch_worker_jvm_entryway
     image:
       valueFrom: base_image.image
