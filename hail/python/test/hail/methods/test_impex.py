@@ -1640,7 +1640,7 @@ class LocusIntervalTests(unittest.TestCase):
         nint = t.count()
 
         i = 0
-        with open(interval_file) as f:
+        with hl.current_backend().fs.open(interval_file) as f:
             for line in f:
                 if len(line.strip()) != 0:
                     i += 1
