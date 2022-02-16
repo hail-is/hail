@@ -171,8 +171,21 @@ class GGPlot:
 
         fig = go.Figure()
 
-        for geom, (geom_label, agg_result) in zip(self.geoms, aggregated.items()):
-            grouped_dfs = labels_to_stats[geom_label].listify(agg_result)
+        geoms_and_grouped_dfs = [(geom, geom_label, labels_to_stats[geom_label].listify(agg_result)) for geom, (geom_label, agg_result) in zip(self.geoms, aggregated.items())]
+
+        # Problem: Need to get full range of local values to scale them properly. Also need to get full range of continuous
+        # values to scale them properly.
+
+        discrete_aesthetics_to_possible_values = defaultdict(lambda: set())
+        # Discrete scales only first:
+        for _, _, grouped_dfs in geoms_and_grouped_dfs:
+            distinct_structs = grouped_dfs.keys()
+            # Now want to identify full space of discrete variables in here.
+            for struct in distinct_structs:
+                for aesthetic_name, value in struct.items():
+                    discrete_aesthetics_to_possible_values[aesthetic_name].add(value)
+
+        for geom, geom_label, grouped_dfs in geoms_and_grouped_dfs:
 
             total_groups = len(grouped_dfs)
             scaled_grouped_dfs = {}
