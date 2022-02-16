@@ -30,8 +30,9 @@ from .environment import STORAGE_URI
 from .github import Repo, FQBranch, WatchedBranch, UnwatchedBranch, MergeFailureBatch, PR, select_random_teammate, WIP
 from .constants import AUTHORIZED_USERS, TEAMS
 
-if os.environ.get('HAIL_CI_OAUTH_TOKEN') or os.path.exists('oauth-token/oauth-token'):
-    with open(os.environ.get('HAIL_CI_OAUTH_TOKEN', 'oauth-token/oauth-token'), 'r') as f:
+oauth_path = os.environ.get('HAIL_CI_OAUTH_TOKEN', 'oauth-token/oauth-token')
+if os.path.exists(oauth_path):
+    with open(oauth_path, 'r') as f:
         oauth_token = f.read().strip()
 else:
     oauth_token = None
