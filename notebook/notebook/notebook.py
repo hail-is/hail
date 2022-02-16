@@ -8,7 +8,6 @@ import aiohttp
 from aiohttp import web
 import aiohttp_session
 import aiohttp_session.cookie_storage
-from kubernetes_asyncio import client, config
 import kubernetes_asyncio.config
 import kubernetes_asyncio.client
 import kubernetes_asyncio.client.rest
@@ -731,10 +730,10 @@ async def workshop_get_error(request, userdata):
 
 async def on_startup(app):
     if 'BATCH_USE_KUBE_CONFIG' in os.environ:
-        await config.load_kube_config()
+        await kubernetes_asyncio.config.load_kube_config()
     else:
-        config.load_incluster_config()
-    app['k8s_client'] = client.CoreV1Api()
+        kubernetes_asyncio.config.load_incluster_config()
+    app['k8s_client'] = kubernetes_asyncio.client.CoreV1Api()
 
     app['dbpool'] = await create_database_pool()
 
