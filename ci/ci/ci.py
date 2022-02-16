@@ -250,59 +250,6 @@ async def get_job(request, userdata):
     return await render_template('ci', request, userdata, 'job.html', page_context)
 
 
-@routes.post('/api/v1alpha/dev_deploy_branch')
-@rest_authenticated_developers_only
-async def dev_deploy_branch(request, userdata):
-    app = request.app
-    try:
-        params = await request.json()
-    except asyncio.CancelledError:
-        raise
-    except Exception as e:
-        message = 'could not read body as JSON'
-        log.info('dev deploy failed: ' + message, exc_info=True)
-        raise web.HTTPBadRequest(text=message) from e
-
-    try:
-        branch = FQBranch.from_short_str(params['branch'])
-        steps = params['steps']
-        excluded_steps = params['excluded_steps']
-        extra_config = params.get('extra_config', {})
-    except asyncio.CancelledError:
-        raise
-    except Exception as e:
-        message = f'parameters are wrong; check the branch and steps syntax.\n\n{params}'
-        log.info('dev deploy failed: ' + message, exc_info=True)
-        raise web.HTTPBadRequest(text=message) from e
-
-    gh = app['github_client']
-    request_string = f'/repos/{branch.repo.owner}/{branch.repo.name}/git/refs/heads/{branch.name}'
-
-    try:
-        branch_gh_json = await gh.getitem(request_string)
-        sha = branch_gh_json['object']['sha']
-    except asyncio.CancelledError:
-        raise
-    except Exception as e:
-        message = f'error finding {branch} at GitHub'
-        log.info('dev deploy failed: ' + message, exc_info=True)
-        raise web.HTTPBadRequest(text=message) from e
-
-    unwatched_branch = UnwatchedBranch(branch, sha, userdata, extra_config)
-
-    batch_client = app['batch_client']
-
-    try:
-        batch_id = await unwatched_branch.deploy(batch_client, steps, excluded_steps=excluded_steps)
-    except asyncio.CancelledError:
-        raise
-    except Exception as e:  # pylint: disable=broad-except
-        message = traceback.format_exc()
-        log.info('dev deploy failed: ' + message, exc_info=True)
-        raise web.HTTPBadRequest(text=f'starting the deploy failed due to\n{message}') from e
-    return web.json_response({'sha': sha, 'batch_id': batch_id})
-
-
 def get_maybe_wb_for_batch(b: Batch):
     if 'target_branch' in b.attributes and 'pr' in b.attributes:
         branch = b.attributes['target_branch']
