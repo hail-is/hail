@@ -41,7 +41,6 @@ BEGIN
   DECLARE cur_end_time BIGINT;
   DECLARE delta_cores_mcpu INT DEFAULT 0;
   DECLARE total_jobs_in_batch INT;
-  DECLARE new_n_completed INT DEFAULT 0;
   DECLARE expected_attempt_id VARCHAR(40);
 
   START TRANSACTION;
@@ -97,7 +96,7 @@ BEGIN
 
     # Grabbing an exclusive lock on batches here could deadlock,
     # but this IF should only execute for the last job
-    IF new_n_completed = total_jobs_in_batch THEN
+    IF @new_n_completed = total_jobs_in_batch THEN
       UPDATE batches
       SET time_completed = new_timestamp,
           `state` = 'complete'
