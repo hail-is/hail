@@ -303,55 +303,6 @@ async def dev_deploy_branch(request, userdata):
     return web.json_response({'sha': sha, 'batch_id': batch_id})
 
 
-# This is CPG-specific, as the Hail team redeploys by watching the main branch.
-@routes.post('/api/v1alpha/prod_deploy')
-@rest_authenticated_users_only
-async def prod_deploy(request, userdata):
-    """Deploys the main branch to the production namespace ("default")."""
-    # Only allow access by "ci" or dev accounts.
-    if not (userdata['username'] == 'ci' or userdata['is_developer'] == 1):
-        raise web.HTTPUnauthorized()
-    app = request.app
-    try:
-        params = await request.json()
-    except Exception as e:
-        message = 'could not read body as JSON'
-        log.info('prod deploy failed: ' + message, exc_info=True)
-        raise web.HTTPBadRequest(text=message) from e
-
-    try:
-        steps = params['steps']
-    except Exception as e:
-        message = f'parameters are wrong; check the steps syntax.\n\n{params}'
-        log.info('prod deploy failed: ' + message, exc_info=True)
-        raise web.HTTPBadRequest(text=message) from e
-
-    if 'sha' not in params:
-        message = f'parameter "sha" is required.\n\n{params}'
-        log.info('prod deploy failed: ' + message, exc_info=True)
-        raise web.HTTPBadRequest(text=message)
-    if params['sha'] == 'HEAD':
-        message = (
-            f'SHA must be a specific commit hash, and can\'t be a HEAD reference. '
-            f'The reason is that HEAD can change in the middle of the deploy.\n\n{params}'
-        )
-        log.info('prod deploy failed: ' + message, exc_info=True)
-        raise web.HTTPBadRequest(text=message)
-
-    watched_branch = WatchedBranch(0, FQBranch.from_short_str('populationgenomics/hail:main'), True)
-    watched_branch.sha = params['sha']
-    await watched_branch._start_deploy(app['batch_client'], steps)
-
-    batch = watched_branch.deploy_batch
-    if not isinstance(batch, MergeFailureBatch):
-        url = deploy_config.external_url('ci', f'/batches/{batch.id}')
-        return web.Response(text=f'{url}\n')
-    else:
-        message = traceback.format_exc()
-        log.info('prod deploy failed: ' + message, exc_info=True)
-        raise web.HTTPBadRequest(text=f'starting prod deploy failed due to\n{message}') from batch.exception
-
-
 def get_maybe_wb_for_batch(b: Batch):
     if 'target_branch' in b.attributes and 'pr' in b.attributes:
         branch = b.attributes['target_branch']
@@ -615,6 +566,55 @@ async def dev_deploy_branch(request, userdata):
         message = traceback.format_exc()
         raise web.HTTPBadRequest(text=f'starting the deploy failed due to\n{message}') from e
     return web.json_response({'sha': sha, 'batch_id': batch_id})
+
+
+# This is CPG-specific, as the Hail team redeploys by watching the main branch.
+@routes.post('/api/v1alpha/prod_deploy')
+@rest_authenticated_users_only
+async def prod_deploy(request, userdata):
+    """Deploys the main branch to the production namespace ("default")."""
+    # Only allow access by "ci" or dev accounts.
+    if not (userdata['username'] == 'ci' or userdata['is_developer'] == 1):
+        raise web.HTTPUnauthorized()
+    app = request.app
+    try:
+        params = await request.json()
+    except Exception as e:
+        message = 'could not read body as JSON'
+        log.info('prod deploy failed: ' + message, exc_info=True)
+        raise web.HTTPBadRequest(text=message) from e
+
+    try:
+        steps = params['steps']
+    except Exception as e:
+        message = f'parameters are wrong; check the steps syntax.\n\n{params}'
+        log.info('prod deploy failed: ' + message, exc_info=True)
+        raise web.HTTPBadRequest(text=message) from e
+
+    if 'sha' not in params:
+        message = f'parameter "sha" is required.\n\n{params}'
+        log.info('prod deploy failed: ' + message, exc_info=True)
+        raise web.HTTPBadRequest(text=message)
+    if params['sha'] == 'HEAD':
+        message = (
+            f'SHA must be a specific commit hash, and can\'t be a HEAD reference. '
+            f'The reason is that HEAD can change in the middle of the deploy.\n\n{params}'
+        )
+        log.info('prod deploy failed: ' + message, exc_info=True)
+        raise web.HTTPBadRequest(text=message)
+
+    watched_branch = WatchedBranch(0, FQBranch.from_short_str('populationgenomics/hail:main'), True)
+    watched_branch.sha = params['sha']
+    await watched_branch._start_deploy(app['batch_client'], steps)
+
+    batch = watched_branch.deploy_batch
+    if not isinstance(batch, MergeFailureBatch):
+        url = deploy_config.external_url('ci', f'/batches/{batch.id}')
+        return web.Response(text=f'{url}\n')
+    else:
+        message = traceback.format_exc()
+        log.info('prod deploy failed: ' + message, exc_info=True)
+        raise web.HTTPBadRequest(text=f'starting prod deploy failed due to\n{message}') from batch.exception
 
 
 @routes.post('/api/v1alpha/batch_callback')
