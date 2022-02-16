@@ -186,7 +186,7 @@ def test_grouped_size_3_groups_7_elements():
 def test_unzip():
     assert unzip([]) == ([], [])
     assert unzip([(0, 'a')]) == ([0], ['a'])
-    assert unzip([(123,'')]) == ([123], [''])
+    assert unzip([(123, '')]) == ([123], [''])
     assert unzip([(123, 'abc')]) == ([123], ['abc'])
     assert unzip([(123, 456), ('abc', 'def')]) == ([123, 'abc'], [456, 'def'])
     assert unzip([(123, 'abc'), (456, 'def'), (789, 'ghi')]) == ([123, 456, 789], ['abc', 'def', 'ghi'])
