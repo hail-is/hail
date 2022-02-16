@@ -1,5 +1,6 @@
 from hailtop.utils import (partition, url_basename, url_join, url_scheme,
                            url_and_params, parse_docker_image_reference)
+from hailtop.utils.utils import unzip
 
 
 def test_partition_zero_empty():
@@ -126,3 +127,13 @@ def test_parse_docker_image_reference():
     assert x.digest is None
     assert x.name() == 'us-docker.pkg.dev/my-project/my-repo/test-image'
     assert str(x) == 'us-docker.pkg.dev/my-project/my-repo/test-image'
+
+
+def test_unzip():
+    assert unzip([]) == ([], [])
+    assert unzip([(0, 'a')]) == ([0], ['a'])
+    assert unzip([(123, 'abc')]) == ([123], ['abc'])
+    assert unzip([(123, 456), ('abc', 'def')]) == ([123, 'abc'], [456, 'def'])
+    assert unzip([(123, 'abc'), (456, 'def'), (789, 'ghi')]) == ([123, 456, 789], ['abc', 'def', 'ghi'])
+    
+    
