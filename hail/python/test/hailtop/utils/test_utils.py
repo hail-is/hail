@@ -131,13 +131,11 @@ def test_parse_docker_image_reference():
 
 def test_grouped_size_0_groups_9_elements():
     try:
-        actual = list(grouped(0, [1,2,3,4,5,6,7,8,9]))
-        expected = [1,2,3,4,5,6,7,8,9]
-        actual == expected
+        list(grouped(0, [1,2,3,4,5,6,7,8,9]))
     except ValueError:
         pass
     else:
-        assert False 
+        assert False
 
 def test_grouped_size_1_groups_9_elements():
     actual = list(grouped(1, [1,2,3,4,5,6,7,8,9]))
