@@ -2075,7 +2075,7 @@ Caused by: java.lang.ClassCastException: __C2829collect_distributed_array cannot
 
         with fs.open(resource('sampleAnnotations.tsv'), 'r') as i1:
             expected = list(line.strip() for line in i1)
-        with fs.open(uri_path(f), 'r') as i2:
+        with fs.open(f, 'r') as i2:
             observed = list(line.strip() for line in i2)
 
         assert expected == observed
