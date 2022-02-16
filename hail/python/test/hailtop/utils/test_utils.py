@@ -1,5 +1,6 @@
 from hailtop.utils import (partition, url_basename, url_join, url_scheme,
-                           url_and_params, parse_docker_image_reference)
+                           url_and_params, parse_docker_image_reference, grouped)
+                        
 
 
 def test_partition_zero_empty():
@@ -126,3 +127,57 @@ def test_parse_docker_image_reference():
     assert x.digest is None
     assert x.name() == 'us-docker.pkg.dev/my-project/my-repo/test-image'
     assert str(x) == 'us-docker.pkg.dev/my-project/my-repo/test-image'
+
+
+def test_grouped_size_0_groups_9_elements():
+    try:
+        list(grouped(0, [1,2,3,4,5,6,7,8,9]))
+    except ValueError:
+        pass
+    else:
+        assert False
+
+def test_grouped_size_1_groups_9_elements():
+    actual = list(grouped(1, [1,2,3,4,5,6,7,8,9]))
+    expected = [[1], [2], [3], [4], [5], [6], [7], [8], [9]]
+    assert actual == expected
+
+def test_grouped_size_5_groups_9_elements():
+    actual = list(grouped(5, [1,2,3,4,5,6,7,8,9]))
+    expected = [[1, 2, 3, 4, 5], [6, 7, 8, 9]]
+    assert actual == expected
+
+def test_grouped_size_3_groups_0_elements():
+    actual = list(grouped(3,[]))
+    expected = []
+    assert actual == expected
+
+def test_grouped_size_2_groups_1_elements():
+    actual = list(grouped(2,[1]))
+    expected = [[1]]
+    assert actual == expected
+
+def test_grouped_size_1_groups_0_elements():
+    actual = list(grouped(1,[0]))
+    expected = [[0]]
+    assert actual == expected
+
+def test_grouped_size_1_groups_5_elements():
+    actual = list(grouped(1,['abc', 'def', 'ghi', 'jkl', 'mno']))
+    expected = [['abc'], ['def'], ['ghi'], ['jkl'], ['mno']]
+    assert actual == expected
+
+def test_grouped_size_2_groups_5_elements():
+    actual = list(grouped(2,['abc', 'def', 'ghi', 'jkl', 'mno']))
+    expected = [['abc', 'def'], ['ghi', 'jkl'], ['mno']]
+    assert actual == expected
+
+def test_grouped_size_3_groups_6_elements():
+    actual = list(grouped(3,['abc', 'def', 'ghi', 'jkl', 'mno', '']))
+    expected = [['abc', 'def', 'ghi'], ['jkl', 'mno', '']]
+    assert actual == expected
+
+def test_grouped_size_3_groups_7_elements():
+    actual = list(grouped(3,['abc', 'def', 'ghi', 'jkl', 'mno', 'pqr', 'stu']))
+    expected = [['abc', 'def', 'ghi'], ['jkl', 'mno', 'pqr'], ['stu']]
+    assert actual == expected
