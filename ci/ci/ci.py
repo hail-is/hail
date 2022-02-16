@@ -533,7 +533,12 @@ async def prod_deploy(request, userdata):
         log.info('prod deploy failed: ' + message, exc_info=True)
         raise web.HTTPBadRequest(text=message)
 
-    watched_branch = WatchedBranch(0, FQBranch.from_short_str('populationgenomics/hail:main'), True)
+    watched_branch = WatchedBranch(
+        index=0, 
+        branch=FQBranch.from_short_str('populationgenomics/hail:main'), 
+        deployable=True,
+        mergeable=False,
+    )
     watched_branch.sha = params['sha']
     await watched_branch._start_deploy(app['batch_client'], steps)
 
