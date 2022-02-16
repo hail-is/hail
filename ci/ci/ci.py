@@ -2,12 +2,13 @@ import traceback
 import json
 import logging
 import asyncio
+import os
 import concurrent.futures
 from aiohttp import web
 import uvloop  # type: ignore
-from gidgethub import aiohttp as gh_aiohttp
+from gidgethub import aiohttp as gh_aiohttp, routing as gh_routing, sansio as gh_sansio
 from hailtop.utils import collect_agen, humanize_timedelta_msecs
-from hailtop.batch_client.aioclient import BatchClient
+from hailtop.batch_client.aioclient import BatchClient, Batch
 from hailtop.config import get_deploy_config
 from hailtop.tls import internal_server_ssl_context
 from hailtop.hail_logging import AccessLogger
@@ -29,14 +30,23 @@ from .environment import STORAGE_URI
 from .github import Repo, FQBranch, WatchedBranch, UnwatchedBranch, MergeFailureBatch, PR, select_random_teammate, WIP
 from .constants import AUTHORIZED_USERS, TEAMS
 
-with open(os.environ.get('HAIL_CI_OAUTH_TOKEN', 'oauth-token/oauth-token'), 'r') as f:
-    oauth_token = f.read().strip()
+oauth_path = os.environ.get('HAIL_CI_OAUTH_TOKEN', 'oauth-token/oauth-token')
+if os.path.exists(oauth_path):
+    with open(oauth_path, 'r') as f:
+        oauth_token = f.read().strip()
+else:
+    oauth_token = None
 
 log = logging.getLogger('ci')
 
 uvloop.install()
 
 deploy_config = get_deploy_config()
+
+watched_branches: List[WatchedBranch] = [
+    WatchedBranch(index, FQBranch.from_short_str(bss), deployable, mergeable)
+    for (index, [bss, deployable, mergeable]) in enumerate(json.loads(os.environ.get('HAIL_WATCHED_BRANCHES', '[]')))
+]
 
 routes = web.RouteTableDef()
 
@@ -238,6 +248,19 @@ async def get_job(request, userdata):
         'attempts': await job.attempts(),
     }
     return await render_template('ci', request, userdata, 'job.html', page_context)
+
+
+def get_maybe_wb_for_batch(b: Batch):
+    if 'target_branch' in b.attributes and 'pr' in b.attributes:
+        branch = b.attributes['target_branch']
+        wbs = [wb for wb in watched_branches if wb.branch.short_str() == branch]
+        if len(wbs) == 0:
+            pr = b.attributes['pr']
+            log.exception(f"Attempted to load PR {pr} for unwatched branch {branch}")
+        else:
+            assert len(wbs) == 1
+            return wbs[0].index
+    return None
 
 
 def filter_wbs(wbs: List[WatchedBranchConfig], pred: Callable[[PRConfig], bool]):
@@ -471,7 +494,6 @@ async def dev_deploy_branch(request, userdata):
         raise
     except Exception as e:  # pylint: disable=broad-except
         message = traceback.format_exc()
-        log.info('dev deploy failed: ' + message, exc_info=True)
         raise web.HTTPBadRequest(text=f'starting the deploy failed due to\n{message}') from e
     return web.json_response({'sha': sha, 'batch_id': batch_id})
 
@@ -525,6 +547,25 @@ async def prod_deploy(request, userdata):
         raise web.HTTPBadRequest(text=f'starting prod deploy failed due to\n{message}') from batch.exception
 
 
+@routes.post('/api/v1alpha/batch_callback')
+async def batch_callback(request):
+    await asyncio.shield(batch_callback_handler(request))
+    return web.Response(status=200)
+
+
+async def update_loop(app):
+    while True:
+        try:
+            for wb in watched_branches:
+                log.info(f'updating {wb.branch.short_str()}')
+                await wb.update(app)
+        except concurrent.futures.CancelledError:
+            raise
+        except Exception:  # pylint: disable=broad-except
+            log.exception(f'{wb.branch.short_str()} update failed due to exception')
+        await asyncio.sleep(300)
+
+
 async def on_startup(app):
     app['client_session'] = httpx.client_session()
     app['github_client'] = gh_aiohttp.GitHubAPI(app['client_session'], 'ci')
@@ -533,11 +574,14 @@ async def on_startup(app):
 
 
 async def on_cleanup(app):
-    dbpool = app['dbpool']
-    dbpool.close()
-    await dbpool.wait_closed()
-    await app['client_session'].close()
-    await app['batch_client'].close()
+    try:
+        dbpool = app['dbpool']
+        dbpool.close()
+        await dbpool.wait_closed()
+        await app['client_session'].close()
+        await app['batch_client'].close()
+    finally:
+        app['task_manager'].shutdown()
 
 
 def run():
