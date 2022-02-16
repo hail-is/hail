@@ -462,7 +462,8 @@ class MatrixPLINKReader(
     executeGeneric(ctx).toTableValue(ctx, tr.typ)
 
   override def lowerGlobals(ctx: ExecuteContext, requestedGlobalsType: TStruct): IR = {
-    val subset = fullMatrixType.globalType.valueSubsetter(requestedGlobalsType)
+    val tt = fullMatrixType.toTableType(LowerMatrixIR.entriesFieldName, LowerMatrixIR.colsFieldName)
+    val subset = tt.globalType.valueSubsetter(requestedGlobalsType)
     val globals = Row(sampleInfo)
     Literal(requestedGlobalsType, subset(globals).asInstanceOf[Row])
   }
