@@ -754,7 +754,7 @@ object LowerTableIR {
         val filterPartitioner = new RVDPartitioner(kt, Interval.union(intervals.toArray, ord.intervalEndpointOrdering))
         val boundsType = TArray(RVDPartitioner.intervalIRRepresentation(kt))
         val filterIntervalsRef = Ref(genUID(), boundsType)
-        val filterIntervals: IndexedSeq[Row] = filterPartitioner.rangeBounds.map { i =>
+        val filterIntervals: IndexedSeq[Interval] = filterPartitioner.rangeBounds.map { i =>
           RVDPartitioner.intervalToIRRepresentation(i, kt.size)
         }
 
@@ -765,17 +765,9 @@ object LowerTableIR {
             } else None
           }.unzip3
 
-          val f: (IR, IR) => IR = {
-            case (partitionIntervals, key) =>
-              // FIXME: don't do a linear scan over intervals. Fine at first to get the plumbing right
-              foldIR(ToStream(partitionIntervals), False()) { case (acc, elt) =>
-                acc || invoke("partitionIntervalContains",
-                  TBoolean,
-                  elt,
-                  key)
-              }
-          }
-          (newRangeBounds, includedIndices, startAndEndInterval, f)
+          def f(partitionIntervals: IR, key: IR): IR =
+            invoke("sortedNonOverlappingPartitionIntervalsContains", TBoolean, partitionIntervals, key)
+          (newRangeBounds, includedIndices, startAndEndInterval, f _)
         } else {
           // keep = False
           val (newRangeBounds, includedIndices, startAndEndInterval) = part.rangeBounds.zipWithIndex.flatMap { case (interval, i) =>
@@ -788,17 +780,9 @@ object LowerTableIR {
             else Some((interval, i, (lowerBound.min(nPartitions), upperBound.min(nPartitions))))
           }.unzip3
 
-          val f: (IR, IR) => IR = {
-            case (partitionIntervals, key) =>
-              // FIXME: don't do a linear scan over intervals. Fine at first to get the plumbing right
-              foldIR(ToStream(partitionIntervals), True()) { case (acc, elt) =>
-                acc && !invoke("partitionIntervalContains",
-                  TBoolean,
-                  elt,
-                  key)
-              }
-          }
-          (newRangeBounds, includedIndices, startAndEndInterval, f)
+          def f(partitionIntervals: IR, key: IR): IR =
+            !invoke("sortedNonOverlappingPartitionIntervalsContains", TBoolean, partitionIntervals, key)
+          (newRangeBounds, includedIndices, startAndEndInterval, f _)
         }
 
         val newPart = new RVDPartitioner(kt, newRangeBounds)
