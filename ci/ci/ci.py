@@ -30,9 +30,6 @@ from .environment import STORAGE_URI
 from .github import Repo, FQBranch, WatchedBranch, UnwatchedBranch, MergeFailureBatch, PR, select_random_teammate, WIP
 from .constants import AUTHORIZED_USERS, TEAMS
 
-with open(os.environ.get('HAIL_CI_OAUTH_TOKEN', 'oauth-token/oauth-token'), 'r') as f:
-    oauth_token = f.read().strip()
-
 log = logging.getLogger('ci')
 
 uvloop.install()
