@@ -1216,15 +1216,11 @@ BEGIN
     WHERE batch_id = in_batch_id AND job_id = in_job_id;
 
     UPDATE batches_n_jobs_in_complete_states
-      SET n_completed = n_completed + 1,
+      SET n_completed = (n_new_completed := n_completed + 1),
           n_cancelled = n_cancelled + (new_state = 'Cancelled'),
           n_failed    = n_failed + (new_state = 'Error' OR new_state = 'Failed'),
           n_succeeded = n_succeeded + (new_state != 'Cancelled' AND new_state != 'Error' AND new_state != 'Failed')
       WHERE id = in_batch_id;
-
-    SELECT n_completed INTO new_n_completed
-    FROM batches_n_jobs_in_complete_states
-    WHERE id = in_batch_id;
 
     # Grabbing an exclusive lock on batches here could deadlock,
     # but this IF should only execute for the last job
