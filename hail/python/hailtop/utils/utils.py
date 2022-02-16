@@ -109,7 +109,7 @@ def digits_needed(i: int):
 
 def grouped(n, ls):
     if n < 1:
-        raise ValueError('invalid value for n')
+        raise ValueError('invalid value for n: found {n}')
     while len(ls) != 0:
         group = ls[:n]
         ls = ls[n:]
