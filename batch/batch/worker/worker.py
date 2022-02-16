@@ -408,6 +408,10 @@ def worker_fraction_in_1024ths(cpu_in_mcpu):
     return 1024 * cpu_in_mcpu // (CORES * 1000)
 
 
+class HailUserError(Exception):
+    pass
+
+
 def user_error(e):
     if isinstance(e, DockerError):
         if e.status == 404 and 'pull access denied' in e.message:
@@ -422,6 +426,8 @@ def user_error(e):
         # bucket name and your credentials.\n')
         if b'Bad credentials for bucket' in e.stderr:
             return True
+    if isinstance(e, HailUserError):
+        return True
     return False
 
 
@@ -1670,9 +1676,10 @@ class JVMJob(Job):
                 log.info(f'{self} main: {self.state}')
             except asyncio.CancelledError:
                 raise
-            except Exception:
+            except Exception as e:
                 # FIXME: this can also be a Hail Query driver error, not a Hail Batch error
-                log.exception(f'while running {self}')
+                if not user_error(e):
+                    log.exception(f'while running {self}')
 
                 self.state = 'error'
                 self.error = traceback.format_exc()
@@ -2029,7 +2036,7 @@ class JVM:
             elif message == JVM.FINISH_USER_EXCEPTION:
                 log.info(f'{self}: user exception encountered (interrupted: {wait_for_interrupt.done()})')
                 exception = await read_str(reader)
-                raise ValueError(exception)
+                raise HailUserError(exception)
             elif message == JVM.FINISH_ENTRYWAY_EXCEPTION:
                 log.info(f'{self}: entryway exception encountered (interrupted: {wait_for_interrupt.done()})')
                 exception = await read_str(reader)
