@@ -8,8 +8,9 @@ import aiohttp
 from aiohttp import web
 import aiohttp_session
 import aiohttp_session.cookie_storage
-from kubernetes_asyncio import client, config
-import kubernetes_asyncio as kube
+import kubernetes_asyncio.config
+import kubernetes_asyncio.client
+import kubernetes_asyncio.client.rest
 from prometheus_async.aio.web import server_stats  # type: ignore
 
 from hailtop.config import get_deploy_config
@@ -118,27 +119,33 @@ async def start_pod(k8s, service, userdata, notebook_token, jupyter_token):
 
         image = DEFAULT_WORKER_IMAGE
 
-        env = [kube.client.V1EnvVar(name='HAIL_DEPLOY_CONFIG_FILE', value='/deploy-config/deploy-config.json')]
+        env = [
+            kubernetes_asyncio.client.V1EnvVar(
+                name='HAIL_DEPLOY_CONFIG_FILE', value='/deploy-config/deploy-config.json'
+            )
+        ]
 
         tokens_secret_name = userdata['tokens_secret_name']
         hail_credentials_secret_name = userdata['hail_credentials_secret_name']
         volumes = [
-            kube.client.V1Volume(
-                name='deploy-config', secret=kube.client.V1SecretVolumeSource(secret_name='deploy-config')
+            kubernetes_asyncio.client.V1Volume(
+                name='deploy-config', secret=kubernetes_asyncio.client.V1SecretVolumeSource(secret_name='deploy-config')
             ),
-            kube.client.V1Volume(
-                name='gsa-key', secret=kube.client.V1SecretVolumeSource(secret_name=hail_credentials_secret_name)
+            kubernetes_asyncio.client.V1Volume(
+                name='gsa-key',
+                secret=kubernetes_asyncio.client.V1SecretVolumeSource(secret_name=hail_credentials_secret_name),
             ),
-            kube.client.V1Volume(
-                name='user-tokens', secret=kube.client.V1SecretVolumeSource(secret_name=tokens_secret_name)
+            kubernetes_asyncio.client.V1Volume(
+                name='user-tokens',
+                secret=kubernetes_asyncio.client.V1SecretVolumeSource(secret_name=tokens_secret_name),
             ),
         ]
         volume_mounts = [
-            kube.client.V1VolumeMount(mount_path='/deploy-config', name='deploy-config', read_only=True),
-            kube.client.V1VolumeMount(mount_path='/gsa-key', name='gsa-key', read_only=True),
-            kube.client.V1VolumeMount(mount_path='/user-tokens', name='user-tokens', read_only=True),
+            kubernetes_asyncio.client.V1VolumeMount(mount_path='/deploy-config', name='deploy-config', read_only=True),
+            kubernetes_asyncio.client.V1VolumeMount(mount_path='/gsa-key', name='gsa-key', read_only=True),
+            kubernetes_asyncio.client.V1VolumeMount(mount_path='/user-tokens', name='user-tokens', read_only=True),
         ]
-        resources = kube.client.V1ResourceRequirements(requests={'cpu': '1.601', 'memory': '1.601G'})
+        resources = kubernetes_asyncio.client.V1ResourceRequirements(requests={'cpu': '1.601', 'memory': '1.601G'})
     else:
         workshop = userdata['workshop']
 
@@ -150,20 +157,20 @@ async def start_pod(k8s, service, userdata, notebook_token, jupyter_token):
 
         cpu = workshop['cpu']
         memory = workshop['memory']
-        resources = kube.client.V1ResourceRequirements(
+        resources = kubernetes_asyncio.client.V1ResourceRequirements(
             requests={'cpu': cpu, 'memory': memory}, limits={'cpu': cpu, 'memory': memory}
         )
 
-    pod_spec = kube.client.V1PodSpec(
+    pod_spec = kubernetes_asyncio.client.V1PodSpec(
         node_selector={'preemptible': 'false'},
         service_account_name=service_account_name,
         containers=[
-            kube.client.V1Container(
+            kubernetes_asyncio.client.V1Container(
                 command=command,
                 name='default',
                 image=image,
                 env=env,
-                ports=[kube.client.V1ContainerPort(container_port=POD_PORT)],
+                ports=[kubernetes_asyncio.client.V1ContainerPort(container_port=POD_PORT)],
                 resources=resources,
                 volume_mounts=volume_mounts,
             )
@@ -172,8 +179,8 @@ async def start_pod(k8s, service, userdata, notebook_token, jupyter_token):
     )
 
     user_id = str(userdata['id'])
-    pod_template = kube.client.V1Pod(
-        metadata=kube.client.V1ObjectMeta(
+    pod_template = kubernetes_asyncio.client.V1Pod(
+        metadata=kubernetes_asyncio.client.V1ObjectMeta(
             generate_name='notebook-worker-', labels={'app': 'notebook-worker', 'user_id': user_id}
         ),
         spec=pod_spec,
@@ -207,7 +214,7 @@ async def k8s_notebook_status_from_notebook(k8s, notebook):
             name=notebook['pod_name'], namespace=NOTEBOOK_NAMESPACE, _request_timeout=KUBERNETES_TIMEOUT_IN_SECONDS
         )
         return notebook_status_from_pod(pod)
-    except kube.client.rest.ApiException as e:
+    except kubernetes_asyncio.client.rest.ApiException as e:
         if e.status == 404:
             log.exception(f"404 for pod: {notebook['pod_name']}")
             return None
@@ -274,7 +281,7 @@ async def get_user_notebook(dbpool, user_id):
 async def delete_worker_pod(k8s, pod_name):
     try:
         await k8s.delete_namespaced_pod(pod_name, NOTEBOOK_NAMESPACE, _request_timeout=KUBERNETES_TIMEOUT_IN_SECONDS)
-    except kube.client.rest.ApiException as e:
+    except kubernetes_asyncio.client.rest.ApiException as e:
         log.info(f'pod {pod_name} already deleted {e}')
 
 
@@ -723,10 +730,10 @@ async def workshop_get_error(request, userdata):
 
 async def on_startup(app):
     if 'BATCH_USE_KUBE_CONFIG' in os.environ:
-        await config.load_kube_config()
+        await kubernetes_asyncio.config.load_kube_config()
     else:
-        config.load_incluster_config()
-    app['k8s_client'] = client.CoreV1Api()
+        kubernetes_asyncio.config.load_incluster_config()
+    app['k8s_client'] = kubernetes_asyncio.client.CoreV1Api()
 
     app['dbpool'] = await create_database_pool()
 

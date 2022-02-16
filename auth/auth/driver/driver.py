@@ -6,7 +6,9 @@ import logging
 import secrets
 import asyncio
 import aiohttp
-import kubernetes_asyncio as kube
+import kubernetes_asyncio.config
+import kubernetes_asyncio.client
+import kubernetes_asyncio.client.rest
 from hailtop.utils import time_msecs, secret_alnum_string
 from hailtop.auth.sql_config import create_secret_data_from_config, SQLConfig
 from hailtop import aiotools
@@ -111,8 +113,8 @@ class K8sSecretResource:
 
         await self.k8s_client.create_namespaced_secret(
             namespace,
-            kube.client.V1Secret(
-                metadata=kube.client.V1ObjectMeta(name=name),
+            kubernetes_asyncio.client.V1Secret(
+                metadata=kubernetes_asyncio.client.V1ObjectMeta(name=name),
                 data={k: base64.b64encode(v.encode('utf-8')).decode('utf-8') for k, v in data.items()},
             ),
         )
@@ -122,7 +124,7 @@ class K8sSecretResource:
     async def _delete(self, name, namespace):
         try:
             await self.k8s_client.delete_namespaced_secret(name, namespace)
-        except kube.client.rest.ApiException as e:
+        except kubernetes_asyncio.client.rest.ApiException as e:
             if e.status == 404:
                 pass
             else:
@@ -314,14 +316,16 @@ class K8sNamespaceResource:
 
         await self._delete(name)
 
-        await self.k8s_client.create_namespace(kube.client.V1Namespace(metadata=kube.client.V1ObjectMeta(name=name)))
+        await self.k8s_client.create_namespace(
+            kubernetes_asyncio.client.V1Namespace(metadata=kubernetes_asyncio.client.V1ObjectMeta(name=name))
+        )
         self.name = name
 
     async def _delete(self, name):
         assert name not in ('default', DEFAULT_NAMESPACE)
         try:
             await self.k8s_client.delete_namespace(name)
-        except kube.client.rest.ApiException as e:
+        except kubernetes_asyncio.client.rest.ApiException as e:
             if e.status == 404:
                 pass
             else:
@@ -610,8 +614,8 @@ async def async_main():
         await db_instance.async_init(maxsize=50, config_file='/database-server-config/sql-config.json')
         app['db_instance'] = db_instance
 
-        kube.config.load_incluster_config()
-        app['k8s_client'] = kube.client.CoreV1Api()
+        kubernetes_asyncio.config.load_incluster_config()
+        app['k8s_client'] = kubernetes_asyncio.client.CoreV1Api()
 
         app['identity_client'] = get_identity_client()
 
@@ -647,5 +651,5 @@ async def async_main():
                         try:
                             await app['identity_client'].close()
                         finally:
-                            k8s_client: kube.client.CoreV1Api = app['k8s_client']
+                            k8s_client: kubernetes_asyncio.client.CoreV1Api = app['k8s_client']
                             await k8s_client.api_client.rest_client.pool_manager.close()

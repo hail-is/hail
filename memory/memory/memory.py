@@ -7,7 +7,8 @@ import os
 import uvloop
 import signal
 from aiohttp import web
-import kubernetes_asyncio as kube
+import kubernetes_asyncio.config
+import kubernetes_asyncio.client
 from prometheus_async.aio.web import server_stats  # type: ignore
 from collections import defaultdict
 
@@ -150,8 +151,8 @@ async def on_startup(app):
     app['files_in_progress'] = dict()
     app['users'] = {}
     app['userlocks'] = defaultdict(asyncio.Lock)
-    kube.config.load_incluster_config()
-    k8s_client = kube.client.CoreV1Api()
+    kubernetes_asyncio.config.load_incluster_config()
+    k8s_client = kubernetes_asyncio.client.CoreV1Api()
     app['k8s_client'] = k8s_client
     app['redis_pool']: aioredis.ConnectionsPool = await aioredis.create_pool(socket)
 

@@ -1,7 +1,8 @@
 import os
 import base64
 import json
-import kubernetes_asyncio as kube
+import kubernetes_asyncio.config
+import kubernetes_asyncio.client
 from hailtop.utils import async_to_blocking
 from gear import Database, transaction
 from gear.cloud_config import get_global_config
@@ -85,8 +86,8 @@ async def main():
     app['db_instance'] = db_instance
 
     # kube.config.load_incluster_config()
-    await kube.config.load_kube_config()
-    k8s_client = kube.client.CoreV1Api()
+    await kubernetes_asyncio.config.load_kube_config()
+    k8s_client = kubernetes_asyncio.client.CoreV1Api()
     try:
         app['k8s_client'] = k8s_client
 

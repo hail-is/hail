@@ -10,7 +10,8 @@ from threading import Thread
 import os
 import argparse
 import asyncio
-import kubernetes_asyncio as kube
+import kubernetes_asyncio.config
+import kubernetes_asyncio.client
 import logging
 import re
 import sys
@@ -68,8 +69,8 @@ class Sync:
         log.info(f'initialized {pod}@{namespace}')
 
     async def monitor_pods(self, apps, namespace):
-        await kube.config.load_kube_config()
-        k8s = kube.client.CoreV1Api()
+        await kubernetes_asyncio.config.load_kube_config()
+        k8s = kubernetes_asyncio.client.CoreV1Api()
         try:
             while True:
                 log.info('monitor_pods: start loop')

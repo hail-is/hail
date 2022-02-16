@@ -1,7 +1,8 @@
 import argparse
 import base64
 import json
-import kubernetes_asyncio as kube
+import kubernetes_asyncio.config
+import kubernetes_asyncio.client
 import os
 
 from hailtop.utils import async_to_blocking
@@ -13,15 +14,15 @@ NAMESPACE = os.environ['NAMESPACE']
 
 async def copy_identity_from_default(hail_credentials_secret_name: str) -> str:
     cloud = os.environ['CLOUD']
-    await kube.config.load_kube_config()
-    k8s_client = kube.client.CoreV1Api()
+    await kubernetes_asyncio.config.load_kube_config()
+    k8s_client = kubernetes_asyncio.client.CoreV1Api()
 
     secret = await k8s_client.read_namespaced_secret(hail_credentials_secret_name, 'default')
 
     await k8s_client.create_namespaced_secret(
         NAMESPACE,
-        kube.client.V1Secret(
-            metadata=kube.client.V1ObjectMeta(name=hail_credentials_secret_name),
+        kubernetes_asyncio.client.V1Secret(
+            metadata=kubernetes_asyncio.client.V1ObjectMeta(name=hail_credentials_secret_name),
             data=secret.data,
         ),
     )
