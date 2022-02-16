@@ -712,6 +712,7 @@ class VCFTests(unittest.TestCase):
             mt = hl.import_vcf([resource('different_info_test1.vcf'), resource('different_info_test2.vcf')])
             mt.rows()._force_count()
 
+
 class PLINKTests(unittest.TestCase):
     @fails_service_backend()
     def test_import_fam(self):
@@ -841,6 +842,11 @@ class PLINKTests(unittest.TestCase):
                                 reference_genome=None)
         self.assertEqual(plink.locus.dtype,
                          hl.tstruct(contig=hl.tstr, position=hl.tint32))
+
+    def test_import_plink_and_ignore_rows(self):
+        bfile = doctest_resource('ldsc')
+        plink = hl.import_plink(bfile + '.bed', bfile + '.bim', bfile + '.fam', block_size=16)
+        self.assertEqual(plink.aggregate_cols(hl.agg.count()), 489)
 
     @fails_service_backend()
     @fails_local_backend()
