@@ -1224,7 +1224,7 @@ BEGIN
 
     # Grabbing an exclusive lock on batches here could deadlock,
     # but this IF should only execute for the last job
-    IF new_n_completed = total_jobs_in_batch THEN
+    IF @new_n_completed = total_jobs_in_batch THEN
       UPDATE batches
       SET time_completed = new_timestamp,
           `state` = 'complete'
