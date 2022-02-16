@@ -579,14 +579,11 @@ async def on_startup(app):
 
 
 async def on_cleanup(app):
-    try:
-        dbpool = app['dbpool']
-        dbpool.close()
-        await dbpool.wait_closed()
-        await app['client_session'].close()
-        await app['batch_client'].close()
-    finally:
-        app['task_manager'].shutdown()
+    dbpool = app['dbpool']
+    dbpool.close()
+    await dbpool.wait_closed()
+    await app['client_session'].close()
+    await app['batch_client'].close()
 
 
 def run():
