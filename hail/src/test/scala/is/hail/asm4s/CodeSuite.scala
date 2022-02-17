@@ -2,11 +2,12 @@ package is.hail.asm4s
 
 import is.hail.HailSuite
 import is.hail.annotations.Region
-import is.hail.expr.ir.{EmitCodeBuilder, EmitFunctionBuilder}
-import is.hail.types.physical.stypes.SValue
+import is.hail.expr.ir.{EmitCodeBuilder, EmitFunctionBuilder, EmitValue}
+import is.hail.types.physical.stypes.{EmitType, SValue}
 import is.hail.types.physical.stypes.concrete._
-import is.hail.types.physical.stypes.primitives.{SFloat32Value, SFloat64Value, SInt32Value, SInt64Value}
+import is.hail.types.physical.stypes.primitives.{SFloat32Value, SFloat64Value, SInt32, SInt32Value, SInt64, SInt64Value}
 import is.hail.types.physical._
+import is.hail.types.virtual.{TInt32, TInt64, TStruct}
 import org.apache.spark.sql.Row
 import org.testng.annotations.Test
 
@@ -26,6 +27,25 @@ class CodeSuite extends HailSuite {
     val result = fb.resultWithIndex()(theHailClassLoader, ctx.fs, 0, ctx.r)()
     assert(result == 10)
   }
+
+  @Test def testSize(): Unit = {
+    val int64 = new SInt64Value(5L)
+    val int32 = new SInt32Value(2)
+    val struct = new SStackStructValue(SStackStruct(TStruct("x" -> TInt64, "y" -> TInt32), IndexedSeq(EmitType(SInt64, true), EmitType(SInt32, false))), IndexedSeq(EmitValue(None, int64), EmitValue(Some(false), int32)))
+    assert(testSizeHelper(int64) == 8L)
+    assert(testSizeHelper(int32) == 4L)
+    assert(testSizeHelper(struct) == 16L) // 1 missing byte that gets 4 byte aligned, 8 bytes for long, 4 bytes for missing int
+  }
+
+  def testSizeHelper(v: SValue): Long = {
+    val fb = EmitFunctionBuilder[Long](ctx, "test_size_in_bytes")
+    val mb = fb.apply_method
+    mb.emit(EmitCodeBuilder.scopedCode(mb) { cb =>
+      v.sizeInBytes(cb).value
+    })
+    fb.result()()()
+  }
+
   @Test def testHash() {
     val fields = IndexedSeq(PField("a", PCanonicalString(), 0), PField("b", PInt32(), 1), PField("c", PFloat32(), 2))
     assert(hashTestNumHelper(new SInt32Value(6)) == hashTestNumHelper(new SInt32Value(6)))

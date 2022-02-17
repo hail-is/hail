@@ -3553,31 +3553,25 @@ class IRSuite extends HailSuite {
   }
 
   @Test def testStreamDistribute(): Unit =  {
-//    val data1 = IndexedSeq(0, 1, 1, 2, 4, 7, 7, 7, 9, 11, 15, 20, 22, 28, 50, 100)
-//    val pivots1 = IndexedSeq(-10, 1, 7, 7, 15, 22, 50, 200)
-//    val pivots2 = IndexedSeq(-10, 1, 1, 7, 9, 28, 50, 200)
-//    val pivots3 = IndexedSeq(-3, 0, 20, 100, 200)
-//    val pivots4 = IndexedSeq(-8, 4, 7, 7, 150)
-//    val pivots5 = IndexedSeq(0, 1, 4, 15, 200)
-//    val pivots6 = IndexedSeq(0, 7, 20, 100)
-//
-//    runStreamDistTest(data1, pivots1)
-//    runStreamDistTest(data1, pivots2)
-//    runStreamDistTest(data1, pivots3)
-//    runStreamDistTest(data1, pivots4)
-//    runStreamDistTest(data1, pivots5)
-//    runStreamDistTest(data1, pivots6)
+    val data1 = IndexedSeq(0, 1, 1, 2, 4, 7, 7, 7, 9, 11, 15, 20, 22, 28, 50, 100)
+    val pivots1 = IndexedSeq(-10, 1, 7, 7, 15, 22, 50, 200)
+    val pivots2 = IndexedSeq(-10, 1, 1, 7, 9, 28, 50, 200)
+    val pivots3 = IndexedSeq(-3, 0, 20, 100, 200)
+    val pivots4 = IndexedSeq(-8, 4, 7, 7, 150)
+    val pivots5 = IndexedSeq(0, 1, 4, 15, 200)
+    val pivots6 = IndexedSeq(0, 7, 20, 100)
+
+    runStreamDistTest(data1, pivots1)
+    runStreamDistTest(data1, pivots2)
+    runStreamDistTest(data1, pivots3)
+    runStreamDistTest(data1, pivots4)
+    runStreamDistTest(data1, pivots5)
+    runStreamDistTest(data1, pivots6)
 
     val data2 = IndexedSeq(0, 2)
     val pivots11 = IndexedSeq(0, 0, 2)
-    val pivots12 = IndexedSeq(0, 2, 2)
 
-//    runStreamDistTest(data2, pivots11)
-    runStreamDistTest(data2, pivots12)
-
-//    val data3 = IndexedSeq(0, 0, 0, 0)
-//    val pivots21 = IndexedSeq(0, 0, 0)
-//    runStreamDistTest(data3, pivots21)
+    runStreamDistTest(data2, pivots11)
   }
 
   def runStreamDistTest(data: IndexedSeq[Int], splitters: IndexedSeq[Int]): Unit = {

@@ -5,15 +5,16 @@ import is.hail.annotations.{Annotation, ExtendedOrdering, Region, RegionValueBui
 import is.hail.asm4s.{AsmFunction1RegionLong, LongInfo, classInfo}
 import is.hail.backend.ExecuteContext
 import is.hail.expr.ir._
-import is.hail.expr.ir.functions.{ArrayFunctions, IRRandomness}
+import is.hail.expr.ir.functions.{ArrayFunctions, IRRandomness, UtilFunctions}
 import is.hail.io.{BufferSpec, TypedCodecSpec}
 import is.hail.types.physical.{PArray, PBaseStruct, PCanonicalArray, PStruct, PTuple, PType}
-import is.hail.types.virtual.{TArray, TBoolean, TInt32, TIterable, TStream, TString, TStruct, TTuple, Type}
+import is.hail.types.virtual.{TArray, TBoolean, TFloat64, TInt32, TIterable, TStream, TString, TStruct, TTuple, Type}
 import is.hail.rvd.{PartitionBoundOrdering, RVDPartitioner}
 import is.hail.types.RStruct
 import is.hail.types.physical.stypes.PTypeReferenceSingleCodeType
 import is.hail.utils._
 import org.apache.spark.sql.Row
+
 import scala.collection.mutable.ArrayBuffer
 
 object LowerDistributedSort {
@@ -191,15 +192,18 @@ object LowerDistributedSort {
             val maxArray = MakeArray(GetField(aggResults, "max"))
             val tuplesInSortedOrder = tuplesAreSorted(GetField(aggResults, "perPartIntervalTuples"), sortFields)
             bindIR(sortedOversampling) { sortedOversampling =>
-              // range(1, branchingFactor, 1).map { i => floor(i * ((numSamples + 1) / branchFactor)) - 1 }
-              val sortedSampling = ToArray(mapIR(StreamRange(I32(1), ???, I32(1))) { idx =>
-                ArrayRef(sortedOversampling, ???)
-              })
-              MakeStruct(Seq(
-                "pivotsWithEndpoints" -> ArrayFunctions.extend(ArrayFunctions.extend(minArray, sortedSampling), maxArray),
-                "isSorted" -> ApplySpecial("land", Seq.empty[Type], Seq(GetField(aggResults, "eachPartSorted"), tuplesInSortedOrder), TBoolean, ErrorIDs.NO_ERROR),
-                "intervalTuple" -> MakeTuple.ordered(Seq(GetField(aggResults, "min"), GetField(aggResults, "max")))
-              ))
+              bindIR(ArrayLen(sortedOversampling)) { numSamples =>
+                val branchingFactor = UtilFunctions.intMin(I32(defaultBranchingFactor), numSamples)
+                // range(1, branchingFactor, 1).map { i => floor(i * ((numSamples + 1) / branchFactor)) - 1 }
+                val sortedSampling = ToArray(mapIR(StreamRange(I32(1), branchingFactor, I32(1))) { idx =>
+                  ArrayRef(sortedOversampling, Apply("floor", Seq(), IndexedSeq(idx.toD * ((numSamples + 1) / branchingFactor)), TFloat64, ErrorIDs.NO_ERROR).toI - 1)
+                })
+                MakeStruct(Seq(
+                  "pivotsWithEndpoints" -> ArrayFunctions.extend(ArrayFunctions.extend(minArray, sortedSampling), maxArray),
+                  "isSorted" -> ApplySpecial("land", Seq.empty[Type], Seq(GetField(aggResults, "eachPartSorted"), tuplesInSortedOrder), TBoolean, ErrorIDs.NO_ERROR),
+                  "intervalTuple" -> MakeTuple.ordered(Seq(GetField(aggResults, "min"), GetField(aggResults, "max")))
+                ))
+              }
             }
           }
         }
