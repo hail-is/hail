@@ -1,6 +1,6 @@
 from hailtop.utils import (partition, url_basename, url_join, url_scheme,
                            url_and_params, parse_docker_image_reference, grouped)
-                        
+from hailtop.utils.utils import unzip
 
 
 def test_partition_zero_empty():
@@ -181,3 +181,12 @@ def test_grouped_size_3_groups_7_elements():
     actual = list(grouped(3,['abc', 'def', 'ghi', 'jkl', 'mno', 'pqr', 'stu']))
     expected = [['abc', 'def', 'ghi'], ['jkl', 'mno', 'pqr'], ['stu']]
     assert actual == expected
+
+
+def test_unzip():
+    assert unzip([]) == ([], [])
+    assert unzip([(0, 'a')]) == ([0], ['a'])
+    assert unzip([(123, '')]) == ([123], [''])
+    assert unzip([(123, 'abc')]) == ([123], ['abc'])
+    assert unzip([(123, 456), ('abc', 'def')]) == ([123, 'abc'], [456, 'def'])
+    assert unzip([(123, 'abc'), (456, 'def'), (789, 'ghi')]) == ([123, 456, 789], ['abc', 'def', 'ghi'])
