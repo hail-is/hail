@@ -1,4 +1,5 @@
 import secrets
+import dill
 import unittest
 import os
 import subprocess as sp
@@ -7,6 +8,7 @@ from shlex import quote as shq
 import uuid
 import re
 
+import hailtop.batch as hb
 from hailtop.batch import Batch, ServiceBackend, LocalBackend
 from hailtop.batch.exceptions import BatchException
 from hailtop.batch.globals import arg_max
@@ -21,6 +23,10 @@ from ..utils import skip_in_azure
 DOCKER_ROOT_IMAGE = os.environ['DOCKER_ROOT_IMAGE']
 PYTHON_DILL_IMAGE = os.environ['PYTHON_DILL_IMAGE']
 HAIL_GENETICS_HAIL_IMAGE = os.environ['HAIL_GENETICS_HAIL_IMAGE']
+
+
+pytestmark = pytest.mark.asyncio
+
 
 class LocalTests(unittest.TestCase):
     def batch(self, requester_pays_project=None):
@@ -919,3 +925,229 @@ class ServiceTests(unittest.TestCase):
         j.call(qob_in_batch)
 
         bb.run()
+
+    def test_remote_consumer(self):
+        backend = ServiceBackend(remote_tmpdir=f'{self.remote_tmpdir}/temporary-files')
+        b = Batch(backend=backend)
+        j1 = b.new_job()
+        j1.command(f'echo hi > {j1.out}')
+        j2 = b.new_job()
+        j2.image(HAIL_GENETICS_HAIL_IMAGE)
+        j2.command(f'python3 -c "import hail as hl; print(hl.hadoop_open(\\"{hb.remote(j1.out)}\\").read())"')
+
+        assert j1._dependencies == []
+        assert j2._dependencies == [j1]
+
+        batch = b.run()
+
+        jobs = list(batch.jobs())
+        assert len(jobs) == 3, jobs
+
+        j2_log = batch.get_job_log(2)
+        assert j2_log == 'hi\n', j2_log
+
+        batch_status = batch.status()
+        assert batch_status['state'] == 'success', str((batch.debug_info()))
+
+    def test_remote_producer(self):
+        backend = ServiceBackend(remote_tmpdir=f'{self.remote_tmpdir}/temporary-files')
+        b = Batch(backend=backend)
+        j1 = b.new_job()
+        j1.image(HAIL_GENETICS_HAIL_IMAGE)
+        j1.command(f'python3 -c "import hail as hl; hl.hadoop_open(\\"{hb.remote(j1.out)}\\").write(b\\"hello world\\")"')
+        j2 = b.new_job()
+        j2.image(HAIL_GENETICS_HAIL_IMAGE)
+        j2.command(f'cat {j1.out}')
+
+        assert j1._dependencies == []
+        assert j2._dependencies == [j1]
+
+        batch = b.run()
+
+        jobs = list(batch.jobs())
+        assert len(jobs) == 3, jobs
+
+        j2_log = batch.get_job_log(2)
+        assert j2_log == 'hello world', j2_log
+
+        batch_status = batch.status()
+        assert batch_status['state'] == 'success', str((batch.debug_info()))
+
+    def test_remote_consumer_and_producer(self):
+        backend = ServiceBackend(remote_tmpdir=f'{self.remote_tmpdir}/temporary-files')
+        b = Batch(backend=backend)
+        j1 = b.new_job()
+        j1.image(HAIL_GENETICS_HAIL_IMAGE)
+        j1.command(f'python3 -c "import hail as hl; hl.hadoop_open(\\"{hb.remote(j1.out)}\\").write(b\\"hello world\\")"')
+        j2 = b.new_job()
+        j2.image(HAIL_GENETICS_HAIL_IMAGE)
+        j2.command(f'python3 -c "import hail as hl; print(hl.hadoop_open(\\"{hb.remote(j1.out)}\\").read())"')
+
+        assert j1._dependencies == []
+        assert j2._dependencies == [j1]
+
+        batch = b.run()
+
+        jobs = list(batch.jobs())
+        assert len(jobs) == 3, jobs
+
+        j2_log = batch.get_job_log(2)
+        assert j2_log == 'hello world\n', j2_log
+
+        batch_status = batch.status()
+        assert batch_status['state'] == 'success', str(batch.debug_info())
+
+    # FIXME: need write_output and read_input examples too
+    async def test_read_input_and_write_output_remote(self):
+        backend = ServiceBackend(remote_tmpdir=f'{self.remote_tmpdir}/temporary-files')
+
+        b = Batch(backend=backend)
+        j = b.new_job()
+        j.image(HAIL_GENETICS_HAIL_IMAGE)
+        j.command(f'python3 -c "import hail as hl; hl.hadoop_open(\\"{hb.remote(j1.out)}\\").write(b\\"hello world\\")"')
+
+        token = uuid.uuid4()
+        j1_write_output_location = self.remote_tmpdir + '/' + token
+        b.write_output(j1.out, j1_write_output_location)
+
+        batch = b.run()
+        batch_status = batch.status()
+        assert batch_status['state'] == 'sucess', str(batch.debug_info())
+
+        b = Batch(backend=backend)
+        input_file = hb.read_input(j1_write_output_location)
+        j = b.new_job()
+        j.image(HAIL_GENETICS_HAIL_IMAGE)
+        j.command(f'python3 -c "import hail as hl; print(hl.hadoop_open(\\"{hb.remote(input_file)}\\").read())"')
+
+    async def test_remote_python_consumer(self):
+        backend = hb.ServiceBackend(remote_tmpdir=f'{self.remote_tmpdir}/temporary-files')
+        b = hb.Batch(backend=backend)
+        j1 = b.new_job()
+        j1.command(f'echo x y > {j1.out}')
+        j1.command(f'echo 1 2 >> {j1.out}')
+        j1.command(f'echo 3 4 >> {j1.out}')
+
+        def column_means(path):
+            import hail as hl
+            ht = hl.import_table(path, delimiter=' ', impute=True)
+            return ht.aggregate([hl.agg.mean(ht.x), hl.agg.mean(ht.y)])
+
+        j2 = b.new_python_job()
+        j2.image(HAIL_GENETICS_HAIL_IMAGE)
+        result_resource = j2.call(column_means, hb.remote(j1.out))
+
+        token = uuid.uuid4()
+        result_location = self.remote_tmpdir + '/' + token
+        b.write_output(result_resource, result_location)
+
+        b.run()
+
+        async with RouterAsyncFS('gs') as fs:
+            result = dill.loads(fs.read(result_location))
+        assert result == [2.0, 3.0]
+
+    async def test_local_python_producer__remote_python_consumer(self):
+        backend = hb.ServiceBackend(billing_project='hail')
+        b = hb.Batch(backend=backend)
+
+        def write_range_table(path):
+            import hail as hl
+            ht = hl.utils.range_table(10)
+            ht = ht.key_by()
+            ht = ht.select(x = ht.idx, y = ht.idx / 2.0)
+            ht.write(path)
+
+        j1 = b.new_python_job()
+        j1.image(HAIL_GENETICS_HAIL_IMAGE)
+        j1.call(write_range_table, j1.ht)
+
+        def column_means(path):
+            import hail as hl
+            ht = hl.read_table(path)
+            return ht.aggregate([hl.agg.mean(ht.x), hl.agg.mean(ht.y)])
+
+        j2 = b.new_python_job()
+        j2.image(HAIL_GENETICS_HAIL_IMAGE)
+        result_resource = j2.call(column_means, hb.remote(j1.ht))
+
+        token = uuid.uuid4()
+        result_location = self.remote_tmpdir + '/' + token
+        b.write_output(result_resource, result_location)
+        b.run()
+
+        async with RouterAsyncFS('gs') as fs:
+            result = dill.loads(fs.read(result_location))
+        assert result == [4.5, 2.25]
+
+    async def test_remote_python_producer__remote_python_consumer(self):
+        backend = hb.ServiceBackend(billing_project='hail')
+        b = hb.Batch(backend=backend)
+
+        def write_range_table(path):
+            import hail as hl
+            ht = hl.utils.range_table(10)
+            ht = ht.key_by()
+            ht = ht.select(x = ht.idx, y = ht.idx / 2.0)
+            ht.write(path)
+
+        j1 = b.new_python_job()
+        j1.image(HAIL_GENETICS_HAIL_IMAGE)
+        j1.call(write_range_table, hb.remote(j1.ht))
+
+        def column_means(path):
+            import hail as hl
+            ht = hl.read_table(path)
+            return ht.aggregate([hl.agg.mean(ht.x), hl.agg.mean(ht.y)])
+
+        j2 = b.new_python_job()
+        j2.image(HAIL_GENETICS_HAIL_IMAGE)
+        result_resource = j2.call(column_means, hb.remote(j1.ht))
+
+        token = uuid.uuid4()
+        result_location = self.remote_tmpdir + '/' + token
+        b.write_output(result_resource, result_location)
+        b.run()
+
+        async with RouterAsyncFS('gs') as fs:
+            result = dill.loads(fs.read(result_location))
+        assert result == [4.5, 2.25]
+
+    def test_L_to_R_to_R_to_L(self):
+        def import_table(input: str, out: str):
+            import hail as hl
+            hl.import_table(input).write(out)
+
+        def export_table(input: str, out: str):
+            import hail as hl
+            hl.read_table(input).export(out)
+
+        b = Batch(
+            backend=ServiceBackend(billing_project='hail'),
+            default_python_image=HAIL_GENETICS_HAIL_IMAGE,
+        )
+
+        j0 = b.new_bash_job()
+        j0.command(f'''
+cat >{j0.tsv} <<EOF
+a b c
+1 2 3
+4 5 6
+EOF
+''')
+
+        j1 = b.new_python_job()
+        j1.call(import_table, hb.remote(j0.tsv), hb.remote(j1.ht))
+
+        j2 = b.new_python_job()
+        j2.call(export_table, hb.remote(j1.ht), hb.remote(j2.tsv))
+
+        j3 = b.new_bash_job()
+        j3.command(f'''
+cat {j2.tsv}
+''')
+        batch_handle = b.run()
+        assert batch_handle.get_job_log(4) == '''a b c
+1 2 3
+4 5 6
+'''

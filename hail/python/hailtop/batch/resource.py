@@ -1,140 +1,278 @@
+from typing import Optional, Dict, Union
+from typing_extensions import Literal
 import abc
-from typing import Optional, Set, cast
+import dill
+import urllib
+import base64
+import re
+import os
 
-from . import job  # pylint: disable=cyclic-import
+# I need to restore the jobs types without pulling in a ton of dependencies. The dependencies screw
+# with dill serialization.
 from .exceptions import BatchException
 
 
-class Resource:
+_last_used_uid = 0
+
+
+def generate_uid() -> int:
+    global _last_used_uid
+    _last_used_uid += 1
+    return _last_used_uid
+
+
+def encode_uid(uid: int) -> str:
+    return base64.b64encode(uid.to_bytes(8, byteorder='big')).decode('utf-8')
+
+
+def decode_uid(uid_str: str) -> int:
+    try:
+        return int.from_bytes(base64.b64decode(uid_str.encode('utf-8')), byteorder='big')
+    except Exception as err:
+        raise ValueError(f'bad uid: {uid_str}') from err
+
+
+class Resource(abc.ABC):
     """
     Abstract class for resources.
     """
 
-    _uid: str
-    _source: Optional[job.Job]
+    LOCAL_PREFIX = '/__HAIL_1kh7ah_/L'
+    REMOTE_PREFIX = '/__HAIL_1kh7ah_/R'
+    # FIXME: should use base63 (no /)
+    REGEXP = re.compile('/__HAIL_1kh7ah_/([LR])([+/0-9A-Za-z]+=*)')
 
+    def uid_remote_path_needle(self):
+        return Resource.REMOTE_PREFIX + encode_uid(self.uid())
+
+    def uid_local_path_needle(self):
+        return Resource.LOCAL_PREFIX + encode_uid(self.uid())
+
+    def local_prefix_from_uid(self):
+        return '/io' + self.uid_local_path_needle()
+
+    # FIXME: do I need this
     @abc.abstractmethod
-    def _get_path(self, directory: str) -> str:
+    def uses_remote_tmpdir(self) -> bool:
         pass
 
-    @abc.abstractmethod
-    def _add_output_path(self, path: str) -> None:
-        pass
+    def as_py(self) -> Union[str, Dict[str, str]]:
+        return self.local_location()
 
+    def is_remote(self) -> bool:
+        return False
 
-class ResourceFile(Resource, str):
-    """
-    Class representing a single file resource. There exist two subclasses:
-    :class:`.InputResourceFile` and :class:`.JobResourceFile`.
-    """
-    _counter = 0
-    _uid_prefix = "__RESOURCE_FILE__"
-    _regex_pattern = r"(?P<RESOURCE_FILE>{}\d+)".format(_uid_prefix)  # pylint: disable=consider-using-f-string
-
-    @classmethod
-    def _new_uid(cls):
-        uid = cls._uid_prefix + str(cls._counter)
-        cls._counter += 1
-        return uid
-
-    def __new__(cls, *args, **kwargs):  # pylint: disable=W0613
-        uid = ResourceFile._new_uid()
-        r = str.__new__(cls, uid)
-        r._uid = uid
-        return r
-
-    def __init__(self, value: Optional[str]):
-        super().__init__()
-        assert value is None or isinstance(value, str)
-        self._value = value
-        self._source: Optional[job.Job] = None
-        self._output_paths: Set[str] = set()
-        self._resource_group: Optional[ResourceGroup] = None
-
-    def _get_path(self, directory: str):
-        raise NotImplementedError
-
-    def _add_output_path(self, path: str) -> None:
-        self._output_paths.add(path)
-        if self._source is not None:
-            self._source._external_outputs.add(self)
-
-    def _add_resource_group(self, rg: 'ResourceGroup') -> None:
-        self._resource_group = rg
-
-    def _has_resource_group(self) -> bool:
-        return self._resource_group is not None
-
-    def _get_resource_group(self) -> Optional['ResourceGroup']:
-        return self._resource_group
-
-    def __str__(self):
-        return f'{self._uid}'  # pylint: disable=no-member
-
-    def __repr__(self):
-        return self._uid  # pylint: disable=no-member
-
-
-class InputResourceFile(ResourceFile):
-    """
-    Class representing a resource from an input file.
-
-    Examples
-    --------
-    `input` is an :class:`.InputResourceFile` of the batch `b`
-    and is used in job `j`:
-
-    >>> b = Batch()
-    >>> input = b.read_input('data/hello.txt')
-    >>> j = b.new_job(name='hello')
-    >>> j.command(f'cat {input}')
-    >>> b.run()
-    """
-
-    def __init__(self, value):
-        self._input_path = None
-        super().__init__(value)
-
-    def _add_input_path(self, path: str) -> 'InputResourceFile':
-        self._input_path = path
+    def defining_resource(self) -> 'Resource':
         return self
 
-    def _get_path(self, directory: str) -> str:
-        assert self._value is not None
-        return directory + '/inputs/' + self._value
+    @abc.abstractmethod
+    def uid(self) -> int:
+        pass
+
+    @abc.abstractmethod
+    def humane_name(self) -> str:
+        pass
+
+    @abc.abstractmethod
+    def source(self):
+        pass
+
+    @abc.abstractmethod
+    def remote_location(self) -> str:
+        pass
+
+    @abc.abstractmethod
+    def local_location(self) -> str:
+        pass
+
+    @abc.abstractmethod
+    def group(self) -> Optional[Union['ResourceGroup', 'ExternalResourceGroup']]:
+        pass
+
+    def __str__(self) -> str:
+        return self.local_location()
+
+    def __repr__(self) -> str:
+        return repr(self.local_location())
 
 
-class JobResourceFile(ResourceFile):
-    """
-    Class representing an intermediate file from a job.
+class RemoteResource(Resource):
+    def __init__(self, resource: Resource):
+        self.resource = resource
+        self._deserialized_remote_location: Optional[str] = None
+        if isinstance(self.resource, PythonResult):
+            raise ValueError('cannot remote resource a PythonResult')
 
-    Examples
-    --------
-    `j.ofile` is a :class:`.JobResourceFile` on the job`j`:
+    def uses_remote_tmpdir(self) -> bool:
+        return False
 
-    >>> b = Batch()
-    >>> j = b.new_job(name='hello-tmp')
-    >>> j.command(f'echo "hello world" > {j.ofile}')
-    >>> b.run()
+    def uid(self) -> int:
+        return self.resource.uid()
 
-    Notes
-    -----
-    All :class:`.JobResourceFile` are temporary files and must be written
-    to a permanent location using :meth:`.Batch.write_output` if the output needs
-    to be saved.
-    """
+    def as_py(self) -> Union[str, Dict[str, str]]:
+        if isinstance(self.resource, ResourceGroup):
+            return {name: m.remote_location() for name, m in self.resource.members_by_name.items()}
+        assert not isinstance(self.resource, PythonResult)
+        return self.resource.remote_location()
 
-    def __init__(self, value, source: job.Job):
-        super().__init__(value)
-        self._has_extension = False
-        self._source: job.Job = source
+    def is_remote(self) -> bool:
+        return True
 
-    def _get_path(self, directory: str) -> str:
-        assert self._source is not None
-        assert self._value is not None
-        return f'{directory}/{self._source._dirname}/{self._value}'
+    def defining_resource(self) -> 'Resource':
+        return self.resource
 
-    def add_extension(self, extension: str) -> 'JobResourceFile':
+    def humane_name(self) -> str:
+        return self.resource.humane_name()
+
+    def source(self):
+        return self.resource.source()
+
+    def remote_location(self) -> str:
+        return self._deserialized_remote_location or self.resource.remote_location()
+
+    def local_location(self) -> str:
+        return self._deserialized_remote_location or self.resource.remote_location()
+
+    def group(self) -> Optional[Union['ResourceGroup', 'ExternalResourceGroup']]:
+        return self.resource.group()
+
+
+def remote(resource: Resource) -> RemoteResource:
+    return RemoteResource(resource)
+
+
+class ExternalResource(Resource):
+    def __init__(self, remote_location: str, humane_name: str):
+        self._uid = generate_uid()
+        self._remote_location = remote_location
+        self._local_location = self.local_prefix_from_uid() + '/' + os.path.basename(self._remote_location)
+        self._humane_name = humane_name
+
+    def uid(self) -> int:
+        return self._uid
+
+    def uses_remote_tmpdir(self) -> bool:
+        return False
+
+    def humane_name(self) -> str:
+        return self._humane_name
+
+    def source(self) -> Literal[None]:
+        return None
+
+    def remote_location(self) -> str:
+        return self._remote_location
+
+    def local_location(self) -> str:
+        return self._local_location
+
+    def group(self) -> Literal[None]:
+        return None
+
+
+class ExternalResourceGroupMember(Resource):
+    def __init__(self, group: 'ExternalResourceGroup', remote_location: str, suffix: str, humane_name: str):
+        self._group = group
+        self._remote_location = remote_location
+        self._suffix = suffix
+        self._humane_name = humane_name
+
+    def uid(self) -> int:
+        return self._group.uid()
+
+    def uses_remote_tmpdir(self) -> bool:
+        return False
+
+    def humane_name(self) -> str:
+        return self._humane_name + ' in ' + self._group.humane_name()
+
+    def source(self):
+        return self._group.source()
+
+    def remote_location(self) -> str:
+        return self._remote_location
+
+    def local_location(self) -> str:
+        return self._group.local_location() + '/' + self._suffix
+
+    def group(self) -> Optional['ExternalResourceGroup']:
+        return self._group
+
+
+class ExternalResourceGroup(Resource):
+    def __init__(self, named_members: Dict[str, str], humane_name: str):
+        self._uid = generate_uid()
+        parsed = [urllib.parse.urlparse(url) for url in named_members.values()]
+        common_path_prefix = os.path.commonpath([url.path for url in parsed])
+        n = len(common_path_prefix)
+        suffices = [url.path[n:] for url in parsed]
+        self._local_location = self.local_prefix_from_uid() + '/' + common_path_prefix
+        self.members_by_name = {
+            name: ExternalResourceGroupMember(self, remote_location, suffix, name)
+            for (name, remote_location), suffix in zip(named_members.items(), suffices)
+        }
+        self._humane_name = humane_name
+
+    def as_py(self) -> Dict[str, str]:
+        return {name: m.local_location() for name, m in self.members_by_name.items()}
+
+    def uid(self) -> int:
+        return self._uid
+
+    def uses_remote_tmpdir(self) -> bool:
+        return False
+
+    def humane_name(self) -> str:
+        return self._humane_name
+
+    def source(self) -> Literal[None]:
+        return None
+
+    def remote_location(self) -> str:
+        raise ValueError('ExternalResourceGroup has no sensible remote location')
+
+    def local_location(self) -> str:
+        return self._local_location
+
+    def group(self) -> Optional['ResourceGroup']:
+        return None
+
+
+class JobResource(Resource):
+    def __init__(self, remote_dir: str, j, humane_name: str, extension: Optional[str]):
+        self._uid = generate_uid()
+        self._remote_location = remote_dir + self.uid_remote_path_needle()
+        self._extension: Optional[str] = extension
+        self._local_location: Optional[str] = None
+        self._job = j
+        self._humane_name = humane_name
+
+    def uid(self) -> int:
+        return self._uid
+
+    def uses_remote_tmpdir(self) -> bool:
+        return True
+
+    def humane_name(self) -> str:
+        return self._humane_name
+
+    def source(self):
+        return self._job
+
+    def remote_location(self) -> str:
+        return self._remote_location
+
+    def local_location(self) -> str:
+        if self._local_location is None:
+            self._local_location = self.local_prefix_from_uid()
+            if self._extension is not None:
+                self._local_location += self._extension
+        return self._local_location
+
+    def group(self) -> Literal[None]:
+        return None
+
+    def add_extension(self, extension: str) -> 'JobResource':
         """
         Specify the file extension to use.
 
@@ -162,195 +300,129 @@ class JobResourceFile(ResourceFile):
         :class:`.JobResourceFile`
             Same resource file with the extension specified
         """
-        if self._has_extension:
+        if self._extension is not None:
             raise BatchException("Resource already has a file extension added.")
-        assert self._value is not None
-        self._value += extension
-        self._has_extension = True
+        assert self._local_location is None
+        self._extension = extension
         return self
 
 
+class ResourceGroupMember(Resource):
+    def __init__(self, group: 'ResourceGroup', suffix: str, humane_name: str):
+        self._group = group
+        self._suffix = suffix
+        self._humane_name = humane_name
+
+    def uid(self) -> int:
+        return self._group.uid()
+
+    def uses_remote_tmpdir(self) -> bool:
+        return True
+
+    def humane_name(self) -> str:
+        return self._humane_name + ' in ' + self._group.humane_name()
+
+    def source(self):
+        return self._group.source()
+
+    def remote_location(self) -> str:
+        return self._group.remote_location() + '/' + self._suffix
+
+    def local_location(self) -> str:
+        return self._group.local_location() + '/' + self._suffix
+
+    def group(self) -> Literal[None]:
+        return self._group
+
+
 class ResourceGroup(Resource):
-    """
-    Class representing a mapping of identifiers to a resource file.
+    def __init__(self, remote_prefix: str, named_format_strings: Dict[str, str], j, humane_name: str):
+        self._uid = generate_uid()
+        self._remote_location = remote_prefix + self.uid_remote_path_needle()
+        self._local_location = self.local_prefix_from_uid() + '/' + os.path.basename(self._remote_location)
+        self._job = j
+        self.members_by_name = {
+            name: ResourceGroupMember(self, format_string.format(root='root'), name)
+            for name, format_string in named_format_strings.items()
+        }
+        self._humane_name = humane_name
 
-    Examples
-    --------
+    def as_py(self) -> Dict[str, str]:
+        return {name: m.local_location() for name, m in self.members_by_name.items()}
 
-    Initialize a batch and create a new job:
+    def uid(self) -> int:
+        return self._uid
 
-    >>> b = Batch()
-    >>> j = b.new_job()
+    def uses_remote_tmpdir(self) -> bool:
+        return True
 
-    Read a set of input files as a resource group:
+    def humane_name(self) -> str:
+        return self._humane_name
 
-    >>> bfile = b.read_input_group(bed='data/example.bed',
-    ...                            bim='data/example.bim',
-    ...                            fam='data/example.fam')
+    def source(self):
+        return self._job
 
-    Create a resource group from a job intermediate:
+    def remote_location(self) -> str:
+        return self._remote_location
 
-    >>> j.declare_resource_group(ofile={'bed': '{root}.bed',
-    ...                                 'bim': '{root}.bim',
-    ...                                 'fam': '{root}.fam'})
-    >>> j.command(f'plink --bfile {bfile} --make-bed --out {j.ofile}')
+    def local_location(self) -> str:
+        return self._local_location
 
-    Reference the entire file group:
-
-    >>> j.command(f'plink --bfile {bfile} --geno 0.2 --make-bed --out {j.ofile}')
-
-    Reference a single file:
-
-    >>> j.command(f'wc -l {bfile.fam}')
-
-    Execute the batch:
-
-    >>> b.run() # doctest: +SKIP
-
-    Notes
-    -----
-    All files in the resource group are copied between jobs even if only one
-    file in the resource group is mentioned. This is to account for files that
-    are implicitly assumed to always be together such as a FASTA file and its
-    index.
-    """
-
-    _counter = 0
-    _uid_prefix = "__RESOURCE_GROUP__"
-    _regex_pattern = r"(?P<RESOURCE_GROUP>{}\d+)".format(_uid_prefix)  # pylint: disable=consider-using-f-string
-
-    @classmethod
-    def _new_uid(cls):
-        uid = cls._uid_prefix + str(cls._counter)
-        cls._counter += 1
-        return uid
-
-    def __init__(self, source: Optional[job.Job], root: str, **values: ResourceFile):
-        self._source = source
-        self._resources = {}  # dict of name to resource uid
-        self._root = root
-        self._uid = ResourceGroup._new_uid()
-
-        for name, resource_file in values.items():
-            assert isinstance(resource_file, ResourceFile)
-            self._resources[name] = resource_file
-            resource_file._add_resource_group(self)
-
-    def _get_path(self, directory: str) -> str:
-        subdir = str(self._source._dirname) if self._source else 'inputs'
-        return directory + '/' + subdir + '/' + self._root
-
-    def _add_output_path(self, path: str) -> None:
-        for name, rf in self._resources.items():
-            rf._add_output_path(path + '.' + name)
-
-    def _get_resource(self, item: str) -> ResourceFile:
-        if item not in self._resources:
-            raise BatchException(f"'{item}' not found in the resource group.\n"
-                                 f"Hint: you must declare each attribute when constructing the resource group.")
-        return self._resources[item]
-
-    def __getitem__(self, item: str) -> ResourceFile:
-        return self._get_resource(item)
-
-    def __getattr__(self, item: str) -> ResourceFile:
-        return self._get_resource(item)
-
-    def __add__(self, other: str):
-        assert isinstance(other, str)
-        return str(self._uid) + other
-
-    def __radd__(self, other: str):
-        assert isinstance(other, str)
-        return other + str(self._uid)
-
-    def __str__(self):
-        return f'{self._uid}'
+    def group(self) -> Optional['ResourceGroup']:
+        return None
 
 
-class PythonResult(Resource, str):
-    """
-    Class representing a result from a Python job.
+class PythonResult(Resource):
+    def __init__(self, remote_dir: str, j, humane_name: str):
+        self._uid = generate_uid()
+        self._remote_location = remote_dir + '/' + encode_uid(self._uid)
+        self._extension: Optional[str] = None
+        self._local_location: Optional[str] = None
+        self._job = j
+        self._humane_name = humane_name
 
-    Examples
-    --------
+        self._remote_dir = remote_dir
+        self._as_json = None
+        self._as_str = None
+        self._as_repr = None
 
-    Add two numbers and then square the result:
+    def __getstate__(self):
+        return self._local_location
 
-    .. code-block:: python
+    def __setstate__(self):
+        raise ValueError('PythonResults should be deserialized by the special hail Unpickler')
 
-        def add(x, y):
-            return x + y
+    def as_py(self) -> Dict[str, str]:
+        raise ValueError('hmm')
+        # FIXME: Hmm. how do we do this with RemoteResource
+        return dill.load(open(self.local_location()))
 
-        def square(x):
-            return x ** 2
+    def uid(self) -> int:
+        return self._uid
 
+    def uses_remote_tmpdir(self) -> bool:
+        return True
 
-        b = Batch()
-        j = b.new_python_job(name='add')
-        result = j.call(add, 3, 2)
-        result = j.call(square, result)
-        b.write_output(result.as_str(), 'output/squared.txt')
-        b.run()
+    def humane_name(self) -> str:
+        return self._humane_name
 
-    Notes
-    -----
-    All :class:`.PythonResult` are temporary Python objects and must be written
-    to a permanent location using :meth:`.Batch.write_output` if the output needs
-    to be saved. In most cases, you'll want to convert the :class:`.PythonResult`
-    to a :class:`.JobResourceFile` in a human-readable format.
-    """
-    _counter = 0
-    _uid_prefix = "__PYTHON_RESULT__"
-    _regex_pattern = r"(?P<PYTHON_RESULT>{}\d+)".format(_uid_prefix)  # pylint: disable=consider-using-f-string
+    def source(self):
+        return self._job
 
-    @classmethod
-    def _new_uid(cls):
-        uid = cls._uid_prefix + str(cls._counter)
-        cls._counter += 1
-        return uid
+    def remote_location(self) -> str:
+        return self._remote_location
 
-    def __new__(cls, *args, **kwargs):  # pylint: disable=W0613
-        uid = PythonResult._new_uid()
-        r = str.__new__(cls, uid)
-        r._uid = uid
-        return r
+    def local_location(self) -> str:
+        if self._local_location is None:
+            self._local_location = self.local_prefix_from_uid()+ '/' + os.path.basename(self._remote_location)
+            if self._extension is not None:
+                self._local_location += self._extension
+        return self._local_location
 
-    def __init__(self, value: str, source: job.PythonJob):
-        super().__init__()
-        assert value is None or isinstance(value, str)
-        self._value = value
-        self._source = source
-        self._output_paths: Set[str] = set()
-        self._json = None
-        self._str = None
-        self._repr = None
+    def group(self) -> Literal[None]:
+        return None
 
-    def _get_path(self, directory: str) -> str:
-        assert self._source is not None
-        assert self._value is not None
-        return f'{directory}/{self._source._dirname}/{self._value}'
-
-    def _add_converted_resource(self, value):
-        jrf = self._source._batch._new_job_resource_file(self._source, value)
-        self._source._resources[value] = jrf
-        self._source._resources_inverse[jrf] = value
-        self._source._valid.add(jrf)
-        self._source._mentioned.add(jrf)
-        return jrf
-
-    def _add_output_path(self, path: str) -> None:
-        self._output_paths.add(path)
-        if self._source is not None:
-            self._source._external_outputs.add(self)
-
-    def source(self) -> job.PythonJob:
-        """
-        Get the job that created the Python result.
-        """
-        return cast(job.PythonJob, self._source)
-
-    def as_json(self) -> JobResourceFile:
+    def as_json(self) -> JobResource:
         """
         Convert a Python result to a file with a JSON representation of the object.
 
@@ -375,13 +447,11 @@ class PythonResult(Resource, str):
             A new resource file where the contents are a Python object
             that has been converted to JSON.
         """
-        if self._json is None:
-            jrf = self._add_converted_resource(self._value + '-json')
-            jrf.add_extension('.json')
-            self._json = jrf
-        return cast(JobResourceFile, self._json)
+        if self._as_json is None:
+            self._as_json = JobResource(self._remote_dir, self._job, self._humane_name + '-json', '.json')
+        return self._as_json
 
-    def as_str(self) -> JobResourceFile:
+    def as_str(self) -> Resource:
         """
         Convert a Python result to a file with the str representation of the object.
 
@@ -402,17 +472,15 @@ class PythonResult(Resource, str):
 
         Returns
         -------
-        :class:`.JobResourceFile`
+        :class:`.Resource`
             A new resource file where the contents are the str representation
             of a Python object.
         """
-        if self._str is None:
-            jrf = self._add_converted_resource(self._value + '-str')
-            jrf.add_extension('.txt')
-            self._str = jrf
-        return cast(JobResourceFile, self._str)
+        if self._as_str is None:
+            self._as_str = JobResource(self._remote_dir, self._job, self._humane_name + '-str', '.txt')
+        return self._as_str
 
-    def as_repr(self) -> JobResourceFile:
+    def as_repr(self) -> Resource:
         """
         Convert a Python result to a file with the repr representation of the object.
 
@@ -433,18 +501,21 @@ class PythonResult(Resource, str):
 
         Returns
         -------
-        :class:`.JobResourceFile`
+        :class:`.Resource`
             A new resource file where the contents are the repr representation
             of a Python object.
         """
-        if self._repr is None:
-            jrf = self._add_converted_resource(self._value + '-repr')
-            jrf.add_extension('.txt')
-            self._repr = jrf
-        return cast(JobResourceFile, self._repr)
+        if self._as_repr is None:
+            self._as_repr = JobResource(self._remote_dir, self._job, self._humane_name + '-repr', '.repr')
+        return self._as_repr
 
-    def __str__(self):
-        return f'{self._uid}'  # pylint: disable=no-member
 
-    def __repr__(self):
-        return self._uid  # pylint: disable=no-member
+ALL_RESOURCE_CLASSES = [
+    RemoteResource,
+    ExternalResourceGroupMember,
+    ExternalResourceGroup,
+    JobResource,
+    ResourceGroupMember,
+    ResourceGroup,
+    PythonResult
+]
