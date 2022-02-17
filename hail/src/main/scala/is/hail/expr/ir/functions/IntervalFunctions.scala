@@ -276,7 +276,7 @@ object IntervalFunctions extends RegistryFunctions {
     val partitionEndpointType = TTuple(tv("T"), TInt32)
     val partitionIntervalType = TInterval(partitionEndpointType)
     registerSCode2("partitionerContains",
-      TArray(partitionIntervalType), partitionIntervalType, TBoolean,
+      TArray(partitionIntervalType), tv("T"), TBoolean,
       (_, _, _) => SBoolean
     ) { case (_, cb, rt, intervals: SIndexableValue, point: SBaseStructValue, errorID) =>
       def ltNeedle(interval: IEmitCode): Code[Boolean] = {

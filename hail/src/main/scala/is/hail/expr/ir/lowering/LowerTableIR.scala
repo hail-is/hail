@@ -285,14 +285,14 @@ class TableStage(
                 body)) { elt =>
               invoke("pointLessThanPartitionIntervalLeftEndpoint", TBoolean,
                 SelectFields(elt, newPartitioner.kType.fieldNames),
-                GetField(interval, "left"),
-                GetField(interval, "includesLeft"))
+                invoke("start", boundType.pointType, interval),
+                invoke("includesStart", TBoolean, interval))
 
             }) { elt =>
             invoke("pointLessThanPartitionIntervalRightEndpoint", TBoolean,
               SelectFields(elt, newPartitioner.kType.fieldNames),
-              GetField(interval, "right"),
-              GetField(interval, "includesRight"))
+              invoke("end", boundType.pointType, interval),
+              invoke("includesEnd", TBoolean, interval))
           }
         }
       })
@@ -766,7 +766,7 @@ object LowerTableIR {
           }.unzip3
 
           def f(partitionIntervals: IR, key: IR): IR =
-            invoke("sortedNonOverlappingPartitionIntervalsContains", TBoolean, partitionIntervals, key)
+            invoke("partitionerContains", TBoolean, partitionIntervals, key)
           (newRangeBounds, includedIndices, startAndEndInterval, f _)
         } else {
           // keep = False
@@ -781,7 +781,7 @@ object LowerTableIR {
           }.unzip3
 
           def f(partitionIntervals: IR, key: IR): IR =
-            !invoke("sortedNonOverlappingPartitionIntervalsContains", TBoolean, partitionIntervals, key)
+            !invoke("partitionerContains", TBoolean, partitionIntervals, key)
           (newRangeBounds, includedIndices, startAndEndInterval, f _)
         }
 
