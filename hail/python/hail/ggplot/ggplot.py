@@ -179,7 +179,6 @@ class GGPlot:
             transformers[scale.aesthetic_name] = scale.create_local_transformer([x for _, _, x in geoms_and_grouped_dfs], self)
 
         for geom, geom_label, grouped_dfs in geoms_and_grouped_dfs:
-            total_groups = len(grouped_dfs)
             scaled_grouped_dfs = []
             for df in grouped_dfs:
                 scales_to_consider = list(df.columns) + list(df.attrs)
