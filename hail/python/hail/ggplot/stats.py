@@ -54,9 +54,9 @@ class StatFunction(StatIdentity):
     def __init__(self, fun):
         self.fun = fun
 
-    def make_agg(self, combined, precomputed):
-        with_y_value = combined.annotate(y=self.fun(combined.x))
-        return hl.agg.collect(with_y_value)
+    def make_agg(self, mapping, precomputed):
+        with_y_value = mapping.annotate(y=self.fun(mapping.x))
+        return super().make_agg(with_y_value, precomputed)
 
 
 class StatNone(Stat):
@@ -75,6 +75,7 @@ class StatCount(Stat):
         return hl.agg.group_by(hl.struct(**grouping_variables), hl.agg.count())
 
     def listify(self, agg_result):
+        # Slightly tricky, want to know the grouping as though it weren't by `x`. Nested group bys?
         unflattened_items = agg_result.items()
         data = []
         for grouping_variables, count in unflattened_items:

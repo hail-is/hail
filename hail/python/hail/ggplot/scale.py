@@ -17,6 +17,9 @@ class Scale(FigureAttribute):
     def transform_data_local(self, data, parent):
         return data
 
+    def create_local_transformer(self, groups_of_dfs, parent):
+        return lambda x: x
+
     @abc.abstractmethod
     def is_discrete(self):
         pass
@@ -148,6 +151,8 @@ class ScaleDiscrete(Scale):
 
 
 class ScaleColorDiscrete(ScaleDiscrete):
+
+
     def transform_data_local(self, df, parent):
         categorical_strings = set(df[self.aesthetic_name])
         unique_color_mapping = categorical_strings_to_colors(categorical_strings, parent)
@@ -158,6 +163,22 @@ class ScaleColorDiscrete(ScaleDiscrete):
         new_df[self.aesthetic_name] = new_df[self.aesthetic_name].map(unique_color_mapping)
 
         return new_df
+
+    def create_local_transformer(self, groups_of_dfs, parent):
+        categorical_strings = set()
+        for group_of_dfs in groups_of_dfs:
+            for df in group_of_dfs:
+                if self.aesthetic_name in df.attrs:
+                    categorical_strings.add(df.attrs[self.aesthetic_name])
+
+        unique_color_mapping = categorical_strings_to_colors(categorical_strings, parent)
+
+        def transform(df):
+            df.attrs[f"{self.aesthetic_name}_legend"] = df.attrs[self.aesthetic_name]
+            df.attrs[self.aesthetic_name] = unique_color_mapping[df.attrs[self.aesthetic_name]]
+            return df
+
+        return transform
 
 
 class ScaleColorContinuous(ScaleContinuous):

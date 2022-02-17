@@ -173,19 +173,10 @@ class GGPlot:
 
         geoms_and_grouped_dfs = [(geom, geom_label, labels_to_stats[geom_label].listify(agg_result)) for geom, (geom_label, agg_result) in zip(self.geoms, aggregated.items())]
 
-        # Problem: Need to get full range of local values to scale them properly. Also need to get full range of continuous
-        # values to scale them properly.
-
-        discrete_aesthetics_to_possible_values = defaultdict(lambda: set())
-        # Discrete scales only first:
-        for _, _, grouped_dfs in geoms_and_grouped_dfs:
-            distinct_discrete_fields = [df.attrs for df in grouped_dfs]
-            # Now want to identify full space of discrete variables in here.
-            for attrs in distinct_discrete_fields:
-                for aesthetic_name, value in attrs.items():
-                    discrete_aesthetics_to_possible_values[aesthetic_name].add(value)
-
-        print(discrete_aesthetics_to_possible_values)
+        # Create scaling functions based on all the data:
+        transformers = {}
+        for scale in self.scales.values():
+            transformers[scale.aesthetic_name] = scale.create_local_transformer([x for _, _, x in geoms_and_grouped_dfs], self)
 
         for geom, geom_label, grouped_dfs in geoms_and_grouped_dfs:
             total_groups = len(grouped_dfs)
@@ -195,10 +186,10 @@ class GGPlot:
                 relevant_aesthetics = [scale_name for scale_name in scales_to_consider if scale_name in self.scales]
                 scaled_df = df
                 for relevant_aesthetic in relevant_aesthetics:
-                    scaled_df = self.scales[relevant_aesthetic].transform_data_local(scaled_df, self)
+                    scaled_df = transformers[relevant_aesthetic](scaled_df)
                 scaled_grouped_dfs.append(scaled_df)
 
-            geom.apply_to_fig(self, scaled_grouped_dfs, fig, precomputed[geom_label], total_groups)
+            geom.apply_to_fig(self, scaled_grouped_dfs, fig, precomputed[geom_label])
 
         # Important to update axes after labels, axes names take precedence.
         self.labels.apply_to_fig(fig)
