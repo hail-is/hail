@@ -1079,8 +1079,8 @@ class ServiceTests(unittest.TestCase):
             import hail as hl
             hl.read_table(input).export(out)
 
-        b = hb.Batch(
-            backend=hb.ServiceBackend(billing_project='hail'),
+        b = Batch(
+            backend=ServiceBackend(billing_project='hail'),
             default_python_image=HAIL_GENETICS_HAIL_IMAGE,
         )
 
