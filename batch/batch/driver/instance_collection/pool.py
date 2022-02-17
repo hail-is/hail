@@ -459,7 +459,6 @@ LIMIT %s;
                     instance.adjust_free_cores_in_memory(-record['cores_mcpu'])
                     scheduled_cores_mcpu += record['cores_mcpu']
                     n_scheduled += 1
-                    should_wait = False
 
                     async def schedule_with_error_handling(app, record, id, instance):
                         try:
@@ -471,11 +470,12 @@ LIMIT %s;
 
                 remaining.value -= 1
                 if remaining.value <= 0:
+                    should_wait = False
                     break
 
         await waitable_pool.wait()
 
         end = time_msecs()
-        log.info(f'schedule: scheduled {n_scheduled} jobs in {end - start}ms for {self.pool}')
+        log.info(f'schedule: attemptd to schedule {n_scheduled} jobs in {end - start}ms for {self.pool}')
 
         return should_wait
