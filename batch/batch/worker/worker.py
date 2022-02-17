@@ -1670,6 +1670,10 @@ class JVMJob(Job):
                 log.info(f'{self} main: {self.state}')
             except asyncio.CancelledError:
                 raise
+            except JVMUserError:
+                self.state = 'failed'
+                self.error = traceback.form_exc()
+                await self.cleanup()
             except Exception:
                 # FIXME: this can also be a Hail Query driver error, not a Hail Batch error
                 log.exception(f'while running {self}')
@@ -1844,6 +1848,11 @@ class BufferedOutputProcess:
                 self.stdout_pump.cancel()
             finally:
                 self.stderr_pump.cancel()
+
+
+
+class JVMUserError(Exception):
+    pass
 
 
 class JVM:
@@ -2029,7 +2038,7 @@ class JVM:
             elif message == JVM.FINISH_USER_EXCEPTION:
                 log.info(f'{self}: user exception encountered (interrupted: {wait_for_interrupt.done()})')
                 exception = await read_str(reader)
-                raise ValueError(exception)
+                raise JVMUserError(exception)
             elif message == JVM.FINISH_ENTRYWAY_EXCEPTION:
                 log.info(f'{self}: entryway exception encountered (interrupted: {wait_for_interrupt.done()})')
                 exception = await read_str(reader)
