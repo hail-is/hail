@@ -64,7 +64,6 @@ class Job(abc.ABC):
 
         self._dependencies: Set['Job'] = set()
         self._produced_resource_by_name: Dict[str, _resource.Resource] = {}
-        # FIXME: why the heck did I use an int? just use the resource
         self._defined_resource_remoteness: Dict[_resource.Resource, bool] = {}
         self._need_to_copy_out: Set[_resource.Resource] = set()
 
@@ -941,7 +940,6 @@ class PythonJob(Job):
         pipe.seek(0)
 
         for resource in pickler.serialized_resources:
-            # FIXME: this should probably happen when you call?
             maybe_source = resource.source()
             if maybe_source is not None:
                 if maybe_source == self:
@@ -952,7 +950,6 @@ class PythonJob(Job):
 
         user_code_builder = StringIO()
         user_code_builder.write(textwrap.dedent(inspect.getsource(unapplied)) + '\n')
-        # FIXME: the repr for a resource does not have any quotes
         args_str = ', '.join([repr(arg) for arg in args])
         kwargs_str = ', '.join([f'{k}={v!r}' for k, v in kwargs.items()])
         separator = ', ' if args and kwargs else ''
