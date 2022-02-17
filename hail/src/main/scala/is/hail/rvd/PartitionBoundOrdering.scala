@@ -7,37 +7,6 @@ import is.hail.utils._
 import org.apache.spark.sql.Row
 
 object PartitionBoundOrdering {
-
-  def partitionBoundToInterval(r: AnyRef): Interval = {
-    val Row(left, right, includesLeft: Boolean, includesRight: Boolean) = r
-
-    def transformRow(rowWithLen: Any): Row = {
-      val Row(r: Row, len: Int) = rowWithLen
-      r.truncate(len)
-    }
-    val x = Interval(
-      transformRow(left),
-      transformRow(right),
-      includesLeft,
-      includesRight)
-    x
-  }
-
-  def regionValueToJavaObject(t: PType, addr: Long): Interval = {
-    val Row(left, right, includesLeft: Boolean, includesRight: Boolean) = SafeRow.read(t, addr)
-
-    def transformRow(rowWithLen: Any): Row = {
-      val Row(r: Row, len: Int) = rowWithLen
-      r.truncate(len)
-    }
-    val x = Interval(
-      transformRow(left),
-      transformRow(right),
-      includesLeft,
-      includesRight)
-    x
-  }
-
   def apply(_kType: Type): ExtendedOrdering = {
     val kType = _kType.asInstanceOf[TBaseStruct]
     val fieldOrd = kType.types.map(_.ordering)

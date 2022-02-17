@@ -406,4 +406,14 @@ object RVDPartitioner {
 
     Interval(processEndpoint(interval.left), processEndpoint(interval.right))
   }
+
+  def irRepresentationToInterval(_irInterval: AnyRef): Interval = {
+    def processEndpoint(p: IntervalEndpoint): IntervalEndpoint = {
+      val Row(r: Row, len: Int) = p.point
+      p.copy(point = r.truncate(len))
+    }
+
+    val irInterval = _irInterval.asInstanceOf[Interval]
+    Interval(processEndpoint(irInterval.left), processEndpoint(irInterval.right))
+  }
 }

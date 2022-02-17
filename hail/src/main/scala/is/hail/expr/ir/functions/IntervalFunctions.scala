@@ -366,21 +366,21 @@ object IntervalFunctions extends RegistryFunctions {
     }
 
     registerSCode2("partitionIntervalContains",
-      TStruct("left" -> endpointT, "right" -> endpointT, "includesLeft" -> TBoolean, "includesRight" -> TBoolean),
+      partitionIntervalType,
       tv("T"), TBoolean, (_, _, _) => SBoolean) {
-      case (_, cb, _, interval: SBaseStructValue, point: SBaseStructValue, _) =>
-        val leftTuple = interval.loadField(cb, "left").get(cb).asBaseStruct
+      case (_, cb, _, interval: SIntervalValue, point: SBaseStructValue, _) =>
+        val leftTuple = interval.loadStart(cb).get(cb).asBaseStruct
 
-        val includesLeft = interval.loadField(cb, "includesLeft").get(cb).asBoolean.value
+        val includesLeft = interval.includesStart()
         val pointGTLeft = compareStructWithPartitionIntervalEndpoint(cb, point, leftTuple, !includesLeft) > 0
 
         val isContained = cb.newLocal[Boolean]("partitionInterval_b", pointGTLeft)
 
         cb.ifx(isContained, {
           // check right endpoint
-          val rightTuple = interval.loadField(cb, "right").get(cb).asBaseStruct
+          val rightTuple = interval.loadEnd(cb).get(cb).asBaseStruct
 
-          val includesRight = interval.loadField(cb, "includesRight").get(cb).asBoolean.value
+          val includesRight = interval.includesEnd()
           val pointLTRight = compareStructWithPartitionIntervalEndpoint(cb, point, rightTuple, includesRight) < 0
           cb.assign(isContained, pointLTRight)
         })
