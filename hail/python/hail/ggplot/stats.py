@@ -23,9 +23,6 @@ class Stat:
 
 class StatIdentity(Stat):
 
-    def __init__(self, downsample=False):
-        self.downsample = downsample
-
     def make_agg(self, mapping, precomputed):
         grouping_variables = {aes_key: mapping[aes_key] for aes_key in mapping.keys()
                               if should_use_for_grouping(aes_key, mapping[aes_key].dtype)}
