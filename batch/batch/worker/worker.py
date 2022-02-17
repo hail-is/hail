@@ -1850,7 +1850,6 @@ class BufferedOutputProcess:
                 self.stderr_pump.cancel()
 
 
-
 class JVMUserError(Exception):
     pass
 
