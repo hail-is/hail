@@ -282,11 +282,11 @@ def geom_col(mapping=aes(), *, fill=None, color=None, alpha=None, position="stac
 class GeomHistogram(Geom):
 
     aes_to_arg = {
-        "fill": ("marker_color", "black", False),
-        "color": ("marker_line_color", None, True),
-        "tooltip": ("hovertext", None, False),
-        "fill_legend": ("name", None, True),
-        "alpha": ("marker_opacity", None, False)
+        "fill": ("marker_color", "black"),
+        "color": ("marker_line_color", None),
+        "tooltip": ("hovertext", None),
+        "fill_legend": ("name", None),
+        "alpha": ("marker_opacity", None)
     }
 
     def __init__(self, aes, min_val=None, max_val=None, bins=None, fill=None, color=None, alpha=None, position='stack', size=None):
@@ -335,14 +335,13 @@ class GeomHistogram(Geom):
                     "<extra></extra>",
             }
 
-            for aes_name, (plotly_name, default, take_one) in self.aes_to_arg.items():
+            for aes_name, (plotly_name, default) in self.aes_to_arg.items():
                 if hasattr(self, aes_name) and getattr(self, aes_name) is not None:
                     bar_args[plotly_name] = getattr(self, aes_name)
+                elif aes_name in df.attrs:
+                    bar_args[plotly_name] = df.attrs[aes_name]
                 elif aes_name in df.columns:
-                    if take_one:
-                        bar_args[plotly_name] = df[aes_name].iloc[0]
-                    else:
-                        bar_args[plotly_name] = df[aes_name]
+                    bar_args[plotly_name] = df[aes_name]
                 elif default is not None:
                     bar_args[plotly_name] = default
 
@@ -497,11 +496,9 @@ class GeomTile(Geom):
                     "y0": y_center - height / 2,
                     "x1": x_center + width / 2,
                     "y1": y_center + height / 2,
-                    "fillcolor": "black" if "fill" not in row else row["fill"],
+                    "fillcolor": "black" if "fill" not in df.attrs else df.attrs["fill"],
                     "opacity": row.get('alpha', 1.0)
                 }
-                if "color" in row:
-                    shape_args["line_color"] = row["color"]
                 fig_so_far.add_shape(**shape_args)
 
         for group_df in grouped_data:
