@@ -37,8 +37,15 @@ functions.
 Resources
 ~~~~~~~~~
 
-A :class:`.Resource` is an abstract class that represents files in a :class:`.Batch` and
-has two subtypes: :class:`.ResourceFile` and :class:`.ResourceGroup`.
+A :class:`.Resource` is an abstract class that represents files in a :class:`.Batch`. A resource may
+be external or internal. External resources are created by :meth:`.Batch.read_input` and
+:meth:`.Batch.read_input_group`. Resources may be members of groups which are created by
+:meth:`.Batch.read_input_group` or :meth:`.Job.declare_resource_group`.
+
+A *reference* to a resource may be *local* or *remote*. By default, a resource is referenced
+locally. A locally referenced resoruce is always downloaded to (respectively, uploaded from) the
+local file system of a job before (respectively, after) execution of the job. A remote reference to
+a resource is created by wrapping the resource in :func:`.resource.remote`.
 
 A single file is represented by a :class:`.ResourceFile` which has two subtypes:
 :class:`.InputResourceFile` and :class:`.JobResourceFile`. An InputResourceFile is used

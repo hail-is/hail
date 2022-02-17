@@ -1,9 +1,11 @@
+from typing import Optional, Dict, Union, List, Any, Set
 import os
 import warnings
 import re
-from typing import Optional, Dict, Union, List, Any, Set
+import uuid
+from collections import defaultdict
 
-from hailtop.utils import secret_alnum_string, url_scheme
+from hailtop.utils import secret_alnum_string
 from hailtop.aiotools import AsyncFS
 from hailtop.aiotools.router_fs import RouterAsyncFS
 
@@ -113,14 +115,19 @@ class Batch:
                  default_python_image: Optional[str] = None,
                  project: Optional[str] = None,
                  cancel_after_n_failures: Optional[int] = None):
+
         self._jobs: List[job.Job] = []
-        self._resource_map: Dict[str, _resource.Resource] = {}
-        self._allocated_files: Set[str] = set()
-        self._input_resources: Set[_resource.InputResourceFile] = set()
         self._uid = Batch._get_uid()
         self._job_tokens: Set[str] = set()
+        self._input_resources: Set[_resource.Resource] = set()
+        self._outputs: Dict[_resource.Resource, List[str]] = defaultdict(list)
 
         self._backend = backend if backend else _backend.LocalBackend()
+
+        # FIXME: iterate until a truly unique directory
+        uid = uuid.uuid4().hex[:6]
+        self._remote_location = f'{self._backend.remote_tmpdir()}{uid}'
+        self._resource_by_uid: Dict[int, _resource.Resource] = {}
 
         self.name = name
 
@@ -292,48 +299,7 @@ class Batch:
         self._jobs.append(j)
         return j
 
-    def _new_job_resource_file(self, source, value=None):
-        if value is None:
-            value = secret_alnum_string(5)
-        jrf = _resource.JobResourceFile(value, source)
-        self._resource_map[jrf._uid] = jrf  # pylint: disable=no-member
-        return jrf
-
-    def _new_input_resource_file(self, input_path, value=None):
-        if value is None:
-            value = f'{secret_alnum_string(5)}/{os.path.basename(input_path.rstrip("/"))}'
-        irf = _resource.InputResourceFile(value)
-        irf._add_input_path(input_path)
-        self._resource_map[irf._uid] = irf  # pylint: disable=no-member
-        self._input_resources.add(irf)
-        return irf
-
-    def _new_resource_group(self, source, mappings, root=None):
-        assert isinstance(mappings, dict)
-        if root is None:
-            root = secret_alnum_string(5)
-        d = {}
-        new_resource_map = {}
-        for name, code in mappings.items():
-            if not isinstance(code, str):
-                raise BatchException(f"value for name '{name}' is not a string. Found '{type(code)}' instead.")
-            r = self._new_job_resource_file(source=source, value=eval(f'f"""{code}"""'))  # pylint: disable=W0123
-            d[name] = r
-            new_resource_map[r._uid] = r  # pylint: disable=no-member
-
-        self._resource_map.update(new_resource_map)
-        rg = _resource.ResourceGroup(source, root, **d)
-        self._resource_map.update({rg._uid: rg})
-        return rg
-
-    def _new_python_result(self, source, value=None) -> _resource.PythonResult:
-        if value is None:
-            value = secret_alnum_string(5)
-        jrf = _resource.PythonResult(value, source)
-        self._resource_map[jrf._uid] = jrf  # pylint: disable=no-member
-        return jrf
-
-    def read_input(self, path: str) -> _resource.InputResourceFile:
+    def read_input(self, path: str) -> _resource.Resource:
         """
         Create a new input resource file object representing a single file.
 
@@ -362,8 +328,9 @@ class Batch:
             File extension to use.
         """
 
-        irf = self._new_input_resource_file(path)
-        return irf
+        resource = _resource.ExternalResource(path, os.path.basename(path))
+        self._input_resources.add(resource)
+        return resource
 
     def read_input_group(self, **kwargs: str) -> _resource.ResourceGroup:
         """Create a new resource group representing a mapping of identifier to
@@ -424,12 +391,9 @@ class Batch:
             is the file path.
         """
 
-        root = secret_alnum_string(5)
-        new_resources = {name: self._new_input_resource_file(file, value=f'{root}/{os.path.basename(file.rstrip("/"))}')
-                         for name, file in kwargs.items()}
-        rg = _resource.ResourceGroup(None, root, **new_resources)
-        self._resource_map.update({rg._uid: rg})
-        return rg
+        resource = _resource.ExternalResourceGroup(kwargs, f'<ExternalResourceGroup from {self}>')
+        self._input_resources.add(resource)
+        return resource
 
     def write_output(self, resource: _resource.Resource, dest: str):  # pylint: disable=R0201
         """
@@ -488,27 +452,14 @@ class Batch:
 
         if not isinstance(resource, _resource.Resource):
             raise BatchException(f"'write_output' only accepts Resource inputs. Found '{type(resource)}'.")
-        if (isinstance(resource, _resource.JobResourceFile)
-                and isinstance(resource._source, job.BashJob)
-                and resource not in resource._source._mentioned):
-            name = resource._source._resources_inverse[resource]
-            raise BatchException(f"undefined resource '{name}'\n"
-                                 f"Hint: resources must be defined within the "
-                                 f"job methods 'command' or 'declare_resource_group'")
-        if (isinstance(resource, _resource.PythonResult)
-                and isinstance(resource._source, job.PythonJob)
-                and resource not in resource._source._mentioned):
-            name = resource._source._resources_inverse[resource]
-            raise BatchException(f"undefined resource '{name}'\n"
-                                 f"Hint: resources must be bound as a result "
-                                 f"using the PythonJob 'call' method")
-
-        if isinstance(self._backend, _backend.LocalBackend):
-            dest_scheme = url_scheme(dest)
-            if dest_scheme == '':
-                dest = os.path.abspath(os.path.expanduser(dest))
-
-        resource._add_output_path(dest)
+        source = resource.source()
+        if source is not None and resource not in source.defined_resources():
+            raise BatchException(
+                f"undefined resource '{resource.humane_name()}'\n"
+                f"Hint: resources must be defined within the job methods 'BashJob.command' or "
+                f"'BashJob.declare_resource_group' or PythonJob.call")
+        self._outputs[resource].append(dest)
+        source.resource_is_needed(resource)
 
     def select_jobs(self, pattern: str) -> List[job.Job]:
         """

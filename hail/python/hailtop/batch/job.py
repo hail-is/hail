@@ -1,3 +1,5 @@
+from typing import Union, Optional, Dict, List, Set, Tuple, Callable, Any, KeysView
+import abc
 import re
 
 import warnings
@@ -6,39 +8,35 @@ import os
 import functools
 import inspect
 import textwrap
-from shlex import quote as shq
-from io import BytesIO
-from typing import Union, Optional, Dict, List, Set, Tuple, Callable, Any, cast
+from io import BytesIO, StringIO
 
 from . import backend, resource as _resource, batch  # pylint: disable=cyclic-import
 from .exceptions import BatchException
 from .globals import DEFAULT_SHELL
 
 
-def _add_resource_to_set(resource_set, resource, include_rg=True):
-    if isinstance(resource, _resource.ResourceGroup):
-        rg = resource
-        if include_rg:
-            resource_set.add(resource)
-    else:
-        resource_set.add(resource)
-        if isinstance(resource, _resource.ResourceFile) and resource._has_resource_group():
-            rg = resource._get_resource_group()
-        else:
-            rg = None
-
-    if rg is not None:
-        for _, resource_file in rg._resources.items():
-            resource_set.add(resource_file)
-
-
-def opt_str(x):
+def opt_str(x: Optional[Any]) -> Optional[str]:
     if x is None:
         return x
     return str(x)
 
 
-class Job:
+class ResourceToStringPickler(dill.Pickler):
+    def __init__(self, file, **kwargs):
+        super().__init__(file, **kwargs)
+        self.serialized_resources: List[_resource.Resource] = []
+        self.dispatch = {
+            **dill.Pickler.dispatch,
+            **{k: ResourceToStringPickler.save_resource
+               for k in _resource.ALL_RESOURCE_CLASSES}
+        }
+
+    def save_resource(self, obj: _resource.Resource):
+        self.serialized_resources.append(obj)
+        return self.save(obj.as_py())
+
+
+class Job(abc.ABC):
     """
     Object representing a single job to execute.
 
@@ -47,16 +45,6 @@ class Job:
     This class should never be created directly by the user. Use :meth:`.Batch.new_job`,
     :meth:`.Batch.new_bash_job`, or :meth:`.Batch.new_python_job` instead.
     """
-
-    _counter = 1
-    _uid_prefix = "__JOB__"
-    _regex_pattern = r"(?P<JOB>{}\d+)".format(_uid_prefix)  # pylint: disable=consider-using-f-string
-
-    @classmethod
-    def _new_uid(cls):
-        uid = cls._uid_prefix + str(cls._counter)
-        cls._counter += 1
-        return uid
 
     def __init__(self,
                  batch: 'batch.Batch',
@@ -72,56 +60,59 @@ class Job:
         self.name = name
         self.attributes = attributes
 
-        self._cpu: Optional[str] = None
-        self._memory: Optional[str] = None
+        self._dependencies: Set['Job'] = set()
+        self._produced_resource_by_name: Dict[str, _resource.Resource] = {}
+        self._defined_resource_remoteness: Dict[_resource.Resource, bool] = {}
+        self._need_to_copy_out: Set[_resource.Resource] = set()
+
+        self._env: Dict[str, str] = {}
         self._storage: Optional[str] = None
-        self._image: Optional[str] = None
+        self._memory: Optional[str] = None
+        self._cpu: Optional[str] = None
         self._always_run: bool = False
-        self._preemptible: Optional[bool] = None
-        self._machine_type: Optional[str] = None
         self._timeout: Optional[Union[int, float]] = None
         self._cloudfuse: List[Tuple[str, str, bool]] = []
-        self._env: Dict[str, str] = {}
         self._wrapper_code: List[str] = []
         self._user_code: List[str] = []
+        self._image: Optional[str] = None
 
-        self._resources: Dict[str, _resource.Resource] = {}
-        self._resources_inverse: Dict[_resource.Resource, str] = {}
-        self._uid = Job._new_uid()
-        self._job_id: Optional[int] = None
+        # unused?
+        self._preemptible: Optional[bool] = None
+        self._machine_type: Optional[str] = None
 
-        self._inputs: Set[_resource.Resource] = set()
-        self._internal_outputs: Set[Union[_resource.ResourceFile, _resource.PythonResult]] = set()
-        self._external_outputs: Set[Union[_resource.ResourceFile, _resource.PythonResult]] = set()
-        self._mentioned: Set[_resource.Resource] = set()  # resources used in the command
-        self._valid: Set[_resource.Resource] = set()  # resources declared in the appropriate place
-        self._dependencies: Set[Job] = set()
+    def defined_resources(self) -> KeysView[_resource.Resource]:
+        return self._defined_resource_remoteness.keys()
 
-        def safe_str(s):
-            new_s = []
-            for c in s:
-                if c.isalnum() or c == '-':
-                    new_s.append(c)
-                else:
-                    new_s.append('_')
-            return ''.join(new_s)
+    def resource_defined_remotely(self, resource: _resource.Resource) -> bool:
+        print(resource, self._defined_resource_remoteness, self)
+        return self._defined_resource_remoteness[resource]
 
-        self._dirname = f'{safe_str(name)}-{self._token}' if name else self._token
+    def resource_is_defined(self, resource: _resource.Resource, *, remote: bool = False):
+        if resource.is_remote():
+            return self.resource_is_defined(resource.defining_resource(), remote=True)
+        self._defined_resource_remoteness[resource] = remote
 
-    def _get_resource(self, item: str) -> '_resource.Resource':
-        raise NotImplementedError
+    def resource_is_needed(self, resource: _resource.Resource):
+        if resource.is_remote():
+            return self.resource_is_needed(resource.defining_resource())
+        if self.resource_defined_remotely(resource):
+            return
+        self._need_to_copy_out.add(resource)
 
-    def __getitem__(self, item: str) -> '_resource.Resource':
-        return self._get_resource(item)
+    def __getitem__(self, name: str) -> '_resource.Resource':
+        resource = self._produced_resource_by_name.get(name)
+        if resource is None:
+            resource = _resource.JobResource(self._batch._remote_location, self, name, None)
+            self._produced_resource_by_name[name] = resource
+            self._batch._resource_by_uid[resource.uid()] = resource
+        return resource
 
-    def __getattr__(self, item: str) -> '_resource.Resource':
-        return self._get_resource(item)
+    def __getattr__(self, name: str) -> '_resource.Resource':
+        return self.__getitem__(name)
 
-    def _add_internal_outputs(self, resource: '_resource.Resource') -> None:
-        _add_resource_to_set(self._internal_outputs, resource, include_rg=False)
-
-    def _add_inputs(self, resource: '_resource.Resource') -> None:
-        _add_resource_to_set(self._inputs, resource, include_rg=False)
+    @abc.abstractmethod
+    async def compile(self, *, dry_run=False) -> Tuple[str, str, List['_resource.Resource']]:
+        pass
 
     def depends_on(self, *jobs: 'Job') -> 'Job':
         """
@@ -166,8 +157,7 @@ class Job:
         Same job object with dependencies set.
         """
 
-        for j in jobs:
-            self._dependencies.add(j)
+        self._dependencies.extend(jobs)
         return self
 
     def env(self, variable: str, value: str):
@@ -473,69 +463,33 @@ class Job:
         self._cloudfuse.append((bucket, mount_point, read_only))
         return self
 
-    async def _compile(self, local_tmpdir, remote_tmpdir, *, dry_run=False):
-        raise NotImplementedError
+    def image(self, image: str) -> 'Job':
+        """
+        Set the job's docker image.
 
-    def _interpolate_command(self, command, allow_python_results=False):
-        def handler(match_obj):
-            groups = match_obj.groupdict()
+        Examples
+        --------
 
-            if groups['JOB']:
-                raise BatchException(f"found a reference to a Job object in command '{command}'.")
-            if groups['BATCH']:
-                raise BatchException(f"found a reference to a Batch object in command '{command}'.")
-            if groups['PYTHON_RESULT'] and not allow_python_results:
-                raise BatchException(f"found a reference to a PythonResult object. hint: Use one of the methods `as_str`, `as_json` or `as_repr` on a PythonResult. command: '{command}'")
+        Set the job's docker image to `ubuntu:20.04`:
 
-            assert groups['RESOURCE_FILE'] or groups['RESOURCE_GROUP'] or groups['PYTHON_RESULT']
-            r_uid = match_obj.group()
-            r = self._batch._resource_map.get(r_uid)
+        >>> b = Batch()
+        >>> j = b.new_job()
+        >>> (j.image('ubuntu:20.04')
+        ...   .command(f'echo "hello"'))
+        >>> b.run()  # doctest: +SKIP
 
-            if r is None:
-                raise BatchException(f"undefined resource '{r_uid}' in command '{command}'.\n"
-                                     f"Hint: resources must be from the same batch as the current job.")
+        Parameters
+        ----------
+        image:
+            Docker image to use.
 
-            if r._source != self:
-                self._add_inputs(r)
-                if r._source is not None:
-                    if r not in r._source._valid:
-                        name = r._source._resources_inverse[r]
-                        raise BatchException(f"undefined resource '{name}'\n"
-                                             f"Hint: resources must be defined within "
-                                             f"the job methods 'command' or 'declare_resource_group'")
-                    self._dependencies.add(r._source)
-                    r._source._add_internal_outputs(r)
-            else:
-                _add_resource_to_set(self._valid, r)
+        Returns
+        -------
+        Same job object with docker image set.
+        """
 
-            self._mentioned.add(r)
-            return '${BATCH_TMPDIR}' + shq(r._get_path(''))
-
-        regexes = [_resource.ResourceFile._regex_pattern,
-                   _resource.ResourceGroup._regex_pattern,
-                   _resource.PythonResult._regex_pattern,
-                   Job._regex_pattern,
-                   batch.Batch._regex_pattern]
-
-        subst_command = re.sub('(' + ')|('.join(regexes) + ')',
-                               handler,
-                               command)
-
-        return subst_command
-
-    def _pretty(self):
-        s = f"Job '{self._uid}'" \
-            f"\tName:\t'{self.name}'" \
-            f"\tAttributes:\t'{self.attributes}'" \
-            f"\tImage:\t'{self._image}'" \
-            f"\tCPU:\t'{self._cpu}'" \
-            f"\tMemory:\t'{self._memory}'" \
-            f"\tStorage:\t'{self._storage}'" \
-            f"\tCommand:\t'{self._command}'"
-        return s
-
-    def __str__(self):
-        return self._uid
+        self._image = image
+        return self
 
 
 class BashJob(Job):
@@ -578,15 +532,7 @@ class BashJob(Job):
         super().__init__(batch, token, name=name, attributes=attributes, shell=shell)
         self._command: List[str] = []
 
-    def _get_resource(self, item: str) -> '_resource.Resource':
-        if item not in self._resources:
-            r = self._batch._new_job_resource_file(self, value=item)
-            self._resources[item] = r
-            self._resources_inverse[r] = item
-
-        return self._resources[item]
-
-    def declare_resource_group(self, **mappings: Dict[str, Any]) -> 'BashJob':
+    def declare_resource_group(self, **mappings: Dict[str, str]) -> 'BashJob':
         """Declare a resource group for a job.
 
         Examples
@@ -611,11 +557,17 @@ class BashJob(Job):
         Be careful when specifying the expressions for each file as this is Python
         code that is executed with `eval`!
 
+        # FIXME: !!!!! eval?
+
         Parameters
         ----------
         mappings:
             Keywords (in the above example `tmp1`) are the name(s) of the
-            resource group(s).  File names may contain arbitrary Python
+            resource group(s).
+
+
+            FIXME: woah, eval?
+            File names may contain arbitrary Python
             expressions, which will be evaluated by Python `eval`.  To use the
             keyword as the file name, use `{root}` (in the above example {root}
             will be replaced with `tmp1`).
@@ -625,41 +577,16 @@ class BashJob(Job):
         Same job object with resource groups set.
         """
 
-        for name, d in mappings.items():
-            assert name not in self._resources
-            if not isinstance(d, dict):
-                raise BatchException(f"value for name '{name}' is not a dict. Found '{type(d)}' instead.")
-            rg = self._batch._new_resource_group(self, d, root=name)
-            self._resources[name] = rg
-            _add_resource_to_set(self._valid, rg)
-        return self
+        for name, named_format_strings in mappings.items():
+            rg = _resource.ResourceGroup(
+                self._batch._remote_location,
+                named_format_strings,
+                self,
+                f'ResourceGroup({",".join(mappings.keys())})'
+            )
+            self._produced_resource_by_name[name] = rg
+            self._batch._resource_by_uid[rg.uid()] = rg
 
-    def image(self, image: str) -> 'BashJob':
-        """
-        Set the job's docker image.
-
-        Examples
-        --------
-
-        Set the job's docker image to `ubuntu:20.04`:
-
-        >>> b = Batch()
-        >>> j = b.new_job()
-        >>> (j.image('ubuntu:20.04')
-        ...   .command(f'echo "hello"'))
-        >>> b.run()  # doctest: +SKIP
-
-        Parameters
-        ----------
-        image:
-            Docker image to use.
-
-        Returns
-        -------
-        Same job object with docker image set.
-        """
-
-        self._image = image
         return self
 
     def command(self, command: str) -> 'BashJob':
@@ -735,49 +662,61 @@ class BashJob(Job):
         Same job object with command appended.
         """
 
-        command = self._interpolate_command(command)
+        for mo in re.finditer(_resource.Resource.REGEXP, command):
+            uid = _resource.decode_uid(mo[2])
+            try:
+                resource = self._batch._resource_by_uid[uid]
+            except KeyError as err:
+                raise BatchException(
+                    f"undefined resource '{mo[2]}' in command '{command}'.\n"
+                    f"Hint: resources must be from the same batch as the current job.") from err
+            maybe_source = resource.source()
+            if maybe_source is not None:
+                if maybe_source == self:
+                    self.resource_is_defined(resource)
+                else:
+                    maybe_source.resource_is_needed(resource)
+                    self._dependencies.add(maybe_source)
+
         self._command.append(command)
         return self
 
-    async def _compile(self, local_tmpdir, remote_tmpdir, *, dry_run=False):
-        if len(self._command) == 0:
-            return False
-
+    async def compile(self, *, dry_run=False) -> Tuple[str, str, List['_resource.Resource']]:
         job_shell = self._shell if self._shell else DEFAULT_SHELL
 
-        job_command = [cmd.strip() for cmd in self._command]
-        job_command = [f'{{\n{x}\n}}' for x in job_command]
-        job_command = '\n'.join(job_command)
+        job_command = ['#! ' + job_shell]
+        job_command.extend([
+            'mkdir -p ' + os.path.dirname(resource.local_location())
+            for resource in self.defined_resources()])
+        user_code = [cmd.strip() for cmd in self._command]
+        job_command.extend(user_code)
+        job_command_str = '\n'.join(job_command)
+        user_code_str = '\n'.join(user_code)
+        job_command_bytes = job_command_str.encode('utf-8')
 
-        job_command = f'''
-#! {job_shell}
-{job_command}
-'''
-
-        job_command_bytes = job_command.encode()
+        resources_to_download = []
+        for match in re.finditer(_resource.Resource.REGEXP, job_command_str):
+            assert match[1] in 'LR'
+            is_referenced_remote = match[1] == 'R'
+            uid = _resource.decode_uid(match[2])
+            resource = self._batch._resource_by_uid[uid]
+            if resource not in self.defined_resources() and not is_referenced_remote:
+                resources_to_download.append(resource)
 
         if len(job_command_bytes) <= 10 * 1024:
-            self._wrapper_code.append(job_command)
-            return False
+            return (job_command_str, user_code_str, resources_to_download)
 
-        self._user_code.append(job_command)
-
-        job_path = f'{remote_tmpdir}/{self._dirname}'
-        code_path = f'{job_path}/code.sh'
-        code = self._batch.read_input(code_path)
-
-        wrapper_command = f'''
-chmod u+x {code}
-source {code}
-'''
-        wrapper_command = self._interpolate_command(wrapper_command)
-        self._wrapper_code.append(wrapper_command)
-
+        code_location = self._batch._remote_location + '/' + self._token + '/' + 'code.sh'
         if not dry_run:
-            await self._batch._fs.makedirs(os.path.dirname(code_path), exist_ok=True)
-            await self._batch._fs.write(code_path, job_command_bytes)
+            # FIXME: local fs .create should be responsibile for makedirs
+            await self._batch._fs.makedirs(os.path.dirname(code_location), exist_ok=True)
+            await self._batch._fs.write(code_location, job_command_bytes)
+        code_resource = self._batch.read_input(code_location)
+        resources_to_download.append(code_resource)
 
-        return True
+        job_command_str += f'\nchmod u+x {code_resource}; source {code_resource}'
+
+        return (job_command_str, user_code_str, resources_to_download)
 
 
 class PythonJob(Job):
@@ -826,15 +765,8 @@ class PythonJob(Job):
         super().__init__(batch, token, name=name, attributes=attributes, shell=None)
         self._resources: Dict[str, _resource.Resource] = {}
         self._resources_inverse: Dict[_resource.Resource, str] = {}
-        self._functions: List[Tuple[_resource.PythonResult, Callable, Tuple[Any, ...], Dict[str, Any]]] = []
+        self._functions: List[Tuple[_resource.PythonResult, bytes, str]] = []
         self.n_results = 0
-
-    def _get_resource(self, item: str) -> '_resource.PythonResult':
-        if item not in self._resources:
-            r = self._batch._new_python_result(self, value=item)
-            self._resources[item] = r
-            self._resources_inverse[r] = item
-        return cast(_resource.PythonResult, self._resources[item])
 
     def image(self, image: str) -> 'PythonJob':
         """
@@ -995,103 +927,81 @@ class PythonJob(Job):
             if isinstance(value, Job):
                 raise BatchException('arguments to a PythonJob cannot be other job objects.')
 
-        def handle_arg(r):
-            if r._source != self:
-                self._add_inputs(r)
-                if r._source is not None:
-                    if r not in r._source._valid:
-                        name = r._source._resources_inverse[r]
-                        raise BatchException(f"undefined resource '{name}'\n")
-                    self._dependencies.add(r._source)
-                    r._source._add_internal_outputs(r)
-            else:
-                _add_resource_to_set(self._valid, r)
-
-            self._mentioned.add(r)
-
-        for arg in args:
-            if isinstance(arg, _resource.Resource):
-                handle_arg(arg)
-
-        for value in kwargs.values():
-            if isinstance(value, _resource.Resource):
-                handle_arg(value)
-
         self.n_results += 1
-        result = self._get_resource(f'result{self.n_results}')
-        handle_arg(result)
+        result_name = f'result{self.n_results}'
+        result = _resource.PythonResult(self._batch._remote_location, self, result_name)
+        self._produced_resource_by_name[result_name] = result
+        self._batch._resource_by_uid[result.uid()] = result
+        self.resource_is_defined(result)
 
-        self._functions.append((result, unapplied, args, kwargs))
+        pipe = BytesIO()
+        pickler = ResourceToStringPickler(pipe, recurse=True)
+        pickler.dump(functools.partial(unapplied, *args, **kwargs))
+        pipe.seek(0)
+
+        for resource in pickler.serialized_resources:
+            maybe_source = resource.source()
+            if maybe_source is not None:
+                if maybe_source == self:
+                    self.resource_is_defined(resource)
+                else:
+                    maybe_source.resource_is_needed(resource)
+                    self._dependencies.add(maybe_source)
+
+        user_code_builder = StringIO()
+        user_code_builder.write(textwrap.dedent(inspect.getsource(unapplied)) + '\n')
+        args_str = ', '.join([repr(arg) for arg in args])
+        kwargs_str = ', '.join([f'{k}={v!r}' for k, v in kwargs.items()])
+        separator = ', ' if args and kwargs else ''
+        func_call = f'{unapplied.__name__}({args_str}{separator}{kwargs_str})'
+        user_code_builder.write(func_call + '\n')
+
+        self._functions.append((result, pipe.getvalue(), user_code_builder.getvalue()))
 
         return result
 
-    async def _compile(self, local_tmpdir, remote_tmpdir, *, dry_run=False):
-        def prepare_argument_for_serialization(arg):
-            if isinstance(arg, _resource.PythonResult):
-                return ('py_path', arg._get_path(local_tmpdir))
-            if isinstance(arg, _resource.ResourceFile):
-                return ('path', arg._get_path(local_tmpdir))
-            if isinstance(arg, _resource.ResourceGroup):
-                return ('dict_path', {name: resource._get_path(local_tmpdir)
-                                      for name, resource in arg._resources.items()})
-            return ('value', arg)
-
-        def deserialize_argument(arg):
-            typ, val = arg
-            if typ == 'py_path':
-                return dill.load(open(val, 'rb'))
-            if typ in ('path', 'dict_path'):
-                return val
-            assert typ == 'value'
-            return val
-
-        def wrap(f):
-            @functools.wraps(f)
-            def wrapped(*args, **kwargs):
-                args = [deserialize_argument(arg) for arg in args]
-                kwargs = {kw: deserialize_argument(arg) for kw, arg in kwargs.items()}
-                return f(*args, **kwargs)
-            return wrapped
-
-        for i, (result, unapplied, args, kwargs) in enumerate(self._functions):
-            args = [prepare_argument_for_serialization(arg) for arg in args]
-            kwargs = {kw: prepare_argument_for_serialization(arg) for kw, arg in kwargs.items()}
-
-            pipe = BytesIO()
-            dill.dump(functools.partial(wrap(unapplied), *args, **kwargs), pipe, recurse=True)
-            pipe.seek(0)
-
-            job_path = os.path.dirname(result._get_path(remote_tmpdir))
-            code_path = f'{job_path}/code{i}.p'
-
+    async def compile(self, *, dry_run=False) -> Tuple[str, str, List['_resource.Resource']]:
+        resources_to_download: List[_resource.Resource] = []
+        command = StringIO()
+        user_code_builder = StringIO()
+        for i, (result, pickled, user_code) in enumerate(self._functions):
+            user_code_builder.write(user_code)
+            py_code_location = self._batch._remote_location + '/' + self._token + '/' + f'code{i}.dill'
             if not dry_run:
-                await self._batch._fs.makedirs(os.path.dirname(code_path), exist_ok=True)
-                await self._batch._fs.write(code_path, pipe.getvalue())
-
-            code = self._batch.read_input(code_path)
+                # FIXME: local fs .create should be responsibile for makedirs
+                await self._batch._fs.makedirs(os.path.dirname(py_code_location), exist_ok=True)
+                await self._batch._fs.write(py_code_location, pickled)
+            py_code_resource = self._batch.read_input(py_code_location)
+            resources_to_download.append(py_code_resource)
 
             json_write = ''
-            if result._json:
+            if result._as_json:
+                resources_to_download.append(result._as_json)
                 json_write = f'''
-            with open(\\"{result._json}\\", \\"w\\") as out:
+            os.makedirs(os.path.dirname(\\"result._as_json\\"), exist_ok=True)
+            with open(\\"{result._as_json}\\", \\"w\\") as out:
                 out.write(json.dumps(result) + \\"\\n\\")
 '''
 
             str_write = ''
-            if result._str:
+            if result._as_str:
+                resources_to_download.append(result._as_str)
                 str_write = f'''
-            with open(\\"{result._str}\\", \\"w\\") as out:
+            os.makedirs(os.path.dirname(\\"result._as_str\\"), exist_ok=True)
+            with open(\\"{result._as_str}\\", \\"w\\") as out:
                 out.write(str(result) + \\"\\n\\")
 '''
 
             repr_write = ''
-            if result._repr:
+            if result._as_repr:
+                resources_to_download.append(result._as_repr)
                 repr_write = f'''
-            with open(\\"{result._repr}\\", \\"w\\") as out:
+            os.makedirs(os.path.dirname(\\"result._as_repr\\"), exist_ok=True)
+            with open(\\"{result._as_repr}\\", \\"w\\") as out:
                 out.write(repr(result) + \\"\\n\\")
 '''
 
-            wrapper_code = f'''python3 -c "
+            command.write(f'''python3 -c "
 import os
 import base64
 import dill
@@ -1099,9 +1009,22 @@ import traceback
 import json
 import sys
 
+class PythonResultUnpickler(dill.Unpickler):
+    def __init__(self, file, **kwargs):
+        super().__init__(file, **kwargs)
+        self.dispatch = {
+            **dill.Pickler.dispatch,
+            **{k: ResourceToStringPickler.save_resource
+           for k in _resource.ALL_RESOURCE_CLASSES}
+        }
+
+    def save_resource(self, obj: _resource.Resource):
+        return self.save(obj.as_py())
+
+os.makedirs(os.path.dirname(\\"{result}\\"), exist_ok=True)
 with open(\\"{result}\\", \\"wb\\") as dill_out:
     try:
-        with open(\\"{code}\\", \\"rb\\") as f:
+        with open(\\"{py_code_resource}\\", \\"rb\\") as f:
             result = dill.load(f)()
             dill.dump(result, dill_out, recurse=True)
             {json_write}
@@ -1111,16 +1034,6 @@ with open(\\"{result}\\", \\"wb\\") as dill_out:
         traceback.print_exc()
         dill.dump((e, traceback.format_exception(type(e), e, e.__traceback__)), dill_out, recurse=True)
         raise e
-"'''
+"''')
 
-            wrapper_code = self._interpolate_command(wrapper_code, allow_python_results=True)
-            self._wrapper_code.append(wrapper_code)
-
-            self._user_code.append(textwrap.dedent(inspect.getsource(unapplied)))
-            args = ', '.join([f'{arg!r}' for _, arg in args])
-            kwargs = ', '.join([f'{k}={v!r}' for k, (_, v) in kwargs.items()])
-            separator = ', ' if args and kwargs else ''
-            func_call = f'{unapplied.__name__}({args}{separator}{kwargs})'
-            self._user_code.append(self._interpolate_command(func_call, allow_python_results=True))
-
-        return True
+        return command.getvalue(), user_code_builder.getvalue(), resources_to_download

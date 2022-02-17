@@ -5,10 +5,10 @@ from typing import List
 from ..utils.utils import grouped, digits_needed
 from .batch import Batch
 from .exceptions import BatchException
-from .resource import ResourceGroup, ResourceFile
+from .resource import ResourceGroup, Resource
 
 
-def concatenate(b: Batch, files: List[ResourceFile], image: str = None, branching_factor: int = 100) -> ResourceFile:
+def concatenate(b: Batch, files: List[Resource], image: str = None, branching_factor: int = 100) -> Resource:
     """
     Concatenate files using tree aggregation.
 
@@ -53,7 +53,7 @@ def concatenate(b: Batch, files: List[ResourceFile], image: str = None, branchin
     if len(files) == 0:
         raise BatchException('Must have at least one file to concatenate.')
 
-    if not all(isinstance(f, ResourceFile) for f in files):
+    if not all([isinstance(f, Resource) for f in files]):
         raise BatchException('Invalid input file(s) - all inputs must be resource files.')
 
     return _combine(_concatenate, b, 'concatenate', files, branching_factor=branching_factor)
