@@ -7,7 +7,7 @@ from .backend import LocalBackend, ServiceBackend, Backend
 from .docker import build_python_image
 from .exceptions import BatchException
 from .utils import concatenate, plink_merge
-from .resource import Resource, ResourceFile, ResourceGroup, PythonResult
+from .resource import Resource, ResourceGroup, PythonResult, remote
 
 __all__ = ['Batch',
            'LocalBackend',
@@ -20,8 +20,8 @@ __all__ = ['Batch',
            'plink_merge',
            'PythonResult',
            'Resource',
-           'ResourceFile',
-           'ResourceGroup'
+           'ResourceGroup',
+           'remote'
            ]
 
 nest_asyncio.apply()
