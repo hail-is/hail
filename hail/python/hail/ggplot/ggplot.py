@@ -179,22 +179,24 @@ class GGPlot:
         discrete_aesthetics_to_possible_values = defaultdict(lambda: set())
         # Discrete scales only first:
         for _, _, grouped_dfs in geoms_and_grouped_dfs:
-            distinct_structs = grouped_dfs.keys()
+            distinct_discrete_fields = [df.attrs for df in grouped_dfs]
             # Now want to identify full space of discrete variables in here.
-            for struct in distinct_structs:
-                for aesthetic_name, value in struct.items():
+            for attrs in distinct_discrete_fields:
+                for aesthetic_name, value in attrs.items():
                     discrete_aesthetics_to_possible_values[aesthetic_name].add(value)
 
-        for geom, geom_label, grouped_dfs in geoms_and_grouped_dfs:
+        print(discrete_aesthetics_to_possible_values)
 
+        for geom, geom_label, grouped_dfs in geoms_and_grouped_dfs:
             total_groups = len(grouped_dfs)
-            scaled_grouped_dfs = {}
-            for group_fields, df in grouped_dfs.items():
-                relevant_aesthetics = [scale_name for scale_name in df.columns if scale_name in self.scales]
+            scaled_grouped_dfs = []
+            for df in grouped_dfs:
+                scales_to_consider = list(df.columns) + list(df.attrs)
+                relevant_aesthetics = [scale_name for scale_name in scales_to_consider if scale_name in self.scales]
                 scaled_df = df
                 for relevant_aesthetic in relevant_aesthetics:
                     scaled_df = self.scales[relevant_aesthetic].transform_data_local(scaled_df, self)
-                scaled_grouped_dfs[group_fields] = scaled_df
+                scaled_grouped_dfs.append(scaled_df)
 
             geom.apply_to_fig(self, scaled_grouped_dfs, fig, precomputed[geom_label], total_groups)
 

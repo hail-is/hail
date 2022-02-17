@@ -85,7 +85,7 @@ class GeomPoint(Geom):
         self.alpha = alpha
 
     def apply_to_fig(self, parent, grouped_data, fig_so_far, precomputed, num_groups):
-        def plot_group(group_constants, df):
+        def plot_group(df):
             scatter_args = {
                 "x": df.x,
                 "y": df.y,
@@ -95,8 +95,8 @@ class GeomPoint(Geom):
             for aes_name, (plotly_name, default) in self.aes_to_arg.items():
                 if hasattr(self, aes_name) and getattr(self, aes_name) is not None:
                     scatter_args[plotly_name] = getattr(self, aes_name)
-                elif aes_name in group_constants:
-                    scatter_args[plotly_name] = group_constants[aes_name]
+                elif aes_name in df.attrs:
+                    scatter_args[plotly_name] = df.attrs[aes_name]
                 elif aes_name in df.columns:
                     scatter_args[plotly_name] = df[aes_name]
                 elif default is not None:
@@ -104,8 +104,8 @@ class GeomPoint(Geom):
 
             fig_so_far.add_scatter(**scatter_args)
 
-        for group_constants, group_df in grouped_data.items():
-            plot_group(group_constants, group_df)
+        for group_df in grouped_data:
+            plot_group(group_df)
 
     def get_stat(self):
         return StatIdentity()

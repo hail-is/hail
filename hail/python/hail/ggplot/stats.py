@@ -34,7 +34,7 @@ class StatIdentity(Stat):
 
     def listify(self, agg_result):
         # agg result is a dict of struct to collected list.
-        result = {}
+        result = []
         for grouped_struct, collected in agg_result.items():
             columns = list(collected[0].keys())
             data_dict = {}
@@ -43,8 +43,9 @@ class StatIdentity(Stat):
                 col_data = [row[column] for row in collected]
                 data_dict[column] = pd.Series(col_data)
 
-            result[grouped_struct] = pd.DataFrame(data_dict)
-        import pdb; pdb.set_trace()
+            df = pd.DataFrame(data_dict)
+            df.attrs.update(**grouped_struct)
+            result.append(df)
         return result
 
 
