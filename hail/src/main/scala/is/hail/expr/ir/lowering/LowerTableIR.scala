@@ -3,6 +3,7 @@ package is.hail.expr.ir.lowering
 import is.hail.HailContext
 import is.hail.backend.ExecuteContext
 import is.hail.expr.ir.functions.TableCalculateNewPartitions
+import is.hail.expr.ir.agg.{Aggs, Extract, PhysicalAggSig, TakeStateSig}
 import is.hail.expr.ir.{agg, _}
 import is.hail.io.{BufferSpec, TypedCodecSpec}
 import is.hail.methods.{ForceCountTable, NPartitionsTable, TableFilterPartitions}
@@ -10,6 +11,7 @@ import is.hail.rvd.{PartitionBoundOrdering, RVDPartitioner}
 import is.hail.types.physical.{PCanonicalBinary, PCanonicalTuple}
 import is.hail.types.virtual._
 import is.hail.types.{RField, RPrimitive, RStruct, RTable, TableType, TypeWithRequiredness}
+import is.hail.types.{coerce => _, _}
 import is.hail.utils.{partition, _}
 import org.apache.spark.sql.Row
 
@@ -803,52 +805,86 @@ object LowerTableIR {
       case TableKeyByAndAggregate(child, expr, newKey, nPartitions, bufferSize) =>
         val loweredChild = lower(child)
         val newKeyType = newKey.typ.asInstanceOf[TStruct]
+        val resultUID = genUID()
 
-        val fullRowUID = genUID()
-        val withNewKeyFields = loweredChild.mapPartition(Some(FastIndexedSeq())) { partition =>
+        val aggs@Aggs(postAggIR, init, seq, aggSigs) = Extract(expr, resultUID, r)
+
+        val partiallyAggregated = loweredChild.mapPartition(Some(FastIndexedSeq())) { partition =>
           Let("global", loweredChild.globals,
-            mapIR(partition) { partitionElement =>
-              Let("row",
-                partitionElement,
-                InsertFields(newKey, FastIndexedSeq((fullRowUID, partitionElement))))
-            })
+            StreamBufferedAggregate(partition, init, newKey, seq, "row", aggSigs, bufferSize)
+          )
         }
-        val shuffledRowType = withNewKeyFields.rowType
+        val shuffledRowType = partiallyAggregated.rowType
 
         val sortFields = newKeyType.fieldNames.map(fieldName => SortField(fieldName, Ascending)).toIndexedSeq
-        val childRowRType = analyses.requirednessAnalysis.lookup(child).asInstanceOf[RTable].rowType
-        val newKeyRType = analyses.requirednessAnalysis.lookup(newKey).asInstanceOf[RStruct]
-        val withNewKeyRType = RStruct(
-          newKeyRType.fields ++ Seq(RField(fullRowUID, childRowRType, newKeyRType.fields.length)))
+        val withNewKeyRType = TypeWithRequiredness(shuffledRowType).asInstanceOf[RStruct]
         val shuffled = ctx.backend.lowerDistributedSort(
-          ctx, withNewKeyFields, sortFields, relationalLetsAbove, withNewKeyRType)
+          ctx, partiallyAggregated , sortFields, relationalLetsAbove, withNewKeyRType)
         val repartitioned = shuffled.repartitionNoShuffle(shuffled.partitioner.strictify)
 
+        val takeAggSig = PhysicalAggSig(Take(), TakeStateSig(VirtualTypeWithReq(shuffledRowType ,TypeWithRequiredness(shuffledRowType))))
+        val aggStateSigsPlusTake = aggs.states ++ Array(TakeStateSig(VirtualTypeWithReq(shuffledRowType ,TypeWithRequiredness(shuffledRowType))))
+
+        val postAggUID = genUID()
+        val resultFromTakeUID = genUID()
+        val result = ResultOp(aggs.aggs.length, takeAggSig)
+
+        val aggSigsPlusTake = aggSigs ++ IndexedSeq(takeAggSig)
         repartitioned.mapPartition(None) { partition =>
           Let("global", repartitioned.globals,
             mapIR(StreamGroupByKey(partition, newKeyType.fieldNames.toIndexedSeq)) { groupRef =>
-              StreamAgg(
-                groupRef,
-                "keyedRow",
-                bindIRs(
-                  ArrayRef(
-                    ApplyAggOp(FastSeq(I32(1)),
-                      FastSeq(SelectFields(Ref("keyedRow", shuffledRowType), newKeyType.fieldNames)),
-                      AggSignature(Take(), FastSeq(TInt32), FastSeq(newKeyType))),
-                    I32(0)),
-                  AggLet("row",
-                    GetField(Ref("keyedRow", shuffledRowType), fullRowUID),
-                    expr,
-                    isScan = false)) { case Seq(groupRep, value) =>
+              RunAgg(
+                forIR(zipWithIndex(groupRef)) { elemWithID =>
+                  val idx = GetTupleElement(elemWithID, 1)
+                  val elem = GetTupleElement(elemWithID, 0)
+                  If(ApplyComparisonOp(EQ(TInt32, TInt32), idx, 0),
+                    Begin((0 until aggSigs.length).map { aIdx =>
+                      InitFromSerializedValue(aIdx, GetTupleElement(GetField(elem, "agg"), aIdx), aggSigsPlusTake(aIdx).state)
+                    } ++ IndexedSeq(
+                      InitOp(aggSigs.length, IndexedSeq(I32(1)), PhysicalAggSig(Take(), TakeStateSig(VirtualTypeWithReq(shuffledRowType ,TypeWithRequiredness(shuffledRowType))))),
+                      SeqOp(aggSigs.length, IndexedSeq(I32(1)), PhysicalAggSig(Take(), TakeStateSig(VirtualTypeWithReq(shuffledRowType ,TypeWithRequiredness(shuffledRowType)))))
+                    )),
+                    Begin((0 until aggSigs.length).map { aIdx =>
+                      CombOpValue(aIdx, GetTupleElement(GetField(elem, "agg"), aIdx), aggSigs(aIdx))
+                    }))},
 
-                  val keyIRs: IndexedSeq[(String, IR)] = newKeyType.fieldNames.map(keyName => keyName -> GetField(groupRep, keyName))
-                  MakeStruct(keyIRs ++ expr.typ.asInstanceOf[TStruct].fieldNames.map { f =>
-                    (f, GetField(value, f))
-                  })
-                }
-              )
-            })
-        }
+                Let(
+                  resultUID,
+                  ResultOp.makeTuple(aggs.aggs),
+                  Let(postAggUID, postAggIR,
+                    Let(resultFromTakeUID,
+                      result, {
+                      val keyIRs: IndexedSeq[(String, IR)] = newKeyType.fieldNames.map(keyName => keyName -> GetField(ArrayRef(Ref(resultFromTakeUID, result.typ), 0), keyName))
+                      MakeStruct(keyIRs ++ expr.typ.asInstanceOf[TStruct].fieldNames.map {f => (f, GetField(Ref(postAggUID, postAggIR.typ), f))
+                      })}
+                    )
+                  )
+                ),
+                aggStateSigsPlusTake)})}
+
+
+//  StreamAgg(
+//                groupRef,
+//                "keyedRow",
+//                bindIRs(
+//                  ArrayRef(
+//                    ApplyAggOp(FastSeq(I32(1)),
+//                      FastSeq(SelectFields(Ref("keyedRow", shuffledRowType), newKeyType.fieldNames)),
+//                      AggSignature(Take(), FastSeq(TInt32), FastSeq(newKeyType))),
+//                    I32(0)),
+//                  AggLet("row",
+//                    GetField(Ref("keyedRow", shuffledRowType), fullRowUID),
+//                    expr,
+//                    isScan = false)) { case Seq(groupRep, value) =>
+//
+//                  val keyIRs: IndexedSeq[(String, IR)] = newKeyType.fieldNames.map(keyName => keyName -> GetField(groupRep, keyName))
+//                  MakeStruct(keyIRs ++ expr.typ.asInstanceOf[TStruct].fieldNames.map { f =>
+//                    (f, GetField(value, f))
+//                  })
+//                }
+//              )
+//            })
+//        }
 
       case TableDistinct(child) =>
         val loweredChild = lower(child)

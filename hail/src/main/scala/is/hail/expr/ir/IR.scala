@@ -11,13 +11,14 @@ import is.hail.expr.ir.streams.StreamProducer
 import is.hail.io.avro.{AvroPartitionReader, AvroSchemaSerializer}
 import is.hail.io.{AbstractTypedCodecSpec, BufferSpec, TypedCodecSpec}
 import is.hail.rvd.RVDSpecMaker
-import is.hail.types.{RIterable, TypeWithRequiredness}
 import is.hail.types.encoded._
 import is.hail.types.physical._
 import is.hail.types.physical.stypes.{BooleanSingleCodeType, Float32SingleCodeType, Float64SingleCodeType, Int32SingleCodeType, Int64SingleCodeType, PTypeReferenceSingleCodeType, SType}
 import is.hail.types.physical.stypes.concrete.SJavaString
 import is.hail.types.physical.stypes.interfaces._
+import is.hail.types.physical.stypes._
 import is.hail.types.virtual._
+import is.hail.types.{RIterable, TypeWithRequiredness}
 import is.hail.utils.{FastIndexedSeq, _}
 import org.json4s.{DefaultFormats, Extraction, Formats, JValue, ShortTypeHints}
 
@@ -280,7 +281,7 @@ final case class ToArray(a: IR) extends IR
 final case class CastToArray(a: IR) extends IR
 final case class ToStream(a: IR, requiresMemoryManagementPerElement: Boolean = false) extends IR
 final case class StreamBufferedAggregate(streamChild: IR, initAggs: IR, newKey: IR, seqOps: IR, name: String,
-  aggSignatures: IndexedSeq[PhysicalAggSig]) extends IR
+  aggSignatures: IndexedSeq[PhysicalAggSig], bufferSize: Int) extends IR
 
 final case class LowerBoundOnOrderedCollection(orderedCollection: IR, elem: IR, onKey: Boolean) extends IR
 
