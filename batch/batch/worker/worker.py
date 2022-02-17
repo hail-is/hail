@@ -1672,10 +1672,9 @@ class JVMJob(Job):
                 raise
             except JVMUserError:
                 self.state = 'failed'
-                self.error = traceback.form_exc()
+                self.error = traceback.fromat_exc()
                 await self.cleanup()
             except Exception:
-                # FIXME: this can also be a Hail Query driver error, not a Hail Batch error
                 log.exception(f'while running {self}')
 
                 self.state = 'error'
