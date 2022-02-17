@@ -1,11 +1,7 @@
 from hailtop.utils import (partition, url_basename, url_join, url_scheme,
                            url_and_params, parse_docker_image_reference, grouped)
-<<<<<<< HEAD
-from hailtop.utils.utils import unzip
-=======
-from hailtop.utils.utils import digits_needed
+from hailtop.utils.utils import (digits_needed, unzip)
 
->>>>>>> c9f760ac2 (rebase updates)
 
 def test_partition_zero_empty():
     assert list(partition(0, [])) == []
