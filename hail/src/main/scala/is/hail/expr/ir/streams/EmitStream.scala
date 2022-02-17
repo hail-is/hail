@@ -261,7 +261,7 @@ object EmitStream {
         }
         
       case x@StreamBufferedAggregate(streamChild, initAggs, newKey, seqOps, name,
-        aggSignatures: IndexedSeq[PhysicalAggSig]) =>
+        aggSignatures: IndexedSeq[PhysicalAggSig], bufferSize: Int) =>
         val region = mb.genFieldThisRef[Region]("stream_buff_agg_region")
         produce(streamChild, cb)
           .map(cb) { case childStream: SStreamValue =>
@@ -299,7 +299,7 @@ object EmitStream {
                 cb.assign(childStreamEnded, false)
                 cb.assign(produceElementMode, false)
                 cb.assign(idx, 0)
-                cb.assign(maxSize, 8)
+                cb.assign(maxSize, bufferSize)
                 cb.assign(nodeArray, Code.newArray[Long](maxSize))
                 cb.assign(numElemInArray, 0)
                 dictState.createState(cb)
