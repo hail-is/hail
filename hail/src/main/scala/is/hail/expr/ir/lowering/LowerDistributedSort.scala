@@ -107,7 +107,7 @@ object LowerDistributedSort {
 
     val oversamplingNum = 3
     val seed = 7L
-    val branchingFactor = 4
+    val defaultBranchingFactor = 4
     val sizeCutoff = HailContext.getFlag("shuffle_cutoff_to_local_sort").toInt
 
     val (keyToSortBy, _) = inputStage.rowType.select(sortFields.map(sf => sf.field))
@@ -147,6 +147,7 @@ object LowerDistributedSort {
 
       val numSamplesPerPartitionPerSegment = partitionCountsPerSegment.map { partitionCountsForOneSegment =>
         val recordsInSegment = partitionCountsForOneSegment.sum
+        val branchingFactor = math.min(recordsInSegment, defaultBranchingFactor)
         howManySamplesPerPartition(rand, recordsInSegment, Math.min(recordsInSegment, (branchingFactor * oversamplingNum) - 1), partitionCountsForOneSegment)
       }
 
@@ -190,8 +191,9 @@ object LowerDistributedSort {
             val maxArray = MakeArray(GetField(aggResults, "max"))
             val tuplesInSortedOrder = tuplesAreSorted(GetField(aggResults, "perPartIntervalTuples"), sortFields)
             bindIR(sortedOversampling) { sortedOversampling =>
-              val sortedSampling = ToArray(mapIR(StreamRange(I32(oversamplingNum - 1), ArrayLen(sortedOversampling), I32(oversamplingNum))) { idx =>
-                ArrayRef(sortedOversampling, idx)
+              // range(1, branchingFactor, 1).map { i => floor(i * ((numSamples + 1) / branchFactor)) - 1 }
+              val sortedSampling = ToArray(mapIR(StreamRange(I32(1), ???, I32(1))) { idx =>
+                ArrayRef(sortedOversampling, ???)
               })
               MakeStruct(Seq(
                 "pivotsWithEndpoints" -> ArrayFunctions.extend(ArrayFunctions.extend(minArray, sortedSampling), maxArray),
