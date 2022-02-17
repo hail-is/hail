@@ -1,6 +1,6 @@
 from hailtop.utils import (partition, url_basename, url_join, url_scheme,
                            url_and_params, parse_docker_image_reference, grouped)
-from hailtop.utils.utils import unzip
+from hailtop.utils.utils import (digits_needed, unzip)
 
 
 def test_partition_zero_empty():
@@ -190,3 +190,13 @@ def test_unzip():
     assert unzip([(123, 'abc')]) == ([123], ['abc'])
     assert unzip([(123, 456), ('abc', 'def')]) == ([123, 'abc'], [456, 'def'])
     assert unzip([(123, 'abc'), (456, 'def'), (789, 'ghi')]) == ([123, 456, 789], ['abc', 'def', 'ghi'])
+
+    
+def test_digits_needed():
+    assert digits_needed(0) == 1
+    assert digits_needed(1) == 1
+    assert digits_needed(12) == 2
+    assert digits_needed(333) == 3
+    assert digits_needed(100) == 3
+    assert digits_needed(3000) == 4
+    assert digits_needed(50000) == 5
