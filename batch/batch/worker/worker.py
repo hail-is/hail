@@ -1672,7 +1672,7 @@ class JVMJob(Job):
                 raise
             except JVMUserError:
                 self.state = 'failed'
-                self.error = traceback.fromat_exc()
+                self.error = traceback.format_exc()
                 await self.cleanup()
             except Exception:
                 log.exception(f'while running {self}')
