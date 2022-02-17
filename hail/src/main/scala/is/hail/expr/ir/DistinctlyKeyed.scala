@@ -4,7 +4,6 @@ object DistinctlyKeyed {
   def apply(node: BaseIR): DistinctKeyedAnalysis = {
     val distinctMemo = Memo.empty[Unit]
     analyze(node, distinctMemo)
-    print(distinctMemo)
     DistinctKeyedAnalysis(distinctMemo)
   }
   private def analyze(node:BaseIR, memo: Memo[Unit]): Unit = {
@@ -55,6 +54,7 @@ object DistinctlyKeyed {
       case RelationalLetTable(_, _, body) => basicChildrenCheck(IndexedSeq(body))
       case _: MatrixIR =>
         throw new IllegalArgumentException("MatrixIR should be lowered when it reaches distinct analysis")
+      case _: BlockMatrixIR =>
       case ir: IR =>
         ir.children.foreach(child => analyze(child, memo))
     }
