@@ -200,3 +200,7 @@ def test_digits_needed():
     assert digits_needed(100) == 3
     assert digits_needed(3000) == 4
     assert digits_needed(50000) == 5
+
+
+def test_filter_none():
+    assert filter_none([1, 2, 3.0, None, 5]) == [1, 2, 3.0, 5]
