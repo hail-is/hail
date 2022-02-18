@@ -45,7 +45,7 @@ from hailtop.utils import (
     parse_docker_image_reference,
     periodically_call,
     request_retry_transient_errors,
-    retry_all_errors,
+    retry_transient_errors,
     sleep_and_backoff,
     time_msecs,
     time_msecs_str,
@@ -523,7 +523,7 @@ class Container:
             with self.step('running'):
                 timed_out = await self.run_until_done_or_deleted(self.run_container)
 
-            self.container_status = await self.get_container_status()
+            self.container_status = self.get_container_status()
 
             if timed_out:
                 self.short_error = 'timed out'
@@ -537,15 +537,13 @@ class Container:
                 self.state = 'failed'
         except asyncio.CancelledError:
             raise
+        except JobDeletedError:
+            self.state = 'cancelled'
         except Exception as e:
-            if not isinstance(e, (JobDeletedError, JobTimeoutError)) and not user_error(e):
+            if not isinstance(e, JobTimeoutError) and not user_error(e):
                 log.exception(f'while running {self}')
-
-            if isinstance(e, JobDeletedError):
-                self.state = 'cancelled'
-            else:
-                self.state = 'error'
-                self.error = traceback.format_exc()
+            self.state = 'error'
+            self.error = traceback.format_exc()
         finally:
             try:
                 with self.step('uploading_log', ignore_job_deletion=True):
@@ -960,7 +958,7 @@ class Container:
     #     exit_code: int
     #   }
     # }
-    async def status(self, state=None):
+    def status(self, state=None):
         if not state:
             state = self.state
         status = {'name': self.name, 'state': state, 'timing': self.timings.to_dict()}
@@ -971,10 +969,10 @@ class Container:
         if self.container_status:
             status['container_status'] = self.container_status
         elif self.container_is_running():
-            status['container_status'] = await self.get_container_status()
+            status['container_status'] = self.get_container_status()
         return status
 
-    async def get_container_status(self):
+    def get_container_status(self):
         if not self.process:
             return None
 
@@ -1249,7 +1247,7 @@ class Job:
     #   end_time: int,
     #   resources: list of dict, {name: str, quantity: int}
     # }
-    async def status(self):
+    def status(self):
         status = {
             'version': STATUS_FORMAT_VERSION,
             'worker': NAME,
@@ -1524,10 +1522,10 @@ class DockerJob(Job):
     async def cleanup(self):
         self.end_time = time_msecs()
 
-        full_status = await retry_all_errors(f'error while getting status for {self}')(self.status)
+        full_status = self.status()
 
         if self.format_version.has_full_status_in_gcs():
-            await retry_all_errors(f'error while writing status file to cloud storage for {self}')(
+            await retry_transient_errors(
                 self.worker.file_store.write_status_file,
                 self.batch_id,
                 self.job_id,
@@ -1566,8 +1564,8 @@ class DockerJob(Job):
         await super().delete()
         await asyncio.wait([c.delete() for c in self.containers.values()])
 
-    async def status(self):
-        status = await super().status()
+    def status(self):
+        status = super().status()
         cstatuses = {name: await c.status() for name, c in self.containers.items()}
         status['container_statuses'] = cstatuses
         status['timing'] = self.timings.to_dict()
@@ -1685,14 +1683,14 @@ class JVMJob(Job):
                 self.state = 'failed'
                 self.error = traceback.format_exc()
                 await self.cleanup()
-            except Exception as e:
+            except JobDeletedError:
+                self.state = 'cancelled'
+                await self.cleanup()
+            except Exception:
                 log.exception(f'while running {self}')
 
-                if isinstance(e, JobDeletedError):
-                    self.state = 'cancelled'
-                else:
-                    self.state = 'error'
-                    self.error = traceback.format_exc()
+                self.state = 'error'
+                self.error = traceback.format_exc()
 
                 await self.cleanup()
             else:
@@ -1719,10 +1717,10 @@ class JVMJob(Job):
 
         self.end_time = time_msecs()
 
-        full_status = await retry_all_errors(f'error while getting status for {self}')(self.status)
+        full_status = self.status()
 
         if self.format_version.has_full_status_in_gcs():
-            await retry_all_errors(f'error while writing status file to cloud storage for {self}')(
+            await retry_transient_errors(
                 self.worker.file_store.write_status_file,
                 self.batch_id,
                 self.job_id,
@@ -1771,8 +1769,8 @@ class JVMJob(Job):
     #   resources: list of dict, {name: str, quantity: int},
     #   jvm: str
     # }
-    async def status(self):
-        status = await super().status()
+    def status(self):
+        status = super().status()
         status['container_statuses'] = dict()
         status['container_statuses']['main'] = {'name': 'main', 'state': self.state, 'timing': self.timings.to_dict()}
         status['jvm'] = self.jvm_name
@@ -2059,6 +2057,7 @@ class JVM:
             elif message == JVM.FINISH_CANCELLED:
                 assert wait_for_interrupt.done()
                 log.info(f'{self}: was cancelled')
+                raise JobDeletedError()
             elif message == JVM.FINISH_USER_EXCEPTION:
                 log.info(f'{self}: user exception encountered (interrupted: {wait_for_interrupt.done()})')
                 exception = await read_str(reader)
@@ -2229,7 +2228,7 @@ class Worker:
         job = self.jobs.get(id)
         if not job:
             raise web.HTTPNotFound()
-        return web.json_response(await job.status())
+        return web.json_response(job.status())
 
     async def delete_job_1(self, request):
         batch_id = int(request.match_info['batch_id'])
@@ -2382,7 +2381,7 @@ class Worker:
                 self.last_updated = time_msecs()
 
     async def post_job_started_1(self, job):
-        full_status = await job.status()
+        full_status = job.status()
 
         status = {
             'version': full_status['version'],
