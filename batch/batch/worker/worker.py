@@ -2093,6 +2093,10 @@ class Worker:
         self.headers = None
         self.compute_client = None
 
+        # initialized after activation
+        self.ws_connection_manager = None
+        self.ws_connection = None
+
         self._jvm_initializer_task = asyncio.ensure_future(self._initialize_jvms())
         self._jvms: List[JVM] = []
 
@@ -2281,6 +2285,7 @@ class Worker:
 
         self.task_manager.ensure_future(periodically_call(60, self.cleanup_old_images))
 
+        await self.open_websocket_connection()
         app_runner = web.AppRunner(app)
         await app_runner.setup()
         site = web.TCPSite(app_runner, '0.0.0.0', 5000)
@@ -2316,12 +2321,38 @@ class Worker:
             log.info('cleaned up app runner')
             await self.deactivate()
             log.info('deactivated')
+            await self.close_websocket_connection()
+            log.info('websocket closed')
+
+    async def open_websocket_connection(self):
+        self.ws_connection_manager = self.client_session.ws_connect(
+            deploy_config.url('batch-driver', '/api/v1alpha/worker_wss')
+        )
+        aenter = type(self.ws_connection_manager).__aenter__
+        self.ws_connection = await aenter(self.ws_connection_manager)
+
+    async def close_websocket_connection(self):
+        if self.ws_connection_manager is not None and self.ws_connection is not None:
+            aexit = type(self.ws_connection_manager).__aexit__
+            await aexit(self.ws_connection_manager, None, None, None)
+
+    def send_request_via_ws_connection(self, url, json, headers):
+        pass
 
     async def deactivate(self):
         # Don't retry.  If it doesn't go through, the driver
         # monitoring loops will recover.  If the driver is
         # gone (e.g. testing a PR), this would go into an
         # infinite loop and the instance won't be deleted.
+        ws_json = {'message': 'deactivate'}
+        if self.ws_connection is not None:
+            # TODO: use send_json() method to send headers (and request info, in general)
+            try:
+                await self.ws_connection.send_json(json.dumps(ws_json))
+                return
+            except:
+                print('websocket failed to send message')
+
         await self.client_session.post(
             deploy_config.url('batch-driver', '/api/v1alpha/instances/deactivate'), headers=self.headers
         )
@@ -2355,6 +2386,15 @@ class Worker:
 
         start_time = time_msecs()
         delay_secs = 0.1
+
+        ws_json = {'message': 'job_complete', 'json': body}
+        if self.ws_connection is not None:
+            try:
+                self.ws_connection.send_json(json.dumps(ws_json))
+                return
+            except:
+                print('websocket failed to send message')
+
         while True:
             try:
                 await self.client_session.post(
@@ -2408,6 +2448,14 @@ class Worker:
         }
 
         body = {'status': status}
+
+        ws_json = {'message': 'job_started', 'json': body}
+        if self.ws_connection is not None:
+            try:
+                self.ws_connection.send_json(json.dumps(ws_json))
+                return
+            except:
+                print('websocket failed to send message')
 
         await request_retry_transient_errors(
             self.client_session,

@@ -6,7 +6,8 @@ import signal
 from collections import defaultdict, namedtuple
 from functools import wraps
 from typing import Dict, List
-
+import aiohttp
+from aiohttp import web
 import aiohttp_session
 import dictdiffer
 import googlecloudprofiler
@@ -14,7 +15,6 @@ import kubernetes_asyncio.client
 import kubernetes_asyncio.config
 import prometheus_client as pc  # type: ignore
 import uvloop
-from aiohttp import web
 from prometheus_async.aio.web import server_stats
 
 from gear import (
@@ -366,6 +366,30 @@ async def job_started_1(request, instance):
 @active_instances_only
 async def job_started(request, instance):
     return await asyncio.shield(job_started_1(request, instance))
+
+
+@routes.get('/api/v1alpha/worker_wss')
+@active_instances_only
+async def create_driver_worker_websocket_connection(request, instance) -> web.WebSocketResponse:
+    ws = web.WebSocketResponse()
+    await ws.prepare(request)
+    HTTP_ACTIVE_WEBSOCKETS.inc()
+
+    # this is where the back and forth communication actually happens
+    async for msg in ws:
+        if msg.type == aiohttp.WSMsgType.TEXT:
+            if msg.data == 'close':
+                await ws.close()
+            else:
+                print(f"Received message: {msg.data}")
+                await ws.send_str(msg.data + '/answer')
+        elif msg.type == aiohttp.WSMsgType.ERROR:
+            print('ws connection closed with exception %s' % ws.exception())
+
+    print('Batch-driver: websocket connection closed')
+
+    HTTP_ACTIVE_WEBSOCKETS.dec()
+    return ws
 
 
 @routes.get('/')
@@ -1008,6 +1032,9 @@ FREE_CORES = pc.Summary('batch_free_cores', 'Batch instance free cores', ['inst_
 UTILIZATION = pc.Summary('batch_utilization', 'Batch utilization rates', ['inst_coll'])
 COST_PER_HOUR = pc.Summary('batch_cost_per_hour', 'Batch cost ($/hr)', ['measure', 'inst_coll'])
 INSTANCES = pc.Gauge('batch_instances', 'Batch instances', ['inst_coll', 'state'])
+HTTP_ACTIVE_WEBSOCKETS = pc.Gauge(
+    'http_active_websockets_count', 'Number of active driver-worker WebSocket connections'
+)
 
 StateUserInstCollLabels = namedtuple('StateUserInstCollLabels', ['state', 'user', 'inst_coll'])
 InstCollLabels = namedtuple('InstCollLabels', ['inst_coll'])
