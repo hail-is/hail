@@ -22,7 +22,7 @@ def is_discrete_type(dtype):
     return dtype in [hl.tstr]
 
 
-excluded_from_grouping = {"tooltip", "label"}
+excluded_from_grouping = {"x", "tooltip", "label"}
 
 
 def should_use_for_grouping(name, type):
