@@ -860,8 +860,6 @@ Caused by: java.lang.ClassCastException: __C2308collect_distributed_array cannot
                 rt['value'] == "IB",
                 hl.is_missing(rt['value']))))
 
-    @fails_service_backend()
-    @fails_local_backend()
     def test_interval_join(self):
         left = hl.utils.range_matrix_table(50, 1, n_partitions=10)
         intervals = hl.utils.range_table(4)
@@ -1545,8 +1543,6 @@ Caused by: is.hail.utils.HailException: Premature end of file: expected 4 bytes,
 
         self.assertTrue(matrix1.union_cols(matrix2)._same(expected))
 
-    @fails_service_backend()
-    @fails_local_backend()
     def test_row_joins_into_table(self):
         rt = hl.utils.range_matrix_table(9, 13, 3)
         mt1 = rt.key_rows_by(idx=rt.row_idx)

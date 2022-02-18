@@ -1678,8 +1678,6 @@ def test_maybe_flexindex_table_by_expr_prefix_match():
     assert t1._maybe_flexindex_table_by_expr((hl.str(mt1.row_idx), mt1.row_idx)) is None
 
 
-@fails_service_backend()
-@fails_local_backend()
 def test_maybe_flexindex_table_by_expr_direct_interval_match():
     t1 = hl.utils.range_table(1)
     t1 = t1.key_by(interval=hl.interval(t1.idx, t1.idx+1))
@@ -1700,8 +1698,6 @@ def test_maybe_flexindex_table_by_expr_direct_interval_match():
     assert t1._maybe_flexindex_table_by_expr(hl.str(mt1.row_key)) is None
 
 
-@fails_service_backend()
-@fails_local_backend()
 def test_maybe_flexindex_table_by_expr_prefix_interval_match():
     t1 = hl.utils.range_table(1)
     t1 = t1.key_by(interval=hl.interval(t1.idx, t1.idx+1))
