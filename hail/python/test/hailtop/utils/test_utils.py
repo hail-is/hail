@@ -204,7 +204,9 @@ def test_digits_needed():
 
 def test_filter_none():
     assert filter_none([]) == []
-    assert filter_none([None, []]) == []
-    assert filter_none([1, 2, [None]]) == [1, 2]
-    assert filter_none([1,3.5, 2, 4,]) == [1, 2, 3.5, 4]
+    assert filter_none([None, []]) == [[]]
+    assert filter_none([1, 2, [None]]) == [1, 2, [None]]
+    assert filter_none([1, 3.5, 2, 4,]) == [1, 3.5, 2, 4]
+    assert filter_none([1, 3.5, 2, 4,]) == [1, 3.5, 2, 4]
     assert filter_none([1, 2, 3.0, None, 5]) == [1, 2, 3.0, 5]
+    assert filter_none(['a', 'b', 'c', None]) == ['a', 'b', 'c']
