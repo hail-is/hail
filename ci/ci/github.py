@@ -792,7 +792,6 @@ class WatchedBranch(Code):
                 if not is_test_deployment and self.deploy_state == 'failure':
                     url = deploy_config.external_url('ci', f'/batches/{self.deploy_batch.id}')
                     deploy_failure_message = f'''
-@**Daniel Goldstein**
 state: {self.deploy_state}
 branch: {self.branch.short_str()}
 sha: {self.sha}
@@ -889,7 +888,6 @@ mkdir -p {shq(repo_dir)}
                 config.build(deploy_batch, self, scope='deploy')
             except Exception as e:
                 deploy_failure_message = f'''
-@**Daniel Goldstein**
 branch: {self.branch.short_str()}
 sha: {self.sha}
 Deploy config failed to build with exception:
