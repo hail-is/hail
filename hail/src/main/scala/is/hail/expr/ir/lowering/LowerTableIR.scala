@@ -402,12 +402,12 @@ class TableStage(
     require(rightKeyType.isInstanceOf[TInterval])
     require(rightKeyType.asInstanceOf[TInterval].pointType == kType.types.head)
 
-    val irPartitioner = partitioner.partitionBoundsIRRepresentation
+    val irPartitioner = partitioner.coarsen(1).partitionBoundsIRRepresentation
 
     val rightWithPartNums = right.mapPartition(None) { partStream =>
       flatMapIR(partStream) { row =>
         val interval = bindIR(GetField(row, right.key.head)) { interval =>
-          invoke("Interval", TInterval(TTuple(kType, TInt32)),
+          invoke("Interval", TInterval(TTuple(kType.typeAfterSelect(Array(0)), TInt32)),
             MakeTuple.ordered(FastSeq(MakeStruct(FastSeq(kType.fieldNames.head -> invoke("start", kType.types.head, interval))), I32(1))),
             MakeTuple.ordered(FastSeq(MakeStruct(FastSeq(kType.fieldNames.head -> invoke("end", kType.types.head, interval))), I32(1))),
             invoke("includesStart", TBoolean, interval),
