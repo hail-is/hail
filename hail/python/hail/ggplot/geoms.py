@@ -309,11 +309,11 @@ class GeomHistogram(Geom):
 
         num_groups = len(grouped_data)
 
-        def plot_group(df):
+        def plot_group(df, idx):
             left_xs = df.x
 
             if self.position == "dodge":
-                x = left_xs + bin_width * (2 * df.group + 1) / (2 * num_groups)
+                x = left_xs + bin_width * (2 * idx + 1) / (2 * num_groups)
                 bar_width = bin_width / num_groups
 
             elif self.position in {"stack", "identity"}:
@@ -347,8 +347,8 @@ class GeomHistogram(Geom):
 
             fig_so_far.add_bar(**bar_args)
 
-        for group_df in grouped_data:
-            plot_group(group_df)
+        for idx, group_df in enumerate(grouped_data):
+            plot_group(group_df, idx)
 
         fig_so_far.update_layout(barmode=bar_position_plotly_to_gg(self.position))
 

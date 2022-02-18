@@ -34,9 +34,10 @@ def test_manhattan_plot():
 @fails_service_backend()
 def test_histogram():
     ht = hl.utils.range_table(10)
-    fig = (ggplot(ht, aes(x=ht.idx)) +
-           geom_histogram(alpha=0.5)
-           )
+    for position in ["stack", "dodge", "identity"]:
+        fig = (ggplot(ht, aes(x=ht.idx)) +
+               geom_histogram(alpha=0.5, position)
+               )
     fig.to_plotly()
 
 
