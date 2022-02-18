@@ -482,8 +482,6 @@ Caused by: java.lang.AssertionError: assertion failed
         ht = hl.import_vcf(resource('sample.vcf')).rows()
         assert ht.filter(ht.locus > hl.locus('20', 17434581)).count() == 100
 
-    @fails_service_backend()
-    @fails_local_backend()
     def test_interval_join(self):
         left = hl.utils.range_table(50, n_partitions=10)
         intervals = hl.utils.range_table(4)
