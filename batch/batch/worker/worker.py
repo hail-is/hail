@@ -1,3 +1,4 @@
+import abc
 from typing import Optional, Dict, Callable, Tuple, Awaitable, Any, Union, MutableMapping, List, Iterator
 import errno
 import os
@@ -1064,7 +1065,79 @@ def copy_container(
     return Container(job, name, copy_spec, client_session, worker)
 
 
-class Job:
+class BaseJob(abc.ABC):
+    batch_id: int
+    job_id: int
+    attempt_id: str
+    user: str
+    format_version: BatchFormatVersion
+    state: str
+    error: Optional[str]
+    start_time: Optional[int]
+    end_time: Optional[int]
+    resources: List[dict]
+
+    # {
+    #   version: int,
+    #   worker: str,
+    #   batch_id: int,
+    #   job_id: int,
+    #   attempt_id: int,
+    #   user: str,
+    #   state: str, (pending, initializing, running, succeeded, error, failed)
+    #   format_version: int
+    #   error: str, (optional)
+    #   container_statuses: [Container.status],
+    #   start_time: int,
+    #   end_time: int,
+    #   resources: list of dict, {name: str, quantity: int}
+    # }
+    async def status(self):
+        status = {
+            'version': STATUS_FORMAT_VERSION,
+            'worker': NAME,
+            'batch_id': self.batch_id,
+            'job_id': self.job_id,
+            'attempt_id': self.attempt_id,
+            'user': self.user,
+            'state': self.state,
+            'format_version': self.format_version.format_version,
+            'resources': [],
+        }
+        if self.error:
+            status['error'] = self.error
+
+        status['start_time'] = self.start_time
+        status['end_time'] = self.end_time
+
+        return status
+
+
+class UnrunnableJob(BaseJob):
+    def __init__(self,
+                 batch_id,
+                 job_id,
+                 attempt_id,
+                 user,
+                 format_version: BatchFormatVersion,
+                 error: str,
+                 ):
+        self.batch_id = batch_id
+        self.job_id = job_id
+        self.attempt_id = attempt_id
+        self.user = user
+        self.format_version = format_version
+
+        self.state = 'error'
+        self.error = error
+
+        now = time_msecs()
+        self.start_time = now
+        self.end_time = now
+        self.resources = []
+
+
+class Job(BaseJob):
     quota_project_id = 100
 
     @staticmethod
@@ -1138,6 +1211,8 @@ class Job:
         worker: 'Worker',
     ):
         self.batch_id = batch_id
+        self.job_id = job_spec['job_id']
+        self.attempt_id = job_spec['attempt_id']
         self.user = user
         self.credentials = credentials
         self.job_spec = job_spec
@@ -1217,14 +1292,6 @@ class Job:
         self.project_id = Job.get_next_xfsquota_project_id()
 
     @property
-    def job_id(self):
-        return self.job_spec['job_id']
-
-    @property
-    def attempt_id(self):
-        return self.job_spec['attempt_id']
-
-    @property
     def id(self):
         return (self.batch_id, self.job_id)
 
@@ -1237,41 +1304,6 @@ class Job:
     async def delete(self):
         log.info(f'deleting {self}')
         self.deleted = True
-
-    # {
-    #   version: int,
-    #   worker: str,
-    #   batch_id: int,
-    #   job_id: int,
-    #   attempt_id: int,
-    #   user: str,
-    #   state: str, (pending, initializing, running, succeeded, error, failed)
-    #   format_version: int
-    #   error: str, (optional)
-    #   container_statuses: [Container.status],
-    #   start_time: int,
-    #   end_time: int,
-    #   resources: list of dict, {name: str, quantity: int}
-    # }
-    async def status(self):
-        status = {
-            'version': STATUS_FORMAT_VERSION,
-            'worker': NAME,
-            'batch_id': self.batch_id,
-            'job_id': self.job_spec['job_id'],
-            'attempt_id': self.job_spec['attempt_id'],
-            'user': self.user,
-            'state': self.state,
-            'format_version': self.format_version.format_version,
-            'resources': self.resources,
-        }
-        if self.error:
-            status['error'] = self.error
-
-        status['start_time'] = self.start_time
-        status['end_time'] = self.end_time
-
-        return status
 
     def __str__(self):
         return f'job {self.id}'
@@ -2130,8 +2162,14 @@ class Worker:
         start_job_id = body['start_job_id']
         addtl_spec = body['job_spec']
 
-        job_spec = await self.file_store.read_spec_file(batch_id, token, start_job_id, job_id)
-        job_spec = json.loads(job_spec)
+        try:
+            job_spec = await self.file_store.read_spec_file(batch_id, token, start_job_id, job_id)
+            job_spec = json.loads(job_spec)
+        except FileNotFoundError:
+            log.info(f'could not find spec file for {(batch_id, job_id)}', exc_info=True)
+            job = UnrunnableJob(batch_id, job_id, addtl_spec['attempt_id'], body['user'], format_version, traceback.format_exc())
+            self.task_manager.ensure_future(self.post_job_complete(job))
+            return web.Response()
 
         job_spec['attempt_id'] = addtl_spec['attempt_id']
         job_spec['secrets'] = addtl_spec['secrets']
