@@ -294,19 +294,19 @@ class InstanceCollection:
 
         log.info(f'{instance} vm_state {vm_state}')
 
-        if (
-            instance.state == 'pending'
-            and isinstance(vm_state, (VMStateCreating, VMStateRunning))
-            and vm_state.time_since_last_state_change() > 5 * 60 * 1000
-        ):
-            log.exception(f'{instance} (state: {str(vm_state)}) has made no progress in last 5m, deleting')
-            await self.call_delete_instance(instance, 'activation_timeout')
-        elif isinstance(vm_state, VMStateTerminated):
+        # Cases are mutually exclusive and therefore order-independent
+        if instance.state == 'pending' and isinstance(vm_state, (VMStateCreating, VMStateRunning)):
+            if vm_state.time_since_last_state_change() > 5 * 60 * 1000:
+                log.exception(f'{instance} (state: {str(vm_state)}) has made no progress in last 5m, deleting')
+                await self.call_delete_instance(instance, 'activation_timeout')
+        elif instance.state in ('pending', 'active') and isinstance(vm_state, VMStateTerminated):
             log.info(f'{instance} live but stopping or terminated, deactivating')
             await instance.deactivate('terminated')
         elif instance.state == 'inactive':
             log.info(f'{instance} (vm_state: {vm_state}) is inactive, deleting')
             await self.call_delete_instance(instance, 'inactive')
+        elif instance.state == 'deleted' and not isinstance(vm_state, VMStateTerminated):
+            log.exception('Instance state is deleted when cloud state is not terminated')
 
         await instance.update_timestamp()
 
