@@ -171,6 +171,11 @@ class GGPlot:
 
         fig = go.Figure()
 
+        fig.update_layout(
+            template="simple_white",
+            font_family="Ariel"
+        )
+
         for geom, (geom_label, agg_result) in zip(self.geoms, aggregated.items()):
             df_agg_result = labels_to_stats[geom_label].listify(agg_result)
 
