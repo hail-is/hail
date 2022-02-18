@@ -36,9 +36,9 @@ def test_histogram():
     ht = hl.utils.range_table(10)
     for position in ["stack", "dodge", "identity"]:
         fig = (ggplot(ht, aes(x=ht.idx)) +
-               geom_histogram(alpha=0.5, position)
+               geom_histogram(alpha=0.5, position=position)
                )
-    fig.to_plotly()
+        fig.to_plotly()
 
 
 def test_separate_traces_per_group():
