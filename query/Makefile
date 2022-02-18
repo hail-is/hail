@@ -30,7 +30,8 @@ upload-resources-dir:
 
 .PHONY: test
 test: push-jar upload-resources-dir
-	HAIL_TEST_RESOURCES_DIR='gs://hail-test-dmk9z/$(HAIL_TEST_GCS_TOKEN)/hail-test-resources/test/resources/' \
+	HAIL_QUERY_BACKEND=serivce \
+	  HAIL_TEST_RESOURCES_DIR='gs://hail-test-dmk9z/$(HAIL_TEST_GCS_TOKEN)/hail-test-resources/test/resources/' \
     HAIL_DOCTEST_DATA_DIR='gs://hail-test-dmk9z/$(HAIL_TEST_GCS_TOKEN)/hail-test-resources/doctest/data/' \
     HAIL_SHA='$(HAIL_REVISION)-$(TOKEN)' \
     HAIL_JAR_URL=$$(cat last_uploaded_jar) \
@@ -38,13 +39,15 @@ test: push-jar upload-resources-dir
 
 .PHONY: ipython
 ipython: push-jar
-	HAIL_SHA='$(HAIL_REVISION)-$(TOKEN)' \
-	HAIL_JAR_URL=$$(cat last_uploaded_jar) \
-	ipython
+	HAIL_QUERY_BACKEND=serivce \
+    HAIL_SHA='$(HAIL_REVISION)-$(TOKEN)' \
+    HAIL_JAR_URL=$$(cat last_uploaded_jar) \
+    ipython
 
 .PHONY: test-no-deps
 test-no-deps:
-	HAIL_TEST_RESOURCES_DIR='gs://hail-test-dmk9z/$(HAIL_TEST_GCS_TOKEN)/hail-test-resources/test/resources/' \
+	HAIL_QUERY_BACKEND=serivce \
+    HAIL_TEST_RESOURCES_DIR='gs://hail-test-dmk9z/$(HAIL_TEST_GCS_TOKEN)/hail-test-resources/test/resources/' \
     HAIL_DOCTEST_DATA_DIR='gs://hail-test-dmk9z/$(HAIL_TEST_GCS_TOKEN)/hail-test-resources/doctest/data/' \
     HAIL_SHA='$(HAIL_REVISION)-$(TOKEN)' \
     HAIL_JAR_URL=$$(cat last_uploaded_jar) \
@@ -52,6 +55,7 @@ test-no-deps:
 
 .PHONY: ipython-no-deps
 ipython-no-deps:
-	HAIL_SHA='$(HAIL_REVISION)-$(TOKEN)' \
-	HAIL_JAR_URL=$$(cat last_uploaded_jar) \
-	ipython
+	HAIL_QUERY_BACKEND=serivce \
+    HAIL_SHA='$(HAIL_REVISION)-$(TOKEN)' \
+    HAIL_JAR_URL=$$(cat last_uploaded_jar) \
+    ipython
