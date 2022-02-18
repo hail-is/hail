@@ -284,10 +284,10 @@ class InstanceCollection:
         ):
             log.exception(f'{instance} (state: {str(vm_state)}) has made no progress in last 5m, deleting')
             await self.call_delete_instance(instance, 'activation_timeout')
-        elif isinstance(vm_state, VMStateTerminated):
+        if isinstance(vm_state, VMStateTerminated):
             log.info(f'{instance} live but stopping or terminated, deactivating')
             await instance.deactivate('terminated')
-        elif instance.state == 'inactive':
+        if instance.state == 'inactive':
             log.info(f'{instance} (vm_state: {vm_state}) is inactive, deleting')
             await self.call_delete_instance(instance, 'inactive')
 
