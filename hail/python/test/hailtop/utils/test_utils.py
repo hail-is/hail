@@ -1,6 +1,6 @@
 from hailtop.utils import (partition, url_basename, url_join, url_scheme,
                            url_and_params, parse_docker_image_reference, grouped)
-from hailtop.utils.utils import (digits_needed, unzip)
+from hailtop.utils.utils import digits_needed, unzip, filter_none
 
 
 def test_partition_zero_empty():
@@ -200,3 +200,14 @@ def test_digits_needed():
     assert digits_needed(100) == 3
     assert digits_needed(3000) == 4
     assert digits_needed(50000) == 5
+
+
+def test_filter_none():
+    assert filter_none([]) == []
+    assert filter_none([None, []]) == [[]]
+    assert filter_none([0, []]) == [0, []]
+    assert filter_none([1, 2, [None]]) == [1, 2, [None]]
+    assert filter_none([1, 3.5, 2, 4,]) == [1, 3.5, 2, 4]
+    assert filter_none([1, 2, 3.0, None, 5]) == [1, 2, 3.0, 5]
+    assert filter_none(['a', 'b', 'c', None]) == ['a', 'b', 'c']
+    assert filter_none([None, [None, [None, [None]]]]) == [[None, [None, [None]]]]
