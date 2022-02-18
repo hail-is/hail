@@ -171,11 +171,6 @@ class GGPlot:
 
         fig = go.Figure()
 
-        fig.update_layout(
-            template="simple_white",
-            font_family="Ariel"
-        )
-
         for geom, (geom_label, agg_result) in zip(self.geoms, aggregated.items()):
             df_agg_result = labels_to_stats[geom_label].listify(agg_result)
 
@@ -210,6 +205,14 @@ class GGPlot:
             self.scales["y"].apply_to_fig(self, fig)
         if self.coord_cartesian is not None:
             self.coord_cartesian.apply_to_fig(fig)
+
+        fig = fig.update_xaxes(title_font_size=18)
+        fig = fig.update_yaxes(title_font_size=18)
+        fig = fig.update_layout(
+            template="simple_white",
+            font_family="Ariel",
+            title_font_size=26
+        )
 
         return fig
 
