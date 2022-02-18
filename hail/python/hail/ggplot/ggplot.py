@@ -2,7 +2,6 @@ import plotly
 import plotly.graph_objects as go
 
 from pprint import pprint
-from collections import defaultdict
 
 import hail as hl
 
@@ -13,7 +12,7 @@ from .scale import Scale, ScaleContinuous, ScaleDiscrete, scale_x_continuous, sc
     scale_x_discrete, scale_y_discrete, scale_color_discrete, scale_color_continuous, scale_fill_discrete, \
     scale_fill_continuous
 from .aes import Aesthetic, aes
-from .utils import is_continuous_type, is_genomic_type, check_scale_continuity, should_use_scale_for_grouping
+from .utils import is_continuous_type, is_genomic_type, check_scale_continuity
 
 
 class GGPlot:

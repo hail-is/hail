@@ -26,7 +26,7 @@ class StatIdentity(Stat):
     def make_agg(self, mapping, precomputed):
         grouping_variables = {aes_key: mapping[aes_key] for aes_key in mapping.keys()
                               if should_use_for_grouping(aes_key, mapping[aes_key].dtype)}
-        non_grouping_variables = {aes_key: mapping[aes_key] for aes_key in mapping.keys() if not aes_key in grouping_variables}
+        non_grouping_variables = {aes_key: mapping[aes_key] for aes_key in mapping.keys() if aes_key not in grouping_variables}
         return hl.agg.group_by(hl.struct(**grouping_variables), hl.agg.collect(hl.struct(**non_grouping_variables)))
 
     def listify(self, agg_result):
