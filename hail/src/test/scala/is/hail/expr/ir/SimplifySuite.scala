@@ -54,6 +54,18 @@ class SimplifySuite extends HailSuite {
     assert(Simplify(ir4) == InsertFields(base, Seq("4" -> I32(1), "3" -> I32(5)), Some(FastIndexedSeq("1", "2", "3", "4"))))
   }
 
+  lazy val base2 = Literal(TStruct("A" -> TInt32, "B" -> TInt32, "C" -> TInt32, "D" -> TInt32), Row(1, 2, 3, 4))
+  @Test def testInsertFieldsWhereFieldBeingInsertedCouldBeSelected(): Unit = {
+    val ir1 =
+        InsertFields(
+          SelectFields(base2, IndexedSeq("A", "B", "C")),
+          IndexedSeq("B" -> GetField(base2, "B")),
+          None
+        )
+    val simplify1 = Simplify(ir1)
+    assert(simplify1.typ == ir1.typ)
+  }
+
   @Test def testInsertSelectRewriteRules() {
     val ir1 = SelectFields(InsertFields(base, FastIndexedSeq("3" -> I32(1)), None), FastIndexedSeq("1"))
     assert(Simplify(ir1) == SelectFields(base, FastIndexedSeq("1")))

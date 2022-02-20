@@ -8,17 +8,29 @@ fi
 source $HAIL/devbin/functions.sh
 
 render_config_mk() {
+    CLOUD=$(get_global_config_field cloud)
     DOCKER_PREFIX=$(get_global_config_field docker_prefix)
+    DOCKER_ROOT_IMAGE=$(get_global_config_field docker_root_image)
+    DOMAIN=$(get_global_config_field domain)
+    PROJECT=$(get_global_config_field gcp_project)
+    REGION=$(get_global_config_field gcp_region)
+    ZONE=$(get_global_config_field gcp_zone)
+    HAIL_TEST_GCS_BUCKET=$(get_global_config_field hail_test_gcs_bucket)
     INTERNAL_IP=$(get_global_config_field internal_ip)
     IP=$(get_global_config_field ip)
-    DOMAIN=$(get_global_config_field domain)
-    CLOUD=$(get_global_config_field cloud)
+    KUBERNETES_SERVER_URL=$(get_global_config_field kubernetes_server_url)
     cat >$HAIL/config.mk <<EOF
+CLOUD := $CLOUD
 DOCKER_PREFIX := $DOCKER_PREFIX
+DOCKER_ROOT_IMAGE := $DOCKER_ROOT_IMAGE
+DOMAIN := $DOMAIN
+PROJECT := $PROJECT
+REGION := $REGION
+ZONE := $ZONE
+HAIL_TEST_GCS_BUCKET := $HAIL_TEST_GCS_BUCKET
 INTERNAL_IP := $INTERNAL_IP
 IP := $IP
-DOMAIN := $DOMAIN
-CLOUD := $CLOUD
+KUBERNETES_SERVER_URL := $KUBERNETES_SERVER_URL
 
 ifeq (\$(NAMESPACE),default)
 SCOPE = deploy
