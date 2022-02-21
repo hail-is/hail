@@ -4,5 +4,4 @@ batch
 batch-driver
 monitoring
 auth
-query
 prometheus

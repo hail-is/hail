@@ -31,10 +31,7 @@ case class SSLConfig(
 package object tls {
   lazy val log: Logger = LogManager.getLogger("is.hail.tls")
 
-  private[this] lazy val _getSSLConfig: SSLConfig = {
-    var configDir = System.getenv("HAIL_SSL_CONFIG_DIR")
-    if (configDir == null)
-      configDir = "/ssl-config"
+  private[this] def sslConfigFromDir(configDir: String): SSLConfig = {
     val configFile = s"$configDir/ssl-config.json"
     if (!new File(configFile).isFile)
       throw new NoSSLConfigFound(s"no ssl config file found at $configFile")
@@ -47,8 +44,29 @@ package object tls {
     }
   }
 
+  private[this] lazy val default: SSLConfig = {
+    var configDir = System.getenv("HAIL_SSL_CONFIG_DIR")
+    if (configDir == null)
+      configDir = "/ssl-config"
+    sslConfigFromDir(configDir)
+  }
+
+  private[this] var _getSSLConfig: SSLConfig = null
+
+  def setSSLConfigFromDir(configDir: String) = {
+    _getSSLConfig = sslConfigFromDir(configDir)
+  }
+
+  def getSSLConfig(): SSLConfig = {
+    if (_getSSLConfig == null) {
+      _getSSLConfig = default
+    }
+    assert(_getSSLConfig != null)
+    _getSSLConfig
+  }
+
   lazy val getSSLContext: SSLContext = {
-    val sslConfig = _getSSLConfig
+    val sslConfig = getSSLConfig
 
     val pw = "dummypw".toCharArray
 

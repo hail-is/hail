@@ -180,7 +180,10 @@ class GGPlot:
                     df_agg_result = self.scales[relevant_aesthetic].transform_data_local(df_agg_result, self)
                 # Need to identify every possible combination of discrete scale values.
                 grouping_aesthetics = [scale_name for scale_name in relevant_aesthetics if should_use_scale_for_grouping(self.scales[scale_name]) and scale_name != "x"]
-
+                if 'fill_legend' in df_agg_result.columns:
+                    grouping_aesthetics.append('fill_legend')
+                if 'color_legend' in df_agg_result.columns:
+                    grouping_aesthetics.append('color_legend')
                 subsetted_to_discrete = df_agg_result[grouping_aesthetics]
 
                 group_counter = 0
