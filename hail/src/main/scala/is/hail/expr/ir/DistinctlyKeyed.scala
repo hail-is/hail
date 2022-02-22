@@ -31,7 +31,7 @@ object DistinctlyKeyed {
       case TableIntervalJoin(left, right, _, _) => basicChildrenCheck(IndexedSeq(left, right))
       case TableMultiWayZipJoin(children, _, _) => basicChildrenCheck(children)
       case TableLeftJoinRightDistinct(left, right, _) => basicChildrenCheck(IndexedSeq(left, right))
-      case TableMapPartitions(child, _, _, _) => basicChildrenCheck(IndexedSeq(child))
+      case TableMapPartitions(child, _, _, _) => analyze(child, memo)
       case TableMapRows(child, _) => basicChildrenCheck(IndexedSeq(child))
       case TableMapGlobals(child, _) => basicChildrenCheck(IndexedSeq(child))
       case TableExplode(child, _) => analyze(child, memo)

@@ -1,7 +1,6 @@
 package is.hail.expr.ir
 
 import is.hail.HailSuite
-import is.hail.TestUtils._
 import is.hail.types.virtual.TInt32
 import is.hail.utils.FastIndexedSeq
 import org.testng.annotations.Test
@@ -17,7 +16,7 @@ class DistinctlyKeyedSuite extends HailSuite{
     assert(tableIRSeq.forall(tableIR => distinctlyKeyedAnalysis.contains(tableIR)))
   }
 
-  @Test def ReadTableKeyByDistinctlyKeyedAnalysis(): Unit = {
+  @Test def readTableKeyByDistinctlyKeyedAnalysis(): Unit = {
     val rt = TableRange(40, 4)
     val idxRef =  GetField(Ref("row", rt.typ.rowType), "idx")
     val at = TableMapRows(rt, MakeStruct(Seq(
@@ -78,7 +77,7 @@ class DistinctlyKeyedSuite extends HailSuite{
     assert(distinctlyKeyedAnalysis.contains(tableDistinct))
   }
 
-  @Test def IRparent(): Unit = {
+  @Test def iRparent(): Unit = {
     val tableRange = TableRange(10, 2)
     val tableFilter = TableFilter(tableRange, ApplyComparisonOp(LT(TInt32),
       GetField(Ref("row", tableRange.typ.rowType), "idx"), I32(5)))
