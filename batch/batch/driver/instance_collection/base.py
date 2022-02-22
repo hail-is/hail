@@ -15,7 +15,14 @@ from ...instance_config import QuantifiedResource
 from ...batch_configuration import WORKER_MAX_IDLE_TIME_MSECS
 from ..instance import Instance
 from ..location import CloudLocationMonitor
-from ..resource_manager import CloudResourceManager, VMStateCreating, VMStateRunning, VMStateTerminated, VMDoesNotExist
+from ..resource_manager import (
+    CloudResourceManager,
+    VMStateCreating,
+    VMStateRunning,
+    VMStateTerminated,
+    VMDoesNotExist,
+    UnknownVMState,
+)
 
 SIXTY_SECONDS_NS = 60 * 1000 * 1000 * 1000
 CACHE_CAPACITY = 1000
@@ -307,6 +314,12 @@ class InstanceCollection:
             await self.call_delete_instance(instance, 'inactive')
         elif instance.state == 'deleted' and not isinstance(vm_state, VMStateTerminated):
             log.exception('Instance state is deleted when cloud state is not terminated')
+        else:
+            assert (
+                (instance.state == 'active' and isinstance(vm_state, (VMStateCreating, VMStateRunning)))
+                or (instance.state == 'deleted' and isinstance(vm_state, VMStateTerminated))
+                or isinstance(vm_state, UnknownVMState)
+            )
 
         await instance.update_timestamp()
 
