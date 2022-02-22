@@ -4,7 +4,7 @@ import is.hail.asm4s
 import is.hail.asm4s._
 import is.hail.expr.ir.functions.IRFunctionRegistry
 import is.hail.types.physical._
-import is.hail.types.physical.stypes.{SCode, SValue}
+import is.hail.types.physical.stypes.SValue
 import is.hail.types.virtual._
 import is.hail.types.{coerce => tycoerce, _}
 import is.hail.utils._
@@ -20,6 +20,9 @@ package object ir {
 
   def genUID(): String = {
     val uid = s"__iruid_$uidCounter"
+    if (uid == "__iruid_60"){
+      println("Here")
+    }
     uidCounter += 1
     uid
   }
