@@ -835,14 +835,14 @@ object LowerTableIR {
             mapIR(StreamGroupByKey(partition, newKeyType.fieldNames.toIndexedSeq)) { groupRef =>
               RunAgg(
                 forIR(zipWithIndex(groupRef)) { elemWithID =>
-                  val idx = GetTupleElement(elemWithID, 1)
-                  val elem = GetTupleElement(elemWithID, 0)
+                  val idx = GetField(elemWithID, "idx")
+                  val elem = GetField(elemWithID, "elt")
                   If(ApplyComparisonOp(EQ(TInt32, TInt32), idx, 0),
                     Begin((0 until aggSigs.length).map { aIdx =>
                       InitFromSerializedValue(aIdx, GetTupleElement(GetField(elem, "agg"), aIdx), aggSigsPlusTake(aIdx).state)
                     } ++ IndexedSeq(
                       InitOp(aggSigs.length, IndexedSeq(I32(1)), PhysicalAggSig(Take(), TakeStateSig(VirtualTypeWithReq(shuffledRowType ,TypeWithRequiredness(shuffledRowType))))),
-                      SeqOp(aggSigs.length, IndexedSeq(I32(1)), PhysicalAggSig(Take(), TakeStateSig(VirtualTypeWithReq(shuffledRowType ,TypeWithRequiredness(shuffledRowType)))))
+                      SeqOp(aggSigs.length, IndexedSeq(elem), PhysicalAggSig(Take(), TakeStateSig(VirtualTypeWithReq(shuffledRowType ,TypeWithRequiredness(shuffledRowType)))))
                     )),
                     Begin((0 until aggSigs.length).map { aIdx =>
                       CombOpValue(aIdx, GetTupleElement(GetField(elem, "agg"), aIdx), aggSigs(aIdx))
