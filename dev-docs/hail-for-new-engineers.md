@@ -90,9 +90,9 @@ repository. More information about the structure of the repository can be found 
 
 Beginning in early 2020, beta users were given access to Hail Batch.
 
-In April of 2020, the Hail team began referring to the Hail python library as "Hail Query" and
-created a system called "the Query Service". Inside the Hail Query Service, Hail Query uses Hail
-Batch to run an analysis across many computer cores instead of using Apache Spark.
+In April of 2020, the Hail team began referring to the Hail python library as "Hail Query". The
+"Hail Query Service" refers to the Hail Query python library using Hail Batch to run an analysis
+across many computer cores instead of using Apache Spark.
 
 ## Hail Products, Briefly
 

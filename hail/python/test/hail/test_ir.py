@@ -380,6 +380,8 @@ class ValueTests(unittest.TestCase):
         return values
 
     def test_value_same_after_parsing(self):
+        test_exprs = []
+        expecteds = []
         for t, v in self.values():
             row_v = ir.Literal(t, v)
             map_globals_ir = ir.TableMapGlobals(
@@ -388,8 +390,13 @@ class ValueTests(unittest.TestCase):
                     ir.Ref("global"),
                     [("foo", row_v)],
                     None))
-            new_globals = hl.eval(hl.Table(map_globals_ir).index_globals())
-            self.assertEqual(new_globals, hl.Struct(foo=v))
+
+            test_exprs.append(hl.Table(map_globals_ir).index_globals())
+            expecteds.append(hl.Struct(foo=v))
+
+        actuals = hl._eval_many(*test_exprs)
+        for expr, actual, expected in zip(test_exprs, actuals, expecteds):
+            assert actual == expected, str(expr)
 
 
 class CSETests(unittest.TestCase):

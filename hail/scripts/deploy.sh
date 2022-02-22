@@ -109,6 +109,9 @@ curl -XPOST -H @$GITHUB_OAUTH_HEADER_FILE https://api.github.com/repos/hail-is/t
 terra_docker_dir=$(mktemp -d)
 git clone https://github.com/hail-is/terra-docker $terra_docker_dir
 pushd $terra_docker_dir
+git config user.name hail
+git config user.email hail@broadinstitute.org
+
 branch_name=update-to-hail-$HAIL_PIP_VERSION
 git checkout -B $branch_name
 

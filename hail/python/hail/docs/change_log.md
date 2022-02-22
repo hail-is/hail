@@ -24,6 +24,21 @@ an earlier version of Hail to read files written in a later version.
 
 ---
 
+## Version 0.2.85
+
+Release 2022-02-14
+
+### Bug fixes
+
+- (hail#11355) Fixed assertion errors being hit relating to RVDPartitioner.
+- (hail#11344) Fix error where hail ggplot would mislabel points after more than 10 distinct colors were used.
+
+### New features
+
+- (#11332) Added `geom_ribbon` and `geom_area` to hail ggplot.
+
+---
+
 ## Version 0.2.84
 
 Release 2022-02-10

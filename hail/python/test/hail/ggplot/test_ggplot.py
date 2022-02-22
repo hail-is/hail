@@ -2,6 +2,7 @@
 import hail as hl
 from hail.ggplot import *
 import math
+from ..helpers import fails_service_backend
 
 
 def test_geom_point_line_text_col():
@@ -30,9 +31,24 @@ def test_manhattan_plot():
     fig.to_plotly()
 
 
+@fails_service_backend()
 def test_histogram():
     ht = hl.utils.range_table(10)
     fig = (ggplot(ht, aes(x=ht.idx)) +
            geom_histogram(alpha=0.5)
            )
+    fig.to_plotly()
+
+
+def test_separate_traces_per_group():
+    ht = hl.utils.range_table(30)
+    fig = (ggplot(ht, aes(x=ht.idx)) +
+           geom_bar(aes(fill=hl.str(ht.idx)))
+           )
+    assert len(fig.to_plotly().data) == 30
+
+
+def test_geom_ribbon():
+    ht = hl.utils.range_table(20)
+    fig = ggplot(ht, aes(x=ht.idx, ymin=ht.idx * 2, ymax=ht.idx * 3)) + geom_ribbon()
     fig.to_plotly()

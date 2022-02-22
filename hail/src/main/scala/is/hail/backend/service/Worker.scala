@@ -2,6 +2,7 @@ package is.hail.backend.service
 
 import java.io._
 import java.nio.charset._
+import java.util.{concurrent => javaConcurrent}
 
 import is.hail.{HAIL_REVISION, HailContext}
 import is.hail.backend.HailTaskContext
@@ -13,7 +14,7 @@ import org.apache.log4j.Logger
 
 import scala.collection.mutable
 import scala.concurrent.duration.{Duration, MILLISECONDS}
-import scala.concurrent.{Future, Await}
+import scala.concurrent.{Future, Await, ExecutionContext}
 
 class ServiceTaskContext(val partitionId: Int) extends HailTaskContext {
   override def stageId(): Int = 0
@@ -46,15 +47,29 @@ class WorkerTimer() {
 object Worker {
   private[this] val log = Logger.getLogger(getClass.getName())
   private[this] val myRevision = HAIL_REVISION
-  private[this] val scratchDir = sys.env.get("HAIL_WORKER_SCRATCH_DIR").getOrElse("")
+  private[this] implicit val ec = ExecutionContext.fromExecutorService(
+    javaConcurrent.Executors.newCachedThreadPool())
 
-  def main(args: Array[String]): Unit = {
-    if (args.length != 4) {
-      throw new IllegalArgumentException(s"expected at least four arguments, not: ${ args.length }")
+  def main(argv: Array[String]): Unit = {
+
+    if (argv.length != 6) {
+      throw new IllegalArgumentException(s"expected five arguments, not: ${ argv.length }")
     }
-    val root = args(2)
-    val i = args(3).toInt
+    val scratchDir = argv(0)
+    val kind = argv(1)
+    assert(kind == Main.WORKER)
+    val revision = argv(2)
+    val jarGCSPath = argv(3)
+    val root = argv(4)
+    val i = argv(5).toInt
     val timer = new WorkerTimer()
+
+    val deployConfig = DeployConfig.fromConfigFile(
+      s"$scratchDir/secrets/deploy-config/deploy-config.json")
+    DeployConfig.set(deployConfig)
+    val userTokens = Tokens.fromFile(s"$scratchDir/secrets/user-tokens/tokens.json")
+    Tokens.set(userTokens)
+    tls.setSSLConfigFromDir(s"$scratchDir/secrets/ssl-config")
 
     log.info(s"is.hail.backend.service.Worker $myRevision")
     log.info(s"running job $i at root $root with scratch directory '$scratchDir'")
@@ -63,19 +78,18 @@ object Worker {
 
     timer.start("readInputs")
     val fs = retryTransientErrors {
-      using(new FileInputStream(s"$scratchDir/gsa-key/key.json")) { is =>
+      using(new FileInputStream(s"$scratchDir/secrets/gsa-key/key.json")) { is =>
         new GoogleStorageFS(Some(IOUtils.toString(is, Charset.defaultCharset().toString()))).asCacheable()
       }
     }
 
-    val fileRetrievalExecutionContext = scala.concurrent.ExecutionContext.global
     val fFuture = Future {
       retryTransientErrors {
         using(new ObjectInputStream(fs.openCachedNoCompression(s"$root/f"))) { is =>
           is.readObject().asInstanceOf[(Array[Byte], HailTaskContext, FS) => Array[Byte]]
         }
       }
-    }(fileRetrievalExecutionContext)
+    }
 
     val contextFuture = Future {
       retryTransientErrors {
@@ -89,18 +103,21 @@ object Worker {
           context
         }
       }
-    }(fileRetrievalExecutionContext)
+    }
 
-    // retryTransientErrors handles timeout and exception throwing logic
     val f = Await.result(fFuture, Duration.Inf)
     val context = Await.result(contextFuture, Duration.Inf)
 
     timer.end("readInputs")
     timer.start("executeFunction")
 
-    val hailContext = HailContext(
-      // FIXME: workers should not have backends, but some things do need hail contexts
-      new ServiceBackend(null), skipLoggingConfiguration = true, quiet = true)
+    if (HailContext.isInitialized) {
+      HailContext.get.backend = new ServiceBackend(null, null, null)
+    } else {
+      HailContext(
+        // FIXME: workers should not have backends, but some things do need hail contexts
+        new ServiceBackend(null, null, null), skipLoggingConfiguration = true, quiet = true)
+    }
     val htc = new ServiceTaskContext(i)
     val result = f(context, htc, fs)
     htc.finish()
