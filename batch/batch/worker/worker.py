@@ -1492,34 +1492,63 @@ class DockerJob(Job):
                     self.state = input.state
             except asyncio.CancelledError:
                 raise
+            except JobDeletedError:
+                self.state = 'cancelled'
             except Exception as e:
                 if not user_error(e):
                     log.exception(f'while running {self}')
 
-                if isinstance(e, JobDeletedError):
-                    self.state = 'cancelled'
-                else:
-                    self.state = 'error'
-                    self.error = traceback.format_exc()
+                self.state = 'error'
+                self.error = traceback.format_exc()
             finally:
                 with self.step('post-job finally block'):
                     try:
-                        if self.disk:
-                            try:
-                                await self.disk.delete()
-                                log.info(f'deleted disk {self.disk.name} for {self.id}')
-                            except asyncio.CancelledError:
-                                raise
-                            except Exception:
-                                log.exception(f'while detaching and deleting disk {self.disk.name} for {self.id}')
-                            finally:
-                                await self.disk.close()
-                        else:
-                            self.worker.data_disk_space_remaining.value += self.external_storage_in_gib
-                    finally:
                         await self.cleanup()
+                    finally:
+                        await self.mark_complete()
 
     async def cleanup(self):
+        log.info(f'{self}: cleaning up')
+
+        if self.disk:
+            try:
+                await self.disk.delete()
+                log.info(f'deleted disk {self.disk.name} for {self.id}')
+            except asyncio.CancelledError:
+                raise
+            except Exception:
+                log.exception(f'while detaching and deleting disk {self.disk.name} for {self.id}')
+            finally:
+                await self.disk.close()
+        else:
+            self.worker.data_disk_space_remaining.value += self.external_storage_in_gib
+
+        if self.cloudfuse:
+            for config in self.cloudfuse:
+                if config['mounted']:
+                    bucket = config['bucket']
+                    assert bucket
+                    mount_path = self.cloudfuse_data_path(bucket)
+
+                    try:
+                        await CLOUD_WORKER_API.unmount_cloudfuse(mount_path)
+                        log.info(f'unmounted fuse blob storage {bucket} from {mount_path}')
+                        config['mounted'] = False
+                    except asyncio.CancelledError:
+                        raise
+                    except Exception:
+                        log.exception(f'while unmounting fuse blob storage {bucket} from {mount_path}')
+
+        await check_shell(f'xfs_quota -x -c "limit -p bsoft=0 bhard=0 {self.project_id}" /host')
+
+        try:
+            await blocking_to_async(self.pool, shutil.rmtree, self.scratch, ignore_errors=True)
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            log.exception('while deleting volumes')
+
+    async def mark_complete(self):
         self.end_time = time_msecs()
 
         full_status = self.status()
@@ -1537,26 +1566,6 @@ class DockerJob(Job):
             log.info(f'{self}: marking complete')
             self.task_manager.ensure_future(self.worker.post_job_complete(self, full_status))
 
-        log.info(f'{self}: cleaning up')
-        try:
-            if self.cloudfuse:
-                for config in self.cloudfuse:
-                    if config['mounted']:
-                        bucket = config['bucket']
-                        assert bucket
-                        mount_path = self.cloudfuse_data_path(bucket)
-                        await CLOUD_WORKER_API.unmount_cloudfuse(mount_path)
-                        log.info(f'unmounted fuse blob storage {bucket} from {mount_path}')
-                        config['mounted'] = False
-
-            await check_shell(f'xfs_quota -x -c "limit -p bsoft=0 bhard=0 {self.project_id}" /host')
-
-            await blocking_to_async(self.pool, shutil.rmtree, self.scratch, ignore_errors=True)
-        except asyncio.CancelledError:
-            raise
-        except Exception:
-            log.exception('while deleting volumes')
-
     async def get_log(self):
         return {name: await c.get_log() for name, c in self.containers.items()}
 
@@ -1566,7 +1575,7 @@ class DockerJob(Job):
 
     def status(self):
         status = super().status()
-        cstatuses = {name: await c.status() for name, c in self.containers.items()}
+        cstatuses = {name: c.status() for name, c in self.containers.items()}
         status['container_statuses'] = cstatuses
         status['timing'] = self.timings.to_dict()
 
