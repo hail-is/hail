@@ -3,6 +3,7 @@ import json
 import math
 from collections.abc import Mapping, Sequence
 import pprint
+import builtins
 
 import numpy as np
 import pandas as pd
@@ -350,7 +351,7 @@ class _tint32(HailType):
 
     def _typecheck_one_level(self, annotation):
         if annotation is not None:
-            if not isinstance(annotation, int):
+            if not is_int32(annotation):
                 raise TypeError("type 'tint32' expected Python 'int', but found type '%s'" % type(annotation))
             elif not self.min_value <= annotation <= self.max_value:
                 raise TypeError(f"Value out of range for 32-bit integer: "
@@ -405,7 +406,7 @@ class _tint64(HailType):
 
     def _typecheck_one_level(self, annotation):
         if annotation is not None:
-            if not isinstance(annotation, int):
+            if not is_int64(annotation):
                 raise TypeError("type 'int64' expected Python 'int', but found type '%s'" % type(annotation))
             if not self.min_value <= annotation <= self.max_value:
                 raise TypeError(f"Value out of range for 64-bit integer: "
@@ -457,7 +458,7 @@ class _tfloat32(HailType):
         super(_tfloat32, self).__init__()
 
     def _typecheck_one_level(self, annotation):
-        if annotation is not None and not isinstance(annotation, (float, int)):
+        if annotation is not None and not is_float32(annotation):
             raise TypeError("type 'float32' expected Python 'float', but found type '%s'" % type(annotation))
 
     def __str__(self):
@@ -507,7 +508,7 @@ class _tfloat64(HailType):
         super(_tfloat64, self).__init__()
 
     def _typecheck_one_level(self, annotation):
-        if annotation is not None and not isinstance(annotation, (float, int)):
+        if annotation is not None and not is_float64(annotation):
             raise TypeError("type 'float64' expected Python 'float', but found type '%s'" % type(annotation))
 
     def __str__(self):
@@ -2022,6 +2023,22 @@ def is_compound(t) -> bool:
 def types_match(left, right) -> bool:
     return (len(left) == len(right)
             and all(map(lambda lr: lr[0].dtype == lr[1].dtype, zip(left, right))))
+
+
+def is_int32(x):
+    return isinstance(x, (builtins.int, np.int32))
+
+
+def is_int64(x):
+    return isinstance(x, (builtins.int, np.int64))
+
+
+def is_float32(x):
+    return isinstance(x, (builtins.float, builtins.int, np.float32))
+
+
+def is_float64(x):
+    return isinstance(x, (builtins.float, builtins.int, np.float64))
 
 
 def from_numpy(np_dtype):

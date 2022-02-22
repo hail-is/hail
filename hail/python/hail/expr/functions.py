@@ -21,7 +21,7 @@ from hail.expr.expressions import (Expression, ArrayExpression, SetExpression,
 from hail.expr.types import (HailType, hail_type, tint32, tint64, tfloat32,
                              tfloat64, tstr, tbool, tarray, tset, tdict,
                              tstruct, tlocus, tinterval, tcall, ttuple,
-                             tndarray, is_primitive, is_numeric)
+                             tndarray, is_primitive, is_numeric, is_int32, is_int64, is_float32, is_float64)
 from hail.genetics.reference_genome import reference_genome_type, ReferenceGenome
 import hail.ir as ir
 from hail.typecheck import (typecheck, nullable, anytype, enumeration, tupleof,
@@ -261,18 +261,18 @@ def literal(x: Any, dtype: Optional[Union[HailType, str]] = None):
         return hl.missing(dtype)
     elif is_primitive(dtype):
         if dtype == tint32:
-            assert isinstance(x, builtins.int)
+            assert is_int32(x)
             assert tint32.min_value <= x <= tint32.max_value
             return construct_expr(ir.I32(x), tint32)
         elif dtype == tint64:
-            assert isinstance(x, builtins.int)
+            assert is_int64(x)
             assert tint64.min_value <= x <= tint64.max_value
             return construct_expr(ir.I64(x), tint64)
         elif dtype == tfloat32:
-            assert isinstance(x, (builtins.float, builtins.int))
+            assert is_float32(x)
             return construct_expr(ir.F32(x), tfloat32)
         elif dtype == tfloat64:
-            assert isinstance(x, (builtins.float, builtins.int))
+            assert is_float64(x)
             return construct_expr(ir.F64(x), tfloat64)
         elif dtype == tbool:
             assert isinstance(x, builtins.bool)
