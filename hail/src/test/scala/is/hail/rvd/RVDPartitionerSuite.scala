@@ -32,13 +32,6 @@ class RVDPartitionerSuite extends TestNGSuite {
     )
   }
 
-  @Test def testFoo() {
-    val ord = PartitionBoundOrdering(kType)
-    val pord = ord.intervalEndpointOrdering
-    println(ord.compare(Row(5), Row(5, 7)))
-    println(pord.compareIntervalEndpoints(Row(5), 1, Row(5, 7), 1))
-  }
-
   @Test def testGetPartitionWithPartitionKeys() {
     assert(partitioner.lowerBound(Row(-1, 7)) == 0)
     assert(partitioner.upperBound(Row(-1, 7)) == 0)
