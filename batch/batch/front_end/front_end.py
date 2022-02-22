@@ -1568,10 +1568,9 @@ async def ui_get_job(request, userdata, batch_id):
     }
     job_status = dictfix.dictfix(job_status, job_status_spec)
     container_statuses = job_status['container_statuses']
-    step_statuses = [container_statuses['input'], container_statuses['main'], container_statuses['output']]
     step_errors = {step: status['error'] for step, status in container_statuses.items() if status is not None}
 
-    for status in step_statuses:
+    for status in container_statuses.values():
         # backwards compatibility
         if status and status['short_error'] is None and status['container_status']['out_of_memory']:
             status['short_error'] = 'out of memory'
@@ -1647,7 +1646,7 @@ async def ui_get_job(request, userdata, batch_id):
         'job': job,
         'job_log': job_log,
         'attempts': attempts,
-        'step_statuses': step_statuses,
+        'container_statuses': container_statuses,
         'job_specification': job_specification,
         'job_status_str': json.dumps(job, indent=2),
         'step_errors': step_errors,

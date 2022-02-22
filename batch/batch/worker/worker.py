@@ -29,7 +29,7 @@ from aiohttp import web
 
 from gear.clients import get_cloud_async_fs, get_compute_client
 from hailtop import aiotools, httpx
-from hailtop.aiotools import LocalAsyncFS
+from hailtop.aiotools import LocalAsyncFS, AsyncFS
 from hailtop.aiotools.router_fs import RouterAsyncFS
 from hailtop.batch.hail_genetics_images import HAIL_GENETICS_IMAGES
 from hailtop.config import DeployConfig
@@ -55,13 +55,14 @@ from hailtop.utils import (
 from ..batch_format_version import BatchFormatVersion
 from ..cloud.azure.worker.worker_api import AzureWorkerAPI
 from ..cloud.gcp.worker.worker_api import GCPWorkerAPI
-from ..cloud.resource_utils import is_valid_storage_request, storage_gib_to_bytes
+from ..cloud.resource_utils import is_valid_storage_request, storage_gib_to_bytes, worker_memory_per_core_bytes
 from ..file_store import FileStore
 from ..globals import HTTP_CLIENT_MAX_SIZE, RESERVED_STORAGE_GB_PER_CORE, STATUS_FORMAT_VERSION
 from ..publicly_available_images import publicly_available_images
 from ..semaphore import FIFOWeightedSemaphore
 from ..utils import Box
 from ..worker.worker_api import CloudWorkerAPI
+
 from .credentials import CloudUserCredentials
 from .jvm_entryway_protocol import EndOfStream, read_bool, read_int, read_str, write_int, write_str
 
@@ -147,6 +148,8 @@ log.info(f'DOCKER_PREFIX {DOCKER_PREFIX}')
 log.info(f'INSTANCE_CONFIG {INSTANCE_CONFIG}')
 log.info(f'CLOUD_WORKER_API {CLOUD_WORKER_API}')
 log.info(f'MAX_IDLE_TIME_MSECS {MAX_IDLE_TIME_MSECS}')
+log.info(f'BATCH_WORKER_IMAGE {BATCH_WORKER_IMAGE}')
+log.info(f'BATCH_WORKER_IMAGE_ID {BATCH_WORKER_IMAGE_ID}')
 log.info(f'INTERNET_INTERFACE {INTERNET_INTERFACE}')
 log.info(f'UNRESERVED_WORKER_DATA_DISK_SIZE_GB {UNRESERVED_WORKER_DATA_DISK_SIZE_GB}')
 log.info(f'ACCEPTABLE_QUERY_JAR_URL_PREFIX {ACCEPTABLE_QUERY_JAR_URL_PREFIX}')
@@ -358,7 +361,7 @@ class Image:
     def __init__(
         self,
         name: str,
-        credentials: CloudUserCredentials,
+        credentials: Optional[CloudUserCredentials],
         client_session: httpx.ClientSession,
         pool: concurrent.futures.ThreadPoolExecutor,
     ):
@@ -440,6 +443,7 @@ class Image:
         return await CLOUD_WORKER_API.worker_access_token(self.client_session)
 
     def _current_user_access_token(self) -> Dict[str, str]:
+        assert self.credentials
         return {'username': self.credentials.username, 'password': self.credentials.password}
 
     async def _extract_rootfs(self):
@@ -556,7 +560,7 @@ def user_error(e):
 class Container:
     def __init__(
         self,
-        worker: 'Worker',
+        fs: AsyncFS,
         name: str,
         image: Image,
         scratch_dir: str,
@@ -570,8 +574,8 @@ class Container:
         volume_mounts: Optional[List[dict]] = None,
         env: Optional[List[str]] = None,
     ):
-        self.worker = worker
-        assert self.worker
+        self.fs = fs
+        assert self.fs
 
         self.name = name
         self.image = image
@@ -611,7 +615,14 @@ class Container:
         # regarding no-member: https://github.com/PyCQA/pylint/issues/4223
         self.process: Optional[asyncio.subprocess.Process] = None  # pylint: disable=no-member
 
-    async def run(self, on_completion: Callable[..., Awaitable[Any]], *args, **kwargs):
+        self._run_fut: Optional[asyncio.Future] = None
+        self._cleanup_lock = asyncio.Lock()
+
+        self._killed = False
+        self._cleaned_up = False
+
+    async def create(self):
+        self.state = 'creating'
         try:
             with self._step('pulling'):
                 await self._run_until_done_or_deleted(self.image.pull)
@@ -621,30 +632,11 @@ class Container:
 
             with self._step('setting up network'):
                 await self._run_until_done_or_deleted(self._setup_network_namespace)
-
-            with self._step('running'):
-                timed_out = await self._run_until_done_or_deleted(self._run_container)
-
-            self.container_status = self.get_container_status()
-            assert self.container_status is not None
-
-            if timed_out:
-                self.short_error = 'timed out'
-                raise ContainerTimeoutError(f'timed out after {self.timeout}s')
-
-            if self.container_status['exit_code'] == 0:
-                self.state = 'succeeded'
-            else:
-                if self.container_status['out_of_memory']:
-                    self.short_error = 'out of memory'
-                self.state = 'failed'
         except asyncio.CancelledError:
             raise
-        except ContainerDeletedError:
-            self.state = 'cancelled'
         except Exception as e:
-            if not isinstance(e, ContainerTimeoutError) and not user_error(e):
-                log.exception(f'while running {self}')
+            if not isinstance(e, ContainerDeletedError) and not user_error(e):
+                log.exception(f'while creating {self}')
 
             if isinstance(e, ImageNotFound):
                 self.short_error = 'image not found'
@@ -653,18 +645,143 @@ class Container:
 
             self.state = 'error'
             self.error = traceback.format_exc()
-        finally:
+
+    async def start(self):
+        async def _run():
+            self.state = 'running'
             try:
-                await on_completion(*args, **kwargs)
+                with self._step('running'):
+                    timed_out = await self._run_until_done_or_deleted(self._run_container)
+
+                self.container_status = self.get_container_status()
+                assert self.container_status is not None
+
+                if timed_out:
+                    self.short_error = 'timed out'
+                    raise ContainerTimeoutError(f'timed out after {self.timeout}s')
+
+                if self.container_status['exit_code'] == 0:
+                    self.state = 'succeeded'
+                else:
+                    if self.container_status['out_of_memory']:
+                        self.short_error = 'out of memory'
+                    self.state = 'failed'
+            except asyncio.CancelledError:
+                raise
+            except ContainerDeletedError:
+                self.state = 'cancelled'
+            except Exception as e:
+                if not isinstance(e, (ContainerDeletedError, ContainerTimeoutError)) and not user_error(e):
+                    log.exception(f'while running {self}')
+
+                self.state = 'error'
+                self.error = traceback.format_exc()
+
+        self._run_fut = asyncio.ensure_future(self._run_until_done_or_deleted(_run))
+
+    async def wait(self):
+        assert self._run_fut
+        try:
+            await self._run_fut
+        finally:
+            self._run_fut = None
+
+    async def run(self, on_completion: Callable[..., Awaitable[Any]], *args, **kwargs):
+        async with self._cleanup_lock:
+            try:
+                await self.create()
+                await self.start()
+                await self.wait()
             finally:
                 try:
-                    await self.delete_container()
+                    await on_completion(*args, **kwargs)
                 finally:
-                    self.image.release()
+                    try:
+                        await self._kill()
+                    finally:
+                        await self._cleanup()
 
-    async def _run_until_done_or_deleted(self, f: Callable[..., Awaitable[Any]]):
+    async def _kill(self):
+        if self._killed:
+            return
+
         try:
-            return await run_until_done_or_deleted(self.deleted_event, f)
+            if self._run_fut is not None:
+                await self._run_fut
+        finally:
+            try:
+                if self.container_is_running():
+                    assert self.process is not None
+                    try:
+                        log.info(f'{self} container is still running, killing crun process')
+                        try:
+                            await check_exec_output('crun', 'kill', '--all', self.name, 'SIGKILL')
+                        except CalledProcessError as e:
+                            not_extant_message = (
+                                b'error opening file `/run/crun/'
+                                + self.name.encode()
+                                + b'/status`: No such file or directory'
+                            )
+                            if not (e.returncode == 1 and not_extant_message in e.stderr):
+                                log.exception(f'while deleting container {self}', exc_info=True)
+                    finally:
+                        try:
+                            await send_signal_and_wait(self.process, 'SIGTERM', timeout=5)
+                        except asyncio.TimeoutError:
+                            try:
+                                await send_signal_and_wait(self.process, 'SIGKILL', timeout=5)
+                            except asyncio.CancelledError:
+                                raise
+                            except Exception:
+                                log.exception(f'could not kill process for container {self}')
+                        finally:
+                            self.process = None
+            finally:
+                self._run_fut = None
+                self._killed = True
+
+    async def _cleanup(self):
+        if self._cleaned_up:
+            return
+
+        assert self._run_fut is None
+        try:
+            if self.overlay_mounted:
+                try:
+                    await check_shell(f'umount -l {self.container_overlay_path}/merged')
+                    self.overlay_mounted = False
+                except asyncio.CancelledError:
+                    raise
+                except Exception:
+                    log.exception(f'while unmounting overlay in {self}', exc_info=True)
+
+            if self.host_port is not None:
+                port_allocator.free(self.host_port)
+                self.host_port = None
+
+            if self.netns:
+                network_allocator.free(self.netns)
+                self.netns = None
+        finally:
+            try:
+                self.image.release()
+            finally:
+                try:
+                    await self.fs.rmtree(None, self.container_scratch)
+                finally:
+                    self._cleaned_up = True
+
+    async def remove(self):
+        self.deleted_event.set()
+        async with self._cleanup_lock:
+            try:
+                await self._kill()
+            finally:
+                await self._cleanup()
+
+    async def _run_until_done_or_deleted(self, f: Callable[..., Awaitable[Any]], *args, **kwargs):
+        try:
+            return await run_until_done_or_deleted(self.deleted_event, f, *args, **kwargs)
         except StepInterruptedError as e:
             raise ContainerDeletedError from e
 
@@ -932,53 +1049,6 @@ class Container:
             env.append(f'HAIL_BATCH_WORKER_IP={IP_ADDRESS}')
         return env
 
-    async def delete_container(self):
-        if self.container_is_running():
-            assert self.process is not None
-            try:
-                log.info(f'{self} container is still running, killing crun process')
-                try:
-                    await check_exec_output('crun', 'kill', '--all', self.name, 'SIGKILL')
-                except CalledProcessError as e:
-                    not_extant_message = (
-                        b'error opening file `/run/crun/' + self.name.encode() + b'/status`: No such file or directory'
-                    )
-                    if not (e.returncode == 1 and not_extant_message in e.stderr):
-                        log.exception(f'while deleting container {self}', exc_info=True)
-            finally:
-                try:
-                    await send_signal_and_wait(self.process, 'SIGTERM', timeout=5)
-                except asyncio.TimeoutError:
-                    try:
-                        await send_signal_and_wait(self.process, 'SIGKILL', timeout=5)
-                    except asyncio.CancelledError:
-                        raise
-                    except Exception:
-                        log.exception(f'could not kill process for container {self}')
-                finally:
-                    self.process = None
-
-        if self.overlay_mounted:
-            try:
-                await check_shell(f'umount -l {self.container_overlay_path}/merged')
-                self.overlay_mounted = False
-            except asyncio.CancelledError:
-                raise
-            except Exception:
-                log.exception(f'while unmounting overlay in {self}', exc_info=True)
-
-        if self.host_port is not None:
-            port_allocator.free(self.host_port)
-            self.host_port = None
-
-        if self.netns:
-            network_allocator.free(self.netns)
-            self.netns = None
-
-    async def delete(self):
-        log.info(f'deleting {self}')
-        self.deleted_event.set()
-
     # {
     #   name: str,
     #   state: str, (pending, pulling, creating, starting, running, uploading_log, deleting, succeeded, error, failed)
@@ -1029,9 +1099,11 @@ class Container:
     def container_finished(self):
         return self.process is not None and self.process.returncode is not None
 
-    async def get_log(self):
+    async def get_log(self, offset: Optional[int] = None):
         if os.path.exists(self.log_path):
-            return (await self.worker.fs.read(self.log_path)).decode()
+            if offset is None:
+                return (await self.fs.read(self.log_path)).decode()
+            return (await self.fs.read_from(self.log_path, offset)).decode()
         return ''
 
     def __str__(self):
@@ -1058,6 +1130,7 @@ def copy_container(
     client_session: httpx.ClientSession,
 ) -> Container:
     assert files
+    assert job.worker.fs is not None
 
     command = [
         '/usr/bin/python3',
@@ -1069,7 +1142,7 @@ def copy_container(
     ]
 
     return Container(
-        worker=job.worker,
+        fs=job.worker.fs,
         name=job.container_name(task_name),
         image=Image(BATCH_WORKER_IMAGE, job.credentials, client_session, job.pool),
         scratch_dir=f'{scratch}/{task_name}',
@@ -1332,6 +1405,8 @@ class DockerJob(Job):
         worker: 'Worker',
     ):
         super().__init__(batch_id, user, credentials, job_spec, format_version, task_manager, pool, worker)
+        assert worker.fs
+
         input_files = job_spec.get('input_files')
         output_files = job_spec.get('output_files')
 
@@ -1370,7 +1445,7 @@ class DockerJob(Job):
             )
 
         containers['main'] = Container(
-            worker=self.worker,
+            fs=self.worker.fs,
             name=self.container_name('main'),
             image=Image(job_spec['process']['image'], self.credentials, client_session, pool),
             scratch_dir=f'{self.scratch}/main',
@@ -1448,7 +1523,6 @@ class DockerJob(Job):
                     task_name,
                     await container.get_log(),
                 )
-
         await container.run(on_completion)
 
     async def run(self):
@@ -1606,7 +1680,7 @@ class DockerJob(Job):
 
     async def delete(self):
         await super().delete()
-        await asyncio.wait([c.delete() for c in self.containers.values()])
+        await asyncio.wait([c.remove() for c in self.containers.values()])
 
     def status(self):
         status = super().status()
@@ -1849,59 +1923,107 @@ def scoped_ensure_future(coro_or_future, *, loop=None) -> Iterator[asyncio.Futur
         fut.cancel()
 
 
-class BufferedOutputProcess:
-    @classmethod
-    async def create(cls, *args, **kwargs):
-        assert 'stdout' not in kwargs
-        assert 'stderr' not in kwargs
+class JVMContainer:
+    @staticmethod
+    async def create_and_start(
+        index: int,
+        socket_file: str,
+        root_dir: str,
+        client_session: httpx.ClientSession,
+        pool: concurrent.futures.ThreadPoolExecutor,
+    ):
+        assert os.path.commonpath([socket_file, root_dir]) == root_dir
+        assert os.path.isdir(root_dir)
 
-        process = await asyncio.create_subprocess_exec(
-            *args, **kwargs, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
+        # JVM and Hail both treat MB as 1024 * 1024 bytes.
+        # JVMs only start in standard workers which have 3.75 GiB == 3840 MiB per core.
+        # We only allocate 3700 MiB so that we stay well below the machine's max memory.
+        # We allocate 60% of memory per core to off heap memory: 1480 + 2220 = 3700.
+        command = [
+            'java',
+            '-Xmx1480M',
+            '-cp',
+            f'/jvm-entryway:/jvm-entryway/junixsocket-selftest-2.3.3-jar-with-dependencies.jar:{JVM.SPARK_HOME}/jars/*',
+            'is.hail.JVMEntryway',
+            socket_file,
+        ]
+
+        volume_mounts = [
+            {
+                'source': JVM.SPARK_HOME,
+                'destination': JVM.SPARK_HOME,
+                'type': 'none',
+                'options': ['rbind', 'rw'],
+            },
+            {
+                'source': '/jvm-entryway',
+                'destination': '/jvm-entryway',
+                'type': 'none',
+                'options': ['rbind', 'rw'],
+            },
+            {
+                'source': '/hail-jars',
+                'destination': '/hail-jars',
+                'type': 'none',
+                'options': ['rbind', 'rw'],
+            },
+            {
+                'source': root_dir,
+                'destination': root_dir,
+                'type': 'none',
+                'options': ['rbind', 'rw'],
+            },
+            {
+                'source': '/batch',
+                'destination': '/batch',
+                'type': 'none',
+                'options': ['rbind', 'rw'],
+            },
+        ]
+
+        fs = LocalAsyncFS(pool)  # worker does not have a fs when initializing JVMs
+
+        c = Container(
+            fs=fs,
+            name=f'jvm-{index}',
+            image=Image(BATCH_WORKER_IMAGE, None, client_session, pool),
+            scratch_dir=f'{root_dir}/container',
+            command=command,
+            cpu_in_mcpu=1000,
+            memory_in_bytes=worker_memory_per_core_bytes(CLOUD, instance_config.worker_type()),
+            env=['HAIL_WORKER_OFF_HEAP_MEMORY_PER_CORE_MB=2220'],
+            volume_mounts=volume_mounts,
         )
-        stop_event = asyncio.Event()
-        return cls(process, stop_event)
 
-    def __init__(self, process, stop_event: asyncio.Event):
-        self.process = process
-        self.stop_event = stop_event
-        self.buf = bytearray()
-        assert process.stdout is not None
-        self.stdout_pump = asyncio.ensure_future(self.pump_to_buffer(process.stdout))
-        assert process.stderr is not None
-        self.stderr_pump = asyncio.ensure_future(self.pump_to_buffer(process.stderr))
+        await c.create()
+        await c.start()
 
-    async def pump_to_buffer(self, strm: asyncio.StreamReader):
-        with scoped_ensure_future(self.stop_event.wait()) as stop_fut:
-            while not strm.at_eof() and not self.stop_event.is_set():
-                with scoped_ensure_future(strm.readline()) as read_fut:
-                    await asyncio.wait([read_fut, stop_fut], return_when=asyncio.FIRST_COMPLETED)
-                    if read_fut.done():
-                        result = read_fut.result()
-                        self.buf.extend(result)
+        return JVMContainer(c, fs)
 
-    def output(self) -> str:
-        return self.buf.decode()
+    def __init__(self, container: Container, fs: LocalAsyncFS):
+        self.container = container
+        self.fs = fs
+        self.log_offset = 0
 
-    def retrieve_and_clear_output(self) -> str:
-        buf = self.buf.decode()
-        self.buf = bytearray()
-        return buf
+    async def retrieve_and_clear_output(self) -> str:
+        logs = await self.get_log()
+        self.log_offset += len(logs)
+        return logs
 
-    def kill(self):
-        return self.process.kill()
+    async def get_log(self):
+        return await self.container.get_log(offset=self.log_offset)
 
     @property
     def returncode(self) -> Optional[int]:
-        return self.process.returncode
+        if self.container.process is None:
+            return None
+        return self.container.process.returncode
 
-    def close(self):
-        try:
-            self.kill()
-        finally:
-            try:
-                self.stdout_pump.cancel()
-            finally:
-                self.stderr_pump.cancel()
+    async def remove(self):
+        if self.fs is not None:
+            await self.fs.close()
+            self.fs = None
+        await self.container.remove()
 
 
 class JVMUserError(Exception):
@@ -1918,24 +2040,15 @@ class JVM:
     FINISH_JVM_EOS = 4
 
     @classmethod
-    async def create_process(cls, socket_file: str) -> BufferedOutputProcess:
-        # JVM and Hail both treat MB as 1024 * 1024 bytes.
-        # JVMs only start in standard workers which have 3.75 GiB == 3840 MiB per core.
-        # We only allocate 3700 MiB so that we stay well below the machine's max memory.
-        # We allocate 60% of memory per core to off heap memory: 1480 + 2220 = 3700.
-        return await BufferedOutputProcess.create(
-            'java',
-            '-Xmx1480M',
-            '-cp',
-            f'/jvm-entryway:/jvm-entryway/junixsocket-selftest-2.3.3-jar-with-dependencies.jar:{JVM.SPARK_HOME}/jars/*',
-            'is.hail.JVMEntryway',
-            socket_file,
-            env={'HAIL_WORKER_OFF_HEAP_MEMORY_PER_CORE_MB': '2220'},
-        )
-
-    @classmethod
-    async def create_process_and_connect(cls, index: int, socket_file: str) -> Tuple[BufferedOutputProcess, str]:
-        process = await cls.create_process(socket_file)
+    async def create_container_and_connect(
+        cls,
+        index: int,
+        socket_file: str,
+        root_dir: str,
+        client_session: httpx.ClientSession,
+        pool: concurrent.futures.ThreadPoolExecutor,
+    ) -> Tuple[JVMContainer, str]:
+        container = await JVMContainer.create_and_start(index, socket_file, root_dir, client_session, pool)
         try:
             attempts = 0
             delay = 0.25
@@ -1952,7 +2065,7 @@ class JVM:
                     finally:
                         writer.close()
                 except ConnectionRefusedError:
-                    output = process.retrieve_and_clear_output()
+                    output = await container.retrieve_and_clear_output()
                     log.warning(f'JVM-{index}: connection refused. {output}')
                     raise
                 except FileNotFoundError as err:
@@ -1962,43 +2075,55 @@ class JVM:
                             f'JVM-{index}: failed to establish connection after {240 * delay} seconds'
                         ) from err
                     await asyncio.sleep(delay)
-            startup_output = process.retrieve_and_clear_output()
-            return process, startup_output
+            startup_output = await container.retrieve_and_clear_output()
+            return container, startup_output
         except:
-            process.close()
+            await container.remove()
             raise
 
     @classmethod
     async def create(cls, index: int):
-        assert worker is not None
-
         while True:
             try:
                 token = uuid.uuid4().hex
-                socket_file = '/socket-' + token
-                root_dir = '/root-' + token
+                root_dir = f'/host/jvm-{token}'
+                socket_file = root_dir + '/socket'
                 output_file = root_dir + '/output'
                 should_interrupt = asyncio.Event()
-                await blocking_to_async(worker.pool, os.mkdir, root_dir)
-                process, startup_output = await cls.create_process_and_connect(index, socket_file)
+                await blocking_to_async(worker.pool, os.makedirs, root_dir)
+                container, startup_output = await cls.create_container_and_connect(
+                    index, socket_file, root_dir, worker.client_session, worker.pool
+                )
                 log.info(f'JVM-{index}: startup output: {startup_output}')
-                return cls(index, socket_file, root_dir, output_file, should_interrupt, process)
+                return cls(
+                    index,
+                    socket_file,
+                    root_dir,
+                    output_file,
+                    should_interrupt,
+                    container,
+                    worker.client_session,
+                    worker.pool,
+                )
             except ConnectionRefusedError:
                 pass
 
     async def new_connection(self):
         while True:
             try:
-                interim_output = self.process.retrieve_and_clear_output()
+                interim_output = await self.container.retrieve_and_clear_output()
                 if len(interim_output) > 0:
                     log.warning(f'{self}: unexpected output between jobs')
 
                 return await asyncio.open_unix_connection(self.socket_file)
             except ConnectionRefusedError:
-                log.warning(f'{self}: unexpected exit between jobs', extra=dict(output=self.process.output()))
+                output = await self.container.get_log()
+                log.warning(f'{self}: unexpected exit between jobs', extra=dict(output=output))
                 os.remove(self.socket_file)
-                process, startup_output = await self.create_process_and_connect(self.index, self.socket_file)
-                self.process = process
+                container, startup_output = await self.create_container_and_connect(
+                    self.index, self.socket_file, self.root_dir, self.client_session, self.pool
+                )
+                self.container = container
                 log.info(f'JVM-{self.index}: startup output: {startup_output}')
 
     def __init__(
@@ -2008,14 +2133,18 @@ class JVM:
         root_dir: str,
         output_file: str,
         should_interrupt: asyncio.Event,
-        process: BufferedOutputProcess,
+        container: JVMContainer,
+        client_session: httpx.ClientSession,
+        pool: concurrent.futures.ThreadPoolExecutor,
     ):
         self.index = index
         self.socket_file = socket_file
         self.root_dir = root_dir
         self.output_file = output_file
         self.should_interrupt = should_interrupt
-        self.process = process
+        self.container = container
+        self.client_session = client_session
+        self.pool = pool
 
     def __str__(self):
         return f'JVM-{self.index}'
@@ -2029,12 +2158,15 @@ class JVM:
     def reset(self):
         self.should_interrupt.clear()
 
-    def kill(self):
-        if self.process is not None:
-            self.process.kill()
+    async def kill(self):
+        if self.container is not None:
+            await self.container.remove()
 
-    def close(self):
-        self.process.close()
+    async def output(self) -> str:
+        return await self.container.get_log()
+
+    async def retrieve_and_clear_output(self) -> str:
+        return await self.container.retrieve_and_clear_output()
 
     async def execute(self, classpath: str, scratch_dir: str, log_file: str, jar_url: str, argv: List[str]):
         assert worker is not None
@@ -2056,25 +2188,27 @@ class JVM:
                 write_str(writer, part)
             await writer.drain()
 
-            wait_for_message_from_process: asyncio.Future = asyncio.ensure_future(read_int(reader))
-            stack.callback(wait_for_message_from_process.cancel)
+            wait_for_message_from_container: asyncio.Future = asyncio.ensure_future(read_int(reader))
+            stack.callback(wait_for_message_from_container.cancel)
             wait_for_interrupt: asyncio.Future = asyncio.ensure_future(self.should_interrupt.wait())
             stack.callback(wait_for_interrupt.cancel)
 
-            await asyncio.wait([wait_for_message_from_process, wait_for_interrupt], return_when=asyncio.FIRST_COMPLETED)
+            await asyncio.wait(
+                [wait_for_message_from_container, wait_for_interrupt], return_when=asyncio.FIRST_COMPLETED
+            )
 
             if wait_for_interrupt.done():
                 await wait_for_interrupt  # retrieve exceptions
-                if not wait_for_message_from_process.done():
+                if not wait_for_message_from_container.done():
                     write_int(writer, 0)  # tell process to cancel
                     await writer.drain()
 
             eos_exception = None
             try:
-                message = await wait_for_message_from_process
+                message = await wait_for_message_from_container
             except EndOfStream as exc:
                 try:
-                    self.kill()
+                    await self.kill()
                 except ProcessLookupError:
                     log.warning(f'{self}: JVM died after we received EOS')
                 message = JVM.FINISH_JVM_EOS
