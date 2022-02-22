@@ -83,10 +83,10 @@ Plotly.plot('plotly-timeseries', graph, {});
     </tr>
   </thead>
   <tbody>
-    {% for step in step_statuses %}
+    {% for name, step in container_statuses.items() %}
     {% if step %}
     <tr>
-      <td>{{ step['name'] }}</td>
+      <td>{{ name }}</td>
       <td>
         {% if step['timing']['pulling'] and step['timing']['pulling']['duration'] %}
         {{ step['timing']['pulling']['duration'] / 1000.0 }}
