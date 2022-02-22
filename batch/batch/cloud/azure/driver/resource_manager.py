@@ -74,17 +74,26 @@ class AzureResourceManager(CloudResourceManager):
             # https://docs.microsoft.com/en-us/azure/virtual-machines/states-billing
             for status in spec['statuses']:
                 code = status['code']
-                if code in (
-                    'ProvisioningState/creating',
-                    'ProvisioningState/updating',
-                    'ProvisioningState/creating/osProvisioningComplete',
+                if any(
+                    code.startswith(prefix)
+                    for prefix in (
+                        'ProvisioningState/creating',
+                        'ProvisioningState/updating',
+                    )
                 ):
                     return VMStateCreating(spec, instance.time_created)
                 if code == 'ProvisioningState/succeeded':
                     last_start_timestamp_msecs = parse_azure_timestamp(status.get('time'))
                     assert last_start_timestamp_msecs is not None
                     return VMStateRunning(spec, last_start_timestamp_msecs)
-                if code in ('ProvisioningState/failed', 'ProvisioningState/deleting', 'ProvisioningState/deleted'):
+                if any(
+                    code.startswith(prefix)
+                    for prefix in (
+                        'ProvisioningState/failed',
+                        'ProvisioningState/deleting',
+                        'ProvisioningState/deleted',
+                    )
+                ):
                     return VMStateTerminated(spec)
 
             log.exception(f'Unknown azure statuses {spec["statuses"]} for {instance}')
