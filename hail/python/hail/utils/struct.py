@@ -117,11 +117,12 @@ class Struct(Mapping):
 
 
         Examples
-        ----------
+        --------
         
         Define a Struct `s`
         
         >>> s = hl.Struct(**{'food': 8, 'fruit': 5})
+        >>> pprint(s)
         
         Add a new field to `s`
         
