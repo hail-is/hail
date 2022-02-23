@@ -1,6 +1,6 @@
 from hailtop.utils import (partition, url_basename, url_join, url_scheme,
                            url_and_params, parse_docker_image_reference, grouped)
-from hailtop.utils.utils import digits_needed, unzip, filter_none
+from hailtop.utils.utils import digits_needed, unzip, filter_none, flatten
 
 
 def test_partition_zero_empty():
@@ -211,3 +211,16 @@ def test_filter_none():
     assert filter_none([1, 2, 3.0, None, 5]) == [1, 2, 3.0, 5]
     assert filter_none(['a', 'b', 'c', None]) == ['a', 'b', 'c']
     assert filter_none([None, [None, [None, [None]]]]) == [[None, [None, [None]]]]
+
+
+def test_flatten():
+    assert flatten([]) == []
+    assert flatten([[]]) == []
+    assert flatten([[], []]) == []
+    assert flatten([[], [3]]) == [3]
+    assert flatten([[1, 2, 3], [3], [4, 5]]) == [1, 2, 3, 3, 4, 5]
+    assert flatten([['a', 'b', 'c'], ['d', 'e']]) == ['a', 'b', 'c', 'd', 'e']
+    assert flatten([[['a'], ['b']], [[1, 2, 3], [4, 5]]]) == [['a'], ['b'], [1, 2, 3], [4, 5]]
+    assert flatten([['apples'], ['bannanas'], ['oranges']]) == ['apples', 'bannanas', 'oranges']
+    assert flatten([['apple', 'bannana'], ['a', 'b', 'c'], [1, 2, 3, 4]]) == ['apple', 'bannana', 'a', 'b', 'c', 1, 2, 3, 4]
+    assert flatten([['apples'], [''], ['bannanas'], [''], ['oranges'], ['']]) == ['apples', '', 'bannanas', '', 'oranges', '']
