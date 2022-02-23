@@ -117,24 +117,24 @@ class Struct(Mapping):
 
         Examples
         --------
-        
+
         Define a Struct `s`
-        
+
         >>> s = hl.Struct(food=8, fruit=5)
-        
+
         Add a new field to `s`
-        
+
         >>> s.annotate(bar=2)
         Struct(food=8, fruit=5, bar=2)
-        
+
         Add multiple fields to `s`
-        
+
         >>> s.annotate(banana=2, apple=3)
         Struct(food=8, fruit=5, banana=2, apple=3)
-        
+
         Recompute an existing field in `s`
-        
-        >>> s.annotate(bar=4, fuit=2)
+
+        >>> s.annotate(bar=4, fruit=2)
         Struct(food=8, fruit=2, bar=4)
         """
         d = OrderedDict(self.items())
