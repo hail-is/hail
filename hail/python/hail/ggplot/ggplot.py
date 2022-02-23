@@ -210,7 +210,7 @@ class GGPlot:
         fig = fig.update_yaxes(title_font_size=18)
         fig = fig.update_layout(
             template="simple_white",
-            font_family="Ariel",
+            font_family='Arial, "Open Sans", verdana, sans-serif',
             title_font_size=26
         )
 
