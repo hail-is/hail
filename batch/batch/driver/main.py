@@ -386,11 +386,19 @@ async def create_driver_worker_websocket_connection(request, instance) -> web.We
     # this is where the back and forth communication actually happens
     async for msg in ws:
         if msg.type == aiohttp.WSMsgType.TEXT:
-            if msg.data == 'close':
+            # parse message as JSON
+            msg_json = json.loads(msg.data)
+            message = msg_json.message
+            if message == 'close':
                 await ws.close()
+            elif message == 'deactivate':
+                asyncio.run(deactivate_instance_1(instance))
+            elif message == 'job_complete':
+                asyncio.run(job_complete_1(request, instance))
+            elif message == 'job_started':
+                asyncio.run(job_started_1(request, instance))
             else:
-                print(f"Received message: {msg.data}")
-                await ws.send_str(msg.data + '/answer')
+                print(f"Received unrecognized message: {message}")
         elif msg.type == aiohttp.WSMsgType.ERROR:
             print('ws connection closed with exception %s' % ws.exception())
 
