@@ -147,7 +147,7 @@ class Struct(Mapping):
         Examples
         --------
 
-        Define s
+        Define a Struct 's'
 
         >>> s = hl.Struct(foo=5, apple=10)
 
