@@ -143,6 +143,14 @@ class Struct(Mapping):
         -------
         :class:`.Struct`
             Struct containing specified existing fields and computed fields.
+
+        Examples
+        --------
+
+        Define s
+        >>> s = hl.Struct(**{'foo': 5, '1kg': 10})
+
+        
         """
         d = OrderedDict()
         for a in fields:
