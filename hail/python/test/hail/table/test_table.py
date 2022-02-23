@@ -759,6 +759,11 @@ https://hail.zulipchat.com/#narrow/stream/123011-Hail-Dev/topic/test_drop/near/2
 
         self.assertTrue(t._same(t2))
 
+    def test_from_pandas_missing_ints(self):
+        df = pd.DataFrame({"x": pd.Series([1, 2, None, 4], dtype=pd.Int64Dtype())})
+        ht = hl.Table.from_pandas(df)
+        assert [s.x for s in ht.collect()] == [1, 2, None, 4]
+
     def test_from_pandas_mismatched_object_rows(self):
         d = {'a': [[1, 2], {1, 2}]}
         df = pd.DataFrame(data=d)
