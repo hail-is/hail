@@ -476,6 +476,6 @@ LIMIT %s;
         await waitable_pool.wait()
 
         end = time_msecs()
-        log.info(f'schedule: attemptd to schedule {n_scheduled} jobs in {end - start}ms for {self.pool}')
+        log.info(f'schedule: attempted to schedule {n_scheduled} jobs in {end - start}ms for {self.pool}')
 
         return should_wait
