@@ -1735,6 +1735,7 @@ steps:
       export HAIL_TEST_STORAGE_URI={{ global.test_storage_uri }}/{{ token }}
       export PYSPARK_SUBMIT_ARGS="--driver-memory 6g pyspark-shell"
       python3 -m pytest \
+              -m unchecked_allocator \
               --ignore=test/hailtop/batch/ \
               --ignore=test/hailtop/inter_cloud \
               --log-cli-level=INFO \
