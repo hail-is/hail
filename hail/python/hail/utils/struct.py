@@ -148,8 +148,23 @@ class Struct(Mapping):
         --------
 
         Define s
-        >>> s = hl.Struct(**{'foo': 5, '1kg': 10})
 
+        >>> s = hl.Struct(foo=5, apple=10)
+
+        Prints the original field
+
+        >>> s.select('foo')
+        hl.Struct(foo=5)
+
+        Add one new fields and prints old field
+
+        >>> s.select(bar=123, 'apple')
+        hl.Struct(bar=123, apple=10)
+
+        Adds two new fields and replaces old fields
+
+        >>> s.select(bar=123, banana=1)
+        hl.Struct(bar=123, banana=1)
         
         """
         d = OrderedDict()
