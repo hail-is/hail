@@ -496,7 +496,7 @@ def _parameterized_filter_intervals(vds: 'VariantDataset',
     if mode == 'split_at_boundaries':
         if not keep:
             raise ValueError("filter_intervals mode 'split_at_boundaries' not implemented for keep=False")
-        par_intervals = hl.Table.parallelize([hl.Struct(interval=x) for x in intervals],
+        par_intervals = hl.Table.parallelize(intervals.map(lambda x: hl.struct(interval=x)),
                                              schema=hl.tstruct(interval=intervals.dtype.element_type), key='interval')
         ref = segment_reference_blocks(vds.reference_data, par_intervals)
         return VariantDataset(ref,
