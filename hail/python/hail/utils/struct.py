@@ -172,17 +172,17 @@ class Struct(Mapping):
 
         Define a Struct `s`
 
-         >>> s = hl.Struct(food=8, fruit=5, bar=2, apple=10)
+        >>> s = hl.Struct(food=8, fruit=5, bar=2, apple=10)
 
         Drop one field from `s`
 
-         >>> s.drop(bar=2)
-         Struct(food=8, fruit=5, apple=10)
+        >>> s.drop('bar')
+        Struct(food=8, fruit=5, apple=10)
 
         Drop two fields from `s`
 
-         >>> s.annotate(food=8, fruit=5)
-         Struct(bar=2, apple=10)
+        >>> s.drop('food', 'fruit')
+        Struct(bar=2, apple=10)
         """
         d = OrderedDict((k, v) for k, v in self.items() if k not in args)
         return Struct(**d)
