@@ -32,9 +32,11 @@
         {% endif %}
       </td>
       <td>
-        {% for context, status in pr['gh_statuses'].items() %}
-          {{ context }}: {{ status }}
-        {% endfor %}
+        <ol>
+          {% for context, status in pr['gh_statuses'].items() %}
+          <li>{{ context }}: {{ status }}</li>
+          {% endfor %}
+        </ol>
       </td>
       <td>
         {{ pr.labels|join(", ") }}
