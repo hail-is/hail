@@ -1,6 +1,7 @@
 import unittest
 
 import pandas as pd
+import numpy as np
 import pyspark.sql
 import pytest
 import random
@@ -758,6 +759,24 @@ https://hail.zulipchat.com/#narrow/stream/123011-Hail-Dev/topic/test_drop/near/2
         t2 = hl.Table.parallelize(d2)
 
         self.assertTrue(t._same(t2))
+
+    def test_from_pandas_missing_and_nans(self):
+        # Pandas treats nan as missing. We don't.
+        df = pd.DataFrame({
+            "x": pd.Series([None, 1, 2, None, 4], dtype=pd.Int64Dtype()),
+            "y": pd.Series([None, 1, 2, None, 4], dtype=pd.Int32Dtype()),
+            "z": pd.Series([np.nan, 1.0, 3.0, 4.0, np.nan])
+        })
+        ht = hl.Table.from_pandas(df)
+        collected = ht.collect()
+
+        assert [s.x for s in collected] == [None, 1, 2, None, 4]
+
+        assert [s.y for s in collected] == [None, 1, 2, None, 4]
+
+        assert np.isnan(collected[0].z)
+        assert np.isnan(collected[-1].z)
+        assert [s.z for s in collected[1:-1]] == [1.0, 3.0, 4.0]
 
     def test_from_pandas_mismatched_object_rows(self):
         d = {'a': [[1, 2], {1, 2}]}
