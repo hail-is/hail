@@ -3354,8 +3354,14 @@ class Table(ExprContainer):
         for data_idx in range(len(columns[fields[0]])):
             for field in fields:
                 cur_val = columns[field][data_idx]
+
                 if pandas.isna(cur_val):
-                    fixed_val = None
+                    if isinstance(cur_val, float):
+                        fixed_val = cur_val
+                    elif isinstance(cur_val, np.floating):
+                        fixed_val = cur_val.item()
+                    else:
+                        fixed_val = None
                 elif isinstance(cur_val, np.number):
                     fixed_val = cur_val.item()
                 else:

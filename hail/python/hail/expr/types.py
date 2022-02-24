@@ -2060,10 +2060,11 @@ def dtypes_from_pandas(pd_dtype):
 
     if type(pd_dtype) == pd.StringDtype:
         return hl.tstr
-    elif pd_dtype == np.int32:
-        return hl.tint32
-    elif pd_dtype == np.int64:
+    elif pd.api.types.is_int64_dtype(pd_dtype):
         return hl.tint64
+    # For some reason pandas doesn't have `is_int32_dtype`, so we use `is_integer_dtype` if first branch failed.
+    elif pd.api.types.is_integer_dtype(pd_dtype):
+        return hl.tint32
     elif pd_dtype == np.float32:
         return hl.tfloat32
     elif pd_dtype == np.float64:
