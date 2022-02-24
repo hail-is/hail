@@ -926,11 +926,9 @@ WHERE user = %s AND id = %s AND NOT deleted;
                 async with timer.step('write spec to cloud'):
                     await spec_writer.write()
 
-        async def insert_jobs_into_db():
+        async def insert_jobs_into_db(tx):
             async with timer.step('insert jobs'):
-
-                @transaction(db)
-                async def insert(tx):
+                try:
                     try:
                         await tx.execute_many(
                             '''
@@ -1018,9 +1016,6 @@ VALUES (%s, %s, %s);
 ''',
                             (batch_id, spec_writer.token, start_job_id),
                         )
-
-                try:
-                    await insert()  # pylint: disable=no-value-for-parameter
                 except asyncio.CancelledError:
                     raise
                 except aiohttp.web.HTTPException:
@@ -1032,8 +1027,13 @@ VALUES (%s, %s, %s);
                         f'job_parents_args={json.dumps(job_parents_args)}'
                     ) from err
 
-        await asyncio.gather(write_spec_to_cloud(), insert_jobs_into_db())
+        @transaction(db)
+        async def write_and_insert(tx):
+            # IMPORTANT: If cancellation or an error prevents writing the spec to the cloud, then we
+            # must rollback. See https://github.com/hail-is/hail-production-issues/issues/9
+            await asyncio.gather(write_spec_to_cloud(), insert_jobs_into_db(tx))
 
+        write_and_insert()  # pylint: disable=no-value-for-parameter
     return web.Response()
 
 
