@@ -2696,6 +2696,8 @@ steps:
         script: /io/sql/fix-n-cancelled-creating-jobs.sql
       - name: big-test-instances
         script: /io/sql/big-test-instances.py
+      - name: kill-mjc-deadlocks
+        script: /io/sql/kill-mjc-deadlocks.sql
     inputs:
       - from: /repo/batch/sql
         to: /io/sql

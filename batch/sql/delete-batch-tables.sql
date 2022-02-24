@@ -36,6 +36,7 @@ DROP TABLE IF EXISTS `jobs`;
 DROP TABLE IF EXISTS `batches_cancelled`;
 DROP TABLE IF EXISTS `batches_staging`;  # deprecated
 DROP TABLE IF EXISTS `batches_inst_coll_staging`;
+DROP TABLE IF EXISTS `batches_n_jobs_in_complete_states`;
 DROP TABLE IF EXISTS `batches`;
 DROP TABLE IF EXISTS `user_resources`;  # deprecated
 DROP TABLE IF EXISTS `user_inst_coll_resources`;
