@@ -386,7 +386,7 @@ class ContainerStepManager:
 
     def __enter__(self):
         if self.is_deleted() and not self.ignore_job_deletion:
-            raise JobDeletedError()
+            raise JobDeletedError
         self.timing['start_time'] = time_msecs()
 
     def __exit__(self, exc_type, exc, tb):
@@ -561,7 +561,7 @@ class Container:
         try:
             await asyncio.wait([deleted, step], return_when=asyncio.FIRST_COMPLETED)
             if deleted.done():
-                raise JobDeletedError()
+                raise JobDeletedError
             assert step.done()
             return step.result()
         finally:
@@ -2066,7 +2066,7 @@ class JVM:
             elif message == JVM.FINISH_CANCELLED:
                 assert wait_for_interrupt.done()
                 log.info(f'{self}: was cancelled')
-                raise JobDeletedError()
+                raise JobDeletedError
             elif message == JVM.FINISH_USER_EXCEPTION:
                 log.info(f'{self}: user exception encountered (interrupted: {wait_for_interrupt.done()})')
                 exception = await read_str(reader)

@@ -348,7 +348,7 @@ async def _get_job_log_from_record(app, batch_id, job_id, record):
 
     batch_format_version = BatchFormatVersion(record['format_version'])
     attempt_id = record['attempt_id'] or record['last_cancelled_attempt_id']
-    assert attempt_id
+    assert attempt_id is not None
 
     file_store: FileStore = app['file_store']
     batch_format_version = BatchFormatVersion(record['format_version'])
@@ -394,14 +394,14 @@ LEFT JOIN instances
 LEFT JOIN (
   SELECT batch_id, job_id, attempt_id
   FROM attempts
-  WHERE reason = "cancelled"
+  WHERE reason = "cancelled" AND batch_id = %s AND job_id = %s
   ORDER BY end_time DESC
   LIMIT 1
 ) AS t
   ON jobs.batch_id = t.batch_id AND jobs.job_id = t.job_id
 WHERE jobs.batch_id = %s AND NOT deleted AND jobs.job_id = %s;
 ''',
-        (batch_id, job_id),
+        (batch_id, job_id, batch_id, job_id),
     )
     if not record:
         raise web.HTTPNotFound()
@@ -469,7 +469,7 @@ async def _get_full_job_status(app, record):
         return None
 
     attempt_id = record['attempt_id'] or record['last_cancelled_attempt_id']
-    assert attempt_id
+    assert attempt_id is not None
 
     if state in ('Error', 'Failed', 'Success', 'Cancelled'):
         if not format_version.has_full_status_in_gcs():
@@ -1418,7 +1418,7 @@ LEFT JOIN resources
 LEFT JOIN (
   SELECT batch_id, job_id, attempt_id
   FROM attempts
-  WHERE reason = "cancelled"
+  WHERE reason = "cancelled" AND batch_id = %s AND job_id = %s
   ORDER BY end_time DESC
   LIMIT 1
 ) AS t
@@ -1426,7 +1426,7 @@ LEFT JOIN (
 WHERE jobs.batch_id = %s AND NOT deleted AND jobs.job_id = %s
 GROUP BY jobs.batch_id, jobs.job_id, t.attempt_id;
 ''',
-        (batch_id, job_id),
+        (batch_id, job_id, batch_id, job_id),
     )
     if not record:
         raise web.HTTPNotFound()
