@@ -20,9 +20,9 @@ dictdiffer==0.8.1
 dill>=0.3.1.1,<0.4
 docker==5.0.3
 flake8==3.8.3
-Flask-Cors==3.0.9
+Flask-Cors==3.0.10
 Flask-Sockets==0.2.1
-Flask==1.0.3
+Flask==2.0.3
 # https://github.com/dask/gcsfs/issues/372
 gcsfs==0.8.0
 # https://github.com/dask/gcsfs/issues/372
@@ -36,7 +36,7 @@ orjson==3.6.4
 # importlib-metadata<4: in dev-requirements, jupyter depends on (an unpinned) ipykernel which needs importlib-metadata<4
 importlib-metadata<4
 janus==0.6.1
-Jinja2==2.11.3
+Jinja2==3.0.3
 # keyrings.alt>3.1: https://bugs.launchpad.net/usd-importer/+bug/1794041/comments/6
 keyrings.alt>=3.1
 kubernetes-asyncio==9.1.0
@@ -68,7 +68,6 @@ tqdm==4.42.1
 twine>=1.11.0
 urllib3==1.26.5
 uvloop==0.14.0
-Werkzeug==0.15.4
 wheel>=0.31.0
 # yarl 1.6.0 broke query string parsing in aiohttp 3.6.[012] https://github.com/aio-libs/aiohttp/issues/4972#issuecomment-700290809
 yarl<1.6.0
