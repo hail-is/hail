@@ -1,10 +1,5 @@
-DOCKER_PREFIX := gcr.io/hail-vdc
-DOCKER_ROOT_IMAGE := $(DOCKER_PREFIX)/ubuntu:20.04
-DOMAIN := hail.is
-INTERNAL_IP := 10.128.0.57
-IP := 35.188.91.25
-KUBERNETES_SERVER_URL := https://104.198.230.143
-CLOUD := gcp
+DOCKER_PREFIX := $(shell kubectl get secret global-config --template={{.data.docker_prefix}} | base64 --decode)
+DOMAIN := $(shell kubectl get secret global-config --template={{.data.domain}} | base64 --decode)
 
 ifeq ($(NAMESPACE),default)
 SCOPE = deploy
