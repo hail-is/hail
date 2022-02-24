@@ -2465,7 +2465,6 @@ async def async_main():
     network_allocator = NetworkAllocator()
 
     worker = Worker(httpx.client_session())
-    worker.task_manager.ensure_future(network_allocator.reserve())
     try:
         await worker.run()
     finally:
