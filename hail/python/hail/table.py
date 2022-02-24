@@ -3355,7 +3355,8 @@ class Table(ExprContainer):
             for field in fields:
                 cur_val = columns[field][data_idx]
 
-                if pandas.isna(cur_val):
+                # Can't call isna on a collection or it will implicitly broadcast
+                if pandas.api.types.is_numeric_dtype(df[field].dtype) and pandas.isna(cur_val):
                     if isinstance(cur_val, float):
                         fixed_val = cur_val
                     elif isinstance(cur_val, np.floating):
