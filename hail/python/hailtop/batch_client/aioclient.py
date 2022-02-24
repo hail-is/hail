@@ -613,7 +613,7 @@ class BatchBuilder:
                      max_bunch_bytesize: int = MAX_BUNCH_BYTESIZE,
                      max_bunch_size: int = MAX_BUNCH_SIZE,
                      disable_progress_bar: Union[bool, None, TqdmDisableOption] = TqdmDisableOption.default,
-                     ):
+                     ) -> Batch:
         assert max_bunch_bytesize > 0
         assert max_bunch_size > 0
         if self._submitted:
