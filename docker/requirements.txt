@@ -68,7 +68,6 @@ tqdm==4.42.1
 twine>=1.11.0
 urllib3==1.26.5
 uvloop==0.14.0
-Werkzeug==0.15.4
 wheel>=0.31.0
 # yarl 1.6.0 broke query string parsing in aiohttp 3.6.[012] https://github.com/aio-libs/aiohttp/issues/4972#issuecomment-700290809
 yarl<1.6.0
