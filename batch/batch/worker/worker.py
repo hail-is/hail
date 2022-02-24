@@ -958,10 +958,8 @@ class Container:
     #     exit_code: int
     #   }
     # }
-    def status(self, state=None):
-        if not state:
-            state = self.state
-        status = {'name': self.name, 'state': state, 'timing': self.timings.to_dict()}
+    def status(self):
+        status = {'name': self.name, 'state': self.state, 'timing': self.timings.to_dict()}
         if self.error:
             status['error'] = self.error
         if self.short_error:
@@ -1231,6 +1229,24 @@ class Job:
     async def delete(self):
         log.info(f'deleting {self}')
         self.deleted = True
+
+    async def mark_complete(self):
+        self.end_time = time_msecs()
+
+        full_status = self.status()
+
+        if self.format_version.has_full_status_in_gcs():
+            await retry_transient_errors(
+                self.worker.file_store.write_status_file,
+                self.batch_id,
+                self.job_id,
+                self.attempt_id,
+                json.dumps(full_status),
+            )
+
+        if not self.deleted:
+            log.info(f'{self}: marking complete')
+            self.task_manager.ensure_future(self.worker.post_job_complete(self, full_status))
 
     # {
     #   version: int,
@@ -1548,24 +1564,6 @@ class DockerJob(Job):
         except Exception:
             log.exception('while deleting volumes')
 
-    async def mark_complete(self):
-        self.end_time = time_msecs()
-
-        full_status = self.status()
-
-        if self.format_version.has_full_status_in_gcs():
-            await retry_transient_errors(
-                self.worker.file_store.write_status_file,
-                self.batch_id,
-                self.job_id,
-                self.attempt_id,
-                json.dumps(full_status),
-            )
-
-        if not self.deleted:
-            log.info(f'{self}: marking complete')
-            self.task_manager.ensure_future(self.worker.post_job_complete(self, full_status))
-
     async def get_log(self):
         return {name: await c.get_log() for name, c in self.containers.items()}
 
@@ -1704,6 +1702,8 @@ class JVMJob(Job):
                 await self.cleanup()
             else:
                 await self.cleanup()
+            finally:
+                await self.mark_complete()
 
     async def cleanup(self):
         if self.jvm is not None:
@@ -1723,23 +1723,6 @@ class JVMJob(Job):
         await worker.file_store.write_log_file(
             self.format_version, self.batch_id, self.job_id, self.attempt_id, 'main', job_log
         )
-
-        self.end_time = time_msecs()
-
-        full_status = self.status()
-
-        if self.format_version.has_full_status_in_gcs():
-            await retry_transient_errors(
-                self.worker.file_store.write_status_file,
-                self.batch_id,
-                self.job_id,
-                self.attempt_id,
-                json.dumps(full_status),
-            )
-
-        if not self.deleted:
-            log.info(f'{self}: marking complete')
-            self.task_manager.ensure_future(self.worker.post_job_complete(self, full_status))
 
         log.info(f'{self}: cleaning up')
         try:

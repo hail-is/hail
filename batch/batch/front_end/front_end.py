@@ -353,7 +353,7 @@ async def _get_job_log_from_record(app, batch_id, job_id, record):
     file_store: FileStore = app['file_store']
     batch_format_version = BatchFormatVersion(record['format_version'])
 
-    async def _read_log_from_gcs(task):
+    async def _read_log_from_cloud_storage(task):
         try:
             data = await file_store.read_log_file(batch_format_version, batch_id, job_id, attempt_id, task)
         except FileNotFoundError:
@@ -375,7 +375,7 @@ async def _get_job_log_from_record(app, batch_id, job_id, record):
     if has_output_files:
         tasks.append('output')
 
-    return dict(await asyncio.gather(*[_read_log_from_gcs(task) for task in tasks]))
+    return dict(await asyncio.gather(*[_read_log_from_cloud_storage(task) for task in tasks]))
 
 
 async def _get_job_log(app, batch_id, job_id):
