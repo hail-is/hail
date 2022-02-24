@@ -1,17 +1,16 @@
 import abc
-from typing import List, Optional, Dict
-
 import asyncio
 import logging
+from typing import Dict, List, Optional
+
 import dateutil.parser
 
 from hailtop.aiocloud import aioazure
 from hailtop.utils import flatten, grouped, time_msecs
-from hailtop.utils.rates import rate_instance_hour_to_fraction_msec, rate_gib_month_to_mib_msec
+from hailtop.utils.rates import rate_gib_month_to_mib_msec, rate_instance_hour_to_fraction_msec
 
-from ..resource_utils import azure_valid_machine_types, azure_disk_name_to_storage_gib
-from ..resources import AzureVMResource, AzureStaticSizedDiskResource
-
+from ..resource_utils import azure_disk_name_to_storage_gib, azure_valid_machine_types
+from ..resources import AzureStaticSizedDiskResource, AzureVMResource
 
 log = logging.getLogger('pricing')
 

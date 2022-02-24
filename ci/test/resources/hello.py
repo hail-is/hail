@@ -1,10 +1,10 @@
 import os
+
 from aiohttp import web
 
+from gear import setup_aiohttp_session
 from hailtop.config import get_deploy_config
 from hailtop.tls import internal_server_ssl_context
-from gear import setup_aiohttp_session
-
 
 deploy_config = get_deploy_config()
 

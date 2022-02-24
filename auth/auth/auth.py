@@ -1,32 +1,34 @@
-import os
-import logging
 import asyncio
+import json
+import logging
+import os
+
 import aiohttp
-from aiohttp import web
 import aiohttp_session
 import uvloop
-import json
+from aiohttp import web
 from prometheus_async.aio.web import server_stats  # type: ignore
-from hailtop.config import get_deploy_config
-from hailtop.tls import internal_server_ssl_context
-from hailtop.hail_logging import AccessLogger
-from hailtop.utils import secret_alnum_string
-from hailtop import httpx
+
 from gear import (
-    setup_aiohttp_session,
-    rest_authenticated_users_only,
-    web_authenticated_developers_only,
-    web_maybe_authenticated_user,
-    web_authenticated_users_only,
-    create_session,
-    check_csrf_token,
-    transaction,
     Database,
+    check_csrf_token,
+    create_session,
     maybe_parse_bearer_header,
     monitor_endpoints_middleware,
+    rest_authenticated_users_only,
+    setup_aiohttp_session,
+    transaction,
+    web_authenticated_developers_only,
+    web_authenticated_users_only,
+    web_maybe_authenticated_user,
 )
 from gear.cloud_config import get_global_config
-from web_common import setup_aiohttp_jinja2, setup_common_static_routes, set_message, render_template
+from hailtop import httpx
+from hailtop.config import get_deploy_config
+from hailtop.hail_logging import AccessLogger
+from hailtop.tls import internal_server_ssl_context
+from hailtop.utils import secret_alnum_string
+from web_common import render_template, set_message, setup_aiohttp_jinja2, setup_common_static_routes
 
 from .flow import get_flow_client
 

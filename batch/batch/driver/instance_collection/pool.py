@@ -1,30 +1,30 @@
-from typing import Optional
-import sortedcontainers
-import logging
 import asyncio
+import logging
 import random
+from typing import Optional
+
+import sortedcontainers
 
 from gear import Database
 from hailtop import aiotools
 from hailtop.utils import (
-    secret_alnum_string,
-    retry_long_running,
-    run_if_changed,
-    time_msecs,
-    WaitableSharedPool,
     AsyncWorkerPool,
     Notice,
+    WaitableSharedPool,
     periodically_call,
+    retry_long_running,
+    run_if_changed,
+    secret_alnum_string,
+    time_msecs,
 )
 
 from ...batch_configuration import STANDING_WORKER_MAX_IDLE_TIME_MSECS
 from ...inst_coll_config import PoolConfig
 from ...utils import Box, ExceededSharesCounter
 from ..instance import Instance
-from ..resource_manager import CloudResourceManager
 from ..job import schedule_job
-
-from .base import InstanceCollectionManager, InstanceCollection
+from ..resource_manager import CloudResourceManager
+from .base import InstanceCollection, InstanceCollectionManager
 
 log = logging.getLogger('pool')
 

@@ -1,69 +1,62 @@
-from typing import Dict, List
-import logging
-import json
-from functools import wraps
-from collections import namedtuple, defaultdict
-import copy
 import asyncio
+import copy
+import json
+import logging
 import signal
-import dictdiffer
-from aiohttp import web
+from collections import defaultdict, namedtuple
+from functools import wraps
+from typing import Dict, List
+
 import aiohttp_session
-import kubernetes_asyncio.config
+import dictdiffer
+import googlecloudprofiler
 import kubernetes_asyncio.client
-from prometheus_async.aio.web import server_stats
+import kubernetes_asyncio.config
 import prometheus_client as pc  # type: ignore
+import uvloop
+from aiohttp import web
+from prometheus_async.aio.web import server_stats
+
 from gear import (
     Database,
-    setup_aiohttp_session,
-    rest_authenticated_developers_only,
-    web_authenticated_developers_only,
     check_csrf_token,
-    transaction,
     monitor_endpoints_middleware,
+    rest_authenticated_developers_only,
+    setup_aiohttp_session,
+    transaction,
+    web_authenticated_developers_only,
 )
 from gear.clients import get_cloud_async_fs
-from hailtop.hail_logging import AccessLogger
-from hailtop.config import get_deploy_config
-from hailtop.utils import (
-    time_msecs,
-    serialization,
-    Notice,
-    periodically_call,
-    AsyncWorkerPool,
-    dump_all_stacktraces,
-)
-from hailtop.tls import internal_server_ssl_context
 from hailtop import aiotools, httpx
-from web_common import setup_aiohttp_jinja2, setup_common_static_routes, render_template, set_message
-import googlecloudprofiler
-import uvloop
+from hailtop.config import get_deploy_config
+from hailtop.hail_logging import AccessLogger
+from hailtop.tls import internal_server_ssl_context
+from hailtop.utils import AsyncWorkerPool, Notice, dump_all_stacktraces, periodically_call, serialization, time_msecs
+from web_common import render_template, set_message, setup_aiohttp_jinja2, setup_common_static_routes
 
-from ..file_store import FileStore
 from ..batch import cancel_batch_in_db
 from ..batch_configuration import (
-    CLOUD,
-    REFRESH_INTERVAL_IN_SECONDS,
-    DEFAULT_NAMESPACE,
     BATCH_STORAGE_URI,
+    CLOUD,
+    DEFAULT_NAMESPACE,
     HAIL_SHA,
-    HAIL_SHOULD_PROFILE,
     HAIL_SHOULD_CHECK_INVARIANTS,
+    HAIL_SHOULD_PROFILE,
     MACHINE_NAME_PREFIX,
+    REFRESH_INTERVAL_IN_SECONDS,
 )
+from ..cloud.driver import get_cloud_driver
+from ..cloud.resource_utils import local_ssd_size, possible_cores_from_worker_type, unreserved_worker_data_disk_size_gib
+from ..exceptions import BatchUserError
+from ..file_store import FileStore
 from ..globals import HTTP_CLIENT_MAX_SIZE
 from ..inst_coll_config import InstanceCollectionConfigs, PoolConfig
-
+from ..utils import authorization_token, batch_only, query_billing_projects
 from .canceller import Canceller
-from .instance_collection import InstanceCollectionManager, JobPrivateInstanceManager
+from .driver import CloudDriver
+from .instance_collection import InstanceCollectionManager, JobPrivateInstanceManager, Pool
 from .job import mark_job_complete, mark_job_started
 from .k8s_cache import K8sCache
-from .instance_collection import Pool
-from .driver import CloudDriver
-from ..utils import query_billing_projects, batch_only, authorization_token
-from ..cloud.driver import get_cloud_driver
-from ..cloud.resource_utils import unreserved_worker_data_disk_size_gib, possible_cores_from_worker_type, local_ssd_size
-from ..exceptions import BatchUserError
 
 uvloop.install()
 

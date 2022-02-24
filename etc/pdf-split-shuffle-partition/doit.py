@@ -1,7 +1,8 @@
-import sys
 import subprocess as sp
-import numpy
+import sys
 from random import shuffle
+
+import numpy
 
 # python split.py N_APPLICATIONS REVIEWERS
 

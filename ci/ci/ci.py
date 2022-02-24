@@ -1,35 +1,39 @@
-import traceback
-import json
-import os
-import logging
 import asyncio
 import concurrent.futures
-from aiohttp import web
+import json
+import logging
+import os
+import traceback
+from typing import Callable, List, Optional, Set
+
 import aiohttp_session  # type: ignore
 import uvloop  # type: ignore
+from aiohttp import web
+from gidgethub import aiohttp as gh_aiohttp
+from gidgethub import routing as gh_routing
+from gidgethub import sansio as gh_sansio
 from prometheus_async.aio.web import server_stats  # type: ignore
-from gidgethub import aiohttp as gh_aiohttp, routing as gh_routing, sansio as gh_sansio
-from hailtop.utils import collect_agen, humanize_timedelta_msecs
-from hailtop.batch_client.aioclient import BatchClient, Batch
-from hailtop.config import get_deploy_config
-from hailtop.tls import internal_server_ssl_context
-from hailtop.hail_logging import AccessLogger
-from hailtop import aiotools, httpx
+from typing_extensions import TypedDict
+
 from gear import (
-    setup_aiohttp_session,
-    rest_authenticated_developers_only,
-    web_authenticated_developers_only,
     check_csrf_token,
     create_database_pool,
     monitor_endpoints_middleware,
+    rest_authenticated_developers_only,
+    setup_aiohttp_session,
+    web_authenticated_developers_only,
 )
-from typing import Optional, List, Set, Callable
-from typing_extensions import TypedDict
-from web_common import setup_aiohttp_jinja2, setup_common_static_routes, render_template, set_message
+from hailtop import aiotools, httpx
+from hailtop.batch_client.aioclient import Batch, BatchClient
+from hailtop.config import get_deploy_config
+from hailtop.hail_logging import AccessLogger
+from hailtop.tls import internal_server_ssl_context
+from hailtop.utils import collect_agen, humanize_timedelta_msecs
+from web_common import render_template, set_message, setup_aiohttp_jinja2, setup_common_static_routes
 
-from .environment import STORAGE_URI
-from .github import Repo, FQBranch, WatchedBranch, UnwatchedBranch, MergeFailureBatch, PR, select_random_teammate, WIP
 from .constants import AUTHORIZED_USERS, TEAMS
+from .environment import STORAGE_URI
+from .github import PR, WIP, FQBranch, MergeFailureBatch, Repo, UnwatchedBranch, WatchedBranch, select_random_teammate
 
 with open(os.environ.get('HAIL_CI_OAUTH_TOKEN', 'oauth-token/oauth-token'), 'r') as f:
     oauth_token = f.read().strip()

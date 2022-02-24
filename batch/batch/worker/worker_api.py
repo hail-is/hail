@@ -2,11 +2,11 @@ import abc
 from typing import Dict
 
 from hailtop import httpx
-from hailtop.utils import check_shell, CalledProcessError, sleep_and_backoff
+from hailtop.utils import CalledProcessError, check_shell, sleep_and_backoff
 
-from .disk import CloudDisk
-from .credentials import CloudUserCredentials
 from ..instance_config import InstanceConfig
+from .credentials import CloudUserCredentials
+from .disk import CloudDisk
 
 
 class CloudWorkerAPI(abc.ABC):

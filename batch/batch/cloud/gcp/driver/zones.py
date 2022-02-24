@@ -1,12 +1,12 @@
 import logging
 import random
-from typing import Dict, Any, List, Set, Tuple
+from typing import Any, Dict, List, Set, Tuple
 
 from hailtop.aiocloud import aiogoogle
 from hailtop.utils import url_basename
 
-from ....utils import WindowFractionCounter
 from ....driver.location import CloudLocationMonitor
+from ....utils import WindowFractionCounter
 
 log = logging.getLogger('zones')
 
