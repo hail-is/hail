@@ -6,6 +6,7 @@ import java.io.EOFException
 import is.hail.utils._
 
 import org.apache.http.NoHttpResponseException
+import org.apache.http.ConnectionClosedException
 import org.apache.http.conn.HttpHostConnectException
 import org.apache.log4j.{LogManager, Logger}
 
@@ -46,6 +47,8 @@ package object services {
       case e: SocketTimeoutException =>
         true
       case e: UnknownHostException =>
+        true
+      case e: ConnectionClosedException =>
         true
       case e: SocketException =>
         e.getMessage != null && (
