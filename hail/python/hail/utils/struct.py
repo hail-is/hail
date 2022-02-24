@@ -156,7 +156,7 @@ class Struct(Mapping):
         >>> s.select('foo')
         hl.Struct(foo=5)
 
-        Add one new fields and keeps old field
+        Add one new field and keeps one old field
 
         >>> s.select(bar=123, 'apple')
         hl.Struct(bar=123, apple=10)
