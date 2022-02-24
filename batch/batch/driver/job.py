@@ -130,6 +130,7 @@ async def mark_job_complete(
             raise
         await add_attempt_resources(tx, batch_id, job_id, attempt_id, resources)
         return rv
+
     rv = mjc_and_add_attempt_resources()  # pylint: disable=no-value-for-parameter
 
     scheduler_state_changed.notify()
@@ -186,6 +187,7 @@ CALL mark_job_started(%s, %s, %s, %s, %s);
             raise
         await add_attempt_resources(tx, batch_id, job_id, attempt_id, resources)
         return rv
+
     rv = mjs_and_add_attempt_resources()  # pylint: disable=no-value-for-parameter
 
     if rv['delta_cores_mcpu'] != 0 and instance.state == 'active':
@@ -221,6 +223,7 @@ CALL mark_job_creating(%s, %s, %s, %s, %s);
             raise
         await add_attempt_resources(tx, batch_id, job_id, attempt_id, resources)
         return rv
+
     rv = mjc_and_add_attempt_resources()  # pylint: disable=no-value-for-parameter
 
     if rv['delta_cores_mcpu'] != 0 and instance.state == 'pending':
