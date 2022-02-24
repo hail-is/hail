@@ -1033,7 +1033,7 @@ VALUES (%s, %s, %s);
             # must rollback. See https://github.com/hail-is/hail-production-issues/issues/9
             await asyncio.gather(write_spec_to_cloud(), insert_jobs_into_db(tx))
 
-        write_and_insert()  # pylint: disable=no-value-for-parameter
+        await write_and_insert()  # pylint: disable=no-value-for-parameter
     return web.Response()
 
 
