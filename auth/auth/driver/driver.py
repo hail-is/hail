@@ -291,11 +291,7 @@ GRANT ALL ON `{name}`.* TO '{name}'@'%';
         if is_test_deployment:
             return
 
-        # no DROP USER IF EXISTS in current db version
-        row = await self.db_instance.execute_and_fetchone('SELECT 1 FROM mysql.user WHERE User = %s;', (name,))
-        if row is not None:
-            await self.db_instance.just_execute(f"DROP USER '{name}';")
-
+        await self.db_instance.just_execute(f"DROP USER IF EXISTS '{name}';")
         await self.db_instance.just_execute(f'DROP DATABASE IF EXISTS `{name}`;')
 
     async def delete(self):
