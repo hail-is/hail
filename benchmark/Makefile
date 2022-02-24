@@ -31,6 +31,7 @@ cleanup_image:
 PROJECT := hail-vdc
 BENCHMARK_DOCKER_TAG := benchmark_$(shell whoami)
 BENCHMARK_REPO_BASE = $(DOCKER_PREFIX)/$(BENCHMARK_DOCKER_TAG)
+DOCKER_ROOT_IMAGE := $(shell kubectl get secret global-config --template={{.data.docker_root_image}} | base64 --decode)
 
 ifndef HAIL_WHEEL
 image_sha:
