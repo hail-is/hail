@@ -24,6 +24,17 @@ an earlier version of Hail to read files written in a later version.
 
 ---
 
+## Version 0.2.86
+
+Release 2022-02-25
+
+### Bug fixes
+
+- (hail#11374) Fixed bug where certain pipelines that read in PLINK files would give assertion error.
+- (hail#11401) Fixed bug where `from_pandas` didn't support missing ints. 
+
+---
+
 ## Version 0.2.85
 
 Release 2022-02-14
@@ -35,7 +46,7 @@ Release 2022-02-14
 
 ### New features
 
-- (#11332) Added `geom_ribbon` and `geom_area` to hail ggplot.
+- (hail#11332) Added `geom_ribbon` and `geom_area` to hail ggplot.
 
 ---
 
