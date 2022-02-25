@@ -709,8 +709,6 @@ steps:
       chmod 755 ./gradlew
       time retry ./gradlew --version
       time retry make shadowTestJar HAIL_DEBUG_MODE=1
-      (cd build/deploy/dist/ && tar -cvf debug-wheel-container.tar hail-*-py3-none-any.whl)
-      cd /io/repo/hail
       time TESTNG_SPLITS=5 python3 generate_splits.py
       time tar czf splits.tar.gz testng-splits-*.xml
     inputs:
