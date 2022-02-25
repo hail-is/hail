@@ -923,7 +923,6 @@ steps:
     dependsOn:
       - default_ns
       - hail_run_tests_image
-      - build_hail
       - build_hail_debug
   - kind: runImage
     name: test_hail_java_1
@@ -957,7 +956,6 @@ steps:
     dependsOn:
       - default_ns
       - hail_run_tests_image
-      - build_hail
       - build_hail_debug
   - kind: runImage
     name: test_hail_java_2
@@ -991,7 +989,6 @@ steps:
     dependsOn:
       - default_ns
       - hail_run_tests_image
-      - build_hail
       - build_hail_debug
   - kind: runImage
     name: test_hail_java_3
@@ -1025,7 +1022,7 @@ steps:
     dependsOn:
       - default_ns
       - hail_run_tests_image
-      - build_hail
+      - build_hail_debug
   - kind: runImage
     name: test_hail_java_4
     image:
@@ -1058,7 +1055,6 @@ steps:
     dependsOn:
       - default_ns
       - hail_run_tests_image
-      - build_hail
       - build_hail_debug
   - kind: buildImage2
     name: hail_pip_installed_python37_image
