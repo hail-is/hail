@@ -885,7 +885,7 @@ steps:
       - from: /just-wheel/wheel-container.tar
         to: /io/hail/wheel-container.tar
     dependsOn:
-      - base_image
+      - hail_run_tests_image
       - build_hail_jar_wheel_pysrc
       - merge_code
     resources:

@@ -1,11 +1,6 @@
-FROM {{ base_image.image }}
-
-ENV PYTHONPATH ""
-
-COPY python/dev-requirements.txt .
-RUN hail-pip-install -r dev-requirements.txt
+FROM {{ hail_run_tests_image.image }}
 
 COPY wheel-container.tar ./
 RUN tar -xf wheel-container.tar && \
-    pip3 install -U hail-*-py3-none-any.whl && \
+    pip3 install --no-dependencies -U hail-*-py3-none-any.whl && \
     rm -rf hail-*-py3-none-any.whl
