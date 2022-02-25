@@ -119,8 +119,20 @@ steps:
       cpu: "2"
       memory: standard
     inputs:
-      - from: /repo
-        to: /io/repo
+      - from: /repo/docker/core-site.xml
+        to: /io/repo/docker/core-site.xml
+      - from: /repo/docker/requirements.txt
+        to: /io/repo/docker/requirements.txt
+      - from: /repo/docker/Dockerfile.base
+        to: /io/repo/docker/Dockerfile.base
+      - from: /repo/pylintrc
+        to: /io/repo/pylintrc
+      - from: /repo/gear
+        to: /io/repo/gear
+      - from: /repo/web_common
+        to: /io/repo/web_common
+      - from: /repo/hail/python
+        to: /io/repo/hail/python
       - from: /hail_version
         to: /io/repo/hail_version
     dependsOn:
@@ -881,7 +893,7 @@ steps:
   - kind: runImage
     name: upload_test_resources_to_blob_storage
     image:
-      valueFrom: hail_pip_installed_image.image
+      valueFrom: base_image.image
     script: |
       set -ex
       cd /io/repo/hail/
@@ -905,7 +917,7 @@ steps:
         to: /io/repo/hail/python/hail/docs/data
     dependsOn:
       - default_ns
-      - hail_pip_installed_image
+      - base_image
       - merge_code
   - kind: runImage
     name: test_hail_java_0
@@ -2231,7 +2243,7 @@ steps:
   - kind: runImage
     name: test_python_docs
     image:
-      valueFrom: hail_pip_installed_image.image
+      valueFrom: hail_run_tests_image.image
     script: |
       set -ex
 
@@ -2254,7 +2266,7 @@ steps:
         --ignore=hail/docs/getting_started_developing.rst \
         --ignore=hail/docs/getting_started.rst"
     dependsOn:
-      - hail_pip_installed_image
+      - hail_run_tests_image
       - build_hail_jar_wheel_pysrc
       - merge_code
     inputs:
@@ -2265,7 +2277,7 @@ steps:
   - kind: runImage
     name: make_docs
     image:
-      valueFrom: hail_pip_installed_image.image
+      valueFrom: hail_run_tests_image.image
     script: |
       set -ex
       export HAIL_SHORT_VERSION='0.2'
@@ -2302,12 +2314,12 @@ steps:
       - from: /io/www.tar.gz
         to: /www.tar.gz
     dependsOn:
-      - hail_pip_installed_image
+      - hail_run_tests_image
       - build_hail_jar_wheel_pysrc
   - kind: runImage
     name: get_pip_versioned_docs
     image:
-      valueFrom: hail_pip_installed_image.image
+      valueFrom: hail_run_tests_image.image
     script: |
       set -ex
 
@@ -2355,7 +2367,7 @@ steps:
       - from: /io/docs.tar.gz
         to: /docs.tar.gz
     dependsOn:
-      - hail_pip_installed_image
+      - hail_run_tests_image
       - merge_code
       - make_docs
     clouds:
@@ -2985,7 +2997,7 @@ steps:
   - kind: runImage
     name: upload_query_jar
     image:
-      valueFrom: hail_pip_installed_image.image
+      valueFrom: base_image.image
     script: |
       set -ex
       export GOOGLE_APPLICATION_CREDENTIALS=/query-gsa-key/key.json
@@ -3019,7 +3031,7 @@ steps:
     dependsOn:
       - default_ns
       - deploy_batch
-      - hail_pip_installed_image
+      - base_image
       - build_hail_jar_wheel_pysrc
       - merge_code
       - create_test_gsa_keys

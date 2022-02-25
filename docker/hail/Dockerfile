@@ -3,14 +3,14 @@ FROM {{ hail_ubuntu_image.image }}
 ENV MAKEFLAGS -j2
 
 RUN hail-apt-get-install \
-    curl \
-    git \
-    liblapack3 \
-    openjdk-8-jre-headless \
-    python3 python3-pip \
-    rsync \
-    unzip bzip2 zip tar tabix lz4 \
-    vim pv \
+      curl \
+      git \
+      liblapack3 \
+      openjdk-8-jre-headless \
+      python3 python3-pip \
+      rsync \
+      unzip bzip2 zip tar tabix lz4 \
+      vim pv \
     && \
     hail-pip-install \
       ipython \
@@ -23,7 +23,8 @@ RUN hail-apt-get-install \
     curl https://storage.googleapis.com/hadoop-lib/gcs/gcs-connector-hadoop2-2.0.1.jar \
          >/gcs-connector-hadoop2-2.0.1.jar \
     && \
-    curl https://sdk.cloud.google.com | bash && \
+    curl https://sdk.cloud.google.com | bash \
+    && \
     find /root/google-cloud-sdk/bin/ -type f -executable \
       | xargs -I % ln -s ${PWD}/% /usr/local/bin/
 COPY wheel-container.tar ./
