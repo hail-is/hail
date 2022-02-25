@@ -127,6 +127,8 @@ steps:
         to: /io/repo/docker/Dockerfile.base
       - from: /repo/pylintrc
         to: /io/repo/pylintrc
+      - from: /repo/setup.cfg
+        to: /io/repo/setup.cfg
       - from: /repo/gear
         to: /io/repo/gear
       - from: /repo/web_common
