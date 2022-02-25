@@ -723,7 +723,7 @@ b.run()
 backend.close()
 '''
     j = builder.create_job(
-        os.environ['HAIL_HAIL_BASE_IMAGE'],
+        os.environ['HAIL_PIP_INSTALLED_IMAGE'],
         ['/bin/bash', '-c', f'''python3 -c \'{script}\''''],
         mount_tokens=True,
     )
@@ -745,7 +745,7 @@ backend.close()
 
     builder = client.create_batch()
     j = builder.create_job(
-        os.environ['HAIL_HAIL_BASE_IMAGE'],
+        os.environ['HAIL_PIP_INSTALLED_IMAGE'],
         [
             '/bin/bash',
             '-c',
@@ -766,7 +766,7 @@ python3 -c \'{script}\'''',
 
     builder = client.create_batch()
     j = builder.create_job(
-        os.environ['HAIL_HAIL_BASE_IMAGE'],
+        os.environ['HAIL_PIP_INSTALLED_IMAGE'],
         [
             '/bin/bash',
             '-c',
@@ -822,7 +822,7 @@ hl.utils.range_table(10).write(location)
 hl.read_table(location).show()
 '''
     j = builder.create_job(
-        os.environ['HAIL_HAIL_BASE_IMAGE'], ['/bin/bash', '-c', f'python3 -c >out 2>err \'{script}\'; cat out err']
+        os.environ['HAIL_PIP_INSTALLED_IMAGE'], ['/bin/bash', '-c', f'python3 -c >out 2>err \'{script}\'; cat out err']
     )
     b = builder.submit()
     status = j.wait()

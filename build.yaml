@@ -495,32 +495,6 @@ steps:
       - merge_code
       - auth_database
   - kind: buildImage2
-    name: hail_build_image
-    dockerFile: /io/hail/Dockerfile.hail-build
-    contextPath: /io/hail
-    publishAs: hail-build
-    inputs:
-      - from: /repo/hail
-        to: /io/hail
-    dependsOn:
-      - base_image
-      - merge_code
-  - kind: buildImage2
-    name: hail_run_image
-    dockerFile: /io/hail/Dockerfile.hail-run
-    contextPath: /io/hail
-    publishAs: hail-run
-    resources:
-      storage: 10Gi
-      cpu: "2"
-      memory: standard
-    inputs:
-      - from: /repo/hail
-        to: /io/hail
-    dependsOn:
-      - service_base_image
-      - merge_code
-  - kind: buildImage2
     name: hail_run_tests_image
     dockerFile: /io/hail/Dockerfile.hail-run-tests
     contextPath: /io/hail
@@ -529,7 +503,7 @@ steps:
       - from: /repo/hail
         to: /io/hail
     dependsOn:
-      - hail_run_image
+      - base_image
       - merge_code
     resources:
       storage: 10Gi
@@ -688,9 +662,9 @@ steps:
       - service_base_image
       - merge_code
   - kind: runImage
-    name: build_hail_jar_and_wheel_only
+    name: build_hail_jar_wheel_zip
     image:
-      valueFrom: hail_build_image.image
+      valueFrom: base_image.image
     resources:
       memory: standard
       cpu: '4'
@@ -701,6 +675,7 @@ steps:
       time retry ./gradlew --version
       time retry make shadowJar wheel
       (cd build/deploy/dist/ && tar -cvf wheel-container.tar hail-*-py3-none-any.whl)
+      time (cd python && zip -r hail.zip hail hailtop)
     inputs:
       - from: /repo
         to: /io/repo
@@ -709,13 +684,15 @@ steps:
         to: /just-jar/hail.jar
       - from: /io/repo/hail/build/deploy/dist/wheel-container.tar
         to: /just-wheel/wheel-container.tar
+      - from: /io/repo/hail/python/hail.zip
+        to: /just-zip/hail.zip
     dependsOn:
-      - hail_build_image
+      - base_image
       - merge_code
   - kind: runImage
-    name: build_hail
+    name: build_hail_debug
     image:
-      valueFrom: hail_build_image.image
+      valueFrom: base_image.image
     resources:
       memory: standard
       cpu: '4'
@@ -731,57 +708,25 @@ steps:
       mv build/libs/hail-all-spark.jar build/debug_libs/
       mv build/libs/hail-all-spark-test.jar build/debug_libs/
       mv build/deploy/dist/debug-wheel-container.tar build/debug_libs
-      time retry make jars python-version-info wheel
-      time (cd python && zip -r hail.zip hail hailtop)
-      time tar czf test.tar.gz -C python test
-      time tar czf resources.tar.gz -C src/test resources
-      time tar czf data.tar.gz -C python/hail/docs data
-      (cd .. && time tar czf hail/website-src.tar.gz website)
-      time tar czf cluster-tests.tar.gz python/cluster-tests
-      (cd build/deploy/dist/ && tar -cvf wheel-container.tar hail-*-py3-none-any.whl)
       time TESTNG_SPLITS=5 python3 generate_splits.py
       time tar czf splits.tar.gz testng-splits-*.xml
     inputs:
       - from: /repo
         to: /io/repo
     outputs:
-      - from: /io/repo/hail/build/libs/hail-all-spark.jar
-        to: /hail.jar
-      - from: /io/repo/hail/build/libs/hail-all-spark-test.jar
-        to: /hail-test.jar
       - from: /io/repo/hail/build/debug_libs/hail-all-spark-test.jar
         to: /hail-debug-test.jar
-      - from: /io/repo/hail/testng-build.xml
-        to: /testng-build.xml
-      - from: /io/repo/hail/testng-services.xml
-        to: /testng-services.xml
-      - from: /io/repo/hail/testng-fs.xml
-        to: /testng-fs.xml
-      - from: /io/repo/hail/python/hail.zip
-        to: /hail.zip
-      - from: /io/repo/hail/build/deploy/dist/wheel-container.tar
-        to: /wheel-container.tar
       - from: /io/repo/hail/build/debug_libs/debug-wheel-container.tar
         to: /debug-wheel-container.tar
-      - from: /io/repo/hail/test.tar.gz
-        to: /test.tar.gz
-      - from: /io/repo/hail/resources.tar.gz
-        to: /resources.tar.gz
       - from: /io/repo/hail/splits.tar.gz
         to: /splits.tar.gz
-      - from: /io/repo/hail/data.tar.gz
-        to: /data.tar.gz
-      - from: /io/repo/hail/website-src.tar.gz
-        to: /website-src.tar.gz
-      - from: /io/repo/hail/cluster-tests.tar.gz
-        to: /cluster-tests.tar.gz
     dependsOn:
-      - hail_build_image
+      - base_image
       - merge_code
   - kind: runImage
     name: build_hail_spark2.4.5
     image:
-      valueFrom: hail_build_image.image
+      valueFrom: base_image.image
     resources:
       memory: standard
       cpu: '4'
@@ -796,12 +741,12 @@ steps:
       - from: /repo
         to: /io/repo
     dependsOn:
-      - hail_build_image
+      - base_image
       - merge_code
   - kind: runImage
     name: build_hail_spark3.0.1
     image:
-      valueFrom: hail_build_image.image
+      valueFrom: base_image.image
     resources:
       memory: standard
       cpu: '4'
@@ -816,12 +761,12 @@ steps:
       - from: /repo
         to: /io/repo
     dependsOn:
-      - hail_build_image
+      - base_image
       - merge_code
   - kind: runImage
     name: build_wheel_for_azure
     image:
-      valueFrom: hail_build_image.image
+      valueFrom: base_image.image
     resources:
       memory: standard
       cpu: '4'
@@ -840,7 +785,7 @@ steps:
       - from: /io/repo/hail/build/deploy/dist/wheel-container.tar
         to: /wheel-for-azure-container.tar
     dependsOn:
-      - hail_build_image
+      - base_image
       - merge_code
   - kind: runImage
     name: compile_batch_worker_jvm_entryway
@@ -928,7 +873,7 @@ steps:
         to: /io/hail/wheel-container.tar
     dependsOn:
       - service_base_image
-      - build_hail_jar_and_wheel_only
+      - build_hail_jar_wheel_zip
       - merge_code
     resources:
       storage: 10Gi
@@ -974,13 +919,12 @@ steps:
       set -ex
       cd /io
       mkdir -p src/test
-      tar xzf resources.tar.gz -C src/test
       tar xzf splits.tar.gz
       export HAIL_TEST_SKIP_R=1
       java -cp hail-test.jar:$SPARK_HOME/jars/* org.testng.TestNG -listener is.hail.LogTestListener testng-splits-0.xml
     inputs:
-      - from: /resources.tar.gz
-        to: /io/resources.tar.gz
+      - from: /repo/hail/src/test/resources
+        to: /io/src/test/resources
       - from: /hail-debug-test.jar
         to: /io/hail-test.jar
       - from: /splits.tar.gz
@@ -997,6 +941,7 @@ steps:
       - default_ns
       - hail_run_tests_image
       - build_hail
+      - build_hail_debug
   - kind: runImage
     name: test_hail_java_1
     image:
@@ -1008,13 +953,12 @@ steps:
       set -ex
       cd /io
       mkdir -p src/test
-      tar xzf resources.tar.gz -C src/test
       tar xzf splits.tar.gz
       export HAIL_TEST_SKIP_R=1
       java -cp hail-test.jar:$SPARK_HOME/jars/* org.testng.TestNG -listener is.hail.LogTestListener testng-splits-1.xml
     inputs:
-      - from: /resources.tar.gz
-        to: /io/resources.tar.gz
+      - from: /repo/hail/src/test/resources
+        to: /io/src/test/resources
       - from: /hail-debug-test.jar
         to: /io/hail-test.jar
       - from: /splits.tar.gz
@@ -1031,6 +975,7 @@ steps:
       - default_ns
       - hail_run_tests_image
       - build_hail
+      - build_hail_debug
   - kind: runImage
     name: test_hail_java_2
     image:
@@ -1042,13 +987,12 @@ steps:
       set -ex
       cd /io
       mkdir -p src/test
-      tar xzf resources.tar.gz -C src/test
       tar xzf splits.tar.gz
       export HAIL_TEST_SKIP_R=1
       java -cp hail-test.jar:$SPARK_HOME/jars/* org.testng.TestNG -listener is.hail.LogTestListener testng-splits-2.xml
     inputs:
-      - from: /resources.tar.gz
-        to: /io/resources.tar.gz
+      - from: /repo/hail/src/test/resources
+        to: /io/src/test/resources
       - from: /hail-debug-test.jar
         to: /io/hail-test.jar
       - from: /splits.tar.gz
@@ -1065,6 +1009,7 @@ steps:
       - default_ns
       - hail_run_tests_image
       - build_hail
+      - build_hail_debug
   - kind: runImage
     name: test_hail_java_3
     image:
@@ -1076,13 +1021,12 @@ steps:
       set -ex
       cd /io
       mkdir -p src/test
-      tar xzf resources.tar.gz -C src/test
       tar xzf splits.tar.gz
       export HAIL_TEST_SKIP_R=1
       java -cp hail-test.jar:$SPARK_HOME/jars/* org.testng.TestNG -listener is.hail.LogTestListener testng-splits-3.xml
     inputs:
-      - from: /resources.tar.gz
-        to: /io/resources.tar.gz
+      - from: /repo/hail/src/test/resources
+        to: /io/src/test/resources
       - from: /hail-debug-test.jar
         to: /io/hail-test.jar
       - from: /splits.tar.gz
@@ -1110,13 +1054,12 @@ steps:
       set -ex
       cd /io
       mkdir -p src/test
-      tar xzf resources.tar.gz -C src/test
       tar xzf splits.tar.gz
       export HAIL_TEST_SKIP_R=1
       java -cp hail-test.jar:$SPARK_HOME/jars/* org.testng.TestNG -listener is.hail.LogTestListener testng-splits-4.xml
     inputs:
-      - from: /resources.tar.gz
-        to: /io/resources.tar.gz
+      - from: /repo/hail/src/test/resources
+        to: /io/src/test/resources
       - from: /hail-debug-test.jar
         to: /io/hail-test.jar
       - from: /splits.tar.gz
@@ -1133,26 +1076,7 @@ steps:
       - default_ns
       - hail_run_tests_image
       - build_hail
-  - kind: buildImage2
-    name: hail_base_image
-    dockerFile: /io/repo/hail/Dockerfile.hail-base
-    contextPath: /io/repo
-    publishAs: hail-base
-    resources:
-      storage: 10Gi
-      cpu: "2"
-      memory: standard
-    inputs:
-      - from: /repo
-        to: /io/repo
-      - from: /hail.jar
-        to: /io/repo/hail.jar
-      - from: /hail.zip
-        to: /io/repo/hail.zip
-    dependsOn:
-      - hail_run_image
-      - build_hail
-      - merge_code
+      - build_hail_debug
   - kind: buildImage2
     name: hail_pip_installed_python37_image
     dockerFile: /io/repo/hail/Dockerfile.hail-pip-installed-python37
@@ -1164,7 +1088,7 @@ steps:
       - from: /just-wheel/wheel-container.tar
         to: /io/repo/wheel-container.tar
     dependsOn:
-      - build_hail_jar_and_wheel_only
+      - build_hail_jar_wheel_zip
       - hail_ubuntu_image
       - merge_code
   - kind: buildImage2
@@ -1178,7 +1102,7 @@ steps:
       - from: /just-wheel/wheel-container.tar
         to: /io/repo/wheel-container.tar
     dependsOn:
-      - build_hail_jar_and_wheel_only
+      - build_hail_jar_wheel_zip
       - hail_ubuntu_image
       - merge_code
   - kind: runImage
@@ -1288,9 +1212,7 @@ steps:
     script: |
       set -ex
       cd /io
-      tar xzf test.tar.gz
-      tar xzf resources.tar.gz
-      tar xzf data.tar.gz
+
       tar xvf debug-wheel-container.tar
       python3 -m pip install --no-dependencies hail-*-py3-none-any.whl
 
@@ -1315,12 +1237,12 @@ steps:
     inputs:
       - from: /debug-wheel-container.tar
         to: /io/debug-wheel-container.tar
-      - from: /test.tar.gz
-        to: /io/test.tar.gz
-      - from: /resources.tar.gz
-        to: /io/resources.tar.gz
-      - from: /data.tar.gz
-        to: /io/data.tar.gz
+      - from: /repo/hail/python/test
+        to: /io/test
+      - from: /repo/hail/src/test/resources
+        to: /io/resources
+      - from: /repo/hail/python/hail/docs/data
+        to: /io/data
     secrets:
       - name: test-gsa-key
         namespace:
@@ -1328,8 +1250,10 @@ steps:
         mountPath: /test-gsa-key
     dependsOn:
       - default_ns
+      - merge_code
       - hail_run_tests_image
       - build_hail
+      - build_hail_debug
     clouds:
       - gcp
   - kind: runImage
@@ -1342,9 +1266,6 @@ steps:
     script: |
       set -ex
       cd /io
-      tar xzf test.tar.gz
-      tar xzf resources.tar.gz
-      tar xzf data.tar.gz
       tar xvf debug-wheel-container.tar
       python3 -m pip install --no-dependencies hail-*-py3-none-any.whl
 
@@ -1369,12 +1290,12 @@ steps:
     inputs:
       - from: /debug-wheel-container.tar
         to: /io/debug-wheel-container.tar
-      - from: /test.tar.gz
-        to: /io/test.tar.gz
-      - from: /resources.tar.gz
-        to: /io/resources.tar.gz
-      - from: /data.tar.gz
-        to: /io/data.tar.gz
+      - from: /repo/hail/python/test
+        to: /io/test
+      - from: /repo/hail/src/test/resources
+        to: /io/resources
+      - from: /repo/hail/python/hail/docs/data
+        to: /io/data
     secrets:
       - name: test-gsa-key
         namespace:
@@ -1382,8 +1303,10 @@ steps:
         mountPath: /test-gsa-key
     dependsOn:
       - default_ns
+      - merge_code
       - hail_run_tests_image
       - build_hail
+      - build_hail_debug
     clouds:
       - gcp
   - kind: runImage
@@ -1396,9 +1319,6 @@ steps:
     script: |
       set -ex
       cd /io
-      tar xzf test.tar.gz
-      tar xzf resources.tar.gz
-      tar xzf data.tar.gz
       tar xvf debug-wheel-container.tar
       python3 -m pip install --no-dependencies hail-*-py3-none-any.whl
 
@@ -1423,12 +1343,12 @@ steps:
     inputs:
       - from: /debug-wheel-container.tar
         to: /io/debug-wheel-container.tar
-      - from: /test.tar.gz
-        to: /io/test.tar.gz
-      - from: /resources.tar.gz
-        to: /io/resources.tar.gz
-      - from: /data.tar.gz
-        to: /io/data.tar.gz
+      - from: /repo/hail/python/test
+        to: /io/test
+      - from: /repo/hail/src/test/resources
+        to: /io/resources
+      - from: /repo/hail/python/hail/docs/data
+        to: /io/data
     secrets:
       - name: test-gsa-key
         namespace:
@@ -1436,8 +1356,10 @@ steps:
         mountPath: /test-gsa-key
     dependsOn:
       - default_ns
+      - merge_code
       - hail_run_tests_image
       - build_hail
+      - build_hail_debug
     clouds:
       - gcp
   - kind: runImage
@@ -1450,9 +1372,6 @@ steps:
     script: |
       set -ex
       cd /io
-      tar xzf test.tar.gz
-      tar xzf resources.tar.gz
-      tar xzf data.tar.gz
       tar xvf debug-wheel-container.tar
       python3 -m pip install --no-dependencies hail-*-py3-none-any.whl
 
@@ -1477,12 +1396,12 @@ steps:
     inputs:
       - from: /debug-wheel-container.tar
         to: /io/debug-wheel-container.tar
-      - from: /test.tar.gz
-        to: /io/test.tar.gz
-      - from: /resources.tar.gz
-        to: /io/resources.tar.gz
-      - from: /data.tar.gz
-        to: /io/data.tar.gz
+      - from: /repo/hail/python/test
+        to: /io/test
+      - from: /repo/hail/src/test/resources
+        to: /io/resources
+      - from: /repo/hail/python/hail/docs/data
+        to: /io/data
     secrets:
       - name: test-gsa-key
         namespace:
@@ -1490,8 +1409,10 @@ steps:
         mountPath: /test-gsa-key
     dependsOn:
       - default_ns
+      - merge_code
       - hail_run_tests_image
       - build_hail
+      - build_hail_debug
     clouds:
       - gcp
   - kind: runImage
@@ -1504,9 +1425,6 @@ steps:
     script: |
       set -ex
       cd /io
-      tar xzf test.tar.gz
-      tar xzf resources.tar.gz
-      tar xzf data.tar.gz
       tar xvf debug-wheel-container.tar
       python3 -m pip install --no-dependencies hail-*-py3-none-any.whl
 
@@ -1531,12 +1449,12 @@ steps:
     inputs:
       - from: /debug-wheel-container.tar
         to: /io/debug-wheel-container.tar
-      - from: /test.tar.gz
-        to: /io/test.tar.gz
-      - from: /resources.tar.gz
-        to: /io/resources.tar.gz
-      - from: /data.tar.gz
-        to: /io/data.tar.gz
+      - from: /repo/hail/python/test
+        to: /io/test
+      - from: /repo/hail/src/test/resources
+        to: /io/resources
+      - from: /repo/hail/python/hail/docs/data
+        to: /io/data
     secrets:
       - name: test-gsa-key
         namespace:
@@ -1544,8 +1462,10 @@ steps:
         mountPath: /test-gsa-key
     dependsOn:
       - default_ns
+      - merge_code
       - hail_run_tests_image
       - build_hail
+      - build_hail_debug
     clouds:
       - gcp
   - kind: runImage
@@ -1558,9 +1478,6 @@ steps:
     script: |
       set -ex
       cd /io
-      tar xzf test.tar.gz
-      tar xzf resources.tar.gz
-      tar xzf data.tar.gz
       tar xvf debug-wheel-container.tar
       python3 -m pip install --no-dependencies hail-*-py3-none-any.whl
 
@@ -1585,12 +1502,12 @@ steps:
     inputs:
       - from: /debug-wheel-container.tar
         to: /io/debug-wheel-container.tar
-      - from: /test.tar.gz
-        to: /io/test.tar.gz
-      - from: /resources.tar.gz
-        to: /io/resources.tar.gz
-      - from: /data.tar.gz
-        to: /io/data.tar.gz
+      - from: /repo/hail/python/test
+        to: /io/test
+      - from: /repo/hail/src/test/resources
+        to: /io/resources
+      - from: /repo/hail/python/hail/docs/data
+        to: /io/data
     secrets:
       - name: test-gsa-key
         namespace:
@@ -1598,8 +1515,10 @@ steps:
         mountPath: /test-gsa-key
     dependsOn:
       - default_ns
+      - merge_code
       - hail_run_tests_image
       - build_hail
+      - build_hail_debug
     clouds:
       - gcp
   - kind: runImage
@@ -1612,9 +1531,6 @@ steps:
     script: |
       set -ex
       cd /io
-      tar xzf test.tar.gz
-      tar xzf resources.tar.gz
-      tar xzf data.tar.gz
       tar xvf debug-wheel-container.tar
       python3 -m pip install --no-dependencies hail-*-py3-none-any.whl
 
@@ -1639,12 +1555,12 @@ steps:
     inputs:
       - from: /debug-wheel-container.tar
         to: /io/debug-wheel-container.tar
-      - from: /test.tar.gz
-        to: /io/test.tar.gz
-      - from: /resources.tar.gz
-        to: /io/resources.tar.gz
-      - from: /data.tar.gz
-        to: /io/data.tar.gz
+      - from: /repo/hail/python/test
+        to: /io/test
+      - from: /repo/hail/src/test/resources
+        to: /io/resources
+      - from: /repo/hail/python/hail/docs/data
+        to: /io/data
     secrets:
       - name: test-gsa-key
         namespace:
@@ -1652,21 +1568,22 @@ steps:
         mountPath: /test-gsa-key
     dependsOn:
       - default_ns
+      - merge_code
       - hail_run_tests_image
       - build_hail
+      - build_hail_debug
     clouds:
       - gcp
   - kind: runImage
     name: test_hail_python_fs_0
     image:
-      valueFrom: hail_run_image.image
+      valueFrom: hail_run_tests_image.image
     resources:
       memory: standard
       cpu: '2'
     script: |
       set -ex
       cd /io
-      tar xzf test.tar.gz
       tar xvf debug-wheel-container.tar
       python3 -m pip install --no-dependencies hail-*-py3-none-any.whl
 
@@ -1710,14 +1627,14 @@ steps:
         mountPath: /test-azure-key
     dependsOn:
       - default_ns
-      - hail_run_image
+      - hail_run_tests_image
       - build_hail
     clouds:
       - gcp
   - kind: runImage
     name: test_hail_python_fs_1
     image:
-      valueFrom: hail_run_image.image
+      valueFrom: hail_run_tests_image.image
     resources:
       memory: standard
       cpu: '2'
@@ -1768,14 +1685,14 @@ steps:
         mountPath: /test-azure-key
     dependsOn:
       - default_ns
-      - hail_run_image
+      - hail_run_tests_image
       - build_hail
     clouds:
       - gcp
   - kind: runImage
     name: test_hail_python_fs_2
     image:
-      valueFrom: hail_run_image.image
+      valueFrom: hail_run_tests_image.image
     resources:
       memory: standard
       cpu: '2'
@@ -1826,14 +1743,14 @@ steps:
         mountPath: /test-azure-key
     dependsOn:
       - default_ns
-      - hail_run_image
+      - hail_run_tests_image
       - build_hail
     clouds:
       - gcp
   - kind: runImage
     name: test_hail_python_fs_3
     image:
-      valueFrom: hail_run_image.image
+      valueFrom: hail_run_tests_image.image
     resources:
       memory: standard
       cpu: '2'
@@ -1884,14 +1801,14 @@ steps:
         mountPath: /test-azure-key
     dependsOn:
       - default_ns
-      - hail_run_image
+      - hail_run_tests_image
       - build_hail
     clouds:
       - gcp
   - kind: runImage
     name: test_hail_python_fs_4
     image:
-      valueFrom: hail_run_image.image
+      valueFrom: hail_run_tests_image.image
     resources:
       memory: standard
       cpu: '2'
@@ -1925,8 +1842,8 @@ steps:
     inputs:
       - from: /debug-wheel-container.tar
         to: /io/debug-wheel-container.tar
-      - from: /test.tar.gz
-        to: /io/test.tar.gz
+      - from: /repo/hail/python/test
+        to: /io/test
     secrets:
       - name: test-gsa-key
         namespace:
@@ -1942,8 +1859,10 @@ steps:
         mountPath: /test-azure-key
     dependsOn:
       - default_ns
-      - hail_run_image
+      - merge_code
+      - hail_run_tests_image
       - build_hail
+      - build_hail_debug
     clouds:
       - gcp
   - kind: runImage
@@ -1956,9 +1875,6 @@ steps:
     script: |
       set -ex
       cd /io
-      tar xzf test.tar.gz
-      tar xzf resources.tar.gz
-      tar xzf data.tar.gz
       tar xvf wheel-container.tar
       python3 -m pip install --no-dependencies hail-*-py3-none-any.whl
 
@@ -1980,14 +1896,14 @@ steps:
               --durations=50 \
               test
     inputs:
-      - from: /wheel-container.tar
+      - from: /just-wheel/wheel-container.tar
         to: /io/wheel-container.tar
-      - from: /test.tar.gz
-        to: /io/test.tar.gz
-      - from: /resources.tar.gz
-        to: /io/resources.tar.gz
-      - from: /data.tar.gz
-        to: /io/data.tar.gz
+      - from: /repo/hail/python/test
+        to: /io/test
+      - from: /repo/hail/src/test/resources
+        to: /io/resources
+      - from: /repo/hail/python/hail/docs/data
+        to: /io/data
     secrets:
       - name: test-gsa-key
         namespace:
@@ -1995,8 +1911,9 @@ steps:
         mountPath: /test-gsa-key
     dependsOn:
       - default_ns
+      - merge_code
       - hail_run_tests_image
-      - build_hail
+      - build_hail_jar_wheel_zip
     clouds:
       - gcp
   - kind: runImage
@@ -2009,9 +1926,6 @@ steps:
     script: |
       set -ex
       cd /io
-      tar xzf test.tar.gz
-      tar xzf resources.tar.gz
-      tar xzf data.tar.gz
       tar xvf debug-wheel-container.tar
       python3 -m pip install --no-dependencies hail-*-py3-none-any.whl
       mkdir -p /io/tmp
@@ -2033,12 +1947,12 @@ steps:
     inputs:
       - from: /debug-wheel-container.tar
         to: /io/debug-wheel-container.tar
-      - from: /test.tar.gz
-        to: /io/test.tar.gz
-      - from: /resources.tar.gz
-        to: /io/resources.tar.gz
-      - from: /data.tar.gz
-        to: /io/data.tar.gz
+      - from: /repo/hail/python/test
+        to: /io/test
+      - from: /repo/hail/src/test/resources
+        to: /io/resources
+      - from: /repo/hail/python/hail/docs/data
+        to: /io/data
     secrets:
       - name: test-gsa-key
         namespace:
@@ -2046,8 +1960,10 @@ steps:
         mountPath: /test-gsa-key
     dependsOn:
       - default_ns
+      - merge_code
       - hail_run_tests_image
       - build_hail
+      - build_hail_debug
   - kind: runImage
     name: test_hail_python_local_backend_1
     image:
@@ -2058,9 +1974,6 @@ steps:
     script: |
       set -ex
       cd /io
-      tar xzf test.tar.gz
-      tar xzf resources.tar.gz
-      tar xzf data.tar.gz
       tar xvf debug-wheel-container.tar
       python3 -m pip install --no-dependencies hail-*-py3-none-any.whl
       mkdir -p /io/tmp
@@ -2082,12 +1995,12 @@ steps:
     inputs:
       - from: /debug-wheel-container.tar
         to: /io/debug-wheel-container.tar
-      - from: /test.tar.gz
-        to: /io/test.tar.gz
-      - from: /resources.tar.gz
-        to: /io/resources.tar.gz
-      - from: /data.tar.gz
-        to: /io/data.tar.gz
+      - from: /repo/hail/python/test
+        to: /io/test
+      - from: /repo/hail/src/test/resources
+        to: /io/resources
+      - from: /repo/hail/python/hail/docs/data
+        to: /io/data
     secrets:
       - name: test-gsa-key
         namespace:
@@ -2095,8 +2008,10 @@ steps:
         mountPath: /test-gsa-key
     dependsOn:
       - default_ns
+      - merge_code
       - hail_run_tests_image
       - build_hail
+      - build_hail_debug
   - kind: runImage
     name: test_hail_python_local_backend_2
     image:
@@ -2107,9 +2022,6 @@ steps:
     script: |
       set -ex
       cd /io
-      tar xzf test.tar.gz
-      tar xzf resources.tar.gz
-      tar xzf data.tar.gz
       tar xvf debug-wheel-container.tar
       python3 -m pip install --no-dependencies hail-*-py3-none-any.whl
       mkdir -p /io/tmp
@@ -2131,12 +2043,12 @@ steps:
     inputs:
       - from: /debug-wheel-container.tar
         to: /io/debug-wheel-container.tar
-      - from: /test.tar.gz
-        to: /io/test.tar.gz
-      - from: /resources.tar.gz
-        to: /io/resources.tar.gz
-      - from: /data.tar.gz
-        to: /io/data.tar.gz
+      - from: /repo/hail/python/test
+        to: /io/test
+      - from: /repo/hail/src/test/resources
+        to: /io/resources
+      - from: /repo/hail/python/hail/docs/data
+        to: /io/data
     secrets:
       - name: test-gsa-key
         namespace:
@@ -2144,8 +2056,10 @@ steps:
         mountPath: /test-gsa-key
     dependsOn:
       - default_ns
+      - merge_code
       - hail_run_tests_image
       - build_hail
+      - build_hail_debug
   - kind: runImage
     name: test_hail_python_local_backend_3
     image:
@@ -2156,9 +2070,6 @@ steps:
     script: |
       set -ex
       cd /io
-      tar xzf test.tar.gz
-      tar xzf resources.tar.gz
-      tar xzf data.tar.gz
       tar xvf debug-wheel-container.tar
       python3 -m pip install --no-dependencies hail-*-py3-none-any.whl
       mkdir -p /io/tmp
@@ -2180,12 +2091,12 @@ steps:
     inputs:
       - from: /debug-wheel-container.tar
         to: /io/debug-wheel-container.tar
-      - from: /test.tar.gz
-        to: /io/test.tar.gz
-      - from: /resources.tar.gz
-        to: /io/resources.tar.gz
-      - from: /data.tar.gz
-        to: /io/data.tar.gz
+      - from: /repo/hail/python/test
+        to: /io/test
+      - from: /repo/hail/src/test/resources
+        to: /io/resources
+      - from: /repo/hail/python/hail/docs/data
+        to: /io/data
     secrets:
       - name: test-gsa-key
         namespace:
@@ -2193,8 +2104,10 @@ steps:
         mountPath: /test-gsa-key
     dependsOn:
       - default_ns
+      - merge_code
       - hail_run_tests_image
       - build_hail
+      - build_hail_debug
   - kind: runImage
     name: test_hail_python_local_backend_4
     image:
@@ -2205,9 +2118,6 @@ steps:
     script: |
       set -ex
       cd /io
-      tar xzf test.tar.gz
-      tar xzf resources.tar.gz
-      tar xzf data.tar.gz
       tar xvf debug-wheel-container.tar
       python3 -m pip install --no-dependencies hail-*-py3-none-any.whl
       mkdir -p /io/tmp
@@ -2229,12 +2139,12 @@ steps:
     inputs:
       - from: /debug-wheel-container.tar
         to: /io/debug-wheel-container.tar
-      - from: /test.tar.gz
-        to: /io/test.tar.gz
-      - from: /resources.tar.gz
-        to: /io/resources.tar.gz
-      - from: /data.tar.gz
-        to: /io/data.tar.gz
+      - from: /repo/hail/python/test
+        to: /io/test
+      - from: /repo/hail/src/test/resources
+        to: /io/resources
+      - from: /repo/hail/python/hail/docs/data
+        to: /io/data
     secrets:
       - name: test-gsa-key
         namespace:
@@ -2242,8 +2152,10 @@ steps:
         mountPath: /test-gsa-key
     dependsOn:
       - default_ns
+      - merge_code
       - hail_run_tests_image
       - build_hail
+      - build_hail_debug
   - kind: runImage
     name: test_hail_python_local_backend_5
     image:
@@ -2254,9 +2166,6 @@ steps:
     script: |
       set -ex
       cd /io
-      tar xzf test.tar.gz
-      tar xzf resources.tar.gz
-      tar xzf data.tar.gz
       tar xvf debug-wheel-container.tar
       python3 -m pip install --no-dependencies hail-*-py3-none-any.whl
       mkdir -p /io/tmp
@@ -2278,12 +2187,12 @@ steps:
     inputs:
       - from: /debug-wheel-container.tar
         to: /io/debug-wheel-container.tar
-      - from: /test.tar.gz
-        to: /io/test.tar.gz
-      - from: /resources.tar.gz
-        to: /io/resources.tar.gz
-      - from: /data.tar.gz
-        to: /io/data.tar.gz
+      - from: /repo/hail/python/test
+        to: /io/test
+      - from: /repo/hail/src/test/resources
+        to: /io/resources
+      - from: /repo/hail/python/hail/docs/data
+        to: /io/data
     secrets:
       - name: test-gsa-key
         namespace:
@@ -2291,8 +2200,10 @@ steps:
         mountPath: /test-gsa-key
     dependsOn:
       - default_ns
+      - merge_code
       - hail_run_tests_image
       - build_hail
+      - build_hail_debug
   - kind: runImage
     name: test_hail_python_local_backend_6
     image:
@@ -2303,9 +2214,6 @@ steps:
     script: |
       set -ex
       cd /io
-      tar xzf test.tar.gz
-      tar xzf resources.tar.gz
-      tar xzf data.tar.gz
       tar xvf debug-wheel-container.tar
       python3 -m pip install --no-dependencies hail-*-py3-none-any.whl
       mkdir -p /io/tmp
@@ -2327,12 +2235,12 @@ steps:
     inputs:
       - from: /debug-wheel-container.tar
         to: /io/debug-wheel-container.tar
-      - from: /test.tar.gz
-        to: /io/test.tar.gz
-      - from: /resources.tar.gz
-        to: /io/resources.tar.gz
-      - from: /data.tar.gz
-        to: /io/data.tar.gz
+      - from: /repo/hail/python/test
+        to: /io/test
+      - from: /repo/hail/src/test/resources
+        to: /io/resources
+      - from: /repo/hail/python/hail/docs/data
+        to: /io/data
     secrets:
       - name: test-gsa-key
         namespace:
@@ -2340,12 +2248,14 @@ steps:
         mountPath: /test-gsa-key
     dependsOn:
       - default_ns
+      - merge_code
       - hail_run_tests_image
       - build_hail
+      - build_hail_debug
   - kind: runImage
     name: test_python_docs
     image:
-      valueFrom: hail_base_image.image
+      valueFrom: hail_pip_installed_image.image
     script: |
       set -ex
       cd /hail/python/hail
@@ -2355,13 +2265,13 @@ steps:
         --ignore=docs/conf.py \
         --ignore=docs/doctest_write_data.py
     dependsOn:
-      - hail_base_image
+      - hail_pip_installed_image
     clouds:
       - gcp
   - kind: runImage
     name: make_docs
     image:
-      valueFrom: hail_base_image.image
+      valueFrom: hail_pip_installed_image.image
     script: |
       set -ex
       export HAIL_SHORT_VERSION='0.2'
@@ -2371,8 +2281,7 @@ steps:
       cd {{ token }}
       unzip -q -d python /io/hail.zip
 
-      tar xzf /io/website-src.tar.gz
-      export HAIL_WEBSITE_DIR=$(pwd)/website/website/
+      export HAIL_WEBSITE_DIR=/io/website/website/
 
       sed -E "s/\(hail\#([0-9]+)\)/(\[#\1](https:\/\/github.com\/hail-is\/hail\/pull\/\1))/g" \
         < python/hail/docs/change_log.md \
@@ -2393,16 +2302,16 @@ steps:
       memory: standard
       cpu: '2'
     inputs:
-      - from: /hail.zip
+      - from: /just-zip/hail.zip
         to: /io/hail.zip
-      - from: /website-src.tar.gz
-        to: /io/website-src.tar.gz
+      - from: /repo/website
+        to: /io/websiteo
     outputs:
       - from: /io/www.tar.gz
         to: /www.tar.gz
     dependsOn:
-      - hail_base_image
-      - build_hail
+      - hail_pip_installed_image
+      - build_hail_jar_wheel_zip
   - kind: runImage
     name: get_pip_versioned_docs
     image:
@@ -3119,7 +3028,7 @@ steps:
       - default_ns
       - deploy_batch
       - hail_pip_installed_image
-      - build_hail_jar_and_wheel_only
+      - build_hail_jar_wheel_zip
       - merge_code
       - create_test_gsa_keys
   - kind: runImage
@@ -3201,7 +3110,7 @@ steps:
       - hail_run_tests_image
       - upload_query_jar
       - upload_test_resources_to_blob_storage
-      - build_hail_jar_and_wheel_only
+      - build_hail_jar_wheel_zip
     clouds:
       - gcp
   - kind: runImage
@@ -3283,7 +3192,7 @@ steps:
       - hail_run_tests_image
       - upload_query_jar
       - upload_test_resources_to_blob_storage
-      - build_hail_jar_and_wheel_only
+      - build_hail_jar_wheel_zip
     clouds:
       - gcp
   - kind: runImage
@@ -3365,7 +3274,7 @@ steps:
       - hail_run_tests_image
       - upload_query_jar
       - upload_test_resources_to_blob_storage
-      - build_hail_jar_and_wheel_only
+      - build_hail_jar_wheel_zip
     clouds:
       - gcp
   - kind: runImage
@@ -3447,7 +3356,7 @@ steps:
       - hail_run_tests_image
       - upload_query_jar
       - upload_test_resources_to_blob_storage
-      - build_hail_jar_and_wheel_only
+      - build_hail_jar_wheel_zip
     clouds:
       - gcp
   - kind: runImage
@@ -3529,7 +3438,7 @@ steps:
       - hail_run_tests_image
       - upload_query_jar
       - upload_test_resources_to_blob_storage
-      - build_hail_jar_and_wheel_only
+      - build_hail_jar_wheel_zip
     clouds:
       - gcp
   - kind: deploy
@@ -3655,7 +3564,7 @@ steps:
       export HAIL_NETCAT_UBUNTU_IMAGE={{ netcat_ubuntu_image.image }}
       export HAIL_VOLUME_IMAGE={{ volume_image.image }}
       export HAIL_WORKDIR_IMAGE={{ workdir_image.image }}
-      export HAIL_HAIL_BASE_IMAGE={{ hail_base_image.image }}
+      export HAIL_PIP_INSTALLED_IMAGE={{ hail_pip_installed_image.image }}
       export DOCKER_PREFIX="{{ global.docker_prefix }}"
       export DOCKER_ROOT_IMAGE="{{ global.docker_root_image }}"
       export HAIL_TEST_TOKEN_FILE=/user-tokens/tokens.json
@@ -3707,7 +3616,7 @@ steps:
       - default_ns
       - merge_code
       - base_image
-      - hail_base_image
+      - hail_pip_installed_image
       - batch_image
       - ci_utils_image
       - deploy_batch
@@ -3731,7 +3640,7 @@ steps:
       export HAIL_NETCAT_UBUNTU_IMAGE={{ netcat_ubuntu_image.image }}
       export HAIL_VOLUME_IMAGE={{ volume_image.image }}
       export HAIL_WORKDIR_IMAGE={{ workdir_image.image }}
-      export HAIL_HAIL_BASE_IMAGE={{ hail_base_image.image }}
+      export HAIL_PIP_INSTALLED_IMAGE={{ hail_pip_installed_image.image }}
       export DOCKER_PREFIX="{{ global.docker_prefix }}"
       export DOCKER_ROOT_IMAGE="{{ global.docker_root_image }}"
       export HAIL_TEST_TOKEN_FILE=/user-tokens/tokens.json
@@ -3783,7 +3692,7 @@ steps:
       - create_accounts
       - merge_code
       - base_image
-      - hail_base_image
+      - hail_pip_installed_image
       - batch_image
       - ci_utils_image
       - deploy_batch
@@ -3807,7 +3716,7 @@ steps:
       export HAIL_NETCAT_UBUNTU_IMAGE={{ netcat_ubuntu_image.image }}
       export HAIL_VOLUME_IMAGE={{ volume_image.image }}
       export HAIL_WORKDIR_IMAGE={{ workdir_image.image }}
-      export HAIL_HAIL_BASE_IMAGE={{ hail_base_image.image }}
+      export HAIL_PIP_INSTALLED_IMAGE={{ hail_pip_installed_image.image }}
       export DOCKER_PREFIX="{{ global.docker_prefix }}"
       export DOCKER_ROOT_IMAGE="{{ global.docker_root_image }}"
       export HAIL_TEST_TOKEN_FILE=/user-tokens/tokens.json
@@ -3859,7 +3768,7 @@ steps:
       - default_ns
       - merge_code
       - base_image
-      - hail_base_image
+      - hail_pip_installed_image
       - batch_image
       - ci_utils_image
       - deploy_batch
@@ -3883,7 +3792,7 @@ steps:
       export HAIL_NETCAT_UBUNTU_IMAGE={{ netcat_ubuntu_image.image }}
       export HAIL_VOLUME_IMAGE={{ volume_image.image }}
       export HAIL_WORKDIR_IMAGE={{ workdir_image.image }}
-      export HAIL_HAIL_BASE_IMAGE={{ hail_base_image.image }}
+      export HAIL_PIP_INSTALLED_IMAGE={{ hail_pip_installed_image.image }}
       export DOCKER_PREFIX="{{ global.docker_prefix }}"
       export DOCKER_ROOT_IMAGE="{{ global.docker_root_image }}"
       export HAIL_TEST_TOKEN_FILE=/user-tokens/tokens.json
@@ -3935,7 +3844,7 @@ steps:
       - default_ns
       - merge_code
       - base_image
-      - hail_base_image
+      - hail_pip_installed_image
       - batch_image
       - ci_utils_image
       - deploy_batch
@@ -3959,7 +3868,7 @@ steps:
       export HAIL_NETCAT_UBUNTU_IMAGE={{ netcat_ubuntu_image.image }}
       export HAIL_VOLUME_IMAGE={{ volume_image.image }}
       export HAIL_WORKDIR_IMAGE={{ workdir_image.image }}
-      export HAIL_HAIL_BASE_IMAGE={{ hail_base_image.image }}
+      export HAIL_PIP_INSTALLED_IMAGE={{ hail_pip_installed_image.image }}
       export DOCKER_PREFIX="{{ global.docker_prefix }}"
       export DOCKER_ROOT_IMAGE="{{ global.docker_root_image }}"
       export HAIL_TEST_TOKEN_FILE=/user-tokens/tokens.json
@@ -4011,7 +3920,7 @@ steps:
       - default_ns
       - merge_code
       - base_image
-      - hail_base_image
+      - hail_pip_installed_image
       - batch_image
       - ci_utils_image
       - deploy_batch
@@ -4222,7 +4131,7 @@ steps:
         to: /io/docker/hail/wheel-container.tar
     dependsOn:
       - merge_code
-      - build_hail_jar_and_wheel_only
+      - build_hail_jar_wheel_zip
       - hail_ubuntu_image
   - kind: runImage
     name: test_hailgenetics_hail_image
@@ -4883,8 +4792,6 @@ steps:
     script: |
       set -ex
       cd /io
-      mkdir -p src/test
-      tar xzf resources.tar.gz -C src/test
 
       export HAIL_CLOUD={{ global.cloud }}
       export GOOGLE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
@@ -4907,11 +4814,11 @@ steps:
           exit $exit_code
       fi
     inputs:
-      - from: /resources.tar.gz
-        to: /io/resources.tar.gz
-      - from: /hail-test.jar
+      - from: /repo/hail/src/test/resources
+        to: /io/src/test/resources
+      - from: /hail-debug-test.jar
         to: /io/hail-test.jar
-      - from: /testng-fs.xml
+      - from: /repo/hail/testng-fs.xml
         to: /io/testng-fs.xml
     secrets:
       - name: test-tokens
@@ -4933,9 +4840,10 @@ steps:
     timeout: 1200
     dependsOn:
       - default_ns
+      - merge_code
       - create_certs
       - hail_run_tests_image
-      - build_hail
+      - build_hail_debug
       - upload_test_resources_to_blob_storage
   - kind: runImage
     name: test_hail_services_java
@@ -4947,19 +4855,17 @@ steps:
     script: |
       set -ex
       cd /io
-      mkdir -p src/test
-      tar xzf resources.tar.gz -C src/test
       java -Xms7500M -Xmx7500M \
            -cp hail-test.jar:$SPARK_HOME/jars/* \
            org.testng.TestNG \
            -listener is.hail.LogTestListener \
            testng-services.xml
     inputs:
-      - from: /resources.tar.gz
-        to: /io/resources.tar.gz
-      - from: /hail-test.jar
+      - from: /repo/hail/src/test/resources
+        to: /io/src/test/resources
+      - from: /hail-debug-test.jar
         to: /io/hail-test.jar
-      - from: /testng-services.xml
+      - from: /repo/hail/testng-services.xml
         to: /io/testng-services.xml
     secrets:
       - name: test-tokens
@@ -4977,9 +4883,10 @@ steps:
     timeout: 1200
     dependsOn:
       - default_ns
+      - merge_code
       - create_certs
       - hail_run_tests_image
-      - build_hail
+      - build_hail_debug
       - deploy_batch
   - kind: runImage
     name: test_batch_invariants
