@@ -2216,7 +2216,7 @@ steps:
   - kind: runImage
     name: test_python_docs
     image:
-      valueFrom: hail_pip_installed_image.image
+      valueFrom: base_image.image
     script: |
       set -ex
 
@@ -2239,6 +2239,7 @@ steps:
         --ignore=hail/docs/getting_started_developing.rst \
         --ignore=hail/docs/getting_started.rst"
     dependsOn:
+      - base_image
       - build_hail_jar_wheel_pysrc
       - merge_code
     inputs:
