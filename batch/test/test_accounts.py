@@ -1,3 +1,4 @@
+import asyncio
 import os
 import secrets
 from typing import Any, AsyncGenerator, Awaitable, Callable, Optional
@@ -352,8 +353,13 @@ async def test_billing_project_accrued_costs(
     j2_2 = bb.create_job(DOCKER_ROOT_IMAGE, command=['echo', 'head'])
     b2 = await bb.submit()
 
-    b1_status = await b1.wait()
-    b2_status = await b2.wait()
+    await b1.wait()
+    await b2.wait()
+
+    # Mitigation for https://github.com/hail-is/hail-production-issues/issues/3
+    await asyncio.sleep(1)
+    b1_status = await b1.status()
+    b2_status = await b2.status()
 
     b1_expected_cost = (await j1_1.status())['cost'] + (await j1_2.status())['cost']
     assert approx_equal(b1_expected_cost, b1_status['cost']), str(
