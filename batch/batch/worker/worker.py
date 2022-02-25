@@ -2245,7 +2245,10 @@ class Worker:
             log.exception(f'could not activate after trying for {MAX_IDLE_TIME_MSECS} ms, exiting')
             return
 
+        log.info('awaiting opening of websocket connection')
         await self.open_websocket_connection()
+
+        log.info('setting up app runner')
         app_runner = web.AppRunner(app)
         await app_runner.setup()
         site = web.TCPSite(app_runner, '0.0.0.0', 5000)
@@ -2280,14 +2283,18 @@ class Worker:
             log.info('websocket closed')
 
     async def open_websocket_connection(self):
+        log.info('opening websocket connection')
+
         self.ws_connection_manager = self.client_session.ws_connect(
-            deploy_config.url('batch-driver', '/api/v1alpha/worker_wss')
+            deploy_config.url('batch-driver', '/api/v1alpha/worker_wss'),
+            headers={'X-Hail-Instance-Name': NAME, 'Authorization': f'Bearer {os.environ["ACTIVATION_TOKEN"]}'},
         )
         aenter = type(self.ws_connection_manager).__aenter__
         self.ws_connection = await aenter(self.ws_connection_manager)
 
     async def close_websocket_connection(self):
         if self.ws_connection_manager is not None and self.ws_connection is not None:
+            log.info('closing websocket connection')
             aexit = type(self.ws_connection_manager).__aexit__
             await aexit(self.ws_connection_manager, None, None, None)
 

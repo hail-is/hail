@@ -36,7 +36,7 @@ orjson==3.6.4
 # importlib-metadata<4: in dev-requirements, jupyter depends on (an unpinned) ipykernel which needs importlib-metadata<4
 importlib-metadata<4
 janus==0.6.1
-Jinja2==2.11.3
+Jinja2==3.0.3
 # keyrings.alt>3.1: https://bugs.launchpad.net/usd-importer/+bug/1794041/comments/6
 keyrings.alt>=3.1
 kubernetes-asyncio==9.1.0
