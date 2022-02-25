@@ -29,7 +29,8 @@ RUN hail-apt-get-install \
         -e 's:spark\.hadoop\.google\.cloud\.auth\.service\.account\.enable.*:spark.hadoop.google.cloud.auth.service.account.enable true:' \
         -e 's:spark\.hadoop\.google\.cloud\.auth\.service\.account\.json\.keyfile.*:spark\.hadoop\.google\.cloud\.auth\.service\.account\.json\.keyfile /gsa-key/key.json:' \
     && \
-    echo >/dev/null 'source for gcloud install: https://cloud.google.com/storage/docs/gsutil_install#linux'
+    echo >/dev/null 'source for gcloud install: https://cloud.google.com/storage/docs/gsutil_install#linux' \
+    && \
     curl https://sdk.cloud.google.com | bash && \
     find \
       /root/google-cloud-sdk/bin/ \
