@@ -30,6 +30,7 @@ fsspec==0.9.0
 gidgethub==4.1.0
 google-api-python-client==1.7.10
 google-cloud-logging==1.12.1
+google-cloud-profiler==1.0.9
 humanize==1.0.0
 hurry.filesize==0.9
 isort==5.10.1

@@ -138,27 +138,10 @@ steps:
     dependsOn:
       - base_image
       - merge_code
-  - kind: buildImage2
-    name: service_base_image
-    dockerFile: /io/repo/docker/Dockerfile.service-base
-    contextPath: /io/repo
-    publishAs: service-base
-    resources:
-      storage: 10Gi
-      cpu: "2"
-      memory: standard
-    dependsOn:
-      - base_image
-      - merge_code
-    inputs:
-      - from: /hail_version
-        to: /io/repo/hail_version
-      - from: /repo
-        to: /io/repo
   - kind: runImage
     name: check_services
     image:
-      valueFrom: service_base_image.image
+      valueFrom: base_image.image
     script: |
       set -ex
       cd /io/repo
@@ -170,7 +153,7 @@ steps:
       - from: /repo
         to: /io/repo
     dependsOn:
-      - service_base_image
+      - base_image
       - merge_code
   - kind: buildImage2
     name: create_certs_image
@@ -258,7 +241,7 @@ steps:
   - kind: runImage
     name: delete_auth_tables
     image:
-      valueFrom: service_base_image.image
+      valueFrom: base_image.image
     script: |
       set -ex
       mysql --defaults-extra-file=/sql-config/sql-config.cnf < /io/sql/delete-auth-tables.sql
@@ -275,7 +258,7 @@ steps:
       - dev
     dependsOn:
       - default_ns
-      - service_base_image
+      - base_image
       - merge_code
   - kind: createDatabase
     name: auth_database
@@ -350,7 +333,7 @@ steps:
       - dev
     dependsOn:
       - default_ns
-      - service_base_image
+      - base_image
       - create_deploy_config
       - create_certs
   - kind: runImage
@@ -383,7 +366,7 @@ steps:
   - kind: runImage
     name: create_test_gsa_keys
     image:
-      valueFrom: service_base_image.image
+      valueFrom: base_image.image
     script: |
       kubectl -n {{ default_ns.name }} get -o json secret test-gsa-key | jq '{apiVersion, kind, type, data, metadata: {name: "auth-gsa-key"}}' | kubectl -n {{ default_ns.name }} apply -f -
       kubectl -n {{ default_ns.name }} get -o json secret test-gsa-key | jq '{apiVersion, kind, type, data, metadata: {name: "batch-gsa-key"}}' | kubectl -n {{ default_ns.name }} apply -f -
@@ -401,7 +384,7 @@ steps:
         valueFrom: default_ns.name
     dependsOn:
       - default_ns
-      - service_base_image
+      - base_image
   - kind: buildImage2
     name: auth_image
     dockerFile: /io/repo/auth/Dockerfile
@@ -411,7 +394,7 @@ steps:
       - from: /repo
         to: /io/repo
     dependsOn:
-      - service_base_image
+      - base_image
       - merge_code
   - kind: deploy
     name: deploy_auth_driver_service_account
@@ -470,7 +453,7 @@ steps:
     name: create_initial_user
     runIfRequested: true
     image:
-      valueFrom: service_base_image.image
+      valueFrom: base_image.image
     script: |
       set -ex
       export NAMESPACE={{ default_ns.name }}
@@ -491,7 +474,7 @@ steps:
         to: /io/create_initial_account.py
     dependsOn:
       - default_ns
-      - service_base_image
+      - base_image
       - merge_code
       - auth_database
   - kind: buildImage2
@@ -518,7 +501,7 @@ steps:
       - from: /repo
         to: /io/repo
     dependsOn:
-      - service_base_image
+      - base_image
       - merge_code
   - kind: runImage
     name: check_benchmark_service
@@ -540,7 +523,7 @@ steps:
       - from: /repo
         to: /io/repo
     dependsOn:
-      - service_base_image
+      - base_image
       - merge_code
   - kind: buildImage2
     name: batch_image
@@ -551,12 +534,12 @@ steps:
       - from: /repo/batch
         to: /io/batch
     dependsOn:
-      - service_base_image
+      - base_image
       - merge_code
   - kind: runImage
     name: render_grafana_nginx_conf
     image:
-      valueFrom: service_base_image.image
+      valueFrom: base_image.image
     script: |
       set -ex
       cd /io/repo/grafana
@@ -574,7 +557,7 @@ steps:
         to: /grafana/nginx.conf.out
     dependsOn:
       - default_ns
-      - service_base_image
+      - base_image
       - merge_code
   - kind: buildImage2
     name: grafana_nginx_image
@@ -615,7 +598,7 @@ steps:
       - from: /repo
         to: /io/repo
     dependsOn:
-      - service_base_image
+      - base_image
       - merge_code
   - kind: buildImage2
     name: test_benchmark_image
@@ -626,7 +609,7 @@ steps:
       - from: /repo
         to: /io/repo
     dependsOn:
-      - service_base_image
+      - base_image
       - merge_code
   - kind: buildImage2
     name: ci_image
@@ -637,7 +620,7 @@ steps:
       - from: /repo
         to: /io/repo
     dependsOn:
-      - service_base_image
+      - base_image
       - merge_code
   - kind: buildImage2
     name: hail_buildkit_image
@@ -648,7 +631,7 @@ steps:
       - from: /repo/ci
         to: /io/repo/ci
     dependsOn:
-      - service_base_image
+      - base_image
       - merge_code
   - kind: buildImage2
     name: ci_utils_image
@@ -659,7 +642,7 @@ steps:
       - from: /repo/ci
         to: /io/ci
     dependsOn:
-      - service_base_image
+      - base_image
       - merge_code
   - kind: runImage
     name: build_hail_jar_wheel_zip
@@ -852,7 +835,7 @@ steps:
       - from: /repo
         to: /io/repo
     dependsOn:
-      - service_base_image
+      - base_image
       - merge_code
   - kind: deploy
     name: deploy_memory_sa
@@ -872,7 +855,7 @@ steps:
       - from: /just-wheel/wheel-container.tar
         to: /io/hail/wheel-container.tar
     dependsOn:
-      - service_base_image
+      - base_image
       - build_hail_jar_wheel_zip
       - merge_code
     resources:
@@ -1152,12 +1135,12 @@ steps:
       - from: /repo
         to: /io/repo
     dependsOn:
-      - service_base_image
+      - base_image
       - merge_code
   - kind: runImage
     name: render_notebook_nginx_conf
     image:
-      valueFrom: service_base_image.image
+      valueFrom: base_image.image
     script: |
       set -ex
       cd /io/repo/notebook
@@ -1175,7 +1158,7 @@ steps:
         to: /notebook/nginx.conf.out
     dependsOn:
       - default_ns
-      - service_base_image
+      - base_image
       - merge_code
   - kind: buildImage2
     name: notebook_nginx_image
@@ -2385,7 +2368,7 @@ steps:
   - kind: runImage
     name: render_prom_nginx_conf
     image:
-      valueFrom: service_base_image.image
+      valueFrom: base_image.image
     script: |
       set -ex
       cd /io/repo/prometheus
@@ -2403,7 +2386,7 @@ steps:
         to: /prometheus/nginx.conf.out
     dependsOn:
       - default_ns
-      - service_base_image
+      - base_image
       - merge_code
   - kind: buildImage2
     name: prom_nginx_image
@@ -2479,7 +2462,7 @@ steps:
   - kind: runImage
     name: delete_monitoring_tables
     image:
-      valueFrom: service_base_image.image
+      valueFrom: base_image.image
     script: |
       set -ex
       mysql --defaults-extra-file=/sql-config/sql-config.cnf < /io/sql/delete-monitoring-tables.sql
@@ -2496,7 +2479,7 @@ steps:
       - dev
     dependsOn:
       - default_ns
-      - service_base_image
+      - base_image
       - merge_code
   - kind: createDatabase
     name: monitoring_database
@@ -2569,7 +2552,7 @@ steps:
   - kind: runImage
     name: test_auth_copy_paste_login
     image:
-      valueFrom: service_base_image.image
+      valueFrom: base_image.image
     script: |
       set -ex
 
@@ -2624,11 +2607,11 @@ steps:
       - create_accounts
       - deploy_auth
       - create_deploy_config
-      - service_base_image
+      - base_image
   - kind: runImage
     name: test_auth_copy_paste_login_timeout
     image:
-      valueFrom: service_base_image.image
+      valueFrom: base_image.image
     script: |
       set -ex
 
@@ -2671,11 +2654,11 @@ steps:
       - create_accounts
       - deploy_auth
       - create_deploy_config
-      - service_base_image
+      - base_image
   - kind: runImage
     name: delete_batch_tables
     image:
-      valueFrom: service_base_image.image
+      valueFrom: base_image.image
     script: |
       set -ex
       mysql --defaults-extra-file=/sql-config/sql-config.cnf < /io/sql/delete-batch-tables.sql
@@ -2692,12 +2675,12 @@ steps:
       - dev
     dependsOn:
       - default_ns
-      - service_base_image
+      - base_image
       - merge_code
   - kind: runImage
     name: delete_ci_tables
     image:
-      valueFrom: service_base_image.image
+      valueFrom: base_image.image
     script: |
       set -ex
       mysql --defaults-extra-file=/sql-config/sql-config.cnf < /io/sql/delete-ci-tables.sql
@@ -2714,7 +2697,7 @@ steps:
       - dev
     dependsOn:
       - default_ns
-      - service_base_image
+      - base_image
       - merge_code
   - kind: createDatabase
     name: ci_database
@@ -2884,7 +2867,7 @@ steps:
   - kind: runImage
     name: create_billing_projects
     image:
-      valueFrom: service_base_image.image
+      valueFrom: base_image.image
     script: |
       set -ex
       # create billing projects and add users to them
@@ -2937,7 +2920,7 @@ steps:
         mountPath: /deploy-config
     dependsOn:
       - default_ns
-      - service_base_image
+      - base_image
       - create_deploy_config
       - create_accounts
       - deploy_batch
@@ -4147,7 +4130,7 @@ steps:
   - kind: runImage
     name: test_hailtop_batch_0
     image:
-      valueFrom: service_base_image.image
+      valueFrom: base_image.image
     script: |
       cd /io/hailtop
       set -ex
@@ -4197,12 +4180,12 @@ steps:
       - create_accounts
       - default_ns
       - merge_code
-      - service_base_image
+      - base_image
       - deploy_batch
   - kind: runImage
     name: test_hailtop_batch_1
     image:
-      valueFrom: service_base_image.image
+      valueFrom: base_image.image
     script: |
       cd /io/hailtop
       set -ex
@@ -4252,12 +4235,12 @@ steps:
       - create_accounts
       - default_ns
       - merge_code
-      - service_base_image
+      - base_image
       - deploy_batch
   - kind: runImage
     name: test_hailtop_batch_2
     image:
-      valueFrom: service_base_image.image
+      valueFrom: base_image.image
     script: |
       cd /io/hailtop
       set -ex
@@ -4307,12 +4290,12 @@ steps:
       - create_accounts
       - default_ns
       - merge_code
-      - service_base_image
+      - base_image
       - deploy_batch
   - kind: runImage
     name: test_hailtop_batch_3
     image:
-      valueFrom: service_base_image.image
+      valueFrom: base_image.image
     script: |
       cd /io/hailtop
       set -ex
@@ -4362,12 +4345,12 @@ steps:
       - create_accounts
       - default_ns
       - merge_code
-      - service_base_image
+      - base_image
       - deploy_batch
   - kind: runImage
     name: test_hailtop_batch_4
     image:
-      valueFrom: service_base_image.image
+      valueFrom: base_image.image
     script: |
       cd /io/hailtop
       set -ex
@@ -4417,12 +4400,12 @@ steps:
       - create_accounts
       - default_ns
       - merge_code
-      - service_base_image
+      - base_image
       - deploy_batch
   - kind: runImage
     name: test_batch_docs
     image:
-      valueFrom: service_base_image.image
+      valueFrom: base_image.image
     script: |
       set -ex
       export GOOGLE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
@@ -4451,7 +4434,7 @@ steps:
       - create_deploy_config
       - create_accounts
       - default_ns
-      - service_base_image
+      - base_image
       - merge_code
       - deploy_batch
     timeout: 1200
@@ -4730,7 +4713,7 @@ steps:
       - from: /docs.tar.gz
         to: /io/website/docs.tar.gz
     dependsOn:
-      - service_base_image
+      - base_image
       - get_pip_versioned_docs
     clouds:
       - gcp
@@ -4758,7 +4741,7 @@ steps:
   - kind: runImage
     name: test_website
     image:
-      valueFrom: service_base_image.image
+      valueFrom: base_image.image
     script: |
       set -ex
       hailctl curl {{ default_ns.name }} www / \
@@ -4778,7 +4761,7 @@ steps:
     dependsOn:
       - default_ns
       - create_accounts
-      - service_base_image
+      - base_image
       - deploy_website
     clouds:
       - gcp
