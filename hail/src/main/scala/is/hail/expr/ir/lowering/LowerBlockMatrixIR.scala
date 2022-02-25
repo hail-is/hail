@@ -268,7 +268,6 @@ object LowerBlockMatrixIR {
             MakeNDArray(ToArray(mapIR(rangeIR(len))(_ => generator)), ctxRef, True(), ErrorIDs.NO_ERROR)
           }
         }
-      case x: BlockMatrixLiteral => unimplemented(bmir)
       case BlockMatrixMap(child, eltName, f, _) =>
         lower(child).mapBody { (_, body) =>
           NDArrayMap(body, eltName, f)
