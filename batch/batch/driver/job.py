@@ -9,7 +9,7 @@ import traceback
 from hailtop.aiotools import BackgroundTaskManager
 from hailtop.utils import time_msecs, Notice, retry_transient_errors
 from hailtop import httpx
-from gear import Database
+from gear import Database, transaction, Transaction
 
 from ..batch import batch_record_to_dict
 from ..globals import complete_states, tasks, STATUS_FORMAT_VERSION
@@ -71,14 +71,14 @@ GROUP BY batches.id;
         log.exception(f'callback for batch {batch_id} failed, will not retry.')
 
 
-async def add_attempt_resources(db, batch_id, job_id, attempt_id, resources):
+async def add_attempt_resources(tx: Transaction, batch_id, job_id, attempt_id, resources):
     if attempt_id:
         try:
             resource_args = [
                 (batch_id, job_id, attempt_id, resource['name'], resource['quantity']) for resource in resources
             ]
 
-            await db.execute_many(
+            await tx.execute_many(
                 '''
 INSERT INTO `attempt_resources` (batch_id, job_id, attempt_id, resource, quantity)
 VALUES (%s, %s, %s, %s, %s)
@@ -108,26 +108,32 @@ async def mark_job_complete(
 
     now = time_msecs()
 
-    try:
-        rv = await db.execute_and_fetchone(
-            'CALL mark_job_complete(%s, %s, %s, %s, %s, %s, %s, %s, %s, %s);',
-            (
-                batch_id,
-                job_id,
-                attempt_id,
-                instance_name,
-                new_state,
-                json.dumps(status) if status is not None else None,
-                start_time,
-                end_time,
-                reason,
-                now,
-            ),
-            'mark_job_complete',
-        )
-    except Exception:
-        log.exception(f'error while marking job {id} complete on instance {instance_name}')
-        raise
+    @transaction(db)
+    async def mjc_and_add_attempt_resources(tx: Transaction) -> dict:
+        try:
+            rv = await tx.execute_and_fetchone(
+                'CALL mark_job_complete(%s, %s, %s, %s, %s, %s, %s, %s, %s, %s);',
+                (
+                    batch_id,
+                    job_id,
+                    attempt_id,
+                    instance_name,
+                    new_state,
+                    json.dumps(status) if status is not None else None,
+                    start_time,
+                    end_time,
+                    reason,
+                    now,
+                ),
+                'mark_job_complete',
+            )
+        except Exception:
+            log.exception(f'error while marking job {id} complete on instance {instance_name}')
+            raise
+        await add_attempt_resources(tx, batch_id, job_id, attempt_id, resources)
+        return rv
+
+    rv = await mjc_and_add_attempt_resources()  # pylint: disable=no-value-for-parameter
 
     scheduler_state_changed.notify()
     cancel_ready_state_changed.set()
@@ -142,8 +148,6 @@ async def mark_job_complete(
                 instance.adjust_free_cores_in_memory(rv['delta_cores_mcpu'])
         else:
             log.warning(f'mark_complete for job {id} from unknown {instance}')
-
-    await add_attempt_resources(db, batch_id, job_id, attempt_id, resources)
 
     if rv['rc'] != 0:
         log.info(f'mark_job_complete returned {rv} for job {id}')
@@ -170,22 +174,26 @@ async def mark_job_started(app, batch_id, job_id, attempt_id, instance, start_ti
 
     log.info(f'mark job {id} started')
 
-    try:
-        rv = await db.execute_and_fetchone(
-            '''
+    @transaction(db)
+    async def mjs_and_add_attempt_resources(tx: Transaction) -> dict:
+        try:
+            rv = await tx.execute_and_fetchone(
+                '''
 CALL mark_job_started(%s, %s, %s, %s, %s);
 ''',
-            (batch_id, job_id, attempt_id, instance.name, start_time),
-            'mark_job_started',
-        )
-    except Exception:
-        log.info(f'error while marking job {id} started on {instance}')
-        raise
+                (batch_id, job_id, attempt_id, instance.name, start_time),
+                'mark_job_started',
+            )
+        except Exception:
+            log.info(f'error while marking job {id} started on {instance}')
+            raise
+        await add_attempt_resources(tx, batch_id, job_id, attempt_id, resources)
+        return rv
+
+    rv = await mjs_and_add_attempt_resources()  # pylint: disable=no-value-for-parameter
 
     if rv['delta_cores_mcpu'] != 0 and instance.state == 'active':
         instance.adjust_free_cores_in_memory(rv['delta_cores_mcpu'])
-
-    await add_attempt_resources(db, batch_id, job_id, attempt_id, resources)
 
 
 async def mark_job_creating(
@@ -203,22 +211,25 @@ async def mark_job_creating(
 
     log.info(f'mark job {id} creating')
 
-    try:
-        rv = await db.execute_and_fetchone(
-            '''
+    @transaction(db)
+    async def mjc_and_add_attempt_resources(tx: Transaction) -> dict:
+        try:
+            rv = await tx.execute_and_fetchone(
+                '''
 CALL mark_job_creating(%s, %s, %s, %s, %s);
 ''',
-            (batch_id, job_id, attempt_id, instance.name, start_time),
-        )
-    except Exception:
-        log.info(f'error while marking job {id} creating on {instance}')
-        raise
+                (batch_id, job_id, attempt_id, instance.name, start_time),
+            )
+        except Exception:
+            log.info(f'error while marking job {id} creating on {instance}')
+            raise
+        await add_attempt_resources(tx, batch_id, job_id, attempt_id, resources)
+        return rv
 
-    log.info(rv)
+    rv = await mjc_and_add_attempt_resources()  # pylint: disable=no-value-for-parameter
+
     if rv['delta_cores_mcpu'] != 0 and instance.state == 'pending':
         instance.adjust_free_cores_in_memory(rv['delta_cores_mcpu'])
-
-    await add_attempt_resources(db, batch_id, job_id, attempt_id, resources)
 
 
 async def unschedule_job(app, record):
