@@ -2237,7 +2237,7 @@ steps:
       valueFrom: hail_pip_installed_image.image
     script: |
       set -ex
-      cd /hail/python/hail
+      cd /io/hail/python/hail
       python3 -m pytest --instafail \
         --doctest-modules \
         --doctest-glob='*.rst' \
@@ -2245,6 +2245,10 @@ steps:
         --ignore=docs/doctest_write_data.py
     dependsOn:
       - hail_pip_installed_image
+      - merge_code
+    inputs:
+      - from: /repo/hail/python/hail
+        to: /io/hail/python/hail
     clouds:
       - gcp
   - kind: runImage
