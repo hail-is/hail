@@ -31,7 +31,7 @@ RUN hail-apt-get-install \
     && \
     echo >/dev/null 'source for gcloud install: https://cloud.google.com/storage/docs/gsutil_install#linux'
     curl https://sdk.cloud.google.com | bash && \
-    find
+    find \
       /root/google-cloud-sdk/bin/ \
       -type f -executable \
     | xargs -I % /bin/sh -c 'set -ex ; ln -s ${PWD}/% /usr/local/bin/$(basename %)'
