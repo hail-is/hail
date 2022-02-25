@@ -1,4 +1,4 @@
-FROM {{ service_base_image.image }}
+FROM {{ base_image.image }}
 
 COPY notebook/setup.py notebook/MANIFEST.in /notebook/
 COPY notebook/notebook /notebook/notebook/

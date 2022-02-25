@@ -1,4 +1,4 @@
-FROM {{ service_base_image.image }}
+FROM {{ base_image.image }}
 
 COPY benchmark-service/benchmark /benchmark-service/benchmark/
 

@@ -31,7 +31,7 @@ spec:
               ln -s /ssl-config/ssl-config.curlrc $HOME/.curlrc
               ln -s /sql-config/sql-config.cnf $HOME/.my.cnf
               while true; do sleep 1000; done
-         image: {{ service_base_image.image }}
+         image: {{ base_image.image }}
          volumeMounts:
           - name: deploy-config
             mountPath: /deploy-config

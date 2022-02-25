@@ -25,24 +25,19 @@ check:
 blacken:
 	$(BLACK)
 
-.PHONY: service-base
-service-base:
-	$(MAKE) -C ../docker service-base
+.PHONY: base
+base:
+	$(MAKE) -C ../docker base
 
 .PHONY: build-ci-utils
-build-ci-utils: service-base
-	python3 jinja2_render.py '{"service_base_image":{"image":"'$$(cat ../docker/service-base-image-ref)'"}}' Dockerfile.ci-utils Dockerfile.ci-utils.out
+build-ci-utils: base
+	python3 jinja2_render.py '{"base_image":{"image":"'$$(cat ../docker/base-image-ref)'"}}' Dockerfile.ci-utils Dockerfile.ci-utils.out
 	../docker-build.sh . Dockerfile.ci-utils.out $(CI_UTILS_IMAGE)
 
 .PHONY: build-hail-buildkit
 build-hail-buildkit:
 	python3 jinja2_render.py '{"global":{"docker_prefix":"$(DOCKER_PREFIX)"}}' buildkit/Dockerfile buildkit/Dockerfile.out
 	../docker-build.sh . buildkit/Dockerfile.out $(HAIL_BUILDKIT_IMAGE)
-
-.PHONY: build
-build: service-base
-	python3 jinja2_render.py '{"service_base_image":{"image":"'$$(cat ../docker/service-base-image-ref)'"}}' Dockerfile Dockerfile.out
-	../docker-build.sh .. ci/Dockerfile.out $(CI_IMAGE)
 
 .PHONY: deploy
 deploy: build build-ci-utils build-hail-buildkit

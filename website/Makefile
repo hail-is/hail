@@ -26,7 +26,7 @@ docs:
 
 build: docs
 	$(MAKE) -C ../docker service-base
-	python3 ../ci/jinja2_render.py '{"service_base_image": {"image":"'$$(cat ../docker/service-base-image-ref)'"}}' Dockerfile Dockerfile.out
+	python3 ../ci/jinja2_render.py '{"base_image": {"image":"'$$(cat ../docker/base-image-ref)'"}}' Dockerfile Dockerfile.out
 	../docker-build.sh . Dockerfile.out $(WEBSITE_IMAGE)
 
 run: docs

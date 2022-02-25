@@ -1,4 +1,4 @@
-FROM {{ service_base_image.image }}
+FROM {{ base_image.image }}
 
 RUN hail-pip-install \
       google-auth-oauthlib==0.4.2 \

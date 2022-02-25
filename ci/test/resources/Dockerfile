@@ -1,4 +1,4 @@
-FROM {{ service_base_image.image }}
+FROM {{ base_image.image }}
 
 COPY ci/test/resources/hello.py /hello/
 

@@ -1,4 +1,4 @@
-FROM {{ service_base_image.image }}
+FROM {{ base_image.image }}
 
 COPY /website /website/website
 COPY MANIFEST.in setup.py /website/

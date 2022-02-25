@@ -1,4 +1,4 @@
-FROM {{ service_base_image.image }}
+FROM {{ base_image.image }}
 
 COPY ci/setup.py ci/MANIFEST.in /ci/
 COPY ci/ci /ci/ci/
