@@ -647,7 +647,7 @@ steps:
       - base_image
       - merge_code
   - kind: runImage
-    name: build_hail_jar_wheel_zip
+    name: build_hail_jar_wheel_pysrc
     image:
       valueFrom: base_image.image
     resources:
@@ -660,7 +660,6 @@ steps:
       time retry ./gradlew --version
       time retry make shadowJar wheel
       (cd build/deploy/dist/ && tar -cvf wheel-container.tar hail-*-py3-none-any.whl)
-      time (cd python && zip -r hail.zip hail hailtop)
     inputs:
       - from: /repo
         to: /io/repo
@@ -669,8 +668,8 @@ steps:
         to: /just-jar/hail.jar
       - from: /io/repo/hail/build/deploy/dist/wheel-container.tar
         to: /just-wheel/wheel-container.tar
-      - from: /io/repo/hail/python/hail.zip
-        to: /just-zip/hail.zip
+      - from: /io/repo/hail/python
+        to: /just-pysrc/python
     dependsOn:
       - base_image
       - merge_code
@@ -858,7 +857,7 @@ steps:
         to: /io/hail/wheel-container.tar
     dependsOn:
       - base_image
-      - build_hail_jar_wheel_zip
+      - build_hail_jar_wheel_pysrc
       - merge_code
     resources:
       storage: 10Gi
@@ -1069,7 +1068,7 @@ steps:
       - from: /just-wheel/wheel-container.tar
         to: /io/repo/wheel-container.tar
     dependsOn:
-      - build_hail_jar_wheel_zip
+      - build_hail_jar_wheel_pysrc
       - hail_ubuntu_image
       - merge_code
   - kind: buildImage2
@@ -1083,7 +1082,7 @@ steps:
       - from: /just-wheel/wheel-container.tar
         to: /io/repo/wheel-container.tar
     dependsOn:
-      - build_hail_jar_wheel_zip
+      - build_hail_jar_wheel_pysrc
       - hail_ubuntu_image
       - merge_code
   - kind: runImage
@@ -1882,7 +1881,7 @@ steps:
       - default_ns
       - merge_code
       - hail_run_tests_image
-      - build_hail_jar_wheel_zip
+      - build_hail_jar_wheel_pysrc
     clouds:
       - gcp
   - kind: runImage
@@ -2220,18 +2219,31 @@ steps:
       valueFrom: hail_pip_installed_image.image
     script: |
       set -ex
-      cd /io/hail/python/hail
-      python3 -m pytest --instafail \
+
+      cd /io/python
+
+      python3 -m setup.py pytest \
+        --addopts "-v \
+        --color=no \
+        --instafail \
+        -r A \
         --doctest-modules \
         --doctest-glob='*.rst' \
-        --ignore=docs/conf.py \
-        --ignore=docs/doctest_write_data.py
+        --ignore=setup.py \
+        --ignore=setup-hailtop.py \
+        --ignore=hail/docs/conf.py \
+        --ignore=cluster-tests \
+        --ignore=hailtop \
+        --ignore=test \
+        --ignore=hail/docs/doctest_write_data.py \
+        --ignore=hail/docs/getting_started_developing.rst \
+        --ignore=hail/docs/getting_started.rst"
     dependsOn:
-      - hail_pip_installed_image
+      - build_hail_jar_wheel_pysrc
       - merge_code
     inputs:
-      - from: /repo/hail/python/hail
-        to: /io/hail/python/hail
+      - from: /just-pysrc/python
+        to: /io/python
     clouds:
       - gcp
   - kind: runImage
@@ -2243,9 +2255,7 @@ steps:
       export HAIL_SHORT_VERSION='0.2'
       export SPHINXOPTS='-tgenerate_notebook_outputs'
 
-      mkdir -p {{ token }}/python
-      cd {{ token }}
-      unzip -q -d python /io/hail.zip
+      cd /io
 
       export HAIL_WEBSITE_DIR=/io/website/website/
 
@@ -2268,8 +2278,8 @@ steps:
       memory: standard
       cpu: '2'
     inputs:
-      - from: /just-zip/hail.zip
-        to: /io/hail.zip
+      - from: /just-pysrc/python
+        to: /io/python
       - from: /repo/website
         to: /io/website
     outputs:
@@ -2277,7 +2287,7 @@ steps:
         to: /www.tar.gz
     dependsOn:
       - hail_pip_installed_image
-      - build_hail_jar_wheel_zip
+      - build_hail_jar_wheel_pysrc
   - kind: runImage
     name: get_pip_versioned_docs
     image:
@@ -2994,7 +3004,7 @@ steps:
       - default_ns
       - deploy_batch
       - hail_pip_installed_image
-      - build_hail_jar_wheel_zip
+      - build_hail_jar_wheel_pysrc
       - merge_code
       - create_test_gsa_keys
   - kind: runImage
@@ -3076,7 +3086,7 @@ steps:
       - hail_run_tests_image
       - upload_query_jar
       - upload_test_resources_to_blob_storage
-      - build_hail_jar_wheel_zip
+      - build_hail_jar_wheel_pysrc
     clouds:
       - gcp
   - kind: runImage
@@ -3158,7 +3168,7 @@ steps:
       - hail_run_tests_image
       - upload_query_jar
       - upload_test_resources_to_blob_storage
-      - build_hail_jar_wheel_zip
+      - build_hail_jar_wheel_pysrc
     clouds:
       - gcp
   - kind: runImage
@@ -3240,7 +3250,7 @@ steps:
       - hail_run_tests_image
       - upload_query_jar
       - upload_test_resources_to_blob_storage
-      - build_hail_jar_wheel_zip
+      - build_hail_jar_wheel_pysrc
     clouds:
       - gcp
   - kind: runImage
@@ -3322,7 +3332,7 @@ steps:
       - hail_run_tests_image
       - upload_query_jar
       - upload_test_resources_to_blob_storage
-      - build_hail_jar_wheel_zip
+      - build_hail_jar_wheel_pysrc
     clouds:
       - gcp
   - kind: runImage
@@ -3404,7 +3414,7 @@ steps:
       - hail_run_tests_image
       - upload_query_jar
       - upload_test_resources_to_blob_storage
-      - build_hail_jar_wheel_zip
+      - build_hail_jar_wheel_pysrc
     clouds:
       - gcp
   - kind: deploy
@@ -4097,7 +4107,7 @@ steps:
         to: /io/docker/hail/wheel-container.tar
     dependsOn:
       - merge_code
-      - build_hail_jar_wheel_zip
+      - build_hail_jar_wheel_pysrc
       - hail_ubuntu_image
   - kind: runImage
     name: test_hailgenetics_hail_image
