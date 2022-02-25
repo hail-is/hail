@@ -176,11 +176,10 @@ doctest: python/README.md $(PYTHON_JAR)
     $(PYTEST_ARGS)"
 
 .PHONY: copy-py-files
-copy-py-files: $(PYTHON_VERSION_INFO) $(SHADOW_JAR) $(INIT_SCRIPTS) $(PY_FILES) $(PYTHON_JAR)
+copy-py-files: python/README.md $(PYTHON_VERSION_INFO) $(SHADOW_JAR) $(INIT_SCRIPTS) $(PY_FILES) $(PYTHON_JAR)
 	rm -rf build/deploy
 	mkdir -p build/deploy
 	mkdir -p build/deploy/src
-	cp ../README.md build/deploy/
 	rsync -r \
 	    --exclude '.eggs/' \
 	    --exclude '.pytest_cache/' \
