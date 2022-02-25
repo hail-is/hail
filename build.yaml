@@ -2288,7 +2288,7 @@ steps:
       - from: /just-zip/hail.zip
         to: /io/hail.zip
       - from: /repo/website
-        to: /io/websiteo
+        to: /io/website
     outputs:
       - from: /io/www.tar.gz
         to: /www.tar.gz
