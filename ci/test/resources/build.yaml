@@ -55,8 +55,24 @@ steps:
       cpu: "2"
       memory: standard
     inputs:
-      - from: /repo
-        to: /io/repo
+      - from: /repo/docker/core-site.xml
+        to: /io/repo/docker/core-site.xml
+      - from: /repo/docker/requirements.txt
+        to: /io/repo/docker/requirements.txt
+      - from: /repo/docker/Dockerfile.base
+        to: /io/repo/docker/Dockerfile.base
+      - from: /repo/pylintrc
+        to: /io/repo/pylintrc
+      - from: /repo/setup.cfg
+        to: /io/repo/setup.cfg
+      - from: /repo/gear
+        to: /io/repo/gear
+      - from: /repo/web_common
+        to: /io/repo/web_common
+      - from: /repo/hail/python
+        to: /io/repo/hail/python
+      - from: /hail_version
+        to: /io/repo/hail_version
     dependsOn:
       - hail_ubuntu_image
       - merge_code
