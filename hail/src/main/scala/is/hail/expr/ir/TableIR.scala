@@ -1220,6 +1220,14 @@ case class TableFromBlockMatrixNativeReader(params: TableFromBlockMatrixNativeRe
   }
 
   def renderShort(): String = defaultRender()
+
+  override def lowerGlobals(ctx: ExecuteContext, requestedGlobalsType: TStruct): IR = {
+    MakeStruct(Seq())
+  }
+
+  override def lower(ctx: ExecuteContext, requestedType: TableType): TableStage =  {
+    ???
+  }
 }
 
 object TableRead {
