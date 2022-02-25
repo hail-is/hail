@@ -87,7 +87,7 @@ ON DUPLICATE KEY UPDATE quantity = quantity;
                 resource_args,
             )
         except Exception:
-            log.exception(f'error while inserting resources for job {id}, attempt {attempt_id}')
+            log.exception(f'error while inserting resources for job {job_id}, attempt {attempt_id}')
             raise
 
 
