@@ -33,6 +33,10 @@ Release 2022-02-25
 - (hail#11374) Fixed bug where certain pipelines that read in PLINK files would give assertion error.
 - (hail#11401) Fixed bug where `from_pandas` didn't support missing ints. 
 
+### Performance improvements
+
+- (hail#11306) Newly written tables that have no duplicate keys will be faster to join against.
+
 ---
 
 ## Version 0.2.85
