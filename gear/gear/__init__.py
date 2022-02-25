@@ -1,4 +1,4 @@
-from .database import create_database_pool, Database, transaction, Transaction
+from .database import create_database_pool, Database, transaction
 from .session import setup_aiohttp_session
 from .auth import (
     userdata_from_web_request,
@@ -30,7 +30,6 @@ __all__ = [
     'insert_user',
     'create_session',
     'transaction',
-    'Transaction',
     'maybe_parse_bearer_header',
     'monitor_endpoints_middleware',
 ]
