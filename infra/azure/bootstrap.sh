@@ -43,9 +43,8 @@ EOF
 
 init_terraform() {
     RESOURCE_GROUP=${RESOURCE_GROUP:-$1}
-    # TODO
-    STORAGE_ACCOUNT_NAME=${STORAGE_CONTAINER_NAME:-"2498dgoldste"}
 
+    STORAGE_ACCOUNT_NAME=$(cat remote_storage.tfvars | grep "storage_account_name" | awk '{ print $3 }' | tr -d '"')
     STORAGE_ACCOUNT_KEY=$(az storage account keys list \
         -g $RESOURCE_GROUP \
         --account-name $STORAGE_ACCOUNT_NAME \
@@ -58,7 +57,7 @@ init_terraform() {
 access_key           = "$STORAGE_ACCOUNT_KEY"
 EOF
 
-    terraform init -backend-config=$remote_storage_access_key -backend-config=remote_storage.tfvars -upgrade
+    terraform init -backend-config=$remote_storage_access_key -backend-config=remote_storage.tfvars
 }
 
 grant_auth_sp_admin_consent() {
