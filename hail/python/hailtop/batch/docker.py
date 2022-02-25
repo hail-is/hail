@@ -3,13 +3,14 @@ import sys
 import os
 from typing import Optional, List
 
-from ..utils import secret_alnum_string, sync_check_shell_output
+from ..utils import secret_alnum_string, sync_check_shell
 
 
 def build_python_image(fullname: str,
                        requirements: Optional[List[str]] = None,
                        python_version: Optional[str] = None,
-                       _tmp_dir: str = '/tmp') -> str:
+                       _tmp_dir: str = '/tmp',
+                       show_docker_output: bool = False) -> str:
     """
     Build a new Python image with dill and the specified pip packages installed.
 
@@ -36,6 +37,8 @@ def build_python_image(fullname: str,
         current version of Python that is running.
     _tmp_dir:
         Location to place local temporary files used while building the image.
+    show_docker_output:
+        Print the output from Docker when building / pushing the image.
 
     Returns
     -------
@@ -78,15 +81,15 @@ RUN pip install --upgrade --no-cache-dir -r requirements.txt && \
     python3 -m pip check
 ''')
 
-            sync_check_shell_output(f'docker build -t {fullname} {docker_path}')
+            sync_check_shell(f'docker build -t {fullname} {docker_path}', inherit_std_out_err=show_docker_output)
             print(f'finished building image {fullname}')
         else:
-            sync_check_shell_output(f'docker pull {base_image}')
-            sync_check_shell_output(f'docker tag {base_image} {fullname}')
+            sync_check_shell(f'docker pull {base_image}', inherit_std_out_err=show_docker_output)
+            sync_check_shell(f'docker tag {base_image} {fullname}', inherit_std_out_err=show_docker_output)
             print(f'finished pulling image {fullname}')
 
         if '/' in fullname:
-            sync_check_shell_output(f'docker push {fullname}')
+            sync_check_shell(f'docker push {fullname}', inherit_std_out_err=show_docker_output)
             print(f'finished pushing image {fullname}')
     finally:
         shutil.rmtree(docker_path, ignore_errors=True)
