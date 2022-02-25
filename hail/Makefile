@@ -66,6 +66,9 @@ GRADLE_ARGS += -Dscala.version=$(SCALA_VERSION) -Dspark.version=$(SPARK_VERSION)
 .PHONY: shadowJar
 shadowJar: $(SHADOW_JAR)
 
+.PHONY: shadowTestJar
+shadowTestJar: $(SHADOW_TEST_JAR)
+
 ifdef HAIL_COMPILE_NATIVES
 $(SHADOW_JAR): native-lib-prebuilt
 endif

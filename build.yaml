@@ -674,7 +674,7 @@ steps:
       - base_image
       - merge_code
   - kind: runImage
-    name: build_hail_debug
+    name: build_hail_debug_wheel
     image:
       valueFrom: base_image.image
     resources:
@@ -685,23 +685,40 @@ steps:
       cd /io/repo/hail
       chmod 755 ./gradlew
       time retry ./gradlew --version
-      time retry make jars wheel HAIL_DEBUG_MODE=1
+      time retry make wheel HAIL_DEBUG_MODE=1
+      (cd build/deploy/dist/ && tar -cvf debug-wheel-container.tar hail-*-py3-none-any.whl)
+    inputs:
+      - from: /repo
+        to: /io/repo
+    outputs:
+      - from: /io/repo/hail/build/deploy/dist/debug-wheel-container.tar
+        to: /debug-wheel-container.tar
+    dependsOn:
+      - base_image
+      - merge_code
+  - kind: runImage
+    name: build_hail_debug_test_jar
+    image:
+      valueFrom: base_image.image
+    resources:
+      memory: standard
+      cpu: '4'
+    script: |
+      set -ex
+      cd /io/repo/hail
+      chmod 755 ./gradlew
+      time retry ./gradlew --version
+      time retry make shadowTestJar HAIL_DEBUG_MODE=1
       (cd build/deploy/dist/ && tar -cvf debug-wheel-container.tar hail-*-py3-none-any.whl)
       cd /io/repo/hail
-      mkdir build/debug_libs
-      mv build/libs/hail-all-spark.jar build/debug_libs/
-      mv build/libs/hail-all-spark-test.jar build/debug_libs/
-      mv build/deploy/dist/debug-wheel-container.tar build/debug_libs
       time TESTNG_SPLITS=5 python3 generate_splits.py
       time tar czf splits.tar.gz testng-splits-*.xml
     inputs:
       - from: /repo
         to: /io/repo
     outputs:
-      - from: /io/repo/hail/build/debug_libs/hail-all-spark-test.jar
+      - from: /io/repo/hail/build/libs/hail-all-spark-test.jar
         to: /hail-debug-test.jar
-      - from: /io/repo/hail/build/debug_libs/debug-wheel-container.tar
-        to: /debug-wheel-container.tar
       - from: /io/repo/hail/splits.tar.gz
         to: /splits.tar.gz
     dependsOn:
@@ -924,7 +941,7 @@ steps:
     dependsOn:
       - default_ns
       - hail_run_tests_image
-      - build_hail_debug
+      - build_hail_debug_test_jar
   - kind: runImage
     name: test_hail_java_1
     image:
@@ -957,7 +974,7 @@ steps:
     dependsOn:
       - default_ns
       - hail_run_tests_image
-      - build_hail_debug
+      - build_hail_debug_test_jar
   - kind: runImage
     name: test_hail_java_2
     image:
@@ -990,7 +1007,7 @@ steps:
     dependsOn:
       - default_ns
       - hail_run_tests_image
-      - build_hail_debug
+      - build_hail_debug_test_jar
   - kind: runImage
     name: test_hail_java_3
     image:
@@ -1023,7 +1040,7 @@ steps:
     dependsOn:
       - default_ns
       - hail_run_tests_image
-      - build_hail_debug
+      - build_hail_debug_test_jar
   - kind: runImage
     name: test_hail_java_4
     image:
@@ -1056,7 +1073,7 @@ steps:
     dependsOn:
       - default_ns
       - hail_run_tests_image
-      - build_hail_debug
+      - build_hail_debug_test_jar
   - kind: buildImage2
     name: hail_pip_installed_python37_image
     dockerFile: /io/repo/hail/Dockerfile.hail-pip-installed-python37
@@ -1232,7 +1249,7 @@ steps:
       - default_ns
       - merge_code
       - hail_run_tests_image
-      - build_hail_debug
+      - build_hail_debug_wheel
     clouds:
       - gcp
   - kind: runImage
@@ -1284,7 +1301,7 @@ steps:
       - default_ns
       - merge_code
       - hail_run_tests_image
-      - build_hail_debug
+      - build_hail_debug_wheel
     clouds:
       - gcp
   - kind: runImage
@@ -1336,7 +1353,7 @@ steps:
       - default_ns
       - merge_code
       - hail_run_tests_image
-      - build_hail_debug
+      - build_hail_debug_wheel
     clouds:
       - gcp
   - kind: runImage
@@ -1388,7 +1405,7 @@ steps:
       - default_ns
       - merge_code
       - hail_run_tests_image
-      - build_hail_debug
+      - build_hail_debug_wheel
     clouds:
       - gcp
   - kind: runImage
@@ -1440,7 +1457,7 @@ steps:
       - default_ns
       - merge_code
       - hail_run_tests_image
-      - build_hail_debug
+      - build_hail_debug_wheel
     clouds:
       - gcp
   - kind: runImage
@@ -1492,7 +1509,7 @@ steps:
       - default_ns
       - merge_code
       - hail_run_tests_image
-      - build_hail_debug
+      - build_hail_debug_wheel
     clouds:
       - gcp
   - kind: runImage
@@ -1544,7 +1561,7 @@ steps:
       - default_ns
       - merge_code
       - hail_run_tests_image
-      - build_hail_debug
+      - build_hail_debug_wheel
     clouds:
       - gcp
   - kind: runImage
@@ -1601,7 +1618,7 @@ steps:
     dependsOn:
       - default_ns
       - hail_run_tests_image
-      - build_hail_debug
+      - build_hail_debug_wheel
     clouds:
       - gcp
   - kind: runImage
@@ -1658,7 +1675,7 @@ steps:
     dependsOn:
       - default_ns
       - hail_run_tests_image
-      - build_hail_debug
+      - build_hail_debug_wheel
     clouds:
       - gcp
   - kind: runImage
@@ -1715,7 +1732,7 @@ steps:
     dependsOn:
       - default_ns
       - hail_run_tests_image
-      - build_hail_debug
+      - build_hail_debug_wheel
     clouds:
       - gcp
   - kind: runImage
@@ -1772,7 +1789,7 @@ steps:
     dependsOn:
       - default_ns
       - hail_run_tests_image
-      - build_hail_debug
+      - build_hail_debug_wheel
     clouds:
       - gcp
   - kind: runImage
@@ -1830,7 +1847,7 @@ steps:
       - default_ns
       - merge_code
       - hail_run_tests_image
-      - build_hail_debug
+      - build_hail_debug_wheel
     clouds:
       - gcp
   - kind: runImage
@@ -1930,7 +1947,7 @@ steps:
       - default_ns
       - merge_code
       - hail_run_tests_image
-      - build_hail_debug
+      - build_hail_debug_wheel
   - kind: runImage
     name: test_hail_python_local_backend_1
     image:
@@ -1977,7 +1994,7 @@ steps:
       - default_ns
       - merge_code
       - hail_run_tests_image
-      - build_hail_debug
+      - build_hail_debug_wheel
   - kind: runImage
     name: test_hail_python_local_backend_2
     image:
@@ -2024,7 +2041,7 @@ steps:
       - default_ns
       - merge_code
       - hail_run_tests_image
-      - build_hail_debug
+      - build_hail_debug_wheel
   - kind: runImage
     name: test_hail_python_local_backend_3
     image:
@@ -2071,7 +2088,7 @@ steps:
       - default_ns
       - merge_code
       - hail_run_tests_image
-      - build_hail_debug
+      - build_hail_debug_wheel
   - kind: runImage
     name: test_hail_python_local_backend_4
     image:
@@ -2118,7 +2135,7 @@ steps:
       - default_ns
       - merge_code
       - hail_run_tests_image
-      - build_hail_debug
+      - build_hail_debug_wheel
   - kind: runImage
     name: test_hail_python_local_backend_5
     image:
@@ -2165,7 +2182,7 @@ steps:
       - default_ns
       - merge_code
       - hail_run_tests_image
-      - build_hail_debug
+      - build_hail_debug_wheel
   - kind: runImage
     name: test_hail_python_local_backend_6
     image:
@@ -2212,7 +2229,7 @@ steps:
       - default_ns
       - merge_code
       - hail_run_tests_image
-      - build_hail_debug
+      - build_hail_debug_wheel
   - kind: runImage
     name: test_python_docs
     image:
@@ -4820,7 +4837,7 @@ steps:
       - merge_code
       - create_certs
       - hail_run_tests_image
-      - build_hail_debug
+      - build_hail_debug_test_jar
       - upload_test_resources_to_blob_storage
   - kind: runImage
     name: test_hail_services_java
@@ -4863,7 +4880,7 @@ steps:
       - merge_code
       - create_certs
       - hail_run_tests_image
-      - build_hail_debug
+      - build_hail_debug_test_jar
       - deploy_batch
   - kind: runImage
     name: test_batch_invariants
