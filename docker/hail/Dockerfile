@@ -21,7 +21,7 @@ RUN hail-apt-get-install \
       scipy \
     && \
     curl https://storage.googleapis.com/hadoop-lib/gcs/gcs-connector-hadoop2-2.0.1.jar \
-         >/gcs-connector-hadoop2-2.0.1.jar && \
+         >/gcs-connector-hadoop2-2.0.1.jar \
     && \
     curl https://sdk.cloud.google.com | bash && \
     find /root/google-cloud-sdk/bin/ -type f -executable \
