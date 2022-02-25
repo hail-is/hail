@@ -1233,7 +1233,6 @@ steps:
       - default_ns
       - merge_code
       - hail_run_tests_image
-      - build_hail
       - build_hail_debug
     clouds:
       - gcp
@@ -1286,7 +1285,6 @@ steps:
       - default_ns
       - merge_code
       - hail_run_tests_image
-      - build_hail
       - build_hail_debug
     clouds:
       - gcp
@@ -1339,7 +1337,6 @@ steps:
       - default_ns
       - merge_code
       - hail_run_tests_image
-      - build_hail
       - build_hail_debug
     clouds:
       - gcp
@@ -1392,7 +1389,6 @@ steps:
       - default_ns
       - merge_code
       - hail_run_tests_image
-      - build_hail
       - build_hail_debug
     clouds:
       - gcp
@@ -1445,7 +1441,6 @@ steps:
       - default_ns
       - merge_code
       - hail_run_tests_image
-      - build_hail
       - build_hail_debug
     clouds:
       - gcp
@@ -1498,7 +1493,6 @@ steps:
       - default_ns
       - merge_code
       - hail_run_tests_image
-      - build_hail
       - build_hail_debug
     clouds:
       - gcp
@@ -1551,7 +1545,6 @@ steps:
       - default_ns
       - merge_code
       - hail_run_tests_image
-      - build_hail
       - build_hail_debug
     clouds:
       - gcp
@@ -1609,7 +1602,7 @@ steps:
     dependsOn:
       - default_ns
       - hail_run_tests_image
-      - build_hail
+      - build_hail_debug
     clouds:
       - gcp
   - kind: runImage
@@ -1667,7 +1660,7 @@ steps:
     dependsOn:
       - default_ns
       - hail_run_tests_image
-      - build_hail
+      - build_hail_debug
     clouds:
       - gcp
   - kind: runImage
@@ -1725,7 +1718,7 @@ steps:
     dependsOn:
       - default_ns
       - hail_run_tests_image
-      - build_hail
+      - build_hail_debug
     clouds:
       - gcp
   - kind: runImage
@@ -1783,7 +1776,7 @@ steps:
     dependsOn:
       - default_ns
       - hail_run_tests_image
-      - build_hail
+      - build_hail_debug
     clouds:
       - gcp
   - kind: runImage
@@ -1842,7 +1835,6 @@ steps:
       - default_ns
       - merge_code
       - hail_run_tests_image
-      - build_hail
       - build_hail_debug
     clouds:
       - gcp
@@ -1943,7 +1935,6 @@ steps:
       - default_ns
       - merge_code
       - hail_run_tests_image
-      - build_hail
       - build_hail_debug
   - kind: runImage
     name: test_hail_python_local_backend_1
@@ -1991,7 +1982,6 @@ steps:
       - default_ns
       - merge_code
       - hail_run_tests_image
-      - build_hail
       - build_hail_debug
   - kind: runImage
     name: test_hail_python_local_backend_2
@@ -2039,7 +2029,6 @@ steps:
       - default_ns
       - merge_code
       - hail_run_tests_image
-      - build_hail
       - build_hail_debug
   - kind: runImage
     name: test_hail_python_local_backend_3
@@ -2087,7 +2076,6 @@ steps:
       - default_ns
       - merge_code
       - hail_run_tests_image
-      - build_hail
       - build_hail_debug
   - kind: runImage
     name: test_hail_python_local_backend_4
@@ -2135,7 +2123,6 @@ steps:
       - default_ns
       - merge_code
       - hail_run_tests_image
-      - build_hail
       - build_hail_debug
   - kind: runImage
     name: test_hail_python_local_backend_5
@@ -2183,7 +2170,6 @@ steps:
       - default_ns
       - merge_code
       - hail_run_tests_image
-      - build_hail
       - build_hail_debug
   - kind: runImage
     name: test_hail_python_local_backend_6
@@ -2231,7 +2217,6 @@ steps:
       - default_ns
       - merge_code
       - hail_run_tests_image
-      - build_hail
       - build_hail_debug
   - kind: runImage
     name: test_python_docs
@@ -4697,7 +4682,6 @@ steps:
       - test_dataproc-38
       - default_ns
       - ci_utils_image
-      - build_hail
       - merge_code
       - hailgenetics_hail_image
       - build_wheel_for_azure
