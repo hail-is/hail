@@ -364,41 +364,50 @@ object StreamJoin {
     lKey: IndexedSeq[String], rKey: IndexedSeq[String],
     l: String, r: String,
     joinF: IR,
-    joinType: String
+    joinType: String,
+    rightKeyIsDistinct: Boolean = false
   ): IR = {
     val lType = coerce[TStream](left.typ)
     val rType = coerce[TStream](right.typ)
     val lEltType = coerce[TStruct](lType.elementType)
     val rEltType = coerce[TStruct](rType.elementType)
     assert(lEltType.typeAfterSelectNames(lKey) isIsomorphicTo rEltType.typeAfterSelectNames(rKey))
-    val rightGroupedStream = StreamGroupByKey(right, rKey)
 
-    val groupField = genUID()
+    if(!rightKeyIsDistinct) {
+      val rightGroupedStream = StreamGroupByKey(right, rKey)
+      val groupField = genUID()
 
-    // stream of {key, groupField}, where 'groupField' is an array of all rows
-    // in 'right' with key 'key'
-    val rightGrouped = mapIR(rightGroupedStream) { group =>
-      bindIR(ToArray(group)) { array =>
-        bindIR(ArrayRef(array, 0)) { head =>
-          MakeStruct(rKey.map { key => key -> GetField(head, key) } :+ groupField -> array)
+      // stream of {key, groupField}, where 'groupField' is an array of all rows
+      // in 'right' with key 'key'
+      val rightGrouped = mapIR(rightGroupedStream) { group =>
+        bindIR(ToArray(group)) { array =>
+          bindIR(ArrayRef(array, 0)) { head =>
+            MakeStruct(rKey.map { key => key -> GetField(head, key) } :+ groupField -> array)
+          }
+        }
+      }
+
+      val rElt = Ref(genUID(), coerce[TStream](rightGrouped.typ).elementType)
+      val lElt = Ref(genUID(), lEltType)
+      val makeTupleFromJoin = MakeStruct(FastSeq("left" -> lElt, "rightGroup" -> rElt))
+      val joined = StreamJoinRightDistinct(left, rightGrouped, lKey, rKey, lElt.name, rElt.name, makeTupleFromJoin, joinType)
+
+      // joined is a stream of {leftElement, rightGroup}
+      bindIR(MakeArray(NA(rEltType))) { missingSingleton =>
+        flatMapIR(joined) { x =>
+          Let(l, GetField(x, "left"), bindIR(GetField(GetField(x, "rightGroup"), groupField)) { rightElts =>
+            joinType match {
+              case "left" | "outer" => StreamMap(ToStream(If(IsNA(rightElts), missingSingleton, rightElts)), r, joinF)
+              case "right" | "inner" => StreamMap(ToStream(rightElts), r, joinF)
+            }
+          })
         }
       }
     }
-    val rElt = Ref(genUID(), coerce[TStream](rightGrouped.typ).elementType)
-    val lElt = Ref(genUID(), lEltType)
-    val makeTupleFromJoin = MakeStruct(FastSeq("left" -> lElt, "rightGroup" -> rElt))
-    val joined = StreamJoinRightDistinct(left, rightGrouped, lKey, rKey, lElt.name, rElt.name, makeTupleFromJoin, joinType)
-
-    // joined is a stream of {leftElement, rightGroup}
-    bindIR(MakeArray(NA(rEltType))) { missingSingleton =>
-      flatMapIR(joined) { x =>
-        Let(l, GetField(x, "left"), bindIR(GetField(GetField(x, "rightGroup"), groupField)) { rightElts =>
-          joinType match {
-            case "left" | "outer" => StreamMap(ToStream(If(IsNA(rightElts), missingSingleton, rightElts)), r, joinF)
-            case "right" | "inner" => StreamMap(ToStream(rightElts), r, joinF)
-          }
-        })
-      }
+    else {
+      val rElt = Ref(r, rEltType)
+      val lElt = Ref(l, lEltType)
+      StreamJoinRightDistinct(left, right, lKey, rKey, lElt.name, rElt.name, joinF, joinType)
     }
   }
 }
