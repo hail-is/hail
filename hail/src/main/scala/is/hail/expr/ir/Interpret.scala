@@ -815,7 +815,7 @@ object Interpret {
               FastIndexedSeq(classInfo[Region], LongInfo), LongInfo,
               MakeTuple.ordered(FastSeq(wrappedIR)),
               optimize = false)
-            (rt.get, makeFunction(ctx.fs, 0, region))
+            (rt.get, makeFunction(ctx.theHailClassLoader, ctx.fs, 0, region))
           })
           val rvb = new RegionValueBuilder()
           rvb.set(region)
@@ -868,7 +868,7 @@ object Interpret {
         val value = child.analyzeAndExecute(ctx).asTableValue(ctx)
         val fsBc = ctx.fsBc
 
-        val globalsBc = value.globals.broadcast
+        val globalsBc = value.globals.broadcast(ctx.theHailClassLoader)
         val globalsOffset = value.globals.value.offset
 
         val res = genUID()
@@ -883,7 +883,7 @@ object Interpret {
 
           // TODO Is this right? where does wrapped run?
           ctx.r.pool.scopedRegion { region =>
-            SafeRow(rt, f(ctx.fs, 0, region)(region, globalsOffset))
+            SafeRow(rt, f(ctx.theHailClassLoader, ctx.fs, 0, region)(region, globalsOffset))
           }
         } else {
           val spec = BufferSpec.defaultUncompressed
@@ -944,11 +944,11 @@ object Interpret {
 
           // returns ownership of a new region holding the partition aggregation
           // result
-          def itF(i: Int, ctx: RVDContext, it: Iterator[Long]): RegionValue = {
+          def itF(theHailClassLoader: HailClassLoader, i: Int, ctx: RVDContext, it: Iterator[Long]): RegionValue = {
             val partRegion = ctx.partitionRegion
-            val globalsOffset = globalsBc.value.readRegionValue(partRegion)
-            val init = initOp(fsBc.value, i, partRegion)
-            val seqOps = partitionOpSeq(fsBc.value, i, partRegion)
+            val globalsOffset = globalsBc.value.readRegionValue(partRegion, theHailClassLoader)
+            val init = initOp(theHailClassLoader, fsBc.value, i, partRegion)
+            val seqOps = partitionOpSeq(theHailClassLoader, fsBc.value, i, partRegion)
             val aggRegion = ctx.freshRegion(Region.SMALL)
 
             init.newAggState(aggRegion)
@@ -964,11 +964,11 @@ object Interpret {
 
           // creates a new region holding the zero value, giving ownership to
           // the caller
-          val mkZero = (pool: RegionPool) => {
+          val mkZero = (theHailClassLoader: HailClassLoader, pool: RegionPool) => {
             val region = Region(Region.SMALL, pool)
-            val initF = initOp(fsBc.value, 0, region)
+            val initF = initOp(theHailClassLoader, fsBc.value, 0, region)
             initF.newAggState(region)
-            initF(region, globalsBc.value.readRegionValue(region))
+            initF(region, globalsBc.value.readRegionValue(region, theHailClassLoader))
             RegionValue(region, initF.getAggOffset())
           }
 
@@ -984,7 +984,7 @@ object Interpret {
           assert(rTyp.types(0).virtualType == query.typ)
 
           ctx.r.pool.scopedRegion { r =>
-            val resF = f(fsBc.value, 0, r)
+            val resF = f(ctx.theHailClassLoader, fsBc.value, 0, r)
             resF.setAggState(rv.region, rv.offset)
             val resAddr = resF(r, globalsOffset)
             val res = SafeRow(rTyp, resAddr)
@@ -1002,7 +1002,7 @@ object Interpret {
           MakeTuple.ordered(FastSeq(child)),
           optimize = false)
         ctx.r.pool.scopedRegion { r =>
-          SafeRow.read(rt, makeFunction(ctx.fs, 0, r)(r)).asInstanceOf[Row](0)
+          SafeRow.read(rt, makeFunction(ctx.theHailClassLoader, ctx.fs, 0, r)(r)).asInstanceOf[Row](0)
         }
       case UUID4(_) =>
          uuid4()

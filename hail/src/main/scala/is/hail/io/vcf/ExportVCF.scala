@@ -468,7 +468,7 @@ object ExportVCF {
         case ExportType.PARALLEL_SEPARATE_HEADER | ExportType.PARALLEL_HEADER_IN_SHARD =>
           val files = fs.glob(path + "/part-*").map(_.getPath.getBytes)
           info(s"Writing tabix index for ${ files.length } in $path")
-          ctx.backend.parallelizeAndComputeWithIndex(ctx.backendContext, ctx.fs, files)({ (pathBytes, _, fs) =>
+          ctx.backend.parallelizeAndComputeWithIndex(ctx.backendContext, ctx.fs, files)({ (pathBytes, _, _, fs) =>
                       TabixVCF(fs, new String(pathBytes))
                       Array.empty
                     })

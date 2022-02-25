@@ -99,7 +99,8 @@ class PruneSuite extends HailSuite {
         Row(FastIndexedSeq(Row("hi", FastIndexedSeq(Row(1)), "bye", Row(2, FastIndexedSeq(Row("bar"))), "foo")), Row(5, 10))),
       None),
     FastIndexedSeq("3"),
-    false).analyzeAndExecute(ctx).asTableValue(ctx))
+    false).analyzeAndExecute(ctx).asTableValue(ctx),
+    theHailClassLoader)
 
   lazy val tr = TableRead(tab.typ, false, new TableReader {
     override def renderShort(): String = ???
@@ -471,7 +472,7 @@ class PruneSuite extends HailSuite {
   }
 
   @Test def testMatrixAnnotateRowsTableMemo() {
-    val tl = TableLiteral(Interpret(MatrixRowsTable(mat), ctx))
+    val tl = TableLiteral(Interpret(MatrixRowsTable(mat), ctx), theHailClassLoader)
     val mart = MatrixAnnotateRowsTable(mat, tl, "foo", product=false)
     checkMemo(mart, subsetMatrixTable(mart.typ, "va.foo.r3", "va.r3"),
       Array(subsetMatrixTable(mat.typ, "va.r3"), subsetTable(tl.typ, "row.r3")))
@@ -1115,7 +1116,7 @@ class PruneSuite extends HailSuite {
   }
 
   @Test def testMatrixAnnotateRowsTableRebuild() {
-    val tl = TableLiteral(Interpret(MatrixRowsTable(mat), ctx))
+    val tl = TableLiteral(Interpret(MatrixRowsTable(mat), ctx), theHailClassLoader)
     val mart = MatrixAnnotateRowsTable(mat, tl, "foo", product=false)
     checkRebuild(mart, subsetMatrixTable(mart.typ),
       (_: BaseIR, r: BaseIR) => {
