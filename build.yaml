@@ -1584,8 +1584,8 @@ steps:
     inputs:
       - from: /debug-wheel-container.tar
         to: /io/debug-wheel-container.tar
-      - from: /test.tar.gz
-        to: /io/test.tar.gz
+      - from: /repo/hail/python/test
+        to: /io/test
     secrets:
       - name: test-gsa-key
         namespace:
@@ -1615,7 +1615,6 @@ steps:
     script: |
       set -ex
       cd /io
-      tar xzf test.tar.gz
       tar xvf debug-wheel-container.tar
       python3 -m pip install --no-dependencies hail-*-py3-none-any.whl
 
@@ -1642,8 +1641,8 @@ steps:
     inputs:
       - from: /debug-wheel-container.tar
         to: /io/debug-wheel-container.tar
-      - from: /test.tar.gz
-        to: /io/test.tar.gz
+      - from: /repo/hail/python/test
+        to: /io/test
     secrets:
       - name: test-gsa-key
         namespace:
@@ -1673,7 +1672,6 @@ steps:
     script: |
       set -ex
       cd /io
-      tar xzf test.tar.gz
       tar xvf debug-wheel-container.tar
       python3 -m pip install --no-dependencies hail-*-py3-none-any.whl
 
@@ -1700,8 +1698,8 @@ steps:
     inputs:
       - from: /debug-wheel-container.tar
         to: /io/debug-wheel-container.tar
-      - from: /test.tar.gz
-        to: /io/test.tar.gz
+      - from: /repo/hail/python/test
+        to: /io/test
     secrets:
       - name: test-gsa-key
         namespace:
@@ -1731,7 +1729,6 @@ steps:
     script: |
       set -ex
       cd /io
-      tar xzf test.tar.gz
       tar xvf debug-wheel-container.tar
       python3 -m pip install --no-dependencies hail-*-py3-none-any.whl
 
@@ -1758,8 +1755,8 @@ steps:
     inputs:
       - from: /debug-wheel-container.tar
         to: /io/debug-wheel-container.tar
-      - from: /test.tar.gz
-        to: /io/test.tar.gz
+      - from: /repo/hail/python/test
+        to: /io/test
     secrets:
       - name: test-gsa-key
         namespace:
@@ -1789,7 +1786,6 @@ steps:
     script: |
       set -ex
       cd /io
-      tar xzf test.tar.gz
       tar xvf debug-wheel-container.tar
       python3 -m pip install --no-dependencies hail-*-py3-none-any.whl
 
