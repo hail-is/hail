@@ -2279,7 +2279,7 @@ steps:
   - kind: runImage
     name: make_docs
     image:
-      valueFrom: hail_run_tests_image.image
+      valueFrom: hail_pip_installed_image.image
     script: |
       set -ex
       export HAIL_SHORT_VERSION='0.2'
@@ -2316,7 +2316,7 @@ steps:
       - from: /io/www.tar.gz
         to: /www.tar.gz
     dependsOn:
-      - hail_run_tests_image
+      - hail_pip_installed_image
       - build_hail_jar_wheel_pysrc
   - kind: runImage
     name: get_pip_versioned_docs
