@@ -154,8 +154,8 @@ steps:
         to: /io/repo/docker/core-site.xml
       - from: /repo/docker/requirements.txt
         to: /io/repo/docker/requirements.txt
-      - from: /repo/docker/Dockerfile.base
-        to: /io/repo/docker/Dockerfile.base
+      - from: /repo/docker/Dockerfile.base2
+        to: /io/repo/docker/Dockerfile.base2
       - from: /repo/pylintrc
         to: /io/repo/pylintrc
       - from: /repo/setup.cfg
