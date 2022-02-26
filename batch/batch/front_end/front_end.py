@@ -1,83 +1,83 @@
-from typing import Optional, Union, Dict
-from numbers import Number
-import os
-import logging
-import json
-import random
-import datetime
-import collections
-from functools import wraps
 import asyncio
-import aiohttp
+import collections
+import datetime
+import json
+import logging
+import os
+import random
 import signal
-from aiohttp import web
-import aiohttp_session
-import pandas as pd
-import pymysql
-import plotly.express as px
-import plotly
-import humanize
 import traceback
+from functools import wraps
+from numbers import Number
+from typing import Dict, Optional, Union
+
+import aiohttp
+import aiohttp_session
+import humanize
+import pandas as pd
+import plotly
+import plotly.express as px
+import pymysql
+from aiohttp import web
 from prometheus_async.aio.web import server_stats  # type: ignore
 
-from hailtop.utils import (
-    time_msecs,
-    time_msecs_str,
-    humanize_timedelta_msecs,
-    request_retry_transient_errors,
-    run_if_changed,
-    retry_long_running,
-    LoggingTimer,
-    cost_str,
-    dump_all_stacktraces,
-    periodically_call,
-)
-from hailtop.batch_client.parse import parse_cpu_in_mcpu, parse_memory_in_bytes, parse_storage_in_bytes
-from hailtop.config import get_deploy_config
-from hailtop.tls import internal_server_ssl_context
-from hailtop import httpx
-from hailtop.hail_logging import AccessLogger
-from hailtop import aiotools, dictfix
 from gear import (
     Database,
-    setup_aiohttp_session,
-    rest_authenticated_users_only,
-    web_authenticated_users_only,
-    web_authenticated_developers_only,
     check_csrf_token,
-    transaction,
     monitor_endpoints_middleware,
+    rest_authenticated_users_only,
+    setup_aiohttp_session,
+    transaction,
+    web_authenticated_developers_only,
+    web_authenticated_users_only,
 )
 from gear.clients import get_cloud_async_fs
 from gear.database import CallError
-from web_common import setup_aiohttp_jinja2, setup_common_static_routes, render_template, set_message
+from hailtop import aiotools, dictfix, httpx
+from hailtop.batch_client.parse import parse_cpu_in_mcpu, parse_memory_in_bytes, parse_storage_in_bytes
+from hailtop.config import get_deploy_config
+from hailtop.hail_logging import AccessLogger
+from hailtop.tls import internal_server_ssl_context
+from hailtop.utils import (
+    LoggingTimer,
+    cost_str,
+    dump_all_stacktraces,
+    humanize_timedelta_msecs,
+    periodically_call,
+    request_retry_transient_errors,
+    retry_long_running,
+    run_if_changed,
+    time_msecs,
+    time_msecs_str,
+)
+from web_common import render_template, set_message, setup_aiohttp_jinja2, setup_common_static_routes
 
-# import uvloop
-
-from ..utils import coalesce, query_billing_projects, accrued_cost_from_cost_and_msec_mcpu
+from ..batch import batch_record_to_dict, cancel_batch_in_db, job_record_to_dict
+from ..batch_configuration import BATCH_STORAGE_URI, CLOUD, DEFAULT_NAMESPACE, SCOPE
+from ..batch_format_version import BatchFormatVersion
 from ..cloud.resource_utils import (
-    is_valid_cores_mcpu,
-    cost_from_msec_mcpu,
     cores_mcpu_to_memory_bytes,
+    cost_from_msec_mcpu,
+    is_valid_cores_mcpu,
     memory_to_worker_type,
     valid_machine_types,
 )
-from ..batch import batch_record_to_dict, job_record_to_dict, cancel_batch_in_db
 from ..exceptions import (
+    BatchOperationAlreadyCompletedError,
     BatchUserError,
-    NonExistentBillingProjectError,
     ClosedBillingProjectError,
     InvalidBillingLimitError,
-    BatchOperationAlreadyCompletedError,
+    NonExistentBillingProjectError,
 )
-from ..inst_coll_config import InstanceCollectionConfigs
 from ..file_store import FileStore
-from ..batch_configuration import BATCH_STORAGE_URI, DEFAULT_NAMESPACE, SCOPE, CLOUD
-from ..globals import HTTP_CLIENT_MAX_SIZE, BATCH_FORMAT_VERSION
+from ..globals import BATCH_FORMAT_VERSION, HTTP_CLIENT_MAX_SIZE
+from ..inst_coll_config import InstanceCollectionConfigs
 from ..spec_writer import SpecWriter
-from ..batch_format_version import BatchFormatVersion
+from ..utils import accrued_cost_from_cost_and_msec_mcpu, coalesce, query_billing_projects
+from .validate import ValidationError, validate_and_clean_jobs, validate_batch
 
-from .validate import ValidationError, validate_batch, validate_and_clean_jobs
+# import uvloop
+
 
 # uvloop.install()
 

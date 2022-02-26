@@ -1,5 +1,5 @@
-import re
 import logging
+import re
 from typing import Optional, Tuple
 
 log = logging.getLogger('utils')

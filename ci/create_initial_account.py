@@ -1,13 +1,13 @@
 import argparse
 import base64
 import json
-import kubernetes_asyncio.config
-import kubernetes_asyncio.client
 import os
 
-from hailtop.utils import async_to_blocking
-from gear import Database, transaction
+import kubernetes_asyncio.client
+import kubernetes_asyncio.config
 
+from gear import Database, transaction
+from hailtop.utils import async_to_blocking
 
 NAMESPACE = os.environ['NAMESPACE']
 

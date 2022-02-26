@@ -1,5 +1,5 @@
-from typing import Any, Dict, Set
 import os
+from typing import Any, Dict, Set
 from urllib.parse import urlparse
 
 from gear.cloud_config import get_azure_config, get_gcp_config

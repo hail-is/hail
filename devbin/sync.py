@@ -1,22 +1,22 @@
 #!/usr/bin/env python3
-from typing import List, Tuple, Set
-from hailtop.aiotools import BackgroundTaskManager
-from contextlib import closing
-from hailtop.utils import check_shell, CalledProcessError
-from hailtop.utils import retry_transient_errors
-from hailtop.hail_logging import configure_logging
-from fswatch import Monitor, libfswatch
-from threading import Thread
-import os
 import argparse
 import asyncio
-import kubernetes_asyncio.config
-import kubernetes_asyncio.client
 import logging
+import os
 import re
-import sys
 import signal
+import sys
+from contextlib import closing
+from threading import Thread
+from typing import List, Set, Tuple
 
+import kubernetes_asyncio.client
+import kubernetes_asyncio.config
+from fswatch import Monitor, libfswatch
+
+from hailtop.aiotools import BackgroundTaskManager
+from hailtop.hail_logging import configure_logging
+from hailtop.utils import CalledProcessError, check_shell, retry_transient_errors
 
 configure_logging()
 log = logging.getLogger('sync.py')

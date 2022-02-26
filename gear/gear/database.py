@@ -1,17 +1,17 @@
-from typing import Optional
-import os
 import asyncio
-import pymysql
-import aiomysql
-import logging
 import functools
+import logging
+import os
 import ssl
 import traceback
+from typing import Optional
+
+import aiomysql
+import pymysql
 
 from gear.metrics import PrometheusSQLTimer
-from hailtop.utils import sleep_and_backoff
 from hailtop.auth.sql_config import SQLConfig
-
+from hailtop.utils import sleep_and_backoff
 
 log = logging.getLogger('gear.database')
 

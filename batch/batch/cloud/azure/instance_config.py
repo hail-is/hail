@@ -6,15 +6,14 @@ from ...driver.billing_manager import ProductVersions
 from ...instance_config import InstanceConfig
 from .resource_utils import azure_machine_type_to_worker_type_and_cores
 from .resources import (
-    AzureResource,
-    AzureVMResource,
-    AzureStaticSizedDiskResource,
     AzureDynamicSizedDiskResource,
-    AzureServiceFeeResource,
     AzureIPFeeResource,
+    AzureResource,
+    AzureServiceFeeResource,
+    AzureStaticSizedDiskResource,
+    AzureVMResource,
     azure_resource_from_dict,
 )
-
 
 AZURE_INSTANCE_CONFIG_VERSION = 2
 

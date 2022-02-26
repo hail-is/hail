@@ -1,6 +1,6 @@
-from typing import Dict, Set
-import os
 import json
+import os
+from typing import Dict, Set
 
 
 class AzureConfig:

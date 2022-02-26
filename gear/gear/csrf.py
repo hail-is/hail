@@ -1,6 +1,7 @@
-import secrets
 import logging
+import secrets
 from functools import wraps
+
 from aiohttp import web
 
 log = logging.getLogger('gear.auth')

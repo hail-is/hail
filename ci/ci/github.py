@@ -1,26 +1,27 @@
-from enum import Enum
-from typing import Dict, Optional, Set, Union
-import secrets
-from shlex import quote as shq
-import json
-import logging
 import asyncio
 import concurrent.futures
+import json
+import logging
+import os
+import random
+import secrets
+from enum import Enum
+from shlex import quote as shq
+from typing import Dict, Optional, Set, Union
+
 import aiohttp
 import gidgethub
-import zulip
-import random
-import os
 import prometheus_client as pc  # type: ignore
+import zulip
 
-from hailtop.config import get_deploy_config
 from hailtop.batch_client.aioclient import Batch
-from hailtop.utils import check_shell, check_shell_output, RETRY_FUNCTION_SCRIPT
-from .constants import GITHUB_CLONE_URL, AUTHORIZED_USERS, GITHUB_STATUS_CONTEXT, SERVICES_TEAM, COMPILER_TEAM
-from .build import BuildConfiguration, Code
-from .globals import is_test_deployment
-from .environment import DEPLOY_STEPS
+from hailtop.config import get_deploy_config
+from hailtop.utils import RETRY_FUNCTION_SCRIPT, check_shell, check_shell_output
 
+from .build import BuildConfiguration, Code
+from .constants import AUTHORIZED_USERS, COMPILER_TEAM, GITHUB_CLONE_URL, GITHUB_STATUS_CONTEXT, SERVICES_TEAM
+from .environment import DEPLOY_STEPS
+from .globals import is_test_deployment
 
 repos_lock = asyncio.Lock()
 

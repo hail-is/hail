@@ -1,78 +1,71 @@
-from typing import Optional, Dict, Callable, Tuple, Awaitable, Any, Union, MutableMapping, List, Iterator
-import errno
-import os
-import json
-import sys
-import re
-import logging
 import asyncio
-import random
-import traceback
 import base64
-import uuid
+import concurrent
+import errno
+import json
+import logging
+import os
+import random
+import re
 import shutil
 import signal
-import aiohttp
-import aiohttp.client_exceptions
-from aiohttp import web
-import async_timeout
-import concurrent
+import sys
 import tempfile
+import traceback
+import uuid
+import warnings
+from collections import defaultdict
+from contextlib import ExitStack, contextmanager
+from typing import Any, Awaitable, Callable, Dict, Iterator, List, MutableMapping, Optional, Tuple, Union
 
 import aiodocker  # type: ignore
 import aiodocker.images
-from aiodocker.exceptions import DockerError  # type: ignore
-
+import aiohttp
+import aiohttp.client_exceptions
 import aiorwlock
-from contextlib import ExitStack, contextmanager
-from collections import defaultdict
+import async_timeout
+from aiodocker.exceptions import DockerError  # type: ignore
+from aiohttp import web
 
-from gear.clients import get_compute_client, get_cloud_async_fs
-
+from gear.clients import get_cloud_async_fs, get_compute_client
+from hailtop import aiotools, httpx
+from hailtop.aiotools import LocalAsyncFS
+from hailtop.aiotools.router_fs import RouterAsyncFS
+from hailtop.batch.hail_genetics_images import HAIL_GENETICS_IMAGES
+from hailtop.config import DeployConfig
+from hailtop.hail_logging import configure_logging
 from hailtop.utils import (
+    CalledProcessError,
+    blocking_to_async,
+    check_exec_output,
+    check_shell,
+    check_shell_output,
+    dump_all_stacktraces,
+    find_spark_home,
+    parse_docker_image_reference,
+    periodically_call,
+    request_retry_transient_errors,
+    retry_all_errors,
+    sleep_and_backoff,
     time_msecs,
     time_msecs_str,
-    request_retry_transient_errors,
-    sleep_and_backoff,
-    retry_all_errors,
-    check_shell,
-    CalledProcessError,
-    check_exec_output,
-    check_shell_output,
-    find_spark_home,
-    dump_all_stacktraces,
-    parse_docker_image_reference,
-    blocking_to_async,
-    periodically_call,
 )
-from hailtop.batch.hail_genetics_images import HAIL_GENETICS_IMAGES
-from hailtop.aiotools.router_fs import RouterAsyncFS
-from hailtop.aiotools import LocalAsyncFS
-from hailtop import aiotools, httpx
+
+from ..batch_format_version import BatchFormatVersion
+from ..cloud.azure.worker.worker_api import AzureWorkerAPI
+from ..cloud.gcp.worker.worker_api import GCPWorkerAPI
+from ..cloud.resource_utils import is_valid_storage_request, storage_gib_to_bytes
+from ..file_store import FileStore
+from ..globals import HTTP_CLIENT_MAX_SIZE, RESERVED_STORAGE_GB_PER_CORE, STATUS_FORMAT_VERSION
+from ..publicly_available_images import publicly_available_images
+from ..semaphore import FIFOWeightedSemaphore
+from ..utils import Box
+from ..worker.worker_api import CloudWorkerAPI
+from .credentials import CloudUserCredentials
+from .jvm_entryway_protocol import EndOfStream, read_bool, read_int, read_str, write_int, write_str
 
 # import uvloop
 
-from hailtop.config import DeployConfig
-from hailtop.hail_logging import configure_logging
-import warnings
-
-from ..semaphore import FIFOWeightedSemaphore
-from ..file_store import FileStore
-from ..globals import (
-    HTTP_CLIENT_MAX_SIZE,
-    STATUS_FORMAT_VERSION,
-    RESERVED_STORAGE_GB_PER_CORE,
-)
-from ..batch_format_version import BatchFormatVersion
-from ..publicly_available_images import publicly_available_images
-from ..utils import Box
-from ..worker.worker_api import CloudWorkerAPI
-from ..cloud.gcp.worker.worker_api import GCPWorkerAPI
-from ..cloud.azure.worker.worker_api import AzureWorkerAPI
-from ..cloud.resource_utils import storage_gib_to_bytes, is_valid_storage_request
-
-from .credentials import CloudUserCredentials
-from .jvm_entryway_protocol import read_bool, read_int, read_str, write_int, write_str, EndOfStream
 
 # uvloop.install()
 
