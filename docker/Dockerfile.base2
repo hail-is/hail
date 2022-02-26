@@ -36,16 +36,25 @@ RUN hail-pip-install pyspark==3.1.1 && \
     cmake -Bbuild -H. -DBUILD_TESTING=OFF && \
     cmake --build build/ --target install && \
     cd .. && \
-    rm -rf Catch2
+    rm -rf Catch2 && \
+    mkdir -p plink && \
+    cd plink && \
+    wget -O plink_linux_x86_64.zip https://storage.googleapis.com/hail-common/plink_linux_x86_64_20181202.zip && \
+    unzip plink_linux_x86_64.zip && \
+    mv plink /usr/local/bin && \
+    cd .. && \
+    rm -rf plink
 
 ENV SPARK_HOME /usr/local/lib/python3.7/dist-packages/pyspark
 ENV PATH $PATH:/google-cloud-sdk/bin:$SPARK_HOME/sbin:$SPARK_HOME/bin
 ENV PYSPARK_PYTHON python3
 
 COPY docker/core-site.xml ${SPARK_HOME}/conf/core-site.xml
-COPY docker/requirements.txt .
 
-RUN hail-pip-install -r requirements.txt
+COPY hail/python/requirements.txt python-requirements.txt
+COPY hail/python/dev-requirements.txt python-dev-requirements.txt
+
+RUN hail-pip-install -r python-requirements.txt -r python-dev-requirements.txt
 
 COPY pylintrc setup.cfg /
 COPY gear/setup.py /gear/setup.py

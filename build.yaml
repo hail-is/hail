@@ -140,6 +140,202 @@ steps:
     dependsOn:
       - hail_ubuntu_image
       - merge_code
+  - kind: buildImage2
+    name: base2_image
+    dockerFile: /io/repo/docker/Dockerfile.base2
+    contextPath: /io/repo
+    publishAs: base
+    resources:
+      storage: 10Gi
+      cpu: "2"
+      memory: standard
+    inputs:
+      - from: /repo/docker/core-site.xml
+        to: /io/repo/docker/core-site.xml
+      - from: /repo/docker/requirements.txt
+        to: /io/repo/docker/requirements.txt
+      - from: /repo/docker/Dockerfile.base
+        to: /io/repo/docker/Dockerfile.base
+      - from: /repo/pylintrc
+        to: /io/repo/pylintrc
+      - from: /repo/setup.cfg
+        to: /io/repo/setup.cfg
+      - from: /repo/gear
+        to: /io/repo/gear
+      - from: /repo/web_common
+        to: /io/repo/web_common
+      - from: /repo/hail/python
+        to: /io/repo/hail/python
+      - from: /hail_version
+        to: /io/repo/hail_version
+    dependsOn:
+      - hail_ubuntu_image
+      - merge_code
+  - kind: runImage
+    name: build_hail_jar_wheel_pysrc
+    image:
+      valueFrom: base_image.image
+    resources:
+      memory: standard
+      cpu: '4'
+    script: |
+      set -ex
+      cd /io/repo/hail
+      chmod 755 ./gradlew
+      time retry ./gradlew --version
+      time retry make shadowJar wheel
+      (cd build/deploy/dist/ && tar -cvf wheel-container.tar hail-*-py3-none-any.whl)
+    inputs:
+      - from: /repo
+        to: /io/repo
+    outputs:
+      - from: /io/repo/hail/build/libs/hail-all-spark.jar
+        to: /just-jar/hail.jar
+      - from: /io/repo/hail/build/deploy/dist/wheel-container.tar
+        to: /just-wheel/wheel-container.tar
+      - from: /io/repo/hail/python
+        to: /just-pysrc/python
+    dependsOn:
+      - base_image
+      - merge_code
+  - kind: runImage
+    name: build_hail_debug_wheel
+    image:
+      valueFrom: base_image.image
+    resources:
+      memory: standard
+      cpu: '4'
+    script: |
+      set -ex
+      cd /io/repo/hail
+      chmod 755 ./gradlew
+      time retry ./gradlew --version
+      time retry make wheel HAIL_DEBUG_MODE=1
+      (cd build/deploy/dist/ && tar -cvf debug-wheel-container.tar hail-*-py3-none-any.whl)
+    inputs:
+      - from: /repo
+        to: /io/repo
+    outputs:
+      - from: /io/repo/hail/build/deploy/dist/debug-wheel-container.tar
+        to: /debug-wheel-container.tar
+    dependsOn:
+      - base_image
+      - merge_code
+  - kind: runImage
+    name: build_hail_debug_test_jar
+    image:
+      valueFrom: base_image.image
+    resources:
+      memory: standard
+      cpu: '4'
+    script: |
+      set -ex
+      cd /io/repo/hail
+      chmod 755 ./gradlew
+      time retry ./gradlew --version
+      time retry make shadowTestJar HAIL_DEBUG_MODE=1
+      time TESTNG_SPLITS=5 python3 generate_splits.py
+      time tar czf splits.tar.gz testng-splits-*.xml
+    inputs:
+      - from: /repo
+        to: /io/repo
+    outputs:
+      - from: /io/repo/hail/build/libs/hail-all-spark-test.jar
+        to: /hail-debug-test.jar
+      - from: /io/repo/hail/splits.tar.gz
+        to: /splits.tar.gz
+    dependsOn:
+      - base_image
+      - merge_code
+  - kind: runImage
+    name: build_hail_spark2.4.5
+    image:
+      valueFrom: base_image.image
+    resources:
+      memory: standard
+      cpu: '4'
+    script: |
+      set -ex
+      cd /io/repo/hail
+      chmod 755 ./gradlew
+      time retry ./gradlew --version
+      export SPARK_VERSION="2.4.5" SCALA_VERSION="2.11.12"
+      time retry make jars python-version-info wheel
+    inputs:
+      - from: /repo
+        to: /io/repo
+    dependsOn:
+      - base_image
+      - merge_code
+  - kind: runImage
+    name: build_hail_spark3.0.1
+    image:
+      valueFrom: base_image.image
+    resources:
+      memory: standard
+      cpu: '4'
+    script: |
+      set -ex
+      cd /io/repo/hail
+      chmod 755 ./gradlew
+      time retry ./gradlew --version
+      export SPARK_VERSION="3.0.1" SCALA_VERSION="2.12.12"
+      time retry make jars python-version-info wheel
+    inputs:
+      - from: /repo
+        to: /io/repo
+    dependsOn:
+      - base_image
+      - merge_code
+  - kind: runImage
+    name: build_wheel_for_azure
+    image:
+      valueFrom: base_image.image
+    resources:
+      memory: standard
+      cpu: '4'
+    script: |
+      set -ex
+      cd /io/repo/hail
+      chmod 755 ./gradlew
+      time retry ./gradlew --version
+      export SPARK_VERSION="3.0.2" SCALA_VERSION="2.12.10"
+      time retry make wheel
+      (cd build/deploy/dist/ && tar -cvf wheel-container.tar hail-*-py3-none-any.whl)
+    inputs:
+      - from: /repo
+        to: /io/repo
+    outputs:
+      - from: /io/repo/hail/build/deploy/dist/wheel-container.tar
+        to: /wheel-for-azure-container.tar
+    dependsOn:
+      - base_image
+      - merge_code
+  - kind: runImage
+    name: compile_batch_worker_jvm_entryway
+    image:
+      valueFrom: base_image.image
+    script: |
+      set -ex
+
+      cd /io
+
+      curl -sSfL https://github.com/kohlschutter/junixsocket/releases/download/junixsocket-parent-2.3.3/junixsocket-selftest-2.3.3-jar-with-dependencies.jar \
+           > junixsocket-selftest-2.3.3-jar-with-dependencies.jar
+
+      javac -cp junixsocket-selftest-2.3.3-jar-with-dependencies.jar \
+            batch/src/main/java/is/hail/JVMEntryway.java
+    inputs:
+      - from: /repo/batch
+        to: /io/batch
+    outputs:
+      - from: /io/junixsocket-selftest-2.3.3-jar-with-dependencies.jar
+        to: /junixsocket-selftest-2.3.3-jar-with-dependencies.jar
+      - from: /io/batch/src/main/java/is/hail
+        to: /batch-jvm-entryway-classes
+    dependsOn:
+      - base_image
+      - merge_code
   - kind: runImage
     name: check_hail
     image:
@@ -494,21 +690,6 @@ steps:
       - merge_code
       - auth_database
   - kind: buildImage2
-    name: hail_run_tests_image
-    dockerFile: /io/hail/Dockerfile.hail-run-tests
-    contextPath: /io/hail
-    publishAs: hail-run-tests
-    inputs:
-      - from: /repo/hail
-        to: /io/hail
-    dependsOn:
-      - base_image
-      - merge_code
-    resources:
-      storage: 10Gi
-      cpu: "2"
-      memory: standard
-  - kind: buildImage2
     name: benchmark_image
     dockerFile: /io/repo/benchmark-service/Dockerfile
     contextPath: /io/repo
@@ -660,171 +841,6 @@ steps:
     dependsOn:
       - base_image
       - merge_code
-  - kind: runImage
-    name: build_hail_jar_wheel_pysrc
-    image:
-      valueFrom: base_image.image
-    resources:
-      memory: standard
-      cpu: '4'
-    script: |
-      set -ex
-      cd /io/repo/hail
-      chmod 755 ./gradlew
-      time retry ./gradlew --version
-      time retry make shadowJar wheel
-      (cd build/deploy/dist/ && tar -cvf wheel-container.tar hail-*-py3-none-any.whl)
-    inputs:
-      - from: /repo
-        to: /io/repo
-    outputs:
-      - from: /io/repo/hail/build/libs/hail-all-spark.jar
-        to: /just-jar/hail.jar
-      - from: /io/repo/hail/build/deploy/dist/wheel-container.tar
-        to: /just-wheel/wheel-container.tar
-      - from: /io/repo/hail/python
-        to: /just-pysrc/python
-    dependsOn:
-      - base_image
-      - merge_code
-  - kind: runImage
-    name: build_hail_debug_wheel
-    image:
-      valueFrom: base_image.image
-    resources:
-      memory: standard
-      cpu: '4'
-    script: |
-      set -ex
-      cd /io/repo/hail
-      chmod 755 ./gradlew
-      time retry ./gradlew --version
-      time retry make wheel HAIL_DEBUG_MODE=1
-      (cd build/deploy/dist/ && tar -cvf debug-wheel-container.tar hail-*-py3-none-any.whl)
-    inputs:
-      - from: /repo
-        to: /io/repo
-    outputs:
-      - from: /io/repo/hail/build/deploy/dist/debug-wheel-container.tar
-        to: /debug-wheel-container.tar
-    dependsOn:
-      - base_image
-      - merge_code
-  - kind: runImage
-    name: build_hail_debug_test_jar
-    image:
-      valueFrom: base_image.image
-    resources:
-      memory: standard
-      cpu: '4'
-    script: |
-      set -ex
-      cd /io/repo/hail
-      chmod 755 ./gradlew
-      time retry ./gradlew --version
-      time retry make shadowTestJar HAIL_DEBUG_MODE=1
-      time TESTNG_SPLITS=5 python3 generate_splits.py
-      time tar czf splits.tar.gz testng-splits-*.xml
-    inputs:
-      - from: /repo
-        to: /io/repo
-    outputs:
-      - from: /io/repo/hail/build/libs/hail-all-spark-test.jar
-        to: /hail-debug-test.jar
-      - from: /io/repo/hail/splits.tar.gz
-        to: /splits.tar.gz
-    dependsOn:
-      - base_image
-      - merge_code
-  - kind: runImage
-    name: build_hail_spark2.4.5
-    image:
-      valueFrom: base_image.image
-    resources:
-      memory: standard
-      cpu: '4'
-    script: |
-      set -ex
-      cd /io/repo/hail
-      chmod 755 ./gradlew
-      time retry ./gradlew --version
-      export SPARK_VERSION="2.4.5" SCALA_VERSION="2.11.12"
-      time retry make jars python-version-info wheel
-    inputs:
-      - from: /repo
-        to: /io/repo
-    dependsOn:
-      - base_image
-      - merge_code
-  - kind: runImage
-    name: build_hail_spark3.0.1
-    image:
-      valueFrom: base_image.image
-    resources:
-      memory: standard
-      cpu: '4'
-    script: |
-      set -ex
-      cd /io/repo/hail
-      chmod 755 ./gradlew
-      time retry ./gradlew --version
-      export SPARK_VERSION="3.0.1" SCALA_VERSION="2.12.12"
-      time retry make jars python-version-info wheel
-    inputs:
-      - from: /repo
-        to: /io/repo
-    dependsOn:
-      - base_image
-      - merge_code
-  - kind: runImage
-    name: build_wheel_for_azure
-    image:
-      valueFrom: base_image.image
-    resources:
-      memory: standard
-      cpu: '4'
-    script: |
-      set -ex
-      cd /io/repo/hail
-      chmod 755 ./gradlew
-      time retry ./gradlew --version
-      export SPARK_VERSION="3.0.2" SCALA_VERSION="2.12.10"
-      time retry make wheel
-      (cd build/deploy/dist/ && tar -cvf wheel-container.tar hail-*-py3-none-any.whl)
-    inputs:
-      - from: /repo
-        to: /io/repo
-    outputs:
-      - from: /io/repo/hail/build/deploy/dist/wheel-container.tar
-        to: /wheel-for-azure-container.tar
-    dependsOn:
-      - base_image
-      - merge_code
-  - kind: runImage
-    name: compile_batch_worker_jvm_entryway
-    image:
-      valueFrom: base_image.image
-    script: |
-      set -ex
-
-      cd /io
-
-      curl -sSfL https://github.com/kohlschutter/junixsocket/releases/download/junixsocket-parent-2.3.3/junixsocket-selftest-2.3.3-jar-with-dependencies.jar \
-           > junixsocket-selftest-2.3.3-jar-with-dependencies.jar
-
-      javac -cp junixsocket-selftest-2.3.3-jar-with-dependencies.jar \
-            batch/src/main/java/is/hail/JVMEntryway.java
-    inputs:
-      - from: /repo/batch
-        to: /io/batch
-    outputs:
-      - from: /io/junixsocket-selftest-2.3.3-jar-with-dependencies.jar
-        to: /junixsocket-selftest-2.3.3-jar-with-dependencies.jar
-      - from: /io/batch/src/main/java/is/hail
-        to: /batch-jvm-entryway-classes
-    dependsOn:
-      - base_image
-      - merge_code
   - kind: buildImage2
     name: batch_worker_image
     dockerFile: /io/repo/batch/Dockerfile.worker
@@ -885,7 +901,7 @@ steps:
       - from: /just-wheel/wheel-container.tar
         to: /io/hail/wheel-container.tar
     dependsOn:
-      - hail_run_tests_image
+      - base2_image
       - build_hail_jar_wheel_pysrc
       - merge_code
     resources:
@@ -924,7 +940,7 @@ steps:
   - kind: runImage
     name: test_hail_java_0
     image:
-      valueFrom: hail_run_tests_image.image
+      valueFrom: base2_image.image
     resources:
       memory: standard
       cpu: '2'
@@ -952,12 +968,12 @@ steps:
         mountPath: /test-gsa-key
     dependsOn:
       - default_ns
-      - hail_run_tests_image
+      - base2_image
       - build_hail_debug_test_jar
   - kind: runImage
     name: test_hail_java_1
     image:
-      valueFrom: hail_run_tests_image.image
+      valueFrom: base2_image.image
     resources:
       memory: standard
       cpu: '2'
@@ -985,12 +1001,12 @@ steps:
         mountPath: /test-gsa-key
     dependsOn:
       - default_ns
-      - hail_run_tests_image
+      - base2_image
       - build_hail_debug_test_jar
   - kind: runImage
     name: test_hail_java_2
     image:
-      valueFrom: hail_run_tests_image.image
+      valueFrom: base2_image.image
     resources:
       memory: standard
       cpu: '2'
@@ -1018,12 +1034,12 @@ steps:
         mountPath: /test-gsa-key
     dependsOn:
       - default_ns
-      - hail_run_tests_image
+      - base2_image
       - build_hail_debug_test_jar
   - kind: runImage
     name: test_hail_java_3
     image:
-      valueFrom: hail_run_tests_image.image
+      valueFrom: base2_image.image
     resources:
       memory: standard
       cpu: '2'
@@ -1051,12 +1067,12 @@ steps:
         mountPath: /test-gsa-key
     dependsOn:
       - default_ns
-      - hail_run_tests_image
+      - base2_image
       - build_hail_debug_test_jar
   - kind: runImage
     name: test_hail_java_4
     image:
-      valueFrom: hail_run_tests_image.image
+      valueFrom: base2_image.image
     resources:
       memory: standard
       cpu: '2'
@@ -1084,7 +1100,7 @@ steps:
         mountPath: /test-gsa-key
     dependsOn:
       - default_ns
-      - hail_run_tests_image
+      - base2_image
       - build_hail_debug_test_jar
   - kind: buildImage2
     name: hail_pip_installed_python37_image
@@ -1214,7 +1230,7 @@ steps:
   - kind: runImage
     name: test_hail_python_0
     image:
-      valueFrom: hail_run_tests_image.image
+      valueFrom: base2_image.image
     resources:
       memory: standard
       cpu: '2'
@@ -1260,14 +1276,14 @@ steps:
     dependsOn:
       - default_ns
       - merge_code
-      - hail_run_tests_image
+      - base2_image
       - build_hail_debug_wheel
     clouds:
       - gcp
   - kind: runImage
     name: test_hail_python_1
     image:
-      valueFrom: hail_run_tests_image.image
+      valueFrom: base2_image.image
     resources:
       memory: standard
       cpu: '2'
@@ -1312,14 +1328,14 @@ steps:
     dependsOn:
       - default_ns
       - merge_code
-      - hail_run_tests_image
+      - base2_image
       - build_hail_debug_wheel
     clouds:
       - gcp
   - kind: runImage
     name: test_hail_python_2
     image:
-      valueFrom: hail_run_tests_image.image
+      valueFrom: base2_image.image
     resources:
       memory: standard
       cpu: '2'
@@ -1364,14 +1380,14 @@ steps:
     dependsOn:
       - default_ns
       - merge_code
-      - hail_run_tests_image
+      - base2_image
       - build_hail_debug_wheel
     clouds:
       - gcp
   - kind: runImage
     name: test_hail_python_3
     image:
-      valueFrom: hail_run_tests_image.image
+      valueFrom: base2_image.image
     resources:
       memory: standard
       cpu: '2'
@@ -1416,14 +1432,14 @@ steps:
     dependsOn:
       - default_ns
       - merge_code
-      - hail_run_tests_image
+      - base2_image
       - build_hail_debug_wheel
     clouds:
       - gcp
   - kind: runImage
     name: test_hail_python_4
     image:
-      valueFrom: hail_run_tests_image.image
+      valueFrom: base2_image.image
     resources:
       memory: standard
       cpu: '2'
@@ -1468,14 +1484,14 @@ steps:
     dependsOn:
       - default_ns
       - merge_code
-      - hail_run_tests_image
+      - base2_image
       - build_hail_debug_wheel
     clouds:
       - gcp
   - kind: runImage
     name: test_hail_python_5
     image:
-      valueFrom: hail_run_tests_image.image
+      valueFrom: base2_image.image
     resources:
       memory: standard
       cpu: '2'
@@ -1520,14 +1536,14 @@ steps:
     dependsOn:
       - default_ns
       - merge_code
-      - hail_run_tests_image
+      - base2_image
       - build_hail_debug_wheel
     clouds:
       - gcp
   - kind: runImage
     name: test_hail_python_6
     image:
-      valueFrom: hail_run_tests_image.image
+      valueFrom: base2_image.image
     resources:
       memory: standard
       cpu: '2'
@@ -1572,14 +1588,14 @@ steps:
     dependsOn:
       - default_ns
       - merge_code
-      - hail_run_tests_image
+      - base2_image
       - build_hail_debug_wheel
     clouds:
       - gcp
   - kind: runImage
     name: test_hail_python_fs_0
     image:
-      valueFrom: hail_run_tests_image.image
+      valueFrom: base2_image.image
     resources:
       memory: standard
       cpu: '2'
@@ -1629,14 +1645,14 @@ steps:
         mountPath: /test-azure-key
     dependsOn:
       - default_ns
-      - hail_run_tests_image
+      - base2_image
       - build_hail_debug_wheel
     clouds:
       - gcp
   - kind: runImage
     name: test_hail_python_fs_1
     image:
-      valueFrom: hail_run_tests_image.image
+      valueFrom: base2_image.image
     resources:
       memory: standard
       cpu: '2'
@@ -1686,14 +1702,14 @@ steps:
         mountPath: /test-azure-key
     dependsOn:
       - default_ns
-      - hail_run_tests_image
+      - base2_image
       - build_hail_debug_wheel
     clouds:
       - gcp
   - kind: runImage
     name: test_hail_python_fs_2
     image:
-      valueFrom: hail_run_tests_image.image
+      valueFrom: base2_image.image
     resources:
       memory: standard
       cpu: '2'
@@ -1743,14 +1759,14 @@ steps:
         mountPath: /test-azure-key
     dependsOn:
       - default_ns
-      - hail_run_tests_image
+      - base2_image
       - build_hail_debug_wheel
     clouds:
       - gcp
   - kind: runImage
     name: test_hail_python_fs_3
     image:
-      valueFrom: hail_run_tests_image.image
+      valueFrom: base2_image.image
     resources:
       memory: standard
       cpu: '2'
@@ -1800,14 +1816,14 @@ steps:
         mountPath: /test-azure-key
     dependsOn:
       - default_ns
-      - hail_run_tests_image
+      - base2_image
       - build_hail_debug_wheel
     clouds:
       - gcp
   - kind: runImage
     name: test_hail_python_fs_4
     image:
-      valueFrom: hail_run_tests_image.image
+      valueFrom: base2_image.image
     resources:
       memory: standard
       cpu: '2'
@@ -1858,14 +1874,14 @@ steps:
     dependsOn:
       - default_ns
       - merge_code
-      - hail_run_tests_image
+      - base2_image
       - build_hail_debug_wheel
     clouds:
       - gcp
   - kind: runImage
     name: test_hail_python_unchecked_allocator
     image:
-      valueFrom: hail_run_tests_image.image
+      valueFrom: base2_image.image
     resources:
       memory: standard
       cpu: '2'
@@ -1909,14 +1925,14 @@ steps:
     dependsOn:
       - default_ns
       - merge_code
-      - hail_run_tests_image
+      - base2_image
       - build_hail_jar_wheel_pysrc
     clouds:
       - gcp
   - kind: runImage
     name: test_hail_python_local_backend_0
     image:
-      valueFrom: hail_run_tests_image.image
+      valueFrom: base2_image.image
     resources:
       memory: standard
       cpu: '2'
@@ -1958,12 +1974,12 @@ steps:
     dependsOn:
       - default_ns
       - merge_code
-      - hail_run_tests_image
+      - base2_image
       - build_hail_debug_wheel
   - kind: runImage
     name: test_hail_python_local_backend_1
     image:
-      valueFrom: hail_run_tests_image.image
+      valueFrom: base2_image.image
     resources:
       memory: standard
       cpu: '2'
@@ -2005,12 +2021,12 @@ steps:
     dependsOn:
       - default_ns
       - merge_code
-      - hail_run_tests_image
+      - base2_image
       - build_hail_debug_wheel
   - kind: runImage
     name: test_hail_python_local_backend_2
     image:
-      valueFrom: hail_run_tests_image.image
+      valueFrom: base2_image.image
     resources:
       memory: standard
       cpu: '2'
@@ -2052,12 +2068,12 @@ steps:
     dependsOn:
       - default_ns
       - merge_code
-      - hail_run_tests_image
+      - base2_image
       - build_hail_debug_wheel
   - kind: runImage
     name: test_hail_python_local_backend_3
     image:
-      valueFrom: hail_run_tests_image.image
+      valueFrom: base2_image.image
     resources:
       memory: standard
       cpu: '2'
@@ -2099,12 +2115,12 @@ steps:
     dependsOn:
       - default_ns
       - merge_code
-      - hail_run_tests_image
+      - base2_image
       - build_hail_debug_wheel
   - kind: runImage
     name: test_hail_python_local_backend_4
     image:
-      valueFrom: hail_run_tests_image.image
+      valueFrom: base2_image.image
     resources:
       memory: standard
       cpu: '2'
@@ -2146,12 +2162,12 @@ steps:
     dependsOn:
       - default_ns
       - merge_code
-      - hail_run_tests_image
+      - base2_image
       - build_hail_debug_wheel
   - kind: runImage
     name: test_hail_python_local_backend_5
     image:
-      valueFrom: hail_run_tests_image.image
+      valueFrom: base2_image.image
     resources:
       memory: standard
       cpu: '2'
@@ -2193,12 +2209,12 @@ steps:
     dependsOn:
       - default_ns
       - merge_code
-      - hail_run_tests_image
+      - base2_image
       - build_hail_debug_wheel
   - kind: runImage
     name: test_hail_python_local_backend_6
     image:
-      valueFrom: hail_run_tests_image.image
+      valueFrom: base2_image.image
     resources:
       memory: standard
       cpu: '2'
@@ -2240,12 +2256,12 @@ steps:
     dependsOn:
       - default_ns
       - merge_code
-      - hail_run_tests_image
+      - base2_image
       - build_hail_debug_wheel
   - kind: runImage
     name: test_python_docs
     image:
-      valueFrom: hail_run_tests_image.image
+      valueFrom: base2_image.image
     script: |
       set -ex
 
@@ -2268,7 +2284,7 @@ steps:
         --ignore=hail/docs/getting_started_developing.rst \
         --ignore=hail/docs/getting_started.rst"
     dependsOn:
-      - hail_run_tests_image
+      - base2_image
       - build_hail_jar_wheel_pysrc
       - merge_code
     inputs:
@@ -2321,7 +2337,7 @@ steps:
   - kind: runImage
     name: get_pip_versioned_docs
     image:
-      valueFrom: hail_run_tests_image.image
+      valueFrom: base2_image.image
     script: |
       set -ex
 
@@ -2369,7 +2385,7 @@ steps:
       - from: /io/docs.tar.gz
         to: /docs.tar.gz
     dependsOn:
-      - hail_run_tests_image
+      - base2_image
       - merge_code
       - make_docs
     clouds:
@@ -3040,7 +3056,7 @@ steps:
   - kind: runImage
     name: test_hail_python_service_backend_0
     image:
-      valueFrom: hail_run_tests_image.image
+      valueFrom: base2_image.image
     resources:
       cpu: '1'
     script: |
@@ -3113,7 +3129,7 @@ steps:
       - deploy_batch
       - create_deploy_config
       - create_accounts
-      - hail_run_tests_image
+      - base2_image
       - upload_query_jar
       - upload_test_resources_to_blob_storage
       - build_hail_jar_wheel_pysrc
@@ -3122,7 +3138,7 @@ steps:
   - kind: runImage
     name: test_hail_python_service_backend_1
     image:
-      valueFrom: hail_run_tests_image.image
+      valueFrom: base2_image.image
     resources:
       cpu: '1'
     script: |
@@ -3195,7 +3211,7 @@ steps:
       - deploy_batch
       - create_deploy_config
       - create_accounts
-      - hail_run_tests_image
+      - base2_image
       - upload_query_jar
       - upload_test_resources_to_blob_storage
       - build_hail_jar_wheel_pysrc
@@ -3204,7 +3220,7 @@ steps:
   - kind: runImage
     name: test_hail_python_service_backend_2
     image:
-      valueFrom: hail_run_tests_image.image
+      valueFrom: base2_image.image
     resources:
       cpu: '1'
     script: |
@@ -3277,7 +3293,7 @@ steps:
       - deploy_batch
       - create_deploy_config
       - create_accounts
-      - hail_run_tests_image
+      - base2_image
       - upload_query_jar
       - upload_test_resources_to_blob_storage
       - build_hail_jar_wheel_pysrc
@@ -3286,7 +3302,7 @@ steps:
   - kind: runImage
     name: test_hail_python_service_backend_3
     image:
-      valueFrom: hail_run_tests_image.image
+      valueFrom: base2_image.image
     resources:
       cpu: '1'
     script: |
@@ -3359,7 +3375,7 @@ steps:
       - deploy_batch
       - create_deploy_config
       - create_accounts
-      - hail_run_tests_image
+      - base2_image
       - upload_query_jar
       - upload_test_resources_to_blob_storage
       - build_hail_jar_wheel_pysrc
@@ -3368,7 +3384,7 @@ steps:
   - kind: runImage
     name: test_hail_python_service_backend_4
     image:
-      valueFrom: hail_run_tests_image.image
+      valueFrom: base2_image.image
     resources:
       cpu: '1'
     script: |
@@ -3441,7 +3457,7 @@ steps:
       - deploy_batch
       - create_deploy_config
       - create_accounts
-      - hail_run_tests_image
+      - base2_image
       - upload_query_jar
       - upload_test_resources_to_blob_storage
       - build_hail_jar_wheel_pysrc
@@ -4791,7 +4807,7 @@ steps:
   - kind: runImage
     name: test_hail_scala_fs
     image:
-      valueFrom: hail_run_tests_image.image
+      valueFrom: base2_image.image
     resources:
       memory: standard
       cpu: '2'
@@ -4848,13 +4864,13 @@ steps:
       - default_ns
       - merge_code
       - create_certs
-      - hail_run_tests_image
+      - base2_image
       - build_hail_debug_test_jar
       - upload_test_resources_to_blob_storage
   - kind: runImage
     name: test_hail_services_java
     image:
-      valueFrom: hail_run_tests_image.image
+      valueFrom: base2_image.image
     resources:
       memory: standard
       cpu: '2'
@@ -4891,7 +4907,7 @@ steps:
       - default_ns
       - merge_code
       - create_certs
-      - hail_run_tests_image
+      - base2_image
       - build_hail_debug_test_jar
       - deploy_batch
   - kind: runImage

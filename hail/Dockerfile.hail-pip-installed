@@ -1,4 +1,4 @@
-FROM {{ hail_run_tests_image.image }}
+FROM {{ base2_image.image }}
 
 COPY wheel-container.tar ./
 RUN tar -xf wheel-container.tar && \
