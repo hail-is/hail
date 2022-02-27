@@ -1470,7 +1470,6 @@ object LowerTableIR {
         RVDToTableStage(rvd, EncodedLiteral(enc, encodedGlobals))
 
       case bmtt@BlockMatrixToTable(bmir) =>
-        val bmStage = LowerBlockMatrixIR.lower(bmir, typesToLower, ctx, analyses, relationalLetsAbove)
         val ts = LowerBlockMatrixIR.lowerToTableStage(bmir, typesToLower, ctx, analyses, relationalLetsAbove)
         // I now have an unkeyed table of (blockRow, blockCol, block).
         val entriesUnkeyed = ts.mapPartitionWithContext { (partition, ctxRef) =>

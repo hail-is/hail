@@ -3133,15 +3133,6 @@ class IRSuite extends HailSuite {
     assert(x2 eq cached)
   }
 
-  @Test def testCachedBlockMatrixIR() {
-    val cached = new BlockMatrixLiteral(BlockMatrix.fill(3, 7, 1))
-    val s = s"(JavaBlockMatrix __uid1)"
-    val x2 = ExecuteContext.scoped() { ctx =>
-      IRParser.parse_blockmatrix_ir(s, IRParserEnvironment(ctx, refMap = Map.empty, irMap = Map("__uid1" -> cached)))
-    }
-    assert(x2 eq cached)
-  }
-
   @Test def testContextSavedMatrixIR() {
     val cached = MatrixIR.range(3, 8, None)
     val id = hc.addIrVector(Array(cached))
