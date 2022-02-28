@@ -957,8 +957,6 @@ https://hail.zulipchat.com/#narrow/stream/123011-Hail-Dev/topic/test_drop/near/2
         with pytest.raises(ValueError):
             t.explode(t.foo.bar, name='baz')
 
-    @fails_service_backend()
-    @fails_local_backend()
     def test_export(self):
         t = hl.utils.range_table(1).annotate(foo=3)
         tmp_file = new_temp_file()
@@ -967,8 +965,6 @@ https://hail.zulipchat.com/#narrow/stream/123011-Hail-Dev/topic/test_drop/near/2
         with hl.hadoop_open(tmp_file, 'r') as f_in:
             assert f_in.read() == 'idx\tfoo\n0\t3\n'
 
-    @fails_service_backend()
-    @fails_local_backend()
     def test_export_delim(self):
         t = hl.utils.range_table(1).annotate(foo = 3)
         tmp_file = new_temp_file()
@@ -996,8 +992,6 @@ https://hail.zulipchat.com/#narrow/stream/123011-Hail-Dev/topic/test_drop/near/2
     def test_min_partitions(self):
         assert hl.import_table(resource('variantAnnotations.tsv'), min_partitions=50).n_partitions() == 50
 
-    @fails_service_backend()
-    @fails_local_backend()
     def test_read_back_same_as_exported(self):
         t, _ = create_all_values_datasets()
         tmp_file = new_temp_file(prefix="test", extension=".tsv")
