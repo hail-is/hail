@@ -100,7 +100,7 @@ def secret_alnum_string(n=22, *, case=None):
     return ''.join([secrets.choice(alphabet) for _ in range(n)])
 
 
-def digits_needed(i: int):
+def digits_needed(i: int) -> int:
     assert i >= 0
     if i < 10:
         return 1
