@@ -969,7 +969,7 @@ class Notice:
             e.set()
 
 
-def find_spark_home():
+def find_spark_home() -> str:
     spark_home = os.environ.get('SPARK_HOME')
     if spark_home is None:
         find_spark_home = subprocess.run('find_spark_home.py',
