@@ -194,7 +194,6 @@ object LowerDistributedSort {
             bindIR(sortedOversampling) { sortedOversampling =>
               bindIR(ArrayLen(sortedOversampling)) { numSamples =>
                 val branchingFactor = UtilFunctions.intMin(I32(defaultBranchingFactor), numSamples)
-                // range(1, branchingFactor, 1).map { i => floor(i * ((numSamples + 1) / branchFactor)) - 1 }
                 val sortedSampling = ToArray(mapIR(StreamRange(I32(1), branchingFactor, I32(1))) { idx =>
                   ArrayRef(sortedOversampling, Apply("floor", Seq(), IndexedSeq(idx.toD * ((numSamples + 1) / branchingFactor)), TFloat64, ErrorIDs.NO_ERROR).toI - 1)
                 })
