@@ -2098,22 +2098,17 @@ class WriteBlocksRDD(
   }
 }
 
-object BlockMatrixReadRowBlockedRDD {
-  val DEFAULT_MAXIMUM_CACHE_MEMORY_IN_BYTES = 32 * 1024 * 1024
-}
-
 class BlockMatrixReadRowBlockedRDD(
   fsBc: BroadcastValue[FS],
   path: String,
   partitionRanges: IndexedSeq[NumericRange.Exclusive[Long]],
   metadata: BlockMatrixMetadata,
-  maybeMaximumCacheMemoryInBytes: Option[Int]
+  maximumCacheMemoryInBytes: Int
 ) extends RDD[RVDContext => Iterator[Long]](SparkBackend.sparkContext("BlockMatrixReadRowBlockedRDD"), Nil) {
   import BlockMatrixReadRowBlockedRDD._
 
   private[this] val BlockMatrixMetadata(blockSize, nRows, nCols, maybeFiltered, partFiles) = metadata
   private[this] val gp = GridPartitioner(blockSize, nRows, nCols)
-  private[this] val maximumCacheMemoryInBytes = maybeMaximumCacheMemoryInBytes.getOrElse(DEFAULT_MAXIMUM_CACHE_MEMORY_IN_BYTES)
   private[this] val doublesPerFile = maximumCacheMemoryInBytes / (gp.nBlockCols * 8)
   assert(doublesPerFile >= blockSize,
     "BlockMatrixCachedPartFile must be able to hold at least one row of every block in memory")

@@ -13,6 +13,7 @@ import is.hail.io._
 import is.hail.io.avro.AvroTableReader
 import is.hail.io.fs.FS
 import is.hail.io.index.{IndexReadIterator, IndexReader, IndexReaderBuilder, LeafChild}
+import is.hail.linalg.BlockMatrixReadRowBlockedRDD.DEFAULT_MAXIMUM_CACHE_MEMORY_IN_BYTES
 import is.hail.linalg.{BlockMatrix, BlockMatrixMetadata, BlockMatrixReadRowBlockedRDD}
 import is.hail.rvd._
 import is.hail.sparkextras.ContextRDD
@@ -1159,6 +1160,8 @@ case class TableNativeZippedReader(
 }
 
 object TableFromBlockMatrixNativeReader {
+  val DEFAULT_MAXIMUM_CACHE_MEMORY_IN_BYTES = 32 * 1024 * 1024
+
   def apply(fs: FS, params: TableFromBlockMatrixNativeReaderParameters): TableFromBlockMatrixNativeReader = {
     val metadata: BlockMatrixMetadata = BlockMatrix.readMetadata(fs, params.path)
     TableFromBlockMatrixNativeReader(params, metadata)
@@ -1204,8 +1207,9 @@ case class TableFromBlockMatrixNativeReader(params: TableFromBlockMatrixNativeRe
   }
 
   def apply(tr: TableRead, ctx: ExecuteContext): TableValue = {
+    val maximumCacheMemoryInBytes = params.maximumCacheMemoryInBytes.getOrElse(TableFromBlockMatrixNativeReader.DEFAULT_MAXIMUM_CACHE_MEMORY_IN_BYTES)
     val rowsRDD = new BlockMatrixReadRowBlockedRDD(ctx.fsBc, params.path, partitionRanges, metadata,
-      maybeMaximumCacheMemoryInBytes = params.maximumCacheMemoryInBytes)
+      maximumCacheMemoryInBytes = maximumCacheMemoryInBytes)
 
     val partitionBounds = partitionRanges.map { r => Interval(Row(r.start), Row(r.end), true, false) }
     val partitioner = new RVDPartitioner(fullType.keyType, partitionBounds)
@@ -1226,7 +1230,35 @@ case class TableFromBlockMatrixNativeReader(params: TableFromBlockMatrixNativeRe
   }
 
   override def lower(ctx: ExecuteContext, requestedType: TableType): TableStage =  {
-    ???
+    // High level strategy
+    // 1. Assign rows to blocks
+    // 2. For some amount of rows / bytes, read that many rows in at a time by creating an array of those bytes and then streaming through.
+
+    // For each partition, what files do I need to read?
+    val ranges = partitionRanges.map { range =>
+      val start = range.start
+      val end = range.end
+
+      val startBlockRow = start / metadata.blockSize
+      val endBlockRow = end / metadata.blockSize
+      Row(start, end, startBlockRow, endBlockRow)
+    }
+
+    val rangesLiteral = Literal(TArray(TStruct("startRow" -> TInt64, "endRow" -> TInt64, "startBlockRow" -> TInt32, "endBlockrow" -> TInt32)), ranges)
+
+    mapIR(rangesLiteral){ curRange =>
+      /*
+      Figure out each
+       */
+      ???
+    }
+
+
+
+    val partitionBounds = partitionRanges.map { r => Interval(Row(r.start), Row(r.end), true, false) }
+    val partitioner = new RVDPartitioner(fullType.keyType, partitionBounds)
+
+    TableStage.apply(MakeStruct(Seq()), partitioner, TableStageDependency.none, ???, ???)
   }
 }
 
