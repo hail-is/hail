@@ -4,7 +4,7 @@ import json
 import logging
 import os
 import traceback
-from typing import Callable, List, Optional, Set
+from typing import Callable, Dict, List, Optional, Set
 
 import aiohttp_session  # type: ignore
 import uvloop  # type: ignore
