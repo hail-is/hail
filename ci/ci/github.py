@@ -37,6 +37,8 @@ if os.path.exists("/zulip-config/.zuliprc"):
 
 TRACKED_PRS = pc.Gauge('ci_tracked_prs', 'PRs currently being monitored by CI', ['build_state', 'review_state'])
 
+MAX_CONCURRENT_PR_BATCHES = 2
+
 
 class GithubStatus(Enum):
     SUCCESS = 'success'
@@ -574,7 +576,7 @@ mkdir -p {shq(repo_dir)}
             return
 
         if not self.batch or (on_deck and self.batch.attributes['target_sha'] != self.target_branch.sha):
-            if on_deck or self.target_branch.n_running_batches < 8:
+            if on_deck or self.target_branch.n_running_batches < MAX_CONCURRENT_PR_BATCHES:
                 self.target_branch.n_running_batches += 1
                 async with repos_lock:
                     await self._start_build(dbpool, batch_client)
