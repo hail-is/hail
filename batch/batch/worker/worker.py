@@ -344,6 +344,29 @@ def docker_call_retry(timeout, name):
     return wrapper
 
 
+class TaskCancelledError(Exception):
+    pass
+
+
+async def run_until_done_or_cancelled(event: asyncio.Event, f: Callable[[...], Awaitable[Any]], *args, **kwargs):
+    task = asyncio.ensure_future(f(*args, **kwargs))
+    cancelled = asyncio.ensure_future(event.wait())
+    try:
+        await asyncio.wait([cancelled, task], return_when=asyncio.FIRST_COMPLETED)
+        if cancelled.done():
+            raise TaskCancelledError
+        assert task.done()
+        return task.result()
+    finally:
+        for t in (task, cancelled):
+            if t.done():
+                e = t.exception()
+                if e and not user_error(e):
+                    log.exception(e)
+            else:
+                t.cancel()
+
+
 async def send_signal_and_wait(proc, signal, timeout=None):
     try:
         if signal == 'SIGTERM':
@@ -524,25 +547,10 @@ class Container:
                         self.worker.image_data[self.image_id] -= 1
 
     async def run_until_done_or_deleted(self, f: Callable[[], Awaitable[Any]]):
-        step = asyncio.ensure_future(f())
-        deleted = asyncio.ensure_future(self.deleted_event.wait())
         try:
-            await asyncio.wait([deleted, step], return_when=asyncio.FIRST_COMPLETED)
-            if deleted.done():
-                raise JobDeletedError
-            assert step.done()
-            return step.result()
-        finally:
-            for t in (step, deleted):
-                if t.done():
-                    e = t.exception()
-                    if e and not user_error(e):
-                        log.exception(e)
-                else:
-                    t.cancel()
-
-    def is_job_deleted(self) -> bool:
-        return self.job.deleted
+            return await run_until_done_or_cancelled(self.deleted_event, f)
+        except TaskCancelledError:
+            raise JobDeletedError
 
     def step(self, name: str):
         return self.timings.step(name)
@@ -1575,7 +1583,7 @@ class JVMJob(Job):
         self.revision = self.user_command_string[1]
         self.jar_url = self.user_command_string[2]
 
-        self.deleted = False
+        self.deleted_event = asyncio.Event()
         self.timings = Timings()
         self.state = 'pending'
 
@@ -1589,6 +1597,12 @@ class JVMJob(Job):
     def step(self, name):
         return self.timings.step(name)
 
+    async def run_until_done_or_deleted(self, f: Callable[[...], Awaitable[Any]], *args, **kwargs):
+        try:
+            return await run_until_done_or_cancelled(self.deleted_event, f, *args, **kwargs)
+        except TaskCancelledError:
+            raise JobDeletedError
+
     def verify_is_acceptable_query_jar_url(self, url: str):
         if not url.startswith(ACCEPTABLE_QUERY_JAR_URL_PREFIX):
             log.error(f'user submitted unacceptable JAR url: {url} for {self}. {ACCEPTABLE_QUERY_JAR_URL_PREFIX}')
@@ -1597,6 +1611,31 @@ class JVMJob(Job):
     def secret_host_path(self, secret):
         return f'{self.scratch}/secrets/{secret["mount_path"]}'
 
+    async def download_jar(self):
+        async with self.worker.jar_download_locks[self.revision]:
+            local_jar_location = f'/hail-jars/{self.revision}.jar'
+            if not os.path.isfile(local_jar_location):
+                self.verify_is_acceptable_query_jar_url(self.jar_url)
+                temporary_file = tempfile.NamedTemporaryFile(delete=False)  # pylint: disable=consider-using-with
+                try:
+                    async with await self.worker.fs.open(self.jar_url) as jar_data:
+                        while True:
+                            b = await jar_data.read(256 * 1024)
+                            if not b:
+                                break
+                            written = await blocking_to_async(worker.pool, temporary_file.write, b)
+                            assert written == len(b)
+                    temporary_file.close()
+                    os.rename(temporary_file.name, local_jar_location)
+                finally:
+                    temporary_file.close()  # close is idempotent
+                    try:
+                        os.remove(temporary_file.name)
+                    except OSError as err:
+                        if err.errno != errno.ENOENT:
+                            raise
+            return local_jar_location
+
     async def run(self):
         async with self.worker.cpu_sem(self.cpu_in_mcpu):
             self.start_time = time_msecs()
@@ -1604,7 +1643,7 @@ class JVMJob(Job):
 
             try:
                 with self.step('connecting_to_jvm'):
-                    self.jvm = await self.worker.borrow_jvm()
+                    self.jvm = await self.run_until_done_or_deleted(self.worker.borrow_jvm)
                     self.jvm_name = str(self.jvm)
 
                 self.task_manager.ensure_future(self.worker.post_job_started(self))
@@ -1625,34 +1664,12 @@ class JVMJob(Job):
 
                 log.info(f'{self}: downloading JAR')
                 with self.step('downloading_jar'):
-                    async with self.worker.jar_download_locks[self.revision]:
-                        local_jar_location = f'/hail-jars/{self.revision}.jar'
-                        if not os.path.isfile(local_jar_location):
-                            self.verify_is_acceptable_query_jar_url(self.jar_url)
-                            temporary_file = tempfile.NamedTemporaryFile(  # pylint: disable=consider-using-with
-                                delete=False
-                            )
-                            try:
-                                async with await self.worker.fs.open(self.jar_url) as jar_data:
-                                    while True:
-                                        b = await jar_data.read(256 * 1024)
-                                        if not b:
-                                            break
-                                        written = await blocking_to_async(worker.pool, temporary_file.write, b)
-                                        assert written == len(b)
-                                temporary_file.close()
-                                os.rename(temporary_file.name, local_jar_location)
-                            finally:
-                                temporary_file.close()  # close is idempotent
-                                try:
-                                    os.remove(temporary_file.name)
-                                except OSError as err:
-                                    if err.errno != errno.ENOENT:
-                                        raise
+                    local_jar_location = await self.run_until_done_or_deleted(self.download_jar)
 
                 log.info(f'{self}: running jvm process')
                 with self.step('running'):
-                    await self.jvm.execute(local_jar_location, self.scratch, self.log_file, self.user_command_string)
+                    await self.run_until_done_or_deleted(self.jvm.execute, local_jar_location, self.scratch, self.log_file, self.user_command_string)
+
                 self.state = 'succeeded'
                 log.info(f'{self} main: {self.state}')
             except asyncio.CancelledError:
@@ -1707,6 +1724,7 @@ class JVMJob(Job):
     async def delete(self):
         log.info(f'deleting {self} {self.jvm}')
         self.deleted = True
+        self.deleted_event.set()
         if self.jvm is not None:
             log.info(f'{self.jvm} interrupting')
             self.jvm.interrupt()
