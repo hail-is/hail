@@ -765,14 +765,15 @@ https://hail.zulipchat.com/#narrow/stream/123011-Hail-Dev/topic/test_drop/near/2
         df = pd.DataFrame({
             "x": pd.Series([None, 1, 2, None, 4], dtype=pd.Int64Dtype()),
             "y": pd.Series([None, 1, 2, None, 4], dtype=pd.Int32Dtype()),
-            "z": pd.Series([np.nan, 1.0, 3.0, 4.0, np.nan])
+            "z": pd.Series([np.nan, 1.0, 3.0, 4.0, np.nan]),
+            "s": pd.Series([None, "cat", None, "fox", "dog"], dtype=pd.StringDtype())
         })
         ht = hl.Table.from_pandas(df)
         collected = ht.collect()
 
         assert [s.x for s in collected] == [None, 1, 2, None, 4]
-
         assert [s.y for s in collected] == [None, 1, 2, None, 4]
+        assert [s.s for s in collected] == [None, "cat", None, "fox", "dog"]
 
         assert np.isnan(collected[0].z)
         assert np.isnan(collected[-1].z)
