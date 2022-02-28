@@ -4,13 +4,17 @@ import hail as hl
 
 
 def vars(*args):
-    return list(*args)
+    return hl.tuple(*args)
 
 
-class FacetWrap(FigureAttribute):
+def facet_grid(*, cols):
+    return FacetGrid(cols=cols)
 
-    def __init__(self, facets):
-        self.facets = facets
+
+class FacetGrid(FigureAttribute):
+
+    def __init__(self, cols):
+        self.cols = cols
 
     def get_faceter(self):
-        return hl.struct(**{f"facet_{i}": expr for i, expr in enumerate(self.facets)})
+        return lambda x: hl.agg.group_by(self.cols, x)

@@ -177,7 +177,7 @@ class GGPlot:
             transformers[scale.aesthetic_name] = scale.create_local_transformer(all_dfs)
 
         facet_list = list(set(itertools.chain(*[facet_to_dfs_dict.keys() for _, _, facet_to_dfs_dict in geoms_and_grouped_dfs_by_facet])))
-        facet_to_idx = {facet: idx for idx, facet in enumerate(facet_list)}
+        facet_to_idx = {facet: idx for idx, facet in enumerate(facet_list, start=1)}
 
         num_plots = len(facet_to_idx)
         fig = make_subplots(rows=1, cols=num_plots, shared_yaxes=True)

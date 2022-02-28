@@ -87,7 +87,7 @@ class GeomPoint(Geom):
                 "y": df.y,
                 "mode": "markers",
                 "row": 1,
-                "col": facet_col + 1
+                "col": facet_col
             }
 
             for aes_name, (plotly_name, default) in self.aes_to_arg.items():
