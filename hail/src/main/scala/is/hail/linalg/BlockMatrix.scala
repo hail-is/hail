@@ -2125,7 +2125,6 @@ class BlockMatrixReadRowBlockedRDD(
     Iterator.single { ctx =>
       val region = ctx.region
       val rvb = new RegionValueBuilder(region)
-      val rv = RegionValue(region)
       val firstRow = rowsForPartition(0)
       var blockRow = (firstRow / blockSize).toInt
       val fs = fsBc.value
