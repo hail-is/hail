@@ -3363,6 +3363,8 @@ class Table(ExprContainer):
                         fixed_val = cur_val.item()
                     else:
                         fixed_val = None
+                elif isinstance(df[field].dtype, pandas.StringDtype) and pandas.isna(cur_val): # No NaN to worry about
+                    fixed_val = None
                 elif isinstance(cur_val, np.number):
                     fixed_val = cur_val.item()
                 else:
