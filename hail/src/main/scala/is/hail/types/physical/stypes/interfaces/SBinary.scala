@@ -22,7 +22,7 @@ trait SBinaryValue extends SValue {
   override def hash(cb: EmitCodeBuilder): SInt32Value =
     new SInt32Value(cb.memoize(invokeStatic1[java.util.Arrays, Array[Byte], Int]("hashCode", loadBytes(cb))))
 
-  override def sizeInBytes(cb: EmitCodeBuilder): SInt64Value = {
+  override def sizeToStoreInBytes(cb: EmitCodeBuilder): SInt64Value = {
     val binaryStorageType = this.st.storageType().asInstanceOf[PCanonicalBinary]
     val contentsByteSize = binaryStorageType.contentByteSize(this.loadLength(cb))
     new SInt64Value(cb.memoize(contentsByteSize))

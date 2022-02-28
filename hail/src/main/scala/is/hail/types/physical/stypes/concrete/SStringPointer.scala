@@ -62,7 +62,7 @@ class SStringPointerValue(val st: SStringPointer, val a: Value[Long]) extends SS
   def toBytes(cb: EmitCodeBuilder): SBinaryPointerValue =
     new SBinaryPointerValue(SBinaryPointer(pt.binaryRepresentation), a)
 
-  override def sizeInBytes(cb: EmitCodeBuilder): SInt64Value = this.binaryRepr().sizeInBytes(cb)
+  override def sizeToStoreInBytes(cb: EmitCodeBuilder): SInt64Value = this.binaryRepr().sizeToStoreInBytes(cb)
 }
 
 object SStringPointerSettable {

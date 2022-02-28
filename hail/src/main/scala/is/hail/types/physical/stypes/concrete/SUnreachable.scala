@@ -58,7 +58,7 @@ abstract class SUnreachableValue extends SSettable {
 
   override def store(cb: EmitCodeBuilder, v: SValue): Unit = {}
 
-  override def sizeInBytes(cb: EmitCodeBuilder): SInt64Value = new SInt64Value(-1L)
+  override def sizeToStoreInBytes(cb: EmitCodeBuilder): SInt64Value = new SInt64Value(-1L)
 }
 
 case class SUnreachableStruct(virtualType: TBaseStruct) extends SUnreachable with SBaseStruct {

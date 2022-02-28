@@ -52,7 +52,7 @@ class SBooleanValue(val value: Value[Boolean]) extends SPrimitiveValue {
   override def hash(cb: EmitCodeBuilder): SInt32Value =
     new SInt32Value(cb.memoize(value.toI))
 
-  override def sizeInBytes(cb: EmitCodeBuilder): SInt64Value = new SInt64Value(pt.byteSize)
+  override def sizeToStoreInBytes(cb: EmitCodeBuilder): SInt64Value = new SInt64Value(pt.byteSize)
 }
 
 object SBooleanSettable {

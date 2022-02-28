@@ -38,7 +38,7 @@ class CodeSuite extends HailSuite {
       val fb = EmitFunctionBuilder[Long](ctx, "test_size_in_bytes")
       val mb = fb.apply_method
       mb.emit(EmitCodeBuilder.scopedCode(mb) { cb =>
-        v.sizeInBytes(cb).value
+        v.sizeToStoreInBytes(cb).value
       })
       fb.result()(theHailClassLoader)()
     }
@@ -59,7 +59,7 @@ class CodeSuite extends HailSuite {
       val sarray = ptype.constructFromElements(cb, region, 5, true) { (cb, idx) =>
         cb.ifx(idx ceq 2, { IEmitCode.missing(cb, stype.elementType.defaultValue)}, { IEmitCode.present(cb, new SInt32Value(idx))})
       }
-      sarray.sizeInBytes(cb).value
+      sarray.sizeToStoreInBytes(cb).value
     })
     assert(fb.result()(theHailClassLoader)(ctx.r) == 28L) // 2 missing bytes 4 byte aligned + 4 header bytes + 5 elements * 4 bytes for ints.
   }

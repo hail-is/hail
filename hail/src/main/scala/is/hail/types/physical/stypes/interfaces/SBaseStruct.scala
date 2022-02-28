@@ -57,7 +57,7 @@ trait SBaseStructValue extends SValue {
     new SInt32Value(hash_result)
   }
 
-  override def sizeInBytes(cb: EmitCodeBuilder): SInt64Value = {
+  override def sizeToStoreInBytes(cb: EmitCodeBuilder): SInt64Value = {
     // Size in bytes of the struct that must represent this thing, plus recursive call on any non-missing children.
     val pStructSize = this.st.storageType().byteSize
     val sizeSoFar = cb.newLocal[Long]("sstackstruct_size_in_bytes", pStructSize)
@@ -66,7 +66,7 @@ trait SBaseStructValue extends SValue {
         val sizeAtThisIdx: Value[Long] = this.loadField(cb, idx).consumeCode(cb, {
           const(0L)
         }, { sv =>
-          sv.sizeInBytes(cb).value
+          sv.sizeToStoreInBytes(cb).value
         })
         cb.assign(sizeSoFar, sizeSoFar + sizeAtThisIdx)
       }

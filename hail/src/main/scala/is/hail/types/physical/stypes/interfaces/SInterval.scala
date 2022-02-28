@@ -33,18 +33,18 @@ trait SIntervalValue extends SValue {
 
   def isEmpty(cb: EmitCodeBuilder): Value[Boolean]
 
-  override def sizeInBytes(cb: EmitCodeBuilder): SInt64Value = {
+  override def sizeToStoreInBytes(cb: EmitCodeBuilder): SInt64Value = {
     val storageType = st.storageType().asInstanceOf[PInterval]
 
     val pIntervalSize = this.st.storageType().byteSize
     val sizeSoFar = cb.newLocal[Long]("sstackstruct_size_in_bytes", pIntervalSize)
 
     loadStart(cb).consume(cb, {}, {sv =>
-      sv.sizeInBytes(cb)
+      sv.sizeToStoreInBytes(cb)
     })
 
     loadEnd(cb).consume(cb, {}, {sv =>
-      sv.sizeInBytes(cb)
+      sv.sizeToStoreInBytes(cb)
     })
 
     new SInt64Value(???)

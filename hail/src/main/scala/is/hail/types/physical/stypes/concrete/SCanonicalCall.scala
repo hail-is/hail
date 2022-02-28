@@ -140,7 +140,7 @@ class SCanonicalCallValue(val call: Value[Int]) extends SCallValue {
     new SCanonicalCallValue(repr)
   }
 
-  override def sizeInBytes(cb: EmitCodeBuilder): SInt64Value = new SInt64Value(this.pt.byteSize)
+  override def sizeToStoreInBytes(cb: EmitCodeBuilder): SInt64Value = new SInt64Value(this.pt.byteSize)
 }
 
 object SCanonicalCallSettable {

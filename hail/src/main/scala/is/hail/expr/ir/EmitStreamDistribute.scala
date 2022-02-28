@@ -202,7 +202,7 @@ object EmitStreamDistribute {
       val curSV = current.get(cb)
       encoder(cb, curSV, ob)
       cb += numElementsPerFile.update(fileToUse, numElementsPerFile(fileToUse) + 1)
-      cb += numBytesPerFile.update(fileToUse, numBytesPerFile(fileToUse) + curSV.sizeInBytes(cb).value)
+      cb += numBytesPerFile.update(fileToUse, numBytesPerFile(fileToUse) + curSV.sizeToStoreInBytes(cb).value)
     }
 
     cb.forLoop(cb.assign(fileArrayIdx, 0), fileArrayIdx < numFilesToWrite, cb.assign(fileArrayIdx, fileArrayIdx + 1), {

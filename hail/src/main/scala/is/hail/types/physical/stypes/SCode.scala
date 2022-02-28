@@ -101,7 +101,7 @@ trait SValue {
 
   def hash(cb: EmitCodeBuilder): SInt32Value = throw new UnsupportedOperationException(s"Stype ${st} has no hashcode")
 
-  def sizeInBytes(cb: EmitCodeBuilder): SInt64Value
+  def sizeToStoreInBytes(cb: EmitCodeBuilder): SInt64Value
 }
 
 
@@ -120,6 +120,6 @@ object SSettable {
 }
 
 trait SUnrealizableValue extends SValue {
-  override def sizeInBytes(cb: EmitCodeBuilder): SInt64Value =
+  override def sizeToStoreInBytes(cb: EmitCodeBuilder): SInt64Value =
     throw new UnsupportedOperationException(s"Unrealizable SValue has no size in bytes.")
 }

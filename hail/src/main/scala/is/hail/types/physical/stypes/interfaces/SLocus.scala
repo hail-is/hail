@@ -31,5 +31,5 @@ trait SLocusValue extends SValue {
   override def hash(cb: EmitCodeBuilder): SInt32Value =
     structRepr(cb).hash(cb)
 
-  override def sizeInBytes(cb: EmitCodeBuilder): SInt64Value = structRepr(cb).sizeInBytes(cb)
+  override def sizeToStoreInBytes(cb: EmitCodeBuilder): SInt64Value = structRepr(cb).sizeToStoreInBytes(cb)
 }

@@ -61,7 +61,7 @@ class SJavaStringValue(val s: Value[String]) extends SStringValue {
   override def toBytes(cb: EmitCodeBuilder): SBinaryValue =
     new SJavaBytesValue(cb.memoize(s.invoke[Array[Byte]]("getBytes")))
 
-  override def sizeInBytes(cb: EmitCodeBuilder): SInt64Value = {
+  override def sizeToStoreInBytes(cb: EmitCodeBuilder): SInt64Value = {
     val lengthInBytes: Value[Int] = cb.memoize(s.invoke[Array[Byte]]("getBytes").length())
     val storageTypeString = this.st.storageType().asInstanceOf[PCanonicalString]
     val contentsSize = storageTypeString.binaryRepresentation.contentByteSize(lengthInBytes)

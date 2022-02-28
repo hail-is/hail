@@ -50,7 +50,7 @@ class SInt32Value(val value: Value[Int]) extends SPrimitiveValue {
   override def hash(cb: EmitCodeBuilder): SInt32Value =
     new SInt32Value(value)
 
-  override def sizeInBytes(cb: EmitCodeBuilder): SInt64Value = new SInt64Value(4L)
+  override def sizeToStoreInBytes(cb: EmitCodeBuilder): SInt64Value = new SInt64Value(4L)
 }
 
 object SInt32Settable {

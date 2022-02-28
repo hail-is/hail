@@ -732,14 +732,14 @@ trait SNDArrayValue extends SValue {
     new SNDArraySliceValue(newSType, newShape, newStrides, newFirstDataAddress)
   }
 
-  override def sizeInBytes(cb: EmitCodeBuilder): SInt64Value = {
+  override def sizeToStoreInBytes(cb: EmitCodeBuilder): SInt64Value = {
     val storageType = st.storageType().asInstanceOf[PNDArray]
     val totalSize = cb.newLocal[Long]("sindexableptr_size_in_bytes", storageType.byteSize)
 
     if (storageType.elementType.containsPointers) {
       SNDArray.coiterate(cb, (this, "A")){
         case Seq(elt) =>
-          cb.assign(totalSize, totalSize + elt.sizeInBytes(cb).value)
+          cb.assign(totalSize, totalSize + elt.sizeToStoreInBytes(cb).value)
       }
     } else {
       val numElements = SNDArray.numElements(this.shapes)
