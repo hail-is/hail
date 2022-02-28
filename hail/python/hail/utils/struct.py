@@ -153,17 +153,17 @@ class Struct(Mapping):
         Keep just one original field
 
         >>> s.select('foo')
-        hl.Struct(foo=5)
+        Struct(foo=5)
 
         Add one new field and keeps one old field
 
         >>> s.select(bar=123, 'apple')
-        hl.Struct(bar=123, apple=10)
+        Struct(bar=123, apple=10)
 
         Adds two new fields and replaces old fields
 
         >>> s.select(bar=123, banana=1)
-        hl.Struct(bar=123, banana=1)
+        Struct(bar=123, banana=1)
 
         """
         d = OrderedDict()
