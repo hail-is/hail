@@ -1681,12 +1681,11 @@ class JVMJob(Job):
             worker.return_jvm(self.jvm)
             self.jvm = None
 
-        # I really want this to be a timed step but I CANT RAISE EXCEPTIONS IN CLEANUP!!
-        # with self.step('uploading_log'):
-        log.info(f'{self}: uploading log')
-        await worker.file_store.write_log_file(
-            self.format_version, self.batch_id, self.job_id, self.attempt_id, 'main', await self._get_log()
-        )
+        with self.step('uploading_log'):
+            log.info(f'{self}: uploading log')
+            await worker.file_store.write_log_file(
+                self.format_version, self.batch_id, self.job_id, self.attempt_id, 'main', await self._get_log()
+            )
 
         log.info(f'{self}: cleaning up')
         try:
