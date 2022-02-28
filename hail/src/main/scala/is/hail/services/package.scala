@@ -14,6 +14,7 @@ import scala.util.Random
 import java.io._
 import com.google.cloud.storage.StorageException
 import com.google.api.client.googleapis.json.GoogleJsonResponseException
+import com.google.api.client.http.HttpResponseException
 
 package object services {
   lazy val log: Logger = LogManager.getLogger("is.hail.services")
@@ -36,6 +37,8 @@ package object services {
     e match {
       case e: NoHttpResponseException =>
         true
+      case e: HttpResponseException =>
+        RETRYABLE_HTTP_STATUS_CODES.contains(e.getStatusCode())
       case e: ClientResponseException =>
         RETRYABLE_HTTP_STATUS_CODES.contains(e.status)
       case e: GoogleJsonResponseException =>
