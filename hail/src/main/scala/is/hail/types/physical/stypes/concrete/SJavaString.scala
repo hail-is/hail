@@ -1,7 +1,7 @@
 package is.hail.types.physical.stypes.concrete
 
 import is.hail.annotations.Region
-import is.hail.asm4s.{toCodeObject, _}
+import is.hail.asm4s._
 import is.hail.expr.ir.EmitCodeBuilder
 import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.physical.stypes.primitives.SInt64Value
@@ -62,8 +62,10 @@ class SJavaStringValue(val s: Value[String]) extends SStringValue {
     new SJavaBytesValue(cb.memoize(s.invoke[Array[Byte]]("getBytes")))
 
   override def sizeInBytes(cb: EmitCodeBuilder): SInt64Value = {
-    val lengthInBytes = cb.memoize(s.invoke[Array[Byte]]("getBytes").invoke[Int]("getLength").toL)
-    new SInt64Value(lengthInBytes)
+    val lengthInBytes: Value[Int] = cb.memoize(s.invoke[Array[Byte]]("getBytes").length())
+    val storageTypeString = this.st.storageType().asInstanceOf[PCanonicalString]
+    val contentsSize = storageTypeString.binaryRepresentation.contentByteSize(lengthInBytes)
+    new SInt64Value(cb.memoize(contentsSize + storageTypeString.byteSize))
   }
 }
 

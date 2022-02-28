@@ -32,9 +32,11 @@ class CodeSuite extends HailSuite {
     val int64 = new SInt64Value(5L)
     val int32 = new SInt32Value(2)
     val struct = new SStackStructValue(SStackStruct(TStruct("x" -> TInt64, "y" -> TInt32), IndexedSeq(EmitType(SInt64, true), EmitType(SInt32, false))), IndexedSeq(EmitValue(None, int64), EmitValue(Some(false), int32)))
+    val str = new SJavaStringValue(const("cat"))
     assert(testSizeHelper(int64) == 8L)
     assert(testSizeHelper(int32) == 4L)
     assert(testSizeHelper(struct) == 16L) // 1 missing byte that gets 4 byte aligned, 8 bytes for long, 4 bytes for missing int
+    assert(testSizeHelper(str) == 15L) // 8 byte pointer, 4 byte header, 3 bytes for the 3 letters.
   }
 
   def testSizeHelper(v: SValue): Long = {
@@ -43,7 +45,7 @@ class CodeSuite extends HailSuite {
     mb.emit(EmitCodeBuilder.scopedCode(mb) { cb =>
       v.sizeInBytes(cb).value
     })
-    fb.result()()()
+    fb.result()(theHailClassLoader)()
   }
 
   @Test def testHash() {
