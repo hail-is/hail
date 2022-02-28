@@ -53,6 +53,22 @@ class EmitCodeBuilder(val emb: EmitMethodBuilder[_], var code: Code[Unit]) exten
     tmp
   }
 
+  def ifx[T: TypeInfo](c: Code[Boolean], emitThen: => Code[T], emitElse: => Code[T]): Value[T] = {
+    val Ltrue = CodeLabel()
+    val Lfalse = CodeLabel()
+    val Lafter = CodeLabel()
+    append(c.mux(Ltrue.goto, Lfalse.goto))
+    define(Ltrue)
+    val tval = emitThen
+    val value = newLocal[T]("ifx_value")
+    assign(value, tval)
+    goto(Lafter)
+    define(Lfalse)
+    assign(value, emitElse)
+    define(Lafter)
+    value
+  }
+
   def ifx(c: Code[Boolean], emitThen: => SValue, emitElse: => SValue): SValue = {
     val Ltrue = CodeLabel()
     val Lfalse = CodeLabel()
