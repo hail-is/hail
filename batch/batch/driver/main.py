@@ -1201,25 +1201,25 @@ SELECT instance_id, internal_token, frozen FROM globals;
 
 async def on_cleanup(app):
     try:
-        await app['db'].async_close()
+        app['canceller'].shutdown()
     finally:
         try:
-            app['canceller'].shutdown()
+            app['task_manager'].shutdown()
         finally:
             try:
-                app['task_manager'].shutdown()
+                await app['driver'].shutdown()
             finally:
                 try:
-                    await app['driver'].shutdown()
+                    await app['file_store'].close()
                 finally:
                     try:
-                        await app['file_store'].close()
+                        await app['client_session'].close()
                     finally:
                         try:
-                            await app['client_session'].close()
+                            app['async_worker_pool'].shutdown()
                         finally:
                             try:
-                                app['async_worker_pool'].shutdown()
+                                await app['db'].async_close()
                             finally:
                                 try:
                                     k8s_client: kubernetes_asyncio.client.CoreV1Api = app['k8s_client']
