@@ -1,6 +1,8 @@
 import plotly.graph_objects as go
+from plotly.subplots import make_subplots
 
 from pprint import pprint
+import itertools
 
 import hail as hl
 
@@ -113,7 +115,7 @@ class GGPlot:
             return f"geom{geom_idx}"
 
         def select_table():
-            fields_to_select = {"figure_mapping": hl.struct(**self.aes)}
+            fields_to_select = {"facet": self.ht.facet, "figure_mapping": hl.struct(**self.aes)}
             for geom_idx, geom in enumerate(self.geoms):
                 geom_label = make_geom_label(geom_idx)
                 fields_to_select[geom_label] = hl.struct(**geom.aes.properties)
@@ -144,13 +146,14 @@ class GGPlot:
 
             return mapping_per_geom, precomputed
 
+        # Plan: Facets are an extra level of group by.
         def get_aggregation_result(selected, mapping_per_geom, precomputed):
             aggregators = {}
             labels_to_stats = {}
             for geom_idx, combined_mapping in enumerate(mapping_per_geom):
                 stat = self.geoms[geom_idx].get_stat()
                 geom_label = make_geom_label(geom_idx)
-                agg = stat.make_agg(combined_mapping, precomputed[geom_label])
+                agg = hl.agg.group_by(selected.facet, stat.make_agg(combined_mapping, precomputed[geom_label]))
                 aggregators[geom_label] = agg
                 labels_to_stats[geom_label] = stat
 
@@ -161,26 +164,37 @@ class GGPlot:
         mapping_per_geom, precomputed = collect_mappings_and_precomputed(selected)
         labels_to_stats, aggregated = get_aggregation_result(selected, mapping_per_geom, precomputed)
 
-        fig = go.Figure()
+        geoms_and_grouped_dfs_by_facet = []
+        for geom, (geom_label, agg_result_by_facet) in zip(self.geoms, aggregated.items()):
+            dfs_by_facet = {facet: labels_to_stats[geom_label].listify(agg_result) for facet, agg_result in agg_result_by_facet.items()}
+            geoms_and_grouped_dfs_by_facet.append((geom, geom_label, dfs_by_facet))
 
-        geoms_and_grouped_dfs = [(geom, geom_label, labels_to_stats[geom_label].listify(agg_result)) for geom, (geom_label, agg_result) in zip(self.geoms, aggregated.items())]
 
         # Create scaling functions based on all the data:
         transformers = {}
         for scale in self.scales.values():
-            transformers[scale.aesthetic_name] = scale.create_local_transformer([x for _, _, x in geoms_and_grouped_dfs])
+            all_dfs = list(itertools.chain(*[facet_to_dfs_dict.values() for _, _, facet_to_dfs_dict in geoms_and_grouped_dfs_by_facet]))
+            transformers[scale.aesthetic_name] = scale.create_local_transformer(all_dfs)
 
-        for geom, geom_label, grouped_dfs in geoms_and_grouped_dfs:
-            scaled_grouped_dfs = []
-            for df in grouped_dfs:
-                scales_to_consider = list(df.columns) + list(df.attrs)
-                relevant_aesthetics = [scale_name for scale_name in scales_to_consider if scale_name in self.scales]
-                scaled_df = df
-                for relevant_aesthetic in relevant_aesthetics:
-                    scaled_df = transformers[relevant_aesthetic](scaled_df)
-                scaled_grouped_dfs.append(scaled_df)
+        facet_list = list(set(itertools.chain(*[facet_to_dfs_dict.keys() for _, _, facet_to_dfs_dict in geoms_and_grouped_dfs_by_facet])))
+        facet_to_idx = {facet: idx for idx, facet in enumerate(facet_list)}
 
-            geom.apply_to_fig(self, scaled_grouped_dfs, fig, precomputed[geom_label])
+        num_plots = len(facet_to_idx)
+        fig = make_subplots(rows=1, cols=num_plots, shared_yaxes=True)
+
+        for geom, geom_label, facet_to_grouped_dfs in geoms_and_grouped_dfs_by_facet:
+            for facet, grouped_dfs in facet_to_grouped_dfs.items():
+                facet_idx = facet_to_idx[facet]
+                scaled_grouped_dfs = []
+                for df in grouped_dfs:
+                    scales_to_consider = list(df.columns) + list(df.attrs)
+                    relevant_aesthetics = [scale_name for scale_name in scales_to_consider if scale_name in self.scales]
+                    scaled_df = df
+                    for relevant_aesthetic in relevant_aesthetics:
+                        scaled_df = transformers[relevant_aesthetic](scaled_df)
+                    scaled_grouped_dfs.append(scaled_df)
+
+                geom.apply_to_fig(self, scaled_grouped_dfs, fig, precomputed[geom_label], facet_idx)
 
         # Important to update axes after labels, axes names take precedence.
         self.labels.apply_to_fig(fig)

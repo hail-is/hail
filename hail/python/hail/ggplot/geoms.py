@@ -80,12 +80,14 @@ class GeomPoint(Geom):
         self.size = size
         self.alpha = alpha
 
-    def apply_to_fig(self, parent, grouped_data, fig_so_far, precomputed):
+    def apply_to_fig(self, parent, grouped_data, fig_so_far, precomputed, facet_col):
         def plot_group(df):
             scatter_args = {
                 "x": df.x,
                 "y": df.y,
                 "mode": "markers",
+                "row": 1,
+                "col": facet_col + 1
             }
 
             for aes_name, (plotly_name, default) in self.aes_to_arg.items():
