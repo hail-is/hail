@@ -57,6 +57,7 @@ class PRConfig(TypedDict):
     title: str
     batch_id: Optional[int]
     build_state: Optional[str]
+    gh_statuses: Dict[str, str]
     source_branch_name: str
     review_state: Optional[str]
     author: str
