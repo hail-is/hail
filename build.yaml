@@ -1228,6 +1228,28 @@ steps:
     dependsOn:
       - notebook_image
   - kind: runImage
+    name: test_gear
+    image:
+      valueFrom: base_image.image
+    script: |
+      set -ex
+      cd /io
+
+      python3 -m pytest \
+              --log-cli-level=INFO \
+              -s \
+              -vv \
+              --instafail \
+              --durations=50 \
+              /io/gear/test
+    inputs:
+      - from: /repo/hail/gear
+        to: /io/gear
+    dependsOn:
+      - default_ns
+      - merge_code
+      - base_image
+  - kind: runImage
     name: test_hail_python_0
     image:
       valueFrom: base2_image.image

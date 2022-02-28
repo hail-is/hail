@@ -51,11 +51,10 @@ ENV PYSPARK_PYTHON python3
 
 COPY docker/core-site.xml ${SPARK_HOME}/conf/core-site.xml
 
-COPY docker/requirements.txt
 COPY hail/python/requirements.txt python-requirements.txt
 COPY hail/python/dev-requirements.txt python-dev-requirements.txt
 
-RUN hail-pip-install -r requirements.txt -r python-requirements.txt -r python-dev-requirements.txt
+RUN hail-pip-install -r python-requirements.txt -r python-dev-requirements.txt
 
 COPY pylintrc setup.cfg /
 COPY gear/setup.py /gear/setup.py
