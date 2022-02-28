@@ -146,7 +146,6 @@ class Struct(Mapping):
 
         Examples
         --------
-
         Define a Struct 's'
 
         >>> s = hl.Struct(foo=5, apple=10)
@@ -165,7 +164,7 @@ class Struct(Mapping):
 
         >>> s.select(bar=123, banana=1)
         hl.Struct(bar=123, banana=1)
-        
+
         """
         d = OrderedDict()
         for a in fields:
