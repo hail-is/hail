@@ -36,6 +36,7 @@ from hailtop.config import DeployConfig
 from hailtop.hail_logging import configure_logging
 from hailtop.utils import (
     CalledProcessError,
+    Timings,
     blocking_to_async,
     check_exec_output,
     check_shell,
@@ -364,39 +365,6 @@ class JobTimeoutError(Exception):
     pass
 
 
-class Timings:
-    def __init__(self, is_deleted: Callable[[], bool]):
-        self.timings: Dict[str, Dict[str, float]] = dict()
-        self.is_deleted = is_deleted
-
-    def step(self, name: str, ignore_job_deletion: bool = False):
-        assert name not in self.timings
-        self.timings[name] = dict()
-        return ContainerStepManager(self.timings[name], self.is_deleted, ignore_job_deletion=ignore_job_deletion)
-
-    def to_dict(self):
-        return self.timings
-
-
-class ContainerStepManager:
-    def __init__(self, timing: Dict[str, float], is_deleted: Callable[[], bool], ignore_job_deletion: bool = False):
-        self.timing: Dict[str, float] = timing
-        self.is_deleted = is_deleted
-        self.ignore_job_deletion = ignore_job_deletion
-
-    def __enter__(self):
-        if self.is_deleted() and not self.ignore_job_deletion:
-            raise JobDeletedError
-        self.timing['start_time'] = time_msecs()
-
-    def __exit__(self, exc_type, exc, tb):
-        if self.is_deleted() and not self.ignore_job_deletion:
-            return
-        finish_time = time_msecs()
-        self.timing['finish_time'] = finish_time
-        self.timing['duration'] = finish_time - self.timing['start_time']
-
-
 def worker_fraction_in_1024ths(cpu_in_mcpu):
     return 1024 * cpu_in_mcpu // (CORES * 1000)
 
@@ -456,7 +424,7 @@ class Container:
         self.started_at: Optional[int] = None
         self.finished_at: Optional[int] = None
 
-        self.timings = Timings(self.is_job_deleted)
+        self.timings = Timings()
 
         self.logbuffer = bytearray()
         self.overlay_path = None
@@ -546,7 +514,7 @@ class Container:
             self.error = traceback.format_exc()
         finally:
             try:
-                with self.step('uploading_log', ignore_job_deletion=True):
+                with self.step('uploading_log'):
                     await self.upload_log()
             finally:
                 try:
@@ -576,8 +544,8 @@ class Container:
     def is_job_deleted(self) -> bool:
         return self.job.deleted
 
-    def step(self, name: str, ignore_job_deletion: bool = False):
-        return self.timings.step(name, ignore_job_deletion=ignore_job_deletion)
+    def step(self, name: str):
+        return self.timings.step(name)
 
     async def pull_image(self):
         is_cloud_image = (CLOUD == 'gcp' and self.image_ref.hosted_in('google')) or (
@@ -1306,7 +1274,7 @@ class DockerJob(Job):
 
         requester_pays_project = job_spec.get('requester_pays_project')
 
-        self.timings = Timings(lambda: False)
+        self.timings = Timings()
 
         if self.secrets:
             for secret in self.secrets:
@@ -1610,7 +1578,7 @@ class JVMJob(Job):
         self.jar_url = self.user_command_string[2]
 
         self.deleted = False
-        self.timings = Timings(lambda: self.deleted)
+        self.timings = Timings()
         self.state = 'pending'
         self.log: Optional[str] = None
 
