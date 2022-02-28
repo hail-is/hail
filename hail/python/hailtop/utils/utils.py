@@ -2,6 +2,7 @@ from typing import Any, Callable, TypeVar, Awaitable, Optional, Type, List, Dict
 from typing_extensions import Literal
 from types import TracebackType
 import concurrent
+import contextlib
 import subprocess
 import traceback
 import sys
@@ -982,3 +983,21 @@ STDERR:
 {find_spark_home.stderr}''')
         spark_home = find_spark_home.stdout.decode().strip()
     return spark_home
+
+
+class Timings:
+    def __init__(self):
+        self.timings: Dict[str, Dict[str, int]] = dict()
+
+    @contextlib.contextmanager
+    def step(self, name: str):
+        assert name not in self.timings
+        d: Dict[str, int] = dict()
+        self.timings[name] = d
+        d['start_time'] = time_msecs()
+        yield
+        d['finish_time'] = time_msecs()
+        d['duration'] = d['finish_time'] - d['start_time']
+
+    def to_dict(self):
+        return self.timings
