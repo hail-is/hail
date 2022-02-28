@@ -2,7 +2,7 @@ package is.hail.asm4s
 
 import is.hail.HailSuite
 import is.hail.annotations.Region
-import is.hail.expr.ir.{EmitCodeBuilder, EmitFunctionBuilder, EmitValue}
+import is.hail.expr.ir.{EmitCodeBuilder, EmitFunctionBuilder, EmitValue, IEmitCode}
 import is.hail.types.physical.stypes.{EmitType, SValue}
 import is.hail.types.physical.stypes.concrete._
 import is.hail.types.physical.stypes.primitives.{SFloat32Value, SFloat64Value, SInt32, SInt32Value, SInt64, SInt64Value}
@@ -28,24 +28,40 @@ class CodeSuite extends HailSuite {
     assert(result == 10)
   }
 
-  @Test def testSize(): Unit = {
+  @Test def testSizeBasic(): Unit = {
     val int64 = new SInt64Value(5L)
     val int32 = new SInt32Value(2)
     val struct = new SStackStructValue(SStackStruct(TStruct("x" -> TInt64, "y" -> TInt32), IndexedSeq(EmitType(SInt64, true), EmitType(SInt32, false))), IndexedSeq(EmitValue(None, int64), EmitValue(Some(false), int32)))
     val str = new SJavaStringValue(const("cat"))
+
+    def testSizeHelper(v: SValue): Long = {
+      val fb = EmitFunctionBuilder[Long](ctx, "test_size_in_bytes")
+      val mb = fb.apply_method
+      mb.emit(EmitCodeBuilder.scopedCode(mb) { cb =>
+        v.sizeInBytes(cb).value
+      })
+      fb.result()(theHailClassLoader)()
+    }
+
     assert(testSizeHelper(int64) == 8L)
     assert(testSizeHelper(int32) == 4L)
     assert(testSizeHelper(struct) == 16L) // 1 missing byte that gets 4 byte aligned, 8 bytes for long, 4 bytes for missing int
-    assert(testSizeHelper(str) == 15L) // 8 byte pointer, 4 byte header, 3 bytes for the 3 letters.
+    assert(testSizeHelper(str) == 7L) // 4 byte header, 3 bytes for the 3 letters.
   }
 
-  def testSizeHelper(v: SValue): Long = {
-    val fb = EmitFunctionBuilder[Long](ctx, "test_size_in_bytes")
+  @Test def testArraySizeInBytes(): Unit = {
+    val fb = EmitFunctionBuilder[Region, Long](ctx, "test_size_in_bytes")
     val mb = fb.apply_method
+    val ptype = PCanonicalArray(PInt32())
+    val stype = SIndexablePointer(ptype)
     mb.emit(EmitCodeBuilder.scopedCode(mb) { cb =>
-      v.sizeInBytes(cb).value
+      val region = fb.emb.getCodeParam[Region](1)
+      val sarray = ptype.constructFromElements(cb, region, 5, true) { (cb, idx) =>
+        cb.ifx(idx ceq 2, { IEmitCode.missing(cb, stype.elementType.defaultValue)}, { IEmitCode.present(cb, new SInt32Value(idx))})
+      }
+      sarray.sizeInBytes(cb).value
     })
-    fb.result()(theHailClassLoader)()
+    assert(fb.result()(theHailClassLoader)(ctx.r) == 28L) // 2 missing bytes 4 byte aligned + 4 header bytes + 5 elements * 4 bytes for ints.
   }
 
   @Test def testHash() {
