@@ -57,6 +57,14 @@ async def check_shell(script: str, echo: bool = False, inherit_std_out_err: bool
         await check_shell_output(script, echo=echo)
 
 
+def sync_check_exec_output(command: str, *args: str, echo: bool = False) -> Tuple[bytes, bytes]:
+    return async_to_blocking(check_exec_output(command, *args, echo=echo))
+
+
+def sync_check_exec(command: str, *args: str,echo: bool = False):
+    sync_check_exec_output(command, *args, echo=echo)
+
+
 def sync_check_shell_output(script: str, echo=False) -> Tuple[bytes, bytes]:
     return async_to_blocking(check_shell_output(script, echo))
 

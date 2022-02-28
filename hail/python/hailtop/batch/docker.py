@@ -10,6 +10,7 @@ def build_python_image(fullname: str,
                        requirements: Optional[List[str]] = None,
                        python_version: Optional[str] = None,
                        _tmp_dir: str = '/tmp',
+                       *,
                        show_docker_output: bool = False) -> str:
     """
     Build a new Python image with dill and the specified pip packages installed.
@@ -81,15 +82,15 @@ RUN pip install --upgrade --no-cache-dir -r requirements.txt && \
     python3 -m pip check
 ''')
 
-            sync_check_shell(f'docker build -t {fullname} {docker_path}', inherit_std_out_err=show_docker_output)
+            sync_check_exec('docker', 'build', '-t', fullname, docker_path, capture_output=False)
             print(f'finished building image {fullname}')
         else:
-            sync_check_shell(f'docker pull {base_image}', inherit_std_out_err=show_docker_output)
-            sync_check_shell(f'docker tag {base_image} {fullname}', inherit_std_out_err=show_docker_output)
+            sync_check_exec('docker', 'pull', base_image, capture_output=False)
+            sync_check_exec('docker', 'tag', base_image, fullname, capture_output=False)
             print(f'finished pulling image {fullname}')
 
         if '/' in fullname:
-            sync_check_shell(f'docker push {fullname}', inherit_std_out_err=show_docker_output)
+            sync_check_shell('docker', 'push', fullname, capture_output=False)
             print(f'finished pushing image {fullname}')
     finally:
         shutil.rmtree(docker_path, ignore_errors=True)
