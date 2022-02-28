@@ -36,16 +36,19 @@ class SQLConfig(NamedTuple):
         return d
 
     def to_cnf(self) -> str:
-        return f'''[client]
+        cnf = f'''[client]
 host={self.host}
 user={self.user}
 password="{self.password}"
-{"database=" + self.db if self.db is not None else ""}
 ssl-ca={self.ssl_ca}
 ssl-mode={self.ssl_mode}
-{"ssl-cert=" + self.ssl_cert if self.ssl_cert is not None else ""}
-{"ssl-key=" + self.ssl_key if self.ssl_key is not None else ""}
 '''
+        if self.db is not None:
+            cnf += f'database={self.db}\n'
+        if self.using_mtls():
+            cnf += f'ssl-cert={self.ssl_cert}\n'
+            cnf += f'ssl-key={self.ssl_key}\n'
+        return cnf
 
     def check(self):
         assert self.host is not None
@@ -67,7 +70,11 @@ ssl-mode={self.ssl_mode}
             raise ValueError(f'specified ssl-ca, {self.ssl_ca}, does not exist')
 
     def using_mtls(self) -> bool:
-        return self.ssl_cert is not None and self.ssl_key is not None
+        if self.ssl_cert is not None:
+            assert self.ssl_key is not None
+            return True
+        assert self.ssl_key is None
+        return False
 
     @staticmethod
     def from_json(s: str) -> 'SQLConfig':
@@ -102,7 +109,10 @@ def create_secret_data_from_config(config: SQLConfig,
     secret_data['sql-config.json'] = config.to_json()
     secret_data['sql-config.cnf'] = config.to_cnf()
     secret_data['server-ca.pem'] = server_ca
-    if client_cert is not None and client_key is not None:
+    if client_cert is not None:
+        assert client_key is not None
         secret_data['client-cert.pem'] = client_cert
         secret_data['client-key.pem'] = client_key
+    else:
+        assert client_cert is None and client_key is None
     return secret_data
