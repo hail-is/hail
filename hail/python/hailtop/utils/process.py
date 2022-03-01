@@ -49,8 +49,8 @@ async def check_shell_output(script: str, echo: bool = False) -> Tuple[bytes, by
     return await check_exec_output('/bin/bash', '-c', script, echo=echo)
 
 
-async def check_shell(script: str, echo: bool = False, inherit_std_out_err: bool = False) -> None:
-    if inherit_std_out_err:
+async def check_shell(script: str, echo: bool = False, capture_output: bool = False) -> None:
+    if capture_output:
         await check_exec_inherit_output_streams('/bin/bash', '-c', script, echo=echo)
     else:
         # Use version that collects stdout/stderr for error reporting
@@ -61,11 +61,12 @@ def sync_check_exec_output(command: str, *args: str, echo: bool = False) -> Tupl
     return async_to_blocking(check_exec_output(command, *args, echo=echo))
 
 
-def sync_check_exec(command: str, *args: str,echo: bool = False):
-    sync_check_exec_output(command, *args, echo=echo)
+def sync_check_exec(command: str, *args: str, echo: bool = False, capture_output: bool = True):
+    if capture_output:
+        check_exec_inherit_output_streams(command, *args, echo=echo, capture_output=capture_output)
 
 
-def sync_check_shell_output(script: str, echo=False) -> Tuple[bytes, bytes]:
+def sync_check_shell_output(script: str, echo: bool = False) -> Tuple[bytes, bytes]:
     return async_to_blocking(check_shell_output(script, echo))
 
 

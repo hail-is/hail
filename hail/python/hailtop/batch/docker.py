@@ -3,7 +3,7 @@ import sys
 import os
 from typing import Optional, List
 
-from ..utils import secret_alnum_string, sync_check_shell
+from ..utils import secret_alnum_string, sync_check_exec
 
 
 def build_python_image(fullname: str,
@@ -82,15 +82,15 @@ RUN pip install --upgrade --no-cache-dir -r requirements.txt && \
     python3 -m pip check
 ''')
 
-            sync_check_exec('docker', 'build', '-t', fullname, docker_path, capture_output=False)
+            sync_check_exec('docker', 'build', '-t', fullname, docker_path, capture_output=(not show_docker_output))
             print(f'finished building image {fullname}')
         else:
-            sync_check_exec('docker', 'pull', base_image, capture_output=False)
-            sync_check_exec('docker', 'tag', base_image, fullname, capture_output=False)
+            sync_check_exec('docker', 'pull', base_image, capture_output=(not show_docker_output))
+            sync_check_exec('docker', 'tag', base_image, fullname, capture_output=(not show_docker_output))
             print(f'finished pulling image {fullname}')
 
         if '/' in fullname:
-            sync_check_shell('docker', 'push', fullname, capture_output=False)
+            sync_check_shell('docker', 'push', fullname, capture_output=(not show_docker_output))
             print(f'finished pushing image {fullname}')
     finally:
         shutil.rmtree(docker_path, ignore_errors=True)
