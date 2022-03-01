@@ -182,7 +182,6 @@ gcpsetcluster() {
     fi
 
     gcloud config set project $1
-    gcloud auth application-default login
     gcloud container clusters get-credentials --zone us-central1-a vdc
 }
 

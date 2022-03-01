@@ -1,19 +1,18 @@
-from typing import Any, Dict, Optional
 import base64
 import json
 import logging
 import os
 from shlex import quote as shq
+from typing import Any, Dict, Optional
 
 from gear.cloud_config import get_global_config
 
-from ....batch_configuration import DOCKER_ROOT_IMAGE, DOCKER_PREFIX, DEFAULT_NAMESPACE, INTERNAL_GATEWAY_IP
+from ....batch_configuration import DEFAULT_NAMESPACE, DOCKER_PREFIX, DOCKER_ROOT_IMAGE, INTERNAL_GATEWAY_IP
 from ....file_store import FileStore
 from ....instance_config import InstanceConfig
-from ...utils import ACCEPTABLE_QUERY_JAR_URL_PREFIX
 from ...resource_utils import unreserved_worker_data_disk_size_gib
+from ...utils import ACCEPTABLE_QUERY_JAR_URL_PREFIX
 from ..resource_utils import azure_machine_type_to_worker_type_and_cores
-
 
 log = logging.getLogger('create_instance')
 

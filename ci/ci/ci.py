@@ -1,34 +1,40 @@
-import traceback
+import asyncio
+import concurrent.futures
 import json
 import logging
-import asyncio
 import os
-import concurrent.futures
-from aiohttp import web
+import traceback
+from typing import Callable, List, Optional, Set
+
+import aiohttp_session  # type: ignore
 import uvloop  # type: ignore
-from gidgethub import aiohttp as gh_aiohttp, routing as gh_routing, sansio as gh_sansio
-from hailtop.utils import collect_agen, humanize_timedelta_msecs
-from hailtop.batch_client.aioclient import BatchClient, Batch
-from hailtop.config import get_deploy_config
-from hailtop.tls import internal_server_ssl_context
-from hailtop.hail_logging import AccessLogger
-from hailtop import httpx
+from aiohttp import web
+from gidgethub import aiohttp as gh_aiohttp
+from gidgethub import routing as gh_routing
+from gidgethub import sansio as gh_sansio
+from prometheus_async.aio.web import server_stats  # type: ignore
+from typing_extensions import TypedDict
+
 from gear import (
-    setup_aiohttp_session,
-    rest_authenticated_developers_only,
-    rest_authenticated_users_only,
-    web_authenticated_developers_only,
     check_csrf_token,
     create_database_pool,
     monitor_endpoints_middleware,
+    rest_authenticated_developers_only,
+    setup_aiohttp_session,
+    web_authenticated_developers_only,
+    rest_authenticated_users_only,
 )
-from typing import Optional, List, Set, Callable
-from typing_extensions import TypedDict
-from web_common import setup_aiohttp_jinja2, setup_common_static_routes, render_template, set_message
+from hailtop import aiotools, httpx
+from hailtop.batch_client.aioclient import Batch, BatchClient
+from hailtop.config import get_deploy_config
+from hailtop.hail_logging import AccessLogger
+from hailtop.tls import internal_server_ssl_context
+from hailtop.utils import collect_agen, humanize_timedelta_msecs
+from web_common import render_template, set_message, setup_aiohttp_jinja2, setup_common_static_routes
 
-from .environment import STORAGE_URI
-from .github import Repo, FQBranch, WatchedBranch, UnwatchedBranch, MergeFailureBatch, PR, select_random_teammate, WIP
 from .constants import AUTHORIZED_USERS, TEAMS
+from .environment import STORAGE_URI
+from .github import PR, WIP, FQBranch, MergeFailureBatch, Repo, UnwatchedBranch, WatchedBranch, select_random_teammate
 
 oauth_path = os.environ.get('HAIL_CI_OAUTH_TOKEN', 'oauth-token/oauth-token')
 if os.path.exists(oauth_path):
@@ -233,6 +239,19 @@ async def get_batch(request, userdata):
     return await render_template('ci', request, userdata, 'batch.html', page_context)
 
 
+def get_maybe_wb_for_batch(b: Batch):
+    if 'target_branch' in b.attributes and 'pr' in b.attributes:
+        branch = b.attributes['target_branch']
+        wbs = [wb for wb in watched_branches if wb.branch.short_str() == branch]
+        if len(wbs) == 0:
+            pr = b.attributes['pr']
+            log.exception(f"Attempted to load PR {pr} for unwatched branch {branch}")
+        else:
+            assert len(wbs) == 1
+            return wbs[0].index
+    return None
+
+
 @routes.get('/batches/{batch_id}/jobs/{job_id}')
 @web_authenticated_developers_only()
 async def get_job(request, userdata):
@@ -248,19 +267,6 @@ async def get_job(request, userdata):
         'attempts': await job.attempts(),
     }
     return await render_template('ci', request, userdata, 'job.html', page_context)
-
-
-def get_maybe_wb_for_batch(b: Batch):
-    if 'target_branch' in b.attributes and 'pr' in b.attributes:
-        branch = b.attributes['target_branch']
-        wbs = [wb for wb in watched_branches if wb.branch.short_str() == branch]
-        if len(wbs) == 0:
-            pr = b.attributes['pr']
-            log.exception(f"Attempted to load PR {pr} for unwatched branch {branch}")
-        else:
-            assert len(wbs) == 1
-            return wbs[0].index
-    return None
 
 
 def filter_wbs(wbs: List[WatchedBranchConfig], pred: Callable[[PRConfig], bool]):

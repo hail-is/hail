@@ -1,34 +1,37 @@
 import asyncio
-import os
-from aiohttp import web
+import json
 import logging
-from gear import setup_aiohttp_session, web_authenticated_developers_only
-from hailtop.config import get_deploy_config
-from hailtop.tls import internal_server_ssl_context
-from hailtop.hail_logging import AccessLogger, configure_logging
-from hailtop.utils import retry_long_running, collect_agen, humanize_timedelta_msecs
-from hailtop.aiocloud import aiogoogle
-from hailtop import aiotools, httpx
-import hailtop.batch_client.aioclient as bc
-from web_common import setup_aiohttp_jinja2, setup_common_static_routes, render_template
+import os
+import re
+
+import gidgethub
+import gidgethub.aiohttp
+import numpy as np
+import pandas as pd
+import plotly
+import plotly.express as px
+from aiohttp import web
 from benchmark.utils import (
-    get_geometric_mean,
-    parse_file_path,
     enumerate_list_of_trials,
+    get_geometric_mean,
     list_benchmark_files,
+    parse_file_path,
     round_if_defined,
     submit_test_batch,
 )
-import json
-import re
-import plotly
-import plotly.express as px
 from scipy.stats.mstats import gmean, hmean
-import numpy as np
-import pandas as pd
-import gidgethub
-import gidgethub.aiohttp
-from .config import START_POINT, BENCHMARK_RESULTS_PATH
+
+import hailtop.batch_client.aioclient as bc
+from gear import setup_aiohttp_session, web_authenticated_developers_only
+from hailtop import aiotools, httpx
+from hailtop.aiocloud import aiogoogle
+from hailtop.config import get_deploy_config
+from hailtop.hail_logging import AccessLogger, configure_logging
+from hailtop.tls import internal_server_ssl_context
+from hailtop.utils import collect_agen, humanize_timedelta_msecs, retry_long_running
+from web_common import render_template, setup_aiohttp_jinja2, setup_common_static_routes
+
+from .config import BENCHMARK_RESULTS_PATH, START_POINT
 
 configure_logging()
 router = web.RouteTableDef()

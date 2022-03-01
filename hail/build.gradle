@@ -20,9 +20,6 @@ plugins {
 import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
 
 repositories {
-    flatDir {
-        dirs 'libs'
-    }
     mavenCentral()
     maven { url "https://repository.cloudera.com/artifactory/cloudera-repos/" }
 }
@@ -179,21 +176,22 @@ dependencies {
     bundled group: 'org.slf4j', name: 'slf4j-api', version: '1.7.25'
 
     def elasticMajorVersion = System.getProperty("elasticsearch.major-version", "7")
-    if (elasticMajorVersion != "7") {
-        throw new UnsupportedOperationException("elasticsearch.major-version must be 7")
+    if (elasticMajorVersion != "7" && elasticMajorVersion != "8") {
+        throw new UnsupportedOperationException("elasticsearch.major-version must be 7 or 8")
     }
 
-    if (sparkVersion.startsWith("3.1.")) {
-        // This comes from a local libs directory, see Makefile
+    if (sparkVersion.startsWith("3.")) {
         assert(scalaMajorVersion == "2.12")
-        bundled 'org.elasticsearch:elasticsearch-spark-30_2.12-8.0.0-SNAPSHOT-custom-hail-spark311'
-    }
-    else if (sparkVersion.startsWith("3.0.")) {
-        assert(scalaMajorVersion == "2.12")
-        bundled 'org.elasticsearch:elasticsearch-spark-30_2.12:7.13.1'
+        if (elasticMajorVersion == "8") {
+            bundled 'org.elasticsearch:elasticsearch-spark-30_2.12:8.0.0'
+        }
+        else if (elasticMajorVersion == "7") {
+            bundled 'org.elasticsearch:elasticsearch-spark-30_2.12:7.17.0'
+        }
     }
     else if (sparkVersion.startsWith("2.4.")) {
         assert(scalaMajorVersion == "2.11")
+        assert(elasticMajorVersion == "7")
         bundled 'org.elasticsearch:elasticsearch-spark-20_2.11:7.8.1'
     }
     else {
@@ -221,7 +219,7 @@ dependencies {
 
     unbundled group: 'org.apache.commons', name: 'commons-math3', version: '3.6.1'
     bundled group: 'commons-codec', name: 'commons-codec', version: '1.11'
-    bundled group: 'org.apache.commons', name: 'commons-lang3', version: '3.0'
+    bundled group: 'org.apache.commons', name: 'commons-lang3', version: '3.5'
     bundled(group: 'org.apache.avro', name: 'avro', version: '1.10.2') {
         exclude group: 'com.fasterxml.jackson.core'
     }

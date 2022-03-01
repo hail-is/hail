@@ -1,10 +1,11 @@
-import logging
-import aiohttp
 import asyncio
+import logging
 from typing import List
 
+import aiohttp
+
 from hailtop.aiocloud import aiogoogle
-from hailtop.utils import time_msecs, parse_timestamp_msecs
+from hailtop.utils import parse_timestamp_msecs, time_msecs
 
 from ....driver.instance_collection import InstanceCollectionManager
 

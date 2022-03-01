@@ -1,9 +1,8 @@
 import abc
-from typing import Dict, Optional
 import logging
+from typing import Dict, Optional
 
 from gear import Database, transaction
-
 
 log = logging.getLogger('billing_manager')
 

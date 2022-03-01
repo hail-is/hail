@@ -1,6 +1,6 @@
-from typing import Dict
 import base64
 import json
+from typing import Dict
 
 from ....worker.credentials import CloudUserCredentials
 

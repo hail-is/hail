@@ -98,6 +98,12 @@ trait CodeBuilderLike {
     define(Lafter)
   }
 
+  def loop(emitBody: CodeLabel => Unit): Unit = {
+    val Lstart = CodeLabel()
+    define(Lstart)
+    emitBody(Lstart)
+  }
+
   def whileLoop(c: => Code[Boolean], emitBody: (CodeLabel) => Unit): Unit = {
     val Lstart = CodeLabel()
     val Lbody = CodeLabel()

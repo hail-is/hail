@@ -712,6 +712,7 @@ class VCFTests(unittest.TestCase):
             mt = hl.import_vcf([resource('different_info_test1.vcf'), resource('different_info_test2.vcf')])
             mt.rows()._force_count()
 
+
 class PLINKTests(unittest.TestCase):
     @fails_service_backend()
     def test_import_fam(self):
@@ -841,6 +842,11 @@ class PLINKTests(unittest.TestCase):
                                 reference_genome=None)
         self.assertEqual(plink.locus.dtype,
                          hl.tstruct(contig=hl.tstr, position=hl.tint32))
+
+    def test_import_plink_and_ignore_rows(self):
+        bfile = doctest_resource('ldsc')
+        plink = hl.import_plink(bfile + '.bed', bfile + '.bim', bfile + '.fam', block_size=16)
+        self.assertEqual(plink.aggregate_cols(hl.agg.count()), 489)
 
     @fails_service_backend()
     @fails_local_backend()
@@ -1634,15 +1640,13 @@ class GENTests(unittest.TestCase):
 
 
 class LocusIntervalTests(unittest.TestCase):
-    @fails_service_backend()
-    @fails_local_backend()
     def test_import_locus_intervals(self):
         interval_file = resource('annotinterall.interval_list')
         t = hl.import_locus_intervals(interval_file, reference_genome='GRCh37')
         nint = t.count()
 
         i = 0
-        with open(interval_file) as f:
+        with hl.current_backend().fs.open(interval_file) as f:
             for line in f:
                 if len(line.strip()) != 0:
                     i += 1
@@ -2017,15 +2021,14 @@ class ImportLinesTest(unittest.TestCase):
 
 
 class ImportTableTests(unittest.TestCase):
-    @fails_service_backend()
-    @fails_local_backend()
     def test_import_table_force_bgz(self):
+        fs = hl.current_backend().fs
         f = new_temp_file(extension="bgz")
         t = hl.utils.range_table(10, 5)
         t.export(f)
 
         f2 = new_temp_file(extension="gz")
-        run_command(["cp", uri_path(f), uri_path(f2)])
+        fs.copy(f, f2)
         t2 = hl.import_table(f2, force_bgz=True, impute=True).key_by('idx')
         self.assertTrue(t._same(t2))
 
@@ -2070,16 +2073,15 @@ Caused by: java.lang.ClassCastException: __C2829collect_distributed_array cannot
         assert ht.row.dtype == hl.dtype(
             'struct{A:int64, B:int32}')
 
-    @fails_service_backend()
-    @fails_local_backend()
     def test_import_export_identity(self):
+        fs = hl.current_backend().fs
         ht = hl.import_table(resource('sampleAnnotations.tsv'))
         f = new_temp_file()
         ht.export(f)
 
-        with open(resource('sampleAnnotations.tsv'), 'r') as i1:
+        with fs.open(resource('sampleAnnotations.tsv'), 'r') as i1:
             expected = list(line.strip() for line in i1)
-        with open(uri_path(f), 'r') as i2:
+        with fs.open(f, 'r') as i2:
             observed = list(line.strip() for line in i2)
 
         assert expected == observed

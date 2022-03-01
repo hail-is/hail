@@ -1,17 +1,17 @@
-from typing import Optional
-import os
 import asyncio
-import pymysql
-import aiomysql
-import logging
 import functools
+import logging
+import os
 import ssl
 import traceback
+from typing import Optional
+
+import aiomysql
+import pymysql
 
 from gear.metrics import PrometheusSQLTimer
-from hailtop.utils import sleep_and_backoff
 from hailtop.auth.sql_config import SQLConfig
-
+from hailtop.utils import sleep_and_backoff
 
 log = logging.getLogger('gear.database')
 
@@ -20,7 +20,9 @@ log = logging.getLogger('gear.database')
 # 1213 - Deadlock found when trying to get lock; try restarting transaction
 # 2003 - Can't connect to MySQL server on ...
 # 2013 - Lost connection to MySQL server during query ([Errno 104] Connection reset by peer)
-retry_codes = (1040, 1213, 2003, 2013)
+operational_error_retry_codes = (1040, 1213, 2003, 2013)
+# 1205 - Lock wait timeout exceeded; try restarting transaction
+internal_error_retry_codes = (1205,)
 
 
 def retry_transient_mysql_errors(f):
@@ -30,8 +32,17 @@ def retry_transient_mysql_errors(f):
         while True:
             try:
                 return await f(*args, **kwargs)
+            except pymysql.err.InternalError as e:
+                if e.args[0] in internal_error_retry_codes:
+                    log.warning(
+                        f'encountered pymysql error, retrying {e}',
+                        exc_info=True,
+                        extra={'full_stacktrace': '\n'.join(traceback.format_stack())},
+                    )
+                else:
+                    raise
             except pymysql.err.OperationalError as e:
-                if e.args[0] in retry_codes:
+                if e.args[0] in operational_error_retry_codes:
                     log.warning(
                         f'encountered pymysql error, retrying {e}',
                         exc_info=True,
@@ -179,22 +190,6 @@ class Transaction:
         # cancelling cleanup could leak a connection
         # await shield becuase we want to wait for commit/rollback to finish
         await asyncio.shield(self._aexit_1(exc_type))
-
-    async def commit(self):
-        assert self.conn
-        self.conn.commit()
-        self.conn = None
-
-        await aexit(self.conn_context_manager)
-        self.conn_context_manager = None
-
-    async def rollback(self):
-        assert self.conn
-        self.conn.rollback()
-        self.conn = None
-
-        await aexit(self.conn_context_manager)
-        self.conn_context_manager = None
 
     async def just_execute(self, sql, args=None):
         assert self.conn

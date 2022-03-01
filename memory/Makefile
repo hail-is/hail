@@ -12,6 +12,7 @@ MEMORY_IMAGE := $(DOCKER_PREFIX)/memory:$(TOKEN)
 check:
 	$(PYTHON) -m flake8  --config ../setup.cfg memory
 	$(PYTHON) -m pylint --rcfile ../pylintrc memory --score=n
+	$(PYTHON) -m isort . --check-only --diff
 	$(BLACK) --check --diff
 
 .PHONY: build

@@ -1,6 +1,7 @@
 package is.hail.expr.ir
 
 import java.util.regex.Pattern
+import is.hail.asm4s.HailClassLoader
 import is.hail.HailContext
 import is.hail.annotations.{Region, RegionValueBuilder}
 import is.hail.backend.ExecuteContext
@@ -359,7 +360,7 @@ class TextTableReader(
       val rowFields = requestedRowType.fields.toArray
       val requestedPType = bodyPType(requestedRowType)
 
-      { (region: Region, fs: FS, context: Any) =>
+      { (region: Region, theHailClassLoader: HailClassLoader, fs: FS, context: Any) =>
 
         val rvb = new RegionValueBuilder(region)
         val ab = new BoxedArrayBuilder[String]

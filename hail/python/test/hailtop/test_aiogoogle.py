@@ -121,7 +121,7 @@ async def test_multi_part_create_many_two_level_merge(gs_filesystem):
 
             # do in parallel
             await bounded_gather2(sema, *[
-                functools.partial(create_part, i) for i in range(len(part_data))])
+                functools.partial(retry_transient_errors, create_part, i) for i in range(len(part_data))])
 
         expected = b''.join(part_data)
         actual = await fs.read(path)

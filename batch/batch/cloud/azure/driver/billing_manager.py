@@ -1,9 +1,9 @@
-from typing import List, Dict
-from collections import namedtuple
 import logging
+from collections import namedtuple
+from typing import Dict, List
 
-from hailtop.aiocloud import aioazure
 from gear import Database, transaction
+from hailtop.aiocloud import aioazure
 
 from ....driver.billing_manager import (
     CloudBillingManager,
@@ -11,7 +11,6 @@ from ....driver.billing_manager import (
     product_version_to_resource,
     refresh_product_versions_from_db,
 )
-
 from .pricing import AzureVMPrice, fetch_prices
 
 log = logging.getLogger('billing_manager')

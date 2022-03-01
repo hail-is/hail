@@ -1,14 +1,15 @@
-import aiohttp
-from typing import Dict
 import os
+from typing import Dict
 
-from hailtop.utils import request_retry_transient_errors
+import aiohttp
+
 from hailtop import httpx
+from hailtop.utils import request_retry_transient_errors
 
 from ....worker.worker_api import CloudWorkerAPI
-from .disk import GCPDisk
-from .credentials import GCPUserCredentials
 from ..instance_config import GCPSlimInstanceConfig
+from .credentials import GCPUserCredentials
+from .disk import GCPDisk
 
 
 class GCPWorkerAPI(CloudWorkerAPI):

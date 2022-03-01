@@ -12,7 +12,7 @@ from hail.expr import construct_expr, construct_variable
 from hail.expr.expressions import (expr_float64, matrix_table_source, expr_ndarray,
                                    check_entry_indexed, expr_tuple, expr_array, expr_int32, expr_int64)
 from hail.ir import (BlockMatrixWrite, BlockMatrixMap2, ApplyBinaryPrimOp, F64,
-                     BlockMatrixBroadcast, ValueToBlockMatrix, BlockMatrixRead, JavaBlockMatrix,
+                     BlockMatrixBroadcast, ValueToBlockMatrix, BlockMatrixRead,
                      BlockMatrixMap, ApplyUnaryPrimOp, BlockMatrixDot, BlockMatrixCollect,
                      tensor_shape_to_matrix_shape, BlockMatrixAgg, BlockMatrixRandom,
                      BlockMatrixToValueApply, BlockMatrixToTable, BlockMatrixFilter,
@@ -222,10 +222,6 @@ class BlockMatrix(object):
 
     - Natural logarithm, :meth:`log`.
     """
-
-    @staticmethod
-    def _from_java(jbm):
-        return BlockMatrix(JavaBlockMatrix(jbm))
 
     def __init__(self, bmir):
         self._bmir = bmir

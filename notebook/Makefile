@@ -13,6 +13,7 @@ BLACK := $(PYTHON) -m black . --line-length=120 --skip-string-normalization
 check:
 	$(PYTHON) -m flake8 notebook
 	$(PYTHON) -m pylint --rcfile ../pylintrc notebook --score=n
+	$(PYTHON) -m isort . --check-only --diff
 	$(BLACK) --check --diff
 	curlylint .
 	bash ../check-sql.sh

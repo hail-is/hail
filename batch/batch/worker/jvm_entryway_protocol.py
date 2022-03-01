@@ -1,7 +1,6 @@
 import asyncio
-import struct
 import logging
-
+import struct
 
 log = logging.getLogger('jvm_entryway_protocol')
 

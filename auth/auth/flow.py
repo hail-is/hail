@@ -1,11 +1,12 @@
 import abc
-import msal
+import json
+import urllib.parse
+
+import aiohttp.web
 import google.auth.transport.requests
 import google.oauth2.id_token
 import google_auth_oauthlib.flow
-import aiohttp.web
-import json
-import urllib.parse
+import msal
 
 from gear.cloud_config import get_global_config
 

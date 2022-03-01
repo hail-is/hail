@@ -1,15 +1,17 @@
-import time
-import re
 import os
+import re
 import secrets
+import time
+
 import pytest
 from flask import Response
-from hailtop.config import get_user_config
-from hailtop.batch_client.client import BatchClient, Job
-import hailtop.batch_client.aioclient as aioclient
 
-from .utils import batch_status_job_counter, legacy_batch_status
+import hailtop.batch_client.aioclient as aioclient
+from hailtop.batch_client.client import BatchClient, Job
+from hailtop.config import get_user_config
+
 from .serverthread import ServerThread
+from .utils import batch_status_job_counter, legacy_batch_status
 
 DOCKER_ROOT_IMAGE = os.environ['DOCKER_ROOT_IMAGE']
 

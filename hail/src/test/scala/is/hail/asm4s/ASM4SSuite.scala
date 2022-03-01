@@ -14,10 +14,12 @@ import scala.language.postfixOps
 trait Z2Z { def apply(z:Boolean): Boolean }
 
 class ASM4SSuite extends TestNGSuite {
+  private[this] val theHailClassLoader = new HailClassLoader(getClass().getClassLoader())
+
   @Test def not(): Unit = {
     val notb = FunctionBuilder[Z2Z]("is/hail/asm4s/Z2Z", Array(NotGenericTypeInfo[Boolean]), NotGenericTypeInfo[Boolean])
     notb.emit(!notb.getArg[Boolean](1))
-    val not = notb.result()()
+    val not = notb.result()(theHailClassLoader)
     assert(!not(true))
     assert(not(false))
   }
@@ -25,7 +27,7 @@ class ASM4SSuite extends TestNGSuite {
   @Test def mux(): Unit = {
     val gb = FunctionBuilder[Boolean, Int]("G")
     gb.emit(gb.getArg[Boolean](1).mux(11, -1))
-    val g = gb.result()()
+    val g = gb.result()(theHailClassLoader)
     assert(g(true) == 11)
     assert(g(false) == -1)
   }
@@ -33,7 +35,7 @@ class ASM4SSuite extends TestNGSuite {
   @Test def add(): Unit = {
     val fb = FunctionBuilder[Int, Int]("F")
     fb.emit(fb.getArg[Int](1) + 5)
-    val f = fb.result()()
+    val f = fb.result()(theHailClassLoader)
     assert(f(-2) == 3)
   }
 
@@ -41,7 +43,7 @@ class ASM4SSuite extends TestNGSuite {
     val fb = FunctionBuilder[Int]("F")
     val l = fb.newLocal[Int]()
     fb.emit(Code(l := 0, l++, l += 2, l))
-    val f = fb.result()()
+    val f = fb.result()(theHailClassLoader)
     assert(f() == 3)
   }
 
@@ -55,7 +57,7 @@ class ASM4SSuite extends TestNGSuite {
       arr(2) = -6,
       arr(hb.getArg[Int](1))
     ))
-    val h = hb.result()()
+    val h = hb.result()(theHailClassLoader)
     assert(h(0) == 6)
     assert(h(1) == 7)
     assert(h(2) == -6)
@@ -64,7 +66,7 @@ class ASM4SSuite extends TestNGSuite {
   @Test def get(): Unit = {
     val fb = FunctionBuilder[A, Int]("F")
     fb.emit(fb.getArg[A](1).getField[Int]("i"))
-    val i = fb.result()()
+    val i = fb.result()(theHailClassLoader)
 
     val a = new A
     assert(i(a) == 5)
@@ -73,7 +75,7 @@ class ASM4SSuite extends TestNGSuite {
   @Test def invoke(): Unit = {
     val fb = FunctionBuilder[A, Int]("F")
     fb.emit(fb.getArg[A](1).invoke[Int]("f"))
-    val i = fb.result()()
+    val i = fb.result()(theHailClassLoader)
 
     val a = new A
     assert(i(a) == 6)
@@ -82,7 +84,7 @@ class ASM4SSuite extends TestNGSuite {
   @Test def invoke2(): Unit = {
     val fb = FunctionBuilder[A, Int]("F")
     fb.emit(fb.getArg[A](1).invoke[Int, Int]("g", 6))
-    val j = fb.result()()
+    val j = fb.result()(theHailClassLoader)
 
     val a = new A
     assert(j(a) == 11)
@@ -91,7 +93,7 @@ class ASM4SSuite extends TestNGSuite {
   @Test def newInstance(): Unit = {
     val fb = FunctionBuilder[Int]("F")
     fb.emit(Code.newInstance[A]().invoke[Int]("f"))
-    val f = fb.result()()
+    val f = fb.result()(theHailClassLoader)
     assert(f() == 6)
   }
 
@@ -102,7 +104,7 @@ class ASM4SSuite extends TestNGSuite {
       inst.store(Code.newInstance[A]()),
       inst.put("i", -2),
       inst.getField[Int]("i")))
-    val f = fb.result()()
+    val f = fb.result()(theHailClassLoader)
     assert(f() == -2)
   }
 
@@ -113,21 +115,21 @@ class ASM4SSuite extends TestNGSuite {
       inst.store(Code.newInstance[A]()),
       inst.put("j", -2),
       Code.getStatic[A, Int]("j")))
-    val f = fb.result()()
+    val f = fb.result()(theHailClassLoader)
     assert(f() == -2)
   }
 
   @Test def f2(): Unit = {
     val fb = FunctionBuilder[Int, Int, Int]("F")
     fb.emit(fb.getArg[Int](1) + fb.getArg[Int](2))
-    val f = fb.result()()
+    val f = fb.result()(theHailClassLoader)
     assert(f(3, 5) == 8)
   }
 
   @Test def compare(): Unit = {
     val fb = FunctionBuilder[Int, Int, Boolean]("F")
     fb.emit(fb.getArg[Int](1) > fb.getArg[Int](2))
-    val f = fb.result()()
+    val f = fb.result()(theHailClassLoader)
     assert(f(5, 2))
     assert(!f(-1, -1))
     assert(!f(2, 5))
@@ -145,7 +147,7 @@ class ASM4SSuite extends TestNGSuite {
           r.store(r * i),
           i.store(i - 1))),
       r))
-    val f = fb.result()()
+    val f = fb.result()(theHailClassLoader)
 
     assert(f(3) == 6)
     assert(f(4) == 24)
@@ -154,7 +156,7 @@ class ASM4SSuite extends TestNGSuite {
   @Test def dcmp(): Unit = {
     val fb = FunctionBuilder[Double, Double, Boolean]("F")
     fb.emit(fb.getArg[Double](1) > fb.getArg[Double](2))
-    val f = fb.result()()
+    val f = fb.result()(theHailClassLoader)
     assert(f(5.2, 2.3))
 
     val d = -2.3
@@ -171,7 +173,7 @@ class ASM4SSuite extends TestNGSuite {
       arr(1) = Code.newInstance[A](),
       arr(0).getField[Int]("i") + arr(1).getField[Int]("i")
     ))
-    val f = fb.result()()
+    val f = fb.result()(theHailClassLoader)
     assert(f() == 10)
   }
 
@@ -202,7 +204,7 @@ class ASM4SSuite extends TestNGSuite {
           )
         ),
         vn_2 + vn_1)))
-    val f = fb.result()()
+    val f = fb.result()(theHailClassLoader)
 
     Prop.forAll(Gen.choose(0, 100)) { i =>
       fibonacciReference(i) == f(i)
@@ -214,37 +216,37 @@ class ASM4SSuite extends TestNGSuite {
       {
         val fb = FunctionBuilder[Boolean]("F")
         fb.emit(Double.NaN < x)
-        val f = fb.result()()
+        val f = fb.result()(theHailClassLoader)
         assert(!f())
       }
       {
         val fb = FunctionBuilder[Boolean]("F")
         fb.emit(Double.NaN <= x)
-        val f = fb.result()()
+        val f = fb.result()(theHailClassLoader)
         assert(!f())
       }
       {
         val fb = FunctionBuilder[Boolean]("F")
         fb.emit(Double.NaN > x)
-        val f = fb.result()()
+        val f = fb.result()(theHailClassLoader)
         assert(!f())
       }
       {
         val fb = FunctionBuilder[Boolean]("F")
         fb.emit(Double.NaN >= x)
-        val f = fb.result()()
+        val f = fb.result()(theHailClassLoader)
         assert(!f())
       }
       {
         val fb = FunctionBuilder[Boolean]("F")
         fb.emit(new CodeDouble(Double.NaN).ceq(x))
-        val f = fb.result()()
+        val f = fb.result()(theHailClassLoader)
         assert(!f())
       }
       {
         val fb = FunctionBuilder[Boolean]("F")
         fb.emit(new CodeDouble(Double.NaN).cne(x))
-        val f = fb.result()()
+        val f = fb.result()(theHailClassLoader)
         assert(f())
       }
 
@@ -257,37 +259,37 @@ class ASM4SSuite extends TestNGSuite {
       {
         val fb = FunctionBuilder[Boolean]("F")
         fb.emit(Float.NaN < x)
-        val f = fb.result()()
+        val f = fb.result()(theHailClassLoader)
         assert(!f())
       }
       {
         val fb = FunctionBuilder[Boolean]("F")
         fb.emit(Float.NaN <= x)
-        val f = fb.result()()
+        val f = fb.result()(theHailClassLoader)
         assert(!f())
       }
       {
         val fb = FunctionBuilder[Boolean]("F")
         fb.emit(Float.NaN > x)
-        val f = fb.result()()
+        val f = fb.result()(theHailClassLoader)
         assert(!f())
       }
       {
         val fb = FunctionBuilder[Boolean]("F")
         fb.emit(Float.NaN >= x)
-        val f = fb.result()()
+        val f = fb.result()(theHailClassLoader)
         assert(!f())
       }
       {
         val fb = FunctionBuilder[Boolean]("F")
         fb.emit(new CodeFloat(Float.NaN).ceq(x))
-        val f = fb.result()()
+        val f = fb.result()(theHailClassLoader)
         assert(!f())
       }
       {
         val fb = FunctionBuilder[Boolean]("F")
         fb.emit(new CodeFloat(Float.NaN).cne(x))
-        val f = fb.result()()
+        val f = fb.result()(theHailClassLoader)
         assert(f())
       }
 
@@ -319,7 +321,7 @@ class ASM4SSuite extends TestNGSuite {
       })
       res
     }
-    val f = fb.result(Some(new PrintWriter(System.out)))()
+    val f = fb.result(Some(new PrintWriter(System.out)))(theHailClassLoader)
     assert(f(0, 1, 1) == 2)
     assert(f(1, 5, 1) == 4)
     assert(f(2, 2, 8) == 16)
@@ -338,7 +340,7 @@ class ASM4SSuite extends TestNGSuite {
       v1 + v2))
 
     fb.emitWithBuilder(add.invoke(_, fb.getArg[Int](1), fb.getArg[Int](2)))
-    val f = fb.result()()
+    val f = fb.result()(theHailClassLoader)
     assert(f(1, 1) == 2)
   }
 
@@ -359,7 +361,7 @@ class ASM4SSuite extends TestNGSuite {
         case LongInfo => fb.emit(Code(c, longField.load()))
         case BooleanInfo => fb.emit(Code(c, booleanField.load()))
       }
-      val f = fb.result()()
+      val f = fb.result()(theHailClassLoader)
       f(arg1, arg2, arg3)
     }
 
@@ -386,7 +388,7 @@ class ASM4SSuite extends TestNGSuite {
         case BooleanInfo => mb.emit(Code(c, booleanField.load()))
       }
       fb.emitWithBuilder(mb.invoke(_, fb.getArg[Int](1), fb.getArg[Long](2), fb.getArg[Boolean](3)))
-      val f = fb.result()()
+      val f = fb.result()(theHailClassLoader)
       f(arg1, arg2, arg3)
     }
 
@@ -406,7 +408,7 @@ class ASM4SSuite extends TestNGSuite {
       v2 := v1,
       v1))
 
-    assert(fb.result()()() == 1)
+    assert(fb.result()(theHailClassLoader)() == 1)
   }
 
   @Test def testInitialize(): Unit = {
@@ -415,7 +417,7 @@ class ASM4SSuite extends TestNGSuite {
     fb.emit(Code(
       fb.getArg[Boolean](1).mux(Code._empty, l := 5),
       l))
-    val f = fb.result()()
+    val f = fb.result()(theHailClassLoader)
     assert(f(true) == 0)
     assert(f(false) == 5)
   }

@@ -206,6 +206,14 @@ class GGPlot:
         if self.coord_cartesian is not None:
             self.coord_cartesian.apply_to_fig(fig)
 
+        fig = fig.update_xaxes(title_font_size=18)
+        fig = fig.update_yaxes(title_font_size=18)
+        fig = fig.update_layout(
+            template="simple_white",
+            font_family='Arial, "Open Sans", verdana, sans-serif',
+            title_font_size=26
+        )
+
         return fig
 
     def show(self):

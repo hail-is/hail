@@ -1,5 +1,5 @@
-from aiohttp import web
 import prometheus_client as pc  # type: ignore
+from aiohttp import web
 from prometheus_async.aio import time as prom_async_time  # type: ignore
 
 REQUEST_TIME = pc.Summary('http_request_latency_seconds', 'Endpoint latency in seconds', ['endpoint', 'verb'])

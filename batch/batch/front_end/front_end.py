@@ -1,83 +1,83 @@
-from typing import Optional, Union, Dict
-from numbers import Number
-import os
-import logging
-import json
-import random
-import datetime
-import collections
-from functools import wraps
 import asyncio
-import aiohttp
+import collections
+import datetime
+import json
+import logging
+import os
+import random
 import signal
-from aiohttp import web
-import aiohttp_session
-import pandas as pd
-import pymysql
-import plotly.express as px
-import plotly
-import humanize
 import traceback
+from functools import wraps
+from numbers import Number
+from typing import Dict, Optional, Union
+
+import aiohttp
+import aiohttp_session
+import humanize
+import pandas as pd
+import plotly
+import plotly.express as px
+import pymysql
+from aiohttp import web
 from prometheus_async.aio.web import server_stats  # type: ignore
 
-from hailtop.utils import (
-    time_msecs,
-    time_msecs_str,
-    humanize_timedelta_msecs,
-    request_retry_transient_errors,
-    run_if_changed,
-    retry_long_running,
-    LoggingTimer,
-    cost_str,
-    dump_all_stacktraces,
-    periodically_call,
-)
-from hailtop.batch_client.parse import parse_cpu_in_mcpu, parse_memory_in_bytes, parse_storage_in_bytes
-from hailtop.config import get_deploy_config
-from hailtop.tls import internal_server_ssl_context
-from hailtop import httpx
-from hailtop.hail_logging import AccessLogger
-from hailtop import aiotools, dictfix
 from gear import (
     Database,
-    setup_aiohttp_session,
-    rest_authenticated_users_only,
-    web_authenticated_users_only,
-    web_authenticated_developers_only,
     check_csrf_token,
-    transaction,
     monitor_endpoints_middleware,
+    rest_authenticated_users_only,
+    setup_aiohttp_session,
+    transaction,
+    web_authenticated_developers_only,
+    web_authenticated_users_only,
 )
 from gear.clients import get_cloud_async_fs
 from gear.database import CallError
-from web_common import setup_aiohttp_jinja2, setup_common_static_routes, render_template, set_message
+from hailtop import aiotools, dictfix, httpx
+from hailtop.batch_client.parse import parse_cpu_in_mcpu, parse_memory_in_bytes, parse_storage_in_bytes
+from hailtop.config import get_deploy_config
+from hailtop.hail_logging import AccessLogger
+from hailtop.tls import internal_server_ssl_context
+from hailtop.utils import (
+    LoggingTimer,
+    cost_str,
+    dump_all_stacktraces,
+    humanize_timedelta_msecs,
+    periodically_call,
+    request_retry_transient_errors,
+    retry_long_running,
+    run_if_changed,
+    time_msecs,
+    time_msecs_str,
+)
+from web_common import render_template, set_message, setup_aiohttp_jinja2, setup_common_static_routes
 
-# import uvloop
-
-from ..utils import coalesce, query_billing_projects, accrued_cost_from_cost_and_msec_mcpu
+from ..batch import batch_record_to_dict, cancel_batch_in_db, job_record_to_dict
+from ..batch_configuration import BATCH_STORAGE_URI, CLOUD, DEFAULT_NAMESPACE, SCOPE
+from ..batch_format_version import BatchFormatVersion
 from ..cloud.resource_utils import (
-    is_valid_cores_mcpu,
-    cost_from_msec_mcpu,
     cores_mcpu_to_memory_bytes,
+    cost_from_msec_mcpu,
+    is_valid_cores_mcpu,
     memory_to_worker_type,
     valid_machine_types,
 )
-from ..batch import batch_record_to_dict, job_record_to_dict, cancel_batch_in_db
 from ..exceptions import (
+    BatchOperationAlreadyCompletedError,
     BatchUserError,
-    NonExistentBillingProjectError,
     ClosedBillingProjectError,
     InvalidBillingLimitError,
-    BatchOperationAlreadyCompletedError,
+    NonExistentBillingProjectError,
 )
-from ..inst_coll_config import InstanceCollectionConfigs
 from ..file_store import FileStore
-from ..batch_configuration import BATCH_STORAGE_URI, DEFAULT_NAMESPACE, SCOPE, CLOUD
-from ..globals import HTTP_CLIENT_MAX_SIZE, BATCH_FORMAT_VERSION
+from ..globals import BATCH_FORMAT_VERSION, HTTP_CLIENT_MAX_SIZE
+from ..inst_coll_config import InstanceCollectionConfigs
 from ..spec_writer import SpecWriter
-from ..batch_format_version import BatchFormatVersion
+from ..utils import accrued_cost_from_cost_and_msec_mcpu, coalesce, query_billing_projects
+from .validate import ValidationError, validate_and_clean_jobs, validate_batch
 
-from .validate import ValidationError, validate_batch, validate_and_clean_jobs
+# import uvloop
+
 
 # uvloop.install()
 
@@ -338,37 +338,44 @@ async def _get_job_log_from_record(app, batch_id, job_id, record):
                 return None
             raise
 
-    if state in ('Error', 'Failed', 'Success'):
-        file_store: FileStore = app['file_store']
-        batch_format_version = BatchFormatVersion(record['format_version'])
+    if state in ('Pending', 'Ready', 'Creating'):
+        return None
 
-        async def _read_log_from_gcs(task):
-            try:
-                data = await file_store.read_log_file(
-                    batch_format_version, batch_id, job_id, record['attempt_id'], task
-                )
-            except FileNotFoundError:
-                id = (batch_id, job_id)
-                log.exception(f'missing log file for {id} and task {task}')
-                data = 'ERROR: could not find log file'
-            return task, data
+    if state == 'Cancelled' and record['last_cancelled_attempt_id'] is None:
+        return None
 
-        spec = json.loads(record['spec'])
-        tasks = []
+    assert state in ('Error', 'Failed', 'Success', 'Cancelled')
 
-        has_input_files = batch_format_version.get_spec_has_input_files(spec)
-        if has_input_files:
-            tasks.append('input')
+    batch_format_version = BatchFormatVersion(record['format_version'])
+    attempt_id = record['attempt_id'] or record['last_cancelled_attempt_id']
+    assert attempt_id is not None
 
-        tasks.append('main')
+    file_store: FileStore = app['file_store']
+    batch_format_version = BatchFormatVersion(record['format_version'])
 
-        has_output_files = batch_format_version.get_spec_has_output_files(spec)
-        if has_output_files:
-            tasks.append('output')
+    async def _read_log_from_cloud_storage(task):
+        try:
+            data = await file_store.read_log_file(batch_format_version, batch_id, job_id, attempt_id, task)
+        except FileNotFoundError:
+            id = (batch_id, job_id)
+            log.exception(f'missing log file for {id} and task {task}')
+            data = 'ERROR: could not find log file'
+        return task, data
 
-        return dict(await asyncio.gather(*[_read_log_from_gcs(task) for task in tasks]))
+    spec = json.loads(record['spec'])
+    tasks = []
 
-    return None
+    has_input_files = batch_format_version.get_spec_has_input_files(spec)
+    if has_input_files:
+        tasks.append('input')
+
+    tasks.append('main')
+
+    has_output_files = batch_format_version.get_spec_has_output_files(spec)
+    if has_output_files:
+        tasks.append('output')
+
+    return dict(await asyncio.gather(*[_read_log_from_cloud_storage(task) for task in tasks]))
 
 
 async def _get_job_log(app, batch_id, job_id):
@@ -376,7 +383,7 @@ async def _get_job_log(app, batch_id, job_id):
 
     record = await db.select_and_fetchone(
         '''
-SELECT jobs.state, jobs.spec, ip_address, format_version, jobs.attempt_id
+SELECT jobs.state, jobs.spec, ip_address, format_version, jobs.attempt_id, t.attempt_id AS last_cancelled_attempt_id
 FROM jobs
 INNER JOIN batches
   ON jobs.batch_id = batches.id
@@ -384,9 +391,17 @@ LEFT JOIN attempts
   ON jobs.batch_id = attempts.batch_id AND jobs.job_id = attempts.job_id AND jobs.attempt_id = attempts.attempt_id
 LEFT JOIN instances
   ON attempts.instance_name = instances.name
+LEFT JOIN (
+  SELECT batch_id, job_id, attempt_id
+  FROM attempts
+  WHERE reason = "cancelled" AND batch_id = %s AND job_id = %s
+  ORDER BY end_time DESC
+  LIMIT 1
+) AS t
+  ON jobs.batch_id = t.batch_id AND jobs.job_id = t.job_id
 WHERE jobs.batch_id = %s AND NOT deleted AND jobs.job_id = %s;
 ''',
-        (batch_id, job_id),
+        (batch_id, job_id, batch_id, job_id),
     )
     if not record:
         raise web.HTTPNotFound()
@@ -444,14 +459,19 @@ async def _get_full_job_status(app, record):
 
     batch_id = record['batch_id']
     job_id = record['job_id']
-    attempt_id = record['attempt_id']
     state = record['state']
     format_version = BatchFormatVersion(record['format_version'])
 
-    if state in ('Pending', 'Creating', 'Ready', 'Cancelled'):
+    if state in ('Pending', 'Creating', 'Ready'):
         return None
 
-    if state in ('Error', 'Failed', 'Success'):
+    if state == 'Cancelled' and record['last_cancelled_attempt_id'] is None:
+        return None
+
+    attempt_id = record['attempt_id'] or record['last_cancelled_attempt_id']
+    assert attempt_id is not None
+
+    if state in ('Error', 'Failed', 'Success', 'Cancelled'):
         if not format_version.has_full_status_in_gcs():
             return json.loads(record['status'])
 
@@ -571,8 +591,10 @@ async def _query_batches(request, user, q):
         where_args.extend(args)
 
     sql = f'''
-SELECT batches.*, batches_cancelled.id IS NOT NULL AS cancelled, COALESCE(SUM(`usage` * rate), 0) AS cost
+SELECT batches.*, batches_cancelled.id IS NOT NULL AS cancelled, COALESCE(SUM(`usage` * rate), 0) AS cost, batches_n_jobs_in_complete_states.n_completed, batches_n_jobs_in_complete_states.n_succeeded, batches_n_jobs_in_complete_states.n_failed, batches_n_jobs_in_complete_states.n_cancelled
 FROM batches
+LEFT JOIN batches_n_jobs_in_complete_states
+  ON batches.id = batches_n_jobs_in_complete_states.id
 LEFT JOIN batches_cancelled
   ON batches.id = batches_cancelled.id
 LEFT JOIN aggregated_batch_resources
@@ -926,11 +948,9 @@ WHERE user = %s AND id = %s AND NOT deleted;
                 async with timer.step('write spec to cloud'):
                     await spec_writer.write()
 
-        async def insert_jobs_into_db():
+        async def insert_jobs_into_db(tx):
             async with timer.step('insert jobs'):
-
-                @transaction(db)
-                async def insert(tx):
+                try:
                     try:
                         await tx.execute_many(
                             '''
@@ -1018,9 +1038,6 @@ VALUES (%s, %s, %s);
 ''',
                             (batch_id, spec_writer.token, start_job_id),
                         )
-
-                try:
-                    await insert()  # pylint: disable=no-value-for-parameter
                 except asyncio.CancelledError:
                     raise
                 except aiohttp.web.HTTPException:
@@ -1032,8 +1049,13 @@ VALUES (%s, %s, %s);
                         f'job_parents_args={json.dumps(job_parents_args)}'
                     ) from err
 
-        await asyncio.gather(write_spec_to_cloud(), insert_jobs_into_db())
+        @transaction(db)
+        async def write_and_insert(tx):
+            # IMPORTANT: If cancellation or an error prevents writing the spec to the cloud, then we
+            # must rollback. See https://github.com/hail-is/hail-production-issues/issues/9
+            await asyncio.gather(write_spec_to_cloud(), insert_jobs_into_db(tx))
 
+        await write_and_insert()  # pylint: disable=no-value-for-parameter
     return web.Response()
 
 
@@ -1166,6 +1188,12 @@ VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
                 batch_spec.get('cancel_after_n_failures'),
             ),
         )
+        await tx.execute_insertone(
+            '''
+INSERT INTO batches_n_jobs_in_complete_states (id) VALUES (%s);
+''',
+            (id,),
+        )
 
         if attributes:
             await tx.execute_many(
@@ -1185,8 +1213,10 @@ async def _get_batch(app, batch_id):
 
     record = await db.select_and_fetchone(
         '''
-SELECT batches.*, batches_cancelled.id IS NOT NULL AS cancelled, COALESCE(SUM(`usage` * rate), 0) AS cost
+SELECT batches.*, batches_cancelled.id IS NOT NULL AS cancelled, COALESCE(SUM(`usage` * rate), 0) AS cost, batches_n_jobs_in_complete_states.n_completed, batches_n_jobs_in_complete_states.n_succeeded, batches_n_jobs_in_complete_states.n_failed, batches_n_jobs_in_complete_states.n_cancelled
 FROM batches
+LEFT JOIN batches_n_jobs_in_complete_states
+       ON batches.id = batches_n_jobs_in_complete_states.id
 LEFT JOIN batches_cancelled
        ON batches.id = batches_cancelled.id
 LEFT JOIN aggregated_batch_resources
@@ -1371,7 +1401,8 @@ async def _get_job(app, batch_id, job_id):
 
     record = await db.select_and_fetchone(
         '''
-SELECT jobs.*, user, billing_project, ip_address, format_version, COALESCE(SUM(`usage` * rate), 0) AS cost
+SELECT jobs.*, user, billing_project, ip_address, format_version, COALESCE(SUM(`usage` * rate), 0) AS cost,
+  t.attempt_id AS last_cancelled_attempt_id
 FROM jobs
 INNER JOIN batches
   ON jobs.batch_id = batches.id
@@ -1384,10 +1415,18 @@ LEFT JOIN aggregated_job_resources
      jobs.job_id = aggregated_job_resources.job_id
 LEFT JOIN resources
   ON aggregated_job_resources.resource = resources.resource
+LEFT JOIN (
+  SELECT batch_id, job_id, attempt_id
+  FROM attempts
+  WHERE reason = "cancelled" AND batch_id = %s AND job_id = %s
+  ORDER BY end_time DESC
+  LIMIT 1
+) AS t
+  ON jobs.batch_id = t.batch_id AND jobs.job_id = t.job_id
 WHERE jobs.batch_id = %s AND NOT deleted AND jobs.job_id = %s
-GROUP BY jobs.batch_id, jobs.job_id;
+GROUP BY jobs.batch_id, jobs.job_id, t.attempt_id;
 ''',
-        (batch_id, job_id),
+        (batch_id, job_id, batch_id, job_id),
     )
     if not record:
         raise web.HTTPNotFound()
