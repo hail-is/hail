@@ -2289,7 +2289,7 @@ steps:
 
       cd /io/python
 
-      python3 -m setup.py pytest \
+      python3 setup.py pytest \
         --addopts "-v \
         --color=no \
         --instafail \
