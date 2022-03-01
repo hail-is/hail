@@ -344,21 +344,17 @@ def docker_call_retry(timeout, name):
     return wrapper
 
 
-class TaskCancelledError(Exception):
-    pass
-
-
-async def run_until_done_or_cancelled(event: asyncio.Event, f: Callable[[...], Awaitable[Any]], *args, **kwargs):
-    task = asyncio.ensure_future(f(*args, **kwargs))
-    cancelled = asyncio.ensure_future(event.wait())
+async def run_until_done_or_deleted(event: asyncio.Event, f: Callable[..., Awaitable[Any]], *args, **kwargs):
+    step = asyncio.ensure_future(f(*args, **kwargs))
+    deleted = asyncio.ensure_future(event.wait())
     try:
-        await asyncio.wait([cancelled, task], return_when=asyncio.FIRST_COMPLETED)
-        if cancelled.done():
-            raise TaskCancelledError
-        assert task.done()
-        return task.result()
+        await asyncio.wait([deleted, step], return_when=asyncio.FIRST_COMPLETED)
+        if deleted.done():
+            raise JobDeletedError
+        assert step.done()
+        return step.result()
     finally:
-        for t in (task, cancelled):
+        for t in (step, deleted):
             if t.done():
                 e = t.exception()
                 if e and not user_error(e):
@@ -546,11 +542,8 @@ class Container:
                     if self.image_id:
                         self.worker.image_data[self.image_id] -= 1
 
-    async def run_until_done_or_deleted(self, f: Callable[[], Awaitable[Any]]):
-        try:
-            return await run_until_done_or_cancelled(self.deleted_event, f)
-        except TaskCancelledError:
-            raise JobDeletedError
+    async def run_until_done_or_deleted(self, f: Callable[..., Awaitable[Any]]):
+        return await run_until_done_or_deleted(self.deleted_event, f)
 
     def step(self, name: str):
         return self.timings.step(name)
@@ -1112,7 +1105,7 @@ class Job:
         self.pool = pool
         self.worker = worker
 
-        self.deleted = False
+        self.deleted_event = asyncio.Event()
 
         self.token = uuid.uuid4().hex
         self.scratch = f'/batch/{self.token}'
@@ -1194,6 +1187,10 @@ class Job:
     def id(self):
         return (self.batch_id, self.job_id)
 
+    @property
+    def deleted(self):
+        return self.deleted_event.is_set()
+
     async def run(self):
         pass
 
@@ -1202,7 +1199,7 @@ class Job:
 
     async def delete(self):
         log.info(f'deleting {self}')
-        self.deleted = True
+        self.deleted_event.set()
 
     async def mark_complete(self):
         self.end_time = time_msecs()
@@ -1583,7 +1580,6 @@ class JVMJob(Job):
         self.revision = self.user_command_string[1]
         self.jar_url = self.user_command_string[2]
 
-        self.deleted_event = asyncio.Event()
         self.timings = Timings()
         self.state = 'pending'
 
@@ -1597,11 +1593,8 @@ class JVMJob(Job):
     def step(self, name):
         return self.timings.step(name)
 
-    async def run_until_done_or_deleted(self, f: Callable[[...], Awaitable[Any]], *args, **kwargs):
-        try:
-            return await run_until_done_or_cancelled(self.deleted_event, f, *args, **kwargs)
-        except TaskCancelledError:
-            raise JobDeletedError
+    async def run_until_done_or_deleted(self, f: Callable[..., Awaitable[Any]], *args, **kwargs):
+        return await run_until_done_or_deleted(self.deleted_event, f, *args, **kwargs)
 
     def verify_is_acceptable_query_jar_url(self, url: str):
         if not url.startswith(ACCEPTABLE_QUERY_JAR_URL_PREFIX):
@@ -1722,9 +1715,7 @@ class JVMJob(Job):
         return {'main': await self._get_log()}
 
     async def delete(self):
-        log.info(f'deleting {self} {self.jvm}')
-        self.deleted = True
-        self.deleted_event.set()
+        await super().delete()
         if self.jvm is not None:
             log.info(f'{self.jvm} interrupting')
             self.jvm.interrupt()
