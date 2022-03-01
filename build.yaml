@@ -2431,7 +2431,7 @@ steps:
       fi
 
       mkdir -p hail/build/www/docs/0.2
-      tar -xvf www.tar.gz -C hail/build/www/docs --strip-components 2
+      tar -xvf www.tar.gz -C hail/build/www/docs --strip-components 2 --no-same-owner
 
       python3 -m hailtop.aiotools.copy 'null' '[
       {"from": "gs://hail-common/builds/0.1/docs/hail-0.1-docs-5a6778710097.tar.gz",
@@ -2439,7 +2439,7 @@ steps:
       ]'
 
       mkdir -p hail/build/www/docs/0.1
-      tar -xvf hail-0.1-docs-5a6778710097.tar.gz -C hail/build/www/docs/0.1 --strip-components 2
+      tar -xvf hail-0.1-docs-5a6778710097.tar.gz -C hail/build/www/docs/0.1 --strip-components 2 --no-same-owner
 
       tar czf /io/docs.tar.gz -C hail/build/www .
     resources:
