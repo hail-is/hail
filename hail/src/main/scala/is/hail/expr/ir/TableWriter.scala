@@ -537,7 +537,7 @@ case class TableTextFinalizer(outputPath: String, rowType: TStruct, delimiter: S
 
       case ExportType.PARALLEL_SEPARATE_HEADER =>
         if (header) {
-          val headerFilePath = s"outputPath/header$ext"
+          val headerFilePath = s"$outputPath/header$ext"
           val headerStr = rowType.fields.map(_.name).mkString(delimiter)
           val os = cb.memoize(cb.emb.create(const(headerFilePath)))
           cb += os.invoke[Array[Byte], Unit]("write", const(headerStr).invoke[Array[Byte]]("getBytes"))
