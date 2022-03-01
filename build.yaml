@@ -1243,7 +1243,7 @@ steps:
               --durations=50 \
               /io/gear/test
     inputs:
-      - from: /repo/hail/gear
+      - from: /repo/gear
         to: /io/gear
     dependsOn:
       - default_ns
