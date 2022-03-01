@@ -1,18 +1,18 @@
-from typing import Set
-import os
-from aiohttp import web
-import jinja2
 import logging
+import os
+from typing import Set
+
 import aiohttp_session
+import jinja2
+from aiohttp import web
 from prometheus_async.aio.web import server_stats  # type: ignore
 
-from hailtop.config import get_deploy_config
-from hailtop.tls import internal_server_ssl_context
-from hailtop.hail_logging import AccessLogger
+from gear import monitor_endpoints_middleware, setup_aiohttp_session, web_maybe_authenticated_user
 from hailtop import httpx
-from gear import setup_aiohttp_session, web_maybe_authenticated_user, monitor_endpoints_middleware
-from web_common import setup_aiohttp_jinja2, setup_common_static_routes, render_template, sass_compile
-
+from hailtop.config import get_deploy_config
+from hailtop.hail_logging import AccessLogger
+from hailtop.tls import internal_server_ssl_context
+from web_common import render_template, sass_compile, setup_aiohttp_jinja2, setup_common_static_routes
 
 MODULE_PATH = os.path.dirname(__file__)
 log = logging.getLogger('website')

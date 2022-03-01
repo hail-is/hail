@@ -226,22 +226,6 @@ case class BlockMatrixPersistReader(id: String, typ: BlockMatrixType) extends Bl
   }
 }
 
-class BlockMatrixLiteral(value: BlockMatrix) extends BlockMatrixIR {
-  override lazy val typ: BlockMatrixType =
-    BlockMatrixType.fromBlockMatrix(value)
-
-  lazy val children: IndexedSeq[BaseIR] = Array.empty[BlockMatrixIR]
-
-  def copy(newChildren: IndexedSeq[BaseIR]): BlockMatrixLiteral = {
-    assert(newChildren.isEmpty)
-    new BlockMatrixLiteral(value)
-  }
-
-  override protected[ir] def execute(ctx: ExecuteContext): BlockMatrix = value
-
-  val blockCostIsLinear: Boolean = true // not guaranteed
-}
-
 case class BlockMatrixMap(child: BlockMatrixIR, eltName: String, f: IR, needsDense: Boolean) extends BlockMatrixIR {
   override lazy val typ: BlockMatrixType = child.typ
   assert(!needsDense || !typ.isSparse)

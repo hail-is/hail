@@ -1,7 +1,7 @@
 import aiohttp
 
-from hailtop.utils import async_to_blocking
 from hailtop.httpx import client_session
+from hailtop.utils import async_to_blocking
 
 
 class FailureInjectingClientSession:

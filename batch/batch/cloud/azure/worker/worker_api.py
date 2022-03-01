@@ -1,15 +1,16 @@
-import aiohttp
 import abc
-from typing import Dict, Optional, Tuple
 import os
+from typing import Dict, Optional, Tuple
+
+import aiohttp
 
 from hailtop import httpx
 from hailtop.utils import request_retry_transient_errors, time_msecs
 
 from ....worker.worker_api import CloudWorkerAPI
-from .disk import AzureDisk
-from .credentials import AzureUserCredentials
 from ..instance_config import AzureSlimInstanceConfig
+from .credentials import AzureUserCredentials
+from .disk import AzureDisk
 
 
 class AzureWorkerAPI(CloudWorkerAPI):

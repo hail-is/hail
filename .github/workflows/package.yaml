@@ -59,9 +59,9 @@ jobs:
       - name: Redeploy the analysis-server
         if: github.event_name == 'push'
         run: |
-          echo "version=$(cat hail/python/hail/hail_pip_version)" >> $GITHUB_ENV
+          version=$(cat hail/python/hail/hail_pip_version)
           curl --fail --silent --show-error -X POST \
             -H "Authorization: token ${{ secrets.ANALYSIS_SERVER_GITHUB_TOKEN }}" \
             -H "Accept: application/vnd.github.v3+json" \
             https://api.github.com/repos/populationgenomics/analysis-runner/actions/workflows/6364059/dispatches \
-            -d '{"ref": "main", "inputs": {"hail_version": "${{ env.version }}"}}'
+            -d '{"ref": "main", "inputs": {"hail_version": "'$version'"}}'

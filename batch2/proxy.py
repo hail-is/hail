@@ -1,7 +1,8 @@
 import asyncio
-from aiohttp import web
-from hailtop.batch_client.aioclient import BatchClient
 
+from aiohttp import web
+
+from hailtop.batch_client.aioclient import BatchClient
 
 routes = web.RouteTableDef()
 

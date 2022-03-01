@@ -322,7 +322,8 @@ class TableStage(
     joinKey: Int,
     joinType: String,
     globalJoiner: (IR, IR) => IR,
-    joiner: (Ref, Ref) => IR
+    joiner: (Ref, Ref) => IR,
+    rightKeyIsDistinct: Boolean = false
   ): TableStage = {
     assert(this.kType.truncate(joinKey).isIsomorphicTo(right.kType.truncate(joinKey)))
 
@@ -351,7 +352,7 @@ class TableStage(
       val lEltRef = Ref(genUID(), lEltType)
       val rEltRef = Ref(genUID(), rEltType)
 
-      StreamJoin(lPart, rPart, lKey, rKey, lEltRef.name, rEltRef.name, joiner(lEltRef, rEltRef), joinType)
+      StreamJoin(lPart, rPart, lKey, rKey, lEltRef.name, rEltRef.name, joiner(lEltRef, rEltRef), joinType, rightKeyIsDistinct)
     }
 
     val newKey = kType.fieldNames ++ right.kType.fieldNames.drop(joinKey)
@@ -389,9 +390,9 @@ class TableStage(
 }
 
 object LowerTableIR {
-  def apply(ir: IR, typesToLower: DArrayLowering.Type, ctx: ExecuteContext, r: RequirednessAnalysis, relationalLetsAbove: Map[String, IR]): IR = {
+  def apply(ir: IR, typesToLower: DArrayLowering.Type, ctx: ExecuteContext, analyses: Analyses, relationalLetsAbove: Map[String, IR]): IR = {
     def lower(tir: TableIR): TableStage = {
-      this.applyTable(tir, typesToLower, ctx, r, relationalLetsAbove)
+      this.applyTable(tir, typesToLower, ctx, analyses, relationalLetsAbove)
     }
 
     val lowered = ir match {
@@ -413,7 +414,7 @@ object LowerTableIR {
 
       case TableAggregate(child, query) =>
         val resultUID = genUID()
-        val aggs = agg.Extract(query, resultUID, r, false)
+        val aggs = agg.Extract(query, resultUID, analyses.requirednessAnalysis, false)
 
         def results: IR = ResultOp.makeTuple(aggs.aggs)
 
@@ -544,7 +545,7 @@ object LowerTableIR {
         lower(child).getNumPartitions()
 
       case TableWrite(child, writer) =>
-        writer.lower(ctx, lower(child), child, coerce[RTable](r.lookup(child)), relationalLetsAbove)
+        writer.lower(ctx, lower(child), child, coerce[RTable](analyses.requirednessAnalysis.lookup(child)), relationalLetsAbove)
 
       case node if node.children.exists(_.isInstanceOf[TableIR]) =>
         throw new LowererUnsupportedOperation(s"IR nodes with TableIR children must be defined explicitly: \n${ Pretty(node) }")
@@ -552,13 +553,13 @@ object LowerTableIR {
     lowered
   }
 
-  def applyTable(tir: TableIR, typesToLower: DArrayLowering.Type, ctx: ExecuteContext, r: RequirednessAnalysis, relationalLetsAbove: Map[String, IR]): TableStage = {
+  def applyTable(tir: TableIR, typesToLower: DArrayLowering.Type, ctx: ExecuteContext, analyses: Analyses, relationalLetsAbove: Map[String, IR]): TableStage = {
     def lowerIR(ir: IR): IR = {
-      LowerToCDA.lower(ir, typesToLower, ctx, r, relationalLetsAbove)
+      LowerToCDA.lower(ir, typesToLower, ctx, analyses, relationalLetsAbove)
     }
 
     def lower(tir: TableIR): TableStage = {
-      this.applyTable(tir, typesToLower, ctx, r, relationalLetsAbove)
+      this.applyTable(tir, typesToLower, ctx, analyses, relationalLetsAbove)
     }
 
     if (typesToLower == DArrayLowering.BMOnly)
@@ -691,8 +692,8 @@ object LowerTableIR {
         val shuffledRowType = withNewKeyFields.rowType
 
         val sortFields = newKeyType.fieldNames.map(fieldName => SortField(fieldName, Ascending)).toIndexedSeq
-        val childRowRType = r.lookup(child).asInstanceOf[RTable].rowType
-        val newKeyRType = r.lookup(newKey).asInstanceOf[RStruct]
+        val childRowRType = analyses.requirednessAnalysis.lookup(child).asInstanceOf[RTable].rowType
+        val newKeyRType = analyses.requirednessAnalysis.lookup(newKey).asInstanceOf[RStruct]
         val withNewKeyRType = RStruct(
           newKeyRType.fields ++ Seq(RField(fullRowUID, childRowRType, newKeyRType.fields.length)))
         val shuffled = ctx.backend.lowerDistributedSort(
@@ -1040,7 +1041,7 @@ object LowerTableIR {
           }
         } else {
           val resultUID = genUID()
-          val aggs = agg.Extract(newRow, resultUID, r, isScan = true)
+          val aggs = agg.Extract(newRow, resultUID, analyses.requirednessAnalysis, isScan = true)
 
           val results: IR = ResultOp.makeTuple(aggs.aggs)
           val initState = RunAgg(
@@ -1292,7 +1293,7 @@ object LowerTableIR {
           loweredChild.changePartitionerNoRepartition(loweredChild.partitioner.coarsen(nPreservedFields))
             .extendKeyPreservesPartitioning(newKey)
         else {
-          val rowRType = r.lookup(child).asInstanceOf[RTable].rowType
+          val rowRType = analyses.requirednessAnalysis.lookup(child).asInstanceOf[RTable].rowType
           val sorted = ctx.backend.lowerDistributedSort(
             ctx, loweredChild, newKey.map(k => SortField(k, Ascending)), relationalLetsAbove, rowRType)
           assert(sorted.kType.fieldNames.sameElements(newKey))
@@ -1332,8 +1333,9 @@ object LowerTableIR {
         val lValueFields = left.typ.rowType.fieldNames.filter(f => !lKeyFields.contains(f))
         val rKeyFields = right.typ.key.take(joinKey)
         val rValueFields = right.typ.rowType.fieldNames.filter(f => !rKeyFields.contains(f))
-        val lReq = r.lookup(left).asInstanceOf[RTable]
-        val rReq = r.lookup(right).asInstanceOf[RTable]
+        val lReq = analyses.requirednessAnalysis.lookup(left).asInstanceOf[RTable]
+        val rReq = analyses.requirednessAnalysis.lookup(right).asInstanceOf[RTable]
+        val rightKeyIsDistinct = analyses.distinctKeyedAnalysis.contains(right)
 
         val joinedStage = loweredLeft.orderedJoin(
           loweredRight, joinKey, joinType,
@@ -1353,7 +1355,7 @@ object LowerTableIR {
               }
                 ++ lValueFields.map(f => f -> GetField(lEltRef, f))
                 ++ rValueFields.map(f => f -> GetField(rEltRef, f)))
-          })
+          }, rightKeyIsDistinct)
 
         assert(joinedStage.rowType == tj.typ.rowType)
         joinedStage
@@ -1415,7 +1417,7 @@ object LowerTableIR {
         if (TableOrderBy.isAlreadyOrdered(sortFields, loweredChild.partitioner.kType.fieldNames)) {
           loweredChild.changePartitionerNoRepartition(RVDPartitioner.unkeyed(loweredChild.partitioner.numPartitions))
         } else {
-          val rowRType = r.lookup(child).asInstanceOf[RTable].rowType
+          val rowRType = analyses.requirednessAnalysis.lookup(child).asInstanceOf[RTable].rowType
           ctx.backend.lowerDistributedSort(
             ctx, loweredChild, sortFields, relationalLetsAbove, rowRType)
         }
@@ -1468,8 +1470,7 @@ object LowerTableIR {
         RVDToTableStage(rvd, EncodedLiteral(enc, encodedGlobals))
 
       case bmtt@BlockMatrixToTable(bmir) =>
-        val bmStage = LowerBlockMatrixIR.lower(bmir, typesToLower, ctx, r, relationalLetsAbove)
-        val ts = LowerBlockMatrixIR.lowerToTableStage(bmir, typesToLower, ctx, r, relationalLetsAbove)
+        val ts = LowerBlockMatrixIR.lowerToTableStage(bmir, typesToLower, ctx, analyses, relationalLetsAbove)
         // I now have an unkeyed table of (blockRow, blockCol, block).
         val entriesUnkeyed = ts.mapPartitionWithContext { (partition, ctxRef) =>
           flatMapIR(partition)(singleRowRef =>
@@ -1488,7 +1489,7 @@ object LowerTableIR {
           )
         }
 
-        val rowR = r.lookup(bmtt).asInstanceOf[RTable].rowType
+        val rowR = analyses.requirednessAnalysis.lookup(bmtt).asInstanceOf[RTable].rowType
         ctx.backend.lowerDistributedSort(ctx, entriesUnkeyed, IndexedSeq(SortField("i", Ascending), SortField("j", Ascending)), relationalLetsAbove, rowR)
 
       case node =>

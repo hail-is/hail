@@ -16,6 +16,7 @@ check:
 	$(PYTHON) -m flake8 .
 	$(PYTHON) -m pylint --rcfile ../pylintrc ci --score=n
 	$(PYTHON) -m mypy --config-file ../setup.cfg .
+	$(PYTHON) -m isort . --check-only --diff
 	$(BLACK) --check --diff
 	curlylint .
 	bash ../check-sql.sh

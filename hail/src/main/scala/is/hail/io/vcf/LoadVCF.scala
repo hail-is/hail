@@ -1,6 +1,7 @@
 package is.hail.io.vcf
 
 import htsjdk.variant.vcf._
+import is.hail.asm4s.HailClassLoader
 import is.hail.annotations._
 import is.hail.backend.spark.SparkBackend
 import is.hail.backend.{BroadcastValue, ExecuteContext}
@@ -1583,7 +1584,7 @@ object MatrixVCFReader {
         val localArrayElementsRequired = params.arrayElementsRequired
         val localFilterAndReplace = params.filterAndReplace
 
-        backend.parallelizeAndComputeWithIndex(ctx.backendContext, fs, files.tail.map(_.getBytes), None) { (bytes, htc, fs) =>
+        backend.parallelizeAndComputeWithIndex(ctx.backendContext, fs, files.tail.map(_.getBytes), None) { (bytes, htc, _, fs) =>
           val file = new String(bytes)
 
           val hd = parseHeader(
@@ -1731,7 +1732,7 @@ class MatrixVCFReader(
     val body = { (requestedType: TStruct) =>
       val requestedPType = bodyPType(requestedType)
 
-      { (region: Region, fs: FS, context: Any) =>
+      { (region: Region, theHailClassLoader: HailClassLoader, fs: FS, context: Any) =>
         val parseLineContext = new ParseLineContext(requestedType, makeJavaSet(localInfoFlagFieldNames), localNSamples)
 
         val rvb = new RegionValueBuilder(region)

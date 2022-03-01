@@ -2,20 +2,18 @@ import asyncio
 import logging
 import os
 
-from hailtop import aiotools
-from hailtop.utils import periodically_call
-from hailtop.aiocloud import aioazure
 from gear import Database
 from gear.cloud_config import get_azure_config
+from hailtop import aiotools
+from hailtop.aiocloud import aioazure
+from hailtop.utils import periodically_call
 
 from ....driver.driver import CloudDriver
-from ....driver.instance_collection import Pool, JobPrivateInstanceManager, InstanceCollectionManager
+from ....driver.instance_collection import InstanceCollectionManager, JobPrivateInstanceManager, Pool
 from ....inst_coll_config import InstanceCollectionConfigs
-
 from .billing_manager import AzureBillingManager
-from .resource_manager import AzureResourceManager
 from .regions import RegionMonitor
-
+from .resource_manager import AzureResourceManager
 
 log = logging.getLogger('driver')
 

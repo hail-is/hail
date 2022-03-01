@@ -1,11 +1,12 @@
 import os
 import threading
 import time
-import requests
-from werkzeug.serving import make_server
-from flask import Response
 
-from hailtop.utils import retry_response_returning_functions, external_requests_client_session
+import requests
+from flask import Response
+from werkzeug.serving import make_server
+
+from hailtop.utils import external_requests_client_session, retry_response_returning_functions
 
 
 class ServerThread(threading.Thread):

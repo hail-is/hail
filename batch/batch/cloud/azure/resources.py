@@ -1,15 +1,15 @@
 import abc
-from typing import Dict, Any, Optional
+from typing import Any, Dict, Optional
 
 from ...driver.billing_manager import ProductVersions
 from ...resources import (
+    DynamicSizedDiskResourceMixin,
+    IPFeeResourceMixin,
     QuantifiedResource,
     Resource,
+    ServiceFeeResourceMixin,
     StaticSizedDiskResourceMixin,
     VMResourceMixin,
-    IPFeeResourceMixin,
-    ServiceFeeResourceMixin,
-    DynamicSizedDiskResourceMixin,
 )
 from .resource_utils import azure_disk_from_storage_in_gib, azure_disks_by_disk_type
 

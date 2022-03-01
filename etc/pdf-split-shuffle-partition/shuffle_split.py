@@ -1,6 +1,7 @@
 import sys
-import numpy
 from random import shuffle
+
+import numpy
 
 # python split.py N_APPLICATIONS N_REVIEWERS
 

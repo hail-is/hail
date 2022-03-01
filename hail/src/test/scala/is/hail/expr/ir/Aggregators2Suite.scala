@@ -85,8 +85,8 @@ class Aggregators2Suite extends HailSuite {
           FastIndexedSeq(classInfo[Region]), LongInfo,
           ResultOp.makeTuple(Array(aggSig)))
 
-        val init = initF(ctx.fs, 0, region)
-        val res = resOneF(ctx.fs, 0, region)
+        val init = initF(theHailClassLoader, ctx.fs, 0, region)
+        val res = resOneF(theHailClassLoader, ctx.fs, 0, region)
 
         pool.scopedSmallRegion { aggRegion =>
           init.newAggState(aggRegion)
@@ -98,9 +98,9 @@ class Aggregators2Suite extends HailSuite {
       }
 
       val serializedParts = seqOps.grouped(math.ceil(seqOps.length / nPartitions.toDouble).toInt).map { seqs =>
-        val init = initF(ctx.fs, 0, region)
-        val seq = withArgs(Begin(seqs))(ctx.fs, 0, region)
-        val write = writeF(ctx.fs, 0, region)
+        val init = initF(theHailClassLoader, ctx.fs, 0, region)
+        val seq = withArgs(Begin(seqs))(theHailClassLoader, ctx.fs, 0, region)
+        val write = writeF(theHailClassLoader, ctx.fs, 0, region)
         pool.scopedSmallRegion { aggRegion =>
           init.newAggState(aggRegion)
           init(region, argOff)
@@ -115,13 +115,13 @@ class Aggregators2Suite extends HailSuite {
       }.toArray
 
       pool.scopedSmallRegion { aggRegion =>
-        val combOp = combAndDuplicate(ctx.fs, 0, region)
+        val combOp = combAndDuplicate(theHailClassLoader, ctx.fs, 0, region)
         combOp.newAggState(aggRegion)
         serializedParts.zipWithIndex.foreach { case (s, i) =>
           combOp.setSerializedAgg(i, s)
         }
         combOp(region)
-        val res = resF(ctx.fs, 0, region)
+        val res = resF(theHailClassLoader, ctx.fs, 0, region)
         res.setAggState(aggRegion, combOp.getAggOffset())
         val double = SafeRow(rt, res(region))
         transformResult match {
