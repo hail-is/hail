@@ -277,6 +277,7 @@ steps:
       - default_ns
       - service_base_image
       - merge_code
+      - create_database_server_config
   - kind: createDatabase
     name: auth_database
     databaseName: auth
@@ -2787,6 +2788,7 @@ steps:
       - default_ns
       - service_base_image
       - merge_code
+      - create_database_server_config
   - kind: runImage
     name: delete_ci_tables
     image:
@@ -2809,6 +2811,7 @@ steps:
       - default_ns
       - service_base_image
       - merge_code
+      - create_database_server_config
   - kind: createDatabase
     name: ci_database
     databaseName: ci
