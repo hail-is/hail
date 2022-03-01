@@ -4934,6 +4934,7 @@ steps:
     dependsOn:
       - default_ns
       - create_certs
+      - create_accounts
       - hail_run_tests_image
       - build_hail
       - upload_test_resources_to_blob_storage
@@ -4978,6 +4979,7 @@ steps:
     dependsOn:
       - default_ns
       - create_certs
+      - create_accounts
       - hail_run_tests_image
       - build_hail
       - deploy_batch
