@@ -179,10 +179,14 @@ dependencies {
     if (sparkVersion.startsWith("3.")) {
         assert(scalaMajorVersion == "2.12")
         if (elasticMajorVersion == "8") {
-            bundled 'org.elasticsearch:elasticsearch-spark-30_2.12:8.0.0'
+            bundled('org.elasticsearch:elasticsearch-spark-30_2.12:8.0.0') {
+                transitive = false
+            }
         }
         else if (elasticMajorVersion == "7") {
-            bundled 'org.elasticsearch:elasticsearch-spark-30_2.12:7.17.0'
+            bundled('org.elasticsearch:elasticsearch-spark-30_2.12:7.17.0') {
+                transitive = false
+            }
         }
     }
     else if (sparkVersion.startsWith("2.4.")) {
