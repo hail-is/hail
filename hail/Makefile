@@ -215,10 +215,8 @@ cloud_base := gs://hail-common/hailctl/dataproc/$(HAIL_PIP_VERSION)
 UPLOAD_RETENTION = gsutil -m retention temp set "$(cloud_base)/*"
 endif
 
-ifdef SKIP_UPLOAD_ARTIFACTS
 DEV_CLARIFIER =
 CLOUD_SUB_FOLDER := $(HAIL_PIP_VERSION)
-endif
 
 HAILCTL_BUCKET_BASE ?= gs://hail-common/hailctl/dataproc
 
@@ -261,11 +259,7 @@ install-on-cluster: $(WHEEL)
 	$(PIP) install $(WHEEL) --no-deps
 
 .PHONY: install-hailctl
-ifdef SKIP_UPLOAD_ARTIFACTS
-install-hailctl: install
-else
 install-hailctl: install upload-artifacts
-endif
 
 .PHONY: test-dataproc-37
 test-dataproc-37: install-hailctl
