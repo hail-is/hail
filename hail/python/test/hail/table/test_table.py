@@ -1724,20 +1724,20 @@ def test_maybe_flexindex_table_by_expr_prefix_interval_match():
     assert t1._maybe_flexindex_table_by_expr((hl.str(mt1.row_idx), mt1.row_idx)) is None
 
 
-widths = [256, 512, 1024, 2048, 3072]
+WIDTHS = [256, 512, 1024, 2048, 3072]
 
 
 @skip_when_service_backend('hangs')
-def test_can_process_wide_tables():
-    for w in widths:
-        print(f'working on width {w}')
-        path = resource(f'width_scale_tests/{w}.tsv')
-        ht = hl.import_table(path, impute=False)
-        out_path = new_temp_file(extension='ht')
-        ht.write(out_path)
-        ht = hl.read_table(out_path)
-        ht.annotate(another_field=5)._force_count()
-        ht.annotate_globals(g=ht.collect(_localize=False))._force_count()
+@pytest.mark.parameterize("w", WIDTHS)
+def test_can_process_wide_tables(w):
+    print(f'working on width {w}')
+    path = resource(f'width_scale_tests/{w}.tsv')
+    ht = hl.import_table(path, impute=False)
+    out_path = new_temp_file(extension='ht')
+    ht.write(out_path)
+    ht = hl.read_table(out_path)
+    ht.annotate(another_field=5)._force_count()
+    ht.annotate_globals(g=ht.collect(_localize=False))._force_count()
 
 
 def create_width_scale_files():
@@ -1766,7 +1766,7 @@ def create_width_scale_files():
                     out.write('\t')
                     out.write(str(i % 2 == 0))
 
-    for w in widths:
+    for w in WIDTHS:
         write_file(w)
 
 
