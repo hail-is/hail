@@ -157,8 +157,8 @@ class Struct(Mapping):
 
         Add one new field and keeps one old field
 
-        >>> s.select(bar=123, 'apple')
-        Struct(bar=123, apple=10)
+        >>> s.select('apple', bar=123)
+        Struct(apple=10, bar=123)
 
         Adds two new fields and replaces old fields
 
