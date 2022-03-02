@@ -8,7 +8,7 @@ tearDownModule = stopTestHailContext
 
 
 class Tests(unittest.TestCase):
-    @fails_when_service(reason='''intermittent worker failure:
+    @fails_service_backend(reason='''intermittent worker failure:
 >       mt.sample_idx.show()
 
 Caused by: java.lang.AssertionError: assertion failed

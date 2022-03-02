@@ -36,7 +36,7 @@ class Tests(unittest.TestCase):
         self.assertEqual(t6.is_complete(), True)
 
 
-    @fails_when_service(reason='gcsfs does not support crc32 hashes and sample.fam intermittent only has a crc32 hash')
+    @fails_service_backend(reason='gcsfs does not support crc32 hashes and sample.fam intermittent only has a crc32 hash')
     def test_pedigree(self):
         ped = Pedigree.read(resource('sample.fam'))
         ped.write('/tmp/sample_out.fam')

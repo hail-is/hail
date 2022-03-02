@@ -37,7 +37,7 @@ class Tests(unittest.TestCase):
     def test_write(self):
         create_backward_compatibility_files()
 
-    @fails_when_service(reason='''intermittent worker failure:
+    @fails_service_backend(reason='''intermittent worker failure:
 >               assert backward_compatible_same(all_values_table, ds)
 
 Caused by: java.lang.AssertionError: assertion failed

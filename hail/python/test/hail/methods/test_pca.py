@@ -292,26 +292,26 @@ def spectra_and_moments_helper(spec_func):
         np.testing.assert_allclose(moments, true_moments, rtol=1e-04)
 
 
-@fails_when_service(reason='intermittently hangs')
+@fails_service_backend(reason='intermittently hangs')
 def test_spectra_and_moments_1():
     spectra_and_moments_helper(spec1)
 
 
-@fails_when_service(reason='intermittently hangs')
+@fails_service_backend(reason='intermittently hangs')
 def test_spectra_and_moments_2():
     spectra_and_moments_helper(spec2)
 
 
-@fails_when_service(reason='intermittently hangs')
+@fails_service_backend(reason='intermittently hangs')
 def test_spectra_and_moments_3():
     spectra_and_moments_helper(spec3)
 
 
-@fails_when_service(reason='intermittently hangs')
+@fails_service_backend(reason='intermittently hangs')
 def test_spectra_and_moments_4():
     spectra_and_moments_helper(spec4)
 
 
-@fails_when_service(reason='intermittently hangs')
+@fails_service_backend(reason='intermittently hangs')
 def test_spectra_and_moments_5():
     spectra_and_moments_helper(spec5)
