@@ -72,7 +72,6 @@ async def pr_config(app, pr: PR) -> PRConfig:
     build_state = pr.build_state if await pr.authorized(app['dbpool']) else 'unauthorized'
     if build_state is None and batch_id is not None:
         build_state = 'building'
-
     return {
         'number': pr.number,
         'title': pr.title,
