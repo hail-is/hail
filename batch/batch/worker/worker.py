@@ -2202,9 +2202,13 @@ class Worker:
         return web.Response()
 
     async def create_job(self, request):
+        if not self.active:
+            raise web.HTTPServiceUnavailable
         return await asyncio.shield(self.create_job_1(request))
 
     async def get_job_log(self, request):
+        if not self.active:
+            raise web.HTTPServiceUnavailable
         batch_id = int(request.match_info['batch_id'])
         job_id = int(request.match_info['job_id'])
         id = (batch_id, job_id)
@@ -2214,6 +2218,8 @@ class Worker:
         return web.json_response(await job.get_log())
 
     async def get_job_status(self, request):
+        if not self.active:
+            raise web.HTTPServiceUnavailable
         batch_id = int(request.match_info['batch_id'])
         job_id = int(request.match_info['job_id'])
         id = (batch_id, job_id)
@@ -2240,9 +2246,13 @@ class Worker:
         return web.Response()
 
     async def delete_job(self, request):
+        if not self.active:
+            raise web.HTTPServiceUnavailable
         return await asyncio.shield(self.delete_job_1(request))
 
     async def healthcheck(self, request):  # pylint: disable=unused-argument
+        if not self.active:
+            raise web.HTTPServiceUnavailable
         body = {'name': NAME}
         return web.json_response(body)
 
@@ -2259,18 +2269,19 @@ class Worker:
             ]
         )
 
-        try:
-            await asyncio.wait_for(self.activate(), MAX_IDLE_TIME_MSECS / 1000)
-        except asyncio.TimeoutError:
-            log.exception(f'could not activate after trying for {MAX_IDLE_TIME_MSECS} ms, exiting')
-            return
+        self.task_manager.ensure_future(periodically_call(60, self.cleanup_old_images))
 
         app_runner = web.AppRunner(app)
         await app_runner.setup()
         site = web.TCPSite(app_runner, '0.0.0.0', 5000)
         await site.start()
 
-        self.task_manager.ensure_future(periodically_call(60, self.cleanup_old_images))
+        try:
+            await asyncio.wait_for(self.activate(), MAX_IDLE_TIME_MSECS / 1000)
+        except asyncio.TimeoutError:
+            log.exception(f'could not activate after trying for {MAX_IDLE_TIME_MSECS} ms, exiting')
+            return
+
         try:
             while True:
                 try:
@@ -2310,6 +2321,8 @@ class Worker:
         self.stop_event.set()
 
     async def kill(self, request):
+        if not self.active:
+            raise web.HTTPServiceUnavailable
         return await asyncio.shield(self.kill_1(request))
 
     async def post_job_complete_1(self, job, full_status):
@@ -2403,6 +2416,7 @@ class Worker:
             log.exception(f'error while posting {job} started')
 
     async def activate(self):
+        log.info('activating')
         resp = await request_retry_transient_errors(
             self.client_session,
             'GET',
@@ -2436,10 +2450,10 @@ class Worker:
             headers={'X-Hail-Instance-Name': NAME, 'Authorization': f'Bearer {os.environ["ACTIVATION_TOKEN"]}'},
         )
         resp_json = await resp.json()
-        self.last_updated = time_msecs()
-
         self.headers = {'X-Hail-Instance-Name': NAME, 'Authorization': f'Bearer {resp_json["token"]}'}
         self.active = True
+        self.last_updated = time_msecs()
+        log.info('activated')
 
     async def cleanup_old_images(self):
         try:
