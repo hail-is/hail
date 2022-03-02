@@ -106,11 +106,7 @@ async def watched_branch_config(app, wb: WatchedBranch, index: int) -> WatchedBr
     else:
         pr_configs = []
     # FIXME recent deploy history
-    gh_status_names = {
-        k
-        for pr in pr_configs
-        for k in pr['gh_statuses'].keys()
-    }
+    gh_status_names = {k for pr in pr_configs for k in pr['gh_statuses'].keys()}
     return {
         'index': index,
         'branch': wb.branch.short_str(),
