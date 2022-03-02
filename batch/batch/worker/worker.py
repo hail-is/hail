@@ -1661,9 +1661,7 @@ class JVMJob(Job):
 
                 log.info(f'{self}: running jvm process')
                 with self.step('running'):
-                    await self.run_until_done_or_deleted(
-                        self.jvm.execute, local_jar_location, self.scratch, self.log_file, self.user_command_string
-                    )
+                    await self.jvm.execute(local_jar_location, self.scratch, self.log_file, self.user_command_string)
 
                 self.state = 'succeeded'
                 log.info(f'{self} main: {self.state}')
@@ -2073,7 +2071,7 @@ class Worker:
     async def borrow_jvm(self) -> JVM:
         if instance_config.worker_type() not in ('standard', 'D'):
             raise ValueError(f'JVM jobs not allowed on {instance_config.worker_type()}')
-        await self._jvm_initializer_task
+        await asyncio.shield(self._jvm_initializer_task)
         assert self._jvms
         return self._jvms.pop()
 
