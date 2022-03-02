@@ -4886,6 +4886,7 @@ steps:
       - default_ns
       - merge_code
       - create_certs
+      - create_accounts
       - base2_image
       - build_hail_debug_test_jar
       - upload_test_resources_to_blob_storage
