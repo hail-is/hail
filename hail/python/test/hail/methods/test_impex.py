@@ -39,7 +39,6 @@ class VCFTests(unittest.TestCase):
         self.assertEqual(hl.import_vcf(resource('infochar.vcf')).count_rows(), 1)
 
     @fails_service_backend()
-    @fails_local_backend()
     def test_import_export_same(self):
         for i in range(10):
             mt = hl.import_vcf(resource(f'random_vcfs/{i}.vcf.bgz'))
@@ -299,7 +298,6 @@ class VCFTests(unittest.TestCase):
         assert hl.import_vcf(tmp)._same(mt)
 
     @fails_service_backend()
-    @fails_local_backend()
     def test_export_vcf_no_alt_alleles(self):
         mt = hl.import_vcf(resource('gvcfs/HG0096_excerpt.g.vcf'), reference_genome='GRCh38')
         self.assertEqual(mt.filter_rows(hl.len(mt.alleles) == 1).count_rows(), 5)
@@ -360,7 +358,6 @@ class VCFTests(unittest.TestCase):
         self.import_gvcfs_sample_vcf(tmp)
 
     @fails_service_backend()
-    @fails_local_backend()
     def test_import_gvcfs(self):
         path = resource('sample.vcf.bgz')
         self.import_gvcfs_sample_vcf(path)
@@ -768,7 +765,6 @@ class PLINKTests(unittest.TestCase):
             hl.import_plink(bfile + '.bed', bfile + '.bim', bfile + '.fam')
 
     @fails_service_backend()
-    @fails_local_backend()
     def test_import_plink_a1_major(self):
         mt = get_dataset()
         bfile = '/tmp/sample_plink'
@@ -1185,7 +1181,6 @@ class BGENTests(unittest.TestCase):
             (hl.abs(et.dosage - et.gp_dosage) < 1e-6)))
 
     @fails_service_backend()
-    @fails_local_backend()
     def test_import_bgen_row_fields(self):
         default_row_fields = hl.import_bgen(resource('example.8bits.bgen'),
                                             entry_fields=['dosage'])
@@ -1264,7 +1259,6 @@ class BGENTests(unittest.TestCase):
         self.assertTrue(expected._same(part_1))
 
     @fails_service_backend()
-    @fails_local_backend()
     def test_import_bgen_locus_filtering_from_literals(self):
         bgen_file = resource('example.8bits.bgen')
 
@@ -1292,7 +1286,6 @@ class BGENTests(unittest.TestCase):
                          expected_result)
 
     @fails_service_backend()
-    @fails_local_backend()
     def test_import_bgen_variant_filtering_from_exprs(self):
         bgen_file = resource('example.8bits.bgen')
 
@@ -1309,7 +1302,6 @@ class BGENTests(unittest.TestCase):
         self.assertTrue(everything._same(actual))
 
     @fails_service_backend()
-    @fails_local_backend()
     def test_import_bgen_locus_filtering_from_exprs(self):
         bgen_file = resource('example.8bits.bgen')
 
@@ -1346,7 +1338,6 @@ class BGENTests(unittest.TestCase):
         self.assertTrue(everything._same(actual))
 
     @fails_service_backend()
-    @fails_local_backend()
     def test_import_bgen_locus_filtering_from_table(self):
         bgen_file = resource('example.8bits.bgen')
 
@@ -1424,7 +1415,6 @@ class BGENTests(unittest.TestCase):
             bgenmt._same(genmt, tolerance=1.0 / 255, absolute=True))
 
     @fails_service_backend()
-    @fails_local_backend()
     def test_multiple_files_variant_filtering(self):
         bgen_file = [resource('random-b.bgen'), resource('random-c.bgen'), resource('random-a.bgen')]
         hl.index_bgen(bgen_file)
@@ -1539,7 +1529,6 @@ class BGENTests(unittest.TestCase):
         assert bgen._same(bgen2)
 
     @fails_service_backend()
-    @fails_local_backend()
     def test_export_bgen_from_vcf(self):
         mt = hl.import_vcf(resource('sample.vcf'))
 

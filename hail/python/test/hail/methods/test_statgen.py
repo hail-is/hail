@@ -1189,7 +1189,8 @@ class Tests(unittest.TestCase):
 
         assert mt.aggregate_rows(hl.agg.all(mt.foo.bar == ht[mt.row_key].bar))
 
-
+    @fails_local_backend()
+    @fails_service_backend()
     def test_genetic_relatedness_matrix(self):
         n, m = 100, 200
         hl.set_global_seed(0)
@@ -1242,7 +1243,6 @@ class Tests(unittest.TestCase):
         self.assertRaises(FatalError, lambda: hl.realized_relationship_matrix(one_sample.GT))
 
     @fails_service_backend()
-    @fails_local_backend()
     def test_row_correlation_vs_hardcode(self):
         data = [{'v': '1:1:A:C', 's': '1', 'GT': hl.Call([0, 0])},
                 {'v': '1:1:A:C', 's': '2', 'GT': hl.Call([0, 0])},
@@ -1265,7 +1265,6 @@ class Tests(unittest.TestCase):
         self.assertTrue(np.allclose(actual, expected))
 
     @fails_service_backend()
-    @fails_local_backend()
     def test_row_correlation_vs_numpy(self):
         n, m = 11, 10
         hl.set_global_seed(0)
@@ -1402,7 +1401,6 @@ class Tests(unittest.TestCase):
         self.assertEqual(entries.filter(bad_pair).count(), 0)
 
     @fails_service_backend()
-    @fails_local_backend()
     def test_ld_prune_inputs(self):
         ds = hl.balding_nichols_model(n_populations=1, n_samples=1, n_variants=1)
         self.assertRaises(ValueError, lambda: hl.ld_prune(ds.GT, memory_per_core=0))
