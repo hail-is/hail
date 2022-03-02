@@ -2000,6 +2000,9 @@ class JVM:
     def retrieve_and_clear_output(self) -> str:
         return self.process.retrieve_and_clear_output()
 
+    def close(self):
+        self.process.close()
+
     async def execute(self, classpath: str, scratch_dir: str, command_string: List[str]):
         assert worker is not None
 
@@ -2112,26 +2115,31 @@ class Worker:
     async def shutdown(self):
         log.info('Worker.shutdown')
         try:
-            self.task_manager.shutdown()
-            log.info('shutdown task manager')
+            with ExitStack() as cleanup:
+                for jvm in self._jvms:
+                    cleanup.callback(jvm.close)
         finally:
             try:
-                if self.fs:
-                    await self.fs.close()
-                    log.info('closed worker file system')
+                self.task_manager.shutdown()
+                log.info('shutdown task manager')
             finally:
                 try:
-                    if self.compute_client:
-                        await self.compute_client.close()
-                        log.info('closed compute client')
+                    if self.fs:
+                        await self.fs.close()
+                        log.info('closed worker file system')
                 finally:
                     try:
-                        if self.file_store:
-                            await self.file_store.close()
-                            log.info('closed file store')
+                        if self.compute_client:
+                            await self.compute_client.close()
+                            log.info('closed compute client')
                     finally:
-                        await self.client_session.close()
-                        log.info('closed client session')
+                        try:
+                            if self.file_store:
+                                await self.file_store.close()
+                                log.info('closed file store')
+                        finally:
+                            await self.client_session.close()
+                            log.info('closed client session')
 
     async def run_job(self, job):
         try:
