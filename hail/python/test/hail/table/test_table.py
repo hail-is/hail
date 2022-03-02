@@ -20,7 +20,7 @@ tearDownModule = stopTestHailContext
 
 
 class Tests(unittest.TestCase):
-    @fails_when_service(reason='flaky, not sure why yet')
+    @fails_service_backend(reason='flaky, not sure why yet')
     def test_annotate(self):
         schema = hl.tstruct(a=hl.tint32, b=hl.tint32, c=hl.tint32, d=hl.tint32, e=hl.tstr, f=hl.tarray(hl.tint32))
 
@@ -113,7 +113,7 @@ class Tests(unittest.TestCase):
             x36=True
         )
 
-    @fails_when_service(reason='''E                   hail.utils.java.FatalError: java.lang.RuntimeException: batch 30851 failed: failure
+    @fails_service_backend(reason='''E                   hail.utils.java.FatalError: java.lang.RuntimeException: batch 30851 failed: failure
 E                   	at is.hail.backend.service.ServiceBackend.parallelizeAndComputeWithIndex(ServiceBackend.scala:186)
 E                   	at is.hail.backend.BackendUtils.collectDArray(BackendUtils.scala:28)
 E                   	at __C2Compiled.__m114split_StreamForregion16_27(Emit.scala)
@@ -165,7 +165,7 @@ E                   	at is.hail.backend.service.ServiceBackend.execute(ServiceBa
         self.assertEqual(set(results.q4), {"hello", "cat"})
         self.assertAlmostEqual(results.q5, 4)
 
-    @fails_when_service(reason='''The Service and Shuffler have no way of knowing the order in which rows appear in the original
+    @fails_service_backend(reason='''The Service and Shuffler have no way of knowing the order in which rows appear in the original
 dataset, as such it is impossible to guarantee the ordering in x2.
 
 https://hail.zulipchat.com/#narrow/stream/123011-Hail-Dev/topic/test_drop/near/235425714''')
@@ -233,7 +233,7 @@ https://hail.zulipchat.com/#narrow/stream/123011-Hail-Dev/topic/test_drop/near/2
         r = kt.aggregate(agg.filter(kt.idx % 2 != 0, agg.sum(kt.idx + 2)) + kt.g1)
         self.assertEqual(r, 40)
 
-    @fails_when_service(reason='Shuffler encoding/decoding is broken.')
+    @fails_service_backend(reason='Shuffler encoding/decoding is broken.')
     def test_to_matrix_table(self):
         N, M = 50, 50
         mt = hl.utils.range_matrix_table(N, M)
@@ -248,7 +248,7 @@ https://hail.zulipchat.com/#narrow/stream/123011-Hail-Dev/topic/test_drop/near/2
 
         assert re_mt.choose_cols(mapping).drop('col_idx')._same(mt.drop('col_idx'))
 
-    @fails_when_service(reason='''intermittent worker failure:
+    @fails_service_backend(reason='''intermittent worker failure:
 Caused by: java.lang.AssertionError: assertion failed
 	at scala.Predef$.assert(Predef.scala:208)
 	at is.hail.io.BlockingInputBuffer.ensure(InputBuffers.scala:389)
@@ -401,7 +401,7 @@ Caused by: java.lang.AssertionError: assertion failed
 
         self.assertRaises(NotImplementedError, f)
 
-    @fails_when_service(reason='''intermittent worker failure:
+    @fails_service_backend(reason='''intermittent worker failure:
 >       assert ht.x.collect() == [9]
 
 Caused by: java.lang.AssertionError: assertion failed
@@ -531,7 +531,7 @@ Caused by: java.lang.AssertionError: assertion failed
         ht1 = ht.annotate(foo=5)
         self.assertTrue(ht.all(ht1[ht.key].foo == 5))
 
-    @fails_when_service(reason='shuffler does not guarantee order of rows')
+    @fails_service_backend(reason='shuffler does not guarantee order of rows')
     def test_product_join(self):
         left = hl.utils.range_table(5)
         right = hl.utils.range_table(5)
@@ -547,7 +547,7 @@ Caused by: java.lang.AssertionError: assertion failed
         mt.select_entries(a=mt2[mt.row_idx, mt.col_idx].x,
                           b=mt2[mt.row_idx, mt.col_idx].x)
 
-    @fails_when_service(reason='''intermittent worker failure:
+    @fails_service_backend(reason='''intermittent worker failure:
 Caused by: is.hail.utils.HailException: Premature end of file: expected 4 bytes, found 0
 	at is.hail.utils.ErrorHandling.fatal(ErrorHandling.scala:11)
 	at is.hail.utils.ErrorHandling.fatal$(ErrorHandling.scala:11)
@@ -619,7 +619,7 @@ Caused by: is.hail.utils.HailException: Premature end of file: expected 4 bytes,
         joined = hl.Table.multi_way_zip_join([t1, t2, t3], '__data', '__globals')
         self.assertEqual(hl.eval(joined.globals), hl.eval(expected))
 
-    @fails_when_service(reason='''Caused by: java.lang.ClassCastException: __C35collect_distributed_array cannot be cast to is.hail.expr.ir.FunctionWithObjects
+    @fails_service_backend(reason='''Caused by: java.lang.ClassCastException: __C35collect_distributed_array cannot be cast to is.hail.expr.ir.FunctionWithObjects
 	at is.hail.expr.ir.EmitClassBuilder$$anon$1.apply(EmitClassBuilder.scala:660)
 	at is.hail.expr.ir.EmitClassBuilder$$anon$1.apply(EmitClassBuilder.scala:641)
 	at is.hail.backend.BackendUtils.$anonfun$collectDArray$2(BackendUtils.scala:31)
@@ -637,7 +637,7 @@ Caused by: is.hail.utils.HailException: Premature end of file: expected 4 bytes,
         j = hl.Table.multi_way_zip_join([ht, ht], 'd', 'g')
         j._force_count()
 
-    @fails_when_service(reason='''This blew memory once; seems flaky in the service.
+    @fails_service_backend(reason='''This blew memory once; seems flaky in the service.
 https://hail.zulipchat.com/#narrow/stream/123011-Hail-Dev/topic/test_multi_way_zip_join_key_downcast2.20blew.20memory.20in.20a.20test/near/236602960''')
     def test_multi_way_zip_join_key_downcast2(self):
         vcf2 = hl.import_vcf(resource('gvcfs/HG00268.g.vcf.gz'), force_bgz=True, reference_genome='GRCh38')
@@ -675,7 +675,7 @@ https://hail.zulipchat.com/#narrow/stream/123011-Hail-Dev/topic/test_multi_way_z
         ht = hl.utils.range_table(3)
         self.assertEqual(ht.group_by(ht.idx).aggregate().count(), 3)
 
-    @fails_when_service(reason='''The Shuffler does not guarantee the ordering of records that share a key. It can't really do that
+    @fails_service_backend(reason='''The Shuffler does not guarantee the ordering of records that share a key. It can't really do that
 unless we send some preferred ordering of the values (like global index). I don't undrestand how
 this test passes in the Spark backend.
 
@@ -879,7 +879,7 @@ https://hail.zulipchat.com/#narrow/stream/123011-Hail-Dev/topic/test_drop/near/2
         self.assertTrue(dist.all(hl.len(dist.values) == 1))
         self.assertEqual(dist.count(), len(t1.aggregate(hl.agg.collect_as_set(t1.a))))
 
-    @fails_when_service(reason='''The Service and Shuffler have no way of knowing the order in which rows appear in the original
+    @fails_service_backend(reason='''The Service and Shuffler have no way of knowing the order in which rows appear in the original
 dataset, as such it is impossible to guarantee the ordering in `matches`.
 
 https://hail.zulipchat.com/#narrow/stream/123011-Hail-Dev/topic/test_drop/near/235425714''')
@@ -998,7 +998,7 @@ https://hail.zulipchat.com/#narrow/stream/123011-Hail-Dev/topic/test_drop/near/2
         t_read_back = hl.import_table(tmp_file, types=dict(t.row.dtype)).key_by('idx')
         self.assertTrue(t.select_globals()._same(t_read_back, tolerance=1e-4, absolute=True))
 
-    @fails_when_service(reason='''Mysteriously fails the first _same check but nothing is written to stdout. I cannot
+    @fails_service_backend(reason='''Mysteriously fails the first _same check but nothing is written to stdout. I cannot
 replicate on my laptop.
 
 https://hail.zulipchat.com/#narrow/stream/123011-Hail-Dev/topic/missing.20logs.3F''')
@@ -1021,7 +1021,7 @@ https://hail.zulipchat.com/#narrow/stream/123011-Hail-Dev/topic/missing.20logs.3
         self.assertEqual(t2.n_partitions(), 3)
         self.assertTrue(t.filter((t.idx >= 150) & (t.idx < 500))._same(t2))
 
-    @fails_when_service(reason='''Flaky test. Type does not parse correctly on worker.
+    @fails_service_backend(reason='''Flaky test. Type does not parse correctly on worker.
 
 2021-05-03 15:43:33 INFO  WorkerTimer$:41 - readInputs took 2634.286074 ms.
 2021-05-03 15:43:35 INFO  Hail:28 - Running Hail version 0.2.65-11b564f90eb6
@@ -1050,7 +1050,7 @@ Exception in thread "main" java.lang.RuntimeException: invalid sort order: b
     def test_order_by_parsing(self):
         hl.utils.range_table(1).annotate(**{'a b c' : 5}).order_by('a b c')._force_count()
 
-@fails_when_service(reason='intermittently hangs')
+@fails_service_backend(reason='intermittently hangs')
     def test_take_order(self):
         t = hl.utils.range_table(20, n_partitions=2)
         t = t.key_by(rev_idx=-t.idx)
@@ -1083,7 +1083,7 @@ Exception in thread "main" java.lang.RuntimeException: invalid sort order: b
         t = mt._localize_entries('__entries', '__cols')
         self.assertTrue(t._same(ref_tab))
 
-    @fails_when_service(reason='''intermittent worker failure:
+    @fails_service_backend(reason='''intermittent worker failure:
 >       self.assertTrue(t._same(ref_tab))
 
 Caused by: java.lang.NullPointerException
@@ -1113,7 +1113,7 @@ Caused by: java.lang.NullPointerException
         t = t.join(t, how='outer')
         self.assertTrue(t._same(ref_tab))
 
-    @fails_when_service(reason='OOMs or crash')
+    @fails_service_backend(reason='OOMs or crash')
     def test_union(self):
         t1 = hl.utils.range_table(5)
 
@@ -1139,7 +1139,7 @@ Caused by: java.lang.NullPointerException
         assert union._force_count() == N * M
         assert union.count() == N * M
 
-@fails_when_service()
+@fails_service_backend()
     def test_union_unify(self):
         t1 = hl.utils.range_table(2)
         t2 = t1.annotate(x=hl.int32(1), y='A')
@@ -1225,7 +1225,7 @@ Caused by: java.lang.NullPointerException
         self.assertEqual(inner_join.collect(), inner_join_expected)
         self.assertEqual(outer_join.collect(), outer_join_expected)
 
-    @fails_when_service(reason='Shuffler encoding/decoding is broken.')
+    @fails_service_backend(reason='Shuffler encoding/decoding is broken.')
     def test_null_joins_2(self):
         tr = hl.utils.range_table(7, 1)
         table1 = tr.key_by(new_key=hl.if_else((tr.idx == 3) | (tr.idx == 5),
@@ -1400,7 +1400,7 @@ Caused by: java.lang.NullPointerException
         ht = ht.annotate(y = ht.idx + ht.aggregate(hl.agg.max(ht.idx), _localize=False))
         assert ht.y.collect() == [x + 9 for x in range(10)]
 
-@fails_when_service()
+@fails_service_backend()
     def test_collect_localize_false(self):
         ht = hl.utils.range_table(10)
         assert hl.eval(ht.collect(_localize=False)) == ht.collect()
@@ -1478,7 +1478,7 @@ Caused by: java.lang.NullPointerException
         t2 = t1.annotate_globals(x = 8)
         self.assertFalse(t1._same(t2))
 
-    @fails_when_service(reason='hangs')
+    @fails_service_backend(reason='hangs')
     def test_same_different_rows(self):
         t1 = (hl.utils.range_table(2)
               .annotate(x = 7))
@@ -1542,7 +1542,7 @@ Caused by: java.lang.NullPointerException
 +-------------------+----------+---------------------+-------------------+
 '''
 
-    @fails_when_service(reason='''E                   hail.utils.java.FatalError: java.lang.ClassCastException: __C2Compiled cannot be cast to is.hail.expr.ir.FunctionWithBackend
+    @fails_service_backend(reason='''E                   hail.utils.java.FatalError: java.lang.ClassCastException: __C2Compiled cannot be cast to is.hail.expr.ir.FunctionWithBackend
 E                   	at is.hail.expr.ir.EmitClassBuilder$$anon$1.apply(EmitClassBuilder.scala:658)
 E                   	at is.hail.expr.ir.EmitClassBuilder$$anon$1.apply(EmitClassBuilder.scala:641)
 E                   	at is.hail.expr.ir.lowering.LowerToCDA$.$anonfun$lower$2(LowerToCDA.scala:50)
@@ -1618,7 +1618,7 @@ E                   	at is.hail.backend.service.ServiceBackend.execute(ServiceBa
             ht.write(path)
         assert "both an input and output source" in str(exc.value)
 
-@fails_when_service(reason='slow >800s')
+@fails_service_backend(reason='slow >800s')
 def test_large_number_of_fields():
     ht = hl.utils.range_table(100)
     ht = ht.annotate(**{
@@ -1796,7 +1796,7 @@ def test_write_table_containing_ndarray():
     t2 = hl.read_table(f)
     assert t._same(t2)
 
-@fails_when_service(reason='''intermittent worker failure:
+@fails_service_backend(reason='''intermittent worker failure:
 >       grouped6_collected = t._group_within_partitions("grouped_fields", 6).collect()
 
 Caused by: is.hail.utils.HailException: Premature end of file: expected 4 bytes, found 0
@@ -1873,7 +1873,7 @@ def test_range_annotate_range():
     ht2 = hl.utils.range_table(5).annotate(x = 1)
     ht1.annotate(x = ht2[ht1.idx].x)._force_count()
 
-@fails_when_service(reason='slow >800s')
+@fails_service_backend(reason='slow >800s')
 def test_read_write_all_types():
     ht = create_all_values_table()
     tmp_file = new_temp_file()
@@ -1967,7 +1967,7 @@ head_tail_test_data = [
     for counter_name, counter in (('count', hl.Table.count), ('_force_count', hl.Table._force_count))]
 
 
-@fails_when_service()
+@fails_service_backend()
 @pytest.mark.parametrize("test", head_tail_test_data)
 def test_table_head_and_tail(test):
     test()

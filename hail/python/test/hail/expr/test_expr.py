@@ -394,7 +394,7 @@ class Tests(unittest.TestCase):
         self.assertEqual(hl.eval(hl.if_else(hl.missing(hl.tbool), 1, 2)), None)
         self.assertEqual(hl.eval(hl.if_else(hl.missing(hl.tbool), 1, 2, missing_false=True)), 2)
 
-    @fails_when_service(reason='''intermittent worker failure:
+    @fails_service_backend(reason='''intermittent worker failure:
 >       self.assertEqual(table.aggregate(hl.agg.filter(True, hl.agg.array_sum(a))), [10, 20])
 
 Caused by: java.net.URISyntaxException: Illegal character in path at index 0: a8d523b8-d587-4ba9-aa46-2839dd6d8e3b
@@ -575,7 +575,7 @@ Caused by: java.net.URISyntaxException: Illegal character in path at index 0: a
                           hl.Struct(row_idx=9, s=36, x=9), hl.Struct(row_idx=10, s=45, x=10), hl.Struct(row_idx=11, s=55, x=11),
                           hl.Struct(row_idx=12, s=66, x=12), hl.Struct(row_idx=13, s=78, x=13), hl.Struct(row_idx=14, s=91, x=14)])
 
-    @fails_when_service(reason='''intermittent failure on worker node:
+    @fails_service_backend(reason='''intermittent failure on worker node:
 {"@version":1,"@timestamp":"2021-08-09 21:30:08,696","message":"request GET http://internal.hail/dking/memory/api/v1alpha/objects?q=gs%3A%2F%2Fdanking%2Ftmp%2Fhail%2Fquery%2FVbzVI33tfBknUXx5BqIX3reTS30M6FJaDvSXV6BOGcg%3D%2Ff response 200","filename":"Requester.scala","line_number":"71","class":"is.hail.services.Requester","method":"$anonfun$requestWithHandler$2","logger_name":"Requester","mdc":{},"ndc":null,"severity":"INFO","thread_name":"pool-3-thread-2"}
 {"@version":1,"@timestamp":"2021-08-09 21:30:08,696","message":"request GET http://internal.hail/dking/memory/api/v1alpha/objects?q=gs%3A%2F%2Fdanking%2Ftmp%2Fhail%2Fquery%2FVbzVI33tfBknUXx5BqIX3reTS30M6FJaDvSXV6BOGcg%3D%2Fcontexts response 200","filename":"Requester.scala","line_number":"71","class":"is.hail.services.Requester","method":"$anonfun$requestWithHandler$2","logger_name":"Requester","mdc":{},"ndc":null,"severity":"INFO","thread_name":"pool-3-thread-1"}
 {"@version":1,"@timestamp":"2021-08-09 21:30:08,699","message":"readInputs took 431.583961 ms.","filename":"Worker.scala","line_number":"42","class":"is.hail.backend.service.WorkerTimer","method":"$anonfun$end$1","logger_name":"is.hail.backend.service.WorkerTimer$","mdc":{},"ndc":null,"severity":"INFO","thread_name":"pool-1-thread-1"}
@@ -723,7 +723,7 @@ Compiled method (c1)   65989 6954       3       is.hail.annotations.Region$::loa
         r = ht.aggregate(hl.agg.array_agg(lambda x: hl.agg.explode(lambda elt: hl.agg.count(), x), ht.a))
         assert r == [45, 45]
 
-    @fails_when_service(reason='''intermitent failure:
+    @fails_service_backend(reason='''intermitent failure:
 >       r2 = ht.aggregate(hl.agg.array_agg(lambda x: hl.agg.filter(x == 5, hl.agg.sum(x)), ht.a))
 
 with this message:
@@ -808,7 +808,7 @@ E                   	at java.lang.Thread.run(Thread.java:748)
         r4 = ht.aggregate(hl.agg.array_agg(lambda x: hl.agg.filter(x == 5, hl.agg.count()), ht.a))
         assert r4 == [1]
 
-    @fails_when_service(reason='''intermittent failure on worker node:
+    @fails_service_backend(reason='''intermittent failure on worker node:
 Caused by: java.lang.AssertionError: assertion failed
 	at scala.Predef$.assert(Predef.scala:208)
 	at is.hail.io.BlockingInputBuffer.readBytes(InputBuffers.scala:448)
@@ -926,7 +926,7 @@ Caused by: java.lang.AssertionError: assertion failed
         for aggregation, expected in tests:
             self.assertEqual(t.aggregate(aggregation), expected)
 
-    @fails_when_service(reason='''intermittent failure on worker node:
+    @fails_service_backend(reason='''intermittent failure on worker node:
 Caused by: java.lang.AssertionError: assertion failed
 	at scala.Predef$.assert(Predef.scala:208)
 	at is.hail.io.MemoryBuffer.readInt(MemoryBuffer.scala:95)
@@ -1125,7 +1125,7 @@ Caused by: java.lang.AssertionError: assertion failed
 
         self.assertEqual(r.x, 10)
 
-    @fails_when_service(reason='''intermitent driver error:
+    @fails_service_backend(reason='''intermitent driver error:
 >           t.aggregate(hl.bind(lambda i: hl.agg.explode(lambda elt: hl.agg.sum(elt), [t.idx, t.idx + i]), 1))
 
 E                   hail.utils.java.FatalError: java.lang.AssertionError: assertion failed
@@ -1247,7 +1247,7 @@ E                   	at java.lang.Thread.run(Thread.java:748)''')
         for aggregation, expected in tests:
             self.assertEqual(aggregation.collect(), expected)
 
-    @fails_when_service(reason='''intermittent worker failure:
+    @fails_service_backend(reason='''intermittent worker failure:
 >           self.assertEqual(aggregation.collect(), expected)
 
 Caused by: is.hail.utils.HailException: Premature end of file: expected 4 bytes, found 0
@@ -1303,7 +1303,7 @@ Caused by: is.hail.utils.HailException: Premature end of file: expected 4 bytes,
         for aggregation, expected in tests:
             self.assertEqual(aggregation.collect(), expected)
 
-    @fails_when_service(reason='''intermittent worker failure:
+    @fails_service_backend(reason='''intermittent worker failure:
 >           (hl.scan.group_by(t.idx % 3,
                             hl.scan.collect(t.idx).append(t.idx)),
              [{},
@@ -1764,7 +1764,7 @@ Caused by: is.hail.utils.HailException: Premature end of file: expected 4 bytes,
                    (True, False)
                )
 
-    @fails_when_service(reason='''{"@version":1,"@timestamp":"2021-07-27 20:51:58,660","message":"request GET http://internal.hail/dking/memory/api/v1alpha/objects?q=gs%3A%2F%2Fdanking%2Ftmp%2Fhail%2Fquery%2FZsJniWRyAA2AmPOnHWoov00V8l2gAuyFIna84MhTc2U%3D%2Fcontexts response 200","filename":"Requester.scala","line_number":"71","class":"is.hail.services.Requester","method":"$anonfun$requestWithHandler$2","logger_name":"Requester","mdc":{},"ndc":null,"severity":"INFO","thread_name":"pool-2-thread-2"}
+    @fails_service_backend(reason='''{"@version":1,"@timestamp":"2021-07-27 20:51:58,660","message":"request GET http://internal.hail/dking/memory/api/v1alpha/objects?q=gs%3A%2F%2Fdanking%2Ftmp%2Fhail%2Fquery%2FZsJniWRyAA2AmPOnHWoov00V8l2gAuyFIna84MhTc2U%3D%2Fcontexts response 200","filename":"Requester.scala","line_number":"71","class":"is.hail.services.Requester","method":"$anonfun$requestWithHandler$2","logger_name":"Requester","mdc":{},"ndc":null,"severity":"INFO","thread_name":"pool-2-thread-2"}
 {"@version":1,"@timestamp":"2021-07-27 20:51:58,702","message":"request GET http://internal.hail/dking/memory/api/v1alpha/objects?q=gs%3A%2F%2Fdanking%2Ftmp%2Fhail%2Fquery%2FZsJniWRyAA2AmPOnHWoov00V8l2gAuyFIna84MhTc2U%3D%2Ff response 200","filename":"Requester.scala","line_number":"71","class":"is.hail.services.Requester","method":"$anonfun$requestWithHandler$2","logger_name":"Requester","mdc":{},"ndc":null,"severity":"INFO","thread_name":"pool-2-thread-1"}
 {"@version":1,"@timestamp":"2021-07-27 20:51:58,703","message":"readInputs took 1461.343014 ms.","filename":"Worker.scala","line_number":"42","class":"is.hail.backend.service.WorkerTimer","method":"$anonfun$end$1","logger_name":"is.hail.backend.service.WorkerTimer$","mdc":{},"ndc":null,"severity":"INFO","thread_name":"pool-1-thread-1"}
 {"@version":1,"@timestamp":"2021-07-27 20:51:58,703","message":"RegionPool: initialized for thread 18: pool-1-thread-1","filename":"RegionPool.scala","line_number":"17","class":"is.hail.annotations.RegionPool","method":"<init>","logger_name":"root","mdc":{},"ndc":null,"severity":"INFO","thread_name":"pool-1-thread-1"}
@@ -1867,7 +1867,7 @@ Compiled method (c1)  124591 4565       3       is.hail.annotations.Region$::loa
         assert tb3 == [0, 1, 2, 3, 4, 5, 6]
         assert tb4 == [['0_0', '0_1', '0_2', '0_3'], ['1_0', '1_1', '1_2', '1_3']]
 
-    @fails_when_service(reason='''intermittent worker failure:
+    @fails_service_backend(reason='''intermittent worker failure:
 >           self.assertEqual(t.aggregate(aggfunc(array_with_nan[t.idx])), 0.)
 
 Caused by: java.lang.AssertionError: assertion failed
@@ -3963,7 +3963,7 @@ Caused by: java.lang.AssertionError: assertion failed
         assert hl.eval(hl.is_nan(nan)) == True
         assert hl.eval(hl.is_nan(na)) == None
 
-    @fails_when_service(reason='''intermittent driver failure:
+    @fails_service_backend(reason='''intermittent driver failure:
 (Python line number was, oddly, not present)
 
 E                   hail.utils.java.FatalError: java.lang.NoSuchFieldError: __f840null
@@ -4129,7 +4129,7 @@ E                   	at java.lang.Thread.run(Thread.java:748)
 
         assert ht.aggregate((hl.agg._prev_nonnull(ht.idx))) == 0
 
-    @fails_when_service(reason='slow >800s')
+    @fails_service_backend(reason='slow >800s')
     def test_summarize_runs(self):
         mt = hl.utils.range_matrix_table(3,3).annotate_entries(
             x1 = 'a',

@@ -245,7 +245,7 @@ def test_interval_coverage():
         pytest.approx(obs.mean_dp, exp.mean_dp)
 
 
-@fails_when_service(reason='''
+@fails_service_backend(reason='''
 hangs >=9 minutes after "optimize optimize: darrayLowerer, initial IR ..."
 with no calls to parallelizeAndComputeWithIndex
 ''')
@@ -388,7 +388,7 @@ def test_filter_chromosomes():
     assert_contigs(vds_auto, autosomes)
 
 
-@fails_when_service(reason='hangs')
+@fails_service_backend(reason='hangs')
 def test_to_dense_mt():
     vds = hl.vds.read_vds(os.path.join(resource('vds'), '1kg_2samples_starts.vds'))
     vds = hl.vds.filter_chromosomes(vds, keep='chr22')

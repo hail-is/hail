@@ -159,7 +159,7 @@ class Tests(unittest.TestCase):
                      hl.eval(hl.parse_locus_interval('[20:17705793-17716416]'))]
         self.assertEqual(hl.filter_intervals(ds, intervals).count_rows(), 4)
 
-    @fails_when_service(reason='''intermittent worker failure:
+    @fails_service_backend(reason='''intermittent worker failure:
 >       self.assertEqual(hl.filter_intervals(ds, intervals).count(), 4)
 
 E                   hail.utils.java.FatalError: java.lang.RuntimeException: batch 3402 failed: failure
@@ -276,7 +276,7 @@ E                   	at java.lang.Thread.run(Thread.java:748)''')
         with self.assertRaises(hl.utils.HailUserError):
             hl.methods.misc.require_biallelic(mt, '')._force_count_rows()
 
-    @fails_when_service(reason='''intermittent worker failure:
+    @fails_service_backend(reason='''intermittent worker failure:
 Caused by: java.lang.ClassCastException: __C5322collect_distributed_array cannot be cast to is.hail.expr.ir.FunctionWithLiterals
 	at is.hail.expr.ir.EmitClassBuilder$$anon$1.apply(EmitClassBuilder.scala:691)
 	at is.hail.expr.ir.EmitClassBuilder$$anon$1.apply(EmitClassBuilder.scala:670)
