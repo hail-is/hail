@@ -4109,9 +4109,8 @@ E                   	at java.lang.Thread.run(Thread.java:748)
 
         assert ht.aggregate((hl.agg._prev_nonnull(ht.idx))) == 0
 
-    @skip_when_service_backend('slow >800s')
-    def test_summarize_runs(self):
-        mt = hl.utils.range_matrix_table(3,3).annotate_entries(
+    def mt_for_test_summarize(self):
+        return hl.utils.range_matrix_table(3,3).annotate_entries(
             x1 = 'a',
             x2 = 1,
             x3 = 1.5,
@@ -4125,9 +4124,17 @@ E                   	at java.lang.Thread.run(Thread.java:748)
             x11=hl.call(0, 1, phased=True)
         )
 
-        mt.summarize()
-        mt.entries().summarize()
-        mt.x1.summarize()
+    @skip_when_service_backend('slow >800s')
+    def test_summarize_mt(self):
+        self.mt_for_test_summarize().summarize()
+
+    @skip_when_service_backend('slow >800s')
+    def test_summarize_entries(self):
+        self.mt_for_test_summarize().entries().summarize()
+
+    @skip_when_service_backend('slow >800s')
+    def test_summarize_entry_field(self):
+        self.mt_for_test_summarize().x1.summarize()
 
     def test_variant_str(self):
         assert hl.eval(
