@@ -1,4 +1,4 @@
-from ..helpers import startTestHailContext, stopTestHailContext, skip_when_service_backend
+from ..helpers import startTestHailContext, stopTestHailContext
 import unittest
 
 import hail as hl
@@ -8,7 +8,7 @@ tearDownModule = stopTestHailContext
 
 
 class Tests(unittest.TestCase):
-    @skip_when_service_backend('''intermittent worker failure:
+    @fails_when_service(reason='''intermittent worker failure:
 >       mt.sample_idx.show()
 
 Caused by: java.lang.AssertionError: assertion failed
