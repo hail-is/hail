@@ -977,8 +977,8 @@ def find_spark_home() -> str:
         if find_spark_home.returncode != 0:
             raise ValueError(f'''SPARK_HOME is not set and find_spark_home.py returned non-zero exit code:
 STDOUT:
-{find_spark_home.stdout}
+{find_spark_home.stdout!r}
 STDERR:
-{find_spark_home.stderr}''')
+{find_spark_home.stderr!r}''')
         spark_home = find_spark_home.stdout.decode().strip()
     return spark_home
