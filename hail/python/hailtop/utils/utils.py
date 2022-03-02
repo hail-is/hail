@@ -107,7 +107,7 @@ def digits_needed(i: int) -> int:
     return 1 + digits_needed(i // 10)
 
 
-def grouped(n:int, ls:list[Any]) -> list:
+def grouped(n: int, ls: List[Any]) -> List:
     if n < 1:
         raise ValueError('invalid value for n: found {n}')
     while len(ls) != 0:
