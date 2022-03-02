@@ -277,6 +277,7 @@ steps:
       - default_ns
       - service_base_image
       - merge_code
+      - create_database_server_config
   - kind: createDatabase
     name: auth_database
     databaseName: auth
@@ -466,6 +467,7 @@ steps:
       - create_deploy_config
       - deploy_auth_driver_service_account
       - create_test_gsa_keys
+      - create_database_server_config
   - kind: runImage
     name: create_initial_user
     runIfRequested: true
@@ -2589,6 +2591,7 @@ steps:
       - default_ns
       - service_base_image
       - merge_code
+      - create_database_server_config
   - kind: createDatabase
     name: monitoring_database
     databaseName: monitoring
@@ -2785,6 +2788,7 @@ steps:
       - default_ns
       - service_base_image
       - merge_code
+      - create_database_server_config
   - kind: runImage
     name: delete_ci_tables
     image:
@@ -2807,6 +2811,7 @@ steps:
       - default_ns
       - service_base_image
       - merge_code
+      - create_database_server_config
   - kind: createDatabase
     name: ci_database
     databaseName: ci
