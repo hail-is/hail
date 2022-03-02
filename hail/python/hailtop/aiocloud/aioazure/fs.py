@@ -438,6 +438,7 @@ class AzureAsyncFS(AsyncFS):
 
         if self._blob_service_clients:
             await asyncio.wait([client.close() for client in self._blob_service_clients.values()])
+            self._blob_service_clients = {}
 
 
 class AzureAsyncFSFactory(AsyncFSFactory[AzureAsyncFS]):

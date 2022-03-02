@@ -27,7 +27,7 @@ import async_timeout
 from aiodocker.exceptions import DockerError  # type: ignore
 from aiohttp import web
 
-from gear.clients import get_cloud_async_fs, get_compute_client
+from gear.clients import get_cloud_async_fs, get_compute_client, get_cloud_credentials_from_data
 from hailtop import aiotools, httpx
 from hailtop.aiotools import LocalAsyncFS
 from hailtop.aiotools.router_fs import RouterAsyncFS
@@ -2116,19 +2116,19 @@ class Worker:
             log.info('shutdown task manager')
         finally:
             try:
-                if self.fs:
-                    await self.fs.close()
-                    log.info('closed worker file system')
+                if self.compute_client:
+                    await self.compute_client.close()
+                    log.info('closed compute client')
             finally:
                 try:
-                    if self.compute_client:
-                        await self.compute_client.close()
-                        log.info('closed compute client')
+                    if self.file_store:
+                        await self.file_store.close()
+                        log.info('closed file store')
                 finally:
                     try:
-                        if self.file_store:
-                            await self.file_store.close()
-                            log.info('closed file store')
+                        if self.fs:
+                            await self.fs.close()
+                            log.info('closed worker file system')
                     finally:
                         await self.client_session.close()
                         log.info('closed client session')
@@ -2415,18 +2415,21 @@ class Worker:
         with open(credentials_file, 'w') as f:
             f.write(json.dumps(resp_json['key']))
 
+        credentials = get_cloud_credentials_from_data(resp_json['key'])
         self.fs = RouterAsyncFS(
             'file',
             filesystems=[
                 LocalAsyncFS(self.pool),
-                get_cloud_async_fs(credentials_file=credentials_file),
+                get_cloud_async_fs(credentials=credentials),
             ],
         )
 
-        fs = get_cloud_async_fs(credentials_file=credentials_file)
-        self.file_store = FileStore(fs, BATCH_LOGS_STORAGE_URI, INSTANCE_ID)
+        self.file_store = FileStore(
+            self.fs,  # AsyncFS.close is idempotent
+            BATCH_LOGS_STORAGE_URI, INSTANCE_ID
+        )
 
-        self.compute_client = get_compute_client(credentials_file=credentials_file)
+        self.compute_client = get_compute_client(credentials=credentials)  # CloudCredentials.close is idempotent
 
         resp = await request_retry_transient_errors(
             self.client_session,
