@@ -1,4 +1,3 @@
-from email.generator import Generator
 from typing import Any, Callable, TypeVar, Awaitable, Optional, Type, List, Dict, Iterable, Tuple
 from typing_extensions import Literal
 from types import TracebackType
@@ -108,7 +107,7 @@ def digits_needed(i: int) -> int:
     return 1 + digits_needed(i // 10)
 
 
-def grouped(n: int, ls: List[Any]) -> Generator[Any]:
+def grouped(n: int, ls: List[Any]) -> Iterable:
     if n < 1:
         raise ValueError('invalid value for n: found {n}')
     while len(ls) != 0:
