@@ -1,4 +1,4 @@
-from ..helpers import startTestHailContext, stopTestHailContext, fails_service_backend, skip_when_service_backend
+from ..helpers import startTestHailContext, stopTestHailContext, skip_when_service_backend
 import unittest
 
 import hail as hl
