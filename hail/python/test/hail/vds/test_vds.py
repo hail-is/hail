@@ -4,7 +4,7 @@ import pytest
 import hail as hl
 from hail.utils import new_temp_file
 from hail.vds.combiner.combine import defined_entry_fields
-from ..helpers import startTestHailContext, stopTestHailContext, resource, fails_local_backend, fails_service_backend, skip_when_service_backend
+from ..helpers import startTestHailContext, stopTestHailContext, resource, fails_local_backend, fails_service_backend
 
 setUpModule = startTestHailContext
 tearDownModule = stopTestHailContext
@@ -245,7 +245,7 @@ def test_interval_coverage():
         pytest.approx(obs.mean_dp, exp.mean_dp)
 
 
-@skip_when_service_backend(message='''
+@fails_when_service(reason='''
 hangs >=9 minutes after "optimize optimize: darrayLowerer, initial IR ..."
 with no calls to parallelizeAndComputeWithIndex
 ''')
@@ -388,7 +388,7 @@ def test_filter_chromosomes():
     assert_contigs(vds_auto, autosomes)
 
 
-@skip_when_service_backend(message='hangs')
+@fails_when_service(reason='hangs')
 def test_to_dense_mt():
     vds = hl.vds.read_vds(os.path.join(resource('vds'), '1kg_2samples_starts.vds'))
     vds = hl.vds.filter_chromosomes(vds, keep='chr22')

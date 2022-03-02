@@ -128,17 +128,6 @@ def skip_unless_spark_backend():
 
     return wrapper
 
-def skip_when_service_backend(message='does not work on ServiceBackend'):
-    from hail.backend.service_backend import ServiceBackend
-    @decorator
-    def wrapper(func, *args, **kwargs):
-        if isinstance(hl.utils.java.Env.backend(), ServiceBackend):
-            raise unittest.SkipTest(message)
-        else:
-            return func(*args, **kwargs)
-
-    return wrapper
-
 
 def skip_unless_service_backend(message='only relevant to service backend'):
     from hail.backend.service_backend import ServiceBackend
@@ -146,6 +135,18 @@ def skip_unless_service_backend(message='only relevant to service backend'):
     def wrapper(func, *args, **kwargs):
         if not isinstance(hl.utils.java.Env.backend(), ServiceBackend):
             raise unittest.SkipTest(message)
+        else:
+            return func(*args, **kwargs)
+
+    return wrapper
+
+
+def skip_when_service_backend():
+    from hail.backend.service_backend import ServiceBackend
+    @decorator
+    def wrapper(func, *args, **kwargs):
+        if isinstance(hl.utils.java.Env.backend(), ServiceBackend):
+            raise unittest.SkipTest('requires Spark')
         else:
             return func(*args, **kwargs)
 

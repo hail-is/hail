@@ -181,7 +181,7 @@ class Tests(unittest.TestCase):
 
         self.assertTrue(men2.filter(men2.s == 'Dtr1')._same(men.filter(men.s == 'Dtr1')))
 
-    @skip_when_service_backend('very slow / nonterminating')
+    @fails_when_service(reason='very slow / nonterminating')
     def test_tdt(self):
         pedigree = hl.Pedigree.read(resource('tdt.fam'))
         tdt_tab = (hl.transmission_disequilibrium_test(

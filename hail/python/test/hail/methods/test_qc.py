@@ -110,7 +110,7 @@ class Tests(unittest.TestCase):
         self.assertEqual(r[1].vqc.gq_stats.mean, 10)
         self.assertEqual(r[1].vqc.gq_stats.stdev, 0)
 
-    @skip_when_service_backend('very slow / nonterminating')
+    @fails_when_service(reason='very slow / nonterminating')
     def test_concordance(self):
         dataset = get_dataset()
         glob_conc, cols_conc, rows_conc = hl.concordance(dataset, dataset)
@@ -138,7 +138,7 @@ class Tests(unittest.TestCase):
         cols_conc.write('/tmp/foo.kt', overwrite=True)
         rows_conc.write('/tmp/foo.kt', overwrite=True)
 
-    @skip_when_service_backend('very slow / nonterminating')
+    @fails_when_service(reason='very slow / nonterminating')
     def test_concordance_n_discordant(self):
         dataset = get_dataset()
         _, cols_conc, rows_conc = hl.concordance(dataset, dataset)
@@ -216,14 +216,14 @@ class Tests(unittest.TestCase):
                       n_discordant=0),
         ]
 
-    @skip_when_service_backend('very slow / nonterminating')
+    @fails_when_service(reason='very slow / nonterminating')
     def test_concordance_no_values_doesnt_error(self):
         dataset = get_dataset().filter_rows(False)
         _, cols_conc, rows_conc = hl.concordance(dataset, dataset)
         cols_conc._force_count()
         rows_conc._force_count()
 
-    @skip_when_service_backend('''intermittent worker failure:
+    @fails_when_service(reason='''intermittent worker failure:
 >           self.assertEqual(hl.filter_alleles(ds, lambda a, i: True).count_rows(), ds.count_rows())
 
 Caused by: java.lang.ClassCastException: __C2860collect_distributed_array cannot be cast to is.hail.expr.ir.FunctionWithObjects
@@ -247,7 +247,7 @@ Caused by: java.lang.ClassCastException: __C2860collect_distributed_array cannot
                 hl.filter_alleles(ds, lambda a, i: False).count_rows(), 0)
             self.assertEqual(hl.filter_alleles(ds, lambda a, i: True).count_rows(), ds.count_rows())
 
-    @skip_when_service_backend('slow (at least 45 minutes)')
+    @fails_when_service(reason='slow (at least 45 minutes)')
     def test_filter_alleles_hts(self):
         # 1 variant: A:T,G
         ds = hl.import_vcf(resource('filter_alleles/input.vcf'))

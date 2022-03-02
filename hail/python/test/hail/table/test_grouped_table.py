@@ -8,7 +8,7 @@ tearDownModule = stopTestHailContext
 
 
 class GroupedTableTests(unittest.TestCase):
-    @skip_when_service_backend('''intermittent worker failure:
+    @fails_service_backend(reason='''intermittent worker failure:
 >       self.assertTrue(result._same(expected))
 
 Caused by: is.hail.utils.HailException: Premature end of file: expected 4 bytes, found 0

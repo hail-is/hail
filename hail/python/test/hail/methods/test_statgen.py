@@ -11,8 +11,7 @@ from hail.linalg import BlockMatrix
 from hail.utils import FatalError
 from hail.utils.java import choose_backend
 from ..helpers import (startTestHailContext, stopTestHailContext, resource,
-                       fails_local_backend, fails_service_backend,
-                       skip_when_service_backend)
+                       fails_local_backend, fails_service_backend)
 
 setUpModule = startTestHailContext
 tearDownModule = stopTestHailContext
@@ -60,7 +59,7 @@ class Tests(unittest.TestCase):
     # Outside of Spark backend, "linear_regression_rows" just defers to the underscore nd version.
     linreg_functions = [hl.linear_regression_rows, hl._linear_regression_rows_nd] if backend_name == "spark" else [hl.linear_regression_rows]
 
-    @skip_when_service_backend('Shuffler encoding/decoding is broken.')
+    @fails_when_service(reason='Shuffler encoding/decoding is broken.')
     def test_linreg_basic(self):
         phenos = hl.import_table(resource('regressionLinear.pheno'),
                                  types={'Pheno': hl.tfloat64},
@@ -96,7 +95,7 @@ class Tests(unittest.TestCase):
             self.assertTrue(t1._same(t4a))
             self.assertTrue(t1._same(t4b))
 
-    @skip_when_service_backend('hangs')
+    @fails_when_service(reason='hangs')
     def test_linreg_pass_through(self):
         phenos = hl.import_table(resource('regressionLinear.pheno'),
                                  types={'Pheno': hl.tfloat64},
@@ -140,7 +139,7 @@ class Tests(unittest.TestCase):
                 linreg_function([[phenos[mt.s].Pheno]], mt.GT.n_alt_alleles(), [1.0],
                                 pass_through=[mt.filters.length()])
 
-    @skip_when_service_backend('very slow / nonterminating')
+    @fails_when_service(reason='very slow / nonterminating')
     def test_linreg_chained(self):
         phenos = hl.import_table(resource('regressionLinear.pheno'),
                                  types={'Pheno': hl.tfloat64},
@@ -216,7 +215,7 @@ class Tests(unittest.TestCase):
             t5 = t5.annotate(**{x: t5[x][0] for x in ['n', 'sum_x', 'y_transpose_x', 'beta', 'standard_error', 't_stat', 'p_value']})
             assert t4._same(t5)
 
-    @skip_when_service_backend('slow >800s')
+    @fails_when_service(reason='slow >800s')
     def test_linear_regression_without_intercept(self):
         for linreg_function in self.linreg_functions:
             pheno = hl.import_table(resource('regressionLinear.pheno'),
@@ -242,7 +241,7 @@ class Tests(unittest.TestCase):
     # fit <- lm(y ~ x + c1 + c2, data=df)
     # summary(fit)["coefficients"]
     @pytest.mark.unchecked_allocator
-    @skip_when_service_backend('slow >800s')
+    @fails_when_service(reason='slow >800s')
     def test_linear_regression_with_cov(self):
 
         covariates = hl.import_table(resource('regressionLinear.cov'),
@@ -286,7 +285,7 @@ class Tests(unittest.TestCase):
             self.assertTrue(np.isnan(results[9].standard_error))
             self.assertTrue(np.isnan(results[10].standard_error))
 
-    @skip_when_service_backend('slow >800s')
+    @fails_when_service(reason='slow >800s')
     def test_linear_regression_pl(self):
 
         covariates = hl.import_table(resource('regressionLinear.cov'),
@@ -322,7 +321,7 @@ class Tests(unittest.TestCase):
             self.assertAlmostEqual(results[3].t_stat, 1.5872510, places=6)
             self.assertAlmostEqual(results[3].p_value, 0.2533675, places=6)
 
-    @skip_when_service_backend('very slow / nonterminating')
+    @fails_when_service(reason='very slow / nonterminating')
     def test_linear_regression_with_dosage(self):
 
         covariates = hl.import_table(resource('regressionLinear.cov'),
@@ -357,7 +356,7 @@ class Tests(unittest.TestCase):
             self.assertAlmostEqual(results[3].p_value, 0.2533675, places=6)
             self.assertTrue(np.isnan(results[6].standard_error))
 
-    @skip_when_service_backend('slow >800s')
+    @fails_when_service(reason='slow >800s')
     def test_linear_regression_equivalence_between_ds_and_gt(self):
         """Test that linear regressions on data converted from dosage to genotype returns the same results"""
         ds_mt = hl.import_vcf(resource('small-ds.vcf'))
@@ -436,7 +435,7 @@ class Tests(unittest.TestCase):
             self.assertTrue(np.isnan(results[9].standard_error))
             self.assertTrue(np.isnan(results[10].standard_error))
 
-    @skip_when_service_backend('hangs')
+    @fails_when_service(reason='hangs')
     def test_linear_regression_multi_pheno_same(self):
         covariates = hl.import_table(resource('regressionLinear.cov'),
                                      key='Sample',
@@ -620,7 +619,7 @@ class Tests(unittest.TestCase):
     # se <- waldtest["x", "Std. Error"]
     # zstat <- waldtest["x", "z value"]
     # pval <- waldtest["x", "Pr(>|z|)"]
-    @skip_when_service_backend('slow >800s')
+    @fails_when_service(reason='slow >800s')
     def test_logistic_regression_wald_test(self):
         covariates = hl.import_table(resource('regressionLogistic.cov'),
                                      key='Sample',
@@ -659,7 +658,7 @@ class Tests(unittest.TestCase):
             self.assertTrue(is_constant(results[9]))
             self.assertTrue(is_constant(results[10]))
 
-    @skip_when_service_backend('slow >800s')
+    @fails_when_service(reason='slow >800s')
     def test_logistic_regression_wald_test_apply_multi_pheno(self):
         covariates = hl.import_table(resource('regressionLogistic.cov'),
                                      key='Sample',
@@ -737,7 +736,7 @@ class Tests(unittest.TestCase):
             #TODO test handling of missingness
 
 
-    @skip_when_service_backend('slow >800s')
+    @fails_when_service(reason='slow >800s')
     def test_logistic_regression_wald_test_pl(self):
         covariates = hl.import_table(resource('regressionLogistic.cov'),
                                      key='Sample',
@@ -778,7 +777,7 @@ class Tests(unittest.TestCase):
             self.assertTrue(is_constant(results[9]))
             self.assertTrue(is_constant(results[10]))
 
-    @skip_when_service_backend('very slow / nonterminating')
+    @fails_when_service(reason='very slow / nonterminating')
     def test_logistic_regression_wald_dosage(self):
         covariates = hl.import_table(resource('regressionLogistic.cov'),
                                      key='Sample',
@@ -831,7 +830,7 @@ class Tests(unittest.TestCase):
     # lrtest <- anova(logfitnull, logfit, test="LRT")
     # chi2 <- lrtest[["Deviance"]][2]
     # pval <- lrtest[["Pr(>Chi)"]][2]
-    @skip_when_service_backend('slow >800s')
+    @fails_when_service(reason='slow >800s')
     def test_logistic_regression_lrt(self):
         covariates = hl.import_table(resource('regressionLogistic.cov'),
                                      key='Sample',
@@ -879,7 +878,7 @@ class Tests(unittest.TestCase):
     # scoretest <- anova(logfitnull, logfit, test="Rao")
     # chi2 <- scoretest[["Rao"]][2]
     # pval <- scoretest[["Pr(>Chi)"]][2]
-    @skip_when_service_backend('hangs >3 hours after "Initializing google storage client"')
+    @fails_when_service(reason='hangs >3 hours after "Initializing google storage client"')
     def test_logistic_regression_score(self):
         covariates = hl.import_table(resource('regressionLogistic.cov'),
                                      key='Sample',
@@ -1004,7 +1003,7 @@ class Tests(unittest.TestCase):
         self.assertAlmostEqual(firth[16117953].beta, 0.5258, places=4)
         self.assertAlmostEqual(firth[16117953].p_value, 0.22562, places=4)
 
-    @skip_when_service_backend('hangs >3 hours after "Initializing google storage client"')
+    @fails_when_service(reason='hangs >3 hours after "Initializing google storage client"')
     def test_logreg_pass_through(self):
         covariates = hl.import_table(resource('regressionLogistic.cov'),
                                      key='Sample',
@@ -1315,7 +1314,7 @@ class Tests(unittest.TestCase):
             hl.ld_matrix(mt.GT.n_alt_alleles(), mt.locus, radius=1.0, coord_expr=mt.cm).to_numpy(),
             [[1., -0.85280287, 0.], [-0.85280287, 1., 0.], [0., 0., 1.]]))
 
-    @skip_when_service_backend('Shuffler encoding/decoding is broken.')
+    @fails_when_service(reason='Shuffler encoding/decoding is broken.')
     def test_split_multi_hts(self):
         ds1 = hl.import_vcf(resource('split_test.vcf'))
         ds1 = hl.split_multi_hts(ds1)
@@ -1462,7 +1461,7 @@ class Tests(unittest.TestCase):
         pruned_table = hl.ld_prune(ds_duplicate.GT)
         self.assertEqual(pruned_table.count(), 1)
 
-    @skip_when_service_backend('hangs >3 hours after "all results complete" in ServiceBackend')
+    @fails_when_service(reason='hangs >3 hours after "all results complete" in ServiceBackend')
     def test_balding_nichols_model(self):
         hl.set_global_seed(1)
         ds = hl.balding_nichols_model(2, 20, 25, 3,
@@ -1483,7 +1482,7 @@ class Tests(unittest.TestCase):
         self.assertEqual(hl.eval(glob.bn.pop_dist), [1, 2])
         self.assertEqual(hl.eval(glob.bn.fst), [.02, .06])
 
-    @skip_when_service_backend('Shuffler encoding/decoding is broken.')
+    @fails_when_service(reason='Shuffler encoding/decoding is broken.')
     def test_balding_nichols_model_same_results(self):
         for mixture in [True, False]:
             hl.set_global_seed(1)

@@ -71,7 +71,7 @@ class Tests(unittest.TestCase):
         self._assert_close(bm.sum(axis=0), np.sum(nd, axis=0, keepdims=True))
         self._assert_close(bm.sum(axis=1), np.sum(nd, axis=1, keepdims=True))
 
-    @skip_when_service_backend('very slow / nonterminating')
+    @fails_when_service(reason='very slow / nonterminating')
     def test_from_entry_expr_simple(self):
         mt = get_dataset()
         mt = mt.annotate_entries(x=hl.or_else(mt.GT.n_alt_alleles(), 0)).cache()
@@ -88,7 +88,7 @@ class Tests(unittest.TestCase):
             a4 = hl.eval(BlockMatrix.read(path).to_ndarray())
             self._assert_eq(a1, a4)
 
-    @skip_when_service_backend('hangs')
+    @fails_when_service(reason='hangs')
     def test_from_entry_expr_options(self):
         def build_mt(a):
             data = [{'v': 0, 's': 0, 'x': a[0]},
@@ -123,7 +123,7 @@ class Tests(unittest.TestCase):
         with self.assertRaises(Exception):
             BlockMatrix.from_entry_expr(mt.x)
 
-    @skip_when_service_backend('''
+    @fails_when_service(reason='''
 Caused by: is.hail.utils.HailException: bad shuffle close
 	at __C230collect_distributed_array.__m245split_StreamLen(Unknown Source)
 	at __C230collect_distributed_array.apply(Unknown Source)
@@ -277,7 +277,7 @@ Caused by: is.hail.utils.HailException: bad shuffle close
         mt_round_trip = BlockMatrix.from_entry_expr(mt.element).to_matrix_table_row_major()
         assert mt._same(mt_round_trip)
 
-    @skip_when_service_backend('slow >800s')
+    @fails_when_service(reason='slow >800s')
     def test_paired_elementwise_ops(self):
         nx = np.array([[2.0]])
         nc = np.array([[1.0], [2.0]])
@@ -478,7 +478,7 @@ Caused by: is.hail.utils.HailException: bad shuffle close
         self._assert_close(m.log(), np.log(nm))
         self._assert_close((m - 4).abs(), np.abs(nm - 4))
 
-    @skip_when_service_backend('''intermittent driver error, on this line:
+    @fails_when_service(reason='''intermittent driver error, on this line:
 >       self._assert_eq(m @ m.T, nm @ nm.T)
 
 Caused by: java.lang.AssertionError: assertion failed
@@ -594,7 +594,7 @@ Caused by: java.lang.AssertionError: assertion failed
         self._assert_eq(bm, nd)
         self._assert_eq(bm2, nd)
 
-    @skip_when_service_backend('''intermittent worker failure:
+    @fails_when_service(reason='''intermittent worker failure:
 >       self.assert_sums_agree(bm, nd)
 
 Caused by: is.hail.utils.HailException: Premature end of file: expected 4 bytes, found 0
@@ -648,7 +648,7 @@ Caused by: is.hail.utils.HailException: Premature end of file: expected 4 bytes,
         self.assert_sums_agree(bm3, nd)
         self.assert_sums_agree(bm4, nd4)
 
-    @skip_when_service_backend('''intermittent worker failure:
+    @fails_when_service(reason='''intermittent worker failure:
 >           self._assert_eq(bm[indices], nd[indices])
 
 Caused by: java.lang.OutOfMemoryError
@@ -989,7 +989,7 @@ Caused by: java.lang.OutOfMemoryError
         sparsed = BlockMatrix.from_ndarray(hl.nd.array(sparsed_numpy), block_size=4)._sparsify_blocks(blocks_to_sparsify).to_ndarray()
         self.assertTrue(np.array_equal(sparsed_numpy, hl.eval(sparsed)))
 
-    @skip_when_service_backend('''intermittent worker failure:
+    @fails_when_service(reason='''intermittent worker failure:
 >           self.assertTrue(table._same(entries_table))
 
 Caused by: java.lang.AssertionError: assertion failed

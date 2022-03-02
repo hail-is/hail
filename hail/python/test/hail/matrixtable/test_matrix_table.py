@@ -20,7 +20,7 @@ class Tests(unittest.TestCase):
     def test_range_count(self):
         self.assertEqual(hl.utils.range_matrix_table(7, 13).count(), (7, 13))
 
-    @skip_when_service_backend('''intermittent worker error:
+    @fails_when_service(reason='''intermittent worker error:
 >       ds.locus.show()
 
 Caused by: java.lang.ClassCastException: __C1914collect_distributed_array cannot be cast to is.hail.expr.ir.FunctionWithObjects
@@ -86,7 +86,7 @@ Caused by: java.lang.ClassCastException: __C1914collect_distributed_array cannot
             self.assertTrue(f(hl.eval(mt.annotate_globals(foo=hl.literal(x, t)).foo), x), f"{x}, {t}")
             self.assertTrue(f(hl.eval(ht.annotate_globals(foo=hl.literal(x, t)).foo), x), f"{x}, {t}")
 
-    @skip_when_service_backend('''intermittent error:
+    @fails_when_service(reason='''intermittent error:
 
 Caused by: java.lang.ClassCastException: __C136collect_distributed_array cannot be cast to is.hail.expr.ir.FunctionWithLiterals
 	at is.hail.expr.ir.EmitClassBuilder$$anon$1.apply(EmitClassBuilder.scala:662)
@@ -125,7 +125,7 @@ Caused by: java.lang.ClassCastException: __C136collect_distributed_array cannot 
         assert mt1.head(1, None).count() == (1, 10)
         assert mt1.head(None, 1).count() == (10, 1)
 
-    @skip_when_service_backend('''
+    @fails_when_service(reason='''
 E                   hail.utils.java.FatalError: java.lang.ClassCastException: __C2Compiled cannot be cast to is.hail.expr.ir.FunctionWithLiterals
 E                   	at is.hail.expr.ir.EmitClassBuilder$$anon$1.apply(EmitClassBuilder.scala:662)
 E                   	at is.hail.expr.ir.EmitClassBuilder$$anon$1.apply(EmitClassBuilder.scala:641)
@@ -168,7 +168,7 @@ E                   	at is.hail.backend.service.ServiceBackend.execute(ServiceBa
         assert mt1.tail(1, None).count() == (1, 10)
         assert mt1.tail(None, 1).count() == (10, 1)
 
-    @skip_when_service_backend('''intermittent failure:
+    @fails_when_service(reason='''intermittent failure:
 >       assert tail(30, None) == expected(30, 29)
 
 E                   hail.utils.java.FatalError: is.hail.utils.HailException: array index out of bounds: index=3, length=3
@@ -250,7 +250,7 @@ E                   	at java.lang.Thread.run(Thread.java:748)''')
         assert tail(30, None) == expected(30, 29)
         assert tail(30, 10) == expected(30, 10)
 
-    @skip_when_service_backend('slow >800s')
+    @fails_when_service(reason='slow >800s')
     def test_tail_scan(self):
         mt = hl.utils.range_matrix_table(30, 40)
         mt = mt.annotate_rows(i = hl.scan.count())
@@ -384,7 +384,7 @@ E                   	at java.lang.Thread.run(Thread.java:748)''')
         self.assertTrue('GT' not in mt2.entry)
         mt2._force_count_rows()
 
-    @skip_when_service_backend('''intermittent worker failure
+    @fails_when_service(reason='''intermittent worker failure
 >       self.assertTrue(mt.annotate_rows(x=[1]).explode_rows('x').drop('x')._same(mt))
 
 Caused by: java.lang.AssertionError: assertion failed
@@ -415,7 +415,7 @@ Caused by: java.lang.AssertionError: assertion failed
         mt = mt.annotate_rows(x=hl.struct(y=hl.range(0, mt.row_idx)))
         self.assertEqual(mt.explode_rows(mt.x.y).count_rows(), 6)
 
-    @skip_when_service_backend('''intermittent worker error, on this line:
+    @fails_when_service(reason='''intermittent worker error, on this line:
 >       self.assertTrue(mt.annotate_cols(x=[1]).explode_cols('x').drop('x')._same(mt))
 
 Caused by: is.hail.utils.HailException: Premature end of file: expected 4 bytes, found 0
@@ -600,7 +600,7 @@ Caused by: is.hail.utils.HailException: Premature end of file: expected 4 bytes,
         self.assertTrue(rt.all(rt.y2 == 2))
         self.assertTrue(ct.all(ct.c2 == 2))
 
-    @skip_when_service_backend('hangs')
+    @fails_when_service(reason='hangs')
     def test_joins_with_key_structs(self):
         mt = self.get_mt()
 
@@ -627,7 +627,7 @@ Caused by: is.hail.utils.HailException: Premature end of file: expected 4 bytes,
         self.assertTrue(ds.union_cols(ds.drop(ds.info))
                         .count_rows(), 346)
 
-    @skip_when_service_backend('''The Service and Shuffler have no way of knowing the order in which rows appear in the original
+    @fails_when_service(reason='''The Service and Shuffler have no way of knowing the order in which rows appear in the original
 dataset, as such it is impossible to guarantee the ordering in `matches`.
 
 https://hail.zulipchat.com/#narrow/stream/123011-Hail-Dev/topic/test_drop/near/235425714''')
@@ -672,7 +672,7 @@ https://hail.zulipchat.com/#narrow/stream/123011-Hail-Dev/topic/test_drop/near/2
          .aggregate(bar=hl.agg.collect(mt.globals == lit))
          ._force_count_rows())
 
-    @skip_when_service_backend('ShuffleRead non-deterministically causes segfaults')
+    @fails_when_service(reason='ShuffleRead non-deterministically causes segfaults')
     def test_unions(self):
         dataset = hl.import_vcf(resource('sample2.vcf'))
 
@@ -694,7 +694,7 @@ https://hail.zulipchat.com/#narrow/stream/123011-Hail-Dev/topic/test_drop/near/2
         for s, count in ds.aggregate_cols(agg.counter(ds.s)).items():
             self.assertEqual(count, 3)
 
-    @skip_when_service_backend('Shuffler encoding/decoding is broken.')
+    @fails_when_service(reason='Shuffler encoding/decoding is broken.')
     def test_union_cols_example(self):
         joined = hl.import_vcf(resource('joined.vcf'))
 
@@ -708,7 +708,7 @@ https://hail.zulipchat.com/#narrow/stream/123011-Hail-Dev/topic/test_drop/near/2
         mt = mt.key_rows_by(x = mt.row_idx // 2)
         assert mt.union_cols(mt).count_rows() == 5
 
-    @skip_when_service_backend('flaky https://hail.zulipchat.com/#narrow/stream/127527-team/topic/CI.20Deploy.20Failure/near/237593731')
+    @fails_when_service(reason='flaky https://hail.zulipchat.com/#narrow/stream/127527-team/topic/CI.20Deploy.20Failure/near/237593731')
     def test_union_cols_outer(self):
         r, c = 10, 10
         mt = hl.utils.range_matrix_table(2*r, c)
@@ -734,7 +734,7 @@ https://hail.zulipchat.com/#narrow/stream/123011-Hail-Dev/topic/test_drop/near/2
 
         self.assertEqual(mt.union_rows(mt2).count_rows(), 20)
 
-    @skip_when_service_backend('''intermittent worker failure:
+    @fails_when_service(reason='''intermittent worker failure:
 >       self.assertEqual(ds.n_partitions(), 8)
 
 Caused by: java.lang.ClassCastException: __C2062collect_distributed_array cannot be cast to is.hail.expr.ir.FunctionWithObjects
@@ -769,7 +769,7 @@ Caused by: java.lang.ClassCastException: __C2062collect_distributed_array cannot
         self.assertEqual(ds.choose_cols(list(range(10))).s.collect(),
                          old_order[:10])
 
-    @skip_when_service_backend('Shuffler encoding/decoding is broken.')
+    @fails_when_service(reason='Shuffler encoding/decoding is broken.')
     def test_choose_cols_vs_explode(self):
         ds = self.get_mt()
 
@@ -777,7 +777,7 @@ Caused by: java.lang.ClassCastException: __C2062collect_distributed_array cannot
 
         self.assertTrue(ds.choose_cols(sorted(list(range(ds.count_cols())) * 2))._same(ds2))
 
-    @skip_when_service_backend('''intermittent worker failure:
+    @fails_when_service(reason='''intermittent worker failure:
 >       self.assertTrue(orig_mt.union_rows(orig_mt).distinct_by_row()._same(orig_mt))
 
 Caused by: java.lang.ClassCastException: __C2308collect_distributed_array cannot be cast to is.hail.expr.ir.FunctionWithLiterals
@@ -797,7 +797,7 @@ Caused by: java.lang.ClassCastException: __C2308collect_distributed_array cannot
 
         self.assertTrue(orig_mt.union_rows(orig_mt).distinct_by_row()._same(orig_mt))
 
-    @skip_when_service_backend('hangs >40 minutes; hangs after optimize optimize: darrayLowerer')
+    @fails_when_service(reason='hangs >40 minutes; hangs after optimize optimize: darrayLowerer')
     def test_distinct_by_col(self):
         orig_mt = hl.utils.range_matrix_table(10, 10)
         mt = orig_mt.key_cols_by(col_idx=orig_mt.col_idx // 2)
@@ -882,7 +882,7 @@ Caused by: java.lang.ClassCastException: __C2308collect_distributed_array cannot
         self.assertTrue(rows.all(hl.sorted(rows.interval_matches.map(lambda x: x.i))
                                  == hl.range(0, hl.min(rows.row_idx % 10, 10 - rows.row_idx % 10))))
 
-    @skip_when_service_backend('slow >800s')
+    @fails_when_service(reason='slow >800s')
     def test_entry_join_self(self):
         mt1 = hl.utils.range_matrix_table(10, 10, n_partitions=4).choose_cols([9, 8, 7, 6, 5, 4, 3, 2, 1, 0])
         mt1 = mt1.annotate_entries(x=10 * mt1.row_idx + mt1.col_idx)
@@ -894,7 +894,7 @@ Caused by: java.lang.ClassCastException: __C2308collect_distributed_array cannot
 
         self.assertTrue(mt_join_entries.all(mt_join_entries.x == mt_join_entries.x2))
 
-    @skip_when_service_backend('slow >800s')
+    @fails_when_service(reason='slow >800s')
     def test_entry_join_const(self):
         mt1 = hl.utils.range_matrix_table(10, 10, n_partitions=4)
         mt1 = mt1.annotate_entries(x=mt1.row_idx + mt1.col_idx)
@@ -906,7 +906,7 @@ Caused by: java.lang.ClassCastException: __C2308collect_distributed_array cannot
         mt_join_entries = mt_join.entries()
         self.assertTrue(mt_join_entries.all(mt_join_entries['foo'] == 10101))
 
-    @skip_when_service_backend('slow >800s')
+    @fails_when_service(reason='slow >800s')
     def test_entry_join_missingness(self):
         mt1 = hl.utils.range_matrix_table(10, 10, n_partitions=4)
         mt1 = mt1.annotate_entries(x=mt1.row_idx + mt1.col_idx)
@@ -951,7 +951,7 @@ Caused by: java.lang.ClassCastException: __C2308collect_distributed_array cannot
         mt = mt.key_rows_by(mt.key1, mt.key2)
         mt.entries()._force_count()
 
-    @skip_when_service_backend('''intermittent worker failure:
+    @fails_when_service(reason='''intermittent worker failure:
 >       self.assertEqual(len(mt1.entries().collect()), 30)
 
 Caused by: java.lang.AssertionError: assertion failed
@@ -1016,7 +1016,7 @@ Caused by: java.lang.AssertionError: assertion failed
                 ds._filter_partitions([0, 3, 7]),
                 ds._filter_partitions([0, 3, 7], keep=False))))
 
-    @skip_when_service_backend('Shuffler encoding/decoding is broken.')
+    @fails_when_service(reason='Shuffler encoding/decoding is broken.')
     def test_from_rows_table(self):
         mt = hl.import_vcf(resource('sample.vcf'))
         mt = mt.annotate_globals(foo='bar')
@@ -1037,7 +1037,7 @@ Caused by: java.lang.AssertionError: assertion failed
         t = hl.read_table(f + '/cols')
         self.assertTrue(ds.cols().key_by()._same(t))
 
-    @skip_when_service_backend('Shuffler encoding/decoding is broken.')
+    @fails_when_service(reason='Shuffler encoding/decoding is broken.')
     def test_read_stored_rows(self):
         ds = self.get_mt()
         ds = ds.annotate_globals(x='foo')
@@ -1141,7 +1141,7 @@ Caused by: java.lang.AssertionError: assertion failed
         with self.assertRaises(LookupError):
             dataset.rename({'foo': 'a'})
 
-    @skip_when_service_backend('slow >800s')
+    @fails_when_service(reason='slow >800s')
     def test_range(self):
         ds = hl.utils.range_matrix_table(100, 10)
         self.assertEqual(ds.count_rows(), 100)
@@ -1165,7 +1165,7 @@ Caused by: java.lang.AssertionError: assertion failed
         self.assertEqual(mt.filter_cols(hl.missing(hl.tbool)).count_cols(), 0)
         self.assertEqual(mt.filter_entries(hl.missing(hl.tbool)).entries().count(), 0)
 
-    @skip_when_service_backend('''intermittent worker failure:
+    @fails_when_service(reason='''intermittent worker failure:
 >       self.assertEqual(mt.row.collect(),
                          sorted([hl.Struct(r=r, row_idx=i) for i, r in enumerate(rows)],
                                 key=lambda x: x.r))
@@ -1228,7 +1228,7 @@ Caused by: java.lang.ClassCastException: __C364collect_distributed_array cannot 
         self.assertEqual(mt.rows().r.collect(), sorted_rows)
         self.assertEqual(mt.rows().r.take(1), [sorted_rows[0]])
 
-    @skip_when_service_backend('''
+    @fails_when_service(reason='''
 >       self.assertEqual(ht.order_by(hl.desc('idx')).idx.collect(), list(range(10))[::-1])
 
 Caused by: is.hail.utils.HailException: Premature end of file: expected 4 bytes, found 0
@@ -1482,7 +1482,7 @@ Caused by: is.hail.utils.HailException: Premature end of file: expected 4 bytes,
         mt2 = hl.read_matrix_table(f)
         self.assertTrue(mt._same(mt2))
 
-    @skip_when_service_backend('ShuffleRead non-deterministically causes segfaults')
+    @fails_when_service(reason='ShuffleRead non-deterministically causes segfaults')
     def test_write_checkpoint_file(self):
         mt = self.get_mt()
         f = new_temp_file(extension='mt')
@@ -1797,7 +1797,7 @@ Caused by: is.hail.utils.HailException: Premature end of file: expected 4 bytes,
         actual = mt.show(handler=str)
         assert actual == expected
 
-    @skip_when_service_backend('''intermittent worker failure:
+    @fails_when_service(reason='''intermittent worker failure:
 >                  mt.filter_rows((mt.row_idx < 5) | (mt.row_idx >= 35)))
 
 Caused by: java.lang.NullPointerException
@@ -1853,7 +1853,7 @@ Caused by: java.lang.NullPointerException
         ],
                    mt.filter_rows((mt.row_idx >= 5) & (mt.row_idx < 35)))
 
-    @skip_when_service_backend('Shuffler encoding/decoding is broken.')
+    @fails_when_service(reason='Shuffler encoding/decoding is broken.')
     def test_partitioned_write_coerce(self):
         mt = hl.import_vcf(resource('sample.vcf'))
         parts = [
@@ -1939,7 +1939,7 @@ Caused by: java.lang.NullPointerException
             hl.utils.Struct(idx=0, locus=hl.genetics.Locus(contig='2', position=1, reference_genome='GRCh37'))]
 
 
-@skip_when_service_backend('slow >800s')
+@fails_when_service(reason='slow >800s')
 def test_read_write_all_types():
     mt = create_all_values_matrix_table()
     tmp_file = new_temp_file()
@@ -1947,7 +1947,7 @@ def test_read_write_all_types():
     assert hl.read_matrix_table(tmp_file)._same(mt)
 
 @fails_local_backend()
-@skip_when_service_backend('very slow / nonterminating')
+@fails_when_service(reason='very slow / nonterminating')
 def test_read_write_balding_nichols_model():
     mt = hl.balding_nichols_model(3, 10, 10)
     tmp_file = new_temp_file()
