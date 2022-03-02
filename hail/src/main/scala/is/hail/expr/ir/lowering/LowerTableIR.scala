@@ -1391,7 +1391,7 @@ object LowerTableIR {
 
         loweredLeft.intervalAlignAndZipPartitions(ctx,
           loweredRight,
-          r.lookup(right).asInstanceOf[RTable].rowType,
+          analyses.requirednessAnalysis.lookup(right).asInstanceOf[RTable].rowType,
           relationalLetsAbove,
           (lGlobals, _) => lGlobals,
           partitionJoiner)
