@@ -138,29 +138,6 @@ def matrix_table_from_numpy(np_mat):
     return mt
 
 
-# k, m, n
-dim_triplets = [(20, 1000, 1000), (10, 100, 200)]
-
-def spectra_helper(spec_func, k, m, n):
-    min_dim = min(m, n)
-    sigma = np.diag([spec_func(i + 1, k) for i in range(min_dim)])
-    seed = 1025
-    np.random.seed(seed)
-    U = np.linalg.qr(np.random.normal(0, 1, (m, min_dim)))[0]
-    V = np.linalg.qr(np.random.normal(0, 1, (n, min_dim)))[0]
-    A = U @ sigma @ V.T
-    mt_A = matrix_table_from_numpy(A)
-
-    eigenvalues, scores, loadings = hl._blanczos_pca(mt_A.ent, k=k, oversampling_param=k, compute_loadings=True, q_iterations=4)
-    singulars = np.sqrt(eigenvalues)
-    hail_V = (np.array(scores.scores.collect()) / singulars).T
-    hail_U = np.array(loadings.loadings.collect())
-    approx_A = hail_U @ np.diag(singulars) @ hail_V
-    norm_of_diff = np.linalg.norm(A - approx_A, 2)
-    np.testing.assert_allclose(norm_of_diff, spec_func(k + 1, k), rtol=1e-02, err_msg=f"Norm test failed on triplet {triplet} ")
-    np.testing.assert_allclose(singulars, np.diag(sigma)[:k], rtol=1e-01, err_msg=f"Failed on triplet {triplet}")
-
-
 def spec1(j, k):
     return 1/j
 
@@ -197,124 +174,82 @@ def spec5(j, k):
         return 10**-5 * math.sqrt((k + 1)/j)
 
 
-@fails_service_backend(reason='persist_ir')
-@pytest.mark.parameterize("k,m,n", dim_triplets)
-def test_spectra_1(k, m, n):
-    spectra_helper(spec1, k, m, n)
+# k, m, n
+DIM_TRIPLETS = [(20, 1000, 1000), (10, 100, 200)]
+SPEC_LIST = [spec1, spec2, spec3, spec4, spec5]
 
 
 @fails_service_backend(reason='persist_ir')
-@pytest.mark.parameterize("k,m,n", dim_triplets)
-def test_spectra_2(k, m, n):
-    spectra_helper(spec2, k, m, n)
+@pytest.mark.parameterize("k,m,n,spec", [
+    (k, m, n, spec)
+    for k, m, n in DIM_TRIPLETS
+    for spec in SPEC_LIST
+])
+def test_spectra(k, m, n, spec):
+    min_dim = min(m, n)
+    sigma = np.diag([spec(i + 1, k) for i in range(min_dim)])
+    seed = 1025
+    np.random.seed(seed)
+    U = np.linalg.qr(np.random.normal(0, 1, (m, min_dim)))[0]
+    V = np.linalg.qr(np.random.normal(0, 1, (n, min_dim)))[0]
+    A = U @ sigma @ V.T
+    mt_A = matrix_table_from_numpy(A)
+
+    eigenvalues, scores, loadings = hl._blanczos_pca(mt_A.ent, k=k, oversampling_param=k, compute_loadings=True, q_iterations=4)
+    singulars = np.sqrt(eigenvalues)
+    hail_V = (np.array(scores.scores.collect()) / singulars).T
+    hail_U = np.array(loadings.loadings.collect())
+    approx_A = hail_U @ np.diag(singulars) @ hail_V
+    norm_of_diff = np.linalg.norm(A - approx_A, 2)
+    np.testing.assert_allclose(norm_of_diff, spec(k + 1, k), rtol=1e-02, err_msg=f"Norm test failed on triplet {triplet} ")
+    np.testing.assert_allclose(singulars, np.diag(sigma)[:k], rtol=1e-01, err_msg=f"Failed on triplet {triplet}")
 
 
 @fails_service_backend(reason='persist_ir')
-@pytest.mark.parameterize("k,m,n", dim_triplets)
-def test_spectra_3(k, m, n):
-    spectra_helper(spec3, k, m, n)
+@pytest.mark.parameterize("k,m,n,spec", [
+    (k, m, n, spec)
+    for k, m, n in [(20, 1000, 1000)]
+    for spec in SPEC_LIST
+])
+def test_spectral_moments(k, m, n, spec):
+    min_dim = min(m, n)
+    sigma = np.diag([spec(i+1, k) for i in range(min_dim)])
+    seed = 1025
+    np.random.seed(seed)
+    U = np.linalg.qr(np.random.normal(0, 1, (m, min_dim)))[0]
+    V = np.linalg.qr(np.random.normal(0, 1, (n, min_dim)))[0]
+    A = U @ sigma @ V.T
+    mt_A = matrix_table_from_numpy(A)
 
-
-@fails_service_backend(reason='persist_ir')
-@pytest.mark.parameterize("k,m,n", dim_triplets)
-def test_spectra_4(k, m, n):
-    spectra_helper(spec4, k, m, n)
-
-
-@fails_service_backend(reason='persist_ir')
-@pytest.mark.parameterize("k,m,n", dim_triplets)
-def test_spectra_5(k, m, n):
-    spectra_helper(spec5, k, m, n)
-
-
-@fails_service_backend(reason='persist_ir')
-def spectral_moments_helper(spec_func):
-    for triplet in [(20, 1000, 1000)]:
-        k, m, n = triplet
-        min_dim = min(m, n)
-        sigma = np.diag([spec_func(i+1, k) for i in range(min_dim)])
-        seed = 1025
-        np.random.seed(seed)
-        U = np.linalg.qr(np.random.normal(0, 1, (m, min_dim)))[0]
-        V = np.linalg.qr(np.random.normal(0, 1, (n, min_dim)))[0]
-        A = U @ sigma @ V.T
-        mt_A = matrix_table_from_numpy(A)
-
-        moments, stdevs = hl._spectral_moments(_make_tsm(mt_A.ent, 128), 7)
-        true_moments = np.array([np.sum(np.power(sigma, 2*i)) for i in range(1, 8)])
-        np.testing.assert_allclose(moments, true_moments, rtol=2e-01)
-
-
-@fails_service_backend(reason='persist_ir')
-def test_spectral_moments_1():
-    spectral_moments_helper(spec1)
-
-
-@fails_service_backend(reason='persist_ir')
-def test_spectral_moments_2():
-    spectral_moments_helper(spec2)
-
-
-@fails_service_backend(reason='persist_ir')
-def test_spectral_moments_3():
-    spectral_moments_helper(spec3)
-
-
-@fails_service_backend(reason='persist_ir')
-def test_spectral_moments_4():
-    spectral_moments_helper(spec4)
-
-
-@fails_service_backend(reason='persist_ir')
-def test_spectral_moments_5():
-    spectral_moments_helper(spec5)
-
-
-def spectra_and_moments_helper(spec_func):
-    for triplet in [(20, 1000, 1000)]:
-        k, m, n = triplet
-        min_dim = min(m, n)
-        sigma = np.diag([spec_func(i+1, k) for i in range(min_dim)])
-        seed = 1025
-        np.random.seed(seed)
-        U = np.linalg.qr(np.random.normal(0, 1, (m, min_dim)))[0]
-        V = np.linalg.qr(np.random.normal(0, 1, (n, min_dim)))[0]
-        A = U @ sigma @ V.T
-        mt_A = matrix_table_from_numpy(A)
-
-        eigenvalues, scores, loadings, moments, stdevs = hl._pca_and_moments(_make_tsm(mt_A.ent, 128), k=k, num_moments=7, oversampling_param=k, compute_loadings=True, q_iterations=4)
-        singulars = np.sqrt(eigenvalues)
-        hail_V = (np.array(scores.scores.collect()) / singulars).T
-        hail_U = np.array(loadings.loadings.collect())
-        approx_A = hail_U @ np.diag(singulars) @ hail_V
-        norm_of_diff = np.linalg.norm(A - approx_A, 2)
-        np.testing.assert_allclose(norm_of_diff, spec_func(k + 1, k), rtol=1e-02, err_msg=f"Norm test failed on triplet {triplet}")
-        np.testing.assert_allclose(singulars, np.diag(sigma)[:k], rtol=1e-01, err_msg=f"Failed on triplet {triplet}")
-
-        true_moments = np.array([np.sum(np.power(sigma, 2*i)) for i in range(1, 8)])
-        np.testing.assert_allclose(moments, true_moments, rtol=1e-04)
+    moments, stdevs = hl._spectral_moments(_make_tsm(mt_A.ent, 128), 7)
+    true_moments = np.array([np.sum(np.power(sigma, 2*i)) for i in range(1, 8)])
+    np.testing.assert_allclose(moments, true_moments, rtol=2e-01)
 
 
 @skip_when_service_backend(message='intermittently hangs')
-def test_spectra_and_moments_1():
-    spectra_and_moments_helper(spec1)
+@pytest.mark.parameterize("k,m,n,spec", [
+    (k, m, n, spec)
+    for k, m, n in [(20, 1000, 1000)]
+    for spec in SPEC_LIST
+])
+def test_spectra_and_moments(k, m, n, spec):
+    min_dim = min(m, n)
+    sigma = np.diag([spec(i+1, k) for i in range(min_dim)])
+    seed = 1025
+    np.random.seed(seed)
+    U = np.linalg.qr(np.random.normal(0, 1, (m, min_dim)))[0]
+    V = np.linalg.qr(np.random.normal(0, 1, (n, min_dim)))[0]
+    A = U @ sigma @ V.T
+    mt_A = matrix_table_from_numpy(A)
 
+    eigenvalues, scores, loadings, moments, stdevs = hl._pca_and_moments(_make_tsm(mt_A.ent, 128), k=k, num_moments=7, oversampling_param=k, compute_loadings=True, q_iterations=4)
+    singulars = np.sqrt(eigenvalues)
+    hail_V = (np.array(scores.scores.collect()) / singulars).T
+    hail_U = np.array(loadings.loadings.collect())
+    approx_A = hail_U @ np.diag(singulars) @ hail_V
+    norm_of_diff = np.linalg.norm(A - approx_A, 2)
+    np.testing.assert_allclose(norm_of_diff, spec(k + 1, k), rtol=1e-02, err_msg=f"Norm test failed on triplet {triplet}")
+    np.testing.assert_allclose(singulars, np.diag(sigma)[:k], rtol=1e-01, err_msg=f"Failed on triplet {triplet}")
 
-@skip_when_service_backend(message='intermittently hangs')
-def test_spectra_and_moments_2():
-    spectra_and_moments_helper(spec2)
-
-
-@skip_when_service_backend(message='intermittently hangs')
-def test_spectra_and_moments_3():
-    spectra_and_moments_helper(spec3)
-
-
-@skip_when_service_backend(message='intermittently hangs')
-def test_spectra_and_moments_4():
-    spectra_and_moments_helper(spec4)
-
-
-@skip_when_service_backend(message='intermittently hangs')
-def test_spectra_and_moments_5():
-    spectra_and_moments_helper(spec5)
+    true_moments = np.array([np.sum(np.power(sigma, 2*i)) for i in range(1, 8)])
+    np.testing.assert_allclose(moments, true_moments, rtol=1e-04)
