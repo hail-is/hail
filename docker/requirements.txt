@@ -31,6 +31,8 @@ gidgethub==4.1.0
 google-api-python-client==1.7.10
 google-cloud-logging==1.12.1
 google-cloud-profiler==1.0.9
+google-auth==1.25.0
+google-auth-oauthlib==0.4.2
 humanize==1.0.0
 hurry.filesize==0.9
 isort==5.10.1

@@ -8,9 +8,8 @@ RUN apt-get update && \
     git \
     htop \
     unzip bzip2 zip tar \
-    wget curl \
+    curl \
     rsync \
-    emacs-nox \
     mysql-client \
     xsltproc pandoc \
     jq \

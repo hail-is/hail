@@ -10,7 +10,6 @@ RUN hail-pip-install pyspark==3.1.1 && \
     curl https://storage.googleapis.com/hadoop-lib/gcs/gcs-connector-hadoop2-2.0.1.jar >/usr/local/lib/python3.7/dist-packages/pyspark/jars/gcs-connector-hadoop2-2.0.1.jar && \
     hail-apt-get-install \
       cmake \
-      emacs-nox \
       g++-10 \
       gcc-10 \
       git \
@@ -21,7 +20,7 @@ RUN hail-pip-install pyspark==3.1.1 && \
       openjdk-8-jdk-headless \
       rsync \
       unzip bzip2 zip tar \
-      wget curl \
+      curl \
       xsltproc pandoc \
       xz-utils libncurses5 \
     && \
@@ -39,7 +38,7 @@ RUN hail-pip-install pyspark==3.1.1 && \
     rm -rf Catch2 && \
     mkdir -p plink && \
     cd plink && \
-    wget -O plink_linux_x86_64.zip https://storage.googleapis.com/hail-common/plink_linux_x86_64_20181202.zip && \
+    curl >plink_linux_x86_64.zip plink_linux_x86_64.zip https://storage.googleapis.com/hail-common/plink_linux_x86_64_20181202.zip && \
     unzip plink_linux_x86_64.zip && \
     mv plink /usr/local/bin && \
     cd .. && \
