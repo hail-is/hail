@@ -37,7 +37,7 @@
         {% endif %}
       </td>
       {% for name in wb.gh_status_names %}
-      <td>pr['gh_statuses'][name] | default("")(</td>
+      <td>{{ pr['gh_statuses'][name] | default("") }}</td>
       {% endfor $}
       <td>
         {{ pr.labels|join(", ") }}
