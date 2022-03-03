@@ -1734,7 +1734,7 @@ class JVMJob(Job):
 
     async def _get_log(self):
         if os.path.exists(self.log_file):
-            return await self.fs.read(self.log_file)
+            return (await self.fs.read(self.log_file)).decode()
         else:
             return ''
 
