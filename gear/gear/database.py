@@ -9,7 +9,7 @@ from typing import Optional
 import aiomysql
 import pymysql
 
-from gear.metrics import PrometheusSQLTimer, DB_CONNECTION_QUEUE_SIZE
+from gear.metrics import DB_CONNECTION_QUEUE_SIZE, PrometheusSQLTimer
 from hailtop.auth.sql_config import SQLConfig
 from hailtop.utils import sleep_and_backoff
 
