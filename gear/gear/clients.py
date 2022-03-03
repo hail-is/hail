@@ -1,7 +1,7 @@
 from typing import Optional
 
 from gear.cloud_config import get_azure_config, get_gcp_config, get_global_config
-from hailtop.aiocloud import aioazure, aiogoogle, CloudCredentials
+from hailtop.aiocloud import aioazure, aiogoogle, common
 from hailtop.aiotools.fs import AsyncFS, AsyncFSFactory
 
 
@@ -38,7 +38,7 @@ def get_compute_client(*args, **kwargs):
     return aiogoogle.GoogleComputeClient(project, *args, **kwargs)
 
 
-def get_cloud_credentials_from_data(data, *args, **kwargs) -> CloudCredentials:
+def get_cloud_credentials_from_data(data, *args, **kwargs) -> common.CloudCredentials:
     cloud = get_global_config()['cloud']
 
     if cloud == 'azure':

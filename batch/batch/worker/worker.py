@@ -27,7 +27,7 @@ import async_timeout
 from aiodocker.exceptions import DockerError  # type: ignore
 from aiohttp import web
 
-from gear.clients import get_cloud_async_fs, get_compute_client, get_cloud_credentials_from_data
+from gear.clients import get_cloud_async_fs, get_cloud_credentials_from_data, get_compute_client
 from hailtop import aiotools, httpx
 from hailtop.aiotools import LocalAsyncFS
 from hailtop.aiotools.router_fs import RouterAsyncFS
