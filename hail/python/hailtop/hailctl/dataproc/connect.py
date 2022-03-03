@@ -104,4 +104,4 @@ async def main(args, pass_through_args):  # pylint: disable=unused-argument
             '--user-data-dir={}'.format(
                 os.path.join(tempfile.gettempdir(),
                              'hailctl-dataproc-connect-' + secret_alnum_string(6)))
-        ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)  # pylint: disable=consider-using-with

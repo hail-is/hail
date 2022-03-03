@@ -29,11 +29,11 @@ class ResourceFile(Resource, str):
     """
     _counter = 0
     _uid_prefix = "__RESOURCE_FILE__"
-    _regex_pattern = r"(?P<RESOURCE_FILE>{}\d+)".format(_uid_prefix)
+    _regex_pattern = r"(?P<RESOURCE_FILE>{}\d+)".format(_uid_prefix)  # pylint: disable=consider-using-f-string
 
     @classmethod
     def _new_uid(cls):
-        uid = "{}{}".format(cls._uid_prefix, cls._counter)
+        uid = cls._uid_prefix + str(cls._counter)
         cls._counter += 1
         return uid
 
@@ -217,11 +217,11 @@ class ResourceGroup(Resource):
 
     _counter = 0
     _uid_prefix = "__RESOURCE_GROUP__"
-    _regex_pattern = r"(?P<RESOURCE_GROUP>{}\d+)".format(_uid_prefix)
+    _regex_pattern = r"(?P<RESOURCE_GROUP>{}\d+)".format(_uid_prefix)  # pylint: disable=consider-using-f-string
 
     @classmethod
     def _new_uid(cls):
-        uid = "{}{}".format(cls._uid_prefix, cls._counter)
+        uid = cls._uid_prefix + str(cls._counter)
         cls._counter += 1
         return uid
 
@@ -302,11 +302,11 @@ class PythonResult(Resource, str):
     """
     _counter = 0
     _uid_prefix = "__PYTHON_RESULT__"
-    _regex_pattern = r"(?P<PYTHON_RESULT>{}\d+)".format(_uid_prefix)
+    _regex_pattern = r"(?P<PYTHON_RESULT>{}\d+)".format(_uid_prefix)  # pylint: disable=consider-using-f-string
 
     @classmethod
     def _new_uid(cls):
-        uid = "{}{}".format(cls._uid_prefix, cls._counter)
+        uid = cls._uid_prefix + str(cls._counter)
         cls._counter += 1
         return uid
 
