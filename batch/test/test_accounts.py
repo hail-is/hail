@@ -357,7 +357,7 @@ async def test_billing_project_accrued_costs(
     await b2.wait()
 
     # Mitigation for https://github.com/hail-is/hail-production-issues/issues/3
-    await asyncio.sleep(1)
+    await asyncio.sleep(15)
     b1_status = await b1.status()
     b2_status = await b2.status()
 
