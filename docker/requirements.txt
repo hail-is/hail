@@ -60,7 +60,7 @@ pytest-html==1.20.0
 pytest-instafail==0.4.2
 pytest-xdist==2.2.1
 python-dateutil==2.8.1
-python-json-logger==0.1.11
+python-json-logger==2.0.2
 requests==2.25.1
 setuptools>=38.6.0
 sortedcontainers==2.1.0
