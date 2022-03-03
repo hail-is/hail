@@ -562,6 +562,10 @@ class ServiceBackendSocketAPI2(
   def writeString(s: String): Unit = writeBytes(s.getBytes(StandardCharsets.UTF_8))
 
   def executeOneCommand(): Unit = {
+    var nFlagsRemaining = readInt()
+    while (nFlagsRemaining > 0) {
+      
+    }
     val cmd = readInt()
 
     (cmd: @switch) match {
