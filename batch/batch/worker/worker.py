@@ -940,6 +940,10 @@ class Container:
             network_allocator.free(self.netns)
             self.netns = None
 
+        if self.fs is not None:
+            await self.fs.close()
+            self.fs = None
+
     async def delete(self):
         log.info(f'deleting {self}')
         self.deleted_event.set()
@@ -1612,10 +1616,12 @@ class JVMJob(Job):
         self.deleted = False
         self.timings = Timings(lambda: self.deleted)
         self.state = 'pending'
-        self.log: Optional[str] = None
 
         self.jvm: Optional[JVM] = None
         self.jvm_name: Optional[str] = None
+
+        self.fs = LocalAsyncFS(self.worker.pool)
+        self.log_file = f'{self.scratch}/log'
 
     def step(self, name):
         return self.timings.step(name)
@@ -1681,7 +1687,7 @@ class JVMJob(Job):
 
                 log.info(f'{self}: running jvm process')
                 with self.step('running'):
-                    await self.jvm.execute(local_jar_location, self.scratch, self.user_command_string)
+                    await self.jvm.execute(local_jar_location, self.scratch, self.log_file, self.user_command_string)
                 self.state = 'succeeded'
                 log.info(f'{self} main: {self.state}')
             except asyncio.CancelledError:
@@ -1707,21 +1713,14 @@ class JVMJob(Job):
 
     async def cleanup(self):
         if self.jvm is not None:
-            # I really want this to be a timed step but I can't skip this ITS CLEAN UP
-            # with self.step('retrieve_output'):
-            log.info(f'{self}: retrieving log')
-            self.log = self.jvm.retrieve_and_clear_output()
             worker.return_jvm(self.jvm)
             self.jvm = None
 
-        job_log = self.log
-        if job_log is None:
-            job_log = ''
         # I really want this to be a timed step but I CANT RAISE EXCEPTIONS IN CLEANUP!!
         # with self.step('uploading_log'):
         log.info(f'{self}: uploading log')
         await worker.file_store.write_log_file(
-            self.format_version, self.batch_id, self.job_id, self.attempt_id, 'main', job_log
+            self.format_version, self.batch_id, self.job_id, self.attempt_id, 'main', await self._get_log()
         )
 
         log.info(f'{self}: cleaning up')
@@ -1733,10 +1732,14 @@ class JVMJob(Job):
         except Exception:
             log.exception('while deleting volumes')
 
+    async def _get_log(self):
+        if os.path.exists(self.log_file):
+            return await self.fs.read(self.log_file)
+        else:
+            return ''
+
     async def get_log(self):
-        if self.log is not None:
-            return {'main': self.log}
-        return {'main': self.jvm.output()}
+        return {'main': await self._get_log()}
 
     async def delete(self):
         log.info(f'deleting {self} {self.jvm}')
@@ -1744,6 +1747,8 @@ class JVMJob(Job):
         if self.jvm is not None:
             log.info(f'{self.jvm} interrupting')
             self.jvm.interrupt()
+        if self.fs is not None:
+            self.fs = None
 
     # {
     #   version: int,
@@ -1994,16 +1999,10 @@ class JVM:
         if self.process is not None:
             self.process.kill()
 
-    def output(self) -> str:
-        return self.process.output()
-
-    def retrieve_and_clear_output(self) -> str:
-        return self.process.retrieve_and_clear_output()
-
     def close(self):
         self.process.close()
 
-    async def execute(self, classpath: str, scratch_dir: str, command_string: List[str]):
+    async def execute(self, classpath: str, scratch_dir: str, log_file: str, command_string: List[str]):
         assert worker is not None
 
         log.info(f'{self}: execute')
@@ -2015,7 +2014,7 @@ class JVM:
             stack.callback(writer.close)
             log.info(f'{self}: connection acquired')
 
-            command_string = [classpath, 'is.hail.backend.service.Main', scratch_dir, *command_string]
+            command_string = [classpath, 'is.hail.backend.service.Main', scratch_dir, log_file, *command_string]
 
             write_int(writer, len(command_string))
             for arg in command_string:
