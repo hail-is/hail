@@ -1,4 +1,4 @@
-from typing import Dict, Optional, Callable, Awaitable
+from typing import Dict, Optional, Callable, Awaitable, Mapping
 import asyncio
 import struct
 import os
@@ -29,6 +29,7 @@ from ..builtin_references import BUILTIN_REFERENCES
 from ..fs.fs import FS
 from ..fs.router_fs import RouterFS
 from ..context import version
+from ..utils import frozendict
 
 
 log = logging.getLogger('backend.service_backend')
@@ -121,7 +122,8 @@ class ServiceBackend(Backend):
                      batch_client: Optional[aiohb.BatchClient] = None,
                      skip_logging_configuration: Optional[bool] = None,
                      disable_progress_bar: bool = True,
-                     remote_tmpdir: Optional[str] = None):
+                     remote_tmpdir: Optional[str] = None,
+                     flags: Optional[Dict[str, str]] = None):
         del skip_logging_configuration
 
         if billing_project is None:
@@ -152,6 +154,7 @@ class ServiceBackend(Backend):
             batch_attributes=batch_attributes,
             user_local_reference_cache_dir=user_local_reference_cache_dir,
             remote_tmpdir=remote_tmpdir,
+            flags=flags or {},
         )
 
     def __init__(self,
@@ -162,7 +165,8 @@ class ServiceBackend(Backend):
                  disable_progress_bar: bool,
                  batch_attributes: Dict[str, str],
                  user_local_reference_cache_dir: Path,
-                 remote_tmpdir: str):
+                 remote_tmpdir: str,
+                 flags: Dict[str, str]):
         self.billing_project = billing_project
         self._sync_fs = sync_fs
         self._async_fs = async_fs
@@ -172,6 +176,7 @@ class ServiceBackend(Backend):
         self.batch_attributes = batch_attributes
         self.user_local_reference_cache_dir = user_local_reference_cache_dir
         self.remote_tmpdir = remote_tmpdir
+        self.flags = flags
 
     @property
     def fs(self) -> FS:
@@ -199,6 +204,10 @@ class ServiceBackend(Backend):
         with TemporaryDirectory(ensure_exists=False) as _:
             with timings.step("write input"):
                 async with await self._async_fs.create(iodir + '/in') as infile:
+                    await write_int(infile, len(self.flags))
+                    for k, v in self.flags.items():
+                        await write_str(infile, k)
+                        await write_str(infile, v)
                     await inputs(infile, token)
 
             with timings.step("submit batch"):
@@ -444,3 +453,9 @@ class ServiceBackend(Backend):
 
     def persist_ir(self, ir):
         raise NotImplementedError("ServiceBackend does not support 'persist_ir'")
+
+    def set_flags(self, **flags: Mapping[str, str]):
+        self.flags.update(flags)
+
+    def get_flags(self, *flags) -> Mapping[str, str]:
+        return frozendict(self.flags)
