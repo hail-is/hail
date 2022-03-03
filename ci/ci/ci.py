@@ -97,6 +97,7 @@ class WatchedBranchConfig(TypedDict):
     deploy_state: Optional[str]
     repo: str
     prs: List[PRConfig]
+    gh_status_names: Set[str]
 
 
 async def watched_branch_config(app, wb: WatchedBranch, index: int) -> WatchedBranchConfig:
@@ -105,6 +106,7 @@ async def watched_branch_config(app, wb: WatchedBranch, index: int) -> WatchedBr
     else:
         pr_configs = []
     # FIXME recent deploy history
+    gh_status_names = {k for pr in pr_configs for k in pr['gh_statuses'].keys()}
     return {
         'index': index,
         'branch': wb.branch.short_str(),
@@ -114,6 +116,7 @@ async def watched_branch_config(app, wb: WatchedBranch, index: int) -> WatchedBr
         'deploy_state': wb.deploy_state,
         'repo': wb.branch.repo.short_str(),
         'prs': pr_configs,
+        'gh_status_names': gh_status_names,
     }
 
 
