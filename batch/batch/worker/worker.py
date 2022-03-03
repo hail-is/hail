@@ -1731,6 +1731,10 @@ class JVMJob(Job):
             raise
         except Exception:
             log.exception('while deleting volumes')
+        finally:
+            if self.fs is not None:
+                await self.fs.close()
+                self.fs = None
 
     async def _get_log(self):
         if os.path.exists(self.log_file):
@@ -1747,8 +1751,6 @@ class JVMJob(Job):
         if self.jvm is not None:
             log.info(f'{self.jvm} interrupting')
             self.jvm.interrupt()
-        if self.fs is not None:
-            self.fs = None
 
     # {
     #   version: int,
