@@ -3,7 +3,7 @@ mypy==0.780
 pylint==2.6.0
 astroid<2.5  # https://github.com/PyCQA/pylint/issues/4131
 pre-commit==2.9.2
-black==20.8b1
+black==22.1.0
 curlylint==0.12.0
 isort==5.10.1
 pytest==6.2.5
