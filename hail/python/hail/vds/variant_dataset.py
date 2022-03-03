@@ -27,9 +27,6 @@ def read_vds(path, *, intervals=None, n_partitions=None) -> 'VariantDataset':
         intervals = reference_data._calculate_new_partitions(n_partitions)
         reference_data = hl.read_matrix_table(VariantDataset._reference_path(path), _intervals=intervals)
         variant_data = hl.read_matrix_table(VariantDataset._variants_path(path), _intervals=intervals)
-
-
-
     return VariantDataset(reference_data, variant_data)
 
 
