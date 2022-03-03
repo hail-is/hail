@@ -288,7 +288,7 @@ deploy: test-dataproc $(WHEEL)
 
 .PHONY: install-dev-deps
 install-dev-deps:
-	$(PIP) install -U -r python/dev-requirements.txt
+	$(PIP) install -U -r python/dev/requirements.txt
 
 .PHONY: install-deps
 install-deps: install-dev-deps
