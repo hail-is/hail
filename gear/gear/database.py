@@ -9,7 +9,7 @@ from typing import Optional
 import aiomysql
 import pymysql
 
-from gear.metrics import PrometheusSQLTimer
+from gear.metrics import PrometheusSQLTimer, DB_CONNECTION_QUEUE_SIZE
 from hailtop.auth.sql_config import SQLConfig
 from hailtop.utils import sleep_and_backoff
 
@@ -157,7 +157,9 @@ class Transaction:
     async def async_init(self, db_pool, read_only):
         try:
             self.conn_context_manager = db_pool.acquire()
+            DB_CONNECTION_QUEUE_SIZE.inc()
             self.conn = await aenter(self.conn_context_manager)
+            DB_CONNECTION_QUEUE_SIZE.dec()
             async with self.conn.cursor() as cursor:
                 if read_only:
                     await cursor.execute('START TRANSACTION READ ONLY;')
