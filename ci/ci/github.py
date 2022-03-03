@@ -567,7 +567,7 @@ mkdir -p {shq(repo_dir)}
         if self.source_sha:
             last_posted_status = self.last_known_github_status.get(GITHUB_STATUS_CONTEXT)
             if self.intended_github_status != last_posted_status:
-                log.info(f'Intended github status for {self.short_str()} is: {last_posted_status}')
+                log.info(f'Intended github status for {self.short_str()} is: {self.intended_github_status}')
                 log.info(f'Last known github status for {self.short_str()} is: {last_posted_status}')
                 await self.post_github_status(gh, self.intended_github_status)
                 self.last_known_github_status[GITHUB_STATUS_CONTEXT] = self.intended_github_status
