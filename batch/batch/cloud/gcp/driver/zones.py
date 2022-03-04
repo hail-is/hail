@@ -77,8 +77,8 @@ class ZoneMonitor(CloudLocationMonitor):
     def default_location(self) -> str:
         return self._default_zone
 
-    def choose_location(self, worker_cores: int, local_ssd_data_disk: bool, data_disk_size_gb: int) -> str:
-        zone_weights = self.compute_zone_weights(worker_cores, local_ssd_data_disk, data_disk_size_gb)
+    def choose_location(self, cores: int, local_ssd_data_disk: bool, data_disk_size_gb: int) -> str:
+        zone_weights = self.compute_zone_weights(cores, local_ssd_data_disk, data_disk_size_gb)
 
         zones = [zw.zone for zw in zone_weights]
 

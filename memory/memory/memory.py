@@ -149,7 +149,7 @@ async def cache_file(redis: aioredis.ConnectionsPool, file_key: str, filepath: s
 
 async def on_startup(app):
     app['client_session'] = httpx.client_session()
-    app['files_in_progress'] = dict()
+    app['files_in_progress'] = {}
     app['users'] = {}
     app['userlocks'] = defaultdict(asyncio.Lock)
     kubernetes_asyncio.config.load_incluster_config()

@@ -260,13 +260,13 @@ GRANT ALL ON `{name}`.* TO '{name}'@'%';
         self.name = name
 
     def secret_data(self):
-        with open('/database-server-config/sql-config.json', 'r') as f:
+        with open('/database-server-config/sql-config.json', 'r', encoding='utf-8') as f:
             server_config = SQLConfig.from_json(f.read())
-        with open('/database-server-config/server-ca.pem', 'r') as f:
+        with open('/database-server-config/server-ca.pem', 'r', encoding='utf-8') as f:
             server_ca = f.read()
-        with open('/database-server-config/client-cert.pem', 'r') as f:
+        with open('/database-server-config/client-cert.pem', 'r', encoding='utf-8') as f:
             client_cert = f.read()
-        with open('/database-server-config/client-key.pem', 'r') as f:
+        with open('/database-server-config/client-key.pem', 'r', encoding='utf-8') as f:
             client_key = f.read()
 
         if is_test_deployment:
@@ -380,7 +380,7 @@ class BillingProjectResource:
         try:
             bp = await self.batch_client.get_billing_project(billing_project)
         except aiohttp.ClientResponseError as e:
-            if e.status == 403 and 'unknown billing project':
+            if e.status == 403 and 'Unknown Hail Batch billing project' in e.message:
                 return
             raise
         else:

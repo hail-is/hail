@@ -81,7 +81,7 @@ def get_sql_config(maybe_config_file: Optional[str] = None) -> SQLConfig:
         config_file = os.environ.get('HAIL_DATABASE_CONFIG_FILE', '/sql-config/sql-config.json')
     else:
         config_file = maybe_config_file
-    with open(config_file, 'r') as f:
+    with open(config_file, 'r', encoding='utf-8') as f:
         sql_config = SQLConfig.from_json(f.read())
     sql_config.check()
     log.info('using tls and verifying server certificates for MySQL')

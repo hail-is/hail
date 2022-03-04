@@ -1559,7 +1559,7 @@ async def ui_get_job(request, userdata, batch_id):
             job_specification['image'] = process_specification['image'] if process_type == 'docker' else '[jvm]'
             job_specification['command'] = process_specification['command']
         job_specification = dictfix.dictfix(
-            job_specification, dictfix.NoneOr({'image': str, 'command': list, 'resources': dict(), 'env': list})
+            job_specification, dictfix.NoneOr({'image': str, 'command': list, 'resources': {}, 'env': list})
         )
 
     resources = job_specification['resources']
