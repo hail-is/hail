@@ -12,7 +12,7 @@ azure-identity==1.6.0
 azure-storage-blob==12.8.1
 Authlib==0.11
 black==22.1.0
-boto3==1.17.54
+boto3==1.21.13
 botocore==1.20.54
 curlylint==0.12.0
 decorator==4.4.0
