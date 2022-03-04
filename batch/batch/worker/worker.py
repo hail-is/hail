@@ -2215,6 +2215,65 @@ class Worker:
 
         return web.Response()
 
+    async def create_job_2(self, request_json):
+        body = request_json['body']
+
+        batch_id = body['batch_id']
+        job_id = body['job_id']
+
+        format_version = BatchFormatVersion(body['format_version'])
+
+        token = body['token']
+        start_job_id = body['start_job_id']
+        addtl_spec = body['job_spec']
+
+        job_spec = await self.file_store.read_spec_file(batch_id, token, start_job_id, job_id)
+        job_spec = json.loads(job_spec)
+
+        job_spec['attempt_id'] = addtl_spec['attempt_id']
+        job_spec['secrets'] = addtl_spec['secrets']
+
+        addtl_env = addtl_spec.get('env')
+        if addtl_env:
+            env = job_spec.get('env')
+            if not env:
+                env = []
+                job_spec['env'] = env
+            env.extend(addtl_env)
+
+        assert job_spec['job_id'] == job_id
+        id = (batch_id, job_id)
+
+        # already running
+        if id in self.jobs:
+            return web.HTTPForbidden()
+
+        # check worker hasn't started shutting down
+        if not self.active:
+            return web.HTTPServiceUnavailable()
+
+        credentials = CLOUD_WORKER_API.user_credentials(body['gsa_key'])
+
+        job = Job.create(
+            batch_id,
+            body['user'],
+            credentials,
+            job_spec,
+            format_version,
+            self.task_manager,
+            self.pool,
+            self.client_session,
+            self,
+        )
+
+        log.info(f'created {job}, adding to jobs')
+
+        self.jobs[job.id] = job
+
+        self.task_manager.ensure_future(self.run_job(job))
+
+        return web.Response()
+
     async def create_job(self, request):
         if not self.active:
             raise web.HTTPServiceUnavailable
@@ -2285,7 +2344,6 @@ class Worker:
 
         self.task_manager.ensure_future(periodically_call(60, self.cleanup_old_images))
 
-        await self.open_websocket_connection()
         app_runner = web.AppRunner(app)
         await app_runner.setup()
         site = web.TCPSite(app_runner, '0.0.0.0', 5000)
@@ -2296,6 +2354,9 @@ class Worker:
         except asyncio.TimeoutError:
             log.exception(f'could not activate after trying for {MAX_IDLE_TIME_MSECS} ms, exiting')
             return
+
+        await self.open_websocket_connection()
+        self.task_manager.ensure_future(self.handle_websocket_messages())
 
         try:
             while True:
@@ -2326,7 +2387,7 @@ class Worker:
 
     async def open_websocket_connection(self):
         self.ws_connection_manager = self.client_session.ws_connect(
-            deploy_config.url('batch-driver', '/api/v1alpha/worker_wss')
+            deploy_config.url('batch-driver', '/api/v1alpha/worker_wss'), headers=self.headers
         )
         aenter = type(self.ws_connection_manager).__aenter__
         self.ws_connection = await aenter(self.ws_connection_manager)
@@ -2336,23 +2397,33 @@ class Worker:
             aexit = type(self.ws_connection_manager).__aexit__
             await aexit(self.ws_connection_manager, None, None, None)
 
-    def send_request_via_ws_connection(self, url, json, headers):
-        pass
+    # TODO: this is a coroutine function that returns a coroutine which handles receiving and responding to
+    #  Websocket messages
+    async def handle_websocket_messages(self):
+        while True:
+            msg = await self.ws_connection.receive()
+
+            if msg.type == aiohttp.WSMsgType.TEXT:
+                # parse message as JSON
+                msg_json = json.loads(msg.json())
+                message = msg_json['message']
+
+                if message == 'close cmd':
+                    await self.ws_connection.close()
+                    break
+                elif message == 'create_job':
+                    await self.create_job_2(msg_json)
+                else:
+                    log.exception(f'{NAME}: unrecognized message {message}')
+            elif msg.type == aiohttp.WSMsgType.ERROR:
+                log.exception(f'{NAME}: websocket closed due to error message')
+                break
 
     async def deactivate(self):
         # Don't retry.  If it doesn't go through, the driver
         # monitoring loops will recover.  If the driver is
         # gone (e.g. testing a PR), this would go into an
         # infinite loop and the instance won't be deleted.
-        ws_json = {'message': 'deactivate'}
-        if self.ws_connection is not None:
-            # TODO: use send_json() method to send headers (and request info, in general)
-            try:
-                await self.ws_connection.send_json(json.dumps(ws_json))
-                return
-            except:
-                print('websocket failed to send message')
-
         await self.client_session.post(
             deploy_config.url('batch-driver', '/api/v1alpha/instances/deactivate'), headers=self.headers
         )
@@ -2386,14 +2457,6 @@ class Worker:
 
         start_time = time_msecs()
         delay_secs = 0.1
-
-        ws_json = {'message': 'job_complete', 'json': body}
-        if self.ws_connection is not None:
-            try:
-                self.ws_connection.send_json(json.dumps(ws_json))
-                return
-            except:
-                print('websocket failed to send message')
 
         while True:
             try:
@@ -2448,14 +2511,6 @@ class Worker:
         }
 
         body = {'status': status}
-
-        ws_json = {'message': 'job_started', 'json': body}
-        if self.ws_connection is not None:
-            try:
-                self.ws_connection.send_json(json.dumps(ws_json))
-                return
-            except:
-                print('websocket failed to send message')
 
         await request_retry_transient_errors(
             self.client_session,

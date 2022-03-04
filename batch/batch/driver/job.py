@@ -442,23 +442,38 @@ async def schedule_job(app, record, instance):
 
         log.info(f'schedule job {id} on {instance}: made job config')
 
-        try:
-            await client_session.post(
-                f'http://{instance.ip_address}:5000/api/v1alpha/batches/jobs/create',
-                json=body,
-                timeout=aiohttp.ClientTimeout(total=2),
-            )
-            await instance.mark_healthy()
-        except aiohttp.ClientResponseError as e:
-            await instance.mark_healthy()
-            if e.status == 403:
-                log.info(f'attempt already exists for job {id} on {instance}, aborting')
-            if e.status == 503:
-                log.info(f'job {id} cannot be scheduled because {instance} is shutting down, aborting')
-            raise e
-        except Exception:
-            await instance.incr_failed_request_count()
-            raise
+        # TODO: check if the batch driver web.Application object's WebSocket connections dictionary has an entry
+        #  for this instance. if so, try to send a message through the WebSocket connection
+        ws_connections = app['open_websocket_connections_dict']
+        if instance.name in ws_connections:
+            try:
+                ws_json = {'message': 'create_job', 'body': body}
+                ws = ws_connections[instance.name]
+                await ws.send_json(ws_json)
+                await instance.mark_healthy()
+            except:
+                log.exception(f'{instance.name}: Unable to create job using websocket connection')
+                del ws_connections[instance.name]
+
+        # only send the POST request if there is no open websocket connection at this point
+        if instance.name not in ws_connections:
+            try:
+                await client_session.post(
+                    f'http://{instance.ip_address}:5000/api/v1alpha/batches/jobs/create',
+                    json=body,
+                    timeout=aiohttp.ClientTimeout(total=2),
+                )
+                await instance.mark_healthy()
+            except aiohttp.ClientResponseError as e:
+                await instance.mark_healthy()
+                if e.status == 403:
+                    log.info(f'attempt already exists for job {id} on {instance}, aborting')
+                if e.status == 503:
+                    log.info(f'job {id} cannot be scheduled because {instance} is shutting down, aborting')
+                raise e
+            except Exception:
+                await instance.incr_failed_request_count()
+                raise
 
         log.info(f'schedule job {id} on {instance}: called create job')
 

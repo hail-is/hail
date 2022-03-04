@@ -68,6 +68,9 @@ routes = web.RouteTableDef()
 
 deploy_config = get_deploy_config()
 
+# dictionary to store open websocket connections with each worker
+ws_connections: Dict[str, web.WebSocketResponse] = {}
+
 
 def ignore_failed_to_collect_and_upload_profile(record):
     if 'Failed to collect and upload profile: [Errno 32] Broken pipe' in record.msg:
@@ -373,6 +376,8 @@ async def job_started(request, instance):
 async def create_driver_worker_websocket_connection(request, instance) -> web.WebSocketResponse:
     ws = web.WebSocketResponse()
     await ws.prepare(request)
+    ws_connections = request.app['open_ws_connections_dict']
+    ws_connections[instance.name] = ws
     HTTP_ACTIVE_WEBSOCKETS.inc()
 
     # this is where the back and forth communication actually happens
@@ -381,14 +386,14 @@ async def create_driver_worker_websocket_connection(request, instance) -> web.We
             if msg.data == 'close':
                 await ws.close()
             else:
-                print(f"Received message: {msg.data}")
-                await ws.send_str(msg.data + '/answer')
+                log.info(f"Received message: {msg.data}")
         elif msg.type == aiohttp.WSMsgType.ERROR:
-            print('ws connection closed with exception %s' % ws.exception())
+            log.exception('ws connection closed with exception %s' % ws.exception())
 
-    print('Batch-driver: websocket connection closed')
+    log.info(f'Batch-driver: websocket connection to {instance.name} closed')
 
     HTTP_ACTIVE_WEBSOCKETS.dec()
+    del ws_connections[instance.name]
     return ws
 
 
@@ -1215,6 +1220,8 @@ SELECT instance_id, internal_token, frozen FROM globals;
 
     app['check_incremental_error'] = None
     app['check_resource_aggregation_error'] = None
+
+    app['open_ws_connections_dict'] = dict()
 
     if HAIL_SHOULD_CHECK_INVARIANTS:
         task_manager.ensure_future(periodically_call(10, check_incremental, app, db))
