@@ -15,11 +15,8 @@ function searchTable(table_name, search_bar_name) {
         }
       }
       if (anyMatch) {
-        if ("old_display" in bodyRow.dataset) {
-          bodyRow.style.display = bodyRow.dataset.old_display
-        }
+        bodyRow.style.display = ""
       } else {
-        bodyRow.dataset.old_display = bodyRow.style.display
         bodyRow.style.display = "none"
       }
     }
