@@ -1666,7 +1666,9 @@ class JVMJob(Job):
                         local_jar_location = f'/hail-jars/{self.revision}.jar'
                         if not os.path.isfile(local_jar_location):
                             self.verify_is_acceptable_query_jar_url(self.jar_url)
-                            temporary_file = tempfile.NamedTemporaryFile(delete=False)  # pylint: disable=consider-using-with
+                            temporary_file = tempfile.NamedTemporaryFile(
+                                delete=False
+                            )  # pylint: disable=consider-using-with
                             try:
                                 async with await self.worker.fs.open(self.jar_url) as jar_data:
                                     while True:

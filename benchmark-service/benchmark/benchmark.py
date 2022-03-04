@@ -50,7 +50,7 @@ BENCHMARK_ROOT = os.path.dirname(os.path.abspath(__file__))
 benchmark_data = {'commits': {}, 'dates': [], 'geo_means': [], 'pr_ids': [], 'shas': []}
 
 
-with open(os.environ.get('HAIL_CI_OAUTH_TOKEN', 'oauth-token/oauth-token'), 'r') as f:
+with open(os.environ.get('HAIL_CI_OAUTH_TOKEN', 'oauth-token/oauth-token'), 'r', encoding='utf-8') as f:
     oauth_token = f.read().strip()
 
 
@@ -68,7 +68,7 @@ async def get_benchmarks(app, file_path):
     data = {}
     prod_of_means = 1
     for d in pre_data['benchmarks']:
-        stats = dict()
+        stats = {}
         stats['name'] = d.get('name')
         stats['failed'] = d.get('failed')
         if not d['failed']:
@@ -85,7 +85,7 @@ async def get_benchmarks(app, file_path):
 
     file_info = parse_file_path(BENCHMARK_FILE_REGEX, file_path)
     sha = file_info['sha']
-    benchmarks = dict()
+    benchmarks = {}
     benchmarks['sha'] = sha
     benchmarks['geometric_mean'] = geometric_mean
     benchmarks['data'] = data
@@ -191,7 +191,6 @@ async def show_name(request: web.Request, userdata) -> web.Response:  # pylint: 
 @router.get('')
 async def index(request):
     userdata = {}
-    global benchmark_data
     d = {
         'dates': benchmark_data['dates'],
         'geo_means': benchmark_data['geo_means'],
@@ -286,7 +285,6 @@ async def get_job(request, userdata):
 
 
 async def update_commits(app):
-    global benchmark_data
     github_client = app['github_client']
 
     request_string = f'/repos/hail-is/hail/commits?since={START_POINT}'
@@ -353,7 +351,6 @@ async def get_commit(app, sha):  # pylint: disable=unused-argument
 
 async def update_commit(app, sha):  # pylint: disable=unused-argument
     log.info('in update_commit')
-    global benchmark_data
     fs: aiotools.AsyncFS = app['fs']
     commit = await get_commit(app, sha)
     file_path = f'{BENCHMARK_RESULTS_PATH}/0-{sha}.json'
@@ -393,7 +390,6 @@ async def get_status(request):  # pylint: disable=unused-argument
 
 @router.delete('/api/v1alpha/benchmark/commit/{sha}')
 async def delete_commit(request):  # pylint: disable=unused-argument
-    global benchmark_data
     app = request.app
     fs: aiotools.AsyncFS = app['fs']
     batch_client = app['batch_client']
