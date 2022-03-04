@@ -163,8 +163,6 @@ def test_filter_samples_and_merge():
     assert merged.variant_data._same(vds.variant_data)
 
 
-@fails_local_backend
-@fails_service_backend
 def test_segment_intervals():
     vds = hl.vds.read_vds(os.path.join(resource('vds'), '1kg_chr22_5_samples.vds'))
 
@@ -197,8 +195,6 @@ def test_segment_intervals():
     assert before_coverage == after_coverage
 
 
-@fails_local_backend
-@fails_service_backend
 def test_interval_coverage():
     vds = hl.vds.read_vds(os.path.join(resource('vds'), '1kg_chr22_5_samples.vds'))
 
@@ -252,7 +248,6 @@ def test_interval_coverage():
         pytest.approx(obs.mean_dp, exp.mean_dp)
 
 
-@fails_local_backend
 @skip_when_service_backend(message='''
 hangs >=9 minutes after "optimize optimize: darrayLowerer, initial IR ..."
 with no calls to parallelizeAndComputeWithIndex
