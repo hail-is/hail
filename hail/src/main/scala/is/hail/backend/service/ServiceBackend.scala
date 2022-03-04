@@ -418,16 +418,17 @@ class HailBatchFailure(message: String) extends RuntimeException(message)
 
 object ServiceBackendSocketAPI2 {
   def main(argv: Array[String]): Unit = {
-    assert(argv.length == 7, argv.toFastIndexedSeq)
+    assert(argv.length == 8, argv.toFastIndexedSeq)
 
     val scratchDir = argv(0)
-    val kind = argv(1)
+    val logFile = argv(1)
+    val kind = argv(2)
     assert(kind == Main.DRIVER)
-    val revision = argv(2)
-    val jarLocation = argv(3)
-    val name = argv(4)
-    val input = argv(5)
-    val output = argv(6)
+    val revision = argv(3)
+    val jarLocation = argv(4)
+    val name = argv(5)
+    val input = argv(6)
+    val output = argv(7)
 
     // FIXME: when can the classloader be shared? (optimizer benefits!)
     val backend = new ServiceBackend(

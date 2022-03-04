@@ -46,7 +46,7 @@ ipython: push-jar
 
 .PHONY: test-no-deps
 test-no-deps:
-	HAIL_QUERY_BACKEND=serivce \
+	HAIL_QUERY_BACKEND=service \
     HAIL_TEST_RESOURCES_DIR='gs://hail-test-dmk9z/$(HAIL_TEST_GCS_TOKEN)/hail-test-resources/test/resources/' \
     HAIL_DOCTEST_DATA_DIR='gs://hail-test-dmk9z/$(HAIL_TEST_GCS_TOKEN)/hail-test-resources/doctest/data/' \
     HAIL_SHA='$(HAIL_REVISION)-$(TOKEN)' \
@@ -55,7 +55,7 @@ test-no-deps:
 
 .PHONY: ipython-no-deps
 ipython-no-deps:
-	HAIL_QUERY_BACKEND=serivce \
+	HAIL_QUERY_BACKEND=service \
     HAIL_SHA='$(HAIL_REVISION)-$(TOKEN)' \
     HAIL_JAR_URL=$$(cat last_uploaded_jar) \
     ipython
