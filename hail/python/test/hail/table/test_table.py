@@ -1050,7 +1050,7 @@ Exception in thread "main" java.lang.RuntimeException: invalid sort order: b
     def test_order_by_parsing(self):
         hl.utils.range_table(1).annotate(**{'a b c' : 5}).order_by('a b c')._force_count()
 
-@fails_service_backend(reason='intermittently hangs')
+    @fails_service_backend(reason='intermittently hangs')
     def test_take_order(self):
         t = hl.utils.range_table(20, n_partitions=2)
         t = t.key_by(rev_idx=-t.idx)
@@ -1129,7 +1129,7 @@ Caused by: java.lang.NullPointerException
         self.assertTrue(t1.key_by().union(t2.key_by(), t3.key_by())
                         ._same(hl.utils.range_table(15).key_by()))
 
-@fails_service_backend(reason='very slow')
+    @fails_service_backend(reason='very slow')
     def test_nested_union(self):
         N = 10
         M = 200
@@ -1141,7 +1141,7 @@ Caused by: java.lang.NullPointerException
         assert union._force_count() == N * M
         assert union.count() == N * M
 
-@fails_service_backend()
+    @fails_service_backend()
     def test_union_unify(self):
         t1 = hl.utils.range_table(2)
         t2 = t1.annotate(x=hl.int32(1), y='A')
@@ -1402,7 +1402,7 @@ Caused by: java.lang.NullPointerException
         ht = ht.annotate(y = ht.idx + ht.aggregate(hl.agg.max(ht.idx), _localize=False))
         assert ht.y.collect() == [x + 9 for x in range(10)]
 
-@fails_service_backend()
+    @fails_service_backend()
     def test_collect_localize_false(self):
         ht = hl.utils.range_table(10)
         assert hl.eval(ht.collect(_localize=False)) == ht.collect()
