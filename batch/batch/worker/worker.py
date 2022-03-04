@@ -1023,7 +1023,7 @@ def populate_secret_host_path(host_path: str, secret_data: Optional[Dict[str, by
     os.makedirs(host_path, exist_ok=True)
     if secret_data is not None:
         for filename, data in secret_data.items():
-            with open(f'{host_path}/{filename}', 'wb', encoding='utf-8') as f:
+            with open(f'{host_path}/{filename}', 'wb') as f:
                 f.write(base64.b64decode(data))
 
 
