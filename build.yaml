@@ -3127,6 +3127,22 @@ steps:
       - build_hail_jar_and_wheel_only
       - merge_code
       - create_test_gsa_keys
+  - kind: deploy
+    name: deploy_memory
+    namespace:
+      valueFrom: default_ns.name
+    config: memory/deployment.yaml
+    wait:
+      - kind: Service
+        name: memory
+        for: alive
+    dependsOn:
+      - default_ns
+      - memory_image
+      - deploy_memory_sa
+      - create_certs
+    clouds:
+      - gcp
   - kind: runImage
     name: test_hail_python_service_backend_0
     image:
@@ -3201,6 +3217,7 @@ steps:
       - default_ns
       - merge_code
       - deploy_batch
+      - deploy_memory
       - create_deploy_config
       - create_accounts
       - hail_run_tests_image
@@ -3283,6 +3300,7 @@ steps:
       - default_ns
       - merge_code
       - deploy_batch
+      - deploy_memory
       - create_deploy_config
       - create_accounts
       - hail_run_tests_image
@@ -3365,6 +3383,7 @@ steps:
       - default_ns
       - merge_code
       - deploy_batch
+      - deploy_memory
       - create_deploy_config
       - create_accounts
       - hail_run_tests_image
@@ -3447,6 +3466,7 @@ steps:
       - default_ns
       - merge_code
       - deploy_batch
+      - deploy_memory
       - create_deploy_config
       - create_accounts
       - hail_run_tests_image
@@ -3529,28 +3549,13 @@ steps:
       - default_ns
       - merge_code
       - deploy_batch
+      - deploy_memory
       - create_deploy_config
       - create_accounts
       - hail_run_tests_image
       - upload_query_jar
       - upload_test_resources_to_blob_storage
       - build_hail_jar_and_wheel_only
-    clouds:
-      - gcp
-  - kind: deploy
-    name: deploy_memory
-    namespace:
-      valueFrom: default_ns.name
-    config: memory/deployment.yaml
-    wait:
-      - kind: Service
-        name: memory
-        for: alive
-    dependsOn:
-      - default_ns
-      - memory_image
-      - deploy_memory_sa
-      - create_certs
     clouds:
       - gcp
   - kind: runImage
