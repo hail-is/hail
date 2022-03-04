@@ -2,7 +2,7 @@ import doctest
 import os
 import pytest
 
-import hailtop.batch as batch
+from hailtop import batch
 
 
 @pytest.fixture(autouse=True)

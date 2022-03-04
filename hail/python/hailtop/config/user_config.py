@@ -82,7 +82,7 @@ def get_remote_tmpdir(caller_name: str,
         remote_tmpdir = f'gs://{bucket}/batch'
     else:
         schemes = {'gs', 'hail-az'}
-        found_scheme = any([remote_tmpdir.startswith(f'{scheme}://') for scheme in schemes])
+        found_scheme = any(remote_tmpdir.startswith(f'{scheme}://') for scheme in schemes)
         if not found_scheme:
             raise ValueError(
                 f'remote_tmpdir must be a storage uri path like gs://bucket/folder. Possible schemes include {schemes}')

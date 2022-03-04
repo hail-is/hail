@@ -73,7 +73,7 @@ class GoogleFlow(Flow):
 
 class AzureFlow(Flow):
     def __init__(self, credentials_file: str):
-        with open(credentials_file) as f:
+        with open(credentials_file, encoding='utf-8') as f:
             data = json.loads(f.read())
 
         tenant_id = data['tenant']

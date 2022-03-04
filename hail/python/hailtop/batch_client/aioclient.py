@@ -223,37 +223,37 @@ class UnsubmittedJob:
         self._job_id = job_id
 
     @property
-    def batch_id(self):
+    def batch_id(self):  # pylint: disable=no-self-use
         raise ValueError("cannot get the batch_id of an unsubmitted job")
 
     @property
-    def job_id(self):
+    def job_id(self):  # pylint: disable=no-self-use
         raise ValueError("cannot get the job_id of an unsubmitted job")
 
     @property
-    def id(self):
+    def id(self):  # pylint: disable=no-self-use
         raise ValueError("cannot get the id of an unsubmitted job")
 
-    async def attributes(self):
+    async def attributes(self):  # pylint: disable=no-self-use
         raise ValueError("cannot get the attributes of an unsubmitted job")
 
-    async def is_complete(self):
+    async def is_complete(self):  # pylint: disable=no-self-use
         raise ValueError("cannot determine if an unsubmitted job is complete")
 
-    async def status(self):
+    async def status(self):  # pylint: disable=no-self-use
         raise ValueError("cannot get the status of an unsubmitted job")
 
     @property
-    def _status(self):
+    def _status(self):  # pylint: disable=no-self-use
         raise ValueError("cannot get the _status of an unsubmitted job")
 
-    async def wait(self):
+    async def wait(self):  # pylint: disable=no-self-use
         raise ValueError("cannot wait on an unsubmitted job")
 
-    async def log(self):
+    async def log(self):  # pylint: disable=no-self-use
         raise ValueError("cannot get the log of an unsubmitted job")
 
-    async def attempts(self):
+    async def attempts(self):  # pylint: disable=no-self-use
         raise ValueError("cannot get the attempts of an unsubmitted job")
 
 
@@ -688,7 +688,7 @@ class BatchClient:
         if session is None:
             session = httpx.client_session()
         if headers is None:
-            headers = dict()
+            headers = {}
         if _token:
             headers['Authorization'] = f'Bearer {_token}'
         else:

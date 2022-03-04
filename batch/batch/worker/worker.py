@@ -69,7 +69,7 @@ from .jvm_entryway_protocol import EndOfStream, read_bool, read_int, read_str, w
 
 # uvloop.install()
 
-with open('/subdomains.txt', 'r') as subdomains_file:
+with open('/subdomains.txt', 'r', encoding='utf-8') as subdomains_file:
     HAIL_SERVICES = [line.rstrip() for line in subdomains_file.readlines()]
 
 oldwarn = warnings.warn
@@ -166,7 +166,7 @@ network_allocator: Optional['NetworkAllocator'] = None
 
 worker: Optional['Worker'] = None
 
-image_configs: Dict[str, Dict[str, Any]] = dict()
+image_configs: Dict[str, Dict[str, Any]] = {}
 
 image_lock = aiorwlock.RWLock()
 
@@ -211,7 +211,7 @@ class NetworkNamespace:
         await self.enable_iptables_forwarding()
 
         os.makedirs(f'/etc/netns/{self.network_ns_name}')
-        with open(f'/etc/netns/{self.network_ns_name}/hosts', 'w') as hosts:
+        with open(f'/etc/netns/{self.network_ns_name}/hosts', 'w', encoding='utf-8') as hosts:
             hosts.write('127.0.0.1 localhost\n')
             hosts.write(f'{self.job_ip} {self.hostname}\n')
             if NAMESPACE == 'default':
@@ -222,7 +222,7 @@ class NetworkNamespace:
         # Jobs on the private network should have access to the metadata server
         # and our vdc. The public network should not so we use google's public
         # resolver.
-        with open(f'/etc/netns/{self.network_ns_name}/resolv.conf', 'w') as resolv:
+        with open(f'/etc/netns/{self.network_ns_name}/resolv.conf', 'w', encoding='utf-8') as resolv:
             if self.private:
                 resolv.write(f'nameserver {CLOUD_WORKER_API.nameserver_ip}\n')
                 if CLOUD == 'gcp':
@@ -323,7 +323,7 @@ def docker_call_retry(timeout, name):
                 return await asyncio.wait_for(f(*args, **kwargs), timeout)
             except DockerError as e:
                 # 408 request timeout, 503 service unavailable
-                if e.status == 408 or e.status == 503:
+                if e.status in (408, 503):
                     log.warning(f'in docker call to {f.__name__} for {name}, retrying', stack_info=True, exc_info=True)
                 # DockerError(500, 'Get https://registry-1.docker.io/v2/: net/http: request canceled while waiting for connection (Client.Timeout exceeded while awaiting headers)
                 # DockerError(500, 'error creating overlay mount to /var/lib/docker/overlay2/545a1337742e0292d9ed197b06fe900146c85ab06e468843cd0461c3f34df50d/merged: device or resource busy'
@@ -366,12 +366,12 @@ class JobTimeoutError(Exception):
 
 class Timings:
     def __init__(self, is_deleted: Callable[[], bool]):
-        self.timings: Dict[str, Dict[str, float]] = dict()
+        self.timings: Dict[str, Dict[str, float]] = {}
         self.is_deleted = is_deleted
 
     def step(self, name: str, ignore_job_deletion: bool = False):
         assert name not in self.timings
-        self.timings[name] = dict()
+        self.timings[name] = {}
         return ContainerStepManager(self.timings[name], self.is_deleted, ignore_job_deletion=ignore_job_deletion)
 
     def to_dict(self):
@@ -662,7 +662,7 @@ class Container:
         try:
             await self.write_container_config()
             async with async_timeout.timeout(self.timeout):
-                with open(self.log_path, 'w') as container_log:
+                with open(self.log_path, 'w', encoding='utf-8') as container_log:
                     log.info(f'Creating the crun run process for {self}')
                     self.process = await asyncio.create_subprocess_exec(
                         'crun',
@@ -686,7 +686,7 @@ class Container:
 
     async def write_container_config(self):
         os.makedirs(self.config_path)
-        with open(f'{self.config_path}/config.json', 'w') as f:
+        with open(f'{self.config_path}/config.json', 'w', encoding='utf-8') as f:
             f.write(json.dumps(await self.container_config()))
 
     # https://github.com/opencontainers/runtime-spec/blob/master/config.md
@@ -796,7 +796,7 @@ class Container:
         return int(uid), int(gid)
 
     async def _read_user_from_rootfs(self, user) -> Tuple[str, str]:
-        with open(f'{self.rootfs_path}/etc/passwd', 'r') as passwd:
+        with open(f'{self.rootfs_path}/etc/passwd', 'r', encoding='utf-8') as passwd:
             for record in passwd:
                 if record.startswith(user):
                     _, _, uid, gid, _, _, _ = record.split(":")
@@ -1666,7 +1666,9 @@ class JVMJob(Job):
                         local_jar_location = f'/hail-jars/{self.revision}.jar'
                         if not os.path.isfile(local_jar_location):
                             self.verify_is_acceptable_query_jar_url(self.jar_url)
-                            temporary_file = tempfile.NamedTemporaryFile(delete=False)
+                            temporary_file = tempfile.NamedTemporaryFile(  # pylint: disable=consider-using-with
+                                delete=False
+                            )
                             try:
                                 async with await self.worker.fs.open(self.jar_url) as jar_data:
                                     while True:
@@ -1769,7 +1771,7 @@ class JVMJob(Job):
     # }
     def status(self):
         status = super().status()
-        status['container_statuses'] = dict()
+        status['container_statuses'] = {}
         status['container_statuses']['main'] = {'name': 'main', 'state': self.state, 'timing': self.timings.to_dict()}
         status['jvm'] = self.jvm_name
         return status
@@ -2141,7 +2143,7 @@ class Worker:
                             await self.client_session.close()
                             log.info('closed client session')
 
-    async def run_job(self, job):
+    async def run_job(self, job):  # pylint: disable=no-self-use
         try:
             await job.run()
         except asyncio.CancelledError:
@@ -2434,7 +2436,7 @@ class Worker:
         resp_json = await resp.json()
 
         credentials_file = '/worker-key.json'
-        with open(credentials_file, 'w') as f:
+        with open(credentials_file, 'w', encoding='utf-8') as f:
             f.write(json.dumps(resp_json['key']))
 
         self.fs = RouterAsyncFS(
