@@ -1,5 +1,5 @@
 flake8==4.0.1
-mypy==0.780
+mypy==0.931
 pylint==2.12.2
 pre-commit==2.17.0
 black==22.1.0
