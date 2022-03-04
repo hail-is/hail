@@ -332,6 +332,7 @@ def docker_call_retry(timeout, name):
                     "request canceled while waiting for connection" in e.message
                     or re.match("error creating overlay mount.*device or resource busy", e.message)
                     or "Temporary failure in name resolution" in e.message
+                    or 'i/o timeout' in e.message
                 ):
                     log.warning(f'in docker call to {f.__name__} for {name}, retrying', stack_info=True, exc_info=True)
                 else:
