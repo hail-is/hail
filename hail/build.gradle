@@ -132,6 +132,7 @@ configurations {
     hailJar.extendsFrom bundled
     hailJar {
         exclude group: 'org.scala-lang', module: 'scala-library'
+        exclude group: 'org.apache.spark'
     }
 
     hailTestJar.extendsFrom hailJar, hailTest

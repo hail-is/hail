@@ -25,9 +25,20 @@ an earlier version of Hail to read files written in a later version.
 
 ---
 
+## Version 0.2.88
+
+Release 2022-03-01
+
+This release addresses the deploy issues in the 0.2.87 release of Hail.
+
+---
+
 ## Version 0.2.87
 
 Release 2022-02-28
+
+An error in the deploy process required us to yank this release from PyPI. Please do not use this
+release.
 
 ### Bug fixes
 

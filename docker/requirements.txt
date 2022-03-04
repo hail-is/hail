@@ -34,7 +34,7 @@ humanize==1.0.0
 hurry.filesize==0.9
 isort==5.10.1
 orjson==3.6.4
-# importlib-metadata<4: in dev-requirements, jupyter depends on (an unpinned) ipykernel which needs importlib-metadata<4
+# importlib-metadata<4: in dev/requirements, jupyter depends on (an unpinned) ipykernel which needs importlib-metadata<4
 importlib-metadata<4
 janus==0.6.1
 Jinja2==3.0.3
@@ -42,7 +42,7 @@ Jinja2==3.0.3
 Jinja2==3.0.3
 # keyrings.alt>3.1: https://bugs.launchpad.net/usd-importer/+bug/1794041/comments/6
 keyrings.alt>=3.1
-kubernetes-asyncio==9.1.0
+kubernetes-asyncio==19.15.1
 libsass==0.19.2
 mypy==0.780
 nest_asyncio==1.5.4
@@ -51,7 +51,7 @@ pandas==1.1.4
 plotly==4.14.3
 prometheus_async==19.2.0
 prometheus_client==0.11.0
-psutil==5.8.0
+psutil==5.9.0
 pyjwt==1.7.1
 pylint==2.6.0
 astroid<2.5  # https://github.com/PyCQA/pylint/issues/4131

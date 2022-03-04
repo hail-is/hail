@@ -18,7 +18,7 @@ import is.hail.rvd._
 import is.hail.sparkextras.ContextRDD
 import is.hail.types._
 import is.hail.types.physical._
-import is.hail.types.physical.stypes.concrete.SInsertFieldsStruct
+import is.hail.types.physical.stypes.concrete.{SInsertFieldsStruct, SIntervalPointer}
 import is.hail.types.physical.stypes.interfaces.{SBaseStructValue, SStreamValue}
 import is.hail.types.physical.stypes.{BooleanSingleCodeType, Int32SingleCodeType, PTypeReferenceSingleCodeType, StreamSingleCodeType}
 import is.hail.types.virtual._
@@ -667,12 +667,13 @@ case class PartitionNativeReaderIndexed(spec: AbstractTypedCodecSpec, indexSpec:
                 .consumeCode[Interval](cb,
                   cb.memoize(Code._fatal[Interval]("")),
                   { pc =>
-                    val pt = PType.canonical(pc.st.storageType())
-                    cb.memoize(Code.invokeScalaObject2[PType, Long, Interval](
-                      PartitionBoundOrdering.getClass,
-                      "regionValueToJavaObject",
-                      mb.getPType(pt),
-                      pt.store(cb, region, pc, false)))
+                    val pt = PType.canonical(pc.st.storageType()).asInstanceOf[PInterval]
+                    val copied = pc.copyToRegion(cb, region, SIntervalPointer(pt)).asInterval
+                    val javaInterval = coerce[Interval](StringFunctions.svalueToJavaValue(cb, region, copied))
+                    cb.memoize(Code.invokeScalaObject1[AnyRef, Interval](
+                      RVDPartitioner.getClass,
+                      "irRepresentationToInterval",
+                      javaInterval))
                   }
                 ),
               Code._null[InputMetrics]
@@ -870,8 +871,8 @@ case class PartitionZippedIndexedNativeReader(specLeft: AbstractTypedCodecSpec, 
 
       def getInterval(cb: EmitCodeBuilder, region: Value[Region], ctxMemo: SBaseStructValue): Code[Interval] = {
         Code.invokeScalaObject1[AnyRef, Interval](
-          PartitionBoundOrdering.getClass,
-          "partitionBoundToInterval",
+          RVDPartitioner.getClass,
+          "irRepresentationToInterval",
           StringFunctions.svalueToJavaValue(cb, region, ctxMemo.loadField(cb, "interval").get(cb)))
       }
 

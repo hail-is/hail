@@ -371,9 +371,9 @@ def impute_sex_chromosome_ploidy(
 
      -  ``autosomal_mean_dp`` (*float64*): Mean depth on calling intervals on normalization contig.
      -  ``x_mean_dp`` (*float64*): Mean depth on calling intervals on X chromosome.
-     -  ``x_ploidy`` (*float64*): Estimated ploidy on X chromosome. Equal to ``2 * autosomal_mean_dp / x_mean_dp``.
+     -  ``x_ploidy`` (*float64*): Estimated ploidy on X chromosome. Equal to ``2 * x_mean_dp / autosomal_mean_dp``.
      -  ``y_mean_dp`` (*float64*): Mean depth on calling intervals on  chromosome.
-     -  ``y_ploidy`` (*float64*): Estimated ploidy on Y chromosome. Equal to ``2 * autosomal_mean_dp / y_mean_dp``.
+     -  ``y_ploidy`` (*float64*): Estimated ploidy on Y chromosome. Equal to ``2 * y_mean_db / autosomal_mean_dp``.
 
     Parameters
     ----------
@@ -449,9 +449,9 @@ def impute_sex_chromosome_ploidy(
     y_dp = mean_dp_dict.get(chr_y)
     per_sample = coverage.transmute_cols(autosomal_mean_dp=auto_dp,
                                          x_mean_dp=x_dp,
-                                         x_ploidy=x_dp / auto_dp * 2,
+                                         x_ploidy=2 * x_dp / auto_dp,
                                          y_mean_dp=y_dp,
-                                         y_ploidy=y_dp / auto_dp * 2)
+                                         y_ploidy=2 * y_dp / auto_dp)
     info("'impute_sex_chromosome_ploidy': computing and checkpointing coverage and karyotype metrics")
     return per_sample.cols().checkpoint(new_temp_file('impute_sex_karyotype', extension='ht'))
 

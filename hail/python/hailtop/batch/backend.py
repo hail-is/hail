@@ -386,8 +386,8 @@ class ServiceBackend(Backend[bc.Batch]):
                  bucket: Optional[str] = None,
                  remote_tmpdir: Optional[str] = None,
                  google_project: Optional[str] = None,
-                 token: str = None
-    ):
+                 token: Optional[str] = None
+                 ):
         if len(args) > 2:
             raise TypeError(f'ServiceBackend() takes 2 positional arguments but {len(args)} were given')
         if len(args) >= 1:

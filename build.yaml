@@ -266,6 +266,7 @@ steps:
       - default_ns
       - service_base_image
       - merge_code
+      - create_database_server_config
   - kind: createDatabase
     name: auth_database
     databaseName: auth
@@ -455,6 +456,7 @@ steps:
       - create_deploy_config
       - deploy_auth_driver_service_account
       - create_test_gsa_keys
+      - create_database_server_config
   - kind: runImage
     name: create_initial_user
     runIfRequested: true
@@ -2420,7 +2422,7 @@ steps:
       fi
 
       mkdir -p hail/build/www/docs/0.2
-      tar -xvf www.tar.gz -C hail/build/www/docs --strip-components 2
+      tar -xvf www.tar.gz -C hail/build/www/docs --strip-components 2 --no-same-owner
 
       python3 -m hailtop.aiotools.copy 'null' '[
       {"from": "gs://hail-common/builds/0.1/docs/hail-0.1-docs-5a6778710097.tar.gz",
@@ -2428,7 +2430,7 @@ steps:
       ]'
 
       mkdir -p hail/build/www/docs/0.1
-      tar -xvf hail-0.1-docs-5a6778710097.tar.gz -C hail/build/www/docs/0.1 --strip-components 2
+      tar -xvf hail-0.1-docs-5a6778710097.tar.gz -C hail/build/www/docs/0.1 --strip-components 2 --no-same-owner
 
       tar czf /io/docs.tar.gz -C hail/build/www .
     resources:
@@ -2578,6 +2580,7 @@ steps:
       - default_ns
       - service_base_image
       - merge_code
+      - create_database_server_config
   - kind: createDatabase
     name: monitoring_database
     databaseName: monitoring
@@ -2774,6 +2777,7 @@ steps:
       - default_ns
       - service_base_image
       - merge_code
+      - create_database_server_config
   - kind: runImage
     name: delete_ci_tables
     image:
@@ -2796,6 +2800,7 @@ steps:
       - default_ns
       - service_base_image
       - merge_code
+      - create_database_server_config
   - kind: createDatabase
     name: ci_database
     databaseName: ci
@@ -4922,6 +4927,7 @@ steps:
     dependsOn:
       - default_ns
       - create_certs
+      - create_accounts
       - hail_run_tests_image
       - build_hail
       - upload_test_resources_to_blob_storage
@@ -4966,6 +4972,7 @@ steps:
     dependsOn:
       - default_ns
       - create_certs
+      - create_accounts
       - hail_run_tests_image
       - build_hail
       - deploy_batch
