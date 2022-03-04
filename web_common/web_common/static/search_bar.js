@@ -15,24 +15,12 @@ function searchTable(table_name, search_bar_name) {
         }
       }
       if (anyMatch) {
-        if (bodyRow.parentNode.style.display == "none") {
-          wrapper = bodyRow.parentNode
-
-          row_container = wrapper.parentNode
-          row_container.insertBefore(bodyRow, wrapper)
-          row_container.removeChild(wrapper)
+        if ("old_display" in bodyRow.dataset) {
+          bodyRow.style.display = bodyRow.dataset.old_display
         }
       } else {
-        if (bodyRow.parentNode.style.display != "none") {
-          wrapper = document.createElement('div')
-          wrapper.style.display = "none"
-
-          row_container = bodyRow.parentNode
-          row_container.insertBefore(wrapper, bodyRow)
-          row_container.removeChild(bodyRow)
-
-          wrapper.appendChild(bodyRow)
-        }
+        bodyRow.dataset.old_display = bodyRow.style.display
+        bodyRow.style.display = "none"
       }
     }
   }
