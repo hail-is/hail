@@ -1,5 +1,5 @@
 flake8==4.0.1
-mypy==0.780
+mypy==0.931
 pylint==2.6.0
 astroid<2.5  # https://github.com/PyCQA/pylint/issues/4131
 pre-commit==2.9.2
