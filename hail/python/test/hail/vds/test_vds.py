@@ -305,7 +305,6 @@ def test_impute_sex_chromosome_ploidy():
     ]
 
 
-@fails_local_backend
 @fails_service_backend
 def test_filter_intervals_segment():
     vds = hl.vds.read_vds(os.path.join(resource('vds'), '1kg_2samples_starts.vds'))
@@ -322,7 +321,6 @@ def test_filter_intervals_segment():
     assert var.aggregate_rows(hl.agg.all(intervals[0].contains(var.locus)))
 
 
-@fails_local_backend
 @fails_service_backend
 def test_filter_intervals_segment_table():
     vds = hl.vds.read_vds(os.path.join(resource('vds'), '1kg_2samples_starts.vds'))
