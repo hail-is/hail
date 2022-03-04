@@ -1,3 +1,4 @@
+from typing import Optional
 import asyncio
 import base64
 import json
