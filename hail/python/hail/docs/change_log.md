@@ -25,6 +25,14 @@ an earlier version of Hail to read files written in a later version.
 
 ---
 
+## Version 0.2.89
+
+Release 2022-03-04
+
+- (hail#11452) Fix `impute_sex_chromosome_ploidy` docs.
+
+---
+
 ## Version 0.2.88
 
 Release 2022-03-01
