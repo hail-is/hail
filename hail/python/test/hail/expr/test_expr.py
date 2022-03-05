@@ -926,21 +926,6 @@ Caused by: java.lang.AssertionError: assertion failed
         for aggregation, expected in tests:
             self.assertEqual(t.aggregate(aggregation), expected)
 
-    @fails_service_backend(reason='''intermittent failure on worker node:
-Caused by: java.lang.AssertionError: assertion failed
-	at scala.Predef$.assert(Predef.scala:208)
-	at is.hail.io.MemoryBuffer.readInt(MemoryBuffer.scala:95)
-	at is.hail.io.MemoryInputBuffer.readInt(InputBuffers.scala:178)
-	at __C51collect_distributed_array.applyregion18_30(Unknown Source)
-	at __C51collect_distributed_array.apply(Unknown Source)
-	at __C51collect_distributed_array.apply(Unknown Source)
-	at is.hail.backend.BackendUtils.$anonfun$collectDArray$2(BackendUtils.scala:31)
-	at is.hail.utils.package$.using(package.scala:627)
-	at is.hail.annotations.RegionPool.scopedRegion(RegionPool.scala:144)
-	at is.hail.backend.BackendUtils.$anonfun$collectDArray$1(BackendUtils.scala:30)
-	at is.hail.backend.service.Worker$.main(Worker.scala:120)
-	at is.hail.backend.service.Worker.main(Worker.scala)
-	... 12 more''')
     def test_agg_group_by(self):
         t = hl.utils.range_table(10)
         tests = [(hl.agg.group_by(t.idx % 2,
