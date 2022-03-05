@@ -50,12 +50,12 @@ class AzureWorkerAPI(CloudWorkerAPI):
     def write_cloudfuse_credentials(self, root_dir: str, credentials: str, bucket: str) -> str:
         path = f'{root_dir}/cloudfuse/{bucket}/credentials'
         os.makedirs(os.path.dirname(path))
-        with open(path, 'w') as f:
+        with open(path, 'w', encoding='utf-8') as f:
             f.write(credentials)
         return path
 
     def _mount_cloudfuse(
-        self, credentials_path: str, mount_base_path_data: str, mount_base_path_tmp: str, config: dict
+        self, fuse_credentials_path: str, mount_base_path_data: str, mount_base_path_tmp: str, config: dict
     ) -> str:
         # https://docs.microsoft.com/en-us/azure/storage/blobs/storage-how-to-mount-container-linux#mount
         bucket = config['bucket']
@@ -70,7 +70,7 @@ class AzureWorkerAPI(CloudWorkerAPI):
 blobfuse \
     {mount_base_path_data} \
     --tmp-path={mount_base_path_tmp} \
-    --config-file={credentials_path} \
+    --config-file={fuse_credentials_path} \
     --pre-mount-validate=true \
     -o {",".join(options)} \
     -o attr_timeout=240 \
@@ -78,9 +78,9 @@ blobfuse \
     -o negative_timeout=120
 '''
 
-    def _unmount_cloudfuse(self, mount_base_path_data: str) -> str:
+    def _unmount_cloudfuse(self, mount_base_path: str) -> str:
         return f'''
-fusermount -u {mount_base_path_data}  # blobfuse cleans up the temporary directory when unmounting
+fusermount -u {mount_base_path}  # blobfuse cleans up the temporary directory when unmounting
 '''
 
     def __str__(self):

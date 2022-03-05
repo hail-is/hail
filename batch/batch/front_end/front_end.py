@@ -1559,7 +1559,7 @@ async def ui_get_job(request, userdata, batch_id):
             job_specification['image'] = process_specification['image'] if process_type == 'docker' else '[jvm]'
             job_specification['command'] = process_specification['command']
         job_specification = dictfix.dictfix(
-            job_specification, dictfix.NoneOr({'image': str, 'command': list, 'resources': dict(), 'env': list})
+            job_specification, dictfix.NoneOr({'image': str, 'command': list, 'resources': {}, 'env': list})
         )
 
     resources = job_specification['resources']
@@ -1567,7 +1567,7 @@ async def ui_get_job(request, userdata, batch_id):
         resources['actual_memory'] = humanize.naturalsize(resources['memory_bytes'], binary=True)
         del resources['memory_bytes']
     if 'storage_gib' in resources:
-        resources['actual_storage'] = humanize.naturalsize(resources['storage_gib'] * 1024 ** 3, binary=True)
+        resources['actual_storage'] = humanize.naturalsize(resources['storage_gib'] * 1024**3, binary=True)
         del resources['storage_gib']
     if 'cores_mcpu' in resources:
         resources['actual_cpu'] = resources['cores_mcpu'] / 1000

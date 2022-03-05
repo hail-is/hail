@@ -356,14 +356,16 @@ class AzureAsyncFS(AsyncFS):
         except azure.core.exceptions.ResourceNotFoundError as e:
             raise FileNotFoundError(url) from e
 
-    async def _listfiles_recursive(self, client: ContainerClient, name: str) -> AsyncIterator[FileListEntry]:
+    @staticmethod
+    async def _listfiles_recursive(client: ContainerClient, name: str) -> AsyncIterator[FileListEntry]:
         assert not name or name.endswith('/')
         async for blob_props in client.list_blobs(name_starts_with=name,
                                                   include=['metadata']):
             url = f'hail-az://{client.account_name}/{client.container_name}/{blob_props.name}'
             yield AzureFileListEntry(url, blob_props)
 
-    async def _listfiles_flat(self, client: ContainerClient, name: str) -> AsyncIterator[FileListEntry]:
+    @staticmethod
+    async def _listfiles_flat(client: ContainerClient, name: str) -> AsyncIterator[FileListEntry]:
         assert not name or name.endswith('/')
         async for item in client.walk_blobs(name_starts_with=name,
                                             include=['metadata'],
@@ -387,9 +389,9 @@ class AzureAsyncFS(AsyncFS):
 
         client = self.get_container_client(url)
         if recursive:
-            it = self._listfiles_recursive(client, name)
+            it = AzureAsyncFS._listfiles_recursive(client, name)
         else:
-            it = self._listfiles_flat(client, name)
+            it = AzureAsyncFS._listfiles_flat(client, name)
 
         it = it.__aiter__()
         try:

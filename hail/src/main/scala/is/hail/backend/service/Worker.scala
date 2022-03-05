@@ -54,16 +54,17 @@ object Worker {
   def main(argv: Array[String]): Unit = {
     val theHailClassLoader = new HailClassLoader(getClass().getClassLoader())
 
-    if (argv.length != 6) {
-      throw new IllegalArgumentException(s"expected five arguments, not: ${ argv.length }")
+    if (argv.length != 7) {
+      throw new IllegalArgumentException(s"expected seven arguments, not: ${ argv.length }")
     }
     val scratchDir = argv(0)
-    val kind = argv(1)
+    val logFile = argv(1)
+    val kind = argv(2)
     assert(kind == Main.WORKER)
-    val revision = argv(2)
-    val jarGCSPath = argv(3)
-    val root = argv(4)
-    val i = argv(5).toInt
+    val revision = argv(3)
+    val jarGCSPath = argv(4)
+    val root = argv(5)
+    val i = argv(6).toInt
     val timer = new WorkerTimer()
 
     val deployConfig = DeployConfig.fromConfigFile(

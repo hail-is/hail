@@ -217,7 +217,7 @@ async def delete_batch(request):
 # deprecated
 async def get_gsa_key_1(instance):
     log.info(f'returning gsa-key to activating instance {instance}')
-    with open('/gsa-key/key.json', 'r') as f:
+    with open('/gsa-key/key.json', 'r', encoding='utf-8') as f:
         key = json.loads(f.read())
     return web.json_response({'key': key})
 
@@ -225,7 +225,7 @@ async def get_gsa_key_1(instance):
 async def get_credentials_1(instance):
     log.info(f'returning {instance.inst_coll.cloud} credentials to activating instance {instance}')
     credentials_file = '/gsa-key/key.json'
-    with open(credentials_file, 'r') as f:
+    with open(credentials_file, 'r', encoding='utf-8') as f:
         key = json.loads(f.read())
     return web.json_response({'key': key})
 
