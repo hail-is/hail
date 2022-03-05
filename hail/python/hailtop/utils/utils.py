@@ -451,7 +451,10 @@ class OnlineBoundedGather2:
             raise self._exception
 
 
-async def bounded_gather2_return_exceptions(sema: asyncio.Semaphore, *pfs):
+async def bounded_gather2_return_exceptions(
+        sema: asyncio.Semaphore,
+        *pfs: Callable[[], Awaitable[T]]
+) -> List[T]:
     '''Run the partial functions `pfs` as tasks with parallelism bounded
     by `sema`, which should be `asyncio.Semaphore` whose initial value
     is the desired level of parallelism.
@@ -474,7 +477,11 @@ async def bounded_gather2_return_exceptions(sema: asyncio.Semaphore, *pfs):
         return await asyncio.gather(*tasks)
 
 
-async def bounded_gather2_raise_exceptions(sema: asyncio.Semaphore, *pfs, cancel_on_error: bool = False):
+async def bounded_gather2_raise_exceptions(
+        sema: asyncio.Semaphore,
+        *pfs: Callable[[], Awaitable[T]],
+        cancel_on_error: bool = False
+) -> List[T]:
     '''Run the partial functions `pfs` as tasks with parallelism bounded
     by `sema`, which should be `asyncio.Semaphore` whose initial value
     is the level of parallelism.
@@ -513,7 +520,12 @@ async def bounded_gather2_raise_exceptions(sema: asyncio.Semaphore, *pfs, cancel
                     await asyncio.wait(tasks)
 
 
-async def bounded_gather2(sema: asyncio.Semaphore, *pfs, return_exceptions: bool = False, cancel_on_error: bool = False):
+async def bounded_gather2(
+        sema: asyncio.Semaphore,
+        *pfs: Callable[[], Awaitable[T]],
+        return_exceptions: bool = False,
+        cancel_on_error: bool = False
+) -> List[T]:
     if return_exceptions:
         return await bounded_gather2_return_exceptions(sema, *pfs)
     return await bounded_gather2_raise_exceptions(sema, *pfs, cancel_on_error=cancel_on_error)
