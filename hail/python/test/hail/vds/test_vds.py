@@ -300,9 +300,69 @@ def test_impute_sex_chromosome_ploidy():
     ]
 
 
-@skip_when_service_backend(message='uses set flags')
+def test_filter_intervals_segment():
+    vds = hl.vds.read_vds(os.path.join(resource('vds'), '1kg_2samples_starts.vds'))
+
+    intervals = [hl.parse_locus_interval('chr22:10514784-10517000', reference_genome='GRCh38')]
+    filt = hl.vds.filter_intervals(vds, intervals, split_reference_blocks=True)
+
+    assert hl.vds.to_dense_mt(filt)._same(
+        hl.filter_intervals(hl.vds.to_dense_mt(vds), intervals))
+
+    ref = filt.reference_data
+    var = filt.variant_data
+    assert ref.aggregate_rows(hl.agg.all(intervals[0].contains(ref.locus)))
+    assert var.aggregate_rows(hl.agg.all(intervals[0].contains(var.locus)))
+
+
+def test_filter_intervals_segment_table():
+    vds = hl.vds.read_vds(os.path.join(resource('vds'), '1kg_2samples_starts.vds'))
+
+    intervals = [hl.parse_locus_interval('chr22:10514784-10517000', reference_genome='GRCh38')]
+    intervals_table = hl.Table.parallelize(
+        hl.array(intervals).map(lambda x: hl.struct(interval=x)),
+        key='interval')
+    filt = hl.vds.filter_intervals(vds, intervals_table, split_reference_blocks=True)
+
+    assert hl.vds.to_dense_mt(filt)._same(
+        hl.filter_intervals(hl.vds.to_dense_mt(vds), intervals))
+
+    ref = filt.reference_data
+    var = filt.variant_data
+    assert ref.aggregate_rows(hl.agg.all(intervals[0].contains(ref.locus)))
+    assert var.aggregate_rows(hl.agg.all(intervals[0].contains(var.locus)))
+
+
+def test_filter_intervals_default():
+    vds = hl.vds.read_vds(os.path.join(resource('vds'), '1kg_2samples_starts.vds'))
+
+    intervals = [hl.parse_locus_interval('chr22:10514784-10517000', reference_genome='GRCh38')]
+    filt = hl.vds.filter_intervals(vds, intervals)
+
+    assert hl.vds.to_dense_mt(filt)._same(
+        hl.filter_intervals(hl.vds.to_dense_mt(vds), intervals))
+
+    var = filt.variant_data
+    assert var.aggregate_rows(hl.agg.all(intervals[0].contains(var.locus)))
+
+
+def test_filter_intervals_default_table():
+    vds = hl.vds.read_vds(os.path.join(resource('vds'), '1kg_2samples_starts.vds'))
+
+    intervals = [hl.parse_locus_interval('chr22:10514784-10517000', reference_genome='GRCh38')]
+    intervals_table = hl.Table.parallelize(
+        hl.array(intervals).map(lambda x: hl.struct(interval=x)),
+        key='interval')
+    filt = hl.vds.filter_intervals(vds, intervals_table)
+
+    assert hl.vds.to_dense_mt(filt)._same(
+        hl.filter_intervals(hl.vds.to_dense_mt(vds), intervals))
+
+    var = filt.variant_data
+    assert var.aggregate_rows(hl.agg.all(intervals[0].contains(var.locus)))
+
+
 def test_filter_chromosomes():
-    hl._set_flags(no_whole_stage_codegen='1')
     vds = hl.vds.read_vds(os.path.join(resource('vds'), '1kg_2samples_starts.vds'))
 
 
