@@ -9,7 +9,7 @@ aiorwlock==1.0.0
 async-timeout==4.0.2
 asyncinit==0.2.4
 azure-identity==1.8.0
-azure-storage-blob==12.8.1
+azure-storage-blob==12.9.0
 Authlib==0.11
 black==22.1.0
 boto3==1.21.13
