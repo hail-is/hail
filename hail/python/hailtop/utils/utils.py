@@ -987,12 +987,12 @@ STDERR:
 
 class Timings:
     def __init__(self):
-        self.timings: Dict[str, Dict[str, int]] = dict()
+        self.timings: Dict[str, Dict[str, int]] = {}
 
     @contextlib.contextmanager
     def step(self, name: str):
         assert name not in self.timings
-        d: Dict[str, int] = dict()
+        d: Dict[str, int] = {}
         self.timings[name] = d
         d['start_time'] = time_msecs()
         yield
