@@ -471,13 +471,13 @@ class Container:
 
         self.overlay_mounted = False
 
-        self.fs = LocalAsyncFS(self.worker.pool)
-
         self.container_name = f'batch-{self.job.batch_id}-job-{self.job.job_id}-{self.name}'
 
         self.netns: Optional[NetworkNamespace] = None
         # regarding no-member: https://github.com/PyCQA/pylint/issues/4223
         self.process: Optional[asyncio.subprocess.Process] = None  # pylint: disable=no-member
+
+        assert self.worker.fs
 
     async def run(self):
         try:
@@ -940,10 +940,6 @@ class Container:
             network_allocator.free(self.netns)
             self.netns = None
 
-        if self.fs is not None:
-            await self.fs.close()
-            self.fs = None
-
     async def delete(self):
         log.info(f'deleting {self}')
         self.deleted_event.set()
@@ -1010,7 +1006,7 @@ class Container:
 
     async def get_log(self):
         if os.path.exists(self.log_path):
-            stream = await self.fs.open(self.log_path)
+            stream = await self.worker.fs.open(self.log_path)
             async with stream:
                 return (await stream.read()).decode()
         return ''
