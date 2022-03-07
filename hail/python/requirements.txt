@@ -13,7 +13,7 @@ dill>=0.3.1.1,<0.4
 gcsfs==2021.*
 google-auth==1.27.0
 google-cloud-storage==1.25.*
-humanize==1.0.0
+humanize==4.0.0
 hurry.filesize==0.9
 janus>=0.6,<1.1
 nest_asyncio==1.5.4
