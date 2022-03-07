@@ -442,9 +442,7 @@ async def schedule_job(app, record, instance):
 
         log.info(f'schedule job {id} on {instance}: made job config')
 
-        # TODO: check if the batch driver web.Application object's WebSocket connections dictionary has an entry
-        #  for this instance. if so, try to send a message through the WebSocket connection
-        ws_connections = app['open_websocket_connections_dict']
+        ws_connections = app['open_ws_connections_dict']
         if instance.name in ws_connections:
             try:
                 ws_json = {'message': 'create_job', 'body': body}

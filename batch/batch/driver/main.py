@@ -68,9 +68,6 @@ routes = web.RouteTableDef()
 
 deploy_config = get_deploy_config()
 
-# dictionary to store open websocket connections with each worker
-ws_connections: Dict[str, web.WebSocketResponse] = {}
-
 
 def ignore_failed_to_collect_and_upload_profile(record):
     if 'Failed to collect and upload profile: [Errno 32] Broken pipe' in record.msg:

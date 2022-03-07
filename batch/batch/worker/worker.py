@@ -2386,27 +2386,32 @@ class Worker:
             log.info('websocket closed')
 
     async def open_websocket_connection(self):
+        log.info(f'{NAME}: opening websocket connection')
         self.ws_connection_manager = self.client_session.ws_connect(
             deploy_config.url('batch-driver', '/api/v1alpha/worker_wss'), headers=self.headers
         )
         aenter = type(self.ws_connection_manager).__aenter__
         self.ws_connection = await aenter(self.ws_connection_manager)
+        log.info(f'{NAME}: opened websocket connection')
 
     async def close_websocket_connection(self):
+        log.info(f'{NAME}: closing websocket connection')
         if self.ws_connection_manager is not None and self.ws_connection is not None:
             aexit = type(self.ws_connection_manager).__aexit__
             await aexit(self.ws_connection_manager, None, None, None)
+        log.info(f'{NAME}: closed websocket connection')
 
-    # TODO: this is a coroutine function that returns a coroutine which handles receiving and responding to
-    #  Websocket messages
     async def handle_websocket_messages(self):
         while True:
+            log.info(f'{NAME}: waiting for a message through websocket connection')
+
             msg = await self.ws_connection.receive()
 
             if msg.type == aiohttp.WSMsgType.TEXT:
                 # parse message as JSON
-                msg_json = json.loads(msg.json())
+                msg_json = msg.json()
                 message = msg_json['message']
+                log.info(f'{NAME}: received json {msg_json}')
 
                 if message == 'close cmd':
                     await self.ws_connection.close()
