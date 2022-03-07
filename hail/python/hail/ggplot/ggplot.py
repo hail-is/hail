@@ -1,4 +1,4 @@
-import plotly.graph_objects as go
+import plotly
 from plotly.subplots import make_subplots
 
 from pprint import pprint
@@ -13,6 +13,7 @@ from .scale import Scale, ScaleContinuous, ScaleDiscrete, scale_x_continuous, sc
     scale_x_discrete, scale_y_discrete, scale_color_discrete, scale_color_continuous, scale_fill_discrete, \
     scale_fill_continuous
 from .aes import Aesthetic, aes
+from .facets import Faceter
 from .utils import is_continuous_type, is_genomic_type, check_scale_continuity
 
 
@@ -26,7 +27,7 @@ class GGPlot:
     .. automethod:: write_image
     """
 
-    def __init__(self, ht, aes, geoms=[], labels=Labels(), coord_cartesian=None, scales=None):
+    def __init__(self, ht, aes, geoms=[], labels=Labels(), coord_cartesian=None, scales=None, facet=None):
         if scales is None:
             scales = {}
 
@@ -36,6 +37,7 @@ class GGPlot:
         self.labels = labels
         self.coord_cartesian = coord_cartesian
         self.scales = scales
+        self.facet = facet
 
         self.add_default_scales(aes)
 
@@ -54,6 +56,8 @@ class GGPlot:
             copied.scales[other.aesthetic_name] = other
         elif isinstance(other, Aesthetic):
             copied.aes = copied.aes.merge(other)
+        elif isinstance(other, Faceter):
+            copied.facet = other
         else:
             raise ValueError("Not implemented")
 
@@ -95,7 +99,7 @@ class GGPlot:
                         self.scales[aesthetic_str] = ScaleDiscrete(aesthetic_str)
 
     def copy(self):
-        return GGPlot(self.ht, self.aes, self.geoms[:], self.labels, self.coord_cartesian, self.scales)
+        return GGPlot(self.ht, self.aes, self.geoms[:], self.labels, self.coord_cartesian, self.scales, self.facet)
 
     def verify_scales(self):
         for geom_idx, geom in enumerate(self.geoms):
@@ -115,7 +119,10 @@ class GGPlot:
             return f"geom{geom_idx}"
 
         def select_table():
-            fields_to_select = {"facet": self.ht.facet, "figure_mapping": hl.struct(**self.aes)}
+            fields_to_select = {"figure_mapping": hl.struct(**self.aes)}
+            if self.facet is not None:
+                fields_to_select["facet"] = self.facet.get_expr_to_group_by()
+
             for geom_idx, geom in enumerate(self.geoms):
                 geom_label = make_geom_label(geom_idx)
                 fields_to_select[geom_label] = hl.struct(**geom.aes.properties)
@@ -150,41 +157,50 @@ class GGPlot:
         def get_aggregation_result(selected, mapping_per_geom, precomputed):
             aggregators = {}
             labels_to_stats = {}
+            use_faceting = self.facet is not None
             for geom_idx, combined_mapping in enumerate(mapping_per_geom):
                 stat = self.geoms[geom_idx].get_stat()
                 geom_label = make_geom_label(geom_idx)
-                agg = hl.agg.group_by(selected.facet, stat.make_agg(combined_mapping, precomputed[geom_label]))
+                if use_faceting:
+                    agg = hl.agg.group_by(selected.facet, stat.make_agg(combined_mapping, precomputed[geom_label]))
+                else:
+                    agg = stat.make_agg(combined_mapping, precomputed[geom_label])
                 aggregators[geom_label] = agg
                 labels_to_stats[geom_label] = stat
 
-            return labels_to_stats, selected.aggregate(hl.struct(**aggregators))
+            all_agg_results = selected.aggregate(hl.struct(**aggregators))
+
+            if use_faceting:
+                facet_list = list(set(itertools.chain(*[list(x.keys()) for x in all_agg_results.values()])))
+                facet_to_idx = {facet: idx for idx, facet in enumerate(facet_list, start=1)}
+                facet_idx_to_agg_result = {geom_label: {facet_to_idx[facet]: agg_result for facet, agg_result in facet_to_agg_result.items()} for geom_label, facet_to_agg_result in all_agg_results.items()}
+                num_facets = len(facet_list)
+            else:
+                facet_idx_to_agg_result = {geom_label: {1: agg_result} for geom_label, agg_result in all_agg_results.items()}
+                num_facets = 1
+
+            return labels_to_stats, facet_idx_to_agg_result, num_facets
 
         self.verify_scales()
         selected = select_table()
         mapping_per_geom, precomputed = collect_mappings_and_precomputed(selected)
-        labels_to_stats, aggregated = get_aggregation_result(selected, mapping_per_geom, precomputed)
+        labels_to_stats, aggregated, num_facets = get_aggregation_result(selected, mapping_per_geom, precomputed)
 
-        geoms_and_grouped_dfs_by_facet = []
+        geoms_and_grouped_dfs_by_facet_idx = []
         for geom, (geom_label, agg_result_by_facet) in zip(self.geoms, aggregated.items()):
-            dfs_by_facet = {facet: labels_to_stats[geom_label].listify(agg_result) for facet, agg_result in agg_result_by_facet.items()}
-            geoms_and_grouped_dfs_by_facet.append((geom, geom_label, dfs_by_facet))
-
+            dfs_by_facet_idx = {facet_idx: labels_to_stats[geom_label].listify(agg_result) for facet_idx, agg_result in agg_result_by_facet.items()}
+            geoms_and_grouped_dfs_by_facet_idx.append((geom, geom_label, dfs_by_facet_idx))
 
         # Create scaling functions based on all the data:
         transformers = {}
         for scale in self.scales.values():
-            all_dfs = list(itertools.chain(*[facet_to_dfs_dict.values() for _, _, facet_to_dfs_dict in geoms_and_grouped_dfs_by_facet]))
+            all_dfs = list(itertools.chain(*[facet_to_dfs_dict.values() for _, _, facet_to_dfs_dict in geoms_and_grouped_dfs_by_facet_idx]))
             transformers[scale.aesthetic_name] = scale.create_local_transformer(all_dfs)
 
-        facet_list = list(set(itertools.chain(*[facet_to_dfs_dict.keys() for _, _, facet_to_dfs_dict in geoms_and_grouped_dfs_by_facet])))
-        facet_to_idx = {facet: idx for idx, facet in enumerate(facet_list, start=1)}
+        fig = make_subplots(rows=1, cols=num_facets, shared_yaxes=True)
 
-        num_plots = len(facet_to_idx)
-        fig = make_subplots(rows=1, cols=num_plots, shared_yaxes=True)
-
-        for geom, geom_label, facet_to_grouped_dfs in geoms_and_grouped_dfs_by_facet:
-            for facet, grouped_dfs in facet_to_grouped_dfs.items():
-                facet_idx = facet_to_idx[facet]
+        for geom, geom_label, facet_to_grouped_dfs in geoms_and_grouped_dfs_by_facet_idx:
+            for facet_idx, grouped_dfs in facet_to_grouped_dfs.items():
                 scaled_grouped_dfs = []
                 for df in grouped_dfs:
                     scales_to_consider = list(df.columns) + list(df.attrs)

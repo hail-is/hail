@@ -1,4 +1,6 @@
-from geoms import FigureAttribute
+import abc
+
+from .geoms import FigureAttribute
 
 import hail as hl
 
@@ -11,10 +13,17 @@ def facet_grid(*, cols):
     return FacetGrid(cols=cols)
 
 
-class FacetGrid(FigureAttribute):
+class Faceter(FigureAttribute):
+
+    @abc.abstractmethod
+    def get_expr_to_group_by(self):
+        pass
+
+
+class FacetGrid(Faceter):
 
     def __init__(self, cols):
         self.cols = cols
 
-    def get_faceter(self):
-        return lambda x: hl.agg.group_by(self.cols, x)
+    def get_expr_to_group_by(self):
+        return self.cols
