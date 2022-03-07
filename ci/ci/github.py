@@ -37,7 +37,7 @@ if os.path.exists("/zulip-config/.zuliprc"):
 
 TRACKED_PRS = pc.Gauge('ci_tracked_prs', 'PRs currently being monitored by CI', ['build_state', 'review_state'])
 
-MAX_CONCURRENT_PR_BATCHES = 2
+MAX_CONCURRENT_PR_BATCHES = 3
 
 
 class GithubStatus(Enum):
