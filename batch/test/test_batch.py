@@ -35,7 +35,7 @@ def client():
 
 def test_job(client: BatchClient):
     builder = client.create_batch()
-    j = builder.create_job(DOCKER_ROOT_IMAGE, ['echo', 'test', '&&', 'sleep', '60'])
+    j = builder.create_job(DOCKER_ROOT_IMAGE, ['echo', 'test'])
     b = builder.submit()
 
     status = j.wait()
@@ -49,7 +49,7 @@ def test_job(client: BatchClient):
 
 def test_job_running_logs(client: BatchClient):
     builder = client.create_batch()
-    j = builder.create_job(DOCKER_ROOT_IMAGE, ['echo', 'test'])
+    j = builder.create_job(DOCKER_ROOT_IMAGE, ['bash', '-c', 'echo test && sleep 300'])
     b = builder.submit()
 
     delay = 1
