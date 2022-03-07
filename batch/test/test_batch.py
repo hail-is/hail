@@ -37,6 +37,7 @@ def test_job(client: BatchClient):
     builder = client.create_batch()
     j = builder.create_job(DOCKER_ROOT_IMAGE, ['echo', 'test'])
     b = builder.submit()
+
     status = j.wait()
     assert 'attributes' not in status, str((status, b.debug_info()))
     assert status['state'] == 'Success', str((status, b.debug_info()))
@@ -44,6 +45,25 @@ def test_job(client: BatchClient):
     assert j._get_exit_code(status, 'main') == 0, str((status, b.debug_info()))
     job_log = j.log()
     assert job_log['main'] == 'test\n', str((job_log, b.debug_info()))
+
+
+def test_job_running_logs(client: BatchClient):
+    builder = client.create_batch()
+    j = builder.create_job(DOCKER_ROOT_IMAGE, ['bash', '-c', 'echo test && sleep 300'])
+    b = builder.submit()
+
+    delay = 1
+    while True:
+        status = j.status()
+        if status['state'] == 'Running':
+            log = j.log()
+            if log is not None:
+                assert log['main'] == 'test\n', str((log, b.debug_info()))
+                break
+        delay = sync_sleep_and_backoff(delay)
+
+    b.cancel()
+    b.wait()
 
 
 def test_exit_code_duration(client: BatchClient):
