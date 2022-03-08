@@ -19,7 +19,7 @@ case class LoweringPipeline(lowerings: LoweringPass*) {
           throw e
       }
       try {
-        TypeCheck(x)
+        TypeCheck(ctx, x)
       } catch {
         case e: Throwable =>
           fatal(s"error after applying ${ l.context }", e)

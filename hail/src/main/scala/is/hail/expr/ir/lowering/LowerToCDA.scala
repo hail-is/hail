@@ -38,7 +38,7 @@ object LowerToCDA {
       val loweredValue = substLets(lower(value, typesToLower, ctx, analyses, relationalLetsAbove), relationalLetsAbove)
 
       if (!Compilable(loweredValue))
-        throw new LowererUnsupportedOperation(s"lowered to uncompilable IR: ${ Pretty(ir) }")
+        throw new LowererUnsupportedOperation(s"lowered to uncompilable IR: ${ Pretty(ctx, ir) }")
 
       val (Some(PTypeReferenceSingleCodeType(pt: PTuple)), f) = ctx.timer.time("Compile") {
         Compile[AsmFunction1RegionLong](ctx,
@@ -72,10 +72,10 @@ object LowerToCDA {
       LowerBlockMatrixIR(ir, typesToLower, ctx, analyses, relationalLetsAbove)
 
     case node if node.children.exists(_.isInstanceOf[MatrixIR]) =>
-      throw new LowererUnsupportedOperation(s"MatrixIR nodes must be lowered to TableIR nodes separately: \n${ Pretty(node) }")
+      throw new LowererUnsupportedOperation(s"MatrixIR nodes must be lowered to TableIR nodes separately: \n${ Pretty(ctx, node) }")
 
     case node =>
-      throw new LowererUnsupportedOperation(s"Cannot lower: \n${ Pretty(node) }")
+      throw new LowererUnsupportedOperation(s"Cannot lower: \n${ Pretty(ctx, node) }")
   }
 }
 
