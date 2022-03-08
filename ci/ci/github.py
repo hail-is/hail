@@ -217,7 +217,7 @@ class PR(Code):
 
         self.sha: Optional[str] = None
         self.batch: Union[Batch, MergeFailureBatch, None] = None
-        self.source_sha_failed: Optional[str] = None
+        self.source_sha_failed: Optional[bool] = None
 
         # 'error', 'success', 'failure', None
         self.build_state: Optional[str] = None
@@ -623,7 +623,7 @@ class WatchedBranch(Code):
         self.deployable: bool = deployable
         self.mergeable: bool = mergeable
 
-        self.prs: Optional[Dict[str, PR]] = None
+        self.prs: Dict[str, PR] = {}
         self.sha: Optional[str] = None
 
         self.deploy_batch: Optional[Batch] = None
@@ -635,7 +635,7 @@ class WatchedBranch(Code):
         self.batch_changed: bool = True
         self.state_changed: bool = True
 
-        self.n_running_batches: Optional[int] = None
+        self.n_running_batches: int = 0
 
     @property
     def deploy_state(self):
@@ -731,16 +731,15 @@ class WatchedBranch(Code):
         new_prs: Dict[str, PR] = {}
         async for gh_json_pr in gh.getiter(f'/repos/{repo_ss}/pulls?state=open&base={self.branch.name}'):
             number = gh_json_pr['number']
-            if self.prs is not None and number in self.prs:
+            if number in self.prs:
                 pr = self.prs[number]
                 pr.update_from_gh_json(gh_json_pr)
             else:
                 pr = PR.from_gh_json(gh_json_pr, self)
             new_prs[number] = pr
-        if self.prs is not None:
-            for number, pr in self.prs.items():
-                if number not in new_prs:
-                    pr.decrement_pr_metric()
+        for number, pr in self.prs.items():
+            if number not in new_prs:
+                pr.decrement_pr_metric()
         self.prs = new_prs
 
         for pr in new_prs.values():
@@ -846,7 +845,7 @@ url: {url}
         running_batches = batch_client.list_batches(
             f'!complete ' f'!open ' f'test=1 ' f'target_branch={self.branch.short_str()} ' f'user:ci'
         )
-        seen_batch_ids = set(pr.batch.id for pr in self.prs.values() if pr.batch and hasattr(pr.batch, 'id'))
+        seen_batch_ids = set(pr.batch.id for pr in self.prs.values() if pr.batch and isinstance(pr.batch, Batch))
         async for batch in running_batches:
             if batch.id not in seen_batch_ids:
                 attrs = batch.attributes
