@@ -2423,6 +2423,12 @@ class Worker:
             elif msg.type == aiohttp.WSMsgType.ERROR:
                 log.exception(f'{NAME}: websocket closed due to error message')
                 break
+            elif msg.type == aiohttp.WSMsgType.CLOSED:
+                log.exception(f'{NAME}: websocket closed unexpectedly')
+                break
+            else:
+                log.exception(f'{NAME}: got an unknown MsgType and exiting\nMsgType: {msg.type}\nmsg: {msg}')
+                break
 
     async def deactivate(self):
         # Don't retry.  If it doesn't go through, the driver
