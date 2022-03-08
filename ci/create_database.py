@@ -6,7 +6,6 @@ import secrets
 import string
 import sys
 from shlex import quote as shq
-from typing import Optional
 
 from gear import Database
 from hailtop.auth.sql_config import SQLConfig, create_secret_data_from_config
