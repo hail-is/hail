@@ -51,4 +51,6 @@ abstract class Backend {
     relationalLetsAbove: Map[String, IR],
     rowTypeRequiredness: RStruct
   ): TableStage
+
+  def g
 }

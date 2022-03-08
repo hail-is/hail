@@ -1,5 +1,6 @@
 package is.hail.expr.ir
 
+import is.hail.backend.ExecuteContext
 import is.hail.annotations._
 import is.hail.types._
 import is.hail.types.virtual._
@@ -76,7 +77,7 @@ object PruneDeadFields {
     }
   }
 
-  def apply(ir: BaseIR): BaseIR = {
+  def apply(ctx: ExecuteContext, ir: BaseIR): BaseIR = {
     try {
       val irCopy = ir.deepCopy()
       val ms = ComputeMutableState(Memo.empty[BaseType], mutable.HashMap.empty)
@@ -95,7 +96,7 @@ object PruneDeadFields {
           rebuildIR(vir, BindingEnv(Env.empty, Some(Env.empty), Some(Env.empty)), ms.rebuildState)
       }
     } catch {
-      case e: Throwable => fatal(s"error trying to rebuild IR:\n${ Pretty(ir, elideLiterals = true) }", e)
+      case e: Throwable => fatal(s"error trying to rebuild IR:\n${ Pretty(ctx, ir, elideLiterals = true) }", e)
     }
   }
 
@@ -842,7 +843,13 @@ object PruneDeadFields {
     }
   }
 
-  def memoizeAndGetDep(ir: IR, requestedType: Type, base: TableType, memo: ComputeMutableState): TableType = {
+  def memoizeAndGetDep(
+    ctx: ExecuteContext,
+    ir: IR,
+    requestedType: Type,
+    base: TableType,
+    memo: ComputeMutableState
+  ): TableType = {
     val depEnv = memoizeValueIR(ir, requestedType, memo)
     val depEnvUnified = concatEnvs(FastIndexedSeq(depEnv.eval) ++ FastIndexedSeq(depEnv.agg, depEnv.scan).flatten)
 
@@ -851,7 +858,7 @@ object PruneDeadFields {
       if (!expectedBindingSet.contains(k))
         throw new RuntimeException(s"found unexpected free variable in pruning: $k\n" +
           s"  ${ depEnv.pretty(_.result().mkString(",")) }\n" +
-          s"  ${ Pretty(ir) }")
+          s"  ${ Pretty(ctx, ir) }")
     }
 
     val min = minimal(base)
@@ -864,14 +871,20 @@ object PruneDeadFields {
       globalType = globalType.asInstanceOf[TStruct])
   }
 
-  def memoizeAndGetDep(ir: IR, requestedType: Type, base: MatrixType, memo: ComputeMutableState): MatrixType = {
+  def memoizeAndGetDep(
+    ctx: ExecuteContext,
+    ir: IR,
+    requestedType: Type,
+    base: MatrixType,
+    memo: ComputeMutableState
+  ): MatrixType = {
     val depEnv = memoizeValueIR(ir, requestedType, memo)
     val depEnvUnified = concatEnvs(FastIndexedSeq(depEnv.eval) ++ FastIndexedSeq(depEnv.agg, depEnv.scan).flatten)
 
     val expectedBindingSet = Set("va", "sa", "g", "global", "n_rows", "n_cols")
     depEnvUnified.m.keys.foreach { k =>
       if (!expectedBindingSet.contains(k))
-        throw new RuntimeException(s"found unexpected free variable in pruning: $k\n  ${ Pretty(ir) }")
+        throw new RuntimeException(s"found unexpected free variable in pruning: $k\n  ${ Pretty(ctx, ir) }")
     }
 
     val min = minimal(base)
@@ -889,7 +902,7 @@ object PruneDeadFields {
       .asInstanceOf[TStruct]
 
     if (rowType.hasField(MatrixType.entriesIdentifier))
-      throw new RuntimeException(s"prune: found dependence on entry array in row binding:\n${ Pretty(ir) }")
+      throw new RuntimeException(s"prune: found dependence on entry array in row binding:\n${ Pretty(ctx, ir) }")
 
     MatrixType(
       rowKey = FastIndexedSeq(),
@@ -2099,7 +2112,7 @@ object PruneDeadFields {
     }
   }
 
-  def upcast(ir: IR, rType: Type): IR = {
+  def upcast(ctx: ExecuteContext, ir: IR, rType: Type): IR = {
     if (ir.typ == rType)
       ir
     else {
@@ -2141,7 +2154,7 @@ object PruneDeadFields {
         case _ => ir
       }
 
-      assert(result.typ == rType, s"${ Pretty(result) }, ${ result.typ }, $rType")
+      assert(result.typ == rType, s"${ Pretty(ctx, result) }, ${ result.typ }, $rType")
       result
     }
   }

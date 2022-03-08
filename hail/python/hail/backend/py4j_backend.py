@@ -39,7 +39,7 @@ def handle_java_exception(f):
 
 
 class Py4JBackend(Backend):
-    _jhc: py4j.java_gateway.JavaPackage
+    _jbackend: py4j.java_gateway.JavaObject
 
     @abc.abstractmethod
     def __init__(self):
@@ -124,11 +124,11 @@ class Py4JBackend(Backend):
         raise NotImplementedError('no async available in Py4JBackend')
 
     def set_flags(self, **flags: Mapping[str, str]):
-        available = self._jhc.flags().available()
+        available = self._jbackend.availableFlags()
         invalid = []
         for flag, value in flags.items():
             if flag in available:
-                self._jhc.flags().set(flag, value)
+                self._jbackend.setFlag(flag, value)
             else:
                 invalid.append(flag)
         if len(invalid) != 0:
@@ -136,4 +136,4 @@ class Py4JBackend(Backend):
                              .format(', '.join(invalid), '\n    '.join(available)))
 
     def get_flags(self, *flags) -> Mapping[str, str]:
-        return {flag: self._jhc.flags().get(flag) for flag in flags}
+        return {flag: self._jbackend.getFlag(flag) for flag in flags}
