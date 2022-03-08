@@ -62,7 +62,7 @@ sortedcontainers==2.4.0
 tabulate==0.8.3
 tqdm==4.42.1
 twine>=1.11.0
-urllib3==1.26.5
+urllib3==1.26.8
 uvloop==0.16.0
 wheel>=0.31.0
 # yarl 1.6.0 broke query string parsing in aiohttp 3.6.[012] https://github.com/aio-libs/aiohttp/issues/4972#issuecomment-700290809
