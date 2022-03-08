@@ -116,7 +116,7 @@ def grouped(n: int, ls: List[Any]) -> Iterable[Any]:
         yield group
 
 
-def partition(k: int, ls: List[int]) -> Iterable[Any]:
+def partition(k: int, ls: List[int]) -> Iterable[List]:
     if k == 0:
         assert not ls
         return []
