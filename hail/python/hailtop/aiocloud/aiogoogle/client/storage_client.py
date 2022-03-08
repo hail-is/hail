@@ -259,7 +259,7 @@ class GetObjectStream(ReadableStream):
         assert not self._closed and n >= 0
         try:
             return await self._content.readexactly(n)
-        except asyncio.streams.IncompleteReadError as e:
+        except asyncio.exceptions.IncompleteReadError as e:
             raise UnexpectedEOFError() from e
 
     def headers(self) -> 'CIMultiDictProxy[str]':
