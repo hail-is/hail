@@ -138,7 +138,7 @@ def partition(k, ls):
     return generator()
 
 
-def unzip(lst: List[Any]) -> Tuple[Any]:
+def unzip(lst: Iterable[Tuple[Any, Any]]) -> Tuple[List(Any),List(Any)]:
     a = []
     b = []
     for x, y in lst:
