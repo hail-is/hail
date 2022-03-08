@@ -14,11 +14,10 @@ import gidgethub
 import prometheus_client as pc  # type: ignore
 import zulip
 
+from gear import Database
 from hailtop.batch_client.aioclient import Batch
 from hailtop.config import get_deploy_config
 from hailtop.utils import RETRY_FUNCTION_SCRIPT, check_shell, check_shell_output
-
-from gear import Database
 
 from .build import BuildConfiguration, Code
 from .constants import AUTHORIZED_USERS, COMPILER_TEAM, GITHUB_CLONE_URL, GITHUB_STATUS_CONTEXT, SERVICES_TEAM
