@@ -364,7 +364,7 @@ async def push_callback(event):
         branch_name = ref[len('refs/heads/') :]
         branch = FQBranch(Repo.from_gh_json(data['repository']), branch_name)
         for wb in watched_branches:
-            if wb.branch == branch or any(pr.source_branch == branch for pr in wb.prs.values()):
+            if wb.branch == branch:
                 await wb.notify_github_changed(event.app)
 
 
