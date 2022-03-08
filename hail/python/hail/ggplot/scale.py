@@ -400,10 +400,12 @@ def scale_color_discrete():
     :class:`.FigureAttribute`
         The scale to be applied.
     """
-    return ScaleColorDiscrete("color")
+    return scale_color_hue()
+
 
 def scale_color_hue():
     return ScaleColorHue("color")
+
 
 def scale_color_continuous():
     """The default continuous color scale. This linearly interpolates colors between the min and max observed values.
@@ -435,7 +437,7 @@ def scale_fill_discrete():
     :class:`.FigureAttribute`
         The scale to be applied.
     """
-    return ScaleColorDiscrete("fill")
+    return scale_fill_hue()
 
 
 def scale_fill_continuous():
@@ -458,6 +460,7 @@ def scale_fill_identity():
         The scale to be applied.
     """
     return ScaleColorDiscreteIdentity("fill")
+
 
 def scale_fill_hue():
     return ScaleColorHue("fill")
