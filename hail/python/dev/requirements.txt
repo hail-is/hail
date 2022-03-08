@@ -14,6 +14,10 @@ sphinx-autodoc-typehints==1.11.1
 nbsphinx==0.8.8
 sphinx_rtd_theme==1.0.0
 types-python-dateutil==2.8.9
+types-PyYAML==6.0.4
+types-requests==2.27.11
+types-setuptools==57.4.10
+types-tabulate==0.8.5
 jupyter==1.0.0
 # importlib-metadata<4: in dev/requirements.txt, jupyter depends on (an unpinned) ipykernel which needs importlib-metadata<4
 importlib-metadata<4
