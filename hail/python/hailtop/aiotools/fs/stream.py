@@ -181,7 +181,7 @@ class BlockingQueueReadableStream(io.RawIOBase, _Closable):
     def readable(self) -> bool:
         return True
 
-    def readinto(self, b: bytearray) -> int:
+    def readinto(self, b: bytearray) -> int:  # type: ignore
         if self._closed:
             raise ValueError('read on closed stream')
         if self._saw_eos:
