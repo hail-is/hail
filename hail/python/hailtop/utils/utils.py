@@ -118,7 +118,7 @@ def grouped(n: int, ls: List[T]) -> Iterable[List[T]]:
         yield group
 
 
-def partition(k, ls):
+def partition(k: int, ls: List[Any]) -> Iterable[List[Any]]:
     if k == 0:
         assert not ls
         return []
@@ -138,7 +138,7 @@ def partition(k, ls):
     return generator()
 
 
-def unzip(lst: Iterable[Tuple[Any, Any]]) -> Tuple[List(Any),List(Any)]:
+def unzip(lst: Iterable[Tuple[Any, Any]]) -> Tuple[List[Any],List[Any]]:
     a = []
     b = []
     for x, y in lst:
