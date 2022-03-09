@@ -1294,7 +1294,7 @@ class DockerJob(Job):
                     self.output_volume_mounts.append(volume_mount)
 
         # create containers
-        containers = {}
+        containers: Dict[str, Container] = {}
 
         if input_files:
             containers['input'] = copy_container(
