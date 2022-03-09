@@ -229,12 +229,14 @@ class TableStage(
       repartitionNoShuffle(partitioner.strictify)
   }
 
-  def repartitionNoShuffle(newPartitioner: RVDPartitioner): TableStage = {
+  def repartitionNoShuffle(newPartitioner: RVDPartitioner, allowDuplication: Boolean = false): TableStage = {
     if (newPartitioner == this.partitioner) {
       return this
     }
 
-    require(newPartitioner.satisfiesAllowedOverlap(newPartitioner.kType.size - 1))
+    if (!allowDuplication) {
+      require(newPartitioner.satisfiesAllowedOverlap(newPartitioner.kType.size - 1))
+    }
     require(newPartitioner.kType.isPrefixOf(kType))
 
     val boundType = RVDPartitioner.intervalIRRepresentation(newPartitioner.kType)
@@ -379,8 +381,8 @@ class TableStage(
     require(joinKey <= right.kType.size)
 
     val leftKeyToRightKeyMap = (kType.fieldNames.take(joinKey), right.kType.fieldNames.take(joinKey)).zipped.toMap
-    val newRightPartitioner = partitioner.coarsen(joinKey).strictify.rename(leftKeyToRightKeyMap)
-    val repartitionedRight = right.repartitionNoShuffle(newRightPartitioner)
+    val newRightPartitioner = partitioner.coarsen(joinKey).rename(leftKeyToRightKeyMap)
+    val repartitionedRight = right.repartitionNoShuffle(newRightPartitioner, allowDuplication = true)
     zipPartitions(repartitionedRight, globalJoiner, joiner)
   }
 
@@ -1342,14 +1344,12 @@ object LowerTableIR {
 
       case TableLeftJoinRightDistinct(left, right, root) =>
         val commonKeyLength = right.typ.keyType.size
-        val loweredLeft = lower(left).strictify()
-        val leftKeyToRightKeyMap = left.typ.keyType.fieldNames.zip(right.typ.keyType.fieldNames).toMap
-        val newRightPartitioner = loweredLeft.partitioner.coarsen(commonKeyLength)
-          .rename(leftKeyToRightKeyMap)
-        val loweredRight = lower(right).repartitionNoShuffle(newRightPartitioner)
+        val loweredLeft = lower(left)
+        val loweredRight = lower(right)
 
-        loweredLeft.zipPartitions(
+        loweredLeft.alignAndZipPartitions(
           loweredRight,
+          commonKeyLength,
           (lGlobals, _) => lGlobals,
           (leftPart, rightPart) => {
             val leftElementRef = Ref(genUID(), left.typ.rowType)
