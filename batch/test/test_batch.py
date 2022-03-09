@@ -57,7 +57,7 @@ def test_job_running_logs(client: BatchClient):
         status = j.status()
         if status['state'] == 'Running':
             log = j.log()
-            if log is not None:
+            if log is not None and log['main'] != '':
                 assert log['main'] == 'test\n', str((log, b.debug_info()))
                 break
         delay = sync_sleep_and_backoff(delay)
