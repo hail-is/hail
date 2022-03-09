@@ -59,6 +59,8 @@ class VCFTests(unittest.TestCase):
         for f in _FLOAT_INFO_FIELDS:
             self.assertEqual(mt['info'][f].dtype, hl.tfloat64)
         for f in _FLOAT_ARRAY_INFO_FIELDS:
+            self.assertEqual(mt['info'][f].dtype, hl.tarray(hl.tfloat64))
+
     def test_glob(self):
         full = hl.import_vcf(resource('sample.vcf'))
         parts = hl.import_vcf(resource('samplepart*.vcf'))
@@ -1990,19 +1992,6 @@ class ImportTableTests(unittest.TestCase):
         t2 = hl.import_table(f2, force_bgz=True, impute=True).key_by('idx')
         self.assertTrue(t._same(t2))
 
-    @fails_service_backend(reason='''intermittent worker failure:
->       assert tables.count() == 346
-
-Caused by: java.lang.ClassCastException: __C2829collect_distributed_array cannot be cast to is.hail.expr.ir.FunctionWithObjects
-	at is.hail.expr.ir.EmitClassBuilder$$anon$1.apply(EmitClassBuilder.scala:689)
-	at is.hail.expr.ir.EmitClassBuilder$$anon$1.apply(EmitClassBuilder.scala:670)
-	at is.hail.backend.BackendUtils.$anonfun$collectDArray$2(BackendUtils.scala:31)
-	at is.hail.utils.package$.using(package.scala:627)
-	at is.hail.annotations.RegionPool.scopedRegion(RegionPool.scala:144)
-	at is.hail.backend.BackendUtils.$anonfun$collectDArray$1(BackendUtils.scala:30)
-	at is.hail.backend.service.Worker$.main(Worker.scala:120)
-	at is.hail.backend.service.Worker.main(Worker.scala)
-	... 11 more''')
     def test_glob(self):
         tables = hl.import_table(resource('variantAnnotations.split.*.tsv'))
         assert tables.count() == 346
