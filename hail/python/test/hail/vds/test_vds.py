@@ -245,10 +245,6 @@ def test_interval_coverage():
         pytest.approx(obs.mean_dp, exp.mean_dp)
 
 
-@fails_service_backend(reason='''
-hangs >=9 minutes after "optimize optimize: darrayLowerer, initial IR ..."
-with no calls to parallelizeAndComputeWithIndex
-''')
 def test_impute_sex_chromosome_ploidy():
     x_par_end = 2699521
     y_par_end = 2649521

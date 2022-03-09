@@ -138,7 +138,6 @@ class Tests(unittest.TestCase):
         cols_conc.write('/tmp/foo.kt', overwrite=True)
         rows_conc.write('/tmp/foo.kt', overwrite=True)
 
-    @fails_service_backend(reason='very slow / nonterminating')
     def test_concordance_n_discordant(self):
         dataset = get_dataset()
         _, cols_conc, rows_conc = hl.concordance(dataset, dataset)
@@ -216,26 +215,12 @@ class Tests(unittest.TestCase):
                       n_discordant=0),
         ]
 
-    @fails_service_backend(reason='very slow / nonterminating')
     def test_concordance_no_values_doesnt_error(self):
         dataset = get_dataset().filter_rows(False)
         _, cols_conc, rows_conc = hl.concordance(dataset, dataset)
         cols_conc._force_count()
         rows_conc._force_count()
 
-    @fails_service_backend(reason='''intermittent worker failure:
->           self.assertEqual(hl.filter_alleles(ds, lambda a, i: True).count_rows(), ds.count_rows())
-
-Caused by: java.lang.ClassCastException: __C2860collect_distributed_array cannot be cast to is.hail.expr.ir.FunctionWithObjects
-	at is.hail.expr.ir.EmitClassBuilder$$anon$1.apply(EmitClassBuilder.scala:689)
-	at is.hail.expr.ir.EmitClassBuilder$$anon$1.apply(EmitClassBuilder.scala:670)
-	at is.hail.backend.BackendUtils.$anonfun$collectDArray$2(BackendUtils.scala:31)
-	at is.hail.utils.package$.using(package.scala:627)
-	at is.hail.annotations.RegionPool.scopedRegion(RegionPool.scala:144)
-	at is.hail.backend.BackendUtils.$anonfun$collectDArray$1(BackendUtils.scala:30)
-	at is.hail.backend.service.Worker$.main(Worker.scala:120)
-	at is.hail.backend.service.Worker.main(Worker.scala)
-	... 11 more''')
     def test_filter_alleles(self):
         # poor man's Gen
         paths = [resource('sample.vcf'),
@@ -247,7 +232,6 @@ Caused by: java.lang.ClassCastException: __C2860collect_distributed_array cannot
                 hl.filter_alleles(ds, lambda a, i: False).count_rows(), 0)
             self.assertEqual(hl.filter_alleles(ds, lambda a, i: True).count_rows(), ds.count_rows())
 
-    @fails_service_backend(reason='slow (at least 45 minutes)')
     def test_filter_alleles_hts(self):
         # 1 variant: A:T,G
         ds = hl.import_vcf(resource('filter_alleles/input.vcf'))
