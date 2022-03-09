@@ -28,6 +28,6 @@ python-json-logger==2.0.2
 requests==2.25.1
 scipy>1.2,<1.8
 sortedcontainers==2.4.0
-tabulate==0.8.3
+tabulate==0.8.9
 tqdm==4.*
 uvloop==0.16.0
