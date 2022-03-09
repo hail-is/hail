@@ -40,7 +40,7 @@ tasks.withType(JavaCompile) {
 }
 
 project.ext {
-    cachedBreezeVersion = null
+    breezeVersion = "1.1"
 
     sparkVersion = System.getProperty("spark.version", "3.1.2")
 
@@ -83,41 +83,14 @@ compileScala {
     }
 }
 
-String breezeVersion() {
-  if (cachedBreezeVersion == null) {
-    def artifacts = configurations.justSpark.getResolvedConfiguration().getResolvedArtifacts()
-    artifacts.each { ResolvedArtifact artifact ->
-	def module = artifact.getModuleVersion().getId()
-	if (module.getGroup() == 'org.scalanlp'
-	  && module.getName() == 'breeze_' + scalaMajorVersion) {
-	    cachedBreezeVersion = module.getVersion()
-	}
-    }
-    if (cachedBreezeVersion == null) {
-      throw new RuntimeException('Unable to determine breeze library version')
-    }
-  }
-  return cachedBreezeVersion
-}
-
 configurations {
     justSpark
 
     all {
         resolutionStrategy {
-            componentSelection {
-                withModule('org.scalanlp:breeze-natives_' + scalaMajorVersion) { ComponentSelection selection ->
-                    if (selection.candidate.getVersion() != breezeVersion()) {
-                        selection.reject()
-                    }
-                }
-	        }
             eachDependency { DependencyResolveDetails details ->
                 if (details.requested.group == 'org.apache.spark') {
                     details.useVersion(sparkVersion)
-                } else if (details.requested.group == 'org.scalanlp' && details.requested.version == '1.0') {
-                    // Breeze 1.0 contains a known bug (https://github.com/scalanlp/breeze/issues/772)
-                    details.useVersion('1.1')
                 }
             }
 	    }
@@ -160,10 +133,11 @@ dependencies {
     bundled 'org.lz4:lz4-java:1.8.0'
 
     // Breeze 1.0 has a known bug (https://github.com/scalanlp/breeze/issues/772)
-    unbundled 'org.scalanlp:breeze-natives_' + scalaMajorVersion + ':' + breezeVersion()
-    bundled('org.scalanlp:breeze-natives_' + scalaMajorVersion + ':' + breezeVersion()) {
+    unbundled 'org.scalanlp:breeze-natives_' + scalaMajorVersion + ':' + breezeVersion
+    bundled('org.scalanlp:breeze-natives_' + scalaMajorVersion + ':' + breezeVersion) {
         exclude module: 'commons-math3'
     }
+    bundled 'org.scalanlp:breeze_' + scalaMajorVersion + ':' + breezeVersion
 
     bundled 'com.github.fommil.netlib:all:1.1.2'
     bundled('com.github.samtools:htsjdk:2.24.1') {
@@ -353,6 +327,9 @@ tasks.withType(ShadowJar) {
     relocate 'org.freemarker', 'is.hail.relocated.org.freemarker'
     relocate 'org.json4s', 'is.hail.relocated.org.json4s'
     relocate 'org.elasticsearch', 'is.hail.relocated.org.elasticsearch'
+
+    // Breeze 1.0 is broken, it is never ok to use Breeze 1.0 or earlier.
+    relocate 'org.scalanlp', 'is.hail.relocated.org.scalanlp'
 
     exclude 'META-INF/*.RSA'
     exclude 'META-INF/*.SF'
