@@ -149,7 +149,10 @@ class ScaleDiscrete(Scale):
         return False
 
 
-class ScaleColorDiscrete(ScaleDiscrete):
+class ScaleColorManual(ScaleDiscrete):
+
+    def __init__(self, values):
+        self.values = values
 
     def create_local_transformer(self, groups_of_dfs, parent):
         categorical_strings = set()
@@ -158,7 +161,7 @@ class ScaleColorDiscrete(ScaleDiscrete):
                 if self.aesthetic_name in df.attrs:
                     categorical_strings.add(df.attrs[self.aesthetic_name])
 
-        unique_color_mapping = categorical_strings_to_colors(categorical_strings, parent)
+        unique_color_mapping = categorical_strings_to_colors(categorical_strings, self.values)
 
         def transform(df):
             df.attrs[f"{self.aesthetic_name}_legend"] = df.attrs[self.aesthetic_name]
