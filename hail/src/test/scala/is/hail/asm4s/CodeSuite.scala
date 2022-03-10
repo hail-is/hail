@@ -64,6 +64,31 @@ class CodeSuite extends HailSuite {
     assert(fb.result()(theHailClassLoader)(ctx.r) == 28L) // 2 missing bytes 4 byte aligned + 4 header bytes + 5 elements * 4 bytes for ints.
   }
 
+  @Test def testIntervalSizeInBytes(): Unit = {
+    val fb = EmitFunctionBuilder[Region, Long](ctx, "test_size_in_bytes")
+    val mb = fb.apply_method
+
+    val structL = new SStackStructValue(
+      SStackStruct(TStruct("x" -> TInt64, "y" -> TInt32), IndexedSeq(EmitType(SInt64, true), EmitType(SInt32, false))),
+      IndexedSeq(EmitValue(None, new SInt64Value(5L)), EmitValue(Some(false), new SInt32Value(2)))
+    )
+    val structR = new SStackStructValue(
+      SStackStruct(TStruct("x" -> TInt64, "y" -> TInt32), IndexedSeq(EmitType(SInt64, true), EmitType(SInt32, false))),
+      IndexedSeq(EmitValue(None, new SInt64Value(8L)), EmitValue(Some(false), new SInt32Value(5)))
+    )
+
+    val pType = PCanonicalInterval(structL.st.storageType())
+
+    mb.emit(EmitCodeBuilder.scopedCode(mb) { cb =>
+      val region = fb.emb.getCodeParam[Region](1)
+      val sval: SValue =pType.constructFromCodes(cb, region,
+        EmitValue(Some(false), structL), EmitValue(Some(false), structR),
+        true, true)
+      sval.sizeToStoreInBytes(cb).value
+    })
+    assert(fb.result()(theHailClassLoader)(ctx.r) == 72L) // 2 28 byte structs, plus 2 1 byte booleans that get 8 byte for an extra 8 bytes, plus missing bytes.
+  }
+
   @Test def testHash() {
     val fields = IndexedSeq(PField("a", PCanonicalString(), 0), PField("b", PInt32(), 1), PField("c", PFloat32(), 2))
     assert(hashTestNumHelper(new SInt32Value(6)) == hashTestNumHelper(new SInt32Value(6)))
