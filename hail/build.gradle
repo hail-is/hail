@@ -331,7 +331,7 @@ tasks.withType(ShadowJar) {
     relocate 'org.elasticsearch', 'is.hail.relocated.org.elasticsearch'
 
     // Breeze 1.0 is broken, it is never ok to use Breeze 1.0 or earlier.
-    relocate 'org.scalanlp', 'is.hail.relocated.org.scalanlp'
+    relocate 'breeze', 'is.hail.relocated.breeze'
 
     exclude 'META-INF/*.RSA'
     exclude 'META-INF/*.SF'
