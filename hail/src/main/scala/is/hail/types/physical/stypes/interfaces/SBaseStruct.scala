@@ -62,7 +62,7 @@ trait SBaseStructValue extends SValue {
     val pStructSize = this.st.storageType().byteSize
     val sizeSoFar = cb.newLocal[Long]("sstackstruct_size_in_bytes", pStructSize)
     (0 until st.size).foreach { idx =>
-      if (!this.st.fieldTypes(idx).isPrimitive) {
+      if (!this.st.fieldTypes(idx).containsPointers) {
         val sizeAtThisIdx: Value[Long] = this.loadField(cb, idx).consumeCode(cb, {
           const(0L)
         }, { sv =>
