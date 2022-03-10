@@ -1764,6 +1764,16 @@ def create_width_scale_files():
         write_file(w)
 
 
+def test_join_with_key_prefix():
+    t = hl.utils.range_table(20, 2)
+    t = t.annotate(pk=1)
+    t = t.key_by('pk', 'idx')
+    t2 = hl.utils.range_table(20, 2)
+    t2 = t2.annotate(foo=t2.idx)
+    t = t.annotate(foo=t2[t.pk].foo)
+    assert t.aggregate(hl.agg.all(t.foo == 1))
+    assert t.n_partitions() == 2
+
 def test_join_distinct_preserves_count():
     left_pos = [1, 2, 4, 4, 5, 5, 9, 13, 13, 14, 15]
     right_pos = [1, 1, 1, 3, 4, 4, 6, 6, 8, 9, 13, 15]
