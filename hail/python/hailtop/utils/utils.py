@@ -107,8 +107,8 @@ def digits_needed(i: int) -> int:
         return 1
     return 1 + digits_needed(i // 10)
 
-
-def grouped(n: int, ls: TypeVar) -> TypeVar:
+T =TypeVar('T')
+def grouped(n: int, ls: List[T]) -> Iterable[T]:
     if n < 1:
         raise ValueError('invalid value for n: found {n}')
     while len(ls) != 0:
