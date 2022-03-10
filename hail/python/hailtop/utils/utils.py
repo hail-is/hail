@@ -1,4 +1,4 @@
-from typing import Any, Callable, TypeVar, Awaitable, Optional, Type, List, Dict, Iterable, Tuple
+from typing import Callable, TypeVar, Awaitable, Optional, Type, List, Dict, Iterable, Tuple
 from typing_extensions import Literal
 from types import TracebackType
 import concurrent
@@ -107,8 +107,8 @@ def digits_needed(i: int) -> int:
         return 1
     return 1 + digits_needed(i // 10)
 
-T =TypeVar('T')
-def grouped(n: int, ls: List[T]) -> Iterable[T]:
+
+def grouped(n: int, ls: List[T]) -> Iterable[List[T]]:
     if n < 1:
         raise ValueError('invalid value for n: found {n}')
     while len(ls) != 0:
