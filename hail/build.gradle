@@ -49,6 +49,7 @@ project.ext {
     }
     scalaVersion = System.getProperty("scala.version", "2.12.13")
     scalaMajorVersion = (scalaVersion =~ /^\d+.\d+/)[0]
+    assert(scalaMajorVersion == "2.12")
 }
 
 compileScala {
@@ -154,7 +155,6 @@ dependencies {
     }
 
     if (sparkVersion.startsWith("3.")) {
-        assert(scalaMajorVersion == "2.12")
         if (elasticMajorVersion == "8") {
             bundled 'org.elasticsearch:elasticsearch-spark-30_2.12:8.0.0'
         }
@@ -163,9 +163,8 @@ dependencies {
         }
     }
     else if (sparkVersion.startsWith("2.4.")) {
-        assert(scalaMajorVersion == "2.11")
         assert(elasticMajorVersion == "7")
-        bundled 'org.elasticsearch:elasticsearch-spark-20_2.11:7.8.1'
+        bundled 'org.elasticsearch:elasticsearch-spark-20_2.12:7.8.1'
     }
     else {
         throw new UnsupportedOperationException("Couldn't pick a valid elasticsearch.")
