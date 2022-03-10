@@ -1770,8 +1770,6 @@ def test_join_with_key_prefix():
     t = t.key_by('pk', 'idx')
     t2 = hl.utils.range_table(20, 2)
     t2 = t2.annotate(foo=t2.idx)
-    t.show()
-    t2.show()
     t = t.annotate(foo=t2[t.pk].foo)
     assert t.aggregate(hl.agg.all(t.foo == 1))
     assert t.n_partitions() == 2
