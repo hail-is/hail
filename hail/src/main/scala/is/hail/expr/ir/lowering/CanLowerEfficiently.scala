@@ -49,7 +49,8 @@ object CanLowerEfficiently {
         case t: TableHead =>
         case t: TableTail =>
         case t: TableJoin =>
-        case t: TableIntervalJoin => fail(s"TableIntervalJoin has no lowered implementation")
+        case TableIntervalJoin(_, _, _, true) => fail("TableIntervalJoin with \"product=true\" has no lowered implementation")
+        case TableIntervalJoin(_, _, _, false) =>
         case t: TableLeftJoinRightDistinct =>
         case t: TableMapPartitions =>
         case t: TableMapRows =>

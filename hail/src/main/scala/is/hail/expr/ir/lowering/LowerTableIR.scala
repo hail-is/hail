@@ -357,11 +357,7 @@ class TableStage(
 
     val newKey = kType.fieldNames ++ right.kType.fieldNames.drop(joinKey)
 
-    val leftKeyToRightKeyMap = kType.fieldNames.zip(right.kType.fieldNames).toMap
-    val newRightPartitioner = newPartitioner.coarsen(joinKey).strictify.rename(leftKeyToRightKeyMap)
-    val repartitionedRight = right.repartitionNoShuffle(newRightPartitioner)
-
-    repartitionedLeft.zipPartitions(repartitionedRight, globalJoiner, partitionJoiner)
+    repartitionedLeft.alignAndZipPartitions(right, joinKey, globalJoiner, partitionJoiner)
       .extendKeyPreservesPartitioning(newKey)
   }
 
@@ -382,10 +378,70 @@ class TableStage(
     require(joinKey <= kType.size)
     require(joinKey <= right.kType.size)
 
-    val leftKeyToRightKeyMap = kType.fieldNames.zip(right.kType.fieldNames).toMap
+    val leftKeyToRightKeyMap = (kType.fieldNames.take(joinKey), right.kType.fieldNames.take(joinKey)).zipped.toMap
     val newRightPartitioner = partitioner.coarsen(joinKey).strictify.rename(leftKeyToRightKeyMap)
     val repartitionedRight = right.repartitionNoShuffle(newRightPartitioner)
     zipPartitions(repartitionedRight, globalJoiner, joiner)
+  }
+
+  // Like alignAndZipPartitions, when 'right' is keyed by intervals.
+  // 'joiner' is called once for each partition of 'this', as in
+  // alignAndZipPartitions, but now the second iterator will contain all rows
+  // of 'that' whose key is an interval overlapping the range bounds of the
+  // current partition of 'this', in standard interval ordering.
+  def intervalAlignAndZipPartitions(
+    ctx: ExecuteContext,
+    right: TableStage,
+    rightRowRType: RStruct,
+    relationalLetsAbove: Map[String, IR],
+    globalJoiner: (IR, IR) => IR,
+    joiner: (IR, IR) => IR
+  ): TableStage = {
+    require(right.kType.size == 1)
+    val rightKeyType = right.kType.fields.head.typ
+    require(rightKeyType.isInstanceOf[TInterval])
+    require(rightKeyType.asInstanceOf[TInterval].pointType == kType.types.head)
+
+    val irPartitioner = partitioner.coarsen(1).partitionBoundsIRRepresentation
+
+    val rightWithPartNums = right.mapPartition(None) { partStream =>
+      flatMapIR(partStream) { row =>
+        val interval = bindIR(GetField(row, right.key.head)) { interval =>
+          invoke("Interval", TInterval(TTuple(kType.typeAfterSelect(Array(0)), TInt32)),
+            MakeTuple.ordered(FastSeq(MakeStruct(FastSeq(kType.fieldNames.head -> invoke("start", kType.types.head, interval))), I32(1))),
+            MakeTuple.ordered(FastSeq(MakeStruct(FastSeq(kType.fieldNames.head -> invoke("end", kType.types.head, interval))), I32(1))),
+            invoke("includesStart", TBoolean, interval),
+            invoke("includesEnd", TBoolean, interval)
+          )
+        }
+
+        bindIR(invoke("partitionerFindIntervalRange", TTuple(TInt32, TInt32), irPartitioner, interval)) { range =>
+          val rangeStream = rangeIR(GetTupleElement(range, 0), GetTupleElement(range, 1))
+          mapIR(rangeStream) { partNum =>
+            InsertFields(row, FastIndexedSeq("__partNum" -> partNum))
+          }
+        }
+      }
+    }
+    val sorted = ctx.backend.lowerDistributedSort(ctx,
+      rightWithPartNums,
+      SortField("__partNum", Ascending) +: right.key.map(k => SortField(k, Ascending)),
+      relationalLetsAbove,
+      rightRowRType)
+    assert(sorted.kType.fieldNames.sameElements("__partNum" +: right.key))
+    val newRightPartitioner = new RVDPartitioner(
+      Some(1),
+      TStruct.concat(TStruct("__partNum" -> TInt32), right.kType),
+      Array.tabulate[Interval](partitioner.numPartitions)(i => Interval(Row(i), Row(i), true, true))
+      )
+    val repartitioned = sorted.repartitionNoShuffle(newRightPartitioner)
+      .changePartitionerNoRepartition(RVDPartitioner.unkeyed(newRightPartitioner.numPartitions))
+      .mapPartition(None) { part =>
+        mapIR(part) { row =>
+          SelectFields(row, right.rowType.fieldNames)
+        }
+      }
+    zipPartitions(repartitioned, globalJoiner, joiner)
   }
 }
 
@@ -1308,6 +1364,37 @@ object LowerTableIR {
               leftElementRef.name, rightElementRef.name,
               joiningOp, "left")
           })
+
+      case TableIntervalJoin(left, right, root, product) =>
+        assert(!product)
+        val loweredLeft = lower(left)
+        val loweredRight = lower(right)
+
+        def partitionJoiner(lPart: IR, rPart: IR): IR = {
+          val lEltType = lPart.typ.asInstanceOf[TStream].elementType.asInstanceOf[TStruct]
+          val rEltType = rPart.typ.asInstanceOf[TStream].elementType.asInstanceOf[TStruct]
+
+          val lKey = left.typ.key
+          val rKey = right.typ.key
+
+          val lEltRef = Ref(genUID(), lEltType)
+          val rEltRef = Ref(genUID(), rEltType)
+
+          StreamJoinRightDistinct(
+            lPart, rPart,
+            lKey, rKey,
+            lEltRef.name, rEltRef.name,
+            InsertFields(lEltRef, FastSeq(
+              root -> SelectFields(rEltRef, right.typ.valueType.fieldNames))),
+            "left")
+        }
+
+        loweredLeft.intervalAlignAndZipPartitions(ctx,
+          loweredRight,
+          analyses.requirednessAnalysis.lookup(right).asInstanceOf[RTable].rowType,
+          relationalLetsAbove,
+          (lGlobals, _) => lGlobals,
+          partitionJoiner)
 
       case tj@TableJoin(left, right, joinType, joinKey) =>
         val loweredLeft = lower(left)

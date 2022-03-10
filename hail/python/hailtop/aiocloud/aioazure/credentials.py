@@ -22,7 +22,7 @@ class AzureCredentials(CloudCredentials):
 
     @staticmethod
     def from_file(credentials_file: str, scopes: Optional[List[str]] = None):
-        with open(credentials_file, 'r') as f:
+        with open(credentials_file, 'r', encoding='utf-8') as f:
             credentials = json.loads(f.read())
             return AzureCredentials.from_credentials_data(credentials, scopes)
 

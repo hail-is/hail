@@ -38,7 +38,7 @@ from .github import PR, WIP, FQBranch, MergeFailureBatch, Repo, UnwatchedBranch,
 
 oauth_path = os.environ.get('HAIL_CI_OAUTH_TOKEN', 'oauth-token/oauth-token')
 if os.path.exists(oauth_path):
-    with open(oauth_path, 'r') as f:
+    with open(oauth_path, 'r', encoding='utf-8') as f:
         oauth_token = f.read().strip()
 else:
     oauth_token = None
@@ -129,8 +129,9 @@ async def watched_branch_config(app, wb: WatchedBranch, index: int) -> WatchedBr
 @routes.get('/')
 @web_authenticated_developers_only()
 async def index(request, userdata):  # pylint: disable=unused-argument
-    # Redirect to /batches.
-    return web.HTTPFound(deploy_config.external_url('ci', '/batches'))
+    wb_configs = [await watched_branch_config(request.app, wb, i) for i, wb in enumerate(watched_branches)]
+    page_context = {'watched_branches': wb_configs}
+    return await render_template('ci', request, userdata, 'index.html', page_context)
 
 
 def wb_and_pr_from_request(request):
@@ -240,7 +241,8 @@ async def get_batch(request, userdata):
     jobs = await collect_agen(b.jobs())
     for j in jobs:
         j['duration'] = humanize_timedelta_msecs(j['duration'])
-    page_context = {'batch': status, 'jobs': jobs}
+    wb = get_maybe_wb_for_batch(b)
+    page_context = {'batch': status, 'jobs': jobs, 'wb': wb}
     return await render_template('ci', request, userdata, 'batch.html', page_context)
 
 
@@ -584,17 +586,23 @@ async def update_loop(app):
 
 async def on_startup(app):
     app['client_session'] = httpx.client_session()
-    app['github_client'] = gh_aiohttp.GitHubAPI(app['client_session'], 'ci')
+    app['github_client'] = gh_aiohttp.GitHubAPI(app['client_session'], 'ci', oauth_token=oauth_token)
     app['batch_client'] = await BatchClient.create('ci')
     app['dbpool'] = await create_database_pool()
 
+    app['task_manager'] = aiotools.BackgroundTaskManager()
+    app['task_manager'].ensure_future(update_loop(app))
+
 
 async def on_cleanup(app):
-    dbpool = app['dbpool']
-    dbpool.close()
-    await dbpool.wait_closed()
-    await app['client_session'].close()
-    await app['batch_client'].close()
+    try:
+        dbpool = app['dbpool']
+        dbpool.close()
+        await dbpool.wait_closed()
+        await app['client_session'].close()
+        await app['batch_client'].close()
+    finally:
+        app['task_manager'].shutdown()
 
 
 def run():
@@ -607,6 +615,7 @@ def run():
 
     setup_common_static_routes(routes)
     app.add_routes(routes)
+    app.router.add_get("/metrics", server_stats)
 
     web.run_app(
         deploy_config.prefix_application(app, 'ci'),

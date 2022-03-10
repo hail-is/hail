@@ -45,7 +45,7 @@ class GoogleCredentials(CloudCredentials):
 
     @staticmethod
     def from_file(credentials_file: str) -> 'GoogleCredentials':
-        with open(credentials_file) as f:
+        with open(credentials_file, encoding='utf-8') as f:
             credentials = json.load(f)
         return GoogleCredentials.from_credentials_data(credentials)
 

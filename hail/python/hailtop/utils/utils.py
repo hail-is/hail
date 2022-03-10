@@ -2,6 +2,7 @@ from typing import Any, Callable, TypeVar, Awaitable, Optional, Type, List, Dict
 from typing_extensions import Literal
 from types import TracebackType
 import concurrent
+import contextlib
 import subprocess
 import traceback
 import sys
@@ -74,7 +75,7 @@ def first_extant_file(*files: Optional[str]) -> Optional[str]:
     return None
 
 
-def cost_str(cost):
+def cost_str(cost: Optional[int]) -> Optional[str]:
     if cost is None:
         return None
     return f'${cost:.4f}'
@@ -968,7 +969,7 @@ class Notice:
             e.set()
 
 
-def find_spark_home():
+def find_spark_home() -> str:
     spark_home = os.environ.get('SPARK_HOME')
     if spark_home is None:
         find_spark_home = subprocess.run('find_spark_home.py',
@@ -977,8 +978,26 @@ def find_spark_home():
         if find_spark_home.returncode != 0:
             raise ValueError(f'''SPARK_HOME is not set and find_spark_home.py returned non-zero exit code:
 STDOUT:
-{find_spark_home.stdout}
+{find_spark_home.stdout!r}
 STDERR:
-{find_spark_home.stderr}''')
+{find_spark_home.stderr!r}''')
         spark_home = find_spark_home.stdout.decode().strip()
     return spark_home
+
+
+class Timings:
+    def __init__(self):
+        self.timings: Dict[str, Dict[str, int]] = {}
+
+    @contextlib.contextmanager
+    def step(self, name: str):
+        assert name not in self.timings
+        d: Dict[str, int] = {}
+        self.timings[name] = d
+        d['start_time'] = time_msecs()
+        yield
+        d['finish_time'] = time_msecs()
+        d['duration'] = d['finish_time'] - d['start_time']
+
+    def to_dict(self):
+        return self.timings

@@ -10,13 +10,14 @@ from .auth import (
 )
 from .auth_utils import create_session, insert_user
 from .csrf import check_csrf_token, new_csrf_token
-from .database import Database, create_database_pool, transaction
+from .database import Database, Transaction, create_database_pool, transaction
 from .metrics import monitor_endpoints_middleware
 from .session import setup_aiohttp_session
 
 __all__ = [
     'create_database_pool',
     'Database',
+    'Transaction',
     'setup_aiohttp_session',
     'userdata_from_web_request',
     'userdata_from_rest_request',

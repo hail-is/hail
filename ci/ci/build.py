@@ -738,7 +738,7 @@ class DeployStep(Step):
         return {'token': self.token}
 
     def build(self, batch, code, scope):
-        with open(f'{code.repo_dir()}/{self.config_file}', 'r') as f:
+        with open(f'{code.repo_dir()}/{self.config_file}', 'r', encoding='utf-8') as f:
             template = jinja2.Template(f.read(), undefined=jinja2.StrictUndefined, trim_blocks=True, lstrip_blocks=True)
             rendered_config = template.render(**self.input_config(code, scope))
 

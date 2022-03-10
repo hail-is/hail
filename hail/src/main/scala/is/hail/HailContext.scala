@@ -56,7 +56,7 @@ object HailContext {
 
   def sparkBackend(op: String): SparkBackend = get.sparkBackend(op)
 
-  def configureLogging(logFile: String, quiet: Boolean, append: Boolean, skipLoggingConfiguration: Boolean) {
+  def configureLogging(logFile: String, quiet: Boolean, append: Boolean, skipLoggingConfiguration: Boolean): Unit = {
     if (!skipLoggingConfiguration) {
       val logProps = new Properties()
 
@@ -67,12 +67,6 @@ object HailContext {
       logProps.put("log4j.appender.logfile.threshold", "INFO")
       logProps.put("log4j.appender.logfile.layout", "org.apache.log4j.PatternLayout")
       logProps.put("log4j.appender.logfile.layout.ConversionPattern", HailContext.logFormat)
-
-      logProps.put("log4j.logger.is.hail.services", "INFO, AlwaysOnConsoleAppender")
-      logProps.put("log4j.logger.is.hail.backend.service", "INFO, AlwaysOnConsoleAppender")
-      logProps.put("log4j.appender.AlwaysOnConsoleAppender", "org.apache.log4j.ConsoleAppender")
-      logProps.put("log4j.appender.AlwaysOnConsoleAppender.layout", "org.apache.log4j.PatternLayout")
-      logProps.put("log4j.appender.AlwaysOnConsoleAppender.layout.ConversionPattern", HailContext.logFormat)
 
       LogManager.resetConfiguration()
       PropertyConfigurator.configure(logProps)
