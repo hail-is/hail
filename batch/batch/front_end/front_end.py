@@ -1309,7 +1309,7 @@ async def _close_batch(app: aiohttp.web.Application, batch_id: int, user: str, d
     client_session: httpx.ClientSession = app['client_session']
     try:
         now = time_msecs()
-        await db.check_call_procedure('CALL close_batch(%s, %s);', (batch_id, now))
+        await db.check_call_procedure('CALL close_batch(%s, %s);', (batch_id, now), 'close_batch')
     except CallError as e:
         # 2: wrong number of jobs
         if e.rv['rc'] == 2:
@@ -1573,7 +1573,7 @@ async def ui_get_job(request, userdata, batch_id):
         resources['actual_memory'] = humanize.naturalsize(resources['memory_bytes'], binary=True)
         del resources['memory_bytes']
     if 'storage_gib' in resources:
-        resources['actual_storage'] = humanize.naturalsize(resources['storage_gib'] * 1024**3, binary=True)
+        resources['actual_storage'] = humanize.naturalsize(resources['storage_gib'] * 1024 ** 3, binary=True)
         del resources['storage_gib']
     if 'cores_mcpu' in resources:
         resources['actual_cpu'] = resources['cores_mcpu'] / 1000
