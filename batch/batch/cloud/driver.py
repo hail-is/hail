@@ -1,11 +1,9 @@
-from hailtop import aiotools
-
 from gear import Database
 from gear.cloud_config import get_global_config
+from hailtop import aiotools
 
-from ..inst_coll_config import InstanceCollectionConfigs
 from ..driver.driver import CloudDriver
-
+from ..inst_coll_config import InstanceCollectionConfigs
 from .azure.driver.driver import AzureDriver
 from .gcp.driver.driver import GCPDriver
 

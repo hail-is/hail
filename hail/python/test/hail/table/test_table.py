@@ -1,6 +1,7 @@
 import unittest
 
 import pandas as pd
+import numpy as np
 import pyspark.sql
 import pytest
 import random
@@ -481,8 +482,6 @@ Caused by: java.lang.AssertionError: assertion failed
         ht = hl.import_vcf(resource('sample.vcf')).rows()
         assert ht.filter(ht.locus > hl.locus('20', 17434581)).count() == 100
 
-    @fails_service_backend()
-    @fails_local_backend()
     def test_interval_join(self):
         left = hl.utils.range_table(50, n_partitions=10)
         intervals = hl.utils.range_table(4)
@@ -759,6 +758,25 @@ https://hail.zulipchat.com/#narrow/stream/123011-Hail-Dev/topic/test_drop/near/2
 
         self.assertTrue(t._same(t2))
 
+    def test_from_pandas_missing_and_nans(self):
+        # Pandas treats nan as missing. We don't.
+        df = pd.DataFrame({
+            "x": pd.Series([None, 1, 2, None, 4], dtype=pd.Int64Dtype()),
+            "y": pd.Series([None, 1, 2, None, 4], dtype=pd.Int32Dtype()),
+            "z": pd.Series([np.nan, 1.0, 3.0, 4.0, np.nan]),
+            "s": pd.Series([None, "cat", None, "fox", "dog"], dtype=pd.StringDtype())
+        })
+        ht = hl.Table.from_pandas(df)
+        collected = ht.collect()
+
+        assert [s.x for s in collected] == [None, 1, 2, None, 4]
+        assert [s.y for s in collected] == [None, 1, 2, None, 4]
+        assert [s.s for s in collected] == [None, "cat", None, "fox", "dog"]
+
+        assert np.isnan(collected[0].z)
+        assert np.isnan(collected[-1].z)
+        assert [s.z for s in collected[1:-1]] == [1.0, 3.0, 4.0]
+
     def test_from_pandas_mismatched_object_rows(self):
         d = {'a': [[1, 2], {1, 2}]}
         df = pd.DataFrame(data=d)
@@ -938,8 +956,6 @@ https://hail.zulipchat.com/#narrow/stream/123011-Hail-Dev/topic/test_drop/near/2
         with pytest.raises(ValueError):
             t.explode(t.foo.bar, name='baz')
 
-    @fails_service_backend()
-    @fails_local_backend()
     def test_export(self):
         t = hl.utils.range_table(1).annotate(foo=3)
         tmp_file = new_temp_file()
@@ -948,8 +964,6 @@ https://hail.zulipchat.com/#narrow/stream/123011-Hail-Dev/topic/test_drop/near/2
         with hl.hadoop_open(tmp_file, 'r') as f_in:
             assert f_in.read() == 'idx\tfoo\n0\t3\n'
 
-    @fails_service_backend()
-    @fails_local_backend()
     def test_export_delim(self):
         t = hl.utils.range_table(1).annotate(foo = 3)
         tmp_file = new_temp_file()
@@ -977,8 +991,6 @@ https://hail.zulipchat.com/#narrow/stream/123011-Hail-Dev/topic/test_drop/near/2
     def test_min_partitions(self):
         assert hl.import_table(resource('variantAnnotations.tsv'), min_partitions=50).n_partitions() == 50
 
-    @fails_service_backend()
-    @fails_local_backend()
     def test_read_back_same_as_exported(self):
         t, _ = create_all_values_datasets()
         tmp_file = new_temp_file(prefix="test", extension=".tsv")
@@ -1117,7 +1129,7 @@ Caused by: java.lang.NullPointerException
         self.assertTrue(t1.key_by().union(t2.key_by(), t3.key_by())
                         ._same(hl.utils.range_table(15).key_by()))
 
-    @fails_service_backend()
+    @skip_when_service_backend(message='very slow')
     def test_nested_union(self):
         N = 10
         M = 200
@@ -1666,8 +1678,6 @@ def test_maybe_flexindex_table_by_expr_prefix_match():
     assert t1._maybe_flexindex_table_by_expr((hl.str(mt1.row_idx), mt1.row_idx)) is None
 
 
-@fails_service_backend()
-@fails_local_backend()
 def test_maybe_flexindex_table_by_expr_direct_interval_match():
     t1 = hl.utils.range_table(1)
     t1 = t1.key_by(interval=hl.interval(t1.idx, t1.idx+1))
@@ -1688,8 +1698,6 @@ def test_maybe_flexindex_table_by_expr_direct_interval_match():
     assert t1._maybe_flexindex_table_by_expr(hl.str(mt1.row_key)) is None
 
 
-@fails_service_backend()
-@fails_local_backend()
 def test_maybe_flexindex_table_by_expr_prefix_interval_match():
     t1 = hl.utils.range_table(1)
     t1 = t1.key_by(interval=hl.interval(t1.idx, t1.idx+1))
@@ -1755,6 +1763,16 @@ def create_width_scale_files():
     for w in widths:
         write_file(w)
 
+
+def test_join_with_key_prefix():
+    t = hl.utils.range_table(20, 2)
+    t = t.annotate(pk=1)
+    t = t.key_by('pk', 'idx')
+    t2 = hl.utils.range_table(20, 2)
+    t2 = t2.annotate(foo=t2.idx)
+    t = t.annotate(foo=t2[t.pk].foo)
+    assert t.aggregate(hl.agg.all(t.foo == 1))
+    assert t.n_partitions() == 2
 
 def test_join_distinct_preserves_count():
     left_pos = [1, 2, 4, 4, 5, 5, 9, 13, 13, 14, 15]

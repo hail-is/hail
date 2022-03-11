@@ -1,21 +1,24 @@
+import asyncio
+import base64
+import json
+import logging
 import os
 import random
-import json
-import base64
-import logging
 import secrets
-import asyncio
+
 import aiohttp
-import kubernetes_asyncio.config
 import kubernetes_asyncio.client
 import kubernetes_asyncio.client.rest
-from hailtop.utils import time_msecs, secret_alnum_string
-from hailtop.auth.sql_config import create_secret_data_from_config, SQLConfig
-from hailtop import aiotools
-from hailtop import batch_client as bc, httpx
-from gear import create_session, Database
-from gear.cloud_config import get_gcp_config, get_global_config
+import kubernetes_asyncio.config
+
+from gear import Database, create_session
 from gear.clients import get_identity_client
+from gear.cloud_config import get_gcp_config, get_global_config
+from hailtop import aiotools
+from hailtop import batch_client as bc
+from hailtop import httpx
+from hailtop.auth.sql_config import SQLConfig, create_secret_data_from_config
+from hailtop.utils import secret_alnum_string, time_msecs
 
 log = logging.getLogger('auth.driver')
 
@@ -257,13 +260,13 @@ GRANT ALL ON `{name}`.* TO '{name}'@'%';
         self.name = name
 
     def secret_data(self):
-        with open('/database-server-config/sql-config.json', 'r') as f:
+        with open('/database-server-config/sql-config.json', 'r', encoding='utf-8') as f:
             server_config = SQLConfig.from_json(f.read())
-        with open('/database-server-config/server-ca.pem', 'r') as f:
+        with open('/database-server-config/server-ca.pem', 'r', encoding='utf-8') as f:
             server_ca = f.read()
-        with open('/database-server-config/client-cert.pem', 'r') as f:
+        with open('/database-server-config/client-cert.pem', 'r', encoding='utf-8') as f:
             client_cert = f.read()
-        with open('/database-server-config/client-key.pem', 'r') as f:
+        with open('/database-server-config/client-key.pem', 'r', encoding='utf-8') as f:
             client_key = f.read()
 
         if is_test_deployment:
@@ -377,7 +380,7 @@ class BillingProjectResource:
         try:
             bp = await self.batch_client.get_billing_project(billing_project)
         except aiohttp.ClientResponseError as e:
-            if e.status == 403 and 'unknown billing project':
+            if e.status == 403 and 'Unknown Hail Batch billing project' in e.message:
                 return
             raise
         else:

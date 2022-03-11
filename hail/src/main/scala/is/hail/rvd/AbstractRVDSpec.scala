@@ -1,7 +1,7 @@
 package is.hail.rvd
 
 import is.hail.annotations._
-import is.hail.asm4s.AsmFunction3RegionLongLongLong
+import is.hail.asm4s.{HailClassLoader, AsmFunction3RegionLongLongLong}
 import is.hail.backend.ExecuteContext
 import is.hail.expr.{JSONAnnotationImpex, ir}
 import is.hail.expr.ir.lowering.{TableStage, TableStageDependency}
@@ -66,7 +66,7 @@ object AbstractRVDSpec {
 
     val f = partPath(path, partFiles(0))
     using(fs.open(f)) { in =>
-      val Array(rv) = HailContext.readRowsPartition(dec)(r, in).toArray
+      val Array(rv) = HailContext.readRowsPartition(dec)(ctx.theHailClassLoader, r, in).toArray
       (rType, rv)
     }
   }
@@ -94,7 +94,8 @@ object AbstractRVDSpec {
       using(fs.create(partsPath + "/" + filePath)) { os =>
         using(RVDContext.default(execCtx.r.pool)) { ctx =>
           val rvb = ctx.rvb
-          RichContextRDDRegionValue.writeRowsPartition(codecSpec.buildEncoder(execCtx, rowType))(ctx,
+          RichContextRDDRegionValue.writeRowsPartition(codecSpec.buildEncoder(execCtx, rowType))(
+            ctx,
             rows.iterator.map { a =>
               rowType.unstagedStoreJavaObject(a, ctx.r)
             }, os, null)
@@ -212,7 +213,7 @@ object AbstractRVDSpec {
     requestedType: Type,
     leftRType: TStruct, rightRType: TStruct,
     requestedKey: IndexedSeq[String],
-    fieldInserter: (ExecuteContext, PStruct, PStruct) => (PStruct, (FS, Int, Region) => AsmFunction3RegionLongLongLong)
+    fieldInserter: (ExecuteContext, PStruct, PStruct) => (PStruct, (HailClassLoader, FS, Int, Region) => AsmFunction3RegionLongLongLong)
   ): RVD = {
     require(specRight.key.isEmpty)
     val partitioner = specLeft.partitioner

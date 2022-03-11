@@ -1,24 +1,19 @@
 import abc
 import json
 import logging
-from collections import defaultdict, Counter
+from collections import Counter, defaultdict
 from shlex import quote as shq
-import yaml
-import jinja2
 from typing import Dict, List
-from hailtop.utils import flatten
-from .utils import generate_token
-from .environment import (
-    DOCKER_PREFIX,
-    DOMAIN,
-    CI_UTILS_IMAGE,
-    BUILDKIT_IMAGE,
-    DEFAULT_NAMESPACE,
-    STORAGE_URI,
-    CLOUD,
-)
-from .globals import is_test_deployment
+
+import jinja2
+import yaml
+
 from gear.cloud_config import get_global_config
+from hailtop.utils import flatten
+
+from .environment import BUILDKIT_IMAGE, CI_UTILS_IMAGE, CLOUD, DEFAULT_NAMESPACE, DOCKER_PREFIX, DOMAIN, STORAGE_URI
+from .globals import is_test_deployment
+from .utils import generate_token
 
 log = logging.getLogger('ci')
 
@@ -743,7 +738,7 @@ class DeployStep(Step):
         return {'token': self.token}
 
     def build(self, batch, code, scope):
-        with open(f'{code.repo_dir()}/{self.config_file}', 'r') as f:
+        with open(f'{code.repo_dir()}/{self.config_file}', 'r', encoding='utf-8') as f:
             template = jinja2.Template(f.read(), undefined=jinja2.StrictUndefined, trim_blocks=True, lstrip_blocks=True)
             rendered_config = template.render(**self.input_config(code, scope))
 

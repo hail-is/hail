@@ -1,6 +1,7 @@
 package is.hail.annotations
 
 import java.io.{ByteArrayInputStream, ByteArrayOutputStream, InputStream}
+import is.hail.asm4s.HailClassLoader
 import is.hail.backend.{BroadcastValue, ExecuteContext}
 import is.hail.expr.ir.EncodedLiteral
 import is.hail.types.physical.{PArray, PStruct, PType}
@@ -10,9 +11,12 @@ import is.hail.utils.{ArrayOfByteArrayOutputStream, formatSpace, log}
 import is.hail.utils.prettyPrint.ArrayOfByteArrayInputStream
 import org.apache.spark.sql.Row
 
-case class SerializableRegionValue(encodedValue: Array[Array[Byte]], t: PType, makeDecoder: InputStream => Decoder) {
-  def readRegionValue(r: Region): Long = {
-    val dec = makeDecoder(new ArrayOfByteArrayInputStream(encodedValue))
+case class SerializableRegionValue(
+  encodedValue: Array[Array[Byte]], t: PType,
+  makeDecoder: (InputStream, HailClassLoader) => Decoder
+) {
+  def readRegionValue(r: Region, theHailClassLoader: HailClassLoader): Long = {
+    val dec = makeDecoder(new ArrayOfByteArrayInputStream(encodedValue), theHailClassLoader)
     val offset = dec.readRegionValue(r)
     dec.close()
     offset
@@ -44,12 +48,12 @@ trait BroadcastRegionValue {
     (pt, md)
   }
 
-  def encodeToByteArrays(): Array[Array[Byte]] = {
+  def encodeToByteArrays(theHailClassLoader: HailClassLoader): Array[Array[Byte]] = {
     val makeEnc = encoding.buildEncoder(ctx, t)
 
     val baos = new ArrayOfByteArrayOutputStream()
 
-    val enc = makeEnc(baos)
+    val enc = makeEnc(baos, theHailClassLoader)
     enc.writeRegionValue(value.offset)
     enc.flush()
     enc.close()
@@ -57,12 +61,21 @@ trait BroadcastRegionValue {
     baos.toByteArrays()
   }
 
-  lazy val broadcast: BroadcastValue[SerializableRegionValue] = {
-    val arrays = encodeToByteArrays()
-    val totalSize = arrays.map(_.length).sum
-    log.info(s"BroadcastRegionValue.broadcast: broadcasting ${ arrays.length } byte arrays of total size $totalSize (${ formatSpace(totalSize) }")
-    val srv = SerializableRegionValue(arrays, decodedPType, makeDec)
-    ctx.backend.broadcast(srv)
+  @volatile private[this] var broadcasted: BroadcastValue[SerializableRegionValue] = null
+
+  def broadcast(theHailClassLoader: HailClassLoader): BroadcastValue[SerializableRegionValue] = {
+    if (broadcasted == null) {
+      this.synchronized {
+        if (broadcasted == null) {
+          val arrays = encodeToByteArrays(theHailClassLoader)
+          val totalSize = arrays.map(_.length).sum
+          log.info(s"BroadcastRegionValue.broadcast: broadcasting ${ arrays.length } byte arrays of total size $totalSize (${ formatSpace(totalSize) }")
+          val srv = SerializableRegionValue(arrays, decodedPType, makeDec)
+          broadcasted = ctx.backend.broadcast(srv)
+        }
+      }
+    }
+    broadcasted
   }
 
   def javaValue: Any
@@ -96,8 +109,8 @@ case class BroadcastRow(ctx: ExecuteContext,
       newT)
   }
 
-  def toEncodedLiteral(): EncodedLiteral = {
-    EncodedLiteral(encoding, encodeToByteArrays())
+  def toEncodedLiteral(theHailClassLoader: HailClassLoader): EncodedLiteral = {
+    EncodedLiteral(encoding, encodeToByteArrays(theHailClassLoader))
   }
 }
 

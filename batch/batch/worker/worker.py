@@ -1,82 +1,76 @@
-from typing import Optional, Dict, Callable, Tuple, Awaitable, Any, Union, MutableMapping, List, Iterator
-import errno
-import os
-import json
-import sys
-import re
-import logging
 import asyncio
-import random
-import traceback
 import base64
-import uuid
+import concurrent
+import errno
+import json
+import logging
+import os
+import random
+import re
 import shutil
 import signal
-import aiohttp
-import aiohttp.client_exceptions
-from aiohttp import web
-import async_timeout
-import concurrent
+import sys
 import tempfile
+import traceback
+import uuid
+import warnings
+from collections import defaultdict
+from contextlib import ExitStack, contextmanager
+from typing import Any, Awaitable, Callable, Dict, Iterator, List, MutableMapping, Optional, Tuple, Union
 
 import aiodocker  # type: ignore
 import aiodocker.images
-from aiodocker.exceptions import DockerError  # type: ignore
-
+import aiohttp
+import aiohttp.client_exceptions
 import aiorwlock
-from contextlib import ExitStack, contextmanager
-from collections import defaultdict
+import async_timeout
+from aiodocker.exceptions import DockerError  # type: ignore
+from aiohttp import web
 
-from gear.clients import get_compute_client, get_cloud_async_fs
-
+from gear.clients import get_cloud_async_fs, get_compute_client
+from hailtop import aiotools, httpx
+from hailtop.aiotools import LocalAsyncFS
+from hailtop.aiotools.router_fs import RouterAsyncFS
+from hailtop.batch.hail_genetics_images import HAIL_GENETICS_IMAGES
+from hailtop.config import DeployConfig
+from hailtop.hail_logging import configure_logging
 from hailtop.utils import (
+    CalledProcessError,
+    Timings,
+    blocking_to_async,
+    check_exec_output,
+    check_shell,
+    check_shell_output,
+    dump_all_stacktraces,
+    find_spark_home,
+    parse_docker_image_reference,
+    periodically_call,
+    request_retry_transient_errors,
+    retry_transient_errors,
+    sleep_and_backoff,
     time_msecs,
     time_msecs_str,
-    request_retry_transient_errors,
-    sleep_and_backoff,
-    retry_all_errors,
-    check_shell,
-    CalledProcessError,
-    check_exec_output,
-    check_shell_output,
-    find_spark_home,
-    dump_all_stacktraces,
-    parse_docker_image_reference,
-    blocking_to_async,
-    periodically_call,
 )
-from hailtop.batch.hail_genetics_images import HAIL_GENETICS_IMAGES
-from hailtop.aiotools.router_fs import RouterAsyncFS
-from hailtop.aiotools import LocalAsyncFS
-from hailtop import aiotools, httpx
+
+from ..batch_format_version import BatchFormatVersion
+from ..cloud.azure.worker.worker_api import AzureWorkerAPI
+from ..cloud.gcp.worker.worker_api import GCPWorkerAPI
+from ..cloud.resource_utils import is_valid_storage_request, storage_gib_to_bytes
+from ..file_store import FileStore
+from ..globals import HTTP_CLIENT_MAX_SIZE, RESERVED_STORAGE_GB_PER_CORE, STATUS_FORMAT_VERSION
+from ..publicly_available_images import publicly_available_images
+from ..semaphore import FIFOWeightedSemaphore
+from ..utils import Box
+from ..worker.worker_api import CloudWorkerAPI
+from .credentials import CloudUserCredentials
+from .jvm_entryway_protocol import EndOfStream, read_bool, read_int, read_str, write_int, write_str
 
 # import uvloop
 
-from hailtop.config import DeployConfig
-from hailtop.hail_logging import configure_logging
-import warnings
-
-from ..semaphore import FIFOWeightedSemaphore
-from ..file_store import FileStore
-from ..globals import (
-    HTTP_CLIENT_MAX_SIZE,
-    STATUS_FORMAT_VERSION,
-    RESERVED_STORAGE_GB_PER_CORE,
-)
-from ..batch_format_version import BatchFormatVersion
-from ..publicly_available_images import publicly_available_images
-from ..utils import Box
-from ..worker.worker_api import CloudWorkerAPI
-from ..cloud.gcp.worker.worker_api import GCPWorkerAPI
-from ..cloud.azure.worker.worker_api import AzureWorkerAPI
-from ..cloud.resource_utils import storage_gib_to_bytes, is_valid_storage_request
-
-from .credentials import CloudUserCredentials
-from .jvm_entryway_protocol import read_bool, read_int, read_str, write_int, write_str, EndOfStream
 
 # uvloop.install()
 
-with open('/subdomains.txt', 'r') as subdomains_file:
+with open('/subdomains.txt', 'r', encoding='utf-8') as subdomains_file:
     HAIL_SERVICES = [line.rstrip() for line in subdomains_file.readlines()]
 
 oldwarn = warnings.warn
@@ -173,7 +167,7 @@ network_allocator: Optional['NetworkAllocator'] = None
 
 worker: Optional['Worker'] = None
 
-image_configs: Dict[str, Dict[str, Any]] = dict()
+image_configs: Dict[str, Dict[str, Any]] = {}
 
 image_lock = aiorwlock.RWLock()
 
@@ -218,7 +212,7 @@ class NetworkNamespace:
         await self.enable_iptables_forwarding()
 
         os.makedirs(f'/etc/netns/{self.network_ns_name}')
-        with open(f'/etc/netns/{self.network_ns_name}/hosts', 'w') as hosts:
+        with open(f'/etc/netns/{self.network_ns_name}/hosts', 'w', encoding='utf-8') as hosts:
             hosts.write('127.0.0.1 localhost\n')
             hosts.write(f'{self.job_ip} {self.hostname}\n')
             if NAMESPACE == 'default':
@@ -229,7 +223,7 @@ class NetworkNamespace:
         # Jobs on the private network should have access to the metadata server
         # and our vdc. The public network should not so we use google's public
         # resolver.
-        with open(f'/etc/netns/{self.network_ns_name}/resolv.conf', 'w') as resolv:
+        with open(f'/etc/netns/{self.network_ns_name}/resolv.conf', 'w', encoding='utf-8') as resolv:
             if self.private:
                 resolv.write(f'nameserver {CLOUD_WORKER_API.nameserver_ip}\n')
                 if CLOUD == 'gcp':
@@ -330,15 +324,17 @@ def docker_call_retry(timeout, name):
                 return await asyncio.wait_for(f(*args, **kwargs), timeout)
             except DockerError as e:
                 # 408 request timeout, 503 service unavailable
-                if e.status == 408 or e.status == 503:
+                if e.status in (408, 503):
                     log.warning(f'in docker call to {f.__name__} for {name}, retrying', stack_info=True, exc_info=True)
                 # DockerError(500, 'Get https://registry-1.docker.io/v2/: net/http: request canceled while waiting for connection (Client.Timeout exceeded while awaiting headers)
                 # DockerError(500, 'error creating overlay mount to /var/lib/docker/overlay2/545a1337742e0292d9ed197b06fe900146c85ab06e468843cd0461c3f34df50d/merged: device or resource busy'
                 # DockerError(500, 'Get https://gcr.io/v2/: dial tcp: lookup gcr.io: Temporary failure in name resolution')
+                # DockerError(500, 'Get \"https://mcr.microsoft.com/v2/azure-cli/manifests/sha256:068eaecb7abab2d5195a05a6c144c71e9ba1c532efc2912b3ea290d98fbeadb2\": dial tcp 131.253.33.219:443: i/o timeout')
                 elif e.status == 500 and (
                     "request canceled while waiting for connection" in e.message
                     or re.match("error creating overlay mount.*device or resource busy", e.message)
                     or "Temporary failure in name resolution" in e.message
+                    or 'i/o timeout' in e.message
                 ):
                     log.warning(f'in docker call to {f.__name__} for {name}, retrying', stack_info=True, exc_info=True)
                 else:
@@ -348,6 +344,25 @@ def docker_call_retry(timeout, name):
                 delay = await sleep_and_backoff(delay)
 
     return wrapper
+
+
+async def run_until_done_or_deleted(event: asyncio.Event, f: Callable[..., Awaitable[Any]], *args, **kwargs):
+    step = asyncio.ensure_future(f(*args, **kwargs))
+    deleted = asyncio.ensure_future(event.wait())
+    try:
+        await asyncio.wait([deleted, step], return_when=asyncio.FIRST_COMPLETED)
+        if deleted.done():
+            raise JobDeletedError
+        assert step.done()
+        return step.result()
+    finally:
+        for t in (step, deleted):
+            if t.done():
+                e = t.exception()
+                if e and not user_error(e):
+                    log.exception(e)
+            else:
+                t.cancel()
 
 
 async def send_signal_and_wait(proc, signal, timeout=None):
@@ -369,39 +384,6 @@ class JobDeletedError(Exception):
 
 class JobTimeoutError(Exception):
     pass
-
-
-class Timings:
-    def __init__(self, is_deleted: Callable[[], bool]):
-        self.timings: Dict[str, Dict[str, float]] = dict()
-        self.is_deleted = is_deleted
-
-    def step(self, name: str, ignore_job_deletion: bool = False):
-        assert name not in self.timings
-        self.timings[name] = dict()
-        return ContainerStepManager(self.timings[name], self.is_deleted, ignore_job_deletion=ignore_job_deletion)
-
-    def to_dict(self):
-        return self.timings
-
-
-class ContainerStepManager:
-    def __init__(self, timing: Dict[str, float], is_deleted: Callable[[], bool], ignore_job_deletion: bool = False):
-        self.timing: Dict[str, float] = timing
-        self.is_deleted = is_deleted
-        self.ignore_job_deletion = ignore_job_deletion
-
-    def __enter__(self):
-        if self.is_deleted() and not self.ignore_job_deletion:
-            raise JobDeletedError()
-        self.timing['start_time'] = time_msecs()
-
-    def __exit__(self, exc_type, exc, tb):
-        if self.is_deleted() and not self.ignore_job_deletion:
-            return
-        finish_time = time_msecs()
-        self.timing['finish_time'] = finish_time
-        self.timing['duration'] = finish_time - self.timing['start_time']
 
 
 def worker_fraction_in_1024ths(cpu_in_mcpu):
@@ -463,7 +445,7 @@ class Container:
         self.started_at: Optional[int] = None
         self.finished_at: Optional[int] = None
 
-        self.timings = Timings(self.is_job_deleted)
+        self.timings = Timings()
 
         self.logbuffer = bytearray()
         self.overlay_path = None
@@ -478,13 +460,13 @@ class Container:
 
         self.overlay_mounted = False
 
-        self.fs = LocalAsyncFS(self.worker.pool)
-
         self.container_name = f'batch-{self.job.batch_id}-job-{self.job.job_id}-{self.name}'
 
         self.netns: Optional[NetworkNamespace] = None
         # regarding no-member: https://github.com/PyCQA/pylint/issues/4223
         self.process: Optional[asyncio.subprocess.Process] = None  # pylint: disable=no-member
+
+        assert self.worker.fs is not None
 
     async def run(self):
         try:
@@ -530,7 +512,7 @@ class Container:
             with self.step('running'):
                 timed_out = await self.run_until_done_or_deleted(self.run_container)
 
-            self.container_status = await self.get_container_status()
+            self.container_status = self.get_container_status()
 
             if timed_out:
                 self.short_error = 'timed out'
@@ -544,15 +526,16 @@ class Container:
                 self.state = 'failed'
         except asyncio.CancelledError:
             raise
+        except JobDeletedError:
+            self.state = 'cancelled'
         except Exception as e:
-            if not isinstance(e, (JobDeletedError, JobTimeoutError)) and not user_error(e):
+            if not isinstance(e, JobTimeoutError) and not user_error(e):
                 log.exception(f'while running {self}')
-
             self.state = 'error'
             self.error = traceback.format_exc()
         finally:
             try:
-                with self.step('uploading_log', ignore_job_deletion=True):
+                with self.step('uploading_log'):
                     await self.upload_log()
             finally:
                 try:
@@ -561,29 +544,11 @@ class Container:
                     if self.image_id:
                         self.worker.image_data[self.image_id] -= 1
 
-    async def run_until_done_or_deleted(self, f: Callable[[], Awaitable[Any]]):
-        step = asyncio.ensure_future(f())
-        deleted = asyncio.ensure_future(self.deleted_event.wait())
-        try:
-            await asyncio.wait([deleted, step], return_when=asyncio.FIRST_COMPLETED)
-            if deleted.done():
-                raise JobDeletedError()
-            assert step.done()
-            return step.result()
-        finally:
-            for t in (step, deleted):
-                if t.done():
-                    e = t.exception()
-                    if e and not user_error(e):
-                        log.exception(e)
-                else:
-                    t.cancel()
+    async def run_until_done_or_deleted(self, f: Callable[..., Awaitable[Any]]):
+        return await run_until_done_or_deleted(self.deleted_event, f)
 
-    def is_job_deleted(self) -> bool:
-        return self.job.deleted
-
-    def step(self, name: str, ignore_job_deletion: bool = False):
-        return self.timings.step(name, ignore_job_deletion=ignore_job_deletion)
+    def step(self, name: str):
+        return self.timings.step(name)
 
     async def pull_image(self):
         is_cloud_image = (CLOUD == 'gcp' and self.image_ref.hosted_in('google')) or (
@@ -668,7 +633,7 @@ class Container:
         try:
             await self.write_container_config()
             async with async_timeout.timeout(self.timeout):
-                with open(self.log_path, 'w') as container_log:
+                with open(self.log_path, 'w', encoding='utf-8') as container_log:
                     log.info(f'Creating the crun run process for {self}')
                     self.process = await asyncio.create_subprocess_exec(
                         'crun',
@@ -692,7 +657,7 @@ class Container:
 
     async def write_container_config(self):
         os.makedirs(self.config_path)
-        with open(f'{self.config_path}/config.json', 'w') as f:
+        with open(f'{self.config_path}/config.json', 'w', encoding='utf-8') as f:
             f.write(json.dumps(await self.container_config()))
 
     # https://github.com/opencontainers/runtime-spec/blob/master/config.md
@@ -802,7 +767,7 @@ class Container:
         return int(uid), int(gid)
 
     async def _read_user_from_rootfs(self, user) -> Tuple[str, str]:
-        with open(f'{self.rootfs_path}/etc/passwd', 'r') as passwd:
+        with open(f'{self.rootfs_path}/etc/passwd', 'r', encoding='utf-8') as passwd:
             for record in passwd:
                 if record.startswith(user):
                     _, _, uid, gid, _, _, _ = record.split(":")
@@ -964,10 +929,8 @@ class Container:
     #     exit_code: int
     #   }
     # }
-    async def status(self, state=None):
-        if not state:
-            state = self.state
-        status = {'name': self.name, 'state': state, 'timing': self.timings.to_dict()}
+    def status(self):
+        status = {'name': self.name, 'state': self.state, 'timing': self.timings.to_dict()}
         if self.error:
             status['error'] = self.error
         if self.short_error:
@@ -975,10 +938,10 @@ class Container:
         if self.container_status:
             status['container_status'] = self.container_status
         elif self.container_is_running():
-            status['container_status'] = await self.get_container_status()
+            status['container_status'] = self.get_container_status()
         return status
 
-    async def get_container_status(self):
+    def get_container_status(self):
         if not self.process:
             return None
 
@@ -1014,9 +977,7 @@ class Container:
 
     async def get_log(self):
         if os.path.exists(self.log_path):
-            stream = await self.fs.open(self.log_path)
-            async with stream:
-                return (await stream.read()).decode()
+            return (await self.worker.fs.read(self.log_path)).decode()
         return ''
 
     def __str__(self):
@@ -1146,7 +1107,7 @@ class Job:
         self.pool = pool
         self.worker = worker
 
-        self.deleted = False
+        self.deleted_event = asyncio.Event()
 
         self.token = uuid.uuid4().hex
         self.scratch = f'/batch/{self.token}'
@@ -1228,6 +1189,10 @@ class Job:
     def id(self):
         return (self.batch_id, self.job_id)
 
+    @property
+    def deleted(self):
+        return self.deleted_event.is_set()
+
     async def run(self):
         pass
 
@@ -1236,7 +1201,25 @@ class Job:
 
     async def delete(self):
         log.info(f'deleting {self}')
-        self.deleted = True
+        self.deleted_event.set()
+
+    async def mark_complete(self):
+        self.end_time = time_msecs()
+
+        full_status = self.status()
+
+        if self.format_version.has_full_status_in_gcs():
+            await retry_transient_errors(
+                self.worker.file_store.write_status_file,
+                self.batch_id,
+                self.job_id,
+                self.attempt_id,
+                json.dumps(full_status),
+            )
+
+        if not self.deleted:
+            log.info(f'{self}: marking complete')
+            self.task_manager.ensure_future(self.worker.post_job_complete(self, full_status))
 
     # {
     #   version: int,
@@ -1253,7 +1236,7 @@ class Job:
     #   end_time: int,
     #   resources: list of dict, {name: str, quantity: int}
     # }
-    async def status(self):
+    def status(self):
         status = {
             'version': STATUS_FORMAT_VERSION,
             'worker': NAME,
@@ -1296,7 +1279,7 @@ class DockerJob(Job):
 
         requester_pays_project = job_spec.get('requester_pays_project')
 
-        self.timings = Timings(lambda: False)
+        self.timings = Timings()
 
         if self.secrets:
             for secret in self.secrets:
@@ -1313,7 +1296,7 @@ class DockerJob(Job):
                     self.output_volume_mounts.append(volume_mount)
 
         # create containers
-        containers = {}
+        containers: Dict[str, Container] = {}
 
         if input_files:
             containers['input'] = copy_container(
@@ -1498,6 +1481,8 @@ class DockerJob(Job):
                     self.state = input.state
             except asyncio.CancelledError:
                 raise
+            except JobDeletedError:
+                self.state = 'cancelled'
             except Exception as e:
                 if not user_error(e):
                     log.exception(f'while running {self}')
@@ -1506,42 +1491,46 @@ class DockerJob(Job):
                 self.error = traceback.format_exc()
             finally:
                 with self.step('post-job finally block'):
-                    if self.disk:
-                        try:
-                            await self.disk.delete()
-                            log.info(f'deleted disk {self.disk.name} for {self.id}')
-                        except asyncio.CancelledError:
-                            raise
-                        except Exception:
-                            log.exception(f'while detaching and deleting disk {self.disk.name} for {self.id}')
-                        finally:
-                            await self.disk.close()
-                    else:
-                        self.worker.data_disk_space_remaining.value += self.external_storage_in_gib
-
-                    await self.cleanup()
+                    try:
+                        await self.cleanup()
+                    finally:
+                        await self.mark_complete()
 
     async def cleanup(self):
-        self.end_time = time_msecs()
-
-        if not self.deleted:
-            log.info(f'{self}: marking complete')
-            self.task_manager.ensure_future(self.worker.post_job_complete(self))
-
         log.info(f'{self}: cleaning up')
-        try:
-            if self.cloudfuse:
-                for config in self.cloudfuse:
-                    if config['mounted']:
-                        bucket = config['bucket']
-                        assert bucket
-                        mount_path = self.cloudfuse_data_path(bucket)
+
+        if self.disk:
+            try:
+                await self.disk.delete()
+                log.info(f'deleted disk {self.disk.name} for {self.id}')
+            except asyncio.CancelledError:
+                raise
+            except Exception:
+                log.exception(f'while detaching and deleting disk {self.disk.name} for {self.id}')
+            finally:
+                await self.disk.close()
+        else:
+            self.worker.data_disk_space_remaining.value += self.external_storage_in_gib
+
+        if self.cloudfuse:
+            for config in self.cloudfuse:
+                if config['mounted']:
+                    bucket = config['bucket']
+                    assert bucket
+                    mount_path = self.cloudfuse_data_path(bucket)
+
+                    try:
                         await CLOUD_WORKER_API.unmount_cloudfuse(mount_path)
                         log.info(f'unmounted fuse blob storage {bucket} from {mount_path}')
                         config['mounted'] = False
+                    except asyncio.CancelledError:
+                        raise
+                    except Exception:
+                        log.exception(f'while unmounting fuse blob storage {bucket} from {mount_path}')
 
-            await check_shell(f'xfs_quota -x -c "limit -p bsoft=0 bhard=0 {self.project_id}" /host')
+        await check_shell(f'xfs_quota -x -c "limit -p bsoft=0 bhard=0 {self.project_id}" /host')
 
+        try:
             await blocking_to_async(self.pool, shutil.rmtree, self.scratch, ignore_errors=True)
         except asyncio.CancelledError:
             raise
@@ -1555,9 +1544,9 @@ class DockerJob(Job):
         await super().delete()
         await asyncio.wait([c.delete() for c in self.containers.values()])
 
-    async def status(self):
-        status = await super().status()
-        cstatuses = {name: await c.status() for name, c in self.containers.items()}
+    def status(self):
+        status = super().status()
+        cstatuses = {name: c.status() for name, c in self.containers.items()}
         status['container_statuses'] = cstatuses
         status['timing'] = self.timings.to_dict()
 
@@ -1593,16 +1582,21 @@ class JVMJob(Job):
         self.revision = self.user_command_string[1]
         self.jar_url = self.user_command_string[2]
 
-        self.deleted = False
-        self.timings = Timings(lambda: self.deleted)
+        self.timings = Timings()
         self.state = 'pending'
-        self.log: Optional[str] = None
 
         self.jvm: Optional[JVM] = None
         self.jvm_name: Optional[str] = None
 
+        self.log_file = f'{self.scratch}/log'
+
+        assert self.worker.fs is not None
+
     def step(self, name):
         return self.timings.step(name)
+
+    async def run_until_done_or_deleted(self, f: Callable[..., Awaitable[Any]], *args, **kwargs):
+        return await run_until_done_or_deleted(self.deleted_event, f, *args, **kwargs)
 
     def verify_is_acceptable_query_jar_url(self, url: str):
         if not url.startswith(ACCEPTABLE_QUERY_JAR_URL_PREFIX):
@@ -1612,6 +1606,31 @@ class JVMJob(Job):
     def secret_host_path(self, secret):
         return f'{self.scratch}/secrets/{secret["mount_path"]}'
 
+    async def download_jar(self):
+        async with self.worker.jar_download_locks[self.revision]:
+            local_jar_location = f'/hail-jars/{self.revision}.jar'
+            if not os.path.isfile(local_jar_location):
+                self.verify_is_acceptable_query_jar_url(self.jar_url)
+                temporary_file = tempfile.NamedTemporaryFile(delete=False)  # pylint: disable=consider-using-with
+                try:
+                    async with await self.worker.fs.open(self.jar_url) as jar_data:
+                        while True:
+                            b = await jar_data.read(256 * 1024)
+                            if not b:
+                                break
+                            written = await blocking_to_async(worker.pool, temporary_file.write, b)
+                            assert written == len(b)
+                    temporary_file.close()
+                    os.rename(temporary_file.name, local_jar_location)
+                finally:
+                    temporary_file.close()  # close is idempotent
+                    try:
+                        os.remove(temporary_file.name)
+                    except OSError as err:
+                        if err.errno != errno.ENOENT:
+                            raise
+            return local_jar_location
+
     async def run(self):
         async with self.worker.cpu_sem(self.cpu_in_mcpu):
             self.start_time = time_msecs()
@@ -1619,7 +1638,7 @@ class JVMJob(Job):
 
             try:
                 with self.step('connecting_to_jvm'):
-                    self.jvm = await self.worker.borrow_jvm()
+                    self.jvm = await self.run_until_done_or_deleted(self.worker.borrow_jvm)
                     self.jvm_name = str(self.jvm)
 
                 self.task_manager.ensure_future(self.worker.post_job_started(self))
@@ -1640,32 +1659,12 @@ class JVMJob(Job):
 
                 log.info(f'{self}: downloading JAR')
                 with self.step('downloading_jar'):
-                    async with self.worker.jar_download_locks[self.revision]:
-                        local_jar_location = f'/hail-jars/{self.revision}.jar'
-                        if not os.path.isfile(local_jar_location):
-                            self.verify_is_acceptable_query_jar_url(self.jar_url)
-                            temporary_file = tempfile.NamedTemporaryFile(delete=False)
-                            try:
-                                async with await self.worker.fs.open(self.jar_url) as jar_data:
-                                    while True:
-                                        b = await jar_data.read(256 * 1024)
-                                        if not b:
-                                            break
-                                        written = await blocking_to_async(worker.pool, temporary_file.write, b)
-                                        assert written == len(b)
-                                temporary_file.close()
-                                os.rename(temporary_file.name, local_jar_location)
-                            finally:
-                                temporary_file.close()  # close is idempotent
-                                try:
-                                    os.remove(temporary_file.name)
-                                except OSError as err:
-                                    if err.errno != errno.ENOENT:
-                                        raise
+                    local_jar_location = await self.run_until_done_or_deleted(self.download_jar)
 
                 log.info(f'{self}: running jvm process')
                 with self.step('running'):
-                    await self.jvm.execute(local_jar_location, self.scratch, self.user_command_string)
+                    await self.jvm.execute(local_jar_location, self.scratch, self.log_file, self.user_command_string)
+
                 self.state = 'succeeded'
                 log.info(f'{self} main: {self.state}')
             except asyncio.CancelledError:
@@ -1674,39 +1673,31 @@ class JVMJob(Job):
                 self.state = 'failed'
                 self.error = traceback.format_exc()
                 await self.cleanup()
+            except JobDeletedError:
+                self.state = 'cancelled'
+                await self.cleanup()
             except Exception:
                 log.exception(f'while running {self}')
 
                 self.state = 'error'
                 self.error = traceback.format_exc()
+
                 await self.cleanup()
             else:
                 await self.cleanup()
+            finally:
+                await self.mark_complete()
 
     async def cleanup(self):
         if self.jvm is not None:
-            # I really want this to be a timed step but I can't skip this ITS CLEAN UP
-            # with self.step('retrieve_output'):
-            log.info(f'{self}: retrieving log')
-            self.log = self.jvm.retrieve_and_clear_output()
             worker.return_jvm(self.jvm)
             self.jvm = None
 
-        job_log = self.log
-        if job_log is None:
-            job_log = ''
-        # I really want this to be a timed step but I CANT RAISE EXCEPTIONS IN CLEANUP!!
-        # with self.step('uploading_log'):
-        log.info(f'{self}: uploading log')
-        await worker.file_store.write_log_file(
-            self.format_version, self.batch_id, self.job_id, self.attempt_id, 'main', job_log
-        )
-
-        self.end_time = time_msecs()
-
-        if not self.deleted:
-            log.info(f'{self}: marking complete')
-            self.task_manager.ensure_future(self.worker.post_job_complete(self))
+        with self.step('uploading_log'):
+            log.info(f'{self}: uploading log')
+            await worker.file_store.write_log_file(
+                self.format_version, self.batch_id, self.job_id, self.attempt_id, 'main', await self._get_log()
+            )
 
         log.info(f'{self}: cleaning up')
         try:
@@ -1717,14 +1708,16 @@ class JVMJob(Job):
         except Exception:
             log.exception('while deleting volumes')
 
+    async def _get_log(self):
+        if os.path.exists(self.log_file):
+            return (await self.worker.fs.read(self.log_file)).decode()
+        return ''
+
     async def get_log(self):
-        if self.log is not None:
-            return {'main': self.log}
-        return {'main': self.jvm.output()}
+        return {'main': await self._get_log()}
 
     async def delete(self):
-        log.info(f'deleting {self} {self.jvm}')
-        self.deleted = True
+        await super().delete()
         if self.jvm is not None:
             log.info(f'{self.jvm} interrupting')
             self.jvm.interrupt()
@@ -1736,7 +1729,7 @@ class JVMJob(Job):
     #   job_id: int,
     #   attempt_id: int,
     #   user: str,
-    #   state: str, (pending, initializing, running, succeeded, error, failed)
+    #   state: str, (pending, initializing, running, succeeded, error, failed, cancelled)
     #   format_version: int
     #   error: str, (optional)
     #   container_statuses: [Container.status],
@@ -1745,9 +1738,9 @@ class JVMJob(Job):
     #   resources: list of dict, {name: str, quantity: int},
     #   jvm: str
     # }
-    async def status(self):
-        status = await super().status()
-        status['container_statuses'] = dict()
+    def status(self):
+        status = super().status()
+        status['container_statuses'] = {}
         status['container_statuses']['main'] = {'name': 'main', 'state': self.state, 'timing': self.timings.to_dict()}
         status['jvm'] = self.jvm_name
         return status
@@ -1978,13 +1971,10 @@ class JVM:
         if self.process is not None:
             self.process.kill()
 
-    def output(self) -> str:
-        return self.process.output()
+    def close(self):
+        self.process.close()
 
-    def retrieve_and_clear_output(self) -> str:
-        return self.process.retrieve_and_clear_output()
-
-    async def execute(self, classpath: str, scratch_dir: str, command_string: List[str]):
+    async def execute(self, classpath: str, scratch_dir: str, log_file: str, command_string: List[str]):
         assert worker is not None
 
         log.info(f'{self}: execute')
@@ -1996,7 +1986,7 @@ class JVM:
             stack.callback(writer.close)
             log.info(f'{self}: connection acquired')
 
-            command_string = [classpath, 'is.hail.backend.service.Main', scratch_dir, *command_string]
+            command_string = [classpath, 'is.hail.backend.service.Main', scratch_dir, log_file, *command_string]
 
             write_int(writer, len(command_string))
             for arg in command_string:
@@ -2033,6 +2023,7 @@ class JVM:
             elif message == JVM.FINISH_CANCELLED:
                 assert wait_for_interrupt.done()
                 log.info(f'{self}: was cancelled')
+                raise JobDeletedError
             elif message == JVM.FINISH_USER_EXCEPTION:
                 log.info(f'{self}: user exception encountered (interrupted: {wait_for_interrupt.done()})')
                 exception = await read_str(reader)
@@ -2082,7 +2073,7 @@ class Worker:
     async def borrow_jvm(self) -> JVM:
         if instance_config.worker_type() not in ('standard', 'D'):
             raise ValueError(f'JVM jobs not allowed on {instance_config.worker_type()}')
-        await self._jvm_initializer_task
+        await asyncio.shield(self._jvm_initializer_task)
         assert self._jvms
         return self._jvms.pop()
 
@@ -2095,28 +2086,33 @@ class Worker:
     async def shutdown(self):
         log.info('Worker.shutdown')
         try:
-            self.task_manager.shutdown()
-            log.info('shutdown task manager')
+            with ExitStack() as cleanup:
+                for jvm in self._jvms:
+                    cleanup.callback(jvm.close)
         finally:
             try:
-                if self.fs:
-                    await self.fs.close()
-                    log.info('closed worker file system')
+                self.task_manager.shutdown()
+                log.info('shutdown task manager')
             finally:
                 try:
-                    if self.compute_client:
-                        await self.compute_client.close()
-                        log.info('closed compute client')
+                    if self.fs:
+                        await self.fs.close()
+                        log.info('closed worker file system')
                 finally:
                     try:
-                        if self.file_store:
-                            await self.file_store.close()
-                            log.info('closed file store')
+                        if self.compute_client:
+                            await self.compute_client.close()
+                            log.info('closed compute client')
                     finally:
-                        await self.client_session.close()
-                        log.info('closed client session')
+                        try:
+                            if self.file_store:
+                                await self.file_store.close()
+                                log.info('closed file store')
+                        finally:
+                            await self.client_session.close()
+                            log.info('closed client session')
 
-    async def run_job(self, job):
+    async def run_job(self, job):  # pylint: disable=no-self-use
         try:
             await job.run()
         except asyncio.CancelledError:
@@ -2185,9 +2181,13 @@ class Worker:
         return web.Response()
 
     async def create_job(self, request):
+        if not self.active:
+            raise web.HTTPServiceUnavailable
         return await asyncio.shield(self.create_job_1(request))
 
     async def get_job_log(self, request):
+        if not self.active:
+            raise web.HTTPServiceUnavailable
         batch_id = int(request.match_info['batch_id'])
         job_id = int(request.match_info['job_id'])
         id = (batch_id, job_id)
@@ -2197,13 +2197,15 @@ class Worker:
         return web.json_response(await job.get_log())
 
     async def get_job_status(self, request):
+        if not self.active:
+            raise web.HTTPServiceUnavailable
         batch_id = int(request.match_info['batch_id'])
         job_id = int(request.match_info['job_id'])
         id = (batch_id, job_id)
         job = self.jobs.get(id)
         if not job:
             raise web.HTTPNotFound()
-        return web.json_response(await job.status())
+        return web.json_response(job.status())
 
     async def delete_job_1(self, request):
         batch_id = int(request.match_info['batch_id'])
@@ -2223,9 +2225,13 @@ class Worker:
         return web.Response()
 
     async def delete_job(self, request):
+        if not self.active:
+            raise web.HTTPServiceUnavailable
         return await asyncio.shield(self.delete_job_1(request))
 
     async def healthcheck(self, request):  # pylint: disable=unused-argument
+        if not self.active:
+            raise web.HTTPServiceUnavailable
         body = {'name': NAME}
         return web.json_response(body)
 
@@ -2242,18 +2248,19 @@ class Worker:
             ]
         )
 
-        try:
-            await asyncio.wait_for(self.activate(), MAX_IDLE_TIME_MSECS / 1000)
-        except asyncio.TimeoutError:
-            log.exception(f'could not activate after trying for {MAX_IDLE_TIME_MSECS} ms, exiting')
-            return
+        self.task_manager.ensure_future(periodically_call(60, self.cleanup_old_images))
 
         app_runner = web.AppRunner(app)
         await app_runner.setup()
         site = web.TCPSite(app_runner, '0.0.0.0', 5000)
         await site.start()
 
-        self.task_manager.ensure_future(periodically_call(60, self.cleanup_old_images))
+        try:
+            await asyncio.wait_for(self.activate(), MAX_IDLE_TIME_MSECS / 1000)
+        except asyncio.TimeoutError:
+            log.exception(f'could not activate after trying for {MAX_IDLE_TIME_MSECS} ms, exiting')
+            return
+
         try:
             while True:
                 try:
@@ -2293,18 +2300,12 @@ class Worker:
         self.stop_event.set()
 
     async def kill(self, request):
+        if not self.active:
+            raise web.HTTPServiceUnavailable
         return await asyncio.shield(self.kill_1(request))
 
-    async def post_job_complete_1(self, job):
+    async def post_job_complete_1(self, job, full_status):
         run_duration = job.end_time - job.start_time
-
-        full_status = await retry_all_errors(f'error while getting status for {job}')(job.status)
-
-        if job.format_version.has_full_status_in_gcs():
-            await retry_all_errors(f'error while writing status file to gcs for {job}')(
-                self.file_store.write_status_file, job.batch_id, job.job_id, job.attempt_id, json.dumps(full_status)
-            )
-
         db_status = job.format_version.db_status(full_status)
 
         status = {
@@ -2350,9 +2351,9 @@ class Worker:
             # exponentially back off, up to (expected) max of 2m
             delay_secs = min(delay_secs * 2, 2 * 60.0)
 
-    async def post_job_complete(self, job):
+    async def post_job_complete(self, job, full_status):
         try:
-            await self.post_job_complete_1(job)
+            await self.post_job_complete_1(job, full_status)
         except asyncio.CancelledError:
             raise
         except Exception:
@@ -2364,7 +2365,7 @@ class Worker:
                 self.last_updated = time_msecs()
 
     async def post_job_started_1(self, job):
-        full_status = await job.status()
+        full_status = job.status()
 
         status = {
             'version': full_status['version'],
@@ -2394,6 +2395,7 @@ class Worker:
             log.exception(f'error while posting {job} started')
 
     async def activate(self):
+        log.info('activating')
         resp = await request_retry_transient_errors(
             self.client_session,
             'GET',
@@ -2403,7 +2405,7 @@ class Worker:
         resp_json = await resp.json()
 
         credentials_file = '/worker-key.json'
-        with open(credentials_file, 'w') as f:
+        with open(credentials_file, 'w', encoding='utf-8') as f:
             f.write(json.dumps(resp_json['key']))
 
         self.fs = RouterAsyncFS(
@@ -2427,10 +2429,10 @@ class Worker:
             headers={'X-Hail-Instance-Name': NAME, 'Authorization': f'Bearer {os.environ["ACTIVATION_TOKEN"]}'},
         )
         resp_json = await resp.json()
-        self.last_updated = time_msecs()
-
         self.headers = {'X-Hail-Instance-Name': NAME, 'Authorization': f'Bearer {resp_json["token"]}'}
         self.active = True
+        self.last_updated = time_msecs()
+        log.info('activated')
 
     async def cleanup_old_images(self):
         try:

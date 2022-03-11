@@ -1,10 +1,10 @@
-from typing import TypeVar, Callable, Awaitable, Dict, Generic
-
-import time
 import asyncio
+import time
+from typing import Awaitable, Callable, Dict, Generic, TypeVar
+
 import prometheus_client as pc  # type: ignore
-from prometheus_async.aio import time as prom_async_time  # type: ignore
 import sortedcontainers
+from prometheus_async.aio import time as prom_async_time  # type: ignore
 
 CACHE_HITS = pc.Counter('cache_hits_count', 'Number of Cache Hits', ['cache_name'])
 CACHE_MISSES = pc.Counter('cache_misses_count', 'Number of Cache Hits', ['cache_name'])

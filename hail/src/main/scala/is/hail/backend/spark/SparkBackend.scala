@@ -254,6 +254,7 @@ class SparkBackend(
   val sc: SparkContext
 ) extends Backend with Closeable {
   lazy val sparkSession: SparkSession = SparkSession.builder().config(sc.getConf).getOrCreate()
+  private[this] val theHailClassLoader: HailClassLoader = new HailClassLoader(getClass().getClassLoader())
 
   val fs: HadoopFS = new HadoopFS(new SerializableHadoopConfiguration(sc.hadoopConfiguration))
   private[this] val longLifeTempFileManager: TempFileManager = new OwningTempFileManager(fs)
@@ -272,12 +273,13 @@ class SparkBackend(
 
   def withExecuteContext[T](timer: ExecutionTimer, selfContainedExecution: Boolean = true)(f: ExecuteContext => T): T = {
     ExecuteContext.scoped(tmpdir, localTmpdir, this, fs, timer,
-      if (selfContainedExecution) null else new NonOwningTempFileManager(longLifeTempFileManager))(f)
+      if (selfContainedExecution) null else new NonOwningTempFileManager(longLifeTempFileManager),
+      theHailClassLoader)(f)
   }
 
   def broadcast[T : ClassTag](value: T): BroadcastValue[T] = new SparkBroadcastValue[T](sc.broadcast(value))
 
-  def parallelizeAndComputeWithIndex(backendContext: BackendContext, fs: FS, collection: Array[Array[Byte]], dependency: Option[TableStageDependency] = None)(f: (Array[Byte], HailTaskContext, FS) => Array[Byte]): Array[Array[Byte]] = {
+  def parallelizeAndComputeWithIndex(backendContext: BackendContext, fs: FS, collection: Array[Array[Byte]], dependency: Option[TableStageDependency] = None)(f: (Array[Byte], HailTaskContext, HailClassLoader, FS) => Array[Byte]): Array[Array[Byte]] = {
     val fsBc = fs.broadcast
 
     val sparkDeps = dependency.toIndexedSeq
@@ -342,7 +344,7 @@ class SparkBackend(
             ir,
             print = print)
         }
-        ctx.timer.time("Run")(Left(f(ctx.fs, 0, ctx.r)(ctx.r)))
+        ctx.timer.time("Run")(Left(f(ctx.theHailClassLoader, ctx.fs, 0, ctx.r)(ctx.r)))
 
       case _ =>
         val (Some(PTypeReferenceSingleCodeType(pt: PTuple)), f) = ctx.timer.time("Compile") {
@@ -352,7 +354,7 @@ class SparkBackend(
             MakeTuple.ordered(FastSeq(ir)),
             print = print)
         }
-        ctx.timer.time("Run")(Right((pt, f(ctx.fs, 0, ctx.r).apply(ctx.r))))
+        ctx.timer.time("Run")(Right((pt, f(ctx.theHailClassLoader, ctx.fs, 0, ctx.r).apply(ctx.r))))
     }
 
     res
@@ -468,7 +470,7 @@ class SparkBackend(
       val key = jKey.asScala.toArray.toFastIndexedSeq
       val signature = SparkAnnotationImpex.importType(df.schema).setRequired(true).asInstanceOf[PStruct]
       withExecuteContext(timer, selfContainedExecution = false) { ctx =>
-        TableLiteral(TableValue(ctx, signature.virtualType.asInstanceOf[TStruct], key, df.rdd, Some(signature)))
+        TableLiteral(TableValue(ctx, signature.virtualType.asInstanceOf[TStruct], key, df.rdd, Some(signature)), ctx.theHailClassLoader)
       }
     }
   }
@@ -484,7 +486,7 @@ class SparkBackend(
 
       withExecuteContext(timer, selfContainedExecution = false) { ctx =>
         val tv = Interpret(mir, ctx, optimize = true)
-        MatrixLiteral(mir.typ, TableLiteral(tv.persist(ctx, level)))
+        MatrixLiteral(mir.typ, TableLiteral(tv.persist(ctx, level), ctx.theHailClassLoader))
       }
     }
   }
@@ -500,7 +502,7 @@ class SparkBackend(
 
       withExecuteContext(timer, selfContainedExecution = false) { ctx =>
         val tv = Interpret(tir, ctx, optimize = true)
-        TableLiteral(tv.persist(ctx, level))
+        TableLiteral(tv.persist(ctx, level), ctx.theHailClassLoader)
       }
     }
   }
@@ -678,7 +680,7 @@ class SparkBackend(
     val (globals, rvd) = TableStageToRVD(ctx, stage, relationalLetsAbove)
 
     if (sortFields.forall(_.sortOrder == Ascending)) {
-      return RVDToTableStage(rvd.changeKey(ctx, sortFields.map(_.field)), globals.toEncodedLiteral())
+      return RVDToTableStage(rvd.changeKey(ctx, sortFields.map(_.field)), globals.toEncodedLiteral(ctx.theHailClassLoader))
     }
 
     val rowType = rvd.rowType
@@ -696,7 +698,7 @@ class SparkBackend(
     val codec = TypedCodecSpec(rvd.rowPType, BufferSpec.wireSpec)
     val rdd = rvd.keyedEncodedRDD(ctx, codec, sortFields.map(_.field)).sortBy(_._1)(ord, act)
     val (rowPType: PStruct, orderedCRDD) = codec.decodeRDD(ctx, rowType, rdd.map(_._2))
-    RVDToTableStage(RVD.unkeyed(rowPType, orderedCRDD), globals.toEncodedLiteral())
+    RVDToTableStage(RVD.unkeyed(rowPType, orderedCRDD), globals.toEncodedLiteral(ctx.theHailClassLoader))
   }
 
   def pyImportFam(path: String, isQuantPheno: Boolean, delimiter: String, missingValue: String): String =
@@ -713,7 +715,7 @@ class SparkBackendComputeRDD(
   fsBc: BroadcastValue[FS],
   sc: SparkContext,
   @transient private val collection: Array[Array[Byte]],
-  f: (Array[Byte], HailTaskContext, FS) => Array[Byte],
+  f: (Array[Byte], HailTaskContext, HailClassLoader, FS) => Array[Byte],
   deps: Seq[Dependency[_]])
   extends RDD[Array[Byte]](sc, deps) {
 
@@ -723,6 +725,6 @@ class SparkBackendComputeRDD(
 
   override def compute(partition: Partition, context: TaskContext): Iterator[Array[Byte]] = {
     val sp = partition.asInstanceOf[SparkBackendComputeRDDPartition]
-    Iterator.single(f(sp.data, SparkTaskContext.get(), fsBc.value))
+    Iterator.single(f(sp.data, SparkTaskContext.get(), theHailClassLoaderForSparkWorkers, fsBc.value))
   }
 }

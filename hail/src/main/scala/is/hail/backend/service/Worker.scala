@@ -4,6 +4,7 @@ import java.io._
 import java.nio.charset._
 import java.util.{concurrent => javaConcurrent}
 
+import is.hail.asm4s._
 import is.hail.{HAIL_REVISION, HailContext}
 import is.hail.backend.HailTaskContext
 import is.hail.io.fs._
@@ -51,17 +52,19 @@ object Worker {
     javaConcurrent.Executors.newCachedThreadPool())
 
   def main(argv: Array[String]): Unit = {
+    val theHailClassLoader = new HailClassLoader(getClass().getClassLoader())
 
-    if (argv.length != 6) {
-      throw new IllegalArgumentException(s"expected five arguments, not: ${ argv.length }")
+    if (argv.length != 7) {
+      throw new IllegalArgumentException(s"expected seven arguments, not: ${ argv.length }")
     }
     val scratchDir = argv(0)
-    val kind = argv(1)
+    val logFile = argv(1)
+    val kind = argv(2)
     assert(kind == Main.WORKER)
-    val revision = argv(2)
-    val jarGCSPath = argv(3)
-    val root = argv(4)
-    val i = argv(5).toInt
+    val revision = argv(3)
+    val jarGCSPath = argv(4)
+    val root = argv(5)
+    val i = argv(6).toInt
     val timer = new WorkerTimer()
 
     val deployConfig = DeployConfig.fromConfigFile(
@@ -86,7 +89,7 @@ object Worker {
     val fFuture = Future {
       retryTransientErrors {
         using(new ObjectInputStream(fs.openCachedNoCompression(s"$root/f"))) { is =>
-          is.readObject().asInstanceOf[(Array[Byte], HailTaskContext, FS) => Array[Byte]]
+          is.readObject().asInstanceOf[(Array[Byte], HailTaskContext, HailClassLoader, FS) => Array[Byte]]
         }
       }
     }
@@ -112,14 +115,14 @@ object Worker {
     timer.start("executeFunction")
 
     if (HailContext.isInitialized) {
-      HailContext.get.backend = new ServiceBackend(null, null, null)
+      HailContext.get.backend = new ServiceBackend(null, null, null, new HailClassLoader(getClass().getClassLoader()))
     } else {
       HailContext(
         // FIXME: workers should not have backends, but some things do need hail contexts
-        new ServiceBackend(null, null, null), skipLoggingConfiguration = true, quiet = true)
+        new ServiceBackend(null, null, null, new HailClassLoader(getClass().getClassLoader())), skipLoggingConfiguration = true, quiet = true)
     }
     val htc = new ServiceTaskContext(i)
-    val result = f(context, htc, fs)
+    val result = f(context, htc, theHailClassLoader, fs)
     htc.finish()
 
     timer.end("executeFunction")

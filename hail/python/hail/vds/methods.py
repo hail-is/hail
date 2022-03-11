@@ -2,7 +2,7 @@ from typing import Sequence
 
 import hail as hl
 from hail import ir
-from hail.expr import ArrayExpression, expr_any, expr_array, expr_interval, expr_locus
+from hail.expr import expr_any, expr_array, expr_interval, expr_locus
 from hail.matrixtable import MatrixTable
 from hail.methods.misc import require_first_key_field_locus
 from hail.table import Table
@@ -371,9 +371,9 @@ def impute_sex_chromosome_ploidy(
 
      -  ``autosomal_mean_dp`` (*float64*): Mean depth on calling intervals on normalization contig.
      -  ``x_mean_dp`` (*float64*): Mean depth on calling intervals on X chromosome.
-     -  ``x_ploidy`` (*float64*): Estimated ploidy on X chromosome. Equal to ``2 * autosomal_mean_dp / x_mean_dp``.
+     -  ``x_ploidy`` (*float64*): Estimated ploidy on X chromosome. Equal to ``2 * x_mean_dp / autosomal_mean_dp``.
      -  ``y_mean_dp`` (*float64*): Mean depth on calling intervals on  chromosome.
-     -  ``y_ploidy`` (*float64*): Estimated ploidy on Y chromosome. Equal to ``2 * autosomal_mean_dp / y_mean_dp``.
+     -  ``y_ploidy`` (*float64*): Estimated ploidy on Y chromosome. Equal to ``2 * y_mean_db / autosomal_mean_dp``.
 
     Parameters
     ----------
@@ -449,9 +449,9 @@ def impute_sex_chromosome_ploidy(
     y_dp = mean_dp_dict.get(chr_y)
     per_sample = coverage.transmute_cols(autosomal_mean_dp=auto_dp,
                                          x_mean_dp=x_dp,
-                                         x_ploidy=x_dp / auto_dp * 2,
+                                         x_ploidy=2 * x_dp / auto_dp,
                                          y_mean_dp=y_dp,
-                                         y_ploidy=y_dp / auto_dp * 2)
+                                         y_ploidy=2 * y_dp / auto_dp)
     info("'impute_sex_chromosome_ploidy': computing and checkpointing coverage and karyotype metrics")
     return per_sample.cols().checkpoint(new_temp_file('impute_sex_karyotype', extension='ht'))
 
@@ -482,13 +482,22 @@ def filter_variants(vds: 'VariantDataset', variants_table: 'Table', *, keep: boo
 
 
 @typecheck(vds=VariantDataset,
-           intervals=expr_array(expr_interval(expr_any)),
+           intervals=oneof(Table, expr_array(expr_interval(expr_any))),
            keep=bool,
            mode=enumeration('variants_only', 'split_at_boundaries', 'unchecked_filter_both'))
 def _parameterized_filter_intervals(vds: 'VariantDataset',
-                                    intervals: 'ArrayExpression',
+                                    intervals,
                                     keep: bool,
                                     mode: str) -> 'VariantDataset':
+    intervals_table = None
+    if isinstance(intervals, Table):
+        expected = hl.tinterval(hl.tlocus(vds.reference_genome))
+        if len(intervals.key) != 1 or intervals.key[0].dtype != hl.tinterval(hl.tlocus(vds.reference_genome)):
+            raise ValueError(
+                f"'filter_intervals': expect a table with a single key of type {expected}; "
+                f"found {list(intervals.key.dtype.values())}")
+        intervals_table = intervals
+        intervals = intervals.aggregate(hl.agg.collect(intervals.key[0]))
 
     if mode == 'variants_only':
         variant_data = hl.filter_intervals(vds.variant_data, intervals, keep)
@@ -496,9 +505,12 @@ def _parameterized_filter_intervals(vds: 'VariantDataset',
     if mode == 'split_at_boundaries':
         if not keep:
             raise ValueError("filter_intervals mode 'split_at_boundaries' not implemented for keep=False")
-        par_intervals = hl.Table.parallelize([hl.Struct(interval=x) for x in intervals],
-                                             schema=hl.tstruct(interval=intervals.dtype.element_type), key='interval')
-        ref = segment_reference_blocks(vds.reference_data, par_intervals)
+        par_intervals = intervals_table or hl.Table.parallelize(
+            intervals.map(lambda x: hl.struct(interval=x)),
+            schema=hl.tstruct(interval=intervals.dtype.element_type),
+            key='interval')
+        ref = segment_reference_blocks(vds.reference_data, par_intervals).drop('interval_end',
+                                                                               list(par_intervals.key)[0])
         return VariantDataset(ref,
                               hl.filter_intervals(vds.variant_data, intervals, keep))
 
@@ -576,16 +588,22 @@ def filter_chromosomes(vds: 'VariantDataset', *, keep=None, remove=None, keep_au
                                            mode='unchecked_filter_both')
 
 
-@typecheck(vds=VariantDataset, intervals=expr_array(expr_interval(expr_any)), split_reference_blocks=bool, keep=bool)
-def filter_intervals(vds: 'VariantDataset', intervals: 'ArrayExpression', *, split_reference_blocks: bool = False,
-                     keep: bool = False) -> 'VariantDataset':
+@typecheck(vds=VariantDataset,
+           intervals=oneof(Table, expr_array(expr_interval(expr_any))),
+           split_reference_blocks=bool,
+           keep=bool)
+def filter_intervals(vds: 'VariantDataset',
+                     intervals,
+                     *,
+                     split_reference_blocks: bool = False,
+                     keep: bool = True) -> 'VariantDataset':
     """Filter intervals in a :class:`.VariantDataset`.
 
     Parameters
     ----------
     vds : :class:`.VariantDataset`
         Dataset in VariantDataset representation.
-    intervals : :class:`.ArrayExpression` of type :class:`.tinterval`
+    intervals : :class:`.Table` or :class:`.ArrayExpression` of type :class:`.tinterval`
         Intervals to filter on.
     split_reference_blocks: :obj:`bool`
         If true, remove reference data outside the given intervals by segmenting reference

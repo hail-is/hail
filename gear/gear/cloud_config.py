@@ -1,6 +1,6 @@
-from typing import Dict, Set
-import os
 import json
+import os
+from typing import Dict, Set
 
 
 class AzureConfig:
@@ -86,7 +86,7 @@ def read_config_secret(path: str) -> Dict[str, str]:
     for field in os.listdir(path):
         # Kubernetes inserts some hidden files that we don't care about
         if not field.startswith('.'):
-            with open(f'{path}/{field}') as value:
+            with open(f'{path}/{field}', encoding='utf-8') as value:
                 config[field] = value.read()
 
     return config

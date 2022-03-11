@@ -1,14 +1,15 @@
-import os
 import base64
 import json
-import kubernetes_asyncio.config
+import os
+
 import kubernetes_asyncio.client
-from hailtop.utils import async_to_blocking
-from gear import Database, transaction
-from gear.cloud_config import get_global_config
-from gear.clients import get_identity_client
+import kubernetes_asyncio.config
 
 from auth.driver.driver import create_user
+from gear import Database, transaction
+from gear.clients import get_identity_client
+from gear.cloud_config import get_global_config
+from hailtop.utils import async_to_blocking
 
 CLOUD = get_global_config()['cloud']
 SCOPE = os.environ['HAIL_SCOPE']

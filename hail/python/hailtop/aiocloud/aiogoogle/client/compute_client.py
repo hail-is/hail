@@ -87,7 +87,7 @@ class GoogleComputeClient(GoogleBaseClient):
         return await self.delete(path, params=params, **kwargs)
 
     async def _request_with_zonal_operations_response(self, request_f, path, params: MutableMapping[str, Any] = None, **kwargs):
-        params = params or dict()
+        params = params or {}
         assert 'requestId' not in params
 
         async def request_and_wait():

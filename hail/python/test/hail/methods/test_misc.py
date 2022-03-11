@@ -28,8 +28,6 @@ class Tests(unittest.TestCase):
             'foo'
         )['foo'].dtype == hl.tstr
 
-    @fails_service_backend()
-    @fails_local_backend()
     def test_annotate_intervals(self):
         ds = get_dataset()
 

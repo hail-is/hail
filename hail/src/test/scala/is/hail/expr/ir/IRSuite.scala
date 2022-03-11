@@ -2000,10 +2000,9 @@ class IRSuite extends HailSuite {
                   f.name -> GetField(Ref("_right", r.typ), f.name)
                 })))
     }
-    val mkStream = if (rightDistinct) StreamJoinRightDistinct.apply _ else StreamJoin.apply _
-    ToArray(mkStream(left, right, lKeys, rKeys, "_l", "_r",
+    ToArray(StreamJoin.apply(left, right, lKeys, rKeys, "_l", "_r",
                      joinF(Ref("_l", coerce[TStream](left.typ).elementType), Ref("_r", coerce[TStream](right.typ).elementType)),
-                     joinType))
+                     joinType, rightDistinct))
   }
 
   @Test def testStreamZipJoin() {
@@ -3134,15 +3133,6 @@ class IRSuite extends HailSuite {
     assert(x2 eq cached)
   }
 
-  @Test def testCachedBlockMatrixIR() {
-    val cached = new BlockMatrixLiteral(BlockMatrix.fill(3, 7, 1))
-    val s = s"(JavaBlockMatrix __uid1)"
-    val x2 = ExecuteContext.scoped() { ctx =>
-      IRParser.parse_blockmatrix_ir(s, IRParserEnvironment(ctx, refMap = Map.empty, irMap = Map("__uid1" -> cached)))
-    }
-    assert(x2 eq cached)
-  }
-
   @Test def testContextSavedMatrixIR() {
     val cached = MatrixIR.range(3, 8, None)
     val id = hc.addIrVector(Array(cached))
@@ -3238,8 +3228,8 @@ class IRSuite extends HailSuite {
 
     val t1 = TableType(TStruct("a" -> TInt32), FastIndexedSeq("a"), TStruct("g1" -> TInt32, "g2" -> TFloat64))
     val t2 = TableType(TStruct("a" -> TInt32), FastIndexedSeq("a"), TStruct("g3" -> TInt32, "g4" -> TFloat64))
-    val tab1 = TableLiteral(TableValue(ctx, t1, BroadcastRow(ctx, Row(1, 1.1), t1.globalType), RVD.empty(t1.canonicalRVDType)))
-    val tab2 = TableLiteral(TableValue(ctx, t2, BroadcastRow(ctx, Row(2, 2.2), t2.globalType), RVD.empty(t2.canonicalRVDType)))
+    val tab1 = TableLiteral(TableValue(ctx, t1, BroadcastRow(ctx, Row(1, 1.1), t1.globalType), RVD.empty(t1.canonicalRVDType)), theHailClassLoader)
+    val tab2 = TableLiteral(TableValue(ctx, t2, BroadcastRow(ctx, Row(2, 2.2), t2.globalType), RVD.empty(t2.canonicalRVDType)), theHailClassLoader)
 
     assertEvalsTo(TableGetGlobals(TableJoin(tab1, tab2, "left")), Row(1, 1.1, 2, 2.2))
     assertEvalsTo(TableGetGlobals(TableMapGlobals(tab1, InsertFields(Ref("global", t1.globalType), Seq("g1" -> I32(3))))), Row(3, 1.1))

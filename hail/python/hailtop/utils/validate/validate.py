@@ -154,7 +154,8 @@ class MultipleValidator:
         excs = []
         for checker in self.checkers:
             try:
-                return checker.validate(name, obj)
+                checker.validate(name, obj)
+                return
             except ValidationError as e:
                 excs.append(e)
         if excs:

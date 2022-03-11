@@ -6,5 +6,6 @@ BLACK := $(PYTHON) -m black . --line-length=120 --skip-string-normalization
 check:
 	$(PYTHON) -m flake8 web_common
 	$(PYTHON) -m pylint --rcfile ../pylintrc web_common --score=n
+	$(PYTHON) -m isort . --check-only --diff
 	$(BLACK) --check --diff
 	curlylint .

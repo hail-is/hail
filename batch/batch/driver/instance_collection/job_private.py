@@ -1,33 +1,32 @@
-from typing import List, Tuple
-import random
+import asyncio
 import json
 import logging
-import asyncio
+import random
+from typing import List, Tuple
+
 import sortedcontainers
 
 from gear import Database
 from hailtop import aiotools
 from hailtop.utils import (
-    Notice,
-    run_if_changed,
-    WaitableSharedPool,
-    time_msecs,
-    retry_long_running,
-    secret_alnum_string,
     AsyncWorkerPool,
+    Notice,
+    WaitableSharedPool,
     periodically_call,
+    retry_long_running,
+    run_if_changed,
+    secret_alnum_string,
+    time_msecs,
 )
 
 from ...batch_format_version import BatchFormatVersion
 from ...inst_coll_config import JobPrivateInstanceManagerConfig
-from ...utils import Box, ExceededSharesCounter
 from ...instance_config import QuantifiedResource
-
+from ...utils import Box, ExceededSharesCounter
 from ..instance import Instance
 from ..job import mark_job_creating, schedule_job
 from ..resource_manager import CloudResourceManager
-
-from .base import InstanceCollectionManager, InstanceCollection
+from .base import InstanceCollection, InstanceCollectionManager
 
 log = logging.getLogger('job_private_inst_coll')
 
@@ -143,9 +142,8 @@ WHERE name = %s;
         log.info(f'starting scheduling jobs for {self}')
         waitable_pool = WaitableSharedPool(self.async_worker_pool)
 
-        should_wait = True
-
-        n_scheduled = 0
+        n_records_seen = 0
+        max_records = 300
 
         async for record in self.db.select_and_fetchall(
             '''
@@ -160,9 +158,9 @@ WHERE batches.state = 'running'
   AND jobs.inst_coll = %s
   AND instances.`state` = 'active'
 ORDER BY instances.time_activated ASC
-LIMIT 300;
+LIMIT %s;
 ''',
-            (self.name,),
+            (self.name, max_records),
         ):
             batch_id = record['batch_id']
             job_id = record['job_id']
@@ -171,8 +169,7 @@ LIMIT 300;
             log.info(f'scheduling job {id}')
 
             instance = self.name_instance[instance_name]
-            n_scheduled += 1
-            should_wait = False
+            n_records_seen += 1
 
             async def schedule_with_error_handling(app, record, id, instance):
                 try:
@@ -184,8 +181,9 @@ LIMIT 300;
 
         await waitable_pool.wait()
 
-        log.info(f'scheduled {n_scheduled} jobs for {self}')
+        log.info(f'attempted to schedule {n_records_seen} jobs for {self}')
 
+        should_wait = n_records_seen < max_records
         return should_wait
 
     def max_instances_to_create(self):

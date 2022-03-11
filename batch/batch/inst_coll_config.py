@@ -1,26 +1,25 @@
-from typing import Dict, Optional, Tuple
 import asyncio
 import logging
+from typing import Dict, Optional, Tuple
 
 from gear import Database
 
-from .driver.billing_manager import ProductVersions
-from .cloud.gcp.instance_config import GCPSlimInstanceConfig
-from .cloud.gcp.resource_utils import family_worker_type_cores_to_gcp_machine_type, GCP_MACHINE_FAMILY
-from .cloud.azure.resource_utils import azure_worker_properties_to_machine_type
 from .cloud.azure.instance_config import AzureSlimInstanceConfig
-from .instance_config import InstanceConfig
+from .cloud.azure.resource_utils import azure_worker_properties_to_machine_type
+from .cloud.gcp.instance_config import GCPSlimInstanceConfig
+from .cloud.gcp.resource_utils import GCP_MACHINE_FAMILY, family_worker_type_cores_to_gcp_machine_type
 from .cloud.resource_utils import (
     adjust_cores_for_memory_request,
     adjust_cores_for_packability,
+    cores_mcpu_to_memory_bytes,
+    local_ssd_size,
     machine_type_to_worker_type_cores,
     requested_storage_bytes_to_actual_storage_gib,
-    cores_mcpu_to_memory_bytes,
     valid_machine_types,
-    local_ssd_size,
 )
 from .cloud.utils import possible_cloud_locations
-
+from .driver.billing_manager import ProductVersions
+from .instance_config import InstanceConfig
 
 log = logging.getLogger('inst_coll_config')
 

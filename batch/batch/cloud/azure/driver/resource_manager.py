@@ -1,34 +1,32 @@
-from typing import Optional, List, Tuple
+import logging
+from typing import List, Optional, Tuple
 
 import aiohttp
-import logging
 import dateutil.parser
 
 from hailtop.aiocloud import aioazure
 
-from ....file_store import FileStore
+from ....driver.instance import Instance
 from ....driver.resource_manager import (
     CloudResourceManager,
+    UnknownVMState,
     VMDoesNotExist,
     VMState,
-    UnknownVMState,
     VMStateCreating,
     VMStateRunning,
     VMStateTerminated,
 )
-from ....driver.instance import Instance
+from ....file_store import FileStore
 from ....instance_config import InstanceConfig, QuantifiedResource
-
 from ..instance_config import AzureSlimInstanceConfig
-from .create_instance import create_vm_config
 from ..resource_utils import (
+    azure_local_ssd_size,
     azure_machine_type_to_worker_type_and_cores,
     azure_worker_memory_per_core_mib,
     azure_worker_properties_to_machine_type,
-    azure_local_ssd_size,
 )
 from .billing_manager import AzureBillingManager
-
+from .create_instance import create_vm_config
 
 log = logging.getLogger('resource_manager')
 

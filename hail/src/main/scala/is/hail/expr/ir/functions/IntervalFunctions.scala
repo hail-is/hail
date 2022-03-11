@@ -4,9 +4,9 @@ import is.hail.asm4s.{Code, _}
 import is.hail.expr.ir._
 import is.hail.expr.ir.orderings.CodeOrdering
 import is.hail.types.physical._
-import is.hail.types.physical.stypes.concrete.SIntervalPointer
+import is.hail.types.physical.stypes.concrete.{SIntervalPointer, SStackStruct, SStackStructValue}
 import is.hail.types.physical.stypes.interfaces._
-import is.hail.types.physical.stypes.primitives.{SBoolean, SBooleanValue}
+import is.hail.types.physical.stypes.primitives.{SBoolean, SBooleanValue, SInt32}
 import is.hail.types.physical.stypes.{EmitType, SType, SValue}
 import is.hail.types.virtual._
 import is.hail.utils.FastIndexedSeq
@@ -17,9 +17,7 @@ object IntervalFunctions extends RegistryFunctions {
     point: SValue, endpoint: SValue, leansRight: Code[Boolean]
   ): Code[Boolean] = {
     val ord = cb.emb.ecb.getOrdering(point.st, endpoint.st)
-    val result = cb.newLocal[Int]("comparePointWithIntervalEndpoint")
-
-    cb.assign(result, ord.compareNonnull(cb, point, endpoint))
+    val result = ord.compareNonnull(cb, point, endpoint)
     (result < 0) || (result.ceq(0) && leansRight)
   }
 
@@ -27,9 +25,7 @@ object IntervalFunctions extends RegistryFunctions {
     point: SValue, endpoint: SValue, leansRight: Code[Boolean]
   ): Code[Boolean] = {
     val ord = cb.emb.ecb.getOrdering(point.st, endpoint.st)
-    val result = cb.newLocal[Int]("comparePointWithIntervalEndpoint")
-
-    cb.assign(result, ord.compareNonnull(cb, point, endpoint))
+    val result = ord.compareNonnull(cb, point, endpoint)
     (result > 0) || (result.ceq(0) && !leansRight)
   }
 
@@ -62,6 +58,22 @@ object IntervalFunctions extends RegistryFunctions {
     }
   }
 
+  def intervalPointCompare(cb: EmitCodeBuilder, interval: SIntervalValue, point: SValue): IEmitCode = {
+    interval.loadStart(cb).flatMap(cb) { start =>
+      cb.ifx(pointLTIntervalEndpoint(cb, point, start, !interval.includesStart()), {
+        IEmitCode.present(cb, primitive(const(1)))
+      }, {
+        interval.loadEnd(cb).map(cb) { end =>
+          cb.ifx(pointLTIntervalEndpoint(cb, point, end, interval.includesEnd()), {
+            primitive(const(0))
+          }, {
+            primitive(const(-1))
+          })
+        }
+      })
+    }
+  }
+
   def intervalContains(cb: EmitCodeBuilder, interval: SIntervalValue, point: SValue): IEmitCode = {
     interval.loadStart(cb).flatMap(cb) { start =>
       cb.ifx(pointGTIntervalEndpoint(cb, point, start, !interval.includesStart()),
@@ -88,21 +100,81 @@ object IntervalFunctions extends RegistryFunctions {
     }
   }
 
-  def compareStructWithIntervalEndpoint(cb: EmitCodeBuilder, point: SBaseStructValue, intervalEndpoint: SBaseStructValue): Value[Int] = {
+  def _partitionIntervalEndpointCompare(cb: EmitCodeBuilder,
+    lStruct: SBaseStructValue, lLength: Value[Int], lSign: Value[Int],
+    rStruct: SBaseStructValue, rLength: Value[Int], rSign: Value[Int]
+  ): Value[Int] = {
+    val structType = lStruct.st
+    assert(rStruct.st.virtualType.isIsomorphicTo(structType.virtualType))
+    val prefixLength = cb.memoize(lLength.min(rLength))
+
+    val result = cb.newLocal[Int]("partitionIntervalEndpointCompare")
+    val Lafter = CodeLabel()
+    val Leq = CodeLabel()
+    cb.ifx(prefixLength.ceq(0), cb.goto(Leq))
+    (0 until (lStruct.st.size min rStruct.st.size)).foreach { idx =>
+      val lField = cb.memoize(lStruct.loadField(cb, idx))
+      val rField = cb.memoize(rStruct.loadField(cb, idx))
+      cb.assign(result,
+        cb.emb.ecb.getOrderingFunction(lField.st, rField.st, CodeOrdering.Compare())
+          .apply(cb, lField, rField))
+      cb.ifx(result.cne(0), cb.goto(Lafter))
+      if (idx < (lStruct.st.size min rStruct.st.size)) {
+        cb.ifx(prefixLength.ceq(idx + 1), cb.goto(Leq))
+      }
+    }
+
+    cb.define(Leq)
+    val c = cb.memoize(lLength - rLength)
+    val ls = cb.ifx(c <= 0, lSign, 0)
+    val rs = cb.ifx(c >= 0, rSign, 0)
+    cb.assign(result, ls - rs)
+
+    cb.define(Lafter)
+    result
+  }
+
+  def partitionIntervalEndpointCompare(cb: EmitCodeBuilder,
+    lhs: SBaseStructValue, lSign: Value[Int],
+    rhs: SBaseStructValue, rSign: Value[Int]
+  ): Value[Int] = {
+    val lStruct = lhs.loadField(cb, 0).get(cb).asBaseStruct
+    val lLength = lhs.loadField(cb, 1).get(cb).asInt.value
+    val rStruct = rhs.loadField(cb, 0).get(cb).asBaseStruct
+    val rLength = rhs.loadField(cb, 1).get(cb).asInt.value
+    _partitionIntervalEndpointCompare(cb, lStruct, lLength, lSign, rStruct, rLength, rSign)
+  }
+
+  def compareStructWithPartitionIntervalEndpoint(cb: EmitCodeBuilder,
+    point: SBaseStructValue,
+    intervalEndpoint: SBaseStructValue,
+    leansRight: Code[Boolean]
+  ): Value[Int] = {
     val endpoint = intervalEndpoint.loadField(cb, 0).get(cb).asBaseStruct
     val endpointLength = intervalEndpoint.loadField(cb, 1).get(cb).asInt.value
+    val sign = cb.memoize((leansRight.toI << 1) - 1)
+    _partitionIntervalEndpointCompare(cb, point, point.st.size, 0, endpoint, endpointLength, sign)
+  }
 
-    val c = cb.newLocal[Int]("c", 0)
-    (0 until endpoint.st.size).foreach { idx =>
-      cb.ifx(c.ceq(0) && const(idx) < endpointLength, {
-        val endpointField = cb.memoize(endpoint.loadField(cb, idx))
-        val pointField = cb.memoize(point.loadField(cb, idx))
-        cb.assign(c,
-          cb.emb.ecb.getOrderingFunction(pointField.st, endpointField.st, CodeOrdering.Compare())
-            .apply(cb, pointField, endpointField))
+  def compareStructWithPartitionInterval(cb: EmitCodeBuilder,
+    point: SBaseStructValue,
+    interval: SIntervalValue
+  ): Value[Int] = {
+    val start = interval.loadStart(cb)
+      .get(cb, "partition intervals cannot have missing endpoints")
+      .asBaseStruct
+    cb.ifx(compareStructWithPartitionIntervalEndpoint(cb, point, start, !interval.includesStart()) < 0, {
+      primitive(const(-1))
+    }, {
+      val end = interval.loadEnd(cb)
+        .get(cb, "partition intervals cannot have missing endpoints")
+        .asBaseStruct
+      cb.ifx(compareStructWithPartitionIntervalEndpoint(cb, point, end, interval.includesEnd()) < 0, {
+        primitive(const(0))
+      }, {
+        primitive(const(1))
       })
-    }
-    c
+    }).asInt.value
   }
 
   def registerAll(): Unit = {
@@ -186,50 +258,130 @@ object IntervalFunctions extends RegistryFunctions {
       }
     }
 
-    registerIR2("sortedNonOverlappingIntervalsContain",
-      TArray(TInterval(tv("T"))), tv("T"), TBoolean) { case (_, intervals, value, errorID) =>
-      val uid = genUID()
-      val uid2 = genUID()
-      Let(uid, LowerBoundOnOrderedCollection(intervals, value, onKey = true),
-        (Let(uid2, Ref(uid, TInt32) - I32(1), (Ref(uid2, TInt32) >= 0)
-          && invoke("contains", TBoolean, ArrayRef(intervals, Ref(uid2, TInt32), errorID), value)))
-          || ((Ref(uid, TInt32) < ArrayLen(intervals))
-          && invoke("contains", TBoolean, ArrayRef(intervals, Ref(uid, TInt32), errorID), value)))
+    registerSCode2("sortedNonOverlappingIntervalsContain",
+      TArray(TInterval(tv("T"))), tv("T"), TBoolean, (_, _, _) => SBoolean
+    ) { case (_, cb, rt, intervals, point, errorID) =>
+      val compare = BinarySearch.Comparator.fromCompare { intervalEC =>
+        val interval = intervalEC
+          .get(cb, "sortedNonOverlappingIntervalsContain assumes non-missing intervals", errorID)
+          .asInterval
+        intervalPointCompare(cb, interval, point)
+          .get(cb, "sortedNonOverlappingIntervalsContain assumes non-missing interval endpoints", errorID)
+          .asInt.value
+      }
+
+      primitive(BinarySearch.containsOrdered(cb, intervals.asIndexable, compare))
+    }
+
+    val partitionEndpointType = TTuple(tv("T"), TInt32)
+    val partitionIntervalType = TInterval(partitionEndpointType)
+    registerSCode2("partitionerContains",
+      TArray(partitionIntervalType), tv("T"), TBoolean,
+      (_, _, _) => SBoolean
+    ) { case (_, cb, rt, intervals: SIndexableValue, point: SBaseStructValue, errorID) =>
+      def ltNeedle(interval: IEmitCode): Code[Boolean] = {
+        val intervalVal = interval
+          .get(cb, "partitionerFindIntervalRange: partition intervals cannot be missing", errorID)
+          .asInterval
+        val intervalEnd = intervalVal.loadEnd(cb)
+          .get(cb, "partitionerFindIntervalRange assumes non-missing interval endpoints", errorID)
+          .asBaseStruct
+        val c = compareStructWithPartitionIntervalEndpoint(cb,
+          point,
+          intervalEnd, intervalVal.includesEnd())
+        c > 0
+      }
+      def gtNeedle(interval: IEmitCode): Code[Boolean] = {
+        val intervalVal = interval
+          .get(cb, "partitionerFindIntervalRange: partition intervals cannot be missing", errorID)
+          .asInterval
+        val intervalStart = intervalVal.loadStart(cb)
+          .get(cb, "partitionerFindIntervalRange assumes non-missing interval endpoints", errorID)
+          .asBaseStruct
+        val c = compareStructWithPartitionIntervalEndpoint(cb,
+          point,
+          intervalStart, !intervalVal.includesStart())
+        c < 0
+      }
+      primitive(BinarySearch.containsOrdered(cb, intervals, ltNeedle, gtNeedle))
+    }
+
+    val requiredInt = EmitType(SInt32, true)
+    val equalRangeResultType = TTuple(TInt32, TInt32)
+    val equalRangeResultSType = SStackStruct(equalRangeResultType, FastIndexedSeq(requiredInt, requiredInt))
+    registerSCode2("partitionerFindIntervalRange",
+      TArray(partitionIntervalType), partitionIntervalType, equalRangeResultType,
+      (_, _, _) => equalRangeResultSType
+    ) { case (_, cb, rt, intervals: SIndexableValue, query: SIntervalValue, errorID) =>
+      val needleStart = query.loadStart(cb)
+        .get(cb, "partitionerFindIntervalRange assumes non-missing interval endpoints", errorID)
+        .asBaseStruct
+      val needleEnd = query.loadEnd(cb)
+        .get(cb, "partitionerFindIntervalRange assumes non-missing interval endpoints", errorID)
+        .asBaseStruct
+      def ltNeedle(interval: IEmitCode): Code[Boolean] = {
+        val intervalVal = interval
+          .get(cb, "partitionerFindIntervalRange: partition intervals cannot be missing", errorID)
+          .asInterval
+        val intervalEnd = intervalVal.loadEnd(cb)
+          .get(cb, "partitionerFindIntervalRange assumes non-missing interval endpoints", errorID)
+          .asBaseStruct
+        val c = partitionIntervalEndpointCompare(cb,
+          intervalEnd, cb.memoize((intervalVal.includesEnd().toI << 1) - 1),
+          needleStart, cb.memoize(const(1) - (query.includesStart().toI << 1)))
+        c <= 0
+      }
+      def gtNeedle(interval: IEmitCode): Code[Boolean] = {
+        val intervalVal = interval
+          .get(cb, "partitionerFindIntervalRange: partition intervals cannot be missing", errorID)
+          .asInterval
+        val intervalStart = intervalVal.loadStart(cb)
+          .get(cb, "partitionerFindIntervalRange assumes non-missing interval endpoints", errorID)
+          .asBaseStruct
+        val c = partitionIntervalEndpointCompare(cb,
+          intervalStart, cb.memoize(const(1) - (intervalVal.includesStart().toI << 1)),
+          needleEnd, cb.memoize((query.includesEnd().toI << 1) - 1))
+        c >= 0
+      }
+      val compare = BinarySearch.Comparator.fromLtGt(ltNeedle, gtNeedle)
+
+      val (start, end) = BinarySearch.equalRange(cb, intervals, compare, ltNeedle, gtNeedle, 0, intervals.loadLength())
+      new SStackStructValue(equalRangeResultSType,
+        FastIndexedSeq(
+          EmitValue.present(primitive(start)),
+          EmitValue.present(primitive(end))))
     }
 
     val endpointT = TTuple(tv("T"), TInt32)
     registerSCode3("pointLessThanPartitionIntervalLeftEndpoint", tv("T"), endpointT, TBoolean, TBoolean, (_, _, _, _) => SBoolean) {
       case (_, cb, _, point: SBaseStructValue, leftPartitionEndpoint: SBaseStructValue, containsStart: SBooleanValue, _) =>
-        val c = compareStructWithIntervalEndpoint(cb, point, leftPartitionEndpoint)
-        primitive(cb.memoize((c < 0) || (c.ceq(0) && !containsStart.value)))
+        primitive(cb.memoize(
+          compareStructWithPartitionIntervalEndpoint(cb, point, leftPartitionEndpoint, !containsStart.value) < 0))
     }
 
     registerSCode3("pointLessThanPartitionIntervalRightEndpoint", tv("T"), endpointT, TBoolean, TBoolean, (_, _, _, _) => SBoolean) {
       case (_, cb, _, point: SBaseStructValue, rightPartitionEndpoint: SBaseStructValue, containsEnd: SBooleanValue, _) =>
-        val c = compareStructWithIntervalEndpoint(cb, point, rightPartitionEndpoint)
-        primitive(cb.memoize((c < 0) || (c.ceq(0) && containsEnd.value)))
+        primitive(cb.memoize(
+          compareStructWithPartitionIntervalEndpoint(cb, point, rightPartitionEndpoint, containsEnd.value) < 0))
     }
 
     registerSCode2("partitionIntervalContains",
-      TStruct("left" -> endpointT, "right" -> endpointT, "includesLeft" -> TBoolean, "includesRight" -> TBoolean),
+      partitionIntervalType,
       tv("T"), TBoolean, (_, _, _) => SBoolean) {
-      case (_, cb, _, interval: SBaseStructValue, point: SBaseStructValue, _) =>
-        val leftTuple = interval.loadField(cb, "left").get(cb).asBaseStruct
+      case (_, cb, _, interval: SIntervalValue, point: SBaseStructValue, _) =>
+        val leftTuple = interval.loadStart(cb).get(cb).asBaseStruct
 
-        val c = compareStructWithIntervalEndpoint(cb, point, leftTuple)
-
-        val includesLeft = interval.loadField(cb, "includesLeft").get(cb).asBoolean.value
-        val pointGTLeft = (c > 0) || (c.ceq(0) && includesLeft)
+        val includesLeft = interval.includesStart()
+        val pointGTLeft = compareStructWithPartitionIntervalEndpoint(cb, point, leftTuple, !includesLeft) > 0
 
         val isContained = cb.newLocal[Boolean]("partitionInterval_b", pointGTLeft)
 
         cb.ifx(isContained, {
           // check right endpoint
-          val rightTuple = interval.loadField(cb, "right").get(cb).asBaseStruct
+          val rightTuple = interval.loadEnd(cb).get(cb).asBaseStruct
 
-          val c = compareStructWithIntervalEndpoint(cb, point, rightTuple)
-          val includesRight = interval.loadField(cb, "includesRight").get(cb).asBoolean.value
-          val pointLTRight = (c < 0) || (c.ceq(0) && includesRight)
+          val includesRight = interval.includesEnd()
+          val pointLTRight = compareStructWithPartitionIntervalEndpoint(cb, point, rightTuple, includesRight) < 0
           cb.assign(isContained, pointLTRight)
         })
 

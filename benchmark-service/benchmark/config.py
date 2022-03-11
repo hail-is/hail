@@ -1,5 +1,6 @@
-import os
 import datetime
+import os
+
 from hailtop.utils import secret_alnum_string
 
 HAIL_BENCHMARK_BUCKET_NAME = os.environ['HAIL_BENCHMARK_BUCKET_NAME']

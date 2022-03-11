@@ -24,9 +24,9 @@ object BinarySearch {
       }
     }
 
-    def fromCompare(compare: IEmitCode => Code[Int]): Comparator = new Comparator {
+    def fromCompare(compare: IEmitCode => Value[Int]): Comparator = new Comparator {
       def apply(cb: EmitCodeBuilder, elt: IEmitCode, ifLtNeedle: => Unit, ifGtNeedle: => Unit, ifNeither: => Unit): Unit = {
-        val c = compare(elt)
+        val c = cb.memoize(compare(elt))
         cb.ifx(c < 0,
           ifLtNeedle,
           cb.ifx(c > 0,
@@ -62,7 +62,7 @@ object BinarySearch {
     ltNeedle: IEmitCode => Code[Boolean],
     gtNeedle: IEmitCode => Code[Boolean]
   ): Value[Boolean] =
-    runSearch[Boolean](cb, haystack, Comparator.fromLtGt(ltNeedle, gtNeedle), (_, _, _) => true, (_) => false)
+    containsOrdered(cb, haystack, Comparator.fromLtGt(ltNeedle, gtNeedle))
 
   /** Returns true if haystack contains an element x such that !lt(x, needle)
     * and !lt(needle, x), false otherwise.
@@ -75,6 +75,13 @@ object BinarySearch {
     key: IEmitCode => IEmitCode
   ): Value[Boolean] =
     containsOrdered(cb, haystack, x => lt(key(x), needle.loadI(cb)), x => lt(needle.loadI(cb), key(x)))
+
+  def containsOrdered(
+    cb: EmitCodeBuilder,
+    haystack: SIndexableValue,
+    compare: Comparator
+  ): Value[Boolean] =
+    runSearch[Boolean](cb, haystack, compare, (_, _, _) => true, (_) => false)
 
   /** Returns (l, u) such that
     * - range [0, l) is < needle
@@ -215,24 +222,24 @@ object BinarySearch {
     // terminates b/c (right - left) strictly decreases each iteration
     cb.loop { recur =>
       cb.ifx(left < right, {
-      val mid = cb.memoize((left + right) >>> 1) // works even when sum overflows
-      compare(cb, haystack.loadElement(cb, mid), {
-        // range [start, mid] is < needle
-        cb.assign(left, mid + 1)
+        val mid = cb.memoize((left + right) >>> 1) // works even when sum overflows
+        compare(cb, haystack.loadElement(cb, mid), {
+          // range [start, mid] is < needle
+          cb.assign(left, mid + 1)
           cb.goto(recur)
-      }, {
-        // range [mid, end) is > needle
-        cb.assign(right, mid)
+        }, {
+          // range [mid, end) is > needle
+          cb.assign(right, mid)
           cb.goto(recur)
+        }, {
+          // haystack(mid) is incomparable to needle
+          found(left, mid, right)
+        })
       }, {
-        // haystack(mid) is incomparable to needle
-        found(left, mid, right)
-    })
-      }, {
-    // now loop invariants hold, with left = right, so
-    // - range [start, left) is < needle
-    // - range [left, end) is > needle
-    notFound(left)
+        // now loop invariants hold, with left = right, so
+        // - range [start, left) is < needle
+        // - range [left, end) is > needle
+        notFound(left)
       })
     }
   }
@@ -310,7 +317,7 @@ class BinarySearch[C](mb: EmitMethodBuilder[C], containerType: SContainer, eltTy
   }
 
   // check missingness of v before calling
-  def getClosestIndex(cb: EmitCodeBuilder, array: SValue, v: EmitCode): Value[Int] = {
+  def lowerBound(cb: EmitCodeBuilder, array: SValue, v: EmitCode): Value[Int] = {
     cb.memoize(cb.invokeCode[Int](findElt, array, v))
   }
 }

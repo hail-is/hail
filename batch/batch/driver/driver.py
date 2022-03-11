@@ -1,13 +1,13 @@
-from typing import Callable, Awaitable
 import abc
 import datetime
+from typing import Awaitable, Callable
 
 from gear import Database
 from hailtop import aiotools
 
+from ..inst_coll_config import InstanceCollectionConfigs
 from .billing_manager import CloudBillingManager
 from .instance_collection import InstanceCollectionManager
-from ..inst_coll_config import InstanceCollectionConfigs
 
 
 async def process_outstanding_events(db: Database, process_events_since: Callable[[str], Awaitable[str]]):

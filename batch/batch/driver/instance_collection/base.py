@@ -1,27 +1,28 @@
-from typing import Any, Dict, Optional, Tuple, List
 import asyncio
-import sortedcontainers
-import re
-import secrets
 import collections
 import logging
+import re
+import secrets
+from typing import Any, Dict, List, Optional, Tuple
+
+import sortedcontainers
 
 from gear import Database
 from gear.time_limited_max_size_cache import TimeLimitedMaxSizeCache
 from hailtop import aiotools
-from hailtop.utils import time_msecs, secret_alnum_string, periodically_call
+from hailtop.utils import periodically_call, secret_alnum_string, time_msecs
 
-from ...instance_config import QuantifiedResource
 from ...batch_configuration import WORKER_MAX_IDLE_TIME_MSECS
+from ...instance_config import QuantifiedResource
 from ..instance import Instance
 from ..location import CloudLocationMonitor
 from ..resource_manager import (
     CloudResourceManager,
+    UnknownVMState,
+    VMDoesNotExist,
     VMStateCreating,
     VMStateRunning,
     VMStateTerminated,
-    VMDoesNotExist,
-    UnknownVMState,
 )
 
 SIXTY_SECONDS_NS = 60 * 1000 * 1000 * 1000

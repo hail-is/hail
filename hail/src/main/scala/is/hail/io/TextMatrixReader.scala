@@ -345,9 +345,9 @@ class TextMatrixReader(
         partitionLineIndexWithinFile,
         params.hasHeader)
 
-      { (region: Region, fs: FS, context: Any) =>
+      { (region: Region, theHailClassLoader: HailClassLoader, fs: FS, context: Any) =>
         val Row(lc, partitionIdx: Int) = context
-        compiledLineParser.apply(partitionIdx, region,
+        compiledLineParser.apply(partitionIdx, region, theHailClassLoader,
           linesBody(fs, lc).filter { line =>
             val l = line.toString
             l.nonEmpty && !localOpts.isComment(l)
@@ -413,7 +413,7 @@ class CompiledLineParser(
   partitionRowIndexGlobal: Array[Long],
   partitionRowIndexFile: Array[Long],
   hasHeader: Boolean
-) extends ((Int, Region, Iterator[GenericLine]) => Iterator[Long]) with Serializable {
+) extends ((Int, Region, HailClassLoader, Iterator[GenericLine]) => Iterator[Long]) with Serializable {
   assert(!missingValue.contains(separator))
   @transient private[this] val entriesType = rowPType
     .selfField(MatrixType.entriesIdentifier)
@@ -659,13 +659,14 @@ class CompiledLineParser(
   def apply(
     partition: Int,
     r: Region,
+    theHailClassLoader: HailClassLoader,
     it: Iterator[GenericLine]
   ): Iterator[Long] = {
     val filename = partitionPaths(partition)
     if (hasHeader && headerPartitions.contains(partition))
       it.next()
 
-    val parse = loadParserOnWorker()
+    val parse = loadParserOnWorker(theHailClassLoader)
     val fileLineIndex = partitionRowIndexFile(partition)
     val globalLineIndex = partitionRowIndexGlobal(partition)
 

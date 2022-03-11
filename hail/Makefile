@@ -14,7 +14,7 @@ BRANCH := $(shell git rev-parse --abbrev-ref HEAD)
 SCALA_VERSION ?= 2.12.13
 SPARK_VERSION ?= 3.1.2
 HAIL_MAJOR_MINOR_VERSION := 0.2
-HAIL_PATCH_VERSION := 85
+HAIL_PATCH_VERSION := 90
 HAIL_PIP_VERSION := $(HAIL_MAJOR_MINOR_VERSION).$(HAIL_PATCH_VERSION)
 HAIL_VERSION := $(HAIL_PIP_VERSION)-$(SHORT_REVISION)
 ELASTIC_MAJOR_VERSION ?= 7
@@ -60,22 +60,11 @@ SHADOW_TEST_JAR := build/libs/hail-all-spark-test.jar
 PYTHON_JAR := python/hail/backend/hail-all-spark.jar
 WHEEL := build/deploy/dist/hail-$(HAIL_PIP_VERSION)-py3-none-any.whl
 EGG := build/deploy/dist/hail-$(HAIL_PIP_VERSION)-py3.6.egg
-ELASTICSEARCH_311_JAR := libs/elasticsearch-spark-30_2.12-8.0.0-SNAPSHOT-custom-hail-spark311.jar
 
 GRADLE_ARGS += -Dscala.version=$(SCALA_VERSION) -Dspark.version=$(SPARK_VERSION) -Delasticsearch.major-version=$(ELASTIC_MAJOR_VERSION)
 
-.PHONY: elasticsearchJar
-elasticsearchJar: $(ELASTICSEARCH_311_JAR)
-
-$(ELASTICSEARCH_311_JAR):
-	@mkdir -p libs
-	curl https://storage.googleapis.com/hail-common/elasticsearch-libs/elasticsearch-spark-30_2.12-8.0.0-SNAPSHOT-custom-hail-spark311.jar >  libs/elasticsearch-spark-30_2.12-8.0.0-SNAPSHOT-custom-hail-spark311.jar
-
 .PHONY: shadowJar
 shadowJar: $(SHADOW_JAR)
-
-$(JAR_SOURCES): $(ELASTICSEARCH_311_JAR)
-$(JAR_TEST_SOURCES): $(ELASTICSEARCH_311_JAR)
 
 ifdef HAIL_COMPILE_NATIVES
 $(SHADOW_JAR): native-lib-prebuilt
@@ -299,7 +288,7 @@ deploy: test-dataproc $(WHEEL)
 
 .PHONY: install-dev-deps
 install-dev-deps:
-	$(PIP) install -U -r python/dev-requirements.txt
+	$(PIP) install -U -r python/dev/requirements.txt
 
 .PHONY: install-deps
 install-deps: install-dev-deps

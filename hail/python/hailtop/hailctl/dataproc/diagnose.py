@@ -36,10 +36,11 @@ async def main(args, pass_through_args):  # pylint: disable=unused-argument
         call('mkdir -p {dir}'.format(dir=master_dest), shell=True)
         call('mkdir -p {dir}'.format(dir=worker_dest), shell=True)
 
-    desc = json.loads(Popen('gcloud dataproc clusters describe {name} --format json'.format(name=args.name),
-                            shell=True,
-                            stdout=PIPE,
-                            stderr=PIPE).communicate()[0].strip())
+    with Popen('gcloud dataproc clusters describe {name} --format json'.format(name=args.name),
+               shell=True,
+               stdout=PIPE,
+               stderr=PIPE) as process:
+        desc = json.loads(process.communicate()[0].strip())
 
     config = desc['config']
 
@@ -90,11 +91,13 @@ async def main(args, pass_through_args):  # pylint: disable=unused-argument
         call(copy_dest_cmd, shell=True)
 
     if not args.no_diagnose:
+        with Popen('gcloud dataproc clusters diagnose {name}'.format(name=args.name),
+                   shell=True,
+                   stdout=PIPE,
+                   stderr=PIPE) as process:
+            output = process.communicate()
         diagnose_tar_path = re.search(r'Diagnostic results saved in: (?P<tarfile>gs://\S+diagnostic\.tar)',
-                                      str(Popen('gcloud dataproc clusters diagnose {name}'.format(name=args.name),
-                                                shell=True,
-                                                stdout=PIPE,
-                                                stderr=PIPE).communicate())).group('tarfile')
+                                      str(output)).group('tarfile')
 
         call(gsutil_cp(diagnose_tar_path, args.dest), shell=True)
 

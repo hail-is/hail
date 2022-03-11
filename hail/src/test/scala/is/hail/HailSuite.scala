@@ -1,5 +1,6 @@
 package is.hail
 
+import is.hail.asm4s.HailClassLoader
 import is.hail.annotations.{Region, RegionPool}
 import is.hail.backend.{BroadcastValue, ExecuteContext}
 import is.hail.backend.spark.SparkBackend
@@ -11,6 +12,8 @@ import org.testng.ITestContext
 import org.testng.annotations.{AfterMethod, BeforeClass, BeforeMethod}
 
 object HailSuite {
+  val theHailClassLoader = TestUtils.theHailClassLoader
+
   def withSparkBackend(): HailContext = {
     val backend = SparkBackend(
       sc = new SparkContext(
@@ -34,6 +37,8 @@ object HailSuite {
 }
 
 class HailSuite extends TestNGSuite {
+  val theHailClassLoader = HailSuite.theHailClassLoader
+
   def hc: HailContext = HailSuite.hc
 
   @BeforeClass def ensureHailContextInitialized() { hc }
@@ -58,7 +63,7 @@ class HailSuite extends TestNGSuite {
     timer = new ExecutionTimer("HailSuite")
     assert(ctx == null)
     pool = RegionPool()
-    ctx = new ExecuteContext(backend.tmpdir, backend.localTmpdir, backend, fs, Region(pool=pool), timer, null)
+    ctx = new ExecuteContext(backend.tmpdir, backend.localTmpdir, backend, fs, Region(pool=pool), timer, null, HailSuite.theHailClassLoader)
   }
 
   @AfterMethod

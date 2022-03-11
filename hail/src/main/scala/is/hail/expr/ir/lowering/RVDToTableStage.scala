@@ -53,7 +53,7 @@ object TableStageToRVD {
     }, relationalBindings)
 
     val (Some(PTypeReferenceSingleCodeType(gbPType: PStruct)), f) = Compile[AsmFunction1RegionLong](ctx, FastIndexedSeq(), FastIndexedSeq(classInfo[Region]), LongInfo, globalsAndBroadcastVals)
-    val gbAddr = f(ctx.fs, 0, ctx.r)(ctx.r)
+    val gbAddr = f(ctx.theHailClassLoader, ctx.fs, 0, ctx.r)(ctx.r)
 
     val globPType = gbPType.fieldType("globals").asInstanceOf[PStruct]
     val globRow = BroadcastRow(ctx, RegionValue(ctx.r, gbPType.loadField(gbAddr, 0)), globPType)
@@ -76,7 +76,7 @@ object TableStageToRVD {
     val encodedContexts = Array.tabulate(nContexts) { i =>
       assert(contextsPType.isElementDefined(contextsAddr, i))
       val baos = new ByteArrayOutputStream()
-      val enc = makeContextEnc(baos)
+      val enc = makeContextEnc(baos, ctx.theHailClassLoader)
       enc.writeRegionValue(contextsPType.loadElement(contextsAddr, i))
       enc.flush()
       baos.toByteArray
@@ -99,11 +99,11 @@ object TableStageToRVD {
 
     val crdd = ContextRDD.weaken(rdd)
       .cflatMap { case (rvdContext, (encodedContext, idx)) =>
-        val decodedContext = makeContextDec(new ByteArrayInputStream(encodedContext))
+        val decodedContext = makeContextDec(new ByteArrayInputStream(encodedContext), theHailClassLoaderForSparkWorkers)
           .readRegionValue(rvdContext.partitionRegion)
-        val decodedBroadcastVals = makeBcDec(new ByteArrayInputStream(encodedBcVals.value))
+        val decodedBroadcastVals = makeBcDec(new ByteArrayInputStream(encodedBcVals.value), theHailClassLoaderForSparkWorkers)
           .readRegionValue(rvdContext.partitionRegion)
-        makeIterator(fsBc.value, idx, rvdContext, decodedContext, decodedBroadcastVals)
+        makeIterator(theHailClassLoaderForSparkWorkers, fsBc.value, idx, rvdContext, decodedContext, decodedBroadcastVals)
           .map(_.longValue())
       }
 

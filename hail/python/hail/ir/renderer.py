@@ -120,8 +120,6 @@ class PlainRenderer(Renderer):
                         builder.append(f'(JavaMatrix {jir_id})')
                     elif isinstance(x, ir.TableIR):
                         builder.append(f'(JavaTable {jir_id})')
-                    elif isinstance(x, ir.BlockMatrixIR):
-                        builder.append(f'(JavaBlockMatrix {jir_id})')
                     else:
                         assert isinstance(x, ir.IR)
                         builder.append(f'(JavaIR {jir_id})')

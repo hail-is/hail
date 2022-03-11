@@ -44,7 +44,7 @@ class OrderingSuite extends HailSuite {
       fb.ecb.getOrderingFunction(cv1.st, cv2.st, op)
           .apply(cb, EmitValue.present(cv1), EmitValue.present(cv2))
     }
-    fb.resultWithIndex()(ctx.fs, 0, r)
+    fb.resultWithIndex()(theHailClassLoader, ctx.fs, 0, r)
   }
 
   @Test def testMissingNonequalComparisons() {
@@ -66,7 +66,7 @@ class OrderingSuite extends HailSuite {
         fb.ecb.getOrderingFunction(ev1.st, ev2.st, op)
           .apply(cb, ev1, ev2)
       }
-      fb.resultWithIndex()(ctx.fs, 0, r)
+      fb.resultWithIndex()(theHailClassLoader, ctx.fs, 0, r)
     }
 
     val compareGen = for {
@@ -460,12 +460,12 @@ class OrderingSuite extends HailSuite {
 
         val bs = new BinarySearch(fb.apply_method, pset.sType, EmitType(pset.elementType.sType, true), keyOnly = false)
         fb.emitWithBuilder(cb =>
-          bs.getClosestIndex(cb, pset.loadCheapSCode(cb, cset),
+          bs.lowerBound(cb, pset.loadCheapSCode(cb, cset),
             EmitCode.fromI(fb.apply_method)(cb => IEmitCode.present(cb, pt.loadCheapSCode(cb, pTuple.loadField(cetuple, 0))))))
 
         val asArray = SafeIndexedSeq(pArray, soff)
 
-        val f = fb.resultWithIndex()(ctx.fs, 0, region)
+        val f = fb.resultWithIndex()(theHailClassLoader, ctx.fs, 0, region)
         val closestI = f(region, soff, eoff)
         val maybeEqual = asArray(closestI)
 
@@ -496,12 +496,12 @@ class OrderingSuite extends HailSuite {
         val bs = new BinarySearch(fb.apply_method, pDict.sType, EmitType(pDict.keyType.sType, false), keyOnly = true)
 
         fb.emitWithBuilder(cb =>
-          bs.getClosestIndex(cb, pDict.loadCheapSCode(cb, cdict),
+          bs.lowerBound(cb, pDict.loadCheapSCode(cb, cdict),
             EmitCode.fromI(fb.apply_method)(cb => IEmitCode.present(cb, pDict.keyType.loadCheapSCode(cb, ptuple.loadField(cktuple, 0))))))
 
         val asArray = SafeIndexedSeq(PCanonicalArray(pDict.elementType), soff)
 
-        val f = fb.resultWithIndex()(ctx.fs, 0, region)
+        val f = fb.resultWithIndex()(theHailClassLoader, ctx.fs, 0, region)
         val closestI = f(region, soff, eoff)
 
         if (closestI == asArray.length) {

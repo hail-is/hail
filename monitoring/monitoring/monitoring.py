@@ -1,37 +1,38 @@
-import datetime
-import calendar
 import asyncio
-import os
+import calendar
+import datetime
 import json
-from aiohttp import web
-import aiohttp_session
 import logging
+import os
 from collections import defaultdict, namedtuple
-from prometheus_async.aio.web import server_stats  # type: ignore
-import prometheus_client as pc  # type: ignore
 
+import aiohttp_session
+import prometheus_client as pc  # type: ignore
+from aiohttp import web
+from prometheus_async.aio.web import server_stats  # type: ignore
+
+from gear import (
+    Database,
+    rest_authenticated_developers_only,
+    setup_aiohttp_session,
+    transaction,
+    web_authenticated_developers_only,
+)
+from hailtop import aiotools, httpx
 from hailtop.aiocloud import aiogoogle
 from hailtop.config import get_deploy_config
 from hailtop.hail_logging import AccessLogger
 from hailtop.tls import internal_server_ssl_context
 from hailtop.utils import (
-    run_if_changed_idempotent,
-    retry_long_running,
-    time_msecs,
     cost_str,
     parse_timestamp_msecs,
-    url_basename,
     periodically_call,
+    retry_long_running,
+    run_if_changed_idempotent,
+    time_msecs,
+    url_basename,
 )
-from hailtop import aiotools, httpx
-from gear import (
-    Database,
-    setup_aiohttp_session,
-    web_authenticated_developers_only,
-    rest_authenticated_developers_only,
-    transaction,
-)
-from web_common import setup_aiohttp_jinja2, setup_common_static_routes, render_template, set_message
+from web_common import render_template, set_message, setup_aiohttp_jinja2, setup_common_static_routes
 
 from .configuration import HAIL_USE_FULL_QUERY
 

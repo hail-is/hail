@@ -1,5 +1,5 @@
-from typing import Optional, List
 import os
+from typing import List, Optional
 
 GITHUB_CLONE_URL = 'https://github.com/'
 GITHUB_STATUS_CONTEXT = os.environ["HAIL_CI_GITHUB_CONTEXT"]

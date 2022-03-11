@@ -1,28 +1,28 @@
 import logging
 import math
-from typing import Tuple, Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 
 from ..globals import RESERVED_STORAGE_GB_PER_CORE
 from .azure.resource_utils import (
-    azure_worker_memory_per_core_mib,
-    azure_requested_to_actual_storage_bytes,
-    azure_machine_type_to_worker_type_and_cores,
-    azure_valid_machine_types,
-    azure_memory_to_worker_type,
     azure_is_valid_storage_request,
     azure_local_ssd_size,
+    azure_machine_type_to_worker_type_and_cores,
+    azure_memory_to_worker_type,
+    azure_requested_to_actual_storage_bytes,
     azure_valid_cores_from_worker_type,
+    azure_valid_machine_types,
+    azure_worker_memory_per_core_mib,
 )
 from .gcp.resource_utils import (
     gcp_cost_from_msec_mcpu,
-    gcp_worker_memory_per_core_mib,
-    gcp_requested_to_actual_storage_bytes,
-    gcp_machine_type_to_worker_type_and_cores,
-    gcp_valid_machine_types,
-    gcp_memory_to_worker_type,
     gcp_is_valid_storage_request,
     gcp_local_ssd_size,
+    gcp_machine_type_to_worker_type_and_cores,
+    gcp_memory_to_worker_type,
+    gcp_requested_to_actual_storage_bytes,
     gcp_valid_cores_from_worker_type,
+    gcp_valid_machine_types,
+    gcp_worker_memory_per_core_mib,
 )
 
 log = logging.getLogger('resource_utils')
@@ -76,7 +76,7 @@ def worker_memory_per_core_mib(cloud: str, worker_type: str) -> int:
 
 def worker_memory_per_core_bytes(cloud: str, worker_type: str) -> int:
     m = worker_memory_per_core_mib(cloud, worker_type)
-    return int(m * 1024 ** 2)
+    return int(m * 1024**2)
 
 
 def memory_bytes_to_cores_mcpu(cloud: str, memory_in_bytes: int, worker_type: str) -> int:
@@ -116,7 +116,7 @@ def requested_storage_bytes_to_actual_storage_gib(
 def adjust_cores_for_packability(cores_in_mcpu: int) -> int:
     cores_in_mcpu = max(1, cores_in_mcpu)
     power = max(-2, math.ceil(math.log2(cores_in_mcpu / 1000)))
-    return int(2 ** power * 1000)
+    return int(2**power * 1000)
 
 
 def round_storage_bytes_to_gib(storage_bytes: int) -> int:
@@ -126,7 +126,7 @@ def round_storage_bytes_to_gib(storage_bytes: int) -> int:
 
 
 def storage_gib_to_bytes(storage_gib: int) -> int:
-    return math.ceil(storage_gib * 1024 ** 3)
+    return math.ceil(storage_gib * 1024**3)
 
 
 def is_valid_cores_mcpu(cores_mcpu: int) -> bool:

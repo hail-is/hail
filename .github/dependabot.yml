@@ -1,0 +1,14 @@
+version: 2
+updates:
+  - package-ecosystem: "pip"
+    directory: "/docker"
+    schedule:
+      interval: "weekly"
+  - package-ecosystem: "pip"
+    directory: "/hail/python"
+    schedule:
+      interval: "weekly"
+  - package-ecosystem: "pip"
+    directory: "/hail/python/dev"
+    schedule:
+      interval: "weekly"

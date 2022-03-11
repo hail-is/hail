@@ -88,14 +88,14 @@ class UnsafeSuite extends HailSuite {
         val offset = pt.unstagedStoreJavaObject(a, region)
 
         val aos = new ByteArrayOutputStream()
-        val en = codec.buildEncoder(ctx, pt)(aos)
+        val en = codec.buildEncoder(ctx, pt)(aos, theHailClassLoader)
         en.writeRegionValue(offset)
         en.flush()
 
         region2.clear()
         val ais2 = new ByteArrayInputStream(aos.toByteArray)
         val (retPType2: PStruct, dec2) = codec.buildDecoder(ctx, t)
-        val offset2 = dec2(ais2).readRegionValue(region2)
+        val offset2 = dec2(ais2, theHailClassLoader).readRegionValue(region2)
         val ur2 = new UnsafeRow(retPType2, region2, offset2)
         assert(t.typeCheck(ur2))
         assert(t.valuesSimilar(a, ur2))
@@ -103,21 +103,21 @@ class UnsafeSuite extends HailSuite {
         region3.clear()
         val ais3 = new ByteArrayInputStream(aos.toByteArray)
         val (retPType3: PStruct, dec3) = codec.buildDecoder(ctx, requestedType)
-        val offset3 = dec3(ais3).readRegionValue(region3)
+        val offset3 = dec3(ais3, theHailClassLoader).readRegionValue(region3)
         val ur3 = new UnsafeRow(retPType3, region3, offset3)
         assert(requestedType.typeCheck(ur3))
         assert(requestedType.valuesSimilar(a2, ur3))
 
         val codec2 = TypedCodecSpec(PType.canonical(requestedType), bufferSpec)
         val aos2 = new ByteArrayOutputStream()
-        val en2 = codec2.buildEncoder(ctx, pt)(aos2)
+        val en2 = codec2.buildEncoder(ctx, pt)(aos2, theHailClassLoader)
         en2.writeRegionValue(offset)
         en2.flush()
 
         region4.clear()
         val ais4 = new ByteArrayInputStream(aos2.toByteArray)
         val (retPType4: PStruct, dec4) = codec2.buildDecoder(ctx, requestedType)
-        val offset4 = dec4(ais4).readRegionValue(region4)
+        val offset4 = dec4(ais4, theHailClassLoader).readRegionValue(region4)
         val ur4 = new UnsafeRow(retPType4, region4, offset4)
         assert(requestedType.typeCheck(ur4))
         if (!requestedType.valuesSimilar(a2, ur4)) {
@@ -150,14 +150,14 @@ class UnsafeSuite extends HailSuite {
         BufferSpec.specs.foreach { spec =>
           val cs2 = TypedCodecSpec(t, spec)
           val baos = new ByteArrayOutputStream()
-          val enc = cs2.buildEncoder(ctx, t)(baos)
+          val enc = cs2.buildEncoder(ctx, t)(baos, theHailClassLoader)
           enc.writeRegionValue(off)
           enc.flush()
 
           val serialized = baos.toByteArray
           val (decT, dec) = cs2.buildDecoder(ctx, t.virtualType)
           assert(decT == t)
-          val res = dec((new ByteArrayInputStream(serialized))).readRegionValue(region)
+          val res = dec((new ByteArrayInputStream(serialized)), theHailClassLoader).readRegionValue(region)
 
           assert(t.unsafeOrdering().equiv(res, off))
         }

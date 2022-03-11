@@ -1,6 +1,7 @@
 import collections
 import itertools
 import pandas
+import numpy as np
 import pyspark
 from typing import Optional, Dict, Callable
 
@@ -3352,7 +3353,23 @@ class Table(ExprContainer):
 
         for data_idx in range(len(columns[fields[0]])):
             for field in fields:
-                data[data_idx][field] = columns[field][data_idx]
+                cur_val = columns[field][data_idx]
+
+                # Can't call isna on a collection or it will implicitly broadcast
+                if pandas.api.types.is_numeric_dtype(df[field].dtype) and pandas.isna(cur_val):
+                    if isinstance(cur_val, float):
+                        fixed_val = cur_val
+                    elif isinstance(cur_val, np.floating):
+                        fixed_val = cur_val.item()
+                    else:
+                        fixed_val = None
+                elif isinstance(df[field].dtype, pandas.StringDtype) and pandas.isna(cur_val):  # No NaN to worry about
+                    fixed_val = None
+                elif isinstance(cur_val, np.number):
+                    fixed_val = cur_val.item()
+                else:
+                    fixed_val = cur_val
+                data[data_idx][field] = fixed_val
 
         for data_idx, field in enumerate(fields):
             type_hint = dtypes_from_pandas(pd_dtypes[field])
