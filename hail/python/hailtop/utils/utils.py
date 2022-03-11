@@ -46,7 +46,7 @@ RETRY_FUNCTION_SCRIPT = """function retry() {
 
 
 T = TypeVar('T')  # pylint: disable=invalid-name
-U = TypeVar('U') # pylint: disable=invalid-name
+U = TypeVar('U')  # pylint: disable=invalid-name
 
 
 def unpack_comma_delimited_inputs(inputs):
