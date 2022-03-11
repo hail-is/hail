@@ -807,7 +807,7 @@ object LowerTableIR {
         val newKeyType = newKey.typ.asInstanceOf[TStruct]
         val resultUID = genUID()
 
-        val aggs@Aggs(postAggIR, init, seq, aggSigs) = Extract(expr, resultUID, r)
+        val aggs@Aggs(postAggIR, init, seq, aggSigs) = Extract(expr, resultUID, analyses.requirednessAnalysis)
 
         val partiallyAggregated = loweredChild.mapPartition(Some(FastIndexedSeq())) { partition =>
           Let("global", loweredChild.globals,
@@ -861,30 +861,6 @@ object LowerTableIR {
                   )
                 ),
                 aggStateSigsPlusTake)})}
-
-
-//  StreamAgg(
-//                groupRef,
-//                "keyedRow",
-//                bindIRs(
-//                  ArrayRef(
-//                    ApplyAggOp(FastSeq(I32(1)),
-//                      FastSeq(SelectFields(Ref("keyedRow", shuffledRowType), newKeyType.fieldNames)),
-//                      AggSignature(Take(), FastSeq(TInt32), FastSeq(newKeyType))),
-//                    I32(0)),
-//                  AggLet("row",
-//                    GetField(Ref("keyedRow", shuffledRowType), fullRowUID),
-//                    expr,
-//                    isScan = false)) { case Seq(groupRep, value) =>
-//
-//                  val keyIRs: IndexedSeq[(String, IR)] = newKeyType.fieldNames.map(keyName => keyName -> GetField(groupRep, keyName))
-//                  MakeStruct(keyIRs ++ expr.typ.asInstanceOf[TStruct].fieldNames.map { f =>
-//                    (f, GetField(value, f))
-//                  })
-//                }
-//              )
-//            })
-//        }
 
       case TableDistinct(child) =>
         val loweredChild = lower(child)
