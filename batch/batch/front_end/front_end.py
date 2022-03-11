@@ -33,7 +33,7 @@ from gear import (
 )
 from gear.clients import get_cloud_async_fs
 from gear.database import CallError
-from hailtop import aiotools, dictfix, httpx
+from hailtop import aiotools, dictfix, httpx, version
 from hailtop.batch_client.parse import parse_cpu_in_mcpu, parse_memory_in_bytes, parse_storage_in_bytes
 from hailtop.config import get_deploy_config
 from hailtop.hail_logging import AccessLogger
@@ -172,6 +172,11 @@ def web_billing_project_users_only(redirect=True):
 @routes.get('/healthcheck')
 async def get_healthcheck(request):  # pylint: disable=W0613
     return web.Response()
+
+
+@routes.get('/api/v1alpha/version')
+async def rest_get_version(request):  # pylint: disable=W0613
+    return web.Response(text=version())
 
 
 async def _handle_ui_error(session, f, *args, **kwargs):
