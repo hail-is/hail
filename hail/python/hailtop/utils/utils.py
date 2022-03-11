@@ -46,6 +46,7 @@ RETRY_FUNCTION_SCRIPT = """function retry() {
 
 
 T = TypeVar('T')  # pylint: disable=invalid-name
+U = TypeVar('U') # pylint: disable=invalid-name
 
 
 def unpack_comma_delimited_inputs(inputs):
@@ -137,7 +138,7 @@ def partition(k, ls):
     return generator()
 
 
-def unzip(lst: Iterable[Tuple[T]]) -> Tuple[List[T], List[T]]:
+def unzip(lst: Iterable[Tuple[T, U]]) -> Tuple[List[T], List[U]]:
     a = []
     b = []
     for x, y in lst:
