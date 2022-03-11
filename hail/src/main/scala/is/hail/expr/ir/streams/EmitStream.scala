@@ -335,7 +335,7 @@ object EmitStream {
                   emit(newKey,
                     cb = cb,
                     env = env.bind(name, eltField),
-                    region = childProducer.elementRegion)
+                    region = region)
                 }
                 val resultKeyValue = newKeyResultCode.memoize(cb, "buff_agg_stream_result_key")
                 val keyedContainer = AggContainer(aggSignatures.toArray.map(sig => sig.state), dictState.keyed.container, cleanup = () => ())
