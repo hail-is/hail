@@ -607,6 +607,12 @@ class VCFTests(unittest.TestCase):
         assert hl.import_vcf(out1)._same(mt)
         assert hl.import_vcf(out2)._same(mt)
 
+    def test_empty_import_vcf_group_by_collect(self):
+        mt = hl.import_vcf(resource('sample.vcf'), min_partitions=4).filter_rows(False)
+        ht = mt._localize_entries('entries', 'columns')
+        groups = ht.group_by(the_key=ht.key).aggregate(values=hl.agg.collect(ht.row_value)).collect()
+        assert not groups
+
     @fails_service_backend()
     @fails_local_backend()
     def test_format_header(self):
