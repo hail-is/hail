@@ -1,4 +1,4 @@
-from typing import Callable, TypeVar, Awaitable, Optional, Type, List, Dict, Iterable, Tuple
+from typing import Any, Callable, TypeVar, Awaitable, Optional, Type, List, Dict, Iterable, Tuple
 from typing_extensions import Literal
 from types import TracebackType
 import concurrent
@@ -138,7 +138,7 @@ def partition(k, ls):
     return generator()
 
 
-def unzip(lst: Iterable[Tuple[T, U]]) -> Tuple[List[T], List[U]]:
+def unzip(lst: List[Any]) -> Tuple[Any]:
     a = []
     b = []
     for x, y in lst:
