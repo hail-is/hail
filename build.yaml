@@ -689,7 +689,7 @@ steps:
       chmod 755 ./gradlew
       time retry ./gradlew --version
       time retry make shadowJar wheel
-      (cd build/deploy/dist/ && tar -cvf wheel-container.tar hail-*-py3-none-any.whl)
+      (cd build/deploy/dist/ && tar -cvf wheel-container.tar cpg_hail-*-py3-none-any.whl)
     inputs:
       - from: /repo
         to: /io/repo
@@ -821,7 +821,7 @@ steps:
       time retry ./gradlew --version
       export SPARK_VERSION="3.0.2" SCALA_VERSION="2.12.10"
       time retry make wheel
-      (cd build/deploy/dist/ && tar -cvf wheel-container.tar hail-*-py3-none-any.whl)
+      (cd build/deploy/dist/ && tar -cvf wheel-container.tar cpg_hail-*-py3-none-any.whl)
     inputs:
       - from: /repo
         to: /io/repo
@@ -1281,7 +1281,7 @@ steps:
       tar xzf resources.tar.gz
       tar xzf data.tar.gz
       tar xvf debug-wheel-container.tar
-      python3 -m pip install --no-dependencies hail-*-py3-none-any.whl
+      python3 -m pip install --no-dependencies cpg_hail-*-py3-none-any.whl
 
       # pyspark/conf/core-site.xml already points at /gsa-key/key.json
       mv /test-gsa-key/key.json /gsa-key/key.json
@@ -1335,7 +1335,7 @@ steps:
       tar xzf resources.tar.gz
       tar xzf data.tar.gz
       tar xvf debug-wheel-container.tar
-      python3 -m pip install --no-dependencies hail-*-py3-none-any.whl
+      python3 -m pip install --no-dependencies cpg_hail-*-py3-none-any.whl
 
       # pyspark/conf/core-site.xml already points at /gsa-key/key.json
       mv /test-gsa-key/key.json /gsa-key/key.json
@@ -1389,7 +1389,7 @@ steps:
       tar xzf resources.tar.gz
       tar xzf data.tar.gz
       tar xvf debug-wheel-container.tar
-      python3 -m pip install --no-dependencies hail-*-py3-none-any.whl
+      python3 -m pip install --no-dependencies cpg_hail-*-py3-none-any.whl
 
       # pyspark/conf/core-site.xml already points at /gsa-key/key.json
       mv /test-gsa-key/key.json /gsa-key/key.json
@@ -1443,7 +1443,7 @@ steps:
       tar xzf resources.tar.gz
       tar xzf data.tar.gz
       tar xvf debug-wheel-container.tar
-      python3 -m pip install --no-dependencies hail-*-py3-none-any.whl
+      python3 -m pip install --no-dependencies cpg_hail-*-py3-none-any.whl
 
       # pyspark/conf/core-site.xml already points at /gsa-key/key.json
       mv /test-gsa-key/key.json /gsa-key/key.json
@@ -1497,7 +1497,7 @@ steps:
       tar xzf resources.tar.gz
       tar xzf data.tar.gz
       tar xvf debug-wheel-container.tar
-      python3 -m pip install --no-dependencies hail-*-py3-none-any.whl
+      python3 -m pip install --no-dependencies cpg_hail-*-py3-none-any.whl
 
       # pyspark/conf/core-site.xml already points at /gsa-key/key.json
       mv /test-gsa-key/key.json /gsa-key/key.json
@@ -1551,7 +1551,7 @@ steps:
       tar xzf resources.tar.gz
       tar xzf data.tar.gz
       tar xvf debug-wheel-container.tar
-      python3 -m pip install --no-dependencies hail-*-py3-none-any.whl
+      python3 -m pip install --no-dependencies cpg_hail-*-py3-none-any.whl
 
       # pyspark/conf/core-site.xml already points at /gsa-key/key.json
       mv /test-gsa-key/key.json /gsa-key/key.json
@@ -1605,7 +1605,7 @@ steps:
       tar xzf resources.tar.gz
       tar xzf data.tar.gz
       tar xvf debug-wheel-container.tar
-      python3 -m pip install --no-dependencies hail-*-py3-none-any.whl
+      python3 -m pip install --no-dependencies cpg_hail-*-py3-none-any.whl
 
       # pyspark/conf/core-site.xml already points at /gsa-key/key.json
       mv /test-gsa-key/key.json /gsa-key/key.json
@@ -1657,7 +1657,7 @@ steps:
       cd /io
       tar xzf test.tar.gz
       tar xvf debug-wheel-container.tar
-      python3 -m pip install --no-dependencies hail-*-py3-none-any.whl
+      python3 -m pip install --no-dependencies cpg_hail-*-py3-none-any.whl
 
       export HAIL_TEST_GCS_BUCKET={{ global.hail_test_gcs_bucket }}
       export GOOGLE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
@@ -1715,7 +1715,7 @@ steps:
       cd /io
       tar xzf test.tar.gz
       tar xvf debug-wheel-container.tar
-      python3 -m pip install --no-dependencies hail-*-py3-none-any.whl
+      python3 -m pip install --no-dependencies cpg_hail-*-py3-none-any.whl
 
       export HAIL_TEST_GCS_BUCKET={{ global.hail_test_gcs_bucket }}
       export GOOGLE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
@@ -1773,7 +1773,7 @@ steps:
       cd /io
       tar xzf test.tar.gz
       tar xvf debug-wheel-container.tar
-      python3 -m pip install --no-dependencies hail-*-py3-none-any.whl
+      python3 -m pip install --no-dependencies cpg_hail-*-py3-none-any.whl
 
       export HAIL_TEST_GCS_BUCKET={{ global.hail_test_gcs_bucket }}
       export GOOGLE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
@@ -1831,7 +1831,7 @@ steps:
       cd /io
       tar xzf test.tar.gz
       tar xvf debug-wheel-container.tar
-      python3 -m pip install --no-dependencies hail-*-py3-none-any.whl
+      python3 -m pip install --no-dependencies cpg_hail-*-py3-none-any.whl
 
       export HAIL_TEST_GCS_BUCKET={{ global.hail_test_gcs_bucket }}
       export GOOGLE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
@@ -1889,7 +1889,7 @@ steps:
       cd /io
       tar xzf test.tar.gz
       tar xvf debug-wheel-container.tar
-      python3 -m pip install --no-dependencies hail-*-py3-none-any.whl
+      python3 -m pip install --no-dependencies cpg_hail-*-py3-none-any.whl
 
       export HAIL_TEST_GCS_BUCKET={{ global.hail_test_gcs_bucket }}
       export GOOGLE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
@@ -1949,7 +1949,7 @@ steps:
       tar xzf resources.tar.gz
       tar xzf data.tar.gz
       tar xvf wheel-container.tar
-      python3 -m pip install --no-dependencies hail-*-py3-none-any.whl
+      python3 -m pip install --no-dependencies cpg_hail-*-py3-none-any.whl
 
       # pyspark/conf/core-site.xml already points at /gsa-key/key.json
       mv /test-gsa-key/key.json /gsa-key/key.json
@@ -2002,7 +2002,7 @@ steps:
       tar xzf resources.tar.gz
       tar xzf data.tar.gz
       tar xvf debug-wheel-container.tar
-      python3 -m pip install --no-dependencies hail-*-py3-none-any.whl
+      python3 -m pip install --no-dependencies cpg_hail-*-py3-none-any.whl
       mkdir -p /io/tmp
 
       export HAIL_TEST_STORAGE_URI=/io/tmp/
@@ -2051,7 +2051,7 @@ steps:
       tar xzf resources.tar.gz
       tar xzf data.tar.gz
       tar xvf debug-wheel-container.tar
-      python3 -m pip install --no-dependencies hail-*-py3-none-any.whl
+      python3 -m pip install --no-dependencies cpg_hail-*-py3-none-any.whl
       mkdir -p /io/tmp
 
       export HAIL_TEST_STORAGE_URI=/io/tmp/
@@ -2100,7 +2100,7 @@ steps:
       tar xzf resources.tar.gz
       tar xzf data.tar.gz
       tar xvf debug-wheel-container.tar
-      python3 -m pip install --no-dependencies hail-*-py3-none-any.whl
+      python3 -m pip install --no-dependencies cpg_hail-*-py3-none-any.whl
       mkdir -p /io/tmp
 
       export HAIL_TEST_STORAGE_URI=/io/tmp/
@@ -2149,7 +2149,7 @@ steps:
       tar xzf resources.tar.gz
       tar xzf data.tar.gz
       tar xvf debug-wheel-container.tar
-      python3 -m pip install --no-dependencies hail-*-py3-none-any.whl
+      python3 -m pip install --no-dependencies cpg_hail-*-py3-none-any.whl
       mkdir -p /io/tmp
 
       export HAIL_TEST_STORAGE_URI=/io/tmp/
@@ -2198,7 +2198,7 @@ steps:
       tar xzf resources.tar.gz
       tar xzf data.tar.gz
       tar xvf debug-wheel-container.tar
-      python3 -m pip install --no-dependencies hail-*-py3-none-any.whl
+      python3 -m pip install --no-dependencies cpg_hail-*-py3-none-any.whl
       mkdir -p /io/tmp
 
       export HAIL_TEST_STORAGE_URI=/io/tmp/
@@ -2247,7 +2247,7 @@ steps:
       tar xzf resources.tar.gz
       tar xzf data.tar.gz
       tar xvf debug-wheel-container.tar
-      python3 -m pip install --no-dependencies hail-*-py3-none-any.whl
+      python3 -m pip install --no-dependencies cpg_hail-*-py3-none-any.whl
       mkdir -p /io/tmp
 
       export HAIL_TEST_STORAGE_URI=/io/tmp/
@@ -2296,7 +2296,7 @@ steps:
       tar xzf resources.tar.gz
       tar xzf data.tar.gz
       tar xvf debug-wheel-container.tar
-      python3 -m pip install --no-dependencies hail-*-py3-none-any.whl
+      python3 -m pip install --no-dependencies cpg_hail-*-py3-none-any.whl
       mkdir -p /io/tmp
 
       export HAIL_TEST_STORAGE_URI=/io/tmp/
@@ -3120,7 +3120,7 @@ steps:
     script: |
       set -ex
       tar xvf /io/wheel-container.tar
-      python3 -m pip install --no-dependencies hail-*-py3-none-any.whl
+      python3 -m pip install --no-dependencies cpg_hail-*-py3-none-any.whl
 
       cd /io/repo/hail/python
 
@@ -3202,7 +3202,7 @@ steps:
     script: |
       set -ex
       tar xvf /io/wheel-container.tar
-      python3 -m pip install --no-dependencies hail-*-py3-none-any.whl
+      python3 -m pip install --no-dependencies cpg_hail-*-py3-none-any.whl
 
       cd /io/repo/hail/python
 
@@ -3284,7 +3284,7 @@ steps:
     script: |
       set -ex
       tar xvf /io/wheel-container.tar
-      python3 -m pip install --no-dependencies hail-*-py3-none-any.whl
+      python3 -m pip install --no-dependencies cpg_hail-*-py3-none-any.whl
 
       cd /io/repo/hail/python
 
@@ -3366,7 +3366,7 @@ steps:
     script: |
       set -ex
       tar xvf /io/wheel-container.tar
-      python3 -m pip install --no-dependencies hail-*-py3-none-any.whl
+      python3 -m pip install --no-dependencies cpg_hail-*-py3-none-any.whl
 
       cd /io/repo/hail/python
 
@@ -3448,7 +3448,7 @@ steps:
     script: |
       set -ex
       tar xvf /io/wheel-container.tar
-      python3 -m pip install --no-dependencies hail-*-py3-none-any.whl
+      python3 -m pip install --no-dependencies cpg_hail-*-py3-none-any.whl
 
       cd /io/repo/hail/python
 
@@ -4748,10 +4748,10 @@ steps:
                              $(cat /io/hail_version) \
                              $(cat /io/git_version) \
                              origin \
-                             /io/repo/hail/build/deploy/dist/hail-*-py3-none-any.whl \
+                             /io/repo/hail/build/deploy/dist/cpg_hail-*-py3-none-any.whl \
                              /io/github-oauth \
                              docker://{{ hailgenetics_hail_image.image }} \
-                             /io/wheel-for-azure/hail-*-py3-none-any.whl \
+                             /io/wheel-for-azure/cpg_hail-*-py3-none-any.whl \
                              /io/www.tar.gz
     inputs:
       - from: /hail_version
