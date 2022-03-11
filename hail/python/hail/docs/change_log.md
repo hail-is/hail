@@ -25,6 +25,26 @@ an earlier version of Hail to read files written in a later version.
 
 ---
 
+## Version 0.2.90
+
+Release 2022-03-11
+
+### Critical BlockMatrix from_numpy correctness bug
+
+- (hail#11555) `BlockMatrix.from_numpy` did not work correctly. Version 1.0 of org.scalanlp.breeze, a dependency of Apache Spark 
+that hail also depends on, has a correctness bug that results in BlockMatrices that repeat the top left block of the block
+matrix for every block. This affected anyone running Spark 3.0.x or 3.1.x.
+
+### Bug fixes
+
+- (hail#11556) Fixed assertion error ocassionally being thrown by valid joins where the join key was a prefix of the left key.
+
+### Versioning
+
+- (hail#11551) Support Python 3.10.
+
+---
+
 ## Version 0.2.89
 
 Release 2022-03-04
