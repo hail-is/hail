@@ -714,7 +714,7 @@ steps:
       chmod 755 ./gradlew
       time retry ./gradlew --version
       time retry make jars wheel HAIL_DEBUG_MODE=1
-      (cd build/deploy/dist/ && tar -cvf debug-wheel-container.tar hail-*-py3-none-any.whl)
+      (cd build/deploy/dist/ && tar -cvf debug-wheel-container.tar cpg_hail-*-py3-none-any.whl)
       cd /io/repo/hail
       mkdir build/debug_libs
       mv build/libs/hail-all-spark.jar build/debug_libs/
@@ -727,7 +727,7 @@ steps:
       time tar czf data.tar.gz -C python/hail/docs data
       (cd .. && time tar czf hail/website-src.tar.gz website)
       time tar czf cluster-tests.tar.gz python/cluster-tests
-      (cd build/deploy/dist/ && tar -cvf wheel-container.tar hail-*-py3-none-any.whl)
+      (cd build/deploy/dist/ && tar -cvf wheel-container.tar cpg_hail-*-py3-none-any.whl)
       time TESTNG_SPLITS=5 python3 generate_splits.py
       time tar czf splits.tar.gz testng-splits-*.xml
     inputs:
