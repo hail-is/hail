@@ -143,7 +143,7 @@ class ExecuteContext(
 
   def shouldNotLogIR(): Boolean = flags.get("no_ir_logging") != null
 
-  def shouldLogIR(): Boolaen = !shouldNotLogIR()
+  def shouldLogIR(): Boolean = !shouldNotLogIR()
 
   def close(): Unit = {
     tempFileManager.cleanup()
