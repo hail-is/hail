@@ -278,7 +278,7 @@ class ExtractIntervalFiltersSuite extends HailSuite {
       invoke("lor", TBoolean,
         Ref("acc", TBoolean),
         invoke("contains", TBoolean, Ref("elt", TInterval(TInt32)), k1)))
-    TypeCheck(ir, BindingEnv(Env(ref1.name -> ref1.typ)))
+    TypeCheck(ctx, ir, BindingEnv(Env(ref1.name -> ref1.typ)))
 
     val (rw, intervals) = ExtractIntervalFilters.extractPartitionFilters(ir, ref1, ref1Key).get
     assert(rw == True())
@@ -329,7 +329,7 @@ class ExtractIntervalFiltersSuite extends HailSuite {
         ApplyComparisonOp(LTEQ(TInt32), k, I32(9))
       ), False())))
 
-    assert(ExtractIntervalFilters(tf).asInstanceOf[TableFilter].child.isInstanceOf[TableFilterIntervals])
+    assert(ExtractIntervalFilters(ctx, tf).asInstanceOf[TableFilter].child.isInstanceOf[TableFilterIntervals])
     assertEvalsTo(TableCount(tf), 6L)(ExecStrategy.interpretOnly)
   }
 }

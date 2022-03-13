@@ -495,7 +495,7 @@ case class PartitionRVDReader(rvd: RVD) extends PartitionReader {
       FastIndexedSeq(("elt", SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(rvd.rowPType)))),
       FastIndexedSeq(classInfo[Region], LongInfo),
       LongInfo,
-      PruneDeadFields.upcast(Ref("elt", rvd.rowType), requestedType))
+      PruneDeadFields.upcast(ctx, Ref("elt", rvd.rowType), requestedType))
 
     val upcastCode = mb.getObject[Function4[HailClassLoader, FS, Int, Region, AsmFunction2RegionLongLong]](upcast)
 

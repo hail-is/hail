@@ -460,7 +460,7 @@ class CompiledLineParser(
     rowPType.constructFromFields(cb, region, rowFields ++ entries, deepCopy = false).a
   }
 
-  private[this] val loadParserOnWorker = fb.result()
+  private[this] val loadParserOnWorker = fb.result(ctx)
 
   private[this] def parseError(cb: EmitCodeBuilder, msg: Code[String]): Unit =
     cb += Code._throw[MatrixParseError, Unit](Code.newInstance[MatrixParseError, String, String, Long, Int, Int](

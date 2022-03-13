@@ -141,6 +141,8 @@ class ExecuteContext(
 
   def availableFlags(): java.util.ArrayList[String] = flags.available
 
+  def shouldWriteIRFiles(): Boolean = getFlag("write_ir_files") != null
+
   def close(): Unit = {
     tempFileManager.cleanup()
 

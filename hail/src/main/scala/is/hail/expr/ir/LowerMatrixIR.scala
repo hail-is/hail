@@ -13,13 +13,13 @@ object LowerMatrixIR {
   val colsField: Symbol = Symbol(colsFieldName)
   val entriesField: Symbol = Symbol(entriesFieldName)
 
-  def apply(ir: IR): IR = {
+  def apply(ctx: ExecuteContext, ir: IR): IR = {
     val ab = new BoxedArrayBuilder[(String, IR)]
     val l1 = lower(ctx, ir, ab)
     ab.result().foldRight[IR](l1) { case ((ident, value), body) => RelationalLet(ident, value, body) }
   }
 
-  def apply(tir: TableIR): TableIR = {
+  def apply(ctx: ExecuteContext, tir: TableIR): TableIR = {
     val ab = new BoxedArrayBuilder[(String, IR)]
     val l1 = lower(ctx, tir, ab)
     ab.result().foldRight[TableIR](l1) { case ((ident, value), body) => RelationalLetTable(ident, value, body) }
@@ -32,7 +32,7 @@ object LowerMatrixIR {
     ab.result().foldRight[TableIR](l1) { case ((ident, value), body) => RelationalLetTable(ident, value, body) }
   }
 
-  def apply(bmir: BlockMatrixIR): BlockMatrixIR = {
+  def apply(ctx: ExecuteContext, bmir: BlockMatrixIR): BlockMatrixIR = {
     val ab = new BoxedArrayBuilder[(String, IR)]
 
     val l1 = lower(ctx, bmir, ab)
@@ -40,7 +40,11 @@ object LowerMatrixIR {
   }
 
 
-  private[this] def lowerChildren(ir: BaseIR, ab: BoxedArrayBuilder[(String, IR)]): BaseIR = {
+  private[this] def lowerChildren(
+    ctx: ExecuteContext,
+    ir: BaseIR,
+    ab: BoxedArrayBuilder[(String, IR)]
+  ): BaseIR = {
     val loweredChildren = ir.children.map {
       case tir: TableIR => lower(ctx, tir, ab)
       case mir: MatrixIR => throw new RuntimeException(s"expect specialized lowering rule for " +
@@ -94,7 +98,7 @@ object LowerMatrixIR {
   ): TableIR = {
     val lowered = mir match {
       case RelationalLetMatrixTable(name, value, body) =>
-        RelationalLetTable(name, lower(ctx, value, ab), lower(ctx, ctx, body, ab))
+        RelationalLetTable(name, lower(ctx, value, ab), lower(ctx, body, ab))
 
       case CastTableToMatrix(child, entries, cols, colKey) =>
         val lc = lower(ctx, child, ab)
@@ -807,7 +811,7 @@ object LowerMatrixIR {
           makeStruct('rows -> sortedCols, 'global -> '__cols_and_globals.dropFields(colsField))
         }.parallelize(None).keyBy(child.typ.colKey)
 
-      case table => lowerChildren(table, ab).asInstanceOf[TableIR]
+      case table => lowerChildren(ctx, table, ab).asInstanceOf[TableIR]
     }
 
     assertTypeUnchanged(tir, lowered)
@@ -820,7 +824,7 @@ object LowerMatrixIR {
     ab: BoxedArrayBuilder[(String, IR)]
   ): BlockMatrixIR = {
     val lowered = bmir match {
-      case noMatrixChildren => lowerChildren(noMatrixChildren, ab).asInstanceOf[BlockMatrixIR]
+      case noMatrixChildren => lowerChildren(ctx, noMatrixChildren, ab).asInstanceOf[BlockMatrixIR]
     }
     assertTypeUnchanged(bmir, lowered)
     lowered
@@ -861,7 +865,7 @@ object LowerMatrixIR {
                 isScan = false),
               isScan = false)
           })
-      case _ => lowerChildren(ir, ab).asInstanceOf[IR]
+      case _ => lowerChildren(ctx, ir, ab).asInstanceOf[IR]
     }
     assertTypeUnchanged(ir, lowered)
     lowered
