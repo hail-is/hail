@@ -196,6 +196,9 @@ dependencies {
         exclude group: 'com.fasterxml.jackson.core'
     }
 
+    bundled 'com.indeed:lsmtree-core:1.0.7'
+    bundled 'com.indeed:util-serialization:1.0.36'
+    bundled 'com.indeed:util-mmap:1.0.36'
     bundled group: 'org.freemarker', name: 'freemarker', version: '2.3.14'
 
     bundled 'com.kohlschutter.junixsocket:junixsocket-core:2.3.2'
