@@ -629,7 +629,7 @@ def _set_flags(**flags):
 
 
 def _get_flags(*flags):
-    Env.backend().get_flags(*flags)
+    return Env.backend().get_flags(*flags)
 
 
 def debug_info():
