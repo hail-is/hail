@@ -109,7 +109,7 @@ class CodeSuite extends HailSuite {
       val hash = v.hash(cb)
       hash.value
     })
-    fb.result()(theHailClassLoader)()
+    fb.result(ctx)(theHailClassLoader)()
   }
 
   def hashTestStringHelper(toHash: String): Int = {
@@ -125,7 +125,7 @@ class CodeSuite extends HailSuite {
       hash.value
     })
     val region = Region(pool=pool)
-    fb.result()(theHailClassLoader)(region)
+    fb.result(ctx)(theHailClassLoader)(region)
   }
 
   def hashTestArrayHelper(toHash: IndexedSeq[Int]): Int = {
@@ -140,7 +140,7 @@ class CodeSuite extends HailSuite {
     })
     val region = Region(pool=pool)
     val arrayPointer = pArray.unstagedStoreJavaObject(toHash, region)
-    fb.result()(theHailClassLoader)(arrayPointer)
+    fb.result(ctx)(theHailClassLoader)(arrayPointer)
   }
 
   def hashTestStructHelper(toHash: Row, fields : IndexedSeq[PField]): Int = {
@@ -155,6 +155,6 @@ class CodeSuite extends HailSuite {
     })
     val region = Region(pool=pool)
     val structPointer = pStruct.unstagedStoreJavaObject(toHash, region)
-    fb.result()(theHailClassLoader)(structPointer)
+    fb.result(ctx)(theHailClassLoader)(structPointer)
   }
 }

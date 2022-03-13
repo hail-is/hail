@@ -132,6 +132,7 @@ class ForwardLetsSuite extends HailSuite {
       .apply(aggEnv)
 
     TypeCheck(
+      ctx,
       ForwardLets(ir0).asInstanceOf[IR],
       BindingEnv(Env.empty, agg = Some(aggEnv)))
   }
@@ -142,8 +143,8 @@ class ForwardLetsSuite extends HailSuite {
       'x + 'x + 'y
     }(env)
 
-    TypeCheck(ir, BindingEnv(env))
-    TypeCheck(ForwardLets(ir).asInstanceOf[IR], BindingEnv(env))
+    TypeCheck(ctx, ir, BindingEnv(env))
+    TypeCheck(ctx, ForwardLets(ir).asInstanceOf[IR], BindingEnv(env))
   }
 
   @Test def testLetsDoNotForwardInsideArrayAggWithNoOps(): Unit = {
@@ -159,7 +160,7 @@ class ForwardLetsSuite extends HailSuite {
         Ref("y", TInt32) + Ref("x", TInt32
         )))
 
-    TypeCheck(x, BindingEnv(Env("y" -> TInt32)))
-    TypeCheck(ForwardLets(x).asInstanceOf[IR], BindingEnv(Env("y" -> TInt32)))
+    TypeCheck(ctx, x, BindingEnv(Env("y" -> TInt32)))
+    TypeCheck(ctx, ForwardLets(x).asInstanceOf[IR], BindingEnv(Env("y" -> TInt32)))
   }
 }

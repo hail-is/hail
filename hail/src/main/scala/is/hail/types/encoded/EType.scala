@@ -210,7 +210,7 @@ object EType {
         val f = et.buildEncoder(pc.st, mb.ecb)
         f(cb, pc, out)
       }
-      val func = fb.result()
+      val func = fb.result(ctx)
       encoderCache.put(k, func)
       func
     }
@@ -247,7 +247,7 @@ object EType {
         pt.store(cb, region, pc, false)
       }
 
-      val r = (pt, fb.result())
+      val r = (pt, fb.result(ctx))
       decoderCache.put(k, r)
       r
     }

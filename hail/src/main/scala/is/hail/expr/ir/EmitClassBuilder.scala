@@ -116,7 +116,10 @@ trait WrappedEmitClassBuilder[C] extends WrappedEmitModuleBuilder {
 
   def fieldBuilder: SettableBuilder = cb.fieldBuilder
 
-  def result(writeIRs: Boolean, print: Option[PrintWriter] = None): (HailClassLoader) => C = cb.result(writeIRs, print)
+  def result(
+    ctx: ExecuteContext,
+    print: Option[PrintWriter] = None
+  ): (HailClassLoader) => C = cb.result(ctx.shouldWriteIRFiles(), print)
 
   def getHailClassLoader: Code[HailClassLoader] = ecb.getHailClassLoader
 

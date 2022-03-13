@@ -28,7 +28,7 @@ object TypeCheck {
       .zipWithIndex
       .foreach { case (child, i) =>
 
-        check(child, ChildBindings(ir, i, env))
+        check(ctx, child, ChildBindings(ir, i, env))
 
         if (child.typ == TVoid) {
           ir match {

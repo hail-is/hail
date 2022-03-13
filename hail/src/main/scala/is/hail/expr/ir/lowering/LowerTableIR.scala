@@ -77,7 +77,7 @@ class TableStage(
   // useful for debugging, but should be disabled in production code due to N^2 complexity
   // typecheckPartition()
 
-  def typecheckPartition(): Unit = {
+  def typecheckPartition(ctx: ExecuteContext): Unit = {
     TypeCheck(
       ctx,
       partitionIR,
