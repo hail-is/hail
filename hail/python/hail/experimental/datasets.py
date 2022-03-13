@@ -108,12 +108,12 @@ def load_dataset(name: str,
                          f' {repr(name)} on cloud platform {repr(cloud)}.\n'
                          f'Available regions: {regions}.')
 
-    path = [dataset['url'][cloud][region]
-            for dataset in datasets[name]['versions']
-            if all([dataset['version'] == version,
-                    dataset['reference_genome'] == reference_genome])]
-    assert len(path) == 1
-    path = path[0]
+    paths = [dataset['url'][cloud][region]
+             for dataset in datasets[name]['versions']
+             if all([dataset['version'] == version,
+                     dataset['reference_genome'] == reference_genome])]
+    assert len(paths) == 1
+    path = paths[0]
     if path.startswith('s3://'):
         try:
             dataset = _read_dataset(path)

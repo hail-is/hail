@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Optional, Iterator
 from typing_extensions import Literal
 import os
 import atexit
@@ -189,7 +189,7 @@ def new_local_temp_file(filename: str = 'temp') -> str:
 
 
 @contextmanager
-def with_local_temp_file(filename: str = 'temp') -> str:
+def with_local_temp_file(filename: str = 'temp') -> Iterator[str]:
     path = new_local_temp_file(filename)
     try:
         yield path

@@ -1,6 +1,6 @@
 from hail import ir
 import abc
-from typing import Sequence, MutableSequence, List, Set, Dict, Optional
+from typing import Sequence, MutableSequence, List, Set, Dict, Optional, Tuple
 from collections import namedtuple
 
 
@@ -17,6 +17,18 @@ class Renderable(object):
     def render_children(self, r: 'Renderer') -> Sequence['Renderable']:
         ...
 
+    @abc.abstractproperty
+    def free_vars(self) -> Set[str]:
+        ...
+
+    @abc.abstractproperty
+    def free_agg_vars(self) -> Set[str]:
+        ...
+
+    @abc.abstractproperty
+    def free_scan_vars(self) -> Set[str]:
+        ...
+
 
 class RenderableStr(Renderable):
     def __init__(self, s: str):
@@ -25,13 +37,20 @@ class RenderableStr(Renderable):
     def render_head(self, r: 'Renderer') -> str:
         return self.s
 
-    @abc.abstractmethod
     def render_tail(self, r: 'Renderer') -> str:
         return ''
 
-    @abc.abstractmethod
     def render_children(self, r: 'Renderer') -> Sequence['Renderable']:
         return []
+
+    def free_vars(self) -> Set[str]:
+        raise NotImplementedError
+
+    def free_agg_vars(self) -> Set[str]:
+        raise NotImplementedError
+
+    def free_scan_vars(self) -> Set[str]:
+        raise NotImplementedError
 
 
 class ParensRenderer(Renderable):
@@ -41,13 +60,20 @@ class ParensRenderer(Renderable):
     def render_head(self, r: 'Renderer') -> str:
         return '('
 
-    @abc.abstractmethod
     def render_tail(self, r: 'Renderer') -> str:
         return ')'
 
-    @abc.abstractmethod
     def render_children(self, r: 'Renderer') -> Sequence['Renderable']:
         return self.rs
+
+    def free_vars(self) -> Set[str]:
+        raise NotImplementedError
+
+    def free_agg_vars(self) -> Set[str]:
+        raise NotImplementedError
+
+    def free_scan_vars(self) -> Set[str]:
+        raise NotImplementedError
 
 
 class RenderableQueue(object):
@@ -95,6 +121,9 @@ class Renderer:
         pass
 
 
+NoJirAttribute = object()
+
+
 class PlainRenderer(Renderer):
     def __init__(self, stop_at_jir=False):
         self.stop_at_jir = stop_at_jir
@@ -107,15 +136,16 @@ class PlainRenderer(Renderer):
         self.jirs[jir_id] = jir
         return jir_id
 
-    def __call__(self, x: 'Renderable'):
+    def __call__(self, x: Optional[Renderable]):
         stack = RQStack()
         builder = []
 
         while x is not None or stack.non_empty():
             if x is not None:
                 # TODO: it would be nice to put the JavaIR logic in BaseIR somewhere but this isn't trivial
-                if self.stop_at_jir and hasattr(x, '_jir'):
-                    jir_id = self.add_jir(x._jir)
+                _jir = getattr(x, '_jir', NoJirAttribute)
+                if self.stop_at_jir and _jir is not NoJirAttribute:
+                    jir_id = self.add_jir(_jir)
                     if isinstance(x, ir.MatrixIR):
                         builder.append(f'(JavaMatrix {jir_id})')
                     elif isinstance(x, ir.TableIR):
@@ -142,7 +172,7 @@ class PlainRenderer(Renderer):
 
 
 Vars = Dict[str, int]
-Context = (Vars, Vars, Vars)
+Context = Tuple[Vars, Vars, Vars]
 
 
 BindingSite = namedtuple(
@@ -155,7 +185,7 @@ class CSERenderer(Renderer):
         self.stop_at_jir = stop_at_jir
         self.jir_count = 0
         self.jirs = {}
-        self.memo: Dict[int, Sequence[str]] = {}
+        self.memo: Dict[int, str] = {}
 
     def add_jir(self, jir):
         jir_id = f'm{self.jir_count}'
@@ -286,8 +316,12 @@ class CSEAnalysisPass:
                      'scan_visited', 'lifted_lets', 'agg_lifted_lets',
                      'scan_lifted_lets', 'child_idx']
 
-        def __init__(self, min_binding_depth: int, min_value_binding_depth: int,
-                     scan_scope: bool, context: Context, x: 'ir.BaseIR'):
+        def __init__(self,
+                     min_binding_depth: int,
+                     min_value_binding_depth: int,
+                     scan_scope: bool,
+                     context: Context,
+                     x: 'ir.BaseIR'):
             # Immutable:
 
             # The node corresponding to this stack frame.
@@ -386,13 +420,13 @@ class CSEPrintPass:
     # potential binding site on the path from 'root' to 'node'.
 
     def __call__(self, root: 'ir.BaseIR', binding_sites: Dict[int, BindingSite]):
-        root_builder = []
+        root_builder: List[str] = []
         bindings_stack: Dict[int, CSEPrintPass.BindingsStackFrame] = {}
         memo = self.renderer.memo
 
         if id(root) in memo:
             return ''.join(memo[id(root)])
-        root_ctx = ({var: 0 for var in root.free_vars}, {}, {})
+        root_ctx: Context = ({var: 0 for var in root.free_vars}, {}, {})
         stack = [self.StackFrame.make(root, self.renderer, binding_sites,
                                       bindings_stack, 0, 0, False, root_ctx, 0)]
         stack[0].set_builder(root_builder, self.renderer)
@@ -581,7 +615,8 @@ class CSEPrintPass:
         def add_lets(self, let_bodies: Sequence[str], out_builder: MutableSequence[str]):
             for let_body in let_bodies:
                 out_builder.extend(let_body)
-            out_builder.extend(self.builder)
+            if self.builder is not None:
+                out_builder.extend(self.builder)
             num_lets = len(let_bodies)
             for _ in range(num_lets):
                 out_builder.append(')')
@@ -644,7 +679,7 @@ class CSEPrintPass:
                 bindings_stack[depth] = CSEPrintPass.StackFrame.make_bindings_stack_frame(bind_site)
             return state
 
-        def set_builder(self, builder, renderer: 'CSERenderer'):
+        def set_builder(self, builder: List[str], renderer: 'CSERenderer'):
             self.builder = builder
             if self.insert_lets:
                 self.builder = []

@@ -357,6 +357,8 @@ class TupleCoercer(ExprCoercer):
 
     def _coerce(self, x: Expression):
         assert isinstance(x, hl.expr.TupleExpression)
+        if self.elements is None:
+            raise ValueError('cannot coerce because no expression coercions were provided to TupleCoercer')
         return hl.tuple(c.coerce(e) for c, e in zip(self.elements, x))
 
 
@@ -391,6 +393,8 @@ class StructCoercer(ExprCoercer):
 
     def _coerce(self, x: Expression):
         assert isinstance(x, hl.expr.StructExpression)
+        if self.fields is None:
+            raise ValueError('cannot coerce because no expression coercions were provided to StructCoercer')
         assert list(x.keys()) == list(self.fields.keys())
         return hl.struct(**{name: c.coerce(x[name]) for name, c in self.fields.items()})
 
@@ -456,7 +460,7 @@ class OneOfExprCoercer(ExprCoercer):
         return first_coercer._coerce(x)
 
 
-expr_any = AnyCoercer()
+expr_any: AnyCoercer = AnyCoercer()
 expr_oneof = OneOfExprCoercer
 expr_int32 = Int32Coercer()
 expr_int64 = Int64Coercer()

@@ -1,7 +1,7 @@
 import operator
 import builtins
 import functools
-from typing import Union, Optional, Any, Callable, Iterable, TypeVar
+from typing import Union, Optional, Any, Callable, Iterable, TypeVar, cast
 
 from deprecated import deprecated
 
@@ -31,8 +31,8 @@ from hail.utils.misc import plural
 
 import numpy as np
 
-Coll_T = TypeVar('Collection_T', ArrayExpression, SetExpression)
-Num_T = TypeVar('Numeric_T', Int32Expression, Int64Expression, Float32Expression, Float64Expression)
+Coll_T = TypeVar('Coll_T', ArrayExpression, SetExpression)
+Num_T = TypeVar('Num_T', Int32Expression, Int64Expression, Float32Expression, Float64Expression)
 
 
 def _func(name, ret_type, *args, type_args=()):
@@ -118,7 +118,7 @@ def _error_from_cdf(cdf, failure_prob, all_quantiles=False):
 
 
 @typecheck(t=hail_type)
-def missing(t: Union[HailType, str]):
+def missing(t: Union[HailType, builtins.str]):
     """Creates an expression representing a missing value of a specified type.
 
     Examples
@@ -150,7 +150,7 @@ def missing(t: Union[HailType, str]):
 
 @deprecated(version="0.2.62", reason="Replaced by hl.missing")
 @typecheck(t=hail_type)
-def null(t: Union[HailType, str]):
+def null(t: Union[HailType, builtins.str]):
     """Deprecated in favor of :func:`.missing`.
 
     Creates an expression representing a missing value of a specified type.
@@ -183,7 +183,7 @@ def null(t: Union[HailType, str]):
 
 
 @typecheck(x=anytype, dtype=nullable(hail_type))
-def literal(x: Any, dtype: Optional[Union[HailType, str]] = None):
+def literal(x: Any, dtype: Optional[Union[HailType, builtins.str]] = None):
     """Captures and broadcasts a Python variable or object as an expression.
 
     Examples
@@ -290,7 +290,7 @@ def literal(x: Any, dtype: Optional[Union[HailType, str]] = None):
 def cond(condition,
          consequent,
          alternate,
-         missing_false: bool = False):
+         missing_false: builtins.bool = False):
     """Deprecated in favor of :func:`.if_else`.
 
     Expression for an if/else statement; tests a condition and returns one of two options based on the result.
@@ -344,7 +344,7 @@ def cond(condition,
 def if_else(condition,
             consequent,
             alternate,
-            missing_false: bool = False):
+            missing_false: builtins.bool = False):
     """Expression for an if/else statement; tests a condition and returns one of two options based on the result.
 
     Examples
@@ -405,7 +405,7 @@ def if_else(condition,
                           consequent.dtype, indices, aggregations)
 
 
-def case(missing_false: bool = False) -> 'hail.expr.builders.CaseBuilder':
+def case(missing_false: builtins.bool = False) -> 'hail.expr.builders.CaseBuilder':
     """Chain multiple if-else statements with a :class:`.CaseBuilder`.
 
     Examples
@@ -989,7 +989,7 @@ def hardy_weinberg_test(n_hom_ref, n_het, n_hom_var, one_sided=False) -> StructE
 
 @typecheck(contig=expr_str, pos=expr_int32,
            reference_genome=reference_genome_type)
-def locus(contig, pos, reference_genome: Union[str, ReferenceGenome] = 'default') -> LocusExpression:
+def locus(contig, pos, reference_genome: Union[builtins.str, ReferenceGenome] = 'default') -> LocusExpression:
     """Construct a locus expression from a chromosome and position.
 
     Examples
@@ -1017,7 +1017,7 @@ def locus(contig, pos, reference_genome: Union[str, ReferenceGenome] = 'default'
 @typecheck(global_pos=expr_int64,
            reference_genome=reference_genome_type)
 def locus_from_global_position(global_pos,
-                               reference_genome: Union[str, ReferenceGenome] = 'default') -> LocusExpression:
+                               reference_genome: Union[builtins.str, ReferenceGenome] = 'default') -> LocusExpression:
     """Constructs a locus expression from a global position and a reference genome.
     The inverse of :meth:`.LocusExpression.global_position`.
 
@@ -1048,7 +1048,7 @@ def locus_from_global_position(global_pos,
 
 @typecheck(s=expr_str,
            reference_genome=reference_genome_type)
-def parse_locus(s, reference_genome: Union[str, ReferenceGenome] = 'default') -> LocusExpression:
+def parse_locus(s, reference_genome: Union[builtins.str, ReferenceGenome] = 'default') -> LocusExpression:
     """Construct a locus expression by parsing a string or string expression.
 
     Examples
@@ -1078,7 +1078,7 @@ def parse_locus(s, reference_genome: Union[str, ReferenceGenome] = 'default') ->
 
 @typecheck(s=expr_str,
            reference_genome=reference_genome_type)
-def parse_variant(s, reference_genome: Union[str, ReferenceGenome] = 'default') -> StructExpression:
+def parse_variant(s, reference_genome: Union[builtins.str, ReferenceGenome] = 'default') -> StructExpression:
     """Construct a struct with a locus and alleles by parsing a string.
 
     Examples
@@ -1112,6 +1112,17 @@ def parse_variant(s, reference_genome: Union[str, ReferenceGenome] = 'default') 
     return _func('LocusAlleles', t, s)
 
 
+class VariantStrTypeError(ValueError):
+    def __init__(self, args):
+        super().__init__(
+            f"'variant_str' expects arguments of the following types:\n"
+            f"  Option 1: 1 argument of type 'struct{{locus: locus<RG>, alleles: array<str>}}\n"
+            f"  Option 2: 2 arguments of type 'locus<RG>', 'array<str>'\n"
+            f"  Found: {builtins.len(args)} {plural('argument', builtins.len(args))} "
+            f"of type {', '.join(builtins.str(x.dtype) for x in args)}"
+        )
+
+
 def variant_str(*args) -> 'StringExpression':
     """Create a variant colon-delimited string.
 
@@ -1142,31 +1153,24 @@ def variant_str(*args) -> 'StringExpression':
     >>> hl.eval(hl.variant_str(hl.locus('1', 10000), ['A', 'T', 'C']))
     '1:10000:A:T,C'
     """
-    args = [to_expr(arg) for arg in args]
+    expr_args = [to_expr(arg) for arg in args]
 
-    def type_error():
-        raise ValueError(f"'variant_str' expects arguments of the following types:\n"
-                         f"  Option 1: 1 argument of type 'struct{{locus: locus<RG>, alleles: array<str>}}\n"
-                         f"  Option 2: 2 arguments of type 'locus<RG>', 'array<str>'\n"
-                         f"  Found: {builtins.len(args)} {plural('argument', builtins.len(args))} "
-                         f"of type {', '.join(builtins.str(x.dtype) for x in args)}")
-
-    if builtins.len(args) == 1:
-        [s] = args
+    if builtins.len(expr_args) == 1:
+        [s] = expr_args
         t = s.dtype
         if not isinstance(t, tstruct) \
                 or not builtins.len(t) == 2 \
                 or not isinstance(t[0], tlocus) \
                 or not t[1] == tarray(tstr):
-            type_error()
+            raise VariantStrTypeError(expr_args)
         return hl.rbind(s, lambda x: hl.str(x[0]) + ":" + x[1][0] + ":" + hl.delimit(x[1][1:]))
-    elif builtins.len(args) == 2:
-        [locus, alleles] = args
+    elif builtins.len(expr_args) == 2:
+        [locus, alleles] = expr_args
         if not isinstance(locus.dtype, tlocus) or not alleles.dtype == tarray(tstr):
-            type_error()
+            raise VariantStrTypeError(expr_args)
         return hl.str(locus) + ":" + hl.rbind(alleles, lambda x: x[0] + ":" + hl.delimit(x[1:]))
     else:
-        type_error()
+        raise VariantStrTypeError(expr_args)
 
 
 @typecheck(gp=expr_array(expr_float64))
@@ -1319,7 +1323,7 @@ def locus_interval(contig,
                    end,
                    includes_start=True,
                    includes_end=False,
-                   reference_genome: Union[str, ReferenceGenome] = 'default',
+                   reference_genome: Union[builtins.str, ReferenceGenome] = 'default',
                    invalid_missing=False) -> IntervalExpression:
     """Construct a locus interval expression.
 
@@ -1359,7 +1363,7 @@ def locus_interval(contig,
 @typecheck(s=expr_str,
            reference_genome=reference_genome_type,
            invalid_missing=expr_bool)
-def parse_locus_interval(s, reference_genome: Union[str, ReferenceGenome] = 'default', invalid_missing=False) -> IntervalExpression:
+def parse_locus_interval(s, reference_genome: Union[builtins.str, ReferenceGenome] = 'default', invalid_missing=False) -> IntervalExpression:
     """Construct a locus interval expression by parsing a string or string
     expression.
 
@@ -1949,7 +1953,7 @@ def or_missing(predicate, value):
 
 @typecheck(x=expr_int32, n=expr_int32, p=expr_float64,
            alternative=enumeration("two.sided", "two-sided", "greater", "less"))
-def binom_test(x, n, p, alternative: str) -> Float64Expression:
+def binom_test(x, n, p, alternative: builtins.str) -> Float64Expression:
     """Performs a binomial test on `p` given `x` successes in `n` trials.
 
     Returns the p-value from the `exact binomial test
@@ -3430,9 +3434,9 @@ def any(*args) -> BooleanExpression:
             collection = arg_check(args[1], 'any', 'collection', collection_type)
             return collection.any(f)
     n_args = builtins.len(args)
-    args = [args_check(x, 'any', 'exprs', i, n_args, expr_bool)
-            for i, x in builtins.enumerate(args)]
-    return functools.reduce(operator.ior, args, base)
+    checked_args = [args_check(x, 'any', 'exprs', i, n_args, expr_bool)
+                    for i, x in builtins.enumerate(args)]
+    return functools.reduce(operator.ior, checked_args, base)
 
 
 def all(*args) -> BooleanExpression:
@@ -3674,7 +3678,7 @@ def array_scan(f: Callable, zero, a) -> ArrayExpression:
 
 
 @typecheck(arrays=expr_array(), fill_missing=bool)
-def zip(*arrays, fill_missing: bool = False) -> ArrayExpression:
+def zip(*arrays, fill_missing: builtins.bool = False) -> ArrayExpression:
     """Zip together arrays into a single array.
 
     Examples
@@ -4253,7 +4257,7 @@ def sign(x):
 
 @typecheck(collection=expr_oneof(expr_set(expr_numeric), expr_array(expr_numeric)),
            filter_missing=bool)
-def mean(collection, filter_missing: bool = True) -> Float64Expression:
+def mean(collection, filter_missing: builtins.bool = True) -> Float64Expression:
     """Returns the mean of all values in the collection.
 
     Examples
@@ -4313,7 +4317,7 @@ def median(collection) -> NumericExpression:
 
 @typecheck(collection=expr_oneof(expr_set(expr_numeric), expr_array(expr_numeric)),
            filter_missing=bool)
-def product(collection, filter_missing: bool = True) -> NumericExpression:
+def product(collection, filter_missing: builtins.bool = True) -> NumericExpression:
     """Returns the product of values in the collection.
 
     Examples
@@ -4345,7 +4349,7 @@ def product(collection, filter_missing: bool = True) -> NumericExpression:
 
 @typecheck(collection=expr_oneof(expr_set(expr_numeric), expr_array(expr_numeric)),
            filter_missing=bool)
-def sum(collection, filter_missing: bool = True) -> NumericExpression:
+def sum(collection, filter_missing: builtins.bool = True) -> NumericExpression:
     """Returns the sum of values in the collection.
 
     Examples
@@ -4376,7 +4380,7 @@ def sum(collection, filter_missing: bool = True) -> NumericExpression:
 
 @typecheck(a=expr_array(expr_numeric),
            filter_missing=bool)
-def cumulative_sum(a, filter_missing: bool = True) -> ArrayNumericExpression:
+def cumulative_sum(a, filter_missing: builtins.bool = True) -> ArrayNumericExpression:
     """Returns an array of the cumulative sum of values in the array.
 
     Examples
@@ -4449,7 +4453,7 @@ def tuple(iterable: Iterable) -> TupleExpression:
     :class:`.TupleExpression`
     """
     t = builtins.tuple(iterable)
-    return to_expr(t)
+    return cast(TupleExpression, to_expr(t))
 
 
 @typecheck(collection=expr_oneof(expr_set(), expr_array()))
@@ -4813,7 +4817,7 @@ def sorted(collection,
 
 
 @typecheck(array=expr_array(expr_numeric), unique=bool)
-def argmin(array, unique: bool = False) -> Int32Expression:
+def argmin(array, unique: builtins.bool = False) -> Int32Expression:
     """Return the index of the minimum value in the array.
 
     Examples
@@ -4858,7 +4862,7 @@ def argmin(array, unique: bool = False) -> Int32Expression:
 
 
 @typecheck(array=expr_array(expr_numeric), unique=bool)
-def argmax(array, unique: bool = False) -> Int32Expression:
+def argmax(array, unique: builtins.bool = False) -> Int32Expression:
     """Return the index of the maximum value in the array.
 
     Examples

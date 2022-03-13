@@ -237,14 +237,11 @@ def to_dict(struct):
     return dict(struct.items())
 
 
-_old_printer = pprint.PrettyPrinter
+def pprint_hail_struct(printer, obj, stream, indent, allowance, context, level):
+    # https://stackoverflow.com/a/40828239/6823256
+    struct_as_dict = to_dict(obj)
+    return printer._format(struct_as_dict, stream, indent, allowance, context, level)
 
 
-class StructPrettyPrinter(pprint.PrettyPrinter):
-    def _format(self, obj, *args, **kwargs):
-        if isinstance(obj, Struct):
-            obj = to_dict(obj)
-        return _old_printer._format(self, obj, *args, **kwargs)
-
-
-pprint.PrettyPrinter = StructPrettyPrinter  # monkey-patch pprint
+assert hasattr(pprint.PrettyPrinter, '_dispatch')
+pprint.PrettyPrinter._dispatch[Struct.__repr__] = pprint_hail_struct # https://stackoverflow.com/a/40828239/6823256

@@ -291,7 +291,7 @@ class LazyChecker(TypeChecker):
 
 
 class ExactlyTypeChecker(TypeChecker):
-    def __init__(self, v, reference_equality=False):
+    def __init__(self, v, reference_equality: bool = False):
         self.v = v
         self.reference_equality = reference_equality
         super(ExactlyTypeChecker, self).__init__()
@@ -395,58 +395,58 @@ def only(t):
         raise RuntimeError("invalid typecheck signature: expected 'type', 'lambda', or 'TypeChecker', found '%s'" % type(t))
 
 
-def exactly(v, reference_equality=False):
+def exactly(v, reference_equality: bool = False) -> ExactlyTypeChecker:
     return ExactlyTypeChecker(v, reference_equality)
 
 
-def oneof(*args):
+def oneof(*args) -> MultipleTypeChecker:
     return MultipleTypeChecker([only(x) for x in args])
 
 
-def enumeration(*args):
+def enumeration(*args) -> MultipleTypeChecker:
     return MultipleTypeChecker([exactly(x) for x in args])
 
 
-def nullable(t):
+def nullable(t) -> MultipleTypeChecker:
     return oneof(exactly(None, reference_equality=True), t)
 
 
-def sequenceof(t):
+def sequenceof(t) -> SequenceChecker:
     return SequenceChecker(only(t))
 
 
-def tupleof(t):
+def tupleof(t) -> TupleChecker:
     return TupleChecker(only(t))
 
 
-def sized_tupleof(*args):
+def sized_tupleof(*args) -> SizedTupleChecker:
     return SizedTupleChecker(*[only(x) for x in args])
 
 
-def sliceof(startt, stopt, stept):
+def sliceof(startt, stopt, stept) -> SliceChecker:
     return SliceChecker(only(startt), only(stopt), only(stept))
 
 
-def linked_list(t):
+def linked_list(t) -> LinkedListChecker:
     return LinkedListChecker(t)
 
 
-def setof(t):
+def setof(t) -> SetChecker:
     return SetChecker(only(t))
 
 
-def dictof(k, v):
+def dictof(k, v) -> DictChecker:
     return DictChecker(only(k), only(v))
 
 
-def func_spec(n, tc):
+def func_spec(n, tc) -> FunctionChecker:
     return FunctionChecker(n, only(tc))
 
 
 anyfunc = AnyFuncChecker()
 
 
-def transformed(*tcs):
+def transformed(*tcs) -> CoercionChecker:
     fs = []
     for tc, f in tcs:
         tc = only(tc)
@@ -454,7 +454,7 @@ def transformed(*tcs):
     return CoercionChecker(*fs)
 
 
-def lazy():
+def lazy() -> LazyChecker:
     return LazyChecker()
 
 

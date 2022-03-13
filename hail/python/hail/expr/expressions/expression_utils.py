@@ -60,17 +60,17 @@ def analyze(caller: str,
     if unexpected_axes:
         # one or more out-of-scope fields
         refs = get_refs(expr)
-        bad_refs = []
+        bad_refs_with_indices = []
         for name, inds in refs.items():
             if broadcast:
                 bad_axes = inds.axes.intersection(unexpected_axes)
                 if bad_axes:
-                    bad_refs.append((name, inds))
+                    bad_refs_with_indices.append((name, inds))
             else:
                 if inds.axes != expected_axes:
-                    bad_refs.append((name, inds))
+                    bad_refs_with_indices.append((name, inds))
 
-        assert len(bad_refs) > 0
+        assert len(bad_refs_with_indices) > 0
         errors.append(ExpressionException(
             "scope violation: '{caller}' expects an expression {strictness}indexed by {expected}"
             "\n    Found indices {axes}, with unexpected indices {stray}. Invalid fields:{fields}{agg}".format(
@@ -79,7 +79,7 @@ def analyze(caller: str,
                 expected=list(expected_axes),
                 axes=list(indices.axes),
                 stray=list(unexpected_axes),
-                fields=''.join("\n        '{}' (indices {})".format(name, list(inds.axes)) for name, inds in bad_refs),
+                fields=''.join("\n        '{}' (indices {})".format(name, list(inds.axes)) for name, inds in bad_refs_with_indices),
                 agg='' if (unexpected_axes - aggregation_axes) else
                 "\n    '{}' supports aggregation over axes {}, "
                 "so these fields may appear inside an aggregator function.".format(caller, list(aggregation_axes))
@@ -100,13 +100,13 @@ def analyze(caller: str,
                 unexpected_agg_axes = agg_axes - expected_agg_axes
                 if unexpected_agg_axes:
                     # one or more out-of-scope fields
-                    bad_refs = []
+                    bad_refs_with_indices = []
                     for name, inds in refs.items():
                         bad_axes = inds.axes.intersection(unexpected_agg_axes)
                         if bad_axes:
-                            bad_refs.append((name, inds))
+                            bad_refs_with_indices.append((name, inds))
 
-                    assert len(bad_refs) > 0
+                    assert len(bad_refs_with_indices) > 0
 
                     errors.append(ExpressionException(
                         "scope violation: '{caller}' supports aggregation over indices {expected}"
@@ -116,7 +116,7 @@ def analyze(caller: str,
                             axes=list(agg_axes),
                             stray=list(unexpected_agg_axes),
                             fields=''.join("\n        '{}' (indices {})".format(
-                                name, list(inds.axes)) for name, inds in bad_refs)
+                                name, list(inds.axes)) for name, inds in bad_refs_with_indices)
                         )
                     ))
         else:
@@ -295,7 +295,7 @@ def extract_refs_by_indices(exprs, indices):
 
 
 def get_refs(*exprs: Expression) -> Dict[str, Indices]:
-    builder = {}
+    builder: Dict[str, Indices] = {}
     for e in exprs:
         _get_refs(e, builder)
     return builder

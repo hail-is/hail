@@ -1,3 +1,4 @@
+from typing import Optional
 import hail as hl
 from .java import Env, info
 from .misc import new_temp_file, local_path_uri, new_local_temp_dir
@@ -22,7 +23,7 @@ resources = {
     'movie_lens_100k': 'http://files.grouplens.org/datasets/movielens/ml-100k.zip',
 }
 
-tmp_dir: str = None
+tmp_dir: Optional[str] = None
 
 
 def init_temp_dir():

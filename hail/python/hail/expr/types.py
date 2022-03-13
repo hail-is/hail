@@ -1,3 +1,4 @@
+from typing import Dict
 import abc
 import json
 import math
@@ -308,12 +309,16 @@ class HailType(object):
         return object
 
 
-hail_type = oneof(HailType, transformed((str, dtype)), type(None))
+hail_type: TypeChecker = oneof(HailType, transformed((str, dtype)), type(None))
 
 
 class _tvoid(HailType):
     def __init__(self):
         super(_tvoid, self).__init__()
+
+    def _typecheck_one_level(self, annotation):
+        if annotation is not None:
+            raise TypeError("type 'void' expected Python 'None', but found type '%s'" % type(annotation))
 
     def __str__(self):
         return "void"
@@ -335,6 +340,7 @@ class _tvoid(HailType):
 
     def _convert_from_encoding(self, byte_reader):
         return None
+
 
 
 class _tint32(HailType):
@@ -1873,7 +1879,7 @@ class tinterval(HailType):
 
 
 class Box(object):
-    named_boxes = {}
+    named_boxes: Dict[str, 'Box'] = {}
 
     @staticmethod
     def from_name(name):
@@ -2111,15 +2117,10 @@ class tvariable(HailType):
         return s
 
 
-_old_printer = pprint.PrettyPrinter
+def pprint_hail_type(printer, obj, stream, indent, allowance, context, level):
+    # https://stackoverflow.com/a/40828239/6823256
+    stream.write(obj.pretty(printer._indent_per_level))
 
 
-class TypePrettyPrinter(pprint.PrettyPrinter):
-    def _format(self, object, stream, indent, allowance, context, level):
-        if isinstance(object, HailType):
-            stream.write(object.pretty(self._indent_per_level))
-        else:
-            return _old_printer._format(self, object, stream, indent, allowance, context, level)
-
-
-pprint.PrettyPrinter = TypePrettyPrinter  # monkey-patch pprint
+assert hasattr(pprint.PrettyPrinter, '_dispatch')
+pprint.PrettyPrinter._dispatch[HailType.__repr__] = pprint_hail_type # https://stackoverflow.com/a/40828239/6823256

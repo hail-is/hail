@@ -1,11 +1,11 @@
-from typing import List, Tuple, Optional, Set
+from typing import List, Tuple, Optional, Iterable
 
 
 def deduplicate(
         ids: List[str],
         *,
         max_attempts: Optional[int] = None,
-        already_used: Set[int] = None
+        already_used: Optional[Iterable[str]] = None
 ) -> Tuple[List[Tuple[str, str]], List[str]]:
     """Deduplicate the strings in `ids`.
 
@@ -18,10 +18,16 @@ def deduplicate(
     >>> deduplicate(['a', 'a_1', 'a'])
     ([('a', 'a_2')], ['a', 'a_1', 'a_2'])
 
+    >>> deduplicate(['a', 'a_1', 'a'], {'a_2'})
+    ([('a', 'a_3')], ['a', 'a_1', 'a_3'])
+
     Parameters
     ----------
     ids : list of :class:`str`
         The list of strings, possibly containing duplicates.
+
+    already_used : iterable of :class:`str`
+        When specified, no string in this iterable will appear in the output identifiers.
 
     Returns
     -------

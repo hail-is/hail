@@ -67,7 +67,7 @@ class ReferenceGenome(object):
         List of tuples with (contig, start, end)
     """
 
-    _references = {}
+    _references: Dict[str, ReferenceGenome] = {}
 
     @classmethod
     def _from_config(cls, config, _builtin=False):

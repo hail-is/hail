@@ -42,7 +42,7 @@ class Env:
         return Env.py4j_backend('Env.jutils').utils_package_object()
 
     @staticmethod
-    def hc() -> 'hail.context.HailContext':
+    def hc():
         if not Env._hc:
             sys.stderr.write("Initializing Hail with default parameters...\n")
             sys.stderr.flush()
@@ -66,7 +66,7 @@ class Env:
         return Env._hc
 
     @staticmethod
-    async def _async_hc() -> 'hail.context.HailContext':
+    async def _async_hc():
         if not Env._hc:
             sys.stderr.write("Initializing Hail with default parameters...\n")
             sys.stderr.flush()
@@ -81,7 +81,7 @@ class Env:
         return Env._hc
 
     @staticmethod
-    def backend() -> 'hail.backend.Backend':
+    def backend():
         return Env.hc()._backend
 
     @staticmethod

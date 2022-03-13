@@ -3,7 +3,7 @@ import itertools
 import pandas
 import numpy as np
 import pyspark
-from typing import Optional, Dict, Callable
+from typing import Optional, Dict, Callable, Set, Any
 
 from hail.expr.expressions import Expression, StructExpression, \
     BooleanExpression, expr_struct, expr_any, expr_bool, analyze, Indices, \
@@ -74,7 +74,7 @@ def desc(col):
 class ExprContainer:
 
     # this can only grow as big as the object dir, so no need to worry about memory leak
-    _warned_about = set()
+    _warned_about: Set[str] = set()
 
     def __init__(self):
         self._fields: Dict[str, Expression] = {}
@@ -137,7 +137,7 @@ class GroupedTable(ExprContainer):
         super(GroupedTable, self).__init__()
         self._key_expr = key_expr
         self._parent = parent
-        self._npartitions = None
+        self._npartitions: Optional[int] = None
         self._buffer_size = 50
 
         self._copy_fields_from(parent)
@@ -1809,7 +1809,7 @@ class Table(ExprContainer):
                 if len(exprs) == len(src.col_key) and all([
                         exprs[i] is src.col_key[i] for i in range(len(exprs))]):
                     # key is already correct
-                    def joiner(left):
+                    def joiner(left: MatrixTable):
                         return MatrixTable(ir.MatrixAnnotateColsTable(left._mir, right._tir, uid))
                 else:
                     index_uid = Env.get_uid()
@@ -2117,11 +2117,11 @@ class Table(ExprContainer):
         all_tables.extend(tables)
 
         if unify and not len(set(ht.row_value.dtype for ht in all_tables)) == 1:
-            discovered = collections.defaultdict(dict)
+            discovered: Dict[str, Any] = collections.defaultdict(dict)
             for i, ht in enumerate(all_tables):
                 for field_name in ht.row_value:
                     discovered[field_name][i] = ht[field_name]
-            all_fields = [{} for _ in all_tables]
+            all_fields: Set[str] = [{} for _ in all_tables]
             for field_name, expr_dict in discovered.items():
                 *unified, can_unify = hl.expr.expressions.unify_exprs(*expr_dict.values())
                 if not can_unify:

@@ -1,4 +1,4 @@
-from typing import BinaryIO, List, Optional, Tuple, Type
+from typing import BinaryIO, List, Optional, Tuple, Type, Union
 from types import TracebackType
 import abc
 import io

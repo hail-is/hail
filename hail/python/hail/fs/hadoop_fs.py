@@ -1,6 +1,6 @@
+from typing import Dict, List, Union
 import io
 import json
-from typing import Dict, List
 
 from .fs import FS
 
@@ -18,6 +18,7 @@ class HadoopFS(FS):
         return self._open(path, mode, buffer_size, use_codec=True)
 
     def _open(self, path: str, mode: str = 'r', buffer_size: int = 8192, use_codec: bool = False):
+        handle: Union[io.BufferedWriter, io.BufferedReader, io.TextIOWrapper]
         if 'r' in mode:
             handle = io.BufferedReader(HadoopReader(self, path, buffer_size, use_codec=use_codec), buffer_size=buffer_size)
         elif 'w' in mode:

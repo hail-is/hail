@@ -76,15 +76,10 @@ class tblockmatrix(object):
         return ''.join(b)
 
 
-_old_printer = pprint.PrettyPrinter
+def pprint_hail_blockmatrix(printer, obj, stream, indent, allowance, context, level):
+    # https://stackoverflow.com/a/40828239/6823256
+    stream.write(obj.pretty(printer._indent_per_level))
 
 
-class PrettyPrinter(pprint.PrettyPrinter):
-    def _format(self, object, stream, indent, allowance, context, level):
-        if isinstance(object, tblockmatrix):
-            stream.write(object.pretty(self._indent_per_level))
-        else:
-            return _old_printer._format(self, object, stream, indent, allowance, context, level)
-
-
-pprint.PrettyPrinter = PrettyPrinter  # monkey-patch pprint
+assert hasattr(pprint.PrettyPrinter, '_dispatch')
+pprint.PrettyPrinter._dispatch[tblockmatrix.__repr__] = pprint_hail_blockmatrix # https://stackoverflow.com/a/40828239/6823256

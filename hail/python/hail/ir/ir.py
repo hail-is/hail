@@ -1,3 +1,4 @@
+from typing import List, Any, Dict
 import copy
 from collections import defaultdict
 
@@ -1773,7 +1774,7 @@ def _register(registry, name, f):
     registry[name].append(f)
 
 
-_aggregator_registry = defaultdict(list)
+_aggregator_registry: Dict[str, List[Any]] = defaultdict(list)
 
 
 def register_aggregator(name, init_params, seq_params, ret_type):
@@ -2200,9 +2201,9 @@ class ConsoleLog(IR):
         return True
 
 
-_function_registry = defaultdict(list)
-_seeded_function_registry = defaultdict(list)
-_udf_registry = dict()
+_function_registry: Dict[str, List[Any]] = defaultdict(list)
+_seeded_function_registry: Dict[str, List[Any]] = defaultdict(list)
+_udf_registry: Dict[str, Any] = dict()
 
 
 def clear_session_functions():
