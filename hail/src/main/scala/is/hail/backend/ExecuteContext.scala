@@ -106,8 +106,6 @@ class ExecuteContext(
 ) extends Closeable {
   var backendContext: BackendContext = _
 
-  val printIRs: Boolean = flags.get("no_ir_logging") == null
-
   private val tempFileManager: TempFileManager = if (_tempFileManager != null)
     _tempFileManager
   else
@@ -142,6 +140,8 @@ class ExecuteContext(
   def availableFlags(): java.util.ArrayList[String] = flags.available
 
   def shouldWriteIRFiles(): Boolean = getFlag("write_ir_files") != null
+
+  def printIRs(): Boolean = flags.get("no_ir_logging") == null
 
   def close(): Unit = {
     tempFileManager.cleanup()
