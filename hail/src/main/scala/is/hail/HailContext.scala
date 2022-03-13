@@ -50,10 +50,6 @@ object HailContext {
 
   def backend: Backend = get.backend
 
-  // def getFlag(flag: String): String = get.flags.get(flag)
-
-  // def setFlag(flag: String, value: String): Unit = get.flags.set(flag, value)
-
   def sparkBackend(op: String): SparkBackend = get.sparkBackend(op)
 
   def configureLogging(logFile: String, quiet: Boolean, append: Boolean, skipLoggingConfiguration: Boolean): Unit = {
@@ -406,8 +402,6 @@ class HailContext private(
   def stop(): Unit = HailContext.stop()
 
   def sparkBackend(op: String): SparkBackend = backend.asSpark(op)
-
-  // val flags: HailFeatureFlags = new HailFeatureFlags()
 
   var checkRVDKeys: Boolean = false
 

@@ -137,11 +137,13 @@ class ExecuteContext(
 
   def setFlag(flag: String, value: String): Unit = flags.set(flag, value)
 
-  def availableFlags(): java.util.ArrayList[String] = flags.available
+  val availableFlags: java.util.ArrayList[String] = flags.available
 
   def shouldWriteIRFiles(): Boolean = getFlag("write_ir_files") != null
 
-  def printIRs(): Boolean = flags.get("no_ir_logging") == null
+  def shouldNotLogIR(): Boolean = flags.get("no_ir_logging") != null
+
+  def shouldLogIR(): Boolaen = !shouldNotLogIR()
 
   def close(): Unit = {
     tempFileManager.cleanup()
