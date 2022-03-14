@@ -82,4 +82,4 @@ def pprint_hail_blockmatrix(printer, obj, stream, indent, allowance, context, le
 
 
 assert hasattr(pprint.PrettyPrinter, '_dispatch')
-pprint.PrettyPrinter._dispatch[tblockmatrix.__repr__] = pprint_hail_blockmatrix # https://stackoverflow.com/a/40828239/6823256
+pprint.PrettyPrinter._dispatch[tblockmatrix.__repr__] = pprint_hail_blockmatrix  # https://stackoverflow.com/a/40828239/6823256

@@ -244,4 +244,4 @@ def pprint_hail_struct(printer, obj, stream, indent, allowance, context, level):
 
 
 assert hasattr(pprint.PrettyPrinter, '_dispatch')
-pprint.PrettyPrinter._dispatch[Struct.__repr__] = pprint_hail_struct # https://stackoverflow.com/a/40828239/6823256
+pprint.PrettyPrinter._dispatch[Struct.__repr__] = pprint_hail_struct  # https://stackoverflow.com/a/40828239/6823256

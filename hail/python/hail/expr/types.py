@@ -14,7 +14,7 @@ from hail import genetics
 from hail.expr.nat import NatBase, NatLiteral
 from .type_parsing import type_grammar, type_node_visitor
 from hail.genetics.reference_genome import reference_genome_type
-from hail.typecheck import typecheck, typecheck_method, oneof, transformed
+from hail.typecheck import typecheck, typecheck_method, oneof, transformed, TypeChecker
 from hail.utils.java import escape_parsable
 from hail.utils import frozendict
 from hail.utils.misc import lookup_bit
@@ -340,7 +340,6 @@ class _tvoid(HailType):
 
     def _convert_from_encoding(self, byte_reader):
         return None
-
 
 
 class _tint32(HailType):
@@ -2123,4 +2122,4 @@ def pprint_hail_type(printer, obj, stream, indent, allowance, context, level):
 
 
 assert hasattr(pprint.PrettyPrinter, '_dispatch')
-pprint.PrettyPrinter._dispatch[HailType.__repr__] = pprint_hail_type # https://stackoverflow.com/a/40828239/6823256
+pprint.PrettyPrinter._dispatch[HailType.__repr__] = pprint_hail_type  # https://stackoverflow.com/a/40828239/6823256

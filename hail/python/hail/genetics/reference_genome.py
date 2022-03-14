@@ -1,3 +1,4 @@
+from typing import Dict
 import json
 import re
 from hail.typecheck import typecheck_method, sequenceof, dictof, oneof, \
@@ -67,7 +68,7 @@ class ReferenceGenome(object):
         List of tuples with (contig, start, end)
     """
 
-    _references: Dict[str, ReferenceGenome] = {}
+    _references: Dict[str, 'ReferenceGenome'] = {}
 
     @classmethod
     def _from_config(cls, config, _builtin=False):
