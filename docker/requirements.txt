@@ -67,7 +67,8 @@ types-python-dateutil==2.8.2
 types-PyYAML==6.0
 types-requests==2.27.1
 types-setuptools==57.4.10
-types-tabulate==0.8.9
+# 0.8.5 is the latest available version
+types-tabulate==0.8.5
 urllib3==1.26.5
 uvloop==0.16.0
 wheel>=0.31.0
