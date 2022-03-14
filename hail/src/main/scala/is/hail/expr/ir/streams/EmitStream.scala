@@ -378,8 +378,12 @@ object EmitStream {
                 val nodeAddress = cb.memoize(nodeArray(idx))
                 cb.assign(idx, idx + 1)
                 dictState.loadNode(cb, nodeAddress)
+
+                val keyInWrongRegion = dictState.keyed.storageType.loadCheapSCode(cb, nodeAddress)
+                val addrOfKeyInRightRegion = dictState.keyed.storageType.store(cb, region, keyInWrongRegion, true)
+                val key = dictState.keyed.storageType.loadCheapSCode(cb, addrOfKeyInRightRegion).loadField(cb, "kt").memoize(cb, "stream_buff_agg_key_right_region")
+
                 val serializedAggValue = keyedContainer.container.states.states.map(state => state.serializeToRegion(cb, PCanonicalBinary(), region))
-                val key = dictState.keyed.storageType.loadCheapSCode(cb, nodeAddress).loadField(cb, "kt").memoize(cb, "steam_buff_agg_key")
                 val serializedAggEmitCodes = serializedAggValue.map(aggValue => EmitCode.present(mb, aggValue))
                 val serializedAggTupleSValue = SStackStruct.constructFromArgs(cb, region, serializedAggSType.virtualType, serializedAggEmitCodes: _*)
                 val keyValue = key.get(cb).asInstanceOf[SBaseStructValue]
