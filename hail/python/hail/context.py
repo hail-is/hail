@@ -491,7 +491,7 @@ def TemporaryFilename(*,
 
     Returns
     -------
-    :class:`.DeletingFile` or :class:`.DeletingDirectory`
+    :class:`._TemporaryFilenameManager`
 
     """
     if dir is None:
@@ -544,7 +544,7 @@ def TemporaryDirectory(*,
 
     Returns
     -------
-    :class:`.DeletingFile` or :class:`.DeletingDirectory`
+    :class:`._TemporaryDirectoryManager`
 
     """
     if dir is None:
