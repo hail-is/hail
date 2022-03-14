@@ -69,7 +69,9 @@ trait Py4jUtils {
       "is_dir" -> JBool(fs.isDirectory),
       "modification_time" ->
         (if (fs.getModificationTime != null)
-          JString(new java.util.Date(fs.getModificationTime).toString)
+          JString(
+            new java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSSSSZ").format(
+              new java.util.Date(fs.getModificationTime)))
         else
           JNull),
       "owner" -> (
