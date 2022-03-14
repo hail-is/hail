@@ -67,7 +67,7 @@ class LocalBackend(
 
   def getFlag(name: String): String = flags.get(name)
 
-  def setFlag(name: String, value: String) = flags.set(name, name)
+  def setFlag(name: String, value: String) = flags.set(name, value)
 
   val availableFlags: java.util.ArrayList[String] = flags.available
 
