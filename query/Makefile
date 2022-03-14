@@ -21,13 +21,13 @@ push-jar: jar
 	gsutil cp ./hail.jar "$(JAR_LOCATION)"
 	echo >last_uploaded_jar "$(JAR_LOCATION)"
 
+.PHONY: upload-resources-dir
 upload-resources-dir:
 	python3 -m hailtop.aiotools.copy 'null' '[ \
 {"from": "../hail/src/test/resources/", \
  "to": "gs://hail-test-dmk9z/$(HAIL_TEST_GCS_TOKEN)/hail-test-resources/test/resources/"}, \
 {"from": "../hail/python/hail/docs/data/", \
  "to": "gs://hail-test-dmk9z/$(HAIL_TEST_GCS_TOKEN)/hail-test-resources/doctest/data/"}]'
-	touch upload-resources-dir
 
 .PHONY: test
 test: push-jar upload-resources-dir
