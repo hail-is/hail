@@ -1,13 +1,14 @@
 from typing import Dict, List, Any, AsyncContextManager, BinaryIO
 import asyncio
 import gzip
-import hurry
+from hurry.filesize import size as hurry_filesize_size
 import io
 import nest_asyncio
+import functools
 
 from hailtop.aiotools.router_fs import RouterAsyncFS
 from hailtop.aiotools.fs import Copier, Transfer, FileListEntry, ReadableStream, WritableStream
-from hailtop.utils import async_to_blocking, OnlineBoundedGather2
+from hailtop.utils import async_to_blocking, bounded_gather
 
 
 from .fs import FS
@@ -153,8 +154,8 @@ def _stat_dict(is_dir: bool, size_bytes: int, path: str) -> Dict[str, Any]:
     return {
         'is_dir': is_dir,
         'size_bytes': size_bytes,
-        'size': hurry.filesize.size(size_bytes),
-        'path': path,
+        'size': hurry_filesize_size(size_bytes),
+        'path': path.rstrip('/'),
     }
 
 
@@ -192,7 +193,14 @@ class RouterFS(FS):
         return async_to_blocking(_copy())
 
     def exists(self, path: str) -> bool:
-        return async_to_blocking(self.afs.exists(path))
+        async def _exists():
+            dir_path = path
+            if dir_path[-1] != '/':
+                dir_path = dir_path + '/'
+            return any(await asyncio.gather(
+                self.afs.isfile(path),
+                self.afs.isdir(dir_path)))
+        return async_to_blocking(_exists())
 
     def is_file(self, path: str) -> bool:
         return async_to_blocking(self.afs.isfile(path))
@@ -230,10 +238,9 @@ class RouterFS(FS):
 
     def ls(self, path: str, _max_simultaneous_files: int = 50) -> List[Dict]:
         async def _ls():
-            async with OnlineBoundedGather2(asyncio.Semaphore(_max_simultaneous_files)) as pool:
-                tasks = [pool.call(self._fle_to_dict, fle)
-                         async for fle in await self.afs.listfiles(path)]
-                return [await t for t in tasks]
+            return await bounded_gather(
+                *[functools.partial(self._fle_to_dict, fle)
+                  async for fle in await self.afs.listfiles(path)])
         return async_to_blocking(_ls())
 
     def mkdir(self, path: str):
