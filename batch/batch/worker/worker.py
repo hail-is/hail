@@ -1,7 +1,6 @@
 import asyncio
 import base64
 import concurrent
-import contextlib
 import errno
 import json
 import logging
@@ -557,10 +556,10 @@ def user_error(e):
 class Container:
     def __init__(
         self,
+        worker: 'Worker',
         name: str,
         image: Image,
         scratch_dir: str,
-        pool: concurrent.futures.ThreadPoolExecutor,
         command: List[str],
         cpu_in_mcpu: int,
         memory_in_bytes: int,
@@ -571,6 +570,9 @@ class Container:
         volume_mounts: Optional[List[dict]] = None,
         env: Optional[List[str]] = None,
     ):
+        self.worker = worker
+        assert self.worker
+
         self.name = name
         self.image = image
         self.command = command
@@ -609,8 +611,7 @@ class Container:
         # regarding no-member: https://github.com/PyCQA/pylint/issues/4223
         self.process: Optional[asyncio.subprocess.Process] = None  # pylint: disable=no-member
 
-    @contextlib.asynccontextmanager
-    async def run(self):
+    async def run(self, on_completion: Callable[..., Awaitable[Any]], *args, **kwargs):
         try:
             with self._step('pulling'):
                 await self._run_until_done_or_deleted(self.image.pull)
@@ -653,11 +654,13 @@ class Container:
             self.state = 'error'
             self.error = traceback.format_exc()
         finally:
-            yield
             try:
-                await self.delete_container()
+                await on_completion(*args, **kwargs)
             finally:
-                self.image.release()
+                try:
+                    await self.delete_container()
+                finally:
+                    self.image.release()
 
     async def _run_until_done_or_deleted(self, f: Callable[..., Awaitable[Any]]):
         try:
@@ -972,9 +975,6 @@ class Container:
             network_allocator.free(self.netns)
             self.netns = None
 
-        if self.fs:
-            await self.fs.close()
-
     async def delete(self):
         log.info(f'deleting {self}')
         self.deleted_event.set()
@@ -1056,7 +1056,6 @@ def copy_container(
     scratch: str,
     requester_pays_project: str,
     client_session: httpx.ClientSession,
-    pool: concurrent.futures.ThreadPoolExecutor,
 ) -> Container:
     assert files
 
@@ -1070,10 +1069,10 @@ def copy_container(
     ]
 
     return Container(
+        worker=job.worker,
         name=job.container_name(task_name),
-        image=Image(BATCH_WORKER_IMAGE, job.credentials, client_session, pool),
+        image=Image(BATCH_WORKER_IMAGE, job.credentials, client_session, job.pool),
         scratch_dir=f'{scratch}/{task_name}',
-        pool=pool,
         command=command,
         cpu_in_mcpu=cpu_in_mcpu,
         memory_in_bytes=memory_in_bytes,
@@ -1368,14 +1367,13 @@ class DockerJob(Job):
                 self.scratch,
                 requester_pays_project,
                 client_session,
-                pool,
             )
 
         containers['main'] = Container(
+            worker=self.worker,
             name=self.container_name('main'),
             image=Image(job_spec['process']['image'], self.credentials, client_session, pool),
             scratch_dir=f'{self.scratch}/main',
-            pool=self.pool,
             command=job_spec['process']['command'],
             cpu_in_mcpu=self.cpu_in_mcpu,
             memory_in_bytes=self.memory_in_bytes,
@@ -1398,7 +1396,6 @@ class DockerJob(Job):
                 self.scratch,
                 requester_pays_project,
                 client_session,
-                pool,
             )
 
         self.containers = containers
@@ -1440,7 +1437,7 @@ class DockerJob(Job):
         os.makedirs(self.io_host_path())
 
     async def run_container(self, container: Container, task_name: str):
-        async with container.run():
+        async def on_completion():
             with container._step('uploading_log'):
                 assert self.worker.file_store
                 await self.worker.file_store.write_log_file(
@@ -1451,6 +1448,8 @@ class DockerJob(Job):
                     task_name,
                     await container.get_log(),
                 )
+
+        await container.run(on_completion)
 
     async def run(self):
         async with self.worker.cpu_sem(self.cpu_in_mcpu):
