@@ -957,6 +957,26 @@ class Tests(unittest.TestCase):
         self.assertTrue(t1.key_by().union(t2.key_by(), t3.key_by())
                         ._same(hl.utils.range_table(15).key_by()))
 
+    @fails_service_backend('''stack overflow when typechecking a Let:
+...
+at is.hail.expr.ir.Let.typ(IR.scala:169)
+at is.hail.expr.ir.package$.$anonfun$invoke$1(package.scala:56)
+at scala.collection.TraversableLike.$anonfun$map$1(TraversableLike.scala:238)
+at scala.collection.IndexedSeqOptimized.foreach(IndexedSeqOptimized.scala:36)
+at scala.collection.IndexedSeqOptimized.foreach$(IndexedSeqOptimized.scala:33)
+at scala.collection.mutable.WrappedArray.foreach(WrappedArray.scala:38)
+at scala.collection.TraversableLike.map(TraversableLike.scala:238)
+at scala.collection.TraversableLike.map$(TraversableLike.scala:231)
+at scala.collection.AbstractTraversable.map(Traversable.scala:108)
+at is.hail.expr.ir.package$.invoke(package.scala:56)
+at is.hail.expr.ir.package$.invoke(package.scala:64)
+at is.hail.expr.ir.lowering.LowerTableIR$.apply(LowerTableIR.scala:465)
+at is.hail.expr.ir.lowering.LowerToCDA$.lower(LowerToCDA.scala:69)
+at is.hail.expr.ir.lowering.LowerToCDA$.lower(LowerToCDA.scala:38)
+at is.hail.expr.ir.lowering.LowerToCDA$.apply(LowerToCDA.scala:18)
+at is.hail.expr.ir.lowering.LowerToDistributedArrayPass.transform(LoweringPass.scala:77)
+...
+''')
     def test_nested_union(self):
         N = 10
         M = 200
