@@ -8,12 +8,13 @@ import re
 import yaml
 from pathlib import Path
 
-from hail.context import TemporaryDirectory, tmp_dir
-from hail.utils import FatalError
+from hail.context import TemporaryDirectory, tmp_dir, TemporaryFilename
+from hail.utils import FatalError, range_table
 from hail.expr.types import dtype
 from hail.expr.table_type import ttable
 from hail.expr.matrix_type import tmatrix
 from hail.expr.blockmatrix_type import tblockmatrix
+from hail.methods.impex import read_table
 from hail.ir.renderer import CSERenderer
 
 from hailtop.config import get_user_config, get_user_local_cache_dir, get_remote_tmpdir
@@ -454,7 +455,12 @@ class ServiceBackend(Backend):
         raise NotImplementedError("ServiceBackend does not support 'register_ir_function'")
 
     def persist_ir(self, ir):
-        raise NotImplementedError("ServiceBackend does not support 'persist_ir'")
+        # FIXME: should use context manager to clean up persisted resources
+        fname = TemporaryFilename().name
+        range_table(1).key_by().select(value=ir).write(fname)
+        table = read_table(fname)
+        assert table.count() == 1
+        return table.collect()[0].value
 
     def set_flags(self, **flags: Mapping[str, str]):
         self.flags.update(flags)
