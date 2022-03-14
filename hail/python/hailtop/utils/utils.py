@@ -1,4 +1,4 @@
-from typing import Callable, TypeVar, Awaitable, Optional, Type, List, Dict, Iterable, Tuple
+from typing import Any, Callable, TypeVar, Awaitable, Optional, Type, List, Dict, Iterable, Tuple
 from typing_extensions import Literal
 from types import TracebackType
 import concurrent
@@ -118,7 +118,7 @@ def grouped(n: int, ls: List[T]) -> Iterable[List[T]]:
         yield group
 
 
-def partition(k, ls):
+def partition(k: int, ls: List[T]) -> Iterable[List[T]]:
     if k == 0:
         assert not ls
         return []
