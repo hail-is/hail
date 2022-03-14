@@ -957,7 +957,7 @@ class Tests(unittest.TestCase):
         self.assertTrue(t1.key_by().union(t2.key_by(), t3.key_by())
                         ._same(hl.utils.range_table(15).key_by()))
 
-    @fails_service_backend('''stack overflow when typechecking a Let:
+    @fails_service_backend(message='''stack overflow when typechecking a Let:
 ...
 at is.hail.expr.ir.Let.typ(IR.scala:169)
 at is.hail.expr.ir.package$.$anonfun$invoke$1(package.scala:56)
