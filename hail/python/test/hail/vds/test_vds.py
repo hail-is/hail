@@ -384,7 +384,6 @@ def test_filter_chromosomes():
     assert_contigs(vds_auto, autosomes)
 
 
-@fails_service_backend(reason='hangs')
 def test_to_dense_mt():
     vds = hl.vds.read_vds(os.path.join(resource('vds'), '1kg_2samples_starts.vds'))
     vds = hl.vds.filter_chromosomes(vds, keep='chr22')
