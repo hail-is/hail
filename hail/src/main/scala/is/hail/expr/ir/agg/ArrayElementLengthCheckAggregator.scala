@@ -175,6 +175,7 @@ class ArrayElementLengthCheckAggregator(nestedAggs: Array[StagedAggregator], kno
 
   // inits all things
   protected def _initOp(cb: EmitCodeBuilder, state: State, init: Array[EmitCode]): Unit = {
+    cb.println("Doing init op on AELCA")
     if (knownLength) {
       val Array(len, inits) = init
       state.init(cb, cb => cb += inits.asVoid, initLen = false)
@@ -189,6 +190,7 @@ class ArrayElementLengthCheckAggregator(nestedAggs: Array[StagedAggregator], kno
 
   // does a length check on arrays
   protected def _seqOp(cb: EmitCodeBuilder, state: State, seq: Array[EmitCode]): Unit = {
+    cb.println("Doing seqop on AELCA")
     assert(seq.length == 1)
     val len = seq.head
     len.toI(cb).consume(cb, {
@@ -204,6 +206,7 @@ class ArrayElementLengthCheckAggregator(nestedAggs: Array[StagedAggregator], kno
   }
 
   protected def _combOp(ctx: ExecuteContext, cb: EmitCodeBuilder, state: ArrayElementState, other: ArrayElementState): Unit = {
+    cb.println("ArrayElementLengthCheckAgg running")
     state.seq(cb, {
       cb.ifx(other.lenRef < 0, {
         cb.ifx(state.lenRef >= 0, {
@@ -284,6 +287,7 @@ class ArrayElementwiseOpAggregator(nestedAggs: Array[StagedAggregator]) extends 
       cb.ifx(state.idx > state.lenRef || state.idx < 0, {
         cb._fatal("element idx out of bounds")
       }, {
+        cb.println("SeqOping, at idx ", idx.asInt32.value.toS)
         state.load(cb)
         cb += seqOps.asVoid
         state.store(cb)

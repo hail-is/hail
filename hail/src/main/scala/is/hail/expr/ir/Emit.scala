@@ -756,6 +756,7 @@ class Emit[C](
           { case serializedValue: SBinaryValue =>
             sc.states(i).createState(cb)
             sc.newState(cb, i)
+            //cb.println(s"Initting ${sig} from serialized value")
             sc.states(i).deserializeFromBytes(cb, serializedValue)
           }
         )

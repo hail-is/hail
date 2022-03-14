@@ -741,6 +741,7 @@ object LowerTableIR {
         val resultUID = genUID()
 
         val aggs@Aggs(postAggIR, init, seq, aggSigs) = Extract(expr, resultUID, analyses.requirednessAnalysis)
+        println(s"Lowering key by and aggregate, sigs are ${aggSigs.toIndexedSeq}")
 
         val partiallyAggregated = loweredChild.mapPartition(Some(FastIndexedSeq())) { partition =>
           Let("global", loweredChild.globals,
@@ -754,6 +755,8 @@ object LowerTableIR {
 
         val shuffled = ctx.backend.lowerDistributedSort(
           ctx, partiallyAggregated , sortFields, relationalLetsAbove, withNewKeyRType)
+        println("Completed distributed sort.")
+
         val repartitioned = shuffled.repartitionNoShuffle(shuffled.partitioner.strictify)
 
         val takeAggSig = PhysicalAggSig(Take(), TakeStateSig(VirtualTypeWithReq(shuffledRowType ,TypeWithRequiredness(shuffledRowType))))

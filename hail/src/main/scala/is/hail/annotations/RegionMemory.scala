@@ -219,7 +219,7 @@ final class RegionMemory(pool: RegionPool) extends AutoCloseable {
 
     blockSize = newSize
     blockByteSize = Region.SIZES(blockSize)
-    blockThreshold = Math.min(blockByteSize, Region.BLOCK_THRESHOLD)
+    blockThreshold = 0
     referenceCount = 1
     allocateNewBlock()
     offsetWithinBlock = 0L

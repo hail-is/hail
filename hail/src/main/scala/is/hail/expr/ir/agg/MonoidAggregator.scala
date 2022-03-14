@@ -33,6 +33,7 @@ class MonoidAggregator(monoid: StagedMonoidSpec) extends StagedAggregator {
     assert(init.length == 0)
     val stateRequired = state.vtypes.head.r.required
     val ev = state.fields(0)
+    cb.println(s"MonoidAgg initOp: ${monoid.getClass.getName} ", cb.strValue(ev))
     if (!ev.required) {
         assert(!stateRequired, s"monoid=$monoid, stateRequired=$stateRequired")
         cb.assign(ev, EmitCode.missing(cb.emb, ev.st))
@@ -46,12 +47,14 @@ class MonoidAggregator(monoid: StagedMonoidSpec) extends StagedAggregator {
     val Array(elt) = seq
     val ev = state.fields(0)
     val update = cb.memoizeField(elt, "monoid_elt")
+    cb.println(s"MonoidAgg seqOp: ${monoid.getClass.getName} ", cb.strValue(ev), " ", cb.strValue(update))
     combine(cb, ev, update)
   }
 
   protected def _combOp(ctx: ExecuteContext, cb: EmitCodeBuilder, state: PrimitiveRVAState, other: PrimitiveRVAState): Unit = {
     val ev1 = state.fields(0)
     val ev2 = other.fields(0)
+    cb.println(s"MonoidAgg combOp: ${monoid.getClass.getName} ", cb.strValue(ev1), " ", cb.strValue(ev2))
     combine(cb, ev1, ev2)
   }
 

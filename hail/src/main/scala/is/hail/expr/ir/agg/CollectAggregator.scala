@@ -85,6 +85,9 @@ class CollectAggregator(val elemType: VirtualTypeWithReq) extends StagedAggregat
 
   protected def _result(cb: EmitCodeBuilder, state: State, region: Value[Region]): IEmitCode = {
     // deepCopy is handled by the blocked linked list
-    IEmitCode.present(cb, state.bll.resultArray(cb, region, resultEmitType.storageType.asInstanceOf[PCanonicalArray]))
+    val ec = IEmitCode.present(cb, state.bll.resultArray(cb, region, resultEmitType.storageType.asInstanceOf[PCanonicalArray]))
+    val ev = ec.memoize(cb, "foo")
+    //cb.println(cb.strValue(ev))
+    ev.toI(cb)
   }
 }

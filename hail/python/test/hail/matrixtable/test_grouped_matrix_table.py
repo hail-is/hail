@@ -123,46 +123,49 @@ class Tests(unittest.TestCase):
     @skip_when_service_backend('slow >800s')
     def test_joins_work_correctly(self):
         mt, mt2 = self.get_groupable_matrix2()
-
-        col_result = (mt.group_cols_by(group=mt2.cols()[mt.col_idx].col_idx2 < 2)
-                      .aggregate(sum=hl.agg.sum(mt2[mt.row_idx, mt.col_idx].x + mt.glob) + mt.glob - 15)
-                      .drop('r1'))
-
-        col_expected = (
-            hl.Table.parallelize(
-                [{'row_idx': 0, 'group': True, 'sum': 1},
-                 {'row_idx': 0, 'group': False, 'sum': 5},
-                 {'row_idx': 1, 'group': True, 'sum': 3},
-                 {'row_idx': 1, 'group': False, 'sum': 7},
-                 {'row_idx': 2, 'group': True, 'sum': 5},
-                 {'row_idx': 2, 'group': False, 'sum': 9},
-                 {'row_idx': 3, 'group': True, 'sum': 7},
-                 {'row_idx': 3, 'group': False, 'sum': 11}],
-                hl.tstruct(row_idx=hl.tint32, group=hl.tbool, sum=hl.tint64)
-            ).annotate_globals(glob=5).key_by('row_idx', 'group')
-        )
-
-        self.assertTrue(col_result.entries()._same(col_expected))
+        #
+        # col_result = (mt.group_cols_by(group=mt2.cols()[mt.col_idx].col_idx2 < 2)
+        #               .aggregate(sum=hl.agg.sum(mt2[mt.row_idx, mt.col_idx].x + mt.glob) + mt.glob - 15)
+        #               .drop('r1'))
+        #
+        # col_expected = (
+        #     hl.Table.parallelize(
+        #         [{'row_idx': 0, 'group': True, 'sum': 1},
+        #          {'row_idx': 0, 'group': False, 'sum': 5},
+        #          {'row_idx': 1, 'group': True, 'sum': 3},
+        #          {'row_idx': 1, 'group': False, 'sum': 7},
+        #          {'row_idx': 2, 'group': True, 'sum': 5},
+        #          {'row_idx': 2, 'group': False, 'sum': 9},
+        #          {'row_idx': 3, 'group': True, 'sum': 7},
+        #          {'row_idx': 3, 'group': False, 'sum': 11}],
+        #         hl.tstruct(row_idx=hl.tint32, group=hl.tbool, sum=hl.tint64)
+        #     ).annotate_globals(glob=5).key_by('row_idx', 'group')
+        # )
+        #
+        # self.assertTrue(col_result.entries()._same(col_expected))
 
         row_result = (mt.group_rows_by(group=mt2.rows()[mt.row_idx].row_idx2 < 2)
-                      .aggregate(sum=hl.agg.sum(mt2[mt.row_idx, mt.col_idx].x + mt.glob) + mt.glob - 15)
+                      .aggregate(sum=hl.agg.sum(mt2[mt.row_idx, mt.col_idx].x + mt.glob) + mt.glob)
                       .drop('c1'))
 
-        row_expected = (
-            hl.Table.parallelize(
-                [{'group': True, 'col_idx': 0, 'sum': 1},
-                 {'group': True, 'col_idx': 1, 'sum': 3},
-                 {'group': True, 'col_idx': 2, 'sum': 5},
-                 {'group': True, 'col_idx': 3, 'sum': 7},
-                 {'group': False, 'col_idx': 0, 'sum': 5},
-                 {'group': False, 'col_idx': 1, 'sum': 7},
-                 {'group': False, 'col_idx': 2, 'sum': 9},
-                 {'group': False, 'col_idx': 3, 'sum': 11}],
-                hl.tstruct(group=hl.tbool, col_idx=hl.tint32, sum=hl.tint64)
-            ).annotate_globals(glob=5).key_by('group', 'col_idx')
-        )
+        # row_expected = (
+        #     hl.Table.parallelize(
+        #         [{'group': True, 'col_idx': 0, 'sum': 1},
+        #          {'group': True, 'col_idx': 1, 'sum': 3},
+        #          {'group': True, 'col_idx': 2, 'sum': 5},
+        #          {'group': True, 'col_idx': 3, 'sum': 7},
+        #          {'group': False, 'col_idx': 0, 'sum': 5},
+        #          {'group': False, 'col_idx': 1, 'sum': 7},
+        #          {'group': False, 'col_idx': 2, 'sum': 9},
+        #          {'group': False, 'col_idx': 3, 'sum': 11}],
+        #         hl.tstruct(group=hl.tbool, col_idx=hl.tint32, sum=hl.tint64)
+        #     ).annotate_globals(glob=5).key_by('group', 'col_idx')
+        # )
 
-        self.assertTrue(row_result.entries()._same(row_expected))
+        from pprint import pprint
+        pprint(row_result.entries().collect())
+
+        assert False
 
     @skip_when_service_backend('slow >800s')
     def test_group_rows_by_aggregate(self):

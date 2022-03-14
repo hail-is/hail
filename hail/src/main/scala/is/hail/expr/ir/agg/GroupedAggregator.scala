@@ -139,10 +139,13 @@ class DictState(val kb: EmitClassBuilder[_], val keyVType: VirtualTypeWithReq, v
   def loadContainer(cb: EmitCodeBuilder, kec: EmitCode): Unit = {
     val kev = cb.memoize(kec, "ga_load_cont_k")
     cb.assign(_elt, tree.getOrElseInitialize(cb, kev))
+    cb.println("EmitStream encountering key: ", cb.strValue(kev))
     cb.ifx(keyed.isEmpty(cb, _elt), {
+      cb.println("New occurrence. ")
       initElement(cb, _elt, kev)
       keyed.copyStatesFrom(cb, initStatesOffset)
     }, {
+      cb.println("Seen before")
       keyed.loadStates(cb)
     })
   }

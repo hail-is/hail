@@ -392,6 +392,7 @@ object EmitStream {
                 assert(returnElemSType.virtualType == sStructToReturn.st.virtualType)
                 val casted = sStructToReturn.castTo(cb, region, returnElemSType)
                 cb.assign(newStreamElem, EmitCode.present(mb, casted).toI(cb))
+                cb.println("Emitting ", cb.strValue(newStreamElem.get(cb)), " from StreamBufferedAggregate")
                 cb.goto(LproduceElementDone)
               }
 
