@@ -133,11 +133,7 @@ class ExecuteContext(
     cleanupFunctions += cleanupFunction
   }
 
-  def getFlag(flag: String): String = flags.get(flag)
-
-  def setFlag(flag: String, value: String): Unit = flags.set(flag, value)
-
-  val availableFlags: java.util.ArrayList[String] = flags.available
+  def getFlag(name: String): String = flags.get(name)
 
   def shouldWriteIRFiles(): Boolean = getFlag("write_ir_files") != null
 
