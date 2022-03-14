@@ -1,4 +1,4 @@
-from typing import Any, Callable, TypeVar, Awaitable, Optional, Type, List, Dict, Iterable, Tuple
+from typing import Callable, TypeVar, Awaitable, Optional, Type, List, Dict, Iterable, Tuple
 from typing_extensions import Literal
 from types import TracebackType
 import concurrent
