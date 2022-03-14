@@ -38,7 +38,7 @@ object HailSuite {
 
   lazy val hc: HailContext = {
     val hc = withSparkBackend()
-    // hc.flags.set("lower", "1")
+    hc.sparkBackend("HailSuite.hc").setFlag("lower", "1")
     hc.checkRVDKeys = true
     hc
   }
@@ -71,8 +71,7 @@ class HailSuite extends TestNGSuite {
     timer = new ExecutionTimer("HailSuite")
     assert(ctx == null)
     pool = RegionPool()
-    ctx = new ExecuteContext(backend.tmpdir, backend.localTmpdir, backend, fs, Region(pool=pool), timer, null, HailSuite.theHailClassLoader, HailFeatureFlags.fromEnv())
-    ctx.setFlag("lower", "1")
+    ctx = backend.createExecuteContextForTests(timer, Region(pool=pool))
   }
 
   @AfterMethod

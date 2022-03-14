@@ -279,6 +279,22 @@ class SparkBackend(
 
   def unpersist(id: String): Unit = bmCache.unpersistBlockMatrix(id)
 
+  def createExecuteContextForTests(
+    timer: ExecutionTimer,
+    region: Region,
+    selfContainedExecution: Boolean = true
+  ): ExecuteContext = new ExecuteContext(
+    tmpdir,
+    localTmpdir,
+    this,
+    fs,
+    region,
+    timer,
+    if (selfContainedExecution) null else new NonOwningTempFileManager(longLifeTempFileManager),
+    theHailClassLoader,
+    flags
+  )
+
   def withExecuteContext[T](timer: ExecutionTimer, selfContainedExecution: Boolean = true)(f: ExecuteContext => T): T = {
     ExecuteContext.scoped(
       tmpdir,

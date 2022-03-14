@@ -33,9 +33,9 @@ class LowerDistributedSortSuite extends HailSuite {
 
   // Only does ascending for now
   def testDistributedSortHelper(myTable: TableIR, sortFields: IndexedSeq[SortField]): Unit = {
-    val originalShuffleCutoff = ctx.getFlag("shuffle_cutoff_to_local_sort")
+    val originalShuffleCutoff = backend.getFlag("shuffle_cutoff_to_local_sort")
     try {
-      ctx.setFlag("shuffle_cutoff_to_local_sort", "40")
+      backend.setFlag("shuffle_cutoff_to_local_sort", "40")
       val analyses: Analyses = Analyses.apply(myTable, ctx)
       val rowType = analyses.requirednessAnalysis.lookup(myTable).asInstanceOf[RTable].rowType
       val stage = LowerTableIR.applyTable(myTable, DArrayLowering.All, ctx, analyses, Map.empty[String, IR])
@@ -67,7 +67,7 @@ class LowerDistributedSortSuite extends HailSuite {
       }
       assert(res == scalaSorted)
     } finally {
-      ctx.setFlag("shuffle_cutoff_to_local_sort", originalShuffleCutoff)
+      backend.setFlag("shuffle_cutoff_to_local_sort", originalShuffleCutoff)
     }
   }
 
