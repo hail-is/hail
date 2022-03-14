@@ -20,9 +20,6 @@ package object ir {
 
   def genUID(): String = {
     val uid = s"__iruid_$uidCounter"
-    if (uid == "__iruid_60"){
-      println("Here")
-    }
     uidCounter += 1
     uid
   }
