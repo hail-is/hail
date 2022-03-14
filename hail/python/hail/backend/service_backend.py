@@ -206,8 +206,9 @@ class ServiceBackend(Backend):
                 async with await self._async_fs.create(iodir + '/in') as infile:
                     await write_int(infile, len(self.flags))
                     for k, v in self.flags.items():
-                        await write_str(infile, k)
-                        await write_str(infile, v)
+                        if v is not None:
+                            await write_str(infile, k)
+                            await write_str(infile, v)
                     await inputs(infile, token)
 
             with timings.step("submit batch"):
