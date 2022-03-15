@@ -110,6 +110,9 @@ class ServiceBackend(Backend):
     BLOCK_MATRIX_TYPE = 5
     REFERENCE_GENOME = 6
     EXECUTE = 7
+    PARSE_VCF_METADATA = 8
+    INDEX_BGEN = 9
+    IMPORT_FAM = 10
     GOODBYE = 254
 
     @staticmethod
@@ -418,7 +421,17 @@ class ServiceBackend(Backend):
         raise NotImplementedError("ServiceBackend does not support 'remove_liftover'")
 
     def parse_vcf_metadata(self, path):
-        raise NotImplementedError("ServiceBackend does not support 'parse_vcf_metadata'")
+        return async_to_blocking(self._async_parse_vcf_metadata(path))
+
+    async def _async_parse_vcf_metadata(self, path):
+        async def inputs(infile, _):
+            await write_int(infile, ServiceBackend.PARSE_VCF_METADATA)
+            await write_str(infile, tmp_dir())
+            await write_str(infile, self.billing_project)
+            await write_str(infile, self.remote_tmpdir)
+            await write_str(infile, path)
+        _, resp, _ = await self._rpc('parse_vcf_metadata(...)', inputs)
+        return resp
 
     def index_bgen(self, files, index_file_map, rg, contig_recoding, skip_invalid_loci):
         raise NotImplementedError("ServiceBackend does not support 'index_bgen'")
