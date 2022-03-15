@@ -9,7 +9,7 @@ from typing import Optional
 import aiomysql
 import pymysql
 
-from gear.metrics import PrometheusSQLTimer
+from gear.metrics import DB_CONNECTION_QUEUE_SIZE, PrometheusSQLTimer
 from hailtop.auth.sql_config import SQLConfig
 from hailtop.utils import sleep_and_backoff
 
@@ -81,7 +81,7 @@ def get_sql_config(maybe_config_file: Optional[str] = None) -> SQLConfig:
         config_file = os.environ.get('HAIL_DATABASE_CONFIG_FILE', '/sql-config/sql-config.json')
     else:
         config_file = maybe_config_file
-    with open(config_file, 'r') as f:
+    with open(config_file, 'r', encoding='utf-8') as f:
         sql_config = SQLConfig.from_json(f.read())
     sql_config.check()
     log.info('using tls and verifying server certificates for MySQL')
@@ -157,7 +157,9 @@ class Transaction:
     async def async_init(self, db_pool, read_only):
         try:
             self.conn_context_manager = db_pool.acquire()
+            DB_CONNECTION_QUEUE_SIZE.inc()
             self.conn = await aenter(self.conn_context_manager)
+            DB_CONNECTION_QUEUE_SIZE.dec()
             async with self.conn.cursor() as cursor:
                 if read_only:
                     await cursor.execute('START TRANSACTION READ ONLY;')

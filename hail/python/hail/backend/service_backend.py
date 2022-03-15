@@ -4,7 +4,6 @@ import struct
 import os
 import orjson
 import logging
-import contextlib
 import re
 import yaml
 from pathlib import Path
@@ -18,7 +17,7 @@ from hail.expr.blockmatrix_type import tblockmatrix
 from hail.ir.renderer import CSERenderer
 
 from hailtop.config import get_user_config, get_user_local_cache_dir, get_remote_tmpdir
-from hailtop.utils import async_to_blocking, secret_alnum_string, TransientError, time_msecs
+from hailtop.utils import async_to_blocking, secret_alnum_string, TransientError, Timings
 from hailtop.batch_client import client as hb
 from hailtop.batch_client import aioclient as aiohb
 from hailtop.aiotools.fs import AsyncFS
@@ -83,24 +82,6 @@ async def read_bytes(strm: afs.ReadableStream) -> bytes:
 async def read_str(strm: afs.ReadableStream) -> str:
     b = await read_bytes(strm)
     return b.decode('utf-8')
-
-
-class Timings:
-    def __init__(self):
-        self.timings: Dict[str, Dict[str, int]] = dict()
-
-    @contextlib.contextmanager
-    def step(self, name: str):
-        assert name not in self.timings
-        d: Dict[str, int] = dict()
-        self.timings[name] = d
-        d['start_time'] = time_msecs()
-        yield
-        d['finish_time'] = time_msecs()
-        d['duration'] = d['finish_time'] - d['start_time']
-
-    def to_dict(self):
-        return self.timings
 
 
 class yaml_literally_shown_str(str):

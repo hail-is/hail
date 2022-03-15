@@ -4,7 +4,7 @@ import json
 import logging
 import os
 import traceback
-from typing import Callable, List, Optional, Set
+from typing import Callable, Dict, List, Optional, Set
 
 import aiohttp_session  # type: ignore
 import uvloop  # type: ignore
@@ -38,7 +38,7 @@ from .github import PR, WIP, FQBranch, MergeFailureBatch, Repo, UnwatchedBranch,
 
 oauth_path = os.environ.get('HAIL_CI_OAUTH_TOKEN', 'oauth-token/oauth-token')
 if os.path.exists(oauth_path):
-    with open(oauth_path, 'r') as f:
+    with open(oauth_path, 'r', encoding='utf-8') as f:
         oauth_token = f.read().strip()
 else:
     oauth_token = None
@@ -62,6 +62,7 @@ class PRConfig(TypedDict):
     title: str
     batch_id: Optional[int]
     build_state: Optional[str]
+    gh_statuses: Dict[str, str]
     source_branch_name: str
     review_state: Optional[str]
     author: str
@@ -82,6 +83,7 @@ async def pr_config(app, pr: PR) -> PRConfig:
         # FIXME generate links to the merge log
         'batch_id': batch_id,
         'build_state': build_state,
+        'gh_statuses': {k: v.value for k, v in pr.last_known_github_status.items()},
         'source_branch_name': pr.source_branch.name,
         'review_state': pr.review_state,
         'author': pr.author,
@@ -100,6 +102,7 @@ class WatchedBranchConfig(TypedDict):
     deploy_state: Optional[str]
     repo: str
     prs: List[PRConfig]
+    gh_status_names: Set[str]
 
 
 async def watched_branch_config(app, wb: WatchedBranch, index: int) -> WatchedBranchConfig:
@@ -108,6 +111,7 @@ async def watched_branch_config(app, wb: WatchedBranch, index: int) -> WatchedBr
     else:
         pr_configs = []
     # FIXME recent deploy history
+    gh_status_names = {k for pr in pr_configs for k in pr['gh_statuses'].keys()}
     return {
         'index': index,
         'branch': wb.branch.short_str(),
@@ -117,6 +121,7 @@ async def watched_branch_config(app, wb: WatchedBranch, index: int) -> WatchedBr
         'deploy_state': wb.deploy_state,
         'repo': wb.branch.repo.short_str(),
         'prs': pr_configs,
+        'gh_status_names': gh_status_names,
     }
 
 
@@ -124,8 +129,9 @@ async def watched_branch_config(app, wb: WatchedBranch, index: int) -> WatchedBr
 @routes.get('/')
 @web_authenticated_developers_only()
 async def index(request, userdata):  # pylint: disable=unused-argument
-    # Redirect to /batches.
-    return web.HTTPFound(deploy_config.external_url('ci', '/batches'))
+    wb_configs = [await watched_branch_config(request.app, wb, i) for i, wb in enumerate(watched_branches)]
+    page_context = {'watched_branches': wb_configs}
+    return await render_template('ci', request, userdata, 'index.html', page_context)
 
 
 def wb_and_pr_from_request(request):
@@ -235,7 +241,8 @@ async def get_batch(request, userdata):
     jobs = await collect_agen(b.jobs())
     for j in jobs:
         j['duration'] = humanize_timedelta_msecs(j['duration'])
-    page_context = {'batch': status, 'jobs': jobs}
+    wb = get_maybe_wb_for_batch(b)
+    page_context = {'batch': status, 'jobs': jobs, 'wb': wb}
     return await render_template('ci', request, userdata, 'batch.html', page_context)
 
 
@@ -579,17 +586,23 @@ async def update_loop(app):
 
 async def on_startup(app):
     app['client_session'] = httpx.client_session()
-    app['github_client'] = gh_aiohttp.GitHubAPI(app['client_session'], 'ci')
+    app['github_client'] = gh_aiohttp.GitHubAPI(app['client_session'], 'ci', oauth_token=oauth_token)
     app['batch_client'] = await BatchClient.create('ci')
     app['dbpool'] = await create_database_pool()
 
+    app['task_manager'] = aiotools.BackgroundTaskManager()
+    app['task_manager'].ensure_future(update_loop(app))
+
 
 async def on_cleanup(app):
-    dbpool = app['dbpool']
-    dbpool.close()
-    await dbpool.wait_closed()
-    await app['client_session'].close()
-    await app['batch_client'].close()
+    try:
+        dbpool = app['dbpool']
+        dbpool.close()
+        await dbpool.wait_closed()
+        await app['client_session'].close()
+        await app['batch_client'].close()
+    finally:
+        app['task_manager'].shutdown()
 
 
 def run():
@@ -602,6 +615,7 @@ def run():
 
     setup_common_static_routes(routes)
     app.add_routes(routes)
+    app.router.add_get("/metrics", server_stats)
 
     web.run_app(
         deploy_config.prefix_application(app, 'ci'),

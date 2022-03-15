@@ -37,7 +37,7 @@ if os.path.exists("/zulip-config/.zuliprc"):
 
 TRACKED_PRS = pc.Gauge('ci_tracked_prs', 'PRs currently being monitored by CI', ['build_state', 'review_state'])
 
-MAX_CONCURRENT_PR_BATCHES = 2
+MAX_CONCURRENT_PR_BATCHES = 5
 
 
 class GithubStatus(Enum):
@@ -344,7 +344,7 @@ class PR(Code):
         }
 
     def github_status_from_build_state(self) -> GithubStatus:
-        if self.build_state == 'failure' or self.build_state == 'error':
+        if self.build_state in ('failure', 'error'):
             return GithubStatus.FAILURE
         if (
             self.build_state == 'success'
@@ -473,7 +473,7 @@ mkdir -p {shq(repo_dir)}
             sha_out, _ = await check_shell_output(f'git -C {shq(repo_dir)} rev-parse HEAD')
             self.sha = sha_out.decode('utf-8').strip()
 
-            with open(f'{repo_dir}/build.yaml', 'r') as f:
+            with open(f'{repo_dir}/build.yaml', 'r', encoding='utf-8') as f:
                 config = BuildConfiguration(self, f.read(), scope='test')
 
             log.info(f'creating test batch for {self.number}')
@@ -567,7 +567,7 @@ mkdir -p {shq(repo_dir)}
         if self.source_sha:
             last_posted_status = self.last_known_github_status.get(GITHUB_STATUS_CONTEXT)
             if self.intended_github_status != last_posted_status:
-                log.info(f'Intended github status for {self.short_str()} is: {last_posted_status}')
+                log.info(f'Intended github status for {self.short_str()} is: {self.intended_github_status}')
                 log.info(f'Last known github status for {self.short_str()} is: {last_posted_status}')
                 await self.post_github_status(gh, self.intended_github_status)
                 self.last_known_github_status[GITHUB_STATUS_CONTEXT] = self.intended_github_status
@@ -865,7 +865,7 @@ mkdir -p {shq(repo_dir)}
 (cd {shq(repo_dir)}; {self.checkout_script()})
 '''
             )
-            with open(f'{repo_dir}/build.yaml', 'r') as f:
+            with open(f'{repo_dir}/build.yaml', 'r', encoding='utf-8') as f:
                 config = BuildConfiguration(self, f.read(), requested_step_names=steps, scope='deploy')
 
             log.info(f'creating deploy batch for {self.branch.short_str()}')
@@ -944,7 +944,7 @@ mkdir -p {shq(repo_dir)}
 '''
             )
             log.info(f'User {self.user} requested these steps for dev deploy: {steps}')
-            with open(f'{repo_dir}/build.yaml', 'r') as f:
+            with open(f'{repo_dir}/build.yaml', 'r', encoding='utf-8') as f:
                 config = BuildConfiguration(
                     self, f.read(), scope='dev', requested_step_names=steps, excluded_step_names=excluded_steps
                 )

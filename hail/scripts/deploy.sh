@@ -138,7 +138,7 @@ Image URL: \`us.gcr.io/broad-dsp-gcr-public/terra-jupyter-hail:$terra_jupyter_ha
 
 EOF
 mv $temp_changelog terra-jupyter-hail/CHANGELOG.md
-sed -i "/ENV HAIL_VERSION/s/\d\+\.\d\+\.\d\+/$HAIL_PIP_VERSION/" terra-jupyter-hail/Dockerfile
+sed -Ei "/ENV HAIL_VERSION/s/[0-9]+\.[0-9]+\.[0-9]+/${HAIL_PIP_VERSION}/" terra-jupyter-hail/Dockerfile
 git commit -m "Update hail to version $HAIL_PIP_VERSION" -- config/conf.json terra-jupyter-hail
 git push -f origin HEAD
 curl -XPOST -H @$GITHUB_OAUTH_HEADER_FILE https://api.github.com/repos/DataBiosphere/terra-docker/pulls -d "{

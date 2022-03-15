@@ -22,7 +22,7 @@ def is_discrete_type(dtype):
     return dtype in [hl.tstr]
 
 
-excluded_from_grouping = {"tooltip"}
+excluded_from_grouping = {"x", "tooltip", "label"}
 
 
 def should_use_for_grouping(name, type):
@@ -46,15 +46,13 @@ def categorical_strings_to_colors(string_set, parent_plot):
     return parent_plot.discrete_color_dict
 
 
-def continuous_nums_to_colors(input_color_nums, continuous_color_scale):
-    min_color = min(input_color_nums)
-    max_color = max(input_color_nums)
-
+def continuous_nums_to_colors(min_color, max_color, continuous_color_scale):
     def adjust_color(input_color):
         return (input_color - min_color) / max_color - min_color
 
-    color_mapping = plotly.colors.sample_colorscale(continuous_color_scale, [adjust_color(input_color) for input_color in input_color_nums])
-    return color_mapping
+    def transform_color(input_color):
+        return plotly.colors.sample_colorscale(continuous_color_scale, adjust_color(input_color))[0]
+    return transform_color
 
 
 def bar_position_plotly_to_gg(plotly_pos):

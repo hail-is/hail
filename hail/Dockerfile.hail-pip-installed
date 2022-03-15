@@ -3,7 +3,7 @@ FROM {{ service_base_image.image }}
 ENV PYTHONPATH ""
 RUN hail-apt-get-install liblz4-dev
 
-COPY python/dev-requirements.txt .
+COPY python/dev/requirements.txt dev-requirements.txt
 RUN hail-pip-install -r dev-requirements.txt
 
 COPY wheel-container.tar ./

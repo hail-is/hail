@@ -25,9 +25,48 @@ an earlier version of Hail to read files written in a later version.
 
 ---
 
+## Version 0.2.90
+
+Release 2022-03-11
+
+### Critical BlockMatrix from_numpy correctness bug
+
+- (hail#11555) `BlockMatrix.from_numpy` did not work correctly. Version 1.0 of org.scalanlp.breeze, a dependency of Apache Spark 
+that hail also depends on, has a correctness bug that results in BlockMatrices that repeat the top left block of the block
+matrix for every block. This affected anyone running Spark 3.0.x or 3.1.x.
+
+### Bug fixes
+
+- (hail#11556) Fixed assertion error ocassionally being thrown by valid joins where the join key was a prefix of the left key.
+
+### Versioning
+
+- (hail#11551) Support Python 3.10.
+
+---
+
+## Version 0.2.89
+
+Release 2022-03-04
+
+- (hail#11452) Fix `impute_sex_chromosome_ploidy` docs.
+
+---
+
+## Version 0.2.88
+
+Release 2022-03-01
+
+This release addresses the deploy issues in the 0.2.87 release of Hail.
+
+---
+
 ## Version 0.2.87
 
 Release 2022-02-28
+
+An error in the deploy process required us to yank this release from PyPI. Please do not use this
+release.
 
 ### Bug fixes
 

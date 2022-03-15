@@ -860,8 +860,6 @@ Caused by: java.lang.ClassCastException: __C2308collect_distributed_array cannot
                 rt['value'] == "IB",
                 hl.is_missing(rt['value']))))
 
-    @fails_service_backend()
-    @fails_local_backend()
     def test_interval_join(self):
         left = hl.utils.range_matrix_table(50, 1, n_partitions=10)
         intervals = hl.utils.range_table(4)
@@ -1114,16 +1112,16 @@ Caused by: java.lang.AssertionError: assertion failed
             rt2 = hl.read_table(temp)
             self.assertTrue(rt._same(rt2))
 
-    @fails_service_backend()
     def test_fix3307_read_mt_wrong(self):
         mt = hl.import_vcf(resource('sample2.vcf'))
         mt = hl.split_multi_hts(mt)
-        mt.write('/tmp/foo.mt', overwrite=True)
-        mt2 = hl.read_matrix_table('/tmp/foo.mt')
-        t = hl.read_table('/tmp/foo.mt/rows')
-        self.assertTrue(mt.rows()._same(t))
-        self.assertTrue(mt2.rows()._same(t))
-        self.assertTrue(mt._same(mt2))
+        with hl.TemporaryDirectory(suffix='.mt', ensure_exists=False) as mt_path:
+            mt.write(mt_path)
+            mt2 = hl.read_matrix_table(mt_path)
+            t = hl.read_table(mt_path + '/rows')
+            self.assertTrue(mt.rows()._same(t))
+            self.assertTrue(mt2.rows()._same(t))
+            self.assertTrue(mt._same(mt2))
 
     def test_rename(self):
         dataset = self.get_mt()
@@ -1545,8 +1543,6 @@ Caused by: is.hail.utils.HailException: Premature end of file: expected 4 bytes,
 
         self.assertTrue(matrix1.union_cols(matrix2)._same(expected))
 
-    @fails_service_backend()
-    @fails_local_backend()
     def test_row_joins_into_table(self):
         rt = hl.utils.range_matrix_table(9, 13, 3)
         mt1 = rt.key_rows_by(idx=rt.row_idx)

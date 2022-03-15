@@ -217,7 +217,7 @@ async def delete_batch(request):
 # deprecated
 async def get_gsa_key_1(instance):
     log.info(f'returning gsa-key to activating instance {instance}')
-    with open('/gsa-key/key.json', 'r') as f:
+    with open('/gsa-key/key.json', 'r', encoding='utf-8') as f:
         key = json.loads(f.read())
     return web.json_response({'key': key})
 
@@ -225,7 +225,7 @@ async def get_gsa_key_1(instance):
 async def get_credentials_1(instance):
     log.info(f'returning {instance.inst_coll.cloud} credentials to activating instance {instance}')
     credentials_file = '/gsa-key/key.json'
-    with open(credentials_file, 'r') as f:
+    with open(credentials_file, 'r', encoding='utf-8') as f:
         key = json.loads(f.read())
     return web.json_response({'key': key})
 
@@ -1201,25 +1201,25 @@ SELECT instance_id, internal_token, frozen FROM globals;
 
 async def on_cleanup(app):
     try:
-        await app['db'].async_close()
+        app['canceller'].shutdown()
     finally:
         try:
-            app['canceller'].shutdown()
+            app['task_manager'].shutdown()
         finally:
             try:
-                app['task_manager'].shutdown()
+                await app['driver'].shutdown()
             finally:
                 try:
-                    await app['driver'].shutdown()
+                    await app['file_store'].close()
                 finally:
                     try:
-                        await app['file_store'].close()
+                        await app['client_session'].close()
                     finally:
                         try:
-                            await app['client_session'].close()
+                            app['async_worker_pool'].shutdown()
                         finally:
                             try:
-                                app['async_worker_pool'].shutdown()
+                                await app['db'].async_close()
                             finally:
                                 try:
                                     k8s_client: kubernetes_asyncio.client.CoreV1Api = app['k8s_client']

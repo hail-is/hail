@@ -386,8 +386,8 @@ class ServiceBackend(Backend[bc.Batch]):
                  bucket: Optional[str] = None,
                  remote_tmpdir: Optional[str] = None,
                  google_project: Optional[str] = None,
-                 token: str = None
-    ):
+                 token: Optional[str] = None
+                 ):
         if len(args) > 2:
             raise TypeError(f'ServiceBackend() takes 2 positional arguments but {len(args)} were given')
         if len(args) >= 1:
@@ -437,7 +437,7 @@ class ServiceBackend(Backend[bc.Batch]):
             remote_tmpdir = f'gs://{bucket}/batch'
         else:
             schemes = {'gs', 'hail-az'}
-            found_scheme = any([remote_tmpdir.startswith(f'{scheme}://') for scheme in schemes])
+            found_scheme = any(remote_tmpdir.startswith(f'{scheme}://') for scheme in schemes)
             if not found_scheme:
                 raise ValueError(
                     f'remote_tmpdir must be a storage uri path like gs://bucket/folder. Possible schemes include {schemes}')
@@ -644,7 +644,7 @@ class ServiceBackend(Backend[bc.Batch]):
 
             parents = [job_to_client_job_mapping[j] for j in job._dependencies]
 
-            attributes = copy.deepcopy(job.attributes) if job.attributes else dict()
+            attributes = copy.deepcopy(job.attributes) if job.attributes else {}
             if job.name:
                 attributes['name'] = job.name
 

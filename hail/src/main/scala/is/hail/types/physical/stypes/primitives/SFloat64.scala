@@ -54,6 +54,8 @@ class SFloat64Value(val value: Value[Double]) extends SPrimitiveValue {
 
   override def hash(cb: EmitCodeBuilder): SInt32Value =
     new SInt32Value(cb.memoize(invokeStatic1[java.lang.Double, Double, Int]("hashCode", value)))
+
+  override def sizeToStoreInBytes(cb: EmitCodeBuilder): SInt64Value = new SInt64Value(8L)
 }
 
 object SFloat64Settable {

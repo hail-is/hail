@@ -330,18 +330,33 @@ WHERE id = %s AND NOT deleted;
 
 async def _get_job_log_from_record(app, batch_id, job_id, record):
     client_session: httpx.ClientSession = app['client_session']
+    batch_format_version = BatchFormatVersion(record['format_version'])
+
     state = record['state']
     ip_address = record['ip_address']
+
+    spec = json.loads(record['spec'])
+    tasks = []
+
+    has_input_files = batch_format_version.get_spec_has_input_files(spec)
+    if has_input_files:
+        tasks.append('input')
+
+    tasks.append('main')
+
+    has_output_files = batch_format_version.get_spec_has_output_files(spec)
+    if has_output_files:
+        tasks.append('output')
+
     if state == 'Running':
         try:
             resp = await request_retry_transient_errors(
                 client_session, 'GET', f'http://{ip_address}:5000/api/v1alpha/batches/{batch_id}/jobs/{job_id}/log'
             )
             return await resp.json()
-        except aiohttp.ClientResponseError as e:
-            if e.status == 404:
-                return None
-            raise
+        except aiohttp.ClientResponseError:
+            log.exception(f'while getting log for {(batch_id, job_id)}')
+            return {task: 'ERROR: encountered a problem while fetching the log' for task in tasks}
 
     if state in ('Pending', 'Ready', 'Creating'):
         return None
@@ -351,7 +366,6 @@ async def _get_job_log_from_record(app, batch_id, job_id, record):
 
     assert state in ('Error', 'Failed', 'Success', 'Cancelled')
 
-    batch_format_version = BatchFormatVersion(record['format_version'])
     attempt_id = record['attempt_id'] or record['last_cancelled_attempt_id']
     assert attempt_id is not None
 
@@ -366,19 +380,6 @@ async def _get_job_log_from_record(app, batch_id, job_id, record):
             log.exception(f'missing log file for {id} and task {task}')
             data = 'ERROR: could not find log file'
         return task, data
-
-    spec = json.loads(record['spec'])
-    tasks = []
-
-    has_input_files = batch_format_version.get_spec_has_input_files(spec)
-    if has_input_files:
-        tasks.append('input')
-
-    tasks.append('main')
-
-    has_output_files = batch_format_version.get_spec_has_output_files(spec)
-    if has_output_files:
-        tasks.append('output')
 
     return dict(await asyncio.gather(*[_read_log_from_cloud_storage(task) for task in tasks]))
 
@@ -1564,7 +1565,7 @@ async def ui_get_job(request, userdata, batch_id):
             job_specification['image'] = process_specification['image'] if process_type == 'docker' else '[jvm]'
             job_specification['command'] = process_specification['command']
         job_specification = dictfix.dictfix(
-            job_specification, dictfix.NoneOr({'image': str, 'command': list, 'resources': dict(), 'env': list})
+            job_specification, dictfix.NoneOr({'image': str, 'command': list, 'resources': {}, 'env': list})
         )
 
     resources = job_specification['resources']
@@ -1572,7 +1573,7 @@ async def ui_get_job(request, userdata, batch_id):
         resources['actual_memory'] = humanize.naturalsize(resources['memory_bytes'], binary=True)
         del resources['memory_bytes']
     if 'storage_gib' in resources:
-        resources['actual_storage'] = humanize.naturalsize(resources['storage_gib'] * 1024 ** 3, binary=True)
+        resources['actual_storage'] = humanize.naturalsize(resources['storage_gib'] * 1024**3, binary=True)
         del resources['storage_gib']
     if 'cores_mcpu' in resources:
         resources['actual_cpu'] = resources['cores_mcpu'] / 1000

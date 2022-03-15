@@ -35,7 +35,7 @@ class AzureDriver(CloudDriver):
         region = azure_config.region
         regions = [region]
 
-        with open(os.environ['HAIL_SSH_PUBLIC_KEY']) as f:
+        with open(os.environ['HAIL_SSH_PUBLIC_KEY'], encoding='utf-8') as f:
             ssh_public_key = f.read()
 
         arm_client = aioazure.AzureResourceManagerClient(

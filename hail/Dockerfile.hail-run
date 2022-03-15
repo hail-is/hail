@@ -1,7 +1,7 @@
 FROM {{ service_base_image.image }}
 
 COPY python/requirements.txt .
-COPY python/dev-requirements.txt .
+COPY python/dev/requirements.txt dev-requirements.txt
 RUN hail-pip-install -r requirements.txt -r dev-requirements.txt
 
 RUN hail-apt-get-install liblz4-dev

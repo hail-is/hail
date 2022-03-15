@@ -14,7 +14,7 @@ BRANCH := $(shell git rev-parse --abbrev-ref HEAD)
 SCALA_VERSION ?= 2.12.13
 SPARK_VERSION ?= 3.1.2
 HAIL_MAJOR_MINOR_VERSION := 0.2
-HAIL_PATCH_VERSION := 87
+HAIL_PATCH_VERSION := 90
 HAIL_PIP_VERSION := $(HAIL_MAJOR_MINOR_VERSION).$(HAIL_PATCH_VERSION)
 HAIL_VERSION := $(HAIL_PIP_VERSION)-$(SHORT_REVISION)
 ELASTIC_MAJOR_VERSION ?= 7
@@ -294,7 +294,7 @@ deploy: test-dataproc $(WHEEL)
 
 .PHONY: install-dev-deps
 install-dev-deps:
-	$(PIP) install -U -r python/dev-requirements.txt
+	$(PIP) install -U -r python/dev/requirements.txt
 
 .PHONY: install-deps
 install-deps: install-dev-deps

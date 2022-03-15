@@ -3558,11 +3558,20 @@ class IRSuite extends HailSuite {
     val pivots2 = IndexedSeq(-10, 1, 1, 7, 9, 28, 50, 200)
     val pivots3 = IndexedSeq(-3, 0, 20, 100, 200)
     val pivots4 = IndexedSeq(-8, 4, 7, 7, 150)
+    val pivots5 = IndexedSeq(0, 1, 4, 15, 200)
+    val pivots6 = IndexedSeq(0, 7, 20, 100)
 
     runStreamDistTest(data1, pivots1)
     runStreamDistTest(data1, pivots2)
     runStreamDistTest(data1, pivots3)
     runStreamDistTest(data1, pivots4)
+    runStreamDistTest(data1, pivots5)
+    runStreamDistTest(data1, pivots6)
+
+    val data2 = IndexedSeq(0, 2)
+    val pivots11 = IndexedSeq(0, 0, 2)
+
+    runStreamDistTest(data2, pivots11)
   }
 
   def runStreamDistTest(data: IndexedSeq[Int], splitters: IndexedSeq[Int]): Unit = {
@@ -3572,12 +3581,12 @@ class IRSuite extends HailSuite {
     val pivots = MakeArray(splitters.map(makeKeyStruct):_*)
     val spec = TypedCodecSpec(PCanonicalStruct(("rowIdx", PInt32Required), ("extraInfo", PInt32Required)), BufferSpec.default)
     val dist = StreamDistribute(child, pivots, Str(ctx.localTmpdir), Compare(pivots.typ.asInstanceOf[TArray].elementType), spec)
-    val result = eval(dist).asInstanceOf[IndexedSeq[Row]].map(row => (row(0).asInstanceOf[Interval], row(1).asInstanceOf[String], row(2).asInstanceOf[Int]))
+    val result = eval(dist).asInstanceOf[IndexedSeq[Row]].map(row => (row(0).asInstanceOf[Interval], row(1).asInstanceOf[String], row(2).asInstanceOf[Int], row(3).asInstanceOf[Long]))
     val kord: ExtendedOrdering = PartitionBoundOrdering(pivots.typ.asInstanceOf[TArray].elementType)
 
     var dataIdx = 0
 
-    result.foreach { case (interval, path, elementCount) =>
+    result.foreach { case (interval, path, elementCount, numBytes) =>
       val reader = PartitionNativeReader(spec)
       val read = ToArray(ReadPartition(Str(path), spec._vType, reader))
       val rowsFromDisk = eval(read).asInstanceOf[IndexedSeq[Row]]

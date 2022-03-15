@@ -68,7 +68,7 @@ GROUP BY batches.id;
     except asyncio.CancelledError:
         raise
     except Exception:
-        log.exception(f'callback for batch {batch_id} failed, will not retry.')
+        log.info(f'callback for batch {batch_id} failed, will not retry.')
 
 
 async def add_attempt_resources(db, batch_id, job_id, attempt_id, resources):

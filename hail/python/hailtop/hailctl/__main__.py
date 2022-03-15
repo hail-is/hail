@@ -58,7 +58,8 @@ def check_for_update():
             check_for_update = True
 
         if check_for_update:
-            open(check_file, 'w').close()  # touch the file
+            # touch the file
+            open(check_file, 'w', encoding='utf-8').close()  # pylint: disable=consider-using-with
 
             import subprocess as sp  # pylint: disable=import-outside-toplevel
             try:
