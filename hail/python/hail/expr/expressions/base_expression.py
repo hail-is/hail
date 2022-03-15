@@ -1219,5 +1219,5 @@ class Expression(object):
         src = self._indices.source
         if src is not None:
             raise ValueError("Can only persist a scalar (no Table/MatrixTable source)")
-        executed_jir = Env.backend().persist_ir(self._ir)
+        executed_jir = Env.backend().persist_expression(self)
         return expressions.construct_expr(executed_jir, self.dtype)

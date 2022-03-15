@@ -372,8 +372,8 @@ class SparkBackend(Py4JBackend):
             return_type._parsable_string(),
             jbody)
 
-    def persist_ir(self, ir):
-        return JavaIR(self._jhc.backend().executeLiteral(self._to_java_value_ir(ir)))
+    def persist_expression(self, expr):
+        return JavaIR(self._jhc.backend().executeLiteral(self._to_java_value_ir(expr._ir)))
 
     def read_multiple_matrix_tables(self, paths: 'List[str]', intervals: 'List[hl.Interval]', intervals_type):
         json_repr = {

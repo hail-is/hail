@@ -124,5 +124,5 @@ class Backend(abc.ABC):
         pass
 
     @abc.abstractmethod
-    def persist_ir(self, ir):
+    def persist_expression(self, expr):
         pass

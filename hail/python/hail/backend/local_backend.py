@@ -276,5 +276,5 @@ class LocalBackend(Py4JBackend):
     def import_fam(self, path: str, quant_pheno: bool, delimiter: str, missing: str):
         return json.loads(self._jbackend.pyImportFam(path, quant_pheno, delimiter, missing))
 
-    def persist_ir(self, ir):
-        return JavaIR(self._jhc.backend().executeLiteral(self._to_java_value_ir(ir)))
+    def persist_expression(self, expr):
+        return JavaIR(self._jhc.backend().executeLiteral(self._to_java_value_ir(expr._ir)))
