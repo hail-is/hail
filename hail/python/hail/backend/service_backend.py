@@ -178,9 +178,9 @@ class ServiceBackend(Backend):
     def logger(self):
         return log
 
-    @property
     def stop(self):
-        pass
+        async_to_blocking(self._async_fs.close())
+        async_to_blocking(self.async_bc.close())
 
     def render(self, ir):
         r = CSERenderer()
