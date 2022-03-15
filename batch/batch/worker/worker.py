@@ -16,7 +16,19 @@ import uuid
 import warnings
 from collections import defaultdict
 from contextlib import ExitStack, contextmanager
-from typing import Any, Awaitable, Callable, Dict, Iterator, List, MutableMapping, Optional, Tuple, Union
+from typing import (
+    Any,
+    Awaitable,
+    Callable,
+    ContextManager,
+    Dict,
+    Iterator,
+    List,
+    MutableMapping,
+    Optional,
+    Tuple,
+    Union,
+)
 
 import aiodocker  # type: ignore
 import aiodocker.images
@@ -29,7 +41,7 @@ from aiohttp import web
 
 from gear.clients import get_cloud_async_fs, get_compute_client
 from hailtop import aiotools, httpx
-from hailtop.aiotools import LocalAsyncFS, AsyncFS
+from hailtop.aiotools import AsyncFS, LocalAsyncFS
 from hailtop.aiotools.router_fs import RouterAsyncFS
 from hailtop.batch.hail_genetics_images import HAIL_GENETICS_IMAGES
 from hailtop.config import DeployConfig
@@ -62,7 +74,6 @@ from ..publicly_available_images import publicly_available_images
 from ..semaphore import FIFOWeightedSemaphore
 from ..utils import Box
 from ..worker.worker_api import CloudWorkerAPI
-
 from .credentials import CloudUserCredentials
 from .jvm_entryway_protocol import EndOfStream, read_bool, read_int, read_str, write_int, write_str
 
@@ -614,6 +625,7 @@ class Container:
         self.netns: Optional[NetworkNamespace] = None
         # regarding no-member: https://github.com/PyCQA/pylint/issues/4223
         self.process: Optional[asyncio.subprocess.Process] = None  # pylint: disable=no-member
+        self.pid: Optional[int] = None
 
         self._run_fut: Optional[asyncio.Future] = None
         self._cleanup_lock = asyncio.Lock()
@@ -678,6 +690,10 @@ class Container:
                 self.error = traceback.format_exc()
 
         self._run_fut = asyncio.ensure_future(self._run_until_done_or_deleted(_run))
+
+        delay = 0.1
+        while self.pid is None:
+            delay = await sleep_and_backoff(delay)
 
     async def wait(self):
         assert self._run_fut
@@ -785,7 +801,7 @@ class Container:
         except StepInterruptedError as e:
             raise ContainerDeletedError from e
 
-    def _step(self, name: str):
+    def _step(self, name: str) -> ContextManager:
         return self.timings.step(name)
 
     async def _setup_overlay(self):
@@ -818,6 +834,7 @@ class Container:
             async with async_timeout.timeout(self.timeout):
                 with open(self.log_path, 'w', encoding='utf-8') as container_log:
                     log.info(f'Creating the crun run process for {self}')
+                    pid_file = f'{self.container_scratch}/container.pid'
                     self.process = await asyncio.create_subprocess_exec(
                         'crun',
                         'run',
@@ -825,10 +842,23 @@ class Container:
                         f'{self.container_overlay_path}/merged',
                         '--config',
                         f'{self.config_path}/config.json',
+                        '--pid-file',
+                        pid_file,
                         self.name,
                         stdout=container_log,
                         stderr=container_log,
                     )
+
+                    async def wait_for_pid_file():
+                        delay = 0.01
+                        while not os.path.exists(pid_file):
+                            delay = await sleep_and_backoff(delay)
+
+                    await asyncio.wait_for(wait_for_pid_file(), timeout=30)
+
+                    with open(pid_file, 'r') as f:
+                        self.pid = int(f.read())
+
                     await self.process.wait()
                     log.info(f'crun process completed for {self}')
         except asyncio.TimeoutError:
@@ -1412,7 +1442,7 @@ class DockerJob(Job):
 
         requester_pays_project = job_spec.get('requester_pays_project')
 
-        self.timings = Timings()
+        self.timings: Timings = Timings()
 
         if self.secrets:
             for secret in self.secrets:
@@ -1475,7 +1505,7 @@ class DockerJob(Job):
 
         self.containers = containers
 
-    def step(self, name: str):
+    def step(self, name: str) -> ContextManager:
         return self.timings.step(name)
 
     def container_name(self, task_name: str):
@@ -1523,6 +1553,7 @@ class DockerJob(Job):
                     task_name,
                     await container.get_log(),
                 )
+
         await container.run(on_completion)
 
     async def run(self):
@@ -2082,7 +2113,7 @@ class JVM:
             raise
 
     @classmethod
-    async def create(cls, index: int):
+    async def create(cls, index: int, worker: 'Worker'):
         while True:
             try:
                 token = uuid.uuid4().hex
@@ -2263,7 +2294,7 @@ class Worker:
 
     async def _initialize_jvms(self):
         if instance_config.worker_type() in ('standard', 'D'):
-            self._jvms = await asyncio.gather(*[JVM.create(i) for i in range(CORES)])
+            self._jvms = await asyncio.gather(*[JVM.create(i, self) for i in range(CORES)])
         log.info(f'JVMs initialized {self._jvms}')
 
     async def borrow_jvm(self) -> JVM:
