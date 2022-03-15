@@ -739,8 +739,6 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
         requiredness.unionFrom(lookup(result))
       case StreamBufferedAggregate(streamChild, initAggs, newKey, seqOps, _, _, _) =>
         requiredness.union(lookup(streamChild).required)
-        val newKeyReq = lookupAs[RStruct](newKey)
-        requiredness.union(newKeyReq.required)
       case RunAggScan(array, name, init, seqs, result, signature) =>
         requiredness.union(lookup(array).required)
         coerce[RIterable](requiredness).elementType.unionFrom(lookup(result))
