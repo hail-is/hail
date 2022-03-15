@@ -100,6 +100,8 @@ trait SValue {
     destType.coerceOrCopy(cb, region, this, deepCopy = true)
 
   def hash(cb: EmitCodeBuilder): SInt32Value = throw new UnsupportedOperationException(s"Stype ${st} has no hashcode")
+
+  def sizeToStoreInBytes(cb: EmitCodeBuilder): SInt64Value
 }
 
 
@@ -117,4 +119,7 @@ object SSettable {
   }
 }
 
-trait SUnrealizableValue extends SValue
+trait SUnrealizableValue extends SValue {
+  override def sizeToStoreInBytes(cb: EmitCodeBuilder): SInt64Value =
+    throw new UnsupportedOperationException(s"Unrealizable SValue has no size in bytes.")
+}

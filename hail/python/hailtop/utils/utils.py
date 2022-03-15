@@ -61,7 +61,7 @@ def unpack_key_value_inputs(inputs):
     return {kv[0]: kv[1] for kv in key_values}
 
 
-def flatten(xxs):
+def flatten(xxs: Iterable[List[T]]) -> List[T]:
     return [x for xs in xxs for x in xs]
 
 
@@ -118,7 +118,7 @@ def grouped(n: int, ls: List[T]) -> Iterable[List[T]]:
         yield group
 
 
-def partition(k, ls):
+def partition(k: int, ls: List[T]) -> Iterable[List[T]]:
     if k == 0:
         assert not ls
         return []

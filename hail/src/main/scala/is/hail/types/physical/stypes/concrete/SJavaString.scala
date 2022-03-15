@@ -4,6 +4,7 @@ import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.expr.ir.EmitCodeBuilder
 import is.hail.types.physical.stypes.interfaces._
+import is.hail.types.physical.stypes.primitives.SInt64Value
 import is.hail.types.physical.stypes.{SCode, SSettable, SType, SValue}
 import is.hail.types.physical.{PCanonicalString, PType}
 import is.hail.types.virtual.{TString, Type}
@@ -59,6 +60,13 @@ class SJavaStringValue(val s: Value[String]) extends SStringValue {
 
   override def toBytes(cb: EmitCodeBuilder): SBinaryValue =
     new SJavaBytesValue(cb.memoize(s.invoke[Array[Byte]]("getBytes")))
+
+  override def sizeToStoreInBytes(cb: EmitCodeBuilder): SInt64Value = {
+    val lengthInBytes: Value[Int] = cb.memoize(s.invoke[Array[Byte]]("getBytes").length())
+    val storageTypeString = this.st.storageType().asInstanceOf[PCanonicalString]
+    val contentsSize = storageTypeString.binaryRepresentation.contentByteSize(lengthInBytes)
+    new SInt64Value(cb.memoize(contentsSize))
+  }
 }
 
 object SJavaStringSettable {
