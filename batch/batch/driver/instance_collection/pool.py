@@ -100,6 +100,7 @@ WHERE removed = 0 AND inst_coll = %s;
         self.boot_disk_size_gb = config.boot_disk_size_gb
         self.data_disk_size_gb = config.data_disk_size_gb
         self.data_disk_size_standing_gb = config.data_disk_size_standing_gb
+        self.preemptible = config.preemptible
 
         task_manager.ensure_future(self.control_loop())
 
@@ -122,6 +123,7 @@ WHERE removed = 0 AND inst_coll = %s;
             'standing_worker_cores': self.standing_worker_cores,
             'max_instances': self.max_instances,
             'max_live_instances': self.max_live_instances,
+            'preemptible': self.preemptible,
         }
 
     def configure(self, pool_config: PoolConfig):
@@ -139,6 +141,7 @@ WHERE removed = 0 AND inst_coll = %s;
         self.data_disk_size_standing_gb = pool_config.data_disk_size_standing_gb
         self.max_instances = pool_config.max_instances
         self.max_live_instances = pool_config.max_live_instances
+        self.preemptible = pool_config.preemptible
 
     def adjust_for_remove_instance(self, instance):
         super().adjust_for_remove_instance(instance)
@@ -174,7 +177,7 @@ WHERE removed = 0 AND inst_coll = %s;
             machine_type=machine_type,
             job_private=False,
             location=location,
-            preemptible=True,
+            preemptible=self.preemptible,
             max_idle_time_msecs=max_idle_time_msecs,
             local_ssd_data_disk=self.worker_local_ssd_data_disk,
             data_disk_size_gb=data_disk_size_gb,
