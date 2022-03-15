@@ -6,7 +6,7 @@ import is.hail.expr.ir.{EmitCode, EmitCodeBuilder, EmitValue, IEmitCode}
 import is.hail.types.physical.PCanonicalStruct
 import is.hail.types.physical.stypes._
 import is.hail.types.physical.stypes.concrete._
-import is.hail.types.physical.stypes.primitives.SInt32Value
+import is.hail.types.physical.stypes.primitives.{SInt32Value, SInt64Value}
 import is.hail.types.virtual.{TBaseStruct, TStruct, TTuple}
 import is.hail.types.{RField, RStruct, RTuple, TypeWithRequiredness}
 import is.hail.utils._
@@ -55,6 +55,23 @@ trait SBaseStructValue extends SValue {
         {field => cb.assign(hash_result, (hash_result * 31) + field.hash(cb).value)})
     })
     new SInt32Value(hash_result)
+  }
+
+  override def sizeToStoreInBytes(cb: EmitCodeBuilder): SInt64Value = {
+    // Size in bytes of the struct that must represent this thing, plus recursive call on any non-missing children.
+    val pStructSize = this.st.storageType().byteSize
+    val sizeSoFar = cb.newLocal[Long]("sstackstruct_size_in_bytes", pStructSize)
+    (0 until st.size).foreach { idx =>
+      if (this.st.fieldTypes(idx).containsPointers) {
+        val sizeAtThisIdx: Value[Long] = this.loadField(cb, idx).consumeCode(cb, {
+          const(0L)
+        }, { sv =>
+          sv.sizeToStoreInBytes(cb).value
+        })
+        cb.assign(sizeSoFar, sizeSoFar + sizeAtThisIdx)
+      }
+    }
+    new SInt64Value(sizeSoFar)
   }
 
   protected[stypes] def _insert(newType: TStruct, fields: (String, EmitValue)*): SBaseStructValue = {

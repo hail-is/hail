@@ -4,6 +4,7 @@ import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.expr.ir.EmitCodeBuilder
 import is.hail.types.physical.stypes.interfaces.{SCall, SCallValue, SIndexableValue}
+import is.hail.types.physical.stypes.primitives.SInt64Value
 import is.hail.types.physical.stypes.{SCode, SSettable, SType, SValue}
 import is.hail.types.physical.{PCall, PCanonicalCall, PType}
 import is.hail.types.virtual.{TCall, Type}
@@ -138,6 +139,8 @@ class SCanonicalCallValue(val call: Value[Int]) extends SCallValue {
     )
     new SCanonicalCallValue(repr)
   }
+
+  override def sizeToStoreInBytes(cb: EmitCodeBuilder): SInt64Value = new SInt64Value(this.pt.byteSize)
 }
 
 object SCanonicalCallSettable {

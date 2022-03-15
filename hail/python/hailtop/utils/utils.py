@@ -1,4 +1,4 @@
-from typing import Any, Callable, TypeVar, Awaitable, Optional, Type, List, Dict, Iterable, Tuple
+from typing import Callable, TypeVar, Awaitable, Optional, Type, List, Dict, Iterable, Tuple
 from typing_extensions import Literal
 from types import TracebackType
 import concurrent
@@ -46,6 +46,7 @@ RETRY_FUNCTION_SCRIPT = """function retry() {
 
 
 T = TypeVar('T')  # pylint: disable=invalid-name
+U = TypeVar('U')  # pylint: disable=invalid-name
 
 
 def unpack_comma_delimited_inputs(inputs):
@@ -108,7 +109,7 @@ def digits_needed(i: int) -> int:
     return 1 + digits_needed(i // 10)
 
 
-def grouped(n: int, ls: List[Any]) -> Iterable[Any]:
+def grouped(n: int, ls: List[T]) -> Iterable[List[T]]:
     if n < 1:
         raise ValueError('invalid value for n: found {n}')
     while len(ls) != 0:
@@ -117,7 +118,7 @@ def grouped(n: int, ls: List[Any]) -> Iterable[Any]:
         yield group
 
 
-def partition(k, ls):
+def partition(k: int, ls: List[T]) -> Iterable[List[T]]:
     if k == 0:
         assert not ls
         return []
@@ -137,7 +138,7 @@ def partition(k, ls):
     return generator()
 
 
-def unzip(lst):
+def unzip(lst: Iterable[Tuple[T, U]]) -> Tuple[List[T], List[U]]:
     a = []
     b = []
     for x, y in lst:

@@ -162,8 +162,9 @@ async def get_healthcheck(request):  # pylint: disable=W0613
 
 @routes.get('')
 @routes.get('/')
-async def get_index(request):  # pylint: disable=unused-argument
-    return aiohttp.web.HTTPFound(deploy_config.external_url('auth', '/login'))
+@web_maybe_authenticated_user
+async def get_index(request, userdata):  # pylint: disable=unused-argument
+    return await render_template('auth', request, userdata, 'index.html', {})
 
 
 @routes.get('/creating')
@@ -175,14 +176,14 @@ async def creating_account(request, userdata):
         login_id = session['login_id']
         user = await user_from_login_id(db, login_id)
 
-        nb_url = deploy_config.external_url('notebook', '')
-        next_page = session.pop('next', nb_url)
+        next_url = deploy_config.external_url('auth', '/user')
+        next_page = session.pop('next', next_url)
 
         cleanup_session(session)
 
         if user is None:
             set_message(session, f'Account does not exist for login id {login_id}.', 'error')
-            return aiohttp.web.HTTPFound(nb_url)
+            return aiohttp.web.HTTPFound(deploy_config.external_url('auth', ''))
 
         page_context = {'username': user['username'], 'state': user['state'], 'login_id': user['login_id']}
 
@@ -252,7 +253,7 @@ async def _wait_websocket(request, login_id):
 
 @routes.get('/signup')
 async def signup(request):
-    next_page = request.query.get('next', deploy_config.external_url('notebook', ''))
+    next_page = request.query.get('next', deploy_config.external_url('auth', '/user'))
 
     flow_data = request.app['flow_client'].initiate_flow(deploy_config.external_url('auth', '/oauth2callback'))
 
@@ -267,7 +268,7 @@ async def signup(request):
 
 @routes.get('/login')
 async def login(request):
-    next_page = request.query.get('next', deploy_config.external_url('notebook', ''))
+    next_page = request.query.get('next', deploy_config.external_url('auth', '/user'))
 
     flow_data = request.app['flow_client'].initiate_flow(deploy_config.external_url('auth', '/oauth2callback'))
 
@@ -286,11 +287,11 @@ async def callback(request):
     if 'flow' not in session:
         raise web.HTTPUnauthorized()
 
-    nb_url = deploy_config.external_url('notebook', '')
+    next_url = deploy_config.external_url('auth', '/user')
     creating_url = deploy_config.external_url('auth', '/creating')
 
     caller = session['caller']
-    next_page = session.pop('next', nb_url)
+    next_page = session.pop('next', next_url)
     flow_dict = session['flow']
     flow_dict['callback_uri'] = deploy_config.external_url('auth', '/oauth2callback')
     cleanup_session(session)
@@ -311,7 +312,7 @@ async def callback(request):
     if user is None:
         if caller == 'login':
             set_message(session, f'Account does not exist for login id {login_id}', 'error')
-            return aiohttp.web.HTTPFound(nb_url)
+            return aiohttp.web.HTTPFound(next_url)
 
         assert caller == 'signup'
 
@@ -325,7 +326,7 @@ async def callback(request):
             await insert_new_user(db, username, login_id, is_developer=False, is_service_account=False)
         except AuthUserError as e:
             set_message(session, e.message, 'error')
-            return web.HTTPFound(deploy_config.external_url('notebook', ''))
+            return web.HTTPFound(deploy_config.external_url('auth', ''))
 
         session['pending'] = True
         session['login_id'] = login_id
@@ -413,7 +414,7 @@ async def get_copy_paste_token_api(request, userdata):
 @web_maybe_authenticated_user
 async def logout(request, userdata):
     if not userdata:
-        return web.HTTPFound(deploy_config.external_url('notebook', ''))
+        return web.HTTPFound(deploy_config.external_url('auth', ''))
 
     db = request.app['db']
     session_id = userdata['session_id']
@@ -422,7 +423,7 @@ async def logout(request, userdata):
     session = await aiohttp_session.get_session(request)
     cleanup_session(session)
 
-    return web.HTTPFound(deploy_config.external_url('notebook', ''))
+    return web.HTTPFound(deploy_config.external_url('auth', ''))
 
 
 @routes.get('/api/v1alpha/login')

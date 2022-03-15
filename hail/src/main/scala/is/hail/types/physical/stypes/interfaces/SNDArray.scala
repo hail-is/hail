@@ -5,6 +5,7 @@ import is.hail.asm4s._
 import is.hail.expr.ir.EmitCodeBuilder
 import is.hail.linalg.{BLAS, LAPACK}
 import is.hail.types.physical.stypes.concrete.{SNDArraySlice, SNDArraySliceValue}
+import is.hail.types.physical.stypes.primitives.SInt64Value
 import is.hail.types.physical.stypes.{EmitType, SSettable, SType, SValue}
 import is.hail.types.physical.{PCanonicalNDArray, PNDArray, PType}
 import is.hail.types.{RNDArray, TypeWithRequiredness}
@@ -729,6 +730,22 @@ trait SNDArrayValue extends SValue {
     val newSType = SNDArraySlice(PCanonicalNDArray(st.pType.elementType, newShape.size, st.pType.required))
 
     new SNDArraySliceValue(newSType, newShape, newStrides, newFirstDataAddress)
+  }
+
+  override def sizeToStoreInBytes(cb: EmitCodeBuilder): SInt64Value = {
+    val storageType = st.storageType().asInstanceOf[PNDArray]
+    val totalSize = cb.newLocal[Long]("sindexableptr_size_in_bytes", storageType.byteSize)
+
+    if (storageType.elementType.containsPointers) {
+      SNDArray.coiterate(cb, (this, "A")){
+        case Seq(elt) =>
+          cb.assign(totalSize, totalSize + elt.sizeToStoreInBytes(cb).value)
+      }
+    } else {
+      val numElements = SNDArray.numElements(this.shapes)
+      cb.assign(totalSize, totalSize + (numElements * storageType.elementType.byteSize))
+    }
+    new SInt64Value(totalSize)
   }
 }
 
