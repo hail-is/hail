@@ -31,8 +31,8 @@ class SQLConfig(NamedTuple):
         if self.db is not None:
             d['db'] = self.db
         if self.using_mtls():
-            d['ssl_cert'] = self.ssl_cert
-            d['ssl_key'] = self.ssl_key
+            d['ssl-cert'] = self.ssl_cert
+            d['ssl-key'] = self.ssl_key
         return d
 
     def to_cnf(self) -> str:
