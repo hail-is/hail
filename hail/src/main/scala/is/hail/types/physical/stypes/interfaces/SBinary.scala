@@ -1,9 +1,10 @@
 package is.hail.types.physical.stypes.interfaces
 
 import is.hail.asm4s.Code.invokeStatic1
-import is.hail.asm4s.{Code, Value}
+import is.hail.asm4s._
 import is.hail.expr.ir.EmitCodeBuilder
-import is.hail.types.physical.stypes.primitives.SInt32Value
+import is.hail.types.physical.PCanonicalBinary
+import is.hail.types.physical.stypes.primitives.{SInt32Value, SInt64Value}
 import is.hail.types.physical.stypes.{SType, SValue}
 import is.hail.types.{RPrimitive, TypeWithRequiredness}
 
@@ -20,4 +21,10 @@ trait SBinaryValue extends SValue {
 
   override def hash(cb: EmitCodeBuilder): SInt32Value =
     new SInt32Value(cb.memoize(invokeStatic1[java.util.Arrays, Array[Byte], Int]("hashCode", loadBytes(cb))))
+
+  override def sizeToStoreInBytes(cb: EmitCodeBuilder): SInt64Value = {
+    val binaryStorageType = this.st.storageType().asInstanceOf[PCanonicalBinary]
+    val contentsByteSize = binaryStorageType.contentByteSize(this.loadLength(cb))
+    new SInt64Value(cb.memoize(contentsByteSize))
+  }
 }
