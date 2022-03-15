@@ -64,9 +64,9 @@ trait Py4jUtils {
   private def statusToJson(fs: FileStatus): JObject = {
     JObject(
       "path" -> JString(fs.getPath.toString),
-      "size_bytes" -> JInt(fs.getLen),
-      "size" -> JString(readableBytes(fs.getLen)),
+      "size" -> JInt(fs.getLen),
       "is_dir" -> JBool(fs.isDirectory),
+      "is_link" -> JBool(fs.isSymlink),
       "modification_time" ->
         (if (fs.getModificationTime != null)
           JString(

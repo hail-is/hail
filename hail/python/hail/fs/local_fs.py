@@ -1,12 +1,11 @@
-from typing import Dict, List, BinaryIO
+from typing import List, BinaryIO
 import gzip
 import io
 import os
-from stat import S_ISREG, S_ISDIR
-from hurry.filesize import size
 from shutil import copy2, rmtree
 
 from .fs import FS
+from .stat_result import StatResult
 
 
 class LocalFS(FS):
@@ -44,34 +43,15 @@ class LocalFS(FS):
         return os.path.exists(path)
 
     def is_file(self, path: str) -> bool:
-        try:
-            return S_ISREG(os.stat(path).st_mode)
-        except FileNotFoundError:
-            return False
+        return os.path.isfile(path)
 
     def is_dir(self, path: str) -> bool:
-        try:
-            return self._stat_is_local_dir(os.stat(path))
-        except FileNotFoundError:
-            return False
+        return os.path.isdir(path)
 
-    def stat(self, path: str) -> Dict:
-        return self._format_stat_local_file(os.stat(path), path)
+    def stat(self, path: str) -> StatResult:
+        return StatResult.from_os_stat_result(path, os.stat(path))
 
-    def _format_stat_local_file(self, stats: os.stat_result, path: str) -> Dict:
-        return {
-            'is_dir': self._stat_is_local_dir(stats),
-            'size_bytes': stats.st_size,
-            'size': size(stats.st_size),
-            'path': path,
-            'owner': stats.st_uid,
-            'modification_time': stats.st_mtime,
-        }
-
-    def _stat_is_local_dir(self, stats: os.stat_result) -> bool:
-        return S_ISDIR(stats.st_mode)
-
-    def ls(self, path: str) -> List[Dict]:
+    def ls(self, path: str) -> List[StatResult]:
         return [self.stat(os.path.join(path, file))
                 for file in os.listdir(path)]
 

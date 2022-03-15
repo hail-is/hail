@@ -96,6 +96,8 @@ class GoogleStorageFileStatus(path: String, modificationTime: java.lang.Long, si
 
   def isFile: Boolean = !isDir
 
+  def isSymlink: Boolean = false
+
   def getOwner: String = null
 }
 
