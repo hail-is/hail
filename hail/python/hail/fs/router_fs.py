@@ -240,7 +240,8 @@ class RouterFS(FS):
         async def _ls():
             return await bounded_gather(
                 *[functools.partial(self._fle_to_dict, fle)
-                  async for fle in await self.afs.listfiles(path)])
+                  async for fle in await self.afs.listfiles(path)],
+                parallelism=_max_simultaneous_files)
         return async_to_blocking(_ls())
 
     def mkdir(self, path: str):
