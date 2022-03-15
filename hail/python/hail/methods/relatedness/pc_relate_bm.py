@@ -1,13 +1,13 @@
 from typing import Optional
 
-import hail as hl
 import hail.expr.aggregators as agg
+
+import hail as hl
 from hail.expr import (ArrayNumericExpression, BooleanExpression, CallExpression,
                        Float64Expression, analyze, matrix_table_source)
 from hail.linalg import BlockMatrix
 from hail.table import Table
 from hail.utils import new_temp_file
-
 from ..pca import _hwe_normalized_blanczos
 
 
@@ -446,9 +446,9 @@ def pc_relate_bm(call_expr: CallExpression,
     ones_normalized = hl.nd.full((V0.shape[0], 1), (1 / S[0]))
     V = hl.nd.hstack((ones_normalized, V0))
 
-    beta = (BlockMatrix.from_ndarray(((1 / S) * V).T, block_size=block_size) @ g.T)\
+    beta = (BlockMatrix.from_ndarray(((1 / S) * V).T, block_size=block_size) @ g.T) \
         .checkpoint(new_temp_file("pc_relate_bm/beta", "bm"))
-    mu = (0.5 * (BlockMatrix.from_ndarray(V * S, block_size=block_size) @ beta).T)\
+    mu = (0.5 * (BlockMatrix.from_ndarray(V * S, block_size=block_size) @ beta).T) \
         .checkpoint(new_temp_file("pc_relate_bm/pre-mu", "bm"))
 
     # Define NaN to use instead of missing, otherwise cannot go back to block matrix
@@ -482,7 +482,7 @@ def pc_relate_bm(call_expr: CallExpression,
         gd = g._apply_map2(lambda _g, _mu: _dominance_encoding(_g, _mu),
                            mu,
                            sparsity_strategy="NeedsDense")
-        normalized_gd = (gd - variance * (1.0 + f_i)).checkpoint(new_temp_file("pc_relate_bm/normalized_gd", "bm"))
+        normalized_gd = gd - (variance * (1.0 + f_i))
 
         # Compute IBD2 (k2) estimate
         k2 = (_gram(normalized_gd) / _gram(variance))
@@ -496,12 +496,12 @@ def pc_relate_bm(call_expr: CallExpression,
             hom_ref = g._apply_map2(lambda _g, _mu: hl.if_else((_g != 0.0) | hl.is_nan(_mu), 0.0, 1.0),
                                     mu,
                                     sparsity_strategy="NeedsDense")
-            ibs0 = _AtB_plus_BtA(hom_alt, hom_ref).checkpoint(new_temp_file("pc_relate_bm/ibs0", "bm"))
+            ibs0 = _AtB_plus_BtA(hom_alt, hom_ref)
 
             # Compute denominator for IBD0 (k0) estimates
             mu2 = _replace_nan(mu ** 2.0, 0.0)
             one_minus_mu2 = _replace_nan((1.0 - mu) ** 2.0, 0.0)
-            k0_denom = _AtB_plus_BtA(mu2, one_minus_mu2).checkpoint(new_temp_file("pc_relate_bm/k0_denom", "bm"))
+            k0_denom = _AtB_plus_BtA(mu2, one_minus_mu2)
 
             # Compute all IBD0 (k0) estimates assuming phi > _k0_cutoff
             _k0_cutoff = 2.0 ** (-5.0 / 2.0)
