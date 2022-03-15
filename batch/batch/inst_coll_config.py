@@ -77,7 +77,7 @@ class PoolConfig(InstanceCollectionConfig):
             boot_disk_size_gb=record['boot_disk_size_gb'],
             max_instances=record['max_instances'],
             max_live_instances=record['max_live_instances'],
-            preemptible=record['preemptible'],
+            preemptible=bool(record['preemptible']),
         )
 
     async def update_database(self, db: Database):
