@@ -5,6 +5,7 @@ import logging
 import os
 import random
 import secrets
+from typing import Optional
 
 import aiohttp
 import kubernetes_asyncio.client
@@ -264,6 +265,8 @@ GRANT ALL ON `{name}`.* TO '{name}'@'%';
             server_config = SQLConfig.from_json(f.read())
         with open('/database-server-config/server-ca.pem', 'r', encoding='utf-8') as f:
             server_ca = f.read()
+        client_cert: Optional[str]
+        client_key: Optional[str]
         if server_config.using_mtls():
             with open('/database-server-config/client-cert.pem', 'r') as f:
                 client_cert = f.read()
