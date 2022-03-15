@@ -14,7 +14,7 @@ from hail.expr.types import dtype
 from hail.expr.table_type import ttable
 from hail.expr.matrix_type import tmatrix
 from hail.expr.blockmatrix_type import tblockmatrix
-from hail.methods.impex import read_table
+from hail.experimental import write_expression, read_expression
 from hail.ir.renderer import CSERenderer
 
 from hailtop.config import get_user_config, get_user_local_cache_dir, get_remote_tmpdir
@@ -454,13 +454,11 @@ class ServiceBackend(Backend):
     def register_ir_function(self, name, type_parameters, argument_names, argument_types, return_type, body):
         raise NotImplementedError("ServiceBackend does not support 'register_ir_function'")
 
-    def persist_ir(self, ir):
+    def persist_expression(self, expr):
         # FIXME: should use context manager to clean up persisted resources
         fname = TemporaryFilename().name
-        range_table(1).key_by().select(value=ir).write(fname)
-        table = read_table(fname)
-        assert table.count() == 1
-        return table.collect()[0].value
+        write_expression(expr, fname)
+        return read_expression(fname)
 
     def set_flags(self, **flags: Mapping[str, str]):
         self.flags.update(flags)
