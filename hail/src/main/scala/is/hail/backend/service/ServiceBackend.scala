@@ -13,8 +13,10 @@ import is.hail.backend.{Backend, BackendContext, BroadcastValue, ExecuteContext,
 import is.hail.expr.JSONAnnotationImpex
 import is.hail.expr.ir.lowering._
 import is.hail.expr.ir.{Compile, IR, IRParser, MakeTuple, SortField}
+import is.hail.io.bgen.IndexBgen
 import is.hail.io.fs._
 import is.hail.io.plink.LoadPlink
+import is.hail.io.vcf.LoadVCF
 import is.hail.linalg.BlockMatrix
 import is.hail.services._
 import is.hail.services.batch_client.BatchClient
@@ -26,6 +28,7 @@ import is.hail.utils._
 import is.hail.variant.ReferenceGenome
 import org.apache.commons.io.IOUtils
 import org.apache.log4j.Logger
+import org.json4s.Extraction
 import org.json4s.JsonAST._
 import org.json4s.jackson.JsonMethods
 import org.json4s.{DefaultFormats, Formats}
@@ -39,8 +42,6 @@ import scala.annotation.switch
 import scala.reflect.ClassTag
 import scala.{concurrent => scalaConcurrent}
 import scala.collection.mutable
-import is.hail.io.vcf.LoadVCF
-import org.json4s.Extraction
 
 
 class ServiceBackendContext(
@@ -449,6 +450,26 @@ class ServiceBackend(
     LoadPlink.importFamJSON(ctx.fs, path, quantPheno, delimiter, missing)
   }
 
+  def indexBgen(
+    tmpdir: String,
+    sessionId: String,
+    billingProject: String,
+    remoteTmpDir: String,
+    files: Array[String],
+    indexFileMap: Map[String, String],
+    contigRecoding: Map[String, String],
+    skipInvalidLoci: Boolean
+  ): Unit = serviceBackendExecuteContext(
+    "ServiceBackend.indexBgen",
+    tmpdir,
+    sessionId,
+    billingProject,
+    remoteTmpDir
+  ) { ctx =>
+    IndexBgen(ctx, files, indexFileMap, None, contigRecoding, skipInvalidLoci)
+    info(s"Number of BGEN files indexed: ${ files.size }")
+  }
+
   private[this] def serviceBackendExecuteContext[T](
     methodName: String,
     tmpdir: String,
@@ -754,6 +775,56 @@ class ServiceBackendSocketAPI2(
           val result = backend.importFam(tmpdir, sessionId, billingProject, remoteTmpDir, path, quantPheno, delimiter, missing, flags)
           writeBool(true)
           writeString(result)
+        } catch {
+          case t: Throwable =>
+            writeBool(false)
+            writeString(formatException(t))
+        }
+
+      case INDEX_BGEN =>
+        val tmpdir = readString()
+        val billingProject = readString()
+        val remoteTmpDir = readString()
+        val nFiles = readInt()
+        val files = new Array[String](nFiles)
+        var i = 0
+        while (i < nFiles) {
+          files(i) = readString()
+          i += 1
+        }
+        val nIndexFiles = readInt()
+        val indexFileMap = mutable.Map[String, String]()
+        i = 0
+        while (i < nIndexFiles) {
+          val k = readString()
+          val v = readString()
+          indexFileMap(k) = v
+          i += 1
+        }
+        val nContigRecoding = readInt()
+        val contigRecoding = mutable.Map[String, String]()
+        i = 0
+        while (i < nContigRecoding) {
+          val k = readString()
+          val v = readString()
+          contigRecoding(k) = v
+          i += 1
+        }
+        val skipInvalidLoci = readBool()
+
+        try {
+          val result = backend.indexBgen(
+            tmpdir,
+            sessionId,
+            billingProject,
+            remoteTmpDir,
+            files,
+            indexFileMap.toMap,
+            contigRecoding.toMap,
+            skipInvalidLoci
+          )
+          writeBool(true)
+          writeString("null")
         } catch {
           case t: Throwable =>
             writeBool(false)
