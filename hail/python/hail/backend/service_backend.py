@@ -9,7 +9,7 @@ import yaml
 from pathlib import Path
 
 from hail.context import TemporaryDirectory, tmp_dir, TemporaryFilename
-from hail.utils import FatalError, range_table
+from hail.utils import FatalError
 from hail.expr.types import dtype
 from hail.expr.table_type import ttable
 from hail.expr.matrix_type import tmatrix
