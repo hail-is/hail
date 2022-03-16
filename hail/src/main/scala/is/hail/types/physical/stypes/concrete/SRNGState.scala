@@ -78,6 +78,8 @@ final case class SRNGStateValue(
   override def valueTuple: IndexedSeq[Value[_]] =
     dynBlocksSum ++ lastDynBlock
 
+  override def sizeToStoreInBytes(cb: EmitCodeBuilder) = ???
+
   def splitStatic(bitstring: Bitstring): SRNGStateValue = {
     val appendedBlock = lastStaticBlock ++ bitstring
     if (appendedBlock.length < 256) {
