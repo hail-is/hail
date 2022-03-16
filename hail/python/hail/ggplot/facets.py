@@ -1,4 +1,5 @@
 import abc
+import math
 
 from .geoms import FigureAttribute
 
@@ -27,3 +28,9 @@ class FacetWrap(Faceter):
 
     def get_expr_to_group_by(self):
         return self.facets
+
+    def get_facet_nrows_and_ncols(self, num_facet_values):
+        ncol = int(math.ceil(math.sqrt(num_facet_values)))
+        nrow = int(math.ceil(num_facet_values / ncol))
+
+        return (nrow, ncol)

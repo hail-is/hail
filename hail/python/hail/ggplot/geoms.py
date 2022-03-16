@@ -15,7 +15,7 @@ class Geom(FigureAttribute):
         self.aes = aes
 
     @abc.abstractmethod
-    def apply_to_fig(self, parent, agg_result, fig_so_far, precomputed):
+    def apply_to_fig(self, parent, agg_result, fig_so_far, precomputed, facet_row, facet_col):
         pass
 
     @abc.abstractmethod
@@ -80,13 +80,13 @@ class GeomPoint(Geom):
         self.size = size
         self.alpha = alpha
 
-    def apply_to_fig(self, parent, grouped_data, fig_so_far, precomputed, facet_col):
+    def apply_to_fig(self, parent, grouped_data, fig_so_far, precomputed, facet_row, facet_col):
         def plot_group(df):
             scatter_args = {
                 "x": df.x,
                 "y": df.y,
                 "mode": "markers",
-                "row": 1,
+                "row": facet_row,
                 "col": facet_col
             }
 

@@ -172,19 +172,20 @@ class GGPlot:
 
             if use_faceting:
                 facet_list = list(set(itertools.chain(*[list(x.keys()) for x in all_agg_results.values()])))
-                facet_to_idx = {facet: idx for idx, facet in enumerate(facet_list, start=1)}
+                facet_to_idx = {facet: idx for idx, facet in enumerate(facet_list)}
                 facet_idx_to_agg_result = {geom_label: {facet_to_idx[facet]: agg_result for facet, agg_result in facet_to_agg_result.items()} for geom_label, facet_to_agg_result in all_agg_results.items()}
                 num_facets = len(facet_list)
             else:
-                facet_idx_to_agg_result = {geom_label: {1: agg_result} for geom_label, agg_result in all_agg_results.items()}
+                facet_idx_to_agg_result = {geom_label: {0: agg_result} for geom_label, agg_result in all_agg_results.items()}
                 num_facets = 1
+                facet_list = None
 
-            return labels_to_stats, facet_idx_to_agg_result, num_facets
+            return labels_to_stats, facet_idx_to_agg_result, num_facets, facet_list
 
         self.verify_scales()
         selected = select_table()
         mapping_per_geom, precomputed = collect_mappings_and_precomputed(selected)
-        labels_to_stats, aggregated, num_facets = get_aggregation_result(selected, mapping_per_geom, precomputed)
+        labels_to_stats, aggregated, num_facets, facet_list = get_aggregation_result(selected, mapping_per_geom, precomputed)
 
         geoms_and_grouped_dfs_by_facet_idx = []
         for geom, (geom_label, agg_result_by_facet) in zip(self.geoms, aggregated.items()):
@@ -197,7 +198,20 @@ class GGPlot:
             all_dfs = list(itertools.chain(*[facet_to_dfs_dict.values() for _, _, facet_to_dfs_dict in geoms_and_grouped_dfs_by_facet_idx]))
             transformers[scale.aesthetic_name] = scale.create_local_transformer(all_dfs)
 
-        fig = make_subplots(rows=1, cols=num_facets, shared_yaxes=True)
+        if self.facet is not None:
+            n_facet_rows, n_facet_cols = self.facet.get_facet_nrows_and_ncols(num_facets)
+            subplot_args = {
+                "rows": n_facet_rows,
+                "cols": n_facet_cols,
+                "shared_yaxes": True,
+                "subplot_titles": [", ".join([str(fs_value) for fs_value in facet_struct.values()]) for facet_struct in facet_list]
+            }
+        else:
+            subplot_args = {
+                "rows": 1,
+                "cols": 1,
+            }
+        fig = make_subplots(**subplot_args)
 
         for geom, geom_label, facet_to_grouped_dfs in geoms_and_grouped_dfs_by_facet_idx:
             for facet_idx, grouped_dfs in facet_to_grouped_dfs.items():
@@ -210,7 +224,9 @@ class GGPlot:
                         scaled_df = transformers[relevant_aesthetic](scaled_df)
                     scaled_grouped_dfs.append(scaled_df)
 
-                geom.apply_to_fig(self, scaled_grouped_dfs, fig, precomputed[geom_label], facet_idx)
+                facet_row = facet_idx // n_facet_cols + 1
+                facet_col = facet_idx % n_facet_cols + 1
+                geom.apply_to_fig(self, scaled_grouped_dfs, fig, precomputed[geom_label], facet_row, facet_col)
 
         # Important to update axes after labels, axes names take precedence.
         self.labels.apply_to_fig(fig)
