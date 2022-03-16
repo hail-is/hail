@@ -58,8 +58,8 @@ SCALA_BUILD_INFO := src/main/resources/build-info.properties
 SHADOW_JAR := build/libs/hail-all-spark.jar
 SHADOW_TEST_JAR := build/libs/hail-all-spark-test.jar
 PYTHON_JAR := python/hail/backend/hail-all-spark.jar
-WHEEL := build/deploy/dist/cpg_hail-$(HAIL_PIP_VERSION)-py3-none-any.whl
-EGG := build/deploy/dist/cpg_hail-$(HAIL_PIP_VERSION)-py3.6.egg
+WHEEL := build/deploy/dist/hail-$(HAIL_PIP_VERSION)-py3-none-any.whl
+EGG := build/deploy/dist/hail-$(HAIL_PIP_VERSION)-py3.6.egg
 
 GRADLE_ARGS += -Dscala.version=$(SCALA_VERSION) -Dspark.version=$(SPARK_VERSION) -Delasticsearch.major-version=$(ELASTIC_MAJOR_VERSION)
 
@@ -221,7 +221,7 @@ CLOUD_SUB_FOLDER := $(HAIL_PIP_VERSION)
 HAILCTL_BUCKET_BASE ?= gs://hail-common/hailctl/dataproc
 
 cloud_base := $(HAILCTL_BUCKET_BASE)/$(DEV_CLARIFIER)$(CLOUD_SUB_FOLDER)
-wheel_cloud_path := $(cloud_base)/cpg_hail-$(HAIL_PIP_VERSION)-py3-none-any.whl
+wheel_cloud_path := $(cloud_base)/hail-$(HAIL_PIP_VERSION)-py3-none-any.whl
 resources := $(wildcard python/hailtop/hailctl/dataproc/resources/*)
 $(eval $(call ENV_VAR,cloud_base))
 $(eval $(call ENV_VAR,wheel_cloud_path))
@@ -403,4 +403,4 @@ clean: clean-env clean-libs native-lib-clean
 update-hail-repl: NAMESPACE ?= default
 update-hail-repl: wheel
 	kubectl -n $(NAMESPACE) cp $(WHEEL) $$(kubectl get pods -n $(NAMESPACE) -l app=hail-repl | tail -n +2 | awk '{print $$1}'):.
-	kubectl -n $(NAMESPACE) exec -it $$(kubectl get pods -n $(NAMESPACE) -l app=hail-repl | tail -n +2 | awk '{print $$1}') -- pip3 install -U cpg_hail-$(HAIL_PIP_VERSION)-py3-none-any.whl
+	kubectl -n $(NAMESPACE) exec -it $$(kubectl get pods -n $(NAMESPACE) -l app=hail-repl | tail -n +2 | awk '{print $$1}') -- pip3 install -U hail-$(HAIL_PIP_VERSION)-py3-none-any.whl

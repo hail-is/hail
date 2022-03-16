@@ -27,7 +27,7 @@ with open('requirements.txt', 'r') as f:
             dependencies.append(pkg)
 
 setup(
-    name="cpg-hail",
+    name="hail",
     version=hail_pip_version,
     author="Hail Team",
     author_email="hail@broadinstitute.org",

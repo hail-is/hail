@@ -13,8 +13,8 @@ RUN hail-apt-get-install \
     vim pv
 COPY wheel-container.tar ./
 RUN tar -xf wheel-container.tar && \
-    pip3 install -U cpg_hail-*-py3-none-any.whl && \
-    rm -rf cpg_hail-*-py3-none-any.whl
+    pip3 install -U hail-*-py3-none-any.whl && \
+    rm -rf hail-*-py3-none-any.whl
 RUN hail-pip-install \
       ipython \
       matplotlib \
@@ -22,7 +22,7 @@ RUN hail-pip-install \
       scikit-learn \
       dill \
       scipy \
-    && rm -rf cpg_hail-*-py3-none-any.whl
+    && rm -rf hail-*-py3-none-any.whl
 RUN export SPARK_HOME=$(find_spark_home.py) && \
     curl https://storage.googleapis.com/hadoop-lib/gcs/gcs-connector-hadoop2-2.0.1.jar \
          >$SPARK_HOME/jars/gcs-connector-hadoop2-2.0.1.jar && \
