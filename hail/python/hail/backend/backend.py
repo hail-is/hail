@@ -126,7 +126,7 @@ class Backend(abc.ABC):
         pass
 
     @abc.abstractmethod
-    def persist_expression(self, expr) -> Expression:
+    def persist_expression(self, expr: Expression) -> Expression:
         pass
 
     @abc.abstractmethod
