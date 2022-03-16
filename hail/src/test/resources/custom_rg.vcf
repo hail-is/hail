@@ -1,0 +1,42 @@
+##fileformat=VCFv4.2
+##fileDate=2018-10-31
+##source=VarPROWL
+##reference=hg19.fa
+##FILTER=<ID=PASS,Description="All filters passed">
+##INFO=<ID=VC,Number=1,Type=String,Description="variant class">
+##FORMAT=<ID=GT,Number=1,Type=String,Description="Genotype">
+##FORMAT=<ID=AF,Number=1,Type=Float,Description="Allele Frequency">
+##FORMAT=<ID=DP,Number=1,Type=Integer,Description="Total Depth at position">
+##FORMAT=<ID=AD,Number=1,Type=Integer,Description="Reads supporting ALT">
+##FORMAT=<ID=SB,Number=1,Type=Float,Description="Strand bias">
+##FORMAT=<ID=BQ,Number=1,Type=Float,Description="Average Base Quality of ALT">
+##FORMAT=<ID=PV,Number=1,Type=Float,Description="Adjusted p-value">
+##variants_justified=left
+##VarPROWL_filter="pv=0.001,bd=0.3,freq=0,depth=1"
+##SnpEffVersion="4.3t (build 2017-11-24 10:18)"
+##SnpEffCmd="SnpEff  -no-downstream -no-intergenic -no-upstream -no-utr -no SYNONYMOUS_CODING -no SYNONYMOUS_START -no SYNONYMOUS_STOP -no RARE_AMINO_ACID -no INTRAGENIC -no TRANSCRIPT -no MICRO_RNA -no REGULATION -no MOTIF -no GENOME -no EXON -no-intron GRCh37.75 /mounts/isilon/runs_restored_from_AWS/NV-03A_H87403_181015_HCFWNDSXX/Analysis/1111-002_L2.SSHT26.combined.sort.vcf.gz "
+##INFO=<ID=ANN,Number=.,Type=String,Description="Functional annotations: 'Allele | Annotation | Annotation_Impact | Gene_Name | Gene_ID | Feature_Type | Feature_ID | Transcript_BioType | Rank | HGVS.c | HGVS.p | cDNA.pos / cDNA.length | CDS.pos / CDS.length | AA.pos / AA.length | Distance | ERRORS / WARNINGS / INFO' ">
+##INFO=<ID=LOF,Number=.,Type=String,Description="Predicted loss of function effects for this variant. Format: 'Gene_Name | Gene_ID | Number_of_transcripts_in_gene | Percent_of_transcripts_affected'">
+##INFO=<ID=NMD,Number=.,Type=String,Description="Predicted nonsense mediated decay effects for this variant. Format: 'Gene_Name | Gene_ID | Number_of_transcripts_in_gene | Percent_of_transcripts_affected'">
+##SnpSiftVersion="SnpSift 4.3t (build 2017-11-24 10:18)"
+##SnpSiftCmd="SnpSift DbNsfp -f clinvar_id,clinvar_clnsig,clinvar_trait,rs_dbSNP151,genename,SIFT_pred,LRT_pred,MutationTaster_pred,MutationAssessor_pred,FATHMM_pred,MetaSVM_pred,MetaLR_pred,PROVEAN_pred,fathmm-MKL_coding_pred,M-CAP_pred /dev/stdin"
+##INFO=<ID=dbNSFP_genename,Number=A,Type=String,Description="Field 'genename' from dbNSFP">
+##INFO=<ID=dbNSFP_LRT_pred,Number=A,Type=Character,Description="Field 'LRT_pred' from dbNSFP">
+##INFO=<ID=dbNSFP_PROVEAN_pred,Number=A,Type=Character,Description="Field 'PROVEAN_pred' from dbNSFP">
+##INFO=<ID=dbNSFP_fathmm_MKL_coding_pred,Number=A,Type=Character,Description="Field 'fathmm-MKL_coding_pred' from dbNSFP">
+##INFO=<ID=dbNSFP_rs_dbSNP151,Number=A,Type=String,Description="Field 'rs_dbSNP151' from dbNSFP">
+##INFO=<ID=dbNSFP_clinvar_clnsig,Number=A,Type=String,Description="Field 'clinvar_clnsig' from dbNSFP">
+##INFO=<ID=dbNSFP_clinvar_id,Number=A,Type=String,Description="Field 'clinvar_id' from dbNSFP">
+##INFO=<ID=dbNSFP_MetaSVM_pred,Number=A,Type=Character,Description="Field 'MetaSVM_pred' from dbNSFP">
+##INFO=<ID=dbNSFP_MutationTaster_pred,Number=A,Type=Character,Description="Field 'MutationTaster_pred' from dbNSFP">
+##INFO=<ID=dbNSFP_MutationAssessor_pred,Number=A,Type=Character,Description="Field 'MutationAssessor_pred' from dbNSFP">
+##INFO=<ID=dbNSFP_clinvar_trait,Number=A,Type=String,Description="Field 'clinvar_trait' from dbNSFP">
+##INFO=<ID=dbNSFP_FATHMM_pred,Number=A,Type=Character,Description="Field 'FATHMM_pred' from dbNSFP">
+##INFO=<ID=dbNSFP_MetaLR_pred,Number=A,Type=Character,Description="Field 'MetaLR_pred' from dbNSFP">
+##INFO=<ID=dbNSFP_M_CAP_pred,Number=A,Type=Character,Description="Field 'M-CAP_pred' from dbNSFP">
+##INFO=<ID=dbNSFP_SIFT_pred,Number=A,Type=Character,Description="Field 'SIFT_pred' from dbNSFP">
+##SnpSiftCmd="SnpSift DbNsfp -f Polyphen2_HDIV_pred,Polyphen2_HVAR_pred /dev/stdin"
+##INFO=<ID=dbNSFP_Polyphen2_HDIV_pred,Number=A,Type=Character,Description="Field 'Polyphen2_HDIV_pred' from dbNSFP">
+##INFO=<ID=dbNSFP_Polyphen2_HVAR_pred,Number=A,Type=Character,Description="Field 'Polyphen2_HVAR_pred' from dbNSFP">
+#CHROM	POS	ID	REF	ALT	QUAL	FILTER	INFO	FORMAT	HG0001
+D	123	.	A	T	.	PASS	VC=SNV	GT:AF:DP:AD:BQ:SB:PV	0|1:0.21:310:65:36.3:0.0882:2.37e-10
