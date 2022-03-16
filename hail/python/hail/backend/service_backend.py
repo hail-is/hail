@@ -178,9 +178,9 @@ class ServiceBackend(Backend):
     def logger(self):
         return log
 
-    @property
     def stop(self):
-        pass
+        async_to_blocking(self._async_fs.close())
+        async_to_blocking(self.async_bc.close())
 
     def render(self, ir):
         r = CSERenderer()
@@ -211,7 +211,7 @@ class ServiceBackend(Backend):
                     batch_attributes['name'],
                     iodir + '/in',
                     iodir + '/out',
-                ], mount_tokens=True)
+                ], mount_tokens=True, resources={'preemptible': False, 'memory': 'standard'})
                 b = await bb.submit(disable_progress_bar=self.disable_progress_bar)
 
             with timings.step("wait batch"):
