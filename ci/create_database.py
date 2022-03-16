@@ -6,6 +6,7 @@ import secrets
 import string
 import sys
 from shlex import quote as shq
+from typing import Optional
 
 from gear import Database
 from hailtop.auth.sql_config import SQLConfig, create_secret_data_from_config
@@ -25,6 +26,8 @@ def generate_token(size=12):
 async def write_user_config(namespace: str, database_name: str, user: str, config: SQLConfig):
     with open('/sql-config/server-ca.pem', 'r') as f:
         server_ca = f.read()
+    client_cert: Optional[str]
+    client_key: Optional[str]
     if config.using_mtls():
         with open('/sql-config/client-cert.pem', 'r') as f:
             client_cert = f.read()
