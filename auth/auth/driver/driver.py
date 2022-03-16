@@ -268,9 +268,9 @@ GRANT ALL ON `{name}`.* TO '{name}'@'%';
         client_cert: Optional[str]
         client_key: Optional[str]
         if server_config.using_mtls():
-            with open('/database-server-config/client-cert.pem', 'r') as f:
+            with open('/database-server-config/client-cert.pem', 'r', encoding='utf-8') as f:
                 client_cert = f.read()
-            with open('/database-server-config/client-key.pem', 'r') as f:
+            with open('/database-server-config/client-key.pem', 'r', encoding='utf-8') as f:
                 client_key = f.read()
         else:
             client_cert = None
