@@ -3,63 +3,49 @@
 gnomad_genome_sites
 ===================
 
-*  **Versions:** 2.1.1, 3.1
+*  **Versions:** 2.1.1, 3.1, 3.1.1, 3.1.2
 *  **Reference genome builds:** GRCh37, GRCh38
 *  **Type:** :class:`hail.Table`
 
-Schema (2.1.1, GRCh37)
+Schema (3.1.2, GRCh38)
 ~~~~~~~~~~~~~~~~~~~~~~
 
 .. code-block:: text
 
     ----------------------------------------
     Global fields:
-        'rf': struct {
-            variants_by_type: dict<str, int32>,
-            feature_medians: dict<str, struct {
-                variant_type: str,
-                n_alt_alleles: int32,
-                qd: float64,
-                pab_max: float64,
-                info_MQRankSum: float64,
-                info_SOR: float64,
-                info_InbreedingCoeff: float64,
-                info_ReadPosRankSum: float64,
-                info_FS: float64,
-                info_QD: float64,
-                info_MQ: float64,
-                info_DP: int32
-            }>,
-            test_intervals: array<interval<locus<GRCh37>>>,
-            test_results: array<struct {
-                rf_prediction: str,
-                rf_label: str,
-                n: int32
-            }>,
-            features_importance: dict<str, float64>,
-            features: array<str>,
-            vqsr_training: bool,
-            no_transmitted_singletons: bool,
-            adj: bool,
-            rf_hash: str,
-            rf_snv_cutoff: struct {
-                bin: int32,
-                min_score: float64
-            },
-            rf_indel_cutoff: struct {
-                bin: int32,
-                min_score: float64
-            }
-        }
         'freq_meta': array<dict<str, str>>
         'freq_index_dict': dict<str, int32>
-        'popmax_index_dict': dict<str, int32>
-        'age_index_dict': dict<str, int32>
         'faf_index_dict': dict<str, int32>
-        'age_distribution': array<int32>
+        'faf_meta': array<dict<str, str>>
+        'vep_version': str
+        'vep_csq_header': str
+        'dbsnp_version': str
+        'filtering_model': struct {
+            model_name: str,
+            score_name: str,
+            snv_cutoff: struct {
+                bin: float64,
+                min_score: float64
+            },
+            indel_cutoff: struct {
+                bin: float64,
+                min_score: float64
+            },
+            model_id: str,
+            snv_training_variables: array<str>,
+            indel_training_variables: array<str>
+        }
+        'age_distribution': struct {
+            bin_edges: array<float64>,
+            bin_freq: array<int32>,
+            n_smaller: int32,
+            n_larger: int32
+        }
+        'freq_sample_count': array<int32>
     ----------------------------------------
     Row fields:
-        'locus': locus<GRCh37>
+        'locus': locus<GRCh38>
         'alleles': array<str>
         'freq': array<struct {
             AC: int32,
@@ -67,154 +53,118 @@ Schema (2.1.1, GRCh37)
             AN: int32,
             homozygote_count: int32
         }>
-        'age_hist_het': array<struct {
-            bin_edges: array<float64>,
-            bin_freq: array<int64>,
-            n_smaller: int64,
-            n_larger: int64
-        }>
-        'age_hist_hom': array<struct {
-            bin_edges: array<float64>,
-            bin_freq: array<int64>,
-            n_smaller: int64,
-            n_larger: int64
-        }>
-        'popmax': array<struct {
+        'raw_qual_hists': struct {
+            gq_hist_all: struct {
+                bin_edges: array<float64>,
+                bin_freq: array<int64>,
+                n_smaller: int64,
+                n_larger: int64
+            },
+            dp_hist_all: struct {
+                bin_edges: array<float64>,
+                bin_freq: array<int64>,
+                n_smaller: int64,
+                n_larger: int64
+            },
+            gq_hist_alt: struct {
+                bin_edges: array<float64>,
+                bin_freq: array<int64>,
+                n_smaller: int64,
+                n_larger: int64
+            },
+            dp_hist_alt: struct {
+                bin_edges: array<float64>,
+                bin_freq: array<int64>,
+                n_smaller: int64,
+                n_larger: int64
+            },
+            ab_hist_alt: struct {
+                bin_edges: array<float64>,
+                bin_freq: array<int64>,
+                n_smaller: int64,
+                n_larger: int64
+            }
+        }
+        'popmax': struct {
             AC: int32,
             AF: float64,
             AN: int32,
             homozygote_count: int32,
-            pop: str
-        }>
+            pop: str,
+            faf95: float64
+        }
+        'qual_hists': struct {
+            gq_hist_all: struct {
+                bin_edges: array<float64>,
+                bin_freq: array<int64>,
+                n_smaller: int64,
+                n_larger: int64
+            },
+            dp_hist_all: struct {
+                bin_edges: array<float64>,
+                bin_freq: array<int64>,
+                n_smaller: int64,
+                n_larger: int64
+            },
+            gq_hist_alt: struct {
+                bin_edges: array<float64>,
+                bin_freq: array<int64>,
+                n_smaller: int64,
+                n_larger: int64
+            },
+            dp_hist_alt: struct {
+                bin_edges: array<float64>,
+                bin_freq: array<int64>,
+                n_smaller: int64,
+                n_larger: int64
+            },
+            ab_hist_alt: struct {
+                bin_edges: array<float64>,
+                bin_freq: array<int64>,
+                n_smaller: int64,
+                n_larger: int64
+            }
+        }
         'faf': array<struct {
-            meta: dict<str, str>,
             faf95: float64,
             faf99: float64
         }>
-        'lcr': bool
-        'decoy': bool
-        'segdup': bool
-        'nonpar': bool
-        'variant_type': str
-        'allele_type': str
-        'n_alt_alleles': int32
-        'was_mixed': bool
-        'has_star': bool
-        'qd': float64
-        'pab_max': float64
-        'info_MQRankSum': float64
-        'info_SOR': float64
-        'info_InbreedingCoeff': float64
-        'info_ReadPosRankSum': float64
-        'info_FS': float64
-        'info_QD': float64
-        'info_MQ': float64
-        'info_DP': int32
-        'transmitted_singleton': bool
-        'fail_hard_filters': bool
-        'info_POSITIVE_TRAIN_SITE': bool
-        'info_NEGATIVE_TRAIN_SITE': bool
-        'omni': bool
-        'mills': bool
-        'tp': bool
-        'rf_train': bool
-        'rf_label': str
-        'rf_probability': float64
-        'rank': int64
+        'a_index': int32
         'was_split': bool
-        'singleton': bool
-        '_score': float64
-        '_singleton': bool
-        'biallelic_rank': int64
-        'singleton_rank': int64
-        'n_nonref': int32
-        'score': float64
-        'adj_biallelic_singleton_rank': int64
-        'adj_rank': int64
-        'adj_biallelic_rank': int64
-        'adj_singleton_rank': int64
-        'biallelic_singleton_rank': int64
+        'rsid': set<str>
         'filters': set<str>
-        'gq_hist_alt': struct {
-            bin_edges: array<float64>,
-            bin_freq: array<int64>,
-            n_smaller: int64,
-            n_larger: int64
+        'info': struct {
+            QUALapprox: int64,
+            SB: array<int32>,
+            MQ: float64,
+            MQRankSum: float64,
+            VarDP: int32,
+            AS_ReadPosRankSum: float64,
+            AS_pab_max: float64,
+            AS_QD: float32,
+            AS_MQ: float64,
+            QD: float32,
+            AS_MQRankSum: float64,
+            FS: float64,
+            AS_FS: float64,
+            ReadPosRankSum: float64,
+            AS_QUALapprox: int64,
+            AS_SB_TABLE: array<int32>,
+            AS_VarDP: int32,
+            AS_SOR: float64,
+            SOR: float64,
+            singleton: bool,
+            transmitted_singleton: bool,
+            omni: bool,
+            mills: bool,
+            monoallelic: bool,
+            AS_VQSLOD: float64,
+            InbreedingCoeff: float64
         }
-        'gq_hist_all': struct {
-            bin_edges: array<float64>,
-            bin_freq: array<int64>,
-            n_smaller: int64,
-            n_larger: int64
-        }
-        'dp_hist_alt': struct {
-            bin_edges: array<float64>,
-            bin_freq: array<int64>,
-            n_smaller: int64,
-            n_larger: int64
-        }
-        'dp_hist_all': struct {
-            bin_edges: array<float64>,
-            bin_freq: array<int64>,
-            n_smaller: int64,
-            n_larger: int64
-        }
-        'ab_hist_alt': struct {
-            bin_edges: array<float64>,
-            bin_freq: array<int64>,
-            n_smaller: int64,
-            n_larger: int64
-        }
-        'qual': float64
         'vep': struct {
             assembly_name: str,
             allele_string: str,
             ancestral: str,
-            colocated_variants: array<struct {
-                aa_allele: str,
-                aa_maf: float64,
-                afr_allele: str,
-                afr_maf: float64,
-                allele_string: str,
-                amr_allele: str,
-                amr_maf: float64,
-                clin_sig: array<str>,
-                end: int32,
-                eas_allele: str,
-                eas_maf: float64,
-                ea_allele: str,
-                ea_maf: float64,
-                eur_allele: str,
-                eur_maf: float64,
-                exac_adj_allele: str,
-                exac_adj_maf: float64,
-                exac_allele: str,
-                exac_afr_allele: str,
-                exac_afr_maf: float64,
-                exac_amr_allele: str,
-                exac_amr_maf: float64,
-                exac_eas_allele: str,
-                exac_eas_maf: float64,
-                exac_fin_allele: str,
-                exac_fin_maf: float64,
-                exac_maf: float64,
-                exac_nfe_allele: str,
-                exac_nfe_maf: float64,
-                exac_oth_allele: str,
-                exac_oth_maf: float64,
-                exac_sas_allele: str,
-                exac_sas_maf: float64,
-                id: str,
-                minor_allele: str,
-                minor_allele_freq: float64,
-                phenotype_or_disease: int32,
-                pubmed: array<int32>,
-                sas_allele: str,
-                sas_maf: float64,
-                somatic: int32,
-                start: int32,
-                strand: int32
-            }>,
             context: str,
             end: int32,
             id: str,
@@ -255,6 +205,7 @@ Schema (2.1.1, GRCh37)
             transcript_consequences: array<struct {
                 allele_num: int32,
                 amino_acids: str,
+                appris: str,
                 biotype: str,
                 canonical: int32,
                 ccds: str,
@@ -296,35 +247,58 @@ Schema (2.1.1, GRCh37)
                 swissprot: str,
                 transcript_id: str,
                 trembl: str,
+                tsl: int32,
                 uniparc: str,
                 variant_allele: str
             }>,
             variant_class: str
         }
-        'allele_info': struct {
-            BaseQRankSum: float64,
-            ClippingRankSum: float64,
-            DB: bool,
-            DP: int32,
-            DS: bool,
-            END: int32,
-            FS: float64,
-            HaplotypeScore: float64,
-            InbreedingCoeff: float64,
-            MQ: float64,
-            MQ0: int32,
-            MQRankSum: float64,
+        'vqsr': struct {
+            AS_VQSLOD: float64,
+            AS_culprit: str,
             NEGATIVE_TRAIN_SITE: bool,
-            POSITIVE_TRAIN_SITE: bool,
-            QD: float64,
-            RAW_MQ: float64,
-            ReadPosRankSum: float64,
-            SOR: float64,
-            VQSLOD: float64,
-            culprit: str
+            POSITIVE_TRAIN_SITE: bool
         }
-        'rsid': str
+        'region_flag': struct {
+            lcr: bool,
+            segdup: bool
+        }
+        'allele_info': struct {
+            variant_type: str,
+            allele_type: str,
+            n_alt_alleles: int32,
+            was_mixed: bool
+        }
+        'age_hist_het': struct {
+            bin_edges: array<float64>,
+            bin_freq: array<int64>,
+            n_smaller: int64,
+            n_larger: int64
+        }
+        'age_hist_hom': struct {
+            bin_edges: array<float64>,
+            bin_freq: array<int64>,
+            n_smaller: int64,
+            n_larger: int64
+        }
+        'cadd': struct {
+            phred: float32,
+            raw_score: float32,
+            has_duplicate: bool
+        }
+        'revel': struct {
+            revel_score: float64,
+            has_duplicate: bool
+        }
+        'splice_ai': struct {
+            splice_ai_score: float32,
+            splice_consequence: str,
+            has_duplicate: bool
+        }
+        'primate_ai': struct {
+            primate_ai_score: float32,
+            has_duplicate: bool
+        }
     ----------------------------------------
     Key: ['locus', 'alleles']
     ----------------------------------------
-
