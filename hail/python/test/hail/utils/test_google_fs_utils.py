@@ -221,3 +221,63 @@ class Tests(unittest.TestCase):
 
     def test_subdirs_local(self):
         self.test_subdirs(self.local_dir)
+
+    def test_remove(self, prefix: Optional[str] = None):
+        if prefix is None:
+            prefix = self.remote_tmpdir
+
+        fs = hl.current_backend().fs
+
+        dir = f'{prefix}foo/'
+        subdir1 = f'{dir}foo/'
+        subdir1subdir1 = f'{subdir1}foo/'
+        subdir1subdir2 = f'{subdir1}bar/'
+        subdir1subdir3 = f'{subdir1}baz/'
+
+        def touch(filename):
+            with fs.open(filename, 'w') as fobj:
+                fobj.write('hello world')
+
+        fs.mkdir(dir)
+        touch(f'{dir}a')
+        touch(f'{dir}b')
+
+        fs.mkdir(subdir1)
+        touch(f'{subdir1}a')
+        fs.mkdir(subdir1subdir1)
+        touch(f'{subdir1subdir1}a')
+        fs.mkdir(subdir1subdir2)
+        touch(f'{subdir1subdir2}a')
+        fs.mkdir(subdir1subdir3)
+        touch(f'{subdir1subdir3}a')
+
+        fs.remove(subdir1subdir1)
+
+        assert fs.exists(dir)
+        assert fs.exists(f'{dir}a')
+        assert fs.exists(f'{dir}b')
+        assert fs.exists(subdir1)
+        assert fs.exists(f'{subdir1}a')
+        assert not fs.exists(subdir1subdir1)
+        assert not fs.exists(f'{subdir1subdir1}a')
+        assert fs.exists(subdir1subdir2)
+        assert fs.exists(f'{subdir1subdir2}a')
+        assert fs.exists(subdir1subdir3)
+        assert fs.exists(f'{subdir1subdir3}a')
+
+        fs.remove(subdir1)
+
+        assert fs.exists(dir)
+        assert fs.exists(f'{dir}a')
+        assert fs.exists(f'{dir}b')
+        assert not fs.exists(subdir1)
+        assert not fs.exists(f'{subdir1}a')
+        assert not fs.exists(subdir1subdir1)
+        assert not fs.exists(f'{subdir1subdir1}a')
+        assert not fs.exists(subdir1subdir2)
+        assert not fs.exists(f'{subdir1subdir2}a')
+        assert not fs.exists(subdir1subdir3)
+        assert not fs.exists(f'{subdir1subdir3}a')
+
+    def test_remove_local(self):
+        self.test_remove(self.local_dir)
