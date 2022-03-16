@@ -40,7 +40,7 @@ class CodeSuite extends HailSuite {
       mb.emit(EmitCodeBuilder.scopedCode(mb) { cb =>
         v.sizeToStoreInBytes(cb).value
       })
-      fb.result()(theHailClassLoader)()
+      fb.result(ctx)(theHailClassLoader)()
     }
 
     assert(testSizeHelper(int64) == 8L)
@@ -61,7 +61,7 @@ class CodeSuite extends HailSuite {
       }
       sarray.sizeToStoreInBytes(cb).value
     })
-    assert(fb.result()(theHailClassLoader)(ctx.r) == 28L) // 2 missing bytes 4 byte aligned + 4 header bytes + 5 elements * 4 bytes for ints.
+    assert(fb.result(ctx)(theHailClassLoader)(ctx.r) == 28L) // 2 missing bytes 4 byte aligned + 4 header bytes + 5 elements * 4 bytes for ints.
   }
 
   @Test def testIntervalSizeInBytes(): Unit = {
@@ -86,7 +86,7 @@ class CodeSuite extends HailSuite {
         true, true)
       sval.sizeToStoreInBytes(cb).value
     })
-    assert(fb.result()(theHailClassLoader)(ctx.r) == 72L) // 2 28 byte structs, plus 2 1 byte booleans that get 8 byte for an extra 8 bytes, plus missing bytes.
+    assert(fb.result(ctx)(theHailClassLoader)(ctx.r) == 72L) // 2 28 byte structs, plus 2 1 byte booleans that get 8 byte for an extra 8 bytes, plus missing bytes.
   }
 
   @Test def testHash() {
