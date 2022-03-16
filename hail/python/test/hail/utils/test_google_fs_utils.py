@@ -10,6 +10,7 @@ from hail.utils import hadoop_open, hadoop_copy
 from hail.fs.local_fs import LocalFS
 from hailtop.utils import secret_alnum_string
 from hailtop.config import get_remote_tmpdir
+from python.hail.utils.java import FatalError
 from ..helpers import startTestHailContext, stopTestHailContext, _initialized
 
 
@@ -222,7 +223,7 @@ class Tests(unittest.TestCase):
     def test_subdirs_local(self):
         self.test_subdirs(self.local_dir)
 
-    def test_remove(self, prefix: Optional[str] = None):
+    def test_remove_and_rmtree(self, prefix: Optional[str] = None):
         if prefix is None:
             prefix = self.remote_tmpdir
 
@@ -251,7 +252,30 @@ class Tests(unittest.TestCase):
         fs.mkdir(subdir1subdir3)
         touch(f'{subdir1subdir3}a')
 
-        fs.remove(subdir1subdir1)
+        try:
+            fs.remove(f'{subdir1subdir2}')
+        except (FileNotFoundError, IsADirectoryError):
+            pass
+        except FatalError as err:
+            assert 'DirectoryNotEmptyException: Cannot delete a non-empty directory' in err.args[0]
+        else:
+            assert False
+
+        fs.remove(f'{subdir1subdir2}a')
+
+        assert fs.exists(dir)
+        assert fs.exists(f'{dir}a')
+        assert fs.exists(f'{dir}b')
+        assert fs.exists(subdir1)
+        assert fs.exists(f'{subdir1}a')
+        assert fs.exists(subdir1subdir1)
+        assert fs.exists(f'{subdir1subdir1}a')
+        assert fs.exists(subdir1subdir2)
+        assert not fs.exists(f'{subdir1subdir2}a')
+        assert fs.exists(subdir1subdir3)
+        assert fs.exists(f'{subdir1subdir3}a')
+
+        fs.rmtree(subdir1subdir1)
 
         assert fs.exists(dir)
         assert fs.exists(f'{dir}a')
@@ -261,11 +285,11 @@ class Tests(unittest.TestCase):
         assert not fs.exists(subdir1subdir1)
         assert not fs.exists(f'{subdir1subdir1}a')
         assert fs.exists(subdir1subdir2)
-        assert fs.exists(f'{subdir1subdir2}a')
+        assert not fs.exists(f'{subdir1subdir2}a')
         assert fs.exists(subdir1subdir3)
         assert fs.exists(f'{subdir1subdir3}a')
 
-        fs.remove(subdir1)
+        fs.rmtree(subdir1)
 
         assert fs.exists(dir)
         assert fs.exists(f'{dir}a')
@@ -279,5 +303,5 @@ class Tests(unittest.TestCase):
         assert not fs.exists(subdir1subdir3)
         assert not fs.exists(f'{subdir1subdir3}a')
 
-    def test_remove_local(self):
+    def test_test_remove_and_rmtree_local(self):
         self.test_remove(self.local_dir)
