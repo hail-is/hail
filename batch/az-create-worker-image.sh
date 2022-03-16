@@ -17,7 +17,7 @@ BUILD_IMAGE_RESOURCE_GROUP="${RESOURCE_GROUP}-build-batch-worker-image"
 VM_NAME=build-batch-worker-image
 WORKER_VERSION=0.0.12
 
-USERNAME=$(az ad signed-in-user show --output tsv --query mailNickname)
+USERNAME=$(whoami)
 
 BATCH_WORKER_PRINCIPAL_ID=$(az identity show \
     --resource-group ${RESOURCE_GROUP} \

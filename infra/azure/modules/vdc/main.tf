@@ -25,7 +25,16 @@ resource "azurerm_subnet" "db_subnet" {
   resource_group_name  = var.resource_group.name
   virtual_network_name = azurerm_virtual_network.default.name
 
-  enforce_private_link_endpoint_network_policies = true
+  service_endpoints = ["Microsoft.Storage"]
+  delegation {
+    name = "mysql-flexible-sever"
+    service_delegation {
+      name    = "Microsoft.DBforMySQL/flexibleServers"
+      actions = [
+        "Microsoft.Network/virtualNetworks/subnets/join/action",
+      ]
+    }
+  }
 }
 
 resource "azurerm_log_analytics_workspace" "logs" {
