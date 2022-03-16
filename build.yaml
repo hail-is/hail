@@ -571,6 +571,17 @@ steps:
       - service_base_image
       - merge_code
   - kind: buildImage2
+    name: batch_driver_nginx_image
+    dockerFile: /io/batch/Dockerfile.driver-nginx
+    contextPath: /io/batch
+    publishAs: batch-driver-nginx
+    inputs:
+      - from: /repo/batch
+        to: /io/batch
+    dependsOn:
+      - hail_ubuntu_image
+      - merge_code
+  - kind: buildImage2
     name: batch_image
     dockerFile: /io/batch/Dockerfile
     contextPath: /io/batch/
@@ -2976,6 +2987,7 @@ steps:
       - create_accounts
       - batch_image
       - batch_worker_image
+      - batch_driver_nginx_image
       - batch_database
       - deploy_auth
       - create_certs
