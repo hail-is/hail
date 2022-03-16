@@ -35,13 +35,15 @@ class GeomLineBasic(Geom):
         super().__init__(aes)
         self.color = color
 
-    def apply_to_fig(self, parent, grouped_data, fig_so_far, precomputed):
+    def apply_to_fig(self, parent, grouped_data, fig_so_far, precomputed, facet_row, facet_col):
 
         def plot_group(df):
             scatter_args = {
                 "x": df.x,
                 "y": df.y,
                 "mode": "lines",
+                "row": facet_row,
+                "col": facet_col
             }
 
             for aes_name, (plotly_name, default) in self.aes_to_arg.items():
@@ -128,8 +130,8 @@ class GeomLine(GeomLineBasic):
         super().__init__(aes, color)
         self.color = color
 
-    def apply_to_fig(self, parent, agg_result, fig_so_far, precomputed):
-        super().apply_to_fig(parent, agg_result, fig_so_far, precomputed)
+    def apply_to_fig(self, parent, agg_result, fig_so_far, precomputed, facet_row, facet_col):
+        super().apply_to_fig(parent, agg_result, fig_so_far, precomputed, facet_row, facet_col)
 
     def get_stat(self):
         return StatIdentity()
@@ -163,13 +165,15 @@ class GeomText(Geom):
         self.size = size
         self.alpha = alpha
 
-    def apply_to_fig(self, parent, grouped_data, fig_so_far, precomputed):
+    def apply_to_fig(self, parent, grouped_data, fig_so_far, precomputed, facet_row, facet_col):
         def plot_group(df):
             scatter_args = {
                 "x": df.x,
                 "y": df.y,
                 "text": df.label,
                 "mode": "text",
+                "row": facet_row,
+                "col": facet_col
             }
 
             for aes_name, (plotly_name, default) in self.aes_to_arg.items():
