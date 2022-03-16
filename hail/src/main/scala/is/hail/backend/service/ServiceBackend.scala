@@ -14,6 +14,7 @@ import is.hail.expr.JSONAnnotationImpex
 import is.hail.expr.ir.lowering._
 import is.hail.expr.ir.{Compile, IR, IRParser, MakeTuple, SortField}
 import is.hail.io.fs._
+import is.hail.io.plink.LoadPlink
 import is.hail.linalg.BlockMatrix
 import is.hail.services._
 import is.hail.services.batch_client.BatchClient
@@ -394,6 +395,25 @@ class ServiceBackend(
     ReferenceGenome.fromHailDataset(ctx.fs, path)
   }
 
+  def importFam(
+    tmpdir: String,
+    sessionId: String,
+    billingProject: String,
+    remoteTmpDir: String,
+    path: String,
+    quantPheno: Boolean,
+    delimiter: String,
+    missing: String
+  ): String = serviceBackendExecuteContext(
+    "ServiceBackend.importFam",
+    tmpdir,
+    sessionId,
+    billingProject,
+    remoteTmpDir
+  ) { ctx =>
+    LoadPlink.importFamJSON(ctx.fs, path, quantPheno, delimiter, missing)
+  }
+
   private[this] def serviceBackendExecuteContext[T](
     methodName: String,
     tmpdir: String,
@@ -479,6 +499,9 @@ class ServiceBackendSocketAPI2(
   private[this] val BLOCK_MATRIX_TYPE = 5
   private[this] val REFERENCE_GENOME = 6
   private[this] val EXECUTE = 7
+  private[this] val PARSE_VCF_METADATA = 8
+  private[this] val INDEX_BGEN = 9
+  private[this] val IMPORT_FAM = 10
   private[this] val GOODBYE = 254
 
   private[this] val dummy = new Array[Byte](8)
@@ -494,6 +517,11 @@ class ServiceBackendSocketAPI2(
         read += r
       }
     }
+  }
+
+  def readBool(): Boolean = {
+    read(dummy, 0, 1)
+    Memory.loadByte(dummy, 0) != 0.toByte
   }
 
   def readInt(): Int = {
@@ -638,6 +666,24 @@ class ServiceBackendSocketAPI2(
         val token = readString()
         try {
           val result = backend.execute(tmpdir, sessionId, billingProject, remoteTmpDir, code, token)
+          writeBool(true)
+          writeString(result)
+        } catch {
+          case t: Throwable =>
+            writeBool(false)
+            writeString(formatException(t))
+        }
+
+      case IMPORT_FAM =>
+        val tmpdir = readString()
+        val billingProject = readString()
+        val remoteTmpDir = readString()
+        val path = readString()
+        val quantPheno = readBool()
+        val delimiter = readString()
+        val missing = readString()
+        try {
+          val result = backend.importFam(tmpdir, sessionId, billingProject, remoteTmpDir, path, quantPheno, delimiter, missing)
           writeBool(true)
           writeString(result)
         } catch {
