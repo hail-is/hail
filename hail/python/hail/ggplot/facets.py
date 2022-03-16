@@ -9,8 +9,8 @@ def vars(*args):
     return hl.tuple(*args)
 
 
-def facet_grid(*, cols):
-    return FacetGrid(cols=cols)
+def facet_wrap(facets):
+    return FacetWrap(facets)
 
 
 class Faceter(FigureAttribute):
@@ -20,10 +20,10 @@ class Faceter(FigureAttribute):
         pass
 
 
-class FacetGrid(Faceter):
+class FacetWrap(Faceter):
 
-    def __init__(self, cols):
-        self.cols = cols
+    def __init__(self, facets):
+        self.facets = facets
 
     def get_expr_to_group_by(self):
-        return self.cols
+        return self.facets
