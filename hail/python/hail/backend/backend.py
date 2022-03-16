@@ -1,6 +1,7 @@
 from typing import Mapping
 import abc
 from ..fs.fs import FS
+from ..expr import Expression
 
 
 class Backend(abc.ABC):
@@ -125,7 +126,7 @@ class Backend(abc.ABC):
         pass
 
     @abc.abstractmethod
-    def persist_expression(self, expr):
+    def persist_expression(self, expr) -> Expression:
         pass
 
     @abc.abstractmethod
