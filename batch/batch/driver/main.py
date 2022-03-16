@@ -537,6 +537,7 @@ async def pool_config_update(request, userdata):  # pylint: disable=unused-argum
             boot_disk_size_gb,
             max_instances,
             max_live_instances,
+            pool.preemptible,
         )
         await pool_config.update_database(db)
         pool.configure(pool_config)

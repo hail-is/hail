@@ -42,6 +42,7 @@ CREATE TABLE IF NOT EXISTS `pools` (
   `worker_external_ssd_data_disk_size_gb` BIGINT NOT NULL DEFAULT 0,
   `enable_standing_worker` BOOLEAN NOT NULL DEFAULT FALSE,
   `standing_worker_cores` BIGINT NOT NULL DEFAULT 0,
+  `preemptible` BOOLEAN NOT NULL DEFAULT TRUE,
   PRIMARY KEY (`name`),
   FOREIGN KEY (`name`) REFERENCES inst_colls(name) ON DELETE CASCADE
 ) ENGINE = InnoDB;

@@ -161,7 +161,9 @@ class ServiceBackend(
             JString(root),
             JString(s"$i"))),
           "type" -> JString("jvm")),
-        "mount_tokens" -> JBool(true))
+        "mount_tokens" -> JBool(true),
+        "resources" -> JObject("preemptible" -> JBool(true))
+      )
       i += 1
     }
 

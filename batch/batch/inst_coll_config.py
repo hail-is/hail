@@ -35,7 +35,7 @@ def instance_config_from_pool_config(
         return GCPSlimInstanceConfig.create(
             product_versions=product_versions,
             machine_type=machine_type,
-            preemptible=True,
+            preemptible=pool_config.preemptible,
             local_ssd_data_disk=pool_config.worker_local_ssd_data_disk,
             data_disk_size_gb=pool_config.data_disk_size_gb,
             boot_disk_size_gb=pool_config.boot_disk_size_gb,
@@ -49,17 +49,13 @@ def instance_config_from_pool_config(
     return AzureSlimInstanceConfig.create(
         product_versions=product_versions,
         machine_type=machine_type,
-        preemptible=True,
+        preemptible=pool_config.preemptible,
         local_ssd_data_disk=pool_config.worker_local_ssd_data_disk,
         data_disk_size_gb=pool_config.data_disk_size_gb,
         boot_disk_size_gb=pool_config.boot_disk_size_gb,
         job_private=False,
         location=location,
     )
-
-
-class PreemptibleNotSupportedError(Exception):
-    pass
 
 
 class InstanceCollectionConfig:
@@ -81,6 +77,7 @@ class PoolConfig(InstanceCollectionConfig):
             boot_disk_size_gb=record['boot_disk_size_gb'],
             max_instances=record['max_instances'],
             max_live_instances=record['max_live_instances'],
+            preemptible=bool(record['preemptible']),
         )
 
     async def update_database(self, db: Database):
@@ -95,7 +92,8 @@ SET worker_cores = %s,
     standing_worker_cores = %s,
     boot_disk_size_gb = %s,
     max_instances = %s,
-    max_live_instances = %s
+    max_live_instances = %s,
+    preemptible = %s
 WHERE pools.name = %s;
 ''',
             (
@@ -107,6 +105,7 @@ WHERE pools.name = %s;
                 self.boot_disk_size_gb,
                 self.max_instances,
                 self.max_live_instances,
+                self.preemptible,
                 self.name,
             ),
         )
@@ -124,6 +123,7 @@ WHERE pools.name = %s;
         boot_disk_size_gb: int,
         max_instances: int,
         max_live_instances: int,
+        preemptible: bool,
     ):
         self.name = name
         self.cloud = cloud
@@ -136,6 +136,7 @@ WHERE pools.name = %s;
         self.boot_disk_size_gb = boot_disk_size_gb
         self.max_instances = max_instances
         self.max_live_instances = max_live_instances
+        self.preemptible = preemptible
 
     def instance_config(self, product_versions: ProductVersions, location: str) -> InstanceConfig:
         return instance_config_from_pool_config(self, product_versions, location)
@@ -272,13 +273,13 @@ LEFT JOIN pools ON inst_colls.name = pools.name;
         self.resource_rates = resource_rates
         self.product_versions.update(product_versions_data)
 
-    def select_pool_from_cost(self, cloud, cores_mcpu, memory_bytes, storage_bytes):
+    def select_pool_from_cost(self, cloud, cores_mcpu, memory_bytes, storage_bytes, preemptible):
         assert self.resource_rates is not None
 
         optimal_result = None
         optimal_cost = None
         for pool in self.name_pool_config.values():
-            if pool.cloud != cloud:
+            if pool.cloud != cloud or pool.preemptible != preemptible:
                 continue
 
             result = pool.convert_requests_to_resources(cores_mcpu, memory_bytes, storage_bytes)
@@ -303,9 +304,9 @@ LEFT JOIN pools ON inst_colls.name = pools.name;
                     optimal_result = (pool.name, maybe_cores_mcpu, maybe_memory_bytes, maybe_storage_gib)
         return optimal_result
 
-    def select_pool_from_worker_type(self, cloud, worker_type, cores_mcpu, memory_bytes, storage_bytes):
+    def select_pool_from_worker_type(self, cloud, worker_type, cores_mcpu, memory_bytes, storage_bytes, preemptible):
         for pool in self.name_pool_config.values():
-            if pool.cloud == cloud and pool.worker_type == worker_type:
+            if pool.cloud == cloud and pool.worker_type == worker_type and pool.preemptible == preemptible:
                 result = pool.convert_requests_to_resources(cores_mcpu, memory_bytes, storage_bytes)
                 if result:
                     actual_cores_mcpu, actual_memory_bytes, acutal_storage_gib = result
@@ -321,26 +322,21 @@ LEFT JOIN pools ON inst_colls.name = pools.name;
         self, cloud, machine_type, preemptible, worker_type, req_cores_mcpu, req_memory_bytes, req_storage_bytes
     ):
         if worker_type is not None and machine_type is None:
-            if not preemptible:
-                return (
-                    None,
-                    PreemptibleNotSupportedError('nonpreemptible machines are not supported without a machine type'),
-                )
             result = self.select_pool_from_worker_type(
                 cloud=cloud,
                 worker_type=worker_type,
                 cores_mcpu=req_cores_mcpu,
                 memory_bytes=req_memory_bytes,
                 storage_bytes=req_storage_bytes,
+                preemptible=preemptible,
             )
         elif worker_type is None and machine_type is None:
-            if not preemptible:
-                return (
-                    None,
-                    PreemptibleNotSupportedError('nonpreemptible workers are not supported without a machine type'),
-                )
             result = self.select_pool_from_cost(
-                cloud=cloud, cores_mcpu=req_cores_mcpu, memory_bytes=req_memory_bytes, storage_bytes=req_storage_bytes
+                cloud=cloud,
+                cores_mcpu=req_cores_mcpu,
+                memory_bytes=req_memory_bytes,
+                storage_bytes=req_storage_bytes,
+                preemptible=preemptible,
             )
         else:
             assert machine_type and machine_type in valid_machine_types(cloud)
