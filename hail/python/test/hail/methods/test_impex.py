@@ -6,6 +6,7 @@ from unittest import mock
 
 from avro.datafile import DataFileReader
 from avro.io import DatumReader
+from hail.context import TemporaryFilename
 
 import pytest
 import hail as hl
@@ -267,18 +268,20 @@ class VCFTests(unittest.TestCase):
     def test_export_vcf(self):
         dataset = hl.import_vcf(resource('sample.vcf.bgz'))
         vcf_metadata = hl.get_vcf_metadata(resource('sample.vcf.bgz'))
-        hl.export_vcf(dataset, '/tmp/sample.vcf', metadata=vcf_metadata)
-        dataset_imported = hl.import_vcf('/tmp/sample.vcf')
-        self.assertTrue(dataset._same(dataset_imported))
+        with TemporaryFilename(suffix='.vcf') as sample_vcf, \
+             TemporaryFilename(suffix='.vcf') as no_sample_vcf:
+            hl.export_vcf(dataset, sample_vcf, metadata=vcf_metadata)
+            dataset_imported = hl.import_vcf(sample_vcf)
+            self.assertTrue(dataset._same(dataset_imported))
 
-        no_sample_dataset = dataset.filter_cols(False).select_entries()
-        hl.export_vcf(no_sample_dataset, '/tmp/no_sample.vcf', metadata=vcf_metadata)
-        no_sample_dataset_imported = hl.import_vcf('/tmp/no_sample.vcf')
-        self.assertTrue(no_sample_dataset._same(no_sample_dataset_imported))
+            no_sample_dataset = dataset.filter_cols(False).select_entries()
+            hl.export_vcf(no_sample_dataset, no_sample_vcf, metadata=vcf_metadata)
+            no_sample_dataset_imported = hl.import_vcf(no_sample_vcf)
+            self.assertTrue(no_sample_dataset._same(no_sample_dataset_imported))
 
-        metadata_imported = hl.get_vcf_metadata('/tmp/sample.vcf')
-        # are py4 JavaMaps, not dicts, so can't use assertDictEqual
-        self.assertEqual(vcf_metadata, metadata_imported)
+            metadata_imported = hl.get_vcf_metadata(sample_vcf)
+            # are py4 JavaMaps, not dicts, so can't use assertDictEqual
+            self.assertEqual(vcf_metadata, metadata_imported)
 
     @fails_service_backend()
     @fails_local_backend()
