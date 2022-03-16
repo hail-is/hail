@@ -18,7 +18,7 @@ def deduplicate(
     >>> deduplicate(['a', 'a_1', 'a'])
     ([('a', 'a_2')], ['a', 'a_1', 'a_2'])
 
-    >>> deduplicate(['a', 'a_1', 'a'], {'a_2'})
+    >>> deduplicate(['a', 'a_1', 'a'], already_used={'a_2'})
     ([('a', 'a_3')], ['a', 'a_1', 'a_3'])
 
     Parameters
