@@ -101,4 +101,5 @@ def pprint_hail_table(printer, obj, stream, indent, allowance, context, level):
 
 
 assert hasattr(pprint.PrettyPrinter, '_dispatch')
-pprint.PrettyPrinter._dispatch[ttable.__repr__] = pprint_hail_table  # https://stackoverflow.com/a/40828239/6823256
+# https://stackoverflow.com/a/40828239/6823256
+pprint.PrettyPrinter._dispatch[ttable.__repr__] = pprint_hail_table  # type: ignore

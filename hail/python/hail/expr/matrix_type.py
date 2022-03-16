@@ -166,4 +166,5 @@ def pprint_hail_matrix(printer, obj, stream, indent, allowance, context, level):
 
 
 assert hasattr(pprint.PrettyPrinter, '_dispatch')
-pprint.PrettyPrinter._dispatch[tmatrix.__repr__] = pprint_hail_matrix  # https://stackoverflow.com/a/40828239/6823256
+# https://stackoverflow.com/a/40828239/6823256
+pprint.PrettyPrinter._dispatch[tmatrix.__repr__] = pprint_hail_matrix  # type: ignore

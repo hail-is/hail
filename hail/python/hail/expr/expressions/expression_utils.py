@@ -1,4 +1,4 @@
-from typing import Set, Dict
+from typing import Set, Dict, List
 from hail.typecheck import typecheck, setof
 import hail as hl
 
@@ -23,8 +23,8 @@ def analyze(caller: str,
     axes = indices.axes
     aggregations = expr._aggregations
 
-    warnings = []
-    errors = []
+    warnings: List[Exception] = []
+    errors: List[ExpressionException] = []
 
     expected_source = expected_indices.source
     expected_axes = expected_indices.axes

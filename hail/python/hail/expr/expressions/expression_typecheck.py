@@ -430,6 +430,7 @@ class UnionCoercer(ExprCoercer):
 
     def _coerce(self, x: Expression):
         assert isinstance(x, hl.expr.StructExpression)
+        assert self.cases is not None
         assert list(x.keys()) == list(self.cases.keys())
         raise NotImplementedError()
 
@@ -437,7 +438,7 @@ class UnionCoercer(ExprCoercer):
 class OneOfExprCoercer(ExprCoercer):
     def __init__(self, *options: ExprCoercer):
         super(OneOfExprCoercer, self).__init__()
-        options_ = []
+        options_: List[ExprCoercer] = []
         for o in options:
             if isinstance(o, OneOfExprCoercer):
                 options_.extend(o.options)

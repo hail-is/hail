@@ -1712,7 +1712,7 @@ class Table(ExprContainer):
         uid = Env.get_uid()
 
         if all_matches and not is_interval:
-            return self.collect_by_key(uid).index(*exprs)[uid]
+            return self.collect_by_key(uid).index(*exprs)[uid]  # type: ignore
 
         new_schema = self.row_value.dtype
         if all_matches:

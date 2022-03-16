@@ -29,7 +29,7 @@ class HadoopFS(FS):
         if 'b' in mode:
             return handle
         else:
-            return io.TextIOWrapper(handle, encoding='iso-8859-1')
+            return io.TextIOWrapper(handle, encoding='iso-8859-1')  # type: ignore
 
     def copy(self, src: str, dest: str):
         self._jfs.copy(src, dest, False)

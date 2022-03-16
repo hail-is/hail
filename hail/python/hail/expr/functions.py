@@ -249,6 +249,7 @@ def literal(x: Any, dtype: Optional[Union[HailType, builtins.str]] = None):
         pass
     else:
         try:
+            assert isinstance(dtype, HailType)
             dtype._traverse(x, typecheck_expr)
         except TypeError as e:
             raise TypeError("'literal': object did not match the passed type '{}'"
@@ -3509,9 +3510,9 @@ def all(*args) -> BooleanExpression:
             collection = arg_check(args[1], 'all', 'collection', collection_type)
             return collection.all(f)
     n_args = builtins.len(args)
-    args = [args_check(x, 'all', 'exprs', i, n_args, expr_bool)
-            for i, x in builtins.enumerate(args)]
-    return functools.reduce(operator.iand, args, base)
+    checked_args = [args_check(x, 'all', 'exprs', i, n_args, expr_bool)
+                    for i, x in builtins.enumerate(args)]
+    return functools.reduce(operator.iand, checked_args, base)
 
 
 @typecheck(f=func_spec(1, expr_bool),

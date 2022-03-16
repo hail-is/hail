@@ -77,6 +77,7 @@ def get_1kg(output_dir, overwrite: bool = False):
             or not _file_exists(fs, vcf_path)
             or not _file_exists(fs, gene_annotations_path)):
         init_temp_dir()
+        assert tmp_dir is not None
         tmp_vcf = os.path.join(tmp_dir, '1kg.vcf.bgz')
         source = resources['1kg_matrix_table']
         info(f'downloading 1KG VCF ...\n'
@@ -138,6 +139,7 @@ def get_hgdp(output_dir, overwrite: bool = False):
             or not _file_exists(fs, vcf_path)
             or not _file_exists(fs, gene_annotations_path)):
         init_temp_dir()
+        assert tmp_dir is not None
         tmp_vcf = os.path.join(tmp_dir, 'HGDP.vcf.bgz')
         source = resources['HGDP_matrix_table']
         info(f'downloading HGDP VCF ...\n'
@@ -193,6 +195,7 @@ def get_movie_lens(output_dir, overwrite: bool = False):
     paths = [os.path.join(output_dir, x) for x in ['movies.ht', 'ratings.ht', 'users.ht']]
     if overwrite or any(not _dir_exists(fs, f) for f in paths):
         init_temp_dir()
+        assert tmp_dir is not None
         source = resources['movie_lens_100k']
         tmp_path = os.path.join(tmp_dir, 'ml-100k.zip')
         info(f'downloading MovieLens-100k data ...\n'

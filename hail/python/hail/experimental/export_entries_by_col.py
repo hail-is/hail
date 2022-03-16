@@ -74,6 +74,7 @@ def export_entries_by_col(mt: hl.MatrixTable,
         Include JSON header in each component file (if False, only written to index.tsv)
     """
     if use_string_key_as_file_name and not (len(mt.col_key) == 1 and mt.col_key[0].dtype == hl.tstr):
+        assert isinstance(mt.col_key.dtype, hl.tstruct)
         raise ValueError(f'parameter "use_string_key_as_file_name" requires a single string column key, found {list(mt.col_key.dtype.values())}')
     hl.utils.java.Env.backend().execute(
         hl.ir.MatrixToValueApply(mt._mir,
