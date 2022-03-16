@@ -63,7 +63,7 @@ object CanLowerEfficiently {
         case t: TableKeyByAndAggregate => fail("TableKeyByAndAggregate has no map-side combine")
         case t: TableAggregateByKey =>
         case t: TableRename =>
-        case t: TableFilterIntervals => fail(s"TableFilterIntervals does a linear scan")
+        case t: TableFilterIntervals =>
         case t: TableToTableApply => fail(s"TableToTableApply")
         case t: BlockMatrixToTableApply => fail(s"BlockMatrixToTableApply")
         case t: BlockMatrixToTable => fail(s"BlockMatrixToTable has no lowered implementation")

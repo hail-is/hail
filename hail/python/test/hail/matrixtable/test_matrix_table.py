@@ -1938,6 +1938,12 @@ Caused by: java.lang.NullPointerException
         with pytest.raises(hl.expr.ExpressionException, match='source mismatch'):
             mt.annotate_entries(x = mt2.af)
 
+    def test_filter_locus_position_collect_returns_data(self):
+        t = hl.utils.range_table(1)
+        t = t.key_by(locus=hl.locus('2', t.idx + 1))
+        assert t.filter(t.locus.position >= 1).collect() == [
+            hl.utils.Struct(idx=0, locus=hl.genetics.Locus(contig='2', position=1, reference_genome='GRCh37'))]
+
 
 @skip_when_service_backend('slow >800s')
 def test_read_write_all_types():
