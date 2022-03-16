@@ -33,7 +33,6 @@ class MonoidAggregator(monoid: StagedMonoidSpec) extends StagedAggregator {
     assert(init.length == 0)
     val stateRequired = state.vtypes.head.r.required
     val ev = state.fields(0)
-    cb.println(s"MonoidAgg initOp: ${monoid.getClass.getName} ", cb.strValue(ev))
     if (!ev.required) {
         assert(!stateRequired, s"monoid=$monoid, stateRequired=$stateRequired")
         cb.assign(ev, EmitCode.missing(cb.emb, ev.st))
@@ -41,6 +40,7 @@ class MonoidAggregator(monoid: StagedMonoidSpec) extends StagedAggregator {
         assert(stateRequired, s"monoid=$monoid, stateRequired=$stateRequired")
         cb.assign(ev, EmitCode.present(cb.emb, primitive(ev.st.virtualType, monoid.neutral.get)))
     }
+    cb.println(s"MonoidAgg initOp: ${monoid.getClass.getName} ", cb.strValue(ev))
   }
 
   protected def _seqOp(cb: EmitCodeBuilder, state: State, seq: Array[EmitCode]): Unit = {

@@ -144,7 +144,7 @@ class Tests(unittest.TestCase):
         #
         # self.assertTrue(col_result.entries()._same(col_expected))
 
-        row_result = (mt.group_rows_by(group=mt2.rows()[mt.row_idx].row_idx2 < 2)
+        row_result = (mt.group_rows_by(group=mt2.rows()[mt.row_idx].row_idx2 % 3)
                       .aggregate(sum=hl.agg.sum(mt2[mt.row_idx, mt.col_idx].x + mt.glob) + mt.glob)
                       .drop('c1'))
 

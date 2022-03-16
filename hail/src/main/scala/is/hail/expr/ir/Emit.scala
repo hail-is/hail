@@ -664,6 +664,7 @@ class Emit[C](
         sc.newState(cb, i)
         rvAgg.initOp(cb, sc.states(i), argVars)
 
+
       case x@SeqOp(i, args, sig) =>
         val AggContainer(aggs, sc, _) = container.get
         assert(sig.state == aggs(i))

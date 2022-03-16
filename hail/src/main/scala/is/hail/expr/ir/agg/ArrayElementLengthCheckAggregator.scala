@@ -57,6 +57,7 @@ class ArrayElementState(val kb: EmitClassBuilder[_], val nested: StateTuple) ext
     cb.assign(aoff, arrayType.allocate(region, lenRef))
     cb += Region.storeAddress(typ.fieldOffset(off, 1), aoff)
     arrayType.stagedInitialize(cb, aoff, lenRef)
+    cb.println("Initted array, haven't put any values in it")
     typ.setFieldPresent(cb, off, 1)
   }
 
@@ -99,7 +100,10 @@ class ArrayElementState(val kb: EmitClassBuilder[_], val nested: StateTuple) ext
 
   def loadInit(cb: EmitCodeBuilder): Unit = initContainer.load(cb)
 
-  def load(cb: EmitCodeBuilder): Unit = container.load(cb)
+  def load(cb: EmitCodeBuilder): Unit = {
+    container.load(cb)
+    cb.println("Loaded ", cb.strValue(arrayType.elementType.loadCheapSCode(cb, container.off)), " from array.")
+  }
 
   def store(cb: EmitCodeBuilder): Unit = container.store(cb)
 
@@ -181,9 +185,11 @@ class ArrayElementLengthCheckAggregator(nestedAggs: Array[StagedAggregator], kno
       state.init(cb, cb => cb += inits.asVoid, initLen = false)
       len.toI(cb).consume(cb, cb._fatal("Array length can't be missing"),
         len => state.initLength(cb, len.asInt32.value))
+      cb.println("State has been initted, known length")
     } else {
       val Array(inits) = init
       state.init(cb, cb => cb += inits.asVoid, initLen = true)
+      cb.println("State has been initted, unknown length.")
       cb.assign(state.lenRef, -1)
     }
   }
