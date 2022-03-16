@@ -7,7 +7,7 @@ import is.hail.backend.ExecuteContext
 import is.hail.backend.spark.{SparkBackend, SparkTaskContext}
 import is.hail.expr.ir
 import is.hail.expr.ir.functions.{BlockMatrixToTableFunction, MatrixToTableFunction, StringFunctions, TableToTableFunction}
-import is.hail.expr.ir.lowering.{LowererUnsupportedOperation, TableStage, TableStageDependency}
+import is.hail.expr.ir.lowering.{LowerBlockMatrixIR, LowererUnsupportedOperation, TableStage, TableStageDependency}
 import is.hail.expr.ir.streams.{StreamArgType, StreamProducer}
 import is.hail.io._
 import is.hail.io.avro.AvroTableReader
@@ -1229,28 +1229,19 @@ case class TableFromBlockMatrixNativeReader(params: TableFromBlockMatrixNativeRe
   }
 
   override def lower(ctx: ExecuteContext, requestedType: TableType): TableStage =  {
-    // High level strategy
-    // 1. Assign rows to blocks
-    // 2. For some amount of rows / bytes, read that many rows in at a time by creating an array of those bytes and then streaming through.
 
-    // For each partition, what files do I need to read?
-    val ranges = partitionRanges.map { range =>
-      val start = range.start
-      val end = range.end
+    val tableOfBlocks = LowerBlockMatrixIR.lowerToTableStage(BlockMatrixRead(BlockMatrixNativeReader(ctx.fs, params.path)), ???, ctx, ???, ???)
+    val branchFactor = 4
 
-      val startBlockRow = start / metadata.blockSize
-      val endBlockRow = end / metadata.blockSize
-      Row(start, end, startBlockRow, endBlockRow)
-    }
+    tableOfBlocks
 
-    val rangesLiteral = Literal(TArray(TStruct("startRow" -> TInt64, "endRow" -> TInt64, "startBlockRow" -> TInt32, "endBlockrow" -> TInt32)), ranges)
+    // Step 1: Split all blocks vertically into chunks we can fit in memory.
 
-    mapIR(rangesLiteral){ curRange =>
-      /*
-      Figure out each
-       */
-      ???
-    }
+    // Step 2: Combine all blocks horizontally into rows.
+
+    // Step 3:
+
+    ???
 
 
 
