@@ -13,7 +13,6 @@ import is.hail.io._
 import is.hail.io.avro.AvroTableReader
 import is.hail.io.fs.FS
 import is.hail.io.index.{IndexReadIterator, IndexReader, IndexReaderBuilder, LeafChild}
-import is.hail.linalg.BlockMatrixReadRowBlockedRDD.DEFAULT_MAXIMUM_CACHE_MEMORY_IN_BYTES
 import is.hail.linalg.{BlockMatrix, BlockMatrixMetadata, BlockMatrixReadRowBlockedRDD}
 import is.hail.rvd._
 import is.hail.sparkextras.ContextRDD

@@ -2105,7 +2105,6 @@ class BlockMatrixReadRowBlockedRDD(
   metadata: BlockMatrixMetadata,
   maximumCacheMemoryInBytes: Int
 ) extends RDD[RVDContext => Iterator[Long]](SparkBackend.sparkContext("BlockMatrixReadRowBlockedRDD"), Nil) {
-  import BlockMatrixReadRowBlockedRDD._
 
   private[this] val BlockMatrixMetadata(blockSize, nRows, nCols, maybeFiltered, partFiles) = metadata
   private[this] val gp = GridPartitioner(blockSize, nRows, nCols)
