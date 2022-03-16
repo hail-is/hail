@@ -80,7 +80,10 @@ class ArrayElementState(val kb: EmitClassBuilder[_], val nested: StateTuple) ext
 
   def initLength(cb: EmitCodeBuilder, len: Code[Int]): Unit = {
     cb.assign(lenRef, len)
-    seq(cb, container.copyFrom(cb, initContainer.off))
+    seq(cb, {
+
+      container.copyFrom(cb, initContainer.off)
+    })
   }
 
   def checkLength(cb: EmitCodeBuilder, len: Code[Int]): Unit = {
@@ -93,6 +96,7 @@ class ArrayElementState(val kb: EmitClassBuilder[_], val nested: StateTuple) ext
     initContainer.newState(cb)
     initOp(cb)
     initContainer.store(cb)
+    cb.println("init ArrayElement State. Value = ", cb.strValue(initContainer.storageType.loadCheapSCode(cb, initContainer.off)), " aoff = ", aoff.toS)
     if (initLen) {
       typ.setFieldMissing(cb, off, 1)
     }
@@ -102,7 +106,7 @@ class ArrayElementState(val kb: EmitClassBuilder[_], val nested: StateTuple) ext
 
   def load(cb: EmitCodeBuilder): Unit = {
     container.load(cb)
-    cb.println("Loaded ", cb.strValue(arrayType.elementType.loadCheapSCode(cb, container.off)), " from array.")
+    cb.println("Loaded ", cb.strValue(arrayType.elementType.loadCheapSCode(cb, container.off)), " from array at addr ", container.off.toS)
   }
 
   def store(cb: EmitCodeBuilder): Unit = container.store(cb)

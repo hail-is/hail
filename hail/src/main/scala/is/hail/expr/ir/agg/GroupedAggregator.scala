@@ -179,6 +179,7 @@ class DictState(val kb: EmitClassBuilder[_], val keyVType: VirtualTypeWithReq, v
   def init(cb: EmitCodeBuilder, initOps: EmitCodeBuilder => Unit): Unit = {
     cb += region.setNumParents(nStates)
     cb.assign(off, region.allocate(typ.alignment, typ.byteSize))
+    initContainer.toCode((i, a) => a.createState(cb))
     initContainer.newState(cb)
     initOps(cb)
     initContainer.store(cb)
