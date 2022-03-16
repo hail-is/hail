@@ -488,6 +488,7 @@ class ServiceBackend(Backend):
                                 skip_invalid_loci: bool):
         if rg is not None:
             raise NotImplementedError('ServiceBackend.index_bgen does not support the rg ReferenceGenome parameter')
+
         async def inputs(infile, _):
             await write_int(infile, ServiceBackend.INDEX_BGEN)
             await write_str(infile, tmp_dir())
