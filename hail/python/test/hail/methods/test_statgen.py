@@ -10,7 +10,7 @@ import hail.utils as utils
 from hail.linalg import BlockMatrix
 from hail.utils import FatalError
 from ..helpers import (startTestHailContext, stopTestHailContext, resource,
-                       skip_unless_spark_backend, fails_local_backend, fails_service_backend,
+                       fails_local_backend, fails_service_backend,
                        skip_when_service_backend)
 
 setUpModule = startTestHailContext
@@ -1189,8 +1189,8 @@ class Tests(unittest.TestCase):
 
         assert mt.aggregate_rows(hl.agg.all(mt.foo.bar == ht[mt.row_key].bar))
 
-
-    @skip_unless_spark_backend()
+    @fails_local_backend()
+    @fails_service_backend()
     def test_genetic_relatedness_matrix(self):
         n, m = 100, 200
         hl.set_global_seed(0)
@@ -1223,7 +1223,8 @@ class Tests(unittest.TestCase):
         col_filter = col_lengths > 0
         return np.copy(a[:, np.squeeze(col_filter)] / col_lengths[col_filter])
 
-    @skip_unless_spark_backend()
+    @fails_service_backend()
+    @fails_local_backend()
     def test_realized_relationship_matrix(self):
         n, m = 100, 200
         hl.set_global_seed(0)
@@ -1241,7 +1242,7 @@ class Tests(unittest.TestCase):
         one_sample = hl.balding_nichols_model(1, 1, 10)
         self.assertRaises(FatalError, lambda: hl.realized_relationship_matrix(one_sample.GT))
 
-    @skip_unless_spark_backend()
+    @fails_service_backend()
     def test_row_correlation_vs_hardcode(self):
         data = [{'v': '1:1:A:C', 's': '1', 'GT': hl.Call([0, 0])},
                 {'v': '1:1:A:C', 's': '2', 'GT': hl.Call([0, 0])},
@@ -1263,7 +1264,7 @@ class Tests(unittest.TestCase):
 
         self.assertTrue(np.allclose(actual, expected))
 
-    @skip_unless_spark_backend()
+    @fails_service_backend()
     def test_row_correlation_vs_numpy(self):
         n, m = 11, 10
         hl.set_global_seed(0)
@@ -1280,7 +1281,8 @@ class Tests(unittest.TestCase):
         self.assertTrue(cor.shape[0] > 5 and cor.shape[0] == cor.shape[1])
         self.assertTrue(np.allclose(l, cor))
 
-    @skip_unless_spark_backend()
+    @fails_service_backend()
+    @fails_local_backend()
     def test_ld_matrix(self):
         data = [{'v': '1:1:A:C',       'cm': 0.1, 's': 'a', 'GT': hl.Call([0, 0])},
                 {'v': '1:1:A:C',       'cm': 0.1, 's': 'b', 'GT': hl.Call([0, 0])},
@@ -1361,7 +1363,8 @@ class Tests(unittest.TestCase):
         mt = hl.split_multi(mt)
         self.assertEqual(1, mt._force_count_rows())
 
-    @skip_unless_spark_backend()
+    @fails_service_backend()
+    @fails_local_backend()
     def test_ld_prune(self):
         r2_threshold = 0.001
         window_size = 5
@@ -1397,7 +1400,6 @@ class Tests(unittest.TestCase):
 
         self.assertEqual(entries.filter(bad_pair).count(), 0)
 
-    @skip_unless_spark_backend()
     def test_ld_prune_inputs(self):
         ds = hl.balding_nichols_model(n_populations=1, n_samples=1, n_variants=1)
         self.assertRaises(ValueError, lambda: hl.ld_prune(ds.GT, memory_per_core=0))
@@ -1405,20 +1407,23 @@ class Tests(unittest.TestCase):
         self.assertRaises(ValueError, lambda: hl.ld_prune(ds.GT, r2=-1.0))
         self.assertRaises(ValueError, lambda: hl.ld_prune(ds.GT, r2=2.0))
 
-    @skip_unless_spark_backend()
+    @fails_service_backend()
+    @fails_local_backend()
     def test_ld_prune_no_prune(self):
         ds = hl.balding_nichols_model(n_populations=1, n_samples=10, n_variants=10, n_partitions=3)
         pruned_table = hl.ld_prune(ds.GT, r2=0.0, bp_window_size=0)
         expected_count = ds.filter_rows(agg.collect_as_set(ds.GT).size() > 1, keep=True).count_rows()
         self.assertEqual(pruned_table.count(), expected_count)
 
-    @skip_unless_spark_backend()
+    @fails_service_backend()
+    @fails_local_backend()
     def test_ld_prune_identical_variants(self):
         ds = hl.import_vcf(resource('ldprune2.vcf'), min_partitions=2)
         pruned_table = hl.ld_prune(ds.GT)
         self.assertEqual(pruned_table.count(), 1)
 
-    @skip_unless_spark_backend()
+    @fails_service_backend()
+    @fails_local_backend()
     def test_ld_prune_maf(self):
         ds = hl.balding_nichols_model(n_populations=1, n_samples=50, n_variants=10, n_partitions=10).cache()
 
@@ -1433,21 +1438,24 @@ class Tests(unittest.TestCase):
 
         self.assertEqual(kept_maf, max(ht.maf.collect()))
 
-    @skip_unless_spark_backend()
+    @fails_service_backend()
+    @fails_local_backend()
     def test_ld_prune_call_expression(self):
         ds = hl.import_vcf(resource("ldprune2.vcf"), min_partitions=2)
         ds = ds.select_entries(foo=ds.GT)
         pruned_table = hl.ld_prune(ds.foo)
         self.assertEqual(pruned_table.count(), 1)
 
-    @skip_unless_spark_backend()
+    @fails_service_backend()
+    @fails_local_backend()
     def test_ld_prune_missing_entries(self):
         mt = hl.import_vcf(resource("ldprune2.vcf"), min_partitions=2).add_col_index()
         mt = mt.filter_entries(mt.col_idx > 1)
         result = hl.ld_prune(mt.GT)
         assert result.count() > 0
 
-    @skip_unless_spark_backend()
+    @fails_service_backend()
+    @fails_local_backend()
     def test_ld_prune_with_duplicate_row_keys(self):
         ds = hl.import_vcf(resource('ldprune2.vcf'), min_partitions=2)
         ds_duplicate = ds.annotate_rows(duplicate=[1, 2]).explode_rows('duplicate')

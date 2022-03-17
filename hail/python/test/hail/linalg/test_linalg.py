@@ -725,7 +725,8 @@ Caused by: java.lang.OutOfMemoryError
         self.assertRaises(ValueError, lambda: bm[0, -11:])
         self.assertRaises(ValueError, lambda: bm[0, :-11])
 
-    @skip_unless_spark_backend()
+    @fails_service_backend()
+    @fails_local_backend()
     def test_slices_with_sparsify(self):
         nd = np.array(np.arange(0, 80, dtype=float)).reshape(8, 10)
         bm = BlockMatrix.from_numpy(nd, block_size=3)
@@ -742,7 +743,8 @@ Caused by: java.lang.OutOfMemoryError
         self._assert_eq(bm2[1, :], nd2[1:2, :])
         self._assert_eq(bm2[0:5, 0:5], nd2[0:5, 0:5])
 
-    @skip_unless_spark_backend()
+    @fails_service_backend()
+    @fails_local_backend()
     def test_sparsify_row_intervals(self):
         nd = np.array([[ 1.0,  2.0,  3.0,  4.0],
                        [ 5.0,  6.0,  7.0,  8.0],
@@ -788,7 +790,8 @@ Caused by: java.lang.OutOfMemoryError
                     expected[i, j] = 0.0
             self._assert_eq(actual, expected)
 
-    @skip_unless_spark_backend()
+    @fails_service_backend()
+    @fails_local_backend()
     def test_sparsify_band(self):
         nd = np.array([[ 1.0,  2.0,  3.0,  4.0],
                        [ 5.0,  6.0,  7.0,  8.0],
@@ -819,7 +822,8 @@ Caused by: java.lang.OutOfMemoryError
             mask = np.fromfunction(lambda i, j: (lower <= j - i) * (j - i <= upper), (8, 10))
             self._assert_eq(actual, nd2 * mask)
 
-    @skip_unless_spark_backend()
+    @fails_service_backend()
+    @fails_local_backend()
     def test_sparsify_triangle(self):
         nd = np.array([[ 1.0,  2.0,  3.0,  4.0],
                        [ 5.0,  6.0,  7.0,  8.0],
@@ -851,7 +855,8 @@ Caused by: java.lang.OutOfMemoryError
                       [ 0.,  0., 11., 12.],
                       [ 0.,  0., 15., 16.]]))
 
-    @skip_unless_spark_backend()
+    @fails_service_backend()
+    @fails_local_backend()
     def test_sparsify_rectangles(self):
         nd = np.array([[ 1.0,  2.0,  3.0,  4.0],
                        [ 5.0,  6.0,  7.0,  8.0],
@@ -892,7 +897,8 @@ Caused by: java.lang.OutOfMemoryError
                     bm.export_rectangles(rect_uri_bytes, rects, binary=True)
                     self._assert_rectangles_eq(nd, rect_uri_bytes, rects, binary=True)
 
-    @skip_unless_spark_backend()
+    @fails_service_backend()
+    @fails_local_backend()
     def test_export_rectangles_sparse(self):
         with hl.TemporaryDirectory() as rect_uri:
             nd = np.array([[1.0, 2.0, 3.0, 4.0],
@@ -941,7 +947,6 @@ Caused by: java.lang.OutOfMemoryError
             self._assert_eq(nd, actual)
 
     @fails_service_backend()
-    @fails_local_backend()
     def test_rectangles_to_numpy(self):
         nd = np.array([[1.0, 2.0, 3.0],
                        [4.0, 5.0, 6.0],
@@ -1151,7 +1156,8 @@ Caused by: java.lang.AssertionError: assertion failed
             bm = BlockMatrix.read(bm_uri)
             self._assert_eq(nd, bm)
 
-    @skip_unless_spark_backend()
+    @fails_service_backend()
+    @fails_local_backend()
     def test_svd(self):
         def assert_same_columns_up_to_sign(a, b):
             for j in range(a.shape[1]):
@@ -1209,7 +1215,8 @@ Caused by: java.lang.AssertionError: assertion failed
         s = x.svd(compute_uv=False, complexity_bound=0)
         assert np.all(s >= 0)
 
-    @skip_unless_spark_backend()
+    @fails_service_backend()
+    @fails_local_backend()
     def test_filtering(self):
         np_square = np.arange(16, dtype=np.float64).reshape((4, 4))
         bm = BlockMatrix.from_numpy(np_square)
@@ -1227,7 +1234,8 @@ Caused by: java.lang.AssertionError: assertion failed
             bm.filter_rows([0]).filter_rows([3]).to_numpy()
         assert "index" in str(exc.value)
 
-    @skip_unless_spark_backend()
+    @fails_service_backend()
+    @fails_local_backend()
     def test_sparsify_blocks(self):
         block_list = [1, 2]
         np_square = np.arange(16, dtype=np.float64).reshape((4, 4))
@@ -1251,7 +1259,8 @@ Caused by: java.lang.AssertionError: assertion failed
         sparse_numpy = sparsify_numpy(np_square, block_size, block_list)
         assert np.array_equal(bm.to_numpy(), sparse_numpy)
 
-    @skip_unless_spark_backend()
+    @fails_service_backend()
+    @fails_local_backend()
     def test_sparse_transposition(self):
         block_list = [1, 2]
         np_square = np.arange(16, dtype=np.float64).reshape((4, 4))
@@ -1286,7 +1295,7 @@ Caused by: java.lang.AssertionError: assertion failed
         assert np.array_equal(sparse_bm.to_numpy(), sparse_np)
 
 
-    @skip_unless_spark_backend()
+    @fails_service_backend()
     def test_row_blockmatrix_sum(self):
 
         row = BlockMatrix.from_numpy(np.arange(10))
@@ -1307,7 +1316,6 @@ Caused by: java.lang.AssertionError: assertion failed
         # Summing horizontally along a column vector to make sure nothing changes
         f = col.sum(axis=1)
         assert f.to_numpy().shape == (10, 1)
-
 
     @fails_spark_backend()
     def test_map(self):

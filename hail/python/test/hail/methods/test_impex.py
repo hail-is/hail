@@ -40,7 +40,6 @@ class VCFTests(unittest.TestCase):
         self.assertEqual(hl.import_vcf(resource('infochar.vcf')).count_rows(), 1)
 
     @fails_service_backend()
-    @fails_local_backend()
     def test_import_export_same(self):
         for i in range(10):
             mt = hl.import_vcf(resource(f'random_vcfs/{i}.vcf.bgz'))
@@ -302,7 +301,6 @@ class VCFTests(unittest.TestCase):
         assert hl.import_vcf(tmp)._same(mt)
 
     @fails_service_backend()
-    @fails_local_backend()
     def test_export_vcf_no_alt_alleles(self):
         mt = hl.import_vcf(resource('gvcfs/HG0096_excerpt.g.vcf'), reference_genome='GRCh38')
         self.assertEqual(mt.filter_rows(hl.len(mt.alleles) == 1).count_rows(), 5)
@@ -354,19 +352,21 @@ class VCFTests(unittest.TestCase):
         self.assertEqual(hl.filter_intervals(vcf2, interval_b).n_partitions(), 2)
         self.assertEqual(hl.filter_intervals(vcf2, interval_c).n_partitions(), 3)
 
-    @skip_unless_spark_backend()
+    @fails_service_backend()
+    @fails_local_backend()
     def test_tabix_export(self):
         mt = hl.import_vcf(resource('sample.vcf.bgz'))
         tmp = new_temp_file(extension="bgz")
         hl.export_vcf(mt, tmp, tabix=True)
         self.import_gvcfs_sample_vcf(tmp)
 
-    @skip_unless_spark_backend()
+    @fails_service_backend()
     def test_import_gvcfs(self):
         path = resource('sample.vcf.bgz')
         self.import_gvcfs_sample_vcf(path)
 
-    @skip_unless_spark_backend()
+    @fails_service_backend()
+    @fails_local_backend()
     def test_import_gvcfs_subset(self):
         path = resource('sample.vcf.bgz')
         parts = [
@@ -381,7 +381,8 @@ class VCFTests(unittest.TestCase):
         self.assertTrue(vcf2._same(filter1))
         self.assertEqual(len(parts), vcf2.n_partitions())
 
-    @skip_unless_spark_backend()
+    @fails_service_backend()
+    @fails_local_backend()
     def test_import_gvcfs_long_line(self):
         import bz2
         path = resource('gvcfs/long_line.g.vcf.gz')
@@ -417,7 +418,8 @@ class VCFTests(unittest.TestCase):
         mt = hl.read_matrix_table(vcf_path + '.mt')
         self.assertTrue(mt._same(vcf))
 
-    @skip_unless_spark_backend()
+    @fails_service_backend()
+    @fails_local_backend()
     def test_import_multiple_vcfs(self):
         _paths = ['gvcfs/HG00096.g.vcf.gz', 'gvcfs/HG00268.g.vcf.gz']
         paths = [resource(p) for p in _paths]
@@ -443,7 +445,8 @@ class VCFTests(unittest.TestCase):
         pos268 = set(filt268.locus.position.collect())
         self.assertFalse(pos096 & pos268)
 
-    @skip_unless_spark_backend()
+    @fails_service_backend()
+    @fails_local_backend()
     def test_combiner_works(self):
         from hail.experimental.vcf_combiner.vcf_combiner import transform_one, combine_gvcfs
         _paths = ['gvcfs/HG00096.g.vcf.gz', 'gvcfs/HG00268.g.vcf.gz']
@@ -771,7 +774,6 @@ class PLINKTests(unittest.TestCase):
             hl.import_plink(bfile + '.bed', bfile + '.bim', bfile + '.fam')
 
     @fails_service_backend()
-    @fails_local_backend()
     def test_import_plink_a1_major(self):
         mt = get_dataset()
         bfile = '/tmp/sample_plink'
@@ -1188,7 +1190,6 @@ class BGENTests(unittest.TestCase):
             (hl.abs(et.dosage - et.gp_dosage) < 1e-6)))
 
     @fails_service_backend()
-    @fails_local_backend()
     def test_import_bgen_row_fields(self):
         default_row_fields = hl.import_bgen(resource('example.8bits.bgen'),
                                             entry_fields=['dosage'])
@@ -1267,7 +1268,6 @@ class BGENTests(unittest.TestCase):
         self.assertTrue(expected._same(part_1))
 
     @fails_service_backend()
-    @fails_local_backend()
     def test_import_bgen_locus_filtering_from_literals(self):
         bgen_file = resource('example.8bits.bgen')
 
@@ -1295,7 +1295,6 @@ class BGENTests(unittest.TestCase):
                          expected_result)
 
     @fails_service_backend()
-    @fails_local_backend()
     def test_import_bgen_variant_filtering_from_exprs(self):
         bgen_file = resource('example.8bits.bgen')
 
@@ -1312,7 +1311,6 @@ class BGENTests(unittest.TestCase):
         self.assertTrue(everything._same(actual))
 
     @fails_service_backend()
-    @fails_local_backend()
     def test_import_bgen_locus_filtering_from_exprs(self):
         bgen_file = resource('example.8bits.bgen')
 
@@ -1349,7 +1347,6 @@ class BGENTests(unittest.TestCase):
         self.assertTrue(everything._same(actual))
 
     @fails_service_backend()
-    @fails_local_backend()
     def test_import_bgen_locus_filtering_from_table(self):
         bgen_file = resource('example.8bits.bgen')
 
@@ -1427,7 +1424,6 @@ class BGENTests(unittest.TestCase):
             bgenmt._same(genmt, tolerance=1.0 / 255, absolute=True))
 
     @fails_service_backend()
-    @fails_local_backend()
     def test_multiple_files_variant_filtering(self):
         bgen_file = [resource('random-b.bgen'), resource('random-c.bgen'), resource('random-a.bgen')]
         hl.index_bgen(bgen_file)
@@ -1542,7 +1538,6 @@ class BGENTests(unittest.TestCase):
         assert bgen._same(bgen2)
 
     @fails_service_backend()
-    @fails_local_backend()
     def test_export_bgen_from_vcf(self):
         mt = hl.import_vcf(resource('sample.vcf'))
 
@@ -1766,7 +1761,8 @@ class LocusIntervalTests(unittest.TestCase):
 
 
 class ImportMatrixTableTests(unittest.TestCase):
-    @skip_unless_spark_backend()
+    @fails_service_backend()
+    @fails_local_backend()
     def test_import_matrix_table(self):
         mt = hl.import_matrix_table(doctest_resource('matrix1.tsv'),
                                     row_fields={'Barcode': hl.tstr, 'Tissue': hl.tstr, 'Days': hl.tfloat32})
@@ -1789,7 +1785,8 @@ class ImportMatrixTableTests(unittest.TestCase):
                                no_header=True,
                                row_key=[])._force_count_rows()
 
-    @skip_unless_spark_backend()
+    @fails_service_backend()
+    @fails_local_backend()
     def test_import_matrix_table_no_cols(self):
         fields = {'Chromosome':hl.tstr, 'Position': hl.tint32, 'Ref': hl.tstr, 'Alt': hl.tstr, 'Rand1': hl.tfloat64, 'Rand2': hl.tfloat64}
         file = resource('sample2_va_nomulti.tsv')
@@ -1800,7 +1797,8 @@ class ImportMatrixTableTests(unittest.TestCase):
         self.assertEqual(mt.count_rows(), 231)
         self.assertTrue(t._same(mt.rows()))
 
-    @skip_unless_spark_backend()
+    @fails_service_backend()
+    @fails_local_backend()
     def test_import_matrix_comment(self):
         no_comment = doctest_resource('matrix1.tsv')
         comment = doctest_resource('matrix1_comment.tsv')
