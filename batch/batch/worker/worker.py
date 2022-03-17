@@ -372,7 +372,7 @@ class Image:
     def __init__(
         self,
         name: str,
-        credentials: Optional[CloudUserCredentials],
+        credentials: Union[CloudUserCredentials, 'JVMUserCredentials'],
         client_session: httpx.ClientSession,
         pool: concurrent.futures.ThreadPoolExecutor,
     ):
@@ -400,6 +400,16 @@ class Image:
         self.image_id: Optional[str] = None
 
     @property
+    def is_cloud_image(self):
+        return (CLOUD == 'gcp' and self.image_ref.hosted_in('google')) or (
+            CLOUD == 'azure' and self.image_ref.hosted_in('azure')
+        )
+
+    @property
+    def is_public_image(self):
+        return self.image_ref.name() in PUBLIC_IMAGES
+
+    @property
     def rootfs_path(self) -> str:
         assert self.image_id is not None
         return f'/host/rootfs/{self.image_id}'
@@ -407,17 +417,14 @@ class Image:
     async def _pull_image(self):
         assert docker
 
-        is_cloud_image = (CLOUD == 'gcp' and self.image_ref.hosted_in('google')) or (
-            CLOUD == 'azure' and self.image_ref.hosted_in('azure')
-        )
-        is_public_image = self.image_ref.name() in PUBLIC_IMAGES
-
         try:
-            if not is_cloud_image:
+            if not self.is_cloud_image:
                 await self._ensure_image_is_pulled()
-            elif is_public_image:
+            elif self.is_public_image:
                 auth = await self._batch_worker_access_token()
                 await self._ensure_image_is_pulled(auth=auth)
+            elif self.image_ref_str == BATCH_WORKER_IMAGE and isinstance(self.credentials, JVMUserCredentials):
+                pass
             else:
                 # Pull to verify this user has access to this
                 # image.
@@ -1954,6 +1961,10 @@ def scoped_ensure_future(coro_or_future, *, loop=None) -> Iterator[asyncio.Futur
         fut.cancel()
 
 
+class JVMUserCredentials:
+    pass
+
+
 class JVMContainer:
     @staticmethod
     async def create_and_start(
@@ -2017,7 +2028,7 @@ class JVMContainer:
         c = Container(
             fs=fs,
             name=f'jvm-{index}',
-            image=Image(BATCH_WORKER_IMAGE, None, client_session, pool),
+            image=Image(BATCH_WORKER_IMAGE, JVMUserCredentials(), client_session, pool),
             scratch_dir=f'{root_dir}/container',
             command=command,
             cpu_in_mcpu=1000,
@@ -2315,7 +2326,7 @@ class Worker:
         try:
             with ExitStack() as cleanup:
                 for jvm in self._jvms:
-                    cleanup.callback(jvm.close)
+                    cleanup.callback(jvm.kill)
         finally:
             try:
                 self.task_manager.shutdown()
