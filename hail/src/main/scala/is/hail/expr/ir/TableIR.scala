@@ -1233,7 +1233,19 @@ case class TableFromBlockMatrixNativeReader(params: TableFromBlockMatrixNativeRe
     val tableOfBlocks = LowerBlockMatrixIR.lowerToTableStage(BlockMatrixRead(BlockMatrixNativeReader(ctx.fs, params.path)), ???, ctx, ???, ???)
     val branchFactor = 4
 
-    tableOfBlocks
+    tableOfBlocks.mapPartition(None)(part => flatMapIR(part){ element =>
+      // Part ought to be a blockRow, blockCol, block struct.
+      bindIR(GetField(element, "blockRow")) { blockRow =>
+        bindIR(GetField(element, "blockCol")) { blockCol =>
+          bindIR(GetField(element, "block")) { block =>
+            bindIR(NDArraySlice(block, ???)) { slice =>
+              /// Take the slices, renumber them. 
+              ???
+            }
+          }
+        }
+      }
+    })
 
     // Step 1: Split all blocks vertically into chunks we can fit in memory.
 
