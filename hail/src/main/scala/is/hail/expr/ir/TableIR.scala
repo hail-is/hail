@@ -1231,16 +1231,19 @@ case class TableFromBlockMatrixNativeReader(params: TableFromBlockMatrixNativeRe
   override def lower(ctx: ExecuteContext, requestedType: TableType): TableStage =  {
 
     val tableOfBlocks = LowerBlockMatrixIR.lowerToTableStage(BlockMatrixRead(BlockMatrixNativeReader(ctx.fs, params.path)), ???, ctx, ???, ???)
-    val branchFactor = 4
+    val sliceSize = 4
 
+    val rowReq = ???
+    val tableOfBlocksByRow = ctx.backend.lowerDistributedSort(ctx, tableOfBlocks, sortFields = IndexedSeq(SortField("blockRow", Ascending)), Map(), rowReq)
     tableOfBlocks.mapPartition(None)(part => flatMapIR(part){ element =>
       // Part ought to be a blockRow, blockCol, block struct.
       bindIR(GetField(element, "blockRow")) { blockRow =>
         bindIR(GetField(element, "blockCol")) { blockCol =>
           bindIR(GetField(element, "block")) { block =>
-            bindIR(NDArraySlice(block, ???)) { slice =>
-              /// Take the slices, renumber them. 
-              ???
+            bindIR(NDArrayShape(block)) { shapeTuple =>
+              bindIR(GetTupleElement(shapeTuple, 0)) { numRowsInBlock =>
+                
+              }
             }
           }
         }
