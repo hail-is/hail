@@ -58,7 +58,7 @@ object PruneDeadFields {
           }
         case (t1: TTuple, t2: TTuple) =>
           var idx = -1
-          t1.fields.forall { f =>
+          t1._types.forall { f =>
             val t2field = t2.fields(t2.fieldIndex(f.index))
             if (t2field.index > idx) {
               idx = t2field.index
