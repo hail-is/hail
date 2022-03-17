@@ -856,7 +856,7 @@ class Container:
 
                     await asyncio.wait_for(wait_for_pid_file(), timeout=30)
 
-                    with open(pid_file, 'r') as f:
+                    with open(pid_file, 'rt') as f:
                         self.pid = int(f.read())
 
                     await self.process.wait()
@@ -1805,7 +1805,7 @@ class JVMJob(Job):
 
             try:
                 with self.step('connecting_to_jvm'):
-                    self.jvm = await self.run_until_done_or_deleted(self.worker.borrow_jvm)
+                    self.jvm = await self.worker.borrow_jvm()
                     self.jvm_name = str(self.jvm)
 
                 self.task_manager.ensure_future(self.worker.post_job_started(self))
@@ -1826,7 +1826,7 @@ class JVMJob(Job):
 
                 log.info(f'{self}: downloading JAR')
                 with self.step('downloading_jar'):
-                    local_jar_location = await self.run_until_done_or_deleted(self.download_jar)
+                    local_jar_location = await self.download_jar()
 
                 log.info(f'{self}: running jvm process')
                 with self.step('running'):
@@ -2300,7 +2300,7 @@ class Worker:
     async def borrow_jvm(self) -> JVM:
         if instance_config.worker_type() not in ('standard', 'D'):
             raise ValueError(f'JVM jobs not allowed on {instance_config.worker_type()}')
-        await asyncio.shield(self._jvm_initializer_task)
+        await self._jvm_initializer_task
         assert self._jvms
         return self._jvms.pop()
 
