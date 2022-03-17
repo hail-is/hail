@@ -303,5 +303,5 @@ class Tests(unittest.TestCase):
         assert not fs.exists(subdir1subdir3)
         assert not fs.exists(f'{subdir1subdir3}a')
 
-    def test_test_remove_and_rmtree_local(self):
-        self.test_remove(self.local_dir)
+    def test_remove_and_rmtree_local(self):
+        self.test_remove_and_rmtree(self.local_dir)
