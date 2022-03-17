@@ -10,7 +10,7 @@ from hail.utils import hadoop_open, hadoop_copy
 from hail.fs.local_fs import LocalFS
 from hailtop.utils import secret_alnum_string
 from hailtop.config import get_remote_tmpdir
-from python.hail.utils.java import FatalError
+from hail.utils.java import FatalError
 from ..helpers import startTestHailContext, stopTestHailContext, _initialized
 
 
