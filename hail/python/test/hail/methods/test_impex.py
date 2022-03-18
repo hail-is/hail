@@ -575,6 +575,11 @@ class VCFTests(unittest.TestCase):
         concat_files(nf, shard_paths)
         assert hl.import_vcf(nf)._same(mt)
 
+    @fails_service_backend()
+    def test_custom_rg_import(self):
+        rg = hl.ReferenceGenome.read(resource('deid_ref_genome.json'))
+        mt = hl.import_vcf(resource('custom_rg.vcf'), reference_genome=rg)
+        assert mt.locus.collect() == [hl.Locus('D', 123, reference_genome=rg)]
 
     @fails_service_backend()
     @fails_local_backend()
