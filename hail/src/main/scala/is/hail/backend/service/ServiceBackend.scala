@@ -6,7 +6,7 @@ import java.net._
 import java.nio.charset.StandardCharsets
 import java.util.concurrent._
 
-import is.hail.{HAIL_REVISION, HailContext}
+import is.hail.{HAIL_REVISION, HailContext, HailFeatureFlags}
 import is.hail.annotations._
 import is.hail.asm4s._
 import is.hail.backend.{Backend, BackendContext, BroadcastValue, ExecuteContext, HailTaskContext}
@@ -79,12 +79,6 @@ class ServiceBackend(
   def addUser(username: String, key: String): Unit = synchronized {
     val previous = users.put(username, new User(username, "/tmp", new GoogleStorageFS(Some(key))))
     assert(previous == null)
-  }
-
-  def userContext[T](username: String, timer: ExecutionTimer, theHailClassLoader: HailClassLoader)(f: (ExecuteContext) => T): T = {
-    val user = users.get(username)
-    assert(user != null, username)
-    ExecuteContext.scoped(user.tmpdir, "file:///tmp", this, user.fs, timer, null, theHailClassLoader)(f)
   }
 
   def defaultParallelism: Int = 10
@@ -220,13 +214,15 @@ class ServiceBackend(
     sessionId: String,
     billingProject: String,
     remoteTmpDir: String,
-    s: String
+    s: String,
+    flags: mutable.Map[String, String]
   ): String = serviceBackendExecuteContext(
     "ServiceBackend.valueType",
     tmpdir,
     sessionId,
     billingProject,
-    remoteTmpDir
+    remoteTmpDir,
+    flags
   ) { ctx =>
     val x = IRParser.parse_value_ir(ctx, s)
     x.typ.toString
@@ -237,13 +233,15 @@ class ServiceBackend(
     sessionId: String,
     billingProject: String,
     remoteTmpDir: String,
-    s: String
+    s: String,
+    flags: mutable.Map[String, String]
   ): String = serviceBackendExecuteContext(
     "ServiceBackend.tableType",
     tmpdir,
     sessionId,
     billingProject,
-    remoteTmpDir
+    remoteTmpDir,
+    flags
   ) { ctx =>
     val x = IRParser.parse_table_ir(ctx, s)
     val t = x.typ
@@ -258,13 +256,15 @@ class ServiceBackend(
     sessionId: String,
     billingProject: String,
     remoteTmpDir: String,
-    s: String
+    s: String,
+    flags: mutable.Map[String, String]
   ): String = serviceBackendExecuteContext(
     "ServiceBackend.matrixTableType",
     tmpdir,
     sessionId,
     billingProject,
-    remoteTmpDir
+    remoteTmpDir,
+    flags
   ) { ctx =>
     val x = IRParser.parse_matrix_ir(ctx, s)
     val t = x.typ
@@ -282,13 +282,15 @@ class ServiceBackend(
     sessionId: String,
     billingProject: String,
     remoteTmpDir: String,
-    s: String
+    s: String,
+    flags: mutable.Map[String, String]
   ): String = serviceBackendExecuteContext(
     "ServiceBackend.blockMatrixType",
     tmpdir,
     sessionId,
     billingProject,
-    remoteTmpDir
+    remoteTmpDir,
+    flags
   ) { ctx =>
     val x = IRParser.parse_blockmatrix_ir(ctx, s)
     val t = x.typ
@@ -304,13 +306,15 @@ class ServiceBackend(
     sessionId: String,
     billingProject: String,
     remoteTmpDir: String,
-    name: String
+    name: String,
+    flags: mutable.Map[String, String]
   ): String = serviceBackendExecuteContext(
     "ServiceBackend.referenceGenome",
     tmpdir,
     sessionId,
     billingProject,
-    remoteTmpDir
+    remoteTmpDir,
+    flags
   ) { ctx =>
     ReferenceGenome.getReference(name).toJSONString
   }
@@ -346,13 +350,15 @@ class ServiceBackend(
     billingProject: String,
     remoteTmpDir: String,
     code: String,
-    token: String
+    token: String,
+    flags: mutable.Map[String, String]
   ): String = serviceBackendExecuteContext(
     "ServiceBackend.execute",
     tmpdir,
     sessionId,
     billingProject,
-    remoteTmpDir
+    remoteTmpDir,
+    flags
   ) { ctx =>
     log.info(s"executing: ${token}")
 
@@ -390,13 +396,15 @@ class ServiceBackend(
     sessionId: String,
     billingProject: String,
     remoteTmpDir: String,
-    path: String
+    path: String,
+    flags: mutable.Map[String, String]
   ): String = serviceBackendExecuteContext(
     "ServiceBackend.loadReferencesFromDataset",
     tmpdir,
     sessionId,
     billingProject,
-    remoteTmpDir
+    remoteTmpDir,
+    flags
   ) { ctx =>
     ReferenceGenome.fromHailDataset(ctx.fs, path)
   }
@@ -407,12 +415,14 @@ class ServiceBackend(
     billingProject: String,
     remoteTmpDir: String,
     path: String,
+    flags: mutable.Map[String, String]
   ): String = serviceBackendExecuteContext(
     "ServiceBackend.parseVCFMetadata",
     tmpdir,
     sessionId,
     billingProject,
-    remoteTmpDir
+    remoteTmpDir,
+    flags
   ) { ctx =>
     val metadata = LoadVCF.parseHeaderMetadata(ctx.fs, Set.empty, TFloat64, path)
     implicit val formats = defaultJSONFormats
@@ -463,14 +473,24 @@ class ServiceBackend(
     tmpdir: String,
     sessionId: String,
     billingProject: String,
-    remoteTmpDir: String
+    remoteTmpDir: String,
+    flags: mutable.Map[String, String]
   )(body: ExecuteContext => T): T = ExecutionTimer.logTime(methodName) { timer =>
     val fs = retryTransientErrors {
       using(new FileInputStream(s"$scratchDir/secrets/gsa-key/key.json")) { is =>
         new GoogleStorageFS(Some(IOUtils.toString(is, Charset.defaultCharset().toString()))).asCacheable()
       }
     }
-    ExecuteContext.scoped(tmpdir, "file:///tmp", this, fs, timer, null, theHailClassLoader) { ctx =>
+    ExecuteContext.scoped(
+      tmpdir,
+      "file:///tmp",
+      this,
+      fs,
+      timer,
+      null,
+      theHailClassLoader,
+      HailFeatureFlags.fromMap(flags)
+    ) { ctx =>
       ctx.backendContext = new ServiceBackendContext(sessionId, billingProject, remoteTmpDir)
       body(ctx)
     }
@@ -609,6 +629,14 @@ class ServiceBackendSocketAPI2(
   def writeString(s: String): Unit = writeBytes(s.getBytes(StandardCharsets.UTF_8))
 
   def executeOneCommand(): Unit = {
+    var nFlagsRemaining = readInt()
+    val flags = mutable.Map[String, String]()
+    while (nFlagsRemaining > 0) {
+      val flagName = readString()
+      val flagValue = readString()
+      flags.update(flagName, flagValue)
+      nFlagsRemaining -= 1
+    }
     val cmd = readInt()
 
     (cmd: @switch) match {
@@ -618,7 +646,7 @@ class ServiceBackendSocketAPI2(
         val remoteTmpDir = readString()
         val path = readString()
         try {
-          val result = backend.loadReferencesFromDataset(tmpdir, sessionId, billingProject, remoteTmpDir, path)
+          val result = backend.loadReferencesFromDataset(tmpdir, sessionId, billingProject, remoteTmpDir, path, flags)
           writeBool(true)
           writeString(result)
         } catch {
@@ -633,7 +661,7 @@ class ServiceBackendSocketAPI2(
         val remoteTmpDir = readString()
         val s = readString()
         try {
-          val result = backend.valueType(tmpdir, sessionId, billingProject, remoteTmpDir, s)
+          val result = backend.valueType(tmpdir, sessionId, billingProject, remoteTmpDir, s, flags)
           writeBool(true)
           writeString(result)
         } catch {
@@ -648,7 +676,7 @@ class ServiceBackendSocketAPI2(
         val remoteTmpDir = readString()
         val s = readString()
         try {
-          val result = backend.tableType(tmpdir, sessionId, billingProject, remoteTmpDir, s)
+          val result = backend.tableType(tmpdir, sessionId, billingProject, remoteTmpDir, s, flags)
           writeBool(true)
           writeString(result)
         } catch {
@@ -663,7 +691,7 @@ class ServiceBackendSocketAPI2(
         val remoteTmpDir = readString()
         val s = readString()
         try {
-          val result = backend.matrixTableType(tmpdir, sessionId, billingProject, remoteTmpDir, s)
+          val result = backend.matrixTableType(tmpdir, sessionId, billingProject, remoteTmpDir, s, flags)
           writeBool(true)
           writeString(result)
         } catch {
@@ -678,7 +706,7 @@ class ServiceBackendSocketAPI2(
         val remoteTmpDir = readString()
         val s = readString()
         try {
-          val result = backend.blockMatrixType(tmpdir, sessionId, billingProject, remoteTmpDir, s)
+          val result = backend.blockMatrixType(tmpdir, sessionId, billingProject, remoteTmpDir, s, flags)
           writeBool(true)
           writeString(result)
         } catch {
@@ -693,7 +721,7 @@ class ServiceBackendSocketAPI2(
         val remoteTmpDir = readString()
         val name = readString()
         try {
-          val result = backend.referenceGenome(tmpdir, sessionId, billingProject, remoteTmpDir, name)
+          val result = backend.referenceGenome(tmpdir, sessionId, billingProject, remoteTmpDir, name, flags)
           writeBool(true)
           writeString(result)
         } catch {
@@ -709,7 +737,7 @@ class ServiceBackendSocketAPI2(
         val code = readString()
         val token = readString()
         try {
-          val result = backend.execute(tmpdir, sessionId, billingProject, remoteTmpDir, code, token)
+          val result = backend.execute(tmpdir, sessionId, billingProject, remoteTmpDir, code, token, flags)
           writeBool(true)
           writeString(result)
         } catch {
@@ -724,7 +752,7 @@ class ServiceBackendSocketAPI2(
         val remoteTmpDir = readString()
         val path = readString()
         try {
-          val result = backend.parseVCFMetadata(tmpdir, sessionId, billingProject, remoteTmpDir, path)
+          val result = backend.parseVCFMetadata(tmpdir, sessionId, billingProject, remoteTmpDir, path, flags)
           writeBool(true)
           writeString(result)
         } catch {

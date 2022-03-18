@@ -13,7 +13,7 @@ object LowerOrInterpretNonCompilable {
 
     def evaluate(value: IR): IR = {
       val preTime = System.nanoTime()
-      val result = CanLowerEfficiently(value) match {
+      val result = CanLowerEfficiently(ctx, value) match {
         case Some(failReason) =>
           log.info(s"LowerOrInterpretNonCompilable: cannot efficiently lower query: $failReason")
           log.info(s"interpreting non-compilable result: ${ value.getClass.getSimpleName }")

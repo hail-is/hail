@@ -1,5 +1,6 @@
 package is.hail.expr.ir
 
+import is.hail.backend.ExecuteContext
 import is.hail.annotations.IntervalEndpointOrdering
 import is.hail.types.virtual._
 import is.hail.utils.{FastSeq, Interval, IntervalEndpoint, _}
@@ -273,7 +274,7 @@ object ExtractIntervalFilters {
       extractAndRewrite(cond, ExtractionState(ref, key))
   }
 
-  def apply(ir0: BaseIR): BaseIR = {
+  def apply(ctx: ExecuteContext, ir0: BaseIR): BaseIR = {
     MapIR.mapBaseIR(ir0, (ir: BaseIR) => {
       (ir match {
         case TableFilter(child, pred) =>
@@ -281,8 +282,8 @@ object ExtractIntervalFilters {
             .map { case (newCond, intervals) =>
               log.info(s"generated TableFilterIntervals node with ${ intervals.length } intervals:\n  " +
                 s"Intervals: ${ intervals.mkString(", ") }\n  " +
-                s"Predicate: ${ Pretty(pred) }\n " +
-                s"Post: ${ Pretty(newCond) }")
+                s"Predicate: ${ Pretty(ctx, pred) }\n " +
+                s"Post: ${ Pretty(ctx, newCond) }")
               TableFilter(
                 TableFilterIntervals(child, intervals, keep = true),
                 newCond)
@@ -292,8 +293,8 @@ object ExtractIntervalFilters {
             .map { case (newCond, intervals) =>
               log.info(s"generated MatrixFilterIntervals node with ${ intervals.length } intervals:\n  " +
                 s"Intervals: ${ intervals.mkString(", ") }\n  " +
-                s"Predicate: ${ Pretty(pred) }\n " +
-                s"Post: ${ Pretty(newCond) }")
+                s"Predicate: ${ Pretty(ctx, pred) }\n " +
+                s"Post: ${ Pretty(ctx, newCond) }")
               MatrixFilterRows(
                 MatrixFilterIntervals(child, intervals, keep = true),
                 newCond)

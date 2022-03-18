@@ -1,3 +1,4 @@
+from typing import Mapping
 import abc
 from ..fs.fs import FS
 from ..expr import Expression
@@ -126,4 +127,14 @@ class Backend(abc.ABC):
 
     @abc.abstractmethod
     def persist_expression(self, expr: Expression) -> Expression:
+        pass
+
+    @abc.abstractmethod
+    def set_flags(self, **flags: Mapping[str, str]):
+        """Set Hail flags."""
+        pass
+
+    @abc.abstractmethod
+    def get_flags(self, *flags) -> Mapping[str, str]:
+        """Mapping of Hail flags."""
         pass

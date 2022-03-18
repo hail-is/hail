@@ -77,8 +77,10 @@ class TableStage(
   // useful for debugging, but should be disabled in production code due to N^2 complexity
   // typecheckPartition()
 
-  def typecheckPartition(): Unit = {
-    TypeCheck(partitionIR,
+  def typecheckPartition(ctx: ExecuteContext): Unit = {
+    TypeCheck(
+      ctx,
+      partitionIR,
       BindingEnv(Env[Type](((letBindings ++ broadcastVals).map { case (s, x) => (s, x.typ) })
         ++ FastIndexedSeq[(String, Type)]((ctxRefName, contexts.typ.asInstanceOf[TStream].elementType)): _*)))
 
@@ -606,7 +608,7 @@ object LowerTableIR {
         writer.lower(ctx, lower(child), child, coerce[RTable](analyses.requirednessAnalysis.lookup(child)), relationalLetsAbove)
 
       case node if node.children.exists(_.isInstanceOf[TableIR]) =>
-        throw new LowererUnsupportedOperation(s"IR nodes with TableIR children must be defined explicitly: \n${ Pretty(node) }")
+        throw new LowererUnsupportedOperation(s"IR nodes with TableIR children must be defined explicitly: \n${ Pretty(ctx, node) }")
     }
     lowered
   }
@@ -1562,7 +1564,7 @@ object LowerTableIR {
         ctx.backend.lowerDistributedSort(ctx, entriesUnkeyed, IndexedSeq(SortField("i", Ascending), SortField("j", Ascending)), relationalLetsAbove, rowR)
 
       case node =>
-        throw new LowererUnsupportedOperation(s"undefined: \n${ Pretty(node) }")
+        throw new LowererUnsupportedOperation(s"undefined: \n${ Pretty(ctx, node) }")
     }
 
     assert(tir.typ.globalType == lowered.globalType, s"\n  ir global: ${tir.typ.globalType}\n  lowered global: ${lowered.globalType}")

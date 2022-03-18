@@ -436,17 +436,17 @@ class RequirednessSuite extends HailSuite {
     valueIR().map(v => v(0) -> v(1)).foreach {
       case (n: IR, t: PType) =>
       if (n.typ != t.virtualType)
-        s += s"${ n.typ } != ${ t.virtualType }: \n${ Pretty(n) }"
+        s += s"${ n.typ } != ${ t.virtualType }: \n${ Pretty(ctx, n) }"
       case (n: IR, et: EmitType) =>
         if (n.typ != et.virtualType)
-          s += s"${ n.typ } != ${ et.virtualType }: \n${ Pretty(n) }"
+          s += s"${ n.typ } != ${ et.virtualType }: \n${ Pretty(ctx, n) }"
     }
     tableIR().map(v => (v(0), v(1), v(2))).foreach { case (n: TableIR, row: PType, global: PType) =>
       if (n.typ.rowType != row.virtualType || n.typ.globalType != global.virtualType )
         s +=
           s"""row: ${ n.typ.rowType } vs ${ row.virtualType }
              |global: ${ n.typ.globalType } vs ${ global.virtualType }:
-             |${ Pretty(n) }"
+             |${ Pretty(ctx, n) }"
              |""".stripMargin
     }
     assert(s.size == 0, s.result().mkString("\n\n"))
@@ -454,20 +454,20 @@ class RequirednessSuite extends HailSuite {
 
   def /**/dump(m: Memo[BaseTypeWithRequiredness]): String = {
     m.m.map { case (node, t) =>
-        s"${Pretty(node.t)}: \n$t"
+        s"${Pretty(ctx, node.t)}: \n$t"
     }.mkString("\n\n")
   }
 
   @Test(dataProvider = "valueIR")
   def testRequiredness(node: IR, expected: Any): Unit = {
-    TypeCheck(node)
+    TypeCheck(ctx, node)
     val et = expected match {
       case pt: PType => EmitType(pt.sType, pt.required)
       case et: EmitType => et
     }
     val res = Requiredness.apply(node, ctx)
     val actual = res.r.lookup(node).asInstanceOf[TypeWithRequiredness]
-    assert(actual.canonicalEmitType(node.typ) == et, s"\n\n${Pretty(node)}: \n$actual\n\n${ dump(res.r) }")
+    assert(actual.canonicalEmitType(node.typ) == et, s"\n\n${Pretty(ctx, node)}: \n$actual\n\n${ dump(res.r) }")
   }
 
   @Test def sharedNodesWorkCorrectly(): Unit = {
@@ -485,8 +485,8 @@ class RequirednessSuite extends HailSuite {
   def testTableRequiredness(node: TableIR, row: PType, global: PType): Unit = {
     val res = Requiredness.apply(node, ctx)
     val actual = res.r.lookup(node).asInstanceOf[RTable]
-    assert(actual.rowType.canonicalPType(node.typ.rowType) == row, s"\n\n${Pretty(node)}: \n$actual\n\n${ dump(res.r) }")
-    assert(actual.globalType.canonicalPType(node.typ.globalType) == global, s"\n\n${Pretty(node)}: \n$actual\n\n${ dump(res.r) }")
+    assert(actual.rowType.canonicalPType(node.typ.rowType) == row, s"\n\n${Pretty(ctx, node)}: \n$actual\n\n${ dump(res.r) }")
+    assert(actual.globalType.canonicalPType(node.typ.globalType) == global, s"\n\n${Pretty(ctx, node)}: \n$actual\n\n${ dump(res.r) }")
   }
 
   @Test def testTableReader() {
@@ -512,8 +512,8 @@ class RequirednessSuite extends HailSuite {
       val node = TableRead(rType, dropRows = false, reader)
       val res = Requiredness.apply(node, ctx)
       val actual = res.r.lookup(node).asInstanceOf[RTable]
-      assert(actual.rowType.canonicalPType(node.typ.rowType) == row, s"\n\n${ Pretty(node) }: \n$actual\n\n${ dump(res.r) }")
-      assert(actual.globalType.canonicalPType(node.typ.globalType) == global, s"\n\n${ Pretty(node) }: \n$actual\n\n${ dump(res.r) }")
+      assert(actual.rowType.canonicalPType(node.typ.rowType) == row, s"\n\n${ Pretty(ctx, node) }: \n$actual\n\n${ dump(res.r) }")
+      assert(actual.globalType.canonicalPType(node.typ.globalType) == global, s"\n\n${ Pretty(ctx, node) }: \n$actual\n\n${ dump(res.r) }")
     }
   }
 

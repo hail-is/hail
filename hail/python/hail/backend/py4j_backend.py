@@ -1,3 +1,4 @@
+from typing import Mapping
 import abc
 
 import py4j
@@ -41,7 +42,7 @@ def handle_java_exception(f):
 
 
 class Py4JBackend(Backend):
-    _jhc: py4j.java_gateway.JavaObject
+    _jbackend: py4j.java_gateway.JavaObject
 
     @abc.abstractmethod
     def __init__(self):
@@ -91,7 +92,7 @@ class Py4JBackend(Backend):
         stream_codec = '{"name":"StreamBufferSpec"}'
         # print(self._hail_package.expr.ir.Pretty.apply(jir, True, -1))
         try:
-            result_tuple = self._jhc.backend().executeEncode(jir, stream_codec)
+            result_tuple = self._jbackend.executeEncode(jir, stream_codec)
             (result, timings) = (result_tuple._1(), result_tuple._2())
             value = ir.typ._from_encoding(result)
 
@@ -131,6 +132,21 @@ class Py4JBackend(Backend):
 
     def persist_expression(self, expr):
         return construct_expr(
-            JavaIR(self._jhc.backend().executeLiteral(self._to_java_value_ir(expr._ir))),
+            JavaIR(self._jbackend.executeLiteral(self._to_java_value_ir(expr._ir))),
             expr.dtype
         )
+
+    def set_flags(self, **flags: Mapping[str, str]):
+        available = self._jbackend.availableFlags()
+        invalid = []
+        for flag, value in flags.items():
+            if flag in available:
+                self._jbackend.setFlag(flag, value)
+            else:
+                invalid.append(flag)
+        if len(invalid) != 0:
+            raise FatalError("Flags {} not valid. Valid flags: \n    {}"
+                             .format(', '.join(invalid), '\n    '.join(available)))
+
+    def get_flags(self, *flags) -> Mapping[str, str]:
+        return {flag: self._jbackend.getFlag(flag) for flag in flags}

@@ -610,7 +610,6 @@ class Tests(unittest.TestCase):
                                               None]),
         ]
 
-    @fails_service_backend(reason='service backend needs to support flags')
     @with_flags('distributed_scan_comb_op')
     def test_densify_table(self):
         ht = hl.utils.range_table(100, n_partitions=33)

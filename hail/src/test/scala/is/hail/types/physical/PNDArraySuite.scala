@@ -59,7 +59,7 @@ class PNDArraySuite extends PhysicalTestUtils {
         throw e
     }
 
-    val f = fb.result()(theHailClassLoader)
+    val f = fb.result(ctx)(theHailClassLoader)
     val result1 = f(region1, region2, region3)
     val result1Data = nd.unstagedDataFirstElementPointer(result1)
 
