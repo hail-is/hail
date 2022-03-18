@@ -6,6 +6,7 @@ from hail.context import get_reference
 from .utils import categorical_strings_to_colors, continuous_nums_to_colors
 
 import plotly.express as px
+import plotly
 
 
 class Scale(FigureAttribute):
@@ -16,7 +17,7 @@ class Scale(FigureAttribute):
     def transform_data(self, field_expr):
         pass
 
-    def create_local_transformer(self, groups_of_dfs, parent):
+    def create_local_transformer(self, groups_of_dfs):
         return lambda x: x
 
     @abc.abstractmethod
@@ -155,7 +156,7 @@ class ScaleColorManual(ScaleDiscrete):
         super().__init__(aesthetic_name)
         self.values = values
 
-    def create_local_transformer(self, groups_of_dfs, parent):
+    def create_local_transformer(self, groups_of_dfs):
         categorical_strings = set()
         for group_of_dfs in groups_of_dfs:
             for df in group_of_dfs:
@@ -174,7 +175,7 @@ class ScaleColorManual(ScaleDiscrete):
 
 class ScaleColorContinuous(ScaleContinuous):
 
-    def create_local_transformer(self, groups_of_dfs, parent):
+    def create_local_transformer(self, groups_of_dfs):
         overall_min = None
         overall_max = None
         for group_of_dfs in groups_of_dfs:
@@ -193,7 +194,7 @@ class ScaleColorContinuous(ScaleContinuous):
                     else:
                         overall_max = max(series_max, overall_max)
 
-        color_mapping = continuous_nums_to_colors(overall_min, overall_max, parent.continuous_color_scale)
+        color_mapping = continuous_nums_to_colors(overall_min, overall_max, plotly.colors.sequential.Viridis)
 
         def transform(df):
             df[self.aesthetic_name] = df[self.aesthetic_name].map(lambda i: color_mapping(i))
@@ -203,7 +204,7 @@ class ScaleColorContinuous(ScaleContinuous):
 
 
 class ScaleColorHue(ScaleDiscrete):
-    def create_local_transformer(self, groups_of_dfs, parent):
+    def create_local_transformer(self, groups_of_dfs):
         categorical_strings = set()
         for group_of_dfs in groups_of_dfs:
             for df in group_of_dfs:

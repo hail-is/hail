@@ -81,4 +81,10 @@ def test_default_scale_no_repeat_colors():
 
 
 def test_scale_color_manual():
-    ...
+    num_rows = 4
+    colors = set(["red", "blue"])
+    ht = hl.utils.range_table(num_rows)
+    fig = ggplot(ht, aes(x=ht.idx, y=ht.idx, color=hl.str(ht.idx % 2))) + geom_point() + scale_color_manual(values=list(colors))
+    pfig = fig.to_plotly()
+
+    assert set([scatter.marker.color for scatter in pfig.data]) == colors
