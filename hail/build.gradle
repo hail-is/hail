@@ -202,6 +202,9 @@ dependencies {
     bundled group: 'org.freemarker', name: 'freemarker', version: '2.3.14'
 
     bundled 'com.kohlschutter.junixsocket:junixsocket-core:2.3.2'
+
+    bundled 'com.azure:azure-storage-blob:12.13.0'
+    bundled 'com.azure:azure-identity:1.2.1'
 }
 
 task(checkSettings) doLast {
