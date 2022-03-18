@@ -253,11 +253,13 @@ class Tests(unittest.TestCase):
         touch(f'{subdir1subdir3}a')
 
         try:
-            fs.remove(f'{subdir1subdir2}')
+            fs.remove(subdir1subdir2)
         except (FileNotFoundError, IsADirectoryError):
             pass
         except FatalError as err:
-            assert 'DirectoryNotEmptyException: Cannot delete a non-empty directory' in err.args[0]
+            java_nio_error_message = 'DirectoryNotEmptyException: Cannot delete a non-empty directory'
+            hadoop_error_message = f'Directory {subdir1subdir2} is not empty'
+            assert java_nio_error_message in err.args[0] or hadoop_error_message in err.args[0]
         else:
             assert False
 
