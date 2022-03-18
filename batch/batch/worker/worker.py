@@ -789,10 +789,7 @@ class Container:
             try:
                 self.image.release()
             finally:
-                try:
-                    await self.fs.rmtree(None, self.container_scratch)
-                finally:
-                    self._cleaned_up = True
+                self._cleaned_up = True
 
     async def remove(self):
         self.deleted_event.set()
@@ -863,7 +860,7 @@ class Container:
 
                     await asyncio.wait_for(wait_for_pid_file(), timeout=30)
 
-                    with open(pid_file, 'rt') as f:
+                    with open(pid_file, 'r') as f:  # pylint: disable=unspecified-encoding
                         self.pid = int(f.read())
 
                     await self.process.wait()
