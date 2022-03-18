@@ -239,7 +239,7 @@ class RouterFS(FS):
         return async_to_blocking(self.afs.mkdir(path))
 
     def remove(self, path: str):
-        return async_to_blocking(self.remove(path))
+        return async_to_blocking(self.afs.remove(path))
 
     def rmtree(self, path: str):
         return async_to_blocking(self.afs.rmtree(None, path))
