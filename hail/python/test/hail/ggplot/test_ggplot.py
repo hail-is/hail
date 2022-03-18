@@ -78,3 +78,7 @@ def test_default_scale_no_repeat_colors():
     scatter_colors = [scatter['marker']['color'] for scatter in pfig['data']]
     num_unique_colors = len(set(scatter_colors))
     assert num_unique_colors == num_rows
+
+
+def test_scale_color_manual():
+    ...

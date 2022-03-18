@@ -151,7 +151,8 @@ class ScaleDiscrete(Scale):
 
 class ScaleColorManual(ScaleDiscrete):
 
-    def __init__(self, values):
+    def __init__(self, aesthetic_name, values):
+        super().__init__(aesthetic_name)
         self.values = values
 
     def create_local_transformer(self, groups_of_dfs, parent):
@@ -396,7 +397,7 @@ def scale_x_genomic(reference_genome, name=None):
 
 
 def scale_color_discrete():
-    """The default discrete color scale. This maps each discrete value to a color.
+    """The default discrete color scale. This maps each discrete value to a color. Equivalent to scale_color_hue.
 
     Returns
     -------
@@ -407,6 +408,14 @@ def scale_color_discrete():
 
 
 def scale_color_hue():
+    """Map discrete colors to evenly placed positions around the color wheel.
+
+    Returns
+    -------
+    :class:`.FigureAttribute`
+        The scale to be applied.
+
+    """
     return ScaleColorHue("color")
 
 
@@ -430,6 +439,23 @@ def scale_color_identity():
         The scale to be applied.
     """
     return ScaleColorDiscreteIdentity("color")
+
+
+def scale_color_manual(*, values):
+    """A color scale that assigns strings to colors using the pool of colors specified as `values`.
+
+
+    Parameters
+    ----------
+    values: :class:`list` of :class:`str`
+        The colors to choose when assigning values to colors.
+
+    Returns
+    -------
+    :class:`.FigureAttribute`
+        The scale to be applied.
+    """
+    return ScaleColorManual("color", values=values)
 
 
 def scale_fill_discrete():
@@ -466,4 +492,29 @@ def scale_fill_identity():
 
 
 def scale_fill_hue():
+    """Map discrete fill colors to evenly placed positions around the color wheel.
+
+    Returns
+    -------
+    :class:`.FigureAttribute`
+        The scale to be applied.
+
+    """
     return ScaleColorHue("fill")
+
+
+def scale_fill_manual(*, values):
+    """A color scale that assigns strings to fill colors using the pool of colors specified as `values`.
+
+
+    Parameters
+    ----------
+    values: :class:`list` of :class:`str`
+        The colors to choose when assigning values to colors.
+
+    Returns
+    -------
+    :class:`.FigureAttribute`
+        The scale to be applied.
+    """
+    return ScaleColorManual("fill", values=values)
