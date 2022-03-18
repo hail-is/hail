@@ -33,6 +33,7 @@ Release 2022-03-18
 
 - (hail#11614) Update `hail.utils.tutorial.get_movie_lens` to use `https` instead of `http`. Movie
   Lens has stopped serving data over insecure HTTP.
+- (hail#11563) Fix issue [hail-is/hail#11562](https://github.com/hail-is/hail/issues/11562).
 
 ---
 
