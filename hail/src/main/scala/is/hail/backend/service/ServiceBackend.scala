@@ -413,12 +413,14 @@ class ServiceBackend(
     billingProject: String,
     remoteTmpDir: String,
     path: String,
+    flags: mutable.Map[String, String]
   ): String = serviceBackendExecuteContext(
     "ServiceBackend.parseVCFMetadata",
     tmpdir,
     sessionId,
     billingProject,
-    remoteTmpDir
+    remoteTmpDir,
+    flags
   ) { ctx =>
     val metadata = LoadVCF.parseHeaderMetadata(ctx.fs, Set.empty, TFloat64, path)
     implicit val formats = defaultJSONFormats
@@ -704,7 +706,7 @@ class ServiceBackendSocketAPI2(
         val remoteTmpDir = readString()
         val path = readString()
         try {
-          val result = backend.parseVCFMetadata(tmpdir, sessionId, billingProject, remoteTmpDir, path)
+          val result = backend.parseVCFMetadata(tmpdir, sessionId, billingProject, remoteTmpDir, path, flags)
           writeBool(true)
           writeString(result)
         } catch {
