@@ -1,8 +1,11 @@
 import abc
 
 import py4j
+import py4j.java_gateway
 
 import hail
+from hail.expr import construct_expr
+from hail.ir import JavaIR
 from hail.ir.renderer import CSERenderer
 from hail.utils.java import FatalError, Env, HailUserError
 from .backend import Backend
@@ -38,6 +41,7 @@ def handle_java_exception(f):
 
 
 class Py4JBackend(Backend):
+    _jhc: py4j.java_gateway.JavaObject
 
     @abc.abstractmethod
     def __init__(self):
@@ -64,6 +68,10 @@ class Py4JBackend(Backend):
 
     @abc.abstractmethod
     def _parse_value_ir(self, code, ref_map={}, ir_map={}):
+        pass
+
+    @abc.abstractmethod
+    def _to_java_value_ir(self, ir):
         pass
 
     def register_ir_function(self, name, type_parameters, argument_names, argument_types, return_type, body):
@@ -120,3 +128,9 @@ class Py4JBackend(Backend):
 
     async def _async_get_references(self, names):
         raise NotImplementedError('no async available in Py4JBackend')
+
+    def persist_expression(self, expr):
+        return construct_expr(
+            JavaIR(self._jhc.backend().executeLiteral(self._to_java_value_ir(expr._ir))),
+            expr.dtype
+        )

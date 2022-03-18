@@ -8,12 +8,13 @@ import re
 import yaml
 from pathlib import Path
 
-from hail.context import TemporaryDirectory, tmp_dir
+from hail.context import TemporaryDirectory, tmp_dir, TemporaryFilename
 from hail.utils import FatalError
 from hail.expr.types import dtype
 from hail.expr.table_type import ttable
 from hail.expr.matrix_type import tmatrix
 from hail.expr.blockmatrix_type import tblockmatrix
+from hail.experimental import write_expression, read_expression
 from hail.ir.renderer import CSERenderer
 from hail.genetics.reference_genome import ReferenceGenome
 
@@ -505,5 +506,8 @@ class ServiceBackend(Backend):
     def register_ir_function(self, name, type_parameters, argument_names, argument_types, return_type, body):
         raise NotImplementedError("ServiceBackend does not support 'register_ir_function'")
 
-    def persist_ir(self, ir):
-        raise NotImplementedError("ServiceBackend does not support 'persist_ir'")
+    def persist_expression(self, expr):
+        # FIXME: should use context manager to clean up persisted resources
+        fname = TemporaryFilename().name
+        write_expression(expr, fname)
+        return read_expression(fname)

@@ -48,6 +48,13 @@ class PruneSuite extends HailSuite {
     assert(PruneDeadFields.isSupertype(tuple2IntsFirstRemoved, tuple2Ints))
   }
 
+  @Test def testIsSupertypeWithDistinctFieldTypes(): Unit = {
+    val tuple2Ints = TTuple(TInt32, TFloat64)
+    val tuple2IntsFirstRemoved = TTuple(IndexedSeq(TupleField(1, TFloat64)))
+
+    assert(PruneDeadFields.isSupertype(tuple2IntsFirstRemoved, tuple2Ints))
+  }
+
   def checkMemo(ir: BaseIR, requestedType: BaseType, expected: Array[BaseType]) {
     val irCopy = ir.deepCopy()
     assert(PruneDeadFields.isSupertype(requestedType, irCopy.typ),
