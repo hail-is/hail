@@ -1,8 +1,7 @@
 from typing import Optional
 
-import hail.expr.aggregators as agg
-
 import hail as hl
+import hail.expr.aggregators as agg
 from hail.expr import (ArrayNumericExpression, BooleanExpression, CallExpression,
                        Float64Expression, analyze, matrix_table_source)
 from hail.linalg import BlockMatrix
@@ -28,22 +27,6 @@ def _bad_mu(mu: Float64Expression, maf: float) -> BooleanExpression:
         ``True`` if `mu` is not valid for relatedness estimation, else ``False``.
     """
     return (mu <= maf) | (mu >= (1.0 - maf)) | (mu <= 0.0) | (mu >= 1.0)
-
-
-def _bad_gt(gt: Float64Expression) -> BooleanExpression:
-    """Check if genotype value is not valid.
-
-    Parameters
-    ----------
-    gt : :class:`.Float64Expression`
-        Allele count.
-
-    Returns
-    -------
-    :class:`.BooleanExpression`
-        ``True`` if `gt` is not 0, 1, or 2. Else ``False``.
-    """
-    return (gt != 0.0) & (gt != 1.0) & (gt != 2.0)
 
 
 def _gram(M: BlockMatrix) -> BlockMatrix:
@@ -399,8 +382,8 @@ def pc_relate_bm(call_expr: CallExpression,
         A :class:`.Table` mapping pairs of samples to their pair-wise statistics.
     """
     assert (0.0 <= min_individual_maf <= 1.0), \
-        f"invalid argument: min_individual_maf={min_individual_maf}. " \
-        f"Must have min_individual_maf on interval [0.0, 1.0]."
+        f'invalid argument: min_individual_maf={min_individual_maf}. ' \
+        f'Must have min_individual_maf on interval [0.0, 1.0].'
     mt = matrix_table_source('pc_relate_bm/call_expr', call_expr)
 
     if k and scores_expr is None:
@@ -415,118 +398,102 @@ def pc_relate_bm(call_expr: CallExpression,
         raise ValueError("pc_relate_bm: exactly one of 'k' and 'scores_expr' "
                          "must be set, found neither")
 
-    scores_table = mt.select_cols(__scores=scores_expr) \
-        .key_cols_by().select_cols('__scores').cols()
-
+    scores_table = mt.select_cols(__scores=scores_expr).key_cols_by().select_cols('__scores').cols()
     n_missing = scores_table.aggregate(agg.count_where(hl.is_missing(scores_table.__scores)))
     if n_missing > 0:
         raise ValueError(f'Found {n_missing} columns with missing scores array.')
-
-    mt = mt.select_entries(__gt=call_expr.n_alt_alleles()).unfilter_entries()
-    mt = mt.annotate_rows(__mean_gt=agg.mean(mt.__gt))
-    mean_imputed_gt = hl.or_else(hl.float64(mt.__gt), mt.__mean_gt)
-
-    if not block_size:
-        block_size = BlockMatrix.default_block_size()
-
-    g = BlockMatrix.from_entry_expr(mean_imputed_gt, block_size=block_size)
     pc_scores = hl.nd.array(scores_table.collect(_localize=False).map(lambda x: x.__scores))
 
-    # g.shape is (n_variants, n_samples), pc_scores.shape is (n_samples, k)
+    # Define NaN for missing values, otherwise cannot convert expr to block matrix
+    nan = hl.float64(float('NaN'))
+
+    # Create genotype matrix, set missing genotype entries to NaN
+    mt = mt.select_entries(__gt=call_expr.n_alt_alleles()).unfilter_entries()
+    gt_with_nan_expr = hl.or_else(hl.float64(mt.__gt), nan)
+    if not block_size:
+        block_size = BlockMatrix.default_block_size()
+    g = BlockMatrix.from_entry_expr(gt_with_nan_expr, block_size=block_size)
+    g = g.checkpoint(new_temp_file('pc_relate_bm/g', 'bm'))
     sqrt_n_samples = hl.nd.array([hl.sqrt(g.shape[1])])
 
     # Recover singular values, S0, as vector of column norms of pc_scores
     S0 = (pc_scores ** hl.int32(2)).sum(0).map(lambda x: hl.sqrt(x))
-    # We want sqrt(n_samples) as first entry in S, for intercept in beta
+    # Set first entry of S to sqrt(n), for intercept term in beta
     S = hl.nd.hstack((sqrt_n_samples, S0))._persist()
-
     # Recover V from pc_scores with inv(S0)
     V0 = (pc_scores * (1 / S0))._persist()
-    # First column in V needs all entries as 1/sqrt(n_samples), for intercept in beta
+    # Set all entries in first column of V to 1/sqrt(n), for intercept term in beta
     ones_normalized = hl.nd.full((V0.shape[0], 1), (1 / S[0]))
     V = hl.nd.hstack((ones_normalized, V0))
 
-    beta = (BlockMatrix.from_ndarray(((1 / S) * V).T, block_size=block_size) @ g.T) \
-        .checkpoint(new_temp_file("pc_relate_bm/beta", "bm"))
-    mu = (0.5 * (BlockMatrix.from_ndarray(V * S, block_size=block_size) @ beta).T) \
-        .checkpoint(new_temp_file("pc_relate_bm/pre-mu", "bm"))
+    # Compute matrix of regression coefficients for PCs (beta), shape (k, m)
+    beta = BlockMatrix.from_ndarray(((1 / S) * V).T, block_size=block_size) @ g.T
+    beta = beta.checkpoint(new_temp_file('pc_relate_bm/beta', 'bm'))
 
-    # Define NaN to use instead of missing, otherwise cannot go back to block matrix
-    nan = hl.float64(float("NaN"))
+    # Compute matrix of individual-specific AF estimates (mu), shape (m, n)
+    mu = 0.5 * (BlockMatrix.from_ndarray(V * S, block_size=block_size) @ beta).T
+    # Replace entries in mu with NaN if invalid, or if corresponding GT is NaN
+    mu = mu._apply_map2(lambda _mu, _g: hl.if_else(_bad_mu(_mu, min_individual_maf) | hl.is_nan(_g), nan, _mu),
+                        g,
+                        sparsity_strategy='NeedsDense')
+    mu = mu.checkpoint(new_temp_file('pc_relate_bm/mu', 'bm'))
 
-    # Replace bad entries in g and pre_mu with NaNs
-    g = g._map_dense(lambda x: hl.if_else(_bad_gt(x), nan, x)).checkpoint(new_temp_file("pc_relate_bm/g", "bm"))
-    pre_mu = mu._map_dense(lambda x: hl.if_else(_bad_mu(x, min_individual_maf), nan, x))
-
-    # If an entry at an index in either g or pre_mu is NaN, set mu to NaN
-    mu = pre_mu._apply_map2(lambda _mu, _g: hl.if_else(hl.is_nan(_mu) | hl.is_nan(_g), nan, _mu),
-                            g,
-                            sparsity_strategy="NeedsDense").checkpoint(new_temp_file("pc_relate_bm/mu", "bm"))
-
-    variance = _replace_nan(mu * (1.0 - mu), 0.0).checkpoint(new_temp_file("pc_relate_bm/variance", "bm"))
-    std_dev = variance.sqrt()
-
+    # Replace NaNs with 0 to compute kinship matrix (phi), shape (n, n)
+    variance = _replace_nan(mu * (1.0 - mu), 0.0).checkpoint(new_temp_file('pc_relate_bm/variance', 'bm'))
     centered_af = _replace_nan(g - (2.0 * mu), 0.0)
-    phi = (_gram(centered_af) / (4.0 * _gram(std_dev))).checkpoint(new_temp_file("pc_relate_bm/phi", "bm"))
-
+    phi = _gram(centered_af) / (4.0 * _gram(variance.sqrt()))
+    phi = phi.checkpoint(new_temp_file('pc_relate_bm/phi', 'bm'))
     ht = phi.entries().rename({'entry': 'kin'})
     ht = ht.annotate(k0=hl.missing(hl.tfloat64),
                      k1=hl.missing(hl.tfloat64),
                      k2=hl.missing(hl.tfloat64))
 
-    if statistics in ["kin2", "kin20", "all"]:
-        # Inbreeding coefficient
+    if statistics in ['kin2', 'kin20', 'all']:
+        # Compute inbreeding coefficient and dominance encoding of GT matrix
         f_i = ((2.0 * phi.diagonal()) - 1.0)
-
-        # Create dominance encoding of genotype matrix, and normalized dominance encoding matrix
-        gd = g._apply_map2(lambda _g, _mu: _dominance_encoding(_g, _mu),
-                           mu,
-                           sparsity_strategy="NeedsDense")
+        gd = g._apply_map2(lambda _g, _mu: _dominance_encoding(_g, _mu), mu, sparsity_strategy='NeedsDense')
         normalized_gd = gd - (variance * (1.0 + f_i))
 
         # Compute IBD2 (k2) estimate
         k2 = (_gram(normalized_gd) / _gram(variance))
         ht = ht.annotate(k2=k2.entries()[ht.i, ht.j].entry)
 
-        if statistics in ["kin20", "all"]:
-            # Compute IBS0, numerator for IBD0 (k0) estimates
+        if statistics in ['kin20', 'all']:
+            # Get the numerator used in IBD0 (k0) computation (IBS0)
             hom_alt = g._apply_map2(lambda _g, _mu: hl.if_else((_g != 2.0) | hl.is_nan(_mu), 0.0, 1.0),
                                     mu,
-                                    sparsity_strategy="NeedsDense")
+                                    sparsity_strategy='NeedsDense')
             hom_ref = g._apply_map2(lambda _g, _mu: hl.if_else((_g != 0.0) | hl.is_nan(_mu), 0.0, 1.0),
                                     mu,
-                                    sparsity_strategy="NeedsDense")
+                                    sparsity_strategy='NeedsDense')
             ibs0 = _AtB_plus_BtA(hom_alt, hom_ref)
 
-            # Compute denominator for IBD0 (k0) estimates
+            # Get the denominator used in IBD0 (k0) computation
             mu2 = _replace_nan(mu ** 2.0, 0.0)
             one_minus_mu2 = _replace_nan((1.0 - mu) ** 2.0, 0.0)
             k0_denom = _AtB_plus_BtA(mu2, one_minus_mu2)
 
-            # Compute all IBD0 (k0) estimates assuming phi > _k0_cutoff
+            # Compute IBD0 (k0) estimates, correct the estimates where phi <= _k0_cutoff
+            k0 = ibs0 / k0_denom
             _k0_cutoff = 2.0 ** (-5.0 / 2.0)
-            k0 = (ibs0 / k0_denom)
             ht = ht.annotate(k0=k0.entries()[ht.i, ht.j].entry)
-            # Now correct the IBD0 (k0) estimates if phi <= _k0_cutoff
-            ht = ht.annotate(k0=hl.if_else(ht.kin <= _k0_cutoff,
-                                           1.0 - (4.0 * ht.kin) + ht.k2,
-                                           ht.k0))
+            ht = ht.annotate(k0=hl.if_else(ht.kin <= _k0_cutoff, 1.0 - (4.0 * ht.kin) + ht.k2, ht.k0))
 
-            if statistics == "all":
+            if statistics == 'all':
                 ht = ht.annotate(k1=1.0 - (ht.k2 + ht.k0))
 
     # Filter table to only have one row for each distinct pair of samples
     ht = ht.filter(ht.i <= ht.j)
-    ht = ht.rename({"k0": "ibd0", "k1": "ibd1", "k2": "ibd2"})
+    ht = ht.rename({'k0': 'ibd0', 'k1': 'ibd1', 'k2': 'ibd2'})
 
     if min_kinship is not None:
         ht = ht.filter(ht.kin >= min_kinship)
-    if statistics != "all":
+    if statistics != 'all':
         _fields_to_drop = {
-            "kin": ["ibd0", "ibd1", "ibd2"],
-            "kin2": ["ibd0", "ibd1"],
-            "kin20": ["ibd1"]
-        }
+            'kin': ['ibd0', 'ibd1', 'ibd2'],
+            'kin2': ['ibd0', 'ibd1'],
+            'kin20': ['ibd1']
+            }
         ht = ht.drop(*_fields_to_drop[statistics])
     if not include_self_kinship:
         ht = ht.filter(ht.i == ht.j, keep=False)
