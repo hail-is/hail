@@ -19,7 +19,7 @@ resources = {
     'HGDP_annotations': 'https://storage.googleapis.com/hail-tutorial/hgdp/hgdp_pop_and_sex_annotations.tsv',
     'HGDP_matrix_table': 'https://storage.googleapis.com/hail-tutorial/hgdp/hgdp_subset.vcf.bgz',
     'HGDP_ensembl_gene_annotations': 'https://storage.googleapis.com/hail-tutorial/hgdp/hgdp_gene_annotations.tsv',
-    'movie_lens_100k': 'http://files.grouplens.org/datasets/movielens/ml-100k.zip',
+    'movie_lens_100k': 'https://files.grouplens.org/datasets/movielens/ml-100k.zip',
 }
 
 tmp_dir: str = None
