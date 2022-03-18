@@ -4838,7 +4838,7 @@ steps:
     clouds:
       - gcp
     resources:
-      storage: 10Gi
+      storage: 20Gi
       cpu: "2"
       memory: standard
   - kind: deploy
