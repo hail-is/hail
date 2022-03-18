@@ -67,6 +67,8 @@ trait FSSuite {
     // file
     val f = r("/dir")
     val s = fs.fileStatus(f)
+    println(s"actual path: ${s.getPath}")
+    println(s"expected path: $f")
     assert(s.getPath == f)
     assert(!s.isFile)
     assert(s.isDirectory)
@@ -93,6 +95,7 @@ trait FSSuite {
 
   @Test def testFileStatusRoot(): Unit = {
     val s = fs.fileStatus(root)
+    println(s"expected root to be $s")
     assert(s.getPath == root)
   }
 
@@ -170,15 +173,24 @@ trait FSSuite {
     val s = "this is a test string"
     val f = t()
 
+    println("creating a thing")
     using(fs.createNoCompression(f)) { os =>
+      println("getting some bytes")
       val b = s.getBytes
+      println(s"writing ${b.length} bytes")
+      println("writing some bytes")
       os.write(b)
+      println("finished writing bytes")
     }
 
     assert(fs.exists(f))
 
     using(fs.openNoCompression(f)) { is =>
+      println("getting an inputstream")
       val read = new String(IOUtils.toByteArray(is))
+      println("asserting contents are the same")
+      println(s"Expected: $s")
+      println(s"$read")
       assert(read == s)
     }
 
@@ -219,22 +231,37 @@ trait FSSuite {
   @Test def testReadWriteBytes(): Unit = {
     val f = t()
 
+    println(s"255 as a byte is ${255.toByte}")
+
+    println("creating some stuff")
     using(fs.create(f)) { os =>
+      println("writing first")
       os.write(1)
+      println("writing second")
       os.write(127)
+      println("writing third")
       os.write(255)
     }
 
+    println("checking existence")
     assert(fs.exists(f))
 
+    println("opening a thing")
     using(fs.open(f)) { is =>
+      println("reading first")
       assert(is.read() == 1)
+      println("reading second")
       assert(is.read() == 127)
-      assert(is.read() == 255)
+      println("reading third")
+      val third = is.read()
+      println(s"third is $third")
+      assert(third == 255)
     }
 
+    println("deleting a thing")
     fs.delete(f, false)
 
+    println("checking non-existence")
     assert(!fs.exists(f))
   }
 }
