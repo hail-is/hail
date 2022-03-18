@@ -1964,7 +1964,9 @@ def scoped_ensure_future(coro_or_future, *, loop=None) -> Iterator[asyncio.Futur
 
 
 class JVMUserCredentials:
-    pass
+    def __init__(self):
+        self.username = None
+        self.password = None
 
 
 class JVMContainer:
