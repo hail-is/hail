@@ -62,7 +62,7 @@ def test_ndarray_ref():
     assert "Index 4 is out of bounds for axis 0 with size 3" in str(exc.value)
 
 
-@skip_when_service_backend('slow >800s')
+@fails_service_backend(reason='slow >800s')
 def test_ndarray_slice():
     np_rect_prism = np.arange(24).reshape((2, 3, 4))
     rect_prism = hl.nd.array(np_rect_prism)
@@ -1102,7 +1102,6 @@ def test_hstack():
     assert_table(a, b)
 
 
-@skip_when_service_backend('slow >800s')
 def test_eye():
     for i in range(13):
         assert_ndarrays_eq(*[(hl.nd.eye(i, y), np.eye(i, y)) for y in range(13)])

@@ -4,7 +4,7 @@ import numpy as np
 
 import hail as hl
 from hail.methods.pca import _make_tsm
-from ..helpers import resource, startTestHailContext, stopTestHailContext, fails_local_backend, fails_service_backend, skip_when_service_backend
+from ..helpers import resource, startTestHailContext, stopTestHailContext, fails_local_backend, fails_service_backend
 
 setUpModule = startTestHailContext
 tearDownModule = stopTestHailContext
@@ -280,26 +280,26 @@ def spectra_and_moments_helper(spec_func):
         np.testing.assert_allclose(moments, true_moments, rtol=1e-04)
 
 
-@skip_when_service_backend(message='intermittently hangs')
+@fails_service_backend(reason='intermittently hangs')
 def test_spectra_and_moments_1():
     spectra_and_moments_helper(spec1)
 
 
-@skip_when_service_backend(message='intermittently hangs')
+@fails_service_backend(reason='intermittently hangs')
 def test_spectra_and_moments_2():
     spectra_and_moments_helper(spec2)
 
 
-@skip_when_service_backend(message='intermittently hangs')
+@fails_service_backend(reason='intermittently hangs')
 def test_spectra_and_moments_3():
     spectra_and_moments_helper(spec3)
 
 
-@skip_when_service_backend(message='intermittently hangs')
+@fails_service_backend(reason='intermittently hangs')
 def test_spectra_and_moments_4():
     spectra_and_moments_helper(spec4)
 
 
-@skip_when_service_backend(message='intermittently hangs')
+@fails_service_backend(reason='intermittently hangs')
 def test_spectra_and_moments_5():
     spectra_and_moments_helper(spec5)

@@ -20,7 +20,6 @@ tearDownModule = stopTestHailContext
 
 
 class Tests(unittest.TestCase):
-    @skip_when_service_backend('flaky, not sure why yet')
     def test_annotate(self):
         schema = hl.tstruct(a=hl.tint32, b=hl.tint32, c=hl.tint32, d=hl.tint32, e=hl.tstr, f=hl.tarray(hl.tint32))
 
@@ -113,38 +112,6 @@ class Tests(unittest.TestCase):
             x36=True
         )
 
-    @skip_when_service_backend('''E                   hail.utils.java.FatalError: java.lang.RuntimeException: batch 30851 failed: failure
-E                   	at is.hail.backend.service.ServiceBackend.parallelizeAndComputeWithIndex(ServiceBackend.scala:186)
-E                   	at is.hail.backend.BackendUtils.collectDArray(BackendUtils.scala:28)
-E                   	at __C2Compiled.__m114split_StreamForregion16_27(Emit.scala)
-E                   	at __C2Compiled.__m114split_StreamForregion4_76(Emit.scala)
-E                   	at __C2Compiled.__m114split_StreamFor(Emit.scala)
-E                   	at __C2Compiled.__m76split_RunAggregion42_47(Emit.scala)
-E                   	at __C2Compiled.__m76split_RunAgg(Emit.scala)
-E                   	at __C2Compiled.__m3split_Letregion96_101(Emit.scala)
-E                   	at __C2Compiled.__m3split_Let(Emit.scala)
-E                   	at __C2Compiled.apply(Emit.scala)
-E                   	at is.hail.expr.ir.lowering.LowerToCDA$.$anonfun$lower$2(LowerToCDA.scala:50)
-E                   	at scala.runtime.java8.JFunction0$mcJ$sp.apply(JFunction0$mcJ$sp.java:23)
-E                   	at is.hail.utils.ExecutionTimer.time(ExecutionTimer.scala:81)
-E                   	at is.hail.expr.ir.lowering.LowerToCDA$.lower(LowerToCDA.scala:50)
-E                   	at is.hail.expr.ir.lowering.LowerToCDA$.apply(LowerToCDA.scala:17)
-E                   	at is.hail.expr.ir.lowering.LowerToDistributedArrayPass.transform(LoweringPass.scala:75)
-E                   	at is.hail.expr.ir.lowering.LoweringPass.$anonfun$apply$3(LoweringPass.scala:15)
-E                   	at is.hail.utils.ExecutionTimer.time(ExecutionTimer.scala:81)
-E                   	at is.hail.expr.ir.lowering.LoweringPass.$anonfun$apply$1(LoweringPass.scala:15)
-E                   	at is.hail.utils.ExecutionTimer.time(ExecutionTimer.scala:81)
-E                   	at is.hail.expr.ir.lowering.LoweringPass.apply(LoweringPass.scala:13)
-E                   	at is.hail.expr.ir.lowering.LoweringPass.apply$(LoweringPass.scala:12)
-E                   	at is.hail.expr.ir.lowering.LowerToDistributedArrayPass.apply(LoweringPass.scala:70)
-E                   	at is.hail.expr.ir.lowering.LoweringPipeline.$anonfun$apply$1(LoweringPipeline.scala:14)
-E                   	at is.hail.expr.ir.lowering.LoweringPipeline.$anonfun$apply$1$adapted(LoweringPipeline.scala:12)
-E                   	at scala.collection.IndexedSeqOptimized.foreach(IndexedSeqOptimized.scala:36)
-E                   	at scala.collection.IndexedSeqOptimized.foreach$(IndexedSeqOptimized.scala:33)
-E                   	at scala.collection.mutable.WrappedArray.foreach(WrappedArray.scala:38)
-E                   	at is.hail.expr.ir.lowering.LoweringPipeline.apply(LoweringPipeline.scala:12)
-E                   	at is.hail.backend.service.ServiceBackend.execute(ServiceBackend.scala:289)
-''')
     def test_aggregate1(self):
         schema = hl.tstruct(a=hl.tint32, b=hl.tint32, c=hl.tint32, d=hl.tint32, e=hl.tstr, f=hl.tarray(hl.tint32))
 
@@ -165,10 +132,6 @@ E                   	at is.hail.backend.service.ServiceBackend.execute(ServiceBa
         self.assertEqual(set(results.q4), {"hello", "cat"})
         self.assertAlmostEqual(results.q5, 4)
 
-    @skip_when_service_backend('''The Service and Shuffler have no way of knowing the order in which rows appear in the original
-dataset, as such it is impossible to guarantee the ordering in x2.
-
-https://hail.zulipchat.com/#narrow/stream/123011-Hail-Dev/topic/test_drop/near/235425714''')
     def test_aggregate2(self):
         schema = hl.tstruct(status=hl.tint32, GT=hl.tcall, qPheno=hl.tint32)
 
@@ -233,7 +196,6 @@ https://hail.zulipchat.com/#narrow/stream/123011-Hail-Dev/topic/test_drop/near/2
         r = kt.aggregate(agg.filter(kt.idx % 2 != 0, agg.sum(kt.idx + 2)) + kt.g1)
         self.assertEqual(r, 40)
 
-    @skip_when_service_backend('Shuffler encoding/decoding is broken.')
     def test_to_matrix_table(self):
         N, M = 50, 50
         mt = hl.utils.range_matrix_table(N, M)
@@ -248,24 +210,6 @@ https://hail.zulipchat.com/#narrow/stream/123011-Hail-Dev/topic/test_drop/near/2
 
         assert re_mt.choose_cols(mapping).drop('col_idx')._same(mt.drop('col_idx'))
 
-    @skip_when_service_backend('''intermittent worker failure:
-Caused by: java.lang.AssertionError: assertion failed
-	at scala.Predef$.assert(Predef.scala:208)
-	at is.hail.io.BlockingInputBuffer.ensure(InputBuffers.scala:389)
-	at is.hail.io.BlockingInputBuffer.readInt(InputBuffers.scala:412)
-	at __C3872collect_distributed_array.__m3880INPLACE_DECODE_r_array_of_r_struct_of_r_int32END_TO_r_array_of_r_struct_of_r_int32END(Unknown Source)
-	at __C3872collect_distributed_array.__m3879INPLACE_DECODE_r_struct_of_r_array_of_r_struct_of_r_int32ENDEND_TO_r_struct_of_r_array_of_r_struct_of_r_int32ENDEND(Unknown Source)
-	at __C3872collect_distributed_array.__m3878INPLACE_DECODE_r_struct_of_r_struct_of_r_array_of_r_struct_of_r_int32ENDENDEND_TO_r_struct_of_r_struct_of_r_array_of_r_struct_of_r_int32ENDENDEND(Unknown Source)
-	at __C3872collect_distributed_array.__m3877DECODE_r_struct_of_r_struct_of_r_struct_of_r_array_of_r_struct_of_r_int32ENDENDENDEND_TO_SBaseStructPointer(Unknown Source)
-	at __C3872collect_distributed_array.apply(Unknown Source)
-	at __C3872collect_distributed_array.apply(Unknown Source)
-	at is.hail.backend.BackendUtils.$anonfun$collectDArray$2(BackendUtils.scala:31)
-	at is.hail.utils.package$.using(package.scala:627)
-	at is.hail.annotations.RegionPool.scopedRegion(RegionPool.scala:144)
-	at is.hail.backend.BackendUtils.$anonfun$collectDArray$1(BackendUtils.scala:30)
-	at is.hail.backend.service.Worker$.main(Worker.scala:120)
-	at is.hail.backend.service.Worker.main(Worker.scala)
-	... 11 more''')
     def test_to_matrix_table_row_major(self):
         t = hl.utils.range_table(10)
         t = t.annotate(foo=t.idx, bar=2 * t.idx, baz=3 * t.idx)
@@ -401,26 +345,6 @@ Caused by: java.lang.AssertionError: assertion failed
 
         self.assertRaises(NotImplementedError, f)
 
-    @skip_when_service_backend('''intermittent worker failure:
->       assert ht.x.collect() == [9]
-
-Caused by: java.lang.AssertionError: assertion failed
-	at scala.Predef$.assert(Predef.scala:208)
-	at is.hail.io.BlockingInputBuffer.ensure(InputBuffers.scala:389)
-	at is.hail.io.BlockingInputBuffer.readInt(InputBuffers.scala:412)
-	at __C2483collect_distributed_array.__m2493INPLACE_DECODE_r_array_of_r_struct_of_r_int32ANDr_int32END_TO_r_array_of_r_struct_of_r_int32ANDr_int32END(Unknown Source)
-	at __C2483collect_distributed_array.__m2488INPLACE_DECODE_r_struct_of_r_struct_of_r_struct_of_r_struct_of_r_int32ENDANDr_int32ENDANDr_struct_of_r_struct_of_r_int32ENDANDr_int32ENDANDr_boolANDr_boolENDANDr_array_of_r_struct_of_r_int32ANDr_int32ENDEND_TO_r_struct_of_r_struct_of_r_tuple_of_r_struct_of_r_int32ENDANDr_int32ENDANDr_tuple_of_r_struct_of_r_int32ENDANDr_int32ENDANDr_boolANDr_boolENDANDr_array_of_r_struct_of_r_int32ANDr_int32ENDEND(Unknown Source)
-	at __C2483collect_distributed_array.__m2485INPLACE_DECODE_r_struct_of_r_struct_of_r_int32ANDr_int32ENDANDr_struct_of_r_struct_of_r_struct_of_r_struct_of_r_int32ENDANDr_int32ENDANDr_struct_of_r_struct_of_r_int32ENDANDr_int32ENDANDr_boolANDr_boolENDANDr_array_of_r_struct_of_r_int32ANDr_int32ENDENDEND_TO_r_struct_of_r_struct_of_r_int32ANDr_int32ENDANDr_struct_of_r_struct_of_r_tuple_of_r_struct_of_r_int32ENDANDr_int32ENDANDr_tuple_of_r_struct_of_r_int32ENDANDr_int32ENDANDr_boolANDr_boolENDANDr_array_of_r_struct_of_r_int32ANDr_int32ENDENDEND(Unknown Source)
-	at __C2483collect_distributed_array.__m2484DECODE_r_struct_of_r_struct_of_r_struct_of_r_int32ANDr_int32ENDANDr_struct_of_r_struct_of_r_struct_of_r_struct_of_r_int32ENDANDr_int32ENDANDr_struct_of_r_struct_of_r_int32ENDANDr_int32ENDANDr_boolANDr_boolENDANDr_array_of_r_struct_of_r_int32ANDr_int32ENDENDENDEND_TO_SBaseStructPointer(Unknown Source)
-	at __C2483collect_distributed_array.apply(Unknown Source)
-	at __C2483collect_distributed_array.apply(Unknown Source)
-	at is.hail.backend.BackendUtils.$anonfun$collectDArray$2(BackendUtils.scala:31)
-	at is.hail.utils.package$.using(package.scala:627)
-	at is.hail.annotations.RegionPool.scopedRegion(RegionPool.scala:144)
-	at is.hail.backend.BackendUtils.$anonfun$collectDArray$1(BackendUtils.scala:30)
-	at is.hail.backend.service.Worker$.main(Worker.scala:120)
-	at is.hail.backend.service.Worker.main(Worker.scala)
-	... 11 more''')
     def test_scan_filter(self):
         ht = hl.utils.range_table(10, n_partitions=10)
         ht = ht.annotate(x = hl.scan.count())
@@ -531,7 +455,6 @@ Caused by: java.lang.AssertionError: assertion failed
         ht1 = ht.annotate(foo=5)
         self.assertTrue(ht.all(ht1[ht.key].foo == 5))
 
-    @skip_when_service_backend('shuffler does not guarantee order of rows')
     def test_product_join(self):
         left = hl.utils.range_table(5)
         right = hl.utils.range_table(5)
@@ -547,30 +470,6 @@ Caused by: java.lang.AssertionError: assertion failed
         mt.select_entries(a=mt2[mt.row_idx, mt.col_idx].x,
                           b=mt2[mt.row_idx, mt.col_idx].x)
 
-    @skip_when_service_backend('''intermittent worker failure:
-Caused by: is.hail.utils.HailException: Premature end of file: expected 4 bytes, found 0
-	at is.hail.utils.ErrorHandling.fatal(ErrorHandling.scala:11)
-	at is.hail.utils.ErrorHandling.fatal$(ErrorHandling.scala:11)
-	at is.hail.utils.package$.fatal(package.scala:77)
-	at is.hail.utils.richUtils.RichInputStream$.readFully$extension1(RichInputStream.scala:13)
-	at is.hail.io.StreamBlockInputBuffer.readBlock(InputBuffers.scala:546)
-	at is.hail.io.BlockingInputBuffer.readBlock(InputBuffers.scala:382)
-	at is.hail.io.BlockingInputBuffer.ensure(InputBuffers.scala:388)
-	at is.hail.io.BlockingInputBuffer.readInt(InputBuffers.scala:412)
-	at __C4028collect_distributed_array.__m4034INPLACE_DECODE_r_int32_TO_r_int32(Unknown Source)
-	at __C4028collect_distributed_array.__m4032INPLACE_DECODE_r_struct_of_r_struct_of_r_int32ENDANDr_int32END_TO_r_tuple_of_r_struct_of_r_int32ENDANDr_int32END(Unknown Source)
-	at __C4028collect_distributed_array.__m4031INPLACE_DECODE_r_struct_of_r_struct_of_r_struct_of_r_int32ENDANDr_int32ENDANDr_struct_of_r_struct_of_r_int32ENDANDr_int32ENDANDr_boolANDr_boolEND_TO_r_struct_of_r_tuple_of_r_struct_of_r_int32ENDANDr_int32ENDANDr_tuple_of_r_struct_of_r_int32ENDANDr_int32ENDANDr_boolANDr_boolEND(Unknown Source)
-	at __C4028collect_distributed_array.__m4030INPLACE_DECODE_r_struct_of_r_struct_of_r_struct_of_r_struct_of_r_int32ENDANDr_int32ENDANDr_struct_of_r_struct_of_r_int32ENDANDr_int32ENDANDr_boolANDr_boolENDANDr_array_of_r_array_of_r_struct_of_r_int32ANDr_struct_of_r_int32ENDENDEND_TO_r_struct_of_r_struct_of_r_tuple_of_r_struct_of_r_int32ENDANDr_int32ENDANDr_tuple_of_r_struct_of_r_int32ENDANDr_int32ENDANDr_boolANDr_boolENDANDr_array_of_r_array_of_r_struct_of_r_int32ANDr_struct_of_r_int32ENDENDEND(Unknown Source)
-	at __C4028collect_distributed_array.__m4029DECODE_r_struct_of_r_struct_of_r_struct_of_r_struct_of_r_struct_of_r_int32ENDANDr_int32ENDANDr_struct_of_r_struct_of_r_int32ENDANDr_int32ENDANDr_boolANDr_boolENDANDr_array_of_r_array_of_r_struct_of_r_int32ANDr_struct_of_r_int32ENDENDENDEND_TO_SBaseStructPointer(Unknown Source)
-	at __C4028collect_distributed_array.apply(Unknown Source)
-	at __C4028collect_distributed_array.apply(Unknown Source)
-	at is.hail.backend.BackendUtils.$anonfun$collectDArray$2(BackendUtils.scala:31)
-	at is.hail.utils.package$.using(package.scala:627)
-	at is.hail.annotations.RegionPool.scopedRegion(RegionPool.scala:144)
-	at is.hail.backend.BackendUtils.$anonfun$collectDArray$1(BackendUtils.scala:30)
-	at is.hail.backend.service.Worker$.main(Worker.scala:120)
-	at is.hail.backend.service.Worker.main(Worker.scala)
-	... 11 more''')
     def test_multi_way_zip_join(self):
         d1 = [{"id": 0, "name": "a", "data": 0.0},
               {"id": 1, "name": "b", "data": 3.14},
@@ -619,17 +518,6 @@ Caused by: is.hail.utils.HailException: Premature end of file: expected 4 bytes,
         joined = hl.Table.multi_way_zip_join([t1, t2, t3], '__data', '__globals')
         self.assertEqual(hl.eval(joined.globals), hl.eval(expected))
 
-    @skip_when_service_backend('''Caused by: java.lang.ClassCastException: __C35collect_distributed_array cannot be cast to is.hail.expr.ir.FunctionWithObjects
-	at is.hail.expr.ir.EmitClassBuilder$$anon$1.apply(EmitClassBuilder.scala:660)
-	at is.hail.expr.ir.EmitClassBuilder$$anon$1.apply(EmitClassBuilder.scala:641)
-	at is.hail.backend.BackendUtils.$anonfun$collectDArray$2(BackendUtils.scala:31)
-	at is.hail.utils.package$.using(package.scala:627)
-	at is.hail.annotations.RegionPool.scopedRegion(RegionPool.scala:140)
-	at is.hail.backend.BackendUtils.$anonfun$collectDArray$1(BackendUtils.scala:30)
-	at is.hail.backend.service.Worker$.main(Worker.scala:120)
-	at is.hail.backend.service.Worker.main(Worker.scala)
-	... 11 more
-''')
     def test_multi_way_zip_join_key_downcast(self):
         mt = hl.import_vcf(resource('sample.vcf.bgz'))
         mt = mt.key_rows_by('locus')
@@ -637,8 +525,6 @@ Caused by: is.hail.utils.HailException: Premature end of file: expected 4 bytes,
         j = hl.Table.multi_way_zip_join([ht, ht], 'd', 'g')
         j._force_count()
 
-    @skip_when_service_backend('''This blew memory once; seems flaky in the service.
-https://hail.zulipchat.com/#narrow/stream/123011-Hail-Dev/topic/test_multi_way_zip_join_key_downcast2.20blew.20memory.20in.20a.20test/near/236602960''')
     def test_multi_way_zip_join_key_downcast2(self):
         vcf2 = hl.import_vcf(resource('gvcfs/HG00268.g.vcf.gz'), force_bgz=True, reference_genome='GRCh38')
         vcf1 = hl.import_vcf(resource('gvcfs/HG00096.g.vcf.gz'), force_bgz=True, reference_genome='GRCh38')
@@ -675,11 +561,6 @@ https://hail.zulipchat.com/#narrow/stream/123011-Hail-Dev/topic/test_multi_way_z
         ht = hl.utils.range_table(3)
         self.assertEqual(ht.group_by(ht.idx).aggregate().count(), 3)
 
-    @skip_when_service_backend('''The Shuffler does not guarantee the ordering of records that share a key. It can't really do that
-unless we send some preferred ordering of the values (like global index). I don't undrestand how
-this test passes in the Spark backend.
-
-https://hail.zulipchat.com/#narrow/stream/123011-Hail-Dev/topic/test_drop/near/235399459''')
     def test_drop(self):
         kt = hl.utils.range_table(10)
         kt = kt.annotate(sq=kt.idx ** 2, foo='foo', bar='bar').key_by('foo')
@@ -879,10 +760,6 @@ https://hail.zulipchat.com/#narrow/stream/123011-Hail-Dev/topic/test_drop/near/2
         self.assertTrue(dist.all(hl.len(dist.values) == 1))
         self.assertEqual(dist.count(), len(t1.aggregate(hl.agg.collect_as_set(t1.a))))
 
-    @skip_when_service_backend('''The Service and Shuffler have no way of knowing the order in which rows appear in the original
-dataset, as such it is impossible to guarantee the ordering in `matches`.
-
-https://hail.zulipchat.com/#narrow/stream/123011-Hail-Dev/topic/test_drop/near/235425714''')
     def test_group_by_key(self):
         t1 = hl.Table.parallelize([
             {'a': 'foo', 'b': 1},
@@ -998,10 +875,6 @@ https://hail.zulipchat.com/#narrow/stream/123011-Hail-Dev/topic/test_drop/near/2
         t_read_back = hl.import_table(tmp_file, types=dict(t.row.dtype)).key_by('idx')
         self.assertTrue(t.select_globals()._same(t_read_back, tolerance=1e-4, absolute=True))
 
-    @skip_when_service_backend('''Mysteriously fails the first _same check but nothing is written to stdout. I cannot
-replicate on my laptop.
-
-https://hail.zulipchat.com/#narrow/stream/123011-Hail-Dev/topic/missing.20logs.3F''')
     def test_indexed_read(self):
         t = hl.utils.range_table(2000, 10)
         f = new_temp_file(extension='ht')
@@ -1021,36 +894,9 @@ https://hail.zulipchat.com/#narrow/stream/123011-Hail-Dev/topic/missing.20logs.3
         self.assertEqual(t2.n_partitions(), 3)
         self.assertTrue(t.filter((t.idx >= 150) & (t.idx < 500))._same(t2))
 
-    @skip_when_service_backend('''Flaky test. Type does not parse correctly on worker.
-
-2021-05-03 15:43:33 INFO  WorkerTimer$:41 - readInputs took 2634.286074 ms.
-2021-05-03 15:43:35 INFO  Hail:28 - Running Hail version 0.2.65-11b564f90eb6
-2021-05-03 15:43:36 INFO  root:17 - RegionPool: initialized for thread 1: main
-Exception in thread "main" java.lang.RuntimeException: invalid sort order: b
-	at is.hail.expr.ir.SortOrder$.parse(AbstractTableSpec.scala:23)
-	at is.hail.expr.ir.IRParser$.sort_field(Parser.scala:565)
-	at is.hail.expr.ir.IRParser$.$anonfun$sort_fields$1(Parser.scala:560)
-	at is.hail.expr.ir.IRParser$.repUntilNonStackSafe(Parser.scala:322)
-	at is.hail.expr.ir.IRParser$.base_seq_parser(Parser.scala:329)
-	at is.hail.expr.ir.IRParser$.sort_fields(Parser.scala:560)
-	at is.hail.expr.ir.IRParser$.type_expr(Parser.scala:546)
-	at is.hail.expr.ir.IRParser$.$anonfun$parseType$1(Parser.scala:1972)
-	at is.hail.expr.ir.IRParser$.parse(Parser.scala:1951)
-	at is.hail.expr.ir.IRParser$.parseType(Parser.scala:1972)
-	at is.hail.expr.ir.IRParser$.parseType(Parser.scala:1986)
-	at __C1477collect_distributed_array.__m1495setup_null(Unknown Source)
-	at __C1477collect_distributed_array.apply(Unknown Source)
-	at __C1477collect_distributed_array.apply(Unknown Source)
-	at is.hail.backend.BackendUtils.$anonfun$collectDArray$2(BackendUtils.scala:31)
-	at is.hail.utils.package$.using(package.scala:627)
-	at is.hail.annotations.RegionPool.scopedRegion(RegionPool.scala:141)
-	at is.hail.backend.BackendUtils.$anonfun$collectDArray$1(BackendUtils.scala:30)
-	at is.hail.backend.service.Worker$.main(Worker.scala:105)
-	at is.hail.backend.service.Worker.main(Worker.scala)''')
     def test_order_by_parsing(self):
         hl.utils.range_table(1).annotate(**{'a b c' : 5}).order_by('a b c')._force_count()
 
-    @skip_when_service_backend(message='intermittently hangs')
     def test_take_order(self):
         t = hl.utils.range_table(20, n_partitions=2)
         t = t.key_by(rev_idx=-t.idx)
@@ -1085,23 +931,6 @@ Exception in thread "main" java.lang.RuntimeException: invalid sort order: b
         t = mt._localize_entries('__entries', '__cols')
         self.assertTrue(t._same(ref_tab))
 
-    @skip_when_service_backend('''intermittent worker failure:
->       self.assertTrue(t._same(ref_tab))
-
-Caused by: java.lang.NullPointerException
-	at __C12690collect_distributed_array.__m12773split_StreamFor(Unknown Source)
-	at __C12690collect_distributed_array.__m12701split_Letregion13_18(Unknown Source)
-	at __C12690collect_distributed_array.__m12701split_Letregion12_25(Unknown Source)
-	at __C12690collect_distributed_array.__m12701split_Let(Unknown Source)
-	at __C12690collect_distributed_array.apply(Unknown Source)
-	at __C12690collect_distributed_array.apply(Unknown Source)
-	at is.hail.backend.BackendUtils.$anonfun$collectDArray$2(BackendUtils.scala:31)
-	at is.hail.utils.package$.using(package.scala:627)
-	at is.hail.annotations.RegionPool.scopedRegion(RegionPool.scala:144)
-	at is.hail.backend.BackendUtils.$anonfun$collectDArray$1(BackendUtils.scala:30)
-	at is.hail.backend.service.Worker$.main(Worker.scala:120)
-	at is.hail.backend.service.Worker.main(Worker.scala)
-	... 11 more''')
     def test_localize_self_join(self):
         ref_schema = hl.tstruct(row_idx=hl.tint32,
                                 __entries=hl.tarray(hl.tstruct(v=hl.tint32)))
@@ -1115,7 +944,6 @@ Caused by: java.lang.NullPointerException
         t = t.join(t, how='outer')
         self.assertTrue(t._same(ref_tab))
 
-    @skip_when_service_backend('OOMs or crash')
     def test_union(self):
         t1 = hl.utils.range_table(5)
 
@@ -1129,7 +957,26 @@ Caused by: java.lang.NullPointerException
         self.assertTrue(t1.key_by().union(t2.key_by(), t3.key_by())
                         ._same(hl.utils.range_table(15).key_by()))
 
-    @skip_when_service_backend(message='very slow')
+    @fails_service_backend(message='''stack overflow when typechecking a Let:
+...
+at is.hail.expr.ir.Let.typ(IR.scala:169)
+at is.hail.expr.ir.package$.$anonfun$invoke$1(package.scala:56)
+at scala.collection.TraversableLike.$anonfun$map$1(TraversableLike.scala:238)
+at scala.collection.IndexedSeqOptimized.foreach(IndexedSeqOptimized.scala:36)
+at scala.collection.IndexedSeqOptimized.foreach$(IndexedSeqOptimized.scala:33)
+at scala.collection.mutable.WrappedArray.foreach(WrappedArray.scala:38)
+at scala.collection.TraversableLike.map(TraversableLike.scala:238)
+at scala.collection.TraversableLike.map$(TraversableLike.scala:231)
+at scala.collection.AbstractTraversable.map(Traversable.scala:108)
+at is.hail.expr.ir.package$.invoke(package.scala:56)
+at is.hail.expr.ir.package$.invoke(package.scala:64)
+at is.hail.expr.ir.lowering.LowerTableIR$.apply(LowerTableIR.scala:465)
+at is.hail.expr.ir.lowering.LowerToCDA$.lower(LowerToCDA.scala:69)
+at is.hail.expr.ir.lowering.LowerToCDA$.lower(LowerToCDA.scala:38)
+at is.hail.expr.ir.lowering.LowerToCDA$.apply(LowerToCDA.scala:18)
+at is.hail.expr.ir.lowering.LowerToDistributedArrayPass.transform(LoweringPass.scala:77)
+...
+''')
     def test_nested_union(self):
         N = 10
         M = 200
@@ -1141,7 +988,6 @@ Caused by: java.lang.NullPointerException
         assert union._force_count() == N * M
         assert union.count() == N * M
 
-    @skip_when_service_backend()
     def test_union_unify(self):
         t1 = hl.utils.range_table(2)
         t2 = t1.annotate(x=hl.int32(1), y='A')
@@ -1227,7 +1073,6 @@ Caused by: java.lang.NullPointerException
         self.assertEqual(inner_join.collect(), inner_join_expected)
         self.assertEqual(outer_join.collect(), outer_join_expected)
 
-    @skip_when_service_backend('Shuffler encoding/decoding is broken.')
     def test_null_joins_2(self):
         tr = hl.utils.range_table(7, 1)
         table1 = tr.key_by(new_key=hl.if_else((tr.idx == 3) | (tr.idx == 5),
@@ -1402,7 +1247,6 @@ Caused by: java.lang.NullPointerException
         ht = ht.annotate(y = ht.idx + ht.aggregate(hl.agg.max(ht.idx), _localize=False))
         assert ht.y.collect() == [x + 9 for x in range(10)]
 
-    @skip_when_service_backend()
     def test_collect_localize_false(self):
         ht = hl.utils.range_table(10)
         assert hl.eval(ht.collect(_localize=False)) == ht.collect()
@@ -1480,7 +1324,6 @@ Caused by: java.lang.NullPointerException
         t2 = t1.annotate_globals(x = 8)
         self.assertFalse(t1._same(t2))
 
-    @skip_when_service_backend('hangs')
     def test_same_different_rows(self):
         t1 = (hl.utils.range_table(2)
               .annotate(x = 7))
@@ -1544,30 +1387,6 @@ Caused by: java.lang.NullPointerException
 +-------------------+----------+---------------------+-------------------+
 '''
 
-    @skip_when_service_backend('''E                   hail.utils.java.FatalError: java.lang.ClassCastException: __C2Compiled cannot be cast to is.hail.expr.ir.FunctionWithBackend
-E                   	at is.hail.expr.ir.EmitClassBuilder$$anon$1.apply(EmitClassBuilder.scala:658)
-E                   	at is.hail.expr.ir.EmitClassBuilder$$anon$1.apply(EmitClassBuilder.scala:641)
-E                   	at is.hail.expr.ir.lowering.LowerToCDA$.$anonfun$lower$2(LowerToCDA.scala:50)
-E                   	at scala.runtime.java8.JFunction0$mcJ$sp.apply(JFunction0$mcJ$sp.java:23)
-E                   	at is.hail.utils.ExecutionTimer.time(ExecutionTimer.scala:81)
-E                   	at is.hail.expr.ir.lowering.LowerToCDA$.lower(LowerToCDA.scala:50)
-E                   	at is.hail.expr.ir.lowering.LowerToCDA$.apply(LowerToCDA.scala:17)
-E                   	at is.hail.expr.ir.lowering.LowerToDistributedArrayPass.transform(LoweringPass.scala:75)
-E                   	at is.hail.expr.ir.lowering.LoweringPass.$anonfun$apply$3(LoweringPass.scala:15)
-E                   	at is.hail.utils.ExecutionTimer.time(ExecutionTimer.scala:81)
-E                   	at is.hail.expr.ir.lowering.LoweringPass.$anonfun$apply$1(LoweringPass.scala:15)
-E                   	at is.hail.utils.ExecutionTimer.time(ExecutionTimer.scala:81)
-E                   	at is.hail.expr.ir.lowering.LoweringPass.apply(LoweringPass.scala:13)
-E                   	at is.hail.expr.ir.lowering.LoweringPass.apply$(LoweringPass.scala:12)
-E                   	at is.hail.expr.ir.lowering.LowerToDistributedArrayPass.apply(LoweringPass.scala:70)
-E                   	at is.hail.expr.ir.lowering.LoweringPipeline.$anonfun$apply$1(LoweringPipeline.scala:14)
-E                   	at is.hail.expr.ir.lowering.LoweringPipeline.$anonfun$apply$1$adapted(LoweringPipeline.scala:12)
-E                   	at scala.collection.IndexedSeqOptimized.foreach(IndexedSeqOptimized.scala:36)
-E                   	at scala.collection.IndexedSeqOptimized.foreach$(IndexedSeqOptimized.scala:33)
-E                   	at scala.collection.mutable.WrappedArray.foreach(WrappedArray.scala:38)
-E                   	at is.hail.expr.ir.lowering.LoweringPipeline.apply(LoweringPipeline.scala:12)
-E                   	at is.hail.backend.service.ServiceBackend.execute(ServiceBackend.scala:289)
-''')
     def test_import_filter_replace(self):
         def assert_filter_equals(filter, find_replace, to):
             assert hl.import_table(resource('filter_replace.txt'),
@@ -1615,7 +1434,6 @@ E                   	at is.hail.backend.service.ServiceBackend.execute(ServiceBa
             ht.write(path)
         assert "both an input and output source" in str(exc.value)
 
-@skip_when_service_backend('slow >800s')
 def test_large_number_of_fields():
     ht = hl.utils.range_table(100)
     ht = ht.annotate(**{
@@ -1721,7 +1539,6 @@ def test_maybe_flexindex_table_by_expr_prefix_interval_match():
 widths = [256, 512, 1024, 2048, 3072]
 
 
-@skip_when_service_backend('hangs')
 def test_can_process_wide_tables():
     for w in widths:
         print(f'working on width {w}')
@@ -1798,33 +1615,6 @@ def test_write_table_containing_ndarray():
     t2 = hl.read_table(f)
     assert t._same(t2)
 
-@skip_when_service_backend('''intermittent worker failure:
->       grouped6_collected = t._group_within_partitions("grouped_fields", 6).collect()
-
-Caused by: is.hail.utils.HailException: Premature end of file: expected 4 bytes, found 0
-	at is.hail.utils.ErrorHandling.fatal(ErrorHandling.scala:11)
-	at is.hail.utils.ErrorHandling.fatal$(ErrorHandling.scala:11)
-	at is.hail.utils.package$.fatal(package.scala:77)
-	at is.hail.utils.richUtils.RichInputStream$.readFully$extension1(RichInputStream.scala:13)
-	at is.hail.io.StreamBlockInputBuffer.readBlock(InputBuffers.scala:546)
-	at is.hail.io.BlockingInputBuffer.readBlock(InputBuffers.scala:382)
-	at is.hail.io.BlockingInputBuffer.ensure(InputBuffers.scala:388)
-	at is.hail.io.BlockingInputBuffer.readInt(InputBuffers.scala:412)
-	at __C15580collect_distributed_array.__m15587INPLACE_DECODE_r_int32_TO_r_int32(Unknown Source)
-	at __C15580collect_distributed_array.__m15585INPLACE_DECODE_r_struct_of_r_struct_of_r_int32ANDr_int32ENDANDr_int32END_TO_r_tuple_of_r_struct_of_r_int32ANDr_int32ENDANDr_int32END(Unknown Source)
-	at __C15580collect_distributed_array.__m15584INPLACE_DECODE_r_struct_of_r_struct_of_r_struct_of_r_int32ANDr_int32ENDANDr_int32ENDANDr_struct_of_r_struct_of_o_int32ANDr_int32ENDANDr_int32ENDANDr_boolANDr_boolEND_TO_r_struct_of_r_tuple_of_r_struct_of_r_int32ANDr_int32ENDANDr_int32ENDANDr_tuple_of_r_struct_of_o_int32ANDr_int32ENDANDr_int32ENDANDr_boolANDr_boolEND(Unknown Source)
-	at __C15580collect_distributed_array.__m15583INPLACE_DECODE_r_struct_of_r_struct_of_r_struct_of_r_struct_of_r_int32ANDr_int32ENDANDr_int32ENDANDr_struct_of_r_struct_of_o_int32ANDr_int32ENDANDr_int32ENDANDr_boolANDr_boolENDANDr_array_of_r_array_of_r_struct_of_r_int32ANDo_int32ANDr_int32ENDEND_TO_r_struct_of_r_struct_of_r_tuple_of_r_struct_of_r_int32ANDr_int32ENDANDr_int32ENDANDr_tuple_of_r_struct_of_o_int32ANDr_int32ENDANDr_int32ENDANDr_boolANDr_boolENDANDr_array_of_r_array_of_r_struct_of_r_int32ANDo_int32ANDr_int32ENDEND(Unknown Source)
-	at __C15580collect_distributed_array.__m15582INPLACE_DECODE_r_struct_of_r_struct_of_r_struct_of_r_struct_of_r_struct_of_r_int32ANDr_int32ENDANDr_int32ENDANDr_struct_of_r_struct_of_o_int32ANDr_int32ENDANDr_int32ENDANDr_boolANDr_boolENDANDr_array_of_r_array_of_r_struct_of_r_int32ANDo_int32ANDr_int32ENDENDANDr_struct_of_r_struct_of_r_struct_of_r_struct_of_r_int32ANDr_int32ENDANDr_int32ENDANDr_struct_of_r_struct_of_o_int32ANDr_int32ENDANDr_int32ENDANDr_boolANDr_boolENDANDr_array_of_r_array_of_r_struct_of_r_int32ANDo_int32ANDr_int32ENDENDEND_TO_r_struct_of_r_struct_of_r_struct_of_r_tuple_of_r_struct_of_r_int32ANDr_int32ENDANDr_int32ENDANDr_tuple_of_r_struct_of_o_int32ANDr_int32ENDANDr_int32ENDANDr_boolANDr_boolENDANDr_array_of_r_array_of_r_struct_of_r_int32ANDo_int32ANDr_int32ENDENDANDr_struct_of_r_struct_of_r_tuple_of_r_struct_of_r_int32ANDr_int32ENDANDr_int32ENDANDr_tuple_of_r_struct_of_o_int32ANDr_int32ENDANDr_int32ENDANDr_boolANDr_boolENDANDr_array_of_r_array_of_r_struct_of_r_int32ANDo_int32ANDr_int32ENDENDEND(Unknown Source)
-	at __C15580collect_distributed_array.__m15581DECODE_r_struct_of_r_struct_of_r_struct_of_r_struct_of_r_struct_of_r_struct_of_r_int32ANDr_int32ENDANDr_int32ENDANDr_struct_of_r_struct_of_o_int32ANDr_int32ENDANDr_int32ENDANDr_boolANDr_boolENDANDr_array_of_r_array_of_r_struct_of_r_int32ANDo_int32ANDr_int32ENDENDANDr_struct_of_r_struct_of_r_struct_of_r_struct_of_r_int32ANDr_int32ENDANDr_int32ENDANDr_struct_of_r_struct_of_o_int32ANDr_int32ENDANDr_int32ENDANDr_boolANDr_boolENDANDr_array_of_r_array_of_r_struct_of_r_int32ANDo_int32ANDr_int32ENDENDENDEND_TO_SBaseStructPointer(Unknown Source)
-	at __C15580collect_distributed_array.apply(Unknown Source)
-	at __C15580collect_distributed_array.apply(Unknown Source)
-	at is.hail.backend.BackendUtils.$anonfun$collectDArray$2(BackendUtils.scala:31)
-	at is.hail.utils.package$.using(package.scala:627)
-	at is.hail.annotations.RegionPool.scopedRegion(RegionPool.scala:144)
-	at is.hail.backend.BackendUtils.$anonfun$collectDArray$1(BackendUtils.scala:30)
-	at is.hail.backend.service.Worker$.main(Worker.scala:120)
-	at is.hail.backend.service.Worker.main(Worker.scala)
-	... 11 more''')
 def test_group_within_partitions():
     t = hl.utils.range_table(10).repartition(2)
     t = t.annotate(sq=t.idx ** 2)
@@ -1875,7 +1665,6 @@ def test_range_annotate_range():
     ht2 = hl.utils.range_table(5).annotate(x = 1)
     ht1.annotate(x = ht2[ht1.idx].x)._force_count()
 
-@skip_when_service_backend('slow >800s')
 def test_read_write_all_types():
     ht = create_all_values_table()
     tmp_file = new_temp_file()
@@ -1975,7 +1764,6 @@ head_tail_test_data = [
     for counter_name, counter in (('count', hl.Table.count), ('_force_count', hl.Table._force_count))]
 
 
-@skip_when_service_backend()
 @pytest.mark.parametrize("test", head_tail_test_data)
 def test_table_head_and_tail(test):
     test()
