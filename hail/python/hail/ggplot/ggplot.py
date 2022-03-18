@@ -1,4 +1,3 @@
-import plotly
 import plotly.graph_objects as go
 
 from pprint import pprint
