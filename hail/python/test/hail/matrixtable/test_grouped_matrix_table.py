@@ -168,6 +168,59 @@ class Tests(unittest.TestCase):
         assert False
 
     @skip_when_service_backend('slow >800s')
+    def test_joins_work_correctly(self):
+        mt, mt2 = self.get_groupable_matrix2()
+
+        row_result = (mt.group_rows_by(group=mt2.rows()[mt.row_idx].row_idx2 % 3)
+                      .aggregate(sum=hl.agg.sum(mt2[mt.row_idx, mt.col_idx].x + mt.glob) + mt.glob)
+                      .drop('c1'))
+
+        from pprint import pprint
+        pprint(row_result.entries().collect())
+
+        assert False
+
+    @skip_when_service_backend('slow >800s')
+    def test_joins_work_correctly2(self):
+        mt, mt2 = self.get_groupable_matrix2()
+
+        row_result = (mt.group_rows_by(group=mt2.rows()[mt.row_idx].row_idx2 % 3)
+                      .aggregate(sum=hl.agg.sum(mt2[mt.row_idx, mt.col_idx].x + mt.glob) + mt.glob)
+                      .drop('c1'))
+
+        from pprint import pprint
+        pprint(row_result.entries().collect())
+
+        assert False
+
+    @skip_when_service_backend('slow >800s')
+    def test_joins_work_correctly3(self):
+        mt, mt2 = self.get_groupable_matrix2()
+
+        row_result = (mt.group_rows_by(group=mt2.rows()[mt.row_idx].row_idx2 % 3)
+                      .aggregate(sum=hl.agg.sum(mt2[mt.row_idx, mt.col_idx].x + mt.glob) + mt.glob)
+                      .drop('c1'))
+
+        from pprint import pprint
+        pprint(row_result.entries().collect())
+
+        assert False
+
+    @skip_when_service_backend('slow >800s')
+    def test_joins_work_correctly4(self):
+        mt, mt2 = self.get_groupable_matrix2()
+
+        row_result = (mt.group_rows_by(group=mt2.rows()[mt.row_idx].row_idx2 % 3)
+                      .aggregate(sum=hl.agg.sum(mt2[mt.row_idx, mt.col_idx].x + mt.glob) + mt.glob)
+                      .drop('c1'))
+
+        from pprint import pprint
+        pprint(row_result.entries().collect())
+
+        assert False
+
+
+    @skip_when_service_backend('slow >800s')
     def test_group_rows_by_aggregate(self):
         mt, mt2 = self.get_groupable_matrix2()
 
