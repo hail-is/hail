@@ -286,7 +286,7 @@ class Tests(unittest.TestCase):
         assert fs.exists(f'{subdir1}a')
         assert not fs.exists(subdir1subdir1)
         assert not fs.exists(f'{subdir1subdir1}a')
-        assert fs.exists(subdir1subdir2)
+        # subdir1subdir2: will exist in cloud, but not local, so do not test for it
         assert not fs.exists(f'{subdir1subdir2}a')
         assert fs.exists(subdir1subdir3)
         assert fs.exists(f'{subdir1subdir3}a')
