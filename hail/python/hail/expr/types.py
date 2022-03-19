@@ -216,7 +216,7 @@ class HailType(object):
         b.append(str(self))
 
     @abc.abstractmethod
-    def _parsable_string(self):
+    def _parsable_string(self) -> str:
         pass
 
     def typecheck(self, value):

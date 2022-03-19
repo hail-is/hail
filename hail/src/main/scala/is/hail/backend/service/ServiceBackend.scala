@@ -13,6 +13,7 @@ import is.hail.backend.{Backend, BackendContext, BroadcastValue, ExecuteContext,
 import is.hail.expr.JSONAnnotationImpex
 import is.hail.expr.ir.lowering._
 import is.hail.expr.ir.{Compile, IR, IRParser, MakeTuple, SortField}
+import is.hail.expr.ir.functions.IRFunctionRegistry
 import is.hail.io.bgen.IndexBgen
 import is.hail.io.fs._
 import is.hail.io.bgen.IndexBgen
@@ -578,10 +579,11 @@ class ServiceBackendSocketAPI2(
         case EXECUTE =>
           val code = readString()
           val token = readString()
-          withExecuteContext(
-            "ServiceBackend.execute",
-            backend.execute(_, code, token)
-          )
+          withExecuteContext("ServiceBackend.execute", { ctx =>
+            withIRFunctionsReadFromInput {
+              backend.execute(ctx, code, token)
+            }
+          })
         case PARSE_VCF_METADATA =>
           val path = readString()
           withExecuteContext(
@@ -655,6 +657,57 @@ class ServiceBackendSocketAPI2(
         writeString(shortMessage)
         writeString(expandedMessage)
         writeInt(errorId)
+    }
+  }
+
+  def withIRFunctionsReadFromInput(body: () => String): String = {
+    try {
+      var nFunctionsRemaining = readInt()
+      while (nFunctionsRemaining > 0) {
+        val name = readString()
+
+        val nTypeParametersRemaining = readInt()
+        val typeParameters = new Array[String](nTypeParametersRemaining)
+        var i = 0
+        while (i < nTypeParametersRemaining) {
+          typeParameters(i) = readString()
+          i += 1
+        }
+
+        val nValueParameterNamesRemaining = readInt()
+        val valueParameterNames = new Array[String](nValueParameterNamesRemaining)
+        i = 0
+        while (i < nValueParameterNamesRemaining) {
+          valueParameterNames(i) = readString()
+          i += 1
+        }
+
+        val nValueParameterTypesRemaining = readInt()
+        val valueParameterTypes = new Array[String](nValueParameterTypesRemaining)
+        i = 0
+        while (i < nValueParameterTypesRemaining) {
+          valueParameterTypes(i) = readString()
+          i += 1
+        }
+
+        val returnType = readString()
+
+        val renderedBody = readString()
+
+        IRFunctionRegistry.pyRegisterIRForServiceBackend(
+          ctx,
+          name,
+          typeParameters,
+          valueParameterNames,
+          valueParameterTypes,
+          returnType,
+          renderedBody
+        )
+        nFunctionsRemaining -= 1
+      }
+      body()
+    } finally {
+      IRFunctionRegistry.clearUserFunctions()
     }
   }
 }
