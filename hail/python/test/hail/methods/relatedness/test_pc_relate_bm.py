@@ -30,10 +30,10 @@ def test_pc_relate_bm_against_R_truth():
 @fails_spark_backend()
 def test_pc_relate_bm_simple_example():
     gs = hl.literal(
-        [[0, 0, 0, 0, 1, 1, 1, 1],
-         [0, 0, 1, 1, 0, 0, 1, 1],
-         [0, 1, 0, 1, 0, 1, 0, 1],
-         [0, 0, 1, 1, 0, 0, 1, 1]])
+            [[0, 0, 0, 0, 1, 1, 1, 1],
+             [0, 0, 1, 1, 0, 0, 1, 1],
+             [0, 1, 0, 1, 0, 1, 0, 1],
+             [0, 0, 1, 1, 0, 0, 1, 1]])
     scores = hl.literal([[0, 1], [1, 0], [2, 0], [0, -1]])
     mt = hl.utils.range_matrix_table(n_rows=8, n_cols=4)
     mt = mt.annotate_entries(GT=hl.unphased_diploid_gt_index_call(gs[mt.col_idx][mt.row_idx]))
@@ -53,7 +53,7 @@ def test_pc_relate_bm_simple_example():
                   ibd0=0.8946584074678073, ibd1=-0.03651641680393625, ibd2=0.14185800933612888),
         hl.Struct(i=2, j=3, kin=-0.012863506769063277,
                   ibd0=0.7395091389950708, ibd1=0.5724357490861116, ibd2=-0.31194488808118237)
-    ]
+        ]
     ht_expected = hl.Table.parallelize(expected)
     ht_expected = ht_expected.key_by(i=hl.struct(col_idx=ht_expected.i),
                                      j=hl.struct(col_idx=ht_expected.j))

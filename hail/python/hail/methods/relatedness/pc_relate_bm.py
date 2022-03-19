@@ -41,7 +41,7 @@ def _gram(M: BlockMatrix) -> BlockMatrix:
     :class:`.BlockMatrix`
         `M.T @ M`
     """
-    return (M.T @ M).checkpoint(new_temp_file("pcrelate2/gram", "bm"))
+    return (M.T @ M).checkpoint(new_temp_file('pcrelate2/gram', 'bm'))
 
 
 def _dominance_encoding(g: Float64Expression, mu: Float64Expression) -> Float64Expression:
@@ -66,7 +66,7 @@ def _dominance_encoding(g: Float64Expression, mu: Float64Expression) -> Float64E
         .when(g == 0.0, mu) \
         .when(g == 1.0, 0.0) \
         .when(g == 2.0, 1 - mu) \
-        .or_error("entries in genotype matrix must be 0.0, 1.0, or 2.0")
+        .or_error('entries in genotype matrix must be 0.0, 1.0, or 2.0')
     return gd
 
 
