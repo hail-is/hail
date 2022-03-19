@@ -837,6 +837,7 @@ async def run_if_changed(changed, f, *args, **kwargs):
     while True:
         changed.clear()
         should_wait = await f(*args, **kwargs)
+        await asyncio.sleep(0.5)
         if should_wait:
             await changed.wait()
 
