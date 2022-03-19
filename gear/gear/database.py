@@ -236,10 +236,15 @@ class Transaction:
         async with self.conn.cursor() as cursor:
             return await cursor.execute(sql, args)
 
-    async def execute_many(self, sql, args_array):
+    async def execute_many(self, sql, args_array, query_name=None):
         assert self.conn
         async with self.conn.cursor() as cursor:
-            return await cursor.executemany(sql, args_array)
+            if query_name is None:
+                res = await cursor.executemany(sql, args_array)
+            else:
+                async with PrometheusSQLTimer(query_name):
+                    res = await cursor.executemany(sql, args_array)
+            return res
 
 
 class CallError(Exception):
@@ -294,9 +299,9 @@ class Database:
             return await tx.execute_update(sql, args)
 
     @retry_transient_mysql_errors
-    async def execute_many(self, sql, args_array):
+    async def execute_many(self, sql, args_array, query_name=None):
         async with self.start() as tx:
-            return await tx.execute_many(sql, args_array)
+            return await tx.execute_many(sql, args_array, query_name=query_name)
 
     @retry_transient_mysql_errors
     async def check_call_procedure(self, sql, args=None, query_name=None):
