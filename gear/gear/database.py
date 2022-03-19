@@ -9,7 +9,7 @@ from typing import Optional
 import aiomysql
 import pymysql
 
-from gear.metrics import DB_CONNECTION_QUEUE_SIZE, PrometheusSQLTimer
+from gear.metrics import DB_CONNECTION_QUEUE_SIZE, SQL_TRANSACTIONS, PrometheusSQLTimer
 from hailtop.auth.sql_config import SQLConfig
 from hailtop.utils import sleep_and_backoff
 
@@ -159,6 +159,7 @@ class Transaction:
         try:
             self.conn_context_manager = db_pool.acquire()
             DB_CONNECTION_QUEUE_SIZE.inc()
+            SQL_TRANSACTIONS.inc()
             self.conn = await aenter(self.conn_context_manager)
             DB_CONNECTION_QUEUE_SIZE.dec()
             async with self.conn.cursor() as cursor:
