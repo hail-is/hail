@@ -148,8 +148,6 @@ class AzureStorageFS extends FS {
   def openNoCompression(filename: String): SeekableDataInputStream = {
     val blobClient: BlobClient = getBlobClient(filename)
 
-    println(s"opening $filename")
-
     val is: SeekableInputStream = new InputStream with Seekable {
       private[this] var closed: Boolean = false
       private[this] var client: BlobClient = blobClient
@@ -159,36 +157,6 @@ class AzureStorageFS extends FS {
       private[this] val bb: ByteBuffer = ByteBuffer.allocate(64 * 1024)
       bb.limit(0)
 
-      // TODO: in general, how should we be handling closed behavior?
-//      override def read(): Int = {
-//        if (eof || closed) {
-//          println("EOF OR CLOSED")
-//          return -1
-//        }
-//
-//        val outputStream: ByteArrayOutputStream = new ByteArrayOutputStream()
-//        try {
-//          client.downloadStreamWithResponse(
-//            outputStream, new BlobRange(pos, 1),
-//            null, null, false, Duration.ofMinutes(1), null)
-//          pos += 1
-//        }
-//        catch {
-//          case e: BlobStorageException => if (e.getStatusCode == 416) {
-//            println("caught an EOF blob storage exception")
-//            eof = true
-//            return -1
-//          }
-//          case e: ResourceNotFoundException => throw new FileNotFoundException("Couldn't find that file.")
-//        }
-//
-//        val arrayWithNextByte: Array[Byte] = outputStream.toByteArray
-//        println(s"pos = $pos")
-////        println(s"next byte: ${arrayWithNextByte.mkString("Array(", ", ", ")")}")
-//        arrayWithNextByte(0).toInt & 0xff
-////        bb.get().toInt & 0xff
-//      }
-
       def fill(): Unit = {
         bb.clear()
 
@@ -197,9 +165,6 @@ class AzureStorageFS extends FS {
         val blobProperties = blobClient.getProperties
         val blobSize = blobProperties.getBlobSize
 
-        println(s"${blobSize}")
-        println(s"$pos")
-        println(s"bb remaining: ${bb.remaining()}")
         val count = Math.min(blobSize - pos, bb.remaining() - 1)
         if (count <= 0) {
           eof = true
@@ -215,15 +180,6 @@ class AzureStorageFS extends FS {
 
         bb.put(outputStream.toByteArray)
 
-//        var n = 0
-//        while (n == 0) {
-////          n = reader.read(bb)
-//          // TODO: reader.read copies the contents of the blob into bb and returns number of bytes read (returning -1 if EOF)
-//          if (n == -1) {
-//            eof = true
-//            return
-//          }
-//        }
         bb.flip()
 
         assert(bb.position() == 0 && bb.remaining() > 0)
@@ -280,13 +236,9 @@ class AzureStorageFS extends FS {
     new WrappedSeekableDataInputStream(is)
   }
 
-  // TODO: need to use AppendBlobClient to be able to append data to existing blob
   def createNoCompression(filename: String): PositionedDataOutputStream = {
-    println(s"Filename: $filename")
     val appendClient: AppendBlobClient = getBlobClient(filename).getAppendBlobClient
     if (!appendClient.exists()) appendClient.create()
-
-    println("created the thing")
 
     val os: PositionedOutputStream = new OutputStream with Positioned {
       private[this] val bb: ByteBuffer = ByteBuffer.allocate(64 * 20)
@@ -297,46 +249,24 @@ class AzureStorageFS extends FS {
       override def write(i: Int): Unit = {
         if (!closed) {
           if (bb.remaining() == 0) {
-            println("flushing")
             flush()
           }
           bb.put(i.toByte)
-          println(s"put ${i.toByte} into buffer")
           pos += 1
         }
       }
-
-//      override def write(bytes: Array[Byte], off: Int, len: Int): Unit = {
-//        var i = off
-//        var remaining = len
-//        while (remaining > 0) {
-//          if (bb.remaining() == 0) {
-//            println("flushing in the bigger write")
-//            flush()
-//          }
-//          val toTransfer = math.min(bb.remaining(), remaining)
-//          bb.put(bytes, i, toTransfer)
-//          i += toTransfer
-//          remaining -= toTransfer
-//          pos += toTransfer
-//        }
-//      }
 
       override def flush(): Unit = {
         if (!closed) {
           bb.flip()
 
           if (bb.limit() > 0) {
-            println(s"position: ${bb.position()}")
-            println(s"limit: ${bb.limit()}")
-            println(s"remaining: ${bb.remaining()}")
             var toWrite: mutable.MutableList[Byte] = mutable.MutableList()
             var i = 0
             while (i < bb.remaining()) {
               toWrite += bb.get(i)
               i += 1
             }
-            println(s"array being appended to append client: ${toWrite.toArray.mkString("Array(", ", ", ")")}")
             appendClient.appendBlock(new ByteArrayInputStream(toWrite.toArray), toWrite.length)
           }
 
@@ -371,13 +301,9 @@ class AzureStorageFS extends FS {
       if (recursive) {
         // if recursive, create an iterator over all files in this "directory" (files that match its prefix)
         val blobContainerClient = this.getContainerClient(filename)
-        // TODO: for loop over these results and delete them all
         val listBlobsOptions = new ListBlobsOptions().setPrefix(dropTrailingSlash(path) + "/")
         val directoryContents = blobContainerClient.listBlobs(listBlobsOptions, Duration.ofMinutes(1))
         directoryContents.forEach(blobItem => {
-          // figure out what blobItem.getName does so I can use it to call fileStatus
-          println(s"blobItem: ${blobItem.getName}")
-
           val blobFileName = s"hail-az://$account/$container/${blobItem.getName}"
           this.getBlobClient(blobFileName).delete()
         })
@@ -398,8 +324,6 @@ class AzureStorageFS extends FS {
   }
 
   override def listStatus(filename: String): Array[FileStatus] = {
-    println(s"filename: $filename")
-
     var (account, container, path) = getAccountContainerPath(filename)
 
     val blobContainerClient: BlobContainerClient = getContainerClient(filename)
@@ -407,38 +331,28 @@ class AzureStorageFS extends FS {
     val statList: mutable.MutableList[FileStatus] = mutable.MutableList()
     var blobNameSet: Set[String] = Set()
 
-    println(s"path: ${dropTrailingSlash(path) + "/"}")
     val prefix = dropTrailingSlash(path) + "/"
     val listBlobsOptions = new ListBlobsOptions().setPrefix(prefix)
     val directoryContents = blobContainerClient.listBlobs(listBlobsOptions, Duration.ofMinutes(1))
     directoryContents.forEach(blobItem => {
-      // figure out what blobItem.getName does so I can use it to call fileStatus
-      println(s"blobItem: ${blobItem.getName}")
-
       // find the first slash
       val indexOfFirstSlashAfterPrefix: Int = blobItem.getName.indexOf("/", prefix.length)
       var blobName = blobItem.getName
       if (indexOfFirstSlashAfterPrefix != -1) {
-        println(s"FOUND A SLASH @ index $indexOfFirstSlashAfterPrefix")
         blobName = blobItem.getName.substring(0, indexOfFirstSlashAfterPrefix)
-        println(s"blobName: $blobName")
       }
 
-      println(blobNameSet.toArray.mkString("Array(", ", ", ")"))
       if (!blobNameSet.contains(blobName)) {
         blobNameSet = blobNameSet + blobName
         val blobFileName = s"hail-az://$account/$container/$blobName"
-        println(s"blobFileName: $blobFileName")
         statList += fileStatus(blobFileName)
       }
     })
 
-    println(blobNameSet.toArray.mkString("Array(", ", ", ")"))
     statList.toArray
   }
 
   def glob(filename: String): Array[FileStatus] = {
-//    var (bucket, path) = getBucketPath(filename)
     var (account, container, path) = getAccountContainerPath(filename)
     path = dropTrailingSlash(path)
 
@@ -493,11 +407,7 @@ class AzureStorageFS extends FS {
   override def globAllStatuses(filenames: Iterable[String]): Array[FileStatus] = filenames.flatMap(glob).toArray
 
   override def fileStatus(filename: String): FileStatus = {
-    println(filename)
     var (account, container, path) = getAccountContainerPath(filename)
-    println(s"account: $account")
-    println(s"container: $container")
-    println(s"path: $path")
 
     if (path == "") {
       return new AzureStorageFileStatus(s"hail-az://$account/$container", null, 0, true)
@@ -507,13 +417,10 @@ class AzureStorageFS extends FS {
     val blobContainerClient: BlobContainerClient = getContainerClient(filename)
 
     var numSubBlobs: Int = 0
-//    val listBlobsOptions = new ListBlobsOptions().setPrefix(dropTrailingSlash(path) + "/")
-//    val directoryContents = blobContainerClient.listBlobs(listBlobsOptions, Duration.ofMinutes(1))
     val directoryContents = blobContainerClient.listBlobsByHierarchy(dropTrailingSlash(path) + "/")
     directoryContents.forEach(_ => {
       numSubBlobs += 1
     })
-    println(s"numSubBlobs = ${numSubBlobs}")
 
     if (numSubBlobs == 0 && !blobClient.exists()) throw new FileNotFoundException("file isn't found")
 
