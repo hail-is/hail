@@ -2436,7 +2436,7 @@ class Worker:
 
     async def cleanup_old_images(self):
         try:
-            async with self.worker.image_lock.writer_lock:
+            async with self.image_lock.writer_lock:
                 log.info(f"Obtained writer lock. The image ref counts are: {self.image_data}")
                 for image_id in list(self.image_data.keys()):
                     now = time_msecs()
