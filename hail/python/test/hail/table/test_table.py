@@ -1905,7 +1905,6 @@ def test_map_partitions_indexed():
 
 
 
-@fails_service_backend()
 @lower_only()
 def test_lowered_persist():
     ht = hl.utils.range_table(100, 10).persist()
@@ -1914,7 +1913,6 @@ def test_lowered_persist():
 
 
 
-@fails_service_backend()
 @lower_only()
 def test_lowered_shuffle():
     ht = hl.utils.range_table(100, 10)

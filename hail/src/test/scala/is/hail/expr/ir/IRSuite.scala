@@ -2135,8 +2135,8 @@ class IRSuite extends HailSuite {
 
     def joinRows(left: IndexedSeq[Integer], right: IndexedSeq[Integer], joinType: String): IR = {
       join(
-        MakeStream.unify(left.zipWithIndex.map { case (n, idx) => MakeStruct(FastIndexedSeq("lk1" -> (if (n == null) NA(TInt32) else I32(n)), "lk2" -> Str("x"), "a" -> I64(idx))) }),
-        MakeStream.unify(right.zipWithIndex.map { case (n, idx) => MakeStruct(FastIndexedSeq("b" -> I32(idx), "rk2" -> Str("x"), "rk1" -> (if (n == null) NA(TInt32) else I32(n)), "c" -> Str("foo"))) }),
+        MakeStream.unify(ctx, left.zipWithIndex.map { case (n, idx) => MakeStruct(FastIndexedSeq("lk1" -> (if (n == null) NA(TInt32) else I32(n)), "lk2" -> Str("x"), "a" -> I64(idx))) }),
+        MakeStream.unify(ctx, right.zipWithIndex.map { case (n, idx) => MakeStruct(FastIndexedSeq("b" -> I32(idx), "rk2" -> Str("x"), "rk1" -> (if (n == null) NA(TInt32) else I32(n)), "c" -> Str("foo"))) }),
         FastIndexedSeq("lk1", "lk2"),
         FastIndexedSeq("rk1", "rk2"),
         rightDistinct = true,
@@ -2150,7 +2150,7 @@ class IRSuite extends HailSuite {
     assertEvalsTo(
       join(
         NA(TStream(TStruct("k1" -> TInt32, "k2" -> TString, "a" -> TInt64))),
-        MakeStream.unify(Seq(MakeStruct(FastIndexedSeq("b" -> I32(0), "k2" -> Str("x"), "k1" -> I32(3), "c" -> Str("foo"))))),
+        MakeStream.unify(ctx, Seq(MakeStruct(FastIndexedSeq("b" -> I32(0), "k2" -> Str("x"), "k1" -> I32(3), "c" -> Str("foo"))))),
         FastIndexedSeq("k1", "k2"),
         FastIndexedSeq("k1", "k2"),
         true,
@@ -2159,7 +2159,7 @@ class IRSuite extends HailSuite {
 
     assertEvalsTo(
       join(
-        MakeStream.unify(Seq(MakeStruct(FastIndexedSeq("k1" -> I32(0), "k2" -> Str("x"), "a" -> I64(3))))),
+        MakeStream.unify(ctx, Seq(MakeStruct(FastIndexedSeq("k1" -> I32(0), "k2" -> Str("x"), "a" -> I64(3))))),
         NA(TStream(TStruct("b" -> TInt32, "k2" -> TString, "k1" -> TInt32, "c" -> TString))),
         FastIndexedSeq("k1", "k2"),
         FastIndexedSeq("k1", "k2"),
@@ -2199,8 +2199,8 @@ class IRSuite extends HailSuite {
 
     def joinRows(left: IndexedSeq[Integer], right: IndexedSeq[Integer], joinType: String): IR = {
       join(
-        MakeStream.unify(left.zipWithIndex.map { case (n, idx) => MakeStruct(FastIndexedSeq("lk" -> (if (n == null) NA(TInt32) else I32(n)), "l" -> I32(idx))) }),
-        MakeStream.unify(right.zipWithIndex.map { case (n, idx) => MakeStruct(FastIndexedSeq("rk" -> (if (n == null) NA(TInt32) else I32(n)), "r" -> I32(idx))) }),
+        MakeStream.unify(ctx, left.zipWithIndex.map { case (n, idx) => MakeStruct(FastIndexedSeq("lk" -> (if (n == null) NA(TInt32) else I32(n)), "l" -> I32(idx))) }),
+        MakeStream.unify(ctx, right.zipWithIndex.map { case (n, idx) => MakeStruct(FastIndexedSeq("rk" -> (if (n == null) NA(TInt32) else I32(n)), "r" -> I32(idx))) }),
         FastIndexedSeq("lk"),
         FastIndexedSeq("rk"),
         false,

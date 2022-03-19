@@ -1,6 +1,7 @@
 package is.hail.expr.ir.lowering
 
 import is.hail.HailContext
+import is.hail.backend.ExecuteContext
 import is.hail.expr.ir._
 import is.hail.expr.ir.functions.TableToValueFunction
 import is.hail.io.TextMatrixReader
@@ -11,9 +12,9 @@ import is.hail.io.vcf.MatrixVCFReader
 import is.hail.methods.{ForceCountTable, NPartitionsTable}
 
 object CanLowerEfficiently {
-  def apply(ir0: BaseIR): Option[String] = {
+  def apply(ctx: ExecuteContext, ir0: BaseIR): Option[String] = {
 
-    if (HailContext.getFlag("no_whole_stage_codegen") != null)
+    if (ctx.getFlag("no_whole_stage_codegen") != null)
       return Some("flag 'no_whole_stage_codegen' is enabled")
 
     var prohibitiveReason: Option[String] = None

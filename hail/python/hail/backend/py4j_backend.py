@@ -1,3 +1,4 @@
+from typing import Mapping
 import abc
 
 import py4j
@@ -38,6 +39,7 @@ def handle_java_exception(f):
 
 
 class Py4JBackend(Backend):
+    _jbackend: py4j.java_gateway.JavaObject
 
     @abc.abstractmethod
     def __init__(self):
@@ -120,3 +122,18 @@ class Py4JBackend(Backend):
 
     async def _async_get_references(self, names):
         raise NotImplementedError('no async available in Py4JBackend')
+
+    def set_flags(self, **flags: Mapping[str, str]):
+        available = self._jbackend.availableFlags()
+        invalid = []
+        for flag, value in flags.items():
+            if flag in available:
+                self._jbackend.setFlag(flag, value)
+            else:
+                invalid.append(flag)
+        if len(invalid) != 0:
+            raise FatalError("Flags {} not valid. Valid flags: \n    {}"
+                             .format(', '.join(invalid), '\n    '.join(available)))
+
+    def get_flags(self, *flags) -> Mapping[str, str]:
+        return {flag: self._jbackend.getFlag(flag) for flag in flags}

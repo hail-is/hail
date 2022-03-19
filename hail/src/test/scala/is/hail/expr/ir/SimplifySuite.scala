@@ -1,7 +1,6 @@
 package is.hail.expr.ir
 
 import is.hail.{ExecStrategy, HailSuite}
-import is.hail.TestUtils.assertEvalsTo
 import is.hail.expr.ir.TestUtils.IRAggCount
 import is.hail.types.virtual._
 import is.hail.utils.{FastIndexedSeq, FastSeq, Interval}
@@ -42,16 +41,16 @@ class SimplifySuite extends HailSuite {
 
   @Test def testInsertFieldsRewriteRules() {
     val ir1 = InsertFields(InsertFields(base, Seq("1" -> I32(2)), None), Seq("1" -> I32(3)), None)
-    assert(Simplify(ir1) == InsertFields(base, Seq("1" -> I32(3)), Some(FastIndexedSeq("1", "2"))))
+    assert(Simplify(ctx, ir1) == InsertFields(base, Seq("1" -> I32(3)), Some(FastIndexedSeq("1", "2"))))
 
     val ir2 = InsertFields(InsertFields(base, Seq("3" -> I32(2)), Some(FastIndexedSeq("3", "1", "2"))), Seq("3" -> I32(3)), None)
-    assert(Simplify(ir2) == InsertFields(base, Seq("3" -> I32(3)), Some(FastIndexedSeq("3", "1", "2"))))
+    assert(Simplify(ctx, ir2) == InsertFields(base, Seq("3" -> I32(3)), Some(FastIndexedSeq("3", "1", "2"))))
 
     val ir3 = InsertFields(InsertFields(base, Seq("3" -> I32(2)), Some(FastIndexedSeq("3", "1", "2"))), Seq("4" -> I32(3)), Some(FastIndexedSeq("3", "1", "2", "4")))
-    assert(Simplify(ir3) == InsertFields(base, Seq("3" -> I32(2), "4" -> I32(3)), Some(FastIndexedSeq("3", "1", "2", "4"))))
+    assert(Simplify(ctx, ir3) == InsertFields(base, Seq("3" -> I32(2), "4" -> I32(3)), Some(FastIndexedSeq("3", "1", "2", "4"))))
 
     val ir4 = InsertFields(InsertFields(base, Seq("3" -> I32(0), "4" -> I32(1))), Seq("3" -> I32(5)))
-    assert(Simplify(ir4) == InsertFields(base, Seq("4" -> I32(1), "3" -> I32(5)), Some(FastIndexedSeq("1", "2", "3", "4"))))
+    assert(Simplify(ctx, ir4) == InsertFields(base, Seq("4" -> I32(1), "3" -> I32(5)), Some(FastIndexedSeq("1", "2", "3", "4"))))
   }
 
   lazy val base2 = Literal(TStruct("A" -> TInt32, "B" -> TInt32, "C" -> TInt32, "D" -> TInt32), Row(1, 2, 3, 4))
@@ -62,16 +61,16 @@ class SimplifySuite extends HailSuite {
           IndexedSeq("B" -> GetField(base2, "B")),
           None
         )
-    val simplify1 = Simplify(ir1)
+    val simplify1 = Simplify(ctx, ir1)
     assert(simplify1.typ == ir1.typ)
   }
 
   @Test def testInsertSelectRewriteRules() {
     val ir1 = SelectFields(InsertFields(base, FastIndexedSeq("3" -> I32(1)), None), FastIndexedSeq("1"))
-    assert(Simplify(ir1) == SelectFields(base, FastIndexedSeq("1")))
+    assert(Simplify(ctx, ir1) == SelectFields(base, FastIndexedSeq("1")))
 
     val ir2 = SelectFields(InsertFields(base, FastIndexedSeq("3" -> I32(1)), None), FastIndexedSeq("3", "1"))
-    assert(Simplify(ir2) == InsertFields(SelectFields(base, FastIndexedSeq("1")), FastIndexedSeq("3" -> I32(1)), Some(FastIndexedSeq("3", "1"))))
+    assert(Simplify(ctx, ir2) == InsertFields(SelectFields(base, FastIndexedSeq("1")), FastIndexedSeq("3" -> I32(1)), Some(FastIndexedSeq("3", "1"))))
   }
 
   @Test def testBlockMatrixRewriteRules() {
@@ -79,7 +78,7 @@ class SimplifySuite extends HailSuite {
       FastIndexedSeq(2, 2), 10)
     val identityBroadcast = BlockMatrixBroadcast(bmir, FastIndexedSeq(0, 1), FastIndexedSeq(2, 2), 10)
 
-    assert(Simplify(identityBroadcast) == bmir)
+    assert(Simplify(ctx, identityBroadcast) == bmir)
   }
 
   @Test def testContainsRewrites() {
@@ -112,14 +111,14 @@ class SimplifySuite extends HailSuite {
     val ir2 = Let("row2", InsertFields(r, FastSeq(("y", F64(0.0)))), InsertFields(r2, FastSeq(("z", GetField(r2, "x").toD + GetField(r2, "y")))))
     val ir3 = Let("row2", InsertFields(r, FastSeq(("y", F64(0.0)))), InsertFields(Ref("something_else", TStruct.empty), FastSeq(("z", GetField(r2, "y").toI))))
 
-    assert(Simplify(ir1) == InsertFields(r, FastSeq(("y", F64(0)), ("z", GetField(r, "x").toD)), Some(FastIndexedSeq("x", "y", "z"))))
-    assert(Simplify(ir2) == InsertFields(r, FastSeq(("y", F64(0.0)), ("z", GetField(r, "x").toD + F64(0.0))), Some(FastIndexedSeq("x", "y", "z"))))
+    assert(Simplify(ctx, ir1) == InsertFields(r, FastSeq(("y", F64(0)), ("z", GetField(r, "x").toD)), Some(FastIndexedSeq("x", "y", "z"))))
+    assert(Simplify(ctx, ir2) == InsertFields(r, FastSeq(("y", F64(0.0)), ("z", GetField(r, "x").toD + F64(0.0))), Some(FastIndexedSeq("x", "y", "z"))))
 
     assert(Optimize[IR](ir3, "direct", ctx) == InsertFields(Ref("something_else", TStruct.empty), FastSeq(("z", I32(0)))))
 
     val shouldNotRewrite = Let("row2", InsertFields(r, FastSeq(("y", Ref("other", TFloat64)))), InsertFields(r2, FastSeq(("z", invoke("str", TString, r2)))))
 
-    assert(Simplify(shouldNotRewrite) == shouldNotRewrite)
+    assert(Simplify(ctx, shouldNotRewrite) == shouldNotRewrite)
   }
 
   @Test def testNestedInsertsSimplifyAcrossLets() {
@@ -138,7 +137,7 @@ class SimplifySuite extends HailSuite {
         )
       )
     )
-    val simplified = new NormalizeNames(_.toString, true).apply(Simplify(l))
+    val simplified = new NormalizeNames(_.toString, true).apply(Simplify(ctx, l))
     val expected = Let("1",
       I32(1) + Ref("OTHER_1", TInt32),
       Let("2", I32(1) + Ref("1", TInt32),
@@ -160,7 +159,7 @@ class SimplifySuite extends HailSuite {
         AggLet("bar", In(1, TInt32) * In(1, TInt32), Ref("x", TInt32), true)))
 
     doesRewrite.foreach { a =>
-      assert(Simplify(a) == a.query)
+      assert(Simplify(ctx, a) == a.query)
     }
 
     val doesNotRewrite: Array[StreamAgg] = Array(
@@ -172,7 +171,7 @@ class SimplifySuite extends HailSuite {
     )
 
     doesNotRewrite.foreach { a =>
-      assert(Simplify(a) == a)
+      assert(Simplify(ctx, a) == a)
     }
   }
 
@@ -183,7 +182,7 @@ class SimplifySuite extends HailSuite {
         AggLet("bar", In(1, TInt32) * In(1, TInt32), Ref("x", TInt32), false)))
 
     doesRewrite.foreach { a =>
-      assert(Simplify(a) == a.query)
+      assert(Simplify(ctx, a) == a.query)
     }
 
     val doesNotRewrite: Array[StreamAggScan] = Array(
@@ -195,7 +194,7 @@ class SimplifySuite extends HailSuite {
     )
 
     doesNotRewrite.foreach { a =>
-      assert(Simplify(a) == a)
+      assert(Simplify(ctx, a) == a)
     }
   }
 
@@ -203,7 +202,7 @@ class SimplifySuite extends HailSuite {
     val tr = TableRange(10, 10)
     val a = ArrayLen(GetField(TableCollect(tr), "rows"))
     assert(a.typ == TInt32)
-    val s = Simplify(a).asInstanceOf[IR]
+    val s = Simplify(ctx, a).asInstanceOf[IR]
     assertEvalsTo(s, 10)
     assert(s.typ == TInt32)
   }
@@ -215,7 +214,7 @@ class SimplifySuite extends HailSuite {
     mir = MatrixMapCols(mir, AggLet("foo", I32(1), InsertFields(Ref("sa", colType), FastSeq(("bar", I32(2)))), false), None)
     val tir = MatrixColsTable(mir)
 
-    assert(Simplify(tir) == tir)
+    assert(Simplify(ctx, tir) == tir)
   }
 
   @Test def testFilterParallelize() {
@@ -228,8 +227,8 @@ class SimplifySuite extends HailSuite {
       val tp = TableParallelize(rowsAndGlobals, None)
       val tf = TableFilter(tp, GetField(Ref("row", tp.typ.rowType), "x") < 100)
 
-      val rw = Simplify(tf)
-      TypeCheck(rw)
+      val rw = Simplify(ctx, tf)
+      TypeCheck(ctx, rw)
       assert(!Exists(rw, _.isInstanceOf[TableFilter]))
     }
   }
@@ -239,9 +238,9 @@ class SimplifySuite extends HailSuite {
     val mapOfRange = mapIR(rangeIR)(range_element => range_element + 5)
     val mapBlockedByLet = bindIR(I32(5))(ref => mapIR(rangeIR)(range_element => range_element + ref))
 
-    assert(Simplify(StreamLen(rangeIR)) == Simplify(StreamLen(mapOfRange)))
-    assert(Simplify(StreamLen(mapBlockedByLet)) match {
-      case Let(name, value, body) => body == Simplify(StreamLen(mapOfRange))
+    assert(Simplify(ctx, StreamLen(rangeIR)) == Simplify(ctx, StreamLen(mapOfRange)))
+    assert(Simplify(ctx, StreamLen(mapBlockedByLet)) match {
+      case Let(name, value, body) => body == Simplify(ctx, StreamLen(mapOfRange))
     })
   }
 
@@ -252,7 +251,7 @@ class SimplifySuite extends HailSuite {
     tir = TableKeyBy(tir, FastIndexedSeq("idx", "idx2"))
     tir = TableFilterIntervals(tir, FastIndexedSeq(Interval(Row(0), Row(1), true, false)), false)
     tir = TableFilterIntervals(tir, FastIndexedSeq(Interval(Row(8), Row(10), true, false)), false)
-    assert(Simplify(tir).asInstanceOf[TableFilterIntervals].intervals == FastIndexedSeq(Interval(Row(0), Row(1), true, false), Interval(Row(8), Row(10), true, false)))
+    assert(Simplify(ctx, tir).asInstanceOf[TableFilterIntervals].intervals == FastIndexedSeq(Interval(Row(0), Row(1), true, false), Interval(Row(8), Row(10), true, false)))
   }
 
   @Test def testSimplifyReadFilterIntervals() {
@@ -273,21 +272,21 @@ class SimplifySuite extends HailSuite {
     val tfi1 = TableFilterIntervals(tr, intervals1, true)
     val exp1 = TableRead(tnr.fullType, false, TableNativeReader(fs, TableNativeReaderParameters(src + "/rows", Some(NativeReaderOptions(intervals1, tnr.fullType.keyType, true)))))
 
-    assert(Simplify(tfi1) == exp1)
+    assert(Simplify(ctx, tfi1) == exp1)
 
     val tfi2 = TableFilterIntervals(exp1, intervals2, true)
     val exp2 = TableRead(tnr.fullType, false, TableNativeReader(fs, TableNativeReaderParameters(src + "/rows", Some(NativeReaderOptions(intersection, tnr.fullType.keyType, true)))))
 
-    assert(Simplify(tfi2) == exp2)
+    assert(Simplify(ctx, tfi2) == exp2)
 
     val ztfi1 = TableFilterIntervals(tzr, intervals1, true)
     val zexp1 = TableRead(tzr.typ, false, tzrr.copy(options = Some(NativeReaderOptions(intervals1, tnr.fullType.keyType, true))))
-    assert(Simplify(ztfi1) == zexp1)
+    assert(Simplify(ctx, ztfi1) == zexp1)
 
     val ztfi2 = TableFilterIntervals(ztfi1, intervals2, true)
     val zexp2 = TableRead(tzr.typ, false, tzrr.copy(options = Some(NativeReaderOptions(intersection, tnr.fullType.keyType, true))))
 
-    assert(Simplify(ztfi2) == zexp2)
+    assert(Simplify(ctx, ztfi2) == zexp2)
   }
 
   @Test(enabled = false) def testFilterIntervalsKeyByToFilter() {
@@ -296,7 +295,7 @@ class SimplifySuite extends HailSuite {
     t = TableKeyBy(t, FastIndexedSeq("x"))
     t = TableFilterIntervals(t, FastIndexedSeq(Interval(Row(-10), Row(10), includesStart = true, includesEnd = false)), keep = true)
 
-    val t2 = Simplify(t)
+    val t2 = Simplify(ctx, t)
     assert(t2 match {
       case TableKeyBy(TableFilter(child, _), _, _) => !Exists(child, _.isInstanceOf[TableFilterIntervals])
       case _ => false
@@ -305,28 +304,28 @@ class SimplifySuite extends HailSuite {
 
   @Test def testSimplifyArraySlice(): Unit = {
     val stream = StreamRange(I32(0), I32(10), I32(1))
-    val streamSlice1 = Simplify(ArraySlice(ToArray(stream), I32(0), Some(I32(7))))
+    val streamSlice1 = Simplify(ctx, ArraySlice(ToArray(stream), I32(0), Some(I32(7))))
     assert(streamSlice1 match {
       case ToArray(StreamTake(_,_)) => true
       case _ => false
     } )
     assertEvalsTo(streamSlice1.asInstanceOf[IR], FastSeq(0, 1, 2, 3, 4, 5, 6))
 
-    val streamSlice2 = Simplify(ArraySlice(ToArray(stream), I32(3), Some(I32(5))))
+    val streamSlice2 = Simplify(ctx, ArraySlice(ToArray(stream), I32(3), Some(I32(5))))
     assert(streamSlice2 match {
       case ToArray(StreamTake(StreamDrop(_,_), _)) => true
       case _ => false
     } )
     assertEvalsTo(streamSlice2.asInstanceOf[IR], FastSeq(3, 4))
 
-    val streamSlice3 = Simplify(ArraySlice(ToArray(stream), I32(6), Some(I32(2))))
+    val streamSlice3 = Simplify(ctx, ArraySlice(ToArray(stream), I32(6), Some(I32(2))))
     assert(streamSlice3 match {
       case MakeArray(_, _) => true
       case _ => false
     } )
     assertEvalsTo(streamSlice3.asInstanceOf[IR], FastSeq())
 
-    val streamSlice4 = Simplify(ArraySlice(ToArray(stream), I32(0), None))
+    val streamSlice4 = Simplify(ctx, ArraySlice(ToArray(stream), I32(0), None))
     assert(streamSlice4 match {
       case ToArray(StreamDrop(_, _)) => true
       case _ => false

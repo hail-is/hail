@@ -27,7 +27,7 @@ class EmitStreamSuite extends HailSuite {
     val fb = EmitFunctionBuilder[T, R](ctx, "stream_test")
     val mb = fb.apply_method
     mb.emit(f(mb, mb.getCodeParam[T](1)))
-    val asmFn = fb.result()(theHailClassLoader)
+    val asmFn = fb.result(ctx)(theHailClassLoader)
     asmFn.apply
   }
 
@@ -35,7 +35,7 @@ class EmitStreamSuite extends HailSuite {
     val fb = EmitFunctionBuilder[T, U, R](ctx, "F")
     val mb = fb.apply_method
     mb.emit(f(mb, mb.getCodeParam[T](1), mb.getCodeParam[U](2)))
-    val asmFn = fb.result()(theHailClassLoader)
+    val asmFn = fb.result(ctx)(theHailClassLoader)
     asmFn.apply
   }
 
@@ -43,7 +43,7 @@ class EmitStreamSuite extends HailSuite {
     val fb = EmitFunctionBuilder[T, U, V, R](ctx, "F")
     val mb = fb.apply_method
     mb.emit(f(mb, mb.getCodeParam[T](1), mb.getCodeParam[U](2), mb.getCodeParam[V](3)))
-    val asmFn = fb.result()(theHailClassLoader)
+    val asmFn = fb.result(ctx)(theHailClassLoader)
     asmFn.apply
   }
 
@@ -67,7 +67,7 @@ class EmitStreamSuite extends HailSuite {
         case ToArray(s) => s
         case s => s
       }
-      TypeCheck(s)
+      TypeCheck(ctx, s)
       EmitStream.produce(new Emit(emitContext, fb.ecb), s, cb, region, EmitEnv(Env.empty, inputTypes.indices.map(i => mb.storeEmitParam(i + 2, cb))), None)
         .consumeCode[Long](cb, 0L, { s =>
           val arr = StreamUtils.toArray(cb, s.asStream.producer, region)
@@ -131,7 +131,7 @@ class EmitStreamSuite extends HailSuite {
     val emitContext = EmitContext.analyze(ctx, ir)
 
     fb.emitWithBuilder { cb =>
-      TypeCheck(ir)
+      TypeCheck(ctx, ir)
       val len = cb.newLocal[Int]("len", 0)
       val len2 = cb.newLocal[Int]("len2", -1)
 
@@ -170,8 +170,8 @@ class EmitStreamSuite extends HailSuite {
         IndexedSeq("hi", "world")
     )
     for ((ir, v) <- tests) {
-      assert(evalStream(ir) == v, Pretty(ir))
-      assert(evalStreamLen(ir) == Some(v.length), Pretty(ir))
+      assert(evalStream(ir) == v, Pretty(ctx, ir))
+      assert(evalStreamLen(ir) == Some(v.length), Pretty(ctx, ir))
     }
   }
 
@@ -237,8 +237,8 @@ class EmitStreamSuite extends HailSuite {
     )
     for ((ir, v) <- tests) {
       val expectedLen = Option(v).map(_.length)
-      assert(evalStream(ir) == v, Pretty(ir))
-      assert(evalStreamLen(ir) == expectedLen, Pretty(ir))
+      assert(evalStream(ir) == v, Pretty(ctx, ir))
+      assert(evalStreamLen(ir) == expectedLen, Pretty(ctx, ir))
     }
   }
 
@@ -251,8 +251,8 @@ class EmitStreamSuite extends HailSuite {
           "i",
           MakeStream(Seq(Ref("i", TInt32), Ref("end", TInt32)), TStream(TInt32)))
       )
-    assert(evalStream(ir) == (3 until 10).flatMap { i => Seq(i, 10) }, Pretty(ir))
-    assert(evalStreamLen(ir).isEmpty, Pretty(ir))
+    assert(evalStream(ir) == (3 until 10).flatMap { i => Seq(i, 10) }, Pretty(ctx, ir))
+    assert(evalStreamLen(ir).isEmpty, Pretty(ctx, ir))
   }
 
   @Test def testEmitMap() {
@@ -269,8 +269,8 @@ class EmitStreamSuite extends HailSuite {
       StreamMap(ten, "x", NA(TInt32)) -> IndexedSeq.tabulate(10) { _ => null }
     )
     for ((ir, v) <- tests) {
-      assert(evalStream(ir) == v, Pretty(ir))
-      assert(evalStreamLen(ir) == Some(v.length), Pretty(ir))
+      assert(evalStream(ir) == v, Pretty(ctx, ir))
+      assert(evalStreamLen(ir) == Some(v.length), Pretty(ctx, ir))
     }
   }
 
@@ -288,8 +288,8 @@ class EmitStreamSuite extends HailSuite {
       StreamFilter(StreamMap(ten, "x", NA(TInt32)), "z", True()) -> IndexedSeq.tabulate(10) { _ => null }
     )
     for ((ir, v) <- tests) {
-      assert(evalStream(ir) == v, Pretty(ir))
-      assert(evalStreamLen(ir).isEmpty, Pretty(ir))
+      assert(evalStream(ir) == v, Pretty(ctx, ir))
+      assert(evalStreamLen(ir).isEmpty, Pretty(ctx, ir))
     }
   }
 
@@ -317,9 +317,9 @@ class EmitStreamSuite extends HailSuite {
         IndexedSeq(0, 0, 1, 1, 2, 2, 3, 3)
     )
     for ((ir, v) <- tests) {
-      assert(evalStream(ir) == v, Pretty(ir))
+      assert(evalStream(ir) == v, Pretty(ctx, ir))
       if (v != null)
-        assert(evalStreamLen(ir) == None, Pretty(ir))
+        assert(evalStreamLen(ir) == None, Pretty(ctx, ir))
     }
   }
 
@@ -486,10 +486,10 @@ class EmitStreamSuite extends HailSuite {
     for ((lstream, rstream, expectedLeft, expectedOuter) <- tests) {
       val l = leftjoin(lstream, rstream)
       val o = outerjoin(lstream, rstream)
-      assert(evalStream(l) == expectedLeft, Pretty(l))
-      assert(evalStream(o) == expectedOuter, Pretty(o))
-      assert(evalStreamLen(l) == Some(expectedLeft.length), Pretty(l))
-      assert(evalStreamLen(o) == None, Pretty(o))
+      assert(evalStream(l) == expectedLeft, Pretty(ctx, l))
+      assert(evalStream(o) == expectedOuter, Pretty(ctx, o))
+      assert(evalStreamLen(l) == Some(expectedLeft.length), Pretty(ctx, l))
+      assert(evalStreamLen(o) == None, Pretty(ctx, o))
     }
   }
 
@@ -553,10 +553,10 @@ class EmitStreamSuite extends HailSuite {
     for ((lstream, rstream, expectedLeft, expectedInner) <- tests) {
       val l = leftjoin(lstream, rstream)
       val i = innerjoin(lstream, rstream)
-      assert(evalStream(l) == expectedLeft, Pretty(l))
-      assert(evalStream(i) == expectedInner, Pretty(i))
-      assert(evalStreamLen(l) == Some(expectedLeft.length), Pretty(l))
-      assert(evalStreamLen(i) == None, Pretty(i))
+      assert(evalStream(l) == expectedLeft, Pretty(ctx, l))
+      assert(evalStream(i) == expectedInner, Pretty(ctx, i))
+      assert(evalStreamLen(l) == Some(expectedLeft.length), Pretty(ctx, l))
+      assert(evalStreamLen(i) == None, Pretty(ctx, i))
     }
   }
 
@@ -618,8 +618,8 @@ class EmitStreamSuite extends HailSuite {
         1, "a", "v", a + v) -> IndexedSeq(1, 1 /*1+0*0*/ , 2 /*1+1*1*/ , 6 /*2+2*2*/ , 15 /*6+3*3*/)
     )
     for ((ir, v) <- tests) {
-      assert(evalStream(ir) == v, Pretty(ir))
-      assert(evalStreamLen(ir) == Some(v.length), Pretty(ir))
+      assert(evalStream(ir) == v, Pretty(ctx, ir))
+      assert(evalStreamLen(ir) == Some(v.length), Pretty(ctx, ir))
     }
   }
 
@@ -628,7 +628,7 @@ class EmitStreamSuite extends HailSuite {
       val aggregate = compileStream(LoweringPipeline.compileLowerer(false).apply(ctx, ir).asInstanceOf[IR],
         PType.canonical(inType))
       for ((inp, expected) <- tests)
-        assert(aggregate(inp) == expected, Pretty(ir))
+        assert(aggregate(inp) == expected, Pretty(ctx, ir))
     }
 
     def scanOp(op: AggOp, initArgs: Seq[IR], opArgs: Seq[IR]): ApplyScanOp =
@@ -718,8 +718,8 @@ class EmitStreamSuite extends HailSuite {
     )
     val lens: Array[Option[Int]] = Array(Some(3), Some(4), Some(3), None, None, None)
     for (((ir, v), len) <- tests zip lens) {
-      assert(evalStream(ir) == v, Pretty(ir))
-      assert(evalStreamLen(ir) == len, Pretty(ir))
+      assert(evalStream(ir) == v, Pretty(ctx, ir))
+      assert(evalStreamLen(ir) == len, Pretty(ctx, ir))
     }
   }
 
@@ -865,7 +865,7 @@ class EmitStreamSuite extends HailSuite {
       StreamScan(StreamMap(target, "i", i), 0, "a", "i", i) -> 1,
       StreamScan(StreamScan(target, 0, "a", "i", i), 0, "a", "i", i) -> 1
     )) {
-      assert(StreamUtils.multiplicity(ir, "target") == v, Pretty(ir))
+      assert(StreamUtils.multiplicity(ir, "target") == v, Pretty(ctx, ir))
     }
   }
 
@@ -884,7 +884,7 @@ class EmitStreamSuite extends HailSuite {
       throw new RuntimeException(s"memory usage scales with stream size!" +
         s"\n  at size=$lowSize, memory=$memUsed1" +
         s"\n  at size=$highSize, memory=$memUsed2" +
-        s"\n  IR: ${ Pretty(f(lowSize)) }")
+        s"\n  IR: ${ Pretty(ctx, f(lowSize)) }")
 
   }
 

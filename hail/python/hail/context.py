@@ -10,7 +10,7 @@ import hail
 from hail.genetics.reference_genome import ReferenceGenome
 from hail.typecheck import nullable, typecheck, typecheck_method, enumeration, dictof
 from hail.utils import get_env_or_default
-from hail.utils.java import Env, FatalError, warning
+from hail.utils.java import Env, warning
 from hail.backend import Backend
 from hailtop.utils import secret_alnum_string
 from .builtin_references import BUILTIN_REFERENCES
@@ -625,20 +625,11 @@ def set_global_seed(seed):
 
 
 def _set_flags(**flags):
-    available = set(Env.backend()._jhc.flags().available())
-    invalid = []
-    for flag, value in flags.items():
-        if flag in available:
-            Env.backend()._jhc.flags().set(flag, value)
-        else:
-            invalid.append(flag)
-    if len(invalid) != 0:
-        raise FatalError("Flags {} not valid. Valid flags: \n    {}"
-                         .format(', '.join(invalid), '\n    '.join(available)))
+    Env.backend().set_flags(**flags)
 
 
 def _get_flags(*flags):
-    return {flag: Env.backend()._jhc.flags().get(flag) for flag in flags}
+    return Env.backend().get_flags(*flags)
 
 
 def debug_info():
