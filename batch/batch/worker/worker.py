@@ -169,8 +169,6 @@ worker: Optional['Worker'] = None
 
 image_configs: Dict[str, Dict[str, Any]] = {}
 
-image_lock = aiorwlock.RWLock()
-
 
 class PortAllocator:
     def __init__(self):
@@ -473,7 +471,7 @@ class Container:
 
             async def localize_rootfs():
                 async def _localize_rootfs():
-                    async with image_lock.reader_lock:
+                    async with self.worker.image_lock.reader_lock:
                         # FIXME Authentication is entangled with pulling images. We need a way to test
                         # that a user has access to a cached image without pulling.
                         await self.pull_image()
@@ -2065,6 +2063,8 @@ class Worker:
         self._jvm_initializer_task = asyncio.ensure_future(self._initialize_jvms())
         self._jvms: List[JVM] = []
 
+        self.image_lock = aiorwlock.RWLock()
+
     async def _initialize_jvms(self):
         if instance_config.worker_type() in ('standard', 'D'):
             self._jvms = await asyncio.gather(*[JVM.create(i) for i in range(CORES)])
@@ -2436,7 +2436,7 @@ class Worker:
 
     async def cleanup_old_images(self):
         try:
-            async with image_lock.writer_lock:
+            async with self.worker.image_lock.writer_lock:
                 log.info(f"Obtained writer lock. The image ref counts are: {self.image_data}")
                 for image_id in list(self.image_data.keys()):
                     now = time_msecs()
