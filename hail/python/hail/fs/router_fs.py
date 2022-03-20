@@ -232,7 +232,7 @@ class RouterFS(FS):
             async with OnlineBoundedGather2(asyncio.Semaphore(_max_simultaneous_files)) as pool:
                 tasks = [pool.call(self._fle_to_dict, fle)
                          async for fle in await self.afs.listfiles(path)]
-                return [await t for t in tasks]
+                return list(await asyncio.gather(*tasks))
         return async_to_blocking(_ls())
 
     def mkdir(self, path: str):
