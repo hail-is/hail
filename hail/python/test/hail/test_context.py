@@ -1,14 +1,14 @@
 import unittest
 
 import hail as hl
-from .helpers import startTestHailContext, stopTestHailContext, skip_unless_spark_backend, fails_local_backend, fails_service_backend
+from .helpers import startTestHailContext, stopTestHailContext
+from hail.backend.spark_backend import SparkBackend
 
 setUpModule = startTestHailContext
 tearDownModule = stopTestHailContext
 
 
 class Tests(unittest.TestCase):
-    @fails_service_backend()
     def test_init_hail_context_twice(self):
         hl.init(idempotent=True)  # Should be no error
         hl.stop()
@@ -19,7 +19,10 @@ class Tests(unittest.TestCase):
         hl.stop()
 
         hl.init(idempotent=True)  # Should be no error
-        hl.init(hl.spark_context(), idempotent=True)  # Should be no error
+        if isinstance(hl.current_backend(), SparkBackend):
+            hl.init(hl.spark_context(), idempotent=True)  # Should be no error
+        else:
+            hl.init(idempotent=True)  # Should be no error
 
     def test_top_level_functions_are_do_not_error(self):
         hl.current_backend()
