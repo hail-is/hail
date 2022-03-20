@@ -807,8 +807,6 @@ object LowerTableIR {
         val kt = child.typ.keyType
         val ord = PartitionBoundOrdering(kt)
         val iord = ord.intervalEndpointOrdering
-        val nPartitions = part.numPartitions
-
 
         val filterPartitioner = new RVDPartitioner(kt, Interval.union(intervals.toArray, ord.intervalEndpointOrdering))
         val boundsType = TArray(RVDPartitioner.intervalIRRepresentation(kt))
@@ -820,7 +818,7 @@ object LowerTableIR {
         val (newRangeBounds, includedIndices, startAndEndInterval, f) = if (keep) {
           val (newRangeBounds, includedIndices, startAndEndInterval) = part.rangeBounds.zipWithIndex.flatMap { case (interval, i) =>
             if (filterPartitioner.overlaps(interval)) {
-              Some((interval, i, (filterPartitioner.lowerBoundInterval(interval).min(nPartitions), filterPartitioner.upperBoundInterval(interval).min(nPartitions))))
+              Some((interval, i, (filterPartitioner.lowerBoundInterval(interval), filterPartitioner.upperBoundInterval(interval))))
             } else None
           }.unzip3
 
@@ -836,7 +834,7 @@ object LowerTableIR {
               iord.compareNonnull(filterInterval.left, interval.left) <= 0 && iord.compareNonnull(filterInterval.right, interval.right) >= 0
             })
               None
-            else Some((interval, i, (lowerBound.min(nPartitions), upperBound.min(nPartitions))))
+            else Some((interval, i, (lowerBound, upperBound)))
           }.unzip3
 
           def f(partitionIntervals: IR, key: IR): IR =

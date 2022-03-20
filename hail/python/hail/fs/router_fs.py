@@ -1,7 +1,6 @@
-from typing import Dict, List, Any, AsyncContextManager, BinaryIO
+from typing import List, AsyncContextManager, BinaryIO
 import asyncio
 import gzip
-import hurry
 import io
 import nest_asyncio
 
@@ -9,8 +8,8 @@ from hailtop.aiotools.router_fs import RouterAsyncFS
 from hailtop.aiotools.fs import Copier, Transfer, FileListEntry, ReadableStream, WritableStream
 from hailtop.utils import async_to_blocking, OnlineBoundedGather2
 
-
 from .fs import FS
+from .stat_result import FileType, StatResult
 
 
 class SyncReadableStream(io.RawIOBase, BinaryIO):  # type: ignore # https://github.com/python/typeshed/blob/a40d79a4e63c4e750a8d3a8012305da942251eb4/stdlib/http/client.pyi#L81
@@ -149,13 +148,13 @@ class SyncWritableStream(io.RawIOBase, BinaryIO):  # type: ignore # https://gith
         return async_to_blocking(self.aws.write(b))
 
 
-def _stat_dict(is_dir: bool, size_bytes: int, path: str) -> Dict[str, Any]:
-    return {
-        'is_dir': is_dir,
-        'size_bytes': size_bytes,
-        'size': hurry.filesize.size(size_bytes),
-        'path': path,
-    }
+def _stat_result(is_dir: bool, size_bytes: int, path: str) -> StatResult:
+    return StatResult(
+        path=path,
+        size=size_bytes,
+        typ=FileType.DIRECTORY if is_dir else FileType.FILE,
+        owner=None,
+        modification_time=None)
 
 
 class RouterFS(FS):
@@ -205,7 +204,7 @@ class RouterFS(FS):
     def is_dir(self, path: str) -> bool:
         return async_to_blocking(self._async_is_dir(path))
 
-    def stat(self, path: str) -> Dict:
+    def stat(self, path: str) -> StatResult:
         async def size_bytes_or_none():
             try:
                 return await (await self.afs.statfile(path)).size()
@@ -216,19 +215,19 @@ class RouterFS(FS):
         if size_bytes is None:
             if not is_dir:
                 raise FileNotFoundError(path)
-            return _stat_dict(True, 0, path)
-        return _stat_dict(is_dir, size_bytes, path)
+            return _stat_result(True, 0, path)
+        return _stat_result(is_dir, size_bytes, path)
 
-    async def _fle_to_dict(self, fle: FileListEntry) -> Dict[str, Any]:
+    async def _fle_to_dict(self, fle: FileListEntry) -> StatResult:
         async def size():
             try:
                 return await (await fle.status()).size()
             except IsADirectoryError:
                 return 0
-        return _stat_dict(
+        return _stat_result(
             *await asyncio.gather(fle.is_dir(), size(), fle.url()))
 
-    def ls(self, path: str, _max_simultaneous_files: int = 50) -> List[Dict]:
+    def ls(self, path: str, _max_simultaneous_files: int = 50) -> List[StatResult]:
         async def _ls():
             async with OnlineBoundedGather2(asyncio.Semaphore(_max_simultaneous_files)) as pool:
                 tasks = [pool.call(self._fle_to_dict, fle)

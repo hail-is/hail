@@ -2927,6 +2927,8 @@ steps:
         script: /io/sql/big-test-instances.py
       - name: kill-mjc-deadlocks
         script: /io/sql/kill-mjc-deadlocks.sql
+      - name: add-nonpreemptible-pools
+        script: /io/sql/add-nonpreemptible-pools.sql
     inputs:
       - from: /repo/batch/sql
         to: /io/sql
@@ -4822,7 +4824,7 @@ steps:
     clouds:
       - gcp
     resources:
-      storage: 10Gi
+      storage: 20Gi
       cpu: "2"
       memory: standard
   - kind: deploy

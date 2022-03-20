@@ -1,5 +1,7 @@
 #!/bin/bash
 
+set -e
+
 if [[ -z "$HAIL" ]]; then
     echo 1>&2 "Path to local clone of hail repository must be set."
     exit 1

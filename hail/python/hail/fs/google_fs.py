@@ -1,12 +1,17 @@
-from typing import Dict, List, Optional
 import os
+import time
+
 from stat import S_ISREG, S_ISDIR
-import gcsfs
-from hurry.filesize import size
+from typing import Dict, List, Optional
 from shutil import copy2, rmtree
+
+import dateutil
+import gcsfs
+
 from hailtop.utils import sync_retry_transient_errors
 
 from .fs import FS
+from .stat_result import FileType, StatResult
 
 
 class GoogleCloudStorageFS(FS):
@@ -76,54 +81,46 @@ class GoogleCloudStorageFS(FS):
     def is_dir(self, path: str) -> bool:
         try:
             if self._is_local(path):
-                return self._stat_is_local_dir(os.stat(path))
+                return S_ISDIR(os.stat(path).st_mode)
             return self._stat_is_gs_dir(self.client.info(path))
         except FileNotFoundError:
             return False
 
     def stat(self, path: str) -> Dict:
         if self._is_local(path):
-            return self._format_stat_local_file(os.stat(path), path)
+            return StatResult.from_os_stat_result(path, os.stat(path))
 
         return self._format_stat_gs_file(self.client.info(path), path)
 
-    def _format_stat_gs_file(self, stats: Dict, path: Optional[str] = None) -> Dict:
+    def _format_stat_gs_file(self, stats: Dict, path: Optional[str] = None) -> StatResult:
         path_from_stats = stats.get('name')
         if path_from_stats is not None:
             path_from_stats = self._add_gs_path_prefix(path_from_stats)
         else:
             assert path is not None
             path_from_stats = path
-        return {
-            'is_dir': self._stat_is_gs_dir(stats),
-            'size_bytes': stats['size'],
-            'size': size(stats['size']),
-            'path': path_from_stats,
-            'owner': stats['bucket'],
-            'modification_time': stats.get('updated')
-        }
 
-    def _format_stat_local_file(self, stats: os.stat_result, path: str) -> Dict:
-        return {
-            'is_dir': self._stat_is_local_dir(stats),
-            'size_bytes': stats.st_size,
-            'size': size(stats.st_size),
-            'path': path,
-            'owner': stats.st_uid,
-            'modification_time': stats.st_mtime,
-        }
+        modification_time = stats.get('updated')
+        if modification_time is not None:
+            dt = dateutil.parser.isoparse(modification_time)
+            modification_time = time.mktime(dt.timetuple())
+
+        typ = FileType.DIRECTORY if self._stat_is_gs_dir(stats) else FileType.FILE
+
+        return StatResult(
+            path=path_from_stats,
+            size=stats['size'],
+            owner=stats['bucket'],
+            typ=typ,
+            modification_time=modification_time)
 
     def _stat_is_gs_dir(self, stats: Dict) -> bool:
         return stats['storageClass'] == 'DIRECTORY' or stats['name'].endswith('/')
 
-    def _stat_is_local_dir(self, stats: os.stat_result) -> bool:
-        return S_ISDIR(stats.st_mode)
-
-    def ls(self, path: str) -> List[Dict]:
-        is_local = self._is_local(path)
-
-        if is_local:
-            return [self._format_stat_local_file(os.stat(file), file) for file in os.listdir(path)]
+    def ls(self, path: str) -> List[StatResult]:
+        if self._is_local(path):
+            return [StatResult.from_os_stat_result(file, os.stat(file))
+                    for file in os.listdir(path)]
 
         return [self._format_stat_gs_file(file)
                 for file in self.client.ls(path, detail=True)]

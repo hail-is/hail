@@ -75,7 +75,7 @@ Caused by: java.lang.AssertionError: assertion failed
 
         resource_dir = resource('backward_compatability')
         fs = hl.current_backend().fs
-        versions = [os.path.basename(x['path']) for x in fs.ls(resource_dir)]
+        versions = [os.path.basename(x.path) for x in fs.ls(resource_dir)]
 
         n = 0
         for v in versions:

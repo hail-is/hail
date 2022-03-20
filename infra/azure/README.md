@@ -97,6 +97,8 @@ container registry and kubernetes cluster, respectively.
 ```
 azsetcluster <RESOURCE_GROUP>
 ```
+The ACR authentication token only lasts three hours. If you pause the deployment
+process after this point, you may have to rerun `azsetcluster` before continuing.
 
 Deploy unmanaged resources by running
 

@@ -37,6 +37,8 @@ import java.util.concurrent._
 import scala.annotation.switch
 import scala.reflect.ClassTag
 import scala.{concurrent => scalaConcurrent}
+import is.hail.io.vcf.LoadVCF
+import org.json4s.Extraction
 
 
 class ServiceBackendContext(
@@ -161,7 +163,9 @@ class ServiceBackend(
             JString(root),
             JString(s"$i"))),
           "type" -> JString("jvm")),
-        "mount_tokens" -> JBool(true))
+        "mount_tokens" -> JBool(true),
+        "resources" -> JObject("preemptible" -> JBool(true))
+      )
       i += 1
     }
 
@@ -394,6 +398,24 @@ class ServiceBackend(
     ReferenceGenome.fromHailDataset(ctx.fs, path)
   }
 
+  def parseVCFMetadata(
+    tmpdir: String,
+    sessionId: String,
+    billingProject: String,
+    remoteTmpDir: String,
+    path: String,
+  ): String = serviceBackendExecuteContext(
+    "ServiceBackend.parseVCFMetadata",
+    tmpdir,
+    sessionId,
+    billingProject,
+    remoteTmpDir
+  ) { ctx =>
+    val metadata = LoadVCF.parseHeaderMetadata(ctx.fs, Set.empty, TFloat64, path)
+    implicit val formats = defaultJSONFormats
+    JsonMethods.compact(Extraction.decompose(metadata))
+  }
+
   private[this] def serviceBackendExecuteContext[T](
     methodName: String,
     tmpdir: String,
@@ -479,6 +501,9 @@ class ServiceBackendSocketAPI2(
   private[this] val BLOCK_MATRIX_TYPE = 5
   private[this] val REFERENCE_GENOME = 6
   private[this] val EXECUTE = 7
+  private[this] val PARSE_VCF_METADATA = 8
+  private[this] val INDEX_BGEN = 9
+  private[this] val IMPORT_FAM = 10
   private[this] val GOODBYE = 254
 
   private[this] val dummy = new Array[Byte](8)
@@ -638,6 +663,21 @@ class ServiceBackendSocketAPI2(
         val token = readString()
         try {
           val result = backend.execute(tmpdir, sessionId, billingProject, remoteTmpDir, code, token)
+          writeBool(true)
+          writeString(result)
+        } catch {
+          case t: Throwable =>
+            writeBool(false)
+            writeString(formatException(t))
+        }
+
+      case PARSE_VCF_METADATA =>
+        val tmpdir = readString()
+        val billingProject = readString()
+        val remoteTmpDir = readString()
+        val path = readString()
+        try {
+          val result = backend.parseVCFMetadata(tmpdir, sessionId, billingProject, remoteTmpDir, path)
           writeBool(true)
           writeString(result)
         } catch {
