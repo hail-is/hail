@@ -13,7 +13,11 @@ jar:
 
 HAIL_TEST_GCS_TOKEN := $(shell whoami)
 HAIL_REVISION := $(shell git rev-parse HEAD)
+ifeq ($(NAMESPACE),default)
+JAR_LOCATION := gs://hail-query/jars/$(HAIL_TEST_GCS_TOKEN)/$(HAIL_REVISION).jar
+else
 JAR_LOCATION := gs://hail-test-dmk9z/$(HAIL_TEST_GCS_TOKEN)/jars/$(HAIL_REVISION).jar
+endif
 
 .PHONY: push-jar
 push-jar: jar
