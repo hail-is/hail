@@ -1,5 +1,5 @@
 from typing import (Any, AsyncContextManager, Optional, Type, Set, AsyncIterator, Callable, TypeVar,
-                    Generic)
+                    Generic, List)
 from types import TracebackType
 import abc
 import asyncio
@@ -61,6 +61,24 @@ class MultiPartCreate(abc.ABC):
         pass
 
 
+class AsyncFSURL(abc.ABC):
+    @abc.abstractproperty
+    def bucket_parts(self) -> List[str]:
+        pass
+
+    @abc.abstractproperty
+    def path(self) -> str:
+        pass
+
+    @abc.abstractmethod
+    def with_path(self, path) -> 'AsyncFSURL':
+        pass
+
+    @abc.abstractmethod
+    def __str__(self) -> str:
+        pass
+
+
 class AsyncFS(abc.ABC):
     FILE = 'file'
     DIR = 'dir'
@@ -68,6 +86,10 @@ class AsyncFS(abc.ABC):
     @property
     @abc.abstractmethod
     def schemes(self) -> Set[str]:
+        pass
+
+    @abc.abstractmethod
+    def parse_url(self, url: str) -> AsyncFSURL:
         pass
 
     @abc.abstractmethod

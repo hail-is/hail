@@ -15,9 +15,9 @@ import azure.core.exceptions
 
 from hailtop.utils import retry_transient_errors, flatten
 from hailtop.aiotools import WriteBuffer
-from hailtop.aiotools.fs import (AsyncFS, AsyncFSFactory, ReadableStream, WritableStream,
-                                 MultiPartCreate, FileListEntry, FileStatus, FileAndDirectoryError,
-                                 UnexpectedEOFError)
+from hailtop.aiotools.fs import (AsyncFS, AsyncFSURL, AsyncFSFactory, ReadableStream,
+                                 WritableStream, MultiPartCreate, FileListEntry, FileStatus,
+                                 FileAndDirectoryError, UnexpectedEOFError)
 
 from .credentials import AzureCredentials
 
@@ -247,6 +247,27 @@ class AzureFileStatus(FileStatus):
         return self.blob_props.__dict__[key]
 
 
+class AzureAsyncFSURL(AsyncFSURL):
+    def __init__(self, account: str, container: str, path: str):
+        self._account = account
+        self._container = container
+        self._path = path
+
+    @property
+    def bucket_parts(self) -> List[str]:
+        return [self._account, self._container]
+
+    @property
+    def path(self) -> str:
+        return self._path
+
+    def with_path(self, path) -> 'AzureAsyncFSURL':
+        return AzureAsyncFSURL(self._account, self._container, path)
+
+    def __str__(self) -> str:
+        return f'hail-az://{self._account}/{self._container}/{self._path}'
+
+
 class AzureAsyncFS(AsyncFS):
     schemes: Set[str] = {'hail-az'}
     PATH_REGEX = re.compile('/(?P<container>[^/]+)(?P<name>.*)')
@@ -265,8 +286,11 @@ class AzureAsyncFS(AsyncFS):
         self._credential = credentials.credential
         self._blob_service_clients: Dict[str, BlobServiceClient] = {}
 
+    def parse_url(self, url: str) -> AzureAsyncFSURL:
+        return AzureAsyncFSURL(*self.get_account_container_name(url))
+
     @staticmethod
-    def _get_account_container_name(url: str) -> Tuple[str, str, str]:
+    def get_account_container_name(url: str) -> Tuple[str, str, str]:
         parsed = urllib.parse.urlparse(url)
 
         if parsed.scheme != 'hail-az':

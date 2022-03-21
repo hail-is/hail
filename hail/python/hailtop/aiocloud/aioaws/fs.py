@@ -12,9 +12,8 @@ import logging
 import botocore.exceptions
 import boto3
 from hailtop.utils import blocking_to_async
-from hailtop.aiotools.fs import (
-    FileStatus, FileListEntry, ReadableStream, WritableStream, AsyncFS,
-    MultiPartCreate, FileAndDirectoryError)
+from hailtop.aiotools.fs import (FileStatus, FileListEntry, ReadableStream, WritableStream, AsyncFS,
+                                 AsyncFSURL, MultiPartCreate, FileAndDirectoryError)
 from hailtop.aiotools.fs.stream import (
     AsyncQueueWritableStream,
     async_writable_blocking_readable_stream_pair,
@@ -249,6 +248,26 @@ class S3MultiPartCreate(MultiPartCreate):
         return S3CreatePartManager(self, number, size_hint)
 
 
+class S3AsyncFSURL(AsyncFSURL):
+    def __init__(self, bucket: str, path: str):
+        self._bucket = bucket
+        self._path = path
+
+    @property
+    def bucket_parts(self) -> List[str]:
+        return [self._bucket]
+
+    @property
+    def path(self) -> str:
+        return self._path
+
+    def with_path(self, path) -> 'S3AsyncFSURL':
+        return S3AsyncFSURL(self._bucket, path)
+
+    def __str__(self) -> str:
+        return f's3://{self._bucket}/{self._path}'
+
+
 class S3AsyncFS(AsyncFS):
     schemes: Set[str] = {'s3'}
 
@@ -258,8 +277,11 @@ class S3AsyncFS(AsyncFS):
         self._thread_pool = thread_pool
         self._s3 = boto3.client('s3')
 
+    def parse_url(self, url: str) -> S3AsyncFSURL:
+        return S3AsyncFSURL(*self.get_bucket_name(url))
+
     @staticmethod
-    def _get_bucket_name(url: str) -> Tuple[str, str]:
+    def get_bucket_name(url: str) -> Tuple[str, str]:
         parsed = urllib.parse.urlparse(url)
         if parsed.scheme != 's3':
             raise ValueError(f"invalid scheme, expected s3: {parsed.scheme}")

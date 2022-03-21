@@ -12,7 +12,7 @@ from hailtop.utils import (
     secret_alnum_string, OnlineBoundedGather2,
     TransientError, retry_transient_errors)
 from hailtop.aiotools.fs import (FileStatus, FileListEntry, ReadableStream, WritableStream, AsyncFS,
-                                 AsyncFSFactory, FileAndDirectoryError, MultiPartCreate,
+                                 AsyncFSURL, AsyncFSFactory, FileAndDirectoryError, MultiPartCreate,
                                  UnexpectedEOFError)
 from hailtop.aiotools import FeedableAsyncIterable, WriteBuffer
 
@@ -498,6 +498,26 @@ class GoogleStorageMultiPartCreate(MultiPartCreate):
                 await self._fs.rmtree(self._sema, f'gs://{self._bucket}/{self._dest_dirname}_/{self._token}')
 
 
+class GoogleStorageAsyncFSURL(AsyncFSURL):
+    def __init__(self, bucket: str, path: str):
+        self._bucket = bucket
+        self._path = path
+
+    @property
+    def bucket_parts(self) -> List[str]:
+        return [self._bucket]
+
+    @property
+    def path(self) -> str:
+        return self._path
+
+    def with_path(self, path) -> 'GoogleStorageAsyncFSURL':
+        return GoogleStorageAsyncFSURL(self._bucket, path)
+
+    def __str__(self) -> str:
+        return f'gs://{self._bucket}/{self._path}'
+
+
 class GoogleStorageAsyncFS(AsyncFS):
     schemes: Set[str] = {'gs'}
 
@@ -513,13 +533,19 @@ class GoogleStorageAsyncFS(AsyncFS):
             storage_client = GoogleStorageClient(**kwargs)
         self._storage_client = storage_client
 
+    def parse_url(self, url: str) -> GoogleStorageAsyncFSURL:
+        return GoogleStorageAsyncFSURL(*self.get_bucket_name(url))
+
     @staticmethod
     def get_bucket_name(url: str) -> Tuple[str, str]:
         parsed = urllib.parse.urlparse(url)
         if parsed.scheme != 'gs':
             raise ValueError(f"invalid scheme, expected gs: {parsed.scheme}")
 
+        # FIXME: what to do here about ? in bucket paths
         name = parsed.path
+        if parsed.query:
+            name += '?' + parsed.query
         if name:
             assert name[0] == '/'
             name = name[1:]

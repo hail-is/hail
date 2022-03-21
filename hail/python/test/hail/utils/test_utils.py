@@ -4,7 +4,7 @@ import unittest
 import hail as hl
 from hail.utils import *
 from hail.utils.misc import escape_str, escape_id
-from hail.utils.java import Env
+from hail.utils.java import Env, FatalError
 from hail.utils.linkedlist import LinkedList
 
 from ..helpers import *
@@ -112,7 +112,6 @@ class Tests(unittest.TestCase):
         self.assertEqual(stat2['is_dir'], False)
         self.assertTrue('path' in stat2)
 
-    @fails_service_backend()
     def test_hadoop_ls(self):
         path1 = resource('ls_test/f_50')
         ls1 = hl.hadoop_ls(path1)
@@ -134,8 +133,99 @@ class Tests(unittest.TestCase):
         ls3 = hl.hadoop_ls(path3)
         assert len(ls3) == 2, ls3
 
-        with self.assertRaisesRegex(Exception, "FileNotFound|No such file or directory"):
+        try:
             hl.hadoop_ls('a_file_that_does_not_exist')
+        except FileNotFoundError:
+            pass
+        except FatalError as err:
+            assert 'FileNotFoundException: a_file_that_does_not_exist' in err.args[0]
+        else:
+            assert False
+
+    def normalize_path(self, path: str) -> str:
+        return hl.hadoop_stat(path)['path']
+
+    def test_hadoop_ls_glob_no_slash_in_group(self):
+        try:
+            hl.hadoop_ls(resource('foo[/]bar'))
+        except ValueError as err:
+            assert 'glob groups must not include forward slashes' in err.args[0]
+        else:
+            assert False
+
+    def test_hadoop_ls_glob_1(self):
+        expected = [self.normalize_path(resource('ls_test/f_100'))]
+        actual = [x['path'] for x in hl.hadoop_ls(resource('l?_t?st/f*00'))]
+        assert actual == expected
+
+    def test_hadoop_ls_glob_2(self):
+        expected = [self.normalize_path(resource('ls_test/f_50'))]
+        actual = [x['path'] for x in hl.hadoop_ls(resource('ls_test/f_[51]0'))]
+        assert actual == expected
+
+    def test_hadoop_ls_glob_3(self):
+        fs = hl.current_backend().fs
+        def touch(filename):
+            with fs.open(filename, 'w') as fobj:
+                fobj.write('hello world')
+
+        with hl.TemporaryDirectory() as dirname:
+            touch(dirname + '/abc/ghi/123')
+            touch(dirname + '/abc/ghi/456')
+            touch(dirname + '/abc/ghi/78')
+            touch(dirname + '/abc/jkl/123')
+            touch(dirname + '/abc/jkl/456')
+            touch(dirname + '/abc/jkl/78')
+            touch(dirname + '/def/ghi/123')
+            touch(dirname + '/def/ghi/456')
+            touch(dirname + '/def/ghi/78')
+            touch(dirname + '/def/jkl/123')
+            touch(dirname + '/def/jkl/456')
+            touch(dirname + '/def/jkl/78')
+            dirname = self.normalize_path(dirname)
+
+            expected = [dirname + '/abc/ghi/123',
+                        dirname + '/abc/jkl/123',
+                        dirname + '/def/ghi/123',
+                        dirname + '/def/jkl/123']
+            actual = [x['path'] for x in hl.hadoop_ls(dirname + '/*/*/123')]
+            assert set(actual) == set(expected)
+
+            expected = [dirname + '/abc/ghi/78',
+                        dirname + '/abc/jkl/78',
+                        dirname + '/def/ghi/78',
+                        dirname + '/def/jkl/78']
+            actual = [x['path'] for x in hl.hadoop_ls(dirname + '/*/*/??')]
+            assert set(actual) == set(expected)
+
+            expected = [dirname + '/abc/ghi/78',
+                        dirname + '/def/ghi/78']
+            actual = [x['path'] for x in hl.hadoop_ls(dirname + '/*/?h?/??')]
+            assert set(actual) == set(expected)
+
+            expected = [dirname + '/abc/ghi/78',
+                        dirname + '/abc/jkl/78']
+            actual = [x['path'] for x in hl.hadoop_ls(dirname + '/abc/*/??')]
+            assert set(actual) == set(expected)
+
+            expected = [dirname + '/abc/ghi/123',
+                        dirname + '/abc/jkl/123']
+            actual = [x['path'] for x in hl.hadoop_ls(dirname + '/abc/*/123')]
+            assert set(actual) == set(expected)
+
+            expected = [dirname + '/abc/ghi/123']
+            actual = [x['path'] for x in hl.hadoop_ls(dirname + '/abc/[ghi][ghi]i/123')]
+            assert set(actual) == set(expected)
+
+            expected = []
+            actual = [x['path'] for x in hl.hadoop_ls(dirname + '/abc/[h][g]i/123')]
+            assert set(actual) == set(expected)
+
+            expected = [dirname + '/abc/ghi/123',
+                        dirname + '/abc/ghi/456',
+                        dirname + '/abc/ghi/78']
+            actual = [x['path'] for x in hl.hadoop_ls(dirname + '/abc/[g][h][i]/*')]
+            assert set(actual) == set(expected)
 
     def test_linked_list(self):
         ll = LinkedList(int)
