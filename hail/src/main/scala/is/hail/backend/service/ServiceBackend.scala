@@ -828,6 +828,7 @@ class ServiceBackendSocketAPI2(
             remoteTmpDir,
             files,
             indexFileMap.toMap,
+            referenceGenomeName,
             contigRecoding.toMap,
             skipInvalidLoci,
             flags

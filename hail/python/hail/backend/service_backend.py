@@ -16,7 +16,6 @@ from hail.expr.matrix_type import tmatrix
 from hail.expr.blockmatrix_type import tblockmatrix
 from hail.experimental import write_expression, read_expression
 from hail.ir.renderer import CSERenderer
-from hail.genetics.reference_genome import ReferenceGenome
 
 from hailtop.config import get_user_config, get_user_local_cache_dir, get_remote_tmpdir
 from hailtop.utils import async_to_blocking, secret_alnum_string, TransientError, Timings
