@@ -171,15 +171,23 @@ class Tests(unittest.TestCase):
 
         with hl.TemporaryDirectory() as dirname:
             touch(dirname + '/abc/ghi/123')
+            touch(dirname + '/abc/ghi/!23')
+            touch(dirname + '/abc/ghi/?23')
             touch(dirname + '/abc/ghi/456')
             touch(dirname + '/abc/ghi/78')
             touch(dirname + '/abc/jkl/123')
+            touch(dirname + '/abc/jkl/!23')
+            touch(dirname + '/abc/jkl/?23')
             touch(dirname + '/abc/jkl/456')
             touch(dirname + '/abc/jkl/78')
             touch(dirname + '/def/ghi/123')
+            touch(dirname + '/def/ghi/!23')
+            touch(dirname + '/def/ghi/?23')
             touch(dirname + '/def/ghi/456')
             touch(dirname + '/def/ghi/78')
             touch(dirname + '/def/jkl/123')
+            touch(dirname + '/def/jkl/!23')
+            touch(dirname + '/def/jkl/?23')
             touch(dirname + '/def/jkl/456')
             touch(dirname + '/def/jkl/78')
             dirname = self.normalize_path(dirname)
@@ -222,9 +230,20 @@ class Tests(unittest.TestCase):
             assert set(actual) == set(expected)
 
             expected = [dirname + '/abc/ghi/123',
+                        dirname + '/abc/ghi/!23',
+                        dirname + '/abc/ghi/?23',
                         dirname + '/abc/ghi/456',
                         dirname + '/abc/ghi/78']
             actual = [x['path'] for x in hl.hadoop_ls(dirname + '/abc/[g][h][i]/*')]
+            assert set(actual) == set(expected)
+
+            expected = [dirname + '/abc/ghi/123',
+                        dirname + '/abc/ghi/?23']
+            actual = [x['path'] for x in hl.hadoop_ls(dirname + '/abc/ghi/[!1]23')]
+            assert set(actual) == set(expected)
+
+            expected = [dirname + '/abc/ghi/?23']
+            actual = [x['path'] for x in hl.hadoop_ls(dirname + '/abc/ghi/[?]23')]
             assert set(actual) == set(expected)
 
     def test_linked_list(self):
