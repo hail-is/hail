@@ -457,6 +457,7 @@ class ServiceBackend(
     remoteTmpDir: String,
     files: Array[String],
     indexFileMap: Map[String, String],
+    referenceGenomeName: Option[String],
     contigRecoding: Map[String, String],
     skipInvalidLoci: Boolean,
     flags: mutable.Map[String, String]
@@ -468,7 +469,7 @@ class ServiceBackend(
     remoteTmpDir,
     flags
   ) { ctx =>
-    IndexBgen(ctx, files, indexFileMap, None, contigRecoding, skipInvalidLoci)
+    IndexBgen(ctx, files, indexFileMap, referenceGenomeName, contigRecoding, skipInvalidLoci)
     info(s"Number of BGEN files indexed: ${ files.size }")
   }
 
@@ -802,6 +803,11 @@ class ServiceBackendSocketAPI2(
           val v = readString()
           indexFileMap(k) = v
           i += 1
+        }
+        val hasReferenceGenome = readBool()
+        val referenceGenomeName = hasReferenceGenome match {
+          case true => Some(readString())
+          case false => None
         }
         val nContigRecoding = readInt()
         val contigRecoding = mutable.Map[String, String]()

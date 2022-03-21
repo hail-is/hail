@@ -469,13 +469,13 @@ class ServiceBackend(Backend):
     def index_bgen(self,
                    files: List[str],
                    index_file_map: Dict[str, str],
-                   rg: Optional[ReferenceGenome],
+                   referenceGenomeName: Optional[str],
                    contig_recoding: Dict[str, str],
                    skip_invalid_loci: bool):
         return async_to_blocking(self._async_index_bgen(
             files,
             index_file_map,
-            rg,
+            referenceGenomeName,
             contig_recoding,
             skip_invalid_loci
         ))
@@ -483,12 +483,9 @@ class ServiceBackend(Backend):
     async def _async_index_bgen(self,
                                 files: List[str],
                                 index_file_map: Dict[str, str],
-                                rg: Optional[ReferenceGenome],
+                                referenceGenomeName: Optional[str],
                                 contig_recoding: Dict[str, str],
                                 skip_invalid_loci: bool):
-        if rg is not None:
-            raise NotImplementedError('ServiceBackend.index_bgen does not support the rg ReferenceGenome parameter')
-
         async def inputs(infile, _):
             await write_int(infile, ServiceBackend.INDEX_BGEN)
             await write_str(infile, tmp_dir())
@@ -501,6 +498,11 @@ class ServiceBackend(Backend):
             for k, v in index_file_map.values():
                 await write_str(infile, k)
                 await write_str(infile, v)
+            if referenceGenomeName is None:
+                await write_bool(infile, False)
+            else:
+                await write_bool(infile, True)
+                await write_str(infile, referenceGenomeName)
             await write_int(infile, len(contig_recoding))
             for k, v in contig_recoding.values():
                 await write_str(infile, k)
