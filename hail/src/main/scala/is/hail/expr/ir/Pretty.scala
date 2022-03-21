@@ -457,7 +457,7 @@ class Pretty(width: Int, ribbonWidth: Int, elideLiterals: Boolean, maxLen: Int, 
       }
       list(fillSep(text(prettyClass(ir)) +: pt ++ header(ir, elideLiterals)) +: body)
       */
-      list(fillSep(text(Pretty.prettyClass(ir)) +: header(ir, elideLiterals)) +: body)
+      list(fillSep(text(Pretty.prettyClass(ir)) +: header(ir)) +: body)
     }
 
     pretty(ir).render(width, ribbonWidth, maxLen)

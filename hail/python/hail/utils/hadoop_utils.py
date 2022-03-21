@@ -185,7 +185,7 @@ def hadoop_stat(path: str) -> Dict:
     -------
     :obj:`dict`
     """
-    return Env.fs().stat(path)
+    return Env.fs().stat(path).to_legacy_dict()
 
 
 def hadoop_ls(path: str) -> List[Dict]:
@@ -216,7 +216,7 @@ def hadoop_ls(path: str) -> List[Dict]:
     -------
     :obj:`list` [:obj:`dict`]
     """
-    return Env.fs().ls(path)
+    return [sr.to_legacy_dict() for sr in Env.fs().ls(path)]
 
 
 def hadoop_scheme_supported(scheme: str) -> bool:

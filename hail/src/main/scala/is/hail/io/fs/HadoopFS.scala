@@ -20,6 +20,8 @@ class HadoopFileStatus(fs: hadoop.fs.FileStatus) extends FileStatus {
 
   def isFile: Boolean = fs.isFile
 
+  def isSymlink: Boolean = fs.isSymlink
+
   def getOwner: String = fs.getOwner
 }
 

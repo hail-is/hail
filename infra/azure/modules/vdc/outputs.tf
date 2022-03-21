@@ -18,6 +18,10 @@ output internal_gateway_ip {
   value = "10.128.255.254"
 }
 
+output vnet_id {
+  value = azurerm_virtual_network.default.id
+}
+
 output db_subnet_id {
   value = azurerm_subnet.db_subnet.id
 }

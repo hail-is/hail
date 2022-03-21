@@ -6,7 +6,6 @@ setup_az() {
     curl --connect-timeout 5 \
          --max-time 10 \
          --retry 5 \
-         --retry-all-errors \
          --retry-max-time 40 \
          --location \
          --fail \
@@ -44,8 +43,8 @@ EOF
 
 init_terraform() {
     RESOURCE_GROUP=${RESOURCE_GROUP:-$1}
-    STORAGE_CONTAINER_NAME=${STORAGE_CONTAINER_NAME:-"tfstate"}
 
+    STORAGE_ACCOUNT_NAME=$(cat remote_storage.tfvars | grep "storage_account_name" | awk '{ print $3 }' | tr -d '"')
     STORAGE_ACCOUNT_KEY=$(az storage account keys list \
         -g $RESOURCE_GROUP \
         --account-name $STORAGE_ACCOUNT_NAME \
@@ -62,7 +61,7 @@ EOF
 }
 
 grant_auth_sp_admin_consent() {
-    az ad app permission admin-consent --id "$(terraform output -raw sp_application_id)"
+    az ad app permission admin-consent --id "$(terraform output -raw auth_sp_application_id)"
 }
 
 $@

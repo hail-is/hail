@@ -1,4 +1,4 @@
-from typing import Dict, Optional, Callable, Awaitable, Tuple
+from typing import Dict, Optional, Callable, Awaitable
 import asyncio
 import struct
 import os
@@ -110,6 +110,9 @@ class ServiceBackend(Backend):
     BLOCK_MATRIX_TYPE = 5
     REFERENCE_GENOME = 6
     EXECUTE = 7
+    PARSE_VCF_METADATA = 8
+    INDEX_BGEN = 9
+    IMPORT_FAM = 10
     GOODBYE = 254
 
     @staticmethod
@@ -133,8 +136,8 @@ class ServiceBackend(Backend):
         async_fs = RouterAsyncFS('file')
         sync_fs = RouterFS(async_fs)
         if batch_client is None:
-            async_client = await aiohb.BatchClient.create(billing_project)
-        bc = hb.BatchClient.from_async(async_client)
+            batch_client = await aiohb.BatchClient.create(billing_project)
+        bc = hb.BatchClient.from_async(batch_client)
         batch_attributes: Dict[str, str] = dict()
         user_local_reference_cache_dir = Path(get_user_local_cache_dir(), 'references', version())
         os.makedirs(user_local_reference_cache_dir, exist_ok=True)
@@ -178,9 +181,9 @@ class ServiceBackend(Backend):
     def logger(self):
         return log
 
-    @property
     def stop(self):
-        pass
+        async_to_blocking(self._async_fs.close())
+        async_to_blocking(self.async_bc.close())
 
     def render(self, ir):
         r = CSERenderer()
@@ -189,7 +192,7 @@ class ServiceBackend(Backend):
 
     async def _rpc(self,
                    name: str,
-                   inputs: Callable[[afs.WritableStream, str], Awaitable[Tuple[str, dict]]]):
+                   inputs: Callable[[afs.WritableStream, str], Awaitable[None]]):
         timings = Timings()
         token = secret_alnum_string()
         iodir = TemporaryDirectory(ensure_exists=False).name  # FIXME: actually cleanup
@@ -211,7 +214,7 @@ class ServiceBackend(Backend):
                     batch_attributes['name'],
                     iodir + '/in',
                     iodir + '/out',
-                ], mount_tokens=True)
+                ], mount_tokens=True, resources={'preemptible': False, 'memory': 'highmem'})
                 b = await bb.submit(disable_progress_bar=self.disable_progress_bar)
 
             with timings.step("wait batch"):
@@ -240,11 +243,11 @@ class ServiceBackend(Backend):
                 async with await self._async_fs.open(iodir + '/out') as outfile:
                     success = await read_bool(outfile)
                     if success:
-                        b = await read_bytes(outfile)
+                        json_bytes = await read_bytes(outfile)
                         try:
-                            return token, orjson.loads(b), timings
+                            return token, orjson.loads(json_bytes), timings
                         except orjson.JSONDecodeError as err:
-                            raise ValueError(f'batch id was {b.id}\ncould not decode {b}') from err
+                            raise ValueError(f'batch id was {b.id}\ncould not decode {json_bytes}') from err
                     else:
                         jstacktrace = await read_str(outfile)
                         maybe_id = ServiceBackend.HAIL_BATCH_FAILURE_EXCEPTION_MESSAGE_RE.match(jstacktrace)
@@ -418,7 +421,17 @@ class ServiceBackend(Backend):
         raise NotImplementedError("ServiceBackend does not support 'remove_liftover'")
 
     def parse_vcf_metadata(self, path):
-        raise NotImplementedError("ServiceBackend does not support 'parse_vcf_metadata'")
+        return async_to_blocking(self._async_parse_vcf_metadata(path))
+
+    async def _async_parse_vcf_metadata(self, path):
+        async def inputs(infile, _):
+            await write_int(infile, ServiceBackend.PARSE_VCF_METADATA)
+            await write_str(infile, tmp_dir())
+            await write_str(infile, self.billing_project)
+            await write_str(infile, self.remote_tmpdir)
+            await write_str(infile, path)
+        _, resp, _ = await self._rpc('parse_vcf_metadata(...)', inputs)
+        return resp
 
     def index_bgen(self, files, index_file_map, rg, contig_recoding, skip_invalid_loci):
         raise NotImplementedError("ServiceBackend does not support 'index_bgen'")

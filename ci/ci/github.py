@@ -14,6 +14,7 @@ import gidgethub
 import prometheus_client as pc  # type: ignore
 import zulip
 
+from gear import Database
 from hailtop.batch_client.aioclient import Batch
 from hailtop.config import get_deploy_config
 from hailtop.utils import RETRY_FUNCTION_SCRIPT, check_shell, check_shell_output
@@ -216,7 +217,7 @@ class PR(Code):
 
         self.sha: Optional[str] = None
         self.batch: Union[Batch, MergeFailureBatch, None] = None
-        self.source_sha_failed: Optional[str] = None
+        self.source_sha_failed: Optional[bool] = None
 
         # 'error', 'success', 'failure', None
         self.build_state: Optional[str] = None
@@ -251,15 +252,12 @@ class PR(Code):
     def increment_pr_metric(self):
         TRACKED_PRS.labels(build_state=self.build_state, review_state=self.review_state).inc()
 
-    async def authorized(self, dbpool):
+    async def authorized(self, db: Database):
         if self.author in {user.gh_username for user in AUTHORIZED_USERS}:
             return True
 
-        async with dbpool.acquire() as conn:
-            async with conn.cursor() as cursor:
-                await cursor.execute('SELECT * from authorized_shas WHERE sha = %s;', self.source_sha)
-                row = await cursor.fetchone()
-                return row is not None
+        row = await db.execute_and_fetchone('SELECT * from authorized_shas WHERE sha = %s;', self.source_sha)
+        return row is not None
 
     def merge_priority(self):
         # passed > unknown > failed
@@ -408,7 +406,7 @@ class PR(Code):
         hail_statuses = {}
         for s in statuses:
             context = s['context']
-            if context == GITHUB_STATUS_CONTEXT or context.startswith('hail-ci'):
+            if context == GITHUB_STATUS_CONTEXT:
                 if context in hail_statuses:
                     raise ValueError(
                         f'github sent multiple status summaries for context {context}: {s}\n\n{statuses_json}'
@@ -451,8 +449,8 @@ class PR(Code):
             self.set_review_state(review_state)
             self.target_branch.state_changed = True
 
-    async def _start_build(self, dbpool, batch_client):
-        assert await self.authorized(dbpool)
+    async def _start_build(self, db: Database, batch_client):
+        assert await self.authorized(db)
 
         # clear current batch
         self.batch = None
@@ -515,15 +513,12 @@ mkdir -p {shq(repo_dir)}
                 await batch.cancel()
 
     @staticmethod
-    async def is_invalidated_batch(batch, dbpool):
+    async def is_invalidated_batch(batch, db: Database):
         assert batch is not None
-        async with dbpool.acquire() as conn:
-            async with conn.cursor() as cursor:
-                await cursor.execute('SELECT * from invalidated_batches WHERE batch_id = %s;', batch.id)
-                row = await cursor.fetchone()
-                return row is not None
+        row = await db.execute_and_fetchone('SELECT * from invalidated_batches WHERE batch_id = %s;', batch.id)
+        return row is not None
 
-    async def _update_batch(self, batch_client, dbpool):
+    async def _update_batch(self, batch_client, db: Database):
         # find the latest non-cancelled batch for source
         batches = batch_client.list_batches(
             f'test=1 '
@@ -534,7 +529,7 @@ mkdir -p {shq(repo_dir)}
         min_batch = None
         min_batch_status = None
         async for b in batches:
-            if await self.is_invalidated_batch(b, dbpool):
+            if await self.is_invalidated_batch(b, db):
                 continue
             try:
                 s = await b.status()
@@ -559,7 +554,7 @@ mkdir -p {shq(repo_dir)}
                 self.source_sha_failed = True
             self.target_branch.state_changed = True
 
-    async def _heal(self, batch_client, dbpool, on_deck, gh):
+    async def _heal(self, batch_client, db: Database, on_deck, gh):
         # can't merge target if we don't know what it is
         if self.target_branch.sha is None:
             return
@@ -572,14 +567,14 @@ mkdir -p {shq(repo_dir)}
                 await self.post_github_status(gh, self.intended_github_status)
                 self.last_known_github_status[GITHUB_STATUS_CONTEXT] = self.intended_github_status
 
-        if not await self.authorized(dbpool):
+        if not await self.authorized(db):
             return
 
         if not self.batch or (on_deck and self.batch.attributes['target_sha'] != self.target_branch.sha):
             if on_deck or self.target_branch.n_running_batches < MAX_CONCURRENT_PR_BATCHES:
                 self.target_branch.n_running_batches += 1
                 async with repos_lock:
-                    await self._start_build(dbpool, batch_client)
+                    await self._start_build(db, batch_client)
 
     def is_up_to_date(self):
         return self.batch is not None and self.target_branch.sha == self.batch.attributes['target_sha']
@@ -628,7 +623,7 @@ class WatchedBranch(Code):
         self.deployable: bool = deployable
         self.mergeable: bool = mergeable
 
-        self.prs: Optional[Dict[str, PR]] = None
+        self.prs: Dict[str, PR] = {}
         self.sha: Optional[str] = None
 
         self.deploy_batch: Optional[Batch] = None
@@ -640,7 +635,7 @@ class WatchedBranch(Code):
         self.batch_changed: bool = True
         self.state_changed: bool = True
 
-        self.n_running_batches: Optional[int] = None
+        self.n_running_batches: int = 0
 
     @property
     def deploy_state(self):
@@ -691,7 +686,7 @@ class WatchedBranch(Code):
             self.updating = True
             gh = app['github_client']
             batch_client = app['batch_client']
-            dbpool = app['dbpool']
+            db: Database = app['db']
 
             while self.github_changed or self.batch_changed or self.state_changed:
                 if self.github_changed:
@@ -700,11 +695,11 @@ class WatchedBranch(Code):
 
                 if self.batch_changed:
                     self.batch_changed = False
-                    await self._update_batch(batch_client, dbpool)
+                    await self._update_batch(batch_client, db)
 
                 if self.state_changed:
                     self.state_changed = False
-                    await self._heal(batch_client, dbpool, gh)
+                    await self._heal(batch_client, db, gh)
                     if self.mergeable:
                         await self.try_to_merge(gh)
         finally:
@@ -736,16 +731,15 @@ class WatchedBranch(Code):
         new_prs: Dict[str, PR] = {}
         async for gh_json_pr in gh.getiter(f'/repos/{repo_ss}/pulls?state=open&base={self.branch.name}'):
             number = gh_json_pr['number']
-            if self.prs is not None and number in self.prs:
+            if number in self.prs:
                 pr = self.prs[number]
                 pr.update_from_gh_json(gh_json_pr)
             else:
                 pr = PR.from_gh_json(gh_json_pr, self)
             new_prs[number] = pr
-        if self.prs is not None:
-            for number, pr in self.prs.items():
-                if number not in new_prs:
-                    pr.decrement_pr_metric()
+        for number, pr in self.prs.items():
+            if number not in new_prs:
+                pr.decrement_pr_metric()
         self.prs = new_prs
 
         for pr in new_prs.values():
@@ -804,16 +798,16 @@ class WatchedBranch(Code):
             async with repos_lock:
                 await self._start_deploy(batch_client)
 
-    async def _update_batch(self, batch_client, dbpool):
+    async def _update_batch(self, batch_client, db: Database):
         log.info(f'update batch {self.short_str()}')
 
         if self.deployable:
             await self._update_deploy(batch_client)
 
         for pr in self.prs.values():
-            await pr._update_batch(batch_client, dbpool)
+            await pr._update_batch(batch_client, db)
 
-    async def _heal(self, batch_client, dbpool, gh):
+    async def _heal(self, batch_client, db: Database, gh):
         log.info(f'heal {self.short_str()}')
 
         if self.deployable:
@@ -826,7 +820,7 @@ class WatchedBranch(Code):
             # pending but haven't failed
             if pr.review_state == 'approved' and (pr.build_state == 'success' or not pr.source_sha_failed):
                 pri = pr.merge_priority()
-                is_authorized = await pr.authorized(dbpool)
+                is_authorized = await pr.authorized(db)
                 if is_authorized and (not merge_candidate or pri > merge_candidate_pri):
                     merge_candidate = pr
                     merge_candidate_pri = pri
@@ -836,13 +830,13 @@ class WatchedBranch(Code):
         self.n_running_batches = sum(1 for pr in self.prs.values() if pr.batch and not pr.build_state)
 
         for pr in self.prs.values():
-            await pr._heal(batch_client, dbpool, pr == merge_candidate, gh)
+            await pr._heal(batch_client, db, pr == merge_candidate, gh)
 
         # cancel orphan builds
         running_batches = batch_client.list_batches(
             f'!complete ' f'!open ' f'test=1 ' f'target_branch={self.branch.short_str()} ' f'user:ci'
         )
-        seen_batch_ids = set(pr.batch.id for pr in self.prs.values() if pr.batch and hasattr(pr.batch, 'id'))
+        seen_batch_ids = set(pr.batch.id for pr in self.prs.values() if pr.batch and isinstance(pr.batch, Batch))
         async for batch in running_batches:
             if batch.id not in seen_batch_ids:
                 attrs = batch.attributes

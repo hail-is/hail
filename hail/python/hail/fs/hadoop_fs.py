@@ -1,8 +1,25 @@
 import io
 import json
+import time
 from typing import Dict, List
 
+import dateutil
+
 from .fs import FS
+from .stat_result import FileType, StatResult
+
+
+def _stat_dict_to_stat_result(stat: Dict) -> StatResult:
+    dt = dateutil.parser.isoparse(stat['modification_time'])
+    mtime = time.mktime(dt.timetuple())
+    if stat['is_dir']:
+        typ = FileType.DIRECTORY
+    elif stat['is_link']:
+        typ = FileType.SYMLINK
+    else:
+        typ = FileType.FILE
+    return StatResult(path=stat['path'], owner=stat['owner'], size=stat['size'],
+                      typ=typ, modification_time=mtime)
 
 
 class HadoopFS(FS):
@@ -42,11 +59,13 @@ class HadoopFS(FS):
     def is_dir(self, path: str) -> bool:
         return self._jfs.isDir(path)
 
-    def stat(self, path: str) -> Dict:
-        return json.loads(self._utils_package_object.stat(self._jfs, path))
+    def stat(self, path: str) -> StatResult:
+        stat_dict = json.loads(self._utils_package_object.stat(self._jfs, path))
+        return _stat_dict_to_stat_result(stat_dict)
 
-    def ls(self, path: str) -> List[Dict]:
-        return json.loads(self._utils_package_object.ls(self._jfs, path))
+    def ls(self, path: str) -> List[StatResult]:
+        return [_stat_dict_to_stat_result(st)
+                for st in json.loads(self._utils_package_object.ls(self._jfs, path))]
 
     def mkdir(self, path: str) -> None:
         return self._jfs.mkDir(path)

@@ -33,6 +33,7 @@
     <tr>
       <th>Name</th>
       <th>Worker Type</th>
+      <th>Preemptible</th>
       <th>Pending</th>
       <th>Active</th>
       <th>Inactive</th>
@@ -46,6 +47,7 @@
     <tr>
       <td><a href="{{ base_path }}/inst_coll/pool/{{ pool.name }}">{{ pool.name }}</a></td>
       <td>{{ pool.worker_type }}</td>
+      <td>{{ pool.preemptible }}</td>
       <td class="numeric-cell">{{ pool.n_instances_by_state['pending'] }}</td>
       <td class="numeric-cell">{{ pool.n_instances_by_state['active'] }}</td>
       <td class="numeric-cell">{{ pool.n_instances_by_state['inactive'] }}</td>

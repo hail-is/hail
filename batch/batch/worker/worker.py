@@ -1858,17 +1858,17 @@ class JVM:
     @classmethod
     async def create_process(cls, socket_file: str) -> BufferedOutputProcess:
         # JVM and Hail both treat MB as 1024 * 1024 bytes.
-        # JVMs only start in standard workers which have 3.75 GiB == 3840 MiB per core.
-        # We only allocate 3700 MiB so that we stay well below the machine's max memory.
-        # We allocate 60% of memory per core to off heap memory: 1480 + 2220 = 3700.
+        # JVMs only start in highmem workers which have 6.5 GiB == 6656 MiB per core.
+        # We only allocate 6500 MiB so that we stay well below the machine's max memory.
+        # We allocate 60% of memory per core to off heap memory: 2600 + 3900 = 6500.
         return await BufferedOutputProcess.create(
             'java',
-            '-Xmx1480M',
+            '-Xmx2600M',
             '-cp',
             f'/jvm-entryway:/jvm-entryway/junixsocket-selftest-2.3.3-jar-with-dependencies.jar:{JVM.SPARK_HOME}/jars/*',
             'is.hail.JVMEntryway',
             socket_file,
-            env={'HAIL_WORKER_OFF_HEAP_MEMORY_PER_CORE_MB': '2220'},
+            env={'HAIL_WORKER_OFF_HEAP_MEMORY_PER_CORE_MB': '3900'},
         )
 
     @classmethod
@@ -2066,19 +2066,19 @@ class Worker:
         self._jvms: List[JVM] = []
 
     async def _initialize_jvms(self):
-        if instance_config.worker_type() in ('standard', 'D'):
+        if instance_config.worker_type() in ('highmem', 'D'):
             self._jvms = await asyncio.gather(*[JVM.create(i) for i in range(CORES)])
         log.info(f'JVMs initialized {self._jvms}')
 
     async def borrow_jvm(self) -> JVM:
-        if instance_config.worker_type() not in ('standard', 'D'):
+        if instance_config.worker_type() not in ('highmem', 'D'):
             raise ValueError(f'JVM jobs not allowed on {instance_config.worker_type()}')
         await asyncio.shield(self._jvm_initializer_task)
         assert self._jvms
         return self._jvms.pop()
 
     def return_jvm(self, jvm: JVM):
-        if instance_config.worker_type() not in ('standard', 'D'):
+        if instance_config.worker_type() not in ('highmem', 'D'):
             raise ValueError(f'JVM jobs not allowed on {instance_config.worker_type()}')
         jvm.reset()
         self._jvms.append(jvm)
