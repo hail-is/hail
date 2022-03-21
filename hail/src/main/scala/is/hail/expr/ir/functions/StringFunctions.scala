@@ -9,7 +9,7 @@ import is.hail.expr.JSONAnnotationImpex
 import is.hail.expr.ir._
 import is.hail.types.physical._
 import is.hail.types.physical.stypes._
-import is.hail.types.physical.stypes.concrete.{SIndexablePointer, SJavaArrayString, SJavaArrayStringCode, SJavaArrayStringSettable, SJavaString, SStringPointer}
+import is.hail.types.physical.stypes.concrete.{SIndexablePointer, SJavaArrayString, SJavaArrayStringValue, SJavaArrayStringSettable, SJavaString, SStringPointer}
 import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.physical.stypes.primitives.{SBoolean, SInt32, SInt64}
 import is.hail.types.virtual._
@@ -111,7 +111,7 @@ object StringFunctions extends RegistryFunctions {
     quoteChar: Option[Value[Char]],
     missingSV: SIndexableValue,
     errorID: Value[Int]
-  ): Code[Array[String]] = {
+  ): Value[Array[String]] = {
 
     // note: it will be inefficient to convert a SIndexablePointer to SJavaArrayString to split each line.
     // We should really choose SJavaArrayString as the stype for a literal if used in a place like this,
@@ -121,9 +121,9 @@ object StringFunctions extends RegistryFunctions {
       case _ =>
         val mb = cb.emb.ecb.newEmitMethod("convert_region_to_str_array", FastIndexedSeq(missingSV.st.paramType), arrayInfo[String])
         mb.emitWithBuilder[Array[String]] { cb =>
-          val sv = mb.getSCodeParam(1).asIndexable.memoize(cb, "sv")
+          val sv = mb.getSCodeParam(1).asIndexable
           val m = cb.newLocal[Array[String]]("missingvals", Code.newArray[String](sv.loadLength()))
-          sv.forEachDefined(cb) { case (cb, idx, sc) => cb += (m(idx) = sc.asString.loadString()) }
+          sv.forEachDefined(cb) { case (cb, idx, sc) => cb += (m(idx) = sc.asString.loadString(cb)) }
           m
         }
         cb.newLocal[Array[String]]("missing_arr", cb.invokeCode(mb, missingSV))
@@ -214,7 +214,7 @@ object StringFunctions extends RegistryFunctions {
 
     addValueOrNA(cb, string.length())
     cb.define(LreturnWithoutAppending)
-    ab.invoke[Array[String]]("result")
+    cb.memoize(ab.invoke[Array[String]]("result"), "generateSplitQuotedRegexResult")
   }
 
   def softBounds(i: IR, len: IR): IR =
@@ -370,57 +370,57 @@ object StringFunctions extends RegistryFunctions {
     registerSCode4("splitQuotedRegex", TString, TString, TArray(TString), TString, TArray(TString), {
       case (_: Type, _: SType, _: SType, _: SType, _: SType) => SJavaArrayString(false)
     }) { case (r, cb, st: SJavaArrayString, s, separator, missing, quote, errorID) =>
-      val quoteStr = cb.newLocal[String]("quoteStr", quote.asString.loadString())
+      val quoteStr = cb.newLocal[String]("quoteStr", quote.asString.loadString(cb))
       val quoteChar = cb.newLocal[Char]("quoteChar")
       cb.ifx(quoteStr.length().cne(1), cb._fatalWithError(errorID, "quote must be a single character"))
       cb.assign(quoteChar, quoteStr(0))
 
-      val string = cb.newLocal[String]("string", s.asString.loadString())
-      val sep = cb.newLocal[String]("sep", separator.asString.loadString())
-      val mv = missing.asIndexable.memoize(cb, "mv")
+      val string = cb.newLocal[String]("string", s.asString.loadString(cb))
+      val sep = cb.newLocal[String]("sep", separator.asString.loadString(cb))
+      val mv = missing.asIndexable
 
-      new SJavaArrayStringCode(st, generateSplitQuotedRegex(cb, string, Right(sep), Some(quoteChar), mv, errorID))
+      new SJavaArrayStringValue(st, generateSplitQuotedRegex(cb, string, Right(sep), Some(quoteChar), mv, errorID))
     }
 
     registerSCode4("splitQuotedChar", TString, TString, TArray(TString), TString, TArray(TString), {
       case (_: Type, _: SType, _: SType, _: SType, _: SType) => SJavaArrayString(false)
     }) { case (r, cb, st: SJavaArrayString, s, separator, missing, quote, errorID) =>
-      val quoteStr = cb.newLocal[String]("quoteStr", quote.asString.loadString())
+      val quoteStr = cb.newLocal[String]("quoteStr", quote.asString.loadString(cb))
       val quoteChar = cb.newLocal[Char]("quoteChar")
       cb.ifx(quoteStr.length().cne(1), cb._fatalWithError(errorID, "quote must be a single character"))
       cb.assign(quoteChar, quoteStr(0))
 
-      val string = cb.newLocal[String]("string", s.asString.loadString())
-      val sep = cb.newLocal[String]("sep", separator.asString.loadString())
+      val string = cb.newLocal[String]("string", s.asString.loadString(cb))
+      val sep = cb.newLocal[String]("sep", separator.asString.loadString(cb))
       val sepChar = cb.newLocal[Char]("sepChar")
       cb.ifx(sep.length().cne(1), cb._fatalWithError(errorID, "splitQuotedChar expected a single character for separator"))
       cb.assign(sepChar, sep(0))
-      val mv = missing.asIndexable.memoize(cb, "mv")
+      val mv = missing.asIndexable
 
-      new SJavaArrayStringCode(st, generateSplitQuotedRegex(cb, string, Left(sepChar), Some(quoteChar), mv, errorID))
+      new SJavaArrayStringValue(st, generateSplitQuotedRegex(cb, string, Left(sepChar), Some(quoteChar), mv, errorID))
     }
 
     registerSCode3("splitRegex", TString, TString, TArray(TString), TArray(TString), {
       case (_: Type, _: SType, _: SType, _: SType) => SJavaArrayString(false)
     }) { case (r, cb, st: SJavaArrayString, s, separator, missing, errorID) =>
-      val string = cb.newLocal[String]("string", s.asString.loadString())
-      val sep = cb.newLocal[String]("sep", separator.asString.loadString())
-      val mv = missing.asIndexable.memoize(cb, "mv")
+      val string = cb.newLocal[String]("string", s.asString.loadString(cb))
+      val sep = cb.newLocal[String]("sep", separator.asString.loadString(cb))
+      val mv = missing.asIndexable
 
-      new SJavaArrayStringCode(st, generateSplitQuotedRegex(cb, string, Right(sep), None, mv, errorID))
+      new SJavaArrayStringValue(st, generateSplitQuotedRegex(cb, string, Right(sep), None, mv, errorID))
     }
 
     registerSCode3("splitChar", TString, TString, TArray(TString), TArray(TString), {
       case (_: Type, _: SType, _: SType, _: SType) => SJavaArrayString(false)
     }) { case (r, cb, st: SJavaArrayString, s, separator, missing, errorID) =>
-      val string = cb.newLocal[String]("string", s.asString.loadString())
-      val sep = cb.newLocal[String]("sep", separator.asString.loadString())
+      val string = cb.newLocal[String]("string", s.asString.loadString(cb))
+      val sep = cb.newLocal[String]("sep", separator.asString.loadString(cb))
       val sepChar = cb.newLocal[Char]("sepChar")
       cb.ifx(sep.length().cne(1), cb._fatalWithError(errorID, "splitChar expected a single character for separator"))
       cb.assign(sepChar, sep(0))
-      val mv = missing.asIndexable.memoize(cb, "mv")
+      val mv = missing.asIndexable
 
-      new SJavaArrayStringCode(st, generateSplitQuotedRegex(cb, string, Left(sepChar), None, mv, errorID))
+      new SJavaArrayStringValue(st, generateSplitQuotedRegex(cb, string, Left(sepChar), None, mv, errorID))
     }
 
     registerWrappedScalaFunction2("mkString", TArray(TString), TString, TString, {
