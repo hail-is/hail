@@ -3,10 +3,11 @@ import asyncio
 import gzip
 import io
 import nest_asyncio
+import functools
 
 from hailtop.aiotools.router_fs import RouterAsyncFS
 from hailtop.aiotools.fs import Copier, Transfer, FileListEntry, ReadableStream, WritableStream
-from hailtop.utils import async_to_blocking, OnlineBoundedGather2
+from hailtop.utils import async_to_blocking, bounded_gather
 
 from .fs import FS
 from .stat_result import FileType, StatResult
@@ -191,7 +192,14 @@ class RouterFS(FS):
         return async_to_blocking(_copy())
 
     def exists(self, path: str) -> bool:
-        return async_to_blocking(self.afs.exists(path))
+        async def _exists():
+            dir_path = path
+            if dir_path[-1] != '/':
+                dir_path = dir_path + '/'
+            return any(await asyncio.gather(
+                self.afs.isfile(path),
+                self.afs.isdir(dir_path)))
+        return async_to_blocking(_exists())
 
     def is_file(self, path: str) -> bool:
         return async_to_blocking(self.afs.isfile(path))
@@ -239,7 +247,7 @@ class RouterFS(FS):
         return async_to_blocking(self.afs.mkdir(path))
 
     def remove(self, path: str):
-        return async_to_blocking(self.remove(path))
+        return async_to_blocking(self.afs.remove(path))
 
     def rmtree(self, path: str):
         return async_to_blocking(self.afs.rmtree(None, path))
