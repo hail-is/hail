@@ -60,7 +60,11 @@ module "vdc" {
 
   resource_group        = data.azurerm_resource_group.rg
   container_registry_id = azurerm_container_registry.acr.id
-  k8s_machine_type      = var.k8s_machine_type
+
+  k8s_default_node_pool_machine_type = var.k8s_default_node_pool_machine_type
+  k8s_user_pool_machine_type         = var.k8s_user_pool_machine_type
+  k8s_preemptible_node_pool_name     = var.k8s_preemptible_node_pool_name
+  k8s_nonpreemptible_node_pool_name  = var.k8s_nonpreemptible_node_pool_name
 }
 
 module "db" {
