@@ -87,11 +87,6 @@ object AzureStorageFS {
 
 }
 
-object AzureStorageFileStatus {
-  def apply(filename: String): Unit = {
-  }
-}
-
 class AzureStorageFileStatus(path: String, modificationTime: java.lang.Long, size: Long, isDir: Boolean) extends FileStatus {
   def getPath: String = path
 
@@ -102,6 +97,8 @@ class AzureStorageFileStatus(path: String, modificationTime: java.lang.Long, siz
   def isDirectory: Boolean = isDir
 
   def isFile: Boolean = !isDir
+
+  def isSymlink: Boolean = false
 
   def getOwner: String = null
 }
