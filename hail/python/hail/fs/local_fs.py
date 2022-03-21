@@ -21,7 +21,11 @@ class LocalFS(FS):
             strm = open(path, 'rb')
         else:
             assert mode[0] == 'w'
-            strm = open(path, 'wb')
+            try:
+                strm = open(path, 'wb')
+            except FileNotFoundError:
+                os.makedirs(os.path.dirname(path))
+                strm = open(path, 'wb')
 
         if path[-3:] == '.gz' or path[-4:] == '.bgz':
             strm = gzip.GzipFile(fileobj=strm, mode=mode)  # type: ignore # GzipFile should be a BinaryIO

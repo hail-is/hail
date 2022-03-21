@@ -74,8 +74,7 @@ class Tests(unittest.TestCase):
         with hadoop_open(resource('./some/foo/bar.txt')) as f:
             assert(f.read() == test_text)
 
-        import shutil
-        shutil.rmtree(resource('./some'))
+        hl.current_backend().fs.rmtree(resource('./some'))
 
     def test_hadoop_mkdir_p_2(self):
         with self.assertRaises(Exception):
