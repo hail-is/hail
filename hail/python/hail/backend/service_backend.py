@@ -204,7 +204,8 @@ class ServiceBackend(Backend):
         with TemporaryDirectory(ensure_exists=False) as _:
             with timings.step("write input"):
                 async with await self._async_fs.create(iodir + '/in') as infile:
-                    await write_int(infile, len(self.flags))
+                    nonnull_flag_count = len([v is not None for v in self.flags.values()])
+                    await write_int(infile, nonnull_flag_count)
                     for k, v in self.flags.items():
                         if v is not None:
                             await write_str(infile, k)
