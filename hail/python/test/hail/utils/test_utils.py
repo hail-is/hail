@@ -77,7 +77,7 @@ class Tests(unittest.TestCase):
         import shutil
         shutil.rmtree(resource('./some'))
 
-    def test_hadoop_mkdir_p(self):
+    def test_hadoop_mkdir_p_2(self):
         with self.assertRaises(Exception):
             hadoop_open(resource('./some2/foo/bar.txt'), 'r')
 
