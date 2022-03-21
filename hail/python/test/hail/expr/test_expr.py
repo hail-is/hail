@@ -64,6 +64,7 @@ class Tests(unittest.TestCase):
         test_random_function(lambda: hl.rand_cat(hl.array([1, 1, 1, 1])))
         test_random_function(lambda: hl.rand_dirichlet(hl.array([1, 1, 1, 1])))
 
+    @fails_service_backend(reason='need to convert errors to HailUserError')
     def test_range(self):
         def same_as_python(*args):
             self.assertEqual(hl.eval(hl.range(*args)), list(range(*args)))
@@ -198,6 +199,7 @@ class Tests(unittest.TestCase):
             else:
                 self.assertEqual(v, result[k], msg=k)
 
+    @fails_service_backend(reason='need to convert errors to HailUserError')
     def test_array_slicing(self):
         schema = hl.tstruct(a=hl.tarray(hl.tint32))
         rows = [{'a': [1, 2, 3, 4, 5]}]
@@ -265,6 +267,7 @@ class Tests(unittest.TestCase):
 
         self.assertDictEqual(result, expected)
 
+    @fails_service_backend(reason='need to convert errors to HailUserError')
     def test_dict_missing_error(self):
         d = hl.dict({'a': 2, 'b': 3})
         with pytest.raises(hl.utils.HailUserError, match='Key NA not found in dictionary'):
@@ -394,6 +397,30 @@ class Tests(unittest.TestCase):
         self.assertEqual(hl.eval(hl.if_else(hl.missing(hl.tbool), 1, 2)), None)
         self.assertEqual(hl.eval(hl.if_else(hl.missing(hl.tbool), 1, 2, missing_false=True)), 2)
 
+    @skip_when_service_backend('''intermittent worker failure:
+>       self.assertEqual(table.aggregate(hl.agg.filter(True, hl.agg.array_sum(a))), [10, 20])
+
+Caused by: java.net.URISyntaxException: Illegal character in path at index 0: a8d523b8-d587-4ba9-aa46-2839dd6d8e3b
+	at java.net.URI$Parser.fail(URI.java:2847)
+	at java.net.URI$Parser.checkChars(URI.java:3020)
+	at java.net.URI$Parser.parseHierarchical(URI.java:3104)
+	at java.net.URI$Parser.parse(URI.java:3062)
+	at java.net.URI.<init>(URI.java:588)
+	at is.hail.io.fs.GoogleStorageFS$.getBucketPath(GoogleStorageFS.scala:41)
+	at is.hail.io.fs.GoogleStorageFS.createNoCompression(GoogleStorageFS.scala:197)
+	at is.hail.io.fs.FS.create(FS.scala:154)
+	at is.hail.io.fs.FS.create$(FS.scala:153)
+	at is.hail.io.fs.GoogleStorageFS.create(GoogleStorageFS.scala:101)
+	at __C42collect_distributed_array.applyregion12_37(Unknown Source)
+	at __C42collect_distributed_array.apply(Unknown Source)
+	at __C42collect_distributed_array.apply(Unknown Source)
+	at is.hail.backend.BackendUtils.$anonfun$collectDArray$2(BackendUtils.scala:31)
+	at is.hail.utils.package$.using(package.scala:627)
+	at is.hail.annotations.RegionPool.scopedRegion(RegionPool.scala:144)
+	at is.hail.backend.BackendUtils.$anonfun$collectDArray$1(BackendUtils.scala:30)
+	at is.hail.backend.service.Worker$.main(Worker.scala:120)
+	at is.hail.backend.service.Worker.main(Worker.scala)
+	... 12 more''')
     def test_aggregators(self):
         table = hl.utils.range_table(10)
         r = table.aggregate(hl.struct(x=hl.agg.count(),
@@ -551,6 +578,40 @@ class Tests(unittest.TestCase):
                           hl.Struct(row_idx=9, s=36, x=9), hl.Struct(row_idx=10, s=45, x=10), hl.Struct(row_idx=11, s=55, x=11),
                           hl.Struct(row_idx=12, s=66, x=12), hl.Struct(row_idx=13, s=78, x=13), hl.Struct(row_idx=14, s=91, x=14)])
 
+    @skip_when_service_backend('''intermittent failure on worker node:
+{"@version":1,"@timestamp":"2021-08-09 21:30:08,696","message":"request GET http://internal.hail/dking/memory/api/v1alpha/objects?q=gs%3A%2F%2Fdanking%2Ftmp%2Fhail%2Fquery%2FVbzVI33tfBknUXx5BqIX3reTS30M6FJaDvSXV6BOGcg%3D%2Ff response 200","filename":"Requester.scala","line_number":"71","class":"is.hail.services.Requester","method":"$anonfun$requestWithHandler$2","logger_name":"Requester","mdc":{},"ndc":null,"severity":"INFO","thread_name":"pool-3-thread-2"}
+{"@version":1,"@timestamp":"2021-08-09 21:30:08,696","message":"request GET http://internal.hail/dking/memory/api/v1alpha/objects?q=gs%3A%2F%2Fdanking%2Ftmp%2Fhail%2Fquery%2FVbzVI33tfBknUXx5BqIX3reTS30M6FJaDvSXV6BOGcg%3D%2Fcontexts response 200","filename":"Requester.scala","line_number":"71","class":"is.hail.services.Requester","method":"$anonfun$requestWithHandler$2","logger_name":"Requester","mdc":{},"ndc":null,"severity":"INFO","thread_name":"pool-3-thread-1"}
+{"@version":1,"@timestamp":"2021-08-09 21:30:08,699","message":"readInputs took 431.583961 ms.","filename":"Worker.scala","line_number":"42","class":"is.hail.backend.service.WorkerTimer","method":"$anonfun$end$1","logger_name":"is.hail.backend.service.WorkerTimer$","mdc":{},"ndc":null,"severity":"INFO","thread_name":"pool-1-thread-1"}
+{"@version":1,"@timestamp":"2021-08-09 21:30:08,699","message":"RegionPool: initialized for thread 18: pool-1-thread-1","filename":"RegionPool.scala","line_number":"21","class":"is.hail.annotations.RegionPool","method":"<init>","logger_name":"root","mdc":{},"ndc":null,"severity":"INFO","thread_name":"pool-1-thread-1"}
+#
+# A fatal error has been detected by the Java Runtime Environment:
+#
+#  SIGSEGV (0xb) at pc=0x00007fa915b4f862, pid=1596, tid=0x00007fa89e78e700
+#
+# JRE version: OpenJDK Runtime Environment (8.0_292-b10) (build 1.8.0_292-8u292-b10-0ubuntu1~20.04-b10)
+# Java VM: OpenJDK 64-Bit Server VM (25.292-b10 mixed mode linux-amd64 compressed oops)
+# Problematic frame:
+# J 6954 C1 is.hail.annotations.Region$.loadInt(J)I (5 bytes) @ 0x00007fa915b4f862 [0x00007fa915b4f7c0+0xa2]
+#
+# Core dump written. Default location: //core or core.1596
+#
+# An error report file with more information is saved as:
+# //hs_err_pid1596.log
+Compiled method (c1)   65989 6954       3       is.hail.annotations.Region$::loadInt (5 bytes)
+ total in heap  [0x00007fa915b4f650,0x00007fa915b4f9f8] = 936
+ relocation     [0x00007fa915b4f778,0x00007fa915b4f7a8] = 48
+ main code      [0x00007fa915b4f7c0,0x00007fa915b4f8e0] = 288
+ stub code      [0x00007fa915b4f8e0,0x00007fa915b4f970] = 144
+ oops           [0x00007fa915b4f970,0x00007fa915b4f978] = 8
+ metadata       [0x00007fa915b4f978,0x00007fa915b4f988] = 16
+ scopes data    [0x00007fa915b4f988,0x00007fa915b4f9b0] = 40
+ scopes pcs     [0x00007fa915b4f9b0,0x00007fa915b4f9f0] = 64
+ dependencies   [0x00007fa915b4f9f0,0x00007fa915b4f9f8] = 8
+#
+# If you would like to submit a bug report, please visit:
+#   http://bugreport.java.com/bugreport/crash.jsp
+#
+''')
     def test_agg_filter(self):
         t = hl.utils.range_table(10)
         tests = [(hl.agg.filter(t.idx > 7,
@@ -666,6 +727,76 @@ class Tests(unittest.TestCase):
         r = ht.aggregate(hl.agg.array_agg(lambda x: hl.agg.explode(lambda elt: hl.agg.count(), x), ht.a))
         assert r == [45, 45]
 
+    @skip_when_service_backend('''intermitent failure:
+>       r2 = ht.aggregate(hl.agg.array_agg(lambda x: hl.agg.filter(x == 5, hl.agg.sum(x)), ht.a))
+
+with this message:
+
+E                   hail.utils.java.FatalError: is.hail.utils.HailException: mismatched lengths in ArrayElementsAggregator
+E                   	at __C2Compiled.__m262split_StreamForregion27_38(Emit.scala)
+E                   	at __C2Compiled.__m262split_StreamFor(Emit.scala)
+E                   	at __C2Compiled.__m3split_Letregion34_42(Emit.scala)
+E                   	at __C2Compiled.__m3split_Let(Emit.scala)
+E                   	at __C2Compiled.apply(Emit.scala)
+E                   	at is.hail.expr.ir.lowering.LowerToCDA$.$anonfun$lower$2(LowerToCDA.scala:50)
+E                   	at scala.runtime.java8.JFunction0$mcJ$sp.apply(JFunction0$mcJ$sp.java:23)
+E                   	at is.hail.utils.ExecutionTimer.time(ExecutionTimer.scala:81)
+E                   	at is.hail.expr.ir.lowering.LowerToCDA$.lower(LowerToCDA.scala:50)
+E                   	at is.hail.expr.ir.lowering.LowerToCDA$.apply(LowerToCDA.scala:17)
+E                   	at is.hail.expr.ir.lowering.LowerToDistributedArrayPass.transform(LoweringPass.scala:75)
+E                   	at is.hail.expr.ir.lowering.LoweringPass.$anonfun$apply$3(LoweringPass.scala:15)
+E                   	at is.hail.utils.ExecutionTimer.time(ExecutionTimer.scala:81)
+E                   	at is.hail.expr.ir.lowering.LoweringPass.$anonfun$apply$1(LoweringPass.scala:15)
+E                   	at is.hail.utils.ExecutionTimer.time(ExecutionTimer.scala:81)
+E                   	at is.hail.expr.ir.lowering.LoweringPass.apply(LoweringPass.scala:13)
+E                   	at is.hail.expr.ir.lowering.LoweringPass.apply$(LoweringPass.scala:12)
+E                   	at is.hail.expr.ir.lowering.LowerToDistributedArrayPass.apply(LoweringPass.scala:70)
+E                   	at is.hail.expr.ir.lowering.LoweringPipeline.$anonfun$apply$1(LoweringPipeline.scala:14)
+E                   	at is.hail.expr.ir.lowering.LoweringPipeline.$anonfun$apply$1$adapted(LoweringPipeline.scala:12)
+E                   	at scala.collection.IndexedSeqOptimized.foreach(IndexedSeqOptimized.scala:36)
+E                   	at scala.collection.IndexedSeqOptimized.foreach$(IndexedSeqOptimized.scala:33)
+E                   	at scala.collection.mutable.WrappedArray.foreach(WrappedArray.scala:38)
+E                   	at is.hail.expr.ir.lowering.LoweringPipeline.apply(LoweringPipeline.scala:12)
+E                   	at is.hail.backend.service.ServiceBackend.execute(ServiceBackend.scala:289)
+E                   	at is.hail.backend.service.ServiceBackend.$anonfun$execute$4(ServiceBackend.scala:324)
+E                   	at is.hail.expr.ir.ExecuteContext$.$anonfun$scoped$3(ExecuteContext.scala:47)
+E                   	at is.hail.utils.package$.using(package.scala:627)
+E                   	at is.hail.expr.ir.ExecuteContext$.$anonfun$scoped$2(ExecuteContext.scala:47)
+E                   	at is.hail.utils.package$.using(package.scala:627)
+E                   	at is.hail.annotations.RegionPool$.scoped(RegionPool.scala:17)
+E                   	at is.hail.expr.ir.ExecuteContext$.scoped(ExecuteContext.scala:46)
+E                   	at is.hail.backend.service.ServiceBackend.$anonfun$execute$1(ServiceBackend.scala:320)
+E                   	at is.hail.utils.ExecutionTimer$.time(ExecutionTimer.scala:52)
+E                   	at is.hail.utils.ExecutionTimer$.logTime(ExecutionTimer.scala:59)
+E                   	at is.hail.backend.service.ServiceBackend.execute(ServiceBackend.scala:314)
+E                   	at is.hail.backend.service.ServiceBackendSocketAPI2.executeOneCommand(ServiceBackend.scala:873)
+E                   	at is.hail.backend.service.ServiceBackendSocketAPI2$.$anonfun$main$7(ServiceBackend.scala:696)
+E                   	at is.hail.backend.service.ServiceBackendSocketAPI2$.$anonfun$main$7$adapted(ServiceBackend.scala:695)
+E                   	at is.hail.utils.package$.using(package.scala:627)
+E                   	at is.hail.backend.service.ServiceBackendSocketAPI2$.$anonfun$main$6(ServiceBackend.scala:695)
+E                   	at scala.runtime.java8.JFunction0$mcV$sp.apply(JFunction0$mcV$sp.java:23)
+E                   	at is.hail.services.package$.retryTransientErrors(package.scala:69)
+E                   	at is.hail.backend.service.ServiceBackendSocketAPI2$.$anonfun$main$5(ServiceBackend.scala:699)
+E                   	at is.hail.backend.service.ServiceBackendSocketAPI2$.$anonfun$main$5$adapted(ServiceBackend.scala:693)
+E                   	at is.hail.utils.package$.using(package.scala:627)
+E                   	at is.hail.backend.service.ServiceBackendSocketAPI2$.$anonfun$main$4(ServiceBackend.scala:693)
+E                   	at scala.runtime.java8.JFunction0$mcV$sp.apply(JFunction0$mcV$sp.java:23)
+E                   	at is.hail.services.package$.retryTransientErrors(package.scala:69)
+E                   	at is.hail.backend.service.ServiceBackendSocketAPI2$.main(ServiceBackend.scala:701)
+E                   	at is.hail.backend.service.ServiceBackendSocketAPI2.main(ServiceBackend.scala)
+E                   	at sun.reflect.NativeMethodAccessorImpl.invoke0(Native Method)
+E                   	at sun.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:62)
+E                   	at sun.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)
+E                   	at java.lang.reflect.Method.invoke(Method.java:498)
+E                   	at is.hail.JVMEntryway$1.run(JVMEntryway.java:88)
+E                   	at java.util.concurrent.Executors$RunnableAdapter.call(Executors.java:511)
+E                   	at java.util.concurrent.FutureTask.run(FutureTask.java:266)
+E                   	at java.util.concurrent.Executors$RunnableAdapter.call(Executors.java:511)
+E                   	at java.util.concurrent.FutureTask.run(FutureTask.java:266)
+E                   	at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1149)
+E                   	at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:624)
+E                   	at java.lang.Thread.run(Thread.java:748)
+''')
     def test_agg_array_filter(self):
         ht = hl.utils.range_table(10)
         ht = ht.annotate(a=[ht.idx])
@@ -681,6 +812,23 @@ class Tests(unittest.TestCase):
         r4 = ht.aggregate(hl.agg.array_agg(lambda x: hl.agg.filter(x == 5, hl.agg.count()), ht.a))
         assert r4 == [1]
 
+    @skip_when_service_backend('''intermittent failure on worker node:
+Caused by: java.lang.AssertionError: assertion failed
+	at scala.Predef$.assert(Predef.scala:208)
+	at is.hail.io.BlockingInputBuffer.readBytes(InputBuffers.scala:448)
+	at __C616collect_distributed_array.__m676INPLACE_DECODE_r_binary_TO_r_string(Unknown Source)
+	at __C616collect_distributed_array.__m675INPLACE_DECODE_r_array_of_r_binary_TO_r_array_of_r_string(Unknown Source)
+	at __C616collect_distributed_array.__m674DECODE_r_struct_of_r_struct_of_ENDANDr_array_of_r_binaryEND_TO_SBaseStructPointer(Unknown Source)
+	at __C616collect_distributed_array.addLiterals(Unknown Source)
+	at is.hail.expr.ir.EmitClassBuilder$$anon$1.apply(EmitClassBuilder.scala:691)
+	at is.hail.expr.ir.EmitClassBuilder$$anon$1.apply(EmitClassBuilder.scala:670)
+	at is.hail.backend.BackendUtils.$anonfun$collectDArray$2(BackendUtils.scala:31)
+	at is.hail.utils.package$.using(package.scala:627)
+	at is.hail.annotations.RegionPool.scopedRegion(RegionPool.scala:144)
+	at is.hail.backend.BackendUtils.$anonfun$collectDArray$1(BackendUtils.scala:30)
+	at is.hail.backend.service.Worker$.main(Worker.scala:120)
+	at is.hail.backend.service.Worker.main(Worker.scala)
+	... 12 more''')
     def test_agg_array_group_by(self):
         ht = hl.utils.range_table(10)
         ht = ht.annotate(a=[ht.idx, ht.idx + 1])
@@ -782,6 +930,21 @@ class Tests(unittest.TestCase):
         for aggregation, expected in tests:
             self.assertEqual(t.aggregate(aggregation), expected)
 
+    @skip_when_service_backend('''intermittent failure on worker node:
+Caused by: java.lang.AssertionError: assertion failed
+	at scala.Predef$.assert(Predef.scala:208)
+	at is.hail.io.MemoryBuffer.readInt(MemoryBuffer.scala:95)
+	at is.hail.io.MemoryInputBuffer.readInt(InputBuffers.scala:178)
+	at __C51collect_distributed_array.applyregion18_30(Unknown Source)
+	at __C51collect_distributed_array.apply(Unknown Source)
+	at __C51collect_distributed_array.apply(Unknown Source)
+	at is.hail.backend.BackendUtils.$anonfun$collectDArray$2(BackendUtils.scala:31)
+	at is.hail.utils.package$.using(package.scala:627)
+	at is.hail.annotations.RegionPool.scopedRegion(RegionPool.scala:144)
+	at is.hail.backend.BackendUtils.$anonfun$collectDArray$1(BackendUtils.scala:30)
+	at is.hail.backend.service.Worker$.main(Worker.scala:120)
+	at is.hail.backend.service.Worker.main(Worker.scala)
+	... 12 more''')
     def test_agg_group_by(self):
         t = hl.utils.range_table(10)
         tests = [(hl.agg.group_by(t.idx % 2,
@@ -966,6 +1129,78 @@ class Tests(unittest.TestCase):
 
         self.assertEqual(r.x, 10)
 
+    @skip_when_service_backend('''intermitent driver error:
+>           t.aggregate(hl.bind(lambda i: hl.agg.explode(lambda elt: hl.agg.sum(elt), [t.idx, t.idx + i]), 1))
+
+E                   hail.utils.java.FatalError: java.lang.AssertionError: assertion failed
+E                   	at scala.Predef$.assert(Predef.scala:208)
+E                   	at is.hail.io.MemoryBuffer.readInt(MemoryBuffer.scala:95)
+E                   	at is.hail.io.MemoryInputBuffer.readInt(InputBuffers.scala:178)
+E                   	at __C91Compiled.__m368DECODE_r_array_of_r_int32_TO_SIndexablePointer(Emit.scala)
+E                   	at __C91Compiled.__m416blockLinkedListDeserialize(Emit.scala)
+E                   	at __C91Compiled.__m144split_ToArrayregion55_60(Emit.scala)
+E                   	at __C91Compiled.__m144split_ToArrayregion22_149(Emit.scala)
+E                   	at __C91Compiled.__m144split_ToArrayregion9_153(Emit.scala)
+E                   	at __C91Compiled.__m144split_ToArray(Emit.scala)
+E                   	at __C91Compiled.apply(Emit.scala)
+E                   	at is.hail.expr.ir.lowering.LowerToCDA$.$anonfun$lower$2(LowerToCDA.scala:50)
+E                   	at scala.runtime.java8.JFunction0$mcJ$sp.apply(JFunction0$mcJ$sp.java:23)
+E                   	at is.hail.utils.ExecutionTimer.time(ExecutionTimer.scala:81)
+E                   	at is.hail.expr.ir.lowering.LowerToCDA$.lower(LowerToCDA.scala:50)
+E                   	at is.hail.expr.ir.lowering.LowerToCDA$.apply(LowerToCDA.scala:17)
+E                   	at is.hail.expr.ir.lowering.LowerToDistributedArrayPass.transform(LoweringPass.scala:75)
+E                   	at is.hail.expr.ir.lowering.LoweringPass.$anonfun$apply$3(LoweringPass.scala:15)
+E                   	at is.hail.utils.ExecutionTimer.time(ExecutionTimer.scala:81)
+E                   	at is.hail.expr.ir.lowering.LoweringPass.$anonfun$apply$1(LoweringPass.scala:15)
+E                   	at is.hail.utils.ExecutionTimer.time(ExecutionTimer.scala:81)
+E                   	at is.hail.expr.ir.lowering.LoweringPass.apply(LoweringPass.scala:13)
+E                   	at is.hail.expr.ir.lowering.LoweringPass.apply$(LoweringPass.scala:12)
+E                   	at is.hail.expr.ir.lowering.LowerToDistributedArrayPass.apply(LoweringPass.scala:70)
+E                   	at is.hail.expr.ir.lowering.LoweringPipeline.$anonfun$apply$1(LoweringPipeline.scala:14)
+E                   	at is.hail.expr.ir.lowering.LoweringPipeline.$anonfun$apply$1$adapted(LoweringPipeline.scala:12)
+E                   	at scala.collection.IndexedSeqOptimized.foreach(IndexedSeqOptimized.scala:36)
+E                   	at scala.collection.IndexedSeqOptimized.foreach$(IndexedSeqOptimized.scala:33)
+E                   	at scala.collection.mutable.WrappedArray.foreach(WrappedArray.scala:38)
+E                   	at is.hail.expr.ir.lowering.LoweringPipeline.apply(LoweringPipeline.scala:12)
+E                   	at is.hail.backend.service.ServiceBackend.execute(ServiceBackend.scala:289)
+E                   	at is.hail.backend.service.ServiceBackend.$anonfun$execute$4(ServiceBackend.scala:324)
+E                   	at is.hail.expr.ir.ExecuteContext$.$anonfun$scoped$3(ExecuteContext.scala:47)
+E                   	at is.hail.utils.package$.using(package.scala:627)
+E                   	at is.hail.expr.ir.ExecuteContext$.$anonfun$scoped$2(ExecuteContext.scala:47)
+E                   	at is.hail.utils.package$.using(package.scala:627)
+E                   	at is.hail.annotations.RegionPool$.scoped(RegionPool.scala:17)
+E                   	at is.hail.expr.ir.ExecuteContext$.scoped(ExecuteContext.scala:46)
+E                   	at is.hail.backend.service.ServiceBackend.$anonfun$execute$1(ServiceBackend.scala:320)
+E                   	at is.hail.utils.ExecutionTimer$.time(ExecutionTimer.scala:52)
+E                   	at is.hail.utils.ExecutionTimer$.logTime(ExecutionTimer.scala:59)
+E                   	at is.hail.backend.service.ServiceBackend.execute(ServiceBackend.scala:314)
+E                   	at is.hail.backend.service.ServiceBackendSocketAPI2.executeOneCommand(ServiceBackend.scala:873)
+E                   	at is.hail.backend.service.ServiceBackendSocketAPI2$.$anonfun$main$7(ServiceBackend.scala:696)
+E                   	at is.hail.backend.service.ServiceBackendSocketAPI2$.$anonfun$main$7$adapted(ServiceBackend.scala:695)
+E                   	at is.hail.utils.package$.using(package.scala:627)
+E                   	at is.hail.backend.service.ServiceBackendSocketAPI2$.$anonfun$main$6(ServiceBackend.scala:695)
+E                   	at scala.runtime.java8.JFunction0$mcV$sp.apply(JFunction0$mcV$sp.java:23)
+E                   	at is.hail.services.package$.retryTransientErrors(package.scala:69)
+E                   	at is.hail.backend.service.ServiceBackendSocketAPI2$.$anonfun$main$5(ServiceBackend.scala:699)
+E                   	at is.hail.backend.service.ServiceBackendSocketAPI2$.$anonfun$main$5$adapted(ServiceBackend.scala:693)
+E                   	at is.hail.utils.package$.using(package.scala:627)
+E                   	at is.hail.backend.service.ServiceBackendSocketAPI2$.$anonfun$main$4(ServiceBackend.scala:693)
+E                   	at scala.runtime.java8.JFunction0$mcV$sp.apply(JFunction0$mcV$sp.java:23)
+E                   	at is.hail.services.package$.retryTransientErrors(package.scala:69)
+E                   	at is.hail.backend.service.ServiceBackendSocketAPI2$.main(ServiceBackend.scala:701)
+E                   	at is.hail.backend.service.ServiceBackendSocketAPI2.main(ServiceBackend.scala)
+E                   	at sun.reflect.NativeMethodAccessorImpl.invoke0(Native Method)
+E                   	at sun.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:62)
+E                   	at sun.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)
+E                   	at java.lang.reflect.Method.invoke(Method.java:498)
+E                   	at is.hail.JVMEntryway$1.run(JVMEntryway.java:88)
+E                   	at java.util.concurrent.Executors$RunnableAdapter.call(Executors.java:511)
+E                   	at java.util.concurrent.FutureTask.run(FutureTask.java:266)
+E                   	at java.util.concurrent.Executors$RunnableAdapter.call(Executors.java:511)
+E                   	at java.util.concurrent.FutureTask.run(FutureTask.java:266)
+E                   	at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1149)
+E                   	at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:624)
+E                   	at java.lang.Thread.run(Thread.java:748)''')
     def test_scan_filter(self):
         t = hl.utils.range_table(5)
         tests = [
@@ -1016,6 +1251,31 @@ class Tests(unittest.TestCase):
         for aggregation, expected in tests:
             self.assertEqual(aggregation.collect(), expected)
 
+    @skip_when_service_backend('''intermittent worker failure:
+>           self.assertEqual(aggregation.collect(), expected)
+
+Caused by: is.hail.utils.HailException: Premature end of file: expected 4 bytes, found 0
+	at is.hail.utils.ErrorHandling.fatal(ErrorHandling.scala:11)
+	at is.hail.utils.ErrorHandling.fatal$(ErrorHandling.scala:11)
+	at is.hail.utils.package$.fatal(package.scala:77)
+	at is.hail.utils.richUtils.RichInputStream$.readFully$extension1(RichInputStream.scala:13)
+	at is.hail.io.StreamBlockInputBuffer.readBlock(InputBuffers.scala:546)
+	at is.hail.io.BlockingInputBuffer.readBlock(InputBuffers.scala:382)
+	at is.hail.io.BlockingInputBuffer.ensure(InputBuffers.scala:388)
+	at is.hail.io.BlockingInputBuffer.readInt(InputBuffers.scala:412)
+	at __C493collect_distributed_array.__m501INPLACE_DECODE_r_binary_TO_r_binary(Unknown Source)
+	at __C493collect_distributed_array.__m500INPLACE_DECODE_r_struct_of_r_binaryANDr_binaryANDr_binaryANDr_binaryANDr_binaryANDr_binaryANDr_binaryANDr_binaryANDr_binaryANDr_binaryEND_TO_r_tuple_of_r_binaryANDr_binaryANDr_binaryANDr_binaryANDr_binaryANDr_binaryANDr_binaryANDr_binaryANDr_binaryANDr_binaryEND(Unknown Source)
+	at __C493collect_distributed_array.__m499INPLACE_DECODE_r_struct_of_r_struct_of_r_binaryANDr_binaryANDr_binaryANDr_binaryANDr_binaryANDr_binaryANDr_binaryANDr_binaryANDr_binaryANDr_binaryENDEND_TO_r_struct_of_r_tuple_of_r_binaryANDr_binaryANDr_binaryANDr_binaryANDr_binaryANDr_binaryANDr_binaryANDr_binaryANDr_binaryANDr_binaryENDEND(Unknown Source)
+	at __C493collect_distributed_array.__m498DECODE_r_struct_of_r_struct_of_r_struct_of_r_binaryANDr_binaryANDr_binaryANDr_binaryANDr_binaryANDr_binaryANDr_binaryANDr_binaryANDr_binaryANDr_binaryENDENDEND_TO_SBaseStructPointer(Unknown Source)
+	at __C493collect_distributed_array.apply(Unknown Source)
+	at __C493collect_distributed_array.apply(Unknown Source)
+	at is.hail.backend.BackendUtils.$anonfun$collectDArray$2(BackendUtils.scala:31)
+	at is.hail.utils.package$.using(package.scala:627)
+	at is.hail.annotations.RegionPool.scopedRegion(RegionPool.scala:144)
+	at is.hail.backend.BackendUtils.$anonfun$collectDArray$1(BackendUtils.scala:30)
+	at is.hail.backend.service.Worker$.main(Worker.scala:120)
+	at is.hail.backend.service.Worker.main(Worker.scala)
+	... 12 more''')
     def test_scan_group_by(self):
         t = hl.utils.range_table(5)
         tests = [
@@ -1047,6 +1307,53 @@ class Tests(unittest.TestCase):
         for aggregation, expected in tests:
             self.assertEqual(aggregation.collect(), expected)
 
+    @skip_when_service_backend('''intermittent worker failure:
+>           (hl.scan.group_by(t.idx % 3,
+                            hl.scan.collect(t.idx).append(t.idx)),
+             [{},
+              {0: [0, 1]},
+              {0: [0, 2], 1: [1, 2]},
+              {0: [0, 3], 1: [1, 3], 2: [2, 3]},
+              {0: [0, 3, 4], 1: [1, 4], 2: [2, 4]}]),
+            (hl.scan.group_by(t.idx % 3,
+                              hl.scan.filter((t.idx % 2) == 0,
+                                             hl.scan.collect(t.idx).append(t.idx))),
+             [{},
+              {0: [0, 1]},
+              {0: [0, 2], 1: [2]},
+              {0: [0, 3], 1: [3], 2: [2, 3]},
+              {0: [0, 4], 1: [4], 2: [2, 4]}]),
+            (hl.scan.group_by(t.idx % 3,
+                              hl.scan.explode(lambda elt: hl.scan.collect(elt).append(t.idx),
+                                              [t.idx, t.idx + 1])),
+             [{},
+              {0: [0, 1, 1]},
+              {0: [0, 1, 2], 1: [1, 2, 2]},
+              {0: [0, 1, 3], 1: [1, 2, 3], 2: [2, 3, 3]},
+              {0: [0, 1, 3, 4, 4], 1: [1, 2, 4], 2: [2, 3, 4]}])
+
+
+Caused by: is.hail.utils.HailException: Premature end of file: expected 4 bytes, found 0
+	at is.hail.utils.ErrorHandling.fatal(ErrorHandling.scala:11)
+	at is.hail.utils.ErrorHandling.fatal$(ErrorHandling.scala:11)
+	at is.hail.utils.package$.fatal(package.scala:77)
+	at is.hail.utils.richUtils.RichInputStream$.readFully$extension1(RichInputStream.scala:13)
+	at is.hail.io.StreamBlockInputBuffer.readBlock(InputBuffers.scala:546)
+	at is.hail.io.BlockingInputBuffer.readBlock(InputBuffers.scala:382)
+	at is.hail.io.BlockingInputBuffer.ensure(InputBuffers.scala:388)
+	at is.hail.io.BlockingInputBuffer.readLong(InputBuffers.scala:419)
+	at __C3277collect_distributed_array.__m3280INPLACE_DECODE_r_ndarray_of_r_float64_TO_r_ndarray_of_r_float64(Unknown Source)
+	at __C3277collect_distributed_array.__m3279INPLACE_DECODE_r_struct_of_r_ndarray_of_r_float64ANDr_struct_of_r_int32ANDr_int32ENDEND_TO_r_struct_of_r_ndarray_of_r_float64ANDr_tuple_of_r_int32ANDr_int32ENDEND(Unknown Source)
+	at __C3277collect_distributed_array.__m3278DECODE_r_struct_of_r_struct_of_r_ndarray_of_r_float64ANDr_struct_of_r_int32ANDr_int32ENDENDEND_TO_SBaseStructPointer(Unknown Source)
+	at __C3277collect_distributed_array.apply(Unknown Source)
+	at __C3277collect_distributed_array.apply(Unknown Source)
+	at is.hail.backend.BackendUtils.$anonfun$collectDArray$2(BackendUtils.scala:31)
+	at is.hail.utils.package$.using(package.scala:627)
+	at is.hail.annotations.RegionPool.scopedRegion(RegionPool.scala:144)
+	at is.hail.backend.BackendUtils.$anonfun$collectDArray$1(BackendUtils.scala:30)
+	at is.hail.backend.service.Worker$.main(Worker.scala:120)
+	at is.hail.backend.service.Worker.main(Worker.scala)
+	... 11 more''')
     def test_scan_array_agg(self):
         ht = hl.utils.range_table(5)
         ht = ht.annotate(a=hl.range(0, 5).map(lambda x: ht.idx))
@@ -1468,6 +1775,44 @@ class Tests(unittest.TestCase):
                    (True, False)
                )
 
+    @skip_when_service_backend('''{"@version":1,"@timestamp":"2021-07-27 20:51:58,660","message":"request GET http://internal.hail/dking/memory/api/v1alpha/objects?q=gs%3A%2F%2Fdanking%2Ftmp%2Fhail%2Fquery%2FZsJniWRyAA2AmPOnHWoov00V8l2gAuyFIna84MhTc2U%3D%2Fcontexts response 200","filename":"Requester.scala","line_number":"71","class":"is.hail.services.Requester","method":"$anonfun$requestWithHandler$2","logger_name":"Requester","mdc":{},"ndc":null,"severity":"INFO","thread_name":"pool-2-thread-2"}
+{"@version":1,"@timestamp":"2021-07-27 20:51:58,702","message":"request GET http://internal.hail/dking/memory/api/v1alpha/objects?q=gs%3A%2F%2Fdanking%2Ftmp%2Fhail%2Fquery%2FZsJniWRyAA2AmPOnHWoov00V8l2gAuyFIna84MhTc2U%3D%2Ff response 200","filename":"Requester.scala","line_number":"71","class":"is.hail.services.Requester","method":"$anonfun$requestWithHandler$2","logger_name":"Requester","mdc":{},"ndc":null,"severity":"INFO","thread_name":"pool-2-thread-1"}
+{"@version":1,"@timestamp":"2021-07-27 20:51:58,703","message":"readInputs took 1461.343014 ms.","filename":"Worker.scala","line_number":"42","class":"is.hail.backend.service.WorkerTimer","method":"$anonfun$end$1","logger_name":"is.hail.backend.service.WorkerTimer$","mdc":{},"ndc":null,"severity":"INFO","thread_name":"pool-1-thread-1"}
+{"@version":1,"@timestamp":"2021-07-27 20:51:58,703","message":"RegionPool: initialized for thread 18: pool-1-thread-1","filename":"RegionPool.scala","line_number":"17","class":"is.hail.annotations.RegionPool","method":"<init>","logger_name":"root","mdc":{},"ndc":null,"severity":"INFO","thread_name":"pool-1-thread-1"}
+{"@version":1,"@timestamp":"2021-07-27 20:51:58,704","message":"request GET http://internal.hail/dking/address/api/shuffler","filename":"Requester.scala","line_number":"61","class":"is.hail.services.Requester","method":"requestWithHandler","logger_name":"Requester","mdc":{},"ndc":null,"severity":"INFO","thread_name":"pool-1-thread-1"}
+{"@version":1,"@timestamp":"2021-07-27 20:51:58,761","message":"request GET http://internal.hail/dking/address/api/shuffler response 200","filename":"Requester.scala","line_number":"71","class":"is.hail.services.Requester","method":"$anonfun$requestWithHandler$2","logger_name":"Requester","mdc":{},"ndc":null,"severity":"INFO","thread_name":"pool-1-thread-1"}
+{"@version":1,"@timestamp":"2021-07-27 20:51:58,762","message":"attempting to connect shuffler at 10.32.9.250:443","filename":"DeployConfig.scala","line_number":"145","class":"is.hail.services.DeployConfig","method":"socket","logger_name":"is.hail.services","mdc":{},"ndc":null,"severity":"INFO","thread_name":"pool-1-thread-1"}
+{"@version":1,"@timestamp":"2021-07-27 20:51:58,762","message":"connected to shuffler at 10.32.9.250:443","filename":"DeployConfig.scala","line_number":"149","class":"is.hail.services.DeployConfig","method":"socket","logger_name":"is.hail.services","mdc":{},"ndc":null,"severity":"INFO","thread_name":"pool-1-thread-1"}
+{"@version":1,"@timestamp":"2021-07-27 20:51:58,763","message":"put","filename":"Logging.scala","line_number":"7","class":"is.hail.utils.LogHelper$","method":"logInfo","logger_name":"root","mdc":{},"ndc":null,"severity":"INFO","thread_name":"pool-1-thread-1"}
+#
+# A fatal error has been detected by the Java Runtime Environment:
+#
+#  SIGSEGV (0xb) at pc=0x00007f24619430a2, pid=233, tid=0x00007f23cb6cd700
+#
+# JRE version: OpenJDK Runtime Environment (8.0_292-b10) (build 1.8.0_292-8u292-b10-0+deb9u1-b10)
+# Java VM: OpenJDK 64-Bit Server VM (25.292-b10 mixed mode linux-amd64 compressed oops)
+# Problematic frame:
+# J 4565 C1 is.hail.annotations.Region$.loadInt(J)I (5 bytes) @ 0x00007f24619430a2 [0x00007f2461943000+0xa2]
+#
+# Core dump written. Default location: //core or core.233
+#
+# An error report file with more information is saved as:
+# //hs_err_pid233.log
+Compiled method (c1)  124591 4565       3       is.hail.annotations.Region$::loadInt (5 bytes)
+ total in heap  [0x00007f2461942e90,0x00007f2461943238] = 936
+ relocation     [0x00007f2461942fb8,0x00007f2461942fe8] = 48
+ main code      [0x00007f2461943000,0x00007f2461943120] = 288
+ stub code      [0x00007f2461943120,0x00007f24619431b0] = 144
+ oops           [0x00007f24619431b0,0x00007f24619431b8] = 8
+ metadata       [0x00007f24619431b8,0x00007f24619431c8] = 16
+ scopes data    [0x00007f24619431c8,0x00007f24619431f0] = 40
+ scopes pcs     [0x00007f24619431f0,0x00007f2461943230] = 64
+ dependencies   [0x00007f2461943230,0x00007f2461943238] = 8
+#
+# If you would like to submit a bug report, please visit:
+#   http://bugreport.java.com/bugreport/crash.jsp
+#
+''')
     def test_aggregator_any_and_all(self):
         df = hl.utils.range_table(10)
         df = df.annotate(all_true=True,
@@ -1533,6 +1878,22 @@ class Tests(unittest.TestCase):
         assert tb3 == [0, 1, 2, 3, 4, 5, 6]
         assert tb4 == [['0_0', '0_1', '0_2', '0_3'], ['1_0', '1_1', '1_2', '1_3']]
 
+    @skip_when_service_backend('''intermittent worker failure:
+>           self.assertEqual(t.aggregate(aggfunc(array_with_nan[t.idx])), 0.)
+
+Caused by: java.lang.AssertionError: assertion failed
+	at scala.Predef$.assert(Predef.scala:208)
+	at is.hail.io.MemoryBuffer.readLong(MemoryBuffer.scala:102)
+	at is.hail.io.MemoryInputBuffer.readLong(InputBuffers.scala:180)
+	at __C415collect_distributed_array.apply(Unknown Source)
+	at __C415collect_distributed_array.apply(Unknown Source)
+	at is.hail.backend.BackendUtils.$anonfun$collectDArray$2(BackendUtils.scala:31)
+	at is.hail.utils.package$.using(package.scala:627)
+	at is.hail.annotations.RegionPool.scopedRegion(RegionPool.scala:144)
+	at is.hail.backend.BackendUtils.$anonfun$collectDArray$1(BackendUtils.scala:30)
+	at is.hail.backend.service.Worker$.main(Worker.scala:120)
+	at is.hail.backend.service.Worker.main(Worker.scala)
+	... 11 more''')
     def test_agg_minmax(self):
         nan = float('nan')
         na = hl.missing(hl.tfloat32)
@@ -3626,6 +3987,81 @@ class Tests(unittest.TestCase):
         assert hl.eval(hl.is_nan(nan)) == True
         assert hl.eval(hl.is_nan(na)) == None
 
+    @skip_when_service_backend('''intermittent driver failure:
+(Python line number was, oddly, not present)
+
+E                   hail.utils.java.FatalError: java.lang.NoSuchFieldError: __f840null
+E                   	at __C449Compiled.apply(Emit.scala)
+E                   	at is.hail.expr.ir.LoweredTableReader$.makeCoercer(TableIR.scala:312)
+E                   	at is.hail.expr.ir.GenericTableValue.getLTVCoercer(GenericTableValue.scala:133)
+E                   	at is.hail.expr.ir.GenericTableValue.toTableStage(GenericTableValue.scala:158)
+E                   	at is.hail.io.vcf.MatrixVCFReader.lower(LoadVCF.scala:1792)
+E                   	at is.hail.expr.ir.lowering.LowerTableIR$.lower$1(LowerTableIR.scala:401)
+E                   	at is.hail.expr.ir.lowering.LowerTableIR$.lower$1(LowerTableIR.scala:819)
+E                   	at is.hail.expr.ir.lowering.LowerTableIR$.lower$1(LowerTableIR.scala:1081)
+E                   	at is.hail.expr.ir.lowering.LowerTableIR$.lower$1(LowerTableIR.scala:1050)
+E                   	at is.hail.expr.ir.lowering.LowerTableIR$.lower$1(LowerTableIR.scala:819)
+E                   	at is.hail.expr.ir.lowering.LowerTableIR$.lower$1(LowerTableIR.scala:1050)
+E                   	at is.hail.expr.ir.lowering.LowerTableIR$.lower$1(LowerTableIR.scala:660)
+E                   	at is.hail.expr.ir.lowering.LowerTableIR$.lower$1(LowerTableIR.scala:819)
+E                   	at is.hail.expr.ir.lowering.LowerTableIR$.apply(LowerTableIR.scala:1156)
+E                   	at is.hail.expr.ir.lowering.LowerToCDA$.lower(LowerToCDA.scala:68)
+E                   	at is.hail.expr.ir.lowering.LowerToCDA$.lower(LowerToCDA.scala:37)
+E                   	at is.hail.expr.ir.lowering.LowerToCDA$.apply(LowerToCDA.scala:17)
+E                   	at is.hail.expr.ir.lowering.LowerToDistributedArrayPass.transform(LoweringPass.scala:75)
+E                   	at is.hail.expr.ir.lowering.LoweringPass.$anonfun$apply$3(LoweringPass.scala:15)
+E                   	at is.hail.utils.ExecutionTimer.time(ExecutionTimer.scala:81)
+E                   	at is.hail.expr.ir.lowering.LoweringPass.$anonfun$apply$1(LoweringPass.scala:15)
+E                   	at is.hail.utils.ExecutionTimer.time(ExecutionTimer.scala:81)
+E                   	at is.hail.expr.ir.lowering.LoweringPass.apply(LoweringPass.scala:13)
+E                   	at is.hail.expr.ir.lowering.LoweringPass.apply$(LoweringPass.scala:12)
+E                   	at is.hail.expr.ir.lowering.LowerToDistributedArrayPass.apply(LoweringPass.scala:70)
+E                   	at is.hail.expr.ir.lowering.LoweringPipeline.$anonfun$apply$1(LoweringPipeline.scala:14)
+E                   	at is.hail.expr.ir.lowering.LoweringPipeline.$anonfun$apply$1$adapted(LoweringPipeline.scala:12)
+E                   	at scala.collection.IndexedSeqOptimized.foreach(IndexedSeqOptimized.scala:36)
+E                   	at scala.collection.IndexedSeqOptimized.foreach$(IndexedSeqOptimized.scala:33)
+E                   	at scala.collection.mutable.WrappedArray.foreach(WrappedArray.scala:38)
+E                   	at is.hail.expr.ir.lowering.LoweringPipeline.apply(LoweringPipeline.scala:12)
+E                   	at is.hail.backend.service.ServiceBackend.execute(ServiceBackend.scala:289)
+E                   	at is.hail.backend.service.ServiceBackend.$anonfun$execute$4(ServiceBackend.scala:324)
+E                   	at is.hail.expr.ir.ExecuteContext$.$anonfun$scoped$3(ExecuteContext.scala:47)
+E                   	at is.hail.utils.package$.using(package.scala:627)
+E                   	at is.hail.expr.ir.ExecuteContext$.$anonfun$scoped$2(ExecuteContext.scala:47)
+E                   	at is.hail.utils.package$.using(package.scala:627)
+E                   	at is.hail.annotations.RegionPool$.scoped(RegionPool.scala:17)
+E                   	at is.hail.expr.ir.ExecuteContext$.scoped(ExecuteContext.scala:46)
+E                   	at is.hail.backend.service.ServiceBackend.$anonfun$execute$1(ServiceBackend.scala:320)
+E                   	at is.hail.utils.ExecutionTimer$.time(ExecutionTimer.scala:52)
+E                   	at is.hail.utils.ExecutionTimer$.logTime(ExecutionTimer.scala:59)
+E                   	at is.hail.backend.service.ServiceBackend.execute(ServiceBackend.scala:314)
+E                   	at is.hail.backend.service.ServiceBackendSocketAPI2.executeOneCommand(ServiceBackend.scala:873)
+E                   	at is.hail.backend.service.ServiceBackendSocketAPI2$.$anonfun$main$7(ServiceBackend.scala:696)
+E                   	at is.hail.backend.service.ServiceBackendSocketAPI2$.$anonfun$main$7$adapted(ServiceBackend.scala:695)
+E                   	at is.hail.utils.package$.using(package.scala:627)
+E                   	at is.hail.backend.service.ServiceBackendSocketAPI2$.$anonfun$main$6(ServiceBackend.scala:695)
+E                   	at scala.runtime.java8.JFunction0$mcV$sp.apply(JFunction0$mcV$sp.java:23)
+E                   	at is.hail.services.package$.retryTransientErrors(package.scala:69)
+E                   	at is.hail.backend.service.ServiceBackendSocketAPI2$.$anonfun$main$5(ServiceBackend.scala:699)
+E                   	at is.hail.backend.service.ServiceBackendSocketAPI2$.$anonfun$main$5$adapted(ServiceBackend.scala:693)
+E                   	at is.hail.utils.package$.using(package.scala:627)
+E                   	at is.hail.backend.service.ServiceBackendSocketAPI2$.$anonfun$main$4(ServiceBackend.scala:693)
+E                   	at scala.runtime.java8.JFunction0$mcV$sp.apply(JFunction0$mcV$sp.java:23)
+E                   	at is.hail.services.package$.retryTransientErrors(package.scala:69)
+E                   	at is.hail.backend.service.ServiceBackendSocketAPI2$.main(ServiceBackend.scala:701)
+E                   	at is.hail.backend.service.ServiceBackendSocketAPI2.main(ServiceBackend.scala)
+E                   	at sun.reflect.NativeMethodAccessorImpl.invoke0(Native Method)
+E                   	at sun.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:62)
+E                   	at sun.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)
+E                   	at java.lang.reflect.Method.invoke(Method.java:498)
+E                   	at is.hail.JVMEntryway$1.run(JVMEntryway.java:88)
+E                   	at java.util.concurrent.Executors$RunnableAdapter.call(Executors.java:511)
+E                   	at java.util.concurrent.FutureTask.run(FutureTask.java:266)
+E                   	at java.util.concurrent.Executors$RunnableAdapter.call(Executors.java:511)
+E                   	at java.util.concurrent.FutureTask.run(FutureTask.java:266)
+E                   	at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1149)
+E                   	at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:624)
+E                   	at java.lang.Thread.run(Thread.java:748)
+''')
     def test_array_and_if_requiredness(self):
         mt = hl.import_vcf(resource('sample.vcf'), array_elements_required=True)
         hl.tuple((mt.AD, mt.PL)).show()
@@ -3718,6 +4154,7 @@ class Tests(unittest.TestCase):
 
         assert ht.aggregate((hl.agg._prev_nonnull(ht.idx))) == 0
 
+    @skip_when_service_backend('slow >800s')
     def test_summarize_runs(self):
         mt = hl.utils.range_matrix_table(3,3).annotate_entries(
             x1 = 'a',

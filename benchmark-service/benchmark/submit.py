@@ -1,16 +1,15 @@
-import importlib
-import os
-import sys
-import re
-import random
 import argparse
+import importlib
 import logging
-
-from typing import Set
+import os
+import random
+import re
+import sys
 from shlex import quote as shq
+from typing import Set
 
-from hailtop.utils import sync_check_shell
 from hailtop import batch as hb
+from hailtop.utils import sync_check_shell
 
 BENCHMARK_IMAGE = 'gcr.io/hail-vdc/base:latest'
 

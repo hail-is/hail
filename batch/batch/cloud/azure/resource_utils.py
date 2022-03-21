@@ -1,6 +1,7 @@
-import re
 import logging
-from typing import Optional, Tuple, Dict
+import re
+from typing import Dict, Optional, Tuple
+
 import sortedcontainers
 
 from ...globals import RESERVED_STORAGE_GB_PER_CORE
@@ -193,12 +194,12 @@ def azure_unreserved_worker_data_disk_size_gib(
 
 
 def azure_requested_to_actual_storage_bytes(storage_bytes, allow_zero_storage):
-    if storage_bytes > AZURE_MAX_PERSISTENT_SSD_SIZE_GIB * 1024 ** 3:
+    if storage_bytes > AZURE_MAX_PERSISTENT_SSD_SIZE_GIB * 1024**3:
         return None
     if allow_zero_storage and storage_bytes == 0:
         return storage_bytes
     # actual minimum storage size is 4 Gi on Azure, but keeping 10 to be consistent with gcp
-    return max(10 * 1024 ** 3, storage_bytes)
+    return max(10 * 1024**3, storage_bytes)
 
 
 def azure_is_valid_storage_request(storage_in_gib: int) -> bool:

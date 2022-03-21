@@ -223,9 +223,9 @@ resource "google_sql_database_instance" "db" {
   depends_on = [google_service_networking_connection.private_vpc_connection]
 
   settings {
-    # Second-generation instance tiers are based on the machine
-    # type. See argument reference below.
-    tier = "db-n1-standard-1"
+    # 4 vCPU and 15360 MB
+    # https://cloud.google.com/sql/docs/mysql/instance-settings
+    tier = "db-custom-4-15360"
 
     ip_configuration {
       ipv4_enabled = false
@@ -417,17 +417,6 @@ module "batch_gsa_secret" {
     "logging.viewer",
     "storage.admin",
   ]
-}
-
-module "query_gsa_secret" {
-  source = "./gsa_k8s_secret"
-  name = "query"
-}
-
-resource "google_storage_bucket_iam_member" "query_hail_query_bucket_storage_admin" {
-  bucket = module.hail_query.name
-  role = "roles/storage.admin"
-  member = "serviceAccount:${module.query_gsa_secret.email}"
 }
 
 resource "google_storage_bucket_iam_member" "batch_hail_query_bucket_storage_viewer" {

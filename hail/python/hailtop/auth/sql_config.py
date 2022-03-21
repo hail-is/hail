@@ -94,7 +94,7 @@ def create_secret_data_from_config(config: SQLConfig,
                                    client_cert: str,
                                    client_key: str
                                    ) -> Dict[str, str]:
-    secret_data = dict()
+    secret_data = {}
     secret_data['sql-config.json'] = config.to_json()
     secret_data['sql-config.cnf'] = config.to_cnf()
     secret_data['server-ca.pem'] = server_ca

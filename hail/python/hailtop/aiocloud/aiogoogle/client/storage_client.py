@@ -414,7 +414,7 @@ class GoogleStorageMultiPartCreate(MultiPartCreate):
         self._fs = fs
         self._dest_url = dest_url
         self._num_parts = num_parts
-        bucket, dest_name = fs._get_bucket_name(dest_url)
+        bucket, dest_name = fs.get_bucket_name(dest_url)
         self._bucket = bucket
         self._dest_name = dest_name
 
@@ -514,7 +514,7 @@ class GoogleStorageAsyncFS(AsyncFS):
         self._storage_client = storage_client
 
     @staticmethod
-    def _get_bucket_name(url: str) -> Tuple[str, str]:
+    def get_bucket_name(url: str) -> Tuple[str, str]:
         parsed = urllib.parse.urlparse(url)
         if parsed.scheme != 'gs':
             raise ValueError(f"invalid scheme, expected gs: {parsed.scheme}")
@@ -527,16 +527,16 @@ class GoogleStorageAsyncFS(AsyncFS):
         return (parsed.netloc, name)
 
     async def open(self, url: str) -> ReadableStream:
-        bucket, name = self._get_bucket_name(url)
+        bucket, name = self.get_bucket_name(url)
         return await self._storage_client.get_object(bucket, name)
 
     async def open_from(self, url: str, start: int) -> ReadableStream:
-        bucket, name = self._get_bucket_name(url)
+        bucket, name = self.get_bucket_name(url)
         return await self._storage_client.get_object(
             bucket, name, headers={'Range': f'bytes={start}-'})
 
     async def create(self, url: str, *, retry_writes: bool = True) -> WritableStream:
-        bucket, name = self._get_bucket_name(url)
+        bucket, name = self.get_bucket_name(url)
         params = {
             'uploadType': 'resumable' if retry_writes else 'media'
         }
@@ -560,7 +560,7 @@ class GoogleStorageAsyncFS(AsyncFS):
 
     async def statfile(self, url: str) -> GetObjectFileStatus:
         try:
-            bucket, name = self._get_bucket_name(url)
+            bucket, name = self.get_bucket_name(url)
             return GetObjectFileStatus(await self._storage_client.get_object_metadata(bucket, name))
         except aiohttp.ClientResponseError as e:
             if e.status == 404:
@@ -605,7 +605,7 @@ class GoogleStorageAsyncFS(AsyncFS):
                         recursive: bool = False,
                         exclude_trailing_slash_files: bool = True
                         ) -> AsyncIterator[FileListEntry]:
-        bucket, name = self._get_bucket_name(url)
+        bucket, name = self.get_bucket_name(url)
         if name and not name.endswith('/'):
             name = f'{name}/'
 
@@ -647,7 +647,7 @@ class GoogleStorageAsyncFS(AsyncFS):
 
     async def isfile(self, url: str) -> bool:
         try:
-            bucket, name = self._get_bucket_name(url)
+            bucket, name = self.get_bucket_name(url)
             # if name is empty, get_object_metadata behaves like list objects
             # the urls are the same modulo the object name
             if not name:
@@ -660,7 +660,7 @@ class GoogleStorageAsyncFS(AsyncFS):
             raise
 
     async def isdir(self, url: str) -> bool:
-        bucket, name = self._get_bucket_name(url)
+        bucket, name = self.get_bucket_name(url)
         assert not name or name.endswith('/'), name
         params = {
             'prefix': name,
@@ -675,7 +675,7 @@ class GoogleStorageAsyncFS(AsyncFS):
         assert False  # unreachable
 
     async def remove(self, url: str) -> None:
-        bucket, name = self._get_bucket_name(url)
+        bucket, name = self.get_bucket_name(url)
         try:
             await self._storage_client.delete_object(bucket, name)
         except aiohttp.ClientResponseError as e:

@@ -14,8 +14,8 @@ class Scale(FigureAttribute):
     def transform_data(self, field_expr):
         pass
 
-    def transform_data_local(self, data, parent):
-        return data
+    def create_local_transformer(self, groups_of_dfs, parent):
+        return lambda x: x
 
     @abc.abstractmethod
     def is_discrete(self):
@@ -148,35 +148,57 @@ class ScaleDiscrete(Scale):
 
 
 class ScaleColorDiscrete(ScaleDiscrete):
-    def transform_data_local(self, df, parent):
-        categorical_strings = set(df[self.aesthetic_name])
+
+    def create_local_transformer(self, groups_of_dfs, parent):
+        categorical_strings = set()
+        for group_of_dfs in groups_of_dfs:
+            for df in group_of_dfs:
+                if self.aesthetic_name in df.attrs:
+                    categorical_strings.add(df.attrs[self.aesthetic_name])
+
         unique_color_mapping = categorical_strings_to_colors(categorical_strings, parent)
 
-        new_column_name = f"{self.aesthetic_name}_legend"
-        new_df = df.assign(**{new_column_name: df[self.aesthetic_name]})
+        def transform(df):
+            df.attrs[f"{self.aesthetic_name}_legend"] = df.attrs[self.aesthetic_name]
+            df.attrs[self.aesthetic_name] = unique_color_mapping[df.attrs[self.aesthetic_name]]
+            return df
 
-        new_df[self.aesthetic_name] = new_df[self.aesthetic_name].map(unique_color_mapping)
-
-        return new_df
+        return transform
 
 
 class ScaleColorContinuous(ScaleContinuous):
-    def transform_data_local(self, df, parent):
-        color_series = df[self.aesthetic_name]
-        color_mapping = continuous_nums_to_colors(color_series, parent.continuous_color_scale)
 
-        new_column_name = f"{self.aesthetic_name}_legend"
-        new_df = df.assign(**{new_column_name: df[self.aesthetic_name]})
+    def create_local_transformer(self, groups_of_dfs, parent):
+        overall_min = None
+        overall_max = None
+        for group_of_dfs in groups_of_dfs:
+            for df in group_of_dfs:
+                if self.aesthetic_name in df.columns:
+                    series = df[self.aesthetic_name]
+                    series_min = series.min()
+                    series_max = series.max()
+                    if overall_min is None:
+                        overall_min = series_min
+                    else:
+                        overall_min = min(series_min, overall_min)
 
-        new_df[self.aesthetic_name] = new_df[self.aesthetic_name].map(lambda i: color_mapping[i])
+                    if overall_max is None:
+                        overall_max = series_max
+                    else:
+                        overall_max = max(series_max, overall_max)
 
-        return new_df
+        color_mapping = continuous_nums_to_colors(overall_min, overall_max, parent.continuous_color_scale)
+
+        def transform(df):
+            df[self.aesthetic_name] = df[self.aesthetic_name].map(lambda i: color_mapping(i))
+            return df
+
+        return transform
 
 
 # Legend names messed up for scale color identity
 class ScaleColorDiscreteIdentity(ScaleDiscrete):
-    def transform_data_local(self, data, parent):
-        return data
+    pass
 
 
 def scale_x_log10(name=None):

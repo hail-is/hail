@@ -55,13 +55,13 @@ class StaticField[T: TypeInfo](classBuilder: ClassBuilder[_], val name: String) 
 class ClassesBytes(classesBytes: Array[(String, Array[Byte])]) extends Serializable {
   @transient @volatile var loaded: Boolean = false
 
-  def load(): Unit = {
+  def load(hcl: HailClassLoader): Unit = {
     if (!loaded) {
       synchronized {
         if (!loaded) {
           classesBytes.foreach { case (n, bytes) =>
             try {
-              HailClassLoader.loadOrDefineClass(n, bytes)
+              hcl.loadOrDefineClass(n, bytes)
             } catch {
               case e: Exception =>
                 val buffer = new ByteArrayOutputStream()
@@ -203,7 +203,7 @@ trait WrappedClassBuilder[C] extends WrappedModuleBuilder {
   )(body: MethodBuilder[C] => Unit): MethodBuilder[C] =
     cb.getOrGenMethod(baseName, key, argsInfo, returnInfo)(body)
 
-  def result(print: Option[PrintWriter] = None): () => C = cb.result(print)
+  def result(print: Option[PrintWriter] = None): (HailClassLoader) => C = cb.result(print)
 
   def _this: Value[C] = cb._this
 
@@ -351,22 +351,22 @@ class ClassBuilder[C](
     lclass.asBytes(print)
   }
 
-  def result(print: Option[PrintWriter] = None): () => C = {
+  def result(print: Option[PrintWriter] = None): (HailClassLoader) => C = {
     val n = className.replace("/", ".")
     val classesBytes = modb.classesBytes()
 
     assert(TaskContext.get() == null,
       "FunctionBuilder emission should happen on master, but happened on worker")
 
-    new (() => C) with java.io.Serializable {
+    new ((HailClassLoader) => C) with java.io.Serializable {
       @transient @volatile private var theClass: Class[_] = null
 
-      def apply(): C = {
+      def apply(hcl: HailClassLoader): C = {
         if (theClass == null) {
           this.synchronized {
             if (theClass == null) {
-              classesBytes.load()
-              theClass = loadClass(n)
+              classesBytes.load(hcl)
+              theClass = loadClass(hcl, n)
             }
           }
         }

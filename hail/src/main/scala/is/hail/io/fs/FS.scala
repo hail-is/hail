@@ -314,6 +314,17 @@ trait FS extends Serializable {
     }
   }
 
+  def concatenateFiles(sourceNames: Array[String], destFilename: String): Unit = {
+    val fileStatuses = sourceNames.map(fileStatus(_))
+
+    info(s"merging ${ fileStatuses.length } files totalling " +
+      s"${ readableBytes(fileStatuses.map(_.getLen).sum) }...")
+
+    val (_, timing) = time(copyMergeList(fileStatuses, destFilename, deleteSource = false))
+
+    info(s"while writing:\n    $destFilename\n  merge time: ${ formatTime(timing) }")
+  }
+
   def touch(filename: String): Unit = {
     using(createNoCompression(filename))(_ => ())
   }

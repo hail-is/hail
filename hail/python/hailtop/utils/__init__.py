@@ -11,7 +11,7 @@ from .utils import (
     url_join, parse_docker_image_reference, url_and_params,
     url_scheme, Notice, periodically_call, dump_all_stacktraces, find_spark_home, TransientError,
     bounded_gather2, OnlineBoundedGather2, unpack_comma_delimited_inputs, unpack_key_value_inputs,
-    retry_all_errors_n_times)
+    retry_all_errors_n_times, Timings)
 from .process import (
     CalledProcessError, check_shell, check_shell_output, check_exec_output,
     sync_check_shell, sync_check_shell_output)
@@ -88,4 +88,5 @@ __all__ = [
     'parse_docker_image_reference',
     'retry_all_errors_n_times',
     'parse_timestamp_msecs',
+    'Timings',
 ]

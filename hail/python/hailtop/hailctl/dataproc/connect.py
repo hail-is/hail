@@ -95,7 +95,7 @@ async def main(args, pass_through_args):  # pylint: disable=unused-argument
         chrome = os.environ.get('HAILCTL_CHROME') or get_chrome_path()
 
         # open Chrome with SOCKS proxy configuration
-        subprocess.Popen([
+        subprocess.Popen([  # pylint: disable=consider-using-with
             chrome,
             'http://localhost:{}'.format(connect_port_and_path),
             '--proxy-server=socks5://localhost:{}'.format(args.port),

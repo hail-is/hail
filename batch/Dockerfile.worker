@@ -81,5 +81,6 @@ COPY batch/setup.py batch/MANIFEST.in /batch/
 COPY batch/batch /batch/batch/
 RUN hail-pip-install --no-deps /batch && rm -rf /batch
 
-COPY query/log4j.properties /
+COPY batch/jars/junixsocket-selftest-2.3.3-jar-with-dependencies.jar /jvm-entryway/
+COPY batch/src/main/java/is /jvm-entryway/is
 COPY letsencrypt/subdomains.txt /

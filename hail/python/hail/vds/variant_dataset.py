@@ -7,7 +7,7 @@ from hail.utils.java import info
 from hail.genetics import ReferenceGenome
 
 
-def read_vds(path, *, intervals=None) -> 'VariantDataset':
+def read_vds(path, *, intervals=None, n_partitions=None) -> 'VariantDataset':
     """Read in a :class:`.VariantDataset` written with :meth:`.VariantDataset.write`.
 
     Parameters
@@ -18,9 +18,15 @@ def read_vds(path, *, intervals=None) -> 'VariantDataset':
     -------
     :class:`.VariantDataset`
     """
-    reference_data = hl.read_matrix_table(VariantDataset._reference_path(path), _intervals=intervals)
-    variant_data = hl.read_matrix_table(VariantDataset._variants_path(path), _intervals=intervals)
-
+    if intervals or not n_partitions:
+        reference_data = hl.read_matrix_table(VariantDataset._reference_path(path), _intervals=intervals)
+        variant_data = hl.read_matrix_table(VariantDataset._variants_path(path), _intervals=intervals)
+    else:
+        assert n_partitions is not None
+        reference_data = hl.read_matrix_table(VariantDataset._reference_path(path))
+        intervals = reference_data._calculate_new_partitions(n_partitions)
+        reference_data = hl.read_matrix_table(VariantDataset._reference_path(path), _intervals=intervals)
+        variant_data = hl.read_matrix_table(VariantDataset._variants_path(path), _intervals=intervals)
     return VariantDataset(reference_data, variant_data)
 
 

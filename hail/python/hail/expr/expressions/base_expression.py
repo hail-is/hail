@@ -1,5 +1,6 @@
 from typing import Tuple, Mapping
 import numpy as np
+import pandas as pd
 
 import hail
 import hail as hl
@@ -217,7 +218,7 @@ def _impute_type(x, partial_type):
     elif isinstance(x, np.ndarray):
         element_type = from_numpy(x.dtype)
         return tndarray(element_type, x.ndim)
-    elif x is None:
+    elif x is None or pd.isna(x):
         return partial_type
     elif isinstance(x, (hl.expr.builders.CaseBuilder, hl.expr.builders.SwitchBuilder)):
         raise ExpressionException("'switch' and 'case' expressions must end with a call to either"

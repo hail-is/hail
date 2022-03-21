@@ -69,6 +69,7 @@ class HadoopReader(io.RawIOBase):
             self._jfile = hfs._utils_package_object.readFileCodec(hfs._jfs, path, buffer_size)
         else:
             self._jfile = hfs._utils_package_object.readFile(hfs._jfs, path, buffer_size)
+        self.mode = 'rb'
 
     def close(self):
         self._jfile.close()
@@ -101,6 +102,10 @@ class HadoopWriter(io.RawIOBase):
             self._jfile = hfs._utils_package_object.writeFileCodec(hfs._jfs, path, exclusive)
         else:
             self._jfile = hfs._utils_package_object.writeFile(hfs._jfs, path, exclusive)
+        if exclusive:
+            self.mode = 'xb'
+        else:
+            self.mode = 'wb'
 
     def writable(self):
         return True

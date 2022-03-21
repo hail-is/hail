@@ -1,6 +1,7 @@
 import unittest
 
 import hail as hl
+from hail.backend.service_backend import ServiceBackend
 from ..helpers import startTestHailContext, stopTestHailContext
 
 
@@ -8,6 +9,9 @@ class AnnotationDBTests(unittest.TestCase):
     @classmethod
     def setupAnnotationDBTests(cls):
         startTestHailContext()
+        backend = hl.current_backend()
+        if isinstance(backend, ServiceBackend):
+            backend.batch_attributes = dict(name='setupAnnotationDBTests')
         t = hl.utils.range_table(10)
         t = t.key_by(locus=hl.locus('1', t.idx + 1))
         t = t.annotate(annotation=hl.str(t.idx))
@@ -15,6 +19,8 @@ class AnnotationDBTests(unittest.TestCase):
         d = cls.tempdir_manager.__enter__()
         fname = d + '/f.mt'
         t.write(fname)
+        if isinstance(backend, ServiceBackend):
+            backend.batch_attributes = dict()
         cls.db_json = {
             'unique_dataset': {
                 'description': 'now with unique rows!',

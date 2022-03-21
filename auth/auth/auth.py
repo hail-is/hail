@@ -1,33 +1,50 @@
-import os
-import logging
 import asyncio
+import json
+import logging
+import os
+from typing import List, Optional
+
 import aiohttp
-from aiohttp import web
 import aiohttp_session
 import uvloop
-import json
+from aiohttp import web
 from prometheus_async.aio.web import server_stats  # type: ignore
-from hailtop.config import get_deploy_config
-from hailtop.tls import internal_server_ssl_context
-from hailtop.hail_logging import AccessLogger
-from hailtop.utils import secret_alnum_string
-from hailtop import httpx
+
 from gear import (
-    setup_aiohttp_session,
-    rest_authenticated_users_only,
-    web_authenticated_developers_only,
-    web_maybe_authenticated_user,
-    web_authenticated_users_only,
-    create_session,
-    check_csrf_token,
-    transaction,
     Database,
+    Transaction,
+    check_csrf_token,
+    create_session,
     maybe_parse_bearer_header,
     monitor_endpoints_middleware,
+    rest_authenticated_developers_only,
+    rest_authenticated_users_only,
+    setup_aiohttp_session,
+    transaction,
+    web_authenticated_developers_only,
+    web_authenticated_users_only,
+    web_maybe_authenticated_user,
 )
 from gear.cloud_config import get_global_config
-from web_common import setup_aiohttp_jinja2, setup_common_static_routes, set_message, render_template
+from hailtop import httpx
+from hailtop.config import get_deploy_config
+from hailtop.hail_logging import AccessLogger
+from hailtop.tls import internal_server_ssl_context
+from hailtop.utils import secret_alnum_string
+from web_common import render_template, set_message, setup_aiohttp_jinja2, setup_common_static_routes
 
+from .exceptions import (
+    AuthUserError,
+    DuplicateLoginID,
+    DuplicateUsername,
+    EmptyLoginID,
+    InvalidType,
+    InvalidUsername,
+    MultipleExistingUsers,
+    MultipleUserTypes,
+    PreviouslyDeletedUser,
+    UnknownUser,
+)
 from .flow import get_flow_client
 
 log = logging.getLogger('auth')
@@ -50,6 +67,81 @@ async def user_from_login_id(db, login_id):
     return None
 
 
+async def users_with_username_or_login_id(tx: Transaction, username: str, login_id: Optional[str]) -> List[dict]:
+    where_conditions = ['username = %s']
+    where_args = [username]
+
+    if login_id is not None:
+        where_conditions.append('login_id = %s')
+        where_args.append(login_id)
+
+    existing_users = [
+        x
+        async for x in tx.execute_and_fetchall(
+            f"SELECT * FROM users WHERE {' OR '.join(where_conditions)} LOCK IN SHARE MODE;", where_args
+        )
+    ]
+
+    return existing_users
+
+
+async def check_valid_new_user(tx: Transaction, username, login_id, is_developer, is_service_account) -> Optional[dict]:
+    if not isinstance(username, str):
+        raise InvalidType('username', username, 'str')
+    if login_id is not None and not isinstance(login_id, str):
+        raise InvalidType('login_id', login_id, 'str')
+    if not isinstance(is_developer, bool):
+        raise InvalidType('is_developer', is_developer, 'bool')
+    if not isinstance(is_service_account, bool):
+        raise InvalidType('is_service_account', is_service_account, 'bool')
+    if is_developer and is_service_account:
+        raise MultipleUserTypes(username)
+    if not is_service_account and not login_id:
+        raise EmptyLoginID(username)
+    if not username or not all(c for c in username if c.isalnum()):
+        raise InvalidUsername(username)
+
+    existing_users = await users_with_username_or_login_id(tx, username, login_id)
+
+    if len(existing_users) > 1:
+        raise MultipleExistingUsers(username, login_id)
+
+    if len(existing_users) == 1:
+        existing_user = existing_users[0]
+        expected_username = existing_user['username']
+        expected_login_id = existing_user['login_id']
+        if username != expected_username:
+            raise DuplicateLoginID(expected_username, login_id)
+        if login_id != expected_login_id:
+            raise DuplicateUsername(username, expected_login_id)
+        if existing_user['state'] in ('deleting', 'deleted'):
+            raise PreviouslyDeletedUser(username)
+        return existing_user
+
+    return None
+
+
+async def insert_new_user(
+    db: Database, username: str, login_id: Optional[str], is_developer: bool, is_service_account: bool
+) -> bool:
+    @transaction(db)
+    async def _insert(tx):
+        existing_user = await check_valid_new_user(tx, username, login_id, is_developer, is_service_account)
+        if existing_user is not None:
+            return False
+
+        await tx.execute_insertone(
+            '''
+INSERT INTO users (state, username, login_id, is_developer, is_service_account)
+VALUES (%s, %s, %s, %s, %s);
+''',
+            ('creating', username, login_id, is_developer, is_service_account),
+        )
+
+    await _insert()  # pylint: disable=no-value-for-parameter
+    return True
+
+
 def cleanup_session(session):
     def _delete(key):
         if key in session:
@@ -70,8 +162,9 @@ async def get_healthcheck(request):  # pylint: disable=W0613
 
 @routes.get('')
 @routes.get('/')
-async def get_index(request):  # pylint: disable=unused-argument
-    return aiohttp.web.HTTPFound(deploy_config.external_url('auth', '/login'))
+@web_maybe_authenticated_user
+async def get_index(request, userdata):  # pylint: disable=unused-argument
+    return await render_template('auth', request, userdata, 'index.html', {})
 
 
 @routes.get('/creating')
@@ -83,14 +176,14 @@ async def creating_account(request, userdata):
         login_id = session['login_id']
         user = await user_from_login_id(db, login_id)
 
-        nb_url = deploy_config.external_url('notebook', '')
-        next_page = session.pop('next', nb_url)
+        next_url = deploy_config.external_url('auth', '/user')
+        next_page = session.pop('next', next_url)
 
         cleanup_session(session)
 
         if user is None:
             set_message(session, f'Account does not exist for login id {login_id}.', 'error')
-            return aiohttp.web.HTTPFound(nb_url)
+            return aiohttp.web.HTTPFound(deploy_config.external_url('auth', ''))
 
         page_context = {'username': user['username'], 'state': user['state'], 'login_id': user['login_id']}
 
@@ -160,7 +253,7 @@ async def _wait_websocket(request, login_id):
 
 @routes.get('/signup')
 async def signup(request):
-    next_page = request.query.get('next', deploy_config.external_url('notebook', ''))
+    next_page = request.query.get('next', deploy_config.external_url('auth', '/user'))
 
     flow_data = request.app['flow_client'].initiate_flow(deploy_config.external_url('auth', '/oauth2callback'))
 
@@ -175,7 +268,7 @@ async def signup(request):
 
 @routes.get('/login')
 async def login(request):
-    next_page = request.query.get('next', deploy_config.external_url('notebook', ''))
+    next_page = request.query.get('next', deploy_config.external_url('auth', '/user'))
 
     flow_data = request.app['flow_client'].initiate_flow(deploy_config.external_url('auth', '/oauth2callback'))
 
@@ -194,11 +287,11 @@ async def callback(request):
     if 'flow' not in session:
         raise web.HTTPUnauthorized()
 
-    nb_url = deploy_config.external_url('notebook', '')
+    next_url = deploy_config.external_url('auth', '/user')
     creating_url = deploy_config.external_url('auth', '/creating')
 
     caller = session['caller']
-    next_page = session.pop('next', nb_url)
+    next_page = session.pop('next', next_url)
     flow_dict = session['flow']
     flow_dict['callback_uri'] = deploy_config.external_url('auth', '/oauth2callback')
     cleanup_session(session)
@@ -219,7 +312,7 @@ async def callback(request):
     if user is None:
         if caller == 'login':
             set_message(session, f'Account does not exist for login id {login_id}', 'error')
-            return aiohttp.web.HTTPFound(nb_url)
+            return aiohttp.web.HTTPFound(next_url)
 
         assert caller == 'signup'
 
@@ -229,13 +322,11 @@ async def callback(request):
         if domain != ORGANIZATION_DOMAIN:
             raise web.HTTPUnauthorized()
 
-        await db.execute_insertone(
-            '''
-        INSERT INTO users (state, username, login_id, is_developer)
-        VALUES (%s, %s, %s, %s);
-        ''',
-            ('creating', username, login_id, False),
-        )
+        try:
+            await insert_new_user(db, username, login_id, is_developer=False, is_service_account=False)
+        except AuthUserError as e:
+            set_message(session, e.message, 'error')
+            return web.HTTPFound(deploy_config.external_url('auth', ''))
 
         session['pending'] = True
         session['login_id'] = login_id
@@ -261,6 +352,25 @@ async def callback(request):
     session_id = await create_session(db, user['id'])
     session['session_id'] = session_id
     return aiohttp.web.HTTPFound(next_page)
+
+
+@routes.post('/api/v1alpha/users/{user}/create')
+@rest_authenticated_developers_only
+async def create_user(request: web.Request, userdata):  # pylint: disable=unused-argument
+    db: Database = request.app['db']
+    username = request.match_info['user']
+
+    body = await request.json()
+    login_id = body['login_id']
+    is_developer = body['is_developer']
+    is_service_account = body['is_service_account']
+
+    try:
+        await insert_new_user(db, username, login_id, is_developer, is_service_account)
+    except AuthUserError as e:
+        raise e.http_response()
+
+    return web.json_response()
 
 
 @routes.get('/user')
@@ -304,7 +414,7 @@ async def get_copy_paste_token_api(request, userdata):
 @web_maybe_authenticated_user
 async def logout(request, userdata):
     if not userdata:
-        return web.HTTPFound(deploy_config.external_url('notebook', ''))
+        return web.HTTPFound(deploy_config.external_url('auth', ''))
 
     db = request.app['db']
     session_id = userdata['session_id']
@@ -313,7 +423,7 @@ async def logout(request, userdata):
     session = await aiohttp_session.get_session(request)
     cleanup_session(session)
 
-    return web.HTTPFound(deploy_config.external_url('notebook', ''))
+    return web.HTTPFound(deploy_config.external_url('auth', ''))
 
 
 @routes.get('/api/v1alpha/login')
@@ -381,27 +491,71 @@ async def post_create_user(request, userdata):  # pylint: disable=unused-argumen
     is_developer = post.get('is_developer') == '1'
     is_service_account = post.get('is_service_account') == '1'
 
-    if is_developer and is_service_account:
-        set_message(session, 'User cannot be both a developer and a service account.', 'error')
+    try:
+        if login_id == '':
+            login_id = None
+        created_user = await insert_new_user(db, username, login_id, is_developer, is_service_account)
+    except AuthUserError as e:
+        set_message(session, e.message, 'error')
         return web.HTTPFound(deploy_config.external_url('auth', '/users'))
 
-    if login_id == '':
-        if not is_service_account:
-            set_message(session, 'Login id is required for users that are not service accounts.', 'error')
-            return web.HTTPFound(deploy_config.external_url('auth', '/users'))
-        login_id = None
-
-    user_id = await db.execute_insertone(
-        '''
-INSERT INTO users (state, username, login_id, is_developer, is_service_account)
-VALUES (%s, %s, %s, %s, %s);
-''',
-        ('creating', username, login_id, is_developer, is_service_account),
-    )
-
-    set_message(session, f'Created user {user_id} {username} {login_id}.', 'info')
+    if created_user:
+        set_message(session, f'Created user {username} {login_id}.', 'info')
+    else:
+        set_message(session, f'User {username} {login_id} already exists.', 'info')
 
     return web.HTTPFound(deploy_config.external_url('auth', '/users'))
+
+
+@routes.get('/api/v1alpha/users')
+@rest_authenticated_developers_only
+async def rest_get_users(request, userdata):  # pylint: disable=unused-argument
+    db: Database = request.app['db']
+    users = await db.select_and_fetchall(
+        '''
+SELECT id, username, login_id, state, is_developer, is_service_account FROM users;
+'''
+    )
+    return web.json_response([user async for user in users])
+
+
+@routes.get('/api/v1alpha/users/{user}')
+@rest_authenticated_developers_only
+async def rest_get_user(request, userdata):  # pylint: disable=unused-argument
+    db: Database = request.app['db']
+    username = request.match_info['user']
+
+    user = await db.select_and_fetchone(
+        '''
+SELECT id, username, login_id, state, is_developer, is_service_account FROM users
+WHERE username = %s;
+''',
+        (username,),
+    )
+    if user is None:
+        raise web.HTTPNotFound()
+    return web.json_response(user)
+
+
+async def _delete_user(db: Database, username: str, id: Optional[str]):
+    where_conditions = ['state != "deleted"', 'username = %s']
+    where_args = [username]
+
+    if id is not None:
+        where_conditions.append('id = %s')
+        where_args.append(id)
+
+    n_rows = await db.execute_update(
+        f'''
+UPDATE users
+SET state = 'deleting'
+WHERE {' AND '.join(where_conditions)};
+''',
+        where_args,
+    )
+
+    if n_rows == 0:
+        raise UnknownUser(username)
 
 
 @routes.post('/users/delete')
@@ -414,21 +568,27 @@ async def delete_user(request, userdata):  # pylint: disable=unused-argument
     id = post['id']
     username = post['username']
 
-    n_rows = await db.execute_update(
-        '''
-UPDATE users
-SET state = 'deleting'
-WHERE id = %s AND username = %s;
-''',
-        (id, username),
-    )
-    if n_rows != 1:
-        assert n_rows == 0
-        set_message(session, f'Delete failed, no such user {id} {username}.', 'error')
-    else:
+    try:
+        await _delete_user(db, username, id)
         set_message(session, f'Deleted user {id} {username}.', 'info')
+    except UnknownUser:
+        set_message(session, f'Delete failed, no such user {id} {username}.', 'error')
 
     return web.HTTPFound(deploy_config.external_url('auth', '/users'))
+
+
+@routes.delete('/api/v1alpha/users/{user}')
+@rest_authenticated_developers_only
+async def rest_delete_user(request: web.Request, userdata):  # pylint: disable=unused-argument
+    db = request.app['db']
+    username = request.match_info['user']
+
+    try:
+        await _delete_user(db, username, None)
+    except UnknownUser as e:
+        return e.http_response()
+
+    return web.json_response()
 
 
 @routes.get('/api/v1alpha/oauth2callback')

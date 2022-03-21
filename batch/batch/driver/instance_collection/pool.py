@@ -1,31 +1,30 @@
-from typing import Optional
-import sortedcontainers
-import logging
 import asyncio
+import logging
 import random
-import collections
+from typing import Optional
+
+import sortedcontainers
 
 from gear import Database
 from hailtop import aiotools
 from hailtop.utils import (
-    secret_alnum_string,
-    retry_long_running,
-    run_if_changed,
-    time_msecs,
-    WaitableSharedPool,
     AsyncWorkerPool,
     Notice,
+    WaitableSharedPool,
     periodically_call,
+    retry_long_running,
+    run_if_changed,
+    secret_alnum_string,
+    time_msecs,
 )
 
 from ...batch_configuration import STANDING_WORKER_MAX_IDLE_TIME_MSECS
 from ...inst_coll_config import PoolConfig
 from ...utils import Box, ExceededSharesCounter
 from ..instance import Instance
-from ..resource_manager import CloudResourceManager
 from ..job import schedule_job
-
-from .base import InstanceCollectionManager, InstanceCollection
+from ..resource_manager import CloudResourceManager
+from .base import InstanceCollection, InstanceCollectionManager
 
 log = logging.getLogger('pool')
 
@@ -159,11 +158,6 @@ WHERE removed = 0 AND inst_coll = %s;
             if user != 'ci' or (user == 'ci' and instance.location == self._default_location()):
                 return instance
             i += 1
-        histogram = collections.defaultdict(int)
-        for instance in self.healthy_instances_by_free_cores:
-            histogram[instance.free_cores_mcpu] += 1
-        log.info(f'schedule {self}: no viable instances for {cores_mcpu}: {histogram}')
-
         return None
 
     async def create_instance(
@@ -316,6 +310,7 @@ GROUP BY user
 HAVING n_ready_jobs + n_running_jobs > 0;
 ''',
             (self.pool.name,),
+            "compute_fair_share",
         )
 
         async for record in records:
@@ -392,13 +387,14 @@ HAVING n_ready_jobs + n_running_jobs > 0;
         async def user_runnable_jobs(user, remaining):
             async for batch in self.db.select_and_fetchall(
                 '''
-SELECT batches.id,  batches_cancelled.id IS NOT NULL AS cancelled, userdata, user, format_version
+SELECT batches.id, batches_cancelled.id IS NOT NULL AS cancelled, userdata, user, format_version
 FROM batches
 LEFT JOIN batches_cancelled
        ON batches.id = batches_cancelled.id
 WHERE user = %s AND `state` = 'running';
 ''',
                 (user,),
+                "user_runnable_jobs__select_running_batches",
             ):
                 async for record in self.db.select_and_fetchall(
                     '''
@@ -408,6 +404,7 @@ WHERE batch_id = %s AND state = 'Ready' AND always_run = 1 AND inst_coll = %s
 LIMIT %s;
 ''',
                     (batch['id'], self.pool.name, remaining.value),
+                    "user_runnable_jobs__select_ready_always_run_jobs",
                 ):
                     record['batch_id'] = batch['id']
                     record['userdata'] = batch['userdata']
@@ -423,6 +420,7 @@ WHERE batch_id = %s AND state = 'Ready' AND always_run = 0 AND inst_coll = %s AN
 LIMIT %s;
 ''',
                         (batch['id'], self.pool.name, remaining.value),
+                        "user_runnable_jobs__select_ready_jobs_batch_not_cancelled",
                     ):
                         record['batch_id'] = batch['id']
                         record['userdata'] = batch['userdata']
@@ -440,8 +438,6 @@ LIMIT %s;
 
             scheduled_cores_mcpu = 0
             share = user_share[user]
-
-            log.info(f'schedule {self.pool}: user-share: {user}: {allocated_cores_mcpu} {share}')
 
             remaining = Box(share)
             async for record in user_runnable_jobs(user, remaining):
@@ -463,7 +459,6 @@ LIMIT %s;
                     instance.adjust_free_cores_in_memory(-record['cores_mcpu'])
                     scheduled_cores_mcpu += record['cores_mcpu']
                     n_scheduled += 1
-                    should_wait = False
 
                     async def schedule_with_error_handling(app, record, id, instance):
                         try:
@@ -475,11 +470,12 @@ LIMIT %s;
 
                 remaining.value -= 1
                 if remaining.value <= 0:
+                    should_wait = False
                     break
 
         await waitable_pool.wait()
 
         end = time_msecs()
-        log.info(f'schedule: scheduled {n_scheduled} jobs in {end - start}ms for {self.pool}')
+        log.info(f'schedule: attempted to schedule {n_scheduled} jobs in {end - start}ms for {self.pool}')
 
         return should_wait

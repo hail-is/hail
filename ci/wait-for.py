@@ -1,8 +1,9 @@
+import argparse
+import asyncio
+import concurrent.futures
 import sys
 import traceback
-import argparse
-import concurrent.futures
-import asyncio
+
 import uvloop
 from kubernetes_asyncio import client, config
 

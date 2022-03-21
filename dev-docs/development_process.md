@@ -1,7 +1,7 @@
 # Hail Development Process
 
 The lifecycle of a new contribution to the Hail code base consists of the
-following steps:  designing the feature, implementation, creating a PR,
+following steps:  designing the feature, implementing changes, creating a PR,
 reviewing a PR, approving and merging the PR, deploying the changes, and then
 making periodic releases for users.
 
@@ -35,13 +35,19 @@ make install-dev-deps
 
 to install the python dependencies.
 
+If you are doing Batch or services development, run the following command to install relevant python dependencies
+
+```
+pip install -r docker/requirements.txt
+```
+
 To make sure that certain formatting requirements are caught early, run
 
 ```
 pre-commit install --install-hooks
 ```
 
-This creates git hooks that runs certain linting checks and auto-formatting on
+This creates git hooks that run certain linting checks and auto-formatting on
 changed files every commit. For example, services code uses the
 [Black python formatter](https://black.readthedocs.io/en/stable/)
 to enforce PEP8 compliance.
@@ -59,7 +65,7 @@ git config blame.ignoreRevsFile $HAIL/.git-blame-ignore-revs
 Install and configure tools necessary for working on the Hail Services:
 
 1. Install [Docker](https://docker.com)
-2. Install [`kubectl`](https://kubernetes.io/docs/tasks/tools/install-kubectl/)
+2. Install [`kubectl`](https://kubernetes.io/docs/tasks/tools/install-kubectl/), if not already installed. (To test installation, run `kubectl` in a terminal window)
 3. Install [`gcloud`](https://cloud.google.com/sdk/docs/install)
 4. Configure gcloud and Docker for Hail:
 ```
@@ -79,6 +85,7 @@ export DOCKER_BUILDKIT=1
 # Shell utilities for managing the Hail kubernetes cluster
 source /path/to/hail-repository/devbin/functions.sh
 ```
+6. Run `brew install fswatch`
 
 ### Testing / Debugging
 There are different strategies for debugging depending on whether you are

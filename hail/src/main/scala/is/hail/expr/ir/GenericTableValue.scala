@@ -1,7 +1,7 @@
 package is.hail.expr.ir
 
 import is.hail.annotations.{BroadcastRow, Region}
-import is.hail.asm4s.{Code, CodeLabel, Settable, Value}
+import is.hail.asm4s.{Code, CodeLabel, Settable, Value, HailClassLoader, theHailClassLoaderForSparkWorkers}
 import is.hail.backend.ExecuteContext
 import is.hail.backend.spark.SparkBackend
 import is.hail.expr.ir.functions.UtilFunctions
@@ -25,7 +25,7 @@ class PartitionIteratorLongReader(
   val fullRowType: TStruct,
   val contextType: Type,
   bodyPType: Type => PType,
-  body: Type => (Region, FS, Any) => Iterator[Long]) extends PartitionReader {
+  body: Type => (Region, HailClassLoader, FS, Any) => Iterator[Long]) extends PartitionReader {
 
   def rowRequiredness(requestedType: Type): TypeWithRequiredness = {
     val tr = TypeWithRequiredness.apply(requestedType)
@@ -54,8 +54,8 @@ class PartitionIteratorLongReader(
 
         override def initialize(cb: EmitCodeBuilder): Unit = {
           cb.assign(it, cb.emb.getObject(body(requestedType))
-            .invoke[java.lang.Object, java.lang.Object, java.lang.Object, Iterator[java.lang.Long]](
-              "apply", region, cb.emb.getFS, ctxJavaValue))
+            .invoke[java.lang.Object, java.lang.Object, java.lang.Object, java.lang.Object, Iterator[java.lang.Long]](
+              "apply", region, cb.emb.getHailClassLoader, cb.emb.getFS, ctxJavaValue))
         }
 
         override val elementRegion: Settable[Region] = region
@@ -91,7 +91,7 @@ class GenericTableValueRDDPartition(
 
 class GenericTableValueRDD(
   @transient val contexts: IndexedSeq[Any],
-  body: (Region, Any) => Iterator[Long]
+  body: (Region, HailClassLoader, Any) => Iterator[Long]
 ) extends RDD[RVDContext => Iterator[Long]](SparkBackend.sparkContext("GenericTableValueRDD"), Nil) {
   def getPartitions: Array[Partition] = contexts.zipWithIndex.map { case (c, i) =>
     new GenericTableValueRDDPartition(i, c)
@@ -99,7 +99,7 @@ class GenericTableValueRDD(
 
   def compute(split: Partition, context: TaskContext): Iterator[RVDContext => Iterator[Long]] = {
     Iterator.single { (rvdCtx: RVDContext) =>
-      body(rvdCtx.region, split.asInstanceOf[GenericTableValueRDDPartition].context)
+      body(rvdCtx.region, theHailClassLoaderForSparkWorkers, split.asInstanceOf[GenericTableValueRDDPartition].context)
     }
   }
 }
@@ -118,7 +118,7 @@ class GenericTableValue(
   val contextType: Type,
   var contexts: IndexedSeq[Any],
   val bodyPType: TStruct => PStruct,
-  val body: TStruct => (Region, FS, Any) => Iterator[Long]) {
+  val body: TStruct => (Region, HailClassLoader, FS, Any) => Iterator[Long]) {
 
   var ltrCoercer: LoweredTableReaderCoercer = _
   def getLTVCoercer(ctx: ExecuteContext): LoweredTableReaderCoercer = {
@@ -165,7 +165,7 @@ class GenericTableValue(
 
   def toContextRDD(fs: FS, requestedRowType: TStruct): ContextRDD[Long] = {
     val localBody = body(requestedRowType)
-    ContextRDD(new GenericTableValueRDD(contexts, localBody(_, fs, _)))
+    ContextRDD(new GenericTableValueRDD(contexts, localBody(_, _, fs, _)))
   }
 
   private[this] var rvdCoercer: RVDCoercer = _

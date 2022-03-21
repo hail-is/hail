@@ -1,16 +1,16 @@
 import abc
-from typing import Dict, Any, Optional
+from typing import Any, Dict, Optional
 
 from ...driver.billing_manager import ProductVersions
 from ...resources import (
-    Resource,
-    StaticSizedDiskResourceMixin,
     ComputeResourceMixin,
-    MemoryResourceMixin,
-    IPFeeResourceMixin,
-    ServiceFeeResourceMixin,
     DynamicSizedDiskResourceMixin,
+    IPFeeResourceMixin,
+    MemoryResourceMixin,
     QuantifiedResource,
+    Resource,
+    ServiceFeeResourceMixin,
+    StaticSizedDiskResourceMixin,
 )
 
 

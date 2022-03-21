@@ -1,19 +1,20 @@
-from typing import Optional
-import json
 import base64
-import aiohttp
 import datetime
+import json
 import logging
 import secrets
+from typing import Optional
+
+import aiohttp
 import humanize
 
-from hailtop.utils import time_msecs, time_msecs_str, retry_transient_errors
-from hailtop import httpx
 from gear import Database, transaction
+from hailtop import httpx
+from hailtop.utils import retry_transient_errors, time_msecs, time_msecs_str
 
+from ..cloud.utils import instance_config_from_config_dict
 from ..globals import INSTANCE_VERSION
 from ..instance_config import InstanceConfig
-from ..cloud.utils import instance_config_from_config_dict
 
 log = logging.getLogger('instance')
 

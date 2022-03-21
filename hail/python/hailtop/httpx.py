@@ -18,12 +18,8 @@ class ClientResponseError(aiohttp.ClientResponseError):
         self.body = body
 
     def __str__(self) -> str:
-        return "{}, message={!r}, url={!r} body={!r}".format(
-            self.status,
-            self.message,
-            self.request_info.real_url,
-            self.body
-        )
+        return (f"{self.status}, message={self.message!r}, "
+                f"url={self.request_info.real_url!r} body={self.body!r}")
 
     def __repr__(self) -> str:
         args = f"{self.request_info!r}, {self.history!r}"
@@ -35,7 +31,7 @@ class ClientResponseError(aiohttp.ClientResponseError):
             args += f", headers={self.headers!r}"
         if self.body is not None:
             args += f", body={self.body!r}"
-        return "{}({})".format(type(self).__name__, args)
+        return f"{type(self).__name__}({args})"
 
 
 class ClientResponse:

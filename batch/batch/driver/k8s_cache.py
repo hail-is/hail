@@ -1,9 +1,8 @@
-from typing import Tuple
-from hailtop.utils import retry_transient_errors
 import os
+from typing import Tuple
 
-from hailtop.aiotools.time_limited_max_size_cache import TimeLimitedMaxSizeCache
-
+from gear.time_limited_max_size_cache import TimeLimitedMaxSizeCache
+from hailtop.utils import retry_transient_errors
 
 FIVE_SECONDS_NS = 5 * 1000 * 1000 * 1000
 
@@ -11,9 +10,11 @@ FIVE_SECONDS_NS = 5 * 1000 * 1000 * 1000
 class K8sCache:
     def __init__(self, client, refresh_time_ns: int = FIVE_SECONDS_NS, max_size: int = 100):
         self.client = client
-        self.secret_cache = TimeLimitedMaxSizeCache(self._get_secret_from_k8s, refresh_time_ns, max_size)
+        self.secret_cache = TimeLimitedMaxSizeCache(
+            self._get_secret_from_k8s, refresh_time_ns, max_size, 'K8s secret cache'
+        )
         self.service_account_cache = TimeLimitedMaxSizeCache(
-            self._get_service_account_from_k8s, refresh_time_ns, max_size
+            self._get_service_account_from_k8s, refresh_time_ns, max_size, 'K8s service account cache'
         )
         self.k8s_timeout = float(os.environ.get('KUBERNETES_TIMEOUT_IN_SECONDS', 5.0))
 

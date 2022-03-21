@@ -1,14 +1,15 @@
-import os
-import sys
-import base64
-import string
-import json
-import secrets
 import asyncio
+import base64
+import json
+import os
+import secrets
+import string
+import sys
 from shlex import quote as shq
-from hailtop.utils import check_shell, check_shell_output
-from hailtop.auth.sql_config import create_secret_data_from_config, SQLConfig
+
 from gear import Database
+from hailtop.auth.sql_config import SQLConfig, create_secret_data_from_config
+from hailtop.utils import check_shell, check_shell_output
 
 assert len(sys.argv) == 1
 create_database_config = json.load(sys.stdin)
@@ -220,8 +221,8 @@ VALUES (%s, %s, %s);
             f'SELECT * FROM `{database_name}_migrations` WHERE version = %s;', (to_version,)
         )
         assert row is not None
-        assert name == row['name']
-        assert script_sha1 == row['script_sha1']
+        assert name == row['name'], row
+        assert script_sha1 == row['script_sha1'], row
 
 
 async def async_main():

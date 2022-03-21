@@ -147,7 +147,7 @@ object InferType {
       case StreamFold2(_, _, _, _, result) => result.typ
       case StreamDistribute(child, pivots, pathPrefix, _, _) =>
         val keyType = pivots.typ.asInstanceOf[TContainer].elementType
-        TArray(TStruct(("interval", TInterval(keyType)), ("fileName", TString), ("numElements", TInt32)))
+        TArray(TStruct(("interval", TInterval(keyType)), ("fileName", TString), ("numElements", TInt32), ("numBytes", TInt64)))
       case StreamScan(a, zero, accumName, valueName, body) =>
         assert(body.typ == zero.typ)
         TStream(zero.typ)

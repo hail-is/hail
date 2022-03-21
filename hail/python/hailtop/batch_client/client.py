@@ -170,8 +170,8 @@ class Batch:
     def get_job_log(self, job_id: int) -> Optional[Dict[str, Any]]:
         return async_to_blocking(self._async_batch.get_job_log(job_id))
 
-    def wait(self):
-        return async_to_blocking(self._async_batch.wait())
+    def wait(self, *args, **kwargs):
+        return async_to_blocking(self._async_batch.wait(*args, **kwargs))
 
     def debug_info(self):
         return async_to_blocking(self._async_batch.debug_info())
@@ -204,7 +204,11 @@ class BatchBuilder:
     def token(self):
         return self._async_builder.token
 
-    def create_job(self, image, command, env=None, mount_docker_socket=False,
+    def create_job(self,
+                   image,
+                   command,
+                   *,
+                   env=None, mount_docker_socket=False,
                    port=None, resources=None, secrets=None,
                    service_account=None, attributes=None, parents=None,
                    input_files=None, output_files=None, always_run=False,
@@ -226,6 +230,14 @@ class BatchBuilder:
 
         return Job.from_async_job(async_job)
 
+    def create_jvm_job(self, command, *, parents=None, **kwargs) -> Job:
+        if parents:
+            parents = [parent._async_job for parent in parents]
+
+        async_job = self._async_builder.create_jvm_job(command, **kwargs)
+
+        return Job.from_async_job(async_job)
+
     def _open_batch(self) -> Batch:
         async_batch = async_to_blocking(self._async_builder._open_batch())
         return Batch.from_async_batch(async_batch)
@@ -239,6 +251,12 @@ class BatchBuilder:
 
 
 class BatchClient:
+    @staticmethod
+    def from_async(async_client: aioclient.BatchClient):
+        bc = BatchClient.__new__(BatchClient)
+        bc._async_client = async_client
+        return bc
+
     def __init__(self,
                  billing_project: str,
                  deploy_config: Optional[DeployConfig] = None,

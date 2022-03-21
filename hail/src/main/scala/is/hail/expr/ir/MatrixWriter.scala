@@ -328,7 +328,9 @@ case class SplitPartitionNativeWriter(
   }
 }
 
-class MatrixSpecHelper(path: String, rowRelPath: String, globalRelPath: String, colRelPath: String, entryRelPath: String, refRelPath: String, typ: MatrixType, log: Boolean) {
+class MatrixSpecHelper(
+  path: String, rowRelPath: String, globalRelPath: String, colRelPath: String, entryRelPath: String, refRelPath: String, typ: MatrixType, log: Boolean
+) extends Serializable {
   def write(fs: FS, nCols: Long, partCounts: Array[Long]): Unit = {
     val spec = MatrixTableSpecParameters(
       FileFormat.version.rep,

@@ -63,6 +63,12 @@ resource "azurerm_storage_container" "batch_logs" {
   container_access_type = "private"
 }
 
+resource "azurerm_storage_container" "query" {
+  name                  = "query"
+  storage_account_name  = azurerm_storage_account.batch.name
+  container_access_type = "private"
+}
+
 resource "azurerm_storage_account" "test" {
   name                     = "${var.az_storage_account_name}test"
   resource_group_name      = var.resource_group.name
@@ -249,17 +255,6 @@ module "test_dev_sp" {
   name                  = "test-dev"
   application_id        = azuread_application.test_dev.application_id
   application_object_id = azuread_application.test_dev.object_id
-}
-
-resource "azuread_application" "query" {
-  display_name = "${var.resource_group.name}-query"
-}
-module "query_sp" {
-  source = "../service_principal"
-
-  name                  = "query"
-  application_id        = azuread_application.query.application_id
-  application_object_id = azuread_application.query.object_id
 }
 
 resource "azuread_application" "grafana" {

@@ -1,26 +1,27 @@
-from enum import Enum
-from typing import Dict, Optional, Set, Union
-import secrets
-from shlex import quote as shq
-import json
-import logging
 import asyncio
 import concurrent.futures
+import json
+import logging
+import os
+import random
+import secrets
+from enum import Enum
+from shlex import quote as shq
+from typing import Dict, Optional, Set, Union
+
 import aiohttp
 import gidgethub
-import zulip
-import random
-import os
 import prometheus_client as pc  # type: ignore
+import zulip
 
-from hailtop.config import get_deploy_config
 from hailtop.batch_client.aioclient import Batch
-from hailtop.utils import check_shell, check_shell_output, RETRY_FUNCTION_SCRIPT
-from .constants import GITHUB_CLONE_URL, AUTHORIZED_USERS, GITHUB_STATUS_CONTEXT, SERVICES_TEAM, COMPILER_TEAM
-from .build import BuildConfiguration, Code
-from .globals import is_test_deployment
-from .environment import DEPLOY_STEPS
+from hailtop.config import get_deploy_config
+from hailtop.utils import RETRY_FUNCTION_SCRIPT, check_shell, check_shell_output
 
+from .build import BuildConfiguration, Code
+from .constants import AUTHORIZED_USERS, COMPILER_TEAM, GITHUB_CLONE_URL, GITHUB_STATUS_CONTEXT, SERVICES_TEAM
+from .environment import DEPLOY_STEPS
+from .globals import is_test_deployment
 
 repos_lock = asyncio.Lock()
 
@@ -34,7 +35,9 @@ zulip_client: Optional[zulip.Client] = None
 if os.path.exists("/zulip-config/.zuliprc"):
     zulip_client = zulip.Client(config_file="/zulip-config/.zuliprc")
 
-TRACKED_PRS = None  # pc.Gauge('ci_tracked_prs', 'PRs currently being monitored by CI', ['build_state', 'review_state'])
+TRACKED_PRS = pc.Gauge('ci_tracked_prs', 'PRs currently being monitored by CI', ['build_state', 'review_state'])
+
+MAX_CONCURRENT_PR_BATCHES = 5
 
 
 class GithubStatus(Enum):
@@ -228,7 +231,9 @@ class PR(Code):
     def set_build_state(self, build_state):
         log.info(f'{self.short_str()}: Build state changing from {self.build_state} => {build_state}')
         if build_state != self.build_state:
+            self.decrement_pr_metric()
             self.build_state = build_state
+            self.increment_pr_metric()
 
             intended_github_status = self.github_status_from_build_state()
             if intended_github_status != self.intended_github_status:
@@ -339,7 +344,7 @@ class PR(Code):
         }
 
     def github_status_from_build_state(self) -> GithubStatus:
-        if self.build_state == 'failure' or self.build_state == 'error':
+        if self.build_state in ('failure', 'error'):
             return GithubStatus.FAILURE
         if (
             self.build_state == 'success'
@@ -468,7 +473,7 @@ mkdir -p {shq(repo_dir)}
             sha_out, _ = await check_shell_output(f'git -C {shq(repo_dir)} rev-parse HEAD')
             self.sha = sha_out.decode('utf-8').strip()
 
-            with open(f'{repo_dir}/build.yaml', 'r') as f:
+            with open(f'{repo_dir}/build.yaml', 'r', encoding='utf-8') as f:
                 config = BuildConfiguration(self, f.read(), scope='test')
 
             log.info(f'creating test batch for {self.number}')
@@ -562,7 +567,7 @@ mkdir -p {shq(repo_dir)}
         if self.source_sha:
             last_posted_status = self.last_known_github_status.get(GITHUB_STATUS_CONTEXT)
             if self.intended_github_status != last_posted_status:
-                log.info(f'Intended github status for {self.short_str()} is: {last_posted_status}')
+                log.info(f'Intended github status for {self.short_str()} is: {self.intended_github_status}')
                 log.info(f'Last known github status for {self.short_str()} is: {last_posted_status}')
                 await self.post_github_status(gh, self.intended_github_status)
                 self.last_known_github_status[GITHUB_STATUS_CONTEXT] = self.intended_github_status
@@ -571,7 +576,7 @@ mkdir -p {shq(repo_dir)}
             return
 
         if not self.batch or (on_deck and self.batch.attributes['target_sha'] != self.target_branch.sha):
-            if on_deck or self.target_branch.n_running_batches < 8:
+            if on_deck or self.target_branch.n_running_batches < MAX_CONCURRENT_PR_BATCHES:
                 self.target_branch.n_running_batches += 1
                 async with repos_lock:
                     await self._start_build(dbpool, batch_client)
@@ -860,7 +865,7 @@ mkdir -p {shq(repo_dir)}
 (cd {shq(repo_dir)}; {self.checkout_script()})
 '''
             )
-            with open(f'{repo_dir}/build.yaml', 'r') as f:
+            with open(f'{repo_dir}/build.yaml', 'r', encoding='utf-8') as f:
                 config = BuildConfiguration(self, f.read(), requested_step_names=steps, scope='deploy')
 
             log.info(f'creating deploy batch for {self.branch.short_str()}')
@@ -939,7 +944,7 @@ mkdir -p {shq(repo_dir)}
 '''
             )
             log.info(f'User {self.user} requested these steps for dev deploy: {steps}')
-            with open(f'{repo_dir}/build.yaml', 'r') as f:
+            with open(f'{repo_dir}/build.yaml', 'r', encoding='utf-8') as f:
                 config = BuildConfiguration(
                     self, f.read(), scope='dev', requested_step_names=steps, excluded_step_names=excluded_steps
                 )

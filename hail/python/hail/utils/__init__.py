@@ -11,6 +11,7 @@ from .frozendict import frozendict
 from .java import error, warning, info, FatalError, HailUserError
 from .tutorial import get_1kg, get_hgdp, get_movie_lens
 from .deduplicate import deduplicate
+from .jsonx import JSONEncoder
 
 __all__ = ['hadoop_open',
            'hadoop_copy',
@@ -51,4 +52,5 @@ __all__ = ['hadoop_open',
            'deduplicate',
            'with_local_temp_file',
            'guess_cloud_spark_provider',
+           'JSONEncoder',
            ]

@@ -1,9 +1,10 @@
 import argparse
 import json
-import yaml
 import shutil
 import subprocess as sp
 import tempfile
+
+import yaml
 
 # gear, hailtop, and web_common are not available in the create_certs image
 

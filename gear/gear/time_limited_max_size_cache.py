@@ -1,21 +1,30 @@
-from typing import TypeVar, Callable, Awaitable, Dict, Generic
-
-import time
 import asyncio
-import sortedcontainers
+import time
+from typing import Awaitable, Callable, Dict, Generic, TypeVar
 
+import prometheus_client as pc  # type: ignore
+import sortedcontainers
+from prometheus_async.aio import time as prom_async_time  # type: ignore
+
+CACHE_HITS = pc.Counter('cache_hits_count', 'Number of Cache Hits', ['cache_name'])
+CACHE_MISSES = pc.Counter('cache_misses_count', 'Number of Cache Hits', ['cache_name'])
+CACHE_EVICTIONS = pc.Counter('cache_evictions_count', 'Number of Cache Hits', ['cache_name'])
+CACHE_LOAD_LATENCY = pc.Summary(
+    'cache_load_latency_seconds', 'Latency of loading cache values in seconds', ['cache_name']
+)
 
 T = TypeVar('T')
 U = TypeVar('U')
 
 
 class TimeLimitedMaxSizeCache(Generic[T, U]):
-    def __init__(self, load: Callable[[T], Awaitable[U]], lifetime_ns: int, num_slots: int):
+    def __init__(self, load: Callable[[T], Awaitable[U]], lifetime_ns: int, num_slots: int, cache_name: str):
         assert lifetime_ns > 0
         assert num_slots > 0
         self.load = load
         self.lifetime_ns = lifetime_ns
         self.num_slots = num_slots
+        self.cache_name = cache_name
         self._futures: Dict[T, asyncio.Future] = {}
         self._cache: Dict[T, U] = {}
         self._expiry_time: Dict[T, int] = {}
@@ -43,20 +52,23 @@ class TimeLimitedMaxSizeCache(Generic[T, U]):
                 self._remove(k)
 
         if k in self._cache:
+            CACHE_HITS.labels(cache_name=self.cache_name).inc()
             return self._cache[k]
 
+        CACHE_MISSES.labels(cache_name=self.cache_name).inc()
         if k in self._futures:
             return await self._futures[k]
 
         self._futures[k] = asyncio.create_task(self.load(k))
         try:
-            v = await self._futures[k]
+            v = await prom_async_time(CACHE_LOAD_LATENCY.labels(cache_name=self.cache_name), self._futures[k])
         finally:
             del self._futures[k]
 
         self._put(k, v)
 
         if self._over_capacity():
+            CACHE_EVICTIONS.labels(cache_name=self.cache_name).inc()
             self._evict_oldest()
 
         return v

@@ -1,8 +1,7 @@
 from typing import Optional
 
 from gear.cloud_config import get_azure_config, get_gcp_config, get_global_config
-
-from hailtop.aiocloud import aiogoogle, aioazure
+from hailtop.aiocloud import aioazure, aiogoogle
 from hailtop.aiotools.fs import AsyncFS, AsyncFSFactory
 
 

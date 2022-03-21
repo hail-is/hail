@@ -2,6 +2,10 @@ output batch_logs_storage_uri {
   value = "hail-az://${azurerm_storage_account.batch.name}/${azurerm_storage_container.batch_logs.name}"
 }
 
+output query_storage_uri {
+  value = "hail-az://${azurerm_storage_account.batch.name}/${azurerm_storage_container.query.name}"
+}
+
 output test_storage_container {
   value = azurerm_storage_container.test
 }

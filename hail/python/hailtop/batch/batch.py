@@ -91,11 +91,11 @@ class Batch:
 
     _counter = 0
     _uid_prefix = "__BATCH__"
-    _regex_pattern = r"(?P<BATCH>{}\d+)".format(_uid_prefix)
+    _regex_pattern = r"(?P<BATCH>{}\d+)".format(_uid_prefix)  # pylint: disable=consider-using-f-string
 
     @classmethod
     def _get_uid(cls):
-        uid = "{}{}".format(cls._uid_prefix, cls._counter)
+        uid = cls._uid_prefix + str(cls._counter)
         cls._counter += 1
         return uid
 

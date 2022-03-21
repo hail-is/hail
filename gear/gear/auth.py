@@ -1,14 +1,16 @@
-from typing import Optional
 import asyncio
 import logging
-from functools import wraps
 import urllib.parse
+from functools import wraps
+from typing import Optional
+
 import aiohttp
-from aiohttp import web
 import aiohttp_session
-from hailtop.config import get_deploy_config
-from hailtop.auth import async_get_userinfo
+from aiohttp import web
+
 from hailtop import httpx
+from hailtop.auth import async_get_userinfo
+from hailtop.config import get_deploy_config
 
 log = logging.getLogger('gear.auth')
 

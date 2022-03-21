@@ -1,11 +1,12 @@
 import abc
-import msal
+import json
+import urllib.parse
+
+import aiohttp.web
 import google.auth.transport.requests
 import google.oauth2.id_token
 import google_auth_oauthlib.flow
-import aiohttp.web
-import json
-import urllib.parse
+import msal
 
 from gear.cloud_config import get_global_config
 
@@ -72,7 +73,7 @@ class GoogleFlow(Flow):
 
 class AzureFlow(Flow):
     def __init__(self, credentials_file: str):
-        with open(credentials_file) as f:
+        with open(credentials_file, encoding='utf-8') as f:
             data = json.loads(f.read())
 
         tenant_id = data['tenant']

@@ -68,17 +68,9 @@ principals:
   domains:
     - memory-tests
   kind: json
-- name: query
-  domains:
-    - query
-  kind: json
 - name: services-java-tests
   domains:
     - services-java-tests
-  kind: json
-- name: query-tests
-  domains:
-    - query-tests
   kind: json
 - name: benchmark
   domains:

@@ -135,7 +135,7 @@ object BgenRDDPartitions extends Logging {
       while (fileIndex < nonEmptyFilesAfterFilter.length) {
         val file = nonEmptyFilesAfterFilter(fileIndex)
         // TODO Not sure I should be using ctx's pool here.
-        using(indexReaderBuilder(fs, file.indexPath, 8, ctx.r.pool)) { index =>
+        using(indexReaderBuilder(ctx.theHailClassLoader, fs, file.indexPath, 8, ctx.r.pool)) { index =>
           val nPartitions = math.min(fileNPartitions(fileIndex), file.nVariants.toInt)
           val partNVariants = partition(file.nVariants.toInt, nPartitions)
           val partFirstVariantIndex = partNVariants.scan(0)(_ + _).init
@@ -178,7 +178,7 @@ object CompileDecoder {
   def apply(
     ctx: ExecuteContext,
     settings: BgenSettings
-  ): (FS, Int, Region) => AsmFunction4[Region, BgenPartition, HadoopFSDataBinaryReader, BgenSettings, Long] = {
+  ): (HailClassLoader, FS, Int, Region) => AsmFunction4[Region, BgenPartition, HadoopFSDataBinaryReader, BgenSettings, Long] = {
     val fb = EmitFunctionBuilder[Region, BgenPartition, HadoopFSDataBinaryReader, BgenSettings, Long](ctx, "bgen_rdd_decoder")
     val mb = fb.apply_method
     val rowType = settings.rowPType

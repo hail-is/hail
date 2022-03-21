@@ -61,11 +61,13 @@ class LocalBackend(
       + "is.hail.io.compress.BGzipCodec,"
       + "is.hail.io.compress.BGzipCodecTbi,"
       + "org.apache.hadoop.io.compress.GzipCodec")
-  
+
+  private[this] val theHailClassLoader = new HailClassLoader(getClass().getClassLoader())
+
   val fs: FS = new HadoopFS(new SerializableHadoopConfiguration(hadoopConf))
 
   def withExecuteContext[T](timer: ExecutionTimer)(f: ExecuteContext => T): T = {
-    ExecuteContext.scoped(tmpdir, tmpdir, this, fs, timer, null)(f)
+    ExecuteContext.scoped(tmpdir, tmpdir, this, fs, timer, null, theHailClassLoader)(f)
   }
 
   def broadcast[T: ClassTag](value: T): BroadcastValue[T] = new LocalBroadcastValue[T](value)
@@ -78,11 +80,11 @@ class LocalBackend(
     current
   }
 
-  def parallelizeAndComputeWithIndex(backendContext: BackendContext, fs: FS, collection: Array[Array[Byte]], dependency: Option[TableStageDependency] = None)(f: (Array[Byte], HailTaskContext, FS) => Array[Byte]): Array[Array[Byte]] = {
+  def parallelizeAndComputeWithIndex(backendContext: BackendContext, fs: FS, collection: Array[Array[Byte]], dependency: Option[TableStageDependency] = None)(f: (Array[Byte], HailTaskContext, HailClassLoader, FS) => Array[Byte]): Array[Array[Byte]] = {
     val stageId = nextStageId()
     collection.zipWithIndex.map { case (c, i) =>
       val htc = new LocalTaskContext(i, stageId)
-      val bytes = f(c, htc, fs)
+      val bytes = f(c, htc, theHailClassLoader, fs)
       htc.finish()
       bytes
     }
@@ -108,7 +110,7 @@ class LocalBackend(
       }
 
       ctx.timer.time("Run") {
-        f(fs, 0, ctx.r).apply(ctx.r)
+        f(ctx.theHailClassLoader, fs, 0, ctx.r).apply(ctx.r)
         (pt, 0)
       }
     } else {
@@ -121,7 +123,7 @@ class LocalBackend(
       }
 
       ctx.timer.time("Run") {
-        (pt, f(fs, 0, ctx.r).apply(ctx.r))
+        (pt, f(ctx.theHailClassLoader, fs, 0, ctx.r).apply(ctx.r))
       }
     }
   }

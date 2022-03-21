@@ -31,7 +31,7 @@ class StagedConstructorSuite extends HailSuite {
 
     val region = Region(pool=pool)
     val rv = RegionValue(region)
-    rv.setOffset(fb.result()()(region, input))
+    rv.setOffset(fb.result()(theHailClassLoader)(region, input))
 
     if (showRVInfo) {
       printRegion(region, "string")
@@ -68,7 +68,7 @@ class StagedConstructorSuite extends HailSuite {
 
     val region = Region(pool=pool)
     val rv = RegionValue(region)
-    rv.setOffset(fb.result()()(region, input))
+    rv.setOffset(fb.result()(theHailClassLoader)(region, input))
 
     if (showRVInfo) {
       printRegion(region, "int")
@@ -105,7 +105,7 @@ class StagedConstructorSuite extends HailSuite {
 
     val region = Region(pool=pool)
     val rv = RegionValue(region)
-    rv.setOffset(fb.result()()(region, input))
+    rv.setOffset(fb.result()(theHailClassLoader)(region, input))
 
     if (showRVInfo) {
       printRegion(region, "array")
@@ -149,7 +149,7 @@ class StagedConstructorSuite extends HailSuite {
 
     val region = Region(pool=pool)
     val rv = RegionValue(region)
-    rv.setOffset(fb.result()()(region, input))
+    rv.setOffset(fb.result()(theHailClassLoader)(region, input))
 
     if (showRVInfo) {
       printRegion(region, "struct")
@@ -193,7 +193,7 @@ class StagedConstructorSuite extends HailSuite {
 
     val region = Region(pool=pool)
     val rv = RegionValue(region)
-    rv.setOffset(fb.result()()(region, input))
+    rv.setOffset(fb.result()(theHailClassLoader)(region, input))
 
     if (showRVInfo) {
       printRegion(region, "array of struct")
@@ -326,7 +326,7 @@ class StagedConstructorSuite extends HailSuite {
 
     val region = Region(pool=pool)
     val rv = RegionValue(region)
-    rv.setOffset(fb.result()()(region, input))
+    rv.setOffset(fb.result()(theHailClassLoader)(region, input))
 
     if (showRVInfo) {
       printRegion(region, "struct with array")
@@ -374,7 +374,7 @@ class StagedConstructorSuite extends HailSuite {
 
     val region = Region(pool=pool)
     val rv = RegionValue(region)
-    rv.setOffset(fb.result()()(region, input))
+    rv.setOffset(fb.result()(theHailClassLoader)(region, input))
 
     if (showRVInfo) {
       printRegion(region, "missing array")
@@ -415,7 +415,7 @@ class StagedConstructorSuite extends HailSuite {
     }
 
     val region = Region(pool=pool)
-    val f = fb.result()()
+    val f = fb.result()(theHailClassLoader)
     def run(i: Int, b: Boolean, d: Double): (Int, Boolean, Double) = {
       val off = f(region, i, b, d)
       (Region.loadInt(t.loadField(off, 0)),
@@ -444,7 +444,7 @@ class StagedConstructorSuite extends HailSuite {
             fb.apply_method.getCodeParam[Region](1),
             t.loadCheapSCode(cb, fb.apply_method.getCodeParam[Long](2)),
               deepCopy = true))
-          val copyF = fb.resultWithIndex()(ctx.fs, 0, region)
+          val copyF = fb.resultWithIndex()(theHailClassLoader, ctx.fs, 0, region)
           val newOff = copyF(region, src)
 
 
@@ -513,7 +513,7 @@ class StagedConstructorSuite extends HailSuite {
         val region = f1.partitionRegion
         t2.constructFromFields(cb, region, FastIndexedSeq(EmitCode.present(cb.emb, t2.types(0).loadCheapSCode(cb, v1))), deepCopy = false).a
       }
-      val cp1 = f1.resultWithIndex()(ctx.fs, 0, r)()
+      val cp1 = f1.resultWithIndex()(theHailClassLoader, ctx.fs, 0, r)()
       assert(SafeRow.read(t2, cp1) == Row(value))
 
       val f2 = EmitFunctionBuilder[Long](ctx, "stagedCopy2")
@@ -521,7 +521,7 @@ class StagedConstructorSuite extends HailSuite {
         val region = f2.partitionRegion
         t1.constructFromFields(cb, region, FastIndexedSeq(EmitCode.present(cb.emb, t2.types(0).loadCheapSCode(cb, v1))), deepCopy = false).a
       }
-      val cp2 = f2.resultWithIndex()(ctx.fs, 0, r)()
+      val cp2 = f2.resultWithIndex()(theHailClassLoader, ctx.fs, 0, r)()
       assert(SafeRow.read(t1, cp2) == Row(value))
     }
   }

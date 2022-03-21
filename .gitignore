@@ -3,6 +3,8 @@
 .*.crc
 .gradle/
 .idea/
+.vscode/
+hail/libs/
 .pytest_cache/
 build/
 *.iml

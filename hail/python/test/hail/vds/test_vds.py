@@ -4,7 +4,7 @@ import pytest
 import hail as hl
 from hail.utils import new_temp_file
 from hail.vds.combiner.combine import defined_entry_fields
-from ..helpers import startTestHailContext, stopTestHailContext, resource, fails_local_backend, fails_service_backend
+from ..helpers import startTestHailContext, stopTestHailContext, resource, fails_local_backend, fails_service_backend, skip_when_service_backend
 
 setUpModule = startTestHailContext
 tearDownModule = stopTestHailContext
@@ -92,6 +92,7 @@ def test_conversion_equivalence():
     assert svcr._same(svcr_readback)
 
 
+@fails_service_backend(reason='register_ir_function')
 def test_sampleqc_old_new_equivalence():
     vds = hl.vds.read_vds(os.path.join(resource('vds'), '1kg_chr22_5_samples.vds'))
     sqc = hl.vds.sample_qc(vds)
@@ -123,6 +124,7 @@ def test_sampleqc_old_new_equivalence():
     ))
 
 
+@skip_when_service_backend()
 def test_sampleqc_gq_dp():
     vds = hl.vds.read_vds(os.path.join(resource('vds'), '1kg_chr22_5_samples.vds'))
     sqc = hl.vds.sample_qc(vds)
@@ -135,6 +137,7 @@ def test_sampleqc_gq_dp():
                                 bases_over_dp_threshold=(334822, 10484, 388, 111, 52))
 
 
+@fails_service_backend(reason='persist')
 def test_filter_samples_and_merge():
     vds = hl.vds.read_vds(os.path.join(resource('vds'), '1kg_chr22_5_samples.vds'))
 
@@ -160,8 +163,6 @@ def test_filter_samples_and_merge():
     assert merged.variant_data._same(vds.variant_data)
 
 
-@fails_local_backend
-@fails_service_backend
 def test_segment_intervals():
     vds = hl.vds.read_vds(os.path.join(resource('vds'), '1kg_chr22_5_samples.vds'))
 
@@ -194,8 +195,6 @@ def test_segment_intervals():
     assert before_coverage == after_coverage
 
 
-@fails_local_backend
-@fails_service_backend
 def test_interval_coverage():
     vds = hl.vds.read_vds(os.path.join(resource('vds'), '1kg_chr22_5_samples.vds'))
 
@@ -249,8 +248,10 @@ def test_interval_coverage():
         pytest.approx(obs.mean_dp, exp.mean_dp)
 
 
-@fails_local_backend
-@fails_service_backend
+@skip_when_service_backend(message='''
+hangs >=9 minutes after "optimize optimize: darrayLowerer, initial IR ..."
+with no calls to parallelizeAndComputeWithIndex
+''')
 def test_impute_sex_chromosome_ploidy():
     x_par_end = 2699521
     y_par_end = 2649521
@@ -299,8 +300,69 @@ def test_impute_sex_chromosome_ploidy():
     ]
 
 
+def test_filter_intervals_segment():
+    vds = hl.vds.read_vds(os.path.join(resource('vds'), '1kg_2samples_starts.vds'))
+
+    intervals = [hl.parse_locus_interval('chr22:10514784-10517000', reference_genome='GRCh38')]
+    filt = hl.vds.filter_intervals(vds, intervals, split_reference_blocks=True)
+
+    assert hl.vds.to_dense_mt(filt)._same(
+        hl.filter_intervals(hl.vds.to_dense_mt(vds), intervals))
+
+    ref = filt.reference_data
+    var = filt.variant_data
+    assert ref.aggregate_rows(hl.agg.all(intervals[0].contains(ref.locus)))
+    assert var.aggregate_rows(hl.agg.all(intervals[0].contains(var.locus)))
+
+
+def test_filter_intervals_segment_table():
+    vds = hl.vds.read_vds(os.path.join(resource('vds'), '1kg_2samples_starts.vds'))
+
+    intervals = [hl.parse_locus_interval('chr22:10514784-10517000', reference_genome='GRCh38')]
+    intervals_table = hl.Table.parallelize(
+        hl.array(intervals).map(lambda x: hl.struct(interval=x)),
+        key='interval')
+    filt = hl.vds.filter_intervals(vds, intervals_table, split_reference_blocks=True)
+
+    assert hl.vds.to_dense_mt(filt)._same(
+        hl.filter_intervals(hl.vds.to_dense_mt(vds), intervals))
+
+    ref = filt.reference_data
+    var = filt.variant_data
+    assert ref.aggregate_rows(hl.agg.all(intervals[0].contains(ref.locus)))
+    assert var.aggregate_rows(hl.agg.all(intervals[0].contains(var.locus)))
+
+
+def test_filter_intervals_default():
+    vds = hl.vds.read_vds(os.path.join(resource('vds'), '1kg_2samples_starts.vds'))
+
+    intervals = [hl.parse_locus_interval('chr22:10514784-10517000', reference_genome='GRCh38')]
+    filt = hl.vds.filter_intervals(vds, intervals)
+
+    assert hl.vds.to_dense_mt(filt)._same(
+        hl.filter_intervals(hl.vds.to_dense_mt(vds), intervals))
+
+    var = filt.variant_data
+    assert var.aggregate_rows(hl.agg.all(intervals[0].contains(var.locus)))
+
+
+def test_filter_intervals_default_table():
+    vds = hl.vds.read_vds(os.path.join(resource('vds'), '1kg_2samples_starts.vds'))
+
+    intervals = [hl.parse_locus_interval('chr22:10514784-10517000', reference_genome='GRCh38')]
+    intervals_table = hl.Table.parallelize(
+        hl.array(intervals).map(lambda x: hl.struct(interval=x)),
+        key='interval')
+    filt = hl.vds.filter_intervals(vds, intervals_table)
+
+    assert hl.vds.to_dense_mt(filt)._same(
+        hl.filter_intervals(hl.vds.to_dense_mt(vds), intervals))
+
+    var = filt.variant_data
+    assert var.aggregate_rows(hl.agg.all(intervals[0].contains(var.locus)))
+
+
 def test_filter_chromosomes():
-    hl._set_flags(no_whole_stage_codegen='1')
     vds = hl.vds.read_vds(os.path.join(resource('vds'), '1kg_2samples_starts.vds'))
 
 
@@ -329,6 +391,7 @@ def test_filter_chromosomes():
     assert_contigs(vds_auto, autosomes)
 
 
+@skip_when_service_backend(message='hangs')
 def test_to_dense_mt():
     vds = hl.vds.read_vds(os.path.join(resource('vds'), '1kg_2samples_starts.vds'))
     vds = hl.vds.filter_chromosomes(vds, keep='chr22')

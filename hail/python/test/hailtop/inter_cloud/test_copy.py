@@ -13,8 +13,7 @@ from hailtop.aiocloud.aioaws import S3AsyncFS
 from hailtop.aiocloud.aioazure import AzureAsyncFS
 
 
-from .generate_copy_test_specs import (
-    run_test_spec, create_test_file, create_test_dir)
+from .generate_copy_test_specs import run_test_spec, create_test_file, create_test_dir
 
 from .copy_test_specs import COPY_TEST_SPECS
 

@@ -13,9 +13,9 @@ import org.apache.spark.sql.Row
 object LowerToCDA {
 
   def apply(ir: IR, typesToLower: DArrayLowering.Type, ctx: ExecuteContext): IR = {
-    val r = Requiredness(ir, ctx)
+    val analyses = Analyses.apply(ir, ctx)
 
-    lower(ir, typesToLower, ctx, r, Map())
+    lower(ir, typesToLower, ctx, analyses, Map())
   }
 
   def substLets(ir: IR, relationalLetsAbove: Map[String, IR]): IR = {
@@ -32,10 +32,10 @@ object LowerToCDA {
     }).asInstanceOf[IR]
   }
 
-  def lower(ir: IR, typesToLower: DArrayLowering.Type, ctx: ExecuteContext, r: RequirednessAnalysis, relationalLetsAbove: Map[String, IR]): IR = ir match {
+  def lower(ir: IR, typesToLower: DArrayLowering.Type, ctx: ExecuteContext, analyses: Analyses, relationalLetsAbove: Map[String, IR]): IR = ir match {
     case RelationalLet(name, value, body) =>
 
-      val loweredValue = substLets(lower(value, typesToLower, ctx, r, relationalLetsAbove), relationalLetsAbove)
+      val loweredValue = substLets(lower(value, typesToLower, ctx, analyses, relationalLetsAbove), relationalLetsAbove)
 
       if (!Compilable(loweredValue))
         throw new LowererUnsupportedOperation(s"lowered to uncompilable IR: ${ Pretty(ir) }")
@@ -48,10 +48,10 @@ object LowerToCDA {
           print = None)
       }
 
-      val addr = ctx.timer.time("Run")(f(ctx.fs, 0, ctx.r).apply(ctx.r))
+      val addr = ctx.timer.time("Run")(f(ctx.theHailClassLoader, ctx.fs, 0, ctx.r).apply(ctx.r))
       val litValue = ctx.timer.time("SafeRow.convert")(SafeRow.read(pt, addr).asInstanceOf[Row].get(0))
       val lit = Literal.coerce(value.typ, litValue)
-      lower(body, typesToLower, ctx, r, relationalLetsAbove + ((name, lit)))
+      lower(body, typesToLower, ctx, analyses, relationalLetsAbove + ((name, lit)))
 
     case RelationalRef(name, t) =>
       relationalLetsAbove.get(name) match {
@@ -63,13 +63,13 @@ object LowerToCDA {
       }
 
     case node if node.children.forall(_.isInstanceOf[IR]) =>
-      Copy(node, ir.children.map { case c: IR => lower(c, typesToLower, ctx, r, relationalLetsAbove) })
+      Copy(node, ir.children.map { case c: IR => lower(c, typesToLower, ctx, analyses, relationalLetsAbove) })
 
     case node if node.children.exists(n => n.isInstanceOf[TableIR]) && node.children.forall(n => n.isInstanceOf[TableIR] || n.isInstanceOf[IR]) =>
-      LowerTableIR(ir, typesToLower, ctx, r, relationalLetsAbove)
+      LowerTableIR(ir, typesToLower, ctx, analyses, relationalLetsAbove)
 
     case node if node.children.exists(n => n.isInstanceOf[BlockMatrixIR]) && node.children.forall(n => n.isInstanceOf[BlockMatrixIR] || n.isInstanceOf[IR]) =>
-      LowerBlockMatrixIR(ir, typesToLower, ctx, r, relationalLetsAbove)
+      LowerBlockMatrixIR(ir, typesToLower, ctx, analyses, relationalLetsAbove)
 
     case node if node.children.exists(_.isInstanceOf[MatrixIR]) =>
       throw new LowererUnsupportedOperation(s"MatrixIR nodes must be lowered to TableIR nodes separately: \n${ Pretty(node) }")

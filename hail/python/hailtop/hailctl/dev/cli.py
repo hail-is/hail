@@ -2,7 +2,6 @@ import argparse
 
 from . import config
 from . import deploy
-from . import query
 
 
 def parser():
@@ -33,13 +32,6 @@ def parser():
     deploy_parser.set_defaults(module='deploy')
     deploy.cli.init_parser(deploy_parser)
 
-    query_parser = subparsers.add_parser(
-        'query',
-        help='Set dev settings on query service',
-        description='Set dev settings on query service')
-    query_parser.set_defaults(module='query')
-    query.cli.init_parser(query_parser)
-
     return main_parser
 
 
@@ -49,10 +41,8 @@ def main(args):
     if args.module == 'deploy':
         from .deploy import cli  # pylint: disable=import-outside-toplevel
         cli.main(args)
-    elif args.module.startswith('hailctl dev config'):
-        from .config import cli  # pylint: disable=import-outside-toplevel
-        cli.main(args)
     else:
-        assert args.module == 'query'
-        from .query import cli  # pylint: disable=import-outside-toplevel
+        prefix = 'hailctl dev config'
+        assert args.module[:len(prefix)] == prefix
+        from .config import cli  # pylint: disable=import-outside-toplevel
         cli.main(args)

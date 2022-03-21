@@ -1,25 +1,25 @@
-from typing import List, TYPE_CHECKING
+import asyncio
+import base64
 import json
 import logging
-import asyncio
-import aiohttp
-import base64
 import traceback
+from typing import TYPE_CHECKING, List
 
-from hailtop.aiotools import BackgroundTaskManager
-from hailtop.utils import time_msecs, Notice, retry_transient_errors
-from hailtop import httpx
+import aiohttp
+
 from gear import Database
+from hailtop import httpx
+from hailtop.aiotools import BackgroundTaskManager
+from hailtop.utils import Notice, retry_transient_errors, time_msecs
 
 from ..batch import batch_record_to_dict
-from ..globals import complete_states, tasks, STATUS_FORMAT_VERSION
 from ..batch_configuration import KUBERNETES_SERVER_URL
 from ..batch_format_version import BatchFormatVersion
-from ..spec_writer import SpecWriter
 from ..file_store import FileStore
+from ..globals import STATUS_FORMAT_VERSION, complete_states, tasks
 from ..instance_config import QuantifiedResource
+from ..spec_writer import SpecWriter
 from .instance import Instance
-
 from .k8s_cache import K8sCache
 
 if TYPE_CHECKING:
@@ -31,8 +31,10 @@ log = logging.getLogger('job')
 async def notify_batch_job_complete(db: Database, client_session: httpx.ClientSession, batch_id):
     record = await db.select_and_fetchone(
         '''
-SELECT batches.*, COALESCE(SUM(`usage` * rate), 0) AS cost, batches_cancelled.id IS NOT NULL AS cancelled
+SELECT batches.*, COALESCE(SUM(`usage` * rate), 0) AS cost, batches_cancelled.id IS NOT NULL AS cancelled, batches_n_jobs_in_complete_states.n_completed, batches_n_jobs_in_complete_states.n_succeeded, batches_n_jobs_in_complete_states.n_failed, batches_n_jobs_in_complete_states.n_cancelled
 FROM batches
+LEFT JOIN batches_n_jobs_in_complete_states
+  ON batches.id = batches_n_jobs_in_complete_states.id
 LEFT JOIN aggregated_batch_resources
   ON batches.id = aggregated_batch_resources.batch_id
 LEFT JOIN resources
@@ -66,7 +68,7 @@ GROUP BY batches.id;
     except asyncio.CancelledError:
         raise
     except Exception:
-        log.exception(f'callback for batch {batch_id} failed, will not retry.')
+        log.info(f'callback for batch {batch_id} failed, will not retry.')
 
 
 async def add_attempt_resources(db, batch_id, job_id, attempt_id, resources):
@@ -85,7 +87,7 @@ ON DUPLICATE KEY UPDATE quantity = quantity;
                 resource_args,
             )
         except Exception:
-            log.exception(f'error while inserting resources for job {id}, attempt {attempt_id}')
+            log.exception(f'error while inserting resources for job {job_id}, attempt {attempt_id}')
             raise
 
 

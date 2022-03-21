@@ -1,6 +1,7 @@
 import collections
 import itertools
 import pandas
+import numpy as np
 import pyspark
 from typing import Optional, Dict, Callable
 
@@ -430,8 +431,14 @@ class Table(ExprContainer):
         """
         return Env.backend().execute(ir.TableCount(self._tir))
 
+    async def _async_count(self):
+        return await Env.backend()._async_execute(ir.TableCount(self._tir))
+
     def _force_count(self):
         return Env.backend().execute(ir.TableToValueApply(self._tir, {'name': 'ForceCountTable'}))
+
+    async def _async_force_count(self):
+        return await Env.backend()._async_execute(ir.TableToValueApply(self._tir, {'name': 'ForceCountTable'}))
 
     @typecheck_method(caller=str,
                       row=expr_struct())
@@ -1931,8 +1938,8 @@ class Table(ExprContainer):
         """
         return Env.backend().unpersist_table(self)
 
-    @typecheck_method(_localize=bool)
-    def collect(self, _localize=True):
+    @typecheck_method(_localize=bool, _timed=bool)
+    def collect(self, _localize=True, *, _timed=False):
         """Collect the rows of the table into a local list.
 
         Examples
@@ -1963,7 +1970,7 @@ class Table(ExprContainer):
         rows_ir = ir.GetField(ir.TableCollect(t._tir), 'rows')
         e = construct_expr(rows_ir, hl.tarray(t.row.dtype))
         if _localize:
-            return Env.backend().execute(e._ir)
+            return Env.backend().execute(e._ir, timed=_timed)
         else:
             return e
 
@@ -3346,7 +3353,23 @@ class Table(ExprContainer):
 
         for data_idx in range(len(columns[fields[0]])):
             for field in fields:
-                data[data_idx][field] = columns[field][data_idx]
+                cur_val = columns[field][data_idx]
+
+                # Can't call isna on a collection or it will implicitly broadcast
+                if pandas.api.types.is_numeric_dtype(df[field].dtype) and pandas.isna(cur_val):
+                    if isinstance(cur_val, float):
+                        fixed_val = cur_val
+                    elif isinstance(cur_val, np.floating):
+                        fixed_val = cur_val.item()
+                    else:
+                        fixed_val = None
+                elif isinstance(df[field].dtype, pandas.StringDtype) and pandas.isna(cur_val):  # No NaN to worry about
+                    fixed_val = None
+                elif isinstance(cur_val, np.number):
+                    fixed_val = cur_val.item()
+                else:
+                    fixed_val = cur_val
+                data[data_idx][field] = fixed_val
 
         for data_idx, field in enumerate(fields):
             type_hint = dtypes_from_pandas(pd_dtypes[field])

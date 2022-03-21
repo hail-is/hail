@@ -161,6 +161,8 @@ object EmitStreamDistribute {
 
     val outputBuffers = cb.memoize[Array[OutputBuffer]](Code.newArray[OutputBuffer](numFilesToWrite))
     val numElementsPerFile = cb.memoize[Array[Int]](Code.newArray[Int](numFilesToWrite))
+    val numBytesPerFile = cb.memoize[Array[Long]](Code.newArray[Long](numFilesToWrite))
+
     val fileArrayIdx = cb.newLocal[Int]("stream_dist_file_array_idx")
 
     def makeFileName(cb: EmitCodeBuilder, fileIdx: Value[Int]): Value[String] = {
@@ -172,6 +174,7 @@ object EmitStreamDistribute {
       val ob = cb.memoize(spec.buildCodeOutputBuffer(mb.create(fileName)))
       cb += outputBuffers.update(fileArrayIdx, ob)
       cb += numElementsPerFile.update(fileArrayIdx, 0)
+      cb += numBytesPerFile.update(fileArrayIdx, 0)
     })
     // The element classifying algorithm acts as though there are identity buckets for every splitter. We only use identity buckets for elements that repeat
     // in splitters list. Since We don't want many empty files, we need to make an array mapping output buckets to files.
@@ -196,8 +199,10 @@ object EmitStreamDistribute {
       val ob = cb.memoize[OutputBuffer](outputBuffers(fileToUse))
 
       cb += ob.writeByte(1.asInstanceOf[Byte])
-      encoder(cb, current.get(cb), ob)
+      val curSV = current.get(cb)
+      encoder(cb, curSV, ob)
       cb += numElementsPerFile.update(fileToUse, numElementsPerFile(fileToUse) + 1)
+      cb += numBytesPerFile.update(fileToUse, numBytesPerFile(fileToUse) + curSV.sizeToStoreInBytes(cb).value)
     }
 
     cb.forLoop(cb.assign(fileArrayIdx, 0), fileArrayIdx < numFilesToWrite, cb.assign(fileArrayIdx, fileArrayIdx + 1), {
@@ -207,7 +212,7 @@ object EmitStreamDistribute {
     })
 
     val intervalType = PCanonicalInterval(keyPType.setRequired(false), true)
-    val returnType = PCanonicalArray(PCanonicalStruct(("interval", intervalType), ("fileName", PCanonicalStringRequired), ("numElements", PInt32Required)), true)
+    val returnType = PCanonicalArray(PCanonicalStruct(("interval", intervalType), ("fileName", PCanonicalStringRequired), ("numElements", PInt32Required), ("numBytes", PInt64Required)), true)
 
     val min = requestedSplittersAndEndsVal.loadElement(cb, 0).memoize(cb, "stream_dist_min")
     val firstSplitter = paddedSplitters.loadElement(cb, 0).memoize(cb, "stream_dist_first_splitter")
@@ -237,7 +242,8 @@ object EmitStreamDistribute {
       pushElement(cb, IEmitCode.present(cb, new SStackStructValue(stackStructType, IndexedSeq(
         EmitValue.present(firstInterval),
         EmitValue.present(SJavaString.construct(cb, makeFileName(cb, 0))),
-        EmitValue.present(primitive(cb.memoize(numElementsPerFile(0))))
+        EmitValue.present(primitive(cb.memoize(numElementsPerFile(0)))),
+        EmitValue.present(primitive(cb.memoize(numBytesPerFile(0))))
       ))))
     })
 
@@ -253,7 +259,8 @@ object EmitStreamDistribute {
         pushElement(cb, IEmitCode.present(cb, new SStackStructValue(stackStructType, IndexedSeq(
           EmitValue.present(intervalFromLastToThis),
           EmitValue.present(SJavaString.construct(cb, makeFileName(cb, fileArrayIdx))),
-          EmitValue.present(primitive(cb.memoize(numElementsPerFile(fileArrayIdx))))
+          EmitValue.present(primitive(cb.memoize(numElementsPerFile(fileArrayIdx)))),
+          EmitValue.present(primitive(cb.memoize(numBytesPerFile(fileArrayIdx))))
         ))))
 
         cb.assign(fileArrayIdx, fileArrayIdx + 1)
@@ -271,7 +278,8 @@ object EmitStreamDistribute {
         pushElement(cb, IEmitCode.present(cb, new SStackStructValue(stackStructType, IndexedSeq(
           EmitValue.present(identityInterval),
           EmitValue.present(SJavaString.construct(cb, makeFileName(cb, fileArrayIdx))),
-          EmitValue.present(primitive(cb.memoize(numElementsPerFile(fileArrayIdx))))
+          EmitValue.present(primitive(cb.memoize(numElementsPerFile(fileArrayIdx)))),
+          EmitValue.present(primitive(cb.memoize(numBytesPerFile(fileArrayIdx))))
         ))))
 
         cb.assign(fileArrayIdx, fileArrayIdx + 1)
@@ -290,7 +298,8 @@ object EmitStreamDistribute {
       pushElement(cb, IEmitCode.present(cb, new SStackStructValue(stackStructType, IndexedSeq(
         EmitValue.present(lastInterval),
         EmitValue.present(SJavaString.construct(cb, makeFileName(cb, fileArrayIdx))),
-        EmitValue.present(primitive(cb.memoize(numElementsPerFile(fileArrayIdx))))
+        EmitValue.present(primitive(cb.memoize(numElementsPerFile(fileArrayIdx)))),
+        EmitValue.present(primitive(cb.memoize(numBytesPerFile(fileArrayIdx))))
       ))))
     })
 

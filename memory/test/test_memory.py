@@ -1,13 +1,12 @@
 import unittest
 import uuid
-from memory.client import MemoryClient
-
-from hailtop.aiocloud import aiogoogle
-from hailtop.config import get_user_config
-from hailtop.utils import async_to_blocking
-from hailtop.aiotools.router_fs import RouterAsyncFS
 
 from gear.cloud_config import get_gcp_config
+from hailtop.aiocloud import aiogoogle
+from hailtop.aiotools.router_fs import RouterAsyncFS
+from hailtop.config import get_user_config
+from hailtop.utils import async_to_blocking
+from memory.client import MemoryClient
 
 PROJECT = get_gcp_config().project
 

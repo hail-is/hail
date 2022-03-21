@@ -1,18 +1,19 @@
-from typing import Set
 import collections
 import os
 import secrets
 import time
+from typing import Set
+
 import aiohttp
 import pytest
 
-from hailtop.config import get_deploy_config, get_user_config
 from hailtop.auth import service_auth_headers
-from hailtop.utils import retry_response_returning_functions, external_requests_client_session, sync_sleep_and_backoff
 from hailtop.batch_client.client import BatchClient
+from hailtop.config import get_deploy_config, get_user_config
+from hailtop.utils import external_requests_client_session, retry_response_returning_functions, sync_sleep_and_backoff
 
-from .utils import legacy_batch_status, smallest_machine_type, skip_in_azure, fails_in_azure
 from .failure_injecting_client_session import FailureInjectingClientSession
+from .utils import fails_in_azure, legacy_batch_status, skip_in_azure, smallest_machine_type
 
 deploy_config = get_deploy_config()
 
@@ -36,6 +37,7 @@ def test_job(client: BatchClient):
     builder = client.create_batch()
     j = builder.create_job(DOCKER_ROOT_IMAGE, ['echo', 'test'])
     b = builder.submit()
+
     status = j.wait()
     assert 'attributes' not in status, str((status, b.debug_info()))
     assert status['state'] == 'Success', str((status, b.debug_info()))
@@ -43,6 +45,25 @@ def test_job(client: BatchClient):
     assert j._get_exit_code(status, 'main') == 0, str((status, b.debug_info()))
     job_log = j.log()
     assert job_log['main'] == 'test\n', str((job_log, b.debug_info()))
+
+
+def test_job_running_logs(client: BatchClient):
+    builder = client.create_batch()
+    j = builder.create_job(DOCKER_ROOT_IMAGE, ['bash', '-c', 'echo test && sleep 300'])
+    b = builder.submit()
+
+    delay = 1
+    while True:
+        status = j.status()
+        if status['state'] == 'Running':
+            log = j.log()
+            if log is not None and log['main'] != '':
+                assert log['main'] == 'test\n', str((log, b.debug_info()))
+                break
+        delay = sync_sleep_and_backoff(delay)
+
+    b.cancel()
+    b.wait()
 
 
 def test_exit_code_duration(client: BatchClient):

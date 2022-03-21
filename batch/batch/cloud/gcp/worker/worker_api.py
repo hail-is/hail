@@ -1,14 +1,15 @@
-import aiohttp
-from typing import Dict
 import os
+from typing import Dict
 
-from hailtop.utils import request_retry_transient_errors
+import aiohttp
+
 from hailtop import httpx
+from hailtop.utils import request_retry_transient_errors
 
 from ....worker.worker_api import CloudWorkerAPI
-from .disk import GCPDisk
-from .credentials import GCPUserCredentials
 from ..instance_config import GCPSlimInstanceConfig
+from .credentials import GCPUserCredentials
+from .disk import GCPDisk
 
 
 class GCPWorkerAPI(CloudWorkerAPI):
@@ -59,7 +60,7 @@ class GCPWorkerAPI(CloudWorkerAPI):
         path = f'{root_dir}/cloudfuse/key.json'
         if not os.path.exists(path):
             os.makedirs(os.path.dirname(path))
-            with open(path, 'w') as f:
+            with open(path, 'w', encoding='utf-8') as f:
                 f.write(credentials)
         return path
 
@@ -83,8 +84,8 @@ class GCPWorkerAPI(CloudWorkerAPI):
     {bucket} {mount_base_path_data}
 '''
 
-    def _unmount_cloudfuse(self, mount_base_path_data: str) -> str:
-        return f'fusermount -u {mount_base_path_data}'
+    def _unmount_cloudfuse(self, mount_base_path: str) -> str:
+        return f'fusermount -u {mount_base_path}'
 
     def __str__(self):
         return f'project={self.project} zone={self.zone}'

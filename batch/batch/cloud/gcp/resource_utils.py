@@ -1,5 +1,5 @@
-import re
 import logging
+import re
 from typing import Optional, Tuple
 
 log = logging.getLogger('utils')
@@ -106,12 +106,12 @@ def gcp_worker_memory_per_core_mib(worker_type: str) -> int:
 
 
 def gcp_requested_to_actual_storage_bytes(storage_bytes, allow_zero_storage):
-    if storage_bytes > GCP_MAX_PERSISTENT_SSD_SIZE_GIB * 1024 ** 3:
+    if storage_bytes > GCP_MAX_PERSISTENT_SSD_SIZE_GIB * 1024**3:
         return None
     if allow_zero_storage and storage_bytes == 0:
         return storage_bytes
     # minimum storage for a GCE instance is 10Gi
-    return max(10 * 1024 ** 3, storage_bytes)
+    return max(10 * 1024**3, storage_bytes)
 
 
 def gcp_is_valid_storage_request(storage_in_gib: int) -> bool:

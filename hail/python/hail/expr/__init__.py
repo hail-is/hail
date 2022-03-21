@@ -1,8 +1,7 @@
-from .types import dtype, HailType, hail_type, is_container, is_compound, \
-    is_numeric, is_primitive, types_match, tint, tint32, tint64, tfloat, \
-    tfloat32, tfloat64, tstr, tbool, tarray, tstream, tndarray, tset, tdict, \
-    tstruct, tunion, ttuple, tinterval, tlocus, tcall, tvoid, tvariable, \
-    hts_entry_schema
+from .types import (dtype, HailType, hail_type, is_container, is_compound, is_numeric, is_primitive,
+                    types_match, tint, tint32, tint64, tfloat, tfloat32, tfloat64, tstr, tbool, tarray, tstream,
+                    tndarray, tset, tdict, tstruct, tunion, ttuple, tinterval, tlocus, tcall, tvoid, tvariable,
+                    hts_entry_schema)
 from .table_type import ttable
 from .matrix_type import tmatrix
 from .blockmatrix_type import tblockmatrix
@@ -21,7 +20,8 @@ from .expressions import analyze, eval, eval_typed, eval_timed, \
     expr_any, expr_int32, expr_int64, \
     expr_float32, expr_float64, expr_call, expr_bool, expr_str, expr_locus, \
     expr_interval, expr_array, expr_ndarray, expr_set, expr_dict, expr_tuple, \
-    expr_struct, expr_oneof, expr_numeric, coercer_from_dtype
+    expr_struct, expr_oneof, expr_numeric, coercer_from_dtype, \
+    _eval_many, _async_eval, _async_eval_typed, _async_eval_timed, _async_eval_many
 from .functions import literal, chi_squared_test, if_else, cond, switch, case, \
     bind, rbind, contingency_table_test, dbeta, dict, dpois, exp, entropy, \
     fisher_exact_test, gp_dosage, hardy_weinberg_test, parse_locus, \
@@ -85,6 +85,11 @@ __all__ = ['HailType',
            'eval',
            'eval_typed',
            'eval_timed',
+           '_eval_many',
+           '_async_eval',
+           '_async_eval_typed',
+           '_async_eval_timed',
+           '_async_eval_many',
            'extract_refs_by_indices',
            'get_refs',
            'matrix_table_source',

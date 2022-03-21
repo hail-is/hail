@@ -98,6 +98,7 @@ module "global_config" {
   kubernetes_server      = module.vdc.kubernetes_server
   batch_logs_storage_uri = module.batch.batch_logs_storage_uri
   test_storage_uri       = module.batch.test_storage_uri
+  query_storage_uri      = module.batch.query_storage_uri
   organization_domain    = var.organization_domain
 
   extra_fields = {

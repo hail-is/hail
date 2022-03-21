@@ -13,6 +13,7 @@ from hail.utils import get_env_or_default
 from hail.utils.java import Env, FatalError, warning
 from hail.backend import Backend
 from hailtop.utils import secret_alnum_string
+from .builtin_references import BUILTIN_REFERENCES
 from .fs.fs import FS
 
 
@@ -44,19 +45,55 @@ def _get_log(log):
 
 
 class HailContext(object):
+    @staticmethod
+    async def async_create(log: str,
+                           quiet: bool,
+                           append: bool,
+                           tmpdir: str,
+                           local_tmpdir: str,
+                           default_reference: str,
+                           global_seed: Optional[str],
+                           backend: Backend):
+        hc = HailContext(log=log,
+                         quiet=quiet,
+                         append=append,
+                         tmpdir=tmpdir,
+                         local_tmpdir=local_tmpdir,
+                         global_seed=global_seed,
+                         backend=backend)
+        references = await backend._async_get_references(BUILTIN_REFERENCES)
+        hc.initialize_references(references, default_reference)
+        return hc
+
+    @staticmethod
+    def create(log: str,
+               quiet: bool,
+               append: bool,
+               tmpdir: str,
+               local_tmpdir: str,
+               default_reference: str,
+               global_seed: Optional[str],
+               backend: Backend):
+        hc = HailContext(log=log,
+                         quiet=quiet,
+                         append=append,
+                         tmpdir=tmpdir,
+                         local_tmpdir=local_tmpdir,
+                         global_seed=global_seed,
+                         backend=backend)
+        references = backend.get_references(BUILTIN_REFERENCES)
+        hc.initialize_references(references, default_reference)
+        return hc
+
     @typecheck_method(log=str,
                       quiet=bool,
                       append=bool,
                       tmpdir=str,
                       local_tmpdir=str,
-                      default_reference=str,
                       global_seed=nullable(int),
                       backend=Backend)
-    def __init__(self, log, quiet, append, tmpdir, local_tmpdir,
-                 default_reference, global_seed, backend):
+    def __init__(self, log, quiet, append, tmpdir, local_tmpdir, global_seed, backend):
         assert not Env._hc
-
-        super(HailContext, self).__init__()
 
         self._log = log
 
@@ -68,17 +105,7 @@ class HailContext(object):
         self._warn_cols_order = True
         self._warn_entries_order = True
 
-        Env._hc = self
-
-        ReferenceGenome._from_config(self._backend.get_reference('GRCh37'), True)
-        ReferenceGenome._from_config(self._backend.get_reference('GRCh38'), True)
-        ReferenceGenome._from_config(self._backend.get_reference('GRCm38'), True)
-        ReferenceGenome._from_config(self._backend.get_reference('CanFam3'), True)
-
-        if default_reference in ReferenceGenome._references:
-            self._default_ref = ReferenceGenome._references[default_reference]
-        else:
-            self._default_ref = ReferenceGenome.read(default_reference)
+        self._default_ref: Optional[ReferenceGenome] = None
 
         if not quiet:
             py_version = version()
@@ -98,9 +125,20 @@ class HailContext(object):
         if global_seed is None:
             global_seed = 6348563392232659379
         Env.set_seed(global_seed)
+        Env._hc = self
+
+    def initialize_references(self, references, default_reference):
+        for ref in references:
+            ReferenceGenome._from_config(ref, True)
+
+        if default_reference in ReferenceGenome._references:
+            self._default_ref = ReferenceGenome._references[default_reference]
+        else:
+            self._default_ref = ReferenceGenome.read(default_reference)
 
     @property
-    def default_reference(self):
+    def default_reference(self) -> ReferenceGenome:
+        assert self._default_ref is not None, '_default_ref should have been initialized in HailContext.create'
         return self._default_ref
 
     def stop(self):
@@ -123,7 +161,7 @@ class HailContext(object):
            min_block_size=int,
            branching_factor=int,
            tmp_dir=nullable(str),
-           default_reference=enumeration('GRCh37', 'GRCh38', 'GRCm38', 'CanFam3'),
+           default_reference=enumeration(*BUILTIN_REFERENCES),
            idempotent=bool,
            global_seed=nullable(int),
            spark_conf=nullable(dictof(str, str)),
@@ -229,7 +267,10 @@ def init(sc=None, app_name='Hail', master=None, local='local[*]',
                     ' close the session with hl.stop() first.')
 
     if os.environ.get('HAIL_QUERY_BACKEND') == 'service':
-        return init_service(
+        import asyncio
+        # NB: do not use warning because that will initialize Env._hc, which we are trying to do right now.
+        print('When using the query service backend, use `await init_service\'', file=sys.stderr)
+        return asyncio.get_event_loop().run_until_complete(init_service(
             log=log,
             quiet=quiet,
             append=append,
@@ -237,7 +278,7 @@ def init(sc=None, app_name='Hail', master=None, local='local[*]',
             local_tmpdir=local_tmpdir,
             default_reference=default_reference,
             global_seed=global_seed,
-            skip_logging_configuration=skip_logging_configuration)
+            skip_logging_configuration=skip_logging_configuration))
 
     from hail.backend.spark_backend import SparkBackend
 
@@ -254,25 +295,26 @@ def init(sc=None, app_name='Hail', master=None, local='local[*]',
     if not backend.fs.exists(tmpdir):
         backend.fs.mkdir(tmpdir)
 
-    HailContext(
+    HailContext.create(
         log, quiet, append, tmpdir, local_tmpdir, default_reference,
         global_seed, backend)
 
 
 @typecheck(
     billing_project=nullable(str),
-    bucket=nullable(str),
+    remote_tmpdir=nullable(str),
     log=nullable(str),
     quiet=bool,
     append=bool,
     tmpdir=nullable(str),
     local_tmpdir=nullable(str),
-    default_reference=enumeration('GRCh37', 'GRCh38', 'GRCm38', 'CanFam3'),
+    default_reference=enumeration(*BUILTIN_REFERENCES),
     global_seed=nullable(int),
-    skip_logging_configuration=bool)
-def init_service(
-        billing_project: str = None,
-        bucket: str = None,
+    skip_logging_configuration=bool,
+    disable_progress_bar=bool)
+async def init_service(
+        billing_project: Optional[str] = None,
+        remote_tmpdir: Optional[str] = None,
         log=None,
         quiet=False,
         append=False,
@@ -280,17 +322,21 @@ def init_service(
         local_tmpdir=None,
         default_reference='GRCh37',
         global_seed=6348563392232659379,
-        skip_logging_configuration=False):
+        skip_logging_configuration=False,
+        *,
+        disable_progress_bar=True):
     from hail.backend.service_backend import ServiceBackend
-    backend = ServiceBackend(billing_project, bucket, skip_logging_configuration=skip_logging_configuration)
+    backend = await ServiceBackend.create(billing_project=billing_project,
+                                          remote_tmpdir=remote_tmpdir,
+                                          skip_logging_configuration=skip_logging_configuration,
+                                          disable_progress_bar=disable_progress_bar)
 
     log = _get_log(log)
     if tmpdir is None:
-        tmpdir = 'gs://' + backend._bucket + '/tmp/hail/' + secret_alnum_string()
-    assert tmpdir.startswith('gs://')
+        tmpdir = backend.remote_tmpdir + 'tmp/hail/' + secret_alnum_string()
     local_tmpdir = _get_local_tmpdir(local_tmpdir)
 
-    HailContext(
+    await HailContext.async_create(
         log, quiet, append, tmpdir, local_tmpdir, default_reference,
         global_seed, backend)
 
@@ -301,7 +347,7 @@ def init_service(
     append=bool,
     branching_factor=int,
     tmpdir=nullable(str),
-    default_reference=enumeration('GRCh37', 'GRCh38', 'GRCm38', 'CanFam3'),
+    default_reference=enumeration(*BUILTIN_REFERENCES),
     global_seed=nullable(int),
     skip_logging_configuration=bool,
     _optimizer_iterations=nullable(int))
@@ -328,7 +374,7 @@ def init_local(
     if not backend.fs.exists(tmpdir):
         backend.fs.mkdir(tmpdir)
 
-    HailContext(
+    HailContext.create(
         log, quiet, append, tmpdir, tmpdir, default_reference,
         global_seed, backend)
 
@@ -466,7 +512,10 @@ class _TemporaryDirectoryManager:
         return self.name
 
     def __exit__(self, type, value, traceback):
-        return self.fs.rmtree(self.name)
+        try:
+            return self.fs.rmtree(self.name)
+        except FileNotFoundError:
+            pass
 
 
 def TemporaryDirectory(*,
@@ -511,6 +560,10 @@ def TemporaryDirectory(*,
 
 def current_backend() -> Backend:
     return Env.hc()._backend
+
+
+async def _async_current_backend() -> Backend:
+    return (await Env._async_hc())._backend
 
 
 def default_reference():

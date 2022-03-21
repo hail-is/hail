@@ -36,6 +36,7 @@ object ExecStrategy extends Enumeration {
 }
 
 object TestUtils {
+  val theHailClassLoader = new HailClassLoader(getClass().getClassLoader())
 
   import org.scalatest.Assertions._
 
@@ -251,7 +252,7 @@ object TestUtils {
             rvb.endArray()
             val aggOff = rvb.end()
 
-            val resultOff = f(ctx.fs, 0, region)(region, argsOff, aggOff)
+            val resultOff = f(theHailClassLoader, ctx.fs, 0, region)(region, argsOff, aggOff)
             SafeRow(resultType2.asInstanceOf[PBaseStruct], resultOff).get(0)
           }
 
@@ -276,7 +277,7 @@ object TestUtils {
             rvb.endTuple()
             val argsOff = rvb.end()
 
-            val resultOff = f(ctx.fs, 0, region)(region, argsOff)
+            val resultOff = f(theHailClassLoader, ctx.fs, 0, region)(region, argsOff)
             SafeRow(resultType2.asInstanceOf[PBaseStruct], resultOff).get(0)
           }
       }

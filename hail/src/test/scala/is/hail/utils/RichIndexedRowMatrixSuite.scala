@@ -1,8 +1,7 @@
 package is.hail.utils
 
 import breeze.linalg.{DenseMatrix => BDM, _}
-import is.hail.{HailSuite, TestUtils}
-import is.hail.linalg.BlockMatrix
+import is.hail.{HailSuite}
 import is.hail.linalg.BlockMatrix.ops._
 import org.apache.spark.mllib.linalg.Vectors
 import org.apache.spark.mllib.linalg.distributed.{DistributedMatrix, IndexedRow, IndexedRowMatrix}
@@ -13,11 +12,6 @@ import org.testng.annotations.Test
   * Testing RichIndexedRowMatrix.
   */
 class RichIndexedRowMatrixSuite extends HailSuite {
-
-  private def convertDistributedMatrixToBreeze(sparkMatrix: DistributedMatrix): Matrix[Double] = {
-    val breezeConverter = sparkMatrix.getClass.getMethod("toBreeze")
-    breezeConverter.invoke(sparkMatrix).asInstanceOf[Matrix[Double]]
-  }
 
   @Test def testToBlockMatrixDense() {
     val nRows = 9L
@@ -35,6 +29,7 @@ class RichIndexedRowMatrixSuite extends HailSuite {
     val indexedRows: RDD[IndexedRow] = sc.parallelize(data)
 
     val irm = new IndexedRowMatrix(indexedRows)
+    val irmLocal = irm.toBlockMatrix().toLocalMatrix()
 
     for {
       blockSize <- Seq(1, 2, 3, 4, 6, 7, 9, 10)
@@ -42,7 +37,10 @@ class RichIndexedRowMatrixSuite extends HailSuite {
       val blockMat = irm.toHailBlockMatrix(blockSize)
       assert(blockMat.nRows === nRows)
       assert(blockMat.nCols === nCols)
-      assert(blockMat.toBreezeMatrix() === convertDistributedMatrixToBreeze(irm))
+      val blockMatAsBreeze = blockMat.toBreezeMatrix()
+      assert(blockMatAsBreeze.rows == irmLocal.numRows)
+      assert(blockMatAsBreeze.cols == irmLocal.numCols)
+      assert(blockMatAsBreeze.toArray.toIndexedSeq == irmLocal.toArray.toIndexedSeq)
     }
 
     intercept[IllegalArgumentException] {
@@ -64,11 +62,13 @@ class RichIndexedRowMatrixSuite extends HailSuite {
     ).map(IndexedRow.tupled)
 
     val irm = new IndexedRowMatrix(sc.parallelize(data))
+    val irmLocal = irm.toBlockMatrix().toLocalMatrix()
 
     val m = irm.toHailBlockMatrix(2)
     assert(m.nRows == nRows)
     assert(m.nCols == nCols)
-    assert(m.toBreezeMatrix() == convertDistributedMatrixToBreeze(irm))
+    val blockMatAsBreeze = m.toBreezeMatrix()
+    assert(blockMatAsBreeze.toArray.toIndexedSeq == irmLocal.toArray.toIndexedSeq)
     assert(m.blocks.count() == 5)
 
     (m.dot(m.T)).toBreezeMatrix() // assert no exception

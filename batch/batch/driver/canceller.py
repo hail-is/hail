@@ -1,20 +1,20 @@
-import logging
 import asyncio
+import logging
 
+from gear import Database
+from hailtop import aiotools
 from hailtop.utils import (
+    AsyncWorkerPool,
     WaitableSharedPool,
+    periodically_call,
     retry_long_running,
     run_if_changed,
-    AsyncWorkerPool,
     time_msecs,
-    periodically_call,
 )
-from hailtop import aiotools
-from gear import Database
 
-from .job import unschedule_job, mark_job_complete
-from .instance_collection import InstanceCollectionManager
 from ..utils import Box
+from .instance_collection import InstanceCollectionManager
+from .job import mark_job_complete, unschedule_job
 
 log = logging.getLogger('canceller')
 

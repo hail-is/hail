@@ -11,6 +11,7 @@ import com.google.cloud.{ReadChannel, WriteChannel}
 import com.google.cloud.storage.Storage.BlobListOption
 import com.google.cloud.storage.{Blob, BlobId, BlobInfo, Storage, StorageOptions}
 import is.hail.HailContext
+import is.hail.services.retryTransientErrors
 
 import scala.collection.JavaConverters._
 import scala.collection.mutable
@@ -245,7 +246,9 @@ class GoogleStorageFS(val serviceAccountKey: Option[String] = None) extends FS {
       override def close(): Unit = {
         if (!closed) {
           flush()
-          write.close()
+          retryTransientErrors {
+            write.close()
+          }
           closed = true
         }
       }
@@ -261,13 +264,16 @@ class GoogleStorageFS(val serviceAccountKey: Option[String] = None) extends FS {
   def delete(filename: String, recursive: Boolean): Unit = {
     val (bucket, path) = getBucketPath(filename)
     if (recursive) {
-      val it = storage.list(bucket, BlobListOption.prefix(path))
-        .getValues.iterator.asScala
+      val it = retryTransientErrors {
+        storage.list(bucket, BlobListOption.prefix(path))
+          .getValues.iterator.asScala
+      }
       while (it.hasNext) {
         storage.delete(it.next().getBlobId)
       }
-    } else
+    } else {
       storage.delete(bucket, path)
+    }
   }
 
   def glob(filename: String): Array[FileStatus] = {
@@ -329,7 +335,9 @@ class GoogleStorageFS(val serviceAccountKey: Option[String] = None) extends FS {
     if (!path.endsWith("/"))
       path = path + "/"
 
-    val blobs = storage.list(bucket, BlobListOption.prefix(path), BlobListOption.currentDirectory())
+    val blobs = retryTransientErrors {
+      storage.list(bucket, BlobListOption.prefix(path), BlobListOption.currentDirectory())
+    }
 
     blobs.getValues.iterator.asScala
       .filter(b => b.getName != path) // elide directory markers created by Hadoop
@@ -344,7 +352,9 @@ class GoogleStorageFS(val serviceAccountKey: Option[String] = None) extends FS {
     if (path == "")
       return new GoogleStorageFileStatus(s"gs://$bucket", null, 0, true)
 
-    val blobs = storage.list(bucket, BlobListOption.prefix(path), BlobListOption.currentDirectory())
+    val blobs = retryTransientErrors {
+      storage.list(bucket, BlobListOption.prefix(path), BlobListOption.currentDirectory())
+    }
 
     val it = blobs.getValues.iterator.asScala
     while (it.hasNext) {

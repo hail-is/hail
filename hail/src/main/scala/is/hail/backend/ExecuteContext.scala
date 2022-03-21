@@ -1,5 +1,6 @@
 package is.hail.backend
 
+import is.hail.asm4s.HailClassLoader
 import is.hail.HailContext
 import is.hail.annotations.{Region, RegionPool}
 import is.hail.io.fs.FS
@@ -42,9 +43,9 @@ object ExecuteContext {
     result
   }
 
-  def scoped[T](tmpdir: String, localTmpdir: String, backend: Backend, fs: FS, timer: ExecutionTimer, tempFileManager: TempFileManager)(f: ExecuteContext => T): T = {
+  def scoped[T](tmpdir: String, localTmpdir: String, backend: Backend, fs: FS, timer: ExecutionTimer, tempFileManager: TempFileManager, theHailClassLoader: HailClassLoader)(f: ExecuteContext => T): T = {
     RegionPool.scoped { pool =>
-      using(new ExecuteContext(tmpdir, localTmpdir, backend, fs, Region(pool = pool), timer, tempFileManager))(f(_))
+      using(new ExecuteContext(tmpdir, localTmpdir, backend, fs, Region(pool = pool), timer, tempFileManager, theHailClassLoader))(f(_))
     }
   }
 
@@ -78,7 +79,8 @@ class ExecuteContext(
   val fs: FS,
   var r: Region,
   val timer: ExecutionTimer,
-  _tempFileManager: TempFileManager
+  _tempFileManager: TempFileManager,
+  val theHailClassLoader: HailClassLoader
 ) extends Closeable {
   var backendContext: BackendContext = _
 

@@ -170,9 +170,9 @@ abstract class BlockMatrixStage(val globalVals: Array[(String, IR)], val ctxType
 }
 
 object LowerBlockMatrixIR {
-  def apply(node: IR, typesToLower: DArrayLowering.Type, ctx: ExecuteContext, r: RequirednessAnalysis, relationalLetsAbove: Map[String, IR]): IR = {
+  def apply(node: IR, typesToLower: DArrayLowering.Type, ctx: ExecuteContext, analyses: Analyses, relationalLetsAbove: Map[String, IR]): IR = {
 
-    def lower(bmir: BlockMatrixIR) = LowerBlockMatrixIR.lower(bmir, typesToLower, ctx, r, relationalLetsAbove)
+    def lower(bmir: BlockMatrixIR) = LowerBlockMatrixIR.lower(bmir, typesToLower, ctx, analyses, relationalLetsAbove)
 
     node match {
       case BlockMatrixCollect(child) =>
@@ -205,9 +205,9 @@ object LowerBlockMatrixIR {
   // This lowers a BlockMatrixIR to an unkeyed TableStage with rows of (blockRow, blockCol, block)
   def lowerToTableStage(
     bmir: BlockMatrixIR, typesToLower: DArrayLowering.Type, ctx: ExecuteContext,
-    r: RequirednessAnalysis, relationalLetsAbove: Map[String, IR]
+    analyses: Analyses, relationalLetsAbove: Map[String, IR]
   ): TableStage = {
-    val bms = lower(bmir, typesToLower, ctx, r, relationalLetsAbove)
+    val bms = lower(bmir, typesToLower, ctx, analyses, relationalLetsAbove)
     val typ = bmir.typ
     val bmsWithCtx = bms.addContext(TTuple(TInt32, TInt32)){ case (i, j) => MakeTuple(Seq(0 -> i, 1 -> j))}
     val blocksRowMajor = Array.range(0, typ.nRowBlocks).flatMap { i =>
@@ -236,7 +236,7 @@ object LowerBlockMatrixIR {
   private def unimplemented[T](node: BaseIR): T =
     throw new LowererUnsupportedOperation(s"unimplemented: \n${ Pretty(node) }")
 
-  def lower(bmir: BlockMatrixIR, typesToLower: DArrayLowering.Type, ctx: ExecuteContext, r: RequirednessAnalysis, relationalLetsAbove: Map[String, IR]): BlockMatrixStage = {
+  def lower(bmir: BlockMatrixIR, typesToLower: DArrayLowering.Type, ctx: ExecuteContext, analyses: Analyses, relationalLetsAbove: Map[String, IR]): BlockMatrixStage = {
     if (!DArrayLowering.lowerBM(typesToLower))
       throw new LowererUnsupportedOperation("found BlockMatrixIR in lowering; lowering only TableIRs.")
     bmir.children.foreach {
@@ -246,13 +246,13 @@ object LowerBlockMatrixIR {
     }
     if (bmir.typ.nDefinedBlocks == 0)
       BlockMatrixStage.empty(bmir.typ.elementType)
-    else lowerNonEmpty(bmir, typesToLower, ctx, r, relationalLetsAbove)
+    else lowerNonEmpty(bmir, typesToLower, ctx, analyses, relationalLetsAbove)
   }
 
-  def lowerNonEmpty(bmir: BlockMatrixIR, typesToLower: DArrayLowering.Type, ctx: ExecuteContext, r: RequirednessAnalysis, relationalLetsAbove: Map[String, IR]): BlockMatrixStage = {
-    def lower(ir: BlockMatrixIR) = LowerBlockMatrixIR.lower(ir, typesToLower, ctx, r, relationalLetsAbove)
+  def lowerNonEmpty(bmir: BlockMatrixIR, typesToLower: DArrayLowering.Type, ctx: ExecuteContext, analyses: Analyses, relationalLetsAbove: Map[String, IR]): BlockMatrixStage = {
+    def lower(ir: BlockMatrixIR) = LowerBlockMatrixIR.lower(ir, typesToLower, ctx, analyses, relationalLetsAbove)
 
-    def lowerIR(node: IR): IR = LowerToCDA.lower(node, typesToLower, ctx, r, relationalLetsAbove: Map[String, IR])
+    def lowerIR(node: IR): IR = LowerToCDA.lower(node, typesToLower, ctx, analyses, relationalLetsAbove: Map[String, IR])
 
     bmir match {
       case BlockMatrixRead(reader) => reader.lower(ctx)
@@ -268,7 +268,6 @@ object LowerBlockMatrixIR {
             MakeNDArray(ToArray(mapIR(rangeIR(len))(_ => generator)), ctxRef, True(), ErrorIDs.NO_ERROR)
           }
         }
-      case x: BlockMatrixLiteral => unimplemented(bmir)
       case BlockMatrixMap(child, eltName, f, _) =>
         lower(child).mapBody { (_, body) =>
           NDArrayMap(body, eltName, f)

@@ -4,6 +4,7 @@ import is.hail.annotations.Region
 import is.hail.asm4s.{Code, LongInfo, Settable, SettableBuilder, TypeInfo, Value}
 import is.hail.expr.ir.EmitCodeBuilder
 import is.hail.types.physical.stypes.interfaces.{SString, SStringValue}
+import is.hail.types.physical.stypes.primitives.SInt64Value
 import is.hail.types.physical.stypes.{SCode, SSettable, SType, SValue}
 import is.hail.types.physical.{PString, PType}
 import is.hail.types.virtual.Type
@@ -60,6 +61,8 @@ class SStringPointerValue(val st: SStringPointer, val a: Value[Long]) extends SS
 
   def toBytes(cb: EmitCodeBuilder): SBinaryPointerValue =
     new SBinaryPointerValue(SBinaryPointer(pt.binaryRepresentation), a)
+
+  override def sizeToStoreInBytes(cb: EmitCodeBuilder): SInt64Value = this.binaryRepr().sizeToStoreInBytes(cb)
 }
 
 object SStringPointerSettable {

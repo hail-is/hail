@@ -2,6 +2,7 @@ from typing import Callable, TypeVar, Awaitable, Optional, Type, List, Dict, Ite
 from typing_extensions import Literal
 from types import TracebackType
 import concurrent
+import contextlib
 import subprocess
 import traceback
 import sys
@@ -45,6 +46,7 @@ RETRY_FUNCTION_SCRIPT = """function retry() {
 
 
 T = TypeVar('T')  # pylint: disable=invalid-name
+U = TypeVar('U')  # pylint: disable=invalid-name
 
 
 def unpack_comma_delimited_inputs(inputs):
@@ -74,7 +76,7 @@ def first_extant_file(*files: Optional[str]) -> Optional[str]:
     return None
 
 
-def cost_str(cost):
+def cost_str(cost: Optional[int]) -> Optional[str]:
     if cost is None:
         return None
     return f'${cost:.4f}'
@@ -100,21 +102,23 @@ def secret_alnum_string(n=22, *, case=None):
     return ''.join([secrets.choice(alphabet) for _ in range(n)])
 
 
-def digits_needed(i: int):
+def digits_needed(i: int) -> int:
     assert i >= 0
     if i < 10:
         return 1
     return 1 + digits_needed(i // 10)
 
 
-def grouped(n, ls):
+def grouped(n: int, ls: List[T]) -> Iterable[List[T]]:
+    if n < 1:
+        raise ValueError('invalid value for n: found {n}')
     while len(ls) != 0:
         group = ls[:n]
         ls = ls[n:]
         yield group
 
 
-def partition(k, ls):
+def partition(k: int, ls: List[T]) -> Iterable[List[T]]:
     if k == 0:
         assert not ls
         return []
@@ -134,7 +138,7 @@ def partition(k, ls):
     return generator()
 
 
-def unzip(lst):
+def unzip(lst: Iterable[Tuple[T, U]]) -> Tuple[List[T], List[U]]:
     a = []
     b = []
     for x, y in lst:
@@ -966,7 +970,7 @@ class Notice:
             e.set()
 
 
-def find_spark_home():
+def find_spark_home() -> str:
     spark_home = os.environ.get('SPARK_HOME')
     if spark_home is None:
         find_spark_home = subprocess.run('find_spark_home.py',
@@ -975,8 +979,26 @@ def find_spark_home():
         if find_spark_home.returncode != 0:
             raise ValueError(f'''SPARK_HOME is not set and find_spark_home.py returned non-zero exit code:
 STDOUT:
-{find_spark_home.stdout}
+{find_spark_home.stdout!r}
 STDERR:
-{find_spark_home.stderr}''')
+{find_spark_home.stderr!r}''')
         spark_home = find_spark_home.stdout.decode().strip()
     return spark_home
+
+
+class Timings:
+    def __init__(self):
+        self.timings: Dict[str, Dict[str, int]] = {}
+
+    @contextlib.contextmanager
+    def step(self, name: str):
+        assert name not in self.timings
+        d: Dict[str, int] = {}
+        self.timings[name] = d
+        d['start_time'] = time_msecs()
+        yield
+        d['finish_time'] = time_msecs()
+        d['duration'] = d['finish_time'] - d['start_time']
+
+    def to_dict(self):
+        return self.timings

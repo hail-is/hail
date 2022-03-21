@@ -29,7 +29,7 @@ that allows a user to see job progress and access logs.
 Sign Up
 -------
 
-For Broad Institute users, you can click the Sign Up button at `<notebook.hail.is>`__.
+For Broad Institute users, you can click the Sign Up button at `<https://notebook.hail.is>`__.
 This will allow you to authorize with your Broad Institute email address and create
 a Batch Service account. A :ref:`Google Service Account <service-accounts>` is created
 on your behalf. A trial Batch billing project is also created for you at

@@ -3,8 +3,8 @@ package is.hail.types.physical.stypes.interfaces
 import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.expr.ir.{EmitCodeBuilder, IEmitCode}
-import is.hail.types.physical.PCanonicalArray
-import is.hail.types.physical.stypes.primitives.SInt32Value
+import is.hail.types.physical.{PCanonicalArray, PContainer}
+import is.hail.types.physical.stypes.primitives.{SInt32Value, SInt64Value}
 import is.hail.types.physical.stypes.{EmitType, SType, SValue}
 import is.hail.types.{RIterable, TypeWithRequiredness}
 
@@ -76,5 +76,20 @@ trait SIndexableValue extends SValue {
     pt.constructFromElements(cb, region, cb.newLocal[Int]("slice_length", end - startMemo), deepCopy){ (cb, idx) =>
       this.loadElement(cb, idx + startMemo)
     }
+  }
+
+  override def sizeToStoreInBytes(cb: EmitCodeBuilder): SInt64Value = {
+    val storageType = this.st.storageType().asInstanceOf[PContainer]
+    val length = this.loadLength()
+    val totalSize = cb.newLocal[Long]("sindexableptr_size_in_bytes", storageType.elementsOffset(length).toL)
+    if (this.st.elementType.containsPointers) {
+      this.forEachDefined(cb) { (cb, _, element) =>
+        cb.assign(totalSize, totalSize + element.sizeToStoreInBytes(cb).value)
+      }
+    } else {
+      cb.assign(totalSize, totalSize + (length.toL * storageType.elementByteSize))
+    }
+
+    new SInt64Value(totalSize)
   }
 }
