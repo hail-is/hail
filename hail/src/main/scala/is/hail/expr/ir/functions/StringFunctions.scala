@@ -9,7 +9,7 @@ import is.hail.expr.JSONAnnotationImpex
 import is.hail.expr.ir._
 import is.hail.types.physical._
 import is.hail.types.physical.stypes._
-import is.hail.types.physical.stypes.concrete.{SIndexablePointer, SJavaArrayString, SJavaArrayStringCode, SJavaArrayStringSettable, SJavaString, SStringPointer}
+import is.hail.types.physical.stypes.concrete.{SIndexablePointer, SJavaArrayString, SJavaArrayStringValue, SJavaArrayStringSettable, SJavaString, SStringPointer}
 import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.physical.stypes.primitives.{SBoolean, SInt32, SInt64}
 import is.hail.types.virtual._
@@ -111,7 +111,7 @@ object StringFunctions extends RegistryFunctions {
     quoteChar: Option[Value[Char]],
     missingSV: SIndexableValue,
     errorID: Value[Int]
-  ): Code[Array[String]] = {
+  ): Value[Array[String]] = {
 
     // note: it will be inefficient to convert a SIndexablePointer to SJavaArrayString to split each line.
     // We should really choose SJavaArrayString as the stype for a literal if used in a place like this,
@@ -214,7 +214,7 @@ object StringFunctions extends RegistryFunctions {
 
     addValueOrNA(cb, string.length())
     cb.define(LreturnWithoutAppending)
-    ab.invoke[Array[String]]("result")
+    cb.memoize(ab.invoke[Array[String]]("result"), "generateSplitQuotedRegexResult")
   }
 
   def softBounds(i: IR, len: IR): IR =
@@ -379,7 +379,7 @@ object StringFunctions extends RegistryFunctions {
       val sep = cb.newLocal[String]("sep", separator.asString.loadString(cb))
       val mv = missing.asIndexable
 
-      new SJavaArrayStringCode(st, generateSplitQuotedRegex(cb, string, Right(sep), Some(quoteChar), mv, errorID)).memoize(cb, "split_quote_regex_string")
+      new SJavaArrayStringValue(st, generateSplitQuotedRegex(cb, string, Right(sep), Some(quoteChar), mv, errorID))
     }
 
     registerSCode4("splitQuotedChar", TString, TString, TArray(TString), TString, TArray(TString), {
@@ -397,7 +397,7 @@ object StringFunctions extends RegistryFunctions {
       cb.assign(sepChar, sep(0))
       val mv = missing.asIndexable
 
-      new SJavaArrayStringCode(st, generateSplitQuotedRegex(cb, string, Left(sepChar), Some(quoteChar), mv, errorID)).memoize(cb, "split_quote_char_string")
+      new SJavaArrayStringValue(st, generateSplitQuotedRegex(cb, string, Left(sepChar), Some(quoteChar), mv, errorID))
     }
 
     registerSCode3("splitRegex", TString, TString, TArray(TString), TArray(TString), {
@@ -406,7 +406,7 @@ object StringFunctions extends RegistryFunctions {
       val string = cb.newLocal[String]("string", s.asString.loadString(cb))
       val sep = cb.newLocal[String]("sep", separator.asString.loadString(cb))
       val mv = missing.asIndexable
-      new SJavaArrayStringCode(st, generateSplitQuotedRegex(cb, string, Right(sep), None, mv, errorID)).memoize(cb, "split_regex")
+      new SJavaArrayStringValue(st, generateSplitQuotedRegex(cb, string, Right(sep), None, mv, errorID))
     }
 
     registerSCode3("splitChar", TString, TString, TArray(TString), TArray(TString), {
@@ -419,7 +419,7 @@ object StringFunctions extends RegistryFunctions {
       cb.assign(sepChar, sep(0))
       val mv = missing.asIndexable
 
-      new SJavaArrayStringCode(st, generateSplitQuotedRegex(cb, string, Left(sepChar), None, mv, errorID)).memoize(cb, "split_char")
+      new SJavaArrayStringValue(st, generateSplitQuotedRegex(cb, string, Left(sepChar), None, mv, errorID))
     }
 
     registerWrappedScalaFunction2("mkString", TArray(TString), TString, TString, {
