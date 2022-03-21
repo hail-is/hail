@@ -2,7 +2,7 @@ package is.hail.expr.ir
 
 import is.hail.annotations.Region
 import is.hail.asm4s._
-import is.hail.types.physical.stypes.interfaces.{SIndexableCode, SIndexableValue}
+import is.hail.types.physical.stypes.interfaces.SIndexableValue
 import is.hail.types.physical.{PCanonicalArray, PCanonicalDict, PCanonicalSet}
 import is.hail.types.virtual.{TArray, TDict, TSet, Type}
 import is.hail.utils.FastIndexedSeq

@@ -13,8 +13,6 @@ trait SString extends SType {
 }
 
 trait SStringValue extends SValue {
-  override def get: SStringCode
-
   override def hash(cb: EmitCodeBuilder): SInt32Value =
     new SInt32Value(cb.memoize(loadString(cb).invoke[Int]("hashCode")))
 
@@ -23,12 +21,4 @@ trait SStringValue extends SValue {
   def loadString(cb: EmitCodeBuilder): Value[String]
 
   def toBytes(cb: EmitCodeBuilder): SBinaryValue
-}
-
-trait SStringCode extends SCode {
-  def loadLength(): Code[Int]
-
-  def loadString(): Code[String]
-
-  def toBytes(): SBinaryCode
 }

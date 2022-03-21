@@ -37,6 +37,7 @@ class Tests(unittest.TestCase):
     def test_write(self):
         create_backward_compatibility_files()
 
+    @fails_service_backend()
     def test_backward_compatability(self):
         import os
 
@@ -55,7 +56,7 @@ class Tests(unittest.TestCase):
 
         resource_dir = resource('backward_compatability')
         fs = hl.current_backend().fs
-        versions = [os.path.basename(x['path']) for x in fs.ls(resource_dir)]
+        versions = [os.path.basename(x.path) for x in fs.ls(resource_dir)]
 
         n = 0
         for v in versions:
@@ -79,4 +80,4 @@ class Tests(unittest.TestCase):
                 f = os.path.join(matrix_table_dir, '{}.hmt'.format(i))
                 n += 1
 
-        assert n == 72
+        assert n == 88, f'{resource_dir!r} {versions!r}'

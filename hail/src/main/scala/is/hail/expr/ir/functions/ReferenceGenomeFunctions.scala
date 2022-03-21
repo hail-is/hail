@@ -24,7 +24,7 @@ object ReferenceGenomeFunctions extends RegistryFunctions {
     registerSCode2t("isValidLocus", Array(LocusFunctions.tlocus("R")), TString, TInt32, TBoolean, (_: Type, _: SType, _: SType) => SBoolean) {
       case (r, cb, Seq(tlocus: TLocus), _, contig, pos, _) =>
         val scontig = contig.asString.loadString(cb)
-        primitive(cb.memoize(rgCode(r.mb, tlocus.rg).invoke[String, Int, Boolean]("isValidLocus", scontig, pos.asInt.intCode(cb))))
+        primitive(cb.memoize(rgCode(r.mb, tlocus.rg).invoke[String, Int, Boolean]("isValidLocus", scontig, pos.asInt.value)))
     }
 
     registerSCode4t("getReferenceSequenceFromValidLocus",
@@ -36,9 +36,9 @@ object ReferenceGenomeFunctions extends RegistryFunctions {
         unwrapReturn(cb, r.region, st,
           rgCode(cb.emb, typeParam.rg).invoke[String, Int, Int, Int, String]("getSequence",
             scontig,
-            pos.asInt.intCode(cb),
-            before.asInt.intCode(cb),
-            after.asInt.intCode(cb)))
+            pos.asInt.value,
+            before.asInt.value,
+            after.asInt.value))
     }
 
     registerSCode1t("contigLength", Array(LocusFunctions.tlocus("R")), TString, TInt32, (_: Type, _: SType) => SInt32) {

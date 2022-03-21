@@ -1,10 +1,11 @@
+from typing import List, BinaryIO
+import gzip
+import io
 import os
-from stat import S_ISREG, S_ISDIR
-from typing import Dict, List
-from hurry.filesize import size
 from shutil import copy2, rmtree
 
 from .fs import FS
+from .stat_result import StatResult
 
 
 class LocalFS(FS):
@@ -12,7 +13,25 @@ class LocalFS(FS):
         pass
 
     def open(self, path: str, mode: str = 'r', buffer_size: int = 0):
-        return open(path, mode)
+        if mode not in ('r', 'rb', 'w', 'wb'):
+            raise ValueError(f'Unsupported mode: {repr(mode)}')
+
+        strm: BinaryIO
+        if mode[0] == 'r':
+            strm = open(path, 'rb')
+        else:
+            assert mode[0] == 'w'
+            try:
+                strm = open(path, 'wb')
+            except FileNotFoundError:
+                os.makedirs(os.path.dirname(path))
+                strm = open(path, 'wb')
+
+        if path[-3:] == '.gz' or path[-4:] == '.bgz':
+            strm = gzip.GzipFile(fileobj=strm, mode=mode)  # type: ignore # GzipFile should be a BinaryIO
+        if 'b' not in mode:
+            strm = io.TextIOWrapper(strm, encoding='utf-8')  # type: ignore # TextIOWrapper should be a BinaryIO
+        return strm
 
     def copy(self, src: str, dest: str):
         dst_w_file = dest
@@ -28,36 +47,16 @@ class LocalFS(FS):
         return os.path.exists(path)
 
     def is_file(self, path: str) -> bool:
-        try:
-            return S_ISREG(os.stat(path).st_mode)
-        except FileNotFoundError:
-            return False
+        return os.path.isfile(path)
 
     def is_dir(self, path: str) -> bool:
-        try:
-            return self._stat_is_local_dir(os.stat(path))
-        except FileNotFoundError:
-            return False
+        return os.path.isdir(path)
 
-    def stat(self, path: str) -> Dict:
-        return self._format_stat_local_file(os.stat(path), path)
+    def stat(self, path: str) -> StatResult:
+        return StatResult.from_os_stat_result(path, os.stat(path))
 
-    def _format_stat_local_file(self, stats: os.stat_result, path: str) -> Dict:
-        return {
-            'is_dir': self._stat_is_local_dir(stats),
-            'size_bytes': stats.st_size,
-            'size': size(stats.st_size),
-            'path': path,
-            'owner': stats.st_uid,
-            'modification_time': stats.st_mtime,
-        }
-
-    def _stat_is_local_dir(self, stats: os.stat_result) -> bool:
-        return S_ISDIR(stats.st_mode)
-
-    def ls(self, path: str) -> List[Dict]:
-        return [self._format_stat_local_file(os.stat(os.path.join(path, file)),
-                                             os.path.join(path, file))
+    def ls(self, path: str) -> List[StatResult]:
+        return [self.stat(os.path.join(path, file))
                 for file in os.listdir(path)]
 
     def mkdir(self, path: str):

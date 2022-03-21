@@ -1,5 +1,6 @@
-from hail.genetics.reference_genome import reference_genome_type
-from hail.typecheck import typecheck_method, oneof
+import hail as hl
+from hail.genetics.reference_genome import reference_genome_type, ReferenceGenome
+from hail.typecheck import typecheck_method
 
 
 class Locus(object):
@@ -26,12 +27,16 @@ class Locus(object):
      - :func:`.locus_from_global_position`
     """
 
-    @typecheck_method(contig=oneof(str, int),
-                      position=int,
-                      reference_genome=reference_genome_type)
     def __init__(self, contig, position, reference_genome='default'):
         if isinstance(contig, int):
             contig = str(contig)
+
+        if isinstance(reference_genome, str):
+            reference_genome = hl.get_reference(reference_genome)
+
+        assert isinstance(contig, str)
+        assert isinstance(position, int)
+        assert isinstance(reference_genome, ReferenceGenome)
 
         self._contig = contig
         self._position = position

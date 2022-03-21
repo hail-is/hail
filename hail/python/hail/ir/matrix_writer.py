@@ -1,7 +1,7 @@
 import abc
 import json
 from hail.expr.types import hail_type
-from ..typecheck import typecheck_method, nullable, dictof
+from ..typecheck import typecheck_method, nullable, dictof, sequenceof
 from ..utils.misc import escape_str
 from .export_type import ExportType
 
@@ -162,23 +162,27 @@ class MatrixBlockMatrixWriter(MatrixWriter):
 
 
 class MatrixNativeMultiWriter(object):
-    @typecheck_method(prefix=str,
+    @typecheck_method(paths=sequenceof(str),
                       overwrite=bool,
-                      stage_locally=bool)
-    def __init__(self, prefix, overwrite, stage_locally):
-        self.prefix = prefix
+                      stage_locally=bool,
+                      codec_spec=nullable(str))
+    def __init__(self, paths, overwrite, stage_locally, codec_spec):
+        self.paths = paths
         self.overwrite = overwrite
         self.stage_locally = stage_locally
+        self.codec_spec = codec_spec
 
     def render(self):
         writer = {'name': 'MatrixNativeMultiWriter',
-                  'prefix': self.prefix,
+                  'paths': list(self.paths),
                   'overwrite': self.overwrite,
-                  'stageLocally': self.stage_locally}
+                  'stageLocally': self.stage_locally,
+                  'codecSpecJSONStr': self.codec_spec}
         return escape_str(json.dumps(writer))
 
     def __eq__(self, other):
         return isinstance(other, MatrixNativeMultiWriter) and \
-            other.prefix == self.prefix and \
+            other.paths == self.paths and \
             other.overwrite == self.overwrite and \
-            other.stage_locally == self.stage_locally
+            other.stage_locally == self.stage_locally and \
+            other.codec_spec == self.codec_spec

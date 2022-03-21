@@ -2,6 +2,7 @@ include ../config.mk
 
 PYTHONPATH := $${PYTHONPATH:+$${PYTHONPATH}:}../hail/python:../gear
 PYTHON := PYTHONPATH=$(PYTHONPATH) python3
+BLACK := $(PYTHON) -m black . --line-length=120 --skip-string-normalization
 
 TOKEN = $(shell cat /dev/urandom | LC_ALL=C tr -dc 'a-z0-9' | head -c 12)
 
@@ -11,6 +12,8 @@ MEMORY_IMAGE := $(DOCKER_PREFIX)/memory:$(TOKEN)
 check:
 	$(PYTHON) -m flake8  --config ../setup.cfg memory
 	$(PYTHON) -m pylint --rcfile ../pylintrc memory --score=n
+	$(PYTHON) -m isort . --check-only --diff
+	$(BLACK) --check --diff
 
 .PHONY: build
 build:

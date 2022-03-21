@@ -37,12 +37,18 @@ object Bindings {
         Array((valueName, coerce[TStream](a.typ).elementType)) ++ accum.map { case (name, value) => (name, value.typ) }
       else
         accum.map { case (name, value) => (name, value.typ) }
+    case StreamBufferedAggregate(stream, _,  _, _, name, _) => if (i > 0) Array(name -> coerce[TStream](stream.typ).elementType) else empty
     case RunAggScan(a, name, _, _, _, _) => if (i == 2 || i == 3) Array(name -> coerce[TStream](a.typ).elementType) else empty
     case StreamScan(a, zero, accumName, valueName, _) => if (i == 2) Array(accumName -> zero.typ, valueName -> coerce[TStream](a.typ).elementType) else empty
     case StreamAggScan(a, name, _) => if (i == 1) FastIndexedSeq(name -> a.typ.asInstanceOf[TStream].elementType) else empty
     case StreamJoinRightDistinct(ll, rr, _, _, l, r, _, _) => if (i == 2) Array(l -> coerce[TStream](ll.typ).elementType, r -> coerce[TStream](rr.typ).elementType) else empty
     case ArraySort(a, left, right, _) => if (i == 1) Array(left -> coerce[TStream](a.typ).elementType, right -> coerce[TStream](a.typ).elementType) else empty
     case AggArrayPerElement(a, _, indexName, _, _, _) => if (i == 1) FastIndexedSeq(indexName -> TInt32) else empty
+    case AggFold(zero, seqOp, combOp, accumName, otherAccumName, _) => {
+      if (i == 1) FastIndexedSeq(accumName -> zero.typ)
+      else if (i == 2) FastIndexedSeq(accumName -> zero.typ, otherAccumName -> zero.typ)
+      else empty
+    }
     case NDArrayMap(nd, name, _) => if (i == 1) Array(name -> coerce[TNDArray](nd.typ).elementType) else empty
     case NDArrayMap2(l, r, lName, rName, _, _) => if (i == 2) Array(lName -> coerce[TNDArray](l.typ).elementType, rName -> coerce[TNDArray](r.typ).elementType) else empty
     case CollectDistributedArray(contexts, globals, cname, gname, _, _) => if (i == 2) Array(cname -> coerce[TStream](contexts.typ).elementType, gname -> globals.typ) else empty
@@ -93,6 +99,7 @@ object AggBindings {
       case RelationalLet(_, _, _) => None
       case CollectDistributedArray(_, _, _, _, _, _) if (i == 2) => None
       case _: ApplyAggOp => None
+      case AggFold(_, _, _, _, _, false) => None
       case _: IR => base
 
       case TableAggregateByKey(child, _) => if (i == 1) Some(child.typ.rowEnv.m) else None
@@ -127,6 +134,7 @@ object ScanBindings {
       case AggGroupBy(_, _, true) => if (i == 0) None else base
       case AggExplode(a, name, _, true) => if (i == 1) wrapped(FastIndexedSeq(name -> a.typ.asInstanceOf[TIterable].elementType)) else None
       case AggArrayPerElement(a, elementName, _, _, _, true) => if (i == 1) wrapped(FastIndexedSeq(elementName -> a.typ.asInstanceOf[TIterable].elementType)) else if (i == 2) base else None
+      case AggFold(_, _, _, _, _, true) =>  None
       case StreamAggScan(a, name, _) => if (i == 1) Some(FastIndexedSeq(name -> a.typ.asInstanceOf[TIterable].elementType)) else base
       case TableAggregate(_, _) => None
       case MatrixAggregate(_, _) => None
@@ -177,6 +185,14 @@ object ChildEnvWithoutBindings {
       case StreamAggScan(_, _, _) => if (i == 1) BindingEnv(eval = env.eval, agg = env.agg.map(_ => Env.empty), scan = Some(env.eval), relational = env.relational) else env
       case ApplyAggOp(init, _, _) => if (i < init.length) env.copy(agg = None) else env.promoteAgg
       case ApplyScanOp(init, _, _) => if (i < init.length) env.copy(scan = None) else env.promoteScan
+      case AggFold(zero, seqOp, combOp, elementName, accumName, isScan) => (isScan, i) match {
+        case (true, 0) => env.copy(scan = None)
+        case (false, 0) => env.copy(agg = None)
+        case (true, 1) => env.promoteScan
+        case (false, 1) => env.promoteAgg
+        case (true, 2) => env.copy(eval = Env.empty, scan = None)
+        case (false, 2) => env.copy(eval = Env.empty, agg = None)
+      }
       case CollectDistributedArray(_, _, _, _, _, _) => if (i == 2) BindingEnv(relational = env.relational) else env
       case MatrixAggregate(_, _) => if (i == 0) BindingEnv(relational = env.relational) else BindingEnv(Env.empty, agg = Some(Env.empty), relational = env.relational)
       case TableAggregate(_, _) => if (i == 0) BindingEnv(relational = env.relational) else BindingEnv(Env.empty, agg = Some(Env.empty), relational = env.relational)

@@ -154,7 +154,8 @@ class MultipleValidator:
         excs = []
         for checker in self.checkers:
             try:
-                return checker.validate(name, obj)
+                checker.validate(name, obj)
+                return
             except ValidationError as e:
                 excs.append(e)
         if excs:
@@ -163,7 +164,7 @@ class MultipleValidator:
             raise ValidationError(f'{name} does not satisfy any conditions: {reasons}')
 
 
-def required(key: str):
+def required(key: str) -> RequiredKey:
     return RequiredKey(key)
 
 
@@ -172,7 +173,7 @@ non_empty_str_type = MultipleValidator([str_type, TruthyValidator()])
 bool_type = TypedValidator(bool)
 int_type = TypedValidator(int)
 
-Validator = Union[TypedValidator, NumericValidator, NullableValidator, TruthyValidator, SetValidator]
+Validator = Union[TypedValidator, NumericValidator, NullableValidator, TruthyValidator, SetValidator, MultipleValidator]
 
 
 def dictof(vchecker: Validator):

@@ -1,6 +1,5 @@
 import time
 import datetime
-import humanize
 import dateutil.parser
 
 
@@ -14,6 +13,7 @@ def time_msecs_str(t) -> str:
 
 
 def humanize_timedelta_msecs(delta_msecs):
+    import humanize  # pylint: disable=import-outside-toplevel
     if delta_msecs is None:
         return None
 

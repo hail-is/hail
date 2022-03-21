@@ -1,15 +1,16 @@
-import os
-import sys
-import base64
-import string
-import json
-import secrets
 import asyncio
-import shutil
+import base64
+import json
+import os
+import secrets
+import string
+import sys
 from shlex import quote as shq
-from hailtop.utils import check_shell, check_shell_output
-from hailtop.auth.sql_config import create_secret_data_from_config, SQLConfig
+from typing import Optional
+
 from gear import Database
+from hailtop.auth.sql_config import SQLConfig, create_secret_data_from_config
+from hailtop.utils import check_shell, check_shell_output
 
 assert len(sys.argv) == 1
 create_database_config = json.load(sys.stdin)
@@ -25,10 +26,16 @@ def generate_token(size=12):
 async def write_user_config(namespace: str, database_name: str, user: str, config: SQLConfig):
     with open('/sql-config/server-ca.pem', 'r') as f:
         server_ca = f.read()
-    with open('/sql-config/client-cert.pem', 'r') as f:
-        client_cert = f.read()
-    with open('/sql-config/client-key.pem', 'r') as f:
-        client_key = f.read()
+    client_cert: Optional[str]
+    client_key: Optional[str]
+    if config.using_mtls():
+        with open('/sql-config/client-cert.pem', 'r') as f:
+            client_cert = f.read()
+        with open('/sql-config/client-key.pem', 'r') as f:
+            client_key = f.read()
+    else:
+        client_cert = None
+        client_key = None
     secret = create_secret_data_from_config(config, server_ca, client_cert, client_key)
     files = secret.keys()
     for fname, data in secret.items():
@@ -108,7 +115,7 @@ GRANT SELECT, INSERT, UPDATE, DELETE, EXECUTE ON `{_name}`.* TO '{user_username}
             host=sql_config.host,
             port=sql_config.port,
             instance=sql_config.instance,
-            connection_name=sql_config.instance,
+            connection_name=sql_config.connection_name,
             user=admin_username,
             password=admin_password,
             db=_name,
@@ -127,7 +134,7 @@ GRANT SELECT, INSERT, UPDATE, DELETE, EXECUTE ON `{_name}`.* TO '{user_username}
             host=sql_config.host,
             port=sql_config.port,
             instance=sql_config.instance,
-            connection_name=sql_config.instance,
+            connection_name=sql_config.connection_name,
             user=user_username,
             password=user_password,
             db=_name,
@@ -209,8 +216,8 @@ VALUES (%s, %s, %s);
             f'SELECT * FROM `{database_name}_migrations` WHERE version = %s;', (to_version,)
         )
         assert row is not None
-        assert name == row['name']
-        assert script_sha1 == row['script_sha1']
+        assert name == row['name'], row
+        assert script_sha1 == row['script_sha1'], row
 
 
 async def async_main():
@@ -218,6 +225,7 @@ async def async_main():
 
     namespace = create_database_config['namespace']
     scope = create_database_config['scope']
+    cloud = create_database_config['cloud']
     database_name = create_database_config['database_name']
 
     admin_secret_name = f'sql-{database_name}-admin-config'
@@ -236,6 +244,7 @@ kubectl -n {namespace} get -o json secret {shq(admin_secret_name)}
 
     os.environ['HAIL_DATABASE_CONFIG_FILE'] = '/sql-config.json'
     os.environ['HAIL_SCOPE'] = scope
+    os.environ['HAIL_CLOUD'] = cloud
 
     db = Database()
     await db.async_init()

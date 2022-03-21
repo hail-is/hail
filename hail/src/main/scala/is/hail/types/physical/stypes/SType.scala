@@ -28,20 +28,12 @@ object SType {
     PType.canonical(virt).sType
   }
 
-  def extractPrimCode(cb: EmitCodeBuilder, x: SCode): Code[_] = x.st.virtualType match {
-      case TInt32 => x.asInt.intCode(cb)
-      case TInt64 => x.asLong.longCode(cb)
-      case TFloat32 => x.asFloat.floatCode(cb)
-      case TFloat64 => x.asDouble.doubleCode(cb)
-      case TBoolean => x.asBoolean.boolCode(cb)
-    }
-
   def extractPrimValue(cb: EmitCodeBuilder, x: SValue): Value[_] = x.st.virtualType match {
-    case TInt32 => x.asInt.intCode(cb)
-    case TInt64 => x.asLong.longCode(cb)
-    case TFloat32 => x.asFloat.floatCode(cb)
-    case TFloat64 => x.asDouble.doubleCode(cb)
-    case TBoolean => x.asBoolean.boolCode(cb)
+    case TInt32 => x.asInt.value
+    case TInt64 => x.asLong.value
+    case TFloat32 => x.asFloat.value
+    case TFloat64 => x.asDouble.value
+    case TBoolean => x.asBoolean.value
   }
 }
 

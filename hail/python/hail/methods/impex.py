@@ -1,4 +1,5 @@
 import json
+import os
 import re
 from typing import List
 
@@ -501,12 +502,22 @@ def export_vcf(dataset, output, append_to_header=None, parallel=None, metadata=N
         **Note**: This feature is experimental, and the interface and defaults
         may change in future versions.
     """
+    _, ext = os.path.splitext(output)
+    if ext == '.gz':
+        warning('VCF export with standard gzip compression requested. This is almost *never* desired and will '
+                'cause issues with other tools that consume VCF files. The compression format used for VCF '
+                'files is traditionally *block* gzip compression. To use block gzip compression with hail VCF '
+                'export, use a path ending in `.bgz`.')
     if isinstance(dataset, Table):
         mt = MatrixTable.from_rows_table(dataset)
         dataset = mt.key_cols_by(sample="")
 
     require_col_key_str(dataset, 'export_vcf')
     require_row_key_variant(dataset, 'export_vcf')
+
+    if 'filters' in dataset.row and dataset.filters.dtype != hl.tset(hl.tstr):
+        raise ValueError(f"'export_vcf': expect the 'filters' field to be set<str>, found {dataset.filters.dtype}"
+                         f"\n  Either transform this field to set<str> to export as VCF FILTERS field, or drop it from the dataset.")
 
     info_fields = list(dataset.info) if "info" in dataset.row else []
     invalid_info_fields = [f for f in info_fields if not re.fullmatch(r"^([A-Za-z_][0-9A-Za-z_.]*|1000G)", f)]
@@ -2459,8 +2470,6 @@ def import_vcf(path,
 
 @typecheck(path=sequenceof(str),
            partitions=expr_any,
-           force=bool,
-           force_bgz=bool,
            call_fields=oneof(str, sequenceof(str)),
            entry_float_type=enumeration(tfloat32, tfloat64),
            reference_genome=nullable(reference_genome_type),
@@ -2473,8 +2482,6 @@ def import_vcf(path,
            _external_header=nullable(str))
 def import_gvcfs(path,
                  partitions,
-                 force=False,
-                 force_bgz=False,
                  call_fields=['PGT'],
                  entry_float_type=tfloat64,
                  reference_genome='default',
@@ -2489,13 +2496,15 @@ def import_gvcfs(path,
 
     .. include:: ../_templates/experimental.rst
 
-    The arguments to this function are almost identical to
-    :func:`.import_vcf`, the only difference is the `partitions`
-    argument, which is used to divide and filter the vcfs.  It must be
-    an expression or literal of type ``array<interval<struct{locus:locus<RG>}>>``.  A
-    partition will be created for every element of the array. Loci
-    that fall outside of any interval will not be imported. For
-    example:
+    All files described by the ``path`` argument must be block gzipped VCF
+    files. They must all be tabix indexed. Because of this requirement, no
+    ``force`` or ``force_bgz`` arguments are present. Otherwise, the arguments
+    to this function are almost identical to :func:`.import_vcf`.  However, this
+    function also requrires a ``partitions`` argument, which is used to divide
+    and filter the vcfs.  It must be an expression or literal of type
+    ``array<interval<struct{locus:locus<RG>}>>``. A partition will be created
+    for every element of the array. Loci that fall outside of any interval will
+    not be imported. For example:
 
     .. code-block:: python
 
@@ -2524,8 +2533,6 @@ def import_gvcfs(path,
         contig_recoding,
         array_elements_required,
         skip_invalid_loci,
-        force_bgz,
-        force,
         partitions, partitions_type._parsable_string(),
         filter,
         find_replace[0] if find_replace is not None else None,

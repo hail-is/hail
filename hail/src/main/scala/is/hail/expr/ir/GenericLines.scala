@@ -18,8 +18,7 @@ trait CloseableIterator[T] extends Iterator[T] with AutoCloseable
 object GenericLines {
   def read(fs: FS, contexts: IndexedSeq[Any], gzAsBGZ: Boolean): GenericLines = {
 
-    val fsBc = fs.broadcast
-    val body: (Any) => CloseableIterator[GenericLine] = { (context: Any) =>
+    val body: (FS, Any) => CloseableIterator[GenericLine] = { (fs: FS, context: Any) =>
       val contextRow = context.asInstanceOf[Row]
       val index = contextRow.getAs[Int](0)
       val file = contextRow.getAs[String](1)
@@ -30,7 +29,6 @@ object GenericLines {
       new CloseableIterator[GenericLine] {
         private var splitCompressed = false
         private val is: PositionedInputStream = {
-          val fs = fsBc.value
           val rawIS = fs.openNoCompression(file)
           val codec = fs.getCodecFromPath(file, gzAsBGZ)
           if (codec == null) {
@@ -297,9 +295,9 @@ object GenericLines {
     GenericLines.read(fs, contexts, gzAsBGZ)
   }
 
-  def collect(lines: GenericLines): IndexedSeq[String] = {
+  def collect(fs: FS, lines: GenericLines): IndexedSeq[String] = {
     lines.contexts.flatMap { context =>
-      using(lines.body(context)) { it =>
+      using(lines.body(fs, context)) { it =>
         it.map(_.toString).toArray
       }
     }
@@ -367,9 +365,12 @@ class GenericLinesRDD(
 class GenericLines(
   val contextType: Type,
   val contexts: IndexedSeq[Any],
-  val body: (Any) => CloseableIterator[GenericLine]) {
+  val body: (FS, Any) => CloseableIterator[GenericLine]) {
 
   def nPartitions: Int = contexts.length
 
-  def toRDD(): RDD[GenericLine] = new GenericLinesRDD(contexts, body)
+  def toRDD(fs: FS): RDD[GenericLine] = {
+    val localBody = body
+    new GenericLinesRDD(contexts, localBody(fs, _))
+  }
 }

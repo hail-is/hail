@@ -15,7 +15,15 @@ apt-get install -y \
 
 # Install Docker
 
-curl -fsSL https://download.docker.com/linux/ubuntu/gpg | apt-key add -
+curl --connect-timeout 5 \
+     --max-time 10 \
+     --retry 5 \
+     --retry-max-time 40 \
+     --location \
+     --fail \
+     --silent \
+     --show-error \
+     https://download.docker.com/linux/ubuntu/gpg | apt-key add -
 
 add-apt-repository \
    "deb [arch=amd64] https://download.docker.com/linux/ubuntu \
@@ -29,19 +37,10 @@ rm -rf /var/lib/apt/lists/*
 [ -f /etc/docker/daemon.json ] || echo "{}" > /etc/docker/daemon.json
 
 # Install Azure CLI
-curl -sL https://packages.microsoft.com/keys/microsoft.asc |
-    gpg --dearmor |
-    tee /etc/apt/trusted.gpg.d/microsoft.gpg > /dev/null
-
-AZ_REPO=$(lsb_release -cs)
-echo "deb [arch=amd64] https://packages.microsoft.com/repos/azure-cli/ $AZ_REPO main" |
-    tee /etc/apt/sources.list.d/azure-cli.list
-
-apt-get update
-apt-get install azure-cli
+curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
 
 az login --identity
-az acr login --name {{ global.container_registry_name }}
+az acr login --name {{ global.docker_prefix }}
 
 # avoid "unable to get current user home directory: os/user lookup failed"
 export HOME=/root

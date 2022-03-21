@@ -1,30 +1,38 @@
-import datetime
-import calendar
 import asyncio
-import os
+import calendar
+import datetime
 import json
-from aiohttp import web
-import aiohttp_session
 import logging
+import os
 from collections import defaultdict, namedtuple
-from prometheus_async.aio.web import server_stats  # type: ignore
-import prometheus_client as pc  # type: ignore
 
-from hailtop import aiogoogle, aiotools
-from hailtop.aiogoogle import BigQueryClient, ComputeClient
+import aiohttp_session
+import prometheus_client as pc  # type: ignore
+from aiohttp import web
+from prometheus_async.aio.web import server_stats  # type: ignore
+
+from gear import (
+    Database,
+    rest_authenticated_developers_only,
+    setup_aiohttp_session,
+    transaction,
+    web_authenticated_developers_only,
+)
+from hailtop import aiotools, httpx
+from hailtop.aiocloud import aiogoogle
 from hailtop.config import get_deploy_config
 from hailtop.hail_logging import AccessLogger
 from hailtop.tls import internal_server_ssl_context
-from hailtop.utils import (run_if_changed_idempotent, retry_long_running, time_msecs, cost_str, parse_timestamp_msecs,
-                           url_basename, periodically_call)
-from gear import (
-    Database,
-    setup_aiohttp_session,
-    web_authenticated_developers_only,
-    rest_authenticated_developers_only,
-    transaction,
+from hailtop.utils import (
+    cost_str,
+    parse_timestamp_msecs,
+    periodically_call,
+    retry_long_running,
+    run_if_changed_idempotent,
+    time_msecs,
+    url_basename,
 )
-from web_common import setup_aiohttp_jinja2, setup_common_static_routes, render_template, set_message
+from web_common import render_template, set_message, setup_aiohttp_jinja2, setup_common_static_routes
 
 from .configuration import HAIL_USE_FULL_QUERY
 
@@ -41,7 +49,9 @@ BATCH_GCP_REGIONS.add(GCP_REGION)
 PROJECT = os.environ['PROJECT']
 
 DISK_SIZES_GB = pc.Summary('batch_disk_size_gb', 'Batch disk sizes (GB)', ['namespace', 'zone', 'state'])
-INSTANCES = pc.Gauge('batch_instances', 'Batch instances', ['namespace', 'zone', 'status', 'machine_type', 'preemptible'])
+INSTANCES = pc.Gauge(
+    'batch_instances', 'Batch instances', ['namespace', 'zone', 'status', 'machine_type', 'preemptible']
+)
 
 DiskLabels = namedtuple('DiskLabels', ['zone', 'namespace', 'state'])
 InstanceLabels = namedtuple('InstanceLabels', ['namespace', 'zone', 'status', 'machine_type', 'preemptible'])
@@ -180,7 +190,7 @@ CASE
   ELSE NULL
 END AS source
 FROM `broad-ctsa.hail_billing.gcp_billing_export_v1_0055E5_9CA197_B9B894`
-WHERE DATE(_PARTITIONTIME) >= "{start_str}" AND DATE(_PARTITIONTIME) <= "{end_str}" AND project.name = "hail-vdc" AND invoice.month = "{invoice_month}"
+WHERE DATE(_PARTITIONTIME) >= "{start_str}" AND DATE(_PARTITIONTIME) <= "{end_str}" AND project.name = "{PROJECT}" AND invoice.month = "{invoice_month}"
 GROUP BY service_id, service_description, sku_id, sku_description, source;
 '''
 
@@ -246,7 +256,7 @@ async def polling_loop(app):
 
 async def monitor_disks(app):
     log.info('monitoring disks')
-    compute_client: ComputeClient = app['compute_client']
+    compute_client: aiogoogle.GoogleComputeClient = app['compute_client']
 
     disk_counts = defaultdict(list)
 
@@ -282,18 +292,20 @@ async def monitor_disks(app):
 
 async def monitor_instances(app):
     log.info('monitoring instances')
-    compute_client: ComputeClient = app['compute_client']
+    compute_client: aiogoogle.GoogleComputeClient = app['compute_client']
 
     instance_counts = defaultdict(int)
 
     for zone in app['zones']:
-        async for instance in await compute_client.list(f'/zones/{zone}/instances', params={'filter': '(labels.role = batch2-agent)'}):
+        async for instance in await compute_client.list(
+            f'/zones/{zone}/instances', params={'filter': '(labels.role = batch2-agent)'}
+        ):
             instance_labels = InstanceLabels(
                 status=instance['status'],
                 zone=zone,
                 namespace=instance['labels']['namespace'],
                 machine_type=instance['machineType'].rsplit('/', 1)[1],
-                preemptible=instance['scheduling']['preemptible']
+                preemptible=instance['scheduling']['preemptible'],
             )
             instance_counts[instance_labels] += 1
 
@@ -306,13 +318,14 @@ async def on_startup(app):
     db = Database()
     await db.async_init()
     app['db'] = db
+    app['client_session'] = httpx.client_session()
 
-    aiogoogle_credentials = aiogoogle.Credentials.from_file('/billing-monitoring-gsa-key/key.json')
+    aiogoogle_credentials = aiogoogle.GoogleCredentials.from_file('/billing-monitoring-gsa-key/key.json')
 
-    bigquery_client = BigQueryClient('broad-ctsa', credentials=aiogoogle_credentials)
+    bigquery_client = aiogoogle.GoogleBigQueryClient('broad-ctsa', credentials=aiogoogle_credentials)
     app['bigquery_client'] = bigquery_client
 
-    compute_client = ComputeClient(PROJECT, credentials=aiogoogle_credentials)
+    compute_client = aiogoogle.GoogleComputeClient(PROJECT, credentials=aiogoogle_credentials)
     app['compute_client'] = compute_client
 
     query_billing_event = asyncio.Event()
@@ -340,7 +353,10 @@ async def on_cleanup(app):
     try:
         await app['db'].async_close()
     finally:
-        app['task_manager'].shutdown()
+        try:
+            await app['client_session'].close()
+        finally:
+            app['task_manager'].shutdown()
 
 
 def run():

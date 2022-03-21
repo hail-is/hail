@@ -2,8 +2,6 @@ package is.hail.types.physical
 
 import is.hail.annotations.Region
 import is.hail.asm4s._
-import is.hail.expr.ir.EmitCodeBuilder
-import is.hail.types.physical.stypes.interfaces.{SLocusCode, SLocusValue}
 import is.hail.types.virtual.TLocus
 import is.hail.variant._
 

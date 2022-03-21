@@ -38,6 +38,14 @@ object CodeOrdering {
 
   final case class Neq(missingEqual: Boolean = true) extends BooleanOp
 
+  final case class StructLt(missingEqual: Boolean = true) extends BooleanOp
+
+  final case class StructLteq(missingEqual: Boolean = true) extends BooleanOp
+
+  final case class StructGt(missingEqual: Boolean = true) extends BooleanOp
+
+  final case class StructCompare(missingEqual: Boolean = true) extends BooleanOp
+
   type F[R] = (EmitCodeBuilder, EmitValue, EmitValue) => Value[R]
 
   def makeOrdering(t1: SType, t2: SType, ecb: EmitClassBuilder[_]): CodeOrdering = {

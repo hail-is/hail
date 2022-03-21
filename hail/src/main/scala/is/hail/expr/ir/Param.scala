@@ -1,7 +1,7 @@
 package is.hail.expr.ir
 
-import is.hail.asm4s.{BooleanInfo, Code, TypeInfo, classInfo}
-import is.hail.types.physical.stypes.{EmitType, SCode, SType, SingleCodeType}
+import is.hail.asm4s.{BooleanInfo, TypeInfo, Value}
+import is.hail.types.physical.stypes.{EmitType, SType, SValue, SingleCodeType}
 import is.hail.types.virtual.Type
 import is.hail.utils.FastIndexedSeq
 
@@ -59,6 +59,6 @@ case class SCodeEmitParamType(et: EmitType) extends EmitParamType {
 
 sealed trait Param
 
-case class CodeParam(c: Code[_]) extends Param
+case class CodeParam(c: Value[_]) extends Param
 case class EmitParam(ec: EmitCode) extends Param
-case class SCodeParam(sc: SCode) extends Param
+case class SCodeParam(sc: SValue) extends Param

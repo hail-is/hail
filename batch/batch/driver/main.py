@@ -1,67 +1,62 @@
-import logging
-import json
-from typing import Dict
-from functools import wraps
-from collections import namedtuple, defaultdict
-import copy
 import asyncio
+import copy
+import json
+import logging
 import signal
-import dictdiffer
-from aiohttp import web
+from collections import defaultdict, namedtuple
+from functools import wraps
+from typing import Dict, List
+
 import aiohttp_session
-import kubernetes_asyncio as kube
-from prometheus_async.aio.web import server_stats
+import dictdiffer
+import googlecloudprofiler
+import kubernetes_asyncio.client
+import kubernetes_asyncio.config
 import prometheus_client as pc  # type: ignore
+import uvloop
+from aiohttp import web
+from prometheus_async.aio.web import server_stats
+
 from gear import (
     Database,
-    setup_aiohttp_session,
-    rest_authenticated_developers_only,
-    web_authenticated_developers_only,
     check_csrf_token,
-    transaction,
     monitor_endpoints_middleware,
+    rest_authenticated_developers_only,
+    setup_aiohttp_session,
+    transaction,
+    web_authenticated_developers_only,
 )
-from hailtop.hail_logging import AccessLogger
+from gear.clients import get_cloud_async_fs
+from hailtop import aiotools, httpx
 from hailtop.config import get_deploy_config
-from hailtop.utils import (
-    time_msecs,
-    RateLimit,
-    serialization,
-    Notice,
-    periodically_call,
-    AsyncWorkerPool,
-    dump_all_stacktraces,
-)
+from hailtop.hail_logging import AccessLogger
 from hailtop.tls import internal_server_ssl_context
-from hailtop import aiogoogle, aiotools
-from web_common import setup_aiohttp_jinja2, setup_common_static_routes, render_template, set_message
-import googlecloudprofiler
-import uvloop
+from hailtop.utils import AsyncWorkerPool, Notice, dump_all_stacktraces, periodically_call, serialization, time_msecs
+from web_common import render_template, set_message, setup_aiohttp_jinja2, setup_common_static_routes
 
-from ..file_store import FileStore
 from ..batch import cancel_batch_in_db
 from ..batch_configuration import (
-    REFRESH_INTERVAL_IN_SECONDS,
+    BATCH_STORAGE_URI,
+    CLOUD,
     DEFAULT_NAMESPACE,
-    BATCH_BUCKET_NAME,
     HAIL_SHA,
-    HAIL_SHOULD_PROFILE,
     HAIL_SHOULD_CHECK_INVARIANTS,
-    PROJECT,
+    HAIL_SHOULD_PROFILE,
     MACHINE_NAME_PREFIX,
+    REFRESH_INTERVAL_IN_SECONDS,
 )
+from ..cloud.driver import get_cloud_driver
+from ..cloud.resource_utils import local_ssd_size, possible_cores_from_worker_type, unreserved_worker_data_disk_size_gib
+from ..exceptions import BatchUserError
+from ..file_store import FileStore
 from ..globals import HTTP_CLIENT_MAX_SIZE
-from ..inst_coll_config import InstanceCollectionConfigs
-
-from .zone_monitor import ZoneMonitor
-from .gce import GCEEventMonitor
+from ..inst_coll_config import InstanceCollectionConfigs, PoolConfig
+from ..utils import authorization_token, batch_only, query_billing_projects
 from .canceller import Canceller
-from .instance_collection_manager import InstanceCollectionManager
+from .driver import CloudDriver
+from .instance_collection import InstanceCollectionManager, JobPrivateInstanceManager, Pool
 from .job import mark_job_complete, mark_job_started
 from .k8s_cache import K8sCache
-from .pool import Pool
-from ..utils import query_billing_projects, unreserved_worker_data_disk_size_gib, batch_only, authorization_token
-from ..exceptions import BatchUserError
 
 uvloop.install()
 
@@ -93,7 +88,7 @@ def instance_name_from_request(request):
 
 def instance_from_request(request):
     instance_name = instance_name_from_request(request)
-    inst_coll_manager = request.app['inst_coll_manager']
+    inst_coll_manager: InstanceCollectionManager = request.app['driver'].inst_coll_manager
     return inst_coll_manager.get_instance(instance_name)
 
 
@@ -148,12 +143,10 @@ def active_instances_only(fun):
             log.info(f'token not found for instance {instance.name}')
             raise web.HTTPUnauthorized()
 
-        db = request.app['db']
-        record = await db.select_and_fetchone(
-            'SELECT state FROM instances WHERE name = %s AND token = %s;', (instance.name, token)
-        )
-        if not record:
-            log.info(f'instance {instance.name}, token not found in database')
+        inst_coll_manager: InstanceCollectionManager = request.app['driver'].inst_coll_manager
+        retrieved_token: str = await inst_coll_manager.name_token_cache.lookup(instance.name)
+        if token != retrieved_token:
+            log.info('authorization token does not match')
             raise web.HTTPUnauthorized()
 
         await instance.mark_healthy()
@@ -221,9 +214,18 @@ async def delete_batch(request):
     return web.Response()
 
 
+# deprecated
 async def get_gsa_key_1(instance):
     log.info(f'returning gsa-key to activating instance {instance}')
-    with open('/gsa-key/key.json', 'r') as f:
+    with open('/gsa-key/key.json', 'r', encoding='utf-8') as f:
+        key = json.loads(f.read())
+    return web.json_response({'key': key})
+
+
+async def get_credentials_1(instance):
+    log.info(f'returning {instance.inst_coll.cloud} credentials to activating instance {instance}')
+    credentials_file = '/gsa-key/key.json'
+    with open(credentials_file, 'r', encoding='utf-8') as f:
         key = json.loads(f.read())
     return web.json_response({'key': key})
 
@@ -240,10 +242,17 @@ async def activate_instance_1(request, instance):
     return web.json_response({'token': token})
 
 
+# deprecated
 @routes.get('/api/v1alpha/instances/gsa_key')
 @activating_instances_only
 async def get_gsa_key(request, instance):  # pylint: disable=unused-argument
     return await asyncio.shield(get_gsa_key_1(instance))
+
+
+@routes.get('/api/v1alpha/instances/credentials')
+@activating_instances_only
+async def get_credentials(request, instance):  # pylint: disable=unused-argument
+    return await asyncio.shield(get_credentials_1(instance))
 
 
 @routes.post('/api/v1alpha/instances/activate')
@@ -256,13 +265,37 @@ async def deactivate_instance_1(instance):
     log.info(f'deactivating {instance}')
     await instance.deactivate('deactivated')
     await instance.mark_healthy()
-    return web.Response()
 
 
 @routes.post('/api/v1alpha/instances/deactivate')
 @active_instances_only
 async def deactivate_instance(request, instance):  # pylint: disable=unused-argument
-    return await asyncio.shield(deactivate_instance_1(instance))
+    await asyncio.shield(deactivate_instance_1(instance))
+    return web.Response()
+
+
+@routes.post('/instances/{instance_name}/kill')
+@check_csrf_token
+@web_authenticated_developers_only()
+async def kill_instance(request, userdata):  # pylint: disable=unused-argument
+    instance_name = request.match_info['instance_name']
+
+    inst_coll_manager: InstanceCollectionManager = request.app['driver'].inst_coll_manager
+    instance = inst_coll_manager.get_instance(instance_name)
+
+    if instance is None:
+        return web.HTTPNotFound()
+
+    session = await aiohttp_session.get_session(request)
+    if instance.state == 'active':
+        await asyncio.shield(instance.kill())
+        set_message(session, f'Killed instance {instance_name}', 'info')
+    else:
+        set_message(session, 'Cannot kill a non-active instance', 'error')
+
+    pool_name = instance.inst_coll.name
+    pool_url_path = f'/inst_coll/pool/{pool_name}'
+    return web.HTTPFound(deploy_config.external_url('batch-driver', pool_url_path))
 
 
 async def job_complete_1(request, instance):
@@ -341,7 +374,8 @@ async def job_started(request, instance):
 async def get_index(request, userdata):
     app = request.app
     db: Database = app['db']
-    inst_coll_manager: InstanceCollectionManager = app['inst_coll_manager']
+    inst_coll_manager: InstanceCollectionManager = app['driver'].inst_coll_manager
+    jpim: JobPrivateInstanceManager = app['driver'].job_private_inst_manager
 
     ready_cores = await db.select_and_fetchone(
         '''
@@ -353,7 +387,7 @@ FROM user_inst_coll_resources;
 
     page_context = {
         'pools': inst_coll_manager.pools.values(),
-        'jpim': inst_coll_manager.job_private_inst_manager,
+        'jpim': jpim,
         'instance_id': app['instance_id'],
         'n_instances_by_state': inst_coll_manager.global_n_instances_by_state,
         'instances': inst_coll_manager.name_instance.values(),
@@ -365,20 +399,24 @@ FROM user_inst_coll_resources;
     return await render_template('batch-driver', request, userdata, 'index.html', page_context)
 
 
-def validate(session, url_path, name, value, predicate, description):
+class ConfigError(Exception):
+    pass
+
+
+def validate(session, name, value, predicate, description):
     if not predicate(value):
         set_message(session, f'{name} invalid: {value}.  Must be {description}.', 'error')
-        raise web.HTTPFound(deploy_config.external_url('batch-driver', url_path))
+        raise ConfigError()
     return value
 
 
-def validate_int(session, url_path, name, value, predicate, description):
+def validate_int(session, name, value, predicate, description):
     try:
         i = int(value)
     except ValueError as e:
         set_message(session, f'{name} invalid: {value}.  Must be an integer.', 'error')
-        raise web.HTTPFound(deploy_config.external_url('batch-driver', url_path)) from e
-    return validate(session, url_path, name, i, predicate, description)
+        raise ConfigError() from e
+    return validate(session, name, i, predicate, description)
 
 
 @routes.post('/config-update/pool/{pool}')
@@ -386,7 +424,8 @@ def validate_int(session, url_path, name, value, predicate, description):
 @web_authenticated_developers_only()
 async def pool_config_update(request, userdata):  # pylint: disable=unused-argument
     app = request.app
-    inst_coll_manager: InstanceCollectionManager = app['inst_coll_manager']
+    db: Database = app['db']
+    inst_coll_manager: InstanceCollectionManager = app['driver'].inst_coll_manager
 
     session = await aiohttp_session.get_session(request)
 
@@ -394,95 +433,123 @@ async def pool_config_update(request, userdata):  # pylint: disable=unused-argum
     pool = inst_coll_manager.get_inst_coll(pool_name)
     pool_url_path = f'/inst_coll/pool/{pool_name}'
 
-    if not isinstance(pool, Pool):
-        set_message(session, f'Unknown pool {pool_name}.', 'error')
-        raise web.HTTPFound(deploy_config.external_url('batch-driver', pool_url_path))
+    try:
+        if not isinstance(pool, Pool):
+            set_message(session, f'Unknown pool {pool_name}.', 'error')
+            raise ConfigError()
 
-    post = await request.post()
+        post = await request.post()
 
-    worker_type = pool.worker_type
+        worker_type = pool.worker_type
 
-    if worker_type == 'standard':
-        valid_worker_cores = (1, 2, 4, 8, 16, 32, 64, 96)
-    else:
-        valid_worker_cores = (2, 4, 8, 16, 32, 64, 96)
-    worker_cores = validate_int(
-        session,
-        pool_url_path,
-        f'{worker_type} worker cores',
-        post['worker_cores'],
-        lambda v: v in valid_worker_cores,
-        f'one of {", ".join(str(v) for v in valid_worker_cores)}',
-    )
-
-    standing_worker_cores = validate_int(
-        session,
-        pool_url_path,
-        f'{worker_type} standing worker cores',
-        post['standing_worker_cores'],
-        lambda v: v in valid_worker_cores,
-        f'one of {", ".join(str(v) for v in valid_worker_cores)}',
-    )
-
-    boot_disk_size_gb = validate_int(
-        session,
-        pool_url_path,
-        'Worker boot disk size',
-        post['boot_disk_size_gb'],
-        lambda v: v >= 10,
-        'a positive integer greater than or equal to 10',
-    )
-
-    worker_local_ssd_data_disk = 'worker_local_ssd_data_disk' in post
-
-    worker_pd_ssd_data_disk_size_gb = validate_int(
-        session,
-        pool_url_path,
-        'Worker PD SSD data disk size (in GB)',
-        post['worker_pd_ssd_data_disk_size_gb'],
-        lambda v: v >= 0,
-        'a nonnegative integer',
-    )
-
-    if not worker_local_ssd_data_disk and worker_pd_ssd_data_disk_size_gb == 0:
-        set_message(session, 'Either the worker must use a local SSD or PD SSD data disk must be non-zero.', 'error')
-        raise web.HTTPFound(deploy_config.external_url('batch-driver', pool_url_path))
-
-    if worker_local_ssd_data_disk and worker_pd_ssd_data_disk_size_gb > 0:
-        set_message(session, 'Worker cannot both use local SSD and have a non-zero PD SSD data disk.', 'error')
-        raise web.HTTPFound(deploy_config.external_url('batch-driver', pool_url_path))
-
-    if not worker_local_ssd_data_disk:
-        unreserved_disk_storage_gb = unreserved_worker_data_disk_size_gib(
-            worker_local_ssd_data_disk, worker_pd_ssd_data_disk_size_gb, worker_cores
+        boot_disk_size_gb = validate_int(
+            session,
+            'Worker boot disk size',
+            post['boot_disk_size_gb'],
+            lambda v: v >= 10,
+            'a positive integer greater than or equal to 10',
         )
-        if unreserved_disk_storage_gb < 0:
-            min_disk_storage = worker_pd_ssd_data_disk_size_gb - unreserved_disk_storage_gb
-            set_message(session, f'PD SSD must be at least {min_disk_storage} GB', 'error')
-            raise web.HTTPFound(deploy_config.external_url('batch-driver', pool_url_path))
 
-    max_instances = validate_int(
-        session, pool_url_path, 'Max instances', post['max_instances'], lambda v: v > 0, 'a positive integer'
-    )
+        if pool.cloud == 'azure' and boot_disk_size_gb != 30:
+            set_message(session, 'The boot disk size (GB) must be 30 in azure.', 'error')
+            raise ConfigError()
 
-    max_live_instances = validate_int(
-        session, pool_url_path, 'Max live instances', post['max_live_instances'], lambda v: v > 0, 'a positive integer'
-    )
+        worker_local_ssd_data_disk = 'worker_local_ssd_data_disk' in post
 
-    enable_standing_worker = 'enable_standing_worker' in post
+        worker_external_ssd_data_disk_size_gb = validate_int(
+            session,
+            'Worker external SSD data disk size (in GB)',
+            post['worker_external_ssd_data_disk_size_gb'],
+            lambda v: v >= 0,
+            'a nonnegative integer',
+        )
 
-    await pool.configure(
-        worker_cores,
-        boot_disk_size_gb,
-        worker_local_ssd_data_disk,
-        worker_pd_ssd_data_disk_size_gb,
-        enable_standing_worker,
-        standing_worker_cores,
-        max_instances,
-        max_live_instances,
-    )
+        if not worker_local_ssd_data_disk and worker_external_ssd_data_disk_size_gb == 0:
+            set_message(
+                session,
+                'Either the worker must use a local SSD or the external SSD data disk must be non-zero.',
+                'error',
+            )
+            raise ConfigError()
 
-    set_message(session, f'Updated configuration for {pool}.', 'info')
+        if worker_local_ssd_data_disk and worker_external_ssd_data_disk_size_gb > 0:
+            set_message(
+                session, 'Worker cannot both use local SSD and have a non-zero external SSD data disk.', 'error'
+            )
+            raise ConfigError()
+
+        max_instances = validate_int(
+            session, 'Max instances', post['max_instances'], lambda v: v > 0, 'a positive integer'
+        )
+
+        max_live_instances = validate_int(
+            session, 'Max live instances', post['max_live_instances'], lambda v: v > 0, 'a positive integer'
+        )
+
+        enable_standing_worker = 'enable_standing_worker' in post
+
+        possible_worker_cores = []
+        for cores in possible_cores_from_worker_type(pool.cloud, worker_type):
+            if not worker_local_ssd_data_disk:
+                possible_worker_cores.append(cores)
+                continue
+
+            # disk storage for local ssd is proportional to the number of cores in azure
+            data_disk_size_gb = local_ssd_size(pool.cloud, worker_type, cores)
+            unreserved_disk_storage_gb = unreserved_worker_data_disk_size_gib(data_disk_size_gb, cores)
+            if unreserved_disk_storage_gb >= 0:
+                possible_worker_cores.append(cores)
+
+        worker_cores = validate_int(
+            session,
+            f'{worker_type} worker cores',
+            post['worker_cores'],
+            lambda c: c in possible_worker_cores,
+            f'one of {", ".join(str(c) for c in possible_worker_cores)}',
+        )
+
+        standing_worker_cores = validate_int(
+            session,
+            f'{worker_type} standing worker cores',
+            post['standing_worker_cores'],
+            lambda c: c in possible_worker_cores,
+            f'one of {", ".join(str(c) for c in possible_worker_cores)}',
+        )
+
+        if not worker_local_ssd_data_disk:
+            unreserved_disk_storage_gb = unreserved_worker_data_disk_size_gib(
+                worker_external_ssd_data_disk_size_gb, worker_cores
+            )
+            if unreserved_disk_storage_gb < 0:
+                min_disk_storage = worker_external_ssd_data_disk_size_gb - unreserved_disk_storage_gb
+                set_message(session, f'External SSD must be at least {min_disk_storage} GB', 'error')
+                raise ConfigError()
+
+        pool_config = PoolConfig(
+            pool_name,
+            pool.cloud,
+            worker_type,
+            worker_cores,
+            worker_local_ssd_data_disk,
+            worker_external_ssd_data_disk_size_gb,
+            enable_standing_worker,
+            standing_worker_cores,
+            boot_disk_size_gb,
+            max_instances,
+            max_live_instances,
+            pool.preemptible,
+        )
+        await pool_config.update_database(db)
+        pool.configure(pool_config)
+
+        set_message(session, f'Updated configuration for {pool}.', 'info')
+    except ConfigError:
+        pass
+    except asyncio.CancelledError:
+        raise
+    except Exception:
+        log.exception(f'error while updating pool configuration for {pool}')
+        raise
 
     return web.HTTPFound(deploy_config.external_url('batch-driver', pool_url_path))
 
@@ -492,35 +559,45 @@ async def pool_config_update(request, userdata):  # pylint: disable=unused-argum
 @web_authenticated_developers_only()
 async def job_private_config_update(request, userdata):  # pylint: disable=unused-argument
     app = request.app
-    inst_coll_manager: InstanceCollectionManager = app['inst_coll_manager']
+    jpim: JobPrivateInstanceManager = app['driver'].job_private_inst_manager
 
     session = await aiohttp_session.get_session(request)
 
-    job_private_inst_manager = inst_coll_manager.job_private_inst_manager
     url_path = '/inst_coll/jpim'
 
     post = await request.post()
 
-    boot_disk_size_gb = validate_int(
-        session,
-        url_path,
-        'Worker boot disk size',
-        post['boot_disk_size_gb'],
-        lambda v: v >= 10,
-        'a positive integer greater than or equal to 10',
-    )
+    try:
+        boot_disk_size_gb = validate_int(
+            session,
+            'Worker boot disk size',
+            post['boot_disk_size_gb'],
+            lambda v: v >= 10,
+            'a positive integer greater than or equal to 10',
+        )
 
-    max_instances = validate_int(
-        session, url_path, 'Max instances', post['max_instances'], lambda v: v > 0, 'a positive integer'
-    )
+        if jpim.cloud == 'azure' and boot_disk_size_gb != 30:
+            set_message(session, 'The boot disk size (GB) must be 30 in azure.', 'error')
+            raise ConfigError()
 
-    max_live_instances = validate_int(
-        session, url_path, 'Max live instances', post['max_live_instances'], lambda v: v > 0, 'a positive integer'
-    )
+        max_instances = validate_int(
+            session, 'Max instances', post['max_instances'], lambda v: v > 0, 'a positive integer'
+        )
 
-    await job_private_inst_manager.configure(boot_disk_size_gb, max_instances, max_live_instances)
+        max_live_instances = validate_int(
+            session, 'Max live instances', post['max_live_instances'], lambda v: v > 0, 'a positive integer'
+        )
 
-    set_message(session, f'Updated configuration for {job_private_inst_manager}.', 'info')
+        await jpim.configure(boot_disk_size_gb, max_instances, max_live_instances)
+
+        set_message(session, f'Updated configuration for {jpim}.', 'info')
+    except ConfigError:
+        pass
+    except asyncio.CancelledError:
+        raise
+    except Exception:
+        log.exception(f'error while updating pool configuration for {jpim}')
+        raise
 
     return web.HTTPFound(deploy_config.external_url('batch-driver', url_path))
 
@@ -529,7 +606,7 @@ async def job_private_config_update(request, userdata):  # pylint: disable=unuse
 @web_authenticated_developers_only()
 async def get_pool(request, userdata):
     app = request.app
-    inst_coll_manager: InstanceCollectionManager = app['inst_coll_manager']
+    inst_coll_manager: InstanceCollectionManager = app['driver'].inst_coll_manager
 
     session = await aiohttp_session.get_session(request)
 
@@ -538,7 +615,7 @@ async def get_pool(request, userdata):
 
     if not isinstance(pool, Pool):
         set_message(session, f'Unknown pool {pool_name}.', 'error')
-        raise web.HTTPFound(deploy_config.external_url('batch-driver', '/'))
+        return web.HTTPFound(deploy_config.external_url('batch-driver', '/'))
 
     user_resources = await pool.scheduler.compute_fair_share()
     user_resources = sorted(
@@ -563,11 +640,9 @@ async def get_pool(request, userdata):
 @web_authenticated_developers_only()
 async def get_job_private_inst_manager(request, userdata):
     app = request.app
-    inst_coll_manager: InstanceCollectionManager = app['inst_coll_manager']
+    jpim: JobPrivateInstanceManager = app['driver'].job_private_inst_manager
 
-    job_private_inst_manager = inst_coll_manager.job_private_inst_manager
-
-    user_resources = await job_private_inst_manager.compute_fair_share()
+    user_resources = await jpim.compute_fair_share()
     user_resources = sorted(
         user_resources.values(),
         key=lambda record: record['n_ready_jobs'] + record['n_creating_jobs'] + record['n_running_jobs'],
@@ -579,8 +654,8 @@ async def get_job_private_inst_manager(request, userdata):
     n_running_jobs = sum([record['n_running_jobs'] for record in user_resources])
 
     page_context = {
-        'jpim': job_private_inst_manager,
-        'instances': job_private_inst_manager.name_instance.values(),
+        'jpim': jpim,
+        'instances': jpim.name_instance.values(),
         'user_resources': user_resources,
         'n_ready_jobs': n_ready_jobs,
         'n_creating_jobs': n_creating_jobs,
@@ -605,7 +680,8 @@ async def freeze_batch(request, userdata):  # pylint: disable=unused-argument
     await db.execute_update(
         '''
 UPDATE globals SET frozen = 1;
-''')
+'''
+    )
 
     app['frozen'] = True
 
@@ -629,7 +705,8 @@ async def unfreeze_batch(request, userdata):  # pylint: disable=unused-argument
     await db.execute_update(
         '''
 UPDATE globals SET frozen = 0;
-''')
+'''
+    )
 
     app['frozen'] = False
 
@@ -689,10 +766,11 @@ FROM
   FROM
   (
     SELECT batches.user, jobs.state, jobs.cores_mcpu, jobs.inst_coll,
-      (jobs.always_run OR NOT (jobs.cancelled OR batches.cancelled)) AS runnable,
-      (NOT jobs.always_run AND (jobs.cancelled OR batches.cancelled)) AS cancelled
+      (jobs.always_run OR NOT (jobs.cancelled OR batches_cancelled.id IS NOT NULL)) AS runnable,
+      (NOT jobs.always_run AND (jobs.cancelled OR batches_cancelled.id IS NOT NULL)) AS cancelled
     FROM batches
     INNER JOIN jobs ON batches.id = jobs.batch_id
+    LEFT JOIN batches_cancelled ON batches.id = batches_cancelled.id
     WHERE batches.`state` = 'running'
   ) as v
   GROUP BY user, inst_coll
@@ -724,8 +802,9 @@ LOCK IN SHARE MODE;
 '''
         )
 
-        async for record in user_inst_coll_with_broken_resources:
-            log.error(f'user_inst_coll_resources corrupt: {record}')
+        failures = [record async for record in user_inst_coll_with_broken_resources]
+        if len(failures) > 0:
+            raise ValueError(json.dumps(failures))
 
     try:
         await check()  # pylint: disable=no-value-for-parameter
@@ -913,13 +992,16 @@ async def cancel_fast_failing_batches(app):
 
     records = db.select_and_fetchall(
         '''
-SELECT id
+SELECT batches.id, batches_n_jobs_in_complete_states.n_failed
 FROM batches
+LEFT JOIN batches_n_jobs_in_complete_states
+  ON batches.id = batches_n_jobs_in_complete_states.id
 WHERE state = 'running' AND cancel_after_n_failures IS NOT NULL AND n_failed >= cancel_after_n_failures
 '''
     )
     async for batch in records:
         await _cancel_batch(app, batch['id'])
+
 
 USER_CORES = pc.Gauge('batch_user_cores', 'Batch user cores', ['state', 'user', 'inst_coll'])
 USER_JOBS = pc.Gauge('batch_user_jobs', 'Batch user jobs', ['state', 'user', 'inst_coll'])
@@ -954,19 +1036,27 @@ GROUP BY user, inst_coll;
     )
 
     async for record in records:
-        ready_user_cores_labels = StateUserInstCollLabels(state='ready', user=record['user'], inst_coll=record['inst_coll'])
+        ready_user_cores_labels = StateUserInstCollLabels(
+            state='ready', user=record['user'], inst_coll=record['inst_coll']
+        )
         user_cores[ready_user_cores_labels] += record['ready_cores_mcpu'] / 1000
 
-        running_user_cores_labels = StateUserInstCollLabels(state='running', user=record['user'], inst_coll=record['inst_coll'])
+        running_user_cores_labels = StateUserInstCollLabels(
+            state='running', user=record['user'], inst_coll=record['inst_coll']
+        )
         user_cores[running_user_cores_labels] += record['running_cores_mcpu'] / 1000
 
         ready_jobs_labels = StateUserInstCollLabels(state='ready', user=record['user'], inst_coll=record['inst_coll'])
         user_jobs[ready_jobs_labels] += record['n_ready_jobs']
 
-        running_jobs_labels = StateUserInstCollLabels(state='running', user=record['user'], inst_coll=record['inst_coll'])
+        running_jobs_labels = StateUserInstCollLabels(
+            state='running', user=record['user'], inst_coll=record['inst_coll']
+        )
         user_jobs[running_jobs_labels] += record['n_running_jobs']
 
-        creating_jobs_labels = StateUserInstCollLabels(state='creating', user=record['user'], inst_coll=record['inst_coll'])
+        creating_jobs_labels = StateUserInstCollLabels(
+            state='creating', user=record['user'], inst_coll=record['inst_coll']
+        )
         user_jobs[creating_jobs_labels] += record['n_creating_jobs']
 
     def set_value(gauge, data):
@@ -979,14 +1069,14 @@ GROUP BY user, inst_coll;
     set_value(USER_JOBS, user_jobs)
 
 
-def monitor_instances(app):
-    resource_rates: Dict[str, float] = app['resource_rates']
-    inst_coll_manager: InstanceCollectionManager = app['inst_coll_manager']
+def monitor_instances(app) -> None:
+    driver: CloudDriver = app['driver']
+    inst_coll_manager = driver.inst_coll_manager
 
-    cost_per_hour = defaultdict(list)
-    free_cores = defaultdict(list)
-    utilization = defaultdict(list)
-    instances = defaultdict(int)
+    cost_per_hour: Dict[CostPerHourLabels, List[float]] = defaultdict(list)
+    free_cores: Dict[InstCollLabels, List[float]] = defaultdict(list)
+    utilization: Dict[InstCollLabels, List[float]] = defaultdict(list)
+    instances: Dict[InstanceLabels, int] = defaultdict(int)
 
     for inst_coll in inst_coll_manager.name_inst_coll.values():
         for instance in inst_coll.name_instance.values():
@@ -994,14 +1084,15 @@ def monitor_instances(app):
             utilized_cores_mcpu = instance.cores_mcpu - max(0, instance.free_cores_mcpu)
 
             if instance.state != 'deleted':
-                if instance.worker_config:
-                    actual_cost_per_hour_labels = CostPerHourLabels(measure='actual', inst_coll=instance.inst_coll.name)
-                    actual_rate = instance.worker_config.actual_cost_per_hour(resource_rates)
-                    cost_per_hour[actual_cost_per_hour_labels].append(actual_rate)
+                actual_cost_per_hour_labels = CostPerHourLabels(measure='actual', inst_coll=instance.inst_coll.name)
+                actual_rate = instance.instance_config.actual_cost_per_hour(driver.billing_manager.resource_rates)
+                cost_per_hour[actual_cost_per_hour_labels].append(actual_rate)
 
-                    billed_cost_per_hour_labels = CostPerHourLabels(measure='billed', inst_coll=instance.inst_coll.name)
-                    billed_rate = instance.worker_config.cost_per_hour_from_cores(resource_rates, utilized_cores_mcpu)
-                    cost_per_hour[billed_cost_per_hour_labels].append(billed_rate)
+                billed_cost_per_hour_labels = CostPerHourLabels(measure='billed', inst_coll=instance.inst_coll.name)
+                billed_rate = instance.instance_config.cost_per_hour_from_cores(
+                    driver.billing_manager.resource_rates, utilized_cores_mcpu
+                )
+                cost_per_hour[billed_cost_per_hour_labels].append(billed_rate)
 
                 inst_coll_labels = InstCollLabels(inst_coll=instance.inst_coll.name)
                 free_cores[inst_coll_labels].append(instance.free_cores_mcpu / 1000)
@@ -1039,12 +1130,14 @@ async def scheduling_cancelling_bump(app):
 
 
 async def on_startup(app):
-    app['task_manager'] = aiotools.BackgroundTaskManager()
+    task_manager = aiotools.BackgroundTaskManager()
+    app['task_manager'] = task_manager
 
-    kube.config.load_incluster_config()
-    k8s_client = kube.client.CoreV1Api()
-    k8s_cache = K8sCache(k8s_client, refresh_time=5)
-    app['k8s_cache'] = k8s_cache
+    app['client_session'] = httpx.client_session()
+
+    kubernetes_asyncio.config.load_incluster_config()
+    app['k8s_client'] = kubernetes_asyncio.client.CoreV1Api()
+    app['k8s_cache'] = K8sCache(app['k8s_client'])
 
     db = Database()
     await db.async_init(maxsize=50)
@@ -1066,26 +1159,6 @@ SELECT instance_id, internal_token, frozen FROM globals;
 
     app['frozen'] = row['frozen']
 
-    resources = db.select_and_fetchall('SELECT resource, rate FROM resources;')
-    app['resource_rates'] = {record['resource']: record['rate'] async for record in resources}
-
-    aiogoogle_credentials = aiogoogle.Credentials.from_file('/gsa-key/key.json')
-    compute_client = aiogoogle.ComputeClient(PROJECT, credentials=aiogoogle_credentials)
-    app['compute_client'] = compute_client
-
-    logging_client = aiogoogle.LoggingClient(
-        credentials=aiogoogle_credentials,
-        # The project-wide logging quota is 60 request/m.  The event
-        # loop sleeps 15s per iteration, so the max rate is 4
-        # iterations/m.  Note, the event loop could make multiple
-        # logging requests per iteration, so these numbers are not
-        # quite comparable.  I didn't want to consume the entire quota
-        # since there will be other users of the logging API (us at
-        # the web console, test deployments, etc.)
-        rate_limit=RateLimit(10, 60),
-    )
-    app['logging_client'] = logging_client
-
     scheduler_state_changed = Notice()
     app['scheduler_state_changed'] = scheduler_state_changed
 
@@ -1101,81 +1174,65 @@ SELECT instance_id, internal_token, frozen FROM globals;
     async_worker_pool = AsyncWorkerPool(100, queue_size=100)
     app['async_worker_pool'] = async_worker_pool
 
-    credentials = aiogoogle.auth.credentials.Credentials.from_file('/gsa-key/key.json')
-    fs = aiogoogle.GoogleStorageAsyncFS(credentials=credentials)
-    app['file_store'] = FileStore(fs, BATCH_BUCKET_NAME, instance_id)
+    credentials_file = '/gsa-key/key.json'
+    fs = get_cloud_async_fs(credentials_file=credentials_file)
+    app['file_store'] = FileStore(fs, BATCH_STORAGE_URI, instance_id)
 
-    zone_monitor = ZoneMonitor(app)
-    app['zone_monitor'] = zone_monitor
-    await zone_monitor.async_init()
+    inst_coll_configs = await InstanceCollectionConfigs.create(db)
 
-    inst_coll_configs = InstanceCollectionConfigs(app)
-    await inst_coll_configs.async_init()
+    app['driver'] = await get_cloud_driver(
+        app, db, MACHINE_NAME_PREFIX, DEFAULT_NAMESPACE, inst_coll_configs, credentials_file, task_manager
+    )
 
-    inst_coll_manager = InstanceCollectionManager(app, MACHINE_NAME_PREFIX)
-    app['inst_coll_manager'] = inst_coll_manager
-    await inst_coll_manager.async_init(inst_coll_configs)
-
-    canceller = Canceller(app)
+    canceller = await Canceller.create(app)
     app['canceller'] = canceller
-    await canceller.async_init()
-
-    gce_event_monitor = GCEEventMonitor(app, MACHINE_NAME_PREFIX)
-    app['gce_event_monitor'] = gce_event_monitor
-    await gce_event_monitor.async_init()
 
     app['check_incremental_error'] = None
     app['check_resource_aggregation_error'] = None
 
     if HAIL_SHOULD_CHECK_INVARIANTS:
-        app['task_manager'].ensure_future(periodically_call(10, check_incremental, app, db))
-        app['task_manager'].ensure_future(periodically_call(10, check_resource_aggregation, app, db))
+        task_manager.ensure_future(periodically_call(10, check_incremental, app, db))
+        task_manager.ensure_future(periodically_call(10, check_resource_aggregation, app, db))
 
-    app['task_manager'].ensure_future(periodically_call(10, monitor_billing_limits, app))
-
-    app['task_manager'].ensure_future(periodically_call(10, cancel_fast_failing_batches, app))
-
-    app['task_manager'].ensure_future(periodically_call(60, scheduling_cancelling_bump, app))
-
-    app['task_manager'].ensure_future(periodically_call(15, monitor_system, app))
+    task_manager.ensure_future(periodically_call(10, monitor_billing_limits, app))
+    task_manager.ensure_future(periodically_call(10, cancel_fast_failing_batches, app))
+    task_manager.ensure_future(periodically_call(60, scheduling_cancelling_bump, app))
+    task_manager.ensure_future(periodically_call(15, monitor_system, app))
 
 
 async def on_cleanup(app):
     try:
-        await app['db'].async_close()
+        app['canceller'].shutdown()
     finally:
         try:
-            app['zone_monitor'].shutdown()
+            app['task_manager'].shutdown()
         finally:
             try:
-                app['inst_coll_manager'].shutdown()
+                await app['driver'].shutdown()
             finally:
                 try:
-                    app['canceller'].shutdown()
+                    await app['file_store'].close()
                 finally:
                     try:
-                        app['gce_event_monitor'].shutdown()
+                        await app['client_session'].close()
                     finally:
                         try:
-                            await app['file_store'].close()
+                            app['async_worker_pool'].shutdown()
                         finally:
                             try:
-                                app['task_manager'].shutdown()
+                                await app['db'].async_close()
                             finally:
                                 try:
-                                    await app['logging_client'].close()
+                                    k8s_client: kubernetes_asyncio.client.CoreV1Api = app['k8s_client']
+                                    await k8s_client.api_client.rest_client.pool_manager.close()
                                 finally:
-                                    try:
-                                        await app['compute_client'].close()
-                                    finally:
-                                        del app['k8s_cache'].client
-                                        await asyncio.gather(
-                                            *(t for t in asyncio.all_tasks() if t is not asyncio.current_task())
-                                        )
+                                    await asyncio.gather(
+                                        *(t for t in asyncio.all_tasks() if t is not asyncio.current_task())
+                                    )
 
 
 def run():
-    if HAIL_SHOULD_PROFILE:
+    if HAIL_SHOULD_PROFILE and CLOUD == 'gcp':
         profiler_tag = f'{DEFAULT_NAMESPACE}'
         if profiler_tag == 'default':
             profiler_tag = DEFAULT_NAMESPACE + f'-{HAIL_SHA[0:12]}'

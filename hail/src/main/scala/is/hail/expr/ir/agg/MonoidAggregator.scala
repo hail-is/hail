@@ -2,8 +2,10 @@ package is.hail.expr.ir.agg
 
 import is.hail.annotations.Region
 import is.hail.asm4s._
+import is.hail.backend.ExecuteContext
 import is.hail.expr.ir.functions.UtilFunctions
 import is.hail.expr.ir.{coerce => _, _}
+import is.hail.types.physical.stypes.{EmitType, SType}
 import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.physical.{PType, typeToTypeInfo}
 import is.hail.types.virtual._
@@ -21,9 +23,8 @@ trait StagedMonoidSpec {
 
 class MonoidAggregator(monoid: StagedMonoidSpec) extends StagedAggregator {
   type State = PrimitiveRVAState
-  val typ: PType = PType.canonical(monoid.typ, required = monoid.neutral.isDefined)
-
-  def resultType: PType = typ
+  val sType = SType.canonical(monoid.typ)
+  def resultEmitType = EmitType(sType, monoid.neutral.isDefined)
 
   val initOpTypes: Seq[Type] = Array[Type]()
   val seqOpTypes: Seq[Type] = Array[Type](monoid.typ)
@@ -48,16 +49,14 @@ class MonoidAggregator(monoid: StagedMonoidSpec) extends StagedAggregator {
     combine(cb, ev, update)
   }
 
-  protected def _combOp(cb: EmitCodeBuilder, state: State, other: State): Unit = {
+  protected def _combOp(ctx: ExecuteContext, cb: EmitCodeBuilder, state: PrimitiveRVAState, other: PrimitiveRVAState): Unit = {
     val ev1 = state.fields(0)
     val ev2 = other.fields(0)
     combine(cb, ev1, ev2)
   }
 
-  protected def _storeResult(cb: EmitCodeBuilder, state: State, pt: PType, addr: Value[Long], region: Value[Region], ifMissing: EmitCodeBuilder => Unit): Unit = {
-    state.fields(0).toI(cb).consume(cb,
-      ifMissing(cb),
-      sc => pt.storeAtAddress(cb, addr, region, sc, deepCopy = true))
+  protected def _result(cb: EmitCodeBuilder, state: State, region: Value[Region]): IEmitCode = {
+    state.fields(0).toI(cb)
   }
 
   private def combine(

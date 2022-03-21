@@ -28,6 +28,8 @@ spec:
       tolerations:
        - key: preemptible
          value: "true"
+       - key: "kubernetes.azure.com/scalesetpriority"
+         value: "spot"
       containers:
        - name: auth-driver
          image: "{{ auth_image.image }}"
@@ -48,21 +50,6 @@ spec:
               secretKeyRef:
                 name: global-config
                 key: domain
-          - name: PROJECT
-            valueFrom:
-              secretKeyRef:
-                name: global-config
-                key: gcp_project
-          - name: ZONE
-            valueFrom:
-              secretKeyRef:
-                name: global-config
-                key: gcp_zone
-          - name: HAIL_GSUITE_ORGANIZATION
-            valueFrom:
-              secretKeyRef:
-                name: global-config
-                key: gsuite_organization
          resources:
            requests:
              cpu: "20m"
@@ -73,6 +60,9 @@ spec:
          volumeMounts:
           - name: deploy-config
             mountPath: /deploy-config
+            readOnly: true
+          - name: global-config
+            mountPath: /global-config
             readOnly: true
           - name: database-server-config
             mountPath: /database-server-config
@@ -95,6 +85,9 @@ spec:
        - name: deploy-config
          secret:
            secretName: deploy-config
+       - name: global-config
+         secret:
+           secretName: global-config
        - name: database-server-config
          secret:
            secretName: database-server-config
@@ -137,6 +130,8 @@ spec:
       tolerations:
        - key: preemptible
          value: "true"
+       - key: "kubernetes.azure.com/scalesetpriority"
+         value: "spot"
       affinity:
         podAntiAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
@@ -167,21 +162,11 @@ spec:
               secretKeyRef:
                 name: global-config
                 key: domain
-          - name: PROJECT
+          - name: HAIL_ORGANIZATION_DOMAIN
             valueFrom:
               secretKeyRef:
                 name: global-config
-                key: gcp_project
-          - name: ZONE
-            valueFrom:
-              secretKeyRef:
-                name: global-config
-                key: gcp_zone
-          - name: HAIL_GSUITE_ORGANIZATION
-            valueFrom:
-              secretKeyRef:
-                name: global-config
-                key: gsuite_organization
+                key: organization_domain
          resources:
            requests:
              cpu: "20m"
@@ -192,6 +177,9 @@ spec:
          volumeMounts:
           - name: deploy-config
             mountPath: /deploy-config
+            readOnly: true
+          - name: global-config
+            mountPath: /global-config
             readOnly: true
           - name: auth-oauth2-client-secret
             mountPath: /auth-oauth2-client-secret
@@ -219,6 +207,9 @@ spec:
        - name: deploy-config
          secret:
            secretName: deploy-config
+       - name: global-config
+         secret:
+           secretName: global-config
        - name: auth-oauth2-client-secret
          secret:
            secretName: auth-oauth2-client-secret

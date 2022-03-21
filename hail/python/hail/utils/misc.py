@@ -1,3 +1,5 @@
+from typing import Optional
+from typing_extensions import Literal
 import os
 import atexit
 import datetime
@@ -495,6 +497,10 @@ def divide_null(num, denom):
     return if_else(denom != 0, num / denom, missing(typ))
 
 
+def lookup_bit(byte, which_bit):
+    return (byte >> which_bit) & 1
+
+
 class HailSeedGenerator(object):
     def __init__(self, seed):
         self.seed = seed
@@ -614,3 +620,11 @@ def default_handler():
         return display
     except ImportError:
         return print
+
+
+def guess_cloud_spark_provider() -> Optional[Literal['dataproc', 'hdinsight']]:
+    if 'HAIL_DATAPROC' in os.environ:
+        return 'dataproc'
+    if 'AZURE_SPARK' in os.environ or 'hdinsight' in os.getenv('CLASSPATH', ''):
+        return 'hdinsight'
+    return None

@@ -67,7 +67,7 @@ object Children {
       Array(start, stop, step)
     case SeqSample(totalRange, numToSample, _) =>
       Array(totalRange, numToSample)
-    case StreamDistribute(child, pivots, path, _) =>
+    case StreamDistribute(child, pivots, path, _, _) =>
       Array(child, pivots, path)
     case ArrayZeros(length) =>
       Array(length)
@@ -135,6 +135,8 @@ object Children {
       Array(a, query)
     case StreamAggScan(a, name, query) =>
       Array(a, query)
+    case StreamBufferedAggregate(streamChild, initAggs, newKey, seqOps, _, _) =>
+      Array(streamChild, initAggs, newKey, seqOps)
     case RunAggScan(array, _, init, seq, result, _) =>
       Array(array, init, seq, result)
     case RunAgg(body, result, _) =>
@@ -191,6 +193,8 @@ object Children {
       initOpArgs ++ seqOpArgs
     case ApplyScanOp(initOpArgs, seqOpArgs, aggSig) =>
       initOpArgs ++ seqOpArgs
+    case AggFold(zero, seqOp, combOp, elementName, accumName, _) =>
+      Array(zero, seqOp, combOp)
     case GetField(o, name) =>
       Array(o)
     case MakeTuple(fields) =>

@@ -1,10 +1,8 @@
 package is.hail.types.physical
 
-import is.hail.annotations._
 import is.hail.asm4s.{Code, Value}
-import is.hail.expr.ir.orderings.CodeOrdering
-import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder, SortOrder}
-import is.hail.types.physical.stypes.interfaces.{SBaseStructCode, SBaseStructValue}
+import is.hail.expr.ir.EmitCodeBuilder
+import is.hail.types.physical.stypes.interfaces.SBaseStructValue
 import is.hail.types.virtual.{Field, TStruct}
 
 trait PStruct extends PBaseStruct {

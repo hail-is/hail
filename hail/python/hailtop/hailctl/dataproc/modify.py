@@ -43,7 +43,7 @@ def init_parser(parser):
     wheel_group.add_argument('--wheel', type=str, help='New Hail installation.')
 
 
-def main(args, pass_through_args):
+async def main(args, pass_through_args):
     modify_args = []
     if args.num_workers is not None:
         modify_args.append('--num-workers={}'.format(args.num_workers))

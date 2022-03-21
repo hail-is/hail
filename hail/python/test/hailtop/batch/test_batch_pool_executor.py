@@ -9,6 +9,7 @@ import pytest
 from hailtop.batch import BatchPoolExecutor, ServiceBackend
 from hailtop.config import get_user_config
 from hailtop.utils import sync_sleep_and_backoff
+from hailtop.batch_client.client import BatchClient
 
 PYTHON_DILL_IMAGE = os.environ['PYTHON_DILL_IMAGE']
 
@@ -32,7 +33,7 @@ def backend():
 def check_for_running_batches():
     yield
     billing_project = get_user_config().get('batch', 'billing_project', fallback=None)
-    with hailtop.batch_client.client.BatchClient(billing_project=billing_project) as bc:
+    with BatchClient(billing_project=billing_project) as bc:
         for id in submitted_batch_ids:
             b = bc.get_batch(id)
             delay = 0.1
@@ -217,3 +218,25 @@ def test_bad_image_gives_good_error(backend):
         assert 'submitted job failed:' in exc.args[0]
     else:
         assert False
+
+
+def test_call_result_after_timeout():
+    with BatchPoolExecutor(project='hail-vdc', image=PYTHON_DILL_IMAGE) as bpe:
+        def sleep_forever():
+            while True:
+                time.sleep(3600)
+
+        future = bpe.submit(sleep_forever)
+        try:
+            future.result(timeout=2)
+        except asyncio.TimeoutError:
+            try:
+                future.result(timeout=2)
+            except asyncio.TimeoutError:
+                pass
+            else:
+                assert False
+        else:
+            assert False
+        finally:
+            future.cancel()

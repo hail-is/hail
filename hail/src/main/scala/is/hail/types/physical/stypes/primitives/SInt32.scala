@@ -38,39 +38,19 @@ case object SInt32 extends SPrimitive {
   override def storageType(): PType = PInt32()
 }
 
-class SInt32Code(val code: Code[Int]) extends SPrimitiveCode {
-  override def _primitiveCode: Code[_] = code
-
-  def st: SInt32.type = SInt32
-
-  private[this] def memoizeWithBuilder(cb: EmitCodeBuilder, name: String, sb: SettableBuilder): SInt32Value = {
-    val s = new SInt32Settable(sb.newSettable[Int]("sInt32_memoize"))
-    s.store(cb, this)
-    s
-  }
-
-  def memoize(cb: EmitCodeBuilder, name: String): SInt32Value = memoizeWithBuilder(cb, name, cb.localBuilder)
-
-  def memoizeField(cb: EmitCodeBuilder, name: String): SInt32Value = memoizeWithBuilder(cb, name, cb.fieldBuilder)
-
-  def intCode(cb: EmitCodeBuilder): Code[Int] = code
-}
-
-class SInt32Value(x: Value[Int]) extends SPrimitiveValue {
+class SInt32Value(val value: Value[Int]) extends SPrimitiveValue {
   val pt: PInt32 = PInt32(false)
 
-  override def valueTuple: IndexedSeq[Value[_]] = FastIndexedSeq(x)
+  override def valueTuple: IndexedSeq[Value[_]] = FastIndexedSeq(value)
 
   override def st: SInt32.type = SInt32
 
-  override def _primitiveValue: Value[_] = x
-
-  override def get: SCode = new SInt32Code(x)
-
-  def intCode(cb: EmitCodeBuilder): Value[Int] = x
+  override def _primitiveValue: Value[_] = value
 
   override def hash(cb: EmitCodeBuilder): SInt32Value =
-    new SInt32Value(intCode(cb))
+    new SInt32Value(value)
+
+  override def sizeToStoreInBytes(cb: EmitCodeBuilder): SInt64Value = new SInt64Value(4L)
 }
 
 object SInt32Settable {
@@ -82,5 +62,6 @@ object SInt32Settable {
 final class SInt32Settable(x: Settable[Int]) extends SInt32Value(x) with SSettable {
   override def settableTuple(): IndexedSeq[Settable[_]] = FastIndexedSeq(x)
 
-  override def store(cb: EmitCodeBuilder, v: SCode): Unit = cb.assign(x, v.asInt.intCode(cb))
+  override def store(cb: EmitCodeBuilder, v: SValue): Unit =
+    cb.assign(x, v.asInstanceOf[SInt32Value].value)
 }

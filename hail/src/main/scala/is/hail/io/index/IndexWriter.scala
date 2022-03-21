@@ -1,10 +1,10 @@
 package is.hail.io.index
 
 import java.io.OutputStream
-
 import is.hail.annotations.{Annotation, Region, RegionPool, RegionValueBuilder}
 import is.hail.asm4s._
-import is.hail.expr.ir.{CodeParam, EmitClassBuilder, EmitCodeBuilder, EmitFunctionBuilder, EmitMethodBuilder, ExecuteContext, IEmitCode, IntArrayBuilder, LongArrayBuilder, ParamType}
+import is.hail.backend.ExecuteContext
+import is.hail.expr.ir.{CodeParam, EmitClassBuilder, EmitCodeBuilder, EmitFunctionBuilder, EmitMethodBuilder, IEmitCode, IntArrayBuilder, LongArrayBuilder, ParamType}
 import is.hail.io._
 import is.hail.io.fs.FS
 import is.hail.rvd.AbstractRVDSpec
@@ -137,7 +137,7 @@ class IndexWriterArrayBuilder(name: String, maxSize: Int, sb: SettableBuilder, r
     loadChild(cb, len)
     cb.assign(len, len + 1)
   }
-  def loadChild(cb: EmitCodeBuilder, idx: Code[Int]): Unit = elt.store(cb, eltType.loadCheapSCode(cb, arrayType.loadElement(aoff, idx)).get)
+  def loadChild(cb: EmitCodeBuilder, idx: Code[Int]): Unit = elt.store(cb, eltType.loadCheapSCode(cb, arrayType.loadElement(aoff, idx)))
   def getLoadedChild: SBaseStructValue = elt
 }
 
@@ -257,10 +257,12 @@ object StagedIndexWriter {
 
     val makeFB = fb.resultWithIndex()
 
-    val fsBc = ctx.fsBc;
+    val fsBc = ctx.fsBc
+
     { (path: String, pool: RegionPool) =>
       pool.scopedRegion { r =>
-        val f = makeFB(fsBc.value, 0, r)
+        // FIXME: This seems wrong? But also, anywhere we use broadcasting for the FS is wrong.
+        val f = makeFB(theHailClassLoaderForSparkWorkers, fsBc.value, 0, r)
         f.init(path)
         f
       }
@@ -304,7 +306,7 @@ class StagedIndexWriter(branchingFactor: Int, keyType: PType, annotationType: PT
         cb.ifx(utils.size.ceq(next),
           parentBuilder.create(cb), {
             cb.ifx(utils.getLength(next).ceq(branchingFactor),
-              cb += m.invokeCode[Unit](CodeParam(next), CodeParam(false)))
+              m.invokeCode[Unit](cb, CodeParam(next), CodeParam(false)))
             parentBuilder.loadFrom(cb, utils, next)
           })
         internalBuilder.loadChild(cb, 0)
@@ -331,11 +333,11 @@ class StagedIndexWriter(branchingFactor: Int, keyType: PType, annotationType: PT
       cb += ob.flush()
 
       cb.ifx(utils.getLength(0).ceq(branchingFactor),
-        cb += writeInternalNode.invokeCode[Unit](CodeParam(0), CodeParam(false)))
+        writeInternalNode.invokeCode[Unit](cb, CodeParam(0), CodeParam(false)))
       parentBuilder.loadFrom(cb, utils, 0)
 
       leafBuilder.loadChild(cb, 0)
-      parentBuilder.add(cb, idxOff, leafBuilder.firstIdx(cb).asLong.longCode(cb), leafBuilder.getLoadedChild)
+      parentBuilder.add(cb, idxOff, leafBuilder.firstIdx(cb).asLong.value, leafBuilder.getLoadedChild)
       parentBuilder.store(cb, utils, 0)
       leafBuilder.reset(cb, elementIdx)
       Code._empty
@@ -348,15 +350,15 @@ class StagedIndexWriter(branchingFactor: Int, keyType: PType, annotationType: PT
     m.emitWithBuilder { cb =>
       val idxOff = cb.newLocal[Long]("indexOff")
       val level = m.newLocal[Int]("level")
-      cb.ifx(leafBuilder.ab.length > 0, cb += writeLeafNode.invokeCode[Unit]())
+      cb.ifx(leafBuilder.ab.length > 0, writeLeafNode.invokeCode[Unit](cb))
       cb.assign(level, 0)
       cb.whileLoop(level < utils.size - 1, {
         cb.ifx(utils.getLength(level) > 0,
-          cb += writeInternalNode.invokeCode[Unit](CodeParam(level), CodeParam(false)))
+          writeInternalNode.invokeCode[Unit](cb, CodeParam(level), CodeParam(false)))
         cb.assign(level, level + 1)
       })
       cb.assign(idxOff, utils.bytesWritten)
-      cb += writeInternalNode.invokeCode[Unit](CodeParam(level), CodeParam(true))
+      writeInternalNode.invokeCode[Unit](cb, CodeParam(level), CodeParam(true))
       idxOff.load()
     }
     m
@@ -364,13 +366,12 @@ class StagedIndexWriter(branchingFactor: Int, keyType: PType, annotationType: PT
 
   def add(cb: EmitCodeBuilder, key: => IEmitCode, offset: Code[Long], annotation: => IEmitCode) {
     cb.ifx(leafBuilder.ab.length.ceq(branchingFactor),
-      cb += writeLeafNode.invokeCode[Unit]())
+      writeLeafNode.invokeCode[Unit](cb))
     leafBuilder.add(cb, key, offset, annotation)
     cb.assign(elementIdx, elementIdx + 1L)
   }
   def close(cb: EmitCodeBuilder): Unit = {
-    val off = cb.newLocal[Long]("lastOffset")
-    cb.assign(off, flush.invokeCode[Long]())
+    val off = flush.invokeCode[Long](cb)
     leafBuilder.close(cb)
     utils.close(cb)
     utils.writeMetadata(cb, utils.size + 1, off, elementIdx)

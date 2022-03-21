@@ -262,13 +262,13 @@ abstract class RegistryFunctions {
     case _ => classInfo[AnyRef]
   }
 
-  def scodeToJavaValue(cb: EmitCodeBuilder, r: Value[Region], sc: SValue): Value[AnyRef] = {
+  def svalueToJavaValue(cb: EmitCodeBuilder, r: Value[Region], sc: SValue): Value[AnyRef] = {
     sc.st match {
-      case SInt32 => cb.memoize(Code.boxInt(sc.asInt32.intCode(cb)))
-      case SInt64 => cb.memoize(Code.boxLong(sc.asInt64.longCode(cb)))
-      case SFloat32 => cb.memoize(Code.boxFloat(sc.asFloat32.floatCode(cb)))
-      case SFloat64 => cb.memoize(Code.boxDouble(sc.asFloat64.doubleCode(cb)))
-      case SBoolean => cb.memoize(Code.boxBoolean(sc.asBoolean.boolCode(cb)))
+      case SInt32 => cb.memoize(Code.boxInt(sc.asInt32.value))
+      case SInt64 => cb.memoize(Code.boxLong(sc.asInt64.value))
+      case SFloat32 => cb.memoize(Code.boxFloat(sc.asFloat32.value))
+      case SFloat64 => cb.memoize(Code.boxDouble(sc.asFloat64.value))
+      case SBoolean => cb.memoize(Code.boxBoolean(sc.asBoolean.value))
       case _: SCall => cb.memoize(Code.boxInt(sc.asCall.canonicalCall(cb)))
       case _: SString => sc.asString.loadString(cb)
       case _: SLocus => sc.asLocus.getLocusObj(cb)
@@ -455,7 +455,7 @@ abstract class RegistryFunctions {
       case t if t.isPrimitive => SType.extractPrimValue(cb, code)
       case TCall => code.asCall.canonicalCall(cb)
       case TArray(TString) => code.st match {
-        case _: SJavaArrayString => cb.memoize(code.asInstanceOf[SJavaArrayStringCode].array)
+        case _: SJavaArrayString => cb.memoize(code.asInstanceOf[SJavaArrayStringValue].array)
         case _ =>
           val sv = code.asIndexable
           val arr = cb.newLocal[Array[String]]("scode_array_string", Code.newArray[String](sv.loadLength()))
@@ -464,7 +464,7 @@ abstract class RegistryFunctions {
           }
           arr
       }
-      case _ => scodeToJavaValue(cb, r, code)
+      case _ => svalueToJavaValue(cb, r, code)
     }
 
     registerSCode(name, valueParameterTypes, returnType, calculateReturnType) { case (r, cb, _, rt, args, _) =>
@@ -646,6 +646,12 @@ abstract class RegistryFunctions {
       impl(cb, r, rt, seed, a1, a2)
     }
 
+  def registerSeeded3(name: String, arg1: Type, arg2: Type, arg3: Type, returnType: Type, pt: (Type, SType, SType, SType) => SType)
+    (impl: (EmitCodeBuilder, Value[Region], SType, Long, SValue, SValue, SValue) => SValue): Unit =
+    registerSeeded(name, Array(arg1, arg2, arg3), returnType, unwrappedApply(pt)) {
+      case (cb, r, rt, seed, Array(a1, a2, a3)) => impl(cb, r, rt, seed, a1, a2, a3)
+    }
+
   def registerSeeded4(name: String, arg1: Type, arg2: Type, arg3: Type, arg4: Type, returnType: Type, pt: (Type, SType, SType, SType, SType) => SType)
     (impl: (EmitCodeBuilder, Value[Region], SType, Long, SValue, SValue, SValue, SValue) => SValue): Unit =
     registerSeeded(name, Array(arg1, arg2, arg3, arg4), returnType, unwrappedApply(pt)) {
@@ -717,7 +723,7 @@ abstract class UnseededMissingnessObliviousJVMFunction (
       rpt,
       typeParameters,
       methodbuilder.getCodeParam[Int](2),
-      (0 until args.length).map(i => methodbuilder.getSCodeParam(i + 3)): _*).get)
+      (0 until args.length).map(i => methodbuilder.getSCodeParam(i + 3)): _*))
     methodbuilder
   }
 }

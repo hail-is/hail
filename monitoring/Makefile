@@ -6,11 +6,14 @@ MONITORING_IMAGE := $(DOCKER_PREFIX)/monitoring:$(TOKEN)
 
 PYTHONPATH := $${PYTHONPATH:+$${PYTHONPATH}:}
 PYTHON := PYTHONPATH=$(PYTHONPATH)../hail/python:../gear:../web_common python3
+BLACK := $(PYTHON) -m black . --line-length=120 --skip-string-normalization
 
 .PHONY: check
 check:
 	$(PYTHON) -m flake8 monitoring
 	$(PYTHON) -m pylint --rcfile ../pylintrc monitoring --score=n
+	$(PYTHON) -m isort . --check-only --diff
+	$(BLACK) --check --diff
 	curlylint .
 	bash ../check-sql.sh
 

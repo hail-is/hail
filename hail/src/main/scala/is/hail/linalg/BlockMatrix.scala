@@ -7,11 +7,11 @@ import breeze.numerics.{abs => breezeAbs, log => breezeLog, pow => breezePow, sq
 import breeze.stats.distributions.{RandBasis, ThreadLocalRandomGenerator}
 import is.hail._
 import is.hail.annotations._
-import is.hail.backend.{BroadcastValue, HailTaskContext}
+import is.hail.backend.{BroadcastValue, ExecuteContext, HailTaskContext}
 import is.hail.backend.spark.{SparkBackend, SparkTaskContext}
 import is.hail.utils._
 import is.hail.expr.Parser
-import is.hail.expr.ir.{CompileAndEvaluate, ExecuteContext, IR, IntArrayBuilder, TableValue}
+import is.hail.expr.ir.{CompileAndEvaluate, IR, IntArrayBuilder, TableValue}
 import is.hail.types._
 import is.hail.types.physical.{PArray, PCanonicalArray, PCanonicalStruct, PFloat64, PFloat64Optional, PFloat64Required, PInt64, PInt64Optional, PInt64Required, PStruct}
 import is.hail.types.virtual._

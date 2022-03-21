@@ -44,18 +44,26 @@ spec:
              value: /deploy-config/deploy-config.json
            - name: HAIL_CI_OAUTH_TOKEN
              value: /secrets/oauth-token/oauth-token
-{% if deploy %}
-           - name: HAIL_WATCHED_BRANCHES
-             value: '[["hail-is/hail:main",true]]'
-{% else %}
-           - name: HAIL_WATCHED_BRANCHES
-             value: '[["hail-ci-test/ci-test-{{create_ci_test_repo.token}}:master", true]]'
-{% endif %}
-           - name: HAIL_GCP_PROJECT
+           - name: HAIL_CI_GITHUB_CONTEXT
              valueFrom:
                secretKeyRef:
-                 name: global-config
-                 key: gcp_project
+                 name: ci-config
+                 key: github_context
+           - name: HAIL_WATCHED_BRANCHES
+             valueFrom:
+               secretKeyRef:
+                 name: ci-config
+                 key: watched_branches
+           - name: HAIL_CI_DEPLOY_STEPS
+             valueFrom:
+               secretKeyRef:
+                 name: ci-config
+                 key: deploy_steps
+           - name: HAIL_CI_STORAGE_URI
+             valueFrom:
+               secretKeyRef:
+                 name: ci-config
+                 key: storage_uri
            - name: HAIL_DOCKER_PREFIX
              valueFrom:
                secretKeyRef:
@@ -66,26 +74,6 @@ spec:
                secretKeyRef:
                  name: global-config
                  key: docker_root_image
-           - name: HAIL_TEST_GCS_BUCKET
-             valueFrom:
-               secretKeyRef:
-                 name: global-config
-                 key: hail_test_gcs_bucket
-           - name: HAIL_TEST_REQUESTER_PAYS_GCS_BUCKET
-             valueFrom:
-               secretKeyRef:
-                 name: global-config
-                 key: hail_test_requester_pays_gcs_bucket
-           - name: HAIL_GCP_ZONE
-             valueFrom:
-               secretKeyRef:
-                 name: global-config
-                 key: gcp_zone
-           - name: HAIL_IP
-             valueFrom:
-               secretKeyRef:
-                 name: global-config
-                 key: ip
            - name: HAIL_DOMAIN
              valueFrom:
                secretKeyRef:
@@ -102,20 +90,14 @@ spec:
              value: "{{ hail_buildkit_image.image }}"
            - name: HAIL_DEFAULT_NAMESPACE
              value: "{{ default_ns.name }}"
-           - name: HAIL_CI_BUCKET_NAME
-{% if deploy %}
-             value: "hail-ci-bpk3h"
-{% else %}
-             valueFrom:
-               secretKeyRef:
-                 name: global-config
-                 key: hail_test_gcs_bucket
-{% endif %}
           ports:
             - containerPort: 5000
           volumeMounts:
            - mountPath: /deploy-config
              name: deploy-config
+             readOnly: true
+           - mountPath: /global-config
+             name: global-config
              readOnly: true
            - name: session-secret-key
              mountPath: /session-secret-key
@@ -149,6 +131,9 @@ spec:
        - name: deploy-config
          secret:
            secretName: deploy-config
+       - name: global-config
+         secret:
+           secretName: global-config
        - name: session-secret-key
          secret:
            optional: false
@@ -166,6 +151,7 @@ spec:
        - name: zulip-config
          secret:
            secretName: zulip-config
+           optional: true
        - name: ssl-config-ci
          secret:
            optional: false

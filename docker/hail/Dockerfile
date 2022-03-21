@@ -9,11 +9,13 @@ RUN hail-apt-get-install \
     openjdk-8-jre-headless \
     python3 python3-pip \
     rsync \
-    unzip bzip2 zip tar \
-    vim
-COPY hail_pip_version /
+    unzip bzip2 zip tar tabix lz4 \
+    vim pv
+COPY wheel-container.tar ./
+RUN tar -xf wheel-container.tar && \
+    pip3 install -U hail-*-py3-none-any.whl && \
+    rm -rf hail-*-py3-none-any.whl
 RUN hail-pip-install \
-      hail==$(cat /hail_pip_version) \
       ipython \
       matplotlib \
       numpy \

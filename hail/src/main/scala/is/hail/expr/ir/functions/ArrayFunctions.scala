@@ -289,8 +289,8 @@ object ArrayFunctions extends RegistryFunctions {
             cb.forLoop(cb.assign(i, 0), i < l1, cb.assign(i, i + 1), {
               pv1.loadElement(cb, i).consume(cb, {}, { xc =>
                 pv2.loadElement(cb, i).consume(cb, {}, { yc =>
-                  val x = cb.newLocal[Double]("x", xc.asDouble.doubleCode(cb))
-                  val y = cb.newLocal[Double]("y", yc.asDouble.doubleCode(cb))
+                  val x = cb.newLocal[Double]("x", xc.asDouble.value)
+                  val y = cb.newLocal[Double]("y", yc.asDouble.value)
                   cb.assign(xSum, xSum + x)
                   cb.assign(xSqSum, xSqSum + x * x)
                   cb.assign(ySum, ySum + y)

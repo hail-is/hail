@@ -1,17 +1,18 @@
-from typing import Set
-import os
-from aiohttp import web
-import jinja2
 import logging
+import os
+from typing import Set
+
 import aiohttp_session
+import jinja2
+from aiohttp import web
 from prometheus_async.aio.web import server_stats  # type: ignore
 
+from gear import monitor_endpoints_middleware, setup_aiohttp_session, web_maybe_authenticated_user
+from hailtop import httpx
 from hailtop.config import get_deploy_config
-from hailtop.tls import internal_server_ssl_context
 from hailtop.hail_logging import AccessLogger
-from gear import setup_aiohttp_session, web_maybe_authenticated_user, monitor_endpoints_middleware
-from web_common import setup_aiohttp_jinja2, setup_common_static_routes, render_template, sass_compile
-
+from hailtop.tls import internal_server_ssl_context
+from web_common import render_template, sass_compile, setup_aiohttp_jinja2, setup_common_static_routes
 
 MODULE_PATH = os.path.dirname(__file__)
 log = logging.getLogger('website')
@@ -47,9 +48,7 @@ redirect('/docs/0.1/', 'index.html')
 
 
 DOCS_PATH = f'{MODULE_PATH}/docs/'
-STATIC_DOCS_PATHS = ['0.2/_static', '0.2/_sources',
-                     'batch',
-                     '0.1']
+STATIC_DOCS_PATHS = ['0.2/_static', '0.2/_sources', 'batch', '0.1']
 FQ_STATIC_DOCS_PATHS: Set[str] = set()
 
 
@@ -93,6 +92,14 @@ for fname in os.listdir(f'{MODULE_PATH}/pages'):
         routes.get('/')(make_template_handler(fname))
 
 
+async def on_startup(app):
+    app['client_session'] = httpx.client_session()
+
+
+async def on_cleanup(app):
+    await app['client_session'].close()
+
+
 def run(local_mode):
     app = web.Application(middlewares=[monitor_endpoints_middleware])
 
@@ -117,6 +124,8 @@ def run(local_mode):
         app, 'website', jinja2.PackageLoader('website', 'pages'), jinja2.PackageLoader('website', 'docs')
     )
     setup_common_static_routes(routes)
+    app.on_startup.append(on_startup)
+    app.on_cleanup.append(on_cleanup)
     app.add_routes(routes)
     app.router.add_get("/metrics", server_stats)
     sass_compile('website')

@@ -18,7 +18,7 @@ object GenotypeFunctions extends RegistryFunctions {
 
       cb.whileLoop(i < pl.loadLength(), {
         val value = pl.loadElement(cb, i).get(cb, "PL cannot have missing elements.", errorID)
-        val pli = cb.newLocal[Int]("pli", value.asInt.intCode(cb))
+        val pli = cb.newLocal[Int]("pli", value.asInt.value)
         cb.ifx(pli < m, {
           cb.assign(m2, m)
           cb.assign(m, pli)
@@ -41,7 +41,7 @@ object GenotypeFunctions extends RegistryFunctions {
 
         gpv.loadElement(cb, 1).flatMap(cb) { _1 =>
           gpv.loadElement(cb, 2).map(cb) { _2 =>
-            primitive(cb.memoize(_1.asDouble.doubleCode(cb) + _2.asDouble.doubleCode(cb) * 2.0))
+            primitive(cb.memoize(_1.asDouble.value + _2.asDouble.value * 2.0))
           }
         }
       }

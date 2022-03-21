@@ -2,8 +2,9 @@ package is.hail.io
 
 import is.hail.annotations._
 import is.hail.asm4s._
+import is.hail.backend.ExecuteContext
 import is.hail.expr.ir.lowering.TableStage
-import is.hail.expr.ir.{EmitCode, EmitCodeBuilder, EmitFunctionBuilder, EmitMethodBuilder, ExecuteContext, GenericLine, GenericLines, GenericTableValue, IEmitCode, IRParser, IntArrayBuilder, LowerMatrixIR, MatrixHybridReader, TableRead, TableValue}
+import is.hail.expr.ir.{EmitCode, EmitCodeBuilder, EmitFunctionBuilder, ExecuteContext, GenericLine, GenericLines, GenericTableValue, IEmitCode, IRParser, IntArrayBuilder, LowerMatrixIR, MatrixHybridReader, TableRead, TableValue}
 import is.hail.io.fs.FS
 import is.hail.rvd.RVDPartitioner
 import is.hail.types._
@@ -232,7 +233,7 @@ object TextMatrixReader {
 
     val lines = GenericLines.read(fs, fileStatuses, params.nPartitions, None, None, params.gzipAsBGZip, false)
 
-    val linesRDD = lines.toRDD()
+    val linesRDD = lines.toRDD(fs)
       .filter { line =>
         val l = line.toString
         l.nonEmpty && !opts.isComment(l)
@@ -351,10 +352,10 @@ class TextMatrixReader(
         partitionLineIndexWithinFile,
         params.hasHeader)
 
-      { (region: Region, context: Any) =>
+      { (region: Region, theHailClassLoader: HailClassLoader, fs: FS, context: Any) =>
         val Row(lc, partitionIdx: Int) = context
-        compiledLineParser.apply(partitionIdx, region,
-          linesBody(lc).filter { line =>
+        compiledLineParser.apply(partitionIdx, region, theHailClassLoader,
+          linesBody(fs, lc).filter { line =>
             val l = line.toString
             l.nonEmpty && !localOpts.isComment(l)
           }
@@ -419,7 +420,7 @@ class CompiledLineParser(
   partitionRowIndexGlobal: Array[Long],
   partitionRowIndexFile: Array[Long],
   hasHeader: Boolean
-) extends ((Int, Region, Iterator[GenericLine]) => Iterator[Long]) with Serializable {
+) extends ((Int, Region, HailClassLoader, Iterator[GenericLine]) => Iterator[Long]) with Serializable {
   assert(!missingValue.contains(separator))
   @transient private[this] val entriesType = rowPType
     .selfField(MatrixType.entriesIdentifier)
@@ -466,7 +467,7 @@ class CompiledLineParser(
     rowPType.constructFromFields(cb, region, rowFields ++ entries, deepCopy = false).a
   }
 
-  private[this] val loadParserOnWorker = fb.result()
+  private[this] val loadParserOnWorker = fb.result(ctx)
 
   private[this] def parseError(cb: EmitCodeBuilder, msg: Code[String]): Unit =
     cb += Code._throw[MatrixParseError, Unit](Code.newInstance[MatrixParseError, String, String, Long, Int, Int](
@@ -665,13 +666,14 @@ class CompiledLineParser(
   def apply(
     partition: Int,
     r: Region,
+    theHailClassLoader: HailClassLoader,
     it: Iterator[GenericLine]
   ): Iterator[Long] = {
     val filename = partitionPaths(partition)
     if (hasHeader && headerPartitions.contains(partition))
       it.next()
 
-    val parse = loadParserOnWorker()
+    val parse = loadParserOnWorker(theHailClassLoader)
     val fileLineIndex = partitionRowIndexFile(partition)
     val globalLineIndex = partitionRowIndexGlobal(partition)
 

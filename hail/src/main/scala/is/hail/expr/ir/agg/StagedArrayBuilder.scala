@@ -58,7 +58,7 @@ class StagedArrayBuilder(eltType: PType, kb: EmitClassBuilder[_], region: Value[
       cb += ob.writeInt(size)
       cb += ob.writeInt(capacity)
       codecSpec.encodedType.buildEncoder(eltArray.sType, kb)
-        .apply(cb, eltArray.loadCheapSCode(cb, data).get, ob)
+        .apply(cb, eltArray.loadCheapSCode(cb, data), ob)
       cb += ob.writeInt(const(StagedArrayBuilder.END_SERIALIZATION))
     }
   }
@@ -71,7 +71,7 @@ class StagedArrayBuilder(eltType: PType, kb: EmitClassBuilder[_], region: Value[
       cb.assign(capacity, ib.readInt())
 
       val decValue = codecSpec.encodedType.buildDecoder(eltArray.virtualType, kb)
-        .apply(cb, region, ib).memoize(cb, "StagedArrayBuilder_deserialize")
+        .apply(cb, region, ib)
       cb.assign(data, eltArray.store(cb, region, decValue, deepCopy = false))
 
       cb += ib.readInt()
@@ -105,7 +105,8 @@ class StagedArrayBuilder(eltType: PType, kb: EmitClassBuilder[_], region: Value[
     eltArray.stagedInitialize(cb, data, capacity, setMissing = true)
   }
 
-  def elementOffset(idx: Value[Int]): Code[Long] = eltArray.elementOffset(data, capacity, idx)
+  def elementOffset(cb: EmitCodeBuilder, idx: Value[Int]): Value[Long] =
+    cb.memoize(eltArray.elementOffset(data, capacity, idx))
 
 
   def loadElement(cb: EmitCodeBuilder, idx: Value[Int]): EmitCode = {

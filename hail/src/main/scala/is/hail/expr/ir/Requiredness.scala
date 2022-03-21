@@ -1,5 +1,6 @@
 package is.hail.expr.ir
 
+import is.hail.backend.ExecuteContext
 import is.hail.expr.ir.functions.GetElement
 import is.hail.methods.ForceCountTable
 import is.hail.types._
@@ -242,8 +243,13 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
         addElementBinding(name, a)
       case StreamAggScan(a, name, query) =>
         addElementBinding(name, a)
+      case StreamBufferedAggregate(stream, _, _, _, name, _) =>
+        addElementBinding(name, stream)
       case RunAggScan(a, name, init, seqs, result, signature) =>
         addElementBinding(name, a)
+      case AggFold(zero, seqOp, combOp, accumName, otherAccumName, _) =>
+        addBindings(accumName, Array(zero, seqOp, combOp))
+        addBindings(otherAccumName, Array(zero, seqOp, combOp))
       case AggExplode(a, name, aggBody, isScan) =>
         addElementBinding(name, a)
       case AggArrayPerElement(a, elt, idx, body, knownLength, isScan) =>
@@ -283,7 +289,7 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
           refMap(partitionStreamName).foreach { u => defs.bind(u, Array[BaseTypeWithRequiredness](RIterable(lookup(child).rowType))) }
         val refs = refMap.getOrElse(globalName, FastIndexedSeq()) ++ refMap.getOrElse(partitionStreamName, FastIndexedSeq())
         dependents.getOrElseUpdate(child, mutable.Set[RefEquality[BaseIR]]()) ++= refs
-      case _ => fatal(Pretty(node))
+      case _ => fatal(Pretty(ctx, node))
     }
   }
 
@@ -605,15 +611,19 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
         rit.union(lookup(a).required)
         rit.elementType.unionFrom(lookup(body))
       case ApplyAggOp(initOpArgs, seqOpArgs, aggSig) => //FIXME round-tripping through ptype
-        val pResult = agg.PhysicalAggSig(aggSig.op, agg.AggStateSig(aggSig.op,
+        val emitResult = agg.PhysicalAggSig(aggSig.op, agg.AggStateSig(aggSig.op,
           initOpArgs.map(i => i -> lookup(i)),
-          seqOpArgs.map(s => s -> lookup(s)))).pResultType
-        requiredness.fromPType(pResult)
+          seqOpArgs.map(s => s -> lookup(s)))).emitResultType
+        requiredness.fromEmitType(emitResult)
       case ApplyScanOp(initOpArgs, seqOpArgs, aggSig) =>
-        val pResult = agg.PhysicalAggSig(aggSig.op, agg.AggStateSig(aggSig.op,
+        val emitResult = agg.PhysicalAggSig(aggSig.op, agg.AggStateSig(aggSig.op,
           initOpArgs.map(i => i -> lookup(i)),
-          seqOpArgs.map(s => s -> lookup(s)))).pResultType
-        requiredness.fromPType(pResult)
+          seqOpArgs.map(s => s -> lookup(s)))).emitResultType
+        requiredness.fromEmitType(emitResult)
+      case AggFold(zero, seqOp, combOp, elementName, accumName, _) =>
+        requiredness.unionFrom(lookup(zero))
+        requiredness.unionFrom(lookup(seqOp))
+        requiredness.unionFrom(lookup(combOp))
       case MakeNDArray(data, shape, rowMajor, _) =>
         requiredness.unionFrom(lookup(data))
         requiredness.union(lookup(shape).required)
@@ -719,11 +729,15 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
           requiredness.union(required)
       }
       case LiftMeOut(f) => requiredness.unionFrom(lookup(f))
-      case ResultOp(_, sigs) =>
-        val r = coerce[RBaseStruct](requiredness)
-        r.fields.foreach { f => f.typ.fromPType(sigs(f.index).pResultType) }
+      case ResultOp(_, sig) =>
+        val r = requiredness
+        r.fromEmitType(sig.emitResultType)
       case RunAgg(_, result, _) =>
         requiredness.unionFrom(lookup(result))
+      case StreamBufferedAggregate(streamChild, initAggs, newKey, seqOps, _, _) =>
+        requiredness.union(lookup(streamChild).required)
+        val newKeyReq = lookupAs[RStruct](newKey)
+        requiredness.union(newKeyReq.required)
       case RunAggScan(array, name, init, seqs, result, signature) =>
         requiredness.union(lookup(array).required)
         coerce[RIterable](requiredness).elementType.unionFrom(lookup(result))

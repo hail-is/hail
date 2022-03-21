@@ -1,7 +1,6 @@
 package is.hail.io
 
 import is.hail.ExecStrategy.ExecStrategy
-import is.hail.TestUtils.assertEvalsTo
 import is.hail.expr.ir.{ReadPartition, Str, ToArray}
 import is.hail.io.avro.AvroPartitionReader
 import is.hail.utils.{FastIndexedSeq, fatal, using}

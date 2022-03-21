@@ -39,39 +39,19 @@ case object SInt64 extends SPrimitive {
   override def storageType(): PType = PInt64()
 }
 
-class SInt64Code(val code: Code[Long]) extends SPrimitiveCode {
-  override def _primitiveCode: Code[_] = code
-
-  def st: SInt64.type = SInt64
-
-  private[this] def memoizeWithBuilder(cb: EmitCodeBuilder, name: String, sb: SettableBuilder): SInt64Value = {
-    val s = new SInt64Settable(sb.newSettable[Long]("sint64_memoize"))
-    s.store(cb, this)
-    s
-  }
-
-  def memoize(cb: EmitCodeBuilder, name: String): SInt64Value = memoizeWithBuilder(cb, name, cb.localBuilder)
-
-  def memoizeField(cb: EmitCodeBuilder, name: String): SInt64Value = memoizeWithBuilder(cb, name, cb.fieldBuilder)
-
-  def longCode(cb: EmitCodeBuilder): Code[Long] = code
-}
-
-class SInt64Value(x: Value[Long]) extends SPrimitiveValue {
+class SInt64Value(val value: Value[Long]) extends SPrimitiveValue {
   val pt: PInt64 = PInt64(false)
 
-  override def valueTuple: IndexedSeq[Value[_]] = FastIndexedSeq(x)
+  override def valueTuple: IndexedSeq[Value[_]] = FastIndexedSeq(value)
 
   override def st: SInt64.type = SInt64
 
-  override def _primitiveValue: Value[_] = x
-
-  override def get: SCode = new SInt64Code(x)
-
-  def longCode(cb: EmitCodeBuilder): Value[Long] = x
+  override def _primitiveValue: Value[_] = value
 
   override def hash(cb: EmitCodeBuilder): SInt32Value =
-    new SInt32Value(cb.memoize(invokeStatic1[java.lang.Long, Long, Int]("hashCode", longCode(cb))))
+    new SInt32Value(cb.memoize(invokeStatic1[java.lang.Long, Long, Int]("hashCode", value)))
+
+  override def sizeToStoreInBytes(cb: EmitCodeBuilder): SInt64Value = new SInt64Value(this.st.storageType().asInstanceOf[PInt64].byteSize)
 }
 
 object SInt64Settable {
@@ -83,5 +63,6 @@ object SInt64Settable {
 final class SInt64Settable(x: Settable[Long]) extends SInt64Value(x) with SSettable {
   override def settableTuple(): IndexedSeq[Settable[_]] = FastIndexedSeq(x)
 
-  override def store(cb: EmitCodeBuilder, v: SCode): Unit = cb.assign(x, v.asLong.longCode(cb))
+  override def store(cb: EmitCodeBuilder, v: SValue): Unit =
+    cb.assign(x, v.asInstanceOf[SInt64Value].value)
 }

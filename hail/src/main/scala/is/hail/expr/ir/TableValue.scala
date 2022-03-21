@@ -1,8 +1,9 @@
 package is.hail.expr.ir
 
+import is.hail.asm4s.{HailClassLoader, theHailClassLoaderForSparkWorkers}
 import is.hail.HailContext
 import is.hail.annotations._
-import is.hail.backend.BroadcastValue
+import is.hail.backend.{BroadcastValue, ExecuteContext}
 import is.hail.expr.TableAnnotationImpex
 import is.hail.expr.ir.lowering.{RVDToTableStage, TableStage, TableStageToRVD}
 import is.hail.io.fs.FS
@@ -37,7 +38,7 @@ sealed trait TableExecuteIntermediate {
 
 class TableValueIntermediate(tv: TableValue) extends TableExecuteIntermediate {
   def asTableStage(ctx: ExecuteContext): TableStage = {
-    RVDToTableStage(tv.rvd, tv.globals.toEncodedLiteral())
+    RVDToTableStage(tv.rvd, tv.globals.toEncodedLiteral(ctx.theHailClassLoader))
   }
 
   def asTableValue(ctx: ExecuteContext): TableValue = tv
@@ -96,17 +97,20 @@ case class TableValue(ctx: ExecuteContext, typ: TableType, globals: BroadcastRow
   def persist(ctx: ExecuteContext, level: StorageLevel) =
     TableValue(ctx, typ, globals, rvd.persist(ctx, level))
 
-  def filterWithPartitionOp[P](fs: BroadcastValue[FS], partitionOp: (FS, Int, Region) => P)(pred: (P, RVDContext, Long, Long) => Boolean): TableValue = {
-    val localGlobals = globals.broadcast
+  def filterWithPartitionOp[P](theHailClassLoader: HailClassLoader, fs: BroadcastValue[FS], partitionOp: (HailClassLoader, FS, Int, Region) => P)(pred: (P, RVDContext, Long, Long) => Boolean): TableValue = {
+    val localGlobals = globals.broadcast(theHailClassLoader)
     copy(rvd = rvd.filterWithContext[(P, Long)](
       { (partitionIdx, ctx) =>
         val globalRegion = ctx.partitionRegion
-        (partitionOp(fs.value, partitionIdx, globalRegion), localGlobals.value.readRegionValue(globalRegion))
+        (
+          partitionOp(theHailClassLoaderForSparkWorkers, fs.value, partitionIdx, globalRegion),
+          localGlobals.value.readRegionValue(globalRegion, theHailClassLoaderForSparkWorkers)
+        )
       }, { case ((p, glob), ctx, ptr) => pred(p, ctx, ptr, glob) }))
   }
 
-  def filter(fs: BroadcastValue[FS], p: (RVDContext, Long, Long) => Boolean): TableValue = {
-    filterWithPartitionOp(fs, (_, _, _) => ())((_, ctx, ptr, glob) => p(ctx, ptr, glob))
+  def filter(theHailClassLoader: HailClassLoader, fs: BroadcastValue[FS], p: (RVDContext, Long, Long) => Boolean): TableValue = {
+    filterWithPartitionOp(theHailClassLoader, fs, (_, _, _, _) => ())((_, ctx, ptr, glob) => p(ctx, ptr, glob))
   }
 
   def export(ctx: ExecuteContext, path: String, typesFile: String = null, header: Boolean = true, exportType: String = ExportType.CONCATENATED, delimiter: String = "\t") {

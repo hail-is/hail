@@ -5,7 +5,7 @@ import is.hail.asm4s._
 import is.hail.expr.ir.EmitCodeBuilder
 import is.hail.types.physical._
 import is.hail.io.OutputBuffer
-import is.hail.types.physical.stypes.SCode
+import is.hail.types.physical.stypes.{SCode, SValue}
 import is.hail.types.virtual._
 
 class RichCodeOutputBuffer(
@@ -59,11 +59,11 @@ class RichCodeOutputBuffer(
   def writeUTF(s: Code[String]): Code[Unit] =
     ob.invoke[String, Unit]("writeUTF", s)
 
-  def writePrimitive(cb: EmitCodeBuilder, pc: SCode): Unit = pc.st.virtualType match {
-    case TBoolean => cb += writeBoolean(pc.asBoolean.boolCode(cb))
-    case TInt32 => cb += writeInt(pc.asInt.intCode(cb))
-    case TInt64 => cb += writeLong(pc.asLong.longCode(cb))
-    case TFloat32 => cb += writeFloat(pc.asFloat.floatCode(cb))
-    case TFloat64 => cb += writeDouble(pc.asDouble.doubleCode(cb))
+  def writePrimitive(cb: EmitCodeBuilder, pc: SValue): Unit = pc.st.virtualType match {
+    case TBoolean => cb += writeBoolean(pc.asBoolean.value)
+    case TInt32 => cb += writeInt(pc.asInt.value)
+    case TInt64 => cb += writeLong(pc.asLong.value)
+    case TFloat32 => cb += writeFloat(pc.asFloat.value)
+    case TFloat64 => cb += writeDouble(pc.asDouble.value)
   }
 }

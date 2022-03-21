@@ -1,7 +1,9 @@
 package is.hail.expr.ir
 
+import scala.language.existentials
 import is.hail.annotations.Region
 import is.hail.asm4s._
+import is.hail.backend.ExecuteContext
 import is.hail.expr.ir.functions.MatrixWriteBlockMatrix
 import is.hail.expr.ir.lowering.{LowererUnsupportedOperation, TableStage}
 import is.hail.expr.ir.streams.StreamProducer
@@ -15,11 +17,13 @@ import is.hail.io.vcf.ExportVCF
 import is.hail.linalg.BlockMatrix
 import is.hail.rvd.{IndexSpec, RVDPartitioner, RVDSpecMaker}
 import is.hail.types.encoded.{EBaseStruct, EBlockMatrixNDArray, EType}
-import is.hail.types.physical.stypes.SCode
+import is.hail.types.physical.stypes.{EmitType, SCode}
 import is.hail.types.physical.stypes.interfaces._
-import is.hail.types.physical.{PCanonicalBaseStruct, PCanonicalString, PCanonicalStruct, PInt64, PStruct, PType}
+import is.hail.types.physical.{PBooleanRequired, PCanonicalBaseStruct, PCanonicalString, PCanonicalStruct, PInt64, PStruct, PType}
 import is.hail.types.virtual._
 import is.hail.types._
+import is.hail.types.physical.stypes.concrete.SStackStruct
+import is.hail.types.physical.stypes.primitives.{SBooleanValue, SInt64Value}
 import is.hail.utils._
 import is.hail.utils.richUtils.ByteTrackingOutputStream
 import org.apache.spark.sql.Row
@@ -101,13 +105,13 @@ case class MatrixNativeWriter(
     val partitioner = lowered.partitioner
     val pKey: PStruct = coerce[PStruct](rowSpec.decodedPType(partitioner.kType))
 
-    val emptyWriter = PartitionNativeWriter(emptySpec, s"$path/globals/globals/parts/", None, None)
-    val globalWriter = PartitionNativeWriter(globalSpec, s"$path/globals/rows/parts/", None, None)
-    val colWriter = PartitionNativeWriter(colSpec, s"$path/cols/rows/parts/", None, None)
+    val emptyWriter = PartitionNativeWriter(emptySpec, IndexedSeq(), s"$path/globals/globals/parts/", None, None)
+    val globalWriter = PartitionNativeWriter(globalSpec, IndexedSeq(), s"$path/globals/rows/parts/", None, None)
+    val colWriter = PartitionNativeWriter(colSpec, IndexedSeq(), s"$path/cols/rows/parts/", None, None)
     val rowWriter = SplitPartitionNativeWriter(
       rowSpec, s"$path/rows/rows/parts/",
       entrySpec, s"$path/entries/rows/parts/",
-      Some(s"$path/index/" -> pKey), if (stageLocally) Some(ctx.localTmpdir) else None)
+      pKey.virtualType.fieldNames, Some(s"$path/index/" -> pKey), if (stageLocally) Some(ctx.localTmpdir) else None)
 
     lowered.mapContexts { oldCtx =>
       val d = digitsNeeded(lowered.numPartitions)
@@ -146,20 +150,28 @@ case class MatrixNativeWriter(
                         RVDSpecWriter(s"$path/globals/globals", RVDSpecMaker(emptySpec, RVDPartitioner.unkeyed(1)))),
                       WriteMetadata(MakeArray(GetField(writeGlobals, "filePath")),
                         RVDSpecWriter(s"$path/globals/rows", RVDSpecMaker(globalSpec, RVDPartitioner.unkeyed(1)))),
-                      WriteMetadata(MakeArray(I64(1)), globalTableWriter),
+                      WriteMetadata(MakeArray(MakeStruct(Seq("partitionCounts" -> I64(1), "distinctlyKeyed" -> True(), "firstKey" -> MakeStruct(Seq()), "lastKey" -> MakeStruct(Seq())))), globalTableWriter),
                       WriteMetadata(MakeArray(GetField(colInfo, "filePath")),
                         RVDSpecWriter(s"$path/cols/rows", RVDSpecMaker(colSpec, RVDPartitioner.unkeyed(1)))),
-                      WriteMetadata(MakeArray(GetField(colInfo, "partitionCounts")), colTableWriter),
+                      WriteMetadata(MakeArray(SelectFields(colInfo, IndexedSeq("partitionCounts", "distinctlyKeyed", "firstKey", "lastKey"))), colTableWriter),
                       bindIR(ToArray(mapIR(ToStream(partInfo)) { fc => GetField(fc, "filePath") })) { files =>
                         Begin(FastIndexedSeq(
                           WriteMetadata(files, RVDSpecWriter(s"$path/rows/rows", RVDSpecMaker(rowSpec, lowered.partitioner, rowsIndexSpec))),
                           WriteMetadata(files, RVDSpecWriter(s"$path/entries/rows", RVDSpecMaker(entrySpec, RVDPartitioner.unkeyed(lowered.numPartitions), entriesIndexSpec)))))
                       },
-                      bindIR(ToArray(mapIR(ToStream(partInfo)) { fc => GetField(fc, "partitionCounts") })) { counts =>
+                      bindIR(ToArray(mapIR(ToStream(partInfo)) { fc => SelectFields(fc, Seq("partitionCounts", "distinctlyKeyed", "firstKey", "lastKey")) })) { countsAndKeyInfo =>
                         Begin(FastIndexedSeq(
-                            WriteMetadata(counts, rowTableWriter),
-                            WriteMetadata(counts, entriesTableWriter),
-                            WriteMetadata(makestruct("cols" -> GetField(colInfo, "partitionCounts"), "rows" -> counts), matrixWriter)))
+                            WriteMetadata(countsAndKeyInfo, rowTableWriter),
+                            WriteMetadata(
+                              ToArray(mapIR(ToStream(countsAndKeyInfo)){countAndKeyInfo =>
+                                InsertFields(SelectFields(countAndKeyInfo, IndexedSeq("partitionCounts", "distinctlyKeyed")), IndexedSeq("firstKey" -> MakeStruct(Seq()), "lastKey" -> MakeStruct(Seq())))
+                              }),
+                              entriesTableWriter),
+                            WriteMetadata(
+                              makestruct(
+                                "cols" -> GetField(colInfo, "partitionCounts"),
+                                "rows" -> ToArray(mapIR(ToStream(countsAndKeyInfo)) {countAndKey => GetField(countAndKey, "partitionCounts")})),
+                              matrixWriter)))
                       }))
                   }
                 })))))
@@ -170,17 +182,24 @@ case class MatrixNativeWriter(
 case class SplitPartitionNativeWriter(
   spec1: AbstractTypedCodecSpec, partPrefix1: String,
   spec2: AbstractTypedCodecSpec, partPrefix2: String,
+  keyFieldNames: IndexedSeq[String],
   index: Option[(String, PStruct)], localDir: Option[String]) extends PartitionWriter {
   def stageLocally: Boolean = localDir.isDefined
   def hasIndex: Boolean = index.isDefined
   val filenameType = PCanonicalString(required = true)
   def pContextType = PCanonicalString()
-  def pResultType: PCanonicalStruct =
-    PCanonicalStruct(required=true, "filePath" -> filenameType, "partitionCounts" -> PInt64(required=true))
+
+  val keyType = spec1.encodedVirtualType.asInstanceOf[TStruct].select(keyFieldNames)._1
 
   def ctxType: Type = TString
-  def returnType: Type = pResultType.virtualType
+  def returnType: Type = TStruct("filePath" -> TString, "partitionCounts" -> TInt64, "distinctlyKeyed" -> TBoolean, "firstKey" -> keyType, "lastKey" -> keyType)
   def unionTypeRequiredness(r: TypeWithRequiredness, ctxType: TypeWithRequiredness, streamType: RIterable): Unit = {
+    val rs = r.asInstanceOf[RStruct]
+    val rKeyType = streamType.elementType.asInstanceOf[RStruct].select(keyFieldNames.toArray)
+    rs.field("firstKey").union(false)
+    rs.field("firstKey").unionFrom(rKeyType)
+    rs.field("lastKey").union(false)
+    rs.field("lastKey").unionFrom(rKeyType)
     r.union(ctxType.required)
     r.union(streamType.required)
   }
@@ -195,15 +214,12 @@ case class SplitPartitionNativeWriter(
     stream: StreamProducer,
     context: EmitCode,
     region: Value[Region]): IEmitCode = {
-    val keyType = ifIndexed { index.get._2 }
     val iAnnotationType = PCanonicalStruct(required = true, "entries_offset" -> PInt64())
     val mb = cb.emb
 
-    val indexWriter = ifIndexed { StagedIndexWriter.withDefaults(keyType, mb.ecb, annotationType = iAnnotationType) }
-
+    val indexWriter = ifIndexed { StagedIndexWriter.withDefaults(index.get._2, mb.ecb, annotationType = iAnnotationType) }
 
     context.toI(cb).map(cb) { pctx =>
-      val result = mb.newLocal[Long]("write_result")
       val filename1 = mb.newLocal[String]("filename1")
       val os1 = mb.newLocal[ByteTrackingOutputStream]("write_os1")
       val ob1 = mb.newLocal[OutputBuffer]("write_ob1")
@@ -211,15 +227,27 @@ case class SplitPartitionNativeWriter(
       val os2 = mb.newLocal[ByteTrackingOutputStream]("write_os2")
       val ob2 = mb.newLocal[OutputBuffer]("write_ob2")
       val n = mb.newLocal[Long]("partition_count")
+      val distinctlyKeyed = mb.newLocal[Boolean]("distinctlyKeyed")
+      cb.assign(distinctlyKeyed, !keyFieldNames.isEmpty) // True until proven otherwise, if there's a key to care about all.
+
+      val keyEmitType = EmitType(spec1.decodedPType(keyType).sType, false)
+
+      val firstSeenSettable =  mb.newEmitLocal("pnw_firstSeen", keyEmitType)
+      val lastSeenSettable =  mb.newEmitLocal("pnw_lastSeen", keyEmitType)
+      // Start off missing, we will use this to determine if we haven't processed any rows yet.
+      cb.assign(firstSeenSettable, EmitCode.missing(cb.emb, keyEmitType.st))
+      cb.assign(lastSeenSettable, EmitCode.missing(cb.emb, keyEmitType.st))
 
 
       def writeFile(cb: EmitCodeBuilder, codeRow: EmitCode): Unit = {
         val row = codeRow.toI(cb).get(cb, "row can't be missing").asBaseStruct
+
         if (hasIndex) {
           indexWriter.add(cb, {
-            IEmitCode.present(cb, keyType.asInstanceOf[PCanonicalBaseStruct]
+            val indexKeyPType = index.get._2
+            IEmitCode.present(cb, indexKeyPType.asInstanceOf[PCanonicalBaseStruct]
               .constructFromFields(cb, stream.elementRegion,
-                keyType.fields.map(f => EmitCode.fromI(cb.emb)(cb => row.loadField(cb, f.name))),
+                indexKeyPType.fields.map(f => EmitCode.fromI(cb.emb)(cb => row.loadField(cb, f.name))),
                 deepCopy = false))
           }, ob1.invoke[Long]("indexOffset"), {
             IEmitCode.present(cb,
@@ -228,15 +256,36 @@ case class SplitPartitionNativeWriter(
                 deepCopy = false))
           })
         }
+
+        val key = SStackStruct.constructFromArgs(cb, stream.elementRegion, keyType, keyType.fields.map { f =>
+          EmitCode.fromI(cb.emb)(cb => row.loadField(cb, f.name))
+        }:_*)
+
+        if (!keyFieldNames.isEmpty) {
+          cb.ifx(distinctlyKeyed, {
+            lastSeenSettable.loadI(cb).consume(cb, {
+              // If there's no last seen, we are in the first row.
+              cb.assign(firstSeenSettable, EmitValue.present(key.copyToRegion(cb, region, firstSeenSettable.st)))
+            }, { lastSeen =>
+              val comparator = EQ(lastSeenSettable.emitType.virtualType).codeOrdering(cb.emb.ecb, lastSeenSettable.st, key.st)
+              val equalToLast = comparator(cb, lastSeenSettable, EmitValue.present(key))
+              cb.ifx(equalToLast.asInstanceOf[Value[Boolean]], {
+                cb.assign(distinctlyKeyed, false)
+              })
+            })
+          })
+          cb.assign(lastSeenSettable, IEmitCode.present(cb, key.copyToRegion(cb, region, lastSeenSettable.st)))
+        }
+
         cb += ob1.writeByte(1.asInstanceOf[Byte])
 
         spec1.encodedType.buildEncoder(row.st, cb.emb.ecb)
-          .apply(cb, row.get, ob1)
+          .apply(cb, row, ob1)
 
         cb += ob2.writeByte(1.asInstanceOf[Byte])
 
         spec2.encodedType.buildEncoder(row.st, cb.emb.ecb)
-          .apply(cb, row.get, ob2)
+          .apply(cb, row, ob2)
         cb.assign(n, n + 1L)
       }
 
@@ -260,21 +309,28 @@ case class SplitPartitionNativeWriter(
 
       cb += ob1.writeByte(0.asInstanceOf[Byte])
       cb += ob2.writeByte(0.asInstanceOf[Byte])
-      cb.assign(result, pResultType.allocate(region))
       if (hasIndex)
         indexWriter.close(cb)
       cb += ob1.flush()
       cb += ob2.flush()
       cb += os1.invoke[Unit]("close")
       cb += os2.invoke[Unit]("close")
-      filenameType.storeAtAddress(cb, pResultType.fieldOffset(result, "filePath"), region, pctx, false)
-      cb += Region.storeLong(pResultType.fieldOffset(result, "partitionCounts"), n)
-      pResultType.loadCheapSCode(cb, result.get)
+
+
+      SStackStruct.constructFromArgs(cb, region, returnType.asInstanceOf[TBaseStruct],
+        EmitCode.present(mb, pctx),
+        EmitCode.present(mb, new SInt64Value(n)),
+        EmitCode.present(mb, new SBooleanValue(distinctlyKeyed)),
+        firstSeenSettable,
+        lastSeenSettable
+      )
     }
   }
 }
 
-class MatrixSpecHelper(path: String, rowRelPath: String, globalRelPath: String, colRelPath: String, entryRelPath: String, refRelPath: String, typ: MatrixType, log: Boolean) {
+class MatrixSpecHelper(
+  path: String, rowRelPath: String, globalRelPath: String, colRelPath: String, entryRelPath: String, refRelPath: String, typ: MatrixType, log: Boolean
+) extends Serializable {
   def write(fs: FS, nCols: Long, partCounts: Array[Long]): Unit = {
     val spec = MatrixTableSpecParameters(
       FileFormat.version.rep,
@@ -314,11 +370,11 @@ case class MatrixSpecWriter(path: String, typ: MatrixType, rowRelPath: String, g
     cb.assign(partCounts, Code.newArray[Long](n))
     cb.whileLoop(i < n, {
       val count = a.loadElement(cb, i).get(cb, "part count can't be missing!")
-      cb += partCounts.update(i, count.asInt64.longCode(cb))
+      cb += partCounts.update(i, count.asInt64.value)
       cb.assign(i, i + 1)
     })
     cb += cb.emb.getObject(new MatrixSpecHelper(path, rowRelPath, globalRelPath, colRelPath, entryRelPath, refRelPath, typ, log))
-      .invoke[FS, Long, Array[Long], Unit]("write", cb.emb.getFS, c.loadField(cb, "cols").get(cb).asInt64.longCode(cb), partCounts)
+      .invoke[FS, Long, Array[Long], Unit]("write", cb.emb.getFS, c.loadField(cb, "cols").get(cb).asInt64.value, partCounts)
   }
 }
 
@@ -481,9 +537,11 @@ object MatrixNativeMultiWriter {
 }
 
 case class MatrixNativeMultiWriter(
-  prefix: String,
+  paths: IndexedSeq[String],
   overwrite: Boolean = false,
-  stageLocally: Boolean = false
+  stageLocally: Boolean = false,
+  codecSpecJSONStr: String = null
 ) {
-  def apply(ctx: ExecuteContext, mvs: IndexedSeq[MatrixValue]): Unit = MatrixValue.writeMultiple(ctx, mvs, prefix, overwrite, stageLocally)
+  val bufferSpec: BufferSpec = BufferSpec.parseOrDefault(codecSpecJSONStr)
+  def apply(ctx: ExecuteContext, mvs: IndexedSeq[MatrixValue]): Unit = MatrixValue.writeMultiple(ctx, mvs, paths, overwrite, stageLocally, bufferSpec)
 }

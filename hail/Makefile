@@ -12,9 +12,9 @@ REVISION := $(shell git rev-parse HEAD)
 SHORT_REVISION := $(shell git rev-parse --short=12 HEAD)
 BRANCH := $(shell git rev-parse --abbrev-ref HEAD)
 SCALA_VERSION ?= 2.12.13
-SPARK_VERSION ?= 3.1.1
+SPARK_VERSION ?= 3.1.2
 HAIL_MAJOR_MINOR_VERSION := 0.2
-HAIL_PATCH_VERSION := 77
+HAIL_PATCH_VERSION := 91
 HAIL_PIP_VERSION := $(HAIL_MAJOR_MINOR_VERSION).$(HAIL_PATCH_VERSION)
 HAIL_VERSION := $(HAIL_PIP_VERSION)-$(SHORT_REVISION)
 ELASTIC_MAJOR_VERSION ?= 7
@@ -60,22 +60,11 @@ SHADOW_TEST_JAR := build/libs/hail-all-spark-test.jar
 PYTHON_JAR := python/hail/backend/hail-all-spark.jar
 WHEEL := build/deploy/dist/hail-$(HAIL_PIP_VERSION)-py3-none-any.whl
 EGG := build/deploy/dist/hail-$(HAIL_PIP_VERSION)-py3.6.egg
-ELASTICSEARCH_311_JAR := libs/elasticsearch-spark-30_2.12-8.0.0-SNAPSHOT-custom-hail-spark311.jar
 
 GRADLE_ARGS += -Dscala.version=$(SCALA_VERSION) -Dspark.version=$(SPARK_VERSION) -Delasticsearch.major-version=$(ELASTIC_MAJOR_VERSION)
 
-.PHONY: elasticsearchJar
-elasticsearchJar: $(ELASTICSEARCH_311_JAR)
-
-$(ELASTICSEARCH_311_JAR):
-	@mkdir -p libs
-	curl https://storage.googleapis.com/hail-common/elasticsearch-libs/elasticsearch-spark-30_2.12-8.0.0-SNAPSHOT-custom-hail-spark311.jar >  libs/elasticsearch-spark-30_2.12-8.0.0-SNAPSHOT-custom-hail-spark311.jar
-
 .PHONY: shadowJar
 shadowJar: $(SHADOW_JAR)
-
-$(JAR_SOURCES): $(ELASTICSEARCH_311_JAR)
-$(JAR_TEST_SOURCES): $(ELASTICSEARCH_311_JAR)
 
 ifdef HAIL_COMPILE_NATIVES
 $(SHADOW_JAR): native-lib-prebuilt
@@ -218,17 +207,14 @@ $(EGG): copy-py-files
 
 # if the DEPLOY_REMOTE flag is not set, then deploy init scripts into a dev-username location
 ifndef DEPLOY_REMOTE
-DEV_CLARIFIER ?= $(shell whoami)-dev/
-CLOUD_SUB_FOLDER := $(HAIL_VERSION)
+DEV_CLARIFIER ?= $(shell whoami)-dev
+cloud_base ?= gs://hail-30-day/hailctl/dataproc/$(DEV_CLARIFIER)/$(HAIL_VERSION)
 UPLOAD_RETENTION =
 else
-CLOUD_SUB_FOLDER := $(HAIL_PIP_VERSION)
+cloud_base := gs://hail-common/hailctl/dataproc/$(HAIL_PIP_VERSION)
 UPLOAD_RETENTION = gsutil -m retention temp set "$(cloud_base)/*"
 endif
 
-HAILCTL_BUCKET_BASE ?= gs://hail-common/hailctl/dataproc
-
-cloud_base := $(HAILCTL_BUCKET_BASE)/$(DEV_CLARIFIER)$(CLOUD_SUB_FOLDER)
 wheel_cloud_path := $(cloud_base)/hail-$(HAIL_PIP_VERSION)-py3-none-any.whl
 resources := $(wildcard python/hailtop/hailctl/dataproc/resources/*)
 $(eval $(call ENV_VAR,cloud_base))
@@ -269,22 +255,40 @@ install-on-cluster: $(WHEEL)
 .PHONY: install-hailctl
 install-hailctl: install upload-artifacts
 
-.PHONY: test-dataproc
-test-dataproc: install-hailctl
-	bash scripts/test-dataproc.sh
+.PHONY: test-dataproc-37
+test-dataproc-37: install-hailctl
+	bash scripts/test-dataproc.sh "GRCh37"
 
+.PHONY: test-dataproc-38
+test-dataproc-38: install-hailctl
+	bash scripts/test-dataproc.sh "GRCh38"
+
+# install skopeo
 # use curl version >=7.55.0
+#
 # set DEPLOY_REMOTE to the hail-is/hail remote
+#
 # create an access token with full repo privileges at https://github.com/settings/tokens
 # create a file that contains "Authorization: token YOUR_ACCESS_TOKEN_HERE"
 # set GITHUB_OAUTH_HEADER_FILE to that filename
+#
+# create the hailgenetics/hail image (see /docker) and place it somewhere skopeo can access it
+# set HAIL_GENETICS_HAIL_IMAGE to that image's full name including the protocol, e.g. docker://gcr.io/hail-vdc/hailgenetics/hail:1234abcd
+#
+# build a Azure-HDInsight-compatible wheel file (see build.yaml "build_wheel_for_azure" or start a
+# cluster to find the correct Scala and Spark versions because the version webpage does not include
+# sufficient detail)
+# set WHEEL_FOR_AZURE to the path to that wheel file
+#
+# Create a hail docs www.tar.gz file (see build.yaml "make_docs" rule) and set WEBSITE_TAR to the path to www.tar.gz
+#
 .PHONY: deploy
 deploy: test-dataproc $(WHEEL)
-	bash scripts/deploy.sh $(HAIL_PIP_VERSION) $(HAIL_VERSION) $(REVISION) $(DEPLOY_REMOTE) $(WHEEL) $(GITHUB_OAUTH_HEADER_FILE)
+	bash scripts/deploy.sh $(HAIL_PIP_VERSION) $(HAIL_VERSION) $(REVISION) $(DEPLOY_REMOTE) $(WHEEL) $(GITHUB_OAUTH_HEADER_FILE) $(HAIL_GENETICS_HAIL_IMAGE) $(WHEEL_FOR_AZURE) $(WEBSITE_TAR)
 
 .PHONY: install-dev-deps
 install-dev-deps:
-	$(PIP) install -U -r python/dev-requirements.txt
+	$(PIP) install -U -r python/dev/requirements.txt
 
 .PHONY: install-deps
 install-deps: install-dev-deps

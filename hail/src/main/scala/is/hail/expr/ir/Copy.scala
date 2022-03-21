@@ -90,8 +90,8 @@ object Copy {
       case SeqSample(_, _, requiresMemoryManagementPerElement) =>
         assert(newChildren.length == 2)
         SeqSample(newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR], requiresMemoryManagementPerElement)
-      case StreamDistribute(_, _, _, spec) =>
-        StreamDistribute(newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR], newChildren(2).asInstanceOf[IR], spec)
+      case StreamDistribute(_, _, _, op, spec) =>
+        StreamDistribute(newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR], newChildren(2).asInstanceOf[IR], op, spec)
       case ArrayZeros(_) =>
         assert(newChildren.length == 1)
         ArrayZeros(newChildren(0).asInstanceOf[IR])
@@ -234,6 +234,9 @@ object Copy {
       case RunAggScan(_, name, _, _, _, signatures) =>
         RunAggScan(newChildren(0).asInstanceOf[IR], name, newChildren(1).asInstanceOf[IR],
           newChildren(2).asInstanceOf[IR], newChildren(3).asInstanceOf[IR], signatures)
+      case StreamBufferedAggregate(_, _, _, _, name, aggSignatures) =>
+        StreamBufferedAggregate(newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR],
+          newChildren(2).asInstanceOf[IR], newChildren(3).asInstanceOf[IR], name, aggSignatures)
       case AggFilter(_, _, isScan) =>
         assert(newChildren.length == 2)
         AggFilter(newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR], isScan)
@@ -297,6 +300,8 @@ object Copy {
           args.take(x.nInitArgs),
           args.drop(x.nInitArgs),
           aggSig)
+      case AggFold(_, _, _, accumName, otherAccumName, isScan) =>
+        AggFold(newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR], newChildren(2).asInstanceOf[IR], accumName, otherAccumName, isScan)
       case MakeTuple(fields) =>
         assert(fields.length == newChildren.length)
         MakeTuple(fields.zip(newChildren).map { case ((i, _), newValue) => (i, newValue.asInstanceOf[IR]) })

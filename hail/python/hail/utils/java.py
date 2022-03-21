@@ -1,3 +1,4 @@
+import warnings
 import os
 import sys
 import re
@@ -49,7 +50,9 @@ class Env:
             backend_name = os.environ.get('HAIL_QUERY_BACKEND', 'spark')
             if backend_name == 'service':
                 from hail.context import init_service
-                init_service()
+                import asyncio
+                warnings.warn('When using the query service backend, use `await Env._async_hc()\'')
+                asyncio.get_event_loop().run_until_complete(init_service())
             elif backend_name == 'spark':
                 from hail.context import init
                 init()
@@ -59,6 +62,21 @@ class Env:
             else:
                 raise ValueError(f'unknown Hail Query backend: {backend_name}')
 
+        assert Env._hc is not None
+        return Env._hc
+
+    @staticmethod
+    async def _async_hc() -> 'hail.context.HailContext':
+        if not Env._hc:
+            sys.stderr.write("Initializing Hail with default parameters...\n")
+            sys.stderr.flush()
+
+            backend_name = os.environ.get('HAIL_QUERY_BACKEND', 'spark')
+            if backend_name == 'service':
+                from hail.context import init_service
+                await init_service()
+            else:
+                return Env.hc()
         assert Env._hc is not None
         return Env._hc
 

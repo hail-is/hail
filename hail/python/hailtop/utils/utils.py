@@ -1,5 +1,8 @@
-from typing import Callable, TypeVar, Awaitable, Optional, Type, List, Dict
+from typing import Callable, TypeVar, Awaitable, Optional, Type, List, Dict, Iterable, Tuple
+from typing_extensions import Literal
 from types import TracebackType
+import concurrent
+import contextlib
 import subprocess
 import traceback
 import sys
@@ -18,12 +21,18 @@ import socket
 import requests
 import google.auth.exceptions
 import google.api_core.exceptions
+import botocore.exceptions
 import time
 import weakref
 from requests.adapters import HTTPAdapter
 from urllib3.poolmanager import PoolManager
 
 from .time import time_msecs
+
+try:
+    import aiodocker  # pylint: disable=import-error
+except ModuleNotFoundError:
+    aiodocker = None
 
 
 log = logging.getLogger('hailtop.utils')
@@ -36,6 +45,10 @@ RETRY_FUNCTION_SCRIPT = """function retry() {
 }"""
 
 
+T = TypeVar('T')  # pylint: disable=invalid-name
+U = TypeVar('U')  # pylint: disable=invalid-name
+
+
 def unpack_comma_delimited_inputs(inputs):
     return [s.strip()
             for steps in inputs
@@ -43,18 +56,27 @@ def unpack_comma_delimited_inputs(inputs):
             for s in step.split(',') if s.strip()]
 
 
-def flatten(xxs):
+def unpack_key_value_inputs(inputs):
+    key_values = [i.split('=') for i in unpack_comma_delimited_inputs(inputs)]
+    return {kv[0]: kv[1] for kv in key_values}
+
+
+def flatten(xxs: Iterable[List[T]]) -> List[T]:
     return [x for xs in xxs for x in xs]
 
 
-def first_extant_file(*files):
+def filter_none(xs: Iterable[Optional[T]]) -> List[T]:
+    return [x for x in xs if x is not None]
+
+
+def first_extant_file(*files: Optional[str]) -> Optional[str]:
     for f in files:
         if f is not None and os.path.isfile(f):
             return f
     return None
 
 
-def cost_str(cost):
+def cost_str(cost: Optional[int]) -> Optional[str]:
     if cost is None:
         return None
     return f'${cost:.4f}'
@@ -80,21 +102,23 @@ def secret_alnum_string(n=22, *, case=None):
     return ''.join([secrets.choice(alphabet) for _ in range(n)])
 
 
-def digits_needed(i: int):
+def digits_needed(i: int) -> int:
     assert i >= 0
     if i < 10:
         return 1
     return 1 + digits_needed(i // 10)
 
 
-def grouped(n, ls):
+def grouped(n: int, ls: List[T]) -> Iterable[List[T]]:
+    if n < 1:
+        raise ValueError('invalid value for n: found {n}')
     while len(ls) != 0:
         group = ls[:n]
         ls = ls[n:]
         yield group
 
 
-def partition(k, ls):
+def partition(k: int, ls: List[T]) -> Iterable[List[T]]:
     if k == 0:
         assert not ls
         return []
@@ -114,7 +138,7 @@ def partition(k, ls):
     return generator()
 
 
-def unzip(lst):
+def unzip(lst: Iterable[Tuple[T, U]]) -> Tuple[List[T], List[U]]:
     a = []
     b = []
     for x, y in lst:
@@ -123,11 +147,14 @@ def unzip(lst):
     return a, b
 
 
-def async_to_blocking(coro):
+def async_to_blocking(coro: Awaitable[T]) -> T:
     return asyncio.get_event_loop().run_until_complete(coro)
 
 
-async def blocking_to_async(thread_pool, fun, *args, **kwargs):
+async def blocking_to_async(thread_pool: concurrent.futures.Executor,
+                            fun: Callable[..., T],
+                            *args,
+                            **kwargs) -> T:
     return await asyncio.get_event_loop().run_in_executor(
         thread_pool, lambda: fun(*args, **kwargs))
 
@@ -345,7 +372,7 @@ class OnlineBoundedGather2:
 
         self._done_event.set()
 
-    async def call(self, f, *args, **kwargs) -> asyncio.Task:
+    def call(self, f, *args, **kwargs) -> asyncio.Task:
         '''Invoke a function as a background task.
 
         Return the task, which can be used to wait on (using
@@ -426,7 +453,10 @@ class OnlineBoundedGather2:
             raise self._exception
 
 
-async def bounded_gather2_return_exceptions(sema: asyncio.Semaphore, *pfs):
+async def bounded_gather2_return_exceptions(
+        sema: asyncio.Semaphore,
+        *pfs: Callable[[], Awaitable[T]]
+) -> List[T]:
     '''Run the partial functions `pfs` as tasks with parallelism bounded
     by `sema`, which should be `asyncio.Semaphore` whose initial value
     is the desired level of parallelism.
@@ -449,7 +479,11 @@ async def bounded_gather2_return_exceptions(sema: asyncio.Semaphore, *pfs):
         return await asyncio.gather(*tasks)
 
 
-async def bounded_gather2_raise_exceptions(sema: asyncio.Semaphore, *pfs, cancel_on_error: bool = False):
+async def bounded_gather2_raise_exceptions(
+        sema: asyncio.Semaphore,
+        *pfs: Callable[[], Awaitable[T]],
+        cancel_on_error: bool = False
+) -> List[T]:
     '''Run the partial functions `pfs` as tasks with parallelism bounded
     by `sema`, which should be `asyncio.Semaphore` whose initial value
     is the level of parallelism.
@@ -488,13 +522,18 @@ async def bounded_gather2_raise_exceptions(sema: asyncio.Semaphore, *pfs, cancel
                     await asyncio.wait(tasks)
 
 
-async def bounded_gather2(sema: asyncio.Semaphore, *pfs, return_exceptions: bool = False, cancel_on_error: bool = False):
+async def bounded_gather2(
+        sema: asyncio.Semaphore,
+        *pfs: Callable[[], Awaitable[T]],
+        return_exceptions: bool = False,
+        cancel_on_error: bool = False
+) -> List[T]:
     if return_exceptions:
         return await bounded_gather2_return_exceptions(sema, *pfs)
     return await bounded_gather2_raise_exceptions(sema, *pfs, cancel_on_error=cancel_on_error)
 
 
-RETRYABLE_HTTP_STATUS_CODES = {408, 500, 502, 503, 504}
+RETRYABLE_HTTP_STATUS_CODES = {408, 500, 502, 503, 504, 429}
 if os.environ.get('HAIL_DONT_RETRY_500') == '1':
     RETRYABLE_HTTP_STATUS_CODES.remove(500)
 
@@ -550,16 +589,16 @@ def is_transient_error(e):
     #
     # OSError: [Errno 51] Connect call failed ('35.188.91.25', 443)
     # https://hail.zulipchat.com/#narrow/stream/223457-Batch-support/topic/ssl.20error
-    import hailtop.aiogoogle.client.compute_client  # pylint: disable=import-outside-toplevel,cyclic-import
+    import hailtop.aiocloud.aiogoogle.client.compute_client  # pylint: disable=import-outside-toplevel,cyclic-import
     import hailtop.httpx  # pylint: disable=import-outside-toplevel,cyclic-import
-
     if isinstance(e, aiohttp.ClientResponseError) and (
             e.status in RETRYABLE_HTTP_STATUS_CODES):
         # nginx returns 502 if it cannot connect to the upstream server
         # 408 request timeout, 500 internal server error, 502 bad gateway
         # 503 service unavailable, 504 gateway timeout
+        # 429 "Temporarily throttled, too many requests"
         return True
-    if (isinstance(e, hailtop.aiogoogle.client.compute_client.GCPOperationError)
+    if (isinstance(e, hailtop.aiocloud.aiogoogle.client.compute_client.GCPOperationError)
             and 'QUOTA_EXCEEDED' in e.error_codes):
         return True
     if isinstance(e, hailtop.httpx.ClientResponseError) and (
@@ -586,7 +625,8 @@ def is_transient_error(e):
                             errno.EHOSTUNREACH,
                             errno.ECONNRESET,
                             errno.ENETUNREACH,
-                            errno.EPIPE
+                            errno.EPIPE,
+                            errno.ETIMEDOUT
                             )):
         return True
     if isinstance(e, aiohttp.ClientOSError):
@@ -602,7 +642,8 @@ def is_transient_error(e):
         return True
     if isinstance(e, socket.gaierror):
         # socket.EAI_AGAIN: [Errno -3] Temporary failure in name resolution
-        return e.errno == socket.EAI_AGAIN
+        # socket.EAI_NONAME: [Errno 8] nodename nor servname provided, or not known
+        return e.errno in (socket.EAI_AGAIN, socket.EAI_NONAME)
     if isinstance(e, ConnectionResetError):
         return True
     if isinstance(e, google.auth.exceptions.TransportError):
@@ -611,6 +652,11 @@ def is_transient_error(e):
         return True
     if isinstance(e, google.api_core.exceptions.ServiceUnavailable):
         return True
+    if isinstance(e, botocore.exceptions.ConnectionClosedError):
+        return True
+    if aiodocker is not None and isinstance(e, aiodocker.exceptions.DockerError):
+        # aiodocker.exceptions.DockerError: DockerError(500, 'Get https://gcr.io/v2/: net/http: request canceled (Client.Timeout exceeded while awaiting headers)')
+        return e.status == 500 and 'Client.Timeout exceeded while awaiting headers' in e.message
     if isinstance(e, TransientError):
         return True
     return False
@@ -664,9 +710,6 @@ def retry_all_errors_n_times(max_errors=10, msg=None, error_logging_interval=10)
                     raise
             delay = await sleep_and_backoff(delay)
     return _wrapper
-
-
-T = TypeVar('T')  # pylint: disable=invalid-name
 
 
 async def retry_transient_errors(f: Callable[..., Awaitable[T]], *args, **kwargs) -> T:
@@ -868,6 +911,20 @@ def url_scheme(url: str) -> str:
     return parsed.scheme
 
 
+def url_and_params(url: str) -> Tuple[str, Dict[str, str]]:
+    """Strip the query parameters from `url` and parse them into a dictionary.
+       Assumes that all query parameters are used only once, so have only one
+       value.
+    """
+    parsed = urllib.parse.urlparse(url)
+    params = {k: v[0] for k, v in urllib.parse.parse_qs(parsed.query).items()}
+    without_query = urllib.parse.urlunparse(parsed._replace(query=''))
+    return without_query, params
+
+
+RegistryProvider = Literal['google', 'azure', 'dockerhub']
+
+
 class ParsedDockerImageReference:
     def __init__(self, domain: str, path: str, tag: str, digest: str):
         self.domain = domain
@@ -875,10 +932,18 @@ class ParsedDockerImageReference:
         self.tag = tag
         self.digest = digest
 
-    def name(self):
+    def name(self) -> str:
         if self.domain:
             return self.domain + '/' + self.path
         return self.path
+
+    def hosted_in(self, registry: RegistryProvider) -> bool:
+        if registry == 'google':
+            return self.domain is not None and (self.domain == 'gcr.io' or self.domain.endswith('docker.pkg.dev'))
+        if registry == 'azure':
+            return self.domain is not None and self.domain.endswith('azurecr.io')
+        assert registry == 'dockerhub'
+        return self.domain is None or self.domain == 'docker.io'
 
     def __str__(self):
         s = self.name()
@@ -903,14 +968,6 @@ def parse_docker_image_reference(reference_string: str) -> ParsedDockerImageRefe
     return ParsedDockerImageReference(domain, path, tag, digest)
 
 
-def is_google_registry_domain(domain: Optional[str]) -> bool:
-    """Returns true if the given Docker image path points to either the Google
-    Container Registry or the Artifact Registry."""
-    if domain is None:
-        return False
-    return domain == 'gcr.io' or domain.endswith('docker.pkg.dev')
-
-
 class Notice:
     def __init__(self):
         self.subscribers = []
@@ -925,7 +982,7 @@ class Notice:
             e.set()
 
 
-def find_spark_home():
+def find_spark_home() -> str:
     spark_home = os.environ.get('SPARK_HOME')
     if spark_home is None:
         find_spark_home = subprocess.run('find_spark_home.py',
@@ -934,8 +991,26 @@ def find_spark_home():
         if find_spark_home.returncode != 0:
             raise ValueError(f'''SPARK_HOME is not set and find_spark_home.py returned non-zero exit code:
 STDOUT:
-{find_spark_home.stdout}
+{find_spark_home.stdout!r}
 STDERR:
-{find_spark_home.stderr}''')
+{find_spark_home.stderr!r}''')
         spark_home = find_spark_home.stdout.decode().strip()
     return spark_home
+
+
+class Timings:
+    def __init__(self):
+        self.timings: Dict[str, Dict[str, int]] = {}
+
+    @contextlib.contextmanager
+    def step(self, name: str):
+        assert name not in self.timings
+        d: Dict[str, int] = {}
+        self.timings[name] = d
+        d['start_time'] = time_msecs()
+        yield
+        d['finish_time'] = time_msecs()
+        d['duration'] = d['finish_time'] - d['start_time']
+
+    def to_dict(self):
+        return self.timings

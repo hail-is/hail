@@ -1,7 +1,6 @@
 import aiohttp
 
-from hailtop.aiogoogle.client.storage_client import GoogleStorageAsyncFS
-
+from hailtop.aiocloud.aiogoogle import GoogleStorageAsyncFS
 from hailtop.auth import service_auth_headers
 from hailtop.config import get_deploy_config
 from hailtop.httpx import client_session

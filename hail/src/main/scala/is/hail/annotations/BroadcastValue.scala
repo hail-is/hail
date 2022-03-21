@@ -1,17 +1,22 @@
 package is.hail.annotations
 
-import java.io.{ByteArrayInputStream, ByteArrayOutputStream}
-
-import is.hail.backend.BroadcastValue
-import is.hail.expr.ir.{EncodedLiteral, ExecuteContext}
+import java.io.{ByteArrayInputStream, ByteArrayOutputStream, InputStream}
+import is.hail.asm4s.HailClassLoader
+import is.hail.backend.{BroadcastValue, ExecuteContext}
+import is.hail.expr.ir.EncodedLiteral
 import is.hail.types.physical.{PArray, PStruct, PType}
 import is.hail.types.virtual.{TBaseStruct, TStruct}
 import is.hail.io.{BufferSpec, Decoder, TypedCodecSpec}
+import is.hail.utils.{ArrayOfByteArrayOutputStream, formatSpace, log}
+import is.hail.utils.prettyPrint.ArrayOfByteArrayInputStream
 import org.apache.spark.sql.Row
 
-case class SerializableRegionValue(encodedValue: Array[Byte], t: PType, makeDecoder: ByteArrayInputStream => Decoder) {
-  def readRegionValue(r: Region): Long = {
-    val dec = makeDecoder(new ByteArrayInputStream(encodedValue))
+case class SerializableRegionValue(
+  encodedValue: Array[Array[Byte]], t: PType,
+  makeDecoder: (InputStream, HailClassLoader) => Decoder
+) {
+  def readRegionValue(r: Region, theHailClassLoader: HailClassLoader): Long = {
+    val dec = makeDecoder(new ArrayOfByteArrayInputStream(encodedValue), theHailClassLoader)
     val offset = dec.readRegionValue(r)
     dec.close()
     offset
@@ -43,18 +48,34 @@ trait BroadcastRegionValue {
     (pt, md)
   }
 
-  lazy val broadcast: BroadcastValue[SerializableRegionValue] = {
+  def encodeToByteArrays(theHailClassLoader: HailClassLoader): Array[Array[Byte]] = {
     val makeEnc = encoding.buildEncoder(ctx, t)
 
-    val baos = new ByteArrayOutputStream()
+    val baos = new ArrayOfByteArrayOutputStream()
 
-    val enc = makeEnc(baos)
+    val enc = makeEnc(baos, theHailClassLoader)
     enc.writeRegionValue(value.offset)
     enc.flush()
     enc.close()
 
-    val srv = SerializableRegionValue(baos.toByteArray, decodedPType, makeDec)
-    ctx.backend.broadcast(srv)
+    baos.toByteArrays()
+  }
+
+  @volatile private[this] var broadcasted: BroadcastValue[SerializableRegionValue] = null
+
+  def broadcast(theHailClassLoader: HailClassLoader): BroadcastValue[SerializableRegionValue] = {
+    if (broadcasted == null) {
+      this.synchronized {
+        if (broadcasted == null) {
+          val arrays = encodeToByteArrays(theHailClassLoader)
+          val totalSize = arrays.map(_.length).sum
+          log.info(s"BroadcastRegionValue.broadcast: broadcasting ${ arrays.length } byte arrays of total size $totalSize (${ formatSpace(totalSize) }")
+          val srv = SerializableRegionValue(arrays, decodedPType, makeDec)
+          broadcasted = ctx.backend.broadcast(srv)
+        }
+      }
+    }
+    broadcasted
   }
 
   def javaValue: Any
@@ -88,9 +109,8 @@ case class BroadcastRow(ctx: ExecuteContext,
       newT)
   }
 
-  def toEncodedLiteral(): EncodedLiteral = {
-    val spec = TypedCodecSpec(t, BufferSpec.wireSpec)
-    EncodedLiteral(spec, spec.encodeValue(ctx, t, value.offset))
+  def toEncodedLiteral(theHailClassLoader: HailClassLoader): EncodedLiteral = {
+    EncodedLiteral(encoding, encodeToByteArrays(theHailClassLoader))
   }
 }
 

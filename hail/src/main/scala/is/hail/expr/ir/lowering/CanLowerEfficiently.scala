@@ -1,6 +1,7 @@
 package is.hail.expr.ir.lowering
 
 import is.hail.HailContext
+import is.hail.backend.ExecuteContext
 import is.hail.expr.ir._
 import is.hail.expr.ir.functions.TableToValueFunction
 import is.hail.io.TextMatrixReader
@@ -11,9 +12,9 @@ import is.hail.io.vcf.MatrixVCFReader
 import is.hail.methods.{ForceCountTable, NPartitionsTable}
 
 object CanLowerEfficiently {
-  def apply(ir0: BaseIR): Option[String] = {
+  def apply(ctx: ExecuteContext, ir0: BaseIR): Option[String] = {
 
-    if (HailContext.getFlag("no_whole_stage_codegen") != null)
+    if (ctx.getFlag("no_whole_stage_codegen") != null)
       return Some("flag 'no_whole_stage_codegen' is enabled")
 
     var prohibitiveReason: Option[String] = None
@@ -48,10 +49,11 @@ object CanLowerEfficiently {
         case t: TableHead =>
         case t: TableTail =>
         case t: TableJoin =>
-        case t: TableIntervalJoin => fail(s"TableIntervalJoin has no lowered implementation")
+        case TableIntervalJoin(_, _, _, true) => fail("TableIntervalJoin with \"product=true\" has no lowered implementation")
+        case TableIntervalJoin(_, _, _, false) =>
         case t: TableLeftJoinRightDistinct =>
         case t: TableMapPartitions =>
-        case t: TableMapRows => if (ContainsScan(t.newRow)) fail("TableMapRows does not have a scalable implementation of scans")
+        case t: TableMapRows =>
         case t: TableMapGlobals =>
         case t: TableExplode =>
         case t: TableUnion if t.children.length > 16 => fail(s"TableUnion lowering generates deeply nested IR if it has many children")
@@ -61,7 +63,7 @@ object CanLowerEfficiently {
         case t: TableKeyByAndAggregate => fail("TableKeyByAndAggregate has no map-side combine")
         case t: TableAggregateByKey =>
         case t: TableRename =>
-        case t: TableFilterIntervals => fail(s"TableFilterIntervals does a linear scan")
+        case t: TableFilterIntervals =>
         case t: TableToTableApply => fail(s"TableToTableApply")
         case t: BlockMatrixToTableApply => fail(s"BlockMatrixToTableApply")
         case t: BlockMatrixToTable => fail(s"BlockMatrixToTable has no lowered implementation")

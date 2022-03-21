@@ -1,10 +1,11 @@
 package is.hail.rvd
 
 import is.hail.annotations._
-import is.hail.asm4s.AsmFunction3RegionLongLongLong
+import is.hail.asm4s.{HailClassLoader, AsmFunction3RegionLongLongLong}
+import is.hail.backend.ExecuteContext
 import is.hail.expr.{JSONAnnotationImpex, ir}
 import is.hail.expr.ir.lowering.{TableStage, TableStageDependency}
-import is.hail.expr.ir.{ExecuteContext, IR, Literal, PartitionNativeReader, PartitionZippedIndexedNativeReader, PartitionZippedNativeReader, ReadPartition, Ref, ToStream}
+import is.hail.expr.ir.{IR, Literal, PartitionNativeReader, PartitionZippedIndexedNativeReader, PartitionZippedNativeReader, ReadPartition, Ref, ToStream}
 import is.hail.io._
 import is.hail.io.fs.FS
 import is.hail.io.index.{InternalNodeBuilder, LeafNodeBuilder}
@@ -65,7 +66,7 @@ object AbstractRVDSpec {
 
     val f = partPath(path, partFiles(0))
     using(fs.open(f)) { in =>
-      val Array(rv) = HailContext.readRowsPartition(dec)(r, in).toArray
+      val Array(rv) = HailContext.readRowsPartition(dec)(ctx.theHailClassLoader, r, in).toArray
       (rType, rv)
     }
   }
@@ -93,7 +94,8 @@ object AbstractRVDSpec {
       using(fs.create(partsPath + "/" + filePath)) { os =>
         using(RVDContext.default(execCtx.r.pool)) { ctx =>
           val rvb = ctx.rvb
-          RichContextRDDRegionValue.writeRowsPartition(codecSpec.buildEncoder(execCtx, rowType))(ctx,
+          RichContextRDDRegionValue.writeRowsPartition(codecSpec.buildEncoder(execCtx, rowType))(
+            ctx,
             rows.iterator.map { a =>
               rowType.unstagedStoreJavaObject(a, ctx.r)
             }, os, null)
@@ -134,10 +136,13 @@ object AbstractRVDSpec {
 
         val ctxIR = ToStream(Literal(TArray(reader.contextType), contextsValue))
 
+        val partKeyPrefix = partitioner.kType.fieldNames.slice(0, requestedKey.length).toIndexedSeq
+        assert(requestedKey == partKeyPrefix, s"$requestedKey != $partKeyPrefix")
+
         { (globals: IR) =>
           TableStage(
             globals,
-            partitioner,
+            partitioner.coarsen(requestedKey.length),
             TableStageDependency.none,
             ctxIR,
             ReadPartition(_, requestedType, reader))
@@ -154,6 +159,9 @@ object AbstractRVDSpec {
 
         val extendedNewPartitioner = np.extendKey(partitioner.kType)
         val tmpPartitioner = extendedNewPartitioner.intersect(partitioner)
+
+        val partKeyPrefix = tmpPartitioner.kType.fieldNames.slice(0, requestedKey.length).toIndexedSeq
+        assert(requestedKey == partKeyPrefix, s"$requestedKey != $partKeyPrefix")
 
         val reader = PartitionZippedIndexedNativeReader(specLeft.typedCodecSpec, specRight.typedCodecSpec, indexSpecLeft, indexSpecRight, specLeft.key)
 
@@ -182,14 +190,14 @@ object AbstractRVDSpec {
         { (globals: IR) =>
           val ts = TableStage(
             globals,
-            tmpPartitioner,
+            tmpPartitioner.coarsen(requestedKey.length),
             TableStageDependency.none,
             contexts,
             body)
           if (filterIntervals)
             ts
           else
-            ts.repartitionNoShuffle(extendedNewPartitioner)
+            ts.repartitionNoShuffle(extendedNewPartitioner.coarsen(requestedKey.length))
         }
     }
   }
@@ -205,7 +213,7 @@ object AbstractRVDSpec {
     requestedType: Type,
     leftRType: TStruct, rightRType: TStruct,
     requestedKey: IndexedSeq[String],
-    fieldInserter: (ExecuteContext, PStruct, PStruct) => (PStruct, (FS, Int, Region) => AsmFunction3RegionLongLongLong)
+    fieldInserter: (ExecuteContext, PStruct, PStruct) => (PStruct, (HailClassLoader, FS, Int, Region) => AsmFunction3RegionLongLongLong)
   ): RVD = {
     require(specRight.key.isEmpty)
     val partitioner = specLeft.partitioner

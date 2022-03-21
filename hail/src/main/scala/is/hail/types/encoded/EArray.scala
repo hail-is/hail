@@ -5,9 +5,9 @@ import is.hail.asm4s._
 import is.hail.expr.ir.EmitCodeBuilder
 import is.hail.io.{InputBuffer, OutputBuffer}
 import is.hail.types.physical._
-import is.hail.types.physical.stypes.concrete.{SIndexablePointer, SIndexablePointerCode, SIndexablePointerValue}
+import is.hail.types.physical.stypes.concrete.{SIndexablePointer, SIndexablePointerValue}
 import is.hail.types.physical.stypes.interfaces.SIndexableValue
-import is.hail.types.physical.stypes.{SCode, SType, SValue}
+import is.hail.types.physical.stypes.{SType, SValue}
 import is.hail.types.virtual._
 import is.hail.utils._
 
@@ -75,7 +75,7 @@ final case class EArray(val elementType: EType, override val required: Boolean =
           cb._fatal(s"required array element saw missing value at index ", i.toS, " in encode")
       }, { pc =>
         elementType.buildEncoder(pc.st, cb.emb.ecb)
-          .apply(cb, pc.get, out)
+          .apply(cb, pc, out)
       })
     })
   }
@@ -85,7 +85,7 @@ final case class EArray(val elementType: EType, override val required: Boolean =
     buildPrefixEncoder(cb, ind, out, ind.loadLength())
   }
 
-  override def _buildDecoder(cb: EmitCodeBuilder, t: Type, region: Value[Region], in: Value[InputBuffer]): SCode = {
+  override def _buildDecoder(cb: EmitCodeBuilder, t: Type, region: Value[Region], in: Value[InputBuffer]): SValue = {
     val st = decodedSType(t).asInstanceOf[SIndexablePointer]
 
     val arrayType: PCanonicalArray = st.pType match {
@@ -105,7 +105,7 @@ final case class EArray(val elementType: EType, override val required: Boolean =
       cb += in.readBytes(region, array + const(arrayType.lengthHeaderBytes), arrayType.nMissingBytes(len))
 
     cb.forLoop(cb.assign(i, 0), i < len, cb.assign(i, i + 1), {
-      val elemAddr = arrayType.elementOffset(array, len, i)
+      val elemAddr = cb.memoize(arrayType.elementOffset(array, len, i))
       if (elementType.required)
         readElemF(cb, region, elemAddr, in)
       else
@@ -113,7 +113,7 @@ final case class EArray(val elementType: EType, override val required: Boolean =
           readElemF(cb, region, elemAddr, in))
     })
 
-    new SIndexablePointerCode(st, array.load())
+    new SIndexablePointerValue(st, array, len, cb.memoize(arrayType.firstElementOffset(array, len)))
   }
 
   def _buildSkip(cb: EmitCodeBuilder, r: Value[Region], in: Value[InputBuffer]): Unit = {

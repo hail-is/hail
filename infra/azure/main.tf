@@ -2,11 +2,18 @@ terraform {
   required_providers {
     azurerm = {
       source  = "hashicorp/azurerm"
-      version = "=2.74.0"
+      version = "=2.97.0"
     }
-    kubernetes = {
-      source  = "hashicorp/kubernetes"
-      version = "1.13.3"
+    azuread = {
+      source  = "hashicorp/azuread"
+      version = "=2.7.0"
+    }
+    http = {
+      source = "hashicorp/http"
+      version = "2.1.0"
+    }
+    tls = {
+      version = "3.1.0"
     }
   }
   backend "azurerm" {}
@@ -16,73 +23,29 @@ provider "azurerm" {
   features {}
 }
 
+provider "azuread" {}
+
+provider "kubernetes" {
+  host = "https://${module.vdc.kubernetes_server}"
+
+  cluster_ca_certificate = base64decode(
+    module.vdc.kube_config.cluster_ca_certificate
+  )
+  client_certificate = base64decode(
+    module.vdc.kube_config.client_certificate
+  )
+  client_key = base64decode(
+    module.vdc.kube_config.client_key
+  )
+}
+
 locals {
   acr_name = var.acr_name == "" ? var.az_resource_group_name : var.acr_name
 }
 
+data "azurerm_subscription" "primary" {}
 data "azurerm_resource_group" "rg" {
   name = var.az_resource_group_name
-}
-
-resource "azurerm_virtual_network" "default" {
-  name                = "default"
-  resource_group_name = data.azurerm_resource_group.rg.name
-  address_space       = ["10.0.0.0/8"]
-  location            = data.azurerm_resource_group.rg.location
-}
-
-resource "azurerm_subnet" "k8s_subnet" {
-  name                 = "k8s-subnet"
-  address_prefixes     = ["10.240.0.0/16"]
-  resource_group_name  = data.azurerm_resource_group.rg.name
-  virtual_network_name = azurerm_virtual_network.default.name
-
-  enforce_private_link_endpoint_network_policies = true
-}
-
-resource "azurerm_subnet" "batch_worker_subnet" {
-  name                 = "batch-worker-subnet"
-  address_prefixes     = ["10.128.0.0/16"]
-  resource_group_name  = data.azurerm_resource_group.rg.name
-  virtual_network_name = azurerm_virtual_network.default.name
-}
-
-resource "azurerm_kubernetes_cluster" "vdc" {
-  name                = "vdc"
-  resource_group_name = data.azurerm_resource_group.rg.name
-  location            = data.azurerm_resource_group.rg.location
-  dns_prefix          = "example"
-
-  default_node_pool {
-    name           = "default"
-    node_count     = 1
-    vm_size        = "Standard_D2_v2"
-    vnet_subnet_id = azurerm_subnet.k8s_subnet.id
-  }
-
-  identity {
-    type = "SystemAssigned"
-  }
-}
-
-resource "azurerm_kubernetes_cluster_node_pool" "vdc_pool" {
-  name                  = "pool"
-  kubernetes_cluster_id = azurerm_kubernetes_cluster.vdc.id
-  vm_size               = "Standard_D2_v2"
-  vnet_subnet_id        = azurerm_subnet.k8s_subnet.id
-
-  enable_auto_scaling = true
-
-  min_count = 0
-  max_count = 200
-}
-
-resource "azurerm_public_ip" "gateway_ip" {
-  name                = "gateway-ip"
-  resource_group_name = azurerm_kubernetes_cluster.vdc.node_resource_group
-  location            = data.azurerm_resource_group.rg.location
-  sku                 = "Standard"
-  allocation_method   = "Static"
 }
 
 resource "azurerm_container_registry" "acr" {
@@ -92,90 +55,72 @@ resource "azurerm_container_registry" "acr" {
   sku                 = var.acr_sku
 }
 
-resource "azurerm_role_assignment" "vdc_to_acr" {
-  scope                = azurerm_container_registry.acr.id
-  role_definition_name = "AcrPull"
-  principal_id         = azurerm_kubernetes_cluster.vdc.kubelet_identity[0].object_id
+module "vdc" {
+  source = "./modules/vdc"
+
+  resource_group        = data.azurerm_resource_group.rg
+  container_registry_id = azurerm_container_registry.acr.id
+  k8s_machine_type      = var.k8s_machine_type
 }
 
-resource "azurerm_role_assignment" "vdc_batch_worker_subnet" {
-  scope                = azurerm_subnet.batch_worker_subnet.id
-  role_definition_name = "Network Contributor"
-  principal_id         = azurerm_kubernetes_cluster.vdc.identity[0].principal_id
+module "db" {
+  source = "./modules/db"
+
+  resource_group = data.azurerm_resource_group.rg
+  vnet_id        = module.vdc.vnet_id
+  subnet_id      = module.vdc.db_subnet_id
 }
 
-resource "azurerm_role_assignment" "vdc_k8s_subnet" {
-  scope                = azurerm_subnet.k8s_subnet.id
-  role_definition_name = "Network Contributor"
-  principal_id         = azurerm_kubernetes_cluster.vdc.identity[0].principal_id
+module "auth" {
+  source = "./modules/auth"
+
+  resource_group_name  = data.azurerm_resource_group.rg.name
+  oauth2_redirect_uris = concat(
+    var.oauth2_developer_redirect_uris,
+    ["https://auth.${var.domain}/oauth2callback", "http://127.0.0.1/oauth2callback"])
 }
 
-resource "random_id" "db_name_suffix" {
-  byte_length = 4
+module "batch" {
+  source = "./modules/batch"
+
+  resource_group        = data.azurerm_resource_group.rg
+  container_registry_id = azurerm_container_registry.acr.id
 }
 
-resource "random_password" "db_root_password" {
-  length = 22
-}
+module "global_config" {
+  source = "../k8s/global_config"
 
-resource "azurerm_mysql_server" "db" {
-  name                = "db-${random_id.db_name_suffix.hex}"
-  resource_group_name = data.azurerm_resource_group.rg.name
-  location            = data.azurerm_resource_group.rg.location
+  cloud                  = "azure"
+  domain                 = var.domain
+  docker_prefix          = azurerm_container_registry.acr.login_server
+  internal_gateway_ip    = module.vdc.internal_gateway_ip
+  gateway_ip             = module.vdc.gateway_ip
+  kubernetes_server      = module.vdc.kubernetes_server
+  batch_logs_storage_uri = module.batch.batch_logs_storage_uri
+  test_storage_uri       = module.batch.test_storage_uri
+  query_storage_uri      = module.batch.query_storage_uri
+  organization_domain    = var.organization_domain
 
-  administrator_login          = "mysqladmin"
-  administrator_login_password = random_password.db_root_password.result
-
-  version    = "5.7"
-  sku_name   = "GP_Gen5_2" # 2 vCPU, 10GiB
-  storage_mb = 5120
-
-  ssl_enforcement_enabled       = true
-  public_network_access_enabled = false
-}
-
-resource "azurerm_private_endpoint" "db_endpoint" {
-  name                = "${azurerm_mysql_server.db.name}-endpoint"
-  resource_group_name = data.azurerm_resource_group.rg.name
-  location            = data.azurerm_resource_group.rg.location
-  subnet_id           = azurerm_subnet.k8s_subnet.id
-
-  private_service_connection {
-    name                           = "${azurerm_mysql_server.db.name}-endpoint"
-    private_connection_resource_id = azurerm_mysql_server.db.id
-    subresource_names              = [ "mysqlServer" ]
-    is_manual_connection           = false
-
-resource "azurerm_user_assigned_identity" "batch_worker" {
-  resource_group_name = data.azurerm_resource_group.rg.name
-  location            = data.azurerm_resource_group.rg.location
-
-  name = "batch-worker"
-}
-
-resource "azurerm_role_assignment" "batch_worker" {
-  scope                = data.azurerm_resource_group.rg.id
-  role_definition_name = "acrpull"
-  principal_id         = azurerm_user_assigned_identity.batch_worker.principal_id
-}
-
-resource "azurerm_shared_image_gallery" "batch" {
-  name                = "batch"
-  resource_group_name = data.azurerm_resource_group.rg.name
-  location            = data.azurerm_resource_group.rg.location
-}
-
-resource "azurerm_shared_image" "batch_worker" {
-  name                = "batch-worker"
-  gallery_name        = azurerm_shared_image_gallery.batch.name
-  resource_group_name = data.azurerm_resource_group.rg.name
-  location            = data.azurerm_resource_group.rg.location
-  os_type             = "Linux"
-  specialized	      = false
-
-  identifier {
-    publisher = "Canonical"
-    offer     = "UbuntuServer"
-    sku       = "20.04-LTS"
+  extra_fields = {
+    azure_subscription_id = data.azurerm_subscription.primary.subscription_id
+    azure_resource_group  = data.azurerm_resource_group.rg.name
+    azure_location        = data.azurerm_resource_group.rg.location
   }
+}
+
+module "ci" {
+  source = "./modules/ci"
+  count = var.ci_config != null ? 1 : 0
+
+  resource_group         = data.azurerm_resource_group.rg
+  ci_principal_id        = module.batch.ci_principal_id
+  container_registry_id  = azurerm_container_registry.acr.id
+
+  test_storage_container_resource_id = module.batch.test_storage_container.resource_manager_id
+
+  deploy_steps                            = var.ci_config.deploy_steps
+  watched_branches                        = var.ci_config.watched_branches
+  github_context                          = var.ci_config.github_context
+  ci_and_deploy_github_oauth_token        = var.ci_config.ci_and_deploy_github_oauth_token
+  ci_test_repo_creator_github_oauth_token = var.ci_config.ci_test_repo_creator_github_oauth_token
 }

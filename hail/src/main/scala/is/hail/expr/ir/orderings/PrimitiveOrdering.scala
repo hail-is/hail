@@ -13,22 +13,22 @@ object Int32Ordering {
       override val type2: SInt32.type = t2
 
       override def _compareNonnull(cb: EmitCodeBuilder, x: SValue, y: SValue): Value[Int] =
-        cb.memoize(Code.invokeStatic2[java.lang.Integer, Int, Int, Int]("compare", x.asInt.intCode(cb), y.asInt.intCode(cb)))
+        cb.memoize(Code.invokeStatic2[java.lang.Integer, Int, Int, Int]("compare", x.asInt.value, y.asInt.value))
 
       override def _ltNonnull(cb: EmitCodeBuilder, x: SValue, y: SValue): Value[Boolean] =
-        cb.memoize(x.asInt.intCode(cb) < y.asInt.intCode(cb))
+        cb.memoize(x.asInt.value < y.asInt.value)
 
       override def _lteqNonnull(cb: EmitCodeBuilder, x: SValue, y: SValue): Value[Boolean] =
-        cb.memoize(x.asInt.intCode(cb) <= y.asInt.intCode(cb))
+        cb.memoize(x.asInt.value <= y.asInt.value)
 
       override def _gtNonnull(cb: EmitCodeBuilder, x: SValue, y: SValue): Value[Boolean] =
-        cb.memoize(x.asInt.intCode(cb) > y.asInt.intCode(cb))
+        cb.memoize(x.asInt.value > y.asInt.value)
 
       override def _gteqNonnull(cb: EmitCodeBuilder, x: SValue, y: SValue): Value[Boolean] =
-        cb.memoize(x.asInt.intCode(cb) >= y.asInt.intCode(cb))
+        cb.memoize(x.asInt.value >= y.asInt.value)
 
       override def _equivNonnull(cb: EmitCodeBuilder, x: SValue, y: SValue): Value[Boolean] =
-        cb.memoize(x.asInt.intCode(cb).ceq(y.asInt.intCode(cb)))
+        cb.memoize(x.asInt.value.ceq(y.asInt.value))
     }
   }
 }
@@ -42,22 +42,22 @@ object Int64Ordering {
       override val type2: SInt64.type = t2
 
       override def _compareNonnull(cb: EmitCodeBuilder, x: SValue, y: SValue): Value[Int] =
-        cb.memoize(Code.invokeStatic2[java.lang.Long, Long, Long, Int]("compare", x.asLong.longCode(cb), y.asLong.longCode(cb)))
+        cb.memoize(Code.invokeStatic2[java.lang.Long, Long, Long, Int]("compare", x.asLong.value, y.asLong.value))
 
       override def _ltNonnull(cb: EmitCodeBuilder, x: SValue, y: SValue): Value[Boolean] =
-        cb.memoize(x.asLong.longCode(cb) < y.asLong.longCode(cb))
+        cb.memoize(x.asLong.value < y.asLong.value)
 
       override def _lteqNonnull(cb: EmitCodeBuilder, x: SValue, y: SValue): Value[Boolean] =
-        cb.memoize(x.asLong.longCode(cb) <= y.asLong.longCode(cb))
+        cb.memoize(x.asLong.value <= y.asLong.value)
 
       override def _gtNonnull(cb: EmitCodeBuilder, x: SValue, y: SValue): Value[Boolean] =
-        cb.memoize(x.asLong.longCode(cb) > y.asLong.longCode(cb))
+        cb.memoize(x.asLong.value > y.asLong.value)
 
       override def _gteqNonnull(cb: EmitCodeBuilder, x: SValue, y: SValue): Value[Boolean] =
-        cb.memoize(x.asLong.longCode(cb) >= y.asLong.longCode(cb))
+        cb.memoize(x.asLong.value >= y.asLong.value)
 
       override def _equivNonnull(cb: EmitCodeBuilder, x: SValue, y: SValue): Value[Boolean] =
-        cb.memoize(x.asLong.longCode(cb).ceq(y.asLong.longCode(cb)))
+        cb.memoize(x.asLong.value.ceq(y.asLong.value))
     }
   }
 }
@@ -70,22 +70,22 @@ object Float32Ordering {
       override val type2: SFloat32.type = t2
 
       override def _compareNonnull(cb: EmitCodeBuilder, x: SValue, y: SValue): Value[Int] =
-        cb.memoize(Code.invokeStatic2[java.lang.Float, Float, Float, Int]("compare", x.asFloat.floatCode(cb), y.asFloat.floatCode(cb)))
+        cb.memoize(Code.invokeStatic2[java.lang.Float, Float, Float, Int]("compare", x.asFloat.value, y.asFloat.value))
 
       override def _ltNonnull(cb: EmitCodeBuilder, x: SValue, y: SValue): Value[Boolean] =
-        cb.memoize(x.asFloat.floatCode(cb) < y.asFloat.floatCode(cb))
+        cb.memoize(x.asFloat.value < y.asFloat.value)
 
       override def _lteqNonnull(cb: EmitCodeBuilder, x: SValue, y: SValue): Value[Boolean] =
-        cb.memoize(x.asFloat.floatCode(cb) <= y.asFloat.floatCode(cb))
+        cb.memoize(x.asFloat.value <= y.asFloat.value)
 
       override def _gtNonnull(cb: EmitCodeBuilder, x: SValue, y: SValue): Value[Boolean] =
-        cb.memoize(x.asFloat.floatCode(cb) > y.asFloat.floatCode(cb))
+        cb.memoize(x.asFloat.value > y.asFloat.value)
 
       override def _gteqNonnull(cb: EmitCodeBuilder, x: SValue, y: SValue): Value[Boolean] =
-        cb.memoize(x.asFloat.floatCode(cb) >= y.asFloat.floatCode(cb))
+        cb.memoize(x.asFloat.value >= y.asFloat.value)
 
       override def _equivNonnull(cb: EmitCodeBuilder, x: SValue, y: SValue): Value[Boolean] =
-        cb.memoize(x.asFloat.floatCode(cb).ceq(y.asFloat.floatCode(cb)))
+        cb.memoize(x.asFloat.value.ceq(y.asFloat.value))
     }
   }
 }
@@ -98,22 +98,22 @@ object Float64Ordering {
       override val type2: SFloat64.type = t2
 
       override def _compareNonnull(cb: EmitCodeBuilder, x: SValue, y: SValue): Value[Int] =
-        cb.memoize(Code.invokeStatic2[java.lang.Double, Double, Double, Int]("compare", x.asDouble.doubleCode(cb), y.asDouble.doubleCode(cb)))
+        cb.memoize(Code.invokeStatic2[java.lang.Double, Double, Double, Int]("compare", x.asDouble.value, y.asDouble.value))
 
       override def _ltNonnull(cb: EmitCodeBuilder, x: SValue, y: SValue): Value[Boolean] =
-        cb.memoize(x.asDouble.doubleCode(cb) < y.asDouble.doubleCode(cb))
+        cb.memoize(x.asDouble.value < y.asDouble.value)
 
       override def _lteqNonnull(cb: EmitCodeBuilder, x: SValue, y: SValue): Value[Boolean] =
-        cb.memoize(x.asDouble.doubleCode(cb) <= y.asDouble.doubleCode(cb))
+        cb.memoize(x.asDouble.value <= y.asDouble.value)
 
       override def _gtNonnull(cb: EmitCodeBuilder, x: SValue, y: SValue): Value[Boolean] =
-        cb.memoize(x.asDouble.doubleCode(cb) > y.asDouble.doubleCode(cb))
+        cb.memoize(x.asDouble.value > y.asDouble.value)
 
       override def _gteqNonnull(cb: EmitCodeBuilder, x: SValue, y: SValue): Value[Boolean] =
-        cb.memoize(x.asDouble.doubleCode(cb) >= y.asDouble.doubleCode(cb))
+        cb.memoize(x.asDouble.value >= y.asDouble.value)
 
       override def _equivNonnull(cb: EmitCodeBuilder, x: SValue, y: SValue): Value[Boolean] =
-        cb.memoize(x.asDouble.doubleCode(cb).ceq(y.asDouble.doubleCode(cb)))
+        cb.memoize(x.asDouble.value.ceq(y.asDouble.value))
     }
   }
 }
@@ -126,7 +126,7 @@ object BooleanOrdering {
       override val type2: SBoolean.type = t2
 
       override def _compareNonnull(cb: EmitCodeBuilder, x: SValue, y: SValue): Value[Int] =
-        cb.memoize(Code.invokeStatic2[java.lang.Boolean, Boolean, Boolean, Int]("compare", x.asBoolean.boolCode(cb), y.asBoolean.boolCode(cb)))
+        cb.memoize(Code.invokeStatic2[java.lang.Boolean, Boolean, Boolean, Int]("compare", x.asBoolean.value, y.asBoolean.value))
     }
   }
 }

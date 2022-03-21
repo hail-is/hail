@@ -1,3 +1,4 @@
+from typing import Optional, Dict
 import base64
 import collections.abc
 import os
@@ -20,40 +21,40 @@ def session_id_decode_from_str(session_id_str: str) -> bytes:
 
 class Tokens(collections.abc.MutableMapping):
     @staticmethod
-    def get_tokens_file():
+    def get_tokens_file() -> str:
+        default_enduser_token_file = os.path.expanduser('~/.hail/tokens.json')
         return first_extant_file(
             os.environ.get('HAIL_TOKENS_FILE'),
-            os.path.expanduser('~/.hail/tokens.json'),
-            '/user-tokens/tokens.json'
-        )
+            default_enduser_token_file,
+            '/user-tokens/tokens.json',
+        ) or default_enduser_token_file
 
     @staticmethod
-    def default_tokens():
+    def default_tokens() -> 'Tokens':
         tokens_file = Tokens.get_tokens_file()
         if os.path.isfile(tokens_file):
-            with open(tokens_file, 'r') as f:
+            with open(tokens_file, 'r', encoding='utf-8') as f:
                 log.info(f'tokens loaded from {tokens_file}')
                 return Tokens(json.load(f))
-        else:
-            log.info(f'tokens file not found: {tokens_file}')
-            return Tokens({})
+        log.info(f'tokens file not found: {tokens_file}')
+        return Tokens({})
 
     @staticmethod
-    def from_file(tokens_file):
-        with open(tokens_file, 'r') as f:
+    def from_file(tokens_file: str) -> 'Tokens':
+        with open(tokens_file, 'r', encoding='utf-8') as f:
             log.info(f'tokens loaded from {tokens_file}')
             return Tokens(json.load(f))
 
-    def __init__(self, tokens):
+    def __init__(self, tokens: Dict[str, str]):
         self._tokens = tokens
 
-    def __setitem__(self, key, value):
+    def __setitem__(self, key: str, value: str):
         self._tokens[key] = value
 
-    def __getitem__(self, key):
+    def __getitem__(self, key: str) -> str:
         return self._tokens[key]
 
-    def namespace_token_or_error(self, ns):
+    def namespace_token_or_error(self, ns: str) -> str:
         if ns in self._tokens:
             return self._tokens[ns]
 
@@ -69,7 +70,7 @@ to obtain new credentials.
 ''')
         sys.exit(1)
 
-    def __delitem__(self, key):
+    def __delitem__(self, key: str):
         del self._tokens[key]
 
     def __iter__(self):
@@ -78,18 +79,25 @@ to obtain new credentials.
     def __len__(self):
         return len(self._tokens)
 
-    def write(self):
+    def write(self) -> None:
         # restrict permissions to user
-        with os.fdopen(os.open(self.get_tokens_file(), os.O_CREAT | os.O_WRONLY | os.O_TRUNC, 0o600), 'w') as f:
+        with os.fdopen(
+                os.open(
+                    self.get_tokens_file(),
+                    os.O_CREAT | os.O_WRONLY | os.O_TRUNC,
+                    0o600
+                ),
+                'w',
+                encoding='utf-8'
+        ) as f:
             json.dump(self._tokens, f)
 
 
-tokens = {}
-default_tokens = None
+tokens: Dict[str, Tokens] = {}
+default_tokens: Optional[Tokens] = None
 
 
-def get_tokens(file=None):
-    global tokens
+def get_tokens(file: Optional[str] = None) -> Tokens:
     global default_tokens
 
     if file is None:

@@ -104,10 +104,6 @@ case class StoredSTypePType(sType: SType, required: Boolean) extends PType {
     sType.fromValues(ct.loadValues(cb, cb.newLocal[Long]("stored_stype_ptype_loaded_addr")))
   }
 
-  override def loadCheapSCodeField(cb: EmitCodeBuilder, addr: Code[Long]): SValue = {
-    sType.fromValues(ct.loadValues(cb, cb.newField[Long]("stored_stype_ptype_loaded_addr")))
-  }
-
   override def loadFromNested(addr: Code[Long]): Code[Long] = addr
 
   override def deepRename(t: Type): PType = StoredSTypePType(sType.castRename(t), required)

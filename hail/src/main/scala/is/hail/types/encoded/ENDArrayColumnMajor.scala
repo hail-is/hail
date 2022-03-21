@@ -22,11 +22,11 @@ case class ENDArrayColumnMajor(elementType: EType, nDims: Int, required: Boolean
     SNDArray.coiterate(cb, (ndarray, "A")){
       case Seq(elt) =>
         elementType.buildEncoder(elt.st, cb.emb.ecb)
-          .apply(cb, elt.get, out)
+          .apply(cb, elt, out)
     }
   }
 
-  override def _buildDecoder(cb: EmitCodeBuilder, t: Type, region: Value[Region], in: Value[InputBuffer]): SCode = {
+  override def _buildDecoder(cb: EmitCodeBuilder, t: Type, region: Value[Region], in: Value[InputBuffer]): SValue = {
     val st = decodedSType(t).asInstanceOf[SNDArrayPointer]
     val pnd = st.pType
     val readElemF = elementType.buildInplaceDecoder(pnd.elementType, cb.emb.ecb)
@@ -48,7 +48,7 @@ case class ENDArrayColumnMajor(elementType: EType, nDims: Int, required: Boolean
       cb.assign(currElementAddress, currElementAddress + pnd.elementType.byteSize)
     })
 
-    pndFinisher(cb).get
+    pndFinisher(cb)
   }
 
   def _buildSkip(cb: EmitCodeBuilder, r: Value[Region], in: Value[InputBuffer]): Unit = {

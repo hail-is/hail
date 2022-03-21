@@ -52,6 +52,7 @@ from . import methods  # noqa: E402
 from . import stats  # noqa: E402
 from . import linalg  # noqa: E402
 from . import plot  # noqa: E402
+from . import ggplot  # noqa: E402
 from . import experimental  # noqa: E402
 from . import ir  # noqa: E402
 from . import backend  # noqa: E402
@@ -62,16 +63,17 @@ from hail.utils import (Struct, Interval, hadoop_copy, hadoop_open, hadoop_ls,  
                         hadoop_stat, hadoop_exists, hadoop_is_file,
                         hadoop_is_dir, hadoop_scheme_supported, copy_log)
 
-from .context import (init, init_local, stop, spark_context, tmp_dir, default_reference,  # noqa: E402
-                      get_reference, set_global_seed, _set_flags, _get_flags, current_backend,
-                      debug_info, citation, cite_hail, cite_hail_bibtex, version, TemporaryFilename,
-                      TemporaryDirectory)
+from .context import (init, init_local, init_service, stop, spark_context, tmp_dir,  # noqa: E402
+                      default_reference, get_reference, set_global_seed, _set_flags, _get_flags,
+                      _async_current_backend, current_backend, debug_info, citation, cite_hail,
+                      cite_hail_bibtex, version, TemporaryFilename, TemporaryDirectory)
 
 scan = agg.aggregators.ScanFunctions({name: getattr(agg, name) for name in agg.__all__})
 
 __all__ = [
     'init',
     'init_local',
+    'init_service',
     'stop',
     'spark_context',
     'tmp_dir',
@@ -107,10 +109,12 @@ __all__ = [
     'linalg',
     'nd',
     'plot',
+    'ggplot',
     'experimental',
     'ir',
     'vds',
     'backend',
+    '_async_current_backend',
     'current_backend',
     'debug_info',
     'citation',

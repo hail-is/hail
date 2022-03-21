@@ -166,7 +166,7 @@ def pdf(data, k=1000, confidence=5, legend=None, title=None, log=False, interact
         y_axis_type = 'log'
     else:
         y_axis_type = 'linear'
-    p = figure(
+    fig = figure(
         title=title,
         x_axis_label=legend,
         y_axis_label=y_axis_label,
@@ -177,32 +177,38 @@ def pdf(data, k=1000, confidence=5, legend=None, title=None, log=False, interact
         active_scroll='xwheel_zoom',
         background_fill_color='#EEEEEE')
 
-    y = np.array(data.ranks[1:-1]) / data.ranks[-1]
-    x = np.array(data.values[1:-1])
-    min_x = data.values[0]
-    max_x = data.values[-1]
+    y = np.array(data['ranks'][1:-1]) / data['ranks'][-1]
+    x = np.array(data['values'][1:-1])
+    min_x = data['values'][0]
+    max_x = data['values'][-1]
     err = _cdf_error(data, 10 ** (-confidence))
 
     new_y, keep = _max_entropy_cdf(min_x, max_x, x, y, err)
-    slopes = np.diff([0, *new_y[keep], 1]) / np.diff([data.values[0], *x[keep], data.values[-1]])
-    q = p.quad(left=[data.values[0], *x[keep]], right=[*x[keep], data.values[-1]], bottom=0, top=slopes, legend_label=legend)
+    slopes = np.diff([0, *new_y[keep], 1]) / np.diff([min_x, *x[keep], max_x])
+    if log:
+        plot = fig.step(x=[min_x, *x[keep], max_x], y=[*slopes, slopes[-1]], mode='after')
+    else:
+        plot = fig.quad(left=[min_x, *x[keep]], right=[*x[keep], max_x], bottom=0, top=slopes, legend_label=legend)
 
     if interactive:
         def mk_interact(handle):
             def update(confidence=confidence):
                 err = _cdf_error(data, 10 ** (-confidence)) / 1.8
                 new_y, keep = _max_entropy_cdf(min_x, max_x, x, y, err)
-                slopes = np.diff([0, *new_y[keep], 1]) / np.diff([data.values[0], *x[keep], data.values[-1]])
-                new_data = {'left': [data.values[0], *x[keep]], 'right': [*x[keep], data.values[-1]], 'bottom': np.full(len(slopes), 0), 'top': slopes}
-                q.data_source.data = new_data
+                slopes = np.diff([0, *new_y[keep], 1]) / np.diff([min_x, *x[keep], max_x])
+                if log:
+                    new_data = {'x': [min_x, *x[keep], max_x], 'y': [*slopes, slopes[-1]]}
+                else:
+                    new_data = {'left': [min_x, *x[keep]], 'right': [*x[keep], max_x], 'bottom': np.full(len(slopes), 0), 'top': slopes}
+                plot.data_source.data = new_data
                 bokeh.io.push_notebook(handle)
 
             from ipywidgets import interact
             interact(update, confidence=(1, 10, .01))
 
-        return p, mk_interact
+        return fig, mk_interact
     else:
-        return p
+        return fig
 
 
 def _max_entropy_cdf(min_x, max_x, x, y, e):
@@ -330,11 +336,11 @@ def smoothed_pdf(data, k=350, smoothing=.5, legend=None, title=None, log=False, 
         active_scroll='xwheel_zoom',
         background_fill_color='#EEEEEE')
 
-    n = data.ranks[-1]
-    weights = np.diff(data.ranks[1:-1])
-    min = data.values[0]
-    max = data.values[-1]
-    values = np.array(data.values[1:-1])
+    n = data['ranks'][-1]
+    weights = np.diff(data['ranks'][1:-1])
+    min = data['values'][0]
+    max = data['values'][-1]
+    values = np.array(data['values'][1:-1])
     slope = 1 / (max - min)
 
     def f(x, prev, smoothing=smoothing):
@@ -419,9 +425,24 @@ def histogram(data, range=None, bins=50, legend=None, title=None, log=False, int
         legend = ""
 
     if log:
-        data.bin_freq = [math.log10(x) for x in data.bin_freq]
-        data.n_larger = math.log10(data.n_larger)
-        data.n_smaller = math.log10(data.n_smaller)
+        bin_freq = []
+        count_problems = 0
+        for x in data.bin_freq:
+            if x == 0.0:
+                count_problems += 1
+                bin_freq.append(x)
+            else:
+                bin_freq.append(math.log10(x))
+
+        if count_problems > 0:
+            warning(f"There were {count_problems} bins with height 0, those cannot be log transformed and were left as 0s.")
+
+        changes = {
+            "bin_freq": bin_freq,
+            "n_larger": math.log10(data.n_larger) if data.n_larger > 0.0 else data.n_larger,
+            "n_smaller": math.log10(data.n_smaller) if data.n_smaller > 0.0 else data.n_smaller
+        }
+        data = data.annotate(**changes)
         y_axis_label = 'log10 Frequency'
     else:
         y_axis_label = 'Frequency'

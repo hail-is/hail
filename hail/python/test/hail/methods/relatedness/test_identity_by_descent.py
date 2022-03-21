@@ -5,14 +5,15 @@ from subprocess import DEVNULL, call as syscall
 import hail as hl
 import hail.utils as utils
 from ...helpers import (startTestHailContext, stopTestHailContext, get_dataset,
-                        skip_unless_spark_backend)
+                        fails_service_backend, fails_local_backend)
 
 setUpModule = startTestHailContext
 tearDownModule = stopTestHailContext
 
 
 class Tests(unittest.TestCase):
-    @skip_unless_spark_backend()
+    @fails_service_backend()
+    @fails_local_backend()
     @unittest.skipIf('HAIL_TEST_SKIP_PLINK' in os.environ, 'Skipping tests requiring plink')
     def test_ibd(self):
         dataset = get_dataset()

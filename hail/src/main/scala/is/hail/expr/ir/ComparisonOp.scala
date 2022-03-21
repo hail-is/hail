@@ -1,13 +1,16 @@
 package is.hail.expr.ir
 
-import is.hail.expr.ir.orderings.CodeOrdering
+import is.hail.asm4s.Code
+import is.hail.expr.ir.orderings.{CodeOrdering, StructOrdering}
+import is.hail.expr.ir.orderings.CodeOrdering.F
 import is.hail.types.physical.PType
 import is.hail.types.physical.stypes.SType
+import is.hail.types.physical.stypes.interfaces.SBaseStruct
 import is.hail.types.virtual.{TStruct, Type}
 
 object ComparisonOp {
 
-  private def checkCompatible[T](lt: Type, rt: Type): Unit =
+  def checkCompatible[T](lt: Type, rt: Type): Unit =
     if (lt != rt)
       throw new RuntimeException(s"Cannot compare types $lt and $rt")
 
@@ -90,3 +93,35 @@ case class Compare(t1: Type, t2: Type) extends ComparisonOp[Int] {
   val op: CodeOrdering.Op = CodeOrdering.Compare()
 }
 object Compare { def apply(typ: Type): Compare = Compare(typ, typ) }
+
+trait StructComparisonOp[T] extends ComparisonOp[T] {
+  val sortFields: Array[SortField]
+
+  override def codeOrdering(ecb: EmitClassBuilder[_], t1: SType, t2: SType): F[op.ReturnType] = {
+    ComparisonOp.checkCompatible(t1.virtualType, t2.virtualType)
+    ecb.getStructOrderingFunction(t1.asInstanceOf[SBaseStruct], t2.asInstanceOf[SBaseStruct], sortFields, op).asInstanceOf[CodeOrdering.F[op.ReturnType]]
+  }
+}
+
+case class StructCompare(t1: Type, t2: Type, sortFields: Array[SortField]) extends StructComparisonOp[Int] {
+  val op: CodeOrdering.Op = CodeOrdering.StructCompare()
+  override val strict: Boolean = false
+}
+
+case class StructLT(t1: Type, t2: Type, sortFields: Array[SortField]) extends StructComparisonOp[Boolean] {
+  val op: CodeOrdering.Op = CodeOrdering.StructLt()
+}
+
+object StructLT { def apply(typ: Type, sortFields: IndexedSeq[SortField]): StructLT = StructLT(typ, typ, sortFields.toArray) }
+
+case class StructLTEQ(t1: Type, t2: Type, sortFields: Array[SortField]) extends StructComparisonOp[Boolean] {
+  val op: CodeOrdering.Op = CodeOrdering.StructLteq()
+}
+
+object StructLTEQ { def apply(typ: Type, sortFields: IndexedSeq[SortField]): StructLTEQ = StructLTEQ(typ, typ, sortFields.toArray) }
+
+case class StructGT(t1: Type, t2: Type, sortFields: Array[SortField]) extends StructComparisonOp[Boolean] {
+  val op: CodeOrdering.Op = CodeOrdering.StructGt()
+}
+
+object StructGT { def apply(typ: Type, sortFields: IndexedSeq[SortField]): StructGT = StructGT(typ, typ, sortFields.toArray) }

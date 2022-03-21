@@ -1,9 +1,8 @@
 package is.hail.fs
 
 import java.io.FileNotFoundException
-
 import is.hail.HailSuite
-import is.hail.expr.ir.ExecuteContext
+import is.hail.backend.ExecuteContext
 import is.hail.io.fs.{FS, FileStatus}
 import is.hail.utils._
 import org.apache.commons.io.IOUtils

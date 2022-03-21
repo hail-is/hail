@@ -1366,8 +1366,8 @@ class MatrixTable(ExprContainer):
         -----
         The row key type of the matrix table must match the key type of `other`.
 
-        This method does not change the schema of the matrix table; it is a
-        filtering the matrix table to row keys not present in another table.
+        This method does not change the schema of the matrix table; it is
+        filtering the matrix table to row keys present in another table.
 
         To discard rows whose key is present in `other`, use
         :meth:`.anti_join_rows`.
@@ -1999,7 +1999,7 @@ class MatrixTable(ExprContainer):
 
         agg_ir = ir.TableAggregate(ir.MatrixRowsTable(base._mir), subst_query)
         if _localize:
-            return Env.backend().execute(agg_ir)
+            return Env.backend().execute(ir.MakeTuple([agg_ir]))[0]
         else:
             return construct_expr(ir.LiftMeOut(agg_ir), expr.dtype)
 
@@ -2049,7 +2049,7 @@ class MatrixTable(ExprContainer):
 
         agg_ir = ir.TableAggregate(ir.MatrixColsTable(base._mir), subst_query)
         if _localize:
-            return Env.backend().execute(agg_ir)
+            return Env.backend().execute(ir.MakeTuple([agg_ir]))[0]
         else:
             return construct_expr(ir.LiftMeOut(agg_ir), expr.dtype)
 

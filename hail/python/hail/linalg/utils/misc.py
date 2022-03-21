@@ -200,7 +200,7 @@ def locus_windows(locus_expr, radius, coord_expr=None, _localize=True):
     # check loci are in sorted order
     last_pos = hl.fold(lambda a, elt: (hl.case()
                                          .when(a <= elt, elt)
-                                         .or_error("locus_windows: 'locus_expr' global position must be in ascending order.")),
+                                         .or_error(hl.str("locus_windows: 'locus_expr' global position must be in ascending order. ") + hl.str(a) + hl.str(" was not less then or equal to ") + hl.str(elt))),
                        -1,
                        hl.agg.collect(hl.case()
                                         .when(hl.is_defined(locus_expr), locus_expr.global_position())

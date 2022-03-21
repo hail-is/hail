@@ -30,6 +30,8 @@ spec:
       tolerations:
        - key: preemptible
          value: "true"
+       - key: "kubernetes.azure.com/scalesetpriority"
+         value: "spot"
 {% endif %}
       containers:
       - name: batch-driver
@@ -60,11 +62,8 @@ spec:
            value: "{{ batch_worker_image.image }}"
          - name: HAIL_DEFAULT_NAMESPACE
            value: "{{ default_ns.name }}"
-         - name: PROJECT
-           valueFrom:
-             secretKeyRef:
-               name: global-config
-               key: gcp_project
+         - name: HAIL_SSH_PUBLIC_KEY
+           value: /ssh-public-key/ssh_rsa.pub
          - name: HAIL_DOCKER_ROOT_IMAGE
            valueFrom:
              secretKeyRef:
@@ -80,26 +79,21 @@ spec:
              secretKeyRef:
                name: global-config
                key: internal_ip
-         - name: HAIL_GCP_REGION
-           valueFrom:
-             secretKeyRef:
-               name: global-config
-               key: gcp_region
-         - name: HAIL_GCP_ZONE
-           valueFrom:
-             secretKeyRef:
-               name: global-config
-               key: gcp_zone
-         - name: HAIL_BATCH_GCP_REGIONS
-           valueFrom:
-             secretKeyRef:
-               name: global-config
-               key: batch_gcp_regions
          - name: KUBERNETES_SERVER_URL
            valueFrom:
              secretKeyRef:
                name: global-config
                key: kubernetes_server_url
+         - name: CLOUD
+           valueFrom:
+             secretKeyRef:
+               name: global-config
+               key: cloud
+         - name: INTERNAL_GATEWAY_IP
+           valueFrom:
+             secretKeyRef:
+               name: global-config
+               key: internal_ip
          - name: HAIL_SHA
            value: "{{ code.sha }}"
 {% if scope != "test" %}
@@ -109,29 +103,61 @@ spec:
          - name: HAIL_SCOPE
            value: "{{ scope }}"
 {% if deploy %}
-         - name: HAIL_BATCH_BUCKET_NAME
+         - name: HAIL_BATCH_STORAGE_URI
            valueFrom:
              secretKeyRef:
                name: global-config
-               key: batch_logs_bucket
+               key: batch_logs_storage_uri
          - name: STANDING_WORKER_MAX_IDLE_TIME_SECS
            value: "7200" # 2 hours
 {% else %}
-         - name: HAIL_SHOULD_CHECK_INVARIANTS
-           value: "1"
-         - name: HAIL_BATCH_BUCKET_NAME
+         - name: HAIL_BATCH_STORAGE_URI
            valueFrom:
              secretKeyRef:
                name: global-config
-               key: hail_test_gcs_bucket
+               key: test_storage_uri
          - name: STANDING_WORKER_MAX_IDLE_TIME_SECS
            value: "300"
+{% endif %}
+{% if scope == "deploy" %}
+         - name: HAIL_QUERY_STORAGE_URI
+           valueFrom:
+             secretKeyRef:
+               name: global-config
+               key: query_storage_uri
+         - name: HAIL_QUERY_ACCEPTABLE_JAR_SUBFOLDER
+           value: "/jars"
+{% elif scope == "test" %}
+         - name: HAIL_QUERY_STORAGE_URI
+           valueFrom:
+             secretKeyRef:
+               name: global-config
+               key: test_storage_uri
+         - name: HAIL_QUERY_ACCEPTABLE_JAR_SUBFOLDER
+           value: "/{{ token }}/jars"
+{% elif scope == "dev" %}
+         - name: HAIL_QUERY_STORAGE_URI
+           valueFrom:
+             secretKeyRef:
+               name: global-config
+               key: test_storage_uri
+         - name: HAIL_QUERY_ACCEPTABLE_JAR_SUBFOLDER
+           value: "/{{ default_ns.name }}/jars"
+{% else %}
+!!! unexpected scope {{ scope }} !!!
+{% endif %}
+{% if scope == "test" %}
+         - name: HAIL_SHOULD_CHECK_INVARIANTS
+           value: "1"
 {% endif %}
         ports:
          - containerPort: 5000
         volumeMounts:
          - name: deploy-config
            mountPath: /deploy-config
+           readOnly: true
+         - name: global-config
+           mountPath: /global-config
            readOnly: true
          - name: session-secret-key
            mountPath: /session-secret-key
@@ -145,6 +171,9 @@ spec:
          - name: ssl-config-batch-driver
            mountPath: /ssl-config
            readOnly: true
+         - name: ssh-public-key
+           mountPath: /ssh-public-key
+           readOnly: true
         readinessProbe:
           tcpSocket:
             port: 5000
@@ -154,6 +183,9 @@ spec:
        - name: deploy-config
          secret:
            secretName: deploy-config
+       - name: global-config
+         secret:
+           secretName: global-config
        - name: session-secret-key
          secret:
            secretName: session-secret-key
@@ -167,6 +199,10 @@ spec:
          secret:
            optional: false
            secretName: ssl-config-batch-driver
+       - name: ssh-public-key
+         secret:
+           secretName: batch-worker-ssh-public-key
+           optional: true
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -195,6 +231,8 @@ spec:
       tolerations:
        - key: preemptible
          value: "true"
+       - key: "kubernetes.azure.com/scalesetpriority"
+         value: "spot"
       affinity:
         podAntiAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
@@ -225,11 +263,6 @@ spec:
            value: /deploy-config/deploy-config.json
          - name: HAIL_DEFAULT_NAMESPACE
            value: "{{ default_ns.name }}"
-         - name: PROJECT
-           valueFrom:
-             secretKeyRef:
-               name: global-config
-               key: gcp_project
          - name: HAIL_DOCKER_ROOT_IMAGE
            valueFrom:
              secretKeyRef:
@@ -240,46 +273,68 @@ spec:
              secretKeyRef:
                name: global-config
                key: docker_prefix
-         - name: HAIL_GCP_REGION
-           valueFrom:
-             secretKeyRef:
-               name: global-config
-               key: gcp_region
-         - name: HAIL_GCP_ZONE
-           valueFrom:
-             secretKeyRef:
-               name: global-config
-               key: gcp_zone
-         - name: HAIL_BATCH_GCP_REGIONS
-           valueFrom:
-             secretKeyRef:
-               name: global-config
-               key: batch_gcp_regions
          - name: KUBERNETES_SERVER_URL
            valueFrom:
              secretKeyRef:
                name: global-config
                key: kubernetes_server_url
+         - name: CLOUD
+           valueFrom:
+             secretKeyRef:
+               name: global-config
+               key: cloud
+         - name: INTERNAL_GATEWAY_IP
+           valueFrom:
+             secretKeyRef:
+               name: global-config
+               key: internal_ip
          - name: HAIL_SHA
            value: "{{ code.sha }}"
          - name: HAIL_SCOPE
            value: "{{ scope }}"
 {% if deploy %}
-         - name: HAIL_BATCH_BUCKET_NAME
+         - name: HAIL_BATCH_STORAGE_URI
            valueFrom:
              secretKeyRef:
                name: global-config
-               key: batch_logs_bucket
+               key: batch_logs_storage_uri
          - name: STANDING_WORKER_MAX_IDLE_TIME_SECS
            value: "7200" # 2 hours
 {% else %}
-         - name: HAIL_BATCH_BUCKET_NAME
+         - name: HAIL_BATCH_STORAGE_URI
            valueFrom:
              secretKeyRef:
                name: global-config
-               key: hail_test_gcs_bucket
+               key: test_storage_uri
          - name: STANDING_WORKER_MAX_IDLE_TIME_SECS
            value: "300"
+{% endif %}
+{% if scope == "deploy" %}
+         - name: HAIL_QUERY_STORAGE_URI
+           valueFrom:
+             secretKeyRef:
+               name: global-config
+               key: query_storage_uri
+         - name: HAIL_QUERY_ACCEPTABLE_JAR_SUBFOLDER
+           value: "/jars"
+{% elif scope == "test" %}
+         - name: HAIL_QUERY_STORAGE_URI
+           valueFrom:
+             secretKeyRef:
+               name: global-config
+               key: test_storage_uri
+         - name: HAIL_QUERY_ACCEPTABLE_JAR_SUBFOLDER
+           value: "/{{ token }}/jars"
+{% elif scope == "dev" %}
+         - name: HAIL_QUERY_STORAGE_URI
+           valueFrom:
+             secretKeyRef:
+               name: global-config
+               key: test_storage_uri
+         - name: HAIL_QUERY_ACCEPTABLE_JAR_SUBFOLDER
+           value: "/{{ default_ns.name }}/jars"
+{% else %}
+!!! unexpected scope {{ scope }} !!!
 {% endif %}
         ports:
          - containerPort: 5000
@@ -293,6 +348,9 @@ spec:
         volumeMounts:
          - name: deploy-config
            mountPath: /deploy-config
+           readOnly: true
+         - name: global-config
+           mountPath: /global-config
            readOnly: true
          - name: session-secret-key
            mountPath: /session-secret-key
@@ -315,6 +373,9 @@ spec:
        - name: deploy-config
          secret:
            secretName: deploy-config
+       - name: global-config
+         secret:
+           secretName: global-config
        - name: session-secret-key
          secret:
            secretName: session-secret-key

@@ -3,13 +3,12 @@ package is.hail.types.physical.stypes.interfaces
 import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.expr.ir.EmitCodeBuilder
-import is.hail.types.{RNDArray, TypeWithRequiredness}
-import is.hail.types.physical.{PCanonicalNDArray, PNDArray, PType}
-import is.hail.types.physical.stypes.concrete.{SNDArraySlice, SNDArraySliceCode, SNDArraySliceValue}
 import is.hail.linalg.{BLAS, LAPACK}
-import is.hail.types.physical.stypes.primitives.SFloat64Code
+import is.hail.types.physical.stypes.concrete.{SNDArraySlice, SNDArraySliceValue}
+import is.hail.types.physical.stypes.primitives.SInt64Value
+import is.hail.types.physical.stypes.{EmitType, SSettable, SType, SValue}
 import is.hail.types.physical.{PCanonicalNDArray, PNDArray, PType}
-import is.hail.types.physical.stypes.{SCode, SSettable, SType, SValue}
+import is.hail.types.{RNDArray, TypeWithRequiredness}
 import is.hail.utils.{FastIndexedSeq, toRichIterable, valueToRichCodeRegion}
 
 import scala.collection.mutable
@@ -245,9 +244,7 @@ object SNDArray {
     }
   }
 
-  def copyVector(cb: EmitCodeBuilder, _X: SNDArrayCode, _Y: SNDArrayCode): Unit = {
-    val X = _X.memoize(cb, "copy_X")
-    val Y = _Y.memoize(cb, "copy_Y")
+  def copyVector(cb: EmitCodeBuilder, X: SNDArrayValue, Y: SNDArrayValue): Unit = {
     val Seq(n) = X.shapes
 
     Y.assertHasShape(cb, FastIndexedSeq(n), "copy: vectors have different sizes: ", Y.shapes(0).toS, ", ", n.toS)
@@ -259,26 +256,21 @@ object SNDArray {
       Y.firstDataAddress, ldY)
   }
 
-  def scale(cb: EmitCodeBuilder, alpha: SCode, X: SNDArrayCode): Unit =
-    scale(cb, alpha.asInstanceOf[SFloat64Code].code, X)
+  def scale(cb: EmitCodeBuilder, alpha: SValue, X: SNDArrayValue): Unit =
+    scale(cb, alpha.asFloat64.value, X)
 
-  def scale(cb: EmitCodeBuilder, alpha: Code[Double], _X: SNDArrayCode): Unit = {
-    val X = _X.memoize(cb, "scale_X")
+  def scale(cb: EmitCodeBuilder, alpha: Value[Double], X: SNDArrayValue): Unit = {
     val Seq(n) = X.shapes
     val ldX = X.eltStride(0).max(1)
     cb += Code.invokeScalaObject4[Int, Double, Long, Int, Unit](BLAS.getClass, "dscal",
       n.toI, alpha, X.firstDataAddress, ldX)
   }
 
-  def gemv(cb: EmitCodeBuilder, trans: String, A: SNDArrayCode, X: SNDArrayCode, Y: SNDArrayCode): Unit = {
+  def gemv(cb: EmitCodeBuilder, trans: String, A: SNDArrayValue, X: SNDArrayValue, Y: SNDArrayValue): Unit = {
     gemv(cb, trans, 1.0, A, X, 1.0, Y)
   }
 
-  def gemv(cb: EmitCodeBuilder, trans: String, alpha: Code[Double], _A: SNDArrayCode, _X: SNDArrayCode, beta: Code[Double], _Y: SNDArrayCode): Unit = {
-    val A = _A.memoize(cb, "gemv_A")
-    val X = _X.memoize(cb, "gemv_X")
-    val Y = _Y.memoize(cb, "gemv_Y")
-
+  def gemv(cb: EmitCodeBuilder, trans: String, alpha: Value[Double], A: SNDArrayValue, X: SNDArrayValue, beta: Value[Double], Y: SNDArrayValue): Unit = {
     assertMatrix(A)
     val Seq(m, n) = A.shapes
     val errMsg = "gemv: incompatible dimensions"
@@ -303,14 +295,10 @@ object SNDArray {
       Y.firstDataAddress, ldY)
   }
 
-  def gemm(cb: EmitCodeBuilder, tA: String, tB: String, A: SNDArrayCode, B: SNDArrayCode, C: SNDArrayCode): Unit =
+  def gemm(cb: EmitCodeBuilder, tA: String, tB: String, A: SNDArrayValue, B: SNDArrayValue, C: SNDArrayValue): Unit =
     gemm(cb, tA, tB, 1.0, A, B, 1.0, C)
 
-  def gemm(cb: EmitCodeBuilder, tA: String, tB: String, alpha: Code[Double], _A: SNDArrayCode, _B: SNDArrayCode, beta: Code[Double], _C: SNDArrayCode): Unit = {
-    val A = _A.memoize(cb, "gemm_A")
-    val B = _B.memoize(cb, "gemm_B")
-    val C = _C.memoize(cb, "gemm_C")
-
+  def gemm(cb: EmitCodeBuilder, tA: String, tB: String, alpha: Value[Double], A: SNDArrayValue, B: SNDArrayValue, beta: Value[Double], C: SNDArrayValue): Unit = {
     assertMatrix(A, B, C)
     val Seq(m, n) = C.shapes
     val k = if (tA == "N") A.shapes(1) else A.shapes(0)
@@ -339,9 +327,7 @@ object SNDArray {
   }
 
   def trmm(cb: EmitCodeBuilder, side: String, uplo: String, transA: String, diag: String,
-    alpha: Code[Double], _A: SNDArrayCode, _B: SNDArrayCode): Unit = {
-    val A = _A.memoize(cb, "trmm_A")
-    val B = _B.memoize(cb, "trmm_B")
+    alpha: Value[Double], A: SNDArrayValue, B: SNDArrayValue): Unit = {
     assertMatrix(A, B)
     assertColMajor(cb, A, B)
 
@@ -361,10 +347,7 @@ object SNDArray {
       B.firstDataAddress, ldB)
   }
 
-  def geqrt(_A: SNDArrayCode, _T: SNDArrayCode, _work: SNDArrayCode, blocksize: Value[Long], cb: EmitCodeBuilder): Unit = {
-    val A = _A.memoize(cb, "geqrt_A")
-    val T = _T.memoize(cb, "geqrt_T")
-    val work = _work.memoize(cb, "copy_work")
+  def geqrt(A: SNDArrayValue, T: SNDArrayValue, work: SNDArrayValue, blocksize: Value[Long], cb: EmitCodeBuilder): Unit = {
     assertMatrix(A)
     assertColMajor(cb, A)
     assertVector(work, T)
@@ -385,11 +368,7 @@ object SNDArray {
     cb.ifx(error.cne(0), cb._fatal("LAPACK error dtpqrt. Error code = ", error.toS))
   }
 
-  def gemqrt(side: String, trans: String, _V: SNDArrayCode, _T: SNDArrayCode, _C: SNDArrayCode, _work: SNDArrayCode, blocksize: Value[Long], cb: EmitCodeBuilder): Unit = {
-    val V = _V.memoize(cb, "gemqrt_V")
-    val T = _T.memoize(cb, "gemqrt_T")
-    val C = _C.memoize(cb, "gemqrt_C")
-    val work = _work.memoize(cb, "copy_work")
+  def gemqrt(side: String, trans: String, V: SNDArrayValue, T: SNDArrayValue, C: SNDArrayValue, work: SNDArrayValue, blocksize: Value[Long], cb: EmitCodeBuilder): Unit = {
     assertMatrix(C, V)
     assertColMajor(cb, C, V)
     assertVector(work, T)
@@ -421,11 +400,7 @@ object SNDArray {
     cb.ifx(error.cne(0), cb._fatal("LAPACK error dtpqrt. Error code = ", error.toS))
   }
 
-  def tpqrt(_A: SNDArrayCode, _B: SNDArrayCode, _T: SNDArrayCode, _work: SNDArrayCode, blocksize: Value[Long], cb: EmitCodeBuilder): Unit = {
-    val A = _A.memoize(cb, "tpqrt_A")
-    val B = _B.memoize(cb, "tpqrt_B")
-    val T = _T.memoize(cb, "tpqrt_T")
-    val work = _work.memoize(cb, "copy_work")
+  def tpqrt(A: SNDArrayValue, B: SNDArrayValue, T: SNDArrayValue, work: SNDArrayValue, blocksize: Value[Long], cb: EmitCodeBuilder): Unit = {
     assertMatrix(A, B)
     assertColMajor(cb, A, B)
     assertVector(work, T)
@@ -449,12 +424,7 @@ object SNDArray {
     cb.ifx(error.cne(0), cb._fatal("LAPACK error dtpqrt. Error code = ", error.toS))
   }
 
-  def tpmqrt(side: String, trans: String, _V: SNDArrayCode, _T: SNDArrayCode, _A: SNDArrayCode, _B: SNDArrayCode, _work: SNDArrayCode, blocksize: Value[Long], cb: EmitCodeBuilder): Unit = {
-    val V = _V.memoize(cb, "tpmqrt_V")
-    val T = _T.memoize(cb, "tpmqrt_T")
-    val A = _A.memoize(cb, "tpmqrt_A")
-    val B = _B.memoize(cb, "tpmqrt_B")
-    val work = _work.memoize(cb, "copy_work")
+  def tpmqrt(side: String, trans: String, V: SNDArrayValue, T: SNDArrayValue, A: SNDArrayValue, B: SNDArrayValue, work: SNDArrayValue, blocksize: Value[Long], cb: EmitCodeBuilder): Unit = {
     assertMatrix(A, B, V)
     assertColMajor(cb, A, B, V)
     assertVector(work, T)
@@ -490,8 +460,7 @@ object SNDArray {
     cb.ifx(error.cne(0), cb._fatal("LAPACK error dtpqrt. Error code = ", error.toS))
   }
 
-  def geqrf_query(cb: EmitCodeBuilder, _m: Code[Int], n: Code[Int], region: Value[Region]): Code[Int] = {
-    val m = cb.newLocal[Int]("geqrf_m", _m)
+  def geqrf_query(cb: EmitCodeBuilder, m: Value[Int], n: Value[Int], region: Value[Region]): Value[Int] = {
     val LWorkAddress = cb.newLocal[Long]("dgeqrf_lwork_address")
     val LWork = cb.newLocal[Int]("dgeqrf_lwork")
     val info = cb.newLocal[Int]("dgeqrf_info")
@@ -503,13 +472,10 @@ object SNDArray {
       LWorkAddress, -1))
     cb.ifx(info.cne(0), cb._fatal(s"LAPACK error DGEQRF. Failed size query. Error code = ", info.toS))
     cb.assign(LWork, Region.loadDouble(LWorkAddress).toI)
-    (LWork > 0).mux(LWork, 1)
+    cb.memoize((LWork > 0).mux(LWork, 1))
   }
 
-  def geqrf(cb: EmitCodeBuilder, _A: SNDArrayCode, _T: SNDArrayCode, _work: SNDArrayCode): Unit = {
-    val A = _A.memoize(cb, "geqrf_A")
-    val T = _T.memoize(cb, "geqrf_T")
-    val work = _work.memoize(cb, "geqrf_work")
+  def geqrf(cb: EmitCodeBuilder, A: SNDArrayValue, T: SNDArrayValue, work: SNDArrayValue): Unit = {
     assertMatrix(A)
     assertColMajor(cb, A)
     assertVector(T, work)
@@ -529,11 +495,7 @@ object SNDArray {
     cb.ifx(info.cne(0), cb._fatal(s"LAPACK error DGEQRF. Error code = ", info.toS))
   }
 
-  def orgqr(cb: EmitCodeBuilder, _k: Code[Int], _A: SNDArrayCode, _T: SNDArrayCode, _work: SNDArrayCode): Unit = {
-    val k = cb.newLocal[Int]("orgqr_k", _k)
-    val A = _A.memoize(cb, "orgqr_A")
-    val T = _T.memoize(cb, "orgqr_T")
-    val work = _work.memoize(cb, "orgqr_work")
+  def orgqr(cb: EmitCodeBuilder, k: Value[Int], A: SNDArrayValue, T: SNDArrayValue, work: SNDArrayValue): Unit = {
     assertMatrix(A)
     assertColMajor(cb, A)
     assertVector(T, work)
@@ -563,6 +525,7 @@ trait SNDArray extends SType {
 
   def elementType: SType
   def elementPType: PType
+  def elementEmitType: EmitType = EmitType(elementType, pType.elementType.required)
 
   def elementByteSize: Long
 
@@ -618,8 +581,6 @@ final class SizeValueStatic(val v: Long) extends SizeValue {
 
 trait SNDArrayValue extends SValue {
   def st: SNDArray
-
-  override def get: SNDArrayCode
 
   def loadElement(indices: IndexedSeq[Value[Long]], cb: EmitCodeBuilder): SValue
 
@@ -770,14 +731,22 @@ trait SNDArrayValue extends SValue {
 
     new SNDArraySliceValue(newSType, newShape, newStrides, newFirstDataAddress)
   }
+
+  override def sizeToStoreInBytes(cb: EmitCodeBuilder): SInt64Value = {
+    val storageType = st.storageType().asInstanceOf[PNDArray]
+    val totalSize = cb.newLocal[Long]("sindexableptr_size_in_bytes", storageType.byteSize)
+
+    if (storageType.elementType.containsPointers) {
+      SNDArray.coiterate(cb, (this, "A")){
+        case Seq(elt) =>
+          cb.assign(totalSize, totalSize + elt.sizeToStoreInBytes(cb).value)
+      }
+    } else {
+      val numElements = SNDArray.numElements(this.shapes)
+      cb.assign(totalSize, totalSize + (numElements * storageType.elementType.byteSize))
+    }
+    new SInt64Value(totalSize)
+  }
 }
 
 trait SNDArraySettable extends SNDArrayValue with SSettable
-
-trait SNDArrayCode extends SCode {
-  def st: SNDArray
-
-  def shape(cb: EmitCodeBuilder): SBaseStructCode
-
-  def memoize(cb: EmitCodeBuilder, name: String): SNDArrayValue
-}

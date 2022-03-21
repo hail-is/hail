@@ -10,7 +10,7 @@ import sys
 from hailtop.utils import secret_alnum_string, partition
 import hailtop.batch_client.aioclient as low_level_batch_client
 from hailtop.batch_client.parse import parse_cpu_in_mcpu
-import hailtop.aiogoogle as aiogoogle
+from hailtop.aiotools.router_fs import RouterAsyncFS
 
 from .batch import Batch
 from .backend import ServiceBackend
@@ -93,7 +93,7 @@ class BatchPoolExecutor:
         Backend used to execute the jobs. Must be a :class:`.ServiceBackend`.
     image:
         The name of a Docker image used for each submitted job. The image must
-        include Python 3.6 or later and must have the ``dill`` Python package
+        include Python 3.7 or later and must have the ``dill`` Python package
         installed. If you intend to use ``numpy``, ensure that OpenBLAS is also
         installed. If unspecified, an image with a matching Python verison and
         ``numpy``, ``scipy``, and ``sklearn`` installed is used.
@@ -132,7 +132,7 @@ class BatchPoolExecutor:
         self.directory = self.backend.remote_tmpdir + f'batch-pool-executor/{self.name}/'
         self.inputs = self.directory + 'inputs/'
         self.outputs = self.directory + 'outputs/'
-        self.fs = aiogoogle.GoogleStorageAsyncFS(project=project)
+        self.fs = RouterAsyncFS('file', gcs_kwargs={'project': project})
         self.futures: List[BatchPoolFuture] = []
         self.finished_future_count = 0
         self._shutdown = False
@@ -513,10 +513,7 @@ class BatchPoolFuture:
         timeout:
             Wait this long before raising a timeout error.
         """
-        try:
-            return async_to_blocking(self.async_result(timeout))
-        except asyncio.TimeoutError as e:
-            raise concurrent.futures.TimeoutError() from e
+        return async_to_blocking(self.async_result(timeout))
 
     async def async_result(self, timeout: Optional[Union[float, int]] = None):
         """Asynchronously wait until the job is complete.
@@ -534,10 +531,7 @@ class BatchPoolFuture:
         """
         if self.cancelled():
             raise concurrent.futures.CancelledError()
-        try:
-            return await asyncio.wait_for(asyncio.shield(self.fetch_coro), timeout=timeout)
-        except asyncio.TimeoutError as e:
-            raise concurrent.futures.TimeoutError() from e
+        return await asyncio.wait_for(asyncio.shield(self.fetch_coro), timeout=timeout)
 
     async def _async_fetch_result(self):
         try:
@@ -546,8 +540,13 @@ class BatchPoolFuture:
             if main_container_status['state'] == 'error':
                 raise ValueError(
                     f"submitted job failed:\n{main_container_status['error']}")
-            value, traceback = dill.loads(
-                await self.executor.fs.read(self.output_file))
+            try:
+                value, traceback = dill.loads(
+                    await self.executor.fs.read(self.output_file))
+            except FileNotFoundError as exc:
+                job_log = await self.job.log()
+                raise ValueError(
+                    f"submitted job did not write output:\n{main_container_status}\n\nLog:\n{job_log}") from exc
             if traceback is None:
                 return value
             assert isinstance(value, BaseException)

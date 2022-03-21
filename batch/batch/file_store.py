@@ -1,22 +1,22 @@
-import logging
 import asyncio
+import logging
 
 from hailtop.aiotools.fs import AsyncFS
 
-from .spec_writer import SpecWriter
-from .globals import BATCH_FORMAT_VERSION
 from .batch_format_version import BatchFormatVersion
+from .globals import BATCH_FORMAT_VERSION
+from .spec_writer import SpecWriter
 
 log = logging.getLogger('logstore')
 
 
 class FileStore:
-    def __init__(self, fs: AsyncFS, batch_logs_bucket_name, instance_id):
+    def __init__(self, fs: AsyncFS, batch_logs_storage_uri, instance_id):
         self.fs = fs
-        self.batch_logs_bucket_name = batch_logs_bucket_name
+        self.batch_logs_storage_uri = batch_logs_storage_uri
         self.instance_id = instance_id
 
-        self.batch_logs_root = f'gs://{batch_logs_bucket_name}/batch/logs/{instance_id}/batch'
+        self.batch_logs_root = f'{batch_logs_storage_uri}/batch/logs/{instance_id}/batch'
 
         log.info(f'BATCH_LOGS_ROOT {self.batch_logs_root}')
         format_version = BatchFormatVersion(BATCH_FORMAT_VERSION)

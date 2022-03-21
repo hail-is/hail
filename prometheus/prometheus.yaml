@@ -161,12 +161,14 @@ spec:
       tolerations:
        - key: preemptible
          value: "true"
+       - key: "kubernetes.azure.com/scalesetpriority"
+         value: "spot"
 {% endif %}
       securityContext:
         fsGroup: 65534
       containers:
        - name: prometheus
-         image: prom/prometheus:v2.19.2
+         image: prom/prometheus:v2.34.0
          imagePullPolicy: Always
          command:
           - "/bin/prometheus"
@@ -177,10 +179,10 @@ spec:
           - "--web.console.templates=/usr/share/prometheus/consoles"
           - "--web.enable-lifecycle"
 {% if deploy %}
-          - "--web.external-url=https://prometheus.hail.is/"
+          - "--web.external-url=https://prometheus.{{ global.domain }}/"
           - "--web.route-prefix=/"
 {% else %}
-          - "--web.external-url=https://internal.hail.is/{{ default_ns.name }}/prometheus/"
+          - "--web.external-url=https://internal.{{ global.domain }}/{{ default_ns.name }}/prometheus/"
           - "--web.route-prefix=/{{ default_ns.name }}/prometheus/"
 {% endif %}
          ports:
@@ -194,7 +196,7 @@ spec:
          resources:
            requests:
              cpu: "1"
-             memory: 5G
+             memory: 4G
            limits:
              cpu: "1"
              memory: 10G

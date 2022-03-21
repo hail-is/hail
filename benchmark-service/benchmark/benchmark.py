@@ -1,35 +1,37 @@
 import asyncio
-import os
-import aiohttp
-from aiohttp import web
+import json
 import logging
-from gear import setup_aiohttp_session, web_authenticated_developers_only
-from hailtop.config import get_deploy_config
-from hailtop.tls import internal_server_ssl_context
-from hailtop.hail_logging import AccessLogger, configure_logging
-from hailtop.utils import retry_long_running, collect_agen, humanize_timedelta_msecs
-from hailtop import aiotools
-import hailtop.aiogoogle as aiogoogle
-import hailtop.batch_client.aioclient as bc
-from web_common import setup_aiohttp_jinja2, setup_common_static_routes, render_template
+import os
+import re
+
+import gidgethub
+import gidgethub.aiohttp
+import numpy as np
+import pandas as pd
+import plotly
+import plotly.express as px
+from aiohttp import web
 from benchmark.utils import (
-    get_geometric_mean,
-    parse_file_path,
     enumerate_list_of_trials,
+    get_geometric_mean,
     list_benchmark_files,
+    parse_file_path,
     round_if_defined,
     submit_test_batch,
 )
-import json
-import re
-import plotly
-import plotly.express as px
 from scipy.stats.mstats import gmean, hmean
-import numpy as np
-import pandas as pd
-import gidgethub
-import gidgethub.aiohttp
-from .config import START_POINT, BENCHMARK_RESULTS_PATH
+
+import hailtop.batch_client.aioclient as bc
+from gear import setup_aiohttp_session, web_authenticated_developers_only
+from hailtop import aiotools, httpx
+from hailtop.aiocloud import aiogoogle
+from hailtop.config import get_deploy_config
+from hailtop.hail_logging import AccessLogger, configure_logging
+from hailtop.tls import internal_server_ssl_context
+from hailtop.utils import collect_agen, humanize_timedelta_msecs, retry_long_running
+from web_common import render_template, setup_aiohttp_jinja2, setup_common_static_routes
+
+from .config import BENCHMARK_RESULTS_PATH, START_POINT
 
 configure_logging()
 router = web.RouteTableDef()
@@ -48,7 +50,7 @@ BENCHMARK_ROOT = os.path.dirname(os.path.abspath(__file__))
 benchmark_data = {'commits': {}, 'dates': [], 'geo_means': [], 'pr_ids': [], 'shas': []}
 
 
-with open(os.environ.get('HAIL_CI_OAUTH_TOKEN', 'oauth-token/oauth-token'), 'r') as f:
+with open(os.environ.get('HAIL_CI_OAUTH_TOKEN', 'oauth-token/oauth-token'), 'r', encoding='utf-8') as f:
     oauth_token = f.read().strip()
 
 
@@ -66,7 +68,7 @@ async def get_benchmarks(app, file_path):
     data = {}
     prod_of_means = 1
     for d in pre_data['benchmarks']:
-        stats = dict()
+        stats = {}
         stats['name'] = d.get('name')
         stats['failed'] = d.get('failed')
         if not d['failed']:
@@ -83,7 +85,7 @@ async def get_benchmarks(app, file_path):
 
     file_info = parse_file_path(BENCHMARK_FILE_REGEX, file_path)
     sha = file_info['sha']
-    benchmarks = dict()
+    benchmarks = {}
     benchmarks['sha'] = sha
     benchmarks['geometric_mean'] = geometric_mean
     benchmarks['data'] = data
@@ -189,7 +191,6 @@ async def show_name(request: web.Request, userdata) -> web.Response:  # pylint: 
 @router.get('')
 async def index(request):
     userdata = {}
-    global benchmark_data
     d = {
         'dates': benchmark_data['dates'],
         'geo_means': benchmark_data['geo_means'],
@@ -284,7 +285,6 @@ async def get_job(request, userdata):
 
 
 async def update_commits(app):
-    global benchmark_data
     github_client = app['github_client']
 
     request_string = f'/repos/hail-is/hail/commits?since={START_POINT}'
@@ -351,7 +351,6 @@ async def get_commit(app, sha):  # pylint: disable=unused-argument
 
 async def update_commit(app, sha):  # pylint: disable=unused-argument
     log.info('in update_commit')
-    global benchmark_data
     fs: aiotools.AsyncFS = app['fs']
     commit = await get_commit(app, sha)
     file_path = f'{BENCHMARK_RESULTS_PATH}/0-{sha}.json'
@@ -391,7 +390,6 @@ async def get_status(request):  # pylint: disable=unused-argument
 
 @router.delete('/api/v1alpha/benchmark/commit/{sha}')
 async def delete_commit(request):  # pylint: disable=unused-argument
-    global benchmark_data
     app = request.app
     fs: aiotools.AsyncFS = app['fs']
     batch_client = app['batch_client']
@@ -430,20 +428,18 @@ async def github_polling_loop(app):
 
 
 async def on_startup(app):
-    credentials = aiogoogle.auth.Credentials.from_file('/benchmark-gsa-key/key.json')
+    credentials = aiogoogle.GoogleCredentials.from_file('/benchmark-gsa-key/key.json')
     app['fs'] = aiogoogle.GoogleStorageAsyncFS(credentials=credentials)
-    app['gh_client_session'] = aiohttp.ClientSession()
-    app['github_client'] = gidgethub.aiohttp.GitHubAPI(
-        app['gh_client_session'], 'hail-is/hail', oauth_token=oauth_token
-    )
-    app['batch_client'] = bc.BatchClient(billing_project='benchmark')
+    app['client_session'] = httpx.client_session()
+    app['github_client'] = gidgethub.aiohttp.GitHubAPI(app['client_session'], 'hail-is/hail', oauth_token=oauth_token)
+    app['batch_client'] = await bc.BatchClient.create(billing_project='benchmark')
     app['task_manager'] = aiotools.BackgroundTaskManager()
     app['task_manager'].ensure_future(retry_long_running('github_polling_loop', github_polling_loop, app))
 
 
 async def on_cleanup(app):
     try:
-        await app['gh_client_session'].close()
+        await app['client_session'].close()
     finally:
         try:
             await app['fs'].close()

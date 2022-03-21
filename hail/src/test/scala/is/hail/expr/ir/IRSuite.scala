@@ -4,6 +4,7 @@ import is.hail.ExecStrategy.ExecStrategy
 import is.hail.TestUtils._
 import is.hail.annotations.{BroadcastRow, ExtendedOrdering, Region, SafeNDArray}
 import is.hail.asm4s.{Code, Value}
+import is.hail.backend.ExecuteContext
 import is.hail.expr.ir.ArrayZipBehavior.ArrayZipBehavior
 import is.hail.expr.ir.IRBuilder._
 import is.hail.expr.ir.IRSuite.TestFunctions
@@ -13,12 +14,13 @@ import is.hail.types.physical._
 import is.hail.types.virtual._
 import is.hail.types.encoded._
 import is.hail.expr.Nat
-import is.hail.expr.ir.agg.{CallStatsStateSig, CollectStateSig, GroupedAggSig, PhysicalAggSig, TypedStateSig}
+import is.hail.expr.ir.agg.{CallStatsStateSig, CollectStateSig, FoldStateSig, GroupedAggSig, PhysicalAggSig, TypedStateSig}
 import is.hail.io.bgen.{IndexBgen, MatrixBGENReader}
 import is.hail.io.{BufferSpec, TypedCodecSpec}
 import is.hail.linalg.BlockMatrix
 import is.hail.methods._
 import is.hail.rvd.{PartitionBoundOrdering, RVD, RVDPartitioner, RVDSpecMaker}
+import is.hail.types.physical.stypes.primitives.SInt32
 import is.hail.types.physical.stypes.{EmitType, Float32SingleCodeType, Float64SingleCodeType, Int32SingleCodeType, Int64SingleCodeType, PTypeReferenceSingleCodeType, SType, SingleCodeType}
 import is.hail.utils.{FastIndexedSeq, _}
 import is.hail.variant.{Call2, Locus}
@@ -1998,10 +2000,9 @@ class IRSuite extends HailSuite {
                   f.name -> GetField(Ref("_right", r.typ), f.name)
                 })))
     }
-    val mkStream = if (rightDistinct) StreamJoinRightDistinct.apply _ else StreamJoin.apply _
-    ToArray(mkStream(left, right, lKeys, rKeys, "_l", "_r",
+    ToArray(StreamJoin.apply(left, right, lKeys, rKeys, "_l", "_r",
                      joinF(Ref("_l", coerce[TStream](left.typ).elementType), Ref("_r", coerce[TStream](right.typ).elementType)),
-                     joinType))
+                     joinType, rightDistinct))
   }
 
   @Test def testStreamZipJoin() {
@@ -2134,8 +2135,8 @@ class IRSuite extends HailSuite {
 
     def joinRows(left: IndexedSeq[Integer], right: IndexedSeq[Integer], joinType: String): IR = {
       join(
-        MakeStream.unify(left.zipWithIndex.map { case (n, idx) => MakeStruct(FastIndexedSeq("lk1" -> (if (n == null) NA(TInt32) else I32(n)), "lk2" -> Str("x"), "a" -> I64(idx))) }),
-        MakeStream.unify(right.zipWithIndex.map { case (n, idx) => MakeStruct(FastIndexedSeq("b" -> I32(idx), "rk2" -> Str("x"), "rk1" -> (if (n == null) NA(TInt32) else I32(n)), "c" -> Str("foo"))) }),
+        MakeStream.unify(ctx, left.zipWithIndex.map { case (n, idx) => MakeStruct(FastIndexedSeq("lk1" -> (if (n == null) NA(TInt32) else I32(n)), "lk2" -> Str("x"), "a" -> I64(idx))) }),
+        MakeStream.unify(ctx, right.zipWithIndex.map { case (n, idx) => MakeStruct(FastIndexedSeq("b" -> I32(idx), "rk2" -> Str("x"), "rk1" -> (if (n == null) NA(TInt32) else I32(n)), "c" -> Str("foo"))) }),
         FastIndexedSeq("lk1", "lk2"),
         FastIndexedSeq("rk1", "rk2"),
         rightDistinct = true,
@@ -2149,7 +2150,7 @@ class IRSuite extends HailSuite {
     assertEvalsTo(
       join(
         NA(TStream(TStruct("k1" -> TInt32, "k2" -> TString, "a" -> TInt64))),
-        MakeStream.unify(Seq(MakeStruct(FastIndexedSeq("b" -> I32(0), "k2" -> Str("x"), "k1" -> I32(3), "c" -> Str("foo"))))),
+        MakeStream.unify(ctx, Seq(MakeStruct(FastIndexedSeq("b" -> I32(0), "k2" -> Str("x"), "k1" -> I32(3), "c" -> Str("foo"))))),
         FastIndexedSeq("k1", "k2"),
         FastIndexedSeq("k1", "k2"),
         true,
@@ -2158,7 +2159,7 @@ class IRSuite extends HailSuite {
 
     assertEvalsTo(
       join(
-        MakeStream.unify(Seq(MakeStruct(FastIndexedSeq("k1" -> I32(0), "k2" -> Str("x"), "a" -> I64(3))))),
+        MakeStream.unify(ctx, Seq(MakeStruct(FastIndexedSeq("k1" -> I32(0), "k2" -> Str("x"), "a" -> I64(3))))),
         NA(TStream(TStruct("b" -> TInt32, "k2" -> TString, "k1" -> TInt32, "c" -> TString))),
         FastIndexedSeq("k1", "k2"),
         FastIndexedSeq("k1", "k2"),
@@ -2198,8 +2199,8 @@ class IRSuite extends HailSuite {
 
     def joinRows(left: IndexedSeq[Integer], right: IndexedSeq[Integer], joinType: String): IR = {
       join(
-        MakeStream.unify(left.zipWithIndex.map { case (n, idx) => MakeStruct(FastIndexedSeq("lk" -> (if (n == null) NA(TInt32) else I32(n)), "l" -> I32(idx))) }),
-        MakeStream.unify(right.zipWithIndex.map { case (n, idx) => MakeStruct(FastIndexedSeq("rk" -> (if (n == null) NA(TInt32) else I32(n)), "r" -> I32(idx))) }),
+        MakeStream.unify(ctx, left.zipWithIndex.map { case (n, idx) => MakeStruct(FastIndexedSeq("lk" -> (if (n == null) NA(TInt32) else I32(n)), "l" -> I32(idx))) }),
+        MakeStream.unify(ctx, right.zipWithIndex.map { case (n, idx) => MakeStruct(FastIndexedSeq("rk" -> (if (n == null) NA(TInt32) else I32(n)), "r" -> I32(idx))) }),
         FastIndexedSeq("lk"),
         FastIndexedSeq("rk"),
         false,
@@ -2788,10 +2789,12 @@ class IRSuite extends HailSuite {
       ApplyAggOp(FastIndexedSeq.empty, FastIndexedSeq(I32(0)), collectSig),
       ApplyAggOp(FastIndexedSeq(I32(2)), FastIndexedSeq(call), callStatsSig),
       ApplyAggOp(FastIndexedSeq(I32(10)), FastIndexedSeq(F64(-2.11), I32(4)), takeBySig),
+      AggFold(I32(0), l + I32(1), l + r, l.name, r.name, false),
       InitOp(0, FastIndexedSeq(I32(2)), pCallStatsSig),
       SeqOp(0, FastIndexedSeq(i), pCollectSig),
       CombOp(0, 1, pCollectSig),
-      ResultOp(0, FastIndexedSeq(pCollectSig)),
+      ResultOp(0, pCollectSig),
+      ResultOp(0, PhysicalAggSig(Fold(), FoldStateSig(EmitType(SInt32, true), "accum", "other", Ref("accum", TInt32)))),
       SerializeAggs(0, 0, BufferSpec.default, FastSeq(pCollectSig.state)),
       DeserializeAggs(0, 0, BufferSpec.default, FastSeq(pCollectSig.state)),
       CombOpValue(0, bin, pCollectSig),
@@ -2823,8 +2826,8 @@ class IRSuite extends HailSuite {
       MatrixWrite(vcf, MatrixPLINKWriter("/path/to/base")),
       MatrixWrite(bgen, MatrixGENWriter("/path/to/base")),
       MatrixWrite(mt, MatrixBlockMatrixWriter("path/to/data/bm", true, "a", 4096)),
-      MatrixMultiWrite(Array(mt, mt), MatrixNativeMultiWriter("/path/to/prefix")),
-      TableMultiWrite(Array(table, table), WrappedMatrixNativeMultiWriter(MatrixNativeMultiWriter("/path/to/prefix"), FastIndexedSeq("foo"))),
+      MatrixMultiWrite(Array(mt, mt), MatrixNativeMultiWriter(IndexedSeq("/path/to/mt1", "/path/to/mt2"))),
+      TableMultiWrite(Array(table, table), WrappedMatrixNativeMultiWriter(MatrixNativeMultiWriter(IndexedSeq("/path/to/mt1", "/path/to/mt2")), FastIndexedSeq("foo"))),
       MatrixAggregate(mt, MakeStruct(Seq("foo" -> count))),
       BlockMatrixCollect(blockMatrix),
       BlockMatrixWrite(blockMatrix, blockMatrixWriter),
@@ -2836,7 +2839,7 @@ class IRSuite extends HailSuite {
         PartitionNativeReader(TypedCodecSpec(PCanonicalStruct("foo" -> PInt32(), "bar" -> PCanonicalString()), BufferSpec.default))),
       WritePartition(
         MakeStream(FastSeq(), TStream(TStruct())), NA(TString),
-        PartitionNativeWriter(TypedCodecSpec(PType.canonical(TStruct()), BufferSpec.default), "path", None, None)),
+        PartitionNativeWriter(TypedCodecSpec(PType.canonical(TStruct()), BufferSpec.default), IndexedSeq(), "path", None, None)),
       WriteMetadata(
         NA(TStruct("global" -> TString, "partitions" -> TStruct("filePath" -> TString, "partitionCounts" -> TInt64))),
         RelationalWriter("path", overwrite = false, None)),
@@ -3064,7 +3067,7 @@ class IRSuite extends HailSuite {
       "bin" -> TBinary,
       "x" -> TInt32))
 
-    val s = Pretty(x, elideLiterals = false)
+    val s = Pretty.sexprStyle(x, elideLiterals = false)
 
     val x2 = IRParser.parse_value_ir(s, env)
 
@@ -3073,21 +3076,21 @@ class IRSuite extends HailSuite {
 
   @Test(dataProvider = "tableIRs")
   def testTableIRParser(x: TableIR) {
-    val s = Pretty(x, elideLiterals = false)
+    val s = Pretty.sexprStyle(x, elideLiterals = false)
     val x2 = IRParser.parse_table_ir(ctx, s)
     assert(x2 == x)
   }
 
   @Test(dataProvider = "matrixIRs")
   def testMatrixIRParser(x: MatrixIR) {
-    val s = Pretty(x, elideLiterals = false)
+    val s = Pretty.sexprStyle(x, elideLiterals = false)
     val x2 = IRParser.parse_matrix_ir(ctx, s)
     assert(x2 == x)
   }
 
   @Test(dataProvider = "blockMatrixIRs")
   def testBlockMatrixIRParser(x: BlockMatrixIR) {
-    val s = Pretty(x, elideLiterals = false)
+    val s = Pretty.sexprStyle(x, elideLiterals = false)
     val x2 = IRParser.parse_blockmatrix_ir(ctx, s)
     assert(x2 == x)
   }
@@ -3097,7 +3100,7 @@ class IRSuite extends HailSuite {
     backend.persist(ctx.backendContext, "x", bm, "MEMORY_ONLY")
     val persist = BlockMatrixRead(BlockMatrixPersistReader("x", BlockMatrixType.fromBlockMatrix(bm)))
 
-    val s = Pretty(persist, elideLiterals = false)
+    val s = Pretty.sexprStyle(persist, elideLiterals = false)
     val x2 = IRParser.parse_blockmatrix_ir(ctx, s)
     assert(x2 == persist)
     backend.unpersist(ctx.backendContext, "x")
@@ -3126,15 +3129,6 @@ class IRSuite extends HailSuite {
     val s = s"(JavaMatrix __uid1)"
     val x2 = ExecuteContext.scoped() { ctx =>
       IRParser.parse_matrix_ir(s, IRParserEnvironment(ctx, refMap = Map.empty, irMap = Map("__uid1" -> cached)))
-    }
-    assert(x2 eq cached)
-  }
-
-  @Test def testCachedBlockMatrixIR() {
-    val cached = new BlockMatrixLiteral(BlockMatrix.fill(3, 7, 1))
-    val s = s"(JavaBlockMatrix __uid1)"
-    val x2 = ExecuteContext.scoped() { ctx =>
-      IRParser.parse_blockmatrix_ir(s, IRParserEnvironment(ctx, refMap = Map.empty, irMap = Map("__uid1" -> cached)))
     }
     assert(x2 eq cached)
   }
@@ -3234,8 +3228,8 @@ class IRSuite extends HailSuite {
 
     val t1 = TableType(TStruct("a" -> TInt32), FastIndexedSeq("a"), TStruct("g1" -> TInt32, "g2" -> TFloat64))
     val t2 = TableType(TStruct("a" -> TInt32), FastIndexedSeq("a"), TStruct("g3" -> TInt32, "g4" -> TFloat64))
-    val tab1 = TableLiteral(TableValue(ctx, t1, BroadcastRow(ctx, Row(1, 1.1), t1.globalType), RVD.empty(t1.canonicalRVDType)))
-    val tab2 = TableLiteral(TableValue(ctx, t2, BroadcastRow(ctx, Row(2, 2.2), t2.globalType), RVD.empty(t2.canonicalRVDType)))
+    val tab1 = TableLiteral(TableValue(ctx, t1, BroadcastRow(ctx, Row(1, 1.1), t1.globalType), RVD.empty(t1.canonicalRVDType)), theHailClassLoader)
+    val tab2 = TableLiteral(TableValue(ctx, t2, BroadcastRow(ctx, Row(2, 2.2), t2.globalType), RVD.empty(t2.canonicalRVDType)), theHailClassLoader)
 
     assertEvalsTo(TableGetGlobals(TableJoin(tab1, tab2, "left")), Row(1, 1.1, 2, 2.2))
     assertEvalsTo(TableGetGlobals(TableMapGlobals(tab1, InsertFields(Ref("global", t1.globalType), Seq("g1" -> I32(3))))), Row(3, 1.1))
@@ -3354,7 +3348,7 @@ class IRSuite extends HailSuite {
     val lit = Literal(t, Row(1L))
 
     assert(IRParser.parseType(t.parsableString()) == t)
-    assert(IRParser.parse_value_ir(ctx, Pretty(lit, elideLiterals = false)) == lit)
+    assert(IRParser.parse_value_ir(ctx, Pretty.sexprStyle(lit, elideLiterals = false)) == lit)
   }
 
   def regressionTestUnifyBug(): Unit = {
@@ -3564,11 +3558,20 @@ class IRSuite extends HailSuite {
     val pivots2 = IndexedSeq(-10, 1, 1, 7, 9, 28, 50, 200)
     val pivots3 = IndexedSeq(-3, 0, 20, 100, 200)
     val pivots4 = IndexedSeq(-8, 4, 7, 7, 150)
+    val pivots5 = IndexedSeq(0, 1, 4, 15, 200)
+    val pivots6 = IndexedSeq(0, 7, 20, 100)
 
     runStreamDistTest(data1, pivots1)
     runStreamDistTest(data1, pivots2)
     runStreamDistTest(data1, pivots3)
     runStreamDistTest(data1, pivots4)
+    runStreamDistTest(data1, pivots5)
+    runStreamDistTest(data1, pivots6)
+
+    val data2 = IndexedSeq(0, 2)
+    val pivots11 = IndexedSeq(0, 0, 2)
+
+    runStreamDistTest(data2, pivots11)
   }
 
   def runStreamDistTest(data: IndexedSeq[Int], splitters: IndexedSeq[Int]): Unit = {
@@ -3577,13 +3580,13 @@ class IRSuite extends HailSuite {
     val child = ToStream(MakeArray(data.map(makeRowStruct):_*))
     val pivots = MakeArray(splitters.map(makeKeyStruct):_*)
     val spec = TypedCodecSpec(PCanonicalStruct(("rowIdx", PInt32Required), ("extraInfo", PInt32Required)), BufferSpec.default)
-    val dist = StreamDistribute(child, pivots, Str(ctx.localTmpdir), spec)
-    val result = eval(dist).asInstanceOf[IndexedSeq[Row]].map(row => (row(0).asInstanceOf[Interval], row(1).asInstanceOf[String], row(2).asInstanceOf[Int]))
+    val dist = StreamDistribute(child, pivots, Str(ctx.localTmpdir), Compare(pivots.typ.asInstanceOf[TArray].elementType), spec)
+    val result = eval(dist).asInstanceOf[IndexedSeq[Row]].map(row => (row(0).asInstanceOf[Interval], row(1).asInstanceOf[String], row(2).asInstanceOf[Int], row(3).asInstanceOf[Long]))
     val kord: ExtendedOrdering = PartitionBoundOrdering(pivots.typ.asInstanceOf[TArray].elementType)
 
     var dataIdx = 0
 
-    result.foreach { case (interval, path, elementCount) =>
+    result.foreach { case (interval, path, elementCount, numBytes) =>
       val reader = PartitionNativeReader(spec)
       val read = ToArray(ReadPartition(Str(path), spec._vType, reader))
       val rowsFromDisk = eval(read).asInstanceOf[IndexedSeq[Row]]

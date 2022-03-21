@@ -1,11 +1,11 @@
 package is.hail.types.physical
 
-import is.hail.annotations.{Region, _}
+import is.hail.annotations._
 import is.hail.asm4s.{Code, _}
-import is.hail.expr.ir.{EmitCode, EmitCodeBuilder, EmitMethodBuilder, IEmitCode}
-import is.hail.types.physical.stypes.{SCode, SValue}
-import is.hail.types.physical.stypes.concrete.{SIndexablePointer, SIndexablePointerCode, SIndexablePointerSettable, SIndexablePointerValue}
-import is.hail.types.physical.stypes.interfaces.{SContainer, SIndexableValue}
+import is.hail.expr.ir.{EmitCodeBuilder, IEmitCode}
+import is.hail.types.physical.stypes.SValue
+import is.hail.types.physical.stypes.concrete.{SIndexablePointer, SIndexablePointerValue}
+import is.hail.types.physical.stypes.interfaces.SIndexableValue
 import is.hail.types.virtual.{TArray, Type}
 import is.hail.utils._
 
@@ -362,11 +362,12 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
 
   def sType: SIndexablePointer = SIndexablePointer(setRequired(false))
 
-  def loadCheapSCode(cb: EmitCodeBuilder, addr: Code[Long]): SIndexablePointerValue =
-    new SIndexablePointerCode(sType, addr).memoize(cb, "loadCheapSCode")
-
-  def loadCheapSCodeField(cb: EmitCodeBuilder, addr: Code[Long]): SIndexablePointerValue =
-    new SIndexablePointerCode(sType, addr).memoizeField(cb, "loadCheapSCodeField")
+  def loadCheapSCode(cb: EmitCodeBuilder, addr: Code[Long]): SIndexablePointerValue = {
+    val a = cb.memoize(addr)
+    val length = cb.memoize(loadLength(a))
+    val offset = cb.memoize(firstElementOffset(a, length))
+    new SIndexablePointerValue(sType, a, length, offset)
+  }
 
   def storeContentsAtAddress(cb: EmitCodeBuilder, addr: Value[Long], region: Value[Region], indexable: SIndexableValue, deepCopy: Boolean): Unit = {
     val length = indexable.loadLength()

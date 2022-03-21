@@ -3,6 +3,7 @@ package is.hail.expr.ir
 import is.hail.TestUtils._
 import is.hail.expr.ir.TestUtils._
 import is.hail.asm4s.Code
+import is.hail.backend.ExecuteContext
 import is.hail.expr.ir.functions.{IRRandomness, RegistryFunctions}
 import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.physical.stypes.primitives.{SInt32, SInt64}

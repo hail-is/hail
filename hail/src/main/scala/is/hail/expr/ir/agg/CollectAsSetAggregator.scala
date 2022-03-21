@@ -2,13 +2,15 @@ package is.hail.expr.ir.agg
 
 import is.hail.annotations.Region
 import is.hail.asm4s._
+import is.hail.backend.ExecuteContext
 import is.hail.expr.ir.orderings.CodeOrdering
 import is.hail.expr.ir.{EmitClassBuilder, EmitCode, EmitCodeBuilder, EmitRegion, EmitValue, IEmitCode}
 import is.hail.io._
 import is.hail.types.VirtualTypeWithReq
 import is.hail.types.encoded.EType
 import is.hail.types.physical._
-import is.hail.types.physical.stypes.SValue
+import is.hail.types.physical.stypes.concrete.SIndexablePointer
+import is.hail.types.physical.stypes.{EmitType, SValue}
 import is.hail.types.virtual.Type
 import is.hail.utils._
 
@@ -72,8 +74,8 @@ class AppendOnlySetState(val kb: EmitClassBuilder[_], vt: VirtualTypeWithReq) ex
     "size" -> PInt32(true),
     "tree" -> PInt64(true))
 
-  override def load(cb: EmitCodeBuilder, regionLoader: (EmitCodeBuilder, Value[Region]) => Unit, srcc: Code[Long]): Unit = {
-    super.load(cb, regionLoader, srcc)
+  override def load(cb: EmitCodeBuilder, regionLoader: (EmitCodeBuilder, Value[Region]) => Unit, src: Value[Long]): Unit = {
+    super.load(cb, regionLoader, src)
     cb.ifx(off.cne(0L),
       {
         cb.assign(size, Region.loadInt(typ.loadField(off, 0)))
@@ -81,10 +83,10 @@ class AppendOnlySetState(val kb: EmitClassBuilder[_], vt: VirtualTypeWithReq) ex
       })
   }
 
-  override def store(cb: EmitCodeBuilder, regionStorer: (EmitCodeBuilder, Value[Region]) => Unit, destc: Code[Long]): Unit = {
+  override def store(cb: EmitCodeBuilder, regionStorer: (EmitCodeBuilder, Value[Region]) => Unit, dest: Value[Long]): Unit = {
     cb += Region.storeInt(typ.fieldOffset(off, 0), size)
     cb += Region.storeAddress(typ.fieldOffset(off, 1), root)
-    super.store(cb, regionStorer, destc)
+    super.store(cb, regionStorer, dest)
   }
 
   def init(cb: EmitCodeBuilder): Unit = {
@@ -111,12 +113,11 @@ class AppendOnlySetState(val kb: EmitClassBuilder[_], vt: VirtualTypeWithReq) ex
       f(cb, EmitCode.fromI(cb.emb)(cb => IEmitCode(cb, key.isKeyMissing(cb, eoff), key.loadKey(cb, eoff))))
     }
 
-  def copyFromAddress(cb: EmitCodeBuilder, srcc: Code[Long]): Unit = {
-    val src = cb.newLocal[Long]("aoss_copy_from_addr_src", srcc)
+  def copyFromAddress(cb: EmitCodeBuilder, src: Value[Long]): Unit = {
     cb.assign(off, region.allocate(typ.alignment, typ.byteSize))
     cb.assign(size, Region.loadInt(typ.loadField(src, 0)))
     tree.init(cb)
-    tree.deepCopy(cb, Region.loadAddress(typ.loadField(src, 1)))
+    tree.deepCopy(cb, cb.memoize(Region.loadAddress(typ.loadField(src, 1))))
   }
 
   def serialize(codec: BufferSpec): (EmitCodeBuilder, Value[OutputBuffer]) => Unit = {
@@ -127,7 +128,7 @@ class AppendOnlySetState(val kb: EmitClassBuilder[_], vt: VirtualTypeWithReq) ex
         cb.ifx(!key.isKeyMissing(cb, src), {
           val k = key.loadKey(cb, src)
           et.buildEncoder(k.st, kb)
-              .apply(cb, k.get, ob)
+              .apply(cb, k, ob)
         })
       }
     }
@@ -142,7 +143,7 @@ class AppendOnlySetState(val kb: EmitClassBuilder[_], vt: VirtualTypeWithReq) ex
       init(cb)
       tree.bulkLoad(cb, ib) { (cb, ib, dest) =>
         val km = cb.newLocal[Boolean]("collect_as_set_deser_km", ib.readBoolean())
-        key.store(cb, dest, EmitCode.fromI(cb.emb)(cb => IEmitCode(cb, km, kDec(cb, region, ib).memoize(cb, "deserialize"))))
+        key.store(cb, dest, EmitCode.fromI(cb.emb)(cb => IEmitCode(cb, km, kDec(cb, region, ib))))
         cb.assign(size, size + 1)
       }
     }
@@ -153,8 +154,10 @@ class CollectAsSetAggregator(elem: VirtualTypeWithReq) extends StagedAggregator 
   type State = AppendOnlySetState
 
   private val elemPType = elem.canonicalPType
-  val resultType: PCanonicalSet = PCanonicalSet(elemPType)
-  private[this] val arrayRep = resultType.arrayRep
+  val setPType = PCanonicalSet(elemPType)
+  val setSType = SIndexablePointer(setPType)
+  val resultEmitType: EmitType = EmitType(setSType, true)
+  private[this] val arrayRep = resultEmitType.storageType.asInstanceOf[PCanonicalSet].arrayRep
   val initOpTypes: Seq[Type] = Array[Type]()
   val seqOpTypes: Seq[Type] = Array[Type](elem.t)
 
@@ -168,17 +171,17 @@ class CollectAsSetAggregator(elem: VirtualTypeWithReq) extends StagedAggregator 
     state.insert(cb, elt)
   }
 
-  protected def _combOp(cb: EmitCodeBuilder, state: State, other: State): Unit = {
+  protected def _combOp(ctx: ExecuteContext, cb: EmitCodeBuilder, state: AppendOnlySetState, other: AppendOnlySetState): Unit = {
     other.foreach(cb) { (cb, k) => state.insert(cb, k) }
   }
 
-  protected def _storeResult(cb: EmitCodeBuilder, state: State, pt: PType, addr: Value[Long], region: Value[Region], ifMissing: EmitCodeBuilder => Unit): Unit = {
-    assert(pt == resultType)
+  protected def _result(cb: EmitCodeBuilder, state: State, region: Value[Region]): IEmitCode = {
     val (pushElement, finish) = arrayRep.constructFromFunctions(cb, region, state.size, deepCopy = true)
     state.foreach(cb) { (cb, elt) =>
       pushElement(cb, elt.toI(cb))
     }
+    assert(arrayRep.required)
     // deepCopy is handled by `storeElement` above
-    resultType.storeAtAddress(cb, addr, region, finish(cb), deepCopy = false)
+    IEmitCode.present(cb, setPType.construct(finish(cb)))
   }
 }

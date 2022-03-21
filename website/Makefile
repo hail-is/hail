@@ -6,7 +6,14 @@ TOKEN = $(shell cat /dev/urandom | LC_ALL=C tr -dc 'a-z0-9' | head -c 12)
 
 WEBSITE_IMAGE := $(DOCKER_PREFIX)/website:$(TOKEN)
 
+EXTRA_PYTHONPATH := ../hail/python:../gear:../web_common
+PYTHON := PYTHONPATH=$${PYTHONPATH:+$${PYTHONPATH}:}$(EXTRA_PYTHONPATH) python3
+
+BLACK := $(PYTHON) -m black . --line-length=120 --skip-string-normalization
+
 check:
+	$(PYTHON) -m isort . --check-only --diff
+	$(BLACK) --check --diff
 	curlylint .
 
 docs:

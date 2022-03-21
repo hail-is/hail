@@ -3,7 +3,7 @@ package is.hail.types.physical
 import is.hail.annotations._
 import is.hail.asm4s.{Code, _}
 import is.hail.expr.ir.EmitCodeBuilder
-import is.hail.types.physical.stypes.primitives.{SFloat32, SFloat32Code, SFloat32Value}
+import is.hail.types.physical.stypes.primitives.{SFloat32, SFloat32Value}
 import is.hail.types.physical.stypes.{SType, SValue}
 import is.hail.types.virtual.TFloat32
 
@@ -40,13 +40,10 @@ class PFloat32(override val required: Boolean) extends PNumeric with PPrimitive 
   override def sType: SType = SFloat32
 
   def storePrimitiveAtAddress(cb: EmitCodeBuilder, addr: Code[Long], value: SValue): Unit =
-    cb.append(Region.storeFloat(addr, value.asFloat.floatCode(cb)))
+    cb.append(Region.storeFloat(addr, value.asFloat.value))
 
   override def loadCheapSCode(cb: EmitCodeBuilder, addr: Code[Long]): SFloat32Value =
-    new SFloat32Code(Region.loadFloat(addr)).memoize(cb, "loadCheapSCode")
-
-  override def loadCheapSCodeField(cb: EmitCodeBuilder, addr: Code[Long]): SFloat32Value =
-    new SFloat32Code(Region.loadFloat(addr)).memoizeField(cb, "loadCheapSCodeField")
+    new SFloat32Value(cb.memoize(Region.loadFloat(addr)))
 
   override def unstagedStoreJavaObjectAtAddress(addr: Long, annotation: Annotation, region: Region): Unit = {
     Region.storeFloat(addr, annotation.asInstanceOf[Float])

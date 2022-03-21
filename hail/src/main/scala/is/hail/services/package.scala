@@ -6,12 +6,15 @@ import java.io.EOFException
 import is.hail.utils._
 
 import org.apache.http.NoHttpResponseException
+import org.apache.http.ConnectionClosedException
 import org.apache.http.conn.HttpHostConnectException
 import org.apache.log4j.{LogManager, Logger}
 
 import scala.util.Random
 import java.io._
 import com.google.cloud.storage.StorageException
+import com.google.api.client.googleapis.json.GoogleJsonResponseException
+import com.google.api.client.http.HttpResponseException
 
 package object services {
   lazy val log: Logger = LogManager.getLogger("is.hail.services")
@@ -34,11 +37,21 @@ package object services {
     e match {
       case e: NoHttpResponseException =>
         true
+      case e: HttpResponseException =>
+        RETRYABLE_HTTP_STATUS_CODES.contains(e.getStatusCode())
       case e: ClientResponseException =>
         RETRYABLE_HTTP_STATUS_CODES.contains(e.status)
+      case e: GoogleJsonResponseException =>
+        RETRYABLE_HTTP_STATUS_CODES.contains(e.getStatusCode())
       case e: HttpHostConnectException =>
         true
       case e: NoRouteToHostException =>
+        true
+      case e: SocketTimeoutException =>
+        true
+      case e: UnknownHostException =>
+        true
+      case e: ConnectionClosedException =>
         true
       case e: SocketException =>
         e.getMessage != null && (
@@ -48,7 +61,7 @@ package object services {
       case e: EOFException =>
         e.getMessage != null && (
           e.getMessage.contains("SSL peer shut down incorrectly"))
-      case e @ (_: SSLException | _: StorageException) =>
+      case e @ (_: SSLException | _: StorageException | _: IOException) =>
         val cause = e.getCause
         cause != null && isTransientError(cause)
       case _ =>

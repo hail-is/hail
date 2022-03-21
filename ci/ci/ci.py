@@ -1,37 +1,41 @@
-import traceback
-import json
-import os
-import logging
 import asyncio
 import concurrent.futures
-import aiohttp
-from aiohttp import web
+import json
+import logging
+import os
+import traceback
+from typing import Callable, Dict, List, Optional, Set
+
 import aiohttp_session  # type: ignore
 import uvloop  # type: ignore
+from aiohttp import web
+from gidgethub import aiohttp as gh_aiohttp
+from gidgethub import routing as gh_routing
+from gidgethub import sansio as gh_sansio
 from prometheus_async.aio.web import server_stats  # type: ignore
-from gidgethub import aiohttp as gh_aiohttp, routing as gh_routing, sansio as gh_sansio
-from hailtop.utils import collect_agen, humanize_timedelta_msecs
-from hailtop.batch_client.aioclient import BatchClient, Batch
-from hailtop.config import get_deploy_config
-from hailtop.tls import internal_server_ssl_context
-from hailtop.hail_logging import AccessLogger
-from hailtop import aiotools
+from typing_extensions import TypedDict
+
 from gear import (
-    setup_aiohttp_session,
-    rest_authenticated_developers_only,
-    web_authenticated_developers_only,
+    Database,
     check_csrf_token,
-    create_database_pool,
     monitor_endpoints_middleware,
+    rest_authenticated_developers_only,
+    setup_aiohttp_session,
+    web_authenticated_developers_only,
 )
-from typing import Dict, Any, Optional, List
-from web_common import setup_aiohttp_jinja2, setup_common_static_routes, render_template, set_message
+from hailtop import aiotools, httpx
+from hailtop.batch_client.aioclient import Batch, BatchClient
+from hailtop.config import get_deploy_config
+from hailtop.hail_logging import AccessLogger
+from hailtop.tls import internal_server_ssl_context
+from hailtop.utils import collect_agen, humanize_timedelta_msecs
+from web_common import render_template, set_message, setup_aiohttp_jinja2, setup_common_static_routes
 
-from .environment import BUCKET
-from .github import Repo, FQBranch, WatchedBranch, UnwatchedBranch, MergeFailureBatch, PR, select_random_teammate
 from .constants import AUTHORIZED_USERS, TEAMS
+from .environment import STORAGE_URI
+from .github import PR, WIP, FQBranch, MergeFailureBatch, Repo, UnwatchedBranch, WatchedBranch, select_random_teammate
 
-with open(os.environ.get('HAIL_CI_OAUTH_TOKEN', 'oauth-token/oauth-token'), 'r') as f:
+with open(os.environ.get('HAIL_CI_OAUTH_TOKEN', 'oauth-token/oauth-token'), 'r', encoding='utf-8') as f:
     oauth_token = f.read().strip()
 
 log = logging.getLogger('ci')
@@ -41,24 +45,41 @@ uvloop.install()
 deploy_config = get_deploy_config()
 
 watched_branches: List[WatchedBranch] = [
-    WatchedBranch(index, FQBranch.from_short_str(bss), deployable)
-    for (index, [bss, deployable]) in enumerate(json.loads(os.environ.get('HAIL_WATCHED_BRANCHES', '[]')))
+    WatchedBranch(index, FQBranch.from_short_str(bss), deployable, mergeable)
+    for (index, [bss, deployable, mergeable]) in enumerate(json.loads(os.environ.get('HAIL_WATCHED_BRANCHES', '[]')))
 ]
 
 routes = web.RouteTableDef()
 
 
-async def pr_config(app, pr: PR) -> Dict[str, Any]:
-    batch_id = pr.batch.id if pr.batch and hasattr(pr.batch, 'id') else None
-    build_state = pr.build_state if await pr.authorized(app['dbpool']) else 'unauthorized'
+class PRConfig(TypedDict):
+    number: int
+    title: str
+    batch_id: Optional[int]
+    build_state: Optional[str]
+    gh_statuses: Dict[str, str]
+    source_branch_name: str
+    review_state: Optional[str]
+    author: str
+    assignees: Set[str]
+    reviewers: Set[str]
+    labels: Set[str]
+    out_of_date: bool
+
+
+async def pr_config(app, pr: PR) -> PRConfig:
+    batch_id = pr.batch.id if pr.batch and isinstance(pr.batch, Batch) else None
+    build_state = pr.build_state if await pr.authorized(app['db']) else 'unauthorized'
     if build_state is None and batch_id is not None:
         build_state = 'building'
     return {
         'number': pr.number,
         'title': pr.title,
         # FIXME generate links to the merge log
-        'batch_id': pr.batch.id if pr.batch and hasattr(pr.batch, 'id') else None,
+        'batch_id': batch_id,
         'build_state': build_state,
+        'gh_statuses': {k: v.value for k, v in pr.last_known_github_status.items()},
+        'source_branch_name': pr.source_branch.name,
         'review_state': pr.review_state,
         'author': pr.author,
         'assignees': pr.assignees,
@@ -68,21 +89,34 @@ async def pr_config(app, pr: PR) -> Dict[str, Any]:
     }
 
 
-async def watched_branch_config(app, wb: WatchedBranch, index: int) -> Dict[str, Optional[Any]]:
+class WatchedBranchConfig(TypedDict):
+    index: int
+    branch: str
+    sha: Optional[str]
+    deploy_batch_id: Optional[int]
+    deploy_state: Optional[str]
+    repo: str
+    prs: List[PRConfig]
+    gh_status_names: Set[str]
+
+
+async def watched_branch_config(app, wb: WatchedBranch, index: int) -> WatchedBranchConfig:
     if wb.prs:
         pr_configs = [await pr_config(app, pr) for pr in wb.prs.values()]
     else:
         pr_configs = []
     # FIXME recent deploy history
+    gh_status_names = {k for pr in pr_configs for k in pr['gh_statuses'].keys()}
     return {
         'index': index,
         'branch': wb.branch.short_str(),
         'sha': wb.sha,
         # FIXME generate links to the merge log
-        'deploy_batch_id': wb.deploy_batch.id if wb.deploy_batch and hasattr(wb.deploy_batch, 'id') else None,
+        'deploy_batch_id': wb.deploy_batch.id if wb.deploy_batch and isinstance(wb.deploy_batch, Batch) else None,
         'deploy_state': wb.deploy_state,
         'repo': wb.branch.repo.short_str(),
         'prs': pr_configs,
+        'gh_status_names': gh_status_names,
     }
 
 
@@ -120,14 +154,16 @@ async def get_pr(request, userdata):  # pylint: disable=unused-argument
     # FIXME
     batch = pr.batch
     if batch:
-        if hasattr(batch, 'id'):
+        if isinstance(batch, Batch):
             status = await batch.last_known_status()
             jobs = await collect_agen(batch.jobs())
             for j in jobs:
                 j['duration'] = humanize_timedelta_msecs(j['duration'])
             page_context['batch'] = status
             page_context['jobs'] = jobs
-            page_context['artifacts'] = f'/{BUCKET}/build/{batch.attributes["token"]}'
+            artifacts_uri = f'{STORAGE_URI}/build/{batch.attributes["token"]}'
+            page_context['artifacts_uri'] = artifacts_uri
+            page_context['artifacts_url'] = storage_uri_to_url(artifacts_uri)
         else:
             page_context['exception'] = '\n'.join(
                 traceback.format_exception(None, batch.exception, batch.exception.__traceback__)
@@ -142,6 +178,14 @@ async def get_pr(request, userdata):  # pylint: disable=unused-argument
     return await render_template('ci', request, userdata, 'pr.html', page_context)
 
 
+def storage_uri_to_url(uri: str) -> str:
+    if uri.startswith('gs://'):
+        protocol = 'gs://'
+        path = uri[len(protocol) :]
+        return f'https://console.cloud.google.com/storage/browser/{path}'
+    return uri
+
+
 async def retry_pr(wb, pr, request):
     app = request.app
     session = await aiohttp_session.get_session(request)
@@ -152,10 +196,8 @@ async def retry_pr(wb, pr, request):
         return
 
     batch_id = pr.batch.id
-    dbpool = app['dbpool']
-    async with dbpool.acquire() as conn:
-        async with conn.cursor() as cursor:
-            await cursor.execute('INSERT INTO invalidated_batches (batch_id) VALUES (%s);', batch_id)
+    db: Database = app['db']
+    await db.execute_insertone('INSERT INTO invalidated_batches (batch_id) VALUES (%s);', batch_id)
     await wb.notify_batch_changed(app)
 
     log.info(f'retry requested for PR: {pr.number}')
@@ -227,52 +269,51 @@ async def get_job(request, userdata):
     return await render_template('ci', request, userdata, 'job.html', page_context)
 
 
-def filter_wbs(wbs, pred):
+def filter_wbs(wbs: List[WatchedBranchConfig], pred: Callable[[PRConfig], bool]):
     return [{**wb, 'prs': [pr for pr in wb['prs'] if pred(pr)]} for wb in wbs]
 
 
-def is_pr_author(gh_username, pr_config):
+def is_pr_author(gh_username: str, pr_config: PRConfig) -> bool:
     return gh_username == pr_config['author']
 
 
-def is_pr_reviewer(gh_username, pr_config):
+def is_pr_reviewer(gh_username: str, pr_config: PRConfig) -> bool:
     return gh_username in pr_config['assignees'] or gh_username in pr_config['reviewers']
 
 
-def pr_requires_action(gh_username, pr_config):
+def pr_requires_action(gh_username: str, pr_config: PRConfig) -> bool:
     build_state = pr_config['build_state']
     review_state = pr_config['review_state']
     return (
-        is_pr_author(gh_username, pr_config) and (build_state == 'failure' or review_state == 'changes_requested')
+        is_pr_author(gh_username, pr_config)
+        and (build_state == 'failure' or review_state == 'changes_requested' or WIP in pr_config['labels'])
     ) or (is_pr_reviewer(gh_username, pr_config) and review_state == 'pending')
 
 
 @routes.get('/me')
 @web_authenticated_developers_only()
 async def get_user(request, userdata):
-    username = userdata['username']
-    gh_username = None
-    pr_wbs = []
-    review_wbs = []
-    actionable_wbs = []
-    for user in AUTHORIZED_USERS:
-        if user.hail_username == username:
-            gh_username = user.gh_username
-            wbs = [await watched_branch_config(request.app, wb, i) for i, wb in enumerate(watched_branches)]
-            pr_wbs = filter_wbs(wbs, lambda pr: is_pr_author(gh_username, pr))
-            review_wbs = filter_wbs(wbs, lambda pr: is_pr_reviewer(gh_username, pr))
-            actionable_wbs = filter_wbs(wbs, lambda pr: pr_requires_action(gh_username, pr))
+    for authorized_user in AUTHORIZED_USERS:
+        if authorized_user.hail_username == userdata['username']:
+            user = authorized_user
             break
+    else:
+        raise web.HTTPForbidden()
+
+    wbs = [await watched_branch_config(request.app, wb, i) for i, wb in enumerate(watched_branches)]
+    pr_wbs = filter_wbs(wbs, lambda pr: is_pr_author(user.gh_username, pr))
+    review_wbs = filter_wbs(wbs, lambda pr: is_pr_reviewer(user.gh_username, pr))
+    actionable_wbs = filter_wbs(wbs, lambda pr: pr_requires_action(user.gh_username, pr))
 
     batch_client = request.app['batch_client']
-    dev_deploys = batch_client.list_batches(f'user={username} dev_deploy=1', limit=10)
+    dev_deploys = batch_client.list_batches(f'user={user.hail_username} dev_deploy=1', limit=10)
     dev_deploys = sorted([b async for b in dev_deploys], key=lambda b: b.id, reverse=True)
 
     team_random_member = {team: select_random_teammate(team).gh_username for team in TEAMS}
 
     page_context = {
-        'username': username,
-        'gh_username': gh_username,
+        'username': user.hail_username,
+        'gh_username': user.gh_username,
         'pr_wbs': pr_wbs,
         'review_wbs': review_wbs,
         'actionable_wbs': actionable_wbs,
@@ -287,12 +328,10 @@ async def get_user(request, userdata):
 @web_authenticated_developers_only(redirect=False)
 async def post_authorized_source_sha(request, userdata):  # pylint: disable=unused-argument
     app = request.app
-    dbpool = app['dbpool']
+    db: Database = app['db']
     post = await request.post()
     sha = post['sha'].strip()
-    async with dbpool.acquire() as conn:
-        async with conn.cursor() as cursor:
-            await cursor.execute('INSERT INTO authorized_shas (sha) VALUES (%s);', sha)
+    await db.execute_insertone('INSERT INTO authorized_shas (sha) VALUES (%s);', sha)
     log.info(f'authorized sha: {sha}')
     session = await aiohttp_session.get_session(request)
     set_message(session, f'SHA {sha} authorized.', 'info')
@@ -325,7 +364,7 @@ async def push_callback(event):
         branch_name = ref[len('refs/heads/') :]
         branch = FQBranch(Repo.from_gh_json(data['repository']), branch_name)
         for wb in watched_branches:
-            if wb.branch == branch or any(pr.branch == branch for pr in wb.prs.values()):
+            if wb.branch == branch:
                 await wb.notify_github_changed(event.app)
 
 
@@ -386,7 +425,7 @@ async def deploy_status(request, userdata):  # pylint: disable=unused-argument
         {
             'branch': wb.branch.short_str(),
             'sha': wb.sha,
-            'deploy_batch_id': wb.deploy_batch.id if wb.deploy_batch and hasattr(wb.deploy_batch, 'id') else None,
+            'deploy_batch_id': wb.deploy_batch.id if wb.deploy_batch and isinstance(wb.deploy_batch, Batch) else None,
             'deploy_state': wb.deploy_state,
             'repo': wb.branch.repo.short_str(),
             'failure_information': None
@@ -417,6 +456,8 @@ async def dev_deploy_branch(request, userdata):
     app = request.app
     try:
         params = await request.json()
+    except asyncio.CancelledError:
+        raise
     except Exception as e:
         message = 'could not read body as JSON'
         log.info('dev deploy failed: ' + message, exc_info=True)
@@ -426,6 +467,9 @@ async def dev_deploy_branch(request, userdata):
         branch = FQBranch.from_short_str(params['branch'])
         steps = params['steps']
         excluded_steps = params['excluded_steps']
+        extra_config = params.get('extra_config', {})
+    except asyncio.CancelledError:
+        raise
     except Exception as e:
         message = f'parameters are wrong; check the branch and steps syntax.\n\n{params}'
         log.info('dev deploy failed: ' + message, exc_info=True)
@@ -437,17 +481,21 @@ async def dev_deploy_branch(request, userdata):
     try:
         branch_gh_json = await gh.getitem(request_string)
         sha = branch_gh_json['object']['sha']
+    except asyncio.CancelledError:
+        raise
     except Exception as e:
         message = f'error finding {branch} at GitHub'
         log.info('dev deploy failed: ' + message, exc_info=True)
         raise web.HTTPBadRequest(text=message) from e
 
-    unwatched_branch = UnwatchedBranch(branch, sha, userdata)
+    unwatched_branch = UnwatchedBranch(branch, sha, userdata, extra_config)
 
     batch_client = app['batch_client']
 
     try:
         batch_id = await unwatched_branch.deploy(batch_client, steps, excluded_steps=excluded_steps)
+    except asyncio.CancelledError:
+        raise
     except Exception as e:  # pylint: disable=broad-except
         message = traceback.format_exc()
         raise web.HTTPBadRequest(text=f'starting the deploy failed due to\n{message}') from e
@@ -474,10 +522,12 @@ async def update_loop(app):
 
 
 async def on_startup(app):
-    app['gh_client_session'] = aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=5))
-    app['github_client'] = gh_aiohttp.GitHubAPI(app['gh_client_session'], 'ci', oauth_token=oauth_token)
-    app['batch_client'] = BatchClient('ci')
-    app['dbpool'] = await create_database_pool()
+    app['client_session'] = httpx.client_session()
+    app['github_client'] = gh_aiohttp.GitHubAPI(app['client_session'], 'ci', oauth_token=oauth_token)
+    app['batch_client'] = await BatchClient.create('ci')
+
+    app['db'] = Database()
+    await app['db'].async_init()
 
     app['task_manager'] = aiotools.BackgroundTaskManager()
     app['task_manager'].ensure_future(update_loop(app))
@@ -485,10 +535,8 @@ async def on_startup(app):
 
 async def on_cleanup(app):
     try:
-        dbpool = app['dbpool']
-        dbpool.close()
-        await dbpool.wait_closed()
-        await app['gh_client_session'].close()
+        await app['db'].async_close()
+        await app['client_session'].close()
         await app['batch_client'].close()
     finally:
         app['task_manager'].shutdown()

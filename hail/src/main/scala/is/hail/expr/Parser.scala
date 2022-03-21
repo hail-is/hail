@@ -3,6 +3,7 @@ package is.hail.expr
 import is.hail.utils._
 import is.hail.variant._
 
+import scala.collection.mutable.ArrayBuffer
 import scala.util.parsing.combinator.JavaTokenParsers
 import scala.util.parsing.input.Position
 
@@ -83,41 +84,35 @@ object Parser extends JavaTokenParsers {
     }
   }
 
-  def oneOfLiteral(s: String*): Parser[String] = oneOfLiteral(s.toArray)
-
   def oneOfLiteral(a: Array[String]): Parser[String] = new Parser[String] {
-    var hasEnd: Boolean = false
-
-    val m = a.flatMap { s =>
-      val l = s.length
-      if (l == 0) {
-        hasEnd = true
-        None
-      }
-      else if (l == 1) {
-        Some((s.charAt(0), ""))
-      }
-      else
-        Some((s.charAt(0), s.substring(1)))
-    }.groupBy(_._1).mapValues { v => oneOfLiteral(v.map(_._2)) }
+    private[this] val root = ParseTrieNode.generate(a)
 
     def apply(in: Input): ParseResult[String] = {
-      m.get(in.first) match {
-        case Some(p) =>
-          p(in.rest) match {
-            case s: Success[_] =>
-              Success(in.first.toString + s.result, in.drop(s.result.length + 1))
-            case _ => Failure("", in)
-          }
-        case None =>
-          if (hasEnd)
-            Success("", in)
+
+      var _in = in
+      var node = root
+      while (true) {
+        if (_in.atEnd)
+          if (node.value != null)
+            return Success(node.value, _in)
           else
-            Failure("", in)
+            return Failure("", in)
+
+        val nextChar = _in.first
+        val nextNode = node.search(nextChar)
+        if (nextNode == null) {
+          if (node.value != null)
+            return Success(node.value, _in)
+          else
+            return Failure("", in)
+        }
+        _in = _in.rest
+        node = nextNode
       }
+      return null // unreachable
     }
   }
-  
+
   def call: Parser[Call] = {
     wholeNumber ~ "/" ~ rep1sep(wholeNumber, "/") ^^ { case a0 ~ _ ~ arest =>
       CallN(coerceInt(a0) +: arest.map(coerceInt).toArray, phased = false)

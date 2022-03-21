@@ -1,21 +1,6 @@
-from .auth import Credentials, ApplicationDefaultCredentials, \
-    ServiceAccountCredentials, AccessToken, Session
-from .client import BigQueryClient, ContainerClient, ComputeClient, IAmClient, LoggingClient, \
-    InsertObjectStream, GetObjectStream, StorageClient, GoogleStorageAsyncFS
+import warnings
+from ..aiocloud.aiogoogle import *  # noqa: F403,F401
 
-__all__ = [
-    'Credentials',
-    'ApplicationDefaultCredentials',
-    'ServiceAccountCredentials',
-    'AccessToken',
-    'Session',
-    'BigQueryClient',
-    'ContainerClient',
-    'ComputeClient',
-    'IAmClient',
-    'LoggingClient',
-    'InsertObjectStream',
-    'GetObjectStream',
-    'StorageClient',
-    'GoogleStorageAsyncFS'
-]
+warnings.warn("importing hailtop.aiogoogle is deprecated, please use hailtop.aiocloud.aiogoogle",
+              DeprecationWarning,
+              stacklevel=2)

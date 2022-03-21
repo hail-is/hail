@@ -7,6 +7,8 @@ metadata:
   annotations:
     cloud.google.com/load-balancer-type: "Internal"
     networking.gke.io/internal-load-balancer-allow-global-access: "true"
+    service.beta.kubernetes.io/azure-load-balancer-internal: "true"
+    service.beta.kubernetes.io/azure-load-balancer-internal-subnet: "batch-worker-subnet"
 spec:
   ports:
   - name: http

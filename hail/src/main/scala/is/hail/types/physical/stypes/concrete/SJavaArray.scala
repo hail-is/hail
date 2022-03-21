@@ -3,9 +3,9 @@ package is.hail.types.physical.stypes.concrete
 import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.expr.ir.{EmitCodeBuilder, IEmitCode}
-import is.hail.types.physical.stypes.interfaces.{SContainer, SIndexableCode, SIndexableValue}
 import is.hail.types.physical.stypes._
-import is.hail.types.physical.{PCanonicalArray, PCanonicalString, PType}
+import is.hail.types.physical.stypes.interfaces.{SContainer, SIndexableValue, SStringValue}
+import is.hail.types.physical.{PCanonicalArray, PCanonicalString, PString, PType}
 import is.hail.types.virtual.{TArray, TString, Type}
 import is.hail.utils.FastIndexedSeq
 
@@ -39,6 +39,14 @@ final case class SJavaArrayString(elementRequired: Boolean) extends SContainer {
   override def _coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SValue, deepCopy: Boolean): SValue = {
     value.st match {
       case SJavaArrayString(_) => new SJavaArrayStringValue(this, value.asInstanceOf[SJavaArrayStringValue].array)
+      case SIndexablePointer(pc) if pc.elementType.isInstanceOf[PString] && pc.elementType.required == elementRequired =>
+        val sv = value.asInstanceOf[SIndexableValue]
+        val len = sv.loadLength()
+        val array = cb.memoize[Array[String]](Code.newArray[String](len))
+        sv.forEachDefined(cb) { case (cb, i, v: SStringValue) =>
+          cb += (array(i) = v.loadString(cb))
+        }
+        new SJavaArrayStringValue(this, array)
     }
   }
 
@@ -58,29 +66,11 @@ final case class SJavaArrayString(elementRequired: Boolean) extends SContainer {
     new SJavaArrayStringValue(this, cb.memoize(arr))
 }
 
-class SJavaArrayStringCode(val st: SJavaArrayString, val array: Code[Array[String]]) extends SIndexableCode {
-  def codeLoadLength(): Code[Int] = array.length()
-
-  def memoize(cb: EmitCodeBuilder, name: String, sb: SettableBuilder): SIndexableValue = {
-    val s = SJavaArrayStringSettable(sb, st, name)
-    cb.assign(s, this)
-    s
-  }
-
-  def memoize(cb: EmitCodeBuilder, name: String): SIndexableValue = memoize(cb, name, cb.localBuilder)
-
-  def memoizeField(cb: EmitCodeBuilder, name: String): SIndexableValue = memoize(cb, name, cb.fieldBuilder)
-
-  def castToArray(cb: EmitCodeBuilder): SIndexableCode = this
-}
-
 class SJavaArrayStringValue(
   val st: SJavaArrayString,
   val array: Value[Array[String]]
 ) extends SIndexableValue {
   override lazy val valueTuple: IndexedSeq[Value[_]] = FastIndexedSeq(array)
-
-  override def get: SIndexableCode = new SJavaArrayStringCode(st, array)
 
   override def loadLength(): Value[Int] = new Value[Int] {
     override def get: Code[Int] = array.length()
@@ -123,7 +113,7 @@ final class SJavaArrayStringSettable(
 ) extends SJavaArrayStringValue(st, array) with SSettable {
   override def settableTuple(): IndexedSeq[Settable[_]] = FastIndexedSeq(array)
 
-  override def store(cb: EmitCodeBuilder, pc: SCode): Unit = {
-    cb.assign(array, pc.asInstanceOf[SJavaArrayStringCode].array)
+  override def store(cb: EmitCodeBuilder, v: SValue): Unit = {
+    cb.assign(array, v.asInstanceOf[SJavaArrayStringValue].array)
   }
 }

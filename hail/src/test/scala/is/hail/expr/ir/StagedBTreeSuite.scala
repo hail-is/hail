@@ -4,6 +4,7 @@ import java.io.{ByteArrayInputStream, ByteArrayOutputStream}
 import is.hail.HailSuite
 import is.hail.annotations.Region
 import is.hail.asm4s._
+import is.hail.backend.ExecuteContext
 import is.hail.check.{Gen, Prop}
 import is.hail.expr.ir.agg._
 import is.hail.expr.ir.orderings.CodeOrdering
@@ -75,7 +76,7 @@ object BTreeBackedSet {
 
     val inputBuffer = new StreamBufferSpec().buildInputBuffer(new ByteArrayInputStream(serialized))
     val set = new BTreeBackedSet(ctx, region, n)
-    set.root = fb.resultWithIndex()(ctx.fs, 0, region)(region, inputBuffer)
+    set.root = fb.resultWithIndex()(HailSuite.theHailClassLoader, ctx.fs, 0, region)(region, inputBuffer)
     set
   }
 }
@@ -98,7 +99,7 @@ class BTreeBackedSet(ctx: ExecuteContext, region: Region, n: Int) {
       root
     }
 
-    fb.resultWithIndex()(ctx.fs, 0, region)
+    fb.resultWithIndex()(HailSuite.theHailClassLoader, ctx.fs, 0, region)
   }
 
   private val getF = {
@@ -123,7 +124,7 @@ class BTreeBackedSet(ctx: ExecuteContext, region: Region, n: Int) {
       })
       root
     }
-    fb.resultWithIndex()(ctx.fs, 0, region)
+    fb.resultWithIndex()(HailSuite.theHailClassLoader, ctx.fs, 0, region)
   }
 
   private val getResultsF = {
@@ -148,7 +149,7 @@ class BTreeBackedSet(ctx: ExecuteContext, region: Region, n: Int) {
         val ec = key.loadCompKey(cb, koff)
         cb.ifx(ec.m,
           cb += sab.addMissing(),
-          cb += sab.add(ec.pv.asInt64.longCode(cb)))
+          cb += sab.add(ec.pv.asInt64.value))
       }
       cb += (returnArray := Code.newArray[java.lang.Long](sab.size))
       cb += (idx := 0)
@@ -160,7 +161,7 @@ class BTreeBackedSet(ctx: ExecuteContext, region: Region, n: Int) {
       )
       returnArray
     }
-    fb.resultWithIndex()(ctx.fs, 0, region)
+    fb.resultWithIndex()(HailSuite.theHailClassLoader, ctx.fs, 0, region)
   }
 
   private val bulkStoreF = {
@@ -183,13 +184,13 @@ class BTreeBackedSet(ctx: ExecuteContext, region: Region, n: Int) {
         val ev = cb.memoize(key.loadCompKey(cb, off), "ev")
         cb += ob.writeBoolean(ev.m)
         cb.ifx(!ev.m, {
-          cb += ob.writeLong(ev.pv.asInt64.longCode(cb))
+          cb += ob.writeLong(ev.pv.asInt64.value)
         })
       }
       ob2.flush()
     }
 
-    fb.resultWithIndex()(ctx.fs, 0, region)
+    fb.resultWithIndex()(HailSuite.theHailClassLoader, ctx.fs, 0, region)
   }
 
   def clear(): Unit = {

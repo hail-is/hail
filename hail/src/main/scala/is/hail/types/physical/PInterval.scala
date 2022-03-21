@@ -3,9 +3,7 @@ package is.hail.types.physical
 import is.hail.annotations._
 import is.hail.asm4s._
 import is.hail.check.Gen
-import is.hail.expr.ir.orderings.CodeOrdering
-import is.hail.expr.ir.{EmitCode, EmitCodeBuilder, EmitMethodBuilder, IEmitCode}
-import is.hail.types.physical.stypes.interfaces.{SIntervalCode, SIntervalValue}
+import is.hail.expr.ir.EmitCodeBuilder
 import is.hail.types.virtual.TInterval
 import is.hail.utils._
 

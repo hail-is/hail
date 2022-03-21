@@ -1,31 +1,30 @@
 from hailtop.batch_client.parse import (
-    MEMORY_REGEX,
-    MEMORY_REGEXPAT,
     CPU_REGEX,
     CPU_REGEXPAT,
+    MEMORY_REGEX,
+    MEMORY_REGEXPAT,
     STORAGE_REGEX,
     STORAGE_REGEXPAT,
 )
-
 from hailtop.utils.validate import (
+    ValidationError,
     anyof,
     bool_type,
     dictof,
+    int_type,
     keyed,
     listof,
-    int_type,
+    non_empty_str_type,
     nullable,
     numeric,
     oneof,
     regex,
     required,
     str_type,
-    non_empty_str_type,
     switch,
-    ValidationError,
 )
 
-from ..globals import valid_machine_types, memory_to_worker_type
+from ..globals import memory_types
 
 k8s_str = regex(r'[a-z0-9](?:[-a-z0-9]*[a-z0-9])?(?:\.[a-z0-9](?:[-a-z0-9]*[a-z0-9])?)*', maxlen=253)
 
@@ -39,6 +38,7 @@ image_str = str_type
 # image -> process/image
 # mount_docker_socket -> process/mount_docker_socket
 # pvc_size -> resources/storage
+# gcsfuse -> cloudfuse
 
 
 job_validator = keyed(
@@ -46,7 +46,7 @@ job_validator = keyed(
         'always_run': bool_type,
         'attributes': dictof(str_type),
         'env': listof(keyed({'name': str_type, 'value': str_type})),
-        'gcsfuse': listof(
+        'cloudfuse': listof(
             keyed(
                 {
                     required('bucket'): non_empty_str_type,
@@ -77,10 +77,10 @@ job_validator = keyed(
         'requester_pays_project': str_type,
         'resources': keyed(
             {
-                'memory': anyof(regex(MEMORY_REGEXPAT, MEMORY_REGEX), oneof(*memory_to_worker_type.keys())),
+                'memory': anyof(regex(MEMORY_REGEXPAT, MEMORY_REGEX), oneof(*memory_types)),
                 'cpu': regex(CPU_REGEXPAT, CPU_REGEX),
                 'storage': regex(STORAGE_REGEXPAT, STORAGE_REGEX),
-                'machine_type': oneof(*valid_machine_types),
+                'machine_type': str_type,
                 'preemptible': bool_type,
             }
         ),
@@ -111,6 +111,7 @@ def validate_and_clean_jobs(jobs):
     for i, job in enumerate(jobs):
         handle_deprecated_job_keys(i, job)
         job_validator.validate(f"jobs[{i}]", job)
+        handle_job_backwards_compatibility(job)
 
 
 def handle_deprecated_job_keys(i, job):
@@ -170,6 +171,14 @@ def handle_deprecated_job_keys(i, job):
                 f"'mount_docker_socket' are also present. "
                 f"Please remove deprecated keys."
             )
+
+    if 'gcsfuse' in job:
+        job['cloudfuse'] = job.pop('gcsfuse')
+
+
+def handle_job_backwards_compatibility(job):
+    if 'cloudfuse' in job:
+        job['gcsfuse'] = job.pop('cloudfuse')
 
 
 def validate_batch(batch):

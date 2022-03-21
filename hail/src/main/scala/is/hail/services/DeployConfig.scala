@@ -15,7 +15,19 @@ import scala.util.Random
 object DeployConfig {
   private[this] val log = Logger.getLogger("DeployConfig")
 
-  lazy val get: DeployConfig = fromConfigFile()
+  private[this] lazy val default: DeployConfig = fromConfigFile()
+  private[this] var _get: DeployConfig = null
+
+  def set(x: DeployConfig) = {
+    _get = x
+  }
+
+  def get(): DeployConfig = {
+    if (_get == null) {
+      _get = default
+    }
+    _get
+  }
 
   def fromConfigFile(file0: String = null): DeployConfig = {
     var file = file0

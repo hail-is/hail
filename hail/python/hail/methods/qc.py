@@ -3,8 +3,8 @@ from collections import Counter
 import os
 from typing import Tuple, List, Union
 from hail.typecheck import typecheck, oneof, anytype, nullable
-from hail.utils.java import Env, info
-from hail.utils.misc import divide_null
+from hail.utils.java import Env, info, warning
+from hail.utils.misc import divide_null, guess_cloud_spark_provider
 from hail.matrixtable import MatrixTable
 from hail.table import Table
 from hail.ir import TableToTableApply
@@ -58,7 +58,8 @@ def sample_qc(mt, name='sample_qc') -> MatrixTable:
     - `n_snp` (``int64``) -- Number of SNP alternate alleles.
     - `n_insertion` (``int64``) -- Number of insertion alternate alleles.
     - `n_deletion` (``int64``) -- Number of deletion alternate alleles.
-    - `n_singleton` (``int64``) -- Number of private alleles.
+    - `n_singleton` (``int64``) -- Number of private alleles. Reference alleles are never counted as singletons, even if
+      every other allele at a site is non-reference.
     - `n_transition` (``int64``) -- Number of transition (A-G, C-T) alternate alleles.
     - `n_transversion` (``int64``) -- Number of transversion alternate alleles.
     - `n_star` (``int64``) -- Number of star (upstream deletion) alleles.
@@ -126,7 +127,8 @@ def sample_qc(mt, name='sample_qc') -> MatrixTable:
     bound_exprs['n_filtered'] = n_rows_ref - hl.agg.count()
     bound_exprs['n_hom_ref'] = hl.agg.count_where(mt['GT'].is_hom_ref())
     bound_exprs['n_het'] = hl.agg.count_where(mt['GT'].is_het())
-    bound_exprs['n_singleton'] = hl.agg.sum(hl.sum(hl.range(0, mt['GT'].ploidy).map(lambda i: mt[variant_ac][mt['GT'][i]] == 1)))
+    bound_exprs['n_singleton'] = hl.agg.sum(hl.rbind(mt['GT'], lambda gt: hl.sum(
+        hl.range(0, gt.ploidy).map(lambda i: hl.rbind(gt[i], lambda gti: (gti != 0) & (mt[variant_ac][gti] == 1))))))
 
     bound_exprs['allele_type_counts'] = hl.agg.explode(
         lambda allele_type: hl.tuple(
@@ -222,7 +224,10 @@ def variant_qc(mt, name='variant_qc') -> MatrixTable:
     - `het_freq_hwe` (``float64``) -- Expected frequency of heterozygous
       samples under Hardy-Weinberg equilibrium. See
       :func:`.functions.hardy_weinberg_test` for details.
-    - `p_value_hwe` (``float64``) -- p-value from test of Hardy-Weinberg equilibrium.
+    - `p_value_hwe` (``float64``) -- p-value from two-sided test of Hardy-Weinberg
+      equilibrium. See :func:`.functions.hardy_weinberg_test` for details.
+    - `p_value_excess_het` (``float64``) -- p-value from one-sided test of
+      Hardy-Weinberg equilibrium for excess heterozygosity.
       See :func:`.functions.hardy_weinberg_test` for details.
 
     Warning
@@ -271,12 +276,18 @@ def variant_qc(mt, name='variant_qc') -> MatrixTable:
 
     result = hl.rbind(hl.struct(**bound_exprs),
                       lambda e1: hl.rbind(
-                          hl.case().when(hl.len(mt.alleles) == 2,
-                                         hl.hardy_weinberg_test(e1.call_stats.homozygote_count[0],
-                                                                e1.call_stats.AC[1] - 2
-                                                                * e1.call_stats.homozygote_count[1],
-                                                                e1.call_stats.homozygote_count[1])
-                                         ).or_missing(),
+                          hl.case().when(
+                              hl.len(mt.alleles) == 2,
+                              (hl.hardy_weinberg_test(e1.call_stats.homozygote_count[0],
+                                                      e1.call_stats.AC[1] - 2
+                                                      * e1.call_stats.homozygote_count[1],
+                                                      e1.call_stats.homozygote_count[1]),
+                               hl.hardy_weinberg_test(e1.call_stats.homozygote_count[0],
+                                                      e1.call_stats.AC[1] - 2
+                                                      * e1.call_stats.homozygote_count[1],
+                                                      e1.call_stats.homozygote_count[1],
+                                                      one_sided=True))
+                          ).or_missing(),
                           lambda hwe: hl.struct(**{
                               **gq_dp_exprs,
                               **e1.call_stats,
@@ -286,8 +297,9 @@ def variant_qc(mt, name='variant_qc') -> MatrixTable:
                               'n_filtered': e1.n_filtered,
                               'n_het': e1.n_called - hl.sum(e1.call_stats.homozygote_count),
                               'n_non_ref': e1.n_called - e1.call_stats.homozygote_count[0],
-                              'het_freq_hwe': hwe.het_freq_hwe,
-                              'p_value_hwe': hwe.p_value})))
+                              'het_freq_hwe': hwe[0].het_freq_hwe,
+                              'p_value_hwe': hwe[0].p_value,
+                              'p_value_excess_het': hwe[1].p_value})))
 
     return mt.annotate_rows(**{name: result})
 
@@ -509,7 +521,7 @@ def vep(dataset: Union[Table, MatrixTable], config=None, block_size=1000, name='
     This VEP command only works if you have already installed VEP on your
     computing environment. If you use `hailctl dataproc` to start Hail clusters,
     installing VEP is achieved by specifying the `--vep` flag. For more detailed instructions,
-    see :ref:`vep_dataproc`.
+    see :ref:`vep_dataproc`. If you use `hailctl hdinsight`, see :ref:`vep_hdinsight`.
 
     **Configuration**
 
@@ -589,9 +601,13 @@ def vep(dataset: Union[Table, MatrixTable], config=None, block_size=1000, name='
 
     """
     if config is None:
+        maybe_cloud_spark_provider = guess_cloud_spark_provider()
         maybe_config = os.getenv("VEP_CONFIG_URI")
         if maybe_config is not None:
             config = maybe_config
+        elif maybe_cloud_spark_provider == 'hdinsight':
+            warning('Assuming you are in a hailctl hdinsight cluster. If not, specify the config parameter to `hl.vep`.')
+            config = 'file:/vep_data/vep-azure.json'
         else:
             raise ValueError("No config set and VEP_CONFIG_URI was not set.")
 

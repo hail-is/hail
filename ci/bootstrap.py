@@ -1,24 +1,21 @@
-from typing import Dict, List, Optional, Tuple
-import os
-import json
-from shlex import quote as shq
-import base64
-import asyncio
 import argparse
+import asyncio
+import base64
+import json
+import os
+from shlex import quote as shq
+from typing import Dict, List, Optional, Tuple
 
-import kubernetes_asyncio as kube
-
-from hailtop.utils import check_shell_output
-
-from ci.build import BuildConfiguration, Code
-from ci.github import clone_or_fetch_script
-from ci.utils import generate_token
+import kubernetes_asyncio.client
+import kubernetes_asyncio.config
 
 from batch.driver.k8s_cache import K8sCache
+from ci.build import BuildConfiguration, Code
+from ci.environment import KUBERNETES_SERVER_URL, STORAGE_URI
+from ci.github import clone_or_fetch_script
+from ci.utils import generate_token
+from hailtop.utils import check_shell_output
 
-KUBERNETES_SERVER_URL = os.environ['KUBERNETES_SERVER_URL']
-DOCKER_PREFIX = os.environ['HAIL_DOCKER_PREFIX']
-DOCKER_ROOT_IMAGE = os.environ['HAIL_DOCKER_ROOT_IMAGE']
 BATCH_WORKER_IMAGE = os.environ['BATCH_WORKER_IMAGE']
 
 
@@ -41,7 +38,7 @@ class LocalJob:
         mount_docker_socket: bool = False,
         unconfined: bool = False,
         secrets: Optional[List[Dict[str, str]]] = None,
-        service_account: Optional[str] = None,
+        service_account: Optional[Dict[str, str]] = None,
         attributes: Optional[Dict[str, str]] = None,
         parents: Optional[List['LocalJob']] = None,
         input_files: Optional[List[Tuple[str, str]]] = None,
@@ -63,13 +60,13 @@ class LocalJob:
         self._output_files = output_files
         self._kwargs = kwargs
 
-        self._succeeded = None
+        self._succeeded: Optional[bool] = None
 
 
 async def docker_run(*args: str):
     script = ' '.join([shq(a) for a in args])
     outerr = await check_shell_output(script)
-    print(f'Container output: {outerr[0]}\n' f'Container error: {outerr[1]}')
+    print(f'Container output: {outerr[0]!r}\n' f'Container error: {outerr[1]!r}')
 
     cid = outerr[0].decode('ascii').strip()
 
@@ -82,7 +79,7 @@ class LocalBatchBuilder:
     def __init__(self, attributes: Dict[str, str], callback: Optional[str]):
         self._attributes = attributes
         self._callback = callback
-        self._jobs = []
+        self._jobs: List[LocalJob] = []
 
     @property
     def attributes(self) -> Dict[str, str]:
@@ -107,7 +104,7 @@ class LocalBatchBuilder:
 
         os.makedirs(f'{root}/shared')
 
-        prefix = f'gs://dummy/build/{batch_token}'
+        prefix = f'{STORAGE_URI}/build/{batch_token}'
 
         for j in self._jobs:
             job_name = j._attributes.get('name')
@@ -175,23 +172,25 @@ class LocalBatchBuilder:
                 # Note, that is in the kubenetes-client repo, the
                 # kubernetes_asyncio.  I'm assuming it has the same
                 # issue.
-                k8s_cache = K8sCache(kube.client.CoreV1Api(), refresh_time=5)
+                k8s_client = kubernetes_asyncio.client.CoreV1Api()
+                try:
+                    k8s_cache = K8sCache(k8s_client)
 
-                if j._service_account:
-                    namespace = j._service_account['namespace']
-                    name = j._service_account['name']
+                    if j._service_account:
+                        namespace = j._service_account['namespace']
+                        name = j._service_account['name']
 
-                    sa = await k8s_cache.read_service_account(name, namespace, 5)
-                    assert len(sa.secrets) == 1
+                        sa = await k8s_cache.read_service_account(name, namespace)
+                        assert len(sa.secrets) == 1
 
-                    token_secret_name = sa.secrets[0].name
+                        token_secret_name = sa.secrets[0].name
 
-                    secret = await k8s_cache.read_secret(token_secret_name, namespace, 5)
+                        secret = await k8s_cache.read_secret(token_secret_name, namespace)
 
-                    token = base64.b64decode(secret.data['token']).decode()
-                    cert = secret.data['ca.crt']
+                        token = base64.b64decode(secret.data['token']).decode()
+                        cert = secret.data['ca.crt']
 
-                    kube_config = f'''
+                        kube_config = f'''
 apiVersion: v1
 clusters:
 - cluster:
@@ -213,50 +212,57 @@ users:
     token: {token}
 '''
 
-                    dot_kube_dir = f'{job_root}/secrets/.kube'
+                        dot_kube_dir = f'{job_root}/secrets/.kube'
 
-                    os.makedirs(dot_kube_dir)
-                    with open(f'{dot_kube_dir}/config', 'w') as f:
-                        f.write(kube_config)
-                    with open(f'{dot_kube_dir}/ca.crt', 'w') as f:
-                        f.write(base64.b64decode(cert).decode())
-                    mount_options.extend(['-v', f'{dot_kube_dir}:/.kube'])
-                    env_options.extend(['-e', 'KUBECONFIG=/.kube/config'])
+                        os.makedirs(dot_kube_dir)
+                        with open(f'{dot_kube_dir}/config', 'w') as f:
+                            f.write(kube_config)
+                        with open(f'{dot_kube_dir}/ca.crt', 'w') as f:
+                            f.write(base64.b64decode(cert).decode())
+                        mount_options.extend(['-v', f'{dot_kube_dir}:/.kube'])
+                        env_options.extend(['-e', 'KUBECONFIG=/.kube/config'])
 
-                secrets = j._secrets
-                if secrets:
-                    k8s_secrets = await asyncio.gather(
-                        *[k8s_cache.read_secret(secret['name'], secret['namespace'], 5) for secret in secrets]
+                    secrets = j._secrets
+                    if secrets:
+                        k8s_secrets = await asyncio.gather(
+                            *[k8s_cache.read_secret(secret['name'], secret['namespace']) for secret in secrets]
+                        )
+
+                        for secret, k8s_secret in zip(secrets, k8s_secrets):
+                            secret_host_path = f'{job_root}/secrets/{k8s_secret.metadata.name}'
+
+                            populate_secret_host_path(secret_host_path, k8s_secret.data)
+
+                            mount_options.extend(['-v', f'{secret_host_path}:{secret["mount_path"]}'])
+
+                    if j._mount_docker_socket:
+                        mount_options.extend(['-v', '/var/run/docker.sock:/var/run/docker.sock'])
+
+                    if j._unconfined:
+                        security_options = [
+                            '--security-opt',
+                            'seccomp=unconfined',
+                            '--security-opt',
+                            'apparmor=unconfined',
+                        ]
+                    else:
+                        security_options = []
+
+                    main_cid, main_ok = await docker_run(
+                        'docker',
+                        'run',
+                        '-d',
+                        *env_options,
+                        *mount_options,
+                        *security_options,
+                        '--entrypoint',
+                        j._command[0],
+                        j._image,
+                        *j._command[1:],
                     )
-
-                    for secret, k8s_secret in zip(secrets, k8s_secrets):
-                        secret_host_path = f'{job_root}/secrets/{k8s_secret.metadata.name}'
-
-                        populate_secret_host_path(secret_host_path, k8s_secret.data)
-
-                        mount_options.extend(['-v', f'{secret_host_path}:{secret["mount_path"]}'])
-
-                if j._mount_docker_socket:
-                    mount_options.extend(['-v', '/var/run/docker.sock:/var/run/docker.sock'])
-
-                if j._unconfined:
-                    security_options = ['--security-opt', 'seccomp=unconfined', '--security-opt', 'apparmor=unconfined']
-                else:
-                    security_options = []
-
-                main_cid, main_ok = await docker_run(
-                    'docker',
-                    'run',
-                    '-d',
-                    *env_options,
-                    *mount_options,
-                    *security_options,
-                    '--entrypoint',
-                    j._command[0],
-                    j._image,
-                    *j._command[1:],
-                )
-                print(f'{j._index}: {job_name}/main: {main_cid} {"OK" if main_ok else "FAILED"}')
+                    print(f'{j._index}: {job_name}/main: {main_cid} {"OK" if main_ok else "FAILED"}')
+                finally:
+                    await k8s_client.api_client.rest_client.pool_manager.close()
             else:
                 main_ok = False
                 print(f'{j._index}: {job_name}/main: SKIPPED: input failed')
@@ -331,9 +337,12 @@ class Branch(Code):
 git checkout {shq(self._sha)}
 '''
 
+    def repo_dir(self) -> str:
+        return '.'
+
 
 async def main():
-    await kube.config.load_kube_config()
+    await kubernetes_asyncio.config.load_kube_config()
 
     parser = argparse.ArgumentParser(description='Bootstrap a Hail as a service installation.')
 

@@ -400,6 +400,9 @@ class JIRVectorReference(object):
         return self.length
 
     def __del__(self):
+        # can't do anything if the hail context is stopped
+        if Env._hc is None:
+            return
         try:
             Env.backend()._jhc.pyRemoveIrVector(self.jid)
         # there is only so much we can do if the attempt to remove the unused IR fails,

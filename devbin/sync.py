@@ -1,21 +1,22 @@
 #!/usr/bin/env python3
-from typing import List, Tuple, Set
-from hailtop.aiotools import BackgroundTaskManager
-from contextlib import closing
-from hailtop.utils import check_shell, CalledProcessError
-from hailtop.utils import retry_transient_errors
-from hailtop.hail_logging import configure_logging
-from fswatch import Monitor, libfswatch
-from threading import Thread
-import os
 import argparse
 import asyncio
-import kubernetes_asyncio as kube
 import logging
+import os
 import re
-import sys
 import signal
+import sys
+from contextlib import closing
+from threading import Thread
+from typing import List, Set, Tuple
 
+import kubernetes_asyncio.client
+import kubernetes_asyncio.config
+from fswatch import Monitor, libfswatch
+
+from hailtop.aiotools import BackgroundTaskManager
+from hailtop.hail_logging import configure_logging
+from hailtop.utils import CalledProcessError, check_shell, retry_transient_errors
 
 configure_logging()
 log = logging.getLogger('sync.py')
@@ -68,27 +69,30 @@ class Sync:
         log.info(f'initialized {pod}@{namespace}')
 
     async def monitor_pods(self, apps, namespace):
-        await kube.config.load_kube_config()
-        k8s = kube.client.CoreV1Api()
-        while True:
-            log.info('monitor_pods: start loop')
-            updated_pods = await retry_transient_errors(
-                k8s.list_namespaced_pod, namespace, label_selector=f'app in ({",".join(apps)})'
-            )
-            updated_pods = [
-                x
-                for x in updated_pods.items
-                if x.status.phase == 'Running'
-                if all(s.ready for s in x.status.container_statuses)
-            ]
-            updated_pods = {(pod.metadata.name, namespace) for pod in updated_pods}
-            fresh_pods = updated_pods - self.pods
-            dead_pods = self.pods - updated_pods
-            log.info(f'monitor_pods: fresh_pods: {fresh_pods}')
-            log.info(f'monitor_pods: dead_pods: {dead_pods}')
-            self.pods = self.pods - dead_pods
-            await asyncio.gather(*[self.initialize_pod(name, namespace) for name, namespace in fresh_pods])
-            await asyncio.sleep(5)
+        await kubernetes_asyncio.config.load_kube_config()
+        k8s = kubernetes_asyncio.client.CoreV1Api()
+        try:
+            while True:
+                log.info('monitor_pods: start loop')
+                updated_pods = await retry_transient_errors(
+                    k8s.list_namespaced_pod, namespace, label_selector=f'app in ({",".join(apps)})'
+                )
+                updated_pods = [
+                    x
+                    for x in updated_pods.items
+                    if x.status.phase == 'Running'
+                    if all(s.ready for s in x.status.container_statuses)
+                ]
+                updated_pods = {(pod.metadata.name, namespace) for pod in updated_pods}
+                fresh_pods = updated_pods - self.pods
+                dead_pods = self.pods - updated_pods
+                log.info(f'monitor_pods: fresh_pods: {fresh_pods}')
+                log.info(f'monitor_pods: dead_pods: {dead_pods}')
+                self.pods = self.pods - dead_pods
+                await asyncio.gather(*[self.initialize_pod(name, namespace) for name, namespace in fresh_pods])
+                await asyncio.sleep(5)
+        finally:
+            await k8s.api_client.rest_client.pool_manager.close()
 
     async def update_loop(self):
         while True:

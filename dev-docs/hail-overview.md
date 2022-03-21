@@ -55,9 +55,8 @@ computational graph, which it then submits to Spark for execution.
 The result is then returned via py4j back to Python and the user.
 
 The ServiceBackend is structured differently.  The IR is again
-serialized, but it is submitted for execution via REST API, to the
-Hail Query execution microservice at https://query.hail.is/ (see
-microservices below).
+serialized, but is written to cloud storage and a job is submitted
+to Hail Batch to execute the aforementioned IR.
 
 The local backend is similar to the Spark backend, except the
 execution is performed on the local machine in the JVM instead of
@@ -86,7 +85,6 @@ Hail Query:
 
 * $HAIL/hail/python/hail: the Hail Query Python interface
 * $HAIL/hail/src: the Hail Query Java/Scala code
-* $HAIL/query: the Hail Query service
 
 Hail Batch:
 
@@ -103,7 +101,6 @@ Services (see below for descriptions):
 * $HAIL/gateway
 * $HAIL/internal-gateway
 * $HAIL/notebook: notebook and workshop services
-* $HAIL/query
 * $HAIL/site
 
 Libraries for services:
@@ -254,8 +251,6 @@ There is a collection of libraries to facilitate service development:
   https://notebook.hail.is/ and https://workshop.hail.is/.  workshop
   is used for running Hail workshops and tutorials.  The notebook
   service is not currently used.
-
-* query: The query service implements the Hail Query service.
 
 * site: site implements the main Hail website https://hail.is/
   including the landing page and Hail Query and Hail Batch
