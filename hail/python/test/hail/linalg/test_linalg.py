@@ -164,9 +164,14 @@ Caused by: is.hail.utils.HailException: bad shuffle close
             for entry in row:
                 assert entry > 0
 
+    def test_bm_to_numpy(self):
+        bm = BlockMatrix.from_ndarray(hl.nd.arange(20).map(lambda x: hl.float64(x)).reshape((4, 5)))
+        np_bm = bm.to_numpy()
+        self._assert_eq(np_bm, np.arange(20, dtype=np.float64).reshape((4, 5)))
+
     @fails_service_backend()
     @fails_local_backend()
-    def test_to_from_numpy(self):
+    def test_numpy_round_trip(self):
         n_rows = 10
         n_cols = 11
         data = np.random.rand(n_rows * n_cols)

@@ -203,6 +203,10 @@ case class BlockMatrixBinaryReader(path: String, shape: IndexedSeq[Long], blockS
     val breezeMatrix = RichDenseMatrixDouble.importFromDoubles(ctx.fs, path, nRows.toInt, nCols.toInt, rowMajor = true)
     BlockMatrix.fromBreezeMatrix(breezeMatrix, blockSize)
   }
+
+  override def lower(ctx: ExecuteContext): BlockMatrixStage = {
+    ???
+  }
 }
 
 case class BlockMatrixNativePersistParameters(id: String)
