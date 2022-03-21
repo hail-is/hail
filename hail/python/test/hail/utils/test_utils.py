@@ -237,13 +237,17 @@ class Tests(unittest.TestCase):
             actual = [x['path'] for x in hl.hadoop_ls(dirname + '/abc/[g][h][i]/*')]
             assert set(actual) == set(expected)
 
-            expected = [dirname + '/abc/ghi/123',
+            expected = [dirname + '/abc/ghi/!23',
                         dirname + '/abc/ghi/?23']
             actual = [x['path'] for x in hl.hadoop_ls(dirname + '/abc/ghi/[!1]23')]
             assert set(actual) == set(expected)
 
             expected = [dirname + '/abc/ghi/?23']
             actual = [x['path'] for x in hl.hadoop_ls(dirname + '/abc/ghi/[?]23')]
+            assert set(actual) == set(expected)
+
+            expected = [dirname + '/abc/ghi/123']
+            actual = [x['path'] for x in hl.hadoop_ls(dirname + '/abc/ghi/[]123')]
             assert set(actual) == set(expected)
 
     def test_linked_list(self):
