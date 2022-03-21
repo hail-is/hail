@@ -2,7 +2,7 @@ import os
 import time
 
 from stat import S_ISREG, S_ISDIR
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Any
 from shutil import copy2, rmtree
 
 import dateutil
@@ -86,13 +86,13 @@ class GoogleCloudStorageFS(FS):
         except FileNotFoundError:
             return False
 
-    def stat(self, path: str) -> Dict:
+    def stat(self, path: str) -> StatResult:
         if self._is_local(path):
             return StatResult.from_os_stat_result(path, os.stat(path))
 
         return self._format_stat_gs_file(self.client.info(path), path)
 
-    def _format_stat_gs_file(self, stats: Dict, path: Optional[str] = None) -> StatResult:
+    def _format_stat_gs_file(self, stats: Dict[str, Any], path: Optional[str] = None) -> StatResult:
         path_from_stats = stats.get('name')
         if path_from_stats is not None:
             path_from_stats = self._add_gs_path_prefix(path_from_stats)
@@ -114,7 +114,7 @@ class GoogleCloudStorageFS(FS):
             typ=typ,
             modification_time=modification_time)
 
-    def _stat_is_gs_dir(self, stats: Dict) -> bool:
+    def _stat_is_gs_dir(self, stats: Dict[str, Any]) -> bool:
         return stats['storageClass'] == 'DIRECTORY' or stats['name'].endswith('/')
 
     def ls(self, path: str) -> List[StatResult]:
