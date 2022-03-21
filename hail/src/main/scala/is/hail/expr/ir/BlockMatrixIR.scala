@@ -11,9 +11,9 @@ import is.hail.annotations.{NDArray, Region}
 import is.hail.backend.{BackendContext, ExecuteContext}
 import is.hail.expr.Nat
 import is.hail.expr.ir.lowering.{BlockMatrixStage, LowererUnsupportedOperation}
-import is.hail.io.TypedCodecSpec
+import is.hail.io.{StreamBufferSpec, TypedCodecSpec}
 import is.hail.io.fs.FS
-import is.hail.types.encoded.{EBlockMatrixNDArray, EFloat64}
+import is.hail.types.encoded.{EBlockMatrixNDArray, EFloat64, ENumpyBinaryNDArray}
 
 import scala.collection.mutable.ArrayBuffer
 import is.hail.utils.richUtils.RichDenseMatrixDouble
@@ -205,7 +205,36 @@ case class BlockMatrixBinaryReader(path: String, shape: IndexedSeq[Long], blockS
   }
 
   override def lower(ctx: ExecuteContext): BlockMatrixStage = {
-    ???
+    val readFromNumpyEType = ENumpyBinaryNDArray(nRows, nCols, true)
+    val readFromNumpySpec = TypedCodecSpec(readFromNumpyEType, TNDArray(TFloat64, Nat(2)), new StreamBufferSpec())
+    val nd = ReadValue(Str(path), readFromNumpySpec, TNDArray(TFloat64, nDimsBase = Nat(2)))
+
+    val hailEType = EBlockMatrixNDArray(EFloat64(true), ???, ???)
+    val hailNDSpec = TypedCodecSpec(hailEType, TNDArray(TFloat64, Nat(2)), BlockMatrix.bufferSpec)
+
+
+    new BlockMatrixStage(???, TString) {
+      override def blockContext(idx: (Int, Int)): IR = {
+        val ndSlice = NDArraySlice(nd, ???)
+        val path = ???
+        WriteValue(ndSlice, path, hailNDSpec)
+      }
+
+      override def blockBody(ctxRef: Ref): IR = ReadValue(ctxRef, hailNDSpec, TNDArray(TFloat64, Nat(2)))
+    }
+
+    /*
+        val localBlocksBc = Array.tabulate(gp.numPartitions) { pi =>
+      val (i, j) = gp.blockCoordinates(pi)
+      val (blockNRows, blockNCols) = gp.blockDims(pi)
+      val iOffset = i * blockSize
+      val jOffset = j * blockSize
+
+      HailContext.backend.broadcast(lm(iOffset until iOffset + blockNRows, jOffset until jOffset + blockNCols).copy)
+    }
+
+     */
+
   }
 }
 
