@@ -407,7 +407,7 @@ def pc_relate_bm(call_expr: CallExpression,
     # Define NaN for missing values, otherwise cannot convert expr to block matrix
     nan = hl.float64(float('NaN'))
 
-    # Create genotype matrix, set missing genotype entries to NaN
+    # Create genotype matrix, set missing GT entries to NaN
     mt = mt.select_entries(__gt=call_expr.n_alt_alleles()).unfilter_entries()
     gt_with_nan_expr = hl.or_else(hl.float64(mt.__gt), nan)
     if not block_size:
@@ -432,13 +432,14 @@ def pc_relate_bm(call_expr: CallExpression,
 
     # Compute matrix of individual-specific AF estimates (mu), shape (m, n)
     mu = 0.5 * (BlockMatrix.from_ndarray(V * S, block_size=block_size) @ beta).T
-    # Replace entries in mu with NaN if invalid, or if corresponding GT is NaN
+    # Replace entries in mu with NaN if invalid or if corresponding GT is missing (no contribution from that variant)
     mu = mu._apply_map2(lambda _mu, _g: hl.if_else(_bad_mu(_mu, min_individual_maf) | hl.is_nan(_g), nan, _mu),
                         g,
                         sparsity_strategy='NeedsDense')
     mu = mu.checkpoint(new_temp_file('pc_relate_bm/mu', 'bm'))
 
-    # Replace NaNs with 0 to compute kinship matrix (phi), shape (n, n)
+    # Compute kinship matrix (phi), shape (n, n)
+    # Where mu is NaN (missing), set variance and centered AF to 0 (no contribution from that variant)
     variance = _replace_nan(mu * (1.0 - mu), 0.0).checkpoint(new_temp_file('pc_relate_bm/variance', 'bm'))
     centered_af = _replace_nan(g - (2.0 * mu), 0.0)
     phi = _gram(centered_af) / (4.0 * _gram(variance.sqrt()))
@@ -450,16 +451,16 @@ def pc_relate_bm(call_expr: CallExpression,
 
     if statistics in ['kin2', 'kin20', 'all']:
         # Compute inbreeding coefficient and dominance encoding of GT matrix
-        f_i = ((2.0 * phi.diagonal()) - 1.0)
+        f_i = (2.0 * phi.diagonal()) - 1.0
         gd = g._apply_map2(lambda _g, _mu: _dominance_encoding(_g, _mu), mu, sparsity_strategy='NeedsDense')
         normalized_gd = gd - (variance * (1.0 + f_i))
 
         # Compute IBD2 (k2) estimate
-        k2 = (_gram(normalized_gd) / _gram(variance))
+        k2 = _gram(normalized_gd) / _gram(variance)
         ht = ht.annotate(k2=k2.entries()[ht.i, ht.j].entry)
 
         if statistics in ['kin20', 'all']:
-            # Get the numerator used in IBD0 (k0) computation (IBS0)
+            # Get the numerator used in IBD0 (k0) computation (IBS0), compute indicator matrices for homozygotes
             hom_alt = g._apply_map2(lambda _g, _mu: hl.if_else((_g != 2.0) | hl.is_nan(_mu), 0.0, 1.0),
                                     mu,
                                     sparsity_strategy='NeedsDense')
@@ -473,13 +474,14 @@ def pc_relate_bm(call_expr: CallExpression,
             one_minus_mu2 = _replace_nan((1.0 - mu) ** 2.0, 0.0)
             k0_denom = _AtB_plus_BtA(mu2, one_minus_mu2)
 
-            # Compute IBD0 (k0) estimates, correct the estimates where phi <= _k0_cutoff
+            # Compute IBD0 (k0) estimates, correct the estimates where phi <= k0_cutoff
             k0 = ibs0 / k0_denom
-            _k0_cutoff = 2.0 ** (-5.0 / 2.0)
+            k0_cutoff = 2.0 ** (-5.0 / 2.0)
             ht = ht.annotate(k0=k0.entries()[ht.i, ht.j].entry)
-            ht = ht.annotate(k0=hl.if_else(ht.kin <= _k0_cutoff, 1.0 - (4.0 * ht.kin) + ht.k2, ht.k0))
+            ht = ht.annotate(k0=hl.if_else(ht.kin <= k0_cutoff, 1.0 - (4.0 * ht.kin) + ht.k2, ht.k0))
 
             if statistics == 'all':
+                # Finally, compute IBD1 (k1) estimate
                 ht = ht.annotate(k1=1.0 - (ht.k2 + ht.k0))
 
     # Filter table to only have one row for each distinct pair of samples
@@ -488,13 +490,15 @@ def pc_relate_bm(call_expr: CallExpression,
 
     if min_kinship is not None:
         ht = ht.filter(ht.kin >= min_kinship)
+
     if statistics != 'all':
-        _fields_to_drop = {
+        fields_to_drop = {
             'kin': ['ibd0', 'ibd1', 'ibd2'],
             'kin2': ['ibd0', 'ibd1'],
             'kin20': ['ibd1']
             }
-        ht = ht.drop(*_fields_to_drop[statistics])
+        ht = ht.drop(*fields_to_drop[statistics])
+
     if not include_self_kinship:
         ht = ht.filter(ht.i == ht.j, keep=False)
 
