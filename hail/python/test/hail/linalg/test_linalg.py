@@ -169,8 +169,6 @@ Caused by: is.hail.utils.HailException: bad shuffle close
         np_bm = bm.to_numpy()
         self._assert_eq(np_bm, np.arange(20, dtype=np.float64).reshape((4, 5)))
 
-    @fails_service_backend()
-    @fails_local_backend()
     def test_numpy_round_trip(self):
         n_rows = 10
         n_cols = 11
@@ -218,6 +216,13 @@ Caused by: is.hail.utils.HailException: bad shuffle close
             self._assert_eq(at4, at)
             self._assert_eq(at5, at)
 
+    def test_numpy_round_trip_force_blocking(self):
+        n_rows = 10
+        n_cols = 11
+        data = np.random.rand(n_rows * n_cols)
+        a = data.reshape((n_rows, n_cols))
+
+        bm = BlockMatrix._create(n_rows, n_cols, data.tolist(), block_size=4)
         self._assert_eq(bm.to_numpy(_force_blocking=True), a)
 
     @fails_service_backend()
