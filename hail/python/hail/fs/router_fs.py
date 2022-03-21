@@ -3,11 +3,10 @@ import asyncio
 import gzip
 import io
 import nest_asyncio
-import functools
 
 from hailtop.aiotools.router_fs import RouterAsyncFS
 from hailtop.aiotools.fs import Copier, Transfer, FileListEntry, ReadableStream, WritableStream
-from hailtop.utils import async_to_blocking, bounded_gather
+from hailtop.utils import OnlineBoundedGather2, async_to_blocking
 
 from .fs import FS
 from .stat_result import FileType, StatResult
