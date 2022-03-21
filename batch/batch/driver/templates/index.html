@@ -33,6 +33,7 @@
     <tr>
       <th>Name</th>
       <th>Worker Type</th>
+      <th>Preemptible</th>
       <th>Pending</th>
       <th>Active</th>
       <th>Inactive</th>
@@ -46,6 +47,7 @@
     <tr>
       <td><a href="{{ base_path }}/inst_coll/pool/{{ pool.name }}">{{ pool.name }}</a></td>
       <td>{{ pool.worker_type }}</td>
+      <td>{{ pool.preemptible }}</td>
       <td class="numeric-cell">{{ pool.n_instances_by_state['pending'] }}</td>
       <td class="numeric-cell">{{ pool.n_instances_by_state['active'] }}</td>
       <td class="numeric-cell">{{ pool.n_instances_by_state['inactive'] }}</td>
@@ -97,7 +99,7 @@
       <tr>
         <th>Name</th>
         <th>Instance Collection</th>
-        <th>Zone</th>
+        <th>Location</th>
         <th>Version</th>
         <th>State</th>
         <th>Free Cores</th>
@@ -111,7 +113,7 @@
       <tr>
         <td>{{ instance.name }}</td>
         <td>{{ instance.inst_coll.name }}</td>
-        <td>{{ instance.zone }}</td>
+        <td>{{ instance.location }}</td>
         <td class="numeric-cell">{{ instance.version }}</td>
         <td>{{ instance.state }}</td>
         <td class="numeric-cell">{{ instance.free_cores_mcpu / 1000 }} / {{ instance.cores_mcpu / 1000 }}</td>

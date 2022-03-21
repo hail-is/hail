@@ -11,6 +11,7 @@ import org.apache.http.{HttpEntity, HttpEntityEnclosingRequest}
 import org.apache.http.client.methods.{HttpDelete, HttpGet, HttpPatch, HttpPost, HttpUriRequest}
 import org.apache.http.entity.{ByteArrayEntity, ContentType, StringEntity}
 import org.apache.http.impl.client.{CloseableHttpClient, HttpClients}
+import org.apache.http.impl.conn.PoolingHttpClientConnectionManager
 import org.apache.http.util.EntityUtils
 import org.apache.log4j.{LogManager, Logger}
 import org.json4s.{DefaultFormats, Formats, JObject, JValue}
@@ -29,17 +30,22 @@ class ClientResponseException(
 }
 
 object Requester {
-  lazy val log: Logger = LogManager.getLogger("Requester")
+  private val log: Logger = LogManager.getLogger("Requester")
 
   val httpClient: CloseableHttpClient = {
     log.info("creating HttpClient")
     try {
       HttpClients.custom()
         .setSSLContext(tls.getSSLContext)
+        .setMaxConnPerRoute(20)
+        .setMaxConnTotal(100)
         .build()
     } catch { case _: NoSSLConfigFound =>
       log.info("creating HttpClient with no SSL Context")
-      HttpClients.custom().build()
+      HttpClients.custom()
+        .setMaxConnPerRoute(20)
+        .setMaxConnTotal(100)
+        .build()
     }
   }
 }

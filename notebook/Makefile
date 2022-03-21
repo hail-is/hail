@@ -7,11 +7,14 @@ NOTEBOOK_NGINX_IMAGE := $(DOCKER_PREFIX)/notebook_nginx:$(TOKEN)
 
 EXTRA_PYTHONPATH := ../hail/python:../gear:../web_common
 PYTHON := PYTHONPATH=$${PYTHONPATH:+$${PYTHONPATH}:}$(EXTRA_PYTHONPATH) python3
+BLACK := $(PYTHON) -m black . --line-length=120 --skip-string-normalization
 
 .PHONY: check
 check:
 	$(PYTHON) -m flake8 notebook
 	$(PYTHON) -m pylint --rcfile ../pylintrc notebook --score=n
+	$(PYTHON) -m isort . --check-only --diff
+	$(BLACK) --check --diff
 	curlylint .
 	bash ../check-sql.sh
 
@@ -31,7 +34,7 @@ build-nginx:
 .PHONY: build
 build: build-notebook build-nginx
 
-JINJA_ENVIRONMENT = '{"code":{"sha":"$(shell git rev-parse --short=12 HEAD)"},"deploy":$(DEPLOY),"notebook_image":{"image":"$(NOTEBOOK_IMAGE)"},"notebook_nginx_image":{"image":"$(NOTEBOOK_NGINX_IMAGE)"},"default_ns":{"name":"$(NAMESPACE)"},"notebook_database":{"user_secret_name":"sql-notebook-user-config"},"global":{"project":"$(PROJECT)","domain":"$(DOMAIN)","k8s_server_url":"$(KUBERNETES_SERVER_URL)"},"scope":"$(SCOPE)"}'
+JINJA_ENVIRONMENT = '{"code":{"sha":"$(shell git rev-parse --short=12 HEAD)"},"deploy":$(DEPLOY),"notebook_image":{"image":"$(NOTEBOOK_IMAGE)"},"notebook_nginx_image":{"image":"$(NOTEBOOK_NGINX_IMAGE)"},"default_ns":{"name":"$(NAMESPACE)"},"notebook_database":{"user_secret_name":"sql-notebook-user-config"},"scope":"$(SCOPE)"}'
 
 .PHONY: deploy
 deploy: build

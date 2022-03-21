@@ -1,9 +1,9 @@
 package is.hail.io
 
 import java.io._
-
+import is.hail.asm4s.{HailClassLoader, theHailClassLoaderForSparkWorkers}
 import is.hail.annotations._
-import is.hail.expr.ir.ExecuteContext
+import is.hail.backend.ExecuteContext
 import is.hail.types.physical._
 import is.hail.io.fs.FS
 import is.hail.io.index.IndexWriter
@@ -19,7 +19,7 @@ import scala.reflect.ClassTag
 
 object RichContextRDDRegionValue {
   def writeRowsPartition(
-    makeEnc: (OutputStream) => Encoder,
+    makeEnc: (OutputStream, HailClassLoader) => Encoder,
     indexKeyFieldIndices: Array[Int] = null,
     rowType: PStruct = null
   )(ctx: RVDContext, it: Iterator[Long], os: OutputStream, iw: IndexWriter): (Long, Long) = {
@@ -30,7 +30,7 @@ object RichContextRDDRegionValue {
       else
         null
     val trackedOS = new ByteTrackingOutputStream(os)
-    val en = makeEnc(trackedOS)
+    val en = makeEnc(trackedOS, theHailClassLoaderForSparkWorkers)
     var rowCount = 0L
 
     it.foreach { ptr =>
@@ -230,7 +230,7 @@ class RichContextRDDLong(val crdd: ContextRDD[Long]) extends AnyVal {
       RichContextRDDRegionValue.writeRowsPartition(
         encoding.buildEncoder(ctx, t.rowType),
         t.kFieldIdx,
-        t.rowType))
+        t.rowType) _)
   }
 
   def toRows(rowType: PStruct): RDD[Row] = {

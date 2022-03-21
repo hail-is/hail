@@ -1,6 +1,7 @@
 package is.hail.expr.ir
 
 import is.hail.HailSuite
+import is.hail.backend.ExecuteContext
 import is.hail.expr.Nat
 import is.hail.types._
 import is.hail.types.physical.PStruct
@@ -47,15 +48,22 @@ class PruneSuite extends HailSuite {
     assert(PruneDeadFields.isSupertype(tuple2IntsFirstRemoved, tuple2Ints))
   }
 
+  @Test def testIsSupertypeWithDistinctFieldTypes(): Unit = {
+    val tuple2Ints = TTuple(TInt32, TFloat64)
+    val tuple2IntsFirstRemoved = TTuple(IndexedSeq(TupleField(1, TFloat64)))
+
+    assert(PruneDeadFields.isSupertype(tuple2IntsFirstRemoved, tuple2Ints))
+  }
+
   def checkMemo(ir: BaseIR, requestedType: BaseType, expected: Array[BaseType]) {
     val irCopy = ir.deepCopy()
     assert(PruneDeadFields.isSupertype(requestedType, irCopy.typ),
       s"not supertype:\n  super: ${ requestedType.parsableString() }\n  sub:   ${ irCopy.typ.parsableString() }")
     val ms = PruneDeadFields.ComputeMutableState(Memo.empty[BaseType], mutable.HashMap.empty)
     irCopy match {
-      case mir: MatrixIR => PruneDeadFields.memoizeMatrixIR(mir, requestedType.asInstanceOf[MatrixType], ms)
-      case tir: TableIR => PruneDeadFields.memoizeTableIR(tir, requestedType.asInstanceOf[TableType], ms)
-      case ir: IR => PruneDeadFields.memoizeValueIR(ir, requestedType.asInstanceOf[Type], ms)
+      case mir: MatrixIR => PruneDeadFields.memoizeMatrixIR(ctx, mir, requestedType.asInstanceOf[MatrixType], ms)
+      case tir: TableIR => PruneDeadFields.memoizeTableIR(ctx, tir, requestedType.asInstanceOf[TableType], ms)
+      case ir: IR => PruneDeadFields.memoizeValueIR(ctx, ir, requestedType.asInstanceOf[Type], ms)
     }
     irCopy.children.zipWithIndex.foreach { case (child, i) =>
       if (expected(i) != null && expected(i) != ms.requestedType.lookup(child)) {
@@ -72,14 +80,14 @@ class PruneSuite extends HailSuite {
     val ms = PruneDeadFields.ComputeMutableState(Memo.empty[BaseType], mutable.HashMap.empty)
     val rebuilt = (irCopy match {
       case mir: MatrixIR =>
-        PruneDeadFields.memoizeMatrixIR(mir, requestedType.asInstanceOf[MatrixType], ms)
-        PruneDeadFields.rebuild(mir, ms.rebuildState)
+        PruneDeadFields.memoizeMatrixIR(ctx, mir, requestedType.asInstanceOf[MatrixType], ms)
+        PruneDeadFields.rebuild(ctx, mir, ms.rebuildState)
       case tir: TableIR =>
-        PruneDeadFields.memoizeTableIR(tir, requestedType.asInstanceOf[TableType], ms)
-        PruneDeadFields.rebuild(tir, ms.rebuildState)
+        PruneDeadFields.memoizeTableIR(ctx, tir, requestedType.asInstanceOf[TableType], ms)
+        PruneDeadFields.rebuild(ctx, tir, ms.rebuildState)
       case ir: IR =>
-        PruneDeadFields.memoizeValueIR(ir, requestedType.asInstanceOf[Type], ms)
-        PruneDeadFields.rebuildIR(ir, BindingEnv(Env.empty, Some(Env.empty), Some(Env.empty)), ms.rebuildState)
+        PruneDeadFields.memoizeValueIR(ctx, ir, requestedType.asInstanceOf[Type], ms)
+        PruneDeadFields.rebuildIR(ctx, ir, BindingEnv(Env.empty, Some(Env.empty), Some(Env.empty)), ms.rebuildState)
     }).asInstanceOf[T]
     if (!f(ir, rebuilt))
       fatal(s"IR did not rebuild the same:\n  Base:    $ir\n  Rebuilt: $rebuilt")
@@ -98,7 +106,8 @@ class PruneSuite extends HailSuite {
         Row(FastIndexedSeq(Row("hi", FastIndexedSeq(Row(1)), "bye", Row(2, FastIndexedSeq(Row("bar"))), "foo")), Row(5, 10))),
       None),
     FastIndexedSeq("3"),
-    false).analyzeAndExecute(ctx).asTableValue(ctx))
+    false).analyzeAndExecute(ctx).asTableValue(ctx),
+    theHailClassLoader)
 
   lazy val tr = TableRead(tab.typ, false, new TableReader {
     override def renderShort(): String = ???
@@ -470,7 +479,7 @@ class PruneSuite extends HailSuite {
   }
 
   @Test def testMatrixAnnotateRowsTableMemo() {
-    val tl = TableLiteral(Interpret(MatrixRowsTable(mat), ctx))
+    val tl = TableLiteral(Interpret(MatrixRowsTable(mat), ctx), theHailClassLoader)
     val mart = MatrixAnnotateRowsTable(mat, tl, "foo", product=false)
     checkMemo(mart, subsetMatrixTable(mart.typ, "va.foo.r3", "va.r3"),
       Array(subsetMatrixTable(mat.typ, "va.r3"), subsetTable(tl.typ, "row.r3")))
@@ -890,7 +899,7 @@ class PruneSuite extends HailSuite {
     checkRebuild(TableFilter(tr, tableRefBoolean(tr.typ, "row.2")), subsetTable(tr.typ, "row.3"),
       (_: BaseIR, r: BaseIR) => {
         val tf = r.asInstanceOf[TableFilter]
-        TypeCheck(tf.pred, PruneDeadFields.relationalTypeToEnv(tf.typ))
+        TypeCheck(ctx, tf.pred, PruneDeadFields.relationalTypeToEnv(tf.typ))
         tf.child.typ == subsetTable(tr.typ, "row.3", "row.2")
       })
   }
@@ -900,7 +909,7 @@ class PruneSuite extends HailSuite {
     checkRebuild(tmr, subsetTable(tmr.typ, "row.foo"),
       (_: BaseIR, r: BaseIR) => {
         val tmr = r.asInstanceOf[TableMapRows]
-        TypeCheck(tmr.newRow, PruneDeadFields.relationalTypeToEnv(tmr.child.typ))
+        TypeCheck(ctx, tmr.newRow, PruneDeadFields.relationalTypeToEnv(tmr.child.typ))
         tmr.child.typ == subsetTable(tr.typ, "row.2", "global.g1", "row.3")
       })
 
@@ -908,7 +917,7 @@ class PruneSuite extends HailSuite {
     checkRebuild(tmr2, subsetTable(tmr2.typ, "row.foo", "NO_KEY"),
       (_: BaseIR, r: BaseIR) => {
         val tmr = r.asInstanceOf[TableMapRows]
-        TypeCheck(tmr.newRow, PruneDeadFields.relationalTypeToEnv(tmr.child.typ))
+        TypeCheck(ctx, tmr.newRow, PruneDeadFields.relationalTypeToEnv(tmr.child.typ))
         tmr.child.typ == subsetTable(tr.typ, "row.2", "global.g1", "row.3", "NO_KEY") // FIXME: remove row.3 when TableRead is fixed
       })
 
@@ -919,7 +928,7 @@ class PruneSuite extends HailSuite {
     checkRebuild(tmg, subsetTable(tmg.typ, "global.foo"),
       (_: BaseIR, r: BaseIR) => {
         val tmg = r.asInstanceOf[TableMapGlobals]
-        TypeCheck(tmg.newGlobals, PruneDeadFields.relationalTypeToEnv(tmg.child.typ))
+        TypeCheck(ctx, tmg.newGlobals, PruneDeadFields.relationalTypeToEnv(tmg.child.typ))
         tmg.child.typ == subsetTable(tr.typ, "global.g1")
       })
   }
@@ -984,7 +993,7 @@ class PruneSuite extends HailSuite {
     checkRebuild(mfc, subsetMatrixTable(mfc.typ, "global.g1"),
       (_: BaseIR, r: BaseIR) => {
         val mfc = r.asInstanceOf[MatrixFilterCols]
-        TypeCheck(mfc.pred, PruneDeadFields.relationalTypeToEnv(mfc.child.typ))
+        TypeCheck(ctx, mfc.pred, PruneDeadFields.relationalTypeToEnv(mfc.child.typ))
         mfc.child.asInstanceOf[MatrixRead].typ == subsetMatrixTable(mr.typ, "global.g1", "sa.c2")
       }
     )
@@ -995,7 +1004,7 @@ class PruneSuite extends HailSuite {
     checkRebuild(mfe, subsetMatrixTable(mfe.typ, "global.g1"),
       (_: BaseIR, r: BaseIR) => {
         val mfe = r.asInstanceOf[MatrixFilterEntries]
-        TypeCheck(mfe.pred, PruneDeadFields.relationalTypeToEnv(mfe.child.typ))
+        TypeCheck(ctx, mfe.pred, PruneDeadFields.relationalTypeToEnv(mfe.child.typ))
         mfe.child.asInstanceOf[MatrixRead].typ == subsetMatrixTable(mr.typ, "global.g1", "sa.c2", "va.r2", "g.e1")
       }
     )
@@ -1008,7 +1017,7 @@ class PruneSuite extends HailSuite {
     checkRebuild(mmr, subsetMatrixTable(mmr.typ, "global.g1", "g.e1", "va.foo"),
       (_: BaseIR, r: BaseIR) => {
         val mmr = r.asInstanceOf[MatrixMapRows]
-        TypeCheck(mmr.newRow, PruneDeadFields.relationalTypeToEnv(mmr.child.typ))
+        TypeCheck(ctx, mmr.newRow, PruneDeadFields.relationalTypeToEnv(mmr.child.typ))
         mmr.child.asInstanceOf[MatrixKeyRowsBy].child.asInstanceOf[MatrixRead].typ == subsetMatrixTable(mr.typ, "global.g1", "va.r2", "g.e1")
       }
     )
@@ -1020,7 +1029,7 @@ class PruneSuite extends HailSuite {
     checkRebuild(mmc, subsetMatrixTable(mmc.typ, "global.g1", "g.e1", "sa.foo"),
       (_: BaseIR, r: BaseIR) => {
         val mmc = r.asInstanceOf[MatrixMapCols]
-        TypeCheck(mmc.newCol, PruneDeadFields.relationalTypeToEnv(mmc.child.typ))
+        TypeCheck(ctx, mmc.newCol, PruneDeadFields.relationalTypeToEnv(mmc.child.typ))
         mmc.child.asInstanceOf[MatrixRead].typ == subsetMatrixTable(mr.typ, "global.g1", "sa.c2", "g.e1")
       }
     )
@@ -1031,7 +1040,7 @@ class PruneSuite extends HailSuite {
     checkRebuild(mme, subsetMatrixTable(mme.typ, "global.g1", "g.foo"),
       (_: BaseIR, r: BaseIR) => {
         val mme = r.asInstanceOf[MatrixMapEntries]
-        TypeCheck(mme.newEntries, PruneDeadFields.relationalTypeToEnv(mme.child.typ))
+        TypeCheck(ctx, mme.newEntries, PruneDeadFields.relationalTypeToEnv(mme.child.typ))
         mme.child.asInstanceOf[MatrixRead].typ == subsetMatrixTable(mr.typ, "global.g1", "sa.c2", "va.r2")
       }
     )
@@ -1042,7 +1051,7 @@ class PruneSuite extends HailSuite {
     checkRebuild(mmg, subsetMatrixTable(mmg.typ, "global.foo", "g.e1", "va.r2"),
       (_: BaseIR, r: BaseIR) => {
         val mmg = r.asInstanceOf[MatrixMapGlobals]
-        TypeCheck(mmg.newGlobals, PruneDeadFields.relationalTypeToEnv(mmg.child.typ))
+        TypeCheck(ctx, mmg.newGlobals, PruneDeadFields.relationalTypeToEnv(mmg.child.typ))
         mmg.child.asInstanceOf[MatrixRead].typ == subsetMatrixTable(mr.typ, "global.g1", "va.r2", "g.e1")
       }
     )
@@ -1053,7 +1062,7 @@ class PruneSuite extends HailSuite {
     checkRebuild(ma, subsetMatrixTable(ma.typ, "va.foo", "g.foo"),
       (_: BaseIR, r: BaseIR) => {
         val ma = r.asInstanceOf[MatrixAggregateRowsByKey]
-        TypeCheck(ma.entryExpr, PruneDeadFields.relationalTypeToEnv(ma.child.typ))
+        TypeCheck(ctx, ma.entryExpr, PruneDeadFields.relationalTypeToEnv(ma.child.typ))
         ma.child.asInstanceOf[MatrixRead].typ == subsetMatrixTable(mr.typ, "global.g1", "sa.c2")
       }
     )
@@ -1064,7 +1073,7 @@ class PruneSuite extends HailSuite {
     checkRebuild(ma, subsetMatrixTable(ma.typ, "g.foo", "sa.foo"),
       (_: BaseIR, r: BaseIR) => {
         val ma = r.asInstanceOf[MatrixAggregateColsByKey]
-        TypeCheck(ma.entryExpr, PruneDeadFields.relationalTypeToEnv(ma.child.typ))
+        TypeCheck(ctx, ma.entryExpr, PruneDeadFields.relationalTypeToEnv(ma.child.typ))
         ma.child.asInstanceOf[MatrixRead].typ == subsetMatrixTable(mr.typ, "global.g1", "va.r2")
       }
     )
@@ -1114,7 +1123,7 @@ class PruneSuite extends HailSuite {
   }
 
   @Test def testMatrixAnnotateRowsTableRebuild() {
-    val tl = TableLiteral(Interpret(MatrixRowsTable(mat), ctx))
+    val tl = TableLiteral(Interpret(MatrixRowsTable(mat), ctx), theHailClassLoader)
     val mart = MatrixAnnotateRowsTable(mat, tl, "foo", product=false)
     checkRebuild(mart, subsetMatrixTable(mart.typ),
       (_: BaseIR, r: BaseIR) => {
@@ -1432,7 +1441,7 @@ class PruneSuite extends HailSuite {
       .bind(ifIR, pruneT)
 
     // should run without error!
-    PruneDeadFields.rebuildIR(ifIR, BindingEnv.empty[Type].bindEval("a", t),
+    PruneDeadFields.rebuildIR(ctx, ifIR, BindingEnv.empty[Type].bindEval("a", t),
       PruneDeadFields.RebuildMutableState(memo, mutable.HashMap.empty))
   }
 

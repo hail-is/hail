@@ -3,9 +3,9 @@ package is.hail.expr.ir.streams
 import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.expr.ir.{EmitCodeBuilder, IEmitCode, IR, NDArrayMap, NDArrayMap2, Ref, RunAggScan, StagedArrayBuilder, StreamFilter, StreamFlatMap, StreamFold, StreamFold2, StreamFor, StreamJoinRightDistinct, StreamMap, StreamScan, StreamZip, StreamZipJoin}
-import is.hail.types.physical.stypes.interfaces.{SIndexableCode, SIndexableValue}
-import is.hail.types.physical.stypes.SingleCodeType
 import is.hail.types.physical.PCanonicalArray
+import is.hail.types.physical.stypes.SingleCodeType
+import is.hail.types.physical.stypes.interfaces.SIndexableValue
 import is.hail.utils.HailException
 
 trait StreamArgType {
@@ -34,7 +34,7 @@ object StreamUtils {
             "Cannot construct an ndarray with missing values.", errorId
           )),
           { sc =>
-            elementType.storeAtAddress(cb, currentElementAddress, destRegion, sc.get, deepCopy = true)
+            elementType.storeAtAddress(cb, currentElementAddress, destRegion, sc, deepCopy = true)
           })
         cb.assign(currentElementIndex, currentElementIndex + 1)
         cb.assign(currentElementAddress, currentElementAddress + elementByteSize)

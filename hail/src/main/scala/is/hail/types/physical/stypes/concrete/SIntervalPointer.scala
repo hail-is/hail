@@ -4,8 +4,8 @@ import is.hail.annotations.Region
 import is.hail.asm4s.{BooleanInfo, Code, LongInfo, Settable, SettableBuilder, TypeInfo, Value}
 import is.hail.expr.ir.orderings.CodeOrdering
 import is.hail.expr.ir.{EmitCodeBuilder, IEmitCode}
-import is.hail.types.physical.stypes.interfaces.{SInterval, SIntervalCode, SIntervalValue}
 import is.hail.types.physical.stypes._
+import is.hail.types.physical.stypes.interfaces.{SInterval, SIntervalValue}
 import is.hail.types.physical.{PInterval, PType}
 import is.hail.types.virtual.Type
 import is.hail.utils.FastIndexedSeq
@@ -59,37 +59,36 @@ class SIntervalPointerValue(
   val includesStart: Value[Boolean],
   val includesEnd: Value[Boolean]
 ) extends SIntervalValue {
-  override def get: SIntervalPointerCode = new SIntervalPointerCode(st, a)
-
   override lazy val valueTuple: IndexedSeq[Value[_]] = FastIndexedSeq(a, includesStart, includesEnd)
 
   val pt: PInterval = st.pType
 
   override def loadStart(cb: EmitCodeBuilder): IEmitCode =
     IEmitCode(cb,
-      !(pt.startDefined(a)),
+      !pt.startDefined(cb, a),
       pt.pointType.loadCheapSCode(cb, pt.loadStart(a)))
 
-  override def startDefined(cb: EmitCodeBuilder): Code[Boolean] = pt.startDefined(a)
+  override def startDefined(cb: EmitCodeBuilder): Value[Boolean] =
+    pt.startDefined(cb, a)
 
   override def loadEnd(cb: EmitCodeBuilder): IEmitCode =
     IEmitCode(cb,
-      !(pt.endDefined(a)),
+      !pt.endDefined(cb, a),
       pt.pointType.loadCheapSCode(cb, pt.loadEnd(a)))
 
-  override def endDefined(cb: EmitCodeBuilder): Code[Boolean] = pt.endDefined(a)
+  override def endDefined(cb: EmitCodeBuilder): Value[Boolean] =
+    pt.endDefined(cb, a)
 
-  override def isEmpty(cb: EmitCodeBuilder): Code[Boolean] = {
+  override def isEmpty(cb: EmitCodeBuilder): Value[Boolean] = {
     val gt = cb.emb.ecb.getOrderingFunction(st.pointType, CodeOrdering.Gt())
     val gteq = cb.emb.ecb.getOrderingFunction(st.pointType, CodeOrdering.Gteq())
 
     val start = cb.memoize(loadStart(cb), "start")
     val end = cb.memoize(loadEnd(cb), "end")
-    val empty = cb.newLocal("is_empty", includesStart)
-    cb.ifx(empty,
-      cb.ifx(includesEnd,
-        cb.assign(empty, gt(cb, start, end)),
-        cb.assign(empty, gteq(cb, start, end))))
+    val empty = cb.newLocal[Boolean]("is_empty")
+    cb.ifx(includesStart && includesEnd,
+      cb.assign(empty, gt(cb, start, end)),
+      cb.assign(empty, gteq(cb, start, end)))
     empty
   }
 }
@@ -111,29 +110,10 @@ final class SIntervalPointerSettable(
 ) extends SIntervalPointerValue(st, a, includesStart, includesEnd) with SSettable {
   override def settableTuple(): IndexedSeq[Settable[_]] = FastIndexedSeq(a, includesStart, includesEnd)
 
-  override def store(cb: EmitCodeBuilder, pc: SCode): Unit = {
-    cb.assign(a, pc.asInstanceOf[SIntervalPointerCode].a)
-    cb.assign(includesStart, pt.includesStart(a.load()))
-    cb.assign(includesEnd, pt.includesEnd(a.load()))
+  override def store(cb: EmitCodeBuilder, v: SValue): Unit = v match {
+    case v: SIntervalPointerValue =>
+      cb.assign(a, v.a)
+      cb.assign(includesStart, v.includesStart)
+      cb.assign(includesEnd, v.includesEnd)
   }
-}
-
-class SIntervalPointerCode(val st: SIntervalPointer, val a: Code[Long]) extends SIntervalCode {
-  val pt = st.pType
-
-  def code: Code[_] = a
-
-  def codeIncludesStart(): Code[Boolean] = pt.includesStart(a)
-
-  def codeIncludesEnd(): Code[Boolean] = pt.includesEnd(a)
-
-  def memoize(cb: EmitCodeBuilder, name: String, sb: SettableBuilder): SIntervalPointerValue = {
-    val s = SIntervalPointerSettable(sb, st, name)
-    cb.assign(s, this)
-    s
-  }
-
-  def memoize(cb: EmitCodeBuilder, name: String): SIntervalPointerValue = memoize(cb, name, cb.localBuilder)
-
-  def memoizeField(cb: EmitCodeBuilder, name: String): SIntervalPointerValue = memoize(cb, name, cb.fieldBuilder)
 }

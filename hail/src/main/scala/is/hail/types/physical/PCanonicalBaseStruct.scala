@@ -4,9 +4,8 @@ import is.hail.annotations.{Annotation, Region, UnsafeRow, UnsafeUtils}
 import is.hail.asm4s._
 import is.hail.expr.ir.{EmitCode, EmitCodeBuilder}
 import is.hail.types.BaseStruct
-import is.hail.types.physical.stypes.{SCode, SValue}
-import is.hail.types.physical.stypes.concrete.{SBaseStructPointer, SBaseStructPointerCode, SBaseStructPointerSettable, SBaseStructPointerValue}
-import is.hail.types.physical.stypes.interfaces.SBaseStruct
+import is.hail.types.physical.stypes.SValue
+import is.hail.types.physical.stypes.concrete.{SBaseStructPointer, SBaseStructPointerValue}
 import is.hail.utils._
 import org.apache.spark.sql.Row
 
@@ -16,21 +15,21 @@ abstract class PCanonicalBaseStruct(val types: Array[PType]) extends PBaseStruct
       s"found non realizable type(s) ${ types.filter(!_.isRealizable).mkString(", ") } in ${ types.mkString(", ") }")
   }
 
-  val (missingIdx: Array[Int], nMissing: Int) = BaseStruct.getMissingIndexAndCount(types.map(_.required))
+  override val (missingIdx: Array[Int], nMissing: Int) = BaseStruct.getMissingIndexAndCount(types.map(_.required))
   val nMissingBytes: Int = UnsafeUtils.packBitsToBytes(nMissing)
   val byteOffsets: Array[Long] = new Array[Long](size)
   override val byteSize: Long = getByteSizeAndOffsets(types.map(_.byteSize), types.map(_.alignment), nMissingBytes, byteOffsets)
   override val alignment: Long = PBaseStruct.alignment(types)
 
 
-  def allocate(region: Region): Long = {
+  override def allocate(region: Region): Long = {
     region.allocate(alignment, byteSize)
   }
 
-  def allocate(region: Code[Region]): Code[Long] =
+  override def allocate(region: Code[Region]): Code[Long] =
     region.allocate(alignment, byteSize)
 
-  def initialize(structAddress: Long, setMissing: Boolean = false): Unit = {
+  override def initialize(structAddress: Long, setMissing: Boolean = false): Unit = {
     if (allFieldsRequired) {
       return
     }
@@ -44,49 +43,50 @@ abstract class PCanonicalBaseStruct(val types: Array[PType]) extends PBaseStruct
     }
   }
 
-  def isFieldDefined(offset: Long, fieldIdx: Int): Boolean =
+  override def isFieldDefined(offset: Long, fieldIdx: Int): Boolean =
     fieldRequired(fieldIdx) || !Region.loadBit(offset, missingIdx(fieldIdx))
 
-  def isFieldMissing(offset: Code[Long], fieldIdx: Int): Code[Boolean] =
+  override def isFieldMissing(cb: EmitCodeBuilder, offset: Code[Long], fieldIdx: Int): Value[Boolean] =
     if (fieldRequired(fieldIdx))
       false
     else
-      Region.loadBit(offset, missingIdx(fieldIdx).toLong)
+      cb.memoize(Region.loadBit(offset, missingIdx(fieldIdx).toLong))
 
-  def setFieldMissing(offset: Long, fieldIdx: Int) {
+  override def setFieldMissing(offset: Long, fieldIdx: Int) {
     assert(!fieldRequired(fieldIdx))
     Region.setBit(offset, missingIdx(fieldIdx))
   }
 
-  def setFieldMissing(cb: EmitCodeBuilder, offset: Code[Long], fieldIdx: Int): Unit = {
+  override def setFieldMissing(cb: EmitCodeBuilder, offset: Code[Long], fieldIdx: Int): Unit = {
     if (!fieldRequired(fieldIdx))
       cb += Region.setBit(offset, missingIdx(fieldIdx).toLong)
-    else
-      cb._fatal(s"Required field cannot be missing")
+    else {
+      cb._fatal(s"Required field cannot be missing.")
+    }
   }
 
-  def setFieldPresent(offset: Long, fieldIdx: Int) {
+  override def setFieldPresent(offset: Long, fieldIdx: Int) {
     if (!fieldRequired(fieldIdx))
       Region.clearBit(offset, missingIdx(fieldIdx))
   }
 
-  def setFieldPresent(cb: EmitCodeBuilder, offset: Code[Long], fieldIdx: Int): Unit = {
+  override def setFieldPresent(cb: EmitCodeBuilder, offset: Code[Long], fieldIdx: Int): Unit = {
     if (!fieldRequired(fieldIdx))
       cb += Region.clearBit(offset, missingIdx(fieldIdx).toLong)
   }
 
-  def fieldOffset(structAddress: Long, fieldIdx: Int): Long =
+  override def fieldOffset(structAddress: Long, fieldIdx: Int): Long =
     structAddress + byteOffsets(fieldIdx)
 
-  def fieldOffset(structAddress: Code[Long], fieldIdx: Int): Code[Long] =
+  override def fieldOffset(structAddress: Code[Long], fieldIdx: Int): Code[Long] =
     structAddress + byteOffsets(fieldIdx)
 
-  def loadField(offset: Long, fieldIdx: Int): Long = {
+  override def loadField(offset: Long, fieldIdx: Int): Long = {
     val off = fieldOffset(offset, fieldIdx)
     types(fieldIdx).unstagedLoadFromNested(off)
   }
 
-  def loadField(offset: Code[Long], fieldIdx: Int): Code[Long] = loadField(fieldOffset(offset, fieldIdx), types(fieldIdx))
+  override def loadField(offset: Code[Long], fieldIdx: Int): Code[Long] = loadField(fieldOffset(offset, fieldIdx), types(fieldIdx))
 
   private def loadField(fieldOffset: Code[Long], fieldType: PType): Code[Long] = {
     fieldType.loadFromNested(fieldOffset)
@@ -97,10 +97,10 @@ abstract class PCanonicalBaseStruct(val types: Array[PType]) extends PBaseStruct
     fields.foreach { f =>
       val dstFieldType = f.typ
       if (dstFieldType.containsPointers) {
-        cb.ifx(isFieldDefined(dstAddr, f.index),
+        cb.ifx(isFieldDefined(cb, dstAddr, f.index),
           {
             val fieldAddr = cb.newLocal[Long]("pcbs_dpcopy_field", fieldOffset(dstAddr, f.index))
-            dstFieldType.storeAtAddress(cb, fieldAddr, region, dstFieldType.loadCheapSCode(cb, dstFieldType.loadFromNested(fieldAddr)).get, deepCopy = true)
+            dstFieldType.storeAtAddress(cb, fieldAddr, region, dstFieldType.loadCheapSCode(cb, dstFieldType.loadFromNested(fieldAddr)), deepCopy = true)
           })
       }
     }
@@ -119,7 +119,7 @@ abstract class PCanonicalBaseStruct(val types: Array[PType]) extends PBaseStruct
     }
   }
 
-  def _copyFromAddress(region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Long = {
+  override def _copyFromAddress(region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Long = {
     if (equalModuloRequired(srcPType) && !deepCopy)
       return srcAddress
 
@@ -128,7 +128,7 @@ abstract class PCanonicalBaseStruct(val types: Array[PType]) extends PBaseStruct
     newAddr
   }
 
-  def unstagedStoreAtAddress(addr: Long, region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Unit = {
+  override def unstagedStoreAtAddress(addr: Long, region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Unit = {
     val srcStruct = srcPType.asInstanceOf[PBaseStruct]
     if (equalModuloRequired(srcStruct)) {
       Region.copyFrom(srcAddress, addr, byteSize)
@@ -149,36 +149,33 @@ abstract class PCanonicalBaseStruct(val types: Array[PType]) extends PBaseStruct
     }
   }
 
-  def sType: SBaseStructPointer = SBaseStructPointer(setRequired(false).asInstanceOf[PCanonicalBaseStruct])
+  override def sType: SBaseStructPointer = SBaseStructPointer(setRequired(false).asInstanceOf[PCanonicalBaseStruct])
 
-  def loadCheapSCode(cb: EmitCodeBuilder, addr: Code[Long]): SBaseStructPointerValue =
-    new SBaseStructPointerCode(sType, addr).memoize(cb, "loadCheapSCode")
+  override def loadCheapSCode(cb: EmitCodeBuilder, addr: Code[Long]): SBaseStructPointerValue =
+    new SBaseStructPointerValue(sType, cb.memoize(addr))
 
-  def loadCheapSCodeField(cb: EmitCodeBuilder, addr: Code[Long]): SBaseStructPointerValue =
-    new SBaseStructPointerCode(sType, addr).memoizeField(cb, "loadCheapSCodeField")
-
-  def store(cb: EmitCodeBuilder, region: Value[Region], value: SValue, deepCopy: Boolean): Value[Long] = {
+  override def store(cb: EmitCodeBuilder, region: Value[Region], value: SValue, deepCopy: Boolean): Value[Long] = {
     value.st match {
       case SBaseStructPointer(t) if t.equalModuloRequired(this) && !deepCopy =>
         value.asInstanceOf[SBaseStructPointerValue].a
       case _ =>
         val newAddr = cb.memoize(allocate(region))
-        storeAtAddress(cb, newAddr, region, value.get, deepCopy)
+        storeAtAddress(cb, newAddr, region, value, deepCopy)
         newAddr
     }
   }
 
-  def storeAtAddress(cb: EmitCodeBuilder, addr: Code[Long], region: Value[Region], value: SCode, deepCopy: Boolean): Unit = {
+  override def storeAtAddress(cb: EmitCodeBuilder, addr: Code[Long], region: Value[Region], value: SValue, deepCopy: Boolean): Unit = {
     value.st match {
       case SBaseStructPointer(t) if t.equalModuloRequired(this) =>
-        val pcs = value.asBaseStruct.memoize(cb, "pcbasestruct_store_src").asInstanceOf[SBaseStructPointerSettable]
+        val pcs = value.asInstanceOf[SBaseStructPointerValue]
         val addrVar = cb.newLocal[Long]("pcbasestruct_store_dest_addr1", addr)
         cb += Region.copyFrom(pcs.a, addrVar, byteSize)
         if (deepCopy)
           deepPointerCopy(cb, region, addrVar)
       case _ =>
         val addrVar = cb.newLocal[Long]("pcbasestruct_store_dest_addr2", addr)
-        val pcs = value.asBaseStruct.memoize(cb, "pcbasestruct_store_src")
+        val pcs = value.asBaseStruct
         stagedInitialize(cb, addrVar, setMissing = false)
 
         fields.foreach { f =>
@@ -188,7 +185,7 @@ abstract class PCanonicalBaseStruct(val types: Array[PType]) extends PBaseStruct
                 setFieldMissing(cb, addrVar, f.index)
               },
               { sv =>
-                f.typ.storeAtAddress(cb, fieldOffset(addrVar, f.index), region, sv.get, deepCopy)
+                f.typ.storeAtAddress(cb, fieldOffset(addrVar, f.index), region, sv, deepCopy)
               })
         }
     }
@@ -203,7 +200,7 @@ abstract class PCanonicalBaseStruct(val types: Array[PType]) extends PBaseStruct
         .consume(cb,
           setFieldMissing(cb, addr, i),
           { sc =>
-            types(i).storeAtAddress(cb, fieldOffset(addr, i), region, sc.get, deepCopy = deepCopy)
+            types(i).storeAtAddress(cb, fieldOffset(addr, i), region, sc, deepCopy = deepCopy)
           }
         )
     }
@@ -239,7 +236,7 @@ abstract class PCanonicalBaseStruct(val types: Array[PType]) extends PBaseStruct
 
   }
 
-  def loadFromNested(addr: Code[Long]): Code[Long] = addr
+  override def loadFromNested(addr: Code[Long]): Code[Long] = addr
 
   override def unstagedLoadFromNested(addr: Long): Long = addr
 }

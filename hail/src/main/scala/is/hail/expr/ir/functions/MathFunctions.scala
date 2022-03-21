@@ -147,8 +147,14 @@ object MathFunctions extends RegistryFunctions {
 
     registerScalaFunction("dbeta", Array(TFloat64, TFloat64, TFloat64), TFloat64, null)(statsPackageClass, "dbeta")
 
+    registerScalaFunction("dnorm", Array(TFloat64), TFloat64, null)(statsPackageClass, "dnorm")
+    registerScalaFunction("dnorm", Array(TFloat64, TFloat64, TFloat64, TBoolean), TFloat64, null)(statsPackageClass, "dnorm")
+
     registerScalaFunction("pnorm", Array(TFloat64), TFloat64, null)(statsPackageClass, "pnorm")
+    registerScalaFunction("pnorm", Array(TFloat64, TFloat64, TFloat64, TBoolean, TBoolean), TFloat64, null)(statsPackageClass, "pnorm")
+
     registerScalaFunction("qnorm", Array(TFloat64), TFloat64, null)(statsPackageClass, "qnorm")
+    registerScalaFunction("qnorm", Array(TFloat64, TFloat64, TFloat64, TBoolean, TBoolean), TFloat64, null)(statsPackageClass, "qnorm")
 
     registerScalaFunction("pT", Array(TFloat64, TFloat64, TBoolean, TBoolean), TFloat64, null)(statsPackageClass, "pT")
     registerScalaFunction("pF", Array(TFloat64, TFloat64, TFloat64, TBoolean, TBoolean), TFloat64, null)(statsPackageClass, "pF")
@@ -162,9 +168,23 @@ object MathFunctions extends RegistryFunctions {
     registerScalaFunction("qpois", Array(TFloat64, TFloat64), TInt32, null)(statsPackageClass, "qpois")
     registerScalaFunction("qpois", Array(TFloat64, TFloat64, TBoolean, TBoolean), TInt32, null)(statsPackageClass, "qpois")
 
-    registerScalaFunction("pchisqtail", Array(TFloat64, TFloat64), TFloat64, null)(statsPackageClass, "chiSquaredTail")
-    registerScalaFunction("pnchisqtail", Array(TFloat64, TFloat64, TFloat64), TFloat64, null)(statsPackageClass, "nonCentralChiSquaredTail")
-    registerScalaFunction("qchisqtail", Array(TFloat64, TFloat64), TFloat64, null)(statsPackageClass, "inverseChiSquaredTail")
+    registerScalaFunction("dchisq", Array(TFloat64, TFloat64), TFloat64, null)(statsPackageClass, "dchisq")
+    registerScalaFunction("dchisq", Array(TFloat64, TFloat64, TBoolean), TFloat64, null)(statsPackageClass, "dchisq")
+
+    registerScalaFunction("dnchisq", Array(TFloat64, TFloat64, TFloat64), TFloat64, null)(statsPackageClass, "dnchisq")
+    registerScalaFunction("dnchisq", Array(TFloat64, TFloat64, TFloat64, TBoolean), TFloat64, null)(statsPackageClass, "dnchisq")
+
+    registerScalaFunction("pchisqtail", Array(TFloat64, TFloat64), TFloat64, null)(statsPackageClass, "pchisqtail")
+    registerScalaFunction("pchisqtail", Array(TFloat64, TFloat64, TBoolean, TBoolean), TFloat64, null)(statsPackageClass, "pchisqtail")
+
+    registerScalaFunction("pnchisqtail", Array(TFloat64, TFloat64, TFloat64), TFloat64, null)(statsPackageClass, "pnchisqtail")
+    registerScalaFunction("pnchisqtail", Array(TFloat64, TFloat64, TFloat64, TBoolean, TBoolean), TFloat64, null)(statsPackageClass, "pnchisqtail")
+
+    registerScalaFunction("qchisqtail", Array(TFloat64, TFloat64), TFloat64, null)(statsPackageClass, "qchisqtail")
+    registerScalaFunction("qchisqtail", Array(TFloat64, TFloat64, TBoolean, TBoolean), TFloat64, null)(statsPackageClass, "qchisqtail")
+
+    registerScalaFunction("qnchisqtail", Array(TFloat64, TFloat64, TFloat64), TFloat64, null)(statsPackageClass, "qnchisqtail")
+    registerScalaFunction("qnchisqtail", Array(TFloat64, TFloat64, TFloat64, TBoolean, TBoolean), TFloat64, null)(statsPackageClass, "qnchisqtail")
 
     registerScalaFunction("floor", Array(TFloat32), TFloat32, null)(thisClass, "floor")
     registerScalaFunction("floor", Array(TFloat64), TFloat64, null)(thisClass, "floor")
@@ -197,68 +217,69 @@ object MathFunctions extends RegistryFunctions {
 
     registerSCode4("fisher_exact_test", TInt32, TInt32, TInt32, TInt32, fetStruct.virtualType,
       (_, _, _, _, _) => fetStruct.sType
-    ) { case (r, cb, rt, a: SInt32Code, b: SInt32Code, c: SInt32Code, d: SInt32Code, _) =>
+    ) { case (r, cb, rt, a: SInt32Value, b: SInt32Value, c: SInt32Value, d: SInt32Value, _) =>
       val res = cb.newLocal[Array[Double]]("fisher_exact_test_res",
         Code.invokeScalaObject4[Int, Int, Int, Int, Array[Double]](statsPackageClass, "fisherExactTest",
-          a.intCode(cb),
-          b.intCode(cb),
-          c.intCode(cb),
-          d.intCode(cb)))
+          a.value,
+          b.value,
+          c.value,
+          d.value))
 
       fetStruct.constructFromFields(cb, r.region, FastIndexedSeq(
         EmitValue.present(primitive(cb.memoize(res(0)))),
         EmitValue.present(primitive(cb.memoize(res(1)))),
         EmitValue.present(primitive(cb.memoize(res(2)))),
         EmitValue.present(primitive(cb.memoize(res(3))))
-      ), deepCopy = false).get
+      ), deepCopy = false)
     }
 
     registerSCode4("chi_squared_test", TInt32, TInt32, TInt32, TInt32, chisqStruct.virtualType,
       (_, _, _, _, _) => chisqStruct.sType
-    ) { case (r, cb, rt, a: SInt32Code, b: SInt32Code, c: SInt32Code, d: SInt32Code, _) =>
+    ) { case (r, cb, rt, a: SInt32Value, b: SInt32Value, c: SInt32Value, d: SInt32Value, _) =>
       val res = cb.newLocal[Array[Double]]("chi_squared_test_res",
         Code.invokeScalaObject4[Int, Int, Int, Int, Array[Double]](statsPackageClass, "chiSquaredTest",
-          a.intCode(cb),
-          b.intCode(cb),
-          c.intCode(cb),
-          d.intCode(cb)))
+          a.value,
+          b.value,
+          c.value,
+          d.value))
 
       chisqStruct.constructFromFields(cb, r.region, FastIndexedSeq(
         EmitValue.present(primitive(cb.memoize(res(0)))),
         EmitValue.present(primitive(cb.memoize(res(1))))
-      ), deepCopy = false).get
+      ), deepCopy = false)
     }
 
     registerSCode5("contingency_table_test", TInt32, TInt32, TInt32, TInt32, TInt32, chisqStruct.virtualType,
       (_, _, _, _, _, _) => chisqStruct.sType
-    ) { case (r, cb, rt, a: SInt32Code, b: SInt32Code, c: SInt32Code, d: SInt32Code, mcc: SInt32Code, _) =>
+    ) { case (r, cb, rt, a: SInt32Value, b: SInt32Value, c: SInt32Value, d: SInt32Value, mcc: SInt32Value, _) =>
       val res = cb.newLocal[Array[Double]]("contingency_table_test_res",
         Code.invokeScalaObject5[Int, Int, Int, Int, Int, Array[Double]](statsPackageClass, "contingencyTableTest",
-          a.intCode(cb),
-          b.intCode(cb),
-          c.intCode(cb),
-          d.intCode(cb),
-          mcc.intCode(cb)))
+          a.value,
+          b.value,
+          c.value,
+          d.value,
+          mcc.value))
 
       chisqStruct.constructFromFields(cb, r.region, FastIndexedSeq(
         EmitValue.present(primitive(cb.memoize(res(0)))),
         EmitValue.present(primitive(cb.memoize(res(1))))
-      ), deepCopy = false).get
+      ), deepCopy = false)
     }
 
-    registerSCode3("hardy_weinberg_test", TInt32, TInt32, TInt32, hweStruct.virtualType,
-      (_, _, _, _) => hweStruct.sType
-    ) { case (r, cb, rt, nHomRef: SInt32Code, nHet: SInt32Code, nHomVar: SInt32Code, _) =>
+    registerSCode4("hardy_weinberg_test", TInt32, TInt32, TInt32, TBoolean, hweStruct.virtualType,
+      (_, _, _, _, _) => hweStruct.sType
+    ) { case (r, cb, rt, nHomRef: SInt32Value, nHet: SInt32Value, nHomVar: SInt32Value, oneSided: SBooleanValue, _) =>
       val res = cb.newLocal[Array[Double]]("hardy_weinberg_test_res",
-        Code.invokeScalaObject3[Int, Int, Int, Array[Double]](statsPackageClass, "hardyWeinbergTest",
-          nHomRef.intCode(cb),
-          nHet.intCode(cb),
-          nHomVar.intCode(cb)))
+        Code.invokeScalaObject4[Int, Int, Int, Boolean, Array[Double]](statsPackageClass, "hardyWeinbergTest",
+          nHomRef.value,
+          nHet.value,
+          nHomVar.value,
+          oneSided.value))
 
       hweStruct.constructFromFields(cb, r.region, FastIndexedSeq(
         EmitValue.present(primitive(cb.memoize(res(0)))),
         EmitValue.present(primitive(cb.memoize(res(1))))
-      ), deepCopy = false).get
+      ), deepCopy = false)
     }
   }
 }

@@ -62,7 +62,7 @@ class ETypeSuite extends HailSuite {
     val buffer = new MemoryBuffer
     val ob = new MemoryOutputBuffer(buffer)
 
-    fb.resultWithIndex()(ctx.fs, 0, ctx.r).apply(x, ob)
+    fb.resultWithIndex()(theHailClassLoader, ctx.fs, 0, ctx.r).apply(x, ob)
     ob.flush()
     buffer.clearPos()
 
@@ -71,11 +71,11 @@ class ETypeSuite extends HailSuite {
     val ibArg = fb2.apply_method.getCodeParam[InputBuffer](2)
     val dec = eType.buildDecoderMethod(outPType.virtualType, fb2.apply_method.ecb)
     fb2.emitWithBuilder[Long] { cb =>
-      val decoded = cb.invokeSCode(dec, regArg, ibArg).memoize(cb, "test")
+      val decoded = cb.invokeSCode(dec, regArg, ibArg)
       outPType.store(cb, regArg, decoded, deepCopy = false)
     }
 
-    val result = fb2.resultWithIndex()(ctx.fs, 0, ctx.r).apply(ctx.r, new MemoryInputBuffer(buffer))
+    val result = fb2.resultWithIndex()(theHailClassLoader, ctx.fs, 0, ctx.r).apply(ctx.r, new MemoryInputBuffer(buffer))
     SafeRow.read(outPType, result)
   }
 

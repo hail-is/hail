@@ -2,10 +2,10 @@ package is.hail.methods
 
 import java.io.{FileInputStream, IOException}
 import java.util.Properties
-
 import is.hail.annotations._
+import is.hail.backend.ExecuteContext
 import is.hail.expr.JSONAnnotationImpex
-import is.hail.expr.ir.{ExecuteContext, TableValue}
+import is.hail.expr.ir.TableValue
 import is.hail.expr.ir.functions.TableToTableFunction
 import is.hail.types._
 import is.hail.types.physical.{PCanonicalStruct, PStruct, PType}

@@ -1,11 +1,10 @@
 package is.hail.expr.ir.orderings
 
 import is.hail.asm4s._
-import is.hail.expr.ir.{EmitClassBuilder, EmitCode, EmitCodeBuilder}
-import is.hail.types.physical._
-import is.hail.types.physical.stypes.{SCode, SType}
+import is.hail.expr.ir.{EmitClassBuilder, EmitCode, EmitCodeBuilder, EmitValue}
 import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.physical.stypes.primitives._
+import is.hail.types.physical.stypes.{SType, SValue}
 import is.hail.types.virtual._
 import is.hail.utils.FastIndexedSeq
 
@@ -39,7 +38,15 @@ object CodeOrdering {
 
   final case class Neq(missingEqual: Boolean = true) extends BooleanOp
 
-  type F[R] = (EmitCodeBuilder, EmitCode, EmitCode) => Value[R]
+  final case class StructLt(missingEqual: Boolean = true) extends BooleanOp
+
+  final case class StructLteq(missingEqual: Boolean = true) extends BooleanOp
+
+  final case class StructGt(missingEqual: Boolean = true) extends BooleanOp
+
+  final case class StructCompare(missingEqual: Boolean = true) extends BooleanOp
+
+  type F[R] = (EmitCodeBuilder, EmitValue, EmitValue) => Value[R]
 
   def makeOrdering(t1: SType, t2: SType, ecb: EmitClassBuilder[_]): CodeOrdering = {
     val canCompare = (t1.virtualType, t2.virtualType) match {
@@ -76,8 +83,8 @@ abstract class CodeOrdering {
 
   def reversed: Boolean = false
 
-  final def checkedSCode[T](cb: EmitCodeBuilder, arg1: SCode, arg2: SCode, context: String,
-    f: (EmitCodeBuilder, SCode, SCode) => Code[T])(implicit ti: TypeInfo[T]): Code[T] = {
+  final def checkedSCode[T](cb: EmitCodeBuilder, arg1: SValue, arg2: SValue, context: String,
+    f: (EmitCodeBuilder, SValue, SValue) => Value[T])(implicit ti: TypeInfo[T]): Value[T] = {
     if (arg1.st != type1)
       throw new RuntimeException(s"CodeOrdering: $context: type mismatch (left)\n  generated: $type1\n  argument:  ${ arg1.st }")
     if (arg2.st != type2)
@@ -93,11 +100,11 @@ abstract class CodeOrdering {
         f(cb, arg1, arg2)
       }
     }
-    cb.invokeCode[T](mb, arg1, arg2)
+    cb.memoize(cb.invokeCode[T](mb, arg1, arg2))
   }
 
-  final def checkedEmitCode[T](cb: EmitCodeBuilder, arg1: EmitCode, arg2: EmitCode, missingEqual: Boolean, context: String,
-    f: (EmitCodeBuilder, EmitCode, EmitCode, Boolean) => Code[T])(implicit ti: TypeInfo[T]): Code[T] = {
+  final def checkedEmitCode[T](cb: EmitCodeBuilder, arg1: EmitValue, arg2: EmitValue, missingEqual: Boolean, context: String,
+    f: (EmitCodeBuilder, EmitValue, EmitValue, Boolean) => Value[T])(implicit ti: TypeInfo[T]): Value[T] = {
     if (arg1.st != type1)
       throw new RuntimeException(s"CodeOrdering: $context: type mismatch (left)\n  generated: $type1\n  argument:  ${ arg1.st }")
     if (arg2.st != type2)
@@ -113,148 +120,144 @@ abstract class CodeOrdering {
         f(cb, arg1, arg2, missingEqual)
       }
     }
-    cb.invokeCode[T](mb, arg1, arg2)
+    cb.memoize(cb.invokeCode[T](mb, arg1, arg2))
   }
 
 
-  final def compareNonnull(cb: EmitCodeBuilder, x: SCode, y: SCode): Code[Int] = {
+  final def compareNonnull(cb: EmitCodeBuilder, x: SValue, y: SValue): Value[Int] = {
     checkedSCode(cb, x, y, "compareNonnull", _compareNonnull)
   }
 
-  final def ltNonnull(cb: EmitCodeBuilder, x: SCode, y: SCode): Code[Boolean] = {
+  final def ltNonnull(cb: EmitCodeBuilder, x: SValue, y: SValue): Value[Boolean] = {
     checkedSCode(cb, x, y, "ltNonnull", _ltNonnull)
   }
 
-  final def lteqNonnull(cb: EmitCodeBuilder, x: SCode, y: SCode): Code[Boolean] = {
+  final def lteqNonnull(cb: EmitCodeBuilder, x: SValue, y: SValue): Value[Boolean] = {
     checkedSCode(cb, x, y, "lteqNonnull", _lteqNonnull)
   }
 
-  final def gtNonnull(cb: EmitCodeBuilder, x: SCode, y: SCode): Code[Boolean] = {
+  final def gtNonnull(cb: EmitCodeBuilder, x: SValue, y: SValue): Value[Boolean] = {
     checkedSCode(cb, x, y, "gtNonnull", _gtNonnull)
   }
 
-  final def gteqNonnull(cb: EmitCodeBuilder, x: SCode, y: SCode): Code[Boolean] = {
+  final def gteqNonnull(cb: EmitCodeBuilder, x: SValue, y: SValue): Value[Boolean] = {
     checkedSCode(cb, x, y, "gteqNonnull", _gteqNonnull)
   }
 
-  final def equivNonnull(cb: EmitCodeBuilder, x: SCode, y: SCode): Code[Boolean] = {
+  final def equivNonnull(cb: EmitCodeBuilder, x: SValue, y: SValue): Value[Boolean] = {
     checkedSCode(cb, x, y, "equivNonnull", _equivNonnull)
   }
 
-  final def lt(cb: EmitCodeBuilder, x: EmitCode, y: EmitCode, missingEqual: Boolean): Code[Boolean] = {
+  final def lt(cb: EmitCodeBuilder, x: EmitValue, y: EmitValue, missingEqual: Boolean): Value[Boolean] = {
     checkedEmitCode(cb, x, y, missingEqual, "lt", _lt)
   }
 
-  final def lteq(cb: EmitCodeBuilder, x: EmitCode, y: EmitCode, missingEqual: Boolean): Code[Boolean] = {
+  final def lteq(cb: EmitCodeBuilder, x: EmitValue, y: EmitValue, missingEqual: Boolean): Value[Boolean] = {
     checkedEmitCode(cb, x, y, missingEqual, "lteq", _lteq)
   }
 
-  final def gt(cb: EmitCodeBuilder, x: EmitCode, y: EmitCode, missingEqual: Boolean): Code[Boolean] = {
+  final def gt(cb: EmitCodeBuilder, x: EmitValue, y: EmitValue, missingEqual: Boolean): Value[Boolean] = {
     checkedEmitCode(cb, x, y, missingEqual, "gt", _gt)
   }
 
-  final def gteq(cb: EmitCodeBuilder, x: EmitCode, y: EmitCode, missingEqual: Boolean): Code[Boolean] = {
+  final def gteq(cb: EmitCodeBuilder, x: EmitValue, y: EmitValue, missingEqual: Boolean): Value[Boolean] = {
     checkedEmitCode(cb, x, y, missingEqual, "gteq", _gteq)
   }
 
-  final def equiv(cb: EmitCodeBuilder, x: EmitCode, y: EmitCode, missingEqual: Boolean): Code[Boolean] = {
+  final def equiv(cb: EmitCodeBuilder, x: EmitValue, y: EmitValue, missingEqual: Boolean): Value[Boolean] = {
     checkedEmitCode(cb, x, y, missingEqual, "equiv", _equiv)
   }
 
-  final def compare(cb: EmitCodeBuilder, x: EmitCode, y: EmitCode, missingEqual: Boolean): Code[Int] = {
+  final def compare(cb: EmitCodeBuilder, x: EmitValue, y: EmitValue, missingEqual: Boolean): Value[Int] = {
     checkedEmitCode(cb, x, y, missingEqual, "compare", _compare)
   }
 
-  def _compareNonnull(cb: EmitCodeBuilder, x: SCode, y: SCode): Code[Int]
+  def _compareNonnull(cb: EmitCodeBuilder, x: SValue, y: SValue): Value[Int]
 
-  def _ltNonnull(cb: EmitCodeBuilder, x: SCode, y: SCode): Code[Boolean]
+  def _ltNonnull(cb: EmitCodeBuilder, x: SValue, y: SValue): Value[Boolean]
 
-  def _lteqNonnull(cb: EmitCodeBuilder, x: SCode, y: SCode): Code[Boolean]
+  def _lteqNonnull(cb: EmitCodeBuilder, x: SValue, y: SValue): Value[Boolean]
 
-  def _gtNonnull(cb: EmitCodeBuilder, x: SCode, y: SCode): Code[Boolean]
+  def _gtNonnull(cb: EmitCodeBuilder, x: SValue, y: SValue): Value[Boolean]
 
-  def _gteqNonnull(cb: EmitCodeBuilder, x: SCode, y: SCode): Code[Boolean]
+  def _gteqNonnull(cb: EmitCodeBuilder, x: SValue, y: SValue): Value[Boolean]
 
-  def _equivNonnull(cb: EmitCodeBuilder, x: SCode, y: SCode): Code[Boolean]
+  def _equivNonnull(cb: EmitCodeBuilder, x: SValue, y: SValue): Value[Boolean]
 
-  def _compare(cb: EmitCodeBuilder, x: EmitCode, y: EmitCode, missingEqual: Boolean = true): Code[Int] = {
-    val xm = cb.newLocal("cord_compare_xm", x.m)
-    val ym = cb.newLocal("cord_compare_ym", y.m)
+  def _compare(cb: EmitCodeBuilder, x: EmitValue, y: EmitValue, missingEqual: Boolean = true): Value[Int] = {
     val cmp = cb.newLocal[Int]("cmp")
-    cb.ifx(xm,
-      cb.ifx(ym, cb.assign(cmp, if (missingEqual) 0 else -1), cb.assign(cmp, 1)),
-      cb.ifx(ym, cb.assign(cmp, -1), cb.assign(cmp, compareNonnull(cb, x.pv.get, y.pv.get))))
+    cb.ifx(x.m,
+      cb.ifx(y.m, cb.assign(cmp, if (missingEqual) 0 else -1), cb.assign(cmp, 1)),
+      cb.ifx(y.m, cb.assign(cmp, -1), cb.assign(cmp, compareNonnull(cb, x.v, y.v))))
     cmp
   }
 
-  def _lt(cb: EmitCodeBuilder, x: EmitCode, y: EmitCode, missingEqual: Boolean): Code[Boolean] = {
+  def _lt(cb: EmitCodeBuilder, x: EmitValue, y: EmitValue, missingEqual: Boolean): Value[Boolean] = {
     val ret = cb.newLocal[Boolean]("lt")
     if (missingEqual) {
       cb.ifx(x.m,
         cb.assign(ret, false),
         cb.ifx(y.m,
           cb.assign(ret, true),
-          cb.assign(ret, ltNonnull(cb, x.pv.get, y.pv.get))))
+          cb.assign(ret, ltNonnull(cb, x.v, y.v))))
     } else {
       cb.ifx(y.m,
         cb.assign(ret, true),
         cb.ifx(x.m,
           cb.assign(ret, false),
-          cb.assign(ret, ltNonnull(cb, x.pv.get, y.pv.get))))
+          cb.assign(ret, ltNonnull(cb, x.v, y.v))))
     }
     ret
   }
 
-  def _lteq(cb: EmitCodeBuilder, x: EmitCode, y: EmitCode, missingEqual: Boolean): Code[Boolean] = {
+  def _lteq(cb: EmitCodeBuilder, x: EmitValue, y: EmitValue, missingEqual: Boolean): Value[Boolean] = {
     val ret = cb.newLocal[Boolean]("lteq")
     cb.ifx(y.m,
       cb.assign(ret, true),
       cb.ifx(x.m,
         cb.assign(ret, false),
-        cb.assign(ret, lteqNonnull(cb, x.pv.get, y.pv.get))))
+        cb.assign(ret, lteqNonnull(cb, x.v, y.v))))
     ret
   }
 
-  def _gt(cb: EmitCodeBuilder, x: EmitCode, y: EmitCode, missingEqual: Boolean): Code[Boolean] = {
+  def _gt(cb: EmitCodeBuilder, x: EmitValue, y: EmitValue, missingEqual: Boolean): Value[Boolean] = {
     val ret = cb.newLocal[Boolean]("gt")
     cb.ifx(y.m,
       cb.assign(ret, false),
       cb.ifx(x.m,
         cb.assign(ret, true),
-        cb.assign(ret, gtNonnull(cb, x.pv.get, y.pv.get))))
+        cb.assign(ret, gtNonnull(cb, x.v, y.v))))
     ret
   }
 
-  def _gteq(cb: EmitCodeBuilder, x: EmitCode, y: EmitCode, missingEqual: Boolean): Code[Boolean] = {
+  def _gteq(cb: EmitCodeBuilder, x: EmitValue, y: EmitValue, missingEqual: Boolean): Value[Boolean] = {
     val ret = cb.newLocal[Boolean]("gteq")
     if (missingEqual) {
       cb.ifx(x.m,
         cb.assign(ret, true),
         cb.ifx(y.m,
           cb.assign(ret, false),
-          cb.assign(ret, gteqNonnull(cb, x.pv.get, y.pv.get))))
+          cb.assign(ret, gteqNonnull(cb, x.v, y.v))))
     } else {
       cb.ifx(y.m,
         cb.assign(ret, false),
         cb.ifx(x.m,
           cb.assign(ret, true),
-          cb.assign(ret, gteqNonnull(cb, x.pv.get, y.pv.get))))
+          cb.assign(ret, gteqNonnull(cb, x.v, y.v))))
     }
     ret
   }
 
-  def _equiv(cb: EmitCodeBuilder, x: EmitCode, y: EmitCode, missingEqual: Boolean): Code[Boolean] = {
+  def _equiv(cb: EmitCodeBuilder, x: EmitValue, y: EmitValue, missingEqual: Boolean): Value[Boolean] = {
     val ret = cb.newLocal[Boolean]("eq")
     if (missingEqual) {
-      val xm = cb.newLocal("cord_equiv_xm", x.m)
-      val ym = cb.newLocal("cord_equiv_ym", y.m)
-      cb.ifx(xm && ym,
+      cb.ifx(x.m && y.m,
         cb.assign(ret, true),
-        cb.ifx(!xm && !ym,
-          cb.assign(ret, equivNonnull(cb, x.pv.get, y.pv.get)),
+        cb.ifx(!x.m && !y.m,
+          cb.assign(ret, equivNonnull(cb, x.v, y.v)),
           cb.assign(ret, false)))
     } else {
-      cb.ifx(!x.m && !y.m, cb.assign(ret, equivNonnull(cb, x.pv.get, y.pv.get)), cb.assign(ret, false))
+      cb.ifx(!x.m && !y.m, cb.assign(ret, equivNonnull(cb, x.v, y.v)), cb.assign(ret, false))
     }
     ret
   }
@@ -263,33 +266,44 @@ abstract class CodeOrdering {
   def reverse: CodeOrdering = new CodeOrdering() {
     override def reverse: CodeOrdering = outer
 
-    val type1: SType = outer.type1
-    val type2: SType = outer.type2
+    override val type1: SType = outer.type1
+    override val type2: SType = outer.type2
 
     override def reversed: Boolean = true
 
-    override def _compareNonnull(cb: EmitCodeBuilder, x: SCode, y: SCode): Code[Int] = outer._compareNonnull(cb, y, x)
+    override def _compareNonnull(cb: EmitCodeBuilder, x: SValue, y: SValue): Value[Int] =
+      outer._compareNonnull(cb, y, x)
 
-    override def _ltNonnull(cb: EmitCodeBuilder, x: SCode, y: SCode): Code[Boolean] = outer._ltNonnull(cb, y, x)
+    override def _ltNonnull(cb: EmitCodeBuilder, x: SValue, y: SValue): Value[Boolean] =
+      outer._ltNonnull(cb, y, x)
 
-    override def _lteqNonnull(cb: EmitCodeBuilder, x: SCode, y: SCode): Code[Boolean] = outer._lteqNonnull(cb, y, x)
+    override def _lteqNonnull(cb: EmitCodeBuilder, x: SValue, y: SValue): Value[Boolean] =
+      outer._lteqNonnull(cb, y, x)
 
-    override def _gtNonnull(cb: EmitCodeBuilder, x: SCode, y: SCode): Code[Boolean] = outer._gtNonnull(cb, y, x)
+    override def _gtNonnull(cb: EmitCodeBuilder, x: SValue, y: SValue): Value[Boolean] =
+      outer._gtNonnull(cb, y, x)
 
-    override def _gteqNonnull(cb: EmitCodeBuilder, x: SCode, y: SCode): Code[Boolean] = outer._gteqNonnull(cb, y, x)
+    override def _gteqNonnull(cb: EmitCodeBuilder, x: SValue, y: SValue): Value[Boolean] =
+      outer._gteqNonnull(cb, y, x)
 
-    override def _equivNonnull(cb: EmitCodeBuilder, x: SCode, y: SCode): Code[Boolean] = outer._equivNonnull(cb, y, x)
+    override def _equivNonnull(cb: EmitCodeBuilder, x: SValue, y: SValue): Value[Boolean] =
+      outer._equivNonnull(cb, y, x)
   }
 }
 
 abstract class CodeOrderingCompareConsistentWithOthers extends CodeOrdering {
-  def _ltNonnull(cb: EmitCodeBuilder, x: SCode, y: SCode): Code[Boolean] = compareNonnull(cb, x, y) < 0
+  override def _ltNonnull(cb: EmitCodeBuilder, x: SValue, y: SValue): Value[Boolean] =
+    cb.memoize(compareNonnull(cb, x, y) < 0)
 
-  def _lteqNonnull(cb: EmitCodeBuilder, x: SCode, y: SCode): Code[Boolean] = compareNonnull(cb, x, y) <= 0
+  override def _lteqNonnull(cb: EmitCodeBuilder, x: SValue, y: SValue): Value[Boolean] =
+    cb.memoize(compareNonnull(cb, x, y) <= 0)
 
-  def _gtNonnull(cb: EmitCodeBuilder, x: SCode, y: SCode): Code[Boolean] = compareNonnull(cb, x, y) > 0
+  override def _gtNonnull(cb: EmitCodeBuilder, x: SValue, y: SValue): Value[Boolean] =
+    cb.memoize(compareNonnull(cb, x, y) > 0)
 
-  def _gteqNonnull(cb: EmitCodeBuilder, x: SCode, y: SCode): Code[Boolean] = compareNonnull(cb, x, y) >= 0
+  override def _gteqNonnull(cb: EmitCodeBuilder, x: SValue, y: SValue): Value[Boolean] =
+    cb.memoize(compareNonnull(cb, x, y) >= 0)
 
-  def _equivNonnull(cb: EmitCodeBuilder, x: SCode, y: SCode): Code[Boolean] = compareNonnull(cb, x, y).ceq(0)
+  override def _equivNonnull(cb: EmitCodeBuilder, x: SValue, y: SValue): Value[Boolean] =
+    cb.memoize(compareNonnull(cb, x, y).ceq(0))
 }

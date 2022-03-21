@@ -3,6 +3,9 @@ steps:
     name: default_ns
     namespaceName: default
     public: true
+    secrets:
+      - name: doesnotexist
+        optional: true
   - kind: buildImage2
     name: git_make_bash_image
     dockerFile:
@@ -50,7 +53,7 @@ steps:
     resources:
       storage: 10Gi
       cpu: "2"
-      memory: 7.5Gi
+      memory: standard
     inputs:
       - from: /repo
         to: /io/repo
@@ -97,7 +100,7 @@ steps:
     resources:
       storage: 10Gi
       cpu: "2"
-      memory: 7.5Gi
+      memory: standard
     dependsOn:
       - base_image
       - merge_code
@@ -159,7 +162,7 @@ steps:
     resources:
       storage: 10Gi
       cpu: "2"
-      memory: 7.5Gi
+      memory: standard
     inputs:
       - from: /repo
         to: /io/repo
@@ -269,7 +272,7 @@ steps:
         namespace:
           valueFrom: default_ns.name
         mountPath: /user-tokens
-      - name: gce-deploy-config
+      - name: worker-deploy-config
         namespace:
           valueFrom: default_ns.name
         mountPath: /deploy-config

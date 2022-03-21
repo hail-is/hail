@@ -3,8 +3,7 @@ package is.hail.types.physical.stypes.primitives
 import is.hail.annotations.Region
 import is.hail.asm4s.Code.invokeStatic1
 import is.hail.asm4s.{Code, DoubleInfo, Settable, SettableBuilder, TypeInfo, Value}
-import is.hail.expr.ir.orderings.CodeOrdering
-import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder, SortOrder}
+import is.hail.expr.ir.EmitCodeBuilder
 import is.hail.types.physical.stypes.{SCode, SSettable, SType, SValue}
 import is.hail.types.physical.{PFloat64, PType}
 import is.hail.types.virtual.{TFloat64, Type}
@@ -25,13 +24,6 @@ case object SFloat64 extends SPrimitive {
 
   override def settableTupleTypes(): IndexedSeq[TypeInfo[_]] = FastIndexedSeq(DoubleInfo)
 
-  def loadFrom(cb: EmitCodeBuilder, region: Value[Region], pt: PType, addr: Code[Long]): SCode = {
-    pt match {
-      case _: PFloat64 =>
-        new SFloat64Code(Region.loadDouble(addr))
-    }
-  }
-
   override def fromSettables(settables: IndexedSeq[Settable[_]]): SFloat64Settable = {
     val IndexedSeq(x: Settable[Double@unchecked]) = settables
     assert(x.ti == DoubleInfo)
@@ -47,48 +39,23 @@ case object SFloat64 extends SPrimitive {
   override def storageType(): PType = PFloat64()
 }
 
-object SFloat64Code {
-  def apply(code: Code[Double]): SFloat64Code = new SFloat64Code(code)
-}
-
-class SFloat64Code(val code: Code[Double]) extends SPrimitiveCode {
-  override def _primitiveCode: Code[_] = code
-
-  def st: SFloat64.type = SFloat64
-
-  private[this] def memoizeWithBuilder(cb: EmitCodeBuilder, name: String, sb: SettableBuilder): SFloat64Value = {
-    val s = new SFloat64Settable(sb.newSettable[Double]("sint64_memoize"))
-    s.store(cb, this)
-    s
-  }
-
-  def memoize(cb: EmitCodeBuilder, name: String): SFloat64Value = memoizeWithBuilder(cb, name, cb.localBuilder)
-
-  def memoizeField(cb: EmitCodeBuilder, name: String): SFloat64Value = memoizeWithBuilder(cb, name, cb.fieldBuilder)
-
-  def doubleCode(cb: EmitCodeBuilder): Code[Double] = code
-}
-
 object SFloat64Value {
   def apply(code: Value[Double]): SFloat64Value = new SFloat64Value(code)
 }
 
-class SFloat64Value(x: Value[Double]) extends SPrimitiveValue {
+class SFloat64Value(val value: Value[Double]) extends SPrimitiveValue {
   val pt: PFloat64 = PFloat64(false)
 
-  override def valueTuple: IndexedSeq[Value[_]] = FastIndexedSeq(x)
+  override def valueTuple: IndexedSeq[Value[_]] = FastIndexedSeq(value)
 
   override def st: SFloat64.type = SFloat64
 
-  override def _primitiveValue: Value[_] = x
+  override def _primitiveValue: Value[_] = value
 
-  override def get: SCode = new SFloat64Code(x)
+  override def hash(cb: EmitCodeBuilder): SInt32Value =
+    new SInt32Value(cb.memoize(invokeStatic1[java.lang.Double, Double, Int]("hashCode", value)))
 
-  def doubleCode(cb: EmitCodeBuilder): Value[Double] = x
-
-  override def hash(cb: EmitCodeBuilder): SInt32Code = {
-    new SInt32Code(invokeStatic1[java.lang.Double, Double, Int]("hashCode", doubleCode(cb)))
-  }
+  override def sizeToStoreInBytes(cb: EmitCodeBuilder): SInt64Value = new SInt64Value(8L)
 }
 
 object SFloat64Settable {
@@ -100,5 +67,6 @@ object SFloat64Settable {
 final class SFloat64Settable(x: Settable[Double]) extends SFloat64Value(x) with SSettable {
   override def settableTuple(): IndexedSeq[Settable[_]] = FastIndexedSeq(x)
 
-  override def store(cb: EmitCodeBuilder, v: SCode): Unit = cb.assign(x, v.asDouble.doubleCode(cb))
+  override def store(cb: EmitCodeBuilder, v: SValue): Unit =
+    cb.assign(x, v.asInstanceOf[SFloat64Value].value)
 }

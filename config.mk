@@ -1,13 +1,5 @@
-PROJECT := hail-vdc
-DOCKER_PREFIX := gcr.io/$(PROJECT)
-DOCKER_ROOT_IMAGE := $(DOCKER_PREFIX)/ubuntu:18.04
-HAIL_TEST_GCS_BUCKET := hail-test-dmk9z
-DOMAIN := hail.is
-INTERNAL_IP := 10.128.0.57
-IP := 35.188.91.25
-KUBERNETES_SERVER_URL := https://104.198.230.143
-REGION := us-central1
-ZONE := us-central1-a
+DOCKER_PREFIX := $(shell kubectl get secret global-config --template={{.data.docker_prefix}} | base64 --decode)
+DOMAIN := $(shell kubectl get secret global-config --template={{.data.domain}} | base64 --decode)
 
 ifeq ($(NAMESPACE),default)
 SCOPE = deploy

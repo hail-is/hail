@@ -1,4 +1,4 @@
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List, Tuple, Union
 import math
 import random
 import logging
@@ -10,8 +10,8 @@ import secrets
 
 from hailtop.config import get_deploy_config, DeployConfig
 from hailtop.auth import service_auth_headers
-from hailtop.utils import bounded_gather, request_retry_transient_errors, tqdm, TQDM_DEFAULT_DISABLE
-from hailtop.httpx import client_session
+from hailtop.utils import bounded_gather, request_retry_transient_errors, tqdm, TqdmDisableOption
+from hailtop import httpx
 
 from .globals import tasks, complete_states
 
@@ -110,11 +110,7 @@ class Job:
         if exit_codes is None:
             return None
 
-        exit_codes = [
-            exit_codes[task]
-            for task in tasks
-            if task in exit_codes
-        ]
+        exit_codes = [exit_codes[task] for task in tasks if task in exit_codes]
 
         i = 0
         while i < len(exit_codes):
@@ -150,10 +146,7 @@ class Job:
 
             return runtime.get('duration')
 
-        durations = [
-            _get_duration(container_status)
-            for task, container_status in container_statuses.items()
-        ]
+        durations = [_get_duration(container_status) for task, container_status in container_statuses.items()]
 
         if any(d is None for d in durations):
             return None
@@ -230,37 +223,37 @@ class UnsubmittedJob:
         self._job_id = job_id
 
     @property
-    def batch_id(self):
+    def batch_id(self):  # pylint: disable=no-self-use
         raise ValueError("cannot get the batch_id of an unsubmitted job")
 
     @property
-    def job_id(self):
+    def job_id(self):  # pylint: disable=no-self-use
         raise ValueError("cannot get the job_id of an unsubmitted job")
 
     @property
-    def id(self):
+    def id(self):  # pylint: disable=no-self-use
         raise ValueError("cannot get the id of an unsubmitted job")
 
-    async def attributes(self):
+    async def attributes(self):  # pylint: disable=no-self-use
         raise ValueError("cannot get the attributes of an unsubmitted job")
 
-    async def is_complete(self):
+    async def is_complete(self):  # pylint: disable=no-self-use
         raise ValueError("cannot determine if an unsubmitted job is complete")
 
-    async def status(self):
+    async def status(self):  # pylint: disable=no-self-use
         raise ValueError("cannot get the status of an unsubmitted job")
 
     @property
-    def _status(self):
+    def _status(self):  # pylint: disable=no-self-use
         raise ValueError("cannot get the _status of an unsubmitted job")
 
-    async def wait(self):
+    async def wait(self):  # pylint: disable=no-self-use
         raise ValueError("cannot wait on an unsubmitted job")
 
-    async def log(self):
+    async def log(self):  # pylint: disable=no-self-use
         raise ValueError("cannot get the log of an unsubmitted job")
 
-    async def attempts(self):
+    async def attempts(self):  # pylint: disable=no-self-use
         raise ValueError("cannot get the attempts of an unsubmitted job")
 
 
@@ -311,14 +304,28 @@ class SubmittedJob:
         return await resp.json()
 
 
+class BatchSubmissionInfo:
+    def __init__(self, used_fast_create):
+        self.used_fast_create = used_fast_create
+
+
 class Batch:
-    def __init__(self, client, id, attributes, n_jobs, token, last_known_status=None):
+    def __init__(self,
+                 client: 'BatchClient',
+                 id: int,
+                 attributes: Dict[str, str],
+                 n_jobs: int,
+                 token: str,
+                 *,
+                 last_known_status: bool = None,
+                 submission_info: Optional[BatchSubmissionInfo] = None):
         self._client = client
-        self.id = id
+        self.id: int = id
         self.attributes = attributes
         self.n_jobs = n_jobs
         self.token = token
         self._last_known_status = last_known_status
+        self.submission_info = submission_info
 
     async def cancel(self):
         await self._client._patch(f'/api/v1alpha/batches/{self.id}/cancel')
@@ -376,11 +383,9 @@ class Batch:
             return await self.status()  # updates _last_known_status
         return self._last_known_status
 
-    async def wait(self, *, disable_progress_bar=TQDM_DEFAULT_DISABLE):
+    async def wait(self, *, disable_progress_bar=TqdmDisableOption.default):
         i = 0
-        with tqdm(total=self.n_jobs,
-                  disable=disable_progress_bar,
-                  desc='completed jobs') as pbar:
+        with tqdm(total=self.n_jobs, disable=disable_progress_bar, desc='completed jobs') as pbar:
             while True:
                 status = await self.status()
                 pbar.update(status['n_completed'] - pbar.n)
@@ -391,6 +396,15 @@ class Batch:
                 # max 44.5s
                 if i < 64:
                     i = i + 1
+
+    async def debug_info(self):
+        batch_status = await self.status()
+        jobs = []
+        async for j_status in self.jobs():
+            id = j_status['job_id']
+            log, job = await asyncio.gather(self.get_job_log(id), self.get_job(id))
+            jobs.append({'log': log, 'status': job._status})
+        return {'status': batch_status, 'jobs': jobs}
 
     async def delete(self):
         await self._client._delete(f'/api/v1alpha/batches/{self.id}')
@@ -412,13 +426,34 @@ class BatchBuilder:
 
         self._cancel_after_n_failures = cancel_after_n_failures
 
-    def create_job(self, image, command, env=None, mount_docker_socket=False,
-                   port=None, resources=None, secrets=None,
-                   service_account=None, attributes=None, parents=None,
-                   input_files=None, output_files=None, always_run=False,
-                   timeout=None, gcsfuse=None, requester_pays_project=None,
-                   mount_tokens=False, network: Optional[str] = None,
-                   unconfined: bool = False, user_code: Optional[str] = None):
+    def create_job(self, image: str, command: List[str], *, mount_docker_socket: bool = False, **kwargs):
+        return self._create_job(
+            {'command': command, 'image': image, 'mount_docker_socket': mount_docker_socket, 'type': 'docker'}, **kwargs
+        )
+
+    def create_jvm_job(self, command: List[str], **kwargs):
+        return self._create_job({'command': command, 'type': 'jvm'}, **kwargs)
+
+    def _create_job(self,
+                    process: dict,
+                    *,
+                    env: Optional[Dict[str, str]] = None,
+                    port: Optional[int] = None,
+                    resources: Optional[dict] = None,
+                    secrets: Optional[dict] = None,
+                    service_account: Optional[str] = None,
+                    attributes: Optional[Dict[str, str]] = None,
+                    parents: Optional[List[Job]] = None,
+                    input_files: Optional[List[Tuple[str, str]]] = None,
+                    output_files: Optional[List[Tuple[str, str]]] = None,
+                    always_run: bool = False,
+                    timeout: Optional[Union[int, float]] = None,
+                    cloudfuse: Optional[List[Tuple[str, str, bool]]] = None,
+                    requester_pays_project: Optional[str] = None,
+                    mount_tokens: bool = False,
+                    network: Optional[str] = None,
+                    unconfined: bool = False,
+                    user_code: Optional[str] = None):
         if self._submitted:
             raise ValueError("cannot create a job in an already submitted batch")
 
@@ -444,25 +479,21 @@ class BatchBuilder:
 
         error_msg = []
         if len(foreign_batches) != 0:
-            error_msg.append('Found {} parents from another batch:\n{}'.format(str(len(foreign_batches)),
-                                                                               "\n".join([str(j) for j in foreign_batches])))
+            error_msg.append(
+                'Found {} parents from another batch:\n{}'.format(
+                    str(len(foreign_batches)), "\n".join([str(j) for j in foreign_batches])
+                )
+            )
         if len(invalid_job_ids) != 0:
-            error_msg.append('Found {} parents with invalid job ids:\n{}'.format(str(len(invalid_job_ids)),
-                                                                                 "\n".join([str(j) for j in invalid_job_ids])))
+            error_msg.append(
+                'Found {} parents with invalid job ids:\n{}'.format(
+                    str(len(invalid_job_ids)), "\n".join([str(j) for j in invalid_job_ids])
+                )
+            )
         if error_msg:
             raise ValueError("\n".join(error_msg))
 
-        job_spec = {
-            'always_run': always_run,
-            'job_id': self._job_idx,
-            'parent_ids': parent_ids,
-            'process': {
-                'command': command,
-                'image': image,
-                'mount_docker_socket': mount_docker_socket,
-                'type': 'docker'
-            }
-        }
+        job_spec = {'always_run': always_run, 'job_id': self._job_idx, 'parent_ids': parent_ids, 'process': process}
 
         if env:
             job_spec['env'] = [{'name': k, 'value': v} for (k, v) in env.items()]
@@ -483,9 +514,9 @@ class BatchBuilder:
             job_spec['input_files'] = [{"from": src, "to": dst} for (src, dst) in input_files]
         if output_files:
             job_spec['output_files'] = [{"from": src, "to": dst} for (src, dst) in output_files]
-        if gcsfuse:
-            job_spec['gcsfuse'] = [{"bucket": bucket, "mount_path": mount_path, "read_only": read_only}
-                                   for (bucket, mount_path, read_only) in gcsfuse]
+        if cloudfuse:
+            job_spec['cloudfuse'] = [{"bucket": bucket, "mount_path": mount_path, "read_only": read_only}
+                                     for (bucket, mount_path, read_only) in cloudfuse]
         if requester_pays_project:
             job_spec['requester_pays_project'] = requester_pays_project
         if mount_tokens:
@@ -503,7 +534,33 @@ class BatchBuilder:
         self._jobs.append(j)
         return j
 
-    async def _submit_jobs(self, batch_id, byte_job_specs, n_jobs, pbar):
+    async def _open_submit_close(self, byte_job_specs: List[bytes], n_jobs: int, pbar) -> Batch:
+        assert n_jobs == len(self._job_specs)
+        b = bytearray()
+        b.extend(b'{"bunch":')
+        b.append(ord('['))
+        for i, spec in enumerate(byte_job_specs):
+            if i > 0:
+                b.append(ord(','))
+            b.extend(spec)
+        b.append(ord(']'))
+        b.extend(b',"batch":')
+        b.extend(json.dumps(self._batch_spec()).encode('utf-8'))
+        b.append(ord('}'))
+        resp = await self._client._post(
+            '/api/v1alpha/batches/create-fast',
+            data=aiohttp.BytesPayload(b, content_type='application/json', encoding='utf-8'),
+        )
+        batch_json = await resp.json()
+        pbar.update(n_jobs)
+        return Batch(self._client,
+                     batch_json['id'],
+                     self.attributes,
+                     n_jobs,
+                     self.token,
+                     submission_info=BatchSubmissionInfo(True))
+
+    async def _submit_jobs(self, batch_id: Optional[int], byte_job_specs: List[bytes], n_jobs: int, pbar):
         assert len(byte_job_specs) > 0, byte_job_specs
 
         b = bytearray()
@@ -521,51 +578,58 @@ class BatchBuilder:
 
         await self._client._post(
             f'/api/v1alpha/batches/{batch_id}/jobs/create',
-            data=aiohttp.BytesPayload(
-                b, content_type='application/json', encoding='utf-8'))
+            data=aiohttp.BytesPayload(b, content_type='application/json', encoding='utf-8'),
+        )
         pbar.update(n_jobs)
 
-    async def _create(self):
+    def _batch_spec(self):
         n_jobs = len(self._job_specs)
-        batch_spec = {'billing_project': self._client.billing_project,
-                      'n_jobs': n_jobs,
-                      'token': self.token}
+        batch_spec = {'billing_project': self._client.billing_project, 'n_jobs': n_jobs, 'token': self.token}
         if self.attributes:
             batch_spec['attributes'] = self.attributes
         if self.callback:
             batch_spec['callback'] = self.callback
         if self._cancel_after_n_failures is not None:
             batch_spec['cancel_after_n_failures'] = self._cancel_after_n_failures
-        batch_json = await (await self._client._post('/api/v1alpha/batches/create',
-                                                     json=batch_spec)).json()
-        return Batch(self._client, batch_json['id'], self.attributes, n_jobs, self.token)
+        return batch_spec
+
+    async def _open_batch(self) -> Batch:
+        batch_spec = self._batch_spec()
+        batch_json = await (await self._client._post('/api/v1alpha/batches/create', json=batch_spec)).json()
+        return Batch(self._client,
+                     batch_json['id'],
+                     self.attributes,
+                     batch_spec['n_jobs'],
+                     self.token,
+                     submission_info=BatchSubmissionInfo(False))
+
+    async def _close_batch(self, id: int):
+        await self._client._patch(f'/api/v1alpha/batches/{id}/close')
 
     MAX_BUNCH_BYTESIZE = 1024 * 1024
     MAX_BUNCH_SIZE = 1024
 
     async def submit(self,
-                     max_bunch_bytesize=MAX_BUNCH_BYTESIZE,
-                     max_bunch_size=MAX_BUNCH_SIZE,
-                     disable_progress_bar=TQDM_DEFAULT_DISABLE):
+                     max_bunch_bytesize: int = MAX_BUNCH_BYTESIZE,
+                     max_bunch_size: int = MAX_BUNCH_SIZE,
+                     disable_progress_bar: Union[bool, None, TqdmDisableOption] = TqdmDisableOption.default,
+                     ) -> Batch:
         assert max_bunch_bytesize > 0
         assert max_bunch_size > 0
         if self._submitted:
             raise ValueError("cannot submit an already submitted batch")
-        batch = await self._create()
-        id = batch.id
-        log.info(f'created batch {id}')
         byte_job_specs = [json.dumps(job_spec).encode('utf-8')
                           for job_spec in self._job_specs]
-        byte_job_specs_bunches = []
+        byte_job_specs_bunches: List[List[bytes]] = []
         bunch_sizes = []
-        bunch = []
+        bunch: List[bytes] = []
         bunch_n_bytes = 0
         bunch_n_jobs = 0
         for spec in byte_job_specs:
             n_bytes = len(spec)
             assert n_bytes < max_bunch_bytesize, (
-                f'every job spec must be less than max_bunch_bytesize,'
-                f' { max_bunch_bytesize }B, but {spec} is larger')
+                'every job spec must be less than max_bunch_bytesize,'
+                f' { max_bunch_bytesize }B, but {spec.decode()} is larger')
             if bunch_n_bytes + n_bytes < max_bunch_bytesize and len(bunch) < max_bunch_size:
                 bunch.append(spec)
                 bunch_n_bytes += n_bytes
@@ -583,13 +647,21 @@ class BatchBuilder:
         with tqdm(total=len(self._job_specs),
                   disable=disable_progress_bar,
                   desc='jobs submitted to queue') as pbar:
-            await bounded_gather(
-                *[functools.partial(self._submit_jobs, id, bunch, size, pbar)
-                  for bunch, size in zip(byte_job_specs_bunches, bunch_sizes)],
-                parallelism=6)
+            if len(byte_job_specs_bunches) == 1:
+                batch = await self._open_submit_close(byte_job_specs_bunches[0], bunch_sizes[0], pbar)
+                id = batch.id
+            else:
+                batch = await self._open_batch()
+                id = batch.id
+                await bounded_gather(
+                    *[functools.partial(self._submit_jobs, id, bunch, size, pbar)
+                      for bunch, size in zip(byte_job_specs_bunches, bunch_sizes)
+                      ],
+                    parallelism=6,
+                )
+                await self._close_batch(id)
 
-        await self._client._patch(f'/api/v1alpha/batches/{id}/close')
-        log.info(f'closed batch {id}')
+        log.info(f'created batch {id}')
 
         for j in self._jobs:
             j._job = j._job._submit(batch)
@@ -603,54 +675,57 @@ class BatchBuilder:
 
 
 class BatchClient:
-    def __init__(self,
-                 billing_project: str,
-                 deploy_config: Optional[DeployConfig] = None,
-                 session: Optional[aiohttp.ClientSession] = None,
-                 headers: Optional[Dict[str, str]] = None,
-                 _token: Optional[str] = None,
-                 token_file: Optional[str] = None):
-        self.billing_project = billing_project
-
+    @staticmethod
+    async def create(billing_project: str,
+                     deploy_config: Optional[DeployConfig] = None,
+                     session: Optional[httpx.ClientSession] = None,
+                     headers: Optional[Dict[str, str]] = None,
+                     _token: Optional[str] = None,
+                     token_file: Optional[str] = None):
         if not deploy_config:
             deploy_config = get_deploy_config()
-
-        self.url = deploy_config.base_url('batch')
-
+        url = deploy_config.base_url('batch')
         if session is None:
-            session = client_session()
-        self._session = session
-
-        h: Dict[str, str] = {}
-        if headers:
-            h.update(headers)
+            session = httpx.client_session()
+        if headers is None:
+            headers = {}
         if _token:
-            h['Authorization'] = f'Bearer {_token}'
+            headers['Authorization'] = f'Bearer {_token}'
         else:
-            h.update(service_auth_headers(deploy_config, 'batch', token_file=token_file))
-        self._headers = h
+            headers.update(service_auth_headers(deploy_config, 'batch', token_file=token_file))
+        return BatchClient(
+            billing_project=billing_project,
+            url=url,
+            session=session,
+            headers=headers)
+
+    def __init__(self,
+                 billing_project: str,
+                 url: str,
+                 session: httpx.ClientSession,
+                 headers: Dict[str, str]):
+        self.billing_project = billing_project
+        self.url = url
+        self._session = session
+        self._headers = headers
 
     async def _get(self, path, params=None):
         return await request_retry_transient_errors(
-            self._session, 'GET',
-            self.url + path, params=params, headers=self._headers)
+            self._session, 'GET', self.url + path, params=params, headers=self._headers
+        )
 
     async def _post(self, path, data=None, json=None):
         return await request_retry_transient_errors(
-            self._session, 'POST',
-            self.url + path, data=data, json=json, headers=self._headers)
+            self._session, 'POST', self.url + path, data=data, json=json, headers=self._headers
+        )
 
     async def _patch(self, path):
-        return await request_retry_transient_errors(
-            self._session, 'PATCH',
-            self.url + path, headers=self._headers)
+        return await request_retry_transient_errors(self._session, 'PATCH', self.url + path, headers=self._headers)
 
     async def _delete(self, path):
-        return await request_retry_transient_errors(
-            self._session, 'DELETE',
-            self.url + path, headers=self._headers)
+        return await request_retry_transient_errors(self._session, 'DELETE', self.url + path, headers=self._headers)
 
-    async def list_batches(self, q=None, last_batch_id=None, limit=2**64):
+    async def list_batches(self, q=None, last_batch_id=None, limit=2 ** 64):
         n = 0
         while True:
             params = {}
@@ -666,8 +741,14 @@ class BatchClient:
                 if n >= limit:
                     return
                 n += 1
-                yield Batch(self, batch['id'], attributes=batch.get('attributes'),
-                            n_jobs=int(batch['n_jobs']), token=batch['token'], last_known_status=batch)
+                yield Batch(
+                    self,
+                    batch['id'],
+                    attributes=batch.get('attributes'),
+                    n_jobs=int(batch['n_jobs']),
+                    token=batch['token'],
+                    last_known_status=batch,
+                )
             last_batch_id = body.get('last_batch_id')
             if last_batch_id is None:
                 break
@@ -676,19 +757,14 @@ class BatchClient:
         b = await self.get_batch(batch_id)
         j_resp = await self._get(f'/api/v1alpha/batches/{batch_id}/jobs/{job_id}')
         j = await j_resp.json()
-        return Job.submitted_job(
-            b,
-            j['job_id'],
-            _status=j)
+        return Job.submitted_job(b, j['job_id'], _status=j)
 
     async def get_job_log(self, batch_id, job_id) -> Optional[Dict[str, Any]]:
-        resp = await self._get(
-            f'/api/v1alpha/batches/{batch_id}/jobs/{job_id}/log')
+        resp = await self._get(f'/api/v1alpha/batches/{batch_id}/jobs/{job_id}/log')
         return await resp.json()
 
     async def get_job_attempts(self, batch_id, job_id):
-        resp = await self._get(
-            f'/api/v1alpha/batches/{batch_id}/jobs/{job_id}/attempts')
+        resp = await self._get(f'/api/v1alpha/batches/{batch_id}/jobs/{job_id}/attempts')
         return await resp.json()
 
     async def get_batch(self, id):
@@ -701,7 +777,7 @@ class BatchClient:
                      token=b['token'],
                      last_known_status=b)
 
-    def create_batch(self, attributes=None, callback=None, token=None, cancel_after_n_failures=None):
+    def create_batch(self, attributes=None, callback=None, token=None, cancel_after_n_failures=None) -> BatchBuilder:
         return BatchBuilder(self, attributes, callback, token, cancel_after_n_failures)
 
     async def get_billing_project(self, billing_project):
@@ -737,8 +813,7 @@ class BatchClient:
         return await bp_resp.json()
 
     async def edit_billing_limit(self, project, limit):
-        bp_resp = await self._post(f'/api/v1alpha/billing_limits/{project}/edit',
-                                   json={'limit': limit})
+        bp_resp = await self._post(f'/api/v1alpha/billing_limits/{project}/edit', json={'limit': limit})
         return await bp_resp.json()
 
     async def close(self):

@@ -2,8 +2,8 @@ package is.hail.types.physical.stypes.concrete
 
 import is.hail.annotations.Region
 import is.hail.asm4s._
-import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder}
-import is.hail.types.physical.stypes.interfaces.{SBinary, SBinaryCode, SBinaryValue}
+import is.hail.expr.ir.EmitCodeBuilder
+import is.hail.types.physical.stypes.interfaces.{SBinary, SBinaryValue}
 import is.hail.types.physical.stypes.{SCode, SSettable, SType, SValue}
 import is.hail.types.physical.{PBinary, PType}
 import is.hail.types.virtual.Type
@@ -56,15 +56,16 @@ class SBinaryPointerValue(
 
   def bytesAddress(): Code[Long] = st.pType.bytesAddress(a)
 
-  override def get: SBinaryPointerCode = new SBinaryPointerCode(st, a)
-
   override lazy val valueTuple: IndexedSeq[Value[_]] = FastIndexedSeq(a)
 
-  override def loadLength(): Code[Int] = pt.loadLength(a)
+  override def loadLength(cb: EmitCodeBuilder): Value[Int] =
+    cb.memoize(pt.loadLength(a))
 
-  override def loadBytes(): Code[Array[Byte]] = pt.loadBytes(a)
+  override def loadBytes(cb: EmitCodeBuilder): Value[Array[Byte]] =
+    cb.memoize(pt.loadBytes(a))
 
-  override def loadByte(i: Code[Int]): Code[Byte] = Region.loadByte(pt.bytesAddress(a) + i.toL)
+  override def loadByte(cb: EmitCodeBuilder, i: Code[Int]): Value[Byte] =
+    cb.memoize(Region.loadByte(pt.bytesAddress(a) + i.toL))
 }
 
 object SBinaryPointerSettable {
@@ -78,27 +79,6 @@ final class SBinaryPointerSettable(
 ) extends SBinaryPointerValue(st, a) with SSettable {
   override def settableTuple(): IndexedSeq[Settable[_]] = FastIndexedSeq(a)
 
-  override def store(cb: EmitCodeBuilder, pc: SCode): Unit = cb.assign(a, pc.asInstanceOf[SBinaryPointerCode].a)
-}
-
-class SBinaryPointerCode(val st: SBinaryPointer, val a: Code[Long]) extends SBinaryCode {
-  private val pt: PBinary = st.pType
-
-  def code: Code[_] = a
-
-  def loadLength(): Code[Int] = pt.loadLength(a)
-
-  def loadBytes(): Code[Array[Byte]] = pt.loadBytes(a)
-
-  def memoize(cb: EmitCodeBuilder, sb: SettableBuilder, name: String): SBinaryPointerValue = {
-    val s = SBinaryPointerSettable(sb, st, name)
-    cb.assign(s, this)
-    s
-  }
-
-  def memoize(cb: EmitCodeBuilder, name: String): SBinaryPointerValue =
-    memoize(cb, cb.localBuilder, name)
-
-  def memoizeField(cb: EmitCodeBuilder, name: String): SBinaryPointerValue =
-    memoize(cb, cb.fieldBuilder, name)
+  override def store(cb: EmitCodeBuilder, v: SValue): Unit =
+    cb.assign(a, v.asInstanceOf[SBinaryPointerValue].a)
 }

@@ -62,7 +62,7 @@ class StagedInternalNodeBuilder(maxSize: Int, keyType: PType, annotationType: PT
   }
 
   def allocate(cb: EmitCodeBuilder): Unit = {
-    node.store(cb, pType.loadCheapSCode(cb, pType.allocate(region)).get)
+    node.store(cb, pType.loadCheapSCode(cb, pType.allocate(region)))
     ab.create(cb, pType.fieldOffset(node.a, "children"))
   }
 
@@ -74,15 +74,15 @@ class StagedInternalNodeBuilder(maxSize: Int, keyType: PType, annotationType: PT
   def encode(cb: EmitCodeBuilder, ob: Value[OutputBuffer]): Unit = {
     val enc = EType.defaultFromPType(pType).buildEncoder(SBaseStructPointer(pType), cb.emb.ecb)
     ab.storeLength(cb)
-    enc(cb, node.get, ob)
+    enc(cb, node, ob)
   }
 
   def nodeAddress: SBaseStructValue = node
 
   def add(cb: EmitCodeBuilder, indexFileOffset: Code[Long], firstIndex: Code[Long], firstChild: SBaseStructValue): Unit = {
     ab.addChild(cb)
-    ab.setFieldValue(cb, "index_file_offset", primitive(indexFileOffset))
-    ab.setFieldValue(cb, "first_idx", primitive(firstIndex))
+    ab.setFieldValue(cb, "index_file_offset", primitive(cb.memoize(indexFileOffset)))
+    ab.setFieldValue(cb, "first_idx", primitive(cb.memoize(firstIndex)))
     ab.setField(cb, "first_key", firstChild.loadField(cb, "key"))
     ab.setField(cb, "first_record_offset", firstChild.loadField(cb, "offset"))
     ab.setField(cb, "first_annotation", firstChild.loadField(cb, "annotation"))
@@ -90,7 +90,7 @@ class StagedInternalNodeBuilder(maxSize: Int, keyType: PType, annotationType: PT
 
   def add(cb: EmitCodeBuilder, indexFileOffset: Code[Long], firstChild: SBaseStructValue): Unit = {
     ab.addChild(cb)
-    ab.setFieldValue(cb, "index_file_offset", primitive(indexFileOffset))
+    ab.setFieldValue(cb, "index_file_offset", primitive(cb.memoize(indexFileOffset)))
     ab.setField(cb, "first_idx", firstChild.loadField(cb, "first_idx"))
     ab.setField(cb, "first_key", firstChild.loadField(cb, "first_key"))
     ab.setField(cb, "first_record_offset", firstChild.loadField(cb, "first_record_offset"))

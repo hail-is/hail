@@ -2,8 +2,9 @@ package is.hail.stats
 
 import breeze.linalg.{DenseMatrix => BDM, DenseVector => BDV}
 import is.hail.annotations.{BroadcastRow, Region, RegionValue, RegionValueBuilder}
+import is.hail.backend.ExecuteContext
 import is.hail.backend.spark.SparkTaskContext
-import is.hail.expr.ir.{ExecuteContext, TableIR, TableLiteral, TableValue}
+import is.hail.expr.ir.{TableIR, TableLiteral, TableValue}
 import is.hail.linalg.RowMatrix
 import is.hail.rvd.{RVD, RVDType}
 import is.hail.sparkextras.ContextRDD
@@ -25,7 +26,7 @@ object LinearMixedModel {
     new LinearMixedModel(
       LMMData(gamma, residualSq, BDV(py), px, BDV(d), ydy, BDV(xdy), xdx, Option(yOpt).map(BDV(_)), Option(xOpt)))
   }
-  
+
   private val rowType = PCanonicalStruct(true,
       "idx" -> PInt64(),
       "beta" -> PFloat64(),
@@ -36,7 +37,7 @@ object LinearMixedModel {
   private val tableType = TableType(rowType.virtualType, FastIndexedSeq("idx"), TStruct.empty)
 
   def toTableIR(ctx: ExecuteContext, rvd: RVD): TableIR = {
-    TableLiteral(TableValue(ctx, tableType, BroadcastRow.empty(ctx), rvd))
+    TableLiteral(TableValue(ctx, tableType, BroadcastRow.empty(ctx), rvd), ctx.theHailClassLoader)
   }
 }
 
@@ -84,7 +85,7 @@ class LinearMixedModel(lmmData: LMMData) {
         xdx(0, 0) = (pa dot dpa) + gamma * (a dot a)
         xdx(r1, r0) := (dpa.t * px).t + gamma * (a.t * x).t // if px and x are not copied, the forms px.t * dpa and x.t * a result in a subtle bug
         xdx(r0, r1) := xdx(r1, r0).t
-       
+
         region.clear()
         rvb.start(rowType)
         try {
@@ -92,7 +93,7 @@ class LinearMixedModel(lmmData: LMMData) {
           val residualSq = ydy - (xdy dot beta)
           val sigmaSq = residualSq / dof
           val chiSq = n * math.log(nullResidualSq / residualSq)
-          val pValue = chiSquaredTail(chiSq, 1)
+          val pValue = pchisqtail(chiSq, 1)
 
           rvb.startStruct()
           rvb.addLong(i)
@@ -122,11 +123,11 @@ class LinearMixedModel(lmmData: LMMData) {
 
     LinearMixedModel.toTableIR(ctx, rvd)
   }
-  
+
   def fitFullRank(ctx: ExecuteContext, pa_t: RowMatrix): TableIR = {
     val lmmDataBc = ctx.backend.broadcast(lmmData)
     val rowType = LinearMixedModel.rowType
-    
+
     val rdd = pa_t.rows.mapPartitions { itPAt =>
       val LMMData(_, nullResidualSq, py, px, d, ydy, xdy0, xdx0, _, _) = lmmDataBc.value
       val xdy = xdy0.copy
@@ -149,15 +150,15 @@ class LinearMixedModel(lmmData: LMMData) {
         xdx(0, 0) = pa dot dpa
         xdx(r1, r0) := (dpa.t * px).t // if px is not copied, the form px.t * dpa results in a subtle bug
         xdx(r0, r1) := xdx(r1, r0).t
-        
+
         region.clear()
         rvb.start(rowType)
-        try {          
+        try {
           val beta = xdx \ xdy
           val residualSq = ydy - (xdy dot beta)
           val sigmaSq = residualSq / dof
           val chiSq = n * math.log(nullResidualSq / residualSq)
-          val pValue = chiSquaredTail(chiSq, 1)
+          val pValue = pchisqtail(chiSq, 1)
 
           rvb.startStruct()
           rvb.addLong(i)

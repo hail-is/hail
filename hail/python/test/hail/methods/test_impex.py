@@ -7,6 +7,7 @@ from unittest import mock
 
 from avro.datafile import DataFileReader
 from avro.io import DatumReader
+from hail.context import TemporaryFilename
 
 import pytest
 import hail as hl
@@ -40,7 +41,6 @@ class VCFTests(unittest.TestCase):
         self.assertEqual(hl.import_vcf(resource('infochar.vcf')).count_rows(), 1)
 
     @fails_service_backend()
-    @fails_local_backend()
     def test_import_export_same(self):
         for i in range(10):
             mt = hl.import_vcf(resource(f'random_vcfs/{i}.vcf.bgz'))
@@ -78,7 +78,6 @@ class VCFTests(unittest.TestCase):
         self.assertFalse('undeclared' in info_type)
         self.assertFalse('undeclaredFlag' in info_type)
 
-    @fails_service_backend()
     def test_can_import_bad_number_flag(self):
         hl.import_vcf(resource('bad_flag_number.vcf')).rows()._force_count()
 
@@ -111,7 +110,6 @@ class VCFTests(unittest.TestCase):
         mt.rows().show()
         assert mt.aggregate_rows(hl.agg.all(hl.is_missing(mt.rsid)))
 
-    @fails_service_backend()
     def test_haploid(self):
         expected = hl.Table.parallelize(
             [hl.struct(locus = hl.locus("X", 16050036), s = "C1046::HG02024",
@@ -130,7 +128,6 @@ class VCFTests(unittest.TestCase):
         entries = entries.select('GT', 'AD', 'GQ')
         self.assertTrue(entries._same(expected))
 
-    @fails_service_backend()
     def test_call_fields(self):
         expected = hl.Table.parallelize(
             [hl.struct(locus = hl.locus("X", 16050036), s = "C1046::HG02024",
@@ -210,7 +207,6 @@ class VCFTests(unittest.TestCase):
                                         key=['locus', 'alleles'])
         self.assertTrue(mt.rows()._same(expected))
 
-    @fails_service_backend()
     def test_import_vcf_missing_format_field_elements(self):
         mt = hl.import_vcf(resource('missingFormatArray.vcf'), reference_genome='GRCh37', array_elements_required=False)
         mt = mt.select_rows().select_entries('AD', 'PL')
@@ -228,6 +224,10 @@ class VCFTests(unittest.TestCase):
                                         key=['locus', 'alleles', 's'])
 
         self.assertTrue(mt.entries()._same(expected))
+
+    def test_vcf_unsorted_alleles(self):
+        mt = hl.import_vcf(resource('sample.pksorted.vcf'), n_partitions=4)
+        mt.rows()._force_count()
 
     @fails_service_backend()
     def test_import_vcf_skip_invalid_loci(self):
@@ -268,18 +268,20 @@ class VCFTests(unittest.TestCase):
     def test_export_vcf(self):
         dataset = hl.import_vcf(resource('sample.vcf.bgz'))
         vcf_metadata = hl.get_vcf_metadata(resource('sample.vcf.bgz'))
-        hl.export_vcf(dataset, '/tmp/sample.vcf', metadata=vcf_metadata)
-        dataset_imported = hl.import_vcf('/tmp/sample.vcf')
-        self.assertTrue(dataset._same(dataset_imported))
+        with TemporaryFilename(suffix='.vcf') as sample_vcf, \
+             TemporaryFilename(suffix='.vcf') as no_sample_vcf:
+            hl.export_vcf(dataset, sample_vcf, metadata=vcf_metadata)
+            dataset_imported = hl.import_vcf(sample_vcf)
+            self.assertTrue(dataset._same(dataset_imported))
 
-        no_sample_dataset = dataset.filter_cols(False).select_entries()
-        hl.export_vcf(no_sample_dataset, '/tmp/no_sample.vcf', metadata=vcf_metadata)
-        no_sample_dataset_imported = hl.import_vcf('/tmp/no_sample.vcf')
-        self.assertTrue(no_sample_dataset._same(no_sample_dataset_imported))
+            no_sample_dataset = dataset.filter_cols(False).select_entries()
+            hl.export_vcf(no_sample_dataset, no_sample_vcf, metadata=vcf_metadata)
+            no_sample_dataset_imported = hl.import_vcf(no_sample_vcf)
+            self.assertTrue(no_sample_dataset._same(no_sample_dataset_imported))
 
-        metadata_imported = hl.get_vcf_metadata('/tmp/sample.vcf')
-        # are py4 JavaMaps, not dicts, so can't use assertDictEqual
-        self.assertEqual(vcf_metadata, metadata_imported)
+            metadata_imported = hl.get_vcf_metadata(sample_vcf)
+            # are py4 JavaMaps, not dicts, so can't use assertDictEqual
+            self.assertEqual(vcf_metadata, metadata_imported)
 
     @fails_service_backend()
     @fails_local_backend()
@@ -300,7 +302,6 @@ class VCFTests(unittest.TestCase):
         assert hl.import_vcf(tmp)._same(mt)
 
     @fails_service_backend()
-    @fails_local_backend()
     def test_export_vcf_no_alt_alleles(self):
         mt = hl.import_vcf(resource('gvcfs/HG0096_excerpt.g.vcf'), reference_genome='GRCh38')
         self.assertEqual(mt.filter_rows(hl.len(mt.alleles) == 1).count_rows(), 5)
@@ -352,19 +353,21 @@ class VCFTests(unittest.TestCase):
         self.assertEqual(hl.filter_intervals(vcf2, interval_b).n_partitions(), 2)
         self.assertEqual(hl.filter_intervals(vcf2, interval_c).n_partitions(), 3)
 
-    @skip_unless_spark_backend()
+    @fails_service_backend()
+    @fails_local_backend()
     def test_tabix_export(self):
         mt = hl.import_vcf(resource('sample.vcf.bgz'))
         tmp = new_temp_file(extension="bgz")
         hl.export_vcf(mt, tmp, tabix=True)
         self.import_gvcfs_sample_vcf(tmp)
 
-    @skip_unless_spark_backend()
+    @fails_service_backend()
     def test_import_gvcfs(self):
         path = resource('sample.vcf.bgz')
         self.import_gvcfs_sample_vcf(path)
 
-    @skip_unless_spark_backend()
+    @fails_service_backend()
+    @fails_local_backend()
     def test_import_gvcfs_subset(self):
         path = resource('sample.vcf.bgz')
         parts = [
@@ -379,7 +382,8 @@ class VCFTests(unittest.TestCase):
         self.assertTrue(vcf2._same(filter1))
         self.assertEqual(len(parts), vcf2.n_partitions())
 
-    @skip_unless_spark_backend()
+    @fails_service_backend()
+    @fails_local_backend()
     def test_import_gvcfs_long_line(self):
         import bz2
         path = resource('gvcfs/long_line.g.vcf.gz')
@@ -394,15 +398,15 @@ class VCFTests(unittest.TestCase):
             ref_str = ref.read().decode('utf-8')
             self.assertEqual(ref_str, data)
 
-    @fails_service_backend()
+    @skip_when_service_backend('intermittent jvm crashes (either OOM or segfault)')
     def test_vcf_parser_golden_master__ex_GRCh37(self):
         self._test_vcf_parser_golden_master(resource('ex.vcf'), 'GRCh37')
 
-    @fails_service_backend()
+    @skip_when_service_backend('intermittent jvm crashes (either OOM or segfault)')
     def test_vcf_parser_golden_master__sample_GRCh37(self):
         self._test_vcf_parser_golden_master(resource('sample.vcf'), 'GRCh37')
 
-    @fails_service_backend()
+    @skip_when_service_backend('intermittent jvm crashes (either OOM or segfault)')
     def test_vcf_parser_golden_master__gvcf_GRCh37(self):
         self._test_vcf_parser_golden_master(resource('gvcfs/HG00096.g.vcf.gz'), 'GRCh38')
 
@@ -415,7 +419,8 @@ class VCFTests(unittest.TestCase):
         mt = hl.read_matrix_table(vcf_path + '.mt')
         self.assertTrue(mt._same(vcf))
 
-    @skip_unless_spark_backend()
+    @fails_service_backend()
+    @fails_local_backend()
     def test_import_multiple_vcfs(self):
         _paths = ['gvcfs/HG00096.g.vcf.gz', 'gvcfs/HG00268.g.vcf.gz']
         paths = [resource(p) for p in _paths]
@@ -441,7 +446,8 @@ class VCFTests(unittest.TestCase):
         pos268 = set(filt268.locus.position.collect())
         self.assertFalse(pos096 & pos268)
 
-    @skip_unless_spark_backend()
+    @fails_service_backend()
+    @fails_local_backend()
     def test_combiner_works(self):
         from hail.experimental.vcf_combiner.vcf_combiner import transform_one, combine_gvcfs
         _paths = ['gvcfs/HG00096.g.vcf.gz', 'gvcfs/HG00268.g.vcf.gz']
@@ -467,7 +473,7 @@ class VCFTests(unittest.TestCase):
         self.assertEqual(len(parts), comb.n_partitions())
         comb._force_count_rows()
 
-    @fails_service_backend(reason='register_ir_function')
+    @fails_service_backend()
     def test_haploid_combiner_ok(self):
         from hail.experimental.vcf_combiner.vcf_combiner import transform_gvcf
         # make a combiner table
@@ -570,6 +576,11 @@ class VCFTests(unittest.TestCase):
         concat_files(nf, shard_paths)
         assert hl.import_vcf(nf)._same(mt)
 
+    @fails_service_backend()
+    def test_custom_rg_import(self):
+        rg = hl.ReferenceGenome.read(resource('deid_ref_genome.json'))
+        mt = hl.import_vcf(resource('custom_rg.vcf'), reference_genome=rg)
+        assert mt.locus.collect() == [hl.Locus('D', 123, reference_genome=rg)]
 
     @fails_service_backend()
     @fails_local_backend()
@@ -607,6 +618,12 @@ class VCFTests(unittest.TestCase):
 
         assert hl.import_vcf(out1)._same(mt)
         assert hl.import_vcf(out2)._same(mt)
+
+    def test_empty_import_vcf_group_by_collect(self):
+        mt = hl.import_vcf(resource('sample.vcf'), min_partitions=4).filter_rows(False)
+        ht = mt._localize_entries('entries', 'columns')
+        groups = ht.group_by(the_key=ht.key).aggregate(values=hl.agg.collect(ht.row_value)).collect()
+        assert not groups
 
     @fails_service_backend()
     @fails_local_backend()
@@ -707,10 +724,12 @@ class VCFTests(unittest.TestCase):
                 hl.export_vcf(mt.annotate_rows(info=mt.info.annotate(**{invalid_field: True})), t)
                 assert warning.call_count == 1
 
+    @fails_service_backend(reason='need to convert errors on worker into FatalError')
     def test_vcf_different_info_errors(self):
         with self.assertRaisesRegex(FatalError, "Check that all files have same INFO fields"):
             mt = hl.import_vcf([resource('different_info_test1.vcf'), resource('different_info_test2.vcf')])
             mt.rows()._force_count()
+
 
 class PLINKTests(unittest.TestCase):
     @fails_service_backend()
@@ -761,7 +780,6 @@ class PLINKTests(unittest.TestCase):
             hl.import_plink(bfile + '.bed', bfile + '.bim', bfile + '.fam')
 
     @fails_service_backend()
-    @fails_local_backend()
     def test_import_plink_a1_major(self):
         mt = get_dataset()
         bfile = '/tmp/sample_plink'
@@ -841,6 +859,11 @@ class PLINKTests(unittest.TestCase):
                                 reference_genome=None)
         self.assertEqual(plink.locus.dtype,
                          hl.tstruct(contig=hl.tstr, position=hl.tint32))
+
+    def test_import_plink_and_ignore_rows(self):
+        bfile = doctest_resource('ldsc')
+        plink = hl.import_plink(bfile + '.bed', bfile + '.bim', bfile + '.fam', block_size=16)
+        self.assertEqual(plink.aggregate_cols(hl.agg.count()), 489)
 
     @fails_service_backend()
     @fails_local_backend()
@@ -1173,7 +1196,6 @@ class BGENTests(unittest.TestCase):
             (hl.abs(et.dosage - et.gp_dosage) < 1e-6)))
 
     @fails_service_backend()
-    @fails_local_backend()
     def test_import_bgen_row_fields(self):
         default_row_fields = hl.import_bgen(resource('example.8bits.bgen'),
                                             entry_fields=['dosage'])
@@ -1252,7 +1274,6 @@ class BGENTests(unittest.TestCase):
         self.assertTrue(expected._same(part_1))
 
     @fails_service_backend()
-    @fails_local_backend()
     def test_import_bgen_locus_filtering_from_literals(self):
         bgen_file = resource('example.8bits.bgen')
 
@@ -1280,7 +1301,6 @@ class BGENTests(unittest.TestCase):
                          expected_result)
 
     @fails_service_backend()
-    @fails_local_backend()
     def test_import_bgen_variant_filtering_from_exprs(self):
         bgen_file = resource('example.8bits.bgen')
 
@@ -1297,7 +1317,6 @@ class BGENTests(unittest.TestCase):
         self.assertTrue(everything._same(actual))
 
     @fails_service_backend()
-    @fails_local_backend()
     def test_import_bgen_locus_filtering_from_exprs(self):
         bgen_file = resource('example.8bits.bgen')
 
@@ -1334,7 +1353,6 @@ class BGENTests(unittest.TestCase):
         self.assertTrue(everything._same(actual))
 
     @fails_service_backend()
-    @fails_local_backend()
     def test_import_bgen_locus_filtering_from_table(self):
         bgen_file = resource('example.8bits.bgen')
 
@@ -1412,7 +1430,6 @@ class BGENTests(unittest.TestCase):
             bgenmt._same(genmt, tolerance=1.0 / 255, absolute=True))
 
     @fails_service_backend()
-    @fails_local_backend()
     def test_multiple_files_variant_filtering(self):
         bgen_file = [resource('random-b.bgen'), resource('random-c.bgen'), resource('random-a.bgen')]
         hl.index_bgen(bgen_file)
@@ -1527,7 +1544,6 @@ class BGENTests(unittest.TestCase):
         assert bgen._same(bgen2)
 
     @fails_service_backend()
-    @fails_local_backend()
     def test_export_bgen_from_vcf(self):
         mt = hl.import_vcf(resource('sample.vcf'))
 
@@ -1574,6 +1590,7 @@ class GENTests(unittest.TestCase):
                          hl.tstruct(contig=hl.tstr, position=hl.tint32))
         self.assertEqual(gen.count_rows(), 199)
 
+    @fails_service_backend(reason='need to convert errors to HailUserError')
     def test_import_gen_skip_invalid_loci(self):
         mt = hl.import_gen(resource('skip_invalid_loci.gen'),
                            resource('skip_invalid_loci.sample'),
@@ -1586,7 +1603,7 @@ class GENTests(unittest.TestCase):
                                resource('skip_invalid_loci.sample'))
             mt._force_count_rows()
 
-    @fails_service_backend()
+    @skip_when_service_backend('very slow / nonterminating')
     @fails_local_backend()
     def test_export_gen(self):
         gen = hl.import_gen(resource('example.gen'),
@@ -1633,15 +1650,13 @@ class GENTests(unittest.TestCase):
 
 
 class LocusIntervalTests(unittest.TestCase):
-    @fails_service_backend()
-    @fails_local_backend()
     def test_import_locus_intervals(self):
         interval_file = resource('annotinterall.interval_list')
         t = hl.import_locus_intervals(interval_file, reference_genome='GRCh37')
         nint = t.count()
 
         i = 0
-        with open(interval_file) as f:
+        with hl.current_backend().fs.open(interval_file) as f:
             for line in f:
                 if len(line.strip()) != 0:
                     i += 1
@@ -1666,7 +1681,6 @@ class LocusIntervalTests(unittest.TestCase):
         self.assertEqual(t.count(), 2)
         self.assertEqual(t.interval.dtype.point_type, hl.tstruct(contig=hl.tstr, position=hl.tint32))
 
-    @fails_service_backend()
     def test_import_locus_intervals_recoding(self):
         interval_file = resource('annotinterall.grch38.no.chr.interval_list')
         t = hl.import_locus_intervals(interval_file,
@@ -1716,7 +1730,6 @@ class LocusIntervalTests(unittest.TestCase):
 
         self.assertEqual(t.interval.collect(), hl.eval(expected))
 
-    @fails_service_backend()
     def test_import_bed_recoding(self):
         bed_file = resource('some-missing-chr-grch38.bed')
         bed = hl.import_bed(bed_file,
@@ -2008,17 +2021,30 @@ class ImportLinesTest(unittest.TestCase):
 
 
 class ImportTableTests(unittest.TestCase):
-
     def test_import_table_force_bgz(self):
+        fs = hl.current_backend().fs
         f = new_temp_file(extension="bgz")
         t = hl.utils.range_table(10, 5)
         t.export(f)
 
         f2 = new_temp_file(extension="gz")
-        run_command(["cp", uri_path(f), uri_path(f2)])
+        fs.copy(f, f2)
         t2 = hl.import_table(f2, force_bgz=True, impute=True).key_by('idx')
         self.assertTrue(t._same(t2))
 
+    @skip_when_service_backend('''intermittent worker failure:
+>       assert tables.count() == 346
+
+Caused by: java.lang.ClassCastException: __C2829collect_distributed_array cannot be cast to is.hail.expr.ir.FunctionWithObjects
+	at is.hail.expr.ir.EmitClassBuilder$$anon$1.apply(EmitClassBuilder.scala:689)
+	at is.hail.expr.ir.EmitClassBuilder$$anon$1.apply(EmitClassBuilder.scala:670)
+	at is.hail.backend.BackendUtils.$anonfun$collectDArray$2(BackendUtils.scala:31)
+	at is.hail.utils.package$.using(package.scala:627)
+	at is.hail.annotations.RegionPool.scopedRegion(RegionPool.scala:144)
+	at is.hail.backend.BackendUtils.$anonfun$collectDArray$1(BackendUtils.scala:30)
+	at is.hail.backend.service.Worker$.main(Worker.scala:120)
+	at is.hail.backend.service.Worker.main(Worker.scala)
+	... 11 more''')
     def test_glob(self):
         tables = hl.import_table(resource('variantAnnotations.split.*.tsv'))
         assert tables.count() == 346
@@ -2047,16 +2073,15 @@ class ImportTableTests(unittest.TestCase):
         assert ht.row.dtype == hl.dtype(
             'struct{A:int64, B:int32}')
 
-    @fails_service_backend()
-    @fails_local_backend()
     def test_import_export_identity(self):
+        fs = hl.current_backend().fs
         ht = hl.import_table(resource('sampleAnnotations.tsv'))
         f = new_temp_file()
         ht.export(f)
 
-        with open(resource('sampleAnnotations.tsv'), 'r') as i1:
+        with fs.open(resource('sampleAnnotations.tsv'), 'r') as i1:
             expected = list(line.strip() for line in i1)
-        with open(uri_path(f), 'r') as i2:
+        with fs.open(f, 'r') as i2:
             observed = list(line.strip() for line in i2)
 
         assert expected == observed
@@ -2085,7 +2110,7 @@ class ImportTableTests(unittest.TestCase):
         ht.write(f)
         assert ht._same(hl.read_table(f))
 
-    @fails_service_backend()
+    @skip_when_service_backend('hangs')
     def test_read_write_identity_keyed(self):
         ht = self.small_dataset_1().key_by()
         f = new_temp_file(extension='ht')
@@ -2124,16 +2149,65 @@ class GrepTests(unittest.TestCase):
 
 
 class AvroTests(unittest.TestCase):
+    @fails_service_backend(reason='''
+E                   java.io.NotSerializableException: org.apache.avro.Schema$RecordSchema
+E                   	at java.io.ObjectOutputStream.writeObject0(ObjectOutputStream.java:1184)
+E                   	at java.io.ObjectOutputStream.writeArray(ObjectOutputStream.java:1378)
+E                   	at java.io.ObjectOutputStream.writeObject0(ObjectOutputStream.java:1174)
+E                   	at java.io.ObjectOutputStream.defaultWriteFields(ObjectOutputStream.java:1548)
+E                   	at java.io.ObjectOutputStream.writeSerialData(ObjectOutputStream.java:1509)
+E                   	at java.io.ObjectOutputStream.writeOrdinaryObject(ObjectOutputStream.java:1432)
+E                   	at java.io.ObjectOutputStream.writeObject0(ObjectOutputStream.java:1178)
+E                   	at java.io.ObjectOutputStream.writeArray(ObjectOutputStream.java:1378)
+E                   	at java.io.ObjectOutputStream.writeObject0(ObjectOutputStream.java:1174)
+E                   	at java.io.ObjectOutputStream.defaultWriteFields(ObjectOutputStream.java:1548)
+E                   	at java.io.ObjectOutputStream.writeSerialData(ObjectOutputStream.java:1509)
+E                   	at java.io.ObjectOutputStream.writeOrdinaryObject(ObjectOutputStream.java:1432)
+E                   	at java.io.ObjectOutputStream.writeObject0(ObjectOutputStream.java:1178)
+E                   	at java.io.ObjectOutputStream.writeObject(ObjectOutputStream.java:348)
+E                   	at is.hail.backend.service.ServiceBackend.$anonfun$parallelizeAndComputeWithIndex$3(ServiceBackend.scala:119)
+E                   	at is.hail.backend.service.ServiceBackend.$anonfun$parallelizeAndComputeWithIndex$3$adapted(ServiceBackend.scala:118)
+E                   	at is.hail.utils.package$.using(package.scala:638)
+E                   	at is.hail.backend.service.ServiceBackend.$anonfun$parallelizeAndComputeWithIndex$2(ServiceBackend.scala:118)
+E                   	at scala.runtime.java8.JFunction0$mcV$sp.apply(JFunction0$mcV$sp.java:23)
+E                   	at is.hail.services.package$.retryTransientErrors(package.scala:71)
+E                   	at is.hail.backend.service.ServiceBackend.$anonfun$parallelizeAndComputeWithIndex$1(ServiceBackend.scala:117)
+E                   	at scala.runtime.java8.JFunction0$mcV$sp.apply(JFunction0$mcV$sp.java:23)
+E                   	at scala.concurrent.Future$.$anonfun$apply$1(Future.scala:659)
+E                   	at scala.util.Success.$anonfun$map$1(Try.scala:255)
+E                   	at scala.util.Success.map(Try.scala:213)
+E                   	at scala.concurrent.Future.$anonfun$map$1(Future.scala:292)
+E                   	at scala.concurrent.impl.Promise.liftedTree1$1(Promise.scala:33)
+E                   	at scala.concurrent.impl.Promise.$anonfun$transform$1(Promise.scala:33)
+E                   	at scala.concurrent.impl.CallbackRunnable.run(Promise.scala:64)
+E                   	at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1149)
+E                   	at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:624)
+E                   	at java.lang.Thread.run(Thread.java:748)
+''')
     def test_simple_avro(self):
         avro_file = resource('avro/weather.avro')
-        with DataFileReader(open(avro_file, 'rb'), DatumReader()) as avro:
+        fs = hl.current_backend().fs
+        with DataFileReader(fs.open(avro_file, 'rb'), DatumReader()) as avro:
             expected = list(avro)
         data = hl.import_avro([avro_file]).collect()
         data = [dict(**s) for s in data]
         self.assertEqual(expected, data)
 
 
-@fails_service_backend()
+@skip_when_service_backend('''
+Caused by: java.lang.ClassCastException: __C2Compiled cannot be cast to is.hail.asm4s.AsmFunction3RegionLongLongLong
+	at is.hail.expr.ir.PartitionZippedNativeReader.$anonfun$emitStream$7(TableIR.scala:736)
+	at __C38collect_distributed_array.__m53split_StreamFold(Unknown Source)
+	at __C38collect_distributed_array.apply(Unknown Source)
+	at __C38collect_distributed_array.apply(Unknown Source)
+	at is.hail.backend.BackendUtils.$anonfun$collectDArray$2(BackendUtils.scala:31)
+	at is.hail.utils.package$.using(package.scala:627)
+	at is.hail.annotations.RegionPool.scopedRegion(RegionPool.scala:140)
+	at is.hail.backend.BackendUtils.$anonfun$collectDArray$1(BackendUtils.scala:30)
+	at is.hail.backend.service.Worker$.main(Worker.scala:120)
+	at is.hail.backend.service.Worker.main(Worker.scala)
+	... 11 more
+''')
 def test_matrix_and_table_read_intervals_with_hidden_key():
     f1 = new_temp_file()
     f2 = new_temp_file()

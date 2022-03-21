@@ -79,6 +79,7 @@ class BGzipCodecSuite extends HailSuite {
     var i = 0
     while (i < 16) {
       val lines2 = GenericLines.collect(
+        fs,
         GenericLines.read(fs, Array(uncompStatus), Some(i), None, None, false, false))
       compareLines(lines2, lines)
       i += 1
@@ -92,6 +93,7 @@ class BGzipCodecSuite extends HailSuite {
     var i = 0
     while (i < 16) {
       val lines2 = GenericLines.collect(
+        fs,
         GenericLines.read(fs, Array(compStatus), Some(i), None, None, false, false))
       compareLines(lines2, lines)
       i += 1
@@ -104,6 +106,7 @@ class BGzipCodecSuite extends HailSuite {
     // won't split, just run once
     val gzStatus = fs.fileStatus(gzPath)
     val lines2 = GenericLines.collect(
+      fs,
       GenericLines.read(fs, Array(gzStatus), Some(7), None, None, false, true))
     compareLines(lines2, lines)
   }
@@ -139,7 +142,7 @@ class BGzipCodecSuite extends HailSuite {
           val end = makeVirtualOffset(splits(i + 1), 0)
           Row(i, compPath, splits(i), end, true)
         }
-      val lines2 = GenericLines.collect(GenericLines.read(fs, contexts, false, false))
+      val lines2 = GenericLines.collect(fs, GenericLines.read(fs, contexts, false, false))
       compareLines(lines2, lines)
       true
     }

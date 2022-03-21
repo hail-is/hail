@@ -1,42 +1,37 @@
 package is.hail.expr.ir.orderings
 
 import is.hail.asm4s._
-import is.hail.expr.ir.{EmitClassBuilder, EmitCode, EmitCodeBuilder}
+import is.hail.expr.ir.{EmitClassBuilder, EmitCode, EmitCodeBuilder, EmitValue}
+import is.hail.types.physical.stypes.SValue
 import is.hail.types.physical.stypes.interfaces.{SContainer, SIndexableValue}
-import is.hail.types.physical.stypes.SCode
 
 object IterableOrdering {
 
   def make(t1: SContainer, t2: SContainer, ecb: EmitClassBuilder[_]): CodeOrdering = new CodeOrdering {
 
-    val type1: SContainer = t1
-    val type2: SContainer = t2
-
-    private[this] def setup(cb: EmitCodeBuilder, lhs: SCode, rhs: SCode): (SIndexableValue, SIndexableValue) = {
-      val lhsv = lhs.asIndexable.memoize(cb, "container_ord_lhs")
-      val rhsv = rhs.asIndexable.memoize(cb, "container_ord_rhs")
-      lhsv -> rhsv
-    }
+    override val type1: SContainer = t1
+    override val type2: SContainer = t2
 
     private[this] def loop(cb: EmitCodeBuilder, lhs: SIndexableValue, rhs: SIndexableValue)(
-      f: (EmitCode, EmitCode) => Unit
+      f: (EmitValue, EmitValue) => Unit
     ): Unit = {
       val i = cb.newLocal[Int]("i")
       val lim = cb.newLocal("lim", lhs.loadLength().min(rhs.loadLength()))
       cb.forLoop(cb.assign(i, 0), i < lim, cb.assign(i, i + 1), {
-        val left = EmitCode.fromI(cb.emb)(lhs.loadElement(_, i))
-        val right = EmitCode.fromI(cb.emb)(rhs.loadElement(_, i))
+        val left = cb.memoize(lhs.loadElement(cb, i))
+        val right = cb.memoize(rhs.loadElement(cb, i))
         f(left, right)
       })
     }
 
-    override def _compareNonnull(cb: EmitCodeBuilder, x: SCode, y: SCode): Code[Int] = {
+    override def _compareNonnull(cb: EmitCodeBuilder, x: SValue, y: SValue): Value[Int] = {
       val elemCmp = ecb.getOrderingFunction(t1.elementType, t2.elementType, CodeOrdering.Compare())
 
       val Lout = CodeLabel()
       val cmp = cb.newLocal[Int]("iterable_cmp", 0)
 
-      val (lhs, rhs) = setup(cb, x, y)
+      val lhs = x.asIndexable
+      val rhs = y.asIndexable
       loop(cb, lhs, rhs) { (lhs, rhs) =>
         cb.assign(cmp, elemCmp(cb, lhs, rhs))
         cb.ifx(cmp.cne(0), cb.goto(Lout))
@@ -50,22 +45,19 @@ object IterableOrdering {
       cmp
     }
 
-    override def _ltNonnull(cb: EmitCodeBuilder, x: SCode, y: SCode): Code[Boolean] = {
+    override def _ltNonnull(cb: EmitCodeBuilder, x: SValue, y: SValue): Value[Boolean] = {
       val elemLt = ecb.getOrderingFunction(t1.elementType, t2.elementType, CodeOrdering.Lt())
       val elemEq = ecb.getOrderingFunction(t1.elementType, t2.elementType, CodeOrdering.Equiv())
 
       val ret = cb.newLocal[Boolean]("iterable_lt")
       val Lout = CodeLabel()
 
-      val (lhs, rhs) = setup(cb, x, y)
-      val lt = cb.newLocal("lt", false)
-      val eq = cb.newLocal("eq", true)
+      val lhs = x.asIndexable
+      val rhs = y.asIndexable
 
-      loop(cb, lhs, rhs) { (lhsEC, rhsEC) =>
-        val lhs = cb.memoize(lhsEC, "lhs_item")
-        val rhs = cb.memoize(rhsEC, "rhs_item")
-        cb.assign(lt, elemLt(cb, lhs, rhs))
-        cb.assign(eq, !lt && elemEq(cb, lhs, rhs))
+      loop(cb, lhs, rhs) { (lhs, rhs) =>
+        val lt = elemLt(cb, lhs, rhs)
+        val eq = !lt && elemEq(cb, lhs, rhs)
 
         cb.ifx(!eq, {
           cb.assign(ret, lt)
@@ -78,22 +70,19 @@ object IterableOrdering {
       ret
     }
 
-    override def _lteqNonnull(cb: EmitCodeBuilder, x: SCode, y: SCode): Code[Boolean] = {
+    override def _lteqNonnull(cb: EmitCodeBuilder, x: SValue, y: SValue): Value[Boolean] = {
       val elemLtEq = ecb.getOrderingFunction(t1.elementType, t2.elementType, CodeOrdering.Lteq())
       val elemEq = ecb.getOrderingFunction(t1.elementType, t2.elementType, CodeOrdering.Equiv())
 
       val ret = cb.newLocal[Boolean]("iterable_lteq")
       val Lout = CodeLabel()
 
-      val (lhs, rhs) = setup(cb, x, y)
-      val lteq = cb.newLocal("lteq", false)
-      val eq = cb.newLocal("eq", true)
+      val lhs = x.asIndexable
+      val rhs = y.asIndexable
 
-      loop(cb, lhs, rhs) { (lhsEC, rhsEC) =>
-        val lhs = cb.memoize(lhsEC, "lhs_item")
-        val rhs = cb.memoize(rhsEC, "rhs_item")
-        cb.assign(lteq, elemLtEq(cb, lhs, rhs))
-        cb.assign(eq, elemEq(cb, lhs, rhs))
+      loop(cb, lhs, rhs) { (lhs, rhs) =>
+        val lteq = elemLtEq(cb, lhs, rhs)
+        val eq = elemEq(cb, lhs, rhs)
 
         cb.ifx(!eq, {
           cb.assign(ret, lteq)
@@ -106,22 +95,21 @@ object IterableOrdering {
       ret
     }
 
-    override def _gtNonnull(cb: EmitCodeBuilder, x: SCode, y: SCode): Code[Boolean] = {
+    override def _gtNonnull(cb: EmitCodeBuilder, x: SValue, y: SValue): Value[Boolean] = {
       val elemGt = ecb.getOrderingFunction(t1.elementType, t2.elementType, CodeOrdering.Gt())
       val elemEq = ecb.getOrderingFunction(t1.elementType, t2.elementType, CodeOrdering.Equiv())
 
       val ret = cb.newLocal[Boolean]("iterable_gt")
       val Lout = CodeLabel()
 
-      val (lhs, rhs) = setup(cb, x, y)
+      val lhs = x.asIndexable
+      val rhs = y.asIndexable
       val gt = cb.newLocal("gt", false)
       val eq = cb.newLocal("eq", true)
 
-      loop(cb, lhs, rhs) { (lhsEC, rhsEC) =>
-        val lhs = cb.memoize(lhsEC, "lhs_item")
-        val rhs = cb.memoize(rhsEC, "rhs_item")
-        cb.assign(gt, elemGt(cb, lhs, rhs))
-        cb.assign(eq, !gt && elemEq(cb, lhs, rhs))
+      loop(cb, lhs, rhs) { (lhs, rhs) =>
+        val gt = elemGt(cb, lhs, rhs)
+        val eq = !gt && elemEq(cb, lhs, rhs)
 
         cb.ifx(!eq, {
           cb.assign(ret, gt)
@@ -134,22 +122,19 @@ object IterableOrdering {
       ret
     }
 
-    override def _gteqNonnull(cb: EmitCodeBuilder, x: SCode, y: SCode): Code[Boolean] = {
+    override def _gteqNonnull(cb: EmitCodeBuilder, x: SValue, y: SValue): Value[Boolean] = {
       val elemGtEq = ecb.getOrderingFunction(t1.elementType, t2.elementType, CodeOrdering.Gteq())
       val elemEq = ecb.getOrderingFunction(t1.elementType, t2.elementType, CodeOrdering.Equiv())
 
       val ret = cb.newLocal[Boolean]("iterable_gteq")
       val Lout = CodeLabel()
 
-      val (lhs, rhs) = setup(cb, x, y)
-      val gteq = cb.newLocal("gteq", true)
-      val eq = cb.newLocal("eq", true)
+      val lhs = x.asIndexable
+      val rhs = y.asIndexable
 
-      loop(cb, lhs, rhs) { (lhsEC, rhsEC) =>
-        val lhs = cb.memoize(lhsEC, "lhs_item")
-        val rhs = cb.memoize(rhsEC, "rhs_item")
-        cb.assign(gteq, elemGtEq(cb, lhs, rhs))
-        cb.assign(eq, elemEq(cb, lhs, rhs))
+      loop(cb, lhs, rhs) { (lhs, rhs) =>
+        val gteq = elemGtEq(cb, lhs, rhs)
+        val eq = elemEq(cb, lhs, rhs)
 
         cb.ifx(!eq, {
           cb.assign(ret, gteq)
@@ -162,7 +147,7 @@ object IterableOrdering {
       ret
     }
 
-    override def _equivNonnull(cb: EmitCodeBuilder, x: SCode, y: SCode): Code[Boolean] = {
+    override def _equivNonnull(cb: EmitCodeBuilder, x: SValue, y: SValue): Value[Boolean] = {
       val elemEq = ecb.getOrderingFunction(t1.elementType, t2.elementType, CodeOrdering.Equiv())
       val ret = cb.newLocal[Boolean]("iterable_eq", true)
       val Lout = CodeLabel()
@@ -171,7 +156,8 @@ object IterableOrdering {
         cb.goto(Lout)
       }
 
-      val (lhs, rhs) = setup(cb, x, y)
+      val lhs = x.asIndexable
+      val rhs = y.asIndexable
       cb.ifx(lhs.loadLength().cne(rhs.loadLength()), exitWith(false))
       loop(cb, lhs, rhs) { (lhs, rhs) =>
         cb.assign(ret, elemEq(cb, lhs, rhs))

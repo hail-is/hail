@@ -6,7 +6,7 @@ import is.hail.asm4s._
 import is.hail.expr.ir.agg.TakeByRVAS
 import is.hail.types.VirtualTypeWithReq
 import is.hail.types.physical._
-import is.hail.types.physical.stypes.primitives.{SInt32, SInt32Code}
+import is.hail.types.physical.stypes.primitives.SInt32Value
 import is.hail.utils._
 import org.testng.annotations.Test
 
@@ -37,7 +37,7 @@ class TakeByAggregatorSuite extends HailSuite {
           tba.result(cb, argR, rt).a
         }
 
-        val o = fb.resultWithIndex()(ctx.fs, 0, r)(r)
+        val o = fb.resultWithIndex()(theHailClassLoader, ctx.fs, 0, r)(r)
         val result = SafeRow.read(rt, o)
         assert(result == ((n - 1) to 0 by -1)
           .iterator
@@ -71,7 +71,7 @@ class TakeByAggregatorSuite extends HailSuite {
         tba.result(cb, argR, rt).a
       }
 
-      val o = fb.resultWithIndex()(ctx.fs, 0, r)(r)
+      val o = fb.resultWithIndex()(theHailClassLoader, ctx.fs, 0, r)(r)
       val result = SafeRow.read(rt, o)
       assert(result == FastIndexedSeq(0, 1, 2, 3, null, null, null))
     }
@@ -104,7 +104,7 @@ class TakeByAggregatorSuite extends HailSuite {
           cb.whileLoop(i < n, {
             cb += (random := rng.invoke[Double, Double, Double]("runif", -10000d, 10000d).toI)
             tba.seqOp(cb, false, random, false, random)
-            ab.append(cb, new SInt32Code(random))
+            ab.append(cb, new SInt32Value(random))
             cb += (i := i + 1)
           })
           cb += ab.size.cne(n).orEmpty(Code._fatal[Unit]("bad size!"))
@@ -114,7 +114,7 @@ class TakeByAggregatorSuite extends HailSuite {
           resultOff
         }
 
-        val o = fb.resultWithIndex()(ctx.fs, 0, r)(r)
+        val o = fb.resultWithIndex()(theHailClassLoader, ctx.fs, 0, r)(r)
         val pqOffset = Region.loadAddress(o)
         val pq = SafeRow.read(rt, pqOffset)
         val collOffset = Region.loadAddress(o + 8)

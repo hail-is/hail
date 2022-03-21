@@ -1,13 +1,15 @@
-import math
-import time
 import argparse
 import asyncio
 import logging
+import math
+import time
+
 import aiohttp
 import numpy as np
-from hailtop.hail_logging import configure_logging
+
 from hailtop.auth import service_auth_headers
 from hailtop.config import get_deploy_config
+from hailtop.hail_logging import configure_logging
 from hailtop.httpx import client_session
 
 configure_logging()

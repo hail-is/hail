@@ -1,12 +1,11 @@
 package is.hail.types.physical
 
-import is.hail.asm4s.Code
+import is.hail.asm4s.{Code, Value}
 import is.hail.expr.ir.EmitCodeBuilder
 import is.hail.types.virtual.{TStruct, Type}
 import is.hail.utils._
-import org.apache.spark.sql.Row
 
-import collection.JavaConverters._
+import scala.collection.JavaConverters._
 
 object PCanonicalStruct {
   private val requiredEmpty = PCanonicalStruct(Array.empty[PField], true)
@@ -47,9 +46,9 @@ final case class PCanonicalStruct(fields: IndexedSeq[PField], required: Boolean 
       s"${fieldNames.map(prettyIdentifier).mkString(", ")}", fieldNames.duplicates())
   }
 
-  def setRequired(required: Boolean): PCanonicalStruct = if(required == this.required) this else PCanonicalStruct(fields, required)
+  override def setRequired(required: Boolean): PCanonicalStruct = if(required == this.required) this else PCanonicalStruct(fields, required)
 
-  def rename(m: Map[String, String]): PStruct = {
+  override def rename(m: Map[String, String]): PStruct = {
     val newFieldsBuilder = new BoxedArrayBuilder[(String, PType)]()
     fields.foreach { fd =>
       val n = fd.name
@@ -77,22 +76,22 @@ final case class PCanonicalStruct(fields: IndexedSeq[PField], required: Boolean 
     }
   }
 
-  def loadField(offset: Code[Long], fieldName: String): Code[Long] =
+  override def loadField(offset: Code[Long], fieldName: String): Code[Long] =
     loadField(offset, fieldIdx(fieldName))
 
-  def isFieldMissing(offset: Code[Long], field: String): Code[Boolean] =
-    isFieldMissing(offset, fieldIdx(field))
+  override def isFieldMissing(cb: EmitCodeBuilder, offset: Code[Long], field: String): Value[Boolean] =
+    isFieldMissing(cb, offset, fieldIdx(field))
 
-  def fieldOffset(offset: Code[Long], fieldName: String): Code[Long] =
+  override def fieldOffset(offset: Code[Long], fieldName: String): Code[Long] =
     fieldOffset(offset, fieldIdx(fieldName))
 
-  def setFieldPresent(cb: EmitCodeBuilder, offset: Code[Long], field: String): Unit =
+  override def setFieldPresent(cb: EmitCodeBuilder, offset: Code[Long], field: String): Unit =
     setFieldPresent(cb, offset, fieldIdx(field))
 
-  def setFieldMissing(cb: EmitCodeBuilder, offset: Code[Long], field: String): Unit =
+  override def setFieldMissing(cb: EmitCodeBuilder, offset: Code[Long], field: String): Unit =
     setFieldMissing(cb, offset, fieldIdx(field))
 
-  def insertFields(fieldsToInsert: TraversableOnce[(String, PType)]): PStruct = {
+  override def insertFields(fieldsToInsert: TraversableOnce[(String, PType)]): PStruct = {
     val ab = new BoxedArrayBuilder[PField](fields.length)
     var i = 0
     while (i < fields.length) {
@@ -120,7 +119,7 @@ final case class PCanonicalStruct(fields: IndexedSeq[PField], required: Boolean 
     }), this.required)
   }
 
-  def copiedType: PType = {
+  override def copiedType: PType = {
     val copiedTypes = types.map(_.copiedType)
     if (types.indices.forall(i => types(i).eq(copiedTypes(i))))
       this

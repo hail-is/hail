@@ -1,11 +1,11 @@
 package is.hail.types.physical
 
-import is.hail.annotations.{Region, _}
+import is.hail.annotations._
 import is.hail.asm4s.{Code, _}
-import is.hail.expr.ir.{EmitCode, EmitCodeBuilder, EmitMethodBuilder, IEmitCode}
-import is.hail.types.physical.stypes.{SCode, SValue}
-import is.hail.types.physical.stypes.concrete.{SIndexablePointer, SIndexablePointerCode, SIndexablePointerSettable, SIndexablePointerValue}
-import is.hail.types.physical.stypes.interfaces.{SContainer, SIndexableValue}
+import is.hail.expr.ir.{EmitCodeBuilder, IEmitCode}
+import is.hail.types.physical.stypes.SValue
+import is.hail.types.physical.stypes.concrete.{SIndexablePointer, SIndexablePointerValue}
+import is.hail.types.physical.stypes.interfaces.SIndexableValue
 import is.hail.types.virtual.{TArray, Type}
 import is.hail.utils._
 
@@ -306,7 +306,7 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
       cb.ifx(isElementDefined(dstAddress, currentIdx),
         {
           cb.assign(currentElementAddress, elementOffset(dstAddress, len, currentIdx))
-          this.elementType.storeAtAddress(cb, currentElementAddress, region, this.elementType.loadCheapSCode(cb, this.elementType.loadFromNested(currentElementAddress)).get, true)
+          this.elementType.storeAtAddress(cb, currentElementAddress, region, this.elementType.loadCheapSCode(cb, this.elementType.loadFromNested(currentElementAddress)), true)
         }))
   }
 
@@ -362,11 +362,12 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
 
   def sType: SIndexablePointer = SIndexablePointer(setRequired(false))
 
-  def loadCheapSCode(cb: EmitCodeBuilder, addr: Code[Long]): SIndexablePointerValue =
-    new SIndexablePointerCode(sType, addr).memoize(cb, "loadCheapSCode")
-
-  def loadCheapSCodeField(cb: EmitCodeBuilder, addr: Code[Long]): SIndexablePointerValue =
-    new SIndexablePointerCode(sType, addr).memoizeField(cb, "loadCheapSCodeField")
+  def loadCheapSCode(cb: EmitCodeBuilder, addr: Code[Long]): SIndexablePointerValue = {
+    val a = cb.memoize(addr)
+    val length = cb.memoize(loadLength(a))
+    val offset = cb.memoize(firstElementOffset(a, length))
+    new SIndexablePointerValue(sType, a, length, offset)
+  }
 
   def storeContentsAtAddress(cb: EmitCodeBuilder, addr: Value[Long], region: Value[Region], indexable: SIndexableValue, deepCopy: Boolean): Unit = {
     val length = indexable.loadLength()
@@ -395,7 +396,7 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
             .consume(
               cb,
               { setElementMissing(cb, addr, idx) },
-              { pc => elementType.storeAtAddress(cb, elementOffset(addr, length, idx), region, pc.get, deepCopy) }
+              { pc => elementType.storeAtAddress(cb, elementOffset(addr, length, idx), region, pc, deepCopy) }
             )
           cb.assign(idx, idx + 1)
         })
@@ -415,8 +416,8 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
     }
   }
 
-  def storeAtAddress(cb: EmitCodeBuilder, addr: Code[Long], region: Value[Region], value: SCode, deepCopy: Boolean): Unit = {
-    cb += Region.storeAddress(addr, store(cb, region, value.memoize(cb, "storeAtAddress"), deepCopy))
+  def storeAtAddress(cb: EmitCodeBuilder, addr: Code[Long], region: Value[Region], value: SValue, deepCopy: Boolean): Unit = {
+    cb += Region.storeAddress(addr, store(cb, region, value, deepCopy))
   }
 
 
@@ -442,7 +443,7 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
       f(cb, i).consume(cb,
         setElementMissing(cb, addr, i),
         { sc =>
-          elementType.storeAtAddress(cb, elementOffsetFromFirst(firstElementAddr, i), region, sc.get, deepCopy = deepCopy)
+          elementType.storeAtAddress(cb, elementOffsetFromFirst(firstElementAddr, i), region, sc, deepCopy = deepCopy)
         })
 
       cb.assign(i, i + 1)
@@ -465,7 +466,7 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
       iec.consume(cb,
         setElementMissing(cb, addr, currentElementIndex),
         { sc =>
-          elementType.storeAtAddress(cb, currentElementAddress, region, sc.get, deepCopy = deepCopy)
+          elementType.storeAtAddress(cb, currentElementAddress, region, sc, deepCopy = deepCopy)
         })
         cb.assign(currentElementIndex, currentElementIndex + 1)
         cb.assign(currentElementAddress, currentElementAddress + elementByteSize)

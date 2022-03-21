@@ -1,5 +1,6 @@
 package is.hail.expr.ir.lowering
 
+import is.hail.backend.ExecuteContext
 import is.hail.expr.ir.agg.Extract
 import is.hail.expr.ir._
 import is.hail.utils._
@@ -35,10 +36,10 @@ case object LowerMatrixToTablePass extends LoweringPass {
   val context: String = "LowerMatrixToTable"
 
   def transform(ctx: ExecuteContext, ir: BaseIR): BaseIR = ir match {
-    case x: IR => LowerMatrixIR(x)
-    case x: TableIR => LowerMatrixIR(x)
-    case x: MatrixIR => LowerMatrixIR(x)
-    case x: BlockMatrixIR => LowerMatrixIR(x)
+    case x: IR => LowerMatrixIR(ctx, x)
+    case x: TableIR => LowerMatrixIR(ctx, x)
+    case x: MatrixIR => LowerMatrixIR(ctx, x)
+    case x: BlockMatrixIR => LowerMatrixIR(ctx, x)
   }
 }
 

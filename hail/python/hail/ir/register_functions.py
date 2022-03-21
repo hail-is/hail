@@ -236,7 +236,7 @@ def register_functions():
     register_function("isNonRef", (dtype("call"),), dtype("bool"))
     register_function("includesStart", (dtype("interval<?T>"),), dtype("bool"))
     register_function("isHetNonRef", (dtype("call"),), dtype("bool"))
-    register_function("hardy_weinberg_test", (dtype("int32"), dtype("int32"), dtype("int32"),), dtype("struct{het_freq_hwe: float64, p_value: float64}"))
+    register_function("hardy_weinberg_test", (dtype("int32"), dtype("int32"), dtype("int32"), dtype("bool")), dtype("struct{het_freq_hwe: float64, p_value: float64}"))
     register_function("haplotype_freq_em", (dtype("array<int32>"),), dtype("array<float64>"))
     register_function("nNonRefAlleles", (dtype("call"),), dtype("int32"))
     register_function("abs", (dtype("float64"),), dtype("float64"))

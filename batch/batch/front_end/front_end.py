@@ -1,82 +1,83 @@
-from numbers import Number
-import os
-import concurrent
-import logging
-import json
-import random
-import datetime
-import collections
-from functools import wraps
 import asyncio
-import aiohttp
+import collections
+import datetime
+import json
+import logging
+import os
+import random
 import signal
-from aiohttp import web
-import aiohttp_session
-import pandas as pd
-import pymysql
-import plotly.express as px
-import plotly
-import google.oauth2.service_account
-import google.api_core.exceptions
-import humanize
 import traceback
+from functools import wraps
+from numbers import Number
+from typing import Dict, Optional, Union
+
+import aiohttp
+import aiohttp_session
+import humanize
+import pandas as pd
+import plotly
+import plotly.express as px
+import pymysql
+from aiohttp import web
 from prometheus_async.aio.web import server_stats  # type: ignore
+
+from gear import (
+    Database,
+    check_csrf_token,
+    monitor_endpoints_middleware,
+    rest_authenticated_users_only,
+    setup_aiohttp_session,
+    transaction,
+    web_authenticated_developers_only,
+    web_authenticated_users_only,
+)
+from gear.clients import get_cloud_async_fs
+from gear.database import CallError
+from hailtop import aiotools, dictfix, httpx, version
+from hailtop.batch_client.parse import parse_cpu_in_mcpu, parse_memory_in_bytes, parse_storage_in_bytes
+from hailtop.config import get_deploy_config
+from hailtop.hail_logging import AccessLogger
+from hailtop.tls import internal_server_ssl_context
 from hailtop.utils import (
-    time_msecs,
-    time_msecs_str,
-    humanize_timedelta_msecs,
-    request_retry_transient_errors,
-    run_if_changed,
-    retry_long_running,
     LoggingTimer,
     cost_str,
     dump_all_stacktraces,
+    humanize_timedelta_msecs,
     periodically_call,
+    request_retry_transient_errors,
+    retry_long_running,
+    run_if_changed,
+    time_msecs,
+    time_msecs_str,
 )
-from hailtop.batch_client.parse import parse_cpu_in_mcpu, parse_memory_in_bytes, parse_storage_in_bytes
-from hailtop.config import get_deploy_config
-from hailtop.tls import internal_server_ssl_context
-from hailtop.httpx import client_session
-from hailtop.hail_logging import AccessLogger
-from hailtop import aiotools, dictfix
-from gear import (
-    Database,
-    setup_aiohttp_session,
-    rest_authenticated_users_only,
-    web_authenticated_users_only,
-    web_authenticated_developers_only,
-    check_csrf_token,
-    transaction,
-    monitor_endpoints_middleware,
+from web_common import render_template, set_message, setup_aiohttp_jinja2, setup_common_static_routes
+
+from ..batch import batch_record_to_dict, cancel_batch_in_db, job_record_to_dict
+from ..batch_configuration import BATCH_STORAGE_URI, CLOUD, DEFAULT_NAMESPACE, SCOPE
+from ..batch_format_version import BatchFormatVersion
+from ..cloud.resource_utils import (
+    cores_mcpu_to_memory_bytes,
+    cost_from_msec_mcpu,
+    is_valid_cores_mcpu,
+    memory_to_worker_type,
+    valid_machine_types,
 )
-from web_common import setup_aiohttp_jinja2, setup_common_static_routes, render_template, set_message
+from ..exceptions import (
+    BatchOperationAlreadyCompletedError,
+    BatchUserError,
+    ClosedBillingProjectError,
+    InvalidBillingLimitError,
+    NonExistentBillingProjectError,
+)
+from ..file_store import FileStore
+from ..globals import BATCH_FORMAT_VERSION, HTTP_CLIENT_MAX_SIZE
+from ..inst_coll_config import InstanceCollectionConfigs
+from ..spec_writer import SpecWriter
+from ..utils import accrued_cost_from_cost_and_msec_mcpu, coalesce, query_billing_projects
+from .validate import ValidationError, validate_and_clean_jobs, validate_batch
 
 # import uvloop
 
-from ..utils import (
-    coalesce,
-    query_billing_projects,
-    is_valid_cores_mcpu,
-    cost_from_msec_mcpu,
-    cores_mcpu_to_memory_bytes,
-)
-from ..batch import batch_record_to_dict, job_record_to_dict, cancel_batch_in_db
-from ..exceptions import (
-    BatchUserError,
-    NonExistentBillingProjectError,
-    ClosedBillingProjectError,
-    InvalidBillingLimitError,
-    BatchOperationAlreadyCompletedError,
-)
-from ..inst_coll_config import InstanceCollectionConfigs
-from ..log_store import LogStore
-from ..database import CallError, check_call_procedure
-from ..batch_configuration import BATCH_BUCKET_NAME, DEFAULT_NAMESPACE, SCOPE
-from ..globals import HTTP_CLIENT_MAX_SIZE, BATCH_FORMAT_VERSION, memory_to_worker_type
-from ..spec_writer import SpecWriter
-from ..batch_format_version import BatchFormatVersion
-
-from .validate import ValidationError, validate_batch, validate_and_clean_jobs
 
 # uvloop.install()
 
@@ -108,6 +109,8 @@ def catch_ui_error_in_dev(fun):
     async def wrapped(request, userdata, *args, **kwargs):
         try:
             return await fun(request, userdata, *args, **kwargs)
+        except asyncio.CancelledError:
+            raise
         except aiohttp.web_exceptions.HTTPFound as e:
             raise e
         except Exception as e:
@@ -169,6 +172,11 @@ def web_billing_project_users_only(redirect=True):
 @routes.get('/healthcheck')
 async def get_healthcheck(request):  # pylint: disable=W0613
     return web.Response()
+
+
+@routes.get('/api/v1alpha/version')
+async def rest_get_version(request):  # pylint: disable=W0613
+    return web.Response(text=version())
 
 
 async def _handle_ui_error(session, f, *args, **kwargs):
@@ -270,7 +278,7 @@ async def _query_batch_jobs(request, batch_id):
 
     sql = f'''
 SELECT jobs.*, batches.user, batches.billing_project,  batches.format_version,
-  job_attributes.value AS name, SUM(`usage` * rate) AS cost
+  job_attributes.value AS name, COALESCE(SUM(`usage` * rate), 0) AS cost
 FROM jobs
 INNER JOIN batches ON jobs.batch_id = batches.id
 LEFT JOIN job_attributes
@@ -321,48 +329,59 @@ WHERE id = %s AND NOT deleted;
 
 
 async def _get_job_log_from_record(app, batch_id, job_id, record):
+    client_session: httpx.ClientSession = app['client_session']
+    batch_format_version = BatchFormatVersion(record['format_version'])
+
     state = record['state']
     ip_address = record['ip_address']
+
+    spec = json.loads(record['spec'])
+    tasks = []
+
+    has_input_files = batch_format_version.get_spec_has_input_files(spec)
+    if has_input_files:
+        tasks.append('input')
+
+    tasks.append('main')
+
+    has_output_files = batch_format_version.get_spec_has_output_files(spec)
+    if has_output_files:
+        tasks.append('output')
+
     if state == 'Running':
-        async with aiohttp.ClientSession(raise_for_status=True, timeout=aiohttp.ClientTimeout(total=5)) as session:
-            try:
-                url = f'http://{ip_address}:5000' f'/api/v1alpha/batches/{batch_id}/jobs/{job_id}/log'
-                resp = await request_retry_transient_errors(session, 'GET', url)
-                return await resp.json()
-            except aiohttp.ClientResponseError as e:
-                if e.status == 404:
-                    return None
-                raise
+        try:
+            resp = await request_retry_transient_errors(
+                client_session, 'GET', f'http://{ip_address}:5000/api/v1alpha/batches/{batch_id}/jobs/{job_id}/log'
+            )
+            return await resp.json()
+        except aiohttp.ClientResponseError:
+            log.exception(f'while getting log for {(batch_id, job_id)}')
+            return {task: 'ERROR: encountered a problem while fetching the log' for task in tasks}
 
-    if state in ('Error', 'Failed', 'Success'):
-        log_store: LogStore = app['log_store']
-        batch_format_version = BatchFormatVersion(record['format_version'])
+    if state in ('Pending', 'Ready', 'Creating'):
+        return None
 
-        async def _read_log_from_gcs(task):
-            try:
-                data = await log_store.read_log_file(batch_format_version, batch_id, job_id, record['attempt_id'], task)
-            except google.api_core.exceptions.NotFound:
-                id = (batch_id, job_id)
-                log.exception(f'missing log file for {id} and task {task}')
-                data = 'ERROR: could not find log file'
-            return task, data
+    if state == 'Cancelled' and record['last_cancelled_attempt_id'] is None:
+        return None
 
-        spec = json.loads(record['spec'])
-        tasks = []
+    assert state in ('Error', 'Failed', 'Success', 'Cancelled')
 
-        has_input_files = batch_format_version.get_spec_has_input_files(spec)
-        if has_input_files:
-            tasks.append('input')
+    attempt_id = record['attempt_id'] or record['last_cancelled_attempt_id']
+    assert attempt_id is not None
 
-        tasks.append('main')
+    file_store: FileStore = app['file_store']
+    batch_format_version = BatchFormatVersion(record['format_version'])
 
-        has_output_files = batch_format_version.get_spec_has_output_files(spec)
-        if has_output_files:
-            tasks.append('output')
+    async def _read_log_from_cloud_storage(task):
+        try:
+            data = await file_store.read_log_file(batch_format_version, batch_id, job_id, attempt_id, task)
+        except FileNotFoundError:
+            id = (batch_id, job_id)
+            log.exception(f'missing log file for {id} and task {task}')
+            data = 'ERROR: could not find log file'
+        return task, data
 
-        return dict(await asyncio.gather(*[_read_log_from_gcs(task) for task in tasks]))
-
-    return None
+    return dict(await asyncio.gather(*[_read_log_from_cloud_storage(task) for task in tasks]))
 
 
 async def _get_job_log(app, batch_id, job_id):
@@ -370,7 +389,7 @@ async def _get_job_log(app, batch_id, job_id):
 
     record = await db.select_and_fetchone(
         '''
-SELECT jobs.state, jobs.spec, ip_address, format_version, jobs.attempt_id
+SELECT jobs.state, jobs.spec, ip_address, format_version, jobs.attempt_id, t.attempt_id AS last_cancelled_attempt_id
 FROM jobs
 INNER JOIN batches
   ON jobs.batch_id = batches.id
@@ -378,9 +397,17 @@ LEFT JOIN attempts
   ON jobs.batch_id = attempts.batch_id AND jobs.job_id = attempts.job_id AND jobs.attempt_id = attempts.attempt_id
 LEFT JOIN instances
   ON attempts.instance_name = instances.name
+LEFT JOIN (
+  SELECT batch_id, job_id, attempt_id
+  FROM attempts
+  WHERE reason = "cancelled" AND batch_id = %s AND job_id = %s
+  ORDER BY end_time DESC
+  LIMIT 1
+) AS t
+  ON jobs.batch_id = t.batch_id AND jobs.job_id = t.job_id
 WHERE jobs.batch_id = %s AND NOT deleted AND jobs.job_id = %s;
 ''',
-        (batch_id, job_id),
+        (batch_id, job_id, batch_id, job_id),
     )
     if not record:
         raise web.HTTPNotFound()
@@ -394,7 +421,7 @@ async def _get_attributes(app, record):
     job_id = record['job_id']
     format_version = BatchFormatVersion(record['format_version'])
 
-    if not format_version.has_full_spec_in_gcs():
+    if not format_version.has_full_spec_in_cloud():
         spec = json.loads(record['spec'])
         return spec.get('attributes')
 
@@ -405,52 +432,59 @@ FROM job_attributes
 WHERE batch_id = %s AND job_id = %s;
 ''',
         (batch_id, job_id),
+        query_name='get_attributes',
     )
     return {record['key']: record['value'] async for record in records}
 
 
 async def _get_full_job_spec(app, record):
     db: Database = app['db']
-    log_store: LogStore = app['log_store']
+    file_store: FileStore = app['file_store']
 
     batch_id = record['batch_id']
     job_id = record['job_id']
     format_version = BatchFormatVersion(record['format_version'])
 
-    if not format_version.has_full_spec_in_gcs():
+    if not format_version.has_full_spec_in_cloud():
         return json.loads(record['spec'])
 
     token, start_job_id = await SpecWriter.get_token_start_id(db, batch_id, job_id)
 
     try:
-        spec = await log_store.read_spec_file(batch_id, token, start_job_id, job_id)
+        spec = await file_store.read_spec_file(batch_id, token, start_job_id, job_id)
         return json.loads(spec)
-    except google.api_core.exceptions.NotFound:
+    except FileNotFoundError:
         id = (batch_id, job_id)
         log.exception(f'missing spec file for {id}')
         return None
 
 
 async def _get_full_job_status(app, record):
-    log_store: LogStore = app['log_store']
+    client_session: httpx.ClientSession = app['client_session']
+    file_store: FileStore = app['file_store']
 
     batch_id = record['batch_id']
     job_id = record['job_id']
-    attempt_id = record['attempt_id']
     state = record['state']
     format_version = BatchFormatVersion(record['format_version'])
 
-    if state in ('Pending', 'Creating', 'Ready', 'Cancelled'):
+    if state in ('Pending', 'Creating', 'Ready'):
         return None
 
-    if state in ('Error', 'Failed', 'Success'):
+    if state == 'Cancelled' and record['last_cancelled_attempt_id'] is None:
+        return None
+
+    attempt_id = record['attempt_id'] or record['last_cancelled_attempt_id']
+    assert attempt_id is not None
+
+    if state in ('Error', 'Failed', 'Success', 'Cancelled'):
         if not format_version.has_full_status_in_gcs():
             return json.loads(record['status'])
 
         try:
-            status = await log_store.read_status_file(batch_id, job_id, attempt_id)
+            status = await file_store.read_status_file(batch_id, job_id, attempt_id)
             return json.loads(status)
-        except google.api_core.exceptions.NotFound:
+        except FileNotFoundError:
             id = (batch_id, job_id)
             log.exception(f'missing status file for {id}')
             return None
@@ -459,15 +493,15 @@ async def _get_full_job_status(app, record):
     assert record['status'] is None
 
     ip_address = record['ip_address']
-    async with aiohttp.ClientSession(raise_for_status=True, timeout=aiohttp.ClientTimeout(total=5)) as session:
-        try:
-            url = f'http://{ip_address}:5000' f'/api/v1alpha/batches/{batch_id}/jobs/{job_id}/status'
-            resp = await request_retry_transient_errors(session, 'GET', url)
-            return await resp.json()
-        except aiohttp.ClientResponseError as e:
-            if e.status == 404:
-                return None
-            raise
+    try:
+        resp = await request_retry_transient_errors(
+            client_session, 'GET', f'http://{ip_address}:5000/api/v1alpha/batches/{batch_id}/jobs/{job_id}/status'
+        )
+        return await resp.json()
+    except aiohttp.ClientResponseError as e:
+        if e.status == 404:
+            return None
+        raise
 
 
 @routes.get('/api/v1alpha/batches/{batch_id}/jobs/{job_id}/log')
@@ -490,7 +524,7 @@ async def _query_batches(request, user, q):
     last_batch_id = request.query.get('last_batch_id')
     if last_batch_id is not None:
         last_batch_id = int(last_batch_id)
-        where_conditions.append('(id < %s)')
+        where_conditions.append('(batches.id < %s)')
         where_args.append(last_batch_id)
 
     terms = q.split()
@@ -542,7 +576,7 @@ async def _query_batches(request, user, q):
             condition = "(`state` = 'running')"
             args = []
         elif t == 'cancelled':
-            condition = '(cancelled)'
+            condition = '(batches_cancelled.id IS NOT NULL)'
             args = []
         elif t == 'failure':
             condition = '(n_failed > 0)'
@@ -563,8 +597,12 @@ async def _query_batches(request, user, q):
         where_args.extend(args)
 
     sql = f'''
-SELECT batches.*, SUM(`usage` * rate) AS cost
+SELECT batches.*, batches_cancelled.id IS NOT NULL AS cancelled, COALESCE(SUM(`usage` * rate), 0) AS cost, batches_n_jobs_in_complete_states.n_completed, batches_n_jobs_in_complete_states.n_succeeded, batches_n_jobs_in_complete_states.n_failed, batches_n_jobs_in_complete_states.n_cancelled
 FROM batches
+LEFT JOIN batches_n_jobs_in_complete_states
+  ON batches.id = batches_n_jobs_in_complete_states.id
+LEFT JOIN batches_cancelled
+  ON batches.id = batches_cancelled.id
 LEFT JOIN aggregated_batch_resources
   ON batches.id = aggregated_batch_resources.batch_id
 LEFT JOIN resources
@@ -576,7 +614,9 @@ LIMIT 51;
 '''
     sql_args = where_args
 
-    batches = [batch_record_to_dict(batch) async for batch in db.select_and_fetchall(sql, sql_args)]
+    batches = [
+        batch_record_to_dict(batch) async for batch in db.select_and_fetchall(sql, sql_args, query_name='get_batches')
+    ]
 
     if len(batches) == 51:
         batches.pop()
@@ -613,24 +653,28 @@ def check_service_account_permissions(user, sa):
 
 @routes.post('/api/v1alpha/batches/{batch_id}/jobs/create')
 @rest_authenticated_users_only
-async def create_jobs(request, userdata):
+async def create_jobs(request: aiohttp.web.Request, userdata: dict):
     app = request.app
-    db: Database = app['db']
-    log_store: LogStore = app['log_store']
 
     if app['frozen']:
         log.info('ignoring batch create request; batch is frozen')
         raise web.HTTPServiceUnavailable()
 
     batch_id = int(request.match_info['batch_id'])
+    job_specs = await request.json()
+    return await _create_jobs(userdata, job_specs, batch_id, app)
 
+
+async def _create_jobs(userdata: dict, job_specs: dict, batch_id: int, app: aiohttp.web.Application):
+    db: Database = app['db']
+    file_store: FileStore = app['file_store']
     user = userdata['username']
 
     # restrict to what's necessary; in particular, drop the session
     # which is sensitive
     userdata = {
         'username': user,
-        'gsa_key_secret_name': userdata['gsa_key_secret_name'],
+        'hail_credentials_secret_name': userdata['hail_credentials_secret_name'],
         'tokens_secret_name': userdata['tokens_secret_name'],
     }
 
@@ -650,9 +694,6 @@ WHERE user = %s AND id = %s AND NOT deleted;
             raise web.HTTPBadRequest(reason=f'batch {batch_id} is not open')
         batch_format_version = BatchFormatVersion(record['format_version'])
 
-        async with timer.step('get request json'):
-            job_specs = await request.json()
-
         async with timer.step('validate job_specs'):
             try:
                 validate_and_clean_jobs(job_specs)
@@ -660,13 +701,13 @@ WHERE user = %s AND id = %s AND NOT deleted;
                 raise web.HTTPBadRequest(reason=e.reason)
 
         async with timer.step('build db args'):
-            spec_writer = SpecWriter(log_store, batch_id)
+            spec_writer = SpecWriter(file_store, batch_id)
 
             jobs_args = []
             job_parents_args = []
             job_attributes_args = []
 
-            inst_coll_resources = collections.defaultdict(
+            inst_coll_resources: Dict[str, Dict[str, int]] = collections.defaultdict(
                 lambda: {
                     'n_jobs': 0,
                     'n_ready_jobs': 0,
@@ -684,7 +725,9 @@ WHERE user = %s AND id = %s AND NOT deleted;
                 parent_ids = spec.pop('parent_ids', [])
                 always_run = spec.pop('always_run', False)
 
-                if batch_format_version.has_full_spec_in_gcs():
+                cloud = spec.get('cloud', CLOUD)
+
+                if batch_format_version.has_full_spec_in_cloud():
                     attributes = spec.pop('attributes', None)
                 else:
                     attributes = spec.get('attributes')
@@ -694,7 +737,7 @@ WHERE user = %s AND id = %s AND NOT deleted;
                 if start_job_id is None:
                     start_job_id = job_id
 
-                if batch_format_version.has_full_spec_in_gcs() and prev_job_idx:
+                if batch_format_version.has_full_spec_in_cloud() and prev_job_idx:
                     if job_id != prev_job_idx + 1:
                         raise web.HTTPBadRequest(
                             reason=f'noncontiguous job ids found in the spec: {prev_job_idx} -> {job_id}'
@@ -710,9 +753,23 @@ WHERE user = %s AND id = %s AND NOT deleted;
                 machine_type = resources.get('machine_type')
                 preemptible = resources.get('preemptible', BATCH_JOB_DEFAULT_PREEMPTIBLE)
 
+                if machine_type and machine_type not in valid_machine_types(cloud):
+                    raise web.HTTPBadRequest(reason=f'unknown machine type {machine_type} for cloud {cloud}')
+
                 if machine_type and ('cpu' in resources or 'memory' in resources):
                     raise web.HTTPBadRequest(reason='cannot specify cpu and memory with machine_type')
 
+                if spec['process']['type'] == 'jvm':
+                    if 'cpu' in resources:
+                        raise web.HTTPBadRequest(reason='jvm jobs may not specify cpu')
+                    if 'memory' in resources and resources['memory'] != 'standard':
+                        raise web.HTTPBadRequest(reason='jvm jobs may not specify memory')
+                    if 'storage' in resources:
+                        raise web.HTTPBadRequest(reason='jvm jobs may not specify storage')
+                    if machine_type is not None:
+                        raise web.HTTPBadRequest(reason='jvm jobs may not specify machine_type')
+
+                req_memory_bytes: Optional[int]
                 if machine_type is None:
                     if 'cpu' not in resources:
                         resources['cpu'] = BATCH_JOB_DEFAULT_CPU
@@ -720,7 +777,7 @@ WHERE user = %s AND id = %s AND NOT deleted;
                     del resources['cpu']
                     req_cores_mcpu = parse_cpu_in_mcpu(resources['req_cpu'])
 
-                    if not is_valid_cores_mcpu(req_cores_mcpu):
+                    if req_cores_mcpu is None or not is_valid_cores_mcpu(req_cores_mcpu):
                         raise web.HTTPBadRequest(
                             reason=f'bad resource request for job {id}: '
                             f'cpu must be a power of two with a min of 0.25; '
@@ -732,9 +789,10 @@ WHERE user = %s AND id = %s AND NOT deleted;
                     resources['req_memory'] = resources['memory']
                     del resources['memory']
                     req_memory = resources['req_memory']
-                    if req_memory in memory_to_worker_type:
-                        worker_type = memory_to_worker_type[req_memory]
-                        req_memory_bytes = cores_mcpu_to_memory_bytes(req_cores_mcpu, worker_type)
+                    memory_to_worker_types = memory_to_worker_type(cloud)
+                    if req_memory in memory_to_worker_types:
+                        worker_type = memory_to_worker_types[req_memory]
+                        req_memory_bytes = cores_mcpu_to_memory_bytes(cloud, req_cores_mcpu, worker_type)
                     else:
                         req_memory_bytes = parse_memory_in_bytes(req_memory)
                 else:
@@ -757,7 +815,7 @@ WHERE user = %s AND id = %s AND NOT deleted;
                 inst_coll_configs: InstanceCollectionConfigs = app['inst_coll_configs']
 
                 result, exc = inst_coll_configs.select_inst_coll(
-                    machine_type, preemptible, worker_type, req_cores_mcpu, req_memory_bytes, req_storage_bytes
+                    cloud, machine_type, preemptible, worker_type, req_cores_mcpu, req_memory_bytes, req_storage_bytes
                 )
 
                 if exc:
@@ -766,6 +824,7 @@ WHERE user = %s AND id = %s AND NOT deleted;
                 if result is None:
                     raise web.HTTPBadRequest(
                         reason=f'resource requests for job {id} are unsatisfiable: '
+                        f'cloud={cloud}, '
                         f'cpu={resources.get("req_cpu")}, '
                         f'memory={resources.get("req_memory")}, '
                         f'storage={resources["req_storage"]}, '
@@ -792,10 +851,11 @@ WHERE user = %s AND id = %s AND NOT deleted;
                         raise web.HTTPBadRequest(reason=f'unauthorized secret {(secret["namespace"], secret["name"])}')
 
                 spec['secrets'] = secrets
+
                 secrets.append(
                     {
                         'namespace': DEFAULT_NAMESPACE,
-                        'name': userdata['gsa_key_secret_name'],
+                        'name': userdata['hail_credentials_secret_name'],
                         'mount_path': '/gsa-key',
                         'mount_in_copy': True,
                     }
@@ -807,8 +867,13 @@ WHERE user = %s AND id = %s AND NOT deleted;
                     spec['env'] = env
                 assert isinstance(spec['env'], list)
 
-                if all(envvar['name'] != 'GOOGLE_APPLICATION_CREDENTIALS' for envvar in spec['env']):
+                if cloud == 'gcp' and all(envvar['name'] != 'GOOGLE_APPLICATION_CREDENTIALS' for envvar in spec['env']):
                     spec['env'].append({'name': 'GOOGLE_APPLICATION_CREDENTIALS', 'value': '/gsa-key/key.json'})
+
+                if cloud == 'azure' and all(
+                    envvar['name'] != 'AZURE_APPLICATION_CREDENTIALS' for envvar in spec['env']
+                ):
+                    spec['env'].append({'name': 'AZURE_APPLICATION_CREDENTIALS', 'value': '/gsa-key/key.json'})
 
                 if spec.get('mount_tokens', False):
                     secrets.append(
@@ -822,7 +887,7 @@ WHERE user = %s AND id = %s AND NOT deleted;
                     secrets.append(
                         {
                             'namespace': DEFAULT_NAMESPACE,
-                            'name': 'gce-deploy-config',
+                            'name': 'worker-deploy-config',
                             'mount_path': '/deploy-config',
                             'mount_in_copy': False,
                         }
@@ -882,118 +947,147 @@ WHERE user = %s AND id = %s AND NOT deleted;
                     for k, v in attributes.items():
                         job_attributes_args.append((batch_id, job_id, k, v))
 
-        if batch_format_version.has_full_spec_in_gcs():
-            async with timer.step('write spec to gcs'):
-                await spec_writer.write()
-
         rand_token = random.randint(0, app['n_tokens'] - 1)
 
-        async with timer.step('insert jobs'):
+        async def write_spec_to_cloud():
+            if batch_format_version.has_full_spec_in_cloud():
+                async with timer.step('write spec to cloud'):
+                    await spec_writer.write()
 
-            @transaction(db)
-            async def insert(tx):
+        async def insert_jobs_into_db(tx):
+            async with timer.step('insert jobs'):
                 try:
-                    await tx.execute_many(
-                        '''
+                    try:
+                        await tx.execute_many(
+                            '''
 INSERT INTO jobs (batch_id, job_id, state, spec, always_run, cores_mcpu, n_pending_parents, inst_coll)
 VALUES (%s, %s, %s, %s, %s, %s, %s, %s);
 ''',
-                        jobs_args,
-                    )
-                except pymysql.err.IntegrityError as err:
-                    # 1062 ER_DUP_ENTRY https://dev.mysql.com/doc/refman/5.7/en/server-error-reference.html#error_er_dup_entry
-                    if err.args[0] == 1062:
-                        log.info(f'bunch containing job {(batch_id, jobs_args[0][1])} already inserted ({err})')
-                        return
-                    raise
-                try:
-                    await tx.execute_many(
-                        '''
+                            jobs_args,
+                        )
+                    except pymysql.err.IntegrityError as err:
+                        # 1062 ER_DUP_ENTRY https://dev.mysql.com/doc/refman/5.7/en/server-error-reference.html#error_er_dup_entry
+                        if err.args[0] == 1062:
+                            log.info(f'bunch containing job {(batch_id, jobs_args[0][1])} already inserted ({err})')
+                            return
+                        raise
+                    try:
+                        await tx.execute_many(
+                            '''
 INSERT INTO `job_parents` (batch_id, job_id, parent_id)
 VALUES (%s, %s, %s);
 ''',
-                        job_parents_args,
-                    )
-                except pymysql.err.IntegrityError as err:
-                    # 1062 ER_DUP_ENTRY https://dev.mysql.com/doc/refman/5.7/en/server-error-reference.html#error_er_dup_entry
-                    if err.args[0] == 1062:
-                        raise web.HTTPBadRequest(text=f'bunch contains job with duplicated parents ({err})')
-                    raise
-                await tx.execute_many(
-                    '''
+                            job_parents_args,
+                        )
+                    except pymysql.err.IntegrityError as err:
+                        # 1062 ER_DUP_ENTRY https://dev.mysql.com/doc/refman/5.7/en/server-error-reference.html#error_er_dup_entry
+                        if err.args[0] == 1062:
+                            raise web.HTTPBadRequest(text=f'bunch contains job with duplicated parents ({err})')
+                        raise
+                    await tx.execute_many(
+                        '''
 INSERT INTO `job_attributes` (batch_id, job_id, `key`, `value`)
 VALUES (%s, %s, %s, %s);
 ''',
-                    job_attributes_args,
-                )
+                        job_attributes_args,
+                    )
 
-                for inst_coll, resources in inst_coll_resources.items():
-                    n_jobs = resources['n_jobs']
-                    n_ready_jobs = resources['n_ready_jobs']
-                    ready_cores_mcpu = resources['ready_cores_mcpu']
-                    n_ready_cancellable_jobs = resources['n_ready_cancellable_jobs']
-                    ready_cancellable_cores_mcpu = resources['ready_cancellable_cores_mcpu']
-
-                    await tx.execute_update(
+                    batches_inst_coll_staging_args = [
+                        (
+                            batch_id,
+                            inst_coll,
+                            rand_token,
+                            resources['n_jobs'],
+                            resources['n_ready_jobs'],
+                            resources['ready_cores_mcpu'],
+                        )
+                        for inst_coll, resources in inst_coll_resources.items()
+                    ]
+                    await tx.execute_many(
                         '''
 INSERT INTO batches_inst_coll_staging (batch_id, inst_coll, token, n_jobs, n_ready_jobs, ready_cores_mcpu)
 VALUES (%s, %s, %s, %s, %s, %s)
 ON DUPLICATE KEY UPDATE
-  n_jobs = n_jobs + %s,
-  n_ready_jobs = n_ready_jobs + %s,
-  ready_cores_mcpu = ready_cores_mcpu + %s;
+  n_jobs = n_jobs + VALUES(n_jobs),
+  n_ready_jobs = n_ready_jobs + VALUES(n_ready_jobs),
+  ready_cores_mcpu = ready_cores_mcpu + VALUES(ready_cores_mcpu);
 ''',
+                        batches_inst_coll_staging_args,
+                    )
+
+                    batch_inst_coll_cancellable_resources_args = [
                         (
                             batch_id,
                             inst_coll,
                             rand_token,
-                            n_jobs,
-                            n_ready_jobs,
-                            ready_cores_mcpu,
-                            n_jobs,
-                            n_ready_jobs,
-                            ready_cores_mcpu,
-                        ),
-                    )
-                    await tx.execute_update(
+                            resources['n_ready_cancellable_jobs'],
+                            resources['ready_cancellable_cores_mcpu'],
+                        )
+                        for inst_coll, resources in inst_coll_resources.items()
+                    ]
+                    await tx.execute_many(
                         '''
 INSERT INTO batch_inst_coll_cancellable_resources (batch_id, inst_coll, token, n_ready_cancellable_jobs, ready_cancellable_cores_mcpu)
 VALUES (%s, %s, %s, %s, %s)
 ON DUPLICATE KEY UPDATE
-  n_ready_cancellable_jobs = n_ready_cancellable_jobs + %s,
-  ready_cancellable_cores_mcpu = ready_cancellable_cores_mcpu + %s;
+  n_ready_cancellable_jobs = n_ready_cancellable_jobs + VALUES(n_ready_cancellable_jobs),
+  ready_cancellable_cores_mcpu = ready_cancellable_cores_mcpu + VALUES(ready_cancellable_cores_mcpu);
 ''',
-                        (
-                            batch_id,
-                            inst_coll,
-                            rand_token,
-                            n_ready_cancellable_jobs,
-                            ready_cancellable_cores_mcpu,
-                            n_ready_cancellable_jobs,
-                            ready_cancellable_cores_mcpu,
-                        ),
+                        batch_inst_coll_cancellable_resources_args,
                     )
 
-                if batch_format_version.has_full_spec_in_gcs():
-                    await tx.execute_update(
-                        '''
+                    if batch_format_version.has_full_spec_in_cloud():
+                        await tx.execute_update(
+                            '''
 INSERT INTO batch_bunches (batch_id, token, start_job_id)
 VALUES (%s, %s, %s);
 ''',
-                        (batch_id, spec_writer.token, start_job_id),
-                    )
+                            (batch_id, spec_writer.token, start_job_id),
+                        )
+                except asyncio.CancelledError:
+                    raise
+                except aiohttp.web.HTTPException:
+                    raise
+                except Exception as err:
+                    raise ValueError(
+                        f'encountered exception while inserting a bunch'
+                        f'jobs_args={json.dumps(jobs_args)}'
+                        f'job_parents_args={json.dumps(job_parents_args)}'
+                    ) from err
 
-            try:
-                await insert()  # pylint: disable=no-value-for-parameter
-            except aiohttp.web.HTTPException:
-                raise
-            except Exception as err:
-                raise ValueError(
-                    f'encountered exception while inserting a bunch'
-                    f'jobs_args={json.dumps(jobs_args)}'
-                    f'job_parents_args={json.dumps(job_parents_args)}'
-                ) from err
+        @transaction(db)
+        async def write_and_insert(tx):
+            # IMPORTANT: If cancellation or an error prevents writing the spec to the cloud, then we
+            # must rollback. See https://github.com/hail-is/hail-production-issues/issues/9
+            await asyncio.gather(write_spec_to_cloud(), insert_jobs_into_db(tx))
+
+        await write_and_insert()  # pylint: disable=no-value-for-parameter
     return web.Response()
+
+
+@routes.post('/api/v1alpha/batches/create-fast')
+@rest_authenticated_users_only
+async def create_batch_fast(request, userdata):
+    app = request.app
+    db: Database = app['db']
+
+    if app['frozen']:
+        log.info('ignoring batch create request; batch is frozen')
+        raise web.HTTPServiceUnavailable()
+
+    user = userdata['username']
+    batch_and_bunch = await request.json()
+    batch_spec = batch_and_bunch['batch']
+    bunch = batch_and_bunch['bunch']
+    batch_id = await _create_batch(batch_spec, userdata, db)
+    try:
+        await _create_jobs(userdata, bunch, batch_id, app)
+    except web.HTTPBadRequest as e:
+        if f'batch {batch_id} is not open' == e.reason:
+            return web.json_response({'id': batch_id})
+        raise
+    await _close_batch(app, batch_id, user, db)
+    return web.json_response({'id': batch_id})
 
 
 @routes.post('/api/v1alpha/batches/create')
@@ -1007,7 +1101,11 @@ async def create_batch(request, userdata):
         raise web.HTTPServiceUnavailable()
 
     batch_spec = await request.json()
+    id = await _create_batch(batch_spec, userdata, db)
+    return web.json_response({'id': id})
 
+
+async def _create_batch(batch_spec: dict, userdata: dict, db: Database):
     try:
         validate_batch(batch_spec)
     except ValidationError as e:
@@ -1019,7 +1117,7 @@ async def create_batch(request, userdata):
     # which is sensitive
     userdata = {
         'username': user,
-        'gsa_key_secret_name': userdata['gsa_key_secret_name'],
+        'hail_credentials_secret_name': userdata['hail_credentials_secret_name'],
         'tokens_secret_name': userdata['tokens_secret_name'],
     }
 
@@ -1030,18 +1128,36 @@ async def create_batch(request, userdata):
 
     @transaction(db)
     async def insert(tx):
-        billing_projects = await query_billing_projects(tx, user=user, billing_project=billing_project)
+        bp = await tx.execute_and_fetchone(
+            '''
+SELECT billing_projects.status, billing_projects.limit
+FROM billing_project_users
+INNER JOIN billing_projects
+  ON billing_projects.name = billing_project_users.billing_project
+WHERE billing_project = %s AND user = %s
+LOCK IN SHARE MODE''',
+            (billing_project, user),
+        )
 
-        if len(billing_projects) != 1:
-            assert len(billing_projects) == 0
+        if bp is None:
             raise web.HTTPForbidden(reason=f'Unknown Hail Batch billing project {billing_project}.')
-        assert billing_projects[0]['status'] is not None
-        if billing_projects[0]['status'] in {'closed', 'deleted'}:
+        if bp['status'] in {'closed', 'deleted'}:
             raise web.HTTPForbidden(reason=f'Billing project {billing_project} is closed or deleted.')
 
-        bp = billing_projects[0]
+        bp_cost_record = await tx.execute_and_fetchone(
+            '''
+SELECT billing_projects.msec_mcpu, COALESCE(SUM(`usage` * rate), 0) AS cost
+FROM billing_projects
+INNER JOIN aggregated_billing_project_resources
+  ON billing_projects.name = aggregated_billing_project_resources.billing_project
+INNER JOIN resources
+  ON resources.resource = aggregated_billing_project_resources.resource
+WHERE billing_projects.name = %s
+''',
+            (billing_project,),
+        )
         limit = bp['limit']
-        accrued_cost = bp['accrued_cost']
+        accrued_cost = accrued_cost_from_cost_and_msec_mcpu(bp_cost_record)
         if limit is not None and accrued_cost >= limit:
             raise web.HTTPForbidden(
                 reason=f'billing project {billing_project} has exceeded the budget; accrued={cost_str(accrued_cost)} limit={cost_str(limit)}'
@@ -1078,6 +1194,12 @@ VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
                 batch_spec.get('cancel_after_n_failures'),
             ),
         )
+        await tx.execute_insertone(
+            '''
+INSERT INTO batches_n_jobs_in_complete_states (id) VALUES (%s);
+''',
+            (id,),
+        )
 
         if attributes:
             await tx.execute_many(
@@ -1089,8 +1211,7 @@ VALUES (%s, %s, %s)
             )
         return id
 
-    id = await insert()  # pylint: disable=no-value-for-parameter
-    return web.json_response({'id': id})
+    return await insert()  # pylint: disable=no-value-for-parameter
 
 
 async def _get_batch(app, batch_id):
@@ -1098,13 +1219,18 @@ async def _get_batch(app, batch_id):
 
     record = await db.select_and_fetchone(
         '''
-SELECT batches.*, SUM(`usage` * rate) AS cost FROM batches
+SELECT batches.*, batches_cancelled.id IS NOT NULL AS cancelled, COALESCE(SUM(`usage` * rate), 0) AS cost, batches_n_jobs_in_complete_states.n_completed, batches_n_jobs_in_complete_states.n_succeeded, batches_n_jobs_in_complete_states.n_failed, batches_n_jobs_in_complete_states.n_cancelled
+FROM batches
+LEFT JOIN batches_n_jobs_in_complete_states
+       ON batches.id = batches_n_jobs_in_complete_states.id
+LEFT JOIN batches_cancelled
+       ON batches.id = batches_cancelled.id
 LEFT JOIN aggregated_batch_resources
        ON batches.id = aggregated_batch_resources.batch_id
 LEFT JOIN resources
        ON aggregated_batch_resources.resource = resources.resource
-WHERE id = %s AND NOT deleted
-GROUP BY batches.id;
+WHERE batches.id = %s AND NOT deleted
+GROUP BY batches.id, batches_cancelled.id;
 ''',
         (batch_id),
     )
@@ -1176,9 +1302,14 @@ WHERE user = %s AND id = %s AND NOT deleted;
     if not record:
         raise web.HTTPNotFound()
 
+    return await _close_batch(app, batch_id, user, db)
+
+
+async def _close_batch(app: aiohttp.web.Application, batch_id: int, user: str, db: Database):
+    client_session: httpx.ClientSession = app['client_session']
     try:
         now = time_msecs()
-        await check_call_procedure(db, 'CALL close_batch(%s, %s);', (batch_id, now))
+        await db.check_call_procedure('CALL close_batch(%s, %s);', (batch_id, now))
     except CallError as e:
         # 2: wrong number of jobs
         if e.rv['rc'] == 2:
@@ -1187,13 +1318,12 @@ WHERE user = %s AND id = %s AND NOT deleted;
             raise web.HTTPBadRequest(reason=f'wrong number of jobs: expected {expected_n_jobs}, actual {actual_n_jobs}')
         raise
 
-    async with client_session() as session:
-        await request_retry_transient_errors(
-            session,
-            'PATCH',
-            deploy_config.url('batch-driver', f'/api/v1alpha/batches/{user}/{batch_id}/close'),
-            headers=app['batch_headers'],
-        )
+    await request_retry_transient_errors(
+        client_session,
+        'PATCH',
+        deploy_config.url('batch-driver', f'/api/v1alpha/batches/{user}/{batch_id}/close'),
+        headers=app['batch_headers'],
+    )
 
     return web.Response()
 
@@ -1239,7 +1369,7 @@ async def ui_cancel_batch(request, userdata, batch_id):  # pylint: disable=unuse
     if not errored:
         set_message(session, f'Batch {batch_id} cancelled.', 'info')
     location = request.app.router['batches'].url_for().with_query(params)
-    raise web.HTTPFound(location=location)
+    return web.HTTPFound(location=location)
 
 
 @routes.post('/batches/{batch_id}/delete')
@@ -1256,7 +1386,7 @@ async def ui_delete_batch(request, userdata, batch_id):  # pylint: disable=unuse
     session = await aiohttp_session.get_session(request)
     set_message(session, f'Batch {batch_id} deleted.', 'info')
     location = request.app.router['batches'].url_for().with_query(params)
-    raise web.HTTPFound(location=location)
+    return web.HTTPFound(location=location)
 
 
 @routes.get('/batches', name='batches')
@@ -1277,7 +1407,8 @@ async def _get_job(app, batch_id, job_id):
 
     record = await db.select_and_fetchone(
         '''
-SELECT jobs.*, user, billing_project, ip_address, format_version, SUM(`usage` * rate) AS cost
+SELECT jobs.*, user, billing_project, ip_address, format_version, COALESCE(SUM(`usage` * rate), 0) AS cost,
+  t.attempt_id AS last_cancelled_attempt_id
 FROM jobs
 INNER JOIN batches
   ON jobs.batch_id = batches.id
@@ -1290,10 +1421,18 @@ LEFT JOIN aggregated_job_resources
      jobs.job_id = aggregated_job_resources.job_id
 LEFT JOIN resources
   ON aggregated_job_resources.resource = resources.resource
+LEFT JOIN (
+  SELECT batch_id, job_id, attempt_id
+  FROM attempts
+  WHERE reason = "cancelled" AND batch_id = %s AND job_id = %s
+  ORDER BY end_time DESC
+  LIMIT 1
+) AS t
+  ON jobs.batch_id = t.batch_id AND jobs.job_id = t.job_id
 WHERE jobs.batch_id = %s AND NOT deleted AND jobs.job_id = %s
-GROUP BY jobs.batch_id, jobs.job_id;
+GROUP BY jobs.batch_id, jobs.job_id, t.attempt_id;
 ''',
-        (batch_id, job_id),
+        (batch_id, job_id, batch_id, job_id),
     )
     if not record:
         raise web.HTTPNotFound()
@@ -1322,6 +1461,7 @@ LEFT JOIN attempts ON jobs.batch_id = attempts.batch_id and jobs.job_id = attemp
 WHERE jobs.batch_id = %s AND NOT deleted AND jobs.job_id = %s;
 ''',
         (batch_id, job_id),
+        query_name='get_attempts',
     )
 
     attempts = [attempt async for attempt in attempts]
@@ -1425,7 +1565,7 @@ async def ui_get_job(request, userdata, batch_id):
             job_specification['image'] = process_specification['image'] if process_type == 'docker' else '[jvm]'
             job_specification['command'] = process_specification['command']
         job_specification = dictfix.dictfix(
-            job_specification, dictfix.NoneOr({'image': str, 'command': list, 'resources': dict(), 'env': list})
+            job_specification, dictfix.NoneOr({'image': str, 'command': list, 'resources': {}, 'env': list})
         )
 
     resources = job_specification['resources']
@@ -1433,7 +1573,7 @@ async def ui_get_job(request, userdata, batch_id):
         resources['actual_memory'] = humanize.naturalsize(resources['memory_bytes'], binary=True)
         del resources['memory_bytes']
     if 'storage_gib' in resources:
-        resources['actual_storage'] = humanize.naturalsize(resources['storage_gib'] * 1024 ** 3, binary=True)
+        resources['actual_storage'] = humanize.naturalsize(resources['storage_gib'] * 1024**3, binary=True)
         del resources['storage_gib']
     if 'cores_mcpu' in resources:
         resources['actual_cpu'] = resources['cores_mcpu'] / 1000
@@ -1473,8 +1613,9 @@ async def ui_get_job(request, userdata, batch_id):
             color_discrete_sequence=px.colors.sequential.dense,
             category_orders={
                 'Step': ['input', 'main', 'output'],
-                'Task': ['pulling', 'setting up overlay', 'setting up network', 'running', 'uploading_log']
-            })
+                'Task': ['pulling', 'setting up overlay', 'setting up network', 'running', 'uploading_log'],
+            },
+        )
 
         plot_json = json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
     else:
@@ -1515,16 +1656,17 @@ async def ui_get_billing_limits(request, userdata):
     return await render_template('batch', request, userdata, 'billing_limits.html', page_context)
 
 
-def _parse_billing_limit(limit):
+def _parse_billing_limit(limit: Optional[Union[str, float, int]]) -> Optional[float]:
+    assert isinstance(limit, (str, float, int)) or limit is None, (limit, type(limit))
+
     if limit == 'None' or limit is None:
-        limit = None
-    else:
-        try:
-            limit = float(limit)
-            assert limit >= 0
-        except Exception as e:
-            raise InvalidBillingLimitError(limit) from e
-    return limit
+        return None
+    try:
+        parsed_limit = float(limit)
+        assert parsed_limit >= 0
+        return parsed_limit
+    except (AssertionError, ValueError) as e:
+        raise InvalidBillingLimitError(limit) from e
 
 
 async def _edit_billing_limit(db, billing_project, limit):
@@ -1630,8 +1772,10 @@ async def _query_billing(request, user=None):
         where_conditions.append("`time_completed` <= %s")
         where_args.append(end)
     else:
-        where_conditions.append("((`time_completed` IS NOT NULL AND `time_completed` >= %s) OR "
-                                "(`time_closed` IS NOT NULL AND `time_completed` IS NULL))")
+        where_conditions.append(
+            "((`time_completed` IS NOT NULL AND `time_completed` >= %s) OR "
+            "(`time_closed` IS NOT NULL AND `time_completed` IS NULL))"
+        )
         where_args.append(start)
 
     if user is not None:
@@ -2077,7 +2221,7 @@ async def api_delete_billing_projects(request, userdata):  # pylint: disable=unu
 async def _refresh(app):
     db: Database = app['db']
     inst_coll_configs: InstanceCollectionConfigs = app['inst_coll_configs']
-    await inst_coll_configs.refresh()
+    await inst_coll_configs.refresh(db)
     row = await db.select_and_fetchone(
         '''
 SELECT frozen FROM globals;
@@ -2096,26 +2240,26 @@ async def index(request, userdata):  # pylint: disable=unused-argument
 
 
 async def cancel_batch_loop_body(app):
-    async with client_session() as session:
-        await request_retry_transient_errors(
-            session,
-            'POST',
-            deploy_config.url('batch-driver', '/api/v1alpha/batches/cancel'),
-            headers=app['batch_headers'],
-        )
+    client_session: httpx.ClientSession = app['client_session']
+    await request_retry_transient_errors(
+        client_session,
+        'POST',
+        deploy_config.url('batch-driver', '/api/v1alpha/batches/cancel'),
+        headers=app['batch_headers'],
+    )
 
     should_wait = True
     return should_wait
 
 
 async def delete_batch_loop_body(app):
-    async with client_session() as session:
-        await request_retry_transient_errors(
-            session,
-            'POST',
-            deploy_config.url('batch-driver', '/api/v1alpha/batches/delete'),
-            headers=app['batch_headers'],
-        )
+    client_session: httpx.ClientSession = app['client_session']
+    await request_retry_transient_errors(
+        client_session,
+        'POST',
+        deploy_config.url('batch-driver', '/api/v1alpha/batches/delete'),
+        headers=app['batch_headers'],
+    )
 
     should_wait = True
     return should_wait
@@ -2123,8 +2267,7 @@ async def delete_batch_loop_body(app):
 
 async def on_startup(app):
     app['task_manager'] = aiotools.BackgroundTaskManager()
-    pool = concurrent.futures.ThreadPoolExecutor()
-    app['blocking_pool'] = pool
+    app['client_session'] = httpx.client_session()
 
     db = Database()
     await db.async_init()
@@ -2148,12 +2291,10 @@ SELECT instance_id, internal_token, n_tokens, frozen FROM globals;
 
     app['frozen'] = row['frozen']
 
-    credentials = google.oauth2.service_account.Credentials.from_service_account_file('/gsa-key/key.json')
-    app['log_store'] = LogStore(BATCH_BUCKET_NAME, instance_id, pool, credentials=credentials)
+    fs = get_cloud_async_fs(credentials_file='/gsa-key/key.json')
+    app['file_store'] = FileStore(fs, BATCH_STORAGE_URI, instance_id)
 
-    inst_coll_configs = InstanceCollectionConfigs(app)
-    app['inst_coll_configs'] = inst_coll_configs
-    await inst_coll_configs.async_init()
+    app['inst_coll_configs'] = await InstanceCollectionConfigs.create(db)
 
     cancel_batch_state_changed = asyncio.Event()
     app['cancel_batch_state_changed'] = cancel_batch_state_changed
@@ -2169,16 +2310,20 @@ SELECT instance_id, internal_token, n_tokens, frozen FROM globals;
         retry_long_running('delete_batch_loop', run_if_changed, delete_batch_state_changed, delete_batch_loop_body, app)
     )
 
-    app['task_manager'].ensure_future(
-        periodically_call(5, _refresh, app)
-    )
+    app['task_manager'].ensure_future(periodically_call(5, _refresh, app))
 
 
 async def on_cleanup(app):
     try:
-        app['blocking_pool'].shutdown()
-    finally:
         app['task_manager'].shutdown()
+    finally:
+        try:
+            await app['client_session'].close()
+        finally:
+            try:
+                await app['file_store'].close()
+            finally:
+                await app['db'].async_close()
 
 
 def run():

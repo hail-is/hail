@@ -1,6 +1,7 @@
-import sys
-import jinja2
 import json
+import sys
+
+import jinja2
 
 
 def jinja2_render(config, input, output):

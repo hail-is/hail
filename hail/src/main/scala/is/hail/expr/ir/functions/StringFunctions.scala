@@ -234,16 +234,16 @@ object StringFunctions extends RegistryFunctions {
   def registerAll(): Unit = {
     val thisClass = getClass
 
-    registerSCode1("length", TString, TInt32, (_: Type, _: SType) => SInt32) { case (r: EmitRegion, cb, _, s: SStringCode, _) =>
-      primitive(s.loadString().invoke[Int]("length"))
+    registerSCode1("length", TString, TInt32, (_: Type, _: SType) => SInt32) { case (r: EmitRegion, cb, _, s: SStringValue, _) =>
+      primitive(cb.memoize(s.loadString(cb).invoke[Int]("length")))
     }
 
     registerSCode3("substring", TString, TInt32, TInt32, TString, {
       (_: Type, _: SType, _: SType, _: SType) => SJavaString
     }) {
       case (r: EmitRegion, cb, st: SJavaString.type, s, start, end, _) =>
-        val str = s.asString.loadString().invoke[Int, Int, String]("substring", start.asInt.intCode(cb), end.asInt.intCode(cb))
-        st.construct(cb, str).get
+        val str = s.asString.loadString(cb).invoke[Int, Int, String]("substring", start.asInt.value, end.asInt.value)
+        st.construct(cb, str)
     }
 
     registerIR3("slice", TString, TInt32, TInt32, TString) { (_, str, start, end, _) =>
@@ -275,9 +275,9 @@ object StringFunctions extends RegistryFunctions {
     registerIR2("sliceLeft", TString, TInt32, TString) { (_, s, end, _) => invoke("slice", TString, s, I32(0), end) }
 
     registerSCode1("str", tv("T"), TString, (_: Type, _: SType) => SJavaString) { case (r, cb, st: SJavaString.type, a, _) =>
-      val annotation = scodeToJavaValue(cb, r.region, a)
+      val annotation = svalueToJavaValue(cb, r.region, a)
       val str = cb.emb.getType(a.st.virtualType).invoke[Any, String]("str", annotation)
-      st.construct(cb, str).get
+      st.construct(cb, str)
     }
 
     registerIEmitCode1("showStr", tv("T"), TString, {
@@ -286,7 +286,7 @@ object StringFunctions extends RegistryFunctions {
       val jObj = cb.newLocal("showstr_java_obj")(boxedTypeInfo(a.st.virtualType))
       a.toI(cb).consume(cb,
         cb.assignAny(jObj, Code._null(boxedTypeInfo(a.st.virtualType))),
-        sc => cb.assignAny(jObj, scodeToJavaValue(cb, r, sc.get)))
+        sc => cb.assignAny(jObj, svalueToJavaValue(cb, r, sc)))
 
       val str = cb.emb.getType(a.st.virtualType).invoke[Any, String]("showStr", jObj)
 
@@ -301,9 +301,9 @@ object StringFunctions extends RegistryFunctions {
 
         a.toI(cb).consume(cb,
           cb.assignAny(jObj, Code._null(boxedTypeInfo(a.st.virtualType))),
-          sc => cb.assignAny(jObj, scodeToJavaValue(cb, r, sc.get)))
+          sc => cb.assignAny(jObj, svalueToJavaValue(cb, r, sc)))
 
-        val str = cb.emb.getType(a.st.virtualType).invoke[Any, Int, String]("showStr", jObj, trunc.asInt.intCode(cb))
+        val str = cb.emb.getType(a.st.virtualType).invoke[Any, Int, String]("showStr", jObj, trunc.asInt.value)
         st.construct(cb, str)
       }
     }
@@ -315,7 +315,7 @@ object StringFunctions extends RegistryFunctions {
         a.toI(cb).consume(cb,
           cb.assignAny(inputJavaValue, Code._null(ti)),
           { sc =>
-            val jv = scodeToJavaValue(cb, r, sc.get)
+            val jv = svalueToJavaValue(cb, r, sc)
             cb.assignAny(inputJavaValue, jv)
           })
         val json = cb.emb.getType(a.st.virtualType).invoke[Any, JValue]("toJSON", inputJavaValue)
@@ -480,13 +480,13 @@ object StringFunctions extends RegistryFunctions {
 
     registerSCode("parse_json", Array(TString), TTuple(tv("T")),
       (rType: Type, _: Seq[SType]) => SType.canonical(rType), typeParameters = Array(tv("T"))
-    ) { case (er, cb, _, resultType, Array(s: SStringCode), _) =>
+    ) { case (er, cb, _, resultType, Array(s: SStringValue), _) =>
 
       val warnCtx = cb.emb.genFieldThisRef[mutable.HashSet[String]]("parse_json_context")
       cb.ifx(warnCtx.load().isNull, cb.assign(warnCtx, Code.newInstance[mutable.HashSet[String]]()))
 
       val row = Code.invokeScalaObject3[String, Type, mutable.HashSet[String], Row](JSONAnnotationImpex.getClass, "irImportAnnotation",
-        s.loadString(), er.mb.ecb.getType(resultType.virtualType.asInstanceOf[TTuple].types(0)), warnCtx)
+        s.loadString(cb), er.mb.ecb.getType(resultType.virtualType.asInstanceOf[TTuple].types(0)), warnCtx)
 
       unwrapReturn(cb, er.region, resultType, row)
     }

@@ -1,4 +1,4 @@
-from typing import Mapping, Dict, Sequence
+from typing import Mapping, Dict, Sequence, Union
 
 from deprecated import deprecated
 
@@ -1754,7 +1754,7 @@ class DictExpression(Expression):
             hl.agg.explode(lambda elt: hl.tuple((elt[0]._all_summary_aggs(), elt[1]._all_summary_aggs())), hl.array(self))))
 
 
-class StructExpression(Mapping[str, Expression], Expression):
+class StructExpression(Mapping[Union[str, int], Expression], Expression):
     """Expression of type :class:`.tstruct`.
 
     >>> struct = hl.struct(a=5, b='Foo')
@@ -3263,6 +3263,32 @@ class CallExpression(Expression):
                 raise TypeError("Call expects allele index to be an expression of type 'int32', "
                                 "found expression of type '{}'".format(item.dtype))
             return self._index(tint32, item)
+
+    def unphase(self):
+        """Returns an unphased version of this call.
+
+        Returns
+        -------
+        :class:`.CallExpression`
+        """
+        return self._method("unphase", tcall)
+
+    def contains_allele(self, allele):
+        """Returns true if the call has one or more called alleles of the given index.
+
+        >>> c = hl.call(0, 3)
+
+        >>> hl.eval(c.contains_allele(3))
+        True
+
+        >>> hl.eval(c.contains_allele(1))
+        False
+
+        Returns
+        -------
+        :class:`.BooleanExpression`
+        """
+        return self._method("containsAllele", tbool, allele)
 
     @property
     def ploidy(self):

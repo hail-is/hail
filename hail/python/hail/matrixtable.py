@@ -805,6 +805,21 @@ class MatrixTable(ExprContainer):
                     key_fields
                 )))
 
+    @typecheck_method(new_key=str)
+    def _key_rows_by_assert_sorted(self, *new_key):
+        rk_names = list(self.row_key)
+        i = 0
+        while (i < min(len(new_key), len(rk_names))):
+            if new_key[i] != rk_names[i]:
+                break
+            i += 1
+
+        if i < 1:
+            raise ValueError(
+                f'cannot implement an unsafe sort with no shared key:\n  new key: {new_key}\n  old key: {rk_names}')
+
+        return MatrixTable(ir.MatrixKeyRowsBy(self._mir, list(new_key), is_sorted=True))
+
     @typecheck_method(keys=oneof(str, Expression),
                       named_keys=expr_any)
     def key_rows_by(self, *keys, **named_keys) -> 'MatrixTable':
@@ -1351,8 +1366,8 @@ class MatrixTable(ExprContainer):
         -----
         The row key type of the matrix table must match the key type of `other`.
 
-        This method does not change the schema of the matrix table; it is a
-        filtering the matrix table to row keys not present in another table.
+        This method does not change the schema of the matrix table; it is
+        filtering the matrix table to row keys present in another table.
 
         To discard rows whose key is present in `other`, use
         :meth:`.anti_join_rows`.
@@ -1984,7 +1999,7 @@ class MatrixTable(ExprContainer):
 
         agg_ir = ir.TableAggregate(ir.MatrixRowsTable(base._mir), subst_query)
         if _localize:
-            return Env.backend().execute(agg_ir)
+            return Env.backend().execute(ir.MakeTuple([agg_ir]))[0]
         else:
             return construct_expr(ir.LiftMeOut(agg_ir), expr.dtype)
 
@@ -2034,7 +2049,7 @@ class MatrixTable(ExprContainer):
 
         agg_ir = ir.TableAggregate(ir.MatrixColsTable(base._mir), subst_query)
         if _localize:
-            return Env.backend().execute(agg_ir)
+            return Env.backend().execute(ir.MakeTuple([agg_ir]))[0]
         else:
             return construct_expr(ir.LiftMeOut(agg_ir), expr.dtype)
 

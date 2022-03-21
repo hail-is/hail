@@ -1,6 +1,7 @@
 package is.hail.expr.ir.lowering
 
-import is.hail.expr.ir.{BaseIR, ExecuteContext, TypeCheck}
+import is.hail.backend.ExecuteContext
+import is.hail.expr.ir.{BaseIR, TypeCheck}
 import is.hail.utils._
 
 case class LoweringPipeline(lowerings: LoweringPass*) {
@@ -18,7 +19,7 @@ case class LoweringPipeline(lowerings: LoweringPass*) {
           throw e
       }
       try {
-        TypeCheck(x)
+        TypeCheck(ctx, x)
       } catch {
         case e: Throwable =>
           fatal(s"error after applying ${ l.context }", e)

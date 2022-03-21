@@ -1,12 +1,11 @@
 import os
 import warnings
 import re
-from concurrent.futures import ThreadPoolExecutor
 from typing import Optional, Dict, Union, List, Any, Set
 
-from hailtop.utils import secret_alnum_string
-from hailtop.aiotools import AsyncFS, RouterAsyncFS, LocalAsyncFS
-from hailtop.aiogoogle import GoogleStorageAsyncFS
+from hailtop.utils import secret_alnum_string, url_scheme
+from hailtop.aiotools import AsyncFS
+from hailtop.aiotools.router_fs import RouterAsyncFS
 
 from . import backend as _backend, job, resource as _resource  # pylint: disable=cyclic-import
 from .exceptions import BatchException
@@ -92,11 +91,11 @@ class Batch:
 
     _counter = 0
     _uid_prefix = "__BATCH__"
-    _regex_pattern = r"(?P<BATCH>{}\d+)".format(_uid_prefix)
+    _regex_pattern = r"(?P<BATCH>{}\d+)".format(_uid_prefix)  # pylint: disable=consider-using-f-string
 
     @classmethod
     def _get_uid(cls):
-        uid = "{}{}".format(cls._uid_prefix, cls._counter)
+        uid = cls._uid_prefix + str(cls._counter)
         cls._counter += 1
         return uid
 
@@ -160,8 +159,8 @@ class Batch:
     def _fs(self) -> AsyncFS:
         if self._DEPRECATED_project is not None:
             if self._DEPRECATED_fs is None:
-                self._DEPRECATED_fs = RouterAsyncFS('file', [LocalAsyncFS(ThreadPoolExecutor()),
-                                                             GoogleStorageAsyncFS(project=self._DEPRECATED_project)])
+                gcs_kwargs = {'project': self._DEPRECATED_project}
+                self._DEPRECATED_fs = RouterAsyncFS('file', gcs_kwargs=gcs_kwargs)
             return self._DEPRECATED_fs
         return self._backend._fs
 
@@ -439,13 +438,29 @@ class Batch:
         Examples
         --------
 
-        Write a single job intermediate to a permanent location:
+        Write a single job intermediate to a local file:
 
         >>> b = Batch()
         >>> j = b.new_job()
         >>> j.command(f'echo "hello" > {j.ofile}')
         >>> b.write_output(j.ofile, 'output/hello.txt')
         >>> b.run()
+
+        Write a single job intermediate to a permanent location in GCS:
+
+        >>> b = Batch()
+        >>> j = b.new_job()
+        >>> j.command(f'echo "hello" > {j.ofile}')
+        >>> b.write_output(j.ofile, 'gs://mybucket/output/hello.txt')
+        >>> b.run()  # doctest: +SKIP
+
+        Write a single job intermediate to a permanent location in Azure:
+
+        >>> b = Batch()
+        >>> j = b.new_job()
+        >>> j.command(f'echo "hello" > {j.ofile}')
+        >>> b.write_output(j.ofile, 'hail-az://my-account/my-container/output/hello.txt')
+        >>> b.run()  # doctest: +SKIP
 
         .. warning::
 
@@ -489,7 +504,8 @@ class Batch:
                                  f"using the PythonJob 'call' method")
 
         if isinstance(self._backend, _backend.LocalBackend):
-            if not dest.startswith('gs://'):
+            dest_scheme = url_scheme(dest)
+            if dest_scheme == '':
                 dest = os.path.abspath(os.path.expanduser(dest))
 
         resource._add_output_path(dest)

@@ -5,8 +5,8 @@ import is.hail.asm4s._
 import is.hail.expr.ir.{EmitCode, EmitCodeBuilder, EmitValue, IEmitCode}
 import is.hail.types.physical.PCanonicalStruct
 import is.hail.types.physical.stypes._
-import is.hail.types.physical.stypes.concrete.{SInsertFieldsStruct, SInsertFieldsStructCode, SInsertFieldsStructValue, SSubsetStruct, SSubsetStructCode, SSubsetStructValue}
-import is.hail.types.physical.stypes.primitives.SInt32Code
+import is.hail.types.physical.stypes.concrete._
+import is.hail.types.physical.stypes.primitives.{SInt32Value, SInt64Value}
 import is.hail.types.virtual.{TBaseStruct, TStruct, TTuple}
 import is.hail.types.{RField, RStruct, RTuple, TypeWithRequiredness}
 import is.hail.utils._
@@ -34,11 +34,10 @@ trait SBaseStructSettable extends SBaseStructValue with SSettable
 trait SBaseStructValue extends SValue {
   def st: SBaseStruct
 
-  override def get: SBaseStructCode
+  def isFieldMissing(cb: EmitCodeBuilder, fieldIdx: Int): Value[Boolean]
 
-  def isFieldMissing(fieldIdx: Int): Code[Boolean]
-
-  def isFieldMissing(fieldName: String): Code[Boolean] = isFieldMissing(st.fieldIdx(fieldName))
+  def isFieldMissing(cb: EmitCodeBuilder, fieldName: String): Value[Boolean] =
+    isFieldMissing(cb, st.fieldIdx(fieldName))
 
   def loadField(cb: EmitCodeBuilder, fieldIdx: Int): IEmitCode
 
@@ -49,13 +48,30 @@ trait SBaseStructValue extends SValue {
     new SSubsetStructValue(st, this)
   }
 
-  override def hash(cb: EmitCodeBuilder): SInt32Code = {
+  override def hash(cb: EmitCodeBuilder): SInt32Value = {
     val hash_result = cb.newLocal[Int]("hash_result_struct", 1)
     (0 until st.size).foreach(i => {
       loadField(cb, i).consume(cb, { cb.assign(hash_result, hash_result * 31) },
-        {field => cb.assign(hash_result, (hash_result * 31) + field.hash(cb).intCode(cb))})
+        {field => cb.assign(hash_result, (hash_result * 31) + field.hash(cb).value)})
     })
-    new SInt32Code(hash_result)
+    new SInt32Value(hash_result)
+  }
+
+  override def sizeToStoreInBytes(cb: EmitCodeBuilder): SInt64Value = {
+    // Size in bytes of the struct that must represent this thing, plus recursive call on any non-missing children.
+    val pStructSize = this.st.storageType().byteSize
+    val sizeSoFar = cb.newLocal[Long]("sstackstruct_size_in_bytes", pStructSize)
+    (0 until st.size).foreach { idx =>
+      if (this.st.fieldTypes(idx).containsPointers) {
+        val sizeAtThisIdx: Value[Long] = this.loadField(cb, idx).consumeCode(cb, {
+          const(0L)
+        }, { sv =>
+          sv.sizeToStoreInBytes(cb).value
+        })
+        cb.assign(sizeSoFar, sizeSoFar + sizeAtThisIdx)
+      }
+    }
+    new SInt64Value(sizeSoFar)
   }
 
   protected[stypes] def _insert(newType: TStruct, fields: (String, EmitValue)*): SBaseStructValue = {
@@ -76,42 +92,5 @@ trait SBaseStructValue extends SValue {
 
     val pcs = PCanonicalStruct(false, allFields.map { case (f, ec) => (f, ec.emitType.storageType) }: _*)
     pcs.constructFromFields(cb, region, allFields.map(_._2.load), false)
-  }
-}
-
-trait SBaseStructCode extends SCode {
-  self =>
-  def st: SBaseStruct
-
-  def memoize(cb: EmitCodeBuilder, name: String): SBaseStructValue
-
-  def memoizeField(cb: EmitCodeBuilder, name: String): SBaseStructValue
-
-  final def loadSingleField(cb: EmitCodeBuilder, fieldName: String): IEmitCode = loadSingleField(cb, st.fieldIdx(fieldName))
-
-  def loadSingleField(cb: EmitCodeBuilder, fieldIdx: Int): IEmitCode = {
-    memoize(cb, "structcode_loadsinglefield")
-      .loadField(cb, fieldIdx)
-  }
-
-  protected[stypes] def _insert(newType: TStruct, fields: (String, EmitCode)*): SBaseStructCode = {
-    new SInsertFieldsStructCode(
-      SInsertFieldsStruct(newType, st, fields.map { case (name, ec) => (name, ec.emitType) }.toFastIndexedSeq),
-      this,
-      fields.map(_._2).toFastIndexedSeq
-    )
-  }
-
-  def insert(cb: EmitCodeBuilder, region: Value[Region], newType: TStruct, fields: (String, EmitCode)*): SBaseStructCode = {
-    if (newType.size < 64 || fields.length < 16)
-      return _insert(newType, fields: _*)
-
-    val newFieldMap = fields.toMap
-    val oldPV = memoize(cb, "insert_fields_old")
-    val allFields = newType.fieldNames.map { f =>
-      (f, newFieldMap.getOrElse(f, EmitCode.fromI(cb.emb)(cb => oldPV.loadField(cb, f)))) }
-
-    val pcs = PCanonicalStruct(false, allFields.map { case (f, ec) => (f, ec.emitType.storageType) }: _*)
-    pcs.constructFromFields(cb, region, allFields.map(_._2), false).get
   }
 }

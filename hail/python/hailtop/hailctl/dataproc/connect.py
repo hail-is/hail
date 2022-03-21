@@ -4,6 +4,8 @@ import shutil
 import subprocess
 import tempfile
 
+from hailtop.utils import secret_alnum_string
+
 from . import gcloud
 
 
@@ -39,7 +41,7 @@ def get_chrome_path():
     raise ValueError(f"unsupported system: {system}, set environment variable HAILCTL_CHROME to a chrome executable")
 
 
-def main(args, pass_through_args):  # pylint: disable=unused-argument
+async def main(args, pass_through_args):  # pylint: disable=unused-argument
     # shortcut mapping
     shortcut = {
         'ui': 'spark-ui',
@@ -93,12 +95,13 @@ def main(args, pass_through_args):  # pylint: disable=unused-argument
         chrome = os.environ.get('HAILCTL_CHROME') or get_chrome_path()
 
         # open Chrome with SOCKS proxy configuration
-        with open(os.devnull, 'w') as f:
-            subprocess.Popen([
-                chrome,
-                'http://localhost:{}'.format(connect_port_and_path),
-                '--proxy-server=socks5://localhost:{}'.format(args.port),
-                '--host-resolver-rules=MAP * 0.0.0.0 , EXCLUDE localhost',
-                '--proxy-bypass-list=<-loopback>',  # https://chromium.googlesource.com/chromium/src/+/da790f920bbc169a6805a4fb83b4c2ab09532d91
-                '--user-data-dir={}'.format(tempfile.gettempdir())
-            ], stdout=f, stderr=f)
+        subprocess.Popen([  # pylint: disable=consider-using-with
+            chrome,
+            'http://localhost:{}'.format(connect_port_and_path),
+            '--proxy-server=socks5://localhost:{}'.format(args.port),
+            '--host-resolver-rules=MAP * 0.0.0.0 , EXCLUDE localhost',
+            '--proxy-bypass-list=<-loopback>',  # https://chromium.googlesource.com/chromium/src/+/da790f920bbc169a6805a4fb83b4c2ab09532d91
+            '--user-data-dir={}'.format(
+                os.path.join(tempfile.gettempdir(),
+                             'hailctl-dataproc-connect-' + secret_alnum_string(6)))
+        ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)

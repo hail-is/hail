@@ -2,16 +2,16 @@
 Install Hail on a Spark Cluster
 ===============================
 
-If you are using Google Dataproc, please see `these simpler instructions
-<dataproc.rst>`__.
+If you are using Google Dataproc, please see `these simpler instructions <dataproc.rst>`__. If you
+are using Azure HDInsight please see `these simpler instructions <azure.rst>`__.
 
 Hail should work with any Spark 3.1.1 cluster built with Scala 2.12.
 
 Hail needs to be built from source on the leader node. Building Hail from source
 requires:
 
-- Java 8 JDK.
-- Python 3.6+.
+- Java 8 or 11 JDK.
+- Python 3.7 or later.
 - A recent C and a C++ compiler, GCC 5.0, LLVM 3.4, or later versions of either
   suffice.
 - The LZ4 library.

@@ -1,15 +1,13 @@
 package is.hail.expr.ir.ndarrays
 
 import is.hail.annotations.Region
-import is.hail.expr.ir._
-import is.hail.types.physical.{PCanonicalArray, PCanonicalNDArray, PFloat32, PFloat32Required, PFloat64, PFloat64Required, PInt32, PInt32Required, PInt64, PInt64Required, PNumeric, PType}
-import is.hail.types.physical.stypes.interfaces.{SNDArray, SNDArrayCode}
-import is.hail.types.physical.stypes.{SCode, SType, SValue}
-import is.hail.utils._
 import is.hail.asm4s._
+import is.hail.expr.ir._
 import is.hail.types.physical.stypes.interfaces._
-import is.hail.types.physical.stypes.primitives.{SFloat32, SFloat64, SInt32, SInt64}
-import is.hail.types.virtual.{TFloat32, TFloat64, TInt32, TInt64, TNDArray}
+import is.hail.types.physical.stypes.{SType, SValue}
+import is.hail.types.physical._
+import is.hail.types.virtual._
+import is.hail.utils._
 
 abstract class NDArrayProducer {
   outer =>
@@ -55,7 +53,7 @@ abstract class NDArrayProducer {
     initAll(cb)
     val idxGenerator = if (rowMajor) SNDArray.forEachIndexWithInitAndIncRowMajor _ else SNDArray.forEachIndexWithInitAndIncColMajor _
     idxGenerator(cb, shape, initAxis, stepAxis.map(stepper => (cb: EmitCodeBuilder) => stepper(cb, 1L)), "ndarray_producer_toSCode"){ (cb, indices) =>
-      targetType.elementType.storeAtAddress(cb, currentWriteAddr, region, loadElementAtCurrentAddr(cb).get, true)
+      targetType.elementType.storeAtAddress(cb, currentWriteAddr, region, loadElementAtCurrentAddr(cb), true)
       cb.assign(currentWriteAddr, currentWriteAddr + targetType.elementType.byteSize)
     }
 
@@ -222,7 +220,7 @@ object EmitNDArray {
                 cb.assign(runningProduct, 1L)
 
                 (0 until outputNDims).foreach { i =>
-                  cb.assign(tempShapeElement, tupleValue.loadField(cb, i).get(cb, "Can't reshape if elements of reshape tuple are missing.", errorID).asLong.longCode(cb))
+                  cb.assign(tempShapeElement, tupleValue.loadField(cb, i).get(cb, "Can't reshape if elements of reshape tuple are missing.", errorID).asLong.value)
                   cb.ifx(tempShapeElement < 0L,
                     {
                       cb.ifx(tempShapeElement ceq -1L,
@@ -256,7 +254,7 @@ object EmitNDArray {
                 cb.assign(replacesNegativeOne, (runningProduct ceq 0L).mux(0L, numElements / runningProduct))
 
                 (0 until outputNDims).foreach { i =>
-                  cb.assign(tempShapeElement, tupleValue.loadField(cb, i).get(cb, "Can't reshape if elements of reshape tuple are missing.", errorID).asLong.longCode(cb))
+                  cb.assign(tempShapeElement, tupleValue.loadField(cb, i).get(cb, "Can't reshape if elements of reshape tuple are missing.", errorID).asLong.value)
                   cb.assign(requestedShapeValues(i), (tempShapeElement ceq -1L).mux(replacesNegativeOne, tempShapeElement))
                 }
 
@@ -286,7 +284,7 @@ object EmitNDArray {
                   // Need to check if the any of the ndarrays are missing.
                   val missingCheckLoopIdx = cb.newLocal[Int]("ndarray_concat_missing_check_idx")
                   cb.forLoop(cb.assign(missingCheckLoopIdx, 0), missingCheckLoopIdx < arrLength, cb.assign(missingCheckLoopIdx, missingCheckLoopIdx + 1),
-                    cb.assign(missing, missing | ndsArraySValue.isElementMissing(missingCheckLoopIdx))
+                    cb.assign(missing, missing | ndsArraySValue.isElementMissing(cb, missingCheckLoopIdx))
                   )
                   missing
                 }
@@ -309,7 +307,7 @@ object EmitNDArray {
 
                   cb.forLoop(cb.assign(loopIdx, 1), loopIdx < arrLength, cb.assign(loopIdx, loopIdx + 1), {
                     val shapeOfNDAtIdx = ndsArraySValue.loadElement(cb, loopIdx).map(cb) { sCode => sCode.asNDArray }.get(cb).shapeStruct(cb)
-                    val dimLength = cb.newLocal[Long]("dimLength", shapeOfNDAtIdx.loadField(cb, dimIdx).get(cb).asInt64.longCode(cb))
+                    val dimLength = cb.newLocal[Long]("dimLength", shapeOfNDAtIdx.loadField(cb, dimIdx).get(cb).asInt64.value)
 
                     if (dimIdx == axis) {
                       pushElement(cb, EmitCode(Code._empty, false, primitive(dimLength)).toI(cb))
@@ -357,13 +355,13 @@ object EmitNDArray {
                       cb.assign(curIdxVar, curIdxVar + step)
                       if (idx == axis) {
                         // If bigger than current ndarray, then we need to subtract out the size of this ndarray, increment to the next ndarray, and see if we are happy yet.
-                        val shouldLoop = cb.newLocal[Boolean]("should_loop", curIdxVar >= stagedArrayOfSizes.loadElement(cb, currentNDArrayIdx).get(cb).asInt64.longCode(cb))
+                        val shouldLoop = cb.newLocal[Boolean]("should_loop", curIdxVar >= stagedArrayOfSizes.loadElement(cb, currentNDArrayIdx).get(cb).asInt64.value)
                         cb.whileLoop(shouldLoop,
                           {
-                            cb.assign(curIdxVar, curIdxVar - stagedArrayOfSizes.loadElement(cb, currentNDArrayIdx).get(cb).asInt64.longCode(cb))
+                            cb.assign(curIdxVar, curIdxVar - stagedArrayOfSizes.loadElement(cb, currentNDArrayIdx).get(cb).asInt64.value)
                             cb.assign(currentNDArrayIdx, currentNDArrayIdx + 1)
                             cb.ifx(currentNDArrayIdx < stagedArrayOfSizes.loadLength(), {
-                              cb.assign(shouldLoop, curIdxVar >= stagedArrayOfSizes.loadElement(cb, currentNDArrayIdx).get(cb).asInt64.longCode(cb))
+                              cb.assign(shouldLoop, curIdxVar >= stagedArrayOfSizes.loadElement(cb, currentNDArrayIdx).get(cb).asInt64.value)
                             }, {
                               cb.assign(shouldLoop, false)
                             })
@@ -390,7 +388,7 @@ object EmitNDArray {
                 }
 
                 IEmitCode.multiFlatMap[Int, SValue, NDArrayProducer](indexingIndices, indexingIndex => slicesValue.loadField(cb, indexingIndex), cb) { indexingSCodes =>
-                  val indexingValues = indexingSCodes.map(sCode => cb.newLocal("ndarray_slice_indexer", sCode.asInt64.longCode(cb)))
+                  val indexingValues = indexingSCodes.map(sCode => cb.newLocal("ndarray_slice_indexer", sCode.asInt64.value))
                   val slicingValueTriplesBuilder = new BoxedArrayBuilder[(Value[Long], Value[Long], Value[Long])]()
                   val outputShape = {
                     IEmitCode.multiFlatMap[Int, SValue, IndexedSeq[Value[Long]]](slicingIndices,
@@ -401,9 +399,9 @@ object EmitNDArray {
                         val newDimSizeI = sValueSlice.loadField(cb, 0).flatMap(cb) { startC =>
                           sValueSlice.loadField(cb, 1).flatMap(cb) { stopC =>
                             sValueSlice.loadField(cb, 2).map(cb) { stepC =>
-                              val start = cb.newLocal[Long]("ndarray_slice_start", startC.asLong.longCode(cb))
-                              val stop = cb.newLocal[Long]("ndarray_slice_stop", stopC.asLong.longCode(cb))
-                              val step = cb.newLocal[Long]("ndarray_slice_step", stepC.asLong.longCode(cb))
+                              val start = startC.asLong.value
+                              val stop = stopC.asLong.value
+                              val step = stepC.asLong.value
 
                               slicingValueTriplesBuilder.push((start, stop, step))
 
@@ -508,7 +506,7 @@ object EmitNDArray {
                       /* pass */
                     }, {
                       val startPoint = cb.newLocal[Long]("ndarray_producer_filter_init_axis", filtPValues(idx).loadElement(cb, idxVars(idx).toI).get(
-                        cb, s"NDArrayFilter: can't filter on missing index (axis=$idx)").asLong.longCode(cb))
+                                              cb, s"NDArrayFilter: can't filter on missing index (axis=$idx)").asLong.value)
                       childProducer.stepAxis(idx)(cb, startPoint)
                     })
                   }
@@ -519,9 +517,9 @@ object EmitNDArray {
                       childProducer.stepAxis(idx)(cb, step)
                       cb.assign(idxVars(idx), idxVars(idx) + step)
                     }, {
-                      val currentPos = filtPValues(idx).loadElement(cb, idxVars(idx).toI).get(cb, s"NDArrayFilter: can't filter on missing index (axis=$idx)").asLong.longCode(cb)
+                      val currentPos = filtPValues(idx).loadElement(cb, idxVars(idx).toI).get(cb, s"NDArrayFilter: can't filter on missing index (axis=$idx)").asLong.value
                       cb.assign(idxVars(idx), idxVars(idx) + step)
-                      val newPos = filtPValues(idx).loadElement(cb, idxVars(idx).toI).get(cb, s"NDArrayFilter: can't filter on missing index (axis=$idx)").asLong.longCode(cb)
+                      val newPos = filtPValues(idx).loadElement(cb, idxVars(idx).toI).get(cb, s"NDArrayFilter: can't filter on missing index (axis=$idx)").asLong.value
                       val stepSize = cb.newLocal[Long]("ndarray_producer_filter_step_size", newPos - currentPos)
                       childProducer.stepAxis(idx)(cb, stepSize)
                     })
@@ -571,7 +569,7 @@ object EmitNDArray {
                   val stepsToSumOut = axesToSumOut.map(idx => (cb: EmitCodeBuilder) => childProducer.stepAxis(idx)(cb, 1L))
 
                   SNDArray.forEachIndexWithInitAndIncColMajor(cb, newOutputShapeComplement, initsToSumOut, stepsToSumOut, "ndarray_producer_ndarray_agg") { (cb, _) =>
-                    cb.assign(runningSum, numericElementType.add(runningSum, SType.extractPrimCode(cb, childProducer.loadElementAtCurrentAddr(cb).get)))
+                    cb.assign(runningSum, numericElementType.add(runningSum, SType.extractPrimValue(cb, childProducer.loadElementAtCurrentAddr(cb))))
                   }
                   primitive(numericElementType.virtualType, runningSum)
                 }

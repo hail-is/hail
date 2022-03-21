@@ -3,9 +3,7 @@ package is.hail.types.physical
 import is.hail.annotations._
 import is.hail.asm4s._
 import is.hail.check.Gen
-import is.hail.expr.ir.orderings.CodeOrdering
-import is.hail.expr.ir.{EmitCode, EmitCodeBuilder, EmitMethodBuilder, IEmitCode}
-import is.hail.types.physical.stypes.interfaces.{SIntervalCode, SIntervalValue}
+import is.hail.expr.ir.EmitCodeBuilder
 import is.hail.types.virtual.TInterval
 import is.hail.utils._
 
@@ -90,9 +88,9 @@ abstract class PInterval extends PType {
 
   def includesEnd(off: Long): Boolean
 
-  def startDefined(off: Code[Long]): Code[Boolean]
+  def startDefined(cb: EmitCodeBuilder, off: Code[Long]): Value[Boolean]
 
-  def endDefined(off: Code[Long]): Code[Boolean]
+  def endDefined(cb: EmitCodeBuilder, off: Code[Long]): Value[Boolean]
 
   def includesStart(off: Code[Long]): Code[Boolean]
 

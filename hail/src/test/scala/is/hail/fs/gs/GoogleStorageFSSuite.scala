@@ -6,21 +6,37 @@ import is.hail.fs.FSSuite
 import is.hail.io.fs.GoogleStorageFS
 import org.apache.commons.io.IOUtils
 import org.scalatest.testng.TestNGSuite
-import org.testng.annotations.Test
+import org.testng.annotations.{Test, BeforeClass}
+import org.testng.SkipException
 
 class GoogleStorageFSSuite extends TestNGSuite with FSSuite {
-  val bucket: String = System.getenv("HAIL_TEST_GCS_BUCKET")
+  @BeforeClass
+  def beforeclass(): Unit = {
+    if (System.getenv("HAIL_CLOUD") != "gcp") {
+      throw new SkipException("This test suite is only run in GCP.");
+    } else {
+      assert(hail_test_storage_uri != null)
+      assert(fsResourcesRoot != null)
+    }
+  }
 
-  val root: String = s"gs://$bucket"
+  val hail_test_storage_uri: String = System.getenv("HAIL_TEST_STORAGE_URI")
 
-  val fsResourcesRoot: String = System.getenv("HAIL_GS_FS_TEST_RESOURCES")
+  val root: String = hail_test_storage_uri
 
-  private val keyFile = "/test-gsa-key/key.json"
+  val fsResourcesRoot: String = System.getenv("HAIL_FS_TEST_CLOUD_RESOURCES_URI")
 
-  lazy val fs = new GoogleStorageFS(
-    new String(IOUtils.toByteArray(new FileInputStream(keyFile))))
+  lazy val fs = {
+    val gac = System.getenv("GOOGLE_APPLICATION_CREDENTIALS")
+    if (gac == null) {
+      new GoogleStorageFS()
+    } else {
+      new GoogleStorageFS(
+        Some(new String(IOUtils.toByteArray(new FileInputStream(gac)))))
+    }
+  }
 
-  lazy val tmpdir: String = s"gs://$bucket/tmp"
+  lazy val tmpdir: String = hail_test_storage_uri
 
   @Test def testDropTailingSlash(): Unit = {
     import GoogleStorageFS._

@@ -5,7 +5,7 @@ import is.hail.expr.ir.functions.StringFunctions
 import is.hail.expr.ir.streams.StreamProducer
 import is.hail.lir
 import is.hail.types.physical.stypes.interfaces.{SStream, SStreamValue}
-import is.hail.types.physical.stypes.{SCode, SSettable, SValue}
+import is.hail.types.physical.stypes.{SCode, SSettable, SType, SValue}
 import is.hail.utils._
 
 object EmitCodeBuilder {
@@ -53,14 +53,69 @@ class EmitCodeBuilder(val emb: EmitMethodBuilder[_], var code: Code[Unit]) exten
     tmp
   }
 
-  def assign(s: SSettable, v: SCode): Unit = {
-    assert(s.st == v.st, s"type mismatch!\n  settable=${s.st}\n     passed=${v.st}")
-    s.store(this, v)
+  def ifx[T: TypeInfo](c: Code[Boolean], emitThen: => Code[T], emitElse: => Code[T]): Value[T] = {
+    val Ltrue = CodeLabel()
+    val Lfalse = CodeLabel()
+    val Lafter = CodeLabel()
+    append(c.mux(Ltrue.goto, Lfalse.goto))
+    define(Ltrue)
+    val tval = emitThen
+    val value = newLocal[T]("ifx_value")
+    assign(value, tval)
+    goto(Lafter)
+    define(Lfalse)
+    assign(value, emitElse)
+    define(Lafter)
+    value
   }
+
+  def ifx(c: Code[Boolean], emitThen: => SValue, emitElse: => SValue): SValue = {
+    val Ltrue = CodeLabel()
+    val Lfalse = CodeLabel()
+    val Lafter = CodeLabel()
+    append(c.mux(Ltrue.goto, Lfalse.goto))
+    define(Ltrue)
+    val tval = emitThen
+    val value = newSLocal(tval.st, "ifx_value")
+    assign(value, tval)
+    goto(Lafter)
+    define(Lfalse)
+    assign(value, emitElse)
+    define(Lafter)
+    value
+  }
+
+  def ifx(c: Code[Boolean], emitThen: => IEmitCode, emitElse: => IEmitCode): IEmitCode = {
+    val Lmissing = CodeLabel()
+    val Lpresent = CodeLabel()
+    val Ltrue = CodeLabel()
+    val Lfalse = CodeLabel()
+    append(c.mux(Ltrue.goto, Lfalse.goto))
+    define(Ltrue)
+    val tval = emitThen
+    val value = newSLocal(tval.st, "ifx_value")
+    tval.consume(this, {
+      goto(Lmissing)
+    }, { tval =>
+      assign(value, tval)
+      goto(Lpresent)
+    })
+    define(Lfalse)
+    val fval = emitElse
+    fval.consume(this, {
+      goto(Lmissing)
+    }, { fval =>
+      assign(value, fval)
+      goto(Lpresent)
+    })
+    IEmitCode(Lmissing, Lpresent, value, tval.required && fval.required)
+  }
+
+  def newSLocal(st: SType, name: String): SSettable = emb.newPLocal(name, st)
 
   def assign(s: SSettable, v: SValue): Unit = {
     assert(s.st == v.st, s"type mismatch!\n  settable=${s.st}\n     passed=${v.st}")
-    s.store(this, v.get)
+    s.store(this, v)
   }
 
   def assign(s: EmitSettable, v: EmitCode): Unit = {
@@ -75,27 +130,28 @@ class EmitCodeBuilder(val emb: EmitMethodBuilder[_], var code: Code[Unit]) exten
     (is, ix).zipped.foreach { (s, c) => s.store(this, c) }
   }
 
-  def memoize(pc: SCode, name: String): SValue = pc.memoize(this, name)
-
-  def memoizeField(pc: SCode, name: String): SValue = {
+  def memoizeField(pc: SValue, name: String): SValue = {
     val f = emb.newPField(name, pc.st)
     assign(f, pc)
     f
   }
 
-  def memoize[T: TypeInfo](v: Code[T], optionalName: String = ""): Value[T] = {
-    newLocal[T]("memoize" + optionalName, v)
+  def memoizeField[T: TypeInfo](v: Code[T], name: String): Value[T] = {
+    newField[T](name, v)
   }
 
   def memoizeField[T: TypeInfo](v: Code[T]): Value[T] = {
-    newField[T]("memoize", v)
+    memoizeField[T](v, "memoize")
   }
 
-  def memoizeAny(v: Code[_], ti: TypeInfo[_]): Value[_] = {
-    val l = newLocal("memoize")(ti)
+  def memoizeFieldAny(v: Code[_], name: String, ti: TypeInfo[_]): Value[_] = {
+    val l = newField(name)(ti)
     append(l.storeAny(v))
     l
   }
+
+  def memoize(v: EmitCode): EmitValue =
+    memoize(v, "memoize")
 
   def memoize(v: EmitCode, name: String): EmitValue = {
     require(v.st.isRealizable)
@@ -103,6 +159,9 @@ class EmitCodeBuilder(val emb: EmitMethodBuilder[_], var code: Code[Unit]) exten
     assign(l, v)
     l
   }
+
+  def memoize(v: IEmitCode): EmitValue =
+    memoize(v, "memoize")
 
   def memoize(v: IEmitCode, name: String): EmitValue = {
     require(v.st.isRealizable)
@@ -145,7 +204,7 @@ class EmitCodeBuilder(val emb: EmitMethodBuilder[_], var code: Code[Unit]) exten
     l
   }
 
-  private def _invoke[T](callee: EmitMethodBuilder[_], _args: Param*): Code[T] = {
+  private def _invoke[T](callee: EmitMethodBuilder[_], _args: Param*): Value[T] = {
     val expectedArgs = callee.emitParamTypes
     val args = _args.toArray
     if (expectedArgs.size != args.length)
@@ -167,7 +226,7 @@ class EmitCodeBuilder(val emb: EmitMethodBuilder[_], var code: Code[Unit]) exten
             throw new RuntimeException(s"invoke ${ callee.mb.methodName }: arg $i: type mismatch:" +
               s"\n  got ${ pc.st }" +
               s"\n  expected ${ pcpt.st }")
-          memoize(pc, "_invoke").valueTuple.map(_.get)
+          pc.valueTuple
         case (EmitParam(ec), SCodeEmitParamType(et)) =>
           if (!ec.emitType.equalModuloRequired(et)) {
             throw new RuntimeException(s"invoke ${callee.mb.methodName}: arg $i: type mismatch:" +
@@ -182,14 +241,14 @@ class EmitCodeBuilder(val emb: EmitMethodBuilder[_], var code: Code[Unit]) exten
             case _ => ec
           }
           val castEv = memoize(castEc, "_invoke")
-          castEv.valueTuple().map(_.get)
+          castEv.valueTuple()
         case (arg, expected) =>
           throw new RuntimeException(s"invoke ${ callee.mb.methodName }: arg $i: type mismatch:" +
             s"\n  got ${ arg }" +
             s"\n  expected ${ expected }")
       }
     }
-    callee.mb.invoke(codeArgs: _*)
+    callee.mb.invoke(this, codeArgs: _*)
   }
 
   def invokeVoid(callee: EmitMethodBuilder[_], args: Param*): Unit = {
@@ -197,7 +256,7 @@ class EmitCodeBuilder(val emb: EmitMethodBuilder[_], var code: Code[Unit]) exten
     append(_invoke[Unit](callee, args: _*))
   }
 
-  def invokeCode[T](callee: EmitMethodBuilder[_], args: Param*): Code[T] = {
+  def invokeCode[T](callee: EmitMethodBuilder[_], args: Param*): Value[T] = {
     callee.emitReturnType match {
       case CodeParamType(UnitInfo) =>
         throw new AssertionError("CodeBuilder.invokeCode had unit return type, use invokeVoid")
@@ -207,19 +266,19 @@ class EmitCodeBuilder(val emb: EmitMethodBuilder[_], var code: Code[Unit]) exten
     _invoke[T](callee, args: _*)
   }
 
-  def invokeSCode(callee: EmitMethodBuilder[_], args: Param*): SCode = {
+  def invokeSCode(callee: EmitMethodBuilder[_], args: Param*): SValue = {
     val st = callee.emitReturnType.asInstanceOf[SCodeParamType].st
     if (st.nSettables == 1)
-      st.fromValues(FastIndexedSeq(memoize(_invoke(callee, args: _*))(st.settableTupleTypes()(0)))).get
+      st.fromValues(FastIndexedSeq(_invoke(callee, args: _*)))
     else {
-      val tup = newLocal("invokepcode_tuple", _invoke(callee, args: _*))(callee.asmTuple.ti)
-      st.fromValues(callee.asmTuple.loadElementsAny(tup)).get
+      val tup = _invoke(callee, args: _*)
+      st.fromValues(callee.asmTuple.loadElementsAny(tup))
     }
   }
 
   // for debugging
   def strValue(sc: SValue): Code[String] = {
-    StringFunctions.scodeToJavaValue(this, emb.partitionRegion, sc.get).invoke[String]("toString")
+    StringFunctions.svalueToJavaValue(this, emb.partitionRegion, sc).invoke[String]("toString")
   }
 
   def strValue(ec: EmitCode): Code[String] = {

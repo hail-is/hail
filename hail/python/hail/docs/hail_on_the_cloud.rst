@@ -5,8 +5,8 @@ Hail on the Cloud
 =================
 
 Public clouds are a natural place to run Hail, offering the ability to run
-on-demand workloads with high elasticity. For example, Google and Amazon make it
-possible to rent Spark clusters with many thousands of cores on-demand,
+on-demand workloads with high elasticity. Microsoft Azure, Google Cloud Platform, Databricks and Amazon Web Services make it
+possible to rent Spark clusters with thousands of cores on-demand,
 providing for the elastic compute requirements of scientific research without
 an up-front capital investment in hardware.
 
@@ -14,4 +14,5 @@ an up-front capital investment in hardware.
 
         General Advice <cloud/general_advice.rst>
         Google Cloud <cloud/google_cloud.rst>
+        Microsoft Azure <cloud/azure.rst>
         Other Cloud Providers <cloud/other_cloud_providers.rst>

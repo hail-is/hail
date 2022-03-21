@@ -167,12 +167,12 @@ img {
 }
 
 #hero-button-container {
-  display: flex;
+  display: grid;
   margin-top: 1.5625rem;
-}
-
-#hero-button-container a + a {
-  margin-left: 15px;
+  grid-gap: 1em;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  width: 100%;
+  text-align: center;
 }
 
 .button {
@@ -186,8 +186,19 @@ img {
 .button:hover {
   background-color: #283870;
   border-color: #283870;
-  text-decoration: none;
-  color: #ffff;
+  color: #fff;
+}
+
+.dark a.button {
+  background-color: #2a3a8c;
+  border: 2px solid #BBB;
+  color: #fff;
+}
+
+.dark a.button:hover {
+  background-color: #fff;
+  border-color: #fff;
+  color: #283870;
 }
 
 .about {
@@ -254,32 +265,20 @@ a {
   text-decoration: underline;
 }
 
-.about.dark {
+.dark {
   background-color: #283891;
   position: relative;
   color: #fff;
 }
 
-.about.dark a {
+.dark a {
   color: #fff;
 }
 
-.about.dark a:hover {
+.dark a:hover {
   color: #fff;
   text-decoration-color: #fff;
   text-decoration: underline;
-}
-
-.about.dark a.button:hover {
-  text-decoration: none;
-}
-
-.about.dark a.button {
-  color: #444;
-}
-
-.about.dark a.button:hover {
-  color: #fff;
 }
 
 .header-wrap {

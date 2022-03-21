@@ -1,12 +1,8 @@
 package is.hail.types.physical
 
-import is.hail.annotations.{Region, UnsafeOrdering, _}
+import is.hail.annotations.{Region, UnsafeOrdering}
 import is.hail.asm4s._
-import is.hail.check.Arbitrary._
-import is.hail.check.Gen
-import is.hail.expr.ir.orderings.{CodeOrdering, CodeOrderingCompareConsistentWithOthers}
-import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder}
-import is.hail.types.physical.stypes.interfaces.{SBinaryCode, SBinaryValue}
+import is.hail.expr.ir.EmitCodeBuilder
 import is.hail.types.virtual.TBinary
 
 abstract class PBinary extends PType {

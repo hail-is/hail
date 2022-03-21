@@ -3,9 +3,9 @@ package is.hail.types.physical
 import is.hail.annotations._
 import is.hail.asm4s._
 import is.hail.expr.ir.{EmitCode, EmitCodeBuilder}
-import is.hail.types.physical.stypes.concrete.{SCanonicalLocusPointer, SCanonicalLocusPointerCode, SCanonicalLocusPointerValue, SStackStruct}
+import is.hail.types.physical.stypes.SValue
+import is.hail.types.physical.stypes.concrete.{SCanonicalLocusPointer, SCanonicalLocusPointerValue, SStackStruct}
 import is.hail.types.physical.stypes.interfaces._
-import is.hail.types.physical.stypes.{SCode, SValue}
 import is.hail.utils.FastIndexedSeq
 import is.hail.variant._
 
@@ -95,11 +95,11 @@ final case class PCanonicalLocus(rgBc: BroadcastRG, required: Boolean = false) e
 
   def sType: SCanonicalLocusPointer = SCanonicalLocusPointer(setRequired(false))
 
-  def loadCheapSCode(cb: EmitCodeBuilder, addr: Code[Long]): SCanonicalLocusPointerValue =
-    new SCanonicalLocusPointerCode(sType, addr).memoize(cb, "loadCheapSCode")
+  def loadCheapSCode(cb: EmitCodeBuilder, addr: Code[Long]): SCanonicalLocusPointerValue = {
+    val a = cb.memoize(addr)
+    new SCanonicalLocusPointerValue(sType, a, cb.memoize(contigAddr(a)), cb.memoize(position(a)))
+  }
 
-  def loadCheapSCodeField(cb: EmitCodeBuilder, addr: Code[Long]): SCanonicalLocusPointerValue =
-    new SCanonicalLocusPointerCode(sType, addr).memoizeField(cb, "loadCheapSCodeField")
 
   def store(cb: EmitCodeBuilder, region: Value[Region], value: SValue, deepCopy: Boolean): Value[Long] = {
     value.st match {
@@ -107,20 +107,20 @@ final case class PCanonicalLocus(rgBc: BroadcastRG, required: Boolean = false) e
         representation.store(cb, region, pt.representation.loadCheapSCode(cb, value.asInstanceOf[SCanonicalLocusPointerValue].a), deepCopy)
       case _ =>
         val addr = cb.memoize(representation.allocate(region))
-        storeAtAddress(cb, addr, region, value.get, deepCopy)
+        storeAtAddress(cb, addr, region, value, deepCopy)
         addr
     }
   }
 
-  def storeAtAddress(cb: EmitCodeBuilder, addr: Code[Long], region: Value[Region], value: SCode, deepCopy: Boolean): Unit = {
+  def storeAtAddress(cb: EmitCodeBuilder, addr: Code[Long], region: Value[Region], value: SValue, deepCopy: Boolean): Unit = {
     value.st match {
       case SCanonicalLocusPointer(pt) =>
-        representation.storeAtAddress(cb, addr, region, pt.representation.loadCheapSCode(cb, value.asInstanceOf[SCanonicalLocusPointerCode].a).get, deepCopy)
+        representation.storeAtAddress(cb, addr, region, pt.representation.loadCheapSCode(cb, value.asInstanceOf[SCanonicalLocusPointerValue].a), deepCopy)
       case _ =>
-        val loc = value.asLocus.memoize(cb, "pclocus_store")
+        val loc = value.asLocus
         representation.storeAtAddress(cb, addr, region,
           SStackStruct.constructFromArgs(cb, region, representation.virtualType,
-            EmitCode.present(cb.emb, loc.contig(cb)), EmitCode.present(cb.emb, primitive(loc.position(cb)))).get,
+            EmitCode.present(cb.emb, loc.contig(cb)), EmitCode.present(cb.emb, primitive(loc.position(cb)))),
           deepCopy)
     }
   }

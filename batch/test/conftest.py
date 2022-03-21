@@ -1,6 +1,7 @@
 import hashlib
-import os
 import logging
+import os
+
 import pytest
 
 log = logging.getLogger(__name__)

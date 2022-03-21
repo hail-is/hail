@@ -1,6 +1,7 @@
 package is.hail.expr.ir
 import is.hail.annotations.Region
 import is.hail.asm4s.{Code, CodeLabel, Settable, Value}
+import is.hail.backend.ExecuteContext
 import is.hail.expr.ir.functions.StringFunctions
 import is.hail.expr.ir.lowering.{TableStage, TableStageDependency, TableStageToRVD}
 import is.hail.expr.ir.streams.StreamProducer
@@ -77,13 +78,13 @@ case class StringTablePartitionReader(lines: GenericLines) extends PartitionRead
          override val length: Option[EmitCodeBuilder => Code[Int]] = None
 
          override def initialize(cb: EmitCodeBuilder): Unit = {
-           val contextAsJavaValue = coerce[Any](StringFunctions.scodeToJavaValue(cb, partitionRegion, partitionContext.get))
+           val contextAsJavaValue = coerce[Any](StringFunctions.svalueToJavaValue(cb, partitionRegion, partitionContext))
 
            cb.assign(fileName, partitionContext.loadField(cb, "file").get(cb).asString.loadString(cb))
 
            cb.assign(iter,
-             cb.emb.getObject[(Any) => CloseableIterator[GenericLine]](lines.body)
-               .invoke[Any, CloseableIterator[GenericLine]]("apply", contextAsJavaValue)
+             cb.emb.getObject[(FS, Any) => CloseableIterator[GenericLine]](lines.body)
+               .invoke[Any, Any, CloseableIterator[GenericLine]]("apply", cb.emb.getFS, contextAsJavaValue)
            )
          }
 

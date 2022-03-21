@@ -5,12 +5,10 @@ import is.hail.types.{BlockMatrixSparsity, BlockMatrixType}
 import is.hail.types.virtual.{TArray, TBaseStruct, TFloat64, TInt32, TInt64, TNDArray, TString, TTuple, Type}
 import is.hail.linalg.{BlockMatrix, BlockMatrixMetadata}
 import is.hail.utils._
-import breeze.linalg
 import breeze.linalg.DenseMatrix
 import breeze.numerics
 import is.hail.annotations.{NDArray, Region}
-import is.hail.backend.BackendContext
-import is.hail.backend.spark.SparkBackend
+import is.hail.backend.{BackendContext, ExecuteContext}
 import is.hail.expr.Nat
 import is.hail.expr.ir.lowering.{BlockMatrixStage, LowererUnsupportedOperation}
 import is.hail.io.TypedCodecSpec
@@ -19,7 +17,6 @@ import is.hail.types.encoded.{EBlockMatrixNDArray, EFloat64}
 
 import scala.collection.mutable.ArrayBuffer
 import is.hail.utils.richUtils.RichDenseMatrixDouble
-import org.apache.spark.sql.Row
 import org.json4s.{DefaultFormats, Extraction, Formats, JValue, ShortTypeHints}
 
 import scala.collection.immutable.NumericRange
@@ -67,7 +64,7 @@ abstract sealed class BlockMatrixIR extends BaseIR {
   def typ: BlockMatrixType
 
   protected[ir] def execute(ctx: ExecuteContext): BlockMatrix =
-    fatal("tried to execute unexecutable IR:\n" + Pretty(this))
+    fatal("tried to execute unexecutable IR:\n" + Pretty(ctx, this))
 
   def copy(newChildren: IndexedSeq[BaseIR]): BlockMatrixIR
 
@@ -226,22 +223,6 @@ case class BlockMatrixPersistReader(id: String, typ: BlockMatrixType) extends Bl
   }
 }
 
-class BlockMatrixLiteral(value: BlockMatrix) extends BlockMatrixIR {
-  override lazy val typ: BlockMatrixType =
-    BlockMatrixType.fromBlockMatrix(value)
-
-  lazy val children: IndexedSeq[BaseIR] = Array.empty[BlockMatrixIR]
-
-  def copy(newChildren: IndexedSeq[BaseIR]): BlockMatrixLiteral = {
-    assert(newChildren.isEmpty)
-    new BlockMatrixLiteral(value)
-  }
-
-  override protected[ir] def execute(ctx: ExecuteContext): BlockMatrix = value
-
-  val blockCostIsLinear: Boolean = true // not guaranteed
-}
-
 case class BlockMatrixMap(child: BlockMatrixIR, eltName: String, f: IR, needsDense: Boolean) extends BlockMatrixIR {
   override lazy val typ: BlockMatrixType = child.typ
   assert(!needsDense || !typ.isSparse)
@@ -311,7 +292,7 @@ case class BlockMatrixMap(child: BlockMatrixIR, eltName: String, f: IR, needsDen
         val i = evalIR(ctx, l)
         ("/", binaryOp(evalIR(ctx, l), BlockMatrix.reverseScalarDiv))
 
-      case _ => fatal(s"Unsupported operation on BlockMatrices: ${Pretty(f)}")
+      case _ => fatal(s"Unsupported operation on BlockMatrices: ${Pretty(ctx, f)}")
     }
 
     prev.blockMap(breezeF, name, reqDense = needsDense)

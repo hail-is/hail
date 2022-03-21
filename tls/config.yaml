@@ -68,17 +68,9 @@ principals:
   domains:
     - memory-tests
   kind: json
-- name: query
-  domains:
-    - query
-  kind: json
 - name: services-java-tests
   domains:
     - services-java-tests
-  kind: json
-- name: query-tests
-  domains:
-    - query-tests
   kind: json
 - name: benchmark
   domains:
@@ -95,10 +87,6 @@ principals:
 - name: monitoring-tests
   domains:
     - monitoring-tests
-  kind: json
-- name: atgu
-  domains:
-    - atgu
   kind: json
 - name: batch-user-code
   domains:

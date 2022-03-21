@@ -3,7 +3,7 @@ package is.hail.expr.ir
 
 import is.hail.HailContext
 import is.hail.annotations._
-import is.hail.backend.Backend
+import is.hail.backend.{Backend, ExecuteContext}
 import is.hail.expr.ir.IRBuilder._
 import is.hail.expr.ir.functions.MatrixToMatrixFunction
 import is.hail.types._
@@ -61,7 +61,8 @@ object MatrixLiteral {
       TableLiteral(
         TableValue(ctx, tt,
           BroadcastRow(ctx, Row.fromSeq(globals.toSeq :+ colValues), typ.canonicalTableType.globalType),
-          rvd)))
+          rvd),
+        ctx.theHailClassLoader))
   }
 }
 
@@ -276,6 +277,8 @@ class MatrixNativeReader(
     case that: MatrixNativeReader => params == that.params
     case _ => false
   }
+
+  def getSpec(): AbstractMatrixTableSpec = this.spec
 }
 
 object MatrixRangeReader {

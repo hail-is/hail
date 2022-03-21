@@ -1,18 +1,18 @@
 package is.hail.expr.ir
 
-import java.io.OutputStreamWriter
-
+import is.hail.backend.ExecuteContext
+import is.hail.io.fs.FS
+import is.hail.rvd._
 import is.hail.types._
 import is.hail.types.physical.PStruct
 import is.hail.types.virtual._
-import is.hail.io.fs.FS
-import is.hail.rvd._
 import is.hail.utils._
 import is.hail.variant.ReferenceGenome
 import org.json4s._
+import org.json4s.jackson.JsonMethods
 import org.json4s.jackson.JsonMethods.parse
-import org.json4s.jackson.{JsonMethods, Serialization}
 
+import java.io.OutputStreamWriter
 import scala.language.{existentials, implicitConversions}
 
 abstract class ComponentSpec
@@ -20,7 +20,7 @@ abstract class ComponentSpec
 object RelationalSpec {
   implicit val formats: Formats = new DefaultFormats() {
     override val typeHints = ShortTypeHints(List(
-      classOf[ComponentSpec], classOf[RVDComponentSpec], classOf[PartitionCountsComponentSpec],
+      classOf[ComponentSpec], classOf[RVDComponentSpec], classOf[PartitionCountsComponentSpec], classOf[PropertiesSpec],
       classOf[RelationalSpec], classOf[MatrixTableSpec], classOf[TableSpec]), typeHintFieldName="name")
   } +
     new TableTypeSerializer +
@@ -88,9 +88,13 @@ abstract class RelationalSpec {
 
   def getComponent[T <: ComponentSpec](name: String): T = components(name).asInstanceOf[T]
 
+  def getOptionalComponent[T <: ComponentSpec](name: String): Option[T] = components.get(name).map(_.asInstanceOf[T])
+
   def globalsComponent: RVDComponentSpec = getComponent[RVDComponentSpec]("globals")
 
   def partitionCounts: Array[Long] = getComponent[PartitionCountsComponentSpec]("partition_counts").counts.toArray
+
+  def isDistinctlyKeyed: Boolean = getOptionalComponent[PropertiesSpec]("properties").flatMap(_.properties.values.get("distinctlyKeyed").map(_.asInstanceOf[Boolean])).getOrElse(false)
 
   def indexed: Boolean
 
@@ -127,6 +131,8 @@ case class RVDComponentSpec(rel_path: String) extends ComponentSpec {
 }
 
 case class PartitionCountsComponentSpec(counts: Seq[Long]) extends ComponentSpec
+
+case class PropertiesSpec(properties: JObject) extends ComponentSpec
 
 abstract class AbstractMatrixTableSpec extends RelationalSpec {
   def matrix_type: MatrixType
@@ -212,5 +218,5 @@ class MatrixTableSpec(
 }
 
 object FileFormat {
-  val version: SemanticVersion = SemanticVersion(1, 5, 0)
+  val version: SemanticVersion = SemanticVersion(1, 6, 0)
 }

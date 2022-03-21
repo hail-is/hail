@@ -74,9 +74,10 @@ class BatchClient(
   def delete(path: String, token: String): JValue =
     request(new HttpDelete(s"$baseUrl$path"))
 
-  def createJobs(batchID: Long, jobs: IndexedSeq[JObject]): Unit = {
-    val bunches = new BoxedArrayBuilder[Array[Array[Byte]]]()
+  def create(batchJson: JObject, jobs: IndexedSeq[JObject]): Long = {
+    implicit val formats: Formats = DefaultFormats
 
+    val bunches = new BoxedArrayBuilder[Array[Array[Byte]]]()
     val bunchb = new BoxedArrayBuilder[Array[Byte]]()
 
     var i = 0
@@ -98,29 +99,60 @@ class BatchClient(
     bunchb.clear()
     size = 0
 
-    val b = new ByteArrayBuilder()
-
-    i = 0 // reuse
-    while (i < bunches.length) {
-      val bunch = bunches(i)
+    val batchID = if (bunches.length == 1) {
+      val bunch = bunches(0)
+      val b = new ByteArrayBuilder()
+      b ++= "{\"bunch\":".getBytes(StandardCharsets.UTF_8)
       b += '['
       var j = 0
       while (j < bunch.length) {
         if (j > 0)
-           b += ','
+          b += ','
         b ++= bunch(j)
         j += 1
       }
       b += ']'
+      b ++= ",\"batch\":".getBytes(StandardCharsets.UTF_8)
+      b ++= JsonMethods.compact(batchJson).getBytes(StandardCharsets.UTF_8)
+      b += '}'
       val data = b.result()
-      post(
-        s"/api/v1alpha/batches/$batchID/jobs/create",
-        new ByteArrayEntity(
-          data,
-          ContentType.create("application/json")))
+      val resp = post("/api/v1alpha/batches/create-fast",
+        new ByteArrayEntity(data, ContentType.create("application/json")))
       b.clear()
-      i += 1
+      (resp \ "id").extract[Long]
+    } else {
+      val resp = post("/api/v1alpha/batches/create", json = batchJson)
+      val batchID = (resp \ "id").extract[Long]
+
+      val b = new ByteArrayBuilder()
+
+      i = 0 // reuse
+      while (i < bunches.length) {
+        val bunch = bunches(i)
+        b += '['
+        var j = 0
+        while (j < bunch.length) {
+          if (j > 0)
+            b += ','
+          b ++= bunch(j)
+          j += 1
+        }
+        b += ']'
+        val data = b.result()
+        post(
+          s"/api/v1alpha/batches/$batchID/jobs/create",
+          new ByteArrayEntity(
+            data,
+            ContentType.create("application/json")))
+        b.clear()
+        i += 1
+      }
+
+      patch(s"/api/v1alpha/batches/$batchID/close")
+      batchID
     }
+    log.info(s"run: created batch $batchID")
+    batchID
   }
 
   def waitForBatch(batchID: Long): JValue = {
@@ -150,17 +182,7 @@ class BatchClient(
   }
 
   def run(batchJson: JObject, jobs: IndexedSeq[JObject]): JValue = {
-    val resp = post("/api/v1alpha/batches/create", json = batchJson)
-
-    implicit val formats: Formats = DefaultFormats
-    val batchID = (resp \ "id").extract[Long]
-
-    log.info(s"run: created batch $batchID")
-
-    createJobs(batchID, jobs)
-
-    patch(s"/api/v1alpha/batches/$batchID/close")
-
+    val batchID = create(batchJson, jobs)
     waitForBatch(batchID)
   }
 }

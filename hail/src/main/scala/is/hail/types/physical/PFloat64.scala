@@ -2,10 +2,9 @@ package is.hail.types.physical
 
 import is.hail.annotations._
 import is.hail.asm4s.{Code, _}
-import is.hail.expr.ir.orderings.CodeOrdering
-import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder}
-import is.hail.types.physical.stypes.primitives.{SFloat64, SFloat64Code, SFloat64Value}
-import is.hail.types.physical.stypes.{SCode, SType}
+import is.hail.expr.ir.EmitCodeBuilder
+import is.hail.types.physical.stypes.primitives.{SFloat64, SFloat64Value}
+import is.hail.types.physical.stypes.{SType, SValue}
 import is.hail.types.virtual.TFloat64
 
 case object PFloat64Optional extends PFloat64(false)
@@ -41,14 +40,11 @@ class PFloat64(override val required: Boolean) extends PNumeric with PPrimitive 
 
   override def sType: SType = SFloat64
 
-  def storePrimitiveAtAddress(cb: EmitCodeBuilder, addr: Code[Long], value: SCode): Unit =
-    cb.append(Region.storeDouble(addr, value.asDouble.doubleCode(cb)))
+  def storePrimitiveAtAddress(cb: EmitCodeBuilder, addr: Code[Long], value: SValue): Unit =
+    cb.append(Region.storeDouble(addr, value.asDouble.value))
 
   override def loadCheapSCode(cb: EmitCodeBuilder, addr: Code[Long]): SFloat64Value =
-    new SFloat64Code(Region.loadDouble(addr)).memoize(cb, "loadCheapSCode")
-
-  override def loadCheapSCodeField(cb: EmitCodeBuilder, addr: Code[Long]): SFloat64Value =
-    new SFloat64Code(Region.loadDouble(addr)).memoizeField(cb, "loadCheapSCodeField")
+    new SFloat64Value(cb.memoize(Region.loadDouble(addr)))
 
   override def unstagedStoreJavaObjectAtAddress(addr: Long, annotation: Annotation, region: Region): Unit = {
     Region.storeDouble(addr, annotation.asInstanceOf[Double])

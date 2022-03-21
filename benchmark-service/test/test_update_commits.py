@@ -1,13 +1,12 @@
-import json
-import logging
 import asyncio
-import pytest
-import aiohttp
+import logging
 
-from hailtop.config import get_deploy_config
-from hailtop.auth import service_auth_headers
-from hailtop.httpx import client_session
+import pytest
+
 import hailtop.utils as utils
+from hailtop.auth import service_auth_headers
+from hailtop.config import get_deploy_config
+from hailtop.httpx import client_session
 
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger(__name__)

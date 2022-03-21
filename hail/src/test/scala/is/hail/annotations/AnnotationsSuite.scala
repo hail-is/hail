@@ -1,6 +1,6 @@
 package is.hail.annotations
 
-import is.hail.expr.ir.ExecuteContext
+import is.hail.backend.ExecuteContext
 import is.hail.types.virtual._
 import is.hail.testUtils._
 import is.hail.utils._

@@ -1,21 +1,22 @@
 package is.hail.expr.ir
 
-import java.io.DataOutputStream
-
 import is.hail.HailContext
 import is.hail.annotations.Region
 import is.hail.asm4s._
+import is.hail.backend.ExecuteContext
 import is.hail.expr.Nat
 import is.hail.expr.ir.lowering.{BlockMatrixStage, LowererUnsupportedOperation}
 import is.hail.io.TypedCodecSpec
 import is.hail.io.fs.FS
 import is.hail.linalg.{BlockMatrix, BlockMatrixMetadata}
-import is.hail.types.{BlockMatrixType, TypeWithRequiredness}
 import is.hail.types.encoded.{EBlockMatrixNDArray, EType}
 import is.hail.types.virtual.{TArray, TNDArray, TString, Type}
+import is.hail.types.{BlockMatrixType, TypeWithRequiredness}
 import is.hail.utils._
 import is.hail.utils.richUtils.RichDenseMatrixDouble
-import org.json4s.{DefaultFormats, Extraction, Formats, JValue, ShortTypeHints, jackson}
+import org.json4s.{DefaultFormats, Formats, ShortTypeHints, jackson}
+
+import java.io.DataOutputStream
 
 object BlockMatrixWriter {
   implicit val formats: Formats = new DefaultFormats() {

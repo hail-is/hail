@@ -4,11 +4,18 @@
   <table id="{{ id }}" class="data-table">
   <thead>
     <tr>
-      <th>PR</th>
-      <th>Build State</th>
-      <th>Labels</th>
-      <th>Review State</th>
-      <th>Author</th>
+      <th rowspan="2">PR</th>
+      <th rowspan="2">Build State</th>
+      <th colspan="{{ wb.gh_status_names | length }}">GitHub Statuses</th>
+      <th rowspan="2">Labels</th>
+      <th rowspan="2">Branch</th>
+      <th rowspan="2">Review State</th>
+      <th rowspan="2">Author</th>
+    </tr>
+    <tr>
+      {% for name in wb.gh_status_names %}
+      <th>{{ name }}</th>
+      {% endfor %}
     </tr>
   </thead>
   <tbody>
@@ -29,8 +36,14 @@
           *
         {% endif %}
       </td>
+      {% for name in wb.gh_status_names %}
+      <td>{{ pr['gh_statuses'][name] | default("") }}</td>
+      {% endfor %}
       <td>
         {{ pr.labels|join(", ") }}
+      </td>
+      <td>
+        {{ pr.source_branch_name }}
       </td>
       <td>
         {% if pr.review_state %}

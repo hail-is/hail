@@ -3,9 +3,10 @@ package is.hail.types.physical.stypes.concrete
 import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.expr.ir.{EmitCodeBuilder, IEmitCode}
-import is.hail.types.physical.stypes.interfaces.{SContainer, SIndexableCode, SIndexableValue}
 import is.hail.types.physical.stypes._
-import is.hail.types.physical.{PArray, PCanonicalArray, PCanonicalDict, PCanonicalSet, PContainer, PType}
+import is.hail.types.physical.stypes.interfaces.{SContainer, SIndexableValue}
+import is.hail.types.physical._
+import is.hail.types.physical.stypes.primitives.SInt64Value
 import is.hail.types.virtual.Type
 import is.hail.utils.FastIndexedSeq
 
@@ -53,33 +54,6 @@ final case class SIndexablePointer(pType: PContainer) extends SContainer {
   override def containsPointers: Boolean = pType.containsPointers
 }
 
-
-class SIndexablePointerCode(val st: SIndexablePointer, val a: Code[Long]) extends SIndexableCode {
-  val pt: PContainer = st.pType
-
-  def code: Code[_] = a
-
-  override def codeLoadLength(): Code[Int] = pt.loadLength(a)
-
-  def memoize(cb: EmitCodeBuilder, name: String, sb: SettableBuilder): SIndexablePointerValue = {
-    val s = SIndexablePointerSettable(sb, st, name)
-    cb.assign(s, this)
-    s
-  }
-
-  override def memoize(cb: EmitCodeBuilder, name: String): SIndexablePointerValue = memoize(cb, name, cb.localBuilder)
-
-  override def memoizeField(cb: EmitCodeBuilder, name: String): SIndexablePointerValue = memoize(cb, name, cb.fieldBuilder)
-
-  override def castToArray(cb: EmitCodeBuilder): SIndexableCode = {
-    pt match {
-      case t: PArray => this
-      case t: PCanonicalDict => new SIndexablePointerCode(SIndexablePointer(t.arrayRep), a)
-      case t: PCanonicalSet => new SIndexablePointerCode(SIndexablePointer(t.arrayRep), a)
-    }
-  }
-}
-
 class SIndexablePointerValue(
   override val st: SIndexablePointer,
   val a: Value[Long],
@@ -88,22 +62,22 @@ class SIndexablePointerValue(
 ) extends SIndexableValue {
   val pt: PContainer = st.pType
 
-  override def get: SIndexablePointerCode = new SIndexablePointerCode(st, a)
-
   override lazy val valueTuple: IndexedSeq[Value[_]] = FastIndexedSeq(a, length, elementsAddress)
 
   override def loadLength(): Value[Int] = length
 
   override def loadElement(cb: EmitCodeBuilder, i: Code[Int]): IEmitCode = {
-    val iv = cb.newLocal("pcindval_i", i)
+    val iv = cb.memoize(i)
     IEmitCode(cb,
-      isElementMissing(iv),
+      isElementMissing(cb, iv),
       pt.elementType.loadCheapSCode(cb, pt.loadElement(a, length, iv))) // FIXME loadElement should take elementsAddress
   }
 
-  override def isElementMissing(i: Code[Int]): Code[Boolean] = pt.isElementMissing(a, i)
+  override def isElementMissing(cb: EmitCodeBuilder, i: Code[Int]): Value[Boolean] =
+    cb.memoize(pt.isElementMissing(a, i))
 
-  override def hasMissingValues(cb: EmitCodeBuilder): Code[Boolean] = pt.hasMissingValues(a)
+  override def hasMissingValues(cb: EmitCodeBuilder): Value[Boolean] =
+    cb.memoize(pt.hasMissingValues(a))
 
   override def castToArray(cb: EmitCodeBuilder): SIndexableValue = {
     pt match {
@@ -113,18 +87,18 @@ class SIndexablePointerValue(
     }
   }
 
-  override def forEachDefined(cb: EmitCodeBuilder)(f: (EmitCodeBuilder, Value[Int], SCode) => Unit) {
+  override def forEachDefined(cb: EmitCodeBuilder)(f: (EmitCodeBuilder, Value[Int], SValue) => Unit) {
     st.pType match {
       case pca: PCanonicalArray =>
         val idx = cb.newLocal[Int]("foreach_pca_idx", 0)
         val elementPtr = cb.newLocal[Long]("foreach_pca_elt_ptr", elementsAddress)
         val et = pca.elementType
         cb.whileLoop(idx < length, {
-          cb.ifx(isElementMissing(idx),
+          cb.ifx(isElementMissing(cb, idx),
             {}, // do nothing,
             {
               val elt = et.loadCheapSCode(cb, et.loadFromNested(elementPtr))
-              f(cb, idx, elt.get)
+              f(cb, idx, elt)
             })
           cb.assign(idx, idx + 1)
           cb.assign(elementPtr, elementPtr + pca.elementByteSize)
@@ -151,9 +125,10 @@ final class SIndexablePointerSettable(
 ) extends SIndexablePointerValue(st, a, length, elementsAddress) with SSettable {
   def settableTuple(): IndexedSeq[Settable[_]] = FastIndexedSeq(a, length, elementsAddress)
 
-  def store(cb: EmitCodeBuilder, pc: SCode): Unit = {
-    cb.assign(a, pc.asInstanceOf[SIndexablePointerCode].a)
-    cb.assign(length, pt.loadLength(a))
-    cb.assign(elementsAddress, pt.firstElementOffset(a, length))
+  def store(cb: EmitCodeBuilder, v: SValue): Unit = v match {
+    case v: SIndexablePointerValue =>
+      cb.assign(a, v.a)
+      cb.assign(length, v.length)
+      cb.assign(elementsAddress, v.elementsAddress)
   }
 }

@@ -2,9 +2,10 @@ package is.hail.methods
 
 import com.fasterxml.jackson.core.JsonParseException
 import is.hail.annotations._
+import is.hail.backend.ExecuteContext
 import is.hail.expr._
 import is.hail.expr.ir.functions.{RelationalFunctions, TableToTableFunction}
-import is.hail.expr.ir.{ExecuteContext, TableValue}
+import is.hail.expr.ir.TableValue
 import is.hail.io.fs.FS
 import is.hail.methods.VEP._
 import is.hail.rvd.RVD

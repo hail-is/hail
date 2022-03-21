@@ -9,8 +9,8 @@ import is.hail.types.coerce
 import is.hail.types.physical.stypes.EmitType
 import is.hail.types.physical.stypes.concrete.{SBaseStructPointer, SNDArrayPointer}
 import is.hail.types.physical.stypes.interfaces._
-import is.hail.types.physical.stypes.primitives.SBooleanCode
-import is.hail.types.physical.{PBooleanRequired, PCanonicalNDArray, PCanonicalStruct, PFloat64Required, PType}
+import is.hail.types.physical.stypes.primitives.SBooleanValue
+import is.hail.types.physical._
 import is.hail.types.virtual._
 
 object  NDArrayFunctions extends RegistryFunctions {
@@ -37,12 +37,9 @@ object  NDArrayFunctions extends RegistryFunctions {
       }
     }
 
-    def linear_triangular_solve(ndCoef: SNDArrayCode, ndDep: SNDArrayCode, lower: SBooleanCode, outputPt: PType, cb: EmitCodeBuilder, region: Value[Region], errorID: Value[Int]): (SNDArrayCode, Value[Int]) = {
-      val ndCoefInput = ndCoef.asNDArray.memoize(cb, "ndCoef")
-      val ndDepInput = ndDep.asNDArray.memoize(cb, "ndDep")
-
-      val ndCoefColMajor = LinalgCodeUtils.checkColMajorAndCopyIfNeeded(ndCoefInput, cb, region)
-      val ndDepColMajor = LinalgCodeUtils.checkColMajorAndCopyIfNeeded(ndDepInput, cb, region)
+    def linear_triangular_solve(ndCoef: SNDArrayValue, ndDep: SNDArrayValue, lower: SBooleanValue, outputPt: PType, cb: EmitCodeBuilder, region: Value[Region], errorID: Value[Int]): (SNDArrayValue, Value[Int]) = {
+      val ndCoefColMajor = LinalgCodeUtils.checkColMajorAndCopyIfNeeded(ndCoef, cb, region)
+      val ndDepColMajor = LinalgCodeUtils.checkColMajorAndCopyIfNeeded(ndDep, cb, region)
 
       val IndexedSeq(ndCoefRow, ndCoefCol) = ndCoefColMajor.shapes
       cb.ifx(ndCoefRow cne ndCoefCol, cb._fatalWithError(errorID, "hail.nd.solve_triangular: matrix a must be square."))
@@ -51,7 +48,7 @@ object  NDArrayFunctions extends RegistryFunctions {
       cb.ifx(ndCoefRow  cne ndDepRow, cb._fatalWithError(errorID,"hail.nd.solve_triangular: Solve dimensions incompatible"))
 
       val uplo = cb.newLocal[String]("dtrtrs_uplo")
-      cb.ifx(lower.boolCode(cb), cb.assign(uplo, const("L")), cb.assign(uplo, const("U")))
+      cb.ifx(lower.value, cb.assign(uplo, const("L")), cb.assign(uplo, const("U")))
 
       val infoDTRTRSResult = cb.newLocal[Int]("dtrtrs_result")
 
@@ -70,15 +67,12 @@ object  NDArrayFunctions extends RegistryFunctions {
         ndDepRow.toI
       ))
 
-      (output.get, infoDTRTRSResult)
+      (output, infoDTRTRSResult)
     }
 
-    def linear_solve(a: SNDArrayCode, b: SNDArrayCode, outputPt: PType, cb: EmitCodeBuilder, region: Value[Region], errorID: Value[Int]): (SNDArrayValue, Value[Int]) = {
-      val aInput = a.asNDArray.memoize(cb, "A")
-      val bInput = b.asNDArray.memoize(cb, "B")
-
-      val aColMajor = LinalgCodeUtils.checkColMajorAndCopyIfNeeded(aInput, cb, region)
-      val bColMajor = LinalgCodeUtils.checkColMajorAndCopyIfNeeded(bInput, cb, region)
+    def linear_solve(a: SNDArrayValue, b: SNDArrayValue, outputPt: PType, cb: EmitCodeBuilder, region: Value[Region], errorID: Value[Int]): (SNDArrayValue, Value[Int]) = {
+      val aColMajor = LinalgCodeUtils.checkColMajorAndCopyIfNeeded(a, cb, region)
+      val bColMajor = LinalgCodeUtils.checkColMajorAndCopyIfNeeded(b, cb, region)
 
       val IndexedSeq(n0, n1) = aColMajor.shapes
 
@@ -129,7 +123,7 @@ object  NDArrayFunctions extends RegistryFunctions {
         aec.toI(cb).flatMap(cb) { apc =>
           bec.toI(cb).map(cb) { bpc =>
             val outputNDArrayPType = outputStructType.fieldType("solution")
-            val (resNDPCode, info) = linear_solve(apc.asNDArray.get, bpc.asNDArray.get, outputNDArrayPType, cb, region, errorID)
+            val (resNDPCode, info) = linear_solve(apc.asNDArray, bpc.asNDArray, outputNDArrayPType, cb, region, errorID)
             val ndEmitCode = EmitCode(Code._empty, info cne 0, resNDPCode)
             outputStructType.constructFromFields(cb, region, IndexedSeq[EmitCode](ndEmitCode, EmitCode(Code._empty, false, primitive(cb.memoize(info cne 0)))), false)
           }
@@ -141,12 +135,13 @@ object  NDArrayFunctions extends RegistryFunctions {
       case (er, cb, SNDArrayPointer(pt), apc, bpc, errorID) =>
         val (resPCode, info) = linear_solve(apc.asNDArray, bpc.asNDArray, pt, cb, er.region, errorID)
         cb.ifx(info cne 0, cb._fatalWithError(errorID,s"hl.nd.solve: Could not solve, matrix was singular. dgesv error code ", info.toS))
-        resPCode.get
+        resPCode
     }
+
     registerSCode3("linear_triangular_solve", TNDArray(TFloat64, Nat(2)), TNDArray(TFloat64, Nat(2)), TBoolean, TNDArray(TFloat64, Nat(2)),
       { (t, p1, p2, p3) => PCanonicalNDArray(PFloat64Required, 2, true).sType }) {
       case (er, cb, SNDArrayPointer(pt), apc, bpc, lower, errorID) =>
-        val (resPCode, info) = linear_triangular_solve(apc.asNDArray, bpc.asNDArray,lower.asBoolean, pt, cb, er.region, errorID)
+        val (resPCode, info) = linear_triangular_solve(apc.asNDArray, bpc.asNDArray, lower.asBoolean, pt, cb, er.region, errorID)
         cb.ifx(info cne 0, cb._fatalWithError(errorID,s"hl.nd.solve: Could not solve, matrix was singular. dtrtrs error code ", info.toS))
         resPCode
     }

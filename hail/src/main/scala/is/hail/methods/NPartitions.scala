@@ -1,7 +1,8 @@
 package is.hail.methods
 
+import is.hail.backend.ExecuteContext
 import is.hail.expr.ir.functions.{MatrixToValueFunction, TableToValueFunction}
-import is.hail.expr.ir.{ExecuteContext, MatrixValue, TableValue}
+import is.hail.expr.ir.{MatrixValue, TableValue}
 import is.hail.types.virtual.{TInt32, Type}
 import is.hail.types.{MatrixType, RTable, TableType, TypeWithRequiredness}
 

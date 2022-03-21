@@ -1,5 +1,5 @@
+from typing import Mapping
 import abc
-import json
 
 import py4j
 
@@ -39,6 +39,19 @@ def handle_java_exception(f):
 
 
 class Py4JBackend(Backend):
+    _jbackend: py4j.java_gateway.JavaObject
+
+    @abc.abstractmethod
+    def __init__(self):
+        import base64
+
+        def decode_bytearray(encoded):
+            return base64.standard_b64decode(encoded)
+
+        # By default, py4j's version of this function does extra
+        # work to support python 2. This eliminates that.
+        py4j.protocol.decode_bytearray = decode_bytearray
+
     @abc.abstractmethod
     def jvm(self):
         pass
@@ -69,11 +82,12 @@ class Py4JBackend(Backend):
 
     def execute(self, ir, timed=False):
         jir = self._to_java_value_ir(ir)
+        stream_codec = '{"name":"StreamBufferSpec"}'
         # print(self._hail_package.expr.ir.Pretty.apply(jir, True, -1))
         try:
-            result = json.loads(self._jhc.backend().executeJSON(jir))
-            value = ir.typ._from_json(result['value'])
-            timings = result['timings']
+            result_tuple = self._jhc.backend().executeEncode(jir, stream_codec)
+            (result, timings) = (result_tuple._1(), result_tuple._2())
+            value = ir.typ._from_encoding(result)
 
             return (value, timings) if timed else value
         except FatalError as e:
@@ -96,3 +110,30 @@ class Py4JBackend(Backend):
                 raise HailUserError(message_and_trace) from None
 
             raise e
+
+    async def _async_execute(self, ir, timed=False):
+        raise NotImplementedError('no async available in Py4JBackend')
+
+    async def _async_execute_many(self, *irs, timed=False):
+        raise NotImplementedError('no async available in Py4JBackend')
+
+    async def _async_get_reference(self, name):
+        raise NotImplementedError('no async available in Py4JBackend')
+
+    async def _async_get_references(self, names):
+        raise NotImplementedError('no async available in Py4JBackend')
+
+    def set_flags(self, **flags: Mapping[str, str]):
+        available = self._jbackend.availableFlags()
+        invalid = []
+        for flag, value in flags.items():
+            if flag in available:
+                self._jbackend.setFlag(flag, value)
+            else:
+                invalid.append(flag)
+        if len(invalid) != 0:
+            raise FatalError("Flags {} not valid. Valid flags: \n    {}"
+                             .format(', '.join(invalid), '\n    '.join(available)))
+
+    def get_flags(self, *flags) -> Mapping[str, str]:
+        return {flag: self._jbackend.getFlag(flag) for flag in flags}

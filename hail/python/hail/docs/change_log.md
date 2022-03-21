@@ -22,6 +22,232 @@ Please note that **forward compatibility should not be expected, especially
 relating to file formats**: this means that it may not be possible to use
 an earlier version of Hail to read files written in a later version.
 
+
+---
+
+## Version 0.2.91
+
+Release 2022-03-18
+
+### Bug fixes
+
+- (hail#11614) Update `hail.utils.tutorial.get_movie_lens` to use `https` instead of `http`. Movie
+  Lens has stopped serving data over insecure HTTP.
+- (hail#11563) Fix issue [hail-is/hail#11562](https://github.com/hail-is/hail/issues/11562).
+- (hail#11611) Fix a bug that prevents the display of `hl.ggplot.geom_hline` and
+  `hl.ggplot.geom_vline`.
+
+---
+
+## Version 0.2.90
+
+Release 2022-03-11
+
+### Critical BlockMatrix from_numpy correctness bug
+
+- (hail#11555) `BlockMatrix.from_numpy` did not work correctly. Version 1.0 of org.scalanlp.breeze, a dependency of Apache Spark 
+that hail also depends on, has a correctness bug that results in BlockMatrices that repeat the top left block of the block
+matrix for every block. This affected anyone running Spark 3.0.x or 3.1.x.
+
+### Bug fixes
+
+- (hail#11556) Fixed assertion error ocassionally being thrown by valid joins where the join key was a prefix of the left key.
+
+### Versioning
+
+- (hail#11551) Support Python 3.10.
+
+---
+
+## Version 0.2.89
+
+Release 2022-03-04
+
+- (hail#11452) Fix `impute_sex_chromosome_ploidy` docs.
+
+---
+
+## Version 0.2.88
+
+Release 2022-03-01
+
+This release addresses the deploy issues in the 0.2.87 release of Hail.
+
+---
+
+## Version 0.2.87
+
+Release 2022-02-28
+
+An error in the deploy process required us to yank this release from PyPI. Please do not use this
+release.
+
+### Bug fixes
+
+- (hail#11401) Fixed bug where `from_pandas` didn't support missing strings.
+
+---
+
+## Version 0.2.86
+
+Release 2022-02-25
+
+### Bug fixes
+
+- (hail#11374) Fixed bug where certain pipelines that read in PLINK files would give assertion error.
+- (hail#11401) Fixed bug where `from_pandas` didn't support missing ints. 
+
+### Performance improvements
+
+- (hail#11306) Newly written tables that have no duplicate keys will be faster to join against.
+
+---
+
+## Version 0.2.85
+
+Release 2022-02-14
+
+### Bug fixes
+
+- (hail#11355) Fixed assertion errors being hit relating to RVDPartitioner.
+- (hail#11344) Fix error where hail ggplot would mislabel points after more than 10 distinct colors were used.
+
+### New features
+
+- (hail#11332) Added `geom_ribbon` and `geom_area` to hail ggplot.
+
+---
+
+## Version 0.2.84
+
+Release 2022-02-10
+
+### Bug fixes
+
+- (hail#11328) Fix bug where occasionally files written to disk would be unreadable.
+- (hail#11331) Fix bug that potentially caused files written to disk to be unreadable.
+- (hail#11312) Fix aggregator memory leak.
+- (hail#11340) Fix bug where repeatedly annotating same field name could cause failure to compile.
+- (hail#11342) Fix to possible issues about having too many open file handles.
+
+### New features
+
+- (hail#11300) `geom_histogram` infers min and max values automatically.
+- (hail#11317) Add support for `alpha` aesthetic and `identity` position to `geom_histogram`.
+
+---
+
+## Version 0.2.83
+
+Release 2022-02-01
+
+### Bug fixes
+
+- (hail#11268) Fixed `log` argument in `hail.plot.histogram`.
+- (hail#11276) Fixed `log` argument in `hail.plot.pdf`.
+- (hail#11256) Fixed memory leak in LD Prune.
+
+### New features
+
+- (hail#11274) Added `geom_col` to `hail.ggplot`.
+
+### hailctl dataproc
+
+- (hail#11280) Updated dataproc image version to one not affected by log4j vulnerabilities.
+
+---
+
+## Version 0.2.82
+
+Release 2022-01-24
+
+### Bug fixes
+
+- (hail#11209) Significantly improved usefulness and speed of `Table.to_pandas`, resolved several bugs with output.
+
+### New features
+
+- (hail#11247) Introduces a new experimental plotting interface `hail.ggplot`, based on R's ggplot library.
+- (hail#11173) Many math functions like `hail.sqrt` now automatically broadcast over ndarrays.
+
+### Performance Improvements
+
+- (hail#11216) Significantly improve performance of `parse_locus_interval`
+
+### Python and Java Support
+
+- (hail#11219) We no longer officially support Python 3.6, though it may continue to work in the short term.
+- (hail#11220) We support building hail with Java 11.
+
+---
+
+## Version 0.2.81
+
+Release 2021-12-20
+
+### hailctl dataproc
+
+- (hail#11182) Updated Dataproc image version to mitigate yet more Log4j vulnerabilities.
+
+---
+
+## Version 0.2.80
+
+Release 2021-12-15
+
+### New features
+
+- (hail#11077) `hl.experimental.write_matrix_tables` now returns the paths of the written matrix tables.
+
+### hailctl dataproc
+
+- (hail#11157) Updated Dataproc image version to mitigate the Log4j vulnerability.
+- (hail#10900) Added `--region` parameter to `hailctl dataproc submit`.
+- (hail#11090) Teach `hailctl dataproc describe` how to read URLs with the protocols `s3` (Amazon S3), `hail-az` (Azure Blob Storage), and `file` (local file system) in addition to `gs` (Google Cloud Storage).
+
+---
+
+## Version 0.2.79
+
+Release 2021-11-17
+
+### Bug fixes
+
+- (hail#11023) Fixed bug in call decoding that was introduced in version 0.2.78.
+
+### New features
+
+- (hail#10993) New function `p_value_excess_het`.
+
+---
+
+## Version 0.2.78
+
+Release 2021-10-19
+
+### Bug fixes
+- (hail#10766) Don't throw out of memory error when broadcasting more than 2^(31) - 1 bytes.
+- (hail#10910) Filters on key field won't be slowed down by uses of `MatrixTable.localize_entries` or `Table.rename`.
+- (hail#10959) Don't throw an error in certain situations where some key fields are optimized away.
+
+### New features
+- (hail#10855) Arbitrary aggregations can be implemented using `hl.agg.fold`.
+
+
+### Performance Improvements
+- (hail#10971) Substantially improve the speed of `Table.collect` when collecting large amounts of data.
+
+---
+
+## Version 0.2.77
+
+Release 2021-09-21
+
+### Bug fixes
+
+- (hail#10888) Fix crash when calling `hl.liftover`.
+- (hail#10883) Fix crash / long compilation times writing matrix tables with many partitions.
+
 ---
 
 ## Version 0.2.76
@@ -44,7 +270,7 @@ Released 2021-09-10
 - (hail#10733) Fix a bug in tabix parsing when the size of the list of all sequences is large.
 - (hail#10765) Fix rare bug where valid pipelines would fail to compile if intervals were created conditionally.
 - (hail#10746) Various compiler improvements, decrease likelihood of `ClassTooLarge` errors.
-- (hail#10829) Fix a bug where `hl.missing` and `CaseBuilder.or_error` failed if their type was a struct containing a field starting with a number. 
+- (hail#10829) Fix a bug where `hl.missing` and `CaseBuilder.or_error` failed if their type was a struct containing a field starting with a number.
 
 ### New features
 
@@ -52,8 +278,8 @@ Released 2021-09-10
 
 ### Performance improvements
 
-- (hail#10625) Reduced need to copy strings around, pipelines with many string operations should get faster. 
-- (hail#10775) Improved performance of `to_matrix_table_row_major` on both `BlockMatrix` and `Table`. 
+- (hail#10625) Reduced need to copy strings around, pipelines with many string operations should get faster.
+- (hail#10775) Improved performance of `to_matrix_table_row_major` on both `BlockMatrix` and `Table`.
 
 ---
 

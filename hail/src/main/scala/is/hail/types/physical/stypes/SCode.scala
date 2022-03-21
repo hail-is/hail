@@ -7,108 +7,49 @@ import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.physical.stypes.primitives._
 
 object SCode {
-  def add(cb: EmitCodeBuilder, left: SCode, right: SCode, required: Boolean): SCode = {
+  def add(cb: EmitCodeBuilder, left: SValue, right: SValue, required: Boolean): SValue = {
     (left.st, right.st) match {
-      case (SInt32, SInt32) => new SInt32Code(left.asInt.intCode(cb) + right.asInt.intCode(cb))
-      case (SFloat32, SFloat32) => new SFloat32Code(left.asFloat.floatCode(cb) + right.asFloat.floatCode(cb))
-      case (SInt64, SInt64) => new SInt64Code(left.asLong.longCode(cb) + right.asLong.longCode(cb))
-      case (SFloat64, SFloat64) => new SFloat64Code(left.asDouble.doubleCode(cb) + right.asDouble.doubleCode(cb))
+      case (SInt32, SInt32) => new SInt32Value(cb.memoize(left.asInt.value + right.asInt.value))
+      case (SFloat32, SFloat32) => new SFloat32Value(cb.memoize(left.asFloat.value + right.asFloat.value))
+      case (SInt64, SInt64) => new SInt64Value(cb.memoize(left.asLong.value + right.asLong.value))
+      case (SFloat64, SFloat64) => new SFloat64Value(cb.memoize(left.asDouble.value + right.asDouble.value))
     }
   }
 
-  def multiply(cb: EmitCodeBuilder, left: SCode, right: SCode, required: Boolean): SCode = {
+  def multiply(cb: EmitCodeBuilder, left: SValue, right: SValue, required: Boolean): SValue = {
     (left.st, right.st) match {
-      case (SInt32, SInt32) => new SInt32Code(left.asInt.intCode(cb) * right.asInt.intCode(cb))
-      case (SFloat32, SFloat32) => new SFloat32Code(left.asFloat.floatCode(cb) * right.asFloat.floatCode(cb))
-      case (SInt64, SInt64) => new SInt64Code(left.asLong.longCode(cb) * right.asLong.longCode(cb))
-      case (SFloat64, SFloat64) => new SFloat64Code(left.asDouble.doubleCode(cb) * right.asDouble.doubleCode(cb))
+      case (SInt32, SInt32) => new SInt32Value(cb.memoize(left.asInt.value * right.asInt.value))
+      case (SFloat32, SFloat32) => new SFloat32Value(cb.memoize(left.asFloat.value * right.asFloat.value))
+      case (SInt64, SInt64) => new SInt64Value(cb.memoize(left.asLong.value * right.asLong.value))
+      case (SFloat64, SFloat64) => new SFloat64Value(cb.memoize(left.asDouble.value * right.asDouble.value))
     }
   }
 
-  def subtract(cb: EmitCodeBuilder, left: SCode, right: SCode, required: Boolean): SCode = {
+  def subtract(cb: EmitCodeBuilder, left: SValue, right: SValue, required: Boolean): SValue = {
     (left.st, right.st) match {
-      case (SInt32, SInt32) => new SInt32Code(left.asInt.intCode(cb) - right.asInt.intCode(cb))
-      case (SFloat32, SFloat32) => new SFloat32Code(left.asFloat.floatCode(cb) - right.asFloat.floatCode(cb))
-      case (SInt64, SInt64) => new SInt64Code(left.asLong.longCode(cb) - right.asLong.longCode(cb))
-      case (SFloat64, SFloat64) => new SFloat64Code(left.asDouble.doubleCode(cb) - right.asDouble.doubleCode(cb))
+      case (SInt32, SInt32) => new SInt32Value(cb.memoize(left.asInt.value - right.asInt.value))
+      case (SFloat32, SFloat32) => new SFloat32Value(cb.memoize(left.asFloat.value - right.asFloat.value))
+      case (SInt64, SInt64) => new SInt64Value(cb.memoize(left.asLong.value - right.asLong.value))
+      case (SFloat64, SFloat64) => new SFloat64Value(cb.memoize(left.asDouble.value - right.asDouble.value))
     }
   }
 
-  def divide(cb: EmitCodeBuilder, left: SCode, right: SCode, required: Boolean): SCode = {
+  def divide(cb: EmitCodeBuilder, left: SValue, right: SValue, required: Boolean): SValue = {
     (left.st, right.st) match {
-      case (SInt32, SInt32) => new SInt32Code(left.asInt.intCode(cb) / right.asInt.intCode(cb))
-      case (SFloat32, SFloat32) => new SFloat32Code(left.asFloat.floatCode(cb) / right.asFloat.floatCode(cb))
-      case (SInt64, SInt64) => new SInt64Code(left.asLong.longCode(cb) / right.asLong.longCode(cb))
-      case (SFloat64, SFloat64) => new SFloat64Code(left.asDouble.doubleCode(cb) / right.asDouble.doubleCode(cb))
+      case (SInt32, SInt32) => new SInt32Value(cb.memoize(left.asInt.value / right.asInt.value))
+      case (SFloat32, SFloat32) => new SFloat32Value(cb.memoize(left.asFloat.value / right.asFloat.value))
+      case (SInt64, SInt64) => new SInt64Value(cb.memoize(left.asLong.value / right.asLong.value))
+      case (SFloat64, SFloat64) => new SFloat64Value(cb.memoize(left.asDouble.value / right.asDouble.value))
     }
   }
 
   def _empty: SValue = SVoidValue
 }
 
-abstract class SCode {
-
-  def st: SType
-
-  def asBoolean: SBooleanCode = asInstanceOf[SBooleanCode]
-
-  def asInt: SInt32Code = asInstanceOf[SInt32Code]
-
-  def asInt32: SInt32Code = asInstanceOf[SInt32Code]
-
-  def asLong: SInt64Code = asInstanceOf[SInt64Code]
-
-  def asInt64: SInt64Code = asInstanceOf[SInt64Code]
-
-  def asFloat: SFloat32Code = asInstanceOf[SFloat32Code]
-
-  def asFloat32: SFloat32Code = asInstanceOf[SFloat32Code]
-
-  def asFloat64: SFloat64Code = asInstanceOf[SFloat64Code]
-
-  def asDouble: SFloat64Code = asInstanceOf[SFloat64Code]
-
-  def asPrimitive: SPrimitiveCode = asInstanceOf[SPrimitiveCode]
-
-  def asBinary: SBinaryCode = asInstanceOf[SBinaryCode]
-
-  def asIndexable: SIndexableCode = asInstanceOf[SIndexableCode]
-
-  def asBaseStruct: SBaseStructCode = asInstanceOf[SBaseStructCode]
-
-  def asString: SStringCode = asInstanceOf[SStringCode]
-
-  def asInterval: SIntervalCode = asInstanceOf[SIntervalCode]
-
-  def asNDArray: SNDArrayCode = asInstanceOf[SNDArrayCode]
-
-  def asLocus: SLocusCode = asInstanceOf[SLocusCode]
-
-  def asCall: SCallCode = asInstanceOf[SCallCode]
-
-  def asStream: SStreamCode = asInstanceOf[SStreamCode]
-
-  def castTo(cb: EmitCodeBuilder, region: Value[Region], destType: SType): SCode =
-    castTo(cb, region, destType, false)
-
-  def castTo(cb: EmitCodeBuilder, region: Value[Region], destType: SType, deepCopy: Boolean): SCode = {
-    destType.coerceOrCopy(cb, region, this.memoize(cb, "castTo"), deepCopy).get
-  }
-
-  def copyToRegion(cb: EmitCodeBuilder, region: Value[Region], destType: SType): SCode =
-    destType.coerceOrCopy(cb, region, this.memoize(cb, "copyToRegion"), deepCopy = true).get
-
-  def memoize(cb: EmitCodeBuilder, name: String): SValue
-
-  def memoizeField(cb: EmitCodeBuilder, name: String): SValue
-}
-
 trait SValue {
   def st: SType
 
   def valueTuple: IndexedSeq[Value[_]]
-
-  def get: SCode
 
   def asBoolean: SBooleanValue = asInstanceOf[SBooleanValue]
 
@@ -158,16 +99,16 @@ trait SValue {
   def copyToRegion(cb: EmitCodeBuilder, region: Value[Region], destType: SType): SValue =
     destType.coerceOrCopy(cb, region, this, deepCopy = true)
 
-  def hash(cb: EmitCodeBuilder): SInt32Code = throw new UnsupportedOperationException(s"Stype ${st} has no hashcode")
+  def hash(cb: EmitCodeBuilder): SInt32Value = throw new UnsupportedOperationException(s"Stype ${st} has no hashcode")
+
+  def sizeToStoreInBytes(cb: EmitCodeBuilder): SInt64Value
 }
 
 
 trait SSettable extends SValue {
-  def store(cb: EmitCodeBuilder, v: SCode): Unit
+  def store(cb: EmitCodeBuilder, v: SValue): Unit
 
   def settableTuple(): IndexedSeq[Settable[_]]
-
-  def load(): SCode = get
 }
 
 object SSettable {
@@ -178,11 +119,7 @@ object SSettable {
   }
 }
 
-trait SUnrealizableCode extends SCode {
-  private def unsupported: Nothing =
-    throw new UnsupportedOperationException(s"$this is not realizable")
-
-  override def memoizeField(cb: EmitCodeBuilder, name: String): SValue = unsupported
+trait SUnrealizableValue extends SValue {
+  override def sizeToStoreInBytes(cb: EmitCodeBuilder): SInt64Value =
+    throw new UnsupportedOperationException(s"Unrealizable SValue has no size in bytes.")
 }
-
-trait SUnrealizableValue extends SValue

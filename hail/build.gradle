@@ -1,7 +1,6 @@
 buildscript {
     repositories {
         mavenCentral()
-        jcenter()
     }
 }
 
@@ -17,11 +16,7 @@ plugins {
 import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
 
 repositories {
-    flatDir {
-        dirs 'libs'
-    }
     mavenCentral()
-    jcenter()
     maven { url "https://repository.cloudera.com/artifactory/cloudera-repos/" }
 }
 
@@ -45,15 +40,16 @@ tasks.withType(JavaCompile) {
 }
 
 project.ext {
-    cachedBreezeVersion = null
+    breezeVersion = "1.1"
 
-    sparkVersion = System.getProperty("spark.version", "3.1.1")
+    sparkVersion = System.getProperty("spark.version", "3.1.2")
 
-    if (sparkVersion != "3.1.1") {
-        project.logger.lifecycle("WARNING: Hail primarily tested with Spark 3.1.1, use other versions at your own risk.")
+    if (sparkVersion != "3.1.2") {
+        project.logger.lifecycle("WARNING: Hail primarily tested with Spark 3.1.2, use other versions at your own risk.")
     }
     scalaVersion = System.getProperty("scala.version", "2.12.13")
     scalaMajorVersion = (scalaVersion =~ /^\d+.\d+/)[0]
+    assert(scalaMajorVersion == "2.12")
 }
 
 compileScala {
@@ -88,41 +84,14 @@ compileScala {
     }
 }
 
-String breezeVersion() {
-  if (cachedBreezeVersion == null) {
-    def artifacts = configurations.justSpark.getResolvedConfiguration().getResolvedArtifacts()
-    artifacts.each { ResolvedArtifact artifact ->
-	def module = artifact.getModuleVersion().getId()
-	if (module.getGroup() == 'org.scalanlp'
-	  && module.getName() == 'breeze_' + scalaMajorVersion) {
-	    cachedBreezeVersion = module.getVersion()
-	}
-    }
-    if (cachedBreezeVersion == null) {
-      throw new RuntimeException('Unable to determine breeze library version')
-    }
-  }
-  return cachedBreezeVersion
-}
-
 configurations {
     justSpark
 
     all {
         resolutionStrategy {
-            componentSelection {
-                withModule('org.scalanlp:breeze-natives_' + scalaMajorVersion) { ComponentSelection selection ->
-                    if (selection.candidate.getVersion() != breezeVersion()) {
-                        selection.reject()
-                    }
-                }
-	        }
             eachDependency { DependencyResolveDetails details ->
                 if (details.requested.group == 'org.apache.spark') {
                     details.useVersion(sparkVersion)
-                } else if (details.requested.group == 'org.scalanlp' && details.requested.version == '1.0') {
-                    // Breeze 1.0 contains a known bug (https://github.com/scalanlp/breeze/issues/772)
-                    details.useVersion('1.1')
                 }
             }
 	    }
@@ -133,6 +102,7 @@ configurations {
     hailJar.extendsFrom bundled
     hailJar {
         exclude group: 'org.scala-lang', module: 'scala-library'
+        exclude group: 'org.apache.spark'
     }
 
     hailTestJar.extendsFrom hailJar, hailTest
@@ -142,7 +112,9 @@ configurations {
 }
 
 dependencies {
-    justSpark 'org.apache.spark:spark-mllib_' + scalaMajorVersion + ':' + sparkVersion
+    justSpark('org.apache.spark:spark-mllib_' + scalaMajorVersion + ':' + sparkVersion) {
+        exclude group: 'org.scalanlp'
+    }
 
     unbundled 'org.scala-lang:scala-library:' + scalaVersion
     unbundled 'org.scala-lang:scala-reflect:' + scalaVersion
@@ -164,10 +136,11 @@ dependencies {
     bundled 'org.lz4:lz4-java:1.8.0'
 
     // Breeze 1.0 has a known bug (https://github.com/scalanlp/breeze/issues/772)
-    unbundled 'org.scalanlp:breeze-natives_' + scalaMajorVersion + ':' + breezeVersion()
-    bundled('org.scalanlp:breeze-natives_' + scalaMajorVersion + ':' + breezeVersion()) {
+    unbundled 'org.scalanlp:breeze-natives_' + scalaMajorVersion + ':' + breezeVersion
+    bundled('org.scalanlp:breeze-natives_' + scalaMajorVersion + ':' + breezeVersion) {
         exclude module: 'commons-math3'
     }
+    bundled 'org.scalanlp:breeze_' + scalaMajorVersion + ':' + breezeVersion
 
     bundled 'com.github.fommil.netlib:all:1.1.2'
     bundled('com.github.samtools:htsjdk:2.24.1') {
@@ -177,22 +150,21 @@ dependencies {
     bundled group: 'org.slf4j', name: 'slf4j-api', version: '1.7.25'
 
     def elasticMajorVersion = System.getProperty("elasticsearch.major-version", "7")
-    if (elasticMajorVersion != "7") {
-        throw new UnsupportedOperationException("elasticsearch.major-version must be 7")
+    if (elasticMajorVersion != "7" && elasticMajorVersion != "8") {
+        throw new UnsupportedOperationException("elasticsearch.major-version must be 7 or 8")
     }
 
-    if (sparkVersion.startsWith("3.1.")) {
-        // This comes from a local libs directory, see Makefile
-        assert(scalaMajorVersion == "2.12")
-        bundled 'org.elasticsearch:elasticsearch-spark-30_2.12-8.0.0-SNAPSHOT-custom-hail-spark311'
-    }
-    else if (sparkVersion.startsWith("3.0.")) {
-        assert(scalaMajorVersion == "2.12")
-        bundled 'org.elasticsearch:elasticsearch-spark-30_2.12:7.13.1'
+    if (sparkVersion.startsWith("3.")) {
+        if (elasticMajorVersion == "8") {
+            bundled 'org.elasticsearch:elasticsearch-spark-30_2.12:8.0.0'
+        }
+        else if (elasticMajorVersion == "7") {
+            bundled 'org.elasticsearch:elasticsearch-spark-30_2.12:7.17.0'
+        }
     }
     else if (sparkVersion.startsWith("2.4.")) {
-        assert(scalaMajorVersion == "2.11")
-        bundled 'org.elasticsearch:elasticsearch-spark-20_2.11:7.8.1'
+        assert(elasticMajorVersion == "7")
+        bundled 'org.elasticsearch:elasticsearch-spark-20_2.12:7.17.1'
     }
     else {
         throw new UnsupportedOperationException("Couldn't pick a valid elasticsearch.")
@@ -219,7 +191,7 @@ dependencies {
 
     unbundled group: 'org.apache.commons', name: 'commons-math3', version: '3.6.1'
     bundled group: 'commons-codec', name: 'commons-codec', version: '1.11'
-    bundled group: 'org.apache.commons', name: 'commons-lang3', version: '3.0'
+    bundled group: 'org.apache.commons', name: 'commons-lang3', version: '3.5'
     bundled(group: 'org.apache.avro', name: 'avro', version: '1.10.2') {
         exclude group: 'com.fasterxml.jackson.core'
     }
@@ -307,8 +279,31 @@ task testServices(type: Test) {
     }
 }
 
+task testFS(type: Test) {
+    useTestNG() {
+        suites 'testng-fs.xml'
+    }
+
+    testLogging {
+        events "passed", "skipped", "failed"
+    }
+
+    // listen to events in the test execution lifecycle
+    beforeTest { descriptor ->
+        logger.lifecycle("Running test: " + descriptor)
+    }
+
+    maxParallelForks((System.env.PARALLELISM == null ? "1" : System.env.PARALLELISM).toInteger())
+
+    testLogging {
+        outputs.upToDateWhen {false}
+        showStandardStreams = true
+    }
+}
+
 test.dependsOn(checkSettings)
 testServices.dependsOn(checkSettings)
+testFS.dependsOn(checkSettings)
 
 tasks.withType(ShadowJar) {
     manifest {
@@ -333,6 +328,9 @@ tasks.withType(ShadowJar) {
     relocate 'org.freemarker', 'is.hail.relocated.org.freemarker'
     relocate 'org.json4s', 'is.hail.relocated.org.json4s'
     relocate 'org.elasticsearch', 'is.hail.relocated.org.elasticsearch'
+
+    // Breeze 1.0 is broken, it is never ok to use Breeze 1.0 or earlier.
+    relocate 'breeze', 'is.hail.relocated.breeze'
 
     exclude 'META-INF/*.RSA'
     exclude 'META-INF/*.SF'

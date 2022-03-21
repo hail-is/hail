@@ -371,3 +371,17 @@ def matrix_multi_write_nothing():
         mt = hl.utils.range_matrix_table(1, 1, n_partitions=1)
         mts = [mt] * 1000
         hl.experimental.write_matrix_tables(mts, path.join(tmpdir, 'multi-write'), overwrite=True)
+
+
+@benchmark(args=profile_25.handle("mt"))
+def mt_localize_and_collect(mt_path):
+    mt = hl.read_matrix_table(mt_path)
+    ht = mt.localize_entries("ent")
+    collected = ht.head(150).collect()
+
+
+@benchmark(args=random_doubles.handle("mt"))
+def mt_group_by_memory_usage(mt_path):
+    mt = hl.read_matrix_table(mt_path)
+    mt = mt.group_rows_by(new_idx=mt.row_idx % 3).aggregate(x = hl.agg.mean(mt.x))
+    mt._force_count_rows()

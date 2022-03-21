@@ -1,8 +1,7 @@
 package is.hail.io.bgen
 
-import is.hail.backend.BroadcastValue
+import is.hail.backend.{BroadcastValue, ExecuteContext}
 import is.hail.backend.spark.SparkTaskContext
-import is.hail.expr.ir.ExecuteContext
 import is.hail.io._
 import is.hail.io.fs.FS
 import is.hail.io.index.IndexWriter

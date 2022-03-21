@@ -1,9 +1,9 @@
 from typing import Optional, Dict, Any
-import aiohttp
 import asyncio
 
 from ..config import DeployConfig
 from . import aioclient
+from .. import httpx
 
 
 def async_to_blocking(coro):
@@ -126,6 +126,10 @@ class Batch:
     def token(self):
         return self._async_batch.token
 
+    @property
+    def submission_info(self):
+        return self._async_batch.submission_info
+
     def cancel(self):
         async_to_blocking(self._async_batch.cancel())
 
@@ -166,8 +170,11 @@ class Batch:
     def get_job_log(self, job_id: int) -> Optional[Dict[str, Any]]:
         return async_to_blocking(self._async_batch.get_job_log(job_id))
 
-    def wait(self):
-        return async_to_blocking(self._async_batch.wait())
+    def wait(self, *args, **kwargs):
+        return async_to_blocking(self._async_batch.wait(*args, **kwargs))
+
+    def debug_info(self):
+        return async_to_blocking(self._async_batch.debug_info())
 
     def delete(self):
         async_to_blocking(self._async_batch.delete())
@@ -197,11 +204,15 @@ class BatchBuilder:
     def token(self):
         return self._async_builder.token
 
-    def create_job(self, image, command, env=None, mount_docker_socket=False,
+    def create_job(self,
+                   image,
+                   command,
+                   *,
+                   env=None, mount_docker_socket=False,
                    port=None, resources=None, secrets=None,
                    service_account=None, attributes=None, parents=None,
                    input_files=None, output_files=None, always_run=False,
-                   timeout=None, gcsfuse=None, requester_pays_project=None,
+                   timeout=None, cloudfuse=None, requester_pays_project=None,
                    mount_tokens=False, network: Optional[str] = None,
                    unconfined: bool = False, user_code: Optional[str] = None) -> Job:
         if parents:
@@ -213,15 +224,26 @@ class BatchBuilder:
             service_account=service_account,
             attributes=attributes, parents=parents,
             input_files=input_files, output_files=output_files, always_run=always_run,
-            timeout=timeout, gcsfuse=gcsfuse,
+            timeout=timeout, cloudfuse=cloudfuse,
             requester_pays_project=requester_pays_project, mount_tokens=mount_tokens,
             network=network, unconfined=unconfined, user_code=user_code)
 
         return Job.from_async_job(async_job)
 
-    def _create(self):
-        async_batch = async_to_blocking(self._async_builder._create())
+    def create_jvm_job(self, command, *, parents=None, **kwargs) -> Job:
+        if parents:
+            parents = [parent._async_job for parent in parents]
+
+        async_job = self._async_builder.create_jvm_job(command, parents=parents, **kwargs)
+
+        return Job.from_async_job(async_job)
+
+    def _open_batch(self) -> Batch:
+        async_batch = async_to_blocking(self._async_builder._open_batch())
         return Batch.from_async_batch(async_batch)
+
+    def _close_batch(self, id: int):
+        async_to_blocking(self._async_builder._close_batch(id))
 
     def submit(self, *args, **kwargs) -> Batch:
         async_batch = async_to_blocking(self._async_builder.submit(*args, **kwargs))
@@ -229,14 +251,20 @@ class BatchBuilder:
 
 
 class BatchClient:
+    @staticmethod
+    def from_async(async_client: aioclient.BatchClient):
+        bc = BatchClient.__new__(BatchClient)
+        bc._async_client = async_client
+        return bc
+
     def __init__(self,
                  billing_project: str,
                  deploy_config: Optional[DeployConfig] = None,
-                 session: Optional[aiohttp.ClientSession] = None,
+                 session: Optional[httpx.ClientSession] = None,
                  headers: Optional[Dict[str, str]] = None,
                  _token: Optional[str] = None):
-        self._async_client = aioclient.BatchClient(
-            billing_project, deploy_config, session, headers=headers, _token=_token)
+        self._async_client = async_to_blocking(aioclient.BatchClient.create(
+            billing_project, deploy_config, session, headers=headers, _token=_token))
 
     @property
     def billing_project(self):
@@ -262,7 +290,12 @@ class BatchClient:
         b = async_to_blocking(self._async_client.get_batch(id))
         return Batch.from_async_batch(b)
 
-    def create_batch(self, attributes=None, callback=None, token=None, cancel_after_n_failures=None):
+    def create_batch(self,
+                     attributes=None,
+                     callback=None,
+                     token=None,
+                     cancel_after_n_failures=None
+                     ) -> 'BatchBuilder':
         builder = self._async_client.create_batch(attributes=attributes, callback=callback, token=token,
                                                   cancel_after_n_failures=cancel_after_n_failures)
         return BatchBuilder.from_async_builder(builder)

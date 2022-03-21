@@ -1,6 +1,8 @@
 package is.hail.io.plink
 
+import is.hail.asm4s.HailClassLoader
 import is.hail.annotations.{Region, RegionValueBuilder}
+import is.hail.backend.ExecuteContext
 import is.hail.expr.JSONAnnotationImpex
 import is.hail.expr.ir._
 import is.hail.expr.ir.lowering.TableStage
@@ -349,7 +351,7 @@ class MatrixPLINKReader(
 
       val requestedPType = bodyPType(requestedType)
 
-      { (region: Region, context: Any) =>
+      { (region: Region, theHailClassLoader: HailClassLoader, fs: FS, context: Any) =>
         val c = context.asInstanceOf[Row]
         val bed = c.getString(0)
         val start = c.getInt(1)
@@ -461,7 +463,8 @@ class MatrixPLINKReader(
     executeGeneric(ctx).toTableValue(ctx, tr.typ)
 
   override def lowerGlobals(ctx: ExecuteContext, requestedGlobalsType: TStruct): IR = {
-    val subset = fullMatrixType.globalType.valueSubsetter(requestedGlobalsType)
+    val tt = fullMatrixType.toTableType(LowerMatrixIR.entriesFieldName, LowerMatrixIR.colsFieldName)
+    val subset = tt.globalType.valueSubsetter(requestedGlobalsType)
     val globals = Row(sampleInfo)
     Literal(requestedGlobalsType, subset(globals).asInstanceOf[Row])
   }

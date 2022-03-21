@@ -3,6 +3,7 @@ package is.hail.types.physical
 import is.hail.annotations._
 import is.hail.asm4s
 import is.hail.asm4s._
+import is.hail.backend.ExecuteContext
 import is.hail.check.{Arbitrary, Gen}
 import is.hail.expr.ir
 import is.hail.expr.ir._
@@ -301,7 +302,7 @@ object PType {
     canonical(t, 0, 0)
   }
 
-  def canonicalize(t: PType, ctx: ExecuteContext, path: List[String]): Option[() => AsmFunction2RegionLongLong] = {
+  def canonicalize(t: PType, ctx: ExecuteContext, path: List[String]): Option[(HailClassLoader) => AsmFunction2RegionLongLong] = {
     def canonicalPath(pt: PType, path: List[String]): PType = {
       if (path.isEmpty) {
         PType.canonical(pt)
@@ -333,7 +334,7 @@ object PType {
         val srcAddr = fb.apply_method.getCodeParam[Long](2)
         cpt.store(cb, region, t.loadCheapSCode(cb, srcAddr), deepCopy = false)
       }
-      Some(fb.result())
+      Some(fb.result(ctx))
     }
   }
 }
@@ -455,13 +456,11 @@ abstract class PType extends Serializable with Requiredness {
   // return a SCode that can cheaply operate on the region representation. Generally a pointer type, but not necessarily (e.g. primitives).
   def loadCheapSCode(cb: EmitCodeBuilder, addr: Code[Long]): SValue
 
-  def loadCheapSCodeField(cb: EmitCodeBuilder, addr: Code[Long]): SValue
-
   // stores a stack value as a region value of this type
   def store(cb: EmitCodeBuilder, region: Value[Region], value: SValue, deepCopy: Boolean): Value[Long]
 
   // stores a stack value inside pre-allocated memory of this type (in a nested structure, for instance).
-  def storeAtAddress(cb: EmitCodeBuilder, addr: Code[Long], region: Value[Region], value: SCode, deepCopy: Boolean): Unit
+  def storeAtAddress(cb: EmitCodeBuilder, addr: Code[Long], region: Value[Region], value: SValue, deepCopy: Boolean): Unit
 
   def unstagedStoreAtAddress(addr: Long, region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Unit
 

@@ -2,7 +2,8 @@ package is.hail.types
 
 import is.hail.annotations.{Annotation, NDArray}
 import is.hail.types.physical._
-import is.hail.types.physical.stypes.interfaces.SStream
+import is.hail.types.physical.stypes.concrete.SIndexablePointer
+import is.hail.types.physical.stypes.interfaces.{SBaseStruct, SInterval, SNDArray, SStream}
 import is.hail.types.physical.stypes.{EmitType, SType}
 import is.hail.types.virtual._
 import is.hail.utils.{FastSeq, Interval, rowIterator, toMapFast}
@@ -197,6 +198,7 @@ case class VirtualTypeWithReq(t: Type, r: TypeWithRequiredness) {
 sealed abstract class TypeWithRequiredness extends BaseTypeWithRequiredness {
   def _unionLiteral(a: Annotation): Unit
   def _unionPType(pType: PType): Unit
+  def _unionEmitType(emitType: EmitType): Unit
   def _matchesPType(pt: PType): Boolean
   def unionLiteral(a: Annotation): Unit =
     if (a == null) union(false) else _unionLiteral(a)
@@ -204,6 +206,10 @@ sealed abstract class TypeWithRequiredness extends BaseTypeWithRequiredness {
   def fromPType(pType: PType): Unit = {
     union(pType.required)
     _unionPType(pType)
+  }
+  def fromEmitType(emitType: EmitType): Unit = {
+    union(emitType.required)
+    _unionEmitType(emitType)
   }
   def canonicalPType(t: Type): PType
   def canonicalEmitType(t: Type): EmitType = {
@@ -232,6 +238,7 @@ final case class RPrimitive() extends TypeWithRequiredness {
   def _unionLiteral(a: Annotation): Unit = ()
   def _matchesPType(pt: PType): Boolean = RPrimitive.typeSupported(pt.virtualType)
   def _unionPType(pType: PType): Unit = assert(RPrimitive.typeSupported(pType.virtualType))
+  def _unionEmitType(emitType: EmitType) = assert(RPrimitive.typeSupported(emitType.virtualType))
   def copy(newChildren: Seq[BaseTypeWithRequiredness]): RPrimitive = {
     assert(newChildren.isEmpty)
     RPrimitive()
@@ -254,6 +261,7 @@ sealed class RIterable(val elementType: TypeWithRequiredness, eltRequired: Boole
     a.asInstanceOf[Iterable[_]].foreach(elt => elementType.unionLiteral(elt))
   def _matchesPType(pt: PType): Boolean = elementType.matchesPType(coerce[PIterable](pt).elementType)
   def _unionPType(pType: PType): Unit = elementType.fromPType(pType.asInstanceOf[PIterable].elementType)
+  def _unionEmitType(emitType: EmitType): Unit = elementType.fromEmitType(emitType.st.asInstanceOf[SIndexablePointer].elementEmitType)
   def _toString: String = s"RIterable[${ elementType.toString }]"
 
   override def _maximizeChildren(): Unit = {
@@ -325,6 +333,7 @@ case class RNDArray(override val elementType: TypeWithRequiredness) extends RIte
   }
   override def _matchesPType(pt: PType): Boolean = elementType.matchesPType(coerce[PNDArray](pt).elementType)
   override def _unionPType(pType: PType): Unit = elementType.fromPType(pType.asInstanceOf[PNDArray].elementType)
+  override def _unionEmitType(emitType: EmitType): Unit = elementType.fromEmitType(emitType.st.asInstanceOf[SNDArray].elementEmitType)
   override def copy(newChildren: Seq[BaseTypeWithRequiredness]): RNDArray = {
     val Seq(newElt: TypeWithRequiredness) = newChildren
     RNDArray(newElt)
@@ -348,6 +357,11 @@ case class RInterval(startType: TypeWithRequiredness, endType: TypeWithRequiredn
   def _unionPType(pType: PType): Unit = {
     startType.fromPType(pType.asInstanceOf[PInterval].pointType)
     endType.fromPType(pType.asInstanceOf[PInterval].pointType)
+  }
+  def _unionEmitType(emitType: EmitType): Unit = {
+    val sInterval = emitType.st.asInstanceOf[SInterval]
+    startType.fromEmitType(sInterval.pointEmitType)
+    endType.fromEmitType(sInterval.pointEmitType)
   }
   def copy(newChildren: Seq[BaseTypeWithRequiredness]): RInterval = {
     val Seq(newStart: TypeWithRequiredness, newEnd: TypeWithRequiredness) = newChildren
@@ -375,6 +389,9 @@ sealed abstract class RBaseStruct extends TypeWithRequiredness {
     coerce[PBaseStruct](pt).fields.forall(f => children(f.index).matchesPType(f.typ))
   def _unionPType(pType: PType): Unit = {
     pType.asInstanceOf[PBaseStruct].fields.foreach(f => children(f.index).fromPType(f.typ))
+  }
+  def _unionEmitType(emitType: EmitType): Unit = {
+    emitType.st.asInstanceOf[SBaseStruct].fieldEmitTypes.zipWithIndex.foreach{ case(et, idx) => children(idx).fromEmitType(et) }
   }
 
   def unionFields(other: RStruct): Unit = {
@@ -425,6 +442,7 @@ case class RUnion(cases: Seq[(String, TypeWithRequiredness)]) extends TypeWithRe
   def _unionLiteral(a: Annotation): Unit = ???
   def _matchesPType(pt: PType): Boolean = ???
   def _unionPType(pType: PType): Unit = ???
+  def _unionEmitType(emitType: EmitType): Unit = ???
   def copy(newChildren: Seq[BaseTypeWithRequiredness]): RUnion = {
     assert(newChildren.length == cases.length)
     RUnion(Array.tabulate(cases.length)(i => cases(i)._1 -> coerce[TypeWithRequiredness](newChildren(i))))

@@ -1,13 +1,12 @@
 package is.hail.variant
 
 import java.io.InputStream
-
 import htsjdk.samtools.reference.FastaSequenceIndex
 import is.hail.HailContext
 import is.hail.asm4s.Code
-import is.hail.backend.BroadcastValue
+import is.hail.backend.{BroadcastValue, ExecuteContext}
 import is.hail.check.Gen
-import is.hail.expr.ir.{EmitClassBuilder, ExecuteContext, RelationalSpec}
+import is.hail.expr.ir.{EmitClassBuilder, RelationalSpec}
 import is.hail.expr.{JSONExtractContig, JSONExtractIntervalLocus, JSONExtractReferenceGenome, Parser}
 import is.hail.io.fs.FS
 import is.hail.io.reference.LiftOver
@@ -22,6 +21,7 @@ import scala.language.implicitConversions
 import org.apache.spark.TaskContext
 import org.json4s._
 import org.json4s.jackson.{JsonMethods, Serialization}
+
 import java.lang.ThreadLocal
 
 
@@ -141,7 +141,7 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
   private var fastaIndexPath: String = _
   @transient private var fastaReaderCfg: FASTAReaderConfig = _
 
-  def contigParser = Parser.oneOfLiteral(contigs)
+  @transient lazy val contigParser = Parser.oneOfLiteral(contigs)
 
   val globalPosContigStarts = {
     var pos = 0L
@@ -381,7 +381,7 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
   }
 
   private var chainFiles: Map[String, String] = Map.empty
-  @transient private[this] var liftoverMap: mutable.Map[String, LiftOver] = _
+  @transient private[this] lazy val liftoverMap: mutable.Map[String, LiftOver] = mutable.Map.empty
 
   def hasLiftover(destRGName: String): Boolean = chainFiles.contains(destRGName)
 
@@ -429,11 +429,8 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
     lo.queryInterval(interval, minMatch)
   }
 
-  def heal(tmpdir: String, fs: FS): Unit = this.synchronized {
-    // add liftovers
-    if (liftoverMap == null) {
-      liftoverMap = mutable.Map.empty
-    }
+  def heal(tmpdir: String, fs: FS): Unit = synchronized {
+    // Add liftovers
     // NOTE: it shouldn't be possible for the liftover map to have more elements than the chain file
     // since removeLiftover updates both maps, so we don't check to see if liftoverMap has
     // keys that are not in chainFiles

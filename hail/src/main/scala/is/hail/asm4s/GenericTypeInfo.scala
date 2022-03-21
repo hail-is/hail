@@ -1,8 +1,10 @@
 package is.hail.asm4s
 
+import is.hail.expr.ir.EmitCodeBuilder
+
 sealed abstract class MaybeGenericTypeInfo[T : TypeInfo] {
-  def castFromGeneric(x: Code[_]): Code[T]
-  def castToGeneric(x: Code[T]): Code[_]
+  def castFromGeneric(cb: CodeBuilderLike, x: Value[_]): Value[T]
+  def castToGeneric(cb: CodeBuilderLike, x: Value[T]): Value[_]
 
   val base: TypeInfo[_]
   val generic: TypeInfo[_]
@@ -12,53 +14,53 @@ sealed abstract class MaybeGenericTypeInfo[T : TypeInfo] {
 final case class GenericTypeInfo[T : TypeInfo]() extends MaybeGenericTypeInfo[T] {
   val base = typeInfo[T]
 
-  def castFromGeneric(_x: Code[_]) = {
-    val x = _x.asInstanceOf[Code[AnyRef]]
+  def castFromGeneric(cb: CodeBuilderLike, _x: Value[_]): Value[T] = {
+    val x = coerce[AnyRef](_x)
     base match {
       case _: IntInfo.type =>
-        Code.intValue(Code.checkcast[java.lang.Integer](x)).asInstanceOf[Code[T]]
+        coerce[T](cb.memoize(Code.intValue(Code.checkcast[java.lang.Integer](x))))
       case _: LongInfo.type =>
-        Code.longValue(Code.checkcast[java.lang.Long](x)).asInstanceOf[Code[T]]
+        coerce[T](cb.memoize(Code.longValue(Code.checkcast[java.lang.Long](x))))
       case _: FloatInfo.type =>
-        Code.floatValue(Code.checkcast[java.lang.Float](x)).asInstanceOf[Code[T]]
+        coerce[T](cb.memoize(Code.floatValue(Code.checkcast[java.lang.Float](x))))
       case _: DoubleInfo.type =>
-        Code.doubleValue(Code.checkcast[java.lang.Double](x)).asInstanceOf[Code[T]]
+        coerce[T](cb.memoize(Code.doubleValue(Code.checkcast[java.lang.Double](x))))
       case _: ShortInfo.type =>
-        Code.checkcast[java.lang.Short](x).invoke[Short]("shortValue").asInstanceOf[Code[T]]
+        coerce[T](cb.memoize(Code.checkcast[java.lang.Short](x).invoke[Short]("shortValue")))
       case _: ByteInfo.type =>
-        Code.checkcast[java.lang.Byte](x).invoke[Byte]("byteValue").asInstanceOf[Code[T]]
+        coerce[T](cb.memoize(Code.checkcast[java.lang.Byte](x).invoke[Byte]("byteValue")))
       case _: BooleanInfo.type =>
-        Code.checkcast[java.lang.Boolean](x).invoke[Boolean]("booleanValue").asInstanceOf[Code[T]]
+        coerce[T](cb.memoize(Code.checkcast[java.lang.Boolean](x).invoke[Boolean]("booleanValue")))
       case _: CharInfo.type =>
-        Code.checkcast[java.lang.Character](x).invoke[Char]("charValue").asInstanceOf[Code[T]]
+        coerce[T](cb.memoize(Code.checkcast[java.lang.Character](x).invoke[Char]("charValue")))
       case _: UnitInfo.type =>
-        Code.toUnit(x).asInstanceOf[Code[T]]
+        coerce[T](Code._empty)
       case cti: ClassInfo[_] =>
-        Code.checkcast[T](x)(cti)
+        cb.memoize(Code.checkcast[T](x)(cti))(cti)
       case ati: ArrayInfo[_] =>
-        Code.checkcast[T](x)(ati)
+        cb.memoize(Code.checkcast[T](x)(ati))(ati)
     }
   }
 
-  def castToGeneric(x: Code[T]) = base match {
+  def castToGeneric(cb: CodeBuilderLike, x: Value[T]): Value[_] = base match {
     case _: IntInfo.type =>
-      Code.boxInt(x.asInstanceOf[Code[Int]])
+      cb.memoize(Code.boxInt(coerce[Int](x)))
     case _: LongInfo.type =>
-      Code.boxLong(x.asInstanceOf[Code[Long]])
+      cb.memoize(Code.boxLong(coerce[Long](x)))
     case _: FloatInfo.type =>
-      Code.boxFloat(x.asInstanceOf[Code[Float]])
+      cb.memoize(Code.boxFloat(coerce[Float](x)))
     case _: DoubleInfo.type =>
-      Code.boxDouble(x.asInstanceOf[Code[Double]])
+      cb.memoize(Code.boxDouble(coerce[Double](x)))
     case _: ShortInfo.type =>
-      Code.newInstance[java.lang.Short, Short](x.asInstanceOf[Code[Short]])
+      cb.memoize(Code.newInstance[java.lang.Short, Short](coerce[Short](x)))
     case _: ByteInfo.type =>
-      Code.newInstance[java.lang.Byte, Byte](x.asInstanceOf[Code[Byte]])
+      cb.memoize(Code.newInstance[java.lang.Byte, Byte](coerce[Byte](x)))
     case _: BooleanInfo.type =>
-      Code.boxBoolean(x.asInstanceOf[Code[Boolean]])
+      cb.memoize(Code.boxBoolean(coerce[Boolean](x)))
     case _: CharInfo.type =>
-      Code.newInstance[java.lang.Character, Char](x.asInstanceOf[Code[Char]])
+      cb.memoize(Code.newInstance[java.lang.Character, Char](coerce[Char](x)))
     case _: UnitInfo.type =>
-      Code(x.asInstanceOf[Code[Unit]], Code._null[java.lang.Void])
+      Code._null[java.lang.Void]
     case cti: ClassInfo[_] =>
       x
     case ati: ArrayInfo[_] =>
@@ -70,8 +72,8 @@ final case class GenericTypeInfo[T : TypeInfo]() extends MaybeGenericTypeInfo[T]
 }
 
 final case class NotGenericTypeInfo[T : TypeInfo]() extends MaybeGenericTypeInfo[T] {
-  def castFromGeneric(x: Code[_]): Code[T] = x.asInstanceOf[Code[T]]
-  def castToGeneric(x: Code[T]): Code[_] = x
+  def castFromGeneric(cb: CodeBuilderLike, x: Value[_]): Value[T] = coerce[T](x)
+  def castToGeneric(cb: CodeBuilderLike, x: Value[T]): Value[_] = x
 
   val base = typeInfo[T]
   val generic = base

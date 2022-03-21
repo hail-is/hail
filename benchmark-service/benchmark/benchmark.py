@@ -1,36 +1,37 @@
 import asyncio
-import os
-import aiohttp
-from aiohttp import web
+import json
 import logging
-from gear import setup_aiohttp_session, web_authenticated_developers_only
-from hailtop.config import get_deploy_config
-from hailtop.tls import internal_server_ssl_context
-from hailtop.hail_logging import AccessLogger, configure_logging
-from hailtop.utils import retry_long_running, collect_agen, humanize_timedelta_msecs
-from hailtop import aiotools
-import hailtop.batch_client.aioclient as bc
-from web_common import setup_aiohttp_jinja2, setup_common_static_routes, render_template
+import os
+import re
+
+import gidgethub
+import gidgethub.aiohttp
+import numpy as np
+import pandas as pd
+import plotly
+import plotly.express as px
+from aiohttp import web
 from benchmark.utils import (
-    ReadGoogleStorage,
-    get_geometric_mean,
-    parse_file_path,
     enumerate_list_of_trials,
+    get_geometric_mean,
     list_benchmark_files,
+    parse_file_path,
     round_if_defined,
     submit_test_batch,
 )
-import json
-import re
-import plotly
-import plotly.express as px
 from scipy.stats.mstats import gmean, hmean
-import numpy as np
-import pandas as pd
-import gidgethub
-import gidgethub.aiohttp
-from .config import START_POINT, BENCHMARK_RESULTS_PATH
-import google
+
+import hailtop.batch_client.aioclient as bc
+from gear import setup_aiohttp_session, web_authenticated_developers_only
+from hailtop import aiotools, httpx
+from hailtop.aiocloud import aiogoogle
+from hailtop.config import get_deploy_config
+from hailtop.hail_logging import AccessLogger, configure_logging
+from hailtop.tls import internal_server_ssl_context
+from hailtop.utils import collect_agen, humanize_timedelta_msecs, retry_long_running
+from web_common import render_template, setup_aiohttp_jinja2, setup_common_static_routes
+
+from .config import BENCHMARK_RESULTS_PATH, START_POINT
 
 configure_logging()
 router = web.RouteTableDef()
@@ -49,17 +50,17 @@ BENCHMARK_ROOT = os.path.dirname(os.path.abspath(__file__))
 benchmark_data = {'commits': {}, 'dates': [], 'geo_means': [], 'pr_ids': [], 'shas': []}
 
 
-with open(os.environ.get('HAIL_CI_OAUTH_TOKEN', 'oauth-token/oauth-token'), 'r') as f:
+with open(os.environ.get('HAIL_CI_OAUTH_TOKEN', 'oauth-token/oauth-token'), 'r', encoding='utf-8') as f:
     oauth_token = f.read().strip()
 
 
-def get_benchmarks(app, file_path):
+async def get_benchmarks(app, file_path):
     log.info(f'get_benchmarks file_path={file_path}')
-    gs_reader = app['gs_reader']
+    fs: aiotools.AsyncFS = app['fs']
     try:
-        json_data = gs_reader.get_data_as_string(file_path)
+        json_data = (await fs.read(file_path)).decode('utf-8')
         pre_data = json.loads(json_data)
-    except google.api_core.exceptions.NotFound:
+    except FileNotFoundError:
         message = f'could not find file, {file_path}'
         log.info('could not get blob: ' + message, exc_info=True)
         return None
@@ -67,7 +68,7 @@ def get_benchmarks(app, file_path):
     data = {}
     prod_of_means = 1
     for d in pre_data['benchmarks']:
-        stats = dict()
+        stats = {}
         stats['name'] = d.get('name')
         stats['failed'] = d.get('failed')
         if not d['failed']:
@@ -84,7 +85,7 @@ def get_benchmarks(app, file_path):
 
     file_info = parse_file_path(BENCHMARK_FILE_REGEX, file_path)
     sha = file_info['sha']
-    benchmarks = dict()
+    benchmarks = {}
     benchmarks['sha'] = sha
     benchmarks['geometric_mean'] = geometric_mean
     benchmarks['data'] = data
@@ -167,7 +168,7 @@ async def healthcheck(request: web.Request) -> web.Response:  # pylint: disable=
 @web_authenticated_developers_only(redirect=False)
 async def show_name(request: web.Request, userdata) -> web.Response:  # pylint: disable=unused-argument
     file_path = request.query.get('file')
-    benchmarks = get_benchmarks(request.app, file_path)
+    benchmarks = await get_benchmarks(request.app, file_path)
     name_data = benchmarks['data'][str(request.match_info['name'])]
 
     try:
@@ -190,7 +191,6 @@ async def show_name(request: web.Request, userdata) -> web.Response:  # pylint: 
 @router.get('')
 async def index(request):
     userdata = {}
-    global benchmark_data
     d = {
         'dates': benchmark_data['dates'],
         'geo_means': benchmark_data['geo_means'],
@@ -217,11 +217,11 @@ async def lookup(request, userdata):  # pylint: disable=unused-argument
     if file is None:
         benchmarks_context = None
     else:
-        benchmarks_context = get_benchmarks(request.app, file)
+        benchmarks_context = await get_benchmarks(request.app, file)
     context = {
         'file': file,
         'benchmarks': benchmarks_context,
-        'benchmark_file_list': list_benchmark_files(app['gs_reader']),
+        'benchmark_file_list': await list_benchmark_files(app['fs']),
     }
     return await render_template('benchmark', request, userdata, 'lookup.html', context)
 
@@ -238,8 +238,8 @@ async def compare(request, userdata):  # pylint: disable=unused-argument
         benchmarks_context2 = None
         comparisons = None
     else:
-        benchmarks_context1 = get_benchmarks(app, file1)
-        benchmarks_context2 = get_benchmarks(app, file2)
+        benchmarks_context1 = await get_benchmarks(app, file1)
+        benchmarks_context2 = await get_benchmarks(app, file2)
         comparisons = final_comparisons(get_comparisons(benchmarks_context1, benchmarks_context2, metric))
     context = {
         'file1': file1,
@@ -248,7 +248,7 @@ async def compare(request, userdata):  # pylint: disable=unused-argument
         'benchmarks1': benchmarks_context1,
         'benchmarks2': benchmarks_context2,
         'comparisons': comparisons,
-        'benchmark_file_list': list_benchmark_files(app['gs_reader']),
+        'benchmark_file_list': await list_benchmark_files(app['fs']),
     }
     return await render_template('benchmark', request, userdata, 'compare.html', context)
 
@@ -285,7 +285,6 @@ async def get_job(request, userdata):
 
 
 async def update_commits(app):
-    global benchmark_data
     github_client = app['github_client']
 
     request_string = f'/repos/hail-is/hail/commits?since={START_POINT}'
@@ -305,7 +304,7 @@ async def get_commit(app, sha):  # pylint: disable=unused-argument
     log.info(f'get_commit sha={sha}')
     github_client = app['github_client']
     batch_client = app['batch_client']
-    gs_reader = app['gs_reader']
+    fs: aiotools.AsyncFS = app['fs']
 
     file_path = f'{BENCHMARK_RESULTS_PATH}/0-{sha}.json'
     request_string = f'/repos/hail-is/hail/commits/{sha}'
@@ -317,7 +316,7 @@ async def get_commit(app, sha):  # pylint: disable=unused-argument
     pr_id = message_dict['pr_id']
     title = message_dict['title']
 
-    has_results_file = gs_reader.file_exists(file_path)
+    has_results_file = await fs.exists(file_path)
     batch_statuses = [b._last_known_status async for b in batch_client.list_batches(q=f'sha={sha} user:benchmark')]
     complete_batch_statuses = [bs for bs in batch_statuses if bs['complete']]
     running_batch_statuses = [bs for bs in batch_statuses if not bs['complete']]
@@ -352,8 +351,7 @@ async def get_commit(app, sha):  # pylint: disable=unused-argument
 
 async def update_commit(app, sha):  # pylint: disable=unused-argument
     log.info('in update_commit')
-    global benchmark_data
-    gs_reader = app['gs_reader']
+    fs: aiotools.AsyncFS = app['fs']
     commit = await get_commit(app, sha)
     file_path = f'{BENCHMARK_RESULTS_PATH}/0-{sha}.json'
 
@@ -367,9 +365,9 @@ async def update_commit(app, sha):  # pylint: disable=unused-argument
         benchmark_data['commits'][sha] = commit
         return commit
 
-    has_results_file = gs_reader.file_exists(file_path)
+    has_results_file = await fs.exists(file_path)
     if has_results_file and sha in benchmark_data['commits']:
-        benchmarks = get_benchmarks(app, file_path)
+        benchmarks = await get_benchmarks(app, file_path)
         commit['geo_mean'] = benchmarks['geometric_mean']
         geo_mean = commit['geo_mean']
         log.info(f'geo mean is {geo_mean}')
@@ -392,15 +390,14 @@ async def get_status(request):  # pylint: disable=unused-argument
 
 @router.delete('/api/v1alpha/benchmark/commit/{sha}')
 async def delete_commit(request):  # pylint: disable=unused-argument
-    global benchmark_data
     app = request.app
-    gs_reader = app['gs_reader']
+    fs: aiotools.AsyncFS = app['fs']
     batch_client = app['batch_client']
     sha = str(request.match_info['sha'])
     file_path = f'{BENCHMARK_RESULTS_PATH}/0-{sha}.json'
 
-    if gs_reader.file_exists(file_path):
-        gs_reader.delete_file(file_path)
+    if await fs.exists(file_path):
+        await fs.remove(file_path)
         log.info(f'deleted file for sha {sha}')
 
     async for b in batch_client.list_batches(q=f'sha={sha} user:benchmark'):
@@ -431,19 +428,23 @@ async def github_polling_loop(app):
 
 
 async def on_startup(app):
-    app['gs_reader'] = ReadGoogleStorage(service_account_key_file='/benchmark-gsa-key/key.json')
-    app['gh_client_session'] = aiohttp.ClientSession()
-    app['github_client'] = gidgethub.aiohttp.GitHubAPI(
-        app['gh_client_session'], 'hail-is/hail', oauth_token=oauth_token
-    )
-    app['batch_client'] = bc.BatchClient(billing_project='benchmark')
+    credentials = aiogoogle.GoogleCredentials.from_file('/benchmark-gsa-key/key.json')
+    app['fs'] = aiogoogle.GoogleStorageAsyncFS(credentials=credentials)
+    app['client_session'] = httpx.client_session()
+    app['github_client'] = gidgethub.aiohttp.GitHubAPI(app['client_session'], 'hail-is/hail', oauth_token=oauth_token)
+    app['batch_client'] = await bc.BatchClient.create(billing_project='benchmark')
     app['task_manager'] = aiotools.BackgroundTaskManager()
     app['task_manager'].ensure_future(retry_long_running('github_polling_loop', github_polling_loop, app))
 
 
 async def on_cleanup(app):
-    await app['gh_client_session'].close()
-    app['task_manager'].shutdown()
+    try:
+        await app['client_session'].close()
+    finally:
+        try:
+            await app['fs'].close()
+        finally:
+            app['task_manager'].shutdown()
 
 
 def run():

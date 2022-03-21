@@ -5,7 +5,8 @@ import htsjdk.tribble.SimpleFeature
 import htsjdk.tribble.index.tabix.{TabixFormat, TabixIndexCreator}
 import is.hail
 import is.hail.annotations.Region
-import is.hail.expr.ir.{ExecuteContext, MatrixValue}
+import is.hail.backend.ExecuteContext
+import is.hail.expr.ir.MatrixValue
 import is.hail.io.compress.{BGzipLineReader, BGzipOutputStream}
 import is.hail.io.fs.FS
 import is.hail.io.{VCFAttributes, VCFFieldAttributes, VCFMetadata}
@@ -355,9 +356,10 @@ object ExportVCF {
       }
     }
     val filtersType = TSet(TString)
-    val filtersPType = if (typ.rowType.hasField("filters"))
+    val filtersPType = if (typ.rowType.hasField("filters")) {
+      assert(typ.rowType.fieldType("filters") == TSet(TString))
       mv.rvRowPType.field("filters").typ.asInstanceOf[PSet]
-    else null
+    } else null
 
     val (idExists, idIdx) = lookupVAField("rsid", "ID", Some(TString))
     val (qualExists, qualIdx) = lookupVAField("qual", "QUAL", Some(TFloat64))
@@ -466,7 +468,7 @@ object ExportVCF {
         case ExportType.PARALLEL_SEPARATE_HEADER | ExportType.PARALLEL_HEADER_IN_SHARD =>
           val files = fs.glob(path + "/part-*").map(_.getPath.getBytes)
           info(s"Writing tabix index for ${ files.length } in $path")
-          ctx.backend.parallelizeAndComputeWithIndex(ctx.backendContext, files)({ (pathBytes, _, fs) =>
+          ctx.backend.parallelizeAndComputeWithIndex(ctx.backendContext, ctx.fs, files)({ (pathBytes, _, _, fs) =>
                       TabixVCF(fs, new String(pathBytes))
                       Array.empty
                     })

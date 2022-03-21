@@ -2,8 +2,7 @@ package is.hail.types.physical.stypes.primitives
 
 import is.hail.annotations.Region
 import is.hail.asm4s.{Code, IntInfo, Settable, SettableBuilder, TypeInfo, Value}
-import is.hail.expr.ir.orderings.CodeOrdering
-import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder, SortOrder}
+import is.hail.expr.ir.EmitCodeBuilder
 import is.hail.types.physical.stypes.{SCode, SSettable, SType, SValue}
 import is.hail.types.physical.{PInt32, PType}
 import is.hail.types.virtual.{TInt32, Type}
@@ -39,38 +38,19 @@ case object SInt32 extends SPrimitive {
   override def storageType(): PType = PInt32()
 }
 
-class SInt32Code(val code: Code[Int]) extends SPrimitiveCode {
-  override def _primitiveCode: Code[_] = code
-
-  def st: SInt32.type = SInt32
-
-  private[this] def memoizeWithBuilder(cb: EmitCodeBuilder, name: String, sb: SettableBuilder): SInt32Value = {
-    val s = new SInt32Settable(sb.newSettable[Int]("sInt32_memoize"))
-    s.store(cb, this)
-    s
-  }
-
-  def memoize(cb: EmitCodeBuilder, name: String): SInt32Value = memoizeWithBuilder(cb, name, cb.localBuilder)
-
-  def memoizeField(cb: EmitCodeBuilder, name: String): SInt32Value = memoizeWithBuilder(cb, name, cb.fieldBuilder)
-
-  def intCode(cb: EmitCodeBuilder): Code[Int] = code
-}
-
-class SInt32Value(x: Value[Int]) extends SPrimitiveValue {
+class SInt32Value(val value: Value[Int]) extends SPrimitiveValue {
   val pt: PInt32 = PInt32(false)
 
-  override def valueTuple: IndexedSeq[Value[_]] = FastIndexedSeq(x)
+  override def valueTuple: IndexedSeq[Value[_]] = FastIndexedSeq(value)
 
   override def st: SInt32.type = SInt32
 
-  override def _primitiveValue: Value[_] = x
+  override def _primitiveValue: Value[_] = value
 
-  override def get: SCode = new SInt32Code(x)
+  override def hash(cb: EmitCodeBuilder): SInt32Value =
+    new SInt32Value(value)
 
-  def intCode(cb: EmitCodeBuilder): Value[Int] = x
-
-  override def hash(cb: EmitCodeBuilder): SInt32Code = new SInt32Code(intCode(cb))
+  override def sizeToStoreInBytes(cb: EmitCodeBuilder): SInt64Value = new SInt64Value(4L)
 }
 
 object SInt32Settable {
@@ -82,5 +62,6 @@ object SInt32Settable {
 final class SInt32Settable(x: Settable[Int]) extends SInt32Value(x) with SSettable {
   override def settableTuple(): IndexedSeq[Settable[_]] = FastIndexedSeq(x)
 
-  override def store(cb: EmitCodeBuilder, v: SCode): Unit = cb.assign(x, v.asInt.intCode(cb))
+  override def store(cb: EmitCodeBuilder, v: SValue): Unit =
+    cb.assign(x, v.asInstanceOf[SInt32Value].value)
 }

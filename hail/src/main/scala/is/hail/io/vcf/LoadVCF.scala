@@ -1,12 +1,13 @@
 package is.hail.io.vcf
 
 import htsjdk.variant.vcf._
+import is.hail.asm4s.HailClassLoader
 import is.hail.annotations._
-import is.hail.backend.BroadcastValue
 import is.hail.backend.spark.SparkBackend
+import is.hail.backend.{BroadcastValue, ExecuteContext}
 import is.hail.expr.JSONAnnotationImpex
 import is.hail.expr.ir.lowering.TableStage
-import is.hail.expr.ir.{ExecuteContext, GenericLines, GenericTableValue, IR, IRParser, Literal, LowerMatrixIR, MatrixHybridReader, MatrixIR, MatrixLiteral, TableRead, TableValue}
+import is.hail.expr.ir.{CloseableIterator, GenericLine, GenericLines, GenericTableValue, IR, IRParser, Literal, LowerMatrixIR, MatrixHybridReader, MatrixIR, MatrixLiteral, TableRead, TableValue}
 import is.hail.io.fs.{FS, FileStatus}
 import is.hail.io.tabix._
 import is.hail.io.vcf.LoadVCF.{getHeaderLines, parseHeader, parseLines}
@@ -1561,7 +1562,6 @@ object MatrixVCFReader {
   def apply(ctx: ExecuteContext, params: MatrixVCFReaderParameters): MatrixVCFReader = {
     val backend = ctx.backend
     val fs = ctx.fs
-    val fsBc = fs.broadcast
 
     val referenceGenome = params.rg.map(ReferenceGenome.getReference)
 
@@ -1584,7 +1584,7 @@ object MatrixVCFReader {
         val localArrayElementsRequired = params.arrayElementsRequired
         val localFilterAndReplace = params.filterAndReplace
 
-        backend.parallelizeAndComputeWithIndex(ctx.backendContext, files.tail.map(_.getBytes), None) { (bytes, htc, fs) =>
+        backend.parallelizeAndComputeWithIndex(ctx.backendContext, fs, files.tail.map(_.getBytes), None) { (bytes, htc, _, fs) =>
           val file = new String(bytes)
 
           val hd = parseHeader(
@@ -1707,7 +1707,7 @@ class MatrixVCFReader(
       PType.canonical(requestedType.globalType).asInstanceOf[PStruct]
   }
 
-  def executeGeneric(ctx: ExecuteContext): GenericTableValue = {
+  def executeGeneric(ctx: ExecuteContext, dropRows: Boolean = false): GenericTableValue = {
     val fs = ctx.fs
 
     val rgBc = referenceGenome.map(_.broadcast)
@@ -1728,11 +1728,18 @@ class MatrixVCFReader(
 
     val bodyPType = (requestedRowType: TStruct) => fullRowPType.subsetTo(requestedRowType).asInstanceOf[PStruct]
 
-    val linesBody = lines.body
+    val linesBody = if (dropRows) { (_: FS, _: Any) =>
+      new CloseableIterator[GenericLine] {
+        def close(): Unit = ()
+        def hasNext: Boolean = false
+        def next: GenericLine = throw new NoSuchElementException
+      }
+    } else
+      lines.body
     val body = { (requestedType: TStruct) =>
       val requestedPType = bodyPType(requestedType)
 
-      { (region: Region, context: Any) =>
+      { (region: Region, theHailClassLoader: HailClassLoader, fs: FS, context: Any) =>
         val parseLineContext = new ParseLineContext(requestedType, makeJavaSet(localInfoFlagFieldNames), localNSamples)
 
         val rvb = new RegionValueBuilder(region)
@@ -1744,7 +1751,7 @@ class MatrixVCFReader(
 
         val transformer = localFilterAndReplace.transformer()
 
-        linesBody(context)
+        linesBody(fs, context)
           .filter { line =>
             val text = line.toString
             val newText = transformer(text)
@@ -1791,7 +1798,7 @@ class MatrixVCFReader(
     executeGeneric(ctx).toTableStage(ctx, requestedType)
 
   def apply(tr: TableRead, ctx: ExecuteContext): TableValue =
-    executeGeneric(ctx).toTableValue(ctx ,tr.typ)
+    executeGeneric(ctx, tr.dropRows).toTableValue(ctx ,tr.typ)
 
   override def toJValue: JValue = {
     implicit val formats: Formats = DefaultFormats
@@ -1817,8 +1824,6 @@ class VCFsReader(
   contigRecoding: Map[String, String],
   arrayElementsRequired: Boolean,
   skipInvalidLoci: Boolean,
-  gzAsBGZ: Boolean,
-  forceGZ: Boolean,
   filterAndReplace: TextInputFilterAndReplace,
   partitionsJSON: String, partitionsTypeStr: String,
   externalSampleIds: Option[Array[Array[String]]],
@@ -1826,7 +1831,6 @@ class VCFsReader(
 
   require(!(externalSampleIds.isEmpty ^ externalHeader.isEmpty))
 
-  private val backend = ctx.backend
   private val fs = ctx.fs
   private val fsBc = fs.broadcast
 
@@ -1850,7 +1854,6 @@ class VCFsReader(
 
   private val file1 = files.head
   private val headerLines1 = getHeaderLines(fs, externalHeader.getOrElse(file1), filterAndReplace)
-  private val headerLines1Bc = backend.broadcast(headerLines1)
   private val entryFloatType = LoadVCF.getEntryFloatType(entryFloatTypeName)
   private val header1 = parseHeader(callFields, entryFloatType, headerLines1, arrayElementsRequired = arrayElementsRequired)
 
@@ -1876,12 +1879,12 @@ class VCFsReader(
     val rangeBounds = JSONAnnotationImpex.importAnnotation(jv, partitionsType)
       .asInstanceOf[IndexedSeq[Interval]]
 
-    rangeBounds.zipWithIndex.foreach { case (b, i) =>
-      if (!(b.includesStart && b.includesEnd))
+    rangeBounds.foreach { bound =>
+      if (!(bound.includesStart && bound.includesEnd))
         fatal("range bounds must be inclusive")
 
-      val start = b.start.asInstanceOf[Row].getAs[Locus](0)
-      val end = b.end.asInstanceOf[Row].getAs[Locus](0)
+      val start = bound.start.asInstanceOf[Row].getAs[Locus](0)
+      val end = bound.end.asInstanceOf[Row].getAs[Locus](0)
       if (start.contig != end.contig)
         fatal(s"partition spec must not cross contig boundaries, start: ${start.contig} | end: ${end.contig}")
     }
@@ -1892,10 +1895,10 @@ class VCFsReader(
       rangeBounds)
   }
 
-  val partitions = partitioner.rangeBounds.zipWithIndex.map { case (b, i) =>
+  val partitions: Array[Partition] = partitioner.rangeBounds.zipWithIndex.map { case (b, i) =>
     val start = b.start.asInstanceOf[Row].getAs[Locus](0)
     val end = b.end.asInstanceOf[Row].getAs[Locus](0)
-    PartitionedVCFPartition(i, start.contig, start.position, end.position): Partition
+    PartitionedVCFPartition(i, start.contig, start.position, end.position)
   }
 
   private val fileInfo: Array[Array[String]] = externalSampleIds.getOrElse {

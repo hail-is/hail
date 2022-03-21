@@ -1,12 +1,12 @@
 from typing import List, Tuple, Dict
-import aiohttp
 import random
 import os
 import json
 import logging
-from aiohttp import web
 from ..utils import retry_transient_errors, first_extant_file
 from ..tls import internal_client_ssl_context
+
+from .user_config import get_user_config
 
 log = logging.getLogger('deploy_config')
 
@@ -14,8 +14,7 @@ log = logging.getLogger('deploy_config')
 class DeployConfig:
     @staticmethod
     def from_config(config) -> 'DeployConfig':
-        domain = config.get('domain', 'hail.is')
-        return DeployConfig(config['location'], config['default_namespace'], domain)
+        return DeployConfig(config['location'], config['default_namespace'], config.get('domain') or 'hail.is')
 
     def get_config(self) -> Dict[str, str]:
         return {
@@ -33,7 +32,7 @@ class DeployConfig:
             '/deploy-config/deploy-config.json')
         if config_file is not None:
             log.info(f'deploy config file found at {config_file}')
-            with open(config_file, 'r') as f:
+            with open(config_file, 'r', encoding='utf-8') as f:
                 config = json.load(f)
             log.info(f'deploy config location: {config["location"]}')
         else:
@@ -41,7 +40,7 @@ class DeployConfig:
             config = {
                 'location': 'external',
                 'default_namespace': 'default',
-                'domain': 'hail.is'
+                'domain': get_user_config().get('global', 'domain', fallback=None),
             }
         return DeployConfig.from_config(config)
 
@@ -107,6 +106,7 @@ class DeployConfig:
         return f'{base_scheme}s://internal.{self._domain}/{ns}/{service}{path}'
 
     def prefix_application(self, app, service, **kwargs):
+        from aiohttp import web  # pylint: disable=import-outside-toplevel
         base_path = self.base_path(service)
         if not base_path:
             return app
@@ -130,6 +130,7 @@ class DeployConfig:
 
     async def addresses(self, service: str) -> List[Tuple[str, int]]:
         from ..auth import service_auth_headers  # pylint: disable=cyclic-import,import-outside-toplevel
+        import aiohttp  # pylint: disable=import-outside-toplevel
         namespace = self.service_ns(service)
         headers = service_auth_headers(self, namespace)
         async with aiohttp.ClientSession(

@@ -1,6 +1,7 @@
 package is.hail.expr.ir
 
 import is.hail.HailContext
+import is.hail.backend.ExecuteContext
 import is.hail.expr.ir.agg._
 import is.hail.expr.ir.functions.RelationalFunctions
 import is.hail.types.physical._
@@ -650,56 +651,62 @@ object IRParser {
   def agg_op(it: TokenIterator): AggOp =
     AggOp.fromString(identifier(it))
 
-  def agg_state_signature(env: TypeParserEnvironment)(it: TokenIterator): AggStateSig = {
+  def agg_state_signature(env: IRParserEnvironment)(it: TokenIterator): AggStateSig = {
     punctuation(it, "(")
     val sig = identifier(it) match {
       case "TypedStateSig" =>
-        val pt = vtwr_expr(env)(it)
+        val pt = vtwr_expr(env.typEnv)(it)
         TypedStateSig(pt)
       case "DownsampleStateSig" =>
-        val labelType = vtwr_expr(env)(it)
+        val labelType = vtwr_expr(env.typEnv)(it)
         DownsampleStateSig(labelType)
       case "TakeStateSig" =>
-        val pt = vtwr_expr(env)(it)
+        val pt = vtwr_expr(env.typEnv)(it)
         TakeStateSig(pt)
       case "DensifyStateSig" =>
-        val pt = vtwr_expr(env)(it)
+        val pt = vtwr_expr(env.typEnv)(it)
         DensifyStateSig(pt)
       case "TakeByStateSig" =>
-        val vt = vtwr_expr(env)(it)
-        val kt = vtwr_expr(env)(it)
+        val vt = vtwr_expr(env.typEnv)(it)
+        val kt = vtwr_expr(env.typEnv)(it)
         TakeByStateSig(vt, kt, Ascending)
       case "CollectStateSig" =>
-        val pt = vtwr_expr(env)(it)
+        val pt = vtwr_expr(env.typEnv)(it)
         CollectStateSig(pt)
       case "CollectAsSetStateSig" =>
-        val pt = vtwr_expr(env)(it)
+        val pt = vtwr_expr(env.typEnv)(it)
         CollectAsSetStateSig(pt)
       case "CallStatsStateSig" => CallStatsStateSig()
       case "ArrayAggStateSig" =>
         val nested = agg_state_signatures(env)(it)
         ArrayAggStateSig(nested)
       case "GroupedStateSig" =>
-        val kt = vtwr_expr(env)(it)
+        val kt = vtwr_expr(env.typEnv)(it)
         val nested = agg_state_signatures(env)(it)
         GroupedStateSig(kt, nested)
       case "ApproxCDFStateSig" => ApproxCDFStateSig()
+      case "FoldStateSig" =>
+        val vtwr = vtwr_expr(env.typEnv)(it)
+        val accumName = identifier(it)
+        val otherAccumName = identifier(it)
+        val combIR = ir_value_expr(env + ((accumName, vtwr.t)) + ((otherAccumName, vtwr.t)))(it).run()
+        FoldStateSig(vtwr.canonicalEmitType, accumName, otherAccumName, combIR)
     }
     punctuation(it, ")")
     sig
   }
 
-  def agg_state_signatures(env: TypeParserEnvironment)(it: TokenIterator): Array[AggStateSig] =
+  def agg_state_signatures(env: IRParserEnvironment)(it: TokenIterator): Array[AggStateSig] =
     base_seq_parser(agg_state_signature(env))(it)
 
-  def p_agg_sigs(env: TypeParserEnvironment)(it: TokenIterator): Array[PhysicalAggSig] =
+  def p_agg_sigs(env: IRParserEnvironment)(it: TokenIterator): Array[PhysicalAggSig] =
     base_seq_parser(p_agg_sig(env))(it)
 
-  def p_agg_sig(env: TypeParserEnvironment)(it: TokenIterator): PhysicalAggSig = {
+  def p_agg_sig(env: IRParserEnvironment)(it: TokenIterator): PhysicalAggSig = {
     punctuation(it, "(")
     val sig = identifier(it) match {
       case "Grouped" =>
-        val pt = vtwr_expr(env)(it)
+        val pt = vtwr_expr(env.typEnv)(it)
         val nested = p_agg_sigs(env)(it)
         GroupedAggSig(pt, nested)
       case "ArrayLen" =>
@@ -862,7 +869,7 @@ object IRParser {
       case "MakeArray" =>
         val typ = opt(it, type_expr(env.typEnv)).map(_.asInstanceOf[TArray]).orNull
         ir_value_children(env)(it).map { args =>
-          MakeArray.unify(args, typ)
+          MakeArray.unify(env.ctx, args, typ)
         }
       case "MakeStream" =>
         val typ = opt(it, type_expr(env.typEnv)).map(_.asInstanceOf[TStream]).orNull
@@ -1135,14 +1142,14 @@ object IRParser {
           query <- ir_value_expr(env + (name -> coerce[TStream](a.typ).elementType))(it)
         } yield StreamAggScan(a, name, query)
       case "RunAgg" =>
-        val signatures = agg_state_signatures(env.typEnv)(it)
+        val signatures = agg_state_signatures(env)(it)
         for {
           body <- ir_value_expr(env)(it)
           result <- ir_value_expr(env)(it)
         } yield RunAgg(body, result, signatures)
       case "RunAggScan" =>
         val name = identifier(it)
-        val signatures = agg_state_signatures(env.typEnv)(it)
+        val signatures = agg_state_signatures(env)(it)
         for {
           array <- ir_value_expr(env)(it)
           newE = env + (name -> coerce[TStream](array.typ).elementType)
@@ -1195,40 +1202,49 @@ object IRParser {
           seqOpArgs <- ir_value_exprs(env)(it)
           aggSig = AggSignature(aggOp, initOpArgs.map(arg => arg.typ), seqOpArgs.map(arg => arg.typ))
         } yield ApplyScanOp(initOpArgs, seqOpArgs, aggSig)
+      case "AggFold" =>
+        val accumName = identifier(it)
+        val otherAccumName = identifier(it)
+        val isScan = boolean_literal(it)
+        for {
+          zero <- ir_value_expr(env)(it)
+          seqOp <- ir_value_expr(env + (accumName -> zero.typ))(it)
+          combOp <- ir_value_expr(env + (accumName -> zero.typ) + (otherAccumName -> zero.typ))(it)
+        } yield AggFold(zero, seqOp, combOp, accumName, otherAccumName, isScan)
       case "InitOp" =>
         val i = int32_literal(it)
-        val aggSig = p_agg_sig(env.typEnv)(it)
+        val aggSig = p_agg_sig(env)(it)
         ir_value_exprs(env)(it).map { args =>
           InitOp(i, args, aggSig)
         }
       case "SeqOp" =>
         val i = int32_literal(it)
-        val aggSig = p_agg_sig(env.typEnv)(it)
+        val aggSig = p_agg_sig(env)(it)
         ir_value_exprs(env)(it).map { args =>
           SeqOp(i, args, aggSig)
         }
       case "CombOp" =>
         val i1 = int32_literal(it)
         val i2 = int32_literal(it)
-        val aggSig = p_agg_sig(env.typEnv)(it)
+        val aggSig = p_agg_sig(env)(it)
         done(CombOp(i1, i2, aggSig))
       case "ResultOp" =>
         val i = int32_literal(it)
-        val aggSigs = p_agg_sigs(env.typEnv)(it)
-        done(ResultOp(i, aggSigs))
+        val aggSig = p_agg_sig(env)(it)
+        done(ResultOp(i, aggSig))
       case "AggStateValue" =>
         val i = int32_literal(it)
-        val sig = agg_state_signature(env.typEnv)(it)
+        val sig = agg_state_signature(env)(it)
         done(AggStateValue(i, sig))
       case "InitFromSerializedValue" =>
         val i = int32_literal(it)
-        val sig = agg_state_signature(env.typEnv)(it)
+        val sig = agg_state_signature(env)(it)
         ir_value_expr(env)(it).map { value =>
           InitFromSerializedValue(i, value, sig)
         }
       case "CombOpValue" =>
         val i = int32_literal(it)
-        val sig = p_agg_sig(env.typEnv)(it)
+        val sig = p_agg_sig(env)(it)
         ir_value_expr(env)(it).map { value =>
           CombOpValue(i, value, sig)
         }
@@ -1236,13 +1252,13 @@ object IRParser {
         val i = int32_literal(it)
         val i2 = int32_literal(it)
         val spec = BufferSpec.parse(string_literal(it))
-        val aggSigs = agg_state_signatures(env.typEnv)(it)
+        val aggSigs = agg_state_signatures(env)(it)
         done(SerializeAggs(i, i2, spec, aggSigs))
       case "DeserializeAggs" =>
         val i = int32_literal(it)
         val i2 = int32_literal(it)
         val spec = BufferSpec.parse(string_literal(it))
-        val aggSigs = agg_state_signatures(env.typEnv)(it)
+        val aggSigs = agg_state_signatures(env)(it)
         done(DeserializeAggs(i, i2, spec, aggSigs))
       case "Begin" => ir_value_children(env)(it).map(Begin(_))
       case "MakeStruct" => named_value_irs(env)(it).map(MakeStruct(_))

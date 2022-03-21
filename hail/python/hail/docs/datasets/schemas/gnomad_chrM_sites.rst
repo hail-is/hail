@@ -30,12 +30,283 @@ Schema (3.1, GRCh38)
         'age_hist_all_samples_n_larger': int32
         'age_hist_all_samples_n_smaller': int32
         'age_hist_all_samples_bin_edges': array<float64>
+        'pop_order': array<str>
+        'global_annotation_descriptions': struct {
+            'vep_version': struct {
+                'Description': str
+            }
+            'dbsnp_version': struct {
+                'Description': str
+            }
+            'hap_order': struct {
+                'Description': str
+            }
+            'dp_hist_all_variants_bin_freq': struct {
+                'Description': str
+            }
+            'dp_hist_all_variants_n_larger': struct {
+                'Description': str
+            }
+            'dp_hist_all_variants_bin_edges': struct {
+                'Description': str
+            }
+            'mq_hist_all_variants_bin_freq': struct {
+                'Description': str
+            }
+            'mq_hist_all_variants_n_larger': struct {
+                'Description': str
+            }
+            'mq_hist_all_variants_bin_edges': struct {
+                'Description': str
+            }
+            'tlod_hist_all_variants_bin_freq': struct {
+                'Description': str
+            }
+            'tlod_hist_all_variants_n_larger': struct {
+                'Description': str
+            }
+            'tlod_hist_all_variants_bin_edges': struct {
+                'Description': str
+            }
+            'age_hist_all_samples_bin_freq': struct {
+                'Description': str
+            }
+            'age_hist_all_samples_n_larger': struct {
+                'Description': str
+            }
+            'age_hist_all_samples_n_smaller': struct {
+                'Description': str
+            }
+            'age_hist_all_samples_bin_edges': struct {
+                'Description': str
+            }
+            'pop_order': struct {
+                'Description': str
+            }
+        }
+        'row_annotation_descriptions': struct {
+            'locus': struct {
+                'Description': str
+            }
+            'alleles': struct {
+                'Description': str
+            }
+            'rsid': struct {
+                'Description': str
+            }
+            'filters': struct {
+                'Description': str
+            }
+            'variant_collapsed': struct {
+                'Description': str
+            }
+            'hap_defining_variant': struct {
+                'Description': str
+            }
+            'pon_mt_trna_prediction': struct {
+                'Description': str
+            }
+            'pon_ml_probability_of_pathogenicity': struct {
+                'Description': str
+            }
+            'mitotip_score': struct {
+                'Description': str
+            }
+            'mitotip_trna_prediction': struct {
+                'Description': str
+            }
+            'vep': struct {
+                'Description': str
+            }
+            'common_low_heteroplasmy': struct {
+                'Description': str
+            }
+            'base_qual_hist': struct {
+                'Description': str
+            }
+            'position_hist': struct {
+                'Description': str
+            }
+            'strand_bias_hist': struct {
+                'Description': str
+            }
+            'weak_evidence_hist': struct {
+                'Description': str
+            }
+            'contamination_hist': struct {
+                'Description': str
+            }
+            'heteroplasmy_below_min_het_threshold_hist': struct {
+                'Description': str
+            }
+            'excluded_AC': struct {
+                'Description': str
+            }
+            'AN': struct {
+                'Description': str
+            }
+            'AC_hom': struct {
+                'Description': str
+            }
+            'AC_het': struct {
+                'Description': str
+            }
+            'hl_hist': struct {
+                'Description': str
+                'sub_annotations': struct {
+                    'bin_edges': struct {
+                        'Description': str
+                    }
+                    'bin_freq': struct {
+                        'Description': str
+                    }
+                    'n_smaller': struct {
+                        'Description': str
+                    }
+                    'n_larger': struct {
+                        'Description': str
+                    }
+                }
+            }
+            'dp_hist_all': struct {
+                'Description': str
+                'sub_annotations': struct {
+                    'bin_edges': struct {
+                        'Description': str
+                    }
+                    'bin_freq': struct {
+                        'Description': str
+                    }
+                    'n_smaller': struct {
+                        'Description': str
+                    }
+                    'n_larger': struct {
+                        'Description': str
+                    }
+                }
+            }
+            'dp_hist_alt': struct {
+                'Description': str
+                'sub_annotations': struct {
+                    'bin_edges': struct {
+                        'Description': str
+                    }
+                    'bin_freq': struct {
+                        'Description': str
+                    }
+                    'n_smaller': struct {
+                        'Description': str
+                    }
+                    'n_larger': struct {
+                        'Description': str
+                    }
+                }
+            }
+            'dp_mean': struct {
+                'Description': str
+            }
+            'mq_mean': struct {
+                'Description': str
+            }
+            'tlod_mean': struct {
+                'Description': str
+            }
+            'AF_hom': struct {
+                'Description': str
+            }
+            'AF_het': struct {
+                'Description': str
+            }
+            'max_hl': struct {
+                'Description': str
+            }
+            'hap_AN': struct {
+                'Description': str
+            }
+            'hap_AC_het': struct {
+                'Description': str
+            }
+            'hap_AC_hom': struct {
+                'Description': str
+            }
+            'hap_AF_hom': struct {
+                'Description': str
+            }
+            'hap_AF_het': struct {
+                'Description': str
+            }
+            'hap_hl_hist': struct {
+                'Description': str
+            }
+            'hap_faf_hom': struct {
+                'Description': str
+            }
+            'hapmax_AF_hom': struct {
+                'Description': str
+            }
+            'hapmax_AF_het': struct {
+                'Description': str
+            }
+            'faf_hapmax_hom': struct {
+                'Description': str
+            }
+            'pop_AN': struct {
+                'Description': str
+            }
+            'pop_AC_het': struct {
+                'Description': str
+            }
+            'pop_AC_hom': struct {
+                'Description': str
+            }
+            'pop_AF_hom': struct {
+                'Description': str
+            }
+            'pop_AF_het': struct {
+                'Description': str
+            }
+            'pop_hl_hist': struct {
+                'Description': str
+            }
+            'age_hist_hom': struct {
+                'Description': str
+                'sub_annotations': struct {
+                    'bin_edges': struct {
+                        'Description': str
+                    }
+                    'bin_freq': struct {
+                        'Description': str
+                    }
+                    'n_smaller': struct {
+                        'Description': str
+                    }
+                    'n_larger': struct {
+                        'Description': str
+                    }
+                }
+            }
+            'age_hist_het': struct {
+                'Description': str
+                'sub_annotations': struct {
+                    'bin_edges': struct {
+                        'Description': str
+                    }
+                    'bin_freq': struct {
+                        'Description': str
+                    }
+                    'n_smaller': struct {
+                        'Description': str
+                    }
+                    'n_larger': struct {
+                        'Description': str
+                    }
+                }
+            }
+        }
     ----------------------------------------
     Row fields:
         'locus': locus<GRCh38>
         'alleles': array<str>
-        'rsid': str
-        'qual': float64
         'filters': set<str>
         'variant_collapsed': str
         'hap_defining_variant': bool
@@ -180,13 +451,14 @@ Schema (3.1, GRCh38)
             }>,
             variant_class: str
         }
+        'rsid': set<str>
         'common_low_heteroplasmy': bool
         'base_qual_hist': array<int64>
         'position_hist': array<int64>
         'strand_bias_hist': array<int64>
         'weak_evidence_hist': array<int64>
         'contamination_hist': array<int64>
-        'heteroplasmy_below_10_percent_hist': array<int64>
+        'heteroplasmy_below_min_het_threshold_hist': array<int64>
         'excluded_AC': int64
         'AN': int64
         'AC_hom': int64
@@ -225,6 +497,12 @@ Schema (3.1, GRCh38)
         'hapmax_AF_hom': str
         'hapmax_AF_het': str
         'faf_hapmax_hom': float64
+        'pop_AN': array<int64>
+        'pop_AC_het': array<int64>
+        'pop_AC_hom': array<int64>
+        'pop_AF_hom': array<float32>
+        'pop_AF_het': array<float32>
+        'pop_hl_hist': array<array<int64>>
         'age_hist_hom': struct {
             bin_edges: array<float64>,
             bin_freq: array<int64>,
@@ -240,4 +518,3 @@ Schema (3.1, GRCh38)
     ----------------------------------------
     Key: ['locus', 'alleles']
     ----------------------------------------
-

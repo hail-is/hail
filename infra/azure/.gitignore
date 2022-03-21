@@ -1,7 +1,0 @@
-/.terraform
-/.terraform.*
-/terraform.tfstate
-/terraform.tfstate*.backup
-/*.tfvars
-/*.tfplan
-/terraform_principal.json
