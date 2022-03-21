@@ -234,7 +234,7 @@ class BatchBuilder:
         if parents:
             parents = [parent._async_job for parent in parents]
 
-        async_job = self._async_builder.create_jvm_job(command, **kwargs)
+        async_job = self._async_builder.create_jvm_job(command, parents=parents, **kwargs)
 
         return Job.from_async_job(async_job)
 

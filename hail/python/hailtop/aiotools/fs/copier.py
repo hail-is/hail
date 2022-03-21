@@ -1,4 +1,4 @@
-from typing import Any, Optional, List, Union, Dict, Callable
+from typing import Any, AsyncIterator, Awaitable, Optional, List, Union, Dict, Callable
 import os
 import os.path
 import asyncio
@@ -10,7 +10,7 @@ from ...utils import (retry_transient_errors, url_basename, url_join, bounded_ga
                       humanize_timedelta_msecs)
 from ..weighted_semaphore import WeightedSemaphore
 from .exceptions import FileAndDirectoryError, UnexpectedEOFError
-from .fs import MultiPartCreate, FileStatus, AsyncFS
+from .fs import MultiPartCreate, FileStatus, AsyncFS, FileListEntry
 
 
 class Transfer:
@@ -286,7 +286,8 @@ class SourceCopier:
             srcfile: str,
             srcstat: FileStatus,
             destfile: str,
-            return_exceptions: bool):
+            return_exceptions: bool
+    ) -> None:
         source_report.start_files(1)
         source_report.start_bytes(await srcstat.size())
         success = False
@@ -351,13 +352,16 @@ class SourceCopier:
         await self._copy_file_multi_part(sema, source_report, src, srcstat, full_dest, return_exceptions)
 
     async def copy_as_dir(self, sema: asyncio.Semaphore, source_report: SourceReport, return_exceptions: bool):
+        async def files_iterator() -> AsyncIterator[FileListEntry]:
+            return await self.router_fs.listfiles(src, recursive=True)
+
         try:
             src = self.src
             if not src.endswith('/'):
                 src = src + '/'
 
             try:
-                srcentries = await self.router_fs.listfiles(src, recursive=True)
+                srcentries: Optional[AsyncIterator[FileListEntry]] = await files_iterator()
             except (NotADirectoryError, FileNotFoundError):
                 self.src_is_dir = False
                 return
@@ -376,7 +380,7 @@ class SourceCopier:
         if full_dest_type == AsyncFS.FILE:
             raise NotADirectoryError(full_dest)
 
-        async def copy_source(srcentry):
+        async def copy_source(srcentry: FileListEntry) -> None:
             srcfile = srcentry.url_maybe_trailing_slash()
             assert srcfile.startswith(src)
 
@@ -389,9 +393,20 @@ class SourceCopier:
 
             await self._copy_file_multi_part(sema, source_report, srcfile, await srcentry.status(), url_join(full_dest, relsrcfile), return_exceptions)
 
-        await bounded_gather2(sema, *[
-            functools.partial(copy_source, srcentry)
-            async for srcentry in srcentries], cancel_on_error=True)
+        async def create_copies() -> List[Callable[[], Awaitable[None]]]:
+            nonlocal srcentries
+            if srcentries is None:
+                srcentries = await files_iterator()
+            try:
+                return [
+                    functools.partial(copy_source, srcentry)
+                    async for srcentry in srcentries]
+            finally:
+                srcentries = None
+
+        copies = await retry_transient_errors(create_copies)
+
+        await bounded_gather2(sema, *copies, cancel_on_error=True)
 
     async def copy(self, sema: asyncio.Semaphore, source_report: SourceReport, return_exceptions: bool):
         try:

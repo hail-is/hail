@@ -36,6 +36,7 @@ trait FileStatus {
   def getModificationTime: java.lang.Long
   def getLen: Long
   def isDirectory: Boolean
+  def isSymlink: Boolean
   def isFile: Boolean
   def getOwner: String
 }
