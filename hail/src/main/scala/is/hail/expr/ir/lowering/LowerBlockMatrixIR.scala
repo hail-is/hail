@@ -296,7 +296,7 @@ object LowerBlockMatrixIR {
 
       case x@BlockMatrixBroadcast(child, IndexedSeq(), _, _) =>
         val lowered = lower(child)
-        val eltValue = lowered.globalVals.foldRight[IR](bindIR(lowered.blockContext(0 -> 0)) { ctx =>
+        val eltValue = (lowered.letBindings ++ lowered.globalVals).foldRight[IR](bindIR(lowered.blockContext(0 -> 0)) { ctx =>
           NDArrayRef(lowered.blockBody(ctx), FastIndexedSeq(I64(0L), I64(0L)), -1)
         }) { case ((f, v), accum) => Let(f, v, accum) }
 

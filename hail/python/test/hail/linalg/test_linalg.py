@@ -216,6 +216,8 @@ Caused by: is.hail.utils.HailException: bad shuffle close
             self._assert_eq(at4, at)
             self._assert_eq(at5, at)
 
+    @fails_service_backend()
+    @fails_local_backend()
     def test_numpy_round_trip_force_blocking(self):
         n_rows = 10
         n_cols = 11
