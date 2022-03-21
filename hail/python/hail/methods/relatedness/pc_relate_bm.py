@@ -385,12 +385,15 @@ def pc_relate_bm(call_expr: CallExpression,
         f'invalid argument: min_individual_maf={min_individual_maf}. ' \
         f'Must have min_individual_maf on interval [0.0, 1.0].'
     mt = matrix_table_source('pc_relate_bm/call_expr', call_expr)
-
     if k and scores_expr is None:
-        _, scores, _ = _hwe_normalized_blanczos(call_expr, k, compute_loadings=False, q_iterations=10)
-        scores_expr = scores[mt.col_key].scores
+        eigens, scores, _ = _hwe_normalized_blanczos(call_expr, k, compute_loadings=False, q_iterations=10)
+        scores_table = scores.select(__scores=scores.scores).key_by().select('__scores')
+        compute_S0 = False
     elif not k and scores_expr is not None:
         analyze('pc_relate_bm/scores_expr', scores_expr, mt._col_indices)
+        eigens = None
+        scores_table = mt.select_cols(__scores=scores_expr).key_cols_by().select_cols('__scores').cols()
+        compute_S0 = True
     elif k and scores_expr is not None:
         raise ValueError("pc_relate_bm: exactly one of 'k' and 'scores_expr' "
                          "must be set, found both")
@@ -398,7 +401,6 @@ def pc_relate_bm(call_expr: CallExpression,
         raise ValueError("pc_relate_bm: exactly one of 'k' and 'scores_expr' "
                          "must be set, found neither")
 
-    scores_table = mt.select_cols(__scores=scores_expr).key_cols_by().select_cols('__scores').cols()
     n_missing = scores_table.aggregate(agg.count_where(hl.is_missing(scores_table.__scores)))
     if n_missing > 0:
         raise ValueError(f'Found {n_missing} columns with missing scores array.')
@@ -416,8 +418,11 @@ def pc_relate_bm(call_expr: CallExpression,
     g = g.checkpoint(new_temp_file('pc_relate_bm/g', 'bm'))
     sqrt_n_samples = hl.nd.array([hl.sqrt(g.shape[1])])
 
-    # Recover singular values, S0, as vector of column norms of pc_scores
-    S0 = (pc_scores ** hl.int32(2)).sum(0).map(lambda x: hl.sqrt(x))
+    # Recover singular values, S0, as vector of column norms of pc_scores if necessary
+    if compute_S0:
+        S0 = (pc_scores ** hl.int32(2)).sum(0).map(lambda x: hl.sqrt(x))
+    else:
+        S0 = hl.nd.array(eigens).map(lambda x: hl.sqrt(x))
     # Set first entry of S to sqrt(n), for intercept term in beta
     S = hl.nd.hstack((sqrt_n_samples, S0))._persist()
     # Recover V from pc_scores with inv(S0)
