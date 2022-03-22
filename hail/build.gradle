@@ -181,7 +181,7 @@ dependencies {
     bundled group: 'org.ow2.asm', name: 'asm-util', version: '7.3.1'
     bundled group: 'org.ow2.asm', name: 'asm-analysis', version: '7.3.1'
 
-    bundled 'net.java.dev.jna:jna:4.2.2'
+    bundled 'net.java.dev.jna:jna:5.6.0'
     bundled('net.sourceforge.jdistlib:jdistlib:0.4.5') {
         transitive = false
     }
