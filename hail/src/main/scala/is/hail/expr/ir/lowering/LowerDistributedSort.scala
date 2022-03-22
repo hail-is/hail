@@ -103,12 +103,13 @@ object LowerDistributedSort {
     inputStage: TableStage,
     sortFields: IndexedSeq[SortField],
     relationalLetsAbove: Map[String, IR],
-    rowTypeRequiredness: RStruct
+    rowTypeRequiredness: RStruct,
+    optTargetNumPartitions: Option[Int] = None
   ): TableStage = {
 
     val oversamplingNum = 3
     val seed = 7L
-    val defaultBranchingFactor = 16
+    val defaultBranchingFactor = if (ctx.getFlag("shuffle_max_branch_factor") == null) 16 else ctx.getFlag("shuffle_max_branch_factor").toInt
     val sizeCutoff = ctx.getFlag("shuffle_cutoff_to_local_sort").toInt
 
     val (keyToSortBy, _) = inputStage.rowType.select(sortFields.map(sf => sf.field))
@@ -127,7 +128,9 @@ object LowerDistributedSort {
     val initialSegment = SegmentResult(IndexedSeq(0), inputStage.partitioner.range.get, initialChunks)
 
     val totalNumberOfRows = initialChunks.map(_.size).sum
-    val idealNumberOfRowsPerPart = Math.max(1, totalNumberOfRows / inputStage.numPartitions)
+    optTargetNumPartitions.foreach(i => assert(i >= 1, s"Must request positive number of partitions. Requested ${i}"))
+    val targetNumPartitions = optTargetNumPartitions.getOrElse(inputStage.numPartitions)
+    val idealNumberOfRowsPerPart = Math.max(1, totalNumberOfRows / targetNumPartitions)
 
     var loopState = LoopState(IndexedSeq(initialSegment), IndexedSeq.empty[SegmentResult], IndexedSeq.empty[SegmentResult])
 
