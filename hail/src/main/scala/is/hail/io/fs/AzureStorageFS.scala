@@ -170,7 +170,15 @@ class AzureStorageFS extends FS {
 
         // calculate the minimum of the bytes remaining in the buffer and the bytes remaining
         // to be read in the blob
-        client.downloadStreamWithResponse(
+//        client.downloadStreamWithResponse(
+//                      outputStream, new BlobRange(pos, count),
+//                      null, null, false, Duration.ofMinutes(1), null)
+//                    pos += count
+//
+//        bb.put(outputStream.toByteArray)
+
+
+        client.downloadWithResponse(
                       outputStream, new BlobRange(pos, count),
                       null, null, false, Duration.ofMinutes(1), null)
                     pos += count
