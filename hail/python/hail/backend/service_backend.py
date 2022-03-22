@@ -1,4 +1,4 @@
-from typing import Dict, Optional, Callable, Awaitable, Mapping
+from typing import Dict, Optional, Callable, Awaitable, Mapping, Any
 import asyncio
 import struct
 import os
@@ -179,6 +179,17 @@ class ServiceBackend(Backend):
         self.remote_tmpdir = remote_tmpdir
         self.flags = flags
 
+    def debug_info(self) -> Dict[str, Any]:
+        return {
+            'hail_sha': os.environ['HAIL_SHA'],
+            'hail_jar_url': os.environ['HAIL_JAR_URL'],
+            'billing_project': self.billing_project,
+            'batch_attributes': self.batch_attributes,
+            'user_local_reference_cache_dir': self.user_local_reference_cache_dir,
+            'remote_tmpdir': self.remote_tmpdir,
+            'flags': self.flags
+        }
+
     @property
     def fs(self) -> FS:
         return self._sync_fs
@@ -245,7 +256,8 @@ class ServiceBackend(Backend):
                     logs = await j.log()
                     for k in logs:
                         logs[k] = yaml_literally_shown_str(logs[k].strip())
-                    message = {'batch_status': status,
+                    message = {'service_backend_debug_info': self.debug_info(),
+                               'batch_status': status,
                                'job_status': job_status,
                                'log': logs}
                     log.error(yaml.dump(message))
@@ -287,6 +299,7 @@ class ServiceBackend(Backend):
                                     })
                             message = {
                                 'id': b.id,
+                                'service_backend_debug_info': self.debug_info(),
                                 'stacktrace': yaml_literally_shown_str(jstacktrace.strip()),
                                 'cause': {'id': batch_id, 'batch_status': b2_status, 'failed_jobs': failed_jobs}}
                             log.error(yaml.dump(message))
