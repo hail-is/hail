@@ -1577,10 +1577,9 @@ class JVMJob(Job):
         if input_files or output_files:
             raise Exception("i/o not supported")
 
-        self.user_command_string = job_spec['process']['command']
-        assert len(self.user_command_string) >= 3, self.user_command_string
-        self.revision = self.user_command_string[1]
-        self.jar_url = self.user_command_string[2]
+        assert job_spec['process']['jar_spec']['type'] == 'jar_url'
+        self.jar_url = job_spec['process']['jar_spec']['value']
+        self.argv = job_spec['process']['argv']
 
         self.timings = Timings()
         self.state = 'pending'
@@ -1607,8 +1606,9 @@ class JVMJob(Job):
         return f'{self.scratch}/secrets/{secret["mount_path"]}'
 
     async def download_jar(self):
-        async with self.worker.jar_download_locks[self.revision]:
-            local_jar_location = f'/hail-jars/{self.revision}.jar'
+        async with self.worker.jar_download_locks[self.jar_url]:
+            unique_key = self.jar_url.replace('_', '__').replace('/', '_')
+            local_jar_location = f'/hail-jars/{unique_key}.jar'
             if not os.path.isfile(local_jar_location):
                 self.verify_is_acceptable_query_jar_url(self.jar_url)
                 temporary_file = tempfile.NamedTemporaryFile(delete=False)  # pylint: disable=consider-using-with
@@ -1663,7 +1663,7 @@ class JVMJob(Job):
 
                 log.info(f'{self}: running jvm process')
                 with self.step('running'):
-                    await self.jvm.execute(local_jar_location, self.scratch, self.log_file, self.user_command_string)
+                    await self.jvm.execute(local_jar_location, self.scratch, self.log_file, self.jar_url, self.argv)
 
                 self.state = 'succeeded'
                 log.info(f'{self} main: {self.state}')
@@ -1974,7 +1974,7 @@ class JVM:
     def close(self):
         self.process.close()
 
-    async def execute(self, classpath: str, scratch_dir: str, log_file: str, command_string: List[str]):
+    async def execute(self, classpath: str, scratch_dir: str, log_file: str, jar_url: str, argv: List[str]):
         assert worker is not None
 
         log.info(f'{self}: execute')
@@ -1986,12 +1986,12 @@ class JVM:
             stack.callback(writer.close)
             log.info(f'{self}: connection acquired')
 
-            command_string = [classpath, 'is.hail.backend.service.Main', scratch_dir, log_file, *command_string]
+            command = [classpath, 'is.hail.backend.service.Main', scratch_dir, log_file, jar_url, *argv]
 
-            write_int(writer, len(command_string))
-            for arg in command_string:
-                assert isinstance(arg, str)
-                write_str(writer, arg)
+            write_int(writer, len(command))
+            for part in command:
+                assert isinstance(part, str)
+                write_str(writer, part)
             await writer.drain()
 
             wait_for_message_from_process: asyncio.Future = asyncio.ensure_future(read_int(reader))

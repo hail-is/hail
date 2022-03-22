@@ -59,7 +59,6 @@ object ServiceBackend {
 }
 
 class ServiceBackend(
-  val revision: String,
   val jarLocation: String,
   var name: String,
   val theHailClassLoader: HailClassLoader,
@@ -143,10 +142,12 @@ class ServiceBackend(
         "job_id" -> JInt(i + 1),
         "parent_ids" -> JArray(List()),
         "process" -> JObject(
-          "command" -> JArray(List(
+          "jar_spec" -> JObject(
+            "type" -> JString("jar_url"),
+            "value" -> JString(jarLocation)
+          ),
+          "argv" -> JArray(List(
             JString(Main.WORKER),
-            JString(revision),
-            JString(jarLocation),
             JString(root),
             JString(s"$i"))),
           "type" -> JString("jvm")),
@@ -366,17 +367,16 @@ object ServiceBackendSocketAPI2 {
 
     val scratchDir = argv(0)
     val logFile = argv(1)
-    val kind = argv(2)
+    val jarLocation = argv(2)
+    val kind = argv(3)
     assert(kind == Main.DRIVER)
-    val revision = argv(3)
-    val jarLocation = argv(4)
-    val name = argv(5)
-    val input = argv(6)
-    val output = argv(7)
+    val name = argv(4)
+    val input = argv(5)
+    val output = argv(6)
 
     // FIXME: when can the classloader be shared? (optimizer benefits!)
     val backend = new ServiceBackend(
-      revision, jarLocation, name, new HailClassLoader(getClass().getClassLoader()), scratchDir)
+      jarLocation, name, new HailClassLoader(getClass().getClassLoader()), scratchDir)
     if (HailContext.isInitialized) {
       HailContext.get.backend = backend
     } else {

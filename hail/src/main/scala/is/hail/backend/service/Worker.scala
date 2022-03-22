@@ -59,12 +59,11 @@ object Worker {
     }
     val scratchDir = argv(0)
     val logFile = argv(1)
-    val kind = argv(2)
+    var jarLocation = argv(2)
+    val kind = argv(3)
     assert(kind == Main.WORKER)
-    val revision = argv(3)
-    val jarGCSPath = argv(4)
-    val root = argv(5)
-    val i = argv(6).toInt
+    val root = argv(4)
+    val i = argv(5).toInt
     val timer = new WorkerTimer()
 
     val deployConfig = DeployConfig.fromConfigFile(
