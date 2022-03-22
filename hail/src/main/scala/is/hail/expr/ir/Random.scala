@@ -217,7 +217,7 @@ object Threefry {
       for (i <- 0 until 4) cb += (xArray(i) = x(i))
       Code._empty
     }
-    f.result()(new HailClassLoader(getClass.getClassLoader))
+    f.result(false)(new HailClassLoader(getClass.getClassLoader))
   }
 }
 
