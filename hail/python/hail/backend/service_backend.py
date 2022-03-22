@@ -185,7 +185,7 @@ class ServiceBackend(Backend):
             'hail_jar_url': os.environ['HAIL_JAR_URL'],
             'billing_project': self.billing_project,
             'batch_attributes': self.batch_attributes,
-            'user_local_reference_cache_dir': self.user_local_reference_cache_dir,
+            'user_local_reference_cache_dir': str(self.user_local_reference_cache_dir),
             'remote_tmpdir': self.remote_tmpdir,
             'flags': self.flags
         }
