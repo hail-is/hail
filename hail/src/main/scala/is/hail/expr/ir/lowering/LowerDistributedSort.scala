@@ -108,7 +108,7 @@ object LowerDistributedSort {
 
     val oversamplingNum = 3
     val seed = 7L
-    val defaultBranchingFactor = 4
+    val defaultBranchingFactor = 16
     val sizeCutoff = ctx.getFlag("shuffle_cutoff_to_local_sort").toInt
 
     val (keyToSortBy, _) = inputStage.rowType.select(sortFields.map(sf => sf.field))
