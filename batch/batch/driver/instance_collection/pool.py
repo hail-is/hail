@@ -3,9 +3,8 @@ import logging
 import random
 from typing import Optional
 
-import sortedcontainers
-
 import prometheus_client as pc
+import sortedcontainers
 
 from gear import Database
 from hailtop import aiotools
