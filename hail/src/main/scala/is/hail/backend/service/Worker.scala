@@ -61,7 +61,6 @@ object Worker {
     val logFile = argv(1)
     val kind = argv(2)
     assert(kind == Main.WORKER)
-    val revision = argv(3)
     val jarGCSPath = argv(4)
     val root = argv(5)
     val i = argv(6).toInt
@@ -115,11 +114,11 @@ object Worker {
     timer.start("executeFunction")
 
     if (HailContext.isInitialized) {
-      HailContext.get.backend = new ServiceBackend(null, null, null, new HailClassLoader(getClass().getClassLoader()))
+      HailContext.get.backend = new ServiceBackend(null, null, new HailClassLoader(getClass().getClassLoader()))
     } else {
       HailContext(
         // FIXME: workers should not have backends, but some things do need hail contexts
-        new ServiceBackend(null, null, null, new HailClassLoader(getClass().getClassLoader())), skipLoggingConfiguration = true, quiet = true)
+        new ServiceBackend(null, null, new HailClassLoader(getClass().getClassLoader())), skipLoggingConfiguration = true, quiet = true)
     }
     val htc = new ServiceTaskContext(i)
     val result = f(context, htc, theHailClassLoader, fs)

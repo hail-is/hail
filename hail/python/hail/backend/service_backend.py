@@ -1,5 +1,6 @@
 from typing import Dict, Optional, Callable, Awaitable, Mapping, Any
 import asyncio
+import getpass
 import struct
 import os
 import orjson
@@ -8,7 +9,7 @@ import re
 import yaml
 from pathlib import Path
 
-from hail.context import TemporaryDirectory, tmp_dir, TemporaryFilename
+from hail.context import TemporaryDirectory, tmp_dir, TemporaryFilename, revision
 from hail.utils import FatalError
 from hail.expr.types import dtype
 from hail.expr.table_type import ttable
@@ -17,7 +18,8 @@ from hail.expr.blockmatrix_type import tblockmatrix
 from hail.experimental import write_expression, read_expression
 from hail.ir.renderer import CSERenderer
 
-from hailtop.config import get_user_config, get_user_local_cache_dir, get_remote_tmpdir
+from hailtop.config import (get_user_config, get_user_local_cache_dir, get_remote_tmpdir,
+                            get_deploy_config)
 from hailtop.utils import async_to_blocking, secret_alnum_string, TransientError, Timings
 from hailtop.batch_client import client as hb
 from hailtop.batch_client import aioclient as aiohb
@@ -97,6 +99,20 @@ def yaml_literally_shown_str_representer(dumper, data):
 yaml.add_representer(yaml_literally_shown_str, yaml_literally_shown_str_representer)
 
 
+def _get_jar_url() -> str:
+    user_config = get_user_config()
+    deploy_config = get_deploy_config()
+
+    jar_url = os.environ.get('HAIL_JAR_URL')
+    jar_url = jar_url or user_config.get('query', 'jar_url', fallback=None)
+
+    if jar_url is not None:
+        return jar_url
+    if deploy_config.default_namespace() == 'default':
+        return f'gs://hail-query/jars/{revision()}.jar'
+    return f'gs://hail-test-dmk9z/{getpass.getuser()}/jars/{revision()}.jar'
+
+
 class ServiceBackend(Backend):
     HAIL_BATCH_FAILURE_EXCEPTION_MESSAGE_RE = re.compile("is.hail.backend.service.HailBatchFailure: ([0-9]+)\n")
 
@@ -124,7 +140,8 @@ class ServiceBackend(Backend):
                      skip_logging_configuration: Optional[bool] = None,
                      disable_progress_bar: bool = True,
                      remote_tmpdir: Optional[str] = None,
-                     flags: Optional[Dict[str, str]] = None):
+                     flags: Optional[Dict[str, str]] = None,
+                     jar_url: Optional[str] = None):
         del skip_logging_configuration
 
         if billing_project is None:
@@ -156,6 +173,7 @@ class ServiceBackend(Backend):
             user_local_reference_cache_dir=user_local_reference_cache_dir,
             remote_tmpdir=remote_tmpdir,
             flags=flags or {},
+            jar_url=jar_url or _get_jar_url()
         )
 
     def __init__(self,
@@ -167,7 +185,8 @@ class ServiceBackend(Backend):
                  batch_attributes: Dict[str, str],
                  user_local_reference_cache_dir: Path,
                  remote_tmpdir: str,
-                 flags: Dict[str, str]):
+                 flags: Dict[str, str],
+                 jar_url: str):
         self.billing_project = billing_project
         self._sync_fs = sync_fs
         self._async_fs = async_fs
@@ -178,11 +197,11 @@ class ServiceBackend(Backend):
         self.user_local_reference_cache_dir = user_local_reference_cache_dir
         self.remote_tmpdir = remote_tmpdir
         self.flags = flags
+        self.jar_url = jar_url
 
     def debug_info(self) -> Dict[str, Any]:
         return {
-            'hail_sha': os.environ['HAIL_SHA'],
-            'hail_jar_url': os.environ['HAIL_JAR_URL'],
+            'jar_url': self.jar_url,
             'billing_project': self.billing_project,
             'batch_attributes': self.batch_attributes,
             'user_local_reference_cache_dir': self.user_local_reference_cache_dir,
@@ -232,8 +251,7 @@ class ServiceBackend(Backend):
 
                 j = bb.create_jvm_job([
                     ServiceBackend.DRIVER,
-                    os.environ['HAIL_SHA'],
-                    os.environ['HAIL_JAR_URL'],
+                    self.jar_url,
                     batch_attributes['name'],
                     iodir + '/in',
                     iodir + '/out',

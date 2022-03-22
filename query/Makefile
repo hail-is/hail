@@ -36,14 +36,12 @@ test: push-jar upload-resources-dir
 	HAIL_QUERY_BACKEND=service \
 	HAIL_TEST_RESOURCES_DIR='$(HAIL_TEST_RESOURCES_DIR)' \
 	HAIL_DOCTEST_DATA_DIR='$(HAIL_DOCTEST_DATA_DIR)' \
-	HAIL_SHA='$(HAIL_REVISION)-$(TOKEN)' \
 	HAIL_JAR_URL=$$(cat last_uploaded_jar) \
 	$(MAKE) -C ../hail pytest
 
 .PHONY: ipython
 ipython: push-jar
 	HAIL_QUERY_BACKEND=service \
-	HAIL_SHA='$(HAIL_REVISION)-$(TOKEN)' \
 	HAIL_JAR_URL=$$(cat last_uploaded_jar) \
 	ipython
 
@@ -52,13 +50,11 @@ test-no-deps:
 	HAIL_QUERY_BACKEND=service \
 	HAIL_TEST_RESOURCES_DIR='$(HAIL_TEST_RESOURCES_DIR)' \
 	HAIL_DOCTEST_DATA_DIR='$(HAIL_DOCTEST_DATA_DIR)' \
-	HAIL_SHA='$(HAIL_REVISION)-$(TOKEN)' \
 	HAIL_JAR_URL=$$(cat last_uploaded_jar) \
 	$(MAKE) -C ../hail pytest
 
 .PHONY: ipython-no-deps
 ipython-no-deps:
 	HAIL_QUERY_BACKEND=service \
-	HAIL_SHA='$(HAIL_REVISION)-$(TOKEN)' \
 	HAIL_JAR_URL=$$(cat last_uploaded_jar) \
 	ipython

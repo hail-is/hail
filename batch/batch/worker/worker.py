@@ -1578,9 +1578,8 @@ class JVMJob(Job):
             raise Exception("i/o not supported")
 
         self.user_command_string = job_spec['process']['command']
-        assert len(self.user_command_string) >= 3, self.user_command_string
-        self.revision = self.user_command_string[1]
-        self.jar_url = self.user_command_string[2]
+        assert len(self.user_command_string) >= 2, self.user_command_string
+        self.jar_url = self.user_command_string[1]
 
         self.timings = Timings()
         self.state = 'pending'
@@ -1607,8 +1606,9 @@ class JVMJob(Job):
         return f'{self.scratch}/secrets/{secret["mount_path"]}'
 
     async def download_jar(self):
-        async with self.worker.jar_download_locks[self.revision]:
-            local_jar_location = f'/hail-jars/{self.revision}.jar'
+        async with self.worker.jar_download_locks[self.jar_url]:
+            unique_key = self.jar_url.replace('_', '__').replace('/', '_')
+            local_jar_location = f'/hail-jars/{unique_key}.jar'
             if not os.path.isfile(local_jar_location):
                 self.verify_is_acceptable_query_jar_url(self.jar_url)
                 temporary_file = tempfile.NamedTemporaryFile(delete=False)  # pylint: disable=consider-using-with

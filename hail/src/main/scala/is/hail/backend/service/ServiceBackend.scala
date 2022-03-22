@@ -61,7 +61,6 @@ class User(
   val fs: GoogleStorageFS)
 
 class ServiceBackend(
-  val revision: String,
   val jarLocation: String,
   var name: String,
   val theHailClassLoader: HailClassLoader,
@@ -153,7 +152,6 @@ class ServiceBackend(
         "process" -> JObject(
           "command" -> JArray(List(
             JString(Main.WORKER),
-            JString(revision),
             JString(jarLocation),
             JString(root),
             JString(s"$i"))),
@@ -467,15 +465,14 @@ object ServiceBackendSocketAPI2 {
     val logFile = argv(1)
     val kind = argv(2)
     assert(kind == Main.DRIVER)
-    val revision = argv(3)
-    val jarLocation = argv(4)
-    val name = argv(5)
-    val input = argv(6)
-    val output = argv(7)
+    val jarLocation = argv(3)
+    val name = argv(4)
+    val input = argv(5)
+    val output = argv(6)
 
     // FIXME: when can the classloader be shared? (optimizer benefits!)
     val backend = new ServiceBackend(
-      revision, jarLocation, name, new HailClassLoader(getClass().getClassLoader()), scratchDir)
+      jarLocation, name, new HailClassLoader(getClass().getClassLoader()), scratchDir)
     if (HailContext.isInitialized) {
       HailContext.get.backend = backend
     } else {
