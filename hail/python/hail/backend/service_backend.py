@@ -25,10 +25,11 @@ from hailtop.aiotools.fs import AsyncFS
 from hailtop.aiotools.router_fs import RouterAsyncFS
 import hailtop.aiotools.fs as afs
 
-from .backend import Backend
+from .backend import Backend, fatal_error_from_java_error_triplet
 from ..builtin_references import BUILTIN_REFERENCES
 from ..fs.fs import FS
 from ..fs.router_fs import RouterFS
+from ..ir import BaseIR
 from ..context import version
 from ..utils import frozendict
 
@@ -216,7 +217,9 @@ class ServiceBackend(Backend):
 
     async def _rpc(self,
                    name: str,
-                   inputs: Callable[[afs.WritableStream, str], Awaitable[None]]):
+                   inputs: Callable[[afs.WritableStream, str], Awaitable[None]],
+                   *,
+                   ir: Optional[BaseIR] = None):
         timings = Timings()
         token = secret_alnum_string()
         iodir = TemporaryDirectory(ensure_exists=False).name  # FIXME: actually cleanup
@@ -280,10 +283,21 @@ class ServiceBackend(Backend):
                         except orjson.JSONDecodeError as err:
                             raise FatalError(f'batch id was {b.id}\ncould not decode {json_bytes}') from err
                     else:
-                        jstacktrace = await read_str(outfile)
-                        maybe_id = ServiceBackend.HAIL_BATCH_FAILURE_EXCEPTION_MESSAGE_RE.match(jstacktrace)
-                        if maybe_id:
-                            batch_id = maybe_id.groups()[0]
+                        short_message = await read_str(outfile)
+                        expanded_message = await read_str(outfile)
+                        error_id = await read_int(outfile)
+                        if error_id == -1:
+                            error_id = None
+                        maybe_batch_id = ServiceBackend.HAIL_BATCH_FAILURE_EXCEPTION_MESSAGE_RE.match(expanded_message)
+                        if error_id is not None:
+                            assert maybe_batch_id is None, str((short_message, expanded_message, error_id))
+                            assert ir is not None
+                            self._handle_fatal_error_from_backend(
+                                fatal_error_from_java_error_triplet(short_message, expanded_message, error_id),
+                                ir)
+                        if maybe_batch_id is not None:
+                            assert error_id is None, str((short_message, expanded_message, error_id))
+                            batch_id = maybe_batch_id.groups()[0]
                             b2 = await self.async_bc.get_batch(batch_id)
                             b2_status = await b2.status()
                             assert b2_status['state'] != 'success'
@@ -307,11 +321,12 @@ class ServiceBackend(Backend):
                             message = {
                                 'id': b.id,
                                 'service_backend_debug_info': self.debug_info(),
-                                'stacktrace': yaml_literally_shown_str(jstacktrace.strip()),
+                                'short_message': yaml_literally_shown_str(short_message.strip()),
+                                'expanded_message': yaml_literally_shown_str(expanded_message.strip()),
                                 'cause': {'id': batch_id, 'batch_status': b2_status, 'failed_jobs': failed_jobs}}
                             log.error(yaml.dump(message))
                             raise FatalError(orjson.dumps(message).decode('utf-8'))
-                        raise FatalError(f'batch id was {b.id}\n' + jstacktrace)
+                        raise FatalError(f'batch id was {b.id}\n' + short_message + '\n' + expanded_message)
 
     def execute(self, ir, timed=False):
         return async_to_blocking(self._async_execute(ir, timed=timed))
@@ -324,7 +339,7 @@ class ServiceBackend(Backend):
             await write_str(infile, self.remote_tmpdir)
             await write_str(infile, self.render(ir))
             await write_str(infile, token)
-        _, resp, timings = await self._rpc('execute(...)', inputs)
+        _, resp, timings = await self._rpc('execute(...)', inputs, ir=ir)
         typ = dtype(resp['type'])
         converted_value = typ._convert_from_json_na(resp['value'])
         if timed:

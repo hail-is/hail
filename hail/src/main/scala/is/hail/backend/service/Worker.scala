@@ -51,6 +51,12 @@ object Worker {
   private[this] implicit val ec = ExecutionContext.fromExecutorService(
     javaConcurrent.Executors.newCachedThreadPool())
 
+  private[this] def writeString(out: DataOutputStream, s: String): Unit = {
+    val bytes = s.getBytes(StandardCharsets.UTF_8)
+    out.writeInt(bytes.length)
+    out.write(bytes)
+  }
+
   def main(argv: Array[String]): Unit = {
     val theHailClassLoader = new HailClassLoader(getClass().getClassLoader())
 
@@ -122,14 +128,34 @@ object Worker {
         new ServiceBackend(null, null, null, new HailClassLoader(getClass().getClassLoader())), skipLoggingConfiguration = true, quiet = true)
     }
     val htc = new ServiceTaskContext(i)
-    val result = f(context, htc, theHailClassLoader, fs)
+    var result: Array[Byte] = null
+    var userError: HailException = null
+    try {
+      result = f(context, htc, theHailClassLoader, fs)
+    } catch {
+      case err: HailException => userError = err
+    }
     htc.finish()
 
     timer.end("executeFunction")
     timer.start("writeOutputs")
 
     using(fs.createCachedNoCompression(s"$root/result.$i")) { os =>
-      os.write(result)
+      val dos = new DataOutputStream(os)
+      if (result != null) {
+        assert(userError == null)
+
+        dos.writeBoolean(true)
+        dos.write(result)
+      } else {
+        assert(userError != null)
+        val (shortMessage, expandedMessage, errorId) = handleForPython(userError)
+
+        dos.writeBoolean(false)
+        writeString(dos, shortMessage)
+        writeString(dos, expandedMessage)
+        dos.writeInt(errorId)
+      }
     }
     timer.end("writeOutputs")
     timer.end(s"Job $i")

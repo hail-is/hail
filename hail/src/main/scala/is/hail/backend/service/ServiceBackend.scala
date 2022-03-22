@@ -35,10 +35,6 @@ import org.json4s.jackson.JsonMethods
 import org.json4s.{DefaultFormats, Formats}
 import org.newsclub.net.unix.{AFUNIXServerSocket, AFUNIXSocketAddress}
 
-import java.io._
-import java.net._
-import java.nio.charset.StandardCharsets
-import java.util.concurrent._
 import scala.annotation.switch
 import scala.reflect.ClassTag
 import scala.{concurrent => scalaConcurrent}
@@ -85,6 +81,13 @@ class ServiceBackend(
     new BroadcastValue[T] with Serializable {
       def value: T = _value
     }
+  }
+
+  private[this] def readString(in: DataInputStream): String = {
+    val n = in.readInt()
+    val bytes = new Array[Byte](n)
+    in.read(bytes)
+    new String(bytes, StandardCharsets.UTF_8)
   }
 
   def parallelizeAndComputeWithIndex(
@@ -179,10 +182,22 @@ class ServiceBackend(
 
     val r = new Array[Array[Byte]](n)
 
+    def resultOrHailException(is: DataInputStream): Array[Byte] = {
+      val success = is.readBoolean()
+      if (success) {
+        IOUtils.toByteArray(is)
+      } else {
+        val shortMessage = readString(is)
+        val expandedMessage = readString(is)
+        val errorId = is.readInt()
+        throw new HailWorkerException(shortMessage, expandedMessage, errorId)
+      }
+    }
+
     def readResult(i: Int): scalaConcurrent.Future[Unit] = scalaConcurrent.Future {
       r(i) = retryTransientErrors {
         using(fs.openCachedNoCompression(s"$root/result.$i")) { is =>
-          IOUtils.toByteArray(is)
+          resultOrHailException(new DataInputStream(is))
         }
       }
       log.info(s"result $i complete")
@@ -625,9 +640,17 @@ class ServiceBackendSocketAPI2(
       writeBool(true)
       writeString(result)
     } catch {
-      case t: Throwable =>
+      case exc: HailWorkerException =>
         writeBool(false)
-        writeString(formatException(t))
+        writeString(exc.shortMessage)
+        writeString(exc.expandedMessage)
+        writeInt(exc.errorId)
+      case t: Throwable =>
+        val (shortMessage, expandedMessage, errorId) = handleForPython(t)
+        writeBool(false)
+        writeString(shortMessage)
+        writeString(expandedMessage)
+        writeInt(errorId)
     }
   }
 }

@@ -850,8 +850,6 @@ class PLINKTests(unittest.TestCase):
         plink = hl.import_plink(bfile + '.bed', bfile + '.bim', bfile + '.fam', block_size=16)
         self.assertEqual(plink.aggregate_cols(hl.agg.count()), 489)
 
-    @fails_service_backend()
-    @fails_local_backend()
     def test_import_plink_skip_invalid_loci(self):
         mt = hl.import_plink(resource('skip_invalid_loci.bed'),
                              resource('skip_invalid_loci.bim'),
