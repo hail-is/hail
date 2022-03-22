@@ -3121,10 +3121,10 @@ class StringExpression(Expression):
 
         The `regex` parameter needs to match the entire string if `full_match` is ``True``:
 
-        >>> hl.eval(string.matches('12'), True)
+        >>> hl.eval(string.matches('12', True))
         False
 
-   >>> string = hl.literal('3412878')
+        >>> string = hl.literal('3412878')
 
         >>> hl.eval(string.matches('^[0-9]*$'))
         True

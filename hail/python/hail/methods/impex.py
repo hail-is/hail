@@ -1608,9 +1608,9 @@ def import_table(paths,
     def split_lines(row, fields):
         split_array = row.text._split_line(delimiter, missing=missing, quote=quote, regex=len(delimiter) > 1)
         return hl.case().when(hl.len(split_array) == len(fields), split_array)\
-            .or_error(hl.str("error in number of fields found: in file ") + hl.str(row.file) +
-                      hl.str(f"\nexpected {len(fields)} {'fields' if len(fields) > 1 else 'field' }, found ") +
-                      hl.str(hl.len(split_array)) + hl.if_else(hl.len(split_array) > 1, hl.str(" fields"),
+            .or_error(hl.str("error in number of fields found: in file ") + hl.str(row.file)
+                      + hl.str(f"\nexpected {len(fields)} {'fields' if len(fields) > 1 else 'field' }, found ")
+                      + hl.str(hl.len(split_array)) + hl.if_else(hl.len(split_array) > 1, hl.str(" fields"),
                       hl.str(" field")) + hl.str("\nfor line consisting of '") + hl.str(row.text) + "'")
 
     def should_filter_line(hl_str):
@@ -1643,7 +1643,7 @@ def import_table(paths,
             from itertools import starmap
             print_changed_fields = list(starmap(lambda post, pre: f"{pre} -> {post}", changed_fields))
             hl.utils.warning(f"Found {len(changed_fields)} duplicate"
-                             f" {'row field' if len(changed_fields) is 1 else 'row fields'}. Changed row fields as "
+                             f" {'row field' if len(changed_fields) == 1 else 'row fields'}. Changed row fields as "
                              f"follows:\n" + "\n".join(print_changed_fields))
         return fields_to_check
 
@@ -1662,7 +1662,8 @@ def import_table(paths,
         ht = ht.annotate(text=ht['text'].replace(*find_replace))
 
     first_row = ht.head(1)
-    first_row_value = first_row.annotate(header=first_row.text.split(delimiter)).collect()[0]
+    first_row_value = first_row.annotate(
+        header=first_row.text._split_line(delimiter, missing=[], quote=quote, regex=len(delimiter) > 1)).collect()[0]
 
     if first_row_value is None:
         raise ValueError(f"Invalid file: no lines remaining after filters\n Offending file: {first_row.file}")

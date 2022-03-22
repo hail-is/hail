@@ -3,7 +3,7 @@ package is.hail.expr.ir
 import is.hail.TestUtils._
 import is.hail.expr.ir.TestUtils._
 import is.hail.types.virtual._
-import is.hail.utils.{BoxedArrayBuilder, FastIndexedSeq}
+import is.hail.utils.FastIndexedSeq
 import is.hail.{ExecStrategy, HailSuite}
 import org.json4s.jackson.JsonMethods
 import org.testng.annotations.{DataProvider, Test}
@@ -92,13 +92,6 @@ class StringFunctionsSuite extends HailSuite {
     assertEvalsTo(invoke("hamming", TInt32, Str("foo"), NA(TString)), null)
     assertEvalsTo(invoke("hamming", TInt32, Str("foo"), Str("fool")), null)
     assertEvalsTo(invoke("hamming", TInt32, Str("foo"), Str("fol")), 1)
-  }
-
-  @Test def testStringQuoted() {
-    assertEvalsTo(invoke("splitQuoted", TArray(TString), Str("1234 NA 12878 1234"), Str(" "),
-      IRStringArray("NA"), Str("\"")), FastIndexedSeq("1234", null, "12878", "1234"))
-    assertEvalsTo(invoke("splitQuoted", TArray(TString), Str("1234 NA \"128 78\" \"1234\""), Str(" "),
-      IRStringArray("NA"), Str("\"")), FastIndexedSeq("1234", null, "128 78", "1234"))
   }
 
   @DataProvider(name = "str")
