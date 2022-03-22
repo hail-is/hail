@@ -1663,7 +1663,7 @@ def import_table(paths,
 
     first_row = ht.head(1)
     first_row_value = first_row.annotate(
-        header=first_row.text._split_line(delimiter, missing=[], quote=quote, regex=len(delimiter) > 1)).collect()[0]
+        header=first_row.text._split_line(delimiter, missing=hl.empty_array(hl.tstr), quote=quote, regex=len(delimiter) > 1)).collect()[0]
 
     if first_row_value is None:
         raise ValueError(f"Invalid file: no lines remaining after filters\n Offending file: {first_row.file}")
