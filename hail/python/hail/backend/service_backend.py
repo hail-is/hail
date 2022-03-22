@@ -36,6 +36,13 @@ from ..utils import frozendict
 log = logging.getLogger('backend.service_backend')
 
 
+async def write_bool(strm: afs.WritableStream, v: bool):
+    if v:
+        await strm.write(b'\x01')
+    else:
+        await strm.write(b'\x00')
+
+
 async def write_int(strm: afs.WritableStream, v: int):
     await strm.write(struct.pack('<i', v))
 
@@ -462,7 +469,20 @@ class ServiceBackend(Backend):
         raise NotImplementedError("ServiceBackend does not support 'index_bgen'")
 
     def import_fam(self, path: str, quant_pheno: bool, delimiter: str, missing: str):
-        raise NotImplementedError("ServiceBackend does not support 'import_fam'")
+        return async_to_blocking(self._async_import_fam(path, quant_pheno, delimiter, missing))
+
+    async def _async_import_fam(self, path: str, quant_pheno: bool, delimiter: str, missing: str):
+        async def inputs(infile, _):
+            await write_int(infile, ServiceBackend.IMPORT_FAM)
+            await write_str(infile, tmp_dir())
+            await write_str(infile, self.billing_project)
+            await write_str(infile, self.remote_tmpdir)
+            await write_str(infile, path)
+            await write_bool(infile, quant_pheno)
+            await write_str(infile, delimiter)
+            await write_str(infile, missing)
+        _, resp, _ = await self._rpc('import_fam(...)', inputs)
+        return resp
 
     def register_ir_function(self, name, type_parameters, argument_names, argument_types, return_type, body):
         raise NotImplementedError("ServiceBackend does not support 'register_ir_function'")

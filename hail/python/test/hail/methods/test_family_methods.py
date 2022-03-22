@@ -8,7 +8,6 @@ tearDownModule = stopTestHailContext
 
 
 class Tests(unittest.TestCase):
-    @fails_service_backend()
     def test_trio_matrix(self):
         """
         This test depends on certain properties of the trio matrix VCF and
@@ -81,7 +80,6 @@ class Tests(unittest.TestCase):
         self.assertEqual(e_cols.row.dtype, t_cols.row.dtype)
         self.assertTrue(e_cols._same(t_cols))
 
-    @fails_service_backend()
     def test_trio_matrix_null_keys(self):
         ped = hl.Pedigree.read(resource('triomatrix.fam'))
         ht = hl.import_fam(resource('triomatrix.fam'))
