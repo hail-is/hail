@@ -1228,8 +1228,6 @@ Caused by: java.lang.AssertionError: assertion failed
         s = x.svd(compute_uv=False, complexity_bound=0)
         assert np.all(s >= 0)
 
-    @fails_service_backend()
-    @fails_local_backend()
     def test_filtering(self):
         np_square = np.arange(16, dtype=np.float64).reshape((4, 4))
         bm = BlockMatrix.from_numpy(np_square)
