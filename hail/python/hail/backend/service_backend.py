@@ -185,6 +185,10 @@ class ServiceBackend(Backend):
         self.user_local_reference_cache_dir = user_local_reference_cache_dir
         self.remote_tmpdir = remote_tmpdir
         self.flags = flags
+        if "use_new_shuffle" not in self.flags:
+            self.flags["use_new_shuffle"] = "1"
+        if "shuffle_cutoff_to_local_sort" not in self.flags:
+            self.flags["shuffle_cutoff_to_local_sort"] = "32000000"  # bytes
 
     def debug_info(self) -> Dict[str, Any]:
         return {
