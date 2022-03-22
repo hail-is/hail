@@ -282,6 +282,7 @@ class LinearMixedModel(object):
                       x=nullable(np.ndarray),
                       p_path=nullable(str))
     def __init__(self, py, px, s, y=None, x=None, p_path=None):
+        hl.utils.no_service_backend('linear_mixed_model')
         if y is None and x is None:
             low_rank = False
         elif y is not None and x is not None:

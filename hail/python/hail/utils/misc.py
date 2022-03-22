@@ -1,20 +1,22 @@
-from typing import Optional
-from typing_extensions import Literal
-import os
 import atexit
 import datetime
-import string
 import difflib
-import shutil
-import tempfile
-import secrets
-from collections import defaultdict, Counter
-from random import Random
 import json
+import os
 import re
-from urllib.parse import urlparse
-from io import StringIO
+import secrets
+import shutil
+import string
+import tempfile
+from collections import defaultdict, Counter
 from contextlib import contextmanager
+from io import StringIO
+from random import Random
+from typing import Optional
+from urllib.parse import urlparse
+
+from decorator import decorator
+from typing_extensions import Literal
 
 import hail
 import hail as hl
@@ -628,3 +630,12 @@ def guess_cloud_spark_provider() -> Optional[Literal['dataproc', 'hdinsight']]:
     if 'AZURE_SPARK' in os.environ or 'hdinsight' in os.getenv('CLASSPATH', ''):
         return 'hdinsight'
     return None
+
+
+def no_service_backend(unsupported_feature):
+    from hail import current_backend
+    from hail.backend import service_backend
+    if isinstance(current_backend(), service_backend):
+        raise NotImplementedError(f'{unsupported_feature!r} is not yet supported on the service backend.'
+                                  f'\n  If this is a pressing need, please alert the team on the discussion'
+                                  f'\n  forum to aid in prioritization: https://discuss.hail.is')
