@@ -1420,9 +1420,9 @@ def import_table(paths,
     def split_lines(row):
         split_array = row.text._split_line(delimiter, missing=missing, quote=quote, regex=len(delimiter) > 1)
         return hl.case().when(hl.len(split_array) == len(fields), split_array)\
-            .or_error(hl.str("error in number of fields found: in file ") + hl.str(row.file) +
-                      hl.str(f"\nexpected {len(fields)} {'fields' if len(fields) > 1 else 'field' }, found ") +
-                      hl.str(hl.len(split_array)) + hl.if_else(hl.len(split_array) > 1, hl.str(" fields"),
+            .or_error(hl.str("error in number of fields found: in file ") + hl.str(row.file)
+                      + hl.str(f"\nexpected {len(fields)} {'fields' if len(fields) > 1 else 'field' }, found ")
+                      + hl.str(hl.len(split_array)) + hl.if_else(hl.len(split_array) > 1, hl.str(" fields"),
                       hl.str(" field")) + hl.str("\nfor line consisting of '") + hl.str(row.text) + "'")
 
     def should_filter_line(hl_str):
@@ -1455,7 +1455,7 @@ def import_table(paths,
             from itertools import starmap
             print_changed_fields = list(starmap(lambda post, pre: f"{pre} -> {post}", changed_fields))
             hl.utils.warning(f"Found {len(changed_fields)} duplicate"
-                             f" {'row field' if len(changed_fields) is 1 else 'row fields'}. Changed row fields as "
+                             f" {'row field' if len(changed_fields) == 1 else 'row fields'}. Changed row fields as "
                              f"follows:\n" + "\n".join(print_changed_fields))
         return fields_to_check
 
@@ -1861,7 +1861,7 @@ def import_matrix_table(paths,
                 unique_fields[header_rowf] = True
             header_idx += 1
         if len(duplicates) > 0:
-            raise FatalError(f"Found following duplicate row fields in header:\n" + '\n'.join(duplicates))
+            raise FatalError("Found following duplicate row fields in header:\n" + '\n'.join(duplicates))
 
     def parse_entries(row):
         return hl.range(num_of_row_fields, len(header_dict['column_ids']) + num_of_row_fields).map(
@@ -1873,9 +1873,9 @@ def import_matrix_table(paths,
                 parse_type_or_error(rows_list[idx][1], row, idx) for idx in range(num_of_row_fields)}
 
     def error_msg(row, idx, msg):
-        return hl.str("in file ") + hl.str(format_file(row.file, True)) + \
-               hl.str(" on line ") + hl.str(row.row_id - get_file_start(row) + 1) + \
-               hl.str(" at value '") + hl.str(row.split_array[idx]) + hl.str("':\n") + hl.str(msg)
+        return (hl.str("in file ") + hl.str(format_file(row.file, True)) +
+                hl.str(" on line ") + hl.str(row.row_id - get_file_start(row) + 1) +
+                hl.str(" at value '") + hl.str(row.split_array[idx]) + hl.str("':\n") + hl.str(msg))
 
     def parse_type_or_error(hail_type, row, idx, not_entries=True):
         value = row.split_array[idx]
@@ -1891,11 +1891,10 @@ def import_matrix_table(paths,
             parsed_type = value
 
         if not_entries:
-            error_clarify_msg = hl.str(f" at row field '") + \
-                                hl.str(hl_row_fields[idx]) + hl.str("'")
+            error_clarify_msg = hl.str(" at row field '") + hl.str(hl_row_fields[idx]) + hl.str("'")
         else:
-            error_clarify_msg = hl.str(f" at column id '") + hl.str(hl_columns[idx - num_of_row_fields]) + \
-                                hl.str("' for entry field 'x' ")
+            error_clarify_msg = (hl.str(f" at column id '") + hl.str(hl_columns[idx - num_of_row_fields]) +
+                                 hl.str("' for entry field 'x' "))
 
         return hl.if_else(hl.is_missing(value), hl.missing(hail_type),
                           hl.case().when(~hl.is_missing(parsed_type), parsed_type)
@@ -1943,8 +1942,8 @@ def import_matrix_table(paths,
     ht = import_lines(paths, min_partitions, force_bgz=force_bgz).add_index(name='row_id')
     # for checking every header matches
     file_per_partition = import_lines(paths, force_bgz=force_bgz, file_per_partition=True)
-    file_per_partition = file_per_partition.filter(hl.bool(hl.len(file_per_partition.text) == 0) |
-                                                   comment_filter(file_per_partition), False)
+    file_per_partition = file_per_partition.filter(hl.bool(hl.len(file_per_partition.text) == 0)
+                                                   | comment_filter(file_per_partition), False)
     first_lines_table = file_per_partition._map_partitions(lambda rows: rows[:1])
     first_lines_table = first_lines_table.annotate(split_array=first_lines_table.text.split(delimiter)).add_index()
 
@@ -2001,10 +2000,10 @@ def import_matrix_table(paths,
                  for dup_field in duplicate_cols], key=lambda dup_values: dup_values[1])
 
             duplicates_to_print = truncate(duplicates_to_print)
-            duplicates_to_print_formatted = it.starmap(lambda dup, time_found: time_found +
-                                                                               " " + dup, duplicates_to_print)
-            ht.utils.warning(f"Found {len(duplicate_cols)} duplicate column id" +
-                             f"{'s' if len(duplicate_cols) > 1 else ''}\n" + '\n'.join(duplicates_to_print_formatted))
+            duplicates_to_print_formatted = it.starmap(lambda dup, time_found: time_found
+                                                       + " " + dup, duplicates_to_print)
+            ht.utils.warning(f"Found {len(duplicate_cols)} duplicate column id"
+                             + f"{'s' if len(duplicate_cols) > 1 else ''}\n" + '\n'.join(duplicates_to_print_formatted))
 
         def validate_all_headers():
             all_headers = first_lines_table.collect()
@@ -2023,11 +2022,10 @@ def import_matrix_table(paths,
                     else:
                         raise ValueError(f"invalid header: lengths of headers differ. \n"
                                          f"{len(header_dict['header_values'])} elements in "
-                                         f"{format_file(header_dict['path'])}:\n" +
-                                         truncate(["'{}'".format(value) for value in header_dict['header_values']]) +
-                                         f" {len(header.split_array)} elements "
-                                         f"in {format_file(header.file)}:\n" +
-                                         truncate(["'{}'".format(value) for value in header.split_array]))
+                                         f"{format_file(header_dict['path'])}:\n"
+                                         + truncate(["'{}'".format(value) for value in header_dict['header_values']])
+                                         + f" {len(header.split_array)} elements in {format_file(header.file)}:\n"
+                                         + truncate(["'{}'".format(value) for value in header.split_array]))
 
         header_dict = validate_header_get_info_dict()
         warn_if_duplicate_col_ids()
@@ -2066,9 +2064,10 @@ def import_matrix_table(paths,
                                          " unexpected end of line while reading row field")))
     ht = ht.annotate(split_array=hl.case().when(len(header_dict['column_ids']) <=
                                                 hl.len(ht.split_array[num_of_row_fields: num_of_row_fields +
-                                                                      len(header_dict['column_ids'])]), ht.split_array)
-                     .or_error(error_msg(ht, hl.len(ht.split_array) - 1,
-                                         " unexpected end of line while reading entries")))
+                                                                      + len(header_dict['column_ids'])]),
+                                                ht.split_array).or_error(error_msg(ht, hl.len(ht.split_array) - 1,
+                                                                                   " unexpected end of line"
+                                                                                   + " while reading entries")))
 
     ht = ht.annotate(**parse_rows(ht), entries=parse_entries(ht).map(lambda entry: hl.struct(x=entry)))\
         .drop('text', 'split_array', 'file')

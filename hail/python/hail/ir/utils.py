@@ -1,6 +1,7 @@
 from .ir import Coalesce, ApplyUnaryPrimOp, FalseIR
 import hail as hl
 
+
 def filter_predicate_with_keep(ir_pred, keep):
     return Coalesce(ir_pred if keep else ApplyUnaryPrimOp('!', ir_pred), FalseIR())
 
@@ -39,5 +40,3 @@ def parse_type(string_expr, ttype):
         return hl.parse_locus_interval(string_expr, ttype.point_type.reference_genome)
     else:
         return hl.parse_json(string_expr, ttype)
-
-
