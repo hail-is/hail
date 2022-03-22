@@ -267,7 +267,6 @@ class Tests(unittest.TestCase):
         self.assertAlmostEqual(stats.chi_sq, chi_sq)
 
     @fails_service_backend()
-    @fails_local_backend()
     def test_linear_mixed_model_function(self):
         n, f, m = 4, 2, 3
         y = np.array([0.0, 1.0, 8.0, 9.0])

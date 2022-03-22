@@ -1148,7 +1148,6 @@ Caused by: java.lang.AssertionError: assertion failed
         assert "missing value for 'coord_expr'" in str(cm.exception)
 
     @fails_service_backend()
-    @fails_local_backend()
     def test_write_overwrite(self):
         with hl.TemporaryDirectory(ensure_exists=False) as path:
             bm = BlockMatrix.from_numpy(np.array([[0]]))
