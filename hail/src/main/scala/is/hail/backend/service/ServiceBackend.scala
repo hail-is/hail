@@ -436,13 +436,15 @@ class ServiceBackend(
     path: String,
     quantPheno: Boolean,
     delimiter: String,
-    missing: String
+    missing: String,
+    flags: mutable.Map[String, String]
   ): String = serviceBackendExecuteContext(
     "ServiceBackend.importFam",
     tmpdir,
     sessionId,
     billingProject,
-    remoteTmpDir
+    remoteTmpDir,
+    flags
   ) { ctx =>
     LoadPlink.importFamJSON(ctx.fs, path, quantPheno, delimiter, missing)
   }
@@ -749,7 +751,7 @@ class ServiceBackendSocketAPI2(
         val delimiter = readString()
         val missing = readString()
         try {
-          val result = backend.importFam(tmpdir, sessionId, billingProject, remoteTmpDir, path, quantPheno, delimiter, missing)
+          val result = backend.importFam(tmpdir, sessionId, billingProject, remoteTmpDir, path, quantPheno, delimiter, missing, flags)
           writeBool(true)
           writeString(result)
         } catch {
