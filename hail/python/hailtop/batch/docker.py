@@ -65,10 +65,10 @@ def build_python_image(fullname: str,
 
         if requirements:
             python_requirements_file = f'{docker_path}/requirements.txt'
-            with open(python_requirements_file, 'w') as f:
+            with open(python_requirements_file, 'w', encoding='utf-8') as f:
                 f.write('\n'.join(requirements) + '\n')
 
-            with open(f'{docker_path}/Dockerfile', 'w') as f:
+            with open(f'{docker_path}/Dockerfile', 'w', encoding='utf-8') as f:
                 f.write(f'''
 FROM {base_image}
 

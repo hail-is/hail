@@ -25,7 +25,7 @@ from .py4j_backend import Py4JBackend, handle_java_exception
 from ..hail_logging import Logger
 
 if pyspark.__version__ < '3' and sys.version_info > (3, 8):
-    raise EnvironmentError('Hail with spark {} requires Python 3.6 or 3.7, found {}.{}'.format(
+    raise EnvironmentError('Hail with spark {} requires Python 3.7, found {}.{}'.format(
         pyspark.__version__, sys.version_info.major, sys.version_info.minor))
 
 _installed = False
@@ -122,6 +122,8 @@ class SparkBackend(Py4JBackend):
     def __init__(self, idempotent, sc, spark_conf, app_name, master,
                  local, log, quiet, append, min_block_size,
                  branching_factor, tmpdir, local_tmpdir, skip_logging_configuration, optimizer_iterations):
+        super(SparkBackend, self).__init__()
+
         if pkg_resources.resource_exists(__name__, "hail-all-spark.jar"):
             hail_jar_path = pkg_resources.resource_filename(__name__, "hail-all-spark.jar")
             assert os.path.exists(hail_jar_path), f'{hail_jar_path} does not exist'
@@ -133,14 +135,20 @@ class SparkBackend(Py4JBackend):
 
             jars = [hail_jar_path]
 
-            if os.environ.get('HAIL_SPARK_MONITOR'):
+            if os.environ.get('HAIL_SPARK_MONITOR') or os.environ.get('AZURE_SPARK') == '1':
                 import sparkmonitor
                 jars.append(os.path.join(os.path.dirname(sparkmonitor.__file__), 'listener.jar'))
                 conf.set("spark.extraListeners", "sparkmonitor.listener.JupyterSparkMonitorListener")
 
             conf.set('spark.jars', ','.join(jars))
-            conf.set('spark.driver.extraClassPath', ','.join(jars))
-            conf.set('spark.executor.extraClassPath', './hail-all-spark.jar')
+            if os.environ.get('AZURE_SPARK') == '1':
+                print('AZURE_SPARK environment variable is set to "1", assuming you are in HDInsight.')
+                # Setting extraClassPath in HDInsight overrides the classpath entirely so you can't
+                # load the Scala standard library. Interestingly, setting extraClassPath is not
+                # necessary in HDInsight.
+            else:
+                conf.set('spark.driver.extraClassPath', ','.join(jars))
+                conf.set('spark.executor.extraClassPath', './hail-all-spark.jar')
             if sc is None:
                 pyspark.SparkContext._ensure_initialized(conf=conf)
             elif not quiet:
@@ -148,8 +156,8 @@ class SparkBackend(Py4JBackend):
                     'pip-installed Hail requires additional configuration options in Spark referring\n'
                     '  to the path to the Hail Python module directory HAIL_DIR,\n'
                     '  e.g. /path/to/python/site-packages/hail:\n'
-                    '    spark.jars=HAIL_DIR/hail-all-spark.jar\n'
-                    '    spark.driver.extraClassPath=HAIL_DIR/hail-all-spark.jar\n'
+                    '    spark.jars=HAIL_DIR/backend/hail-all-spark.jar\n'
+                    '    spark.driver.extraClassPath=HAIL_DIR/backend/hail-all-spark.jar\n'
                     '    spark.executor.extraClassPath=./hail-all-spark.jar')
         else:
             pyspark.SparkContext._ensure_initialized()
@@ -313,39 +321,33 @@ class SparkBackend(Py4JBackend):
         return pyspark.sql.DataFrame(self._jbackend.pyToDF(self._to_java_table_ir(t._tir)),
                                      Env.spark_session()._wrapped)
 
-    def to_pandas(self, t, flatten):
-        return self.to_spark(t, flatten).toPandas()
-
-    def from_pandas(self, df, key):
-        return Table.from_spark(Env.spark_session().createDataFrame(df), key)
-
     def add_reference(self, config):
-        Env.hail().variant.ReferenceGenome.fromJSON(json.dumps(config))
+        self.hail_package().variant.ReferenceGenome.fromJSON(json.dumps(config))
 
     def load_references_from_dataset(self, path):
-        return json.loads(Env.hail().variant.ReferenceGenome.fromHailDataset(self.fs._jfs, path))
+        return json.loads(self.hail_package().variant.ReferenceGenome.fromHailDataset(self.fs._jfs, path))
 
     def from_fasta_file(self, name, fasta_file, index_file, x_contigs, y_contigs, mt_contigs, par):
         self._jbackend.pyFromFASTAFile(
             name, fasta_file, index_file, x_contigs, y_contigs, mt_contigs, par)
 
     def remove_reference(self, name):
-        Env.hail().variant.ReferenceGenome.removeReference(name)
+        self.hail_package().variant.ReferenceGenome.removeReference(name)
 
     def get_reference(self, name):
-        return json.loads(Env.hail().variant.ReferenceGenome.getReference(name).toJSONString())
+        return json.loads(self.hail_package().variant.ReferenceGenome.getReference(name).toJSONString())
 
     def add_sequence(self, name, fasta_file, index_file):
         self._jbackend.pyAddSequence(name, fasta_file, index_file)
 
     def remove_sequence(self, name):
-        scala_object(Env.hail().variant, 'ReferenceGenome').removeSequence(name)
+        scala_object(self.hail_package().variant, 'ReferenceGenome').removeSequence(name)
 
     def add_liftover(self, name, chain_file, dest_reference_genome):
         self._jbackend.pyReferenceAddLiftover(name, chain_file, dest_reference_genome)
 
     def remove_liftover(self, name, dest_reference_genome):
-        scala_object(Env.hail().variant, 'ReferenceGenome').referenceRemoveLiftover(
+        scala_object(self.hail_package().variant, 'ReferenceGenome').referenceRemoveLiftover(
             name, dest_reference_genome)
 
     def parse_vcf_metadata(self, path):
@@ -363,7 +365,7 @@ class SparkBackend(Py4JBackend):
         code = r(body._ir)
         jbody = (self._parse_value_ir(code, ref_map=dict(zip(argument_names, argument_types)), ir_map=r.jirs))
 
-        Env.hail().expr.ir.functions.IRFunctionRegistry.pyRegisterIR(
+        self.hail_package().expr.ir.functions.IRFunctionRegistry.pyRegisterIR(
             name,
             [ta._parsable_string() for ta in type_parameters],
             argument_names, [pt._parsable_string() for pt in argument_types],

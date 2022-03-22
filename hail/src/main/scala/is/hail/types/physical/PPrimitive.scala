@@ -31,16 +31,16 @@ trait PPrimitive extends PType {
 
   def store(cb: EmitCodeBuilder, region: Value[Region], value: SValue, deepCopy: Boolean): Value[Long] = {
     val newAddr = cb.memoize(region.allocate(alignment, byteSize))
-    storeAtAddress(cb, newAddr, region, value.get, deepCopy)
+    storeAtAddress(cb, newAddr, region, value, deepCopy)
     newAddr
   }
 
 
-  override def storeAtAddress(cb: EmitCodeBuilder, addr: Code[Long], region: Value[Region], value: SCode, deepCopy: Boolean): Unit = {
+  override def storeAtAddress(cb: EmitCodeBuilder, addr: Code[Long], region: Value[Region], value: SValue, deepCopy: Boolean): Unit = {
     storePrimitiveAtAddress(cb, addr, value)
   }
 
-  def storePrimitiveAtAddress(cb: EmitCodeBuilder, addr: Code[Long], value: SCode): Unit
+  def storePrimitiveAtAddress(cb: EmitCodeBuilder, addr: Code[Long], value: SValue): Unit
 
   def unstagedStoreJavaObject(annotation: Annotation, region: Region): Long = {
     val addr = region.allocate(this.byteSize)

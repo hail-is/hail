@@ -1,19 +1,18 @@
 package is.hail.asm4s
 
 import java.io._
+import java.nio.charset.StandardCharsets
 
-import is.hail.utils._
+import is.hail.expr.ir.EmitCodeBuilder
 import is.hail.lir
-
+import is.hail.utils._
 import org.apache.spark.TaskContext
-import org.objectweb.asm.tree._
-import org.objectweb.asm.Opcodes._
-import org.objectweb.asm.util.{Textifier, TraceClassVisitor}
 import org.objectweb.asm.ClassReader
+import org.objectweb.asm.Opcodes._
+import org.objectweb.asm.tree._
+import org.objectweb.asm.util.{Textifier, TraceClassVisitor}
 
 import scala.collection.mutable
-import scala.reflect.ClassTag
-import java.nio.charset.StandardCharsets
 
 class Field[T: TypeInfo](classBuilder: ClassBuilder[_], val name: String) {
   val ti: TypeInfo[T] = implicitly
@@ -56,13 +55,13 @@ class StaticField[T: TypeInfo](classBuilder: ClassBuilder[_], val name: String) 
 class ClassesBytes(classesBytes: Array[(String, Array[Byte])]) extends Serializable {
   @transient @volatile var loaded: Boolean = false
 
-  def load(): Unit = {
+  def load(hcl: HailClassLoader): Unit = {
     if (!loaded) {
       synchronized {
         if (!loaded) {
           classesBytes.foreach { case (n, bytes) =>
             try {
-              HailClassLoader.loadOrDefineClass(n, bytes)
+              hcl.loadOrDefineClass(n, bytes)
             } catch {
               case e: Exception =>
                 val buffer = new ByteArrayOutputStream()
@@ -96,7 +95,7 @@ trait WrappedModuleBuilder {
 
   def genClass[C](baseName: String)(implicit cti: TypeInfo[C]): ClassBuilder[C] = modb.genClass[C](baseName)
 
-  def classesBytes(print: Option[PrintWriter] = None): ClassesBytes = modb.classesBytes(print)
+  def classesBytes(writeIRs: Boolean, print: Option[PrintWriter] = None): ClassesBytes = modb.classesBytes(writeIRs, print)
 }
 
 class ModuleBuilder() {
@@ -144,12 +143,12 @@ class ModuleBuilder() {
 
   var classesBytes: ClassesBytes = _
 
-  def classesBytes(print: Option[PrintWriter] = None): ClassesBytes = {
+  def classesBytes(writeIRs: Boolean, print: Option[PrintWriter] = None): ClassesBytes = {
     if (classesBytes == null) {
       classesBytes = new ClassesBytes(
         classes
           .iterator
-          .flatMap(c => c.classBytes(print))
+          .flatMap(c => c.classBytes(writeIRs, print))
           .toArray)
 
     }
@@ -204,7 +203,7 @@ trait WrappedClassBuilder[C] extends WrappedModuleBuilder {
   )(body: MethodBuilder[C] => Unit): MethodBuilder[C] =
     cb.getOrGenMethod(baseName, key, argsInfo, returnInfo)(body)
 
-  def result(print: Option[PrintWriter] = None): () => C = cb.result(print)
+  def result(writeIRs: Boolean, print: Option[PrintWriter] = None): (HailClassLoader) => C = cb.result(writeIRs, print)
 
   def _this: Value[C] = cb._this
 
@@ -293,11 +292,12 @@ class ClassBuilder[C](
     val m = newMethod(name, parameterTypeInfo, returnTypeInfo)
     if (maybeGenericParameterTypeInfo.exists(_.isGeneric) || maybeGenericReturnTypeInfo.isGeneric) {
       val generic = newMethod(name, maybeGenericParameterTypeInfo.map(_.generic), maybeGenericReturnTypeInfo.generic)
-      generic.emit(
-        maybeGenericReturnTypeInfo.castToGeneric(
-          m.invoke(maybeGenericParameterTypeInfo.zipWithIndex.map { case (ti, i) =>
-            ti.castFromGeneric(generic.getArg(i + 1)(ti.generic).get)
-          }: _*)))
+      generic.emitWithBuilder { cb =>
+        maybeGenericReturnTypeInfo.castToGeneric(cb,
+          m.invoke(cb, maybeGenericParameterTypeInfo.zipWithIndex.map { case (ti, i) =>
+            ti.castFromGeneric(cb, generic.getArg(i + 1)(ti.generic))
+          }: _*))
+}
     }
     m
   }
@@ -334,7 +334,7 @@ class ClassBuilder[C](
     }
   }
 
-  def classBytes(print: Option[PrintWriter] = None): Array[(String, Array[Byte])] = {
+  def classBytes(writeIRs: Boolean, print: Option[PrintWriter] = None): Array[(String, Array[Byte])] = {
     assert(initBody.start != null)
     lInit.setEntry(initBody.start)
 
@@ -348,25 +348,25 @@ class ClassBuilder[C](
         lClinit.setEntry(nbody.start)
     }
 
-    lclass.asBytes(print)
+    lclass.asBytes(writeIRs, print)
   }
 
-  def result(print: Option[PrintWriter] = None): () => C = {
+  def result(writeIRs: Boolean, print: Option[PrintWriter] = None): (HailClassLoader) => C = {
     val n = className.replace("/", ".")
-    val classesBytes = modb.classesBytes()
+    val classesBytes = modb.classesBytes(writeIRs)
 
     assert(TaskContext.get() == null,
       "FunctionBuilder emission should happen on master, but happened on worker")
 
-    new (() => C) with java.io.Serializable {
+    new ((HailClassLoader) => C) with java.io.Serializable {
       @transient @volatile private var theClass: Class[_] = null
 
-      def apply(): C = {
+      def apply(hcl: HailClassLoader): C = {
         if (theClass == null) {
           this.synchronized {
             if (theClass == null) {
-              classesBytes.load()
-              theClass = loadClass(n)
+              classesBytes.load(hcl)
+              theClass = loadClass(hcl, n)
             }
           }
         }
@@ -471,7 +471,9 @@ trait WrappedMethodBuilder[C] extends WrappedClassBuilder[C] {
 
   def emit(body: Code[_]): Unit = mb.emit(body)
 
-  def invoke[T](args: Code[_]*): Code[T] = mb.invoke(args: _*)
+  def emitWithBuilder[T](f: (CodeBuilder) => Code[T]): Unit = mb.emitWithBuilder(f)
+
+  def invoke[T](cb: EmitCodeBuilder, args: Value[_]*): Value[T] = mb.invoke(cb, args: _*)
 }
 
 class MethodBuilder[C](
@@ -538,8 +540,8 @@ class MethodBuilder[C](
     body.clear()
   }
 
-  def invoke[T](args: Code[_]*): Code[T] = {
-    val (start, end, argvs) = Code.sequenceValues(args.toFastIndexedSeq)
+  def invokeCode[T](args: Value[_]*): Code[T] = {
+    val (start, end, argvs) = Code.sequenceValues(args.toFastIndexedSeq.map(_.get))
     if (returnTypeInfo eq UnitInfo) {
       if (isStatic) {
         end.append(lir.methodStmt(INVOKESTATIC, lmethod, argvs))
@@ -557,6 +559,29 @@ class MethodBuilder[C](
           lir.load(new lir.Parameter(null, 0, cb.ti)) +: argvs)
       }
       new VCode(start, end, value)
+    }
+  }
+
+  def invoke[T](codeBuilder: CodeBuilderLike, args: Value[_]*): Value[T] = {
+    val (start, end, argvs) = Code.sequenceValues(args.toFastIndexedSeq.map(_.get))
+    if (returnTypeInfo eq UnitInfo) {
+      if (isStatic) {
+        end.append(lir.methodStmt(INVOKESTATIC, lmethod, argvs))
+      } else {
+        end.append(
+          lir.methodStmt(INVOKEVIRTUAL, lmethod,
+            lir.load(new lir.Parameter(null, 0, cb.ti)) +: argvs))
+      }
+      codeBuilder.append(new VCode(start, end, null))
+      coerce[T](Code._empty)
+    } else {
+      val value = if (isStatic) {
+        lir.methodInsn(INVOKESTATIC, lmethod, argvs)
+      } else {
+        lir.methodInsn(INVOKEVIRTUAL, lmethod,
+          lir.load(new lir.Parameter(null, 0, cb.ti)) +: argvs)
+      }
+      coerce[T](codeBuilder.memoizeAny(new VCode(start, end, value), returnTypeInfo))
     }
   }
 }

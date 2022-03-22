@@ -1,5 +1,5 @@
-import string
 import secrets
+import string
 
 
 def generate_token(size=12):

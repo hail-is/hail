@@ -376,18 +376,6 @@ class BlockMatrixRandom(BlockMatrixIR):
         self._type = tblockmatrix(hl.tfloat64, tensor_shape, is_row_vector, self.block_size)
 
 
-class JavaBlockMatrix(BlockMatrixIR):
-    def __init__(self, jbm):
-        super().__init__()
-        self.jir = Env.hail().expr.ir.BlockMatrixLiteral(jbm)
-
-    def render_head(self, r):
-        return f'(JavaBlockMatrix {r.add_jir(self.jir)}'
-
-    def _compute_type(self):
-        self._type = tblockmatrix._from_java(self.jir.typ())
-
-
 def tensor_shape_to_matrix_shape(bmir):
     shape = bmir.typ.shape
     is_row_vector = bmir.typ.is_row_vector

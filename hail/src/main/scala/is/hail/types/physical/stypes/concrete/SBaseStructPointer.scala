@@ -3,7 +3,8 @@ package is.hail.types.physical.stypes.concrete
 import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.expr.ir.{EmitCodeBuilder, IEmitCode}
-import is.hail.types.physical.stypes.interfaces.{SBaseStruct, SBaseStructCode, SBaseStructSettable, SBaseStructValue}
+import is.hail.types.physical.stypes.interfaces.{SBaseStruct, SBaseStructSettable, SBaseStructValue}
+import is.hail.types.physical.stypes.primitives.SInt64Value
 import is.hail.types.physical.stypes.{EmitType, SCode, SType, SValue}
 import is.hail.types.physical.{PBaseStruct, PType}
 import is.hail.types.virtual.{TBaseStruct, Type}
@@ -55,18 +56,16 @@ class SBaseStructPointerValue(
 ) extends SBaseStructValue {
   val pt: PBaseStruct = st.pType
 
-  override def get: SBaseStructPointerCode = new SBaseStructPointerCode(st, a)
-
   override lazy val valueTuple: IndexedSeq[Value[_]] = FastIndexedSeq(a)
 
   override def loadField(cb: EmitCodeBuilder, fieldIdx: Int): IEmitCode = {
     IEmitCode(cb,
-      pt.isFieldMissing(a, fieldIdx),
+      pt.isFieldMissing(cb, a, fieldIdx),
       pt.fields(fieldIdx).typ.loadCheapSCode(cb, pt.loadField(a, fieldIdx)))
   }
 
-  override def isFieldMissing(fieldIdx: Int): Code[Boolean] = {
-    pt.isFieldMissing(a, fieldIdx)
+  override def isFieldMissing(cb: EmitCodeBuilder, fieldIdx: Int): Value[Boolean] = {
+    pt.isFieldMissing(cb, a, fieldIdx)
   }
 }
 
@@ -82,23 +81,7 @@ final class SBaseStructPointerSettable(
 ) extends SBaseStructPointerValue(st, a) with SBaseStructSettable {
   override def settableTuple(): IndexedSeq[Settable[_]] = FastIndexedSeq(a)
 
-  override def store(cb: EmitCodeBuilder, pv: SCode): Unit = {
-    cb.assign(a, pv.asInstanceOf[SBaseStructPointerCode].a)
+  override def store(cb: EmitCodeBuilder, v: SValue): Unit = {
+    cb.assign(a, v.asInstanceOf[SBaseStructPointerValue].a)
   }
-}
-
-class SBaseStructPointerCode(val st: SBaseStructPointer, val a: Code[Long]) extends SBaseStructCode {
-  val pt: PBaseStruct = st.pType
-
-  def code: Code[_] = a
-
-  def memoize(cb: EmitCodeBuilder, name: String, sb: SettableBuilder): SBaseStructPointerValue = {
-    val s = SBaseStructPointerSettable(sb, st, name)
-    cb.assign(s, this)
-    s
-  }
-
-  def memoize(cb: EmitCodeBuilder, name: String): SBaseStructPointerValue = memoize(cb, name, cb.localBuilder)
-
-  def memoizeField(cb: EmitCodeBuilder, name: String): SBaseStructPointerValue = memoize(cb, name, cb.fieldBuilder)
 }

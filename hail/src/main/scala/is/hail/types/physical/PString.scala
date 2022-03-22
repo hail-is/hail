@@ -1,10 +1,8 @@
 package is.hail.types.physical
 
+import is.hail.annotations._
 import is.hail.asm4s._
-import is.hail.annotations.{UnsafeOrdering, _}
-import is.hail.expr.ir.orderings.{CodeOrdering, CodeOrderingCompareConsistentWithOthers}
-import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder}
-import is.hail.types.physical.stypes.interfaces.{SStringCode, SStringValue}
+import is.hail.expr.ir.EmitCodeBuilder
 import is.hail.types.virtual.TString
 
 abstract class PString extends PType {

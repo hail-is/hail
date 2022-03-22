@@ -36,6 +36,7 @@ trait FileStatus {
   def getModificationTime: java.lang.Long
   def getLen: Long
   def isDirectory: Boolean
+  def isSymlink: Boolean
   def isFile: Boolean
   def getOwner: String
 }
@@ -312,6 +313,17 @@ trait FS extends Serializable {
         delete(fileStatus.getPath.toString, recursive = true)
       }
     }
+  }
+
+  def concatenateFiles(sourceNames: Array[String], destFilename: String): Unit = {
+    val fileStatuses = sourceNames.map(fileStatus(_))
+
+    info(s"merging ${ fileStatuses.length } files totalling " +
+      s"${ readableBytes(fileStatuses.map(_.getLen).sum) }...")
+
+    val (_, timing) = time(copyMergeList(fileStatuses, destFilename, deleteSource = false))
+
+    info(s"while writing:\n    $destFilename\n  merge time: ${ formatTime(timing) }")
   }
 
   def touch(filename: String): Unit = {

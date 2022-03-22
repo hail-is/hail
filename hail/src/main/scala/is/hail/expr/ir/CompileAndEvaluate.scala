@@ -2,6 +2,7 @@ package is.hail.expr.ir
 
 import is.hail.annotations.{Region, SafeRow}
 import is.hail.asm4s._
+import is.hail.backend.ExecuteContext
 import is.hail.expr.ir.lowering.LoweringPipeline
 import is.hail.types.physical.PTuple
 import is.hail.types.physical.stypes.PTypeReferenceSingleCodeType
@@ -52,7 +53,7 @@ object CompileAndEvaluate {
         ir,
         print = None, optimize = optimize))
 
-      val fRunnable = ctx.timer.time("InitializeCompiledFunction")(f(ctx.fs, 0, ctx.r))
+      val fRunnable = ctx.timer.time("InitializeCompiledFunction")(f(ctx.theHailClassLoader, ctx.fs, 0, ctx.r))
       ctx.timer.time("RunCompiledVoidFunction")(fRunnable(ctx.r))
       return Left(())
     }
@@ -63,7 +64,7 @@ object CompileAndEvaluate {
       MakeTuple.ordered(FastSeq(ir)),
       print = None, optimize = optimize))
 
-    val fRunnable = ctx.timer.time("InitializeCompiledFunction")(f(ctx.fs, 0, ctx.r))
+    val fRunnable = ctx.timer.time("InitializeCompiledFunction")(f(ctx.theHailClassLoader, ctx.fs, 0, ctx.r))
     val resultAddress = ctx.timer.time("RunCompiledFunction")(fRunnable(ctx.r))
 
     Right((resType, resultAddress))

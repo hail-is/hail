@@ -41,8 +41,8 @@ LIMIT 1;
         start_job_id = bunch_record['start_job_id']
         return (token, start_job_id)
 
-    def __init__(self, log_store, batch_id):
-        self.log_store = log_store
+    def __init__(self, file_store, batch_id):
+        self.file_store = file_store
         self.batch_id = batch_id
         self.token = secret_alnum_string(16)
 
@@ -63,7 +63,7 @@ LIMIT 1;
         end = len(self._data_bytes)
         self._offsets_bytes.extend(end.to_bytes(8, byteorder=SpecWriter.byteorder, signed=SpecWriter.signed))
 
-        await self.log_store.write_spec_file(
+        await self.file_store.write_spec_file(
             self.batch_id, self.token, bytes(self._data_bytes), bytes(self._offsets_bytes)
         )
         return self.token

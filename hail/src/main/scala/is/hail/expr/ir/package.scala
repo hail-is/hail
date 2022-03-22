@@ -217,19 +217,28 @@ package object ir {
     AggExplode(v, r.name, body(r), isScan)
   }
 
+  def aggFoldIR(zero: IR, element: IR)(seqOp: (Ref, IR) => IR)(combOp: (Ref, Ref) => IR) : AggFold = {
+    val accum1 = Ref(genUID(), zero.typ)
+    val accum2 = Ref(genUID(), zero.typ)
+    AggFold(zero, seqOp(accum1, element), combOp(accum1, accum2), accum1.name, accum2.name, false)
+  }
+
+  def cdaIR(contexts: IR, globals: IR)(body: (Ref, Ref) => IR): CollectDistributedArray = {
+    val contextRef = Ref(genUID(), contexts.typ.asInstanceOf[TStream].elementType)
+    val globalRef = Ref(genUID(), globals.typ)
+
+    CollectDistributedArray(contexts, globals, contextRef.name, globalRef.name, body(contextRef, globalRef), None)
+  }
+
   implicit def toRichIndexedSeqEmitSettable(s: IndexedSeq[EmitSettable]): RichIndexedSeqEmitSettable = new RichIndexedSeqEmitSettable(s)
 
   implicit def emitValueToCode(ev: EmitValue): EmitCode = ev.load
 
   implicit def toCodeParamType(ti: TypeInfo[_]): CodeParamType = CodeParamType(ti)
 
-  implicit def toCodeParam(c: Code[_]): CodeParam = CodeParam(c)
+  implicit def toCodeParam(c: Value[_]): CodeParam = CodeParam(c)
 
-  implicit def valueToCodeParam(v: Value[_]): CodeParam = CodeParam(v)
-
-  implicit def sCodeToSCodeParam(sc: SCode): SCodeParam = SCodeParam(sc)
-
-  implicit def sValueToSCodeParam(sv: SValue): SCodeParam = SCodeParam(sv.get)
+  implicit def sValueToSCodeParam(sv: SValue): SCodeParam = SCodeParam(sv)
 
   implicit def toEmitParam(ec: EmitCode): EmitParam = EmitParam(ec)
 

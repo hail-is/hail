@@ -11,7 +11,8 @@
     <div class="attributes">
       <div>batch: <a href="{{ base_path }}/batches/{{ batch['id'] }}">{{ batch['id'] }}</a></div>
       <div>artifacts:
-	<a  target="_blank" href="https://console.cloud.google.com/storage/browser{{ artifacts }}">gs:/{{ artifacts }}</a><i class="material-icons text-icon">open_in_new</i>
+        <a  target="_blank" href="{{ artifacts_url }}">{{ artifacts_uri }}</a>
+        <i class="material-icons text-icon">open_in_new</i>
       </div>
       <div>cost: {{ batch['cost'] }}</div>
       {% for name, value in batch['attributes'].items() %}

@@ -5,8 +5,9 @@ import is.hail.linalg.BlockMatrix
 import is.hail.linalg.BlockMatrix.ops._
 import is.hail.utils._
 import is.hail.HailContext
+import is.hail.backend.ExecuteContext
 import is.hail.expr.ir.functions.BlockMatrixToTableFunction
-import is.hail.expr.ir.{ExecuteContext, TableValue}
+import is.hail.expr.ir.TableValue
 import is.hail.types.{BlockMatrixType, TableType}
 import is.hail.types.virtual._
 import org.apache.spark.storage.StorageLevel

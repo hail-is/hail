@@ -10,10 +10,11 @@ import sys
 from hailtop.utils import secret_alnum_string, partition
 import hailtop.batch_client.aioclient as low_level_batch_client
 from hailtop.batch_client.parse import parse_cpu_in_mcpu
+from hailtop.aiotools.router_fs import RouterAsyncFS
 
 from .batch import Batch
 from .backend import ServiceBackend
-from ..google_storage import GCS
+
 
 if sys.version_info < (3, 7):
     def create_task(coro, *, name=None):  # pylint: disable=unused-argument
@@ -92,7 +93,7 @@ class BatchPoolExecutor:
         Backend used to execute the jobs. Must be a :class:`.ServiceBackend`.
     image:
         The name of a Docker image used for each submitted job. The image must
-        include Python 3.6 or later and must have the ``dill`` Python package
+        include Python 3.7 or later and must have the ``dill`` Python package
         installed. If you intend to use ``numpy``, ensure that OpenBLAS is also
         installed. If unspecified, an image with a matching Python verison and
         ``numpy``, ``scipy``, and ``sklearn`` installed is used.
@@ -131,8 +132,7 @@ class BatchPoolExecutor:
         self.directory = self.backend.remote_tmpdir + f'batch-pool-executor/{self.name}/'
         self.inputs = self.directory + 'inputs/'
         self.outputs = self.directory + 'outputs/'
-        self.gcs = GCS(blocking_pool=concurrent.futures.ThreadPoolExecutor(),
-                       project=project)
+        self.fs = RouterAsyncFS('file', gcs_kwargs={'project': project})
         self.futures: List[BatchPoolFuture] = []
         self.finished_future_count = 0
         self._shutdown = False
@@ -230,6 +230,9 @@ class BatchPoolExecutor:
                         timeout: Optional[Union[int, float]] = None,
                         chunksize: int = 1):
         """Aysncio compatible version of :meth:`.map`."""
+        if not iterables:
+            return iter([])
+
         if chunksize > 1:
             list_per_argument = [list(x) for x in iterables]
             n = len(list_per_argument[0])
@@ -241,38 +244,24 @@ class BatchPoolExecutor:
             fn = chunk(fn)
             iterables = iterables_chunks
 
-        tasks = [asyncio.create_task(self.async_submit(fn, *arguments))
-                 for arguments in zip(*iterables)]
-
+        submit_tasks = [asyncio.ensure_future(self.async_submit(fn, *arguments))
+                        for arguments in zip(*iterables)]
         try:
-            bp_futures: List[BatchPoolFuture] = await asyncio.gather(*tasks)
-        finally:
-            _, exc, _ = sys.exc_info()
-            if exc is not None:
-                for task in tasks:
-                    if not task.done():
-                        task.cancel()
-
-                if tasks:
-                    await asyncio.wait(tasks)
-
-                bp_futures = []
-                for task in tasks:
-                    assert task.done()
-                    if not task.cancelled() and not task.exception():
-                        bp_future = task.result()
-                        bp_futures.append(bp_future)
-
-                if bp_futures:
-                    await asyncio.gather(*[bp_fut.async_cancel() for bp_fut in bp_futures], return_exceptions=True)
+            bp_futures = [await t for t in submit_tasks]
+        except:
+            for t in submit_tasks:
+                if t.done() and not t.exception():
+                    await t.result().async_cancel()
+                elif not t.done():
+                    t.cancel()
+            raise
 
         async def async_result_or_cancel_all(future):
             try:
                 return await future.async_result(timeout=timeout)
-            except Exception as err:
-                if bp_futures:
-                    await asyncio.gather(*[bp_fut.async_cancel() for bp_fut in bp_futures], return_exceptions=True)
-                raise err
+            except:
+                await asyncio.gather(*[bp_fut.async_cancel() for bp_fut in bp_futures], return_exceptions=True)
+                raise
 
         if chunksize > 1:
             return (val
@@ -365,9 +354,9 @@ class BatchPoolExecutor:
         pipe = BytesIO()
         dill.dump(functools.partial(unapplied, *args, **kwargs), pipe, recurse=True)
         pipe.seek(0)
-        pickledfun_gcs = self.inputs + f'{name}/pickledfun'
-        await self.gcs.write_gs_file_from_file_like_object(pickledfun_gcs, pipe)
-        pickledfun_local = batch.read_input(pickledfun_gcs)
+        pickledfun_remote = self.inputs + f'{name}/pickledfun'
+        await self.fs.write(pickledfun_remote, pipe.getvalue())
+        pickledfun_local = batch.read_input(pickledfun_remote)
 
         thread_limit = "1"
         if self.cpus_per_job:
@@ -397,12 +386,15 @@ with open(\\"{j.ofile}\\", \\"wb\\") as out:
         batch.write_output(j.ofile, output_gcs)
         backend_batch = batch.run(wait=False,
                                   disable_progress_bar=True)._async_batch
-
-        return BatchPoolFuture(self,
-                               backend_batch,
-                               low_level_batch_client.Job.submitted_job(
-                                   backend_batch, 1),
-                               output_gcs)
+        try:
+            return BatchPoolFuture(self,
+                                   backend_batch,
+                                   low_level_batch_client.Job.submitted_job(
+                                       backend_batch, 1),
+                                   output_gcs)
+        except:
+            await backend_batch.cancel()
+            raise
 
     def __exit__(self,
                  exc_type: Optional[Type[BaseException]],
@@ -416,7 +408,7 @@ with open(\\"{j.ofile}\\", \\"wb\\") as out:
     def _finish_future(self):
         self.finished_future_count += 1
         if self._shutdown and self.finished_future_count == len(self.futures):
-            self._cleanup(False)
+            self._cleanup()
 
     def shutdown(self, wait: bool = True):
         """Allow temporary resources to be cleaned up.
@@ -440,14 +432,13 @@ with open(\\"{j.ofile}\\", \\"wb\\") as out:
             async_to_blocking(
                 asyncio.gather(*[ignore_exceptions(f) for f in self.futures]))
         if self.finished_future_count == len(self.futures):
-            self._cleanup(False)
+            self._cleanup()
         self._shutdown = True
 
-    def _cleanup(self, wait):
+    def _cleanup(self):
         if self.cleanup_bucket:
-            async_to_blocking(
-                self.gcs.delete_gs_files(self.directory))
-        self.gcs.shutdown(wait)
+            async_to_blocking(self.fs.rmtree(None, self.directory))
+        async_to_blocking(self.fs.close())
         self.backend.close()
 
 
@@ -456,11 +447,11 @@ class BatchPoolFuture:
                  executor: BatchPoolExecutor,
                  batch: low_level_batch_client.Batch,
                  job: low_level_batch_client.Job,
-                 output_gcs: str):
+                 output_file: str):
         self.executor = executor
         self.batch = batch
         self.job = job
-        self.output_gcs = output_gcs
+        self.output_file = output_file
         self.fetch_coro = asyncio.ensure_future(self._async_fetch_result())
         executor._add_future(self)
 
@@ -522,10 +513,7 @@ class BatchPoolFuture:
         timeout:
             Wait this long before raising a timeout error.
         """
-        try:
-            return async_to_blocking(self.async_result(timeout))
-        except asyncio.TimeoutError as e:
-            raise concurrent.futures.TimeoutError() from e
+        return async_to_blocking(self.async_result(timeout))
 
     async def async_result(self, timeout: Optional[Union[float, int]] = None):
         """Asynchronously wait until the job is complete.
@@ -543,10 +531,7 @@ class BatchPoolFuture:
         """
         if self.cancelled():
             raise concurrent.futures.CancelledError()
-        try:
-            return await asyncio.wait_for(asyncio.shield(self.fetch_coro), timeout=timeout)
-        except asyncio.TimeoutError as e:
-            raise concurrent.futures.TimeoutError() from e
+        return await asyncio.wait_for(asyncio.shield(self.fetch_coro), timeout=timeout)
 
     async def _async_fetch_result(self):
         try:
@@ -555,8 +540,13 @@ class BatchPoolFuture:
             if main_container_status['state'] == 'error':
                 raise ValueError(
                     f"submitted job failed:\n{main_container_status['error']}")
-            value, traceback = dill.loads(
-                await self.executor.gcs.read_binary_gs_file(self.output_gcs))
+            try:
+                value, traceback = dill.loads(
+                    await self.executor.fs.read(self.output_file))
+            except FileNotFoundError as exc:
+                job_log = await self.job.log()
+                raise ValueError(
+                    f"submitted job did not write output:\n{main_container_status}\n\nLog:\n{job_log}") from exc
             if traceback is None:
                 return value
             assert isinstance(value, BaseException)

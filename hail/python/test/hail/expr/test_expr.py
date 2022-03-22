@@ -14,6 +14,28 @@ setUpModule = startTestHailContext
 tearDownModule = stopTestHailContext
 
 
+def _test_many_equal(test_cases):
+    expressions = [t[0] for t in test_cases]
+    actuals = hl.eval(hl.tuple(expressions))
+    expecteds = [t[1] for t in test_cases]
+    for actual, expected in zip(actuals, expecteds):
+        if actual != expected:
+            raise ValueError(f'  actual: {actual}\n  expected: {expected}')
+
+
+def _test_many_equal_typed(test_cases):
+    expressions = [t[0] for t in test_cases]
+    actuals, actual_type = hl.eval_typed(hl.tuple(expressions))
+    assert isinstance(actual_type, hl.ttuple)
+    expecteds = [t[1] for t in test_cases]
+    expected_types = [t[2] for t in test_cases]
+    for expression, actual, expected, actual_type, expected_type in zip(
+            expressions, actuals, expecteds, actual_type.types, expected_types):
+        assert expression.dtype == expected_type, (expression.dtype, expected_type)
+        assert actual_type == expected_type, (actual_type, expected_type)
+        assert actual == expected, (actual, expected)
+
+
 class Tests(unittest.TestCase):
     def collect_unindexed_expression(self):
         self.assertEqual(hl.array([4,1,2,3]).collect(), [4,1,2,3])
@@ -42,6 +64,7 @@ class Tests(unittest.TestCase):
         test_random_function(lambda: hl.rand_cat(hl.array([1, 1, 1, 1])))
         test_random_function(lambda: hl.rand_dirichlet(hl.array([1, 1, 1, 1])))
 
+    @fails_service_backend(reason='need to convert errors to HailUserError')
     def test_range(self):
         def same_as_python(*args):
             self.assertEqual(hl.eval(hl.range(*args)), list(range(*args)))
@@ -176,6 +199,7 @@ class Tests(unittest.TestCase):
             else:
                 self.assertEqual(v, result[k], msg=k)
 
+    @fails_service_backend(reason='need to convert errors to HailUserError')
     def test_array_slicing(self):
         schema = hl.tstruct(a=hl.tarray(hl.tint32))
         rows = [{'a': [1, 2, 3, 4, 5]}]
@@ -243,6 +267,7 @@ class Tests(unittest.TestCase):
 
         self.assertDictEqual(result, expected)
 
+    @fails_service_backend(reason='need to convert errors to HailUserError')
     def test_dict_missing_error(self):
         d = hl.dict({'a': 2, 'b': 3})
         with pytest.raises(hl.utils.HailUserError, match='Key NA not found in dictionary'):
@@ -372,6 +397,30 @@ class Tests(unittest.TestCase):
         self.assertEqual(hl.eval(hl.if_else(hl.missing(hl.tbool), 1, 2)), None)
         self.assertEqual(hl.eval(hl.if_else(hl.missing(hl.tbool), 1, 2, missing_false=True)), 2)
 
+    @skip_when_service_backend('''intermittent worker failure:
+>       self.assertEqual(table.aggregate(hl.agg.filter(True, hl.agg.array_sum(a))), [10, 20])
+
+Caused by: java.net.URISyntaxException: Illegal character in path at index 0: a8d523b8-d587-4ba9-aa46-2839dd6d8e3b
+	at java.net.URI$Parser.fail(URI.java:2847)
+	at java.net.URI$Parser.checkChars(URI.java:3020)
+	at java.net.URI$Parser.parseHierarchical(URI.java:3104)
+	at java.net.URI$Parser.parse(URI.java:3062)
+	at java.net.URI.<init>(URI.java:588)
+	at is.hail.io.fs.GoogleStorageFS$.getBucketPath(GoogleStorageFS.scala:41)
+	at is.hail.io.fs.GoogleStorageFS.createNoCompression(GoogleStorageFS.scala:197)
+	at is.hail.io.fs.FS.create(FS.scala:154)
+	at is.hail.io.fs.FS.create$(FS.scala:153)
+	at is.hail.io.fs.GoogleStorageFS.create(GoogleStorageFS.scala:101)
+	at __C42collect_distributed_array.applyregion12_37(Unknown Source)
+	at __C42collect_distributed_array.apply(Unknown Source)
+	at __C42collect_distributed_array.apply(Unknown Source)
+	at is.hail.backend.BackendUtils.$anonfun$collectDArray$2(BackendUtils.scala:31)
+	at is.hail.utils.package$.using(package.scala:627)
+	at is.hail.annotations.RegionPool.scopedRegion(RegionPool.scala:144)
+	at is.hail.backend.BackendUtils.$anonfun$collectDArray$1(BackendUtils.scala:30)
+	at is.hail.backend.service.Worker$.main(Worker.scala:120)
+	at is.hail.backend.service.Worker.main(Worker.scala)
+	... 12 more''')
     def test_aggregators(self):
         table = hl.utils.range_table(10)
         r = table.aggregate(hl.struct(x=hl.agg.count(),
@@ -482,7 +531,87 @@ class Tests(unittest.TestCase):
         expected = {'rabbit': 0.0, 'cat': 2.0, 'dog': 3.0, None: 3.0}
         assert actual == expected
 
+    def test_aggfold_agg(self):
+        ht = hl.utils.range_table(100, 5)
+        self.assertEqual(ht.aggregate(hl.agg.fold(0, lambda x: x + ht.idx, lambda a, b: a + b)), 4950)
 
+        ht = ht.annotate(s=hl.struct(x=ht.idx, y=ht.idx + 1))
+        sum_and_product = (ht.aggregate(
+            hl.agg.fold(
+                hl.struct(x=0, y=1.0),
+                lambda accum: hl.struct(x=accum.x + ht.s.x, y=accum.y * ht.s.y),
+                lambda a, b: hl.struct(x=a.x + b.x, y=a.y * b.y))))
+        self.assertEqual(sum_and_product, hl.Struct(x=4950, y=9.332621544394414e+157))
+
+        ht = ht.annotate(maybe=hl.if_else(ht.idx % 2 == 0, ht.idx, hl.missing(hl.tint32)))
+        sum_evens_missing = ht.aggregate(hl.agg.fold(0, lambda x: x + ht.maybe, lambda a, b: a + b))
+        assert sum_evens_missing is None
+        sum_evens_only = ht.aggregate(hl.agg.fold(0, lambda x: x + hl.coalesce(ht.maybe, 0), lambda a, b: hl.coalesce(a + b, a, b)))
+        self.assertEqual(sum_evens_only, 2450)
+
+        #Testing types work out
+        sum_float64 = ht.aggregate(hl.agg.fold(hl.int32(0), lambda acc: acc + hl.float32(ht.idx), lambda acc1, acc2: hl.float64(acc1) + hl.float64(acc2)))
+        self.assertEqual(sum_float64, 4950.0)
+
+        ht = ht.annotate_globals(foo=7)
+        with pytest.raises(hl.utils.java.HailUserError) as exc:
+            ht.aggregate(hl.agg.fold(0, lambda x: x + ht.idx, lambda a, b: a + b + ht.foo))
+        assert "comb_op function of fold cannot reference any fields" in str(exc.value)
+
+        mt = hl.utils.range_matrix_table(100, 10)
+        self.assertEqual(mt.aggregate_rows(hl.agg.fold(0, lambda a: a + mt.row_idx, lambda a, b: a + b)), 4950)
+        self.assertEqual(mt.aggregate_cols(hl.agg.fold(0, lambda a: a + mt.col_idx, lambda a, b: a + b)), 45)
+
+    def test_aggfold_scan(self):
+        ht = hl.utils.range_table(15, 5)
+        ht = ht.annotate(s=hl.scan.fold(0, lambda a: a + ht.idx, lambda a, b: a + b), )
+        self.assertEqual(ht.s.collect(), [0, 0, 1, 3, 6, 10, 15, 21, 28, 36, 45, 55, 66, 78, 91])
+
+        mt = hl.utils.range_matrix_table(15, 10, 5)
+        mt = mt.annotate_rows(s=hl.scan.fold(0, lambda a: a + mt.row_idx, lambda a, b: a + b))
+        mt = mt.annotate_rows(x=hl.scan.fold(0, lambda s: s + 1, lambda a, b: a + b))
+        self.assertEqual(mt.s.collect(), [0, 0, 1, 3, 6, 10, 15, 21, 28, 36, 45, 55, 66, 78, 91])
+        self.assertEqual(mt.rows().collect(),
+                         [hl.Struct(row_idx=0, s=0, x=0), hl.Struct(row_idx=1, s=0, x=1), hl.Struct(row_idx=2, s=1, x=2),
+                          hl.Struct(row_idx=3, s=3, x=3), hl.Struct(row_idx=4, s=6, x=4), hl.Struct(row_idx=5, s=10, x=5),
+                          hl.Struct(row_idx=6, s=15, x=6), hl.Struct(row_idx=7, s=21, x=7), hl.Struct(row_idx=8, s=28, x=8),
+                          hl.Struct(row_idx=9, s=36, x=9), hl.Struct(row_idx=10, s=45, x=10), hl.Struct(row_idx=11, s=55, x=11),
+                          hl.Struct(row_idx=12, s=66, x=12), hl.Struct(row_idx=13, s=78, x=13), hl.Struct(row_idx=14, s=91, x=14)])
+
+    @skip_when_service_backend('''intermittent failure on worker node:
+{"@version":1,"@timestamp":"2021-08-09 21:30:08,696","message":"request GET http://internal.hail/dking/memory/api/v1alpha/objects?q=gs%3A%2F%2Fdanking%2Ftmp%2Fhail%2Fquery%2FVbzVI33tfBknUXx5BqIX3reTS30M6FJaDvSXV6BOGcg%3D%2Ff response 200","filename":"Requester.scala","line_number":"71","class":"is.hail.services.Requester","method":"$anonfun$requestWithHandler$2","logger_name":"Requester","mdc":{},"ndc":null,"severity":"INFO","thread_name":"pool-3-thread-2"}
+{"@version":1,"@timestamp":"2021-08-09 21:30:08,696","message":"request GET http://internal.hail/dking/memory/api/v1alpha/objects?q=gs%3A%2F%2Fdanking%2Ftmp%2Fhail%2Fquery%2FVbzVI33tfBknUXx5BqIX3reTS30M6FJaDvSXV6BOGcg%3D%2Fcontexts response 200","filename":"Requester.scala","line_number":"71","class":"is.hail.services.Requester","method":"$anonfun$requestWithHandler$2","logger_name":"Requester","mdc":{},"ndc":null,"severity":"INFO","thread_name":"pool-3-thread-1"}
+{"@version":1,"@timestamp":"2021-08-09 21:30:08,699","message":"readInputs took 431.583961 ms.","filename":"Worker.scala","line_number":"42","class":"is.hail.backend.service.WorkerTimer","method":"$anonfun$end$1","logger_name":"is.hail.backend.service.WorkerTimer$","mdc":{},"ndc":null,"severity":"INFO","thread_name":"pool-1-thread-1"}
+{"@version":1,"@timestamp":"2021-08-09 21:30:08,699","message":"RegionPool: initialized for thread 18: pool-1-thread-1","filename":"RegionPool.scala","line_number":"21","class":"is.hail.annotations.RegionPool","method":"<init>","logger_name":"root","mdc":{},"ndc":null,"severity":"INFO","thread_name":"pool-1-thread-1"}
+#
+# A fatal error has been detected by the Java Runtime Environment:
+#
+#  SIGSEGV (0xb) at pc=0x00007fa915b4f862, pid=1596, tid=0x00007fa89e78e700
+#
+# JRE version: OpenJDK Runtime Environment (8.0_292-b10) (build 1.8.0_292-8u292-b10-0ubuntu1~20.04-b10)
+# Java VM: OpenJDK 64-Bit Server VM (25.292-b10 mixed mode linux-amd64 compressed oops)
+# Problematic frame:
+# J 6954 C1 is.hail.annotations.Region$.loadInt(J)I (5 bytes) @ 0x00007fa915b4f862 [0x00007fa915b4f7c0+0xa2]
+#
+# Core dump written. Default location: //core or core.1596
+#
+# An error report file with more information is saved as:
+# //hs_err_pid1596.log
+Compiled method (c1)   65989 6954       3       is.hail.annotations.Region$::loadInt (5 bytes)
+ total in heap  [0x00007fa915b4f650,0x00007fa915b4f9f8] = 936
+ relocation     [0x00007fa915b4f778,0x00007fa915b4f7a8] = 48
+ main code      [0x00007fa915b4f7c0,0x00007fa915b4f8e0] = 288
+ stub code      [0x00007fa915b4f8e0,0x00007fa915b4f970] = 144
+ oops           [0x00007fa915b4f970,0x00007fa915b4f978] = 8
+ metadata       [0x00007fa915b4f978,0x00007fa915b4f988] = 16
+ scopes data    [0x00007fa915b4f988,0x00007fa915b4f9b0] = 40
+ scopes pcs     [0x00007fa915b4f9b0,0x00007fa915b4f9f0] = 64
+ dependencies   [0x00007fa915b4f9f0,0x00007fa915b4f9f8] = 8
+#
+# If you would like to submit a bug report, please visit:
+#   http://bugreport.java.com/bugreport/crash.jsp
+#
+''')
     def test_agg_filter(self):
         t = hl.utils.range_table(10)
         tests = [(hl.agg.filter(t.idx > 7,
@@ -508,8 +637,6 @@ class Tests(unittest.TestCase):
         for aggregation, expected in tests:
             self.assertEqual(t.aggregate(aggregation), expected)
 
-    @fails_service_backend()
-    @fails_local_backend()
     def test_agg_densify(self):
         mt = hl.utils.range_matrix_table(5, 5, 3)
         mt = mt.filter_entries(mt.row_idx == mt.col_idx)
@@ -599,6 +726,76 @@ class Tests(unittest.TestCase):
         r = ht.aggregate(hl.agg.array_agg(lambda x: hl.agg.explode(lambda elt: hl.agg.count(), x), ht.a))
         assert r == [45, 45]
 
+    @skip_when_service_backend('''intermitent failure:
+>       r2 = ht.aggregate(hl.agg.array_agg(lambda x: hl.agg.filter(x == 5, hl.agg.sum(x)), ht.a))
+
+with this message:
+
+E                   hail.utils.java.FatalError: is.hail.utils.HailException: mismatched lengths in ArrayElementsAggregator
+E                   	at __C2Compiled.__m262split_StreamForregion27_38(Emit.scala)
+E                   	at __C2Compiled.__m262split_StreamFor(Emit.scala)
+E                   	at __C2Compiled.__m3split_Letregion34_42(Emit.scala)
+E                   	at __C2Compiled.__m3split_Let(Emit.scala)
+E                   	at __C2Compiled.apply(Emit.scala)
+E                   	at is.hail.expr.ir.lowering.LowerToCDA$.$anonfun$lower$2(LowerToCDA.scala:50)
+E                   	at scala.runtime.java8.JFunction0$mcJ$sp.apply(JFunction0$mcJ$sp.java:23)
+E                   	at is.hail.utils.ExecutionTimer.time(ExecutionTimer.scala:81)
+E                   	at is.hail.expr.ir.lowering.LowerToCDA$.lower(LowerToCDA.scala:50)
+E                   	at is.hail.expr.ir.lowering.LowerToCDA$.apply(LowerToCDA.scala:17)
+E                   	at is.hail.expr.ir.lowering.LowerToDistributedArrayPass.transform(LoweringPass.scala:75)
+E                   	at is.hail.expr.ir.lowering.LoweringPass.$anonfun$apply$3(LoweringPass.scala:15)
+E                   	at is.hail.utils.ExecutionTimer.time(ExecutionTimer.scala:81)
+E                   	at is.hail.expr.ir.lowering.LoweringPass.$anonfun$apply$1(LoweringPass.scala:15)
+E                   	at is.hail.utils.ExecutionTimer.time(ExecutionTimer.scala:81)
+E                   	at is.hail.expr.ir.lowering.LoweringPass.apply(LoweringPass.scala:13)
+E                   	at is.hail.expr.ir.lowering.LoweringPass.apply$(LoweringPass.scala:12)
+E                   	at is.hail.expr.ir.lowering.LowerToDistributedArrayPass.apply(LoweringPass.scala:70)
+E                   	at is.hail.expr.ir.lowering.LoweringPipeline.$anonfun$apply$1(LoweringPipeline.scala:14)
+E                   	at is.hail.expr.ir.lowering.LoweringPipeline.$anonfun$apply$1$adapted(LoweringPipeline.scala:12)
+E                   	at scala.collection.IndexedSeqOptimized.foreach(IndexedSeqOptimized.scala:36)
+E                   	at scala.collection.IndexedSeqOptimized.foreach$(IndexedSeqOptimized.scala:33)
+E                   	at scala.collection.mutable.WrappedArray.foreach(WrappedArray.scala:38)
+E                   	at is.hail.expr.ir.lowering.LoweringPipeline.apply(LoweringPipeline.scala:12)
+E                   	at is.hail.backend.service.ServiceBackend.execute(ServiceBackend.scala:289)
+E                   	at is.hail.backend.service.ServiceBackend.$anonfun$execute$4(ServiceBackend.scala:324)
+E                   	at is.hail.expr.ir.ExecuteContext$.$anonfun$scoped$3(ExecuteContext.scala:47)
+E                   	at is.hail.utils.package$.using(package.scala:627)
+E                   	at is.hail.expr.ir.ExecuteContext$.$anonfun$scoped$2(ExecuteContext.scala:47)
+E                   	at is.hail.utils.package$.using(package.scala:627)
+E                   	at is.hail.annotations.RegionPool$.scoped(RegionPool.scala:17)
+E                   	at is.hail.expr.ir.ExecuteContext$.scoped(ExecuteContext.scala:46)
+E                   	at is.hail.backend.service.ServiceBackend.$anonfun$execute$1(ServiceBackend.scala:320)
+E                   	at is.hail.utils.ExecutionTimer$.time(ExecutionTimer.scala:52)
+E                   	at is.hail.utils.ExecutionTimer$.logTime(ExecutionTimer.scala:59)
+E                   	at is.hail.backend.service.ServiceBackend.execute(ServiceBackend.scala:314)
+E                   	at is.hail.backend.service.ServiceBackendSocketAPI2.executeOneCommand(ServiceBackend.scala:873)
+E                   	at is.hail.backend.service.ServiceBackendSocketAPI2$.$anonfun$main$7(ServiceBackend.scala:696)
+E                   	at is.hail.backend.service.ServiceBackendSocketAPI2$.$anonfun$main$7$adapted(ServiceBackend.scala:695)
+E                   	at is.hail.utils.package$.using(package.scala:627)
+E                   	at is.hail.backend.service.ServiceBackendSocketAPI2$.$anonfun$main$6(ServiceBackend.scala:695)
+E                   	at scala.runtime.java8.JFunction0$mcV$sp.apply(JFunction0$mcV$sp.java:23)
+E                   	at is.hail.services.package$.retryTransientErrors(package.scala:69)
+E                   	at is.hail.backend.service.ServiceBackendSocketAPI2$.$anonfun$main$5(ServiceBackend.scala:699)
+E                   	at is.hail.backend.service.ServiceBackendSocketAPI2$.$anonfun$main$5$adapted(ServiceBackend.scala:693)
+E                   	at is.hail.utils.package$.using(package.scala:627)
+E                   	at is.hail.backend.service.ServiceBackendSocketAPI2$.$anonfun$main$4(ServiceBackend.scala:693)
+E                   	at scala.runtime.java8.JFunction0$mcV$sp.apply(JFunction0$mcV$sp.java:23)
+E                   	at is.hail.services.package$.retryTransientErrors(package.scala:69)
+E                   	at is.hail.backend.service.ServiceBackendSocketAPI2$.main(ServiceBackend.scala:701)
+E                   	at is.hail.backend.service.ServiceBackendSocketAPI2.main(ServiceBackend.scala)
+E                   	at sun.reflect.NativeMethodAccessorImpl.invoke0(Native Method)
+E                   	at sun.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:62)
+E                   	at sun.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)
+E                   	at java.lang.reflect.Method.invoke(Method.java:498)
+E                   	at is.hail.JVMEntryway$1.run(JVMEntryway.java:88)
+E                   	at java.util.concurrent.Executors$RunnableAdapter.call(Executors.java:511)
+E                   	at java.util.concurrent.FutureTask.run(FutureTask.java:266)
+E                   	at java.util.concurrent.Executors$RunnableAdapter.call(Executors.java:511)
+E                   	at java.util.concurrent.FutureTask.run(FutureTask.java:266)
+E                   	at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1149)
+E                   	at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:624)
+E                   	at java.lang.Thread.run(Thread.java:748)
+''')
     def test_agg_array_filter(self):
         ht = hl.utils.range_table(10)
         ht = ht.annotate(a=[ht.idx])
@@ -614,6 +811,23 @@ class Tests(unittest.TestCase):
         r4 = ht.aggregate(hl.agg.array_agg(lambda x: hl.agg.filter(x == 5, hl.agg.count()), ht.a))
         assert r4 == [1]
 
+    @skip_when_service_backend('''intermittent failure on worker node:
+Caused by: java.lang.AssertionError: assertion failed
+	at scala.Predef$.assert(Predef.scala:208)
+	at is.hail.io.BlockingInputBuffer.readBytes(InputBuffers.scala:448)
+	at __C616collect_distributed_array.__m676INPLACE_DECODE_r_binary_TO_r_string(Unknown Source)
+	at __C616collect_distributed_array.__m675INPLACE_DECODE_r_array_of_r_binary_TO_r_array_of_r_string(Unknown Source)
+	at __C616collect_distributed_array.__m674DECODE_r_struct_of_r_struct_of_ENDANDr_array_of_r_binaryEND_TO_SBaseStructPointer(Unknown Source)
+	at __C616collect_distributed_array.addLiterals(Unknown Source)
+	at is.hail.expr.ir.EmitClassBuilder$$anon$1.apply(EmitClassBuilder.scala:691)
+	at is.hail.expr.ir.EmitClassBuilder$$anon$1.apply(EmitClassBuilder.scala:670)
+	at is.hail.backend.BackendUtils.$anonfun$collectDArray$2(BackendUtils.scala:31)
+	at is.hail.utils.package$.using(package.scala:627)
+	at is.hail.annotations.RegionPool.scopedRegion(RegionPool.scala:144)
+	at is.hail.backend.BackendUtils.$anonfun$collectDArray$1(BackendUtils.scala:30)
+	at is.hail.backend.service.Worker$.main(Worker.scala:120)
+	at is.hail.backend.service.Worker.main(Worker.scala)
+	... 12 more''')
     def test_agg_array_group_by(self):
         ht = hl.utils.range_table(10)
         ht = ht.annotate(a=[ht.idx, ht.idx + 1])
@@ -715,6 +929,21 @@ class Tests(unittest.TestCase):
         for aggregation, expected in tests:
             self.assertEqual(t.aggregate(aggregation), expected)
 
+    @skip_when_service_backend('''intermittent failure on worker node:
+Caused by: java.lang.AssertionError: assertion failed
+	at scala.Predef$.assert(Predef.scala:208)
+	at is.hail.io.MemoryBuffer.readInt(MemoryBuffer.scala:95)
+	at is.hail.io.MemoryInputBuffer.readInt(InputBuffers.scala:178)
+	at __C51collect_distributed_array.applyregion18_30(Unknown Source)
+	at __C51collect_distributed_array.apply(Unknown Source)
+	at __C51collect_distributed_array.apply(Unknown Source)
+	at is.hail.backend.BackendUtils.$anonfun$collectDArray$2(BackendUtils.scala:31)
+	at is.hail.utils.package$.using(package.scala:627)
+	at is.hail.annotations.RegionPool.scopedRegion(RegionPool.scala:144)
+	at is.hail.backend.BackendUtils.$anonfun$collectDArray$1(BackendUtils.scala:30)
+	at is.hail.backend.service.Worker$.main(Worker.scala:120)
+	at is.hail.backend.service.Worker.main(Worker.scala)
+	... 12 more''')
     def test_agg_group_by(self):
         t = hl.utils.range_table(10)
         tests = [(hl.agg.group_by(t.idx % 2,
@@ -899,6 +1128,78 @@ class Tests(unittest.TestCase):
 
         self.assertEqual(r.x, 10)
 
+    @skip_when_service_backend('''intermitent driver error:
+>           t.aggregate(hl.bind(lambda i: hl.agg.explode(lambda elt: hl.agg.sum(elt), [t.idx, t.idx + i]), 1))
+
+E                   hail.utils.java.FatalError: java.lang.AssertionError: assertion failed
+E                   	at scala.Predef$.assert(Predef.scala:208)
+E                   	at is.hail.io.MemoryBuffer.readInt(MemoryBuffer.scala:95)
+E                   	at is.hail.io.MemoryInputBuffer.readInt(InputBuffers.scala:178)
+E                   	at __C91Compiled.__m368DECODE_r_array_of_r_int32_TO_SIndexablePointer(Emit.scala)
+E                   	at __C91Compiled.__m416blockLinkedListDeserialize(Emit.scala)
+E                   	at __C91Compiled.__m144split_ToArrayregion55_60(Emit.scala)
+E                   	at __C91Compiled.__m144split_ToArrayregion22_149(Emit.scala)
+E                   	at __C91Compiled.__m144split_ToArrayregion9_153(Emit.scala)
+E                   	at __C91Compiled.__m144split_ToArray(Emit.scala)
+E                   	at __C91Compiled.apply(Emit.scala)
+E                   	at is.hail.expr.ir.lowering.LowerToCDA$.$anonfun$lower$2(LowerToCDA.scala:50)
+E                   	at scala.runtime.java8.JFunction0$mcJ$sp.apply(JFunction0$mcJ$sp.java:23)
+E                   	at is.hail.utils.ExecutionTimer.time(ExecutionTimer.scala:81)
+E                   	at is.hail.expr.ir.lowering.LowerToCDA$.lower(LowerToCDA.scala:50)
+E                   	at is.hail.expr.ir.lowering.LowerToCDA$.apply(LowerToCDA.scala:17)
+E                   	at is.hail.expr.ir.lowering.LowerToDistributedArrayPass.transform(LoweringPass.scala:75)
+E                   	at is.hail.expr.ir.lowering.LoweringPass.$anonfun$apply$3(LoweringPass.scala:15)
+E                   	at is.hail.utils.ExecutionTimer.time(ExecutionTimer.scala:81)
+E                   	at is.hail.expr.ir.lowering.LoweringPass.$anonfun$apply$1(LoweringPass.scala:15)
+E                   	at is.hail.utils.ExecutionTimer.time(ExecutionTimer.scala:81)
+E                   	at is.hail.expr.ir.lowering.LoweringPass.apply(LoweringPass.scala:13)
+E                   	at is.hail.expr.ir.lowering.LoweringPass.apply$(LoweringPass.scala:12)
+E                   	at is.hail.expr.ir.lowering.LowerToDistributedArrayPass.apply(LoweringPass.scala:70)
+E                   	at is.hail.expr.ir.lowering.LoweringPipeline.$anonfun$apply$1(LoweringPipeline.scala:14)
+E                   	at is.hail.expr.ir.lowering.LoweringPipeline.$anonfun$apply$1$adapted(LoweringPipeline.scala:12)
+E                   	at scala.collection.IndexedSeqOptimized.foreach(IndexedSeqOptimized.scala:36)
+E                   	at scala.collection.IndexedSeqOptimized.foreach$(IndexedSeqOptimized.scala:33)
+E                   	at scala.collection.mutable.WrappedArray.foreach(WrappedArray.scala:38)
+E                   	at is.hail.expr.ir.lowering.LoweringPipeline.apply(LoweringPipeline.scala:12)
+E                   	at is.hail.backend.service.ServiceBackend.execute(ServiceBackend.scala:289)
+E                   	at is.hail.backend.service.ServiceBackend.$anonfun$execute$4(ServiceBackend.scala:324)
+E                   	at is.hail.expr.ir.ExecuteContext$.$anonfun$scoped$3(ExecuteContext.scala:47)
+E                   	at is.hail.utils.package$.using(package.scala:627)
+E                   	at is.hail.expr.ir.ExecuteContext$.$anonfun$scoped$2(ExecuteContext.scala:47)
+E                   	at is.hail.utils.package$.using(package.scala:627)
+E                   	at is.hail.annotations.RegionPool$.scoped(RegionPool.scala:17)
+E                   	at is.hail.expr.ir.ExecuteContext$.scoped(ExecuteContext.scala:46)
+E                   	at is.hail.backend.service.ServiceBackend.$anonfun$execute$1(ServiceBackend.scala:320)
+E                   	at is.hail.utils.ExecutionTimer$.time(ExecutionTimer.scala:52)
+E                   	at is.hail.utils.ExecutionTimer$.logTime(ExecutionTimer.scala:59)
+E                   	at is.hail.backend.service.ServiceBackend.execute(ServiceBackend.scala:314)
+E                   	at is.hail.backend.service.ServiceBackendSocketAPI2.executeOneCommand(ServiceBackend.scala:873)
+E                   	at is.hail.backend.service.ServiceBackendSocketAPI2$.$anonfun$main$7(ServiceBackend.scala:696)
+E                   	at is.hail.backend.service.ServiceBackendSocketAPI2$.$anonfun$main$7$adapted(ServiceBackend.scala:695)
+E                   	at is.hail.utils.package$.using(package.scala:627)
+E                   	at is.hail.backend.service.ServiceBackendSocketAPI2$.$anonfun$main$6(ServiceBackend.scala:695)
+E                   	at scala.runtime.java8.JFunction0$mcV$sp.apply(JFunction0$mcV$sp.java:23)
+E                   	at is.hail.services.package$.retryTransientErrors(package.scala:69)
+E                   	at is.hail.backend.service.ServiceBackendSocketAPI2$.$anonfun$main$5(ServiceBackend.scala:699)
+E                   	at is.hail.backend.service.ServiceBackendSocketAPI2$.$anonfun$main$5$adapted(ServiceBackend.scala:693)
+E                   	at is.hail.utils.package$.using(package.scala:627)
+E                   	at is.hail.backend.service.ServiceBackendSocketAPI2$.$anonfun$main$4(ServiceBackend.scala:693)
+E                   	at scala.runtime.java8.JFunction0$mcV$sp.apply(JFunction0$mcV$sp.java:23)
+E                   	at is.hail.services.package$.retryTransientErrors(package.scala:69)
+E                   	at is.hail.backend.service.ServiceBackendSocketAPI2$.main(ServiceBackend.scala:701)
+E                   	at is.hail.backend.service.ServiceBackendSocketAPI2.main(ServiceBackend.scala)
+E                   	at sun.reflect.NativeMethodAccessorImpl.invoke0(Native Method)
+E                   	at sun.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:62)
+E                   	at sun.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)
+E                   	at java.lang.reflect.Method.invoke(Method.java:498)
+E                   	at is.hail.JVMEntryway$1.run(JVMEntryway.java:88)
+E                   	at java.util.concurrent.Executors$RunnableAdapter.call(Executors.java:511)
+E                   	at java.util.concurrent.FutureTask.run(FutureTask.java:266)
+E                   	at java.util.concurrent.Executors$RunnableAdapter.call(Executors.java:511)
+E                   	at java.util.concurrent.FutureTask.run(FutureTask.java:266)
+E                   	at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1149)
+E                   	at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:624)
+E                   	at java.lang.Thread.run(Thread.java:748)''')
     def test_scan_filter(self):
         t = hl.utils.range_table(5)
         tests = [
@@ -949,6 +1250,31 @@ class Tests(unittest.TestCase):
         for aggregation, expected in tests:
             self.assertEqual(aggregation.collect(), expected)
 
+    @skip_when_service_backend('''intermittent worker failure:
+>           self.assertEqual(aggregation.collect(), expected)
+
+Caused by: is.hail.utils.HailException: Premature end of file: expected 4 bytes, found 0
+	at is.hail.utils.ErrorHandling.fatal(ErrorHandling.scala:11)
+	at is.hail.utils.ErrorHandling.fatal$(ErrorHandling.scala:11)
+	at is.hail.utils.package$.fatal(package.scala:77)
+	at is.hail.utils.richUtils.RichInputStream$.readFully$extension1(RichInputStream.scala:13)
+	at is.hail.io.StreamBlockInputBuffer.readBlock(InputBuffers.scala:546)
+	at is.hail.io.BlockingInputBuffer.readBlock(InputBuffers.scala:382)
+	at is.hail.io.BlockingInputBuffer.ensure(InputBuffers.scala:388)
+	at is.hail.io.BlockingInputBuffer.readInt(InputBuffers.scala:412)
+	at __C493collect_distributed_array.__m501INPLACE_DECODE_r_binary_TO_r_binary(Unknown Source)
+	at __C493collect_distributed_array.__m500INPLACE_DECODE_r_struct_of_r_binaryANDr_binaryANDr_binaryANDr_binaryANDr_binaryANDr_binaryANDr_binaryANDr_binaryANDr_binaryANDr_binaryEND_TO_r_tuple_of_r_binaryANDr_binaryANDr_binaryANDr_binaryANDr_binaryANDr_binaryANDr_binaryANDr_binaryANDr_binaryANDr_binaryEND(Unknown Source)
+	at __C493collect_distributed_array.__m499INPLACE_DECODE_r_struct_of_r_struct_of_r_binaryANDr_binaryANDr_binaryANDr_binaryANDr_binaryANDr_binaryANDr_binaryANDr_binaryANDr_binaryANDr_binaryENDEND_TO_r_struct_of_r_tuple_of_r_binaryANDr_binaryANDr_binaryANDr_binaryANDr_binaryANDr_binaryANDr_binaryANDr_binaryANDr_binaryANDr_binaryENDEND(Unknown Source)
+	at __C493collect_distributed_array.__m498DECODE_r_struct_of_r_struct_of_r_struct_of_r_binaryANDr_binaryANDr_binaryANDr_binaryANDr_binaryANDr_binaryANDr_binaryANDr_binaryANDr_binaryANDr_binaryENDENDEND_TO_SBaseStructPointer(Unknown Source)
+	at __C493collect_distributed_array.apply(Unknown Source)
+	at __C493collect_distributed_array.apply(Unknown Source)
+	at is.hail.backend.BackendUtils.$anonfun$collectDArray$2(BackendUtils.scala:31)
+	at is.hail.utils.package$.using(package.scala:627)
+	at is.hail.annotations.RegionPool.scopedRegion(RegionPool.scala:144)
+	at is.hail.backend.BackendUtils.$anonfun$collectDArray$1(BackendUtils.scala:30)
+	at is.hail.backend.service.Worker$.main(Worker.scala:120)
+	at is.hail.backend.service.Worker.main(Worker.scala)
+	... 12 more''')
     def test_scan_group_by(self):
         t = hl.utils.range_table(5)
         tests = [
@@ -980,6 +1306,53 @@ class Tests(unittest.TestCase):
         for aggregation, expected in tests:
             self.assertEqual(aggregation.collect(), expected)
 
+    @skip_when_service_backend('''intermittent worker failure:
+>           (hl.scan.group_by(t.idx % 3,
+                            hl.scan.collect(t.idx).append(t.idx)),
+             [{},
+              {0: [0, 1]},
+              {0: [0, 2], 1: [1, 2]},
+              {0: [0, 3], 1: [1, 3], 2: [2, 3]},
+              {0: [0, 3, 4], 1: [1, 4], 2: [2, 4]}]),
+            (hl.scan.group_by(t.idx % 3,
+                              hl.scan.filter((t.idx % 2) == 0,
+                                             hl.scan.collect(t.idx).append(t.idx))),
+             [{},
+              {0: [0, 1]},
+              {0: [0, 2], 1: [2]},
+              {0: [0, 3], 1: [3], 2: [2, 3]},
+              {0: [0, 4], 1: [4], 2: [2, 4]}]),
+            (hl.scan.group_by(t.idx % 3,
+                              hl.scan.explode(lambda elt: hl.scan.collect(elt).append(t.idx),
+                                              [t.idx, t.idx + 1])),
+             [{},
+              {0: [0, 1, 1]},
+              {0: [0, 1, 2], 1: [1, 2, 2]},
+              {0: [0, 1, 3], 1: [1, 2, 3], 2: [2, 3, 3]},
+              {0: [0, 1, 3, 4, 4], 1: [1, 2, 4], 2: [2, 3, 4]}])
+
+
+Caused by: is.hail.utils.HailException: Premature end of file: expected 4 bytes, found 0
+	at is.hail.utils.ErrorHandling.fatal(ErrorHandling.scala:11)
+	at is.hail.utils.ErrorHandling.fatal$(ErrorHandling.scala:11)
+	at is.hail.utils.package$.fatal(package.scala:77)
+	at is.hail.utils.richUtils.RichInputStream$.readFully$extension1(RichInputStream.scala:13)
+	at is.hail.io.StreamBlockInputBuffer.readBlock(InputBuffers.scala:546)
+	at is.hail.io.BlockingInputBuffer.readBlock(InputBuffers.scala:382)
+	at is.hail.io.BlockingInputBuffer.ensure(InputBuffers.scala:388)
+	at is.hail.io.BlockingInputBuffer.readLong(InputBuffers.scala:419)
+	at __C3277collect_distributed_array.__m3280INPLACE_DECODE_r_ndarray_of_r_float64_TO_r_ndarray_of_r_float64(Unknown Source)
+	at __C3277collect_distributed_array.__m3279INPLACE_DECODE_r_struct_of_r_ndarray_of_r_float64ANDr_struct_of_r_int32ANDr_int32ENDEND_TO_r_struct_of_r_ndarray_of_r_float64ANDr_tuple_of_r_int32ANDr_int32ENDEND(Unknown Source)
+	at __C3277collect_distributed_array.__m3278DECODE_r_struct_of_r_struct_of_r_ndarray_of_r_float64ANDr_struct_of_r_int32ANDr_int32ENDENDEND_TO_SBaseStructPointer(Unknown Source)
+	at __C3277collect_distributed_array.apply(Unknown Source)
+	at __C3277collect_distributed_array.apply(Unknown Source)
+	at is.hail.backend.BackendUtils.$anonfun$collectDArray$2(BackendUtils.scala:31)
+	at is.hail.utils.package$.using(package.scala:627)
+	at is.hail.annotations.RegionPool.scopedRegion(RegionPool.scala:144)
+	at is.hail.backend.BackendUtils.$anonfun$collectDArray$1(BackendUtils.scala:30)
+	at is.hail.backend.service.Worker$.main(Worker.scala:120)
+	at is.hail.backend.service.Worker.main(Worker.scala)
+	... 11 more''')
     def test_scan_array_agg(self):
         ht = hl.utils.range_table(5)
         ht = ht.annotate(a=hl.range(0, 5).map(lambda x: ht.idx))
@@ -1401,6 +1774,44 @@ class Tests(unittest.TestCase):
                    (True, False)
                )
 
+    @skip_when_service_backend('''{"@version":1,"@timestamp":"2021-07-27 20:51:58,660","message":"request GET http://internal.hail/dking/memory/api/v1alpha/objects?q=gs%3A%2F%2Fdanking%2Ftmp%2Fhail%2Fquery%2FZsJniWRyAA2AmPOnHWoov00V8l2gAuyFIna84MhTc2U%3D%2Fcontexts response 200","filename":"Requester.scala","line_number":"71","class":"is.hail.services.Requester","method":"$anonfun$requestWithHandler$2","logger_name":"Requester","mdc":{},"ndc":null,"severity":"INFO","thread_name":"pool-2-thread-2"}
+{"@version":1,"@timestamp":"2021-07-27 20:51:58,702","message":"request GET http://internal.hail/dking/memory/api/v1alpha/objects?q=gs%3A%2F%2Fdanking%2Ftmp%2Fhail%2Fquery%2FZsJniWRyAA2AmPOnHWoov00V8l2gAuyFIna84MhTc2U%3D%2Ff response 200","filename":"Requester.scala","line_number":"71","class":"is.hail.services.Requester","method":"$anonfun$requestWithHandler$2","logger_name":"Requester","mdc":{},"ndc":null,"severity":"INFO","thread_name":"pool-2-thread-1"}
+{"@version":1,"@timestamp":"2021-07-27 20:51:58,703","message":"readInputs took 1461.343014 ms.","filename":"Worker.scala","line_number":"42","class":"is.hail.backend.service.WorkerTimer","method":"$anonfun$end$1","logger_name":"is.hail.backend.service.WorkerTimer$","mdc":{},"ndc":null,"severity":"INFO","thread_name":"pool-1-thread-1"}
+{"@version":1,"@timestamp":"2021-07-27 20:51:58,703","message":"RegionPool: initialized for thread 18: pool-1-thread-1","filename":"RegionPool.scala","line_number":"17","class":"is.hail.annotations.RegionPool","method":"<init>","logger_name":"root","mdc":{},"ndc":null,"severity":"INFO","thread_name":"pool-1-thread-1"}
+{"@version":1,"@timestamp":"2021-07-27 20:51:58,704","message":"request GET http://internal.hail/dking/address/api/shuffler","filename":"Requester.scala","line_number":"61","class":"is.hail.services.Requester","method":"requestWithHandler","logger_name":"Requester","mdc":{},"ndc":null,"severity":"INFO","thread_name":"pool-1-thread-1"}
+{"@version":1,"@timestamp":"2021-07-27 20:51:58,761","message":"request GET http://internal.hail/dking/address/api/shuffler response 200","filename":"Requester.scala","line_number":"71","class":"is.hail.services.Requester","method":"$anonfun$requestWithHandler$2","logger_name":"Requester","mdc":{},"ndc":null,"severity":"INFO","thread_name":"pool-1-thread-1"}
+{"@version":1,"@timestamp":"2021-07-27 20:51:58,762","message":"attempting to connect shuffler at 10.32.9.250:443","filename":"DeployConfig.scala","line_number":"145","class":"is.hail.services.DeployConfig","method":"socket","logger_name":"is.hail.services","mdc":{},"ndc":null,"severity":"INFO","thread_name":"pool-1-thread-1"}
+{"@version":1,"@timestamp":"2021-07-27 20:51:58,762","message":"connected to shuffler at 10.32.9.250:443","filename":"DeployConfig.scala","line_number":"149","class":"is.hail.services.DeployConfig","method":"socket","logger_name":"is.hail.services","mdc":{},"ndc":null,"severity":"INFO","thread_name":"pool-1-thread-1"}
+{"@version":1,"@timestamp":"2021-07-27 20:51:58,763","message":"put","filename":"Logging.scala","line_number":"7","class":"is.hail.utils.LogHelper$","method":"logInfo","logger_name":"root","mdc":{},"ndc":null,"severity":"INFO","thread_name":"pool-1-thread-1"}
+#
+# A fatal error has been detected by the Java Runtime Environment:
+#
+#  SIGSEGV (0xb) at pc=0x00007f24619430a2, pid=233, tid=0x00007f23cb6cd700
+#
+# JRE version: OpenJDK Runtime Environment (8.0_292-b10) (build 1.8.0_292-8u292-b10-0+deb9u1-b10)
+# Java VM: OpenJDK 64-Bit Server VM (25.292-b10 mixed mode linux-amd64 compressed oops)
+# Problematic frame:
+# J 4565 C1 is.hail.annotations.Region$.loadInt(J)I (5 bytes) @ 0x00007f24619430a2 [0x00007f2461943000+0xa2]
+#
+# Core dump written. Default location: //core or core.233
+#
+# An error report file with more information is saved as:
+# //hs_err_pid233.log
+Compiled method (c1)  124591 4565       3       is.hail.annotations.Region$::loadInt (5 bytes)
+ total in heap  [0x00007f2461942e90,0x00007f2461943238] = 936
+ relocation     [0x00007f2461942fb8,0x00007f2461942fe8] = 48
+ main code      [0x00007f2461943000,0x00007f2461943120] = 288
+ stub code      [0x00007f2461943120,0x00007f24619431b0] = 144
+ oops           [0x00007f24619431b0,0x00007f24619431b8] = 8
+ metadata       [0x00007f24619431b8,0x00007f24619431c8] = 16
+ scopes data    [0x00007f24619431c8,0x00007f24619431f0] = 40
+ scopes pcs     [0x00007f24619431f0,0x00007f2461943230] = 64
+ dependencies   [0x00007f2461943230,0x00007f2461943238] = 8
+#
+# If you would like to submit a bug report, please visit:
+#   http://bugreport.java.com/bugreport/crash.jsp
+#
+''')
     def test_aggregator_any_and_all(self):
         df = hl.utils.range_table(10)
         df = df.annotate(all_true=True,
@@ -1466,6 +1877,22 @@ class Tests(unittest.TestCase):
         assert tb3 == [0, 1, 2, 3, 4, 5, 6]
         assert tb4 == [['0_0', '0_1', '0_2', '0_3'], ['1_0', '1_1', '1_2', '1_3']]
 
+    @skip_when_service_backend('''intermittent worker failure:
+>           self.assertEqual(t.aggregate(aggfunc(array_with_nan[t.idx])), 0.)
+
+Caused by: java.lang.AssertionError: assertion failed
+	at scala.Predef$.assert(Predef.scala:208)
+	at is.hail.io.MemoryBuffer.readLong(MemoryBuffer.scala:102)
+	at is.hail.io.MemoryInputBuffer.readLong(InputBuffers.scala:180)
+	at __C415collect_distributed_array.apply(Unknown Source)
+	at __C415collect_distributed_array.apply(Unknown Source)
+	at is.hail.backend.BackendUtils.$anonfun$collectDArray$2(BackendUtils.scala:31)
+	at is.hail.utils.package$.using(package.scala:627)
+	at is.hail.annotations.RegionPool.scopedRegion(RegionPool.scala:144)
+	at is.hail.backend.BackendUtils.$anonfun$collectDArray$1(BackendUtils.scala:30)
+	at is.hail.backend.service.Worker$.main(Worker.scala:120)
+	at is.hail.backend.service.Worker.main(Worker.scala)
+	... 11 more''')
     def test_agg_minmax(self):
         nan = float('nan')
         na = hl.missing(hl.tfloat32)
@@ -1478,66 +1905,61 @@ class Tests(unittest.TestCase):
             self.assertEqual(t.aggregate(aggfunc(array_with_na[t.idx])), 0.)
 
     def test_str_ops(self):
-        s = hl.literal("123")
-        self.assertEqual(hl.eval(hl.int32(s)), 123)
-
-        s = hl.literal("123123123123")
-        self.assertEqual(hl.eval(hl.int64(s)), 123123123123)
-
-        s = hl.literal("1.5")
-        self.assertEqual(hl.eval(hl.float32(s)), 1.5)
-        self.assertEqual(hl.eval(hl.float64(s)), 1.5)
-
         s = hl.literal('abcABC123')
-        self.assertEqual(hl.eval(s.lower()), 'abcabc123')
-        self.assertEqual(hl.eval(s.upper()), 'ABCABC123')
-
         s_whitespace = hl.literal(' \t 1 2 3 \t\n')
-        self.assertEqual(hl.eval(s_whitespace.strip()), '1 2 3')
-
-        self.assertEqual(hl.eval(s.contains('ABC')), True)
-        self.assertEqual(hl.eval(~s.contains('ABC')), False)
-        self.assertEqual(hl.eval(s.contains('a')), True)
-        self.assertEqual(hl.eval(s.contains('C123')), True)
-        self.assertEqual(hl.eval(s.contains('')), True)
-        self.assertEqual(hl.eval(s.contains('C1234')), False)
-        self.assertEqual(hl.eval(s.contains(' ')), False)
-
-        self.assertTrue(hl.eval(s_whitespace.startswith(' \t')))
-        self.assertTrue(hl.eval(s_whitespace.endswith('\t\n')))
-        self.assertFalse(hl.eval(s_whitespace.startswith('a')))
-        self.assertFalse(hl.eval(s_whitespace.endswith('a')))
+        _test_many_equal([
+            (hl.int32(hl.literal('123')), 123),
+            (hl.int64(hl.literal("123123123123")), 123123123123),
+            (hl.float32(hl.literal('1.5')), 1.5),
+            (hl.float64(hl.literal('1.5')), 1.5),
+            (s.lower(), 'abcabc123'),
+            (s.upper(), 'ABCABC123'),
+            (s_whitespace.strip(), '1 2 3'),
+            (s.contains('ABC'), True),
+            (~s.contains('ABC'), False),
+            (s.contains('a'), True),
+            (s.contains('C123'), True),
+            (s.contains(''), True),
+            (s.contains('C1234'), False),
+            (s.contains(' '), False),
+            (s_whitespace.startswith(' \t'), True),
+            (s_whitespace.endswith('\t\n'), True),
+            (s_whitespace.startswith('a'), False),
+            (s_whitespace.endswith('a'), False)])
 
     def test_str_parsing(self):
-        assert_all_eval_to(*[(hl.bool(x), True) for x in ('true', 'True', 'TRUE')])
-        assert_all_eval_to(*[(hl.bool(x), False) for x in ('false', 'False', 'FALSE')])
-
-        for x in ('nan', 'Nan', 'naN', 'NaN'):
-            for f in (hl.float, hl.float32, hl.float64, hl.parse_float32, hl.parse_float64):
-                assert_all_eval_to(
-                    (hl.is_nan(f(x)), True),
-                    (hl.is_nan(f('+' + x)), True),
-                    (hl.is_nan(f('-' + x)), True)
-                )
-        for x in ('inf', 'Inf', 'iNf', 'InF', 'infinity', 'InfiNitY', 'INFINITY'):
-            for f in (hl.float, hl.float32, hl.float64, hl.parse_float32, hl.parse_float64):
-                assert_all_eval_to(
-                    (hl.is_infinite(f(x)), True),
-                    (hl.is_infinite(f('+' + x)), True),
-                    (hl.is_infinite(f('-' + x)), True),
-                    (f('-' + x) < 0.0, True)
-                )
-
-        for x in ('0', '1', '-5', '12382421'):
-            assert_all_eval_to(*[(f(hl.literal(x)), int(x)) for f in (hl.int32, hl.int64, hl.parse_int32, hl.parse_int64)])
-            assert_all_eval_to(*[(f(hl.literal(x)), float(x)) for f in (hl.float32, hl.float64, hl.parse_float32, hl.parse_float64)])
-
-        for x in ('-1.5', '0.0', '2.5'):
-            assert_all_eval_to(*[(f(hl.literal(x)), float(x)) for f in (hl.float32, hl.float64, hl.parse_float32, hl.parse_float64)])
-            assert_all_eval_to(*[(f(hl.literal(x)), None) for f in (hl.parse_int32, hl.parse_int64)])
-
-        for x in ('abc', '1abc', ''):
-            assert_all_eval_to(*[(f(hl.literal(x)), None) for f in (hl.parse_float32, hl.parse_float64, hl.parse_int32, hl.parse_int64)])
+        int_parsers = (hl.int32, hl.int64, hl.parse_int32, hl.parse_int64)
+        float_parsers = (hl.float, hl.float32, hl.float64, hl.parse_float32, hl.parse_float64)
+        infinity_strings = ('inf', 'Inf', 'iNf', 'InF', 'infinity', 'InfiNitY', 'INFINITY')
+        _test_many_equal([
+            *[(hl.bool(x), True)
+              for x in ('true', 'True', 'TRUE')],
+            *[(hl.bool(x), False)
+              for x in ('false', 'False', 'FALSE')],
+            *[(hl.is_nan(f(sgn + x)), True)
+              for x in ('nan', 'Nan', 'naN', 'NaN')
+              for sgn in ('', '+', '-')
+              for f in float_parsers],
+            *[(hl.is_infinite(f(sgn + x)), True)
+              for x in infinity_strings
+              for sgn in ('', '+', '-')
+              for f in float_parsers],
+            *[(f('-' + x) < 0.0, True)
+              for x in infinity_strings
+              for f in float_parsers],
+            *[(hl.tuple([int_parser(hl.literal(x)), float_parser(hl.literal(x))]),
+                     (int(x), float(x)))
+              for int_parser in int_parsers
+              for float_parser in float_parsers
+              for x in ('0', '1', '-5', '12382421')],
+            *[(hl.tuple([float_parser(hl.literal(x)), flexible_int_parser(hl.literal(x))]), (float(x), None))
+              for float_parser in float_parsers
+              for flexible_int_parser in (hl.parse_int32, hl.parse_int64)
+              for x in ('-1.5', '0.0', '2.5')],
+            *[(flexible_numeric_parser(hl.literal(x)), None)
+              for flexible_numeric_parser in (hl.parse_float32, hl.parse_float64, hl.parse_int32, hl.parse_int64)
+              for x in ('abc', '1abc', '')]
+        ])
 
     def test_str_missingness(self):
         self.assertEqual(hl.eval(hl.str(1)), '1')
@@ -1566,65 +1988,66 @@ class Tests(unittest.TestCase):
         expected = [0.5, 1.0, 2.0, 4.0, None]
         expected_inv = [2.0, 1.0, 0.5, 0.25, None]
 
-        self.check_expr(a_int32 / 4, expected, tarray(tfloat64))
-        self.check_expr(a_int64 / 4, expected, tarray(tfloat64))
-        self.check_expr(a_float32 / 4, expected, tarray(tfloat32))
-        self.check_expr(a_float64 / 4, expected, tarray(tfloat64))
+        _test_many_equal_typed([
+            (a_int32 / 4, expected, tarray(tfloat64)),
+            (a_int64 / 4, expected, tarray(tfloat64)),
+            (a_float32 / 4, expected, tarray(tfloat32)),
+            (a_float64 / 4, expected, tarray(tfloat64)),
 
-        self.check_expr(int32_4s / a_int32, expected_inv, tarray(tfloat64))
-        self.check_expr(int32_4s / a_int64, expected_inv, tarray(tfloat64))
-        self.check_expr(int32_4s / a_float32, expected_inv, tarray(tfloat32))
-        self.check_expr(int32_4s / a_float64, expected_inv, tarray(tfloat64))
+            (int32_4s / a_int32, expected_inv, tarray(tfloat64)),
+            (int32_4s / a_int64, expected_inv, tarray(tfloat64)),
+            (int32_4s / a_float32, expected_inv, tarray(tfloat32)),
+            (int32_4s / a_float64, expected_inv, tarray(tfloat64)),
 
-        self.check_expr(a_int32 / int32_4s, expected, tarray(tfloat64))
-        self.check_expr(a_int64 / int32_4s, expected, tarray(tfloat64))
-        self.check_expr(a_float32 / int32_4s, expected, tarray(tfloat32))
-        self.check_expr(a_float64 / int32_4s, expected, tarray(tfloat64))
+            (a_int32 / int32_4s, expected, tarray(tfloat64)),
+            (a_int64 / int32_4s, expected, tarray(tfloat64)),
+            (a_float32 / int32_4s, expected, tarray(tfloat32)),
+            (a_float64 / int32_4s, expected, tarray(tfloat64)),
 
-        self.check_expr(a_int32 / int64_4, expected, tarray(tfloat64))
-        self.check_expr(a_int64 / int64_4, expected, tarray(tfloat64))
-        self.check_expr(a_float32 / int64_4, expected, tarray(tfloat32))
-        self.check_expr(a_float64 / int64_4, expected, tarray(tfloat64))
+            (a_int32 / int64_4, expected, tarray(tfloat64)),
+            (a_int64 / int64_4, expected, tarray(tfloat64)),
+            (a_float32 / int64_4, expected, tarray(tfloat32)),
+            (a_float64 / int64_4, expected, tarray(tfloat64)),
 
-        self.check_expr(int64_4 / a_int32, expected_inv, tarray(tfloat64))
-        self.check_expr(int64_4 / a_int64, expected_inv, tarray(tfloat64))
-        self.check_expr(int64_4 / a_float32, expected_inv, tarray(tfloat32))
-        self.check_expr(int64_4 / a_float64, expected_inv, tarray(tfloat64))
+            (int64_4 / a_int32, expected_inv, tarray(tfloat64)),
+            (int64_4 / a_int64, expected_inv, tarray(tfloat64)),
+            (int64_4 / a_float32, expected_inv, tarray(tfloat32)),
+            (int64_4 / a_float64, expected_inv, tarray(tfloat64)),
 
-        self.check_expr(a_int32 / int64_4s, expected, tarray(tfloat64))
-        self.check_expr(a_int64 / int64_4s, expected, tarray(tfloat64))
-        self.check_expr(a_float32 / int64_4s, expected, tarray(tfloat32))
-        self.check_expr(a_float64 / int64_4s, expected, tarray(tfloat64))
+            (a_int32 / int64_4s, expected, tarray(tfloat64)),
+            (a_int64 / int64_4s, expected, tarray(tfloat64)),
+            (a_float32 / int64_4s, expected, tarray(tfloat32)),
+            (a_float64 / int64_4s, expected, tarray(tfloat64)),
 
-        self.check_expr(a_int32 / float32_4, expected, tarray(tfloat32))
-        self.check_expr(a_int64 / float32_4, expected, tarray(tfloat32))
-        self.check_expr(a_float32 / float32_4, expected, tarray(tfloat32))
-        self.check_expr(a_float64 / float32_4, expected, tarray(tfloat64))
+            (a_int32 / float32_4, expected, tarray(tfloat32)),
+            (a_int64 / float32_4, expected, tarray(tfloat32)),
+            (a_float32 / float32_4, expected, tarray(tfloat32)),
+            (a_float64 / float32_4, expected, tarray(tfloat64)),
 
-        self.check_expr(float32_4 / a_int32, expected_inv, tarray(tfloat32))
-        self.check_expr(float32_4 / a_int64, expected_inv, tarray(tfloat32))
-        self.check_expr(float32_4 / a_float32, expected_inv, tarray(tfloat32))
-        self.check_expr(float32_4 / a_float64, expected_inv, tarray(tfloat64))
+            (float32_4 / a_int32, expected_inv, tarray(tfloat32)),
+            (float32_4 / a_int64, expected_inv, tarray(tfloat32)),
+            (float32_4 / a_float32, expected_inv, tarray(tfloat32)),
+            (float32_4 / a_float64, expected_inv, tarray(tfloat64)),
 
-        self.check_expr(a_int32 / float32_4s, expected, tarray(tfloat32))
-        self.check_expr(a_int64 / float32_4s, expected, tarray(tfloat32))
-        self.check_expr(a_float32 / float32_4s, expected, tarray(tfloat32))
-        self.check_expr(a_float64 / float32_4s, expected, tarray(tfloat64))
+            (a_int32 / float32_4s, expected, tarray(tfloat32)),
+            (a_int64 / float32_4s, expected, tarray(tfloat32)),
+            (a_float32 / float32_4s, expected, tarray(tfloat32)),
+            (a_float64 / float32_4s, expected, tarray(tfloat64)),
 
-        self.check_expr(a_int32 / float64_4, expected, tarray(tfloat64))
-        self.check_expr(a_int64 / float64_4, expected, tarray(tfloat64))
-        self.check_expr(a_float32 / float64_4, expected, tarray(tfloat64))
-        self.check_expr(a_float64 / float64_4, expected, tarray(tfloat64))
+            (a_int32 / float64_4, expected, tarray(tfloat64)),
+            (a_int64 / float64_4, expected, tarray(tfloat64)),
+            (a_float32 / float64_4, expected, tarray(tfloat64)),
+            (a_float64 / float64_4, expected, tarray(tfloat64)),
 
-        self.check_expr(float64_4 / a_int32, expected_inv, tarray(tfloat64))
-        self.check_expr(float64_4 / a_int64, expected_inv, tarray(tfloat64))
-        self.check_expr(float64_4 / a_float32, expected_inv, tarray(tfloat64))
-        self.check_expr(float64_4 / a_float64, expected_inv, tarray(tfloat64))
+            (float64_4 / a_int32, expected_inv, tarray(tfloat64)),
+            (float64_4 / a_int64, expected_inv, tarray(tfloat64)),
+            (float64_4 / a_float32, expected_inv, tarray(tfloat64)),
+            (float64_4 / a_float64, expected_inv, tarray(tfloat64)),
 
-        self.check_expr(a_int32 / float64_4s, expected, tarray(tfloat64))
-        self.check_expr(a_int64 / float64_4s, expected, tarray(tfloat64))
-        self.check_expr(a_float32 / float64_4s, expected, tarray(tfloat64))
-        self.check_expr(a_float64 / float64_4s, expected, tarray(tfloat64))
+            (a_int32 / float64_4s, expected, tarray(tfloat64)),
+            (a_int64 / float64_4s, expected, tarray(tfloat64)),
+            (a_float32 / float64_4s, expected, tarray(tfloat64)),
+            (a_float64 / float64_4s, expected, tarray(tfloat64))])
 
     def test_floor_division(self):
         a_int32 = hl.array([2, 4, 8, 16, hl.missing(tint32)])
@@ -1643,65 +2066,66 @@ class Tests(unittest.TestCase):
         expected = [0, 1, 2, 5, None]
         expected_inv = [1, 0, 0, 0, None]
 
-        self.check_expr(a_int32 // 3, expected, tarray(tint32))
-        self.check_expr(a_int64 // 3, expected, tarray(tint64))
-        self.check_expr(a_float32 // 3, expected, tarray(tfloat32))
-        self.check_expr(a_float64 // 3, expected, tarray(tfloat64))
+        _test_many_equal_typed([
+            (a_int32 // 3, expected, tarray(tint32)),
+            (a_int64 // 3, expected, tarray(tint64)),
+            (a_float32 // 3, expected, tarray(tfloat32)),
+            (a_float64 // 3, expected, tarray(tfloat64)),
 
-        self.check_expr(3 // a_int32, expected_inv, tarray(tint32))
-        self.check_expr(3 // a_int64, expected_inv, tarray(tint64))
-        self.check_expr(3 // a_float32, expected_inv, tarray(tfloat32))
-        self.check_expr(3 // a_float64, expected_inv, tarray(tfloat64))
+            (3 // a_int32, expected_inv, tarray(tint32)),
+            (3 // a_int64, expected_inv, tarray(tint64)),
+            (3 // a_float32, expected_inv, tarray(tfloat32)),
+            (3 // a_float64, expected_inv, tarray(tfloat64)),
 
-        self.check_expr(a_int32 // int32_3s, expected, tarray(tint32))
-        self.check_expr(a_int64 // int32_3s, expected, tarray(tint64))
-        self.check_expr(a_float32 // int32_3s, expected, tarray(tfloat32))
-        self.check_expr(a_float64 // int32_3s, expected, tarray(tfloat64))
+            (a_int32 // int32_3s, expected, tarray(tint32)),
+            (a_int64 // int32_3s, expected, tarray(tint64)),
+            (a_float32 // int32_3s, expected, tarray(tfloat32)),
+            (a_float64 // int32_3s, expected, tarray(tfloat64)),
 
-        self.check_expr(a_int32 // int64_3, expected, tarray(tint64))
-        self.check_expr(a_int64 // int64_3, expected, tarray(tint64))
-        self.check_expr(a_float32 // int64_3, expected, tarray(tfloat32))
-        self.check_expr(a_float64 // int64_3, expected, tarray(tfloat64))
+            (a_int32 // int64_3, expected, tarray(tint64)),
+            (a_int64 // int64_3, expected, tarray(tint64)),
+            (a_float32 // int64_3, expected, tarray(tfloat32)),
+            (a_float64 // int64_3, expected, tarray(tfloat64)),
 
-        self.check_expr(int64_3 // a_int32, expected_inv, tarray(tint64))
-        self.check_expr(int64_3 // a_int64, expected_inv, tarray(tint64))
-        self.check_expr(int64_3 // a_float32, expected_inv, tarray(tfloat32))
-        self.check_expr(int64_3 // a_float64, expected_inv, tarray(tfloat64))
+            (int64_3 // a_int32, expected_inv, tarray(tint64)),
+            (int64_3 // a_int64, expected_inv, tarray(tint64)),
+            (int64_3 // a_float32, expected_inv, tarray(tfloat32)),
+            (int64_3 // a_float64, expected_inv, tarray(tfloat64)),
 
-        self.check_expr(a_int32 // int64_3s, expected, tarray(tint64))
-        self.check_expr(a_int64 // int64_3s, expected, tarray(tint64))
-        self.check_expr(a_float32 // int64_3s, expected, tarray(tfloat32))
-        self.check_expr(a_float64 // int64_3s, expected, tarray(tfloat64))
+            (a_int32 // int64_3s, expected, tarray(tint64)),
+            (a_int64 // int64_3s, expected, tarray(tint64)),
+            (a_float32 // int64_3s, expected, tarray(tfloat32)),
+            (a_float64 // int64_3s, expected, tarray(tfloat64)),
 
-        self.check_expr(a_int32 // float32_3, expected, tarray(tfloat32))
-        self.check_expr(a_int64 // float32_3, expected, tarray(tfloat32))
-        self.check_expr(a_float32 // float32_3, expected, tarray(tfloat32))
-        self.check_expr(a_float64 // float32_3, expected, tarray(tfloat64))
+            (a_int32 // float32_3, expected, tarray(tfloat32)),
+            (a_int64 // float32_3, expected, tarray(tfloat32)),
+            (a_float32 // float32_3, expected, tarray(tfloat32)),
+            (a_float64 // float32_3, expected, tarray(tfloat64)),
 
-        self.check_expr(float32_3 // a_int32, expected_inv, tarray(tfloat32))
-        self.check_expr(float32_3 // a_int64, expected_inv, tarray(tfloat32))
-        self.check_expr(float32_3 // a_float32, expected_inv, tarray(tfloat32))
-        self.check_expr(float32_3 // a_float64, expected_inv, tarray(tfloat64))
+            (float32_3 // a_int32, expected_inv, tarray(tfloat32)),
+            (float32_3 // a_int64, expected_inv, tarray(tfloat32)),
+            (float32_3 // a_float32, expected_inv, tarray(tfloat32)),
+            (float32_3 // a_float64, expected_inv, tarray(tfloat64)),
 
-        self.check_expr(a_int32 // float32_3s, expected, tarray(tfloat32))
-        self.check_expr(a_int64 // float32_3s, expected, tarray(tfloat32))
-        self.check_expr(a_float32 // float32_3s, expected, tarray(tfloat32))
-        self.check_expr(a_float64 // float32_3s, expected, tarray(tfloat64))
+            (a_int32 // float32_3s, expected, tarray(tfloat32)),
+            (a_int64 // float32_3s, expected, tarray(tfloat32)),
+            (a_float32 // float32_3s, expected, tarray(tfloat32)),
+            (a_float64 // float32_3s, expected, tarray(tfloat64)),
 
-        self.check_expr(a_int32 // float64_3, expected, tarray(tfloat64))
-        self.check_expr(a_int64 // float64_3, expected, tarray(tfloat64))
-        self.check_expr(a_float32 // float64_3, expected, tarray(tfloat64))
-        self.check_expr(a_float64 // float64_3, expected, tarray(tfloat64))
+            (a_int32 // float64_3, expected, tarray(tfloat64)),
+            (a_int64 // float64_3, expected, tarray(tfloat64)),
+            (a_float32 // float64_3, expected, tarray(tfloat64)),
+            (a_float64 // float64_3, expected, tarray(tfloat64)),
 
-        self.check_expr(float64_3 // a_int32, expected_inv, tarray(tfloat64))
-        self.check_expr(float64_3 // a_int64, expected_inv, tarray(tfloat64))
-        self.check_expr(float64_3 // a_float32, expected_inv, tarray(tfloat64))
-        self.check_expr(float64_3 // a_float64, expected_inv, tarray(tfloat64))
+            (float64_3 // a_int32, expected_inv, tarray(tfloat64)),
+            (float64_3 // a_int64, expected_inv, tarray(tfloat64)),
+            (float64_3 // a_float32, expected_inv, tarray(tfloat64)),
+            (float64_3 // a_float64, expected_inv, tarray(tfloat64)),
 
-        self.check_expr(a_int32 // float64_3s, expected, tarray(tfloat64))
-        self.check_expr(a_int64 // float64_3s, expected, tarray(tfloat64))
-        self.check_expr(a_float32 // float64_3s, expected, tarray(tfloat64))
-        self.check_expr(a_float64 // float64_3s, expected, tarray(tfloat64))
+            (a_int32 // float64_3s, expected, tarray(tfloat64)),
+            (a_int64 // float64_3s, expected, tarray(tfloat64)),
+            (a_float32 // float64_3s, expected, tarray(tfloat64)),
+            (a_float64 // float64_3s, expected, tarray(tfloat64))])
 
     def test_addition(self):
         a_int32 = hl.array([2, 4, 8, 16, hl.missing(tint32)])
@@ -1720,65 +2144,66 @@ class Tests(unittest.TestCase):
         expected = [5, 7, 11, 19, None]
         expected_inv = expected
 
-        self.check_expr(a_int32 + 3, expected, tarray(tint32))
-        self.check_expr(a_int64 + 3, expected, tarray(tint64))
-        self.check_expr(a_float32 + 3, expected, tarray(tfloat32))
-        self.check_expr(a_float64 + 3, expected, tarray(tfloat64))
+        _test_many_equal_typed([
+            (a_int32 + 3, expected, tarray(tint32)),
+            (a_int64 + 3, expected, tarray(tint64)),
+            (a_float32 + 3, expected, tarray(tfloat32)),
+            (a_float64 + 3, expected, tarray(tfloat64)),
 
-        self.check_expr(3 + a_int32, expected_inv, tarray(tint32))
-        self.check_expr(3 + a_int64, expected_inv, tarray(tint64))
-        self.check_expr(3 + a_float32, expected_inv, tarray(tfloat32))
-        self.check_expr(3 + a_float64, expected_inv, tarray(tfloat64))
+            (3 + a_int32, expected_inv, tarray(tint32)),
+            (3 + a_int64, expected_inv, tarray(tint64)),
+            (3 + a_float32, expected_inv, tarray(tfloat32)),
+            (3 + a_float64, expected_inv, tarray(tfloat64)),
 
-        self.check_expr(a_int32 + int32_3s, expected, tarray(tint32))
-        self.check_expr(a_int64 + int32_3s, expected, tarray(tint64))
-        self.check_expr(a_float32 + int32_3s, expected, tarray(tfloat32))
-        self.check_expr(a_float64 + int32_3s, expected, tarray(tfloat64))
+            (a_int32 + int32_3s, expected, tarray(tint32)),
+            (a_int64 + int32_3s, expected, tarray(tint64)),
+            (a_float32 + int32_3s, expected, tarray(tfloat32)),
+            (a_float64 + int32_3s, expected, tarray(tfloat64)),
 
-        self.check_expr(a_int32 + int64_3, expected, tarray(tint64))
-        self.check_expr(a_int64 + int64_3, expected, tarray(tint64))
-        self.check_expr(a_float32 + int64_3, expected, tarray(tfloat32))
-        self.check_expr(a_float64 + int64_3, expected, tarray(tfloat64))
+            (a_int32 + int64_3, expected, tarray(tint64)),
+            (a_int64 + int64_3, expected, tarray(tint64)),
+            (a_float32 + int64_3, expected, tarray(tfloat32)),
+            (a_float64 + int64_3, expected, tarray(tfloat64)),
 
-        self.check_expr(int64_3 + a_int32, expected_inv, tarray(tint64))
-        self.check_expr(int64_3 + a_int64, expected_inv, tarray(tint64))
-        self.check_expr(int64_3 + a_float32, expected_inv, tarray(tfloat32))
-        self.check_expr(int64_3 + a_float64, expected_inv, tarray(tfloat64))
+            (int64_3 + a_int32, expected_inv, tarray(tint64)),
+            (int64_3 + a_int64, expected_inv, tarray(tint64)),
+            (int64_3 + a_float32, expected_inv, tarray(tfloat32)),
+            (int64_3 + a_float64, expected_inv, tarray(tfloat64)),
 
-        self.check_expr(a_int32 + int64_3s, expected, tarray(tint64))
-        self.check_expr(a_int64 + int64_3s, expected, tarray(tint64))
-        self.check_expr(a_float32 + int64_3s, expected, tarray(tfloat32))
-        self.check_expr(a_float64 + int64_3s, expected, tarray(tfloat64))
+            (a_int32 + int64_3s, expected, tarray(tint64)),
+            (a_int64 + int64_3s, expected, tarray(tint64)),
+            (a_float32 + int64_3s, expected, tarray(tfloat32)),
+            (a_float64 + int64_3s, expected, tarray(tfloat64)),
 
-        self.check_expr(a_int32 + float32_3, expected, tarray(tfloat32))
-        self.check_expr(a_int64 + float32_3, expected, tarray(tfloat32))
-        self.check_expr(a_float32 + float32_3, expected, tarray(tfloat32))
-        self.check_expr(a_float64 + float32_3, expected, tarray(tfloat64))
+            (a_int32 + float32_3, expected, tarray(tfloat32)),
+            (a_int64 + float32_3, expected, tarray(tfloat32)),
+            (a_float32 + float32_3, expected, tarray(tfloat32)),
+            (a_float64 + float32_3, expected, tarray(tfloat64)),
 
-        self.check_expr(float32_3 + a_int32, expected_inv, tarray(tfloat32))
-        self.check_expr(float32_3 + a_int64, expected_inv, tarray(tfloat32))
-        self.check_expr(float32_3 + a_float32, expected_inv, tarray(tfloat32))
-        self.check_expr(float32_3 + a_float64, expected_inv, tarray(tfloat64))
+            (float32_3 + a_int32, expected_inv, tarray(tfloat32)),
+            (float32_3 + a_int64, expected_inv, tarray(tfloat32)),
+            (float32_3 + a_float32, expected_inv, tarray(tfloat32)),
+            (float32_3 + a_float64, expected_inv, tarray(tfloat64)),
 
-        self.check_expr(a_int32 + float32_3s, expected, tarray(tfloat32))
-        self.check_expr(a_int64 + float32_3s, expected, tarray(tfloat32))
-        self.check_expr(a_float32 + float32_3s, expected, tarray(tfloat32))
-        self.check_expr(a_float64 + float32_3s, expected, tarray(tfloat64))
+            (a_int32 + float32_3s, expected, tarray(tfloat32)),
+            (a_int64 + float32_3s, expected, tarray(tfloat32)),
+            (a_float32 + float32_3s, expected, tarray(tfloat32)),
+            (a_float64 + float32_3s, expected, tarray(tfloat64)),
 
-        self.check_expr(a_int32 + float64_3, expected, tarray(tfloat64))
-        self.check_expr(a_int64 + float64_3, expected, tarray(tfloat64))
-        self.check_expr(a_float32 + float64_3, expected, tarray(tfloat64))
-        self.check_expr(a_float64 + float64_3, expected, tarray(tfloat64))
+            (a_int32 + float64_3, expected, tarray(tfloat64)),
+            (a_int64 + float64_3, expected, tarray(tfloat64)),
+            (a_float32 + float64_3, expected, tarray(tfloat64)),
+            (a_float64 + float64_3, expected, tarray(tfloat64)),
 
-        self.check_expr(float64_3 + a_int32, expected_inv, tarray(tfloat64))
-        self.check_expr(float64_3 + a_int64, expected_inv, tarray(tfloat64))
-        self.check_expr(float64_3 + a_float32, expected_inv, tarray(tfloat64))
-        self.check_expr(float64_3 + a_float64, expected_inv, tarray(tfloat64))
+            (float64_3 + a_int32, expected_inv, tarray(tfloat64)),
+            (float64_3 + a_int64, expected_inv, tarray(tfloat64)),
+            (float64_3 + a_float32, expected_inv, tarray(tfloat64)),
+            (float64_3 + a_float64, expected_inv, tarray(tfloat64)),
 
-        self.check_expr(a_int32 + float64_3s, expected, tarray(tfloat64))
-        self.check_expr(a_int64 + float64_3s, expected, tarray(tfloat64))
-        self.check_expr(a_float32 + float64_3s, expected, tarray(tfloat64))
-        self.check_expr(a_float64 + float64_3s, expected, tarray(tfloat64))
+            (a_int32 + float64_3s, expected, tarray(tfloat64)),
+            (a_int64 + float64_3s, expected, tarray(tfloat64)),
+            (a_float32 + float64_3s, expected, tarray(tfloat64)),
+            (a_float64 + float64_3s, expected, tarray(tfloat64))])
 
     def test_subtraction(self):
         a_int32 = hl.array([2, 4, 8, 16, hl.missing(tint32)])
@@ -1797,65 +2222,66 @@ class Tests(unittest.TestCase):
         expected = [-1, 1, 5, 13, None]
         expected_inv = [1, -1, -5, -13, None]
 
-        self.check_expr(a_int32 - 3, expected, tarray(tint32))
-        self.check_expr(a_int64 - 3, expected, tarray(tint64))
-        self.check_expr(a_float32 - 3, expected, tarray(tfloat32))
-        self.check_expr(a_float64 - 3, expected, tarray(tfloat64))
+        _test_many_equal_typed([
+            (a_int32 - 3, expected, tarray(tint32)),
+            (a_int64 - 3, expected, tarray(tint64)),
+            (a_float32 - 3, expected, tarray(tfloat32)),
+            (a_float64 - 3, expected, tarray(tfloat64)),
 
-        self.check_expr(3 - a_int32, expected_inv, tarray(tint32))
-        self.check_expr(3 - a_int64, expected_inv, tarray(tint64))
-        self.check_expr(3 - a_float32, expected_inv, tarray(tfloat32))
-        self.check_expr(3 - a_float64, expected_inv, tarray(tfloat64))
+            (3 - a_int32, expected_inv, tarray(tint32)),
+            (3 - a_int64, expected_inv, tarray(tint64)),
+            (3 - a_float32, expected_inv, tarray(tfloat32)),
+            (3 - a_float64, expected_inv, tarray(tfloat64)),
 
-        self.check_expr(a_int32 - int32_3s, expected, tarray(tint32))
-        self.check_expr(a_int64 - int32_3s, expected, tarray(tint64))
-        self.check_expr(a_float32 - int32_3s, expected, tarray(tfloat32))
-        self.check_expr(a_float64 - int32_3s, expected, tarray(tfloat64))
+            (a_int32 - int32_3s, expected, tarray(tint32)),
+            (a_int64 - int32_3s, expected, tarray(tint64)),
+            (a_float32 - int32_3s, expected, tarray(tfloat32)),
+            (a_float64 - int32_3s, expected, tarray(tfloat64)),
 
-        self.check_expr(a_int32 - int64_3, expected, tarray(tint64))
-        self.check_expr(a_int64 - int64_3, expected, tarray(tint64))
-        self.check_expr(a_float32 - int64_3, expected, tarray(tfloat32))
-        self.check_expr(a_float64 - int64_3, expected, tarray(tfloat64))
+            (a_int32 - int64_3, expected, tarray(tint64)),
+            (a_int64 - int64_3, expected, tarray(tint64)),
+            (a_float32 - int64_3, expected, tarray(tfloat32)),
+            (a_float64 - int64_3, expected, tarray(tfloat64)),
 
-        self.check_expr(int64_3 - a_int32, expected_inv, tarray(tint64))
-        self.check_expr(int64_3 - a_int64, expected_inv, tarray(tint64))
-        self.check_expr(int64_3 - a_float32, expected_inv, tarray(tfloat32))
-        self.check_expr(int64_3 - a_float64, expected_inv, tarray(tfloat64))
+            (int64_3 - a_int32, expected_inv, tarray(tint64)),
+            (int64_3 - a_int64, expected_inv, tarray(tint64)),
+            (int64_3 - a_float32, expected_inv, tarray(tfloat32)),
+            (int64_3 - a_float64, expected_inv, tarray(tfloat64)),
 
-        self.check_expr(a_int32 - int64_3s, expected, tarray(tint64))
-        self.check_expr(a_int64 - int64_3s, expected, tarray(tint64))
-        self.check_expr(a_float32 - int64_3s, expected, tarray(tfloat32))
-        self.check_expr(a_float64 - int64_3s, expected, tarray(tfloat64))
+            (a_int32 - int64_3s, expected, tarray(tint64)),
+            (a_int64 - int64_3s, expected, tarray(tint64)),
+            (a_float32 - int64_3s, expected, tarray(tfloat32)),
+            (a_float64 - int64_3s, expected, tarray(tfloat64)),
 
-        self.check_expr(a_int32 - float32_3, expected, tarray(tfloat32))
-        self.check_expr(a_int64 - float32_3, expected, tarray(tfloat32))
-        self.check_expr(a_float32 - float32_3, expected, tarray(tfloat32))
-        self.check_expr(a_float64 - float32_3, expected, tarray(tfloat64))
+            (a_int32 - float32_3, expected, tarray(tfloat32)),
+            (a_int64 - float32_3, expected, tarray(tfloat32)),
+            (a_float32 - float32_3, expected, tarray(tfloat32)),
+            (a_float64 - float32_3, expected, tarray(tfloat64)),
 
-        self.check_expr(float32_3 - a_int32, expected_inv, tarray(tfloat32))
-        self.check_expr(float32_3 - a_int64, expected_inv, tarray(tfloat32))
-        self.check_expr(float32_3 - a_float32, expected_inv, tarray(tfloat32))
-        self.check_expr(float32_3 - a_float64, expected_inv, tarray(tfloat64))
+            (float32_3 - a_int32, expected_inv, tarray(tfloat32)),
+            (float32_3 - a_int64, expected_inv, tarray(tfloat32)),
+            (float32_3 - a_float32, expected_inv, tarray(tfloat32)),
+            (float32_3 - a_float64, expected_inv, tarray(tfloat64)),
 
-        self.check_expr(a_int32 - float32_3s, expected, tarray(tfloat32))
-        self.check_expr(a_int64 - float32_3s, expected, tarray(tfloat32))
-        self.check_expr(a_float32 - float32_3s, expected, tarray(tfloat32))
-        self.check_expr(a_float64 - float32_3s, expected, tarray(tfloat64))
+            (a_int32 - float32_3s, expected, tarray(tfloat32)),
+            (a_int64 - float32_3s, expected, tarray(tfloat32)),
+            (a_float32 - float32_3s, expected, tarray(tfloat32)),
+            (a_float64 - float32_3s, expected, tarray(tfloat64)),
 
-        self.check_expr(a_int32 - float64_3, expected, tarray(tfloat64))
-        self.check_expr(a_int64 - float64_3, expected, tarray(tfloat64))
-        self.check_expr(a_float32 - float64_3, expected, tarray(tfloat64))
-        self.check_expr(a_float64 - float64_3, expected, tarray(tfloat64))
+            (a_int32 - float64_3, expected, tarray(tfloat64)),
+            (a_int64 - float64_3, expected, tarray(tfloat64)),
+            (a_float32 - float64_3, expected, tarray(tfloat64)),
+            (a_float64 - float64_3, expected, tarray(tfloat64)),
 
-        self.check_expr(float64_3 - a_int32, expected_inv, tarray(tfloat64))
-        self.check_expr(float64_3 - a_int64, expected_inv, tarray(tfloat64))
-        self.check_expr(float64_3 - a_float32, expected_inv, tarray(tfloat64))
-        self.check_expr(float64_3 - a_float64, expected_inv, tarray(tfloat64))
+            (float64_3 - a_int32, expected_inv, tarray(tfloat64)),
+            (float64_3 - a_int64, expected_inv, tarray(tfloat64)),
+            (float64_3 - a_float32, expected_inv, tarray(tfloat64)),
+            (float64_3 - a_float64, expected_inv, tarray(tfloat64)),
 
-        self.check_expr(a_int32 - float64_3s, expected, tarray(tfloat64))
-        self.check_expr(a_int64 - float64_3s, expected, tarray(tfloat64))
-        self.check_expr(a_float32 - float64_3s, expected, tarray(tfloat64))
-        self.check_expr(a_float64 - float64_3s, expected, tarray(tfloat64))
+            (a_int32 - float64_3s, expected, tarray(tfloat64)),
+            (a_int64 - float64_3s, expected, tarray(tfloat64)),
+            (a_float32 - float64_3s, expected, tarray(tfloat64)),
+            (a_float64 - float64_3s, expected, tarray(tfloat64))])
 
     def test_multiplication(self):
         a_int32 = hl.array([2, 4, 8, 16, hl.missing(tint32)])
@@ -1874,65 +2300,66 @@ class Tests(unittest.TestCase):
         expected = [6, 12, 24, 48, None]
         expected_inv = expected
 
-        self.check_expr(a_int32 * 3, expected, tarray(tint32))
-        self.check_expr(a_int64 * 3, expected, tarray(tint64))
-        self.check_expr(a_float32 * 3, expected, tarray(tfloat32))
-        self.check_expr(a_float64 * 3, expected, tarray(tfloat64))
+        _test_many_equal_typed([
+            (a_int32 * 3, expected, tarray(tint32)),
+            (a_int64 * 3, expected, tarray(tint64)),
+            (a_float32 * 3, expected, tarray(tfloat32)),
+            (a_float64 * 3, expected, tarray(tfloat64)),
 
-        self.check_expr(3 * a_int32, expected_inv, tarray(tint32))
-        self.check_expr(3 * a_int64, expected_inv, tarray(tint64))
-        self.check_expr(3 * a_float32, expected_inv, tarray(tfloat32))
-        self.check_expr(3 * a_float64, expected_inv, tarray(tfloat64))
+            (3 * a_int32, expected_inv, tarray(tint32)),
+            (3 * a_int64, expected_inv, tarray(tint64)),
+            (3 * a_float32, expected_inv, tarray(tfloat32)),
+            (3 * a_float64, expected_inv, tarray(tfloat64)),
 
-        self.check_expr(a_int32 * int32_3s, expected, tarray(tint32))
-        self.check_expr(a_int64 * int32_3s, expected, tarray(tint64))
-        self.check_expr(a_float32 * int32_3s, expected, tarray(tfloat32))
-        self.check_expr(a_float64 * int32_3s, expected, tarray(tfloat64))
+            (a_int32 * int32_3s, expected, tarray(tint32)),
+            (a_int64 * int32_3s, expected, tarray(tint64)),
+            (a_float32 * int32_3s, expected, tarray(tfloat32)),
+            (a_float64 * int32_3s, expected, tarray(tfloat64)),
 
-        self.check_expr(a_int32 * int64_3, expected, tarray(tint64))
-        self.check_expr(a_int64 * int64_3, expected, tarray(tint64))
-        self.check_expr(a_float32 * int64_3, expected, tarray(tfloat32))
-        self.check_expr(a_float64 * int64_3, expected, tarray(tfloat64))
+            (a_int32 * int64_3, expected, tarray(tint64)),
+            (a_int64 * int64_3, expected, tarray(tint64)),
+            (a_float32 * int64_3, expected, tarray(tfloat32)),
+            (a_float64 * int64_3, expected, tarray(tfloat64)),
 
-        self.check_expr(int64_3 * a_int32, expected_inv, tarray(tint64))
-        self.check_expr(int64_3 * a_int64, expected_inv, tarray(tint64))
-        self.check_expr(int64_3 * a_float32, expected_inv, tarray(tfloat32))
-        self.check_expr(int64_3 * a_float64, expected_inv, tarray(tfloat64))
+            (int64_3 * a_int32, expected_inv, tarray(tint64)),
+            (int64_3 * a_int64, expected_inv, tarray(tint64)),
+            (int64_3 * a_float32, expected_inv, tarray(tfloat32)),
+            (int64_3 * a_float64, expected_inv, tarray(tfloat64)),
 
-        self.check_expr(a_int32 * int64_3s, expected, tarray(tint64))
-        self.check_expr(a_int64 * int64_3s, expected, tarray(tint64))
-        self.check_expr(a_float32 * int64_3s, expected, tarray(tfloat32))
-        self.check_expr(a_float64 * int64_3s, expected, tarray(tfloat64))
+            (a_int32 * int64_3s, expected, tarray(tint64)),
+            (a_int64 * int64_3s, expected, tarray(tint64)),
+            (a_float32 * int64_3s, expected, tarray(tfloat32)),
+            (a_float64 * int64_3s, expected, tarray(tfloat64)),
 
-        self.check_expr(a_int32 * float32_3, expected, tarray(tfloat32))
-        self.check_expr(a_int64 * float32_3, expected, tarray(tfloat32))
-        self.check_expr(a_float32 * float32_3, expected, tarray(tfloat32))
-        self.check_expr(a_float64 * float32_3, expected, tarray(tfloat64))
+            (a_int32 * float32_3, expected, tarray(tfloat32)),
+            (a_int64 * float32_3, expected, tarray(tfloat32)),
+            (a_float32 * float32_3, expected, tarray(tfloat32)),
+            (a_float64 * float32_3, expected, tarray(tfloat64)),
 
-        self.check_expr(float32_3 * a_int32, expected_inv, tarray(tfloat32))
-        self.check_expr(float32_3 * a_int64, expected_inv, tarray(tfloat32))
-        self.check_expr(float32_3 * a_float32, expected_inv, tarray(tfloat32))
-        self.check_expr(float32_3 * a_float64, expected_inv, tarray(tfloat64))
+            (float32_3 * a_int32, expected_inv, tarray(tfloat32)),
+            (float32_3 * a_int64, expected_inv, tarray(tfloat32)),
+            (float32_3 * a_float32, expected_inv, tarray(tfloat32)),
+            (float32_3 * a_float64, expected_inv, tarray(tfloat64)),
 
-        self.check_expr(a_int32 * float32_3s, expected, tarray(tfloat32))
-        self.check_expr(a_int64 * float32_3s, expected, tarray(tfloat32))
-        self.check_expr(a_float32 * float32_3s, expected, tarray(tfloat32))
-        self.check_expr(a_float64 * float32_3s, expected, tarray(tfloat64))
+            (a_int32 * float32_3s, expected, tarray(tfloat32)),
+            (a_int64 * float32_3s, expected, tarray(tfloat32)),
+            (a_float32 * float32_3s, expected, tarray(tfloat32)),
+            (a_float64 * float32_3s, expected, tarray(tfloat64)),
 
-        self.check_expr(a_int32 * float64_3, expected, tarray(tfloat64))
-        self.check_expr(a_int64 * float64_3, expected, tarray(tfloat64))
-        self.check_expr(a_float32 * float64_3, expected, tarray(tfloat64))
-        self.check_expr(a_float64 * float64_3, expected, tarray(tfloat64))
+            (a_int32 * float64_3, expected, tarray(tfloat64)),
+            (a_int64 * float64_3, expected, tarray(tfloat64)),
+            (a_float32 * float64_3, expected, tarray(tfloat64)),
+            (a_float64 * float64_3, expected, tarray(tfloat64)),
 
-        self.check_expr(float64_3 * a_int32, expected_inv, tarray(tfloat64))
-        self.check_expr(float64_3 * a_int64, expected_inv, tarray(tfloat64))
-        self.check_expr(float64_3 * a_float32, expected_inv, tarray(tfloat64))
-        self.check_expr(float64_3 * a_float64, expected_inv, tarray(tfloat64))
+            (float64_3 * a_int32, expected_inv, tarray(tfloat64)),
+            (float64_3 * a_int64, expected_inv, tarray(tfloat64)),
+            (float64_3 * a_float32, expected_inv, tarray(tfloat64)),
+            (float64_3 * a_float64, expected_inv, tarray(tfloat64)),
 
-        self.check_expr(a_int32 * float64_3s, expected, tarray(tfloat64))
-        self.check_expr(a_int64 * float64_3s, expected, tarray(tfloat64))
-        self.check_expr(a_float32 * float64_3s, expected, tarray(tfloat64))
-        self.check_expr(a_float64 * float64_3s, expected, tarray(tfloat64))
+            (a_int32 * float64_3s, expected, tarray(tfloat64)),
+            (a_int64 * float64_3s, expected, tarray(tfloat64)),
+            (a_float32 * float64_3s, expected, tarray(tfloat64)),
+            (a_float64 * float64_3s, expected, tarray(tfloat64))])
 
     def test_exponentiation(self):
         a_int32 = hl.array([2, 4, 8, 16, hl.missing(tint32)])
@@ -1951,65 +2378,66 @@ class Tests(unittest.TestCase):
         expected = [8, 64, 512, 4096, None]
         expected_inv = [9.0, 81.0, 6561.0, 43046721.0, None]
 
-        self.check_expr(a_int32 ** 3, expected, tarray(tfloat64))
-        self.check_expr(a_int64 ** 3, expected, tarray(tfloat64))
-        self.check_expr(a_float32 ** 3, expected, tarray(tfloat64))
-        self.check_expr(a_float64 ** 3, expected, tarray(tfloat64))
+        _test_many_equal_typed([
+            (a_int32 ** 3, expected, tarray(tfloat64)),
+            (a_int64 ** 3, expected, tarray(tfloat64)),
+            (a_float32 ** 3, expected, tarray(tfloat64)),
+            (a_float64 ** 3, expected, tarray(tfloat64)),
 
-        self.check_expr(3 ** a_int32, expected_inv, tarray(tfloat64))
-        self.check_expr(3 ** a_int64, expected_inv, tarray(tfloat64))
-        self.check_expr(3 ** a_float32, expected_inv, tarray(tfloat64))
-        self.check_expr(3 ** a_float64, expected_inv, tarray(tfloat64))
+            (3 ** a_int32, expected_inv, tarray(tfloat64)),
+            (3 ** a_int64, expected_inv, tarray(tfloat64)),
+            (3 ** a_float32, expected_inv, tarray(tfloat64)),
+            (3 ** a_float64, expected_inv, tarray(tfloat64)),
 
-        self.check_expr(a_int32 ** int32_3s, expected, tarray(tfloat64))
-        self.check_expr(a_int64 ** int32_3s, expected, tarray(tfloat64))
-        self.check_expr(a_float32 ** int32_3s, expected, tarray(tfloat64))
-        self.check_expr(a_float64 ** int32_3s, expected, tarray(tfloat64))
+            (a_int32 ** int32_3s, expected, tarray(tfloat64)),
+            (a_int64 ** int32_3s, expected, tarray(tfloat64)),
+            (a_float32 ** int32_3s, expected, tarray(tfloat64)),
+            (a_float64 ** int32_3s, expected, tarray(tfloat64)),
 
-        self.check_expr(a_int32 ** int64_3, expected, tarray(tfloat64))
-        self.check_expr(a_int64 ** int64_3, expected, tarray(tfloat64))
-        self.check_expr(a_float32 ** int64_3, expected, tarray(tfloat64))
-        self.check_expr(a_float64 ** int64_3, expected, tarray(tfloat64))
+            (a_int32 ** int64_3, expected, tarray(tfloat64)),
+            (a_int64 ** int64_3, expected, tarray(tfloat64)),
+            (a_float32 ** int64_3, expected, tarray(tfloat64)),
+            (a_float64 ** int64_3, expected, tarray(tfloat64)),
 
-        self.check_expr(int64_3 ** a_int32, expected_inv, tarray(tfloat64))
-        self.check_expr(int64_3 ** a_int64, expected_inv, tarray(tfloat64))
-        self.check_expr(int64_3 ** a_float32, expected_inv, tarray(tfloat64))
-        self.check_expr(int64_3 ** a_float64, expected_inv, tarray(tfloat64))
+            (int64_3 ** a_int32, expected_inv, tarray(tfloat64)),
+            (int64_3 ** a_int64, expected_inv, tarray(tfloat64)),
+            (int64_3 ** a_float32, expected_inv, tarray(tfloat64)),
+            (int64_3 ** a_float64, expected_inv, tarray(tfloat64)),
 
-        self.check_expr(a_int32 ** int64_3s, expected, tarray(tfloat64))
-        self.check_expr(a_int64 ** int64_3s, expected, tarray(tfloat64))
-        self.check_expr(a_float32 ** int64_3s, expected, tarray(tfloat64))
-        self.check_expr(a_float64 ** int64_3s, expected, tarray(tfloat64))
+            (a_int32 ** int64_3s, expected, tarray(tfloat64)),
+            (a_int64 ** int64_3s, expected, tarray(tfloat64)),
+            (a_float32 ** int64_3s, expected, tarray(tfloat64)),
+            (a_float64 ** int64_3s, expected, tarray(tfloat64)),
 
-        self.check_expr(a_int32 ** float32_3, expected, tarray(tfloat64))
-        self.check_expr(a_int64 ** float32_3, expected, tarray(tfloat64))
-        self.check_expr(a_float32 ** float32_3, expected, tarray(tfloat64))
-        self.check_expr(a_float64 ** float32_3, expected, tarray(tfloat64))
+            (a_int32 ** float32_3, expected, tarray(tfloat64)),
+            (a_int64 ** float32_3, expected, tarray(tfloat64)),
+            (a_float32 ** float32_3, expected, tarray(tfloat64)),
+            (a_float64 ** float32_3, expected, tarray(tfloat64)),
 
-        self.check_expr(float32_3 ** a_int32, expected_inv, tarray(tfloat64))
-        self.check_expr(float32_3 ** a_int64, expected_inv, tarray(tfloat64))
-        self.check_expr(float32_3 ** a_float32, expected_inv, tarray(tfloat64))
-        self.check_expr(float32_3 ** a_float64, expected_inv, tarray(tfloat64))
+            (float32_3 ** a_int32, expected_inv, tarray(tfloat64)),
+            (float32_3 ** a_int64, expected_inv, tarray(tfloat64)),
+            (float32_3 ** a_float32, expected_inv, tarray(tfloat64)),
+            (float32_3 ** a_float64, expected_inv, tarray(tfloat64)),
 
-        self.check_expr(a_int32 ** float32_3s, expected, tarray(tfloat64))
-        self.check_expr(a_int64 ** float32_3s, expected, tarray(tfloat64))
-        self.check_expr(a_float32 ** float32_3s, expected, tarray(tfloat64))
-        self.check_expr(a_float64 ** float32_3s, expected, tarray(tfloat64))
+            (a_int32 ** float32_3s, expected, tarray(tfloat64)),
+            (a_int64 ** float32_3s, expected, tarray(tfloat64)),
+            (a_float32 ** float32_3s, expected, tarray(tfloat64)),
+            (a_float64 ** float32_3s, expected, tarray(tfloat64)),
 
-        self.check_expr(a_int32 ** float64_3, expected, tarray(tfloat64))
-        self.check_expr(a_int64 ** float64_3, expected, tarray(tfloat64))
-        self.check_expr(a_float32 ** float64_3, expected, tarray(tfloat64))
-        self.check_expr(a_float64 ** float64_3, expected, tarray(tfloat64))
+            (a_int32 ** float64_3, expected, tarray(tfloat64)),
+            (a_int64 ** float64_3, expected, tarray(tfloat64)),
+            (a_float32 ** float64_3, expected, tarray(tfloat64)),
+            (a_float64 ** float64_3, expected, tarray(tfloat64)),
 
-        self.check_expr(float64_3 ** a_int32, expected_inv, tarray(tfloat64))
-        self.check_expr(float64_3 ** a_int64, expected_inv, tarray(tfloat64))
-        self.check_expr(float64_3 ** a_float32, expected_inv, tarray(tfloat64))
-        self.check_expr(float64_3 ** a_float64, expected_inv, tarray(tfloat64))
+            (float64_3 ** a_int32, expected_inv, tarray(tfloat64)),
+            (float64_3 ** a_int64, expected_inv, tarray(tfloat64)),
+            (float64_3 ** a_float32, expected_inv, tarray(tfloat64)),
+            (float64_3 ** a_float64, expected_inv, tarray(tfloat64)),
 
-        self.check_expr(a_int32 ** float64_3s, expected, tarray(tfloat64))
-        self.check_expr(a_int64 ** float64_3s, expected, tarray(tfloat64))
-        self.check_expr(a_float32 ** float64_3s, expected, tarray(tfloat64))
-        self.check_expr(a_float64 ** float64_3s, expected, tarray(tfloat64))
+            (a_int32 ** float64_3s, expected, tarray(tfloat64)),
+            (a_int64 ** float64_3s, expected, tarray(tfloat64)),
+            (a_float32 ** float64_3s, expected, tarray(tfloat64)),
+            (a_float64 ** float64_3s, expected, tarray(tfloat64))])
 
     def test_modulus(self):
         a_int32 = hl.array([2, 4, 8, 16, hl.missing(tint32)])
@@ -2028,65 +2456,66 @@ class Tests(unittest.TestCase):
         expected = [2, 1, 2, 1, None]
         expected_inv = [1, 3, 3, 3, None]
 
-        self.check_expr(a_int32 % 3, expected, tarray(tint32))
-        self.check_expr(a_int64 % 3, expected, tarray(tint64))
-        self.check_expr(a_float32 % 3, expected, tarray(tfloat32))
-        self.check_expr(a_float64 % 3, expected, tarray(tfloat64))
+        _test_many_equal_typed([
+            (a_int32 % 3, expected, tarray(tint32)),
+            (a_int64 % 3, expected, tarray(tint64)),
+            (a_float32 % 3, expected, tarray(tfloat32)),
+            (a_float64 % 3, expected, tarray(tfloat64)),
 
-        self.check_expr(3 % a_int32, expected_inv, tarray(tint32))
-        self.check_expr(3 % a_int64, expected_inv, tarray(tint64))
-        self.check_expr(3 % a_float32, expected_inv, tarray(tfloat32))
-        self.check_expr(3 % a_float64, expected_inv, tarray(tfloat64))
+            (3 % a_int32, expected_inv, tarray(tint32)),
+            (3 % a_int64, expected_inv, tarray(tint64)),
+            (3 % a_float32, expected_inv, tarray(tfloat32)),
+            (3 % a_float64, expected_inv, tarray(tfloat64)),
 
-        self.check_expr(a_int32 % int32_3s, expected, tarray(tint32))
-        self.check_expr(a_int64 % int32_3s, expected, tarray(tint64))
-        self.check_expr(a_float32 % int32_3s, expected, tarray(tfloat32))
-        self.check_expr(a_float64 % int32_3s, expected, tarray(tfloat64))
+            (a_int32 % int32_3s, expected, tarray(tint32)),
+            (a_int64 % int32_3s, expected, tarray(tint64)),
+            (a_float32 % int32_3s, expected, tarray(tfloat32)),
+            (a_float64 % int32_3s, expected, tarray(tfloat64)),
 
-        self.check_expr(a_int32 % int64_3, expected, tarray(tint64))
-        self.check_expr(a_int64 % int64_3, expected, tarray(tint64))
-        self.check_expr(a_float32 % int64_3, expected, tarray(tfloat32))
-        self.check_expr(a_float64 % int64_3, expected, tarray(tfloat64))
+            (a_int32 % int64_3, expected, tarray(tint64)),
+            (a_int64 % int64_3, expected, tarray(tint64)),
+            (a_float32 % int64_3, expected, tarray(tfloat32)),
+            (a_float64 % int64_3, expected, tarray(tfloat64)),
 
-        self.check_expr(int64_3 % a_int32, expected_inv, tarray(tint64))
-        self.check_expr(int64_3 % a_int64, expected_inv, tarray(tint64))
-        self.check_expr(int64_3 % a_float32, expected_inv, tarray(tfloat32))
-        self.check_expr(int64_3 % a_float64, expected_inv, tarray(tfloat64))
+            (int64_3 % a_int32, expected_inv, tarray(tint64)),
+            (int64_3 % a_int64, expected_inv, tarray(tint64)),
+            (int64_3 % a_float32, expected_inv, tarray(tfloat32)),
+            (int64_3 % a_float64, expected_inv, tarray(tfloat64)),
 
-        self.check_expr(a_int32 % int64_3s, expected, tarray(tint64))
-        self.check_expr(a_int64 % int64_3s, expected, tarray(tint64))
-        self.check_expr(a_float32 % int64_3s, expected, tarray(tfloat32))
-        self.check_expr(a_float64 % int64_3s, expected, tarray(tfloat64))
+            (a_int32 % int64_3s, expected, tarray(tint64)),
+            (a_int64 % int64_3s, expected, tarray(tint64)),
+            (a_float32 % int64_3s, expected, tarray(tfloat32)),
+            (a_float64 % int64_3s, expected, tarray(tfloat64)),
 
-        self.check_expr(a_int32 % float32_3, expected, tarray(tfloat32))
-        self.check_expr(a_int64 % float32_3, expected, tarray(tfloat32))
-        self.check_expr(a_float32 % float32_3, expected, tarray(tfloat32))
-        self.check_expr(a_float64 % float32_3, expected, tarray(tfloat64))
+            (a_int32 % float32_3, expected, tarray(tfloat32)),
+            (a_int64 % float32_3, expected, tarray(tfloat32)),
+            (a_float32 % float32_3, expected, tarray(tfloat32)),
+            (a_float64 % float32_3, expected, tarray(tfloat64)),
 
-        self.check_expr(float32_3 % a_int32, expected_inv, tarray(tfloat32))
-        self.check_expr(float32_3 % a_int64, expected_inv, tarray(tfloat32))
-        self.check_expr(float32_3 % a_float32, expected_inv, tarray(tfloat32))
-        self.check_expr(float32_3 % a_float64, expected_inv, tarray(tfloat64))
+            (float32_3 % a_int32, expected_inv, tarray(tfloat32)),
+            (float32_3 % a_int64, expected_inv, tarray(tfloat32)),
+            (float32_3 % a_float32, expected_inv, tarray(tfloat32)),
+            (float32_3 % a_float64, expected_inv, tarray(tfloat64)),
 
-        self.check_expr(a_int32 % float32_3s, expected, tarray(tfloat32))
-        self.check_expr(a_int64 % float32_3s, expected, tarray(tfloat32))
-        self.check_expr(a_float32 % float32_3s, expected, tarray(tfloat32))
-        self.check_expr(a_float64 % float32_3s, expected, tarray(tfloat64))
+            (a_int32 % float32_3s, expected, tarray(tfloat32)),
+            (a_int64 % float32_3s, expected, tarray(tfloat32)),
+            (a_float32 % float32_3s, expected, tarray(tfloat32)),
+            (a_float64 % float32_3s, expected, tarray(tfloat64)),
 
-        self.check_expr(a_int32 % float64_3, expected, tarray(tfloat64))
-        self.check_expr(a_int64 % float64_3, expected, tarray(tfloat64))
-        self.check_expr(a_float32 % float64_3, expected, tarray(tfloat64))
-        self.check_expr(a_float64 % float64_3, expected, tarray(tfloat64))
+            (a_int32 % float64_3, expected, tarray(tfloat64)),
+            (a_int64 % float64_3, expected, tarray(tfloat64)),
+            (a_float32 % float64_3, expected, tarray(tfloat64)),
+            (a_float64 % float64_3, expected, tarray(tfloat64)),
 
-        self.check_expr(float64_3 % a_int32, expected_inv, tarray(tfloat64))
-        self.check_expr(float64_3 % a_int64, expected_inv, tarray(tfloat64))
-        self.check_expr(float64_3 % a_float32, expected_inv, tarray(tfloat64))
-        self.check_expr(float64_3 % a_float64, expected_inv, tarray(tfloat64))
+            (float64_3 % a_int32, expected_inv, tarray(tfloat64)),
+            (float64_3 % a_int64, expected_inv, tarray(tfloat64)),
+            (float64_3 % a_float32, expected_inv, tarray(tfloat64)),
+            (float64_3 % a_float64, expected_inv, tarray(tfloat64)),
 
-        self.check_expr(a_int32 % float64_3s, expected, tarray(tfloat64))
-        self.check_expr(a_int64 % float64_3s, expected, tarray(tfloat64))
-        self.check_expr(a_float32 % float64_3s, expected, tarray(tfloat64))
-        self.check_expr(a_float64 % float64_3s, expected, tarray(tfloat64))
+            (a_int32 % float64_3s, expected, tarray(tfloat64)),
+            (a_int64 % float64_3s, expected, tarray(tfloat64)),
+            (a_float32 % float64_3s, expected, tarray(tfloat64)),
+            (a_float64 % float64_3s, expected, tarray(tfloat64))])
 
     def test_comparisons(self):
         f0 = hl.float(0.0)
@@ -2094,19 +2523,20 @@ class Tests(unittest.TestCase):
         finf = hl.float(float('inf'))
         fnan = hl.float(float('nan'))
 
-        self.check_expr(f0 == fnull, None, tbool)
-        self.check_expr(f0 < fnull, None, tbool)
-        self.check_expr(f0 != fnull, None, tbool)
+        _test_many_equal_typed([
+            (f0 == fnull, None, tbool),
+            (f0 < fnull, None, tbool),
+            (f0 != fnull, None, tbool),
 
-        self.check_expr(fnan == fnan, False, tbool)
-        self.check_expr(f0 == f0, True, tbool)
-        self.check_expr(finf == finf, True, tbool)
+            (fnan == fnan, False, tbool),
+            (f0 == f0, True, tbool),
+            (finf == finf, True, tbool),
 
-        self.check_expr(f0 < finf, True, tbool)
-        self.check_expr(f0 > finf, False, tbool)
+            (f0 < finf, True, tbool),
+            (f0 > finf, False, tbool),
 
-        self.check_expr(fnan <= finf, False, tbool)
-        self.check_expr(fnan >= finf, False, tbool)
+            (fnan <= finf, False, tbool),
+            (fnan >= finf, False, tbool)])
 
     def test_bools_can_math(self):
         b1 = hl.literal(True)
@@ -2116,57 +2546,64 @@ class Tests(unittest.TestCase):
         f1 = hl.float64(5.5)
         f_array = hl.array([1.5, 2.5])
 
-        self.assertEqual(hl.eval(hl.int32(b1)), 1)
-        self.assertEqual(hl.eval(hl.int64(b1)), 1)
-        self.assertEqual(hl.eval(hl.float32(b1)), 1.0)
-        self.assertEqual(hl.eval(hl.float64(b1)), 1.0)
-        self.assertEqual(hl.eval(b1 * b2), 0)
-        self.assertEqual(hl.eval(b1 + b2), 1)
-        self.assertEqual(hl.eval(b1 - b2), 1)
-        self.assertEqual(hl.eval(b1 / b1), 1.0)
-        self.assertEqual(hl.eval(f1 * b2), 0.0)
-        self.assertEqual(hl.eval(b_array + f1), [6.5, 5.5])
-        self.assertEqual(hl.eval(b_array + f_array), [2.5, 2.5])
+        _test_many_equal([
+            (hl.int32(b1), 1),
+            (hl.int64(b1), 1),
+            (hl.float32(b1), 1.0),
+            (hl.float64(b1), 1.0),
+            (b1 * b2, 0),
+            (b1 + b2, 1),
+            (b1 - b2, 1),
+            (b1 / b1, 1.0),
+            (f1 * b2, 0.0),
+            (b_array + f1, [6.5, 5.5]),
+            (b_array + f_array, [2.5, 2.5])])
 
     def test_int_typecheck(self):
-        self.assertIsNone(hl.eval(hl.literal(None, dtype='int32')))
-        self.assertIsNone(hl.eval(hl.literal(None, dtype='int64')))
+        _test_many_equal([
+            (hl.literal(None, dtype='int32'), None),
+            (hl.literal(None, dtype='int64'), None)])
 
     @fails_service_backend()
     def test_is_transition(self):
-        self.assertTrue(hl.eval(hl.is_transition("A", "G")))
-        self.assertTrue(hl.eval(hl.is_transition("C", "T")))
-        self.assertTrue(hl.eval(hl.is_transition("AA", "AG")))
-        self.assertFalse(hl.eval(hl.is_transition("AA", "G")))
-        self.assertFalse(hl.eval(hl.is_transition("ACA", "AGA")))
-        self.assertFalse(hl.eval(hl.is_transition("A", "T")))
+        _test_many_equal([
+            (hl.is_transition("A", "G"), True),
+            (hl.is_transition("C", "T"), True),
+            (hl.is_transition("AA", "AG"), True),
+            (hl.is_transition("AA", "G"), False),
+            (hl.is_transition("ACA", "AGA"), False),
+            (hl.is_transition("A", "T"), False)])
 
     @fails_service_backend()
     def test_is_transversion(self):
-        self.assertTrue(hl.eval(hl.is_transversion("A", "T")))
-        self.assertFalse(hl.eval(hl.is_transversion("A", "G")))
-        self.assertTrue(hl.eval(hl.is_transversion("AA", "AT")))
-        self.assertFalse(hl.eval(hl.is_transversion("AA", "T")))
-        self.assertFalse(hl.eval(hl.is_transversion("ACCC", "ACCT")))
+        _test_many_equal([
+            (hl.is_transversion("A", "T"), True),
+            (hl.is_transversion("A", "G"), False),
+            (hl.is_transversion("AA", "AT"), True),
+            (hl.is_transversion("AA", "T"), False),
+            (hl.is_transversion("ACCC", "ACCT"), False)])
 
     @fails_service_backend()
     def test_is_snp(self):
-        self.assertTrue(hl.eval(hl.is_snp("A", "T")))
-        self.assertTrue(hl.eval(hl.is_snp("A", "G")))
-        self.assertTrue(hl.eval(hl.is_snp("C", "G")))
-        self.assertTrue(hl.eval(hl.is_snp("CC", "CG")))
-        self.assertTrue(hl.eval(hl.is_snp("AT", "AG")))
-        self.assertTrue(hl.eval(hl.is_snp("ATCCC", "AGCCC")))
+        _test_many_equal([
+            (hl.is_snp("A", "T"), True),
+            (hl.is_snp("A", "G"), True),
+            (hl.is_snp("C", "G"), True),
+            (hl.is_snp("CC", "CG"), True),
+            (hl.is_snp("AT", "AG"), True),
+            (hl.is_snp("ATCCC", "AGCCC"), True)])
 
     @fails_service_backend()
     def test_is_mnp(self):
-        self.assertTrue(hl.eval(hl.is_mnp("ACTGAC", "ATTGTT")))
-        self.assertTrue(hl.eval(hl.is_mnp("CA", "TT")))
+        _test_many_equal([
+            (hl.is_mnp("ACTGAC", "ATTGTT"), True),
+            (hl.is_mnp("CA", "TT"), True)])
 
     @fails_service_backend()
     def test_is_insertion(self):
-        self.assertTrue(hl.eval(hl.is_insertion("A", "ATGC")))
-        self.assertTrue(hl.eval(hl.is_insertion("ATT", "ATGCTT")))
+        _test_many_equal([
+            (hl.is_insertion("A", "ATGC"), True),
+            (hl.is_insertion("ATT", "ATGCTT"), True)])
 
     @fails_service_backend()
     def test_is_deletion(self):
@@ -2242,9 +2679,10 @@ class Tests(unittest.TestCase):
         )
 
     def test_hamming(self):
-        self.assertEqual(hl.eval(hl.hamming('A', 'T')), 1)
-        self.assertEqual(hl.eval(hl.hamming('AAAAA', 'AAAAT')), 1)
-        self.assertEqual(hl.eval(hl.hamming('abcde', 'edcba')), 4)
+        _test_many_equal([
+            (hl.hamming('A', 'T'), 1),
+            (hl.hamming('AAAAA', 'AAAAT'), 1),
+            (hl.hamming('abcde', 'edcba'), 4)])
 
     def test_gp_dosage(self):
         self.assertAlmostEqual(hl.eval(hl.gp_dosage([1.0, 0.0, 0.0])), 0.0)
@@ -2261,70 +2699,120 @@ class Tests(unittest.TestCase):
         c1 = hl.call(1)
         c0 = hl.call()
         cNull = hl.missing(tcall)
-
-        self.check_expr(c2_homref.ploidy, 2, tint32)
-        self.check_expr(c2_homref[0], 0, tint32)
-        self.check_expr(c2_homref[1], 0, tint32)
-        self.check_expr(c2_homref.phased, False, tbool)
-        self.check_expr(c2_homref.is_hom_ref(), True, tbool)
-
-        self.check_expr(c2_het.ploidy, 2, tint32)
-        self.check_expr(c2_het[0], 1, tint32)
-        self.check_expr(c2_het[1], 0, tint32)
-        self.check_expr(c2_het.phased, True, tbool)
-        self.check_expr(c2_het.is_het(), True, tbool)
-
-        self.check_expr(c2_homvar.ploidy, 2, tint32)
-        self.check_expr(c2_homvar[0], 1, tint32)
-        self.check_expr(c2_homvar[1], 1, tint32)
-        self.check_expr(c2_homvar.phased, False, tbool)
-        self.check_expr(c2_homvar.is_hom_var(), True, tbool)
-        self.check_expr(c2_homvar.unphased_diploid_gt_index(), 2, tint32)
-
-        self.check_expr(c2_hetvar.ploidy, 2, tint32)
-        self.check_expr(c2_hetvar[0], 2, tint32)
-        self.check_expr(c2_hetvar[1], 1, tint32)
-        self.check_expr(c2_hetvar.phased, True, tbool)
-        self.check_expr(c2_hetvar.is_hom_var(), False, tbool)
-        self.check_expr(c2_hetvar.is_het_non_ref(), True, tbool)
-
-        self.check_expr(c1.ploidy, 1, tint32)
-        self.check_expr(c1[0], 1, tint32)
-        self.check_expr(c1.phased, False, tbool)
-        self.check_expr(c1.is_hom_var(), True, tbool)
-
-        self.check_expr(c0.ploidy, 0, tint32)
-        self.check_expr(c0.phased, False, tbool)
-        self.check_expr(c0.is_hom_var(), False, tbool)
-
-        self.check_expr(cNull.ploidy, None, tint32)
-        self.check_expr(cNull[0], None, tint32)
-        self.check_expr(cNull.phased, None, tbool)
-        self.check_expr(cNull.is_hom_var(), None, tbool)
-
-        call_expr = hl.call(1, 2, phased=True)
-        self.check_expr(call_expr[0], 1, tint32)
-        self.check_expr(call_expr[1], 2, tint32)
-        self.check_expr(call_expr.ploidy, 2, tint32)
-
+        call_expr_1 = hl.call(1, 2, phased=True)
         a0 = hl.literal(1)
         a1 = 2
         phased = hl.literal(True)
-        call_expr = hl.call(a0, a1, phased=phased)
-        self.check_expr(call_expr[0], 1, tint32)
-        self.check_expr(call_expr[1], 2, tint32)
-        self.check_expr(call_expr.ploidy, 2, tint32)
+        call_expr_2 = hl.call(a0, a1, phased=phased)
+        call_expr_3 = hl.parse_call("1|2")
+        call_expr_4 = hl.unphased_diploid_gt_index_call(2)
 
-        call_expr = hl.parse_call("1|2")
-        self.check_expr(call_expr[0], 1, tint32)
-        self.check_expr(call_expr[1], 2, tint32)
-        self.check_expr(call_expr.ploidy, 2, tint32)
+        _test_many_equal_typed([
+            (c2_homref.ploidy, 2, tint32),
+            (c2_homref[0], 0, tint32),
+            (c2_homref[1], 0, tint32),
+            (c2_homref.phased, False, tbool),
+            (c2_homref.is_hom_ref(), True, tbool),
 
-        call_expr = hl.unphased_diploid_gt_index_call(2)
-        self.check_expr(call_expr[0], 1, tint32)
-        self.check_expr(call_expr[1], 1, tint32)
-        self.check_expr(call_expr.ploidy, 2, tint32)
+            (c2_het.ploidy, 2, tint32),
+            (c2_het[0], 1, tint32),
+            (c2_het[1], 0, tint32),
+            (c2_het.phased, True, tbool),
+            (c2_het.is_het(), True, tbool),
 
+            (c2_homvar.ploidy, 2, tint32),
+            (c2_homvar[0], 1, tint32),
+            (c2_homvar[1], 1, tint32),
+            (c2_homvar.phased, False, tbool),
+            (c2_homvar.is_hom_var(), True, tbool),
+            (c2_homvar.unphased_diploid_gt_index(), 2, tint32),
+
+            (c2_hetvar.ploidy, 2, tint32),
+            (c2_hetvar[0], 2, tint32),
+            (c2_hetvar[1], 1, tint32),
+            (c2_hetvar.phased, True, tbool),
+            (c2_hetvar.is_hom_var(), False, tbool),
+            (c2_hetvar.is_het_non_ref(), True, tbool),
+
+            (c1.ploidy, 1, tint32),
+            (c1[0], 1, tint32),
+            (c1.phased, False, tbool),
+            (c1.is_hom_var(), True, tbool),
+
+            (c0.ploidy, 0, tint32),
+            (c0.phased, False, tbool),
+            (c0.is_hom_var(), False, tbool),
+
+            (cNull.ploidy, None, tint32),
+            (cNull[0], None, tint32),
+            (cNull.phased, None, tbool),
+            (cNull.is_hom_var(), None, tbool),
+
+            (call_expr_1[0], 1, tint32),
+            (call_expr_1[1], 2, tint32),
+            (call_expr_1.ploidy, 2, tint32),
+
+            (call_expr_2[0], 1, tint32),
+            (call_expr_2[1], 2, tint32),
+            (call_expr_2.ploidy, 2, tint32),
+
+            (call_expr_3[0], 1, tint32),
+            (call_expr_3[1], 2, tint32),
+            (call_expr_3.ploidy, 2, tint32),
+
+            (call_expr_4[0], 1, tint32),
+            (call_expr_4[1], 1, tint32),
+            (call_expr_4.ploidy, 2, tint32)])
+
+    def test_call_unphase(self):
+
+        calls = [
+            hl.Call([0], phased=True),
+            hl.Call([0], phased=False),
+            hl.Call([1], phased=True),
+            hl.Call([1], phased=False),
+            hl.Call([0, 0], phased=True),
+            hl.Call([3, 0], phased=True),
+            hl.Call([1, 1], phased=False),
+            hl.Call([0, 0], phased=False),
+        ]
+
+        expected = [
+            hl.Call([0], phased=False),
+            hl.Call([0], phased=False),
+            hl.Call([1], phased=False),
+            hl.Call([1], phased=False),
+            hl.Call([0, 0], phased=False),
+            hl.Call([0, 3], phased=False),
+            hl.Call([1, 1], phased=False),
+            hl.Call([0, 0], phased=False),
+        ]
+
+        assert hl.eval(hl.literal(calls).map(lambda x: x.unphase())) == expected
+
+    def test_call_contains_allele(self):
+        c1 = hl.call(1, phased=True)
+        c2 = hl.call(1, phased=False)
+        c3 = hl.call(3,1, phased=True)
+        c4 = hl.call(1,3, phased=False)
+
+        for i, b in enumerate(hl.eval(tuple([
+            c1.contains_allele(1),
+            ~c1.contains_allele(0),
+            ~c1.contains_allele(2),
+            c2.contains_allele(1),
+            ~c2.contains_allele(0),
+            ~c2.contains_allele(2),
+            c3.contains_allele(1),
+            c3.contains_allele(3),
+            ~c3.contains_allele(0),
+            ~c3.contains_allele(2),
+            c4.contains_allele(1),
+            c4.contains_allele(3),
+            ~c4.contains_allele(0),
+            ~c4.contains_allele(2),
+        ]))):
+            assert b, i
     def test_call_unphase_diploid_gt_index(self):
         calls_and_indices = [
             (hl.call(0, 0), 0),
@@ -2454,25 +2942,23 @@ class Tests(unittest.TestCase):
         self.assertEqual(hl.eval(hl.all(lambda x: x % 2 == 0, [2, 6])), True)
 
     def test_array_methods(self):
-        self.assertEqual(hl.eval(hl.map(lambda x: x % 2 == 0, [0, 1, 4, 6])), [True, False, True, True])
-
-        self.assertEqual(hl.eval(hl.len([0, 1, 4, 6])), 4)
-
-        self.assertTrue(math.isnan(hl.eval(hl.mean(hl.empty_array(hl.tint)))))
-        self.assertEqual(hl.eval(hl.mean([0, 1, 4, 6, hl.missing(tint32)])), 2.75)
-
-        self.assertEqual(hl.eval(hl.median(hl.empty_array(hl.tint))), None)
-        self.assertTrue(1 <= hl.eval(hl.median([0, 1, 4, 6])) <= 4)
-
-        for f in [lambda x: hl.int32(x), lambda x: hl.int64(x), lambda x: hl.float32(x), lambda x: hl.float64(x)]:
-            self.assertEqual(hl.eval(hl.product([f(x) for x in [1, 4, 6]])), 24)
-            self.assertEqual(hl.eval(hl.sum([f(x) for x in [1, 4, 6]])), 11)
-
-        self.assertEqual(hl.eval(hl.group_by(lambda x: x % 2 == 0, [0, 1, 4, 6])), {True: [0, 4, 6], False: [1]})
-
-        self.assertEqual(hl.eval(hl.flatmap(lambda x: hl.range(0, x), [1, 2, 3])), [0, 0, 1, 0, 1, 2])
-        fm = hl.flatmap(lambda x: hl.set(hl.range(0, x.length()).map(lambda i: x[i])), {"ABC", "AAa", "BD"})
-        self.assertEqual(hl.eval(fm), {'A', 'a', 'B', 'C', 'D'})
+        _test_many_equal([
+            (hl.map(lambda x: x % 2 == 0, [0, 1, 4, 6]), [True, False, True, True]),
+            (hl.len([0, 1, 4, 6]), 4),
+            (math.isnan(hl.eval(hl.mean(hl.empty_array(hl.tint)))), True),
+            (hl.mean([0, 1, 4, 6, hl.missing(tint32)]), 2.75),
+            (hl.median(hl.empty_array(hl.tint)), None),
+            (1 <= hl.eval(hl.median([0, 1, 4, 6])) <= 4, True)
+        ] + [test
+             for f in [lambda x: hl.int32(x), lambda x: hl.int64(x), lambda x: hl.float32(x), lambda x: hl.float64(x)]
+             for test in [(hl.product([f(x) for x in [1, 4, 6]]), 24),
+                          (hl.sum([f(x) for x in [1, 4, 6]]), 11)]
+        ] + [
+            (hl.group_by(lambda x: x % 2 == 0, [0, 1, 4, 6]), {True: [0, 4, 6], False: [1]}),
+            (hl.flatmap(lambda x: hl.range(0, x), [1, 2, 3]), [0, 0, 1, 0, 1, 2]),
+            (hl.flatmap(lambda x: hl.set(hl.range(0, x.length()).map(lambda i: x[i])), {"ABC", "AAa", "BD"}),
+             {'A', 'a', 'B', 'C', 'D'})
+        ])
 
     def test_starmap(self):
         self.assertEqual(hl.eval(hl.array([(1, 2), (2, 3)]).starmap(lambda x,y: x+y)), [3, 5])
@@ -3187,6 +3673,42 @@ class Tests(unittest.TestCase):
         result = hl.eval(hl.uniroot(multiple_roots, 0, 5.5, tolerance=tol))
         self.assertTrue(any(abs(result - root) < tol for root in roots))
 
+    def test_dnorm(self):
+        self.assert_evals_to(hl.dnorm(0), 0.3989422804014327)
+        self.assert_evals_to(hl.dnorm(0, mu=1, sigma=2), 0.17603266338214976)
+        self.assert_evals_to(hl.dnorm(0, log_p=True), -0.9189385332046728)
+
+    def test_pnorm(self):
+        self.assert_evals_to(hl.pnorm(0), 0.5)
+        self.assert_evals_to(hl.pnorm(1, mu=1, sigma=2), 0.5)
+        self.assert_evals_to(hl.pnorm(1), 0.8413447460685429)
+        self.assert_evals_to(hl.pnorm(1, lower_tail=False), 0.15865525393145705)
+        self.assert_evals_to(hl.pnorm(1, log_p=True), -0.17275377902344988)
+
+    def test_qnorm(self):
+        self.assert_evals_to(hl.qnorm(hl.pnorm(0)), 0.0)
+        self.assert_evals_to(hl.qnorm(hl.pnorm(1, mu=1, sigma=2), mu=1, sigma=2), 1.0)
+        self.assert_evals_to(hl.qnorm(hl.pnorm(1)), 1.0)
+        self.assert_evals_to(hl.qnorm(hl.pnorm(1, lower_tail=False), lower_tail=False), 1.0)
+        self.assert_evals_to(hl.qnorm(hl.pnorm(1, log_p=True), log_p=True), 1.0)
+
+    def test_dchisq(self):
+        self.assert_evals_to(hl.dchisq(10, 5), 0.028334555341734464)
+        self.assert_evals_to(hl.dchisq(10, 5, ncp=5), 0.07053548900555977)
+        self.assert_evals_to(hl.dchisq(10, 5, log_p=True), -3.5636731823817143)
+
+    def test_pchisqtail(self):
+        self.assert_evals_to(hl.pchisqtail(10, 5), 0.07523524614651216)
+        self.assert_evals_to(hl.pchisqtail(10, 5, ncp=2), 0.20772889456608998)
+        self.assert_evals_to(hl.pchisqtail(10, 5, lower_tail=True), 0.9247647538534879)
+        self.assert_evals_to(hl.pchisqtail(10, 5, log_p=True), -2.5871354590744855)
+
+    def test_qchisqtail(self):
+        self.assertAlmostEqual(hl.eval(hl.qchisqtail(hl.pchisqtail(10, 5), 5)), 10.0)
+        self.assertAlmostEqual(hl.eval(hl.qchisqtail(hl.pchisqtail(10, 5, ncp=2), 5, ncp=2)), 10.0)
+        self.assertAlmostEqual(hl.eval(hl.qchisqtail(hl.pchisqtail(10, 5, lower_tail=True), 5, lower_tail=True)), 10.0)
+        self.assertAlmostEqual(hl.eval(hl.qchisqtail(hl.pchisqtail(10, 5, log_p=True), 5, log_p=True)), 10.0)
+
     def test_pT(self):
         self.assert_evals_to(hl.pT(0, 10), 0.5)
         self.assert_evals_to(hl.pT(1, 10), 0.82955343384897)
@@ -3235,9 +3757,13 @@ class Tests(unittest.TestCase):
         self.assertAlmostEqual(res['odds_ratio'], 4.91805817)
 
     def test_hardy_weinberg_test(self):
-        res = hl.eval(hl.hardy_weinberg_test(1, 2, 1))
-        self.assertAlmostEqual(res['p_value'], 0.65714285)
-        self.assertAlmostEqual(res['het_freq_hwe'], 0.57142857)
+        two_sided_res = hl.eval(hl.hardy_weinberg_test(1, 2, 1, one_sided=False))
+        self.assertAlmostEqual(two_sided_res['p_value'], 0.65714285)
+        self.assertAlmostEqual(two_sided_res['het_freq_hwe'], 0.57142857)
+
+        one_sided_res = hl.eval(hl.hardy_weinberg_test(1, 2, 1, one_sided=True))
+        self.assertAlmostEqual(one_sided_res['p_value'], 0.57142857)
+        self.assertAlmostEqual(one_sided_res['het_freq_hwe'], 0.57142857)
 
     def test_hardy_weinberg_agg(self):
         mapping = {
@@ -3254,31 +3780,60 @@ class Tests(unittest.TestCase):
         }
 
         mt = hl.utils.range_matrix_table(n_rows=3, n_cols=5)
-        mt = mt.annotate_rows(hwe = hl.agg.hardy_weinberg_test(hl.literal(mapping).get((mt.row_idx, mt.col_idx))))
-        [r1, r2, r3] = mt.hwe.collect()
+        mt = mt.annotate_rows(
+            hwe_two_sided = hl.agg.hardy_weinberg_test(hl.literal(mapping).get((mt.row_idx, mt.col_idx)), one_sided=False),
+            hwe_one_sided = hl.agg.hardy_weinberg_test(hl.literal(mapping).get((mt.row_idx, mt.col_idx)), one_sided=True)
+        )
+        [r1_two_sided, r2_two_sided, r3_two_sided] = mt.hwe_two_sided.collect()
 
-        self.assertAlmostEqual(r1['p_value'], 0.65714285)
-        self.assertAlmostEqual(r1['het_freq_hwe'], 0.57142857)
+        self.assertAlmostEqual(r1_two_sided['p_value'], 0.65714285)
+        self.assertAlmostEqual(r1_two_sided['het_freq_hwe'], 0.57142857)
 
-        assert r2['p_value'] == 0.5
-        assert r2['het_freq_hwe'] == 0.0
+        assert r2_two_sided['p_value'] == 0.5
+        assert r2_two_sided['het_freq_hwe'] == 0.0
 
-        assert r3['p_value'] == 0.5
-        assert np.isnan(r3['het_freq_hwe'])
+        assert r3_two_sided['p_value'] == 0.5
+        assert np.isnan(r3_two_sided['het_freq_hwe'])
+
+        [r1_one_sided, r2_one_sided, r3_one_sided] = mt.hwe_one_sided.collect()
+
+        self.assertAlmostEqual(r1_one_sided['p_value'], 0.57142857)
+        self.assertAlmostEqual(r1_one_sided['het_freq_hwe'], 0.57142857)
+
+        assert r2_one_sided['p_value'] == 0.5
+        assert r2_one_sided['het_freq_hwe'] == 0.0
+
+        assert r3_one_sided['p_value'] == 0.5
+        assert np.isnan(r3_one_sided['het_freq_hwe'])
 
         ht = hl.utils.range_table(6)
-        ht = ht.annotate(x = hl.scan.hardy_weinberg_test(hl.literal(list(mapping.values())[:5])[ht.idx % 5]))
-        all_x = ht.x.collect()
-        [first, *mid, penultimate, last] = all_x
+        ht = ht.annotate(
+            x_two_sided = hl.scan.hardy_weinberg_test(hl.literal(list(mapping.values())[:5])[ht.idx % 5], one_sided=False),
+            x_one_sided = hl.scan.hardy_weinberg_test(hl.literal(list(mapping.values())[:5])[ht.idx % 5], one_sided=True)
+        )
+        all_x_two_sided = ht.x_two_sided.collect()
+        [first_two_sided, *mid_two_sided, penultimate_two_sided, last_two_sided] = all_x_two_sided
 
-        assert first['p_value'] == 0.5
-        assert np.isnan(first['het_freq_hwe'])
+        assert first_two_sided['p_value'] == 0.5
+        assert np.isnan(first_two_sided['het_freq_hwe'])
 
-        self.assertAlmostEqual(penultimate['p_value'], 0.7)
-        self.assertAlmostEqual(penultimate['het_freq_hwe'], 0.6)
+        self.assertAlmostEqual(penultimate_two_sided['p_value'], 0.7)
+        self.assertAlmostEqual(penultimate_two_sided['het_freq_hwe'], 0.6)
 
-        self.assertAlmostEqual(last['p_value'], 0.65714285)
-        self.assertAlmostEqual(last['het_freq_hwe'], 0.57142857)
+        self.assertAlmostEqual(last_two_sided['p_value'], 0.65714285)
+        self.assertAlmostEqual(last_two_sided['het_freq_hwe'], 0.57142857)
+
+        all_x_one_sided = ht.x_one_sided.collect()
+        [first_one_sided, *mid_one_sided, penultimate_one_sided, last_one_sided] = all_x_one_sided
+
+        assert first_one_sided['p_value'] == 0.5
+        assert np.isnan(first_one_sided['het_freq_hwe'])
+
+        self.assertAlmostEqual(penultimate_one_sided['p_value'], 0.7)
+        self.assertAlmostEqual(penultimate_one_sided['het_freq_hwe'], 0.6)
+
+        self.assertAlmostEqual(last_one_sided['p_value'], 0.57142857)
+        self.assertAlmostEqual(last_one_sided['het_freq_hwe'], 0.57142857)
 
     def test_inbreeding_aggregator(self):
         data = [
@@ -3431,6 +3986,81 @@ class Tests(unittest.TestCase):
         assert hl.eval(hl.is_nan(nan)) == True
         assert hl.eval(hl.is_nan(na)) == None
 
+    @skip_when_service_backend('''intermittent driver failure:
+(Python line number was, oddly, not present)
+
+E                   hail.utils.java.FatalError: java.lang.NoSuchFieldError: __f840null
+E                   	at __C449Compiled.apply(Emit.scala)
+E                   	at is.hail.expr.ir.LoweredTableReader$.makeCoercer(TableIR.scala:312)
+E                   	at is.hail.expr.ir.GenericTableValue.getLTVCoercer(GenericTableValue.scala:133)
+E                   	at is.hail.expr.ir.GenericTableValue.toTableStage(GenericTableValue.scala:158)
+E                   	at is.hail.io.vcf.MatrixVCFReader.lower(LoadVCF.scala:1792)
+E                   	at is.hail.expr.ir.lowering.LowerTableIR$.lower$1(LowerTableIR.scala:401)
+E                   	at is.hail.expr.ir.lowering.LowerTableIR$.lower$1(LowerTableIR.scala:819)
+E                   	at is.hail.expr.ir.lowering.LowerTableIR$.lower$1(LowerTableIR.scala:1081)
+E                   	at is.hail.expr.ir.lowering.LowerTableIR$.lower$1(LowerTableIR.scala:1050)
+E                   	at is.hail.expr.ir.lowering.LowerTableIR$.lower$1(LowerTableIR.scala:819)
+E                   	at is.hail.expr.ir.lowering.LowerTableIR$.lower$1(LowerTableIR.scala:1050)
+E                   	at is.hail.expr.ir.lowering.LowerTableIR$.lower$1(LowerTableIR.scala:660)
+E                   	at is.hail.expr.ir.lowering.LowerTableIR$.lower$1(LowerTableIR.scala:819)
+E                   	at is.hail.expr.ir.lowering.LowerTableIR$.apply(LowerTableIR.scala:1156)
+E                   	at is.hail.expr.ir.lowering.LowerToCDA$.lower(LowerToCDA.scala:68)
+E                   	at is.hail.expr.ir.lowering.LowerToCDA$.lower(LowerToCDA.scala:37)
+E                   	at is.hail.expr.ir.lowering.LowerToCDA$.apply(LowerToCDA.scala:17)
+E                   	at is.hail.expr.ir.lowering.LowerToDistributedArrayPass.transform(LoweringPass.scala:75)
+E                   	at is.hail.expr.ir.lowering.LoweringPass.$anonfun$apply$3(LoweringPass.scala:15)
+E                   	at is.hail.utils.ExecutionTimer.time(ExecutionTimer.scala:81)
+E                   	at is.hail.expr.ir.lowering.LoweringPass.$anonfun$apply$1(LoweringPass.scala:15)
+E                   	at is.hail.utils.ExecutionTimer.time(ExecutionTimer.scala:81)
+E                   	at is.hail.expr.ir.lowering.LoweringPass.apply(LoweringPass.scala:13)
+E                   	at is.hail.expr.ir.lowering.LoweringPass.apply$(LoweringPass.scala:12)
+E                   	at is.hail.expr.ir.lowering.LowerToDistributedArrayPass.apply(LoweringPass.scala:70)
+E                   	at is.hail.expr.ir.lowering.LoweringPipeline.$anonfun$apply$1(LoweringPipeline.scala:14)
+E                   	at is.hail.expr.ir.lowering.LoweringPipeline.$anonfun$apply$1$adapted(LoweringPipeline.scala:12)
+E                   	at scala.collection.IndexedSeqOptimized.foreach(IndexedSeqOptimized.scala:36)
+E                   	at scala.collection.IndexedSeqOptimized.foreach$(IndexedSeqOptimized.scala:33)
+E                   	at scala.collection.mutable.WrappedArray.foreach(WrappedArray.scala:38)
+E                   	at is.hail.expr.ir.lowering.LoweringPipeline.apply(LoweringPipeline.scala:12)
+E                   	at is.hail.backend.service.ServiceBackend.execute(ServiceBackend.scala:289)
+E                   	at is.hail.backend.service.ServiceBackend.$anonfun$execute$4(ServiceBackend.scala:324)
+E                   	at is.hail.expr.ir.ExecuteContext$.$anonfun$scoped$3(ExecuteContext.scala:47)
+E                   	at is.hail.utils.package$.using(package.scala:627)
+E                   	at is.hail.expr.ir.ExecuteContext$.$anonfun$scoped$2(ExecuteContext.scala:47)
+E                   	at is.hail.utils.package$.using(package.scala:627)
+E                   	at is.hail.annotations.RegionPool$.scoped(RegionPool.scala:17)
+E                   	at is.hail.expr.ir.ExecuteContext$.scoped(ExecuteContext.scala:46)
+E                   	at is.hail.backend.service.ServiceBackend.$anonfun$execute$1(ServiceBackend.scala:320)
+E                   	at is.hail.utils.ExecutionTimer$.time(ExecutionTimer.scala:52)
+E                   	at is.hail.utils.ExecutionTimer$.logTime(ExecutionTimer.scala:59)
+E                   	at is.hail.backend.service.ServiceBackend.execute(ServiceBackend.scala:314)
+E                   	at is.hail.backend.service.ServiceBackendSocketAPI2.executeOneCommand(ServiceBackend.scala:873)
+E                   	at is.hail.backend.service.ServiceBackendSocketAPI2$.$anonfun$main$7(ServiceBackend.scala:696)
+E                   	at is.hail.backend.service.ServiceBackendSocketAPI2$.$anonfun$main$7$adapted(ServiceBackend.scala:695)
+E                   	at is.hail.utils.package$.using(package.scala:627)
+E                   	at is.hail.backend.service.ServiceBackendSocketAPI2$.$anonfun$main$6(ServiceBackend.scala:695)
+E                   	at scala.runtime.java8.JFunction0$mcV$sp.apply(JFunction0$mcV$sp.java:23)
+E                   	at is.hail.services.package$.retryTransientErrors(package.scala:69)
+E                   	at is.hail.backend.service.ServiceBackendSocketAPI2$.$anonfun$main$5(ServiceBackend.scala:699)
+E                   	at is.hail.backend.service.ServiceBackendSocketAPI2$.$anonfun$main$5$adapted(ServiceBackend.scala:693)
+E                   	at is.hail.utils.package$.using(package.scala:627)
+E                   	at is.hail.backend.service.ServiceBackendSocketAPI2$.$anonfun$main$4(ServiceBackend.scala:693)
+E                   	at scala.runtime.java8.JFunction0$mcV$sp.apply(JFunction0$mcV$sp.java:23)
+E                   	at is.hail.services.package$.retryTransientErrors(package.scala:69)
+E                   	at is.hail.backend.service.ServiceBackendSocketAPI2$.main(ServiceBackend.scala:701)
+E                   	at is.hail.backend.service.ServiceBackendSocketAPI2.main(ServiceBackend.scala)
+E                   	at sun.reflect.NativeMethodAccessorImpl.invoke0(Native Method)
+E                   	at sun.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:62)
+E                   	at sun.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)
+E                   	at java.lang.reflect.Method.invoke(Method.java:498)
+E                   	at is.hail.JVMEntryway$1.run(JVMEntryway.java:88)
+E                   	at java.util.concurrent.Executors$RunnableAdapter.call(Executors.java:511)
+E                   	at java.util.concurrent.FutureTask.run(FutureTask.java:266)
+E                   	at java.util.concurrent.Executors$RunnableAdapter.call(Executors.java:511)
+E                   	at java.util.concurrent.FutureTask.run(FutureTask.java:266)
+E                   	at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1149)
+E                   	at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:624)
+E                   	at java.lang.Thread.run(Thread.java:748)
+''')
     def test_array_and_if_requiredness(self):
         mt = hl.import_vcf(resource('sample.vcf'), array_elements_required=True)
         hl.tuple((mt.AD, mt.PL)).show()
@@ -3523,6 +4153,7 @@ class Tests(unittest.TestCase):
 
         assert ht.aggregate((hl.agg._prev_nonnull(ht.idx))) == 0
 
+    @skip_when_service_backend('slow >800s')
     def test_summarize_runs(self):
         mt = hl.utils.range_matrix_table(3,3).annotate_entries(
             x1 = 'a',

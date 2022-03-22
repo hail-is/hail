@@ -2,6 +2,7 @@ package is.hail.methods
 
 import is.hail.HailContext
 import is.hail.annotations._
+import is.hail.backend.ExecuteContext
 import is.hail.expr.ir._
 import is.hail.expr.ir.functions.MatrixToTableFunction
 import is.hail.types.physical.{PCanonicalString, PCanonicalStruct, PFloat64, PInt64, PString, PStruct}

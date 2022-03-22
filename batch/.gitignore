@@ -2,3 +2,5 @@
 /deployment.yaml.out
 flycheck_*.py
 *_flymake.py
+jars/junixsocket-selftest-2.3.3-jar-with-dependencies.jar
+src/**/*.class

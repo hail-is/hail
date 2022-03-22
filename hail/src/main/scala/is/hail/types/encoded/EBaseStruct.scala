@@ -6,9 +6,9 @@ import is.hail.expr.ir.EmitCodeBuilder
 import is.hail.io.{InputBuffer, OutputBuffer}
 import is.hail.types.BaseStruct
 import is.hail.types.physical._
-import is.hail.types.physical.stypes.{SCode, SType, SValue}
 import is.hail.types.physical.stypes.concrete._
 import is.hail.types.physical.stypes.interfaces.{SBaseStructValue, SLocus, SLocusValue}
+import is.hail.types.physical.stypes.{SType, SValue}
 import is.hail.types.virtual._
 import is.hail.utils._
 
@@ -72,9 +72,9 @@ final case class EBaseStruct(fields: IndexedSeq[EField], override val required: 
 
   override def _buildEncoder(cb: EmitCodeBuilder, v: SValue, out: Value[OutputBuffer]): Unit = {
     val structValue = v.st match {
-      case SIntervalPointer(t: PCanonicalInterval) => new SBaseStructPointerSettable(
+      case SIntervalPointer(t: PCanonicalInterval) => new SBaseStructPointerValue(
         SBaseStructPointer(t.representation),
-        v.asInstanceOf[SIntervalPointerSettable].a)
+        v.asInstanceOf[SIntervalPointerValue].a)
       case _: SLocus => v.asInstanceOf[SLocusValue].structRepr(cb)
       case _ => v.asInstanceOf[SBaseStructValue]
     }
@@ -83,7 +83,7 @@ final case class EBaseStruct(fields: IndexedSeq[EField], override val required: 
       case SBaseStructPointer(st) if st.size == size && st.fieldRequired.sameElements(fields.map(_.typ.required)) =>
         val missingBytes = UnsafeUtils.packBitsToBytes(st.nMissing)
 
-        val addr = structValue.asInstanceOf[SBaseStructPointerSettable].a
+        val addr = structValue.asInstanceOf[SBaseStructPointerValue].a
         if (nMissingBytes > 1)
           cb += out.writeBytes(addr, missingBytes - 1)
         if (nMissingBytes > 0)
@@ -98,7 +98,7 @@ final case class EBaseStruct(fields: IndexedSeq[EField], override val required: 
           while (k < 8 && j < size) {
             val f = fields(j)
             if (!f.typ.required) {
-              b = b | (structValue.isFieldMissing(f.name).toI << k)
+              b = b | (structValue.isFieldMissing(cb, f.name).toI << k)
               k += 1
             }
             j += 1
@@ -120,16 +120,16 @@ final case class EBaseStruct(fields: IndexedSeq[EField], override val required: 
         },
         { pc =>
           ef.typ.buildEncoder(pc.st, cb.emb.ecb)
-            .apply(cb, pc.get, out)
+            .apply(cb, pc, out)
         })
     }
   }
 
-  override def _buildDecoder(cb: EmitCodeBuilder, t: Type, region: Value[Region], in: Value[InputBuffer]): SCode = {
+  override def _buildDecoder(cb: EmitCodeBuilder, t: Type, region: Value[Region], in: Value[InputBuffer]): SValue = {
     val pt = decodedPType(t)
     val addr = cb.newLocal[Long]("base_struct_dec_addr", region.allocate(pt.alignment, pt.byteSize))
     _buildInplaceDecoder(cb, pt, region, addr, in)
-    pt.loadCheapSCode(cb, addr).get
+    pt.loadCheapSCode(cb, addr)
   }
 
   override def _buildInplaceDecoder(cb: EmitCodeBuilder, pt: PType, region: Value[Region], addr: Value[Long], in: Value[InputBuffer]): Unit = {
@@ -145,7 +145,7 @@ final case class EBaseStruct(fields: IndexedSeq[EField], override val required: 
       if (structType.hasField(f.name)) {
         val rf = structType.field(f.name)
         val readElemF = f.typ.buildInplaceDecoder(rf.typ, cb.emb.ecb)
-        val rFieldAddr = structType.fieldOffset(addr, rf.index)
+        val rFieldAddr = cb.memoize(structType.fieldOffset(addr, rf.index))
         if (f.typ.required) {
           readElemF(cb, region, rFieldAddr, in)
           if (!rf.typ.required)

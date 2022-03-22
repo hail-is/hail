@@ -1,12 +1,11 @@
 package is.hail.types.physical.stypes.interfaces
 
 import is.hail.annotations.Region
-import is.hail.asm4s.{Code, Settable, TypeInfo, UnitInfo, Value}
-import is.hail.expr.ir.orderings.CodeOrdering
-import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder, SortOrder}
-import is.hail.types.{RPrimitive, TypeWithRequiredness}
-import is.hail.types.physical.stypes.{SCode, SSettable, SType, SUnrealizableCode, SUnrealizableValue, SValue}
-import is.hail.types.physical.{PType, PVoid}
+import is.hail.asm4s.{Settable, TypeInfo, Value}
+import is.hail.expr.ir.EmitCodeBuilder
+import is.hail.types.TypeWithRequiredness
+import is.hail.types.physical.PType
+import is.hail.types.physical.stypes._
 import is.hail.types.virtual.{TVoid, Type}
 import is.hail.utils.FastIndexedSeq
 
@@ -33,20 +32,10 @@ case object SVoid extends SType {
   override def containsPointers: Boolean = false
 }
 
-case object SVoidCode extends SCode with SUnrealizableCode {
-  self =>
-
-  override def st: SType = SVoid
-
-  def memoize(cb: EmitCodeBuilder, name: String): SValue = SVoidValue
-}
-
 case object SVoidValue extends SValue with SUnrealizableValue {
   self =>
 
   override def st: SType = SVoid
 
   override def valueTuple: IndexedSeq[Value[_]] = FastIndexedSeq()
-
-  override def get: SCode = SVoidCode
 }

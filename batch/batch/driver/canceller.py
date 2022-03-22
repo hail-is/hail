@@ -1,25 +1,60 @@
-import logging
 import asyncio
+import logging
 
+from gear import Database
+from hailtop import aiotools
 from hailtop.utils import (
+    AsyncWorkerPool,
     WaitableSharedPool,
+    periodically_call,
     retry_long_running,
     run_if_changed,
-    AsyncWorkerPool,
     time_msecs,
-    periodically_call,
 )
-from hailtop import aiotools, aiogoogle
-from gear import Database
 
-from .job import unschedule_job, mark_job_complete
-from .instance_collection_manager import InstanceCollectionManager
 from ..utils import Box
+from .instance_collection import InstanceCollectionManager
+from .job import mark_job_complete, unschedule_job
 
 log = logging.getLogger('canceller')
 
 
 class Canceller:
+    @staticmethod
+    async def create(app):
+        c = Canceller(app)
+
+        c.task_manager.ensure_future(
+            retry_long_running(
+                'cancel_cancelled_ready_jobs_loop',
+                run_if_changed,
+                c.cancel_ready_state_changed,
+                c.cancel_cancelled_ready_jobs_loop_body,
+            )
+        )
+
+        c.task_manager.ensure_future(
+            retry_long_running(
+                'cancel_cancelled_creating_jobs_loop',
+                run_if_changed,
+                c.cancel_creating_state_changed,
+                c.cancel_cancelled_creating_jobs_loop_body,
+            )
+        )
+
+        c.task_manager.ensure_future(
+            retry_long_running(
+                'cancel_cancelled_running_jobs_loop',
+                run_if_changed,
+                c.cancel_running_state_changed,
+                c.cancel_cancelled_running_jobs_loop_body,
+            )
+        )
+
+        c.task_manager.ensure_future(periodically_call(60, c.cancel_orphaned_attempts_loop_body))
+
+        return c
+
     def __init__(self, app):
         self.app = app
         self.cancel_ready_state_changed: asyncio.Event = app['cancel_ready_state_changed']
@@ -27,38 +62,9 @@ class Canceller:
         self.cancel_running_state_changed: asyncio.Event = app['cancel_running_state_changed']
         self.db: Database = app['db']
         self.async_worker_pool: AsyncWorkerPool = self.app['async_worker_pool']
-        self.compute_client: aiogoogle.ComputeClient = self.app['compute_client']
-        self.inst_coll_manager: InstanceCollectionManager = app['inst_coll_manager']
+        self.inst_coll_manager: InstanceCollectionManager = app['driver'].inst_coll_manager
 
         self.task_manager = aiotools.BackgroundTaskManager()
-
-    async def async_init(self):
-        self.task_manager.ensure_future(
-            retry_long_running(
-                'cancel_cancelled_ready_jobs_loop',
-                run_if_changed,
-                self.cancel_ready_state_changed,
-                self.cancel_cancelled_ready_jobs_loop_body,
-            )
-        )
-        self.task_manager.ensure_future(
-            retry_long_running(
-                'cancel_cancelled_creating_jobs_loop',
-                run_if_changed,
-                self.cancel_creating_state_changed,
-                self.cancel_cancelled_creating_jobs_loop_body,
-            )
-        )
-        self.task_manager.ensure_future(
-            retry_long_running(
-                'cancel_cancelled_running_jobs_loop',
-                run_if_changed,
-                self.cancel_running_state_changed,
-                self.cancel_cancelled_running_jobs_loop_body,
-            )
-        )
-
-        self.task_manager.ensure_future(periodically_call(60, self.cancel_orphaned_attempts_loop_body))
 
     def shutdown(self):
         try:
@@ -74,7 +80,6 @@ FROM user_inst_coll_resources
 GROUP BY user
 HAVING n_cancelled_ready_jobs > 0;
 ''',
-            timer_description='in cancel_cancelled_ready_jobs: aggregate n_cancelled_ready_jobs',
         )
         user_n_cancelled_ready_jobs = {record['user']: record['n_cancelled_ready_jobs'] async for record in records}
 
@@ -90,12 +95,13 @@ HAVING n_cancelled_ready_jobs > 0;
         async def user_cancelled_ready_jobs(user, remaining):
             async for batch in self.db.select_and_fetchall(
                 '''
-SELECT id, cancelled
+SELECT batches.id, batches_cancelled.id IS NOT NULL AS cancelled
 FROM batches
+LEFT JOIN batches_cancelled
+       ON batches.id = batches_cancelled.id
 WHERE user = %s AND `state` = 'running';
 ''',
                 (user,),
-                timer_description=f'in cancel_cancelled_ready_jobs: get {user} running batches',
             ):
                 if batch['cancelled']:
                     async for record in self.db.select_and_fetchall(
@@ -106,7 +112,6 @@ WHERE batch_id = %s AND state = 'Ready' AND always_run = 0
 LIMIT %s;
 ''',
                         (batch['id'], remaining.value),
-                        timer_description=f'in cancel_cancelled_ready_jobs: get {user} batch {batch["id"]} ready cancelled jobs (1)',
                     ):
                         record['batch_id'] = batch['id']
                         yield record
@@ -119,7 +124,6 @@ WHERE batch_id = %s AND state = 'Ready' AND always_run = 0 AND cancelled = 1
 LIMIT %s;
 ''',
                         (batch['id'], remaining.value),
-                        timer_description=f'in cancel_cancelled_ready_jobs: get {user} batch {batch["id"]} ready cancelled jobs (2)',
                     ):
                         record['batch_id'] = batch['id']
                         yield record
@@ -163,7 +167,6 @@ FROM user_inst_coll_resources
 GROUP BY user
 HAVING n_cancelled_creating_jobs > 0;
 ''',
-            timer_description='in cancel_cancelled_creating_jobs: aggregate n_cancelled_creating_jobs',
         )
         user_n_cancelled_creating_jobs = {
             record['user']: record['n_cancelled_creating_jobs'] async for record in records
@@ -181,12 +184,13 @@ HAVING n_cancelled_creating_jobs > 0;
         async def user_cancelled_creating_jobs(user, remaining):
             async for batch in self.db.select_and_fetchall(
                 '''
-SELECT id
+SELECT batches.id
 FROM batches
-WHERE user = %s AND `state` = 'running' AND cancelled = 1;
+INNER JOIN batches_cancelled
+        ON batches.id = batches_cancelled.id
+WHERE user = %s AND `state` = 'running';
 ''',
                 (user,),
-                timer_description=f'in cancel_cancelled_creating_jobs: get {user} cancelled batches',
             ):
                 async for record in self.db.select_and_fetchall(
                     '''
@@ -198,7 +202,6 @@ WHERE jobs.batch_id = %s AND state = 'Creating' AND always_run = 0 AND cancelled
 LIMIT %s;
 ''',
                     (batch['id'], remaining.value),
-                    timer_description=f'in cancel_cancelled_creating_jobs: get {user} batch {batch["id"]} creating cancelled jobs',
                 ):
                     record['batch_id'] = batch['id']
                     yield record
@@ -264,7 +267,6 @@ FROM user_inst_coll_resources
 GROUP BY user
 HAVING n_cancelled_running_jobs > 0;
 ''',
-            timer_description='in cancel_cancelled_running_jobs: aggregate n_cancelled_running_jobs',
         )
         user_n_cancelled_running_jobs = {record['user']: record['n_cancelled_running_jobs'] async for record in records}
 
@@ -280,12 +282,13 @@ HAVING n_cancelled_running_jobs > 0;
         async def user_cancelled_running_jobs(user, remaining):
             async for batch in self.db.select_and_fetchall(
                 '''
-SELECT id
+SELECT batches.id
 FROM batches
-WHERE user = %s AND `state` = 'running' AND cancelled = 1;
+INNER JOIN batches_cancelled
+        ON batches.id = batches_cancelled.id
+WHERE user = %s AND `state` = 'running';
 ''',
                 (user,),
-                timer_description=f'in cancel_cancelled_running_jobs: get {user} cancelled batches',
             ):
                 async for record in self.db.select_and_fetchall(
                     '''
@@ -297,7 +300,6 @@ WHERE jobs.batch_id = %s AND state = 'Running' AND always_run = 0 AND cancelled 
 LIMIT %s;
 ''',
                     (batch['id'], remaining.value),
-                    timer_description=f'in cancel_cancelled_running_jobs: get {user} batch {batch["id"]} running cancelled jobs',
                 ):
                     record['batch_id'] = batch['id']
                     yield record
@@ -343,12 +345,11 @@ INNER JOIN jobs ON attempts.batch_id = jobs.batch_id AND attempts.job_id = jobs.
 LEFT JOIN instances ON attempts.instance_name = instances.name
 WHERE attempts.start_time IS NOT NULL
   AND attempts.end_time IS NULL
-  AND (jobs.state != 'Running' OR jobs.attempt_id != attempts.attempt_id)
+  AND ((jobs.state != 'Running' AND jobs.state != 'Creating') OR jobs.attempt_id != attempts.attempt_id)
   AND instances.`state` = 'active'
 ORDER BY attempts.start_time ASC
 LIMIT 300;
 ''',
-            timer_description='in cancel_orphaned_attempts',
         ):
             batch_id = record['batch_id']
             job_id = record['job_id']

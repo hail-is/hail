@@ -1,5 +1,6 @@
 package is.hail.expr.ir.lowering
 
+import is.hail.backend.ExecuteContext
 import is.hail.expr.Nat
 import is.hail.expr.ir._
 import is.hail.expr.ir.functions.GetElement
@@ -169,9 +170,9 @@ abstract class BlockMatrixStage(val globalVals: Array[(String, IR)], val ctxType
 }
 
 object LowerBlockMatrixIR {
-  def apply(node: IR, typesToLower: DArrayLowering.Type, ctx: ExecuteContext, r: RequirednessAnalysis, relationalLetsAbove: Map[String, IR]): IR = {
+  def apply(node: IR, typesToLower: DArrayLowering.Type, ctx: ExecuteContext, analyses: Analyses, relationalLetsAbove: Map[String, IR]): IR = {
 
-    def lower(bmir: BlockMatrixIR) = LowerBlockMatrixIR.lower(bmir, typesToLower, ctx, r, relationalLetsAbove)
+    def lower(bmir: BlockMatrixIR) = LowerBlockMatrixIR.lower(bmir, typesToLower, ctx, analyses, relationalLetsAbove)
 
     node match {
       case BlockMatrixCollect(child) =>
@@ -192,21 +193,21 @@ object LowerBlockMatrixIR {
         lowered.globalVals.foldRight[IR](elt) { case ((f, v), accum) => Let(f, v, accum) }
       case BlockMatrixWrite(child, writer) =>
         writer.lower(ctx, lower(child), child, relationalLetsAbove, TypeWithRequiredness(child.typ.elementType)) //FIXME: BlockMatrixIR is currently ignored in Requiredness inference since all eltTypes are +TFloat64
-      case BlockMatrixMultiWrite(blockMatrices, writer) => unimplemented(node)
+      case BlockMatrixMultiWrite(blockMatrices, writer) => unimplemented(ctx, node)
       case node if node.children.exists(_.isInstanceOf[BlockMatrixIR]) =>
-        throw new LowererUnsupportedOperation(s"IR nodes with BlockMatrixIR children need explicit rules: \n${ Pretty(node) }")
+        throw new LowererUnsupportedOperation(s"IR nodes with BlockMatrixIR children need explicit rules: \n${ Pretty(ctx, node) }")
 
       case node =>
-        throw new LowererUnsupportedOperation(s"Value IRs with no BlockMatrixIR children must be lowered through LowerIR: \n${ Pretty(node) }")
+        throw new LowererUnsupportedOperation(s"Value IRs with no BlockMatrixIR children must be lowered through LowerIR: \n${ Pretty(ctx, node) }")
     }
   }
 
   // This lowers a BlockMatrixIR to an unkeyed TableStage with rows of (blockRow, blockCol, block)
   def lowerToTableStage(
     bmir: BlockMatrixIR, typesToLower: DArrayLowering.Type, ctx: ExecuteContext,
-    r: RequirednessAnalysis, relationalLetsAbove: Map[String, IR]
+    analyses: Analyses, relationalLetsAbove: Map[String, IR]
   ): TableStage = {
-    val bms = lower(bmir, typesToLower, ctx, r, relationalLetsAbove)
+    val bms = lower(bmir, typesToLower, ctx, analyses, relationalLetsAbove)
     val typ = bmir.typ
     val bmsWithCtx = bms.addContext(TTuple(TInt32, TInt32)){ case (i, j) => MakeTuple(Seq(0 -> i, 1 -> j))}
     val blocksRowMajor = Array.range(0, typ.nRowBlocks).flatMap { i =>
@@ -232,26 +233,26 @@ object LowerBlockMatrixIR {
     ts
   }
 
-  private def unimplemented[T](node: BaseIR): T =
-    throw new LowererUnsupportedOperation(s"unimplemented: \n${ Pretty(node) }")
+  private def unimplemented[T](ctx: ExecuteContext, node: BaseIR): T =
+    throw new LowererUnsupportedOperation(s"unimplemented: \n${ Pretty(ctx, node) }")
 
-  def lower(bmir: BlockMatrixIR, typesToLower: DArrayLowering.Type, ctx: ExecuteContext, r: RequirednessAnalysis, relationalLetsAbove: Map[String, IR]): BlockMatrixStage = {
+  def lower(bmir: BlockMatrixIR, typesToLower: DArrayLowering.Type, ctx: ExecuteContext, analyses: Analyses, relationalLetsAbove: Map[String, IR]): BlockMatrixStage = {
     if (!DArrayLowering.lowerBM(typesToLower))
       throw new LowererUnsupportedOperation("found BlockMatrixIR in lowering; lowering only TableIRs.")
     bmir.children.foreach {
       case c: BlockMatrixIR if c.typ.blockSize != bmir.typ.blockSize =>
-        throw new LowererUnsupportedOperation(s"Can't lower node with mismatched block sizes: ${ bmir.typ.blockSize } vs child ${ c.typ.blockSize }\n\n ${ Pretty(bmir) }")
+        throw new LowererUnsupportedOperation(s"Can't lower node with mismatched block sizes: ${ bmir.typ.blockSize } vs child ${ c.typ.blockSize }\n\n ${ Pretty(ctx, bmir) }")
       case _ =>
     }
     if (bmir.typ.nDefinedBlocks == 0)
       BlockMatrixStage.empty(bmir.typ.elementType)
-    else lowerNonEmpty(bmir, typesToLower, ctx, r, relationalLetsAbove)
+    else lowerNonEmpty(bmir, typesToLower, ctx, analyses, relationalLetsAbove)
   }
 
-  def lowerNonEmpty(bmir: BlockMatrixIR, typesToLower: DArrayLowering.Type, ctx: ExecuteContext, r: RequirednessAnalysis, relationalLetsAbove: Map[String, IR]): BlockMatrixStage = {
-    def lower(ir: BlockMatrixIR) = LowerBlockMatrixIR.lower(ir, typesToLower, ctx, r, relationalLetsAbove)
+  def lowerNonEmpty(bmir: BlockMatrixIR, typesToLower: DArrayLowering.Type, ctx: ExecuteContext, analyses: Analyses, relationalLetsAbove: Map[String, IR]): BlockMatrixStage = {
+    def lower(ir: BlockMatrixIR) = LowerBlockMatrixIR.lower(ir, typesToLower, ctx, analyses, relationalLetsAbove)
 
-    def lowerIR(node: IR): IR = LowerToCDA.lower(node, typesToLower, ctx, r, relationalLetsAbove: Map[String, IR])
+    def lowerIR(node: IR): IR = LowerToCDA.lower(node, typesToLower, ctx, analyses, relationalLetsAbove: Map[String, IR])
 
     bmir match {
       case BlockMatrixRead(reader) => reader.lower(ctx)
@@ -267,7 +268,6 @@ object LowerBlockMatrixIR {
             MakeNDArray(ToArray(mapIR(rangeIR(len))(_ => generator)), ctxRef, True(), ErrorIDs.NO_ERROR)
           }
         }
-      case x: BlockMatrixLiteral => unimplemented(bmir)
       case BlockMatrixMap(child, eltName, f, _) =>
         lower(child).mapBody { (_, body) =>
           NDArrayMap(body, eltName, f)
@@ -451,7 +451,7 @@ object LowerBlockMatrixIR {
       case BlockMatrixDensify(child) => lower(child)
       case BlockMatrixSparsify(child, sparsifier) => lower(child)
 
-      case RelationalLetBlockMatrix(name, value, body) => unimplemented(bmir)
+      case RelationalLetBlockMatrix(name, value, body) => unimplemented(ctx, bmir)
 
       case ValueToBlockMatrix(child, shape, blockSize) if !child.typ.isInstanceOf[TArray] && !child.typ.isInstanceOf[TNDArray] => {
         val element = lowerIR(child)

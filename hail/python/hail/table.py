@@ -1,6 +1,7 @@
 import collections
 import itertools
 import pandas
+import numpy as np
 import pyspark
 from typing import Optional, Dict, Callable
 
@@ -10,7 +11,7 @@ from hail.expr.expressions import Expression, StructExpression, \
     ExpressionException, TupleExpression, unify_all, NumericExpression, \
     StringExpression, CallExpression, CollectionExpression, DictExpression, \
     IntervalExpression, LocusExpression, NDArrayExpression, expr_array
-from hail.expr.types import hail_type, tstruct, types_match, tarray, tset
+from hail.expr.types import hail_type, tstruct, types_match, tarray, tset, dtypes_from_pandas
 from hail.expr.table_type import ttable
 import hail.ir as ir
 from hail.typecheck import typecheck, typecheck_method, dictof, anytype, \
@@ -430,8 +431,14 @@ class Table(ExprContainer):
         """
         return Env.backend().execute(ir.TableCount(self._tir))
 
+    async def _async_count(self):
+        return await Env.backend()._async_execute(ir.TableCount(self._tir))
+
     def _force_count(self):
         return Env.backend().execute(ir.TableToValueApply(self._tir, {'name': 'ForceCountTable'}))
+
+    async def _async_force_count(self):
+        return await Env.backend()._async_execute(ir.TableToValueApply(self._tir, {'name': 'ForceCountTable'}))
 
     @typecheck_method(caller=str,
                       row=expr_struct())
@@ -450,8 +457,9 @@ class Table(ExprContainer):
     @typecheck_method(rows=anytype,
                       schema=nullable(hail_type),
                       key=table_key_type,
-                      n_partitions=nullable(int))
-    def parallelize(cls, rows, schema=None, key=None, n_partitions=None) -> 'Table':
+                      n_partitions=nullable(int),
+                      partial_type=nullable(dict))
+    def parallelize(cls, rows, schema=None, key=None, n_partitions=None, *, partial_type=None) -> 'Table':
         """Parallelize a local array of structs into a distributed table.
 
         Examples
@@ -459,8 +467,41 @@ class Table(ExprContainer):
         Parallelize a list of dictionaries:
 
         >>> a = [ {'a': 5, 'b': 10}, {'a': 0, 'b': 200} ]
-        >>> table = hl.Table.parallelize(hl.literal(a, 'array<struct{a: int, b: int}>'))
-        >>> table.show()
+        >>> t = hl.Table.parallelize(hl.literal(a, 'array<struct{a: int, b: int}>'))
+        >>> t.show()
+
+        Parallelize complex JSON with a `partial_type`:
+        >>> dicts = [{"number":10038,"state":"open","user":{"login":"tpoterba","site_admin":False,"id":10562794}, "milestone":None,"labels":[]},\
+                     {"number":10037,"state":"open","user":{"login":"daniel-goldstein","site_admin":False,"id":24440116},"milestone":None,"labels":[]},\
+                     {"number":10036,"state":"open","user":{"login":"jigold","site_admin":False,"id":1693348},"milestone":None,"labels":[]},\
+                     {"number":10035,"state":"open","user":{"login":"tpoterba","site_admin":False,"id":10562794},"milestone":None,"labels":[]},\
+                     {"number":10033,"state":"open","user":{"login":"tpoterba","site_admin":False,"id":10562794},"milestone":None,"labels":[]}]
+        >>> t = hl.Table.parallelize(
+        ...     dicts,
+        ...     partial_type={"milestone":hl.tstr, "labels":hl.tarray(hl.tstr)})
+        >>> t.show()
+        +--------+--------+--------------------+-----------------+----------+
+        | number | state  | user.login         | user.site_admin |  user.id |
+        +--------+--------+--------------------+-----------------+----------+
+        |  int32 | str    | str                |            bool |    int32 |
+        +--------+--------+--------------------+-----------------+----------+
+        |  10038 | "open" | "tpoterba"         |           False | 10562794 |
+        |  10037 | "open" | "daniel-goldstein" |           False | 24440116 |
+        |  10036 | "open" | "jigold"           |           False |  1693348 |
+        |  10035 | "open" | "tpoterba"         |           False | 10562794 |
+        |  10033 | "open" | "tpoterba"         |           False | 10562794 |
+        +--------+--------+--------------------+-----------------+----------+
+        +-----------+------------+
+        | milestone | labels     |
+        +-----------+------------+
+        | str       | array<str> |
+        +-----------+------------+
+        | NA        | []         |
+        | NA        | []         |
+        | NA        | []         |
+        | NA        | []         |
+        | NA        | []         |
+        +-----------+------------+
 
         Warning
         -------
@@ -475,12 +516,24 @@ class Table(ExprContainer):
         key : Union[str, List[str]]], optional
             Key field(s).
         n_partitions : int, optional
+        partial_type : :obj:`dict`, optional
+            A value type which may elide fields or have ``None`` in arbitrary places. The partial
+            type is used by hail where the type cannot be imputed.
 
         Returns
         -------
         :class:`.Table`
+
         """
-        rows = to_expr(rows, dtype=hl.tarray(schema) if schema is not None else None)
+        if schema and partial_type:
+            raise ValueError("define either schema or partial type, not both.")
+
+        dtype = schema
+        if schema is not None:
+            dtype = hl.tarray(schema)
+        if partial_type is not None:
+            partial_type = hl.tarray(hl.tstruct(**partial_type))
+        rows = to_expr(rows, dtype=dtype, partial_type=partial_type)
         if not isinstance(rows.dtype.element_type, tstruct):
             raise TypeError("'parallelize' expects an array with element type 'struct', found '{}'"
                             .format(rows.dtype))
@@ -1175,7 +1228,7 @@ class Table(ExprContainer):
         agg_ir = ir.TableAggregate(base._tir, expr._ir)
 
         if _localize:
-            return Env.backend().execute(agg_ir)
+            return Env.backend().execute(hl.ir.MakeTuple([agg_ir]))[0]
 
         return construct_expr(ir.LiftMeOut(agg_ir), expr.dtype)
 
@@ -1885,8 +1938,8 @@ class Table(ExprContainer):
         """
         return Env.backend().unpersist_table(self)
 
-    @typecheck_method(_localize=bool)
-    def collect(self, _localize=True):
+    @typecheck_method(_localize=bool, _timed=bool)
+    def collect(self, _localize=True, *, _timed=False):
         """Collect the rows of the table into a local list.
 
         Examples
@@ -1917,7 +1970,7 @@ class Table(ExprContainer):
         rows_ir = ir.GetField(ir.TableCollect(t._tir), 'rows')
         e = construct_expr(rows_ir, hl.tarray(t.row.dtype))
         if _localize:
-            return Env.backend().execute(e._ir)
+            return Env.backend().execute(e._ir, timed=_timed)
         else:
             return e
 
@@ -2454,7 +2507,7 @@ class Table(ExprContainer):
                              f"  left:  [{', '.join(str(t) for t in left_key_types)}]\n  "
                              f"  right: [{', '.join(str(t) for t in right_key_types)}]")
         left_fields = set(self._fields)
-        right_fields = set(right._fields)
+        right_fields = set(right._fields) - set(right.key)
 
         renames, _ = deduplicate(
             right_fields, max_attempts=100, already_used=left_fields)
@@ -3241,10 +3294,6 @@ class Table(ExprContainer):
     def to_pandas(self, flatten=True):
         """Converts this table to a Pandas DataFrame.
 
-        Because conversion to Pandas is done through Spark, and Spark
-        cannot represent complex types, types are expanded before
-        flattening or conversion.
-
         Parameters
         ----------
         flatten : :obj:`bool`
@@ -3255,7 +3304,22 @@ class Table(ExprContainer):
         :class:`.pandas.DataFrame`
 
         """
-        return Env.spark_backend('to_pandas').to_pandas(self, flatten)
+        table = self.flatten() if flatten else self
+        dtypes_struct = table.row.dtype
+        collect_dict = {key: hl.agg.collect(value) for key, value in table.row.items()}
+        column_struct_array = table.aggregate(hl.struct(**collect_dict))
+        columns = list(column_struct_array.keys())
+        data_dict = {}
+
+        for column in columns:
+            hl_dtype = dtypes_struct[column]
+            if hl_dtype == hl.tstr:
+                pd_dtype = 'string'
+            else:
+                pd_dtype = hl_dtype.to_numpy()
+            data_dict[column] = pandas.Series(column_struct_array[column], dtype=pd_dtype)
+
+        return pandas.DataFrame(data_dict)
 
     @staticmethod
     @typecheck(df=pandas.DataFrame,
@@ -3279,7 +3343,41 @@ class Table(ExprContainer):
         -------
         :class:`.Table`
         """
-        return Env.spark_backend('from_pandas').from_pandas(df, key)
+
+        key = [key] if isinstance(key, str) else key
+        fields = list(df.columns)
+        pd_dtypes = df.dtypes
+        hl_type_hints = {}
+        columns = {fields[col_idx]: df[col].tolist() for col_idx, col in enumerate(df.columns)}
+        data = [{} for _ in range(len(columns[fields[0]]))]
+
+        for data_idx in range(len(columns[fields[0]])):
+            for field in fields:
+                cur_val = columns[field][data_idx]
+
+                # Can't call isna on a collection or it will implicitly broadcast
+                if pandas.api.types.is_numeric_dtype(df[field].dtype) and pandas.isna(cur_val):
+                    if isinstance(cur_val, float):
+                        fixed_val = cur_val
+                    elif isinstance(cur_val, np.floating):
+                        fixed_val = cur_val.item()
+                    else:
+                        fixed_val = None
+                elif isinstance(df[field].dtype, pandas.StringDtype) and pandas.isna(cur_val):  # No NaN to worry about
+                    fixed_val = None
+                elif isinstance(cur_val, np.number):
+                    fixed_val = cur_val.item()
+                else:
+                    fixed_val = cur_val
+                data[data_idx][field] = fixed_val
+
+        for data_idx, field in enumerate(fields):
+            type_hint = dtypes_from_pandas(pd_dtypes[field])
+            if type_hint is not None:
+                hl_type_hints[field] = type_hint
+
+        new_table = hl.Table.parallelize(data, partial_type=hl_type_hints)
+        return new_table if not key else new_table.key_by(*key)
 
     @typecheck_method(other=table_type, tolerance=nullable(numeric), absolute=bool)
     def _same(self, other, tolerance=1e-6, absolute=False):

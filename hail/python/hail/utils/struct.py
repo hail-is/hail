@@ -44,10 +44,8 @@ class Struct(Mapping):
     """
 
     def __init__(self, **kwargs):
-        self._fields = kwargs
-        for k, v in kwargs.items():
-            if k not in self.__dict__:
-                self.__dict__[k] = v
+        # Set this way to avoid an infinite recursion in `__getattr__`.
+        self.__dict__["_fields"] = kwargs
 
     def __contains__(self, item):
         return item in self._fields
@@ -62,9 +60,17 @@ class Struct(Mapping):
     def __getitem__(self, item):
         return self._get_field(item)
 
+    def __setattr__(self, key, value):
+        if key in self._fields:
+            raise ValueError("Structs are immutable, cannot overwrite a field.")
+        else:
+            super().__setattr__(key, value)
+
     def __getattr__(self, item):
         if item in self.__dict__:
             return self.__dict__[item]
+        elif item in self._fields:
+            return self._fields[item]
         else:
             raise AttributeError(get_nice_attr_error(self, item))
 
@@ -86,6 +92,10 @@ class Struct(Mapping):
     def __iter__(self):
         return iter(self._fields)
 
+    def __dir__(self):
+        super_dir = super().__dir__()
+        return super_dir + list(self._fields.keys())
+
     def annotate(self, **kwargs):
         """Add new fields or recompute existing fields.
 
@@ -104,6 +114,28 @@ class Struct(Mapping):
         -------
         :class:`.Struct`
             Struct with new or updated fields.
+
+        Examples
+        --------
+
+        Define a Struct `s`
+
+        >>> s = hl.Struct(food=8, fruit=5)
+
+        Add a new field to `s`
+
+        >>> s.annotate(bar=2)
+        Struct(food=8, fruit=5, bar=2)
+
+        Add multiple fields to `s`
+
+        >>> s.annotate(banana=2, apple=3)
+        Struct(food=8, fruit=5, banana=2, apple=3)
+
+        Recompute an existing field in `s`
+
+        >>> s.annotate(bar=4, fruit=2)
+        Struct(food=8, fruit=2, bar=4)
         """
         d = OrderedDict(self.items())
         for k, v in kwargs.items():
@@ -133,6 +165,28 @@ class Struct(Mapping):
         -------
         :class:`.Struct`
             Struct containing specified existing fields and computed fields.
+
+        Examples
+        --------
+        Define a Struct 's'
+
+        >>> s = hl.Struct(foo=5, apple=10)
+
+        Keep just one original field
+
+        >>> s.select('foo')
+        Struct(foo=5)
+
+        Add one new field and keeps one old field
+
+        >>> s.select('apple', bar=123)
+        Struct(apple=10, bar=123)
+
+        Adds two new fields and replaces old fields
+
+        >>> s.select(bar=123, banana=1)
+        Struct(bar=123, banana=1)
+
         """
         d = OrderedDict()
         for a in fields:
@@ -156,6 +210,23 @@ class Struct(Mapping):
         -------
         :class:`.Struct`
             Struct without certain fields.
+
+        Examples
+        --------
+
+        Define a Struct `s`
+
+        >>> s = hl.Struct(food=8, fruit=5, bar=2, apple=10)
+
+        Drop one field from `s`
+
+        >>> s.drop('bar')
+        Struct(food=8, fruit=5, apple=10)
+
+        Drop two fields from `s`
+
+        >>> s.drop('food', 'fruit')
+        Struct(bar=2, apple=10)
         """
         d = OrderedDict((k, v) for k, v in self.items() if k not in args)
         return Struct(**d)

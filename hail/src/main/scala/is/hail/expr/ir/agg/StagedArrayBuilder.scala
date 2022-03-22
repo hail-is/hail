@@ -5,7 +5,7 @@ import is.hail.asm4s._
 import is.hail.expr.ir.{EmitClassBuilder, EmitCode, EmitCodeBuilder}
 import is.hail.io.{BufferSpec, InputBuffer, OutputBuffer, TypedCodecSpec}
 import is.hail.types.physical._
-import is.hail.types.physical.stypes.SCode
+import is.hail.types.physical.stypes.SValue
 import is.hail.utils._
 
 object StagedArrayBuilder {
@@ -58,7 +58,7 @@ class StagedArrayBuilder(eltType: PType, kb: EmitClassBuilder[_], region: Value[
       cb += ob.writeInt(size)
       cb += ob.writeInt(capacity)
       codecSpec.encodedType.buildEncoder(eltArray.sType, kb)
-        .apply(cb, eltArray.loadCheapSCode(cb, data).get, ob)
+        .apply(cb, eltArray.loadCheapSCode(cb, data), ob)
       cb += ob.writeInt(const(StagedArrayBuilder.END_SERIALIZATION))
     }
   }
@@ -71,7 +71,7 @@ class StagedArrayBuilder(eltType: PType, kb: EmitClassBuilder[_], region: Value[
       cb.assign(capacity, ib.readInt())
 
       val decValue = codecSpec.encodedType.buildDecoder(eltArray.virtualType, kb)
-        .apply(cb, region, ib).memoize(cb, "StagedArrayBuilder_deserialize")
+        .apply(cb, region, ib)
       cb.assign(data, eltArray.store(cb, region, decValue, deepCopy = false))
 
       cb += ib.readInt()
@@ -88,7 +88,7 @@ class StagedArrayBuilder(eltType: PType, kb: EmitClassBuilder[_], region: Value[
   def setMissing(cb: EmitCodeBuilder): Unit = incrementSize(cb) // all elements set to missing on initialization
 
 
-  def append(cb: EmitCodeBuilder, elt: SCode, deepCopy: Boolean = true): Unit = {
+  def append(cb: EmitCodeBuilder, elt: SValue, deepCopy: Boolean = true): Unit = {
     eltArray.setElementPresent(cb, data, size)
     eltType.storeAtAddress(cb, eltArray.elementOffset(data, capacity, size), region, elt, deepCopy)
     incrementSize(cb)
@@ -105,7 +105,8 @@ class StagedArrayBuilder(eltType: PType, kb: EmitClassBuilder[_], region: Value[
     eltArray.stagedInitialize(cb, data, capacity, setMissing = true)
   }
 
-  def elementOffset(idx: Value[Int]): Code[Long] = eltArray.elementOffset(data, capacity, idx)
+  def elementOffset(cb: EmitCodeBuilder, idx: Value[Int]): Value[Long] =
+    cb.memoize(eltArray.elementOffset(data, capacity, idx))
 
 
   def loadElement(cb: EmitCodeBuilder, idx: Value[Int]): EmitCode = {

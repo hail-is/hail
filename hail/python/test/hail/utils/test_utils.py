@@ -1,3 +1,4 @@
+import json
 import unittest
 
 import hail as hl
@@ -59,7 +60,7 @@ class Tests(unittest.TestCase):
             hadoop_open('/tmp/randomBytesOut', 'xb')
 
     def test_hadoop_exists(self):
-        self.assertTrue(hl.hadoop_exists(resource('ls_test')))
+        self.assertTrue(hl.hadoop_exists(resource('ls_test/f_50')))
         self.assertFalse(hl.hadoop_exists(resource('doesnt.exist')))
 
     def test_hadoop_mkdir_p(self):
@@ -73,10 +74,9 @@ class Tests(unittest.TestCase):
         with hadoop_open(resource('./some/foo/bar.txt')) as f:
             assert(f.read() == test_text)
 
-        import shutil
-        shutil.rmtree(resource('./some'))
+        hl.current_backend().fs.rmtree(resource('./some'))
 
-    def test_hadoop_mkdir_p(self):
+    def test_hadoop_mkdir_p_2(self):
         with self.assertRaises(Exception):
             hadoop_open(resource('./some2/foo/bar.txt'), 'r')
 
@@ -96,6 +96,7 @@ class Tests(unittest.TestCase):
         self.assertFalse(hl.hadoop_is_file(resource('ls_test/invalid-path')))
 
     def test_hadoop_is_dir(self):
+        self.assertTrue(hl.hadoop_is_dir(resource('ls_test')))
         self.assertTrue(hl.hadoop_is_dir(resource('ls_test/subdir')))
         self.assertFalse(hl.hadoop_is_dir(resource('ls_test/f_50')))
         self.assertFalse(hl.hadoop_is_dir(resource('ls_test/invalid-path')))
@@ -110,8 +111,6 @@ class Tests(unittest.TestCase):
         self.assertEqual(stat2['size_bytes'], 50)
         self.assertEqual(stat2['is_dir'], False)
         self.assertTrue('path' in stat2)
-        self.assertTrue('owner' in stat2)
-        self.assertTrue('modification_time' in stat2)
 
     @fails_service_backend()
     @fails_local_backend()
@@ -122,8 +121,6 @@ class Tests(unittest.TestCase):
         self.assertEqual(ls1[0]['size_bytes'], 50)
         self.assertEqual(ls1[0]['is_dir'], False)
         self.assertTrue('path' in ls1[0])
-        self.assertTrue('owner' in ls1[0])
-        self.assertTrue('modification_time' in ls1[0])
 
         path2 = resource('ls_test')
         ls2 = hl.hadoop_ls(path2)
@@ -133,8 +130,6 @@ class Tests(unittest.TestCase):
         self.assertEqual(ls2_dict['f_100']['size_bytes'], 100)
         self.assertEqual(ls2_dict['f_100']['is_dir'], False)
         self.assertEqual(ls2_dict['subdir']['is_dir'], True)
-        self.assertTrue('owner' in ls2_dict['f_50'])
-        self.assertTrue('modification_time' in ls2_dict['f_50'])
 
         path3 = resource('ls_test/f*')
         ls3 = hl.hadoop_ls(path3)
@@ -181,6 +176,20 @@ class Tests(unittest.TestCase):
         self.assertEqual(s.annotate(**{'a': 5, 'x': 10, 'y': 15}),
                          Struct(a=5, b=2, c=3, x=10, y=15))
 
+    @fails_service_backend(reason='''worker error not propagated to client.
+
+falsCaused by: is.hail.utils.HailException: array index out of bounds: index=5, length=2
+	at __C23409collect_distributed_array.__m23435arrayref_bounds_check(Unknown Source)
+	at __C23409collect_distributed_array.__m23417split_StreamLen(Unknown Source)
+	at __C23409collect_distributed_array.apply(Unknown Source)
+	at __C23409collect_distributed_array.apply(Unknown Source)
+	at is.hail.backend.BackendUtils.$anonfun$collectDArray$2(BackendUtils.scala:31)
+	at is.hail.utils.package$.using(package.scala:627)
+	at is.hail.annotations.RegionPool.scopedRegion(RegionPool.scala:144)
+	at is.hail.backend.BackendUtils.$anonfun$collectDArray$1(BackendUtils.scala:30)
+	at is.hail.backend.service.Worker$.main(Worker.scala:120)
+	at is.hail.backend.service.Worker.main(Worker.scala)
+	... 11 more''')
     def test_expr_exception_results_in_hail_user_error(self):
         df = range_table(10)
         df = df.annotate(x=[1, 2])
@@ -241,3 +250,24 @@ class Tests(unittest.TestCase):
 
         with pytest.raises(TypeError, match="does not support item assignment"):
             my_frozen_dict["a"] = "b"
+
+    def test_json_encoder(self):
+        self.assertEqual(
+            json.dumps(frozendict({"foo": "bar"}), cls=hl.utils.JSONEncoder),
+            '{"foo": "bar"}'
+        )
+
+        self.assertEqual(
+            json.dumps(Struct(foo="bar"), cls=hl.utils.JSONEncoder),
+            '{"foo": "bar"}'
+        )
+
+        self.assertEqual(
+            json.dumps(Interval(start=1, end=10), cls=hl.utils.JSONEncoder),
+            '{"start": 1, "end": 10, "includes_start": true, "includes_end": false}'
+        )
+
+        self.assertEqual(
+            json.dumps(hl.Locus(1, 100, "GRCh38"), cls=hl.utils.JSONEncoder),
+            '{"contig": "1", "position": 100, "reference_genome": "GRCh38"}'
+        )

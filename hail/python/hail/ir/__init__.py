@@ -14,7 +14,7 @@ from .ir import MatrixWrite, MatrixMultiWrite, BlockMatrixWrite, \
     LowerBoundOnOrderedCollection, GroupByKey, StreamMap, StreamZip, \
     StreamFilter, StreamFlatMap, StreamFold, StreamScan, \
     StreamJoinRightDistinct, StreamFor, AggFilter, AggExplode, AggGroupBy, \
-    AggArrayPerElement, BaseApplyAggOp, ApplyAggOp, ApplyScanOp, Begin, \
+    AggArrayPerElement, BaseApplyAggOp, ApplyAggOp, ApplyScanOp, AggFold, Begin, \
     MakeStruct, SelectFields, InsertFields, GetField, MakeTuple, \
     GetTupleElement, Die, ConsoleLog, Apply, ApplySeeded, TableCount, TableGetGlobals, \
     TableCollect, TableAggregate, MatrixCount, MatrixAggregate, TableWrite, \
@@ -43,7 +43,7 @@ from .blockmatrix_ir import BlockMatrixRead, BlockMatrixMap, BlockMatrixMap2, \
     BlockMatrixDot, BlockMatrixBroadcast, BlockMatrixAgg, BlockMatrixFilter, \
     BlockMatrixDensify, BlockMatrixSparsifier, BandSparsifier, \
     RowIntervalSparsifier, RectangleSparsifier, PerBlockSparsifier, BlockMatrixSparsify, \
-    BlockMatrixSlice, ValueToBlockMatrix, BlockMatrixRandom, JavaBlockMatrix, \
+    BlockMatrixSlice, ValueToBlockMatrix, BlockMatrixRandom, \
     tensor_shape_to_matrix_shape
 from .utils import filter_predicate_with_keep, make_filter_and_replace
 from .matrix_reader import MatrixReader, MatrixNativeReader, MatrixRangeReader, \
@@ -103,7 +103,6 @@ __all__ = [
     'BlockMatrixSlice',
     'ValueToBlockMatrix',
     'BlockMatrixRandom',
-    'JavaBlockMatrix',
     'tensor_shape_to_matrix_shape',
     'BlockMatrixReader',
     'BlockMatrixNativeReader',
@@ -186,6 +185,7 @@ __all__ = [
     'BaseApplyAggOp',
     'ApplyAggOp',
     'ApplyScanOp',
+    'AggFold',
     'Begin',
     'MakeStruct',
     'SelectFields',

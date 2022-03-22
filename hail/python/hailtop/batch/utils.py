@@ -53,7 +53,7 @@ def concatenate(b: Batch, files: List[ResourceFile], image: str = None, branchin
     if len(files) == 0:
         raise BatchException('Must have at least one file to concatenate.')
 
-    if not all([isinstance(f, ResourceFile) for f in files]):
+    if not all(isinstance(f, ResourceFile) for f in files):
         raise BatchException('Invalid input file(s) - all inputs must be resource files.')
 
     return _combine(_concatenate, b, 'concatenate', files, branching_factor=branching_factor)
@@ -95,7 +95,7 @@ def plink_merge(b: Batch, bfiles: List[ResourceGroup],
     if len(bfiles) == 0:
         raise BatchException('Must have at least one binary PLINK file to merge.')
 
-    if not all([isinstance(bf, ResourceGroup) for bf in bfiles]):
+    if not all(isinstance(bf, ResourceGroup) for bf in bfiles):
         raise BatchException('Invalid input file(s) - all inputs must be resource groups.')
 
     return _combine(_plink_merge, b, 'plink-merge', bfiles, branching_factor=branching_factor)

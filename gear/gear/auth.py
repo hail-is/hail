@@ -1,12 +1,16 @@
-from typing import Optional
+import asyncio
 import logging
-from functools import wraps
 import urllib.parse
+from functools import wraps
+from typing import Optional
+
 import aiohttp
-from aiohttp import web
 import aiohttp_session
-from hailtop.config import get_deploy_config
+from aiohttp import web
+
+from hailtop import httpx
 from hailtop.auth import async_get_userinfo
+from hailtop.config import get_deploy_config
 
 log = logging.getLogger('gear.auth')
 
@@ -21,9 +25,13 @@ def maybe_parse_bearer_header(value: str) -> Optional[str]:
     return None
 
 
-async def _userdata_from_session_id(session_id):
+async def _userdata_from_session_id(session_id: str, client_session: httpx.ClientSession):
     try:
-        return await async_get_userinfo(deploy_config=deploy_config, session_id=session_id)
+        return await async_get_userinfo(
+            deploy_config=deploy_config, session_id=session_id, client_session=client_session
+        )
+    except asyncio.CancelledError:
+        raise
     except aiohttp.ClientResponseError as e:
         log.exception('unknown exception getting userinfo')
         raise web.HTTPInternalServerError() from e
@@ -36,7 +44,7 @@ async def userdata_from_web_request(request):
     session = await aiohttp_session.get_session(request)
     if 'session_id' not in session:
         return None
-    return await _userdata_from_session_id(session['session_id'])
+    return await _userdata_from_session_id(session['session_id'], request.app['client_session'])
 
 
 async def userdata_from_rest_request(request):
@@ -46,7 +54,7 @@ async def userdata_from_rest_request(request):
     session_id = maybe_parse_bearer_header(auth_header)
     if not session_id:
         return session_id
-    return await _userdata_from_session_id(auth_header[7:])
+    return await _userdata_from_session_id(auth_header[7:], request.app['client_session'])
 
 
 def rest_authenticated_users_only(fun):

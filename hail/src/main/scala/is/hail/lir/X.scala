@@ -56,7 +56,7 @@ class Classx[C](val name: String, val superName: String, var sourceFile: Option[
     sourceFile = Some(path)
   }
 
-  def asBytes(print: Option[PrintWriter]): Array[(String, Array[Byte])] = {
+  def asBytes(writeIRs: Boolean, print: Option[PrintWriter]): Array[(String, Array[Byte])] = {
     val classes = new mutable.ArrayBuffer[Classx[_]]()
     classes += this
 
@@ -64,8 +64,6 @@ class Classx[C](val name: String, val superName: String, var sourceFile: Option[
       m.verify()
       SimplifyControl(m)
     }
-
-    val writeIRs = HailContext.isInitialized && HailContext.getFlag("write_ir_files") != null
 
     if (writeIRs) saveToFile(s"/tmp/hail/${name}.lir")
 
@@ -831,7 +829,6 @@ class InsnX(val op: Int, _ti: TypeInfo[_], var lineNumber: Int = 0) extends Valu
       case L2I => IntInfo
       case F2I => IntInfo
       case D2I => IntInfo
-      case IALOAD => IntInfo
       case ARRAYLENGTH => IntInfo
       // Long
       case LNEG => LongInfo
@@ -849,7 +846,6 @@ class InsnX(val op: Int, _ti: TypeInfo[_], var lineNumber: Int = 0) extends Valu
       case I2L => LongInfo
       case F2L => LongInfo
       case D2L => LongInfo
-      case LALOAD => LongInfo
       // Float
       case FNEG => FloatInfo
       case FADD => FloatInfo
@@ -860,7 +856,6 @@ class InsnX(val op: Int, _ti: TypeInfo[_], var lineNumber: Int = 0) extends Valu
       case I2F => FloatInfo
       case L2F => FloatInfo
       case D2F => FloatInfo
-      case FALOAD => FloatInfo
 
       // Double
       case DNEG => DoubleInfo
@@ -872,10 +867,9 @@ class InsnX(val op: Int, _ti: TypeInfo[_], var lineNumber: Int = 0) extends Valu
       case I2D => DoubleInfo
       case L2D => DoubleInfo
       case F2D => DoubleInfo
-      case DALOAD => DoubleInfo
-      // Boolean
-      case I2B => BooleanInfo
-      case BALOAD => BooleanInfo
+
+      // Byte
+      case I2B => ByteInfo
     }
   }
 }

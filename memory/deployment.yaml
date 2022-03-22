@@ -68,7 +68,10 @@ spec:
            - memory
           env:
            - name: HAIL_DOMAIN
-             value: "{{ global.domain }}"
+             valueFrom:
+               secretKeyRef:
+                 name: global-config
+                 key: domain
            - name: HAIL_DEPLOY_CONFIG_FILE
              value: /deploy-config/deploy-config.json
            - name: HAIL_DEFAULT_NAMESPACE
@@ -88,6 +91,9 @@ spec:
              readOnly: true
            - name: ssl-config
              mountPath: /ssl-config
+             readOnly: true
+           - mountPath: /global-config
+             name: global-config
              readOnly: true
           resources:
             requests:
@@ -114,6 +120,9 @@ spec:
          secret:
            optional: false
            secretName: ssl-config-memory
+       - name: global-config
+         secret:
+           secretName: global-config
 ---
 apiVersion: v1
 kind: Service

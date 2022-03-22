@@ -1,124 +1,136 @@
 # Hail on Azure
 
-This is an incomplete, work in progress for setting up hail infrasture on Azure. The
-following should all be executed in the `$HAIL/infra/azure` directory.
-
-First, set some important environment variables that we will need down the road:
-
-```
-export AZ_RESOURCE_GROUP_NAME=<resource_group_name>
-```
+This is a work in progress for setting up hail infrasture on Azure. The
+following should be executed in the `$HAIL/infra/azure` directory unless
+otherwise noted.
 
 ## Authenticating with the Azure CLI
-You will need an Azure account. Install the Azure CLI by running the following (on Mac) and log in:
+You will need an Azure account. Install the Azure CLI by running the following
+(on Mac) and log in:
 
 ```
 brew install azure-cli
 az login
 ```
 
-Every resource created in Azure must belong to a subscription.
-Run the following to set an environment variable for the subscription id we will
-use in later steps (assuming you only belong to one subscription or you intend to
-use the first subscription listed).
-Note: these environment variables prefixed with `ARM_` are used by terraform
-later so be sure to use the same names.
-
-```
-export ARM_SUBSCRIPTION_ID=$(az account list | jq -rj '.[0].id')
-export ARM_TENANT_ID=$(az account list | jq -rj '.[0].tenantId')
-```
-
-Next, we will create a service principal with the Contributor role for terraform
-to use. If the service principal already exists, you can retrieve the client ID
-and client secret credentials from another developer who has them, or reset
-them. Either to create the service principal or reset it, run the following
-
-```
-az ad sp create-for-rbac --role="Owner" --scopes="/subscriptions/${ARM_SUBSCRIPTION_ID}" --name="terraform-principal" > terraform_principal.json
-```
-
-Note: Your developer Azure account must be an owner of the terraform service principal.
-To grant ownership to another developer, go in the Azure portal to
-Azure Active Directory > App registrations > terraform-principal > Owners.
-
-and then run the following block to log in using those credentials. It is not
-possible to programmatically retrieve the SP credentials [without resetting
-them](https://stackoverflow.com/questions/60535578/how-do-i-retrieve-the-service-principal-password-after-creation-using-the-azure/60537958).
-Note: it might take a minute for the SP credentials to propagate.
-If the folllowing fails, wait a moment and try again.
-
-```
-export ARM_CLIENT_ID=$(jq -rj '.appId' terraform_principal.json)
-export ARM_CLIENT_SECRET=$(jq -rj '.password' terraform_principal.json)
-az login --service-principal -u $ARM_CLIENT_ID -p $ARM_CLIENT_SECRET --tenant $ARM_TENANT_ID
-```
-
-## Setting up Terraform Remote State Management
-
-Unless you're running a particularly lonely ship, you will want Terraform state to
-be shared so that different developers can have a single consistent
-view of the state of the infrastructure. The following resources only need to be created
-once per resource group. If they already exist, you still need to define the environment
-variables in this section, but you do not need to run any `create` commands.
-
-Create a storage account that will own the storage container holding terraform state.
-Note you might need to fiddle with the account name to satisfy the azure naming restrictions.
-
-```
-# This name must be alphanumeric and globally unique
-export STORAGE_ACCOUNT_NAME=haildevterraform
-az storage account create -n $STORAGE_ACCOUNT_NAME -g $AZ_RESOURCE_GROUP_NAME
-export STORAGE_ACCOUNT_KEY=$(az storage account keys list --resource-group $AZ_RESOURCE_GROUP_NAME --account-name $STORAGE_ACCOUNT_NAME | jq -rj '.[0].value')
-```
-
-Create the storage container that terraform will use to store its state.
-
-```
-export STORAGE_CONTAINER_NAME=tfstate
-az storage container create -n $STORAGE_CONTAINER_NAME --account-name $STORAGE_ACCOUNT_NAME --account-key $STORAGE_ACCOUNT_KEY
-```
-
-If you see an output of
-```
-{
-  "created": true
-}
-```
-the create step was successful. Finally, create the backend config file used to initialize terraform.
-
-```
-cat >backend-config.tfvars <<EOF
-storage_account_name = "$STORAGE_ACCOUNT_NAME"
-container_name       = "$STORAGE_CONTAINER_NAME"
-access_key           = "$STORAGE_ACCOUNT_KEY"
-key                  = "haildev.tfstate"
-EOF
-```
-
 ## Running Terraform
 
-Initialize terraform. If you do not with to track terraform state remotely, you can
-forego the backend-config parameters.
+Every resource in Azure must belong to a Resource Group. First, obtain
+a resource group and make sure you have Owner permissions for that
+resource group.
+
+You will also need a storage account and container for remotely storing
+terraform state. The following command creates these and stores their names in
+`remote_storage.tfvars`:
 
 ```
-terraform init -backend-config=backend-config.tfvars
+./bootstrap.sh create_terraform_remote_storage <RESOURCE_GROUP>
 ```
 
-Next, create a `global.tfvars` file from the following template and replace in the relevant fields.
+Initialize terraform:
 
 ```
-az_resource_group_name = "<resource_group_name>"
-# Omit this field to have the container registry name default to the resource group name
-acr_name               = "<azure_container_registry_name>"
+./bootstrap.sh init_terraform <RESOURCE_GROUP>
 ```
 
-Run `terraform apply -var-file=global.tfvars`. To sync the kubernetes config and authenticate
-docker with the container registry, run
+Create a `global.tfvars` file with the necessary variables from
+$HAIL/infra/azure/variables.tf.
+
+Run terraform:
 
 ```
-az aks get-credentials --name vdc --resource-group $AZ_RESOURCE_GROUP_NAME
-az acr login --name <azure_container_registry_name>
+terraform apply -var-file=global.tfvars
 ```
 
-you can now use `kubectl` to communicate with AKS cluster.
+Once terraform has completed successfully, you must create an A record for the
+domain of your choosing pointing at the `gateway_ip` with a DNS provider. The
+`gateway_ip` may be retrieved by executing the following command.
+
+```
+terraform output -raw gateway_ip
+```
+
+There is one resource which, unfortunately, cannot be configured directly with
+Terraform. The service principal used by the `auth` service needs "admin
+consent" to create new service accounts for new users. After you first run
+terraform and whenever you recreate the auth service principal, you must grant
+this new service principal admin consent:
+
+```
+./bootstrap.sh grant_auth_sp_admin_consent
+```
+
+## Bootstrap the cluster
+
+We'll complete the rest of the process on a VM. To create one, run
+
+```
+./create_bootstrap_vm.sh <RESOURCE_GROUP>
+```
+
+SSH into the VM (ssh -i ~/.ssh/id_rsa <username>@<public_ip>).
+
+Clone the hail repository:
+
+```
+git clone https://github.com/<repo_name>/hail.git
+```
+
+In the $HAIL/infra directory, run
+
+```
+./install_bootstrap_dependencies.sh
+```
+
+At this point, log out and ssh back in (so that changes to group settings
+for Docker can be applied). In the $HAIL/infra/azure directory, run
+
+```
+./bootstrap.sh setup_az
+```
+
+to download and authenticate with the azure CLI.
+
+Run the following to authenticate docker and kubectl with the new
+container registry and kubernetes cluster, respectively.
+
+```
+azsetcluster <RESOURCE_GROUP>
+```
+The ACR authentication token only lasts three hours. If you pause the deployment
+process after this point, you may have to rerun `azsetcluster` before continuing.
+
+Deploy unmanaged resources by running
+
+```
+./bootstrap.sh deploy_unmanaged
+```
+
+Build the batch worker image by running the following in $HAIL/batch:
+
+```
+./az-create-worker-image.sh
+```
+
+Finally, run the following to deploy Hail in the cluster.
+
+```
+download-secret global-config && sudo cp -r contents /global-config
+download-secret database-server-config && sudo cp -r contents /sql-config
+cd ~/hail/infra/azure
+./bootstrap.sh bootstrap <REPO>/hail:<BRANCH> deploy_batch
+```
+
+Create the initial (developer) user. The OBJECT_ID is the Azure Active
+Directory user's object ID.
+
+```
+./bootstrap.sh bootstrap <REPO>/hail:<BRANCH> create_initial_user <USERNAME> <OBJECT_ID>
+```
+
+Deploy the gateway service. First trim down `$HAIL/letsencrypt/subdomains.txt`
+to only the services that are deployed and then run
+
+```
+make -C $HAIL/gateway deploy
+```

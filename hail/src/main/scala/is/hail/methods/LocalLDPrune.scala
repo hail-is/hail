@@ -1,10 +1,10 @@
 package is.hail.methods
 
 import java.util
-
 import is.hail.annotations._
+import is.hail.backend.ExecuteContext
 import is.hail.expr.ir.functions.MatrixToTableFunction
-import is.hail.expr.ir.{ExecuteContext, MatrixValue, TableValue}
+import is.hail.expr.ir.{MatrixValue, TableValue}
 import is.hail.types._
 import is.hail.types.physical._
 import is.hail.types.virtual._
@@ -231,14 +231,16 @@ object LocalLDPrune {
   private def pruneLocal(inputRDD: RVD, r2Threshold: Double, windowSize: Int, queueSize: Option[Int]): RVD = {
     val localRowType = inputRDD.typ.rowType
 
-    inputRDD.mapPartitions(inputRDD.typ) { (ctx, it) =>
+    inputRDD.mapPartitionsWithContext(inputRDD.typ) { (ctx, prevPartition) =>
       val queue = new util.ArrayDeque[RegionValue](queueSize.getOrElse(16))
+
+      val producerContext = ctx.freshContext()
 
       val bpvv = new BitPackedVectorView(localRowType)
       val bpvvPrev = new BitPackedVectorView(localRowType)
       val rvb = new RegionValueBuilder()
 
-      it.filter { ptr =>
+      prevPartition(producerContext).filter { ptr =>
         bpvv.set(ptr)
 
         var keepVariant = true
@@ -262,14 +264,17 @@ object LocalLDPrune {
           val r = ctx.freshRegion()
           rvb.set(r)
           rvb.start(localRowType)
-          rvb.addRegionValue(localRowType, ctx.r, ptr)
+          rvb.addRegionValue(localRowType, producerContext.region, ptr)
           queue.addLast(RegionValue(rvb.region, rvb.end()))
           queueSize.foreach { qs =>
             if (queue.size() > qs) {
-              ctx.closeChild(queue.pop().region)
+              queue.pop().region.invalidate()
             }
           }
+          ctx.r.addReferenceTo(r)
         }
+
+        producerContext.region.clear()
 
         keepVariant
       }
@@ -313,15 +318,16 @@ case class LocalLDPrune(
     val tableType = typ(mv.typ)
 
     val standardizedRDD = mv.rvd
-      .mapPartitions(mv.rvd.typ.copy(rowType = bpvType)){ (ctx, it) =>
+      .mapPartitionsWithContext(mv.rvd.typ.copy(rowType = bpvType)){ (ctx, prevPartition) =>
+
+        val producerContext = ctx.freshContext()
+
         val hcView = new HardCallView(fullRowPType, callField)
-        val region = Region(pool=ctx.r.pool)
+        val region = producerContext.region
         val rvb = new RegionValueBuilder(region)
 
-        it.flatMap { ptr =>
+        prevPartition(producerContext).flatMap { ptr =>
           hcView.set(ptr)
-          region.clear()
-          rvb.set(region)
           rvb.start(bpvType)
           rvb.startStruct()
           rvb.addFields(fullRowPType, ctx.r, ptr, Array(locusIndex, allelesIndex))
@@ -332,10 +338,14 @@ case class LocalLDPrune(
             rvb.endStruct()
 
             ctx.region.addReferenceTo(region)
+            region.clear()
+
             Some(rvb.end())
           }
-          else
+          else {
+            region.clear()
             None
+          }
         }
       }
 
@@ -346,18 +356,14 @@ case class LocalLDPrune(
     val sitesOnly = rvdLP.mapPartitions(
       tableType.canonicalRVDType
     )({ (ctx, it) =>
-      val region = Region(pool=ctx.r.pool)
-      val rvb = new RegionValueBuilder(region)
+      val rvb = new RegionValueBuilder(ctx.r)
 
       it.map { ptr =>
-        region.clear()
-        rvb.set(region)
+        rvb.set(ctx.r)
         rvb.start(tableType.canonicalRowPType)
         rvb.startStruct()
         rvb.addFields(bpvType, ctx.r, ptr, fieldIndicesToAdd)
         rvb.endStruct()
-
-        ctx.region.addReferenceTo(region)
         rvb.end()
       }
     })

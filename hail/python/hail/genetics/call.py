@@ -1,4 +1,6 @@
-from hail.typecheck import typecheck_method, sequenceof
+from collections.abc import Sequence
+
+from hail.typecheck import typecheck_method
 from hail.utils import FatalError
 
 
@@ -26,9 +28,11 @@ class Call(object):
      - :func:`.parse_call`
     """
 
-    @typecheck_method(alleles=sequenceof(int),
-                      phased=bool)
     def __init__(self, alleles, phased=False):
+        # Intentionally not using the type check annotations which are too slow.
+        assert isinstance(alleles, Sequence)
+        assert isinstance(phased, bool)
+
         if len(alleles) > 2:
             raise NotImplementedError("Calls with greater than 2 alleles are not supported.")
         self._phased = phased

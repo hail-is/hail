@@ -2,11 +2,13 @@ package is.hail.expr.ir.agg
 
 import is.hail.annotations.Region
 import is.hail.asm4s.{Code, _}
-import is.hail.expr.ir.{EmitClassBuilder, EmitCode, EmitCodeBuilder}
+import is.hail.backend.ExecuteContext
+import is.hail.expr.ir.{EmitClassBuilder, EmitCode, EmitCodeBuilder, IEmitCode}
 import is.hail.io.{BufferSpec, InputBuffer, OutputBuffer}
 import is.hail.types.VirtualTypeWithReq
 import is.hail.types.physical._
-import is.hail.types.physical.stypes.concrete.{SIndexablePointerCode, SIndexablePointerValue}
+import is.hail.types.physical.stypes.EmitType
+import is.hail.types.physical.stypes.concrete.{SIndexablePointer, SIndexablePointerValue}
 import is.hail.types.virtual.{TInt32, Type}
 import is.hail.utils._
 
@@ -22,22 +24,20 @@ class TakeRVAS(val eltType: VirtualTypeWithReq, val kb: EmitClassBuilder[_]) ext
   private val maxSizeOffset: Code[Long] => Code[Long] = storageType.loadField(_, 0)
   private val builderStateOffset: Code[Long] => Code[Long] = storageType.loadField(_, 1)
 
-  def newState(cb: EmitCodeBuilder, off: Code[Long]): Unit = cb += region.getNewRegion(regionSize)
+  def newState(cb: EmitCodeBuilder, off: Value[Long]): Unit = cb += region.getNewRegion(regionSize)
 
   def createState(cb: EmitCodeBuilder): Unit =
     cb.ifx(region.isNull, {
       cb.assign(r, Region.stagedCreate(regionSize, kb.pool()))
     })
 
-  override def load(cb: EmitCodeBuilder, regionLoader: (EmitCodeBuilder, Value[Region]) => Unit, srcc: Code[Long]): Unit = {
-    val src = cb.newLocal[Long]("take_rvas_src", srcc)
+  override def load(cb: EmitCodeBuilder, regionLoader: (EmitCodeBuilder, Value[Region]) => Unit, src: Value[Long]): Unit = {
     regionLoader(cb, r)
     cb.assign(maxSize, Region.loadInt(maxSizeOffset(src)))
     builder.loadFrom(cb, builderStateOffset(src))
   }
 
-  override def store(cb: EmitCodeBuilder, regionStorer: (EmitCodeBuilder, Value[Region]) => Unit, destc: Code[Long]): Unit = {
-    val dest = cb.newLocal[Long]("ta_store_dest", destc)
+  override def store(cb: EmitCodeBuilder, regionStorer: (EmitCodeBuilder, Value[Region]) => Unit, dest: Value[Long]): Unit = {
     cb.ifx(region.isValid,
       {
         regionStorer(cb, region)
@@ -71,7 +71,7 @@ class TakeRVAS(val eltType: VirtualTypeWithReq, val kb: EmitClassBuilder[_]) ext
       elt.toI(cb)
         .consume(cb,
           builder.setMissing(cb),
-          sc => builder.append(cb, sc.get)))
+          sc => builder.append(cb, sc)))
   }
 
   def combine(cb: EmitCodeBuilder, other: TakeRVAS): Unit = {
@@ -82,7 +82,7 @@ class TakeRVAS(val eltType: VirtualTypeWithReq, val kb: EmitClassBuilder[_]) ext
         other.builder.loadElement(cb, j).toI(cb)
           .consume(cb,
             builder.setMissing(cb),
-            sc => builder.append(cb, sc.get))
+            sc => builder.append(cb, sc))
         cb.assign(j, j + 1)
       })
   }
@@ -93,8 +93,7 @@ class TakeRVAS(val eltType: VirtualTypeWithReq, val kb: EmitClassBuilder[_]) ext
     }
   }
 
-  def copyFrom(cb: EmitCodeBuilder, srcCode: Code[Long]): Unit = {
-    val src = cb.newLocal("takervas_copy_from_src", srcCode)
+  def copyFrom(cb: EmitCodeBuilder, src: Value[Long]): Unit = {
     cb.assign(maxSize, Region.loadInt(maxSizeOffset(src)))
     builder.copyFrom(cb, builderStateOffset(src))
   }
@@ -104,7 +103,8 @@ class TakeAggregator(typ: VirtualTypeWithReq) extends StagedAggregator {
   type State = TakeRVAS
 
   private val pt = typ.canonicalPType
-  val resultType: PCanonicalArray = PCanonicalArray(pt, required = true)
+  val resultPType: PCanonicalArray = PCanonicalArray(pt)
+  val resultEmitType: EmitType = EmitType(SIndexablePointer(resultPType), true)
   val initOpTypes: Seq[Type] = Array(TInt32)
   val seqOpTypes: Seq[Type] = Array(typ.t)
 
@@ -114,7 +114,7 @@ class TakeAggregator(typ: VirtualTypeWithReq) extends StagedAggregator {
     sizeTriplet.toI(cb)
       .consume(cb,
         cb += Code._fatal[Unit](s"argument 'n' for 'hl.agg.take' may not be missing"),
-        sc => state.init(cb, sc.asInt.intCode(cb))
+        sc => state.init(cb, sc.asInt.value)
       )
   }
 
@@ -123,11 +123,10 @@ class TakeAggregator(typ: VirtualTypeWithReq) extends StagedAggregator {
     state.seqOp(cb, elt)
   }
 
-  protected def _combOp(cb: EmitCodeBuilder, state: State, other: State): Unit = state.combine(cb, other)
+  protected def _combOp(ctx: ExecuteContext, cb: EmitCodeBuilder, state: TakeRVAS, other: TakeRVAS): Unit = state.combine(cb, other)
 
-  protected def _storeResult(cb: EmitCodeBuilder, state: State, pt: PType, addr: Value[Long], region: Value[Region], ifMissing: EmitCodeBuilder => Unit): Unit = {
-    assert(pt == resultType)
+  protected def _result(cb: EmitCodeBuilder, state: State, region: Value[Region]): IEmitCode = {
     // deepCopy is handled by state.resultArray
-    pt.storeAtAddress(cb, addr, region, state.resultArray(cb, region, resultType).get, deepCopy = false)
+    IEmitCode.present(cb, state.resultArray(cb, region, resultPType))
   }
 }

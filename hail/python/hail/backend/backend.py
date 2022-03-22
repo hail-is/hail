@@ -1,3 +1,4 @@
+from typing import Mapping
 import abc
 from ..fs.fs import FS
 
@@ -9,6 +10,18 @@ class Backend(abc.ABC):
 
     @abc.abstractmethod
     def execute(self, ir, timed=False):
+        pass
+
+    @abc.abstractmethod
+    async def _async_execute(self, ir, timed=False):
+        pass
+
+    def execute_many(self, *irs, timed=False):
+        from ..ir import MakeTuple  # pylint: disable=import-outside-toplevel
+        return [self.execute(MakeTuple([ir]), timed=timed)[0] for ir in irs]
+
+    @abc.abstractmethod
+    async def _async_execute_many(self, *irs, timed=False):
         pass
 
     @abc.abstractmethod
@@ -41,6 +54,17 @@ class Backend(abc.ABC):
 
     @abc.abstractmethod
     def get_reference(self, name):
+        pass
+
+    @abc.abstractmethod
+    async def _async_get_reference(self, name):
+        pass
+
+    def get_references(self, names):
+        return [self.get_reference(name) for name in names]
+
+    @abc.abstractmethod
+    async def _async_get_references(self, names):
         pass
 
     @abc.abstractmethod
@@ -102,4 +126,14 @@ class Backend(abc.ABC):
 
     @abc.abstractmethod
     def persist_ir(self, ir):
+        pass
+
+    @abc.abstractmethod
+    def set_flags(self, **flags: Mapping[str, str]):
+        """Set Hail flags."""
+        pass
+
+    @abc.abstractmethod
+    def get_flags(self, *flags) -> Mapping[str, str]:
+        """Mapping of Hail flags."""
         pass

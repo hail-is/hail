@@ -2,7 +2,8 @@ package is.hail.io.gen
 
 import is.hail.HailContext
 import is.hail.annotations.Region
-import is.hail.expr.ir.{ExecuteContext, MatrixValue}
+import is.hail.backend.ExecuteContext
+import is.hail.expr.ir.MatrixValue
 import is.hail.types.physical.{PString, PStruct}
 import is.hail.variant.{ArrayGenotypeView, RegionValueVariant, VariantMethods, View}
 import is.hail.utils._

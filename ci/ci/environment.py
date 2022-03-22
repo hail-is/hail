@@ -1,23 +1,20 @@
+import json
 import os
 
-GCP_PROJECT = os.environ['HAIL_GCP_PROJECT']
-assert GCP_PROJECT != ''
-GCP_ZONE = os.environ['HAIL_GCP_ZONE']
-assert GCP_ZONE != ''
-GCP_REGION = '-'.join(GCP_ZONE.split('-')[:-1])  # us-west1-a -> us-west1
-DOCKER_PREFIX = os.environ.get('HAIL_DOCKER_PREFIX', f'gcr.io/{GCP_REGION}')
-assert DOCKER_PREFIX != ''
-DOCKER_ROOT_IMAGE = os.environ['HAIL_DOCKER_ROOT_IMAGE']
-assert DOCKER_ROOT_IMAGE != ''
-DOMAIN = os.environ['HAIL_DOMAIN']
-assert DOMAIN != ''
-HAIL_TEST_GCS_BUCKET = os.environ['HAIL_TEST_GCS_BUCKET']
-assert HAIL_TEST_GCS_BUCKET != ''
-HAIL_TEST_REQUESTER_PAYS_GCS_BUCKET = os.environ['HAIL_TEST_REQUESTER_PAYS_GCS_BUCKET']
-assert HAIL_TEST_REQUESTER_PAYS_GCS_BUCKET != ''
-IP = os.environ.get('HAIL_IP')
-CI_UTILS_IMAGE = os.environ.get('HAIL_CI_UTILS_IMAGE', f'{DOCKER_PREFIX}/ci-utils:latest')
+from gear.cloud_config import get_global_config
+
+global_config = get_global_config()
+
+CLOUD = global_config['cloud']
+assert CLOUD in ('gcp', 'azure'), CLOUD
+
+DOCKER_PREFIX = global_config['docker_prefix']
+DOCKER_ROOT_IMAGE = global_config['docker_root_image']
+DOMAIN = global_config['domain']
+KUBERNETES_SERVER_URL = global_config['kubernetes_server_url']
+DEFAULT_NAMESPACE = global_config['default_namespace']
+
+CI_UTILS_IMAGE = os.environ['HAIL_CI_UTILS_IMAGE']
 BUILDKIT_IMAGE = os.environ['HAIL_BUILDKIT_IMAGE']
-DEFAULT_NAMESPACE = os.environ['HAIL_DEFAULT_NAMESPACE']
-KUBERNETES_SERVER_URL = os.environ['KUBERNETES_SERVER_URL']
-BUCKET = os.environ['HAIL_CI_BUCKET_NAME']
+STORAGE_URI = os.environ['HAIL_CI_STORAGE_URI']
+DEPLOY_STEPS = tuple(json.loads(os.environ.get('HAIL_CI_DEPLOY_STEPS', '[]')))

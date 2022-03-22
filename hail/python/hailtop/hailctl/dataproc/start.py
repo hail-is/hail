@@ -1,6 +1,5 @@
 import re
 
-import pkg_resources
 import yaml
 
 from . import gcloud
@@ -134,9 +133,9 @@ REGION_TO_REPLICATE_MAPPING = {
     'australia-southeast1': 'aus-sydney'
 }
 
-ANNOTATION_DB_BUCKETS = ["hail-datasets-us", "hail-datasets-eu", "gnomad-public-requester-pays"]
+ANNOTATION_DB_BUCKETS = ["hail-datasets-us", "hail-datasets-eu"]
 
-IMAGE_VERSION = '2.0.6-debian10'
+IMAGE_VERSION = '2.0.29-debian10'
 
 
 def init_parser(parser):
@@ -200,6 +199,17 @@ def init_parser(parser):
                         required=False,
                         choices=['GRCh37', 'GRCh38'])
     parser.add_argument('--dry-run', action='store_true', help="Print gcloud dataproc command, but don't run it.")
+    parser.add_argument('--no-off-heap-memory', action='store_true',
+                        help="If true, don't partition JVM memory between hail heap and JVM heap")
+    parser.add_argument('--big-executors', action='store_true',
+                        help="If true, double memory allocated per executor, using half the cores of the cluster with an extra large memory allotment per core.")
+    parser.add_argument('--off-heap-memory-fraction', type=float, default=0.6,
+                        help="Minimum fraction of worker memory dedicated to off-heap Hail values.")
+    parser.add_argument('--off-heap-memory-hard-limit', action='store_true',
+                        help="If true, limit off-heap allocations to the dedicated fraction")
+    parser.add_argument('--yarn-memory-fraction', type=float,
+                        help="Fraction of machine memory to allocate to the yarn container scheduler.",
+                        default=0.95)
 
     # requester pays
     parser.add_argument('--requester-pays-allow-all',
@@ -216,7 +226,9 @@ def init_parser(parser):
                         help="Enable debug features on created cluster (heap dump on out-of-memory error)")
 
 
-def main(args, pass_through_args):
+async def main(args, pass_through_args):
+    import pkg_resources  # pylint: disable=import-outside-toplevel
+
     conf = ClusterConfig()
     conf.extend_flag('image-version', IMAGE_VERSION)
 
@@ -326,6 +338,48 @@ def main(args, pass_through_args):
     conf.flags['secondary-worker-boot-disk-size'] = disk_size(args.secondary_worker_boot_disk_size)
     conf.flags['worker-boot-disk-size'] = disk_size(args.worker_boot_disk_size)
     conf.flags['worker-machine-type'] = args.worker_machine_type
+
+    if not args.no_off_heap_memory:
+        worker_memory = MACHINE_MEM[args.worker_machine_type]
+
+        # A Google support engineer recommended the strategy of passing the YARN
+        # config params, and the default value of 95% of machine memory to give to YARN.
+        # yarn.nodemanager.resource.memory-mb - total memory per machine
+        # yarn.scheduler.maximum-allocation-mb - max memory to allocate to each container
+        available_memory_fraction = args.yarn_memory_fraction
+        available_memory_mb = int(worker_memory * available_memory_fraction * 1024)
+        cores_per_machine = int(args.worker_machine_type.split('-')[-1])
+        executor_cores = min(cores_per_machine, 4)
+        available_memory_per_core_mb = available_memory_mb // cores_per_machine
+
+        memory_per_executor_mb = int(available_memory_per_core_mb * executor_cores)
+
+        off_heap_mb = int(memory_per_executor_mb * args.off_heap_memory_fraction)
+        on_heap_mb = memory_per_executor_mb - off_heap_mb
+
+        if args.off_heap_memory_hard_limit:
+            off_heap_memory_per_core = off_heap_mb // executor_cores
+        else:
+            off_heap_memory_per_core = available_memory_per_core_mb
+
+        print(f"hailctl dataproc: Creating a cluster with workers of machine type {args.worker_machine_type}.\n"
+              f"  Allocating {memory_per_executor_mb} MB of memory per executor ({executor_cores} cores),\n"
+              f"  with at least {off_heap_mb} MB for Hail off-heap values and {on_heap_mb} MB for the JVM."
+              f"  Using a maximum Hail memory reservation of {off_heap_memory_per_core} MB per core.")
+
+        conf.extend_flag('properties',
+                         {
+                             'yarn:yarn.nodemanager.resource.memory-mb': f'{available_memory_mb}',
+                             'yarn:yarn.scheduler.maximum-allocation-mb': f'{executor_cores * available_memory_per_core_mb}',
+                             'spark:spark.executor.cores': f'{executor_cores}',
+                             'spark:spark.executor.memory': f'{on_heap_mb}m',
+                             'spark:spark.executor.memoryOverhead': f'{off_heap_mb}m',
+                             'spark:spark.memory.storageFraction': '0.2',
+                             'spark:spark.executorEnv.HAIL_WORKER_OFF_HEAP_MEMORY_PER_CORE_MB': str(
+                                 off_heap_memory_per_core),
+                         }
+                         )
+
     if args.region:
         conf.flags['region'] = args.region
     if args.zone:

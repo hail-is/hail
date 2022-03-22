@@ -51,14 +51,21 @@ spec:
          env:
 {% if deploy %}
           - name: GF_SERVER_DOMAIN
-            value: grafana.hail.is
+            value: grafana.{{ global.domain }}
           - name: GF_SERVER_ROOT_URL
             value: "%(protocol)s://%(domain)s/"
 {% else %}
           - name: GF_SERVER_DOMAIN
-            value: internal.hail.is
+            value: internal.{{ global.domain }}
           - name: GF_SERVER_ROOT_URL
             value: "%(protocol)s://%(domain)s/{{ default_ns.name }}/grafana/"
+{% endif %}
+{% if global.cloud == 'gcp' %}
+          - name: GCP_PROJECT
+            valueFrom:
+              secretKeyRef:
+                name: global-config
+                key: gcp_project
 {% endif %}
          volumeMounts:
           - mountPath: /var/lib/grafana
@@ -116,9 +123,9 @@ data:
   grafana.ini: |
     [server]
 {% if deploy %}
-    domain = grafana.hail.is
+    domain = grafana.{{ global.domain }}
 {% else %}
-    domain = internal.hail.is
+    domain = internal.{{ global.domain }}
     root_url = %(protocol)s://%(domain)/{{ default_ns.name }}/grafana/
     serve_from_sub_path = true
 {% endif %}
@@ -131,17 +138,19 @@ data:
   datasources.yaml: |
     apiVersion: 1
     datasources:
+{% if global.cloud == 'gcp' %}
       - name: Google Cloud Monitoring
         type: stackdriver
         access: proxy
         isDefault: true
         jsonData:
           authenticationType: gce
-          defaultProject: {{ global.project }}
+          defaultProject: $GCP_PROJECT
         editable: true
+{% endif %}
       - name: Prometheus
         type: prometheus
-        url: https://prometheus/	
+        url: https://prometheus/
         jsonData:
           httpHeaderName1: 'Authorization'
           tlsSkipVerify: true

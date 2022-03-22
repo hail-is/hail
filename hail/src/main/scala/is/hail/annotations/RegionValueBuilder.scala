@@ -333,9 +333,10 @@ class RegionValueBuilder(var region: Region) {
   }
 
   def selectRegionValue(fromT: PStruct, fromFieldIdx: Array[Int], region: Region, offset: Long) {
-    val t = fromT.typeAfterSelect(fromFieldIdx)
-    assert(currentType().setRequired(true) == t.setRequired(true), s"${currentType()} != ${t}")
-    assert(t.size == fromFieldIdx.length)
+    // too expensive!
+    // val t = fromT.typeAfterSelect(fromFieldIdx)
+    // assert(currentType().setRequired(true) == t.setRequired(true), s"${currentType()} != ${t}")
+    // assert(t.size == fromFieldIdx.length)
     startStruct()
     addFields(fromT, region, offset, fromFieldIdx)
     endStruct()

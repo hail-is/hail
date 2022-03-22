@@ -15,6 +15,14 @@ object RegionPool {
   }
 
   def scoped[T](f: RegionPool => T): T = using(RegionPool(false))(f)
+
+  lazy val maxRegionPoolSize: Long = {
+    val s = System.getenv("HAIL_WORKER_OFF_HEAP_MEMORY_PER_CORE_MB")
+    if (s != null && s.nonEmpty)
+      s.toLong * 1024 * 1024
+    else
+      Long.MaxValue
+  }
 }
 
 final class RegionPool private(strictMemoryCheck: Boolean, threadName: String, threadID: Long) extends AutoCloseable {
@@ -28,6 +36,7 @@ final class RegionPool private(strictMemoryCheck: Boolean, threadName: String, t
   private[this] var numJavaObjects: Long = 0L
   private[this] var highestTotalUsage = 0L
   private[this] val chunkCache = new ChunkCache(Memory.malloc, Memory.free)
+  private[this] val maxSize = RegionPool.maxRegionPoolSize
 
   def addJavaObject(): Unit = {
     numJavaObjects += 1
@@ -41,6 +50,13 @@ final class RegionPool private(strictMemoryCheck: Boolean, threadName: String, t
 
   def getHighestTotalUsage: Long = highestTotalUsage
   def getUsage: (Int, Int) = chunkCache.getUsage()
+
+  private[annotations] def decrementAllocatedBytes(toSubtract: Long): Unit = totalAllocatedBytes -= toSubtract
+
+  def closeAndThrow(msg: String): Unit = {
+    close()
+    fatal(msg)
+  }
   private[annotations] def incrementAllocatedBytes(toAdd: Long): Unit = {
     totalAllocatedBytes += toAdd
     if (totalAllocatedBytes >= allocationEchoThreshold) {
@@ -49,6 +65,13 @@ final class RegionPool private(strictMemoryCheck: Boolean, threadName: String, t
     }
     if (totalAllocatedBytes >= highestTotalUsage) {
       highestTotalUsage = totalAllocatedBytes
+      if (totalAllocatedBytes > maxSize) {
+        val inBlocks = bytesInBlocks()
+        closeAndThrow(s"Hail off-heap memory exceeded maximum threshold: limit ${ formatSpace(maxSize) }, allocated ${ formatSpace(totalAllocatedBytes) }\n"
+          + s"Report: ${readableBytes(totalAllocatedBytes)} allocated (${readableBytes(inBlocks)} blocks / "
+          + s"${readableBytes(totalAllocatedBytes - inBlocks)} chunks), regions.size = ${regions.size}, "
+          + s"$numJavaObjects current java objects, thread $threadID: $threadName")
+      }
     }
   }
 
@@ -62,9 +85,9 @@ final class RegionPool private(strictMemoryCheck: Boolean, threadName: String, t
       pool.pop()
     } else {
       chunkCache.freeChunksFromCacheToFit(this, size.toLong)
-      blocks(size) += 1
       val blockByteSize = Region.SIZES(size)
       incrementAllocatedBytes(blockByteSize)
+      blocks(size) += 1
       Memory.malloc(blockByteSize)
     }
   }
@@ -107,6 +130,8 @@ final class RegionPool private(strictMemoryCheck: Boolean, threadName: String, t
 
   def numFreeBlocks(): Int = freeBlocks.map(_.size).sum
 
+  def bytesInBlocks(): Long = Region.SIZES.zip(blocks).map { case (size, block) => size * block }.sum[Long]
+
   def logStats(context: String): Unit = {
     val nFree = this.numFreeRegions()
     val nRegions = this.numRegions()
@@ -123,12 +148,7 @@ final class RegionPool private(strictMemoryCheck: Boolean, threadName: String, t
   }
 
   def report(context: String): Unit = {
-    var inBlocks = 0L
-    var i = 0
-    while (i < 4) {
-      inBlocks += blocks(i) * Region.SIZES(i)
-      i += 1
-    }
+    val inBlocks = bytesInBlocks()
 
     log.info(s"RegionPool: $context: ${readableBytes(totalAllocatedBytes)} allocated (${readableBytes(inBlocks)} blocks / " +
       s"${readableBytes(totalAllocatedBytes - inBlocks)} chunks), regions.size = ${regions.size}, " +
@@ -137,8 +157,6 @@ final class RegionPool private(strictMemoryCheck: Boolean, threadName: String, t
 //    val stacks: String = regions.result().toIndexedSeq.flatMap(r => r.stackTrace.map((r.getTotalChunkMemory(), _))).foldLeft("")((a: String, b) => a + "\n" + b.toString())
 //    log.info(stacks)
 //    log.info("---------------END--------------")
-
-
   }
 
   def scopedRegion[T](f: Region => T): T = using(Region(pool = this))(f)
@@ -169,7 +187,7 @@ final class RegionPool private(strictMemoryCheck: Boolean, threadName: String, t
       while (blocks.size > 0) {
         val popped = blocks.pop()
         Memory.free(popped)
-        totalAllocatedBytes -= blockSize
+        decrementAllocatedBytes(blockSize)
       }
       i += 1
     }

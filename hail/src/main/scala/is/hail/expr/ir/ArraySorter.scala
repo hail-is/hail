@@ -2,7 +2,7 @@ package is.hail.expr.ir
 
 import is.hail.annotations.Region
 import is.hail.asm4s._
-import is.hail.types.physical.stypes.interfaces.{SIndexableCode, SIndexableValue}
+import is.hail.types.physical.stypes.interfaces.SIndexableValue
 import is.hail.types.physical.{PCanonicalArray, PCanonicalDict, PCanonicalSet}
 import is.hail.types.virtual.{TArray, TDict, TSet, Type}
 import is.hail.utils.FastIndexedSeq
@@ -19,9 +19,10 @@ class ArraySorter(r: EmitRegion, array: StagedArrayBuilder) {
   private[this] val workingArray1 = mb.genFieldThisRef("sorter_working_array")(workingArrayInfo)
   private[this] val workingArray2 = mb.genFieldThisRef("sorter_working_array")(workingArrayInfo)
 
-  private[this] def arrayRef(workingArray: Code[Array[_]]): UntypedCodeArray = new UntypedCodeArray(workingArray, array.ti)
+  private[this] def arrayRef(workingArray: Value[Array[_]]): UntypedCodeArray =
+    new UntypedCodeArray(workingArray, array.ti)
 
-  def sort(cb: EmitCodeBuilder, region: Value[Region], comparesLessThan: (EmitCodeBuilder, Value[Region], Code[_], Code[_]) => Code[Boolean]): Unit = {
+  def sort(cb: EmitCodeBuilder, region: Value[Region], comparesLessThan: (EmitCodeBuilder, Value[Region], Value[_], Value[_]) => Value[Boolean]): Unit = {
 
     val sortMB = cb.emb.ecb.genEmitMethod("arraySorter_outer", FastIndexedSeq[ParamType](classInfo[Region]), UnitInfo)
     sortMB.voidWithBuilder { cb =>
@@ -69,7 +70,7 @@ class ArraySorter(r: EmitRegion, array: StagedArrayBuilder) {
 
           cb.ifx(j < end, {
             cb.ifx(i >= mid, cb.goto(LtakeFromRight))
-            cb.ifx(comparesLessThan(cb, r, arrayA(j), arrayA(i)), cb.goto(LtakeFromRight), cb.goto(LtakeFromLeft))
+            cb.ifx(comparesLessThan(cb, r, arrayA.index(cb, j), arrayA.index(cb, i)), cb.goto(LtakeFromRight), cb.goto(LtakeFromLeft))
           }, cb.goto(LtakeFromLeft))
 
           cb.define(LtakeFromLeft)

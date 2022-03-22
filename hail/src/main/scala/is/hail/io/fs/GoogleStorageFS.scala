@@ -11,6 +11,7 @@ import com.google.cloud.{ReadChannel, WriteChannel}
 import com.google.cloud.storage.Storage.BlobListOption
 import com.google.cloud.storage.{Blob, BlobId, BlobInfo, Storage, StorageOptions}
 import is.hail.HailContext
+import is.hail.services.retryTransientErrors
 
 import scala.collection.JavaConverters._
 import scala.collection.mutable
@@ -95,19 +96,27 @@ class GoogleStorageFileStatus(path: String, modificationTime: java.lang.Long, si
 
   def isFile: Boolean = !isDir
 
+  def isSymlink: Boolean = false
+
   def getOwner: String = null
 }
 
-class GoogleStorageFS(val serviceAccountKey: String) extends FS {
+class GoogleStorageFS(val serviceAccountKey: Option[String] = None) extends FS {
   import GoogleStorageFS._
 
-  @transient private lazy val storage: Storage = {
-    log.info("Initializing google storage client")
-    StorageOptions.newBuilder()
-      .setCredentials(
-        ServiceAccountCredentials.fromStream(new ByteArrayInputStream(serviceAccountKey.getBytes)))
-      .build()
-      .getService
+  @transient private lazy val storage: Storage = serviceAccountKey match {
+    case None =>
+      log.info("Initializing google storage client from latent credentials")
+      StorageOptions.newBuilder()
+        .build()
+        .getService
+    case Some(keyData) =>
+      log.info("Initializing google storage client from service account key")
+      StorageOptions.newBuilder()
+        .setCredentials(
+          ServiceAccountCredentials.fromStream(new ByteArrayInputStream(keyData.getBytes)))
+        .build()
+        .getService
   }
 
   def asCacheable(): CacheableGoogleStorageFS = new CacheableGoogleStorageFS(serviceAccountKey, null)
@@ -239,7 +248,9 @@ class GoogleStorageFS(val serviceAccountKey: String) extends FS {
       override def close(): Unit = {
         if (!closed) {
           flush()
-          write.close()
+          retryTransientErrors {
+            write.close()
+          }
           closed = true
         }
       }
@@ -255,13 +266,16 @@ class GoogleStorageFS(val serviceAccountKey: String) extends FS {
   def delete(filename: String, recursive: Boolean): Unit = {
     val (bucket, path) = getBucketPath(filename)
     if (recursive) {
-      val it = storage.list(bucket, BlobListOption.prefix(path))
-        .getValues.iterator.asScala
+      val it = retryTransientErrors {
+        storage.list(bucket, BlobListOption.prefix(path))
+          .getValues.iterator.asScala
+      }
       while (it.hasNext) {
         storage.delete(it.next().getBlobId)
       }
-    } else
+    } else {
       storage.delete(bucket, path)
+    }
   }
 
   def glob(filename: String): Array[FileStatus] = {
@@ -323,7 +337,9 @@ class GoogleStorageFS(val serviceAccountKey: String) extends FS {
     if (!path.endsWith("/"))
       path = path + "/"
 
-    val blobs = storage.list(bucket, BlobListOption.prefix(path), BlobListOption.currentDirectory())
+    val blobs = retryTransientErrors {
+      storage.list(bucket, BlobListOption.prefix(path), BlobListOption.currentDirectory())
+    }
 
     blobs.getValues.iterator.asScala
       .filter(b => b.getName != path) // elide directory markers created by Hadoop
@@ -338,7 +354,9 @@ class GoogleStorageFS(val serviceAccountKey: String) extends FS {
     if (path == "")
       return new GoogleStorageFileStatus(s"gs://$bucket", null, 0, true)
 
-    val blobs = storage.list(bucket, BlobListOption.prefix(path), BlobListOption.currentDirectory())
+    val blobs = retryTransientErrors {
+      storage.list(bucket, BlobListOption.prefix(path), BlobListOption.currentDirectory())
+    }
 
     val it = blobs.getValues.iterator.asScala
     while (it.hasNext) {
@@ -368,5 +386,5 @@ class GoogleStorageFS(val serviceAccountKey: String) extends FS {
   }
 }
 
-class CacheableGoogleStorageFS(serviceAccountKey: String, @transient val sessionID: String) extends GoogleStorageFS(serviceAccountKey) with ServiceCacheableFS {
+class CacheableGoogleStorageFS(serviceAccountKey: Option[String], @transient val sessionID: String) extends GoogleStorageFS(serviceAccountKey) with ServiceCacheableFS {
 }

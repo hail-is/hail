@@ -3,6 +3,14 @@
 Change Log
 ==========
 
+**Version 0.2.89**
+
+- Support passing an authorization token to the ``ServiceBackend``.
+
+**Version 0.2.79**
+
+- The `bucket` parameter in the ``ServiceBackend`` has been deprecated. Use `remote_tmpdir` instead.
+
 **Version 0.2.75**
 
 - Fixed a bug introduced in 0.2.74 where large commands were not interpolated correctly

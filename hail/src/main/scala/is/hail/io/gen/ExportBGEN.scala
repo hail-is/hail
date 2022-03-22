@@ -2,7 +2,8 @@ package is.hail.io.gen
 
 import is.hail.HailContext
 import is.hail.annotations.{RegionValue, UnsafeRow}
-import is.hail.expr.ir.{ByteArrayBuilder, ExecuteContext, MatrixValue}
+import is.hail.backend.ExecuteContext
+import is.hail.expr.ir.{ByteArrayBuilder, MatrixValue}
 import is.hail.types.physical.PStruct
 import is.hail.io.fs.FS
 import is.hail.utils.BoxedArrayBuilder

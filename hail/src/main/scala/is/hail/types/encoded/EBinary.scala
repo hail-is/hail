@@ -3,13 +3,12 @@ package is.hail.types.encoded
 import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.expr.ir.EmitCodeBuilder
-import is.hail.types.BaseType
-import is.hail.types.physical._
-import is.hail.types.virtual._
 import is.hail.io.{InputBuffer, OutputBuffer}
-import is.hail.types.physical.stypes.{SCode, SType, SValue}
-import is.hail.types.physical.stypes.concrete.{SBinaryPointer, SBinaryPointerCode, SBinaryPointerSettable, SStringPointer, SStringPointerCode, SStringPointerSettable}
-import is.hail.types.physical.stypes.interfaces.{SBinary, SBinaryValue, SString, SStringValue}
+import is.hail.types.physical._
+import is.hail.types.physical.stypes.concrete._
+import is.hail.types.physical.stypes.interfaces.{SBinary, SBinaryValue, SString}
+import is.hail.types.physical.stypes.{SType, SValue}
+import is.hail.types.virtual._
 import is.hail.utils._
 
 case object EBinaryOptional extends EBinary(false)
@@ -19,28 +18,26 @@ class EBinary(override val required: Boolean) extends EType {
 
   override def _buildEncoder(cb: EmitCodeBuilder, v: SValue, out: Value[OutputBuffer]): Unit = {
 
-    def writeCanonicalBinary(bin: SBinaryPointerSettable): Unit = {
-      val len = cb.newLocal[Int]("len", bin.loadLength())
+    def writeCanonicalBinary(bin: SBinaryPointerValue): Unit = {
+      val len = bin.loadLength(cb)
       cb += out.writeInt(len)
       cb += out.writeBytes(bin.bytesAddress(), len)
     }
 
-    def writeBytes(_bytes: Code[Array[Byte]]): Unit = {
-      val bytes = cb.newLocal[Array[Byte]]("bytes", _bytes)
-      val len = cb.newLocal[Int]("len", bytes.length())
+    def writeBytes(bytes: Value[Array[Byte]]): Unit = {
       cb += out.writeInt(bytes.length())
       cb += out.write(bytes)
     }
 
     v.st match {
-      case SBinaryPointer(_) => writeCanonicalBinary(v.asInstanceOf[SBinaryPointerSettable])
-      case SStringPointer(_) => writeCanonicalBinary(v.asInstanceOf[SStringPointerSettable].binaryRepr())
-      case _: SBinary => writeBytes(v.asInstanceOf[SBinaryValue].loadBytes())
-      case _: SString => writeBytes(v.get.asString.toBytes().loadBytes())
+      case SBinaryPointer(_) => writeCanonicalBinary(v.asInstanceOf[SBinaryPointerValue])
+      case SStringPointer(_) => writeCanonicalBinary(v.asInstanceOf[SStringPointerValue].binaryRepr())
+      case _: SBinary => writeBytes(v.asInstanceOf[SBinaryValue].loadBytes(cb))
+      case _: SString => writeBytes(v.asString.toBytes(cb).loadBytes(cb))
     }
   }
 
-  override def _buildDecoder(cb: EmitCodeBuilder, t: Type, region: Value[Region], in: Value[InputBuffer]): SCode = {
+  override def _buildDecoder(cb: EmitCodeBuilder, t: Type, region: Value[Region], in: Value[InputBuffer]): SValue = {
     val t1 = decodedSType(t)
     val pt = t1 match {
       case SStringPointer(t) => t.binaryRepresentation
@@ -53,8 +50,8 @@ class EBinary(override val required: Boolean) extends EType {
     bT.storeLength(cb, barray, len)
     cb += in.readBytes(region, bT.bytesAddress(barray), len)
     t1 match {
-      case t: SStringPointer => new SStringPointerCode(t, barray)
-      case t: SBinaryPointer => new SBinaryPointerCode(t, barray)
+      case t: SStringPointer => new SStringPointerValue(t, barray)
+      case t: SBinaryPointer => new SBinaryPointerValue(t, barray)
     }
   }
 

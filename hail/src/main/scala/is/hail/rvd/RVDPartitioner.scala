@@ -394,19 +394,26 @@ object RVDPartitioner {
       }
   }
 
-  def intervalIRRepresentation(ts: TStruct): TStruct = {
-    val endpointT = TTuple(ts, TInt32)
-    TStruct("left" -> endpointT, "right" -> endpointT, "includesLeft" -> TBoolean, "includesRight" -> TBoolean)
-  }
+  def intervalIRRepresentation(ts: TStruct): TInterval =
+    TInterval(TTuple(ts, TInt32))
 
-  def intervalToIRRepresentation(interval: Interval, len: Int): Row = {
-    def processStruct(r: Row): Row = {
-      Row(Row.fromSeq((0 until len).map(i => if (i >= r.length) null else r.get(i))), r.length)
+  def intervalToIRRepresentation(interval: Interval, len: Int): Interval = {
+    def processEndpoint(p: IntervalEndpoint): IntervalEndpoint = {
+      val r = p.point.asInstanceOf[Row]
+      val newr = Row(Row.fromSeq((0 until len).map(i => if (i >= r.length) null else r.get(i))), r.length)
+      p.copy(point = newr)
     }
 
-    Row(processStruct(interval.left.point.asInstanceOf[Row]),
-      processStruct(interval.right.point.asInstanceOf[Row]),
-      interval.left.sign < 0,
-      interval.right.sign > 0)
+    Interval(processEndpoint(interval.left), processEndpoint(interval.right))
+  }
+
+  def irRepresentationToInterval(_irInterval: AnyRef): Interval = {
+    def processEndpoint(p: IntervalEndpoint): IntervalEndpoint = {
+      val Row(r: Row, len: Int) = p.point
+      p.copy(point = r.truncate(len))
+    }
+
+    val irInterval = _irInterval.asInstanceOf[Interval]
+    Interval(processEndpoint(irInterval.left), processEndpoint(irInterval.right))
   }
 }

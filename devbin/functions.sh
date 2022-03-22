@@ -31,7 +31,7 @@ kssh() {
     #
     #     # kssh admin-pod
     #     root@admin-pod-5d77d69445-86m2h:/#
-    kubectl -n ${2:-default} exec -it "$(kfind1 "$1" "$2")" ${3:+--container="$3"} -- /bin/bash
+    kubectl -n ${2:-default} exec -it "$(kfind1 "$1" "$2")" ${3:+--container="$3"} -- ${KSSH_SHELL:-/bin/sh}
 }
 
 klog() {
@@ -156,7 +156,7 @@ download-secret() {
 	  mkdir contents
 	  for field in $(jq -r  '.data | keys[]' secret.json)
 	  do
-		    jq -r '.data["'$field'"]' secret.json | base64 -D > contents/$field
+		    jq -r '.data["'$field'"]' secret.json | base64 --decode > contents/$field
 	  done
 }
 
@@ -171,7 +171,60 @@ upload-secret() {
 	      | kubectl apply -f -
 }
 
-switchproject() {
+get_global_config_field() {
+    kubectl get secret global-config --template={{.data.$1}} | base64 --decode
+}
+
+gcpsetcluster() {
+    if [ -z "$1" ]; then
+        echo "Usage: gcpsetcluster <PROJECT>"
+        return
+    fi
+
     gcloud config set project $1
     gcloud container clusters get-credentials --zone us-central1-a vdc
+}
+
+azsetcluster() {
+    if [ -z "$1" ]; then
+        echo "Usage: azsetcluster <RESOURCE_GROUP>"
+        return
+    fi
+
+    RESOURCE_GROUP=$1
+    az aks get-credentials --name vdc --resource-group $RESOURCE_GROUP
+    az acr login --name $(get_global_config_field docker_prefix)
+}
+
+azsshworker() {
+    if [ -z "$1" ] || [ -z "$2" ]; then
+        echo "Usage: azsshworker <RESOURCE_GROUP> <WORKER_NAME>"
+        return
+    fi
+
+    RESOURCE_GROUP=$1
+    WORKER_NAME=$2
+    SSH_PRIVATE_KEY_PATH=$3
+
+    worker_ip=$(az vm list-ip-addresses -g $RESOURCE_GROUP -n $WORKER_NAME \
+        | jq -jr '.[0].virtualMachine.network.publicIpAddresses[0].ipAddress')
+
+    ssh -i ~/.ssh/batch_worker_ssh_rsa batch-worker@$worker_ip
+}
+
+get_global_config_field() {
+    kubectl get secret global-config --template={{.data.$1}} | base64 --decode
+}
+
+confirm() {
+    printf "$1\n"
+    read -r -p "Are you sure? [y/N] " response
+    case "$response" in
+        [yY][eE][sS]|[yY])
+            true
+            ;;
+        *)
+            false
+            ;;
+    esac
 }

@@ -1,0 +1,11 @@
+{"name": "deid_reference_genome",
+ "contigs": [{"name": "D", "length": 2000000000},
+             {"name": "X", "length": 2000000000},
+             {"name": "Y", "length": 2000000000},
+             {"name": "MT", "length": 2000000000}],
+ "xContigs": ["X"],
+ "yContigs": ["Y"],
+ "mtContigs": ["MT"],
+ "par": [{"start": {"contig": "X","position": 60001},"end": {"contig": "X","position": 2699521}},
+         {"start": {"contig": "Y","position": 10001},"end": {"contig": "Y","position": 2649521}}]
+}

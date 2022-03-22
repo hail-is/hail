@@ -183,7 +183,7 @@ Using ``hl.filter_intervals``
 
     >>> filtered_mt = hl.filter_intervals(mt, interval_table['interval'].collect())
 
-:**dependencies**: :func:`.filter_intervals`
+:**dependencies**: :func:`.methods.filter_intervals`
 
 Declaring intervals with ``hl.parse_locus_interval``
 ++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -197,7 +197,7 @@ Declaring intervals with ``hl.parse_locus_interval``
     ...     mt,
     ...     [hl.parse_locus_interval(x, reference_genome='GRCh37') for x in intervals])
 
-:**dependencies**: :func:`.filter_intervals`, :func:`.parse_locus_interval`
+:**dependencies**: :func:`.methods.filter_intervals`, :func:`.parse_locus_interval`
 
 Pruning Variants in Linkage Disequilibrium
 ..........................................

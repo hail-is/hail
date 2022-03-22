@@ -740,7 +740,7 @@ class BlockMatrixSuite extends HailSuite {
     val expectedSignature = TStruct("i" -> TInt64, "j" -> TInt64, "entry" -> TFloat64)
 
     for {blockSize <- Seq(1, 4, 10)} {
-      val entriesLiteral = TableLiteral(toBM(lm, blockSize).entriesTable(ctx))
+      val entriesLiteral = TableLiteral(toBM(lm, blockSize).entriesTable(ctx), theHailClassLoader)
       assert(entriesLiteral.typ.rowType == expectedSignature)
       val rows = CompileAndEvaluate[IndexedSeq[Row]](ctx,
         GetField(TableCollect(entriesLiteral), "rows"))
@@ -756,10 +756,18 @@ class BlockMatrixSuite extends HailSuite {
     val lm = new BDM[Double](5, 10, data)
     val bm = toBM(lm, blockSize = 2)
 
-    val rows = CompileAndEvaluate[IndexedSeq[Row]](ctx, GetField(TableCollect(TableLiteral(bm
-      .filterBlocks(Array(0, 1, 6))
-      .entriesTable(ctx))),
-      "rows"))
+    val rows = CompileAndEvaluate[IndexedSeq[Row]](
+      ctx,
+      GetField(
+        TableCollect(
+          TableLiteral(
+            bm.filterBlocks(Array(0, 1, 6)).entriesTable(ctx),
+            theHailClassLoader
+          )
+        ),
+        "rows"
+      )
+    )
     val expected = rows
       .sortBy(r => (r.get(0).asInstanceOf[Long], r.get(1).asInstanceOf[Long]))
       .map(r => r.get(2).asInstanceOf[Double])

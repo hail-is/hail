@@ -111,7 +111,8 @@ class ValueIRTests(unittest.TestCase):
             ir.MatrixWrite(matrix_read, ir.MatrixVCFWriter(new_temp_file(), None, ir.ExportType.CONCATENATED, None, False)),
             ir.MatrixWrite(matrix_read, ir.MatrixGENWriter(new_temp_file(), 4)),
             ir.MatrixWrite(matrix_read, ir.MatrixPLINKWriter(new_temp_file())),
-            ir.MatrixMultiWrite([matrix_read, matrix_read], ir.MatrixNativeMultiWriter(new_temp_file(), False, False)),
+            ir.MatrixMultiWrite([matrix_read, matrix_read],
+                                ir.MatrixNativeMultiWriter([new_temp_file(), new_temp_file()], False, False, None)),
             ir.BlockMatrixWrite(block_matrix_read, ir.BlockMatrixNativeWriter('fake.bm', False, False, False)),
             ir.LiftMeOut(ir.I32(1)),
             ir.BlockMatrixWrite(block_matrix_read, ir.BlockMatrixPersistWriter('x', 'MEMORY_ONLY')),
@@ -379,6 +380,8 @@ class ValueTests(unittest.TestCase):
         return values
 
     def test_value_same_after_parsing(self):
+        test_exprs = []
+        expecteds = []
         for t, v in self.values():
             row_v = ir.Literal(t, v)
             map_globals_ir = ir.TableMapGlobals(
@@ -387,8 +390,13 @@ class ValueTests(unittest.TestCase):
                     ir.Ref("global"),
                     [("foo", row_v)],
                     None))
-            new_globals = hl.eval(hl.Table(map_globals_ir).index_globals())
-            self.assertEqual(new_globals, hl.Struct(foo=v))
+
+            test_exprs.append(hl.Table(map_globals_ir).index_globals())
+            expecteds.append(hl.Struct(foo=v))
+
+        actuals = hl._eval_many(*test_exprs)
+        for expr, actual, expected in zip(test_exprs, actuals, expecteds):
+            assert actual == expected, str(expr)
 
 
 class CSETests(unittest.TestCase):

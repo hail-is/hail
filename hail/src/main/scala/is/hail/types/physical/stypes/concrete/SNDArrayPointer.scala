@@ -82,8 +82,6 @@ class SNDArrayPointerValue(
     pt.elementType.loadCheapSCode(cb, loadElementAddress(indices, cb))
   }
 
-  override def get: SNDArrayPointerCode = new SNDArrayPointerCode(st, a)
-
   override def coerceToShape(cb: EmitCodeBuilder, otherShape: IndexedSeq[SizeValue]): SNDArrayValue = {
     cb.ifx(!hasShape(cb, otherShape), cb._fatal("incompatible shapes"))
     new SNDArrayPointerValue(st, a, otherShape, strides, firstDataAddress)
@@ -95,13 +93,13 @@ class SNDArrayPointerValue(
     deepCopy: Boolean,
     indexVars: IndexedSeq[String],
     destIndices: IndexedSeq[Int],
-    arrays: (SNDArrayCode, IndexedSeq[Int], String)*
-  )(body: IndexedSeq[SCode] => SCode
+    arrays: (SNDArrayValue, IndexedSeq[Int], String)*
+  )(body: IndexedSeq[SValue] => SValue
   ): Unit = {
-    SNDArray._coiterate(cb, indexVars, (this.get, destIndices, "dest") +: arrays: _*) { ptrs =>
-      val codes = (this.get +: arrays.map(_._1)).zip(ptrs).toFastIndexedSeq.map { case (array, ptr) =>
+    SNDArray._coiterate(cb, indexVars, (this, destIndices, "dest") +: arrays: _*) { ptrs =>
+      val codes = (this +: arrays.map(_._1)).zip(ptrs).toFastIndexedSeq.map { case (array, ptr) =>
         val pt: PType = array.st.pType.elementType
-        pt.loadCheapSCode(cb, pt.loadFromNested(ptr)).get
+        pt.loadCheapSCode(cb, pt.loadFromNested(ptr))
       }
       pt.elementType.storeAtAddress(cb, ptrs.head, region, body(codes), deepCopy)
     }
@@ -127,29 +125,11 @@ final class SNDArrayPointerSettable(
 ) extends SNDArrayPointerValue(st, a, shape.map(SizeValueDyn.apply), strides, firstDataAddress) with SNDArraySettable {
   def settableTuple(): IndexedSeq[Settable[_]] = FastIndexedSeq(a) ++ shape ++ strides ++ FastIndexedSeq(firstDataAddress)
 
-  def store(cb: EmitCodeBuilder, v: SCode): Unit = {
-    cb.assign(a, v.asInstanceOf[SNDArrayPointerCode].a)
-    pt.loadShapes(cb, a, shape)
-    pt.loadStrides(cb, a, strides)
-    cb.assign(firstDataAddress, pt.dataFirstElementPointer(a))
+  def store(cb: EmitCodeBuilder, v: SValue): Unit = v match {
+    case v: SNDArrayPointerValue =>
+      cb.assign(a, v.a)
+      (shape, v.shapes).zipped.foreach(cb.assign(_, _))
+      (strides, v.strides).zipped.foreach(cb.assign(_, _))
+      cb.assign(firstDataAddress, v.firstDataAddress)
   }
-}
-
-class SNDArrayPointerCode(val st: SNDArrayPointer, val a: Code[Long]) extends SNDArrayCode {
-  val pt: PCanonicalNDArray = st.pType
-
-  def memoize(cb: EmitCodeBuilder, name: String, sb: SettableBuilder): SNDArrayPointerValue = {
-    val s = SNDArrayPointerSettable(sb, st, name)
-    cb.assign(s, this)
-    s
-  }
-
-  override def memoize(cb: EmitCodeBuilder, name: String): SNDArrayPointerValue =
-    memoize(cb, name, cb.localBuilder)
-
-  override def memoizeField(cb: EmitCodeBuilder, name: String): SNDArrayPointerValue =
-    memoize(cb, name, cb.fieldBuilder)
-
-  override def shape(cb: EmitCodeBuilder): SBaseStructCode =
-    pt.shapeType.loadCheapSCode(cb, pt.representation.loadField(a, "shape")).get
 }

@@ -1,11 +1,10 @@
 package is.hail.types.physical
 
-import is.hail.annotations.{Region, UnsafeOrdering, _}
+import is.hail.annotations._
 import is.hail.asm4s.Code
-import is.hail.expr.ir.orderings.{CodeOrdering, CodeOrderingCompareConsistentWithOthers}
-import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder}
-import is.hail.types.physical.stypes.SCode
-import is.hail.types.physical.stypes.primitives.{SBoolean, SBooleanCode, SBooleanValue}
+import is.hail.expr.ir.EmitCodeBuilder
+import is.hail.types.physical.stypes.SValue
+import is.hail.types.physical.stypes.primitives.{SBoolean, SBooleanValue}
 import is.hail.types.virtual.TBoolean
 import is.hail.utils.toRichBoolean
 
@@ -29,15 +28,12 @@ class PBoolean(override val required: Boolean) extends PType with PPrimitive {
 
   def sType: SBoolean.type = SBoolean
 
-  def storePrimitiveAtAddress(cb: EmitCodeBuilder, addr: Code[Long], value: SCode): Unit = {
-    cb += Region.storeBoolean(addr, value.asBoolean.boolCode(cb))
+  def storePrimitiveAtAddress(cb: EmitCodeBuilder, addr: Code[Long], value: SValue): Unit = {
+    cb += Region.storeBoolean(addr, value.asBoolean.value)
   }
 
   override def loadCheapSCode(cb: EmitCodeBuilder, addr: Code[Long]): SBooleanValue =
-  new SBooleanCode(Region.loadBoolean(addr)).memoize(cb, "loadCheapSCodeField")
-
-  override def loadCheapSCodeField(cb: EmitCodeBuilder, addr: Code[Long]): SBooleanValue =
-    new SBooleanCode(Region.loadBoolean(addr)).memoizeField(cb, "loadCheapSCodeField")
+    new SBooleanValue(cb.memoize(Region.loadBoolean(addr)))
 
   override def unstagedStoreJavaObjectAtAddress(addr: Long, annotation: Annotation, region: Region): Unit = {
     Region.storeByte(addr, annotation.asInstanceOf[Boolean].toByte)

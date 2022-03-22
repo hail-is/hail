@@ -4,3 +4,9 @@ RUN hail-pip-install twine
 COPY jinja2_render.py .
 COPY wait-for.py .
 COPY create_database.py .
+
+RUN . /etc/os-release && \
+    echo "deb https://download.opensuse.org/repositories/devel:/kubic:/libcontainers:/stable/xUbuntu_${VERSION_ID}/ /" | tee /etc/apt/sources.list.d/devel:kubic:libcontainers:stable.list && \
+    curl https://download.opensuse.org/repositories/devel:/kubic:/libcontainers:/stable/xUbuntu_${VERSION_ID}/Release.key | apt-key add - && \
+    apt-get update && \
+    apt-get -y install skopeo

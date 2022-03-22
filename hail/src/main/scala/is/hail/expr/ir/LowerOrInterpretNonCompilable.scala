@@ -1,5 +1,6 @@
 package is.hail.expr.ir
 
+import is.hail.backend.ExecuteContext
 import is.hail.expr.ir.lowering.{CanLowerEfficiently, DArrayLowering, LowerToDistributedArrayPass}
 import is.hail.types.virtual.TVoid
 import is.hail.utils._
@@ -12,7 +13,7 @@ object LowerOrInterpretNonCompilable {
 
     def evaluate(value: IR): IR = {
       val preTime = System.nanoTime()
-      val result = CanLowerEfficiently(value) match {
+      val result = CanLowerEfficiently(ctx, value) match {
         case Some(failReason) =>
           log.info(s"LowerOrInterpretNonCompilable: cannot efficiently lower query: $failReason")
           log.info(s"interpreting non-compilable result: ${ value.getClass.getSimpleName }")

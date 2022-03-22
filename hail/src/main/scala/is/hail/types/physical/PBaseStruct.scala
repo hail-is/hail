@@ -3,9 +3,7 @@ package is.hail.types.physical
 import is.hail.annotations._
 import is.hail.asm4s.{Code, _}
 import is.hail.check.Gen
-import is.hail.expr.ir.orderings.CodeOrdering
-import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder, IEmitCode, SortOrder}
-import is.hail.types.physical.stypes.interfaces.{SBaseStructCode, SBaseStructValue}
+import is.hail.expr.ir.EmitCodeBuilder
 import is.hail.utils._
 
 object PBaseStruct {
@@ -123,10 +121,10 @@ abstract class PBaseStruct extends PType {
 
   def isFieldMissing(off: Long, fieldIdx: Int): Boolean = !isFieldDefined(off, fieldIdx)
 
-  def isFieldMissing(offset: Code[Long], fieldIdx: Int): Code[Boolean]
+  def isFieldMissing(cb: EmitCodeBuilder, offset: Code[Long], fieldIdx: Int): Value[Boolean]
 
-  def isFieldDefined(offset: Code[Long], fieldIdx: Int): Code[Boolean] =
-    !isFieldMissing(offset, fieldIdx)
+  def isFieldDefined(cb: EmitCodeBuilder, offset: Code[Long], fieldIdx: Int): Value[Boolean] =
+    cb.memoize(!isFieldMissing(cb, offset, fieldIdx))
 
   def setFieldMissing(offset: Long, fieldIdx: Int): Unit
 

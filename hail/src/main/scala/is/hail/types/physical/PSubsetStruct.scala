@@ -1,12 +1,11 @@
 package is.hail.types.physical
 
-import is.hail.annotations.{Annotation, Region, UnsafeUtils}
-import is.hail.asm4s.{Code, Settable, SettableBuilder, Value, coerce, const}
-import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder, IEmitCode}
-import is.hail.types.BaseStruct
-import is.hail.types.physical.stypes.interfaces.{SBaseStruct, SBaseStructCode, SBaseStructValue}
-import is.hail.types.physical.stypes.{SCode, SType, SValue}
+import is.hail.annotations.{Annotation, Region}
+import is.hail.asm4s.{Code, Value}
+import is.hail.expr.ir.EmitCodeBuilder
+import is.hail.types.physical.stypes.SValue
 import is.hail.types.physical.stypes.concrete.SSubsetStruct
+import is.hail.types.physical.stypes.interfaces.{SBaseStruct, SBaseStructValue}
 import is.hail.types.virtual.TStruct
 import is.hail.utils._
 
@@ -53,8 +52,8 @@ final case class PSubsetStruct(ps: PStruct, _fieldNames: IndexedSeq[String]) ext
     PSubsetStruct(newPStruct, newNames)
   }
 
-  override def isFieldMissing(structAddress: Code[Long], fieldName: String): Code[Boolean] =
-    ps.isFieldMissing(structAddress, fieldName)
+  override def isFieldMissing(cb: EmitCodeBuilder, structAddress: Code[Long], fieldName: String): Value[Boolean] =
+    ps.isFieldMissing(cb, structAddress, fieldName)
 
   override def fieldOffset(structAddress: Code[Long], fieldName: String): Code[Long] =
     ps.fieldOffset(structAddress, fieldName)
@@ -62,8 +61,8 @@ final case class PSubsetStruct(ps: PStruct, _fieldNames: IndexedSeq[String]) ext
   override def isFieldDefined(structAddress: Long, fieldIdx: Int): Boolean =
     ps.isFieldDefined(structAddress, idxMap(fieldIdx))
 
-  override def isFieldMissing(structAddress: Code[Long], fieldIdx: Int): Code[Boolean] =
-    ps.isFieldMissing(structAddress, idxMap(fieldIdx))
+  override def isFieldMissing(cb: EmitCodeBuilder, structAddress: Code[Long], fieldIdx: Int): Value[Boolean] =
+    ps.isFieldMissing(cb, structAddress, idxMap(fieldIdx))
 
   override def fieldOffset(structAddress: Long, fieldIdx: Int): Long =
     ps.fieldOffset(structAddress, idxMap(fieldIdx))
@@ -120,14 +119,11 @@ final case class PSubsetStruct(ps: PStruct, _fieldNames: IndexedSeq[String]) ext
   def store(cb: EmitCodeBuilder, region: Value[Region], value: SValue, deepCopy: Boolean): Value[Long] =
     throw new UnsupportedOperationException
 
-  def storeAtAddress(cb: EmitCodeBuilder, addr: Code[Long], region: Value[Region], value: SCode, deepCopy: Boolean): Unit = {
+  def storeAtAddress(cb: EmitCodeBuilder, addr: Code[Long], region: Value[Region], value: SValue, deepCopy: Boolean): Unit = {
     throw new UnsupportedOperationException
   }
 
   def loadCheapSCode(cb: EmitCodeBuilder, addr: Code[Long]): SBaseStructValue =
-    throw new UnsupportedOperationException
-
-  def loadCheapSCodeField(cb: EmitCodeBuilder, addr: Code[Long]): SBaseStructValue =
     throw new UnsupportedOperationException
 
   def unstagedStoreAtAddress(addr: Long, region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Unit = {

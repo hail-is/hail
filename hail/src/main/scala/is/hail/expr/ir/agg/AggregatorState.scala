@@ -6,9 +6,9 @@ import is.hail.expr.ir._
 import is.hail.io.{BufferSpec, InputBuffer, OutputBuffer, TypedCodecSpec}
 import is.hail.types.VirtualTypeWithReq
 import is.hail.types.physical._
-import is.hail.types.physical.stypes.SCode
-import is.hail.types.physical.stypes.concrete.{SBaseStructPointer, SBaseStructPointerCode, SStackStruct}
-import is.hail.types.physical.stypes.interfaces.SBinaryCode
+import is.hail.types.physical.stypes.SValue
+import is.hail.types.physical.stypes.concrete.SStackStruct
+import is.hail.types.physical.stypes.interfaces.SBinaryValue
 import is.hail.utils._
 
 trait AggregatorState {
@@ -20,39 +20,39 @@ trait AggregatorState {
 
   def createState(cb: EmitCodeBuilder): Unit
 
-  def newState(cb: EmitCodeBuilder, off: Code[Long]): Unit
+  def newState(cb: EmitCodeBuilder, off: Value[Long]): Unit
 
   // null to safeguard against users of off
   def newState(cb: EmitCodeBuilder): Unit = newState(cb, null)
 
-  def load(cb: EmitCodeBuilder, regionLoader: (EmitCodeBuilder, Value[Region]) => Unit, src: Code[Long]): Unit
+  def load(cb: EmitCodeBuilder, regionLoader: (EmitCodeBuilder, Value[Region]) => Unit, src: Value[Long]): Unit
 
-  def store(cb: EmitCodeBuilder, regionStorer: (EmitCodeBuilder, Value[Region]) => Unit, dest: Code[Long]): Unit
+  def store(cb: EmitCodeBuilder, regionStorer: (EmitCodeBuilder, Value[Region]) => Unit, dest: Value[Long]): Unit
 
-  def copyFrom(cb: EmitCodeBuilder, src: Code[Long]): Unit
+  def copyFrom(cb: EmitCodeBuilder, src: Value[Long]): Unit
 
   def serialize(codec: BufferSpec): (EmitCodeBuilder, Value[OutputBuffer]) => Unit
 
   def deserialize(codec: BufferSpec): (EmitCodeBuilder, Value[InputBuffer]) => Unit
 
-  def deserializeFromBytes(cb: EmitCodeBuilder, bytes: SBinaryCode): Unit = {
+  def deserializeFromBytes(cb: EmitCodeBuilder, bytes: SBinaryValue): Unit = {
     val lazyBuffer = kb.getOrDefineLazyField[MemoryBufferWrapper](Code.newInstance[MemoryBufferWrapper](), ("AggregatorStateBufferWrapper"))
-    cb += lazyBuffer.invoke[Array[Byte], Unit]("set", bytes.loadBytes())
-    val ib = cb.newLocal("aggstate_deser_from_bytes_ib", lazyBuffer.invoke[InputBuffer]("buffer"))
+    cb += lazyBuffer.invoke[Array[Byte], Unit]("set", bytes.loadBytes(cb))
+    val ib = cb.memoize(lazyBuffer.invoke[InputBuffer]("buffer"))
     deserialize(BufferSpec.defaultUncompressed)(cb, ib)
   }
 
-  def serializeToRegion(cb: EmitCodeBuilder, t: PBinary, r: Code[Region]): SCode = {
+  def serializeToRegion(cb: EmitCodeBuilder, t: PBinary, r: Value[Region]): SValue = {
     val lazyBuffer = kb.getOrDefineLazyField[MemoryWriterWrapper](Code.newInstance[MemoryWriterWrapper](), ("AggregatorStateWriterWrapper"))
     val addr = kb.genFieldThisRef[Long]("addr")
     cb += lazyBuffer.invoke[Unit]("clear")
-    val ob = cb.newLocal("aggstate_ser_to_region_ob", lazyBuffer.invoke[OutputBuffer]("buffer"))
+    val ob = cb.memoize(lazyBuffer.invoke[OutputBuffer]("buffer"))
     serialize(BufferSpec.defaultUncompressed)(cb, ob)
     cb.assign(addr, t.allocate(r, lazyBuffer.invoke[Int]("length")))
     t.storeLength(cb, addr, lazyBuffer.invoke[Int]("length"))
     cb += lazyBuffer.invoke[Long, Unit]("copyToAddress", t.bytesAddress(addr))
 
-    t.loadCheapSCode(cb, addr).get
+    t.loadCheapSCode(cb, addr)
   }
 }
 
@@ -60,15 +60,15 @@ trait RegionBackedAggState extends AggregatorState {
   protected val r: Settable[Region] = kb.genFieldThisRef[Region]()
   val region: Value[Region] = r
 
-  def newState(cb: EmitCodeBuilder, off: Code[Long]): Unit = cb += region.getNewRegion(const(regionSize))
+  def newState(cb: EmitCodeBuilder, off: Value[Long]): Unit = cb += region.getNewRegion(const(regionSize))
 
   def createState(cb: EmitCodeBuilder): Unit = {
     cb.ifx(region.isNull, cb.assign(r, Region.stagedCreate(regionSize, kb.pool())))
   }
 
-  def load(cb: EmitCodeBuilder, regionLoader: (EmitCodeBuilder, Value[Region]) => Unit, src: Code[Long]): Unit = regionLoader(cb, r)
+  def load(cb: EmitCodeBuilder, regionLoader: (EmitCodeBuilder, Value[Region]) => Unit, src: Value[Long]): Unit = regionLoader(cb, r)
 
-  def store(cb: EmitCodeBuilder, regionStorer: (EmitCodeBuilder, Value[Region]) => Unit, dest: Code[Long]): Unit =
+  def store(cb: EmitCodeBuilder, regionStorer: (EmitCodeBuilder, Value[Region]) => Unit, dest: Value[Long]): Unit =
     cb.ifx(region.isValid,
       {
         regionStorer(cb, region)
@@ -82,12 +82,12 @@ trait PointerBasedRVAState extends RegionBackedAggState {
 
   override val regionSize: Int = Region.TINIER
 
-  override def load(cb: EmitCodeBuilder, regionLoader: (EmitCodeBuilder, Value[Region]) => Unit, src: Code[Long]): Unit = {
+  override def load(cb: EmitCodeBuilder, regionLoader: (EmitCodeBuilder, Value[Region]) => Unit, src: Value[Long]): Unit = {
     super.load(cb, regionLoader, src)
     cb.assign(off, Region.loadAddress(src))
   }
 
-  override def store(cb: EmitCodeBuilder, regionStorer: (EmitCodeBuilder, Value[Region]) => Unit, dest: Code[Long]): Unit = {
+  override def store(cb: EmitCodeBuilder, regionStorer: (EmitCodeBuilder, Value[Region]) => Unit, dest: Value[Long]): Unit = {
     cb.ifx(region.isValid,
       {
         cb += Region.storeAddress(dest, off)
@@ -95,9 +95,10 @@ trait PointerBasedRVAState extends RegionBackedAggState {
       })
   }
 
-  def copyFrom(cb: EmitCodeBuilder, src: Code[Long]): Unit = copyFromAddress(cb, Region.loadAddress(src))
+  def copyFrom(cb: EmitCodeBuilder, src: Value[Long]): Unit =
+    copyFromAddress(cb, cb.memoize(Region.loadAddress(src)))
 
-  def copyFromAddress(cb: EmitCodeBuilder, src: Code[Long]): Unit
+  def copyFromAddress(cb: EmitCodeBuilder, src: Value[Long]): Unit
 }
 
 class TypedRegionBackedAggState(val typ: VirtualTypeWithReq, val kb: EmitClassBuilder[_]) extends AbstractTypedRegionBackedAggState(typ.canonicalPType)
@@ -113,18 +114,17 @@ abstract class AbstractTypedRegionBackedAggState(val ptype: PType) extends Regio
     cb.assign(off, storageType.allocate(region))
   }
 
-  override def newState(cb: EmitCodeBuilder, src: Code[Long]): Unit = {
+  override def newState(cb: EmitCodeBuilder, src: Value[Long]): Unit = {
     cb.assign(off, src)
     super.newState(cb, off)
   }
 
-  override def load(cb: EmitCodeBuilder, regionLoader: (EmitCodeBuilder, Value[Region]) => Unit, src: Code[Long]): Unit = {
+  override def load(cb: EmitCodeBuilder, regionLoader: (EmitCodeBuilder, Value[Region]) => Unit, src: Value[Long]): Unit = {
     super.load(cb, { (cb: EmitCodeBuilder, r: Value[Region]) => cb += r.invalidate() }, src)
     cb.assign(off, src)
   }
 
-  override def store(cb: EmitCodeBuilder, regionStorer: (EmitCodeBuilder, Value[Region]) => Unit, destc: Code[Long]): Unit = {
-    val dest = cb.newLocal[Long]("trbas_dest", destc)
+  override def store(cb: EmitCodeBuilder, regionStorer: (EmitCodeBuilder, Value[Region]) => Unit, dest: Value[Long]): Unit = {
     cb.ifx(region.isValid,
       cb.ifx(dest.cne(off),
         cb += Region.copyFrom(off, dest, const(storageType.byteSize))))
@@ -135,25 +135,25 @@ abstract class AbstractTypedRegionBackedAggState(val ptype: PType) extends Regio
     storageType.setFieldMissing(cb, off, 0)
   }
 
-  def storeNonmissing(cb: EmitCodeBuilder, sc: SCode): Unit = {
+  def storeNonmissing(cb: EmitCodeBuilder, sc: SValue): Unit = {
     cb += region.getNewRegion(const(regionSize))
     storageType.setFieldPresent(cb, off, 0)
     ptype.storeAtAddress(cb, storageType.fieldOffset(off, 0), region, sc, deepCopy = true)
   }
 
   def get(cb: EmitCodeBuilder): IEmitCode = {
-    IEmitCode(cb, storageType.isFieldMissing(off, 0), ptype.loadCheapSCode(cb, storageType.loadField(off, 0)))
+    IEmitCode(cb, storageType.isFieldMissing(cb, off, 0), ptype.loadCheapSCode(cb, storageType.loadField(off, 0)))
   }
 
-  def copyFrom(cb: EmitCodeBuilder, src: Code[Long]): Unit = {
+  def copyFrom(cb: EmitCodeBuilder, src: Value[Long]): Unit = {
     newState(cb, off)
-    storageType.storeAtAddress(cb, off, region, storageType.loadCheapSCode(cb, src).get, deepCopy = true)
+    storageType.storeAtAddress(cb, off, region, storageType.loadCheapSCode(cb, src), deepCopy = true)
   }
 
   def serialize(codec: BufferSpec): (EmitCodeBuilder, Value[OutputBuffer]) => Unit = {
     val codecSpec = TypedCodecSpec(storageType, codec)
     val enc = codecSpec.encodedType.buildEncoder(storageType.sType, kb)
-    (cb, ob: Value[OutputBuffer]) => enc(cb, storageType.loadCheapSCode(cb, off).get, ob)
+    (cb, ob: Value[OutputBuffer]) => enc(cb, storageType.loadCheapSCode(cb, off), ob)
   }
 
   def deserialize(codec: BufferSpec): (EmitCodeBuilder, Value[InputBuffer]) => Unit = {
@@ -180,43 +180,42 @@ class PrimitiveRVAState(val vtypes: Array[VirtualTypeWithReq], val kb: EmitClass
     }
   }
 
-  def newState(cb: EmitCodeBuilder, off: Code[Long]): Unit = {}
+  def newState(cb: EmitCodeBuilder, off: Value[Long]): Unit = {}
 
   def createState(cb: EmitCodeBuilder): Unit = {}
 
   private[this] def loadVarsFromRegion(cb: EmitCodeBuilder, srcc: Code[Long]): Unit = {
-    val pv = new SBaseStructPointerCode(sStorageType, srcc).memoize(cb, "prim_rvastate_load_vars")
+    val pv = storageType.loadCheapSCode(cb, srcc)
     foreachField { (i, es) =>
       cb.assign(es, pv.loadField(cb, i))
     }
   }
 
-  def load(cb: EmitCodeBuilder, regionLoader: (EmitCodeBuilder, Value[Region]) => Unit, src: Code[Long]): Unit = {
+  def load(cb: EmitCodeBuilder, regionLoader: (EmitCodeBuilder, Value[Region]) => Unit, src: Value[Long]): Unit = {
     loadVarsFromRegion(cb, src)
   }
 
-  def store(cb: EmitCodeBuilder, regionStorer: (EmitCodeBuilder, Value[Region]) => Unit, destc: Code[Long]): Unit = {
-    val dest = cb.newLocal("prim_rvastate_store_dest", destc)
+  def store(cb: EmitCodeBuilder, regionStorer: (EmitCodeBuilder, Value[Region]) => Unit, dest: Value[Long]): Unit = {
     storageType.storeAtAddress(cb,
       dest,
       null,
-      SStackStruct.constructFromArgs(cb, null, storageType.virtualType, fields.map(_.load): _*).get,
+      SStackStruct.constructFromArgs(cb, null, storageType.virtualType, fields.map(_.load): _*),
       false)
   }
 
-  def copyFrom(cb: EmitCodeBuilder, src: Code[Long]): Unit = loadVarsFromRegion(cb, src)
+  def copyFrom(cb: EmitCodeBuilder, src: Value[Long]): Unit = loadVarsFromRegion(cb, src)
 
   def serialize(codec: BufferSpec): (EmitCodeBuilder, Value[OutputBuffer]) => Unit = {
     (cb, ob: Value[OutputBuffer]) =>
       foreachField { case (_, es) =>
         if (es.emitType.required) {
-          ob.writePrimitive(cb, es.get(cb).get)
+          ob.writePrimitive(cb, es.get(cb))
         } else {
           es.toI(cb).consume(cb,
             cb += ob.writeBoolean(true),
             { sc =>
               cb += ob.writeBoolean(false)
-              ob.writePrimitive(cb, sc.get)
+              ob.writePrimitive(cb, sc)
             })
         }
       }
@@ -226,11 +225,11 @@ class PrimitiveRVAState(val vtypes: Array[VirtualTypeWithReq], val kb: EmitClass
     (cb, ib: Value[InputBuffer]) =>
       foreachField { case (_, es) =>
         if (es.emitType.required) {
-          cb.assign(es, EmitCode.present(cb.emb, ib.readPrimitive(es.st.virtualType).memoize(cb, "deserialize")))
+          cb.assign(es, EmitCode.present(cb.emb, ib.readPrimitive(cb, es.st.virtualType)))
         } else {
           cb.ifx(ib.readBoolean(),
             cb.assign(es, EmitCode.missing(cb.emb, es.st)),
-            cb.assign(es, EmitCode.present(cb.emb, ib.readPrimitive(es.st.virtualType).memoize(cb, "deserialize"))))
+            cb.assign(es, EmitCode.present(cb.emb, ib.readPrimitive(cb, es.st.virtualType))))
         }
       }
   }
@@ -253,13 +252,10 @@ case class StateTuple(states: Array[AggregatorState]) {
   }
 
   def toCodeWithArgs(
-    cb: EmitCodeBuilder, args: IndexedSeq[Code[_]], f: (EmitCodeBuilder, Int, AggregatorState, Seq[Code[_]]) => Unit
+    cb: EmitCodeBuilder, f: (EmitCodeBuilder, Int, AggregatorState) => Unit
   ): Unit = {
-    val targs = args.zipWithIndex.map { case (arg, i) =>
-      cb.newLocalAny(s"astcwa_arg$i", arg)(arg.ti)
-    }
     (0 until nStates).foreach { i =>
-      f(cb, i, states(i), targs.map(_.get))
+      f(cb, i, states(i))
     }
   }
 
@@ -278,25 +274,24 @@ class TupleAggregatorState(val kb: EmitClassBuilder[_], val states: StateTuple, 
     cb += topRegion.setParentReference(r, rOff + const(i))
   }
 
-  private def getStateOffset(i: Int): Code[Long] = storageType.loadField(off, i)
+  private def getStateOffset(cb: EmitCodeBuilder, i: Int): Value[Long] = cb.memoize(storageType.loadField(off, i))
 
   def toCode(f: (Int, AggregatorState) => Unit): Unit =
     (0 until states.nStates).foreach(i => f(i, states(i)))
 
-  def newState(cb: EmitCodeBuilder, i: Int): Unit = states(i).newState(cb, getStateOffset(i))
+  def newState(cb: EmitCodeBuilder, i: Int): Unit = states(i).newState(cb, getStateOffset(cb, i))
 
-  def newState(cb: EmitCodeBuilder): Unit = states.toCode((i, s) => s.newState(cb, getStateOffset(i)))
+  def newState(cb: EmitCodeBuilder): Unit = states.toCode((i, s) => s.newState(cb, getStateOffset(cb, i)))
 
   def load(cb: EmitCodeBuilder): Unit =
-    states.toCode((i, s) => s.load(cb, getRegion(i), getStateOffset(i)))
+    states.toCode((i, s) => s.load(cb, getRegion(i), getStateOffset(cb, i)))
 
   def store(cb: EmitCodeBuilder): Unit = {
-    states.toCode((i, s) => s.store(cb, setRegion(i), getStateOffset(i)))
+    states.toCode((i, s) => s.store(cb, setRegion(i), getStateOffset(cb, i)))
   }
 
-  def copyFrom(cb: EmitCodeBuilder, statesOffset: Code[Long]): Unit = {
+  def copyFrom(cb: EmitCodeBuilder, statesOffset: Value[Long]): Unit = {
     states.toCodeWithArgs(cb,
-      Array(statesOffset),
-      { case (cb, i, s, Seq(o: Code[Long@unchecked])) => s.copyFrom(cb, storageType.loadField(o, i)) })
+      { case (cb, i, s) => s.copyFrom(cb, cb.memoize(storageType.loadField(statesOffset, i))) })
   }
 }

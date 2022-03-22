@@ -1,13 +1,20 @@
 import sys
 import argparse
 import re
+import warnings
 
 from hailtop.config import get_user_config, get_user_config_path
 
 validations = {
     ('batch', 'bucket'): (lambda x: re.fullmatch(r'[^:/\s]+', x) is not None,
                           'should be valid Google Bucket identifier, with no gs:// prefix'),
-    ('email',): (lambda x: re.fullmatch(r'.+@.+', x) is not None, 'should be valid email address')
+    ('batch', 'remote_tmpdir'): (lambda x: any(re.fullmatch(fr'^{scheme}://.*', x) is not None for scheme in ('gs', 's3', 'hail-az')),
+                                 'should be valid cloud storage URI such as gs://my-bucket/batch-tmp/'),
+    ('email',): (lambda x: re.fullmatch(r'.+@.+', x) is not None, 'should be valid email address'),
+}
+
+deprecated_paths = {
+    ('batch', 'bucket'): '\'batch/bucket\' has been deprecated. Use \'batch/remote_tmpdir\' instead.'
 }
 
 
@@ -108,20 +115,23 @@ A parameter with more than one slash is invalid, for example:
         sys.exit(1)
 
     if args.module == 'set':
-        validation_func, msg = validations.get(tuple(path), (lambda x: True, ''))
+        path = tuple(path)
+        validation_func, msg = validations.get(path, (lambda x: True, ''))
         if not validation_func(args.value):
             print(f"Error: bad value {args.value!r} for parameter {args.parameter!r} {msg}", file=sys.stderr)
             sys.exit(1)
+        if path in deprecated_paths:
+            warnings.warn(deprecated_paths[path])
         if section not in config:
-            config[section] = dict()
+            config[section] = {}
         config[section][key] = args.value
-        with open(config_file, 'w') as f:
+        with open(config_file, 'w', encoding='utf-8') as f:
             config.write(f)
         sys.exit(0)
     if args.module == 'unset':
         if section in config and key in config[section]:
             del config[section][key]
-            with open(config_file, 'w') as f:
+            with open(config_file, 'w', encoding='utf-8') as f:
                 config.write(f)
         sys.exit(0)
     if args.module == 'get':

@@ -57,6 +57,17 @@ trait CodeBuilderLike {
 
   def +=(c: Code[Unit]): Unit = append(c)
 
+  def memoize[T: TypeInfo](v: Code[T], optionalName: String = ""): Value[T] = v match {
+    case b: ConstCodeBoolean => coerce[T](b.b)
+    case _ => newLocal[T]("memoize" + optionalName, v)
+  }
+
+  def memoizeAny(v: Code[_], ti: TypeInfo[_]): Value[_] = {
+    val l = newLocal("memoize")(ti)
+    append(l.storeAny(v))
+    l
+  }
+
   def assign[T](s: Settable[T], v: Code[T]): Unit = {
     append(s := v)
   }
@@ -87,7 +98,13 @@ trait CodeBuilderLike {
     define(Lafter)
   }
 
-  def whileLoop(c: Code[Boolean], emitBody: (CodeLabel) => Unit): Unit = {
+  def loop(emitBody: CodeLabel => Unit): Unit = {
+    val Lstart = CodeLabel()
+    define(Lstart)
+    emitBody(Lstart)
+  }
+
+  def whileLoop(c: => Code[Boolean], emitBody: (CodeLabel) => Unit): Unit = {
     val Lstart = CodeLabel()
     val Lbody = CodeLabel()
     val Lafter = CodeLabel()
@@ -99,7 +116,7 @@ trait CodeBuilderLike {
     define(Lafter)
   }
 
-  def whileLoop(c: Code[Boolean], emitBody: => Unit): Unit = whileLoop(c, _ => emitBody)
+  def whileLoop(c: => Code[Boolean], emitBody: => Unit): Unit = whileLoop(c, _ => emitBody)
 
   def forLoop(setup: => Unit, cond: Code[Boolean], incr: => Unit, emitBody: (CodeLabel) => Unit): Unit = {
     val Lstart = CodeLabel()

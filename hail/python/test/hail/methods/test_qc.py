@@ -42,7 +42,7 @@ class Tests(unittest.TestCase):
         self.assertEqual(r[0].sqc.n_hom_var, 3)
         self.assertEqual(r[0].sqc.n_insertion, 2)
         self.assertEqual(r[0].sqc.n_deletion, 0)
-        self.assertEqual(r[0].sqc.n_singleton, 3)
+        self.assertEqual(r[0].sqc.n_singleton, 2)
         self.assertEqual(r[0].sqc.n_transition, 1)
         self.assertEqual(r[0].sqc.n_transversion, 3)
         self.assertEqual(r[0].sqc.n_star, 0)
@@ -80,6 +80,7 @@ class Tests(unittest.TestCase):
         self.assertEqual(r[0].vqc.n_non_ref, 2)
         self.assertEqual(r[0].vqc.het_freq_hwe, 0.6)
         self.assertEqual(r[0].vqc.p_value_hwe, 0.7)
+        self.assertEqual(r[0].vqc.p_value_excess_het, 0.7000000000000001)
         self.assertEqual(r[0].vqc.dp_stats.min, 0)
         self.assertEqual(r[0].vqc.dp_stats.max, 100)
         self.assertEqual(r[0].vqc.dp_stats.mean, 51.25)
@@ -99,6 +100,7 @@ class Tests(unittest.TestCase):
         self.assertEqual(r[1].vqc.n_het, 2)
         self.assertEqual(r[1].vqc.n_non_ref, 4)
         self.assertEqual(r[1].vqc.p_value_hwe, None)
+        self.assertEqual(r[1].vqc.p_value_excess_het, None)
         self.assertEqual(r[1].vqc.het_freq_hwe, None)
         self.assertEqual(r[1].vqc.dp_stats.min, 5)
         self.assertEqual(r[1].vqc.dp_stats.max, 5)
@@ -109,6 +111,7 @@ class Tests(unittest.TestCase):
         self.assertEqual(r[1].vqc.gq_stats.mean, 10)
         self.assertEqual(r[1].vqc.gq_stats.stdev, 0)
 
+    @skip_when_service_backend('very slow / nonterminating')
     def test_concordance(self):
         dataset = get_dataset()
         glob_conc, cols_conc, rows_conc = hl.concordance(dataset, dataset)
@@ -136,7 +139,7 @@ class Tests(unittest.TestCase):
         cols_conc.write('/tmp/foo.kt', overwrite=True)
         rows_conc.write('/tmp/foo.kt', overwrite=True)
 
-    @fails_service_backend()
+    @skip_when_service_backend('very slow / nonterminating')
     def test_concordance_n_discordant(self):
         dataset = get_dataset()
         _, cols_conc, rows_conc = hl.concordance(dataset, dataset)
@@ -214,13 +217,26 @@ class Tests(unittest.TestCase):
                       n_discordant=0),
         ]
 
-    @fails_service_backend()
+    @skip_when_service_backend('very slow / nonterminating')
     def test_concordance_no_values_doesnt_error(self):
         dataset = get_dataset().filter_rows(False)
         _, cols_conc, rows_conc = hl.concordance(dataset, dataset)
         cols_conc._force_count()
         rows_conc._force_count()
 
+    @skip_when_service_backend('''intermittent worker failure:
+>           self.assertEqual(hl.filter_alleles(ds, lambda a, i: True).count_rows(), ds.count_rows())
+
+Caused by: java.lang.ClassCastException: __C2860collect_distributed_array cannot be cast to is.hail.expr.ir.FunctionWithObjects
+	at is.hail.expr.ir.EmitClassBuilder$$anon$1.apply(EmitClassBuilder.scala:689)
+	at is.hail.expr.ir.EmitClassBuilder$$anon$1.apply(EmitClassBuilder.scala:670)
+	at is.hail.backend.BackendUtils.$anonfun$collectDArray$2(BackendUtils.scala:31)
+	at is.hail.utils.package$.using(package.scala:627)
+	at is.hail.annotations.RegionPool.scopedRegion(RegionPool.scala:144)
+	at is.hail.backend.BackendUtils.$anonfun$collectDArray$1(BackendUtils.scala:30)
+	at is.hail.backend.service.Worker$.main(Worker.scala:120)
+	at is.hail.backend.service.Worker.main(Worker.scala)
+	... 11 more''')
     def test_filter_alleles(self):
         # poor man's Gen
         paths = [resource('sample.vcf'),
@@ -232,7 +248,7 @@ class Tests(unittest.TestCase):
                 hl.filter_alleles(ds, lambda a, i: False).count_rows(), 0)
             self.assertEqual(hl.filter_alleles(ds, lambda a, i: True).count_rows(), ds.count_rows())
 
-    @fails_service_backend()
+    @skip_when_service_backend('slow (at least 45 minutes)')
     def test_filter_alleles_hts(self):
         # 1 variant: A:T,G
         ds = hl.import_vcf(resource('filter_alleles/input.vcf'))

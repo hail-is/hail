@@ -1,17 +1,19 @@
-import time
-import re
 import os
+import re
 import secrets
+import time
+
 import pytest
 from flask import Response
-from hailtop.config import get_user_config
-from hailtop.batch_client.client import BatchClient, Job
+
 import hailtop.batch_client.aioclient as aioclient
+from hailtop.batch_client.client import BatchClient, Job
+from hailtop.config import get_user_config
 
-from .utils import batch_status_job_counter, legacy_batch_status
 from .serverthread import ServerThread
+from .utils import batch_status_job_counter, legacy_batch_status
 
-DOCKER_ROOT_IMAGE = os.environ.get('DOCKER_ROOT_IMAGE', 'gcr.io/hail-vdc/ubuntu:18.04')
+DOCKER_ROOT_IMAGE = os.environ['DOCKER_ROOT_IMAGE']
 
 
 @pytest.fixture
@@ -28,8 +30,8 @@ def test_simple(client):
     batch = batch.submit()
     batch.wait()
     status = legacy_batch_status(batch)
-    assert batch_status_job_counter(status, 'Success') == 2, str(status)
-    assert all([j['exit_code'] == 0 for j in status['jobs']])
+    assert batch_status_job_counter(status, 'Success') == 2, str((status, batch.debug_info()))
+    assert all([j['exit_code'] == 0 for j in status['jobs']]), str(batch.debug_info())
 
 
 def test_missing_parent_is_400(client):
@@ -38,11 +40,11 @@ def test_missing_parent_is_400(client):
         fake_job = aioclient.Job.unsubmitted_job(batch._async_builder, 10000)
         fake_job = Job.from_async_job(fake_job)
         batch.create_job(DOCKER_ROOT_IMAGE, command=['echo', 'head'], parents=[fake_job])
-        batch.submit()
+        batch = batch.submit()
     except ValueError as err:
         assert re.search('parents with invalid job ids', str(err))
         return
-    assert False
+    assert False, str(batch.debug_info())
 
 
 def test_dag(client):
@@ -59,12 +61,12 @@ def test_dag(client):
     for node in [head, left, right, tail]:
         node_status_logs.append((node.status(), node.log()))
 
-    assert batch_status_job_counter(status, 'Success') == 4, str(status, str(node_status_logs))
+    assert batch_status_job_counter(status, 'Success') == 4, str((status, batch.debug_info()))
 
     for node in [head, left, right, tail]:
         status = node._status
-        assert status['state'] == 'Success', str(status, node.log())
-        assert node._get_exit_code(status, 'main') == 0
+        assert status['state'] == 'Success', str((status, batch.debug_info()))
+        assert node._get_exit_code(status, 'main') == 0, str((status, batch.debug_info()))
 
 
 def test_cancel_tail(client):
@@ -81,12 +83,13 @@ def test_cancel_tail(client):
     batch.cancel()
     batch.wait()
     status = legacy_batch_status(batch)
-    assert batch_status_job_counter(status, 'Success') == 3, str(status)
+    assert batch_status_job_counter(status, 'Success') == 3, str((status, batch.debug_info()))
     for node in [head, left, right]:
         status = node.status()
-        assert status['state'] == 'Success'
-        assert node._get_exit_code(status, 'main') == 0
-    assert tail.status()['state'] == 'Cancelled'
+        assert status['state'] == 'Success', str((status, batch.debug_info()))
+        assert node._get_exit_code(status, 'main') == 0, str((status, batch.debug_info()))
+    tail_status = tail.status()
+    assert tail_status['state'] == 'Cancelled', str((tail_status, batch.debug_info()))
 
 
 def test_cancel_left_after_tail(client):
@@ -103,13 +106,14 @@ def test_cancel_left_after_tail(client):
     batch.cancel()
     batch.wait()
     status = legacy_batch_status(batch)
-    assert batch_status_job_counter(status, 'Success') == 2, str(status)
+    assert batch_status_job_counter(status, 'Success') == 2, str((status, batch.debug_info()))
     for node in [head, right]:
         status = node.status()
-        assert status['state'] == 'Success'
-        assert node._get_exit_code(status, 'main') == 0
+        assert status['state'] == 'Success', str((status, batch.debug_info()))
+        assert node._get_exit_code(status, 'main') == 0, str((status, batch.debug_info()))
     for node in [left, tail]:
-        assert node.status()['state'] == 'Cancelled'
+        node_status = node.status()
+        assert node_status['state'] == 'Cancelled', str((node_status, batch.debug_info()))
 
 
 def test_callback(client):
@@ -183,63 +187,69 @@ def test_no_parents_allowed_in_other_batches(client):
 
 
 def test_input_dependency(client):
-    bucket_name = get_user_config().get('batch', 'bucket')
+    remote_tmpdir = get_user_config().get('batch', 'remote_tmpdir')
     batch = client.create_batch()
     head = batch.create_job(
         DOCKER_ROOT_IMAGE,
         command=['/bin/sh', '-c', 'echo head1 > /io/data1; echo head2 > /io/data2'],
-        output_files=[('/io/data1', f'gs://{bucket_name}/data1'), ('/io/data2', f'gs://{bucket_name}/data2')],
+        output_files=[('/io/data1', f'{remote_tmpdir}data1'), ('/io/data2', f'{remote_tmpdir}data2')],
     )
     tail = batch.create_job(
         DOCKER_ROOT_IMAGE,
         command=['/bin/sh', '-c', 'cat /io/data1; cat /io/data2'],
-        input_files=[(f'gs://{bucket_name}/data1', '/io/data1'), (f'gs://{bucket_name}/data2', '/io/data2')],
+        input_files=[(f'{remote_tmpdir}data1', '/io/data1'), (f'{remote_tmpdir}data2', '/io/data2')],
         parents=[head],
     )
-    batch.submit()
+    batch = batch.submit()
     tail.wait()
-    assert head._get_exit_code(head.status(), 'main') == 0, str(head._status)
-    assert tail.log()['main'] == 'head1\nhead2\n', str(tail.log(), tail.status())
+    head_status = head.status()
+    assert head._get_exit_code(head_status, 'main') == 0, str((head_status, batch.debug_info()))
+    tail_log = tail.log()
+    assert tail_log['main'] == 'head1\nhead2\n', str((tail_log, batch.debug_info()))
 
 
 def test_input_dependency_wildcard(client):
-    bucket_name = get_user_config().get('batch', 'bucket')
+    remote_tmpdir = get_user_config().get('batch', 'remote_tmpdir')
     batch = client.create_batch()
     head = batch.create_job(
         DOCKER_ROOT_IMAGE,
         command=['/bin/sh', '-c', 'echo head1 > /io/data1 ; echo head2 > /io/data2'],
-        output_files=[('/io/data1', f'gs://{bucket_name}/data1'), ('/io/data2', f'gs://{bucket_name}/data2')],
+        output_files=[('/io/data1', f'{remote_tmpdir}data1'), ('/io/data2', f'{remote_tmpdir}data2')],
     )
     tail = batch.create_job(
         DOCKER_ROOT_IMAGE,
         command=['/bin/sh', '-c', 'cat /io/data1 ; cat /io/data2'],
-        input_files=[(f'gs://{bucket_name}/data1', '/io/data1'), (f'gs://{bucket_name}/data2', '/io/data2')],
+        input_files=[(f'{remote_tmpdir}data1', '/io/data1'), (f'{remote_tmpdir}data2', '/io/data2')],
         parents=[head],
     )
-    batch.submit()
+    batch = batch.submit()
     tail.wait()
-    assert head._get_exit_code(head.status(), 'input') != 0, str(head._status, head.log())
-    assert tail.log()['main'] == 'head1\nhead2\n', str(tail.status(), tail.log())
+    head_status = head.status()
+    assert head._get_exit_code(head_status, 'input') != 0, str((head_status, batch.debug_info()))
+    tail_log = tail.log()
+    assert tail_log['main'] == 'head1\nhead2\n', str((tail_log, batch.debug_info()))
 
 
 def test_input_dependency_directory(client):
-    bucket_name = get_user_config().get('batch', 'bucket')
+    remote_tmpdir = get_user_config().get('batch', 'remote_tmpdir')
     batch = client.create_batch()
     head = batch.create_job(
         DOCKER_ROOT_IMAGE,
         command=['/bin/sh', '-c', 'mkdir -p /io/test/; echo head1 > /io/test/data1 ; echo head2 > /io/test/data2'],
-        output_files=[('/io/test', f'gs://{bucket_name}/test')],
+        output_files=[('/io/test', f'{remote_tmpdir}test')],
     )
     tail = batch.create_job(
         DOCKER_ROOT_IMAGE,
         command=['/bin/sh', '-c', 'cat /io/test/data1; cat /io/test/data2'],
-        input_files=[(f'gs://{bucket_name}/test', '/io/test')],
+        input_files=[(f'{remote_tmpdir}test', '/io/test')],
         parents=[head],
     )
-    batch.submit()
+    batch = batch.submit()
     tail.wait()
-    assert head._get_exit_code(head.status(), 'main') == 0, str(head._status, head.log())
-    assert tail.log()['main'] == 'head1\nhead2\n', str(tail.status(), tail.log())
+    head_status = head.status()
+    assert head._get_exit_code(head_status, 'main') == 0, str((head_status, batch.debug_info()))
+    tail_log = tail.log()
+    assert tail_log['main'] == 'head1\nhead2\n', str((tail_log, batch.debug_info()))
 
 
 def test_always_run_cancel(client):
@@ -255,13 +265,13 @@ def test_always_run_cancel(client):
     batch.cancel()
     batch.wait()
     status = legacy_batch_status(batch)
-    assert batch_status_job_counter(status, 'Success') == 3, str(status)
-    assert batch_status_job_counter(status, 'Cancelled') == 1, str(status)
+    assert batch_status_job_counter(status, 'Success') == 3, str((status, batch.debug_info()))
+    assert batch_status_job_counter(status, 'Cancelled') == 1, str((status, batch.debug_info()))
 
     for node in [head, right, tail]:
         status = node.status()
-        assert status['state'] == 'Success', str(status, node.log())
-        assert node._get_exit_code(status, 'main') == 0, str(status, node.log())
+        assert status['state'] == 'Success', str((status, batch.debug_info()))
+        assert node._get_exit_code(status, 'main') == 0, str((status, batch.debug_info()))
 
 
 def test_always_run_error(client):
@@ -271,10 +281,10 @@ def test_always_run_error(client):
     batch = batch.submit()
     batch.wait()
     status = legacy_batch_status(batch)
-    assert batch_status_job_counter(status, 'Failed') == 1
-    assert batch_status_job_counter(status, 'Success') == 1
+    assert batch_status_job_counter(status, 'Failed') == 1, str((status, batch.debug_info()))
+    assert batch_status_job_counter(status, 'Success') == 1, str((status, batch.debug_info()))
 
     for job, ec, state in [(head, 1, 'Failed'), (tail, 0, 'Success')]:
         status = job.status()
-        assert status['state'] == state, status
-        assert job._get_exit_code(status, 'main') == ec, str(status)
+        assert status['state'] == state, str((status, batch.debug_info()))
+        assert job._get_exit_code(status, 'main') == ec, str((status, batch.debug_info()))

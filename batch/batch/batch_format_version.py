@@ -1,13 +1,13 @@
 from hailtop.batch_client.aioclient import Job
 
-from .utils import cost_from_msec_mcpu
+from .cloud.resource_utils import cost_from_msec_mcpu
 
 
 class BatchFormatVersion:
     def __init__(self, format_version):
         self.format_version = format_version
 
-    def has_full_spec_in_gcs(self):
+    def has_full_spec_in_cloud(self):
         return self.format_version > 1
 
     def has_full_status_in_gcs(self):

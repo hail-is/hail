@@ -2,10 +2,12 @@ package is.hail.expr.ir.agg
 
 import is.hail.annotations.Region
 import is.hail.asm4s._
-import is.hail.expr.ir.{EmitClassBuilder, EmitCode, EmitCodeBuilder}
+import is.hail.backend.ExecuteContext
+import is.hail.expr.ir.{EmitClassBuilder, EmitCode, EmitCodeBuilder, EmitContext, IEmitCode}
 import is.hail.io.{BufferSpec, InputBuffer, OutputBuffer}
-import is.hail.types.physical.stypes.concrete.SBaseStructPointerCode
-import is.hail.types.physical.{PBooleanRequired, PCanonicalStruct, PInt32Required, PStruct, PType}
+import is.hail.types.physical.stypes.concrete.{SBaseStructPointer, SBaseStructPointerValue}
+import is.hail.types.physical._
+import is.hail.types.physical.stypes.EmitType
 import is.hail.types.virtual.{TFloat64, TInt32, Type}
 import is.hail.utils._
 
@@ -42,17 +44,16 @@ class ApproxCDFState(val kb: EmitClassBuilder[_]) extends AggregatorState {
     cb += aggr.invoke[ApproxCDFStateManager, Unit]("combOp", other.aggr)
   }
 
-  def result(cb: EmitCodeBuilder, region: Value[Region]): SBaseStructPointerCode = {
-    QuantilesAggregator.resultType.loadCheapSCode(cb, aggr.invoke[Region, Long]("rvResult", region)).get
+  def result(cb: EmitCodeBuilder, region: Value[Region]): SBaseStructPointerValue = {
+    QuantilesAggregator.resultPType.loadCheapSCode(cb, aggr.invoke[Region, Long]("rvResult", region))
   }
 
-  def newState(cb: EmitCodeBuilder, off: Code[Long]): Unit = cb += region.getNewRegion(regionSize)
+  def newState(cb: EmitCodeBuilder, off: Value[Long]): Unit = cb += region.getNewRegion(regionSize)
 
   def createState(cb: EmitCodeBuilder): Unit =
     cb.ifx(region.isNull, cb.assign(r, Region.stagedCreate(regionSize, kb.pool())))
 
-  override def load(cb: EmitCodeBuilder, regionLoader: (EmitCodeBuilder, Value[Region]) => Unit, srcc: Code[Long]): Unit = {
-    val src = cb.newLocal("acdfa_load_src", srcc)
+  override def load(cb: EmitCodeBuilder, regionLoader: (EmitCodeBuilder, Value[Region]) => Unit, src: Value[Long]): Unit = {
     regionLoader(cb, r)
     cb.assign(id, Region.loadInt(idOffset(src)))
     cb.assign(initialized, Region.loadBoolean(initializedOffset(src)))
@@ -63,8 +64,7 @@ class ApproxCDFState(val kb: EmitClassBuilder[_]) extends AggregatorState {
       })
   }
 
-  override def store(cb: EmitCodeBuilder, regionStorer: (EmitCodeBuilder, Value[Region]) => Unit, destc: Code[Long]): Unit = {
-    val dest = cb.newLocal("acdfa_store_dest", destc)
+  override def store(cb: EmitCodeBuilder, regionStorer: (EmitCodeBuilder, Value[Region]) => Unit, dest: Value[Long]): Unit = {
     cb.ifx(region.isValid,
       {
         regionStorer(cb, region)
@@ -99,7 +99,7 @@ class ApproxCDFState(val kb: EmitClassBuilder[_]) extends AggregatorState {
         ))
   }
 
-  override def copyFrom(cb: EmitCodeBuilder, src: Code[Long]): Unit = {
+  override def copyFrom(cb: EmitCodeBuilder, src: Value[Long]): Unit = {
     cb += Code(
       k := Region.loadInt(kOffset(src)),
       aggr := Code.newInstance[ApproxCDFStateManager, Int](k),
@@ -112,7 +112,7 @@ class ApproxCDFState(val kb: EmitClassBuilder[_]) extends AggregatorState {
 class ApproxCDFAggregator extends StagedAggregator {
   type State = ApproxCDFState
 
-  def resultType: PStruct = QuantilesAggregator.resultType
+  def resultEmitType: EmitType = EmitType(SBaseStructPointer(QuantilesAggregator.resultPType), true)
   val initOpTypes: Seq[Type] = FastSeq(TInt32)
   val seqOpTypes: Seq[Type] = FastSeq(TFloat64)
 
@@ -121,7 +121,7 @@ class ApproxCDFAggregator extends StagedAggregator {
     k.toI(cb)
       .consume(cb,
         cb += Code._fatal[Unit]("approx_cdf: 'k' may not be missing"),
-        pv => state.init(cb, pv.asInt.intCode(cb)))
+        pv => state.init(cb, pv.asInt.value))
   }
 
   protected def _seqOp(cb: EmitCodeBuilder, state: State, seq: Array[EmitCode]): Unit = {
@@ -129,16 +129,15 @@ class ApproxCDFAggregator extends StagedAggregator {
     x.toI(cb)
       .consume(cb,
         {},
-        pv => state.seq(cb, pv.asDouble.doubleCode(cb))
+        pv => state.seq(cb, pv.asDouble.value)
       )
   }
 
-  protected def _combOp(cb: EmitCodeBuilder, state: State, other: State): Unit = {
+  protected def _combOp(ctx: ExecuteContext, cb: EmitCodeBuilder, state: ApproxCDFState, other: ApproxCDFState): Unit = {
     state.comb(cb, other)
   }
 
-  protected def _storeResult(cb: EmitCodeBuilder, state: State, pt: PType, addr: Value[Long], region: Value[Region], ifMissing: EmitCodeBuilder => Unit): Unit = {
-    assert(pt == resultType)
-    pt.storeAtAddress(cb, addr, region, state.result(cb, region), deepCopy = true)
+  protected def _result(cb: EmitCodeBuilder, state: State, region: Value[Region]): IEmitCode = {
+    IEmitCode.present(cb, state.result(cb, region))
   }
 }

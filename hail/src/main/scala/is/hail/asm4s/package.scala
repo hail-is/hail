@@ -62,6 +62,11 @@ package asm4s {
 }
 
 package object asm4s {
+  lazy val theHailClassLoaderForSparkWorkers = {
+    // FIXME: how do I ensure this is only created in Spark workers?
+    new HailClassLoader(getClass().getClassLoader())
+  }
+
   def genName(tag: String, baseName: String): String = lir.genName(tag, baseName)
 
   def typeInfo[T](implicit tti: TypeInfo[T]): TypeInfo[T] = tti
@@ -243,24 +248,11 @@ package object asm4s {
   implicit def arrayInfo[T](implicit tti: TypeInfo[T]): TypeInfo[Array[T]] =
     new ArrayInfo
 
-  object HailClassLoader extends ClassLoader(getClass.getClassLoader) {
-    def loadOrDefineClass(name: String, b: Array[Byte]): Class[_] = {
-      getClassLoadingLock(name).synchronized {
-        try {
-          loadClass(name)
-        } catch {
-          case _: java.lang.ClassNotFoundException =>
-            defineClass(name, b, 0, b.length)
-        }
-      }
-    }
-  }
+  def loadClass(hcl: HailClassLoader, className: String, b: Array[Byte]): Class[_] =
+    hcl.loadOrDefineClass(className, b)
 
-  def loadClass(className: String, b: Array[Byte]): Class[_] =
-    HailClassLoader.loadOrDefineClass(className, b)
-
-  def loadClass(className: String): Class[_] =
-    HailClassLoader.loadClass(className)
+  def loadClass(hcl: HailClassLoader, className: String): Class[_] =
+    hcl.loadClass(className)
 
   def ??? = throw new UnsupportedOperationException
 
