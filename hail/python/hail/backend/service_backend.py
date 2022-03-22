@@ -255,7 +255,8 @@ class ServiceBackend(Backend):
                     logs = await j.log()
                     for k in logs:
                         logs[k] = yaml_literally_shown_str(logs[k].strip())
-                    message = {'batch_status': status,
+                    message = {'service_backend_debug_info': self.debug_info(),
+                               'batch_status': status,
                                'job_status': job_status,
                                'log': logs}
                     log.error(yaml.dump(message))
