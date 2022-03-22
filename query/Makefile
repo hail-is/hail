@@ -19,11 +19,11 @@ HAIL_REVISION := $(shell git rev-parse HEAD)
 ifeq ($(NAMESPACE),default)
 JAR_LOCATION := gs://hail-query/jars/$(HAIL_TEST_GCS_TOKEN)/$(HAIL_REVISION).jar
 else
-JAR_LOCATION := gs://hail-test-dmk9z/$(HAIL_TEST_GCS_TOKEN)/jars/$(HAIL_REVISION).jar
+JAR_LOCATION := gs://hail-test-dmk9z/$(NAMESPACE)/jars/$(HAIL_REVISION).jar
 endif
 
-.PHONY: push-jar
-push-jar: jar
+.PHONY: upload-query-jar
+upload-query-jar: jar
 	gsutil cp ./hail.jar "$(JAR_LOCATION)"
 	echo >last_uploaded_jar "$(JAR_LOCATION)"
 
@@ -32,7 +32,7 @@ upload-resources-dir:
 	touch upload-resources-dir
 
 .PHONY: test
-test: push-jar upload-resources-dir
+test: upload-query-jar upload-resources-dir
 	HAIL_QUERY_BACKEND=service \
 	HAIL_TEST_RESOURCES_DIR='$(HAIL_TEST_RESOURCES_DIR)' \
 	HAIL_DOCTEST_DATA_DIR='$(HAIL_DOCTEST_DATA_DIR)' \
@@ -40,7 +40,7 @@ test: push-jar upload-resources-dir
 	$(MAKE) -C ../hail pytest
 
 .PHONY: ipython
-ipython: push-jar
+ipython: upload-query-jar
 	HAIL_QUERY_BACKEND=service \
 	HAIL_JAR_URL=$$(cat last_uploaded_jar) \
 	ipython
