@@ -8,12 +8,13 @@ import re
 import yaml
 from pathlib import Path
 
-from hail.context import TemporaryDirectory, tmp_dir
+from hail.context import TemporaryDirectory, tmp_dir, TemporaryFilename
 from hail.utils import FatalError
 from hail.expr.types import dtype
 from hail.expr.table_type import ttable
 from hail.expr.matrix_type import tmatrix
 from hail.expr.blockmatrix_type import tblockmatrix
+from hail.experimental import write_expression, read_expression
 from hail.ir.renderer import CSERenderer
 
 from hailtop.config import get_user_config, get_user_local_cache_dir, get_remote_tmpdir
@@ -204,7 +205,7 @@ class ServiceBackend(Backend):
         with TemporaryDirectory(ensure_exists=False) as _:
             with timings.step("write input"):
                 async with await self._async_fs.create(iodir + '/in') as infile:
-                    nonnull_flag_count = len([v is not None for v in self.flags.values()])
+                    nonnull_flag_count = sum(v is not None for v in self.flags.values())
                     await write_int(infile, nonnull_flag_count)
                     for k, v in self.flags.items():
                         if v is not None:
@@ -453,8 +454,11 @@ class ServiceBackend(Backend):
     def register_ir_function(self, name, type_parameters, argument_names, argument_types, return_type, body):
         raise NotImplementedError("ServiceBackend does not support 'register_ir_function'")
 
-    def persist_ir(self, ir):
-        raise NotImplementedError("ServiceBackend does not support 'persist_ir'")
+    def persist_expression(self, expr):
+        # FIXME: should use context manager to clean up persisted resources
+        fname = TemporaryFilename().name
+        write_expression(expr, fname)
+        return read_expression(fname)
 
     def set_flags(self, **flags: Mapping[str, str]):
         self.flags.update(flags)

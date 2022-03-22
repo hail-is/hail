@@ -2,8 +2,11 @@ from typing import Mapping
 import abc
 
 import py4j
+import py4j.java_gateway
 
 import hail
+from hail.expr import construct_expr
+from hail.ir import JavaIR
 from hail.ir.renderer import CSERenderer
 from hail.utils.java import FatalError, Env, HailUserError
 from .backend import Backend
@@ -68,6 +71,10 @@ class Py4JBackend(Backend):
     def _parse_value_ir(self, code, ref_map={}, ir_map={}):
         pass
 
+    @abc.abstractmethod
+    def _to_java_value_ir(self, ir):
+        pass
+
     def register_ir_function(self, name, type_parameters, argument_names, argument_types, return_type, body):
         r = CSERenderer(stop_at_jir=True)
         code = r(body._ir)
@@ -85,7 +92,7 @@ class Py4JBackend(Backend):
         stream_codec = '{"name":"StreamBufferSpec"}'
         # print(self._hail_package.expr.ir.Pretty.apply(jir, True, -1))
         try:
-            result_tuple = self._jhc.backend().executeEncode(jir, stream_codec)
+            result_tuple = self._jbackend.executeEncode(jir, stream_codec)
             (result, timings) = (result_tuple._1(), result_tuple._2())
             value = ir.typ._from_encoding(result)
 
@@ -122,6 +129,12 @@ class Py4JBackend(Backend):
 
     async def _async_get_references(self, names):
         raise NotImplementedError('no async available in Py4JBackend')
+
+    def persist_expression(self, expr):
+        return construct_expr(
+            JavaIR(self._jbackend.executeLiteral(self._to_java_value_ir(expr._ir))),
+            expr.dtype
+        )
 
     def set_flags(self, **flags: Mapping[str, str]):
         available = self._jbackend.availableFlags()

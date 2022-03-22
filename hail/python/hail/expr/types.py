@@ -70,7 +70,7 @@ def summary_type(t):
         return str(t)
 
 
-def dtype(type_str):
+def dtype(type_str) -> 'HailType':
     r"""Parse a type from its string representation.
 
     Examples
