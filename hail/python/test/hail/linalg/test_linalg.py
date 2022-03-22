@@ -959,6 +959,7 @@ Caused by: java.lang.OutOfMemoryError
             self._assert_eq(nd, actual)
 
     @fails_service_backend()
+    @fails_local_backend()
     def test_rectangles_to_numpy(self):
         nd = np.array([[1.0, 2.0, 3.0],
                        [4.0, 5.0, 6.0],

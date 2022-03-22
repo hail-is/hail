@@ -58,6 +58,10 @@ abstract class BlockMatrixStage(val letBindings: IndexedSeq[(String, IR)], val g
 
   def blockBody(ctxRef: Ref): IR
 
+  def wrapContext(ctxIR: IR): IR  = {
+    (letBindings ++ globalVals).foldRight[IR](ctxIR) { case ((f, v), accum) => Let(f, v, accum) }
+  }
+
   def collectBlocks(relationalBindings: Map[String, IR])(f: (IR, IR) => IR, blocksToCollect: Array[(Int, Int)]): IR = {
     val ctxRef = Ref(genUID(), ctxType)
     val body = f(ctxRef, blockBody(ctxRef))
@@ -202,7 +206,7 @@ object LowerBlockMatrixIR {
           NDArrayRef(lowered.blockBody(ctx), FastIndexedSeq(I64(iInBlock), I64(jInBlock)), -1)
         }
 
-        lowered.globalVals.foldRight[IR](elt) { case ((f, v), accum) => Let(f, v, accum) }
+        (lowered.letBindings ++ lowered.globalVals).foldRight[IR](elt) { case ((f, v), accum) => Let(f, v, accum) }
       case BlockMatrixWrite(child, writer) =>
         writer.lower(ctx, lower(child), child, relationalLetsAbove, TypeWithRequiredness(child.typ.elementType)) //FIXME: BlockMatrixIR is currently ignored in Requiredness inference since all eltTypes are +TFloat64
       case BlockMatrixMultiWrite(blockMatrices, writer) => unimplemented(node)
