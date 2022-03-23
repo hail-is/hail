@@ -65,9 +65,6 @@ class LowerDistributedSortSuite extends HailSuite {
         }
         ans
       }
-      if (res != scalaSorted) {
-        println("Wrong")
-      }
       assert(res == scalaSorted)
     } finally {
       backend.setFlag("shuffle_cutoff_to_local_sort", originalShuffleCutoff)

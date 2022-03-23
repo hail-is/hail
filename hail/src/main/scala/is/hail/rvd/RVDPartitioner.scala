@@ -49,9 +49,6 @@ class RVDPartitioner(
     kType.relaxedTypeCheck(l) && kType.relaxedTypeCheck(r)
   })
   require(allowedOverlap >= 0 && allowedOverlap <= kType.size)
-  if (!RVDPartitioner.isValid(kType, rangeBounds, allowedOverlap)) {
-    println(s"Bad, intervals were ${rangeBounds.toIndexedSeq}")
-  }
   require(RVDPartitioner.isValid(kType, rangeBounds, allowedOverlap))
 
   val kord: ExtendedOrdering = PartitionBoundOrdering(kType)

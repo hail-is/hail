@@ -231,38 +231,9 @@ object LowerDistributedSort {
         currentSegmentPartitionData.zip(partRanges).zipWithIndex.map { case ((pi, (intervalStart, intervalEnd)), idx) =>
           OutputPartition(segmentToBreakUp.indices :+ idx, Interval(intervalStart, intervalEnd, true, true), pi.files)
         }
-//        var currentPartSize = 0
-//        val currentChunks = new ArrayBuffer[Chunk]()
-//        var currentMin: Row = null
-//        println(s"Breaking up segment ${segmentToBreakUp.interval}")
-//        segmentToBreakUp.chunks.zip(partRanges).zipWithIndex.foreach { case ((chunk, intervalRange), chunkIdx) =>
-//          if (chunk.size > 0) {
-//            if (currentMin == null) {
-//              currentMin = intervalRange._1
-//            }
-//            currentChunks.append(chunk)
-//            currentPartSize += chunk.size
-//            if (currentPartSize >= idealNumberOfRowsPerPart) {
-//              val newSegment = SegmentResult(segmentToBreakUp.indices :+ chunkIdx, Interval(currentMin, intervalRange._2, true, true), currentChunks.result().toArray.toIndexedSeq)
-//              println(s"Adding new interval ${(currentMin, intervalRange._2)}")
-//              newSegments.append(newSegment)
-//              currentChunks.clear()
-//              currentPartSize = 0
-//              currentMin = null
-//            }
-//          }
-//        }
-//        if (!currentChunks.isEmpty) {
-//          newSegments.append(SegmentResult(segmentToBreakUp.indices :+ segmentToBreakUp.chunks.length, Interval(currentMin, partRanges.last._2, true, true), currentChunks.result().toArray.toIndexedSeq))
-//          println(s"Adding new interval end ${(currentMin, partRanges.last._2)}")
-//        }
-//
-//        newSegments.result().toArray.toIndexedSeq
       }
-      println(s"My sortedSegment intervals are ${sortedSegments.map(_.interval).mkString(",,")}. Old intervals were ${sortedSegmentsTuples.map(x => loopState.largeUnsortedSegments(x._2).interval).toIndexedSeq.mkString(",,")}")
 
       val remainingUnsortedSegments = unsortedPivotsWithEndpointsAndInfoGroupedBySegmentNumber.map {case (_, idx) => loopState.largeUnsortedSegments(idx)}
-      println(s"My remaining unsorted intervals are ${remainingUnsortedSegments.map(_.interval).mkString(",,")}")
 
       val (newBigUnsortedSegments, newSmallSegments) = if (unsortedPivotsWithEndpointsAndInfoGroupedBySegmentNumber.size > 0) {
 
@@ -332,10 +303,6 @@ object LowerDistributedSort {
         }
       } else { (IndexedSeq.empty[SegmentResult], IndexedSeq.empty[SegmentResult]) }
       loopState = LoopState(newBigUnsortedSegments, loopState.readyOutputParts ++ sortedSegments, loopState.smallSegments ++ newSmallSegments)
-      println(s"Loop round ${i}")
-      println(s"Large unsorted intervals = ${loopState.largeUnsortedSegments.map(_.interval).mkString(",,")}")
-      println(s"Small unsorted intervals = ${loopState.smallSegments.map(_.interval).mkString(",,")}")
-      println(s"Large, sorted intervals = ${loopState.readyOutputParts.map(_.interval).mkString(",,")}")
       i = i + 1
     }
 
