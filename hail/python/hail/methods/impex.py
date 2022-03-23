@@ -1891,7 +1891,7 @@ def import_matrix_table(paths,
         if not_entries:
             error_clarify_msg = hl.str(" at row field '") + hl.str(hl_row_fields[idx]) + hl.str("'")
         else:
-            error_clarify_msg = (hl.str(f" at column id '") + hl.str(hl_columns[idx - num_of_row_fields])
+            error_clarify_msg = (hl.str(" at column id '") + hl.str(hl_columns[idx - num_of_row_fields])
                                  + hl.str("' for entry field 'x' "))
 
         return hl.if_else(hl.is_missing(value), hl.missing(hail_type),
