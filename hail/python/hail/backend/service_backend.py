@@ -284,15 +284,17 @@ class ServiceBackend(Backend):
                     batch_attributes = {**batch_attributes, 'name': name}
                 bb = self.async_bc.create_batch(token=token, attributes=batch_attributes)
 
-                j = bb.create_jvm_job([
+                j = bb.create_jvm_job(
                     jar_spec=self.jar_spec.to_dict(),
                     argv=[
                         ServiceBackend.DRIVER,
                         batch_attributes['name'],
                         iodir + '/in',
                         iodir + '/out'
-                    ]
-                ], mount_tokens=True, resources={'preemptible': False, 'memory': 'standard'})
+                    ],
+                    mount_tokens=True,
+                    resources={'preemptible': False, 'memory': 'standard'}
+                )
                 b = await bb.submit(disable_progress_bar=self.disable_progress_bar)
 
             with timings.step("wait batch"):
