@@ -10,12 +10,11 @@ import is.hail.expr.ir.MatrixValue
 import is.hail.io.compress.{BGzipLineReader, BGzipOutputStream}
 import is.hail.io.fs.FS
 import is.hail.io.{VCFAttributes, VCFFieldAttributes, VCFMetadata}
+import is.hail.types.MatrixType
 import is.hail.types.physical._
 import is.hail.types.virtual._
 import is.hail.utils._
-import is.hail.variant.{Call, RegionValueVariant}
-
-import scala.io.Source
+import is.hail.variant.{Call, ReferenceGenome, RegionValueVariant}
 
 object ExportVCF {
   def infoNumber(t: Type): String = t match {
@@ -24,6 +23,9 @@ object ExportVCF {
     case TSet(_) => "."
     case _ => "1"
   }
+
+  def fmtFloat(fmt: String, value: Float): String = value.formatted(fmt)
+  def fmtDouble(fmt: String, value: Double): String = value.formatted(fmt)
 
   def strVCF(sb: StringBuilder, elementType: PType, offset: Long) {
     elementType match {
@@ -221,6 +223,99 @@ object ExportVCF {
   def getAttributes(k1: String, k2: String, attributes: Option[VCFMetadata]): Option[VCFFieldAttributes] =
     getAttributes(k1, attributes).flatMap(_.get(k2))
 
+  def makeHeader(rowType: TStruct, entryType: TStruct, rg: ReferenceGenome, append: Option[String],
+      metadata: Option[VCFMetadata], sampleIds: Array[String]): String = {
+    val sb = new StringBuilder()
+
+    sb.append("##fileformat=VCFv4.2\n")
+    sb.append(s"##hailversion=${ hail.HAIL_PRETTY_VERSION }\n")
+
+    entryType.fields.foreach { f =>
+      val attrs = getAttributes("format", f.name, metadata).getOrElse(Map.empty[String, String])
+      sb.append("##FORMAT=<ID=")
+      sb.append(f.name)
+      sb.append(",Number=")
+      sb.append(attrs.getOrElse("Number", infoNumber(f.typ)))
+      sb.append(",Type=")
+      sb.append(formatType(f.name, f.typ))
+      sb.append(",Description=\"")
+      sb.append(attrs.getOrElse("Description", ""))
+      sb.append("\">\n")
+    }
+
+    val filters = getAttributes("filter", metadata).getOrElse(Map.empty[String, Any]).keys.toArray.sorted
+    filters.foreach { id =>
+      val attrs = getAttributes("filter", id, metadata).getOrElse(Map.empty[String, String])
+      sb.append("##FILTER=<ID=")
+      sb.append(id)
+      sb.append(",Description=\"")
+      sb.append(attrs.getOrElse("Description", ""))
+      sb.append("\">\n")
+    }
+
+    val tinfo = rowType.selfField("info") match {
+      case Some(fld) if fld.typ.isInstanceOf[TStruct] =>
+        fld.typ.asInstanceOf[TStruct]
+      case _ =>
+        TStruct()
+    }
+
+    tinfo.fields.foreach { f =>
+      val attrs = getAttributes("info", f.name, metadata).getOrElse(Map.empty[String, String])
+      sb.append("##INFO=<ID=")
+      sb.append(f.name)
+      sb.append(",Number=")
+      sb.append(attrs.getOrElse("Number", infoNumber(f.typ)))
+      sb.append(",Type=")
+      sb.append(infoType(f))
+      sb.append(",Description=\"")
+      sb.append(attrs.getOrElse("Description", ""))
+      sb.append("\">\n")
+    }
+
+    append.foreach { append =>
+      sb.append(append)
+    }
+
+    val assembly = rg.name
+    rg.contigs.foreachBetween { c =>
+      sb.append("##contig=<ID=")
+      sb.append(c)
+      sb.append(",length=")
+      sb.append(rg.contigLength(c))
+      sb.append(",assembly=")
+      sb.append(assembly)
+      sb += '>'
+    }(sb += '\n')
+
+    sb += '\n'
+
+    sb.append("#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO")
+    if (sampleIds.nonEmpty) {
+      sb.append("\tFORMAT")
+      sampleIds.foreach { id =>
+        sb += '\t'
+        sb.append(id)
+      }
+    }
+    sb.result()
+  }
+
+  def lookupVAField(rowType: TStruct, fieldName: String, vcfColName: String, expectedTypeOpt: Option[Type]): (Boolean, Int) = {
+    rowType.fieldIdx.get(fieldName) match {
+      case Some(idx) =>
+        val t = rowType.types(idx)
+        if (expectedTypeOpt.forall(t == _)) // FIXME: make sure this is right
+          (true, idx)
+        else {
+          warn(s"export_vcf found row field $fieldName with type '$t', but expected type ${ expectedTypeOpt.get }. " +
+            s"Emitting missing $vcfColName.")
+          (false, 0)
+        }
+      case None => (false, 0)
+    }
+  }
+
   def apply(ctx: ExecuteContext, mv: MatrixValue, path: String, append: Option[String],
     exportType: String, metadata: Option[VCFMetadata], tabix: Boolean = false) {
     val fs = ctx.fs
@@ -258,117 +353,26 @@ object ExportVCF {
       }
 
     val rg = mv.referenceGenome
-    val assembly = rg.name
 
     val localNSamples = mv.nCols
     val hasSamples = localNSamples > 0
-
-    def header: String = {
-      val sb = new StringBuilder()
-
-      sb.append("##fileformat=VCFv4.2\n")
-      sb.append(s"##hailversion=${ hail.HAIL_PRETTY_VERSION }\n")
-
-      tg.fields.foreach { f =>
-        val attrs = getAttributes("format", f.name, metadata).getOrElse(Map.empty[String, String])
-        sb.append("##FORMAT=<ID=")
-        sb.append(f.name)
-        sb.append(",Number=")
-        sb.append(attrs.getOrElse("Number", infoNumber(f.typ.virtualType)))
-        sb.append(",Type=")
-        sb.append(formatType(f.name, f.typ.virtualType))
-        sb.append(",Description=\"")
-        sb.append(attrs.getOrElse("Description", ""))
-        sb.append("\">\n")
-      }
-
-      val filters = getAttributes("filter", metadata).getOrElse(Map.empty[String, Any]).keys.toArray.sorted
-      filters.foreach { id =>
-        val attrs = getAttributes("filter", id, metadata).getOrElse(Map.empty[String, String])
-        sb.append("##FILTER=<ID=")
-        sb.append(id)
-        sb.append(",Description=\"")
-        sb.append(attrs.getOrElse("Description", ""))
-        sb.append("\">\n")
-      }
-
-      tinfo.virtualType.fields.foreach { f =>
-        val attrs = getAttributes("info", f.name, metadata).getOrElse(Map.empty[String, String])
-        sb.append("##INFO=<ID=")
-        sb.append(f.name)
-        sb.append(",Number=")
-        sb.append(attrs.getOrElse("Number", infoNumber(f.typ)))
-        sb.append(",Type=")
-        sb.append(infoType(f))
-        sb.append(",Description=\"")
-        sb.append(attrs.getOrElse("Description", ""))
-        sb.append("\">\n")
-      }
-
-      append.foreach { f =>
-        using(fs.open(f)) { s =>
-          Source.fromInputStream(s)
-            .getLines()
-            .filterNot(_.isEmpty)
-            .foreach { line =>
-              sb.append(line)
-              sb += '\n'
-            }
-        }
-      }
-
-      rg.contigs.foreachBetween { c =>
-        sb.append("##contig=<ID=")
-        sb.append(c)
-        sb.append(",length=")
-        sb.append(rg.contigLength(c))
-        sb.append(",assembly=")
-        sb.append(assembly)
-        sb += '>'
-      }(sb += '\n')
-
-      sb += '\n'
-
-      sb.append("#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO")
-      if (hasSamples)
-        sb.append("\tFORMAT")
-      mv.stringSampleIds.foreach { id =>
-        sb += '\t'
-        sb.append(id)
-      }
-      sb.result()
-    }
-
-    val fieldIdx = typ.rowType.fieldIdx
-
-    def lookupVAField(fieldName: String, vcfColName: String, expectedTypeOpt: Option[Type]): (Boolean, Int) = {
-      fieldIdx.get(fieldName) match {
-        case Some(idx) =>
-          val t = typ.rowType.types(idx)
-          if (expectedTypeOpt.forall(t == _)) // FIXME: make sure this is right
-            (true, idx)
-          else {
-            warn(s"export_vcf found row field $fieldName with type '$t', but expected type ${ expectedTypeOpt.get }. " +
-              s"Emitting missing $vcfColName.")
-            (false, 0)
-          }
-        case None => (false, 0)
-      }
-    }
     val filtersType = TSet(TString)
     val filtersPType = if (typ.rowType.hasField("filters")) {
       assert(typ.rowType.fieldType("filters") == TSet(TString))
       mv.rvRowPType.field("filters").typ.asInstanceOf[PSet]
     } else null
 
-    val (idExists, idIdx) = lookupVAField("rsid", "ID", Some(TString))
-    val (qualExists, qualIdx) = lookupVAField("qual", "QUAL", Some(TFloat64))
-    val (filtersExists, filtersIdx) = lookupVAField("filters", "FILTERS", Some(filtersType))
-    val (infoExists, infoIdx) = lookupVAField("info", "INFO", None)
+    val tr = typ.rowType
+    val (idExists, idIdx) = lookupVAField(tr, "rsid", "ID", Some(TString))
+    val (qualExists, qualIdx) = lookupVAField(tr, "qual", "QUAL", Some(TFloat64))
+    val (filtersExists, filtersIdx) = lookupVAField(tr, "filters", "FILTERS", Some(filtersType))
+    val (infoExists, infoIdx) = lookupVAField(tr, "info", "INFO", None)
 
     val fullRowType = mv.rvRowPType
     val localEntriesIndex = mv.entriesIdx
     val localEntriesType = mv.entryArrayPType
+
+    val headerString = makeHeader(typ.rowType, typ.entryType, rg, append, metadata, mv.stringSampleIds.toArray)
 
     mv.rvd.mapPartitions { (_, it) =>
       val sb = new StringBuilder
@@ -458,7 +462,7 @@ object ExportVCF {
 
         sb.result()
       }
-    }.writeTable(ctx, path, Some(header), exportType = exportType)
+    }.writeTable(ctx, path, Some(headerString), exportType = exportType)
 
     if (tabix) {
       exportType match {

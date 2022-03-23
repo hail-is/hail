@@ -39,7 +39,6 @@ class VCFTests(unittest.TestCase):
     def test_info_char(self):
         self.assertEqual(hl.import_vcf(resource('infochar.vcf')).count_rows(), 1)
 
-    @fails_service_backend()
     def test_import_export_same(self):
         for i in range(10):
             mt = hl.import_vcf(resource(f'random_vcfs/{i}.vcf.bgz'))
@@ -85,8 +84,7 @@ class VCFTests(unittest.TestCase):
             mt = hl.import_vcf(resource('malformed.vcf'))
             mt._force_count_rows()
 
-    @fails_service_backend()
-    @fails_local_backend()
+    @fails_service_backend(reason="Need to change some service backend errors into FatalError")
     def test_not_identical_headers(self):
         t = new_temp_file(extension='vcf')
         mt = hl.import_vcf(resource('sample.vcf'))
@@ -260,8 +258,6 @@ class VCFTests(unittest.TestCase):
         with self.assertRaises(TypeError):
             mt = hl.import_vcf(resource('small-ds.vcf'), entry_float_type=hl.tint64)
 
-    @fails_service_backend()
-    @fails_local_backend()
     def test_export_vcf(self):
         dataset = hl.import_vcf(resource('sample.vcf.bgz'))
         vcf_metadata = hl.get_vcf_metadata(resource('sample.vcf.bgz'))
@@ -280,8 +276,6 @@ class VCFTests(unittest.TestCase):
             # are py4 JavaMaps, not dicts, so can't use assertDictEqual
             self.assertEqual(vcf_metadata, metadata_imported)
 
-    @fails_service_backend()
-    @fails_local_backend()
     def test_export_vcf_empty_format(self):
         mt = hl.import_vcf(resource('sample.vcf.bgz')).select_entries()
         tmp = new_temp_file(extension="vcf")
@@ -289,8 +283,6 @@ class VCFTests(unittest.TestCase):
 
         assert hl.import_vcf(tmp)._same(mt)
 
-    @fails_service_backend()
-    @fails_local_backend()
     def test_export_vcf_no_gt(self):
         mt = hl.import_vcf(resource('sample.vcf.bgz')).drop('GT')
         tmp = new_temp_file(extension="vcf")
@@ -298,7 +290,6 @@ class VCFTests(unittest.TestCase):
 
         assert hl.import_vcf(tmp)._same(mt)
 
-    @fails_service_backend()
     def test_export_vcf_no_alt_alleles(self):
         mt = hl.import_vcf(resource('gvcfs/HG0096_excerpt.g.vcf'), reference_genome='GRCh38')
         self.assertEqual(mt.filter_rows(hl.len(mt.alleles) == 1).count_rows(), 5)
@@ -308,8 +299,6 @@ class VCFTests(unittest.TestCase):
         mt2 = hl.import_vcf(tmp, reference_genome='GRCh38')
         self.assertTrue(mt._same(mt2))
 
-    @fails_service_backend()
-    @fails_local_backend()
     def test_export_sites_only_from_table(self):
         mt = hl.import_vcf(resource('sample.vcf.bgz'))\
             .select_entries()\
@@ -538,33 +527,47 @@ class VCFTests(unittest.TestCase):
         assert gl_gp == [hl.Struct(GL=[None, None, None], GP=[0.22, 0.5, 0.27]),
                          hl.Struct(GL=[None, None, None], GP=[None, None, None])]
 
-    @fails_service_backend()
-    @fails_local_backend()
     def test_same_bgzip(self):
         mt = hl.import_vcf(resource('sample.vcf'), min_partitions=4)
         f = new_temp_file(extension='vcf.bgz')
         hl.export_vcf(mt, f)
         assert hl.import_vcf(f)._same(mt)
 
-    @fails_service_backend()
-    @fails_local_backend()
-    def test_vcf_parallel_export(self):
-        import glob
+    def test_vcf_parallel_separate_header_export(self):
+        fs = hl.current_backend().fs
         def concat_files(outpath, inpaths):
-            with open(outpath, 'wb') as outfile:
+            with fs.open(outpath, 'wb') as outfile:
                 for path in inpaths:
-                    with open(path, 'rb') as infile:
+                    with fs.open(path, 'rb') as infile:
                         shutil.copyfileobj(infile, outfile)
 
         mt = hl.import_vcf(resource('sample.vcf'), min_partitions=4)
         f = new_temp_file(extension='vcf.bgz')
         hl.export_vcf(mt, f, parallel='separate_header')
-        shard_paths = glob.glob(f + "/*.bgz")
+        stat = fs.stat(f)
+        assert stat
+        assert stat.is_dir()
+        shard_paths = [info.path for info in fs.ls(f)
+                       if os.path.splitext(info.path)[-1] == '.bgz']
+        assert shard_paths
         shard_paths.sort()
         nf = new_temp_file(extension='vcf.bgz')
         concat_files(nf, shard_paths)
+
         assert hl.import_vcf(nf)._same(mt)
 
+    @fails_service_backend()
+    @fails_local_backend()
+    def test_vcf_parallel_composable_export(self):
+        import glob
+        def concat_files(outpath, inpaths):
+            fs = hl.current_backend().fs
+            with fs.open(outpath, 'wb') as outfile:
+                for path in inpaths:
+                    with fs.open(path, 'rb') as infile:
+                        shutil.copyfileobj(infile, outfile)
+
+        mt = hl.import_vcf(resource('sample.vcf'), min_partitions=4)
         f = new_temp_file(extension='vcf.bgz')
         hl.export_vcf(mt, f, parallel='composable')
         shard_paths = glob.glob(f + "/*.bgz")
@@ -579,8 +582,6 @@ class VCFTests(unittest.TestCase):
         mt = hl.import_vcf(resource('custom_rg.vcf'), reference_genome=rg)
         assert mt.locus.collect() == [hl.Locus('D', 123, reference_genome=rg)]
 
-    @fails_service_backend()
-    @fails_local_backend()
     def test_sorted(self):
         mt = hl.utils.range_matrix_table(10, 10, n_partitions=4).filter_cols(False)
         mt = mt.key_cols_by(s='dummy')
@@ -590,7 +591,7 @@ class VCFTests(unittest.TestCase):
         hl.export_vcf(mt, f)
 
         last = 0
-        with open(uri_path(f), 'r') as i:
+        with hl.current_backend().fs.open(f, 'r') as i:
             for line in i:
                 if line.startswith('#'):
                     continue
@@ -599,8 +600,6 @@ class VCFTests(unittest.TestCase):
                     assert pos >= last
                     last = pos
 
-    @fails_service_backend()
-    @fails_local_backend()
     def test_empty_read_write(self):
         mt = hl.import_vcf(resource('sample.vcf'), min_partitions=4).filter_rows(False)
 
@@ -610,8 +609,8 @@ class VCFTests(unittest.TestCase):
         hl.export_vcf(mt, out1)
         hl.export_vcf(mt, out2)
 
-        assert os.stat(uri_path(out1)).st_size > 0
-        assert os.stat(uri_path(out2)).st_size > 0
+        assert hl.current_backend().fs.stat(out1).size > 0
+        assert hl.current_backend().fs.stat(out2).size > 0
 
         assert hl.import_vcf(out1)._same(mt)
         assert hl.import_vcf(out2)._same(mt)
@@ -622,8 +621,6 @@ class VCFTests(unittest.TestCase):
         groups = ht.group_by(the_key=ht.key).aggregate(values=hl.agg.collect(ht.row_value)).collect()
         assert not groups
 
-    @fails_service_backend()
-    @fails_local_backend()
     def test_format_header(self):
         mt = hl.import_vcf(resource('sample2.vcf'))
         metadata = hl.get_vcf_metadata(resource('sample2.vcf'))
@@ -631,7 +628,7 @@ class VCFTests(unittest.TestCase):
         hl.export_vcf(mt, f, metadata=metadata)
 
         s = set()
-        with open(uri_path(f), 'r') as i:
+        with hl.current_backend().fs.open(f, 'r') as i:
             for line in i:
                 if line.startswith('##FORMAT'):
                     s.add(line.strip())
@@ -644,13 +641,11 @@ class VCFTests(unittest.TestCase):
             '##FORMAT=<ID=PL,Number=G,Type=Integer,Description="Normalized, Phred-scaled likelihoods for genotypes as defined in the VCF specification">',
         }
 
-    @fails_service_backend()
-    @fails_local_backend()
     def test_format_genotypes(self):
         mt = hl.import_vcf(resource('sample.vcf'))
         f = new_temp_file(extension='vcf')
         hl.export_vcf(mt, f)
-        with open(uri_path(f), 'r') as i:
+        with hl.current_backend().fs.open(f, 'r') as i:
             for line in i:
                 if line.startswith('20\t13029920'):
                     expected = "GT:AD:DP:GQ:PL\t1/1:0,6:6:18:234,18,0\t1/1:0,4:4:12:159,12,0\t" \
@@ -663,13 +658,11 @@ class VCFTests(unittest.TestCase):
             else:
                 assert False, 'expected pattern not found'
 
-    @fails_service_backend()
-    @fails_local_backend()
     def test_contigs_header(self):
         mt = hl.import_vcf(resource('sample.vcf')).filter_cols(False)
         f = new_temp_file(extension='vcf')
         hl.export_vcf(mt, f)
-        with open(uri_path(f), 'r') as i:
+        with hl.current_backend().fs.open(f, 'r') as i:
             for line in i:
                 if line.startswith('##contig=<ID=10'):
                     assert line.strip() == '##contig=<ID=10,length=135534747,assembly=GRCh37>'
@@ -677,8 +670,6 @@ class VCFTests(unittest.TestCase):
             else:
                 assert False, 'expected pattern not found'
 
-    @fails_service_backend()
-    @fails_local_backend()
     def test_metadata_argument(self):
         mt = hl.import_vcf(resource('multipleChromosomes.vcf'))
         f = new_temp_file(extension='vcf')
@@ -691,7 +682,7 @@ class VCFTests(unittest.TestCase):
 
         saw_gt = False
         saw_lq = False
-        with open(uri_path(f), 'r') as f:
+        with hl.current_backend().fs.open(f, 'r') as f:
             for line in f:
                 print(line[:25])
                 if line.startswith('##FORMAT=<ID=GT'):
@@ -705,8 +696,6 @@ class VCFTests(unittest.TestCase):
         assert saw_gt
         assert saw_lq
 
-    @fails_service_backend()
-    @fails_local_backend()
     def test_invalid_info_fields(self):
         t = new_temp_file(extension='vcf')
         mt = hl.import_vcf(resource('sample.vcf'))
