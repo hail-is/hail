@@ -1,8 +1,7 @@
-from typing import Mapping, List, Dict, Optional
+from typing import Mapping, List, Dict, Optional, Any
 import abc
 from ..fs.fs import FS
 from ..expr import Expression
-from ..expr.types import HailType
 from ..ir import BaseIR
 from ..utils.java import FatalError, HailUserError
 
