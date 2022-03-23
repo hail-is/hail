@@ -4814,17 +4814,12 @@ steps:
       valueFrom: ci_utils_image.image
     script: |
       set -ex
-      gcloud auth activate-service-account --key-file=/ci-deploy-0-1--hail-is-hail/ci-deploy-0-1--hail-is-hail.json
+      gcloud auth activate-service-account --key-file=/gsa-key/key.json
       gcloud auth -q configure-docker australia-southeast1-docker.pkg.dev
       skopeo copy docker://{{ hailgenetics_hail_image.image }} docker://australia-southeast1-docker.pkg.dev/hail-295901/hail/hailgenetics/hail:$(cat /io/hail_pip_version)
     inputs:
       - from: /hail_pip_version
         to: /io/hail_pip_version
-    secrets:
-      - name: ci-deploy-0-1--hail-is-hail
-        namespace:
-          valueFrom: default_ns.name
-        mountPath: /ci-deploy-0-1--hail-is-hail
     scopes:
       - deploy
       - dev
