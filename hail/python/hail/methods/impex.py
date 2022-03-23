@@ -1421,7 +1421,7 @@ def import_table(paths,
         split_array = row.text._split_line(delimiter, missing=missing, quote=quote, regex=len(delimiter) > 1)
         return hl.case().when(hl.len(split_array) == len(fields), split_array)\
             .or_error(hl.str("error in number of fields found: in file ") + hl.str(row.file)
-                      + hl.str(f"\nexpected {len(fields)} {'fields' if len(fields) > 1 else 'field' }, found ")
+                      + hl.str(f"\nExpected {len(fields)} {'fields' if len(fields) > 1 else 'field' }, found ")
                       + hl.str(hl.len(split_array)) + hl.if_else(hl.len(split_array) > 1, hl.str(" fields"),
                       hl.str(" field")) + hl.str("\nfor line consisting of '") + hl.str(row.text) + "'")
 
