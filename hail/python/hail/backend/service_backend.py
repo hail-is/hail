@@ -494,7 +494,7 @@ class ServiceBackend(Backend):
             for fname in files:
                 await write_str(infile, fname)
             await write_int(infile, len(index_file_map))
-            for k, v in index_file_map.values():
+            for k, v in index_file_map.items():
                 await write_str(infile, k)
                 await write_str(infile, v)
             if referenceGenomeName is None:
@@ -503,7 +503,7 @@ class ServiceBackend(Backend):
                 await write_bool(infile, True)
                 await write_str(infile, referenceGenomeName)
             await write_int(infile, len(contig_recoding))
-            for k, v in contig_recoding.values():
+            for k, v in contig_recoding.items():
                 await write_str(infile, k)
                 await write_str(infile, v)
             await write_bool(infile, skip_invalid_loci)
