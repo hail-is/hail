@@ -388,9 +388,10 @@ class OnlineBoundedGather2:
         self._counter += 1
 
         async def run_and_cleanup():
+            retval = None
             try:
                 async with self._sema:
-                    await f(*args, **kwargs)
+                    retval = await f(*args, **kwargs)
             except asyncio.CancelledError:
                 pass
             except:
@@ -402,10 +403,11 @@ class OnlineBoundedGather2:
                     log.info('discarding exception', exc_info=True)
 
             if self._pending is None:
-                return
+                return retval
             del self._pending[id]
             if not self._pending:
                 self._done_event.set()
+            return retval
 
         t = asyncio.create_task(run_and_cleanup())
         self._pending[id] = t

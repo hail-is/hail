@@ -3,11 +3,10 @@ import asyncio
 import gzip
 import io
 import nest_asyncio
-import functools
 
 from hailtop.aiotools.router_fs import RouterAsyncFS
 from hailtop.aiotools.fs import Copier, Transfer, FileListEntry, ReadableStream, WritableStream
-from hailtop.utils import async_to_blocking, bounded_gather
+from hailtop.utils import OnlineBoundedGather2, async_to_blocking
 
 from .fs import FS
 from .stat_result import FileType, StatResult
@@ -237,10 +236,10 @@ class RouterFS(FS):
 
     def ls(self, path: str, _max_simultaneous_files: int = 50) -> List[StatResult]:
         async def _ls():
-            return await bounded_gather(
-                *[functools.partial(self._fle_to_dict, fle)
-                  async for fle in await self.afs.listfiles(path)],
-                parallelism=_max_simultaneous_files)
+            async with OnlineBoundedGather2(asyncio.Semaphore(_max_simultaneous_files)) as pool:
+                tasks = [pool.call(self._fle_to_dict, fle)
+                         async for fle in await self.afs.listfiles(path)]
+                return list(await asyncio.gather(*tasks))
         return async_to_blocking(_ls())
 
     def mkdir(self, path: str):
