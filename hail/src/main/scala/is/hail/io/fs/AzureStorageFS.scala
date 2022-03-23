@@ -1,10 +1,8 @@
 package is.hail.io.fs
 
 import com.azure.core.credential.TokenCredential
-import com.azure.core.exception.ResourceNotFoundException
-import com.azure.core.http.rest.PagedIterable
-import com.azure.identity.{DefaultAzureCredential, DefaultAzureCredentialBuilder}
-import com.azure.storage.blob.models.{BlobItem, BlobProperties, BlobRange, BlobStorageException, ListBlobsOptions}
+import com.azure.identity.{ClientSecretCredential, ClientSecretCredentialBuilder, DefaultAzureCredential, DefaultAzureCredentialBuilder}
+import com.azure.storage.blob.models.{BlobItem, BlobProperties, BlobRange}
 import com.azure.storage.blob.specialized.AppendBlobClient
 import com.azure.storage.blob.{BlobClient, BlobContainerClient, BlobServiceClient, BlobServiceClientBuilder}
 import is.hail.io.fs.AzureStorageFS.{containsWildcard, dropTrailingSlash, getAccountContainerPath}
@@ -12,6 +10,8 @@ import org.apache.log4j.Logger
 
 import java.net.URI
 import is.hail.utils.fatal
+import org.json4s
+import org.json4s.jackson.JsonMethods
 
 import java.io.{ByteArrayInputStream, ByteArrayOutputStream, FileNotFoundException, InputStream, OutputStream}
 import java.nio.ByteBuffer
@@ -122,14 +122,43 @@ class AzureBlobServiceClientCache(credential: TokenCredential) {
 }
 
 
-class AzureStorageFS extends FS {
-  val credential: DefaultAzureCredential = new DefaultAzureCredentialBuilder().build()
-  @transient private lazy val storageClientCache = {
-    new AzureBlobServiceClientCache(credential)
+class AzureStorageFS(val serviceAccountKey: Option[String] = None) extends FS {
+  @transient private lazy val storageClientCache = serviceAccountKey match {
+    case None =>
+      val credential: DefaultAzureCredential = new DefaultAzureCredentialBuilder().build()
+      new AzureBlobServiceClientCache(credential)
+    case Some(keyData) =>
+      val kvs = JsonMethods.parse(keyData) match {
+        case json4s.JObject(values) => values.toMap
+      }
+
+//      {
+//        "appId": "6ba2e9fc-e889-41e9-8409-2f950ca793eb",
+//        "appObjectId": "7c724a87-15e0-407b-94d8-64e4d2b3009d",
+//        "displayName": "haildev-test",
+//        "objectId": "5505f0bf-aeef-49a3-9a1c-062987b123f9",
+//        "password": "Hev7Q~FqhgMd0X8xsuzKQmHSssYEFbglhr.oM",
+//        "tenant": "d6c9f2ea-d3bb-4ca9-8b14-231bac999aa6"
+//      }
+
+      val appId = kvs("appId").asInstanceOf[json4s.JString].s
+      val appObjectId = kvs("appObjectId").asInstanceOf[json4s.JString].s
+      val displayName = kvs("displayName").asInstanceOf[json4s.JString].s
+      val objectId = kvs("objectId").asInstanceOf[json4s.JString].s
+      val password = kvs("password").asInstanceOf[json4s.JString].s
+      val tenant = kvs("tenant").asInstanceOf[json4s.JString].s
+
+      val clientSecretCredential: ClientSecretCredential = new ClientSecretCredentialBuilder()
+        .clientId(appId)
+        .clientSecret(password)
+        .tenantId(tenant)
+        .build();
+      new AzureBlobServiceClientCache(clientSecretCredential)
   }
 
   def getBlobServiceClient(account: String): BlobServiceClient = {
     storageClientCache.getServiceClient(account)
+//    throw new NotImplementedError()
   }
 
   def getBlobClient(filename: String): BlobClient = {
@@ -447,7 +476,6 @@ class AzureStorageFS extends FS {
     def countSubBlobs(): Unit = {
       while (iter.hasNext) {
         val name = iter.next.getName
-        println(s"$name")
         if (seenBlobItems.contains(name)) return
         seenBlobItems += name
         numSubBlobs += 1
