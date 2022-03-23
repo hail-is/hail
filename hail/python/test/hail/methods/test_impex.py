@@ -84,7 +84,6 @@ class VCFTests(unittest.TestCase):
             mt = hl.import_vcf(resource('malformed.vcf'))
             mt._force_count_rows()
 
-    @fails_service_backend(reason="Need to change some service backend errors into FatalError")
     def test_not_identical_headers(self):
         t = new_temp_file(extension='vcf')
         mt = hl.import_vcf(resource('sample.vcf'))
