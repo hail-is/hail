@@ -267,7 +267,7 @@ class LocalBackend(Py4JBackend):
             name, dest_reference_genome)
 
     def parse_vcf_metadata(self, path):
-        return json.loads(self._jhc.pyParseVCFMetadataJSON(self.fs._jfs, path))
+        return json.loads(self._jhc.pyParseVCFMetadataJSON(self._jbackend.fs(), path))
 
     def index_bgen(self, files, index_file_map, referenceGenomeName, contig_recoding, skip_invalid_loci):
         self._jbackend.pyIndexBgen(files, index_file_map, referenceGenomeName, contig_recoding, skip_invalid_loci)

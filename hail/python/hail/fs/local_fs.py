@@ -1,7 +1,5 @@
-from typing import List, BinaryIO
-import gzip
-import io
 import os
+from typing import List
 from shutil import copy2, rmtree
 
 from .fs import FS
@@ -12,26 +10,14 @@ class LocalFS(FS):
     def __init__(self):
         pass
 
-    def open(self, path: str, mode: str = 'r', buffer_size: int = 0):
-        if mode not in ('r', 'rb', 'w', 'wb'):
-            raise ValueError(f'Unsupported mode: {repr(mode)}')
-
-        strm: BinaryIO
-        if mode[0] == 'r':
-            strm = open(path, 'rb')
-        else:
-            assert mode[0] == 'w'
+    def open(self, path: str, mode: str = 'r', buffer_size: int = -1):
+        if 'w' in mode:
             try:
-                strm = open(path, 'wb')
+                return open(path, mode, buffering=buffer_size)
             except FileNotFoundError:
                 os.makedirs(os.path.dirname(path))
-                strm = open(path, 'wb')
-
-        if path[-3:] == '.gz' or path[-4:] == '.bgz':
-            strm = gzip.GzipFile(fileobj=strm, mode=mode)  # type: ignore # GzipFile should be a BinaryIO
-        if 'b' not in mode:
-            strm = io.TextIOWrapper(strm, encoding='utf-8')  # type: ignore # TextIOWrapper should be a BinaryIO
-        return strm
+                return open(path, mode, buffering=buffer_size)
+        return open(path, mode, buffering=buffer_size)
 
     def copy(self, src: str, dest: str):
         dst_w_file = dest
