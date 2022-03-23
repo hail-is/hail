@@ -22,7 +22,6 @@ flake8==4.0.1
 Flask-Cors==3.0.10
 Flask-Sockets==0.2.1
 Flask==2.0.3
-gcsfs==2021.*
 gidgethub==4.1.0
 google-api-python-client==1.7.10
 google-cloud-logging==1.12.1
