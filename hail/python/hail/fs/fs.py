@@ -73,3 +73,7 @@ class FS(abc.ABC):
             self.copy(local_path_uri(Env.hc()._log), path)
         except Exception as e:
             sys.stderr.write(f'Could not copy log: encountered error:\n  {e}')
+
+    @abc.abstractmethod
+    def canonicalize_path(self, path: str) -> str:
+        pass

@@ -146,3 +146,8 @@ class GoogleCloudStorageFS(FS):
 
     def supports_scheme(self, scheme: str) -> bool:
         return scheme in ("gs", "")
+
+    def canonicalize_path(self, path: str) -> str:
+        if self._is_local(path):
+            return os.path.realpath(path)
+        return path

@@ -1802,7 +1802,8 @@ def import_matrix_table(paths,
     """
     row_key = wrap_to_list(row_key)
     comment = wrap_to_list(comment)
-    paths = wrap_to_list(paths)
+    print(hl.current_backend().fs)
+    paths = [hl.current_backend().fs.canonicalize_path(p) for p in wrap_to_list(paths)]
     missing_list = wrap_to_list(missing)
 
     def comment_filter(table):
@@ -1818,10 +1819,7 @@ def import_matrix_table(paths,
             string_array.append("...")
         return delim.join(string_array)
 
-    def match_file_name_to_index(file_name):
-        for idx, path in enumerate(paths):
-            if path.endswith(file_name) or file_name.endswith(path):
-                return idx
+    path_to_index = {path: idx for idx, path in enumerate(paths)}
 
     def format_file(file_name, hl_value=False):
         if hl_value:
@@ -1955,7 +1953,7 @@ def import_matrix_table(paths,
             first_data_line = two_first_lines[1] if len(two_first_lines) > 1 else None
             num_of_data_line_values = len(first_data_line.split_array) if len(two_first_lines) > 1 else 0
             num_of_header_values = len(header_line.split_array) if two_first_lines else 0
-            if header_line is None or match_file_name_to_index(header_line.file) != 0:
+            if header_line is None or path_to_index[header_line.file] != 0:
                 raise ValueError(f"Expected header in every file but found empty file: {format_file(paths[0])}")
             elif not first_data_line or first_data_line.file != header_line.file:
                 hl.utils.warning(f"File {format_file(header_line.file)} contains a header, but no lines of data")
@@ -2033,7 +2031,7 @@ def import_matrix_table(paths,
 
     else:
         first_line = first_lines_table.head(1).collect()
-        if not first_line or match_file_name_to_index(first_line[0].file) != 0:
+        if not first_line or path_to_index[first_line[0].file] != 0:
             hl.utils.warning(
                 f"File {format_file(paths[0])} is empty and has no header, so we assume no columns")
             header_dict = {'header_values': [],

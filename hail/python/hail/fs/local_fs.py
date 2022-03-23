@@ -70,3 +70,6 @@ class LocalFS(FS):
 
     def supports_scheme(self, scheme: str) -> bool:
         return scheme == ""
+
+    def canonicalize_path(self, path: str) -> str:
+        return os.path.realpath(path)
