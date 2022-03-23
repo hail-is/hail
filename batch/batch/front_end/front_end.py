@@ -1633,7 +1633,7 @@ def plot_job_durations(container_statuses: dict, batch_id: int, job_id: int):
         y='Step',
         color='Task',
         hover_data=['Step'],
-        color_discrete_sequence=px.colors.qualitative.Vivid,
+        color_discrete_sequence=px.colors.sequential.dense,
         category_orders={
             'Step': ['input', 'main', 'output'],
             'Task': [
