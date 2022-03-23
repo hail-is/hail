@@ -65,6 +65,9 @@ class LowerDistributedSortSuite extends HailSuite {
         }
         ans
       }
+      if (res != scalaSorted) {
+        println("Wrong")
+      }
       assert(res == scalaSorted)
     } finally {
       backend.setFlag("shuffle_cutoff_to_local_sort", originalShuffleCutoff)
@@ -72,7 +75,7 @@ class LowerDistributedSortSuite extends HailSuite {
   }
 
   @Test def testDistributedSort(): Unit = {
-    val tableRange = TableRange(100, 10)
+    val tableRange = TableRange(40, 10)
     val rangeRow = Ref("row", tableRange.typ.rowType)
     val tableWithExtraField = TableMapRows(
       tableRange,
