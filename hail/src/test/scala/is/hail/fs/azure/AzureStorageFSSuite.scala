@@ -2,9 +2,12 @@ package is.hail.fs.azure
 
 import is.hail.fs.FSSuite
 import is.hail.io.fs.AzureStorageFS
+import org.apache.commons.io.IOUtils
 import org.scalatest.testng.TestNGSuite
 import org.testng.SkipException
 import org.testng.annotations.{BeforeClass, Test}
+
+import java.io.FileInputStream
 
 
 class AzureStorageFSSuite extends TestNGSuite with FSSuite {
@@ -28,13 +31,13 @@ class AzureStorageFSSuite extends TestNGSuite with FSSuite {
 
   lazy val fs = {
     val aac = System.getenv("AZURE_APPLICATION_CREDENTIALS")
-//    if (aac == null) {
+    if (aac == null) {
     new AzureStorageFS()
-//    }
-//    else {
-//      new AzureStorageFS(
-//        Some(new String(IOUtils.toByteArray(new FileInputStream(aac)))))
-//    }
+    }
+    else {
+      new AzureStorageFS(
+        Some(new String(IOUtils.toByteArray(new FileInputStream(aac)))))
+    }
   }
 
   @Test def testDropTrailingSlash(): Unit = {
