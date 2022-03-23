@@ -3181,7 +3181,6 @@ Caused by: java.lang.AssertionError: assertion failed
 +---------+
 '''
 
-    @fails_local_backend()
     def test_export(self):
         for delimiter in ['\t', ',', '@']:
             for missing in ['NA', 'null']:

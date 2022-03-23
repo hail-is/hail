@@ -1540,6 +1540,7 @@ def import_table(paths,
         The `missing` parameter is **NOT** a regex. The `comment` parameter is
         treated as a regex **ONLY** if the length of the string is greater than
         1 (not a single character).
+
     The `no_header` parameter indicates that the file has no header line. If
     this option is passed, then the field names will be `f0`, `f1`,
     ... `fN` (0-indexed).
