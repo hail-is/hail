@@ -64,7 +64,6 @@ class Tests(unittest.TestCase):
         test_random_function(lambda: hl.rand_cat(hl.array([1, 1, 1, 1])))
         test_random_function(lambda: hl.rand_dirichlet(hl.array([1, 1, 1, 1])))
 
-    @fails_service_backend(reason='need to convert errors to HailUserError')
     def test_range(self):
         def same_as_python(*args):
             self.assertEqual(hl.eval(hl.range(*args)), list(range(*args)))
