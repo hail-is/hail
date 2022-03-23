@@ -178,6 +178,7 @@ class Tests(unittest.TestCase):
             results[0]['path'] == dirname + '/?'
 
     @fails_local_backend()
+    @fails_service_backend()
     def test_hadoop_ls_glob_empty_group_matches_empty_string(self):
         with hl.TemporaryDirectory() as dirname:
             with fs.open(dirname + '/a', 'w') as fobj:
