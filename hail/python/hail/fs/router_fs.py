@@ -259,6 +259,7 @@ class RouterFS(FS):
 
     def canonicalize_path(self, path: str) -> str:
         if isinstance(self.afs._get_fs(path), LocalAsyncFS):
-            if path[-5] != 'file:':
-                return 'file:' + os.path.realpath(path)
+            if path.startswith('file:'):
+                return 'file:' + os.path.realpath(path[5:])
+            return 'file:' + os.path.realpath(path)
         return path

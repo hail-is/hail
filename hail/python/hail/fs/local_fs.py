@@ -72,4 +72,6 @@ class LocalFS(FS):
         return scheme == ""
 
     def canonicalize_path(self, path: str) -> str:
-        return os.path.realpath(path)
+        if path.startswith('file:'):
+            return 'file:' + os.path.realpath(path[5:])
+        return 'file:' + os.path.realpath(path)

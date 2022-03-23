@@ -1802,7 +1802,6 @@ def import_matrix_table(paths,
     """
     row_key = wrap_to_list(row_key)
     comment = wrap_to_list(comment)
-    print(hl.current_backend().fs)
     paths = [hl.current_backend().fs.canonicalize_path(p) for p in wrap_to_list(paths)]
     missing_list = wrap_to_list(missing)
 
