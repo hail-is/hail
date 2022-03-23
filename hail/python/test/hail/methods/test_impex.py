@@ -2131,6 +2131,7 @@ Caused by: java.lang.ClassCastException: __C2829collect_distributed_array cannot
         ht2 = hl.import_table(resource('sampleAnnotations.tsv'))
         assert ht._same(ht2)
 
+    @fails_service_backend()
     def test_error_with_context(self):
         with pytest.raises(FatalError, match='For input string:'):
             ht = hl.import_table(resource('tsv_errors.tsv'), types={'col1': 'int32'})
