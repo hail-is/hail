@@ -821,6 +821,9 @@ def logistic_regression_rows(test, y, x, covariates, pass_through=()) -> hail.Ta
     -------
     :class:`.Table`
     """
+    if not isinstance(Env.backend(), SparkBackend):
+        return _logistic_regression_rows_nd(test, y, x, covariates, pass_through)
+
     if len(covariates) == 0:
         raise ValueError('logistic regression requires at least one covariate expression')
 
