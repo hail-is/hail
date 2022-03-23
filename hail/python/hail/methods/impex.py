@@ -1873,9 +1873,9 @@ def import_matrix_table(paths,
                 parse_type_or_error(rows_list[idx][1], row, idx) for idx in range(num_of_row_fields)}
 
     def error_msg(row, idx, msg):
-        return (hl.str("in file ") + hl.str(format_file(row.file, True)) +
-                hl.str(" on line ") + hl.str(row.row_id - get_file_start(row) + 1) +
-                hl.str(" at value '") + hl.str(row.split_array[idx]) + hl.str("':\n") + hl.str(msg))
+        return (hl.str("in file ") + hl.str(format_file(row.file, True))
+                + hl.str(" on line ") + hl.str(row.row_id - get_file_start(row) + 1)
+                + hl.str(" at value '") + hl.str(row.split_array[idx]) + hl.str("':\n") + hl.str(msg))
 
     def parse_type_or_error(hail_type, row, idx, not_entries=True):
         value = row.split_array[idx]
@@ -1893,8 +1893,8 @@ def import_matrix_table(paths,
         if not_entries:
             error_clarify_msg = hl.str(" at row field '") + hl.str(hl_row_fields[idx]) + hl.str("'")
         else:
-            error_clarify_msg = (hl.str(f" at column id '") + hl.str(hl_columns[idx - num_of_row_fields]) +
-                                 hl.str("' for entry field 'x' "))
+            error_clarify_msg = (hl.str(f" at column id '") + hl.str(hl_columns[idx - num_of_row_fields])
+                                 + hl.str("' for entry field 'x' "))
 
         return hl.if_else(hl.is_missing(value), hl.missing(hail_type),
                           hl.case().when(~hl.is_missing(parsed_type), parsed_type)
@@ -2062,12 +2062,19 @@ def import_matrix_table(paths,
     ht = ht.annotate(split_array=hl.case().when(hl.len(ht.split_array) >= num_of_row_fields, ht.split_array)
                      .or_error(error_msg(ht, hl.len(ht.split_array) - 1,
                                          " unexpected end of line while reading row field")))
-    ht = ht.annotate(split_array=hl.case().when(len(header_dict['column_ids']) <=
-                                                hl.len(ht.split_array[num_of_row_fields: num_of_row_fields +
-                                                                      + len(header_dict['column_ids'])]),
-                                                ht.split_array).or_error(error_msg(ht, hl.len(ht.split_array) - 1,
-                                                                                   " unexpected end of line"
-                                                                                   + " while reading entries")))
+
+    n_column_ids = len(header_dict['column_ids'])
+    n_in_split_array = hl.len(ht.split_array[num_of_row_fields:(num_of_row_fields + n_column_ids)])
+    ht = ht.annotate(split_array=hl.case().when(
+        n_column_ids <= n_in_split_array,
+        ht.split_array
+    ).or_error(
+        error_msg(
+            ht,
+            hl.len(ht.split_array) - 1,
+            " unexpected end of line while reading entries"
+        )
+    ))
 
     ht = ht.annotate(**parse_rows(ht), entries=parse_entries(ht).map(lambda entry: hl.struct(x=entry)))\
         .drop('text', 'split_array', 'file')
