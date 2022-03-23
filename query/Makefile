@@ -31,9 +31,6 @@ else
 JAR_LOCATION := $(TEST_STORAGE_URI)/$(NAMESPACE)/jars/$(HAIL_REVISION).jar
 endif
 
-foo:
-	echo $(JAR_LOCATION)
-
 .PHONY: upload-query-jar
 upload-query-jar: jar
 	! [ -z $(NAMESPACE) ]  # call this like: make deploy NAMESPACE=default
