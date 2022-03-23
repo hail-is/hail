@@ -14,7 +14,7 @@ import is.hail.types.virtual.{TArray, TString, TStruct, Type}
 import is.hail.types.{BaseTypeWithRequiredness, RStruct, TableType, TypeWithRequiredness}
 import is.hail.types.physical.{PCanonicalString, PCanonicalStruct, PField, PStruct, PType}
 import is.hail.types.virtual.{Field, TArray, TStream, TString, TStruct, Type}
-import is.hail.utils.{FastIndexedSeq,  FastSeq, checkGzippedFile, fatal}
+import is.hail.utils.{FastIndexedSeq, FastSeq, checkGzippedFile, fatal}
 import org.json4s.{Extraction, Formats, JValue}
 
 case class StringTableReaderParameters(

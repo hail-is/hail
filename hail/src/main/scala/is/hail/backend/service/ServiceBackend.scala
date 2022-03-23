@@ -14,6 +14,7 @@ import is.hail.expr.JSONAnnotationImpex
 import is.hail.expr.ir.lowering._
 import is.hail.expr.ir.{Compile, IR, IRParser, MakeTuple, SortField}
 import is.hail.io.fs._
+import is.hail.io.plink.LoadPlink
 import is.hail.linalg.BlockMatrix
 import is.hail.services._
 import is.hail.services.batch_client.BatchClient
@@ -427,6 +428,27 @@ class ServiceBackend(
     JsonMethods.compact(Extraction.decompose(metadata))
   }
 
+  def importFam(
+    tmpdir: String,
+    sessionId: String,
+    billingProject: String,
+    remoteTmpDir: String,
+    path: String,
+    quantPheno: Boolean,
+    delimiter: String,
+    missing: String,
+    flags: mutable.Map[String, String]
+  ): String = serviceBackendExecuteContext(
+    "ServiceBackend.importFam",
+    tmpdir,
+    sessionId,
+    billingProject,
+    remoteTmpDir,
+    flags
+  ) { ctx =>
+    LoadPlink.importFamJSON(ctx.fs, path, quantPheno, delimiter, missing)
+  }
+
   private[this] def serviceBackendExecuteContext[T](
     methodName: String,
     tmpdir: String,
@@ -540,6 +562,11 @@ class ServiceBackendSocketAPI2(
         read += r
       }
     }
+  }
+
+  def readBool(): Boolean = {
+    read(dummy, 0, 1)
+    Memory.loadByte(dummy, 0) != 0.toByte
   }
 
   def readInt(): Int = {
@@ -707,6 +734,24 @@ class ServiceBackendSocketAPI2(
         val path = readString()
         try {
           val result = backend.parseVCFMetadata(tmpdir, sessionId, billingProject, remoteTmpDir, path, flags)
+          writeBool(true)
+          writeString(result)
+        } catch {
+          case t: Throwable =>
+            writeBool(false)
+            writeString(formatException(t))
+        }
+
+      case IMPORT_FAM =>
+        val tmpdir = readString()
+        val billingProject = readString()
+        val remoteTmpDir = readString()
+        val path = readString()
+        val quantPheno = readBool()
+        val delimiter = readString()
+        val missing = readString()
+        try {
+          val result = backend.importFam(tmpdir, sessionId, billingProject, remoteTmpDir, path, quantPheno, delimiter, missing, flags)
           writeBool(true)
           writeString(result)
         } catch {

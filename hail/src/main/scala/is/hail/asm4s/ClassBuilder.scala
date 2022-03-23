@@ -241,7 +241,8 @@ class ClassBuilder[C](
 
   val lazyFieldMemo: mutable.Map[Any, Value[_]] = mutable.Map.empty
 
-  val lInit = lclass.newMethod("<init>", FastIndexedSeq(), UnitInfo)
+  val lInitBuilder = new MethodBuilder[C](this, "<init>", FastIndexedSeq(), UnitInfo)
+  val lInit = lInitBuilder.lmethod
 
   var initBody: Code[Unit] = {
     val L = new lir.Block()
@@ -263,6 +264,11 @@ class ClassBuilder[C](
 
   def emitInit(c: Code[Unit]): Unit = {
     initBody = Code(initBody, c)
+  }
+
+  def emitInitI(f: CodeBuilder => Unit): Unit = {
+    val body = CodeBuilder.scopedVoid(lInitBuilder)(f)
+    emitInit(body)
   }
 
   def emitClinit(c: Code[Unit]): Unit = {

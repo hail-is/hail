@@ -6,7 +6,6 @@ from typing import List
 import avro.schema
 from avro.datafile import DataFileReader
 from avro.io import DatumReader
-
 import hail as hl
 from hail import ir
 from hail.expr import StructExpression, LocusExpression, \
@@ -1610,7 +1609,7 @@ def import_table(paths,
     if len(delimiter) < 1:
         raise ValueError('import_table: empty delimiter is not supported')
 
-    def split_lines(row):
+    def split_lines(row, fields):
         split_array = row.text._split_line(delimiter, missing=missing, quote=quote, regex=len(delimiter) > 1)
         return hl.case().when(hl.len(split_array) == len(fields), split_array)\
             .or_error(hl.str("error in number of fields found: in file ") + hl.str(row.file)
@@ -1667,7 +1666,8 @@ def import_table(paths,
         ht = ht.annotate(text=ht['text'].replace(*find_replace))
 
     first_row = ht.head(1)
-    first_row_value = first_row.annotate(header=first_row.text.split(delimiter)).collect()[0]
+    first_row_value = first_row.annotate(
+        header=first_row.text._split_line(delimiter, missing=hl.empty_array(hl.tstr), quote=quote, regex=len(delimiter) > 1)).collect()[0]
 
     if first_row_value is None:
         raise ValueError(f"Invalid file: no lines remaining after filters\n Offending file: {first_row.file}")
@@ -1680,7 +1680,7 @@ def import_table(paths,
         num_of_fields = list(range(0, len(first_row_value.header)))
         fields = list(map(lambda f_num: "f" + str(f_num), num_of_fields))
 
-    ht = ht.annotate(split_text=hl.case().when(hl.len(ht.text) > 0, split_lines(ht))
+    ht = ht.annotate(split_text=hl.case().when(hl.len(ht.text) > 0, split_lines(ht, fields))
                      .or_error(hl.str("Blank line found in file ") + ht.file)).drop('text')
 
     fields_to_value = {}

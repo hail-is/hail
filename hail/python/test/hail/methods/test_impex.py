@@ -81,7 +81,6 @@ class VCFTests(unittest.TestCase):
     def test_can_import_bad_number_flag(self):
         hl.import_vcf(resource('bad_flag_number.vcf')).rows()._force_count()
 
-    @fails_service_backend()
     def test_malformed(self):
         with self.assertRaisesRegex(FatalError, "invalid character"):
             mt = hl.import_vcf(resource('malformed.vcf'))
@@ -229,7 +228,6 @@ class VCFTests(unittest.TestCase):
         mt = hl.import_vcf(resource('sample.pksorted.vcf'), n_partitions=4)
         mt.rows()._force_count()
 
-    @fails_service_backend()
     def test_import_vcf_skip_invalid_loci(self):
         mt = hl.import_vcf(resource('skip_invalid_loci.vcf'), reference_genome='GRCh37',
                            skip_invalid_loci=True)
@@ -724,7 +722,6 @@ class VCFTests(unittest.TestCase):
                 hl.export_vcf(mt.annotate_rows(info=mt.info.annotate(**{invalid_field: True})), t)
                 assert warning.call_count == 1
 
-    @fails_service_backend(reason='need to convert errors on worker into FatalError')
     def test_vcf_different_info_errors(self):
         with self.assertRaisesRegex(FatalError, "Check that all files have same INFO fields"):
             mt = hl.import_vcf([resource('different_info_test1.vcf'), resource('different_info_test2.vcf')])
@@ -1590,7 +1587,6 @@ class GENTests(unittest.TestCase):
                          hl.tstruct(contig=hl.tstr, position=hl.tint32))
         self.assertEqual(gen.count_rows(), 199)
 
-    @fails_service_backend(reason='need to convert errors to HailUserError')
     def test_import_gen_skip_invalid_loci(self):
         mt = hl.import_gen(resource('skip_invalid_loci.gen'),
                            resource('skip_invalid_loci.sample'),

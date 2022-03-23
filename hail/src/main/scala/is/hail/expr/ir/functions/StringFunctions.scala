@@ -1,15 +1,11 @@
 package is.hail.expr.ir.functions
 
-import java.time.temporal.ChronoField
-import java.time.{Instant, ZoneId}
-import java.util.Locale
 import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.expr.JSONAnnotationImpex
 import is.hail.expr.ir._
-import is.hail.types.physical._
 import is.hail.types.physical.stypes._
-import is.hail.types.physical.stypes.concrete.{SIndexablePointer, SJavaArrayString, SJavaArrayStringValue, SJavaArrayStringSettable, SJavaString, SStringPointer}
+import is.hail.types.physical.stypes.concrete.{SJavaArrayString, SJavaArrayStringSettable, SJavaArrayStringValue, SJavaString}
 import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.physical.stypes.primitives.{SBoolean, SInt32, SInt64}
 import is.hail.types.virtual._
@@ -18,6 +14,9 @@ import org.apache.spark.sql.Row
 import org.json4s.JValue
 import org.json4s.jackson.JsonMethods
 
+import java.time.temporal.ChronoField
+import java.time.{Instant, ZoneId}
+import java.util.Locale
 import java.util.regex.{Matcher, Pattern}
 import scala.collection.mutable
 
@@ -323,6 +322,7 @@ object StringFunctions extends RegistryFunctions {
         IEmitCode.present(cb, st.construct(cb, str))
     }
 
+
     registerWrappedScalaFunction1("reverse", TString, TString, (_: Type, _: SType) => SJavaString)(thisClass, "reverse")
     registerWrappedScalaFunction1("upper", TString, TString, (_: Type, _: SType) => SJavaString)(thisClass, "upper")
     registerWrappedScalaFunction1("lower", TString, TString, (_: Type, _: SType) => SJavaString)(thisClass, "lower")
@@ -406,7 +406,6 @@ object StringFunctions extends RegistryFunctions {
       val string = cb.newLocal[String]("string", s.asString.loadString(cb))
       val sep = cb.newLocal[String]("sep", separator.asString.loadString(cb))
       val mv = missing.asIndexable
-
       new SJavaArrayStringValue(st, generateSplitQuotedRegex(cb, string, Right(sep), None, mv, errorID))
     }
 
