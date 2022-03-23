@@ -1585,7 +1585,6 @@ E                   	at is.hail.backend.service.ServiceBackend.execute(ServiceBa
 
         assert ht.f0.collect() == [None, None, 'gene5', 'gene4', 'gene3']
 
-    @fails_service_backend()
     def test_unicode_ordering(self):
         a = hl.literal(["é", "e"])
         ht = hl.utils.range_table(1, 1)
