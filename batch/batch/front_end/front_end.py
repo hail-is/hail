@@ -21,6 +21,9 @@ import plotly.express as px
 import pymysql
 from aiohttp import web
 from prometheus_async.aio.web import server_stats  # type: ignore
+import pandas as pd
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
 
 from gear import (
     Database,
@@ -1630,7 +1633,7 @@ def plot_job_durations(container_statuses: dict, batch_id: int, job_id: int):
         y='Step',
         color='Task',
         hover_data=['Step'],
-        color_discrete_sequence=px.colors.sequential.dense,
+        color_discrete_sequence=px.colors.qualitative.Vivid,
         category_orders={
             'Step': ['input', 'main', 'output'],
             'Task': [
@@ -1647,10 +1650,49 @@ def plot_job_durations(container_statuses: dict, batch_id: int, job_id: int):
     return json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
 
 
-def plot_resource_usage(
-    resource_usage: Optional[Dict[str, Optional[pd.DataFrame]]]  # pylint: disable=unused-argument
-) -> Optional[str]:
-    return None
+def plot_resource_usage(resource_usage: Optional[Dict[str, Optional[pd.DataFrame]]]) -> Optional[str]:
+    fig = make_subplots(
+        rows=2, cols=1,
+        subplot_titles=("Memory", "CPU Usage")
+    )
+    colors = {'input': 'red', 'main': 'green', 'output': 'blue'}
+
+    if resource_usage is None:
+        return None
+    
+    for container_name, df in resource_usage.items():
+        if df is None:
+            continue
+
+        time = pd.to_datetime(df['time_msecs'], unit='ms')
+        mem = df['memory_in_bytes']
+        cpu = df['cpu_usage']
+        fig.add_trace(
+                    go.Scatter(
+                              x=time,
+                              y=cpu,
+                              legendgroup=container_name,
+                              name=container_name,
+                              mode="lines",
+                              line=dict(color=colors[container_name])
+                    ),
+                    row=2, col=1,
+        )
+        fig.add_trace(
+                    go.Scatter(
+                              x=time,
+                              y=mem,
+                              showlegend=False,
+                              legendgroup=container_name,
+                              name=container_name,
+                              mode="lines",
+                              line=dict(color=colors[container_name])
+                    ),
+                    row=1, col=1,
+        )
+    fig.update_layout(height=600, width=800, showlegend=True, yaxis2_tickformat='%')
+
+    return json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
 
 
 @routes.get('/batches/{batch_id}/jobs/{job_id}')
