@@ -112,6 +112,14 @@ class Tests(unittest.TestCase):
         self.assertEqual(stat2['is_dir'], False)
         self.assertTrue('path' in stat2)
 
+    def test_hadoop_ls_simple(self):
+        with hl.TemporaryDirectory() as dirname:
+            touch(dirname + 'a')
+            touch(dirname + '?')
+            dirname = self.normalize_path(dirname)
+
+        
+
     def test_hadoop_ls(self):
         path1 = resource('ls_test/f_50')
         ls1 = hl.hadoop_ls(path1)
@@ -150,6 +158,8 @@ class Tests(unittest.TestCase):
             hl.hadoop_ls(resource('foo[/]bar'))
         except ValueError as err:
             assert 'glob groups must not include forward slashes' in err.args[0]
+        except FatalError as err:
+            assert 'PatternSyntaxException: error parsing regexp: Unclosed character class at pos 4' in err.args[0]
         else:
             assert False
 

@@ -1,6 +1,7 @@
 from typing import List, AsyncContextManager, BinaryIO, Optional
 import asyncio
 import io
+from hailtop.aiotools.local_fs import LocalAsyncFSURL
 import nest_asyncio
 import os
 import functools
@@ -261,6 +262,8 @@ class RouterFS(FS):
             raise ValueError(f'glob pattern only allowed in path (e.g. not in bucket): {path}')
 
         blobpath = url.path
+        if isinstance(url, LocalAsyncFSURL) and blobpath[0] != '/':
+            blobpath = './' + blobpath
 
         components = blobpath.split('/')
         assert len(components) > 0
@@ -280,14 +283,22 @@ class RouterFS(FS):
             suffix = ''
         else:
             suffix = '/' + '/'.join(running_prefix)
-        cumulative_prefixes = [str(url.with_path('')).rstrip('/')]
-        for component_prefix, pattern in glob_components:
+        if len(glob_components) > 0:
+            first_component_prefix, first_component_pattern = glob_components[0]
+            first_component_prefix_url = str(url.with_path('/'.join(first_component_prefix)))
+            possible_paths = await ls_no_glob(first_component_prefix_url)
+            first_full_pattern = '/'.join([first_component_prefix_url, first_component_pattern])
             cumulative_prefixes = [
                 stat.path
-                for cumulative_prefix in cumulative_prefixes
-                for stat in await ls_no_glob('/'.join([cumulative_prefix, *component_prefix]))
-                if fnmatch.fnmatch(stat.path, '/'.join([cumulative_prefix, *component_prefix, pattern]))
-            ]
+                for stat in possible_paths
+                if fnmatch.fnmatch(stat.path, first_full_pattern)]
+            for component_prefix, pattern in glob_components[1:]:
+                cumulative_prefixes = [
+                    stat.path
+                    for cumulative_prefix in cumulative_prefixes
+                    for stat in await ls_no_glob('/'.join([cumulative_prefix, *component_prefix]))
+                    if fnmatch.fnmatch(stat.path, '/'.join([cumulative_prefix, *component_prefix, pattern]))
+                ]
 
         return [stat
                 for cumulative_prefix in cumulative_prefixes
@@ -304,7 +315,7 @@ class RouterFS(FS):
                     *[functools.partial(self._fle_to_dict, fle)
                       async for fle in await self.afs.listfiles(path)],
                     parallelism=_max_simultaneous_files)
-            except FileNotFoundError:
+            except (FileNotFoundError, NotADirectoryError):
                 return None
         maybe_size, maybe_contents = await asyncio.gather(
             self._size_bytes_or_none(path), ls_as_dir())

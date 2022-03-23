@@ -294,7 +294,7 @@ class S3AsyncFS(AsyncFS):
         return (parsed.netloc, name)
 
     async def open(self, url: str) -> ReadableStream:
-        bucket, name = self._get_bucket_name(url)
+        bucket, name = self.get_bucket_name(url)
         try:
             resp = await blocking_to_async(self._thread_pool, self._s3.get_object,
                                            Bucket=bucket,
@@ -304,7 +304,7 @@ class S3AsyncFS(AsyncFS):
             raise FileNotFoundError(url) from e
 
     async def open_from(self, url: str, start: int) -> ReadableStream:
-        bucket, name = self._get_bucket_name(url)
+        bucket, name = self.get_bucket_name(url)
         try:
             resp = await blocking_to_async(self._thread_pool, self._s3.get_object,
                                            Bucket=bucket,
@@ -355,7 +355,7 @@ class S3AsyncFS(AsyncFS):
         # interface.  This has the disadvantage that the read must
         # complete before the write can begin (unlike the current
         # code, that copies 128MB parts in 256KB chunks).
-        bucket, name = self._get_bucket_name(url)
+        bucket, name = self.get_bucket_name(url)
         return S3CreateManager(self, bucket, name)
 
     async def multi_part_create(
@@ -363,7 +363,7 @@ class S3AsyncFS(AsyncFS):
             sema: asyncio.Semaphore,
             url: str,
             num_parts: int) -> MultiPartCreate:
-        bucket, name = self._get_bucket_name(url)
+        bucket, name = self.get_bucket_name(url)
         return S3MultiPartCreate(sema, self, bucket, name, num_parts)
 
     async def mkdir(self, url: str) -> None:
@@ -373,7 +373,7 @@ class S3AsyncFS(AsyncFS):
         pass
 
     async def statfile(self, url: str) -> FileStatus:
-        bucket, name = self._get_bucket_name(url)
+        bucket, name = self.get_bucket_name(url)
         try:
             resp = await blocking_to_async(self._thread_pool, self._s3.head_object,
                                            Bucket=bucket,
@@ -410,7 +410,7 @@ class S3AsyncFS(AsyncFS):
                         recursive: bool = False,
                         exclude_trailing_slash_files: bool = True
                         ) -> AsyncIterator[FileListEntry]:
-        bucket, name = self._get_bucket_name(url)
+        bucket, name = self.get_bucket_name(url)
         if name and not name.endswith('/'):
             name += '/'
         if recursive:
@@ -454,7 +454,7 @@ class S3AsyncFS(AsyncFS):
 
     async def isfile(self, url: str) -> bool:
         try:
-            bucket, name = self._get_bucket_name(url)
+            bucket, name = self.get_bucket_name(url)
             await blocking_to_async(self._thread_pool, self._s3.head_object,
                                     Bucket=bucket,
                                     Key=name)
@@ -474,7 +474,7 @@ class S3AsyncFS(AsyncFS):
 
     async def remove(self, url: str) -> None:
         try:
-            bucket, name = self._get_bucket_name(url)
+            bucket, name = self.get_bucket_name(url)
             await blocking_to_async(self._thread_pool, self._s3.delete_object,
                                     Bucket=bucket,
                                     Key=name)

@@ -317,12 +317,12 @@ class AzureAsyncFS(AsyncFS):
         return self._blob_service_clients[account]
 
     def get_blob_client(self, url: str) -> BlobClient:
-        account, container, name = AzureAsyncFS._get_account_container_name(url)
+        account, container, name = AzureAsyncFS.get_account_container_name(url)
         blob_service_client = self.get_blob_service_client(account)
         return blob_service_client.get_blob_client(container, name)
 
     def get_container_client(self, url: str) -> ContainerClient:
-        account, container, _ = AzureAsyncFS._get_account_container_name(url)
+        account, container, _ = AzureAsyncFS.get_account_container_name(url)
         blob_service_client = self.get_blob_service_client(account)
         return blob_service_client.get_container_client(container)
 
@@ -349,7 +349,7 @@ class AzureAsyncFS(AsyncFS):
         return AzureMultiPartCreate(sema, client, num_parts)
 
     async def isfile(self, url: str) -> bool:
-        _, _, name = self._get_account_container_name(url)
+        _, _, name = self.get_account_container_name(url)
         # if name is empty, get_object_metadata behaves like list objects
         # the urls are the same modulo the object name
         if not name:
@@ -358,7 +358,7 @@ class AzureAsyncFS(AsyncFS):
         return await self.get_blob_client(url).exists()
 
     async def isdir(self, url: str) -> bool:
-        _, _, name = self._get_account_container_name(url)
+        _, _, name = self.get_account_container_name(url)
         assert not name or name.endswith('/'), name
         client = self.get_container_client(url)
         async for _ in client.walk_blobs(name_starts_with=name,
@@ -407,7 +407,7 @@ class AzureAsyncFS(AsyncFS):
                         recursive: bool = False,
                         exclude_trailing_slash_files: bool = True
                         ) -> AsyncIterator[FileListEntry]:
-        _, _, name = self._get_account_container_name(url)
+        _, _, name = self.get_account_container_name(url)
         if name and not name.endswith('/'):
             name = f'{name}/'
 
