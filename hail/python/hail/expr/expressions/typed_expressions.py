@@ -3112,30 +3112,29 @@ class StringExpression(Expression):
         Examples
         --------
 
-        >>> string = hl.literal('NA12878')
-
         The `regex` parameter does not need to match the entire string if `full_match` is ``False``:
 
+        >>> string = hl.literal('NA12878')
         >>> hl.eval(string.matches('12'))
         True
 
         The `regex` parameter needs to match the entire string if `full_match` is ``True``:
 
-        >>> hl.eval(string.matches('12'), True)
+        >>> string = hl.literal('NA12878')
+        >>> hl.eval(string.matches('12', True))
         False
 
-   >>> string = hl.literal('3412878')
-
+        >>> string = hl.literal('3412878')
         >>> hl.eval(string.matches('^[0-9]*$'))
         True
 
         Regex motifs can be used to match sequences of characters:
 
+        >>> string = hl.literal('NA12878')
         >>> hl.eval(string.matches(r'NA\\d+'))
         True
 
         >>> string = hl.literal('3412878')
-
         >>> hl.eval(string.matches('^[0-9]*$'))
         True
 
