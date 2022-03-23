@@ -632,7 +632,6 @@ class Container:
         self.netns: Optional[NetworkNamespace] = None
         # regarding no-member: https://github.com/PyCQA/pylint/issues/4223
         self.process: Optional[asyncio.subprocess.Process] = None  # pylint: disable=no-member
-        self.pid: Optional[int] = None
 
         self._run_fut: Optional[asyncio.Future] = None
         self._cleanup_lock = asyncio.Lock()
@@ -697,10 +696,6 @@ class Container:
                 self.error = traceback.format_exc()
 
         self._run_fut = asyncio.ensure_future(self._run_until_done_or_deleted(_run))
-
-        delay = 0.1
-        while self.pid is None:
-            delay = await sleep_and_backoff(delay)
 
     async def wait(self):
         assert self._run_fut
@@ -838,7 +833,6 @@ class Container:
             async with async_timeout.timeout(self.timeout):
                 with open(self.log_path, 'w', encoding='utf-8') as container_log:
                     log.info(f'Creating the crun run process for {self}')
-                    pid_file = f'{self.container_scratch}/container.pid'
                     self.process = await asyncio.create_subprocess_exec(
                         'crun',
                         'run',
@@ -846,22 +840,10 @@ class Container:
                         f'{self.container_overlay_path}/merged',
                         '--config',
                         f'{self.config_path}/config.json',
-                        '--pid-file',
-                        pid_file,
                         self.name,
                         stdout=container_log,
                         stderr=container_log,
                     )
-
-                    async def wait_for_pid_file():
-                        delay = 0.01
-                        while not os.path.exists(pid_file):
-                            delay = await sleep_and_backoff(delay)
-
-                    await asyncio.wait_for(wait_for_pid_file(), timeout=30)
-
-                    with open(pid_file, 'r') as f:  # pylint: disable=unspecified-encoding
-                        self.pid = int(f.read())
 
                     await self.process.wait()
                     log.info(f'crun process completed for {self}')
