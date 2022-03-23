@@ -1597,11 +1597,6 @@ class JVMJob(Job):
     async def run_until_done_or_deleted(self, f: Callable[..., Awaitable[Any]], *args, **kwargs):
         return await run_until_done_or_deleted(self.deleted_event, f, *args, **kwargs)
 
-    def verify_is_acceptable_query_jar_url(self, url: str):
-        if not url.startswith(ACCEPTABLE_QUERY_JAR_URL_PREFIX):
-            log.error(f'user submitted unacceptable JAR url: {url} for {self}. {ACCEPTABLE_QUERY_JAR_URL_PREFIX}')
-            raise ValueError(f'unacceptable JAR url: {url}')
-
     def secret_host_path(self, secret):
         return f'{self.scratch}/secrets/{secret["mount_path"]}'
 
@@ -1610,7 +1605,7 @@ class JVMJob(Job):
             unique_key = self.jar_url.replace('_', '__').replace('/', '_')
             local_jar_location = f'/hail-jars/{unique_key}.jar'
             if not os.path.isfile(local_jar_location):
-                self.verify_is_acceptable_query_jar_url(self.jar_url)
+                assert self.jar_url.startswith(ACCEPTABLE_QUERY_JAR_URL_PREFIX)
                 temporary_file = tempfile.NamedTemporaryFile(delete=False)  # pylint: disable=consider-using-with
                 try:
                     async with await self.worker.fs.open(self.jar_url) as jar_data:

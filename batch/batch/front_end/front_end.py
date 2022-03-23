@@ -783,6 +783,11 @@ WHERE user = %s AND id = %s AND NOT deleted;
                         assert_is_sha_1_hex_string(revision)
                         spec['process']['jar_spec']['type'] = 'jar_url'
                         spec['process']['jar_spec']['value'] = ACCEPTABLE_QUERY_JAR_URL_PREFIX + '/' + revision + '.jar'
+                    else:
+                        assert spec['process']['jar_spec']['type'] == 'jar_url'
+                        jar_url = spec['process']['jar_spec']['value']
+                        if not jar_url.startswith(ACCEPTABLE_QUERY_JAR_URL_PREFIX):
+                            raise HTTPBadRequest(reason=f'unacceptable JAR url: {jar_url}')
 
                 req_memory_bytes: Optional[int]
                 if machine_type is None:
