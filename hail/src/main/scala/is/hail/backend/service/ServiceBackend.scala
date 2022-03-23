@@ -57,11 +57,6 @@ object ServiceBackend {
   private val log = Logger.getLogger(getClass.getName())
 }
 
-class User(
-  val username: String,
-  val tmpdir: String,
-  val fs: GoogleStorageFS)
-
 class ServiceBackend(
   val revision: String,
   val jarLocation: String,
@@ -72,14 +67,8 @@ class ServiceBackend(
   import ServiceBackend.log
 
   private[this] var batchCount = 0
-  private[this] val users = new ConcurrentHashMap[String, User]()
   private[this] implicit val ec = scalaConcurrent.ExecutionContext.fromExecutorService(
     Executors.newCachedThreadPool())
-
-  def addUser(username: String, key: String): Unit = synchronized {
-    val previous = users.put(username, new User(username, "/tmp", new GoogleStorageFS(Some(key))))
-    assert(previous == null)
-  }
 
   def defaultParallelism: Int = 10
 
