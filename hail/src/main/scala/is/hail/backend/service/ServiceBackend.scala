@@ -461,7 +461,7 @@ class ServiceBackend(
     contigRecoding: Map[String, String],
     skipInvalidLoci: Boolean,
     flags: mutable.Map[String, String]
-  ): Unit = serviceBackendExecuteContext(
+  ): String = serviceBackendExecuteContext(
     "ServiceBackend.indexBgen",
     tmpdir,
     sessionId,
@@ -471,6 +471,7 @@ class ServiceBackend(
   ) { ctx =>
     IndexBgen(ctx, files, indexFileMap, referenceGenomeName, contigRecoding, skipInvalidLoci)
     info(s"Number of BGEN files indexed: ${ files.size }")
+    "null"
   }
 
   private[this] def serviceBackendExecuteContext[T](
@@ -834,7 +835,7 @@ class ServiceBackendSocketAPI2(
             flags
           )
           writeBool(true)
-          writeString("null")
+          writeString(result)
         } catch {
           case t: Throwable =>
             writeBool(false)
