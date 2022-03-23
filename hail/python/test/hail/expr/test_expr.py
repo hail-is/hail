@@ -4333,3 +4333,14 @@ E                   	at java.lang.Thread.run(Thread.java:748)
             [('foo', 10), ('bar', 11), ('baz', 12)],
             []
         )
+
+    def test_split_line(self):
+        s1 = '1 2 3 4 5 6 7'
+        s2 = '1 2 "3 4" "a b c d"'
+        s3 = '"1" "2"'
+
+        assert hl.eval(hl.str(s1)._split_line(' ', ['NA'], quote=None, regex=False)) == s1.split(' ')
+        assert hl.eval(hl.str(s1)._split_line(r'\s+', ['NA'], quote=None, regex=True)) == s1.split(' ')
+        assert hl.eval(hl.str(s3)._split_line(' ', ['1'], quote='"', regex=False)) == [None, '2']
+        assert hl.eval(hl.str(s2)._split_line(' ', ['1', '2'], quote='"', regex=False)) == [None, None, '3 4', 'a b c d']
+        assert hl.eval(hl.str(s2)._split_line(r'\s+', ['1', '2'], quote='"', regex=True)) == [None, None, '3 4', 'a b c d']

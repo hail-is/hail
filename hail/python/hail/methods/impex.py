@@ -6,7 +6,6 @@ from typing import List
 import avro.schema
 from avro.datafile import DataFileReader
 from avro.io import DatumReader
-
 import hail as hl
 from hail import ir
 from hail.expr import StructExpression, LocusExpression, \
@@ -16,12 +15,13 @@ from hail.expr import StructExpression, LocusExpression, \
 from hail.expr.types import hail_type, tarray, tfloat64, tstr, tint32, tstruct, \
     tcall, tbool, tint64, tfloat32
 from hail.genetics.reference_genome import reference_genome_type
+from hail.ir.utils import parse_type
 from hail.matrixtable import MatrixTable
 from hail.methods.misc import require_biallelic, require_row_key_variant, require_col_key_str
 from hail.table import Table
 from hail.typecheck import typecheck, nullable, oneof, dictof, anytype, \
     sequenceof, enumeration, sized_tupleof, numeric, table_key_type, char
-from hail.utils import wrap_to_list
+from hail.utils.misc import wrap_to_list
 from hail.utils.java import Env, FatalError, jindexed_seq_args, warning
 
 
@@ -1602,26 +1602,98 @@ def import_table(paths,
     -------
     :class:`.Table`
     """
+    if len(delimiter) < 1:
+        raise ValueError('import_table: empty delimiter is not supported')
+
+    def split_lines(row, fields):
+        split_array = row.text._split_line(delimiter, missing=missing, quote=quote, regex=len(delimiter) > 1)
+        return hl.case().when(hl.len(split_array) == len(fields), split_array)\
+            .or_error(hl.str("error in number of fields found: in file ") + hl.str(row.file)
+                      + hl.str(f"\nexpected {len(fields)} {'fields' if len(fields) > 1 else 'field' }, found ")
+                      + hl.str(hl.len(split_array)) + hl.if_else(hl.len(split_array) > 1, hl.str(" fields"),
+                      hl.str(" field")) + hl.str("\nfor line consisting of '") + hl.str(row.text) + "'")
+
+    def should_filter_line(hl_str):
+        to_filter = hl_str.matches(filter) if filter is not None else hl.bool(False)
+        if len(comment) > 0:
+            hl_comment = hl.array(comment)
+            filter_comment = hl_comment.any(lambda com: hl.if_else(hl.len(com) == 1,
+                                                                   hl_str.startswith(com),
+                                                                   hl_str.matches(com, True)))
+        else:
+            filter_comment = hl.bool(False)
+        filter_blank_line = hl.len(hl_str) == 0 if skip_blank_lines else hl.bool(False)
+        return hl.array([to_filter, filter_comment, filter_blank_line]).any(lambda filt: filt)
+
+    def check_fields_for_duplicates(fields_to_check):
+        changed_fields = []
+        unique_fields = {}
+        for field_idx, field_to_check in enumerate(fields_to_check):
+            field_copy = field_to_check
+            suffix = 1
+            while unique_fields.get(field_copy) is not None:
+                field_copy = field_to_check + str(suffix)
+                suffix += 1
+            if field_copy is not field_to_check:
+                changed_fields.append((field_copy, field_to_check))
+            unique_fields[field_copy] = field_idx
+        for new_field_name in changed_fields:
+            fields_to_check[unique_fields[new_field_name[0]]] = new_field_name[0]
+        if len(changed_fields) > 0:
+            from itertools import starmap
+            print_changed_fields = list(starmap(lambda post, pre: f"{pre} -> {post}", changed_fields))
+            hl.utils.warning(f"Found {len(changed_fields)} duplicate"
+                             f" {'row field' if len(changed_fields) == 1 else 'row fields'}. Changed row fields as "
+                             f"follows:\n" + "\n".join(print_changed_fields))
+        return fields_to_check
+
+    if len(delimiter) == 0:
+        raise ValueError("Hail does not currently support 0-character separators")
+
     paths = wrap_to_list(paths)
     comment = wrap_to_list(comment)
     missing = wrap_to_list(missing)
 
-    tr = ir.TextTableReader(paths, min_partitions, types, comment,
-                            delimiter, missing, no_header, quote,
-                            skip_blank_lines, force_bgz, filter, find_replace,
-                            force, source_file_field)
-    ht = Table(ir.TableRead(tr))
+    ht = hl.import_lines(paths, min_partitions, force_bgz, force)
+    if skip_blank_lines is not None or len(comment) > 0 or filter is not None:
+        ht = ht.filter(should_filter_line(ht.text), keep=False)
 
+    if find_replace is not None:
+        ht = ht.annotate(text=ht['text'].replace(*find_replace))
+
+    first_row = ht.head(1)
+    first_row_value = first_row.annotate(
+        header=first_row.text._split_line(delimiter, missing=hl.empty_array(hl.tstr), quote=quote, regex=len(delimiter) > 1)).collect()[0]
+
+    if first_row_value is None:
+        raise ValueError(f"Invalid file: no lines remaining after filters\n Offending file: {first_row.file}")
+
+    if not no_header:
+        unchecked_fields = first_row_value.header
+        fields = check_fields_for_duplicates(unchecked_fields)
+        ht = ht.filter(ht.text == first_row_value.text, keep=False)
+    else:
+        num_of_fields = list(range(0, len(first_row_value.header)))
+        fields = list(map(lambda f_num: "f" + str(f_num), num_of_fields))
+
+    ht = ht.annotate(split_text=hl.case().when(hl.len(ht.text) > 0, split_lines(ht, fields))
+                     .or_error(hl.str("Blank line found in file ") + ht.file)).drop('text')
+
+    fields_to_value = {}
     strs = []
-
     if impute:
-        fields_to_guess = [f for f in ht.row if f not in types]
+        fields_to_impute_idx = []
+        fields_to_guess = []
+        for idx, field in enumerate(fields):
+            if types.get(field) is None:
+                fields_to_impute_idx.append(idx)
+                fields_to_guess.append(field)
 
         hl.utils.info('Reading table to impute column types')
-        guessed = ht.aggregate(hl.agg.array_agg(lambda x: hl.agg._impute_type(x), [ht[f] for f in fields_to_guess]))
+        guessed = ht.aggregate(hl.agg.array_agg(lambda x: hl.agg._impute_type(x),
+                                                [ht.split_text[i] for i in fields_to_impute_idx]))
 
         reasons = {f: 'user-supplied type' for f in types}
-
         imputed_types = dict()
         for field, s in zip(fields_to_guess, guessed):
             if not s['anyNonMissing']:
@@ -1643,28 +1715,31 @@ def import_table(paths,
         strs.append('Finished type imputation')
 
         all_types = dict(**types, **imputed_types)
-        for field in ht.row:
-            strs.append(f'  Loading field {field!r} as type {all_types[field]} ({reasons[field]})')
 
-        tr = ir.TextTableReader(paths, min_partitions, all_types, comment,
-                                delimiter, missing, no_header, quote,
-                                skip_blank_lines, force_bgz, filter, find_replace,
-                                force, source_file_field)
-        ht = Table(ir.TableRead(tr))
+        for f_idx, field in enumerate(fields):
+            strs.append(f'  Loading field {field!r} as type {all_types[field]} ({reasons[field]})')
+            fields_to_value[field] = parse_type(ht.split_text[f_idx], all_types[field])
 
     else:
         strs.append('Reading table without type imputation')
-        for field in ht.row:
+        for f_idx, field in enumerate(fields):
             reason = 'user-supplied' if field in types else 'not specified'
             t = types.get(field, hl.tstr)
+            fields_to_value[field] = parse_type(ht.split_text[f_idx], t)
             strs.append(f'  Loading field {field!r} as type {t} ({reason})')
 
-    if len(ht.row) < 30:
+    ht = ht.annotate(**fields_to_value).drop('split_text')
+    if source_file_field is not None:
+        source_file = {source_file_field: ht.file}
+        ht = ht.annotate(**source_file)
+    ht = ht.drop('file')
+
+    if len(fields) < 30:
         hl.utils.info('\n'.join(strs))
     else:
         from collections import Counter
-        strs2 = [f'Loading {len(ht.row)} fields. Counts by type:']
-        for name, count in Counter(ht[f].dtype for f in ht.row).most_common():
+        strs2 = [f'Loading {ht.row} fields. Counts by type:']
+        for name, count in Counter(ht[f].dtype for f in fields).most_common():
             strs2.append(f'  {name}: {count}')
         hl.utils.info('\n'.join(strs2))
 
@@ -1674,8 +1749,9 @@ def import_table(paths,
     return ht
 
 
-@typecheck(paths=oneof(str, sequenceof(str)), min_partitions=nullable(int))
-def import_lines(paths, min_partitions=None) -> Table:
+@typecheck(paths=oneof(str, sequenceof(str)), min_partitions=nullable(int), force_bgz=bool,
+           force=bool)
+def import_lines(paths, min_partitions=None, force_bgz=False, force=False) -> Table:
     """Import lines of file(s) as a :class:`.Table` of strings.
 
     Examples
@@ -1702,6 +1778,16 @@ def import_lines(paths, min_partitions=None) -> Table:
         Files to import.
     min_partitions: :obj:`int` or :obj:`None`
         Minimum number of partitions.
+    force_bgz : :obj:`bool`
+        If ``True``, load files as blocked gzip files, assuming
+        that they were actually compressed using the BGZ codec. This option is
+        useful when the file extension is not ``'.bgz'``, but the file is
+        blocked gzip, so that the file can be read in parallel and not on a
+        single node.
+    force : :obj:`bool`
+        If ``True``, load gzipped files serially on one core. This should
+        be used only when absolutely necessary, as processing time will be
+        increased due to lack of parallelism.
 
     Returns
     -------
@@ -1710,7 +1796,7 @@ def import_lines(paths, min_partitions=None) -> Table:
     """
     paths = wrap_to_list(paths)
 
-    st_reader = ir.StringTableReader(paths, min_partitions)
+    st_reader = ir.StringTableReader(paths, min_partitions, force_bgz, force)
     string_table = Table(ir.TableRead(st_reader))
 
     return string_table

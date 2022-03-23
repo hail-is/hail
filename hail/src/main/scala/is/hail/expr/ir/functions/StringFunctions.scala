@@ -1,15 +1,11 @@
 package is.hail.expr.ir.functions
 
-import java.time.temporal.ChronoField
-import java.time.{Instant, ZoneId}
-import java.util.Locale
 import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.expr.JSONAnnotationImpex
 import is.hail.expr.ir._
-import is.hail.types.physical._
 import is.hail.types.physical.stypes._
-import is.hail.types.physical.stypes.concrete.{SIndexablePointer, SJavaArrayString, SJavaString, SStringPointer}
+import is.hail.types.physical.stypes.concrete.{SJavaArrayString, SJavaArrayStringSettable, SJavaArrayStringValue, SJavaString}
 import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.physical.stypes.primitives.{SBoolean, SInt32, SInt64}
 import is.hail.types.virtual._
@@ -18,10 +14,13 @@ import org.apache.spark.sql.Row
 import org.json4s.JValue
 import org.json4s.jackson.JsonMethods
 
+import java.time.temporal.ChronoField
+import java.time.{Instant, ZoneId}
+import java.util.Locale
+import java.util.regex.{Matcher, Pattern}
 import scala.collection.mutable
 
 object StringFunctions extends RegistryFunctions {
-
   def reverse(s: String): String = {
     val sb = new StringBuilder
     sb.append(s)
@@ -46,11 +45,13 @@ object StringFunctions extends RegistryFunctions {
 
   def regexMatch(regex: String, s: String): Boolean = regex.r.findFirstIn(s).isDefined
 
+  def regexFullMatch(regex: String, s: String): Boolean = s.matches(regex)
+
   def concat(s: String, t: String): String = s + t
 
   def replace(str: String, pattern1: String, pattern2: String): String =
     str.replaceAll(pattern1, pattern2)
-
+   
   def split(s: String, p: String): Array[String] = s.split(p, -1)
 
   def translate(s: String, d: Map[String, String]): String = {
@@ -82,9 +83,141 @@ object StringFunctions extends RegistryFunctions {
 
   def escapeString(s: String): String = StringEscapeUtils.escapeString(s)
 
+  def addValueOrNull(ab: StringArrayBuilder, value: String, missingValues: Array[String]): Unit = {
+    var i = 0
+    while (i < missingValues.length) {
+      if (missingValues(i) == value) {
+        ab += null
+        return
+      }
+      i += 1
+    }
+    ab += value
+  }
+
+  def matchPattern(s: String, i: Int, m: Matcher): Int = {
+    m.region(i, s.length)
+    if (m.lookingAt())
+      m.end() - m.start()
+    else
+      -1
+  }
+
+  def generateSplitQuotedRegex(
+    cb: EmitCodeBuilder,
+    string: Value[String],
+    separator: Either[Value[Char], Value[String]],
+    quoteChar: Option[Value[Char]],
+    missingSV: SIndexableValue,
+    errorID: Value[Int]
+  ): Value[Array[String]] = {
+
+    // note: it will be inefficient to convert a SIndexablePointer to SJavaArrayString to split each line.
+    // We should really choose SJavaArrayString as the stype for a literal if used in a place like this,
+    // but this is a non-local stype decision that is hard in the current system
+    val missing: Value[Array[String]] = missingSV.st match {
+      case SJavaArrayString(elementRequired) => missingSV.asInstanceOf[SJavaArrayStringSettable].array
+      case _ =>
+        val mb = cb.emb.ecb.newEmitMethod("convert_region_to_str_array", FastIndexedSeq(missingSV.st.paramType), arrayInfo[String])
+        mb.emitWithBuilder[Array[String]] { cb =>
+          val sv = mb.getSCodeParam(1).asIndexable
+          val m = cb.newLocal[Array[String]]("missingvals", Code.newArray[String](sv.loadLength()))
+          sv.forEachDefined(cb) { case (cb, idx, sc) => cb += (m(idx) = sc.asString.loadString(cb)) }
+          m
+        }
+        cb.newLocal[Array[String]]("missing_arr", cb.invokeCode(mb, missingSV))
+    }
+
+    // lazy field reused across calls to split functions
+    val ab = cb.emb.getOrDefineLazyField[StringArrayBuilder](Code.newInstance[StringArrayBuilder, Int](16), "generate_split_quoted_regex_ab")
+    cb += ab.invoke[Unit]("clear")
+
+    // takes the current position and current char value, returns the number of matching chars
+    // in the separator, or -1 if not a separator
+    val getPatternMatch: (Value[Int], Value[Char]) => Value[Int] = {
+      val x = cb.newLocal[Int]("sepCharMatch");
+      separator match {
+        case Left(sepChar) =>
+          (_: Value[Int], char: Value[Char]) => {
+            cb.ifx(char.ceq(sepChar), cb.assign(x, 1), cb.assign(x, -1));
+            x
+          }
+        case Right(regex) =>
+          val m = cb.newLocal[Matcher]("matcher",
+            Code.invokeStatic1[Pattern, String, Pattern]("compile", regex)
+              .invoke[CharSequence, Matcher]("matcher", string));
+          (idx: Value[Int], _: Value[Char]) => {
+            cb.assign(x, Code.invokeScalaObject3[String, Int, Matcher, Int](
+              StringFunctions.getClass, "matchPattern", string, idx, m));
+            x
+          }
+      }
+    }
+
+    val i = cb.newLocal[Int]("i", 0)
+    val lastFieldStart = cb.newLocal[Int]("lastfieldstart", 0)
+
+    def addValueOrNA(cb: EmitCodeBuilder, endIdx: Code[Int]): Unit = {
+      cb += Code.invokeScalaObject3[StringArrayBuilder, String, Array[String], Unit](
+        StringFunctions.getClass, "addValueOrNull", ab, string.invoke[Int, Int, String]("substring", lastFieldStart, endIdx), missing)
+    }
+
+    val LreturnWithoutAppending = CodeLabel()
+
+    cb.whileLoop(i < string.length(), {
+      val c = cb.newLocal[Char]("c", string(i))
+
+      val l = getPatternMatch(i, c)
+      cb.ifx(l.cne(-1), {
+        addValueOrNA(cb, i)
+        cb.assign(i, i + l) // skip delim
+        cb.assign(lastFieldStart, i)
+      }, {
+        quoteChar match {
+          case Some(qc) =>
+            cb.ifx(c.ceq(qc), {
+              cb.ifx(i.cne(lastFieldStart),
+                cb._fatalWithError(errorID, "opening quote character '", qc.toS, "' not at start of field"))
+              cb.assign(i, i + 1) // skip quote
+              cb.assign(lastFieldStart, i)
+
+              cb.whileLoop(i < string.length() && string(i).cne(qc), {
+                cb.assign(i, i + 1)
+              })
+
+              addValueOrNA(cb, i)
+
+              cb.ifx(i.ceq(string.length()),
+                cb._fatalWithError(errorID, "missing terminating quote character '", qc.toS, "'"))
+              cb.assign(i, i + 1) // skip quote
+
+              cb.ifx(i < string.length, {
+                cb.assign(c, string(i))
+                val l = getPatternMatch(i, c)
+                cb.ifx(l.ceq(-1), {
+                  cb._fatalWithError(errorID, "terminating quote character '", qc.toS, "' not at end of field")
+                })
+                cb.assign(i, i + l) // skip delim
+                cb.assign(lastFieldStart, i)
+              }, {
+                cb.goto(LreturnWithoutAppending)
+              })
+            }, {
+              cb.assign(i, i + 1)
+            })
+          case None =>
+            cb.assign(i, i + 1)
+        }
+      })
+    })
+
+    addValueOrNA(cb, string.length())
+    cb.define(LreturnWithoutAppending)
+    cb.memoize(ab.invoke[Array[String]]("result"), "generateSplitQuotedRegexResult")
+  }
+
   def softBounds(i: IR, len: IR): IR =
     If(i < -len, 0, If(i < 0, i + len, If(i >= len, len, i)))
-
 
   private val locale: Locale = Locale.US
 
@@ -189,6 +322,7 @@ object StringFunctions extends RegistryFunctions {
         IEmitCode.present(cb, st.construct(cb, str))
     }
 
+
     registerWrappedScalaFunction1("reverse", TString, TString, (_: Type, _: SType) => SJavaString)(thisClass, "reverse")
     registerWrappedScalaFunction1("upper", TString, TString, (_: Type, _: SType) => SJavaString)(thisClass, "upper")
     registerWrappedScalaFunction1("lower", TString, TString, (_: Type, _: SType) => SJavaString)(thisClass, "lower")
@@ -208,6 +342,9 @@ object StringFunctions extends RegistryFunctions {
     registerWrappedScalaFunction2("regexMatch", TString, TString, TBoolean, {
       case (_: Type, _: SType, _: SType) => SBoolean
     })(thisClass, "regexMatch")
+    registerWrappedScalaFunction2("regexFullMatch", TString, TString, TBoolean, {
+      case (_: Type, _: SType, _: SType) => SBoolean
+    })(thisClass, "regexFullMatch")
     registerWrappedScalaFunction2("concat", TString, TString, TString, {
       case (_: Type, _: SType, _: SType) => SJavaString
     })(thisClass, "concat")
@@ -229,6 +366,61 @@ object StringFunctions extends RegistryFunctions {
     registerWrappedScalaFunction2("mkString", TSet(TString), TString, TString, {
       case (_: Type, _: SType, _: SType) => SJavaString
     })(thisClass, "setMkString")
+
+    registerSCode4("splitQuotedRegex", TString, TString, TArray(TString), TString, TArray(TString), {
+      case (_: Type, _: SType, _: SType, _: SType, _: SType) => SJavaArrayString(false)
+    }) { case (r, cb, st: SJavaArrayString, s, separator, missing, quote, errorID) =>
+      val quoteStr = cb.newLocal[String]("quoteStr", quote.asString.loadString(cb))
+      val quoteChar = cb.newLocal[Char]("quoteChar")
+      cb.ifx(quoteStr.length().cne(1), cb._fatalWithError(errorID, "quote must be a single character"))
+      cb.assign(quoteChar, quoteStr(0))
+
+      val string = cb.newLocal[String]("string", s.asString.loadString(cb))
+      val sep = cb.newLocal[String]("sep", separator.asString.loadString(cb))
+      val mv = missing.asIndexable
+
+      new SJavaArrayStringValue(st, generateSplitQuotedRegex(cb, string, Right(sep), Some(quoteChar), mv, errorID))
+    }
+
+    registerSCode4("splitQuotedChar", TString, TString, TArray(TString), TString, TArray(TString), {
+      case (_: Type, _: SType, _: SType, _: SType, _: SType) => SJavaArrayString(false)
+    }) { case (r, cb, st: SJavaArrayString, s, separator, missing, quote, errorID) =>
+      val quoteStr = cb.newLocal[String]("quoteStr", quote.asString.loadString(cb))
+      val quoteChar = cb.newLocal[Char]("quoteChar")
+      cb.ifx(quoteStr.length().cne(1), cb._fatalWithError(errorID, "quote must be a single character"))
+      cb.assign(quoteChar, quoteStr(0))
+
+      val string = cb.newLocal[String]("string", s.asString.loadString(cb))
+      val sep = cb.newLocal[String]("sep", separator.asString.loadString(cb))
+      val sepChar = cb.newLocal[Char]("sepChar")
+      cb.ifx(sep.length().cne(1), cb._fatalWithError(errorID, "splitQuotedChar expected a single character for separator"))
+      cb.assign(sepChar, sep(0))
+      val mv = missing.asIndexable
+
+      new SJavaArrayStringValue(st, generateSplitQuotedRegex(cb, string, Left(sepChar), Some(quoteChar), mv, errorID))
+    }
+
+    registerSCode3("splitRegex", TString, TString, TArray(TString), TArray(TString), {
+      case (_: Type, _: SType, _: SType, _: SType) => SJavaArrayString(false)
+    }) { case (r, cb, st: SJavaArrayString, s, separator, missing, errorID) =>
+      val string = cb.newLocal[String]("string", s.asString.loadString(cb))
+      val sep = cb.newLocal[String]("sep", separator.asString.loadString(cb))
+      val mv = missing.asIndexable
+      new SJavaArrayStringValue(st, generateSplitQuotedRegex(cb, string, Right(sep), None, mv, errorID))
+    }
+
+    registerSCode3("splitChar", TString, TString, TArray(TString), TArray(TString), {
+      case (_: Type, _: SType, _: SType, _: SType) => SJavaArrayString(false)
+    }) { case (r, cb, st: SJavaArrayString, s, separator, missing, errorID) =>
+      val string = cb.newLocal[String]("string", s.asString.loadString(cb))
+      val sep = cb.newLocal[String]("sep", separator.asString.loadString(cb))
+      val sepChar = cb.newLocal[Char]("sepChar")
+      cb.ifx(sep.length().cne(1), cb._fatalWithError(errorID, "splitChar expected a single character for separator"))
+      cb.assign(sepChar, sep(0))
+      val mv = missing.asIndexable
+
+      new SJavaArrayStringValue(st, generateSplitQuotedRegex(cb, string, Left(sepChar), None, mv, errorID))
+    }
 
     registerWrappedScalaFunction2("mkString", TArray(TString), TString, TString, {
       case (_: Type, _: SType, _: SType) => SJavaString

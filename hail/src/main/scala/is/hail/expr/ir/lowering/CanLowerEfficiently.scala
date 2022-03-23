@@ -29,7 +29,6 @@ object CanLowerEfficiently {
       ir match {
         case TableRead(_, _, _: TableNativeReader) =>
         case TableRead(_, _, _: TableNativeZippedReader) =>
-        case TableRead(_, _, _: TextTableReader) =>
         case TableRead(_, _, _: TextMatrixReader) =>
         case TableRead(_, _, _: StringTableReader) =>
         case TableRead(_, _, _: MatrixPLINKReader) =>
