@@ -570,9 +570,10 @@ class ServiceBackendSocketAPI2(
         case EXECUTE =>
           val code = readString()
           val token = readString()
-          withExecuteContext("ServiceBackend.execute", { ctx =>
-            backend.execute(ctx, code, token)
-          })
+          withExecuteContext(
+            "ServiceBackend.execute",
+            backend.execute(_, code, token)
+          )
         case PARSE_VCF_METADATA =>
           val path = readString()
           withExecuteContext(
