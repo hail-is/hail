@@ -15,6 +15,7 @@ import is.hail.expr.ir.lowering._
 import is.hail.expr.ir.{Compile, IR, IRParser, MakeTuple, SortField}
 import is.hail.io.bgen.IndexBgen
 import is.hail.io.fs._
+import is.hail.io.bgen.IndexBgen
 import is.hail.io.plink.LoadPlink
 import is.hail.io.vcf.LoadVCF
 import is.hail.linalg.BlockMatrix
