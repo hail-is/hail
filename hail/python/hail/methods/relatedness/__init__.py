@@ -6,4 +6,4 @@ __all__ = [
     'identity_by_descent',
     'king',
     'pc_relate'
-    ]
+]
