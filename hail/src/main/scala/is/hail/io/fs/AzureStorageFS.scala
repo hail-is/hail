@@ -306,16 +306,24 @@ class AzureStorageFS extends FS {
       if (recursive) {
         // if recursive, create an iterator over all files in this "directory" (files that match its prefix)
         val blobContainerClient = this.getContainerClient(filename)
-        val listBlobsOptions = new ListBlobsOptions().setPrefix(dropTrailingSlash(path) + "/")
-        val directoryContents = blobContainerClient.listBlobs(listBlobsOptions, Duration.ofMinutes(1))
-        directoryContents.forEach(blobItem => {
-          val blobFileName = s"hail-az://$account/$container/${blobItem.getName}"
-          this.getBlobClient(blobFileName).delete()
-        })
+
+        val directoryContents = blobContainerClient.listBlobsByHierarchy(dropTrailingSlash(path) + "/")
+        var seenBlobItems: Set[String] = Set()
+        val iter = directoryContents.iterator()
+        def deleteRecursively(): Unit = {
+          while (iter.hasNext) {
+            val blobItem: BlobItem = iter.next
+            if (seenBlobItems.contains(blobItem.getName)) return
+            seenBlobItems += blobItem.getName
+            val blobFileName = s"hail-az://$account/$container/${blobItem.getName}"
+            this.delete(blobFileName, recursive)
+          }
+        }
+        deleteRecursively()
 
         // TODO: this check may be unnecessary
         // delete the initial blob itself if it wasn't already deleted
-        if (blobClient.exists()) blobClient.delete()
+        if (fileStatus.isFile && blobClient.exists()) blobClient.delete()
       }
       else {
         // TODO: should this throw an exception? If so, what kind?
@@ -336,23 +344,34 @@ class AzureStorageFS extends FS {
     val statList: mutable.MutableList[FileStatus] = mutable.MutableList()
     var blobNameSet: Set[String] = Set()
 
-    val prefix = dropTrailingSlash(path) + "/"
-    val listBlobsOptions = new ListBlobsOptions().setPrefix(prefix)
-    val directoryContents = blobContainerClient.listBlobs(listBlobsOptions, Duration.ofMinutes(1))
-    directoryContents.forEach(blobItem => {
-      // find the first slash
-      val indexOfFirstSlashAfterPrefix: Int = blobItem.getName.indexOf("/", prefix.length)
-      var blobName = blobItem.getName
-      if (indexOfFirstSlashAfterPrefix != -1) {
-        blobName = blobItem.getName.substring(0, indexOfFirstSlashAfterPrefix)
-      }
+    var seenBlobItems: Set[String] = Set()
 
-      if (!blobNameSet.contains(blobName)) {
-        blobNameSet = blobNameSet + blobName
-        val blobFileName = s"hail-az://$account/$container/$blobName"
-        statList += fileStatus(blobFileName)
+    val prefix = dropTrailingSlash(path) + "/"
+    val directoryContents = blobContainerClient.listBlobsByHierarchy(prefix)
+    val iter = directoryContents.iterator()
+
+    def populateStatList(): Unit = {
+      while (iter.hasNext) {
+        val blobItem: BlobItem = iter.next
+
+        if (seenBlobItems.contains(blobItem.getName)) return
+        seenBlobItems += blobItem.getName
+
+        // find the first slash
+        val indexOfFirstSlashAfterPrefix: Int = blobItem.getName.indexOf("/", prefix.length)
+        var blobName = blobItem.getName
+        if (indexOfFirstSlashAfterPrefix != -1) {
+          blobName = blobItem.getName.substring(0, indexOfFirstSlashAfterPrefix)
+        }
+
+        if (!blobNameSet.contains(blobName)) {
+          blobNameSet = blobNameSet + blobName
+          val blobFileName = s"hail-az://$account/$container/$blobName"
+          statList += fileStatus(blobFileName)
+        }
       }
-    })
+    }
+    populateStatList()
 
     statList.toArray
   }
@@ -421,11 +440,20 @@ class AzureStorageFS extends FS {
     val blobClient: BlobClient = getBlobClient(filename)
     val blobContainerClient: BlobContainerClient = getContainerClient(filename)
 
-    var numSubBlobs: Int = 0
     val directoryContents = blobContainerClient.listBlobsByHierarchy(dropTrailingSlash(path) + "/")
-    directoryContents.forEach(_ => {
-      numSubBlobs += 1
-    })
+    var seenBlobItems: Set[String] = Set()
+    var numSubBlobs: Int = 0
+    val iter = directoryContents.iterator()
+    def countSubBlobs(): Unit = {
+      while (iter.hasNext) {
+        val name = iter.next.getName
+        println(s"$name")
+        if (seenBlobItems.contains(name)) return
+        seenBlobItems += name
+        numSubBlobs += 1
+      }
+    }
+    countSubBlobs()
 
     if (numSubBlobs == 0 && !blobClient.exists()) throw new FileNotFoundException("file isn't found")
 
