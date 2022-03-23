@@ -114,11 +114,13 @@ class Tests(unittest.TestCase):
 
     def test_hadoop_ls_simple(self):
         with hl.TemporaryDirectory() as dirname:
-            touch(dirname + 'a')
-            touch(dirname + '?')
+            with fs.open(dirname + '/a', 'w') as fobj:
+                fobj.write('hello world')
             dirname = self.normalize_path(dirname)
 
-        
+            results = hl.hadoop_ls(dirname + '/[a]')
+            assert len(results) == 1
+            results[0]['path'] == dirname + '/a'
 
     def test_hadoop_ls(self):
         path1 = resource('ls_test/f_50')
@@ -153,6 +155,7 @@ class Tests(unittest.TestCase):
     def normalize_path(self, path: str) -> str:
         return hl.hadoop_stat(path)['path']
 
+    @fails_local_backend()
     def test_hadoop_ls_glob_no_slash_in_group(self):
         try:
             hl.hadoop_ls(resource('foo[/]bar'))
@@ -162,6 +165,28 @@ class Tests(unittest.TestCase):
             assert 'PatternSyntaxException: error parsing regexp: Unclosed character class at pos 4' in err.args[0]
         else:
             assert False
+
+    @fails_spark_backend()
+    def test_hadoop_ls_glob_question_mark_in_group(self):
+        with hl.TemporaryDirectory() as dirname:
+            with fs.open(dirname + '/?', 'w') as fobj:
+                fobj.write('hello world')
+            dirname = self.normalize_path(dirname)
+
+            results = hl.hadoop_ls(dirname + '/[?]')
+            assert len(results) == 1
+            results[0]['path'] == dirname + '/?'
+
+    @fails_local_backend()
+    def test_hadoop_ls_glob_empty_group_matches_empty_string(self):
+        with hl.TemporaryDirectory() as dirname:
+            with fs.open(dirname + '/a', 'w') as fobj:
+                fobj.write('hello world')
+            dirname = self.normalize_path(dirname)
+
+            results = hl.hadoop_ls(dirname + '/[]a')
+            assert len(results) == 1
+            results[0]['path'] == dirname + '/a'
 
     def test_hadoop_ls_glob_1(self):
         expected = [self.normalize_path(resource('ls_test/f_100'))]
@@ -250,14 +275,6 @@ class Tests(unittest.TestCase):
             expected = [dirname + '/abc/ghi/!23',
                         dirname + '/abc/ghi/?23']
             actual = [x['path'] for x in hl.hadoop_ls(dirname + '/abc/ghi/[!1]23')]
-            assert set(actual) == set(expected)
-
-            expected = [dirname + '/abc/ghi/?23']
-            actual = [x['path'] for x in hl.hadoop_ls(dirname + '/abc/ghi/[?]23')]
-            assert set(actual) == set(expected)
-
-            expected = [dirname + '/abc/ghi/123']
-            actual = [x['path'] for x in hl.hadoop_ls(dirname + '/abc/ghi/[]123')]
             assert set(actual) == set(expected)
 
     def test_linked_list(self):
