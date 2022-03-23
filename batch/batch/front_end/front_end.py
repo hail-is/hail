@@ -56,7 +56,6 @@ from web_common import render_template, set_message, setup_aiohttp_jinja2, setup
 from ..batch import batch_record_to_dict, cancel_batch_in_db, job_record_to_dict
 from ..batch_configuration import BATCH_STORAGE_URI, CLOUD, DEFAULT_NAMESPACE, SCOPE
 from ..batch_format_version import BatchFormatVersion
-from ..cloud.utils import ACCEPTABLE_QUERY_JAR_URL_PREFIX
 from ..cloud.resource_utils import (
     cores_mcpu_to_memory_bytes,
     cost_from_msec_mcpu,
@@ -64,6 +63,7 @@ from ..cloud.resource_utils import (
     memory_to_worker_type,
     valid_machine_types,
 )
+from ..cloud.utils import ACCEPTABLE_QUERY_JAR_URL_PREFIX
 from ..exceptions import (
     BatchOperationAlreadyCompletedError,
     BatchUserError,
