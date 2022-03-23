@@ -672,8 +672,7 @@ NON_HEX_DIGIT = re.compile('[^A-Fa-f0-9]')
 
 def assert_is_sha_1_hex_string(revision: str):
     if len(revision) != 40 or NON_HEX_DIGIT.search(revision):
-        raise web.HTTPBadRequest(
-            reason=f'revision must be 40 character hexadecimal encoded SHA-1, got: {revision}')
+        raise web.HTTPBadRequest(reason=f'revision must be 40 character hexadecimal encoded SHA-1, got: {revision}')
 
 
 async def _create_jobs(userdata: dict, job_specs: dict, batch_id: int, app: aiohttp.web.Application):
