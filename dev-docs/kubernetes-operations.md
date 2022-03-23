@@ -2,6 +2,8 @@
 
 ## Altering a Node Pool
 
+### When managing node pools manually
+
 We will have the old node pool and the new node pool active simultaneously. We will use `cordon` and
 `drain` to move all load from the old node pool to the new node pool. Then we will delete the old
 node pool.
