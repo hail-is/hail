@@ -1,10 +1,9 @@
-from typing import List, AsyncContextManager, BinaryIO, Optional, Tuple
+from typing import List, AsyncContextManager, BinaryIO, Optional
 import asyncio
 import io
 import nest_asyncio
 import os
 import functools
-from urllib.parse import urlparse
 import glob
 import fnmatch
 
@@ -287,10 +286,7 @@ class RouterFS(FS):
                 stat.path
                 for cumulative_prefix in cumulative_prefixes
                 for stat in await ls_no_glob('/'.join([cumulative_prefix, *component_prefix]))
-                if fnmatch.fnmatch(
-                        stat.path,
-                        '/'.join([cumulative_prefix, *component_prefix, pattern])
-                )
+                if fnmatch.fnmatch(stat.path, '/'.join([cumulative_prefix, *component_prefix, pattern]))
             ]
 
         return [stat
