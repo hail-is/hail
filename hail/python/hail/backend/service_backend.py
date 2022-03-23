@@ -1,4 +1,4 @@
-from typing import Dict, Optional, Callable, Awaitable, Mapping
+from typing import Dict, Optional, Callable, Awaitable, Mapping, Any
 import asyncio
 import struct
 import os
@@ -8,12 +8,13 @@ import re
 import yaml
 from pathlib import Path
 
-from hail.context import TemporaryDirectory, tmp_dir
+from hail.context import TemporaryDirectory, tmp_dir, TemporaryFilename
 from hail.utils import FatalError
 from hail.expr.types import dtype
 from hail.expr.table_type import ttable
 from hail.expr.matrix_type import tmatrix
 from hail.expr.blockmatrix_type import tblockmatrix
+from hail.experimental import write_expression, read_expression
 from hail.ir.renderer import CSERenderer
 
 from hailtop.config import get_user_config, get_user_local_cache_dir, get_remote_tmpdir
@@ -33,6 +34,13 @@ from ..utils import frozendict
 
 
 log = logging.getLogger('backend.service_backend')
+
+
+async def write_bool(strm: afs.WritableStream, v: bool):
+    if v:
+        await strm.write(b'\x01')
+    else:
+        await strm.write(b'\x00')
 
 
 async def write_int(strm: afs.WritableStream, v: int):
@@ -178,6 +186,17 @@ class ServiceBackend(Backend):
         self.remote_tmpdir = remote_tmpdir
         self.flags = flags
 
+    def debug_info(self) -> Dict[str, Any]:
+        return {
+            'hail_sha': os.environ['HAIL_SHA'],
+            'hail_jar_url': os.environ['HAIL_JAR_URL'],
+            'billing_project': self.billing_project,
+            'batch_attributes': self.batch_attributes,
+            'user_local_reference_cache_dir': str(self.user_local_reference_cache_dir),
+            'remote_tmpdir': self.remote_tmpdir,
+            'flags': self.flags
+        }
+
     @property
     def fs(self) -> FS:
         return self._sync_fs
@@ -204,7 +223,8 @@ class ServiceBackend(Backend):
         with TemporaryDirectory(ensure_exists=False) as _:
             with timings.step("write input"):
                 async with await self._async_fs.create(iodir + '/in') as infile:
-                    await write_int(infile, len(self.flags))
+                    nonnull_flag_count = sum(v is not None for v in self.flags.values())
+                    await write_int(infile, nonnull_flag_count)
                     for k, v in self.flags.items():
                         if v is not None:
                             await write_str(infile, k)
@@ -243,11 +263,12 @@ class ServiceBackend(Backend):
                     logs = await j.log()
                     for k in logs:
                         logs[k] = yaml_literally_shown_str(logs[k].strip())
-                    message = {'batch_status': status,
+                    message = {'service_backend_debug_info': self.debug_info(),
+                               'batch_status': status,
                                'job_status': job_status,
                                'log': logs}
                     log.error(yaml.dump(message))
-                    raise ValueError(message)
+                    raise FatalError(message)
 
             with timings.step("read output"):
                 async with await self._async_fs.open(iodir + '/out') as outfile:
@@ -257,7 +278,7 @@ class ServiceBackend(Backend):
                         try:
                             return token, orjson.loads(json_bytes), timings
                         except orjson.JSONDecodeError as err:
-                            raise ValueError(f'batch id was {b.id}\ncould not decode {json_bytes}') from err
+                            raise FatalError(f'batch id was {b.id}\ncould not decode {json_bytes}') from err
                     else:
                         jstacktrace = await read_str(outfile)
                         maybe_id = ServiceBackend.HAIL_BATCH_FAILURE_EXCEPTION_MESSAGE_RE.match(jstacktrace)
@@ -285,10 +306,11 @@ class ServiceBackend(Backend):
                                     })
                             message = {
                                 'id': b.id,
+                                'service_backend_debug_info': self.debug_info(),
                                 'stacktrace': yaml_literally_shown_str(jstacktrace.strip()),
                                 'cause': {'id': batch_id, 'batch_status': b2_status, 'failed_jobs': failed_jobs}}
                             log.error(yaml.dump(message))
-                            raise ValueError(orjson.dumps(message).decode('utf-8'))
+                            raise FatalError(orjson.dumps(message).decode('utf-8'))
                         raise FatalError(f'batch id was {b.id}\n' + jstacktrace)
 
     def execute(self, ir, timed=False):
@@ -447,13 +469,29 @@ class ServiceBackend(Backend):
         raise NotImplementedError("ServiceBackend does not support 'index_bgen'")
 
     def import_fam(self, path: str, quant_pheno: bool, delimiter: str, missing: str):
-        raise NotImplementedError("ServiceBackend does not support 'import_fam'")
+        return async_to_blocking(self._async_import_fam(path, quant_pheno, delimiter, missing))
+
+    async def _async_import_fam(self, path: str, quant_pheno: bool, delimiter: str, missing: str):
+        async def inputs(infile, _):
+            await write_int(infile, ServiceBackend.IMPORT_FAM)
+            await write_str(infile, tmp_dir())
+            await write_str(infile, self.billing_project)
+            await write_str(infile, self.remote_tmpdir)
+            await write_str(infile, path)
+            await write_bool(infile, quant_pheno)
+            await write_str(infile, delimiter)
+            await write_str(infile, missing)
+        _, resp, _ = await self._rpc('import_fam(...)', inputs)
+        return resp
 
     def register_ir_function(self, name, type_parameters, argument_names, argument_types, return_type, body):
         raise NotImplementedError("ServiceBackend does not support 'register_ir_function'")
 
-    def persist_ir(self, ir):
-        raise NotImplementedError("ServiceBackend does not support 'persist_ir'")
+    def persist_expression(self, expr):
+        # FIXME: should use context manager to clean up persisted resources
+        fname = TemporaryFilename().name
+        write_expression(expr, fname)
+        return read_expression(fname)
 
     def set_flags(self, **flags: Mapping[str, str]):
         self.flags.update(flags)

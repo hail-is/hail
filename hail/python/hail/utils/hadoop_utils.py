@@ -1,4 +1,4 @@
-from typing import Dict, List
+from typing import List, Dict, Any
 from hail.fs.hadoop_fs import HadoopFS
 from hail.utils.java import Env
 from hail.typecheck import typecheck, enumeration
@@ -161,7 +161,7 @@ def hadoop_is_dir(path: str) -> bool:
     return Env.fs().is_dir(path)
 
 
-def hadoop_stat(path: str) -> Dict:
+def hadoop_stat(path: str) -> Dict[str, Any]:
     """Returns information about the file or directory at a given path.
 
     Notes
@@ -188,7 +188,7 @@ def hadoop_stat(path: str) -> Dict:
     return Env.fs().stat(path).to_legacy_dict()
 
 
-def hadoop_ls(path: str) -> List[Dict]:
+def hadoop_ls(path: str) -> List[Dict[str, Any]]:
     """Returns information about files at `path`.
 
     Notes

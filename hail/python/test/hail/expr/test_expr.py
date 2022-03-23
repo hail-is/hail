@@ -4272,7 +4272,6 @@ E                   	at java.lang.Thread.run(Thread.java:748)
         ]
         assert hl.eval(hl._compare(hl.tuple(values), hl.tuple(hl.parse_json(hl.json(v), v.dtype) for v in values)) == 0)
 
-    @fails_service_backend()
     def test_expr_persist(self):
         # need to test laziness, so we will overwrite a file
         ht2 = hl.utils.range_table(100)

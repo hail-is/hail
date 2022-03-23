@@ -17,7 +17,6 @@ from hail.expr.table_type import ttable
 from hail.expr.matrix_type import tmatrix
 from hail.expr.blockmatrix_type import tblockmatrix
 from hail.ir.renderer import CSERenderer
-from hail.ir import JavaIR
 from hail.table import Table
 from hail.matrixtable import MatrixTable
 
@@ -371,9 +370,6 @@ class SparkBackend(Py4JBackend):
             argument_names, [pt._parsable_string() for pt in argument_types],
             return_type._parsable_string(),
             jbody)
-
-    def persist_ir(self, ir):
-        return JavaIR(self._jhc.backend().executeLiteral(self._to_java_value_ir(ir)))
 
     def read_multiple_matrix_tables(self, paths: 'List[str]', intervals: 'List[hl.Interval]', intervals_type):
         json_repr = {
