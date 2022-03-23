@@ -100,6 +100,7 @@ class VariantDatasetCombiner:  # pylint: disable=too-many-instance-attributes
                  gvcf_info_to_keep: Optional[Collection[str]] = None,
                  gvcf_reference_entry_fields_to_keep: Optional[Collection[str]] = None,
                  ):
+        hl.utils.no_service_backend('VariantDatasetCombiner')
         if not (vdses or gvcfs):
             raise ValueError("one of 'vdses' or 'gvcfs' must be nonempty")
         if not gvcf_import_intervals:
