@@ -1,4 +1,4 @@
-from typing import Dict, Optional, Callable, Awaitable, Mapping, Any
+from typing import Dict, Optional, Callable, Awaitable, Mapping, Any, List
 import asyncio
 import struct
 import os
@@ -465,8 +465,52 @@ class ServiceBackend(Backend):
         _, resp, _ = await self._rpc('parse_vcf_metadata(...)', inputs)
         return resp
 
-    def index_bgen(self, files, index_file_map, rg, contig_recoding, skip_invalid_loci):
-        raise NotImplementedError("ServiceBackend does not support 'index_bgen'")
+    def index_bgen(self,
+                   files: List[str],
+                   index_file_map: Dict[str, str],
+                   referenceGenomeName: Optional[str],
+                   contig_recoding: Dict[str, str],
+                   skip_invalid_loci: bool):
+        return async_to_blocking(self._async_index_bgen(
+            files,
+            index_file_map,
+            referenceGenomeName,
+            contig_recoding,
+            skip_invalid_loci
+        ))
+
+    async def _async_index_bgen(self,
+                                files: List[str],
+                                index_file_map: Dict[str, str],
+                                referenceGenomeName: Optional[str],
+                                contig_recoding: Dict[str, str],
+                                skip_invalid_loci: bool):
+        async def inputs(infile, _):
+            await write_int(infile, ServiceBackend.INDEX_BGEN)
+            await write_str(infile, tmp_dir())
+            await write_str(infile, self.billing_project)
+            await write_str(infile, self.remote_tmpdir)
+            await write_int(infile, len(files))
+            for fname in files:
+                await write_str(infile, fname)
+            await write_int(infile, len(index_file_map))
+            for k, v in index_file_map.items():
+                await write_str(infile, k)
+                await write_str(infile, v)
+            if referenceGenomeName is None:
+                await write_bool(infile, False)
+            else:
+                await write_bool(infile, True)
+                await write_str(infile, referenceGenomeName)
+            await write_int(infile, len(contig_recoding))
+            for k, v in contig_recoding.items():
+                await write_str(infile, k)
+                await write_str(infile, v)
+            await write_bool(infile, skip_invalid_loci)
+
+        _, resp, _ = await self._rpc('index_bgen(...)', inputs)
+        assert resp is None
+        return None
 
     def import_fam(self, path: str, quant_pheno: bool, delimiter: str, missing: str):
         return async_to_blocking(self._async_import_fam(path, quant_pheno, delimiter, missing))
