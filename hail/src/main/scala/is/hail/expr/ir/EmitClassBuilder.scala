@@ -144,9 +144,9 @@ trait WrappedEmitClassBuilder[C] extends WrappedEmitModuleBuilder {
 
   def addEncodedLiteral(encodedLiteral: EncodedLiteral) = ecb.addEncodedLiteral(encodedLiteral)
 
-  def getPType(t: PType): Code[PType] = ecb.getPType(t)
+  def getPType[T <: PType : TypeInfo](t: T): Code[T] = ecb.getPType(t)
 
-  def getType(t: Type): Code[Type] = ecb.getType(t)
+  def getType[T <: Type : TypeInfo](t: T): Code[T] = ecb.getType(t)
 
   def newEmitMethod(name: String, argsInfo: IndexedSeq[ParamType], returnInfo: ParamType): EmitMethodBuilder[C] =
     ecb.newEmitMethod(name, argsInfo, returnInfo)

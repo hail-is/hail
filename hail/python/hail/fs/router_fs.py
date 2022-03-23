@@ -1,6 +1,5 @@
 from typing import List, AsyncContextManager, BinaryIO
 import asyncio
-import gzip
 import io
 import nest_asyncio
 
@@ -175,8 +174,6 @@ class RouterFS(FS):
             assert mode[0] == 'w'
             strm = SyncWritableStream(async_to_blocking(self.afs.create(path)), path)
 
-        if path[-3:] == '.gz' or path[-4:] == '.bgz':
-            strm = gzip.GzipFile(fileobj=strm, mode=mode)
         if 'b' not in mode:
             strm = io.TextIOWrapper(strm, encoding='utf-8')  # type: ignore # typeshed is wrong, this *is* an IOBase
         return strm
