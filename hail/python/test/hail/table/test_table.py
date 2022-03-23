@@ -1127,6 +1127,7 @@ Caused by: java.lang.NullPointerException
         self.assertTrue(t1.key_by().union(t2.key_by(), t3.key_by())
                         ._same(hl.utils.range_table(15).key_by()))
 
+    @fails_service_backend()
     def test_nested_union(self):
         N = 10
         M = 200
