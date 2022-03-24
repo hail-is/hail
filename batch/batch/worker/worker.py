@@ -202,7 +202,7 @@ class ContainerInnerStatus(TypedDict):
 
 ContainerState = Literal['pending', 'pulling', 'creating', 'starting',
                          'running', 'uploading_log', 'deleting', 'succeeded',
-                         'error', 'failed']
+                         'error', 'failed', 'cancelled']
 
 class ContainerStatus(TypedDict):
     name: str
@@ -531,20 +531,20 @@ class Image:
             worker.image_data[self.image_id] -= 1
 
 
-class StepInterruptedError(Exception):
+class CancelledByUser(Exception):
     pass
 
 
 T = TypeVar('T')
 
 
-async def run_until_done_or_deleted(event: asyncio.Event, f: Callable[..., Awaitable[T]], *args, **kwargs) -> T:
+async def run_until_done_or_event(event: asyncio.Event, f: Callable[..., Awaitable[T]], *args, **kwargs) -> T:
     step = asyncio.ensure_future(f(*args, **kwargs))
     deleted = asyncio.ensure_future(event.wait())
     try:
         await asyncio.wait([deleted, step], return_when=asyncio.FIRST_COMPLETED)
         if deleted.done():
-            raise StepInterruptedError
+            raise CancelledByUser
         assert step.done()
         return step.result()
     finally:
@@ -568,18 +568,6 @@ async def send_signal_and_wait(proc, signal, timeout=None):
         pass
     else:
         await asyncio.wait_for(proc.wait(), timeout=timeout)
-
-
-class JobDeletedError(Exception):
-    pass
-
-
-class ContainerDeletedError(Exception):
-    pass
-
-
-class ContainerTimeoutError(Exception):
-    pass
 
 
 def worker_fraction_in_1024ths(cpu_in_mcpu):
@@ -644,6 +632,7 @@ class Container(IContainer):
         memory_in_bytes: int,
         network: Optional[Union[bool, str]] = None,
         port: Optional[int] = None,
+        timeout: Optional[int] = None,
         unconfined: Optional[bool] = None,
         volume_mounts: Optional[List[dict]] = None,
         env: Optional[List[str]] = None,
@@ -660,6 +649,7 @@ class Container(IContainer):
         self.memory_in_bytes = memory_in_bytes
         self.network = network
         self.port = port
+        self.timeout = timeout
         self.unconfined = unconfined
         self.volume_mounts = volume_mounts or []
         self.env = env or []
@@ -725,40 +715,55 @@ class Container(IContainer):
         return ''
 
     async def stoppable(self, fun: Callable[..., Awaitable[T]], *args, **kwargs) -> T:
-        return await run_until_done_or_deleted(self.deleted_event, fun, *args, **kwargs)
+        return await run_until_done_or_event(self.deleted_event, fun, *args, **kwargs)
 
     @asynccontextmanager
     async def start2(self) -> AsyncGenerator[asyncio.subprocess.Process, None]:
         self.state = 'creating'
-        async with self.get_image() as image:
-            async with self.overlay_fs(image):
-                async with self.network_namespace() as netns:
-                    async with self.host_port(netns) as host_port:
-                        self._write_container_config(netns, host_port, image)
-                        with open(self.log_path, 'w', encoding='utf-8') as container_log:
-                            self.state = 'running'
-                            self.started_at = time_msecs()
-                            self.process = await asyncio.create_subprocess_exec(
-                                'crun',
-                                'run',
-                                '--bundle',
-                                f'{self.container_overlay_path}/merged',
-                                '--config',
-                                f'{self.config_path}/config.json',
-                                self.name,
-                                stdout=container_log,
-                                stderr=container_log,
-                            )
-                            try:
-                                yield self.process
-                            finally:
-                                await self.process.wait()
-                                self.finished_at = time_msecs()
-                                try:
-                                    await check_exec_output('crun', 'kill', '--all', self.name, 'SIGKILL')
-                                except CalledProcessError as e:
-                                    if not (e.returncode == 1 and self.not_extant_message in e.stderr):
-                                        log.exception(f'while deleting container {self}', exc_info=True)
+        try:
+            async with self.get_image() as image:
+                async with self.overlay_fs(image):
+                    async with self.network_namespace() as netns:
+                        async with self.host_port(netns) as host_port:
+                            self._write_container_config(netns, host_port, image)
+                            async with async_timeout.timeout(self.timeout):
+                                with open(self.log_path, 'w', encoding='utf-8') as container_log:
+                                    self.state = 'running'
+                                    self.started_at = time_msecs()
+                                    self.process = await asyncio.create_subprocess_exec(
+                                        'crun',
+                                        'run',
+                                        '--bundle',
+                                        f'{self.container_overlay_path}/merged',
+                                        '--config',
+                                        f'{self.config_path}/config.json',
+                                        self.name,
+                                        stdout=container_log,
+                                        stderr=container_log,
+                                    )
+                                    try:
+                                        yield self.process
+                                    finally:
+                                        await self.process.wait()
+                                        self.finished_at = time_msecs()
+                                        try:
+                                            await check_exec_output('crun', 'kill', '--all', self.name, 'SIGKILL')
+                                        except CalledProcessError as e:
+                                            if not (e.returncode == 1 and self.not_extant_message in e.stderr):
+                                                log.exception(f'while deleting container {self}', exc_info=True)
+        except asyncio.CancelledError:
+            raise
+        except StepInterruptedError:
+            self.state = 'cancelled'
+            raise
+        except asyncio.TimeoutError:
+            self.state = 'error'
+            self.error = traceback.format_exc()
+        except Exception as e:
+            if not user_error(e):
+                log.exception(f'while running {self}')
+            self.state = 'error'
+            self.error = traceback.format_exc()
 
     @asynccontextmanager
     async def get_image(self) -> AsyncGenerator[Image, None]:
@@ -1064,7 +1069,7 @@ def copy_container(
     ]
 
     return Container(
-        fs=job.worker.fs,
+        worker=job.worker,
         name=job.container_name(task_name),
         image=Image(BATCH_WORKER_IMAGE, job.credentials, client_session, job.pool),
         scratch_dir=f'{scratch}/{task_name}',
@@ -1367,7 +1372,7 @@ class DockerJob(Job):
             )
 
         containers['main'] = Container(
-            fs=self.worker.fs,
+            worker=self.worker,
             name=self.container_name('main'),
             image=Image(job_spec['process']['image'], self.credentials, client_session, pool),
             scratch_dir=f'{self.scratch}/main',
@@ -1376,6 +1381,7 @@ class DockerJob(Job):
             memory_in_bytes=self.memory_in_bytes,
             network=job_spec.get('network'),
             port=job_spec.get('port'),
+            timeout=job_spec.get('timeout'),
             unconfined=job_spec.get('unconfined'),
             volume_mounts=self.main_volume_mounts,
             env=[f'{var["name"]}={var["value"]}' for var in self.env],
@@ -1435,7 +1441,7 @@ class DockerJob(Job):
     async def run_container(self, container: IContainer, task_name: str):
         async with container.start2() as process:
             with container.step('running'):
-                await process.wait()
+                await container.stoppable(process.wait)
             with container.step('uploading_log'):
                 assert self.worker.file_store
                 await self.worker.file_store.write_log_file(
@@ -1541,7 +1547,7 @@ class DockerJob(Job):
                     self.state = input.state
             except asyncio.CancelledError:
                 raise
-            except ContainerDeletedError:
+            except CancelledByUser:
                 self.state = 'cancelled'
             except Exception as e:
                 if not user_error(e):
@@ -1656,12 +1662,6 @@ class JVMJob(Job):
     def step(self, name):
         return self.timings.step(name)
 
-    async def run_until_done_or_deleted(self, f: Callable[..., Awaitable[Any]], *args, **kwargs):
-        try:
-            return await run_until_done_or_deleted(self.deleted_event, f, *args, **kwargs)
-        except StepInterruptedError as e:
-            raise JobDeletedError from e
-
     def verify_is_acceptable_query_jar_url(self, url: str):
         if not url.startswith(ACCEPTABLE_QUERY_JAR_URL_PREFIX):
             log.error(f'user submitted unacceptable JAR url: {url} for {self}. {ACCEPTABLE_QUERY_JAR_URL_PREFIX}')
@@ -1737,7 +1737,7 @@ class JVMJob(Job):
                 self.state = 'failed'
                 self.error = traceback.format_exc()
                 await self.cleanup()
-            except JobDeletedError:
+            except CancelledByUser:
                 self.state = 'cancelled'
                 await self.cleanup()
             except Exception:
@@ -2142,7 +2142,7 @@ class JVM:
             elif message == JVM.FINISH_CANCELLED:
                 assert wait_for_interrupt.done()
                 log.info(f'{self}: was cancelled')
-                raise JobDeletedError
+                raise CancelledByUser
             elif message == JVM.FINISH_USER_EXCEPTION:
                 log.info(f'{self}: user exception encountered (interrupted: {wait_for_interrupt.done()})')
                 exception = await read_str(reader)
