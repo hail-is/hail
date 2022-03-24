@@ -140,7 +140,10 @@ object LowerDistributedSort {
     val totalNumberOfRows = initialChunks.map(_.size).sum
     optTargetNumPartitions.foreach(i => assert(i >= 1, s"Must request positive number of partitions. Requested ${i}"))
     val targetNumPartitions = optTargetNumPartitions.getOrElse(inputStage.numPartitions)
-    val idealNumberOfRowsPerPart = Math.max(1, totalNumberOfRows / targetNumPartitions)
+
+    val idealNumberOfRowsPerPart = if (targetNumPartitions == 0) { 1 } else {
+      Math.max(1, totalNumberOfRows / targetNumPartitions)
+    }
 
     var loopState = LoopState(IndexedSeq(initialSegment), IndexedSeq.empty[SegmentResult], IndexedSeq.empty[OutputPartition])
 
