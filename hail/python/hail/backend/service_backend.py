@@ -187,8 +187,6 @@ class ServiceBackend(Backend):
         self.flags = flags
         if "use_new_shuffle" not in self.flags:
             self.flags["use_new_shuffle"] = "1"
-        if "shuffle_cutoff_to_local_sort" not in self.flags:
-            self.flags["shuffle_cutoff_to_local_sort"] = "32000000"  # bytes
 
     def debug_info(self) -> Dict[str, Any]:
         return {
