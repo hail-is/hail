@@ -200,16 +200,6 @@ dependencies {
         exclude group: 'com.fasterxml.jackson.core'
     }
 
-    // azure core
-    // 1.17 current
-    // 1.13 maybe ok
-    // 1.7 for sure
-
-    // azure-storage blob
-    // 12.13 current
-//    12.10 maybe
-//    12.8 for sure
-
     bundled(group: 'com.azure', name: 'azure-identity', version:'1.2.1') {
         exclude group: 'com.fasterxml.jackson.core'
     }
