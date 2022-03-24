@@ -172,7 +172,7 @@ class HadoopFS(val conf: SerializableHadoopConfiguration) extends FS {
     pathFS.makeQualified(ppath).toString
   }
 
-  def deleteOnExit(filename: String): Unit = {
+  override def deleteOnExit(filename: String): Unit = {
     val ppath = new hadoop.fs.Path(filename)
     val pathFS = ppath.getFileSystem(conf.value)
     pathFS.deleteOnExit(ppath)
