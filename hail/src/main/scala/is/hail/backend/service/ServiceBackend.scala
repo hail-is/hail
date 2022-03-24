@@ -580,7 +580,7 @@ class ServiceBackendSocketAPI2(
           val code = readString()
           val token = readString()
           withExecuteContext("ServiceBackend.execute", { ctx =>
-            withIRFunctionsReadFromInput(ctx) {
+            withIRFunctionsReadFromInput(ctx) { () =>
               backend.execute(ctx, code, token)
             }
           })
