@@ -91,4 +91,9 @@ class LowerDistributedSortSuite extends HailSuite {
     testDistributedSortHelper(tableWithExtraField, IndexedSeq(SortField("idx", Descending)))
     testDistributedSortHelper(tableWithExtraField, IndexedSeq(SortField("foo", Descending), SortField("idx", Ascending)))
   }
+
+  @Test def testDistributedSortEmpty(): Unit = {
+    val tableRange = TableRange(0, 1)
+    testDistributedSortHelper(tableRange, IndexedSeq(SortField("idx", Ascending)))
+  }
 }
