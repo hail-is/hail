@@ -62,11 +62,13 @@ class MultiPartCreate(abc.ABC):
 
 
 class AsyncFSURL(abc.ABC):
-    @abc.abstractproperty
+    @property
+    @abc.abstractmethod
     def bucket_parts(self) -> List[str]:
         pass
 
-    @abc.abstractproperty
+    @property
+    @abc.abstractmethod
     def path(self) -> str:
         pass
 
