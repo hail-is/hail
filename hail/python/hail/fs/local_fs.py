@@ -1,6 +1,7 @@
 import os
 from typing import List
 from shutil import copy2, rmtree
+import glob
 
 from .fs import FS
 from .stat_result import StatResult
@@ -42,8 +43,19 @@ class LocalFS(FS):
         return StatResult.from_os_stat_result(path, os.stat(path))
 
     def ls(self, path: str) -> List[StatResult]:
-        return [self.stat(os.path.join(path, file))
-                for file in os.listdir(path)]
+        if glob.escape(path) == path:
+            return self._ls_no_glob(path)
+        return [
+            result_path
+            for globbed_path in glob.glob(path)
+            for result_path in self._ls_no_glob(globbed_path)
+        ]
+
+    def _ls_no_glob(self, path: str) -> List[StatResult]:
+        if os.path.isdir(path):
+            return [self.stat(os.path.join(path, file))
+                    for file in os.listdir(path)]
+        return [self.stat(path)]
 
     def mkdir(self, path: str):
         os.mkdir(path)
