@@ -235,22 +235,27 @@ def spectral_moments_helper(spec_func):
         np.testing.assert_allclose(moments, true_moments, rtol=2e-01)
 
 
+@skip_when_service_backend(message='v slow & OOms')
 def test_spectral_moments_1():
     spectral_moments_helper(spec1)
 
 
+@skip_when_service_backend(message='v slow & OOms')
 def test_spectral_moments_2():
     spectral_moments_helper(spec2)
 
 
+@skip_when_service_backend(message='v slow & OOms')
 def test_spectral_moments_3():
     spectral_moments_helper(spec3)
 
 
+@skip_when_service_backend(message='v slow & OOms')
 def test_spectral_moments_4():
     spectral_moments_helper(spec4)
 
 
+@skip_when_service_backend(message='v slow & OOms')
 def test_spectral_moments_5():
     spectral_moments_helper(spec5)
 
