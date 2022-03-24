@@ -225,7 +225,13 @@ trait FS extends Serializable {
 
   def makeQualified(path: String): String
 
-  def deleteOnExit(filename: String): Unit
+  def deleteOnExit(filename: String): Unit = {
+    Runtime.getRuntime.addShutdownHook(
+      new Thread(
+        new Runnable {
+          def run(): Unit = delete(filename, recursive = false)
+        }))
+  }
 
   def open(path: String, codec: CompressionCodec): InputStream = {
     val is = openNoCompression(path)

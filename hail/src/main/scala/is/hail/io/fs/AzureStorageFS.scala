@@ -385,7 +385,4 @@ class AzureStorageFS(val serviceAccountKey: Option[String] = None) extends FS {
     assert(filename.startsWith("hail-az://"))
     filename
   }
-
-  def deleteOnExit(filename: String): Unit =
-    FSUtil.runOnExit(() => delete(filename, recursive = false))
 }
