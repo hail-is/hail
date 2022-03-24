@@ -161,8 +161,8 @@ async def blocking_to_async(thread_pool: concurrent.futures.Executor,
 
 
 async def bounded_gather(*pfs: Callable[[], Awaitable[T]],
-                         parallelism=10,
-                         return_exceptions=False
+                         parallelism: int = 10,
+                         return_exceptions: bool = False
                          ) -> List[T]:
     gatherer = AsyncThrottledGather[T](*pfs,
                                        parallelism=parallelism,
