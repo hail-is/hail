@@ -274,3 +274,7 @@ class LocalBackend(Py4JBackend):
 
     def import_fam(self, path: str, quant_pheno: bool, delimiter: str, missing: str):
         return json.loads(self._jbackend.pyImportFam(path, quant_pheno, delimiter, missing))
+
+    @property
+    def requires_lowering(self):
+        return True

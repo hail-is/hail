@@ -167,6 +167,11 @@ class Backend(abc.ABC):
         """Mapping of Hail flags."""
         pass
 
+    @property
+    @abc.abstractmethod
+    def requires_lowering(self):
+        pass
+
     def _handle_fatal_error_from_backend(self, err: FatalError, ir: BaseIR):
         if err._error_id is None:
             raise err

@@ -135,3 +135,7 @@ class Py4JBackend(Backend):
 
     def get_flags(self, *flags) -> Mapping[str, str]:
         return {flag: self._jbackend.getFlag(flag) for flag in flags}
+
+    @property
+    def requires_lowering(self):
+        return True
