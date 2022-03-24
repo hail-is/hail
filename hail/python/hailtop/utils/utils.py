@@ -1000,5 +1000,5 @@ class Timings:
         d['finish_time'] = time_msecs()
         d['duration'] = d['finish_time'] - d['start_time']
 
-    def to_dict(self):
+    def to_dict(self) -> Dict[str, Dict[str, int]]:
         return self.timings

@@ -1,3 +1,4 @@
+import abc
 import asyncio
 import base64
 import concurrent
@@ -14,8 +15,9 @@ import tempfile
 import traceback
 import uuid
 import warnings
+import psutil
 from collections import defaultdict
-from contextlib import ExitStack, contextmanager
+from contextlib import AsyncExitStack, ExitStack, contextmanager, asynccontextmanager
 from typing import (
     Any,
     Awaitable,
@@ -28,8 +30,13 @@ from typing import (
     Optional,
     Tuple,
     Union,
+    AsyncGenerator,
+    TypeVar
 )
-
+from typing_extensions import (
+    TypedDict,
+    Literal
+)
 import aiodocker  # type: ignore
 import aiodocker.images
 import aiohttp
@@ -186,17 +193,37 @@ image_configs: Dict[str, Dict[str, Any]] = {}
 image_lock = aiorwlock.RWLock()
 
 
+class ContainerInnerStatus(TypedDict):
+    state: str
+    started_at: Optional[int]  # milliseconds since the epoch
+    finished_at: Optional[int]  # milliseconds since the epoch
+    out_of_memory: Optional[bool]
+    exit_code: Optional[int]
+
+ContainerState = Literal['pending', 'pulling', 'creating', 'starting',
+                         'running', 'uploading_log', 'deleting', 'succeeded',
+                         'error', 'failed']
+
+class ContainerStatus(TypedDict):
+    name: str
+    state: ContainerState
+    timing: Dict[str, Dict[str, int]]
+    error: Optional[str]
+    short_error: Optional[str]
+    container_status: Optional[ContainerInnerStatus]
+
+
 class PortAllocator:
     def __init__(self):
-        self.ports = asyncio.Queue()
+        self.ports: asyncio.Queue[int] = asyncio.Queue()
         port_base = 46572
         for port in range(port_base, port_base + 10):
             self.ports.put_nowait(port)
 
-    async def allocate(self):
+    async def allocate(self) -> int:
         return await self.ports.get()
 
-    def free(self, port):
+    def free(self, port: int):
         self.ports.put_nowait(port)
 
 
@@ -266,7 +293,7 @@ iptables -w {IPTABLES_WAIT_TIMEOUT_SECS} --append FORWARD --out-interface {self.
 iptables -w {IPTABLES_WAIT_TIMEOUT_SECS} --append FORWARD --out-interface {self.veth_host} --in-interface {self.veth_host} --jump ACCEPT'''
         )
 
-    async def expose_port(self, port, host_port):
+    async def expose_port(self, port, host_port: int):
         self.port = port
         self.host_port = host_port
         await self.expose_port_rule(action='append')
@@ -508,7 +535,10 @@ class StepInterruptedError(Exception):
     pass
 
 
-async def run_until_done_or_deleted(event: asyncio.Event, f: Callable[..., Awaitable[Any]], *args, **kwargs):
+T = TypeVar('T')
+
+
+async def run_until_done_or_deleted(event: asyncio.Event, f: Callable[..., Awaitable[T]], *args, **kwargs) -> T:
     step = asyncio.ensure_future(f(*args, **kwargs))
     deleted = asyncio.ensure_future(event.wait())
     try:
@@ -575,10 +605,37 @@ def user_error(e):
     return False
 
 
-class Container:
+class IContainer(abc.ABC):
+    state: ContainerState
+
+    @abc.abstractmethod
+    @asynccontextmanager
+    async def start2(self) -> AsyncGenerator[asyncio.subprocess.Process, None]:
+        raise NotImplementedError
+        yield None  # force this to be a generator so that it type checks
+
+    @abc.abstractmethod
+    async def get_log(self) -> str:
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    def status(self) -> Dict[str, Any]:
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    def request_stop(self):
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    def step(self, name: str):
+        raise NotImplementedError
+
+
+
+class Container(IContainer):
     def __init__(
         self,
-        fs: AsyncFS,
+        worker: 'Worker',
         name: str,
         image: Image,
         scratch_dir: str,
@@ -587,283 +644,192 @@ class Container:
         memory_in_bytes: int,
         network: Optional[Union[bool, str]] = None,
         port: Optional[int] = None,
-        timeout: Optional[int] = None,
         unconfined: Optional[bool] = None,
         volume_mounts: Optional[List[dict]] = None,
         env: Optional[List[str]] = None,
     ):
-        self.fs = fs
-        assert self.fs
+        self.worker = worker
 
         self.name = name
+        self.not_extant_message: bytes = (
+            f'error opening file `/run/crun/{self.name}/status`: No such file or directory'.encode()
+        )
         self.image = image
         self.command = command
         self.cpu_in_mcpu = cpu_in_mcpu
         self.memory_in_bytes = memory_in_bytes
         self.network = network
         self.port = port
-        self.timeout = timeout
         self.unconfined = unconfined
         self.volume_mounts = volume_mounts or []
         self.env = env or []
 
         self.deleted_event = asyncio.Event()
 
-        self.host_port = None
-
-        self.state = 'pending'
+        self.state: ContainerState = 'pending'
         self.error: Optional[str] = None
         self.short_error: Optional[str] = None
-        self.container_status: Optional[dict] = None
         self.started_at: Optional[int] = None
         self.finished_at: Optional[int] = None
 
         self.timings = Timings()
-
-        self.overlay_path = None
 
         self.container_scratch = scratch_dir
         self.container_overlay_path = f'{self.container_scratch}/rootfs_overlay'
         self.config_path = f'{self.container_scratch}/config'
         self.log_path = f'{self.container_scratch}/container.log'
 
-        self.overlay_mounted = False
-
-        self.netns: Optional[NetworkNamespace] = None
         # regarding no-member: https://github.com/PyCQA/pylint/issues/4223
         self.process: Optional[asyncio.subprocess.Process] = None  # pylint: disable=no-member
 
-        self._run_fut: Optional[asyncio.Future] = None
-        self._cleanup_lock = asyncio.Lock()
+    def __str__(self):
+        return f'container {self.name}'
 
-        self._killed = False
-        self._cleaned_up = False
+    def status(self) -> ContainerStatus:
+        return {
+            'name': self.name,
+            'state': self.state,
+            'timing': self.timings.to_dict(),
+            'error': self.error,
+            'short_error': self.short_error,
+            'container_status': self._container_inner_status()
+        }
 
-    async def create(self):
-        self.state = 'creating'
-        try:
-            with self._step('pulling'):
-                await self._run_until_done_or_deleted(self.image.pull)
+    def _container_inner_status(self) -> Optional[ContainerInnerStatus]:
+        if not self.process:
+            return None
 
-            with self._step('setting up overlay'):
-                await self._run_until_done_or_deleted(self._setup_overlay)
+        if self.state in ('pending', 'pulling', 'creating', 'starting'):
+            state = 'pending'
+        elif self.state == 'running':
+            state = 'running'
+        else:
+            state = 'finished'
+        return {
+            'state': state,
+            'started_at': self.started_at,
+            'finished_at': self.finished_at,
+            'exit_code': self.process.returncode if self.process else None,
+            'out_of_memory': self.process.returncode == 137 if self.process else None
+        }
 
-            with self._step('setting up network'):
-                await self._run_until_done_or_deleted(self._setup_network_namespace)
-        except asyncio.CancelledError:
-            raise
-        except Exception as e:
-            if not isinstance(e, ContainerDeletedError) and not user_error(e):
-                log.exception(f'while creating {self}')
-
-            if isinstance(e, ImageNotFound):
-                self.short_error = 'image not found'
-            elif isinstance(e, ImageCannotBePulled):
-                self.short_error = 'image cannot be pulled'
-
-            self.state = 'error'
-            self.error = traceback.format_exc()
-
-    async def start(self):
-        async def _run():
-            self.state = 'running'
-            try:
-                with self._step('running'):
-                    timed_out = await self._run_until_done_or_deleted(self._run_container)
-
-                self.container_status = self.get_container_status()
-                assert self.container_status is not None
-
-                if timed_out:
-                    self.short_error = 'timed out'
-                    raise ContainerTimeoutError(f'timed out after {self.timeout}s')
-
-                if self.container_status['exit_code'] == 0:
-                    self.state = 'succeeded'
-                else:
-                    if self.container_status['out_of_memory']:
-                        self.short_error = 'out of memory'
-                    self.state = 'failed'
-            except asyncio.CancelledError:
-                raise
-            except ContainerDeletedError:
-                self.state = 'cancelled'
-            except Exception as e:
-                if not isinstance(e, (ContainerDeletedError, ContainerTimeoutError)) and not user_error(e):
-                    log.exception(f'while running {self}')
-
-                self.state = 'error'
-                self.error = traceback.format_exc()
-
-        self._run_fut = asyncio.ensure_future(self._run_until_done_or_deleted(_run))
-
-    async def wait(self):
-        assert self._run_fut
-        try:
-            await self._run_fut
-        finally:
-            self._run_fut = None
-
-    async def run(self, on_completion: Callable[..., Awaitable[Any]], *args, **kwargs):
-        async with self._cleanup_lock:
-            try:
-                await self.create()
-                await self.start()
-                await self.wait()
-            finally:
-                try:
-                    await on_completion(*args, **kwargs)
-                finally:
-                    try:
-                        await self._kill()
-                    finally:
-                        await self._cleanup()
-
-    async def _kill(self):
-        if self._killed:
-            return
-
-        try:
-            if self._run_fut is not None:
-                await self._run_fut
-        finally:
-            try:
-                if self.container_is_running():
-                    assert self.process is not None
-                    try:
-                        log.info(f'{self} container is still running, killing crun process')
-                        try:
-                            await check_exec_output('crun', 'kill', '--all', self.name, 'SIGKILL')
-                        except CalledProcessError as e:
-                            not_extant_message = (
-                                b'error opening file `/run/crun/'
-                                + self.name.encode()
-                                + b'/status`: No such file or directory'
-                            )
-                            if not (e.returncode == 1 and not_extant_message in e.stderr):
-                                log.exception(f'while deleting container {self}', exc_info=True)
-                    finally:
-                        try:
-                            await send_signal_and_wait(self.process, 'SIGTERM', timeout=5)
-                        except asyncio.TimeoutError:
-                            try:
-                                await send_signal_and_wait(self.process, 'SIGKILL', timeout=5)
-                            except asyncio.CancelledError:
-                                raise
-                            except Exception:
-                                log.exception(f'could not kill process for container {self}')
-                        finally:
-                            self.process = None
-            finally:
-                self._run_fut = None
-                self._killed = True
-
-    async def _cleanup(self):
-        if self._cleaned_up:
-            return
-
-        assert self._run_fut is None
-        try:
-            if self.overlay_mounted:
-                try:
-                    await check_shell(f'umount -l {self.container_overlay_path}/merged')
-                    self.overlay_mounted = False
-                except asyncio.CancelledError:
-                    raise
-                except Exception:
-                    log.exception(f'while unmounting overlay in {self}', exc_info=True)
-
-            if self.host_port is not None:
-                port_allocator.free(self.host_port)
-                self.host_port = None
-
-            if self.netns:
-                network_allocator.free(self.netns)
-                self.netns = None
-        finally:
-            try:
-                self.image.release()
-            finally:
-                self._cleaned_up = True
-
-    async def remove(self):
+    def request_stop(self):
         self.deleted_event.set()
-        async with self._cleanup_lock:
-            try:
-                await self._kill()
-            finally:
-                await self._cleanup()
 
-    async def _run_until_done_or_deleted(self, f: Callable[..., Awaitable[Any]], *args, **kwargs):
-        try:
-            return await run_until_done_or_deleted(self.deleted_event, f, *args, **kwargs)
-        except StepInterruptedError as e:
-            raise ContainerDeletedError from e
-
-    def _step(self, name: str) -> ContextManager:
+    def step(self, name: str) -> ContextManager:
         return self.timings.step(name)
 
-    async def _setup_overlay(self):
-        lower_dir = self.image.rootfs_path
-        upper_dir = f'{self.container_overlay_path}/upper'
-        work_dir = f'{self.container_overlay_path}/work'
-        merged_dir = f'{self.container_overlay_path}/merged'
-        for d in (upper_dir, work_dir, merged_dir):
-            os.makedirs(d)
-        await check_shell(
-            f'mount -t overlay overlay -o lowerdir={lower_dir},upperdir={upper_dir},workdir={work_dir} {merged_dir}'
-        )
-        self.overlay_mounted = True
+    async def get_log(self) -> str:
+        if os.path.exists(self.log_path):
+            return (await self.worker.fs.read(self.log_path)).decode()
+        return ''
 
-    async def _setup_network_namespace(self):
-        if self.network == 'private':
-            self.netns = await network_allocator.allocate_private()
-        else:
-            assert self.network is None or self.network == 'public'
-            self.netns = await network_allocator.allocate_public()
+    async def stoppable(self, fun: Callable[..., Awaitable[T]], *args, **kwargs) -> T:
+        return await run_until_done_or_deleted(self.deleted_event, fun, *args, **kwargs)
 
-        if self.port is not None:
-            self.host_port = await port_allocator.allocate()
-            await self.netns.expose_port(self.port, self.host_port)
+    @asynccontextmanager
+    async def start2(self) -> AsyncGenerator[asyncio.subprocess.Process, None]:
+        self.state = 'creating'
+        async with self.get_image() as image:
+            async with self.overlay_fs(image):
+                async with self.network_namespace() as netns:
+                    async with self.host_port(netns) as host_port:
+                        self._write_container_config(netns, host_port, image)
+                        with open(self.log_path, 'w', encoding='utf-8') as container_log:
+                            self.state = 'running'
+                            self.started_at = time_msecs()
+                            self.process = await asyncio.create_subprocess_exec(
+                                'crun',
+                                'run',
+                                '--bundle',
+                                f'{self.container_overlay_path}/merged',
+                                '--config',
+                                f'{self.config_path}/config.json',
+                                self.name,
+                                stdout=container_log,
+                                stderr=container_log,
+                            )
+                            try:
+                                yield self.process
+                            finally:
+                                await self.process.wait()
+                                self.finished_at = time_msecs()
+                                try:
+                                    await check_exec_output('crun', 'kill', '--all', self.name, 'SIGKILL')
+                                except CalledProcessError as e:
+                                    if not (e.returncode == 1 and self.not_extant_message in e.stderr):
+                                        log.exception(f'while deleting container {self}', exc_info=True)
 
-    async def _run_container(self) -> bool:
-        self.started_at = time_msecs()
+    @asynccontextmanager
+    async def get_image(self) -> AsyncGenerator[Image, None]:
+        # This function is *very* subtle. Although we mark the pull as stoppable, the pull is
+        # shielded. Because the pull is shielded we are guaranteed to *eventually* increment the
+        # image count. Therefore we must *always* decrement the image count (image.release), even if
+        # we immediately abort.
+        #
+        # We should eventually refactor pull to also be a context manager so that the
+        # increment/decrement logic is localized in one function and obviously correct.
         try:
-            await self._write_container_config()
-            async with async_timeout.timeout(self.timeout):
-                with open(self.log_path, 'w', encoding='utf-8') as container_log:
-                    log.info(f'Creating the crun run process for {self}')
-                    self.process = await asyncio.create_subprocess_exec(
-                        'crun',
-                        'run',
-                        '--bundle',
-                        f'{self.container_overlay_path}/merged',
-                        '--config',
-                        f'{self.config_path}/config.json',
-                        self.name,
-                        stdout=container_log,
-                        stderr=container_log,
-                    )
-
-                    await self.process.wait()
-                    log.info(f'crun process completed for {self}')
-        except asyncio.TimeoutError:
-            return True
+            with self.step('pulling'):
+                await self.stoppable(self.image.pull)
+            yield self.image
         finally:
-            self.finished_at = time_msecs()
+            self.image.release()
 
-        return False
+    @asynccontextmanager
+    async def overlay_fs(self, image: Image) -> AsyncGenerator[None, None]:
+        with self.step('creating overlay'):
+            lower_dir = image.rootfs_path
+            upper_dir = f'{self.container_overlay_path}/upper'
+            work_dir = f'{self.container_overlay_path}/work'
+            merged_dir = f'{self.container_overlay_path}/merged'
+            for d in (upper_dir, work_dir, merged_dir):
+                os.makedirs(d)
+            # FIXME: is it safe to cancel the mount command? this is maybe always quick so we don't care?
+            await check_shell(
+                f'mount -t overlay overlay -o lowerdir={lower_dir},upperdir={upper_dir},workdir={work_dir} {merged_dir}'
+            )
+        try:
+            yield
+        finally:
+            with self.step('removing overlay'):
+                await check_shell(f'umount -l {self.container_overlay_path}/merged')
 
-    async def _write_container_config(self):
+    @asynccontextmanager
+    async def network_namespace(self) -> AsyncGenerator[NetworkNamespace, None]:
+        with self.step('creating network'):
+            if self.network == 'private':
+                netns = await self.stoppable(network_allocator.allocate_private)
+            else:
+                assert self.network is None or self.network == 'public'
+                netns = await self.stoppable(network_allocator.allocate_public)
+        try:
+            yield netns
+        finally:
+            network_allocator.free(netns)
+
+    @asynccontextmanager
+    async def host_port(self, netns: NetworkNamespace) -> AsyncGenerator[int, None]:
+        if self.port is None:
+            return None
+        host_port = await stoppable(port_allocator.allocate)
+        # We never "unexpose" the port, but the network namespace is destroyed when this job is done.
+        await stoppable(netns.expose_port(self.port, host_port))
+        try:
+            yield host_port
+        finally:
+            port_allocator.free(host_port)
+
+    def _write_container_config(self, netns: NetworkNamespace, host_port: int, image: Image):
         os.makedirs(self.config_path)
-        with open(f'{self.config_path}/config.json', 'w', encoding='utf-8') as f:
-            f.write(json.dumps(await self.container_config()))
+        with open(f'{self.config_path}/config.json', 'wb') as fobj:
+            json.dump(self._container_config(netns, host_port, image), fobj)
 
     # https://github.com/opencontainers/runtime-spec/blob/master/config.md
-    async def container_config(self):
-        uid, gid = await self._get_in_container_user()
+    def _container_config(self, netns: NetworkNamespace, host_port: int, image: Image):
+        uid, gid = self._get_in_container_user(image)
         weight = worker_fraction_in_1024ths(self.cpu_in_mcpu)
-        workdir = self.image.image_config['Config']['WorkingDir']
+        workdir = image.image_config['Config']['WorkingDir']
         default_docker_capabilities = [
             'CAP_CHOWN',
             'CAP_DAC_OVERRIDE',
@@ -886,15 +852,15 @@ class Container:
                 'path': '.',
                 'readonly': False,
             },
-            'hostname': self.netns.hostname,
-            'mounts': self._mounts(uid, gid),
+            'hostname': netns.hostname,
+            'mounts': self._mounts(uid, gid, netns, image),
             'process': {
                 'user': {  # uid/gid *inside the container*
                     'uid': uid,
                     'gid': gid,
                 },
                 'args': self.command,
-                'env': self._env(),
+                'env': self._env(host_port, image),
                 'cwd': workdir if workdir != "" else "/",
                 'capabilities': {
                     'bounding': default_docker_capabilities,
@@ -908,7 +874,7 @@ class Container:
                     {'type': 'pid'},
                     {
                         'type': 'network',
-                        'path': f'/var/run/netns/{self.netns.network_ns_name}',
+                        'path': f'/var/run/netns/{netns.network_ns_name}',
                     },
                     {'type': 'mount'},
                     {'type': 'ipc'},
@@ -955,28 +921,28 @@ class Container:
 
         return config
 
-    async def _get_in_container_user(self):
-        user = self.image.image_config['Config']['User']
+    def _get_in_container_user(self, image: Image) -> Tuple[int, int]:
+        user = image.image_config['Config']['User']
         if not user:
             uid, gid = 0, 0
         elif ":" in user:
             uid, gid = user.split(":")
         else:
-            uid, gid = await self._read_user_from_rootfs(user)
+            uid, gid = self._read_user_from_rootfs(user)
         return int(uid), int(gid)
 
-    async def _read_user_from_rootfs(self, user) -> Tuple[str, str]:
-        with open(f'{self.image.rootfs_path}/etc/passwd', 'r', encoding='utf-8') as passwd:
+    def _read_user_from_rootfs(self, user: str, image: Image) -> Tuple[str, str]:
+        with open(f'{image.rootfs_path}/etc/passwd', 'r', encoding='utf-8') as passwd:
             for record in passwd:
                 if record.startswith(user):
                     _, _, uid, gid, _, _, _ = record.split(":")
                     return uid, gid
             raise ValueError("Container user not found in image's /etc/passwd")
 
-    def _mounts(self, uid, gid):
+    def _mounts(self, uid: int, gid: int, netns: NetworkNamespace, image: Image):
         # Only supports empty volumes
         external_volumes = []
-        volumes = self.image.image_config['Config']['Volumes']
+        volumes = image.image_config['Config']['Volumes']
         if volumes:
             for v_container_path in volumes:
                 if not v_container_path.startswith('/'):
@@ -1043,13 +1009,13 @@ class Container:
                     'options': ['nosuid', 'noexec', 'nodev', 'mode=1777', 'size=67108864'],
                 },
                 {
-                    'source': f'/etc/netns/{self.netns.network_ns_name}/resolv.conf',
+                    'source': f'/etc/netns/{netns.network_ns_name}/resolv.conf',
                     'destination': '/etc/resolv.conf',
                     'type': 'none',
                     'options': ['rbind', 'ro'],
                 },
                 {
-                    'source': f'/etc/netns/{self.netns.network_ns_name}/hosts',
+                    'source': f'/etc/netns/{netns.network_ns_name}/hosts',
                     'destination': '/etc/hosts',
                     'type': 'none',
                     'options': ['rbind', 'ro'],
@@ -1057,73 +1023,13 @@ class Container:
             ]
         )
 
-    def _env(self):
-        env = self.image.image_config['Config']['Env'] + self.env
+    def _env(self, host_port: int, image: Image) -> Dict[str, str]:
+        env = image.image_config['Config']['Env'] + self.env
         if self.port is not None:
-            assert self.host_port is not None
-            env.append(f'HAIL_BATCH_WORKER_PORT={self.host_port}')
+            assert host_port is not None
+            env.append(f'HAIL_BATCH_WORKER_PORT={host_port}')
             env.append(f'HAIL_BATCH_WORKER_IP={IP_ADDRESS}')
         return env
-
-    # {
-    #   name: str,
-    #   state: str, (pending, pulling, creating, starting, running, uploading_log, deleting, succeeded, error, failed)
-    #   timing: dict(str, float),
-    #   error: str, (optional)
-    #   short_error: str, (optional)
-    #   container_status: {
-    #     state: str,
-    #     started_at: int, (date)
-    #     finished_at: int, (date)
-    #     out_of_memory: bool,
-    #     exit_code: int
-    #   }
-    # }
-    def status(self):
-        status = {'name': self.name, 'state': self.state, 'timing': self.timings.to_dict()}
-        if self.error:
-            status['error'] = self.error
-        if self.short_error:
-            status['short_error'] = self.short_error
-        if self.container_status:
-            status['container_status'] = self.container_status
-        elif self.container_is_running():
-            status['container_status'] = self.get_container_status()
-        return status
-
-    def get_container_status(self) -> Optional[dict]:
-        if not self.process:
-            return None
-
-        status: dict = {
-            'started_at': self.started_at,
-            'finished_at': self.finished_at,
-        }
-        if self.container_is_running():
-            status['state'] = 'running'
-            status['out_of_memory'] = False
-        else:
-            status['state'] = 'finished'
-            status['exit_code'] = self.process.returncode
-            status['out_of_memory'] = self.process.returncode == 137
-
-        return status
-
-    def container_is_running(self):
-        return self.process is not None and self.process.returncode is None
-
-    def container_finished(self):
-        return self.process is not None and self.process.returncode is not None
-
-    async def get_log(self, offset: Optional[int] = None):
-        if os.path.exists(self.log_path):
-            if offset is None:
-                return (await self.fs.read(self.log_path)).decode()
-            return (await self.fs.read_from(self.log_path, offset)).decode()
-        return ''
-
-    def __str__(self):
-        return f'container {self.name}'
 
 
 def populate_secret_host_path(host_path: str, secret_data: Optional[Dict[str, bytes]]):
@@ -1144,7 +1050,7 @@ def copy_container(
     scratch: str,
     requester_pays_project: str,
     client_session: httpx.ClientSession,
-) -> Container:
+) -> IContainer:
     assert files
     assert job.worker.fs is not None
 
@@ -1445,7 +1351,7 @@ class DockerJob(Job):
                     self.output_volume_mounts.append(volume_mount)
 
         # create containers
-        containers: Dict[str, Container] = {}
+        containers: Dict[str, IContainer] = {}
 
         if input_files:
             containers['input'] = copy_container(
@@ -1470,7 +1376,6 @@ class DockerJob(Job):
             memory_in_bytes=self.memory_in_bytes,
             network=job_spec.get('network'),
             port=job_spec.get('port'),
-            timeout=job_spec.get('timeout'),
             unconfined=job_spec.get('unconfined'),
             volume_mounts=self.main_volume_mounts,
             env=[f'{var["name"]}={var["value"]}' for var in self.env],
@@ -1527,9 +1432,11 @@ class DockerJob(Job):
         assert self.disk is None, self.disk
         os.makedirs(self.io_host_path())
 
-    async def run_container(self, container: Container, task_name: str):
-        async def on_completion():
-            with container._step('uploading_log'):
+    async def run_container(self, container: IContainer, task_name: str):
+        async with container.start2() as process:
+            with container.step('running'):
+                await process.wait()
+            with container.step('uploading_log'):
                 assert self.worker.file_store
                 await self.worker.file_store.write_log_file(
                     self.format_version,
@@ -1539,8 +1446,6 @@ class DockerJob(Job):
                     task_name,
                     await container.get_log(),
                 )
-
-        await container.run(on_completion)
 
     async def run(self):
         async with self.worker.cpu_sem(self.cpu_in_mcpu):
@@ -1697,7 +1602,8 @@ class DockerJob(Job):
 
     async def delete(self):
         await super().delete()
-        await asyncio.wait([c.remove() for c in self.containers.values()])
+        for c in self.containers.values():
+            c.request_stop()
 
     def status(self):
         status = super().status()
@@ -1962,20 +1868,6 @@ class JVMContainer:
     ):
         assert os.path.commonpath([socket_file, root_dir]) == root_dir
         assert os.path.isdir(root_dir)
-
-        # JVM and Hail both treat MB as 1024 * 1024 bytes.
-        # JVMs only start in standard workers which have 3.75 GiB == 3840 MiB per core.
-        # We only allocate 3700 MiB so that we stay well below the machine's max memory.
-        # We allocate 60% of memory per core to off heap memory: 1480 + 2220 = 3700.
-        command = [
-            'java',
-            '-Xmx1480M',
-            '-cp',
-            f'/jvm-entryway:/jvm-entryway/junixsocket-selftest-2.3.3-jar-with-dependencies.jar:{JVM.SPARK_HOME}/jars/*',
-            'is.hail.JVMEntryway',
-            socket_file,
-        ]
-
         volume_mounts = [
             {
                 'source': JVM.SPARK_HOME,
@@ -2008,11 +1900,21 @@ class JVMContainer:
                 'options': ['rbind', 'rw'],
             },
         ]
-
-        fs = LocalAsyncFS(pool)  # worker does not have a fs when initializing JVMs
+        # JVM and Hail both treat MB as 1024 * 1024 bytes.
+        # JVMs only start in standard workers which have 3.75 GiB == 3840 MiB per core.
+        # We only allocate 3700 MiB so that we stay well below the machine's max memory.
+        # We allocate 60% of memory per core to off heap memory: 1480 + 2220 = 3700.
+        command = [
+            'java',
+            '-Xmx1480M',
+            '-cp',
+            f'/jvm-entryway:/jvm-entryway/junixsocket-selftest-2.3.3-jar-with-dependencies.jar:{JVM.SPARK_HOME}/jars/*',
+            'is.hail.JVMEntryway',
+            socket_file,
+        ]
 
         c = Container(
-            fs=fs,
+            worker=worker,
             name=f'jvm-{index}',
             image=Image(BATCH_WORKER_IMAGE, JVMUserCredentials(), client_session, pool),
             scratch_dir=f'{root_dir}/container',
@@ -2023,35 +1925,28 @@ class JVMContainer:
             volume_mounts=volume_mounts,
         )
 
-        await c.create()
-        await c.start()
+        exit_stack = AsyncExitStack()
+        process = await exit_stack.enter_async_context(c.start2())
+        return JVMContainer(exit_stack, process, c)
 
-        return JVMContainer(c, fs)
-
-    def __init__(self, container: Container, fs: LocalAsyncFS):
+    def __init__(self,
+                 exit_stack: AsyncExitStack,
+                 process: asyncio.subprocess.Process,
+                 container: Container):
+        self.exit_stack = exit_stack
+        self.process = process
         self.container = container
-        self.fs = fs
-        self.log_offset = 0
 
-    async def retrieve_and_clear_output(self) -> str:
-        logs = await self.get_log()
-        self.log_offset += len(logs)
-        return logs
-
-    async def get_log(self):
-        return await self.container.get_log(offset=self.log_offset)
+    async def get_log(self) -> str:
+        return await self.container.get_log()
 
     @property
     def returncode(self) -> Optional[int]:
-        if self.container.process is None:
-            return None
-        return self.container.process.returncode
+        return self.process.returncode
 
     async def remove(self):
-        if self.fs is not None:
-            await self.fs.close()
-            self.fs = None
-        await self.container.remove()
+        self.container.request_stop()
+        await self.exit_stack.__aexit__(None, None, None)
 
 
 class JVMUserError(Exception):
