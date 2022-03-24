@@ -531,6 +531,10 @@ class Image:
             worker.image_data[self.image_id] -= 1
 
 
+class ContainerTimedout(Exception):
+    pass
+
+
 class CancelledByUser(Exception):
     pass
 
@@ -744,8 +748,14 @@ class Container(IContainer):
                                     try:
                                         yield self.process
                                     finally:
-                                        await self.process.wait()
+                                        exit_code = await self.process.wait()
                                         self.finished_at = time_msecs()
+                                        if exit_code == 0:
+                                            self.state = 'succeeded'
+                                        else:
+                                            if exit_code == 137:
+                                                self.short_error = 'out of memory'
+                                            self.state = 'failed'
                                         try:
                                             await check_exec_output('crun', 'kill', '--all', self.name, 'SIGKILL')
                                         except CalledProcessError as e:
@@ -753,12 +763,14 @@ class Container(IContainer):
                                                 log.exception(f'while deleting container {self}', exc_info=True)
         except asyncio.CancelledError:
             raise
-        except StepInterruptedError:
+        except CancelledByUser:
             self.state = 'cancelled'
             raise
         except asyncio.TimeoutError:
             self.state = 'error'
-            self.error = traceback.format_exc()
+            self.short_error = 'timed out'
+            self.error = 'ContainerTimeoutError'
+            raise ContainerTimedout
         except Exception as e:
             if not user_error(e):
                 log.exception(f'while running {self}')
@@ -1549,10 +1561,12 @@ class DockerJob(Job):
                 raise
             except CancelledByUser:
                 self.state = 'cancelled'
+            except ContainerTimedout:
+                self.state = 'error'
+                self.error = 'ContainerTimeoutError'
             except Exception as e:
                 if not user_error(e):
                     log.exception(f'while running {self}')
-
                 self.state = 'error'
                 self.error = traceback.format_exc()
             finally:
