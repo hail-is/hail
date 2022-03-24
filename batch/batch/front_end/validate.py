@@ -72,11 +72,10 @@ job_validator = keyed(
                     required('mount_docker_socket'): bool_type,
                 },
                 'jvm': {
-                    required('jar_spec'): keyed({
-                        required('type'): oneof('git_revision', 'jar_url'),
-                        required('value'): str_type
-                    }),
-                    required('command'): listof(str_type)
+                    required('jar_spec'): keyed(
+                        {required('type'): oneof('git_revision', 'jar_url'), required('value'): str_type}
+                    ),
+                    required('command'): listof(str_type),
                 },
             },
         ),
