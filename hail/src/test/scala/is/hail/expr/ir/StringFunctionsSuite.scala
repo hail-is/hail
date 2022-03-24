@@ -3,7 +3,7 @@ package is.hail.expr.ir
 import is.hail.TestUtils._
 import is.hail.expr.ir.TestUtils._
 import is.hail.types.virtual._
-import is.hail.utils.{BoxedArrayBuilder, FastIndexedSeq}
+import is.hail.utils.FastIndexedSeq
 import is.hail.{ExecStrategy, HailSuite}
 import org.json4s.jackson.JsonMethods
 import org.testng.annotations.{DataProvider, Test}
