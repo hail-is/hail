@@ -828,7 +828,8 @@ class Container(IContainer):
     @asynccontextmanager
     async def host_port(self, netns: NetworkNamespace) -> AsyncGenerator[int, None]:
         if self.port is None:
-            return None
+            yield None
+            return
         host_port = await self.stoppable(port_allocator.allocate)
         # We never "unexpose" the port, but the network namespace is destroyed when this job is done.
         await self.stoppable(netns.expose_port(self.port, host_port))
