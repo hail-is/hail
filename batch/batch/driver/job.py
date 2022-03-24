@@ -209,6 +209,7 @@ async def mark_job_creating(
 CALL mark_job_creating(%s, %s, %s, %s, %s);
 ''',
             (batch_id, job_id, attempt_id, instance.name, start_time),
+            'mark_job_creating',
         )
     except Exception:
         log.info(f'error while marking job {id} creating on {instance}')
