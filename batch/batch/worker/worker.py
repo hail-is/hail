@@ -15,7 +15,6 @@ import tempfile
 import traceback
 import uuid
 import warnings
-import psutil
 from collections import defaultdict
 from contextlib import AsyncExitStack, ExitStack, contextmanager, asynccontextmanager
 from typing import (
@@ -48,7 +47,7 @@ from aiohttp import web
 
 from gear.clients import get_cloud_async_fs, get_compute_client
 from hailtop import aiotools, httpx
-from hailtop.aiotools import AsyncFS, LocalAsyncFS
+from hailtop.aiotools import LocalAsyncFS
 from hailtop.aiotools.router_fs import RouterAsyncFS
 from hailtop.batch.hail_genetics_images import HAIL_GENETICS_IMAGES
 from hailtop.config import DeployConfig
@@ -200,9 +199,11 @@ class ContainerInnerStatus(TypedDict):
     out_of_memory: Optional[bool]
     exit_code: Optional[int]
 
+
 ContainerState = Literal['pending', 'pulling', 'creating', 'starting',
                          'running', 'uploading_log', 'deleting', 'succeeded',
                          'error', 'failed', 'cancelled']
+
 
 class ContainerStatus(TypedDict):
     name: str
@@ -623,7 +624,6 @@ class IContainer(abc.ABC):
         raise NotImplementedError
 
 
-
 class Container(IContainer):
     def __init__(
         self,
@@ -829,9 +829,9 @@ class Container(IContainer):
     async def host_port(self, netns: NetworkNamespace) -> AsyncGenerator[int, None]:
         if self.port is None:
             return None
-        host_port = await stoppable(port_allocator.allocate)
+        host_port = await self.stoppable(port_allocator.allocate)
         # We never "unexpose" the port, but the network namespace is destroyed when this job is done.
-        await stoppable(netns.expose_port(self.port, host_port))
+        await self.stoppable(netns.expose_port(self.port, host_port))
         try:
             yield host_port
         finally:
