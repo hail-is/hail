@@ -255,7 +255,7 @@ class GeomBar(Geom):
 def geom_bar(mapping=aes(), *, fill=None, color=None, alpha=None, position="stack", size=None):
     """Create a bar chart that counts occurrences of the various values of the ``x`` aesthetic.
 
-    Supported aesthetics: ``x``, ``color``, ``fill``
+    Supported aesthetics: ``x``, ``color``, ``fill``, ``weight``
 
     Returns
     -------
