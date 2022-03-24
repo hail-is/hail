@@ -114,7 +114,7 @@ class HadoopFS(val conf: SerializableHadoopConfiguration) extends FS {
     }
   }
 
-  def mkDir(dirname: String): Unit = {
+  override def mkDir(dirname: String): Unit = {
     getFileSystem(dirname).mkdirs(new hadoop.fs.Path(dirname))
   }
 
@@ -130,7 +130,7 @@ class HadoopFS(val conf: SerializableHadoopConfiguration) extends FS {
     getFileSystem(filename).delete(new hadoop.fs.Path(filename), recursive)
   }
 
-  def globAll(filenames: Iterable[String]): Array[String] = {
+  override def globAll(filenames: Iterable[String]): Array[String] = {
     filenames.iterator
       .flatMap { arg =>
         val fss = glob(arg)
@@ -141,7 +141,7 @@ class HadoopFS(val conf: SerializableHadoopConfiguration) extends FS {
       }.toArray
   }
 
-  def globAllStatuses(filenames: Iterable[String]): Array[FileStatus] = {
+  override def globAllStatuses(filenames: Iterable[String]): Array[FileStatus] = {
     filenames.flatMap { filename =>
       val statuses = glob(filename)
       if (statuses.isEmpty)

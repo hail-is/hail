@@ -2,7 +2,6 @@ package is.hail.io.fs
 
 import java.io._
 import java.util.zip.{GZIPInputStream, GZIPOutputStream}
-
 import is.hail.HailContext
 import is.hail.backend.BroadcastValue
 import is.hail.io.compress.{BGzipInputStream, BGzipOutputStream}
@@ -11,6 +10,7 @@ import org.apache.commons.compress.compressors.gzip.GzipCompressorInputStream
 import org.apache.commons.io.IOUtils
 import org.apache.hadoop
 
+import java.nio.ByteBuffer
 import scala.io.Source
 
 trait Positioned {
@@ -76,6 +76,80 @@ object FSUtil {
   }
 }
 
+abstract class FSSeekableInputStream extends InputStream with Seekable {
+  protected[this] var closed: Boolean = false
+  protected[this] var pos: Long = 0
+  protected[this] var eof: Boolean = false
+
+  protected[this] val bb: ByteBuffer = ByteBuffer.allocate(64 * 1024)
+  bb.limit(0)
+
+  def fill(): Unit
+
+  override def read(): Int = {
+    if (eof)
+      return -1
+
+    if (bb.remaining() == 0) {
+      fill()
+      if (eof)
+        return -1
+    }
+
+    pos += 1
+    bb.get().toInt & 0xff
+  }
+
+  override def read(bytes: Array[Byte], off: Int, len: Int): Int = {
+    if (eof)
+      return -1
+
+    if (bb.remaining() == 0) {
+      fill()
+      if (eof)
+        return -1
+    }
+
+    val toTransfer = math.min(len, bb.remaining())
+    bb.get(bytes, off, toTransfer)
+    pos += toTransfer
+    toTransfer
+  }
+
+  def getPosition: Long = pos
+}
+
+abstract class FSPositionedOutputStream extends OutputStream with Positioned {
+  protected[this] var closed: Boolean = false
+  protected[this] val bb: ByteBuffer = ByteBuffer.allocate(64 * 1024)
+  protected[this] var pos: Long = 0
+
+   def flush(): Unit
+
+   def write(i: Int): Unit = {
+    if (bb.remaining() == 0)
+      flush()
+    bb.put(i.toByte)
+    pos += 1
+  }
+
+   override def write(bytes: Array[Byte], off: Int, len: Int): Unit = {
+    var i = off
+    var remaining = len
+    while (remaining > 0) {
+      if (bb.remaining() == 0)
+        flush()
+      val toTransfer = math.min(bb.remaining(), remaining)
+      bb.put(bytes, i, toTransfer)
+      i += toTransfer
+      remaining -= toTransfer
+      pos += toTransfer
+    }
+  }
+
+  def getPosition: Long = pos
+}
+
 trait FS extends Serializable {
   def getCodecFromExtension(extension: String, gzAsBGZ: Boolean = false): CompressionCodec = {
     extension match {
@@ -134,7 +208,7 @@ trait FS extends Serializable {
 
   def createNoCompression(filename: String): PositionedDataOutputStream
 
-  def mkDir(dirname: String): Unit
+  def mkDir(dirname: String): Unit = ()
 
   def delete(filename: String, recursive: Boolean)
 
@@ -142,9 +216,10 @@ trait FS extends Serializable {
 
   def glob(filename: String): Array[FileStatus]
 
-  def globAll(filenames: Iterable[String]): Array[String]
+  def globAll(filenames: Iterable[String]): Array[String] =
+    globAllStatuses(filenames).map(_.getPath)
 
-  def globAllStatuses(filenames: Iterable[String]): Array[FileStatus]
+  def globAllStatuses(filenames: Iterable[String]): Array[FileStatus] = filenames.flatMap(glob).toArray
 
   def fileStatus(filename: String): FileStatus
 
