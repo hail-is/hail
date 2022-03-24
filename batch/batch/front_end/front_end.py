@@ -21,7 +21,6 @@ import plotly.express as px
 import pymysql
 from aiohttp import web
 from prometheus_async.aio.web import server_stats  # type: ignore
-import pandas as pd
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 
@@ -1651,15 +1650,16 @@ def plot_job_durations(container_statuses: dict, batch_id: int, job_id: int):
 
 
 def plot_resource_usage(resource_usage: Optional[Dict[str, Optional[pd.DataFrame]]]) -> Optional[str]:
-    fig = make_subplots(
-        rows=2, cols=1,
-        subplot_titles=("Memory", "CPU Usage")
-    )
-    colors = {'input': 'red', 'main': 'green', 'output': 'blue'}
-
     if resource_usage is None:
         return None
-    
+
+    fig = make_subplots(
+        rows=2, cols=1,
+        subplot_titles=('CPU Usage', 'Memory')
+    )
+
+    colors = {'input': 'red', 'main': 'green', 'output': 'blue'}
+
     for container_name, df in resource_usage.items():
         if df is None:
             continue
@@ -1667,28 +1667,29 @@ def plot_resource_usage(resource_usage: Optional[Dict[str, Optional[pd.DataFrame
         time = pd.to_datetime(df['time_msecs'], unit='ms')
         mem = df['memory_in_bytes']
         cpu = df['cpu_usage']
+
         fig.add_trace(
-                    go.Scatter(
-                              x=time,
-                              y=cpu,
-                              legendgroup=container_name,
-                              name=container_name,
-                              mode="lines",
-                              line=dict(color=colors[container_name])
-                    ),
-                    row=2, col=1,
+            go.Scatter(
+                x=time,
+                y=cpu,
+                legendgroup=container_name,
+                name=container_name,
+                mode='lines',
+                line=dict(color=colors[container_name])
+            ),
+            row=1, col=1,
         )
         fig.add_trace(
-                    go.Scatter(
-                              x=time,
-                              y=mem,
-                              showlegend=False,
-                              legendgroup=container_name,
-                              name=container_name,
-                              mode="lines",
-                              line=dict(color=colors[container_name])
-                    ),
-                    row=1, col=1,
+            go.Scatter(
+                x=time,
+                y=mem,
+                showlegend=False,
+                legendgroup=container_name,
+                name=container_name,
+                mode='lines',
+                line=dict(color=colors[container_name])
+            ),
+            row=2, col=1,
         )
     fig.update_layout(height=600, width=800, showlegend=True, yaxis2_tickformat='%')
 
