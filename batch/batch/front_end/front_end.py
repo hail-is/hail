@@ -1309,7 +1309,7 @@ async def _close_batch(app: aiohttp.web.Application, batch_id: int, user: str, d
     client_session: httpx.ClientSession = app['client_session']
     try:
         now = time_msecs()
-        await db.check_call_procedure('CALL close_batch(%s, %s);', (batch_id, now))
+        await db.check_call_procedure('CALL close_batch(%s, %s);', (batch_id, now), 'close_batch')
     except CallError as e:
         # 2: wrong number of jobs
         if e.rv['rc'] == 2:
