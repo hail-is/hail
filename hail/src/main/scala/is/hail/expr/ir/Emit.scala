@@ -1279,6 +1279,16 @@ class Emit[C](
           dictType.construct(finishOuter(cb))
         }
 
+      case RNGStateLiteral(key) =>
+        IEmitCode.present(cb, SRNGStateValue(cb, key))
+
+      case RNGSplit(state, dynBitstring) =>
+        val stateValue = emitI(state).get(cb).asRNGState
+        val longs = emitI(dynBitstring).get(cb).valueTuple.asInstanceOf[IndexedSeq[Value[Long]]]
+        var result = stateValue
+        longs.foreach(l => result = result.splitDyn(cb, l))
+        IEmitCode.present(cb, result)
+
       case x@StreamLen(a) =>
         emitStream(a, cb, region).map(cb) { case stream: SStreamValue =>
           val producer = stream.producer
@@ -2015,12 +2025,21 @@ class Emit[C](
         val rvAgg = agg.Extract.getAgg(sig)
         rvAgg.result(cb, sc.states(idx), region)
 
-      case x@ApplySeeded(fn, args, seed, rt) =>
+      case x@ApplySeeded(fn, args, rngState, seed, rt) =>
         val codeArgs = args.map(a => EmitCode.fromI(cb.emb)(emitInNewBuilder(_, a)))
         val impl = x.implementation
-        val unified = impl.unify(Array.empty[Type], args.map(_.typ), rt)
+        val unified = impl.unify(Array.empty[Type], x.argTypes, rt)
         assert(unified)
         impl.applySeededI(seed, cb, region, impl.computeReturnEmitType(x.typ, codeArgs.map(_.emitType)).st, codeArgs: _*)
+//        if (fn == "rand_unif") {
+//          val pureImpl = x.pureImplementation
+//          assert(pureImpl.unify(Array.empty[Type], rngState.typ +: x.argTypes, rt))
+//          emitI(rngState).consume(cb, {
+//            impl.applySeededI(seed, cb, region, impl.computeReturnEmitType(x.typ, codeArgs.map(_.emitType)).st, codeArgs: _*)
+//          }, { state =>
+////            pureImpl.apply(region, impl.computeReturnEmitType(x.typ, codeArgs.map(_.emitType)).st, Seq[Type](), const(0), EmitCode.present(mb, state), codeArgs: _*)
+//          })
+//        }
 
       case AggStateValue(i, _) =>
         val AggContainer(_, sc, _) = container.get

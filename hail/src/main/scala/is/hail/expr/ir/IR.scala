@@ -286,6 +286,15 @@ final case class LowerBoundOnOrderedCollection(orderedCollection: IR, elem: IR, 
 
 final case class GroupByKey(collection: IR) extends IR
 
+// FIXME: Revisit all uses after all infra is in place
+object RNGStateLiteral {
+  def apply(): RNGStateLiteral =
+    RNGStateLiteral(Array.fill(4)(util.Random.nextLong()))
+}
+final case class RNGStateLiteral(key: IndexedSeq[Long]) extends IR
+
+final case class RNGSplit(state: IR, dynBitstring: IR) extends IR
+
 final case class StreamLen(a: IR) extends IR
 
 final case class StreamGrouped(a: IR, groupSize: IR) extends IR
@@ -304,7 +313,7 @@ final case class StreamTake(a: IR, num: IR) extends IR
 final case class StreamDrop(a: IR, num: IR) extends IR
 
 // Generate, in ascending order, a uniform random sample, without replacement, of numToSample integers in the range [0, totalRange)
-final case class SeqSample(totalRange: IR, numToSample: IR, requiresMemoryManagementPerElement: Boolean) extends IR
+final case class SeqSample(totalRange: IR, numToSample: IR, rngState: IR, requiresMemoryManagementPerElement: Boolean) extends IR
 
 // Take the child stream and sort each element into buckets based on the provided pivots. The first and last elements of
 // pivots are the endpoints of the first and last interval respectively, should not be contained in the dataset.
@@ -681,8 +690,11 @@ sealed abstract class AbstractApplyNode[F <: JVMFunction] extends IR {
 
 final case class Apply(function: String, typeArgs: Seq[Type], args: Seq[IR], returnType: Type, errorID: Int) extends AbstractApplyNode[UnseededMissingnessObliviousJVMFunction]
 
-final case class ApplySeeded(function: String, args: Seq[IR], seed: Long, returnType: Type) extends AbstractApplyNode[SeededJVMFunction] {
+final case class ApplySeeded(function: String, args: Seq[IR], rngState: IR, seed: Long, returnType: Type) extends AbstractApplyNode[SeededJVMFunction] {
   val typeArgs: Seq[Type] = Seq.empty[Type]
+  lazy val pureImplementation: UnseededMissingnessObliviousJVMFunction =
+    IRFunctionRegistry.lookupFunctionOrFail(function, returnType, typeArgs, TRNGState +: argTypes)
+      .asInstanceOf[UnseededMissingnessObliviousJVMFunction]
 }
 
 final case class ApplySpecial(function: String, typeArgs: Seq[Type], args: Seq[IR], returnType: Type, errorID: Int) extends AbstractApplyNode[UnseededMissingnessAwareJVMFunction]

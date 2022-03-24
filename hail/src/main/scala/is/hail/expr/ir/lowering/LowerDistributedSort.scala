@@ -175,7 +175,7 @@ object LowerDistributedSort {
       val perPartStatsCDAContexts = ToStream(Literal(TArray(TStruct("segmentIdx" -> TInt32, "files" -> TArray(TString), "sizeOfPartition" -> TInt32, "numSamples" -> TInt32)), perPartStatsCDAContextData))
       val perPartStatsIR = cdaIR(perPartStatsCDAContexts, MakeStruct(Seq())){ (ctxRef, _) =>
         val filenames = GetField(ctxRef, "files")
-        val samples = SeqSample(GetField(ctxRef, "sizeOfPartition"), GetField(ctxRef, "numSamples"), false)
+        val samples = SeqSample(GetField(ctxRef, "sizeOfPartition"), GetField(ctxRef, "numSamples"), ???, false)
         val partitionStream = flatMapIR(ToStream(filenames)) { fileName =>
           mapIR(ReadPartition(fileName, spec._vType, reader)){ partitionElement =>
             SelectFields(partitionElement, keyToSortBy.fields.map(_.name))

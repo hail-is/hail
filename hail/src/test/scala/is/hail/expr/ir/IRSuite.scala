@@ -2712,6 +2712,7 @@ class IRSuite extends HailSuite {
     val nd = MakeNDArray(MakeArray(FastSeq(I32(-1), I32(1)), TArray(TInt32)),
       MakeTuple.ordered(FastSeq(I64(1), I64(2))),
       True(), ErrorIDs.NO_ERROR)
+    val rngState = RNGStateLiteral(Array(1L, 2L, 3L, 4L))
 
     val irs = Array(
       i, I64(5), F32(3.14f), F64(3.14), str, True(), False(), Void(),
@@ -2744,6 +2745,7 @@ class IRSuite extends HailSuite {
       NDArrayFilter(nd, FastIndexedSeq(NA(TArray(TInt64)), NA(TArray(TInt64)))),
       ArrayRef(a, i),
       ArrayLen(a),
+      RNGSplit(rngState, MakeTuple.ordered(FastSeq(I64(1), MakeTuple.ordered(FastSeq(I64(2), I64(3)))))),
       StreamLen(st),
       StreamRange(I32(0), I32(5), I32(1)),
       StreamRange(I32(0), I32(5), I32(1)),
@@ -3168,17 +3170,19 @@ class IRSuite extends HailSuite {
 
     def i = In(0, TBoolean)
 
-    def st = ApplySeeded("incr_s", FastSeq(True()), 0L, TBoolean)
+    def rngState = RNGStateLiteral()
 
-    def sf = ApplySeeded("incr_s", FastSeq(True()), 0L, TBoolean)
+    def st = ApplySeeded("incr_s", FastSeq(True()), rngState, 0L, TBoolean)
 
-    def sm = ApplySeeded("incr_s", FastSeq(NA(TBoolean)), 0L, TBoolean)
+    def sf = ApplySeeded("incr_s", FastSeq(True()), rngState, 0L, TBoolean)
 
-    def vt = ApplySeeded("incr_v", FastSeq(True()), 0L, TBoolean)
+    def sm = ApplySeeded("incr_s", FastSeq(NA(TBoolean)), rngState, 0L, TBoolean)
 
-    def vf = ApplySeeded("incr_v", FastSeq(True()), 0L, TBoolean)
+    def vt = ApplySeeded("incr_v", FastSeq(True()), rngState, 0L, TBoolean)
 
-    def vm = ApplySeeded("incr_v", FastSeq(NA(TBoolean)), 0L, TBoolean)
+    def vf = ApplySeeded("incr_v", FastSeq(True()), rngState, 0L, TBoolean)
+
+    def vm = ApplySeeded("incr_v", FastSeq(NA(TBoolean)), rngState, 0L, TBoolean)
 
     // baseline
     test(st, true, 1); test(sf, true, 1); test(sm, true, 1)

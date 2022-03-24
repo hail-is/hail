@@ -990,6 +990,10 @@ class CodeLong(val lhs: Code[Long]) extends AnyVal {
   def toS: Code[String] = Code.invokeStatic1[java.lang.Long, Long, String]("toString", lhs)
 
   def hexString: Code[String] = Code.invokeStatic1[java.lang.Long, Long, String]("toHexString", lhs)
+
+  def numberOfLeadingZeroes: Code[Int] = Code.invokeStatic1[java.lang.Long, Long, Int]("numberOfLeadingZeroes", lhs)
+
+  def numberOfTrailingZeroes: Code[Int] = Code.invokeStatic1[java.lang.Long, Long, Int]("numberOfTrailingZeroes", lhs)
 }
 
 class CodeFloat(val lhs: Code[Float]) extends AnyVal {

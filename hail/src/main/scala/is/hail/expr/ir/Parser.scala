@@ -4,22 +4,20 @@ import is.hail.HailContext
 import is.hail.backend.ExecuteContext
 import is.hail.expr.ir.agg._
 import is.hail.expr.ir.functions.RelationalFunctions
-import is.hail.types.physical._
-import is.hail.types.virtual._
-import is.hail.types.encoded._
-import is.hail.types.{MatrixType, TableType, TypeWithRequiredness, VirtualTypeWithReq}
 import is.hail.expr.{JSONAnnotationImpex, Nat, ParserUtils}
 import is.hail.io.{AbstractTypedCodecSpec, BufferSpec}
 import is.hail.rvd.{AbstractRVDSpec, RVDType}
+import is.hail.types.physical._
+import is.hail.types.virtual._
+import is.hail.types.{MatrixType, TableType, VirtualTypeWithReq}
 import is.hail.utils.StackSafe._
 import is.hail.utils.StringEscapeUtils._
 import is.hail.utils._
 import is.hail.variant.ReferenceGenome
 import org.apache.spark.sql.Row
-import org.json4s.{Formats, JObject}
 import org.json4s.jackson.{JsonMethods, Serialization}
+import org.json4s.{Formats, JObject}
 
-import scala.collection.JavaConverters._
 import scala.collection.mutable
 import scala.reflect.ClassTag
 import scala.util.parsing.combinator.JavaTokenParsers
@@ -885,19 +883,24 @@ object IRParser {
         } yield ArrayRef(a, i, errorID)
       case "ArraySlice" =>
         val errorID = int32_literal(it)
-        ir_value_children(env)(it).map { args =>
-          args match {
-            case Array(a, start, step) => ArraySlice(a, start, None, step, errorID)
-            case Array(a, start, stop, step) => ArraySlice(a, start, Some(stop), step, errorID)
-          }
+        ir_value_children(env)(it).map {
+          case Array(a, start, step) => ArraySlice(a, start, None, step, errorID)
+          case Array(a, start, stop, step) => ArraySlice(a, start, Some(stop), step, errorID)
         }
+      case "RNGStateLiteral" =>
+        done(RNGStateLiteral(int64_literals(it)))
+      case "RNGSplit" =>
+        for {
+          state <- ir_value_expr(env)(it)
+          dynBitstring <- ir_value_expr(env)(it)
+        } yield RNGSplit(state, dynBitstring)
       case "ArrayLen" => ir_value_expr(env)(it).map(ArrayLen)
       case "StreamLen" => ir_value_expr(env)(it).map(StreamLen)
       case "StreamIota" =>
         val requiresMemoryManagementPerElement = boolean_literal(it)
         for {
           start <- ir_value_expr(env)(it)
-            step <- ir_value_expr(env)(it)
+          step <- ir_value_expr(env)(it)
         } yield StreamIota(start, step, requiresMemoryManagementPerElement)
       case "StreamRange" =>
         val errorID = int32_literal(it)
@@ -1281,7 +1284,7 @@ object IRParser {
       case "MakeTuple" =>
         val indices = int32_literals(it)
         ir_value_children(env)(it).map { args =>
-          MakeTuple(indices.zip(args))
+          MakeTuple(indices.zip(args).toFastSeq)
         }
       case "GetTupleElement" =>
         val idx = int32_literal(it)
@@ -1307,9 +1310,10 @@ object IRParser {
         val function = identifier(it)
         val seed = int64_literal(it)
         val rt = type_expr(env.typEnv)(it)
-        ir_value_children(env)(it).map { args =>
-          ApplySeeded(function, args, seed, rt)
-        }
+        for {
+          args <- ir_value_children(env)(it)
+          rngState <- ir_value_expr(env)(it)
+        } yield ApplySeeded(function, args, rngState, seed, rt)
       case "ApplyIR" | "ApplySpecial" | "Apply" =>
         val errorID = int32_literal(it)
         val function = identifier(it)

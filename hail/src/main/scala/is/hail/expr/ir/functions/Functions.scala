@@ -183,11 +183,11 @@ object IRFunctionRegistry {
     }
   }
 
-  def lookupSeeded(name: String, seed: Long, returnType: Type, arguments: Seq[Type]): Option[(Seq[IR]) => IR] = {
+  def lookupSeeded(name: String, seed: Long, returnType: Type, arguments: Seq[Type]): Option[(Seq[IR], IR) => IR] = {
     lookupFunction(name, returnType, Array.empty[Type], arguments)
       .filter(_.isInstanceOf[SeededJVMFunction])
       .map { case f: SeededJVMFunction =>
-        (irArguments: Seq[IR]) => ApplySeeded(name, irArguments, seed, f.returnType.subst())
+        (irArguments: Seq[IR], rngState: IR) => ApplySeeded(name, irArguments, rngState, seed, f.returnType.subst())
       }
   }
 
