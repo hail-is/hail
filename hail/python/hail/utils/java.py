@@ -1,4 +1,3 @@
-import warnings
 import os
 import sys
 import re
