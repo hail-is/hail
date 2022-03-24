@@ -432,7 +432,7 @@ class BatchBuilder:
         )
 
     def create_jvm_job(self, jar_spec: Dict[str, str], argv: List[str], **kwargs):
-        return self._create_job({'type': 'jvm', 'jar_spec': jar_spec, 'argv': argv}, **kwargs)
+        return self._create_job({'type': 'jvm', 'jar_spec': jar_spec, 'command': argv}, **kwargs)
 
     def _create_job(self,
                     process: dict,

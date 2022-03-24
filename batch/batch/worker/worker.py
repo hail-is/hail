@@ -1579,7 +1579,7 @@ class JVMJob(Job):
 
         assert job_spec['process']['jar_spec']['type'] == 'jar_url'
         self.jar_url = job_spec['process']['jar_spec']['value']
-        self.argv = job_spec['process']['argv']
+        self.argv = job_spec['process']['command']
 
         self.timings = Timings()
         self.state = 'pending'
