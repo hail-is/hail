@@ -143,23 +143,15 @@ class AzureStorageFS(val serviceAccountKey: Option[String] = None) extends FS {
   def openNoCompression(filename: String): SeekableDataInputStream = {
     val blobClient: BlobClient = getBlobClient(filename)
 
-    // TODO: this and the GoogleStorageFS open method are very similar
-    // can they be abstracted out? (i.e. abstract class with all but fill and seek)
-    val is: SeekableInputStream = new InputStream with Seekable {
-      private[this] var closed: Boolean = false
+    val is: SeekableInputStream = new FSSeekableInputStream {
       private[this] var client: BlobClient = blobClient
-      private[this] var pos: Long = 0
-      private[this] var eof: Boolean = false
-
-      private[this] val bb: ByteBuffer = ByteBuffer.allocate(64 * 1024)
-      bb.limit(0)
 
       def fill(): Unit = {
         bb.clear()
 
         // read some bytes
         val outputStream: ByteArrayOutputStream = new ByteArrayOutputStream()
-        val blobProperties = blobClient.getProperties
+        val blobProperties = client.getProperties
         val blobSize = blobProperties.getBlobSize
 
         val count = Math.min(blobSize - pos, bb.remaining() - 1)
@@ -171,63 +163,20 @@ class AzureStorageFS(val serviceAccountKey: Option[String] = None) extends FS {
         // calculate the minimum of the bytes remaining in the buffer and the bytes remaining
         // to be read in the blob
         client.downloadWithResponse(
-                      outputStream, new BlobRange(pos, count),
-                      null, null, false, Duration.ofMinutes(1), null)
-                    pos += count
+          outputStream, new BlobRange(pos, count),
+          null, null, false, Duration.ofMinutes(1), null)
+        pos += count
         bb.put(outputStream.toByteArray)
         bb.flip()
 
         assert(bb.position() == 0 && bb.remaining() > 0)
       }
 
-      override def read(): Int = {
-        if (eof)
-          return -1
-
-        if (bb.remaining() == 0) {
-          fill()
-          if (eof)
-            return -1
-        }
-
-        pos += 1
-        bb.get().toInt & 0xff
-      }
-
-      override def read(bytes: Array[Byte], off: Int, len: Int): Int = {
-        if (eof)
-          return -1
-
-        if (bb.remaining() == 0) {
-          fill()
-          if (eof)
-            return -1
-        }
-
-        val toTransfer = math.min(len, bb.remaining())
-        bb.get(bytes, off, toTransfer)
-        pos += toTransfer
-        toTransfer
-      }
-
-      override def close(): Unit = {
-        if (!closed) {
-          closed = true
-        }
-      }
-
       override def seek(newPos: Long): Unit = {
-        if (!closed) {
-          // TODO: compare with google fs
-          // TODO: should blobSize be a property of this class instead of being defined here?
-          val blobSize = blobClient.getProperties.getBlobSize
-          println(s"blobSize: $blobSize")
-          if (newPos < 0 || newPos > blobSize) throw new IndexOutOfBoundsException(s"Cannot seek to position $newPos: Out of bounds [0, $blobSize]")
-          pos = newPos
-        }
+        bb.clear()
+        bb.limit(0)
+        pos = newPos
       }
-
-      override def getPosition: Long = pos
     }
 
     new WrappedSeekableDataInputStream(is)
@@ -237,39 +186,23 @@ class AzureStorageFS(val serviceAccountKey: Option[String] = None) extends FS {
     val appendClient: AppendBlobClient = getBlobClient(filename).getAppendBlobClient
     if (!appendClient.exists()) appendClient.create()
 
-    // TODO: remove closed check from other methods
-    val os: PositionedOutputStream = new OutputStream with Positioned {
-      private[this] val bb: ByteBuffer = ByteBuffer.allocate(64 * 20)
-      private[this] var pos: Long = 0
-      private[this] var closed: Boolean = false
-      private[this] var client: AppendBlobClient = appendClient
-
-      override def write(i: Int): Unit = {
-        if (!closed) {
-          if (bb.remaining() == 0) {
-            flush()
-          }
-          bb.put(i.toByte)
-          pos += 1
-        }
-      }
+    val os: PositionedOutputStream = new FSPositionedOutputStream {
+      private[this] val client: AppendBlobClient = appendClient
 
       override def flush(): Unit = {
-        if (!closed) {
-          bb.flip()
+        bb.flip()
 
-          if (bb.limit() > 0) {
-            var toWrite: mutable.MutableList[Byte] = mutable.MutableList()
-            var i = 0
-            while (i < bb.remaining()) {
-              toWrite += bb.get(i)
-              i += 1
-            }
-            appendClient.appendBlock(new ByteArrayInputStream(toWrite.toArray), toWrite.length)
+        if (bb.limit() > 0) {
+          var toWrite: mutable.MutableList[Byte] = mutable.MutableList()
+          var i = 0
+          while (i < bb.remaining()) {
+            toWrite += bb.get(i)
+            i += 1
           }
-
-          bb.clear()
+          client.appendBlock(new ByteArrayInputStream(toWrite.toArray), toWrite.length)
         }
+
+        bb.clear()
       }
 
       override def close(): Unit = {
@@ -278,14 +211,10 @@ class AzureStorageFS(val serviceAccountKey: Option[String] = None) extends FS {
           closed = true
         }
       }
-
-      override def getPosition: Long = pos
     }
 
     new WrappedPositionedDataOutputStream(os)
   }
-
-  def mkDir(dirname: String): Unit = ()
 
   def delete(filename: String, recursive: Boolean): Unit = {
     if (this.exists(filename)) {
@@ -316,9 +245,8 @@ class AzureStorageFS(val serviceAccountKey: Option[String] = None) extends FS {
         if (fileStatus.isFile && blobClient.exists()) blobClient.delete()
       }
       else {
-        // TODO: should this throw an exception? If so, what kind?
           if (fileStatus.isDirectory) {
-            throw new Exception("Cannot non-recursively delete a directory")
+            throw new IllegalArgumentException("Cannot non-recursively delete a directory")
           }
           if (blobClient.exists()) blobClient.delete()
       }
@@ -414,13 +342,8 @@ class AzureStorageFS(val serviceAccountKey: Option[String] = None) extends FS {
     ab.toArray
   }
 
-  def globAll(filenames: Iterable[String]): Array[String] =
-    globAllStatuses(filenames).map(_.getPath)
-
-  def globAllStatuses(filenames: Iterable[String]): Array[FileStatus] = filenames.flatMap(glob).toArray
-
   def fileStatus(filename: String): FileStatus = {
-    var (account, container, path) = getAccountContainerPath(filename)
+    val (account, container, path) = getAccountContainerPath(filename)
 
     if (path == "") {
       return new BlobStorageFileStatus(s"hail-az://$account/$container", null, 0, true)
@@ -459,7 +382,6 @@ class AzureStorageFS(val serviceAccountKey: Option[String] = None) extends FS {
   }
 
   def makeQualified(filename: String): String = {
-    // TODO: this needs to change if we start supporting wasb
     assert(filename.startsWith("hail-az://"))
     filename
   }

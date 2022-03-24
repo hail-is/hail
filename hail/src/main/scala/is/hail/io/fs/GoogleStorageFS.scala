@@ -108,14 +108,8 @@ class GoogleStorageFS(val serviceAccountKey: Option[String] = None) extends FS {
   def openNoCompression(filename: String): SeekableDataInputStream = {
     val (bucket, path) = getBucketPath(filename)
 
-    val is: SeekableInputStream = new InputStream with Seekable {
-      private[this] val bb: ByteBuffer = ByteBuffer.allocate(64 * 1024)
-      bb.limit(0)
-
-      private[this] var closed: Boolean = false
+    val is: SeekableInputStream = new FSSeekableInputStream {
       private[this] val reader: ReadChannel = storage.reader(bucket, path)
-      private[this] var pos: Long = 0
-      private[this] var eof: Boolean = false
 
       override def close(): Unit = {
         if (!closed) {
@@ -124,7 +118,7 @@ class GoogleStorageFS(val serviceAccountKey: Option[String] = None) extends FS {
         }
       }
 
-      def fill(): Unit = {
+      override def fill(): Unit = {
         bb.clear()
 
         // read some bytes
@@ -140,38 +134,6 @@ class GoogleStorageFS(val serviceAccountKey: Option[String] = None) extends FS {
 
         assert(bb.position() == 0 && bb.remaining() > 0)
       }
-
-      override def read(): Int = {
-        if (eof)
-          return -1
-
-        if (bb.remaining() == 0) {
-          fill()
-          if (eof)
-            return -1
-        }
-
-        pos += 1
-        bb.get().toInt & 0xff
-      }
-
-      override def read(bytes: Array[Byte], off: Int, len: Int): Int = {
-        if (eof)
-          return -1
-
-        if (bb.remaining() == 0) {
-          fill()
-          if (eof)
-            return -1
-        }
-
-        val toTransfer = math.min(len, bb.remaining())
-        bb.get(bytes, off, toTransfer)
-        pos += toTransfer
-        toTransfer
-      }
-
-      def getPosition: Long = pos
 
       def seek(newPos: Long): Unit = {
         bb.clear()
@@ -191,59 +153,31 @@ class GoogleStorageFS(val serviceAccountKey: Option[String] = None) extends FS {
     val blobInfo = BlobInfo.newBuilder(blobId)
       .build()
 
-    val os: PositionedOutputStream = new OutputStream with Positioned {
-      private[this] var closed: Boolean = false
-      private[this] val bb: ByteBuffer = ByteBuffer.allocate(64 * 1024)
-      private[this] var pos: Long = 0
-      private[this] val write: WriteChannel = storage.writer(blobInfo)
+    val os: PositionedOutputStream = new FSPositionedOutputStream {
+        private[this] val write: WriteChannel = storage.writer(blobInfo)
 
-      override def flush(): Unit = {
-        bb.flip()
+        override def flush(): Unit = {
+          bb.flip()
 
-        while (bb.remaining() > 0)
-          write.write(bb)
+          while (bb.remaining() > 0)
+            write.write(bb)
 
-        bb.clear()
-      }
+          bb.clear()
+        }
 
-      override def write(i: Int): Unit = {
-        if (bb.remaining() == 0)
-          flush()
-        bb.put(i.toByte)
-        pos += 1
-      }
-
-      override def write(bytes: Array[Byte], off: Int, len: Int): Unit = {
-        var i = off
-        var remaining = len
-        while (remaining > 0) {
-          if (bb.remaining() == 0)
+        override def close(): Unit = {
+          if (!closed) {
             flush()
-          val toTransfer = math.min(bb.remaining(), remaining)
-          bb.put(bytes, i, toTransfer)
-          i += toTransfer
-          remaining -= toTransfer
-          pos += toTransfer
-        }
-      }
-
-      override def close(): Unit = {
-        if (!closed) {
-          flush()
-          retryTransientErrors {
-            write.close()
+            retryTransientErrors {
+              write.close()
+            }
+            closed = true
           }
-          closed = true
         }
-      }
-
-      def getPosition: Long = pos
     }
 
     new WrappedPositionedDataOutputStream(os)
   }
-
-  def mkDir(dirname: String): Unit = ()
 
   def delete(filename: String, recursive: Boolean): Unit = {
     val (bucket, path) = getBucketPath(filename)
@@ -308,11 +242,6 @@ class GoogleStorageFS(val serviceAccountKey: Option[String] = None) extends FS {
     f(s"gs://$bucket", null, 0)
     ab.toArray
   }
-
-  def globAll(filenames: Iterable[String]): Array[String] =
-    globAllStatuses(filenames).map(_.getPath)
-
-  def globAllStatuses(filenames: Iterable[String]): Array[FileStatus] = filenames.flatMap(glob).toArray
 
   def listStatus(filename: String): Array[FileStatus] = {
     var (bucket, path) = getBucketPath(filename)
