@@ -304,7 +304,11 @@ class ServiceBackend(
     relationalLetsAbove: Map[String, IR],
     rowTypeRequiredness: RStruct
   ): TableStage = {
-    LowerDistributedSort.localSort(ctx, stage, sortFields, relationalLetsAbove)
+    if (ctx.getFlag("use_new_shuffle") != null) {
+      LowerDistributedSort.distributedSort(ctx, stage, sortFields, relationalLetsAbove, rowTypeRequiredness)
+    } else {
+      LowerDistributedSort.localSort(ctx, stage, sortFields, relationalLetsAbove)
+    }
   }
 
   def persist(backendContext: BackendContext, id: String, value: BlockMatrix, storageLevel: String): Unit = ???

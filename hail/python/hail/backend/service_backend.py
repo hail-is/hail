@@ -185,6 +185,8 @@ class ServiceBackend(Backend):
         self.user_local_reference_cache_dir = user_local_reference_cache_dir
         self.remote_tmpdir = remote_tmpdir
         self.flags = flags
+        if "use_new_shuffle" not in self.flags:
+            self.flags["use_new_shuffle"] = "1"
 
     def debug_info(self) -> Dict[str, Any]:
         return {
