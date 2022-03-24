@@ -84,7 +84,7 @@ class Py4JBackend(Backend):
 
         Env.hail().expr.ir.functions.IRFunctionRegistry.pyRegisterIR(
             name,
-            [ta._parsable_string() for ta in type_parameter],
+            [ta._parsable_string() for ta in type_parameters],
             value_parameter_names,
             [pt._parsable_string() for pt in value_parameter_types],
             return_type._parsable_string(),
