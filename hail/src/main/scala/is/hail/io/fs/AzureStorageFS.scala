@@ -68,7 +68,6 @@ object AzureStorageFS {
         }
     }
 
-    // FIXME: Should the path include the first slash or not?
     (account, container, path)
   }
 
@@ -84,23 +83,6 @@ object AzureStorageFS {
       i -= 1
     path.substring(0, i)
   }
-
-}
-
-class AzureStorageFileStatus(path: String, modificationTime: java.lang.Long, size: Long, isDir: Boolean) extends FileStatus {
-  def getPath: String = path
-
-  def getModificationTime: java.lang.Long = modificationTime
-
-  def getLen: Long = size
-
-  def isDirectory: Boolean = isDir
-
-  def isFile: Boolean = !isDir
-
-  def isSymlink: Boolean = false
-
-  def getOwner: String = null
 }
 
 class AzureBlobServiceClientCache(credential: TokenCredential) {
@@ -132,19 +114,7 @@ class AzureStorageFS(val serviceAccountKey: Option[String] = None) extends FS {
         case json4s.JObject(values) => values.toMap
       }
 
-//      {
-//        "appId": "6ba2e9fc-e889-41e9-8409-2f950ca793eb",
-//        "appObjectId": "7c724a87-15e0-407b-94d8-64e4d2b3009d",
-//        "displayName": "haildev-test",
-//        "objectId": "5505f0bf-aeef-49a3-9a1c-062987b123f9",
-//        "password": "Hev7Q~FqhgMd0X8xsuzKQmHSssYEFbglhr.oM",
-//        "tenant": "d6c9f2ea-d3bb-4ca9-8b14-231bac999aa6"
-//      }
-
       val appId = kvs("appId").asInstanceOf[json4s.JString].s
-      val appObjectId = kvs("appObjectId").asInstanceOf[json4s.JString].s
-      val displayName = kvs("displayName").asInstanceOf[json4s.JString].s
-      val objectId = kvs("objectId").asInstanceOf[json4s.JString].s
       val password = kvs("password").asInstanceOf[json4s.JString].s
       val tenant = kvs("tenant").asInstanceOf[json4s.JString].s
 
@@ -158,7 +128,6 @@ class AzureStorageFS(val serviceAccountKey: Option[String] = None) extends FS {
 
   def getBlobServiceClient(account: String): BlobServiceClient = {
     storageClientCache.getServiceClient(account)
-//    throw new NotImplementedError()
   }
 
   def getBlobClient(filename: String): BlobClient = {
@@ -174,6 +143,8 @@ class AzureStorageFS(val serviceAccountKey: Option[String] = None) extends FS {
   def openNoCompression(filename: String): SeekableDataInputStream = {
     val blobClient: BlobClient = getBlobClient(filename)
 
+    // TODO: this and the GoogleStorageFS open method are very similar
+    // can they be abstracted out? (i.e. abstract class with all but fill and seek)
     val is: SeekableInputStream = new InputStream with Seekable {
       private[this] var closed: Boolean = false
       private[this] var client: BlobClient = blobClient
@@ -199,21 +170,11 @@ class AzureStorageFS(val serviceAccountKey: Option[String] = None) extends FS {
 
         // calculate the minimum of the bytes remaining in the buffer and the bytes remaining
         // to be read in the blob
-//        client.downloadStreamWithResponse(
-//                      outputStream, new BlobRange(pos, count),
-//                      null, null, false, Duration.ofMinutes(1), null)
-//                    pos += count
-//
-//        bb.put(outputStream.toByteArray)
-
-
         client.downloadWithResponse(
                       outputStream, new BlobRange(pos, count),
                       null, null, false, Duration.ofMinutes(1), null)
                     pos += count
-
         bb.put(outputStream.toByteArray)
-
         bb.flip()
 
         assert(bb.position() == 0 && bb.remaining() > 0)
@@ -257,8 +218,10 @@ class AzureStorageFS(val serviceAccountKey: Option[String] = None) extends FS {
 
       override def seek(newPos: Long): Unit = {
         if (!closed) {
+          // TODO: compare with google fs
           // TODO: should blobSize be a property of this class instead of being defined here?
           val blobSize = blobClient.getProperties.getBlobSize
+          println(s"blobSize: $blobSize")
           if (newPos < 0 || newPos > blobSize) throw new IndexOutOfBoundsException(s"Cannot seek to position $newPos: Out of bounds [0, $blobSize]")
           pos = newPos
         }
@@ -274,6 +237,7 @@ class AzureStorageFS(val serviceAccountKey: Option[String] = None) extends FS {
     val appendClient: AppendBlobClient = getBlobClient(filename).getAppendBlobClient
     if (!appendClient.exists()) appendClient.create()
 
+    // TODO: remove closed check from other methods
     val os: PositionedOutputStream = new OutputStream with Positioned {
       private[this] val bb: ByteBuffer = ByteBuffer.allocate(64 * 20)
       private[this] var pos: Long = 0
@@ -321,56 +285,51 @@ class AzureStorageFS(val serviceAccountKey: Option[String] = None) extends FS {
     new WrappedPositionedDataOutputStream(os)
   }
 
-  override def mkDir(dirname: String): Unit = ()
+  def mkDir(dirname: String): Unit = ()
 
-  override def delete(filename: String, recursive: Boolean): Unit = {
-    // check if the file exists
+  def delete(filename: String, recursive: Boolean): Unit = {
     if (this.exists(filename)) {
-      // if it does, get the corresponding BlobClient
       val (account, container, path) = getAccountContainerPath(filename)
       val blobClient: BlobClient = this.getBlobClient(filename)
 
       val fileStatus = this.fileStatus(filename)
 
       if (recursive) {
-        // if recursive, create an iterator over all files in this "directory" (files that match its prefix)
         val blobContainerClient = this.getContainerClient(filename)
 
         val directoryContents = blobContainerClient.listBlobsByHierarchy(dropTrailingSlash(path) + "/")
         var seenBlobItems: Set[String] = Set()
         val iter = directoryContents.iterator()
+
         def deleteRecursively(): Unit = {
           while (iter.hasNext) {
             val blobItem: BlobItem = iter.next
             if (seenBlobItems.contains(blobItem.getName)) return
             seenBlobItems += blobItem.getName
             val blobFileName = s"hail-az://$account/$container/${blobItem.getName}"
+            // recursively delete all files/subfolders
             this.delete(blobFileName, recursive)
           }
         }
         deleteRecursively()
 
-        // TODO: this check may be unnecessary
-        // delete the initial blob itself if it wasn't already deleted
         if (fileStatus.isFile && blobClient.exists()) blobClient.delete()
       }
       else {
         // TODO: should this throw an exception? If so, what kind?
-        // if not, just delete the file using the BlobClient
           if (fileStatus.isDirectory) {
             throw new Exception("Cannot non-recursively delete a directory")
           }
-          blobClient.delete()
+          if (blobClient.exists()) blobClient.delete()
       }
     }
   }
 
-  override def listStatus(filename: String): Array[FileStatus] = {
-    var (account, container, path) = getAccountContainerPath(filename)
-
+  def listStatus(filename: String): Array[FileStatus] = {
+    val (account, container, path) = getAccountContainerPath(filename)
     val blobContainerClient: BlobContainerClient = getContainerClient(filename)
 
-    val statList: mutable.MutableList[FileStatus] = mutable.MutableList()
+    val statusList: mutable.MutableList[FileStatus] = mutable.MutableList()
     var blobNameSet: Set[String] = Set()
 
     var seenBlobItems: Set[String] = Set()
@@ -386,9 +345,10 @@ class AzureStorageFS(val serviceAccountKey: Option[String] = None) extends FS {
         if (seenBlobItems.contains(blobItem.getName)) return
         seenBlobItems += blobItem.getName
 
-        // find the first slash
+        // find the first slash after the prefix
         val indexOfFirstSlashAfterPrefix: Int = blobItem.getName.indexOf("/", prefix.length)
         var blobName = blobItem.getName
+        // if there is a slash after the prefix, then this blob is under a subdirectory
         if (indexOfFirstSlashAfterPrefix != -1) {
           blobName = blobItem.getName.substring(0, indexOfFirstSlashAfterPrefix)
         }
@@ -396,13 +356,13 @@ class AzureStorageFS(val serviceAccountKey: Option[String] = None) extends FS {
         if (!blobNameSet.contains(blobName)) {
           blobNameSet = blobNameSet + blobName
           val blobFileName = s"hail-az://$account/$container/$blobName"
-          statList += fileStatus(blobFileName)
+          statusList += fileStatus(blobFileName)
         }
       }
     }
     populateStatList()
 
-    statList.toArray
+    statusList.toArray
   }
 
   def glob(filename: String): Array[FileStatus] = {
@@ -454,16 +414,16 @@ class AzureStorageFS(val serviceAccountKey: Option[String] = None) extends FS {
     ab.toArray
   }
 
-  override def globAll(filenames: Iterable[String]): Array[String] =
+  def globAll(filenames: Iterable[String]): Array[String] =
     globAllStatuses(filenames).map(_.getPath)
 
-  override def globAllStatuses(filenames: Iterable[String]): Array[FileStatus] = filenames.flatMap(glob).toArray
+  def globAllStatuses(filenames: Iterable[String]): Array[FileStatus] = filenames.flatMap(glob).toArray
 
-  override def fileStatus(filename: String): FileStatus = {
+  def fileStatus(filename: String): FileStatus = {
     var (account, container, path) = getAccountContainerPath(filename)
 
     if (path == "") {
-      return new AzureStorageFileStatus(s"hail-az://$account/$container", null, 0, true)
+      return new BlobStorageFileStatus(s"hail-az://$account/$container", null, 0, true)
     }
 
     val blobClient: BlobClient = getBlobClient(filename)
@@ -487,18 +447,23 @@ class AzureStorageFS(val serviceAccountKey: Option[String] = None) extends FS {
 
     val isDir = numSubBlobs > 0
     if (isDir) {
-      new AzureStorageFileStatus(dropTrailingSlash(filename), -1, -1, isDir)
+      new BlobStorageFileStatus(dropTrailingSlash(filename), -1, -1, isDir)
     }
     else {
       val blobProperties: BlobProperties = blobClient.getProperties
       val modificationTime = blobProperties.getLastModified.toEpochSecond
       val size = blobProperties.getBlobSize
 
-      new AzureStorageFileStatus(dropTrailingSlash(filename), modificationTime, size, isDir)
+      new BlobStorageFileStatus(dropTrailingSlash(filename), modificationTime, size, isDir)
     }
   }
 
-  override def makeQualified(path: String): String = ???
+  def makeQualified(filename: String): String = {
+    // TODO: this needs to change if we start supporting wasb
+    assert(filename.startsWith("hail-az://"))
+    filename
+  }
 
-  override def deleteOnExit(path: String): Unit = ???
+  def deleteOnExit(filename: String): Unit =
+    FSUtil.runOnExit(() => delete(filename, recursive = false))
 }

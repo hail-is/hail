@@ -41,6 +41,16 @@ trait FileStatus {
   def getOwner: String
 }
 
+class BlobStorageFileStatus(path: String, modificationTime: java.lang.Long, size: Long, isDir: Boolean) extends FileStatus {
+  def getPath: String = path
+  def getModificationTime: java.lang.Long = modificationTime
+  def getLen: Long = size
+  def isDirectory: Boolean = isDir
+  def isFile: Boolean = !isDir
+  def isSymlink: Boolean = false
+  def getOwner: String = null
+}
+
 trait CompressionCodec {
   def makeInputStream(is: InputStream): InputStream
 
@@ -58,6 +68,12 @@ object BGZipCompressionCodec extends CompressionCodec {
   def makeInputStream(is: InputStream): InputStream = new BGzipInputStream(is)
 
   def makeOutputStream(os: OutputStream): OutputStream = new BGzipOutputStream(os)
+}
+
+object FSUtil {
+  def runOnExit(f: Runnable): Unit = {
+    Runtime.getRuntime.addShutdownHook(new Thread(f))
+  }
 }
 
 trait FS extends Serializable {
@@ -134,7 +150,7 @@ trait FS extends Serializable {
 
   def makeQualified(path: String): String
 
-  def deleteOnExit(path: String): Unit
+  def deleteOnExit(filename: String): Unit
 
   def open(path: String, codec: CompressionCodec): InputStream = {
     val is = openNoCompression(path)
