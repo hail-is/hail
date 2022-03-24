@@ -1597,8 +1597,6 @@ E                   	at is.hail.backend.service.ServiceBackend.execute(ServiceBa
         hl.import_vcf(resource('sample.vcf')).rows().key_by('locus').write(path)
         hl.read_table(path).select()._force_count()
 
-    @fails_service_backend()
-    @fails_local_backend()
     def test_repartition_empty_key(self):
         data = [{'x': i} for i in range(1000)]
         ht = hl.Table.parallelize(data, hl.tstruct(x=hl.tint32), key=None, n_partitions=11)

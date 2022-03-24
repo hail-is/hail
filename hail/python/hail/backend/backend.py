@@ -143,3 +143,8 @@ class Backend(abc.ABC):
     def get_flags(self, *flags) -> Mapping[str, str]:
         """Mapping of Hail flags."""
         pass
+
+    @property
+    @abc.abstractmethod
+    def requires_lowering(self):
+        pass

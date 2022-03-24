@@ -542,3 +542,7 @@ class ServiceBackend(Backend):
 
     def get_flags(self, *flags) -> Mapping[str, str]:
         return frozendict(self.flags)
+
+    @property
+    def requires_lowering(self):
+        return True

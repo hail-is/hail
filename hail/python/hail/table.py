@@ -2317,6 +2317,11 @@ class Table(ExprContainer):
         :class:`.Table`
             Repartitioned table.
         """
+        if hl.current_backend().requires_lowering:
+            tmp = hl.utils.new_temp_file()
+            # checkpoint rather than write to use fast codec
+            self.checkpoint(tmp)
+            return hl.read_table(tmp, _n_partitions=n)
 
         return Table(ir.TableRepartition(
             self._tir, n, ir.RepartitionStrategy.SHUFFLE if shuffle else ir.RepartitionStrategy.COALESCE))

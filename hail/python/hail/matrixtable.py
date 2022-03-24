@@ -3326,6 +3326,11 @@ class MatrixTable(ExprContainer):
         :class:`.MatrixTable`
             Repartitioned dataset.
         """
+        if hl.current_backend().requires_lowering:
+            tmp = hl.utils.new_temp_file()
+            # checkpoint rather than write to use fast codec
+            self.checkpoint(tmp)
+            return hl.read_matrix_table(tmp, _n_partitions=n_partitions)
 
         return MatrixTable(ir.MatrixRepartition(
             self._mir, n_partitions,
