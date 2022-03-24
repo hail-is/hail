@@ -580,7 +580,7 @@ class ServiceBackendSocketAPI2(
           val code = readString()
           val token = readString()
           withExecuteContext("ServiceBackend.execute", { ctx =>
-            withIRFunctionsReadFromInput {
+            withIRFunctionsReadFromInput(ctx) {
               backend.execute(ctx, code, token)
             }
           })
@@ -660,7 +660,7 @@ class ServiceBackendSocketAPI2(
     }
   }
 
-  def withIRFunctionsReadFromInput(body: () => String): String = {
+  def withIRFunctionsReadFromInput(ctx: ExecuteContext)(body: () => String): String = {
     try {
       var nFunctionsRemaining = readInt()
       while (nFunctionsRemaining > 0) {
