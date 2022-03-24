@@ -141,7 +141,7 @@ object LowerDistributedSort {
     optTargetNumPartitions.foreach(i => assert(i >= 1, s"Must request positive number of partitions. Requested ${i}"))
     val targetNumPartitions = optTargetNumPartitions.getOrElse(inputStage.numPartitions)
 
-    val idealNumberOfRowsPerPart = if (targetNumPartitions == 0) { 1 } else {
+    val idealNumberOfRowsPerPart = if (targetNumPartitions == 0) 1 else {
       Math.max(1, totalNumberOfRows / targetNumPartitions)
     }
 
