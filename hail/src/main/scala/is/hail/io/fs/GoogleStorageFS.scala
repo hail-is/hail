@@ -4,13 +4,11 @@ import java.io.{ByteArrayInputStream, FileNotFoundException, InputStream, Output
 import java.net.URI
 import java.nio.ByteBuffer
 import java.nio.file.FileSystems
-
 import org.apache.log4j.{LogManager, Logger}
 import com.google.auth.oauth2.ServiceAccountCredentials
 import com.google.cloud.{ReadChannel, WriteChannel}
 import com.google.cloud.storage.Storage.BlobListOption
 import com.google.cloud.storage.{Blob, BlobId, BlobInfo, Storage, StorageOptions}
-import is.hail.HailContext
 import is.hail.services.retryTransientErrors
 
 import scala.collection.JavaConverters._
@@ -69,12 +67,12 @@ object GoogleStorageFS {
 }
 
 object GoogleStorageFileStatus {
-  def apply(blob: Blob): GoogleStorageFileStatus = {
+  def apply(blob: Blob): BlobStorageFileStatus = {
     val isDir = blob.isDirectory
 
     val name = GoogleStorageFS.dropTrailingSlash(blob.getName)
 
-    new GoogleStorageFileStatus(
+    new BlobStorageFileStatus(
       s"gs://${ blob.getBucket }/$name",
       if (isDir)
         null
@@ -83,22 +81,6 @@ object GoogleStorageFileStatus {
       blob.getSize,
       isDir)
   }
-}
-
-class GoogleStorageFileStatus(path: String, modificationTime: java.lang.Long, size: Long, isDir: Boolean) extends FileStatus {
-  def getPath: String = path
-
-  def getModificationTime: java.lang.Long = modificationTime
-
-  def getLen: Long = size
-
-  def isDirectory: Boolean = isDir
-
-  def isFile: Boolean = !isDir
-
-  def isSymlink: Boolean = false
-
-  def getOwner: String = null
 }
 
 class GoogleStorageFS(val serviceAccountKey: Option[String] = None) extends FS {
@@ -352,7 +334,7 @@ class GoogleStorageFS(val serviceAccountKey: Option[String] = None) extends FS {
     path = dropTrailingSlash(path)
 
     if (path == "")
-      return new GoogleStorageFileStatus(s"gs://$bucket", null, 0, true)
+      return new BlobStorageFileStatus(s"gs://$bucket", null, 0, true)
 
     val blobs = retryTransientErrors {
       storage.list(bucket, BlobListOption.prefix(path), BlobListOption.currentDirectory())
@@ -377,13 +359,8 @@ class GoogleStorageFS(val serviceAccountKey: Option[String] = None) extends FS {
     filename
   }
 
-  def deleteOnExit(filename: String): Unit = {
-    Runtime.getRuntime.addShutdownHook(
-      new Thread(
-        new Runnable {
-          def run(): Unit = delete(filename, recursive = false)
-        }))
-  }
+  def deleteOnExit(filename: String): Unit =
+    FSUtil.runOnExit(() => delete(filename, recursive = false))
 }
 
 class CacheableGoogleStorageFS(serviceAccountKey: Option[String], @transient val sessionID: String) extends GoogleStorageFS(serviceAccountKey) with ServiceCacheableFS {
