@@ -9,7 +9,7 @@ import jinja2
 import yaml
 
 from gear.cloud_config import get_global_config
-from hailtop.utils import flatten, RETRY_FUNCTION_SCRIPT
+from hailtop.utils import RETRY_FUNCTION_SCRIPT, flatten
 
 from .environment import BUILDKIT_IMAGE, CI_UTILS_IMAGE, CLOUD, DEFAULT_NAMESPACE, DOCKER_PREFIX, DOMAIN, STORAGE_URI
 from .globals import is_test_deployment
