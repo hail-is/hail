@@ -3780,24 +3780,119 @@
           }
         },
         "version": "3.1"
+      },
+      {
+        "reference_genome": "GRCh38",
+        "url": {
+          "aws": {
+            "us": "s3://gnomad-public-us-east-1/release/3.1.1/ht/genomes/gnomad.genomes.v3.1.1.sites.ht"
+          },
+          "gcp": {
+            "us": "gs://gcp-public-data--gnomad/release/3.1.1/ht/genomes/gnomad.genomes.v3.1.1.sites.ht"
+          }
+        },
+        "version": "3.1.1"
+      },
+      {
+        "reference_genome": "GRCh38",
+        "url": {
+          "aws": {
+            "us": "s3://gnomad-public-us-east-1/release/3.1.2/ht/genomes/gnomad.genomes.v3.1.2.sites.ht"
+          },
+          "gcp": {
+            "us": "gs://gcp-public-data--gnomad/release/3.1.2/ht/genomes/gnomad.genomes.v3.1.2.sites.ht"
+          }
+        },
+        "version": "3.1.2"
       }
     ]
   },
-  "gnomad_hgdp_1kg_callset": {
-    "description": "gnomAD: samples included in this subset are drawn from the 1000 Genomes Project (n=2,435) and the Human Genome Diversity Project (n=780), which contain some of the most genetically diverse populations present in gnomAD.",
+  "gnomad_hgdp_1kg_subset_dense": {
+    "description": "gnomAD: 1KG + HGDP subset, formatted as a dense MatrixTable. Samples included in this subset are drawn from the 1000 Genomes Project (n=2,435) and the Human Genome Diversity Project (n=780), which contain some of the most genetically diverse populations present in gnomAD.",
     "url": "https://gnomad.broadinstitute.org/",
     "versions": [
       {
         "reference_genome": "GRCh38",
         "url": {
           "aws": {
-            "us": "s3://gnomad-public-us-east-1/release/3.1/mt/genomes/gnomad.genomes.v3.1.hgdp_1kg_subset.mt"
+            "us": "s3://gnomad-public-us-east-1/release/3.1/mt/genomes/gnomad.genomes.v3.1.hgdp_1kg_subset_dense.mt"
           },
           "gcp": {
-            "us": "gs://gcp-public-data--gnomad/release/3.1/mt/genomes/gnomad.genomes.v3.1.hgdp_1kg_subset.mt"
+            "us": "gs://gcp-public-data--gnomad/release/3.1/mt/genomes/gnomad.genomes.v3.1.hgdp_1kg_subset_dense.mt"
           }
         },
         "version": "3.1"
+      },
+      {
+        "reference_genome": "GRCh38",
+        "url": {
+          "aws": {
+            "us": "s3://gnomad-public-us-east-1/release/3.1.2/mt/genomes/gnomad.genomes.v3.1.2.hgdp_1kg_subset_dense.mt"
+          },
+          "gcp": {
+            "us": "gs://gcp-public-data--gnomad/release/3.1.2/mt/genomes/gnomad.genomes.v3.1.2.hgdp_1kg_subset_dense.mt"
+          }
+        },
+        "version": "3.1.2"
+      }
+    ]
+  },
+  "gnomad_hgdp_1kg_subset_sparse": {
+    "description": "gnomAD: 1KG + HGDP subset, formatted as a sparse MatrixTable. Samples included in this subset are drawn from the 1000 Genomes Project (n=2,435) and the Human Genome Diversity Project (n=780), which contain some of the most genetically diverse populations present in gnomAD. Note: this version is formatted as a sparse MatrixTable.",
+    "url": "https://gnomad.broadinstitute.org/",
+    "versions": [
+      {
+        "reference_genome": "GRCh38",
+        "url": {
+          "aws": {
+            "us": "s3://gnomad-public-us-east-1/release/3.1.2/mt/genomes/gnomad.genomes.v3.1.2.hgdp_1kg_subset_sparse.mt"
+          },
+          "gcp": {
+            "us": "gs://gcp-public-data--gnomad/release/3.1.2/mt/genomes/gnomad.genomes.v3.1.2.hgdp_1kg_subset_sparse.mt"
+          }
+        },
+        "version": "3.1.2"
+      }
+    ]
+  },
+  "gnomad_hgdp_1kg_subset_sample_metadata": {
+    "description": "gnomAD: Hail Table containing HGDP + 1KG gnomAD sample QC metrics, as well as additional sample metadata.",
+    "url": "https://gnomad.broadinstitute.org/",
+    "versions": [
+      {
+        "reference_genome": "GRCh38",
+        "url": {
+          "aws": {
+            "us": "s3://gnomad-public-us-east-1/release/3.1.2/ht/genomes/gnomad.genomes.v3.1.2.hgdp_1kg_subset_sample_meta.ht"
+          },
+          "gcp": {
+            "us": "gs://gcp-public-data--gnomad/release/3.1.2/ht/genomes/gnomad.genomes.v3.1.2.hgdp_1kg_subset_sample_meta.ht"
+          }
+        },
+        "version": "3.1.2"
+      }
+    ]
+  },
+  "gnomad_hgdp_1kg_subset_variant_annotations": {
+    "annotation_db": {
+      "key_properties": [
+        "unique"
+      ]
+    },
+    "description": "gnomAD: Hail Table containing HGDP + 1KG variant annotations. Note that this Hail Table splits multi-allelic variants, so users who would like to annotate the sparse, unsplit MatrixTable with this Table will need to split the sparse MatrixTable first.",
+    "url": "https://gnomad.broadinstitute.org/",
+    "versions": [
+      {
+        "reference_genome": "GRCh38",
+        "url": {
+          "aws": {
+            "us": "s3://gnomad-public-us-east-1/release/3.1.2/ht/genomes/gnomad.genomes.v3.1.2.hgdp_1kg_subset_variant_annotations.ht"
+          },
+          "gcp": {
+            "us": "gs://gcp-public-data--gnomad/release/3.1.2/ht/genomes/gnomad.genomes.v3.1.2.hgdp_1kg_subset_variant_annotations.ht"
+          }
+        },
+        "version": "3.1.2"
       }
     ]
   },
@@ -4604,6 +4699,59 @@
           }
         },
         "version": "2.1"
+      }
+    ]
+  },
+  "gnomad_variant_co-occurrence": {
+    "description": "gnomAD: Hail Table containing variant co-occurrence (inferred phasing) data for all pairs of variants within a gene where both variants have a global allele frequency in gnomAD exomes <5% and are either coding, flanking intronic (from position -1 to -3 in acceptor sites, and +1 to +8 in donor sites) or in the 5’/3’ UTRs. This encompasses 20,921,100 pairs of variants across 19,685 genes.",
+    "url": "https://gnomad.broadinstitute.org/",
+    "versions": [
+      {
+        "reference_genome": "GRCh37",
+        "url": {
+          "aws": {
+            "us": "s3://gnomad-public-us-east-1/release/2.1.1/ht/exomes_phased_counts_0.05_3_prime_UTR_variant_vp.ht"
+          },
+          "gcp": {
+            "us": "gs://gcp-public-data--gnomad/release/2.1.1/ht/exomes_phased_counts_0.05_3_prime_UTR_variant_vp.ht"
+          }
+        },
+        "version": "2.1.1"
+      }
+    ]
+  },
+  "gnomad_pca_variant_loadings": {
+    "annotation_db": {
+      "key_properties": [
+        "unique"
+      ]
+    },
+    "description": "gnomAD: ancestry principal component analysis (PCA) variant loadings.",
+    "url": "https://gnomad.broadinstitute.org/",
+    "versions": [
+      {
+        "reference_genome": "GRCh37",
+        "url": {
+          "aws": {
+            "us": "s3://gnomad-public-us-east-1/release/2.1/pca/gnomad.r2.1.pca_loadings.ht"
+          },
+          "gcp": {
+            "us": "gs://gcp-public-data--gnomad/release/2.1/pca/gnomad.r2.1.pca_loadings.ht"
+          }
+        },
+        "version": "2.1"
+      },
+      {
+        "reference_genome": "GRCh38",
+        "url": {
+          "aws": {
+            "us": "s3://gnomad-public-us-east-1/release/3.1/pca/gnomad.v3.1.pca_loadings.ht"
+          },
+          "gcp": {
+            "us": "gs://gcp-public-data--gnomad/release/3.1/pca/gnomad.v3.1.pca_loadings.ht"
+          }
+        },
+        "version": "3.1"
       }
     ]
   },
