@@ -7,7 +7,7 @@ object ControlFlowPreventsSplit {
 
   def apply(x: BaseIR, parentPointers: Memo[BaseIR], usesAndDefs: UsesAndDefs): Memo[Unit] = {
     val m = Memo.empty[Unit]
-    VisitIR(x) {
+    VisitIR.topDown(x) {
       case r@Recur(name, _, _) =>
         var parent: BaseIR = r
         while (parent match {

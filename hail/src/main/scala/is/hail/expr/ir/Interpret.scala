@@ -2,7 +2,7 @@ package is.hail.expr.ir
 
 import is.hail.annotations._
 import is.hail.asm4s._
-import is.hail.expr.ir.lowering.LoweringPipeline
+import is.hail.expr.ir.lowering.{LowerTableIRHelpers, LoweringPipeline}
 import is.hail.types.physical.{PTuple, PType, stypes}
 import is.hail.types.virtual._
 import is.hail.io.BufferSpec
@@ -868,137 +868,14 @@ object Interpret {
         val breezeMat = bm.transpose().toBreezeMatrix()
         val shape = IndexedSeq(bm.nRows, bm.nCols)
         SafeNDArray(shape, breezeMat.toArray)
-      case x@TableAggregate(child, query) =>
-        val value = child.analyzeAndExecute(ctx).asTableValue(ctx)
-        val fsBc = ctx.fsBc
-
-        val globalsBc = value.globals.broadcast(ctx.theHailClassLoader)
-        val globalsOffset = value.globals.value.offset
-
-        val res = genUID()
-
-        val extracted = agg.Extract(query, res, Requiredness(x, ctx))
-
-        val wrapped = if (extracted.aggs.isEmpty) {
-          val (Some(PTypeReferenceSingleCodeType(rt: PTuple)), f) = Compile[AsmFunction2RegionLongLong](ctx,
-            FastIndexedSeq(("global", SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(value.globals.t)))),
-            FastIndexedSeq(classInfo[Region], LongInfo), LongInfo,
-            MakeTuple.ordered(FastSeq(extracted.postAggIR)))
-
-          // TODO Is this right? where does wrapped run?
-          ctx.r.pool.scopedRegion { region =>
-            SafeRow(rt, f(ctx.theHailClassLoader, ctx.fs, 0, region)(region, globalsOffset))
-          }
-        } else {
-          val spec = BufferSpec.defaultUncompressed
-
-          val (_, initOp) = CompileWithAggregators[AsmFunction2RegionLongUnit](ctx,
-            extracted.states,
-            FastIndexedSeq(("global", SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(value.globals.t)))),
-            FastIndexedSeq(classInfo[Region], LongInfo), UnitInfo,
-            extracted.init)
-
-          val (_, partitionOpSeq) = CompileWithAggregators[AsmFunction3RegionLongLongUnit](ctx,
-            extracted.states,
-            FastIndexedSeq(("global", SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(value.globals.t))),
-              ("row", SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(value.rvd.rowPType)))),
-            FastIndexedSeq(classInfo[Region], LongInfo, LongInfo), UnitInfo,
-            extracted.seqPerElt)
-
-          val useTreeAggregate = extracted.shouldTreeAggregate
-          val isCommutative = extracted.isCommutative
-          log.info(s"Aggregate: useTreeAggregate=${ useTreeAggregate }")
-          log.info(s"Aggregate: commutative=${ isCommutative }")
-
-          // A mutable reference to a byte array. If someone higher up the
-          // call stack holds a WrappedByteArray, we can set the reference
-          // to null to allow the array to be GCed.
-          class WrappedByteArray(_bytes: Array[Byte]) {
-            private var ref: Array[Byte] = _bytes
-            def bytes: Array[Byte] = ref
-            def clear() { ref = null }
-          }
-
-          // creates a region, giving ownership to the caller
-          val read: RegionPool => (WrappedByteArray => RegionValue) = {
-            val deserialize = extracted.deserialize(ctx, spec)
-            (pool: RegionPool) => {
-              (a: WrappedByteArray) => {
-                val r = Region(Region.SMALL, pool)
-                val res = deserialize(r, a.bytes)
-                a.clear()
-                RegionValue(r, res)
-              }
-            }
-          }
-
-          // consumes a region, taking ownership from the caller
-          val write: RegionValue => WrappedByteArray = {
-            val serialize = extracted.serialize(ctx, spec)
-            (rv: RegionValue) => {
-              val a = serialize(rv.region, rv.offset)
-              rv.region.invalidate()
-              new WrappedByteArray(a)
-            }
-          }
-
-          // takes ownership of both inputs, returns ownership of result
-          val combOpF: (RegionValue, RegionValue) => RegionValue =
-            extracted.combOpF(ctx, spec)
-
-          // returns ownership of a new region holding the partition aggregation
-          // result
-          def itF(theHailClassLoader: HailClassLoader, i: Int, ctx: RVDContext, it: Iterator[Long]): RegionValue = {
-            val partRegion = ctx.partitionRegion
-            val globalsOffset = globalsBc.value.readRegionValue(partRegion, theHailClassLoader)
-            val init = initOp(theHailClassLoader, fsBc.value, i, partRegion)
-            val seqOps = partitionOpSeq(theHailClassLoader, fsBc.value, i, partRegion)
-            val aggRegion = ctx.freshRegion(Region.SMALL)
-
-            init.newAggState(aggRegion)
-            init(partRegion, globalsOffset)
-            seqOps.setAggState(aggRegion, init.getAggOffset())
-            it.foreach { ptr =>
-              seqOps(ctx.region, globalsOffset, ptr)
-              ctx.region.clear()
-            }
-
-            RegionValue(aggRegion, seqOps.getAggOffset())
-          }
-
-          // creates a new region holding the zero value, giving ownership to
-          // the caller
-          val mkZero = (theHailClassLoader: HailClassLoader, pool: RegionPool) => {
-            val region = Region(Region.SMALL, pool)
-            val initF = initOp(theHailClassLoader, fsBc.value, 0, region)
-            initF.newAggState(region)
-            initF(region, globalsBc.value.readRegionValue(region, theHailClassLoader))
-            RegionValue(region, initF.getAggOffset())
-          }
-
-          val rv = value.rvd.combine[WrappedByteArray, RegionValue](
-            ctx, mkZero, itF, read, write, combOpF, isCommutative, useTreeAggregate)
-
-          val (Some(PTypeReferenceSingleCodeType(rTyp: PTuple)), f) = CompileWithAggregators[AsmFunction2RegionLongLong](
-            ctx,
-            extracted.states,
-            FastIndexedSeq(("global", SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(value.globals.t)))),
-            FastIndexedSeq(classInfo[Region], LongInfo), LongInfo,
-            Let(res, extracted.results, MakeTuple.ordered(FastSeq(extracted.postAggIR))))
-          assert(rTyp.types(0).virtualType == query.typ)
-
-          ctx.r.pool.scopedRegion { r =>
-            val resF = f(ctx.theHailClassLoader, fsBc.value, 0, r)
-            resF.setAggState(rv.region, rv.offset)
-            val resAddr = resF(r, globalsOffset)
-            val res = SafeRow(rTyp, resAddr)
-            resF.storeAggsToRegion()
-            rv.region.invalidate()
-            res
-          }
-        }
-
-        wrapped.get(0)
+      case x@TableAggregate(child, _) =>
+        val ns = x.noSharing.asInstanceOf[TableAggregate]
+        val r = Requiredness(ns, ctx)
+        val rand = ContainsSeededRandomness.analyze(ns)
+        val dist = DistinctlyKeyed(x)
+        val loweredChild = ns.child.execute(ctx, new TableRunContext(r, rand, dist)).asTableStage(ctx)
+        val loweredIR = LowerTableIRHelpers.lowerTableAggregate(ctx, ns, loweredChild, r, Map.empty)
+        CompileAndEvaluate(ctx, loweredIR)
       case LiftMeOut(child) =>
         val (Some(PTypeReferenceSingleCodeType(rt)), makeFunction) = Compile[AsmFunction1RegionLong](ctx,
           FastIndexedSeq(),

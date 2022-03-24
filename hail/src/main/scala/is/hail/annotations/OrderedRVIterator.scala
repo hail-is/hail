@@ -30,23 +30,6 @@ case class OrderedRVIterator(
   def staircase: StagingIterator[FlipbookIterator[RegionValue]] =
     iterator.toFlipbookIterator.staircased(t.kRowOrdView(ctx.freshRegion()))
 
-  def cogroup(other: OrderedRVIterator):
-      FlipbookIterator[Muple[FlipbookIterator[RegionValue], FlipbookIterator[RegionValue]]] =
-    this.iterator.toFlipbookIterator.cogroup(
-      other.iterator.toFlipbookIterator,
-      this.t.kRowOrdView(ctx.freshRegion()),
-      other.t.kRowOrdView(ctx.freshRegion()),
-      this.t.kComp(other.t).compare
-    )
-
-  def leftJoinDistinct(other: OrderedRVIterator): Iterator[JoinedRegionValue] =
-    iterator.toFlipbookIterator.leftJoinDistinct(
-      other.iterator.toFlipbookIterator,
-      null,
-      null,
-      this.t.joinComp(other.t).compare
-    )
-
   def leftIntervalJoinDistinct(other: OrderedRVIterator): Iterator[JoinedRegionValue] =
     iterator.toFlipbookIterator.leftJoinDistinct(
       other.iterator.toFlipbookIterator,
@@ -100,66 +83,6 @@ case class OrderedRVIterator(
     }
 
     FlipbookIterator(sm)
-  }
-
-  def innerJoin(
-    other: OrderedRVIterator,
-    rightBuffer: Iterable[RegionValue] with Growable[RegionValue]
-  ): Iterator[JoinedRegionValue] = {
-    iterator.toFlipbookIterator.innerJoin(
-      other.iterator.toFlipbookIterator,
-      this.t.kRowOrdView(ctx.freshRegion()),
-      other.t.kRowOrdView(ctx.freshRegion()),
-      null,
-      null,
-      rightBuffer,
-      this.t.joinComp(other.t).compare
-    )
-  }
-
-  def leftJoin(
-    other: OrderedRVIterator,
-    rightBuffer: Iterable[RegionValue] with Growable[RegionValue]
-  ): Iterator[JoinedRegionValue] = {
-    iterator.toFlipbookIterator.leftJoin(
-      other.iterator.toFlipbookIterator,
-      this.t.kRowOrdView(ctx.freshRegion()),
-      other.t.kRowOrdView(ctx.freshRegion()),
-      null,
-      null,
-      rightBuffer,
-      this.t.joinComp(other.t).compare
-    )
-  }
-
-  def rightJoin(
-    other: OrderedRVIterator,
-    rightBuffer: Iterable[RegionValue] with Growable[RegionValue]
-  ): Iterator[JoinedRegionValue] = {
-    iterator.toFlipbookIterator.rightJoin(
-      other.iterator.toFlipbookIterator,
-      this.t.kRowOrdView(ctx.freshRegion()),
-      other.t.kRowOrdView(ctx.freshRegion()),
-      null,
-      null,
-      rightBuffer,
-      this.t.joinComp(other.t).compare
-    )
-  }
-
-  def outerJoin(
-    other: OrderedRVIterator,
-    rightBuffer: Iterable[RegionValue] with Growable[RegionValue]
-  ): Iterator[JoinedRegionValue] = {
-    iterator.toFlipbookIterator.outerJoin(
-      other.iterator.toFlipbookIterator,
-      this.t.kRowOrdView(ctx.freshRegion()),
-      other.t.kRowOrdView(ctx.freshRegion()),
-      null,
-      null,
-      rightBuffer,
-      this.t.joinComp(other.t).compare
-    )
   }
 
   def merge(other: OrderedRVIterator): Iterator[RegionValue] = {
