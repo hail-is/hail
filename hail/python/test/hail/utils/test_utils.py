@@ -113,7 +113,6 @@ class Tests(unittest.TestCase):
         self.assertTrue('path' in stat2)
 
     @fails_service_backend()
-    @fails_local_backend()
     def test_hadoop_ls(self):
         path1 = resource('ls_test/f_50')
         ls1 = hl.hadoop_ls(path1)
@@ -135,7 +134,7 @@ class Tests(unittest.TestCase):
         ls3 = hl.hadoop_ls(path3)
         assert len(ls3) == 2, ls3
 
-        with self.assertRaisesRegex(Exception, "FileNotFound"):
+        with self.assertRaisesRegex(Exception, "FileNotFound|No such file or directory"):
             hl.hadoop_ls('a_file_that_does_not_exist')
 
     def test_linked_list(self):
