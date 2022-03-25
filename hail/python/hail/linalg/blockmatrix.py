@@ -345,10 +345,9 @@ class BlockMatrix(object):
         nd = _ndarray_as_float64(nd)
         n_rows, n_cols = nd.shape
 
-        path = new_local_temp_file()
-        uri = local_path_uri(path)
-        nd.tofile(path)
-        return cls.fromfile(uri, n_rows, n_cols, block_size)
+        path = hl.TemporaryFilename().name
+        nd.tofile(hl.current_backend().fs.open(path, mode='wb'))
+        return cls.fromfile(path, n_rows, n_cols, block_size)
 
     @classmethod
     @typecheck_method(entry_expr=expr_float64,
