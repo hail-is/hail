@@ -552,6 +552,14 @@ class ContainerTimeoutError(Exception):
     pass
 
 
+class ContainerCreateError(Exception):
+    pass
+
+
+class ContainerStartError(Exception):
+    pass
+
+
 def worker_fraction_in_1024ths(cpu_in_mcpu):
     return 1024 * cpu_in_mcpu // (CORES * 1000)
 
@@ -663,6 +671,7 @@ class Container:
 
             self.state = 'error'
             self.error = traceback.format_exc()
+            raise ContainerCreateError from e
 
     async def start(self):
         async def _run():
@@ -694,6 +703,7 @@ class Container:
 
                 self.state = 'error'
                 self.error = traceback.format_exc()
+                raise ContainerStartError from e
 
         self._run_fut = asyncio.ensure_future(self._run_until_done_or_deleted(_run))
 
@@ -1829,12 +1839,15 @@ class JVMJob(Job):
             except JobDeletedError:
                 self.state = 'cancelled'
                 await self.cleanup()
+            except JVMCreationError:
+                self.state = 'error'
+                log.exception(f'while running {self}')
+                await self.cleanup()
+                raise
             except Exception:
                 log.exception(f'while running {self}')
-
                 self.state = 'error'
                 self.error = traceback.format_exc()
-
                 await self.cleanup()
             else:
                 await self.cleanup()
@@ -1938,6 +1951,10 @@ def scoped_ensure_future(coro_or_future, *, loop=None) -> Iterator[asyncio.Futur
         yield fut
     finally:
         fut.cancel()
+
+
+class JVMCreationError(Exception):
+    pass
 
 
 class JVMUserCredentials:
@@ -2071,8 +2088,9 @@ class JVM:
         client_session: httpx.ClientSession,
         pool: concurrent.futures.ThreadPoolExecutor,
     ) -> Tuple[JVMContainer, str]:
-        container = await JVMContainer.create_and_start(index, socket_file, root_dir, client_session, pool)
         try:
+            container = await JVMContainer.create_and_start(index, socket_file, root_dir, client_session, pool)
+
             attempts = 0
             delay = 0.25
             while True:
@@ -2100,9 +2118,8 @@ class JVM:
                     await asyncio.sleep(delay)
             startup_output = await container.retrieve_and_clear_output()
             return container, startup_output
-        except:
-            await container.remove()
-            raise
+        except Exception as e:
+            raise JVMCreationError from e
 
     @classmethod
     async def create(cls, index: int, worker: 'Worker'):
@@ -2336,6 +2353,8 @@ class Worker:
             await job.run()
         except asyncio.CancelledError:
             raise
+        except JVMCreationError:
+            self.stop_event.set()
         except Exception as e:
             if not user_error(e):
                 log.exception(f'while running {job}, ignoring')
