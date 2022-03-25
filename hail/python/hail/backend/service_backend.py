@@ -29,6 +29,7 @@ import hailtop.aiotools.fs as afs
 
 from .backend import Backend, fatal_error_from_java_error_triplet
 from ..builtin_references import BUILTIN_REFERENCES
+from ..expr.types import HailType
 from ..fs.fs import FS
 from ..fs.router_fs import RouterFS
 from ..ir import BaseIR
@@ -379,9 +380,9 @@ class ServiceBackend(Backend):
                 async with await self._async_fs.open(iodir + '/out') as outfile:
                     success = await read_bool(outfile)
                     if success:
-                        json_bytes = await read_bytes(outfile)
+                        result_bytes = await read_bytes(outfile)
                         try:
-                            return token, orjson.loads(json_bytes), timings
+                            return token, result_bytes, timings
                         except orjson.JSONDecodeError as err:
                             raise FatalError(f'batch id was {b.id}\ncould not decode {json_bytes}') from err
                     else:
@@ -430,10 +431,10 @@ class ServiceBackend(Backend):
                             raise FatalError(orjson.dumps(message).decode('utf-8'))
                         raise FatalError(f'batch id was {b.id}\n' + short_message + '\n' + expanded_message)
 
-    def execute(self, ir, timed=False):
+    def execute(self, ir: BaseIR, timed: bool = False):
         return async_to_blocking(self._async_execute(ir, timed=timed))
 
-    async def _async_execute(self, ir, timed=False):
+    async def _async_execute(self, ir: BaseIR, timed: bool = False):
         async def inputs(infile, token):
             await write_int(infile, ServiceBackend.EXECUTE)
             await write_str(infile, tmp_dir())
@@ -444,10 +445,11 @@ class ServiceBackend(Backend):
             await write_int(infile, len(self.functions))
             for fun in self.functions:
                 await fun.serialize(infile)
+            await write_str(infile, '{"name":"StreamBufferSpec"}')
 
         _, resp, timings = await self._rpc('execute(...)', inputs, ir=ir)
-        typ = dtype(resp['type'])
-        converted_value = typ._convert_from_json_na(resp['value'])
+        typ: HailType = ir.typ
+        converted_value = typ._from_encoding(resp)
         if timed:
             return converted_value, timings
         return converted_value
@@ -469,7 +471,7 @@ class ServiceBackend(Backend):
             await write_str(infile, self.remote_tmpdir)
             await write_str(infile, self.render(ir))
         _, resp, _ = await self._rpc('value_type(...)', inputs)
-        return dtype(resp)
+        return dtype(orjson.loads(resp))
 
     def table_type(self, tir):
         return async_to_blocking(self._async_table_type(tir))
@@ -482,7 +484,7 @@ class ServiceBackend(Backend):
             await write_str(infile, self.remote_tmpdir)
             await write_str(infile, self.render(tir))
         _, resp, _ = await self._rpc('table_type(...)', inputs)
-        return ttable._from_json(resp)
+        return ttable._from_json(orjson.loads(resp))
 
     def matrix_type(self, mir):
         return async_to_blocking(self._async_matrix_type(mir))
@@ -495,7 +497,7 @@ class ServiceBackend(Backend):
             await write_str(infile, self.remote_tmpdir)
             await write_str(infile, self.render(mir))
         _, resp, _ = await self._rpc('matrix_type(...)', inputs)
-        return tmatrix._from_json(resp)
+        return tmatrix._from_json(orjson.loads(resp))
 
     def blockmatrix_type(self, bmir):
         return async_to_blocking(self._async_blockmatrix_type(bmir))
@@ -508,7 +510,7 @@ class ServiceBackend(Backend):
             await write_str(infile, self.remote_tmpdir)
             await write_str(infile, self.render(bmir))
         _, resp, _ = await self._rpc('blockmatrix_type(...)', inputs)
-        return tblockmatrix._from_json(resp)
+        return tblockmatrix._from_json(orjson.loads(resp))
 
     def add_reference(self, config):
         raise NotImplementedError("ServiceBackend does not support 'add_reference'")
@@ -539,8 +541,8 @@ class ServiceBackend(Backend):
         _, resp, _ = await self._rpc('get_reference(...)', inputs)
         if name in BUILTIN_REFERENCES:
             with open(Path(self.user_local_reference_cache_dir, name), 'wb') as f:
-                f.write(orjson.dumps(resp))
-        return resp
+                f.write(resp)
+        return orjson.loads(resp)
 
     def get_references(self, names):
         return async_to_blocking(self._async_get_references(names))
@@ -559,7 +561,7 @@ class ServiceBackend(Backend):
             await write_str(infile, self.remote_tmpdir)
             await write_str(infile, path)
         _, resp, _ = await self._rpc('load_references_from_dataset(...)', inputs)
-        return resp
+        return orjson.loads(resp)
 
     def add_sequence(self, name, fasta_file, index_file):
         raise NotImplementedError("ServiceBackend does not support 'add_sequence'")
@@ -584,7 +586,7 @@ class ServiceBackend(Backend):
             await write_str(infile, self.remote_tmpdir)
             await write_str(infile, path)
         _, resp, _ = await self._rpc('parse_vcf_metadata(...)', inputs)
-        return resp
+        return orjson.loads(resp)
 
     def index_bgen(self,
                    files: List[str],
@@ -630,7 +632,7 @@ class ServiceBackend(Backend):
             await write_bool(infile, skip_invalid_loci)
 
         _, resp, _ = await self._rpc('index_bgen(...)', inputs)
-        assert resp is None
+        assert resp == b'null'
         return None
 
     def import_fam(self, path: str, quant_pheno: bool, delimiter: str, missing: str):
@@ -647,7 +649,7 @@ class ServiceBackend(Backend):
             await write_str(infile, delimiter)
             await write_str(infile, missing)
         _, resp, _ = await self._rpc('import_fam(...)', inputs)
-        return resp
+        return orjson.loads(resp)
 
     def register_ir_function(self,
                              name: str,

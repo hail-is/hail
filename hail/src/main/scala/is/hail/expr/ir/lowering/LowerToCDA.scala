@@ -1,5 +1,6 @@
 package is.hail.expr.ir.lowering
 
+import is.hail.utils._
 import is.hail.annotations.{Region, SafeRow, UnsafeRow}
 import is.hail.asm4s.{AsmFunction1RegionLong, AsmFunction1RegionUnit, LongInfo, UnitInfo, classInfo}
 import is.hail.backend.ExecuteContext
@@ -32,50 +33,55 @@ object LowerToCDA {
     }).asInstanceOf[IR]
   }
 
-  def lower(ir: IR, typesToLower: DArrayLowering.Type, ctx: ExecuteContext, analyses: Analyses, relationalLetsAbove: Map[String, IR]): IR = ir match {
-    case RelationalLet(name, value, body) =>
+  def lower(ir: IR, typesToLower: DArrayLowering.Type, ctx: ExecuteContext, analyses: Analyses, relationalLetsAbove: Map[String, IR]): IR = {
+    log.info("LowerToCDA.lower: " + Pretty(ctx, ir))
+    ir match {
+      case RelationalLet(name, value, body) =>
 
-      val loweredValue = substLets(lower(value, typesToLower, ctx, analyses, relationalLetsAbove), relationalLetsAbove)
+        val loweredValue = substLets(lower(value, typesToLower, ctx, analyses, relationalLetsAbove), relationalLetsAbove)
 
-      if (!Compilable(loweredValue))
-        throw new LowererUnsupportedOperation(s"lowered to uncompilable IR: ${ Pretty(ctx, ir) }")
+        if (!Compilable(loweredValue))
+          throw new LowererUnsupportedOperation(s"lowered to uncompilable IR: ${ Pretty(ctx, ir) }")
 
-      val (Some(PTypeReferenceSingleCodeType(pt: PTuple)), f) = ctx.timer.time("Compile") {
-        Compile[AsmFunction1RegionLong](ctx,
-          FastIndexedSeq(),
-          FastIndexedSeq(classInfo[Region]), LongInfo,
-          MakeTuple.ordered(FastSeq(loweredValue)),
-          print = None)
-      }
+        val (Some(PTypeReferenceSingleCodeType(pt: PTuple)), f) = ctx.timer.time("Compile") {
+          Compile[AsmFunction1RegionLong](ctx,
+            FastIndexedSeq(),
+            FastIndexedSeq(classInfo[Region]), LongInfo,
+            MakeTuple.ordered(FastSeq(loweredValue)),
+            print = None)
+        }
 
-      val addr = ctx.timer.time("Run")(f(ctx.theHailClassLoader, ctx.fs, 0, ctx.r).apply(ctx.r))
-      val litValue = ctx.timer.time("SafeRow.convert")(SafeRow.read(pt, addr).asInstanceOf[Row].get(0))
-      val lit = Literal.coerce(value.typ, litValue)
-      lower(body, typesToLower, ctx, analyses, relationalLetsAbove + ((name, lit)))
+        val addr = ctx.timer.time("Run")(f(ctx.theHailClassLoader, ctx.fs, 0, ctx.r).apply(ctx.r))
+        val lit = GetTupleElement(
+          EncodedLiteral.fromPTypeAndAddress(pt, addr, ctx),
+          0
+        )
+        lower(body, typesToLower, ctx, analyses, relationalLetsAbove + ((name, lit)))
 
-    case RelationalRef(name, t) =>
-      relationalLetsAbove.get(name) match {
-        case Some(lit) =>
-          if (lit.typ != t)
-            throw new RuntimeException(s"relational ref type mismatch:\n  ref: $t\n  lit: ${lit.typ}")
-          lit
-        case None => throw new RuntimeException(s"$ir had no match in relationalLetsAbove")
-      }
+      case RelationalRef(name, t) =>
+        relationalLetsAbove.get(name) match {
+          case Some(lit) =>
+            if (lit.typ != t)
+              throw new RuntimeException(s"relational ref type mismatch:\n  ref: $t\n  lit: ${lit.typ}")
+            lit
+          case None => throw new RuntimeException(s"$ir had no match in relationalLetsAbove")
+        }
 
-    case node if node.children.forall(_.isInstanceOf[IR]) =>
-      Copy(node, ir.children.map { case c: IR => lower(c, typesToLower, ctx, analyses, relationalLetsAbove) })
+      case node if node.children.forall(_.isInstanceOf[IR]) =>
+        Copy(node, ir.children.map { case c: IR => lower(c, typesToLower, ctx, analyses, relationalLetsAbove) })
 
-    case node if node.children.exists(n => n.isInstanceOf[TableIR]) && node.children.forall(n => n.isInstanceOf[TableIR] || n.isInstanceOf[IR]) =>
-      LowerTableIR(ir, typesToLower, ctx, analyses, relationalLetsAbove)
+      case node if node.children.exists(n => n.isInstanceOf[TableIR]) && node.children.forall(n => n.isInstanceOf[TableIR] || n.isInstanceOf[IR]) =>
+        LowerTableIR(ir, typesToLower, ctx, analyses, relationalLetsAbove)
 
-    case node if node.children.exists(n => n.isInstanceOf[BlockMatrixIR]) && node.children.forall(n => n.isInstanceOf[BlockMatrixIR] || n.isInstanceOf[IR]) =>
-      LowerBlockMatrixIR(ir, typesToLower, ctx, analyses, relationalLetsAbove)
+      case node if node.children.exists(n => n.isInstanceOf[BlockMatrixIR]) && node.children.forall(n => n.isInstanceOf[BlockMatrixIR] || n.isInstanceOf[IR]) =>
+        LowerBlockMatrixIR(ir, typesToLower, ctx, analyses, relationalLetsAbove)
 
-    case node if node.children.exists(_.isInstanceOf[MatrixIR]) =>
-      throw new LowererUnsupportedOperation(s"MatrixIR nodes must be lowered to TableIR nodes separately: \n${ Pretty(ctx, node) }")
+      case node if node.children.exists(_.isInstanceOf[MatrixIR]) =>
+        throw new LowererUnsupportedOperation(s"MatrixIR nodes must be lowered to TableIR nodes separately: \n${ Pretty(ctx, node) }")
 
-    case node =>
-      throw new LowererUnsupportedOperation(s"Cannot lower: \n${ Pretty(ctx, node) }")
+      case node =>
+        throw new LowererUnsupportedOperation(s"Cannot lower: \n${ Pretty(ctx, node) }")
+    }
   }
 }
 

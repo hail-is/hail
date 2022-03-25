@@ -14,6 +14,7 @@ import is.hail.expr.JSONAnnotationImpex
 import is.hail.expr.ir.lowering._
 import is.hail.expr.ir.{Compile, IR, IRParser, MakeTuple, SortField}
 import is.hail.expr.ir.functions.IRFunctionRegistry
+import is.hail.io.{BufferSpec, TypedCodecSpec}
 import is.hail.io.bgen.IndexBgen
 import is.hail.io.fs._
 import is.hail.io.bgen.IndexBgen
@@ -26,6 +27,7 @@ import is.hail.types._
 import is.hail.types.physical._
 import is.hail.types.physical.stypes.PTypeReferenceSingleCodeType
 import is.hail.types.virtual._
+import is.hail.types.encoded._
 import is.hail.utils._
 import is.hail.variant.ReferenceGenome
 import org.apache.commons.io.IOUtils
@@ -184,6 +186,13 @@ class ServiceBackend(
 
     val r = new Array[Array[Byte]](n)
 
+    // FIXME: HACK
+    val open = if (n <= 50) {
+      fs.openCachedNoCompression _
+    } else {
+      fs.openNoCompression _
+    }
+
     def resultOrHailException(is: DataInputStream): Array[Byte] = {
       val success = is.readBoolean()
       if (success) {
@@ -198,7 +207,7 @@ class ServiceBackend(
 
     def readResult(i: Int): scalaConcurrent.Future[Unit] = scalaConcurrent.Future {
       r(i) = retryTransientErrors {
-        using(fs.openCachedNoCompression(s"$root/result.$i")) { is =>
+        using(open(s"$root/result.$i")) { is =>
           resultOrHailException(new DataInputStream(is))
         }
       }
@@ -271,7 +280,9 @@ class ServiceBackend(
     ReferenceGenome.getReference(name).toJSONString
   }
 
-  private[this] def execute(ctx: ExecuteContext, _x: IR): Option[(Annotation, PType)] = {
+  private[this] def execute(ctx: ExecuteContext, _x: IR, bufferSpecString: String): Array[Byte] = {
+    // FIXME: do we need TypeCheck(ctx, _x)?
+    // FIXME: do we need Validate(_x)?
     val x = LoweringPipeline.darrayLowerer(true)(DArrayLowering.All).apply(ctx, _x)
       .asInstanceOf[IR]
     if (x.typ == TVoid) {
@@ -282,36 +293,40 @@ class ServiceBackend(
         optimize = true)
 
       f(ctx.theHailClassLoader, ctx.fs, 0, ctx.r)(ctx.r)
-      None
+      Array()
     } else {
       val (Some(PTypeReferenceSingleCodeType(pt)), f) = Compile[AsmFunction1RegionLong](ctx,
         FastIndexedSeq(),
         FastIndexedSeq[TypeInfo[_]](classInfo[Region]), LongInfo,
         MakeTuple.ordered(FastIndexedSeq(x)),
         optimize = true)
-
-      val a = f(ctx.theHailClassLoader, ctx.fs, 0, ctx.r)(ctx.r)
       val retPType = pt.asInstanceOf[PBaseStruct]
-      Some((new UnsafeRow(retPType, ctx.r, a).get(0), retPType.types(0)))
+
+      val off = f(ctx.theHailClassLoader, ctx.fs, 0, ctx.r)(ctx.r)
+
+      assert(retPType.size == 1)
+      assert(retPType.isFieldDefined(off, 0))
+
+      val elementType = retPType.types(0)
+      val codec = TypedCodecSpec(
+        EType.fromTypeAllOptional(elementType.virtualType),
+        elementType.virtualType,
+        BufferSpec.parseOrDefault(bufferSpecString)
+      )
+
+      codec.encode(ctx, elementType, retPType.loadField(off, 0))
     }
   }
 
   def execute(
     ctx: ExecuteContext,
     code: String,
-    token: String
-  ): String = {
+    token: String,
+    bufferSpecString: String
+  ): Array[Byte] = {
     log.info(s"executing: ${token}")
 
-    execute(ctx, IRParser.parse_value_ir(ctx, code)) match {
-      case Some((v, t)) =>
-        JsonMethods.compact(
-          JObject(List("value" -> JSONAnnotationImpex.exportAnnotation(v, t.virtualType),
-            "type" -> JString(t.virtualType.toString))))
-      case None =>
-        JsonMethods.compact(
-          JObject(List("value" -> null, "type" -> JString(TVoid.toString))))
-    }
+    execute(ctx, IRParser.parse_value_ir(ctx, code), bufferSpecString)
   }
 
   def lowerDistributedSort(
@@ -517,7 +532,7 @@ class ServiceBackendSocketAPI2(
     val billingProject = readString()
     val remoteTmpDir = readString()
 
-    def withExecuteContext(methodName: String, method: ExecuteContext => String): String = ExecutionTimer.logTime(methodName) { timer =>
+    def withExecuteContext(methodName: String, method: ExecuteContext => Array[Byte]): Array[Byte] = ExecutionTimer.logTime(methodName) { timer =>
       val fs = retryTransientErrors {
         using(new FileInputStream(s"${backend.scratchDir}/secrets/gsa-key/key.json")) { is =>
           new GoogleStorageFS(Some(IOUtils.toString(is, Charset.defaultCharset().toString()))).asCacheable()
@@ -544,51 +559,55 @@ class ServiceBackendSocketAPI2(
           val path = readString()
           withExecuteContext(
             "ServiceBackend.loadReferencesFromDataset",
-            backend.loadReferencesFromDataset(_, path)
+            backend.loadReferencesFromDataset(_, path).getBytes(StandardCharsets.UTF_8)
           )
         case VALUE_TYPE =>
           val s = readString()
           withExecuteContext(
             "ServiceBackend.valueType",
-            backend.valueType(_, s)
+            backend.valueType(_, s).getBytes(StandardCharsets.UTF_8)
           )
         case TABLE_TYPE =>
           val s = readString()
           withExecuteContext(
             "ServiceBackend.tableType",
-            backend.tableType(_, s)
+            backend.tableType(_, s).getBytes(StandardCharsets.UTF_8)
           )
         case MATRIX_TABLE_TYPE =>
           val s = readString()
           withExecuteContext(
             "ServiceBackend.matrixTableType",
-            backend.matrixTableType(_, s)
+            backend.matrixTableType(_, s).getBytes(StandardCharsets.UTF_8)
           )
         case BLOCK_MATRIX_TYPE =>
           val s = readString()
           withExecuteContext(
             "ServiceBackend.blockMatrixType",
-            backend.blockMatrixType(_, s)
+            backend.blockMatrixType(_, s).getBytes(StandardCharsets.UTF_8)
           )
         case REFERENCE_GENOME =>
           val name = readString()
           withExecuteContext(
             "ServiceBackend.referenceGenome",
-            backend.referenceGenome(_, name)
+            backend.referenceGenome(_, name).getBytes(StandardCharsets.UTF_8)
           )
         case EXECUTE =>
           val code = readString()
           val token = readString()
-          withExecuteContext("ServiceBackend.execute", { ctx =>
-            withIRFunctionsReadFromInput(ctx) { () =>
-              backend.execute(ctx, code, token)
+          withExecuteContext(
+            "ServiceBackend.execute",
+            { ctx =>
+              withIRFunctionsReadFromInput(ctx) { () =>
+                val bufferSpecString = readString()
+                backend.execute(ctx, code, token, bufferSpecString)
+              }
             }
-          })
+          )
         case PARSE_VCF_METADATA =>
           val path = readString()
           withExecuteContext(
             "ServiceBackend.parseVCFMetadata",
-            backend.parseVCFMetadata(_, path)
+            backend.parseVCFMetadata(_, path).getBytes(StandardCharsets.UTF_8)
           )
         case IMPORT_FAM =>
           val path = readString()
@@ -597,7 +616,7 @@ class ServiceBackendSocketAPI2(
           val missing = readString()
           withExecuteContext(
             "ServiceBackend.importFam",
-            backend.importFam(_, path, quantPheno, delimiter, missing)
+            backend.importFam(_, path, quantPheno, delimiter, missing).getBytes(StandardCharsets.UTF_8)
           )
         case INDEX_BGEN =>
           val nFiles = readInt()
@@ -640,11 +659,11 @@ class ServiceBackendSocketAPI2(
               referenceGenomeName,
               contigRecoding.toMap,
               skipInvalidLoci
-            )
+            ).getBytes(StandardCharsets.UTF_8)
           )
       }
       writeBool(true)
-      writeString(result)
+      writeBytes(result)
     } catch {
       case exc: HailWorkerException =>
         writeBool(false)
@@ -660,7 +679,7 @@ class ServiceBackendSocketAPI2(
     }
   }
 
-  def withIRFunctionsReadFromInput(ctx: ExecuteContext)(body: () => String): String = {
+  def withIRFunctionsReadFromInput(ctx: ExecuteContext)(body: () => Array[Byte]): Array[Byte] = {
     try {
       var nFunctionsRemaining = readInt()
       while (nFunctionsRemaining > 0) {
