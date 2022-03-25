@@ -2084,7 +2084,7 @@ class JVM:
         root_dir: str,
         client_session: httpx.ClientSession,
         pool: concurrent.futures.ThreadPoolExecutor,
-    ) -> Tuple[JVMContainer, str]:
+    ) -> JVMContainer:
         try:
             container = await JVMContainer.create_and_start(index, socket_file, root_dir, client_session, pool)
 
@@ -2125,10 +2125,9 @@ class JVM:
                 output_file = root_dir + '/output'
                 should_interrupt = asyncio.Event()
                 await blocking_to_async(worker.pool, os.makedirs, root_dir)
-                container, startup_output = await cls.create_container_and_connect(
+                container = await cls.create_container_and_connect(
                     index, socket_file, root_dir, worker.client_session, worker.pool
                 )
-                log.info(f'JVM-{index}: startup output: {startup_output}')
                 return cls(
                     index,
                     socket_file,
