@@ -1551,8 +1551,12 @@ class DockerJob(Job):
                     task_name,
                     await container.get_log(),
                 )
-
-        await container.run(on_completion)
+        try:
+            await container.run(on_completion)
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            pass
 
     async def run(self):
         async with self.worker.cpu_sem(self.cpu_in_mcpu):
