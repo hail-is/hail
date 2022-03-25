@@ -1054,7 +1054,6 @@ Caused by: java.lang.AssertionError: assertion failed
         f = hl._locus_windows_per_contig([[1.0, 3.0, 4.0], [2.0, 2.0], [5.0]], 1.0)
         assert hl.eval(f) == ([0, 1, 1, 3, 3, 5], [1, 3, 3, 5, 5, 6])
 
-    @fails_service_backend()
     def test_locus_windows(self):
         def assert_eq(a, b):
             assert np.array_equal(a, np.array(b)), f"a={a}, b={b}"

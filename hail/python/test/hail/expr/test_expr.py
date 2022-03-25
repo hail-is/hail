@@ -64,7 +64,6 @@ class Tests(unittest.TestCase):
         test_random_function(lambda: hl.rand_cat(hl.array([1, 1, 1, 1])))
         test_random_function(lambda: hl.rand_dirichlet(hl.array([1, 1, 1, 1])))
 
-    @fails_service_backend(reason='need to convert errors to HailUserError')
     def test_range(self):
         def same_as_python(*args):
             self.assertEqual(hl.eval(hl.range(*args)), list(range(*args)))
@@ -199,7 +198,6 @@ class Tests(unittest.TestCase):
             else:
                 self.assertEqual(v, result[k], msg=k)
 
-    @fails_service_backend(reason='need to convert errors to HailUserError')
     def test_array_slicing(self):
         schema = hl.tstruct(a=hl.tarray(hl.tint32))
         rows = [{'a': [1, 2, 3, 4, 5]}]
@@ -267,7 +265,6 @@ class Tests(unittest.TestCase):
 
         self.assertDictEqual(result, expected)
 
-    @fails_service_backend(reason='need to convert errors to HailUserError')
     def test_dict_missing_error(self):
         d = hl.dict({'a': 2, 'b': 3})
         with pytest.raises(hl.utils.HailUserError, match='Key NA not found in dictionary'):
@@ -1606,7 +1603,6 @@ Caused by: is.hail.utils.HailException: Premature end of file: expected 4 bytes,
         table2 = hl.utils.range_table(10)
         self.assertEqual(table.aggregate(hl.agg.count_where(hl.is_defined(table2[table.idx]))), 10)
 
-    @fails_service_backend()
     def test_switch(self):
         x = hl.literal('1')
         na = hl.missing(tint32)
@@ -1651,7 +1647,6 @@ Caused by: is.hail.utils.HailException: Premature end of file: expected 4 bytes,
             hl.eval(hl.switch(x).when('0', 0).or_error("foo"))
         assert '.or_error("foo")' in str(exc.value)
 
-    @fails_service_backend()
     def test_case(self):
         def make_case(x):
             x = hl.literal(x)
@@ -4126,7 +4121,6 @@ E                   	at java.lang.Thread.run(Thread.java:748)
         assert hl.eval(hl.bit_rshift(hl.int64(-1), 64)) == -1
         assert hl.eval(hl.bit_rshift(hl.int64(-11), 64, logical=True)) == 0
 
-    @fails_service_backend()
     def test_bit_shift_errors(self):
         with pytest.raises(hl.utils.HailUserError):
             hl.eval(hl.bit_lshift(1, -1))
