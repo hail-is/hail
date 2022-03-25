@@ -7,18 +7,33 @@ variable domain {
 }
 
 variable acr_name {
-  type = string
+  type    = string
   default = ""
 }
 
 variable acr_sku {
-  type = string
+  type    = string
   default = "Premium"
 }
 
-variable k8s_machine_type {
-  type = string
-  default = "Standard_D2_v2"
+variable k8s_default_node_pool_machine_type {
+  type    = string
+  default = "Standard_D2_v2"  # 2 vCPU
+}
+
+variable k8s_user_pool_machine_type {
+  type    = string
+  default = "Standard_D4_v2"  # 8 vCPU
+}
+
+variable k8s_preemptible_node_pool_name {
+  type    = string
+  default = "preempt1"
+}
+
+variable k8s_nonpreemptible_node_pool_name {
+  type    = string
+  default = "nonpreempt1"
 }
 
 variable organization_domain {
@@ -37,6 +52,6 @@ variable "ci_config" {
 }
 
 variable oauth2_developer_redirect_uris {
-  type = list(string)
+  type    = list(string)
   default = []
 }
