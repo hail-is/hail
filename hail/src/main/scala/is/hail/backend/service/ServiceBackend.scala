@@ -146,7 +146,7 @@ class ServiceBackend(
             "type" -> JString("jar_url"),
             "value" -> JString(jarLocation)
           ),
-          "argv" -> JArray(List(
+          "command" -> JArray(List(
             JString(Main.WORKER),
             JString(root),
             JString(s"$i"))),
