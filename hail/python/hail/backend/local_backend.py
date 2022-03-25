@@ -174,6 +174,7 @@ class LocalBackend(Py4JBackend):
     def stop(self):
         self._jhc.stop()
         self._jhc = None
+        self._gateway.shutdown()
         # FIXME stop gateway?
         uninstall_exception_handler()
 
