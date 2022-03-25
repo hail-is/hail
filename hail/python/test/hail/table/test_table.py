@@ -1603,6 +1603,14 @@ E                   	at is.hail.backend.service.ServiceBackend.execute(ServiceBa
         assert ht.naive_coalesce(4)._same(ht)
         assert ht.repartition(3, shuffle=False)._same(ht)
 
+    def test_read_with_partitions(self):
+        tmp = new_temp_file()
+        ht = hl.utils.range_table(444)
+        ht.write(tmp)
+        ht2 = hl.read_table(tmp, _n_partitions=50)
+        assert ht2.idx.collect() == list(range(444))
+        assert ht2.n_partitions() == 50
+
     @fails_service_backend()
     def test_path_collision_error(self):
         path = new_temp_file(extension='ht')
