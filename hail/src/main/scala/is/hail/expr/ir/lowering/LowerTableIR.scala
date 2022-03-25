@@ -4,7 +4,7 @@ import is.hail.HailContext
 import is.hail.backend.ExecuteContext
 import is.hail.expr.ir.{agg, _}
 import is.hail.io.{BufferSpec, TypedCodecSpec}
-import is.hail.methods.{ForceCountTable, NPartitionsTable}
+import is.hail.methods.{ForceCountTable, NPartitionsTable, TableFilterPartitions}
 import is.hail.rvd.{PartitionBoundOrdering, RVDPartitioner}
 import is.hail.types.physical.{PCanonicalBinary, PCanonicalTuple}
 import is.hail.types.virtual._
@@ -1540,6 +1540,32 @@ object LowerTableIR {
 
       case TableLiteral(typ, rvd, enc, encodedGlobals) =>
         RVDToTableStage(rvd, EncodedLiteral(enc, encodedGlobals))
+
+      case TableToTableApply(child, TableFilterPartitions(seq, keep)) =>
+        val lc = lower(child)
+
+        val arr = seq.sorted.toArray
+        val keptSet = seq.toSet
+        val lit = Literal(TSet(TInt32), keptSet)
+        if (keep) {
+          lc.copy(
+            partitioner = lc.partitioner.copy(rangeBounds = arr.map(idx => lc.partitioner.rangeBounds(idx))),
+            contexts = mapIR(
+              filterIR(
+                zipWithIndex(lc.contexts)) { t =>
+                invoke("contains", TBoolean, lit, GetField(t, "idx")) }) { t =>
+              GetField(t, "elt") }
+          )
+        } else {
+          lc.copy(
+            partitioner = lc.partitioner.copy(rangeBounds = lc.partitioner.rangeBounds.zipWithIndex.filter { case (_, idx) => !keptSet.contains(idx) }.map(_._1)),
+            contexts = mapIR(
+              filterIR(
+                zipWithIndex(lc.contexts)) { t =>
+                !invoke("contains", TBoolean, lit, GetField(t, "idx")) }) { t =>
+              GetField(t, "elt") }
+          )
+        }
 
       case bmtt@BlockMatrixToTable(bmir) =>
         val ts = LowerBlockMatrixIR.lowerToTableStage(bmir, typesToLower, ctx, analyses, relationalLetsAbove)

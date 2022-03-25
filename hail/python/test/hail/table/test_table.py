@@ -1056,8 +1056,6 @@ Exception in thread "main" java.lang.RuntimeException: invalid sort order: b
         t = t.key_by(rev_idx=-t.idx)
         assert t.take(10) == [hl.Struct(idx=idx, rev_idx=-idx) for idx in range(19, 9, -1)]
 
-    @fails_service_backend()
-    @fails_local_backend()
     def test_filter_partitions(self):
         ht = hl.utils.range_table(23, n_partitions=8)
         self.assertEqual(ht.n_partitions(), 8)
