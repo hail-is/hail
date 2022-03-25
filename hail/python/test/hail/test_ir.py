@@ -13,21 +13,37 @@ tearDownModule = stopTestHailContext
 
 
 class ValueIRTests(unittest.TestCase):
+    def value_irs_env(self):
+        return {
+            'c': hl.tbool,
+            'a': hl.tarray(hl.tint32),
+            'st': hl.tstream(hl.tint32),
+            'aa': hl.tarray(hl.tarray(hl.tint32)),
+            'sta': hl.tstream(hl.tarray(hl.tint32)),
+            'da': hl.tarray(hl.ttuple(hl.tint32, hl.tstr)),
+            'nd': hl.tndarray(hl.tfloat64, 1),
+            'v': hl.tint32,
+            's': hl.tstruct(x=hl.tint32, y=hl.tint64, z=hl.tfloat64),
+            't': hl.ttuple(hl.tint32, hl.tint64, hl.tfloat64),
+            'call': hl.tcall,
+            'x': hl.tint32}
+
     def value_irs(self):
+        env = self.value_irs_env()
         b = ir.TrueIR()
-        c = ir.Ref('c')
+        c = ir.Ref('c', env['c'])
         i = ir.I32(5)
         j = ir.I32(7)
-        a = ir.Ref('a')
-        st = ir.Ref('st')
-        aa = ir.Ref('aa')
-        sta = ir.Ref('sta')
-        da = ir.Ref('da')
-        nd = ir.Ref('nd')
-        v = ir.Ref('v')
-        s = ir.Ref('s')
-        t = ir.Ref('t')
-        call = ir.Ref('call')
+        a = ir.Ref('a', env['a'])
+        st = ir.Ref('st', env['st'])
+        aa = ir.Ref('aa', env['aa'])
+        sta = ir.Ref('sta', env['sta'])
+        da = ir.Ref('da', env['da'])
+        nd = ir.Ref('nd', env['nd'])
+        v = ir.Ref('v', env['v'])
+        s = ir.Ref('s', env['s'])
+        t = ir.Ref('t', env['t'])
+        call = ir.Ref('call', env['call'])
         rngState = ir.RNGStateLiteral((1, 2, 3, 4))
 
         table = ir.TableRange(5, 3)
@@ -46,14 +62,14 @@ class ValueIRTests(unittest.TestCase):
             ir.If(b, i, j),
             ir.Coalesce(i, j),
             ir.Let('v', i, v),
-            ir.Ref('x'),
+            ir.Ref('x', env['x']),
             ir.ApplyBinaryPrimOp('+', i, j),
             ir.ApplyUnaryPrimOp('-', i),
             ir.ApplyComparisonOp('EQ', i, j),
             ir.MakeArray([i, ir.NA(hl.tint32), ir.I32(-3)], hl.tarray(hl.tint32)),
             ir.ArrayRef(a, i),
             ir.ArrayLen(a),
-            ir.ArraySort(ir.ToStream(a), 'l', 'r', ir.ApplyComparisonOp("LT", ir.Ref('l'), ir.Ref('r'))),
+            ir.ArraySort(ir.ToStream(a), 'l', 'r', ir.ApplyComparisonOp("LT", ir.Ref('l', hl.tint32), ir.Ref('r', hl.tint32))),
             ir.ToSet(a),
             ir.ToDict(da),
             ir.ToArray(a),
@@ -124,18 +140,7 @@ class ValueIRTests(unittest.TestCase):
 
     @skip_unless_spark_backend()
     def test_parses(self):
-        env = {'c': hl.tbool,
-               'a': hl.tarray(hl.tint32),
-               'st': hl.tstream(hl.tint32),
-               'aa': hl.tarray(hl.tarray(hl.tint32)),
-               'sta': hl.tstream(hl.tarray(hl.tint32)),
-               'da': hl.tarray(hl.ttuple(hl.tint32, hl.tstr)),
-               'nd': hl.tndarray(hl.tfloat64, 1),
-               'v': hl.tint32,
-               's': hl.tstruct(x=hl.tint32, y=hl.tint64, z=hl.tfloat64),
-               't': hl.ttuple(hl.tint32, hl.tint64, hl.tfloat64),
-               'call': hl.tcall,
-               'x': hl.tint32}
+        env = self.value_irs_env()
         for x in self.value_irs():
             Env.spark_backend('ValueIRTests.test_parses')._parse_value_ir(str(x), env)
 
@@ -186,7 +191,7 @@ class TableIRTests(unittest.TestCase):
             ir.TableMapRows(
                 ir.TableKeyBy(table_read, []),
                 ir.MakeStruct([
-                    ('a', ir.GetField(ir.Ref('row'), 'f32')),
+                    ('a', ir.GetField(ir.Ref('row', table_read_row_type), 'f32')),
                     ('b', ir.F64(-2.11))])),
             ir.TableMapGlobals(
                 table_read,
@@ -207,7 +212,7 @@ class TableIRTests(unittest.TestCase):
             ir.TableToTableApply(table_read, {'name': 'TableFilterPartitions', 'parts': [0], 'keep': True}),
             ir.BlockMatrixToTableApply(block_matrix_read, aa, {'name': 'PCRelate', 'maf': 0.01, 'blockSize': 4096}),
             ir.TableFilterIntervals(table_read, [hl.utils.Interval(hl.utils.Struct(row_idx=0), hl.utils.Struct(row_idx=10))], hl.tstruct(row_idx=hl.tint32), keep=False),
-            ir.TableMapPartitions(table_read, 'glob', 'rows', ir.Ref('rows'))
+            ir.TableMapPartitions(table_read, 'glob', 'rows', ir.Ref('rows', hl.tstream(table_read_row_type)))
         ]
 
         return table_irs
@@ -299,9 +304,9 @@ class BlockMatrixIRTests(unittest.TestCase):
         vector_ir = ir.MakeArray([ir.F64(3), ir.F64(2)], hl.tarray(hl.tfloat64))
 
         read = ir.BlockMatrixRead(ir.BlockMatrixNativeReader(resource('blockmatrix_example/0')))
-        add_two_bms = ir.BlockMatrixMap2(read, read, 'l', 'r', ir.ApplyBinaryPrimOp('+', ir.Ref('l'), ir.Ref('r')), "Union")
-        negate_bm = ir.BlockMatrixMap(read, 'element', ir.ApplyUnaryPrimOp('-', ir.Ref('element')), False)
-        sqrt_bm = ir.BlockMatrixMap(read, 'element', hl.sqrt(construct_expr(ir.Ref('element'), hl.tfloat64))._ir, False)
+        add_two_bms = ir.BlockMatrixMap2(read, read, 'l', 'r', ir.ApplyBinaryPrimOp('+', ir.Ref('l', hl.tfloat64), ir.Ref('r', hl.tfloat64)), "Union")
+        negate_bm = ir.BlockMatrixMap(read, 'element', ir.ApplyUnaryPrimOp('-', ir.Ref('element', hl.tfloat64)), False)
+        sqrt_bm = ir.BlockMatrixMap(read, 'element', hl.sqrt(construct_expr(ir.Ref('element', hl.tfloat64), hl.tfloat64))._ir, False)
 
         scalar_to_bm = ir.ValueToBlockMatrix(scalar_ir, [1, 1], 1)
         col_vector_to_bm = ir.ValueToBlockMatrix(vector_ir, [2, 1], 1)
@@ -322,7 +327,7 @@ class BlockMatrixIRTests(unittest.TestCase):
 
         densify = ir.BlockMatrixDensify(read)
 
-        pow_ir = (construct_expr(ir.Ref('l'), hl.tfloat64) ** construct_expr(ir.Ref('r'), hl.tfloat64))._ir
+        pow_ir = (construct_expr(ir.Ref('l', hl.tfloat64), hl.tfloat64) ** construct_expr(ir.Ref('r', hl.tfloat64), hl.tfloat64))._ir
         squared_bm = ir.BlockMatrixMap2(scalar_to_bm, scalar_to_bm, 'l', 'r', pow_ir, "NeedsDense")
         slice_bm = ir.BlockMatrixSlice(matmul, [slice(0, 2, 1), slice(0, 1, 1)])
 
@@ -386,10 +391,11 @@ class ValueTests(unittest.TestCase):
         expecteds = []
         for t, v in self.values():
             row_v = ir.Literal(t, v)
+            range = ir.TableRange(1, 1)
             map_globals_ir = ir.TableMapGlobals(
-                ir.TableRange(1, 1),
+                range,
                 ir.InsertFields(
-                    ir.Ref("global"),
+                    ir.Ref("global", range.typ.global_type),
                     [("foo", row_v)],
                     None))
 
@@ -445,7 +451,7 @@ class CSETests(unittest.TestCase):
         assert expected == CSERenderer()(cond)
 
     def test_shadowing(self):
-        x = ir.GetField(ir.Ref('row'), 'idx')
+        x = ir.GetField(ir.Ref('row', tint32), 'idx')
         sum = ir.ApplyBinaryPrimOp('+', x, x)
         inner = ir.Let('row', sum, sum)
         outer = ir.Let('row', ir.I32(5), inner)
@@ -458,12 +464,13 @@ class CSETests(unittest.TestCase):
         assert expected == CSERenderer()(outer)
 
     def test_agg_cse(self):
-        x = ir.GetField(ir.Ref('row'), 'idx')
+        table = ir.TableRange(5, 1)
+        x = ir.GetField(ir.Ref('row', table.typ.row_type), 'idx')
         inner_sum = ir.ApplyBinaryPrimOp('+', x, x)
         agg = ir.ApplyAggOp('AggOp', [], [inner_sum])
         outer_sum = ir.ApplyBinaryPrimOp('+', agg, agg)
         filter = ir.AggFilter(ir.TrueIR(), outer_sum, False)
-        table_agg = ir.TableAggregate(ir.TableRange(5, 1), ir.MakeTuple([outer_sum, filter]))
+        table_agg = ir.TableAggregate(table, ir.MakeTuple([outer_sum, filter]))
         expected = (
             '(TableAggregate (TableRange 5 1)'
                 ' (AggLet __cse_1 False (GetField idx (Ref row))'
@@ -493,7 +500,7 @@ class CSETests(unittest.TestCase):
         assert expected == CSERenderer()(top)
 
     def test_agg_let(self):
-        agg = ir.ApplyAggOp('AggOp', [], [ir.Ref('foo')])
+        agg = ir.ApplyAggOp('AggOp', [], [ir.Ref('foo', tint32)])
         sum = ir.ApplyBinaryPrimOp('+', agg, agg)
         agglet = ir.AggLet('foo', ir.I32(2), sum, False)
         expected = (
@@ -504,8 +511,9 @@ class CSETests(unittest.TestCase):
         assert expected == CSERenderer()(agglet)
 
     def test_refs(self):
-        ref = ir.Ref('row')
-        x = ir.TableMapRows(ir.TableRange(10, 1),
+        table = ir.TableRange(10, 1)
+        ref = ir.Ref('row', table.typ.row_type)
+        x = ir.TableMapRows(table,
                             ir.MakeStruct([('foo', ir.GetField(ref, 'idx')),
                                            ('bar', ir.GetField(ref, 'idx'))]))
         expected = (

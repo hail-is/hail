@@ -21,7 +21,8 @@ from hail.expr.expressions import (Expression, ArrayExpression, SetExpression,
 from hail.expr.types import (HailType, hail_type, tint32, tint64, tfloat32,
                              tfloat64, tstr, tbool, tarray, tset, tdict,
                              tstruct, tlocus, tinterval, tcall, ttuple,
-                             tndarray, is_primitive, is_numeric, is_int32, is_int64, is_float32, is_float64)
+                             tndarray, trngstate, is_primitive, is_numeric,
+                             is_int32, is_int64, is_float32, is_float64)
 from hail.genetics.reference_genome import reference_genome_type, ReferenceGenome
 import hail.ir as ir
 from hail.typecheck import (typecheck, nullable, anytype, enumeration, tupleof,
@@ -43,7 +44,7 @@ def _func(name, ret_type, *args, type_args=()):
 def _seeded_func(name, ret_type, seed, *args):
     seed = seed if seed is not None else Env.next_seed()
     indices, aggregations = unify_all(*args)
-    rng_state = ir.RNGSplit(ir.Ref('__rng_state'), ir.MakeTuple([]))
+    rng_state = ir.RNGSplit(ir.Ref('__rng_state', trngstate), ir.MakeTuple([]))
     return construct_expr(ir.ApplySeeded(name, seed, rng_state, ret_type, *(a._ir for a in args)), ret_type, indices, aggregations)
 
 
@@ -3713,7 +3714,8 @@ def zip(*arrays, fill_missing: bool = False) -> ArrayExpression:
     """
     n_arrays = builtins.len(arrays)
     uids = [Env.get_uid() for _ in builtins.range(n_arrays)]
-    body_ir = ir.MakeTuple([ir.Ref(uid) for uid in uids])
+    types = [array._type.element_type for array in arrays]
+    body_ir = ir.MakeTuple([ir.Ref(uid, type) for uid, type in zip(uids, types)])
     indices, aggregations = unify_all(*arrays)
     behavior = 'ExtendNA' if fill_missing else 'TakeMinLength'
     return construct_expr(ir.ToArray(ir.StreamZip([ir.ToStream(a._ir) for a in arrays], uids, body_ir, behavior)),
@@ -3725,7 +3727,7 @@ def zip(*arrays, fill_missing: bool = False) -> ArrayExpression:
 def _zip_func(*arrays, fill_missing=False, f):
     n_arrays = builtins.len(arrays)
     uids = [Env.get_uid() for _ in builtins.range(n_arrays)]
-    refs = [construct_expr(ir.Ref(uid), a.dtype.element_type, a._indices, a._aggregations) for uid, a in
+    refs = [construct_expr(ir.Ref(uid, a.dtype.element_type), a.dtype.element_type, a._indices, a._aggregations) for uid, a in
             builtins.zip(uids, arrays)]
     body_result = f(*refs)
     indices, aggregations = unify_all(*arrays, body_result)
@@ -3772,9 +3774,9 @@ def enumerate(a, start=0, *, index_first=True):
     elt = Env.get_uid()
     idx = Env.get_uid()
     if index_first:
-        tuple = ir.MakeTuple([ir.Ref(idx), ir.Ref(elt)])
+        tuple = ir.MakeTuple([ir.Ref(idx, tint32), ir.Ref(elt, a.dtype.element_type)])
     else:
-        tuple = ir.MakeTuple([ir.Ref(elt), ir.Ref(idx)])
+        tuple = ir.MakeTuple([ir.Ref(elt, a.dtype.element_type), ir.Ref(idx, tint32)])
     indices, aggs = unify_all(a, start)
     return construct_expr(
         ir.ToArray(
@@ -4746,8 +4748,9 @@ def _compare(left, right):
 def _sort_by(collection, less_than):
     left_id = Env.get_uid()
     right_id = Env.get_uid()
-    left = construct_expr(ir.Ref(left_id), collection.dtype.element_type, collection._indices, collection._aggregations)
-    right = construct_expr(ir.Ref(right_id), collection.dtype.element_type, collection._indices, collection._aggregations)
+    elt_type = collection.dtype.element_type
+    left = construct_expr(ir.Ref(left_id, elt_type), elt_type, collection._indices, collection._aggregations)
+    right = construct_expr(ir.Ref(right_id, elt_type), elt_type, collection._indices, collection._aggregations)
     return construct_expr(
         ir.ArraySort(ir.ToStream(collection._ir), left_id, right_id, less_than(left, right)._ir),
         collection.dtype,

@@ -9,8 +9,7 @@ from hail.utils.misc import escape_str, parsable_strings, dump_json, escape_id
 
 
 def unpack_uid(new_row_type, uid_field_name):
-    new_row = ir.Ref('row')
-    new_row._type = new_row_type
+    new_row = ir.Ref('row', new_row_type)
     if uid_field_name in new_row_type.fields:
         uid = ir.GetField(new_row, uid_field_name)
     else:
@@ -55,17 +54,16 @@ class TableJoin(TableIR):
         right = self.right.handle_randomness('__right_uid')
 
         joined = TableJoin(left, right, self.join_type, self.join_key)
-        row = ir.Ref('row')
-        row._typ = joined.typ.row_type
+        row = ir.Ref('row', joined.typ.row_type)
         if '__left_uid' in joined.row_typ and '__right_uid' in joined.row_typ:
-            old_joined_row = ir.SelectFields(ir.Ref('row'), [field for field in self.typ.row_type])
-            left_uid = ir.GetField(ir.Ref('row'), '__left_uid')
-            right_uid = ir.GetField(ir.Ref('row'), '__right_uid')
+            old_joined_row = ir.SelectFields(row, [field for field in self.typ.row_type])
+            left_uid = ir.GetField(row, '__left_uid')
+            right_uid = ir.GetField(row, '__right_uid')
             handle_missing_left = self.join_type == 'right' or self.join_type == 'outer'
             handle_missing_right = self.join_type == 'left' or self.join_type == 'outer'
             uid = concat_uids(left_uid, right_uid, handle_missing_left, handle_missing_right)
         else:
-            old_joined_row = ir.SelectFields(ir.Ref('row'), [field for field in self.typ.row_type])
+            old_joined_row = ir.SelectFields(row, [field for field in self.typ.row_type])
             uid = ir.NA(tint64)
         TableMapRows(joined, ir.InsertFields(old_joined_row, [(uid_field_name, uid)]), None)
 
@@ -167,7 +165,7 @@ class TableRange(TableIR):
 
     def _handle_randomness(self, uid_field_name):
         assert(uid_field_name is not None)
-        new_row = ir.InsertFields(ir.Ref('row'), [(uid_field_name, ir.Cast(ir.GetField(ir.Ref('row'), 'idx'), tint64))], None)
+        new_row = ir.InsertFields(ir.Ref('row', self.typ.row_type), [(uid_field_name, ir.Cast(ir.GetField(ir.Ref('row'), 'idx'), tint64))], None)
         return TableMapRows(self, new_row)
 
     def head_str(self):
@@ -219,6 +217,7 @@ class TableExplode(TableIR):
 
         inner_uid = Env.gen_uid()
         elt = Env.gen_uid()
+        # FIXME: add types to the refs
         refs = [ir.Ref('row'), *(ir.Ref(Env.gen_uid()) for _ in self.path)]
         array = refs[-1]
         iota = ir.StreamIota(ir.I32(0), ir.I32(1))
@@ -471,7 +470,7 @@ class TableKeyByAndAggregate(TableIR):
             if expr.uses_randomness:
                 expr = ir.Let(
                     '__rng_state',
-                    ir.RNGSplit(ir.RNGStateLiteral(rng_key), ir.Ref(first_uid)),
+                    ir.RNGSplit(ir.RNGStateLiteral(rng_key), ir.Ref(first_uid, uid.typ)),
                     expr)
                 expr = ir.AggLet(
                     '__rng_state',
@@ -534,7 +533,7 @@ class TableAggregateByKey(TableIR):
         if expr.uses_randomness:
             expr = ir.Let(
                 '__rng_state',
-                ir.RNGSplit(ir.RNGStateLiteral(rng_key), ir.Ref(first_uid)),
+                ir.RNGSplit(ir.RNGStateLiteral(rng_key), ir.Ref(first_uid, uid.typ)),
                 expr)
             expr = ir.AggLet(
                 '__rng_state',
@@ -598,12 +597,12 @@ class TableParallelize(TableIR):
             uid = Env.get_uid()
             iota = ir.StreamIota(ir.I32(0), ir.I32(1))
             new_rows = ir.StreamZip(
-                [ir.GetField(ir.Ref(rows_and_global_ref), 'rows'), iota],
+                [ir.GetField(ir.Ref(rows_and_global_ref, rows_and_global.typ), 'rows'), iota],
                 [row, uid],
-                ir.InsertFields(ir.Ref(row), [(uid_field_name, ir.Cast(ir.Ref(uid), tint64))], None),
+                ir.InsertFields(ir.Ref(row, rows_and_global.typ.element_type), [(uid_field_name, ir.Cast(ir.Ref(uid, tint32), tint64))], None),
                 'TakeMinLength')
             rows_and_global = ir.Let(rows_and_global_ref, rows_and_global,
-                                  ir.InsertFields(ir.Ref(rows_and_global_ref), [('rows', new_rows)], None))
+                                  ir.InsertFields(ir.Ref(rows_and_global_ref, rows_and_global.typ), [('rows', new_rows)], None))
         return TableParallelize(rows_and_global, self.n_partitions)
 
     def head_str(self):
@@ -780,18 +779,20 @@ class TableMultiWayZipJoin(TableIR):
         uids, _ = unzip(unpack_uid(child.typ.row_type, uid_field_name) for child in new_children)
         uid_type = unify_uid_types(uid.typ for uid in uids)
         new_children = [TableMapRows(child,
-                                     ir.InsertFields(ir.Ref('row'),
+                                     ir.InsertFields(ir.Ref('row', child.typ.row_type),
                                                      [(uid_field_name, pad_uid(uid, uid_type, i))], None))
                         for i, (child, uid) in enumerate(zip(new_children, uids))]
         joined = TableMultiWayZipJoin(new_children, self.data_name, self.global_name)
         accum = Env.get_uid()
         elt = Env.get_uid()
-        uid = ir.StreamFold(ir.ToStream(ir.GetField(ir.Ref('row'), self.data_name)),
+        row = ir.Ref('row', joined.typ.row_type)
+        data = ir.GetField(row, self.data_name)
+        uid = ir.StreamFold(ir.ToStream(data),
                          ir.NA(uid_type), accum, elt,
-                         ir.If(ir.IsNA(ir.Ref(accum)),
-                            ir.GetField(ir.Ref(elt), uid_field_name),
+                         ir.If(ir.IsNA(ir.Ref(accum, uid_type)),
+                            ir.GetField(ir.Ref(elt, data.typ.element_type), uid_field_name),
                             accum))
-        return TableMapRows(joined, ir.InsertFields(ir.Ref('row'), [(uid_field_name, uid)], None))
+        return TableMapRows(joined, ir.InsertFields(row, [(uid_field_name, uid)], None))
 
     def head_str(self):
         return f'"{escape_str(self.data_name)}" "{escape_str(self.global_name)}"'
@@ -997,7 +998,8 @@ class BlockMatrixToTable(TableIR):
 
     def _handle_randomness(self, uid_field_name):
         if uid_field_name is not None:
-            new_row = ir.InsertFields(ir.Ref('row'), [(uid_field_name, ir.MakeTuple(ir.GetField(ir.Ref('row'), 'i'), ir.GetField(ir.Ref('row'), 'j')))], None)
+            row = ir.Ref('row', self.typ.row_type)
+            new_row = ir.InsertFields(row, [(uid_field_name, ir.MakeTuple(ir.GetField(row, 'i'), ir.GetField(row, 'j')))], None)
         return TableMapRows(self, new_row)
 
     def _compute_type(self):

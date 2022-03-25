@@ -758,7 +758,7 @@ class ArrayExpression(CollectionExpression):
         indices, aggregations = unify_all(self, group_size)
         stream_ir = ir.StreamGrouped(ir.ToStream(self._ir), group_size._ir)
         mapping_identifier = Env.get_uid("stream_grouped_map_to_arrays")
-        mapped_to_arrays = ir.StreamMap(stream_ir, mapping_identifier, ir.ToArray(ir.Ref(mapping_identifier)))
+        mapped_to_arrays = ir.StreamMap(stream_ir, mapping_identifier, ir.ToArray(ir.Ref(mapping_identifier, self._type.element_type)))
         return construct_expr(ir.ToArray(mapped_to_arrays), tarray(self._type), indices, aggregations)
 
 
@@ -4600,4 +4600,4 @@ def construct_reference(name, type, indices):
 def construct_variable(name, type,
                        indices: Indices = Indices(),
                        aggregations: LinkedList = LinkedList(Aggregation)):
-    return construct_expr(ir.Ref(name), type, indices, aggregations)
+    return construct_expr(ir.Ref(name, type), type, indices, aggregations)

@@ -368,11 +368,13 @@ class AggLet(IR):
 
 
 class Ref(IR):
-    @typecheck_method(name=str)
-    def __init__(self, name):
+    @typecheck_method(name=str, type=nullable(HailType))
+    def __init__(self, name, type=None):
         super().__init__()
         self.name = name
         self._free_vars = {name}
+        if type is not None:
+            self._type = type
 
     def _handle_randomness(self, create_uids):
         if not create_uids:
@@ -381,10 +383,10 @@ class Ref(IR):
         uid = Env.get_uid
         return StreamZip([self, StreamIota(I32(0), I32(1))],
                          [elt, uid],
-                         pack_uid(Cast(Ref(uid), tint64), Ref(elt)))
+                         pack_uid(Cast(Ref(uid, tint32), tint64), Ref(elt, tint32)))
 
     def copy(self):
-        return Ref(self.name)
+        return Ref(self.name, self.type)
 
     def head_str(self):
         return escape_id(self.name)
@@ -395,21 +397,21 @@ class Ref(IR):
     def _compute_type(self, env, agg_env):
         if self._type is None:
             self._type = env[self.name]
-        elif self.name in env:
+        elif env is not None and self.name in env:
             assert(self._type == env[self.name])
 
 
 class TopLevelReference(Ref):
-    @typecheck_method(name=str)
-    def __init__(self, name):
-        super().__init__(name)
+    @typecheck_method(name=str, type=nullable(HailType))
+    def __init__(self, name, type=None):
+        super().__init__(name, type)
 
     @property
     def is_nested_field(self):
         return True
 
     def copy(self):
-        return TopLevelReference(self.name)
+        return TopLevelReference(self.name, self.type)
 
     def _ir_name(self):
         return 'Ref'
@@ -685,7 +687,7 @@ class StreamIota(IR):
         if not create_uids:
             return self
         elt = Env.get_uid
-        return StreamMap(self, elt, MakeTuple(Cast(Ref(elt), tint64), Ref(elt)))
+        return StreamMap(self, elt, MakeTuple(Cast(Ref(elt, tint32), tint64), Ref(elt, tint32)))
 
     @typecheck_method(start=IR, step=IR)
     def copy(self, start, step):
@@ -720,7 +722,7 @@ class StreamRange(IR):
         if not create_uids:
             return self
         elt = Env.get_uid
-        return StreamMap(self, elt, MakeTuple(Cast(Ref(elt), tint64), Ref(elt)))
+        return StreamMap(self, elt, MakeTuple(Cast(Ref(elt, tint32), tint64), Ref(elt, tint32)))
 
     @typecheck_method(start=IR, stop=IR, step=IR)
     def copy(self, start, stop, step):
@@ -1254,7 +1256,7 @@ class ToStream(IR):
         uid = Env.get_uid()
         elt = Env.get_uid()
         iota = StreamIota(I32(0), I32(1))
-        return StreamZip([self, iota], [elt, uid], MakeTuple([Cast(Ref(uid), tint64), Ref(elt)]), 'TakeMinLength')
+        return StreamZip([self, iota], [elt, uid], MakeTuple([Cast(Ref(uid, tint32), tint64), Ref(elt, self.typ.element_type)]), 'TakeMinLength')
 
     @typecheck_method(a=IR)
     def copy(self, a):
@@ -1364,8 +1366,7 @@ def concat_uids(uid1, uid2, handle_missing_left=False, handle_missing_right=Fals
 
 def unpack_uid(stream_type):
     tuple_type = stream_type.element_type
-    tuple = Ref(Env.get_uid())
-    tuple._type = tuple_type
+    tuple = Ref(Env.get_uid(), tuple_type)
     if isinstance(tuple_type, tstruct):
         return tuple.name,\
                GetField(tuple, uid_field_name),\
@@ -1380,9 +1381,8 @@ def pack_uid(uid, elt):
         return MakeTuple(uid, elt)
 
 def with_split_rng_state(ir, split, is_scan=None) -> 'BaseIR':
-    ref = Ref('__rng_state')
-    ref._type = trngstate
-    new_state = RNGSplit(ref, Bits(''), split)
+    ref = Ref('__rng_state', trngstate)
+    new_state = RNGSplit(ref, split)
     if is_scan is None:
         return Let('__rng_state', new_state, ir)
     else:
@@ -2008,7 +2008,7 @@ class AggArrayPerElement(IR):
     @typecheck_method(array=IR, element_name=str, index_name=str, agg_ir=IR, is_scan=bool)
     def __init__(self, array, element_name, index_name, agg_ir, is_scan):
         if agg_ir.uses_agg_randomness(is_scan):
-            agg_ir = with_split_rng_state(agg_ir, Cast(Ref(index_name), tint64), is_scan)
+            agg_ir = with_split_rng_state(agg_ir, Cast(Ref(index_name, tint32), tint64), is_scan)
         super().__init__(array, agg_ir)
         self.array = array
         self.element_name = element_name
@@ -2328,12 +2328,13 @@ class InsertFields(IR):
             if v > 1:
                 uid = Env.get_uid()
                 lets.append((uid, k))
-                replacements[k] = uid
+                replacements[k] = (uid, k.typ)
 
         insert_irs = []
         for k, v in fields:
             if isinstance(v, GetField) and v.o in replacements:
-                insert_irs.append((k, GetField(Ref(replacements[v.o]), v.name)))
+                uid, type = replacements[v.o]
+                insert_irs.append((k, GetField(Ref(uid, type), v.name)))
             else:
                 insert_irs.append((k, v))
 
@@ -2701,7 +2702,7 @@ class TableAggregate(IR):
     def __init__(self, child, query):
         if query.uses_randomness:
             child = child.handle_randomness(uid_field_name)
-            uid = GetField(Ref('row'), uid_field_name)
+            uid = GetField(Ref('row', child.typ.row_type), uid_field_name)
             if '__rng_state' in query.free_vars:
                 query = Let('__rng_state', RNGStateLiteral(rng_key), query)
             if '__rng_state' in query.free_agg_vars or '__rng_state' in query.free_scan_vars:
