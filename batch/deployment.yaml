@@ -147,15 +147,7 @@ spec:
                key: query_storage_uri
          - name: HAIL_QUERY_ACCEPTABLE_JAR_SUBFOLDER
            value: "/jars"
-{% elif scope == "test" %}
-         - name: HAIL_QUERY_STORAGE_URI
-           valueFrom:
-             secretKeyRef:
-               name: global-config
-               key: test_storage_uri
-         - name: HAIL_QUERY_ACCEPTABLE_JAR_SUBFOLDER
-           value: "/{{ token }}/jars"
-{% elif scope == "dev" %}
+{% elif scope == "test" or scope == "dev" %}
          - name: HAIL_QUERY_STORAGE_URI
            valueFrom:
              secretKeyRef:
@@ -339,15 +331,7 @@ spec:
                key: query_storage_uri
          - name: HAIL_QUERY_ACCEPTABLE_JAR_SUBFOLDER
            value: "/jars"
-{% elif scope == "test" %}
-         - name: HAIL_QUERY_STORAGE_URI
-           valueFrom:
-             secretKeyRef:
-               name: global-config
-               key: test_storage_uri
-         - name: HAIL_QUERY_ACCEPTABLE_JAR_SUBFOLDER
-           value: "/{{ token }}/jars"
-{% elif scope == "dev" %}
+{% elif scope == "test" or scope == "dev" %}
          - name: HAIL_QUERY_STORAGE_URI
            valueFrom:
              secretKeyRef:

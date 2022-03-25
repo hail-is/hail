@@ -5,6 +5,7 @@ import json
 import logging
 import os
 import random
+import re
 import signal
 import traceback
 from functools import wraps
@@ -62,6 +63,7 @@ from ..cloud.resource_utils import (
     memory_to_worker_type,
     valid_machine_types,
 )
+from ..cloud.utils import ACCEPTABLE_QUERY_JAR_URL_PREFIX
 from ..exceptions import (
     BatchOperationAlreadyCompletedError,
     BatchUserError,
@@ -665,6 +667,14 @@ async def create_jobs(request: aiohttp.web.Request, userdata: dict):
     return await _create_jobs(userdata, job_specs, batch_id, app)
 
 
+NON_HEX_DIGIT = re.compile('[^A-Fa-f0-9]')
+
+
+def assert_is_sha_1_hex_string(revision: str):
+    if len(revision) != 40 or NON_HEX_DIGIT.search(revision):
+        raise web.HTTPBadRequest(reason=f'revision must be 40 character hexadecimal encoded SHA-1, got: {revision}')
+
+
 async def _create_jobs(userdata: dict, job_specs: dict, batch_id: int, app: aiohttp.web.Application):
     db: Database = app['db']
     file_store: FileStore = app['file_store']
@@ -768,6 +778,16 @@ WHERE user = %s AND id = %s AND NOT deleted;
                         raise web.HTTPBadRequest(reason='jvm jobs may not specify storage')
                     if machine_type is not None:
                         raise web.HTTPBadRequest(reason='jvm jobs may not specify machine_type')
+                    if spec['process']['jar_spec']['type'] == 'git_revision':
+                        revision = spec['process']['jar_spec']['value']
+                        assert_is_sha_1_hex_string(revision)
+                        spec['process']['jar_spec']['type'] = 'jar_url'
+                        spec['process']['jar_spec']['value'] = ACCEPTABLE_QUERY_JAR_URL_PREFIX + '/' + revision + '.jar'
+                    else:
+                        assert spec['process']['jar_spec']['type'] == 'jar_url'
+                        jar_url = spec['process']['jar_spec']['value']
+                        if not jar_url.startswith(ACCEPTABLE_QUERY_JAR_URL_PREFIX):
+                            raise web.HTTPBadRequest(reason=f'unacceptable JAR url: {jar_url}')
 
                 req_memory_bytes: Optional[int]
                 if machine_type is None:
