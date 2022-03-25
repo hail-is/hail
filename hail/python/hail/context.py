@@ -302,7 +302,6 @@ def init(sc=None, app_name='Hail', master=None, local='local[*]',
             quiet=quiet,
             append=append,
             tmpdir=tmp_dir,
-            local_tmpdir=local_tmpdir,
             default_reference=default_reference,
             global_seed=global_seed,
             skip_logging_configuration=skip_logging_configuration
