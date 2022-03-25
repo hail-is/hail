@@ -2049,15 +2049,6 @@ class JVMContainer:
     def __init__(self, container: Container, fs: LocalAsyncFS):
         self.container = container
         self.fs = fs
-        self.log_offset = 0
-
-    async def retrieve_and_clear_output(self) -> str:
-        logs = await self.get_log()
-        self.log_offset += len(logs)
-        return logs
-
-    async def get_log(self):
-        return await self.container.get_log(offset=self.log_offset)
 
     @property
     def returncode(self) -> Optional[int]:
@@ -2112,8 +2103,6 @@ class JVM:
                     finally:
                         writer.close()
                 except ConnectionRefusedError:
-                    output = await container.retrieve_and_clear_output()
-                    log.warning(f'JVM-{index}: connection refused. {output}')
                     raise
                 except FileNotFoundError as err:
                     attempts += 1
@@ -2122,8 +2111,7 @@ class JVM:
                             f'JVM-{index}: failed to establish connection after {240 * delay} seconds'
                         ) from err
                     await asyncio.sleep(delay)
-            startup_output = await container.retrieve_and_clear_output()
-            return container, startup_output
+            return container
         except Exception as e:
             raise JVMCreationError from e
 
@@ -2157,20 +2145,13 @@ class JVM:
     async def new_connection(self):
         while True:
             try:
-                interim_output = await self.container.retrieve_and_clear_output()
-                if len(interim_output) > 0:
-                    log.warning(f'{self}: unexpected output between jobs')
-
                 return await asyncio.open_unix_connection(self.socket_file)
             except ConnectionRefusedError:
-                output = await self.container.get_log()
-                log.warning(f'{self}: unexpected exit between jobs', extra=dict(output=output))
                 os.remove(self.socket_file)
-                container, startup_output = await self.create_container_and_connect(
+                container = await self.create_container_and_connect(
                     self.index, self.socket_file, self.root_dir, self.client_session, self.pool
                 )
                 self.container = container
-                log.info(f'JVM-{self.index}: startup output: {startup_output}')
 
     def __init__(
         self,
@@ -2207,12 +2188,6 @@ class JVM:
     async def kill(self):
         if self.container is not None:
             await self.container.remove()
-
-    async def output(self) -> str:
-        return await self.container.get_log()
-
-    async def retrieve_and_clear_output(self) -> str:
-        return await self.container.retrieve_and_clear_output()
 
     async def execute(self, classpath: str, scratch_dir: str, log_file: str, jar_url: str, argv: List[str]):
         assert worker is not None
