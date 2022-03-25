@@ -301,20 +301,13 @@ class ServiceBackend(
         MakeTuple.ordered(FastIndexedSeq(x)),
         optimize = true)
       val retPType = pt.asInstanceOf[PBaseStruct]
-
       val off = f(ctx.theHailClassLoader, ctx.fs, 0, ctx.r)(ctx.r)
-
-      assert(retPType.size == 1)
-      assert(retPType.isFieldDefined(off, 0))
-
-      val elementType = retPType.types(0)
       val codec = TypedCodecSpec(
-        EType.fromTypeAllOptional(elementType.virtualType),
-        elementType.virtualType,
+        EType.fromTypeAllOptional(retPType),
+        retPType.virtualType,
         BufferSpec.parseOrDefault(bufferSpecString)
       )
-
-      codec.encode(ctx, elementType, retPType.loadField(off, 0))
+      codec.encode(ctx, retPType, off)
     }
   }
 
