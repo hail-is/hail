@@ -661,9 +661,6 @@ class Container:
         except asyncio.CancelledError:
             raise
         except Exception as e:
-            if not isinstance(e, ContainerDeletedError) and not user_error(e):
-                log.exception(f'while creating {self}')
-
             if isinstance(e, ImageNotFound):
                 self.short_error = 'image not found'
             elif isinstance(e, ImageCannotBePulled):
@@ -671,7 +668,11 @@ class Container:
 
             self.state = 'error'
             self.error = traceback.format_exc()
-            raise ContainerCreateError from e
+
+            if not isinstance(e, ContainerDeletedError) and not user_error(e):
+                log.exception(f'while creating {self}')
+                raise ContainerCreateError from e
+            raise
 
     async def start(self):
         async def _run():
@@ -698,12 +699,13 @@ class Container:
             except ContainerDeletedError:
                 self.state = 'cancelled'
             except Exception as e:
-                if not isinstance(e, (ContainerDeletedError, ContainerTimeoutError)) and not user_error(e):
-                    log.exception(f'while running {self}')
-
                 self.state = 'error'
                 self.error = traceback.format_exc()
-                raise ContainerStartError from e
+
+                if not isinstance(e, ContainerTimeoutError) and not user_error(e):
+                    log.exception(f'while running {self}')
+                    raise ContainerStartError from e
+                raise
 
         self._run_fut = asyncio.ensure_future(self._run_until_done_or_deleted(_run))
 
