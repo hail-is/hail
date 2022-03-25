@@ -1934,6 +1934,8 @@ class ImportMatrixTableTests(unittest.TestCase):
         ]
 
 
+@fails_service_backend
+@fails_local_backend
 @pytest.mark.parametrize("entry_fun", [hl.str, hl.int32, hl.float64])
 @pytest.mark.parametrize("header", [True, False])
 @pytest.mark.parametrize("delimiter", [',', ' '])
