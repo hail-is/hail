@@ -1277,24 +1277,23 @@ case class TableFromBlockMatrixNativeReader(params: TableFromBlockMatrixNativeRe
       val concattedBlocks = mapIR(StreamGroupByKey(streamOfSlices, IndexedSeq("blockRow"))) { group =>
         bindIR(ToArray(group)) { groupAsArray =>
           bindIR(GetField(ArrayRef(groupAsArray, 0), "blockRow")) { blockRow =>
-            NDArrayConcat(ToArray(mapIR(ToStream(groupAsArray)){ structInGroup => GetField(structInGroup, "block")}), 1)
+            MakeStruct(FastSeq(
+              "blockRow" -> blockRow,
+              "block" -> NDArrayConcat(ToArray(mapIR(ToStream(groupAsArray)){ structInGroup => GetField(structInGroup, "block")}), 1)
+            ))
           }
         }
       }
       flatMapIR(concattedBlocks) { structWithIdxAndNDArray =>
-        ToStream(Apply("ndarray_rows", Seq(), Seq(???), TNDArray(TFloat64, Nat(2)), ErrorIDs.NO_ERROR))
+        val streamOfRows = ToStream(invoke("ndarray_rows", TArray(TArray(TFloat64)), GetField(structWithIdxAndNDArray, "block")))
+        zip2(streamOfRows, StreamRange(???, ???, I32(1)), ArrayZipBehavior.AssertSameLength) { (dataRow, rowIdx) =>
+          MakeStruct(FastSeq(
+            "row_idx" -> Cast(rowIdx, TFloat64),
+            "entries" -> dataRow
+          ))
+        }
       }
-
-
     }
-
-
-
-    // Step 3: Figure out how to do: NDArray to array of arrays in IR. Probably need an apply node.
-
-    ???
-
-
 
     val partitionBounds = partitionRanges.map { r => Interval(Row(r.start), Row(r.end), true, false) }
     val partitioner = new RVDPartitioner(fullType.keyType, partitionBounds)
