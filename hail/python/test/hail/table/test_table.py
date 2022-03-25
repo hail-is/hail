@@ -1941,8 +1941,6 @@ def test_lowered_shuffle():
     ht = ht.order_by(-ht.idx)
     assert ht.aggregate(hl.agg.take(ht.idx, 3)) == [99, 98, 97]
 
-@fails_service_backend()
-@fails_local_backend()
 def test_read_partitions():
     ht = hl.utils.range_table(100, 3)
     path = new_temp_file()
@@ -1950,8 +1948,6 @@ def test_read_partitions():
     assert hl.read_table(path, _n_partitions=10).n_partitions() == 10
 
 
-@fails_service_backend()
-@fails_local_backend()
 def test_read_partitions_with_missing_key():
     ht = hl.utils.range_table(100, 3).key_by(idx=hl.missing(hl.tint32))
     path = new_temp_file()

@@ -470,7 +470,7 @@ object LowerTableIR {
       case TableToValueApply(child, TableCalculateNewPartitions(nPartitions)) =>
         val stage = lower(child)
         val sampleSize = math.min(nPartitions * 20, 1000000)
-        val samplesPerPartition = sampleSize / stage.numPartitions
+        val samplesPerPartition = sampleSize / math.max(1, stage.numPartitions)
         val keyType = child.typ.keyType
         val samplekey = AggSignature(TakeBy(),
           FastIndexedSeq(TInt32),
