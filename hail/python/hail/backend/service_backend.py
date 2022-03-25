@@ -384,7 +384,7 @@ class ServiceBackend(Backend):
                         try:
                             return token, result_bytes, timings
                         except orjson.JSONDecodeError as err:
-                            raise FatalError(f'batch id was {b.id}\ncould not decode {json_bytes}') from err
+                            raise FatalError(f'batch id was {b.id}\ncould not decode {result_bytes}') from err
                     else:
                         short_message = await read_str(outfile)
                         expanded_message = await read_str(outfile)
