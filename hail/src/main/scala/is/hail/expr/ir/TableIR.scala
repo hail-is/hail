@@ -5,7 +5,7 @@ import is.hail.annotations._
 import is.hail.asm4s._
 import is.hail.backend.ExecuteContext
 import is.hail.backend.spark.{SparkBackend, SparkTaskContext}
-import is.hail.expr.ir
+import is.hail.expr.{Nat, ir}
 import is.hail.expr.ir.functions.{BlockMatrixToTableFunction, MatrixToTableFunction, StringFunctions, TableToTableFunction}
 import is.hail.expr.ir.lowering.{LowerBlockMatrixIR, LowererUnsupportedOperation, TableStage, TableStageDependency}
 import is.hail.expr.ir.streams.{StreamArgType, StreamProducer}
@@ -1232,11 +1232,14 @@ case class TableFromBlockMatrixNativeReader(params: TableFromBlockMatrixNativeRe
 
     val tableOfBlocks = LowerBlockMatrixIR.lowerToTableStage(BlockMatrixRead(BlockMatrixNativeReader(ctx.fs, params.path)), ???, ctx, ???, ???)
     val sliceSize = 4
-    val slicePointsForNormalBlock = ((0 until metadata.blockSize by sliceSize).toIndexedSeq :+ metadata.blockSize).sliding(2).map(is => (is(0), is(1))).toIndexedSeq
+    val slicePointsForNormalBlock = ((0 until metadata.blockSize by sliceSize) :+ metadata.blockSize).sliding(2).map(is => (is(0), is(1))).toIndexedSeq
     val slicePointsForNormalBlockIR = Literal(TArray(TTuple(TInt32, TInt32)), slicePointsForNormalBlock)
     val numSlicesInNormalBlock = slicePointsForNormalBlock.length
 
     val lastBlockRow = metadata.nRows / metadata.blockSize + (if (metadata.nRows % metadata.blockSize > 0) 1 else 0)
+    val rowsInLastBlock = metadata.nRows % metadata.blockSize
+    val slicePointsForLastBlock = ((0 until rowsInLastBlock by sliceSize) :+ rowsInLastBlock).sliding(2).map(is => (is(0), is(1))).toIndexedSeq
+    val slicePointsForLastBlockIR = Literal(TArray(TTuple(TInt32, TInt32)), slicePointsForLastBlock)
 
     // Step 1: Split all blocks vertically into chunks we can fit in memory.
     val rowReq = VirtualTypeWithReq.apply(rowAndGlobalPTypes(ctx, requestedType)._1).r.asInstanceOf[RStruct]
@@ -1256,8 +1259,11 @@ case class TableFromBlockMatrixNativeReader(params: TableFromBlockMatrixNativeRe
                   )))) { sliceIdxAndSliceStartStop =>
                     bindIR(GetField(sliceIdxAndSliceStartStop, "idx")) { sliceIdx =>
                       bindIR(GetField(sliceIdxAndSliceStartStop, "elt")) { sliceStartStop =>
-
-                        MakeStruct(FastSeq("blockRow" -> (blockRow * numSlicesInNormalBlock + sliceIdx), "blockCol" -> blockCol, "block" -> NDArraySlice(block, ???)))
+                        val slices = MakeArray(
+                          MakeTuple.ordered(Seq(GetTupleElement(sliceStartStop, 0), GetTupleElement(sliceStartStop, 1), I32(1))),
+                          MakeTuple.ordered(Seq(I32(0), GetTupleElement(shapeTuple, 1), I32(1)))
+                        )
+                        MakeStruct(FastSeq("blockRow" -> (blockRow * numSlicesInNormalBlock + sliceIdx), "blockCol" -> blockCol, "block" -> NDArraySlice(block, slices)))
                       }
                     }
                   }
@@ -1276,8 +1282,7 @@ case class TableFromBlockMatrixNativeReader(params: TableFromBlockMatrixNativeRe
         }
       }
       flatMapIR(concattedBlocks) { structWithIdxAndNDArray =>
-
-        //ToStream(Apply())
+        ToStream(Apply("ndarray_rows", Seq(), Seq(???), TNDArray(TFloat64, Nat(2)), ErrorIDs.NO_ERROR))
       }
 
 

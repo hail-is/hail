@@ -67,6 +67,29 @@ object LinalgCodeUtils {
     aColMajor
   }
 
+  def createRowMajorCode(pndv: SNDArrayValue, cb: EmitCodeBuilder, region: Value[Region]): SNDArrayValue = {
+    val shape = pndv.shapes
+    val pt = PCanonicalNDArray(pndv.st.elementType.storageType().setRequired(true), pndv.st.nDims, false)
+    val strides = pt.makeRowMajorStrides(shape, region, cb)
+
+    val (dataFirstElementAddress, dataFinisher) = pt.constructDataFunction(shape, strides, cb, region)
+    // construct an SNDArrayCode with undefined contents
+    val result = dataFinisher(cb)
+
+    result.coiterateMutate(cb, region, (pndv, "pndv")) { case Seq(l, r) => r }
+    result
+  }
+
+  def checkRowMajorAndCopyIfNeeded(aInput: SNDArrayValue, cb: EmitCodeBuilder, region: Value[Region]): SNDArrayValue = {
+    val aIsRowMajor = LinalgCodeUtils.checkRowMajor(aInput, cb)
+    val aRowMajor = cb.emb.newPField("ndarray_output_column_major", aInput.st).asInstanceOf[SNDArraySettable]
+    cb.ifx(aIsRowMajor, {cb.assign(aRowMajor, aInput)},
+      {
+        cb.assign(aRowMajor, LinalgCodeUtils.createRowMajorCode(aInput, cb, region))
+      })
+    aRowMajor
+  }
+
   def checkStandardStriding(aInput: SNDArrayValue, cb: EmitCodeBuilder, region: Value[Region]): (SNDArrayValue, Value[Boolean]) = {
     if (aInput.st.isInstanceOf[SUnreachableNDArray])
       return (aInput, const(true))

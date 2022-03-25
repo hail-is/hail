@@ -7,7 +7,7 @@ import is.hail.expr.{Nat, NatVariable}
 import is.hail.linalg.{LAPACK, LinalgCodeUtils}
 import is.hail.types.coerce
 import is.hail.types.physical.stypes.EmitType
-import is.hail.types.physical.stypes.concrete.{SBaseStructPointer, SNDArrayPointer}
+import is.hail.types.physical.stypes.concrete.{SBaseStructPointer, SIndexablePointer, SIndexablePointerValue, SNDArrayPointer}
 import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.physical.stypes.primitives.SBooleanValue
 import is.hail.types.physical._
@@ -144,6 +144,26 @@ object  NDArrayFunctions extends RegistryFunctions {
         val (resPCode, info) = linear_triangular_solve(apc.asNDArray, bpc.asNDArray, lower.asBoolean, pt, cb, er.region, errorID)
         cb.ifx(info cne 0, cb._fatalWithError(errorID,s"hl.nd.solve: Could not solve, matrix was singular. dtrtrs error code ", info.toS))
         resPCode
+    }
+
+    registerSCode1("ndarray_rows", TNDArray(TFloat64, Nat(2)), TArray(TFloat64), (_, s) => SIndexablePointer(PCanonicalArray(PCanonicalArray(s.asInstanceOf[SNDArray].elementPType)))) { (er, cb, ret, nd, errorId) =>
+      val ndRowMajor = LinalgCodeUtils.checkRowMajorAndCopyIfNeeded(nd.asNDArray, cb, er.region)
+      val retPType = ret.asInstanceOf[SIndexablePointer].pType.asInstanceOf[PCanonicalArray]
+      retPType.constructFromElements(cb, er.region, ???, true) { (cb, rowIdx) =>
+        val rowStart = ndRowMajor.firstDataAddress + ndRowMajor.strides(0) * rowIdx.toL
+        val innerArrayPType = retPType.elementType.asInstanceOf[PCanonicalArray]
+        val nCols = cb.memoize(ndRowMajor.shapes(1).get.toI)
+        val innerArrayStart = cb.memoize(innerArrayPType.allocate(er.region, nCols))
+        innerArrayPType.stagedInitialize(cb, innerArrayStart, nCols)
+        val outputFirstElementAddress = cb.memoize(innerArrayPType.firstElementOffset(innerArrayStart))
+        cb += Region.copyFrom(rowStart, outputFirstElementAddress, nCols.toL * PInt64().byteSize)
+        val oneInnerArray = new SIndexablePointerValue(ret.asInstanceOf[SIndexablePointer].elementType.asInstanceOf[SIndexablePointer], innerArrayStart, nCols, outputFirstElementAddress)
+        IEmitCode.present(cb, oneInnerArray)
+//        val colIdx = cb.newLocal[Long]("ndarray_rows_col_idx")
+//        cb.forLoop(cb.assign(colIdx, 0L), colIdx < ???, cb.assign(colIdx, colIdx + 1L), {
+//          ndRowMajor.loadElement(IndexedSeq(rowIdx, colIdx))
+//        })
+      }
     }
   }
 }
