@@ -68,7 +68,12 @@ from hailtop.utils import (
 from ..batch_format_version import BatchFormatVersion
 from ..cloud.azure.worker.worker_api import AzureWorkerAPI
 from ..cloud.gcp.worker.worker_api import GCPWorkerAPI
-from ..cloud.resource_utils import is_valid_storage_request, storage_gib_to_bytes, worker_memory_per_core_bytes
+from ..cloud.resource_utils import (
+    is_valid_storage_request,
+    storage_gib_to_bytes,
+    worker_memory_per_core_bytes,
+    worker_memory_per_core_mib,
+)
 from ..file_store import FileStore
 from ..globals import HTTP_CLIENT_MAX_SIZE, RESERVED_STORAGE_GB_PER_CORE, STATUS_FORMAT_VERSION
 from ..publicly_available_images import publicly_available_images
@@ -1984,12 +1989,12 @@ class JVMContainer:
         assert os.path.commonpath([socket_file, root_dir]) == root_dir
         assert os.path.isdir(root_dir)
 
-        memory_per_core_bytes = worker_memory_per_core_bytes(CLOUD, instance_config.worker_type())
-        total_memory_bytes = n_cores * memory_per_core_bytes
+        total_memory_bytes = n_cores * worker_memory_per_core_bytes(CLOUD, instance_config.worker_type())
 
         # We allocate 60% of memory per core to off heap memory
-        heap_memory_mb = int(0.4 * total_memory_bytes) // 1024 // 1024
-        off_heap_memory_per_core_mb = int(0.6 * memory_per_core_bytes) // 1024 // 1024
+        memory_per_core_mib = worker_memory_per_core_mib(CLOUD, instance_config.worker_type())
+        heap_memory_mb = int(0.4 * n_cores * memory_per_core_mib)
+        off_heap_memory_per_core_mb = int(0.6 * memory_per_core_mib)
 
         command = [
             'java',
@@ -2293,8 +2298,10 @@ class Worker:
 
     async def _initialize_jvms(self):
         if instance_config.worker_type() in ('standard', 'D'):
-            jvms = await asyncio.gather(*[JVM.create(i, 1, self) for i in range(CORES)],
-                                        *[JVM.create(CORES + i, 8, self) for i in range(CORES // 8)])
+            jvms = await asyncio.gather(
+                *[JVM.create(i, 1, self) for i in range(CORES)],
+                *[JVM.create(CORES + i, 8, self) for i in range(CORES // 8)],
+            )
             self._jvms.update(jvms)
         log.info(f'JVMs initialized {self._jvms}')
 
