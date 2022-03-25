@@ -379,8 +379,8 @@ def init_local(
         global_seed, backend)
 
 
-def version():
-    """Get the installed hail version.
+def version() -> str:
+    """Get the installed Hail version.
 
     Returns
     -------
@@ -390,6 +390,19 @@ def version():
         # https://stackoverflow.com/questions/6028000/how-to-read-a-static-file-from-inside-a-python-package
         hail.__version__ = pkg_resources.resource_string(__name__, 'hail_version').decode().strip()
     return hail.__version__
+
+
+def revision() -> str:
+    """Get the installed Hail git revision.
+
+    Returns
+    -------
+    str
+    """
+    if hail.__revision__ is None:
+        # https://stackoverflow.com/questions/6028000/how-to-read-a-static-file-from-inside-a-python-package
+        hail.__revision__ = pkg_resources.resource_string(__name__, 'hail_revision').decode().strip()
+    return hail.__revision__
 
 
 def _hail_cite_url():

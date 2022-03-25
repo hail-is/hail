@@ -431,8 +431,8 @@ class BatchBuilder:
             {'command': command, 'image': image, 'mount_docker_socket': mount_docker_socket, 'type': 'docker'}, **kwargs
         )
 
-    def create_jvm_job(self, command: List[str], **kwargs):
-        return self._create_job({'command': command, 'type': 'jvm'}, **kwargs)
+    def create_jvm_job(self, jar_spec: Dict[str, str], argv: List[str], **kwargs):
+        return self._create_job({'type': 'jvm', 'jar_spec': jar_spec, 'command': argv}, **kwargs)
 
     def _create_job(self,
                     process: dict,

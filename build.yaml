@@ -3120,9 +3120,7 @@ steps:
 
       {% if scope == "deploy" %}
       HAIL_JAR_URL={{ global.query_storage_uri }}
-      {% elif scope == "test" %}
-      HAIL_JAR_URL={{ global.test_storage_uri }}/{{ deploy_batch.token }}
-      {% elif scope == "dev" %}
+      {% elif scope == "test" or scope == "dev" %}
       HAIL_JAR_URL={{ global.test_storage_uri }}/{{ default_ns.name }}
       {% else %}
       echo "!!! unexpected scope {{ scope }} !!!"
@@ -3177,19 +3175,6 @@ steps:
 
       cd /io/repo/hail/python
 
-      export HAIL_SHA="$(cat /io/git_version)"
-      {% if scope == "deploy" %}
-      export HAIL_JAR_URL={{ global.query_storage_uri }}
-      {% elif scope == "test" %}
-      export HAIL_JAR_URL={{ global.test_storage_uri }}/{{ deploy_batch.token }}
-      {% elif scope == "dev" %}
-      export HAIL_JAR_URL={{ global.test_storage_uri }}/{{ default_ns.name }}
-      {% else %}
-      echo "!!! unexpected scope {{ scope }} !!!"
-      exit 1
-      {% endif %}
-      export HAIL_JAR_URL=${HAIL_JAR_URL}/jars/$(cat /io/git_version).jar
-
       export HAIL_TEST_STORAGE_URI={{ global.test_storage_uri }}/{{ token }}
       export HAIL_TEST_RESOURCES_DIR="{{ global.test_storage_uri }}/{{ upload_test_resources_to_blob_storage.token }}/test/resources/"
       export HAIL_DOCTEST_DATA_DIR="{{ global.test_storage_uri }}/{{ upload_test_resources_to_blob_storage.token }}/doctest/data/"
@@ -3218,8 +3203,6 @@ steps:
         to: /io/wheel-container.tar
       - from: /repo/hail/python/test
         to: /io/repo/hail/python/test
-      - from: /git_version
-        to: /io/git_version
     secrets:
       - name: test-gsa-key
         namespace:
@@ -3263,19 +3246,6 @@ steps:
 
       cd /io/repo/hail/python
 
-      export HAIL_SHA="$(cat /io/git_version)"
-      {% if scope == "deploy" %}
-      export HAIL_JAR_URL={{ global.query_storage_uri }}
-      {% elif scope == "test" %}
-      export HAIL_JAR_URL={{ global.test_storage_uri }}/{{ deploy_batch.token }}
-      {% elif scope == "dev" %}
-      export HAIL_JAR_URL={{ global.test_storage_uri }}/{{ default_ns.name }}
-      {% else %}
-      echo "!!! unexpected scope {{ scope }} !!!"
-      exit 1
-      {% endif %}
-      export HAIL_JAR_URL=${HAIL_JAR_URL}/jars/$(cat /io/git_version).jar
-
       export HAIL_TEST_STORAGE_URI={{ global.test_storage_uri }}/{{ token }}
       export HAIL_TEST_RESOURCES_DIR="{{ global.test_storage_uri }}/{{ upload_test_resources_to_blob_storage.token }}/test/resources/"
       export HAIL_DOCTEST_DATA_DIR="{{ global.test_storage_uri }}/{{ upload_test_resources_to_blob_storage.token }}/doctest/data/"
@@ -3304,8 +3274,6 @@ steps:
         to: /io/wheel-container.tar
       - from: /repo/hail/python/test
         to: /io/repo/hail/python/test
-      - from: /git_version
-        to: /io/git_version
     secrets:
       - name: test-gsa-key
         namespace:
@@ -3349,19 +3317,6 @@ steps:
 
       cd /io/repo/hail/python
 
-      export HAIL_SHA="$(cat /io/git_version)"
-      {% if scope == "deploy" %}
-      export HAIL_JAR_URL={{ global.query_storage_uri }}
-      {% elif scope == "test" %}
-      export HAIL_JAR_URL={{ global.test_storage_uri }}/{{ deploy_batch.token }}
-      {% elif scope == "dev" %}
-      export HAIL_JAR_URL={{ global.test_storage_uri }}/{{ default_ns.name }}
-      {% else %}
-      echo "!!! unexpected scope {{ scope }} !!!"
-      exit 1
-      {% endif %}
-      export HAIL_JAR_URL=${HAIL_JAR_URL}/jars/$(cat /io/git_version).jar
-
       export HAIL_TEST_STORAGE_URI={{ global.test_storage_uri }}/{{ token }}
       export HAIL_TEST_RESOURCES_DIR="{{ global.test_storage_uri }}/{{ upload_test_resources_to_blob_storage.token }}/test/resources/"
       export HAIL_DOCTEST_DATA_DIR="{{ global.test_storage_uri }}/{{ upload_test_resources_to_blob_storage.token }}/doctest/data/"
@@ -3390,8 +3345,6 @@ steps:
         to: /io/wheel-container.tar
       - from: /repo/hail/python/test
         to: /io/repo/hail/python/test
-      - from: /git_version
-        to: /io/git_version
     secrets:
       - name: test-gsa-key
         namespace:
@@ -3435,19 +3388,6 @@ steps:
 
       cd /io/repo/hail/python
 
-      export HAIL_SHA="$(cat /io/git_version)"
-      {% if scope == "deploy" %}
-      export HAIL_JAR_URL={{ global.query_storage_uri }}
-      {% elif scope == "test" %}
-      export HAIL_JAR_URL={{ global.test_storage_uri }}/{{ deploy_batch.token }}
-      {% elif scope == "dev" %}
-      export HAIL_JAR_URL={{ global.test_storage_uri }}/{{ default_ns.name }}
-      {% else %}
-      echo "!!! unexpected scope {{ scope }} !!!"
-      exit 1
-      {% endif %}
-      export HAIL_JAR_URL=${HAIL_JAR_URL}/jars/$(cat /io/git_version).jar
-
       export HAIL_TEST_STORAGE_URI={{ global.test_storage_uri }}/{{ token }}
       export HAIL_TEST_RESOURCES_DIR="{{ global.test_storage_uri }}/{{ upload_test_resources_to_blob_storage.token }}/test/resources/"
       export HAIL_DOCTEST_DATA_DIR="{{ global.test_storage_uri }}/{{ upload_test_resources_to_blob_storage.token }}/doctest/data/"
@@ -3476,8 +3416,6 @@ steps:
         to: /io/wheel-container.tar
       - from: /repo/hail/python/test
         to: /io/repo/hail/python/test
-      - from: /git_version
-        to: /io/git_version
     secrets:
       - name: test-gsa-key
         namespace:
@@ -3521,19 +3459,6 @@ steps:
 
       cd /io/repo/hail/python
 
-      export HAIL_SHA="$(cat /io/git_version)"
-      {% if scope == "deploy" %}
-      export HAIL_JAR_URL={{ global.query_storage_uri }}
-      {% elif scope == "test" %}
-      export HAIL_JAR_URL={{ global.test_storage_uri }}/{{ deploy_batch.token }}
-      {% elif scope == "dev" %}
-      export HAIL_JAR_URL={{ global.test_storage_uri }}/{{ default_ns.name }}
-      {% else %}
-      echo "!!! unexpected scope {{ scope }} !!!"
-      exit 1
-      {% endif %}
-      export HAIL_JAR_URL=${HAIL_JAR_URL}/jars/$(cat /io/git_version).jar
-
       export HAIL_TEST_STORAGE_URI={{ global.test_storage_uri }}/{{ token }}
       export HAIL_TEST_RESOURCES_DIR="{{ global.test_storage_uri }}/{{ upload_test_resources_to_blob_storage.token }}/test/resources/"
       export HAIL_DOCTEST_DATA_DIR="{{ global.test_storage_uri }}/{{ upload_test_resources_to_blob_storage.token }}/doctest/data/"
@@ -3562,8 +3487,6 @@ steps:
         to: /io/wheel-container.tar
       - from: /repo/hail/python/test
         to: /io/repo/hail/python/test
-      - from: /git_version
-        to: /io/git_version
     secrets:
       - name: test-gsa-key
         namespace:

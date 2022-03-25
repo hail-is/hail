@@ -28,7 +28,7 @@ object Main {
     val logFile = argv(1)
     configureLogging(logFile)
 
-    argv(2) match {
+    argv(3) match {
       case WORKER => Worker.main(argv)
       case DRIVER => ServiceBackendSocketAPI2.main(argv)
       case kind => throw new RuntimeException(s"unknown kind: ${kind}")
