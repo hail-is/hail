@@ -362,6 +362,7 @@ class MatrixPLINKReader(
 
         val is = fs.open(bed)
         if (TaskContext.get != null) {
+          // FIXME: need to close InputStream for other backends too
           TaskContext.get.addTaskCompletionListener[Unit] { (context: TaskContext) =>
             is.close()
           }
