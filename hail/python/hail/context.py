@@ -271,20 +271,20 @@ def init(sc=None, app_name='Hail', master=None, local='local[*]',
         import asyncio
         try:
             asyncio.get_running_loop()
-        except RuntimeError:
             raise ValueError(
                 'When using Hail Query in async code, initialize the ServiceBackend with `await hl.init_service()`'
             )
-        return asyncio.get_event_loop().run_until_complete(init_service(
-            log=log,
-            quiet=quiet,
-            append=append,
-            tmpdir=tmp_dir,
-            local_tmpdir=local_tmpdir,
-            default_reference=default_reference,
-            global_seed=global_seed,
-            skip_logging_configuration=skip_logging_configuration
-        ))
+        except RuntimeError:  # RuntimeError implies there is no running loop, so we may start one
+            return asyncio.get_event_loop().run_until_complete(init_service(
+                log=log,
+                quiet=quiet,
+                append=append,
+                tmpdir=tmp_dir,
+                local_tmpdir=local_tmpdir,
+                default_reference=default_reference,
+                global_seed=global_seed,
+                skip_logging_configuration=skip_logging_configuration
+            ))
     if backend_name == 'spark':
         return init_spark(
             log=log,
