@@ -1956,8 +1956,6 @@ def test_read_write_balding_nichols_model():
     mt.write(tmp_file)
     assert hl.read_matrix_table(tmp_file)._same(mt)
 
-@fails_service_backend()
-@fails_local_backend()
 def test_read_partitions():
     ht = hl.utils.range_matrix_table(n_rows=100, n_cols=10, n_partitions=3)
     path = new_temp_file()
