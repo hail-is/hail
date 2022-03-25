@@ -1551,6 +1551,7 @@ class DockerJob(Job):
                     task_name,
                     await container.get_log(),
                 )
+
         try:
             await container.run(on_completion)
         except asyncio.CancelledError:
