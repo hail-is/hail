@@ -346,13 +346,153 @@ def docker_call_retry(timeout, name):
     return wrapper
 
 
+class ImageCannotBePulled(Exception):
+    pass
+
+
+class ImageNotFound(Exception):
+    pass
+
+
+class Image:
+    def __init__(
+        self,
+        name: str,
+        credentials: CloudUserCredentials,
+        client_session: httpx.ClientSession,
+        pool: concurrent.futures.ThreadPoolExecutor,
+    ):
+        self.image_name = name
+        self.credentials = credentials
+        self.client_session = client_session
+        self.pool = pool
+
+        image_ref = parse_docker_image_reference(name)
+        if image_ref.tag is None and image_ref.digest is None:
+            log.info(f'adding latest tag to image {name} for {self}')
+            image_ref.tag = 'latest'
+
+        if image_ref.name() in HAIL_GENETICS_IMAGES:
+            # We want the "hailgenetics/python-dill" translate to (based on the prefix):
+            # * gcr.io/hail-vdc/hailgenetics/python-dill
+            # * us-central1-docker.pkg.dev/hail-vdc/hail/hailgenetics/python-dill
+            image_ref.path = image_ref.name()
+            image_ref.domain = DOCKER_PREFIX.split('/', maxsplit=1)[0]
+            image_ref.path = '/'.join(DOCKER_PREFIX.split('/')[1:] + [image_ref.path])
+
+        self.image_ref = image_ref
+        self.image_ref_str = str(image_ref)
+        self.image_config: Optional[Dict[str, Any]] = None
+        self.image_id: Optional[str] = None
+
+    @property
+    def rootfs_path(self) -> str:
+        assert self.image_id is not None
+        return f'/host/rootfs/{self.image_id}'
+
+    async def _pull_image(self):
+        assert docker
+
+        is_cloud_image = (CLOUD == 'gcp' and self.image_ref.hosted_in('google')) or (
+            CLOUD == 'azure' and self.image_ref.hosted_in('azure')
+        )
+        is_public_image = self.image_ref.name() in PUBLIC_IMAGES
+
+        try:
+            if not is_cloud_image:
+                await self._ensure_image_is_pulled()
+            elif is_public_image:
+                auth = await self._batch_worker_access_token()
+                await self._ensure_image_is_pulled(auth=auth)
+            else:
+                # Pull to verify this user has access to this
+                # image.
+                # FIXME improve the performance of this with a
+                # per-user image cache.
+                auth = self._current_user_access_token()
+                await docker_call_retry(MAX_DOCKER_IMAGE_PULL_SECS, f'{self}')(
+                    docker.images.pull, self.image_ref_str, auth=auth
+                )
+        except DockerError as e:
+            if e.status == 404 and 'pull access denied' in e.message:
+                raise ImageCannotBePulled from e
+            if 'not found: manifest unknown' in e.message:
+                raise ImageNotFound from e
+            raise
+
+        image_config, _ = await check_exec_output('docker', 'inspect', self.image_ref_str)
+        image_configs[self.image_ref_str] = json.loads(image_config)[0]
+
+    async def _ensure_image_is_pulled(self, auth: Optional[Dict[str, str]] = None):
+        assert docker
+
+        try:
+            await docker_call_retry(MAX_DOCKER_OTHER_OPERATION_SECS, f'{self}')(docker.images.get, self.image_ref_str)
+        except DockerError as e:
+            if e.status == 404:
+                await docker_call_retry(MAX_DOCKER_IMAGE_PULL_SECS, f'{self}')(
+                    docker.images.pull, self.image_ref_str, auth=auth
+                )
+            else:
+                raise
+
+    async def _batch_worker_access_token(self) -> Dict[str, str]:
+        return await CLOUD_WORKER_API.worker_access_token(self.client_session)
+
+    def _current_user_access_token(self) -> Dict[str, str]:
+        return {'username': self.credentials.username, 'password': self.credentials.password}
+
+    async def _extract_rootfs(self):
+        assert self.image_id
+        os.makedirs(self.rootfs_path)
+        await check_shell(
+            f'id=$(docker create {self.image_id}) && docker export $id | tar -C {self.rootfs_path} -xf - && docker rm $id'
+        )
+
+    async def _localize_rootfs(self):
+        async with image_lock.reader_lock:
+            # FIXME Authentication is entangled with pulling images. We need a way to test
+            # that a user has access to a cached image without pulling.
+            await self._pull_image()
+            self.image_config = image_configs[self.image_ref_str]
+            self.image_id = self.image_config['Id'].split(":")[1]
+            assert self.image_id
+
+            worker.image_data[self.image_id] += 1
+
+            image_data = worker.image_data[self.image_id]
+            async with image_data.lock:
+                if not image_data.extracted:
+                    try:
+                        await self._extract_rootfs()
+                        image_data.extracted = True
+                        log.info(f'Added expanded image to cache: {self.image_ref_str}, ID: {self.image_id}')
+                    except asyncio.CancelledError:
+                        raise
+                    except Exception:
+                        log.exception(f'while extracting image {self.image_ref_str}, ID: {self.image_id}')
+                        await blocking_to_async(self.pool, shutil.rmtree, self.rootfs_path)
+                        raise
+
+    async def pull(self):
+        await asyncio.shield(self._localize_rootfs())
+
+    def release(self):
+        if self.image_id is not None:
+            worker.image_data[self.image_id] -= 1
+
+
+class StepInterruptedError(Exception):
+    pass
+
+
 async def run_until_done_or_deleted(event: asyncio.Event, f: Callable[..., Awaitable[Any]], *args, **kwargs):
     step = asyncio.ensure_future(f(*args, **kwargs))
     deleted = asyncio.ensure_future(event.wait())
     try:
         await asyncio.wait([deleted, step], return_when=asyncio.FIRST_COMPLETED)
         if deleted.done():
-            raise JobDeletedError
+            raise StepInterruptedError
         assert step.done()
         return step.result()
     finally:
@@ -382,7 +522,11 @@ class JobDeletedError(Exception):
     pass
 
 
-class JobTimeoutError(Exception):
+class ContainerDeletedError(Exception):
+    pass
+
+
+class ContainerTimeoutError(Exception):
     pass
 
 
@@ -404,119 +548,89 @@ def user_error(e):
         # bucket name and your credentials.\n')
         if b'Bad credentials for bucket' in e.stderr:
             return True
+    if isinstance(e, (ImageNotFound, ImageCannotBePulled)):
+        return True
     return False
 
 
 class Container:
-    def __init__(self, job, name, spec, client_session: httpx.ClientSession, worker: 'Worker'):
-        self.job = job
-        self.name = name
-        self.spec = spec
-        self.client_session = client_session
+    def __init__(
+        self,
+        worker: 'Worker',
+        name: str,
+        image: Image,
+        scratch_dir: str,
+        command: List[str],
+        cpu_in_mcpu: int,
+        memory_in_bytes: int,
+        network: Optional[Union[bool, str]] = None,
+        port: Optional[int] = None,
+        timeout: Optional[int] = None,
+        unconfined: Optional[bool] = None,
+        volume_mounts: Optional[List[dict]] = None,
+        env: Optional[List[str]] = None,
+    ):
         self.worker = worker
+        assert self.worker
+
+        self.name = name
+        self.image = image
+        self.command = command
+        self.cpu_in_mcpu = cpu_in_mcpu
+        self.memory_in_bytes = memory_in_bytes
+        self.network = network
+        self.port = port
+        self.timeout = timeout
+        self.unconfined = unconfined
+        self.volume_mounts = volume_mounts or []
+        self.env = env or []
+
         self.deleted_event = asyncio.Event()
 
-        image_ref = parse_docker_image_reference(self.spec['image'])
-        if image_ref.tag is None and image_ref.digest is None:
-            log.info(f'adding latest tag to image {self.spec["image"]} for {self}')
-            image_ref.tag = 'latest'
-
-        if image_ref.name() in HAIL_GENETICS_IMAGES:
-            # We want the "hailgenetics/python-dill" translate to (based on the prefix):
-            # * gcr.io/hail-vdc/hailgenetics/python-dill
-            # * us-central1-docker.pkg.dev/hail-vdc/hail/hailgenetics/python-dill
-            image_ref.path = image_ref.name()
-            image_ref.domain = DOCKER_PREFIX.split('/', maxsplit=1)[0]
-            image_ref.path = '/'.join(DOCKER_PREFIX.split('/')[1:] + [image_ref.path])
-
-        self.image_ref = image_ref
-        self.image_ref_str = str(image_ref)
-        self.image_id = None
-
-        self.port = self.spec.get('port')
         self.host_port = None
 
-        self.timeout = self.spec.get('timeout')
-
         self.state = 'pending'
-        self.error = None
-        self.short_error = None
-        self.container_status = None
+        self.error: Optional[str] = None
+        self.short_error: Optional[str] = None
+        self.container_status: Optional[dict] = None
         self.started_at: Optional[int] = None
         self.finished_at: Optional[int] = None
 
         self.timings = Timings()
 
-        self.logbuffer = bytearray()
         self.overlay_path = None
 
-        self.image_config = None
-        self.rootfs_path = None
-        scratch = self.spec['scratch']
-        self.container_scratch = f'{scratch}/{self.name}'
+        self.container_scratch = scratch_dir
         self.container_overlay_path = f'{self.container_scratch}/rootfs_overlay'
         self.config_path = f'{self.container_scratch}/config'
         self.log_path = f'{self.container_scratch}/container.log'
 
         self.overlay_mounted = False
 
-        self.container_name = f'batch-{self.job.batch_id}-job-{self.job.job_id}-{self.name}'
-
         self.netns: Optional[NetworkNamespace] = None
         # regarding no-member: https://github.com/PyCQA/pylint/issues/4223
         self.process: Optional[asyncio.subprocess.Process] = None  # pylint: disable=no-member
 
-        assert self.worker.fs is not None
-
-    async def run(self):
+    async def run(self, on_completion: Callable[..., Awaitable[Any]], *args, **kwargs):
         try:
+            with self._step('pulling'):
+                await self._run_until_done_or_deleted(self.image.pull)
 
-            async def localize_rootfs():
-                async def _localize_rootfs():
-                    async with image_lock.reader_lock:
-                        # FIXME Authentication is entangled with pulling images. We need a way to test
-                        # that a user has access to a cached image without pulling.
-                        await self.pull_image()
-                        self.image_config = image_configs[self.image_ref_str]
-                        self.image_id = self.image_config['Id'].split(":")[1]
-                        self.worker.image_data[self.image_id] += 1
+            with self._step('setting up overlay'):
+                await self._run_until_done_or_deleted(self._setup_overlay)
 
-                        self.rootfs_path = f'/host/rootfs/{self.image_id}'
+            with self._step('setting up network'):
+                await self._run_until_done_or_deleted(self._setup_network_namespace)
 
-                        image_data = self.worker.image_data[self.image_id]
-                        async with image_data.lock:
-                            if not image_data.extracted:
-                                try:
-                                    await self.extract_rootfs()
-                                    image_data.extracted = True
-                                    log.info(
-                                        f'Added expanded image to cache: {self.image_ref_str}, ID: {self.image_id}'
-                                    )
-                                except asyncio.CancelledError:
-                                    raise
-                                except Exception:
-                                    log.exception(f'while extracting image {self.image_ref_str}, ID: {self.image_id}')
-                                    await blocking_to_async(worker.pool, shutil.rmtree, self.rootfs_path)
-
-                await asyncio.shield(_localize_rootfs())
-
-            with self.step('pulling'):
-                await self.run_until_done_or_deleted(localize_rootfs)
-
-            with self.step('setting up overlay'):
-                await self.run_until_done_or_deleted(self.setup_overlay)
-
-            with self.step('setting up network'):
-                await self.run_until_done_or_deleted(self.setup_network_namespace)
-
-            with self.step('running'):
-                timed_out = await self.run_until_done_or_deleted(self.run_container)
+            with self._step('running'):
+                timed_out = await self._run_until_done_or_deleted(self._run_container)
 
             self.container_status = self.get_container_status()
+            assert self.container_status is not None
 
             if timed_out:
                 self.short_error = 'timed out'
-                raise JobTimeoutError(f'timed out after {self.timeout}s')
+                raise ContainerTimeoutError(f'timed out after {self.timeout}s')
 
             if self.container_status['exit_code'] == 0:
                 self.state = 'succeeded'
@@ -526,87 +640,39 @@ class Container:
                 self.state = 'failed'
         except asyncio.CancelledError:
             raise
-        except JobDeletedError:
+        except ContainerDeletedError:
             self.state = 'cancelled'
         except Exception as e:
-            if not isinstance(e, JobTimeoutError) and not user_error(e):
+            if not isinstance(e, ContainerTimeoutError) and not user_error(e):
                 log.exception(f'while running {self}')
+
+            if isinstance(e, ImageNotFound):
+                self.short_error = 'image not found'
+            elif isinstance(e, ImageCannotBePulled):
+                self.short_error = 'image cannot be pulled'
+
             self.state = 'error'
             self.error = traceback.format_exc()
         finally:
             try:
-                with self.step('uploading_log'):
-                    await self.upload_log()
+                await on_completion(*args, **kwargs)
             finally:
                 try:
                     await self.delete_container()
                 finally:
-                    if self.image_id:
-                        self.worker.image_data[self.image_id] -= 1
+                    self.image.release()
 
-    async def run_until_done_or_deleted(self, f: Callable[..., Awaitable[Any]]):
-        return await run_until_done_or_deleted(self.deleted_event, f)
+    async def _run_until_done_or_deleted(self, f: Callable[..., Awaitable[Any]]):
+        try:
+            return await run_until_done_or_deleted(self.deleted_event, f)
+        except StepInterruptedError as e:
+            raise ContainerDeletedError from e
 
-    def step(self, name: str):
+    def _step(self, name: str):
         return self.timings.step(name)
 
-    async def pull_image(self):
-        is_cloud_image = (CLOUD == 'gcp' and self.image_ref.hosted_in('google')) or (
-            CLOUD == 'azure' and self.image_ref.hosted_in('azure')
-        )
-        is_public_image = self.image_ref.name() in PUBLIC_IMAGES
-
-        try:
-            if not is_cloud_image:
-                await self.ensure_image_is_pulled()
-            elif is_public_image:
-                auth = await self.batch_worker_access_token()
-                await self.ensure_image_is_pulled(auth=auth)
-            else:
-                # Pull to verify this user has access to this
-                # image.
-                # FIXME improve the performance of this with a
-                # per-user image cache.
-                auth = self.current_user_access_token()
-                await docker_call_retry(MAX_DOCKER_IMAGE_PULL_SECS, f'{self}')(
-                    docker.images.pull, self.image_ref_str, auth=auth
-                )
-        except DockerError as e:
-            if e.status == 404 and 'pull access denied' in e.message:
-                self.short_error = 'image cannot be pulled'
-            elif 'not found: manifest unknown' in e.message:
-                self.short_error = 'image not found'
-            raise
-
-        image_config, _ = await check_exec_output('docker', 'inspect', self.image_ref_str)
-        image_configs[self.image_ref_str] = json.loads(image_config)[0]
-
-    async def ensure_image_is_pulled(self, auth=None):
-        try:
-            await docker_call_retry(MAX_DOCKER_OTHER_OPERATION_SECS, f'{self}')(docker.images.get, self.image_ref_str)
-        except DockerError as e:
-            if e.status == 404:
-                await docker_call_retry(MAX_DOCKER_IMAGE_PULL_SECS, f'{self}')(
-                    docker.images.pull, self.image_ref_str, auth=auth
-                )
-            else:
-                raise
-
-    async def batch_worker_access_token(self):
-        return await CLOUD_WORKER_API.worker_access_token(self.client_session)
-
-    def current_user_access_token(self):
-        return {'username': self.job.credentials.username, 'password': self.job.credentials.password}
-
-    async def extract_rootfs(self):
-        assert self.rootfs_path
-        os.makedirs(self.rootfs_path)
-        await check_shell(
-            f'id=$(docker create {self.image_id}) && docker export $id | tar -C {self.rootfs_path} -xf - && docker rm $id'
-        )
-
-    async def setup_overlay(self):
-        lower_dir = self.rootfs_path
+    async def _setup_overlay(self):
+        lower_dir = self.image.rootfs_path
         upper_dir = f'{self.container_overlay_path}/upper'
         work_dir = f'{self.container_overlay_path}/work'
         merged_dir = f'{self.container_overlay_path}/merged'
@@ -617,21 +683,21 @@ class Container:
         )
         self.overlay_mounted = True
 
-    async def setup_network_namespace(self):
-        network = self.spec.get('network')
-        if network is None or network is True:
-            self.netns = await network_allocator.allocate_public()
-        else:
-            assert network == 'private'
+    async def _setup_network_namespace(self):
+        if self.network == 'private':
             self.netns = await network_allocator.allocate_private()
+        else:
+            assert self.network is None or self.network == 'public'
+            self.netns = await network_allocator.allocate_public()
+
         if self.port is not None:
             self.host_port = await port_allocator.allocate()
             await self.netns.expose_port(self.port, self.host_port)
 
-    async def run_container(self) -> bool:
+    async def _run_container(self) -> bool:
         self.started_at = time_msecs()
         try:
-            await self.write_container_config()
+            await self._write_container_config()
             async with async_timeout.timeout(self.timeout):
                 with open(self.log_path, 'w', encoding='utf-8') as container_log:
                     log.info(f'Creating the crun run process for {self}')
@@ -642,7 +708,7 @@ class Container:
                         f'{self.container_overlay_path}/merged',
                         '--config',
                         f'{self.config_path}/config.json',
-                        self.container_name,
+                        self.name,
                         stdout=container_log,
                         stderr=container_log,
                     )
@@ -655,7 +721,7 @@ class Container:
 
         return False
 
-    async def write_container_config(self):
+    async def _write_container_config(self):
         os.makedirs(self.config_path)
         with open(f'{self.config_path}/config.json', 'w', encoding='utf-8') as f:
             f.write(json.dumps(await self.container_config()))
@@ -663,8 +729,8 @@ class Container:
     # https://github.com/opencontainers/runtime-spec/blob/master/config.md
     async def container_config(self):
         uid, gid = await self._get_in_container_user()
-        weight = worker_fraction_in_1024ths(self.spec['cpu'])
-        workdir = self.image_config['Config']['WorkingDir']
+        weight = worker_fraction_in_1024ths(self.cpu_in_mcpu)
+        workdir = self.image.image_config['Config']['WorkingDir']
         default_docker_capabilities = [
             'CAP_CHOWN',
             'CAP_DAC_OVERRIDE',
@@ -694,7 +760,7 @@ class Container:
                     'uid': uid,
                     'gid': gid,
                 },
-                'args': self.spec['command'],
+                'args': self.command,
                 'env': self._env(),
                 'cwd': workdir if workdir != "" else "/",
                 'capabilities': {
@@ -721,8 +787,8 @@ class Container:
                 'resources': {
                     'cpu': {'shares': weight},
                     'memory': {
-                        'limit': self.spec['memory'],
-                        'reservation': self.spec['memory'],
+                        'limit': self.memory_in_bytes,
+                        'reservation': self.memory_in_bytes,
                     },
                     # 'blockIO': {'weight': min(weight, 1000)}, FIXME blkio.weight not supported
                 },
@@ -748,7 +814,7 @@ class Container:
             },
         }
 
-        if self.spec.get('unconfined'):
+        if self.unconfined:
             config['linux']['maskedPaths'] = []
             config['linux']['readonlyPaths'] = []
             config['process']['apparmorProfile'] = 'unconfined'
@@ -757,7 +823,7 @@ class Container:
         return config
 
     async def _get_in_container_user(self):
-        user = self.image_config['Config']['User']
+        user = self.image.image_config['Config']['User']
         if not user:
             uid, gid = 0, 0
         elif ":" in user:
@@ -767,7 +833,7 @@ class Container:
         return int(uid), int(gid)
 
     async def _read_user_from_rootfs(self, user) -> Tuple[str, str]:
-        with open(f'{self.rootfs_path}/etc/passwd', 'r', encoding='utf-8') as passwd:
+        with open(f'{self.image.rootfs_path}/etc/passwd', 'r', encoding='utf-8') as passwd:
             for record in passwd:
                 if record.startswith(user):
                     _, _, uid, gid, _, _, _ = record.split(":")
@@ -777,7 +843,7 @@ class Container:
     def _mounts(self, uid, gid):
         # Only supports empty volumes
         external_volumes = []
-        volumes = self.image_config['Config']['Volumes']
+        volumes = self.image.image_config['Config']['Volumes']
         if volumes:
             for v_container_path in volumes:
                 if not v_container_path.startswith('/'):
@@ -796,7 +862,7 @@ class Container:
                 )
 
         return (
-            self.spec.get('volume_mounts')
+            self.volume_mounts
             + external_volumes
             + [
                 # Recommended filesystems:
@@ -859,7 +925,7 @@ class Container:
         )
 
     def _env(self):
-        env = self.image_config['Config']['Env'] + self.spec.get('env', [])
+        env = self.image.image_config['Config']['Env'] + self.env
         if self.port is not None:
             assert self.host_port is not None
             env.append(f'HAIL_BATCH_WORKER_PORT={self.host_port}')
@@ -872,12 +938,10 @@ class Container:
             try:
                 log.info(f'{self} container is still running, killing crun process')
                 try:
-                    await check_exec_output('crun', 'kill', '--all', self.container_name, 'SIGKILL')
+                    await check_exec_output('crun', 'kill', '--all', self.name, 'SIGKILL')
                 except CalledProcessError as e:
                     not_extant_message = (
-                        b'error opening file `/run/crun/'
-                        + self.container_name.encode()
-                        + b'/status`: No such file or directory'
+                        b'error opening file `/run/crun/' + self.name.encode() + b'/status`: No such file or directory'
                     )
                     if not (e.returncode == 1 and not_extant_message in e.stderr):
                         log.exception(f'while deleting container {self}', exc_info=True)
@@ -941,11 +1005,11 @@ class Container:
             status['container_status'] = self.get_container_status()
         return status
 
-    def get_container_status(self):
+    def get_container_status(self) -> Optional[dict]:
         if not self.process:
             return None
 
-        status = {
+        status: dict = {
             'started_at': self.started_at,
             'finished_at': self.finished_at,
         }
@@ -965,23 +1029,13 @@ class Container:
     def container_finished(self):
         return self.process is not None and self.process.returncode is not None
 
-    async def upload_log(self):
-        await self.worker.file_store.write_log_file(
-            self.job.format_version,
-            self.job.batch_id,
-            self.job.job_id,
-            self.job.attempt_id,
-            self.name,
-            await self.get_log(),
-        )
-
     async def get_log(self):
         if os.path.exists(self.log_path):
             return (await self.worker.fs.read(self.log_path)).decode()
         return ''
 
     def __str__(self):
-        return f'container {self.job.id}/{self.name}'
+        return f'container {self.name}'
 
 
 def populate_secret_host_path(host_path: str, secret_data: Optional[Dict[str, bytes]]):
@@ -993,36 +1047,38 @@ def populate_secret_host_path(host_path: str, secret_data: Optional[Dict[str, by
 
 
 def copy_container(
-    job: 'Job',
-    name: str,
-    files,
-    volume_mounts,
-    cpu,
-    memory,
+    job: 'DockerJob',
+    task_name: str,
+    files: List[dict],
+    volume_mounts: List[dict],
+    cpu_in_mcpu: int,
+    memory_in_bytes: int,
     scratch: str,
     requester_pays_project: str,
     client_session: httpx.ClientSession,
-    worker: 'Worker',
 ) -> Container:
     assert files
-    copy_spec = {
-        'image': BATCH_WORKER_IMAGE,
-        'name': name,
-        'command': [
-            '/usr/bin/python3',
-            '-m',
-            'hailtop.aiotools.copy',
-            json.dumps(requester_pays_project),
-            json.dumps(files),
-            '-v',
-        ],
-        'env': [f'{job.credentials.cloud_env_name}={job.credentials.mount_path}'],
-        'cpu': cpu,
-        'memory': memory,
-        'scratch': scratch,
-        'volume_mounts': volume_mounts,
-    }
-    return Container(job, name, copy_spec, client_session, worker)
+
+    command = [
+        '/usr/bin/python3',
+        '-m',
+        'hailtop.aiotools.copy',
+        json.dumps(requester_pays_project),
+        json.dumps(files),
+        '-v',
+    ]
+
+    return Container(
+        worker=job.worker,
+        name=job.container_name(task_name),
+        image=Image(BATCH_WORKER_IMAGE, job.credentials, client_session, job.pool),
+        scratch_dir=f'{scratch}/{task_name}',
+        command=command,
+        cpu_in_mcpu=cpu_in_mcpu,
+        memory_in_bytes=memory_in_bytes,
+        volume_mounts=volume_mounts,
+        env=[f'{job.credentials.cloud_env_name}={job.credentials.mount_path}'],
+    )
 
 
 class Job:
@@ -1105,6 +1161,8 @@ class Job:
         self.format_version = format_version
         self.task_manager = task_manager
         self.pool = pool
+
+        assert worker
         self.worker = worker
 
         self.deleted_event = asyncio.Event()
@@ -1309,34 +1367,23 @@ class DockerJob(Job):
                 self.scratch,
                 requester_pays_project,
                 client_session,
-                worker,
             )
 
-        # main container
-        main_spec = {
-            'command': job_spec['process']['command'],
-            'image': job_spec['process']['image'],
-            'name': 'main',
-            'env': [f'{var["name"]}={var["value"]}' for var in self.env],
-            'cpu': self.cpu_in_mcpu,
-            'memory': self.memory_in_bytes,
-            'volume_mounts': self.main_volume_mounts,
-        }
-        port = job_spec.get('port')
-        if port:
-            main_spec['port'] = port
-        timeout = job_spec.get('timeout')
-        if timeout:
-            main_spec['timeout'] = timeout
-        network = job_spec.get('network')
-        if network:
-            assert network in ('public', 'private')
-            main_spec['network'] = network
-        unconfined = job_spec.get('unconfined')
-        if unconfined:
-            main_spec['unconfined'] = unconfined
-        main_spec['scratch'] = self.scratch
-        containers['main'] = Container(self, 'main', main_spec, client_session, worker)
+        containers['main'] = Container(
+            worker=self.worker,
+            name=self.container_name('main'),
+            image=Image(job_spec['process']['image'], self.credentials, client_session, pool),
+            scratch_dir=f'{self.scratch}/main',
+            command=job_spec['process']['command'],
+            cpu_in_mcpu=self.cpu_in_mcpu,
+            memory_in_bytes=self.memory_in_bytes,
+            network=job_spec.get('network'),
+            port=job_spec.get('port'),
+            timeout=job_spec.get('timeout'),
+            unconfined=job_spec.get('unconfined'),
+            volume_mounts=self.main_volume_mounts,
+            env=[f'{var["name"]}={var["value"]}' for var in self.env],
+        )
 
         if output_files:
             containers['output'] = copy_container(
@@ -1349,13 +1396,15 @@ class DockerJob(Job):
                 self.scratch,
                 requester_pays_project,
                 client_session,
-                worker,
             )
 
         self.containers = containers
 
     def step(self, name: str):
         return self.timings.step(name)
+
+    def container_name(self, task_name: str):
+        return f'batch-{self.batch_id}-job-{self.job_id}-{task_name}'
 
     async def setup_io(self):
         if not instance_config.job_private:
@@ -1386,6 +1435,21 @@ class DockerJob(Job):
 
         assert self.disk is None, self.disk
         os.makedirs(self.io_host_path())
+
+    async def run_container(self, container: Container, task_name: str):
+        async def on_completion():
+            with container._step('uploading_log'):
+                assert self.worker.file_store
+                await self.worker.file_store.write_log_file(
+                    self.format_version,
+                    self.batch_id,
+                    self.job_id,
+                    self.attempt_id,
+                    task_name,
+                    await container.get_log(),
+                )
+
+        await container.run(on_completion)
 
     async def run(self):
         async with self.worker.cpu_sem(self.cpu_in_mcpu):
@@ -1454,21 +1518,21 @@ class DockerJob(Job):
                 input = self.containers.get('input')
                 if input:
                     log.info(f'{self}: running input')
-                    await input.run()
+                    await self.run_container(input, 'input')
                     log.info(f'{self} input: {input.state}')
 
                 if not input or input.state == 'succeeded':
                     log.info(f'{self}: running main')
 
                     main = self.containers['main']
-                    await main.run()
+                    await self.run_container(main, 'main')
 
                     log.info(f'{self} main: {main.state}')
 
                     output = self.containers.get('output')
                     if output:
                         log.info(f'{self}: running output')
-                        await output.run()
+                        await self.run_container(output, 'output')
                         log.info(f'{self} output: {output.state}')
 
                     if main.state != 'succeeded':
@@ -1481,7 +1545,7 @@ class DockerJob(Job):
                     self.state = input.state
             except asyncio.CancelledError:
                 raise
-            except JobDeletedError:
+            except ContainerDeletedError:
                 self.state = 'cancelled'
             except Exception as e:
                 if not user_error(e):
@@ -1595,7 +1659,10 @@ class JVMJob(Job):
         return self.timings.step(name)
 
     async def run_until_done_or_deleted(self, f: Callable[..., Awaitable[Any]], *args, **kwargs):
-        return await run_until_done_or_deleted(self.deleted_event, f, *args, **kwargs)
+        try:
+            return await run_until_done_or_deleted(self.deleted_event, f, *args, **kwargs)
+        except StepInterruptedError as e:
+            raise JobDeletedError from e
 
     def secret_host_path(self, secret):
         return f'{self.scratch}/secrets/{secret["mount_path"]}'
@@ -1690,7 +1757,7 @@ class JVMJob(Job):
 
         with self.step('uploading_log'):
             log.info(f'{self}: uploading log')
-            await worker.file_store.write_log_file(
+            await self.worker.file_store.write_log_file(
                 self.format_version, self.batch_id, self.job_id, self.attempt_id, 'main', await self._get_log()
             )
 
