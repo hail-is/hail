@@ -36,6 +36,7 @@ ORDER BY start_job_id DESC
 LIMIT 1;
 ''',
             (batch_id, job_id),
+            'get_token_start_id',
         )
         token = bunch_record['token']
         start_job_id = bunch_record['start_job_id']
