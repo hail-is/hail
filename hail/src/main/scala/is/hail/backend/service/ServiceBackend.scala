@@ -363,7 +363,7 @@ class HailBatchFailure(message: String) extends RuntimeException(message)
 
 object ServiceBackendSocketAPI2 {
   def main(argv: Array[String]): Unit = {
-    assert(argv.length == 8, argv.toFastIndexedSeq)
+    assert(argv.length == 7, argv.toFastIndexedSeq)
 
     val scratchDir = argv(0)
     val logFile = argv(1)
