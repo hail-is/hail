@@ -16,7 +16,6 @@ import uuid
 import warnings
 from collections import defaultdict
 from contextlib import ExitStack, contextmanager
-from sortedcontainers import SortedSet
 from typing import (
     Any,
     Awaitable,
@@ -39,6 +38,7 @@ import aiorwlock
 import async_timeout
 from aiodocker.exceptions import DockerError  # type: ignore
 from aiohttp import web
+from sortedcontainers import SortedSet
 
 from gear.clients import get_cloud_async_fs, get_compute_client
 from hailtop import aiotools, httpx
