@@ -2,6 +2,7 @@ package is.hail.expr.ir.lowering
 
 import is.hail.HailContext
 import is.hail.backend.ExecuteContext
+import is.hail.expr.ir.functions.TableCalculateNewPartitions
 import is.hail.expr.ir.{agg, _}
 import is.hail.io.{BufferSpec, TypedCodecSpec}
 import is.hail.methods.{ForceCountTable, NPartitionsTable, TableFilterPartitions}
@@ -466,6 +467,65 @@ object LowerTableIR {
         val stage = lower(child)
         invoke("sum", TInt64,
           stage.mapCollect(relationalLetsAbove)(rows => foldIR(mapIR(rows)(row => Consume(row)), 0L)(_ + _)))
+
+      case TableToValueApply(child, TableCalculateNewPartitions(nPartitions)) =>
+        val stage = lower(child)
+        val sampleSize = math.min(nPartitions * 20, 1000000)
+        val samplesPerPartition = sampleSize / stage.numPartitions
+        val keyType = child.typ.keyType
+        val samplekey = AggSignature(TakeBy(),
+          FastIndexedSeq(TInt32),
+          FastIndexedSeq(keyType, TFloat64))
+
+        val minkey = AggSignature(TakeBy(),
+          FastIndexedSeq(TInt32),
+          FastIndexedSeq(keyType, keyType))
+
+        val maxkey = AggSignature(TakeBy(Descending),
+          FastIndexedSeq(TInt32),
+          FastIndexedSeq(keyType, keyType))
+
+
+        bindIR(flatten(stage.mapCollect(relationalLetsAbove) { rows =>
+          streamAggIR(rows) { elt =>
+            ToArray(flatMapIR(ToStream(
+              MakeArray(
+                ApplyAggOp(
+                  FastIndexedSeq(I32(samplesPerPartition)),
+                  FastIndexedSeq(SelectFields(elt, keyType.fieldNames), invokeSeeded("rand_unif", 1, TFloat64, F64(0.0), F64(1.0))),
+                  samplekey),
+                ApplyAggOp(
+                  FastIndexedSeq(I32(1)),
+                  FastIndexedSeq(elt, elt),
+                  minkey),
+                ApplyAggOp(
+                  FastIndexedSeq(I32(1)),
+                  FastIndexedSeq(elt, elt),
+                  maxkey)
+                )
+            )) { inner => ToStream(inner) })
+          }
+        })) { partData =>
+
+          val sorted = sortIR(partData) { (l, r) => ApplyComparisonOp(LT(keyType, keyType), l, r) }
+          bindIR(ToArray(flatMapIR(StreamGroupByKey(ToStream(sorted), keyType.fieldNames)) { groupRef =>
+            StreamTake(groupRef, 1)
+          })) { boundsArray =>
+
+            bindIR(ArrayLen(boundsArray)) { nBounds =>
+              bindIR(minIR(nBounds, nPartitions)) { nParts =>
+                bindIR((nBounds + (nParts - 1)) floorDiv nParts) { stepSize =>
+                  ToArray(mapIR(StreamRange(0, nBounds, stepSize)) { i =>
+                    If((i + stepSize) < (nBounds - 1),
+                      invoke("Interval", TInterval(keyType), ArrayRef(boundsArray, i), ArrayRef(boundsArray, i + stepSize), True(), False()),
+                      invoke("Interval", TInterval(keyType), ArrayRef(boundsArray, i), ArrayRef(boundsArray, nBounds - 1), True(), True())
+                    )
+                  })
+                }
+              }
+            }
+          }
+        }
 
       case TableGetGlobals(child) =>
         lower(child).getGlobals()

@@ -1,6 +1,7 @@
 package is.hail.expr.ir.functions
 
 import is.hail.backend.ExecuteContext
+import is.hail.expr.ir.lowering.TableStage
 import is.hail.expr.ir.{LowerMatrixIR, MatrixValue, RelationalSpec, TableReader, TableValue}
 import is.hail.types.virtual.Type
 import is.hail.types.{BlockMatrixType, MatrixType, RTable, TableType, TypeWithRequiredness}

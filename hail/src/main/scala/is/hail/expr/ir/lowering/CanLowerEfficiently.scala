@@ -3,7 +3,8 @@ package is.hail.expr.ir.lowering
 import is.hail.HailContext
 import is.hail.backend.ExecuteContext
 import is.hail.expr.ir._
-import is.hail.expr.ir.functions.TableToValueFunction
+import is.hail.expr.ir.functions.{TableCalculateNewPartitions, TableToValueFunction}
+import is.hail.io.TextMatrixReader
 import is.hail.io.avro.AvroTableReader
 import is.hail.io.bgen.MatrixBGENReader
 import is.hail.io.plink.MatrixPLINKReader
@@ -78,6 +79,7 @@ object CanLowerEfficiently {
         case TableCount(_) =>
         case TableToValueApply(_, ForceCountTable()) =>
         case TableToValueApply(_, NPartitionsTable()) =>
+        case TableToValueApply(_, TableCalculateNewPartitions(_)) =>
         case TableToValueApply(_, f: TableToValueFunction) => fail(s"TableToValueApply: no lowering for ${ f.getClass.getName }")
         case TableAggregate(_, _) =>
         case TableCollect(_) =>
