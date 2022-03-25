@@ -185,8 +185,7 @@ class RouterFS(FS):
 
         async def _copy():
             sema = asyncio.Semaphore(max_simultaneous_transfers)
-            async with sema:
-                await Copier.copy(self.afs, asyncio.Semaphore, transfer)
+            await Copier.copy(self.afs, sema, transfer)
         return async_to_blocking(_copy())
 
     def exists(self, path: str) -> bool:
