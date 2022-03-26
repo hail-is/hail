@@ -1822,7 +1822,6 @@ class ImportMatrixTableTests(unittest.TestCase):
         with pytest.raises(HailUserError, match='unexpected end of line while reading entries'):
             boom()
 
-    @fails_service_backend()
     def test_wrong_row_field_type(self):
         with pytest.raises(HailUserError, match="error parsing value into int32 at row field 'f0'"):
             hl.import_matrix_table(resource("sampleheader1.txt"),
