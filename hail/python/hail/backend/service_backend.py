@@ -29,7 +29,6 @@ import hailtop.aiotools.fs as afs
 
 from .backend import Backend, fatal_error_from_java_error_triplet
 from ..builtin_references import BUILTIN_REFERENCES
-from ..expr.types import HailType
 from ..fs.fs import FS
 from ..fs.router_fs import RouterFS
 from ..ir import BaseIR
