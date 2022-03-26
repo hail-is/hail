@@ -344,7 +344,11 @@ class ServiceBackend(Backend):
                         iodir + '/out'
                     ],
                     mount_tokens=True,
-                    resources={'preemptible': False, 'cpu': self.driver_cores, 'memory': self.driver_memory}
+                    resources={
+                        'preemptible': False,
+                        'cpu': self.driver_cores or '1',
+                        'memory': self.driver_memory or 'standard'
+                    }
                 )
                 b = await bb.submit(disable_progress_bar=self.disable_progress_bar)
 
