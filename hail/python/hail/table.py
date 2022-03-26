@@ -834,7 +834,7 @@ class Table(ExprContainer):
 
     @typecheck_method(expr=expr_bool,
                       keep=bool)
-    def filter(self, expr, keep=True) -> 'Table':
+    def filter(self, expr, keep: bool = True) -> 'Table':
         """Filter rows.
 
         Examples

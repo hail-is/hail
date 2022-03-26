@@ -12,6 +12,8 @@ import is.hail.types.physical.stypes.interfaces.{SBaseStructValue, SStreamValue}
 import is.hail.types.physical.{PCanonicalString, PCanonicalStruct, PField, PStruct}
 import is.hail.types.virtual.{TArray, TString, TStruct, Type}
 import is.hail.types.{BaseTypeWithRequiredness, RStruct, TableType, TypeWithRequiredness}
+import is.hail.types.physical.{PCanonicalString, PCanonicalStruct, PField, PStruct, PType}
+import is.hail.types.virtual.{Field, TArray, TStream, TString, TStruct, Type}
 import is.hail.utils.{FastIndexedSeq, FastSeq, checkGzippedFile, fatal}
 import org.json4s.{Extraction, Formats, JValue}
 
@@ -19,7 +21,8 @@ case class StringTableReaderParameters(
   files: Array[String],
   minPartitions: Option[Int],
   forceBGZ: Boolean,
-  forceGZ: Boolean)
+  forceGZ: Boolean,
+  filePerPartition: Boolean)
 
 object StringTableReader {
   def apply(fs: FS, params: StringTableReaderParameters): StringTableReader = {
@@ -131,7 +134,8 @@ class StringTableReader(
 
   override def lower(ctx: ExecuteContext, requestedType: TableType): TableStage = {
     val fs = ctx.fs
-    val lines = GenericLines.read(fs, fileStatuses, None, None, params.minPartitions, false, true)
+    val lines = GenericLines.read(fs, fileStatuses, None, None, params.minPartitions, false, true,
+      params.filePerPartition)
     TableStage(globals = MakeStruct(FastSeq()),
       partitioner = RVDPartitioner.unkeyed(lines.nPartitions),
       dependency = TableStageDependency.none,
