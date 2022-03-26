@@ -3630,7 +3630,6 @@ Caused by: java.lang.AssertionError: assertion failed
         self.assert_evals_to(hl.set([1, 2, 3]) ^ set([3, 4, 5]), set([1, 2, 4, 5]))
         self.assert_evals_to(set([1, 2, 3]) ^ hl.set([3, 4, 5]), set([1, 2, 4, 5]))
 
-    @fails_service_backend()
     def test_uniroot(self):
         tol = 1.220703e-4
 
