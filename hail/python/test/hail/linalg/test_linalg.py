@@ -1146,7 +1146,6 @@ Caused by: java.lang.AssertionError: assertion failed
             hl.linalg.utils.locus_windows(ht.locus, 1.0, coord_expr=ht.cm)
         assert "missing value for 'coord_expr'" in str(cm.exception)
 
-    @fails_service_backend()
     def test_write_overwrite(self):
         with hl.TemporaryDirectory(ensure_exists=False) as path:
             bm = BlockMatrix.from_numpy(np.array([[0]]))
@@ -1305,7 +1304,6 @@ Caused by: java.lang.AssertionError: assertion failed
 
 
     @fails_service_backend()
-    @fails_local_backend()
     def test_row_blockmatrix_sum(self):
 
         row = BlockMatrix.from_numpy(np.arange(10))

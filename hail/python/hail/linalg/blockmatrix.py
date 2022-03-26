@@ -346,13 +346,15 @@ class BlockMatrix(object):
         nd = _ndarray_as_float64(nd)
         n_rows, n_cols = nd.shape
 
-        path = hl.TemporaryFilename().name
         if isinstance(hl.current_backend(), ServiceBackend):
+            path = hl.TemporaryFilename().name
             hl.current_backend().fs.open(path, mode='wb').write(nd.tobytes())
+            uri = path
         else:
+            path = new_local_temp_file()
             nd.tofile(path)
-            path = local_path_uri(path)
-        return cls.fromfile(path, n_rows, n_cols, block_size)
+            uri = local_path_uri(path)
+        return cls.fromfile(uri, n_rows, n_cols, block_size)
 
     @classmethod
     @typecheck_method(entry_expr=expr_float64,
@@ -1207,11 +1209,19 @@ class BlockMatrix(object):
         -------
         :class:`numpy.ndarray`
         """
+        from hail.backend.service_backend import ServiceBackend
 
         if self.n_rows * self.n_cols > 1 << 31 or _force_blocking:
             path = new_temp_file()
             self.export_blocks(path, binary=True)
             return BlockMatrix.rectangles_to_numpy(path, binary=True)
+
+        if isinstance(hl.current_backend(), ServiceBackend):
+            with hl.TemporaryFilename() as path:
+                self.tofile(path)
+                return np.frombuffer(
+                    hl.current_backend().fs.open(path, mode='wb').read()
+                )
 
         with with_local_temp_file() as path:
             uri = local_path_uri(path)
