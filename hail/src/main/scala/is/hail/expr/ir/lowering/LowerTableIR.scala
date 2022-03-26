@@ -8,7 +8,7 @@ import is.hail.methods.{ForceCountTable, NPartitionsTable}
 import is.hail.rvd.{PartitionBoundOrdering, RVDPartitioner}
 import is.hail.types.physical.{PCanonicalBinary, PCanonicalTuple}
 import is.hail.types.virtual._
-import is.hail.types.{RField, RStruct, RTable, TableType}
+import is.hail.types.{RField, RPrimitive, RStruct, RTable, TableType, TypeWithRequiredness}
 import is.hail.utils.{partition, _}
 import org.apache.spark.sql.Row
 
@@ -77,8 +77,10 @@ class TableStage(
   // useful for debugging, but should be disabled in production code due to N^2 complexity
   // typecheckPartition()
 
-  def typecheckPartition(): Unit = {
-    TypeCheck(partitionIR,
+  def typecheckPartition(ctx: ExecuteContext): Unit = {
+    TypeCheck(
+      ctx,
+      partitionIR,
       BindingEnv(Env[Type](((letBindings ++ broadcastVals).map { case (s, x) => (s, x.typ) })
         ++ FastIndexedSeq[(String, Type)]((ctxRefName, contexts.typ.asInstanceOf[TStream].elementType)): _*)))
 
@@ -425,11 +427,12 @@ class TableStage(
         }
       }
     }
+    val rightRowRTypeWithPartNum = RStruct(IndexedSeq(RField("__partNum", TypeWithRequiredness(TInt32), 0)) ++ rightRowRType.fields.map(rField => RField(rField.name, rField.typ, rField.index + 1)))
     val sorted = ctx.backend.lowerDistributedSort(ctx,
       rightWithPartNums,
       SortField("__partNum", Ascending) +: right.key.map(k => SortField(k, Ascending)),
       relationalLetsAbove,
-      rightRowRType)
+      rightRowRTypeWithPartNum)
     assert(sorted.kType.fieldNames.sameElements("__partNum" +: right.key))
     val newRightPartitioner = new RVDPartitioner(
       Some(1),
@@ -606,7 +609,7 @@ object LowerTableIR {
         writer.lower(ctx, lower(child), child, coerce[RTable](analyses.requirednessAnalysis.lookup(child)), relationalLetsAbove)
 
       case node if node.children.exists(_.isInstanceOf[TableIR]) =>
-        throw new LowererUnsupportedOperation(s"IR nodes with TableIR children must be defined explicitly: \n${ Pretty(node) }")
+        throw new LowererUnsupportedOperation(s"IR nodes with TableIR children must be defined explicitly: \n${ Pretty(ctx, node) }")
     }
     lowered
   }
@@ -807,8 +810,6 @@ object LowerTableIR {
         val kt = child.typ.keyType
         val ord = PartitionBoundOrdering(kt)
         val iord = ord.intervalEndpointOrdering
-        val nPartitions = part.numPartitions
-
 
         val filterPartitioner = new RVDPartitioner(kt, Interval.union(intervals.toArray, ord.intervalEndpointOrdering))
         val boundsType = TArray(RVDPartitioner.intervalIRRepresentation(kt))
@@ -820,7 +821,7 @@ object LowerTableIR {
         val (newRangeBounds, includedIndices, startAndEndInterval, f) = if (keep) {
           val (newRangeBounds, includedIndices, startAndEndInterval) = part.rangeBounds.zipWithIndex.flatMap { case (interval, i) =>
             if (filterPartitioner.overlaps(interval)) {
-              Some((interval, i, (filterPartitioner.lowerBoundInterval(interval).min(nPartitions), filterPartitioner.upperBoundInterval(interval).min(nPartitions))))
+              Some((interval, i, (filterPartitioner.lowerBoundInterval(interval), filterPartitioner.upperBoundInterval(interval))))
             } else None
           }.unzip3
 
@@ -836,7 +837,7 @@ object LowerTableIR {
               iord.compareNonnull(filterInterval.left, interval.left) <= 0 && iord.compareNonnull(filterInterval.right, interval.right) >= 0
             })
               None
-            else Some((interval, i, (lowerBound.min(nPartitions), upperBound.min(nPartitions))))
+            else Some((interval, i, (lowerBound, upperBound)))
           }.unzip3
 
           def f(partitionIntervals: IR, key: IR): IR =
@@ -1564,7 +1565,7 @@ object LowerTableIR {
         ctx.backend.lowerDistributedSort(ctx, entriesUnkeyed, IndexedSeq(SortField("i", Ascending), SortField("j", Ascending)), relationalLetsAbove, rowR)
 
       case node =>
-        throw new LowererUnsupportedOperation(s"undefined: \n${ Pretty(node) }")
+        throw new LowererUnsupportedOperation(s"undefined: \n${ Pretty(ctx, node) }")
     }
 
     assert(tir.typ.globalType == lowered.globalType, s"\n  ir global: ${tir.typ.globalType}\n  lowered global: ${lowered.globalType}")

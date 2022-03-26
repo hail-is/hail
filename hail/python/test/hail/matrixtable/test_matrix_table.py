@@ -640,6 +640,7 @@ https://hail.zulipchat.com/#narrow/stream/123011-Hail-Dev/topic/test_drop/near/2
         self.assertTrue(rows.all(rows.matches.map(lambda x: x.idx) == hl.range(0, rows.row_idx)))
 
     @fails_service_backend()
+    @fails_local_backend()
     def test_naive_coalesce(self):
         mt = self.get_mt(min_partitions=8)
         self.assertEqual(mt.n_partitions(), 8)
@@ -1397,8 +1398,6 @@ Caused by: is.hail.utils.HailException: Premature end of file: expected 4 bytes,
         self.assertTrue(hl.Table.parallelize([actual]),
                         hl.Table.parallelize([expected]))
 
-    @fails_local_backend()
-    @fails_service_backend(reason='filtering locus position using numeric comparison operators always returns no rows')
     def test_hardy_weinberg_test(self):
         mt = hl.import_vcf(resource('HWE_test.vcf'))
         mt_two_sided = mt.select_rows(**hl.agg.hardy_weinberg_test(mt.GT, one_sided=False))
@@ -1936,6 +1935,12 @@ Caused by: java.lang.NullPointerException
         mt2 = hl.balding_nichols_model(2, 5, 5)
         with pytest.raises(hl.expr.ExpressionException, match='source mismatch'):
             mt.annotate_entries(x = mt2.af)
+
+    def test_filter_locus_position_collect_returns_data(self):
+        t = hl.utils.range_table(1)
+        t = t.key_by(locus=hl.locus('2', t.idx + 1))
+        assert t.filter(t.locus.position >= 1).collect() == [
+            hl.utils.Struct(idx=0, locus=hl.genetics.Locus(contig='2', position=1, reference_genome='GRCh37'))]
 
 
 @skip_when_service_backend('slow >800s')

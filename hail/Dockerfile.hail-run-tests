@@ -2,7 +2,7 @@ FROM {{ hail_run_image.image }}
 
 RUN mkdir -p plink && \
   cd plink && \
-  wget -O plink_linux_x86_64.zip https://storage.googleapis.com/hail-common/plink_linux_x86_64_20181202.zip && \
+  curl >plink_linux_x86_64.zip https://storage.googleapis.com/hail-common/plink_linux_x86_64_20181202.zip && \
   unzip plink_linux_x86_64.zip && \
   mv plink /usr/local/bin && \
   cd .. && \

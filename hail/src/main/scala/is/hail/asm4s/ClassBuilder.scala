@@ -95,7 +95,7 @@ trait WrappedModuleBuilder {
 
   def genClass[C](baseName: String)(implicit cti: TypeInfo[C]): ClassBuilder[C] = modb.genClass[C](baseName)
 
-  def classesBytes(print: Option[PrintWriter] = None): ClassesBytes = modb.classesBytes(print)
+  def classesBytes(writeIRs: Boolean, print: Option[PrintWriter] = None): ClassesBytes = modb.classesBytes(writeIRs, print)
 }
 
 class ModuleBuilder() {
@@ -143,12 +143,12 @@ class ModuleBuilder() {
 
   var classesBytes: ClassesBytes = _
 
-  def classesBytes(print: Option[PrintWriter] = None): ClassesBytes = {
+  def classesBytes(writeIRs: Boolean, print: Option[PrintWriter] = None): ClassesBytes = {
     if (classesBytes == null) {
       classesBytes = new ClassesBytes(
         classes
           .iterator
-          .flatMap(c => c.classBytes(print))
+          .flatMap(c => c.classBytes(writeIRs, print))
           .toArray)
 
     }
@@ -203,7 +203,7 @@ trait WrappedClassBuilder[C] extends WrappedModuleBuilder {
   )(body: MethodBuilder[C] => Unit): MethodBuilder[C] =
     cb.getOrGenMethod(baseName, key, argsInfo, returnInfo)(body)
 
-  def result(print: Option[PrintWriter] = None): (HailClassLoader) => C = cb.result(print)
+  def result(writeIRs: Boolean, print: Option[PrintWriter] = None): (HailClassLoader) => C = cb.result(writeIRs, print)
 
   def _this: Value[C] = cb._this
 
@@ -241,7 +241,8 @@ class ClassBuilder[C](
 
   val lazyFieldMemo: mutable.Map[Any, Value[_]] = mutable.Map.empty
 
-  val lInit = lclass.newMethod("<init>", FastIndexedSeq(), UnitInfo)
+  val lInitBuilder = new MethodBuilder[C](this, "<init>", FastIndexedSeq(), UnitInfo)
+  val lInit = lInitBuilder.lmethod
 
   var initBody: Code[Unit] = {
     val L = new lir.Block()
@@ -263,6 +264,11 @@ class ClassBuilder[C](
 
   def emitInit(c: Code[Unit]): Unit = {
     initBody = Code(initBody, c)
+  }
+
+  def emitInitI(f: CodeBuilder => Unit): Unit = {
+    val body = CodeBuilder.scopedVoid(lInitBuilder)(f)
+    emitInit(body)
   }
 
   def emitClinit(c: Code[Unit]): Unit = {
@@ -334,7 +340,7 @@ class ClassBuilder[C](
     }
   }
 
-  def classBytes(print: Option[PrintWriter] = None): Array[(String, Array[Byte])] = {
+  def classBytes(writeIRs: Boolean, print: Option[PrintWriter] = None): Array[(String, Array[Byte])] = {
     assert(initBody.start != null)
     lInit.setEntry(initBody.start)
 
@@ -348,12 +354,12 @@ class ClassBuilder[C](
         lClinit.setEntry(nbody.start)
     }
 
-    lclass.asBytes(print)
+    lclass.asBytes(writeIRs, print)
   }
 
-  def result(print: Option[PrintWriter] = None): (HailClassLoader) => C = {
+  def result(writeIRs: Boolean, print: Option[PrintWriter] = None): (HailClassLoader) => C = {
     val n = className.replace("/", ".")
-    val classesBytes = modb.classesBytes()
+    val classesBytes = modb.classesBytes(writeIRs)
 
     assert(TaskContext.get() == null,
       "FunctionBuilder emission should happen on master, but happened on worker")

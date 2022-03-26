@@ -611,7 +611,7 @@ def test_timeout(client: BatchClient):
     status = j.wait()
     assert status['state'] == 'Error', str((status, b.debug_info()))
     error_msg = j._get_error(status, 'main')
-    assert error_msg and 'JobTimeoutError' in error_msg, str((error_msg, b.debug_info()))
+    assert error_msg and 'ContainerTimeoutError' in error_msg, str((error_msg, b.debug_info()))
     assert j.exit_code(status) is None, str((status, b.debug_info()))
 
 

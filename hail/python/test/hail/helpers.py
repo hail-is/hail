@@ -191,7 +191,7 @@ def with_flags(*flags):
 def lower_only():
     @decorator
     def wrapper(func, *args, **kwargs):
-        flags = hl._get_flags()
+        flags = hl._get_flags('lower', 'lower_only')
         prev_lower = flags.get('lower')
         prev_lower_only = flags.get('lower_only')
 

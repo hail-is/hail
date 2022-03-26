@@ -12,16 +12,18 @@ import is.hail.types.physical.stypes.interfaces.{SBaseStructValue, SStreamValue}
 import is.hail.types.physical.{PCanonicalString, PCanonicalStruct, PField, PStruct}
 import is.hail.types.virtual.{TArray, TString, TStruct, Type}
 import is.hail.types.{BaseTypeWithRequiredness, RStruct, TableType, TypeWithRequiredness}
-import is.hail.utils.{FastIndexedSeq, FastSeq, fatal}
+import is.hail.utils.{FastIndexedSeq, FastSeq, checkGzippedFile, fatal}
 import org.json4s.{Extraction, Formats, JValue}
 
 case class StringTableReaderParameters(
   files: Array[String],
-  minPartitions: Option[Int])
+  minPartitions: Option[Int],
+  forceBGZ: Boolean,
+  forceGZ: Boolean)
 
 object StringTableReader {
   def apply(fs: FS, params: StringTableReaderParameters): StringTableReader = {
-     val fileStatuses = getFileStatuses(fs, params.files)
+     val fileStatuses = getFileStatuses(fs, params.files, params.forceBGZ, params.forceGZ)
     new StringTableReader(params, fileStatuses)
   }
   def fromJValue(fs: FS, jv: JValue): StringTableReader = {
@@ -30,10 +32,17 @@ object StringTableReader {
     StringTableReader(fs, params)
   }
 
-  def getFileStatuses(fs: FS, files: Array[String]): Array[FileStatus] = {
+  def getFileStatuses(fs: FS, files: Array[String], forceBGZ: Boolean, forceGZ: Boolean): Array[FileStatus] = {
     val status = fs.globAllStatuses(files)
     if (status.isEmpty)
       fatal(s"arguments refer to no files: ${files.toIndexedSeq}.")
+    if (!forceBGZ) {
+      status.foreach { status =>
+        val file = status.getPath
+        if (file.endsWith(".gz"))
+          checkGzippedFile(fs, file, forceGZ, forceBGZ)
+      }
+    }
     status
   }
 }
@@ -137,12 +146,10 @@ class StringTableReader(
     val (broadCastRow, rVD) = TableStageToRVD.apply(ctx, ts, Map[String, IR]())
     TableValue(ctx, tr.typ, broadCastRow, rVD)
   }
-
   override def partitionCounts: Option[IndexedSeq[Long]] = None
 
   override def rowAndGlobalPTypes(ctx: ExecuteContext, requestedType: TableType): (PStruct, PStruct) =
     (PCanonicalStruct(IndexedSeq(PField("file", PCanonicalString(true), 0),
                                 PField("text", PCanonicalString(true), 1)), true).subsetTo(requestedType.rowType).asInstanceOf[PStruct],
      PCanonicalStruct.empty(required = true))
-
 }

@@ -64,7 +64,7 @@ abstract sealed class BlockMatrixIR extends BaseIR {
   def typ: BlockMatrixType
 
   protected[ir] def execute(ctx: ExecuteContext): BlockMatrix =
-    fatal("tried to execute unexecutable IR:\n" + Pretty(this))
+    fatal("tried to execute unexecutable IR:\n" + Pretty(ctx, this))
 
   def copy(newChildren: IndexedSeq[BaseIR]): BlockMatrixIR
 
@@ -310,7 +310,7 @@ case class BlockMatrixMap(child: BlockMatrixIR, eltName: String, f: IR, needsDen
         val i = evalIR(ctx, l)
         ("/", binaryOp(evalIR(ctx, l), BlockMatrix.reverseScalarDiv))
 
-      case _ => fatal(s"Unsupported operation on BlockMatrices: ${Pretty(f)}")
+      case _ => fatal(s"Unsupported operation on BlockMatrices: ${Pretty(ctx, f)}")
     }
 
     prev.blockMap(breezeF, name, reqDense = needsDense)

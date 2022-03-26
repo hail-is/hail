@@ -272,7 +272,6 @@ E                   	at java.lang.Thread.run(Thread.java:748)''')
         self.assertEqual(r.allele_types, {'SNP': 2, 'MNP': 1, 'Unknown': 1, 'Insertion': 1})
         self.assertEqual(r.allele_counts, {2: 1, 3: 2})
 
-    @fails_service_backend()
     def test_verify_biallelic(self):
         mt = hl.import_vcf(resource('sample2.vcf'))  # has multiallelics
         with self.assertRaises(hl.utils.HailUserError):

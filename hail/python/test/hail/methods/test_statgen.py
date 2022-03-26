@@ -20,7 +20,6 @@ tearDownModule = stopTestHailContext
 class Tests(unittest.TestCase):
     @unittest.skipIf('HAIL_TEST_SKIP_PLINK' in os.environ, 'Skipping tests requiring plink')
     @fails_service_backend()
-    @fails_local_backend()
     def test_impute_sex_same_as_plink(self):
         ds = hl.import_vcf(resource('x-chromosome.vcf'))
 
@@ -57,7 +56,8 @@ class Tests(unittest.TestCase):
         self.assertTrue(hl.impute_sex(ds.GT)._same(hl.impute_sex(ds.GT, aaf='aaf')))
 
     backend_name = os.environ.get('HAIL_QUERY_BACKEND', 'spark')
-    linreg_functions = [hl.linear_regression_rows, hl._linear_regression_rows_nd] if backend_name == "spark" else [hl._linear_regression_rows_nd]
+    # Outside of Spark backend, "linear_regression_rows" just defers to the underscore nd version.
+    linreg_functions = [hl.linear_regression_rows, hl._linear_regression_rows_nd] if backend_name == "spark" else [hl.linear_regression_rows]
 
     @skip_when_service_backend('Shuffler encoding/decoding is broken.')
     def test_linreg_basic(self):
@@ -373,7 +373,6 @@ class Tests(unittest.TestCase):
             results_t = ds_results_t.annotate(**gt_results_t[ds_results_t.locus, ds_results_t.alleles])
             self.assertTrue(all(hl.approx_equal(results_t.ds_p_value, results_t.gt_p_value, nan_same=True).collect()))
 
-    @fails_service_backend()
     def test_linear_regression_with_import_fam_boolean(self):
         covariates = hl.import_table(resource('regressionLinear.cov'),
                                      key='Sample',
@@ -404,7 +403,6 @@ class Tests(unittest.TestCase):
             self.assertTrue(np.isnan(results[9].standard_error))
             self.assertTrue(np.isnan(results[10].standard_error))
 
-    @fails_service_backend()
     def test_linear_regression_with_import_fam_quant(self):
         covariates = hl.import_table(resource('regressionLinear.cov'),
                                      key='Sample',
@@ -465,7 +463,8 @@ class Tests(unittest.TestCase):
                 eq(combined.p_value, combined.multi.p_value[0]) &
                 eq(combined.multi.p_value[0], combined.multi.p_value[1]))))
 
-    logreg_functions = [hl.logistic_regression_rows, hl._logistic_regression_rows_nd] if backend_name == "spark" else [hl._logistic_regression_rows_nd]
+    # Outside the spark backend, "logistic_regression_rows" automatically defers to the _ version.
+    logreg_functions = [hl.logistic_regression_rows, hl._logistic_regression_rows_nd] if backend_name == "spark" else [hl.logistic_regression_rows]
 
     @fails_service_backend(reason='not implemented error: register_ir_function')
     def test_weighted_linear_regression(self):
@@ -1243,6 +1242,7 @@ class Tests(unittest.TestCase):
         self.assertRaises(FatalError, lambda: hl.realized_relationship_matrix(one_sample.GT))
 
     @fails_service_backend()
+    @fails_local_backend()
     def test_row_correlation_vs_hardcode(self):
         data = [{'v': '1:1:A:C', 's': '1', 'GT': hl.Call([0, 0])},
                 {'v': '1:1:A:C', 's': '2', 'GT': hl.Call([0, 0])},
@@ -1265,6 +1265,7 @@ class Tests(unittest.TestCase):
         self.assertTrue(np.allclose(actual, expected))
 
     @fails_service_backend()
+    @fails_local_backend()
     def test_row_correlation_vs_numpy(self):
         n, m = 11, 10
         hl.set_global_seed(0)
@@ -1400,6 +1401,7 @@ class Tests(unittest.TestCase):
 
         self.assertEqual(entries.filter(bad_pair).count(), 0)
 
+    @fails_service_backend
     def test_ld_prune_inputs(self):
         ds = hl.balding_nichols_model(n_populations=1, n_samples=1, n_variants=1)
         self.assertRaises(ValueError, lambda: hl.ld_prune(ds.GT, memory_per_core=0))

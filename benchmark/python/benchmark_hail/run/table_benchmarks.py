@@ -160,6 +160,11 @@ def table_import_ints(tsv):
                     )._force_count()
 
 
+@benchmark(args=many_ints_table.handle('tsv'))
+def table_import_ints_impute(tsv):
+    hl.import_table(tsv, impute=True)._force_count()
+
+
 @benchmark(args=many_strings_table.handle('tsv'))
 def table_import_strings(tsv):
     hl.import_table(tsv)._force_count()

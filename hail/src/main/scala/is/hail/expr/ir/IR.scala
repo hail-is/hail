@@ -196,7 +196,7 @@ object MakeArray {
     MakeArray(args, TArray(args.head.typ))
   }
 
-  def unify(args: Seq[IR], requestedType: TArray = null): MakeArray = {
+  def unify(ctx: ExecuteContext, args: Seq[IR], requestedType: TArray = null): MakeArray = {
     assert(requestedType != null || args.nonEmpty)
 
     if(args.nonEmpty)
@@ -204,7 +204,7 @@ object MakeArray {
         return MakeArray(args, TArray(args.head.typ))
 
     MakeArray(args.map { arg =>
-      val upcast = PruneDeadFields.upcast(arg, requestedType.elementType)
+      val upcast = PruneDeadFields.upcast(ctx, arg, requestedType.elementType)
       assert(upcast.typ == requestedType.elementType)
       upcast
     }, requestedType)
@@ -214,7 +214,7 @@ object MakeArray {
 final case class MakeArray(args: Seq[IR], _typ: TArray) extends IR
 
 object MakeStream {
-  def unify(args: Seq[IR], requiresMemoryManagementPerElement: Boolean = false, requestedType: TStream = null): MakeStream = {
+  def unify(ctx: ExecuteContext, args: Seq[IR], requiresMemoryManagementPerElement: Boolean = false, requestedType: TStream = null): MakeStream = {
     assert(requestedType != null || args.nonEmpty)
 
     if (args.nonEmpty)
@@ -222,7 +222,7 @@ object MakeStream {
         return MakeStream(args, TStream(args.head.typ), requiresMemoryManagementPerElement)
 
     MakeStream(args.map { arg =>
-      val upcast = PruneDeadFields.upcast(arg, requestedType.elementType)
+      val upcast = PruneDeadFields.upcast(ctx, arg, requestedType.elementType)
       assert(upcast.typ == requestedType.elementType)
       upcast
     }, requestedType, requiresMemoryManagementPerElement)
@@ -747,6 +747,7 @@ object PartitionWriter {
     override val typeHints = ShortTypeHints(List(
       classOf[PartitionNativeWriter],
       classOf[TableTextPartitionWriter],
+      classOf[VCFPartitionWriter],
       classOf[AbstractTypedCodecSpec],
       classOf[TypedCodecSpec]), typeHintFieldName = "name"
     ) + BufferSpec.shortTypeHints
@@ -765,6 +766,7 @@ object MetadataWriter {
       classOf[TableSpecWriter],
       classOf[RelationalWriter],
       classOf[TableTextFinalizer],
+      classOf[VCFExportFinalizer],
       classOf[RVDSpecMaker],
       classOf[AbstractTypedCodecSpec],
       classOf[TypedCodecSpec]),

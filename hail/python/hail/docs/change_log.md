@@ -25,6 +25,20 @@ an earlier version of Hail to read files written in a later version.
 
 ---
 
+## Version 0.2.91
+
+Release 2022-03-18
+
+### Bug fixes
+
+- (hail#11614) Update `hail.utils.tutorial.get_movie_lens` to use `https` instead of `http`. Movie
+  Lens has stopped serving data over insecure HTTP.
+- (hail#11563) Fix issue [hail-is/hail#11562](https://github.com/hail-is/hail/issues/11562).
+- (hail#11611) Fix a bug that prevents the display of `hl.ggplot.geom_hline` and
+  `hl.ggplot.geom_vline`.
+
+---
+
 ## Version 0.2.90
 
 Release 2022-03-11

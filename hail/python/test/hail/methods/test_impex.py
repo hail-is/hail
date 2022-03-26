@@ -2,6 +2,7 @@ import json
 import os
 import shutil
 import unittest
+
 from unittest import mock
 
 from avro.datafile import DataFileReader
@@ -11,7 +12,7 @@ from hail.context import TemporaryFilename
 import pytest
 import hail as hl
 from ..helpers import *
-from hail.utils import new_temp_file, FatalError, run_command, uri_path
+from hail.utils import new_temp_file, FatalError, run_command, uri_path, HailUserError
 
 setUpModule = startTestHailContext
 tearDownModule = stopTestHailContext
@@ -39,7 +40,6 @@ class VCFTests(unittest.TestCase):
     def test_info_char(self):
         self.assertEqual(hl.import_vcf(resource('infochar.vcf')).count_rows(), 1)
 
-    @fails_service_backend()
     def test_import_export_same(self):
         for i in range(10):
             mt = hl.import_vcf(resource(f'random_vcfs/{i}.vcf.bgz'))
@@ -80,14 +80,11 @@ class VCFTests(unittest.TestCase):
     def test_can_import_bad_number_flag(self):
         hl.import_vcf(resource('bad_flag_number.vcf')).rows()._force_count()
 
-    @fails_service_backend()
     def test_malformed(self):
         with self.assertRaisesRegex(FatalError, "invalid character"):
             mt = hl.import_vcf(resource('malformed.vcf'))
             mt._force_count_rows()
 
-    @fails_service_backend()
-    @fails_local_backend()
     def test_not_identical_headers(self):
         t = new_temp_file(extension='vcf')
         mt = hl.import_vcf(resource('sample.vcf'))
@@ -228,7 +225,6 @@ class VCFTests(unittest.TestCase):
         mt = hl.import_vcf(resource('sample.pksorted.vcf'), n_partitions=4)
         mt.rows()._force_count()
 
-    @fails_service_backend()
     def test_import_vcf_skip_invalid_loci(self):
         mt = hl.import_vcf(resource('skip_invalid_loci.vcf'), reference_genome='GRCh37',
                            skip_invalid_loci=True)
@@ -262,8 +258,6 @@ class VCFTests(unittest.TestCase):
         with self.assertRaises(TypeError):
             mt = hl.import_vcf(resource('small-ds.vcf'), entry_float_type=hl.tint64)
 
-    @fails_service_backend()
-    @fails_local_backend()
     def test_export_vcf(self):
         dataset = hl.import_vcf(resource('sample.vcf.bgz'))
         vcf_metadata = hl.get_vcf_metadata(resource('sample.vcf.bgz'))
@@ -282,8 +276,6 @@ class VCFTests(unittest.TestCase):
             # are py4 JavaMaps, not dicts, so can't use assertDictEqual
             self.assertEqual(vcf_metadata, metadata_imported)
 
-    @fails_service_backend()
-    @fails_local_backend()
     def test_export_vcf_empty_format(self):
         mt = hl.import_vcf(resource('sample.vcf.bgz')).select_entries()
         tmp = new_temp_file(extension="vcf")
@@ -291,8 +283,6 @@ class VCFTests(unittest.TestCase):
 
         assert hl.import_vcf(tmp)._same(mt)
 
-    @fails_service_backend()
-    @fails_local_backend()
     def test_export_vcf_no_gt(self):
         mt = hl.import_vcf(resource('sample.vcf.bgz')).drop('GT')
         tmp = new_temp_file(extension="vcf")
@@ -300,7 +290,6 @@ class VCFTests(unittest.TestCase):
 
         assert hl.import_vcf(tmp)._same(mt)
 
-    @fails_service_backend()
     def test_export_vcf_no_alt_alleles(self):
         mt = hl.import_vcf(resource('gvcfs/HG0096_excerpt.g.vcf'), reference_genome='GRCh38')
         self.assertEqual(mt.filter_rows(hl.len(mt.alleles) == 1).count_rows(), 5)
@@ -310,8 +299,6 @@ class VCFTests(unittest.TestCase):
         mt2 = hl.import_vcf(tmp, reference_genome='GRCh38')
         self.assertTrue(mt._same(mt2))
 
-    @fails_service_backend()
-    @fails_local_backend()
     def test_export_sites_only_from_table(self):
         mt = hl.import_vcf(resource('sample.vcf.bgz'))\
             .select_entries()\
@@ -361,6 +348,7 @@ class VCFTests(unittest.TestCase):
         self.import_gvcfs_sample_vcf(tmp)
 
     @fails_service_backend()
+    @fails_local_backend()
     def test_import_gvcfs(self):
         path = resource('sample.vcf.bgz')
         self.import_gvcfs_sample_vcf(path)
@@ -540,33 +528,47 @@ class VCFTests(unittest.TestCase):
         assert gl_gp == [hl.Struct(GL=[None, None, None], GP=[0.22, 0.5, 0.27]),
                          hl.Struct(GL=[None, None, None], GP=[None, None, None])]
 
-    @fails_service_backend()
-    @fails_local_backend()
     def test_same_bgzip(self):
         mt = hl.import_vcf(resource('sample.vcf'), min_partitions=4)
         f = new_temp_file(extension='vcf.bgz')
         hl.export_vcf(mt, f)
         assert hl.import_vcf(f)._same(mt)
 
-    @fails_service_backend()
-    @fails_local_backend()
-    def test_vcf_parallel_export(self):
-        import glob
+    def test_vcf_parallel_separate_header_export(self):
+        fs = hl.current_backend().fs
         def concat_files(outpath, inpaths):
-            with open(outpath, 'wb') as outfile:
+            with fs.open(outpath, 'wb') as outfile:
                 for path in inpaths:
-                    with open(path, 'rb') as infile:
+                    with fs.open(path, 'rb') as infile:
                         shutil.copyfileobj(infile, outfile)
 
         mt = hl.import_vcf(resource('sample.vcf'), min_partitions=4)
         f = new_temp_file(extension='vcf.bgz')
         hl.export_vcf(mt, f, parallel='separate_header')
-        shard_paths = glob.glob(f + "/*.bgz")
+        stat = fs.stat(f)
+        assert stat
+        assert stat.is_dir()
+        shard_paths = [info.path for info in fs.ls(f)
+                       if os.path.splitext(info.path)[-1] == '.bgz']
+        assert shard_paths
         shard_paths.sort()
         nf = new_temp_file(extension='vcf.bgz')
         concat_files(nf, shard_paths)
+
         assert hl.import_vcf(nf)._same(mt)
 
+    @fails_service_backend()
+    @fails_local_backend()
+    def test_vcf_parallel_composable_export(self):
+        import glob
+        def concat_files(outpath, inpaths):
+            fs = hl.current_backend().fs
+            with fs.open(outpath, 'wb') as outfile:
+                for path in inpaths:
+                    with fs.open(path, 'rb') as infile:
+                        shutil.copyfileobj(infile, outfile)
+
+        mt = hl.import_vcf(resource('sample.vcf'), min_partitions=4)
         f = new_temp_file(extension='vcf.bgz')
         hl.export_vcf(mt, f, parallel='composable')
         shard_paths = glob.glob(f + "/*.bgz")
@@ -575,9 +577,12 @@ class VCFTests(unittest.TestCase):
         concat_files(nf, shard_paths)
         assert hl.import_vcf(nf)._same(mt)
 
-
     @fails_service_backend()
-    @fails_local_backend()
+    def test_custom_rg_import(self):
+        rg = hl.ReferenceGenome.read(resource('deid_ref_genome.json'))
+        mt = hl.import_vcf(resource('custom_rg.vcf'), reference_genome=rg)
+        assert mt.locus.collect() == [hl.Locus('D', 123, reference_genome=rg)]
+
     def test_sorted(self):
         mt = hl.utils.range_matrix_table(10, 10, n_partitions=4).filter_cols(False)
         mt = mt.key_cols_by(s='dummy')
@@ -587,7 +592,7 @@ class VCFTests(unittest.TestCase):
         hl.export_vcf(mt, f)
 
         last = 0
-        with open(uri_path(f), 'r') as i:
+        with hl.current_backend().fs.open(f, 'r') as i:
             for line in i:
                 if line.startswith('#'):
                     continue
@@ -596,8 +601,6 @@ class VCFTests(unittest.TestCase):
                     assert pos >= last
                     last = pos
 
-    @fails_service_backend()
-    @fails_local_backend()
     def test_empty_read_write(self):
         mt = hl.import_vcf(resource('sample.vcf'), min_partitions=4).filter_rows(False)
 
@@ -607,8 +610,8 @@ class VCFTests(unittest.TestCase):
         hl.export_vcf(mt, out1)
         hl.export_vcf(mt, out2)
 
-        assert os.stat(uri_path(out1)).st_size > 0
-        assert os.stat(uri_path(out2)).st_size > 0
+        assert hl.current_backend().fs.stat(out1).size > 0
+        assert hl.current_backend().fs.stat(out2).size > 0
 
         assert hl.import_vcf(out1)._same(mt)
         assert hl.import_vcf(out2)._same(mt)
@@ -619,8 +622,6 @@ class VCFTests(unittest.TestCase):
         groups = ht.group_by(the_key=ht.key).aggregate(values=hl.agg.collect(ht.row_value)).collect()
         assert not groups
 
-    @fails_service_backend()
-    @fails_local_backend()
     def test_format_header(self):
         mt = hl.import_vcf(resource('sample2.vcf'))
         metadata = hl.get_vcf_metadata(resource('sample2.vcf'))
@@ -628,7 +629,7 @@ class VCFTests(unittest.TestCase):
         hl.export_vcf(mt, f, metadata=metadata)
 
         s = set()
-        with open(uri_path(f), 'r') as i:
+        with hl.current_backend().fs.open(f, 'r') as i:
             for line in i:
                 if line.startswith('##FORMAT'):
                     s.add(line.strip())
@@ -641,13 +642,11 @@ class VCFTests(unittest.TestCase):
             '##FORMAT=<ID=PL,Number=G,Type=Integer,Description="Normalized, Phred-scaled likelihoods for genotypes as defined in the VCF specification">',
         }
 
-    @fails_service_backend()
-    @fails_local_backend()
     def test_format_genotypes(self):
         mt = hl.import_vcf(resource('sample.vcf'))
         f = new_temp_file(extension='vcf')
         hl.export_vcf(mt, f)
-        with open(uri_path(f), 'r') as i:
+        with hl.current_backend().fs.open(f, 'r') as i:
             for line in i:
                 if line.startswith('20\t13029920'):
                     expected = "GT:AD:DP:GQ:PL\t1/1:0,6:6:18:234,18,0\t1/1:0,4:4:12:159,12,0\t" \
@@ -660,13 +659,11 @@ class VCFTests(unittest.TestCase):
             else:
                 assert False, 'expected pattern not found'
 
-    @fails_service_backend()
-    @fails_local_backend()
     def test_contigs_header(self):
         mt = hl.import_vcf(resource('sample.vcf')).filter_cols(False)
         f = new_temp_file(extension='vcf')
         hl.export_vcf(mt, f)
-        with open(uri_path(f), 'r') as i:
+        with hl.current_backend().fs.open(f, 'r') as i:
             for line in i:
                 if line.startswith('##contig=<ID=10'):
                     assert line.strip() == '##contig=<ID=10,length=135534747,assembly=GRCh37>'
@@ -674,8 +671,6 @@ class VCFTests(unittest.TestCase):
             else:
                 assert False, 'expected pattern not found'
 
-    @fails_service_backend()
-    @fails_local_backend()
     def test_metadata_argument(self):
         mt = hl.import_vcf(resource('multipleChromosomes.vcf'))
         f = new_temp_file(extension='vcf')
@@ -688,7 +683,7 @@ class VCFTests(unittest.TestCase):
 
         saw_gt = False
         saw_lq = False
-        with open(uri_path(f), 'r') as f:
+        with hl.current_backend().fs.open(f, 'r') as f:
             for line in f:
                 print(line[:25])
                 if line.startswith('##FORMAT=<ID=GT'):
@@ -702,8 +697,6 @@ class VCFTests(unittest.TestCase):
         assert saw_gt
         assert saw_lq
 
-    @fails_service_backend()
-    @fails_local_backend()
     def test_invalid_info_fields(self):
         t = new_temp_file(extension='vcf')
         mt = hl.import_vcf(resource('sample.vcf'))
@@ -718,7 +711,6 @@ class VCFTests(unittest.TestCase):
                 hl.export_vcf(mt.annotate_rows(info=mt.info.annotate(**{invalid_field: True})), t)
                 assert warning.call_count == 1
 
-    @fails_service_backend(reason='need to convert errors on worker into FatalError')
     def test_vcf_different_info_errors(self):
         with self.assertRaisesRegex(FatalError, "Check that all files have same INFO fields"):
             mt = hl.import_vcf([resource('different_info_test1.vcf'), resource('different_info_test2.vcf')])
@@ -774,6 +766,7 @@ class PLINKTests(unittest.TestCase):
             hl.import_plink(bfile + '.bed', bfile + '.bim', bfile + '.fam')
 
     @fails_service_backend()
+    @fails_local_backend()
     def test_import_plink_a1_major(self):
         mt = get_dataset()
         bfile = '/tmp/sample_plink'
@@ -859,8 +852,6 @@ class PLINKTests(unittest.TestCase):
         plink = hl.import_plink(bfile + '.bed', bfile + '.bim', bfile + '.fam', block_size=16)
         self.assertEqual(plink.aggregate_cols(hl.agg.count()), 489)
 
-    @fails_service_backend()
-    @fails_local_backend()
     def test_import_plink_skip_invalid_loci(self):
         mt = hl.import_plink(resource('skip_invalid_loci.bed'),
                              resource('skip_invalid_loci.bim'),
@@ -1190,6 +1181,7 @@ class BGENTests(unittest.TestCase):
             (hl.abs(et.dosage - et.gp_dosage) < 1e-6)))
 
     @fails_service_backend()
+    @fails_local_backend()
     def test_import_bgen_row_fields(self):
         default_row_fields = hl.import_bgen(resource('example.8bits.bgen'),
                                             entry_fields=['dosage'])
@@ -1268,6 +1260,7 @@ class BGENTests(unittest.TestCase):
         self.assertTrue(expected._same(part_1))
 
     @fails_service_backend()
+    @fails_local_backend()
     def test_import_bgen_locus_filtering_from_literals(self):
         bgen_file = resource('example.8bits.bgen')
 
@@ -1295,6 +1288,7 @@ class BGENTests(unittest.TestCase):
                          expected_result)
 
     @fails_service_backend()
+    @fails_local_backend()
     def test_import_bgen_variant_filtering_from_exprs(self):
         bgen_file = resource('example.8bits.bgen')
 
@@ -1311,6 +1305,7 @@ class BGENTests(unittest.TestCase):
         self.assertTrue(everything._same(actual))
 
     @fails_service_backend()
+    @fails_local_backend()
     def test_import_bgen_locus_filtering_from_exprs(self):
         bgen_file = resource('example.8bits.bgen')
 
@@ -1347,6 +1342,7 @@ class BGENTests(unittest.TestCase):
         self.assertTrue(everything._same(actual))
 
     @fails_service_backend()
+    @fails_local_backend()
     def test_import_bgen_locus_filtering_from_table(self):
         bgen_file = resource('example.8bits.bgen')
 
@@ -1424,6 +1420,7 @@ class BGENTests(unittest.TestCase):
             bgenmt._same(genmt, tolerance=1.0 / 255, absolute=True))
 
     @fails_service_backend()
+    @fails_local_backend()
     def test_multiple_files_variant_filtering(self):
         bgen_file = [resource('random-b.bgen'), resource('random-c.bgen'), resource('random-a.bgen')]
         hl.index_bgen(bgen_file)
@@ -1538,6 +1535,7 @@ class BGENTests(unittest.TestCase):
         assert bgen._same(bgen2)
 
     @fails_service_backend()
+    @fails_local_backend()
     def test_export_bgen_from_vcf(self):
         mt = hl.import_vcf(resource('sample.vcf'))
 
@@ -1584,7 +1582,6 @@ class GENTests(unittest.TestCase):
                          hl.tstruct(contig=hl.tstr, position=hl.tint32))
         self.assertEqual(gen.count_rows(), 199)
 
-    @fails_service_backend(reason='need to convert errors to HailUserError')
     def test_import_gen_skip_invalid_loci(self):
         mt = hl.import_gen(resource('skip_invalid_loci.gen'),
                            resource('skip_invalid_loci.sample'),
@@ -1838,73 +1835,6 @@ class ImportMatrixTableTests(unittest.TestCase):
 
     @fails_service_backend()
     @fails_local_backend()
-    def test_round_trip(self):
-        for missing in ['.', '9']:
-            for delimiter in [',', ' ']:
-                for header in [True, False]:
-                    for entry_type, entry_fun in [(hl.tstr, hl.str),
-                                                  (hl.tint32, hl.int32),
-                                                  (hl.tfloat64, hl.float64)]:
-                        try:
-                            self._test_round_trip(missing, delimiter, header, entry_type, entry_fun)
-                        except Exception as e:
-                            raise ValueError(
-                                f'missing {missing!r} delimiter {delimiter!r} '
-                                f'header {header!r} entry_type {entry_type!r}'
-                            ) from e
-
-    def _test_round_trip(self, missing, delimiter, header, entry_type, entry_fun):
-        mt = hl.utils.range_matrix_table(10, 10, n_partitions=2)
-        mt = mt.annotate_entries(x = entry_fun(mt.row_idx * mt.col_idx))
-        mt = mt.annotate_rows(row_str = hl.str(mt.row_idx))
-        mt = mt.annotate_rows(row_float = hl.float(mt.row_idx))
-
-        path = new_temp_file(extension='tsv')
-        mt.key_rows_by(*mt.row).x.export(path,
-                                         missing=missing,
-                                         delimiter=delimiter,
-                                         header=header)
-
-        row_fields = {f: mt.row[f].dtype for f in mt.row}
-        row_key = 'row_idx'
-
-        if not header:
-            pseudonym = {'row_idx': 'f0',
-                         'row_str': 'f1',
-                         'row_float': 'f2'}
-            row_fields = {pseudonym[k]: v for k, v in row_fields.items()}
-            row_key = pseudonym[row_key]
-            mt = mt.rename(pseudonym)
-        else:
-            mt = mt.key_cols_by(col_idx=hl.str(mt.col_idx))
-
-        actual = hl.import_matrix_table(
-            path,
-            row_fields=row_fields,
-            row_key=row_key,
-            entry_type=entry_type,
-            missing=missing,
-            no_header=not header,
-            sep=delimiter)
-        actual = actual.rename({'col_id': 'col_idx'})
-
-        row_key = mt.row_key
-        col_key = mt.col_key
-        mt = mt.key_rows_by()
-        mt = mt.annotate_entries(
-            x = hl.if_else(hl.str(mt.x) == missing,
-                           hl.missing(entry_type),
-                           mt.x))
-        mt = mt.annotate_rows(**{
-            f: hl.if_else(hl.str(mt[f]) == missing,
-                          hl.missing(mt[f].dtype),
-                          mt[f])
-            for f in mt.row})
-        mt = mt.key_rows_by(*row_key)
-        assert mt._same(actual)
-
-    @fails_service_backend()
-    @fails_local_backend()
     def test_key_by_after_empty_key_import(self):
         fields = {'Chromosome':hl.tstr,
                   'Position': hl.tint32,
@@ -2004,6 +1934,65 @@ class ImportMatrixTableTests(unittest.TestCase):
         ]
 
 
+@fails_service_backend
+@fails_local_backend
+@pytest.mark.parametrize("entry_fun", [hl.str, hl.int32, hl.float64])
+@pytest.mark.parametrize("header", [True, False])
+@pytest.mark.parametrize("delimiter", [',', ' '])
+@pytest.mark.parametrize("missing", ['.', '9'])
+def test_import_matrix_table_round_trip(missing, delimiter, header, entry_fun):
+    mt = hl.utils.range_matrix_table(10, 10, n_partitions=2)
+    mt = mt.annotate_entries(x = entry_fun(mt.row_idx * mt.col_idx))
+    mt = mt.annotate_rows(row_str = hl.str(mt.row_idx))
+    mt = mt.annotate_rows(row_float = hl.float(mt.row_idx))
+
+    entry_type = mt.x.dtype
+
+    path = new_temp_file(extension='tsv')
+    mt.key_rows_by(*mt.row).x.export(path,
+                                     missing=missing,
+                                     delimiter=delimiter,
+                                     header=header)
+
+    row_fields = {f: mt.row[f].dtype for f in mt.row}
+    row_key = 'row_idx'
+
+    if not header:
+        pseudonym = {'row_idx': 'f0',
+                     'row_str': 'f1',
+                     'row_float': 'f2'}
+        row_fields = {pseudonym[k]: v for k, v in row_fields.items()}
+        row_key = pseudonym[row_key]
+        mt = mt.rename(pseudonym)
+    else:
+        mt = mt.key_cols_by(col_idx=hl.str(mt.col_idx))
+
+    actual = hl.import_matrix_table(
+        path,
+        row_fields=row_fields,
+        row_key=row_key,
+        entry_type=entry_type,
+        missing=missing,
+        no_header=not header,
+        sep=delimiter)
+    actual = actual.rename({'col_id': 'col_idx'})
+
+    row_key = mt.row_key
+    col_key = mt.col_key
+    mt = mt.key_rows_by()
+    mt = mt.annotate_entries(
+        x = hl.if_else(hl.str(mt.x) == missing,
+                       hl.missing(entry_type),
+                       mt.x))
+    mt = mt.annotate_rows(**{
+        f: hl.if_else(hl.str(mt[f]) == missing,
+                      hl.missing(mt[f].dtype),
+                      mt[f])
+        for f in mt.row})
+    mt = mt.key_rows_by(*row_key)
+    assert mt._same(actual)
+
+
 class ImportLinesTest(unittest.TestCase):
     def test_import_lines(self):
         lines_table = hl.import_lines(resource('example.gen'))
@@ -2057,7 +2046,7 @@ Caused by: java.lang.ClassCastException: __C2829collect_distributed_array cannot
         assert tables.count() == 346
 
     def test_type_imputation(self):
-        ht = hl.import_table(resource('type_imputation.tsv'), delimiter=r' ', missing='.', impute=True)
+        ht = hl.import_table(resource('type_imputation.tsv'), delimiter=' ', missing='.', impute=True)
         assert ht.row.dtype == hl.dtype('struct{1:int32,2:float64,3:str,4:str,5:str,6:bool,7:str}')
 
         ht = hl.import_table(resource('variantAnnotations.tsv'), impute=True)
@@ -2129,13 +2118,12 @@ Caused by: java.lang.ClassCastException: __C2829collect_distributed_array cannot
         ht2 = hl.import_table(resource('sampleAnnotations.tsv'))
         assert ht._same(ht2)
 
-    @fails_service_backend()
     def test_error_with_context(self):
-        with pytest.raises(FatalError, match='offending line'):
+        with pytest.raises(FatalError, match='For input string:'):
             ht = hl.import_table(resource('tsv_errors.tsv'), types={'col1': 'int32'})
             ht._force_count()
 
-        with pytest.raises(FatalError, match='offending line'):
+        with pytest.raises(HailUserError, match='expected 2 fields, found 1 field'):
             ht = hl.import_table(resource('tsv_errors.tsv'), impute=True)
 
 

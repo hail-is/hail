@@ -208,12 +208,12 @@ object LowerBlockMatrixIR {
         lowered.wrapLetsAndBroadcasts(elt)
       case BlockMatrixWrite(child, writer) =>
         writer.lower(ctx, lower(child), child, relationalLetsAbove, TypeWithRequiredness(child.typ.elementType)) //FIXME: BlockMatrixIR is currently ignored in Requiredness inference since all eltTypes are +TFloat64
-      case BlockMatrixMultiWrite(blockMatrices, writer) => unimplemented(node)
+      case BlockMatrixMultiWrite(blockMatrices, writer) => unimplemented(ctx, node)
       case node if node.children.exists(_.isInstanceOf[BlockMatrixIR]) =>
-        throw new LowererUnsupportedOperation(s"IR nodes with BlockMatrixIR children need explicit rules: \n${ Pretty(node) }")
+        throw new LowererUnsupportedOperation(s"IR nodes with BlockMatrixIR children need explicit rules: \n${ Pretty(ctx, node) }")
 
       case node =>
-        throw new LowererUnsupportedOperation(s"Value IRs with no BlockMatrixIR children must be lowered through LowerIR: \n${ Pretty(node) }")
+        throw new LowererUnsupportedOperation(s"Value IRs with no BlockMatrixIR children must be lowered through LowerIR: \n${ Pretty(ctx, node) }")
     }
   }
 
@@ -248,15 +248,15 @@ object LowerBlockMatrixIR {
     ts
   }
 
-  private def unimplemented[T](node: BaseIR): T =
-    throw new LowererUnsupportedOperation(s"unimplemented: \n${ Pretty(node) }")
+  private def unimplemented[T](ctx: ExecuteContext, node: BaseIR): T =
+    throw new LowererUnsupportedOperation(s"unimplemented: \n${ Pretty(ctx, node) }")
 
   def lower(bmir: BlockMatrixIR, typesToLower: DArrayLowering.Type, ctx: ExecuteContext, analyses: Analyses, relationalLetsAbove: Map[String, IR]): BlockMatrixStage = {
     if (!DArrayLowering.lowerBM(typesToLower))
       throw new LowererUnsupportedOperation("found BlockMatrixIR in lowering; lowering only TableIRs.")
     bmir.children.foreach {
       case c: BlockMatrixIR if c.typ.blockSize != bmir.typ.blockSize =>
-        throw new LowererUnsupportedOperation(s"Can't lower node with mismatched block sizes: ${ bmir.typ.blockSize } vs child ${ c.typ.blockSize }\n\n ${ Pretty(bmir) }")
+        throw new LowererUnsupportedOperation(s"Can't lower node with mismatched block sizes: ${ bmir.typ.blockSize } vs child ${ c.typ.blockSize }\n\n ${ Pretty(ctx, bmir) }")
       case _ =>
     }
     if (bmir.typ.nDefinedBlocks == 0)
@@ -467,7 +467,7 @@ object LowerBlockMatrixIR {
       case BlockMatrixDensify(child) => lower(child)
       case BlockMatrixSparsify(child, sparsifier) => lower(child)
 
-      case RelationalLetBlockMatrix(name, value, body) => unimplemented(bmir)
+      case RelationalLetBlockMatrix(name, value, body) => unimplemented(ctx, bmir)
 
       case ValueToBlockMatrix(child, shape, blockSize) if !child.typ.isInstanceOf[TArray] && !child.typ.isInstanceOf[TNDArray] => {
         val element = lowerIR(child)
