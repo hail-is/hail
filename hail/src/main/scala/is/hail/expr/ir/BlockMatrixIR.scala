@@ -11,9 +11,9 @@ import is.hail.annotations.{NDArray, Region}
 import is.hail.backend.{BackendContext, ExecuteContext}
 import is.hail.expr.Nat
 import is.hail.expr.ir.lowering.{BlockMatrixStage, LowererUnsupportedOperation}
-import is.hail.io.TypedCodecSpec
+import is.hail.io.{StreamBufferSpec, TypedCodecSpec}
 import is.hail.io.fs.FS
-import is.hail.types.encoded.{EBlockMatrixNDArray, EFloat64}
+import is.hail.types.encoded.{EBlockMatrixNDArray, EFloat64, ENumpyBinaryNDArray}
 
 import scala.collection.mutable.ArrayBuffer
 import is.hail.utils.richUtils.RichDenseMatrixDouble
@@ -165,7 +165,7 @@ class BlockMatrixNativeReader(
     val spec = TypedCodecSpec(EBlockMatrixNDArray(EFloat64(required = true), required = true), vType, BlockMatrix.bufferSpec)
 
 
-    new BlockMatrixStage(Array(), TString) {
+    new BlockMatrixStage(IndexedSeq(), Array(), TString) {
       def blockContext(idx: (Int, Int)): IR = {
         if (!fullType.hasBlock(idx))
           fatal(s"trying to read nonexistent block $idx from path ${ params.path }")
@@ -202,6 +202,24 @@ case class BlockMatrixBinaryReader(path: String, shape: IndexedSeq[Long], blockS
   def apply(ctx: ExecuteContext): BlockMatrix = {
     val breezeMatrix = RichDenseMatrixDouble.importFromDoubles(ctx.fs, path, nRows.toInt, nCols.toInt, rowMajor = true)
     BlockMatrix.fromBreezeMatrix(breezeMatrix, blockSize)
+  }
+
+  override def lower(ctx: ExecuteContext): BlockMatrixStage = {
+    val readFromNumpyEType = ENumpyBinaryNDArray(nRows, nCols, true)
+    val readFromNumpySpec = TypedCodecSpec(readFromNumpyEType, TNDArray(TFloat64, Nat(2)), new StreamBufferSpec())
+    val nd = ReadValue(Str(path), readFromNumpySpec, TNDArray(TFloat64, nDimsBase = Nat(2)))
+    val ndRef = Ref(genUID(), nd.typ)
+
+    new BlockMatrixStage(IndexedSeq(ndRef.name -> nd), Array(), nd.typ) {
+      def blockContext(idx: (Int, Int)): IR = {
+        val (r, c) = idx
+        NDArraySlice(ndRef, MakeTuple.ordered(FastSeq(
+          MakeTuple.ordered(FastSeq(I64(r.toLong * blockSize), I64(java.lang.Math.min((r.toLong + 1) * blockSize, nRows)), I64(1))),
+          MakeTuple.ordered(FastSeq(I64(c.toLong * blockSize), I64(java.lang.Math.min((c.toLong + 1) * blockSize, nCols)), I64(1))))))
+      }
+
+      def blockBody(ctxRef: Ref): IR = ctxRef
+    }
   }
 }
 
