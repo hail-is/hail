@@ -49,15 +49,22 @@ class ResourceUsageMonitor:
         self.out.write(data)
         self.out.flush()
 
-    def cpu_ns(self) -> int:
-        with open(f'/sys/fs/cgroup/cpu/{self.container_name}/cpuacct.usage', 'r') as f:
-            return int(f.read().rstrip())
+    def cpu_ns(self) -> Optional[int]:
+        usage_file = f'/sys/fs/cgroup/cpu/{self.container_name}/cpuacct.usage'
+        if os.path.exists(usage_file):
+            with open(usage_file, 'r') as f:
+                return int(f.read().rstrip())
+        return None
 
-    def percent_cpu_usage(self) -> float:
+    def percent_cpu_usage(self) -> Optional[float]:
         now_time_ns = time_ns()
         now_cpu_ns = self.cpu_ns()
 
-        assert self.last_cpu_ns is not None and self.last_time_ns is not None
+        if now_cpu_ns is None or self.last_cpu_ns is None or self.last_time_ns is None:
+            self.last_time_ns = now_time_ns
+            self.last_cpu_ns = now_cpu_ns
+            return None
+
         cpu_usage = (now_cpu_ns - self.last_cpu_ns) / (now_time_ns - self.last_time_ns)
 
         self.last_time_ns = now_time_ns
@@ -65,33 +72,29 @@ class ResourceUsageMonitor:
 
         return cpu_usage
 
-    def memory_usage_bytes(self) -> int:
-        with open(f'/sys/fs/cgroup/memory/{self.container_name}/memory.usage_in_bytes', 'r') as f:
-            return int(f.read().rstrip())
+    def memory_usage_bytes(self) -> Optional[int]:
+        usage_file = f'/sys/fs/cgroup/memory/{self.container_name}/memory.usage_in_bytes'
+        if os.path.exists(usage_file):
+            with open(usage_file, 'r') as f:
+                return int(f.read().rstrip())
+        return None
 
     async def measure(self):
-        data = struct.pack('>2qd', time_msecs(), self.memory_usage_bytes(), self.percent_cpu_usage())
+        now = time_msecs()
+        memory_usage_bytes = self.memory_usage_bytes()
+        percent_cpu_usage = self.percent_cpu_usage()
+
+        if memory_usage_bytes is None or percent_cpu_usage is None:
+            return
+
+        data = struct.pack('>2qd', now, memory_usage_bytes, percent_cpu_usage)
         self.out.write(data)
         self.out.flush()
 
     async def __aenter__(self):
-        async def initialize():
-            delay = 0.01
-            while not (
-                os.path.isdir(f'/sys/fs/cgroup/memory/{self.container_name}')
-                and os.path.isdir(f'/sys/fs/cgroup/cpu/{self.container_name}')
-            ):
-                delay = await sleep_and_backoff(delay, max_delay=0.25)
-
-            self.last_time_ns = time_ns()
-            self.last_cpu_ns = self.cpu_ns()
-
-        await asyncio.wait_for(initialize(), timeout=60)
-
         self.task = asyncio.ensure_future(
             retry_long_running(f'monitor {self.container_name} resource usage', periodically_call, 5, self.measure)
         )
-
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
