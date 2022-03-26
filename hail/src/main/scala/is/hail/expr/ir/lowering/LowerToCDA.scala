@@ -7,7 +7,7 @@ import is.hail.expr.ir._
 import is.hail.types.physical.stypes.PTypeReferenceSingleCodeType
 import is.hail.types.physical.{PTuple, PType}
 import is.hail.types.virtual.Type
-import is.hail.utils.{FastIndexedSeq, FastSeq}
+import is.hail.utils._
 import org.apache.spark.sql.Row
 
 object LowerToCDA {
@@ -49,8 +49,10 @@ object LowerToCDA {
       }
 
       val addr = ctx.timer.time("Run")(f(ctx.theHailClassLoader, ctx.fs, 0, ctx.r).apply(ctx.r))
-      val litValue = ctx.timer.time("SafeRow.convert")(SafeRow.read(pt, addr).asInstanceOf[Row].get(0))
-      val lit = Literal.coerce(value.typ, litValue)
+      val lit = GetTupleElement(
+        EncodedLiteral.fromPTypeAndAddress(pt, addr, ctx),
+        0
+      )
       lower(body, typesToLower, ctx, analyses, relationalLetsAbove + ((name, lit)))
 
     case RelationalRef(name, t) =>
