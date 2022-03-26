@@ -1007,8 +1007,6 @@ Caused by: java.lang.AssertionError: assertion failed
               (df.GT == df.entry_struct.GT)) &
              (df.AD == df.entry_struct.AD))))
 
-    @fails_service_backend()
-    @fails_local_backend()
     def test_filter_partitions(self):
         ds = self.get_mt(min_partitions=8)
         self.assertEqual(ds.n_partitions(), 8)

@@ -9,7 +9,7 @@ import is.hail.io.avro.AvroTableReader
 import is.hail.io.bgen.MatrixBGENReader
 import is.hail.io.plink.MatrixPLINKReader
 import is.hail.io.vcf.MatrixVCFReader
-import is.hail.methods.{ForceCountTable, NPartitionsTable}
+import is.hail.methods.{ForceCountTable, NPartitionsTable, TableFilterPartitions}
 
 object CanLowerEfficiently {
   def apply(ctx: ExecuteContext, ir0: BaseIR): Option[String] = {
@@ -64,6 +64,7 @@ object CanLowerEfficiently {
         case t: TableAggregateByKey =>
         case t: TableRename =>
         case t: TableFilterIntervals =>
+        case TableToTableApply(_, TableFilterPartitions(_, _)) =>
         case t: TableToTableApply => fail(s"TableToTableApply")
         case t: BlockMatrixToTableApply => fail(s"BlockMatrixToTableApply")
         case t: BlockMatrixToTable => fail(s"BlockMatrixToTable has no lowered implementation")
