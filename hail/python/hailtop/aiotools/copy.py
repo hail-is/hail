@@ -19,7 +19,7 @@ async def copy(*,
                gcs_kwargs: Optional[dict] = None,
                azure_kwargs: Optional[dict] = None,
                s3_kwargs: Optional[dict] = None,
-               transfers: List[Transfer]
+               transfers: List[Transfer],
                ) -> None:
     with ThreadPoolExecutor() as thread_pool:
         if max_simultaneous_transfers is None:

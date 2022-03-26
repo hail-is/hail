@@ -47,6 +47,7 @@ setup(
     package_data={
         'hail': ['hail_pip_version',
                  'hail_version',
+                 'hail_revision',
                  'experimental/datasets.json'],
         'hail.backend': ['hail-all-spark.jar'],
         'hailtop': ['hail_version', 'py.typed'],

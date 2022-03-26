@@ -1,3 +1,4 @@
+from typing import Optional
 import pkg_resources
 import sys
 import asyncio
@@ -135,7 +136,8 @@ del builtins
 ir.register_functions()
 ir.register_aggregators()
 
-__version__ = None  # set in hail.init()
+__version__: Optional[str] = None  # set by hail.version()
+__revision__: Optional[str] = None  # set by hail.revision()
 
 import warnings  # noqa: E402
 

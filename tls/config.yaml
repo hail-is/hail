@@ -19,6 +19,10 @@ principals:
   domains:
     - batch-driver
   kind: json
+- name: batch-driver-nginx
+  domains:
+    - batch-driver
+  kind: nginx
 - name: ci
   domains:
     - ci

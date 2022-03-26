@@ -3,6 +3,7 @@ import logging
 import random
 from typing import Optional
 
+import prometheus_client as pc
 import sortedcontainers
 
 from gear import Database
@@ -27,6 +28,12 @@ from ..resource_manager import CloudResourceManager
 from .base import InstanceCollection, InstanceCollectionManager
 
 log = logging.getLogger('pool')
+
+SCHEDULING_LOOP_RUNS = pc.Counter(
+    'scheduling_loop_runs',
+    'Number of scheduling loop executions per pool',
+    ['pool_name'],
+)
 
 
 class Pool(InstanceCollection):
@@ -373,6 +380,7 @@ HAVING n_ready_jobs + n_running_jobs > 0;
 
         log.info(f'schedule {self.pool}: starting')
         start = time_msecs()
+        SCHEDULING_LOOP_RUNS.labels(pool_name=self.pool.name).inc()
         n_scheduled = 0
 
         user_resources = await self.compute_fair_share()

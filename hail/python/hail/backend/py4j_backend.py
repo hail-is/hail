@@ -8,8 +8,8 @@ import hail
 from hail.expr import construct_expr
 from hail.ir import JavaIR
 from hail.ir.renderer import CSERenderer
-from hail.utils.java import FatalError, Env, HailUserError
-from .backend import Backend
+from hail.utils.java import FatalError, Env
+from .backend import Backend, fatal_error_from_java_error_triplet
 
 
 def handle_java_exception(f):
@@ -26,13 +26,7 @@ def handle_java_exception(f):
 
             tpl = Env.jutils().handleForPython(e.java_exception)
             deepest, full, error_id = tpl._1(), tpl._2(), tpl._3()
-
-            if error_id != -1:
-                raise FatalError('Error summary: %s' % (deepest,), error_id) from None
-            else:
-                raise FatalError('%s\n\nJava stack trace:\n%s\n'
-                                 'Hail version: %s\n'
-                                 'Error summary: %s' % (deepest, full, hail.__version__, deepest), error_id) from None
+            raise fatal_error_from_java_error_triplet(deepest, full, error_id) from None
         except pyspark.sql.utils.CapturedException as e:
             raise FatalError('%s\n\nJava stack trace:\n%s\n'
                              'Hail version: %s\n'
@@ -98,25 +92,7 @@ class Py4JBackend(Backend):
 
             return (value, timings) if timed else value
         except FatalError as e:
-            error_id = e._error_id
-
-            def criteria(hail_ir):
-                return hail_ir._error_id is not None and hail_ir._error_id == error_id
-
-            error_sources = ir.base_search(criteria)
-            better_stack_trace = None
-            if error_sources:
-                better_stack_trace = error_sources[0]._stack_trace
-
-            if better_stack_trace:
-                error_message = str(e)
-                message_and_trace = (f'{error_message}\n'
-                                     '------------\n'
-                                     'Hail stack trace:\n'
-                                     f'{better_stack_trace}')
-                raise HailUserError(message_and_trace) from None
-
-            raise e
+            self._handle_fatal_error_from_backend(e, ir)
 
     async def _async_execute(self, ir, timed=False):
         raise NotImplementedError('no async available in Py4JBackend')

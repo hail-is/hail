@@ -23,7 +23,8 @@ object HailFeatureFlags {
     ("write_ir_files", ("HAIL_WRITE_IR_FILES" -> null)),
     ("method_split_ir_limit", ("HAIL_DEV_METHOD_SPLIT_LIMIT" -> "16")),
     ("use_new_shuffle", ("HAIL_USE_NEW_SHUFFLE" -> null)),
-    ("shuffle_cutoff_to_local_sort", ("HAIL_SHUFFLE_CUTOFF" -> null)),
+    ("shuffle_max_branch_factor", ("HAIL_SHUFFLE_MAX_BRANCH" -> "64")),
+    ("shuffle_cutoff_to_local_sort", ("HAIL_SHUFFLE_CUTOFF" -> "32000000")), // This is in bytes
     ("grouped_aggregate_buffer_size", ("HAIL_GROUPED_AGGREGATE_BUFFER_SIZE" -> "50")),
     ("use_ssa_logs", "HAIL_USE_SSA_LOGS" -> null)
   )

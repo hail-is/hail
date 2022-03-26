@@ -1,4 +1,5 @@
 from typing import Dict, Optional, Callable, Awaitable, Mapping, Any, List
+import abc
 import asyncio
 import struct
 import os
@@ -8,7 +9,7 @@ import re
 import yaml
 from pathlib import Path
 
-from hail.context import TemporaryDirectory, tmp_dir, TemporaryFilename
+from hail.context import TemporaryDirectory, tmp_dir, TemporaryFilename, revision
 from hail.utils import FatalError
 from hail.expr.types import dtype
 from hail.expr.table_type import ttable
@@ -17,7 +18,7 @@ from hail.expr.blockmatrix_type import tblockmatrix
 from hail.experimental import write_expression, read_expression
 from hail.ir.renderer import CSERenderer
 
-from hailtop.config import get_user_config, get_user_local_cache_dir, get_remote_tmpdir
+from hailtop.config import (get_user_config, get_user_local_cache_dir, get_remote_tmpdir)
 from hailtop.utils import async_to_blocking, secret_alnum_string, TransientError, Timings
 from hailtop.batch_client import client as hb
 from hailtop.batch_client import aioclient as aiohb
@@ -25,10 +26,11 @@ from hailtop.aiotools.fs import AsyncFS
 from hailtop.aiotools.router_fs import RouterAsyncFS
 import hailtop.aiotools.fs as afs
 
-from .backend import Backend
+from .backend import Backend, fatal_error_from_java_error_triplet
 from ..builtin_references import BUILTIN_REFERENCES
 from ..fs.fs import FS
 from ..fs.router_fs import RouterFS
+from ..ir import BaseIR
 from ..context import version
 from ..utils import frozendict
 
@@ -104,6 +106,45 @@ def yaml_literally_shown_str_representer(dumper, data):
 yaml.add_representer(yaml_literally_shown_str, yaml_literally_shown_str_representer)
 
 
+class JarSpec(abc.ABC):
+    @abc.abstractmethod
+    def to_dict(self) -> Dict[str, str]:
+        raise NotImplementedError
+
+
+class JarUrl(JarSpec):
+    def __init__(self, url):
+        self.url = url
+
+    def to_dict(self) -> Dict[str, str]:
+        return {'type': 'jar_url', 'value': self.url}
+
+    def __repr__(self):
+        return f'JarUrl({self.url})'
+
+
+class GitRevision(JarSpec):
+    def __init__(self, revision):
+        self.revision = revision
+
+    def to_dict(self) -> Dict[str, str]:
+        return {'type': 'git_revision', 'value': self.revision}
+
+    def __repr__(self):
+        return f'GitRevision({self.revision})'
+
+
+def _get_jar_specification(jar_url: Optional[str]) -> JarSpec:
+    user_config = get_user_config()
+
+    jar_url = jar_url or os.environ.get('HAIL_JAR_URL')
+    jar_url = jar_url or user_config.get('query', 'jar_url', fallback=None)
+
+    if jar_url is not None:
+        return JarUrl(jar_url)
+    return GitRevision(revision())
+
+
 class ServiceBackend(Backend):
     HAIL_BATCH_FAILURE_EXCEPTION_MESSAGE_RE = re.compile("is.hail.backend.service.HailBatchFailure: ([0-9]+)\n")
 
@@ -131,7 +172,8 @@ class ServiceBackend(Backend):
                      skip_logging_configuration: Optional[bool] = None,
                      disable_progress_bar: bool = True,
                      remote_tmpdir: Optional[str] = None,
-                     flags: Optional[Dict[str, str]] = None):
+                     flags: Optional[Dict[str, str]] = None,
+                     jar_url: Optional[str] = None):
         del skip_logging_configuration
 
         if billing_project is None:
@@ -152,6 +194,7 @@ class ServiceBackend(Backend):
         user_local_reference_cache_dir = Path(get_user_local_cache_dir(), 'references', version())
         os.makedirs(user_local_reference_cache_dir, exist_ok=True)
         remote_tmpdir = get_remote_tmpdir('ServiceBackend', remote_tmpdir=remote_tmpdir)
+        jar_spec = _get_jar_specification(jar_url)
 
         return ServiceBackend(
             billing_project=billing_project,
@@ -163,6 +206,7 @@ class ServiceBackend(Backend):
             user_local_reference_cache_dir=user_local_reference_cache_dir,
             remote_tmpdir=remote_tmpdir,
             flags=flags or {},
+            jar_spec=jar_spec
         )
 
     def __init__(self,
@@ -174,7 +218,8 @@ class ServiceBackend(Backend):
                  batch_attributes: Dict[str, str],
                  user_local_reference_cache_dir: Path,
                  remote_tmpdir: str,
-                 flags: Dict[str, str]):
+                 flags: Dict[str, str],
+                 jar_spec: JarSpec):
         self.billing_project = billing_project
         self._sync_fs = sync_fs
         self._async_fs = async_fs
@@ -185,11 +230,14 @@ class ServiceBackend(Backend):
         self.user_local_reference_cache_dir = user_local_reference_cache_dir
         self.remote_tmpdir = remote_tmpdir
         self.flags = flags
+        self.jar_spec = jar_spec
+
+        if "use_new_shuffle" not in self.flags:
+            self.flags["use_new_shuffle"] = "1"
 
     def debug_info(self) -> Dict[str, Any]:
         return {
-            'hail_sha': os.environ['HAIL_SHA'],
-            'hail_jar_url': os.environ['HAIL_JAR_URL'],
+            'jar_spec': str(self.jar_spec),
             'billing_project': self.billing_project,
             'batch_attributes': self.batch_attributes,
             'user_local_reference_cache_dir': str(self.user_local_reference_cache_dir),
@@ -216,7 +264,9 @@ class ServiceBackend(Backend):
 
     async def _rpc(self,
                    name: str,
-                   inputs: Callable[[afs.WritableStream, str], Awaitable[None]]):
+                   inputs: Callable[[afs.WritableStream, str], Awaitable[None]],
+                   *,
+                   ir: Optional[BaseIR] = None):
         timings = Timings()
         token = secret_alnum_string()
         iodir = TemporaryDirectory(ensure_exists=False).name  # FIXME: actually cleanup
@@ -237,14 +287,17 @@ class ServiceBackend(Backend):
                     batch_attributes = {**batch_attributes, 'name': name}
                 bb = self.async_bc.create_batch(token=token, attributes=batch_attributes)
 
-                j = bb.create_jvm_job([
-                    ServiceBackend.DRIVER,
-                    os.environ['HAIL_SHA'],
-                    os.environ['HAIL_JAR_URL'],
-                    batch_attributes['name'],
-                    iodir + '/in',
-                    iodir + '/out',
-                ], mount_tokens=True, resources={'preemptible': False, 'memory': 'standard'})
+                j = bb.create_jvm_job(
+                    jar_spec=self.jar_spec.to_dict(),
+                    argv=[
+                        ServiceBackend.DRIVER,
+                        batch_attributes['name'],
+                        iodir + '/in',
+                        iodir + '/out'
+                    ],
+                    mount_tokens=True,
+                    resources={'preemptible': False, 'memory': 'standard'}
+                )
                 b = await bb.submit(disable_progress_bar=self.disable_progress_bar)
 
             with timings.step("wait batch"):
@@ -280,10 +333,21 @@ class ServiceBackend(Backend):
                         except orjson.JSONDecodeError as err:
                             raise FatalError(f'batch id was {b.id}\ncould not decode {json_bytes}') from err
                     else:
-                        jstacktrace = await read_str(outfile)
-                        maybe_id = ServiceBackend.HAIL_BATCH_FAILURE_EXCEPTION_MESSAGE_RE.match(jstacktrace)
-                        if maybe_id:
-                            batch_id = maybe_id.groups()[0]
+                        short_message = await read_str(outfile)
+                        expanded_message = await read_str(outfile)
+                        error_id = await read_int(outfile)
+                        if error_id == -1:
+                            error_id = None
+                        maybe_batch_id = ServiceBackend.HAIL_BATCH_FAILURE_EXCEPTION_MESSAGE_RE.match(expanded_message)
+                        if error_id is not None:
+                            assert maybe_batch_id is None, str((short_message, expanded_message, error_id))
+                            assert ir is not None
+                            self._handle_fatal_error_from_backend(
+                                fatal_error_from_java_error_triplet(short_message, expanded_message, error_id),
+                                ir)
+                        if maybe_batch_id is not None:
+                            assert error_id is None, str((short_message, expanded_message, error_id))
+                            batch_id = maybe_batch_id.groups()[0]
                             b2 = await self.async_bc.get_batch(batch_id)
                             b2_status = await b2.status()
                             assert b2_status['state'] != 'success'
@@ -307,11 +371,12 @@ class ServiceBackend(Backend):
                             message = {
                                 'id': b.id,
                                 'service_backend_debug_info': self.debug_info(),
-                                'stacktrace': yaml_literally_shown_str(jstacktrace.strip()),
+                                'short_message': yaml_literally_shown_str(short_message.strip()),
+                                'expanded_message': yaml_literally_shown_str(expanded_message.strip()),
                                 'cause': {'id': batch_id, 'batch_status': b2_status, 'failed_jobs': failed_jobs}}
                             log.error(yaml.dump(message))
                             raise FatalError(orjson.dumps(message).decode('utf-8'))
-                        raise FatalError(f'batch id was {b.id}\n' + jstacktrace)
+                        raise FatalError(f'batch id was {b.id}\n' + short_message + '\n' + expanded_message)
 
     def execute(self, ir, timed=False):
         return async_to_blocking(self._async_execute(ir, timed=timed))
@@ -324,7 +389,7 @@ class ServiceBackend(Backend):
             await write_str(infile, self.remote_tmpdir)
             await write_str(infile, self.render(ir))
             await write_str(infile, token)
-        _, resp, timings = await self._rpc('execute(...)', inputs)
+        _, resp, timings = await self._rpc('execute(...)', inputs, ir=ir)
         typ = dtype(resp['type'])
         converted_value = typ._convert_from_json_na(resp['value'])
         if timed:
