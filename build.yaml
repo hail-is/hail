@@ -3198,6 +3198,7 @@ steps:
               --durations=50 \
               -n 4 \
               test
+    timeout: 5400
     inputs:
       - from: /just-wheel/wheel-container.tar
         to: /io/wheel-container.tar
@@ -3269,6 +3270,7 @@ steps:
               --durations=50 \
               -n 4 \
               test
+    timeout: 5400
     inputs:
       - from: /just-wheel/wheel-container.tar
         to: /io/wheel-container.tar
@@ -3340,6 +3342,7 @@ steps:
               --durations=50 \
               -n 4 \
               test
+    timeout: 5400
     inputs:
       - from: /just-wheel/wheel-container.tar
         to: /io/wheel-container.tar
@@ -3411,6 +3414,7 @@ steps:
               --durations=50 \
               -n 4 \
               test
+    timeout: 5400
     inputs:
       - from: /just-wheel/wheel-container.tar
         to: /io/wheel-container.tar
@@ -3482,6 +3486,7 @@ steps:
               --durations=50 \
               -n 4 \
               test
+    timeout: 5400
     inputs:
       - from: /just-wheel/wheel-container.tar
         to: /io/wheel-container.tar
