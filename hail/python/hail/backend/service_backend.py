@@ -449,7 +449,7 @@ class ServiceBackend(Backend):
 
         _, resp, timings = await self._rpc('execute(...)', inputs, ir=ir)
         typ: HailType = ir.typ
-        converted_value = ttuple(typ)._from_encoding(resp)
+        converted_value = ttuple(typ)._from_encoding(resp)[0]
         if timed:
             return converted_value, timings
         return converted_value
