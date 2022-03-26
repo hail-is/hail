@@ -6,7 +6,7 @@ from typing import Optional
 import numpy as np
 import pandas as pd
 
-from hailtop.utils import periodically_call, retry_long_running, sleep_and_backoff, time_msecs, time_ns
+from hailtop.utils import periodically_call, retry_long_running, time_msecs, time_ns
 
 
 class ResourceUsageMonitor:
