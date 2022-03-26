@@ -558,26 +558,6 @@ class VCFTests(unittest.TestCase):
         assert hl.import_vcf(nf)._same(mt)
 
     @fails_service_backend()
-    @fails_local_backend()
-    def test_vcf_parallel_composable_export(self):
-        import glob
-        def concat_files(outpath, inpaths):
-            fs = hl.current_backend().fs
-            with fs.open(outpath, 'wb') as outfile:
-                for path in inpaths:
-                    with fs.open(path, 'rb') as infile:
-                        shutil.copyfileobj(infile, outfile)
-
-        mt = hl.import_vcf(resource('sample.vcf'), min_partitions=4)
-        f = new_temp_file(extension='vcf.bgz')
-        hl.export_vcf(mt, f, parallel='composable')
-        shard_paths = glob.glob(f + "/*.bgz")
-        shard_paths.sort()
-        nf = new_temp_file(extension='vcf.bgz')
-        concat_files(nf, shard_paths)
-        assert hl.import_vcf(nf)._same(mt)
-
-    @fails_service_backend()
     def test_custom_rg_import(self):
         rg = hl.ReferenceGenome.read(resource('deid_ref_genome.json'))
         mt = hl.import_vcf(resource('custom_rg.vcf'), reference_genome=rg)
