@@ -4958,6 +4958,61 @@ steps:
       - build_hail
       - deploy_batch
   - kind: runImage
+    name: cancel_all_running_test_batches
+    image:
+      valueFrom: service_base_image.image
+    script: |
+      cat >cancel_all_running_test_batches.py <<'EOF'
+      from hailtop.batch_client.aioclient import BatchClient
+      import asyncio
+
+      async def cancel_all(query: Ste):
+          bc = await BatchClient.create('test')
+          async for b in bc.list_batches(query):
+              status = await b.last_known_status()
+              print(status)
+              await b.cancel()
+
+      asyncio.get_event_loop().run_until_complete(cancel_all('user:test running'))
+      EOF
+
+      python3 cancel_all_running_test_batches.py
+    secrets:
+      - name: worker-deploy-config
+        namespace:
+          valueFrom: default_ns.name
+        mountPath: /deploy-config
+      - name: test-dev-tokens
+        namespace:
+          valueFrom: default_ns.name
+        mountPath: /user-tokens
+      - name: ssl-config-batch-tests
+        namespace:
+          valueFrom: default_ns.name
+        mountPath: /ssl-config
+    dependsOn:
+      - create_deploy_config
+      - create_accounts
+      - default_ns
+      - service_base_image
+      - deploy_batch
+      - test_batch_0
+      - test_batch_1
+      - test_batch_2
+      - test_batch_3
+      - test_batch_4
+      - test_ci
+      - test_hailtop_batch_0
+      - test_hailtop_batch_1
+      - test_hailtop_batch_2
+      - test_hailtop_batch_3
+      - test_hailtop_batch_4
+      - test_hail_python_service_backend_0
+      - test_hail_python_service_backend_1
+      - test_hail_python_service_backend_2
+      - test_hail_python_service_backend_3
+      - test_hail_python_service_backend_4
+  - kind: runImage
     name: test_batch_invariants
     image:
       valueFrom: batch_image.image
@@ -5008,6 +5063,7 @@ steps:
       - test_hail_python_service_backend_2
       - test_hail_python_service_backend_3
       - test_hail_python_service_backend_4
+      - cancel_all_running_test_batches
   - kind: runImage
     name: delete_gcp_batch_instances
     image:
@@ -5057,6 +5113,7 @@ steps:
       - test_hail_python_service_backend_2
       - test_hail_python_service_backend_3
       - test_hail_python_service_backend_4
+      - cancel_all_running_test_batches
   - kind: runImage
     name: delete_azure_batch_instances
     image: mcr.microsoft.com/azure-cli
@@ -5107,3 +5164,4 @@ steps:
       - test_hailtop_batch_2
       - test_hailtop_batch_3
       - test_hailtop_batch_4
+      - cancel_all_running_test_batches
