@@ -291,7 +291,7 @@ class LocalBackend(
     rowTypeRequiredness: RStruct
   ): TableStage = {
 
-    if (getFlag("shuffle_cutoff_to_local_sort") != null) {
+    if (getFlag("use_new_shuffle") != null) {
       LowerDistributedSort.distributedSort(ctx, stage, sortFields, relationalLetsAbove, rowTypeRequiredness)
     } else {
       LowerDistributedSort.localSort(ctx, stage, sortFields, relationalLetsAbove)

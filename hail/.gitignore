@@ -3,6 +3,7 @@ python/README.md
 python/dist
 python/hail.egg-info
 python/hail/backend/hail-all-spark.jar
+python/hail/hail_revision
 python/hail/hail_pip_version
 python/hail/docs/change_log.rst
 python/hail/docs/_build/*

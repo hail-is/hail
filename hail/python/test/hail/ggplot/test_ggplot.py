@@ -88,3 +88,16 @@ def test_scale_color_manual():
     pfig = fig.to_plotly()
 
     assert set([scatter.marker.color for scatter in pfig.data]) == colors
+
+
+def test_weighted_bar():
+    x = hl.array([2, 3, 3, 3, 4, 5, 2])
+    w = hl.array([1, 2, 3, 4, 5, 6, 7])
+    ht = hl.utils.range_table(7)
+    ht = ht.annotate(x=x[ht.idx], w=w[ht.idx])
+    fig = ggplot(ht) + geom_bar(aes(x=ht.x, weight=ht.w))
+
+    result = [8, 9, 5, 6]
+    for idx, y in enumerate(fig.to_plotly().data[0].y):
+        assert(y == result[idx])
+

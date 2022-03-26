@@ -11,6 +11,7 @@ tearDownModule = stopTestHailContext
 
 class Tests(unittest.TestCase):
     @fails_service_backend()
+    @fails_local_backend
     def test_ld_score(self):
 
         ht = hl.import_table(doctest_resource('ldsc.annot'),

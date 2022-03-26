@@ -255,7 +255,7 @@ class GeomBar(Geom):
 def geom_bar(mapping=aes(), *, fill=None, color=None, alpha=None, position="stack", size=None):
     """Create a bar chart that counts occurrences of the various values of the ``x`` aesthetic.
 
-    Supported aesthetics: ``x``, ``color``, ``fill``
+    Supported aesthetics: ``x``, ``color``, ``fill``, ``weight``
 
     Returns
     -------
@@ -496,9 +496,14 @@ class GeomTile(Geom):
                     "y0": y_center - height / 2,
                     "x1": x_center + width / 2,
                     "y1": y_center + height / 2,
-                    "fillcolor": "black" if "fill" not in df.attrs else df.attrs["fill"],
                     "opacity": row.get('alpha', 1.0)
                 }
+                if "fill" in df.attrs:
+                    shape_args["fillcolor"] = df.attrs["fill"]
+                elif "fill" in row:
+                    shape_args["fillcolor"] = row["fill"]
+                else:
+                    shape_args["fillcolor"] = "black"
                 fig_so_far.add_shape(**shape_args)
 
         for group_df in grouped_data:

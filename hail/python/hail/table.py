@@ -2326,7 +2326,7 @@ class Table(ExprContainer):
                 self.checkpoint(tmp2)
                 ht = hl.read_table(tmp2).add_index(uid).key_by(uid)
                 ht.checkpoint(tmp)
-                return hl.read_table(tmp, _n_partitions=n).drop(uid)
+                return hl.read_table(tmp, _n_partitions=n).key_by().drop(uid)
             else:
                 # checkpoint rather than write to use fast codec
                 self.checkpoint(tmp)

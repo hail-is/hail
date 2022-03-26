@@ -35,10 +35,6 @@ import org.json4s.jackson.JsonMethods
 import org.json4s.{DefaultFormats, Formats}
 import org.newsclub.net.unix.{AFUNIXServerSocket, AFUNIXSocketAddress}
 
-import java.io._
-import java.net._
-import java.nio.charset.StandardCharsets
-import java.util.concurrent._
 import scala.annotation.switch
 import scala.reflect.ClassTag
 import scala.{concurrent => scalaConcurrent}
@@ -59,7 +55,6 @@ object ServiceBackend {
 }
 
 class ServiceBackend(
-  val revision: String,
   val jarLocation: String,
   var name: String,
   val theHailClassLoader: HailClassLoader,
@@ -85,6 +80,13 @@ class ServiceBackend(
     new BroadcastValue[T] with Serializable {
       def value: T = _value
     }
+  }
+
+  private[this] def readString(in: DataInputStream): String = {
+    val n = in.readInt()
+    val bytes = new Array[Byte](n)
+    in.read(bytes)
+    new String(bytes, StandardCharsets.UTF_8)
   }
 
   def parallelizeAndComputeWithIndex(
@@ -143,10 +145,12 @@ class ServiceBackend(
         "job_id" -> JInt(i + 1),
         "parent_ids" -> JArray(List()),
         "process" -> JObject(
+          "jar_spec" -> JObject(
+            "type" -> JString("jar_url"),
+            "value" -> JString(jarLocation)
+          ),
           "command" -> JArray(List(
             JString(Main.WORKER),
-            JString(revision),
-            JString(jarLocation),
             JString(root),
             JString(s"$i"))),
           "type" -> JString("jvm")),
@@ -179,10 +183,22 @@ class ServiceBackend(
 
     val r = new Array[Array[Byte]](n)
 
+    def resultOrHailException(is: DataInputStream): Array[Byte] = {
+      val success = is.readBoolean()
+      if (success) {
+        IOUtils.toByteArray(is)
+      } else {
+        val shortMessage = readString(is)
+        val expandedMessage = readString(is)
+        val errorId = is.readInt()
+        throw new HailWorkerException(shortMessage, expandedMessage, errorId)
+      }
+    }
+
     def readResult(i: Int): scalaConcurrent.Future[Unit] = scalaConcurrent.Future {
       r(i) = retryTransientErrors {
         using(fs.openCachedNoCompression(s"$root/result.$i")) { is =>
-          IOUtils.toByteArray(is)
+          resultOrHailException(new DataInputStream(is))
         }
       }
       log.info(s"result $i complete")
@@ -304,7 +320,11 @@ class ServiceBackend(
     relationalLetsAbove: Map[String, IR],
     rowTypeRequiredness: RStruct
   ): TableStage = {
-    LowerDistributedSort.localSort(ctx, stage, sortFields, relationalLetsAbove)
+    if (ctx.getFlag("use_new_shuffle") != null) {
+      LowerDistributedSort.distributedSort(ctx, stage, sortFields, relationalLetsAbove, rowTypeRequiredness)
+    } else {
+      LowerDistributedSort.localSort(ctx, stage, sortFields, relationalLetsAbove)
+    }
   }
 
   def persist(backendContext: BackendContext, id: String, value: BlockMatrix, storageLevel: String): Unit = ???
@@ -358,21 +378,20 @@ class HailBatchFailure(message: String) extends RuntimeException(message)
 
 object ServiceBackendSocketAPI2 {
   def main(argv: Array[String]): Unit = {
-    assert(argv.length == 8, argv.toFastIndexedSeq)
+    assert(argv.length == 7, argv.toFastIndexedSeq)
 
     val scratchDir = argv(0)
     val logFile = argv(1)
-    val kind = argv(2)
+    val jarLocation = argv(2)
+    val kind = argv(3)
     assert(kind == Main.DRIVER)
-    val revision = argv(3)
-    val jarLocation = argv(4)
-    val name = argv(5)
-    val input = argv(6)
-    val output = argv(7)
+    val name = argv(4)
+    val input = argv(5)
+    val output = argv(6)
 
     // FIXME: when can the classloader be shared? (optimizer benefits!)
     val backend = new ServiceBackend(
-      revision, jarLocation, name, new HailClassLoader(getClass().getClassLoader()), scratchDir)
+      jarLocation, name, new HailClassLoader(getClass().getClassLoader()), scratchDir)
     if (HailContext.isInitialized) {
       HailContext.get.backend = backend
     } else {
@@ -625,9 +644,17 @@ class ServiceBackendSocketAPI2(
       writeBool(true)
       writeString(result)
     } catch {
-      case t: Throwable =>
+      case exc: HailWorkerException =>
         writeBool(false)
-        writeString(formatException(t))
+        writeString(exc.shortMessage)
+        writeString(exc.expandedMessage)
+        writeInt(exc.errorId)
+      case t: Throwable =>
+        val (shortMessage, expandedMessage, errorId) = handleForPython(t)
+        writeBool(false)
+        writeString(shortMessage)
+        writeString(expandedMessage)
+        writeInt(errorId)
     }
   }
 }

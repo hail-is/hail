@@ -1,7 +1,22 @@
-from typing import Mapping, List, Dict, Optional
+from typing import Mapping, List, Dict, Optional, Any
 import abc
 from ..fs.fs import FS
 from ..expr import Expression
+from ..ir import BaseIR
+from ..utils.java import FatalError, HailUserError
+
+
+def fatal_error_from_java_error_triplet(short_message, expanded_message, error_id):
+    from .. import __version__
+    if error_id != -1:
+        return FatalError(f'Error summary: {short_message}', error_id)
+    return FatalError(f'''{short_message}
+
+Java stack trace:
+{expanded_message}
+Hail version: {__version__}
+Error summary: {short_message}''',
+                      error_id)
 
 
 class Backend(abc.ABC):
@@ -10,7 +25,7 @@ class Backend(abc.ABC):
         pass
 
     @abc.abstractmethod
-    def execute(self, ir, timed=False):
+    def execute(self, ir: BaseIR, timed: bool = False) -> Any:
         pass
 
     @abc.abstractmethod
@@ -148,3 +163,19 @@ class Backend(abc.ABC):
     @abc.abstractmethod
     def requires_lowering(self):
         pass
+
+    def _handle_fatal_error_from_backend(self, err: FatalError, ir: BaseIR):
+        if err._error_id is None:
+            raise err
+
+        error_sources = ir.base_search(lambda x: x._error_id == err._error_id)
+        if len(error_sources) == 0:
+            raise err
+
+        better_stack_trace = error_sources[0]._stack_trace
+        error_message = str(err)
+        message_and_trace = (f'{error_message}\n'
+                             '------------\n'
+                             'Hail stack trace:\n'
+                             f'{better_stack_trace}')
+        raise HailUserError(message_and_trace) from None
