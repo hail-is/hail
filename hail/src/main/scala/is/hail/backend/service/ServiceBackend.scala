@@ -303,7 +303,7 @@ class ServiceBackend(
       val retPType = pt.asInstanceOf[PBaseStruct]
       val off = f(ctx.theHailClassLoader, ctx.fs, 0, ctx.r)(ctx.r)
       val codec = TypedCodecSpec(
-        EType.fromTypeAllOptional(retPType),
+        EType.fromTypeAllOptional(retPType.virtualType),
         retPType.virtualType,
         BufferSpec.parseOrDefault(bufferSpecString)
       )
