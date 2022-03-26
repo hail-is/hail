@@ -1241,7 +1241,6 @@ class Tests(unittest.TestCase):
         one_sample = hl.balding_nichols_model(1, 1, 10)
         self.assertRaises(FatalError, lambda: hl.realized_relationship_matrix(one_sample.GT))
 
-    @fails_service_backend()
     def test_row_correlation_vs_hardcode(self):
         data = [{'v': '1:1:A:C', 's': '1', 'GT': hl.Call([0, 0])},
                 {'v': '1:1:A:C', 's': '2', 'GT': hl.Call([0, 0])},

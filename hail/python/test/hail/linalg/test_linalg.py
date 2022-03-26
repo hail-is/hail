@@ -1302,8 +1302,6 @@ Caused by: java.lang.AssertionError: assertion failed
         sparse_np = sparsify_numpy(np_square, block_size, block_list).T
         assert np.array_equal(sparse_bm.to_numpy(), sparse_np)
 
-
-    @fails_service_backend()
     def test_row_blockmatrix_sum(self):
 
         row = BlockMatrix.from_numpy(np.arange(10))
