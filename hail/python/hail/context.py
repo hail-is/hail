@@ -266,20 +266,83 @@ def init(sc=None, app_name='Hail', master=None, local='local[*]',
             warning('Hail has already been initialized. If this call was intended to change configuration,'
                     ' close the session with hl.stop() first.')
 
-    if os.environ.get('HAIL_QUERY_BACKEND') == 'service':
+    backend_name = os.environ.get('HAIL_QUERY_BACKEND', 'spark')
+    if backend_name == 'service':
         import asyncio
-        # NB: do not use warning because that will initialize Env._hc, which we are trying to do right now.
-        print('When using the query service backend, use `await init_service\'', file=sys.stderr)
-        return asyncio.get_event_loop().run_until_complete(init_service(
+        try:
+            asyncio.get_running_loop()
+            raise ValueError(
+                'When using Hail Query in async code, initialize the ServiceBackend with `await hl.init_service()`'
+            )
+        except RuntimeError:  # RuntimeError implies there is no running loop, so we may start one
+            return asyncio.get_event_loop().run_until_complete(init_service(
+                log=log,
+                quiet=quiet,
+                append=append,
+                tmpdir=tmp_dir,
+                local_tmpdir=local_tmpdir,
+                default_reference=default_reference,
+                global_seed=global_seed,
+                skip_logging_configuration=skip_logging_configuration
+            ))
+    if backend_name == 'spark':
+        return init_spark(
+            log=log,
+            quiet=quiet,
+            append=append,
+            tmp_dir=tmp_dir,
+            local_tmpdir=local_tmpdir,
+            default_reference=default_reference,
+            global_seed=global_seed,
+            skip_logging_configuration=skip_logging_configuration
+        )
+    if backend_name == 'local':
+        return init_local(
             log=log,
             quiet=quiet,
             append=append,
             tmpdir=tmp_dir,
-            local_tmpdir=local_tmpdir,
             default_reference=default_reference,
             global_seed=global_seed,
-            skip_logging_configuration=skip_logging_configuration))
+            skip_logging_configuration=skip_logging_configuration
+        )
+    raise ValueError(f'unknown Hail Query backend: {backend_name}')
 
+
+@typecheck(sc=nullable(SparkContext),
+           app_name=str,
+           master=nullable(str),
+           local=str,
+           log=nullable(str),
+           quiet=bool,
+           append=bool,
+           min_block_size=int,
+           branching_factor=int,
+           tmp_dir=nullable(str),
+           default_reference=enumeration(*BUILTIN_REFERENCES),
+           idempotent=bool,
+           global_seed=nullable(int),
+           spark_conf=nullable(dictof(str, str)),
+           skip_logging_configuration=bool,
+           local_tmpdir=nullable(str),
+           _optimizer_iterations=nullable(int))
+def init_spark(sc=None,
+               app_name='Hail',
+               master=None,
+               local='local[*]',
+               log=None,
+               quiet=False,
+               append=False,
+               min_block_size=0,
+               branching_factor=50,
+               tmp_dir=None,
+               default_reference='GRCh37',
+               idempotent=False,
+               global_seed=6348563392232659379,
+               spark_conf=None,
+               skip_logging_configuration=False,
+               local_tmpdir=None,
+               _optimizer_iterations=None):
     from hail.backend.spark_backend import SparkBackend
 
     log = _get_log(log)

@@ -23,6 +23,7 @@ class Tests(unittest.TestCase):
         return np.copy(a[:, np.squeeze(col_filter)] / col_lengths[col_filter])
 
     @fails_service_backend()
+    @fails_local_backend()
     def test_linear_mixed_model_fastlmm(self):
         # FastLMM Test data is from all.bed, all.bim, all.fam, cov.txt, pheno_10_causals.txt:
         #   https://github.com/MicrosoftGenomics/FaST-LMM/tree/master/tests/datasets/synth
@@ -351,6 +352,7 @@ class Tests(unittest.TestCase):
         assert np.allclose(ht.p_value.collect(), pval_hail)
 
     @fails_service_backend()
+    @fails_local_backend()
     def test_linear_mixed_regression_low_rank(self):
         x_table = hl.import_table(resource('fastlmmCov.txt'), no_header=True, impute=True).key_by('f1')
         y_table = hl.import_table(resource('fastlmmPheno.txt'), no_header=True, impute=True, delimiter=' ').key_by('f1')
