@@ -466,7 +466,6 @@ class Tests(unittest.TestCase):
     # Outside the spark backend, "logistic_regression_rows" automatically defers to the _ version.
     logreg_functions = [hl.logistic_regression_rows, hl._logistic_regression_rows_nd] if backend_name == "spark" else [hl.logistic_regression_rows]
 
-    @fails_service_backend(reason='not implemented error: register_ir_function')
     def test_weighted_linear_regression(self):
         covariates = hl.import_table(resource('regressionLinear.cov'),
                                      key='Sample',
@@ -1611,7 +1610,6 @@ class Tests(unittest.TestCase):
                 covariates=[1.0, ds.cov.Cov1, ds.cov.Cov2],
                 logistic=True)._force_count()
 
-    @fails_service_backend()
     def test_de_novo(self):
         mt = hl.import_vcf(resource('denovo.vcf'))
         mt = mt.filter_rows(mt.locus.in_y_par(), keep=False)  # de_novo_finder doesn't know about y PAR
@@ -1638,7 +1636,6 @@ class Tests(unittest.TestCase):
         j = r.join(truth, how='outer')
         self.assertTrue(j.all((j.confidence == j.confidence_1) & (hl.abs(j.p_de_novo - j.p_de_novo_1) < 1e-4)))
 
-    @fails_service_backend()
     def test_de_novo_error(self):
         mt = hl.import_vcf(resource('denovo.vcf'))
         ped = hl.Pedigree.read(resource('denovo.fam'))
@@ -1646,7 +1643,6 @@ class Tests(unittest.TestCase):
         with pytest.raises(Exception, match='pop_frequency_prior'):
             hl.de_novo(mt, ped, pop_frequency_prior=2.0).count()
 
-    @fails_service_backend()
     def test_de_novo_ignore_computed_af_runs(self):
         mt = hl.import_vcf(resource('denovo.vcf'))
         ped = hl.Pedigree.read(resource('denovo.fam'))
