@@ -128,6 +128,7 @@ class Backend(abc.ABC):
         pass
 
     def persist_table(self, t, storage_level):
+        # FIXME: this can't possibly be right.
         return t
 
     def unpersist_table(self, t):

@@ -655,7 +655,7 @@ class ServiceBackend(Backend):
         # FIXME: should use context manager to clean up persisted resources
         fname = TemporaryFilename().name
         write_expression(expr, fname)
-        return read_expression(fname)
+        return read_expression(fname, _assert_type=expr.dtype)
 
     def set_flags(self, **flags: str):
         self.flags.update(flags)
