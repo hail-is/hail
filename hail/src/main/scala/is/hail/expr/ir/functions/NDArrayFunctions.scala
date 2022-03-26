@@ -145,11 +145,5 @@ object  NDArrayFunctions extends RegistryFunctions {
         cb.ifx(info cne 0, cb._fatalWithError(errorID,s"hl.nd.solve: Could not solve, matrix was singular. dtrtrs error code ", info.toS))
         resPCode
     }
-
-    registerSCode2("export_doubles", TNDArray(TFloat64, Nat(2)), TString, TVoid, (t, ndSt, pathSt) => SVoid) { case (er, cb, rt, snd: SNDArrayValue, sstring: SStringValue, errorID) =>
-
-
-      ???
-    }
   }
 }
