@@ -348,6 +348,7 @@ class VCFTests(unittest.TestCase):
         self.import_gvcfs_sample_vcf(tmp)
 
     @fails_service_backend()
+    @fails_local_backend()
     def test_import_gvcfs(self):
         path = resource('sample.vcf.bgz')
         self.import_gvcfs_sample_vcf(path)
@@ -765,6 +766,7 @@ class PLINKTests(unittest.TestCase):
             hl.import_plink(bfile + '.bed', bfile + '.bim', bfile + '.fam')
 
     @fails_service_backend()
+    @fails_local_backend()
     def test_import_plink_a1_major(self):
         mt = get_dataset()
         bfile = '/tmp/sample_plink'
@@ -1179,6 +1181,7 @@ class BGENTests(unittest.TestCase):
             (hl.abs(et.dosage - et.gp_dosage) < 1e-6)))
 
     @fails_service_backend()
+    @fails_local_backend()
     def test_import_bgen_row_fields(self):
         default_row_fields = hl.import_bgen(resource('example.8bits.bgen'),
                                             entry_fields=['dosage'])
@@ -1257,6 +1260,7 @@ class BGENTests(unittest.TestCase):
         self.assertTrue(expected._same(part_1))
 
     @fails_service_backend()
+    @fails_local_backend()
     def test_import_bgen_locus_filtering_from_literals(self):
         bgen_file = resource('example.8bits.bgen')
 
@@ -1284,6 +1288,7 @@ class BGENTests(unittest.TestCase):
                          expected_result)
 
     @fails_service_backend()
+    @fails_local_backend()
     def test_import_bgen_variant_filtering_from_exprs(self):
         bgen_file = resource('example.8bits.bgen')
 
@@ -1300,6 +1305,7 @@ class BGENTests(unittest.TestCase):
         self.assertTrue(everything._same(actual))
 
     @fails_service_backend()
+    @fails_local_backend()
     def test_import_bgen_locus_filtering_from_exprs(self):
         bgen_file = resource('example.8bits.bgen')
 
@@ -1336,6 +1342,7 @@ class BGENTests(unittest.TestCase):
         self.assertTrue(everything._same(actual))
 
     @fails_service_backend()
+    @fails_local_backend()
     def test_import_bgen_locus_filtering_from_table(self):
         bgen_file = resource('example.8bits.bgen')
 
@@ -1413,6 +1420,7 @@ class BGENTests(unittest.TestCase):
             bgenmt._same(genmt, tolerance=1.0 / 255, absolute=True))
 
     @fails_service_backend()
+    @fails_local_backend()
     def test_multiple_files_variant_filtering(self):
         bgen_file = [resource('random-b.bgen'), resource('random-c.bgen'), resource('random-a.bgen')]
         hl.index_bgen(bgen_file)
@@ -1527,6 +1535,7 @@ class BGENTests(unittest.TestCase):
         assert bgen._same(bgen2)
 
     @fails_service_backend()
+    @fails_local_backend()
     def test_export_bgen_from_vcf(self):
         mt = hl.import_vcf(resource('sample.vcf'))
 
@@ -1826,73 +1835,6 @@ class ImportMatrixTableTests(unittest.TestCase):
 
     @fails_service_backend()
     @fails_local_backend()
-    def test_round_trip(self):
-        for missing in ['.', '9']:
-            for delimiter in [',', ' ']:
-                for header in [True, False]:
-                    for entry_type, entry_fun in [(hl.tstr, hl.str),
-                                                  (hl.tint32, hl.int32),
-                                                  (hl.tfloat64, hl.float64)]:
-                        try:
-                            self._test_round_trip(missing, delimiter, header, entry_type, entry_fun)
-                        except Exception as e:
-                            raise ValueError(
-                                f'missing {missing!r} delimiter {delimiter!r} '
-                                f'header {header!r} entry_type {entry_type!r}'
-                            ) from e
-
-    def _test_round_trip(self, missing, delimiter, header, entry_type, entry_fun):
-        mt = hl.utils.range_matrix_table(10, 10, n_partitions=2)
-        mt = mt.annotate_entries(x = entry_fun(mt.row_idx * mt.col_idx))
-        mt = mt.annotate_rows(row_str = hl.str(mt.row_idx))
-        mt = mt.annotate_rows(row_float = hl.float(mt.row_idx))
-
-        path = new_temp_file(extension='tsv')
-        mt.key_rows_by(*mt.row).x.export(path,
-                                         missing=missing,
-                                         delimiter=delimiter,
-                                         header=header)
-
-        row_fields = {f: mt.row[f].dtype for f in mt.row}
-        row_key = 'row_idx'
-
-        if not header:
-            pseudonym = {'row_idx': 'f0',
-                         'row_str': 'f1',
-                         'row_float': 'f2'}
-            row_fields = {pseudonym[k]: v for k, v in row_fields.items()}
-            row_key = pseudonym[row_key]
-            mt = mt.rename(pseudonym)
-        else:
-            mt = mt.key_cols_by(col_idx=hl.str(mt.col_idx))
-
-        actual = hl.import_matrix_table(
-            path,
-            row_fields=row_fields,
-            row_key=row_key,
-            entry_type=entry_type,
-            missing=missing,
-            no_header=not header,
-            sep=delimiter)
-        actual = actual.rename({'col_id': 'col_idx'})
-
-        row_key = mt.row_key
-        col_key = mt.col_key
-        mt = mt.key_rows_by()
-        mt = mt.annotate_entries(
-            x = hl.if_else(hl.str(mt.x) == missing,
-                           hl.missing(entry_type),
-                           mt.x))
-        mt = mt.annotate_rows(**{
-            f: hl.if_else(hl.str(mt[f]) == missing,
-                          hl.missing(mt[f].dtype),
-                          mt[f])
-            for f in mt.row})
-        mt = mt.key_rows_by(*row_key)
-        assert mt._same(actual)
-
-    @fails_service_backend()
-    @fails_local_backend()
     def test_key_by_after_empty_key_import(self):
         fields = {'Chromosome':hl.tstr,
                   'Position': hl.tint32,
@@ -1990,6 +1932,65 @@ class ImportMatrixTableTests(unittest.TestCase):
             hl.utils.Struct(foo=7, row_id=0, col_id='s1', x=1234),
             hl.utils.Struct(foo=7, row_id=0, col_id='s2', x=2345)
         ]
+
+
+@fails_service_backend
+@fails_local_backend
+@pytest.mark.parametrize("entry_fun", [hl.str, hl.int32, hl.float64])
+@pytest.mark.parametrize("header", [True, False])
+@pytest.mark.parametrize("delimiter", [',', ' '])
+@pytest.mark.parametrize("missing", ['.', '9'])
+def test_import_matrix_table_round_trip(missing, delimiter, header, entry_fun):
+    mt = hl.utils.range_matrix_table(10, 10, n_partitions=2)
+    mt = mt.annotate_entries(x = entry_fun(mt.row_idx * mt.col_idx))
+    mt = mt.annotate_rows(row_str = hl.str(mt.row_idx))
+    mt = mt.annotate_rows(row_float = hl.float(mt.row_idx))
+
+    entry_type = mt.x.dtype
+
+    path = new_temp_file(extension='tsv')
+    mt.key_rows_by(*mt.row).x.export(path,
+                                     missing=missing,
+                                     delimiter=delimiter,
+                                     header=header)
+
+    row_fields = {f: mt.row[f].dtype for f in mt.row}
+    row_key = 'row_idx'
+
+    if not header:
+        pseudonym = {'row_idx': 'f0',
+                     'row_str': 'f1',
+                     'row_float': 'f2'}
+        row_fields = {pseudonym[k]: v for k, v in row_fields.items()}
+        row_key = pseudonym[row_key]
+        mt = mt.rename(pseudonym)
+    else:
+        mt = mt.key_cols_by(col_idx=hl.str(mt.col_idx))
+
+    actual = hl.import_matrix_table(
+        path,
+        row_fields=row_fields,
+        row_key=row_key,
+        entry_type=entry_type,
+        missing=missing,
+        no_header=not header,
+        sep=delimiter)
+    actual = actual.rename({'col_id': 'col_idx'})
+
+    row_key = mt.row_key
+    col_key = mt.col_key
+    mt = mt.key_rows_by()
+    mt = mt.annotate_entries(
+        x = hl.if_else(hl.str(mt.x) == missing,
+                       hl.missing(entry_type),
+                       mt.x))
+    mt = mt.annotate_rows(**{
+        f: hl.if_else(hl.str(mt[f]) == missing,
+                      hl.missing(mt[f].dtype),
+                      mt[f])
+        for f in mt.row})
+    mt = mt.key_rows_by(*row_key)
+    assert mt._same(actual)
 
 
 class ImportLinesTest(unittest.TestCase):

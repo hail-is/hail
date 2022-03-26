@@ -28,6 +28,7 @@ def test_pc_relate_against_R_truth():
 
 
 @fails_service_backend()
+@fails_local_backend()
 def test_pc_relate_simple_example():
     gs = hl.literal(
         [[0, 0, 0, 0, 1, 1, 1, 1],
