@@ -2195,9 +2195,11 @@ def import_plink(bed, bim, fam,
            _filter_intervals=bool,
            _drop_cols=bool,
            _drop_rows=bool,
-           _n_partitions=nullable(int))
+           _n_partitions=nullable(int),
+           _assert_type=nullable(hl.tmatrix),
+           _load_refs=bool)
 def read_matrix_table(path, *, _intervals=None, _filter_intervals=False, _drop_cols=False,
-                      _drop_rows=False, _n_partitions=None) -> MatrixTable:
+                      _drop_rows=False, _n_partitions=None, _assert_type=None, _load_refs=True) -> MatrixTable:
     """Read in a :class:`.MatrixTable` written with :meth:`.MatrixTable.write`.
 
     Parameters
@@ -2209,14 +2211,17 @@ def read_matrix_table(path, *, _intervals=None, _filter_intervals=False, _drop_c
     -------
     :class:`.MatrixTable`
     """
-    for rg_config in Env.backend().load_references_from_dataset(path):
-        hl.ReferenceGenome._from_config(rg_config)
+    if _load_refs:
+        for rg_config in Env.backend().load_references_from_dataset(path):
+            hl.ReferenceGenome._from_config(rg_config)
 
     if _intervals is not None and _n_partitions is not None:
         raise ValueError("'read_matrix_table' does not support both _intervals and _n_partitions")
 
     mt = MatrixTable(ir.MatrixRead(ir.MatrixNativeReader(path, _intervals, _filter_intervals),
-                                   _drop_cols, _drop_rows))
+                                   _drop_cols,
+                                   _drop_rows,
+                                   _assert_type=_assert_type))
     if _n_partitions:
         intervals = mt._calculate_new_partitions(_n_partitions)
         return read_matrix_table(path, _drop_rows=_drop_rows, _drop_cols=_drop_cols, _intervals=intervals)
@@ -2640,8 +2645,16 @@ def index_bgen(path,
 @typecheck(path=str,
            _intervals=nullable(sequenceof(anytype)),
            _filter_intervals=bool,
-           _n_partitions=nullable(int))
-def read_table(path, *, _intervals=None, _filter_intervals=False, _n_partitions=None) -> Table:
+           _n_partitions=nullable(int),
+           _assert_type=nullable(hl.ttable),
+           _load_refs=bool)
+def read_table(path,
+               *,
+               _intervals=None,
+               _filter_intervals=False,
+               _n_partitions=None,
+               _assert_type=None,
+               _load_refs=True) -> Table:
     """Read in a :class:`.Table` written with :meth:`.Table.write`.
 
     Parameters
@@ -2653,13 +2666,14 @@ def read_table(path, *, _intervals=None, _filter_intervals=False, _n_partitions=
     -------
     :class:`.Table`
     """
-    for rg_config in Env.backend().load_references_from_dataset(path):
-        hl.ReferenceGenome._from_config(rg_config)
+    if _load_refs:
+        for rg_config in Env.backend().load_references_from_dataset(path):
+            hl.ReferenceGenome._from_config(rg_config)
 
     if _intervals is not None and _n_partitions is not None:
         raise ValueError("'read_table' does not support both _intervals and _n_partitions")
     tr = ir.TableNativeReader(path, _intervals, _filter_intervals)
-    ht = Table(ir.TableRead(tr, False))
+    ht = Table(ir.TableRead(tr, False, _assert_type=_assert_type))
 
     if _n_partitions:
         intervals = ht._calculate_new_partitions(_n_partitions)
