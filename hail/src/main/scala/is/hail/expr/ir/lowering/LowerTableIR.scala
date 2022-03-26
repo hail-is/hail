@@ -515,7 +515,7 @@ object LowerTableIR {
             bindIR(ArrayLen(boundsArray)) { nBounds =>
               bindIR(minIR(nBounds, nPartitions)) { nParts =>
                 bindIR((nBounds + (nParts - 1)) floorDiv nParts) { stepSize =>
-                  ToArray(mapIR(StreamRange(0, nBounds, stepSize)) { i =>
+                  ToArray(mapIR(StreamRange(0, nBounds, minIR(stepSize, 1))) { i =>
                     If((i + stepSize) < (nBounds - 1),
                       invoke("Interval", TInterval(keyType), ArrayRef(boundsArray, i), ArrayRef(boundsArray, i + stepSize), True(), False()),
                       invoke("Interval", TInterval(keyType), ArrayRef(boundsArray, i), ArrayRef(boundsArray, nBounds - 1), True(), True())
