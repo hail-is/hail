@@ -28,8 +28,7 @@ from hail.table import Table
 from hail.typecheck import (typecheck, typecheck_method, nullable, oneof,
                             sliceof, sequenceof, lazy, enumeration, numeric, tupleof, func_spec,
                             sized_tupleof)
-from hail.utils import (new_temp_file, new_local_temp_file, local_path_uri,
-                        storage_level, with_local_temp_file)
+from hail.utils import (new_temp_file, local_path_uri, storage_level, with_local_temp_file)
 from hail.utils.java import Env
 
 block_matrix_type = lazy()
