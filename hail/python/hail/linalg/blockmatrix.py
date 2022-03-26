@@ -1221,7 +1221,7 @@ class BlockMatrix(object):
             with hl.TemporaryFilename() as path:
                 self.tofile(path)
                 return np.frombuffer(
-                    hl.current_backend().fs.open(path, mode='wb').read()
+                    hl.current_backend().fs.open(path, mode='rb').read()
                 )
 
         with with_local_temp_file() as path:
