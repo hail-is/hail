@@ -12,7 +12,7 @@ from pathlib import Path
 
 from hail.context import TemporaryDirectory, tmp_dir, TemporaryFilename, revision
 from hail.utils import FatalError
-from hail.expr.types import HailType, dtype, ttuple
+from hail.expr.types import HailType, dtype, ttuple, tvoid
 from hail.expr.table_type import ttable
 from hail.expr.matrix_type import tmatrix
 from hail.expr.blockmatrix_type import tblockmatrix
@@ -448,7 +448,10 @@ class ServiceBackend(Backend):
 
         _, resp, timings = await self._rpc('execute(...)', inputs, ir=ir)
         typ: HailType = ir.typ
-        converted_value = ttuple(typ)._from_encoding(resp)[0]
+        if isinstance(typ, tvoid):
+            converted_value = None
+        else:
+            converted_value = ttuple(typ)._from_encoding(resp)[0]
         if timed:
             return converted_value, timings
         return converted_value
