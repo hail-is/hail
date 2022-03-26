@@ -281,7 +281,6 @@ class ServiceBackend(
   }
 
   private[this] def execute(ctx: ExecuteContext, _x: IR, bufferSpecString: String): Array[Byte] = {
-    // FIXME: do we need TypeCheck(ctx, _x)?
     // FIXME: do we need Validate(_x)?
     val x = LoweringPipeline.darrayLowerer(true)(DArrayLowering.All).apply(ctx, _x)
       .asInstanceOf[IR]
