@@ -2454,9 +2454,7 @@ class Worker:
         boundary = '----WebKitFormBoundarywiBIWjWR7osAkgFI'
 
         resp = web.StreamResponse(
-            status=200,
-            reason='OK',
-            headers={'Content-Type': f'multipart/mixed;boundary={boundary}'}
+            status=200, reason='OK', headers={'Content-Type': f'multipart/mixed;boundary={boundary}'}
         )
         await resp.prepare(request)
 
