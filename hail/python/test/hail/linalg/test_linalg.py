@@ -179,7 +179,7 @@ Caused by: is.hail.utils.HailException: bad shuffle close
 
         with hl.TemporaryFilename() as bm_f, hl.TemporaryFilename() as a_f:
             bm.tofile(bm_f)
-            a.tofile(hl.current_backend().fs.open(a_f, mode='rb'))
+            hl.current_backend().fs.open(a_f, mode='wb').write(a.tobytes())
 
             a1 = bm.to_numpy()
             a2 = BlockMatrix.from_numpy(a, block_size=5).to_numpy()
@@ -200,7 +200,7 @@ Caused by: is.hail.utils.HailException: bad shuffle close
 
         with hl.TemporaryFilename() as bmt_f, hl.TemporaryFilename() as at_f:
             bmt.tofile(bmt_f)
-            at.tofile(hl.current_backend().fs.open(at_f, mode='rb'))
+            hl.current_backend().fs.open(at_f, mode='wb').write(at.tobytes())
 
             at1 = bmt.to_numpy()
             at2 = BlockMatrix.from_numpy(at).to_numpy()

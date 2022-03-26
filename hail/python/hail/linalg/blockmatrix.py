@@ -334,6 +334,8 @@ class BlockMatrix(object):
         -------
         :class:`.BlockMatrix`
         """
+        from hail.backend.service_backend import ServiceBackend
+
         if not block_size:
             block_size = BlockMatrix.default_block_size()
 
@@ -345,7 +347,11 @@ class BlockMatrix(object):
         n_rows, n_cols = nd.shape
 
         path = hl.TemporaryFilename().name
-        nd.tofile(hl.current_backend().fs.open(path, mode='wb'))
+        if isinstance(hl.current_backend(), ServiceBackend):
+            hl.current_backend().fs.open(path, mode='wb').write(nd.tobytes())
+        else:
+            nd.tofile(path)
+            path = local_path_uri(path)
         return cls.fromfile(path, n_rows, n_cols, block_size)
 
     @classmethod
