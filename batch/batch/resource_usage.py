@@ -39,7 +39,7 @@ class ResourceUsageMonitor:
         self.last_time_ns: Optional[int] = None
         self.last_cpu_ns: Optional[int] = None
 
-        self.out = open(output_file_path, 'wb')
+        self.out = open(output_file_path, 'wb')  # pylint: disable=consider-using-with
         self.write_header()
 
         self.task: Optional[asyncio.Future] = None
@@ -52,7 +52,7 @@ class ResourceUsageMonitor:
     def cpu_ns(self) -> Optional[int]:
         usage_file = f'/sys/fs/cgroup/cpu/{self.container_name}/cpuacct.usage'
         if os.path.exists(usage_file):
-            with open(usage_file, 'r') as f:
+            with open(usage_file, 'r', encoding='utf-8') as f:
                 return int(f.read().rstrip())
         return None
 
@@ -75,7 +75,7 @@ class ResourceUsageMonitor:
     def memory_usage_bytes(self) -> Optional[int]:
         usage_file = f'/sys/fs/cgroup/memory/{self.container_name}/memory.usage_in_bytes'
         if os.path.exists(usage_file):
-            with open(usage_file, 'r') as f:
+            with open(usage_file, 'r', encoding='utf-8') as f:
                 return int(f.read().rstrip())
         return None
 

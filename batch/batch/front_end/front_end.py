@@ -1647,8 +1647,8 @@ def plot_job_durations(container_statuses: dict, batch_id: int, job_id: int):
 
 
 def plot_resource_usage(
-        resource_usage: Optional[Dict[str, Optional[pd.DataFrame]]]
-) -> Optional[str]:  # pylint: disable=unused-argument
+        resource_usage: Optional[Dict[str, Optional[pd.DataFrame]]]  # pylint: disable=unused-argument
+) -> Optional[str]:
     return None
 
 
