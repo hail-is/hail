@@ -1,6 +1,5 @@
 package is.hail.expr.ir.lowering
 
-import is.hail.utils._
 import is.hail.annotations.{Region, SafeRow, UnsafeRow}
 import is.hail.asm4s.{AsmFunction1RegionLong, AsmFunction1RegionUnit, LongInfo, UnitInfo, classInfo}
 import is.hail.backend.ExecuteContext
@@ -50,10 +49,8 @@ object LowerToCDA {
       }
 
       val addr = ctx.timer.time("Run")(f(ctx.theHailClassLoader, ctx.fs, 0, ctx.r).apply(ctx.r))
-      val lit = GetTupleElement(
-        EncodedLiteral.fromPTypeAndAddress(pt, addr, ctx),
-        0
-      )
+      val litValue = ctx.timer.time("SafeRow.convert")(SafeRow.read(pt, addr).asInstanceOf[Row].get(0))
+      val lit = Literal.coerce(value.typ, litValue)
       lower(body, typesToLower, ctx, analyses, relationalLetsAbove + ((name, lit)))
 
     case RelationalRef(name, t) =>
