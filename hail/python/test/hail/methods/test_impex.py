@@ -1806,7 +1806,6 @@ class ImportMatrixTableTests(unittest.TestCase):
             hl.import_matrix_table([resource("sampleheader2.txt"),
                                    resource("sampleheaderdiffelem.txt")], row_fields={'f0': hl.tstr}, row_key=['f0'])
 
-    @fails_service_backend()
     def test_too_few_entries(self):
         def boom():
             hl.import_matrix_table(resource("samplesmissing.txt"),
@@ -1823,7 +1822,6 @@ class ImportMatrixTableTests(unittest.TestCase):
                                    row_fields={'f0': hl.tint32},
                                    row_key=['f0'])._force_count_rows()
 
-    @fails_service_backend()
     def test_wrong_entry_type(self):
         with pytest.raises(HailUserError, match="error parsing value into int32 at column id 'col000003'"):
             hl.import_matrix_table(resource("samplenonintentries.txt"),
