@@ -587,6 +587,8 @@ def user_error(e):
             return True
     if isinstance(e, (ImageNotFound, ImageCannotBePulled)):
         return True
+    if isinstance(e, (ContainerTimeoutError, ContainerDeletedError)):
+        return True
     return False
 
 
@@ -2140,13 +2142,13 @@ class JVM:
                         break
                     finally:
                         writer.close()
-                except ConnectionRefusedError:
-                    raise
-                except FileNotFoundError as err:
+                except (FileNotFoundError, ConnectionRefusedError) as err:
                     attempts += 1
                     if attempts == 240:
+                        jvm_output = await container.container.get_log() or ''
                         raise ValueError(
-                            f'JVM-{index}: failed to establish connection after {240 * delay} seconds'
+                            f'JVM-{index}: failed to establish connection after {240 * delay} seconds. '
+                            'JVM output:\n\n' + jvm_output
                         ) from err
                     await asyncio.sleep(delay)
             return container
@@ -2155,30 +2157,26 @@ class JVM:
 
     @classmethod
     async def create(cls, index: int, n_cores: int, worker: 'Worker'):
-        while True:
-            try:
-                token = uuid.uuid4().hex
-                root_dir = f'/host/jvm-{token}'
-                socket_file = root_dir + '/socket'
-                output_file = root_dir + '/output'
-                should_interrupt = asyncio.Event()
-                await blocking_to_async(worker.pool, os.makedirs, root_dir)
-                container = await cls.create_container_and_connect(
-                    index, n_cores, socket_file, root_dir, worker.client_session, worker.pool
-                )
-                return cls(
-                    index,
-                    n_cores,
-                    socket_file,
-                    root_dir,
-                    output_file,
-                    should_interrupt,
-                    container,
-                    worker.client_session,
-                    worker.pool,
-                )
-            except ConnectionRefusedError:
-                pass
+        token = uuid.uuid4().hex
+        root_dir = f'/host/jvm-{token}'
+        socket_file = root_dir + '/socket'
+        output_file = root_dir + '/output'
+        should_interrupt = asyncio.Event()
+        await blocking_to_async(worker.pool, os.makedirs, root_dir)
+        container = await cls.create_container_and_connect(
+            index, n_cores, socket_file, root_dir, worker.client_session, worker.pool
+        )
+        return cls(
+            index,
+            n_cores,
+            socket_file,
+            root_dir,
+            output_file,
+            should_interrupt,
+            container,
+            worker.client_session,
+            worker.pool,
+        )
 
     async def new_connection(self):
         while True:
@@ -2356,9 +2354,9 @@ class Worker:
                 log.info('shutdown task manager')
             finally:
                 try:
-                    if self.fs:
-                        await self.fs.close()
-                        log.info('closed worker file system')
+                    if self.file_store:
+                        await self.file_store.close()
+                        log.info('closed file store')
                 finally:
                     try:
                         if self.compute_client:
@@ -2366,9 +2364,9 @@ class Worker:
                             log.info('closed compute client')
                     finally:
                         try:
-                            if self.file_store:
-                                await self.file_store.close()
-                                log.info('closed file store')
+                            if self.fs:
+                                await self.fs.close()
+                                log.info('closed worker file system')
                         finally:
                             await self.client_session.close()
                             log.info('closed client session')
