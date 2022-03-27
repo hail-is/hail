@@ -419,7 +419,8 @@ class BlockMatrix(object):
         path = new_temp_file()
         cls.write_from_entry_expr(entry_expr, path, overwrite=False, mean_impute=mean_impute,
                                   center=center, normalize=normalize, axis=axis, block_size=block_size)
-        return cls.read(path, _assert_type=self._bmir._type)
+        return cls.read(path)
+
     @classmethod
     @typecheck_method(n_rows=int,
                       n_cols=int,
