@@ -153,6 +153,16 @@ class HailContext(object):
         ReferenceGenome._references = {}
 
 
+def choose_backend(backend: Optional[str] = None) -> str:
+    return (
+        backend
+        or os.environ.get('HAIL_QUERY_BACKEND', None)
+        or get_user_config().get('query', 'backend', fallback=None)
+        or 'spark'
+    )
+
+
+
 @typecheck(sc=nullable(SparkContext),
            app_name=str,
            master=nullable(str),
@@ -280,12 +290,7 @@ def init(sc=None, app_name='Hail', master=None, local='local[*]',
             warning('Hail has already been initialized. If this call was intended to change configuration,'
                     ' close the session with hl.stop() first.')
 
-    backend = (
-        backend
-        or os.environ.get('HAIL_QUERY_BACKEND', None)
-        or get_user_config().get('query', 'backend', fallback=None)
-        or 'spark'
-    )
+    backend = choose_backend(backend)
 
     if backend == 'service':
         warnings.warn(

@@ -1,4 +1,3 @@
-import asyncio
 import os
 from timeit import default_timer as timer
 import unittest
@@ -7,7 +6,7 @@ from decorator import decorator
 
 from hail.utils.java import Env
 import hail as hl
-from hail.backend.local_backend import LocalBackend
+from hail.context import choose_backend
 
 _initialized = False
 
@@ -155,22 +154,19 @@ def skip_unless_service_backend(message='only relevant to service backend'):
 
 
 fails_local_backend = pytest.mark.xfail(
-    os.environ.get('HAIL_QUERY_BACKEND') == 'local',
+    choose_backend() == 'local',
     reason="doesn't yet work on local backend",
     strict=True)
 
 
 fails_service_backend = pytest.mark.xfail(
-    os.environ.get('HAIL_QUERY_BACKEND') == 'service',
+    choose_backend() == 'batch',
     reason="doesn't yet work on service backend",
     strict=True)
 
-def check_spark():
-    backend_name = os.environ.get('HAIL_QUERY_BACKEND', 'spark')
-    return backend_name == 'spark'
 
 fails_spark_backend = pytest.mark.xfail(
-    check_spark(),
+    choose_backend() == 'spark',
     reason="doesn't yet work on spark backend",
     strict=True)
 
