@@ -210,7 +210,7 @@ class ServiceBackend(Backend):
                      remote_tmpdir: Optional[str] = None,
                      flags: Optional[Dict[str, str]] = None,
                      jar_url: Optional[str] = None,
-                     driver_cores: Optional[int] = None,
+                     driver_cores: Optional[Union[int, str]] = None,
                      driver_memory: Optional[Union[int, str]] = None):
         del skip_logging_configuration
 
@@ -260,8 +260,8 @@ class ServiceBackend(Backend):
                  remote_tmpdir: str,
                  flags: Dict[str, str],
                  jar_spec: JarSpec,
-                 driver_cores: Optional[int],
-                 driver_memory: Optional[Union[str, int]]):
+                 driver_cores: Optional[Union[int, str]],
+                 driver_memory: Optional[Union[int, str]]):
         self.billing_project = billing_project
         self._sync_fs = sync_fs
         self._async_fs = async_fs
@@ -346,8 +346,8 @@ class ServiceBackend(Backend):
                     mount_tokens=True,
                     resources={
                         'preemptible': False,
-                        'cpu': self.driver_cores or '1',
-                        'memory': self.driver_memory or 'standard'
+                        'cpu': str(self.driver_cores or '1'),
+                        'memory': str(self.driver_memory or 'standard')
                     }
                 )
                 b = await bb.submit(disable_progress_bar=self.disable_progress_bar)
