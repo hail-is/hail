@@ -2286,7 +2286,7 @@ class ApplySeeded(IR):
     def __init__(self, function, seed, return_type, *args):
         if hail.current_backend().requires_lowering:
             warning("Seeded randomness is currently unreliable on the service. "
-                    "You may observe some unexpected behavior. Don't use for real work yet." )
+                    "You may observe some unexpected behavior. Don't use for real work yet.")
         super().__init__(*args)
         self.function = function
         self.args = args
