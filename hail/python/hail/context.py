@@ -403,7 +403,9 @@ def init_spark(sc=None,
     global_seed=nullable(int),
     disable_progress_bar=bool,
     driver_cores=nullable(oneof(str, int)),
-    driver_memory=nullable(str))
+    driver_memory=nullable(str),
+    name_prefix=nullable(str)
+)
 async def init_batch(
         *,
         billing_project: Optional[str] = None,
@@ -416,9 +418,9 @@ async def init_batch(
         default_reference: str = 'GRCh37',
         global_seed: int = 6348563392232659379,
         disable_progress_bar: bool = True,
-        name_prefix: Optional[str] = None,
         driver_cores: Optional[Union[str, int]] = None,
-        driver_memory: Optional[str] = None
+        driver_memory: Optional[str] = None,
+        name_prefix: Optional[str] = None
 ):
     from hail.backend.service_backend import ServiceBackend
     # FIXME: pass local_tmpdir and use on worker and driver
