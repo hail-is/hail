@@ -773,8 +773,8 @@ WHERE user = %s AND id = %s AND NOT deleted;
                     jvm_requested_cpu = parse_cpu_in_mcpu(resources.get('cpu', BATCH_JOB_DEFAULT_CPU))
                     if 'cpu' in resources and jvm_requested_cpu not in (1000, 8000):
                         raise web.HTTPBadRequest(reason='invalid cpu for jvm jobs. must be 1 or 8')
-                    if 'memory' in resources and resources['memory'] == 'highcpu':
-                        raise web.HTTPBadRequest(reason='jvm jobs cannot be on highcpu machines')
+                    if 'memory' in resources and resources['memory'] == 'lowmem':
+                        raise web.HTTPBadRequest(reason='jvm jobs cannot be on lowmem machines')
                     if 'storage' in resources:
                         raise web.HTTPBadRequest(reason='jvm jobs may not specify storage')
                     if machine_type is not None:
