@@ -120,7 +120,7 @@ case class BlockMatrixBinaryWriter(path: String) extends BlockMatrixWriter {
 
     val etype = ENumpyBinaryNDArray(bm.typ.nRows, bm.typ.nCols, true)
     val spec = TypedCodecSpec(etype, TNDArray(bm.typ.elementType, Nat(2)), new StreamBufferSpec())
-    WriteValue(nd, Str(path), spec)
+    bindIR(WriteValue(nd, Str(path), spec)){ path => Void() }
   }
 }
 
