@@ -235,14 +235,14 @@ class ServiceBackend(Backend):
         driver_cores = (
             driver_cores
             or os.environ.get('HAIL_QUERY_BATCH_DRIVER_CORES', None)
-            or get_user_config().get('query', 'batch_driver_cores')
+            or get_user_config().get('query', 'batch_driver_cores', fallback=None)
             or '1'
         )
 
         driver_memory = (
             driver_memory
             or os.environ.get('HAIL_QUERY_BATCH_DRIVER_MEMORY', None)
-            or get_user_config().get('query', 'batch_driver_memory')
+            or get_user_config().get('query', 'batch_driver_memory', fallback=None)
             or 'standard'
         )
 

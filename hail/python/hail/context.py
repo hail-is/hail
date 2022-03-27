@@ -283,7 +283,7 @@ def init(sc=None, app_name='Hail', master=None, local='local[*]',
     backend = (
         backend
         or os.environ.get('HAIL_QUERY_BACKEND', None)
-        or get_user_config().get('query', 'backend')
+        or get_user_config().get('query', 'backend', fallback=None)
         or 'spark'
     )
 
