@@ -2142,8 +2142,6 @@ class JVM:
                         break
                     finally:
                         writer.close()
-                except ConnectionRefusedError:
-                    raise
                 except FileNotFoundError as err:
                     attempts += 1
                     if attempts == 240:
