@@ -2297,7 +2297,7 @@ class Worker:
         self._jvms: SortedSet[JVM] = SortedSet([], key=lambda jvm: jvm.n_cores)
 
     async def _initialize_jvms(self):
-        if instance_config.worker_type() in ('standard', 'D'):
+        if instance_config.worker_type() in ('standard', 'D', 'highmem', 'E'):
             jvms = await asyncio.gather(
                 *[JVM.create(i, 1, self) for i in range(CORES)],
                 *[JVM.create(CORES + i, 8, self) for i in range(CORES // 8)],
@@ -2306,6 +2306,8 @@ class Worker:
         log.info(f'JVMs initialized {self._jvms}')
 
     async def borrow_jvm(self, n_cores: int) -> JVM:
+        if instance_config.worker_type() not in ('standard', 'D', 'highmem', 'E'):
+            raise ValueError(f'no JVMs available on {instance_config.worker_type()}')
         await self._jvm_initializer_task
         assert self._jvms
         index = self._jvms.bisect_key_left(n_cores)
