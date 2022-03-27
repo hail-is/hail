@@ -5,14 +5,14 @@ Hail Query-on-Batch
 .. warning::
 
     Hail Query-on-Batch (the Batch backend) is currently in beta. This means some functionality is
-    not yet working. Please `contact us <https://discuss.hail.is>` if you would like to use missing
+    not yet working. Please `contact us <https://discuss.hail.is>`__ if you would like to use missing
     functionality on Query-on-Batch!
 
 
 Hail Query-on-Batch uses Hail Batch instead of Apache Spark. Instead of a Dataproc cluster, you will
 need a Hail Batch cluster. For more information on using Hail Batch, see the `Hail Batch docs
-<https://hail.is/docs/batch/>`. For more information on deploying a Hail Batch cluster, please
-contact the Hail Team at our `discussion forum <https://discuss.hail.is>`.
+<https://hail.is/docs/batch/>`__. For more information on deploying a Hail Batch cluster, please
+contact the Hail Team at our `discussion forum <https://discuss.hail.is>`__.
 
 Getting Started
 ---------------
@@ -23,12 +23,18 @@ Getting Started
 
     pip install 'hail>=0.2.93'
 
-2. `Sign up for a Hail Batch account <https://auth.hail.is/signup>` (currently only available to
+2. `Sign up for a Hail Batch account <https://auth.hail.is/signup>`__ (currently only available to
    Broad affiliates).
+
+3. Authenticate with Hail Batch.
+
+.. code-block:: text
+
+    hailctl auth login
 
 3. Specify a bucket for Hail to use for temporary intermediate files. In Google Cloud, we recommend
    using a bucket with `automatic deletion after a set period of time
-   <https://cloud.google.com/storage/docs/lifecycle>`.
+   <https://cloud.google.com/storage/docs/lifecycle>`__.
 
 .. code-block:: text
 
@@ -36,7 +42,7 @@ Getting Started
 
 4. Specify a Hail Batch billing project (these are different from Google Cloud projects). Every new
    user has a trial billing project loaded with 10 USD. The name is available on the `Hail User
-   account page <https://auth.hail.is/user>`.
+   account page <https://auth.hail.is/user>`__.
 
 .. code-block:: text
 
@@ -48,7 +54,7 @@ Getting Started
 
     hailctl config set query/backend batch
 
-6. Now you are ready to `try Hail <../install/try.rst>`!
+6. Now you are ready to `try Hail <../install/try.rst>`__!
 
 .. _vep_query_on_batch:
 
@@ -56,4 +62,4 @@ Variant Effect Predictor (VEP)
 ------------------------------
 
 More information coming very soon. If you want to use VEP with Hail Query-on-Batch, please contact
-the Hail Team at our `discussion forum <https://discuss.hail.is>`.
+the Hail Team at our `discussion forum <https://discuss.hail.is>`__.
