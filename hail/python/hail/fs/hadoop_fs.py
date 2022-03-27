@@ -80,6 +80,9 @@ class HadoopFS(FS):
     def supports_scheme(self, scheme: str) -> bool:
         return self._jfs.supportsScheme(scheme)
 
+    def canonicalize_path(self, path: str) -> str:
+        return self._jfs.makeQualified(path)
+
 
 class HadoopReader(io.RawIOBase):
     def __init__(self, hfs, path, buffer_size, use_codec=False):

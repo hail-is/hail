@@ -2,9 +2,11 @@ from typing import List, AsyncContextManager, BinaryIO
 import asyncio
 import io
 import nest_asyncio
+import os
 
-from hailtop.aiotools.router_fs import RouterAsyncFS
 from hailtop.aiotools.fs import Copier, Transfer, FileListEntry, ReadableStream, WritableStream
+from hailtop.aiotools.local_fs import LocalAsyncFS
+from hailtop.aiotools.router_fs import RouterAsyncFS
 from hailtop.utils import OnlineBoundedGather2, async_to_blocking
 
 from .fs import FS
@@ -249,3 +251,10 @@ class RouterFS(FS):
 
     def supports_scheme(self, scheme: str) -> bool:
         return scheme in self.afs.schemes
+
+    def canonicalize_path(self, path: str) -> str:
+        if isinstance(self.afs._get_fs(path), LocalAsyncFS):
+            if path.startswith('file:'):
+                return 'file:' + os.path.realpath(path[5:])
+            return 'file:' + os.path.realpath(path)
+        return path

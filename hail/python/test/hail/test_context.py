@@ -9,7 +9,6 @@ tearDownModule = stopTestHailContext
 
 
 class Tests(unittest.TestCase):
-    @fails_service_backend()
     def test_init_hail_context_twice(self):
         hl.init(idempotent=True)  # Should be no error
         hl.stop()

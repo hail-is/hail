@@ -1,7 +1,8 @@
-from typing import Mapping, List, Dict, Optional, Any
+from typing import Mapping, List, Union, Tuple, Dict, Optional, Any
 import abc
 from ..fs.fs import FS
 from ..expr import Expression
+from ..expr.types import HailType
 from ..ir import BaseIR
 from ..utils.java import FatalError, HailUserError
 
@@ -127,6 +128,7 @@ class Backend(abc.ABC):
         pass
 
     def persist_table(self, t, storage_level):
+        # FIXME: this can't possibly be right.
         return t
 
     def unpersist_table(self, t):
@@ -142,7 +144,13 @@ class Backend(abc.ABC):
         pass
 
     @abc.abstractmethod
-    def register_ir_function(self, name, type_parameters, argument_names, argument_types, return_type, body):
+    def register_ir_function(self,
+                             name: str,
+                             type_parameters: Union[Tuple[HailType, ...], List[HailType]],
+                             value_parameter_names: Union[Tuple[str, ...], List[str]],
+                             value_parameter_types: Union[Tuple[HailType, ...], List[HailType]],
+                             return_type: HailType,
+                             body: Expression):
         pass
 
     @abc.abstractmethod

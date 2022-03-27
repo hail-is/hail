@@ -28,8 +28,8 @@ from hail.table import Table
 from hail.typecheck import (typecheck, typecheck_method, nullable, oneof,
                             sliceof, sequenceof, lazy, enumeration, numeric, tupleof, func_spec,
                             sized_tupleof)
-from hail.utils import (new_temp_file, new_local_temp_file, local_path_uri,
-                        storage_level, with_local_temp_file)
+from hail.utils import (new_temp_file, local_path_uri, storage_level, with_local_temp_file,
+                        new_local_temp_file)
 from hail.utils.java import Env
 
 block_matrix_type = lazy()
@@ -335,6 +335,8 @@ class BlockMatrix(object):
         -------
         :class:`.BlockMatrix`
         """
+        from hail.backend.service_backend import ServiceBackend
+
         if not block_size:
             block_size = BlockMatrix.default_block_size()
 
@@ -345,9 +347,14 @@ class BlockMatrix(object):
         nd = _ndarray_as_float64(nd)
         n_rows, n_cols = nd.shape
 
-        path = new_local_temp_file()
-        uri = local_path_uri(path)
-        nd.tofile(path)
+        if isinstance(hl.current_backend(), ServiceBackend):
+            path = hl.TemporaryFilename().name
+            hl.current_backend().fs.open(path, mode='wb').write(nd.tobytes())
+            uri = path
+        else:
+            path = new_local_temp_file()
+            nd.tofile(path)
+            uri = local_path_uri(path)
         return cls.fromfile(uri, n_rows, n_cols, block_size)
 
     @classmethod
@@ -1203,11 +1210,19 @@ class BlockMatrix(object):
         -------
         :class:`numpy.ndarray`
         """
+        from hail.backend.service_backend import ServiceBackend
 
         if self.n_rows * self.n_cols > 1 << 31 or _force_blocking:
             path = new_temp_file()
             self.export_blocks(path, binary=True)
             return BlockMatrix.rectangles_to_numpy(path, binary=True)
+
+        if isinstance(hl.current_backend(), ServiceBackend):
+            with hl.TemporaryFilename() as path:
+                self.tofile(path)
+                return np.frombuffer(
+                    hl.current_backend().fs.open(path, mode='rb').read()
+                ).reshape((self.n_rows, self.n_cols))
 
         with with_local_temp_file() as path:
             uri = local_path_uri(path)

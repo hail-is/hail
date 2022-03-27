@@ -1,4 +1,4 @@
-from typing import Mapping
+from typing import Mapping, Union, Tuple, List
 import abc
 
 import py4j
@@ -10,6 +10,8 @@ from hail.ir import JavaIR
 from hail.ir.renderer import CSERenderer
 from hail.utils.java import FatalError, Env
 from .backend import Backend, fatal_error_from_java_error_triplet
+from ..expr import Expression
+from ..expr.types import HailType
 
 
 def handle_java_exception(f):
@@ -69,15 +71,22 @@ class Py4JBackend(Backend):
     def _to_java_value_ir(self, ir):
         pass
 
-    def register_ir_function(self, name, type_parameters, argument_names, argument_types, return_type, body):
+    def register_ir_function(self,
+                             name: str,
+                             type_parameters: Union[Tuple[HailType, ...], List[HailType]],
+                             value_parameter_names: Union[Tuple[str, ...], List[str]],
+                             value_parameter_types: Union[Tuple[HailType, ...], List[HailType]],
+                             return_type: HailType,
+                             body: Expression):
         r = CSERenderer(stop_at_jir=True)
         code = r(body._ir)
-        jbody = (self._parse_value_ir(code, ref_map=dict(zip(argument_names, argument_types)), ir_map=r.jirs))
+        jbody = (self._parse_value_ir(code, ref_map=dict(zip(value_parameter_names, value_parameter_types)), ir_map=r.jirs))
 
         Env.hail().expr.ir.functions.IRFunctionRegistry.pyRegisterIR(
             name,
             [ta._parsable_string() for ta in type_parameters],
-            argument_names, [pt._parsable_string() for pt in argument_types],
+            value_parameter_names,
+            [pt._parsable_string() for pt in value_parameter_types],
             return_type._parsable_string(),
             jbody)
 

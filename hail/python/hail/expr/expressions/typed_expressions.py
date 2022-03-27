@@ -3106,8 +3106,8 @@ class StringExpression(Expression):
     @typecheck_method(regex=expr_str, full_match=nullable(bool))
     def matches(self, regex, full_match=False):
         """Returns ``True`` if the string contains any match for the given regex if
-        full_match is false. Returns ``True`` if the whole string matches the
-        given regex if full_match is true.
+        `full_match` is false. Returns ``True`` if the whole string matches the
+        given regex if `full_match` is true.
 
         Examples
         --------
@@ -3156,8 +3156,8 @@ class StringExpression(Expression):
         Returns
         -------
         :class:`.BooleanExpression`
-            If full_match is ``False``,``True`` if the string contains any match for the regex, otherwise ``False``.
-            If full_match is ``True``,``True`` if the whole string matches the regex, otherwise ``False``.
+            If `full_match` is ``False``,``True`` if the string contains any match for the regex, otherwise ``False``.
+            If `full_match` is ``True``,``True`` if the whole string matches the regex, otherwise ``False``.
         """
         if full_match is False:
             return regex._method("regexMatch", tbool, self)

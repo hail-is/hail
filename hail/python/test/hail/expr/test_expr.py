@@ -1377,13 +1377,11 @@ Caused by: is.hail.utils.HailException: Premature end of file: expected 4 bytes,
             self.assertTrue(r.sum_x == -15 and r.sum_y == 10 and r.sum_empty == 0 and
                             r.prod_x == -120 and r.prod_y == 0 and r.prod_empty == 1)
 
-    @fails_service_backend
     def test_aggregators_hist(self):
         table = hl.utils.range_table(11)
         r = table.aggregate(hl.agg.hist(table.idx - 1, 0, 8, 4))
         self.assertTrue(r.bin_edges == [0, 2, 4, 6, 8] and r.bin_freq == [2, 2, 2, 3] and r.n_smaller == 1 and r.n_larger == 1)
 
-    @fails_service_backend()
     def test_aggregators_hist_neg0(self):
         table = hl.utils.range_table(32)
         table = table.annotate(d=hl.if_else(table.idx == 11, -0.0, table.idx / 3))
@@ -1393,7 +1391,6 @@ Caused by: is.hail.utils.HailException: Premature end of file: expected 4 bytes,
         self.assertEqual(r.n_smaller, 0)
         self.assertEqual(r.n_larger, 1)
 
-    @fails_service_backend()
     def test_aggregators_hist_nan(self):
         ht = hl.utils.range_table(3).annotate(x=hl.float('nan'))
         r = ht.aggregate(hl.agg.hist(ht.x, 0, 10, 2))
@@ -1429,7 +1426,6 @@ Caused by: is.hail.utils.HailException: Premature end of file: expected 4 bytes,
     # r2adj = sumfit$adj.r.squared
     # f = sumfit$fstatistic
     # p = pf(f[1],f[2],f[3],lower.tail=F)
-    @fails_service_backend()
     def test_aggregators_linreg(self):
         t = hl.Table.parallelize([
             {"y": None, "x": 1.0},
@@ -1487,7 +1483,6 @@ Caused by: is.hail.utils.HailException: Premature end of file: expected 4 bytes,
         self.assertAlmostEqual(r.multiple_p_value, 0.56671386)
         self.assertAlmostEqual(r.n, 5)
 
-    @fails_service_backend()
     def test_linreg_no_data(self):
         ht = hl.utils.range_table(1).filter(False)
         r = ht.aggregate(hl.agg.linreg(ht.idx, 0))
@@ -2559,7 +2554,6 @@ Caused by: java.lang.AssertionError: assertion failed
             (hl.literal(None, dtype='int32'), None),
             (hl.literal(None, dtype='int64'), None)])
 
-    @fails_service_backend()
     def test_is_transition(self):
         _test_many_equal([
             (hl.is_transition("A", "G"), True),
@@ -2569,7 +2563,6 @@ Caused by: java.lang.AssertionError: assertion failed
             (hl.is_transition("ACA", "AGA"), False),
             (hl.is_transition("A", "T"), False)])
 
-    @fails_service_backend()
     def test_is_transversion(self):
         _test_many_equal([
             (hl.is_transversion("A", "T"), True),
@@ -2578,7 +2571,6 @@ Caused by: java.lang.AssertionError: assertion failed
             (hl.is_transversion("AA", "T"), False),
             (hl.is_transversion("ACCC", "ACCT"), False)])
 
-    @fails_service_backend()
     def test_is_snp(self):
         _test_many_equal([
             (hl.is_snp("A", "T"), True),
@@ -2588,36 +2580,30 @@ Caused by: java.lang.AssertionError: assertion failed
             (hl.is_snp("AT", "AG"), True),
             (hl.is_snp("ATCCC", "AGCCC"), True)])
 
-    @fails_service_backend()
     def test_is_mnp(self):
         _test_many_equal([
             (hl.is_mnp("ACTGAC", "ATTGTT"), True),
             (hl.is_mnp("CA", "TT"), True)])
 
-    @fails_service_backend()
     def test_is_insertion(self):
         _test_many_equal([
             (hl.is_insertion("A", "ATGC"), True),
             (hl.is_insertion("ATT", "ATGCTT"), True)])
 
-    @fails_service_backend()
     def test_is_deletion(self):
         self.assertTrue(hl.eval(hl.is_deletion("ATGC", "A")))
         self.assertTrue(hl.eval(hl.is_deletion("GTGTA", "GTA")))
 
-    @fails_service_backend()
     def test_is_indel(self):
         self.assertTrue(hl.eval(hl.is_indel("A", "ATGC")))
         self.assertTrue(hl.eval(hl.is_indel("ATT", "ATGCTT")))
         self.assertTrue(hl.eval(hl.is_indel("ATGC", "A")))
         self.assertTrue(hl.eval(hl.is_indel("GTGTA", "GTA")))
 
-    @fails_service_backend()
     def test_is_complex(self):
         self.assertTrue(hl.eval(hl.is_complex("CTA", "ATTT")))
         self.assertTrue(hl.eval(hl.is_complex("A", "TATGC")))
 
-    @fails_service_backend()
     def test_is_star(self):
         self.assertTrue(hl.eval(hl.is_star("ATC", "*")))
         self.assertTrue(hl.eval(hl.is_star("A", "*")))
@@ -2626,7 +2612,6 @@ Caused by: java.lang.AssertionError: assertion failed
         self.assertTrue(hl.eval(hl.is_strand_ambiguous("A", "T")))
         self.assertFalse(hl.eval(hl.is_strand_ambiguous("G", "T")))
 
-    @fails_service_backend()
     def test_allele_type(self):
         self.assertEqual(
             hl.eval(hl.tuple((
@@ -3176,8 +3161,6 @@ Caused by: java.lang.AssertionError: assertion failed
 +---------+
 '''
 
-    @fails_service_backend()
-    @fails_local_backend()
     def test_export(self):
         for delimiter in ['\t', ',', '@']:
             for missing in ['NA', 'null']:
@@ -3645,7 +3628,6 @@ Caused by: java.lang.AssertionError: assertion failed
         self.assert_evals_to(hl.set([1, 2, 3]) ^ set([3, 4, 5]), set([1, 2, 4, 5]))
         self.assert_evals_to(set([1, 2, 3]) ^ hl.set([3, 4, 5]), set([1, 2, 4, 5]))
 
-    @fails_service_backend()
     def test_uniroot(self):
         tol = 1.220703e-4
 

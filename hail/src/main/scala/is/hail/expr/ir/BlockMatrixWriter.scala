@@ -6,10 +6,10 @@ import is.hail.asm4s._
 import is.hail.backend.ExecuteContext
 import is.hail.expr.Nat
 import is.hail.expr.ir.lowering.{BlockMatrixStage, LowererUnsupportedOperation}
-import is.hail.io.TypedCodecSpec
+import is.hail.io.{StreamBufferSpec, TypedCodecSpec}
 import is.hail.io.fs.FS
 import is.hail.linalg.{BlockMatrix, BlockMatrixMetadata}
-import is.hail.types.encoded.{EBlockMatrixNDArray, EType}
+import is.hail.types.encoded.{EBlockMatrixNDArray, ENumpyBinaryNDArray, EType}
 import is.hail.types.virtual.{TArray, TNDArray, TString, Type}
 import is.hail.types.{BlockMatrixType, TypeWithRequiredness}
 import is.hail.utils._
@@ -113,6 +113,14 @@ case class BlockMatrixBinaryWriter(path: String) extends BlockMatrixWriter {
   def pathOpt: Option[String] = Some(path)
   def apply(ctx: ExecuteContext, bm: BlockMatrix): Unit = {
     RichDenseMatrixDouble.exportToDoubles(ctx.fs, path, bm.toBreezeMatrix(), forceRowMajor = true)
+  }
+
+  override def lower(ctx: ExecuteContext, s: BlockMatrixStage, bm: BlockMatrixIR, relationalBindings: Map[String, IR], eltR: TypeWithRequiredness): IR = {
+    val nd = s.collectLocal(relationalBindings, bm.typ)
+
+    val etype = ENumpyBinaryNDArray(bm.typ.nRows, bm.typ.nCols, true)
+    val spec = TypedCodecSpec(etype, TNDArray(bm.typ.elementType, Nat(2)), new StreamBufferSpec())
+    WriteValue(nd, Str(path), spec)
   }
 }
 

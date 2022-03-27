@@ -1,6 +1,8 @@
 import hail as hl
 from hail.expr.expressions import expr_any, analyze
-from hail.typecheck import typecheck
+from hail.expr.types import hail_type
+from hail.expr.table_type import ttable
+from hail.typecheck import typecheck, nullable
 
 
 @typecheck(expr=expr_any, path=str, overwrite=bool)
@@ -39,11 +41,11 @@ def write_expression(expr, path, overwrite=False):
         analyze('write_expression.expr', expr, source._global_indices)
         source = source.select_globals(__expr=expr)
         expr = source.index_globals().__expr
-    hl.utils.range_table(1).filter(False).annotate_globals(expr=expr).write(path, overwrite=overwrite)
+    hl.utils.range_table(1).filter(False).key_by().drop('idx').annotate_globals(expr=expr).write(path, overwrite=overwrite)
 
 
-@typecheck(path=str)
-def read_expression(path):
+@typecheck(path=str, _assert_type=nullable(hail_type))
+def read_expression(path, _assert_type=None):
     """Read an :class:`~.Expression` written with :func:`.experimental.write_expression`.
 
    Example
@@ -62,4 +64,9 @@ def read_expression(path):
    -------
    :class:`~.Expression`
     """
-    return hl.read_table(path).index_globals().expr
+    _assert_table_type = None
+    _load_refs = True
+    if _assert_type:
+        _assert_table_type = ttable(hl.tstruct(expr=_assert_type), row_type=hl.tstruct(), row_key=[])
+        _load_refs = False
+    return hl.read_table(path, _assert_type=_assert_table_type, _load_refs=_load_refs).index_globals().expr

@@ -5,7 +5,7 @@ import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.backend.ExecuteContext
 import is.hail.expr.ir.functions.MatrixWriteBlockMatrix
-import is.hail.expr.ir.lowering.{LowererUnsupportedOperation, TableStage}
+import is.hail.expr.ir.lowering.{LowererUnsupportedOperation, RVDToTableStage, TableStage}
 import is.hail.expr.ir.streams.StreamProducer
 import is.hail.expr.{JSONAnnotationImpex, Nat}
 import is.hail.io._
@@ -390,10 +390,15 @@ case class MatrixVCFWriter(
 ) extends MatrixWriter {
   def apply(ctx: ExecuteContext, mv: MatrixValue): Unit = {
     val appendStr = getAppendHeaderValue(ctx.fs)
-    ExportVCF(ctx, mv, path, appendStr, exportType, metadata, tabix)
+    val tv = mv.toTableValue
+    val ts = RVDToTableStage(tv.rvd, tv.globals.toEncodedLiteral(ctx.theHailClassLoader))
+    val tl = TableLiteral(tv, ctx.theHailClassLoader)
+    CompileAndEvaluate(ctx,
+      lower(LowerMatrixIR.colsFieldName, MatrixType.entriesIdentifier, mv.typ.colKey,
+        ctx, ts, tl, BaseTypeWithRequiredness(tv.typ).asInstanceOf[RTable], Map()))
   }
 
-  override def canLowerEfficiently: Boolean = exportType != ExportType.PARALLEL_COMPOSABLE
+  override def canLowerEfficiently: Boolean = true
   override def lower(colsFieldName: String, entriesFieldName: String, colKey: IndexedSeq[String],
       ctx: ExecuteContext, ts: TableStage, t: TableIR, r: RTable, relationalLetsAbove: Map[String, IR]): IR = {
     require(exportType != ExportType.PARALLEL_COMPOSABLE)

@@ -6,6 +6,7 @@ import is.hail.expr.ir._
 import is.hail.types._
 import is.hail.utils._
 import is.hail.asm4s.coerce
+import is.hail.backend.ExecuteContext
 import is.hail.experimental.ExperimentalFunctions
 import is.hail.types.physical._
 import is.hail.types.physical.stypes.{EmitType, SCode, SType, SValue}
@@ -80,6 +81,39 @@ object IRFunctionRegistry {
         Subst(body,
           BindingEnv(Env[IR](argNames.asScala.zip(args): _*)))
       })
+  }
+
+  def pyRegisterIRForServiceBackend(
+    ctx: ExecuteContext,
+    name: String,
+    typeParamStrs: Array[String],
+    argNames: Array[String],
+    argTypeStrs: Array[String],
+    returnType: String,
+    bodyStr: String
+  ): Unit = {
+    requireJavaIdentifier(name)
+
+    val typeParameters = typeParamStrs.map(IRParser.parseType).toFastIndexedSeq
+    val valueParameterTypes = argTypeStrs.map(IRParser.parseType).toFastIndexedSeq
+    val refMap = argNames.zip(valueParameterTypes).toMap
+    val body = IRParser.parse_value_ir(
+      bodyStr,
+      IRParserEnvironment(ctx, refMap, Map())
+    )
+
+    userAddedFunctions += ((name, (body.typ, typeParameters, valueParameterTypes)))
+    addIR(
+      name,
+      typeParameters,
+      valueParameterTypes,
+      IRParser.parseType(returnType),
+      false,
+      { (_, args, _) =>
+        Subst(body,
+          BindingEnv(Env[IR](argNames.zip(args): _*)))
+      }
+    )
   }
 
   def removeIRFunction(
