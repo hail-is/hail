@@ -224,8 +224,8 @@ def init(sc=None, app_name='Hail', master=None, local='local[*]',
     Parameters
     ----------
     sc : pyspark.SparkContext, optional
-        Spark Backend only. Spark context. If none is specified, the Spark backend
-        will create a Spark context will be created.
+        Spark Backend only. Spark context. If not specified, the Spark backend will create a new
+        Spark context.
     app_name : :class:`str`
         A name for this pipeline. In the Spark backend, this becomes the Spark application name. In
         the Batch backend, this is a prefix for the name of every Batch.

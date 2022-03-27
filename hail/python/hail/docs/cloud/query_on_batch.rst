@@ -9,10 +9,10 @@ Hail Query-on-Batch
     functionality on Query-on-Batch!
 
 
-Hail Query-on-Batch uses Hail Batch instead of Apache Spark. Instead of a Dataproc cluster, you will
-need a Hail Batch cluster. For more information on using Hail Batch, see the `Hail Batch docs
-<https://hail.is/docs/batch/>`__. For more information on deploying a Hail Batch cluster, please
-contact the Hail Team at our `discussion forum <https://discuss.hail.is>`__.
+Hail Query-on-Batch uses Hail Batch instead of Apache Spark to execute jobs. Instead of a Dataproc
+cluster, you will need a Hail Batch cluster. For more information on using Hail Batch, see the `Hail
+Batch docs <https://hail.is/docs/batch/>`__. For more information on deploying a Hail Batch cluster,
+please contact the Hail Team at our `discussion forum <https://discuss.hail.is>`__.
 
 Getting Started
 ---------------
