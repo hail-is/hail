@@ -2,7 +2,15 @@ import sys
 import re
 
 import hail
-from hail.context import choose_backend
+
+
+def choose_backend(backend: Optional[str] = None) -> str:
+    return (
+        backend
+        or os.environ.get('HAIL_QUERY_BACKEND', None)
+        or get_user_config().get('query', 'backend', fallback=None)
+        or 'spark'
+    )
 
 
 class FatalError(Exception):

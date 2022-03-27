@@ -11,7 +11,7 @@ import hail
 from hail.genetics.reference_genome import ReferenceGenome
 from hail.typecheck import nullable, typecheck, typecheck_method, enumeration, dictof, oneof
 from hail.utils import get_env_or_default
-from hail.utils.java import Env, warning
+from hail.utils.java import Env, warning, choose_backend
 from hail.backend import Backend
 from hailtop.utils import secret_alnum_string
 from hailtop.config import get_user_config
@@ -151,15 +151,6 @@ class HailContext(object):
         Env._seed_generator = None
         hail.ir.clear_session_functions()
         ReferenceGenome._references = {}
-
-
-def choose_backend(backend: Optional[str] = None) -> str:
-    return (
-        backend
-        or os.environ.get('HAIL_QUERY_BACKEND', None)
-        or get_user_config().get('query', 'backend', fallback=None)
-        or 'spark'
-    )
 
 
 @typecheck(sc=nullable(SparkContext),

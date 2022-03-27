@@ -4,9 +4,8 @@ import unittest
 import pytest
 from decorator import decorator
 
-from hail.utils.java import Env
+from hail.utils.java import Env, choose_backend
 import hail as hl
-from hail.context import choose_backend
 
 _initialized = False
 
