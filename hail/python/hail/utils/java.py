@@ -59,8 +59,8 @@ class Env:
 
             backend_name = os.environ.get('HAIL_QUERY_BACKEND', 'spark')
             if backend_name == 'service':
-                from hail.context import init_service
-                await init_service()
+                from hail.context import init_batch
+                await init_batch()
             else:
                 return Env.hc()
         assert Env._hc is not None
