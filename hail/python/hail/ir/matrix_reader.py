@@ -1,13 +1,11 @@
 import abc
 import json
 
-import hail as hl
-
-from .utils import make_filter_and_replace
+from .utils import make_filter_and_replace, impute_type_of_partition_interval_array
 from ..expr.types import tfloat32, tfloat64
 from ..genetics.reference_genome import reference_genome_type
-from ..typecheck import typecheck_method, sequenceof, nullable, enumeration, \
-    anytype, oneof, dictof, sized_tupleof
+from ..typecheck import (typecheck_method, sequenceof, nullable, enumeration, anytype, oneof,
+                         dictof, sized_tupleof)
 from ..utils import wrap_to_list
 from ..utils.misc import escape_str
 
@@ -27,25 +25,9 @@ class MatrixNativeReader(MatrixReader):
                       intervals=nullable(sequenceof(anytype)),
                       filter_intervals=bool)
     def __init__(self, path, intervals, filter_intervals):
-        if intervals is not None:
-            t = hl.expr.impute_type(intervals)
-            if not isinstance(t, hl.tarray) and not isinstance(t.element_type, hl.tinterval):
-                raise TypeError("'intervals' must be an array of tintervals")
-            pt = t.element_type.point_type
-            if isinstance(pt, hl.tstruct):
-                self._interval_type = t
-            else:
-                self._interval_type = hl.tarray(hl.tinterval(hl.tstruct(__point=pt)))
-
         self.path = path
         self.filter_intervals = filter_intervals
-        if intervals is not None and t != self._interval_type:
-            self.intervals = [hl.Interval(hl.Struct(__point=i.start),
-                                          hl.Struct(__point=i.end),
-                                          i.includes_start,
-                                          i.includes_end) for i in intervals]
-        else:
-            self.intervals = intervals
+        self.intervals, self._interval_type = impute_type_of_partition_interval_array(intervals)
 
     def render(self, r):
         reader = {'name': 'MatrixNativeReader',

@@ -1594,13 +1594,19 @@ E                   	at is.hail.backend.service.ServiceBackend.execute(ServiceBa
         hl.import_vcf(resource('sample.vcf')).rows().key_by('locus').write(path)
         hl.read_table(path).select()._force_count()
 
-    @fails_service_backend()
-    @fails_local_backend()
     def test_repartition_empty_key(self):
         data = [{'x': i} for i in range(1000)]
         ht = hl.Table.parallelize(data, hl.tstruct(x=hl.tint32), key=None, n_partitions=11)
         assert ht.naive_coalesce(4)._same(ht)
         assert ht.repartition(3, shuffle=False)._same(ht)
+
+    def test_read_with_partitions(self):
+        tmp = new_temp_file()
+        ht = hl.utils.range_table(444)
+        ht.write(tmp)
+        ht2 = hl.read_table(tmp, _n_partitions=50)
+        assert ht2.idx.collect() == list(range(444))
+        assert ht2.n_partitions() == 50
 
     @fails_service_backend()
     def test_path_collision_error(self):
@@ -1911,8 +1917,6 @@ def test_lowered_shuffle():
     ht = ht.order_by(-ht.idx)
     assert ht.aggregate(hl.agg.take(ht.idx, 3)) == [99, 98, 97]
 
-@fails_service_backend()
-@fails_local_backend()
 def test_read_partitions():
     ht = hl.utils.range_table(100, 3)
     path = new_temp_file()
@@ -1920,8 +1924,6 @@ def test_read_partitions():
     assert hl.read_table(path, _n_partitions=10).n_partitions() == 10
 
 
-@fails_service_backend()
-@fails_local_backend()
 def test_read_partitions_with_missing_key():
     ht = hl.utils.range_table(100, 3).key_by(idx=hl.missing(hl.tint32))
     path = new_temp_file()

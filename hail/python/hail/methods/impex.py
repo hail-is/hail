@@ -2479,7 +2479,14 @@ def read_matrix_table(path, *, _intervals=None, _filter_intervals=False, _drop_c
                                    _assert_type=_assert_type))
     if _n_partitions:
         intervals = mt._calculate_new_partitions(_n_partitions)
-        return read_matrix_table(path, _drop_rows=_drop_rows, _drop_cols=_drop_cols, _intervals=intervals)
+        return read_matrix_table(
+            path,
+            _drop_rows=_drop_rows,
+            _drop_cols=_drop_cols,
+            _intervals=intervals,
+            _assert_type=_assert_type,
+            _load_refs=_load_refs
+        )
     return mt
 
 
@@ -2933,7 +2940,7 @@ def read_table(path,
 
     if _n_partitions:
         intervals = ht._calculate_new_partitions(_n_partitions)
-        return read_table(path, _intervals=intervals)
+        return read_table(path, _intervals=intervals, _assert_type=_assert_type, _load_refs=_load_refs)
     return ht
 
 

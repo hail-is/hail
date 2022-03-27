@@ -380,3 +380,7 @@ class SparkBackend(Py4JBackend):
 
         results = self._jhc.backend().pyReadMultipleMatrixTables(json.dumps(json_repr))
         return [MatrixTable._from_java(jm) for jm in results]
+
+    @property
+    def requires_lowering(self):
+        return False

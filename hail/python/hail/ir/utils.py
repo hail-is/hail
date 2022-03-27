@@ -1,5 +1,33 @@
+from typing import Optional, List, Any, Tuple
 from .ir import Coalesce, ApplyUnaryPrimOp, FalseIR
 import hail as hl
+
+
+def impute_type_of_partition_interval_array(
+        intervals: Optional[List[Any]]
+) -> Tuple[Optional[List[Any]], Any]:
+    if intervals is None:
+        return None, None
+    if len(intervals) == 0:
+        return [], hl.tarray(hl.tinterval(hl.tstruct()))
+
+    t = hl.expr.impute_type(intervals)
+    if not isinstance(t, hl.tarray) or not isinstance(t.element_type, hl.tinterval):
+        raise TypeError("'intervals' must be an array of tintervals")
+    pt = t.element_type.point_type
+
+    if isinstance(pt, hl.tstruct):
+        return intervals, t
+
+    struct_intervals = [
+        hl.Interval(hl.Struct(__point=i.start),
+                    hl.Struct(__point=i.end),
+                    i.includes_start,
+                    i.includes_end)
+        for i in intervals
+    ]
+    struct_intervals_type = hl.tarray(hl.tinterval(hl.tstruct(__point=pt)))
+    return struct_intervals, struct_intervals_type
 
 
 def filter_predicate_with_keep(ir_pred, keep):
