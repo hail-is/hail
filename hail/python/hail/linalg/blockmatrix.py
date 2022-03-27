@@ -229,7 +229,7 @@ class BlockMatrix(object):
 
     @classmethod
     @typecheck_method(path=str, _assert_type=nullable(tblockmatrix))
-    def read(cls, path, *, _assert_type):
+    def read(cls, path, *, _assert_type=None):
         """Reads a block matrix.
 
         Parameters
