@@ -30,7 +30,7 @@ object BlockMatrixWriter {
 
 abstract class BlockMatrixWriter {
   def pathOpt: Option[String]
-  def apply(ctx: ExecuteContext, bm: BlockMatrix): Unit
+  def apply(ctx: ExecuteContext, bm: BlockMatrix): Any
   def loweredTyp: Type
   def lower(ctx: ExecuteContext, s: BlockMatrixStage, bm: BlockMatrixIR, relationalBindings: Map[String, IR], eltR: TypeWithRequiredness): IR =
     throw new LowererUnsupportedOperation(s"unimplemented writer: \n${ this.getClass }")
@@ -115,8 +115,9 @@ case class BlockMatrixNativeMetadataWriter(path: String, stageLocally: Boolean, 
 
 case class BlockMatrixBinaryWriter(path: String) extends BlockMatrixWriter {
   def pathOpt: Option[String] = Some(path)
-  def apply(ctx: ExecuteContext, bm: BlockMatrix): Unit = {
+  def apply(ctx: ExecuteContext, bm: BlockMatrix): String = {
     RichDenseMatrixDouble.exportToDoubles(ctx.fs, path, bm.toBreezeMatrix(), forceRowMajor = true)
+    path
   }
 
   def loweredTyp: Type = TString
