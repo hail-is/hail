@@ -2548,7 +2548,7 @@ class BlockMatrixWrite(IR):
 
     def _compute_type(self, env, agg_env):
         self.child._compute_type()
-        self._type = tvoid
+        self._type = self.writer._type()
 
     @staticmethod
     def is_effectful() -> bool:
