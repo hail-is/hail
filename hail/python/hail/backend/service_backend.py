@@ -209,7 +209,9 @@ class ServiceBackend(Backend):
                      disable_progress_bar: bool = True,
                      remote_tmpdir: Optional[str] = None,
                      flags: Optional[Dict[str, str]] = None,
-                     jar_url: Optional[str] = None):
+                     jar_url: Optional[str] = None,
+                     driver_cores: Optional[Union[int, str]] = None,
+                     driver_memory: Optional[Union[int, str]] = None):
         del skip_logging_configuration
 
         if billing_project is None:
@@ -242,7 +244,9 @@ class ServiceBackend(Backend):
             user_local_reference_cache_dir=user_local_reference_cache_dir,
             remote_tmpdir=remote_tmpdir,
             flags=flags or {},
-            jar_spec=jar_spec
+            jar_spec=jar_spec,
+            driver_cores=driver_cores,
+            driver_memory=driver_memory
         )
 
     def __init__(self,
@@ -255,7 +259,9 @@ class ServiceBackend(Backend):
                  user_local_reference_cache_dir: Path,
                  remote_tmpdir: str,
                  flags: Dict[str, str],
-                 jar_spec: JarSpec):
+                 jar_spec: JarSpec,
+                 driver_cores: Optional[Union[int, str]],
+                 driver_memory: Optional[Union[int, str]]):
         self.billing_project = billing_project
         self._sync_fs = sync_fs
         self._async_fs = async_fs
@@ -268,6 +274,8 @@ class ServiceBackend(Backend):
         self.flags = flags
         self.jar_spec = jar_spec
         self.functions: List[IRFunction] = []
+        self.driver_cores = driver_cores
+        self.driver_memory = driver_memory
 
         if "use_new_shuffle" not in self.flags:
             self.flags["use_new_shuffle"] = "1"
@@ -279,7 +287,9 @@ class ServiceBackend(Backend):
             'batch_attributes': self.batch_attributes,
             'user_local_reference_cache_dir': str(self.user_local_reference_cache_dir),
             'remote_tmpdir': self.remote_tmpdir,
-            'flags': self.flags
+            'flags': self.flags,
+            'driver_cores': self.driver_cores,
+            'driver_memory': self.driver_memory
         }
 
     @property
@@ -334,7 +344,11 @@ class ServiceBackend(Backend):
                         iodir + '/out'
                     ],
                     mount_tokens=True,
-                    resources={'preemptible': False, 'memory': 'standard'}
+                    resources={
+                        'preemptible': False,
+                        'cpu': str(self.driver_cores or '1'),
+                        'memory': str(self.driver_memory or 'standard')
+                    }
                 )
                 b = await bb.submit(disable_progress_bar=self.disable_progress_bar)
 

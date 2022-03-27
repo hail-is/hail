@@ -38,6 +38,7 @@ import aiorwlock
 import async_timeout
 from aiodocker.exceptions import DockerError  # type: ignore
 from aiohttp import web
+from sortedcontainers import SortedSet
 
 from gear.clients import get_cloud_async_fs, get_compute_client
 from hailtop import aiotools, httpx
@@ -67,7 +68,12 @@ from hailtop.utils import (
 from ..batch_format_version import BatchFormatVersion
 from ..cloud.azure.worker.worker_api import AzureWorkerAPI
 from ..cloud.gcp.worker.worker_api import GCPWorkerAPI
-from ..cloud.resource_utils import is_valid_storage_request, storage_gib_to_bytes, worker_memory_per_core_bytes
+from ..cloud.resource_utils import (
+    is_valid_storage_request,
+    storage_gib_to_bytes,
+    worker_memory_per_core_bytes,
+    worker_memory_per_core_mib,
+)
 from ..file_store import FileStore
 from ..globals import HTTP_CLIENT_MAX_SIZE, RESERVED_STORAGE_GB_PER_CORE, STATUS_FORMAT_VERSION
 from ..publicly_available_images import publicly_available_images
@@ -1808,7 +1814,7 @@ class JVMJob(Job):
 
             try:
                 with self.step('connecting_to_jvm'):
-                    self.jvm = await self.worker.borrow_jvm()
+                    self.jvm = await self.worker.borrow_jvm(self.cpu_in_mcpu // 1000)
                     self.jvm_name = str(self.jvm)
 
                 self.task_manager.ensure_future(self.worker.post_job_started(self))
@@ -1974,6 +1980,7 @@ class JVMContainer:
     @staticmethod
     async def create_and_start(
         index: int,
+        n_cores: int,
         socket_file: str,
         root_dir: str,
         client_session: httpx.ClientSession,
@@ -1982,13 +1989,16 @@ class JVMContainer:
         assert os.path.commonpath([socket_file, root_dir]) == root_dir
         assert os.path.isdir(root_dir)
 
-        # JVM and Hail both treat MB as 1024 * 1024 bytes.
-        # JVMs only start in standard workers which have 3.75 GiB == 3840 MiB per core.
-        # We only allocate 3700 MiB so that we stay well below the machine's max memory.
-        # We allocate 60% of memory per core to off heap memory: 1480 + 2220 = 3700.
+        total_memory_bytes = n_cores * worker_memory_per_core_bytes(CLOUD, instance_config.worker_type())
+
+        # We allocate 60% of memory per core to off heap memory
+        memory_per_core_mib = worker_memory_per_core_mib(CLOUD, instance_config.worker_type())
+        heap_memory_mb = int(0.4 * n_cores * memory_per_core_mib)
+        off_heap_memory_per_core_mb = int(0.6 * memory_per_core_mib)
+
         command = [
             'java',
-            '-Xmx1480M',
+            f'-Xmx{heap_memory_mb}M',
             '-cp',
             f'/jvm-entryway:/jvm-entryway/junixsocket-selftest-2.3.3-jar-with-dependencies.jar:{JVM.SPARK_HOME}/jars/*',
             'is.hail.JVMEntryway',
@@ -2036,9 +2046,9 @@ class JVMContainer:
             image=Image(BATCH_WORKER_IMAGE, JVMUserCredentials(), client_session, pool),
             scratch_dir=f'{root_dir}/container',
             command=command,
-            cpu_in_mcpu=1000,
-            memory_in_bytes=worker_memory_per_core_bytes(CLOUD, instance_config.worker_type()),
-            env=['HAIL_WORKER_OFF_HEAP_MEMORY_PER_CORE_MB=2220'],
+            cpu_in_mcpu=n_cores * 1000,
+            memory_in_bytes=total_memory_bytes,
+            env=[f'HAIL_WORKER_OFF_HEAP_MEMORY_PER_CORE_MB={off_heap_memory_per_core_mb}'],
             volume_mounts=volume_mounts,
         )
 
@@ -2081,13 +2091,14 @@ class JVM:
     async def create_container_and_connect(
         cls,
         index: int,
+        n_cores: int,
         socket_file: str,
         root_dir: str,
         client_session: httpx.ClientSession,
         pool: concurrent.futures.ThreadPoolExecutor,
     ) -> JVMContainer:
         try:
-            container = await JVMContainer.create_and_start(index, socket_file, root_dir, client_session, pool)
+            container = await JVMContainer.create_and_start(index, n_cores, socket_file, root_dir, client_session, pool)
 
             attempts = 0
             delay = 0.25
@@ -2117,7 +2128,7 @@ class JVM:
             raise JVMCreationError from e
 
     @classmethod
-    async def create(cls, index: int, worker: 'Worker'):
+    async def create(cls, index: int, n_cores: int, worker: 'Worker'):
         while True:
             try:
                 token = uuid.uuid4().hex
@@ -2127,10 +2138,11 @@ class JVM:
                 should_interrupt = asyncio.Event()
                 await blocking_to_async(worker.pool, os.makedirs, root_dir)
                 container = await cls.create_container_and_connect(
-                    index, socket_file, root_dir, worker.client_session, worker.pool
+                    index, n_cores, socket_file, root_dir, worker.client_session, worker.pool
                 )
                 return cls(
                     index,
+                    n_cores,
                     socket_file,
                     root_dir,
                     output_file,
@@ -2149,13 +2161,14 @@ class JVM:
             except ConnectionRefusedError:
                 os.remove(self.socket_file)
                 container = await self.create_container_and_connect(
-                    self.index, self.socket_file, self.root_dir, self.client_session, self.pool
+                    self.index, self.n_cores, self.socket_file, self.root_dir, self.client_session, self.pool
                 )
                 self.container = container
 
     def __init__(
         self,
         index: int,
+        n_cores: int,
         socket_file: str,
         root_dir: str,
         output_file: str,
@@ -2165,6 +2178,7 @@ class JVM:
         pool: concurrent.futures.ThreadPoolExecutor,
     ):
         self.index = index
+        self.n_cores = n_cores
         self.socket_file = socket_file
         self.root_dir = root_dir
         self.output_file = output_file
@@ -2280,25 +2294,29 @@ class Worker:
         self.compute_client = None
 
         self._jvm_initializer_task = asyncio.ensure_future(self._initialize_jvms())
-        self._jvms: List[JVM] = []
+        self._jvms: SortedSet[JVM] = SortedSet([], key=lambda jvm: jvm.n_cores)
 
     async def _initialize_jvms(self):
-        if instance_config.worker_type() in ('standard', 'D'):
-            self._jvms = await asyncio.gather(*[JVM.create(i, self) for i in range(CORES)])
+        if instance_config.worker_type() in ('standard', 'D', 'highmem', 'E'):
+            jvms = await asyncio.gather(
+                *[JVM.create(i, 1, self) for i in range(CORES)],
+                *[JVM.create(CORES + i, 8, self) for i in range(CORES // 8)],
+            )
+            self._jvms.update(jvms)
         log.info(f'JVMs initialized {self._jvms}')
 
-    async def borrow_jvm(self) -> JVM:
-        if instance_config.worker_type() not in ('standard', 'D'):
-            raise ValueError(f'JVM jobs not allowed on {instance_config.worker_type()}')
+    async def borrow_jvm(self, n_cores: int) -> JVM:
+        if instance_config.worker_type() not in ('standard', 'D', 'highmem', 'E'):
+            raise ValueError(f'no JVMs available on {instance_config.worker_type()}')
         await self._jvm_initializer_task
         assert self._jvms
-        return self._jvms.pop()
+        index = self._jvms.bisect_key_left(n_cores)
+        assert index < len(self._jvms), index
+        return self._jvms.pop(index)
 
     def return_jvm(self, jvm: JVM):
-        if instance_config.worker_type() not in ('standard', 'D'):
-            raise ValueError(f'JVM jobs not allowed on {instance_config.worker_type()}')
         jvm.reset()
-        self._jvms.append(jvm)
+        self._jvms.add(jvm)
 
     async def shutdown(self):
         log.info('Worker.shutdown')

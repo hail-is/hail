@@ -142,6 +142,18 @@ def skip_when_service_backend(message='does not work on ServiceBackend'):
     return wrapper
 
 
+def skip_unless_service_backend(message='only relevant to service backend'):
+    from hail.backend.service_backend import ServiceBackend
+    @decorator
+    def wrapper(func, *args, **kwargs):
+        if not isinstance(hl.utils.java.Env.backend(), ServiceBackend):
+            raise unittest.SkipTest(message)
+        else:
+            return func(*args, **kwargs)
+
+    return wrapper
+
+
 fails_local_backend = pytest.mark.xfail(
     os.environ.get('HAIL_QUERY_BACKEND') == 'local',
     reason="doesn't yet work on local backend",
