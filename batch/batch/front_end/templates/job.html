@@ -113,7 +113,7 @@
       {% else %}
       <td></td>
       {% endif %}
-      <td {% if step['state'] in ['failed', 'error' ] %}class="data-table-bad" {% endif %}>
+      <td {% if step['state'] in ['failed', 'error'] %}class="data-table-bad" {% endif %}>
         {{ step['state'] }}
       </td>
     </tr>
