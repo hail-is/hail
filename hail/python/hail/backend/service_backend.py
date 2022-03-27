@@ -448,8 +448,9 @@ class ServiceBackend(Backend):
 
         _, resp, timings = await self._rpc('execute(...)', inputs, ir=ir)
         typ: HailType = ir.typ
+        print((typ, resp))
         if typ == tvoid:
-            assert resp == b'', resp
+            assert resp == b'', (typ, resp)
             converted_value = None
         else:
             converted_value = ttuple(typ)._from_encoding(resp)[0]
