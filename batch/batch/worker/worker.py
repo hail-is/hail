@@ -587,6 +587,8 @@ def user_error(e):
             return True
     if isinstance(e, (ImageNotFound, ImageCannotBePulled)):
         return True
+    if isinstance(e, (ContainerTimeoutError, ContainerDeletedError)):
+        return True
     return False
 
 
@@ -2150,6 +2152,8 @@ class JVM:
                         ) from err
                     await asyncio.sleep(delay)
             return container
+        except ConnectionRefusedError:
+            raise
         except Exception as e:
             raise JVMCreationError from e
 
@@ -2356,9 +2360,9 @@ class Worker:
                 log.info('shutdown task manager')
             finally:
                 try:
-                    if self.fs:
-                        await self.fs.close()
-                        log.info('closed worker file system')
+                    if self.file_store:
+                        await self.file_store.close()
+                        log.info('closed file store')
                 finally:
                     try:
                         if self.compute_client:
@@ -2366,9 +2370,9 @@ class Worker:
                             log.info('closed compute client')
                     finally:
                         try:
-                            if self.file_store:
-                                await self.file_store.close()
-                                log.info('closed file store')
+                            if self.fs:
+                                await self.fs.close()
+                                log.info('closed worker file system')
                         finally:
                             await self.client_session.close()
                             log.info('closed client session')
