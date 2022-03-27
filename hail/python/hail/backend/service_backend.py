@@ -448,7 +448,6 @@ class ServiceBackend(Backend):
 
         _, resp, timings = await self._rpc('execute(...)', inputs, ir=ir)
         typ: HailType = ir.typ
-        print((typ, resp))
         if typ == tvoid:
             assert resp == b'', (typ, resp)
             converted_value = None
