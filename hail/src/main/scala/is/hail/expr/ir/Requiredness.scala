@@ -758,6 +758,7 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
         coerce[RStruct](requiredness).field("global").unionFrom(lookup(c).globalType)
       case BlockMatrixToValueApply(child, GetElement(_)) => // BlockMatrix elements are all required
       case BlockMatrixCollect(child) =>  // BlockMatrix elements are all required
+      case BlockMatrixWrite(child, writer) => // write result is required
     }
     requiredness.probeChangedAndReset()
   }
