@@ -4966,7 +4966,7 @@ steps:
       from hailtop.batch_client.aioclient import BatchClient
       import asyncio
 
-      async def cancel_all(query: Ste):
+      async def cancel_all(query):
           bc = await BatchClient.create('test')
           async for b in bc.list_batches(query):
               status = await b.last_known_status()
