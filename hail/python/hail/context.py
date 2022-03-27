@@ -162,7 +162,6 @@ def choose_backend(backend: Optional[str] = None) -> str:
     )
 
 
-
 @typecheck(sc=nullable(SparkContext),
            app_name=str,
            master=nullable(str),

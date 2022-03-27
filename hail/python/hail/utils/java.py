@@ -3,6 +3,7 @@ import sys
 import re
 
 import hail
+from hail.context import choose_backend
 
 
 class FatalError(Exception):
@@ -57,7 +58,7 @@ class Env:
             sys.stderr.write("Initializing Hail with default parameters...\n")
             sys.stderr.flush()
 
-            backend_name = os.environ.get('HAIL_QUERY_BACKEND', 'spark')
+            backend_name = choose_backend()
             if backend_name == 'service':
                 from hail.context import init_batch
                 await init_batch()
