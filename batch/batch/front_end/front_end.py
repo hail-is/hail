@@ -18,10 +18,8 @@ import humanize
 import pandas as pd
 import plotly
 import plotly.express as px
-import plotly.graph_objects as go
 import pymysql
 from aiohttp import web
-from plotly.subplots import make_subplots
 from prometheus_async.aio.web import server_stats  # type: ignore
 
 from gear import (
@@ -1649,50 +1647,10 @@ def plot_job_durations(container_statuses: dict, batch_id: int, job_id: int):
     return json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
 
 
-def plot_resource_usage(resource_usage: Optional[Dict[str, Optional[pd.DataFrame]]]) -> Optional[str]:
-    if resource_usage is None:
-        return None
-
-    fig = make_subplots(rows=2, cols=1, subplot_titles=('CPU Usage', 'Memory'))
-
-    colors = {'input': 'red', 'main': 'green', 'output': 'blue'}
-
-    for container_name, df in resource_usage.items():
-        if df is None:
-            continue
-
-        time = pd.to_datetime(df['time_msecs'], unit='ms')
-        mem = df['memory_in_bytes']
-        cpu = df['cpu_usage']
-
-        fig.add_trace(
-            go.Scatter(
-                x=time,
-                y=cpu,
-                legendgroup=container_name,
-                name=container_name,
-                mode='lines',
-                line=dict(color=colors[container_name]),
-            ),
-            row=1,
-            col=1,
-        )
-        fig.add_trace(
-            go.Scatter(
-                x=time,
-                y=mem,
-                showlegend=False,
-                legendgroup=container_name,
-                name=container_name,
-                mode='lines',
-                line=dict(color=colors[container_name]),
-            ),
-            row=2,
-            col=1,
-        )
-    fig.update_layout(height=600, width=800, showlegend=True, yaxis2_tickformat='%')
-
-    return json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
+def plot_resource_usage(
+    resource_usage: Optional[Dict[str, Optional[pd.DataFrame]]]  # pylint: disable=unused-argument
+) -> Optional[str]:
+    return None
 
 
 @routes.get('/batches/{batch_id}/jobs/{job_id}')
