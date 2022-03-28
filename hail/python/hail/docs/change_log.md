@@ -25,9 +25,19 @@ an earlier version of Hail to read files written in a later version.
 
 ---
 
-## Version 0.2.92
+## Version 0.2.93
 
 Release 2022-03-27
+
+### Beta features
+
+- Several issues with the beta version of Hail Query on Hail Batch are addressed in this release.
+
+---
+
+## Version 0.2.92
+
+Release 2022-03-25
 
 ### New features
 
