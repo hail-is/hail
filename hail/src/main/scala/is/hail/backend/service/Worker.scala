@@ -70,6 +70,7 @@ object Worker {
     assert(kind == Main.WORKER)
     val root = argv(4)
     val i = argv(5).toInt
+    val n = argv(6).toInt
     val timer = new WorkerTimer()
 
     val deployConfig = DeployConfig.fromConfigFile(
@@ -80,9 +81,9 @@ object Worker {
     tls.setSSLConfigFromDir(s"$scratchDir/secrets/ssl-config")
 
     log.info(s"is.hail.backend.service.Worker $myRevision")
-    log.info(s"running job $i at root $root with scratch directory '$scratchDir'")
+    log.info(s"running job $i/$n at root $root with scratch directory '$scratchDir'")
 
-    timer.start(s"Job $i")
+    timer.start(s"Job $i/$n")
 
     timer.start("readInputs")
     val fs = retryTransientErrors {
@@ -91,9 +92,16 @@ object Worker {
       }
     }
 
+    // FIXME: HACK
+    val (open, create) = if (n <= 50) {
+      (fs.openCachedNoCompression _, fs.createCachedNoCompression _)
+    } else {
+      (fs.openNoCompression _, fs.createNoCompression _)
+    }
+
     val fFuture = Future {
       retryTransientErrors {
-        using(new ObjectInputStream(fs.openCachedNoCompression(s"$root/f"))) { is =>
+        using(new ObjectInputStream(open(s"$root/f"))) { is =>
           is.readObject().asInstanceOf[(Array[Byte], HailTaskContext, HailClassLoader, FS) => Array[Byte]]
         }
       }
@@ -101,7 +109,7 @@ object Worker {
 
     val contextFuture = Future {
       retryTransientErrors {
-        using(fs.openCachedNoCompression(s"$root/contexts")) { is =>
+        using(open(s"$root/contexts")) { is =>
           is.seek(i * 12)
           val offset = is.readLong()
           val length = is.readInt()
@@ -139,7 +147,7 @@ object Worker {
     timer.end("executeFunction")
     timer.start("writeOutputs")
 
-    using(fs.createCachedNoCompression(s"$root/result.$i")) { os =>
+    using(create(s"$root/result.$i")) { os =>
       val dos = new DataOutputStream(os)
       if (result != null) {
         assert(userError == null)
