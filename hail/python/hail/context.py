@@ -153,7 +153,7 @@ class HailContext(object):
 
 
 @typecheck(sc=nullable(SparkContext),
-           app_name=str,
+           app_name=nullable(str),
            master=nullable(str),
            local=str,
            log=nullable(str),
@@ -172,7 +172,7 @@ class HailContext(object):
            backend=nullable(str),
            driver_cores=nullable(oneof(str, int)),
            driver_memory=nullable(str))
-def init(sc=None, app_name='Hail', master=None, local='local[*]',
+def init(sc=None, app_name=None, master=None, local='local[*]',
          log=None, quiet=False, append=False,
          min_block_size=0, branching_factor=50, tmp_dir=None,
          default_reference='GRCh37', idempotent=False,
@@ -310,6 +310,13 @@ def init(sc=None, app_name='Hail', master=None, local='local[*]',
             ))
     if backend == 'spark':
         return init_spark(
+            app_name=app_name,
+            master=master,
+            local=local,
+            min_block_size=min_block_size,
+            branching_factor=branching_factor,
+            spark_conf=spark_conf,
+            _optimizer_iterations=_optimizer_iterations,
             log=log,
             quiet=quiet,
             append=append,
@@ -333,7 +340,7 @@ def init(sc=None, app_name='Hail', master=None, local='local[*]',
 
 
 @typecheck(sc=nullable(SparkContext),
-           app_name=str,
+           app_name=nullable(str),
            master=nullable(str),
            local=str,
            log=nullable(str),
@@ -350,7 +357,7 @@ def init(sc=None, app_name='Hail', master=None, local='local[*]',
            local_tmpdir=nullable(str),
            _optimizer_iterations=nullable(int))
 def init_spark(sc=None,
-               app_name='Hail',
+               app_name=None,
                master=None,
                local='local[*]',
                log=None,
@@ -373,6 +380,7 @@ def init_spark(sc=None,
     local_tmpdir = _get_local_tmpdir(local_tmpdir)
     optimizer_iterations = get_env_or_default(_optimizer_iterations, 'HAIL_OPTIMIZER_ITERATIONS', 3)
 
+    app_name = app_name or 'Hail'
     backend = SparkBackend(
         idempotent, sc, spark_conf, app_name, master, local, log,
         quiet, append, min_block_size, branching_factor, tmpdir, local_tmpdir,
