@@ -4593,6 +4593,7 @@ def construct_expr(x: ir.IR,
 def construct_reference(name, type, indices):
     assert isinstance(type, hl.tstruct)
     x = ir.SelectFields(ir.TopLevelReference(name), list(type))
+    x._type = type
     return construct_expr(x, type, indices)
 
 

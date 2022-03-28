@@ -1337,7 +1337,7 @@ object IRParser {
         } yield TableAggregate(child, query)
       case "TableToValueApply" =>
         val config = string_literal(it)
-        table_ir(env)(it).map { child =>
+        table_ir(env.withRefMap(Map.empty))(it).map { child =>
           TableToValueApply(child, RelationalFunctions.lookupTableToValue(env.ctx, config))
         }
       case "MatrixToValueApply" =>

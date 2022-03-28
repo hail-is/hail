@@ -386,7 +386,7 @@ class Ref(IR):
                          pack_uid(Cast(Ref(uid, tint32), tint64), Ref(elt, tint32)))
 
     def copy(self):
-        return Ref(self.name, self.type)
+        return Ref(self.name, self._type)
 
     def head_str(self):
         return escape_id(self.name)
@@ -395,9 +395,8 @@ class Ref(IR):
         return other.name == self.name
 
     def _compute_type(self, env, agg_env):
-        if self._type is None:
-            self._type = env[self.name]
-        elif env is not None and self.name in env:
+        assert(self._type is not None)
+        if env is not None and self.name in env:
             assert(self._type == env[self.name])
 
 
