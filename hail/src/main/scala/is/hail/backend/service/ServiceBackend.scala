@@ -68,6 +68,8 @@ class ServiceBackend(
   private[this] var batchCount = 0
   private[this] implicit val ec = scalaConcurrent.ExecutionContext.fromExecutorService(
     Executors.newCachedThreadPool())
+  private[this] val MAX_AVAILABLE_GCS_CONNECTIONS = 100
+  private[this] val availableGCSConnections = new Semaphore(MAX_AVAILABLE_GCS_CONNECTIONS, true)
 
   def defaultParallelism: Int = 10
 
@@ -105,12 +107,19 @@ class ServiceBackend(
     val token = tokenUrlSafe(32)
     val root = s"${ backendContext.remoteTmpDir }parallelizeAndComputeWithIndex/$token"
 
+    // FIXME: HACK
+    val (open, create) = if (n <= 50) {
+      (fs.openCachedNoCompression _, fs.createCachedNoCompression _)
+    } else {
+      (fs.openNoCompression _, fs.createNoCompression _)
+    }
+
     log.info(s"parallelizeAndComputeWithIndex: $token: nPartitions $n")
     log.info(s"parallelizeAndComputeWithIndex: $token: writing f and contexts")
 
     val uploadFunction = scalaConcurrent.Future {
       retryTransientErrors {
-        using(new ObjectOutputStream(fs.createCachedNoCompression(s"$root/f"))) { os =>
+        using(new ObjectOutputStream(create(s"$root/f"))) { os =>
           os.writeObject(f)
         }
       }
@@ -118,7 +127,7 @@ class ServiceBackend(
 
     val uploadContexts = scalaConcurrent.Future {
       retryTransientErrors {
-        using(fs.createCachedNoCompression(s"$root/contexts")) { os =>
+        using(create(s"$root/contexts")) { os =>
           var o = 12L * n
           var i = 0
           while (i < n) {
@@ -155,7 +164,8 @@ class ServiceBackend(
           "command" -> JArray(List(
             JString(Main.WORKER),
             JString(root),
-            JString(s"$i"))),
+            JString(s"$i"),
+            JString(s"$n"))),
           "type" -> JString("jvm")),
         "mount_tokens" -> JBool(true),
         "resources" -> JObject("preemptible" -> JBool(true))
@@ -186,13 +196,6 @@ class ServiceBackend(
 
     val r = new Array[Array[Byte]](n)
 
-    // FIXME: HACK
-    val open = if (n <= 50) {
-      fs.openCachedNoCompression _
-    } else {
-      fs.openNoCompression _
-    }
-
     def resultOrHailException(is: DataInputStream): Array[Byte] = {
       val success = is.readBoolean()
       if (success) {
@@ -206,12 +209,17 @@ class ServiceBackend(
     }
 
     def readResult(i: Int): scalaConcurrent.Future[Unit] = scalaConcurrent.Future {
-      r(i) = retryTransientErrors {
-        using(open(s"$root/result.$i")) { is =>
-          resultOrHailException(new DataInputStream(is))
+      availableGCSConnections.acquire()
+      try {
+        r(i) = retryTransientErrors {
+          using(open(s"$root/result.$i")) { is =>
+            resultOrHailException(new DataInputStream(is))
+          }
         }
+        log.info(s"result $i complete")
+      } finally {
+        availableGCSConnections.release()
       }
-      log.info(s"result $i complete")
     }
 
     scalaConcurrent.Await.result(
