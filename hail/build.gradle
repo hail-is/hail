@@ -196,11 +196,11 @@ dependencies {
         exclude group: 'com.fasterxml.jackson.core'
     }
 
-    bundled(group: 'com.azure', name: 'azure-storage-blob', version: '12.8.0') {
+    bundled(group: 'com.azure', name: 'azure-storage-blob', version: '12.15.0') {
         exclude group: 'com.fasterxml.jackson.core'
     }
 
-    bundled(group: 'com.azure', name: 'azure-identity', version:'1.2.1') {
+    bundled(group: 'com.azure', name: 'azure-identity', version:'1.4.6') {
         exclude group: 'com.fasterxml.jackson.core'
     }
 

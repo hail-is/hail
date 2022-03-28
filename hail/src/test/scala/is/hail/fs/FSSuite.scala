@@ -111,6 +111,11 @@ trait FSSuite {
     fs.touch(s"$d/y")
     fs.mkDir(s"$d/subdir")
     fs.touch(s"$d/subdir/z")
+    fs.mkDir(s"$d/dir2")
+    fs.touch(s"$d/dir2/a")
+    fs.touch(s"$d/dir2/b")
+    fs.mkDir(s"$d/subdir/another_list")
+    fs.touch(s"$d/subdir/another_list/file1")
 
     assert(fs.exists(s"$d/subdir/z"))
 
