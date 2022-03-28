@@ -9,6 +9,7 @@ import scipy.linalg as spla
 import hail as hl
 import hail.expr.aggregators as agg
 from hail.expr import construct_expr, construct_variable
+from hail.expr.blockmatrix_type import tblockmatrix
 from hail.expr.expressions import (expr_float64, matrix_table_source, expr_ndarray,
                                    check_entry_indexed, expr_tuple, expr_array, expr_int32, expr_int64)
 from hail.ir import (BlockMatrixWrite, BlockMatrixMap2, ApplyBinaryPrimOp, F64,
@@ -227,8 +228,8 @@ class BlockMatrix(object):
         self._bmir = bmir
 
     @classmethod
-    @typecheck_method(path=str)
-    def read(cls, path):
+    @typecheck_method(path=str, _assert_type=nullable(tblockmatrix))
+    def read(cls, path, *, _assert_type=None):
         """Reads a block matrix.
 
         Parameters
@@ -240,14 +241,15 @@ class BlockMatrix(object):
         -------
         :class:`.BlockMatrix`
         """
-        return cls(BlockMatrixRead(BlockMatrixNativeReader(path)))
+        return cls(BlockMatrixRead(BlockMatrixNativeReader(path), _assert_type=_assert_type))
 
     @classmethod
     @typecheck_method(uri=str,
                       n_rows=int,
                       n_cols=int,
-                      block_size=nullable(int))
-    def fromfile(cls, uri, n_rows, n_cols, block_size=None):
+                      block_size=nullable(int),
+                      _assert_type=nullable(tblockmatrix))
+    def fromfile(cls, uri, n_rows, n_cols, block_size=None, *, _assert_type=None):
         """Creates a block matrix from a binary file.
 
         Examples
@@ -301,7 +303,7 @@ class BlockMatrix(object):
         if not block_size:
             block_size = BlockMatrix.default_block_size()
 
-        return cls(BlockMatrixRead(BlockMatrixBinaryReader(uri, [n_rows, n_cols], block_size)))
+        return cls(BlockMatrixRead(BlockMatrixBinaryReader(uri, [n_rows, n_cols], block_size), _assert_type=_assert_type))
 
     @classmethod
     @typecheck_method(ndarray=np.ndarray,
@@ -645,7 +647,7 @@ class BlockMatrix(object):
             before being copied to ``output``.
         """
         self.write(path, overwrite, force_row_major, stage_locally)
-        return BlockMatrix.read(path)
+        return BlockMatrix.read(path, _assert_type=self._bmir._type)
 
     @staticmethod
     @typecheck(entry_expr=expr_float64,
@@ -1330,7 +1332,7 @@ class BlockMatrix(object):
         """
         id = Env.get_uid()
         Env.backend().execute(BlockMatrixWrite(self._bmir, BlockMatrixPersistWriter(id, storage_level)))
-        return BlockMatrix(BlockMatrixRead(BlockMatrixPersistReader(id, self._bmir)))
+        return BlockMatrix(BlockMatrixRead(BlockMatrixPersistReader(id, self._bmir), _assert_type=self._bmir._type))
 
     def unpersist(self):
         """Unpersists this block matrix from memory/disk.
