@@ -364,20 +364,6 @@ def test_unknown_image(client: BatchClient):
     )
 
 
-def test_running_job_log_and_status(client: BatchClient):
-    b = client.create_batch()
-    j = b.create_job(DOCKER_ROOT_IMAGE, ['sleep', '300'])
-    b = b.submit()
-
-    while True:
-        if j.status()['state'] == 'Running' or j.is_complete():
-            break
-
-    j.log()
-    # FIXME after batch1 goes away, check running status
-    b.cancel()
-
-
 def test_deleted_job_log(client: BatchClient):
     b = client.create_batch()
     j = b.create_job(DOCKER_ROOT_IMAGE, ['echo', 'test'])

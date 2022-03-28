@@ -427,7 +427,7 @@ async def _get_job_log(app, batch_id, job_id) -> Optional[Dict[str, str]]:
     async def handle_running_response(resp: aiohttp.ClientResponse) -> Dict[str, str]:
         return await resp.json()
 
-    maybe_data = await _get_resource_from_record(
+    return await _get_resource_from_record(
         app,
         batch_id,
         job_id,
@@ -436,16 +436,6 @@ async def _get_job_log(app, batch_id, job_id) -> Optional[Dict[str, str]]:
         handle_running_response,
         file_store.read_log_file,
     )
-
-    if maybe_data is None:
-        return None
-
-    data = {}
-    for task, log in maybe_data.items():
-        if log is None:
-            log = 'ERROR: could not find file'
-        data[task] = log
-    return data
 
 
 async def _get_job_resource_usage(app, batch_id, job_id) -> Optional[Dict[str, Optional[pd.DataFrame]]]:
@@ -1660,12 +1650,18 @@ async def ui_get_job(request, userdata, batch_id):
     app = request.app
     job_id = int(request.match_info['job_id'])
 
-    job, attempts, job_log, resource_usage = await asyncio.gather(
+    job, attempts, maybe_job_log, resource_usage = await asyncio.gather(
         _get_job(app, batch_id, job_id),
         _get_attempts(app, batch_id, job_id),
         _get_job_log(app, batch_id, job_id),
         _get_job_resource_usage(app, batch_id, job_id),
     )
+
+    job_log = {}
+    for task, log in maybe_job_log.items():
+        if log is None:
+            log = 'ERROR: could not find file'
+        job_log[task] = log
 
     job['duration'] = humanize_timedelta_msecs(job['duration'])
     job['cost'] = cost_str(job['cost'])
