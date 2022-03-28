@@ -46,7 +46,7 @@ Getting Started
 
 .. code-block:: text
 
-    hailctl config set batch/billing_proejct my-billing-project
+    hailctl config set batch/billing_project my-billing-project
 
 5. Set the default Hail Query backend to ``batch``:
 
