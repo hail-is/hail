@@ -1,6 +1,6 @@
 package is.hail.io.fs
 
-import java.io.{ByteArrayInputStream, FileNotFoundException, InputStream, OutputStream}
+import java.io.{ByteArrayInputStream, FileNotFoundException}
 import java.net.URI
 import java.nio.ByteBuffer
 import java.nio.file.FileSystems
@@ -9,6 +9,7 @@ import com.google.auth.oauth2.ServiceAccountCredentials
 import com.google.cloud.{ReadChannel, WriteChannel}
 import com.google.cloud.storage.Storage.BlobListOption
 import com.google.cloud.storage.{Blob, BlobId, BlobInfo, Storage, StorageOptions}
+import is.hail.io.fs.FSUtil.dropTrailingSlash
 import is.hail.services.retryTransientErrors
 
 import scala.collection.JavaConverters._
@@ -16,25 +17,6 @@ import scala.collection.mutable
 
 object GoogleStorageFS {
   private val log = Logger.getLogger(getClass.getName())
-
-  def containsWildcard(path: String): Boolean = {
-    var i = 0
-    while (i < path.length) {
-      val c = path(i)
-      if (c == '\\') {
-        i += 1
-        if (i < path.length)
-          i += 1
-        else
-          return false
-      } else if (c == '*' || c == '{' || c == '?' || c == '[')
-        return true
-
-      i += 1
-    }
-
-    false
-  }
 
   def getBucketPath(filename: String): (String, String) = {
     val uri = new URI(filename).normalize()
@@ -51,26 +33,13 @@ object GoogleStorageFS {
 
     (bucket, path)
   }
-
-  def dropTrailingSlash(path: String): String = {
-    if (path.isEmpty)
-      return path
-
-    if (path.last != '/')
-      return path
-
-    var i = path.length - 1
-    while (i > 0 && path(i - 1) == '/')
-      i -= 1
-    path.substring(0, i)
-  }
 }
 
 object GoogleStorageFileStatus {
   def apply(blob: Blob): BlobStorageFileStatus = {
     val isDir = blob.isDirectory
 
-    val name = GoogleStorageFS.dropTrailingSlash(blob.getName)
+    val name = dropTrailingSlash(blob.getName)
 
     new BlobStorageFileStatus(
       s"gs://${ blob.getBucket }/$name",

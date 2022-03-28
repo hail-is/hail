@@ -2,6 +2,7 @@ package is.hail.fs.azure
 
 import is.hail.fs.FSSuite
 import is.hail.io.fs.AzureStorageFS
+import is.hail.io.fs.FSUtil.dropTrailingSlash
 import org.apache.commons.io.IOUtils
 import org.scalatest.testng.TestNGSuite
 import org.testng.SkipException
@@ -41,8 +42,6 @@ class AzureStorageFSSuite extends TestNGSuite with FSSuite {
   }
 
   @Test def testDropTrailingSlash(): Unit = {
-    import AzureStorageFS._
-
     assert(dropTrailingSlash("") == "")
     assert(dropTrailingSlash("/foo/bar") == "/foo/bar")
     assert(dropTrailingSlash("foo/bar/") == "foo/bar")

@@ -1,12 +1,12 @@
 package is.hail.fs.gs
 
 import java.io.FileInputStream
-
 import is.hail.fs.FSSuite
+import is.hail.io.fs.FSUtil.dropTrailingSlash
 import is.hail.io.fs.GoogleStorageFS
 import org.apache.commons.io.IOUtils
 import org.scalatest.testng.TestNGSuite
-import org.testng.annotations.{Test, BeforeClass}
+import org.testng.annotations.{BeforeClass, Test}
 import org.testng.SkipException
 
 class GoogleStorageFSSuite extends TestNGSuite with FSSuite {
@@ -39,8 +39,6 @@ class GoogleStorageFSSuite extends TestNGSuite with FSSuite {
   lazy val tmpdir: String = hail_test_storage_uri
 
   @Test def testDropTailingSlash(): Unit = {
-    import GoogleStorageFS._
-
     assert(dropTrailingSlash("") == "")
     assert(dropTrailingSlash("/foo/bar") == "/foo/bar")
     assert(dropTrailingSlash("foo/bar/") == "foo/bar")

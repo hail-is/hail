@@ -71,8 +71,17 @@ object BGZipCompressionCodec extends CompressionCodec {
 }
 
 object FSUtil {
-  def runOnExit(f: Runnable): Unit = {
-    Runtime.getRuntime.addShutdownHook(new Thread(f))
+  def dropTrailingSlash(path: String): String = {
+    if (path.isEmpty)
+      return path
+
+    if (path.last != '/')
+      return path
+
+    var i = path.length - 1
+    while (i > 0 && path(i - 1) == '/')
+      i -= 1
+    path.substring(0, i)
   }
 }
 
@@ -151,6 +160,25 @@ abstract class FSPositionedOutputStream extends OutputStream with Positioned {
 }
 
 trait FS extends Serializable {
+  def containsWildcard(path: String): Boolean = {
+    var i = 0
+    while (i < path.length) {
+      val c = path(i)
+      if (c == '\\') {
+        i += 1
+        if (i < path.length)
+          i += 1
+        else
+          return false
+      } else if (c == '*' || c == '{' || c == '?' || c == '[')
+        return true
+
+      i += 1
+    }
+
+    false
+  }
+
   def getCodecFromExtension(extension: String, gzAsBGZ: Boolean = false): CompressionCodec = {
     extension match {
       case ".gz" =>
@@ -227,10 +255,7 @@ trait FS extends Serializable {
 
   def deleteOnExit(filename: String): Unit = {
     Runtime.getRuntime.addShutdownHook(
-      new Thread(
-        new Runnable {
-          def run(): Unit = delete(filename, recursive = false)
-        }))
+      new Thread(() => delete(filename, recursive = false)))
   }
 
   def open(path: String, codec: CompressionCodec): InputStream = {
