@@ -49,7 +49,7 @@ object LowerToCDA {
       }
 
       val addr = ctx.timer.time("Run")(f(ctx.theHailClassLoader, ctx.fs, 0, ctx.r).apply(ctx.r))
-      val lit = EncodedLiteral.fromPTypeAndAddress(pt, addr, ctx)
+      val lit = EncodedLiteral.fromPTypeAndAddress(pt.types(0), pt.loadField(addr, 0), ctx)
       lower(body, typesToLower, ctx, analyses, relationalLetsAbove + ((name, lit)))
 
     case RelationalRef(name, t) =>
