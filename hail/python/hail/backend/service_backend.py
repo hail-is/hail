@@ -205,20 +205,18 @@ class ServiceBackend(Backend):
     async def create(*,
                      billing_project: Optional[str] = None,
                      batch_client: Optional[aiohb.BatchClient] = None,
-                     skip_logging_configuration: Optional[bool] = None,
                      disable_progress_bar: bool = True,
                      remote_tmpdir: Optional[str] = None,
                      flags: Optional[Dict[str, str]] = None,
                      jar_url: Optional[str] = None,
                      driver_cores: Optional[Union[int, str]] = None,
-                     driver_memory: Optional[Union[int, str]] = None):
-        del skip_logging_configuration
-
+                     driver_memory: Optional[Union[int, str]] = None,
+                     name_prefix: Optional[str] = None):
         if billing_project is None:
             billing_project = get_user_config().get('batch', 'billing_project', fallback=None)
         if billing_project is None:
             raise ValueError(
-                "No billing project.  Call 'init_service' with the billing "
+                "No billing project.  Call 'init_batch' with the billing "
                 "project or run 'hailctl config set batch/billing_project "
                 "MY_BILLING_PROJECT'"
             )
@@ -234,6 +232,20 @@ class ServiceBackend(Backend):
         remote_tmpdir = get_remote_tmpdir('ServiceBackend', remote_tmpdir=remote_tmpdir)
         jar_spec = _get_jar_specification(jar_url)
 
+        driver_cores = (
+            driver_cores
+            or os.environ.get('HAIL_QUERY_BATCH_DRIVER_CORES', None)
+            or get_user_config().get('query', 'batch_driver_cores', fallback=None)
+            or '1'
+        )
+
+        driver_memory = (
+            driver_memory
+            or os.environ.get('HAIL_QUERY_BATCH_DRIVER_MEMORY', None)
+            or get_user_config().get('query', 'batch_driver_memory', fallback=None)
+            or 'standard'
+        )
+
         return ServiceBackend(
             billing_project=billing_project,
             sync_fs=sync_fs,
@@ -246,10 +258,12 @@ class ServiceBackend(Backend):
             flags=flags or {},
             jar_spec=jar_spec,
             driver_cores=driver_cores,
-            driver_memory=driver_memory
+            driver_memory=driver_memory,
+            name_prefix=name_prefix or ''
         )
 
     def __init__(self,
+                 *,
                  billing_project: str,
                  sync_fs: FS,
                  async_fs: AsyncFS,
@@ -261,7 +275,8 @@ class ServiceBackend(Backend):
                  flags: Dict[str, str],
                  jar_spec: JarSpec,
                  driver_cores: Optional[Union[int, str]],
-                 driver_memory: Optional[Union[int, str]]):
+                 driver_memory: Optional[Union[int, str]],
+                 name_prefix: str):
         self.billing_project = billing_project
         self._sync_fs = sync_fs
         self._async_fs = async_fs
@@ -276,6 +291,7 @@ class ServiceBackend(Backend):
         self.functions: List[IRFunction] = []
         self.driver_cores = driver_cores
         self.driver_memory = driver_memory
+        self.name_prefix = name_prefix
 
         if "use_new_shuffle" not in self.flags:
             self.flags["use_new_shuffle"] = "1"
@@ -332,7 +348,7 @@ class ServiceBackend(Backend):
             with timings.step("submit batch"):
                 batch_attributes = self.batch_attributes
                 if 'name' not in batch_attributes:
-                    batch_attributes = {**batch_attributes, 'name': name}
+                    batch_attributes = {**batch_attributes, 'name': self.name_prefix + name}
                 bb = self.async_bc.create_batch(token=token, attributes=batch_attributes)
 
                 j = bb.create_jvm_job(
@@ -346,8 +362,8 @@ class ServiceBackend(Backend):
                     mount_tokens=True,
                     resources={
                         'preemptible': False,
-                        'cpu': str(self.driver_cores or '1'),
-                        'memory': str(self.driver_memory or 'standard')
+                        'cpu': str(self.driver_cores),
+                        'memory': str(self.driver_memory)
                     }
                 )
                 b = await bb.submit(disable_progress_bar=self.disable_progress_bar)

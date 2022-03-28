@@ -44,7 +44,7 @@ upload-resources-dir:
 
 .PHONY: test
 test: upload-query-jar upload-resources-dir
-	HAIL_QUERY_BACKEND=service \
+	HAIL_QUERY_BACKEND=batch \
 	HAIL_TEST_RESOURCES_DIR='$(HAIL_TEST_RESOURCES_DIR)' \
 	HAIL_DOCTEST_DATA_DIR='$(HAIL_DOCTEST_DATA_DIR)' \
 	HAIL_JAR_URL=$$(cat last_uploaded_jar) \
@@ -52,13 +52,13 @@ test: upload-query-jar upload-resources-dir
 
 .PHONY: ipython
 ipython: upload-query-jar
-	HAIL_QUERY_BACKEND=service \
+	HAIL_QUERY_BACKEND=batch \
 	HAIL_JAR_URL=$$(cat last_uploaded_jar) \
 	ipython
 
 .PHONY: test-no-deps
 test-no-deps:
-	HAIL_QUERY_BACKEND=service \
+	HAIL_QUERY_BACKEND=batch \
 	HAIL_TEST_RESOURCES_DIR='$(HAIL_TEST_RESOURCES_DIR)' \
 	HAIL_DOCTEST_DATA_DIR='$(HAIL_DOCTEST_DATA_DIR)' \
 	HAIL_JAR_URL=$$(cat last_uploaded_jar) \
@@ -66,6 +66,6 @@ test-no-deps:
 
 .PHONY: ipython-no-deps
 ipython-no-deps:
-	HAIL_QUERY_BACKEND=service \
+	HAIL_QUERY_BACKEND=batch \
 	HAIL_JAR_URL=$$(cat last_uploaded_jar) \
 	ipython
