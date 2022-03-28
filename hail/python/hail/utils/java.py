@@ -1,7 +1,10 @@
+from typing import Optional
+import os
 import sys
 import re
 
 import hail
+from hailtop.config import get_user_config
 
 
 def choose_backend(backend: Optional[str] = None) -> str:
