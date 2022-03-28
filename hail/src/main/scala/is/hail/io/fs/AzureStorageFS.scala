@@ -2,10 +2,10 @@ package is.hail.io.fs
 
 import com.azure.core.credential.TokenCredential
 import com.azure.identity.{ClientSecretCredential, ClientSecretCredentialBuilder, DefaultAzureCredential, DefaultAzureCredentialBuilder}
-import com.azure.storage.blob.models.{BlobItem, BlobProperties, BlobRange, ListBlobsOptions}
+import com.azure.storage.blob.models.{BlobProperties, BlobRange, ListBlobsOptions}
 import com.azure.storage.blob.specialized.AppendBlobClient
 import com.azure.storage.blob.{BlobClient, BlobContainerClient, BlobServiceClient, BlobServiceClientBuilder}
-import is.hail.io.fs.AzureStorageFS.{getAccountContainerPath, schemes}
+import is.hail.io.fs.AzureStorageFS.{getAccountContainerPath}
 import is.hail.io.fs.FSUtil.dropTrailingSlash
 import org.apache.log4j.Logger
 
@@ -14,8 +14,7 @@ import is.hail.utils.fatal
 import org.json4s
 import org.json4s.jackson.JsonMethods
 
-import java.io.{ByteArrayInputStream, ByteArrayOutputStream, FileNotFoundException, InputStream, OutputStream}
-import java.nio.ByteBuffer
+import java.io.{ByteArrayInputStream, FileNotFoundException, OutputStream}
 import java.nio.file.FileSystems
 import java.time.Duration
 import scala.collection.mutable
@@ -208,10 +207,9 @@ class AzureStorageFS(val credentialsJSON: Option[String] = None) extends FS {
 
       val options = new ListBlobsOptions()
       options.setPrefix(dropTrailingSlash(path) + "/")
-      val directoryContents = blobContainerClient.listBlobs(options, Duration.ofMinutes(1))
+      val prefixMatches = blobContainerClient.listBlobs(options, Duration.ofMinutes(1))
 
-      directoryContents.forEach(blobItem => {
-//        println(s"blobItem: ${blobItem.getName}")
+      prefixMatches.forEach(blobItem => {
         val blobFileName = s"hail-az://$account/$container/${blobItem.getName}"
         this.getBlobClient(blobFileName).delete()
       })
@@ -316,12 +314,7 @@ class AzureStorageFS(val credentialsJSON: Option[String] = None) extends FS {
   }
 
   def makeQualified(filename: String): String = {
-    val uri = new URI(filename).normalize()
-
-    val scheme = uri.getScheme
-    if (scheme == null || !schemes.contains(scheme)) {
-      throw new IllegalArgumentException(s"invalid scheme, expected hail-az: $scheme")
-    }
+    assert(filename.startsWith("hail-az://"))
     filename
   }
 }

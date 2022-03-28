@@ -1,7 +1,7 @@
 package is.hail.io.fs
 
 import java.io._
-import java.util.zip.{GZIPInputStream, GZIPOutputStream}
+import java.util.zip.{GZIPOutputStream}
 import is.hail.HailContext
 import is.hail.backend.BroadcastValue
 import is.hail.io.compress.{BGzipInputStream, BGzipOutputStream}
