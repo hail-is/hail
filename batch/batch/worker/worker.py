@@ -2184,6 +2184,9 @@ class JVM:
                 return await asyncio.open_unix_connection(self.socket_file)
             except ConnectionRefusedError:
                 os.remove(self.socket_file)
+                if self.container:
+                    await self.container.remove()
+
                 container = await self.create_container_and_connect(
                     self.index, self.n_cores, self.socket_file, self.root_dir, self.client_session, self.pool
                 )
