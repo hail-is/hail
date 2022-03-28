@@ -4,8 +4,6 @@ from collections import defaultdict
 
 import decorator
 
-from bitstring import Bits
-
 import hail
 from hail.expr.types import dtype, HailType, hail_type, tint32, tint64, \
     tfloat32, tfloat64, tstr, tbool, tarray, tstream, tndarray, tset, tdict, \
@@ -2634,24 +2632,14 @@ class RNGStateLiteral(IR):
 
 
 class RNGSplit(IR):
-    @typecheck_method(parent_state=IR, static_bitstring=Bits, dyn_bitstring=IR)
-    def __init__(self, parent_state, static_bitstring, dyn_bitstring):
+    @typecheck_method(parent_state=IR, dyn_bitstring=IR)
+    def __init__(self, parent_state, dyn_bitstring):
         super().__init__(parent_state, dyn_bitstring)
         self.parent_state = parent_state
-        self.static_bitstring = static_bitstring
         self.dyn_bitstring = dyn_bitstring
 
     def copy(self, parent_state, dyn_bitstring):
-        return RNGSplit(parent_state, self.static_bitstring, dyn_bitstring)
-
-    def head_str(self):
-        # l = self.static_bitstring.length
-        # padded = self.static_bitstring + Bits(uint=0, length=(-l)%4)
-        # return f'Bitstring({l}, {padded.hex})'
-        return f'Bitstring({self.static_bitstring.bin})'
-
-    def _eq(self, other):
-        return other.static_bitstring == self.static_bitstring
+        return RNGSplit(parent_state, dyn_bitstring)
 
     def _compute_type(self, env, agg_env):
         self.parent_state._compute_type(env, agg_env)

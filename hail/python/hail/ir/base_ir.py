@@ -1,7 +1,5 @@
 import abc
 
-from bitstring import Bits
-
 from hail.utils.java import Env
 from .renderer import Renderer, PlainRenderer, Renderable
 
@@ -25,25 +23,6 @@ def _env_bind(env, bindings):
             return dict(bindings)
     else:
         return env
-
-
-def _fill_in_rng_splits(children, start, stop, bitstring):
-    l = stop - start
-
-    if l == 0:
-        return []
-
-    if l == 1:
-        result = [children[start].fill_in_rng_splits(bitstring)]
-        assert(result is not None)
-        return result
-
-    mid = start + (l // 2)
-    left = _fill_in_rng_splits(children, start, mid, bitstring + Bits(bin='0'))
-    right = _fill_in_rng_splits(children, mid, stop, bitstring + Bits(bin='1'))
-    result = [*left, *right]
-    assert(result is not None)
-    return result
 
 
 class BaseIR(Renderable):

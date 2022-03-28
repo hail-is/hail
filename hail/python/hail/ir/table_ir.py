@@ -1,5 +1,4 @@
 from typing import Optional
-from bitstring import Bits
 import hail as hl
 from hail.expr.types import dtype, HailType, tint64, trngstate
 from hail.ir.base_ir import BaseIR, TableIR
@@ -301,9 +300,9 @@ class TableMapRows(TableIR):
         uid, old_row = unpack_uid(child.typ.row_type)
         new_row = ir.Let('row', old_row, self.new_row)
         if self.new_row.uses_randomness:
-            new_row = ir.Let('__rng_state', ir.RNGSplit(ir.RNGStateLiteral(rng_key), Bits(''), uid), new_row)
+            new_row = ir.Let('__rng_state', ir.RNGSplit(ir.RNGStateLiteral(rng_key), uid), new_row)
         if self.new_row.uses_agg_randomness(is_scan=True):
-            new_row = ir.AggLet('__rng_state', ir.RNGSplit(ir.RNGStateLiteral(rng_key), Bits(''), uid), new_row, is_scan=True)
+            new_row = ir.AggLet('__rng_state', ir.RNGSplit(ir.RNGStateLiteral(rng_key), uid), new_row, is_scan=True)
         if uid_field_name is not None:
             new_row = ir.InsertFields(new_row, [(uid_field_name, uid)], None)
         return TableMapRows(child, new_row)
@@ -435,7 +434,7 @@ class TableFilter(TableIR):
         uid, old_row = unpack_uid(child.typ.row_type, uid_field_name)
         pred = ir.Let('row', old_row, self.pred)
         if self.pred.uses_randomness:
-            pred = ir.Let('__rng_state', ir.RNGSplit(ir.RNGStateLiteral(rng_key), Bits(''), uid))
+            pred = ir.Let('__rng_state', ir.RNGSplit(ir.RNGStateLiteral(rng_key), uid))
         result = TableFilter(child, pred)
         if uid_field_name is None:
             result = TableMapRows(result, old_row)
@@ -472,11 +471,11 @@ class TableKeyByAndAggregate(TableIR):
             if expr.uses_randomness:
                 expr = ir.Let(
                     '__rng_state',
-                    ir.RNGSplit(ir.RNGStateLiteral(rng_key), Bits(''), ir.Ref(first_uid)),
+                    ir.RNGSplit(ir.RNGStateLiteral(rng_key), ir.Ref(first_uid)),
                     expr)
                 expr = ir.AggLet(
                     '__rng_state',
-                    ir.RNGSplit(ir.RNGStateLiteral(rng_key), Bits(''), uid),
+                    ir.RNGSplit(ir.RNGStateLiteral(rng_key), uid),
                     expr)
             if uid_field_name is not None:
                 expr = ir.InsertFields(expr, [uid_field_name, uid], None)
@@ -485,7 +484,7 @@ class TableKeyByAndAggregate(TableIR):
         if new_key.uses_randomness:
             expr = ir.Let(
                 '__rng_state',
-                ir.RNGSplit(ir.RNGStateLiteral(rng_key), Bits(''), uid),
+                ir.RNGSplit(ir.RNGStateLiteral(rng_key), uid),
                 new_key)
         return TableKeyByAndAggregate(child, expr, new_key, self.n_partitions, self.buffer_size)
 
@@ -535,11 +534,11 @@ class TableAggregateByKey(TableIR):
         if expr.uses_randomness:
             expr = ir.Let(
                 '__rng_state',
-                ir.RNGSplit(ir.RNGStateLiteral(rng_key), Bits(''), ir.Ref(first_uid)),
+                ir.RNGSplit(ir.RNGStateLiteral(rng_key), ir.Ref(first_uid)),
                 expr)
             expr = ir.AggLet(
                 '__rng_state',
-                ir.RNGSplit(ir.RNGStateLiteral(rng_key), Bits(''), uid),
+                ir.RNGSplit(ir.RNGStateLiteral(rng_key), uid),
                 expr)
         if uid_field_name is not None:
             expr = pack_uid(uid, expr)
