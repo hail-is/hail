@@ -2,9 +2,8 @@ package is.hail.io.fs
 
 import java.io.{ByteArrayInputStream, FileNotFoundException}
 import java.net.URI
-import java.nio.ByteBuffer
 import java.nio.file.FileSystems
-import org.apache.log4j.{LogManager, Logger}
+import org.apache.log4j.Logger
 import com.google.auth.oauth2.ServiceAccountCredentials
 import com.google.cloud.{ReadChannel, WriteChannel}
 import com.google.cloud.storage.Storage.BlobListOption
