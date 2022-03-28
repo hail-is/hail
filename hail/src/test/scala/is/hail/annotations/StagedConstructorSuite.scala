@@ -31,7 +31,7 @@ class StagedConstructorSuite extends HailSuite {
 
     val region = Region(pool=pool)
     val rv = RegionValue(region)
-    rv.setOffset(fb.result()(theHailClassLoader)(region, input))
+    rv.setOffset(fb.result(ctx)(theHailClassLoader)(region, input))
 
     if (showRVInfo) {
       printRegion(region, "string")
@@ -68,7 +68,7 @@ class StagedConstructorSuite extends HailSuite {
 
     val region = Region(pool=pool)
     val rv = RegionValue(region)
-    rv.setOffset(fb.result()(theHailClassLoader)(region, input))
+    rv.setOffset(fb.result(ctx)(theHailClassLoader)(region, input))
 
     if (showRVInfo) {
       printRegion(region, "int")
@@ -105,7 +105,7 @@ class StagedConstructorSuite extends HailSuite {
 
     val region = Region(pool=pool)
     val rv = RegionValue(region)
-    rv.setOffset(fb.result()(theHailClassLoader)(region, input))
+    rv.setOffset(fb.result(ctx)(theHailClassLoader)(region, input))
 
     if (showRVInfo) {
       printRegion(region, "array")
@@ -149,7 +149,7 @@ class StagedConstructorSuite extends HailSuite {
 
     val region = Region(pool=pool)
     val rv = RegionValue(region)
-    rv.setOffset(fb.result()(theHailClassLoader)(region, input))
+    rv.setOffset(fb.result(ctx)(theHailClassLoader)(region, input))
 
     if (showRVInfo) {
       printRegion(region, "struct")
@@ -193,7 +193,7 @@ class StagedConstructorSuite extends HailSuite {
 
     val region = Region(pool=pool)
     val rv = RegionValue(region)
-    rv.setOffset(fb.result()(theHailClassLoader)(region, input))
+    rv.setOffset(fb.result(ctx)(theHailClassLoader)(region, input))
 
     if (showRVInfo) {
       printRegion(region, "array of struct")
@@ -326,7 +326,7 @@ class StagedConstructorSuite extends HailSuite {
 
     val region = Region(pool=pool)
     val rv = RegionValue(region)
-    rv.setOffset(fb.result()(theHailClassLoader)(region, input))
+    rv.setOffset(fb.result(ctx)(theHailClassLoader)(region, input))
 
     if (showRVInfo) {
       printRegion(region, "struct with array")
@@ -374,7 +374,7 @@ class StagedConstructorSuite extends HailSuite {
 
     val region = Region(pool=pool)
     val rv = RegionValue(region)
-    rv.setOffset(fb.result()(theHailClassLoader)(region, input))
+    rv.setOffset(fb.result(ctx)(theHailClassLoader)(region, input))
 
     if (showRVInfo) {
       printRegion(region, "missing array")
@@ -415,7 +415,7 @@ class StagedConstructorSuite extends HailSuite {
     }
 
     val region = Region(pool=pool)
-    val f = fb.result()(theHailClassLoader)
+    val f = fb.result(ctx)(theHailClassLoader)
     def run(i: Int, b: Boolean, d: Double): (Int, Boolean, Double) = {
       val off = f(region, i, b, d)
       (Region.loadInt(t.loadField(off, 0)),

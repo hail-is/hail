@@ -121,6 +121,11 @@ package object ir {
     If(a < b, a, b)
   }
 
+  def streamAggIR(stream: IR)(f: Ref => IR): IR = {
+    val ref = Ref(genUID(), coerce[TStream](stream.typ).elementType)
+    StreamAgg(stream, ref.name, f(ref))
+  }
+
   def forIR(stream: IR)(f: Ref => IR): IR = {
     val ref = Ref(genUID(), coerce[TStream](stream.typ).elementType)
     StreamFor(stream, ref.name, f(ref))
@@ -141,9 +146,9 @@ package object ir {
     StreamFlatMap(stream, ref.name, f(ref))
   }
 
-  def flatten(stream: IR): IR = flatMapIR(stream) { elt =>
-      if (elt.typ.isInstanceOf[TStream]) elt else ToStream(elt)
-    }
+  def flatten(stream: IR): IR = flatMapIR(if (stream.typ.isInstanceOf[TStream]) stream else ToStream(stream)) { elt =>
+    if (elt.typ.isInstanceOf[TStream]) elt else ToStream(elt)
+  }
 
   def foldIR(stream: IR, zero: IR)(f: (Ref, Ref) => IR): IR = {
     val elt = Ref(genUID(), coerce[TStream](stream.typ).elementType)

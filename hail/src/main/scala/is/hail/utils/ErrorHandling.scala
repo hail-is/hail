@@ -7,6 +7,12 @@ class HailException(val msg: String, val logMsg: Option[String], cause: Throwabl
   def this(msg: String, errorId: Int) = this(msg, None, null, errorId)
 }
 
+class HailWorkerException(
+  val shortMessage: String,
+  val expandedMessage: String,
+  val errorId: Int
+) extends RuntimeException(shortMessage)
+
 trait ErrorHandling {
   def fatal(msg: String): Nothing = throw new HailException(msg)
 

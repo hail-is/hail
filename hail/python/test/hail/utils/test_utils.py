@@ -74,10 +74,9 @@ class Tests(unittest.TestCase):
         with hadoop_open(resource('./some/foo/bar.txt')) as f:
             assert(f.read() == test_text)
 
-        import shutil
-        shutil.rmtree(resource('./some'))
+        hl.current_backend().fs.rmtree(resource('./some'))
 
-    def test_hadoop_mkdir_p(self):
+    def test_hadoop_mkdir_p_2(self):
         with self.assertRaises(Exception):
             hadoop_open(resource('./some2/foo/bar.txt'), 'r')
 
@@ -114,7 +113,6 @@ class Tests(unittest.TestCase):
         self.assertTrue('path' in stat2)
 
     @fails_service_backend()
-    @fails_local_backend()
     def test_hadoop_ls(self):
         path1 = resource('ls_test/f_50')
         ls1 = hl.hadoop_ls(path1)
@@ -136,7 +134,7 @@ class Tests(unittest.TestCase):
         ls3 = hl.hadoop_ls(path3)
         assert len(ls3) == 2, ls3
 
-        with self.assertRaisesRegex(Exception, "FileNotFound"):
+        with self.assertRaisesRegex(Exception, "FileNotFound|No such file or directory"):
             hl.hadoop_ls('a_file_that_does_not_exist')
 
     def test_linked_list(self):
@@ -177,20 +175,6 @@ class Tests(unittest.TestCase):
         self.assertEqual(s.annotate(**{'a': 5, 'x': 10, 'y': 15}),
                          Struct(a=5, b=2, c=3, x=10, y=15))
 
-    @fails_service_backend(reason='''worker error not propagated to client.
-
-falsCaused by: is.hail.utils.HailException: array index out of bounds: index=5, length=2
-	at __C23409collect_distributed_array.__m23435arrayref_bounds_check(Unknown Source)
-	at __C23409collect_distributed_array.__m23417split_StreamLen(Unknown Source)
-	at __C23409collect_distributed_array.apply(Unknown Source)
-	at __C23409collect_distributed_array.apply(Unknown Source)
-	at is.hail.backend.BackendUtils.$anonfun$collectDArray$2(BackendUtils.scala:31)
-	at is.hail.utils.package$.using(package.scala:627)
-	at is.hail.annotations.RegionPool.scopedRegion(RegionPool.scala:144)
-	at is.hail.backend.BackendUtils.$anonfun$collectDArray$1(BackendUtils.scala:30)
-	at is.hail.backend.service.Worker$.main(Worker.scala:120)
-	at is.hail.backend.service.Worker.main(Worker.scala)
-	... 11 more''')
     def test_expr_exception_results_in_hail_user_error(self):
         df = range_table(10)
         df = df.annotate(x=[1, 2])

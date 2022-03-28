@@ -1,3 +1,4 @@
+import os
 import sys
 import argparse
 import re
@@ -125,7 +126,12 @@ A parameter with more than one slash is invalid, for example:
         if section not in config:
             config[section] = {}
         config[section][key] = args.value
-        with open(config_file, 'w', encoding='utf-8') as f:
+        try:
+            f = open(config_file, 'w', encoding='utf-8')
+        except FileNotFoundError:
+            os.makedirs(config_file.parent, exist_ok=True)
+            f = open(config_file, 'w', encoding='utf-8')
+        with f:
             config.write(f)
         sys.exit(0)
     if args.module == 'unset':

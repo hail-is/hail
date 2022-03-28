@@ -1,4 +1,6 @@
+from typing import Optional
 import hail as hl
+from hail.expr.types import HailType
 from hail.ir.base_ir import BaseIR, MatrixIR
 from hail.utils.misc import escape_str, parsable_strings, dump_json, escape_id
 from hail.utils.java import Env
@@ -45,11 +47,17 @@ class MatrixAggregateRowsByKey(MatrixIR):
 
 
 class MatrixRead(MatrixIR):
-    def __init__(self, reader, drop_cols=False, drop_rows=False):
+    def __init__(self,
+                 reader,
+                 drop_cols: bool = False,
+                 drop_rows: bool = False,
+                 *,
+                 _assert_type: Optional[HailType] = None):
         super().__init__()
         self.reader = reader
         self.drop_cols = drop_cols
         self.drop_rows = drop_rows
+        self._type: Optional[HailType] = _assert_type
 
     def render_head(self, r):
         return f'(MatrixRead None {self.drop_cols} {self.drop_rows} "{self.reader.render(r)}"'
@@ -58,7 +66,8 @@ class MatrixRead(MatrixIR):
         return self.reader == other.reader and self.drop_cols == other.drop_cols and self.drop_rows == other.drop_rows
 
     def _compute_type(self):
-        self._type = Env.backend().matrix_type(self)
+        if self._type is None:
+            self._type = Env.backend().matrix_type(self)
 
 
 class MatrixFilterRows(MatrixIR):

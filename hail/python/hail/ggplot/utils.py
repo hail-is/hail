@@ -34,16 +34,20 @@ def should_use_scale_for_grouping(scale):
 
 
 # Map strings to numbers that will index into a color scale.
-def categorical_strings_to_colors(string_set, parent_plot):
+def categorical_strings_to_colors(string_set, color_values):
 
-    color_dict = parent_plot.discrete_color_dict
+    if isinstance(color_values, list):
+        if len(string_set) > len(color_values):
+            print(f"Not enough colors specified. Found {len(string_set)} distinct values of color aesthetic and only {len(color_values)} colors were provided.")
+        color_dict = {}
+        for idx, element in enumerate(string_set):
+            if element not in color_dict:
+                color_dict[element] = color_values[idx]
 
-    for element in string_set:
-        if element not in color_dict:
-            color_dict[element] = parent_plot.discrete_color_scale[parent_plot.discrete_color_idx % len(parent_plot.discrete_color_scale)]
-            parent_plot.discrete_color_idx += 1
+    else:
+        color_dict = color_values
 
-    return parent_plot.discrete_color_dict
+    return color_dict
 
 
 def continuous_nums_to_colors(min_color, max_color, continuous_color_scale):

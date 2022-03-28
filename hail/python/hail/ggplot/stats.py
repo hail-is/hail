@@ -67,6 +67,8 @@ class StatCount(Stat):
     def make_agg(self, mapping, precomputed):
         grouping_variables = {aes_key: mapping[aes_key] for aes_key in mapping.keys()
                               if should_use_for_grouping(aes_key, mapping[aes_key].dtype)}
+        if "weight" in mapping:
+            return hl.agg.group_by(hl.struct(**grouping_variables), hl.agg.counter(mapping["x"], weight=mapping["weight"]))
         return hl.agg.group_by(hl.struct(**grouping_variables), hl.agg.group_by(mapping["x"], hl.agg.count()))
 
     def listify(self, agg_result):

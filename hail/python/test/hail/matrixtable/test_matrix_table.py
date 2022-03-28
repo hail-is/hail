@@ -639,7 +639,6 @@ https://hail.zulipchat.com/#narrow/stream/123011-Hail-Dev/topic/test_drop/near/2
         rows = left.rows()
         self.assertTrue(rows.all(rows.matches.map(lambda x: x.idx) == hl.range(0, rows.row_idx)))
 
-    @fails_service_backend()
     def test_naive_coalesce(self):
         mt = self.get_mt(min_partitions=8)
         self.assertEqual(mt.n_partitions(), 8)
@@ -1006,8 +1005,6 @@ Caused by: java.lang.AssertionError: assertion failed
               (df.GT == df.entry_struct.GT)) &
              (df.AD == df.entry_struct.AD))))
 
-    @fails_service_backend()
-    @fails_local_backend()
     def test_filter_partitions(self):
         ds = self.get_mt(min_partitions=8)
         self.assertEqual(ds.n_partitions(), 8)
@@ -1957,8 +1954,6 @@ def test_read_write_balding_nichols_model():
     mt.write(tmp_file)
     assert hl.read_matrix_table(tmp_file)._same(mt)
 
-@fails_service_backend()
-@fails_local_backend()
 def test_read_partitions():
     ht = hl.utils.range_matrix_table(n_rows=100, n_cols=10, n_partitions=3)
     path = new_temp_file()

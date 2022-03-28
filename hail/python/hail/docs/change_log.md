@@ -25,6 +25,39 @@ an earlier version of Hail to read files written in a later version.
 
 ---
 
+## Version 0.2.93
+
+Release 2022-03-27
+
+### Beta features
+
+- Several issues with the beta version of Hail Query on Hail Batch are addressed in this release.
+
+---
+
+## Version 0.2.92
+
+Release 2022-03-25
+
+### New features
+
+- (hail#11613) Add `hl.ggplot` support for `scale_fill_hue`, `scale_color_hue`, and `scale_fill_manual`,
+  `scale_color_manual`. This allows for an infinite number of discrete colors.
+- (hail#11608) Add all remaining and all versions of extant public gnomAD datasets to the Hail
+  Annotation Database and Datasets API. Current as of March 23rd 2022.
+- (hail#11662) Add the `weight` aesthetic `geom_bar`.
+
+### Beta features
+
+- This version of Hail includes all the necessary client-side infrastructure to execute Hail Query
+  pipelines on a Hail Batch cluster. This effectively enables a "serverless" version of Hail Query
+  which is independent of Apache Spark. Broad affiliated users should contact the Hail team for help
+  using Hail Query on Hail Batch. Unaffiliated users should also contact the Hail team to discuss
+  the feasibility of running your own Hail Batch cluster. The Hail team is accessible at both
+  https://hail.zulipchat.com and https://discuss.hail.is .
+
+---
+
 ## Version 0.2.91
 
 Release 2022-03-18

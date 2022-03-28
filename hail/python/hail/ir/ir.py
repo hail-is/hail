@@ -10,7 +10,7 @@ from hail.expr.types import dtype, HailType, hail_type, tint32, tint64, \
 from hail.ir.blockmatrix_writer import BlockMatrixWriter, BlockMatrixMultiWriter
 from hail.typecheck import typecheck, typecheck_method, sequenceof, numeric, \
     sized_tupleof, nullable, tupleof, anytype, func_spec
-from hail.utils.java import Env, HailUserError
+from hail.utils.java import Env, HailUserError, warning
 from hail.utils.misc import escape_str, dump_json, parsable_strings, escape_id
 from .base_ir import BaseIR, IR, TableIR, MatrixIR, BlockMatrixIR, _env_bind
 from .matrix_writer import MatrixWriter, MatrixNativeMultiWriter
@@ -2284,6 +2284,9 @@ class Apply(IR):
 class ApplySeeded(IR):
     @typecheck_method(function=str, seed=int, return_type=hail_type, args=IR)
     def __init__(self, function, seed, return_type, *args):
+        if hail.current_backend().requires_lowering:
+            warning("Seeded randomness is currently unreliable on the service. "
+                    "You may observe some unexpected behavior. Don't use for real work yet.")
         super().__init__(*args)
         self.function = function
         self.args = args
@@ -2545,7 +2548,7 @@ class BlockMatrixWrite(IR):
 
     def _compute_type(self, env, agg_env):
         self.child._compute_type()
-        self._type = tvoid
+        self._type = self.writer._type()
 
     @staticmethod
     def is_effectful() -> bool:

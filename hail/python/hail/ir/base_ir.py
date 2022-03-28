@@ -68,7 +68,7 @@ class BaseIR(Renderable):
     @property
     @abc.abstractmethod
     def typ(self):
-        return
+        raise NotImplementedError
 
     def __eq__(self, other):
         return isinstance(other, self.__class__) and self.children == other.children and self._eq(other)

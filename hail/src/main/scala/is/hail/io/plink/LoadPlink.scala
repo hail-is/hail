@@ -289,7 +289,8 @@ class PlinkVariant(
   val index: Int,
   val locusAlleles: Any,
   val cmPos: Double,
-  val rsid: String)
+  val rsid: String
+) extends Serializable
 
 class MatrixPLINKReader(
   val params: MatrixPLINKReaderParameters,
@@ -315,8 +316,6 @@ class MatrixPLINKReader(
   }
 
   def executeGeneric(ctx: ExecuteContext): GenericTableValue = {
-    val fsBc = ctx.fsBc
-
     val localA2Reference = params.a2Reference
     val variantsBc = ctx.backend.broadcast(variants)
     val localNSamples = nSamples
@@ -361,9 +360,12 @@ class MatrixPLINKReader(
 
         val rvb = new RegionValueBuilder(region)
 
-        val is = fsBc.value.open(bed)
-        TaskContext.get.addTaskCompletionListener[Unit] { (context: TaskContext) =>
-          is.close()
+        val is = fs.open(bed)
+        if (TaskContext.get != null) {
+          // FIXME: need to close InputStream for other backends too
+          TaskContext.get.addTaskCompletionListener[Unit] { (context: TaskContext) =>
+            is.close()
+          }
         }
         var offset: Long = 0
 

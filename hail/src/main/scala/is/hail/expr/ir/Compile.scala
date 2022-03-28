@@ -29,6 +29,7 @@ object Compile {
     expectedCodeParamTypes: IndexedSeq[TypeInfo[_]], expectedCodeReturnType: TypeInfo[_],
     body: IR,
     optimize: Boolean = true,
+    writeIRs: Boolean = false,
     print: Option[PrintWriter] = None
   ): (Option[SingleCodeType], (HailClassLoader, FS, Int, Region) => F) = {
 
@@ -48,7 +49,7 @@ object Compile {
       .foldLeft(Env.empty[IR]) { case (e, ((n, t), i)) => e.bind(n, In(i, t)) }))
     ir = LoweringPipeline.compileLowerer(optimize).apply(ctx, ir).asInstanceOf[IR].noSharing
 
-    TypeCheck(ir, BindingEnv.empty)
+    TypeCheck(ctx, ir, BindingEnv.empty)
 
     val returnParam = CodeParamType(SingleCodeType.typeInfoFromType(ir.typ))
 
@@ -76,7 +77,7 @@ object Compile {
     val emitContext = EmitContext.analyze(ctx, ir)
     val rt = Emit(emitContext, ir, fb, expectedCodeReturnType, params.length)
 
-    val f = fb.resultWithIndex(print)
+    val f = fb.resultWithIndex(writeIRs, print)
     codeCache += k -> CodeCacheValue(rt, f)
 
     (rt, f)
@@ -110,7 +111,7 @@ object CompileWithAggregators {
       .foldLeft(Env.empty[IR]) { case (e, ((n, t), i)) => e.bind(n, In(i, t)) }))
     ir = LoweringPipeline.compileLowerer(optimize).apply(ctx, ir).asInstanceOf[IR].noSharing
 
-    TypeCheck(ir, BindingEnv(Env.fromSeq[Type](params.map { case (name, t) => name -> t.virtualType })))
+    TypeCheck(ctx, ir, BindingEnv(Env.fromSeq[Type](params.map { case (name, t) => name -> t.virtualType })))
 
     val fb = EmitFunctionBuilder[F](ctx, "CompiledWithAggs",
       CodeParamType(typeInfo[Region]) +: params.map { case (_, pt) => pt },
@@ -183,6 +184,7 @@ object CompileIterator {
     ctx: ExecuteContext,
     body: IR,
     argTypeInfo: Array[ParamType],
+    writeIRs: Boolean,
     printWriter: Option[PrintWriter]
   ): (PType, (HailClassLoader, FS, Int, Region) => F) = {
 
@@ -198,7 +200,7 @@ object CompileIterator {
     val outerRegion = outerRegionField
 
     val ir = LoweringPipeline.compileLowerer(true)(ctx, body).asInstanceOf[IR].noSharing
-    TypeCheck(ir)
+    TypeCheck(ctx, ir)
 
     var elementAddress: Settable[Long] = null
     var returnType: PType = null
@@ -261,7 +263,7 @@ object CompileIterator {
     val getMB = fb.newEmitMethod("loadAddress", FastIndexedSeq(), LongInfo)
     getMB.emit(elementAddress.load())
 
-    (returnType, fb.resultWithIndex(printWriter))
+    (returnType, fb.resultWithIndex(writeIRs, printWriter))
   }
 
   def forTableMapPartitions(
@@ -277,6 +279,7 @@ object CompileIterator {
         CodeParamType(typeInfo[Object]),
         SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(typ0)),
         SingleCodeEmitParamType(true, StreamSingleCodeType(true, streamElementType))),
+      false,
       None)
     (eltPType, (theHailClassLoader, fs, idx, consumerCtx, v0, part) => {
       val stepper = makeStepper(theHailClassLoader, fs, idx, consumerCtx.partitionRegion)
@@ -302,6 +305,7 @@ object CompileIterator {
         CodeParamType(typeInfo[Object]),
         SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(ctxType)),
         SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(bcValsType))),
+      false,
       None)
     (eltPType, (theHailClassLoader, fs, idx, consumerCtx, v0, v1) => {
       val stepper = makeStepper(theHailClassLoader, fs, idx, consumerCtx.partitionRegion)

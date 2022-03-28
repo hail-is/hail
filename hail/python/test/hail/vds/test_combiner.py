@@ -87,6 +87,7 @@ def test_vcf_vds_combiner_equivalence():
     assert smt._same(smt_from_vds)
 
 
+@fails_service_backend
 def test_combiner_plan_round_trip_serialization():
     sample_names = all_samples[:5]
     paths = [os.path.join(resource('gvcfs'), '1kg_chr22', f'{s}.hg38.g.vcf.gz') for s in sample_names]
@@ -141,6 +142,7 @@ def test_combiner_run():
 
 
 @fails_service_backend()
+@fails_local_backend()
 def test_combiner_manual_filtration():
     sample_names = all_samples[:2]
     paths = [os.path.join(resource('gvcfs'), '1kg_chr22', f'{s}.hg38.g.vcf.gz') for s in sample_names]

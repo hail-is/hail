@@ -1,8 +1,7 @@
-from typing import List, BinaryIO
-import gzip
-import io
 import os
+from typing import List
 from shutil import copy2, rmtree
+import glob
 
 from .fs import FS
 from .stat_result import StatResult
@@ -12,22 +11,14 @@ class LocalFS(FS):
     def __init__(self):
         pass
 
-    def open(self, path: str, mode: str = 'r', buffer_size: int = 0):
-        if mode not in ('r', 'rb', 'w', 'wb'):
-            raise ValueError(f'Unsupported mode: {repr(mode)}')
-
-        strm: BinaryIO
-        if mode[0] == 'r':
-            strm = open(path, 'rb')
-        else:
-            assert mode[0] == 'w'
-            strm = open(path, 'wb')
-
-        if path[-3:] == '.gz' or path[-4:] == '.bgz':
-            strm = gzip.GzipFile(fileobj=strm, mode=mode)  # type: ignore # GzipFile should be a BinaryIO
-        if 'b' not in mode:
-            strm = io.TextIOWrapper(strm, encoding='utf-8')  # type: ignore # TextIOWrapper should be a BinaryIO
-        return strm
+    def open(self, path: str, mode: str = 'r', buffer_size: int = -1):
+        if 'w' in mode:
+            try:
+                return open(path, mode, buffering=buffer_size)
+            except FileNotFoundError:
+                os.makedirs(os.path.dirname(path))
+                return open(path, mode, buffering=buffer_size)
+        return open(path, mode, buffering=buffer_size)
 
     def copy(self, src: str, dest: str):
         dst_w_file = dest
@@ -52,8 +43,19 @@ class LocalFS(FS):
         return StatResult.from_os_stat_result(path, os.stat(path))
 
     def ls(self, path: str) -> List[StatResult]:
-        return [self.stat(os.path.join(path, file))
-                for file in os.listdir(path)]
+        if glob.escape(path) == path:
+            return self._ls_no_glob(path)
+        return [
+            result_path
+            for globbed_path in glob.glob(path)
+            for result_path in self._ls_no_glob(globbed_path)
+        ]
+
+    def _ls_no_glob(self, path: str) -> List[StatResult]:
+        if os.path.isdir(path):
+            return [self.stat(os.path.join(path, file))
+                    for file in os.listdir(path)]
+        return [self.stat(path)]
 
     def mkdir(self, path: str):
         os.mkdir(path)
@@ -66,3 +68,8 @@ class LocalFS(FS):
 
     def supports_scheme(self, scheme: str) -> bool:
         return scheme == ""
+
+    def canonicalize_path(self, path: str) -> str:
+        if path.startswith('file:'):
+            return 'file:' + os.path.realpath(path[5:])
+        return 'file:' + os.path.realpath(path)
