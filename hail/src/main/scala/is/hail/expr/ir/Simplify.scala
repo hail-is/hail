@@ -787,6 +787,12 @@ object Simplify {
 
     case TableParallelize(TableCollect(child), _) if isDeterministicallyRepartitionable(child) => child
 
+    case TableFilterIntervals(child, intervals, keep) if intervals.isEmpty =>
+      if (keep)
+        TableFilter(child, False())
+      else
+        child
+
     // push down filter intervals nodes
     case TableFilterIntervals(TableFilter(child, pred), intervals, keep) =>
       TableFilter(TableFilterIntervals(child, intervals, keep), pred)
