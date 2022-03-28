@@ -801,6 +801,8 @@ object Interpret {
             null
           else true
         }
+      case RNGStateLiteral(key) => ()
+      case RNGSplit(_,  _) => ()
       case ir: AbstractApplyNode[_] =>
         val argTuple = PType.canonical(TTuple(ir.args.map(_.typ): _*)).setRequired(true).asInstanceOf[PTuple]
         ctx.r.pool.scopedRegion { region =>

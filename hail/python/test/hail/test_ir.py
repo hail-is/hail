@@ -1,4 +1,5 @@
 import unittest
+from bitstring import Bits
 import hail as hl
 import hail.ir as ir
 from hail.ir.renderer import CSERenderer
@@ -28,6 +29,7 @@ class ValueIRTests(unittest.TestCase):
         s = ir.Ref('s')
         t = ir.Ref('t')
         call = ir.Ref('call')
+        rngState = ir.RNGStateLiteral((1, 2, 3, 4))
 
         table = ir.TableRange(5, 3)
 
@@ -67,6 +69,7 @@ class ValueIRTests(unittest.TestCase):
             ir.NDArrayMatMul(nd, nd),
             ir.LowerBoundOnOrderedCollection(a, i, True),
             ir.GroupByKey(da),
+            ir.RNGSplit(rngState, Bits(bin='001'), ir.MakeTuple([ir.I64(1), ir.MakeTuple([ir.I64(2), ir.I64(3)])])),
             ir.StreamMap(st, 'v', v),
             ir.StreamZip([st, st], ['a', 'b'], ir.TrueIR(), 'ExtendNA'),
             ir.StreamFilter(st, 'v', v),

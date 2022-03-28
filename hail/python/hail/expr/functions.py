@@ -5,6 +5,8 @@ from typing import Union, Optional, Any, Callable, Iterable, TypeVar
 
 from deprecated import deprecated
 
+from bitstring import Bits
+
 import hail
 import hail as hl
 from hail.expr.expressions import (Expression, ArrayExpression, SetExpression,
@@ -43,7 +45,8 @@ def _func(name, ret_type, *args, type_args=()):
 def _seeded_func(name, ret_type, seed, *args):
     seed = seed if seed is not None else Env.next_seed()
     indices, aggregations = unify_all(*args)
-    return construct_expr(ir.ApplySeeded(name, seed, ret_type, *(a._ir for a in args)), ret_type, indices, aggregations)
+    rng_state = ir.RNGSplit(ir.Ref('__rng_state'), Bits(int=ir.get_static_split_uid(), length=64), ir.MakeTuple([]))
+    return construct_expr(ir.ApplySeeded(name, seed, rng_state, ret_type, *(a._ir for a in args)), ret_type, indices, aggregations)
 
 
 def ndarray_broadcasting(func):

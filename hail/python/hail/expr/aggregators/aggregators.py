@@ -244,9 +244,10 @@ _agg_func = AggFunc()
 def _check_agg_bindings(expr, bindings):
     bound_references = {ref.name for ref in expr._ir.search(
         lambda x: isinstance(x, ir.Ref)
-        and not isinstance(x, ir.TopLevelReference)
-        and not x.name.startswith('__uid_scan')
-        and not x.name.startswith('__uid_agg'))}
+            and not isinstance(x, ir.TopLevelReference)
+            and not x.name.startswith('__uid_scan')
+            and not x.name.startswith('__uid_agg')
+            and not x.name == '__rng_state')}
     free_variables = bound_references - expr._ir.bound_variables - bindings
     if free_variables:
         raise ExpressionException("dynamic variables created by 'hl.bind' or lambda methods like 'hl.map' may not be aggregated")

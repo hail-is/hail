@@ -79,7 +79,7 @@ class Py4JBackend(Backend):
                              return_type: HailType,
                              body: Expression):
         r = CSERenderer(stop_at_jir=True)
-        code = r(body._ir)
+        code = r(finalize_randomness(body._ir))
         jbody = (self._parse_value_ir(code, ref_map=dict(zip(value_parameter_names, value_parameter_types)), ir_map=r.jirs))
 
         Env.hail().expr.ir.functions.IRFunctionRegistry.pyRegisterIR(

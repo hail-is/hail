@@ -5,26 +5,25 @@ import is.hail.TestUtils._
 import is.hail.annotations.{BroadcastRow, ExtendedOrdering, Region, SafeNDArray}
 import is.hail.asm4s.{Code, Value}
 import is.hail.backend.ExecuteContext
+import is.hail.expr.Nat
 import is.hail.expr.ir.ArrayZipBehavior.ArrayZipBehavior
 import is.hail.expr.ir.IRBuilder._
 import is.hail.expr.ir.IRSuite.TestFunctions
+import is.hail.expr.ir.agg._
 import is.hail.expr.ir.functions._
-import is.hail.types.{BlockMatrixType, TableType, VirtualTypeWithReq}
-import is.hail.types.physical._
-import is.hail.types.virtual._
-import is.hail.types.encoded._
-import is.hail.expr.Nat
-import is.hail.expr.ir.agg.{CallStatsStateSig, CollectStateSig, FoldStateSig, GroupedAggSig, PhysicalAggSig, TypedStateSig}
 import is.hail.io.bgen.{IndexBgen, MatrixBGENReader}
 import is.hail.io.{BufferSpec, TypedCodecSpec}
 import is.hail.linalg.BlockMatrix
 import is.hail.methods._
-import is.hail.rvd.{PartitionBoundOrdering, RVD, RVDPartitioner, RVDSpecMaker}
+import is.hail.rvd.{PartitionBoundOrdering, RVD}
+import is.hail.types.physical._
+import is.hail.types.physical.stypes._
 import is.hail.types.physical.stypes.primitives.SInt32
-import is.hail.types.physical.stypes.{EmitType, Float32SingleCodeType, Float64SingleCodeType, Int32SingleCodeType, Int64SingleCodeType, PTypeReferenceSingleCodeType, SType, SingleCodeType}
+import is.hail.types.virtual._
+import is.hail.types.{BlockMatrixType, TableType, VirtualTypeWithReq}
 import is.hail.utils.{FastIndexedSeq, _}
 import is.hail.variant.{Call2, Locus}
-import is.hail.{ExecStrategy, HailContext, HailSuite, utils}
+import is.hail.{ExecStrategy, HailSuite}
 import org.apache.spark.sql.Row
 import org.json4s.jackson.{JsonMethods, Serialization}
 import org.testng.annotations.{DataProvider, Test}

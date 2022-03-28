@@ -1,6 +1,11 @@
 from typing import Optional, List, Any, Tuple
-from .ir import Coalesce, ApplyUnaryPrimOp, FalseIR
 import hail as hl
+from .ir import Let, RNGStateLiteral, Coalesce, ApplyUnaryPrimOp, FalseIR, BaseIR
+
+
+def finalize_randomness(ir, key=(0, 0, 0, 0)) -> 'BaseIR':
+    result = Let('__rng_state', RNGStateLiteral(key), ir)
+    return result
 
 
 def impute_type_of_partition_interval_array(

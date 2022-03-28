@@ -16,9 +16,9 @@ from .ir import MatrixWrite, MatrixMultiWrite, BlockMatrixWrite, \
     StreamJoinRightDistinct, StreamFor, AggFilter, AggExplode, AggGroupBy, \
     AggArrayPerElement, BaseApplyAggOp, ApplyAggOp, ApplyScanOp, AggFold, Begin, \
     MakeStruct, SelectFields, InsertFields, GetField, MakeTuple, \
-    GetTupleElement, Die, ConsoleLog, Apply, ApplySeeded, TableCount, TableGetGlobals, \
-    TableCollect, TableAggregate, MatrixCount, MatrixAggregate, TableWrite, \
-    udf, subst, clear_session_functions
+    GetTupleElement, Die, ConsoleLog, Apply, ApplySeeded, RNGStateLiteral, RNGSplit,\
+    TableCount, TableGetGlobals, TableCollect, TableAggregate, MatrixCount,\
+    MatrixAggregate, TableWrite, udf, subst, clear_session_functions, get_static_split_uid
 from .register_functions import register_functions
 from .register_aggregators import register_aggregators
 from .table_ir import MatrixRowsTable, TableJoin, TableLeftJoinRightDistinct, \
@@ -45,7 +45,7 @@ from .blockmatrix_ir import BlockMatrixRead, BlockMatrixMap, BlockMatrixMap2, \
     RowIntervalSparsifier, RectangleSparsifier, PerBlockSparsifier, BlockMatrixSparsify, \
     BlockMatrixSlice, ValueToBlockMatrix, BlockMatrixRandom, \
     tensor_shape_to_matrix_shape
-from .utils import filter_predicate_with_keep, make_filter_and_replace
+from .utils import filter_predicate_with_keep, make_filter_and_replace, finalize_randomness
 from .matrix_reader import MatrixReader, MatrixNativeReader, MatrixRangeReader, \
     MatrixVCFReader, MatrixBGENReader, MatrixPLINKReader
 from .table_reader import AvroTableReader, TableReader, TableNativeReader, \
@@ -74,6 +74,7 @@ __all__ = [
     'register_aggregators',
     'filter_predicate_with_keep',
     'make_filter_and_replace',
+    'finalize_randomness',
     'Renderable',
     'RenderableStr',
     'ParensRenderer',
@@ -197,6 +198,8 @@ __all__ = [
     'ConsoleLog',
     'Apply',
     'ApplySeeded',
+    'RNGStateLiteral',
+    'RNGSplit',
     'TableCount',
     'TableGetGlobals',
     'TableCollect',
@@ -207,6 +210,7 @@ __all__ = [
     'udf',
     'subst',
     'clear_session_functions',
+    'get_static_split_uid',
     'MatrixWrite',
     'MatrixMultiWrite',
     'BlockMatrixWrite',

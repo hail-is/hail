@@ -1311,8 +1311,8 @@ object IRParser {
         val seed = int64_literal(it)
         val rt = type_expr(env.typEnv)(it)
         for {
-          args <- ir_value_children(env)(it)
           rngState <- ir_value_expr(env)(it)
+          args <- ir_value_children(env)(it)
         } yield ApplySeeded(function, args, rngState, seed, rt)
       case "ApplyIR" | "ApplySpecial" | "Apply" =>
         val errorID = int32_literal(it)
@@ -1977,7 +1977,11 @@ object IRParser {
     f(it)
   }
 
-  def parse_value_ir(s: String, env: IRParserEnvironment): IR = parse(s, ir_value_expr(env)(_).run())
+  def parse_value_ir(s: String, env: IRParserEnvironment): IR = {
+    val result = parse(s, ir_value_expr(env)(_).run())
+    println(Pretty.ssaStyle(result))
+    result
+  }
 
   def parse_value_ir(ctx: ExecuteContext, s: String): IR = {
     parse_value_ir(s, IRParserEnvironment(ctx))

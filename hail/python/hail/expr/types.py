@@ -627,6 +627,30 @@ class _tbool(HailType):
         return byte_reader.read_bool()
 
 
+class _trngstate(HailType):
+
+    def __init__(self):
+        super(_trngstate, self).__init__()
+
+    def __str__(self):
+        return "rng_state"
+
+    def _eq(self, other):
+        return isinstance(other, _trngstate)
+
+    def _parsable_string(self):
+        return "RNGState"
+
+    def unify(self, t):
+        return t == trngstate
+
+    def subst(self):
+        return self
+
+    def clear(self):
+        pass
+
+
 class tndarray(HailType):
     """Hail type for n-dimensional arrays.
 
@@ -1975,6 +1999,8 @@ See Also
 --------
 :class:`.BooleanExpression`, :func:`.bool`
 """
+
+trngstate = _trngstate()
 
 tcall = _tcall()
 """Hail type for a diploid genotype.

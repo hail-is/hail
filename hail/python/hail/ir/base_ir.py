@@ -1,5 +1,7 @@
 import abc
 
+from bitstring import Bits
+
 from hail.utils.java import Env
 from .renderer import Renderer, PlainRenderer, Renderable
 
@@ -23,6 +25,25 @@ def _env_bind(env, bindings):
             return dict(bindings)
     else:
         return env
+
+
+def _fill_in_rng_splits(children, start, stop, bitstring):
+    l = stop - start
+
+    if l == 0:
+        return []
+
+    if l == 1:
+        result = [children[start].fill_in_rng_splits(bitstring)]
+        assert(result is not None)
+        return result
+
+    mid = start + (l // 2)
+    left = _fill_in_rng_splits(children, start, mid, bitstring + Bits(bin='0'))
+    right = _fill_in_rng_splits(children, mid, stop, bitstring + Bits(bin='1'))
+    result = [*left, *right]
+    assert(result is not None)
+    return result
 
 
 class BaseIR(Renderable):
@@ -93,6 +114,9 @@ class BaseIR(Renderable):
     def __hash__(self):
         return 31 + hash(str(self))
 
+    def copy(self, *args):
+        raise NotImplementedError("IR has no copy method defined.")
+
     def new_block(self, i: int) -> bool:
         return self.renderable_new_block(self.renderable_idx_of_child(i))
 
@@ -103,6 +127,11 @@ class BaseIR(Renderable):
     @staticmethod
     def is_effectful() -> bool:
         return False
+
+    @property
+    @abc.abstractmethod
+    def uses_randomness(self) -> bool:
+        pass
 
     def bindings(self, i: int, default_value=None):
         """Compute variables bound in child 'i'.
@@ -248,9 +277,6 @@ class IR(BaseIR):
             return others + [self]
         return others
 
-    def copy(self, *args):
-        raise NotImplementedError("IR has no copy method defined.")
-
     def map_ir(self, f):
         new_children = []
         for child in self.children:
@@ -260,6 +286,17 @@ class IR(BaseIR):
                 new_children.append(child)
 
         return self.copy(*new_children)
+
+    @property
+    def uses_randomness(self) -> bool:
+        return '__rng_state' in self.free_vars or '__rng_state' in self.free_agg_vars or '__rng_state' in self.free_scan_vars
+
+    @property
+    def uses_agg_randomness(self, is_scan) -> bool:
+        if is_scan:
+            return '__rng_state' in self.free_scan_vars
+        else:
+            return '__rng_state' in self.free_agg_vars
 
     @property
     def bound_variables(self):
@@ -278,6 +315,16 @@ class IR(BaseIR):
     @abc.abstractmethod
     def _compute_type(self, env, agg_env):
         raise NotImplementedError(self)
+
+    @abc.abstractmethod
+    def _handle_randomness(self, create_uids):
+        pass
+
+    def handle_randomness(self, create_uids):
+        assert(isinstance(self.typ, tstream))
+        if not create_uids and not self.uses_randomness:
+            return self
+        return self._handle_randomness(create_uids)
 
     @property
     def free_vars(self):
@@ -328,6 +375,7 @@ class IR(BaseIR):
 class TableIR(BaseIR):
     def __init__(self, *children):
         super().__init__(*children)
+        self._children_use_randomness = any(child.uses_randomness for child in children)
 
     @abc.abstractmethod
     def _compute_type(self):
@@ -340,6 +388,19 @@ class TableIR(BaseIR):
             assert self._type is not None, self
         return self._type
 
+    @property
+    def uses_randomness(self) -> bool:
+        return self._children_use_randomness
+
+    @abc.abstractmethod
+    def _handle_randomness(self, uid_field_name):
+        pass
+
+    def handle_randomness(self, uid_field_name):
+        if uid_field_name is None and not self.uses_randomness:
+            return self
+        return self._handle_randomness(uid_field_name)
+
     def renderable_new_block(self, i: int) -> bool:
         return True
 
@@ -350,6 +411,11 @@ class TableIR(BaseIR):
 class MatrixIR(BaseIR):
     def __init__(self, *children):
         super().__init__(*children)
+        self._children_use_randomness = any(child.uses_randomness for child in children)
+
+    @property
+    def uses_randomness(self) -> bool:
+        return self._children_use_randomness
 
     @abc.abstractmethod
     def _compute_type(self):
@@ -374,6 +440,11 @@ class MatrixIR(BaseIR):
 class BlockMatrixIR(BaseIR):
     def __init__(self, *children):
         super().__init__(*children)
+        self._children_use_randomness = any(child.uses_randomness for child in children)
+
+    @property
+    def uses_randomness(self) -> bool:
+        return self._children_use_randomness
 
     @abc.abstractmethod
     def _compute_type(self):
