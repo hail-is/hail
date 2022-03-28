@@ -8,7 +8,7 @@ import is.hail.expr.ir._
 import is.hail.expr.ir.functions.{ArrayFunctions, IRRandomness, UtilFunctions}
 import is.hail.io.{BufferSpec, TypedCodecSpec}
 import is.hail.types.physical.{PArray, PBaseStruct, PCanonicalArray, PStruct, PTuple, PType}
-import is.hail.types.virtual.{TArray, TBoolean, TFloat64, TInt32, TIterable, TStream, TString, TStruct, TTuple, Type}
+import is.hail.types.virtual.{TArray, TBoolean, TFloat64, TInt32, TIterable, TRNGState, TStream, TString, TStruct, TTuple, Type}
 import is.hail.rvd.{PartitionBoundOrdering, RVDPartitioner}
 import is.hail.types.RStruct
 import is.hail.types.physical.stypes.PTypeReferenceSingleCodeType
@@ -175,7 +175,7 @@ object LowerDistributedSort {
       val perPartStatsCDAContexts = ToStream(Literal(TArray(TStruct("segmentIdx" -> TInt32, "files" -> TArray(TString), "sizeOfPartition" -> TInt32, "numSamples" -> TInt32)), perPartStatsCDAContextData))
       val perPartStatsIR = cdaIR(perPartStatsCDAContexts, MakeStruct(Seq())){ (ctxRef, _) =>
         val filenames = GetField(ctxRef, "files")
-        val samples = SeqSample(GetField(ctxRef, "sizeOfPartition"), GetField(ctxRef, "numSamples"), ???, false)
+        val samples = SeqSample(GetField(ctxRef, "sizeOfPartition"), GetField(ctxRef, "numSamples"), NA(TRNGState), false)
         val partitionStream = flatMapIR(ToStream(filenames)) { fileName =>
           mapIR(ReadPartition(fileName, spec._vType, reader)){ partitionElement =>
             SelectFields(partitionElement, keyToSortBy.fields.map(_.name))

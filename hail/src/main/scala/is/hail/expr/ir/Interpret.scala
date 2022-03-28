@@ -810,7 +810,11 @@ object Interpret {
             val wrappedArgs: IndexedSeq[BaseIR] = ir.args.zipWithIndex.map { case (x, i) =>
               GetTupleElement(Ref("in", argTuple.virtualType), i)
             }.toFastIndexedSeq
-            val wrappedIR = Copy(ir, wrappedArgs)
+            val newChildren = ir match {
+              case ir: ApplySeeded => wrappedArgs :+ NA(TRNGState)
+              case _ => wrappedArgs
+            }
+            val wrappedIR = Copy(ir, newChildren)
 
             val (rt, makeFunction) = Compile[AsmFunction2RegionLongLong](ctx,
               FastIndexedSeq(("in", SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(argTuple)))),

@@ -89,7 +89,7 @@ object Copy {
           requiresMemoryManagementPerElement, errorID)
       case SeqSample(_, _, _, requiresMemoryManagementPerElement) =>
         assert(newChildren.length == 3)
-        SeqSample(newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR], newChildren(3).asInstanceOf[IR], requiresMemoryManagementPerElement)
+        SeqSample(newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR], newChildren(2).asInstanceOf[IR], requiresMemoryManagementPerElement)
       case StreamDistribute(_, _, _, op, spec) =>
         StreamDistribute(newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR], newChildren(2).asInstanceOf[IR], op, spec)
       case ArrayZeros(_) =>

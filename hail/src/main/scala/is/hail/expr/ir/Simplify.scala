@@ -90,6 +90,25 @@ object Simplify {
     }
   }
 
+  /**
+    * Returns true if any strict child of 'x' is NA.
+    * A child is strict if 'x' evaluates to missing whenever the child does.
+    */
+  private[this] def hasMissingStrictChild(x: IR): Boolean = {
+    x match {
+      case _: Apply |
+           _: ApplyUnaryPrimOp |
+           _: ApplyBinaryPrimOp |
+           _: ArrayRef |
+           _: ArrayLen |
+           _: GetField |
+           _: GetTupleElement => Children(x).exists(_.isInstanceOf[NA])
+      case ApplyComparisonOp(op, _, _) if op.strict => Children(x).exists(_.isInstanceOf[NA])
+      case f: ApplySeeded if f.implementation.isStrict => f.args.exists(_.isInstanceOf[NA])
+      case _ => false
+    }
+  }
+
   /** Returns true if 'x' will never evaluate to missing.
     */
   private[this] def isDefinitelyDefined(x: IR): Boolean = {
@@ -128,7 +147,7 @@ object Simplify {
 
   private[this] def valueRules: PartialFunction[IR, IR] = {
     // propagate NA
-    case x: IR if isStrict(x) && Children(x).exists(_.isInstanceOf[NA]) =>
+    case x: IR if hasMissingStrictChild(x) =>
       NA(x.typ)
 
     case x@If(NA(_), _, _) => NA(x.typ)

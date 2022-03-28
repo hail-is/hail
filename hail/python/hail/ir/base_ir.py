@@ -270,7 +270,6 @@ class IR(BaseIR):
     def uses_randomness(self) -> bool:
         return '__rng_state' in self.free_vars or '__rng_state' in self.free_agg_vars or '__rng_state' in self.free_scan_vars
 
-    @property
     def uses_agg_randomness(self, is_scan) -> bool:
         if is_scan:
             return '__rng_state' in self.free_scan_vars
