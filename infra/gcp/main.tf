@@ -256,8 +256,6 @@ resource "google_compute_address" "internal_gateway" {
 }
 
 provider "kubernetes" {
-  load_config_file = false
-
   host = "https://${google_container_cluster.vdc.endpoint}"
   token = data.google_client_config.provider.access_token
   cluster_ca_certificate = base64decode(
