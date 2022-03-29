@@ -15,7 +15,7 @@ class Geom(FigureAttribute):
         self.aes = aes
 
     @abc.abstractmethod
-    def apply_to_fig(self, parent, agg_result, fig_so_far, precomputed, facet_row, facet_col):
+    def apply_to_fig(self, parent, agg_result, fig_so_far, precomputed, facet_row, facet_col, legend_cache):
         pass
 
     @abc.abstractmethod
@@ -35,7 +35,7 @@ class GeomLineBasic(Geom):
         super().__init__(aes)
         self.color = color
 
-    def apply_to_fig(self, parent, grouped_data, fig_so_far, precomputed, facet_row, facet_col):
+    def apply_to_fig(self, parent, grouped_data, fig_so_far, precomputed, facet_row, facet_col, legend_cache):
 
         def plot_group(df):
             scatter_args = {
@@ -55,6 +55,14 @@ class GeomLineBasic(Geom):
                     scatter_args[plotly_name] = df[aes_name]
                 elif default is not None:
                     scatter_args[plotly_name] = default
+
+            if "name" in scatter_args:
+                scatter_args["legendgroup"] = scatter_args["name"]
+                if scatter_args["name"] in legend_cache:
+                    scatter_args["showlegend"] = False
+                else:
+                    scatter_args["showlegend"] = True
+                    legend_cache.add(scatter_args["name"])
 
             fig_so_far.add_scatter(**scatter_args)
 
@@ -82,7 +90,7 @@ class GeomPoint(Geom):
         self.size = size
         self.alpha = alpha
 
-    def apply_to_fig(self, parent, grouped_data, fig_so_far, precomputed, facet_row, facet_col):
+    def apply_to_fig(self, parent, grouped_data, fig_so_far, precomputed, facet_row, facet_col, legend_cache):
         def plot_group(df):
             scatter_args = {
                 "x": df.x,
@@ -101,6 +109,14 @@ class GeomPoint(Geom):
                     scatter_args[plotly_name] = df[aes_name]
                 elif default is not None:
                     scatter_args[plotly_name] = default
+
+            if "name" in scatter_args:
+                scatter_args["legendgroup"] = scatter_args["name"]
+                if scatter_args["name"] in legend_cache:
+                    scatter_args["showlegend"] = False
+                else:
+                    scatter_args["showlegend"] = True
+                    legend_cache.add(scatter_args["name"])
 
             fig_so_far.add_scatter(**scatter_args)
 
@@ -130,8 +146,8 @@ class GeomLine(GeomLineBasic):
         super().__init__(aes, color)
         self.color = color
 
-    def apply_to_fig(self, parent, agg_result, fig_so_far, precomputed, facet_row, facet_col):
-        super().apply_to_fig(parent, agg_result, fig_so_far, precomputed, facet_row, facet_col)
+    def apply_to_fig(self, parent, agg_result, fig_so_far, precomputed, facet_row, facet_col, legend_cache):
+        super().apply_to_fig(parent, agg_result, fig_so_far, precomputed, facet_row, facet_col, legend_cache)
 
     def get_stat(self):
         return StatIdentity()

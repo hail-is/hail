@@ -214,6 +214,9 @@ class GGPlot:
             }
         fig = make_subplots(**subplot_args)
 
+        # Need to know what I've added to legend already so we don't do it more than once.
+        legend_cache = set()
+
         for geom, geom_label, facet_to_grouped_dfs in geoms_and_grouped_dfs_by_facet_idx:
             for facet_idx, grouped_dfs in facet_to_grouped_dfs.items():
                 scaled_grouped_dfs = []
@@ -227,7 +230,7 @@ class GGPlot:
 
                 facet_row = facet_idx // n_facet_cols + 1
                 facet_col = facet_idx % n_facet_cols + 1
-                geom.apply_to_fig(self, scaled_grouped_dfs, fig, precomputed[geom_label], facet_row, facet_col)
+                geom.apply_to_fig(self, scaled_grouped_dfs, fig, precomputed[geom_label], facet_row, facet_col, legend_cache)
 
         # Important to update axes after labels, axes names take precedence.
         self.labels.apply_to_fig(fig)
