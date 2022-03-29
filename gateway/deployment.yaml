@@ -77,7 +77,7 @@ spec:
    - type: Resource
      resource:
        name: cpu
-       targetAverageUtilization: 2500
+       targetAverageUtilization: 80
 ---
 apiVersion: policy/v1beta1
 kind: PodDisruptionBudget

@@ -116,10 +116,7 @@ trait WrappedEmitClassBuilder[C] extends WrappedEmitModuleBuilder {
 
   def fieldBuilder: SettableBuilder = cb.fieldBuilder
 
-  def result(
-    ctx: ExecuteContext,
-    print: Option[PrintWriter] = None
-  ): (HailClassLoader) => C = cb.result(ctx.shouldWriteIRFiles(), print)
+  def result(print: Option[PrintWriter] = None): (HailClassLoader) => C = cb.result(print)
 
   def getHailClassLoader: Code[HailClassLoader] = ecb.getHailClassLoader
 
@@ -144,9 +141,9 @@ trait WrappedEmitClassBuilder[C] extends WrappedEmitModuleBuilder {
 
   def addEncodedLiteral(encodedLiteral: EncodedLiteral) = ecb.addEncodedLiteral(encodedLiteral)
 
-  def getPType[T <: PType : TypeInfo](t: T): Code[T] = ecb.getPType(t)
+  def getPType(t: PType): Code[PType] = ecb.getPType(t)
 
-  def getType[T <: Type : TypeInfo](t: T): Code[T] = ecb.getType(t)
+  def getType(t: Type): Code[Type] = ecb.getType(t)
 
   def newEmitMethod(name: String, argsInfo: IndexedSeq[ParamType], returnInfo: ParamType): EmitMethodBuilder[C] =
     ecb.newEmitMethod(name, argsInfo, returnInfo)
@@ -167,7 +164,7 @@ trait WrappedEmitClassBuilder[C] extends WrappedEmitModuleBuilder {
 
   def newRNG(seed: Long): Value[IRRandomness] = ecb.newRNG(seed)
 
-  def resultWithIndex(writeIRs: Boolean = false, print: Option[PrintWriter] = None): (HailClassLoader, FS, Int, Region) => C = ecb.resultWithIndex(writeIRs, print)
+  def resultWithIndex(print: Option[PrintWriter] = None): (HailClassLoader, FS, Int, Region) => C = ecb.resultWithIndex(print)
 
   def getOrGenEmitMethod(
     baseName: String, key: Any, argsInfo: IndexedSeq[ParamType], returnInfo: ParamType
@@ -221,7 +218,7 @@ class EmitClassBuilder[C](
 
   def fieldBuilder: SettableBuilder = cb.fieldBuilder
 
-  def result(writeIRs: Boolean, print: Option[PrintWriter] = None): (HailClassLoader) => C = cb.result(writeIRs, print)
+  def result(print: Option[PrintWriter] = None): (HailClassLoader) => C = cb.result(print)
 
   // EmitClassBuilder methods
 
@@ -664,10 +661,7 @@ class EmitClassBuilder[C](
     rng
   }
 
-  def resultWithIndex(
-    writeIRs: Boolean,
-    print: Option[PrintWriter] = None
-  ): (HailClassLoader, FS, Int, Region) => C = {
+  def resultWithIndex(print: Option[PrintWriter] = None): (HailClassLoader, FS, Int, Region) => C = {
     makeRNGs()
     makeAddPartitionRegion()
     makeAddHailClassLoader()
@@ -705,7 +699,7 @@ class EmitClassBuilder[C](
       "FunctionBuilder emission should happen on master, but happened on worker")
 
     val n = cb.className.replace("/", ".")
-    val classesBytes = modb.classesBytes(writeIRs, print)
+    val classesBytes = modb.classesBytes(print)
 
     new ((HailClassLoader, FS, Int, Region) => C) with java.io.Serializable {
       @transient @volatile private var theClass: Class[_] = null

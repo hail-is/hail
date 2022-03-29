@@ -10,7 +10,6 @@ from hail.utils import hadoop_open, hadoop_copy
 from hail.fs.local_fs import LocalFS
 from hailtop.utils import secret_alnum_string
 from hailtop.config import get_remote_tmpdir
-from hail.utils.java import FatalError
 from ..helpers import startTestHailContext, stopTestHailContext, _initialized
 
 
@@ -222,88 +221,3 @@ class Tests(unittest.TestCase):
 
     def test_subdirs_local(self):
         self.test_subdirs(self.local_dir)
-
-    def test_remove_and_rmtree(self, prefix: Optional[str] = None):
-        if prefix is None:
-            prefix = self.remote_tmpdir
-
-        fs = hl.current_backend().fs
-
-        dir = f'{prefix}foo/'
-        subdir1 = f'{dir}foo/'
-        subdir1subdir1 = f'{subdir1}foo/'
-        subdir1subdir2 = f'{subdir1}bar/'
-        subdir1subdir3 = f'{subdir1}baz/'
-
-        def touch(filename):
-            with fs.open(filename, 'w') as fobj:
-                fobj.write('hello world')
-
-        fs.mkdir(dir)
-        touch(f'{dir}a')
-        touch(f'{dir}b')
-
-        fs.mkdir(subdir1)
-        touch(f'{subdir1}a')
-        fs.mkdir(subdir1subdir1)
-        touch(f'{subdir1subdir1}a')
-        fs.mkdir(subdir1subdir2)
-        touch(f'{subdir1subdir2}a')
-        fs.mkdir(subdir1subdir3)
-        touch(f'{subdir1subdir3}a')
-
-        try:
-            fs.remove(subdir1subdir2)
-        except (FileNotFoundError, IsADirectoryError):
-            pass
-        except FatalError as err:
-            java_nio_error_message = 'DirectoryNotEmptyException: Cannot delete a non-empty directory'
-            hadoop_error_message = f'Directory {subdir1subdir2.rstrip("/")} is not empty'
-            assert java_nio_error_message in err.args[0] or hadoop_error_message in err.args[0]
-        else:
-            assert False
-
-        fs.remove(f'{subdir1subdir2}a')
-
-        assert fs.exists(dir)
-        assert fs.exists(f'{dir}a')
-        assert fs.exists(f'{dir}b')
-        assert fs.exists(subdir1)
-        assert fs.exists(f'{subdir1}a')
-        assert fs.exists(subdir1subdir1)
-        assert fs.exists(f'{subdir1subdir1}a')
-        # subdir1subdir2: will exist in cloud, but not local, so do not test for it
-        assert not fs.exists(f'{subdir1subdir2}a')
-        assert fs.exists(subdir1subdir3)
-        assert fs.exists(f'{subdir1subdir3}a')
-
-        fs.rmtree(subdir1subdir1)
-
-        assert fs.exists(dir)
-        assert fs.exists(f'{dir}a')
-        assert fs.exists(f'{dir}b')
-        assert fs.exists(subdir1)
-        assert fs.exists(f'{subdir1}a')
-        assert not fs.exists(subdir1subdir1)
-        assert not fs.exists(f'{subdir1subdir1}a')
-        # subdir1subdir2: will exist in cloud, but not local, so do not test for it
-        assert not fs.exists(f'{subdir1subdir2}a')
-        assert fs.exists(subdir1subdir3)
-        assert fs.exists(f'{subdir1subdir3}a')
-
-        fs.rmtree(subdir1)
-
-        assert fs.exists(dir)
-        assert fs.exists(f'{dir}a')
-        assert fs.exists(f'{dir}b')
-        assert not fs.exists(subdir1)
-        assert not fs.exists(f'{subdir1}a')
-        assert not fs.exists(subdir1subdir1)
-        assert not fs.exists(f'{subdir1subdir1}a')
-        assert not fs.exists(subdir1subdir2)
-        assert not fs.exists(f'{subdir1subdir2}a')
-        assert not fs.exists(subdir1subdir3)
-        assert not fs.exists(f'{subdir1subdir3}a')
-
-    def test_remove_and_rmtree_local(self):
-        self.test_remove_and_rmtree(self.local_dir)

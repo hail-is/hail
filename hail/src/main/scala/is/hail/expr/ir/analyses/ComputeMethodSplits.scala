@@ -1,14 +1,13 @@
 package is.hail.expr.ir.analyses
 
 import is.hail.HailContext
-import is.hail.backend.ExecuteContext
 import is.hail.expr.ir._
 
 object ComputeMethodSplits {
-  def apply(ctx: ExecuteContext, ir: IR, controlFlowPreventsSplit: Memo[Unit]): Memo[Unit] = {
+  def apply(ir: IR, controlFlowPreventsSplit: Memo[Unit]): Memo[Unit] = {
     val m = Memo.empty[Unit]
 
-    val splitThreshold = ctx.getFlag("method_split_ir_limit").toInt
+    val splitThreshold = HailContext.getFlag("method_split_ir_limit").toInt
     require(splitThreshold > 0, s"invalid method_split_ir_limit")
 
     def recurAndComputeSizeUnderneath(x: IR): Int = {

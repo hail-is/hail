@@ -51,12 +51,6 @@ object Worker {
   private[this] implicit val ec = ExecutionContext.fromExecutorService(
     javaConcurrent.Executors.newCachedThreadPool())
 
-  private[this] def writeString(out: DataOutputStream, s: String): Unit = {
-    val bytes = s.getBytes(StandardCharsets.UTF_8)
-    out.writeInt(bytes.length)
-    out.write(bytes)
-  }
-
   def main(argv: Array[String]): Unit = {
     val theHailClassLoader = new HailClassLoader(getClass().getClassLoader())
 
@@ -65,12 +59,12 @@ object Worker {
     }
     val scratchDir = argv(0)
     val logFile = argv(1)
-    var jarLocation = argv(2)
-    val kind = argv(3)
+    val kind = argv(2)
     assert(kind == Main.WORKER)
-    val root = argv(4)
-    val i = argv(5).toInt
-    val n = argv(6).toInt
+    val revision = argv(3)
+    val jarGCSPath = argv(4)
+    val root = argv(5)
+    val i = argv(6).toInt
     val timer = new WorkerTimer()
 
     val deployConfig = DeployConfig.fromConfigFile(
@@ -81,9 +75,9 @@ object Worker {
     tls.setSSLConfigFromDir(s"$scratchDir/secrets/ssl-config")
 
     log.info(s"is.hail.backend.service.Worker $myRevision")
-    log.info(s"running job $i/$n at root $root with scratch directory '$scratchDir'")
+    log.info(s"running job $i at root $root with scratch directory '$scratchDir'")
 
-    timer.start(s"Job $i/$n")
+    timer.start(s"Job $i")
 
     timer.start("readInputs")
     val fs = retryTransientErrors {
@@ -92,16 +86,9 @@ object Worker {
       }
     }
 
-    // FIXME: HACK
-    val (open, create) = if (n <= 50) {
-      (fs.openCachedNoCompression _, fs.createCachedNoCompression _)
-    } else {
-      (fs.openNoCompression _, fs.createNoCompression _)
-    }
-
     val fFuture = Future {
       retryTransientErrors {
-        using(new ObjectInputStream(open(s"$root/f"))) { is =>
+        using(new ObjectInputStream(fs.openCachedNoCompression(s"$root/f"))) { is =>
           is.readObject().asInstanceOf[(Array[Byte], HailTaskContext, HailClassLoader, FS) => Array[Byte]]
         }
       }
@@ -109,7 +96,7 @@ object Worker {
 
     val contextFuture = Future {
       retryTransientErrors {
-        using(open(s"$root/contexts")) { is =>
+        using(fs.openCachedNoCompression(s"$root/contexts")) { is =>
           is.seek(i * 12)
           val offset = is.readLong()
           val length = is.readInt()
@@ -128,41 +115,21 @@ object Worker {
     timer.start("executeFunction")
 
     if (HailContext.isInitialized) {
-      HailContext.get.backend = new ServiceBackend(null, null, new HailClassLoader(getClass().getClassLoader()))
+      HailContext.get.backend = new ServiceBackend(null, null, null, new HailClassLoader(getClass().getClassLoader()))
     } else {
       HailContext(
         // FIXME: workers should not have backends, but some things do need hail contexts
-        new ServiceBackend(null, null, new HailClassLoader(getClass().getClassLoader())), skipLoggingConfiguration = true, quiet = true)
+        new ServiceBackend(null, null, null, new HailClassLoader(getClass().getClassLoader())), skipLoggingConfiguration = true, quiet = true)
     }
     val htc = new ServiceTaskContext(i)
-    var result: Array[Byte] = null
-    var userError: HailException = null
-    try {
-      result = f(context, htc, theHailClassLoader, fs)
-    } catch {
-      case err: HailException => userError = err
-    }
+    val result = f(context, htc, theHailClassLoader, fs)
     htc.finish()
 
     timer.end("executeFunction")
     timer.start("writeOutputs")
 
-    using(create(s"$root/result.$i")) { os =>
-      val dos = new DataOutputStream(os)
-      if (result != null) {
-        assert(userError == null)
-
-        dos.writeBoolean(true)
-        dos.write(result)
-      } else {
-        assert(userError != null)
-        val (shortMessage, expandedMessage, errorId) = handleForPython(userError)
-
-        dos.writeBoolean(false)
-        writeString(dos, shortMessage)
-        writeString(dos, expandedMessage)
-        dos.writeInt(errorId)
-      }
+    using(fs.createCachedNoCompression(s"$root/result.$i")) { os =>
+      os.write(result)
     }
     timer.end("writeOutputs")
     timer.end(s"Job $i")

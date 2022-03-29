@@ -3,18 +3,17 @@ from hail.expr.blockmatrix_type import tblockmatrix
 from hail.expr.types import tarray
 from .blockmatrix_reader import BlockMatrixReader
 from .base_ir import BlockMatrixIR, IR
-from hail.typecheck import typecheck_method, sequenceof, nullable
+from hail.typecheck import typecheck_method, sequenceof
 from hail.utils.misc import escape_id
 
 from hail.utils.java import Env
 
 
 class BlockMatrixRead(BlockMatrixIR):
-    @typecheck_method(reader=BlockMatrixReader, _assert_type=nullable(tblockmatrix))
-    def __init__(self, reader, _assert_type=None):
+    @typecheck_method(reader=BlockMatrixReader)
+    def __init__(self, reader):
         super().__init__()
         self.reader = reader
-        self._type = _assert_type
 
     def head_str(self):
         return f'"{self.reader.render()}"'
@@ -23,8 +22,7 @@ class BlockMatrixRead(BlockMatrixIR):
         return self.reader == other.reader
 
     def _compute_type(self):
-        if self._type is None:
-            self._type = Env.backend().blockmatrix_type(self)
+        self._type = Env.backend().blockmatrix_type(self)
 
 
 class BlockMatrixMap(BlockMatrixIR):

@@ -103,14 +103,13 @@ object LowerDistributedSort {
     inputStage: TableStage,
     sortFields: IndexedSeq[SortField],
     relationalLetsAbove: Map[String, IR],
-    rowTypeRequiredness: RStruct,
-    optTargetNumPartitions: Option[Int] = None
+    rowTypeRequiredness: RStruct
   ): TableStage = {
 
     val oversamplingNum = 3
     val seed = 7L
-    val defaultBranchingFactor = ctx.getFlag("shuffle_max_branch_factor").toInt
-    val sizeCutoff = ctx.getFlag("shuffle_cutoff_to_local_sort").toInt
+    val defaultBranchingFactor = 4
+    val sizeCutoff = HailContext.getFlag("shuffle_cutoff_to_local_sort").toInt
 
     val (keyToSortBy, _) = inputStage.rowType.select(sortFields.map(sf => sf.field))
 
@@ -121,47 +120,31 @@ object LowerDistributedSort {
 
     val initialStageDataRow = CompileAndEvaluate[Annotation](ctx, inputStage.mapCollectWithGlobals(relationalLetsAbove) { part =>
       WritePartition(part, UUID4(), writer)
-    }{ case (part, globals) =>
-      val streamElement = Ref(genUID(), part.typ.asInstanceOf[TArray].elementType)
-      bindIR(StreamAgg(ToStream(part), streamElement.name,
-        MakeStruct(FastSeq(
-          "min" -> AggFold.min(GetField(streamElement, "firstKey"), sortFields),
-          "max" -> AggFold.max(GetField(streamElement, "lastKey"), sortFields)
-        ))
-      )) { intervalRange =>   MakeTuple.ordered(Seq(part, globals, intervalRange)) }
-    }).asInstanceOf[Row]
-    val (initialPartInfo, initialGlobals, intervalRange) = (initialStageDataRow(0).asInstanceOf[IndexedSeq[Row]], initialStageDataRow(1).asInstanceOf[Row], initialStageDataRow(2).asInstanceOf[Row])
+    }{ case (part, globals) => MakeTuple.ordered(Seq(part, globals))}).asInstanceOf[Row]
+    val (initialPartInfo, initialGlobals) = (initialStageDataRow(0).asInstanceOf[IndexedSeq[Row]], initialStageDataRow(1).asInstanceOf[Row])
     val initialGlobalsLiteral = Literal(inputStage.globalType, initialGlobals)
     val initialChunks = initialPartInfo.map(row => Chunk(initialTmpPath + row(0).asInstanceOf[String], row(1).asInstanceOf[Long].toInt, None))
-
-    val initialInterval = Interval(intervalRange(0), intervalRange(1), true, true)
-    val initialSegment = SegmentResult(IndexedSeq(0), initialInterval, initialChunks)
+    val initialSegment = SegmentResult(IndexedSeq(0), inputStage.partitioner.range.get, initialChunks)
 
     val totalNumberOfRows = initialChunks.map(_.size).sum
-    optTargetNumPartitions.foreach(i => assert(i >= 1, s"Must request positive number of partitions. Requested ${i}"))
-    val targetNumPartitions = optTargetNumPartitions.getOrElse(inputStage.numPartitions)
+    val idealNumberOfRowsPerPart = Math.max(1, totalNumberOfRows / inputStage.numPartitions)
 
-    val idealNumberOfRowsPerPart = if (targetNumPartitions == 0) 1 else {
-      Math.max(1, totalNumberOfRows / targetNumPartitions)
-    }
-
-    var loopState = LoopState(IndexedSeq(initialSegment), IndexedSeq.empty[SegmentResult], IndexedSeq.empty[OutputPartition])
+    var loopState = LoopState(IndexedSeq(initialSegment), IndexedSeq.empty[SegmentResult], IndexedSeq.empty[SegmentResult])
 
     var i = 0
     val rand = new IRRandomness(seed)
 
     /*
-    Loop state keeps track of three things. largeSegments are too big to sort locally so have to broken up.
-    smallSegments are small enough to be sorted locally. readyOutputParts are any partitions that we noticed were
-    sorted already during course of the recursion. Loop continues until there are no largeSegments left. Then we
-    sort the small segments and combine them with readyOutputParts to get the final table.
+    There are three categories of segments. largeUnsortedSegments are too big to sort locally so have to broken up.
+    largeSortedSegments were identified as being already sorted, so no reason to recur on them. smallSegments are small
+    enough to be sorted locally.
      */
 
-    while (!loopState.largeSegments.isEmpty) {
-      val partitionDataPerSegment = segmentsToPartitionData(loopState.largeSegments, idealNumberOfRowsPerPart)
+    while (!loopState.largeUnsortedSegments.isEmpty) {
+      val partitionDataPerSegment = segmentsToPartitionData(loopState.largeUnsortedSegments, idealNumberOfRowsPerPart)
 
       val partitionCountsPerSegment = partitionDataPerSegment.map(oneSegment => oneSegment.map(_.currentPartSize))
-      assert(partitionCountsPerSegment.size == loopState.largeSegments.size)
+      assert(partitionCountsPerSegment.size == loopState.largeUnsortedSegments.size)
 
       val numSamplesPerPartitionPerSegment = partitionCountsPerSegment.map { partitionCountsForOneSegment =>
         val recordsInSegment = partitionCountsForOneSegment.sum
@@ -187,7 +170,6 @@ object LowerDistributedSort {
 
       /*
       Aggregate over the segments, to compute the pivots, whether it's already sorted, and what key interval is contained in that segment.
-      Also get the min and max of each individual partition. That way if it's sorted already, we know the partitioning to use.
        */
       val pivotsPerSegmentAndSortedCheck = ToArray(bindIR(perPartStatsIR) { perPartStats =>
         mapIR(StreamGroupByKey(ToStream(perPartStats), IndexedSeq("segmentIdx"))) { oneGroup =>
@@ -196,10 +178,8 @@ object LowerDistributedSort {
           bindIR(StreamAgg(oneGroup, streamElementRef.name, {
             AggLet(dataRef.name, GetField(streamElementRef, "partData"),
               MakeStruct(Seq(
-                ("min", AggFold.min(GetField(dataRef, "min"), sortFields)), // Min of the mins
-                ("max", AggFold.max(GetField(dataRef, "max"), sortFields)), // Max of the maxes
-                ("perPartMins", ApplyAggOp(Collect())(GetField(dataRef, "min"))), // All the mins
-                ("perPartMaxes", ApplyAggOp(Collect())(GetField(dataRef, "max"))), // All the maxes
+                ("min", AggFold.min(GetField(dataRef, "min"), sortFields)),
+                ("max", AggFold.max(GetField(dataRef, "max"), sortFields)),
                 ("samples", ApplyAggOp(Collect())(GetField(dataRef, "samples"))),
                 ("eachPartSorted", AggFold.all(GetField(dataRef, "isSorted"))),
                 ("perPartIntervalTuples", ApplyAggOp(Collect())(MakeTuple.ordered(Seq(GetField(dataRef, "min"), GetField(dataRef, "max")))))
@@ -220,9 +200,7 @@ object LowerDistributedSort {
                 MakeStruct(Seq(
                   "pivotsWithEndpoints" -> ArrayFunctions.extend(ArrayFunctions.extend(minArray, sortedSampling), maxArray),
                   "isSorted" -> ApplySpecial("land", Seq.empty[Type], Seq(GetField(aggResults, "eachPartSorted"), tuplesInSortedOrder), TBoolean, ErrorIDs.NO_ERROR),
-                  "intervalTuple" -> MakeTuple.ordered(Seq(GetField(aggResults, "min"), GetField(aggResults, "max"))),
-                  "perPartMins" -> GetField(aggResults, "perPartMins"),
-                  "perPartMaxes" -> GetField(aggResults, "perPartMaxes")
+                  "intervalTuple" -> MakeTuple.ordered(Seq(GetField(aggResults, "min"), GetField(aggResults, "max")))
                 ))
               }
             }
@@ -232,22 +210,12 @@ object LowerDistributedSort {
 
       // Going to check now if it's fully sorted, as well as collect and sort all the samples.
       val pivotsWithEndpointsAndInfoGroupedBySegmentNumber = CompileAndEvaluate[Annotation](ctx, pivotsPerSegmentAndSortedCheck)
-        .asInstanceOf[IndexedSeq[Row]].map(x => (x(0).asInstanceOf[IndexedSeq[Row]], x(1).asInstanceOf[Boolean], x(2).asInstanceOf[Row], x(3).asInstanceOf[IndexedSeq[Row]], x(4).asInstanceOf[IndexedSeq[Row]]))
+        .asInstanceOf[IndexedSeq[Row]].map(x => (x(0).asInstanceOf[IndexedSeq[Row]], x(1).asInstanceOf[Boolean], x(2).asInstanceOf[Row]))
 
-      val (sortedSegmentsTuples, unsortedPivotsWithEndpointsAndInfoGroupedBySegmentNumber) = pivotsWithEndpointsAndInfoGroupedBySegmentNumber.zipWithIndex.partition { case ((_, isSorted, _, _, _), _) => isSorted}
+      val (sortedSegmentsTuples, unsortedPivotsWithEndpointsAndInfoGroupedBySegmentNumber) = pivotsWithEndpointsAndInfoGroupedBySegmentNumber.zipWithIndex.partition { case ((_, isSorted, _), _) => isSorted}
 
-      val outputPartitions = sortedSegmentsTuples.flatMap { case ((_, _, _, partMins, partMaxes), originalSegmentIdx) =>
-        val segmentToBreakUp = loopState.largeSegments(originalSegmentIdx)
-        val currentSegmentPartitionData = partitionDataPerSegment(originalSegmentIdx)
-        val partRanges = partMins.zip(partMaxes)
-        assert(partRanges.size == currentSegmentPartitionData.size)
-
-        currentSegmentPartitionData.zip(partRanges).zipWithIndex.map { case ((pi, (intervalStart, intervalEnd)), idx) =>
-          OutputPartition(segmentToBreakUp.indices :+ idx, Interval(intervalStart, intervalEnd, true, true), pi.files)
-        }
-      }
-
-      val remainingUnsortedSegments = unsortedPivotsWithEndpointsAndInfoGroupedBySegmentNumber.map {case (_, idx) => loopState.largeSegments(idx)}
+      val sortedSegments = sortedSegmentsTuples.map { case (_, idx) => loopState.largeUnsortedSegments(idx)}
+      val remainingUnsortedSegments = unsortedPivotsWithEndpointsAndInfoGroupedBySegmentNumber.map {case (_, idx) => loopState.largeUnsortedSegments(idx)}
 
       val (newBigUnsortedSegments, newSmallSegments) = if (unsortedPivotsWithEndpointsAndInfoGroupedBySegmentNumber.size > 0) {
 
@@ -316,7 +284,7 @@ object LowerDistributedSort {
           isBig && (sr.interval.left.point != sr.interval.right.point) && (sr.chunks.map(_.size).sum > 1)
         }
       } else { (IndexedSeq.empty[SegmentResult], IndexedSeq.empty[SegmentResult]) }
-      loopState = LoopState(newBigUnsortedSegments, loopState.smallSegments ++ newSmallSegments, loopState.readyOutputParts ++ outputPartitions)
+      loopState = LoopState(newBigUnsortedSegments, loopState.largeSortedSegments ++ sortedSegments, loopState.smallSegments ++ newSmallSegments)
       i = i + 1
     }
 
@@ -337,21 +305,28 @@ object LowerDistributedSort {
 
     val sortedFilenames = CompileAndEvaluate[Annotation](ctx, sortedFilenamesIR).asInstanceOf[IndexedSeq[Row]].map(_(0).asInstanceOf[String])
     val newlySortedSegments = loopState.smallSegments.zip(sortedFilenames).map { case (sr, newFilename) =>
-      OutputPartition(sr.indices, sr.interval, IndexedSeq(initialTmpPath + newFilename))
+      // "Small" segments are small because we decided they had a small enough number of bytes, so it must be present.
+      val totalNumRows = sr.chunks.map(_.size).sum
+      val totalByteSize = sr.chunks.map(_.byteSize.get).sum
+      SegmentResult(sr.indices, sr.interval, IndexedSeq(Chunk(initialTmpPath + newFilename, totalNumRows, Some(totalByteSize))))
     }
 
-    val unorderedOutputPartitions = newlySortedSegments ++ loopState.readyOutputParts
-    val orderedOutputPartitions = unorderedOutputPartitions.sortWith{ (srt1, srt2) => lessThanForSegmentIndices(srt1.indices, srt2.indices)}
+    val unorderedSegments = newlySortedSegments ++ loopState.largeSortedSegments
+    val orderedSegments = unorderedSegments.sortWith{ (srt1, srt2) => lessThanForSegmentIndices(srt1.indices, srt2.indices)}
 
-    val contextData = orderedOutputPartitions.map { segment => Row(segment.files) }
+    // Now let's treat the whole thing as one segment that can be partitioned by the segmentToPartitionData method.
+    val megaSegment = SegmentResult(IndexedSeq(), null, orderedSegments.flatMap(sr => sr.chunks))
+    val partitioned = segmentsToPartitionData(IndexedSeq(megaSegment), idealNumberOfRowsPerPart).flatten
+
+    val contextData = partitioned.map { part => Row(part.files) }
     val contexts = ToStream(Literal(TArray(TStruct("files" -> TArray(TString))), contextData))
 
     // Note: If all of the sort fields are not ascending, the the resulting table is sorted, but not keyed.
     val keyed = sortFields.forall(sf => sf.sortOrder == Ascending)
     val (partitionerKey, intervals) = if (keyed) {
-      (keyToSortBy, orderedOutputPartitions.map{ segment => segment.interval})
+      (keyToSortBy, orderedSegments.map{ segment => segment.interval})
     } else {
-      (TStruct(), orderedOutputPartitions.map{ _ => Interval(Row(), Row(), true, false)})
+      (TStruct(), orderedSegments.map{ _ => Interval(Row(), Row(), true, false)})
     }
 
     val partitioner = new RVDPartitioner(partitionerKey, intervals)
@@ -519,5 +494,4 @@ object LowerDistributedSort {
 
 case class Chunk(filename: String, size: Int, byteSize: Option[Long])
 case class SegmentResult(indices: IndexedSeq[Int], interval: Interval, chunks: IndexedSeq[Chunk])
-case class OutputPartition(indices: IndexedSeq[Int], interval: Interval, files: IndexedSeq[String])
-case class LoopState(largeSegments: IndexedSeq[SegmentResult], smallSegments: IndexedSeq[SegmentResult], readyOutputParts: IndexedSeq[OutputPartition])
+case class LoopState(largeUnsortedSegments: IndexedSeq[SegmentResult], largeSortedSegments: IndexedSeq[SegmentResult], smallSegments: IndexedSeq[SegmentResult])

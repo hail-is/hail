@@ -13,6 +13,7 @@ from hail.expr.blockmatrix_type import tblockmatrix
 from hail.expr.matrix_type import tmatrix
 from hail.expr.table_type import ttable
 from hail.expr.types import dtype
+from hail.ir import JavaIR
 from hail.ir.renderer import CSERenderer
 from hail.utils.java import scala_package_object, scala_object
 from .py4j_backend import Py4JBackend, handle_java_exception
@@ -174,7 +175,7 @@ class LocalBackend(Py4JBackend):
     def stop(self):
         self._jhc.stop()
         self._jhc = None
-        self._gateway.shutdown()
+        # FIXME stop gateway?
         uninstall_exception_handler()
 
     def _parse_value_ir(self, code, ref_map={}, ir_map={}):
@@ -267,14 +268,13 @@ class LocalBackend(Py4JBackend):
             name, dest_reference_genome)
 
     def parse_vcf_metadata(self, path):
-        return json.loads(self._jhc.pyParseVCFMetadataJSON(self._jbackend.fs(), path))
+        return json.loads(self._jhc.pyParseVCFMetadataJSON(self.fs._jfs, path))
 
-    def index_bgen(self, files, index_file_map, referenceGenomeName, contig_recoding, skip_invalid_loci):
-        self._jbackend.pyIndexBgen(files, index_file_map, referenceGenomeName, contig_recoding, skip_invalid_loci)
+    def index_bgen(self, files, index_file_map, rg, contig_recoding, skip_invalid_loci):
+        self._jbackend.pyIndexBgen(files, index_file_map, rg, contig_recoding, skip_invalid_loci)
 
     def import_fam(self, path: str, quant_pheno: bool, delimiter: str, missing: str):
         return json.loads(self._jbackend.pyImportFam(path, quant_pheno, delimiter, missing))
 
-    @property
-    def requires_lowering(self):
-        return True
+    def persist_ir(self, ir):
+        return JavaIR(self._jhc.backend().executeLiteral(self._to_java_value_ir(ir)))

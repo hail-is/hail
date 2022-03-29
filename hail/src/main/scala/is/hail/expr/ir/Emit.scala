@@ -32,7 +32,7 @@ object EmitContext {
       val usesAndDefs = ComputeUsesAndDefs(ir, errorIfFreeVariables = false)
       val requiredness = Requiredness.apply(ir, usesAndDefs, null, pTypeEnv)
       val inLoopCriticalPath = ControlFlowPreventsSplit(ir, ParentPointers(ir), usesAndDefs)
-      val methodSplits = ComputeMethodSplits(ctx, ir, inLoopCriticalPath)
+      val methodSplits = ComputeMethodSplits(ir,inLoopCriticalPath)
       new EmitContext(ctx, requiredness, usesAndDefs, methodSplits, inLoopCriticalPath, Memo.empty[Unit])
     }
   }
@@ -55,7 +55,7 @@ case class EmitEnv(bindings: Env[EmitValue], inputValues: IndexedSeq[(EmitCodeBu
 
 object Emit {
   def apply[C](ctx: EmitContext, ir: IR, fb: EmitFunctionBuilder[C], rti: TypeInfo[_], nParams: Int, aggs: Option[Array[AggStateSig]] = None): Option[SingleCodeType] = {
-    TypeCheck(ctx.executeContext, ir)
+    TypeCheck(ir)
 
     val mb = fb.apply_method
     val container = aggs.map { a =>
@@ -614,9 +614,6 @@ class Emit[C](
       this.emitI(ir, cb, region, env, container, loopEnv)
 
     (ir: @unchecked) match {
-      case Literal(TVoid, ()) =>
-        Code._empty
-
       case Void() =>
         Code._empty
 
@@ -2405,7 +2402,7 @@ class Emit[C](
     ctx.req.lookupOpt(ir) match {
       case Some(r) =>
         if (result.required != r.required) {
-          throw new RuntimeException(s"requiredness mismatch: EC=${ result.required } / Analysis=${ r.required }\n${ result.st }\n${ Pretty(ctx.executeContext, ir) }")
+          throw new RuntimeException(s"requiredness mismatch: EC=${ result.required } / Analysis=${ r.required }\n${ result.st }\n${ Pretty(ir) }")
         }
 
       case _ =>
@@ -2413,7 +2410,7 @@ class Emit[C](
     }
 
     if (result.st.virtualType != ir.typ)
-      throw new RuntimeException(s"type mismatch:\n  EC=${ result.st.virtualType }\n  IR=${ ir.typ }\n  node: ${ Pretty(ctx.executeContext, ir).take(50) }")
+      throw new RuntimeException(s"type mismatch:\n  EC=${ result.st.virtualType }\n  IR=${ ir.typ }\n  node: ${ Pretty(ir).take(50) }")
 
     result
   }
@@ -2568,7 +2565,7 @@ class Emit[C](
     ctx.req.lookupOpt(ir) match {
       case Some(r) =>
         if (result.required != r.required) {
-          throw new RuntimeException(s"requiredness mismatch: EC=${ result.required } / Analysis=${ r.required }\n${ result.emitType }\n${ Pretty(ctx.executeContext, ir) }")
+          throw new RuntimeException(s"requiredness mismatch: EC=${ result.required } / Analysis=${ r.required }\n${ result.emitType }\n${ Pretty(ir) }")
         }
 
       case _ =>

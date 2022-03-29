@@ -309,6 +309,90 @@ object TestUtils {
     assert(t.valuesSimilar(i2, c), s"interpret (optimize = false) $i vs compile $c")
   }
 
+  def assertAllEvalTo(xs: (IR, Any)*)(implicit execStrats: Set[ExecStrategy]): Unit = {
+    assertEvalsTo(MakeTuple.ordered(xs.map(_._1)), Row.fromSeq(xs.map(_._2)))
+  }
+
+  def assertEvalsTo(x: IR, expected: Any)
+    (implicit execStrats: Set[ExecStrategy]) {
+    assertEvalsTo(x, Env.empty, FastIndexedSeq(), None, expected)
+  }
+
+  def assertEvalsTo(x: IR, args: IndexedSeq[(Any, Type)], expected: Any)
+    (implicit execStrats: Set[ExecStrategy]) {
+    assertEvalsTo(x, Env.empty, args, None, expected)
+  }
+
+  def assertEvalsTo(x: IR, agg: (IndexedSeq[Row], TStruct), expected: Any)
+    (implicit execStrats: Set[ExecStrategy]) {
+    assertEvalsTo(x, Env.empty, FastIndexedSeq(), Some(agg), expected)
+  }
+
+  def assertEvalsTo(x: IR,
+    env: Env[(Any, Type)],
+    args: IndexedSeq[(Any, Type)],
+    agg: Option[(IndexedSeq[Row], TStruct)],
+    expected: Any)
+    (implicit execStrats: Set[ExecStrategy]) {
+
+    TypeCheck(x, BindingEnv(env.mapValues(_._2), agg = agg.map(_._2.toEnv)))
+
+    val t = x.typ
+    assert(t == TVoid || t.typeCheck(expected), s"$t, $expected")
+
+    ExecuteContext.scoped() { ctx =>
+      val filteredExecStrats: Set[ExecStrategy] =
+        if (HailContext.backend.isInstanceOf[SparkBackend])
+          execStrats
+        else {
+          info("skipping interpret and non-lowering compile steps on non-spark backend")
+          execStrats.intersect(ExecStrategy.backendOnly)
+        }
+
+      filteredExecStrats.foreach { strat =>
+        try {
+          val res = strat match {
+            case ExecStrategy.Interpret =>
+              assert(agg.isEmpty)
+              Interpret[Any](ctx, x, env, args)
+            case ExecStrategy.InterpretUnoptimized =>
+              assert(agg.isEmpty)
+              Interpret[Any](ctx, x, env, args, optimize = false)
+            case ExecStrategy.JvmCompile =>
+              assert(Forall(x, node => Compilable(node)))
+              eval(x, env, args, agg, bytecodePrinter =
+                Option(HailContext.getFlag("jvm_bytecode_dump"))
+                  .map { path =>
+                    val pw = new PrintWriter(new File(path))
+                    pw.print(s"/* JVM bytecode dump for IR:\n${Pretty(x)}\n */\n\n")
+                    pw
+                  }, true, ctx)
+            case ExecStrategy.JvmCompileUnoptimized =>
+              assert(Forall(x, node => Compilable(node)))
+              eval(x, env, args, agg, bytecodePrinter =
+                Option(HailContext.getFlag("jvm_bytecode_dump"))
+                  .map { path =>
+                    val pw = new PrintWriter(new File(path))
+                    pw.print(s"/* JVM bytecode dump for IR:\n${Pretty(x)}\n */\n\n")
+                    pw
+                  },
+                optimize = false, ctx)
+            case ExecStrategy.LoweredJVMCompile =>
+              loweredExecute(ctx, x, env, args, agg)
+          }
+          if (t != TVoid) {
+            assert(t.typeCheck(res), s"\n  t=$t\n  result=$res\n  strategy=$strat")
+            assert(t.valuesSimilar(res, expected), s"\n  result=$res\n  expect=$expected\n  strategy=$strat)")
+          }
+        } catch {
+          case e: Exception =>
+            error(s"error from strategy $strat")
+            if (execStrats.contains(strat)) throw e
+        }
+      }
+    }
+  }
+
   def assertThrows[E <: Throwable : Manifest](x: IR, regex: String) {
     assertThrows[E](x, Env.empty[(Any, Type)], FastIndexedSeq.empty[(Any, Type)], regex)
   }
@@ -345,6 +429,85 @@ object TestUtils {
 
   def assertCompiledFatal(x: IR, regex: String) {
     assertCompiledThrows[HailException](x, regex)
+  }
+
+  def assertNDEvals(nd: IR, expected: Any)
+    (implicit execStrats: Set[ExecStrategy]) {
+    assertNDEvals(nd, Env.empty, FastIndexedSeq(), None, expected)
+  }
+
+  def assertNDEvals(nd: IR, expected: (Any, IndexedSeq[Long]))
+    (implicit execStrats: Set[ExecStrategy]) {
+    if (expected == null)
+      assertNDEvals(nd, Env.empty, FastIndexedSeq(), None, null, null)
+    else
+      assertNDEvals(nd, Env.empty, FastIndexedSeq(), None, expected._2, expected._1)
+  }
+
+  def assertNDEvals(nd: IR, args: IndexedSeq[(Any, Type)], expected: Any)
+    (implicit execStrats: Set[ExecStrategy]) {
+    assertNDEvals(nd, Env.empty, args, None, expected)
+  }
+
+  def assertNDEvals(nd: IR, agg: (IndexedSeq[Row], TStruct), expected: Any)
+    (implicit execStrats: Set[ExecStrategy]) {
+    assertNDEvals(nd, Env.empty, FastIndexedSeq(), Some(agg), expected)
+  }
+
+  def assertNDEvals(nd: IR, env: Env[(Any, Type)], args: IndexedSeq[(Any, Type)],
+    agg: Option[(IndexedSeq[Row], TStruct)], expected: Any)
+    (implicit execStrats: Set[ExecStrategy]): Unit = {
+    var e: IndexedSeq[Any] = expected.asInstanceOf[IndexedSeq[Any]]
+    val dims = Array.fill(nd.typ.asInstanceOf[TNDArray].nDims) {
+      val n = e.length
+      if (n != 0 && e.head.isInstanceOf[IndexedSeq[_]])
+        e = e.head.asInstanceOf[IndexedSeq[Any]]
+      n.toLong
+    }
+    assertNDEvals(nd, Env.empty, FastIndexedSeq(), agg, dims, expected)
+  }
+
+  def assertNDEvals(nd: IR, env: Env[(Any, Type)], args: IndexedSeq[(Any, Type)],
+    agg: Option[(IndexedSeq[Row], TStruct)], dims: IndexedSeq[Long], expected: Any)
+    (implicit execStrats: Set[ExecStrategy]): Unit = {
+    val arrayIR = if (expected == null) nd else {
+      val refs = Array.fill(nd.typ.asInstanceOf[TNDArray].nDims) { Ref(genUID(), TInt32) }
+      Let("nd", nd,
+        dims.zip(refs).foldRight[IR](NDArrayRef(Ref("nd", nd.typ), refs.map(Cast(_, TInt64)), -1)) {
+          case ((n, ref), accum) =>
+            ToArray(StreamMap(rangeIR(n.toInt), ref.name, accum))
+        })
+    }
+    assertEvalsTo(arrayIR, env, args, agg, expected)
+  }
+
+  def assertBMEvalsTo(bm: BlockMatrixIR, expected: DenseMatrix[Double])
+    (implicit execStrats: Set[ExecStrategy]): Unit = {
+    ExecuteContext.scoped() { ctx =>
+      val filteredExecStrats: Set[ExecStrategy] =
+        if (HailContext.backend.isInstanceOf[SparkBackend]) execStrats
+        else {
+          info("skipping interpret and non-lowering compile steps on non-spark backend")
+          execStrats.intersect(ExecStrategy.backendOnly)
+        }
+      filteredExecStrats.filter(ExecStrategy.interpretOnly).foreach { strat =>
+        try {
+          val res = strat match {
+            case ExecStrategy.Interpret =>
+              Interpret(bm, ctx, optimize = true)
+            case ExecStrategy.InterpretUnoptimized =>
+              Interpret(bm, ctx, optimize = false)
+          }
+          assert(res.toBreezeMatrix() == expected)
+        } catch {
+          case e: Exception =>
+            error(s"error from strategy $strat")
+            if (execStrats.contains(strat)) throw e
+        }
+      }
+      val expectedArray = Array.tabulate(expected.rows)(i => Array.tabulate(expected.cols)(j => expected(i, j)).toFastIndexedSeq).toFastIndexedSeq
+      assertNDEvals(BlockMatrixCollect(bm), expectedArray)(filteredExecStrats.filterNot(ExecStrategy.interpretOnly))
+    }
   }
 
   def importVCF(ctx: ExecuteContext, file: String, force: Boolean = false,

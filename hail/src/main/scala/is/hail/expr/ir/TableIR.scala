@@ -58,7 +58,7 @@ abstract sealed class TableIR extends BaseIR {
   }
 
   protected[ir] def execute(ctx: ExecuteContext, r: TableRunContext): TableExecuteIntermediate =
-    fatal("tried to execute unexecutable IR:\n" + Pretty(ctx, this))
+    fatal("tried to execute unexecutable IR:\n" + Pretty(this))
 
   override def copy(newChildren: IndexedSeq[BaseIR]): TableIR
 
@@ -107,6 +107,7 @@ object TableReader {
   def fromJValue(fs: FS, jv: JValue): TableReader = {
     (jv \ "name").extract[String] match {
       case "TableNativeReader" => TableNativeReader.fromJValue(fs, jv)
+      case "TextTableReader" => TextTableReader.fromJValue(fs, jv)
       case "TableFromBlockMatrixNativeReader" => TableFromBlockMatrixNativeReader.fromJValue(fs, jv)
       case "StringTableReader" => StringTableReader.fromJValue(fs, jv)
       case "AvroTableReader" => AvroTableReader.fromJValue(jv)
@@ -123,7 +124,7 @@ object LoweredTableReader {
     contextType: Type,
     contexts: IndexedSeq[Any],
     keyType: TStruct,
-    bodyPType: (TStruct) => PStruct,
+    keyPType: (TStruct) => PStruct,
     keys: (TStruct) => (Region, HailClassLoader, FS, Any) => Iterator[Long]
   ): LoweredTableReaderCoercer = {
     assert(key.nonEmpty)
@@ -172,7 +173,7 @@ object LoweredTableReader {
         ReadPartition(ctx, keyType, new PartitionIteratorLongReader(
           keyType,
           contextType,
-          (requestedType: Type) => bodyPType(requestedType.asInstanceOf[TStruct]),
+          (requestedType: Type) => keyPType(requestedType.asInstanceOf[TStruct]),
           (requestedType: Type) => keys(requestedType.asInstanceOf[TStruct]))),
         "key",
         MakeStruct(FastIndexedSeq(
@@ -397,7 +398,7 @@ object LoweredTableReader {
             ToStream(Literal(TArray(contextType), partOrigIndex.map(i => contexts(i)))),
             body)
 
-          val rowRType = VirtualTypeWithReq(bodyPType(tableStage.rowType)).r.asInstanceOf[RStruct]
+          val rowRType = TypeWithRequiredness(tableStage.rowType).asInstanceOf[RStruct]
 
           ctx.backend.lowerDistributedSort(ctx,
             tableStage,
@@ -494,7 +495,7 @@ case class PartitionRVDReader(rvd: RVD) extends PartitionReader {
       FastIndexedSeq(("elt", SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(rvd.rowPType)))),
       FastIndexedSeq(classInfo[Region], LongInfo),
       LongInfo,
-      PruneDeadFields.upcast(ctx, Ref("elt", rvd.rowType), requestedType))
+      PruneDeadFields.upcast(Ref("elt", rvd.rowType), requestedType))
 
     val upcastCode = mb.getObject[Function4[HailClassLoader, FS, Int, Region, AsmFunction2RegionLongLong]](upcast)
 
@@ -2103,7 +2104,7 @@ case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
       }
     }
 
-    if (ctx.getFlag("distributed_scan_comb_op") != null && extracted.shouldTreeAggregate) {
+    if (HailContext.getFlag("distributed_scan_comb_op") != null && extracted.shouldTreeAggregate) {
       val fsBc = ctx.fs.broadcast
       val tmpBase = ctx.createTmpPath("table-map-rows-distributed-scan")
       val d = digitsNeeded(tv.rvd.getNumPartitions)
@@ -2235,7 +2236,7 @@ case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
         }
         Iterator.single(write(aggRegion, seq.getAggOffset()))
       }
-    }, ctx.getFlag("max_leader_scans").toInt)
+    }, HailContext.getFlag("max_leader_scans").toInt)
 
     // 3. load in partition aggregations, comb op as necessary, write back out.
     val partAggs = scanPartitionAggs.scanLeft(initAgg)(combOpFNeedsPool(() => ctx.r.pool))

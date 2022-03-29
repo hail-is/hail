@@ -260,7 +260,7 @@ object InferType {
       case _: MatrixWrite => TVoid
       case _: MatrixMultiWrite => TVoid
       case _: BlockMatrixCollect => TNDArray(TFloat64, Nat(2))
-      case BlockMatrixWrite(_, writer) => writer.loweredTyp
+      case _: BlockMatrixWrite => TVoid
       case _: BlockMatrixMultiWrite => TVoid
       case TableGetGlobals(child) => child.typ.globalType
       case TableCollect(child) => TStruct("rows" -> TArray(child.typ.rowType), "global" -> child.typ.globalType)

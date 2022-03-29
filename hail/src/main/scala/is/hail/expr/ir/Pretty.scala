@@ -1,7 +1,6 @@
 package is.hail.expr.ir
 
 import is.hail.HailContext
-import is.hail.backend.ExecuteContext
 import is.hail.expr.JSONAnnotationImpex
 import is.hail.expr.ir.agg._
 import is.hail.expr.ir.functions.RelationalFunctions
@@ -15,8 +14,8 @@ import org.json4s.jackson.{JsonMethods, Serialization}
 import scala.collection.mutable
 
 object Pretty {
-  def apply(ctx: ExecuteContext, ir: BaseIR, width: Int = 100, ribbonWidth: Int = 50, elideLiterals: Boolean = true, maxLen: Int = -1, allowUnboundRefs: Boolean = false): String = {
-    val useSSA = ctx != null && ctx.getFlag("use_ssa_logs") != null
+  def apply(ir: BaseIR, width: Int = 100, ribbonWidth: Int = 50, elideLiterals: Boolean = true, maxLen: Int = -1, allowUnboundRefs: Boolean = false): String = {
+    val useSSA = HailContext.getFlag("use_ssa_logs") != null
     val pretty = new Pretty(width, ribbonWidth, elideLiterals, maxLen, allowUnboundRefs, useSSA)
     pretty(ir)
   }

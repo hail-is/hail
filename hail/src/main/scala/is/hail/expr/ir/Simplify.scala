@@ -1,7 +1,6 @@
 package is.hail.expr.ir
 
 import is.hail.HailContext
-import is.hail.backend.ExecuteContext
 import is.hail.types.virtual._
 import is.hail.io.bgen.MatrixBGENReader
 import is.hail.rvd.{PartitionBoundOrdering, RVDPartitionInfo}
@@ -11,18 +10,18 @@ object Simplify {
 
   /** Transform 'ir' using simplification rules until none apply.
     */
-  def apply(ctx: ExecuteContext, ir: BaseIR): BaseIR = Simplify(ctx, ir, allowRepartitioning = true)
+  def apply(ir: BaseIR): BaseIR = Simplify(ir, allowRepartitioning = true)
 
   /** Use 'allowRepartitioning'=false when in a context where simplification
     * should not change the partitioning of the result of 'ast', such as when
     * some parent (downstream) node of 'ast' uses seeded randomness.
     */
-  private[ir] def apply(ctx: ExecuteContext, ast: BaseIR, allowRepartitioning: Boolean): BaseIR =
+  private[ir] def apply(ast: BaseIR, allowRepartitioning: Boolean): BaseIR =
     ast match {
-      case ir: IR => simplifyValue(ctx)(ir)
-      case tir: TableIR => simplifyTable(ctx, allowRepartitioning)(tir)
-      case mir: MatrixIR => simplifyMatrix(ctx, allowRepartitioning)(mir)
-      case bmir: BlockMatrixIR => simplifyBlockMatrix(ctx)(bmir)
+      case ir: IR => simplifyValue(ir)
+      case tir: TableIR => simplifyTable(allowRepartitioning)(tir)
+      case mir: MatrixIR => simplifyMatrix(allowRepartitioning)(mir)
+      case bmir: BlockMatrixIR => simplifyBlockMatrix(bmir)
     }
 
   private[this] def visitNode[T <: BaseIR](
@@ -34,38 +33,38 @@ object Simplify {
     transform(t1).map(post).getOrElse(t1)
   }
 
-  private[this] def simplifyValue(ctx: ExecuteContext): IR => IR =
+  private[this] def simplifyValue: IR => IR =
     visitNode(
-      Simplify(ctx, _),
+      Simplify(_),
       rewriteValueNode,
-      simplifyValue(ctx))
+      simplifyValue)
 
-  private[this] def simplifyTable(ctx: ExecuteContext, allowRepartitioning: Boolean)(tir: TableIR): TableIR =
+  private[this] def simplifyTable(allowRepartitioning: Boolean)(tir: TableIR): TableIR =
     visitNode(
-      Simplify(ctx, _, allowRepartitioning && isDeterministicallyRepartitionable(tir)),
-      rewriteTableNode(ctx, allowRepartitioning),
-      simplifyTable(ctx, allowRepartitioning)
+      Simplify(_, allowRepartitioning && isDeterministicallyRepartitionable(tir)),
+      rewriteTableNode(allowRepartitioning),
+      simplifyTable(allowRepartitioning)
     )(tir)
 
-  private[this] def simplifyMatrix(ctx: ExecuteContext, allowRepartitioning: Boolean)(mir: MatrixIR): MatrixIR =
+  private[this] def simplifyMatrix(allowRepartitioning: Boolean)(mir: MatrixIR): MatrixIR =
     visitNode(
-      Simplify(ctx, _, allowRepartitioning && isDeterministicallyRepartitionable(mir)),
+      Simplify(_, allowRepartitioning && isDeterministicallyRepartitionable(mir)),
       rewriteMatrixNode(allowRepartitioning),
-      simplifyMatrix(ctx, allowRepartitioning)
+      simplifyMatrix(allowRepartitioning)
     )(mir)
 
-  private[this] def simplifyBlockMatrix(ctx: ExecuteContext)(bmir: BlockMatrixIR): BlockMatrixIR = {
+  private[this] def simplifyBlockMatrix(bmir: BlockMatrixIR): BlockMatrixIR = {
     visitNode(
-      Simplify(ctx, _),
+      Simplify(_),
       rewriteBlockMatrixNode,
-      simplifyBlockMatrix(ctx)
+      simplifyBlockMatrix
     )(bmir)
   }
 
   private[this] def rewriteValueNode: IR => Option[IR] = valueRules.lift
 
-  private[this] def rewriteTableNode(ctx: ExecuteContext, allowRepartitioning: Boolean)(tir: TableIR): Option[TableIR] =
-    tableRules(ctx, allowRepartitioning && isDeterministicallyRepartitionable(tir)).lift(tir)
+  private[this] def rewriteTableNode(allowRepartitioning: Boolean)(tir: TableIR): Option[TableIR] =
+    tableRules(allowRepartitioning && isDeterministicallyRepartitionable(tir)).lift(tir)
 
   private[this] def rewriteMatrixNode(allowRepartitioning: Boolean)(mir: MatrixIR): Option[MatrixIR] =
     matrixRules(allowRepartitioning && isDeterministicallyRepartitionable(mir)).lift(mir)
@@ -595,7 +594,7 @@ object Simplify {
     case LiftMeOut(child) if IsConstant(child) => child
   }
 
-  private[this] def tableRules(ctx: ExecuteContext, canRepartition: Boolean): PartialFunction[TableIR, TableIR] = {
+  private[this] def tableRules(canRepartition: Boolean): PartialFunction[TableIR, TableIR] = {
 
     case TableRename(child, m1, m2) if m1.isTrivial && m2.isTrivial => child
 
@@ -783,15 +782,9 @@ object Simplify {
       TableAggregateByKey(child, expr)
 
     case TableAggregateByKey(x@TableKeyBy(child, keys, false), expr) if canRepartition && !x.definitelyDoesNotShuffle =>
-      TableKeyByAndAggregate(child, expr, MakeStruct(keys.map(k => k -> GetField(Ref("row", child.typ.rowType), k))), bufferSize = ctx.getFlag("grouped_aggregate_buffer_size").toInt)
+      TableKeyByAndAggregate(child, expr, MakeStruct(keys.map(k => k -> GetField(Ref("row", child.typ.rowType), k))), bufferSize = HailContext.getFlag("grouped_aggregate_buffer_size").toInt)
 
     case TableParallelize(TableCollect(child), _) if isDeterministicallyRepartitionable(child) => child
-
-    case TableFilterIntervals(child, intervals, keep) if intervals.isEmpty =>
-      if (keep)
-        TableFilter(child, False())
-      else
-        child
 
     // push down filter intervals nodes
     case TableFilterIntervals(TableFilter(child, pred), intervals, keep) =>

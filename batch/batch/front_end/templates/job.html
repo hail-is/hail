@@ -63,21 +63,12 @@
 
 <h2>Step Status</h2>
 
-{% if plot_job_durations is not none %}
+{% if plot_json is not none %}
 <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
-<div id="plotly-job-durations"></div>
+<div id="plotly-timeseries"></div>
 <script>
-var graph = {{ plot_job_durations | safe }};
-Plotly.plot('plotly-job-durations', graph, {});
-</script>
-{% endif %}
-
-{% if plot_resource_usage is not none %}
-<script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
-<div id="plotly-job-resource-usage"></div>
-<script>
-var graph = {{ plot_resource_usage | safe }};
-Plotly.plot('plotly-job-resource-usage', graph, {});
+var graph = {{ plot_json | safe }};
+Plotly.plot('plotly-timeseries', graph, {});
 </script>
 {% endif %}
 
@@ -92,10 +83,10 @@ Plotly.plot('plotly-job-resource-usage', graph, {});
     </tr>
   </thead>
   <tbody>
-    {% for name, step in container_statuses.items() %}
+    {% for step in step_statuses %}
     {% if step %}
     <tr>
-      <td>{{ name }}</td>
+      <td>{{ step['name'] }}</td>
       <td>
         {% if step['timing']['pulling'] and step['timing']['pulling']['duration'] %}
         {{ step['timing']['pulling']['duration'] / 1000.0 }}

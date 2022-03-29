@@ -70,7 +70,7 @@ def summary_type(t):
         return str(t)
 
 
-def dtype(type_str) -> 'HailType':
+def dtype(type_str):
     r"""Parse a type from its string representation.
 
     Examples
@@ -216,7 +216,7 @@ class HailType(object):
         b.append(str(self))
 
     @abc.abstractmethod
-    def _parsable_string(self) -> str:
+    def _parsable_string(self):
         pass
 
     def typecheck(self, value):

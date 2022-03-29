@@ -1,13 +1,12 @@
 from typing import List, AsyncContextManager, BinaryIO
 import asyncio
+import gzip
 import io
 import nest_asyncio
-import os
 
-from hailtop.aiotools.fs import Copier, Transfer, FileListEntry, ReadableStream, WritableStream
-from hailtop.aiotools.local_fs import LocalAsyncFS
 from hailtop.aiotools.router_fs import RouterAsyncFS
-from hailtop.utils import OnlineBoundedGather2, async_to_blocking
+from hailtop.aiotools.fs import Copier, Transfer, FileListEntry, ReadableStream, WritableStream
+from hailtop.utils import async_to_blocking, OnlineBoundedGather2
 
 from .fs import FS
 from .stat_result import FileType, StatResult
@@ -176,6 +175,8 @@ class RouterFS(FS):
             assert mode[0] == 'w'
             strm = SyncWritableStream(async_to_blocking(self.afs.create(path)), path)
 
+        if path[-3:] == '.gz' or path[-4:] == '.bgz':
+            strm = gzip.GzipFile(fileobj=strm, mode=mode)
         if 'b' not in mode:
             strm = io.TextIOWrapper(strm, encoding='utf-8')  # type: ignore # typeshed is wrong, this *is* an IOBase
         return strm
@@ -185,18 +186,12 @@ class RouterFS(FS):
 
         async def _copy():
             sema = asyncio.Semaphore(max_simultaneous_transfers)
-            await Copier.copy(self.afs, sema, transfer)
+            async with sema:
+                await Copier.copy(self.afs, asyncio.Semaphore, transfer)
         return async_to_blocking(_copy())
 
     def exists(self, path: str) -> bool:
-        async def _exists():
-            dir_path = path
-            if dir_path[-1] != '/':
-                dir_path = dir_path + '/'
-            return any(await asyncio.gather(
-                self.afs.isfile(path),
-                self.afs.isdir(dir_path)))
-        return async_to_blocking(_exists())
+        return async_to_blocking(self.afs.exists(path))
 
     def is_file(self, path: str) -> bool:
         return async_to_blocking(self.afs.isfile(path))
@@ -237,24 +232,17 @@ class RouterFS(FS):
             async with OnlineBoundedGather2(asyncio.Semaphore(_max_simultaneous_files)) as pool:
                 tasks = [pool.call(self._fle_to_dict, fle)
                          async for fle in await self.afs.listfiles(path)]
-                return list(await asyncio.gather(*tasks))
+                return [await t for t in tasks]
         return async_to_blocking(_ls())
 
     def mkdir(self, path: str):
         return async_to_blocking(self.afs.mkdir(path))
 
     def remove(self, path: str):
-        return async_to_blocking(self.afs.remove(path))
+        return async_to_blocking(self.remove(path))
 
     def rmtree(self, path: str):
         return async_to_blocking(self.afs.rmtree(None, path))
 
     def supports_scheme(self, scheme: str) -> bool:
         return scheme in self.afs.schemes
-
-    def canonicalize_path(self, path: str) -> str:
-        if isinstance(self.afs._get_fs(path), LocalAsyncFS):
-            if path.startswith('file:'):
-                return 'file:' + os.path.realpath(path[5:])
-            return 'file:' + os.path.realpath(path)
-        return path

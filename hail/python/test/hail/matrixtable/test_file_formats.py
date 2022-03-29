@@ -37,7 +37,26 @@ class Tests(unittest.TestCase):
     def test_write(self):
         create_backward_compatibility_files()
 
-    @fails_service_backend()
+    @skip_when_service_backend('''intermittent worker failure:
+>               assert backward_compatible_same(all_values_table, ds)
+
+Caused by: java.lang.AssertionError: assertion failed
+	at scala.Predef$.assert(Predef.scala:208)
+	at is.hail.io.BlockingInputBuffer.ensure(InputBuffers.scala:389)
+	at is.hail.io.BlockingInputBuffer.readInt(InputBuffers.scala:412)
+	at __C1210collect_distributed_array.__m1218INPLACE_DECODE_r_binary_TO_r_binary(Unknown Source)
+	at __C1210collect_distributed_array.__m1217INPLACE_DECODE_r_struct_of_r_binaryEND_TO_r_tuple_of_r_binaryEND(Unknown Source)
+	at __C1210collect_distributed_array.__m1216INPLACE_DECODE_r_struct_of_r_struct_of_r_binaryENDEND_TO_r_struct_of_r_tuple_of_r_binaryENDEND(Unknown Source)
+	at __C1210collect_distributed_array.__m1215DECODE_r_struct_of_r_struct_of_r_struct_of_r_binaryENDENDEND_TO_SBaseStructPointer(Unknown Source)
+	at __C1210collect_distributed_array.apply(Unknown Source)
+	at __C1210collect_distributed_array.apply(Unknown Source)
+	at is.hail.backend.BackendUtils.$anonfun$collectDArray$2(BackendUtils.scala:31)
+	at is.hail.utils.package$.using(package.scala:627)
+	at is.hail.annotations.RegionPool.scopedRegion(RegionPool.scala:144)
+	at is.hail.backend.BackendUtils.$anonfun$collectDArray$1(BackendUtils.scala:30)
+	at is.hail.backend.service.Worker$.main(Worker.scala:120)
+	at is.hail.backend.service.Worker.main(Worker.scala)
+	... 11 more''')
     def test_backward_compatability(self):
         import os
 
@@ -80,4 +99,4 @@ class Tests(unittest.TestCase):
                 f = os.path.join(matrix_table_dir, '{}.hmt'.format(i))
                 n += 1
 
-        assert n == 88, f'{resource_dir!r} {versions!r}'
+        assert n == 88

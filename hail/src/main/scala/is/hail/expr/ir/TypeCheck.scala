@@ -1,34 +1,33 @@
 package is.hail.expr.ir
 
-import is.hail.backend.ExecuteContext
 import is.hail.expr.ir.streams.StreamUtils
 import is.hail.types.virtual._
 import is.hail.utils._
 
 object TypeCheck {
-  def apply(ctx: ExecuteContext, ir: BaseIR): Unit = {
+  def apply(ir: BaseIR): Unit = {
     try {
-      check(ctx, ir, BindingEnv.empty)
+      check(ir, BindingEnv.empty)
     } catch {
-      case e: Throwable => fatal(s"Error while typechecking IR:\n${ Pretty(ctx, ir) }", e)
+      case e: Throwable => fatal(s"Error while typechecking IR:\n${ Pretty(ir) }", e)
     }
   }
 
-  def apply(ctx: ExecuteContext, ir: IR, env: BindingEnv[Type]): Unit = {
+  def apply(ir: IR, env: BindingEnv[Type]): Unit = {
     try {
-      check(ctx, ir, env)
+      check(ir, env)
     } catch {
-      case e: Throwable => fatal(s"Error while typechecking IR:\n${ Pretty(ctx, ir) }", e)
+      case e: Throwable => fatal(s"Error while typechecking IR:\n${ Pretty(ir) }", e)
     }
   }
 
-  private def check(ctx: ExecuteContext, ir: BaseIR, env: BindingEnv[Type]): Unit = {
+  private def check(ir: BaseIR, env: BindingEnv[Type]): Unit = {
     ir.children
       .iterator
       .zipWithIndex
       .foreach { case (child, i) =>
 
-        check(ctx, child, ChildBindings(ir, i, env))
+        check(child, ChildBindings(ir, i, env))
 
         if (child.typ == TVoid) {
           ir match {
@@ -45,7 +44,7 @@ object TypeCheck {
             case _: WriteMetadata =>
             case _ =>
               throw new RuntimeException(s"unexpected void-typed IR at child $i of ${ ir.getClass.getSimpleName }" +
-                s"\n  IR: ${ Pretty(ctx, ir) }")
+                s"\n  IR: ${ Pretty(ir) }")
           }
         }
       }
@@ -324,7 +323,7 @@ object TypeCheck {
         assert(body.typ.isInstanceOf[TStream])
       case x@StreamFold(a, zero, accumName, valueName, body) =>
         assert(a.typ.isInstanceOf[TStream])
-        assert(a.typ.asInstanceOf[TStream].elementType.isRealizable, Pretty(ctx, x))
+        assert(a.typ.asInstanceOf[TStream].elementType.isRealizable, Pretty(x))
         assert(body.typ == zero.typ)
         assert(x.typ == zero.typ)
       case x@StreamFold2(a, accum, valueName, seq, res) =>
@@ -473,7 +472,7 @@ object TypeCheck {
       case MatrixToValueApply(_, _) =>
       case BlockMatrixToValueApply(_, _) =>
       case BlockMatrixCollect(_) =>
-      case BlockMatrixWrite(_, writer) => writer.loweredTyp
+      case BlockMatrixWrite(_, _) =>
       case BlockMatrixMultiWrite(_, _) =>
       case ValueToBlockMatrix(child, _, _) =>
         assert(child.typ.isInstanceOf[TArray] || child.typ.isInstanceOf[TNDArray] ||  child.typ == TFloat64)

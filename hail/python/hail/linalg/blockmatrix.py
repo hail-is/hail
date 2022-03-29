@@ -9,7 +9,6 @@ import scipy.linalg as spla
 import hail as hl
 import hail.expr.aggregators as agg
 from hail.expr import construct_expr, construct_variable
-from hail.expr.blockmatrix_type import tblockmatrix
 from hail.expr.expressions import (expr_float64, matrix_table_source, expr_ndarray,
                                    check_entry_indexed, expr_tuple, expr_array, expr_int32, expr_int64)
 from hail.ir import (BlockMatrixWrite, BlockMatrixMap2, ApplyBinaryPrimOp, F64,
@@ -29,8 +28,8 @@ from hail.table import Table
 from hail.typecheck import (typecheck, typecheck_method, nullable, oneof,
                             sliceof, sequenceof, lazy, enumeration, numeric, tupleof, func_spec,
                             sized_tupleof)
-from hail.utils import (new_temp_file, local_path_uri, storage_level, with_local_temp_file,
-                        new_local_temp_file)
+from hail.utils import (new_temp_file, new_local_temp_file, local_path_uri,
+                        storage_level, with_local_temp_file)
 from hail.utils.java import Env
 
 block_matrix_type = lazy()
@@ -228,8 +227,8 @@ class BlockMatrix(object):
         self._bmir = bmir
 
     @classmethod
-    @typecheck_method(path=str, _assert_type=nullable(tblockmatrix))
-    def read(cls, path, *, _assert_type=None):
+    @typecheck_method(path=str)
+    def read(cls, path):
         """Reads a block matrix.
 
         Parameters
@@ -241,15 +240,14 @@ class BlockMatrix(object):
         -------
         :class:`.BlockMatrix`
         """
-        return cls(BlockMatrixRead(BlockMatrixNativeReader(path), _assert_type=_assert_type))
+        return cls(BlockMatrixRead(BlockMatrixNativeReader(path)))
 
     @classmethod
     @typecheck_method(uri=str,
                       n_rows=int,
                       n_cols=int,
-                      block_size=nullable(int),
-                      _assert_type=nullable(tblockmatrix))
-    def fromfile(cls, uri, n_rows, n_cols, block_size=None, *, _assert_type=None):
+                      block_size=nullable(int))
+    def fromfile(cls, uri, n_rows, n_cols, block_size=None):
         """Creates a block matrix from a binary file.
 
         Examples
@@ -303,7 +301,7 @@ class BlockMatrix(object):
         if not block_size:
             block_size = BlockMatrix.default_block_size()
 
-        return cls(BlockMatrixRead(BlockMatrixBinaryReader(uri, [n_rows, n_cols], block_size), _assert_type=_assert_type))
+        return cls(BlockMatrixRead(BlockMatrixBinaryReader(uri, [n_rows, n_cols], block_size)))
 
     @classmethod
     @typecheck_method(ndarray=np.ndarray,
@@ -337,8 +335,6 @@ class BlockMatrix(object):
         -------
         :class:`.BlockMatrix`
         """
-        from hail.backend.service_backend import ServiceBackend
-
         if not block_size:
             block_size = BlockMatrix.default_block_size()
 
@@ -349,14 +345,9 @@ class BlockMatrix(object):
         nd = _ndarray_as_float64(nd)
         n_rows, n_cols = nd.shape
 
-        if isinstance(hl.current_backend(), ServiceBackend):
-            path = hl.TemporaryFilename().name
-            hl.current_backend().fs.open(path, mode='wb').write(nd.tobytes())
-            uri = path
-        else:
-            path = new_local_temp_file()
-            nd.tofile(path)
-            uri = local_path_uri(path)
+        path = new_local_temp_file()
+        uri = local_path_uri(path)
+        nd.tofile(path)
         return cls.fromfile(uri, n_rows, n_cols, block_size)
 
     @classmethod
@@ -647,7 +638,7 @@ class BlockMatrix(object):
             before being copied to ``output``.
         """
         self.write(path, overwrite, force_row_major, stage_locally)
-        return BlockMatrix.read(path, _assert_type=self._bmir._type)
+        return BlockMatrix.read(path)
 
     @staticmethod
     @typecheck(entry_expr=expr_float64,
@@ -1212,19 +1203,11 @@ class BlockMatrix(object):
         -------
         :class:`numpy.ndarray`
         """
-        from hail.backend.service_backend import ServiceBackend
 
         if self.n_rows * self.n_cols > 1 << 31 or _force_blocking:
             path = new_temp_file()
             self.export_blocks(path, binary=True)
             return BlockMatrix.rectangles_to_numpy(path, binary=True)
-
-        if isinstance(hl.current_backend(), ServiceBackend):
-            with hl.TemporaryFilename() as path:
-                self.tofile(path)
-                return np.frombuffer(
-                    hl.current_backend().fs.open(path, mode='rb').read()
-                ).reshape((self.n_rows, self.n_cols))
 
         with with_local_temp_file() as path:
             uri = local_path_uri(path)
@@ -1332,7 +1315,7 @@ class BlockMatrix(object):
         """
         id = Env.get_uid()
         Env.backend().execute(BlockMatrixWrite(self._bmir, BlockMatrixPersistWriter(id, storage_level)))
-        return BlockMatrix(BlockMatrixRead(BlockMatrixPersistReader(id, self._bmir), _assert_type=self._bmir._type))
+        return BlockMatrix(BlockMatrixRead(BlockMatrixPersistReader(id, self._bmir)))
 
     def unpersist(self):
         """Unpersists this block matrix from memory/disk.

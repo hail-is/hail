@@ -5,9 +5,6 @@ from hail.context import get_reference
 
 from .utils import categorical_strings_to_colors, continuous_nums_to_colors
 
-import plotly.express as px
-import plotly
-
 
 class Scale(FigureAttribute):
     def __init__(self, aesthetic_name):
@@ -17,7 +14,7 @@ class Scale(FigureAttribute):
     def transform_data(self, field_expr):
         pass
 
-    def create_local_transformer(self, groups_of_dfs):
+    def create_local_transformer(self, groups_of_dfs, parent):
         return lambda x: x
 
     @abc.abstractmethod
@@ -150,20 +147,16 @@ class ScaleDiscrete(Scale):
         return False
 
 
-class ScaleColorManual(ScaleDiscrete):
+class ScaleColorDiscrete(ScaleDiscrete):
 
-    def __init__(self, aesthetic_name, values):
-        super().__init__(aesthetic_name)
-        self.values = values
-
-    def create_local_transformer(self, groups_of_dfs):
+    def create_local_transformer(self, groups_of_dfs, parent):
         categorical_strings = set()
         for group_of_dfs in groups_of_dfs:
             for df in group_of_dfs:
                 if self.aesthetic_name in df.attrs:
                     categorical_strings.add(df.attrs[self.aesthetic_name])
 
-        unique_color_mapping = categorical_strings_to_colors(categorical_strings, self.values)
+        unique_color_mapping = categorical_strings_to_colors(categorical_strings, parent)
 
         def transform(df):
             df.attrs[f"{self.aesthetic_name}_legend"] = df.attrs[self.aesthetic_name]
@@ -175,7 +168,7 @@ class ScaleColorManual(ScaleDiscrete):
 
 class ScaleColorContinuous(ScaleContinuous):
 
-    def create_local_transformer(self, groups_of_dfs):
+    def create_local_transformer(self, groups_of_dfs, parent):
         overall_min = None
         overall_max = None
         for group_of_dfs in groups_of_dfs:
@@ -194,33 +187,10 @@ class ScaleColorContinuous(ScaleContinuous):
                     else:
                         overall_max = max(series_max, overall_max)
 
-        color_mapping = continuous_nums_to_colors(overall_min, overall_max, plotly.colors.sequential.Viridis)
+        color_mapping = continuous_nums_to_colors(overall_min, overall_max, parent.continuous_color_scale)
 
         def transform(df):
             df[self.aesthetic_name] = df[self.aesthetic_name].map(lambda i: color_mapping(i))
-            return df
-
-        return transform
-
-
-class ScaleColorHue(ScaleDiscrete):
-    def create_local_transformer(self, groups_of_dfs):
-        categorical_strings = set()
-        for group_of_dfs in groups_of_dfs:
-            for df in group_of_dfs:
-                if self.aesthetic_name in df.attrs:
-                    categorical_strings.add(df.attrs[self.aesthetic_name])
-
-        num_categories = len(categorical_strings)
-        step = 1.0 / num_categories
-        interpolation_values = [step * i for i in range(num_categories)]
-        hsv_scale = px.colors.get_colorscale("HSV")
-        colors = px.colors.sample_colorscale(hsv_scale, interpolation_values)
-        unique_color_mapping = dict(zip(categorical_strings, colors))
-
-        def transform(df):
-            df.attrs[f"{self.aesthetic_name}_legend"] = df.attrs[self.aesthetic_name]
-            df.attrs[self.aesthetic_name] = unique_color_mapping[df.attrs[self.aesthetic_name]]
             return df
 
         return transform
@@ -398,26 +368,14 @@ def scale_x_genomic(reference_genome, name=None):
 
 
 def scale_color_discrete():
-    """The default discrete color scale. This maps each discrete value to a color. Equivalent to scale_color_hue.
+    """The default discrete color scale. This maps each discrete value to a color.
 
     Returns
     -------
     :class:`.FigureAttribute`
         The scale to be applied.
     """
-    return scale_color_hue()
-
-
-def scale_color_hue():
-    """Map discrete colors to evenly placed positions around the color wheel.
-
-    Returns
-    -------
-    :class:`.FigureAttribute`
-        The scale to be applied.
-
-    """
-    return ScaleColorHue("color")
+    return ScaleColorDiscrete("color")
 
 
 def scale_color_continuous():
@@ -442,23 +400,6 @@ def scale_color_identity():
     return ScaleColorDiscreteIdentity("color")
 
 
-def scale_color_manual(*, values):
-    """A color scale that assigns strings to colors using the pool of colors specified as `values`.
-
-
-    Parameters
-    ----------
-    values: :class:`list` of :class:`str`
-        The colors to choose when assigning values to colors.
-
-    Returns
-    -------
-    :class:`.FigureAttribute`
-        The scale to be applied.
-    """
-    return ScaleColorManual("color", values=values)
-
-
 def scale_fill_discrete():
     """The default discrete fill scale. This maps each discrete value to a fill color.
 
@@ -467,7 +408,7 @@ def scale_fill_discrete():
     :class:`.FigureAttribute`
         The scale to be applied.
     """
-    return scale_fill_hue()
+    return ScaleColorDiscrete("fill")
 
 
 def scale_fill_continuous():
@@ -490,32 +431,3 @@ def scale_fill_identity():
         The scale to be applied.
     """
     return ScaleColorDiscreteIdentity("fill")
-
-
-def scale_fill_hue():
-    """Map discrete fill colors to evenly placed positions around the color wheel.
-
-    Returns
-    -------
-    :class:`.FigureAttribute`
-        The scale to be applied.
-
-    """
-    return ScaleColorHue("fill")
-
-
-def scale_fill_manual(*, values):
-    """A color scale that assigns strings to fill colors using the pool of colors specified as `values`.
-
-
-    Parameters
-    ----------
-    values: :class:`list` of :class:`str`
-        The colors to choose when assigning values to colors.
-
-    Returns
-    -------
-    :class:`.FigureAttribute`
-        The scale to be applied.
-    """
-    return ScaleColorManual("fill", values=values)

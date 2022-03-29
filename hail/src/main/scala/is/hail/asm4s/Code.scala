@@ -1073,9 +1073,9 @@ class CodeChar(val lhs: Code[Char]) extends AnyVal {
 
   def <=(rhs: Code[Int]): Code[Boolean] = lhs.toI <= rhs
 
-  def ceq(rhs: Code[Char]): Code[Boolean] = lhs.toI.ceq(rhs.toI)
+  def ceq(rhs: Code[Int]): Code[Boolean] = lhs.toI.ceq(rhs)
 
-  def cne(rhs: Code[Char]): Code[Boolean] = lhs.toI.cne(rhs.toI)
+  def cne(rhs: Code[Int]): Code[Boolean] = lhs.toI.cne(rhs)
 
   def toI: Code[Int] = lhs.asInstanceOf[Code[Int]]
 

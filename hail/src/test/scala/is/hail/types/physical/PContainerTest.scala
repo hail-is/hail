@@ -38,7 +38,7 @@ class PContainerTest extends PhysicalTestUtils {
 
     fb.emit(Region.containsNonZeroBits(value + sourceType.lengthHeaderBytes, sourceType.loadLength(value).toL))
 
-    val res = fb.result(ctx)(theHailClassLoader)(src)
+    val res = fb.result()(theHailClassLoader)(src)
     res
   }
 
@@ -53,7 +53,7 @@ class PContainerTest extends PhysicalTestUtils {
 
     fb.emit(sourceType.hasMissingValues(value))
 
-    val res = fb.result(ctx)(theHailClassLoader)(src)
+    val res = fb.result()(theHailClassLoader)(src)
     res
   }
 

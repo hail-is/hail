@@ -4,10 +4,6 @@ resource "azurerm_storage_account" "ci" {
   location                 = var.resource_group.location
   account_tier             = "Standard"
   account_replication_type = "LRS"
-
-  blob_properties {
-    last_access_time_enabled = true
-  }
 }
 
 resource "azurerm_storage_container" "ci_artifacts" {
@@ -24,7 +20,7 @@ resource "azurerm_storage_management_policy" "ci" {
     enabled = true
     filters {
       prefix_match = [azurerm_storage_container.ci_artifacts.name]
-      blob_types   = ["blockBlob"]
+      blob_types   = ["blockBlob", "appendBlob"]
     }
     actions {
       base_blob {

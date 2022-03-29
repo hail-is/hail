@@ -3,7 +3,6 @@ package is.hail.types.physical.stypes
 import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.expr.ir.EmitCodeBuilder
-import is.hail.types.physical.stypes.concrete.SRNGStateValue
 import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.physical.stypes.primitives._
 
@@ -89,8 +88,6 @@ trait SValue {
   def asCall: SCallValue = asInstanceOf[SCallValue]
 
   def asStream: SStreamValue = asInstanceOf[SStreamValue]
-
-  def asRNGState: SRNGStateValue = asInstanceOf[SRNGStateValue]
 
   def castTo(cb: EmitCodeBuilder, region: Value[Region], destType: SType): SValue =
     castTo(cb, region, destType, false)

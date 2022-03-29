@@ -5,19 +5,7 @@ variable resource_group {
   })
 }
 
-variable k8s_default_node_pool_machine_type {
-  type = string
-}
-
-variable k8s_user_pool_machine_type {
-  type = string
-}
-
-variable k8s_preemptible_node_pool_name {
-  type = string
-}
-
-variable k8s_nonpreemptible_node_pool_name {
+variable k8s_machine_type {
   type = string
 }
 

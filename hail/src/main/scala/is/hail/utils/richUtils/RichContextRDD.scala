@@ -93,6 +93,7 @@ class RichContextRDD[T: ClassTag](crdd: ContextRDD[T]) {
   ): Array[FileWriteMetadata] = {
     val localTmpdir = ctx.localTmpdir
     val fs = ctx.fs
+    val fsBc = ctx.fsBc
 
     fs.mkDir(path + "/parts")
     if (idxRelPath != null)
