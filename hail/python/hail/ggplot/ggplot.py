@@ -207,6 +207,7 @@ class GGPlot:
                 "subplot_titles": [", ".join([str(fs_value) for fs_value in facet_struct.values()]) for facet_struct in facet_list]
             }
         else:
+            n_facet_cols = 1
             subplot_args = {
                 "rows": 1,
                 "cols": 1,
