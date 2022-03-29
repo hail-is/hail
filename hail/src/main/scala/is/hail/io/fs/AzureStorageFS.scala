@@ -5,8 +5,8 @@ import com.azure.identity.{ClientSecretCredential, ClientSecretCredentialBuilder
 import com.azure.storage.blob.models.{BlobProperties, BlobRange, ListBlobsOptions}
 import com.azure.storage.blob.specialized.AppendBlobClient
 import com.azure.storage.blob.{BlobClient, BlobContainerClient, BlobServiceClient, BlobServiceClientBuilder}
-import is.hail.io.fs.AzureStorageFS.{getAccountContainerPath}
-import is.hail.io.fs.FSUtil.dropTrailingSlash
+import is.hail.io.fs.AzureStorageFS.getAccountContainerPath
+import is.hail.io.fs.FSUtil.{containsWildcard, dropTrailingSlash}
 import org.apache.log4j.Logger
 
 import java.net.URI
@@ -40,8 +40,6 @@ object AzureStorageFS {
     if (account == null) {
       throw new IllegalArgumentException(s"Invalid path, expected hail-az://accountName/containerName/blobPath: $filename")
     }
-
-    uri.getPath
 
     val (container, path) = pathRegex.findFirstMatchIn(uri.getPath) match {
       case Some(filenameMatch) =>
@@ -108,7 +106,7 @@ class AzureStorageFS(val credentialsJSON: Option[String] = None) extends FS {
         .clientId(appId)
         .clientSecret(password)
         .tenantId(tenant)
-        .build();
+        .build()
       new AzureBlobServiceClientCache(clientSecretCredential)
   }
 
@@ -116,18 +114,17 @@ class AzureStorageFS(val credentialsJSON: Option[String] = None) extends FS {
     serviceClientCache.getServiceClient(account)
   }
 
-  def getBlobClient(filename: String): BlobClient = {
-    val (account, container, path) = getAccountContainerPath(filename)
+  def getBlobClient(account: String, container: String, path: String): BlobClient = {
     getBlobServiceClient(account).getBlobContainerClient(container).getBlobClient(path)
   }
 
-  def getContainerClient(filename: String): BlobContainerClient = {
-    val (account, container, _) = getAccountContainerPath(filename)
+  def getContainerClient(account: String, container: String): BlobContainerClient = {
     getBlobServiceClient(account).getBlobContainerClient(container)
   }
 
   def openNoCompression(filename: String): SeekableDataInputStream = {
-    val blobClient: BlobClient = getBlobClient(filename)
+    val (account, container, path) = getAccountContainerPath(filename)
+    val blobClient: BlobClient = getBlobClient(account, container, path)
     val blobProperties = blobClient.getProperties
     val blobSize = blobProperties.getBlobSize
 
@@ -169,7 +166,8 @@ class AzureStorageFS(val credentialsJSON: Option[String] = None) extends FS {
   }
 
   def createNoCompression(filename: String): PositionedDataOutputStream = {
-    val appendClient: AppendBlobClient = getBlobClient(filename).getAppendBlobClient
+    val (account, container, path) = getAccountContainerPath(filename)
+    val appendClient: AppendBlobClient = getBlobClient(account, container, path).getAppendBlobClient
     if (!appendClient.exists()) appendClient.create()
 
     val os: PositionedOutputStream = new FSPositionedOutputStream {
@@ -198,20 +196,19 @@ class AzureStorageFS(val credentialsJSON: Option[String] = None) extends FS {
 
   def delete(filename: String, recursive: Boolean): Unit = {
     val (account, container, path) = getAccountContainerPath(filename)
-    val blobClient: BlobClient = this.getBlobClient(filename)
+    val blobClient: BlobClient = getBlobClient(account, container, path)
 
     val fileStatus = this.fileStatus(filename)
 
     if (recursive) {
-      val blobContainerClient = this.getContainerClient(filename)
+      val blobContainerClient = getContainerClient(account, container)
 
       val options = new ListBlobsOptions()
       options.setPrefix(dropTrailingSlash(path) + "/")
       val prefixMatches = blobContainerClient.listBlobs(options, Duration.ofMinutes(1))
 
       prefixMatches.forEach(blobItem => {
-        val blobFileName = s"hail-az://$account/$container/${blobItem.getName}"
-        this.getBlobClient(blobFileName).delete()
+        getBlobClient(account, container, blobItem.getName).delete()
       })
 
       if (fileStatus.isFile) blobClient.delete()
@@ -224,7 +221,7 @@ class AzureStorageFS(val credentialsJSON: Option[String] = None) extends FS {
   def listStatus(filename: String): Array[FileStatus] = {
     val (account, container, path) = getAccountContainerPath(filename)
 
-    val blobContainerClient: BlobContainerClient = getContainerClient(filename)
+    val blobContainerClient: BlobContainerClient = getContainerClient(account, container)
     val statList: ArrayBuffer[FileStatus] = ArrayBuffer()
 
     val prefix = dropTrailingSlash(path) + "/"
@@ -242,79 +239,42 @@ class AzureStorageFS(val credentialsJSON: Option[String] = None) extends FS {
     var (account, container, path) = getAccountContainerPath(filename)
     path = dropTrailingSlash(path)
 
-    val components =
-      if (path == "")
-        Array.empty[String]
-      else
-        path.split("/")
-
-    val javaFS = FileSystems.getDefault
-
-    val ab = new mutable.ArrayBuffer[FileStatus]()
-    def f(prefix: String, fs: FileStatus, i: Int): Unit = {
-      assert(!prefix.endsWith("/"), prefix)
-
-      if (i == components.length) {
-        var t = fs
-        if (t == null) {
-          try {
-            t = fileStatus(prefix)
-          } catch {
-            case _: FileNotFoundException =>
-          }
-        }
-        if (t != null)
-          ab += t
-      }
-
-      if (i < components.length) {
-        val c = components(i)
-        if (containsWildcard(c)) {
-          val m = javaFS.getPathMatcher(s"glob:$c")
-          for (cfs <- listStatus(prefix)) {
-            val p = dropTrailingSlash(cfs.getPath)
-            val d = p.drop(prefix.length + 1)
-            if (m.matches(javaFS.getPath(d))) {
-              f(p, cfs, i + 1)
-            }
-          }
-        } else
-          f(s"$prefix/$c", null, i + 1)
-      }
-    }
-
-    f(s"hail-az://$account/$container", null, 0)
-    ab.toArray
+    globWithPrefix(prefix = s"hail-az://$account/$container", path = path)
   }
 
-  def fileStatus(filename: String): FileStatus = {
-    val (account, container, path) = getAccountContainerPath(filename)
-
+  def fileStatus(account: String, container: String, path: String): FileStatus = {
     if (path == "") {
       return new BlobStorageFileStatus(s"hail-az://$account/$container", null, 0, true)
     }
 
-    val blobClient: BlobClient = getBlobClient(filename)
-    val blobContainerClient: BlobContainerClient = getContainerClient(filename)
+    val blobClient: BlobClient = getBlobClient(account, container, path)
+    val blobContainerClient: BlobContainerClient = getContainerClient(account, container)
 
     val prefix = dropTrailingSlash(path) + "/"
     val options: ListBlobsOptions = new ListBlobsOptions().setPrefix(prefix)
     val prefixMatches = blobContainerClient.listBlobs(options, null)
     val isDir = prefixMatches.iterator().hasNext
 
-    if (!isDir && !blobClient.exists()) throw new FileNotFoundException("file isn't found")
+    val filename = dropTrailingSlash(s"hail-az://$account/$container/$path")
+    if (!isDir && !blobClient.exists()) throw new FileNotFoundException(s"File not found: $filename")
 
     if (isDir) {
-      new BlobStorageFileStatus(dropTrailingSlash(filename), -1, -1, isDir = true)
+      new BlobStorageFileStatus(path = filename, -1, -1, isDir = true)
     }
     else {
       val blobProperties: BlobProperties = blobClient.getProperties
-      AzureStorageFileStatus(blobProperties, path = dropTrailingSlash(filename), isDir = false)
+      AzureStorageFileStatus(blobProperties, path = filename, isDir = false)
     }
   }
 
+  def fileStatus(filename: String): FileStatus = {
+    val (account, container, path) = getAccountContainerPath(filename)
+    fileStatus(account, container, path)
+  }
+
   def makeQualified(filename: String): String = {
-    assert(filename.startsWith("hail-az://"))
+    if (!filename.startsWith("hail-az://"))
+      throw new IllegalArgumentException(s"Invalid path, expected hail-az://accountName/containerName/blobPath: $filename")
     filename
   }
 }

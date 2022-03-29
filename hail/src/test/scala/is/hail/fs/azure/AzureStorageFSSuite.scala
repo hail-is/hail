@@ -2,7 +2,6 @@ package is.hail.fs.azure
 
 import is.hail.fs.FSSuite
 import is.hail.io.fs.AzureStorageFS
-import is.hail.io.fs.FSUtil.dropTrailingSlash
 import org.apache.commons.io.IOUtils
 import org.scalatest.testng.TestNGSuite
 import org.testng.SkipException
@@ -41,11 +40,18 @@ class AzureStorageFSSuite extends TestNGSuite with FSSuite {
     }
   }
 
-  @Test def testDropTrailingSlash(): Unit = {
-    assert(dropTrailingSlash("") == "")
-    assert(dropTrailingSlash("/foo/bar") == "/foo/bar")
-    assert(dropTrailingSlash("foo/bar/") == "foo/bar")
-    assert(dropTrailingSlash("/foo///") == "/foo")
-    assert(dropTrailingSlash("///") == "")
+  @Test def testMakeQualified(): Unit = {
+    val qualifiedFileName = "hail-az://account/container/path"
+    assert(fs.makeQualified(qualifiedFileName) == qualifiedFileName)
+
+    val unqualifiedFileName = "not-hail-az://account/container/path"
+    try {
+      fs.makeQualified(unqualifiedFileName)
+    }
+    catch {
+      case _: IllegalArgumentException =>
+        return
+    }
+    assert(false)
   }
 }

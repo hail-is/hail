@@ -2,7 +2,6 @@ package is.hail.fs.gs
 
 import java.io.FileInputStream
 import is.hail.fs.FSSuite
-import is.hail.io.fs.FSUtil.dropTrailingSlash
 import is.hail.io.fs.GoogleStorageFS
 import org.apache.commons.io.IOUtils
 import org.scalatest.testng.TestNGSuite
@@ -38,11 +37,18 @@ class GoogleStorageFSSuite extends TestNGSuite with FSSuite {
 
   lazy val tmpdir: String = hail_test_storage_uri
 
-  @Test def testDropTailingSlash(): Unit = {
-    assert(dropTrailingSlash("") == "")
-    assert(dropTrailingSlash("/foo/bar") == "/foo/bar")
-    assert(dropTrailingSlash("foo/bar/") == "foo/bar")
-    assert(dropTrailingSlash("/foo///") == "/foo")
-    assert(dropTrailingSlash("///") == "")
+  @Test def testMakeQualified(): Unit = {
+    val qualifiedFileName = "gs://bucket/path"
+    assert(fs.makeQualified(qualifiedFileName) == qualifiedFileName)
+
+    val unqualifiedFileName = "not-gs://bucket/path"
+    try {
+      fs.makeQualified(unqualifiedFileName)
+    }
+    catch {
+      case _: IllegalArgumentException =>
+        return
+    }
+    assert(false)
   }
 }
