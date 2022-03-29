@@ -300,7 +300,7 @@ class GeomHistogram(Geom):
         self.position = position
         self.size = size
 
-    def apply_to_fig(self, parent, grouped_data, fig_so_far, precomputed):
+    def apply_to_fig(self, parent, grouped_data, fig_so_far, precomputed, facet_row, facet_col, legend_cache):
         min_val = self.min_val if self.min_val is not None else precomputed.min_val
         max_val = self.max_val if self.max_val is not None else precomputed.max_val
         # This assumes it doesn't really make sense to use another stat for geom_histogram
@@ -327,6 +327,8 @@ class GeomHistogram(Geom):
             trace_args = {
                 "x": x,
                 "y": df.y,
+                "row": facet_row,
+                "col": facet_col,
                 "customdata": list(zip(left_xs, right_xs)),
                 "width": bar_width,
                 "hovertemplate":
@@ -335,15 +337,8 @@ class GeomHistogram(Geom):
                     "<extra></extra>",
             }
 
-            for aes_name, (plotly_name, default) in self.aes_to_arg.items():
-                if hasattr(self, aes_name) and getattr(self, aes_name) is not None:
-                    trace_args[plotly_name] = getattr(self, aes_name)
-                elif aes_name in df.attrs:
-                    trace_args[plotly_name] = df.attrs[aes_name]
-                elif aes_name in df.columns:
-                    trace_args[plotly_name] = df[aes_name]
-                elif default is not None:
-                    trace_args[plotly_name] = default
+            self._add_aesthetics_to_trace_args(trace_args, df)
+            self._update_legend_trace_args(trace_args, legend_cache)
 
             fig_so_far.add_bar(**trace_args)
 
@@ -399,7 +394,7 @@ class GeomHLine(Geom):
         self.linetype = linetype
         self.color = color
 
-    def apply_to_fig(self, parent, agg_result, fig_so_far, precomputed):
+    def apply_to_fig(self, parent, agg_result, fig_so_far, precomputed, facet_row, facet_col, legend_cache):
         line_attributes = {
             "y": self.yintercept,
             "line_dash": linetype_plotly_to_gg(self.linetype)
@@ -442,7 +437,7 @@ class GeomVLine(Geom):
         self.linetype = linetype
         self.color = color
 
-    def apply_to_fig(self, parent, agg_result, fig_so_far, precomputed):
+    def apply_to_fig(self, parent, agg_result, fig_so_far, precomputed, facet_row, facet_col, legend_cache):
         line_attributes = {
             "x": self.xintercept,
             "line_dash": linetype_plotly_to_gg(self.linetype)
@@ -482,7 +477,7 @@ class GeomTile(Geom):
     def __init__(self, aes):
         self.aes = aes
 
-    def apply_to_fig(self, parent, grouped_data, fig_so_far, precomputed):
+    def apply_to_fig(self, parent, grouped_data, fig_so_far, precomputed, facet_row, facet_col, legend_cache):
         def plot_group(df):
 
             for idx, row in df.iterrows():
@@ -496,6 +491,8 @@ class GeomTile(Geom):
                     "y0": y_center - height / 2,
                     "x1": x_center + width / 2,
                     "y1": y_center + height / 2,
+                    "row": facet_row,
+                    "col": facet_col,
                     "opacity": row.get('alpha', 1.0)
                 }
                 if "fill" in df.attrs:
@@ -522,7 +519,7 @@ class GeomFunction(GeomLineBasic):
         super().__init__(aes, color)
         self.fun = fun
 
-    def apply_to_fig(self, parent, agg_result, fig_so_far, precomputed):
+    def apply_to_fig(self, parent, agg_result, fig_so_far, precomputed, facet_row, facet_col, legend_cache):
         super().apply_to_fig(parent, agg_result, fig_so_far, precomputed)
 
     def get_stat(self):
@@ -546,23 +543,18 @@ class GeomArea(Geom):
         self.fill = fill
         self.color = color
 
-    def apply_to_fig(self, parent, grouped_data, fig_so_far, precomputed):
+    def apply_to_fig(self, parent, grouped_data, fig_so_far, precomputed, facet_row, facet_col, legend_cache):
         def plot_group(df):
             trace_args = {
                 "x": df.x,
                 "y": df.y,
+                "row": facet_row,
+                "col": facet_col,
                 "fill": 'tozeroy'
             }
 
-            for aes_name, (plotly_name, default) in self.aes_to_arg.items():
-                if hasattr(self, aes_name) and getattr(self, aes_name) is not None:
-                    trace_args[plotly_name] = getattr(self, aes_name)
-                elif aes_name in df.attrs:
-                    trace_args[plotly_name] = df.attrs[aes_name]
-                elif aes_name in df.columns:
-                    trace_args[plotly_name] = df[aes_name]
-                elif default is not None:
-                    trace_args[plotly_name] = default
+            self._add_aesthetics_to_trace_args(trace_args, df)
+            self._update_legend_trace_args(trace_args, legend_cache)
 
             fig_so_far.add_scatter(**trace_args)
 
@@ -608,8 +600,10 @@ class GeomRibbon(Geom):
         self.fill = fill
         self.color = color
 
-    def apply_to_fig(self, parent, grouped_data, fig_so_far, precomputed):
+    def apply_to_fig(self, parent, grouped_data, fig_so_far, precomputed, facet_row, facet_col, legend_cache):
         def plot_group(df):
+            # TODO: Use legend_cache on GeomRibbon, fix insert_into_scatter to use helpers.
+
             def insert_into_scatter(trace_args):
                 for aes_name, (plotly_name, default, take_one) in self.aes_to_arg.items():
                     if hasattr(self, aes_name) and getattr(self, aes_name) is not None:
@@ -624,6 +618,8 @@ class GeomRibbon(Geom):
             trace_args_bottom = {
                 "x": df.x,
                 "y": df.ymin,
+                "row": facet_row,
+                "col": facet_col,
                 "mode": "lines",
                 "showlegend": False
             }
@@ -632,6 +628,8 @@ class GeomRibbon(Geom):
             trace_args_top = {
                 "x": df.x,
                 "y": df.ymax,
+                "row": facet_row,
+                "col": facet_col,
                 "mode": "lines",
                 "fill": 'tonexty'
             }
