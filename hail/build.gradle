@@ -203,6 +203,8 @@ dependencies {
 
     bundled 'com.kohlschutter.junixsocket:junixsocket-core:2.3.2'
 
+    bundled 'com.fasterxml.jackson.core:jackson-core:2.10.2'
+
     bundled 'com.azure:azure-storage-blob:12.15.0'
     bundled 'com.azure:azure-identity:1.4.6'
 }
