@@ -46,6 +46,7 @@ WHERE batches.id = %s AND NOT deleted AND callback IS NOT NULL AND
 GROUP BY batches.id;
 ''',
         (batch_id,),
+        'notify_batch_job_complete',
     )
 
     if not record:
@@ -85,6 +86,7 @@ VALUES (%s, %s, %s, %s, %s)
 ON DUPLICATE KEY UPDATE quantity = quantity;
 ''',
                 resource_args,
+                'add_attempt_resources',
             )
         except Exception:
             log.exception(f'error while inserting resources for job {job_id}, attempt {attempt_id}')
@@ -209,6 +211,7 @@ async def mark_job_creating(
 CALL mark_job_creating(%s, %s, %s, %s, %s);
 ''',
             (batch_id, job_id, attempt_id, instance.name, start_time),
+            'mark_job_creating',
         )
     except Exception:
         log.info(f'error while marking job {id} creating on {instance}')

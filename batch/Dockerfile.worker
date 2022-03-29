@@ -56,7 +56,7 @@ FROM base AS crun_builder
 RUN hail-apt-get-install make git gcc build-essential pkgconf libtool \
    libsystemd-dev libcap-dev libseccomp-dev \
    go-md2man libtool autoconf automake
-RUN git clone --depth 1 --branch 0.19.1 https://github.com/containers/crun.git && \
+RUN git clone --depth 1 --branch 1.4.4 https://github.com/containers/crun.git && \
    cd crun && \
    ./autogen.sh && \
    ./configure && \

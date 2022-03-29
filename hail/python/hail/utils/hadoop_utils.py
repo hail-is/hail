@@ -1,4 +1,8 @@
-from typing import Dict, List
+import gzip
+import io
+import os.path
+from typing import Any, Dict, List
+
 from hail.fs.hadoop_fs import HadoopFS
 from hail.utils.java import Env
 from hail.typecheck import typecheck, enumeration
@@ -77,11 +81,20 @@ def hadoop_open(path: str, mode: str = 'r', buffer_size: int = 8192):
     -------
         Readable or writable file handle.
     """
-    # legacy hack
+    # pile of hacks to preserve some legacy behavior, like auto gzip
     fs = Env.fs()
     if isinstance(fs, HadoopFS):
         return fs.legacy_open(path, mode, buffer_size)
-    return fs.open(path, mode, buffer_size)
+    _, ext = os.path.splitext(path)
+    if ext in ('.gz', '.bgz'):
+        binary_mode = 'wb' if mode[0] == 'w' else 'rb'
+        file = fs.open(path, binary_mode, buffer_size)
+        file = gzip.GzipFile(fileobj=file, mode=mode)
+        if 'b' not in mode:
+            file = io.TextIOWrapper(file, encoding='utf-8')
+    else:
+        file = fs.open(path, mode, buffer_size)
+    return file
 
 
 @typecheck(src=str,
@@ -161,7 +174,7 @@ def hadoop_is_dir(path: str) -> bool:
     return Env.fs().is_dir(path)
 
 
-def hadoop_stat(path: str) -> Dict:
+def hadoop_stat(path: str) -> Dict[str, Any]:
     """Returns information about the file or directory at a given path.
 
     Notes
@@ -188,7 +201,7 @@ def hadoop_stat(path: str) -> Dict:
     return Env.fs().stat(path).to_legacy_dict()
 
 
-def hadoop_ls(path: str) -> List[Dict]:
+def hadoop_ls(path: str) -> List[Dict[str, Any]]:
     """Returns information about files at `path`.
 
     Notes

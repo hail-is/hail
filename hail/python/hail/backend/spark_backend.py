@@ -17,7 +17,6 @@ from hail.expr.table_type import ttable
 from hail.expr.matrix_type import tmatrix
 from hail.expr.blockmatrix_type import tblockmatrix
 from hail.ir.renderer import CSERenderer
-from hail.ir import JavaIR
 from hail.table import Table
 from hail.matrixtable import MatrixTable
 
@@ -353,8 +352,8 @@ class SparkBackend(Py4JBackend):
     def parse_vcf_metadata(self, path):
         return json.loads(self._jhc.pyParseVCFMetadataJSON(self.fs._jfs, path))
 
-    def index_bgen(self, files, index_file_map, rg, contig_recoding, skip_invalid_loci):
-        self._jbackend.pyIndexBgen(files, index_file_map, rg, contig_recoding, skip_invalid_loci)
+    def index_bgen(self, files, index_file_map, referenceGenomeName, contig_recoding, skip_invalid_loci):
+        self._jbackend.pyIndexBgen(files, index_file_map, referenceGenomeName, contig_recoding, skip_invalid_loci)
 
     def import_fam(self, path: str, quant_pheno: bool, delimiter: str, missing: str):
         return json.loads(self._jbackend.pyImportFam(path, quant_pheno, delimiter, missing))
@@ -372,9 +371,6 @@ class SparkBackend(Py4JBackend):
             return_type._parsable_string(),
             jbody)
 
-    def persist_ir(self, ir):
-        return JavaIR(self._jhc.backend().executeLiteral(self._to_java_value_ir(ir)))
-
     def read_multiple_matrix_tables(self, paths: 'List[str]', intervals: 'List[hl.Interval]', intervals_type):
         json_repr = {
             'paths': paths,
@@ -384,3 +380,7 @@ class SparkBackend(Py4JBackend):
 
         results = self._jhc.backend().pyReadMultipleMatrixTables(json.dumps(json_repr))
         return [MatrixTable._from_java(jm) for jm in results]
+
+    @property
+    def requires_lowering(self):
+        return False

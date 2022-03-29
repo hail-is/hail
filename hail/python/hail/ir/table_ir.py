@@ -1,5 +1,6 @@
+from typing import Optional
 import hail as hl
-from hail.expr.types import dtype
+from hail.expr.types import dtype, HailType
 from hail.ir.base_ir import BaseIR, TableIR
 from hail.utils.java import Env
 from hail.utils.misc import escape_str, parsable_strings, dump_json, escape_id
@@ -233,10 +234,15 @@ class TableMapPartitions(TableIR):
 
 
 class TableRead(TableIR):
-    def __init__(self, reader, drop_rows=False):
+    def __init__(self,
+                 reader,
+                 drop_rows: bool = False,
+                 *,
+                 _assert_type: Optional[HailType] = None):
         super().__init__()
         self.reader = reader
         self.drop_rows = drop_rows
+        self._type = _assert_type
 
     def head_str(self):
         return f'None {self.drop_rows} "{self.reader.render()}"'
@@ -245,7 +251,8 @@ class TableRead(TableIR):
         return self.reader == other.reader and self.drop_rows == other.drop_rows
 
     def _compute_type(self):
-        self._type = Env.backend().table_type(self)
+        if self._type is None:
+            self._type = Env.backend().table_type(self)
 
 
 class MatrixEntriesTable(TableIR):

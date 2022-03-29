@@ -64,7 +64,6 @@ class Tests(unittest.TestCase):
         test_random_function(lambda: hl.rand_cat(hl.array([1, 1, 1, 1])))
         test_random_function(lambda: hl.rand_dirichlet(hl.array([1, 1, 1, 1])))
 
-    @fails_service_backend(reason='need to convert errors to HailUserError')
     def test_range(self):
         def same_as_python(*args):
             self.assertEqual(hl.eval(hl.range(*args)), list(range(*args)))
@@ -199,7 +198,6 @@ class Tests(unittest.TestCase):
             else:
                 self.assertEqual(v, result[k], msg=k)
 
-    @fails_service_backend(reason='need to convert errors to HailUserError')
     def test_array_slicing(self):
         schema = hl.tstruct(a=hl.tarray(hl.tint32))
         rows = [{'a': [1, 2, 3, 4, 5]}]
@@ -267,7 +265,6 @@ class Tests(unittest.TestCase):
 
         self.assertDictEqual(result, expected)
 
-    @fails_service_backend(reason='need to convert errors to HailUserError')
     def test_dict_missing_error(self):
         d = hl.dict({'a': 2, 'b': 3})
         with pytest.raises(hl.utils.HailUserError, match='Key NA not found in dictionary'):
@@ -668,7 +665,6 @@ Compiled method (c1)   65989 6954       3       is.hail.annotations.Region$::loa
                                               None]),
         ]
 
-    @fails_service_backend(reason='service backend needs to support flags')
     @with_flags('distributed_scan_comb_op')
     def test_densify_table(self):
         ht = hl.utils.range_table(100, n_partitions=33)
@@ -1381,13 +1377,11 @@ Caused by: is.hail.utils.HailException: Premature end of file: expected 4 bytes,
             self.assertTrue(r.sum_x == -15 and r.sum_y == 10 and r.sum_empty == 0 and
                             r.prod_x == -120 and r.prod_y == 0 and r.prod_empty == 1)
 
-    @fails_service_backend
     def test_aggregators_hist(self):
         table = hl.utils.range_table(11)
         r = table.aggregate(hl.agg.hist(table.idx - 1, 0, 8, 4))
         self.assertTrue(r.bin_edges == [0, 2, 4, 6, 8] and r.bin_freq == [2, 2, 2, 3] and r.n_smaller == 1 and r.n_larger == 1)
 
-    @fails_service_backend()
     def test_aggregators_hist_neg0(self):
         table = hl.utils.range_table(32)
         table = table.annotate(d=hl.if_else(table.idx == 11, -0.0, table.idx / 3))
@@ -1397,7 +1391,6 @@ Caused by: is.hail.utils.HailException: Premature end of file: expected 4 bytes,
         self.assertEqual(r.n_smaller, 0)
         self.assertEqual(r.n_larger, 1)
 
-    @fails_service_backend()
     def test_aggregators_hist_nan(self):
         ht = hl.utils.range_table(3).annotate(x=hl.float('nan'))
         r = ht.aggregate(hl.agg.hist(ht.x, 0, 10, 2))
@@ -1433,7 +1426,6 @@ Caused by: is.hail.utils.HailException: Premature end of file: expected 4 bytes,
     # r2adj = sumfit$adj.r.squared
     # f = sumfit$fstatistic
     # p = pf(f[1],f[2],f[3],lower.tail=F)
-    @fails_service_backend()
     def test_aggregators_linreg(self):
         t = hl.Table.parallelize([
             {"y": None, "x": 1.0},
@@ -1491,7 +1483,6 @@ Caused by: is.hail.utils.HailException: Premature end of file: expected 4 bytes,
         self.assertAlmostEqual(r.multiple_p_value, 0.56671386)
         self.assertAlmostEqual(r.n, 5)
 
-    @fails_service_backend()
     def test_linreg_no_data(self):
         ht = hl.utils.range_table(1).filter(False)
         r = ht.aggregate(hl.agg.linreg(ht.idx, 0))
@@ -1607,7 +1598,6 @@ Caused by: is.hail.utils.HailException: Premature end of file: expected 4 bytes,
         table2 = hl.utils.range_table(10)
         self.assertEqual(table.aggregate(hl.agg.count_where(hl.is_defined(table2[table.idx]))), 10)
 
-    @fails_service_backend()
     def test_switch(self):
         x = hl.literal('1')
         na = hl.missing(tint32)
@@ -1652,7 +1642,6 @@ Caused by: is.hail.utils.HailException: Premature end of file: expected 4 bytes,
             hl.eval(hl.switch(x).when('0', 0).or_error("foo"))
         assert '.or_error("foo")' in str(exc.value)
 
-    @fails_service_backend()
     def test_case(self):
         def make_case(x):
             x = hl.literal(x)
@@ -2565,7 +2554,6 @@ Caused by: java.lang.AssertionError: assertion failed
             (hl.literal(None, dtype='int32'), None),
             (hl.literal(None, dtype='int64'), None)])
 
-    @fails_service_backend()
     def test_is_transition(self):
         _test_many_equal([
             (hl.is_transition("A", "G"), True),
@@ -2575,7 +2563,6 @@ Caused by: java.lang.AssertionError: assertion failed
             (hl.is_transition("ACA", "AGA"), False),
             (hl.is_transition("A", "T"), False)])
 
-    @fails_service_backend()
     def test_is_transversion(self):
         _test_many_equal([
             (hl.is_transversion("A", "T"), True),
@@ -2584,7 +2571,6 @@ Caused by: java.lang.AssertionError: assertion failed
             (hl.is_transversion("AA", "T"), False),
             (hl.is_transversion("ACCC", "ACCT"), False)])
 
-    @fails_service_backend()
     def test_is_snp(self):
         _test_many_equal([
             (hl.is_snp("A", "T"), True),
@@ -2594,36 +2580,30 @@ Caused by: java.lang.AssertionError: assertion failed
             (hl.is_snp("AT", "AG"), True),
             (hl.is_snp("ATCCC", "AGCCC"), True)])
 
-    @fails_service_backend()
     def test_is_mnp(self):
         _test_many_equal([
             (hl.is_mnp("ACTGAC", "ATTGTT"), True),
             (hl.is_mnp("CA", "TT"), True)])
 
-    @fails_service_backend()
     def test_is_insertion(self):
         _test_many_equal([
             (hl.is_insertion("A", "ATGC"), True),
             (hl.is_insertion("ATT", "ATGCTT"), True)])
 
-    @fails_service_backend()
     def test_is_deletion(self):
         self.assertTrue(hl.eval(hl.is_deletion("ATGC", "A")))
         self.assertTrue(hl.eval(hl.is_deletion("GTGTA", "GTA")))
 
-    @fails_service_backend()
     def test_is_indel(self):
         self.assertTrue(hl.eval(hl.is_indel("A", "ATGC")))
         self.assertTrue(hl.eval(hl.is_indel("ATT", "ATGCTT")))
         self.assertTrue(hl.eval(hl.is_indel("ATGC", "A")))
         self.assertTrue(hl.eval(hl.is_indel("GTGTA", "GTA")))
 
-    @fails_service_backend()
     def test_is_complex(self):
         self.assertTrue(hl.eval(hl.is_complex("CTA", "ATTT")))
         self.assertTrue(hl.eval(hl.is_complex("A", "TATGC")))
 
-    @fails_service_backend()
     def test_is_star(self):
         self.assertTrue(hl.eval(hl.is_star("ATC", "*")))
         self.assertTrue(hl.eval(hl.is_star("A", "*")))
@@ -2632,7 +2612,6 @@ Caused by: java.lang.AssertionError: assertion failed
         self.assertTrue(hl.eval(hl.is_strand_ambiguous("A", "T")))
         self.assertFalse(hl.eval(hl.is_strand_ambiguous("G", "T")))
 
-    @fails_service_backend()
     def test_allele_type(self):
         self.assertEqual(
             hl.eval(hl.tuple((
@@ -3182,8 +3161,6 @@ Caused by: java.lang.AssertionError: assertion failed
 +---------+
 '''
 
-    @fails_service_backend()
-    @fails_local_backend()
     def test_export(self):
         for delimiter in ['\t', ',', '@']:
             for missing in ['NA', 'null']:
@@ -3651,7 +3628,6 @@ Caused by: java.lang.AssertionError: assertion failed
         self.assert_evals_to(hl.set([1, 2, 3]) ^ set([3, 4, 5]), set([1, 2, 4, 5]))
         self.assert_evals_to(set([1, 2, 3]) ^ hl.set([3, 4, 5]), set([1, 2, 4, 5]))
 
-    @fails_service_backend()
     def test_uniroot(self):
         tol = 1.220703e-4
 
@@ -4129,7 +4105,6 @@ E                   	at java.lang.Thread.run(Thread.java:748)
         assert hl.eval(hl.bit_rshift(hl.int64(-1), 64)) == -1
         assert hl.eval(hl.bit_rshift(hl.int64(-11), 64, logical=True)) == 0
 
-    @fails_service_backend()
     def test_bit_shift_errors(self):
         with pytest.raises(hl.utils.HailUserError):
             hl.eval(hl.bit_lshift(1, -1))
@@ -4273,7 +4248,6 @@ E                   	at java.lang.Thread.run(Thread.java:748)
         ]
         assert hl.eval(hl._compare(hl.tuple(values), hl.tuple(hl.parse_json(hl.json(v), v.dtype) for v in values)) == 0)
 
-    @fails_service_backend()
     def test_expr_persist(self):
         # need to test laziness, so we will overwrite a file
         ht2 = hl.utils.range_table(100)
@@ -4335,3 +4309,14 @@ E                   	at java.lang.Thread.run(Thread.java:748)
             [('foo', 10), ('bar', 11), ('baz', 12)],
             []
         )
+
+    def test_split_line(self):
+        s1 = '1 2 3 4 5 6 7'
+        s2 = '1 2 "3 4" "a b c d"'
+        s3 = '"1" "2"'
+
+        assert hl.eval(hl.str(s1)._split_line(' ', ['NA'], quote=None, regex=False)) == s1.split(' ')
+        assert hl.eval(hl.str(s1)._split_line(r'\s+', ['NA'], quote=None, regex=True)) == s1.split(' ')
+        assert hl.eval(hl.str(s3)._split_line(' ', ['1'], quote='"', regex=False)) == [None, '2']
+        assert hl.eval(hl.str(s2)._split_line(' ', ['1', '2'], quote='"', regex=False)) == [None, None, '3 4', 'a b c d']
+        assert hl.eval(hl.str(s2)._split_line(r'\s+', ['1', '2'], quote='"', regex=True)) == [None, None, '3 4', 'a b c d']

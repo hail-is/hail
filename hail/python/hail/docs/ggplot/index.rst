@@ -73,9 +73,13 @@ currently uses plotly to generate plots, as opposed to ``hl.plot``, which uses b
     scale_y_reverse
     scale_color_continuous
     scale_color_discrete
+    scale_color_hue
+    scale_color_manual
     scale_color_identity
     scale_fill_continuous
     scale_fill_discrete
+    scale_fill_hue
+    scale_fill_manual
     scale_fill_identity
 
 .. autofunction:: scale_x_continuous
@@ -89,9 +93,13 @@ currently uses plotly to generate plots, as opposed to ``hl.plot``, which uses b
 .. autofunction:: scale_y_reverse
 .. autofunction:: scale_color_continuous
 .. autofunction:: scale_color_discrete
+.. autofunction:: scale_color_hue
+.. autofunction:: scale_color_manual
 .. autofunction:: scale_color_identity
 .. autofunction:: scale_fill_continuous
 .. autofunction:: scale_fill_discrete
+.. autofunction:: scale_fill_hue
+.. autofunction:: scale_fill_manual
 .. autofunction:: scale_fill_identity
 
 .. rubric:: Labels

@@ -30,7 +30,6 @@ from gear.clients import get_cloud_async_fs
 from hailtop import aiotools, httpx
 from hailtop.config import get_deploy_config
 from hailtop.hail_logging import AccessLogger
-from hailtop.tls import internal_server_ssl_context
 from hailtop.utils import AsyncWorkerPool, Notice, dump_all_stacktraces, periodically_call, serialization, time_msecs
 from web_common import render_template, set_message, setup_aiohttp_jinja2, setup_common_static_routes
 
@@ -1261,5 +1260,4 @@ def run():
         host='0.0.0.0',
         port=5000,
         access_log_class=AccessLogger,
-        ssl_context=internal_server_ssl_context(),
     )

@@ -5,7 +5,7 @@ import is.hail.asm4s._
 import is.hail.expr.ir.IRParser
 import is.hail.types.encoded.EType
 import is.hail.io.{BufferSpec, StreamBufferSpec, TypedCodecSpec}
-import is.hail.HailContext
+import is.hail.{HailContext, HailFeatureFlags}
 import is.hail.expr.{JSONAnnotationImpex, SparkAnnotationImpex, Validate}
 import is.hail.expr.ir.lowering._
 import is.hail.expr.ir._
@@ -261,6 +261,14 @@ class SparkBackend(
 
   val bmCache: SparkBlockMatrixCache = SparkBlockMatrixCache()
 
+  private[this] val flags = HailFeatureFlags.fromEnv()
+
+  def getFlag(name: String): String = flags.get(name)
+
+  def setFlag(name: String, value: String) = flags.set(name, value)
+
+  val availableFlags: java.util.ArrayList[String] = flags.available
+
   def persist(backendContext: BackendContext, id: String, value: BlockMatrix, storageLevel: String): Unit = bmCache.persistBlockMatrix(id, value, storageLevel)
 
   def unpersist(backendContext: BackendContext, id: String): Unit = unpersist(id)
@@ -271,10 +279,33 @@ class SparkBackend(
 
   def unpersist(id: String): Unit = bmCache.unpersistBlockMatrix(id)
 
+  def createExecuteContextForTests(
+    timer: ExecutionTimer,
+    region: Region,
+    selfContainedExecution: Boolean = true
+  ): ExecuteContext = new ExecuteContext(
+    tmpdir,
+    localTmpdir,
+    this,
+    fs,
+    region,
+    timer,
+    if (selfContainedExecution) null else new NonOwningTempFileManager(longLifeTempFileManager),
+    theHailClassLoader,
+    flags
+  )
+
   def withExecuteContext[T](timer: ExecutionTimer, selfContainedExecution: Boolean = true)(f: ExecuteContext => T): T = {
-    ExecuteContext.scoped(tmpdir, localTmpdir, this, fs, timer,
+    ExecuteContext.scoped(
+      tmpdir,
+      localTmpdir,
+      this,
+      fs,
+      timer,
       if (selfContainedExecution) null else new NonOwningTempFileManager(longLifeTempFileManager),
-      theHailClassLoader)(f)
+      theHailClassLoader,
+      flags
+    )(f)
   }
 
   def broadcast[T : ClassTag](value: T): BroadcastValue[T] = new SparkBroadcastValue[T](sc.broadcast(value))
@@ -333,7 +364,7 @@ class SparkBackend(
     val ir = LoweringPipeline.darrayLowerer(optimize)(typesToLower).apply(ctx, ir0).asInstanceOf[IR]
 
     if (!Compilable(ir))
-      throw new LowererUnsupportedOperation(s"lowered to uncompilable IR: ${ Pretty(ir) }")
+      throw new LowererUnsupportedOperation(s"lowered to uncompilable IR: ${ Pretty(ctx, ir) }")
 
     val res = ir.typ match {
       case TVoid =>
@@ -371,14 +402,14 @@ class SparkBackend(
     }
 
   private[this] def _execute(ctx: ExecuteContext, ir: IR, optimize: Boolean): Either[Unit, (PTuple, Long)] = {
-    TypeCheck(ir)
+    TypeCheck(ctx, ir)
     Validate(ir)
     try {
-      val lowerTable = HailContext.getFlag("lower") != null
-      val lowerBM = HailContext.getFlag("lower_bm") != null
+      val lowerTable = getFlag("lower") != null
+      val lowerBM = getFlag("lower_bm") != null
       _jvmLowerAndExecute(ctx, ir, optimize, lowerTable, lowerBM)
     } catch {
-      case e: LowererUnsupportedOperation if HailContext.getFlag("lower_only") != null => throw e
+      case e: LowererUnsupportedOperation if getFlag("lower_only") != null => throw e
       case _: LowererUnsupportedOperation =>
         CompileAndEvaluate._apply(ctx, ir, optimize = optimize)
     }
