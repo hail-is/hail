@@ -202,6 +202,9 @@ dependencies {
     bundled group: 'org.freemarker', name: 'freemarker', version: '2.3.14'
 
     bundled 'com.kohlschutter.junixsocket:junixsocket-core:2.3.2'
+
+    bundled 'com.azure:azure-storage-blob:12.15.0'
+    bundled 'com.azure:azure-identity:1.4.6'
 }
 
 task(checkSettings) doLast {
@@ -331,6 +334,7 @@ tasks.withType(ShadowJar) {
 
     // Breeze 1.0 is broken, it is never ok to use Breeze 1.0 or earlier.
     relocate 'breeze', 'is.hail.relocated.breeze'
+    relocate 'com.azure', 'is.hail.relocated.com.azure'
 
     exclude 'META-INF/*.RSA'
     exclude 'META-INF/*.SF'
