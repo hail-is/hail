@@ -816,8 +816,8 @@ def dump_all_stacktraces():
 async def retry_long_running(name, f, *args, **kwargs):
     delay_secs = 0.1
     while True:
+        start_time = time_msecs()
         try:
-            start_time = time_msecs()
             return await f(*args, **kwargs)
         except asyncio.CancelledError:
             raise
