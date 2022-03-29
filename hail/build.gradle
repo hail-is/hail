@@ -334,7 +334,9 @@ tasks.withType(ShadowJar) {
 
     // Breeze 1.0 is broken, it is never ok to use Breeze 1.0 or earlier.
     relocate 'breeze', 'is.hail.relocated.breeze'
-    relocate 'com.azure', 'is.hail.relocated.com.azure'
+    relocate('com.azure', 'is.hail.relocated.com.azure') {
+        include 'com.fasterxml.jackson.core*'
+    }
 
     exclude 'META-INF/*.RSA'
     exclude 'META-INF/*.SF'
