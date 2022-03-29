@@ -3,6 +3,7 @@ package is.hail.fs
 import java.io.FileNotFoundException
 import is.hail.HailSuite
 import is.hail.backend.ExecuteContext
+import is.hail.io.fs.FSUtil.dropTrailingSlash
 import is.hail.io.fs.{FS, FileStatus}
 import is.hail.utils._
 import org.apache.commons.io.IOUtils
@@ -241,6 +242,14 @@ trait FSSuite {
     fs.delete(f, false)
 
     assert(!fs.exists(f))
+  }
+
+  @Test def testDropTrailingSlash(): Unit = {
+    assert(dropTrailingSlash("") == "")
+    assert(dropTrailingSlash("/foo/bar") == "/foo/bar")
+    assert(dropTrailingSlash("foo/bar/") == "foo/bar")
+    assert(dropTrailingSlash("/foo///") == "/foo")
+    assert(dropTrailingSlash("///") == "")
   }
 }
 

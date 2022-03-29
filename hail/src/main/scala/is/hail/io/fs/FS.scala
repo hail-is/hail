@@ -1,16 +1,19 @@
 package is.hail.io.fs
 
 import java.io._
-import java.util.zip.{GZIPOutputStream}
+import java.util.zip.GZIPOutputStream
 import is.hail.HailContext
 import is.hail.backend.BroadcastValue
 import is.hail.io.compress.{BGzipInputStream, BGzipOutputStream}
+import is.hail.io.fs.FSUtil.{containsWildcard, dropTrailingSlash}
 import is.hail.utils._
 import org.apache.commons.compress.compressors.gzip.GzipCompressorInputStream
 import org.apache.commons.io.IOUtils
 import org.apache.hadoop
 
 import java.nio.ByteBuffer
+import java.nio.file.FileSystems
+import scala.collection.mutable
 import scala.io.Source
 
 trait Positioned {
@@ -82,6 +85,25 @@ object FSUtil {
     while (i > 0 && path(i - 1) == '/')
       i -= 1
     path.substring(0, i)
+  }
+
+  def containsWildcard(path: String): Boolean = {
+    var i = 0
+    while (i < path.length) {
+      val c = path(i)
+      if (c == '\\') {
+        i += 1
+        if (i < path.length)
+          i += 1
+        else
+          return false
+      } else if (c == '*' || c == '{' || c == '?' || c == '[')
+        return true
+
+      i += 1
+    }
+
+    false
   }
 }
 
@@ -160,25 +182,6 @@ abstract class FSPositionedOutputStream extends OutputStream with Positioned {
 }
 
 trait FS extends Serializable {
-  def containsWildcard(path: String): Boolean = {
-    var i = 0
-    while (i < path.length) {
-      val c = path(i)
-      if (c == '\\') {
-        i += 1
-        if (i < path.length)
-          i += 1
-        else
-          return false
-      } else if (c == '*' || c == '{' || c == '?' || c == '[')
-        return true
-
-      i += 1
-    }
-
-    false
-  }
-
   def getCodecFromExtension(extension: String, gzAsBGZ: Boolean = false): CompressionCodec = {
     extension match {
       case ".gz" =>
@@ -243,6 +246,52 @@ trait FS extends Serializable {
   def listStatus(filename: String): Array[FileStatus]
 
   def glob(filename: String): Array[FileStatus]
+
+  def globWithPrefix(prefix: String, path: String) = {
+    val components =
+      if (path == "")
+        Array.empty[String]
+      else
+        path.split("/")
+
+    val javaFS = FileSystems.getDefault
+
+    val ab = new mutable.ArrayBuffer[FileStatus]()
+    def f(prefix: String, fs: FileStatus, i: Int): Unit = {
+      assert(!prefix.endsWith("/"), prefix)
+
+      if (i == components.length) {
+        var t = fs
+        if (t == null) {
+          try {
+            t = fileStatus(prefix)
+          } catch {
+            case _: FileNotFoundException =>
+          }
+        }
+        if (t != null)
+          ab += t
+      }
+
+      if (i < components.length) {
+        val c = components(i)
+        if (containsWildcard(c)) {
+          val m = javaFS.getPathMatcher(s"glob:$c")
+          for (cfs <- listStatus(prefix)) {
+            val p = dropTrailingSlash(cfs.getPath)
+            val d = p.drop(prefix.length + 1)
+            if (m.matches(javaFS.getPath(d))) {
+              f(p, cfs, i + 1)
+            }
+          }
+        } else
+          f(s"$prefix/$c", null, i + 1)
+      }
+    }
+
+    f(s"$prefix", null, 0)
+    ab.toArray
+  }
 
   def globAll(filenames: Iterable[String]): Array[String] =
     globAllStatuses(filenames).map(_.getPath)

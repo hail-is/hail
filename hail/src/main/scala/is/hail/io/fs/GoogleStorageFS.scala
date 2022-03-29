@@ -8,7 +8,7 @@ import com.google.auth.oauth2.ServiceAccountCredentials
 import com.google.cloud.{ReadChannel, WriteChannel}
 import com.google.cloud.storage.Storage.BlobListOption
 import com.google.cloud.storage.{Blob, BlobId, BlobInfo, Storage, StorageOptions}
-import is.hail.io.fs.FSUtil.dropTrailingSlash
+import is.hail.io.fs.FSUtil.{containsWildcard, dropTrailingSlash}
 import is.hail.services.retryTransientErrors
 
 import scala.collection.JavaConverters._
@@ -166,49 +166,7 @@ class GoogleStorageFS(val serviceAccountKey: Option[String] = None) extends FS {
     var (bucket, path) = getBucketPath(filename)
     path = dropTrailingSlash(path)
 
-    val components =
-      if (path == "")
-        Array.empty[String]
-      else
-        path.split("/")
-
-    val javaFS = FileSystems.getDefault
-
-    val ab = new mutable.ArrayBuffer[FileStatus]()
-    def f(prefix: String, fs: FileStatus, i: Int): Unit = {
-      assert(!prefix.endsWith("/"), prefix)
-
-      if (i == components.length) {
-        var t = fs
-        if (t == null) {
-          try {
-            t = fileStatus(prefix)
-          } catch {
-            case _: FileNotFoundException =>
-          }
-        }
-        if (t != null)
-          ab += t
-      }
-
-      if (i < components.length) {
-        val c = components(i)
-        if (containsWildcard(c)) {
-          val m = javaFS.getPathMatcher(s"glob:$c")
-          for (cfs <- listStatus(prefix)) {
-            val p = dropTrailingSlash(cfs.getPath)
-            val d = p.drop(prefix.length + 1)
-            if (m.matches(javaFS.getPath(d))) {
-              f(p, cfs, i + 1)
-            }
-          }
-        } else
-          f(s"$prefix/$c", null, i + 1)
-      }
-    }
-
-    f(s"gs://$bucket", null, 0)
-    ab.toArray
+    globWithPrefix(prefix = s"gs://$bucket", path = path)
   }
 
   def listStatus(filename: String): Array[FileStatus] = {
@@ -251,8 +209,8 @@ class GoogleStorageFS(val serviceAccountKey: Option[String] = None) extends FS {
   }
 
   def makeQualified(filename: String): String = {
-    // gs is cannot be a default scheme
-    assert(filename.startsWith("gs://"))
+    if (!filename.startsWith("gs://"))
+      throw new IllegalArgumentException(s"Invalid path, expected gs://bucket/path $filename")
     filename
   }
 }
