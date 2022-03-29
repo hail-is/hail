@@ -1,7 +1,7 @@
 import io
 import json
 import time
-from typing import Dict, List
+from typing import Dict, List, Union, Any
 
 import dateutil
 
@@ -9,7 +9,7 @@ from .fs import FS
 from .stat_result import FileType, StatResult
 
 
-def _stat_dict_to_stat_result(stat: Dict) -> StatResult:
+def _stat_dict_to_stat_result(stat: Dict[str, Any]) -> StatResult:
     dt = dateutil.parser.isoparse(stat['modification_time'])
     mtime = time.mktime(dt.timetuple())
     if stat['is_dir']:
@@ -35,6 +35,7 @@ class HadoopFS(FS):
         return self._open(path, mode, buffer_size, use_codec=True)
 
     def _open(self, path: str, mode: str = 'r', buffer_size: int = 8192, use_codec: bool = False):
+        handle: Union[io.BufferedReader, io.BufferedWriter]
         if 'r' in mode:
             handle = io.BufferedReader(HadoopReader(self, path, buffer_size, use_codec=use_codec), buffer_size=buffer_size)
         elif 'w' in mode:
@@ -78,6 +79,9 @@ class HadoopFS(FS):
 
     def supports_scheme(self, scheme: str) -> bool:
         return self._jfs.supportsScheme(scheme)
+
+    def canonicalize_path(self, path: str) -> str:
+        return self._jfs.makeQualified(path)
 
 
 class HadoopReader(io.RawIOBase):

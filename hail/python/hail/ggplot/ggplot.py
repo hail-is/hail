@@ -1,4 +1,3 @@
-import plotly
 import plotly.graph_objects as go
 
 from pprint import pprint
@@ -25,8 +24,7 @@ class GGPlot:
     .. automethod:: write_image
     """
 
-    def __init__(self, ht, aes, geoms=[], labels=Labels(), coord_cartesian=None, scales=None,
-                 discrete_color_scale=plotly.colors.qualitative.D3, continuous_color_scale=plotly.colors.sequential.Viridis):
+    def __init__(self, ht, aes, geoms=[], labels=Labels(), coord_cartesian=None, scales=None):
         if scales is None:
             scales = {}
 
@@ -36,10 +34,6 @@ class GGPlot:
         self.labels = labels
         self.coord_cartesian = coord_cartesian
         self.scales = scales
-        self.discrete_color_scale = discrete_color_scale
-        self.discrete_color_dict = {}
-        self.discrete_color_idx = 0
-        self.continuous_color_scale = continuous_color_scale
 
         self.add_default_scales(aes)
 
@@ -99,8 +93,7 @@ class GGPlot:
                         self.scales[aesthetic_str] = ScaleDiscrete(aesthetic_str)
 
     def copy(self):
-        return GGPlot(self.ht, self.aes, self.geoms[:], self.labels, self.coord_cartesian, self.scales,
-                      self.discrete_color_scale, self.continuous_color_scale)
+        return GGPlot(self.ht, self.aes, self.geoms[:], self.labels, self.coord_cartesian, self.scales)
 
     def verify_scales(self):
         for geom_idx, geom in enumerate(self.geoms):
@@ -175,7 +168,7 @@ class GGPlot:
         # Create scaling functions based on all the data:
         transformers = {}
         for scale in self.scales.values():
-            transformers[scale.aesthetic_name] = scale.create_local_transformer([x for _, _, x in geoms_and_grouped_dfs], self)
+            transformers[scale.aesthetic_name] = scale.create_local_transformer([x for _, _, x in geoms_and_grouped_dfs])
 
         for geom, geom_label, grouped_dfs in geoms_and_grouped_dfs:
             scaled_grouped_dfs = []

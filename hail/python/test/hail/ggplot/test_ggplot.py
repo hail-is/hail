@@ -1,4 +1,3 @@
-# These tests only check that the functions don't error out, they don't check what the output plot looks like.
 import hail as hl
 from hail.ggplot import *
 import numpy as np
@@ -34,7 +33,6 @@ def test_manhattan_plot():
     expected_ticks = ('1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12', '13', '14', '15', '16', '17', '18', '19', '20', '21', '22', 'X', 'Y')
     assert pfig.layout.xaxis.ticktext == expected_ticks
 
-@fails_service_backend()
 def test_histogram():
     num_rows = 101
     num_groups = 5
@@ -68,3 +66,37 @@ def test_geom_ribbon():
     ht = hl.utils.range_table(20)
     fig = ggplot(ht, aes(x=ht.idx, ymin=ht.idx * 2, ymax=ht.idx * 3)) + geom_ribbon()
     fig.to_plotly()
+
+
+def test_default_scale_no_repeat_colors():
+    num_rows = 20
+    ht = hl.utils.range_table(num_rows)
+    fig = ggplot(ht, aes(x=ht.idx, y=ht.idx, color=hl.str(ht.idx))) + geom_point()
+    pfig = fig.to_plotly()
+
+    scatter_colors = [scatter['marker']['color'] for scatter in pfig['data']]
+    num_unique_colors = len(set(scatter_colors))
+    assert num_unique_colors == num_rows
+
+
+def test_scale_color_manual():
+    num_rows = 4
+    colors = set(["red", "blue"])
+    ht = hl.utils.range_table(num_rows)
+    fig = ggplot(ht, aes(x=ht.idx, y=ht.idx, color=hl.str(ht.idx % 2))) + geom_point() + scale_color_manual(values=list(colors))
+    pfig = fig.to_plotly()
+
+    assert set([scatter.marker.color for scatter in pfig.data]) == colors
+
+
+def test_weighted_bar():
+    x = hl.array([2, 3, 3, 3, 4, 5, 2])
+    w = hl.array([1, 2, 3, 4, 5, 6, 7])
+    ht = hl.utils.range_table(7)
+    ht = ht.annotate(x=x[ht.idx], w=w[ht.idx])
+    fig = ggplot(ht) + geom_bar(aes(x=ht.x, weight=ht.w))
+
+    result = [8, 9, 5, 6]
+    for idx, y in enumerate(fig.to_plotly().data[0].y):
+        assert(y == result[idx])
+

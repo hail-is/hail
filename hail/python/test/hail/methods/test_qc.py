@@ -9,7 +9,6 @@ tearDownModule = stopTestHailContext
 
 
 class Tests(unittest.TestCase):
-    @fails_service_backend()
     def test_sample_qc(self):
         data = [
             {'v': '1:1:A:T', 's': '1', 'GT': hl.Call([0, 0]), 'GQ': 10, 'DP': 0},
@@ -276,7 +275,6 @@ Caused by: java.lang.ClassCastException: __C2860collect_distributed_array cannot
                 ._same(hl.import_vcf(resource('filter_alleles/keep_allele2_downcode.vcf')))
         )
 
-    @fails_service_backend()
     def test_sample_and_variant_qc_call_rate(self):
         mt = hl.import_vcf(resource('sample.vcf'))
 
@@ -287,7 +285,6 @@ Caused by: java.lang.ClassCastException: __C2860collect_distributed_array cannot
         assert mt.aggregate_cols(hl.agg.all(hl.approx_equal(mt.sample_qc.call_rate, mt.sample_qc.n_called / n_rows)))
         assert mt.aggregate_rows(hl.agg.all(hl.approx_equal(mt.variant_qc.call_rate, mt.variant_qc.n_called / n_cols)))
 
-    @fails_service_backend()
     def test_summarize_variants_ti_tv(self):
         mt = hl.import_vcf(resource('sample.vcf'))
         # check that summarize can run with the print control flow

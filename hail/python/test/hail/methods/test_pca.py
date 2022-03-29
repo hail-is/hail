@@ -69,7 +69,6 @@ def test_pca_against_numpy():
     np.testing.assert_allclose(np.abs(hail_loadings), np.abs(np_loadings), rtol=1e-5)
 
 
-@fails_service_backend(reason='persist_ir')
 def test_blanczos_against_numpy():
 
     def concatToNumpy(field, horizontal=True):
@@ -199,32 +198,26 @@ def spec5(j, k):
         return 10**-5 * math.sqrt((k + 1)/j)
 
 
-@fails_service_backend(reason='persist_ir')
 def test_spectra_1():
     spectra_helper(spec1)
 
 
-@fails_service_backend(reason='persist_ir')
 def test_spectra_2():
     spectra_helper(spec2)
 
 
-@fails_service_backend(reason='persist_ir')
 def test_spectra_3():
     spectra_helper(spec3)
 
 
-@fails_service_backend(reason='persist_ir')
 def test_spectra_4():
     spectra_helper(spec4)
 
 
-@fails_service_backend(reason='persist_ir')
 def test_spectra_5():
     spectra_helper(spec5)
 
 
-@fails_service_backend(reason='persist_ir')
 def spectral_moments_helper(spec_func):
     for triplet in [(20, 1000, 1000)]:
         k, m, n = triplet
@@ -242,27 +235,27 @@ def spectral_moments_helper(spec_func):
         np.testing.assert_allclose(moments, true_moments, rtol=2e-01)
 
 
-@fails_service_backend(reason='persist_ir')
+@skip_when_service_backend(message='v slow & OOms')
 def test_spectral_moments_1():
     spectral_moments_helper(spec1)
 
 
-@fails_service_backend(reason='persist_ir')
+@skip_when_service_backend(message='v slow & OOms')
 def test_spectral_moments_2():
     spectral_moments_helper(spec2)
 
 
-@fails_service_backend(reason='persist_ir')
+@skip_when_service_backend(message='v slow & OOms')
 def test_spectral_moments_3():
     spectral_moments_helper(spec3)
 
 
-@fails_service_backend(reason='persist_ir')
+@skip_when_service_backend(message='v slow & OOms')
 def test_spectral_moments_4():
     spectral_moments_helper(spec4)
 
 
-@fails_service_backend(reason='persist_ir')
+@skip_when_service_backend(message='v slow & OOms')
 def test_spectral_moments_5():
     spectral_moments_helper(spec5)
 
@@ -292,26 +285,21 @@ def spectra_and_moments_helper(spec_func):
         np.testing.assert_allclose(moments, true_moments, rtol=1e-04)
 
 
-@skip_when_service_backend(message='intermittently hangs')
 def test_spectra_and_moments_1():
     spectra_and_moments_helper(spec1)
 
 
-@skip_when_service_backend(message='intermittently hangs')
 def test_spectra_and_moments_2():
     spectra_and_moments_helper(spec2)
 
 
-@skip_when_service_backend(message='intermittently hangs')
 def test_spectra_and_moments_3():
     spectra_and_moments_helper(spec3)
 
 
-@skip_when_service_backend(message='intermittently hangs')
 def test_spectra_and_moments_4():
     spectra_and_moments_helper(spec4)
 
 
-@skip_when_service_backend(message='intermittently hangs')
 def test_spectra_and_moments_5():
     spectra_and_moments_helper(spec5)

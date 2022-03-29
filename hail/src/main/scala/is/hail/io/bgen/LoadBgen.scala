@@ -421,7 +421,11 @@ case class MatrixBGENReaderParameters(
       }.toList),
       "nPartitions" -> nPartitions.map(JInt(_)).getOrElse(JNull),
       "blockSizeInMB" -> blockSizeInMB.map(JInt(_)).getOrElse(JNull),
-      "includedVariants" -> includedVariants.map(t => JString(Pretty(t))).getOrElse(JNull)))
+      // FIXME: feels like a hack that Pretty needs execute context
+      // FIXME: feels like a hack that I use null here
+      // FIXME: feels like a hack that toJValue uses Pretty?
+      // Q: can we parse SSA'ed pretty table IR?
+      "includedVariants" -> includedVariants.map(t => JString(Pretty(null, t))).getOrElse(JNull)))
   }
 }
 

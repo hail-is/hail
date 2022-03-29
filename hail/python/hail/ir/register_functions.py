@@ -44,7 +44,6 @@ def register_functions():
     ndarray_floating_point_divide(tint64, tfloat32)
     ndarray_floating_point_divide(tfloat32, tfloat32)
     ndarray_floating_point_divide(tfloat64, tfloat64)
-
     register_function("values", (dtype("dict<?key, ?value>"),), dtype("array<?value>"))
     register_function("sliceRight", (dtype("str"), dtype("int32"),), dtype("str"))
     register_function("get", (dtype("dict<?key, ?value>"), dtype("?key"),), dtype("?value"))
@@ -211,6 +210,12 @@ def register_functions():
     register_function("slice", (dtype("str"), dtype("int32"), dtype("int32"),), dtype("str"))
     register_function("split", (dtype("str"), dtype("str"), dtype("int32"),), dtype("array<str>"))
     register_function("split", (dtype("str"), dtype("str"),), dtype("array<str>"))
+    register_function("splitQuotedChar", (dtype("str"), dtype("str"), dtype("array<str>"), dtype("str"),),
+                      dtype("array<str>"))
+    register_function("splitQuotedRegex", (dtype("str"), dtype("str"), dtype("array<str>"), dtype("str"),),
+                      dtype("array<str>"))
+    register_function("splitChar", (dtype("str"), dtype("str"), dtype("array<str>"),), dtype("array<str>"))
+    register_function("splitRegex", (dtype("str"), dtype("str"), dtype("array<str>"),), dtype("array<str>"))
     register_seeded_function("rand_gamma", (dtype("float64"), dtype("float64"),), dtype("float64"))
     register_function("UnphasedDiploidGtIndexCall", (dtype("int32"),), dtype("call"))
     register_function("lgt_to_gt", (dtype("call"), dtype("array<int32>"),), dtype("call"))

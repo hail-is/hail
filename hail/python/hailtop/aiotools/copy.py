@@ -1,8 +1,9 @@
 from typing import List, Optional, Dict
-import json
-import asyncio
-import logging
 import argparse
+import asyncio
+import json
+import logging
+import sys
 import uvloop
 from concurrent.futures import ThreadPoolExecutor
 
@@ -18,7 +19,7 @@ async def copy(*,
                gcs_kwargs: Optional[dict] = None,
                azure_kwargs: Optional[dict] = None,
                s3_kwargs: Optional[dict] = None,
-               transfers: List[Transfer]
+               transfers: List[Transfer],
                ) -> None:
     with ThreadPoolExecutor() as thread_pool:
         if max_simultaneous_transfers is None:
@@ -81,8 +82,8 @@ async def main() -> None:
     parser = argparse.ArgumentParser(description='Hail copy tool')
     parser.add_argument('requester_pays_project', type=str,
                         help='a JSON string indicating the Google project to which to charge egress costs')
-    parser.add_argument('files', type=str,
-                        help='a JSON array of JSON objects indicating from where and to where to copy files')
+    parser.add_argument('files', type=str, nargs='?',
+                        help='a JSON array of JSON objects indicating from where and to where to copy files. If empty or "-", read the array from standard input instead')
     parser.add_argument('--max-simultaneous-transfers', type=int,
                         help='The limit on the number of simultaneous transfers. Large files are uploaded as multiple transfers. This parameter sets an upper bound on the number of open source and destination files.')
     parser.add_argument('-v', '--verbose', action='store_const',
@@ -95,6 +96,8 @@ async def main() -> None:
         logging.root.setLevel(logging.INFO)
 
     requester_pays_project = json.loads(args.requester_pays_project)
+    if args.files is None or args.files == '-':
+        args.files = sys.stdin.read()
     files = json.loads(args.files)
     gcs_kwargs = {'project': requester_pays_project}
 

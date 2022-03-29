@@ -26,7 +26,6 @@ def assert_ndarrays_almost_eq(*expr_and_expected):
     assert_ndarrays(np.allclose, expr_and_expected)
 
 
-@fails_service_backend()
 def test_ndarray_ref():
 
     scalar = 5.0
@@ -62,7 +61,6 @@ def test_ndarray_ref():
     assert "Index 4 is out of bounds for axis 0 with size 3" in str(exc.value)
 
 
-@skip_when_service_backend('slow >800s')
 def test_ndarray_slice():
     np_rect_prism = np.arange(24).reshape((2, 3, 4))
     rect_prism = hl.nd.array(np_rect_prism)
@@ -204,7 +202,6 @@ def test_ndarray_transposed_slice():
     )
 
 
-@fails_service_backend()
 def test_ndarray_eval():
     data_list = [[1, 2, 3], [4, 5, 6], [7, 8, 9]]
     mishapen_data_list1 = [[4], [1, 2, 3]]
@@ -288,7 +285,6 @@ def test_ndarray_shape():
     )
 
 
-@fails_service_backend(reason='need to convert errors to HailUserError')
 def test_ndarray_reshape():
     np_single = np.array([8])
     single = hl.nd.array([8])
@@ -555,7 +551,6 @@ def test_ndarray_transpose():
         cube.transpose((1, 1, 1))
     assert "Axes cannot contain duplicates" in str(exc.value)
 
-@fails_service_backend(reason='need to convert errors to HailUserError')
 def test_ndarray_matmul():
     np_v = np.array([1, 2])
     np_y = np.array([1, 1, 1])
@@ -681,7 +676,6 @@ def test_ndarray_full():
     assert hl.eval(hl.nd.full((5, 6, 7), hl.int32(3), dtype=hl.tfloat64)).dtype, np.float64
 
 
-@fails_service_backend(reason='need to convert errors to HailUserError')
 def test_ndarray_arange():
     assert_ndarrays_eq(
         (hl.nd.arange(40), np.arange(40)),
@@ -723,7 +717,6 @@ def test_ndarray_diagonal():
     assert "2 dimensional" in str(exc.value)
 
 
-@fails_service_backend(reason='need to convert errors to HailUserError')
 def test_ndarray_solve_triangular():
     a = hl.nd.array([[1, 1], [0, 1]])
     b = hl.nd.array([2, 1])
@@ -742,7 +735,6 @@ def test_ndarray_solve_triangular():
         hl.eval(hl.nd.solve_triangular(a_sing, b_sing))
     assert "singular" in str(exc.value), str(exc.value)
 
-@fails_service_backend(reason='need to convert errors to HailUserError')
 def test_ndarray_solve():
     a = hl.nd.array([[1, 2], [3, 5]])
     b = hl.nd.array([1, 2])

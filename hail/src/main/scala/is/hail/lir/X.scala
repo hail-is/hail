@@ -56,7 +56,7 @@ class Classx[C](val name: String, val superName: String, var sourceFile: Option[
     sourceFile = Some(path)
   }
 
-  def asBytes(print: Option[PrintWriter]): Array[(String, Array[Byte])] = {
+  def asBytes(writeIRs: Boolean, print: Option[PrintWriter]): Array[(String, Array[Byte])] = {
     val classes = new mutable.ArrayBuffer[Classx[_]]()
     classes += this
 
@@ -64,8 +64,6 @@ class Classx[C](val name: String, val superName: String, var sourceFile: Option[
       m.verify()
       SimplifyControl(m)
     }
-
-    val writeIRs = HailContext.isInitialized && HailContext.getFlag("write_ir_files") != null
 
     if (writeIRs) saveToFile(s"/tmp/hail/${name}.lir")
 

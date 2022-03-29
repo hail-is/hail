@@ -6,7 +6,7 @@ terraform {
     }
     kubernetes = {
       source = "hashicorp/kubernetes"
-      version = "1.13.3"
+      version = "2.8.0"
     }
   }
   backend "gcs" {
@@ -14,6 +14,14 @@ terraform {
   }
 }
 
+variable "k8s_preemptible_node_pool_name" {
+  type    = string
+  default = "preemptible-pool"
+}
+variable "k8s_nonpreemptible_node_pool_name" {
+  type    = string
+  default = "nonpreemptible-pool"
+}
 variable "batch_gcp_regions" {}
 variable "gcp_project" {}
 variable "batch_logs_bucket_location" {}
@@ -118,9 +126,9 @@ resource "google_container_cluster" "vdc" {
 }
 
 resource "google_container_node_pool" "vdc_preemptible_pool" {
-  name = "preemptible-pool"
+  name     = var.k8s_preemptible_node_pool_name
   location = var.gcp_zone
-  cluster = google_container_cluster.vdc.name
+  cluster  = google_container_cluster.vdc.name
 
   # Allocate at least one node, so that autoscaling can take place.
   initial_node_count = 1
@@ -132,7 +140,7 @@ resource "google_container_node_pool" "vdc_preemptible_pool" {
 
   node_config {
     preemptible = true
-    machine_type = "n1-standard-2"
+    machine_type = "n1-standard-8"
 
     labels = {
       "preemptible" = "true"
@@ -155,9 +163,9 @@ resource "google_container_node_pool" "vdc_preemptible_pool" {
 }
 
 resource "google_container_node_pool" "vdc_nonpreemptible_pool" {
-  name = "nonpreemptible-pool"
+  name     = var.k8s_nonpreemptible_node_pool_name
   location = var.gcp_zone
-  cluster = google_container_cluster.vdc.name
+  cluster  = google_container_cluster.vdc.name
 
   # Allocate at least one node, so that autoscaling can take place.
   initial_node_count = 1
@@ -169,7 +177,7 @@ resource "google_container_node_pool" "vdc_nonpreemptible_pool" {
 
   node_config {
     preemptible = false
-    machine_type = "n1-standard-2"
+    machine_type = "n1-standard-8"
 
     labels = {
       preemptible = "false"

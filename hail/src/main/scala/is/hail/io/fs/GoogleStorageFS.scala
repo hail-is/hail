@@ -104,19 +104,26 @@ class GoogleStorageFileStatus(path: String, modificationTime: java.lang.Long, si
 class GoogleStorageFS(val serviceAccountKey: Option[String] = None) extends FS {
   import GoogleStorageFS._
 
-  @transient private lazy val storage: Storage = serviceAccountKey match {
-    case None =>
-      log.info("Initializing google storage client from latent credentials")
-      StorageOptions.newBuilder()
-        .build()
-        .getService
-    case Some(keyData) =>
-      log.info("Initializing google storage client from service account key")
-      StorageOptions.newBuilder()
-        .setCredentials(
-          ServiceAccountCredentials.fromStream(new ByteArrayInputStream(keyData.getBytes)))
-        .build()
-        .getService
+  @transient private lazy val storage: Storage = {
+    val transportOptions = StorageOptions.getDefaultHttpTransportOptions().toBuilder()
+      .setConnectTimeout(5000)
+      .setReadTimeout(5000)
+      .build()
+    serviceAccountKey match {
+      case None =>
+        log.info("Initializing google storage client from latent credentials")
+        StorageOptions.newBuilder()
+          .build()
+          .getService
+      case Some(keyData) =>
+        log.info("Initializing google storage client from service account key")
+        StorageOptions.newBuilder()
+          .setCredentials(
+            ServiceAccountCredentials.fromStream(new ByteArrayInputStream(keyData.getBytes)))
+          .setTransportOptions(transportOptions)
+          .build()
+          .getService
+    }
   }
 
   def asCacheable(): CacheableGoogleStorageFS = new CacheableGoogleStorageFS(serviceAccountKey, null)

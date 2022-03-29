@@ -9,7 +9,7 @@ import jinja2
 import yaml
 
 from gear.cloud_config import get_global_config
-from hailtop.utils import flatten
+from hailtop.utils import RETRY_FUNCTION_SCRIPT, flatten
 
 from .environment import BUILDKIT_IMAGE, CI_UTILS_IMAGE, CLOUD, DEFAULT_NAMESPACE, DOCKER_PREFIX, DOMAIN, STORAGE_URI
 from .globals import is_test_deployment
@@ -311,9 +311,11 @@ set +x
 /bin/sh /home/user/convert-cloud-credentials-to-docker-auth-config
 set -x
 
+{RETRY_FUNCTION_SCRIPT}
+
 export BUILDKITD_FLAGS='--oci-worker-no-process-sandbox --oci-worker-snapshotter=overlayfs'
 export BUILDCTL_CONNECT_RETRIES_MAX=100 # https://github.com/moby/buildkit/issues/1423
-buildctl-daemonless.sh \
+retry buildctl-daemonless.sh \
      build \
      --frontend dockerfile.v0 \
      --local context={shq(context)} \
