@@ -465,15 +465,18 @@ async def schedule_job(app, record, instance):
 
         log.info(f'schedule job {id} on {instance}: called create job')
 
-        rv = await db.execute_and_fetchone(
-            '''
-CALL schedule_job(%s, %s, %s, %s);
-''',
-            (batch_id, job_id, attempt_id, instance.name),
-            'schedule_job',
-        )
+        try:
+            rv = await db.execute_and_fetchone(
+                '''
+    CALL schedule_job(%s, %s, %s, %s);
+    ''',
+                (batch_id, job_id, attempt_id, instance.name),
+                'schedule_job',
+            )
+        except Exception:
+            log.exception(f'error while scheduling job {id} on {instance}')
+            raise
     except Exception:
-        log.exception(f'error while scheduling job {id} on {instance}')
         if instance.state == 'active':
             instance.adjust_free_cores_in_memory(record['cores_mcpu'])
         return
