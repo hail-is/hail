@@ -475,7 +475,8 @@ LIMIT %s;
                         try:
                             await schedule_job(app, record, instance)
                         except Exception:
-                            log.info(f'scheduling job {id} on {instance} for {self.pool}', exc_info=True)
+                            if instance.state == 'active':
+                                instance.adjust_free_cores_in_memory(record['cores_mcpu'])
 
                     await waitable_pool.call(schedule_with_error_handling, self.app, record, id, instance)
 
