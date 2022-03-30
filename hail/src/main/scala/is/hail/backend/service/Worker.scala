@@ -138,7 +138,9 @@ object Worker {
     var result: Array[Byte] = null
     var userError: HailException = null
     try {
-      result = f(context, htc, theHailClassLoader, fs)
+      retryTransientErrors {
+        result = f(context, htc, theHailClassLoader, fs)
+      }
     } catch {
       case err: HailException => userError = err
     }
