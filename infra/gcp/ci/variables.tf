@@ -1,9 +1,11 @@
 variable "github_oauth_token" {
   type = string
+  sensitive = true
 }
 
 variable "github_user1_oauth_token" {
   type = string
+  sensitive = true
 }
 
 variable "bucket_location" {
