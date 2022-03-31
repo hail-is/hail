@@ -1,8 +1,9 @@
 import abc
 
 from .aes import aes
-from .stats import StatCount, StatIdentity, StatBin, StatNone, StatFunction
+from .stats import StatCount, StatIdentity, StatBin, StatNone, StatFunction, StatBoxPlot
 from .utils import bar_position_plotly_to_gg, linetype_plotly_to_gg
+import hail as hl
 
 
 class FigureAttribute(abc.ABC):
@@ -654,3 +655,87 @@ def geom_ribbon(mapping=aes(), fill=None, color=None):
         The geom to be applied.
     """
     return GeomRibbon(mapping, fill=fill, color=color)
+
+
+class GeomBoxPlot(Geom):
+
+    aes_to_arg = {
+        "fill": ("marker_color", "black"),
+        "color": ("marker_line_color", None),
+        "tooltip": ("hovertext", None),
+        "fill_legend": ("name", None),
+        "fill_legend": ("legendgroup", None),
+        "alpha": ("marker_opacity", None)
+    }
+
+    def __init__(self, aes):
+        super().__init__(aes)
+
+    def apply_to_fig(self, parent, grouped_data, fig_so_far, precomputed):
+        def plot_group(df):
+            q1 = []
+            q3 = []
+            median = []
+            lower_whiskers = []
+            top_whiskers = []
+            y_outliers = []
+
+            for idx, x in enumerate(df.xo.values):
+                ys = []
+                quantiles = df.quantiles.values[idx][x]
+                iqr = 1.5 * (quantiles[3] - quantiles[1])
+                q1.append(quantiles[1])
+                q3.append(quantiles[3])
+                median.append(quantiles[2])
+                low_points = list(filter(lambda low_point: low_point > quantiles[1] - 1.5 * iqr, df.lowpoints.values[idx]))
+                low_whisker_point = min(low_points) if len(low_points) > 0 else quantiles[1]
+                lower_whiskers.append(low_whisker_point)
+                high_points = list(filter(lambda high_point: high_point < quantiles[3] + 1.5 * iqr, df.highpoints.values[idx]))
+
+
+
+
+
+
+                
+                high_whisker_point = max(high_points) if len(high_points) > 0 else quantiles[3]
+                top_whiskers.append(high_whisker_point)
+                low_outliers = list(filter(lambda low_point: low_point < low_whisker_point, df.lowpoints.values[idx]))
+                high_outliers = list(filter(lambda high_point: high_point > high_whisker_point, df.highpoints.values[idx]))
+                ys.append(low_whisker_point)
+                ys.append(high_whisker_point)
+                ys = ys + low_outliers + high_outliers
+                y_outliers.append(ys)
+
+            box_args = {
+                "x": df.xo,
+                "y": y_outliers,
+                "q1": q1,
+                "q3": q3,
+                "median": median,
+                "lowerfence": lower_whiskers,
+                "upperfence": top_whiskers,
+                "boxpoints": 'outliers'
+            }
+            for aes_name, (plotly_name, default) in self.aes_to_arg.items():
+                if hasattr(self, aes_name) and getattr(self, aes_name) is not None:
+                    box_args[plotly_name] = getattr(self, aes_name)
+                elif aes_name in df.attrs:
+                    box_args[plotly_name] = df.attrs[aes_name]
+                elif aes_name in df.columns:
+                    box_args[plotly_name] = df[aes_name]
+                elif default is not None:
+                    box_args[plotly_name] = default
+
+            fig_so_far.add_box(**box_args)
+
+        for group_df in grouped_data:
+            plot_group(group_df)
+        fig_so_far.update_layout(boxmode="group")
+
+    def get_stat(self):
+        return StatBoxPlot()
+
+
+def geom_boxplot(mapping=aes()):
+    return GeomBoxPlot(mapping)

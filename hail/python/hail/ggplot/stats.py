@@ -132,3 +132,52 @@ class StatBin(Stat):
             df.attrs.update(**grouped_struct)
             result.append(df)
         return result
+
+
+class StatBoxPlot(Stat):
+
+    def get_precomputes(self, mapping):
+        grouping_variables = {aes_key: mapping[aes_key] for aes_key in mapping.keys()
+                              if should_use_for_grouping(aes_key, mapping[aes_key].dtype)}
+        precomputes = {}
+        precomputes['quantiles'] = hl.agg.group_by(
+            hl.struct(**grouping_variables), hl.agg.group_by(
+                mapping['x'], hl.agg.approx_quantiles(mapping.y, [0, 0.25, 0.5, 0.75, 1], k=1000)))
+        return hl.struct(**precomputes)
+
+    def make_agg(self, mapping, precomputed):
+        grouping_variables = {aes_key: mapping[aes_key] for aes_key in mapping.keys()
+                              if should_use_for_grouping(aes_key, mapping[aes_key].dtype)}
+        q_dict = hl.literal(precomputed.quantiles)
+        group_struct = hl.struct(**grouping_variables)
+
+        return hl.agg.group_by(group_struct, hl.agg.group_by(mapping['x'],
+                               hl.struct(lowpoints=hl.agg.filter(mapping['y'] < q_dict[group_struct][mapping["x"]][1], hl.agg.collect(mapping['y'])),
+                                         highpoints=hl.agg.filter(mapping['y'] > q_dict[group_struct][mapping["x"]][3], hl.agg.collect(mapping['y'])),
+                                         quantiles=hl.agg.take(q_dict[group_struct], 1))))
+
+    def listify(self, agg_result):
+        result = []
+        for grouped_struct, outliers in agg_result.items():
+            data_dict = {}
+            xs, points = zip(*outliers.items())
+            data_dict["xo"] = pd.Series(xs)
+            highpoints = []
+            lowpoints = []
+            quantiles = []
+            for point in points:
+                highpoints.append(point.highpoints)
+                lowpoints.append(point.lowpoints)
+                quantiles.append(point.quantiles[0])
+            data_dict["lowpoints"] = pd.Series(lowpoints)
+            data_dict["highpoints"] = pd.Series(highpoints)
+            data_dict["quantiles"] = pd.Series(quantiles)
+            df = pd.DataFrame(data_dict)
+            df.attrs.update(**grouped_struct)
+            result.append(df)
+
+        return result
+
+
+
+
