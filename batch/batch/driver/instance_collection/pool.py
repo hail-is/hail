@@ -452,9 +452,6 @@ LIMIT %s;
 
             remaining = Box(share)
             async for record in user_runnable_jobs(user, remaining):
-                batch_id = record['batch_id']
-                job_id = record['job_id']
-                id = (batch_id, job_id)
                 attempt_id = secret_alnum_string(6)
                 record['attempt_id'] = attempt_id
 
