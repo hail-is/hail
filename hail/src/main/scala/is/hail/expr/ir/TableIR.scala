@@ -1237,7 +1237,7 @@ case class TableFromBlockMatrixNativeReader(params: TableFromBlockMatrixNativeRe
     val numSlicesInNormalBlock = slicePointsForNormalBlock.length
 
     val lastBlockRow = metadata.nRows / metadata.blockSize + (if (metadata.nRows % metadata.blockSize > 0) 1 else 0)
-    val rowsInLastBlock = metadata.nRows % metadata.blockSize
+    val rowsInLastBlock = (metadata.nRows % metadata.blockSize).toInt
     val slicePointsForLastBlock = ((0 until rowsInLastBlock by sliceSize) :+ rowsInLastBlock).sliding(2).map(is => (is(0), is(1))).toIndexedSeq
     val slicePointsForLastBlockIR = Literal(TArray(TTuple(TInt32, TInt32)), slicePointsForLastBlock)
 
@@ -1253,7 +1253,7 @@ case class TableFromBlockMatrixNativeReader(params: TableFromBlockMatrixNativeRe
               bindIR(NDArrayShape(block)) { shapeTuple =>
                 bindIR(GetTupleElement(shapeTuple, 0)) { numRowsInBlock =>
                   // Do slicing into vertical chunks of right size.
-                  mapIR(zipWithIndex(ToStream(If(blockRow != lastBlockRow,
+                  mapIR(zipWithIndex(ToStream(If(blockRow cne lastBlockRow,
                     slicePointsForNormalBlockIR,
                     slicePointsForLastBlockIR
                   )))) { sliceIdxAndSliceStartStop =>
