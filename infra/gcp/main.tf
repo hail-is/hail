@@ -470,6 +470,12 @@ module "test_gsa_secret" {
   ]
 }
 
+module "query_gsa_secret" {
+  source = "./gsa_k8s_secret"
+  name = "query"
+  iam_roles = ["storage.admin"]
+}
+
 resource "google_storage_bucket_iam_member" "test_bucket_admin" {
   bucket = module.hail_test_gcs_bucket.name
   role = "roles/storage.admin"
