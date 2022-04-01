@@ -11,7 +11,7 @@ import fnmatch
 from hailtop.aiotools.fs import Copier, Transfer, FileListEntry, ReadableStream, WritableStream
 from hailtop.aiotools.local_fs import LocalAsyncFS
 from hailtop.aiotools.router_fs import RouterAsyncFS
-from hailtop.utils import OnlineBoundedGather2, async_to_blocking
+from hailtop.utils import bounded_gather, async_to_blocking
 
 from .fs import FS
 from .stat_result import FileType, StatResult
