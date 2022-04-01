@@ -165,7 +165,7 @@ class TableRange(TableIR):
 
     def _handle_randomness(self, uid_field_name):
         assert(uid_field_name is not None)
-        new_row = ir.InsertFields(ir.Ref('row', self.typ.row_type), [(uid_field_name, ir.Cast(ir.GetField(ir.Ref('row'), 'idx'), tint64))], None)
+        new_row = ir.InsertFields(ir.Ref('row', self.typ.row_type), [(uid_field_name, ir.Cast(ir.GetField(ir.Ref('row', self.typ.row_type), 'idx'), tint64))], None)
         return TableMapRows(self, new_row)
 
     def head_str(self):
@@ -296,7 +296,7 @@ class TableMapRows(TableIR):
             return TableMapRows(child, self.new_row)
 
         child = self.child.handle_randomness(ir.uid_field_name)
-        uid, old_row = unpack_uid(child.typ.row_type)
+        uid, old_row = unpack_uid(child.typ.row_type, uid_field_name)
         new_row = ir.Let('row', old_row, self.new_row)
         if self.new_row.uses_randomness:
             new_row = ir.Let('__rng_state', ir.RNGSplit(ir.RNGStateLiteral(rng_key), uid), new_row)

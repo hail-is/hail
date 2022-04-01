@@ -20,18 +20,16 @@ object SRNGState {
 }
 
 final case class SRNGState(
-  key: IndexedSeq[Long],
-  numWordsInLastDynBlock: Int
+  numWordsInLastBlock: Int
 ) extends SType {
-  assert(key.length == 4)
-  assert(numWordsInLastDynBlock <= 4 && numWordsInLastDynBlock >= 0)
+  assert(numWordsInLastBlock <= 4 && numWordsInLastBlock >= 0)
 
   def virtualType: Type = TRNGState
 
   override protected[stypes] def _coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SValue, deepCopy: Boolean): SValue = ???
 
   override def settableTupleTypes(): IndexedSeq[TypeInfo[_]] =
-    Array.fill(4 + numWordsInLastDynBlock)(typeInfo[Long])
+    Array.fill(4 + numWordsInLastBlock)(typeInfo[Long])
 
   override def fromSettables(settables: IndexedSeq[Settable[_]]): SSettable = ???
 
@@ -50,7 +48,7 @@ final case class SRNGState(
 
 object SRNGStateValue {
   def apply(cb: EmitCodeBuilder, key: IndexedSeq[Long]): SRNGStateValue = {
-    val typ = SRNGState(key, 0)
+    val typ = SRNGState(0)
     new SRNGStateValue(
       typ,
       Array.fill[Value[Long]](4)(0),
@@ -68,7 +66,7 @@ final case class SRNGStateValue(
   numDynBlocks: Int,
 ) extends SValue {
   assert(runningSum.length == 4)
-  assert(lastDynBlock.length == st.numWordsInLastDynBlock)
+  assert(lastDynBlock.length == st.numWordsInLastBlock)
 
   override def valueTuple: IndexedSeq[Value[_]] =
     runningSum ++ lastDynBlock
@@ -79,7 +77,8 @@ final case class SRNGStateValue(
     assert(!hasStaticSplit)
     val x = Array.ofDim[Long](4)
     x(0) = idx
-    Threefry.encrypt(st.key, SRNGState.staticTweak, x)
+    val key = cb.emb.ctx.rngKey
+    Threefry.encrypt(key, SRNGState.staticTweak, x)
     val newDynBlocksSum = Array.tabulate[Value[Long]](4)(i => cb.memoize(runningSum(i) ^ x(i)))
     copy(
       runningSum = newDynBlocksSum,
@@ -87,16 +86,17 @@ final case class SRNGStateValue(
   }
 
   def splitDyn(cb: EmitCodeBuilder, idx: Value[Long]): SRNGStateValue = {
-    if (st.numWordsInLastDynBlock < 4) {
+    if (st.numWordsInLastBlock < 4) {
       return copy(
-        st = st.copy(numWordsInLastDynBlock = st.numWordsInLastDynBlock + 1),
+        st = st.copy(numWordsInLastBlock = st.numWordsInLastBlock + 1),
         lastDynBlock = lastDynBlock :+ idx)
     }
     val x = Array.tabulate[Settable[Long]](4)(i => cb.newLocal[Long](s"splitDyn_x$i", lastDynBlock(i)))
-    Threefry.encrypt(cb, st.key, numDynBlocks.toLong, x)
+    val key = cb.emb.ctx.rngKey
+    Threefry.encrypt(cb, key, numDynBlocks.toLong, x)
     for (i <- 0 until 4) cb.assign(x(i), x(i) ^ runningSum(i))
     copy(
-      st = st.copy(numWordsInLastDynBlock = 1),
+      st = st.copy(numWordsInLastBlock = 1),
       runningSum = x,
       lastDynBlock = Array(idx),
       numDynBlocks = numDynBlocks + 1)
@@ -104,13 +104,14 @@ final case class SRNGStateValue(
 
   def rand(cb: EmitCodeBuilder): IndexedSeq[Value[Long]] = {
     val x = Array.tabulate[Settable[Long]](4)(i => cb.newLocal[Long](s"rand_x$i", runningSum(i)))
-    if (st.numWordsInLastDynBlock == 4) {
+    val key = cb.emb.ctx.rngKey
+    if (st.numWordsInLastBlock == 4) {
       for (i <- lastDynBlock.indices) cb.assign(x(i), x(i) ^ lastDynBlock(i))
-      Threefry.encrypt(cb, st.key, SRNGState.finalBlockNoPadTweak, x)
+      Threefry.encrypt(cb, key, SRNGState.finalBlockNoPadTweak, x)
     } else {
       for (i <- lastDynBlock.indices) cb.assign(x(i), x(i) ^ lastDynBlock(i))
       cb.assign(x(lastDynBlock.size), x(lastDynBlock.size) ^ (1L << 63))
-      Threefry.encrypt(cb, st.key, SRNGState.finalBlockPaddedTweak, x)
+      Threefry.encrypt(cb, key, SRNGState.finalBlockPaddedTweak, x)
     }
     x
   }

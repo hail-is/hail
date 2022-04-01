@@ -106,6 +106,8 @@ class ExecuteContext(
 ) extends Closeable {
   var backendContext: BackendContext = _
 
+  val rngKey: IndexedSeq[Long] = Array(0L, 0L, 0L, 0L)
+
   private val tempFileManager: TempFileManager = if (_tempFileManager != null)
     _tempFileManager
   else
