@@ -114,7 +114,7 @@ class Tests(unittest.TestCase):
 
     def test_hadoop_ls_simple(self):
         with hl.TemporaryDirectory() as dirname:
-            with fs.open(dirname + '/a', 'w') as fobj:
+            with hl.current_backend().fs.open(dirname + '/a', 'w') as fobj:
                 fobj.write('hello world')
             dirname = self.normalize_path(dirname)
 
@@ -169,7 +169,7 @@ class Tests(unittest.TestCase):
     @fails_spark_backend()
     def test_hadoop_ls_glob_question_mark_in_group(self):
         with hl.TemporaryDirectory() as dirname:
-            with fs.open(dirname + '/?', 'w') as fobj:
+            with hl.current_backend().fs.open(dirname + '/?', 'w') as fobj:
                 fobj.write('hello world')
             dirname = self.normalize_path(dirname)
 
@@ -181,7 +181,7 @@ class Tests(unittest.TestCase):
     @fails_service_backend()
     def test_hadoop_ls_glob_empty_group_matches_empty_string(self):
         with hl.TemporaryDirectory() as dirname:
-            with fs.open(dirname + '/a', 'w') as fobj:
+            with hl.current_backend().fs.open(dirname + '/a', 'w') as fobj:
                 fobj.write('hello world')
             dirname = self.normalize_path(dirname)
 
@@ -202,7 +202,7 @@ class Tests(unittest.TestCase):
     def test_hadoop_ls_glob_3(self):
         fs = hl.current_backend().fs
         def touch(filename):
-            with fs.open(filename, 'w') as fobj:
+            with hl.current_backend().fs.open(filename, 'w') as fobj:
                 fobj.write('hello world')
 
         with hl.TemporaryDirectory() as dirname:

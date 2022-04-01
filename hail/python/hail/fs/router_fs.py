@@ -283,6 +283,8 @@ class RouterFS(FS):
             suffix = ''
         else:
             suffix = '/' + '/'.join(running_prefix)
+
+        cumulative_prefixes = []
         if len(glob_components) > 0:
             first_component_prefix, first_component_pattern = glob_components[0]
             first_component_prefix_url = str(url.with_path('/'.join(first_component_prefix)))
