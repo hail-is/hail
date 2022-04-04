@@ -7,7 +7,7 @@ import hail as hl
 
 
 def vars(*args):
-    return hl.tuple(*args)
+    return hl.struct(**{f"var_{i}": arg for i, arg in enumerate(args)})
 
 
 def facet_wrap(facets):
