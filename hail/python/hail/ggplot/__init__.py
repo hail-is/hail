@@ -46,6 +46,8 @@ __all__ = [
     "scale_fill_continuous",
     "scale_fill_identity",
     "scale_fill_discrete",
+    "scale_fill_hue",
+    "scale_fill_manual",
     "facet_wrap",
     "vars"
 ]
