@@ -7,10 +7,36 @@ import hail as hl
 
 
 def vars(*args):
+    """
+
+    Parameters
+    ----------
+    *args: class:`.Expression`
+        Fields to facet by.
+
+    Returns
+    -------
+    :class:`StructExpression`
+        A struct to pass to a faceter.
+
+    """
     return hl.struct(**{f"var_{i}": arg for i, arg in enumerate(args)})
 
 
 def facet_wrap(facets):
+    """Introduce a one dimensional faceting on specified fields.
+
+    Parameters
+    ----------
+    facets: :class:`StructExpression` created by `hl.ggplot.vars` function.
+        The fields to facet on.
+
+    Returns
+    -------
+    :class:`FigureAttribute`
+        The faceter.
+
+    """
     return FacetWrap(facets)
 
 
