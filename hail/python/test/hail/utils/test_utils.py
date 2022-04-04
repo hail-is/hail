@@ -177,18 +177,6 @@ class Tests(unittest.TestCase):
             assert len(results) == 1
             results[0]['path'] == dirname + '/?'
 
-    @fails_local_backend()
-    @fails_service_backend()
-    def test_hadoop_ls_glob_empty_group_matches_empty_string(self):
-        with hl.TemporaryDirectory() as dirname:
-            with hl.current_backend().fs.open(dirname + '/a', 'w') as fobj:
-                fobj.write('hello world')
-            dirname = self.normalize_path(dirname)
-
-            results = hl.hadoop_ls(dirname + '/[]a')
-            assert len(results) == 1
-            results[0]['path'] == dirname + '/a'
-
     def test_hadoop_ls_glob_1(self):
         expected = [self.normalize_path(resource('ls_test/f_100'))]
         actual = [x['path'] for x in hl.hadoop_ls(resource('l?_t?st/f*00'))]
