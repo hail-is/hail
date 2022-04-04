@@ -1946,6 +1946,7 @@ def test_read_write_all_types():
     mt.write(tmp_file)
     assert hl.read_matrix_table(tmp_file)._same(mt)
 
+
 @fails_local_backend()
 @skip_when_service_backend('very slow / nonterminating')
 def test_read_write_balding_nichols_model():
@@ -1954,8 +1955,15 @@ def test_read_write_balding_nichols_model():
     mt.write(tmp_file)
     assert hl.read_matrix_table(tmp_file)._same(mt)
 
+
 def test_read_partitions():
     ht = hl.utils.range_matrix_table(n_rows=100, n_cols=10, n_partitions=3)
     path = new_temp_file()
     ht.write(path)
     assert hl.read_matrix_table(path, _n_partitions=10).n_partitions() == 10
+
+
+def test_filter_against_invalid_contig():
+    mt = hl.balding_nichols_model(3, 5, 20)
+    fmt = mt.filter_rows(mt.locus.contig == "chr1")
+    assert fmt.rows()._force_count() == 0
