@@ -1,4 +1,3 @@
-import plotly
 from plotly.subplots import make_subplots
 
 from pprint import pprint
