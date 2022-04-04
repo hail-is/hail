@@ -68,7 +68,6 @@ Instructions:
    # for other services:
    hail_query_bucket_location = "<bucket-location>"
    hail_query_bucket_storage_class = "MULTI_REGIONAL"
-
    hail_test_gcs_bucket_location = "<bucket-location>"
    hail_test_gcs_bucket_storage_class = "MULTI_REGIONAL"
 
