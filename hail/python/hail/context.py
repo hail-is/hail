@@ -398,7 +398,8 @@ def init_spark(sc=None,
     disable_progress_bar=bool,
     driver_cores=nullable(oneof(str, int)),
     driver_memory=nullable(str),
-    name_prefix=nullable(str)
+    name_prefix=nullable(str),
+    token=nullable(str)
 )
 async def init_batch(
         *,
@@ -414,7 +415,8 @@ async def init_batch(
         disable_progress_bar: bool = True,
         driver_cores: Optional[Union[str, int]] = None,
         driver_memory: Optional[str] = None,
-        name_prefix: Optional[str] = None
+        name_prefix: Optional[str] = None,
+        token: Optional[str] = None,
 ):
     from hail.backend.service_backend import ServiceBackend
     # FIXME: pass local_tmpdir and use on worker and driver
@@ -423,7 +425,8 @@ async def init_batch(
                                           disable_progress_bar=disable_progress_bar,
                                           driver_cores=driver_cores,
                                           driver_memory=driver_memory,
-                                          name_prefix=name_prefix)
+                                          name_prefix=name_prefix,
+                                          token=token)
 
     log = _get_log(log)
     if tmpdir is None:

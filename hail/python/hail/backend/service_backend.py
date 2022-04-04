@@ -211,7 +211,8 @@ class ServiceBackend(Backend):
                      jar_url: Optional[str] = None,
                      driver_cores: Optional[Union[int, str]] = None,
                      driver_memory: Optional[Union[int, str]] = None,
-                     name_prefix: Optional[str] = None):
+                     name_prefix: Optional[str] = None,
+                     token: Optional[str] = None):
         if billing_project is None:
             billing_project = get_user_config().get('batch', 'billing_project', fallback=None)
         if billing_project is None:
@@ -224,7 +225,7 @@ class ServiceBackend(Backend):
         async_fs = RouterAsyncFS('file')
         sync_fs = RouterFS(async_fs)
         if batch_client is None:
-            batch_client = await aiohb.BatchClient.create(billing_project)
+            batch_client = await aiohb.BatchClient.create(billing_project, _token=token)
         bc = hb.BatchClient.from_async(batch_client)
         batch_attributes: Dict[str, str] = dict()
         user_local_reference_cache_dir = Path(get_user_local_cache_dir(), 'references', version())
