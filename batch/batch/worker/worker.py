@@ -2494,7 +2494,8 @@ class Worker:
         await site.start()
 
         try:
-            await asyncio.wait_for(self.activate(), MAX_IDLE_TIME_MSECS / 1000)
+            startup_tasks = asyncio.gather(self.activate(), network_allocator.reserve())
+            await asyncio.wait_for(startup_tasks, MAX_IDLE_TIME_MSECS / 1000)
         except asyncio.TimeoutError:
             log.exception(f'could not activate after trying for {MAX_IDLE_TIME_MSECS} ms, exiting')
             return
@@ -2700,7 +2701,6 @@ async def async_main():
 
     port_allocator = PortAllocator()
     network_allocator = NetworkAllocator()
-    await network_allocator.reserve()
 
     worker = Worker(httpx.client_session())
     try:
