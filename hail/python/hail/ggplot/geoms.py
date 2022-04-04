@@ -520,7 +520,7 @@ class GeomFunction(GeomLineBasic):
         self.fun = fun
 
     def apply_to_fig(self, parent, agg_result, fig_so_far, precomputed, facet_row, facet_col, legend_cache):
-        super().apply_to_fig(parent, agg_result, fig_so_far, precomputed)
+        super().apply_to_fig(parent, agg_result, fig_so_far, precomputed, facet_row, facet_col, legend_cache)
 
     def get_stat(self):
         return StatFunction(self.fun)
