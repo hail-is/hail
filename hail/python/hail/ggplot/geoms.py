@@ -589,10 +589,10 @@ def geom_area(mapping=aes(), fill=None, color=None):
 
 class GeomRibbon(Geom):
     aes_to_arg = {
-        "fill": ("fillcolor", "black", True),
-        "color": ("line_color", "rgba(0, 0, 0, 0)", True),
-        "tooltip": ("hovertext", None, False),
-        "fill_legend": ("name", None, True)
+        "fill": ("fillcolor", "black"),
+        "color": ("line_color", "rgba(0, 0, 0, 0)"),
+        "tooltip": ("hovertext", None),
+        "fill_legend": ("name", None)
     }
 
     def __init__(self, aes, fill, color):
@@ -602,18 +602,6 @@ class GeomRibbon(Geom):
 
     def apply_to_fig(self, parent, grouped_data, fig_so_far, precomputed, facet_row, facet_col, legend_cache):
         def plot_group(df):
-            # TODO: Use legend_cache on GeomRibbon, fix insert_into_scatter to use helpers.
-
-            def insert_into_scatter(trace_args):
-                for aes_name, (plotly_name, default, take_one) in self.aes_to_arg.items():
-                    if hasattr(self, aes_name) and getattr(self, aes_name) is not None:
-                        trace_args[plotly_name] = getattr(self, aes_name)
-                    elif aes_name in df.attrs:
-                        trace_args[plotly_name] = df.attrs[aes_name]
-                    elif aes_name in df.columns:
-                        trace_args[plotly_name] = df[aes_name]
-                    elif default is not None:
-                        trace_args[plotly_name] = default
 
             trace_args_bottom = {
                 "x": df.x,
@@ -623,7 +611,8 @@ class GeomRibbon(Geom):
                 "mode": "lines",
                 "showlegend": False
             }
-            insert_into_scatter(trace_args_bottom)
+            self._add_aesthetics_to_trace_args(trace_args_bottom, df)
+            self._update_legend_trace_args(trace_args_bottom, legend_cache)
 
             trace_args_top = {
                 "x": df.x,
@@ -633,7 +622,8 @@ class GeomRibbon(Geom):
                 "mode": "lines",
                 "fill": 'tonexty'
             }
-            insert_into_scatter(trace_args_top)
+            self._add_aesthetics_to_trace_args(trace_args_top, df)
+            self._update_legend_trace_args(trace_args_top, legend_cache)
 
             fig_so_far.add_scatter(**trace_args_bottom)
             fig_so_far.add_scatter(**trace_args_top)

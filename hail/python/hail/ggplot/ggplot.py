@@ -153,7 +153,6 @@ class GGPlot:
 
             return mapping_per_geom, precomputed
 
-        # Plan: Facets are an extra level of group by.
         def get_aggregation_result(selected, mapping_per_geom, precomputed):
             aggregators = {}
             labels_to_stats = {}
