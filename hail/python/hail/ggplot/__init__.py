@@ -8,6 +8,7 @@ from .scale import scale_x_continuous, scale_y_continuous, scale_x_discrete, sca
     scale_x_log10, scale_y_log10, scale_x_reverse, scale_y_reverse, scale_color_discrete, scale_color_hue, scale_color_identity,\
     scale_color_manual, scale_color_continuous, scale_fill_discrete, scale_fill_hue, scale_fill_identity, scale_fill_continuous,\
     scale_fill_manual
+from .facets import vars, facet_wrap
 
 __all__ = [
     "aes",
@@ -46,5 +47,7 @@ __all__ = [
     "scale_fill_identity",
     "scale_fill_discrete",
     "scale_fill_hue",
-    "scale_fill_manual"
+    "scale_fill_manual",
+    "facet_wrap",
+    "vars"
 ]
