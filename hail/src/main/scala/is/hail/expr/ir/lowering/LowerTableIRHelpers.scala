@@ -317,7 +317,7 @@ object LowerTableIRHelpers {
       TableStage.apply(
         letBindings = lc.letBindings ++ FastIndexedSeq((partitionPrefixSumsRef.name, partitionPrefixSumValues)),
         broadcastVals = lc.broadcastVals,
-        partitioner = lc.partitioner,
+        partitioner = lc.partitioner.coarsen(tmr.typ.key.length),
         dependency = lc.dependency,
         globals = lc.globals,
         contexts = StreamZip(
