@@ -42,7 +42,7 @@ Instructions:
 
   Download the client secret as `/tmp/auth_oauth2_client_secret.json`.
 
-- Create `/tmp/global.tfvars` that looks like this:
+- Create `infra/gcp/global.tfvars` that looks like this:
 
    ```
    # organization_domain is a string that is the domain of the organization
