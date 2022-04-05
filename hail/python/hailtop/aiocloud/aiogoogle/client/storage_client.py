@@ -548,9 +548,9 @@ class GoogleStorageAsyncFS(AsyncFS):
         if parsed.scheme != 'gs':
             raise ValueError(f"invalid scheme, expected gs: {parsed.scheme}")
 
-        # FIXME: what to do here about ? in bucket paths
         name = parsed.path
         if parsed.query:
+            # gs:// URLs don't have query parameters, so just include it as part of the object name
             name += '?' + parsed.query
         if name:
             assert name[0] == '/'
