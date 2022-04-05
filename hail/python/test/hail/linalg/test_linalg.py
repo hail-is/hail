@@ -227,8 +227,6 @@ Caused by: is.hail.utils.HailException: bad shuffle close
         bm = BlockMatrix._create(n_rows, n_cols, data.tolist(), block_size=4)
         self._assert_eq(bm.to_numpy(_force_blocking=True), a)
 
-    @fails_service_backend()
-    @fails_local_backend()
     def test_to_table(self):
         schema = hl.tstruct(row_idx=hl.tint64, entries=hl.tarray(hl.tfloat64))
         rows = [{'row_idx': 0, 'entries': [0.0, 1.0]},
@@ -258,8 +256,6 @@ Caused by: is.hail.utils.HailException: bad shuffle close
         bm = BlockMatrix._create(5, 2, [float(i) for i in range(10)], 2)
         bm.to_table_row_major(2, maximum_cache_memory_in_bytes=16)._force_count()
 
-    @fails_service_backend()
-    @fails_local_backend()
     def test_to_matrix_table(self):
         n_partitions = 2
         rows, cols = 2, 5
