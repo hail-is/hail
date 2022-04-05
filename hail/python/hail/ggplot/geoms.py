@@ -691,13 +691,6 @@ class GeomBoxPlot(Geom):
                 low_whisker_point = min(low_points) if len(low_points) > 0 else quantiles[1]
                 lower_whiskers.append(low_whisker_point)
                 high_points = list(filter(lambda high_point: high_point < quantiles[3] + 1.5 * iqr, df.highpoints.values[idx]))
-
-
-
-
-
-
-                
                 high_whisker_point = max(high_points) if len(high_points) > 0 else quantiles[3]
                 top_whiskers.append(high_whisker_point)
                 low_outliers = list(filter(lambda low_point: low_point < low_whisker_point, df.lowpoints.values[idx]))
@@ -707,7 +700,7 @@ class GeomBoxPlot(Geom):
                 ys = ys + low_outliers + high_outliers
                 y_outliers.append(ys)
 
-            box_args = {
+            trace_args = {
                 "x": df.xo,
                 "y": y_outliers,
                 "q1": q1,
@@ -717,17 +710,10 @@ class GeomBoxPlot(Geom):
                 "upperfence": top_whiskers,
                 "boxpoints": 'outliers'
             }
-            for aes_name, (plotly_name, default) in self.aes_to_arg.items():
-                if hasattr(self, aes_name) and getattr(self, aes_name) is not None:
-                    box_args[plotly_name] = getattr(self, aes_name)
-                elif aes_name in df.attrs:
-                    box_args[plotly_name] = df.attrs[aes_name]
-                elif aes_name in df.columns:
-                    box_args[plotly_name] = df[aes_name]
-                elif default is not None:
-                    box_args[plotly_name] = default
 
-            fig_so_far.add_box(**box_args)
+            self._add_aesthetics_to_trace_args(trace_args, df)
+
+            fig_so_far.add_box(**trace_args)
 
         for group_df in grouped_data:
             plot_group(group_df)
