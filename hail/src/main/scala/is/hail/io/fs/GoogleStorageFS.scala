@@ -45,7 +45,7 @@ object GoogleStorageFS {
     assert(scheme != null && scheme == "gs", (uri.getScheme, filename))
 
     val bucket = uri.getAuthority
-    assert(bucket != null, (filename, uri.toString(), uri.getScheme))
+    assert(bucket != null, (filename, uri.toString(), uri.getScheme, uri.getAuthority, uri.getRawAuthority(), uri.getUserInfo()))
 
     var path = uri.getPath
     if (path.nonEmpty && path.head == '/')
