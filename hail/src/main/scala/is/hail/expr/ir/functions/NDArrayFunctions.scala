@@ -146,10 +146,11 @@ object  NDArrayFunctions extends RegistryFunctions {
         resPCode
     }
 
-    registerSCode1("ndarray_rows", TNDArray(TFloat64, Nat(2)), TArray(TFloat64), (_, s) => SIndexablePointer(PCanonicalArray(PCanonicalArray(s.asInstanceOf[SNDArray].elementPType)))) { (er, cb, ret, nd, errorId) =>
+    registerSCode1("ndarray_rows", TNDArray(TFloat64, Nat(2)), TArray(TArray(TFloat64)), (_, s) => SIndexablePointer(PCanonicalArray(PCanonicalArray(s.asInstanceOf[SNDArray].elementPType)))) { (er, cb, ret, nd, errorId) =>
       val ndRowMajor = LinalgCodeUtils.checkRowMajorAndCopyIfNeeded(nd.asNDArray, cb, er.region)
       val retPType = ret.asInstanceOf[SIndexablePointer].pType.asInstanceOf[PCanonicalArray]
-      retPType.constructFromElements(cb, er.region, ???, true) { (cb, rowIdx) =>
+      val rowLengthInt = cb.memoize(ndRowMajor.shapes(0).get.toI)
+      retPType.constructFromElements(cb, er.region, rowLengthInt, true) { (cb, rowIdx) =>
         val rowStart = ndRowMajor.firstDataAddress + ndRowMajor.strides(0) * rowIdx.toL
         val innerArrayPType = retPType.elementType.asInstanceOf[PCanonicalArray]
         val nCols = cb.memoize(ndRowMajor.shapes(1).get.toI)
