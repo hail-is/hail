@@ -288,7 +288,7 @@ class GoogleStorageClient(GoogleBaseClient):
             params = {}
             kwargs['params'] = params
         assert 'name' not in params
-        params['name'] = urllib.parse.quote(name, safe="")
+        params['name'] = name
 
         if 'data' in params:
             return await self._session.post(
