@@ -263,7 +263,7 @@ class S3AsyncFSURL(AsyncFSURL):
 
     @property
     def scheme(self) -> str:
-        return 's3:'
+        return 's3'
 
     def with_path(self, path) -> 'S3AsyncFSURL':
         return S3AsyncFSURL(self._bucket, path)

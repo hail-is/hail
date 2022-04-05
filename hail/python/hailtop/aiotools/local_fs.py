@@ -101,7 +101,7 @@ class LocalAsyncFSURL(AsyncFSURL):
 
     @property
     def scheme(self) -> str:
-        return 'file:'
+        return 'file'
 
     def with_path(self, path) -> 'LocalAsyncFSURL':
         return LocalAsyncFSURL(path)
