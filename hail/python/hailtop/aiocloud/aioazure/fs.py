@@ -261,6 +261,10 @@ class AzureAsyncFSURL(AsyncFSURL):
     def path(self) -> str:
         return self._path
 
+    @property
+    def scheme(self) -> str:
+        return 'hail-az:'
+
     def with_path(self, path) -> 'AzureAsyncFSURL':
         return AzureAsyncFSURL(self._account, self._container, path)
 

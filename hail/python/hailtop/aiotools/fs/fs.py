@@ -72,6 +72,11 @@ class AsyncFSURL(abc.ABC):
     def path(self) -> str:
         pass
 
+    @property
+    @abc.abstractmethod
+    def scheme(self) -> str:
+        pass
+
     @abc.abstractmethod
     def with_path(self, path) -> 'AsyncFSURL':
         pass

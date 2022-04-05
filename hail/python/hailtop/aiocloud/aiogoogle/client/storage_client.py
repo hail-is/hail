@@ -288,7 +288,7 @@ class GoogleStorageClient(GoogleBaseClient):
             params = {}
             kwargs['params'] = params
         assert 'name' not in params
-        params['name'] = name
+        params['name'] = urllib.parse.quote(name, safe="")
 
         if 'data' in params:
             return await self._session.post(
@@ -301,6 +301,7 @@ class GoogleStorageClient(GoogleBaseClient):
             params['uploadType'] = upload_type
 
         if upload_type == 'media':
+            print(('media', f'https://storage.googleapis.com/upload/storage/v1/b/{bucket}/o', kwargs))
             it: FeedableAsyncIterable[bytes] = FeedableAsyncIterable()
             kwargs['data'] = aiohttp.AsyncIterablePayload(it)
             request_task = asyncio.ensure_future(self._session.post(
@@ -318,6 +319,7 @@ class GoogleStorageClient(GoogleBaseClient):
             f'https://storage.googleapis.com/upload/storage/v1/b/{bucket}/o',
             **kwargs)
         session_url = resp.headers['Location']
+        print(('else', f'https://storage.googleapis.com/upload/storage/v1/b/{bucket}/o', kwargs, session_url, resp))
         return ResumableInsertObjectStream(self._session, session_url, chunk_size)
 
     async def get_object(self, bucket: str, name: str, **kwargs) -> GetObjectStream:
@@ -510,6 +512,10 @@ class GoogleStorageAsyncFSURL(AsyncFSURL):
     @property
     def path(self) -> str:
         return self._path
+
+    @property
+    def scheme(self) -> str:
+        return 'gs'
 
     def with_path(self, path) -> 'GoogleStorageAsyncFSURL':
         return GoogleStorageAsyncFSURL(self._bucket, path)

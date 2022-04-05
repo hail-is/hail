@@ -99,6 +99,10 @@ class LocalAsyncFSURL(AsyncFSURL):
     def path(self) -> str:
         return self._path
 
+    @property
+    def scheme(self) -> str:
+        return 'file:'
+
     def with_path(self, path) -> 'LocalAsyncFSURL':
         return LocalAsyncFSURL(path)
 

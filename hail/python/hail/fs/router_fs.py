@@ -279,32 +279,23 @@ class RouterFS(FS):
                 glob_components.append((running_prefix, component))
                 running_prefix = []
 
-        if len(running_prefix) == 0:
-            suffix = ''
-        else:
-            suffix = '/' + '/'.join(running_prefix)
+        suffix_components: List[str] = running_prefix
+        first_prefix = '/'.join([url.scheme +':', '', *url.bucket_parts])
+        cumulative_prefixes = [first_prefix]
 
-        cumulative_prefixes = []
-        if len(glob_components) > 0:
-            first_component_prefix, first_component_pattern = glob_components[0]
-            first_component_prefix_url = str(url.with_path('/'.join(first_component_prefix)))
-            possible_paths = await ls_no_glob(first_component_prefix_url)
-            first_full_pattern = '/'.join([first_component_prefix_url, first_component_pattern])
+        for intervening_components, single_component_glob_pattern in glob_components:
             cumulative_prefixes = [
                 stat.path
-                for stat in possible_paths
-                if fnmatch.fnmatch(stat.path, first_full_pattern)]
-            for component_prefix, pattern in glob_components[1:]:
-                cumulative_prefixes = [
-                    stat.path
-                    for cumulative_prefix in cumulative_prefixes
-                    for stat in await ls_no_glob('/'.join([cumulative_prefix, *component_prefix]))
-                    if fnmatch.fnmatch(stat.path, '/'.join([cumulative_prefix, *component_prefix, pattern]))
-                ]
+                for cumulative_prefix in cumulative_prefixes
+                for stat in await ls_no_glob('/'.join([cumulative_prefix, *intervening_components]))
+                if fnmatch.fnmatch(
+                        stat.path,
+                        '/'.join([cumulative_prefix, *intervening_components, single_component_glob_pattern]))
+            ]
 
         return [stat
                 for cumulative_prefix in cumulative_prefixes
-                for stat in await ls_no_glob(cumulative_prefix + suffix)]
+                for stat in await ls_no_glob('/'.join([cumulative_prefix, *suffix_components]))]
 
     async def _ls_no_glob(self,
                           path: str,
