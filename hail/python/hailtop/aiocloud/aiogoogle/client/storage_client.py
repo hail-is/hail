@@ -301,7 +301,6 @@ class GoogleStorageClient(GoogleBaseClient):
             params['uploadType'] = upload_type
 
         if upload_type == 'media':
-            print(('media', f'https://storage.googleapis.com/upload/storage/v1/b/{bucket}/o', kwargs))
             it: FeedableAsyncIterable[bytes] = FeedableAsyncIterable()
             kwargs['data'] = aiohttp.AsyncIterablePayload(it)
             request_task = asyncio.ensure_future(self._session.post(
@@ -319,7 +318,6 @@ class GoogleStorageClient(GoogleBaseClient):
             f'https://storage.googleapis.com/upload/storage/v1/b/{bucket}/o',
             **kwargs)
         session_url = resp.headers['Location']
-        print(('else', f'https://storage.googleapis.com/upload/storage/v1/b/{bucket}/o', kwargs, session_url, resp))
         return ResumableInsertObjectStream(self._session, session_url, chunk_size)
 
     async def get_object(self, bucket: str, name: str, **kwargs) -> GetObjectStream:
