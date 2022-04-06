@@ -3,6 +3,7 @@ import hail as hl
 from hail.expr.types import dtype, HailType, tint64, trngstate
 from hail.ir.base_ir import BaseIR, TableIR
 import hail.ir.ir as ir
+from hail.ir.utils import modify_deep_field
 from hail.ir.ir import uid_field_name, rng_key, unify_uid_types, pad_uid, uid_size, concat_uids
 from hail.utils.java import Env
 from hail.utils.misc import escape_str, parsable_strings, dump_json, escape_id
@@ -17,9 +18,6 @@ def unpack_uid(new_row_type, uid_field_name):
     return uid, \
            ir.SelectFields(new_row, [field for field in new_row_type.fields if not field == uid_field_name])
 
-def pack_uid(uid, row):
-    return ir.InsertFields(row, [uid_field_name, uid], None)
-
 
 class MatrixRowsTable(TableIR):
     def __init__(self, child):
@@ -27,8 +25,7 @@ class MatrixRowsTable(TableIR):
         self.child = child
 
     def _handle_randomness(self, uid_field_name):
-        # FIXME: finish when done with MatrixIR
-        return self
+        return MatrixRowsTable(self.child.handle_randomness(uid_field_name, None))
 
     def _compute_type(self):
         self._type = hl.ttable(self.child.typ.global_type,
@@ -147,9 +144,18 @@ class TableUnion(TableIR):
         self.children = children
 
     def _handle_randomness(self, uid_field_name):
-        # FIXME: finish
-        children = [child.handle_randomness(None) for child in self.children]
-        return TableUnion(children)
+        if uid_field_name is None:
+            new_children = [child.handle_randomness(None) for child in self.children]
+            return TableUnion(new_children)
+
+        new_children = [child.handle_randomness(uid_field_name) for child in self.children]
+        uids, _ = unzip(unpack_uid(child.typ.row_type, uid_field_name) for child in new_children)
+        uid_type = unify_uid_types(uid.typ for uid in uids)
+        new_children = [TableMapRows(child,
+                                     ir.InsertFields(ir.Ref('row', child.typ.row_type),
+                                                     [(uid_field_name, pad_uid(uid, uid_type, i))], None))
+                        for i, (child, uid) in enumerate(zip(new_children, uids))]
+        return TableUnion(new_children)
 
     def _compute_type(self):
         for c in self.children:
@@ -215,39 +221,16 @@ class TableExplode(TableIR):
         if uid_field_name not in child.typ.row_type.fields:
             return TableExplode(child, self.path)
 
-        inner_uid = Env.gen_uid()
-        elt = Env.gen_uid()
-        # FIXME: add types to the refs
-        refs = [ir.Ref('row'), *(ir.Ref(Env.gen_uid()) for _ in self.path)]
-        array = refs[-1]
-        iota = ir.StreamIota(ir.I32(0), ir.I32(1))
-        array_with_idx = ir.StreamZip(
-            [ir.ToStream(array), iota],
-            [elt, inner_uid],
-            ir.MakeTuple(ir.Ref(elt), ir.Ref(inner_uid)),
-            'TakeMinLength')
-        acc = array_with_idx
-        for parent_struct, field_name in reversed(zip(refs[:-1], self.path)):
-            acc = ir.InsertFields(parent_struct, [(field_name, acc)], None)
-        for struct_ref, field_ref, field_name in reversed(zip(refs[:-1], refs[1:], self.path)):
-            acc = ir.Let(field_ref.name, ir.GetField(struct_ref, field_name))
-        child = TableMapRows(child, acc)
+        new_row = modify_deep_field(ir.Ref('row', child.typ.row_type), self.path, zip_with_index)
+        child = TableMapRows(child, new_row)
 
         new_explode = TableExplode(child, self.path)
-        row = ir.Ref('row')
-        row._typ = new_explode.typ.row_type
-        refs[0] = row
-
-        acc = ir.GetTupleElement(refs[-1], 0)
-        for parent_struct, field_name in reversed(zip(refs[1:-1], self.path[1:])):
-            acc = ir.InsertFields(parent_struct, [(field_name, acc)], None)
-        acc = ir.InsertFields(refs[0], [
-            (self.path[0], acc),
-            (uid_field_name, concat_uids(ir.GetField(row, uid_field_name), refs[-1]))
-        ], None)
-        for struct_ref, field_ref, field_name in reversed(zip(refs[:-1], refs[1:], self.path)):
-            acc = ir.Let(field_ref.name, ir.GetField(struct_ref, field_name))
-        return TableMapRows(new_explode, acc)
+        new_row = modify_deep_field(
+            ir.Ref('row', new_explode.typ.row_type),
+            self.path,
+            lambda tuple: ir.GetTupleElement(tuple, 0),
+            lambda row, tuple: ir.InsertFields(row, (uid_field_name, concat_uids(ir.GetField(row, uid_field_name), ir.GetTupleElement(tuple, 1))), None))
+        return TableMapRows(new_explode, new_row)
 
     def head_str(self):
         return parsable_strings(self.path)
@@ -296,9 +279,9 @@ class TableMapRows(TableIR):
             return TableMapRows(child, self.new_row)
 
         child = self.child.handle_randomness(ir.uid_field_name)
-        uid, old_row = unpack_uid(child.typ.row_type, uid_field_name)
+        uid, old_row = unpack_uid(child.typ.row_type, ir.uid_field_name)
         new_row = ir.Let('row', old_row, self.new_row)
-        if self.new_row.uses_randomness:
+        if self.new_row.uses_value_randomness:
             new_row = ir.Let('__rng_state', ir.RNGSplit(ir.RNGStateLiteral(rng_key), uid), new_row)
         if self.new_row.uses_agg_randomness(is_scan=True):
             new_row = ir.AggLet('__rng_state', ir.RNGSplit(ir.RNGStateLiteral(rng_key), uid), new_row, is_scan=True)
@@ -407,7 +390,15 @@ class MatrixEntriesTable(TableIR):
 
     def _handle_randomness(self, uid_field_name):
         # FIXME: Finish once done with MatrixIR
-        return self
+        if uid_field_name is None:
+            return MatrixEntriesTable(self.child.handle_randomness(None, None))
+
+        child = self.child.handle_randomness(default_row_uid, default_col_uid)
+        entry = ir.Ref('g', child.typ.entry_type)
+        row_uid = ir.GetField(ir.Ref('va', child.typ.row_type), default_row_uid)
+        col_uid = ir.GetField(ir.Ref('sa', child.typ.row_type), default_col_uid)
+        child = MatrixMapEntries(child, ir.InsertFields(entry, [(uid_field_name, ir.concat_uids(row_uid, col_uid))]))
+        return MatrixEntriesTable(child)
 
     def _compute_type(self):
         child_typ = self.child.typ
@@ -429,13 +420,16 @@ class TableFilter(TableIR):
             child = self.child.handle_randomness(None)
             return TableMapRows(child, self.pred)
 
+        drop_uid = uid_field_name is None
+        if uid_field_name is None:
+            uid_field_name = ir.uid_field_name
         child = self.child.handle_randomness(uid_field_name)
         uid, old_row = unpack_uid(child.typ.row_type, uid_field_name)
         pred = ir.Let('row', old_row, self.pred)
         if self.pred.uses_randomness:
             pred = ir.Let('__rng_state', ir.RNGSplit(ir.RNGStateLiteral(rng_key), uid))
         result = TableFilter(child, pred)
-        if uid_field_name is None:
+        if drop_uid:
             result = TableMapRows(result, old_row)
         return result
 
@@ -461,8 +455,8 @@ class TableKeyByAndAggregate(TableIR):
             child = self.child.handle_randomness(None)
             return TableKeyByAndAggregate(child, self.expr, self.new_key, self.n_partitions, self.buffer_size)
 
-        child = self.child.handle_randomness(uid_field_name)
-        uid, old_row = unpack_uid(child.typ.row_type, uid_field_name)
+        child = self.child.handle_randomness(ir.uid_field_name)
+        uid, old_row = unpack_uid(child.typ.row_type, ir.uid_field_name)
 
         expr = self.expr
         if expr.uses_randomness or uid_field_name is not None:
@@ -472,10 +466,12 @@ class TableKeyByAndAggregate(TableIR):
                     '__rng_state',
                     ir.RNGSplit(ir.RNGStateLiteral(rng_key), ir.Ref(first_uid, uid.typ)),
                     expr)
+            if expr.uses_agg_randomness(is_scan=False):
                 expr = ir.AggLet(
                     '__rng_state',
                     ir.RNGSplit(ir.RNGStateLiteral(rng_key), uid),
-                    expr)
+                    expr,
+                is_scan=False)
             if uid_field_name is not None:
                 expr = ir.InsertFields(expr, [uid_field_name, uid], None)
             expr = ir.Let(first_uid, ir.ApplyAggOp('Take', [1], [uid]), expr)
@@ -525,22 +521,24 @@ class TableAggregateByKey(TableIR):
             child = self.child.handle_randomness(None)
             return TableAggregateByKey(child, self.expr)
 
-        child = self.child.handle_randomness(uid_field_name)
-        uid, old_row = unpack_uid(child.typ.row_type, uid_field_name)
+        child = self.child.handle_randomness(ir.uid_field_name)
+        uid, old_row = unpack_uid(child.typ.row_type, ir.uid_field_name)
 
-        expr = self.expr
+        expr = ir.AggLet('va', old_row, self.expr, is_scan=False)
         first_uid = Env.get_uid()
-        if expr.uses_randomness:
+        if expr.uses_value_randomness:
             expr = ir.Let(
                 '__rng_state',
                 ir.RNGSplit(ir.RNGStateLiteral(rng_key), ir.Ref(first_uid, uid.typ)),
                 expr)
+        if expr.uses_agg_randomness(is_scan=False):
             expr = ir.AggLet(
                 '__rng_state',
                 ir.RNGSplit(ir.RNGStateLiteral(rng_key), uid),
-                expr)
+                expr,
+                is_scan=False)
         if uid_field_name is not None:
-            expr = pack_uid(uid, expr)
+            expr = ir.InsertFields(expr, [uid_field_name, first_uid], None)
         expr = ir.Let(first_uid, ir.ApplyAggOp('Take', [1], [uid]), expr)
         return TableAggregateByKey(child, expr)
 
@@ -569,8 +567,7 @@ class MatrixColsTable(TableIR):
         self.child = child
 
     def _handle_randomness(self, uid_field_name):
-        # FIXME: Finish once done with MatrixIR
-        return self
+        return MatrixColsTable(self.child.handle_randomness(None, uid_field_name))
 
     def _compute_type(self):
         self._type = hl.ttable(self.child.typ.global_type,
@@ -723,8 +720,7 @@ class CastMatrixToTable(TableIR):
         self.cols_field_name = cols_field_name
 
     def _handle_randomness(self, uid_field_name):
-        # FIXME: Finish once done with MatrixIR
-        return self
+        return CastMatrixToTable(self.child.handle_randomness(uid_field_name, None), self.entries_field_name, self.cols_field_name)
 
     def head_str(self):
         return f'"{escape_str(self.entries_field_name)}" "{escape_str(self.cols_field_name)}"'

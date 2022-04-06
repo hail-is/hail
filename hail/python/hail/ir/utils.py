@@ -1,12 +1,49 @@
 from typing import Optional, List, Any, Tuple
 import hail as hl
-from .ir import Let, RNGStateLiteral, Coalesce, ApplyUnaryPrimOp, FalseIR, BaseIR, IR
+from .ir import Let, Ref, GetField, InsertFields, RNGStateLiteral, Coalesce, ApplyUnaryPrimOp, FalseIR, BaseIR, IR, StreamIota, StreamZip, ToStream, I32, MakeTuple
+from hail.utils.java import Env
 
 
 def finalize_randomness(ir, key=(0, 0, 0, 0)) -> 'BaseIR':
     if isinstance(ir, IR):
         ir = Let('__rng_state', RNGStateLiteral(key), ir)
     return ir
+
+
+def modify_deep_field(struct, path, new_deep_field, new_struct=None):
+    refs = [struct]
+    for i in range(len(path)):
+        refs[i+1] = Ref(Env.gen_uid(), refs[i].typ[path[i]])
+
+    acc = new_deep_field(refs[-1])
+    for parent_struct, field_name in reversed(zip(refs[:-1], path)):
+        acc = InsertFields(parent_struct, [(field_name, acc)], None)
+    acc = new_struct(acc, refs[-1])
+    for struct_ref, field_ref, field_name in reversed(zip(refs[:-1], refs[1:], path)):
+        acc = Let(field_ref.name, GetField(struct_ref, field_name))
+    return acc
+
+
+def zip_with_index(array):
+    elt = Env.gen_uid()
+    inner_row_uid = Env.gen_uid()
+    iota = StreamIota(I32(0), I32(1))
+    return StreamZip(
+        [ToStream(array), iota],
+        [elt, inner_row_uid],
+        MakeTuple(Ref(elt, array.typ.element_type), Ref(inner_row_uid, tint32)),
+        'TakeMinLength')
+
+
+def zip_with_index_field(array, idx_field_name):
+    elt = Env.gen_uid()
+    inner_row_uid = Env.gen_uid()
+    iota = StreamIota(I32(0), I32(1))
+    return StreamZip(
+        [ToStream(array), iota],
+        [elt, inner_row_uid],
+        InsertFields(Ref(elt, array.typ.element_type), [(idx_field_name, Ref(inner_row_uid, tint32))], None),
+        'TakeMinLength')
 
 
 def impute_type_of_partition_interval_array(

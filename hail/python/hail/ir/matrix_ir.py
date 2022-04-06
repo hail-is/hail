@@ -1,9 +1,35 @@
 from typing import Optional
 import hail as hl
-from hail.expr.types import HailType
+from hail.expr.types import HailType, tint64
 from hail.ir.base_ir import BaseIR, MatrixIR
+from hail.ir.utils import modify_deep_field, zip_with_index, zip_with_index_field
+import hail.ir.ir as ir
 from hail.utils.misc import escape_str, parsable_strings, dump_json, escape_id
 from hail.utils.java import Env
+
+
+default_row_uid = '__row_uid'
+default_col_uid = '__col_uid'
+
+
+def unpack_row_uid(new_row_type, uid_field_name):
+    new_row = ir.Ref('va', new_row_type)
+    if uid_field_name in new_row_type.fields:
+        uid = ir.GetField(new_row, uid_field_name)
+    else:
+        uid = ir.NA(tint64)
+    return uid, \
+           ir.SelectFields(new_row, [field for field in new_row_type.fields if not field == uid_field_name])
+
+
+def unpack_col_uid(new_col_type, uid_field_name):
+    new_row = ir.Ref('sa', new_col_type)
+    if uid_field_name in new_col_type.fields:
+        uid = ir.GetField(new_row, uid_field_name)
+    else:
+        uid = ir.NA(tint64)
+    return uid, \
+           ir.SelectFields(new_row, [field for field in new_col_type.fields if not field == uid_field_name])
 
 
 class MatrixAggregateRowsByKey(MatrixIR):
@@ -12,6 +38,58 @@ class MatrixAggregateRowsByKey(MatrixIR):
         self.child = child
         self.entry_expr = entry_expr
         self.row_expr = row_expr
+
+    def _handle_randomness(self, row_uid_field_name, col_uid_field_name):
+        drop_row_uid = False
+        drop_col_uid = False
+        if self.entry_expr.uses_randomness:
+            drop_row_uid = row_uid_field_name is None
+            if row_uid_field_name is None:
+                row_uid_field_name = default_row_uid
+        if self.entry_expr.uses_randomness or self.row_expr.uses_randomness:
+            drop_col_uid = col_uid_field_name is None
+            if col_uid_field_name is None:
+                col_uid_field_name = default_col_uid
+
+        child = self.child.handle_randomness(row_uid_field_name, col_uid_field_name)
+        entry_expr = self.entry_expr
+        row_expr = self.row_expr
+        if row_uid_field_name is not None:
+            row_uid, old_row = unpack_row_uid(child.typ.row_type, row_uid_field_name)
+            first_row_uid = ir.ApplyAggOp('Take', [1], [row_uid])
+            entry_expr = ir.Let('va', old_row, entry_expr)
+            entry_expr = ir.AggLet('va', old_row, entry_expr, is_scan=False)
+        if col_uid_field_name is not None:
+            col_uid, old_col = unpack_col_uid(child.typ.col_type, col_uid_field_name)
+            entry_expr = ir.AggLet('sa', old_col, entry_expr, is_scan=False)
+            row_expr = ir.AggLet('sa', old_col, row_expr, is_scan=False)
+        if self.entry_expr.uses_value_randomness:
+            entry_expr = ir.Let('__rng_state',
+                                ir.RNGSplit(ir.RNGStateLiteral(rng_key), ir.concat_uids(first_row_uid, col_uid)),
+                                entry_expr)
+        if self.entry_expr.uses_agg_randomness(is_scan=False):
+            entry_expr = ir.AggLet('__rng_state',
+                                   ir.RNGSplit(ir.RNGStateLiteral(rng_key), ir.concat_uids(row_uid, col_uid)),
+                                   entry_expr,
+                                   is_scan=False)
+        if self.row_expr.uses_value_randomness:
+            row_expr = ir.Let('__rng_state',
+                              ir.RNGSplit(ir.RNGStateLiteral(rng_key), first_row_uid),
+                              row_expr)
+        if self.row_expr.uses_agg_randomness(is_scan=False):
+            row_expr = ir.AggLet('__rng_state',
+                                 ir.RNGSplit(ir.RNGStateLiteral(rng_key), row_uid),
+                                 row_expr,
+                                 is_scan=False)
+
+        result = MatrixAggregateColsByKey(child, entry_expr, row_expr)
+        if drop_row_uid:
+            _, old_row = unpack_row_uid(result.typ.row_type, row_uid_field_name)
+            result = MatrixMapRows(result, old_row)
+        if drop_col_uid:
+            _, old_col = unpack_col_uid(result.typ.col_type, col_uid_field_name)
+            result = MatrixMapCols(result, old_col, None)
+        return result
 
     def _compute_type(self):
         child_typ = self.child.typ
@@ -76,6 +154,24 @@ class MatrixFilterRows(MatrixIR):
         self.child = child
         self.pred = pred
 
+    def _handle_randomness(self, row_uid_field_name, col_uid_field_name):
+        if not self.pred.uses_randomness and row_uid_field_name is None:
+            child = self.child.handle_randomness(None, col_uid_field_name)
+            return MatrixFilterRows(child, self.pred)
+
+        drop_row_uid = row_uid_field_name is None
+        if row_uid_field_name is None:
+            row_uid_field_name = default_row_uid
+        child = self.child.handle_randomness(row_uid_field_name, col_uid_field_name)
+        uid, old_row = unpack_row_uid(child.typ.row_type, row_uid_field_name)
+        pred = ir.Let('va', old_row, self.pred)
+        if self.pred.uses_randomness:
+            pred = ir.Let('__rng_state', ir.RNGSplit(ir.RNGStateLiteral(rng_key), uid))
+        result = MatrixFilterRows(child, pred)
+        if drop_row_uid:
+            result = MatrixMapRows(result, old_row)
+        return result
+
     def _compute_type(self):
         self.pred._compute_type(self.child.typ.row_env(), None)
         self._type = self.child.typ
@@ -89,6 +185,10 @@ class MatrixChooseCols(MatrixIR):
         super().__init__(child)
         self.child = child
         self.old_indices = old_indices
+
+    def _handle_randomness(self, row_uid_field_name, col_uid_field_name):
+        child = self.child.handle_randomness(row_uid_field_name, col_uid_field_name)
+        return MatrixChooseCols(child, self.old_indices)
 
     def head_str(self):
         return f'({" ".join([str(i) for i in self.old_indices])})'
@@ -106,6 +206,36 @@ class MatrixMapCols(MatrixIR):
         self.child = child
         self.new_col = new_col
         self.new_key = new_key
+
+    def _handle_randomness(self, row_uid_field_name, col_uid_field_name):
+        if not self.new_col.uses_randomness and col_uid_field_name is None:
+            child = self.child.handle_randomness(row_uid_field_name, None)
+            return MatrixMapCols(child, self.new_row, self.new_key)
+
+        drop_row_uid = row_uid_field_name is None
+        if self.new_col.uses_agg_randomness(is_scan=False) and row_uid_field_name is None:
+            row_uid_field_name = default_row_uid
+        keep_col_uid = col_uid_field_name is not None
+        if col_uid_field_name is None:
+            col_uid_field_name = default_col_uid
+        child = self.child.handle_randomness(row_uid_field_name, col_uid_field_name)
+        col_uid, old_col = unpack_col_uid(child.typ.col_type, col_uid_field_name)
+        new_col = ir.Let('sa', old_col, self.new_col)
+        if row_uid_field_name is not None:
+            row_uid, old_row = unpack_row_uid(child.typ.row_type, row_uid_field_name)
+        if self.new_col.uses_value_randomness:
+            new_col = ir.Let('__rng_state', ir.RNGSplit(ir.RNGStateLiteral(rng_key), col_uid), new_col)
+        if self.new_col.uses_agg_randomness(is_scan=True):
+            new_col = ir.AggLet('__rng_state', ir.RNGSplit(ir.RNGStateLiteral(rng_key), col_uid), new_col, is_scan=True)
+        if self.new_col.uses_agg_randomness(is_scan=False):
+            entry_uid = ir.concat_uids(row_uid, col_uid)
+            new_col = ir.AggLet('__rng_state', ir.RNGSplit(ir.RNGStateLiteral(rng_key), entry_uid), new_col, is_scan=False)
+        if keep_col_uid:
+            new_col = ir.InsertFields(new_col, [(col_uid_field_name, col_uid)], None)
+        result = MatrixMapCols(child, new_col, self.new_key)
+        if drop_row_uid:
+            result = MatrixMapRows(result, old_row)
+        return result
 
     def head_str(self):
         return '(' + ' '.join(f'"{escape_str(f)}"' for f in self.new_key) + ')' if self.new_key is not None else 'None'
@@ -147,6 +277,37 @@ class MatrixUnionCols(MatrixIR):
         self.right = right
         self.join_type = join_type
 
+    def _handle_randomness(self, row_uid_field_name, col_uid_field_name):
+        if self.join_type == 'outer':
+            # FIXME: Need to make MatrixUnionCols preserve row fields from the right
+            # to handle the outer join case
+            row_uid_field_name = None
+        left = self.left.handle_randomness(row_uid_field_name, col_uid_field_name)
+        right = self.right.handle_randomness(None, col_uid_field_name)
+
+        if col_uid_field_name is not None:
+            left_uid = unpack_col_uid(left.typ.col_type, col_uid_field_name)
+            right_uid = unpack_col_uid(right.typ.col_type, col_uid_field_name)
+            uid_type = ir.unify_uid_types(left_uid.typ, right_uid.typ)
+            left = MatrixMapCols(left,
+                                 ir.InsertFields(ir.Ref('sa', left.typ.col_type),
+                                                 [(col_uid_field_name, ir.pad_uid(left_uid, uid_type, 0))], None),
+                                 new_key=None)
+            right = MatrixMapCols(right,
+                                  ir.InsertFields(ir.Ref('sa', right.typ.col_type),
+                                                  [(col_uid_field_name, ir.pad_uid(right_uid, uid_type, 1))], None),
+                                  new_key=None)
+
+        result = MatrixUnionCols(left, right, self.join_type)
+        # FIXME: Need to make MatrixUnionCols preserve row fields from the right
+        # to handle the outer join case
+        if row_uid_field_name is not None and self.join_type == 'outer':
+            result = MatrixMapRows(result,
+                                   ir.InsertFields(ir.Ref('va', result.typ.row_type),
+                                                   [(row_uid_field_name, ir.NA(tint64))],
+                                                   None))
+        return result
+
     def head_str(self):
         return f'{escape_id(self.join_type)}'
 
@@ -163,6 +324,36 @@ class MatrixMapEntries(MatrixIR):
         super().__init__(child, new_entry)
         self.child = child
         self.new_entry = new_entry
+
+    def _handle_randomness(self, row_uid_field_name, col_uid_field_name):
+        drop_row_uid = False
+        drop_col_uid = False
+        if self.new_entry.uses_randomness:
+            drop_row_uid = row_uid_field_name is None
+            drop_col_uid = col_uid_field_name is None
+            if row_uid_field_name is None:
+                row_uid_field_name = default_row_uid
+            if col_uid_field_name is None:
+                col_uid_field_name = default_col_uid
+
+        child = self.child.handle_randomness(row_uid_field_name, col_uid_field_name)
+        new_entry = self.new_entry
+        if row_uid_field_name is not None:
+            row_uid, old_row = unpack_row_uid(child.typ.row_type, row_uid_field_name)
+            new_entry = ir.Let('va', old_row, new_entry)
+        if col_uid_field_name is not None:
+            col_uid, old_col = unpack_col_uid(child.typ.col_type, col_uid_field_name)
+            new_entry = ir.Let('sa', old_col, new_entry)
+        if self.new_entry.uses_value_randomness:
+            new_entry = ir.Let('__rng_state', ir.RNGSplit(ir.RNGStateLiteral(rng_key), ir.concat_uids(row_uid, col_uid)), new_entry)
+        result = MatrixMapEntries(child, new_entry)
+        if drop_row_uid:
+            _, old_row = unpack_row_uid(result.typ.row_type, row_uid_field_name)
+            result = MatrixMapRows(result, old_row)
+        if drop_col_uid:
+            _, old_col = unpack_col_uid(result.typ.col_type, col_uid_field_name)
+            result = MatrixMapCols(result, old_col)
+        return result
 
     def _compute_type(self):
         child_typ = self.child.typ
@@ -185,6 +376,34 @@ class MatrixFilterEntries(MatrixIR):
         self.child = child
         self.pred = pred
 
+    def _handle_randomness(self, row_uid_field_name, col_uid_field_name):
+        if self.pred.uses_randomness:
+            drop_row_uid = row_uid_field_name is None
+            drop_col_uid = col_uid_field_name is None
+            if row_uid_field_name is None:
+                row_uid_field_name = default_row_uid
+            if col_uid_field_name is None:
+                col_uid_field_name = default_col_uid
+
+        child = self.child.handle_randomness(row_uid_field_name, col_uid_field_name)
+        pred = self.pred
+        if row_uid_field_name is not None:
+            row_uid, old_row = unpack_row_uid(child.typ.row_type, row_uid_field_name)
+            pred = ir.Let('va', old_row, pred)
+        if col_uid_field_name is not None:
+            col_uid, old_col = unpack_col_uid(child.typ.col_type, col_uid_field_name)
+            pred = ir.Let('sa', old_col, pred)
+        if self.pred.uses_value_randomness:
+            pred = ir.Let('__rng_state', ir.RNGSplit(ir.RNGStateLiteral(rng_key), ir.concat_uids(row_uid, col_uid)), pred)
+        result = MatrixFilterEntries(child, pred)
+        if drop_row_uid:
+            _, old_row = unpack_row_uid(result.typ.row_type, row_uid_field_name)
+            result = MatrixMapRows(result, old_row)
+        if drop_col_uid:
+            _, old_col = unpack_col_uid(result.typ.col_type, col_uid_field_name)
+            result = MatrixMapRows(result, old_col)
+        return result
+
     def _compute_type(self):
         self.pred._compute_type(self.child.typ.entry_env(), None)
         self._type = self.child.typ
@@ -199,6 +418,10 @@ class MatrixKeyRowsBy(MatrixIR):
         self.child = child
         self.keys = keys
         self.is_sorted = is_sorted
+
+    def _handle_randomness(self, row_uid_field_name, col_uid_field_name):
+        child = self.child.handle_randomness(row_uid_field_name, col_uid_field_name)
+        return MatrixKeyRowsBy(child, self.keys, self.is_sorted)
 
     def head_str(self):
         return '({}) {}'.format(
@@ -224,6 +447,36 @@ class MatrixMapRows(MatrixIR):
         super().__init__(child, new_row)
         self.child = child
         self.new_row = new_row
+
+    def _handle_randomness(self, row_uid_field_name, col_uid_field_name):
+        if not self.new_row.uses_randomness and row_uid_field_name is None:
+            child = self.child.handle_randomness(None, col_uid_field_name)
+            return MatrixMapCols(child, self.new_row, self.new_key)
+
+        drop_col_uid = col_uid_field_name is None
+        if self.new_row.uses_agg_randomness(is_scan=False) and col_uid_field_name is None:
+            col_uid_field_name = default_col_uid
+        keep_row_uid = row_uid_field_name is not None
+        if row_uid_field_name is None:
+            row_uid_field_name = default_row_uid
+        child = self.child.handle_randomness(row_uid_field_name, col_uid_field_name)
+        row_uid, old_row = unpack_row_uid(child.typ.row_type, row_uid_field_name)
+        new_row = ir.Let('va', old_row, self.new_row)
+        if col_uid_field_name is not None:
+            col_uid, old_col = unpack_col_uid(child.typ.col_type, col_uid_field_name)
+        if self.new_row.uses_value_randomness:
+            new_row = ir.Let('__rng_state', ir.RNGSplit(ir.RNGStateLiteral(rng_key), row_uid), new_row)
+        if self.new_row.uses_agg_randomness(is_scan=True):
+            new_row = ir.AggLet('__rng_state', ir.RNGSplit(ir.RNGStateLiteral(rng_key), row_uid), new_row, is_scan=True)
+        if self.new_row.uses_agg_randomness(is_scan=False):
+            entry_uid = ir.concat_uids(row_uid, col_uid)
+            new_row = ir.AggLet('__rng_state', ir.RNGSplit(ir.RNGStateLiteral(rng_key), entry_uid), new_row, is_scan=False)
+        if keep_row_uid:
+            new_row = ir.InsertFields(new_row, [(row_uid_field_name, row_uid)], None)
+        result = MatrixMapCols(child, new_row, self.new_key)
+        if drop_col_uid:
+            result = MatrixMapCols(result, old_col)
+        return result
 
     def _compute_type(self):
         child_typ = self.child.typ
@@ -258,6 +511,13 @@ class MatrixMapGlobals(MatrixIR):
         self.child = child
         self.new_global = new_global
 
+    def _handle_randomness(self, row_uid_field_name, col_uid_field_name):
+        child = self.child.handle_randomness(row_uid_field_name, col_uid_field_name)
+        new_global = self.new_global
+        if new_global.uses_randomness:
+            new_global = ir.Let('__rng_state', ir.RNGStateLiteral(rng_key), new_global)
+        return MatrixMapGlobals(child, new_global)
+
     def _compute_type(self):
         child_typ = self.child.typ
         self.new_global._compute_type(child_typ.global_env(), None)
@@ -279,6 +539,24 @@ class MatrixFilterCols(MatrixIR):
         self.child = child
         self.pred = pred
 
+    def _handle_randomness(self, row_uid_field_name, col_uid_field_name):
+        if not self.pred.uses_randomness and col_uid_field_name is None:
+            child = self.child.handle_randomness(row_uid_field_name, None)
+            return MatrixFilterCols(child, self.pred)
+
+        drop_col_uid = col_uid_field_name is None
+        if col_uid_field_name is None:
+            col_uid_field_name = default_col_uid
+        child = self.child.handle_randomness(row_uid_field_name, col_uid_field_name)
+        col_uid, old_col = unpack_col_uid(child.typ.col_type, col_uid_field_name)
+        pred = ir.Let('sa', old_col, self.pred)
+        if self.pred.uses_randomness:
+            pred = ir.Let('__rng_state', ir.RNGSplit(ir.RNGStateLiteral(rng_key), col_uid))
+        result = MatrixFilterCols(child, pred)
+        if drop_col_uid:
+            result = MatrixMapCols(result, old_col, new_key=None)
+        return result
+
     def _compute_type(self):
         self.pred._compute_type(self.child.typ.col_env(), None)
         self._type = self.child.typ
@@ -291,6 +569,17 @@ class MatrixCollectColsByKey(MatrixIR):
     def __init__(self, child):
         super().__init__(child)
         self.child = child
+
+    def _handle_randomness(self, row_uid_field_name, col_uid_field_name):
+        child = self.child(row_uid_field_name, col_uid_field_name)
+        result = MatrixCollectColsByKey(child)
+        if col_uid_field_name is not None:
+            col = ir.Ref('sa', result.typ.col_type)
+            uids = ir.GetField(col, col_uid_field_name)
+            # FIXME: might cause issues being dependent on col order
+            uid = ir.ArrayRef(uids, ir.I32(0))
+            result = MatrixMapCols(result, ir.InsertFields(col, [(col_uid_field_name, uid)], None), None)
+        return result
 
     def _compute_type(self):
         child_typ = self.child.typ
@@ -310,6 +599,58 @@ class MatrixAggregateColsByKey(MatrixIR):
         self.child = child
         self.entry_expr = entry_expr
         self.col_expr = col_expr
+
+    def _handle_randomness(self, row_uid_field_name, col_uid_field_name):
+        drop_row_uid = False
+        drop_col_uid = False
+        if self.entry_expr.uses_randomness:
+            drop_row_uid = row_uid_field_name is None
+            if row_uid_field_name is None:
+                row_uid_field_name = default_row_uid
+        if self.entry_expr.uses_randomness or self.col_expr.uses_randomness:
+            drop_col_uid = col_uid_field_name is None
+            if col_uid_field_name is None:
+                col_uid_field_name = default_col_uid
+
+        child = self.child.handle_randomness(row_uid_field_name, col_uid_field_name)
+        entry_expr = self.entry_expr
+        col_expr = self.col_expr
+        if row_uid_field_name is not None:
+            row_uid, old_row = unpack_row_uid(child.typ.row_type, row_uid_field_name)
+            entry_expr = ir.Let('va', old_row, entry_expr)
+            entry_expr = ir.AggLet('va', old_row, entry_expr, is_scan=False)
+        if col_uid_field_name is not None:
+            col_uid, old_col = unpack_col_uid(child.typ.col_type, col_uid_field_name)
+            first_col_uid = ir.ApplyAggOp('Take', [1], [col_uid])
+            entry_expr = ir.AggLet('sa', old_col, entry_expr, is_scan=False)
+            col_expr = ir.AggLet('sa', old_col, col_expr, is_scan=False)
+        if self.entry_expr.uses_value_randomness:
+            entry_expr = ir.Let('__rng_state',
+                               ir.RNGSplit(ir.RNGStateLiteral(rng_key), ir.concat_uids(row_uid, first_col_uid)),
+                               entry_expr)
+        if self.entry_expr.uses_agg_randomness(is_scan=False):
+            entry_expr = ir.AggLet('__rng_state',
+                                  ir.RNGSplit(ir.RNGStateLiteral(rng_key), ir.concat_uids(row_uid, col_uid)),
+                                  entry_expr,
+                                  is_scan=False)
+        if self.col_expr.uses_value_randomness:
+            col_expr = ir.Let('__rng_state',
+                                ir.RNGSplit(ir.RNGStateLiteral(rng_key), first_col_uid),
+                                col_expr)
+        if self.col_expr.uses_agg_randomness(is_scan=False):
+            col_expr = ir.AggLet('__rng_state',
+                                   ir.RNGSplit(ir.RNGStateLiteral(rng_key), col_uid),
+                                   col_expr,
+                                   is_scan=False)
+
+        result = MatrixAggregateColsByKey(child, entry_expr, col_expr)
+        if drop_row_uid:
+            _, old_row = unpack_row_uid(result.typ.row_type, row_uid_field_name)
+            result = MatrixMapRows(result, old_row)
+        if drop_col_uid:
+            _, old_col = unpack_col_uid(result.typ.col_type, col_uid_field_name)
+            result = MatrixMapCols(result, old_col)
+        return result
 
     def _compute_type(self):
         child_typ = self.child.typ
@@ -350,6 +691,26 @@ class MatrixExplodeRows(MatrixIR):
         self.child = child
         self.path = path
 
+    def _handle_randomness(self, row_uid_field_name, col_uid_field_name):
+        if row_uid_field_name is None:
+            MatrixExplodeRows(self.child.handle_randomness(None, col_uid_field_name), self.path)
+
+        child = self.child.handle_randomness(row_uid_field_name, col_uid_field_name)
+
+        if row_uid_field_name not in child.typ.row_type.fields:
+            return MatrixExplodeRows(child, self.path)
+
+        new_row = modify_deep_field(ir.Ref('va', child.typ.row_type), self.path, zip_with_index)
+        child = MatrixMapRows(child, new_row)
+
+        new_explode = MatrixExplodeRows(child, self.path)
+        new_row = modify_deep_field(
+            ir.Ref('va', new_explode.typ.row_type),
+            self.path,
+            lambda tuple: ir.GetTupleElement(tuple, 0),
+            lambda row, tuple: ir.InsertFields(row, (row_uid_field_name, ir.concat_uids(ir.GetField(row, row_uid_field_name), ir.GetTupleElement(tuple, 1))), None))
+        return MatrixMapRows(new_explode, new_row)
+
     def head_str(self):
         return f"({' '.join([escape_id(id) for id in self.path])})"
 
@@ -376,6 +737,9 @@ class MatrixRepartition(MatrixIR):
         self.n = n
         self.strategy = strategy
 
+    def _handle_randomness(self, row_uid_field_name, col_uid_field_name):
+        return MatrixRepartition(self.child.handle_randomness(row_uid_field_name, col_uid_field_name), self.n, self.strategy)
+
     def head_str(self):
         return f'{self.n} {self.strategy}'
 
@@ -391,6 +755,21 @@ class MatrixUnionRows(MatrixIR):
         super().__init__(*children)
         self.children = children
 
+    def _handle_randomness(self, row_uid_field_name, col_uid_field_name):
+        children = [self.children[0].handle_randomness(row_uid_field_name, col_uid_field_name),
+                    *[child.handle_randomness(row_uid_field_name, None) for child in self.children[1:]]]
+
+        if row_uid_field_name is not None:
+            uids, _ = unzip(unpack_row_uid(child.typ.row_type, row_uid_field_name) for child in children)
+            uid_type = ir.unify_uid_types(uid.typ for uid in uids)
+            children = [MatrixMapRows(child,
+                                      ir.InsertFields(ir.Ref('va', child.typ.row_type),
+                                                      [(row_uid_field_name, ir.pad_uid(uid, uid_type, i))],
+                                                      None))
+                        for i, (child, uid) in enumerate(zip(children, uids))]
+
+        return MatrixUnionRows(children)
+
     def _compute_type(self):
         for c in self.children:
             c.typ  # force
@@ -402,6 +781,9 @@ class MatrixDistinctByRow(MatrixIR):
         super().__init__(child)
         self.child = child
 
+    def _handle_randomness(self, row_uid_field_name, col_uid_field_name):
+        return MatrixDistinctByRow(self.child.handle_randomness(row_uid_field_name, col_uid_field_name))
+
     def _compute_type(self):
         self._type = self.child.typ
 
@@ -411,6 +793,9 @@ class MatrixRowsHead(MatrixIR):
         super().__init__(child)
         self.child = child
         self.n = n
+
+    def _handle_randomness(self, row_uid_field_name, col_uid_field_name):
+        return MatrixRowsHead(self.child.handle_randomness(row_uid_field_name, col_uid_field_name), self.n)
 
     def head_str(self):
         return self.n
@@ -428,6 +813,9 @@ class MatrixColsHead(MatrixIR):
         self.child = child
         self.n = n
 
+    def _handle_randomness(self, row_uid_field_name, col_uid_field_name):
+        return MatrixColsHead(self.child.handle_randomness(row_uid_field_name, col_uid_field_name), self.n)
+
     def head_str(self):
         return self.n
 
@@ -443,6 +831,9 @@ class MatrixRowsTail(MatrixIR):
         super().__init__(child)
         self.child = child
         self.n = n
+
+    def _handle_randomness(self, row_uid_field_name, col_uid_field_name):
+        return MatrixRowsTail(self.child.handle_randomness(row_uid_field_name, col_uid_field_name), self.n)
 
     def head_str(self):
         return self.n
@@ -460,6 +851,9 @@ class MatrixColsTail(MatrixIR):
         self.child = child
         self.n = n
 
+    def _handle_randomness(self, row_uid_field_name, col_uid_field_name):
+        return MatrixColsTail(self.child.handle_randomness(row_uid_field_name, col_uid_field_name), self.n)
+
     def head_str(self):
         return self.n
 
@@ -475,6 +869,26 @@ class MatrixExplodeCols(MatrixIR):
         super().__init__(child)
         self.child = child
         self.path = path
+
+    def _handle_randomness(self, row_uid_field_name, col_uid_field_name):
+        if col_uid_field_name is None:
+            MatrixExplodeCols(self.child.handle_randomness(row_uid_field_name, None), self.path)
+
+        child = self.child.handle_randomness(row_uid_field_name, col_uid_field_name)
+
+        if col_uid_field_name not in child.typ.col_type.fields:
+            return MatrixExplodeCols(child, self.path)
+
+        new_col = modify_deep_field(ir.Ref('sa', child.typ.col_type), self.path, zip_with_index)
+        child = MatrixMapCols(child, new_col)
+
+        new_explode = MatrixExplodeCols(child, self.path)
+        new_col = modify_deep_field(
+            ir.Ref('sa', new_explode.typ.col_type),
+            self.path,
+            lambda tuple: ir.GetTupleElement(tuple, 0),
+            lambda col, tuple: ir.InsertFields(col, (col_uid_field_name, ir.concat_uids(ir.GetField(col, col_uid_field_name), ir.GetTupleElement(tuple, 1))), None))
+        return MatrixMapCols(new_explode, new_col)
 
     def head_str(self):
         return f"({' '.join([escape_id(id) for id in self.path])})"
@@ -502,6 +916,20 @@ class CastTableToMatrix(MatrixIR):
         self.entries_field_name = entries_field_name
         self.cols_field_name = cols_field_name
         self.col_key = col_key
+
+    def _handle_randomness(self, row_uid_field_name, col_uid_field_name):
+        child = self.child
+        if col_uid_field_name is not None:
+            new_globals = modify_deep_field(
+                ir.Ref('global', child.typ.global_type),
+                [self.cols_field_name],
+                lambda g: zip_with_index_field(g, col_uid_field_name))
+            child = TableMapGlobals(child, new_globals)
+
+        return CastTableToMatrix(self.child.handle_randomness(row_uid_field_name),
+                                 self.entries_field_name,
+                                 self.cols_field_name,
+                                 self.col_key)
 
     def head_str(self):
         return '{} {} ({})'.format(
@@ -533,6 +961,13 @@ class MatrixAnnotateRowsTable(MatrixIR):
         self.root = root
         self.product = product
 
+    def _handle_randomness(self, row_uid_field_name, col_uid_field_name):
+        return MatrixAnnotateRowsTable(
+            self.child.handle_randomness(row_uid_field_name, col_uid_field_name),
+            self.table.handle_randomness(None),
+            self.root,
+            self.product)
+
     def head_str(self):
         return f'"{escape_str(self.root)}" {self.product}'
 
@@ -560,6 +995,12 @@ class MatrixAnnotateColsTable(MatrixIR):
         self.child = child
         self.table = table
         self.root = root
+
+    def _handle_randomness(self, row_uid_field_name, col_uid_field_name):
+        return MatrixAnnotateColsTable(
+            self.child.handle_randomness(row_uid_field_name, col_uid_field_name),
+            self.table.handle_randomness(None),
+            self.root)
 
     def head_str(self):
         return f'"{escape_str(self.root)}"'

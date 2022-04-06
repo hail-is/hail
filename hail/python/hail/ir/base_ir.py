@@ -271,6 +271,9 @@ class IR(BaseIR):
     def uses_randomness(self) -> bool:
         return '__rng_state' in self.free_vars or '__rng_state' in self.free_agg_vars or '__rng_state' in self.free_scan_vars
 
+    def uses_value_randomness(self):
+        return '__rng_state' in self.free_vars
+
     def uses_agg_randomness(self, is_scan) -> bool:
         if is_scan:
             return '__rng_state' in self.free_scan_vars
@@ -395,6 +398,10 @@ class MatrixIR(BaseIR):
     @property
     def uses_randomness(self) -> bool:
         return self._children_use_randomness
+
+    @abc.abstractmethod
+    def _handle_randomness(self, row_uid_field_name, col_uid_field_name):
+        pass
 
     @abc.abstractmethod
     def _compute_type(self):
