@@ -19,3 +19,15 @@ jupyter==1.0.0
 importlib-metadata<4
 sphinxcontrib.katex==0.5.1
 fswatch==0.1.1
+
+# mypy library stubs
+types-Deprecated
+types-PyYAML
+types-chardet
+types-decorator
+types-python-dateutil
+types-requests
+types-setuptools
+types-six
+types-tabulate
+types-urllib3
