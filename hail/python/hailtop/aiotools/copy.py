@@ -4,13 +4,23 @@ import asyncio
 import json
 import logging
 import sys
-import uvloop
+
 from concurrent.futures import ThreadPoolExecutor
 
 from ..utils import tqdm
 from . import Transfer, Copier
 from .router_fs import RouterAsyncFS
 from .utils import make_tqdm_listener
+
+try:
+    import uvloop
+    uvloop_install = uvloop.install
+except ImportError as e:
+    if not sys.platform.startswith('win32'):
+        raise e
+
+    def uvloop_install(*args, **kwargs):
+        pass
 
 
 async def copy(*,
@@ -109,5 +119,5 @@ async def main() -> None:
 
 
 if __name__ == '__main__':
-    uvloop.install()
+    uvloop_install()
     asyncio.run(main())
