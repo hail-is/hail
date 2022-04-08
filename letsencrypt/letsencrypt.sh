@@ -40,4 +40,4 @@ EOF
 
 set -x
 
-echo finished.
+echo finished updating cert.
