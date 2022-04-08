@@ -19,7 +19,7 @@ from hail.expr.blockmatrix_type import tblockmatrix
 from hail.experimental import write_expression, read_expression
 from hail.ir.renderer import CSERenderer
 
-from hailtop.config import (configuration_of, get_user_local_cache_dir, get_remote_tmpdir)
+from hailtop.config import (configuration_of, get_user_local_cache_dir, get_remote_tmpdir, get_deploy_config)
 from hailtop.utils import async_to_blocking, secret_alnum_string, TransientError, Timings
 from hailtop.batch_client import client as hb
 from hailtop.batch_client import aioclient as aiohb
@@ -225,7 +225,8 @@ class ServiceBackend(Backend):
         driver_cores = configuration_of('query', 'batch_driver_cores', driver_cores, None)
         driver_memory = configuration_of('query', 'batch_driver_memory', driver_memory, None)
         name_prefix = configuration_of('query', 'name_prefix', name_prefix, '')
-        disable_progress_bar = configuration_of('query', 'disable_progress_bar', disable_progress_bar, True)
+        disable_progress_bar_str = configuration_of('query', 'disable_progress_bar', disable_progress_bar, 'True')
+        disable_progress_bar = disable_progress_bar_str in ('True', 'true')
 
         flags = {"use_new_shuffle": "1", **(flags or {})}
 
@@ -352,6 +353,11 @@ class ServiceBackend(Backend):
 
             with timings.step("wait batch"):
                 try:
+                    if self.disable_progress_bar is not True:
+                        deploy_config = get_deploy_config()
+                        url = deploy_config.external_url('batch', f'/batches/{b.id}/jobs/1')
+                        print(f'Submitted batch {b.id}, see {url}')
+
                     status = await b.wait(disable_progress_bar=self.disable_progress_bar)
                 except Exception:
                     await b.cancel()
