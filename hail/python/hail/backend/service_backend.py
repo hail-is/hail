@@ -239,7 +239,7 @@ class ServiceBackend(Backend):
             jar_spec=jar_spec,
             driver_cores=driver_cores,
             driver_memory=driver_memory,
-            name_prefix=name_prefix or ''
+            name_prefix=name_prefix
         )
 
     def __init__(self,
