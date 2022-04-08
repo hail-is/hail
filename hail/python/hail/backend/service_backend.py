@@ -194,7 +194,7 @@ class ServiceBackend(Backend):
     async def create(*,
                      billing_project: Optional[str] = None,
                      batch_client: Optional[aiohb.BatchClient] = None,
-                     disable_progress_bar: bool = True,
+                     disable_progress_bar: Optional[bool] = None,
                      remote_tmpdir: Optional[str] = None,
                      flags: Optional[Dict[str, str]] = None,
                      jar_url: Optional[str] = None,
@@ -225,6 +225,7 @@ class ServiceBackend(Backend):
         driver_cores = configuration_of('query', 'batch_driver_cores', driver_cores, None)
         driver_memory = configuration_of('query', 'batch_driver_memory', driver_memory, None)
         name_prefix = configuration_of('query', 'name_prefix', name_prefix, '')
+        disable_progress_bar = configuration_of('query', 'disable_progress_bar', disable_progress_bar, True)
 
         flags = {"use_new_shuffle": "1", **(flags or {})}
 
@@ -347,7 +348,7 @@ class ServiceBackend(Backend):
                     mount_tokens=True,
                     resources=resources
                 )
-                b = await bb.submit(disable_progress_bar=self.disable_progress_bar)
+                b = await bb.submit(disable_progress_bar=True)
 
             with timings.step("wait batch"):
                 try:
