@@ -9,9 +9,6 @@ LETSENCRYPT_IMAGE := $(DOCKER_PREFIX)/letsencrypt:$(TOKEN)
 build:
 	../docker-build.sh . Dockerfile $(LETSENCRYPT_IMAGE)
 
-start-service:
-	kubectl -n default apply -f service.yaml
-
 DRY_RUN ?= false
 run: build
 	echo $(DOMAIN) > domains.txt.out
