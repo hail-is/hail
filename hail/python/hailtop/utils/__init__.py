@@ -1,4 +1,6 @@
-from .time import time_msecs, time_msecs_str, humanize_timedelta_msecs, parse_timestamp_msecs
+from .time import (
+    time_msecs, time_msecs_str, humanize_timedelta_msecs, parse_timestamp_msecs,
+    time_ns)
 from .utils import (unzip, async_to_blocking, blocking_to_async, AsyncWorkerPool, bounded_gather,
                     grouped, sync_sleep_and_backoff, sleep_and_backoff, is_transient_error,
                     request_retry_transient_errors, request_raise_transient_errors, collect_agen,
@@ -91,4 +93,5 @@ __all__ = [
     'Timings',
     'is_retry_once_error',
     'rich_progress_bar',
+    'time_ns',
 ]
