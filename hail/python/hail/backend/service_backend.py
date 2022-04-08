@@ -226,6 +226,8 @@ class ServiceBackend(Backend):
         driver_memory = configuration_of('query', 'batch_driver_memory', driver_memory, 'standard')
         name_prefix = configuration_of('query', 'name_prefix', name_prefix, '')
 
+        flags = {"use_new_shuffle": "1", **(flags or {})}
+
         return ServiceBackend(
             billing_project=billing_project,
             sync_fs=sync_fs,
@@ -235,7 +237,7 @@ class ServiceBackend(Backend):
             batch_attributes=batch_attributes,
             user_local_reference_cache_dir=user_local_reference_cache_dir,
             remote_tmpdir=remote_tmpdir,
-            flags=flags or {},
+            flags=flags,
             jar_spec=jar_spec,
             driver_cores=driver_cores,
             driver_memory=driver_memory,
@@ -272,9 +274,6 @@ class ServiceBackend(Backend):
         self.driver_cores = driver_cores
         self.driver_memory = driver_memory
         self.name_prefix = name_prefix
-
-        if "use_new_shuffle" not in self.flags:
-            self.flags["use_new_shuffle"] = "1"
 
     def debug_info(self) -> Dict[str, Any]:
         return {
