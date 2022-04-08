@@ -171,7 +171,9 @@ class HailContext(object):
            _optimizer_iterations=nullable(int),
            backend=nullable(str),
            driver_cores=nullable(oneof(str, int)),
-           driver_memory=nullable(str))
+           driver_memory=nullable(str),
+           worker_cores=nullable(oneof(str, int)),
+           worker_memory=nullable(str))
 def init(sc=None, app_name=None, master=None, local='local[*]',
          log=None, quiet=False, append=False,
          min_block_size=0, branching_factor=50, tmp_dir=None,
@@ -184,7 +186,9 @@ def init(sc=None, app_name=None, master=None, local='local[*]',
          *,
          backend=None,
          driver_cores=None,
-         driver_memory=None):
+         driver_memory=None,
+         worker_cores=None,
+         worker_memory=None):
     """Initialize and configure Hail.
 
     This function will be called with default arguments if any Hail functionality is used. If you
@@ -270,6 +274,12 @@ def init(sc=None, app_name=None, master=None, local='local[*]',
     driver_memory : :class:`str`, optional
         Batch backend only. Number of cores to use for the driver process. May be standard or
         highmem. Default is standard.
+    worker_cores : :class:`str` or :class:`int`, optional
+        Batch backend only. Number of cores to use for the worker processes. May be 1 or 8. Default is
+        1.
+    worker_memory : :class:`str`, optional
+        Batch backend only. Number of cores to use for the worker processes. May be standard or
+        highmem. Default is standard.
 
     """
     if Env._hc:
@@ -306,6 +316,8 @@ def init(sc=None, app_name=None, master=None, local='local[*]',
                 global_seed=global_seed,
                 driver_cores=driver_cores,
                 driver_memory=driver_memory,
+                worker_cores=worker_cores,
+                worker_memory=worker_memory,
                 name_prefix=app_name
             ))
     if backend == 'spark':
@@ -406,6 +418,8 @@ def init_spark(sc=None,
     disable_progress_bar=bool,
     driver_cores=nullable(oneof(str, int)),
     driver_memory=nullable(str),
+    worker_cores=nullable(oneof(str, int)),
+    worker_memory=nullable(str),
     name_prefix=nullable(str),
     token=nullable(str)
 )
@@ -423,6 +437,8 @@ async def init_batch(
         disable_progress_bar: bool = True,
         driver_cores: Optional[Union[str, int]] = None,
         driver_memory: Optional[str] = None,
+        worker_cores: Optional[Union[str, int]] = None,
+        worker_memory: Optional[str] = None,
         name_prefix: Optional[str] = None,
         token: Optional[str] = None,
 ):
@@ -433,6 +449,8 @@ async def init_batch(
                                           disable_progress_bar=disable_progress_bar,
                                           driver_cores=driver_cores,
                                           driver_memory=driver_memory,
+                                          worker_cores=worker_cores,
+                                          worker_memory=worker_memory,
                                           name_prefix=name_prefix,
                                           token=token)
 
