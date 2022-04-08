@@ -222,8 +222,8 @@ class ServiceBackend(Backend):
         jar_url = configuration_of('query', 'jar_url', jar_url, None)
         jar_spec = GitRevision(revision()) if jar_url is None else JarUrl(jar_url)
 
-        driver_cores = configuration_of('query', 'batch_driver_cores', driver_cores, '1')
-        driver_memory = configuration_of('query', 'batch_driver_memory', driver_memory, 'standard')
+        driver_cores = configuration_of('query', 'batch_driver_cores', driver_cores, None)
+        driver_memory = configuration_of('query', 'batch_driver_memory', driver_memory, None)
         name_prefix = configuration_of('query', 'name_prefix', name_prefix, '')
 
         flags = {"use_new_shuffle": "1", **(flags or {})}
