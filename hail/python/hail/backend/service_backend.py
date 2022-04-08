@@ -330,6 +330,12 @@ class ServiceBackend(Backend):
                     batch_attributes = {**batch_attributes, 'name': self.name_prefix + name}
                 bb = self.async_bc.create_batch(token=token, attributes=batch_attributes)
 
+                resources: Dict[str, Union[str, bool]] = {'preemptible': False}
+                if self.driver_cores is not None:
+                    resources['cpu'] = str(self.driver_cores)
+                if self.driver_memory is not None:
+                    resources['memory'] = str(self.driver_memory)
+
                 j = bb.create_jvm_job(
                     jar_spec=self.jar_spec.to_dict(),
                     argv=[
@@ -339,11 +345,7 @@ class ServiceBackend(Backend):
                         iodir + '/out'
                     ],
                     mount_tokens=True,
-                    resources={
-                        'preemptible': False,
-                        'cpu': str(self.driver_cores),
-                        'memory': str(self.driver_memory)
-                    }
+                    resources=resources
                 )
                 b = await bb.submit(disable_progress_bar=self.disable_progress_bar)
 
