@@ -2021,12 +2021,13 @@ class JVMContainer:
 
         # We allocate 60% of memory per core to off heap memory
         memory_per_core_mib = worker_memory_per_core_mib(CLOUD, instance_config.worker_type())
-        heap_memory_mb = int(0.4 * n_cores * memory_per_core_mib)
-        off_heap_memory_per_core_mb = int(0.6 * memory_per_core_mib)
+        memory_mib = n_cores * memory_per_core_mib
+        heap_memory_mib = int(0.4 * memory_mib)
+        off_heap_memory_per_core_mib = memory_mib - heap_memory_mib
 
         command = [
             'java',
-            f'-Xmx{heap_memory_mb}M',
+            f'-Xmx{heap_memory_mib}M',
             '-cp',
             f'/jvm-entryway:/jvm-entryway/junixsocket-selftest-2.3.3-jar-with-dependencies.jar:{JVM.SPARK_HOME}/jars/*',
             'is.hail.JVMEntryway',
@@ -2076,7 +2077,7 @@ class JVMContainer:
             command=command,
             cpu_in_mcpu=n_cores * 1000,
             memory_in_bytes=total_memory_bytes,
-            env=[f'HAIL_WORKER_OFF_HEAP_MEMORY_PER_CORE_MB={off_heap_memory_per_core_mb}'],
+            env=[f'HAIL_WORKER_OFF_HEAP_MEMORY_PER_CORE_MB={off_heap_memory_per_core_mib}'],
             volume_mounts=volume_mounts,
         )
 
