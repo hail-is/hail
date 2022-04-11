@@ -280,7 +280,7 @@ class RouterFS(FS):
                 running_prefix = []
 
         suffix_components: List[str] = running_prefix
-        first_prefix = '/'.join([url.scheme +':', '', *url.bucket_parts])
+        first_prefix = '/'.join([url.scheme + ':', '', *url.bucket_parts])
         cumulative_prefixes = [first_prefix]
 
         for intervening_components, single_component_glob_pattern in glob_components:
@@ -288,9 +288,8 @@ class RouterFS(FS):
                 stat.path
                 for cumulative_prefix in cumulative_prefixes
                 for stat in await ls_no_glob('/'.join([cumulative_prefix, *intervening_components]))
-                if fnmatch.fnmatch(
-                        stat.path,
-                        '/'.join([cumulative_prefix, *intervening_components, single_component_glob_pattern]))
+                if fnmatch.fnmatch(stat.path,
+                                   '/'.join([cumulative_prefix, *intervening_components, single_component_glob_pattern]))
             ]
 
         return [stat
