@@ -141,7 +141,7 @@ class BuildConfiguration:
             )
 
             if step.can_run_in_scope(scope):
-                step.cleanup(batch, scope, parent_jobs)
+                step.cleanup(batch, code, scope, parent_jobs)
 
 
 class Step(abc.ABC):
@@ -225,7 +225,7 @@ class Step(abc.ABC):
         pass
 
     @abc.abstractmethod
-    def cleanup(self, batch, scope, parents):
+    def cleanup(self, batch, code, scope, parents):
         pass
 
 
@@ -356,7 +356,7 @@ cat /home/user/trace
             unconfined=True,
         )
 
-    def cleanup(self, batch, scope, parents):
+    def cleanup(self, batch, code, scope, parents):  # pylint: disable=unused-argument
         if scope == 'deploy' and self.publish_as and not is_test_deployment:
             return
 
@@ -424,7 +424,19 @@ true
 
 class RunImageStep(Step):
     def __init__(
-        self, params, image, script, inputs, outputs, port, resources, service_account, secrets, always_run, timeout
+        self,
+        params,
+        image,
+        script,
+        inputs,
+        outputs,
+        port,
+        resources,
+        service_account,
+        secrets,
+        always_run,
+        timeout,
+        job_type,
     ):  # pylint: disable=unused-argument
         super().__init__(params)
         self.image = expand_value_from(image, self.input_config(params.code, params.scope))
@@ -443,6 +455,7 @@ class RunImageStep(Step):
         self.secrets = secrets
         self.always_run = always_run
         self.timeout = timeout
+        self.job_type = job_type
         self.job = None
 
     def wrapped_job(self):
@@ -465,12 +478,13 @@ class RunImageStep(Step):
             json.get('secrets'),
             json.get('alwaysRun', False),
             json.get('timeout', 3600),
+            json.get('type', 'main'),
         )
 
     def config(self, scope):  # pylint: disable=unused-argument
         return {'token': self.token}
 
-    def build(self, batch, code, scope):
+    def _build(self, batch, code, scope, parents):
         template = jinja2.Template(self.script, undefined=jinja2.StrictUndefined, trim_blocks=True, lstrip_blocks=True)
         rendered_script = template.render(**self.input_config(code, scope))
 
@@ -508,14 +522,19 @@ class RunImageStep(Step):
             output_files=output_files,
             secrets=secrets,
             service_account=self.service_account,
-            parents=self.deps_parents(),
+            parents=parents,
             always_run=self.always_run,
             timeout=self.timeout,
             network='private',
         )
 
-    def cleanup(self, batch, scope, parents):
-        pass
+    def build(self, batch, code, scope):
+        if self.job_type == 'main':
+            self._build(batch, code, scope, self.deps_parents())
+
+    def cleanup(self, batch, code, scope, parents):
+        if self.job_type == 'cleanup':
+            self._build(batch, code, scope, parents)
 
 
 class CreateNamespaceStep(Step):
@@ -681,7 +700,7 @@ date
             network='private',
         )
 
-    def cleanup(self, batch, scope, parents):
+    def cleanup(self, batch, code, scope, parents):  # pylint: disable=unused-argument
         if scope in ['deploy', 'dev'] or is_test_deployment:
             return
 
@@ -835,7 +854,7 @@ date
             network='private',
         )
 
-    def cleanup(self, batch, scope, parents):  # pylint: disable=unused-argument
+    def cleanup(self, batch, code, scope, parents):  # pylint: disable=unused-argument
         if self.wait:
             script = ''
             for w in self.wait:
@@ -1010,7 +1029,7 @@ EOF
             network='private',
         )
 
-    def cleanup(self, batch, scope, parents):
+    def cleanup(self, batch, code, scope, parents):  # pylint: disable=unused-argument
         if scope in ['deploy', 'dev'] or self.cant_create_database:
             return
 
