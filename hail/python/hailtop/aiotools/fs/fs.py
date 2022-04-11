@@ -81,6 +81,9 @@ class AsyncFSURL(abc.ABC):
     def with_path(self, path) -> 'AsyncFSURL':
         pass
 
+    def with_new_path_component(self, new_path_component) -> 'AsyncFSURL':
+        return self.with_path(self.path + '/' + new_path_component)
+
     @abc.abstractmethod
     def __str__(self) -> str:
         pass
