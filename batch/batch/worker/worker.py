@@ -609,6 +609,7 @@ class Container:
         unconfined: Optional[bool] = None,
         volume_mounts: Optional[List[dict]] = None,
         env: Optional[List[str]] = None,
+        stdin: Optional[str] = None,
     ):
         self.fs = fs
         assert self.fs
@@ -624,6 +625,7 @@ class Container:
         self.unconfined = unconfined
         self.volume_mounts = volume_mounts or []
         self.env = env or []
+        self.stdin = stdin
 
         self.deleted_event = asyncio.Event()
 
@@ -855,6 +857,9 @@ class Container:
             async with async_timeout.timeout(self.timeout):
                 with open(self.log_path, 'w', encoding='utf-8') as container_log:
                     log.info(f'Creating the crun run process for {self}')
+
+                    stdin = asyncio.subprocess.PIPE if self.stdin else None
+
                     self.process = await asyncio.create_subprocess_exec(
                         'crun',
                         'run',
@@ -863,9 +868,13 @@ class Container:
                         '--config',
                         f'{self.config_path}/config.json',
                         self.name,
+                        stdin=stdin,
                         stdout=container_log,
                         stderr=container_log,
                     )
+
+                    if self.stdin is not None:
+                        await self.process.communicate(self.stdin.encode('utf-8'))
 
                     await self.process.wait()
                     log.info(f'crun process completed for {self}')
@@ -1175,7 +1184,7 @@ def copy_container(
         '-m',
         'hailtop.aiotools.copy',
         json.dumps(requester_pays_project),
-        json.dumps(files),
+        '-',
         '-v',
     ]
 
@@ -1189,6 +1198,7 @@ def copy_container(
         memory_in_bytes=memory_in_bytes,
         volume_mounts=volume_mounts,
         env=[f'{job.credentials.cloud_env_name}={job.credentials.mount_path}'],
+        stdin=json.dumps(files)
     )
 
 
