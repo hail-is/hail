@@ -92,7 +92,6 @@ def test_conversion_equivalence():
     assert svcr._same(svcr_readback)
 
 
-@fails_service_backend(reason='register_ir_function')
 def test_sampleqc_old_new_equivalence():
     vds = hl.vds.read_vds(os.path.join(resource('vds'), '1kg_chr22_5_samples.vds'))
     sqc = hl.vds.sample_qc(vds)
@@ -124,7 +123,6 @@ def test_sampleqc_old_new_equivalence():
     ))
 
 
-@skip_when_service_backend()
 def test_sampleqc_gq_dp():
     vds = hl.vds.read_vds(os.path.join(resource('vds'), '1kg_chr22_5_samples.vds'))
     sqc = hl.vds.sample_qc(vds)
@@ -137,7 +135,6 @@ def test_sampleqc_gq_dp():
                                 bases_over_dp_threshold=(334822, 10484, 388, 111, 52))
 
 
-@fails_service_backend(reason='persist')
 def test_filter_samples_and_merge():
     vds = hl.vds.read_vds(os.path.join(resource('vds'), '1kg_chr22_5_samples.vds'))
 

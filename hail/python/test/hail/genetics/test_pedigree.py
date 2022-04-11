@@ -29,7 +29,7 @@ class Tests(unittest.TestCase):
         self.assertEqual(t1.is_female, True)
         self.assertEqual(t1.is_female, True)
         self.assertEqual(t1.is_male, False)
-        
+
         self.assertEqual(t1.is_complete(), False)
         self.assertEqual(t4.is_complete(), True)
         self.assertEqual(t5.is_complete(), False)

@@ -174,7 +174,7 @@ class LocalBackend(Py4JBackend):
     def stop(self):
         self._jhc.stop()
         self._jhc = None
-        # FIXME stop gateway?
+        self._gateway.shutdown()
         uninstall_exception_handler()
 
     def _parse_value_ir(self, code, ref_map={}, ir_map={}):
@@ -267,10 +267,14 @@ class LocalBackend(Py4JBackend):
             name, dest_reference_genome)
 
     def parse_vcf_metadata(self, path):
-        return json.loads(self._jhc.pyParseVCFMetadataJSON(self.fs._jfs, path))
+        return json.loads(self._jhc.pyParseVCFMetadataJSON(self._jbackend.fs(), path))
 
     def index_bgen(self, files, index_file_map, referenceGenomeName, contig_recoding, skip_invalid_loci):
         self._jbackend.pyIndexBgen(files, index_file_map, referenceGenomeName, contig_recoding, skip_invalid_loci)
 
     def import_fam(self, path: str, quant_pheno: bool, delimiter: str, missing: str):
         return json.loads(self._jbackend.pyImportFam(path, quant_pheno, delimiter, missing))
+
+    @property
+    def requires_lowering(self):
+        return True

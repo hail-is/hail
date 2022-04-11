@@ -718,7 +718,7 @@ class ServiceBackend(Backend[bc.Batch]):
             print('')
 
         deploy_config = get_deploy_config()
-        url = deploy_config.url('batch', f'/batches/{batch_handle.id}')
+        url = deploy_config.external_url('batch', f'/batches/{batch_handle.id}')
         print(f'Submitted batch {batch_handle.id}, see {url}')
 
         if open:

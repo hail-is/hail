@@ -1,4 +1,5 @@
-from typing import Optional
+from typing import Optional, Union
+import warnings
 import sys
 import os
 from urllib.parse import urlparse, urlunparse
@@ -8,9 +9,9 @@ from pyspark import SparkContext
 
 import hail
 from hail.genetics.reference_genome import ReferenceGenome
-from hail.typecheck import nullable, typecheck, typecheck_method, enumeration, dictof
+from hail.typecheck import nullable, typecheck, typecheck_method, enumeration, dictof, oneof
 from hail.utils import get_env_or_default
-from hail.utils.java import Env, warning
+from hail.utils.java import Env, warning, choose_backend
 from hail.backend import Backend
 from hailtop.utils import secret_alnum_string
 from .builtin_references import BUILTIN_REFERENCES
@@ -152,7 +153,7 @@ class HailContext(object):
 
 
 @typecheck(sc=nullable(SparkContext),
-           app_name=str,
+           app_name=nullable(str),
            master=nullable(str),
            local=str,
            log=nullable(str),
@@ -167,8 +168,11 @@ class HailContext(object):
            spark_conf=nullable(dictof(str, str)),
            skip_logging_configuration=bool,
            local_tmpdir=nullable(str),
-           _optimizer_iterations=nullable(int))
-def init(sc=None, app_name='Hail', master=None, local='local[*]',
+           _optimizer_iterations=nullable(int),
+           backend=nullable(str),
+           driver_cores=nullable(oneof(str, int)),
+           driver_memory=nullable(str))
+def init(sc=None, app_name=None, master=None, local='local[*]',
          log=None, quiet=False, append=False,
          min_block_size=0, branching_factor=50, tmp_dir=None,
          default_reference='GRCh37', idempotent=False,
@@ -176,37 +180,37 @@ def init(sc=None, app_name='Hail', master=None, local='local[*]',
          spark_conf=None,
          skip_logging_configuration=False,
          local_tmpdir=None,
-         _optimizer_iterations=None):
-    """Initialize Hail and Spark.
+         _optimizer_iterations=None,
+         *,
+         backend=None,
+         driver_cores=None,
+         driver_memory=None):
+    """Initialize and configure Hail.
 
-    Examples
-    --------
-    Import and initialize Hail using GRCh38 as the default reference genome:
+    This function will be called with default arguments if any Hail functionality is used. If you
+    need custom configuration, you must explicitly call this function before using Hail. For
+    example, to set the default reference genome to GRCh38, import Hail and immediately call
+    :func:`.init`:
 
     >>> import hail as hl
     >>> hl.init(default_reference='GRCh38')  # doctest: +SKIP
 
-    Notes
-    -----
-    Hail is not only a Python library; most of Hail is written in Java/Scala
-    and runs together with Apache Spark in the Java Virtual Machine (JVM).
-    In order to use Hail, a JVM needs to run as well. The :func:`.init`
-    function is used to initialize Hail and Spark.
+    Hail has two backends, ``spark`` and ``batch``. Hail selects a backend by consulting, in order,
+    these configuration locations:
 
-    This function also sets global configuration parameters used for the Hail
-    session, like the default reference genome and log file location.
+    1. The ``backend`` parameter of this function.
+    2. The ``HAIL_QUERY_BACKEND`` environment variable.
+    3. The value of ``hailctl config get query/backend``.
 
-    This function will be called automatically (with default parameters) if
-    any Hail functionality requiring the backend (most of the libary!) is used.
-    To initialize Hail explicitly with non-default arguments, be sure to do so
-    directly after importing the module, as in the above example.
+    If no configuration is found, Hail will select the Spark backend.
 
-    To facilitate the migration from Spark to the ServiceBackend, this method
-    calls init_service when the environment variable HAIL_QUERY_BACKEND is set
-    to "service".
+    Examples
+    --------
+    Configure Hail to use the Batch backend:
 
-    Note
-    ----
+    >>> import hail as hl
+    >>> hl.init(backend='batch')  # doctest: +SKIP
+
     If a :class:`pyspark.SparkContext` is already running, then Hail must be
     initialized with it as an argument:
 
@@ -219,20 +223,22 @@ def init(sc=None, app_name='Hail', master=None, local='local[*]',
     Parameters
     ----------
     sc : pyspark.SparkContext, optional
-        Spark context. By default, a Spark context will be created.
+        Spark Backend only. Spark context. If not specified, the Spark backend will create a new
+        Spark context.
     app_name : :class:`str`
-        Spark application name.
+        A name for this pipeline. In the Spark backend, this becomes the Spark application name. In
+        the Batch backend, this is a prefix for the name of every Batch.
     master : :class:`str`, optional
-        URL identifying the Spark leader (master) node or `local[N]` for local clusters.
+        Spark Backend only. URL identifying the Spark leader (master) node or `local[N]` for local
+        clusters.
     local : :class:`str`
-       Local-mode core limit indicator. Must either be `local[N]` where N is a
-       positive integer or `local[*]`. The latter indicates Spark should use all
-       cores available. `local[*]` does not respect most containerization CPU
-       limits. This option is only used if `master` is unset and `spark.master`
-       is not set in the Spark configuration.
+        Spark Backend only. Local-mode core limit indicator. Must either be `local[N]` where N is a
+        positive integer or `local[*]`. The latter indicates Spark should use all cores
+        available. `local[*]` does not respect most containerization CPU limits. This option is only
+        used if `master` is unset and `spark.master` is not set in the Spark configuration.
     log : :class:`str`
-        Local path for Hail log file. Does not currently support distributed
-        file systems like Google Storage, S3, or HDFS.
+        Local path for Hail log file. Does not currently support distributed file systems like
+        Google Storage, S3, or HDFS.
     quiet : :obj:`bool`
         Print fewer log messages.
     append : :obj:`bool`
@@ -252,12 +258,19 @@ def init(sc=None, app_name='Hail', master=None, local='local[*]',
     global_seed : :obj:`int`, optional
         Global random seed.
     spark_conf : :obj:`dict` of :class:`str` to :class`str`, optional
-        Spark configuration parameters.
+        Spark backend only. Spark configuration parameters.
     skip_logging_configuration : :obj:`bool`
-        Skip logging configuration in java and python.
+        Spark Backend only. Skip logging configuration in java and python.
     local_tmpdir : :class:`str`, optional
         Local temporary directory.  Used on driver and executor nodes.
         Must use the file scheme.  Defaults to TMPDIR, or /tmp.
+    driver_cores : :class:`str` or :class:`int`, optional
+        Batch backend only. Number of cores to use for the driver process. May be 1 or 8. Default is
+        1.
+    driver_memory : :class:`str`, optional
+        Batch backend only. Number of cores to use for the driver process. May be standard or
+        highmem. Default is standard.
+
     """
     if Env._hc:
         if idempotent:
@@ -266,20 +279,100 @@ def init(sc=None, app_name='Hail', master=None, local='local[*]',
             warning('Hail has already been initialized. If this call was intended to change configuration,'
                     ' close the session with hl.stop() first.')
 
-    if os.environ.get('HAIL_QUERY_BACKEND') == 'service':
+    backend = choose_backend(backend)
+
+    if backend == 'service':
+        warnings.warn(
+            'The "service" backend is now called the "batch" backend. Support for "service" will be removed in a '
+            'future release.'
+        )
+        backend = 'batch'
+
+    if backend == 'batch':
         import asyncio
-        # NB: do not use warning because that will initialize Env._hc, which we are trying to do right now.
-        print('When using the query service backend, use `await init_service\'', file=sys.stderr)
-        return asyncio.get_event_loop().run_until_complete(init_service(
+        try:
+            asyncio.get_running_loop()
+            raise ValueError(
+                'When using Hail Query in async code, initialize the ServiceBackend with `await hl.init_batch()`'
+            )
+        except RuntimeError:  # RuntimeError implies there is no running loop, so we may start one
+            return asyncio.get_event_loop().run_until_complete(init_batch(
+                log=log,
+                quiet=quiet,
+                append=append,
+                tmpdir=tmp_dir,
+                local_tmpdir=local_tmpdir,
+                default_reference=default_reference,
+                global_seed=global_seed,
+                driver_cores=driver_cores,
+                driver_memory=driver_memory,
+                name_prefix=app_name
+            ))
+    if backend == 'spark':
+        return init_spark(
+            app_name=app_name,
+            master=master,
+            local=local,
+            min_block_size=min_block_size,
+            branching_factor=branching_factor,
+            spark_conf=spark_conf,
+            _optimizer_iterations=_optimizer_iterations,
+            log=log,
+            quiet=quiet,
+            append=append,
+            tmp_dir=tmp_dir,
+            local_tmpdir=local_tmpdir,
+            default_reference=default_reference,
+            global_seed=global_seed,
+            skip_logging_configuration=skip_logging_configuration
+        )
+    if backend == 'local':
+        return init_local(
             log=log,
             quiet=quiet,
             append=append,
             tmpdir=tmp_dir,
-            local_tmpdir=local_tmpdir,
             default_reference=default_reference,
             global_seed=global_seed,
-            skip_logging_configuration=skip_logging_configuration))
+            skip_logging_configuration=skip_logging_configuration
+        )
+    raise ValueError(f'unknown Hail Query backend: {backend}')
 
+
+@typecheck(sc=nullable(SparkContext),
+           app_name=nullable(str),
+           master=nullable(str),
+           local=str,
+           log=nullable(str),
+           quiet=bool,
+           append=bool,
+           min_block_size=int,
+           branching_factor=int,
+           tmp_dir=nullable(str),
+           default_reference=enumeration(*BUILTIN_REFERENCES),
+           idempotent=bool,
+           global_seed=nullable(int),
+           spark_conf=nullable(dictof(str, str)),
+           skip_logging_configuration=bool,
+           local_tmpdir=nullable(str),
+           _optimizer_iterations=nullable(int))
+def init_spark(sc=None,
+               app_name=None,
+               master=None,
+               local='local[*]',
+               log=None,
+               quiet=False,
+               append=False,
+               min_block_size=0,
+               branching_factor=50,
+               tmp_dir=None,
+               default_reference='GRCh37',
+               idempotent=False,
+               global_seed=6348563392232659379,
+               spark_conf=None,
+               skip_logging_configuration=False,
+               local_tmpdir=None,
+               _optimizer_iterations=None):
     from hail.backend.spark_backend import SparkBackend
 
     log = _get_log(log)
@@ -287,11 +380,11 @@ def init(sc=None, app_name='Hail', master=None, local='local[*]',
     local_tmpdir = _get_local_tmpdir(local_tmpdir)
     optimizer_iterations = get_env_or_default(_optimizer_iterations, 'HAIL_OPTIMIZER_ITERATIONS', 3)
 
+    app_name = app_name or 'Hail'
     backend = SparkBackend(
         idempotent, sc, spark_conf, app_name, master, local, log,
         quiet, append, min_block_size, branching_factor, tmpdir, local_tmpdir,
         skip_logging_configuration, optimizer_iterations)
-
     if not backend.fs.exists(tmpdir):
         backend.fs.mkdir(tmpdir)
 
@@ -310,26 +403,35 @@ def init(sc=None, app_name='Hail', master=None, local='local[*]',
     local_tmpdir=nullable(str),
     default_reference=enumeration(*BUILTIN_REFERENCES),
     global_seed=nullable(int),
-    skip_logging_configuration=bool,
-    disable_progress_bar=bool)
-async def init_service(
+    disable_progress_bar=bool,
+    driver_cores=nullable(oneof(str, int)),
+    driver_memory=nullable(str),
+    name_prefix=nullable(str)
+)
+async def init_batch(
+        *,
         billing_project: Optional[str] = None,
         remote_tmpdir: Optional[str] = None,
-        log=None,
-        quiet=False,
-        append=False,
-        tmpdir=None,
-        local_tmpdir=None,
-        default_reference='GRCh37',
-        global_seed=6348563392232659379,
-        skip_logging_configuration=False,
-        *,
-        disable_progress_bar=True):
+        log: Optional[str] = None,
+        quiet: bool = False,
+        append: bool = False,
+        tmpdir: Optional[str] = None,
+        local_tmpdir: Optional[str] = None,
+        default_reference: str = 'GRCh37',
+        global_seed: int = 6348563392232659379,
+        disable_progress_bar: bool = True,
+        driver_cores: Optional[Union[str, int]] = None,
+        driver_memory: Optional[str] = None,
+        name_prefix: Optional[str] = None
+):
     from hail.backend.service_backend import ServiceBackend
+    # FIXME: pass local_tmpdir and use on worker and driver
     backend = await ServiceBackend.create(billing_project=billing_project,
                                           remote_tmpdir=remote_tmpdir,
-                                          skip_logging_configuration=skip_logging_configuration,
-                                          disable_progress_bar=disable_progress_bar)
+                                          disable_progress_bar=disable_progress_bar,
+                                          driver_cores=driver_cores,
+                                          driver_memory=driver_memory,
+                                          name_prefix=name_prefix)
 
     log = _get_log(log)
     if tmpdir is None:
@@ -379,8 +481,8 @@ def init_local(
         global_seed, backend)
 
 
-def version():
-    """Get the installed hail version.
+def version() -> str:
+    """Get the installed Hail version.
 
     Returns
     -------
@@ -390,6 +492,19 @@ def version():
         # https://stackoverflow.com/questions/6028000/how-to-read-a-static-file-from-inside-a-python-package
         hail.__version__ = pkg_resources.resource_string(__name__, 'hail_version').decode().strip()
     return hail.__version__
+
+
+def revision() -> str:
+    """Get the installed Hail git revision.
+
+    Returns
+    -------
+    str
+    """
+    if hail.__revision__ is None:
+        # https://stackoverflow.com/questions/6028000/how-to-read-a-static-file-from-inside-a-python-package
+        hail.__revision__ = pkg_resources.resource_string(__name__, 'hail_revision').decode().strip()
+    return hail.__revision__
 
 
 def _hail_cite_url():

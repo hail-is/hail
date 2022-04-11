@@ -9,7 +9,7 @@ from typing import Optional
 import aiomysql
 import pymysql
 
-from gear.metrics import DB_CONNECTION_QUEUE_SIZE, PrometheusSQLTimer
+from gear.metrics import DB_CONNECTION_QUEUE_SIZE, SQL_TRANSACTIONS, PrometheusSQLTimer
 from hailtop.auth.sql_config import SQLConfig
 from hailtop.utils import sleep_and_backoff
 
@@ -159,6 +159,7 @@ class Transaction:
         try:
             self.conn_context_manager = db_pool.acquire()
             DB_CONNECTION_QUEUE_SIZE.inc()
+            SQL_TRANSACTIONS.inc()
             self.conn = await aenter(self.conn_context_manager)
             DB_CONNECTION_QUEUE_SIZE.dec()
             async with self.conn.cursor() as cursor:
@@ -235,10 +236,15 @@ class Transaction:
         async with self.conn.cursor() as cursor:
             return await cursor.execute(sql, args)
 
-    async def execute_many(self, sql, args_array):
+    async def execute_many(self, sql, args_array, query_name=None):
         assert self.conn
         async with self.conn.cursor() as cursor:
-            return await cursor.executemany(sql, args_array)
+            if query_name is None:
+                res = await cursor.executemany(sql, args_array)
+            else:
+                async with PrometheusSQLTimer(query_name):
+                    res = await cursor.executemany(sql, args_array)
+            return res
 
 
 class CallError(Exception):
@@ -293,9 +299,9 @@ class Database:
             return await tx.execute_update(sql, args)
 
     @retry_transient_mysql_errors
-    async def execute_many(self, sql, args_array):
+    async def execute_many(self, sql, args_array, query_name=None):
         async with self.start() as tx:
-            return await tx.execute_many(sql, args_array)
+            return await tx.execute_many(sql, args_array, query_name=query_name)
 
     @retry_transient_mysql_errors
     async def check_call_procedure(self, sql, args=None, query_name=None):

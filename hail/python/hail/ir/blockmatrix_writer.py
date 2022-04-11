@@ -2,12 +2,17 @@ import abc
 import json
 
 from ..typecheck import typecheck_method, sequenceof, nullable, enumeration
+from ..expr.types import tvoid, tstr
 from ..utils.misc import escape_str
 
 
 class BlockMatrixWriter(object):
     @abc.abstractmethod
     def render(self):
+        pass
+
+    @abc.abstractmethod
+    def _type(self):
         pass
 
     @abc.abstractmethod
@@ -31,6 +36,9 @@ class BlockMatrixNativeWriter(BlockMatrixWriter):
                   'stageLocally': self.stage_locally}
         return escape_str(json.dumps(writer))
 
+    def _type(self):
+        return tvoid
+
     def __eq__(self, other):
         return isinstance(other, BlockMatrixNativeWriter) and \
             self.path == other.path and \
@@ -48,6 +56,9 @@ class BlockMatrixBinaryWriter(BlockMatrixWriter):
         writer = {'name': 'BlockMatrixBinaryWriter',
                   'path': self.path}
         return escape_str(json.dumps(writer))
+
+    def _type(self):
+        return tstr
 
     def __eq__(self, other):
         return isinstance(other, BlockMatrixBinaryWriter) and \
@@ -73,6 +84,9 @@ class BlockMatrixRectanglesWriter(BlockMatrixWriter):
                   'binary': self.binary}
         return escape_str(json.dumps(writer))
 
+    def _type(self):
+        return tvoid
+
     def __eq__(self, other):
         return isinstance(other, BlockMatrixRectanglesWriter) and \
             self.path == other.path and \
@@ -85,6 +99,9 @@ class BlockMatrixMultiWriter(object):
     @abc.abstractmethod
     def render(self):
         pass
+
+    def _type(self):
+        return tvoid
 
     @abc.abstractmethod
     def __eq__(self, other):
@@ -102,6 +119,9 @@ class BlockMatrixBinaryMultiWriter(BlockMatrixMultiWriter):
                   'prefix': self.prefix,
                   'overwrite': self.overwrite}
         return escape_str(json.dumps(writer))
+
+    def _type(self):
+        return tvoid
 
     def __eq__(self, other):
         return isinstance(other, BlockMatrixBinaryMultiWriter) and \
@@ -132,6 +152,9 @@ class BlockMatrixTextMultiWriter(BlockMatrixMultiWriter):
                   'customFilenames': self.custom_filenames}
         return escape_str(json.dumps(writer))
 
+    def _type(self):
+        return tvoid
+
     def __eq__(self, other):
         return isinstance(other, BlockMatrixTextMultiWriter) and \
             self.prefix == other.prefix and \
@@ -155,6 +178,9 @@ class BlockMatrixPersistWriter(BlockMatrixWriter):
                   'storageLevel': self.storage_level}
         return escape_str(json.dumps(writer))
 
+    def _type(self):
+        return tvoid
+
     def __eq__(self, other):
         return isinstance(other, BlockMatrixPersistWriter) and \
             self.id == other.id and \
@@ -176,6 +202,9 @@ class BlockMatrixNativeMultiWriter(BlockMatrixMultiWriter):
                   'forceRowMajor': self.force_row_major,
                   'stageLocally': self.stage_locally}
         return escape_str(json.dumps(writer))
+
+    def _type(self):
+        return tvoid
 
     def __eq__(self, other):
         return isinstance(other, BlockMatrixNativeMultiWriter) and \

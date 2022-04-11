@@ -99,7 +99,6 @@ class Tests(unittest.TestCase):
         hl.trio_matrix(mt, ped, complete_trios=False)
 
 
-    @fails_service_backend()
     def test_mendel_errors(self):
         mt = hl.import_vcf(resource('mendel.vcf'))
         ped = hl.Pedigree.read(resource('mendel.fam'))
@@ -215,7 +214,6 @@ class Tests(unittest.TestCase):
             bad.order_by(hl.asc(bad.v)).show()
             self.fail('Found rows in violation of the predicate (see show output)')
 
-    @fails_service_backend()
     def test_de_novo(self):
         mt = hl.import_vcf(resource('denovo.vcf'))
         mt = mt.filter_rows(mt.locus.in_y_par(), keep=False)  # de_novo_finder doesn't know about y PAR

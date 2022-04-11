@@ -388,9 +388,10 @@ class OnlineBoundedGather2:
         self._counter += 1
 
         async def run_and_cleanup():
+            retval = None
             try:
                 async with self._sema:
-                    await f(*args, **kwargs)
+                    retval = await f(*args, **kwargs)
             except asyncio.CancelledError:
                 pass
             except:
@@ -402,10 +403,11 @@ class OnlineBoundedGather2:
                     log.info('discarding exception', exc_info=True)
 
             if self._pending is None:
-                return
+                return retval
             del self._pending[id]
             if not self._pending:
                 self._done_event.set()
+            return retval
 
         t = asyncio.create_task(run_and_cleanup())
         self._pending[id] = t
@@ -814,8 +816,8 @@ def dump_all_stacktraces():
 async def retry_long_running(name, f, *args, **kwargs):
     delay_secs = 0.1
     while True:
+        start_time = time_msecs()
         try:
-            start_time = time_msecs()
             return await f(*args, **kwargs)
         except asyncio.CancelledError:
             raise
@@ -837,6 +839,13 @@ async def run_if_changed(changed, f, *args, **kwargs):
     while True:
         changed.clear()
         should_wait = await f(*args, **kwargs)
+        # 0.5 is arbitrary, but should be short enough not to greatly
+        # increase latency and long enough to reduce the impact of
+        # wasteful spinning when `should_wait` is always true and the
+        # event is constantly being set. This was instated to
+        # avoid wasteful repetition of scheduling loops, but
+        # might not always be desirable, especially in very low-latency batches.
+        await asyncio.sleep(0.5)
         if should_wait:
             await changed.wait()
 

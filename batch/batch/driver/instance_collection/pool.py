@@ -3,6 +3,7 @@ import logging
 import random
 from typing import Optional
 
+import prometheus_client as pc
 import sortedcontainers
 
 from gear import Database
@@ -27,6 +28,12 @@ from ..resource_manager import CloudResourceManager
 from .base import InstanceCollection, InstanceCollectionManager
 
 log = logging.getLogger('pool')
+
+SCHEDULING_LOOP_RUNS = pc.Counter(
+    'scheduling_loop_runs',
+    'Number of scheduling loop executions per pool',
+    ['pool_name'],
+)
 
 
 class Pool(InstanceCollection):
@@ -373,6 +380,7 @@ HAVING n_ready_jobs + n_running_jobs > 0;
 
         log.info(f'schedule {self.pool}: starting')
         start = time_msecs()
+        SCHEDULING_LOOP_RUNS.labels(pool_name=self.pool.name).inc()
         n_scheduled = 0
 
         user_resources = await self.compute_fair_share()
@@ -444,9 +452,6 @@ LIMIT %s;
 
             remaining = Box(share)
             async for record in user_runnable_jobs(user, remaining):
-                batch_id = record['batch_id']
-                job_id = record['job_id']
-                id = (batch_id, job_id)
                 attempt_id = secret_alnum_string(6)
                 record['attempt_id'] = attempt_id
 
@@ -463,13 +468,14 @@ LIMIT %s;
                     scheduled_cores_mcpu += record['cores_mcpu']
                     n_scheduled += 1
 
-                    async def schedule_with_error_handling(app, record, id, instance):
+                    async def schedule_with_error_handling(app, record, instance):
                         try:
                             await schedule_job(app, record, instance)
                         except Exception:
-                            log.info(f'scheduling job {id} on {instance} for {self.pool}', exc_info=True)
+                            if instance.state == 'active':
+                                instance.adjust_free_cores_in_memory(record['cores_mcpu'])
 
-                    await waitable_pool.call(schedule_with_error_handling, self.app, record, id, instance)
+                    await waitable_pool.call(schedule_with_error_handling, self.app, record, instance)
 
                 remaining.value -= 1
                 if remaining.value <= 0:

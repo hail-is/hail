@@ -834,7 +834,7 @@ class Table(ExprContainer):
 
     @typecheck_method(expr=expr_bool,
                       keep=bool)
-    def filter(self, expr, keep=True) -> 'Table':
+    def filter(self, expr, keep: bool = True) -> 'Table':
         """Filter rows.
 
         Examples
@@ -1289,7 +1289,18 @@ class Table(ExprContainer):
 
         if not _read_if_exists or not hl.hadoop_exists(f'{output}/_SUCCESS'):
             self.write(output=output, overwrite=overwrite, stage_locally=stage_locally, _codec_spec=_codec_spec)
-        return hl.read_table(output, _intervals=_intervals, _filter_intervals=_filter_intervals)
+            _assert_type = self._type
+            _load_refs = False
+        else:
+            _assert_type = None
+            _load_refs = True
+        return hl.read_table(
+            output,
+            _intervals=_intervals,
+            _filter_intervals=_filter_intervals,
+            _assert_type=_assert_type,
+            _load_refs=_load_refs
+        )
 
     @typecheck_method(output=str,
                       overwrite=bool,
@@ -1745,6 +1756,8 @@ class Table(ExprContainer):
                         return t
 
                 if is_interval:
+                    if all_matches:
+                        hl.utils.no_service_backend('interval join with all_matches=True')
                     left = Table(ir.TableIntervalJoin(left._tir, self._tir, uid, all_matches))
                 else:
                     left = Table(ir.TableLeftJoinRightDistinct(left._tir, self._tir, uid))
@@ -2315,6 +2328,20 @@ class Table(ExprContainer):
         :class:`.Table`
             Repartitioned table.
         """
+        if hl.current_backend().requires_lowering:
+            tmp = hl.utils.new_temp_file()
+
+            if len(self.key) == 0:
+                uid = Env.get_uid()
+                tmp2 = hl.utils.new_temp_file()
+                self.checkpoint(tmp2)
+                ht = hl.read_table(tmp2).add_index(uid).key_by(uid)
+                ht.checkpoint(tmp)
+                return hl.read_table(tmp, _n_partitions=n).key_by().drop(uid)
+            else:
+                # checkpoint rather than write to use fast codec
+                self.checkpoint(tmp)
+                return hl.read_table(tmp, _n_partitions=n)
 
         return Table(ir.TableRepartition(
             self._tir, n, ir.RepartitionStrategy.SHUFFLE if shuffle else ir.RepartitionStrategy.COALESCE))
@@ -2348,6 +2375,8 @@ class Table(ExprContainer):
         :class:`.Table`
             Table with at most `max_partitions` partitions.
         """
+        if hl.current_backend().requires_lowering:
+            return self.repartition(max_partitions)
 
         return Table(ir.TableRepartition(
             self._tir, max_partitions, ir.RepartitionStrategy.NAIVE_COALESCE))

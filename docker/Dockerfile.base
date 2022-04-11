@@ -38,7 +38,7 @@ RUN hail-apt-get-install xz-utils libncurses5 && \
     ln -s /opt/mysql-8.0.26-linux-glibc2.17-x86_64-minimal-rebuild/bin/* /usr/bin/
 
 # Regarding explicitly selecting 2.0.1: https://github.com/hail-is/hail/issues/8343
-RUN wget -nv -O ${SPARK_HOME}/jars/gcs-connector-hadoop2-2.0.1.jar https://storage.googleapis.com/hadoop-lib/gcs/gcs-connector-hadoop2-2.0.1.jar
+RUN curl >${SPARK_HOME}/jars/gcs-connector-hadoop2-2.0.1.jar https://storage.googleapis.com/hadoop-lib/gcs/gcs-connector-hadoop2-2.0.1.jar
 COPY docker/core-site.xml ${SPARK_HOME}/conf/core-site.xml
 
 RUN git clone https://github.com/catchorg/Catch2.git --depth 1 --branch v2.13.3 && \

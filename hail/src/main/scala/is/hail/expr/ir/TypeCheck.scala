@@ -473,7 +473,7 @@ object TypeCheck {
       case MatrixToValueApply(_, _) =>
       case BlockMatrixToValueApply(_, _) =>
       case BlockMatrixCollect(_) =>
-      case BlockMatrixWrite(_, _) =>
+      case BlockMatrixWrite(_, writer) => writer.loweredTyp
       case BlockMatrixMultiWrite(_, _) =>
       case ValueToBlockMatrix(child, _, _) =>
         assert(child.typ.isInstanceOf[TArray] || child.typ.isInstanceOf[TNDArray] ||  child.typ == TFloat64)

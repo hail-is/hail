@@ -1,4 +1,8 @@
-from typing import List, Dict, Any
+import gzip
+import io
+import os.path
+from typing import Any, Dict, List
+
 from hail.fs.hadoop_fs import HadoopFS
 from hail.utils.java import Env
 from hail.typecheck import typecheck, enumeration
@@ -77,11 +81,20 @@ def hadoop_open(path: str, mode: str = 'r', buffer_size: int = 8192):
     -------
         Readable or writable file handle.
     """
-    # legacy hack
+    # pile of hacks to preserve some legacy behavior, like auto gzip
     fs = Env.fs()
     if isinstance(fs, HadoopFS):
         return fs.legacy_open(path, mode, buffer_size)
-    return fs.open(path, mode, buffer_size)
+    _, ext = os.path.splitext(path)
+    if ext in ('.gz', '.bgz'):
+        binary_mode = 'wb' if mode[0] == 'w' else 'rb'
+        file = fs.open(path, binary_mode, buffer_size)
+        file = gzip.GzipFile(fileobj=file, mode=mode)
+        if 'b' not in mode:
+            file = io.TextIOWrapper(file, encoding='utf-8')
+    else:
+        file = fs.open(path, mode, buffer_size)
+    return file
 
 
 @typecheck(src=str,

@@ -25,9 +25,9 @@ def load_dataset(name: str,
 
     Example
     -------
-    >>> # Load the gnomAD "HGDP + 1000 Genomes" MatrixTable with GRCh38 coordinates.
-    >>> mt = hl.experimental.load_dataset(name='gnomad_hgdp_1kg_callset',
-    ...                                   version='3.1',
+    >>> # Load the gnomAD "HGDP + 1000 Genomes" dense MatrixTable with GRCh38 coordinates.
+    >>> mt = hl.experimental.load_dataset(name='gnomad_hgdp_1kg_subset_dense',
+    ...                                   version='3.1.2',
     ...                                   reference_genome='GRCh38',
     ...                                   region='us',
     ...                                   cloud='gcp')
