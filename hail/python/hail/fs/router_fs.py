@@ -280,7 +280,10 @@ class RouterFS(FS):
                 running_prefix = []
 
         suffix_components: List[str] = running_prefix
-        first_prefix = '/'.join([url.scheme + ':', '', *url.bucket_parts])
+        if len(url.bucket_parts) > 0:
+            first_prefix = '/'.join([url.scheme + ':', '', *url.bucket_parts])
+        else:
+            first_prefix = url.scheme + ':'
         cumulative_prefixes = [first_prefix]
 
         for intervening_components, single_component_glob_pattern in glob_components:
