@@ -1,4 +1,5 @@
 import asyncio
+import base64
 import collections
 import datetime
 import json
@@ -10,7 +11,7 @@ import signal
 import traceback
 from functools import wraps
 from numbers import Number
-from typing import Any, Awaitable, Callable, Dict, Optional, Union
+from typing import Dict, Optional, Union
 
 import aiohttp
 import aiohttp_session
@@ -73,7 +74,7 @@ from ..exceptions import (
     NonExistentBillingProjectError,
 )
 from ..file_store import FileStore
-from ..globals import BATCH_FORMAT_VERSION, HTTP_CLIENT_MAX_SIZE
+from ..globals import BATCH_FORMAT_VERSION, HTTP_CLIENT_MAX_SIZE, complete_states
 from ..inst_coll_config import InstanceCollectionConfigs
 from ..resource_usage import ResourceUsageMonitor
 from ..spec_writer import SpecWriter
@@ -362,21 +363,8 @@ WHERE jobs.batch_id = %s AND NOT deleted AND jobs.job_id = %s;
     return record
 
 
-async def _get_resource_from_record(
-    app,
-    batch_id: int,
-    job_id: int,
-    record: dict,
-    endpoint: str,
-    handle_running_response: Callable[[aiohttp.ClientResponse], Awaitable[Any]],
-    cloud_storage_reader: Callable[[BatchFormatVersion, int, int, str, str], Awaitable[Any]],
-) -> Optional[Dict[str, Any]]:
-    client_session: httpx.ClientSession = app['client_session']
+def job_tasks_from_spec(record):
     batch_format_version = BatchFormatVersion(record['format_version'])
-
-    state = record['state']
-    ip_address = record['ip_address']
-
     spec = json.loads(record['spec'])
     tasks = []
 
@@ -390,95 +378,104 @@ async def _get_resource_from_record(
     if has_output_files:
         tasks.append('output')
 
+    return tasks
+
+
+def has_resource_available(record):
+    state = record['state']
+    if state in ('Pending', 'Ready', 'Creating'):
+        return False
+    if state == 'Cancelled' and record['last_cancelled_attempt_id'] is None:
+        return False
+    if state == 'Running':
+        return True
+    assert state in complete_states, state
+    return True
+
+
+def attempt_id_from_spec(record):
+    return record['attempt_id'] or record['last_cancelled_attempt_id']
+
+
+async def _get_job_log(app, batch_id, job_id):
+    record = await _get_job_record(app, batch_id, job_id)
+
+    client_session: httpx.ClientSession = app['client_session']
+    file_store: FileStore = app['file_store']
+    batch_format_version = BatchFormatVersion(record['format_version'])
+
+    state = record['state']
+    ip_address = record['ip_address']
+    tasks = job_tasks_from_spec(record)
+    attempt_id = attempt_id_from_spec(record)
+
+    if not has_resource_available(record):
+        return None
+
     if state == 'Running':
         try:
-            resp = await request_retry_transient_errors(client_session, 'GET', f'http://{ip_address}:5000{endpoint}')
-            return await handle_running_response(resp)
+            async with await request_retry_transient_errors(
+                client_session, 'GET', f'http://{ip_address}:5000/api/v1alpha/batches/{batch_id}/jobs/{job_id}/log'
+            ) as resp:
+                return await resp.json()
         except aiohttp.ClientResponseError:
-            log.exception(f'while getting resource for {(batch_id, job_id)}')
-            return {task: None for task in tasks}
+            log.exception(f'while getting log for {(batch_id, job_id)}')
+            return {task: 'ERROR: encountered a problem while fetching the log' for task in tasks}
 
-    if state in ('Pending', 'Ready', 'Creating'):
-        return None
+    assert attempt_id is not None and state in complete_states
 
-    if state == 'Cancelled' and record['last_cancelled_attempt_id'] is None:
-        return None
-
-    assert state in ('Error', 'Failed', 'Success', 'Cancelled')
-
-    attempt_id = record['attempt_id'] or record['last_cancelled_attempt_id']
-    assert attempt_id is not None
-
-    async def _read_resource_from_cloud_storage(task):
+    async def _read_log_from_cloud_storage(task):
         try:
-            data = await cloud_storage_reader(batch_format_version, batch_id, job_id, attempt_id, task)
+            data = await file_store.read_log_file(batch_format_version, batch_id, job_id, attempt_id, task)
         except FileNotFoundError:
             id = (batch_id, job_id)
-            log.exception(f'missing file for {id} and task {task}')
-            data = None
+            log.exception(f'missing log file for {id} and task {task}')
+            data = 'ERROR: could not find log file'
         return task, data
 
-    return dict(await asyncio.gather(*[_read_resource_from_cloud_storage(task) for task in tasks]))
+    return dict(await asyncio.gather(*[_read_log_from_cloud_storage(task) for task in tasks]))
 
 
-async def _get_job_log(app, batch_id, job_id) -> Optional[Dict[str, str]]:
-    file_store: FileStore = app['file_store']
+async def _get_job_resource_usage(app, batch_id, job_id):
     record = await _get_job_record(app, batch_id, job_id)
 
-    async def handle_running_response(resp: aiohttp.ClientResponse) -> Dict[str, str]:
-        return await resp.json()
+    client_session: httpx.ClientSession = app['client_session']
+    file_store: FileStore = app['file_store']
+    batch_format_version = BatchFormatVersion(record['format_version'])
 
-    maybe_data = await _get_resource_from_record(
-        app,
-        batch_id,
-        job_id,
-        record,
-        f'/api/v1alpha/batches/{batch_id}/jobs/{job_id}/log',
-        handle_running_response,
-        file_store.read_log_file,
-    )
+    state = record['state']
+    ip_address = record['ip_address']
+    tasks = job_tasks_from_spec(record)
+    attempt_id = attempt_id_from_spec(record)
 
-    if maybe_data is None:
+    if not has_resource_available(record):
         return None
 
-    data = {}
-    for task, log in maybe_data.items():
-        if log is None:
-            log = 'ERROR: could not find file'
-        data[task] = log
-    return data
+    if state == 'Running':
+        try:
+            resp = await request_retry_transient_errors(
+                client_session,
+                'GET',
+                f'http://{ip_address}:5000/api/v1alpha/batches/{batch_id}/jobs/{job_id}/resource_usage',
+            )
+            data = await resp.json()
+            return {task: ResourceUsageMonitor.decode_to_df(base64.b64decode(encoded_df)) for task, encoded_df in data.items()}
+        except aiohttp.ClientResponseError:
+            log.exception(f'while getting resource usage for {(batch_id, job_id)}')
+            return {task: None for task in tasks}
 
+    assert attempt_id is not None and state in complete_states
 
-async def _get_job_resource_usage(app, batch_id, job_id) -> Optional[Dict[str, Optional[pd.DataFrame]]]:
-    file_store: FileStore = app['file_store']
-    record = await _get_job_record(app, batch_id, job_id)
+    async def _read_resource_usage_from_cloud_storage(task):
+        try:
+            df = await file_store.read_resource_usage_file(batch_format_version, batch_id, job_id, attempt_id, task)
+        except FileNotFoundError:
+            id = (batch_id, job_id)
+            log.exception(f'missing resource usage file for {id} and task {task}')
+            df = None
+        return task, df
 
-    async def handle_running_response(resp: aiohttp.ClientResponse) -> Dict[str, Optional[pd.DataFrame]]:
-        resource_usage = {}
-
-        reader = aiohttp.MultipartReader.from_response(resp)
-        while True:
-            part = await reader.next()  # pylint: disable=not-callable
-            if part is None:
-                break
-
-            assert isinstance(part, aiohttp.BodyPartReader)
-            task = part.filename
-            assert task in ('input', 'main', 'output'), task
-            data = await part.read()
-            resource_usage[task] = ResourceUsageMonitor.decode_to_df(data)
-
-        return resource_usage
-
-    return await _get_resource_from_record(
-        app,
-        batch_id,
-        job_id,
-        record,
-        f'/api/v1alpha/batches/{batch_id}/jobs/{job_id}/resource_usage',
-        handle_running_response,
-        file_store.read_resource_usage_file,
-    )
+    return dict(await asyncio.gather(*[_read_resource_usage_from_cloud_storage(task) for task in tasks]))
 
 
 async def _get_attributes(app, record):
@@ -1622,7 +1619,7 @@ def plot_job_durations(container_statuses: dict, batch_id: int, job_id: int):
         y='Step',
         color='Task',
         hover_data=['Step'],
-        color_discrete_sequence=px.colors.sequential.dense,
+        color_discrete_sequence=px.colors.qualitative.Prism,
         category_orders={
             'Step': ['input', 'main', 'output'],
             'Task': [
@@ -1643,44 +1640,66 @@ def plot_resource_usage(resource_usage: Optional[Dict[str, Optional[pd.DataFrame
     if resource_usage is None:
         return None
 
-    fig = make_subplots(rows=2, cols=1, subplot_titles=('CPU Usage', 'Memory'))
+    fig = make_subplots(rows=2, cols=1, subplot_titles=('CPU Usage', 'Memory (GB)'))
 
     colors = {'input': 'red', 'main': 'green', 'output': 'blue'}
+
+    max_cpu_value = 1
+    max_memory_value = 1024 * 1024
+    n_total_rows = 0
 
     for container_name, df in resource_usage.items():
         if df is None:
             continue
 
-        time = pd.to_datetime(df['time_msecs'], unit='ms')
-        mem = df['memory_in_bytes']
-        cpu = df['cpu_usage']
+        n_rows = df.shape[0]
+        n_total_rows += n_rows
+
+        time_df = pd.to_datetime(df['time_msecs'], unit='ms')
+        mem_df = df['memory_in_bytes']
+        cpu_df = df['cpu_usage']
+
+        if n_rows != 0:
+            max_cpu_value = max(max_cpu_value, cpu_df.max())
+            max_memory_value = max(max_memory_value, mem_df.max())
 
         fig.add_trace(
             go.Scatter(
-                x=time,
-                y=cpu,
+                x=time_df,
+                y=cpu_df,
                 legendgroup=container_name,
                 name=container_name,
-                mode='lines',
+                mode='markers+lines',
                 line=dict(color=colors[container_name]),
             ),
             row=1,
             col=1,
         )
+
         fig.add_trace(
             go.Scatter(
-                x=time,
-                y=mem,
+                x=time_df,
+                y=mem_df,
                 showlegend=False,
                 legendgroup=container_name,
                 name=container_name,
-                mode='lines',
+                mode='markers+lines',
                 line=dict(color=colors[container_name]),
             ),
             row=2,
             col=1,
         )
-    fig.update_layout(height=600, width=800, showlegend=True, yaxis2_tickformat='%')
+
+    fig.update_layout(
+        showlegend=True,
+        yaxis1_tickformat='%',
+        yaxis2_tickformat='s',
+        yaxis1_range=[0, 1.25 * max_cpu_value],
+        yaxis2_range=[0, 1.25 * max_memory_value],
+    )
+
+    if n_total_rows == 0:
+        return None
 
     return json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
 
