@@ -39,7 +39,7 @@ async def gs_filesystem(request):
 
 @pytest.fixture
 def bucket_and_temporary_file():
-    bucket, prefix = GoogleStorageAsyncFS.get_bucket_name(os.environ['HAIL_TEST_STORAGE_URI'])
+    bucket, prefix = GoogleStorageAsyncFS.get_bucket_and_name(os.environ['HAIL_TEST_STORAGE_URI'])
     return bucket, prefix + '/' + secrets.token_hex(16)
 
 

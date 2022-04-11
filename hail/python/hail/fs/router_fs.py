@@ -319,7 +319,7 @@ class RouterFS(FS):
             file_stat = _stat_result(False, maybe_size, path)
             if maybe_contents is not None:
                 if error_when_file_and_directory:
-                    raise ValueError(f'{path} is both a file a directory')
+                    raise ValueError(f'{path} is both a file and a directory')
                 return [file_stat, *maybe_contents]
             return [file_stat]
         if maybe_contents is None:
