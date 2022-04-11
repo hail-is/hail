@@ -456,6 +456,8 @@ class RunImageStep(Step):
         self.always_run = always_run
         self.timeout = timeout
         self.job_type = job_type
+        if self.job_type not in ('main', 'cleanup'):
+            raise BuildConfigurationError(f"{self.job_type} is not a valid type when running an image: choose from main or cleanup")
         self.job = None
 
     def wrapped_job(self):

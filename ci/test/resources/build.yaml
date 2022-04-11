@@ -280,3 +280,18 @@ steps:
       - service_base_image
       - default_ns
       - deploy_hello
+  - kind: runImage
+    name: test_cleanup_only_job
+    type: cleanup
+    image:
+      valueFrom: base_image.image
+    script: |
+      set -ex
+      kubectl get namespace | grep -v "{{ default_ns.name }}"
+      exit $?
+    serviceAccount:
+      name: admin
+      namespace:
+        valueFrom: default_ns.name
+    dependsOn:
+      - default_ns
