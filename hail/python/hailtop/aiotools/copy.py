@@ -19,7 +19,7 @@ except ImportError as e:
     if not sys.platform.startswith('win32'):
         raise e
 
-    def uvloop_install(*args, **kwargs):
+    def uvloop_install():
         pass
 
 
