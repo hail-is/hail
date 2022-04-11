@@ -90,7 +90,7 @@ RUN pip install --upgrade --no-cache-dir -r requirements.txt && \
             print(f'finished pulling image {fullname}')
 
         if '/' in fullname:
-            sync_check_shell('docker', 'push', fullname, capture_output=(not show_docker_output))
+            sync_check_exec('docker', 'push', fullname, capture_output=(not show_docker_output))
             print(f'finished pushing image {fullname}')
     finally:
         shutil.rmtree(docker_path, ignore_errors=True)

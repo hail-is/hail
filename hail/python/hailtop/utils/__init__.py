@@ -14,7 +14,7 @@ from .utils import (
     retry_all_errors_n_times, Timings)
 from .process import (
     CalledProcessError, check_shell, check_shell_output, check_exec_output,
-    sync_check_shell, sync_check_shell_output, sync_check_exec, sync_check_exec_output)
+    sync_check_shell, sync_check_shell_output, sync_check_exec)
 from .tqdm import tqdm, TqdmDisableOption
 from .rates import (
     rate_cpu_hour_to_mcpu_msec, rate_gib_hour_to_mib_msec, rate_gib_month_to_mib_msec,
@@ -40,7 +40,6 @@ __all__ = [
     'sync_check_shell',
     'sync_check_shell_output',
     'sync_check_exec',
-    'sync_check_exec_output',
     'bounded_gather',
     'grouped',
     'is_transient_error',
