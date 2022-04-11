@@ -72,17 +72,6 @@
 </script>
 {% endif %}
 
-<h2>Resource Usage</h2>
-
-{% if plot_resource_usage is not none %}
-<script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
-<div id="plotly-job-resource-usage"></div>
-<script>
-  var graph = {{ plot_resource_usage | safe }};
-  Plotly.plot('plotly-job-resource-usage', graph, {});
-</script>
-{% endif %}
-
 <table class="data-table">
   <thead>
     <tr>
@@ -121,6 +110,16 @@
     {% endfor %}
   </tbody>
 </table>
+
+{% if plot_resource_usage is not none %}
+<h2>Resource Usage</h2>
+<script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+<div id="plotly-job-resource-usage"></div>
+<script>
+  var graph = {{ plot_resource_usage | safe }};
+  Plotly.plot('plotly-job-resource-usage', graph, {});
+</script>
+{% endif %}
 
 {% if error is not none %}
 <h2>Error</h2>

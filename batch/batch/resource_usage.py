@@ -1,4 +1,5 @@
 import asyncio
+import logging
 import os
 import struct
 from typing import Optional
@@ -6,7 +7,9 @@ from typing import Optional
 import numpy as np
 import pandas as pd
 
-from hailtop.utils import periodically_call, retry_long_running, time_msecs, time_ns
+from hailtop.utils import time_msecs, time_ns
+
+log = logging.getLogger('resource_usage')
 
 
 class ResourceUsageMonitor:
@@ -92,12 +95,22 @@ class ResourceUsageMonitor:
         self.out.flush()
 
     async def __aenter__(self):
-        self.task = asyncio.ensure_future(
-            retry_long_running(f'monitor {self.container_name} resource usage', periodically_call, 5, self.measure)
-        )
+        async def periodically_measure():
+            while True:
+                try:
+                    await self.measure()
+                except asyncio.CancelledError:
+                    raise
+                except Exception:
+                    log.exception(f'while monitoring {self.container_name}')
+                finally:
+                    await asyncio.sleep(5)
+
+        self.task = asyncio.ensure_future(periodically_measure())
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         if self.task is not None:
             self.task.cancel()
+            self.task = None
         self.out.close()

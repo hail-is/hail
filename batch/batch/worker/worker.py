@@ -1162,6 +1162,7 @@ class Container:
             if offset is None:
                 return (await self.fs.read(self.log_path)).decode()
             return (await self.fs.read_from(self.log_path, offset)).decode()
+        return ''
 
     async def get_resource_usage(self) -> bytes:
         if os.path.exists(self.resource_usage_path):
@@ -1771,7 +1772,13 @@ class DockerJob(Job):
             log.exception('while deleting volumes')
 
     async def get_log(self):
-        return {name: await c.get_log() for name, c in self.containers.items()}
+        logs = {}
+        for name, container in self.containers.items():
+            c_log = await container.get_log()
+            if c_log is None:
+                c_log = ''
+            logs[name] = c_log
+        return logs
 
     async def get_resource_usage(self):
         return {name: await c.get_resource_usage() for name, c in self.containers.items()}
@@ -2505,23 +2512,11 @@ class Worker:
     async def get_job_resource_usage(self, request):
         if not self.active:
             raise web.HTTPServiceUnavailable
+
         job = self._job_from_request(request)
         resource_usage = await job.get_resource_usage()
-
-        boundary = '----WebKitFormBoundarywiBIWjWR7osAkgFI'
-
-        resp = web.StreamResponse(
-            status=200, reason='OK', headers={'Content-Type': f'multipart/mixed;boundary={boundary}'}
-        )
-        await resp.prepare(request)
-
-        with aiohttp.MultipartWriter('mixed', boundary=boundary) as mpwriter:
-            for task, data in resource_usage.items():
-                part = mpwriter.append(data)
-                part.set_content_disposition('attachment', filename=task)
-            await mpwriter.write(resp)
-
-        return resp
+        data = {task: base64.b64encode(df).decode('utf-8') for task, df in resource_usage.items()}
+        return web.json_response(data)
 
     async def get_job_status(self, request):
         if not self.active:
