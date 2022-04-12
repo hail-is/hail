@@ -1198,7 +1198,7 @@ def copy_container(
         memory_in_bytes=memory_in_bytes,
         volume_mounts=volume_mounts,
         env=[f'{job.credentials.cloud_env_name}={job.credentials.mount_path}'],
-        stdin=json.dumps(files)
+        stdin=json.dumps(files),
     )
 
 
