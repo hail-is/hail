@@ -3,7 +3,7 @@ package is.hail.expr.ir.functions
 import is.hail.asm4s._
 import is.hail.expr.ir.{EmitCodeBuilder, IEmitCode}
 import is.hail.types.physical.stypes._
-import is.hail.types.physical.stypes.concrete.{SIndexablePointer, SRNGStateValue}
+import is.hail.types.physical.stypes.concrete.{SIndexablePointer, SRNGStateStaticSizeValue}
 import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.physical.stypes.primitives._
 import is.hail.types.physical.{PBoolean, PCanonicalArray, PFloat64, PInt32, PType}
@@ -95,7 +95,7 @@ object RandomSeededFunctions extends RegistryFunctions {
 
     registerSCode3("rand_unif", TRNGState, TFloat64, TFloat64, TFloat64, {
       case (_: Type, _: SType, _: SType, _: SType) => SFloat64
-    }) { case (_, cb, rt, rngState: SRNGStateValue, min: SFloat64Value, max: SFloat64Value, errorID) =>
+    }) { case (_, cb, rt, rngState: SRNGStateStaticSizeValue, min: SFloat64Value, max: SFloat64Value, errorID) =>
       primitive(cb.memoize(rand_unif(cb, rngState.rand(cb)) * (max.value - min.value) + min.value))
     }
 

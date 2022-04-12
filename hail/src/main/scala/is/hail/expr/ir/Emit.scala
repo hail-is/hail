@@ -1280,7 +1280,7 @@ class Emit[C](
         }
 
       case RNGStateLiteral(key) =>
-        IEmitCode.present(cb, SRNGStateValue(cb, key))
+        IEmitCode.present(cb, SRNGStateStaticSizeValue(cb, key))
 
       case RNGSplit(state, dynBitstring) =>
         val stateValue = emitI(state).get(cb).asRNGState

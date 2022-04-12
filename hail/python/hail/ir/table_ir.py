@@ -149,6 +149,11 @@ class TableUnion(TableIR):
             return TableUnion(new_children)
 
         new_children = [child.handle_randomness(uid_field_name) for child in self.children]
+
+        if uid_field_name is None or not all(uid_field_name in child.typ.row_type for child in new_children):
+            new_children = [child.handle_randomness(None) for child in self.children]
+            return TableUnion(new_children)
+
         uids, _ = unzip(unpack_uid(child.typ.row_type, uid_field_name) for child in new_children)
         uid_type = unify_uid_types(uid.typ for uid in uids)
         new_children = [TableMapRows(child,

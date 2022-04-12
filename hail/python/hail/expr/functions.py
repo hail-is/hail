@@ -3715,7 +3715,7 @@ def zip(*arrays, fill_missing: bool = False) -> ArrayExpression:
     n_arrays = builtins.len(arrays)
     uids = [Env.get_uid() for _ in builtins.range(n_arrays)]
     types = [array._type.element_type for array in arrays]
-    body_ir = ir.MakeTuple([ir.Ref(uid, type) for uid, type in zip(uids, types)])
+    body_ir = ir.MakeTuple([ir.Ref(uid, type) for uid, type in builtins.zip(uids, types)])
     indices, aggregations = unify_all(*arrays)
     behavior = 'ExtendNA' if fill_missing else 'TakeMinLength'
     return construct_expr(ir.ToArray(ir.StreamZip([ir.ToStream(a._ir) for a in arrays], uids, body_ir, behavior)),
