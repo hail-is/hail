@@ -11,7 +11,7 @@ RUN hail-apt-get-install \
     rsync \
     unzip bzip2 zip tar tabix lz4 \
     vim pv
-RUN --mount=src=wheel-container.tar,target=/wheel-container.tar,ro=true \
+RUN --mount=src=wheel-container.tar,target=/wheel-container.tar \
     tar -xf wheel-container.tar && \
     pip3 install -U hail-*-py3-none-any.whl && \
     rm -rf hail-*-py3-none-any.whl
