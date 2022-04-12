@@ -345,6 +345,13 @@ class BatchPoolExecutor:
         except AttributeError:
             name = '<anonymous>'
         name = f'{name}-{secret_alnum_string(4)}'
+
+        if asyncio.iscoroutinefunction(unapplied):
+            def run_async(*args, **kwargs):
+                import asyncio
+                return asyncio.run(unapplied(args, **kwargs))
+            unapplied = run_async
+
         batch = Batch(name=self.name + '-' + name,
                       backend=self.backend,
                       default_image=self.image)

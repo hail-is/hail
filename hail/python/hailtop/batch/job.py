@@ -1,16 +1,18 @@
-import re
-
-import warnings
-import dill
-import os
+import asyncio
 import functools
 import inspect
+import os
+import re
 import textwrap
-from shlex import quote as shq
+import warnings
 from io import BytesIO
-from typing import Union, Optional, Dict, List, Set, Tuple, Callable, Any, cast
+from shlex import quote as shq
+from typing import Any, Callable, Dict, List, Optional, Set, Tuple, Union, cast
 
-from . import backend, resource as _resource, batch  # pylint: disable=cyclic-import
+import dill
+
+from . import backend, batch
+from . import resource as _resource  # pylint: disable=cyclic-import
 from .exceptions import BatchException
 from .globals import DEFAULT_SHELL
 
@@ -986,6 +988,11 @@ class PythonJob(Job):
 
         if not callable(unapplied):
             raise BatchException(f'unapplied must be a callable function. Found {type(unapplied)}.')
+
+        if asyncio.iscoroutinefunction(unapplied):
+            def run_async(*args, **kwargs):
+                return asyncio.run(unapplied(*args, **kwargs))
+            unapplied = run_async
 
         for arg in args:
             if isinstance(arg, Job):
