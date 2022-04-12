@@ -154,7 +154,7 @@ Instructions:
 
   sops --encrypt --gcp-kms projects/<gcp-project-id>/locations/global/keyRings/sops/cryptoKeys/sops-key /tmp/terraform_sa_key.json > $HAIL/infra/gcp/terraform_sa_key.enc.json
 
-  git add $HAIL/infra/gcp/auth_oauth2_client_secret.enc.json $HAIL/infra/gcp/ci_config.enc.json $HAIL/infra/gcp/terraform_sa_key.enc.json 
+  git add $HAIL/infra/gcp/global.tfvars $HAIL/infra/gcp/auth_oauth2_client_secret.enc.json $HAIL/infra/gcp/ci_config.enc.json $HAIL/infra/gcp/terraform_sa_key.enc.json 
 
   # git commit and push as desired.
   ```
