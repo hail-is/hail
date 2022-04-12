@@ -467,6 +467,94 @@ class Tests(unittest.TestCase):
     # Outside the spark backend, "logistic_regression_rows" automatically defers to the _ version.
     logreg_functions = [hl.logistic_regression_rows, hl._logistic_regression_rows_nd] if backend_name == "spark" else [hl.logistic_regression_rows]
 
+    def test_logistic_regression_rows_max_iter(self):
+        for logreg in logreg_functions:
+            import hail as hl
+            mt = hl.utils.range_matrix_table(1, 3)
+            mt = mt.annotate_entries(x=hl.literal([1, 1, 10]))
+            ht = logreg(
+                test='wald',
+                y=hl.literal([0, 0, 1])[mt.col_idx],
+                x=mt.x[mt.col_idx],
+                covariates=[1],
+                max_iterations=0
+            )
+            fit = ht.collect()[0]
+            assert fit.n_iterations == 0
+            assert not fit.exploded
+            assert not fit.converged
+
+    def test_logistic_regression_rows_max_iter_explodes(self):
+        for logreg in logreg_functions:
+            import hail as hl
+            mt = hl.utils.range_matrix_table(1, 3)
+            mt = mt.annotate_entries(x=hl.literal([1, 1, 10]))
+            ht = logreg(
+                test='wald',
+                y=hl.literal([0, 0, 1])[mt.col_idx],
+                x=mt.x[mt.col_idx],
+                covariates=[1],
+                max_iterations=100
+            )
+            fit = ht.collect()[0]
+            assert fit.n_iterations == 36
+            assert fit.exploded
+            assert not fit.converged
+
+    def test_logistic_regression_rows_max_iter_explodes_in_36_steps_for_firth(self):
+        for logreg in logreg_functions:
+            import hail as hl
+            mt = hl.utils.range_matrix_table(1, 3)
+            mt = mt.annotate_entries(x=hl.literal([1, 1, 10]))
+            ht = logreg(
+                test='firth',
+                y=hl.literal([0, 1, 1, 0])[mt.col_idx],
+                x=mt.x[mt.col_idx],
+                covariates=[1],
+                max_iterations=100
+            )
+            fit = ht.collect()[0]
+            assert fit.n_iterations == 36
+            assert fit.exploded
+            assert not fit.converged
+
+    def test_logistic_regression_rows_does_not_converge_with_105_iterations(self):
+        for logreg in logreg_functions:
+            import hail as hl
+            mt = hl.utils.range_matrix_table(1, 3)
+            mt = mt.annotate_entries(x=hl.literal([1, 3, 10]))
+            ht = hl.logistic_regression_rows(
+                test='firth',
+                y=hl.literal([0, 1, 1])[mt.col_idx],
+                x=mt.x[mt.col_idx],
+                covariates=[1],
+                max_iterations=105
+            )
+            fit = ht.collect()[0]
+            assert fit.n_iterations == 105
+            assert not fit.exploded
+            assert not fit.converged
+
+    def test_logistic_regression_rows_does_converge_with_106_iterations(self):
+        for logreg in logreg_functions:
+            import hail as hl
+            mt = hl.utils.range_matrix_table(1, 3)
+            mt = mt.annotate_entries(x=hl.literal([1, 3, 10]))
+            ht = hl.logistic_regression_rows(
+                test='firth',
+                y=hl.literal([0, 1, 1])[mt.col_idx],
+                x=mt.x[mt.col_idx],
+                covariates=[1],
+                max_iterations=106
+            )
+            fit = ht.collect()[0]
+            assert fit.beta == 19.7
+            assert fit.chi_sq == 64.6
+            assert fit.p_value == 42.1
+            assert fit.n_iterations == 106
+            assert not fit.exploded
+            assert fit.converged
+
     def test_weighted_linear_regression(self):
         covariates = hl.import_table(resource('regressionLinear.cov'),
                                      key='Sample',
@@ -1024,7 +1112,6 @@ class Tests(unittest.TestCase):
 
         assert mt.aggregate_rows(hl.agg.all(mt.foo.bar == ht[mt.row_key].bar))
 
-
     # comparing to R:
     # x = c(0, 1, 0, 0, 0, 1, 0, 0, 0, 0)
     # y = c(0, 2, 5, 3, 6, 2, 1, 1, 0, 0)
@@ -1073,6 +1160,17 @@ class Tests(unittest.TestCase):
         self.assertTrue(is_constant(results[8]))
         self.assertTrue(is_constant(results[9]))
         self.assertTrue(is_constant(results[10]))
+
+    def test_poisson_regression_max_iterations()
+        import hail as hl
+        mt = hl.utils.range_matrix_table(1, 3)
+        mt = mt.annotate_entries(x=hl.literal([1, 3, 10, 5]))
+        ht = hl.poisson_regression_rows(
+            'wald', y=hl.literal([0, 1, 1, 0])[mt.col_idx], x=mt.x[mt.col_idx], covariates=[1], max_iterations=1)
+        fit = ht.collect()[0]
+        assert fit.n_iterations == 1
+        assert not fit.converged
+        assert not fit.exploded
 
     # comparing to R:
     # x = c(0, 1, 0, 0, 0, 1, 0, 0, 0, 0)
@@ -1608,6 +1706,63 @@ class Tests(unittest.TestCase):
                 x=hl.pl_dosage(ds.PL),
                 covariates=[1.0, ds.cov.Cov1, ds.cov.Cov2],
                 logistic=True)._force_count()
+
+        hl.skat(key_expr=ds.gene,
+                weight_expr=ds.weight,
+                y=ds.pheno,
+                x=hl.pl_dosage(ds.PL),
+                covariates=[1.0, ds.cov.Cov1, ds.cov.Cov2],
+                logistic=(25, 1e-6))._force_count()
+
+    def test_skat_max_iteration_fails_explodes_in_37_steps(self):
+        mt = hl.utils.range_matrix_table(3, 3)
+        mt = mt.annotate_cols(y=hl.literal([1, 0, 1])[mt.col_idx])
+        mt = mt.annotate_entries(
+            x=hl.literal([
+                [1, 0, 0],
+                [10, 0, 0],
+                [10, 5, 1]
+            ])[mt.row_idx]
+        )
+        ht = hl.skat(
+            hl.literal(0),
+            mt.row_idx,
+            y=mt.y,
+            x=mt.x[mt.col_idx],
+            logistic=(37, 1e-10),
+            # The logistic settings are only used when fitting the null model, so we need to use a
+            # covariate that triggers nonconvergence
+            covariates=[mt.y]
+        )
+        try:
+            ht.collect()[0]
+        except FatalError as err:
+            assert 'Failed to fit logistic regression null model (MLE with covariates only): exploded at Newton iteration 37' in err.args[0]
+
+    def test_skat_max_iterations_fails_to_converge_in_fewer_than_36_steps(self):
+        mt = hl.utils.range_matrix_table(3, 3)
+        mt = mt.annotate_cols(y=hl.literal([1, 0, 1])[mt.col_idx])
+        mt = mt.annotate_entries(
+            x=hl.literal([
+                [1, 0, 0],
+                [10, 0, 0],
+                [10, 5, 1]
+            ])[mt.row_idx]
+        )
+        ht = hl.skat(
+            hl.literal(0),
+            mt.row_idx,
+            y=mt.y,
+            x=mt.x[mt.col_idx],
+            logistic=(36, 1e-10),
+            # The logistic settings are only used when fitting the null model, so we need to use a
+            # covariate that triggers nonconvergence
+            covariates=[mt.y]
+        )
+        try:
+            ht.collect()[0]
+        except FatalError as err:
+            assert 'Failed to fit logistic regression null model (MLE with covariates only): Newton iteration failed to converge' in err.args[0]
 
     def test_de_novo(self):
         mt = hl.import_vcf(resource('denovo.vcf'))

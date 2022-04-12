@@ -1,7 +1,9 @@
 import builtins
 import itertools
+import functools
 import math
-from typing import Dict, Callable
+from typing import Dict, Callable, Optional, Union, Tuple
+import builtins
 
 import hail
 import hail as hl
@@ -17,8 +19,8 @@ from hail.matrixtable import MatrixTable
 from hail.methods.misc import require_biallelic, require_row_key_variant
 from hail.stats import LinearMixedModel
 from hail.table import Table
-from hail.typecheck import (typecheck, nullable, numeric, oneof, sequenceof,
-                            enumeration, anytype)
+from hail.typecheck import (typecheck, nullable, numeric, oneof, sized_tupleof,
+                            sequenceof, enumeration, anytype)
 from hail.utils import wrap_to_list, new_temp_file, FatalError
 from hail.utils.java import Env, info, warning
 from . import pca
@@ -602,8 +604,17 @@ def _linear_regression_rows_nd(y, x, covariates, block_size=16, weights=None, pa
            y=oneof(expr_float64, sequenceof(expr_float64)),
            x=expr_float64,
            covariates=sequenceof(expr_float64),
-           pass_through=sequenceof(oneof(str, Expression)))
-def logistic_regression_rows(test, y, x, covariates, pass_through=()) -> hail.Table:
+           pass_through=sequenceof(oneof(str, Expression)),
+           max_iterations=nullable(int),
+           tolerance=float)
+def logistic_regression_rows(test,
+                             y,
+                             x,
+                             covariates,
+                             pass_through=(),
+                             *,
+                             max_iterations: Optional[int] = None,
+                             tolerance: float = 1e-6) -> hail.Table:
     r"""For each row, test an input variable for association with a
     binary response variable using logistic regression.
 
@@ -628,6 +639,16 @@ def logistic_regression_rows(test, y, x, covariates, pass_through=()) -> hail.Ta
     ...     y=[dataset.pheno.is_case, dataset.pheno.is_case],  # where pheno values are 0, 1, or missing
     ...     x=dataset.GT.n_alt_alleles(),
     ...     covariates=[1, dataset.pheno.age, dataset.pheno.is_female])
+
+    As above but with at most 100 Newton iterations and a stricter-than-default tolerance of 1e-8:
+
+    >>> result_ht = hl.logistic_regression_rows(
+    ...     test='wald',
+    ...     y=[dataset.pheno.is_case, dataset.pheno.is_case],  # where pheno values are 0, 1, or missing
+    ...     x=dataset.GT.n_alt_alleles(),
+    ...     covariates=[1, dataset.pheno.age, dataset.pheno.is_female],
+    ...     max_iterations=100,
+    ...     tolerance=1e-8)
 
     Warning
     -------
@@ -704,19 +725,19 @@ def logistic_regression_rows(test, y, x, covariates, pass_through=()) -> hail.Ta
     ================ =================== ======= ===============================
     Wald, LRT, Firth `fit.n_iterations`  int32   number of iterations until
                                                  convergence, explosion, or
-                                                 reaching the max (25 for
-                                                 Wald, LRT; 100 for Firth)
+                                                 reaching the max (by default,
+                                                 25 for Wald, LRT; 100 for Firth)
     Wald, LRT, Firth `fit.converged`      bool    ``True`` if iteration converged
     Wald, LRT, Firth `fit.exploded`       bool    ``True`` if iteration exploded
     ================ =================== ======= ===============================
 
     We consider iteration to have converged when every coordinate of
-    :math:`\beta` changes by less than :math:`10^{-6}`. For Wald and LRT,
-    up to 25 iterations are attempted; in testing we find 4 or 5 iterations
-    nearly always suffice. Convergence may also fail due to explosion,
-    which refers to low-level numerical linear algebra exceptions caused by
-    manipulating ill-conditioned matrices. Explosion may result from (nearly)
-    linearly dependent covariates or complete separation_.
+    :math:`\beta` changes by less than :math:`10^{-6}` by default. For Wald and
+    LRT, up to 25 iterations are attempted by default; in testing we find 4 or 5
+    iterations nearly always suffice. Convergence may also fail due to
+    explosion, which refers to low-level numerical linear algebra exceptions
+    caused by manipulating ill-conditioned matrices. Explosion may result from
+    (nearly) linearly dependent covariates or complete separation_.
 
     .. _separation: https://en.wikipedia.org/wiki/Separation_(statistics)
 
@@ -764,14 +785,14 @@ def logistic_regression_rows(test, y, x, covariates, pass_through=()) -> hail.Ta
 
     The Firth test reduces bias from small counts and resolves the issue of
     separation by penalizing maximum likelihood estimation by the `Jeffrey's
-    invariant prior <https://en.wikipedia.org/wiki/Jeffreys_prior>`__. This
-    test is slower, as both the null and full model must be fit per variant,
-    and convergence of the modified Newton method is linear rather than
-    quadratic. For Firth, 100 iterations are attempted for the null model
-    and, if that is successful, for the full model as well. In testing we
+    invariant prior <https://en.wikipedia.org/wiki/Jeffreys_prior>`__. This test
+    is slower, as both the null and full model must be fit per variant, and
+    convergence of the modified Newton method is linear rather than
+    quadratic. For Firth, 100 iterations are attempted by default for the null
+    model and, if that is successful, for the full model as well. In testing we
     find 20 iterations nearly always suffices. If the null model fails to
-    converge, then the `logreg.fit` fields reflect the null model;
-    otherwise, they reflect the full model.
+    converge, then the `logreg.fit` fields reflect the null model; otherwise,
+    they reflect the full model.
 
     See
     `Recommended joint and meta-analysis strategies for case-control association testing of single low-count variants <http://www.ncbi.nlm.nih.gov/pmc/articles/PMC4049324/>`__
@@ -814,13 +835,23 @@ def logistic_regression_rows(test, y, x, covariates, pass_through=()) -> hail.Ta
         Non-empty list of column-indexed covariate expressions.
     pass_through : :obj:`list` of :class:`str` or :class:`.Expression`
         Additional row fields to include in the resulting table.
+    max_iterations : :obj:`int`
+        The maximum number of iterations.
+    tolerance : :obj:`float`
+        Convergence is defined by a change in the beta vector of less than
+        `tolerance`.
 
     Returns
     -------
     :class:`.Table`
+
     """
+    if max_iterations is None:
+        max_iterations = 25 if test != 'firth' else 100
+
     if not isinstance(Env.backend(), SparkBackend):
-        return _logistic_regression_rows_nd(test, y, x, covariates, pass_through)
+        return _logistic_regression_rows_nd(
+            test, y, x, covariates, pass_through, max_iterations=max_iterations)
 
     if len(covariates) == 0:
         raise ValueError('logistic regression requires at least one covariate expression')
@@ -859,7 +890,9 @@ def logistic_regression_rows(test, y, x, covariates, pass_through=()) -> hail.Ta
         'yFields': y_field,
         'xField': x_field_name,
         'covFields': cov_field_names,
-        'passThrough': [x for x in row_fields if x not in mt.row_key]
+        'passThrough': [x for x in row_fields if x not in mt.row_key],
+        'maxIterations': max_iterations,
+        'tolerance': tolerance
     }
 
     result = Table(ir.MatrixToTableApply(mt._mir, config))
@@ -884,7 +917,7 @@ def nd_max(hl_nd):
     return hl.max(hl_nd.reshape(-1)._data_array())
 
 
-def logreg_fit(X, y, null_fit=None, max_iter=25, tol=1E-6):
+def logreg_fit(X, y, null_fit, max_iter: int, tol: float):
     assert(X.ndim == 2)
     assert(y.ndim == 1)
     # X is samples by covs.
@@ -949,18 +982,18 @@ def logreg_fit(X, y, null_fit=None, max_iter=25, tol=1E-6):
 
         return (hl.case()
                 .when(exploded | hl.is_nan(delta_b[0]), hl.struct(b=na('b'), score=na('score'), fisher=na('fisher'), num_iter=cur_iter, log_lkhd=log_lkhd, converged=False, exploded=True))
-                .when(cur_iter > max_iter, hl.struct(b=na('b'), score=na('score'), fisher=na('fisher'), num_iter=cur_iter, log_lkhd=log_lkhd, converged=False, exploded=False))
+                .when(cur_iter == max_iter, hl.struct(b=na('b'), score=na('score'), fisher=na('fisher'), num_iter=cur_iter, log_lkhd=log_lkhd, converged=False, exploded=False))
                 .when(max_delta_b < tol, hl.struct(b=b, score=score, fisher=fisher, num_iter=cur_iter, log_lkhd=log_lkhd, converged=True, exploded=False))
                 .default(compute_next_iter(cur_iter, b, mu, score, fisher)))
 
-    res_struct = hl.experimental.loop(search, search_return_type, 1, b, mu, score, fisher)
+    res_struct = hl.experimental.loop(search, search_return_type, 0, b, mu, score, fisher)
 
     return res_struct
 
 
-def wald_test(X, y, null_fit, link):
+def wald_test(X, y, null_fit, link, max_iter: int, tol: float):
     assert link == "logistic"
-    fit = logreg_fit(X, y, null_fit)
+    fit = logreg_fit(X, y, null_fit, max_iter=max_iter, tol=tol)
 
     se = hl.nd.diagonal(hl.nd.inv(fit.fisher)).map(lambda e: hl.sqrt(e))
     z = fit.b / se
@@ -973,9 +1006,9 @@ def wald_test(X, y, null_fit, link):
         fit=hl.struct(n_iterations=fit.num_iter, converged=fit.converged, exploded=fit.exploded))
 
 
-def lrt_test(X, y, null_fit, link):
+def lrt_test(X, y, null_fit, link, max_iter: int, tol: float):
     assert link == "logistic"
-    fit = logreg_fit(X, y, null_fit)
+    fit = logreg_fit(X, y, null_fit, max_iter=max_iter, tol=tol)
 
     chi_sq = hl.if_else(~fit.converged, hl.missing(hl.tfloat64), 2 * (fit.log_lkhd - null_fit.log_lkhd))
     p = hl.pchisqtail(chi_sq, X.shape[1] - null_fit.b.shape[0])
@@ -1023,7 +1056,7 @@ def logistic_score_test(X, y, null_fit, link):
     return hl.struct(chi_sq_stat=chi_sq, p_value=p)
 
 
-def firth_test(X, y, null_fit, link):
+def firth_test(X, y, null_fit, link, max_iter: int, tol: float):
     assert link == "logistic"
     raise ValueError("firth not yet supported on lowered backends")
 
@@ -1032,8 +1065,17 @@ def firth_test(X, y, null_fit, link):
            y=oneof(expr_float64, sequenceof(expr_float64)),
            x=expr_float64,
            covariates=sequenceof(expr_float64),
-           pass_through=sequenceof(oneof(str, Expression)))
-def _logistic_regression_rows_nd(test, y, x, covariates, pass_through=()) -> hail.Table:
+           pass_through=sequenceof(oneof(str, Expression)),
+           max_iterations=nullable(int),
+           tolerance=float)
+def _logistic_regression_rows_nd(test,
+                                 y,
+                                 x,
+                                 covariates,
+                                 pass_through=(),
+                                 *,
+                                 max_iterations: Optional[int] = None,
+                                 tolerance: float = 1e-6) -> hail.Table:
     r"""For each row, test an input variable for association with a
     binary response variable using logistic regression.
 
@@ -1249,6 +1291,9 @@ def _logistic_regression_rows_nd(test, y, x, covariates, pass_through=()) -> hai
     -------
     :class:`.Table`
     """
+    if max_iterations is None:
+        max_iterations = 25 if test != 'firth' else 100
+
     if len(covariates) == 0:
         raise ValueError('logistic regression requires at least one covariate expression')
 
@@ -1297,18 +1342,19 @@ def _logistic_regression_rows_nd(test, y, x, covariates, pass_through=()) -> hai
     ht = ht.annotate_globals(y_nd=hl.nd.array(ht[sample_field_name].map(lambda sample_struct: [sample_struct[y_name] for y_name in y_field_names])))
 
     # Fit null models, which means doing a logreg fit with just the covariates for each phenotype.
-    null_models = hl.range(num_y_fields).map(lambda idx: logreg_fit(ht.cov_nd, ht.y_nd[:, idx]))
+    null_models = hl.range(num_y_fields).map(
+        lambda idx: logreg_fit(ht.cov_nd, ht.y_nd[:, idx], None, max_iter=max_iterations, tol=tolerance))
     ht = ht.annotate_globals(nulls=null_models)
     ht = ht.transmute(x=hl.nd.array(mean_impute(ht.entries[x_field_name])))
 
     if test == "wald":
-        test_func = wald_test
+        test_func = functools.partial(wald_test, max_iter=max_iterations, tol=tolerance)
     elif test == "lrt":
-        test_func = lrt_test
+        test_func = functools.partial(lrt_test, max_iter=max_iterations, tol=tolerance)
     elif test == "score":
         test_func = logistic_score_test
     elif test == "firth":
-        test_func = firth_test
+        test_func = functools.partial(firth_test, max_iter=max_iterations, tol=tolerance)
     else:
         raise ValueError(f"Illegal test type {test}")
 
@@ -1328,8 +1374,17 @@ def _logistic_regression_rows_nd(test, y, x, covariates, pass_through=()) -> hai
            y=expr_float64,
            x=expr_float64,
            covariates=sequenceof(expr_float64),
-           pass_through=sequenceof(oneof(str, Expression)))
-def poisson_regression_rows(test, y, x, covariates, pass_through=()) -> Table:
+           pass_through=sequenceof(oneof(str, Expression)),
+           max_iterations=int,
+           tolerance=float)
+def poisson_regression_rows(test,
+                            y,
+                            x,
+                            covariates,
+                            pass_through=(),
+                            *,
+                            max_iterations: int = 25,
+                            tolerance: float = 1e-6) -> Table:
     r"""For each row, test an input variable for association with a
     count response variable using `Poisson regression <https://en.wikipedia.org/wiki/Poisson_regression>`__.
 
@@ -1393,7 +1448,9 @@ def poisson_regression_rows(test, y, x, covariates, pass_through=()) -> Table:
         'yField': y_field_name,
         'xField': x_field_name,
         'covFields': cov_field_names,
-        'passThrough': [x for x in row_fields if x not in mt.row_key]
+        'passThrough': [x for x in row_fields if x not in mt.row_key],
+        'maxIterations': max_iterations,
+        'tolerance': tolerance
     }
 
     return Table(ir.MatrixToTableApply(mt._mir, config)).persist()
@@ -1445,12 +1502,19 @@ def linear_mixed_regression_rows(entry_expr,
            y=expr_float64,
            x=expr_float64,
            covariates=sequenceof(expr_float64),
-           logistic=bool,
+           logistic=oneof(bool, sized_tupleof(nullable(int), nullable(float))),
            max_size=int,
            accuracy=numeric,
            iterations=int)
-def skat(key_expr, weight_expr, y, x, covariates, logistic=False,
-         max_size=46340, accuracy=1e-6, iterations=10000) -> Table:
+def skat(key_expr,
+         weight_expr,
+         y,
+         x,
+         covariates,
+         logistic: Union[bool, Tuple[int, float]] = False,
+         max_size: int = 46340,
+         accuracy: float = 1e-6,
+         iterations: int = 10000) -> Table:
     r"""Test each keyed group of rows for association by linear or logistic
     SKAT test.
 
@@ -1572,8 +1636,11 @@ def skat(key_expr, weight_expr, y, x, covariates, logistic=False,
         Entry-indexed expression for input variable.
     covariates : :obj:`list` of :class:`.Float64Expression`
         List of column-indexed covariate expressions.
-    logistic : :obj:`bool`
-        If true, use the logistic test rather than the linear test.
+    logistic : :obj:`bool` or :object:`tuple` of :obj:`int` and :obj:`float`
+        If false, use the linear test. If true, use the logistic test with no
+        more than 25 logistic iterations and a convergence tolerance of 1e-6. If
+        a tuple is given, use the logistic test with the tuple elements as the
+        maximum nubmer of iterations and convergence tolerance, respectively.
     max_size : :obj:`int`
         Maximum size of group on which to run the test.
     accuracy : :obj:`float`
@@ -1585,6 +1652,7 @@ def skat(key_expr, weight_expr, y, x, covariates, logistic=False,
     -------
     :class:`.Table`
         Table of SKAT results.
+
     """
     mt = matrix_table_source('skat/x', x)
     check_entry_indexed('skat/x', x)
@@ -1619,6 +1687,19 @@ def skat(key_expr, weight_expr, y, x, covariates, logistic=False,
                                    key_field_name: key_expr},
                         entry_exprs=entry_expr)
 
+    if logistic is True:
+        use_logistic = True
+        max_iterations = 25
+        tolerance = 1e-6
+    elif logistic is False:
+        use_logistic = False
+        max_iterations = 0
+        tolerance = 0.0
+    else:
+        assert isinstance(logistic, tuple) and len(logistic) == 2
+        use_logistic = True
+        max_iterations, tolerance = logistic
+
     config = {
         'name': 'Skat',
         'keyField': key_field_name,
@@ -1626,10 +1707,12 @@ def skat(key_expr, weight_expr, y, x, covariates, logistic=False,
         'xField': x_field_name,
         'yField': y_field_name,
         'covFields': cov_field_names,
-        'logistic': logistic,
+        'logistic': use_logistic,
         'maxSize': max_size,
         'accuracy': accuracy,
-        'iterations': iterations
+        'iterations': iterations,
+        'logistic_max_iterations': max_iterations,
+        'logistic_tolerance': tolerance
     }
 
     return Table(ir.MatrixToTableApply(mt._mir, config))
