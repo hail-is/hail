@@ -369,6 +369,7 @@ object StreamJoin {
     l: String, r: String,
     joinF: IR,
     joinType: String,
+    requiresMemoryManagement: Boolean,
     rightKeyIsDistinct: Boolean = false
   ): IR = {
     val lType = coerce[TStream](left.typ)
@@ -401,8 +402,8 @@ object StreamJoin {
         flatMapIR(joined) { x =>
           Let(l, GetField(x, "left"), bindIR(GetField(GetField(x, "rightGroup"), groupField)) { rightElts =>
             joinType match {
-              case "left" | "outer" => StreamMap(ToStream(If(IsNA(rightElts), missingSingleton, rightElts)), r, joinF)
-              case "right" | "inner" => StreamMap(ToStream(rightElts), r, joinF)
+              case "left" | "outer" => StreamMap(ToStream(If(IsNA(rightElts), missingSingleton, rightElts), requiresMemoryManagement), r, joinF)
+              case "right" | "inner" => StreamMap(ToStream(rightElts, requiresMemoryManagement), r, joinF)
             }
           })
         }
