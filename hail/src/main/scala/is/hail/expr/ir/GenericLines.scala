@@ -16,7 +16,7 @@ import scala.annotation.meta.param
 trait CloseableIterator[T] extends Iterator[T] with AutoCloseable
 
 object GenericLines {
-  def read(fs: FS, contexts: IndexedSeq[Any], gzAsBGZ: Boolean): GenericLines = {
+  def read(fs: FS, contexts: IndexedSeq[Any], gzAsBGZ: Boolean, filePerPartition: Boolean): GenericLines = {
 
     val body: (FS, Any) => CloseableIterator[GenericLine] = { (fs: FS, context: Any) =>
       val contextRow = context.asInstanceOf[Row]
@@ -32,18 +32,18 @@ object GenericLines {
           val rawIS = fs.openNoCompression(file)
           val codec = fs.getCodecFromPath(file, gzAsBGZ)
           if (codec == null) {
-            assert(split)
+            assert(split || filePerPartition)
             rawIS.seek(start)
             rawIS
           } else if (codec == BGZipCompressionCodec) {
-            assert(split)
+            assert(split || filePerPartition)
             splitCompressed = true
             val bgzIS = new BGzipInputStream(rawIS, start, end, SplittableCompressionCodec.READ_MODE.BYBLOCK)
             new ProxyInputStream(bgzIS) with Positioned {
               def getPosition: Long = bgzIS.getVirtualOffset
             }
           } else {
-            assert(!split)
+            assert(!split || filePerPartition)
             new CountingInputStream(codec.makeInputStream(rawIS)) with Positioned {
               def getPosition: Long = getByteCount
             }
@@ -244,7 +244,8 @@ object GenericLines {
     blockSizeInMB: Option[Int],
     minPartitions: Option[Int],
     gzAsBGZ: Boolean,
-    allowSerialRead: Boolean
+    allowSerialRead: Boolean,
+    filePerPartition: Boolean = false
   ): GenericLines = {
     val fileStatuses = fileStatuses0.filter(_.getLen > 0)
     val totalSize = fileStatuses.map(_.getLen).sum
@@ -267,7 +268,7 @@ object GenericLines {
       val codec = fs.getCodecFromPath(status.getPath, gzAsBGZ)
 
       val splittable = codec == null || codec == BGZipCompressionCodec
-      if (splittable) {
+      if (splittable && !filePerPartition) {
         var fileNParts = ((totalPartitions.toDouble * size) / totalSize + 0.5).toInt
         if (fileNParts == 0)
           fileNParts = 1
@@ -283,7 +284,7 @@ object GenericLines {
             Row(i, status.getPath, start, end, true)
           }
       } else {
-        if (!allowSerialRead)
+        if (!allowSerialRead && !filePerPartition)
           fatal(s"Cowardly refusing to read file serially: ${ status.getPath }.")
 
         Iterator.single {
@@ -292,7 +293,7 @@ object GenericLines {
       }
     }
 
-    GenericLines.read(fs, contexts, gzAsBGZ)
+    GenericLines.read(fs, contexts, gzAsBGZ, filePerPartition)
   }
 
   def collect(fs: FS, lines: GenericLines): IndexedSeq[String] = {

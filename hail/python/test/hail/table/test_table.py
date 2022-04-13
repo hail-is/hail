@@ -1056,8 +1056,6 @@ Exception in thread "main" java.lang.RuntimeException: invalid sort order: b
         t = t.key_by(rev_idx=-t.idx)
         assert t.take(10) == [hl.Struct(idx=idx, rev_idx=-idx) for idx in range(19, 9, -1)]
 
-    @fails_service_backend()
-    @fails_local_backend()
     def test_filter_partitions(self):
         ht = hl.utils.range_table(23, n_partitions=8)
         self.assertEqual(ht.n_partitions(), 8)
@@ -1129,7 +1127,7 @@ Caused by: java.lang.NullPointerException
         self.assertTrue(t1.key_by().union(t2.key_by(), t3.key_by())
                         ._same(hl.utils.range_table(15).key_by()))
 
-    @skip_when_service_backend(message='very slow')
+    @skip_when_service_backend('intermittent failure due to too large code')
     def test_nested_union(self):
         N = 10
         M = 200
@@ -1585,7 +1583,6 @@ E                   	at is.hail.backend.service.ServiceBackend.execute(ServiceBa
 
         assert ht.f0.collect() == [None, None, 'gene5', 'gene4', 'gene3']
 
-    @fails_service_backend()
     def test_unicode_ordering(self):
         a = hl.literal(["é", "e"])
         ht = hl.utils.range_table(1, 1)
@@ -1597,13 +1594,19 @@ E                   	at is.hail.backend.service.ServiceBackend.execute(ServiceBa
         hl.import_vcf(resource('sample.vcf')).rows().key_by('locus').write(path)
         hl.read_table(path).select()._force_count()
 
-    @fails_service_backend()
-    @fails_local_backend()
     def test_repartition_empty_key(self):
         data = [{'x': i} for i in range(1000)]
         ht = hl.Table.parallelize(data, hl.tstruct(x=hl.tint32), key=None, n_partitions=11)
         assert ht.naive_coalesce(4)._same(ht)
         assert ht.repartition(3, shuffle=False)._same(ht)
+
+    def test_read_with_partitions(self):
+        tmp = new_temp_file()
+        ht = hl.utils.range_table(444)
+        ht.write(tmp)
+        ht2 = hl.read_table(tmp, _n_partitions=50)
+        assert ht2.idx.collect() == list(range(444))
+        assert ht2.n_partitions() == 50
 
     @fails_service_backend()
     def test_path_collision_error(self):
@@ -1718,20 +1721,15 @@ def test_maybe_flexindex_table_by_expr_prefix_interval_match():
     assert t1._maybe_flexindex_table_by_expr((hl.str(mt1.row_idx), mt1.row_idx)) is None
 
 
-widths = [256, 512, 1024, 2048, 3072]
-
-
-@skip_when_service_backend('hangs')
-def test_can_process_wide_tables():
-    for w in widths:
-        print(f'working on width {w}')
-        path = resource(f'width_scale_tests/{w}.tsv')
-        ht = hl.import_table(path, impute=False)
-        out_path = new_temp_file(extension='ht')
-        ht.write(out_path)
-        ht = hl.read_table(out_path)
-        ht.annotate(another_field=5)._force_count()
-        ht.annotate_globals(g=ht.collect(_localize=False))._force_count()
+@pytest.mark.parametrize("width", [256, 512, 1024, 2048, pytest.param(3072, marks=pytest.mark.xfail)])
+def test_can_process_wide_tables(width):
+    path = resource(f'width_scale_tests/{width}.tsv')
+    ht = hl.import_table(path, impute=False)
+    out_path = new_temp_file(extension='ht')
+    ht.write(out_path)
+    ht = hl.read_table(out_path)
+    ht.annotate(another_field=5)._force_count()
+    ht.annotate_globals(g=ht.collect(_localize=False))._force_count()
 
 
 def create_width_scale_files():
@@ -1919,8 +1917,6 @@ def test_lowered_shuffle():
     ht = ht.order_by(-ht.idx)
     assert ht.aggregate(hl.agg.take(ht.idx, 3)) == [99, 98, 97]
 
-@fails_service_backend()
-@fails_local_backend()
 def test_read_partitions():
     ht = hl.utils.range_table(100, 3)
     path = new_temp_file()
@@ -1928,8 +1924,6 @@ def test_read_partitions():
     assert hl.read_table(path, _n_partitions=10).n_partitions() == 10
 
 
-@fails_service_backend()
-@fails_local_backend()
 def test_read_partitions_with_missing_key():
     ht = hl.utils.range_table(100, 3).key_by(idx=hl.missing(hl.tint32))
     path = new_temp_file()

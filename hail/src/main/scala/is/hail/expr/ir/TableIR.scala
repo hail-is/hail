@@ -107,7 +107,6 @@ object TableReader {
   def fromJValue(fs: FS, jv: JValue): TableReader = {
     (jv \ "name").extract[String] match {
       case "TableNativeReader" => TableNativeReader.fromJValue(fs, jv)
-      case "TextTableReader" => TextTableReader.fromJValue(fs, jv)
       case "TableFromBlockMatrixNativeReader" => TableFromBlockMatrixNativeReader.fromJValue(fs, jv)
       case "StringTableReader" => StringTableReader.fromJValue(fs, jv)
       case "AvroTableReader" => AvroTableReader.fromJValue(jv)
@@ -124,7 +123,7 @@ object LoweredTableReader {
     contextType: Type,
     contexts: IndexedSeq[Any],
     keyType: TStruct,
-    keyPType: (TStruct) => PStruct,
+    bodyPType: (TStruct) => PStruct,
     keys: (TStruct) => (Region, HailClassLoader, FS, Any) => Iterator[Long]
   ): LoweredTableReaderCoercer = {
     assert(key.nonEmpty)
@@ -173,7 +172,7 @@ object LoweredTableReader {
         ReadPartition(ctx, keyType, new PartitionIteratorLongReader(
           keyType,
           contextType,
-          (requestedType: Type) => keyPType(requestedType.asInstanceOf[TStruct]),
+          (requestedType: Type) => bodyPType(requestedType.asInstanceOf[TStruct]),
           (requestedType: Type) => keys(requestedType.asInstanceOf[TStruct]))),
         "key",
         MakeStruct(FastIndexedSeq(
@@ -398,7 +397,7 @@ object LoweredTableReader {
             ToStream(Literal(TArray(contextType), partOrigIndex.map(i => contexts(i)))),
             body)
 
-          val rowRType = TypeWithRequiredness(tableStage.rowType).asInstanceOf[RStruct]
+          val rowRType = VirtualTypeWithReq(bodyPType(tableStage.rowType)).r.asInstanceOf[RStruct]
 
           ctx.backend.lowerDistributedSort(ctx,
             tableStage,

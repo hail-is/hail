@@ -5,6 +5,7 @@ import json
 import logging
 import os
 import random
+import re
 import signal
 import traceback
 from functools import wraps
@@ -62,6 +63,7 @@ from ..cloud.resource_utils import (
     memory_to_worker_type,
     valid_machine_types,
 )
+from ..cloud.utils import ACCEPTABLE_QUERY_JAR_URL_PREFIX
 from ..exceptions import (
     BatchOperationAlreadyCompletedError,
     BatchUserError,
@@ -665,6 +667,14 @@ async def create_jobs(request: aiohttp.web.Request, userdata: dict):
     return await _create_jobs(userdata, job_specs, batch_id, app)
 
 
+NON_HEX_DIGIT = re.compile('[^A-Fa-f0-9]')
+
+
+def assert_is_sha_1_hex_string(revision: str):
+    if len(revision) != 40 or NON_HEX_DIGIT.search(revision):
+        raise web.HTTPBadRequest(reason=f'revision must be 40 character hexadecimal encoded SHA-1, got: {revision}')
+
+
 async def _create_jobs(userdata: dict, job_specs: dict, batch_id: int, app: aiohttp.web.Application):
     db: Database = app['db']
     file_store: FileStore = app['file_store']
@@ -760,14 +770,25 @@ WHERE user = %s AND id = %s AND NOT deleted;
                     raise web.HTTPBadRequest(reason='cannot specify cpu and memory with machine_type')
 
                 if spec['process']['type'] == 'jvm':
-                    if 'cpu' in resources:
-                        raise web.HTTPBadRequest(reason='jvm jobs may not specify cpu')
-                    if 'memory' in resources and resources['memory'] != 'standard':
-                        raise web.HTTPBadRequest(reason='jvm jobs may not specify memory')
+                    jvm_requested_cpu = parse_cpu_in_mcpu(resources.get('cpu', BATCH_JOB_DEFAULT_CPU))
+                    if 'cpu' in resources and jvm_requested_cpu not in (1000, 8000):
+                        raise web.HTTPBadRequest(reason='invalid cpu for jvm jobs. must be 1 or 8')
+                    if 'memory' in resources and resources['memory'] == 'lowmem':
+                        raise web.HTTPBadRequest(reason='jvm jobs cannot be on lowmem machines')
                     if 'storage' in resources:
                         raise web.HTTPBadRequest(reason='jvm jobs may not specify storage')
                     if machine_type is not None:
                         raise web.HTTPBadRequest(reason='jvm jobs may not specify machine_type')
+                    if spec['process']['jar_spec']['type'] == 'git_revision':
+                        revision = spec['process']['jar_spec']['value']
+                        assert_is_sha_1_hex_string(revision)
+                        spec['process']['jar_spec']['type'] = 'jar_url'
+                        spec['process']['jar_spec']['value'] = ACCEPTABLE_QUERY_JAR_URL_PREFIX + '/' + revision + '.jar'
+                    else:
+                        assert spec['process']['jar_spec']['type'] == 'jar_url'
+                        jar_url = spec['process']['jar_spec']['value']
+                        if not jar_url.startswith(ACCEPTABLE_QUERY_JAR_URL_PREFIX):
+                            raise web.HTTPBadRequest(reason=f'unacceptable JAR url: {jar_url}')
 
                 req_memory_bytes: Optional[int]
                 if machine_type is None:
@@ -1309,7 +1330,7 @@ async def _close_batch(app: aiohttp.web.Application, batch_id: int, user: str, d
     client_session: httpx.ClientSession = app['client_session']
     try:
         now = time_msecs()
-        await db.check_call_procedure('CALL close_batch(%s, %s);', (batch_id, now))
+        await db.check_call_procedure('CALL close_batch(%s, %s);', (batch_id, now), 'close_batch')
     except CallError as e:
         # 2: wrong number of jobs
         if e.rv['rc'] == 2:
@@ -1548,10 +1569,9 @@ async def ui_get_job(request, userdata, batch_id):
     }
     job_status = dictfix.dictfix(job_status, job_status_spec)
     container_statuses = job_status['container_statuses']
-    step_statuses = [container_statuses['input'], container_statuses['main'], container_statuses['output']]
     step_errors = {step: status['error'] for step, status in container_statuses.items() if status is not None}
 
-    for status in step_statuses:
+    for status in container_statuses.values():
         # backwards compatibility
         if status and status['short_error'] is None and status['container_status']['out_of_memory']:
             status['short_error'] = 'out of memory'
@@ -1610,7 +1630,7 @@ async def ui_get_job(request, userdata, batch_id):
             y='Step',
             color='Task',
             hover_data=['Step'],
-            color_discrete_sequence=px.colors.sequential.dense,
+            color_discrete_sequence=px.colors.qualitative.Prism,
             category_orders={
                 'Step': ['input', 'main', 'output'],
                 'Task': ['pulling', 'setting up overlay', 'setting up network', 'running', 'uploading_log'],
@@ -1627,7 +1647,7 @@ async def ui_get_job(request, userdata, batch_id):
         'job': job,
         'job_log': job_log,
         'attempts': attempts,
-        'step_statuses': step_statuses,
+        'container_statuses': container_statuses,
         'job_specification': job_specification,
         'job_status_str': json.dumps(job, indent=2),
         'step_errors': step_errors,

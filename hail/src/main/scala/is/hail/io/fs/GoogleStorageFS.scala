@@ -23,8 +23,8 @@ object GoogleStorageFS {
     val scheme = uri.getScheme
     assert(scheme != null && scheme == "gs", (uri.getScheme, filename))
 
-    val bucket = uri.getHost
-    assert(bucket != null)
+    val bucket = uri.getAuthority
+    assert(bucket != null, (filename, uri.toString(), uri.getScheme, uri.getAuthority, uri.getRawAuthority(), uri.getUserInfo()))
 
     var path = uri.getPath
     if (path.nonEmpty && path.head == '/')
@@ -54,26 +54,33 @@ object GoogleStorageFileStatus {
 class GoogleStorageFS(val serviceAccountKey: Option[String] = None) extends FS {
   import GoogleStorageFS._
 
-  @transient private lazy val storage: Storage = serviceAccountKey match {
-    case None =>
-      log.info("Initializing google storage client from latent credentials")
-      StorageOptions.newBuilder()
-        .build()
-        .getService
-    case Some(keyData) =>
-      log.info("Initializing google storage client from service account key")
-      StorageOptions.newBuilder()
-        .setCredentials(
-          ServiceAccountCredentials.fromStream(new ByteArrayInputStream(keyData.getBytes)))
-        .build()
-        .getService
+  @transient private lazy val storage: Storage = {
+    val transportOptions = StorageOptions.getDefaultHttpTransportOptions().toBuilder()
+      .setConnectTimeout(5000)
+      .setReadTimeout(5000)
+      .build()
+    serviceAccountKey match {
+      case None =>
+        log.info("Initializing google storage client from latent credentials")
+        StorageOptions.newBuilder()
+          .build()
+          .getService
+      case Some(keyData) =>
+        log.info("Initializing google storage client from service account key")
+        StorageOptions.newBuilder()
+          .setCredentials(
+            ServiceAccountCredentials.fromStream(new ByteArrayInputStream(keyData.getBytes)))
+          .setTransportOptions(transportOptions)
+          .build()
+          .getService
+    }
   }
 
   def asCacheable(): CacheableGoogleStorageFS = new CacheableGoogleStorageFS(serviceAccountKey, null)
 
   def asCacheable(sessionID: String): CacheableGoogleStorageFS = new CacheableGoogleStorageFS(serviceAccountKey, sessionID)
 
-  def openNoCompression(filename: String): SeekableDataInputStream = {
+  def openNoCompression(filename: String): SeekableDataInputStream = retryTransientErrors {
     val (bucket, path) = getBucketPath(filename)
 
     val is: SeekableInputStream = new FSSeekableInputStream {
@@ -114,7 +121,7 @@ class GoogleStorageFS(val serviceAccountKey: Option[String] = None) extends FS {
     new WrappedSeekableDataInputStream(is)
   }
 
-  def createNoCompression(filename: String): PositionedDataOutputStream = {
+  def createNoCompression(filename: String): PositionedDataOutputStream = retryTransientErrors {
     val (bucket, path) = getBucketPath(filename)
 
     val blobId = BlobId.of(bucket, path)
@@ -147,7 +154,9 @@ class GoogleStorageFS(val serviceAccountKey: Option[String] = None) extends FS {
     new WrappedPositionedDataOutputStream(os)
   }
 
-  def delete(filename: String, recursive: Boolean): Unit = {
+  def mkDir(dirname: String): Unit = ()
+
+  def delete(filename: String, recursive: Boolean): Unit = retryTransientErrors {
     val (bucket, path) = getBucketPath(filename)
     if (recursive) {
       val it = retryTransientErrors {
@@ -158,18 +167,24 @@ class GoogleStorageFS(val serviceAccountKey: Option[String] = None) extends FS {
         storage.delete(it.next().getBlobId)
       }
     } else {
+      // Storage.delete is idempotent. it returns a Boolean which is false if the file did not exist
       storage.delete(bucket, path)
     }
   }
 
-  def glob(filename: String): Array[FileStatus] = {
+  def glob(filename: String): Array[FileStatus] = retryTransientErrors {
     var (bucket, path) = getBucketPath(filename)
     path = dropTrailingSlash(path)
 
     globWithPrefix(prefix = s"gs://$bucket", path = path)
   }
 
-  def listStatus(filename: String): Array[FileStatus] = {
+  def globAll(filenames: Iterable[String]): Array[String] =
+    globAllStatuses(filenames).map(_.getPath)
+
+  def globAllStatuses(filenames: Iterable[String]): Array[FileStatus] = filenames.flatMap(glob).toArray
+
+  def listStatus(filename: String): Array[FileStatus] = retryTransientErrors {
     var (bucket, path) = getBucketPath(filename)
     if (!path.endsWith("/"))
       path = path + "/"
@@ -184,7 +199,7 @@ class GoogleStorageFS(val serviceAccountKey: Option[String] = None) extends FS {
       .toArray
   }
 
-  def fileStatus(filename: String): FileStatus = {
+  def fileStatus(filename: String): FileStatus = retryTransientErrors {
     var (bucket, path) = getBucketPath(filename)
     path = dropTrailingSlash(path)
 

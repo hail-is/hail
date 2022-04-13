@@ -1,5 +1,8 @@
 include ../config.mk
 
+QUERY_STORAGE_URI := $(shell kubectl get secret global-config --template={{.data.query_storage_uri}} | base64 --decode)
+TEST_STORAGE_URI := $(shell kubectl get secret global-config --template={{.data.test_storage_uri}} | base64 --decode)
+
 EXTRA_PYTHONPATH := ../hail/python:../gear
 PYTHON := PYTHONPATH=$${PYTHONPATH:+$${PYTHONPATH}:}$(EXTRA_PYTHONPATH) python3
 
@@ -12,54 +15,57 @@ jar:
 	cp ../hail/build/libs/hail-all-spark.jar ./hail.jar
 
 HAIL_TEST_GCS_TOKEN := $(shell whoami)
+HAIL_TEST_RESOURCES_PREFIX := $(TEST_STORAGE_URI)/$(HAIL_TEST_GCS_TOKEN)/hail-test-resources
+HAIL_TEST_RESOURCES_DIR := $(HAIL_TEST_RESOURCES_PREFIX)/test/resources/
+HAIL_DOCTEST_DATA_DIR := $(HAIL_TEST_RESOURCES_PREFIX)/doctest/data/
 HAIL_REVISION := $(shell git rev-parse HEAD)
 ifeq ($(NAMESPACE),default)
-JAR_LOCATION := gs://hail-query/jars/$(HAIL_TEST_GCS_TOKEN)/$(HAIL_REVISION).jar
+ifeq ($(DEPLOY_JAR_FOR_PUBLIC_USE),true)
+# This should only be used if the normal CI deploy process fails and you need to upload a JAR to the
+# expected location for our users.
+JAR_LOCATION := $(QUERY_STORAGE_URI)/jars/$(HAIL_REVISION).jar
 else
-JAR_LOCATION := gs://hail-test-dmk9z/$(HAIL_TEST_GCS_TOKEN)/jars/$(HAIL_REVISION).jar
+JAR_LOCATION := $(QUERY_STORAGE_URI)/jars/$(HAIL_TEST_GCS_TOKEN)/$(HAIL_REVISION).jar
+endif
+else
+JAR_LOCATION := $(TEST_STORAGE_URI)/$(NAMESPACE)/jars/$(HAIL_REVISION).jar
 endif
 
-.PHONY: push-jar
-push-jar: jar
+.PHONY: upload-query-jar
+upload-query-jar: jar
+	! [ -z $(NAMESPACE) ]  # call this like: make deploy NAMESPACE=default
 	gsutil cp ./hail.jar "$(JAR_LOCATION)"
 	echo >last_uploaded_jar "$(JAR_LOCATION)"
 
 upload-resources-dir:
-	python3 -m hailtop.aiotools.copy 'null' '[ \
-{"from": "../hail/src/test/resources/", \
- "to": "gs://hail-test-dmk9z/$(HAIL_TEST_GCS_TOKEN)/hail-test-resources/test/resources/"}, \
-{"from": "../hail/python/hail/docs/data/", \
- "to": "gs://hail-test-dmk9z/$(HAIL_TEST_GCS_TOKEN)/hail-test-resources/doctest/data/"}]'
+	! [ -z $(NAMESPACE) ]  # call this like: make deploy NAMESPACE=default
+	python3 -m hailtop.aiotools.copy 'null' '[{"from":"../hail/src/test/resources","to":"$(HAIL_TEST_RESOURCES_DIR)"},{"from":"../hail/python/hail/docs/data","to":"$(HAIL_DOCTEST_DATA_DIR)"}]'
 	touch upload-resources-dir
 
 .PHONY: test
-test: push-jar upload-resources-dir
-	HAIL_QUERY_BACKEND=serivce \
-	  HAIL_TEST_RESOURCES_DIR='gs://hail-test-dmk9z/$(HAIL_TEST_GCS_TOKEN)/hail-test-resources/test/resources/' \
-    HAIL_DOCTEST_DATA_DIR='gs://hail-test-dmk9z/$(HAIL_TEST_GCS_TOKEN)/hail-test-resources/doctest/data/' \
-    HAIL_SHA='$(HAIL_REVISION)-$(TOKEN)' \
-    HAIL_JAR_URL=$$(cat last_uploaded_jar) \
-    $(MAKE) -C ../hail pytest
+test: upload-query-jar upload-resources-dir
+	HAIL_QUERY_BACKEND=batch \
+	HAIL_TEST_RESOURCES_DIR='$(HAIL_TEST_RESOURCES_DIR)' \
+	HAIL_DOCTEST_DATA_DIR='$(HAIL_DOCTEST_DATA_DIR)' \
+	HAIL_JAR_URL=$$(cat last_uploaded_jar) \
+	$(MAKE) -C ../hail pytest
 
 .PHONY: ipython
-ipython: push-jar
-	HAIL_QUERY_BACKEND=serivce \
-    HAIL_SHA='$(HAIL_REVISION)-$(TOKEN)' \
-    HAIL_JAR_URL=$$(cat last_uploaded_jar) \
-    ipython
+ipython: upload-query-jar
+	HAIL_QUERY_BACKEND=batch \
+	HAIL_JAR_URL=$$(cat last_uploaded_jar) \
+	ipython
 
 .PHONY: test-no-deps
 test-no-deps:
-	HAIL_QUERY_BACKEND=service \
-    HAIL_TEST_RESOURCES_DIR='gs://hail-test-dmk9z/$(HAIL_TEST_GCS_TOKEN)/hail-test-resources/test/resources/' \
-    HAIL_DOCTEST_DATA_DIR='gs://hail-test-dmk9z/$(HAIL_TEST_GCS_TOKEN)/hail-test-resources/doctest/data/' \
-    HAIL_SHA='$(HAIL_REVISION)-$(TOKEN)' \
-    HAIL_JAR_URL=$$(cat last_uploaded_jar) \
-    $(MAKE) -C ../hail pytest
+	HAIL_QUERY_BACKEND=batch \
+	HAIL_TEST_RESOURCES_DIR='$(HAIL_TEST_RESOURCES_DIR)' \
+	HAIL_DOCTEST_DATA_DIR='$(HAIL_DOCTEST_DATA_DIR)' \
+	HAIL_JAR_URL=$$(cat last_uploaded_jar) \
+	$(MAKE) -C ../hail pytest
 
 .PHONY: ipython-no-deps
 ipython-no-deps:
-	HAIL_QUERY_BACKEND=service \
-    HAIL_SHA='$(HAIL_REVISION)-$(TOKEN)' \
-    HAIL_JAR_URL=$$(cat last_uploaded_jar) \
-    ipython
+	HAIL_QUERY_BACKEND=batch \
+	HAIL_JAR_URL=$$(cat last_uploaded_jar) \
+	ipython

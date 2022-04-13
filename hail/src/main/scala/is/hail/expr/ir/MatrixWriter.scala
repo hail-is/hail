@@ -5,7 +5,7 @@ import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.backend.ExecuteContext
 import is.hail.expr.ir.functions.MatrixWriteBlockMatrix
-import is.hail.expr.ir.lowering.{LowererUnsupportedOperation, TableStage}
+import is.hail.expr.ir.lowering.{LowererUnsupportedOperation, RVDToTableStage, TableStage}
 import is.hail.expr.ir.streams.StreamProducer
 import is.hail.expr.{JSONAnnotationImpex, Nat}
 import is.hail.io._
@@ -13,19 +13,22 @@ import is.hail.io.fs.FS
 import is.hail.io.gen.{ExportBGEN, ExportGen}
 import is.hail.io.index.StagedIndexWriter
 import is.hail.io.plink.ExportPlink
-import is.hail.io.vcf.ExportVCF
+import is.hail.io.vcf.{ExportVCF, TabixVCF}
 import is.hail.linalg.BlockMatrix
 import is.hail.rvd.{IndexSpec, RVDPartitioner, RVDSpecMaker}
 import is.hail.types.encoded.{EBaseStruct, EBlockMatrixNDArray, EType}
-import is.hail.types.physical.stypes.{EmitType, SCode}
+import is.hail.types.physical.stypes.{EmitType, SValue}
 import is.hail.types.physical.stypes.interfaces._
+import is.hail.types.physical.stypes.primitives._
 import is.hail.types.physical.{PBooleanRequired, PCanonicalBaseStruct, PCanonicalString, PCanonicalStruct, PInt64, PStruct, PType}
 import is.hail.types.virtual._
 import is.hail.types._
-import is.hail.types.physical.stypes.concrete.SStackStruct
+import is.hail.types.physical.stypes.concrete.{SJavaString, SJavaArrayString, SJavaArrayStringValue, SStackStruct}
+import is.hail.types.physical.stypes.interfaces.{SIndexableValue, SBaseStructValue}
 import is.hail.types.physical.stypes.primitives.{SBooleanValue, SInt64Value}
 import is.hail.utils._
 import is.hail.utils.richUtils.ByteTrackingOutputStream
+import is.hail.variant.{ReferenceGenome, Call}
 import org.apache.spark.sql.Row
 import org.json4s.jackson.JsonMethods
 import org.json4s.{DefaultFormats, Formats, ShortTypeHints}
@@ -385,7 +388,418 @@ case class MatrixVCFWriter(
   metadata: Option[VCFMetadata] = None,
   tabix: Boolean = false
 ) extends MatrixWriter {
-  def apply(ctx: ExecuteContext, mv: MatrixValue): Unit = ExportVCF(ctx, mv, path, append, exportType, metadata, tabix)
+  def apply(ctx: ExecuteContext, mv: MatrixValue): Unit = {
+    val appendStr = getAppendHeaderValue(ctx.fs)
+    val tv = mv.toTableValue
+    val ts = RVDToTableStage(tv.rvd, tv.globals.toEncodedLiteral(ctx.theHailClassLoader))
+    val tl = TableLiteral(tv, ctx.theHailClassLoader)
+    CompileAndEvaluate(ctx,
+      lower(LowerMatrixIR.colsFieldName, MatrixType.entriesIdentifier, mv.typ.colKey,
+        ctx, ts, tl, BaseTypeWithRequiredness(tv.typ).asInstanceOf[RTable], Map()))
+  }
+
+  override def canLowerEfficiently: Boolean = true
+  override def lower(colsFieldName: String, entriesFieldName: String, colKey: IndexedSeq[String],
+      ctx: ExecuteContext, ts: TableStage, t: TableIR, r: RTable, relationalLetsAbove: Map[String, IR]): IR = {
+    require(exportType != ExportType.PARALLEL_COMPOSABLE)
+
+    val tm = MatrixType.fromTableType(t.typ, colsFieldName, entriesFieldName, colKey)
+    tm.requireRowKeyVariant()
+    tm.requireColKeyString()
+    ExportVCF.checkFormatSignature(tm.entryType)
+
+    val ext = ctx.fs.getCodecExtension(path)
+
+    val folder = if (exportType == ExportType.CONCATENATED)
+      ctx.createTmpPath("write-vcf-concatenated")
+    else
+      path
+
+    val appendStr = getAppendHeaderValue(ctx.fs)
+
+    val writeHeader = exportType == ExportType.PARALLEL_HEADER_IN_SHARD
+    val partAppend = appendStr.filter(_ => writeHeader)
+    val partMetadata = metadata.filter(_ => writeHeader)
+    val lineWriter = VCFPartitionWriter(tm, entriesFieldName, writeHeader = exportType == ExportType.PARALLEL_HEADER_IN_SHARD,
+      partAppend, partMetadata, tabix && exportType != ExportType.CONCATENATED)
+
+    ts.mapContexts { oldCtx =>
+      val d = digitsNeeded(ts.numPartitions)
+      val partFiles = Literal(TArray(TString), Array.tabulate(ts.numPartitions)(i => s"$folder/${ partFile(d, i) }$ext").toFastIndexedSeq)
+
+      zip2(oldCtx, ToStream(partFiles), ArrayZipBehavior.AssertSameLength) { (ctxElt, pf) =>
+        MakeStruct(FastSeq(
+          "oldCtx" -> ctxElt,
+          "partFile" -> pf))
+      }
+    }(GetField(_, "oldCtx")).mapCollectWithContextsAndGlobals(relationalLetsAbove) { (rows, ctxRef) =>
+      val ctx = MakeStruct(FastSeq(
+        "cols" -> GetField(ts.globals, colsFieldName),
+        "partFile" -> GetField(ctxRef, "partFile")))
+      WritePartition(rows, ctx, lineWriter)
+    }{ (parts, globals) =>
+      val ctx = MakeStruct(FastSeq("cols" -> GetField(globals, colsFieldName), "partFiles" -> parts))
+      val commit = VCFExportFinalizer(tm, path, appendStr, metadata, exportType, tabix)
+      Begin(FastIndexedSeq(WriteMetadata(ctx, commit)))
+    }
+  }
+
+  private def getAppendHeaderValue(fs: FS): Option[String] = append.map { f =>
+    using(fs.open(f)) { s =>
+      val sb = new StringBuilder
+      scala.io.Source.fromInputStream(s)
+        .getLines()
+        .filterNot(_.isEmpty)
+        .foreach { line =>
+          sb.append(line)
+          sb += '\n'
+        }
+      sb.result()
+    }
+  }
+}
+
+case class VCFPartitionWriter(typ: MatrixType, entriesFieldName: String, writeHeader: Boolean,
+    append: Option[String], metadata: Option[VCFMetadata], tabix: Boolean) extends PartitionWriter {
+  val ctxType: Type = TStruct("cols" -> TArray(typ.colType), "partFile" -> TString)
+
+  if (typ.rowType.hasField("info")) {
+    typ.rowType.field("info").typ match {
+      case _: TStruct =>
+      case t =>
+        warn(s"export_vcf found row field 'info' of type $t, but expected type 'Struct'. Emitting no INFO fields.")
+    }
+  } else {
+    warn(s"export_vcf found no row field 'info'. Emitting no INFO fields.")
+  }
+
+  val formatFieldOrder: Array[Int] = typ.entryType.fieldIdx.get("GT") match {
+    case Some(i) => (i +: typ.entryType.fields.filter(fd => fd.name != "GT").map(_.index)).toArray
+    case None => typ.entryType.fields.indices.toArray
+  }
+  val formatFieldString = formatFieldOrder.map(i => typ.entryType.fields(i).name).mkString(":")
+  val missingFormatStr = if (typ.entryType.size > 0 && typ.entryType.types(formatFieldOrder(0)) == TCall)
+    "./."
+    else
+      "."
+
+  val locusIdx = typ.rowType.fieldIdx("locus")
+  val allelesIdx = typ.rowType.fieldIdx("alleles")
+  val (idExists, idIdx) = ExportVCF.lookupVAField(typ.rowType, "rsid", "ID", Some(TString))
+  val (qualExists, qualIdx) = ExportVCF.lookupVAField(typ.rowType, "qual", "QUAL", Some(TFloat64))
+  val (filtersExists, filtersIdx) = ExportVCF.lookupVAField(typ.rowType, "filters", "FILTERS", Some(TSet(TString)))
+  val (infoExists, infoIdx) = ExportVCF.lookupVAField(typ.rowType, "info", "INFO", None)
+
+  def returnType: Type = TString
+  def unionTypeRequiredness(r: TypeWithRequiredness, ctxType: TypeWithRequiredness, streamType: RIterable): Unit = {
+    r.union(ctxType.required)
+    r.union(streamType.required)
+  }
+
+  final def consumeStream(ctx: ExecuteContext, cb: EmitCodeBuilder, stream: StreamProducer,
+      context: EmitCode, region: Value[Region]): IEmitCode = {
+    val mb = cb.emb
+    context.toI(cb).map(cb) { case ctx: SBaseStructValue =>
+      val filename = ctx.loadField(cb, "partFile").get(cb, "partFile can't be missing").asString.loadString(cb)
+
+      val os = cb.memoize(cb.emb.create(filename))
+      if (writeHeader) {
+        val sampleIds = ctx.loadField(cb, "cols").get(cb).asIndexable
+        val stringSampleIds = cb.memoize(Code.newArray[String](sampleIds.loadLength()))
+        sampleIds.forEachDefined(cb) { case (cb, i, colv: SBaseStructValue) =>
+          val s = colv.subset(typ.colKey: _*).loadField(cb, 0).get(cb).asString
+          cb += (stringSampleIds(i) = s.loadString(cb))
+        }
+
+        val headerStr = Code.invokeScalaObject6[TStruct, TStruct, ReferenceGenome, Option[String], Option[VCFMetadata], Array[String], String](
+          ExportVCF.getClass, "makeHeader",
+          mb.getType[TStruct](typ.rowType), mb.getType[TStruct](typ.entryType),
+          mb.getReferenceGenome(typ.referenceGenome), mb.getObject(append),
+          mb.getObject(metadata), stringSampleIds)
+        cb += os.invoke[Array[Byte], Unit]("write", headerStr.invoke[Array[Byte]]("getBytes"))
+        cb += os.invoke[Int, Unit]("write", '\n')
+      }
+
+      stream.memoryManagedConsume(region, cb) { cb =>
+        consumeElement(cb, stream.element, os, stream.elementRegion)
+      }
+
+      cb += os.invoke[Unit]("close")
+
+      if (tabix) {
+          cb += Code.invokeScalaObject2[FS, String, Unit](TabixVCF.getClass, "apply", cb.emb.getFS, filename)
+      }
+
+      SJavaString.construct(cb, filename)
+    }
+  }
+
+  def consumeElement(cb: EmitCodeBuilder, element: EmitCode, os: Value[OutputStream], region: Value[Region]): Unit = {
+    def _writeC(cb: EmitCodeBuilder, code: Code[Int]) = { cb += os.invoke[Int, Unit]("write", code) }
+    def _writeB(cb: EmitCodeBuilder, code: Code[Array[Byte]]) = { cb += os.invoke[Array[Byte], Unit]("write", code) }
+    def _writeS(cb: EmitCodeBuilder, code: Code[String]) = { _writeB(cb, code.invoke[Array[Byte]]("getBytes")) }
+    def writeValue(cb: EmitCodeBuilder, value: SValue) = value match {
+      case v: SInt32Value => _writeS(cb, v.value.toS)
+      case v: SInt64Value =>
+        cb.ifx(v.value > Int.MaxValue || v.value <  Int.MinValue, cb._fatal(
+          "Cannot convert Long to Int if value is greater than Int.MaxValue (2^31 - 1) ",
+          "or less than Int.MinValue (-2^31). Found ", v.value.toS))
+        _writeS(cb, v.value.toS)
+      case v: SFloat32Value =>
+        cb.ifx(Code.invokeStatic1[java.lang.Float, Float, Boolean]("isNaN", v.value),
+          _writeC(cb, '.'),
+          _writeS(cb, Code.invokeScalaObject2[String, Float, String](ExportVCF.getClass, "fmtFloat", "%.6g", v.value)))
+      case v: SFloat64Value =>
+        cb.ifx(Code.invokeStatic1[java.lang.Double, Double, Boolean]("isNaN", v.value),
+          _writeC(cb, '.'),
+          _writeS(cb, Code.invokeScalaObject2[String, Double, String](ExportVCF.getClass, "fmtDouble", "%.6g", v.value)))
+      case v: SStringValue =>
+        _writeB(cb, v.toBytes(cb).loadBytes(cb))
+      case v: SCallValue =>
+        val ploidy = v.ploidy(cb)
+        val phased = v.isPhased(cb)
+        cb.ifx(ploidy.ceq(0), cb._fatal("VCF spec does not support 0-ploid calls."))
+        cb.ifx(ploidy.ceq(1) , cb._fatal("VCF spec does not support phased haploid calls."))
+        val c = v.canonicalCall(cb)
+        _writeS(cb, Code.invokeScalaObject1[Int, String](Call.getClass, "toString", c))
+      case _ =>
+        fatal(s"VCF does not support ${value.st}")
+    }
+
+    def writeIterable(cb: EmitCodeBuilder, it: SIndexableValue, delim: Int) =
+      it.forEachDefinedOrMissing(cb)({ (cb, i) =>
+        cb.ifx(i.cne(0), _writeC(cb, delim))
+        _writeC(cb, '.')
+      }, { (cb, i, value) =>
+        cb.ifx(i.cne(0), _writeC(cb, delim))
+        writeValue(cb, value)
+      })
+
+    def writeGenotype(cb: EmitCodeBuilder, gt: SBaseStructValue) = {
+      val end = cb.newLocal[Int]("lastDefined", -1)
+      val Lend = CodeLabel()
+      formatFieldOrder.zipWithIndex.reverse.foreach { case (idx, pos) =>
+        cb.ifx(!gt.isFieldMissing(cb, idx), {
+          cb.assign(end, pos)
+          cb.goto(Lend)
+        })
+      }
+
+      cb.define(Lend)
+
+      val Lout = CodeLabel()
+
+      cb.ifx(end < 0, {
+        _writeS(cb, missingFormatStr)
+        cb.goto(Lout)
+      })
+
+      formatFieldOrder.zipWithIndex.foreach { case (idx, pos) =>
+        if (pos != 0)
+          _writeC(cb, ':')
+
+        gt.loadField(cb, idx).consume(cb, {
+          if (gt.st.fieldTypes(idx).virtualType == TCall)
+            _writeS(cb, "./.")
+          else
+            _writeC(cb, '.')
+        }, {
+          case value: SIndexableValue =>
+            writeIterable(cb, value, ',')
+          case value =>
+            writeValue(cb, value)
+        })
+
+        cb.ifx(end.ceq(pos), cb.goto(Lout))
+      }
+
+      cb.define(Lout)
+    }
+
+    def writeC(code: Code[Int]) = _writeC(cb, code)
+    def writeB(code: Code[Array[Byte]]) = _writeB(cb, code)
+    def writeS(code: Code[String]) = _writeS(cb, code)
+
+    val elt = element.toI(cb).get(cb).asBaseStruct
+    val locus = elt.loadField(cb, locusIdx).get(cb).asLocus
+    // CHROM
+    writeB(locus.contig(cb).toBytes(cb).loadBytes(cb))
+    // POS
+    writeC('\t')
+    writeS(locus.position(cb).toS)
+
+    // ID
+    writeC('\t')
+    if (idExists)
+      elt.loadField(cb, idIdx).consume(cb, writeC('.'), { case id: SStringValue =>
+        writeB(id.toBytes(cb).loadBytes(cb))
+      })
+    else
+      writeC('.')
+
+    // REF
+    writeC('\t')
+    val alleles = elt.loadField(cb, allelesIdx).get(cb).asIndexable
+    writeB(alleles.loadElement(cb, 0).get(cb).asString.toBytes(cb).loadBytes(cb))
+
+    // ALT
+    writeC('\t')
+    cb.ifx(alleles.loadLength() > 1,
+      {
+        val i = cb.newLocal[Int]("i")
+        cb.forLoop(cb.assign(i, 1), i < alleles.loadLength(), cb.assign(i, i + 1), {
+          cb.ifx(i.cne(1), writeC(','))
+          writeB(alleles.loadElement(cb, i).get(cb).asString.toBytes(cb).loadBytes(cb))
+        })
+      },
+      writeC('.'))
+
+    // QUAL
+    writeC('\t')
+    if (qualExists)
+      elt.loadField(cb, qualIdx).consume(cb, writeC('.'), { qual =>
+        writeS(Code.invokeScalaObject2[String, Double, String](ExportVCF.getClass, "fmtDouble", "%.2f", qual.asDouble.value))
+      })
+    else
+      writeC('.')
+
+    // FILTER
+    writeC('\t')
+    if (filtersExists)
+      elt.loadField(cb, filtersIdx).consume(cb, writeC('.'), { case filters: SIndexableValue =>
+        cb.ifx(filters.loadLength().ceq(0), writeS("PASS"), {
+          writeIterable(cb, filters, ';')
+        })
+      })
+    else
+      writeC('.')
+
+    // INFO
+    writeC('\t')
+    if (infoExists) {
+      val wroteInfo = cb.newLocal[Boolean]("wroteInfo", false)
+
+      elt.loadField(cb, infoIdx).consume(cb, { /* do nothing */ }, { case info: SBaseStructValue =>
+        var idx = 0
+        while (idx < info.st.size) {
+          val field = info.st.virtualType.fields(idx)
+          info.loadField(cb, idx).consume(cb, { /* do nothing */ }, {
+            case infoArray: SIndexableValue if infoArray.st.elementType.virtualType != TBoolean =>
+              cb.ifx(infoArray.loadLength() > 0, {
+                cb.ifx(wroteInfo, writeC(';'))
+                writeS(field.name)
+                writeC('=')
+                writeIterable(cb, infoArray, ',')
+                cb.assign(wroteInfo, true)
+              })
+            case infoFlag: SBooleanValue =>
+              cb.ifx(infoFlag.value, {
+                cb.ifx(wroteInfo, writeC(';'))
+                writeS(field.name)
+                cb.assign(wroteInfo, true)
+              })
+            case info =>
+              cb.ifx(wroteInfo, writeC(';'))
+              writeS(field.name)
+              writeC('=')
+              writeValue(cb, info)
+              cb.assign(wroteInfo, true)
+          })
+          idx += 1
+        }
+      })
+
+      cb.ifx(!wroteInfo, writeC('.'))
+    } else {
+      writeC('.')
+    }
+
+    // FORMAT
+    val genotypes = elt.loadField(cb, entriesFieldName).get(cb).asIndexable
+    cb.ifx(genotypes.loadLength() > 0, {
+      writeC('\t')
+      writeS(formatFieldString)
+      genotypes.forEachDefinedOrMissing(cb)({ (cb, _) =>
+        _writeC(cb, '\t')
+        _writeS(cb, missingFormatStr)
+      }, { case (cb, _, gt: SBaseStructValue) =>
+        _writeC(cb, '\t')
+        writeGenotype(cb, gt)
+      })
+    })
+
+    writeC('\n')
+  }
+}
+
+case class VCFExportFinalizer(typ: MatrixType, outputPath: String, append: Option[String],
+    metadata: Option[VCFMetadata], exportType: String, tabix: Boolean) extends MetadataWriter {
+  def annotationType: Type = TStruct("cols" -> TArray(typ.colType), "partFiles" -> TArray(TString))
+  private def header(cb: EmitCodeBuilder, annotations: SBaseStructValue): Code[String] = {
+    val mb = cb.emb
+    val sampleIds = annotations.loadField(cb, "cols").get(cb).asIndexable
+    val stringSampleIds = cb.memoize(Code.newArray[String](sampleIds.loadLength()))
+    sampleIds.forEachDefined(cb) { case (cb, i, colv: SBaseStructValue) =>
+      val s = colv.subset(typ.colKey: _*).loadField(cb, 0).get(cb).asString
+      cb += (stringSampleIds(i) = s.loadString(cb))
+    }
+    Code.invokeScalaObject6[TStruct, TStruct, ReferenceGenome, Option[String], Option[VCFMetadata], Array[String], String](
+      ExportVCF.getClass, "makeHeader",
+      mb.getType[TStruct](typ.rowType), mb.getType[TStruct](typ.entryType),
+      mb.getReferenceGenome(typ.referenceGenome), mb.getObject(append),
+      mb.getObject(metadata), stringSampleIds)
+  }
+
+  def writeMetadata(writeAnnotations: => IEmitCode, cb: EmitCodeBuilder, region: Value[Region]): Unit = {
+    val ctx: ExecuteContext = cb.emb.ctx
+    val ext = ctx.fs.getCodecExtension(outputPath)
+
+    val annotations = writeAnnotations.get(cb).asBaseStruct
+
+    exportType match {
+      case ExportType.CONCATENATED =>
+        val headerStr = header(cb, annotations)
+
+        val partPaths = annotations.loadField(cb, "partFiles").get(cb)
+        val files = partPaths.castTo(cb, region, SJavaArrayString(true), false)
+        val headerFilePath = ctx.createTmpPath("header", ext)
+        val os = cb.memoize(cb.emb.create(const(headerFilePath)))
+        cb += os.invoke[Array[Byte], Unit]("write", headerStr.invoke[Array[Byte]]("getBytes"))
+        cb += os.invoke[Int, Unit]("write", '\n')
+        cb += os.invoke[Unit]("close")
+
+        val partFiles = files.asInstanceOf[SJavaArrayStringValue].array
+        val jFiles = cb.memoize(Code.newArray[String](partFiles.length + 1))
+        cb += (jFiles(0) = const(headerFilePath))
+        cb += Code.invokeStatic5[System, Any, Int, Any, Int, Int, Unit](
+          "arraycopy", partFiles /*src*/, 0 /*srcPos*/, jFiles /*dest*/, 1 /*destPos*/, partFiles.length /*len*/)
+
+        cb += cb.emb.getFS.invoke[Array[String], String, Unit]("concatenateFiles", jFiles, const(outputPath))
+
+        val i = cb.newLocal[Int]("i")
+        cb.forLoop(cb.assign(i, 0), i < jFiles.length, cb.assign(i, i + 1), {
+          cb += cb.emb.getFS.invoke[String, Boolean, Unit]("delete", jFiles(i), const(false))
+        })
+
+        if (tabix) {
+          cb += Code.invokeScalaObject2[FS, String, Unit](TabixVCF.getClass, "apply", cb.emb.getFS, const(outputPath))
+        }
+
+      case ExportType.PARALLEL_HEADER_IN_SHARD =>
+        cb += cb.emb.getFS.invoke[String, Unit]("touch", const(outputPath).concat("/_SUCCESS"))
+
+      case ExportType.PARALLEL_SEPARATE_HEADER =>
+        val headerFilePath = s"$outputPath/header$ext"
+        val headerStr = header(cb, annotations)
+
+        val os = cb.memoize(cb.emb.create(const(headerFilePath)))
+        cb += os.invoke[Array[Byte], Unit]("write", headerStr.invoke[Array[Byte]]("getBytes"))
+        cb += os.invoke[Int, Unit]("write", '\n')
+        cb += os.invoke[Unit]("close")
+
+        cb += cb.emb.getFS.invoke[String, Unit]("touch", const(outputPath).concat("/_SUCCESS"))
+    }
+  }
 }
 
 case class MatrixGENWriter(

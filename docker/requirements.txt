@@ -10,10 +10,11 @@ async-timeout==4.0.2
 asyncinit==0.2.4
 azure-identity==1.8.0
 azure-storage-blob==12.8.1
-black==22.1.0
+black==22.3.0
 boto3==1.21.13
 botocore==1.24.13
 curlylint==0.12.0
+click==8.0.4
 decorator==4.4.0
 dictdiffer==0.8.1
 dill>=0.3.1.1,<0.4
@@ -22,9 +23,9 @@ flake8==4.0.1
 Flask-Cors==3.0.10
 Flask-Sockets==0.2.1
 Flask==2.0.3
-gcsfs==2021.*
 gidgethub==4.1.0
 google-api-python-client==1.7.10
+google-auth-oauthlib==0.4.6
 google-cloud-logging==1.12.1
 humanize==1.0.0
 hurry.filesize==0.9

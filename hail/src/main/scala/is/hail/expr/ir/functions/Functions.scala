@@ -6,6 +6,7 @@ import is.hail.expr.ir._
 import is.hail.types._
 import is.hail.utils._
 import is.hail.asm4s.coerce
+import is.hail.backend.ExecuteContext
 import is.hail.experimental.ExperimentalFunctions
 import is.hail.types.physical._
 import is.hail.types.physical.stypes.{EmitType, SCode, SType, SValue}
@@ -80,6 +81,39 @@ object IRFunctionRegistry {
         Subst(body,
           BindingEnv(Env[IR](argNames.asScala.zip(args): _*)))
       })
+  }
+
+  def pyRegisterIRForServiceBackend(
+    ctx: ExecuteContext,
+    name: String,
+    typeParamStrs: Array[String],
+    argNames: Array[String],
+    argTypeStrs: Array[String],
+    returnType: String,
+    bodyStr: String
+  ): Unit = {
+    requireJavaIdentifier(name)
+
+    val typeParameters = typeParamStrs.map(IRParser.parseType).toFastIndexedSeq
+    val valueParameterTypes = argTypeStrs.map(IRParser.parseType).toFastIndexedSeq
+    val refMap = argNames.zip(valueParameterTypes).toMap
+    val body = IRParser.parse_value_ir(
+      bodyStr,
+      IRParserEnvironment(ctx, refMap, Map())
+    )
+
+    userAddedFunctions += ((name, (body.typ, typeParameters, valueParameterTypes)))
+    addIR(
+      name,
+      typeParameters,
+      valueParameterTypes,
+      IRParser.parseType(returnType),
+      false,
+      { (_, args, _) =>
+        Subst(body,
+          BindingEnv(Env[IR](argNames.zip(args): _*)))
+      }
+    )
   }
 
   def removeIRFunction(
@@ -487,6 +521,10 @@ abstract class RegistryFunctions {
   def registerWrappedScalaFunction3(name: String, a1: Type, a2: Type, a3: Type, returnType: Type,
     pt: (Type, SType, SType, SType) => SType)(cls: Class[_], method: String): Unit =
     registerWrappedScalaFunction(name, Array(a1, a2, a3), returnType, unwrappedApply(pt))(cls, method)
+
+  def registerWrappedScalaFunction4(name: String, a1: Type, a2: Type, a3: Type, a4: Type, returnType: Type,
+                                    pt: (Type, SType, SType, SType, SType) => SType)(cls: Class[_], method: String): Unit =
+    registerWrappedScalaFunction(name, Array(a1, a2, a3, a4), returnType, unwrappedApply(pt))(cls, method)
 
   def registerJavaStaticFunction(name: String, valueParameterTypes: Array[Type], returnType: Type, pt: (Type, Seq[SType]) => SType)(cls: Class[_], method: String) {
     registerCode(name, valueParameterTypes, returnType, pt) { case (r, cb, rt, _, args) =>

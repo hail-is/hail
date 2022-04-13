@@ -78,7 +78,8 @@ async def main(args, pass_through_args):  # pylint: disable=unused-argument
            '--ssh-flag=-D {}'.format(args.port),
            '--ssh-flag=-N',
            '--ssh-flag=-f',
-           '--ssh-flag=-n']
+           '--ssh-flag=-n',
+           *pass_through_args]
 
     if args.project:
         cmd.append(f"--project={args.project}")

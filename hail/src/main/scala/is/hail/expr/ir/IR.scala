@@ -747,6 +747,7 @@ object PartitionWriter {
     override val typeHints = ShortTypeHints(List(
       classOf[PartitionNativeWriter],
       classOf[TableTextPartitionWriter],
+      classOf[VCFPartitionWriter],
       classOf[AbstractTypedCodecSpec],
       classOf[TypedCodecSpec]), typeHintFieldName = "name"
     ) + BufferSpec.shortTypeHints
@@ -765,6 +766,7 @@ object MetadataWriter {
       classOf[TableSpecWriter],
       classOf[RelationalWriter],
       classOf[TableTextFinalizer],
+      classOf[VCFExportFinalizer],
       classOf[RVDSpecMaker],
       classOf[AbstractTypedCodecSpec],
       classOf[TypedCodecSpec]),

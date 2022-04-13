@@ -241,7 +241,8 @@ class ClassBuilder[C](
 
   val lazyFieldMemo: mutable.Map[Any, Value[_]] = mutable.Map.empty
 
-  val lInit = lclass.newMethod("<init>", FastIndexedSeq(), UnitInfo)
+  val lInitBuilder = new MethodBuilder[C](this, "<init>", FastIndexedSeq(), UnitInfo)
+  val lInit = lInitBuilder.lmethod
 
   var initBody: Code[Unit] = {
     val L = new lir.Block()
@@ -263,6 +264,11 @@ class ClassBuilder[C](
 
   def emitInit(c: Code[Unit]): Unit = {
     initBody = Code(initBody, c)
+  }
+
+  def emitInitI(f: CodeBuilder => Unit): Unit = {
+    val body = CodeBuilder.scopedVoid(lInitBuilder)(f)
+    emitInit(body)
   }
 
   def emitClinit(c: Code[Unit]): Unit = {
@@ -482,6 +488,10 @@ class MethodBuilder[C](
   val returnTypeInfo: TypeInfo[_],
   val isStatic: Boolean = false
 ) extends WrappedClassBuilder[C] {
+  require(parameterTypeInfo.length + isStatic.toInt <= 255,
+    s"""Invalid method, methods may have at most 255 arguments, found ${parameterTypeInfo.length + isStatic.toInt}
+       |Return Type Info: $returnTypeInfo
+       |Parameter Type Info: ${parameterTypeInfo.mkString}""".stripMargin)
   // very long method names, repeated hundreds of thousands of times can cause memory issues.
   // If necessary to find the name of a method precisely, this can be set to around the constant
   // limit of 65535 characters, but usually, this can be much smaller.

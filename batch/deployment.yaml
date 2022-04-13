@@ -34,6 +34,26 @@ spec:
          value: "spot"
 {% endif %}
       containers:
+      - name: nginx
+        image: {{ batch_driver_nginx_image.image }}
+        resources:
+          requests:
+            cpu: "4"
+            memory: "2G"
+          limits:
+            cpu: "4.5"
+            memory: "4G"
+        ports:
+         - containerPort: 443
+        volumeMounts:
+         - name: ssl-config-batch-driver-nginx
+           mountPath: /ssl-config
+           readOnly: true
+        readinessProbe:
+          tcpSocket:
+            port: 443
+          initialDelaySeconds: 5
+          periodSeconds: 5
       - name: batch-driver
         image: {{ batch_image.image }}
         command:
@@ -45,10 +65,10 @@ spec:
          - batch.driver
         resources:
           requests:
-            cpu: "600m"
+            cpu: "1"
             memory: "2G"
           limits:
-            cpu: "1"
+            cpu: "1.5"
             memory: "2.5G"
         env:
          - name: HAIL_DOMAIN
@@ -127,15 +147,7 @@ spec:
                key: query_storage_uri
          - name: HAIL_QUERY_ACCEPTABLE_JAR_SUBFOLDER
            value: "/jars"
-{% elif scope == "test" %}
-         - name: HAIL_QUERY_STORAGE_URI
-           valueFrom:
-             secretKeyRef:
-               name: global-config
-               key: test_storage_uri
-         - name: HAIL_QUERY_ACCEPTABLE_JAR_SUBFOLDER
-           value: "/{{ token }}/jars"
-{% elif scope == "dev" %}
+{% elif scope == "test" or scope == "dev" %}
          - name: HAIL_QUERY_STORAGE_URI
            valueFrom:
              secretKeyRef:
@@ -150,8 +162,6 @@ spec:
          - name: HAIL_SHOULD_CHECK_INVARIANTS
            value: "1"
 {% endif %}
-        ports:
-         - containerPort: 5000
         volumeMounts:
          - name: deploy-config
            mountPath: /deploy-config
@@ -199,6 +209,10 @@ spec:
          secret:
            optional: false
            secretName: ssl-config-batch-driver
+       - name: ssl-config-batch-driver-nginx
+         secret:
+           optional: false
+           secretName: ssl-config-batch-driver-nginx
        - name: ssh-public-key
          secret:
            secretName: batch-worker-ssh-public-key
@@ -317,15 +331,7 @@ spec:
                key: query_storage_uri
          - name: HAIL_QUERY_ACCEPTABLE_JAR_SUBFOLDER
            value: "/jars"
-{% elif scope == "test" %}
-         - name: HAIL_QUERY_STORAGE_URI
-           valueFrom:
-             secretKeyRef:
-               name: global-config
-               key: test_storage_uri
-         - name: HAIL_QUERY_ACCEPTABLE_JAR_SUBFOLDER
-           value: "/{{ token }}/jars"
-{% elif scope == "dev" %}
+{% elif scope == "test" or scope == "dev" %}
          - name: HAIL_QUERY_STORAGE_URI
            valueFrom:
              secretKeyRef:
@@ -405,7 +411,7 @@ spec:
    - type: Resource
      resource:
        name: cpu
-       targetAverageUtilization: 80
+       targetAverageUtilization: 2500
 ---
 apiVersion: policy/v1beta1
 kind: PodDisruptionBudget
@@ -441,6 +447,6 @@ spec:
   ports:
   - port: 443
     protocol: TCP
-    targetPort: 5000
+    targetPort: 443
   selector:
     app: batch-driver

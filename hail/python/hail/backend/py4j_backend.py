@@ -1,12 +1,17 @@
-from typing import Mapping
+from typing import Mapping, Union, Tuple, List
 import abc
 
 import py4j
+import py4j.java_gateway
 
 import hail
+from hail.expr import construct_expr
+from hail.ir import JavaIR
 from hail.ir.renderer import CSERenderer
-from hail.utils.java import FatalError, Env, HailUserError
-from .backend import Backend
+from hail.utils.java import FatalError, Env
+from .backend import Backend, fatal_error_from_java_error_triplet
+from ..expr import Expression
+from ..expr.types import HailType
 
 
 def handle_java_exception(f):
@@ -23,13 +28,7 @@ def handle_java_exception(f):
 
             tpl = Env.jutils().handleForPython(e.java_exception)
             deepest, full, error_id = tpl._1(), tpl._2(), tpl._3()
-
-            if error_id != -1:
-                raise FatalError('Error summary: %s' % (deepest,), error_id) from None
-            else:
-                raise FatalError('%s\n\nJava stack trace:\n%s\n'
-                                 'Hail version: %s\n'
-                                 'Error summary: %s' % (deepest, full, hail.__version__, deepest), error_id) from None
+            raise fatal_error_from_java_error_triplet(deepest, full, error_id) from None
         except pyspark.sql.utils.CapturedException as e:
             raise FatalError('%s\n\nJava stack trace:\n%s\n'
                              'Hail version: %s\n'
@@ -68,15 +67,26 @@ class Py4JBackend(Backend):
     def _parse_value_ir(self, code, ref_map={}, ir_map={}):
         pass
 
-    def register_ir_function(self, name, type_parameters, argument_names, argument_types, return_type, body):
+    @abc.abstractmethod
+    def _to_java_value_ir(self, ir):
+        pass
+
+    def register_ir_function(self,
+                             name: str,
+                             type_parameters: Union[Tuple[HailType, ...], List[HailType]],
+                             value_parameter_names: Union[Tuple[str, ...], List[str]],
+                             value_parameter_types: Union[Tuple[HailType, ...], List[HailType]],
+                             return_type: HailType,
+                             body: Expression):
         r = CSERenderer(stop_at_jir=True)
         code = r(body._ir)
-        jbody = (self._parse_value_ir(code, ref_map=dict(zip(argument_names, argument_types)), ir_map=r.jirs))
+        jbody = (self._parse_value_ir(code, ref_map=dict(zip(value_parameter_names, value_parameter_types)), ir_map=r.jirs))
 
         Env.hail().expr.ir.functions.IRFunctionRegistry.pyRegisterIR(
             name,
             [ta._parsable_string() for ta in type_parameters],
-            argument_names, [pt._parsable_string() for pt in argument_types],
+            value_parameter_names,
+            [pt._parsable_string() for pt in value_parameter_types],
             return_type._parsable_string(),
             jbody)
 
@@ -85,31 +95,13 @@ class Py4JBackend(Backend):
         stream_codec = '{"name":"StreamBufferSpec"}'
         # print(self._hail_package.expr.ir.Pretty.apply(jir, True, -1))
         try:
-            result_tuple = self._jhc.backend().executeEncode(jir, stream_codec)
+            result_tuple = self._jbackend.executeEncode(jir, stream_codec)
             (result, timings) = (result_tuple._1(), result_tuple._2())
             value = ir.typ._from_encoding(result)
 
             return (value, timings) if timed else value
         except FatalError as e:
-            error_id = e._error_id
-
-            def criteria(hail_ir):
-                return hail_ir._error_id is not None and hail_ir._error_id == error_id
-
-            error_sources = ir.base_search(criteria)
-            better_stack_trace = None
-            if error_sources:
-                better_stack_trace = error_sources[0]._stack_trace
-
-            if better_stack_trace:
-                error_message = str(e)
-                message_and_trace = (f'{error_message}\n'
-                                     '------------\n'
-                                     'Hail stack trace:\n'
-                                     f'{better_stack_trace}')
-                raise HailUserError(message_and_trace) from None
-
-            raise e
+            self._handle_fatal_error_from_backend(e, ir)
 
     async def _async_execute(self, ir, timed=False):
         raise NotImplementedError('no async available in Py4JBackend')
@@ -122,6 +114,12 @@ class Py4JBackend(Backend):
 
     async def _async_get_references(self, names):
         raise NotImplementedError('no async available in Py4JBackend')
+
+    def persist_expression(self, expr):
+        return construct_expr(
+            JavaIR(self._jbackend.executeLiteral(self._to_java_value_ir(expr._ir))),
+            expr.dtype
+        )
 
     def set_flags(self, **flags: Mapping[str, str]):
         available = self._jbackend.availableFlags()
@@ -137,3 +135,7 @@ class Py4JBackend(Backend):
 
     def get_flags(self, *flags) -> Mapping[str, str]:
         return {flag: self._jbackend.getFlag(flag) for flag in flags}
+
+    @property
+    def requires_lowering(self):
+        return True

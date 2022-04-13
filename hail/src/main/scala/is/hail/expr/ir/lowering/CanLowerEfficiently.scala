@@ -3,13 +3,12 @@ package is.hail.expr.ir.lowering
 import is.hail.HailContext
 import is.hail.backend.ExecuteContext
 import is.hail.expr.ir._
-import is.hail.expr.ir.functions.TableToValueFunction
-import is.hail.io.TextMatrixReader
+import is.hail.expr.ir.functions.{TableCalculateNewPartitions, TableToValueFunction}
 import is.hail.io.avro.AvroTableReader
 import is.hail.io.bgen.MatrixBGENReader
 import is.hail.io.plink.MatrixPLINKReader
 import is.hail.io.vcf.MatrixVCFReader
-import is.hail.methods.{ForceCountTable, NPartitionsTable}
+import is.hail.methods.{ForceCountTable, NPartitionsTable, TableFilterPartitions}
 
 object CanLowerEfficiently {
   def apply(ctx: ExecuteContext, ir0: BaseIR): Option[String] = {
@@ -29,8 +28,6 @@ object CanLowerEfficiently {
       ir match {
         case TableRead(_, _, _: TableNativeReader) =>
         case TableRead(_, _, _: TableNativeZippedReader) =>
-        case TableRead(_, _, _: TextTableReader) =>
-        case TableRead(_, _, _: TextMatrixReader) =>
         case TableRead(_, _, _: StringTableReader) =>
         case TableRead(_, _, _: MatrixPLINKReader) =>
         case TableRead(_, _, _: MatrixVCFReader) =>
@@ -65,6 +62,7 @@ object CanLowerEfficiently {
         case t: TableAggregateByKey =>
         case t: TableRename =>
         case t: TableFilterIntervals =>
+        case TableToTableApply(_, TableFilterPartitions(_, _)) =>
         case t: TableToTableApply => fail(s"TableToTableApply")
         case t: BlockMatrixToTableApply => fail(s"BlockMatrixToTableApply")
         case t: BlockMatrixToTable => fail(s"BlockMatrixToTable has no lowered implementation")
@@ -80,6 +78,7 @@ object CanLowerEfficiently {
         case TableCount(_) =>
         case TableToValueApply(_, ForceCountTable()) =>
         case TableToValueApply(_, NPartitionsTable()) =>
+        case TableToValueApply(_, TableCalculateNewPartitions(_)) =>
         case TableToValueApply(_, f: TableToValueFunction) => fail(s"TableToValueApply: no lowering for ${ f.getClass.getName }")
         case TableAggregate(_, _) =>
         case TableCollect(_) =>
