@@ -4897,7 +4897,7 @@ steps:
       mkdir -p src/test
       tar xzf resources.tar.gz -C src/test
 
-      pip uninstall pyspark && pip install pyspark==3.2.1
+      pip uninstall --yes pyspark && pip install pyspark==3.2.1
 
       export HAIL_CLOUD={{ global.cloud }}
       export GOOGLE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
