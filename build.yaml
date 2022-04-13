@@ -5004,6 +5004,7 @@ steps:
         namespace:
           valueFrom: default_ns.name
         mountPath: /ssl-config
+    alwaysRun: true
     dependsOn:
       - create_deploy_config
       - create_accounts
