@@ -51,6 +51,7 @@ def sync_check_shell_output(script: str, echo=False) -> Tuple[bytes, bytes]:
 def sync_check_shell(script: str, echo=False) -> None:
     sync_check_shell_output(script, echo)
 
+
 def sync_check_exec(command: str, *args: str, echo: bool = False, capture_output: bool = False) -> Optional[Tuple[str, str]]:
     command_args = [command, *args]
     if echo:
