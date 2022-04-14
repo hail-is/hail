@@ -162,23 +162,37 @@ class Tests(unittest.TestCase):
         #     ).annotate_globals(glob=5).key_by('group', 'col_idx')
         # )
 
-        from pprint import pprint
-        pprint(row_result.entries().collect())
+        for i in range(20):
+            from pprint import pprint
+            c = row_result.entries().collect()
 
-        assert False
+            assert c == [hl.utils.Struct(**x) for x in [{'col_idx': 0, 'group': 0, 'sum': 18},
+                         {'col_idx': 1, 'group': 0, 'sum': 20},
+                         {'col_idx': 2, 'group': 0, 'sum': 22},
+                         {'col_idx': 3, 'group': 0, 'sum': 24},
+                         {'col_idx': 0, 'group': 1, 'sum': 11},
+                         {'col_idx': 1, 'group': 1, 'sum': 12},
+                         {'col_idx': 2, 'group': 1, 'sum': 13},
+                         {'col_idx': 3, 'group': 1, 'sum': 14},
+                         {'col_idx': 0, 'group': 2, 'sum': 12},
+                         {'col_idx': 1, 'group': 2, 'sum': 13},
+                         {'col_idx': 2, 'group': 2, 'sum': 14},
+                         {'col_idx': 3, 'group': 2, 'sum': 15}]]
 
-    @skip_when_service_backend('slow >800s')
-    def test_joins_work_correctly(self):
-        mt, mt2 = self.get_groupable_matrix2()
 
-        row_result = (mt.group_rows_by(group=mt2.rows()[mt.row_idx].row_idx2 % 3)
-                      .aggregate(sum=hl.agg.sum(mt2[mt.row_idx, mt.col_idx].x + mt.glob) + mt.glob)
-                      .drop('c1'))
 
-        from pprint import pprint
-        pprint(row_result.entries().collect())
-
-        assert False
+    # @skip_when_service_backend('slow >800s')
+    # def test_joins_work_correctly(self):
+    #     mt, mt2 = self.get_groupable_matrix2()
+    #
+    #     row_result = (mt.group_rows_by(group=mt2.rows()[mt.row_idx].row_idx2 % 3)
+    #                   .aggregate(sum=hl.agg.sum(mt2[mt.row_idx, mt.col_idx].x + mt.glob) + mt.glob)
+    #                   .drop('c1'))
+    #
+    #     from pprint import pprint
+    #     pprint(row_result.entries().collect())
+    #
+    #     assert False
 
     @skip_when_service_backend('slow >800s')
     def test_joins_work_correctly2(self):
