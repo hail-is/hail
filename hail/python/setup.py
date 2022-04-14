@@ -1,7 +1,6 @@
 #!/usr/bin/env python
 
 import os
-import re
 from setuptools import setup, find_packages
 
 with open('hail/hail_pip_version') as f:
