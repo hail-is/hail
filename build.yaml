@@ -498,23 +498,23 @@ steps:
       - auth_database
   - kind: buildImage2
     name: hail_build_image
-    dockerFile: /io/hail/Dockerfile.hail-build
-    contextPath: /io/hail
+    dockerFile: /io/repo/hail/Dockerfile.hail-build
+    contextPath: /io/repo
     publishAs: hail-build
     inputs:
-      - from: /repo/hail
-        to: /io/hail
+      - from: /repo
+        to: /io/repo
     dependsOn:
       - base_image
       - merge_code
   - kind: buildImage2
     name: hail_build_image_spark_3_2
-    dockerFile: /io/hail/Dockerfile.hail-build-spark-32
-    contextPath: /io/hail
+    dockerFile: /io/repo/hail/Dockerfile.hail-build-spark-32
+    contextPath: /io/repo
     publishAs: hail-build-spark-32
     inputs:
-      - from: /repo/hail
-        to: /io/hail
+      - from: /repo
+        to: /io/repo
     dependsOn:
       - base_image
       - merge_code
