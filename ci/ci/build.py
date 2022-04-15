@@ -488,7 +488,11 @@ class RunImageStep(Step):
         else:
             self.jobs = [
                 self._build_job(
-                    batch, code, scope, f'{self.name}_{i}', {'PYTEST_SPLITS': self.num_splits, 'PYTEST_SPLIT_INDEX': i}
+                    batch,
+                    code,
+                    scope,
+                    f'{self.name}_{i}',
+                    {'HAIL_RUN_IMAGE_SPLITS': self.num_splits, 'HAIL_RUN_IMAGE_SPLIT_INDEX': i},
                 )
                 for i in range(self.num_splits)
             ]
