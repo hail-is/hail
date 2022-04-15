@@ -737,7 +737,7 @@ steps:
       - hail_build_image
       - merge_code
   - kind: runImage
-    name: build_hail_jar_and_wheel_only_spark3.2
+    name: build_hail_jar_and_wheel_only_spark_3_2
     image:
       valueFrom: hail_build_image_spark_3_2.image
     resources:
@@ -4950,7 +4950,7 @@ steps:
       - create_certs
       - create_accounts
       - hail_run_tests_image
-      - build_hail_jar_and_wheel_only_spark3
+      - build_hail_jar_and_wheel_only_spark_3_2
       - upload_test_resources_to_blob_storage
   - kind: runImage
     name: test_hail_services_java
