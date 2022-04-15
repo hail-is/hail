@@ -1764,7 +1764,7 @@ class Table(ExprContainer):
                 return rekey_f(left)
 
             all_uids.append(uid)
-            join_ir = ir.Join(ir.GetField(ir.TopLevelReference('row'), uid),
+            join_ir = ir.Join(ir.ProjectedTopLevelReference('row', uid, new_schema),
                               all_uids,
                               exprs,
                               joiner)
@@ -1813,7 +1813,7 @@ class Table(ExprContainer):
                 else:
                     def joiner(left: MatrixTable):
                         return MatrixTable(ir.MatrixAnnotateRowsTable(left._mir, right._tir, uid, all_matches))
-                ast = ir.Join(ir.GetField(ir.TopLevelReference('va'), uid),
+                ast = ir.Join(ir.ProjectedTopLevelReference('va', uid, new_schema),
                               [uid],
                               exprs,
                               joiner)
@@ -1850,7 +1850,7 @@ class Table(ExprContainer):
                             joined._tir,
                             uid)).key_cols_by(*prev_key)
                         return result
-                join_ir = ir.Join(ir.GetField(ir.TopLevelReference('sa'), uid),
+                join_ir = ir.Join(ir.ProjectedTopLevelReference('sa', uid, new_schema),
                                   all_uids,
                                   exprs,
                                   joiner)
@@ -3642,7 +3642,7 @@ class Table(ExprContainer):
     def _map_partitions(self, f):
         rows_uid = 'tmp_rows_' + Env.get_uid()
         globals_uid = 'tmp_globals_' + Env.get_uid()
-        expr = construct_expr(ir.ToArray(ir.Ref(rows_uid, self.row.dtype)), hl.tarray(self.row.dtype), self._row_indices)
+        expr = construct_expr(ir.ToArray(ir.Ref(rows_uid, hl.tstream(self.row.dtype))), hl.tarray(self.row.dtype), self._row_indices)
         body = f(expr)
         result_t = body.dtype
         if any(k not in result_t.element_type for k in self.key):

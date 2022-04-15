@@ -27,10 +27,11 @@ class MatrixRowsTable(TableIR):
     def _handle_randomness(self, uid_field_name):
         return MatrixRowsTable(self.child.handle_randomness(uid_field_name, None))
 
-    def _compute_type(self):
-        self._type = hl.ttable(self.child.typ.global_type,
-                               self.child.typ.row_type,
-                               self.child.typ.row_key)
+    def _compute_type(self, deep_typecheck):
+        self.child.compute_type(deep_typecheck)
+        return hl.ttable(self.child.typ.global_type,
+                         self.child.typ.row_type,
+                         self.child.typ.row_key)
 
 
 class TableJoin(TableIR):
@@ -71,12 +72,14 @@ class TableJoin(TableIR):
         return self.join_key == other.join_key and \
             self.join_type == other.join_type
 
-    def _compute_type(self):
+    def _compute_type(self, deep_typecheck):
+        self.left.compute_type(deep_typecheck)
+        self.right.compute_type(deep_typecheck)
         left_typ = self.left.typ
         right_typ = self.right.typ
-        self._type = hl.ttable(left_typ.global_type._concat(right_typ.global_type),
-                               left_typ.key_type._concat(left_typ.value_type)._concat(right_typ.value_type),
-                               left_typ.row_key + right_typ.row_key[self.join_key:])
+        return hl.ttable(left_typ.global_type._concat(right_typ.global_type),
+                         left_typ.key_type._concat(left_typ.value_type)._concat(right_typ.value_type),
+                         left_typ.row_key + right_typ.row_key[self.join_key:])
 
 
 class TableLeftJoinRightDistinct(TableIR):
@@ -97,10 +100,12 @@ class TableLeftJoinRightDistinct(TableIR):
     def _eq(self, other):
         return self.root == other.root
 
-    def _compute_type(self):
+    def _compute_type(self, deep_typecheck):
+        self.left.compute_type(deep_typecheck)
+        self.right.compute_type(deep_typecheck)
         left_typ = self.left.typ
         right_typ = self.right.typ
-        self._type = hl.ttable(
+        return hl.ttable(
             left_typ.global_type,
             left_typ.row_type._insert_field(self.root, right_typ.value_type),
             left_typ.row_key)
@@ -125,14 +130,16 @@ class TableIntervalJoin(TableIR):
     def _eq(self, other):
         return self.root == other.root and self.product == other.product
 
-    def _compute_type(self):
+    def _compute_type(self, deep_typecheck):
+        self.left.compute_type(deep_typecheck)
+        self.right.compute_type(deep_typecheck)
         left_typ = self.left.typ
         right_typ = self.right.typ
         if self.product:
             right_val_typ = left_typ.row_type._insert_field(self.root, hl.tarray(right_typ.value_type))
         else:
             right_val_typ = left_typ.row_type._insert_field(self.root, right_typ.value_type)
-        self._type = hl.ttable(
+        return hl.ttable(
             left_typ.global_type,
             right_val_typ,
             left_typ.row_key)
@@ -162,10 +169,10 @@ class TableUnion(TableIR):
                         for i, (child, uid) in enumerate(zip(new_children, uids))]
         return TableUnion(new_children)
 
-    def _compute_type(self):
+    def _compute_type(self, deep_typecheck):
         for c in self.children:
-            c.typ  # force
-        self._type = self.children[0].typ
+            c.compute_type(deep_typecheck)
+        return self.children[0].typ
 
 
 class TableRange(TableIR):
@@ -185,10 +192,10 @@ class TableRange(TableIR):
     def _eq(self, other):
         return self.n == other.n and self.n_partitions == other.n_partitions
 
-    def _compute_type(self):
-        self._type = hl.ttable(hl.tstruct(),
-                               hl.tstruct(idx=hl.tint32),
-                               ['idx'])
+    def _compute_type(self, deep_typecheck):
+        return hl.ttable(hl.tstruct(),
+                         hl.tstruct(idx=hl.tint32),
+                         ['idx'])
 
 
 class TableMapGlobals(TableIR):
@@ -201,11 +208,11 @@ class TableMapGlobals(TableIR):
         return TableMapGlobals(self.child.handle_randomness(uid_field_name),
                                self.new_globals)
 
-    def _compute_type(self):
-        self.new_globals._compute_type(self.child.typ.global_env(), None)
-        self._type = hl.ttable(self.new_globals.typ,
-                               self.child.typ.row_type,
-                               self.child.typ.row_key)
+    def _compute_type(self, deep_typecheck):
+        self.new_globals.compute_type(self.child.typ.global_env(), None, deep_typecheck)
+        return hl.ttable(self.new_globals.typ,
+                         self.child.typ.row_type,
+                         self.child.typ.row_key)
 
     def renderable_bindings(self, i, default_value=None):
         return self.child.typ.global_env(default_value) if i == 1 else {}
@@ -243,11 +250,12 @@ class TableExplode(TableIR):
     def _eq(self, other):
         return self.path == other.path
 
-    def _compute_type(self):
+    def _compute_type(self, deep_typecheck):
+        self.child.compute_type(deep_typecheck)
         atyp = self.child.typ.row_type._index_path(self.path)
-        self._type = hl.ttable(self.child.typ.global_type,
-                               self.child.typ.row_type._insert(self.path, atyp.element_type),
-                               self.child.typ.row_key)
+        return hl.ttable(self.child.typ.global_type,
+                         self.child.typ.row_type._insert(self.path, atyp.element_type),
+                         self.child.typ.row_key)
 
 
 class TableKeyBy(TableIR):
@@ -266,10 +274,11 @@ class TableKeyBy(TableIR):
     def _eq(self, other):
         return self.keys == other.keys and self.is_sorter == other.is_sorted
 
-    def _compute_type(self):
-        self._type = hl.ttable(self.child.typ.global_type,
-                               self.child.typ.row_type,
-                               self.keys)
+    def _compute_type(self, deep_typecheck):
+        self.child.compute_type(deep_typecheck)
+        return hl.ttable(self.child.typ.global_type,
+                         self.child.typ.row_type,
+                         self.keys)
 
 
 class TableMapRows(TableIR):
@@ -294,10 +303,11 @@ class TableMapRows(TableIR):
             new_row = ir.InsertFields(new_row, [(uid_field_name, uid)], None)
         return TableMapRows(child, new_row)
 
-    def _compute_type(self):
+    def _compute_type(self, deep_typecheck):
+        self.child.compute_type(deep_typecheck)
         # agg_env for scans
-        self.new_row._compute_type(self.child.typ.row_env(), self.child.typ.row_env())
-        self._type = hl.ttable(
+        self.new_row.compute_type(self.child.typ.row_env(), self.child.typ.row_env(), deep_typecheck)
+        return hl.ttable(
             self.child.typ.global_type,
             self.new_row.typ,
             self.child.typ.row_key)
@@ -335,17 +345,19 @@ class TableMapPartitions(TableIR):
             body = ir.Let('__rng_state', ir.NA(trngstate), body)
         return TableMapPartitions(child, self.global_name, self.partition_stream_name, body)
 
-    def _compute_type(self):
-        self.body._compute_type({self.global_name: self.child.typ.global_type,
+    def _compute_type(self, deep_typecheck):
+        self.child.compute_type(deep_typecheck)
+        self.body.compute_type({self.global_name: self.child.typ.global_type,
                                  self.partition_stream_name: hl.tstream(self.child.typ.row_type)},
-                                {})
+                                {},
+                               deep_typecheck)
         assert isinstance(self.body.typ, hl.tstream) and isinstance(self.body.typ.element_type, hl.tstruct)
         new_row_type = self.body.typ.element_type
         for k in self.child.typ.row_key:
             assert k in new_row_type
-        self._type = hl.ttable(self.child.typ.global_type,
-                               new_row_type,
-                               self.child.typ.row_key)
+        return hl.ttable(self.child.typ.global_type,
+                         new_row_type,
+                         self.child.typ.row_key)
 
     def renderable_bindings(self, i, default_value=None):
         if i == 1:
@@ -383,9 +395,11 @@ class TableRead(TableIR):
     def _eq(self, other):
         return self.reader == other.reader and self.drop_rows == other.drop_rows
 
-    def _compute_type(self):
-        if self._type is None:
-            self._type = Env.backend().table_type(self)
+    def _compute_type(self, deep_typecheck):
+        if self._type is not None:
+            return self._type
+        else:
+            return Env.backend().table_type(self)
 
 
 class MatrixEntriesTable(TableIR):
@@ -405,13 +419,14 @@ class MatrixEntriesTable(TableIR):
         child = MatrixMapEntries(child, ir.InsertFields(entry, [(uid_field_name, ir.concat_uids(row_uid, col_uid))]))
         return MatrixEntriesTable(child)
 
-    def _compute_type(self):
+    def _compute_type(self, deep_typecheck):
+        self.child.compute_type(deep_typecheck)
         child_typ = self.child.typ
-        self._type = hl.ttable(child_typ.global_type,
-                               child_typ.row_type
-                               ._concat(child_typ.col_type)
-                               ._concat(child_typ.entry_type),
-                               child_typ.row_key + child_typ.col_key)
+        return hl.ttable(child_typ.global_type,
+                         child_typ.row_type
+                                  ._concat(child_typ.col_type)
+                                  ._concat(child_typ.entry_type),
+                         child_typ.row_key + child_typ.col_key)
 
 
 class TableFilter(TableIR):
@@ -423,7 +438,7 @@ class TableFilter(TableIR):
     def _handle_randomness(self, uid_field_name):
         if not self.pred.uses_randomness and uid_field_name is None:
             child = self.child.handle_randomness(None)
-            return TableMapRows(child, self.pred)
+            return TableFilter(child, self.pred)
 
         drop_uid = uid_field_name is None
         if uid_field_name is None:
@@ -432,15 +447,16 @@ class TableFilter(TableIR):
         uid, old_row = unpack_uid(child.typ.row_type, uid_field_name)
         pred = ir.Let('row', old_row, self.pred)
         if self.pred.uses_randomness:
-            pred = ir.Let('__rng_state', ir.RNGSplit(ir.RNGStateLiteral(rng_key), uid))
+            pred = ir.Let('__rng_state', ir.RNGSplit(ir.RNGStateLiteral(rng_key), uid), pred)
         result = TableFilter(child, pred)
         if drop_uid:
             result = TableMapRows(result, old_row)
         return result
 
-    def _compute_type(self):
-        self.pred._compute_type(self.child.typ.row_env(), None)
-        self._type = self.child.typ
+    def _compute_type(self, deep_typecheck):
+        self.child.compute_type(deep_typecheck)
+        self.pred.compute_type(self.child.typ.row_env(), None, deep_typecheck)
+        return self.child.typ
 
     def renderable_bindings(self, i, default_value=None):
         return self.child.typ.row_env(default_value) if i == 1 else {}
@@ -494,12 +510,13 @@ class TableKeyByAndAggregate(TableIR):
     def _eq(self, other):
         return self.n_partitions == other.n_partitions and self.buffer_size == other.buffer_size
 
-    def _compute_type(self):
-        self.expr._compute_type(self.child.typ.global_env(), self.child.typ.row_env())
-        self.new_key._compute_type(self.child.typ.row_env(), None)
-        self._type = hl.ttable(self.child.typ.global_type,
-                               self.new_key.typ._concat(self.expr.typ),
-                               list(self.new_key.typ))
+    def _compute_type(self, deep_typecheck):
+        self.child.compute_type(deep_typecheck)
+        self.expr.compute_type(self.child.typ.global_env(), self.child.typ.row_env(), deep_typecheck)
+        self.new_key.compute_type(self.child.typ.row_env(), None, deep_typecheck)
+        return hl.ttable(self.child.typ.global_type,
+                         self.new_key.typ._concat(self.expr.typ),
+                         list(self.new_key.typ))
 
     def renderable_bindings(self, i, default_value=None):
         if i == 1:
@@ -547,12 +564,13 @@ class TableAggregateByKey(TableIR):
         expr = ir.Let(first_uid, ir.ApplyAggOp('Take', [1], [uid]), expr)
         return TableAggregateByKey(child, expr)
 
-    def _compute_type(self):
+    def _compute_type(self, deep_typecheck):
+        self.child.compute_type(deep_typecheck)
         child_typ = self.child.typ
-        self.expr._compute_type(child_typ.global_env(), child_typ.row_env())
-        self._type = hl.ttable(child_typ.global_type,
-                               child_typ.key_type._concat(self.expr.typ),
-                               child_typ.row_key)
+        self.expr.compute_type(child_typ.global_env(), child_typ.row_env(), deep_typecheck)
+        return hl.ttable(child_typ.global_type,
+                         child_typ.key_type._concat(self.expr.typ),
+                         child_typ.row_key)
 
     def renderable_bindings(self, i, default_value=None):
         if i == 1:
@@ -574,10 +592,11 @@ class MatrixColsTable(TableIR):
     def _handle_randomness(self, uid_field_name):
         return MatrixColsTable(self.child.handle_randomness(None, uid_field_name))
 
-    def _compute_type(self):
-        self._type = hl.ttable(self.child.typ.global_type,
-                               self.child.typ.col_type,
-                               self.child.typ.col_key)
+    def _compute_type(self, deep_typecheck):
+        self.child.compute_type(deep_typecheck)
+        return hl.ttable(self.child.typ.global_type,
+                         self.child.typ.col_type,
+                         self.child.typ.col_key)
 
 
 class TableParallelize(TableIR):
@@ -613,11 +632,11 @@ class TableParallelize(TableIR):
     def _eq(self, other):
         return self.n_partitions == other.n_partitions
 
-    def _compute_type(self):
-        self.rows_and_global._compute_type({}, None)
-        self._type = hl.ttable(self.rows_and_global.typ['global'],
-                               self.rows_and_global.typ['rows'].element_type,
-                               [])
+    def _compute_type(self, deep_typecheck):
+        self.rows_and_global.compute_type({}, None, deep_typecheck)
+        return hl.ttable(self.rows_and_global.typ['global'],
+                         self.rows_and_global.typ['rows'].element_type,
+                         [])
 
 
 class TableHead(TableIR):
@@ -635,8 +654,9 @@ class TableHead(TableIR):
     def _eq(self, other):
         return self.n == other.n
 
-    def _compute_type(self):
-        self._type = self.child.typ
+    def _compute_type(self, deep_typecheck):
+        self.child.compute_type(deep_typecheck)
+        return self.child.typ
 
 
 class TableTail(TableIR):
@@ -654,8 +674,9 @@ class TableTail(TableIR):
     def _eq(self, other):
         return self.n == other.n
 
-    def _compute_type(self):
-        self._type = self.child.typ
+    def _compute_type(self, deep_typecheck):
+        self.child.compute_type(deep_typecheck)
+        return self.child.typ
 
 
 class TableOrderBy(TableIR):
@@ -673,10 +694,11 @@ class TableOrderBy(TableIR):
     def _eq(self, other):
         return self.sort_fields == other.sort_fields
 
-    def _compute_type(self):
-        self._type = hl.ttable(self.child.typ.global_type,
-                               self.child.typ.row_type,
-                               [])
+    def _compute_type(self, deep_typecheck):
+        self.child.compute_type(deep_typecheck)
+        return hl.ttable(self.child.typ.global_type,
+                         self.child.typ.row_type,
+                         [])
 
 
 class TableDistinct(TableIR):
@@ -687,8 +709,9 @@ class TableDistinct(TableIR):
     def _handle_randomness(self, uid_field_name):
         return TableDistinct(self.child.handle_randomness(uid_field_name))
 
-    def _compute_type(self):
-        self._type = self.child.typ
+    def _compute_type(self, deep_typecheck):
+        self.child.compute_type(deep_typecheck)
+        return self.child.typ
 
 
 class RepartitionStrategy:
@@ -713,8 +736,9 @@ class TableRepartition(TableIR):
     def _eq(self, other):
         return self.n == other.n and self.strategy == other.strategy
 
-    def _compute_type(self):
-        self._type = self.child.typ
+    def _compute_type(self, deep_typecheck):
+        self.child.compute_type(deep_typecheck)
+        return self.child.typ
 
 
 class CastMatrixToTable(TableIR):
@@ -733,12 +757,13 @@ class CastMatrixToTable(TableIR):
     def _eq(self, other):
         return self.entries_field_name == other.entries_field_name and self.cols_field_name == other.cols_field_name
 
-    def _compute_type(self):
+    def _compute_type(self, deep_typecheck):
+        self.child.compute_type(deep_typecheck)
         child_typ = self.child.typ
-        self._type = hl.ttable(child_typ.global_type._insert_field(self.cols_field_name, hl.tarray(child_typ.col_type)),
-                               child_typ.row_type._insert_field(self.entries_field_name,
-                                                                hl.tarray(child_typ.entry_type)),
-                               child_typ.row_key)
+        return hl.ttable(child_typ.global_type._insert_field(self.cols_field_name, hl.tarray(child_typ.col_type)),
+                         child_typ.row_type._insert_field(self.entries_field_name,
+                                                          hl.tarray(child_typ.entry_type)),
+                         child_typ.row_key)
 
 
 class TableRename(TableIR):
@@ -760,8 +785,9 @@ class TableRename(TableIR):
     def _eq(self, other):
         return self.row_map == other.row_map and self.global_map == other.global_map
 
-    def _compute_type(self):
-        self._type = self.child.typ._rename(self.global_map, self.row_map)
+    def _compute_type(self, deep_typecheck):
+        self.child.compute_type(deep_typecheck)
+        return self.child.typ._rename(self.global_map, self.row_map)
 
 
 class TableMultiWayZipJoin(TableIR):
@@ -801,11 +827,11 @@ class TableMultiWayZipJoin(TableIR):
     def _eq(self, other):
         return self.data_name == other.data_name and self.global_name == other.global_name
 
-    def _compute_type(self):
+    def _compute_type(self, deep_typecheck):
         for c in self.children:
-            c.typ  # force
+            c.compute_type(deep_typecheck)
         child_typ = self.children[0].typ
-        self._type = hl.ttable(
+        return hl.ttable(
             hl.tstruct(**{self.global_name: hl.tarray(child_typ.global_type)}),
             child_typ.key_type._insert_field(self.data_name, hl.tarray(child_typ.value_type)),
             child_typ.row_key)
@@ -828,8 +854,9 @@ class TableFilterIntervals(TableIR):
     def _eq(self, other):
         return self.intervals == other.intervals and self.point_type == other.point_type and self.keep == other.keep
 
-    def _compute_type(self):
-        self._type = self.child.typ
+    def _compute_type(self, deep_typecheck):
+        self.child.compute_type(deep_typecheck)
+        return self.child.typ
 
 
 class TableToTableApply(TableIR):
@@ -848,13 +875,17 @@ class TableToTableApply(TableIR):
     def _eq(self, other):
         return self.config == other.config
 
-    def _compute_type(self):
+    def _compute_type(self, deep_typecheck):
+        self.child.compute_type(deep_typecheck)
         name = self.config['name']
         if name == 'TableFilterPartitions':
-            self._type = self.child.typ
+            return self.child.typ
         else:
             assert name in ('VEP', 'Nirvana'), name
-            self._type = Env.backend().table_type(self)
+            if self._type is not None:
+                return self._type
+            else:
+                return Env.backend().table_type(self)
 
 
 def regression_test_type(test):
@@ -887,14 +918,15 @@ class MatrixToTableApply(TableIR):
     def _eq(self, other):
         return self.config == other.config
 
-    def _compute_type(self):
+    def _compute_type(self, deep_typecheck):
+        self.child.compute_type(deep_typecheck)
         name = self.config['name']
         child_typ = self.child.typ
         if name == 'LinearRegressionRowsChained':
             pass_through = self.config['passThrough']
             chained_schema = hl.dtype(
                 'struct{n:array<int32>,sum_x:array<float64>,y_transpose_x:array<array<float64>>,beta:array<array<float64>>,standard_error:array<array<float64>>,t_stat:array<array<float64>>,p_value:array<array<float64>>}')
-            self._type = hl.ttable(
+            return hl.ttable(
                 child_typ.global_type,
                 (child_typ.row_key_type
                  ._insert_fields(**{f: child_typ.row_type[f] for f in pass_through})
@@ -904,7 +936,7 @@ class MatrixToTableApply(TableIR):
             pass_through = self.config['passThrough']
             chained_schema = hl.dtype(
                 'struct{n:int32,sum_x:float64,y_transpose_x:array<float64>,beta:array<float64>,standard_error:array<float64>,t_stat:array<float64>,p_value:array<float64>}')
-            self._type = hl.ttable(
+            return hl.ttable(
                 child_typ.global_type,
                 (child_typ.row_key_type
                  ._insert_fields(**{f: child_typ.row_type[f] for f in pass_through})
@@ -913,7 +945,7 @@ class MatrixToTableApply(TableIR):
         elif name == 'LogisticRegression':
             pass_through = self.config['passThrough']
             logreg_type = hl.tstruct(logistic_regression=hl.tarray(regression_test_type(self.config['test'])))
-            self._type = hl.ttable(
+            return hl.ttable(
                 child_typ.global_type,
                 (child_typ.row_key_type
                  ._insert_fields(**{f: child_typ.row_type[f] for f in pass_through})
@@ -922,7 +954,7 @@ class MatrixToTableApply(TableIR):
         elif name == 'PoissonRegression':
             pass_through = self.config['passThrough']
             poisreg_type = regression_test_type(self.config['test'])
-            self._type = hl.ttable(
+            return hl.ttable(
                 child_typ.global_type,
                 (child_typ.row_key_type
                  ._insert_fields(**{f: child_typ.row_type[f] for f in pass_through})
@@ -932,12 +964,12 @@ class MatrixToTableApply(TableIR):
             key_field = self.config['keyField']
             key_type = child_typ.row_type[key_field]
             skat_type = hl.dtype(f'struct{{id:{key_type},size:int32,q_stat:float64,p_value:float64,fault:int32}}')
-            self._type = hl.ttable(
+            return hl.ttable(
                 hl.tstruct(),
                 skat_type,
                 ['id'])
         elif name == 'PCA':
-            self._type = hl.ttable(
+            return hl.ttable(
                 hl.tstruct(eigenvalues=hl.tarray(hl.tfloat64),
                            scores=hl.tarray(child_typ.col_key_type._insert_field('scores', hl.tarray(hl.tfloat64)))),
                 child_typ.row_key_type._insert_field('loadings', dtype('array<float64>')),
@@ -950,13 +982,13 @@ class MatrixToTableApply(TableIR):
                                   ibs0=hl.tint64,
                                   ibs1=hl.tint64,
                                   ibs2=hl.tint64)
-            self._type = hl.ttable(
+            return hl.ttable(
                 hl.tstruct(),
                 ibd_type,
                 ['i', 'j'])
         else:
             assert name == 'LocalLDPrune', name
-            self._type = hl.ttable(
+            return hl.ttable(
                 hl.tstruct(),
                 child_typ.row_key_type._insert_fields(mean=hl.tfloat64, centered_length_rec=hl.tfloat64),
                 list(child_typ.row_key))
@@ -979,10 +1011,12 @@ class BlockMatrixToTableApply(TableIR):
     def _eq(self, other):
         return self.config == other.config
 
-    def _compute_type(self):
+    def _compute_type(self, deep_typecheck):
+        self.bm.compute_type(deep_typecheck)
+        self.aux.compute_type({}, None, deep_typecheck)
         name = self.config['name']
         assert name == 'PCRelate', name
-        self._type = hl.ttable(
+        return hl.ttable(
             hl.tstruct(),
             hl.tstruct(i=hl.tint32, j=hl.tint32,
                        kin=hl.tfloat64,
@@ -1003,8 +1037,9 @@ class BlockMatrixToTable(TableIR):
             new_row = ir.InsertFields(row, [(uid_field_name, ir.MakeTuple(ir.GetField(row, 'i'), ir.GetField(row, 'j')))], None)
         return TableMapRows(self, new_row)
 
-    def _compute_type(self):
-        self._type = hl.ttable(hl.tstruct(), hl.tstruct(**{'i': hl.tint64, 'j': hl.tint64, 'entry': hl.tfloat64}), [])
+    def _compute_type(self, deep_typecheck):
+        self.child.compute_type(deep_typecheck)
+        return hl.ttable(hl.tstruct(), hl.tstruct(**{'i': hl.tint64, 'j': hl.tint64, 'entry': hl.tfloat64}), [])
 
 
 class JavaTable(TableIR):
@@ -1019,5 +1054,5 @@ class JavaTable(TableIR):
     def render_head(self, r):
         return f'(JavaTable {r.add_jir(self._jir)}'
 
-    def _compute_type(self):
-        self._type = hl.ttable._from_java(self._jir.typ())
+    def _compute_type(self, deep_typecheck):
+        return hl.ttable._from_java(self._jir.typ())

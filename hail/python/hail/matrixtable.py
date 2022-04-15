@@ -2986,7 +2986,7 @@ class MatrixTable(ExprContainer):
                                           col_exprs={col_uid: src_cols_indexed.index(*col_exprs)[col_uid]})
                 return left.annotate_entries(**{uid: left[row_uid][left[col_uid]]})
 
-            join_ir = ir.Join(ir.GetField(ir.TopLevelReference('g'), uid),
+            join_ir = ir.Join(ir.ProjectedTopLevelReference('g', uid, self.entry.dtype),
                               uids,
                               [*row_exprs, *col_exprs],
                               joiner)

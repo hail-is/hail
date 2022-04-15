@@ -271,6 +271,7 @@ class IR(BaseIR):
     def uses_randomness(self) -> bool:
         return '__rng_state' in self.free_vars or '__rng_state' in self.free_agg_vars or '__rng_state' in self.free_scan_vars
 
+    @property
     def uses_value_randomness(self):
         return '__rng_state' in self.free_vars
 
@@ -287,15 +288,31 @@ class IR(BaseIR):
     @property
     def typ(self):
         if self._type is None:
-            self._compute_type({}, None)
-            assert self._type is not None, self
+            self.compute_type({}, None, deep_typecheck=False)
         return self._type
 
     def renderable_new_block(self, i: int) -> bool:
         return False
 
+    def compute_type(self, env, agg_env, deep_typecheck):
+        if deep_typecheck or self._type is None:
+            computed = self._compute_type(env, agg_env, deep_typecheck)
+            if self._type is not None:
+                assert self._type == computed
+            self._type = computed
+            # assert self._type is not None
+
+    def assign_type(self, typ):
+        if self._type is None:
+            computed = self._compute_type({}, None, deep_typecheck=False)
+            if computed is not None:
+                assert computed == typ, (computed, typ)
+            self._type = typ
+        else:
+            assert self._type == typ
+
     @abc.abstractmethod
-    def _compute_type(self, env, agg_env):
+    def _compute_type(self, env, agg_env, deep_typecheck):
         raise NotImplementedError(self)
 
     @abc.abstractmethod
@@ -360,14 +377,21 @@ class TableIR(BaseIR):
         self._children_use_randomness = any(child.uses_randomness for child in children)
 
     @abc.abstractmethod
-    def _compute_type(self):
+    def _compute_type(self, deep_typecheck):
         ...
+
+    def compute_type(self, deep_typecheck):
+        if deep_typecheck or self._type is None:
+            computed = self._compute_type(deep_typecheck)
+            if self._type is not None:
+                assert self._type == computed
+            else:
+                self._type = computed
 
     @property
     def typ(self):
         if self._type is None:
-            self._compute_type()
-            assert self._type is not None, self
+            self.compute_type(deep_typecheck=False)
         return self._type
 
     @property
@@ -399,19 +423,33 @@ class MatrixIR(BaseIR):
     def uses_randomness(self) -> bool:
         return self._children_use_randomness
 
+    def handle_randomness(self, row_uid_field_name, col_uid_field_name):
+        if row_uid_field_name is None and col_uid_field_name and not self.uses_randomness:
+            return self
+        result = self._handle_randomness(row_uid_field_name, col_uid_field_name)
+        assert result is not None
+        return result
+
     @abc.abstractmethod
     def _handle_randomness(self, row_uid_field_name, col_uid_field_name):
         pass
 
     @abc.abstractmethod
-    def _compute_type(self):
+    def _compute_type(self, deep_typecheck):
         ...
+
+    def compute_type(self, deep_typecheck):
+        if deep_typecheck or self._type is None:
+            computed = self._compute_type(deep_typecheck)
+            if self._type is not None:
+                assert self._type == computed
+            else:
+                self._type = computed
 
     @property
     def typ(self):
         if self._type is None:
-            self._compute_type()
-            assert self._type is not None, self
+            self.compute_type(deep_typecheck=False)
         return self._type
 
     def renderable_new_block(self, i: int) -> bool:
@@ -433,14 +471,21 @@ class BlockMatrixIR(BaseIR):
         return self._children_use_randomness
 
     @abc.abstractmethod
-    def _compute_type(self):
+    def _compute_type(self, deep_typecheck):
         ...
+
+    def compute_type(self, deep_typecheck):
+        if deep_typecheck or self._type is None:
+            computed = self._compute_type(deep_typecheck)
+            if self._type is not None:
+                assert self._type == computed
+            else:
+                self._type = computed
 
     @property
     def typ(self):
         if self._type is None:
-            self._compute_type()
-            assert self._type is not None, self
+            self._compute_type(deep_typecheck=False)
         return self._type
 
     def renderable_new_block(self, i: int) -> bool:

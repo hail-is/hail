@@ -127,7 +127,7 @@ class AggFunc(object):
         comb_op_expr = to_expr(comb_op(accum_ref, other_accum_ref))
 
         return construct_expr(ir.AggFold(initial_value_casted._ir, seq_op_expr._ir, comb_op_expr._ir, accum_name, other_accum_name, self._as_scan),
-                              initial_value.dtype,
+                              unified_type,
                               indices,
                               aggregations)
 

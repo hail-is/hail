@@ -10,6 +10,7 @@ from hail.utils.java import Env
 
 default_row_uid = '__row_uid'
 default_col_uid = '__col_uid'
+rng_key = (0, 1, 2, 3)
 
 
 def unpack_row_uid(new_row_type, uid_field_name):
@@ -91,11 +92,12 @@ class MatrixAggregateRowsByKey(MatrixIR):
             result = MatrixMapCols(result, old_col, None)
         return result
 
-    def _compute_type(self):
+    def _compute_type(self, deep_typecheck):
+        self.child.compute_type(deep_typecheck)
         child_typ = self.child.typ
-        self.entry_expr._compute_type(child_typ.col_env(), child_typ.entry_env())
-        self.row_expr._compute_type(child_typ.global_env(), child_typ.row_env())
-        self._type = hl.tmatrix(
+        self.entry_expr.compute_type(child_typ.col_env(), child_typ.entry_env(), deep_typecheck)
+        self.row_expr.compute_type(child_typ.global_env(), child_typ.row_env(), deep_typecheck)
+        return hl.tmatrix(
             child_typ.global_type,
             child_typ.col_type,
             child_typ.col_key,
@@ -137,15 +139,21 @@ class MatrixRead(MatrixIR):
         self.drop_rows = drop_rows
         self._type: Optional[HailType] = _assert_type
 
+    def _handle_randomness(self, row_uid_field_name, col_uid_field_name):
+        # FIXME
+        return self
+
     def render_head(self, r):
         return f'(MatrixRead None {self.drop_cols} {self.drop_rows} "{self.reader.render(r)}"'
 
     def _eq(self, other):
         return self.reader == other.reader and self.drop_cols == other.drop_cols and self.drop_rows == other.drop_rows
 
-    def _compute_type(self):
+    def _compute_type(self, deep_typecheck):
         if self._type is None:
-            self._type = Env.backend().matrix_type(self)
+            return Env.backend().matrix_type(self)
+        else:
+            return self._type
 
 
 class MatrixFilterRows(MatrixIR):
@@ -172,9 +180,10 @@ class MatrixFilterRows(MatrixIR):
             result = MatrixMapRows(result, old_row)
         return result
 
-    def _compute_type(self):
-        self.pred._compute_type(self.child.typ.row_env(), None)
-        self._type = self.child.typ
+    def _compute_type(self, deep_typecheck):
+        self.child.compute_type(deep_typecheck)
+        self.pred.compute_type(self.child.typ.row_env(), None, deep_typecheck)
+        return self.child.typ
 
     def renderable_bindings(self, i, default_value=None):
         return self.child.typ.row_env(default_value) if i == 1 else {}
@@ -196,8 +205,9 @@ class MatrixChooseCols(MatrixIR):
     def _eq(self, other):
         return self.old_indices == other.old_indices
 
-    def _compute_type(self):
-        self._type = self.child.typ
+    def _compute_type(self, deep_typecheck):
+        self.child.compute_type(deep_typecheck)
+        return self.child.typ
 
 
 class MatrixMapCols(MatrixIR):
@@ -210,7 +220,7 @@ class MatrixMapCols(MatrixIR):
     def _handle_randomness(self, row_uid_field_name, col_uid_field_name):
         if not self.new_col.uses_randomness and col_uid_field_name is None:
             child = self.child.handle_randomness(row_uid_field_name, None)
-            return MatrixMapCols(child, self.new_row, self.new_key)
+            return MatrixMapCols(child, self.new_col, self.new_key)
 
         drop_row_uid = row_uid_field_name is None
         if self.new_col.uses_agg_randomness(is_scan=False) and row_uid_field_name is None:
@@ -243,10 +253,11 @@ class MatrixMapCols(MatrixIR):
     def _eq(self, other):
         return self.new_key == other.new_key
 
-    def _compute_type(self):
+    def _compute_type(self, deep_typecheck):
+        self.child.compute_type(deep_typecheck)
         child_typ = self.child.typ
-        self.new_col._compute_type({**child_typ.col_env(), 'n_rows': hl.tint64}, child_typ.entry_env())
-        self._type = hl.tmatrix(
+        self.new_col.compute_type({**child_typ.col_env(), 'n_rows': hl.tint64}, child_typ.entry_env(), deep_typecheck)
+        return hl.tmatrix(
             child_typ.global_type,
             self.new_col.typ,
             self.new_key if self.new_key is not None else child_typ.col_key,
@@ -314,9 +325,10 @@ class MatrixUnionCols(MatrixIR):
     def _eq(self, other):
         return self.join_type == other.join_type
 
-    def _compute_type(self):
-        self.right.typ  # force
-        self._type = self.left.typ
+    def _compute_type(self, deep_typecheck):
+        self.left.compute_type(deep_typecheck)
+        self.right.compute_type(deep_typecheck)
+        return self.left.typ
 
 
 class MatrixMapEntries(MatrixIR):
@@ -352,13 +364,14 @@ class MatrixMapEntries(MatrixIR):
             result = MatrixMapRows(result, old_row)
         if drop_col_uid:
             _, old_col = unpack_col_uid(result.typ.col_type, col_uid_field_name)
-            result = MatrixMapCols(result, old_col)
+            result = MatrixMapCols(result, old_col, None)
         return result
 
-    def _compute_type(self):
+    def _compute_type(self, deep_typecheck):
+        self.child.compute_type(deep_typecheck)
         child_typ = self.child.typ
-        self.new_entry._compute_type(child_typ.entry_env(), None)
-        self._type = hl.tmatrix(
+        self.new_entry.compute_type(child_typ.entry_env(), None, deep_typecheck)
+        return hl.tmatrix(
             child_typ.global_type,
             child_typ.col_type,
             child_typ.col_key,
@@ -404,9 +417,10 @@ class MatrixFilterEntries(MatrixIR):
             result = MatrixMapRows(result, old_col)
         return result
 
-    def _compute_type(self):
-        self.pred._compute_type(self.child.typ.entry_env(), None)
-        self._type = self.child.typ
+    def _compute_type(self, deep_typecheck):
+        self.child.compute_type(deep_typecheck)
+        self.pred.compute_type(self.child.typ.entry_env(), None, deep_typecheck)
+        return self.child.typ
 
     def renderable_bindings(self, i, default_value=None):
         return self.child.typ.entry_env(default_value) if i == 1 else {}
@@ -431,9 +445,10 @@ class MatrixKeyRowsBy(MatrixIR):
     def _eq(self, other):
         return self.keys == other.keys and self.is_sorted == other.is_sorted
 
-    def _compute_type(self):
+    def _compute_type(self, deep_typecheck):
+        self.child.compute_type(deep_typecheck)
         child_typ = self.child.typ
-        self._type = hl.tmatrix(
+        return hl.tmatrix(
             child_typ.global_type,
             child_typ.col_type,
             child_typ.col_key,
@@ -451,11 +466,12 @@ class MatrixMapRows(MatrixIR):
     def _handle_randomness(self, row_uid_field_name, col_uid_field_name):
         if not self.new_row.uses_randomness and row_uid_field_name is None:
             child = self.child.handle_randomness(None, col_uid_field_name)
-            return MatrixMapCols(child, self.new_row, self.new_key)
+            return MatrixMapRows(child, self.new_row)
 
-        drop_col_uid = col_uid_field_name is None
+        drop_col_uid = False
         if self.new_row.uses_agg_randomness(is_scan=False) and col_uid_field_name is None:
             col_uid_field_name = default_col_uid
+            drop_col_uid = True
         keep_row_uid = row_uid_field_name is not None
         if row_uid_field_name is None:
             row_uid_field_name = default_row_uid
@@ -473,15 +489,16 @@ class MatrixMapRows(MatrixIR):
             new_row = ir.AggLet('__rng_state', ir.RNGSplit(ir.RNGStateLiteral(rng_key), entry_uid), new_row, is_scan=False)
         if keep_row_uid:
             new_row = ir.InsertFields(new_row, [(row_uid_field_name, row_uid)], None)
-        result = MatrixMapCols(child, new_row, self.new_key)
+        result = MatrixMapRows(child, new_row)
         if drop_col_uid:
-            result = MatrixMapCols(result, old_col)
+            result = MatrixMapRows(result, old_col)
         return result
 
-    def _compute_type(self):
+    def _compute_type(self, deep_typecheck):
+        self.child.compute_type(deep_typecheck)
         child_typ = self.child.typ
-        self.new_row._compute_type({**child_typ.row_env(), 'n_cols': hl.tint32}, child_typ.entry_env())
-        self._type = hl.tmatrix(
+        self.new_row.compute_type({**child_typ.row_env(), 'n_cols': hl.tint32}, child_typ.entry_env(), deep_typecheck)
+        return hl.tmatrix(
             child_typ.global_type,
             child_typ.col_type,
             child_typ.col_key,
@@ -518,10 +535,11 @@ class MatrixMapGlobals(MatrixIR):
             new_global = ir.Let('__rng_state', ir.RNGStateLiteral(rng_key), new_global)
         return MatrixMapGlobals(child, new_global)
 
-    def _compute_type(self):
+    def _compute_type(self, deep_typecheck):
+        self.child.compute_type(deep_typecheck)
         child_typ = self.child.typ
-        self.new_global._compute_type(child_typ.global_env(), None)
-        self._type = hl.tmatrix(
+        self.new_global.compute_type(child_typ.global_env(), None, deep_typecheck)
+        return hl.tmatrix(
             self.new_global.typ,
             child_typ.col_type,
             child_typ.col_key,
@@ -557,9 +575,10 @@ class MatrixFilterCols(MatrixIR):
             result = MatrixMapCols(result, old_col, new_key=None)
         return result
 
-    def _compute_type(self):
-        self.pred._compute_type(self.child.typ.col_env(), None)
-        self._type = self.child.typ
+    def _compute_type(self, deep_typecheck):
+        self.child.compute_type(deep_typecheck)
+        self.pred.compute_type(self.child.typ.col_env(), None, deep_typecheck)
+        return self.child.typ
 
     def renderable_bindings(self, i, default_value=None):
         return self.child.typ.col_env(default_value) if i == 1 else {}
@@ -581,9 +600,10 @@ class MatrixCollectColsByKey(MatrixIR):
             result = MatrixMapCols(result, ir.InsertFields(col, [(col_uid_field_name, uid)], None), None)
         return result
 
-    def _compute_type(self):
+    def _compute_type(self, deep_typecheck):
+        self.child.compute_type(deep_typecheck)
         child_typ = self.child.typ
-        self._type = hl.tmatrix(
+        return hl.tmatrix(
             child_typ.global_type,
             child_typ.col_key_type._concat(
                 hl.tstruct(**{f: hl.tarray(t) for f, t in child_typ.col_value_type.items()})),
@@ -652,11 +672,12 @@ class MatrixAggregateColsByKey(MatrixIR):
             result = MatrixMapCols(result, old_col)
         return result
 
-    def _compute_type(self):
+    def _compute_type(self, deep_typecheck):
+        self.child.compute_type(deep_typecheck)
         child_typ = self.child.typ
-        self.entry_expr._compute_type(child_typ.row_env(), child_typ.entry_env())
-        self.col_expr._compute_type(child_typ.global_env(), child_typ.col_env())
-        self._type = hl.tmatrix(
+        self.entry_expr.compute_type(child_typ.row_env(), child_typ.entry_env(), deep_typecheck)
+        self.col_expr.compute_type(child_typ.global_env(), child_typ.col_env(), deep_typecheck)
+        return hl.tmatrix(
             child_typ.global_type,
             child_typ.col_key_type._concat(self.col_expr.typ),
             child_typ.col_key,
@@ -717,11 +738,12 @@ class MatrixExplodeRows(MatrixIR):
     def _eq(self, other):
         return self.path == other.path
 
-    def _compute_type(self):
+    def _compute_type(self, deep_typecheck):
+        self.child.compute_type(deep_typecheck)
         child_typ = self.child.typ
         a = child_typ.row_type._index_path(self.path)
         new_row_type = child_typ.row_type._insert(self.path, a.element_type)
-        self._type = hl.tmatrix(
+        return hl.tmatrix(
             child_typ.global_type,
             child_typ.col_type,
             child_typ.col_key,
@@ -746,8 +768,9 @@ class MatrixRepartition(MatrixIR):
     def _eq(self, other):
         return self.n == other.n and self.strategy == other.strategy
 
-    def _compute_type(self):
-        self._type = self.child.typ
+    def _compute_type(self, deep_typecheck):
+        self.child.compute_type(deep_typecheck)
+        return self.child.typ
 
 
 class MatrixUnionRows(MatrixIR):
@@ -770,10 +793,10 @@ class MatrixUnionRows(MatrixIR):
 
         return MatrixUnionRows(children)
 
-    def _compute_type(self):
+    def _compute_type(self, deep_typecheck):
         for c in self.children:
-            c.typ  # force
-        self._type = self.children[0].typ
+            c.compute_type(deep_typecheck)
+        return self.children[0].typ
 
 
 class MatrixDistinctByRow(MatrixIR):
@@ -784,8 +807,9 @@ class MatrixDistinctByRow(MatrixIR):
     def _handle_randomness(self, row_uid_field_name, col_uid_field_name):
         return MatrixDistinctByRow(self.child.handle_randomness(row_uid_field_name, col_uid_field_name))
 
-    def _compute_type(self):
-        self._type = self.child.typ
+    def _compute_type(self, deep_typecheck):
+        self.child.compute_type(deep_typecheck)
+        return self.child.typ
 
 
 class MatrixRowsHead(MatrixIR):
@@ -803,8 +827,9 @@ class MatrixRowsHead(MatrixIR):
     def _eq(self, other):
         return self.n == other.n
 
-    def _compute_type(self):
-        self._type = self.child.typ
+    def _compute_type(self, deep_typecheck):
+        self.child.compute_type(deep_typecheck)
+        return self.child.typ
 
 
 class MatrixColsHead(MatrixIR):
@@ -822,8 +847,9 @@ class MatrixColsHead(MatrixIR):
     def _eq(self, other):
         return self.n == other.n
 
-    def _compute_type(self):
-        self._type = self.child.typ
+    def _compute_type(self, deep_typecheck):
+        self.child.compute_type(deep_typecheck)
+        return self.child.typ
 
 
 class MatrixRowsTail(MatrixIR):
@@ -841,8 +867,9 @@ class MatrixRowsTail(MatrixIR):
     def _eq(self, other):
         return self.n == other.n
 
-    def _compute_type(self):
-        self._type = self.child.typ
+    def _compute_type(self, deep_typecheck):
+        self.child.compute_type(deep_typecheck)
+        return self.child.typ
 
 
 class MatrixColsTail(MatrixIR):
@@ -860,8 +887,9 @@ class MatrixColsTail(MatrixIR):
     def _eq(self, other):
         return self.n == other.n
 
-    def _compute_type(self):
-        self._type = self.child.typ
+    def _compute_type(self, deep_typecheck):
+        self.child.compute_type(deep_typecheck)
+        return self.child.typ
 
 
 class MatrixExplodeCols(MatrixIR):
@@ -896,11 +924,12 @@ class MatrixExplodeCols(MatrixIR):
     def _eq(self, other):
         return self.path == other.path
 
-    def _compute_type(self):
+    def _compute_type(self, deep_typecheck):
+        self.child.compute_type(deep_typecheck)
         child_typ = self.child.typ
         a = child_typ.col_type._index_path(self.path)
         new_col_type = child_typ.col_type._insert(self.path, a.element_type)
-        self._type = hl.tmatrix(
+        return hl.tmatrix(
             child_typ.global_type,
             new_col_type,
             child_typ.col_key,
@@ -942,9 +971,10 @@ class CastTableToMatrix(MatrixIR):
             self.cols_field_name == other.cols_field_name and \
             self.col_key == other.col_key
 
-    def _compute_type(self):
+    def _compute_type(self, deep_typecheck):
+        self.child.compute_type(deep_typecheck)
         child_typ = self.child.typ
-        self._type = hl.tmatrix(
+        return hl.tmatrix(
             child_typ.global_type._drop_fields([self.cols_field_name]),
             child_typ.global_type[self.cols_field_name].element_type,
             self.col_key,
@@ -974,13 +1004,15 @@ class MatrixAnnotateRowsTable(MatrixIR):
     def _eq(self, other):
         return self.root == other.root and self.product == other.product
 
-    def _compute_type(self):
+    def _compute_type(self, deep_typecheck):
+        self.child.compute_type(deep_typecheck)
+        self.table.compute_type(deep_typecheck)
         child_typ = self.child.typ
         if self.product:
             value_type = hl.tarray(self.table.typ.value_type)
         else:
             value_type = self.table.typ.value_type
-        self._type = hl.tmatrix(
+        return hl.tmatrix(
             child_typ.global_type,
             child_typ.col_type,
             child_typ.col_key,
@@ -1008,9 +1040,11 @@ class MatrixAnnotateColsTable(MatrixIR):
     def _eq(self, other):
         return self.root == other.root
 
-    def _compute_type(self):
+    def _compute_type(self, deep_typecheck):
+        self.child.compute_type(deep_typecheck)
+        self.table.compute_type(deep_typecheck)
         child_typ = self.child.typ
-        self._type = hl.tmatrix(
+        return hl.tmatrix(
             child_typ.global_type,
             child_typ.col_type._insert_field(self.root, self.table.typ.value_type),
             child_typ.col_key,
@@ -1031,11 +1065,12 @@ class MatrixToMatrixApply(MatrixIR):
     def _eq(self, other):
         return self.config == other.config
 
-    def _compute_type(self):
+    def _compute_type(self, deep_typecheck):
+        self.child.compute_type(deep_typecheck)
         name = self.config['name']
         child_typ = self.child.typ
-        if name == 'MatrixFilterPartitions':
-            self._type = child_typ
+        assert name == 'MatrixFilterPartitions'
+        return child_typ
 
 
 class MatrixRename(MatrixIR):
@@ -1063,8 +1098,9 @@ class MatrixRename(MatrixIR):
             self.row_map == other.row_map and \
             self.entry_map == other.entry_map
 
-    def _compute_type(self):
-        self._type = self.child.typ._rename(self.global_map, self.col_map, self.row_map, self.entry_map)
+    def _compute_type(self, deep_typecheck):
+        self.child.compute_type(deep_typecheck)
+        return self.child.typ._rename(self.global_map, self.col_map, self.row_map, self.entry_map)
 
 
 class MatrixFilterIntervals(MatrixIR):
@@ -1081,8 +1117,9 @@ class MatrixFilterIntervals(MatrixIR):
     def _eq(self, other):
         return self.intervals == other.intervals and self.point_type == other.point_type and self.keep == other.keep
 
-    def _compute_type(self):
-        self._type = self.child.typ
+    def _compute_type(self, deep_typecheck):
+        self.child.compute_type(deep_typecheck)
+        return self.child.typ
 
 
 class JavaMatrix(MatrixIR):
@@ -1093,8 +1130,11 @@ class JavaMatrix(MatrixIR):
     def render_head(self, r):
         return f'(JavaMatrix {r.add_jir(self._jir)}'
 
-    def _compute_type(self):
-        self._type = hl.tmatrix._from_java(self._jir.typ())
+    def _compute_type(self, deep_typecheck):
+        if self._type is None:
+            return hl.tmatrix._from_java(self._jir.typ())
+        else:
+            return self._type
 
 
 class JavaMatrixVectorRef(MatrixIR):
@@ -1106,5 +1146,5 @@ class JavaMatrixVectorRef(MatrixIR):
     def head_str(self):
         return f'{self.vec_ref.jid} {self.idx}'
 
-    def _compute_type(self):
-        self._type = self.vec_ref.item_type
+    def _compute_type(self, deep_typecheck):
+        return self.vec_ref.item_type
