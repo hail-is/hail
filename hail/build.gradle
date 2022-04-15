@@ -129,7 +129,7 @@ dependencies {
     unbundled 'org.apache.spark:spark-sql_' + scalaMajorVersion + ':' + sparkVersion
     unbundled 'org.apache.spark:spark-mllib_' + scalaMajorVersion + ':' + sparkVersion
 
-    bundled('org.json4s:json4s-jackson_' + scalaMajorVersion + ':3.7.0-M5') {
+    bundled('org.json4s:json4s-jackson_' + scalaMajorVersion + ':3.7.0-M11') {
         exclude group: 'com.fasterxml.jackson.core'
     }
 
