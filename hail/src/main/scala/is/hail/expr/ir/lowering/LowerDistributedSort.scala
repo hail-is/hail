@@ -464,7 +464,7 @@ object LowerDistributedSort {
 
     val joined = StreamJoin(dataWithIdx, structSampleIndices, IndexedSeq("idx"), IndexedSeq(samplingIndexName), leftName, rightName,
       MakeStruct(Seq(("elt", GetField(leftRef, "elt")), ("shouldKeep", ApplyUnaryPrimOp(Bang(), IsNA(rightRef))))),
-      "left")
+      "left", requiresMemoryManagement = true)
 
     // Step 2: Aggregate over joined, figure out how to collect only the rows that are marked "shouldKeep"
     val streamElementType = joined.typ.asInstanceOf[TStream].elementType.asInstanceOf[TStruct]

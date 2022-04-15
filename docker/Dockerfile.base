@@ -32,13 +32,6 @@ RUN hail-apt-get-install xz-utils libncurses5 && \
     tar -vx -C /opt -f mysql-8.0.26-linux-glibc2.17-x86_64-minimal-rebuild.tar.xz && \
     ln -s /opt/mysql-8.0.26-linux-glibc2.17-x86_64-minimal-rebuild/bin/* /usr/bin/
 
-RUN git clone https://github.com/catchorg/Catch2.git --depth 1 --branch v2.13.3 && \
-  cd Catch2 && \
-  cmake -Bbuild -H. -DBUILD_TESTING=OFF && \
-  cmake --build build/ --target install && \
-  cd .. && \
-  rm -rf Catch2
-
 COPY docker/requirements.txt .
 RUN hail-pip-install -r requirements.txt
 

@@ -357,7 +357,8 @@ class TableStage(
       val lEltRef = Ref(genUID(), lEltType)
       val rEltRef = Ref(genUID(), rEltType)
 
-      StreamJoin(lPart, rPart, lKey, rKey, lEltRef.name, rEltRef.name, joiner(lEltRef, rEltRef), joinType, rightKeyIsDistinct)
+      StreamJoin(lPart, rPart, lKey, rKey, lEltRef.name, rEltRef.name, joiner(lEltRef, rEltRef), joinType,
+        requiresMemoryManagement = true, rightKeyIsDistinct = rightKeyIsDistinct)
     }
 
     val newKey = kType.fieldNames ++ right.kType.fieldNames.drop(joinKey)
@@ -1569,7 +1570,7 @@ object LowerTableIR {
               i += 1
             }
             refs.tail.zip(roots).foldRight(
-              mapIR(ToStream(refs.last)) { elt =>
+              mapIR(ToStream(refs.last, true)) { elt =>
                 path.zip(refs.init).foldRight[IR](elt) { case ((p, ref), inserted) =>
                   InsertFields(ref, FastSeq(p -> inserted))
                 }
