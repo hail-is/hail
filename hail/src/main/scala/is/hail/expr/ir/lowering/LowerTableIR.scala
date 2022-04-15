@@ -1019,8 +1019,8 @@ object LowerTableIR {
         }
 
         val letBindNewCtx = TableStage.wrapInBindings(newCtxs, loweredChild.letBindings)
-        val bindRelationLetsNewCtx = LowerToCDA.substLets(letBindNewCtx, relationalLetsAbove)
-        val newCtxSeq = CompileAndEvaluate(ctx, ToArray(bindRelationLetsNewCtx)).asInstanceOf[IndexedSeq[Any]]
+        val bindRelationLetsNewCtx = ToArray(LowerToCDA.substLets(letBindNewCtx, relationalLetsAbove))
+        val newCtxSeq = CompileAndEvaluate(ctx, bindRelationLetsNewCtx).asInstanceOf[IndexedSeq[Any]]
         val numNewParts = newCtxSeq.length
         val newIntervals = loweredChild.partitioner.rangeBounds.slice(0,numNewParts)
         val newPartitioner = loweredChild.partitioner.copy(rangeBounds = newIntervals)
@@ -1031,7 +1031,7 @@ object LowerTableIR {
           loweredChild.globals,
           newPartitioner,
           loweredChild.dependency,
-          newCtxs,
+          ToStream(Literal(bindRelationLetsNewCtx.typ, newCtxSeq)),
           (ctxRef: Ref) => StreamTake(
             loweredChild.partition(GetField(ctxRef, "old")),
             GetField(ctxRef, "numberToTake")))
@@ -1121,8 +1121,8 @@ object LowerTableIR {
           }
         }
 
-        val letBindNewCtx = TableStage.wrapInBindings(newCtxs, loweredChild.letBindings)
-        val newCtxSeq = CompileAndEvaluate(ctx, ToArray(letBindNewCtx)).asInstanceOf[IndexedSeq[Any]]
+        val letBindNewCtx = ToArray(TableStage.wrapInBindings(newCtxs, loweredChild.letBindings))
+        val newCtxSeq = CompileAndEvaluate(ctx, letBindNewCtx).asInstanceOf[IndexedSeq[Any]]
         val numNewParts = newCtxSeq.length
         val oldParts = loweredChild.partitioner.rangeBounds
         val newIntervals = oldParts.slice(oldParts.length - numNewParts, oldParts.length)
@@ -1133,7 +1133,7 @@ object LowerTableIR {
           loweredChild.globals,
           newPartitioner,
           loweredChild.dependency,
-          newCtxs,
+          ToStream(Literal(letBindNewCtx.typ, newCtxSeq)),
           (ctxRef: Ref) => bindIR(GetField(ctxRef, "old")) { oldRef =>
             StreamDrop(loweredChild.partition(oldRef), GetField(ctxRef, "numberToDrop"))
           })
