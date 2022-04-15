@@ -3188,7 +3188,7 @@ steps:
           valueFrom: default_ns.name
         mountPath: /query-gsa-key
     inputs:
-      - from: /just-jar/hail.jar
+      - from: /just-jar/spark-32/hail.jar
         to: /io/hail.jar
       - from: /git_version
         to: /io/git_version
@@ -3196,7 +3196,7 @@ steps:
       - default_ns
       - deploy_batch
       - hail_pip_installed_image
-      - build_hail_jar_and_wheel_only
+      - build_hail_jar_and_wheel_only_spark_3_2
       - merge_code
       - create_test_gsa_keys
   - kind: deploy
@@ -4950,6 +4950,7 @@ steps:
       - create_certs
       - create_accounts
       - hail_run_tests_image
+      - build_hail
       - build_hail_jar_and_wheel_only_spark_3_2
       - upload_test_resources_to_blob_storage
   - kind: runImage
