@@ -303,6 +303,8 @@ podman run \
 -v /cloudfuse:/cloudfuse:shared \
 -v /etc/netns:/etc/netns \
 -v /sys/fs/cgroup:/sys/fs/cgroup \
+-v /boot:/boot \
+-v /lib/modules:/lib/modules \
 --mount type=bind,source=/mnt/disks/$WORKER_DATA_DISK_NAME,target=/host \
 --mount type=bind,source=/dev,target=/dev,bind-propagation=rshared \
 -p 5000:5000 \

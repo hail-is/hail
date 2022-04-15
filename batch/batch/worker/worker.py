@@ -541,6 +541,7 @@ class Container:
         volume_mounts: Optional[List[dict]] = None,
         env: Optional[List[str]] = None,
         stdin: Optional[str] = None,
+        checkpointable: bool = False,
     ):
         self.fs = fs
         assert self.fs
@@ -557,6 +558,7 @@ class Container:
         self.volume_mounts = volume_mounts or []
         self.env = env or []
         self.stdin = stdin
+        self.checkpointable = checkpointable
 
         self.deleted_event = asyncio.Event()
 
@@ -588,6 +590,8 @@ class Container:
 
         self._killed = False
         self._cleaned_up = False
+
+        self.task_manager = aiotools.BackgroundTaskManager()
 
     async def create(self):
         self.state = 'creating'
@@ -650,6 +654,8 @@ class Container:
                 raise
 
         self._run_fut = asyncio.ensure_future(self._run_until_done_or_deleted(_run))
+        if self.checkpointable:
+            self.task_manager.ensure_future(periodically_call(10, self.checkpoint_jobs))
 
     async def wait(self):
         assert self._run_fut
@@ -779,6 +785,28 @@ class Container:
         if self.port is not None:
             self.host_port = await port_allocator.allocate()
             await self.netns.expose_port(self.port, self.host_port)
+
+    async def checkpoint_jobs(self):
+        # try:
+        #     log.info(f'Starting crun checkpoint process for {self}')
+        #     checkpoint_process = await asyncio.create_subprocess_exec(
+        #         'crun', 'checkpoint', '--tcp-established', '--image-path=/root/checkpoint', self.name
+        #     )
+        # except:
+        #     log.exception("CREATING CHECKPOINT PROCESS FAILED")
+
+        # try:
+        #     await checkpoint_process.wait()
+        # except:
+        #     log.exception("CHECKPOINTING FAILED")
+
+        # log.info(f'copying checkpoint into blob storage for {self}')
+        # await self.fs.copy('/root/checkpoint', f'{BATCH_LOGS_STORAGE_URI}/vedant/checkpoint')
+        # # await self.fs.copy('/root/checkpoint', 'gs://vrautela-test-data/tmp/checkpoint')
+        # log.info('done copying checkpoint')
+
+        # log.info(f'crun checkpoint completed for {self}')
+        pass
 
     async def _run_container(self) -> bool:
         self.started_at = time_msecs()
@@ -1436,6 +1464,7 @@ class DockerJob(Job):
             unconfined=job_spec.get('unconfined'),
             volume_mounts=self.main_volume_mounts,
             env=[f'{var["name"]}={var["value"]}' for var in self.env],
+            checkpointable=True,
         )
 
         if output_files:

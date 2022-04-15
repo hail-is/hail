@@ -4,9 +4,8 @@ import urllib.parse
 
 from ..aiocloud import aioaws, aioazure, aiogoogle
 from .fs import (AsyncFS, MultiPartCreate, FileStatus, FileListEntry, ReadableStream,
-                 WritableStream, AsyncFSURL)
+                 WritableStream, AsyncFSURL, Copier, Transfer)
 from .local_fs import LocalAsyncFS
-
 
 class RouterAsyncFS(AsyncFS):
     def __init__(self,
@@ -145,3 +144,9 @@ class RouterAsyncFS(AsyncFS):
     def copy_part_size(self, url: str) -> int:
         fs = self._get_fs(url)
         return fs.copy_part_size(url)
+
+    async def copy(self, src: str, dest: str, max_simultaneous_transfers=75):
+        transfer = Transfer(src, dest)
+
+        sema = asyncio.Semaphore(max_simultaneous_transfers)
+        await Copier.copy(self, sema, transfer)
