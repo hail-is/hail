@@ -726,6 +726,32 @@ steps:
       - hail_build_image
       - merge_code
   - kind: runImage
+    name: build_hail_jar_and_wheel_only_spark3.2
+    image:
+      valueFrom: hail_build_image.image
+    resources:
+      memory: standard
+      cpu: '4'
+    script: |
+      set -ex
+      cd /io/repo/hail
+      chmod 755 ./gradlew
+      time retry ./gradlew --version
+      export SPARK_VERSION="3.2.1" SCALA_VERSION="2.12.12"
+      time retry make shadowJar wheel
+      (cd build/deploy/dist/ && tar -cvf wheel-container.tar hail-*-py3-none-any.whl)
+    inputs:
+      - from: /repo
+        to: /io/repo
+    outputs:
+      - from: /io/repo/hail/build/libs/hail-all-spark.jar
+        to: /just-jar/spark-32/hail.jar
+      - from: /io/repo/hail/build/deploy/dist/wheel-container.tar
+        to: /just-wheel/spark-32/wheel-container.tar
+    dependsOn:
+      - hail_build_image
+      - merge_code
+  - kind: runImage
     name: build_hail
     image:
       valueFrom: hail_build_image.image
@@ -744,14 +770,13 @@ steps:
       mv build/libs/hail-all-spark.jar build/debug_libs/
       mv build/libs/hail-all-spark-test.jar build/debug_libs/
       mv build/deploy/dist/debug-wheel-container.tar build/debug_libs
-      export SPARK_VERSION="3.2.1" SCALA_VERSION="2.12.12"
       time retry make jars python-version-info wheel
 
       # Check wheel size is small enough for pypi (< 100 MB)
       HAIL_PIP_VERSION=$(cat python/hail/hail_pip_version)
       WHEEL_PATH="build/deploy/dist/hail-$HAIL_PIP_VERSION-py3-none-any.whl"
       du -h $WHEEL_PATH
-      # $(python3 -c "import os; exit(1) if (os.path.getsize('$WHEEL_PATH')) > 100_000_000 else exit(0)")
+      $(python3 -c "import os; exit(1) if (os.path.getsize('$WHEEL_PATH')) > 100_000_000 else exit(0)")
 
       time (cd python && zip -r hail.zip hail hailtop)
       time tar czf test.tar.gz -C python test

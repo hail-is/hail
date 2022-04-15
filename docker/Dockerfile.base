@@ -1,6 +1,6 @@
 FROM {{ hail_ubuntu_image.image }}
 
-RUN hail-pip-install pyspark==3.2.1
+RUN hail-pip-install pyspark==3.1.1
 ENV SPARK_HOME /usr/local/lib/python3.7/dist-packages/pyspark
 ENV PATH "$PATH:$SPARK_HOME/sbin:$SPARK_HOME/bin"
 ENV PYSPARK_PYTHON python3
