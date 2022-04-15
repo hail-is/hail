@@ -1342,26 +1342,26 @@ object IRParser {
         }
       case "MatrixToValueApply" =>
         val config = string_literal(it)
-        matrix_ir(env)(it).map { child =>
+        matrix_ir(env.withRefMap(Map.empty))(it).map { child =>
           MatrixToValueApply(child, RelationalFunctions.lookupMatrixToValue(env.ctx, config))
         }
       case "BlockMatrixToValueApply" =>
         val config = string_literal(it)
-        blockmatrix_ir(env)(it).map { child =>
+        blockmatrix_ir(env.withRefMap(Map.empty))(it).map { child =>
           BlockMatrixToValueApply(child, RelationalFunctions.lookupBlockMatrixToValue(env.ctx, config))
         }
       case "BlockMatrixCollect" =>
-        blockmatrix_ir(env)(it).map(BlockMatrixCollect)
+        blockmatrix_ir(env.withRefMap(Map.empty))(it).map(BlockMatrixCollect)
       case "TableWrite" =>
         implicit val formats = TableWriter.formats
         val writerStr = string_literal(it)
-        table_ir(env)(it).map { child =>
+        table_ir(env.withRefMap(Map.empty))(it).map { child =>
           TableWrite(child, deserialize[TableWriter](writerStr))
         }
       case "TableMultiWrite" =>
         implicit val formats = WrappedMatrixNativeMultiWriter.formats
         val writerStr = string_literal(it)
-        table_ir_children(env)(it).map { children =>
+        table_ir_children(env.withRefMap(Map.empty))(it).map { children =>
           TableMultiWrite(children, deserialize[WrappedMatrixNativeMultiWriter](writerStr))
         }
       case "MatrixAggregate" =>
@@ -1380,21 +1380,21 @@ object IRParser {
         val writerStr = string_literal(it)
         implicit val formats = MatrixNativeMultiWriter.formats
         val writer = deserialize[MatrixNativeMultiWriter](writerStr)
-        matrix_ir_children(env)(it).map { children =>
+        matrix_ir_children(env.withRefMap(Map.empty))(it).map { children =>
           MatrixMultiWrite(children, writer)
         }
       case "BlockMatrixWrite" =>
         val writerStr = string_literal(it)
         implicit val formats: Formats = BlockMatrixWriter.formats
         val writer = deserialize[BlockMatrixWriter](writerStr)
-        blockmatrix_ir(env)(it).map { child =>
+        blockmatrix_ir(env.withRefMap(Map.empty))(it).map { child =>
           BlockMatrixWrite(child, writer)
         }
       case "BlockMatrixMultiWrite" =>
         val writerStr = string_literal(it)
         implicit val formats: Formats = BlockMatrixWriter.formats
         val writer = deserialize[BlockMatrixMultiWriter](writerStr)
-        repUntil(it, blockmatrix_ir(env), PunctuationToken(")")).map { blockMatrices =>
+        repUntil(it, blockmatrix_ir(env.withRefMap(Map.empty)), PunctuationToken(")")).map { blockMatrices =>
           BlockMatrixMultiWrite(blockMatrices.toFastIndexedSeq, writer)
         }
       case "CollectDistributedArray" =>

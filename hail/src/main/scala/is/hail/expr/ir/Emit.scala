@@ -1283,11 +1283,15 @@ class Emit[C](
         IEmitCode.present(cb, SRNGStateStaticSizeValue(cb, key))
 
       case RNGSplit(state, dynBitstring) =>
-        val stateValue = emitI(state).get(cb).asRNGState
-        val longs = emitI(dynBitstring).get(cb).valueTuple.asInstanceOf[IndexedSeq[Value[Long]]]
-        var result = stateValue
-        longs.foreach(l => result = result.splitDyn(cb, l))
-        IEmitCode.present(cb, result)
+        // FIXME: When new rng support is complete, don't allow missing states
+        emitI(state).flatMap(cb) { stateValue =>
+          emitI(dynBitstring).map(cb) { tuple =>
+            val longs = tuple.valueTuple.asInstanceOf[IndexedSeq[Value[Long]]]
+            var result = stateValue.asRNGState
+            longs.foreach(l => result = result.splitDyn(cb, l))
+            result
+          }
+        }
 
       case x@StreamLen(a) =>
         emitStream(a, cb, region).map(cb) { case stream: SStreamValue =>
