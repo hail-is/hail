@@ -41,13 +41,6 @@ RUN hail-apt-get-install xz-utils libncurses5 && \
 RUN curl >${SPARK_HOME}/jars/gcs-connector-hadoop2-2.0.1.jar https://storage.googleapis.com/hadoop-lib/gcs/gcs-connector-hadoop2-2.0.1.jar
 COPY docker/core-site.xml ${SPARK_HOME}/conf/core-site.xml
 
-RUN git clone https://github.com/catchorg/Catch2.git --depth 1 --branch v2.13.3 && \
-  cd Catch2 && \
-  cmake -Bbuild -H. -DBUILD_TESTING=OFF && \
-  cmake --build build/ --target install && \
-  cd .. && \
-  rm -rf Catch2
-
 COPY docker/requirements.txt .
 RUN hail-pip-install -r requirements.txt
 
