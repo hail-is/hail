@@ -59,4 +59,4 @@ def sync_check_exec(command: str, *args: str, echo: bool = False, capture_output
     try:
         subprocess.run(command_args, check=True, capture_output=capture_output)
     except subprocess.CalledProcessError as e:
-        raise CalledProcessError(command_args, e.returncode, (e.stdout, e.stderr))
+        raise CalledProcessError(command_args, e.returncode, (e.stdout, e.stderr)) from e
