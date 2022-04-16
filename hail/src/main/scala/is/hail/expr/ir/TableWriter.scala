@@ -66,12 +66,12 @@ object TableNativeWriter {
     }(GetField(_, "oldCtx")).mapCollectWithContextsAndGlobals(relationalLetsAbove) { (rows, ctxRef) =>
       val file = GetField(ctxRef, "writeCtx")
       WritePartition(rows, file + UUID4(), rowWriter)
-    } { (parts, globals) =>
+    } { (runCDA, globals) =>
       val writeGlobals = WritePartition(MakeStream(FastSeq(globals), TStream(globals.typ)),
         Str(partFile(1, 0)), globalWriter)
 
       RelationalWriter.scoped(path, overwrite, Some(tt))(
-        bindIR(parts) { fileCountAndDistinct =>
+        bindIR(runCDA) { fileCountAndDistinct =>
           Begin(FastIndexedSeq(
             WriteMetadata(MakeArray(GetField(writeGlobals, "filePath")),
               RVDSpecWriter(s"$path/globals", RVDSpecMaker(globalSpec, RVDPartitioner.unkeyed(1)))),
@@ -463,9 +463,9 @@ case class TableTextWriter(
     }(GetField(_, "oldCtx")).mapCollectWithContextsAndGlobals(relationalLetsAbove) { (rows, ctxRef) =>
       val file = GetField(ctxRef, "partFile")
       WritePartition(rows, file, lineWriter)
-    } { (parts, _) =>
+    } { (runCDA, _) =>
       val commit = TableTextFinalizer(path, ts.rowType, delimiter, header, exportType)
-      Begin(FastIndexedSeq(WriteMetadata(parts, commit)))
+      Begin(FastIndexedSeq(WriteMetadata(runCDA, commit)))
     }
   }
 }
