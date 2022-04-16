@@ -226,6 +226,14 @@ def run_command(args):
         raise e
 
 
+def hl_plural(orig, n, alternate=None):
+    if alternate is None:
+        plural = orig + 's'
+    else:
+        plural = alternate
+    return hl.if_else(n == 1, orig, plural)
+
+
 def plural(orig, n, alternate=None):
     if n == 1:
         return orig
