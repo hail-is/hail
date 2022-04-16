@@ -208,7 +208,15 @@ class TableStage(
         Let(name, GetField(glob, name), accum)
       }, Some(dependency))
 
-    LowerToCDA.substLets(TableStage.wrapInBindings(body(cda, globals), letBindings), relationalBindings)
+    val cdaRef = Ref(genUID(), cda.typ)
+
+    LowerToCDA.substLets(
+      TableStage.wrapInBindings(
+        body(cdaRef, globals),
+        letBindings :+ cdaRef.name -> cda
+      ),
+      relationalBindings
+    )
   }
 
   def collectWithGlobals(relationalBindings: Map[String, IR]): IR =
