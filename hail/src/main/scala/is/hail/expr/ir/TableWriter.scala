@@ -177,7 +177,14 @@ case class PartitionNativeWriter(spec: AbstractTypedCodecSpec, keyFields: Indexe
   val keyType = spec.encodedVirtualType.asInstanceOf[TStruct].select(keyFields)._1
 
   def ctxType: Type = TString
-  def returnType: Type = TStruct("filePath" -> TString, "partitionCounts" -> TInt64, "distinctlyKeyed" -> TBoolean, "firstKey" -> keyType, "lastKey" -> keyType)
+  def returnType: Type = TStruct(
+    "filePath" -> TString,
+    "partitionCounts" -> TInt64, // FIXME: not partitionCount*s*, just *this* partition's count
+    "distinctlyKeyed" -> TBoolean,
+    "firstKey" -> keyType,
+    "lastKey" -> keyType,
+    "bytesWritten" -> TInt64
+  )
   def unionTypeRequiredness(r: TypeWithRequiredness, ctxType: TypeWithRequiredness, streamType: RIterable): Unit = {
     val rs = r.asInstanceOf[RStruct]
     val rKeyType = streamType.elementType.asInstanceOf[RStruct].select(keyFields.toArray)
@@ -205,11 +212,12 @@ case class PartitionNativeWriter(spec: AbstractTypedCodecSpec, keyFields: Indexe
     val indexKeyType = ifIndexed { index.get._2 }
     val indexWriter = ifIndexed { StagedIndexWriter.withDefaults(indexKeyType, mb.ecb) }
 
-    context.toI(cb).map(cb) { case ctx: SStringValue =>
+    context.toI(cb).map(cb) { case filePath: SStringValue =>
       val filename = mb.newLocal[String]("filename")
       val os = mb.newLocal[ByteTrackingOutputStream]("write_os")
       val ob = mb.newLocal[OutputBuffer]("write_ob")
       val n = mb.newLocal[Long]("partition_count")
+      val bytesWritten = mb.newLocal[Long]("partition_byte_count")
       val distinctlyKeyed = mb.newLocal[Boolean]("distinctlyKeyed")
       cb.assign(distinctlyKeyed, !keyFields.isEmpty) // True until proven otherwise, if there's a key to care about at all.
 
@@ -265,9 +273,10 @@ case class PartitionNativeWriter(spec: AbstractTypedCodecSpec, keyFields: Indexe
           .apply(cb, row, ob)
 
         cb.assign(n, n + 1L)
+        cb.assign(bytesWritten, bytesWritten + row.sizeToStoreInBytes(cb).value)
       }
 
-      cb.assign(filename, ctx.loadString(cb))
+      cb.assign(filename, filePath.loadString(cb))
       if (hasIndex) {
         val indexFile = cb.newLocal[String]("indexFile")
         cb.assign(indexFile, const(index.get._1).concat(filename).concat(".idx"))
@@ -277,6 +286,7 @@ case class PartitionNativeWriter(spec: AbstractTypedCodecSpec, keyFields: Indexe
       cb.assign(os, Code.newInstance[ByteTrackingOutputStream, OutputStream](mb.create(filename)))
       cb.assign(ob, spec.buildCodeOutputBuffer(Code.checkcast[OutputStream](os)))
       cb.assign(n, 0L)
+      cb.assign(bytesWritten, 0L)
 
       stream.memoryManagedConsume(region, cb) { cb =>
         writeFile(cb, stream.element)
@@ -289,11 +299,12 @@ case class PartitionNativeWriter(spec: AbstractTypedCodecSpec, keyFields: Indexe
       cb += os.invoke[Unit]("close")
 
       SStackStruct.constructFromArgs(cb, region, returnType.asInstanceOf[TBaseStruct],
-        EmitCode.present(mb, ctx),
+        EmitCode.present(mb, filePath),
         EmitCode.present(mb, new SInt64Value(n)),
         EmitCode.present(mb, new SBooleanValue(distinctlyKeyed)),
         firstSeenSettable,
-        lastSeenSettable
+        lastSeenSettable,
+        EmitCode.present(mb, new SInt64Value(bytesWritten))
       )
     }
   }
