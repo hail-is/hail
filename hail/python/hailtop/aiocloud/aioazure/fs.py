@@ -131,7 +131,7 @@ class AzureCreateManager(AsyncContextManager[WritableStream]):
             try:
                 # azure allows both BlockBlob and the string id here, despite
                 # only having BlockBlob annotations
-                await self._client.commit_block_list(flatten(self._block_ids)  # type: ignore
+                await self._client.commit_block_list(self._block_ids  # type: ignore
                                                      )
             except:
                 try:
