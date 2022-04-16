@@ -125,7 +125,7 @@ case class MatrixNativeWriter(
       }
     }(GetField(_, "oldCtx")).mapCollectWithContextsAndGlobals(relationalLetsAbove) { (rows, ctx) =>
       WritePartition(rows, GetField(ctx, "writeCtx") + UUID4(), rowWriter)
-    } { (parts, globals) =>
+    } { (runCDA, globals) =>
       val writeEmpty = WritePartition(MakeStream(FastSeq(makestruct()), TStream(TStruct.empty)), Str(partFile(1, 0)), emptyWriter)
       val writeCols = WritePartition(ToStream(GetField(globals, colsFieldName)), Str(partFile(1, 0)), colWriter)
       val writeGlobals = WritePartition(MakeStream(FastSeq(SelectFields(globals, tm.globalType.fieldNames)), TStream(tm.globalType)),
@@ -147,7 +147,7 @@ case class MatrixNativeWriter(
             RelationalWriter.scoped(s"$path/rows", overwrite = false, None)(
               RelationalWriter.scoped(s"$path/entries", overwrite = false, None)(
                 bindIR(writeCols) { colInfo =>
-                  bindIR(parts) { partInfo =>
+                  bindIR(runCDA) { partInfo =>
                     Begin(FastIndexedSeq(
                       WriteMetadata(MakeArray(GetField(writeEmpty, "filePath")),
                         RVDSpecWriter(s"$path/globals/globals", RVDSpecMaker(emptySpec, RVDPartitioner.unkeyed(1)))),
@@ -437,8 +437,8 @@ case class MatrixVCFWriter(
         "cols" -> GetField(ts.globals, colsFieldName),
         "partFile" -> GetField(ctxRef, "partFile")))
       WritePartition(rows, ctx, lineWriter)
-    }{ (parts, globals) =>
-      val ctx = MakeStruct(FastSeq("cols" -> GetField(globals, colsFieldName), "partFiles" -> parts))
+    }{ (runCDA, globals) =>
+      val ctx = MakeStruct(FastSeq("cols" -> GetField(globals, colsFieldName), "partFiles" -> runCDA))
       val commit = VCFExportFinalizer(tm, path, appendStr, metadata, exportType, tabix)
       Begin(FastIndexedSeq(WriteMetadata(ctx, commit)))
     }

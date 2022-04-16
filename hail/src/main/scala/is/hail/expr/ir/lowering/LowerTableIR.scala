@@ -190,7 +190,7 @@ class TableStage(
   }
 
   def mapCollect(relationalBindings: Map[String, IR])(f: IR => IR): IR = {
-    mapCollectWithGlobals(relationalBindings)(f) { (parts, globals) => parts }
+    mapCollectWithGlobals(relationalBindings)(f) { (runCDA, globals) => runCDA }
   }
 
   def mapCollectWithGlobals(relationalBindings: Map[String, IR])(mapF: IR => IR)(body: (IR, IR) => IR): IR =
@@ -201,20 +201,20 @@ class TableStage(
     val broadcastRefs = MakeStruct(broadcastVals)
     val glob = Ref(genUID(), broadcastRefs.typ)
 
-    val cda = CollectDistributedArray(
+    val runCDA = CollectDistributedArray(
       contexts, broadcastRefs,
       ctxRefName, glob.name,
       broadcastVals.foldLeft(mapF(partitionIR, Ref(ctxRefName, ctxType))) { case (accum, (name, _)) =>
         Let(name, GetField(glob, name), accum)
       }, Some(dependency))
 
-    LowerToCDA.substLets(TableStage.wrapInBindings(body(cda, globals), letBindings), relationalBindings)
+    LowerToCDA.substLets(TableStage.wrapInBindings(body(runCDA, globals), letBindings), relationalBindings)
   }
 
   def collectWithGlobals(relationalBindings: Map[String, IR]): IR =
-    mapCollectWithGlobals(relationalBindings)(ToArray) { (parts, globals) =>
+    mapCollectWithGlobals(relationalBindings)(ToArray) { (runCDA, globals) =>
       MakeStruct(FastSeq(
-        "rows" -> ToArray(flatMapIR(ToStream(parts))(ToStream(_))),
+        "rows" -> ToArray(flatMapIR(ToStream(runCDA))(ToStream(_))),
         "global" -> globals))
     }
 
@@ -581,7 +581,7 @@ object LowerTableIR {
                 WriteValue(MakeTuple.ordered(aggs.aggs.zipWithIndex.map { case (sig, i) => AggStateValue(i, sig.state) }), Str(tmpDir) + UUID4(), codecSpec),
                 aggs.states
               ))
-          }) { case (collected, globals) =>
+          }) { case (runCDA, globals) =>
             val treeAggFunction = genUID()
             val currentAggStates = Ref(genUID(), TArray(TString))
 
@@ -608,7 +608,7 @@ object LowerTableIR {
             }
 
             bindIR(TailLoop(treeAggFunction,
-              FastIndexedSeq((currentAggStates.name -> collected)),
+              FastIndexedSeq((currentAggStates.name -> runCDA)),
               If(ArrayLen(currentAggStates) <= I32(branchFactor),
                 currentAggStates,
                 Recur(treeAggFunction, FastIndexedSeq(CollectDistributedArray(mapIR(StreamGrouped(ToStream(currentAggStates), I32(branchFactor)))(x => ToArray(x)),
@@ -646,22 +646,25 @@ object LowerTableIR {
                 MakeTuple.ordered(aggs.aggs.zipWithIndex.map { case (sig, i) => AggStateValue(i, sig.state) }),
                 aggs.states
               ))
-          }) { case (collected, globals) =>
+          }) { case (runCDA, globals) =>
             Let("global",
               globals,
-              RunAgg(
-                Begin(FastIndexedSeq(
-                  initFromSerializedStates,
-                  forIR(ToStream(collected)) { state =>
-                    Begin(aggs.aggs.zipWithIndex.map { case (sig, i) => CombOpValue(i, GetTupleElement(state, i), sig) })
-                  }
-                )),
-                Let(
-                  resultUID,
-                  results,
-                  aggs.postAggIR),
-                aggs.states
-              ))
+              bindIR(runCDA) { writtenPartitionsInformation =>
+                RunAgg(
+                  Begin(FastIndexedSeq(
+                    initFromSerializedStates,
+                    forIR(ToStream(writtenPartitionsInformation)) { state =>
+                      Begin(aggs.aggs.zipWithIndex.map { case (sig, i) => CombOpValue(i, GetTupleElement(state, i), sig) })
+                    }
+                  )),
+                  Let(
+                    resultUID,
+                    results,
+                    aggs.postAggIR),
+                  aggs.states
+                )
+              )
+            }
           }
         }
 
@@ -1183,7 +1186,7 @@ object LowerTableIR {
                   aggs.states
                 ))
               // Collected is TArray of TString
-            }) { case (collected, _) =>
+            }) { case (runCDA, _) =>
 
               def combineGroup(partArrayRef: IR): IR = {
                 Begin(FastIndexedSeq(
@@ -1217,7 +1220,7 @@ object LowerTableIR {
                 val aggStack = Ref(genUID(), TArray(TArray(TString)))
                 val loopName = genUID()
 
-                TailLoop(loopName, IndexedSeq((aggStack.name, MakeArray(collected))),
+                TailLoop(loopName, IndexedSeq((aggStack.name, MakeArray(runCDA))),
                   bindIR(ArrayRef(aggStack, (ArrayLen(aggStack) - 1))) { states =>
                     bindIR(ArrayLen(states)) { statesLen =>
                       If(statesLen > branchFactor,
@@ -1316,28 +1319,43 @@ object LowerTableIR {
                   MakeTuple.ordered(aggs.aggs.zipWithIndex.map { case (sig, i) => AggStateValue(i, sig.state) }),
                   aggs.states
                 ))
-            }) { case (collected, globals) =>
-              Let("global",
+            }) { case (runCDA, globals) =>
+              Let("global", // FIXME: what is the function of binding global? This seems to be one only sometimes
                 globals,
-                ToArray(StreamTake({
+                bindIR(runCDA) { writtenPartitionsInformation =>
                   val acc = Ref(genUID(), initStateRef.typ)
-                  val value = Ref(genUID(), collected.typ.asInstanceOf[TArray].elementType)
-                  StreamScan(
-                    ToStream(collected),
-                    initStateRef,
-                    acc.name,
-                    value.name,
-                    RunAgg(
-                      Begin(FastIndexedSeq(
-                        Begin(aggs.aggs.zipWithIndex.map { case (agg, i) =>
-                          InitFromSerializedValue(i, GetTupleElement(acc, i), agg.state)
-                        }),
-                        Begin(aggs.aggs.zipWithIndex.map { case (sig, i) => CombOpValue(i, GetTupleElement(value, i), sig) }))),
-                      MakeTuple.ordered(aggs.aggs.zipWithIndex.map { case (sig, i) => AggStateValue(i, sig.state) }),
-                      aggs.states
-                    )
-                  )
-                }, ArrayLen(collected))))
+                  val value = Ref(genUID(), writtenPartitionsInformation.typ.asInstanceOf[TArray].elementType)
+                  ToArray(StreamTake(
+                    StreamScan(
+                      ToStream(writtenPartitionsInformation),
+                      initStateRef,
+                      acc.name,
+                      value.name,
+                      RunAgg(
+                        Begin(FastIndexedSeq(
+                          Begin(
+                            aggs.aggs.zipWithIndex.map { case (agg, i) =>
+                              InitFromSerializedValue(i, GetTupleElement(acc, i), agg.state)
+                            }
+                          ),
+                          Begin(
+                            aggs.aggs.zipWithIndex.map { case (sig, i) =>
+                              CombOpValue(i, GetTupleElement(value, i), sig)
+                            }
+                          )
+                        )),
+                        MakeTuple.ordered(
+                          aggs.aggs.zipWithIndex.map { case (sig, i) =>
+                            AggStateValue(i, sig.state)
+                          }
+                        ),
+                        aggs.states
+                      )
+                    ),
+                    ArrayLen(writtenPartitionsInformation)
+                  ))
+                }
+              )
             }
             (partitionAggs, identity[IR])
           }
