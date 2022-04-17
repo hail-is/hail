@@ -558,10 +558,6 @@ class GoogleStorageAsyncFS(AsyncFS):
         bucket = rest[2:end_of_bucket]
         name = rest[(end_of_bucket + 1):]
 
-        if name:
-            assert name[0] == '/'
-            name = name[1:]
-
         return (bucket, name)
 
     async def open(self, url: str) -> ReadableStream:
