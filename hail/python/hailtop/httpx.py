@@ -99,7 +99,6 @@ class ClientSession:
             tls = external_client_ssl_context()
 
         assert 'connector' not in kwargs
-        kwargs['connector'] = aiohttp.TCPConnector(ssl=tls)
 
         if timeout is None:
             timeout = aiohttp.ClientTimeout(total=5)
@@ -109,6 +108,7 @@ class ClientSession:
             *args,
             timeout=timeout,
             raise_for_status=False,
+            connector=aiohttp.TCPConnector(ssl=tls),
             **kwargs
         )
 
