@@ -3133,16 +3133,16 @@ steps:
       export AZURE_APPLICATION_CREDENTIALS=/test-azure-key/credentials.json
 
       {% if scope == "deploy" %}
-      HAIL_JAR_URL={{ global.query_storage_uri }}
+      HAIL_QUERY_JAR_URL={{ global.query_storage_uri }}
       {% elif scope == "test" or scope == "dev" %}
-      HAIL_JAR_URL={{ global.test_storage_uri }}/{{ default_ns.name }}
+      HAIL_QUERY_JAR_URL={{ global.test_storage_uri }}/{{ default_ns.name }}
       {% else %}
       echo "!!! unexpected scope {{ scope }} !!!"
       exit 1
       {% endif %}
-      HAIL_JAR_URL=${HAIL_JAR_URL}/jars/$(cat /io/git_version).jar
+      HAIL_QUERY_JAR_URL=${HAIL_QUERY_JAR_URL}/jars/$(cat /io/git_version).jar
 
-      python3 -m hailtop.aiotools.copy 'null' '[{"from": "/io/hail.jar", "to": "'${HAIL_JAR_URL}'"}]'
+      python3 -m hailtop.aiotools.copy 'null' '[{"from": "/io/hail.jar", "to": "'${HAIL_QUERY_JAR_URL}'"}]'
     secrets:
       - name: query-gsa-key
         namespace:
