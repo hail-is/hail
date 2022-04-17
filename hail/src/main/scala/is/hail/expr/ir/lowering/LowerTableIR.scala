@@ -663,8 +663,8 @@ object LowerTableIR {
                     aggs.postAggIR),
                   aggs.states
                 )
-              )
-            }
+              }
+            )
           }
         }
 
