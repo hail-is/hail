@@ -550,13 +550,13 @@ class GoogleStorageAsyncFS(AsyncFS):
         if scheme != 'gs':
             raise ValueError(f'invalid scheme, expected gs: {scheme}')
 
-        rest = url[(colon_index+1):]
+        rest = url[(colon_index + 1):]
         if not rest.startswith('//'):
             raise ValueError(f'Google Cloud Storage URI must be of the form: gs://bucket/path, found: {url}')
 
         end_of_bucket = rest.find('/', 2)
         bucket = rest[2:end_of_bucket]
-        name = rest[(end_of_bucket+1):]
+        name = rest[(end_of_bucket + 1):]
 
         if name:
             assert name[0] == '/'
