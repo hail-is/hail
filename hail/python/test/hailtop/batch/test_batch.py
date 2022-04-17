@@ -896,7 +896,7 @@ class ServiceTests(unittest.TestCase):
         for i in range(8):
             j1 = b.new_job()
             long_str = secrets.token_urlsafe(256 * 1024)
-            j1.command(f'echo "{long_str}"')
+            j1.command(f'echo "{long_str}" > /dev/null')
         batch = b.run()
         assert not batch.submission_info.used_fast_create
         batch_status = batch.status()

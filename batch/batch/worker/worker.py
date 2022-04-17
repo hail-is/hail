@@ -350,11 +350,13 @@ def docker_call_retry(timeout, name):
                 # DockerError(500, 'error creating overlay mount to /var/lib/docker/overlay2/545a1337742e0292d9ed197b06fe900146c85ab06e468843cd0461c3f34df50d/merged: device or resource busy'
                 # DockerError(500, 'Get https://gcr.io/v2/: dial tcp: lookup gcr.io: Temporary failure in name resolution')
                 # DockerError(500, 'Get \"https://mcr.microsoft.com/v2/azure-cli/manifests/sha256:068eaecb7abab2d5195a05a6c144c71e9ba1c532efc2912b3ea290d98fbeadb2\": dial tcp 131.253.33.219:443: i/o timeout')
+                # DockerError(500, 'received unexpected HTTP status: 503 Service Unavailable')
                 elif e.status == 500 and (
                     "request canceled while waiting for connection" in e.message
                     or re.match("error creating overlay mount.*device or resource busy", e.message)
                     or "Temporary failure in name resolution" in e.message
                     or 'i/o timeout' in e.message
+                    or 'received unexpected HTTP status: 503 Service Unavailable' in e.message
                 ):
                     log.warning(f'in docker call to {f.__name__} for {name}, retrying', stack_info=True, exc_info=True)
                 else:
@@ -607,6 +609,7 @@ class Container:
         unconfined: Optional[bool] = None,
         volume_mounts: Optional[List[dict]] = None,
         env: Optional[List[str]] = None,
+        stdin: Optional[str] = None,
     ):
         self.fs = fs
         assert self.fs
@@ -622,6 +625,7 @@ class Container:
         self.unconfined = unconfined
         self.volume_mounts = volume_mounts or []
         self.env = env or []
+        self.stdin = stdin
 
         self.deleted_event = asyncio.Event()
 
@@ -853,6 +857,9 @@ class Container:
             async with async_timeout.timeout(self.timeout):
                 with open(self.log_path, 'w', encoding='utf-8') as container_log:
                     log.info(f'Creating the crun run process for {self}')
+
+                    stdin = asyncio.subprocess.PIPE if self.stdin else None
+
                     self.process = await asyncio.create_subprocess_exec(
                         'crun',
                         'run',
@@ -861,9 +868,13 @@ class Container:
                         '--config',
                         f'{self.config_path}/config.json',
                         self.name,
+                        stdin=stdin,
                         stdout=container_log,
                         stderr=container_log,
                     )
+
+                    if self.stdin is not None:
+                        await self.process.communicate(self.stdin.encode('utf-8'))
 
                     await self.process.wait()
                     log.info(f'crun process completed for {self}')
@@ -1173,7 +1184,7 @@ def copy_container(
         '-m',
         'hailtop.aiotools.copy',
         json.dumps(requester_pays_project),
-        json.dumps(files),
+        '-',
         '-v',
     ]
 
@@ -1187,6 +1198,7 @@ def copy_container(
         memory_in_bytes=memory_in_bytes,
         volume_mounts=volume_mounts,
         env=[f'{job.credentials.cloud_env_name}={job.credentials.mount_path}'],
+        stdin=json.dumps(files),
     )
 
 

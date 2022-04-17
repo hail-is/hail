@@ -203,7 +203,7 @@ def _impute_type(x, partial_type):
         vts = {_impute_type(element, partial_type.value_type) for element in x.values()}
         unified_key_type = super_unify_types(*kts)
         unified_value_type = super_unify_types(*vts)
-        if not unified_key_type:
+        if unified_key_type is None:
             raise ExpressionException("Hail does not support heterogeneous dicts: "
                                       "found dict with keys {} of types {} ".format(list(x.keys()), list(kts)))
         if not unified_value_type:

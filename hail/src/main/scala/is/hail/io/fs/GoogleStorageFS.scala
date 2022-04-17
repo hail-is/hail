@@ -44,8 +44,8 @@ object GoogleStorageFS {
     val scheme = uri.getScheme
     assert(scheme != null && scheme == "gs", (uri.getScheme, filename))
 
-    val bucket = uri.getHost
-    assert(bucket != null)
+    val bucket = uri.getAuthority
+    assert(bucket != null, (filename, uri.toString(), uri.getScheme, uri.getAuthority, uri.getRawAuthority(), uri.getUserInfo()))
 
     var path = uri.getPath
     if (path.nonEmpty && path.head == '/')
@@ -130,7 +130,7 @@ class GoogleStorageFS(val serviceAccountKey: Option[String] = None) extends FS {
 
   def asCacheable(sessionID: String): CacheableGoogleStorageFS = new CacheableGoogleStorageFS(serviceAccountKey, sessionID)
 
-  def openNoCompression(filename: String): SeekableDataInputStream = {
+  def openNoCompression(filename: String): SeekableDataInputStream = retryTransientErrors {
     val (bucket, path) = getBucketPath(filename)
 
     val is: SeekableInputStream = new InputStream with Seekable {
@@ -209,7 +209,7 @@ class GoogleStorageFS(val serviceAccountKey: Option[String] = None) extends FS {
     new WrappedSeekableDataInputStream(is)
   }
 
-  def createNoCompression(filename: String): PositionedDataOutputStream = {
+  def createNoCompression(filename: String): PositionedDataOutputStream = retryTransientErrors {
     val (bucket, path) = getBucketPath(filename)
 
     val blobId = BlobId.of(bucket, path)
@@ -270,7 +270,7 @@ class GoogleStorageFS(val serviceAccountKey: Option[String] = None) extends FS {
 
   def mkDir(dirname: String): Unit = ()
 
-  def delete(filename: String, recursive: Boolean): Unit = {
+  def delete(filename: String, recursive: Boolean): Unit = retryTransientErrors {
     val (bucket, path) = getBucketPath(filename)
     if (recursive) {
       val it = retryTransientErrors {
@@ -281,11 +281,12 @@ class GoogleStorageFS(val serviceAccountKey: Option[String] = None) extends FS {
         storage.delete(it.next().getBlobId)
       }
     } else {
+      // Storage.delete is idempotent. it returns a Boolean which is false if the file did not exist
       storage.delete(bucket, path)
     }
   }
 
-  def glob(filename: String): Array[FileStatus] = {
+  def glob(filename: String): Array[FileStatus] = retryTransientErrors {
     var (bucket, path) = getBucketPath(filename)
     path = dropTrailingSlash(path)
 
@@ -339,7 +340,7 @@ class GoogleStorageFS(val serviceAccountKey: Option[String] = None) extends FS {
 
   def globAllStatuses(filenames: Iterable[String]): Array[FileStatus] = filenames.flatMap(glob).toArray
 
-  def listStatus(filename: String): Array[FileStatus] = {
+  def listStatus(filename: String): Array[FileStatus] = retryTransientErrors {
     var (bucket, path) = getBucketPath(filename)
     if (!path.endsWith("/"))
       path = path + "/"
@@ -354,7 +355,7 @@ class GoogleStorageFS(val serviceAccountKey: Option[String] = None) extends FS {
       .toArray
   }
 
-  def fileStatus(filename: String): FileStatus = {
+  def fileStatus(filename: String): FileStatus = retryTransientErrors {
     var (bucket, path) = getBucketPath(filename)
     path = dropTrailingSlash(path)
 

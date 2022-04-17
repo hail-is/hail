@@ -14,7 +14,7 @@ while [[ $N != 0 ]]; do
 done
 
 # run letsencrypt pod
-kubectl -n default create -f letsencrypt-pod.yaml.out
+kubectl -n default create -f $1
 echo "Waiting for letsencrypt to complete..."
 EC=""
 while [[ $EC = "" ]]; do

@@ -3904,6 +3904,10 @@ Caused by: java.lang.AssertionError: assertion failed
         fd = hl.utils.frozendict({"a": 4, "b": 8})
         assert hl.eval(hl.literal(fd)) == hl.utils.frozendict({"a": 4, "b": 8})
 
+    def test_literal_with_empty_struct_key(self):
+        original = {hl.Struct(): 4}
+        assert hl.eval(hl.literal(original)) == original
+
     def test_nan_roundtrip(self):
         a = [math.nan, math.inf, -math.inf, 0, 1]
         round_trip = hl.eval(hl.literal(a))
