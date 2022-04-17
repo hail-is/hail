@@ -1,6 +1,6 @@
 from typing import Optional
 import hail as hl
-from hail.expr.types import dtype, HailType
+from hail.expr.types import dtype
 from hail.ir.base_ir import BaseIR, TableIR
 from hail.utils.java import Env
 from hail.utils.misc import escape_str, parsable_strings, dump_json, escape_id
@@ -238,7 +238,7 @@ class TableRead(TableIR):
                  reader,
                  drop_rows: bool = False,
                  *,
-                 _assert_type: Optional[HailType] = None):
+                 _assert_type: Optional['hl.ttable'] = None):
         super().__init__()
         self.reader = reader
         self.drop_rows = drop_rows
