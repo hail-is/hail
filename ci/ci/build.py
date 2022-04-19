@@ -493,7 +493,7 @@ class RunImageStep(Step):
                     scope,
                     f'{self.name}_{i}',
                     {'HAIL_RUN_IMAGE_SPLITS': str(self.num_splits), 'HAIL_RUN_IMAGE_SPLIT_INDEX': str(i)},
-                    '/' + self.name,
+                    f'/{self.name}_{i}',
                 )
                 for i in range(self.num_splits)
             ]
