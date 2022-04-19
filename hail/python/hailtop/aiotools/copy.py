@@ -78,7 +78,7 @@ async def copy_from_dict(*,
         azure_kwargs=azure_kwargs,
         s3_kwargs=s3_kwargs,
         transfers=transfers,
-        verbose
+        verbose=verbose,
     )
 
 
