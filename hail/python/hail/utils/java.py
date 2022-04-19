@@ -1,19 +1,13 @@
 from typing import Optional
-import os
 import sys
 import re
 
 import hail
-from hailtop.config import get_user_config
+from hailtop.config import configuration_of
 
 
 def choose_backend(backend: Optional[str] = None) -> str:
-    return (
-        backend
-        or os.environ.get('HAIL_QUERY_BACKEND', None)
-        or get_user_config().get('query', 'backend', fallback=None)
-        or 'spark'
-    )
+    return configuration_of('query', 'backend', backend, 'spark')
 
 
 class FatalError(Exception):

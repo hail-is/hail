@@ -1812,8 +1812,12 @@ def import_lines(paths, min_partitions=None, force_bgz=False, force=False, file_
                              f' than the number of files, {len(paths)}')
 
     st_reader = ir.StringTableReader(paths, min_partitions, force_bgz, force, file_per_partition)
-    string_table = Table(ir.TableRead(st_reader))
-
+    table_type = hl.ttable(
+        global_type=hl.tstruct(),
+        row_type=hl.tstruct(file=hl.tstr, text=hl.tstr),
+        row_key=[]
+    )
+    string_table = Table(ir.TableRead(st_reader, _assert_type=table_type))
     return string_table
 
 

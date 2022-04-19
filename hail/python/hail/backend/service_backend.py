@@ -19,7 +19,7 @@ from hail.expr.blockmatrix_type import tblockmatrix
 from hail.experimental import write_expression, read_expression
 from hail.ir.renderer import CSERenderer
 
-from hailtop.config import (get_user_config, get_user_local_cache_dir, get_remote_tmpdir)
+from hailtop.config import (configuration_of, get_user_local_cache_dir, get_remote_tmpdir)
 from hailtop.utils import async_to_blocking, secret_alnum_string, TransientError, Timings
 from hailtop.batch_client import client as hb
 from hailtop.batch_client import aioclient as aiohb
@@ -135,17 +135,6 @@ class GitRevision(JarSpec):
         return f'GitRevision({self.revision})'
 
 
-def _get_jar_specification(jar_url: Optional[str]) -> JarSpec:
-    user_config = get_user_config()
-
-    jar_url = jar_url or os.environ.get('HAIL_JAR_URL')
-    jar_url = jar_url or user_config.get('query', 'jar_url', fallback=None)
-
-    if jar_url is not None:
-        return JarUrl(jar_url)
-    return GitRevision(revision())
-
-
 class IRFunction:
     def __init__(self,
                  name: str,
@@ -213,8 +202,7 @@ class ServiceBackend(Backend):
                      driver_memory: Optional[Union[int, str]] = None,
                      name_prefix: Optional[str] = None,
                      token: Optional[str] = None):
-        if billing_project is None:
-            billing_project = get_user_config().get('batch', 'billing_project', fallback=None)
+        billing_project = configuration_of('batch', 'billing_project', billing_project, None)
         if billing_project is None:
             raise ValueError(
                 "No billing project.  Call 'init_batch' with the billing "
@@ -231,21 +219,15 @@ class ServiceBackend(Backend):
         user_local_reference_cache_dir = Path(get_user_local_cache_dir(), 'references', version())
         os.makedirs(user_local_reference_cache_dir, exist_ok=True)
         remote_tmpdir = get_remote_tmpdir('ServiceBackend', remote_tmpdir=remote_tmpdir)
-        jar_spec = _get_jar_specification(jar_url)
 
-        driver_cores = (
-            driver_cores
-            or os.environ.get('HAIL_QUERY_BATCH_DRIVER_CORES', None)
-            or get_user_config().get('query', 'batch_driver_cores', fallback=None)
-            or '1'
-        )
+        jar_url = configuration_of('query', 'jar_url', jar_url, None)
+        jar_spec = GitRevision(revision()) if jar_url is None else JarUrl(jar_url)
 
-        driver_memory = (
-            driver_memory
-            or os.environ.get('HAIL_QUERY_BATCH_DRIVER_MEMORY', None)
-            or get_user_config().get('query', 'batch_driver_memory', fallback=None)
-            or 'standard'
-        )
+        driver_cores = configuration_of('query', 'batch_driver_cores', driver_cores, None)
+        driver_memory = configuration_of('query', 'batch_driver_memory', driver_memory, None)
+        name_prefix = configuration_of('query', 'name_prefix', name_prefix, '')
+
+        flags = {"use_new_shuffle": "1", **(flags or {})}
 
         return ServiceBackend(
             billing_project=billing_project,
@@ -256,11 +238,11 @@ class ServiceBackend(Backend):
             batch_attributes=batch_attributes,
             user_local_reference_cache_dir=user_local_reference_cache_dir,
             remote_tmpdir=remote_tmpdir,
-            flags=flags or {},
+            flags=flags,
             jar_spec=jar_spec,
             driver_cores=driver_cores,
             driver_memory=driver_memory,
-            name_prefix=name_prefix or ''
+            name_prefix=name_prefix
         )
 
     def __init__(self,
@@ -293,9 +275,6 @@ class ServiceBackend(Backend):
         self.driver_cores = driver_cores
         self.driver_memory = driver_memory
         self.name_prefix = name_prefix
-
-        if "use_new_shuffle" not in self.flags:
-            self.flags["use_new_shuffle"] = "1"
 
     def debug_info(self) -> Dict[str, Any]:
         return {
@@ -352,6 +331,12 @@ class ServiceBackend(Backend):
                     batch_attributes = {**batch_attributes, 'name': self.name_prefix + name}
                 bb = self.async_bc.create_batch(token=token, attributes=batch_attributes)
 
+                resources: Dict[str, Union[str, bool]] = {'preemptible': False}
+                if self.driver_cores is not None:
+                    resources['cpu'] = str(self.driver_cores)
+                if self.driver_memory is not None:
+                    resources['memory'] = str(self.driver_memory)
+
                 j = bb.create_jvm_job(
                     jar_spec=self.jar_spec.to_dict(),
                     argv=[
@@ -361,11 +346,7 @@ class ServiceBackend(Backend):
                         iodir + '/out'
                     ],
                     mount_tokens=True,
-                    resources={
-                        'preemptible': False,
-                        'cpu': str(self.driver_cores),
-                        'memory': str(self.driver_memory)
-                    }
+                    resources=resources
                 )
                 b = await bb.submit(disable_progress_bar=self.disable_progress_bar)
 

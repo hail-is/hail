@@ -167,10 +167,10 @@ package object ir {
     ArraySlice(arrayIR, startIR, Some(stopIR))
   }
 
-  def joinIR(left: IR, right: IR, lkey: IndexedSeq[String], rkey: IndexedSeq[String], joinType: String)(f: (Ref, Ref) => IR): IR = {
+  def joinIR(left: IR, right: IR, lkey: IndexedSeq[String], rkey: IndexedSeq[String], joinType: String, requiresMemoryManagement: Boolean)(f: (Ref, Ref) => IR): IR = {
     val lRef = Ref(genUID(), left.typ.asInstanceOf[TStream].elementType)
     val rRef = Ref(genUID(), right.typ.asInstanceOf[TStream].elementType)
-    StreamJoin(left, right, lkey, rkey, lRef.name, rRef.name, f(lRef, rRef), joinType)
+    StreamJoin(left, right, lkey, rkey, lRef.name, rRef.name, f(lRef, rRef), joinType, requiresMemoryManagement)
   }
 
   def streamSumIR(stream: IR): IR = {

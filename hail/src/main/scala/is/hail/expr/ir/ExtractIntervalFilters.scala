@@ -81,10 +81,15 @@ object ExtractIntervalFilters {
     IntervalEndpoint(if (wrapped) Row(value) else value, inclusivity)
   }
 
-  def getIntervalFromContig(c: String, rg: ReferenceGenome): Interval = {
-    Interval(
-      endpoint(Locus(c, 1), -1),
-      endpoint(Locus(c, rg.contigLength(c)), -1))
+  def getIntervalFromContig(c: String, rg: ReferenceGenome): Option[Interval] = {
+    if (rg.contigsSet.contains(c)) {
+      Some(Interval(
+        endpoint(Locus(c, 1), -1),
+        endpoint(Locus(c, rg.contigLength(c)), -1)))
+    } else {
+      warn(s"Filtered with contig '${c}', but '${c}' is not a valid contig in reference genome ${rg.name}")
+      None
+    }
   }
 
   def openInterval(v: Any, typ: Type, op: ComparisonOp[_], flipped: Boolean = false): Interval = {
@@ -179,9 +184,9 @@ object ExtractIntervalFilters {
         val rg = k.typ.asInstanceOf[TLocus].rg.asInstanceOf[ReferenceGenome]
 
         val intervals = (lit.value: @unchecked) match {
-          case x: IndexedSeq[_] => x.map(elt => getIntervalFromContig(elt.asInstanceOf[String], rg)).toArray
-          case x: Set[_] => x.map(elt => getIntervalFromContig(elt.asInstanceOf[String], rg)).toArray
-          case x: Map[_, _] => x.keys.map(elt => getIntervalFromContig(elt.asInstanceOf[String], rg)).toArray
+          case x: IndexedSeq[_] => x.flatMap(elt => getIntervalFromContig(elt.asInstanceOf[String], rg)).toArray
+          case x: Set[_] => x.flatMap(elt => getIntervalFromContig(elt.asInstanceOf[String], rg)).toArray
+          case x: Map[_, _] => x.keys.flatMap(elt => getIntervalFromContig(elt.asInstanceOf[String], rg)).toArray
         }
         Some((True(), intervals))
       case ApplyIR("contains", _, Seq(lit: Literal, k), _) if literalSizeOkay(lit) =>
@@ -232,10 +237,12 @@ object ExtractIntervalFilters {
               assert(op.isInstanceOf[EQ])
               val c = constValue(const)
               Some((True(), Array(Interval(endpoint(c, -1), endpoint(c, 1)))))
-            case Apply("contig", _, Seq(x), _, _) if es.isFirstKey(x) =>
+            case Apply("contig", _, Seq(x), _, errorID) if es.isFirstKey(x) =>
               // locus contig comparison
               val intervals = (constValue(const): @unchecked) match {
-                case s: String => Array(getIntervalFromContig(s, es.firstKeyType.asInstanceOf[TLocus].rg.asInstanceOf[ReferenceGenome]))
+                case s: String => {
+                  Array(getIntervalFromContig(s, es.firstKeyType.asInstanceOf[TLocus].rg)).flatMap(interval => interval)
+                }
               }
               Some((True(), intervals))
             case Apply("position", _, Seq(x), _, _) if es.isFirstKey(x) =>

@@ -354,7 +354,7 @@ def concordance(left, right, *, _localize_global_statistics=True) -> Tuple[List[
     The global summary is a list of list of int (conceptually a 5 by 5 matrix),
     where the indices have special meaning:
 
-    0. No Data (missing variant)
+    0. No Data (missing variant or filtered entry)
     1. No Call (missing genotype call)
     2. Hom Ref
     3. Heterozygous

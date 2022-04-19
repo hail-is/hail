@@ -44,7 +44,7 @@ def to_dense_mt(vds: 'VariantDataset') -> 'MatrixTable':
     refl = ref.localize_entries('_ref_entries')
     varl = var.localize_entries('_var_entries', '_var_cols')
     varl = varl.annotate(_variant_defined=True)
-    joined = refl.join(varl.key_by('locus'), how='outer')
+    joined = varl.key_by('locus').join(refl, how='outer')
     dr = joined.annotate(
         dense_ref=hl.or_missing(
             joined._variant_defined,
@@ -110,7 +110,7 @@ def to_merged_sparse_mt(vds: 'VariantDataset') -> 'MatrixTable':
         else:
             merged_schema[e] = vds.reference_data[e].dtype
 
-    ht = rht.join(vht, how='outer').drop('_ref_cols')
+    ht = vht.join(rht, how='outer').drop('_ref_cols')
 
     def merge_arrays(r_array, v_array):
 
