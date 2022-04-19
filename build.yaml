@@ -4907,7 +4907,7 @@ steps:
   - kind: runImage
     name: test_hail_scala_fs
     image:
-      valueFrom: hail_run_tests_image.image
+      valueFrom: hail_build_image_spark_3_2.image
     resources:
       memory: standard
       cpu: '2'
@@ -4967,7 +4967,7 @@ steps:
       - default_ns
       - create_certs
       - create_accounts
-      - hail_run_tests_image
+      - hail_build_image_spark_3_2
       - build_hail
       - build_hail_jar_and_wheel_only_spark_3_2
       - upload_test_resources_to_blob_storage
