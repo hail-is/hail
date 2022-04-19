@@ -261,22 +261,52 @@ def test_impute_sex_chromosome_ploidy():
         hl.Struct(s='sample_xy', ref_allele='A', locus=hl.Locus('X', x_par_end-10, rg), END=x_par_end+9, GQ=9, DP=3),
         hl.Struct(s='sample_xy', ref_allele='A', locus=hl.Locus('X', x_par_end+10, rg), END=x_par_end+29, GQ=6, DP=2),
         hl.Struct(s='sample_xy', ref_allele='A', locus=hl.Locus('Y', y_par_end-10, rg), END=y_par_end+9, GQ=12, DP=4),
-        hl.Struct(s='sample_xy', ref_allele='A', locus=hl.Locus('Y', y_par_end + 10, rg), END=y_par_end + 29, GQ=9, DP=3),
+        hl.Struct(s='sample_xy', ref_allele='A', locus=hl.Locus('Y', y_par_end+10, rg), END=y_par_end+29, GQ=9, DP=3),
+    ]
+    var = [
+        hl.Struct(locus=hl.Locus('22', 2000021, rg), alleles=hl.array(["A", "C"]), s="sample_xx", LA=hl.array([0, 1]),
+                  LGT=hl.call(0, 1, phased=False), GQ=15, DP=5),
+        hl.Struct(locus=hl.Locus('X', x_par_end-11, rg), alleles=hl.array(["A", "C"]), s="sample_xx", LA=hl.array([0, 1]),
+                  LGT=hl.call(0, 1, phased=False), GQ=18, DP=6),
+        hl.Struct(locus=hl.Locus('X', x_par_end+30, rg), alleles=hl.array(["A", "C"]), s="sample_xx",
+                  LA=hl.array([0, 1]),
+                  LGT=hl.call(0, 1, phased=False), GQ=18, DP=6),
+        hl.Struct(locus=hl.Locus('X', x_par_end + 33, rg), alleles=hl.array(["A", "C", "G"]), s="sample_xx",
+                  LA=hl.array([0, 1, 2]),
+                  LGT=hl.call(0, 2, phased=False), GQ=15, DP=5),
+        hl.Struct(locus=hl.Locus('22', 2000021, rg), alleles=hl.array(["A", "C"]), s="sample_xy", LA=hl.array([0, 1]),
+                  LGT=hl.call(0, 1, phased=False), GQ=15, DP=5),
+        hl.Struct(locus=hl.Locus('X', x_par_end - 11, rg), alleles=hl.array(["A", "C"]), s="sample_xy",
+                  LA=hl.array([0, 1]),
+                  LGT=hl.call(1, 1, phased=False), GQ=5, DP=2),
+        hl.Struct(locus=hl.Locus('X', x_par_end + 30, rg), alleles=hl.array(["A", "C"]), s="sample_xy",
+                  LA=hl.array([0, 1]),
+                  LGT=hl.call(1, 1, phased=False), GQ=7, DP=4),
+        hl.Struct(locus=hl.Locus('X', x_par_end + 33, rg), alleles=hl.array(["A", "C", "G"]), s="sample_xy",
+                  LA=hl.array([0, 1, 2]),
+                  LGT=hl.call(2, 2, phased=False), GQ=5, DP=3),
+        hl.Struct(locus=hl.Locus('Y', y_par_end-11, rg), alleles=hl.array(["A", "C"]), s="sample_xy", LA=hl.array([0, 1]),
+                  LGT=hl.call(1, 1, phased=False), GQ=9, DP=2),
+        hl.Struct(locus=hl.Locus('Y', y_par_end+30, rg), alleles=hl.array(["A", "C"]), s="sample_xy", LA=hl.array([0, 1]),
+                  LGT=hl.call(1, 1, phased=False), GQ=12, DP=4),
+        hl.Struct(locus=hl.Locus('Y', y_par_end+33, rg), alleles=hl.array(["A", "C"]), s="sample_xy",
+                  LA=hl.array([0, 1]),
+                  LGT=hl.call(1, 1, phased=False), GQ=6, DP=2),
     ]
 
     ref_mt = hl.Table.parallelize(ref_blocks,
                                   schema=hl.dtype('struct{s:str,locus:locus<GRCh37>,ref_allele:str,END:int32,GQ:int32,DP:int32}')) \
         .to_matrix_table(row_key=['locus'], row_fields=['ref_allele'], col_key=['s'])
     var_mt = hl.Table.parallelize([],
-                                  schema=hl.dtype('struct{locus:locus<GRCh37>,alleles:array<str>,s:str,LA:array<int32>,LGT:call,GQ:int32}'))\
-    .to_matrix_table(row_key=['locus', 'alleles'], col_key=['s'])
+                                  schema=hl.dtype('struct{locus:locus<GRCh37>,alleles:array<str>,s:str,LA:array<int32>,LGT:call,GQ:int32,DP:int32}'))\
+        .to_matrix_table(row_key=['locus', 'alleles'], col_key=['s'])
 
     vds = hl.vds.VariantDataset(ref_mt, var_mt)
 
     calling_intervals = [
         hl.parse_locus_interval('22:1000010-1000020', reference_genome='GRCh37'),
-        hl.parse_locus_interval(f'X:{x_par_end}-{x_par_end+20}', reference_genome='GRCh37'),
-        hl.parse_locus_interval(f'Y:{y_par_end}-{y_par_end+20}', reference_genome='GRCh37'),
+        hl.parse_locus_interval(f'X:{x_par_end}-{x_par_end + 20}', reference_genome='GRCh37'),
+        hl.parse_locus_interval(f'Y:{y_par_end}-{y_par_end + 20}', reference_genome='GRCh37'),
     ]
 
     r = hl.vds.impute_sex_chromosome_ploidy(vds, calling_intervals, normalization_contig='22')
@@ -294,6 +324,37 @@ def test_impute_sex_chromosome_ploidy():
                   x_ploidy=1.0,
                   y_mean_dp=3.5,
                   y_ploidy=1.4)
+    ]
+
+    var_mt = hl.Table.parallelize(var,
+                                  schema=hl.dtype('struct{locus:locus<GRCh37>,alleles:array<str>,s:str,LA:array<int32>,LGT:call,GQ:int32,DP:int32}'))\
+        .to_matrix_table(row_key=['locus', 'alleles'], col_key=['s'])
+
+    vds = hl.vds.VariantDataset(ref_mt, var_mt)
+
+    calling_intervals = [
+        hl.parse_locus_interval('22:1000010-1000020', reference_genome='GRCh37'),
+        hl.parse_locus_interval('22:2000020-2000030', reference_genome='GRCh37'),
+        hl.parse_locus_interval(f'X:{x_par_end}-{x_par_end + 20}', reference_genome='GRCh37'),
+        hl.parse_locus_interval(f'X:{x_par_end + 32}-{x_par_end + 40}', reference_genome='GRCh37'),
+        hl.parse_locus_interval(f'Y:{y_par_end}-{y_par_end + 20}', reference_genome='GRCh37'),
+        hl.parse_locus_interval(f'Y:{y_par_end + 32}-{y_par_end + 40}', reference_genome='GRCh37'),
+    ]
+    r = hl.vds.impute_sex_chromosome_ploidy(vds, calling_intervals, normalization_contig='22', use_variant_dataset=True)
+
+    assert r.collect() == [
+        hl.Struct(s='sample_xx',
+                  autosomal_mean_dp=5.0,
+                  x_mean_dp=5.0,
+                  x_ploidy=2.0,
+                  y_mean_dp=0.0,
+                  y_ploidy=0.0),
+        hl.Struct(s='sample_xy',
+                  autosomal_mean_dp=5.0,
+                  x_mean_dp=3.0,
+                  x_ploidy=1.2,
+                  y_mean_dp=2.0,
+                  y_ploidy=0.8)
     ]
 
 
