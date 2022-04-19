@@ -116,6 +116,20 @@ async def test_open_from(filesystem: Tuple[asyncio.Semaphore, AsyncFS, str]):
 
 
 @pytest.mark.asyncio
+async def test_open_from_with_length(filesystem: Tuple[asyncio.Semaphore, AsyncFS, str]):
+    sema, fs, base = filesystem
+
+    file = f'{base}foo'
+
+    async with await fs.create(file) as f:
+        await f.write(b'abcde')
+
+    async with await fs.open_from(file, 2, 2) as f:
+        r = await f.read()
+        assert r == b'cd'
+
+
+@pytest.mark.asyncio
 async def test_open_nonexistent_file(filesystem: Tuple[asyncio.Semaphore, AsyncFS, str]):
     sema, fs, base = filesystem
 

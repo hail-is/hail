@@ -292,7 +292,6 @@ class GetObjectStream(ReadableStream):
         assert self._content is not None
 
         self._content = None
-        self._resp.release()
         self._resp.close()
         self._resp = None
 
@@ -591,10 +590,13 @@ class GoogleStorageAsyncFS(AsyncFS):
         bucket, name = self.get_bucket_and_name(url)
         return await self._storage_client.get_object(bucket, name)
 
-    async def open_from(self, url: str, start: int) -> ReadableStream:
+    async def open_from(self, url: str, start: int, *, length: Optional[int] = None) -> ReadableStream:
         bucket, name = self.get_bucket_and_name(url)
+        range_str = f'bytes={start}-'
+        if length is not None:
+            range_str += str(start + length)
         return await self._storage_client.get_object(
-            bucket, name, headers={'Range': f'bytes={start}-'})
+            bucket, name, headers={'Range': range_str})
 
     async def create(self, url: str, *, retry_writes: bool = True) -> WritableStream:
         bucket, name = self.get_bucket_and_name(url)

@@ -107,7 +107,7 @@ class AsyncFS(abc.ABC):
         pass
 
     @abc.abstractmethod
-    async def open_from(self, url: str, start: int) -> ReadableStream:
+    async def open_from(self, url: str, start: int, *, length: Optional[int] = None) -> ReadableStream:
         pass
 
     @abc.abstractmethod
@@ -229,7 +229,7 @@ class AsyncFS(abc.ABC):
 
     async def read_range(self, url: str, start: int, end: int) -> bytes:
         n = (end - start) + 1
-        async with await self.open_from(url, start) as f:
+        async with await self.open_from(url, start, length=n) as f:
             return await f.readexactly(n)
 
     async def write(self, url: str, data: bytes) -> None:

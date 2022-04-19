@@ -141,7 +141,9 @@ class LocalAsyncFS(AsyncFS):
         f = await blocking_to_async(self._thread_pool, open, self._get_path(url), 'rb')
         return blocking_readable_stream_to_async(self._thread_pool, cast(BinaryIO, f))
 
-    async def open_from(self, url: str, start: int) -> ReadableStream:
+    async def open_from(self, url: str, start: int, *, length: Optional[int] = None) -> ReadableStream:
+        if length is not None:
+            raise ValueError(f'LocalFS does not support the length argument')
         f = await blocking_to_async(self._thread_pool, open, self._get_path(url), 'rb')
         f.seek(start, io.SEEK_SET)
         return blocking_readable_stream_to_async(self._thread_pool, cast(BinaryIO, f))
