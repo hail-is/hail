@@ -497,7 +497,7 @@ class RunImageStep(Step):
                 for i in range(self.num_splits)
             ]
 
-    def _build_job(self, batch, code, scope, name, env):
+    def _build_job(self, batch, code, scope, name, env, output_prefix):
         template = jinja2.Template(self.script, undefined=jinja2.StrictUndefined, trim_blocks=True, lstrip_blocks=True)
         rendered_script = template.render(**self.input_config(code, scope))
 
@@ -513,7 +513,8 @@ class RunImageStep(Step):
         if self.outputs:
             output_files = []
             for o in self.outputs:
-                output_files.append((o["from"], f'{STORAGE_URI}/build/{batch.attributes["token"]}{o["to"]}'))
+                prefixed_path = o["to"] if output_prefix is None else output_prefix + o["to"]
+                output_files.append((o["from"], f'{STORAGE_URI}/build/{batch.attributes["token"]}{prefixed_path}'))
         else:
             output_files = None
 
