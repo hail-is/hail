@@ -124,6 +124,21 @@ steps:
     dependsOn:
       - hail_ubuntu_image
       - merge_code
+  - kind: buildImage2
+    name: base_image_spark_3_2
+    dockerFile: /io/repo/docker/Dockerfile.base-spark-3-2
+    contextPath: /io/repo
+    publishAs: base_spark_3_2
+    resources:
+      storage: 10Gi
+      cpu: "2"
+      memory: standard
+    inputs:
+      - from: /repo
+        to: /io/repo
+    dependsOn:
+      - hail_ubuntu_image
+      - merge_code
   - kind: runImage
     name: check_hail
     image:
@@ -509,14 +524,17 @@ steps:
       - merge_code
   - kind: buildImage2
     name: hail_build_image_spark_3_2
-    dockerFile: /io/repo/hail/Dockerfile.hail-build-spark-32
+    dockerFile:
+      inline: |
+        FROM {{ base_image_spark_3_2.image }}
+        RUN hail-apt-get-install liblz4-dev maven
     contextPath: /io/repo
     publishAs: hail-build-spark-32
     inputs:
       - from: /repo
         to: /io/repo
     dependsOn:
-      - base_image
+      - base_image_spark_3_2
       - merge_code
   - kind: buildImage2
     name: hail_run_image
