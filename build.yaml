@@ -789,7 +789,7 @@ steps:
       HAIL_PIP_VERSION=$(cat python/hail/hail_pip_version)
       WHEEL_PATH="build/deploy/dist/hail-$HAIL_PIP_VERSION-py3-none-any.whl"
       du -h $WHEEL_PATH
-      $(python3 -c "import os; exit(1) if (os.path.getsize('$WHEEL_PATH')) > 100_000_000 else exit(0)")
+      # $(python3 -c "import os; exit(1) if (os.path.getsize('$WHEEL_PATH')) > 100_000_000 else exit(0)")
 
       time (cd python && zip -r hail.zip hail hailtop)
       time tar czf test.tar.gz -C python test
