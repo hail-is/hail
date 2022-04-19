@@ -9,7 +9,7 @@ from concurrent.futures import ThreadPoolExecutor
 import urllib.parse
 
 from ..utils import blocking_to_async, OnlineBoundedGather2
-from .fs import (FileStatus, FileListEntry, MultiPartCreate, AsyncFS,
+from .fs import (FileStatus, FileListEntry, MultiPartCreate, AsyncFS, AsyncFSURL,
                  ReadableStream, WritableStream, blocking_readable_stream_to_async,
                  blocking_writable_stream_to_async)
 
@@ -87,6 +87,29 @@ class LocalMultiPartCreate(MultiPartCreate):
                 pass
 
 
+class LocalAsyncFSURL(AsyncFSURL):
+    def __init__(self, path: str):
+        self._path = path
+
+    @property
+    def bucket_parts(self) -> List[str]:
+        return []
+
+    @property
+    def path(self) -> str:
+        return self._path
+
+    @property
+    def scheme(self) -> str:
+        return 'file'
+
+    def with_path(self, path) -> 'LocalAsyncFSURL':
+        return LocalAsyncFSURL(path)
+
+    def __str__(self) -> str:
+        return 'file:' + self._path
+
+
 class LocalAsyncFS(AsyncFS):
     schemes: Set[str] = {'file'}
 
@@ -94,6 +117,9 @@ class LocalAsyncFS(AsyncFS):
         if not thread_pool:
             thread_pool = ThreadPoolExecutor(max_workers=max_workers)
         self._thread_pool = thread_pool
+
+    def parse_url(self, url: str) -> LocalAsyncFSURL:
+        return LocalAsyncFSURL(self._get_path(url))
 
     @staticmethod
     def _get_path(url):
