@@ -3,7 +3,6 @@ import itertools
 import functools
 import math
 from typing import Dict, Callable, Optional, Union, Tuple
-import builtins
 
 import hail
 import hail as hl

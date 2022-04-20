@@ -3302,7 +3302,7 @@ class IRSuite extends HailSuite {
     Array(LinearRegressionRowsChained(FastIndexedSeq(FastIndexedSeq("foo")), "bar", Array("baz"), 1, Array("a", "b"))),
     Array(LogisticRegression("firth", Array("a", "b"), "c", Array("d", "e"), Array("f", "g"), 25, 1e-6)),
     Array(PoissonRegression("firth", "a", "c", Array("d", "e"), Array("f", "g"), 25, 1e-6)),
-    Array(Skat("a", "b", "c", "d", Array("e", "f"), false, 1, 0.1, 100, 25, 1e-6)),
+    Array(Skat("a", "b", "c", "d", Array("e", "f"), false, 1, 0.1, 100, 0, 0.0)),
     Array(LocalLDPrune("x", 0.95, 123, 456)),
     Array(PCA("x", 1, false)),
     Array(PCRelate(0.00, 4096, Some(0.1), PCRelate.PhiK2K0K1)),

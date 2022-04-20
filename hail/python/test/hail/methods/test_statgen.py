@@ -1161,7 +1161,7 @@ class Tests(unittest.TestCase):
         self.assertTrue(is_constant(results[9]))
         self.assertTrue(is_constant(results[10]))
 
-    def test_poisson_regression_max_iterations()
+    def test_poisson_regression_max_iterations(self):
         import hail as hl
         mt = hl.utils.range_matrix_table(1, 3)
         mt = mt.annotate_entries(x=hl.literal([1, 3, 10, 5]))
