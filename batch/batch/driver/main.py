@@ -396,7 +396,11 @@ FROM user_inst_coll_resources;
         'frozen': app['frozen'],
     }
     return await render_template('batch-driver', request, userdata, 'index.html', page_context)
-
+@routes.get('/quotas')
+@web_authenticated_developers_only()
+async def get_quotas(request, userdata):
+    page_context ={}
+    return await render_template('batch-driver', request, userdata, 'quotas.html', page_context)
 
 class ConfigError(Exception):
     pass
