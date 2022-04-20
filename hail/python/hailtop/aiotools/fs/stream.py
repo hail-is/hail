@@ -10,6 +10,17 @@ from hailtop.utils import blocking_to_async
 from .exceptions import UnexpectedEOFError
 
 
+class EmptyReadableStream(abc.ABC):
+    def __init__(self):
+        pass
+
+    async def read(self, n: int = -1) -> bytes:
+        return b''
+
+    async def readexactly(self, n: int) -> bytes:
+        raise UnexpectedEOFError
+
+
 class ReadableStream(abc.ABC):
     def __init__(self):
         self._closed = False

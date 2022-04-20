@@ -130,6 +130,20 @@ async def test_open_from_with_length(filesystem: Tuple[asyncio.Semaphore, AsyncF
 
 
 @pytest.mark.asyncio
+async def test_open_empty(filesystem: Tuple[asyncio.Semaphore, AsyncFS, str]):
+    sema, fs, base = filesystem
+
+    file = f'{base}foo'
+
+    async with await fs.create(file) as f:
+        await f.write(b'')
+
+    async with await fs.open_from(file, 0, 0) as f:
+        r = await f.read()
+        assert r == b''
+
+
+@pytest.mark.asyncio
 async def test_open_nonexistent_file(filesystem: Tuple[asyncio.Semaphore, AsyncFS, str]):
     sema, fs, base = filesystem
 
