@@ -1635,10 +1635,16 @@ def import_table(paths,
     if find_replace is not None:
         ht = ht.annotate(text=ht['text'].replace(*find_replace))
 
-    first_rows = first_row_ht.annotate(
-        header=first_row_ht.text._split_line(
-            delimiter, missing=hl.empty_array(hl.tstr), quote=quote, regex=len(delimiter) > 1)
-    ).collect()
+    try:
+        first_rows = first_row_ht.annotate(
+            header=first_row_ht.text._split_line(
+                delimiter, missing=hl.empty_array(hl.tstr), quote=quote, regex=len(delimiter) > 1)
+        ).collect()
+    except FatalError as err:
+        if '_filter_partitions: no partition with index 0' in err.args[0]:
+            first_rows = []
+        else:
+            raise
 
     if len(first_rows) == 0:
         raise ValueError(f"Invalid file: no lines remaining after filters\n Files provided: {', '.join(paths)}")
