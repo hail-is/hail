@@ -343,6 +343,8 @@ class AzureAsyncFS(AsyncFS):
         return stream
 
     async def open_from(self, url: str, start: int, *, length: Optional[int] = None) -> ReadableStream:
+        if length == 0:
+            raise ValueError(f'Azure Blob Storage does not suport length=0.')
         client = self.get_blob_client(url)
         stream = AzureReadableStream(client, url, offset=start, length=length)
         return stream

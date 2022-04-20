@@ -311,7 +311,7 @@ class S3AsyncFS(AsyncFS):
         bucket, name = self.get_bucket_and_name(url)
         range_str = f'bytes={start}-'
         if length is not None:
-            range_str += str(start + length)
+            range_str += str(start + length - 1)
         try:
             resp = await blocking_to_async(self._thread_pool, self._s3.get_object,
                                            Bucket=bucket,
