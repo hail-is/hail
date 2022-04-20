@@ -749,6 +749,8 @@ object PartitionWriter {
       classOf[PartitionNativeWriter],
       classOf[TableTextPartitionWriter],
       classOf[VCFPartitionWriter],
+      classOf[GenSampleWriter],
+      classOf[GenVariantWriter],
       classOf[AbstractTypedCodecSpec],
       classOf[TypedCodecSpec]), typeHintFieldName = "name"
     ) + BufferSpec.shortTypeHints
