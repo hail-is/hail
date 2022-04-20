@@ -468,7 +468,7 @@ class Tests(unittest.TestCase):
     logreg_functions = [hl.logistic_regression_rows, hl._logistic_regression_rows_nd] if backend_name == "spark" else [hl.logistic_regression_rows]
 
     def test_logistic_regression_rows_max_iter(self):
-        for logreg in logreg_functions:
+        for logreg in self.logreg_functions:
             import hail as hl
             mt = hl.utils.range_matrix_table(1, 3)
             mt = mt.annotate_entries(x=hl.literal([1, 1, 10]))
@@ -485,7 +485,7 @@ class Tests(unittest.TestCase):
             assert not fit.converged
 
     def test_logistic_regression_rows_max_iter_explodes(self):
-        for logreg in logreg_functions:
+        for logreg in self.logreg_functions:
             import hail as hl
             mt = hl.utils.range_matrix_table(1, 3)
             mt = mt.annotate_entries(x=hl.literal([1, 1, 10]))
@@ -502,7 +502,7 @@ class Tests(unittest.TestCase):
             assert not fit.converged
 
     def test_logistic_regression_rows_max_iter_explodes_in_36_steps_for_firth(self):
-        for logreg in logreg_functions:
+        for logreg in self.logreg_functions:
             import hail as hl
             mt = hl.utils.range_matrix_table(1, 3)
             mt = mt.annotate_entries(x=hl.literal([1, 1, 10]))
@@ -519,7 +519,7 @@ class Tests(unittest.TestCase):
             assert not fit.converged
 
     def test_logistic_regression_rows_does_not_converge_with_105_iterations(self):
-        for logreg in logreg_functions:
+        for logreg in self.logreg_functions:
             import hail as hl
             mt = hl.utils.range_matrix_table(1, 3)
             mt = mt.annotate_entries(x=hl.literal([1, 3, 10]))
@@ -536,7 +536,7 @@ class Tests(unittest.TestCase):
             assert not fit.converged
 
     def test_logistic_regression_rows_does_converge_with_106_iterations(self):
-        for logreg in logreg_functions:
+        for logreg in self.logreg_functions:
             import hail as hl
             mt = hl.utils.range_matrix_table(1, 3)
             mt = mt.annotate_entries(x=hl.literal([1, 3, 10]))
