@@ -227,8 +227,10 @@ class AsyncFS(abc.ABC):
         async with await self.open_from(url, start) as f:
             return await f.read()
 
-    async def read_range(self, url: str, start: int, end: int) -> bytes:
-        n = (end - start) + 1
+    async def read_range(self, url: str, start: int, end: int, *, end_inclusive=True) -> bytes:
+        if start == end:
+            return b''
+        n = (end - start) + bool(end_inclusive)
         async with await self.open_from(url, start, length=n) as f:
             return await f.readexactly(n)
 

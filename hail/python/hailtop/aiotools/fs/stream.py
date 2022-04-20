@@ -18,6 +18,8 @@ class EmptyReadableStream(abc.ABC):
         return b''
 
     async def readexactly(self, n: int) -> bytes:
+        if n == 0:
+            return b''
         raise UnexpectedEOFError
 
 
