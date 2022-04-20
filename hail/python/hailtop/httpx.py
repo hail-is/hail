@@ -151,7 +151,7 @@ class ClientSession:
 
     def ws_connect(
         self, *args, **kwargs
-    ) -> aiohttp.client_ws.ClientWebSocketResponse:
+    ) -> aiohttp.client._WSRequestContextManager
         return self.client_session.ws_connect(*args, **kwargs)
 
     def get(
