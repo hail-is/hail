@@ -182,14 +182,20 @@ object LowerDistributedSort {
       )
 
       val keyed = sortFields.forall(sf => sf.sortOrder == Ascending)
-      val (partitionerKey, theInterval) = if (keyed) {
-        (keyToSortBy, initialInterval)
-      } else {
-        (TStruct(), Interval(Row(), Row(), true, true))
+      val isSingleEmptyPartition = initialInterval.left.point == null && initialInterval.right.point == null
+      val (partitionerKey, intervals) = (keyed, isSingleEmptyPartition) match {
+        case (true, true) =>
+          (keyToSortBy, Array[Interval]())
+        case (true, false) =>
+          (keyToSortBy, Array(initialInterval))
+        case (false, true) =>
+          (TStruct(), Array[Interval]())
+        case (false, false) =>
+          (TStruct(), Array(Interval(Row(), Row(), true, true)))
       }
       return TableStage(
         initialGlobalsLiteral,
-        new RVDPartitioner(partitionerKey, Array(theInterval)),
+        new RVDPartitioner(partitionerKey, intervals),
         TableStageDependency.none,
         ToStream(Literal(TArray(TString), writtenPartitionsFilename)),
         { filename => ReadPartition(filename, spec._vType, reader) }
