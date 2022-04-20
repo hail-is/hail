@@ -25,7 +25,7 @@ AUTHORIZED_USERS = [
     User('lfrancioli'),
     User('tpoterba', 'tpoterba', [COMPILER_TEAM]),
     User('chrisvittal', 'cvittal', [COMPILER_TEAM]),
-    User('johnc1231', 'johnc', [COMPILER_TEAM]),
+    User('johnc1231', 'johnc'),
     User('nawatts'),
     User('mkveerapen'),
     User('bw2'),
