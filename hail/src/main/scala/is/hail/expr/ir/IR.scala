@@ -99,10 +99,19 @@ object EncodedLiteral {
   }
 
   def fromPTypeAndAddress(pt: PType, addr: Long, ctx: ExecuteContext): IR = {
-    val etype = EType.defaultFromPType(pt)
-    val codec = TypedCodecSpec(etype, pt.virtualType, BufferSpec.defaultUncompressed)
-    val bytes = codec.encodeArrays(ctx, pt, addr)
-    EncodedLiteral(codec, bytes)
+    pt match {
+      case _: PInt32 => I32(Region.loadInt(addr))
+      case _: PInt64 => I64(Region.loadLong(addr))
+      case _: PFloat32 => F32(Region.loadFloat(addr))
+      case _: PFloat64 => F64(Region.loadDouble(addr))
+      case _: PBoolean => if (Region.loadBoolean(addr)) True() else False()
+      case ts: PString => Str(ts.loadString(addr))
+      case _ =>
+        val etype = EType.defaultFromPType(pt)
+        val codec = TypedCodecSpec(etype, pt.virtualType, BufferSpec.defaultUncompressed)
+        val bytes = codec.encodeArrays(ctx, pt, addr)
+        EncodedLiteral(codec, bytes)
+    }
   }
 }
 
