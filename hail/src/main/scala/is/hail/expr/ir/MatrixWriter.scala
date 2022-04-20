@@ -831,14 +831,10 @@ case class MatrixGENWriter(
       val ctx = GetField(ctxRef, "partFile")
       WritePartition(rows, ctx, lineWriter)
     }{ (parts, globals) =>
-      val cols = GetField(globals, colsFieldName)
+      val cols = ToStream(GetField(globals, colsFieldName))
       val sampleFileName = Str(s"$path.sample")
       val writeSamples = WritePartition(cols, sampleFileName, sampleWriter)
-      val commitSamples = new MetadataWriter {
-        def annotationType: Type = TString
-        def writeMetadata(writeAnnotations: => IEmitCode, cb: EmitCodeBuilder, region: Value[Region]): Unit =
-          writeAnnotations.consume(cb, {}, {_ => ()})
-      }
+      val commitSamples = SimpleMetadataWriter(TString)
 
       val commit = TableTextFinalizer(s"$path.gen", ts.rowType, " ", header = false)
       Begin(FastIndexedSeq(WriteMetadata(writeSamples, commitSamples), WriteMetadata(parts, commit)))
@@ -904,9 +900,9 @@ final case class GenVariantWriter(typ: MatrixType, entriesFieldName: String, pre
 final class GenSampleWriter extends SimplePartitionWriter {
   def consumeElement(cb: EmitCodeBuilder, element: EmitCode, os: Value[OutputStream], region: Value[Region]): Unit = {
     element.toI(cb).consume(cb, cb._fatal("stream element cannot be missing!"), { case sv: SBaseStructValue =>
-      val id1 = sv.loadField(cb, 1).get(cb).asString.loadString(cb)
-      val id2 = sv.loadField(cb, 2).get(cb).asString.loadString(cb)
-      val missing = sv.loadField(cb, 3).get(cb).asDouble.value
+      val id1 = sv.loadField(cb, 0).get(cb).asString.loadString(cb)
+      val id2 = sv.loadField(cb, 1).get(cb).asString.loadString(cb)
+      val missing = sv.loadField(cb, 2).get(cb).asDouble.value
 
       cb += Code.invokeScalaObject3[String, String, Double, Unit](ExportGen.getClass, "checkSample", id1, id2, missing)
 
