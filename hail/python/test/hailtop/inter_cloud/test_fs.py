@@ -128,6 +128,14 @@ async def test_open_from_with_length(filesystem: Tuple[asyncio.Semaphore, AsyncF
         r = await f.read()
         assert r == b'cd'
 
+    async with await fs.open_from(file, 2, length=1) as f:
+        r = await f.read()
+        assert r == b'c'
+
+    async with await fs.open_from(file, 2, length=0) as f:
+        r = await f.read()
+        assert r == b''
+
 
 @pytest.mark.asyncio
 async def test_open_empty(filesystem: Tuple[asyncio.Semaphore, AsyncFS, str]):
