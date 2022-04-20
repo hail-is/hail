@@ -2406,16 +2406,13 @@ steps:
       set -ex
       export DOCKER_ROOT_IMAGE="{{ global.docker_root_image }}"
       export HAIL_TEST_DEV_TOKEN_FILE=/dev-tokens/tokens.json
-      for token in "{{ test_batch_0.token }}" "{{ test_batch_1.token }}" "{{ test_batch_2.token }}" "{{ test_batch_3.token }}" "{{ test_batch_4.token }}"
-      do
-          export HAIL_TOKEN="$token"
-          cd /io/test
-          python3 -c '
+      export HAIL_TOKEN="{{ test_batch.token }}"
+      cd /io/test
+      python3 -c '
       import billing_projects
       import asyncio
       asyncio.get_event_loop().run_until_complete(billing_projects.delete_all_test_billing_projects())
       '
-      done
     inputs:
       - from: /repo/batch/test
         to: /io/test
@@ -2440,11 +2437,7 @@ steps:
       - merge_code
       - batch_image
       - deploy_batch
-      - test_batch_0
-      - test_batch_1
-      - test_batch_2
-      - test_batch_3
-      - test_batch_4
+      - test_batch
   - kind: runImage
     name: create_ci_test_repo
     image:
@@ -3181,22 +3174,10 @@ steps:
       - default_ns
       - service_base_image
       - deploy_batch
-      - test_batch_0
-      - test_batch_1
-      - test_batch_2
-      - test_batch_3
-      - test_batch_4
+      - test_batch
       - test_ci
-      - test_hailtop_batch_0
-      - test_hailtop_batch_1
-      - test_hailtop_batch_2
-      - test_hailtop_batch_3
-      - test_hailtop_batch_4
-      - test_hail_python_service_backend_0
-      - test_hail_python_service_backend_1
-      - test_hail_python_service_backend_2
-      - test_hail_python_service_backend_3
-      - test_hail_python_service_backend_4
+      - test_hailtop_batch
+      - test_hail_python_service_backend
   - kind: runImage
     name: test_batch_invariants
     image:
@@ -3232,22 +3213,10 @@ steps:
       - merge_code
       - batch_image
       - deploy_batch
-      - test_batch_0
-      - test_batch_1
-      - test_batch_2
-      - test_batch_3
-      - test_batch_4
+      - test_batch
       - test_ci
-      - test_hailtop_batch_0
-      - test_hailtop_batch_1
-      - test_hailtop_batch_2
-      - test_hailtop_batch_3
-      - test_hailtop_batch_4
-      - test_hail_python_service_backend_0
-      - test_hail_python_service_backend_1
-      - test_hail_python_service_backend_2
-      - test_hail_python_service_backend_3
-      - test_hail_python_service_backend_4
+      - test_hailtop_batch
+      - test_hail_python_service_backend
       - cancel_all_running_test_batches
   - kind: runImage
     name: delete_gcp_batch_instances
@@ -3282,22 +3251,10 @@ steps:
       - default_ns
       - base_image
       - test_batch_invariants
-      - test_batch_0
-      - test_batch_1
-      - test_batch_2
-      - test_batch_3
-      - test_batch_4
+      - test_batch
       - test_ci
-      - test_hailtop_batch_0
-      - test_hailtop_batch_1
-      - test_hailtop_batch_2
-      - test_hailtop_batch_3
-      - test_hailtop_batch_4
-      - test_hail_python_service_backend_0
-      - test_hail_python_service_backend_1
-      - test_hail_python_service_backend_2
-      - test_hail_python_service_backend_3
-      - test_hail_python_service_backend_4
+      - test_hailtop_batch
+      - test_hail_python_service_backend
       - cancel_all_running_test_batches
   - kind: runImage
     name: delete_azure_batch_instances
@@ -3338,15 +3295,7 @@ steps:
       - default_ns
       - base_image
       - test_batch_invariants
-      - test_batch_0
-      - test_batch_1
-      - test_batch_2
-      - test_batch_3
-      - test_batch_4
+      - test_batch
       - test_ci
-      - test_hailtop_batch_0
-      - test_hailtop_batch_1
-      - test_hailtop_batch_2
-      - test_hailtop_batch_3
-      - test_hailtop_batch_4
+      - test_hailtop_batch
       - cancel_all_running_test_batches
