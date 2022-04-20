@@ -28,7 +28,7 @@ import is.hail.types.physical.stypes.interfaces.{SIndexableValue, SBaseStructVal
 import is.hail.types.physical.stypes.primitives.{SBooleanValue, SInt64Value}
 import is.hail.utils._
 import is.hail.utils.richUtils.ByteTrackingOutputStream
-import is.hail.variant.{ReferenceGenome, Call}
+import is.hail.variant.{Call, Locus, ReferenceGenome}
 import org.apache.spark.sql.Row
 import org.json4s.jackson.JsonMethods
 import org.json4s.{DefaultFormats, Formats, ShortTypeHints}
@@ -807,6 +807,115 @@ case class MatrixGENWriter(
   precision: Int = 4
 ) extends MatrixWriter {
   def apply(ctx: ExecuteContext, mv: MatrixValue): Unit = ExportGen(ctx, mv, path, precision)
+  override def canLowerEfficiently: Boolean = true
+
+  override def lower(colsFieldName: String, entriesFieldName: String, colKey: IndexedSeq[String],
+      ctx: ExecuteContext, ts: TableStage, t: TableIR, r: RTable, relationalLetsAbove: Map[String, IR]): IR = {
+    val tm = MatrixType.fromTableType(t.typ, colsFieldName, entriesFieldName, colKey)
+
+    val sampleWriter = new SimplePartitionWriter {
+      def consumeElement(cb: EmitCodeBuilder, element: EmitCode, os: Value[OutputStream], region: Value[Region]): Unit = {
+        element.toI(cb).consume(cb, cb._fatal("stream element cannot be missing!"), { case sv: SBaseStructValue =>
+          val id1 = sv.loadField(cb, 1).get(cb).asString.loadString(cb)
+          val id2 = sv.loadField(cb, 2).get(cb).asString.loadString(cb)
+          val missing = sv.loadField(cb, 3).get(cb).asDouble.value
+
+          cb += Code.invokeScalaObject3[String, String, Double, Unit](ExportGen.getClass, "checkSample", id1, id2, missing)
+
+          cb += os.invoke[Array[Byte], Unit]("write", id1.invoke[Array[Byte]]("getBytes"))
+          cb += os.invoke[Int, Unit]("write", ' ')
+          cb += os.invoke[Array[Byte], Unit]("write", id2.invoke[Array[Byte]]("getBytes"))
+          cb += os.invoke[Int, Unit]("write", ' ')
+          cb += os.invoke[Array[Byte], Unit]("write", missing.toS.invoke[Array[Byte]]("getBytes"))
+          cb += os.invoke[Int, Unit]("write", '\n')
+        })
+      }
+
+      override def preConsume(cb: EmitCodeBuilder, os: Value[OutputStream]): Unit =
+        cb += os.invoke[Array[Byte], Unit]("write", const("ID_1 ID_2 ID_3\n0 0 0\n").invoke[Array[Byte]]("getBytes"))
+    }
+
+    val lineWriter = new SimplePartitionWriter {
+      def consumeElement(cb: EmitCodeBuilder, element: EmitCode, os: Value[OutputStream], region: Value[Region]): Unit = {
+        def _writeC(cb: EmitCodeBuilder, code: Code[Int]) = { cb += os.invoke[Int, Unit]("write", code) }
+        def _writeB(cb: EmitCodeBuilder, code: Code[Array[Byte]]) = { cb += os.invoke[Array[Byte], Unit]("write", code) }
+        def _writeS(cb: EmitCodeBuilder, code: Code[String]) = { _writeB(cb, code.invoke[Array[Byte]]("getBytes")) }
+        def writeC(code: Code[Int]) = _writeC(cb, code)
+        def writeB(code: Code[Array[Byte]]) = _writeB(cb, code)
+        def writeS(code: Code[String]) = _writeS(cb, code)
+
+        val hasGPField = tm.entryType.hasField("GP")
+        element.toI(cb).consume(cb, cb._fatal("stream element cannot be missing!"), { case sv: SBaseStructValue =>
+          val locus = sv.loadField(cb, "locus").get(cb).asLocus
+          val contig = locus.contig(cb).loadString(cb)
+          val alleles = sv.loadField(cb, "alleles").get(cb).asIndexable
+          val rsid = sv.loadField(cb, "rsid").get(cb).asString.loadString(cb)
+          val varid = sv.loadField(cb,  "varid").get(cb).asString.loadString(cb)
+          val a0 = alleles.loadElement(cb, 0).get(cb).asString.loadString(cb)
+          val a1 = alleles.loadElement(cb, 1).get(cb).asString.loadString(cb)
+
+          cb += Code.invokeScalaObject6[String, Int, String, String, String, String, Unit](ExportGen.getClass, "checkVariant", contig, locus.position(cb), a0, a1, varid, rsid)
+
+          writeS(contig)
+          writeC(' ')
+          writeS(varid)
+          writeC(' ')
+          writeS(rsid)
+          writeC(' ')
+          writeS(locus.position(cb).toS)
+          writeC(' ')
+          writeS(a0)
+          writeC(' ')
+          writeS(a1)
+
+          sv.loadField(cb, entriesFieldName).get(cb).asIndexable.forEachDefinedOrMissing(cb)({ (cb, i) =>
+            _writeS(cb, " 0 0 0")
+          }, { (cb, i, va) =>
+            if (hasGPField) {
+              va.asBaseStruct.loadField(cb, "GP").consume(cb, _writeS(cb, " 0 0 0"), { case gp: SIndexableValue =>
+                cb.ifx(gp.loadLength().cne(3),
+                  cb._fatal("Invalid 'gp' at variant '", locus.contig(cb).loadString(cb), ":", locus.position(cb).toS, ":", a0, ":", a1, "' and sample index ", i.toS, ". The array must have length equal to 3."))
+                gp.forEachDefinedOrMissing(cb)((cb, _) => cb._fatal("GP cannot be missing"), { (cb, _, gp) =>
+                  _writeC(cb, ' ')
+                  _writeS(cb, Code.invokeScalaObject2[Double, Int, String](utilsPackageClass, "formatDouble", gp.asDouble.value, precision))
+                })
+              })
+            } else
+              _writeS(cb, " 0 0 0")
+          })
+          writeC('\n')
+        })
+      }
+    }
+
+    val folder = ctx.createTmpPath("export-gen")
+
+    ts.mapContexts { oldCtx =>
+      val d = digitsNeeded(ts.numPartitions)
+      val partFiles = Literal(TArray(TString), Array.tabulate(ts.numPartitions)(i => s"$folder/${ partFile(d, i) }").toFastIndexedSeq)
+
+      zip2(oldCtx, ToStream(partFiles), ArrayZipBehavior.AssertSameLength) { (ctxElt, pf) =>
+        MakeStruct(FastSeq(
+          "oldCtx" -> ctxElt,
+          "partFile" -> pf))
+      }
+    }(GetField(_, "oldCtx")).mapCollectWithContextsAndGlobals(relationalLetsAbove) { (rows, ctxRef) =>
+      val ctx = GetField(ctxRef, "partFile")
+      WritePartition(rows, ctx, lineWriter)
+    }{ (parts, globals) =>
+      val cols = GetField(globals, colsFieldName)
+      val sampleFileName = Str(s"$path.sample")
+      val writeSamples = WritePartition(cols, sampleFileName, sampleWriter)
+      val commitSamples = new MetadataWriter {
+        def annotationType: Type = TString
+        def writeMetadata(writeAnnotations: => IEmitCode, cb: EmitCodeBuilder, region: Value[Region]): Unit =
+          writeAnnotations.consume(cb, {}, {_ => ()})
+      }
+
+      val commit = TableTextFinalizer(s"$path.gen", ts.rowType, " ", header = false)
+      Begin(FastIndexedSeq(WriteMetadata(writeSamples, commitSamples), WriteMetadata(parts, commit)))
+    }
+  }
 }
 
 case class MatrixBGENWriter(
