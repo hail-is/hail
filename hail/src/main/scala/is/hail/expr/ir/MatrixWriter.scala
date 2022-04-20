@@ -806,7 +806,15 @@ case class MatrixGENWriter(
   path: String,
   precision: Int = 4
 ) extends MatrixWriter {
-  def apply(ctx: ExecuteContext, mv: MatrixValue): Unit = ExportGen(ctx, mv, path, precision)
+  def apply(ctx: ExecuteContext, mv: MatrixValue): Unit = {
+    val tv = mv.toTableValue
+    val ts = RVDToTableStage(tv.rvd, tv.globals.toEncodedLiteral(ctx.theHailClassLoader))
+    val tl = TableLiteral(tv, ctx.theHailClassLoader)
+    CompileAndEvaluate(ctx,
+      lower(LowerMatrixIR.colsFieldName, MatrixType.entriesIdentifier, mv.typ.colKey,
+        ctx, ts, tl, BaseTypeWithRequiredness(tv.typ).asInstanceOf[RTable], Map()))
+  }
+
   override def canLowerEfficiently: Boolean = true
 
   override def lower(colsFieldName: String, entriesFieldName: String, colKey: IndexedSeq[String],
