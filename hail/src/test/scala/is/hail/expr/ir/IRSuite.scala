@@ -2002,7 +2002,7 @@ class IRSuite extends HailSuite {
     }
     ToArray(StreamJoin.apply(left, right, lKeys, rKeys, "_l", "_r",
                      joinF(Ref("_l", coerce[TStream](left.typ).elementType), Ref("_r", coerce[TStream](right.typ).elementType)),
-                     joinType, rightDistinct))
+                     joinType, requiresMemoryManagement = false, rightKeyIsDistinct = rightDistinct))
   }
 
   @Test def testStreamZipJoin() {

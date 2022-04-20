@@ -57,7 +57,7 @@ class StatFunction(StatIdentity):
 
 class StatNone(Stat):
     def make_agg(self, mapping, precomputed):
-        return hl.struct()
+        return hl.agg.take(hl.struct(), 0)
 
     def listify(self, agg_result):
         return pd.DataFrame({})

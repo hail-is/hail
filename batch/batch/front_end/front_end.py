@@ -1630,7 +1630,7 @@ async def ui_get_job(request, userdata, batch_id):
             y='Step',
             color='Task',
             hover_data=['Step'],
-            color_discrete_sequence=px.colors.sequential.dense,
+            color_discrete_sequence=px.colors.qualitative.Prism,
             category_orders={
                 'Step': ['input', 'main', 'output'],
                 'Task': ['pulling', 'setting up overlay', 'setting up network', 'running', 'uploading_log'],

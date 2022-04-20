@@ -1,5 +1,4 @@
 from typing import Optional
-import os
 import sys
 import re
 

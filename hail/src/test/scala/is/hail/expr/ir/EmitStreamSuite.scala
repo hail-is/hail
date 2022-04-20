@@ -914,16 +914,16 @@ class EmitStreamSuite extends HailSuite {
   @Test def testStreamJoinMemory(): Unit = {
 
     assertMemoryDoesNotScaleWithStreamSize() { size =>
-      sumIR(joinIR(rangeStructs(size), filteredRangeStructs(size), IndexedSeq("idx"), IndexedSeq("idx"), "inner") { case (l, r) => I32(1) })
+      sumIR(joinIR(rangeStructs(size), filteredRangeStructs(size), IndexedSeq("idx"), IndexedSeq("idx"), "inner", false) { case (l, r) => I32(1) })
     }
     assertMemoryDoesNotScaleWithStreamSize() { size =>
-      sumIR(joinIR(rangeStructs(size), filteredRangeStructs(size), IndexedSeq("idx"), IndexedSeq("idx"), "left") { case (l, r) => I32(1) })
+      sumIR(joinIR(rangeStructs(size), filteredRangeStructs(size), IndexedSeq("idx"), IndexedSeq("idx"), "left", false) { case (l, r) => I32(1) })
     }
     assertMemoryDoesNotScaleWithStreamSize() { size =>
-      sumIR(joinIR(rangeStructs(size), filteredRangeStructs(size), IndexedSeq("idx"), IndexedSeq("idx"), "right") { case (l, r) => I32(1) })
+      sumIR(joinIR(rangeStructs(size), filteredRangeStructs(size), IndexedSeq("idx"), IndexedSeq("idx"), "right", false) { case (l, r) => I32(1) })
     }
     assertMemoryDoesNotScaleWithStreamSize() { size =>
-      sumIR(joinIR(rangeStructs(size), filteredRangeStructs(size), IndexedSeq("idx"), IndexedSeq("idx"), "outer") { case (l, r) => I32(1) })
+      sumIR(joinIR(rangeStructs(size), filteredRangeStructs(size), IndexedSeq("idx"), IndexedSeq("idx"), "outer", false) { case (l, r) => I32(1) })
     }
   }
 

@@ -3536,20 +3536,6 @@ steps:
       - build_hail_jar_and_wheel_only
     clouds:
       - gcp
-  - kind: runImage
-    name: test_lsm
-    image:
-      valueFrom: base_image.image
-    script: |
-      cd /io/lsm
-      make
-      make test
-    inputs:
-      - from: /repo/lsm
-        to: /io/lsm
-    dependsOn:
-      - base_image
-      - merge_code
   - kind: buildImage2
     name: netcat_ubuntu_image
     dockerFile:
@@ -5004,6 +4990,7 @@ steps:
         namespace:
           valueFrom: default_ns.name
         mountPath: /ssl-config
+    alwaysRun: true
     dependsOn:
       - create_deploy_config
       - create_accounts
