@@ -136,6 +136,20 @@ async def test_open_from_with_length(filesystem: Tuple[asyncio.Semaphore, AsyncF
         r = await f.read()
         assert r == b''
 
+    try:
+        await fs.open_from(f'{file}doesnotexist', 2, length=0)
+    except FileNotFoundError:
+        pass
+    else:
+        assert False
+
+    try:
+        await fs.open_from(base, 2, length=0)
+    except IsADirectoryError:
+        pass
+    else:
+        assert False
+
 
 @pytest.mark.asyncio
 async def test_open_empty(filesystem: Tuple[asyncio.Semaphore, AsyncFS, str]):

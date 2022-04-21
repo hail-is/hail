@@ -179,9 +179,6 @@ class TruncatedReadableBinaryIO(BinaryIO):
     def writable(self) -> bool:
         return False
 
-    def write(self, s) -> int:  # pylint: disable=unused-argument
-        raise NotImplementedError
-
     def writelines(self, lines) -> None:  # pylint: disable=unused-argument
         raise NotImplementedError
 
@@ -217,11 +214,12 @@ class LocalAsyncFS(AsyncFS):
         f = await blocking_to_async(self._thread_pool, open, self._get_path(url), 'rb')
         return blocking_readable_stream_to_async(self._thread_pool, cast(BinaryIO, f))
 
-    async def open_from(self, url: str, start: int, *, length: Optional[int] = None) -> ReadableStream:
+    async def _open_from(self, url: str, start: int, *, length: Optional[int] = None) -> ReadableStream:
         f = await blocking_to_async(self._thread_pool, open, self._get_path(url), 'rb')
         f.seek(start, io.SEEK_SET)
         bio = cast(BinaryIO, f)
         if length is not None:
+            assert length >= 1
             bio = TruncatedReadableBinaryIO(bio, length)
         return blocking_readable_stream_to_async(self._thread_pool, bio)
 

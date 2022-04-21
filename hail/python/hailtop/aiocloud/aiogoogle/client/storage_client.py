@@ -594,6 +594,7 @@ class GoogleStorageAsyncFS(AsyncFS):
         bucket, name = self.get_bucket_and_name(url)
         range_str = f'bytes={start}-'
         if length is not None:
+            assert length >= 1
             range_str += str(start + length - 1)
         return await self._storage_client.get_object(
             bucket, name, headers={'Range': range_str})

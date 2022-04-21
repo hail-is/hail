@@ -16,9 +16,8 @@ import azure.core.exceptions
 from hailtop.utils import retry_transient_errors, flatten
 from hailtop.aiotools import WriteBuffer
 from hailtop.aiotools.fs import (AsyncFS, AsyncFSURL, AsyncFSFactory, ReadableStream,
-                                 EmptyReadableStream, WritableStream, MultiPartCreate,
-                                 FileListEntry, FileStatus, FileAndDirectoryError,
-                                 UnexpectedEOFError)
+                                 WritableStream, MultiPartCreate, FileListEntry, FileStatus,
+                                 FileAndDirectoryError, UnexpectedEOFError)
 
 from .credentials import AzureCredentials
 
@@ -343,9 +342,8 @@ class AzureAsyncFS(AsyncFS):
         stream = AzureReadableStream(client, url)
         return stream
 
-    async def open_from(self, url: str, start: int, *, length: Optional[int] = None) -> ReadableStream:
-        if length == 0:
-            return EmptyReadableStream()
+    async def _open_from(self, url: str, start: int, *, length: Optional[int] = None) -> ReadableStream:
+        assert length is None or length >= 1
         client = self.get_blob_client(url)
         stream = AzureReadableStream(client, url, offset=start, length=length)
         return stream

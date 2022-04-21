@@ -307,10 +307,11 @@ class S3AsyncFS(AsyncFS):
         except self._s3.exceptions.NoSuchKey as e:
             raise FileNotFoundError(url) from e
 
-    async def open_from(self, url: str, start: int, *, length: Optional[int] = None) -> ReadableStream:
+    async def _open_from(self, url: str, start: int, *, length: Optional[int] = None) -> ReadableStream:
         bucket, name = self.get_bucket_and_name(url)
         range_str = f'bytes={start}-'
         if length is not None:
+            assert length >= 1
             range_str += str(start + length - 1)
         try:
             resp = await blocking_to_async(self._thread_pool, self._s3.get_object,

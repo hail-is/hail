@@ -10,7 +10,7 @@ from hailtop.utils import blocking_to_async
 from .exceptions import UnexpectedEOFError
 
 
-class EmptyReadableStream(abc.ABC):
+class EmptyReadableStream(ReadableStream):
     def __init__(self):
         pass
 
