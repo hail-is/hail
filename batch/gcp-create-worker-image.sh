@@ -7,15 +7,16 @@ source $HAIL/devbin/functions.sh
 PROJECT=$(get_global_config_field gcp_project)
 ZONE=$(get_global_config_field gcp_zone)
 DOCKER_ROOT_IMAGE=$(get_global_config_field docker_root_image)
+DOCKER_PREFIX=$(get_global_config_field docker_prefix)
 
-WORKER_IMAGE_VERSION=12
+WORKER_IMAGE_VERSION=3010
 BUILDER=build-batch-worker-image
 
 create_build_image_instance() {
     gcloud -q compute --project ${PROJECT} instances delete \
         --zone=${ZONE} ${BUILDER} || true
 
-    python3 ../ci/jinja2_render.py '{"global":{"docker_root_image":"'${DOCKER_ROOT_IMAGE}'"}}' \
+    python3 ../ci/jinja2_render.py '{"global":{"docker_root_image":"'${DOCKER_ROOT_IMAGE}'","docker_prefix": "'${DOCKER_PREFIX}'"}}' \
         build-batch-worker-image-startup-gcp.sh build-batch-worker-image-startup-gcp.sh.out
 
     UBUNTU_IMAGE=$(gcloud compute images list \

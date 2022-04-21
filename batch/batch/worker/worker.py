@@ -1,12 +1,11 @@
 import asyncio
 import base64
-import concurrent
+import concurrent.futures
 import errno
 import json
 import logging
 import os
 import random
-import re
 import shutil
 import signal
 import sys
@@ -16,6 +15,7 @@ import uuid
 import warnings
 from collections import defaultdict
 from contextlib import ExitStack, contextmanager
+from shlex import quote as shq
 from typing import (
     Any,
     Awaitable,
@@ -30,13 +30,10 @@ from typing import (
     Union,
 )
 
-import aiodocker  # type: ignore
-import aiodocker.images
 import aiohttp
 import aiohttp.client_exceptions
 import aiorwlock
 import async_timeout
-from aiodocker.exceptions import DockerError  # type: ignore
 from aiohttp import web
 from sortedcontainers import SortedSet
 
@@ -60,7 +57,6 @@ from hailtop.utils import (
     periodically_call,
     request_retry_transient_errors,
     retry_transient_errors,
-    sleep_and_backoff,
     time_msecs,
     time_msecs_str,
 )
@@ -82,11 +78,6 @@ from ..utils import Box
 from ..worker.worker_api import CloudWorkerAPI
 from .credentials import CloudUserCredentials
 from .jvm_entryway_protocol import EndOfStream, read_bool, read_int, read_str, write_int, write_str
-
-# import uvloop
-
-
-# uvloop.install()
 
 with open('/subdomains.txt', 'r', encoding='utf-8') as subdomains_file:
     HAIL_SERVICES = [line.rstrip() for line in subdomains_file.readlines()]
@@ -113,12 +104,6 @@ def compose_auth_header_urlsafe(orig_f):
         return base64.urlsafe_b64encode(auth_json).decode('ascii')
 
     return compose
-
-
-# We patched aiodocker's utility function `compose_auth_header` because it does not base64 encode strings
-# in urlsafe mode which is required for Azure's credentials.
-# https://github.com/aio-libs/aiodocker/blob/17e08844461664244ea78ecd08d1672b1779acc1/aiodocker/utils.py#L297
-aiodocker.images.compose_auth_header = compose_auth_header_urlsafe(aiodocker.images.compose_auth_header)
 
 
 configure_logging()
@@ -180,8 +165,6 @@ N_SLOTS = 4 * CORES  # Jobs are allowed at minimum a quarter core
 
 deploy_config = DeployConfig('gce', NAMESPACE, {})
 
-docker: Optional[aiodocker.Docker] = None
-
 port_allocator: Optional['PortAllocator'] = None
 network_allocator: Optional['NetworkAllocator'] = None
 
@@ -190,6 +173,8 @@ worker: Optional['Worker'] = None
 image_configs: Dict[str, Dict[str, Any]] = {}
 
 image_lock = aiorwlock.RWLock()
+
+image_tag_locks: Dict[str, asyncio.Lock] = defaultdict(asyncio.Lock)
 
 
 class PortAllocator:
@@ -336,38 +321,6 @@ class NetworkAllocator:
             self.public_networks.put_nowait(netns)
 
 
-def docker_call_retry(timeout, name):
-    async def wrapper(f, *args, **kwargs):
-        delay = 0.1
-        while True:
-            try:
-                return await asyncio.wait_for(f(*args, **kwargs), timeout)
-            except DockerError as e:
-                # 408 request timeout, 503 service unavailable
-                if e.status in (408, 503):
-                    log.warning(f'in docker call to {f.__name__} for {name}, retrying', stack_info=True, exc_info=True)
-                # DockerError(500, 'Get https://registry-1.docker.io/v2/: net/http: request canceled while waiting for connection (Client.Timeout exceeded while awaiting headers)
-                # DockerError(500, 'error creating overlay mount to /var/lib/docker/overlay2/545a1337742e0292d9ed197b06fe900146c85ab06e468843cd0461c3f34df50d/merged: device or resource busy'
-                # DockerError(500, 'Get https://gcr.io/v2/: dial tcp: lookup gcr.io: Temporary failure in name resolution')
-                # DockerError(500, 'Get \"https://mcr.microsoft.com/v2/azure-cli/manifests/sha256:068eaecb7abab2d5195a05a6c144c71e9ba1c532efc2912b3ea290d98fbeadb2\": dial tcp 131.253.33.219:443: i/o timeout')
-                # DockerError(500, 'received unexpected HTTP status: 503 Service Unavailable')
-                elif e.status == 500 and (
-                    "request canceled while waiting for connection" in e.message
-                    or re.match("error creating overlay mount.*device or resource busy", e.message)
-                    or "Temporary failure in name resolution" in e.message
-                    or 'i/o timeout' in e.message
-                    or 'received unexpected HTTP status: 503 Service Unavailable' in e.message
-                ):
-                    log.warning(f'in docker call to {f.__name__} for {name}, retrying', stack_info=True, exc_info=True)
-                else:
-                    raise
-            except (aiohttp.client_exceptions.ServerDisconnectedError, asyncio.TimeoutError):
-                log.warning(f'in docker call to {f.__name__} for {name}, retrying', stack_info=True, exc_info=True)
-                delay = await sleep_and_backoff(delay)
-
-    return wrapper
-
-
 class ImageCannotBePulled(Exception):
     pass
 
@@ -423,52 +376,42 @@ class Image:
         return f'/host/rootfs/{self.image_id}'
 
     async def _pull_image(self):
-        assert docker
-
         try:
             if not self.is_cloud_image:
-                await self._ensure_image_is_pulled()
-            elif self.is_public_image:
-                auth = await self._batch_worker_access_token()
-                await self._ensure_image_is_pulled(auth=auth)
-            elif self.image_ref_str == BATCH_WORKER_IMAGE and isinstance(self.credentials, JVMUserCredentials):
+                if self.image_ref.domain is None:
+                    self.image_ref.domain = 'docker.io'
+                    self.image_ref_str = str(self.image_ref)
+                await check_exec_output('podman', 'pull', self.image_ref_str)
+            elif isinstance(self.credentials, JVMUserCredentials):
                 pass
             else:
-                # Pull to verify this user has access to this
-                # image.
-                # FIXME improve the performance of this with a
-                # per-user image cache.
-                auth = self._current_user_access_token()
-                await docker_call_retry(MAX_DOCKER_IMAGE_PULL_SECS, f'{self}')(
-                    docker.images.pull, self.image_ref_str, auth=auth
-                )
-        except DockerError as e:
-            if e.status == 404 and 'pull access denied' in e.message:
+                if self.is_public_image:
+                    auth = await self._batch_worker_access_token()
+                else:
+                    auth = self._current_user_access_token()
+                authfile_name = f'{self.credentials.file_name}/podman_auth.json'
+                with open(authfile_name, 'w') as authfile:
+                    creds = base64.b64encode(f'{auth["username"]}:{auth["password"]}'.encode())
+                    auth_json = {'auths': {'gcr.io': {'auth': creds.decode()}}}
+                    authfile.write(json.dumps(auth_json))
+                await check_exec_output('podman', 'pull', f'--authfile={authfile_name}', self.image_ref_str)
+        except CalledProcessError as e:
+            error = e.stderr.decode()
+            if 'unauthorized' in error:
+                self.short_error = 'image cannot be pulled'
                 raise ImageCannotBePulled from e
-            if 'not found: manifest unknown' in e.message:
+            elif 'manifest unknown' in error:
+                self.short_error = 'image not found'
                 raise ImageNotFound from e
             raise
 
-        image_config, _ = await check_exec_output('docker', 'inspect', self.image_ref_str)
+        image_config, _ = await check_exec_output('podman', 'inspect', self.image_ref_str)
         image_configs[self.image_ref_str] = json.loads(image_config)[0]
-
-    async def _ensure_image_is_pulled(self, auth: Optional[Dict[str, str]] = None):
-        assert docker
-
-        try:
-            await docker_call_retry(MAX_DOCKER_OTHER_OPERATION_SECS, f'{self}')(docker.images.get, self.image_ref_str)
-        except DockerError as e:
-            if e.status == 404:
-                await docker_call_retry(MAX_DOCKER_IMAGE_PULL_SECS, f'{self}')(
-                    docker.images.pull, self.image_ref_str, auth=auth
-                )
-            else:
-                raise
 
     async def _batch_worker_access_token(self) -> Dict[str, str]:
         return await CLOUD_WORKER_API.worker_access_token(self.client_session)
 
-    def _current_user_access_token(self) -> Dict[str, str]:
+    def _current_user_access_token(self) -> Dict[str, Union[str, None]]:
         assert self.credentials
         return {'username': self.credentials.username, 'password': self.credentials.password}
 
@@ -476,33 +419,34 @@ class Image:
         assert self.image_id
         os.makedirs(self.rootfs_path)
         await check_shell(
-            f'id=$(docker create {self.image_id}) && docker export $id | tar -C {self.rootfs_path} -xf - && docker rm $id'
+            f'id=$(podman create {shq(self.image_id)}) && podman export $id | tar -C {self.rootfs_path} -xf - && podman rm $id'
         )
 
     async def _localize_rootfs(self):
         async with image_lock.reader_lock:
-            # FIXME Authentication is entangled with pulling images. We need a way to test
-            # that a user has access to a cached image without pulling.
-            await self._pull_image()
-            self.image_config = image_configs[self.image_ref_str]
-            self.image_id = self.image_config['Id'].split(":")[1]
-            assert self.image_id
+            async with image_tag_locks[self.image_ref_str]:
+                # FIXME Authentication is entangled with pulling images. We need a way to test
+                # that a user has access to a cached image without pulling.
+                await self._pull_image()
+                self.image_config = image_configs[self.image_ref_str]
+                self.image_id = self.image_config['Id']
+                assert self.image_id
 
-            worker.image_data[self.image_id] += 1
+                worker.image_data[self.image_id] += 1
 
-            image_data = worker.image_data[self.image_id]
-            async with image_data.lock:
-                if not image_data.extracted:
-                    try:
-                        await self._extract_rootfs()
-                        image_data.extracted = True
-                        log.info(f'Added expanded image to cache: {self.image_ref_str}, ID: {self.image_id}')
-                    except asyncio.CancelledError:
-                        raise
-                    except Exception:
-                        log.exception(f'while extracting image {self.image_ref_str}, ID: {self.image_id}')
-                        await blocking_to_async(self.pool, shutil.rmtree, self.rootfs_path)
-                        raise
+                image_data = worker.image_data[self.image_id]
+                async with image_data.lock:
+                    if not image_data.extracted:
+                        try:
+                            await self._extract_rootfs()
+                            image_data.extracted = True
+                            log.info(f'Added expanded image to cache: {self.image_ref_str}, ID: {self.image_id}')
+                        except asyncio.CancelledError:
+                            raise
+                        except Exception:
+                            log.exception(f'while extracting image {self.image_ref_str}, ID: {self.image_id}')
+                            await blocking_to_async(self.pool, shutil.rmtree, self.rootfs_path)
+                            raise
 
     async def pull(self):
         await asyncio.shield(self._localize_rootfs())
@@ -573,13 +517,6 @@ def worker_fraction_in_1024ths(cpu_in_mcpu):
 
 
 def user_error(e):
-    if isinstance(e, DockerError):
-        if e.status == 404 and 'pull access denied' in e.message:
-            return True
-        if e.status == 404 and ('not found: manifest unknown' in e.message or 'no such image' in e.message):
-            return True
-        if e.status == 400 and 'executable file not found' in e.message:
-            return True
     if isinstance(e, CalledProcessError):
         # Opening GCS connection...\n', b'daemonize.Run: readFromProcess: sub-process: mountWithArgs: mountWithConn:
         # fs.NewServer: create file system: SetUpBucket: OpenBucket: Bad credentials for bucket "BUCKET". Check the
@@ -894,8 +831,10 @@ class Container:
     async def container_config(self):
         uid, gid = await self._get_in_container_user()
         weight = worker_fraction_in_1024ths(self.cpu_in_mcpu)
-        workdir = self.image.image_config['Config']['WorkingDir']
-        default_docker_capabilities = [
+        workdir = self.image.image_config['Config'].get('WorkingDir')
+        if not workdir:
+            workdir = '/'
+        default_capabilities = [
             'CAP_CHOWN',
             'CAP_DAC_OVERRIDE',
             'CAP_FSETID',
@@ -928,11 +867,12 @@ class Container:
                 'env': self._env(),
                 'cwd': workdir if workdir != "" else "/",
                 'capabilities': {
-                    'bounding': default_docker_capabilities,
-                    'effective': default_docker_capabilities,
-                    'inheritable': default_docker_capabilities,
-                    'permitted': default_docker_capabilities,
+                    'bounding': default_capabilities,
+                    'effective': default_capabilities,
+                    'inheritable': default_capabilities,
+                    'permitted': default_capabilities,
                 },
+                'oomScoreAdj': 1,
             },
             'linux': {
                 'namespaces': [
@@ -987,7 +927,7 @@ class Container:
         return config
 
     async def _get_in_container_user(self):
-        user = self.image.image_config['Config']['User']
+        user = self.image.image_config['User']
         if not user:
             uid, gid = 0, 0
         elif ":" in user:
@@ -1007,7 +947,7 @@ class Container:
     def _mounts(self, uid, gid):
         # Only supports empty volumes
         external_volumes = []
-        volumes = self.image.image_config['Config']['Volumes']
+        volumes = self.image.image_config['Config'].get('Volumes')
         if volumes:
             for v_container_path in volumes:
                 if not v_container_path.startswith('/'):
@@ -2695,7 +2635,7 @@ class Worker:
                     if image_data.ref_count == 0 and (now - image_data.last_accessed) > 10 * 60 * 1000:
                         assert image_id != BATCH_WORKER_IMAGE_ID
                         log.info(f'Found an unused image with ID {image_id}')
-                        await check_shell(f'docker rmi -f {image_id}')
+                        await check_exec_output('podman', 'rmi', '-f', image_id)
                         image_path = f'/host/rootfs/{image_id}'
                         await blocking_to_async(self.pool, shutil.rmtree, image_path)
                         del self.image_data[image_id]
@@ -2709,8 +2649,6 @@ class Worker:
 async def async_main():
     global port_allocator, network_allocator, worker, docker
 
-    docker = aiodocker.Docker()
-
     port_allocator = PortAllocator()
     network_allocator = NetworkAllocator()
     await network_allocator.reserve()
@@ -2723,20 +2661,16 @@ async def async_main():
             await worker.shutdown()
             log.info('worker shutdown', exc_info=True)
         finally:
-            try:
-                await docker.close()
-                log.info('docker closed')
-            finally:
-                asyncio.get_event_loop().set_debug(True)
-                log.debug('Tasks immediately after docker close')
-                dump_all_stacktraces()
-                other_tasks = [t for t in asyncio.all_tasks() if t != asyncio.current_task()]
-                if other_tasks:
-                    _, pending = await asyncio.wait(other_tasks, timeout=10 * 60, return_when=asyncio.ALL_COMPLETED)
-                    for t in pending:
-                        log.debug('Dangling task:')
-                        t.print_stack()
-                        t.cancel()
+            asyncio.get_event_loop().set_debug(True)
+            log.debug('Tasks immediately after docker close')
+            dump_all_stacktraces()
+            other_tasks = [t for t in asyncio.all_tasks() if t != asyncio.current_task()]
+            if other_tasks:
+                _, pending = await asyncio.wait(other_tasks, timeout=10 * 60, return_when=asyncio.ALL_COMPLETED)
+                for t in pending:
+                    log.debug('Dangling task:')
+                    t.print_stack()
+                    t.cancel()
 
 
 loop = asyncio.get_event_loop()
