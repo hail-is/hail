@@ -749,6 +749,8 @@ object PartitionWriter {
       classOf[PartitionNativeWriter],
       classOf[TableTextPartitionWriter],
       classOf[VCFPartitionWriter],
+      classOf[GenSampleWriter],
+      classOf[GenVariantWriter],
       classOf[AbstractTypedCodecSpec],
       classOf[TypedCodecSpec]), typeHintFieldName = "name"
     ) + BufferSpec.shortTypeHints
@@ -768,6 +770,7 @@ object MetadataWriter {
       classOf[RelationalWriter],
       classOf[TableTextFinalizer],
       classOf[VCFExportFinalizer],
+      classOf[SimpleMetadataWriter],
       classOf[RVDSpecMaker],
       classOf[AbstractTypedCodecSpec],
       classOf[TypedCodecSpec]),
@@ -851,6 +854,11 @@ abstract class MetadataWriter {
     region: Value[Region]): Unit
 
   def toJValue: JValue = Extraction.decompose(this)(MetadataWriter.formats)
+}
+
+final case class SimpleMetadataWriter(val annotationType: Type) extends MetadataWriter {
+  def writeMetadata(writeAnnotations: => IEmitCode, cb: EmitCodeBuilder, region: Value[Region]): Unit =
+    writeAnnotations.consume(cb, {}, {_ => ()})
 }
 
 final case class ReadPartition(context: IR, rowType: Type, reader: PartitionReader) extends IR
