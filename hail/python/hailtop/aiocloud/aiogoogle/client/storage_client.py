@@ -590,7 +590,7 @@ class GoogleStorageAsyncFS(AsyncFS):
         bucket, name = self.get_bucket_and_name(url)
         return await self._storage_client.get_object(bucket, name)
 
-    async def open_from(self, url: str, start: int, *, length: Optional[int] = None) -> ReadableStream:
+    async def _open_from(self, url: str, start: int, *, length: Optional[int] = None) -> ReadableStream:
         bucket, name = self.get_bucket_and_name(url)
         range_str = f'bytes={start}-'
         if length is not None:
