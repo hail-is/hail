@@ -33,7 +33,7 @@ def test_big_driver_has_big_memory():
 @skip_unless_service_backend()
 def test_tiny_worker_has_tiny_memory():
     try:
-        t = hl.utils.range_table(1).annotate(nd=hl.nd.ones(30_000, 30_000))
+        t = hl.utils.range_table(1).annotate(nd=hl.nd.ones((30_000, 30_000)))
         t = t.annotate(nd_sum=t.nd.sum())
         hl.eval(t.aggregate(hl.agg.sum(t.nd_sum)))
     except Exception as exc:
@@ -50,7 +50,7 @@ def test_big_worker_has_big_memory():
     try:
         backend.worker_cores = 8
         backend.worker_memory = 'highmem'
-        t = hl.utils.range_table(1).annotate(nd=hl.nd.ones(30_000, 30_000))
+        t = hl.utils.range_table(1).annotate(nd=hl.nd.ones((30_000, 30_000)))
         t = t.annotate(nd_sum=t.nd.sum())
         # We only eval the small thing so that we trigger an OOM on the worker
         # but not the driver or client
