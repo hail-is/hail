@@ -10,19 +10,6 @@ from hailtop.utils import blocking_to_async
 from .exceptions import UnexpectedEOFError
 
 
-class EmptyReadableStream(ReadableStream):
-    def __init__(self):
-        pass
-
-    async def read(self, n: int = -1) -> bytes:
-        return b''
-
-    async def readexactly(self, n: int) -> bytes:
-        if n == 0:
-            return b''
-        raise UnexpectedEOFError
-
-
 class ReadableStream(abc.ABC):
     def __init__(self):
         self._closed = False
@@ -65,6 +52,19 @@ class ReadableStream(abc.ABC):
             exc_value: Optional[BaseException] = None,
             exc_traceback: Optional[TracebackType] = None) -> None:
         await self.wait_closed()
+
+
+class EmptyReadableStream(ReadableStream):
+    def __init__(self):
+        pass
+
+    async def read(self, n: int = -1) -> bytes:
+        return b''
+
+    async def readexactly(self, n: int) -> bytes:
+        if n == 0:
+            return b''
+        raise UnexpectedEOFError
 
 
 class WritableStream(abc.ABC):
