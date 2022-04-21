@@ -62,7 +62,7 @@ class GCPDriver(CloudDriver):
                 app['async_worker_pool'],
                 task_manager,
             )
-            for pool_name, config in inst_coll_configs.name_pool_config.items()
+            for config in inst_coll_configs.name_pool_config.values()
         ]
 
         jpim, *_ = await asyncio.gather(
