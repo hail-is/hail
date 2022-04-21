@@ -498,11 +498,11 @@ class RunImageStep(Step):
                 for i in range(self.num_splits)
             ]
 
-    def _build_job(self, batch, code, scope, name, env, output_prefix):
+    def _build_job(self, batch, code, scope, job_name, env, output_prefix):
         template = jinja2.Template(self.script, undefined=jinja2.StrictUndefined, trim_blocks=True, lstrip_blocks=True)
         rendered_script = template.render(**self.input_config(code, scope))
 
-        log.info(f'step {self.name}, rendered script:\n{rendered_script}')
+        log.info(f'step {job_name}, rendered script:\n{rendered_script}')
 
         if self.inputs:
             input_files = []
@@ -532,7 +532,7 @@ class RunImageStep(Step):
             command=['bash', '-c', rendered_script],
             port=self.port,
             resources=self.resources,
-            attributes={'name': self.name},
+            attributes={'name': job_name},
             input_files=input_files,
             output_files=output_files,
             secrets=secrets,

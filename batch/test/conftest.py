@@ -15,8 +15,8 @@ def log_before_after():
 
 
 def pytest_collection_modifyitems(config, items):
-    n_splits = int(os.environ.get('PYTEST_SPLITS', '1'))
-    split_index = int(os.environ.get('PYTEST_SPLIT_INDEX', '-1'))
+    n_splits = int(os.environ.get('HAIL_RUN_IMAGE_SPLITS', '1'))
+    split_index = int(os.environ.get('HAIL_RUN_IMAGE_SPLIT_INDEX', '-1'))
     if n_splits <= 1:
         return
     if not (0 <= split_index < n_splits):
