@@ -340,14 +340,14 @@ object LowerDistributedSort {
         }
 
         val distributeResult = CompileAndEvaluate[Annotation](ctx, distribute)
-           .asInstanceOf[IndexedSeq[Row]].map(row => (
-           row(0).asInstanceOf[Int],
-           row(1).asInstanceOf[IndexedSeq[Row]].map(innerRow => (
-             innerRow(0).asInstanceOf[Interval],
-             innerRow(1).asInstanceOf[String],
-             innerRow(2).asInstanceOf[Int],
-             innerRow(3).asInstanceOf[Long])
-           )))
+          .asInstanceOf[IndexedSeq[Row]].map(row => (
+          row(0).asInstanceOf[Int],
+          row(1).asInstanceOf[IndexedSeq[Row]].map(innerRow => (
+            innerRow(0).asInstanceOf[Interval],
+            innerRow(1).asInstanceOf[String],
+            innerRow(2).asInstanceOf[Int],
+            innerRow(3).asInstanceOf[Long])
+          )))
 
         // distributeResult is a numPartitions length array of arrays, where each inner array tells me what
         // files were written to for each partition, as well as the number of entries in that file.
