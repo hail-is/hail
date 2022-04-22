@@ -5,7 +5,7 @@ import logging
 import signal
 from collections import defaultdict, namedtuple
 from functools import wraps
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 import aiohttp_session
 import dictdiffer
@@ -418,6 +418,44 @@ def validate_int(session, name, value, predicate, description):
     return validate(session, name, i, predicate, description)
 
 
+async def get_pool_config_from_db(db: Database, pool_name: str) -> Optional[PoolConfig]:
+    record = await db.execute_and_fetchone(
+        '''SELECT pools.name, cloud, worker_type, worker_cores,
+        worker_local_ssd_data_disk,
+        worker_external_ssd_data_disk_size_gb,
+        enable_standing_worker,
+        standing_worker_cores,
+        boot_disk_size_gb,
+        max_instances,
+        max_live_instances,
+        preemptible
+    FROM pools
+    INNER JOIN inst_colls ON pools.name = inst_colls.name
+    WHERE pools.name = %s;''',
+        (pool_name),
+    )
+
+    # TODO: handle error case where no record is found
+
+    log.info(f'RECORD FROM DB: {record}')
+    # return PoolConfig(
+    #     name=record['name'],
+    #     cloud=record['cloud'],
+    #     worker_type=record['worker_type'],
+    #     worker_cores=record['worker_cores'],
+    #     worker_local_ssd_data_disk=record['worker_local_ssd_data_disk'],
+    #     worker_external_ssd_data_disk_size_gb=record['worker_external_ssd_data_disk_size_gb'],
+    #     enable_standing_worker=record['enable_standing_worker'],
+    #     standing_worker_cores=record['standing_worker_cores'],
+    #     boot_disk_size_gb=record['boot_disk_size_gb'],
+    #     max_instances=record['max_instances'],
+    #     max_live_instances=record['max_live_instances'],
+    #     preemptible=bool(record['preemptible']),
+    # )
+
+    return PoolConfig.from_record(record)
+
+
 @routes.post('/config-update/pool/{pool}')
 @check_csrf_token
 @web_authenticated_developers_only()
@@ -538,6 +576,19 @@ async def pool_config_update(request, userdata):  # pylint: disable=unused-argum
             max_live_instances,
             pool.preemptible,
         )
+
+        current_pool_config_in_db = await get_pool_config_from_db(db, pool_name)
+        # check if pool config in db is the same as is being displayed to user
+        log.info("COMPARING DB POOL CONFIG")
+        log.info(f"CURRENT POOL CONFIG: {app['current_db_pool_config']}")
+        if app['current_db_pool_config'] != current_pool_config_in_db:
+            set_message(
+                session,
+                'The current pool config is stale; please refresh the page',
+                'error',
+            )
+            raise ConfigError()
+
         await pool_config.update_database(db)
         pool.configure(pool_config)
 
@@ -631,6 +682,12 @@ async def get_pool(request, userdata):
         'user_resources': user_resources,
         'ready_cores_mcpu': ready_cores_mcpu,
     }
+
+    # TODO: save pool.config as a "global" variable, so that before submitting request to db
+    # we can check and see if the config that the db has is the same as what pool.config was
+    # the pool was loaded in
+    app['current_db_pool_config'] = pool.config()
+    log.info("SAVING THE CURRENT DB POOL CONFIG")
 
     return await render_template('batch-driver', request, userdata, 'pool.html', page_context)
 
