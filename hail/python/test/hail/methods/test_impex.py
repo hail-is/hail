@@ -1990,6 +1990,17 @@ class ImportTableTests(unittest.TestCase):
         t2 = hl.import_table(f2, force_bgz=True, impute=True).key_by('idx')
         self.assertTrue(t._same(t2))
 
+    def test_import_table_empty(self):
+        try:
+            rows = hl.import_table(resource('empty.tsv')).collect()
+        except ValueError as err:
+            assert f'Invalid file: no lines remaining after filters\n Files provided: {resource("empty.tsv")}' in err.args[0]
+        else:
+            assert False, rows
+
+    def test_import_table_empty_with_header(self):
+        assert [] == hl.import_table(resource('empty-with-header.tsv')).collect()
+
     @skip_when_service_backend('''intermittent worker failure:
 >       assert tables.count() == 346
 
