@@ -2024,3 +2024,38 @@ def test_to_pandas_nd_array():
 
     df_from_python = pd.DataFrame(python_data)
     pd.testing.assert_frame_equal(df_from_hail, df_from_python)
+
+
+def test_out_of_order_tiny_partitions():
+    t = hl.utils.range_table(8, n_partitions=8)
+    t = t._filter_partitions([7]).union(t._filter_partitions([7], keep=False))
+    t = t.group_by(_key=t.idx).aggregate(t_value=hl.agg.collect(t.row_value))
+    expected = [
+        hl.Struct(_key=0, t_value=[hl.Struct()]),
+        hl.Struct(_key=1, t_value=[hl.Struct()]),
+        hl.Struct(_key=2, t_value=[hl.Struct()]),
+        hl.Struct(_key=3, t_value=[hl.Struct()]),
+        hl.Struct(_key=4, t_value=[hl.Struct()]),
+        hl.Struct(_key=5, t_value=[hl.Struct()]),
+        hl.Struct(_key=6, t_value=[hl.Struct()]),
+        hl.Struct(_key=7, t_value=[hl.Struct()])
+    ]
+    actual = t.collect()
+    assert actual == expected
+
+
+def test_unsorted_one_partition():
+    t = hl.utils.range_table(8, n_partitions=1)
+    t = t.key_by(key=-t.idx)
+    expected = [
+        hl.Struct(idx=7, key=-7),
+        hl.Struct(idx=6, key=-6),
+        hl.Struct(idx=5, key=-5),
+        hl.Struct(idx=4, key=-4),
+        hl.Struct(idx=3, key=-3),
+        hl.Struct(idx=2, key=-2),
+        hl.Struct(idx=1, key=-1),
+        hl.Struct(idx=0, key=0)
+    ]
+    actual = t.collect()
+    assert actual == expected

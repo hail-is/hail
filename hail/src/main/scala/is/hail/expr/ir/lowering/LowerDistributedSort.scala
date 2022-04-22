@@ -181,6 +181,7 @@ object LowerDistributedSort {
         struct => initialTmpPath + struct(0)
       )
 
+      val keyFields = keyToSortBy.fields.map(_.name)
       val keyed = sortFields.forall(sf => sf.sortOrder == Ascending)
       val isSingleEmptyPartition = initialInterval.left.point == null && initialInterval.right.point == null
       val (partitionerKey, intervals) = (keyed, isSingleEmptyPartition) match {
@@ -198,7 +199,15 @@ object LowerDistributedSort {
         new RVDPartitioner(partitionerKey, intervals),
         TableStageDependency.none,
         ToStream(Literal(TArray(TString), writtenPartitionsFilename)),
-        { filename => ReadPartition(filename, spec._vType, reader) }
+        { filename =>
+          sortIR(ReadPartition(filename, spec._vType, reader)) { (refLeft, refRight) =>
+            ApplyComparisonOp(
+              StructLT(keyToSortBy, sortFields),
+              SelectFields(refLeft, keyFields),
+              SelectFields(refRight, keyFields)
+            )
+          }
+        }
       )
     }
 
