@@ -379,9 +379,9 @@ object LowerDistributedSort {
 
     val needSortingFilenames = loopState.smallSegments.map(_.chunks.map(_.filename))
 
-    val writtenPartitionMetadata = sortAndWriteEachPartitionCDA(needSortingFilenames, keyToSortBy, sortFields, spec, writer, reader)
+    val sortedWrittenPartitionMetadata = sortAndWriteEachPartitionCDA(needSortingFilenames, keyToSortBy, sortFields, spec, writer, reader)
 
-    val sortedFilenames = CompileAndEvaluate[Annotation](ctx, sortedFilenamesIR).asInstanceOf[IndexedSeq[Row]].map(_(0).asInstanceOf[String])
+    val sortedFilenames = CompileAndEvaluate[Annotation](ctx, sortedWrittenPartitionMetadata).asInstanceOf[IndexedSeq[Row]].map(_(0).asInstanceOf[String])
     val newlySortedSegments = loopState.smallSegments.zip(sortedFilenames).map { case (sr, newFilename) =>
       OutputPartition(sr.indices, sr.interval, IndexedSeq(initialTmpPath + newFilename))
     }
