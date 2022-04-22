@@ -128,13 +128,13 @@ object LowerDistributedSort {
     val initialStageDataRow = CompileAndEvaluate[Annotation](ctx, inputStage.mapCollectWithGlobals(relationalLetsAbove) { part =>
       WritePartition(part, UUID4(), writer)
     }{ case (part, globals) =>
-        val streamElement = Ref(genUID(), part.typ.asInstanceOf[TArray].elementType)
-        bindIR(StreamAgg(ToStream(part), streamElement.name,
-          MakeStruct(FastSeq(
-            "min" -> AggFold.min(GetField(streamElement, "firstKey"), sortFields),
-            "max" -> AggFold.max(GetField(streamElement, "lastKey"), sortFields)
-          ))
-        )) { intervalRange =>   MakeTuple.ordered(Seq(part, globals, intervalRange)) }
+      val streamElement = Ref(genUID(), part.typ.asInstanceOf[TArray].elementType)
+      bindIR(StreamAgg(ToStream(part), streamElement.name,
+        MakeStruct(FastSeq(
+          "min" -> AggFold.min(GetField(streamElement, "firstKey"), sortFields),
+          "max" -> AggFold.max(GetField(streamElement, "lastKey"), sortFields)
+        ))
+      )) { intervalRange =>   MakeTuple.ordered(Seq(part, globals, intervalRange)) }
     }).asInstanceOf[Row]
     val (initialPartInfo, initialGlobals, intervalRange) = (initialStageDataRow(0).asInstanceOf[IndexedSeq[Row]], initialStageDataRow(1).asInstanceOf[Row], initialStageDataRow(2).asInstanceOf[Row])
     val initialGlobalsLiteral = Literal(inputStage.globalType, initialGlobals)
