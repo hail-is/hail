@@ -9,7 +9,7 @@ RUN hail-apt-get-install \
     iproute2 \
     iptables \
     wget \
-    openjdk-8-jre-headless \
+    openjdk-11-jre-headless \
     liblapack3
 
 COPY docker/hail-ubuntu/pip.conf /root/.config/pip/pip.conf
@@ -18,7 +18,7 @@ COPY docker/requirements.txt .
 RUN chmod 755 /bin/hail-pip-install && \
     hail-pip-install -r requirements.txt pyspark==3.1.1
 
-ENV SPARK_HOME /usr/local/lib/python3.7/dist-packages/pyspark
+ENV SPARK_HOME /usr/local/lib/python3.9/dist-packages/pyspark
 ENV PATH "$PATH:$SPARK_HOME/sbin:$SPARK_HOME/bin"
 ENV PYSPARK_PYTHON python3
 
@@ -37,7 +37,7 @@ RUN echo "APT::Acquire::Retries \"5\";" > /etc/apt/apt.conf.d/80-retries && \
 {% elif global.cloud == "azure" %}
 # https://github.com/Azure/azure-storage-fuse/issues/603
 RUN hail-apt-get-install ca-certificates pkg-config libfuse-dev cmake libcurl4-gnutls-dev libgnutls28-dev uuid-dev libgcrypt20-dev wget && \
-    wget https://packages.microsoft.com/config/ubuntu/20.04/packages-microsoft-prod.deb && \
+    wget https://packages.microsoft.com/config/debian/11/packages-microsoft-prod.deb && \
     dpkg -i packages-microsoft-prod.deb && \
     apt-get update && \
     hail-apt-get-install blobfuse
@@ -51,8 +51,8 @@ RUN hail-apt-get-install xfsprogs
 
 # pycairo, libcairo2-dev and pkg-config needed for a podman dependency. Without them `pip check` fails
 RUN . /etc/os-release && \
-    sh -c "echo 'deb http://download.opensuse.org/repositories/devel:/kubic:/libcontainers:/stable/xUbuntu_${VERSION_ID}/ /' >/etc/apt/sources.list.d/devel:kubic:libcontainers:stable.list" && \
-    wget -nv https://download.opensuse.org/repositories/devel:kubic:libcontainers:stable/xUbuntu_${VERSION_ID}/Release.key -O- | apt-key add - && \
+    sh -c "echo 'deb http://download.opensuse.org/repositories/devel:/kubic:/libcontainers:/stable/Debian_11/ /' >/etc/apt/sources.list.d/devel:kubic:libcontainers:stable.list" && \
+    wget -nv https://download.opensuse.org/repositories/devel:kubic:libcontainers:stable/Debian_11/Release.key -O- | apt-key add - && \
     hail-apt-get-install libcairo2-dev pkg-config podman && \
     hail-pip-install pycairo
 

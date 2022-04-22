@@ -2,26 +2,23 @@
 
 set -ex
 
-curl --silent --show-error --remote-name --fail https://dl.google.com/cloudagents/add-logging-agent-repo.sh
-bash add-logging-agent-repo.sh
-
+curl -sSO https://dl.google.com/cloudagents/add-google-cloud-ops-agent-repo.sh
+sudo bash add-google-cloud-ops-agent-repo.sh --also-install
 
 # Get the latest GPG key as it might not always be up to date
 # https://cloud.google.com/compute/docs/troubleshooting/known-issues#keyexpired
 curl https://packages.cloud.google.com/apt/doc/apt-key.gpg | sudo apt-key add -
 source /etc/os-release
-sh -c "echo 'deb http://download.opensuse.org/repositories/devel:/kubic:/libcontainers:/stable/xUbuntu_${VERSION_ID}/ /' > /etc/apt/sources.list.d/devel:kubic:libcontainers:stable.list"
-wget -nv https://download.opensuse.org/repositories/devel:kubic:libcontainers:stable/xUbuntu_${VERSION_ID}/Release.key -O- | sudo apt-key add -
+echo 'deb http://download.opensuse.org/repositories/devel:/kubic:/libcontainers:/stable/Debian_11/ /' | sudo tee /etc/apt/sources.list.d/devel:kubic:libcontainers:stable.list
+curl -fsSL https://download.opensuse.org/repositories/devel:kubic:libcontainers:stable/Debian_11/Release.key | gpg --dearmor | sudo tee /etc/apt/trusted.gpg.d/devel_kubic_libcontainers_stable.gpg > /dev/null
 apt-get update
 
 apt-get install -y \
     apt-transport-https \
     ca-certificates \
-    curl \
-    google-fluentd \
-    google-fluentd-catch-all-config-structured \
     jq \
     software-properties-common \
+    xfsprogs
     podman
 
 rm -rf /var/lib/apt/lists/*

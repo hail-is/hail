@@ -9,7 +9,7 @@ ZONE=$(get_global_config_field gcp_zone)
 DOCKER_ROOT_IMAGE=$(get_global_config_field docker_root_image)
 DOCKER_PREFIX=$(get_global_config_field docker_prefix)
 
-WORKER_IMAGE_VERSION=3010
+WORKER_IMAGE_VERSION=3011
 BUILDER=build-batch-worker-image
 
 create_build_image_instance() {
@@ -21,7 +21,7 @@ create_build_image_instance() {
 
     UBUNTU_IMAGE=$(gcloud compute images list \
         --standard-images \
-        --filter 'family="ubuntu-minimal-2004-lts"' \
+        --filter 'family="debian-11"' \
         --format='value(name)')
 
     gcloud -q compute instances create ${BUILDER} \
@@ -35,7 +35,7 @@ create_build_image_instance() {
         --maintenance-policy=MIGRATE \
         --scopes=https://www.googleapis.com/auth/cloud-platform \
         --image=${UBUNTU_IMAGE} \
-        --image-project=ubuntu-os-cloud \
+        --image-project=debian-cloud \
         --boot-disk-size=10GB \
         --boot-disk-type=pd-ssd
 }
