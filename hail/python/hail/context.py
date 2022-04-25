@@ -153,7 +153,7 @@ class HailContext(object):
 
 
 @typecheck(sc=nullable(SparkContext),
-           app_name=str,
+           app_name=nullable(str),
            master=nullable(str),
            local=str,
            log=nullable(str),
@@ -172,7 +172,7 @@ class HailContext(object):
            backend=nullable(str),
            driver_cores=nullable(oneof(str, int)),
            driver_memory=nullable(str))
-def init(sc=None, app_name='Hail', master=None, local='local[*]',
+def init(sc=None, app_name=None, master=None, local='local[*]',
          log=None, quiet=False, append=False,
          min_block_size=0, branching_factor=50, tmp_dir=None,
          default_reference='GRCh37', idempotent=False,
@@ -310,6 +310,13 @@ def init(sc=None, app_name='Hail', master=None, local='local[*]',
             ))
     if backend == 'spark':
         return init_spark(
+            app_name=app_name,
+            master=master,
+            local=local,
+            min_block_size=min_block_size,
+            branching_factor=branching_factor,
+            spark_conf=spark_conf,
+            _optimizer_iterations=_optimizer_iterations,
             log=log,
             quiet=quiet,
             append=append,
@@ -333,7 +340,7 @@ def init(sc=None, app_name='Hail', master=None, local='local[*]',
 
 
 @typecheck(sc=nullable(SparkContext),
-           app_name=str,
+           app_name=nullable(str),
            master=nullable(str),
            local=str,
            log=nullable(str),
@@ -350,7 +357,7 @@ def init(sc=None, app_name='Hail', master=None, local='local[*]',
            local_tmpdir=nullable(str),
            _optimizer_iterations=nullable(int))
 def init_spark(sc=None,
-               app_name='Hail',
+               app_name=None,
                master=None,
                local='local[*]',
                log=None,
@@ -373,6 +380,7 @@ def init_spark(sc=None,
     local_tmpdir = _get_local_tmpdir(local_tmpdir)
     optimizer_iterations = get_env_or_default(_optimizer_iterations, 'HAIL_OPTIMIZER_ITERATIONS', 3)
 
+    app_name = app_name or 'Hail'
     backend = SparkBackend(
         idempotent, sc, spark_conf, app_name, master, local, log,
         quiet, append, min_block_size, branching_factor, tmpdir, local_tmpdir,
@@ -398,7 +406,8 @@ def init_spark(sc=None,
     disable_progress_bar=bool,
     driver_cores=nullable(oneof(str, int)),
     driver_memory=nullable(str),
-    name_prefix=nullable(str)
+    name_prefix=nullable(str),
+    token=nullable(str)
 )
 async def init_batch(
         *,
@@ -414,7 +423,8 @@ async def init_batch(
         disable_progress_bar: bool = True,
         driver_cores: Optional[Union[str, int]] = None,
         driver_memory: Optional[str] = None,
-        name_prefix: Optional[str] = None
+        name_prefix: Optional[str] = None,
+        token: Optional[str] = None,
 ):
     from hail.backend.service_backend import ServiceBackend
     # FIXME: pass local_tmpdir and use on worker and driver
@@ -423,7 +433,8 @@ async def init_batch(
                                           disable_progress_bar=disable_progress_bar,
                                           driver_cores=driver_cores,
                                           driver_memory=driver_memory,
-                                          name_prefix=name_prefix)
+                                          name_prefix=name_prefix,
+                                          token=token)
 
     log = _get_log(log)
     if tmpdir is None:

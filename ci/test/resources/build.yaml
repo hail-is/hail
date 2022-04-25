@@ -256,6 +256,7 @@ steps:
       - hello_database
   - kind: runImage
     name: test_connect_to_hello
+    numSplits: 2
     image:
       valueFrom: service_base_image.image
     script: |

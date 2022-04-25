@@ -21,8 +21,11 @@ from hail.methods.misc import require_biallelic, require_row_key_variant, requir
 from hail.table import Table
 from hail.typecheck import typecheck, nullable, oneof, dictof, anytype, \
     sequenceof, enumeration, sized_tupleof, numeric, table_key_type, char
-from hail.utils.misc import wrap_to_list
+from hail.utils.misc import wrap_to_list, plural
 from hail.utils.java import Env, FatalError, jindexed_seq_args, warning
+from hail.utils.deduplicate import deduplicate
+
+from .import_lines_helpers import split_lines, should_remove_line
 
 
 def locus_interval_expr(contig, start, end, includes_start, includes_end,
@@ -1610,79 +1613,66 @@ def import_table(paths,
     if len(delimiter) < 1:
         raise ValueError('import_table: empty delimiter is not supported')
 
-    def split_lines(row, fields):
-        split_array = row.text._split_line(delimiter, missing=missing, quote=quote, regex=len(delimiter) > 1)
-        return hl.case().when(hl.len(split_array) == len(fields), split_array)\
-            .or_error(hl.str("error in number of fields found: in file ") + hl.str(row.file)
-                      + hl.str(f"\nExpected {len(fields)} {'fields' if len(fields) > 1 else 'field' }, found ")
-                      + hl.str(hl.len(split_array)) + hl.if_else(hl.len(split_array) > 1, hl.str(" fields"),
-                      hl.str(" field")) + hl.str("\nfor line consisting of '") + hl.str(row.text) + "'")
-
-    def should_filter_line(hl_str):
-        to_filter = hl_str.matches(filter) if filter is not None else hl.bool(False)
-        if len(comment) > 0:
-            hl_comment = hl.array(comment)
-            filter_comment = hl_comment.any(lambda com: hl.if_else(hl.len(com) == 1,
-                                                                   hl_str.startswith(com),
-                                                                   hl_str.matches(com, True)))
-        else:
-            filter_comment = hl.bool(False)
-        filter_blank_line = hl.len(hl_str) == 0 if skip_blank_lines else hl.bool(False)
-        return hl.array([to_filter, filter_comment, filter_blank_line]).any(lambda filt: filt)
-
-    def check_fields_for_duplicates(fields_to_check):
-        changed_fields = []
-        unique_fields = {}
-        for field_idx, field_to_check in enumerate(fields_to_check):
-            field_copy = field_to_check
-            suffix = 1
-            while unique_fields.get(field_copy) is not None:
-                field_copy = field_to_check + str(suffix)
-                suffix += 1
-            if field_copy is not field_to_check:
-                changed_fields.append((field_copy, field_to_check))
-            unique_fields[field_copy] = field_idx
-        for new_field_name in changed_fields:
-            fields_to_check[unique_fields[new_field_name[0]]] = new_field_name[0]
-        if len(changed_fields) > 0:
-            from itertools import starmap
-            print_changed_fields = list(starmap(lambda post, pre: f"{pre} -> {post}", changed_fields))
-            hl.utils.warning(f"Found {len(changed_fields)} duplicate"
-                             f" {'row field' if len(changed_fields) == 1 else 'row fields'}. Changed row fields as "
-                             f"follows:\n" + "\n".join(print_changed_fields))
-        return fields_to_check
-
-    if len(delimiter) == 0:
-        raise ValueError("Hail does not currently support 0-character separators")
-
     paths = wrap_to_list(paths)
     comment = wrap_to_list(comment)
     missing = wrap_to_list(missing)
 
     ht = hl.import_lines(paths, min_partitions, force_bgz, force)
-    if skip_blank_lines is not None or len(comment) > 0 or filter is not None:
-        ht = ht.filter(should_filter_line(ht.text), keep=False)
+
+    should_remove_line_expr = should_remove_line(
+        ht.text, filter=filter, comment=comment, skip_blank_lines=skip_blank_lines
+    )
+    if should_remove_line_expr is not None:
+        ht = ht.filter(should_remove_line_expr, keep=False)
+        first_row_ht = ht.head(1)
+    elif len(paths) <= 1:
+        # With zero or one files and no filters, the first row, if it exists must be in the first
+        # partition, so we take this one-pass fast-path.
+        first_row_ht = ht._filter_partitions([0])
+    else:
+        first_row_ht = ht.head(1)
 
     if find_replace is not None:
         ht = ht.annotate(text=ht['text'].replace(*find_replace))
 
-    first_row = ht.head(1)
-    first_row_value = first_row.annotate(
-        header=first_row.text._split_line(delimiter, missing=hl.empty_array(hl.tstr), quote=quote, regex=len(delimiter) > 1)).collect()[0]
+    try:
+        first_rows = first_row_ht.annotate(
+            header=first_row_ht.text._split_line(
+                delimiter, missing=hl.empty_array(hl.tstr), quote=quote, regex=len(delimiter) > 1)
+        ).collect()
+    except FatalError as err:
+        if '_filter_partitions: no partition with index 0' in err.args[0]:
+            first_rows = []
+        else:
+            raise
 
-    if first_row_value is None:
-        raise ValueError(f"Invalid file: no lines remaining after filters\n Offending file: {first_row.file}")
+    if len(first_rows) == 0:
+        raise ValueError(f"Invalid file: no lines remaining after filters\n Files provided: {', '.join(paths)}")
+    first_row = first_rows[0]
 
-    if not no_header:
-        unchecked_fields = first_row_value.header
-        fields = check_fields_for_duplicates(unchecked_fields)
-        ht = ht.filter(ht.text == first_row_value.text, keep=False)
+    if no_header:
+        fields = [f'f{index}' for index in range(0, len(first_row.header))]
     else:
-        num_of_fields = list(range(0, len(first_row_value.header)))
-        fields = list(map(lambda f_num: "f" + str(f_num), num_of_fields))
+        maybe_duplicated_fields = first_row.header
+        renamings, fields = deduplicate(maybe_duplicated_fields)
+        ht = ht.filter(ht.text == first_row.text, keep=False)  # FIXME: seems wrong. Could easily fix with partition index and row_within_partition_index.
+        if renamings:
+            hl.utils.warning(
+                f'import_table: renamed the following {plural("field", len(renamings))} to avoid name conflicts:'
+                + ''.join(f'\n    {repr(k)} -> {repr(v)}' for k, v in renamings)
+            )
 
-    ht = ht.annotate(split_text=hl.case().when(hl.len(ht.text) > 0, split_lines(ht, fields))
-                     .or_error(hl.str("Blank line found in file ") + ht.file)).drop('text')
+    ht = ht.annotate(
+        split_text=(
+            hl.case()
+            .when(
+                hl.len(ht.text) > 0,
+                split_lines(ht, fields, delimiter=delimiter, missing=missing, quote=quote)
+            )
+            .or_error(hl.str("Blank line found in file ") + ht.file)
+        )
+    )
+    ht = ht.drop('text')
 
     fields_to_value = {}
     strs = []
@@ -1724,7 +1714,6 @@ def import_table(paths,
         for f_idx, field in enumerate(fields):
             strs.append(f'  Loading field {field!r} as type {all_types[field]} ({reasons[field]})')
             fields_to_value[field] = parse_type(ht.split_text[f_idx], all_types[field])
-
     else:
         strs.append('Reading table without type imputation')
         for f_idx, field in enumerate(fields):
@@ -1812,8 +1801,12 @@ def import_lines(paths, min_partitions=None, force_bgz=False, force=False, file_
                              f' than the number of files, {len(paths)}')
 
     st_reader = ir.StringTableReader(paths, min_partitions, force_bgz, force, file_per_partition)
-    string_table = Table(ir.TableRead(st_reader))
-
+    table_type = hl.ttable(
+        global_type=hl.tstruct(),
+        row_type=hl.tstruct(file=hl.tstr, text=hl.tstr),
+        row_key=[]
+    )
+    string_table = Table(ir.TableRead(st_reader, _assert_type=table_type))
     return string_table
 
 

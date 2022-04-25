@@ -4,13 +4,23 @@ import asyncio
 import json
 import logging
 import sys
-import uvloop
+
 from concurrent.futures import ThreadPoolExecutor
 
-from ..utils import tqdm
+from ..utils import tqdm, TqdmDisableOption
 from . import Transfer, Copier
 from .router_fs import RouterAsyncFS
 from .utils import make_tqdm_listener
+
+try:
+    import uvloop
+    uvloop_install = uvloop.install
+except ImportError as e:
+    if not sys.platform.startswith('win32'):
+        raise e
+
+    def uvloop_install():
+        pass
 
 
 async def copy(*,
@@ -20,6 +30,7 @@ async def copy(*,
                azure_kwargs: Optional[dict] = None,
                s3_kwargs: Optional[dict] = None,
                transfers: List[Transfer],
+               verbose: bool = False,
                ) -> None:
     with ThreadPoolExecutor() as thread_pool:
         if max_simultaneous_transfers is None:
@@ -40,9 +51,10 @@ async def copy(*,
                                  azure_kwargs=azure_kwargs,
                                  s3_kwargs=s3_kwargs) as fs:
             sema = asyncio.Semaphore(max_simultaneous_transfers)
+            should_disable_tqdm = not verbose or TqdmDisableOption.default
             async with sema:
-                with tqdm(desc='files', leave=False, position=0, unit='file') as file_pbar, \
-                     tqdm(desc='bytes', leave=False, position=1, unit='byte', unit_scale=True, smoothing=0.1) as byte_pbar:
+                with tqdm(desc='files', leave=False, position=0, unit='file', disable=should_disable_tqdm) as file_pbar, \
+                     tqdm(desc='bytes', leave=False, position=1, unit='byte', unit_scale=True, smoothing=0.1, disable=should_disable_tqdm) as byte_pbar:
                     copy_report = await Copier.copy(
                         fs,
                         sema,
@@ -65,7 +77,8 @@ async def copy_from_dict(*,
                          gcs_kwargs: Optional[dict] = None,
                          azure_kwargs: Optional[dict] = None,
                          s3_kwargs: Optional[dict] = None,
-                         files: List[Dict[str, str]]
+                         files: List[Dict[str, str]],
+                         verbose: bool = False,
                          ) -> None:
     transfers = [make_transfer(json_object) for json_object in files]
     await copy(
@@ -74,7 +87,8 @@ async def copy_from_dict(*,
         gcs_kwargs=gcs_kwargs,
         azure_kwargs=azure_kwargs,
         s3_kwargs=s3_kwargs,
-        transfers=transfers
+        transfers=transfers,
+        verbose=verbose,
     )
 
 
@@ -104,10 +118,11 @@ async def main() -> None:
     await copy_from_dict(
         max_simultaneous_transfers=args.max_simultaneous_transfers,
         gcs_kwargs=gcs_kwargs,
-        files=files
+        files=files,
+        verbose=args.verbose
     )
 
 
 if __name__ == '__main__':
-    uvloop.install()
+    uvloop_install()
     asyncio.run(main())

@@ -27,7 +27,7 @@ CREATE TABLE IF NOT EXISTS `inst_colls` (
   `cloud` VARCHAR(100) NOT NULL,
   PRIMARY KEY (`name`)
 ) ENGINE = InnoDB;
-CREATE INDEX `inst_colls_pool` ON `inst_colls` (`pool`);
+CREATE INDEX `inst_colls_is_pool` ON `inst_colls` (`is_pool`);
 
 INSERT INTO inst_colls (`name`, `is_pool`, `boot_disk_size_gb`, `max_instances`, `max_live_instances`) VALUES ('standard', 1, 10, 6250, 800);
 INSERT INTO inst_colls (`name`, `is_pool`, `boot_disk_size_gb`, `max_instances`, `max_live_instances`) VALUES ('highmem', 1, 10, 6250, 800);

@@ -63,21 +63,12 @@
 
 <h2>Step Status</h2>
 
-{% if plot_job_durations is not none %}
+{% if plot_json is not none %}
 <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
-<div id="plotly-job-durations"></div>
+<div id="plotly-timeseries"></div>
 <script>
-var graph = {{ plot_job_durations | safe }};
-Plotly.plot('plotly-job-durations', graph, {});
-</script>
-{% endif %}
-
-{% if plot_resource_usage is not none %}
-<script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
-<div id="plotly-job-resource-usage"></div>
-<script>
-var graph = {{ plot_resource_usage | safe }};
-Plotly.plot('plotly-job-resource-usage', graph, {});
+  var graph = {{ plot_json | safe }};
+  Plotly.plot('plotly-timeseries', graph, {});
 </script>
 {% endif %}
 
@@ -107,11 +98,11 @@ Plotly.plot('plotly-job-resource-usage', graph, {});
         {% endif %}
       </td>
       {% if step['short_error'] is not none %}
-      <td class="data-table-bad" >{{ step['short_error'] }}</td>
+      <td class="data-table-bad">{{ step['short_error'] }}</td>
       {% else %}
       <td></td>
       {% endif %}
-      <td {% if step['state'] in ['failed', 'error'] %}class="data-table-bad"{% endif %}>
+      <td {% if step['state'] in ['failed', 'error'] %}class="data-table-bad" {% endif %}>
         {{ step['state'] }}
       </td>
     </tr>
@@ -183,12 +174,17 @@ Plotly.plot('plotly-job-resource-usage', graph, {});
     {% if 'user_code' in job_specification %}
     <tr>
       <td>user code</td>
-      <td><pre style="max-height: 10em; max-width: 80em;">{{ job_specification['user_code'] }}</pre></td>
+      <td>
+        <pre style="max-height: 10em; max-width: 80em;">{{ job_specification['user_code'] }}</pre>
+      </td>
     </tr>
     {% endif %}
     <tr>
       <td>command</td>
-      <td><pre style="max-height: 10em; max-width: 80em;">{{ "'" + (job_specification['command'] | join("' '")) + "'" }}</pre></td>
+      <td>
+        <pre
+          style="max-height: 10em; max-width: 80em;">{{ "'" + (job_specification['command'] | join("' '")) + "'" }}</pre>
+      </td>
     </tr>
     {% for resource, value in job_specification['resources'].items() %}
     <tr>
@@ -210,12 +206,12 @@ Plotly.plot('plotly-job-resource-usage', graph, {});
   </thead>
   {% if job_specification %}
   <tbody>
-  {% for envvar in job_specification['env'] %}
+    {% for envvar in job_specification['env'] %}
     <tr>
       <td>{{ envvar['name'] }}</td>
       <td>{{ envvar['value'] }}</td>
     </tr>
-  {% endfor %}
+    {% endfor %}
   </tbody>
   {% endif %}
 </table>

@@ -1147,31 +1147,18 @@ async def on_startup(app):
 SELECT instance_id, internal_token, frozen FROM globals;
 '''
     )
-
     instance_id = row['instance_id']
     log.info(f'instance_id {instance_id}')
     app['instance_id'] = instance_id
-
     app['internal_token'] = row['internal_token']
-
     app['batch_headers'] = {'Authorization': f'Bearer {row["internal_token"]}'}
-
     app['frozen'] = row['frozen']
 
-    scheduler_state_changed = Notice()
-    app['scheduler_state_changed'] = scheduler_state_changed
-
-    cancel_ready_state_changed = asyncio.Event()
-    app['cancel_ready_state_changed'] = cancel_ready_state_changed
-
-    cancel_creating_state_changed = asyncio.Event()
-    app['cancel_creating_state_changed'] = cancel_creating_state_changed
-
-    cancel_running_state_changed = asyncio.Event()
-    app['cancel_running_state_changed'] = cancel_running_state_changed
-
-    async_worker_pool = AsyncWorkerPool(100, queue_size=100)
-    app['async_worker_pool'] = async_worker_pool
+    app['scheduler_state_changed'] = Notice()
+    app['cancel_ready_state_changed'] = asyncio.Event()
+    app['cancel_creating_state_changed'] = asyncio.Event()
+    app['cancel_running_state_changed'] = asyncio.Event()
+    app['async_worker_pool'] = AsyncWorkerPool(100, queue_size=100)
 
     credentials_file = '/gsa-key/key.json'
     fs = get_cloud_async_fs(credentials_file=credentials_file)
@@ -1183,8 +1170,7 @@ SELECT instance_id, internal_token, frozen FROM globals;
         app, db, MACHINE_NAME_PREFIX, DEFAULT_NAMESPACE, inst_coll_configs, credentials_file, task_manager
     )
 
-    canceller = await Canceller.create(app)
-    app['canceller'] = canceller
+    app['canceller'] = await Canceller.create(app)
 
     app['check_incremental_error'] = None
     app['check_resource_aggregation_error'] = None
