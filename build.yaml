@@ -766,7 +766,7 @@ steps:
       - from: /io/repo/hail/build/deploy/dist/wheel-container.tar
         to: /just-wheel/spark-32/wheel-container.tar
     dependsOn:
-      - hail_build_image_spark_3_2
+      - hail_build_image
       - merge_code
   - kind: runImage
     name: build_hail
