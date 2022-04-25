@@ -122,18 +122,21 @@ class TruncatedReadableBinaryIO(BinaryIO):
     def __enter__(self) -> 'BinaryIO':
         return self
 
-    def __exit__(self):
+    def __exit__(self, type, value, traceback):
         self.close()
 
+    @property
     def mode(self) -> str:
         return self.bio.mode
 
+    @property
     def name(self) -> str:
         return self.bio.name
 
     def close(self) -> None:
         return self.bio.close()
 
+    @property
     def closed(self) -> bool:
         return self.bio.closed
 
@@ -147,6 +150,8 @@ class TruncatedReadableBinaryIO(BinaryIO):
         return self.bio.isatty()
 
     def read(self, n: int = -1):
+        assert self.n <= self.limit
+
         if n == -1:
             n = self.limit - self.n
         else:

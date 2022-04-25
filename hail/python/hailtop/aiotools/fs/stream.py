@@ -56,7 +56,7 @@ class ReadableStream(abc.ABC):
 
 class EmptyReadableStream(ReadableStream):
     def __init__(self):
-        pass
+        super().__init__()
 
     async def read(self, n: int = -1) -> bytes:
         return b''
