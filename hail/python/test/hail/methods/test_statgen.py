@@ -527,7 +527,7 @@ class Tests(unittest.TestCase):
             import hail as hl
             mt = hl.utils.range_matrix_table(1, 3)
             mt = mt.annotate_entries(x=hl.literal([1, 3, 10]))
-            ht = hl.logistic_regression_rows(
+            ht = logreg(
                 test='firth',
                 y=hl.literal([0, 1, 1])[mt.col_idx],
                 x=mt.x[mt.col_idx],
@@ -546,17 +546,18 @@ class Tests(unittest.TestCase):
             import hail as hl
             mt = hl.utils.range_matrix_table(1, 3)
             mt = mt.annotate_entries(x=hl.literal([1, 3, 10]))
-            ht = hl.logistic_regression_rows(
+            ht = logreg(
                 test='firth',
                 y=hl.literal([0, 1, 1])[mt.col_idx],
                 x=mt.x[mt.col_idx],
                 covariates=[1],
                 max_iterations=106
             )
-            fit = ht.collect()[0].fit
-            assert fit.beta == 19.7
-            assert fit.chi_sq == 64.6
-            assert fit.p_value == 42.1
+            result = ht.collect()[0]
+            fit = result
+            assert result.beta == 0.19699166375172233
+            assert result.chi_sq_stat == 0.6464918007192411
+            assert result.p_value == 0.4213697518249182
             assert fit.n_iterations == 106
             assert not fit.exploded
             assert fit.converged
