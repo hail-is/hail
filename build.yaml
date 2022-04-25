@@ -126,7 +126,7 @@ steps:
       - merge_code
   - kind: buildImage2
     name: base_spark_3_2
-    dockerFile: /io/repo/docker/Dockerfile.base-spark-3-2
+    dockerFile: /io/repo/docker/Dockerfile.base-with-spark-3-2
     contextPath: /io/repo
     publishAs: base_spark_3_2
     resources:
