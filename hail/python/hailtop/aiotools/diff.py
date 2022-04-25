@@ -84,8 +84,8 @@ async def do_diff(top_source: str, top_target: str, fs: AsyncFS, max_simultaneou
     async def create_work():
         try:
             filegenerator = await fs.listfiles(top_source, recursive=True)
-        except FileNotFoundError:
-            raise DiffException(f'Source URL refers to no files or directories: {top_source}')
+        except FileNotFoundError as err:
+            raise DiffException(f'Source URL refers to no files or directories: {top_source}') from err
         async for source_status in filegenerator:
             source_url = await source_status.url()
             assert source_url.startswith(top_source)
@@ -131,9 +131,9 @@ async def diff_one(source_url: str, target_url: str, fs: AsyncFS) -> Optional[di
 
     try:
         _, ssize = await source_task
-    except FileNotFoundError:
+    except FileNotFoundError as err:
         target_task.cancel()
-        raise DiffException(f'Source file removed during diff: {source_url}')
+        raise DiffException(f'Source file removed during diff: {source_url}') from err
 
     try:
         _, tsize = await target_task
