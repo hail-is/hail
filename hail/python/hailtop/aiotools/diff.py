@@ -147,7 +147,7 @@ async def diff_one(source_url: str, target_url: str, fs: AsyncFS) -> Optional[di
 
 
 async def main() -> None:
-    parser = argparse.ArgumentParser(description='Hail diff tool. Recursively finds files which differ in size.')
+    parser = argparse.ArgumentParser(description='Hail size diff tool. Recursively finds files which differ in size or are entirely missing.')
     parser.add_argument('--requester-pays-project', type=str, nargs='?',
                         help='The Google project to which to charge egress costs.')
     parser.add_argument('source', type=str,
