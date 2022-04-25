@@ -226,8 +226,10 @@ class ServiceBackend(Backend):
         driver_cores = configuration_of('query', 'batch_driver_cores', driver_cores, None)
         driver_memory = configuration_of('query', 'batch_driver_memory', driver_memory, None)
         name_prefix = configuration_of('query', 'name_prefix', name_prefix, '')
-        disable_progress_bar_str = configuration_of('query', 'disable_progress_bar', disable_progress_bar, '1')
-        disable_progress_bar = len(disable_progress_bar_str) > 0
+
+        if disable_progress_bar is None:
+            disable_progress_bar_str = configuration_of('query', 'disable_progress_bar', None, '1')
+            disable_progress_bar = len(disable_progress_bar_str) > 0
 
         flags = {"use_new_shuffle": "1", **(flags or {})}
 
