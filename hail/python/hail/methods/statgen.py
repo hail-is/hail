@@ -1645,7 +1645,7 @@ def skat(key_expr,
         Entry-indexed expression for input variable.
     covariates : :obj:`list` of :class:`.Float64Expression`
         List of column-indexed covariate expressions.
-    logistic : :obj:`bool` or :object:`tuple` of :obj:`int` and :obj:`float`
+    logistic : :obj:`bool` or :obj:`tuple` of :obj:`int` and :obj:`float`
         If false, use the linear test. If true, use the logistic test with no
         more than 25 logistic iterations and a convergence tolerance of 1e-6. If
         a tuple is given, use the logistic test with the tuple elements as the
