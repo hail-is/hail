@@ -114,12 +114,12 @@ async def test_diff(diff_test_context):
     sema, fs, src_base, dest_base = diff_test_context
 
     expected = [
-        {'from': f'{src_base}diff', 'to': f'{dest_base}diff', 'from_size': 3, 'to_size': 1}
-        {'from': f'{src_base}src-only', 'to': f'{dest_base}src-only', 'from_size': 3, 'to_size': None}
-        {'from': f'{src_base}a/diff', 'to': f'{dest_base}a/diff', 'from_size': 3, 'to_size': 1}
-        {'from': f'{src_base}a/src-only', 'to': f'{dest_base}a/src-only', 'from_size': 3, 'to_size': None}
-        {'from': f'{src_base}b/diff', 'to': f'{dest_base}b/diff', 'from_size': 3, 'to_size': 1}
-        {'from': f'{src_base}b/src-only', 'to': f'{dest_base}b/src-only', 'from_size': 3, 'to_size': None}
+        {'from': f'{src_base}diff', 'to': f'{dest_base}diff', 'from_size': 3, 'to_size': 1},
+        {'from': f'{src_base}src-only', 'to': f'{dest_base}src-only', 'from_size': 3, 'to_size': None},
+        {'from': f'{src_base}a/diff', 'to': f'{dest_base}a/diff', 'from_size': 3, 'to_size': 1},
+        {'from': f'{src_base}a/src-only', 'to': f'{dest_base}a/src-only', 'from_size': 3, 'to_size': None},
+        {'from': f'{src_base}b/diff', 'to': f'{dest_base}b/diff', 'from_size': 3, 'to_size': 1},
+        {'from': f'{src_base}b/src-only', 'to': f'{dest_base}b/src-only', 'from_size': 3, 'to_size': None},
     ]
     actual = diff(source=src_base, target=dest_base)
     assert actual == expected
