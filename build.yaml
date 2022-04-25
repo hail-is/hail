@@ -124,6 +124,21 @@ steps:
     dependsOn:
       - hail_ubuntu_image
       - merge_code
+  - kind: buildImage2
+    name: base_spark_3_2
+    dockerFile: /io/repo/docker/Dockerfile.base-spark-3-2
+    contextPath: /io/repo
+    publishAs: base_spark_3_2
+    resources:
+      storage: 10Gi
+      cpu: "2"
+      memory: standard
+    inputs:
+      - from: /repo
+        to: /io/repo
+    dependsOn:
+      - base_image
+      - merge_code
   - kind: runImage
     name: check_hail
     image:
@@ -537,21 +552,6 @@ steps:
       storage: 10Gi
       cpu: "2"
       memory: standard
-  - kind: buildImage2
-    name: hail_base_spark_3_2
-    dockerFile: /io/repo/hail/Dockerfile.hail-base-spark-3-2
-    contextPath: /io/repo
-    publishAs: hail_base_spark_3_2
-    resources:
-      storage: 10Gi
-      cpu: "2"
-      memory: standard
-    inputs:
-      - from: /repo
-        to: /io/repo
-    dependsOn:
-      - base_image
-      - merge_code
   - kind: buildImage2
     name: benchmark_image
     dockerFile: /io/repo/benchmark-service/Dockerfile
@@ -3042,7 +3042,7 @@ steps:
   - kind: runImage
     name: test_hail_scala_fs
     image:
-      valueFrom: hail_run_tests_image.image
+      valueFrom: base_spark_3_2.image
     resources:
       memory: standard
       cpu: '2'
@@ -3101,7 +3101,7 @@ steps:
       - default_ns
       - create_certs
       - create_accounts
-      - hail_run_tests_image
+      - base_spark_3_2
       - build_hail
       - upload_test_resources_to_blob_storage
   - kind: runImage
