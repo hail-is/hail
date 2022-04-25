@@ -479,7 +479,7 @@ class Tests(unittest.TestCase):
                 covariates=[1],
                 max_iterations=0
             )
-            fit = ht.collect()[0]
+            fit = ht.collect()[0].fit
             assert fit.n_iterations == 0
             assert not fit.exploded
             assert not fit.converged
@@ -496,11 +496,13 @@ class Tests(unittest.TestCase):
                 covariates=[1],
                 max_iterations=100
             )
-            fit = ht.collect()[0]
+            fit = ht.collect()[0].fit
             assert fit.n_iterations == 36
             assert fit.exploded
             assert not fit.converged
 
+    @fails_local_backend()
+    @fails_service_backend()
     def test_logistic_regression_rows_max_iter_explodes_in_36_steps_for_firth(self):
         for logreg in self.logreg_functions:
             import hail as hl
@@ -513,11 +515,13 @@ class Tests(unittest.TestCase):
                 covariates=[1],
                 max_iterations=100
             )
-            fit = ht.collect()[0]
+            fit = ht.collect()[0].fit
             assert fit.n_iterations == 36
             assert fit.exploded
             assert not fit.converged
 
+    @fails_local_backend()
+    @fails_service_backend()
     def test_logistic_regression_rows_does_not_converge_with_105_iterations(self):
         for logreg in self.logreg_functions:
             import hail as hl
@@ -530,11 +534,13 @@ class Tests(unittest.TestCase):
                 covariates=[1],
                 max_iterations=105
             )
-            fit = ht.collect()[0]
+            fit = ht.collect()[0].fit
             assert fit.n_iterations == 105
             assert not fit.exploded
             assert not fit.converged
 
+    @fails_local_backend()
+    @fails_service_backend()
     def test_logistic_regression_rows_does_converge_with_106_iterations(self):
         for logreg in self.logreg_functions:
             import hail as hl
@@ -547,7 +553,7 @@ class Tests(unittest.TestCase):
                 covariates=[1],
                 max_iterations=106
             )
-            fit = ht.collect()[0]
+            fit = ht.collect()[0].fit
             assert fit.beta == 19.7
             assert fit.chi_sq == 64.6
             assert fit.p_value == 42.1
