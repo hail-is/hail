@@ -125,7 +125,7 @@ object LowerDistributedSort {
     val initialTmpPath = ctx.createTmpPath("hail_shuffle_temp_initial")
     val writer = PartitionNativeWriter(spec, keyToSortBy.fieldNames, initialTmpPath, None, None)
 
-    val initialStageDataRow = CompileAndEvaluate[Annotation](ctx, inputStage.mapCollectWithGlobals(relationalLetsAbove) { part =>
+    val initialStageDataRow = CompileAndEvaluate[Row](ctx, inputStage.mapCollectWithGlobals(relationalLetsAbove) { part =>
       WritePartition(part, UUID4(), writer)
     }{ case (part, globals) =>
       val streamElement = Ref(genUID(), part.typ.asInstanceOf[TArray].elementType)
@@ -135,7 +135,7 @@ object LowerDistributedSort {
           "max" -> AggFold.max(GetField(streamElement, "lastKey"), sortFields)
         ))
       )) { intervalRange =>   MakeTuple.ordered(Seq(part, globals, intervalRange)) }
-    }).asInstanceOf[Row]
+    })
     val (initialPartInfo, initialGlobals, intervalRange) = (initialStageDataRow(0).asInstanceOf[IndexedSeq[Row]], initialStageDataRow(1).asInstanceOf[Row], initialStageDataRow(2).asInstanceOf[Row])
     val initialGlobalsLiteral = Literal(inputStage.globalType, initialGlobals)
     val initialChunks = initialPartInfo.map(row => Chunk(
@@ -190,13 +190,7 @@ object LowerDistributedSort {
         TableStageDependency.none,
         ToStream(Literal(TArray(TString), writtenPartitionsFilename)),
         { filename =>
-          sortIR(ReadPartition(filename, spec._vType, reader)) { (refLeft, refRight) =>
-            ApplyComparisonOp(
-              StructLT(keyToSortBy, sortFields),
-              SelectFields(refLeft, keyFields),
-              SelectFields(refRight, keyFields)
-            )
-          }
+          ReadPartition(filename, spec._vType, reader)
         }
       )
     }
