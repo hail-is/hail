@@ -1,6 +1,6 @@
 FROM {{ service_base_image.image }}
 
-# Installs pyspark
+RUN hail-pip-install pyspark==3.1.1
 COPY hail/python/requirements.txt .
 COPY hail/python/dev/requirements.txt dev-requirements.txt
 RUN hail-pip-install -r requirements.txt -r dev-requirements.txt
