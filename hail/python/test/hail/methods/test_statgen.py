@@ -1722,6 +1722,8 @@ class Tests(unittest.TestCase):
                 covariates=[1.0, ds.cov.Cov1, ds.cov.Cov2],
                 logistic=(25, 1e-6))._force_count()
 
+    @fails_local_backend()
+    @fails_service_backend()
     def test_skat_max_iteration_fails_explodes_in_37_steps(self):
         mt = hl.utils.range_matrix_table(3, 3)
         mt = mt.annotate_cols(y=hl.literal([1, 0, 1])[mt.col_idx])
