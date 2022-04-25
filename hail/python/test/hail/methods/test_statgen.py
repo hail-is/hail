@@ -464,25 +464,26 @@ class Tests(unittest.TestCase):
                 eq(combined.p_value, combined.multi.p_value[0]) &
                 eq(combined.multi.p_value[0], combined.multi.p_value[1]))))
 
-    # Outside the spark backend, "logistic_regression_rows" automatically defers to the _ version.
-    logreg_functions = [hl.logistic_regression_rows, hl._logistic_regression_rows_nd] if backend_name == "spark" else [hl.logistic_regression_rows]
-
-    def test_logistic_regression_rows_max_iter(self):
-        for logreg in self.logreg_functions:
-            import hail as hl
-            mt = hl.utils.range_matrix_table(1, 3)
-            mt = mt.annotate_entries(x=hl.literal([1, 1, 10]))
-            ht = logreg(
+    def test_logistic_regression_rows_max_iter_zero(self):
+        import hail as hl
+        mt = hl.utils.range_matrix_table(1, 3)
+        mt = mt.annotate_entries(x=hl.literal([1, 1, 10]))
+        try:
+            ht = hl.logistic_regression_rows(
                 test='wald',
                 y=hl.literal([0, 0, 1])[mt.col_idx],
                 x=mt.x[mt.col_idx],
                 covariates=[1],
                 max_iterations=0
             )
-            fit = ht.collect()[0].fit
-            assert fit.n_iterations == 0
-            assert not fit.exploded
-            assert not fit.converged
+            ht.collect()[0].fit
+        except Exception as exc:
+            assert 'Failed to fit logistic regression null model (standard MLE with covariates only): Newton iteration failed to converge' in exc.args[0]
+        else:
+            assert False
+
+    # Outside the spark backend, "logistic_regression_rows" automatically defers to the _ version.
+    logreg_functions = [hl.logistic_regression_rows, hl._logistic_regression_rows_nd] if backend_name == "spark" else [hl.logistic_regression_rows]
 
     def test_logistic_regression_rows_max_iter_explodes(self):
         for logreg in self.logreg_functions:

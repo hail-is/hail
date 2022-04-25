@@ -1357,8 +1357,18 @@ def _logistic_regression_rows_nd(test,
     else:
         raise ValueError(f"Illegal test type {test}")
 
+    def test_against_null(covs_and_x, y_vec, null_fit, name):
+        return (hl.case()
+                .when(~null_fit.exploded,
+                      (hl.case()
+                       .when(null_fit.converged, test_func(covs_and_x, y_vec, null_fit, name))
+                       .or_error("Failed to fit logistic regression null model (standard MLE with covariates only): Newton iteration failed to converge")))
+                .or_error(hl.format("Failed to fit logistic regression null model (standard MLE with covariates only): exploded at Newton iteration %d", null_fit.num_iter)))
+
     covs_and_x = hl.nd.hstack([ht.cov_nd, ht.x.reshape((-1, 1))])
-    test_structs = hl.range(num_y_fields).map(lambda idx: test_func(covs_and_x, ht.y_nd[:, idx], ht.nulls[idx], "logistic"))
+    test_structs = hl.range(num_y_fields).map(
+        lambda idx: test_against_null(covs_and_x, ht.y_nd[:, idx], ht.nulls[idx], "logistic")
+    )
     ht = ht.annotate(logistic_regression=test_structs)
 
     if not y_is_list:
