@@ -1,8 +1,8 @@
 FROM {{ service_base_image.image }}
 
 # Installs pyspark
-COPY python/requirements.txt .
-COPY python/dev/requirements.txt dev-requirements.txt
+COPY hail/python/requirements.txt .
+COPY hail/python/dev/requirements.txt dev-requirements.txt
 RUN hail-pip-install -r requirements.txt -r dev-requirements.txt
 
 ENV SPARK_HOME /usr/local/lib/python3.7/dist-packages/pyspark

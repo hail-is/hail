@@ -509,16 +509,16 @@ steps:
       - merge_code
   - kind: buildImage2
     name: hail_run_image
-    dockerFile: /io/hail/Dockerfile.hail-run
-    contextPath: /io/hail
+    dockerFile: /io/repo/hail/Dockerfile.hail-run
+    contextPath: /io/repo
     publishAs: hail-run
     resources:
       storage: 10Gi
       cpu: "2"
       memory: standard
     inputs:
-      - from: /repo/hail
-        to: /io/hail
+      - from: /repo
+        to: /io/repo
     dependsOn:
       - service_base_image
       - merge_code
