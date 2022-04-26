@@ -12,7 +12,7 @@ import scala.util.{Failure, Success, Try}
 object BLAS {
   private[this] val libraryInstance = ThreadLocal.withInitial(new Supplier[BLASLibrary]() {
     def get() = {
-      val standard = Native.loadLibrary("blas", classOf[BLASLibrary]).asInstanceOf[BLASLibrary]
+      val standard = Native.load("blas", classOf[BLASLibrary]).asInstanceOf[BLASLibrary]
 
       verificationTest(standard) match {
         case Success(_) =>
@@ -21,7 +21,7 @@ object BLAS {
         case Failure(exc) =>
           val underscoreAfterMap = new java.util.HashMap[String, FunctionMapper]()
           underscoreAfterMap.put(Library.OPTION_FUNCTION_MAPPER, new UnderscoreFunctionMapper)
-          val underscoreAfter = Native.loadLibrary("blas", classOf[BLASLibrary], underscoreAfterMap).asInstanceOf[BLASLibrary]
+          val underscoreAfter = Native.load("blas", classOf[BLASLibrary], underscoreAfterMap).asInstanceOf[BLASLibrary]
           verificationTest(underscoreAfter) match {
             case Success(_) =>
               log.info("Imported BLAS with underscore names")

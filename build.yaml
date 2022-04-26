@@ -124,6 +124,21 @@ steps:
     dependsOn:
       - hail_ubuntu_image
       - merge_code
+  - kind: buildImage2
+    name: base_spark_3_2
+    dockerFile: /io/repo/docker/Dockerfile.base-with-spark-3-2
+    contextPath: /io/repo
+    publishAs: base_spark_3_2
+    resources:
+      storage: 10Gi
+      cpu: "2"
+      memory: standard
+    inputs:
+      - from: /repo
+        to: /io/repo
+    dependsOn:
+      - base_image
+      - merge_code
   - kind: runImage
     name: check_hail
     image:
@@ -509,16 +524,16 @@ steps:
       - merge_code
   - kind: buildImage2
     name: hail_run_image
-    dockerFile: /io/hail/Dockerfile.hail-run
-    contextPath: /io/hail
+    dockerFile: /io/repo/hail/Dockerfile.hail-run
+    contextPath: /io/repo
     publishAs: hail-run
     resources:
       storage: 10Gi
       cpu: "2"
       memory: standard
     inputs:
-      - from: /repo/hail
-        to: /io/hail
+      - from: /repo
+        to: /io/repo
     dependsOn:
       - service_base_image
       - merge_code
@@ -722,6 +737,34 @@ steps:
         to: /just-jar/hail.jar
       - from: /io/repo/hail/build/deploy/dist/wheel-container.tar
         to: /just-wheel/wheel-container.tar
+    dependsOn:
+      - hail_build_image
+      - merge_code
+  - kind: runImage
+    name: build_hail_jar_and_wheel_only_spark_3_2
+    image:
+      valueFrom: hail_build_image.image
+    resources:
+      memory: standard
+      cpu: '4'
+    script: |
+      set -ex
+      cd /io/repo/hail
+      chmod 755 ./gradlew
+      time retry ./gradlew --version
+      export SPARK_VERSION="3.2.1" SCALA_VERSION="2.12.12"
+      time retry make jars wheel
+      (cd build/deploy/dist/ && tar -cvf wheel-container.tar hail-*-py3-none-any.whl)
+    inputs:
+      - from: /repo
+        to: /io/repo
+    outputs:
+      - from: /io/repo/hail/build/libs/hail-all-spark.jar
+        to: /just-jar/spark-32/hail.jar
+      - from: /io/repo/hail/build/libs/hail-all-spark-test.jar
+        to: /just-jar/spark-32/hail-test.jar
+      - from: /io/repo/hail/build/deploy/dist/wheel-container.tar
+        to: /just-wheel/spark-32/wheel-container.tar
     dependsOn:
       - hail_build_image
       - merge_code
@@ -2148,7 +2191,7 @@ steps:
           valueFrom: default_ns.name
         mountPath: /query-gsa-key
     inputs:
-      - from: /just-jar/hail.jar
+      - from: /just-jar/spark-32/hail.jar
         to: /io/hail.jar
       - from: /git_version
         to: /io/git_version
@@ -2156,7 +2199,7 @@ steps:
       - default_ns
       - deploy_batch
       - hail_pip_installed_image
-      - build_hail_jar_and_wheel_only
+      - build_hail_jar_and_wheel_only_spark_3_2
       - merge_code
       - create_test_gsa_keys
   - kind: deploy
@@ -3027,7 +3070,7 @@ steps:
   - kind: runImage
     name: test_hail_scala_fs
     image:
-      valueFrom: hail_run_tests_image.image
+      valueFrom: base_spark_3_2.image
     resources:
       memory: standard
       cpu: '2'
@@ -3060,7 +3103,7 @@ steps:
     inputs:
       - from: /resources.tar.gz
         to: /io/resources.tar.gz
-      - from: /hail-test.jar
+      - from: /just-jar/spark-32/hail-test.jar
         to: /io/hail-test.jar
       - from: /testng-fs.xml
         to: /io/testng-fs.xml
@@ -3086,8 +3129,9 @@ steps:
       - default_ns
       - create_certs
       - create_accounts
-      - hail_run_tests_image
+      - base_spark_3_2
       - build_hail
+      - build_hail_jar_and_wheel_only_spark_3_2
       - upload_test_resources_to_blob_storage
   - kind: runImage
     name: test_hail_services_java
