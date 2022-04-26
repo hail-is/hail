@@ -13,7 +13,6 @@ import is.hail.io.{AbstractTypedCodecSpec, BufferSpec, TypedCodecSpec}
 import is.hail.rvd.RVDSpecMaker
 import is.hail.types.encoded._
 import is.hail.types.physical._
-import is.hail.types.physical.stypes.{BooleanSingleCodeType, Float32SingleCodeType, Float64SingleCodeType, Int32SingleCodeType, Int64SingleCodeType, PTypeReferenceSingleCodeType, SType}
 import is.hail.types.physical.stypes.concrete.SJavaString
 import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.physical.stypes._
@@ -22,9 +21,8 @@ import is.hail.types.{RIterable, TypeWithRequiredness}
 import is.hail.utils.{FastIndexedSeq, _}
 import org.json4s.{DefaultFormats, Extraction, Formats, JValue, ShortTypeHints}
 
-import scala.language.existentials
-
 import java.io.OutputStream
+import scala.language.existentials
 
 sealed trait IR extends BaseIR {
   private var _typ: Type = null
