@@ -233,6 +233,13 @@ https://hail.zulipchat.com/#narrow/stream/123011-Hail-Dev/topic/test_drop/near/2
         r = kt.aggregate(agg.filter(kt.idx % 2 != 0, agg.sum(kt.idx + 2)) + kt.g1)
         self.assertEqual(r, 40)
 
+    def test_java_array_string_encoding(self):
+        ht = hl.utils.range_table(10)
+        ht = ht.annotate(foo = hl.str(ht.idx).split(","))
+        path = new_temp_file(extension='ht')
+        ht.write(path)
+        hl.read_table(path)._force_count()
+
     @skip_when_service_backend('Shuffler encoding/decoding is broken.')
     def test_to_matrix_table(self):
         N, M = 50, 50

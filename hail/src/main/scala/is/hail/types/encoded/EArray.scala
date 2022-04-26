@@ -52,21 +52,25 @@ final case class EArray(val elementType: EType, override val required: Boolean =
           })
         }
       case _ =>
-        val b = Code.newLocal[Int]("b")
-        val shift = Code.newLocal[Int]("shift")
-        cb.assign(b, 0)
-        cb.assign(shift, 0)
-        cb.whileLoop(i < prefixLen, {
-          cb.ifx(value.isElementMissing(cb, i), cb.assign(b, b | (const(1) << shift)))
-          cb.assign(shift, shift + 1)
-          cb.assign(i, i + 1)
-          cb.ifx(shift.ceq(8), {
-            cb.assign(shift, 0)
-            cb += out.writeByte(b.toB)
-            cb.assign(b, 0)
+        if (elementType.required) {
+          cb.ifx(value.hasMissingValues(cb), cb._fatal("cannot encode indexable with missing element(s) to required EArray!"))
+        } else {
+          val b = Code.newLocal[Int]("b")
+          val shift = Code.newLocal[Int]("shift")
+          cb.assign(b, 0)
+          cb.assign(shift, 0)
+          cb.whileLoop(i < prefixLen, {
+            cb.ifx(value.isElementMissing(cb, i), cb.assign(b, b | (const(1) << shift)))
+            cb.assign(shift, shift + 1)
+            cb.assign(i, i + 1)
+            cb.ifx(shift.ceq(8), {
+              cb.assign(shift, 0)
+              cb += out.writeByte(b.toB)
+              cb.assign(b, 0)
+            })
           })
-        })
-        cb.ifx(shift > 0, cb += out.writeByte(b.toB))
+          cb.ifx(shift > 0, cb += out.writeByte(b.toB))
+        }
     }
 
     cb.forLoop(cb.assign(i, 0), i < prefixLen, cb.assign(i, i + 1), {
