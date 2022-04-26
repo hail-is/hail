@@ -418,57 +418,6 @@ def validate_int(session, name, value, predicate, description):
     return validate(session, name, i, predicate, description)
 
 
-async def get_pool_config_from_db(db: Database, pool_name: str):
-    record = await db.execute_and_fetchone(
-        '''SELECT pools.name, cloud, worker_type, worker_cores,
-        worker_local_ssd_data_disk,
-        worker_external_ssd_data_disk_size_gb,
-        enable_standing_worker,
-        standing_worker_cores,
-        boot_disk_size_gb,
-        max_instances,
-        max_live_instances,
-        preemptible
-    FROM pools
-    INNER JOIN inst_colls ON pools.name = inst_colls.name
-    WHERE pools.name = %s;''',
-        (pool_name),
-    )
-
-    # 'name': self.name,
-    # 'worker_type': self.worker_type,
-    # 'worker_cores': self.worker_cores,
-    # 'boot_disk_size_gb': self.boot_disk_size_gb,
-    # 'worker_local_ssd_data_disk': self.worker_local_ssd_data_disk,
-    # 'worker_external_ssd_data_disk_size_gb': self.worker_external_ssd_data_disk_size_gb,
-    # 'enable_standing_worker': self.enable_standing_worker,
-    # 'standing_worker_cores': self.standing_worker_cores,
-    # 'max_instances': self.max_instances,
-    # 'max_live_instances': self.max_live_instances,
-    # 'preemptible': self.preemptible,
-
-    # TODO: handle error case where no record is found
-
-    log.info(f'RECORD FROM DB: {record}')
-
-    config_from_db = PoolConfig.from_record(record)
-    # create dict from temp with fields that are in the saved config
-    pool_config_dict = {
-        'name': config_from_db.name,
-        'worker_type': config_from_db.worker_type,
-        'worker_cores': config_from_db.worker_cores,
-        'boot_disk_size_gb': config_from_db.boot_disk_size_gb,
-        'worker_local_ssd_data_disk': config_from_db.worker_local_ssd_data_disk,
-        'worker_external_ssd_data_disk_size_gb': config_from_db.worker_external_ssd_data_disk_size_gb,
-        'enable_standing_worker': config_from_db.enable_standing_worker,
-        'standing_worker_cores': config_from_db.standing_worker_cores,
-        'max_instances': config_from_db.max_instances,
-        'max_live_instances': config_from_db.max_live_instances,
-        'preemptible': config_from_db.preemptible,
-    }
-    return pool_config_dict
-
-
 @routes.post('/config-update/pool/{pool}')
 @check_csrf_token
 @web_authenticated_developers_only()
@@ -489,9 +438,6 @@ async def pool_config_update(request, userdata):  # pylint: disable=unused-argum
             raise ConfigError()
 
         post = await request.post()
-
-        # TODO: validate this object has correct fields
-        current_client_pool_config = json.loads(post['_pool_config_json'])
 
         worker_type = pool.worker_type
 
@@ -593,18 +539,14 @@ async def pool_config_update(request, userdata):  # pylint: disable=unused-argum
             pool.preemptible,
         )
 
+        current_client_pool_config = json.loads(post['_pool_config_json'])
         current_server_pool_config = pool.config()
-        # check if current client and server pool configs are the same
-        log.info(f"CURRENT CLIENT POOL CONFIG: {current_client_pool_config}")
-        log.info(f"CURRENT SERVER POOL CONFIG: {current_server_pool_config}")
 
         client_items = current_client_pool_config.items()
         server_items = current_server_pool_config.items()
 
-        log.info("COMPARING DB POOL CONFIGS")
         match = client_items == server_items
         if not match:
-            log.info("DB CONFIGS DON'T MATCH")
             set_message(
                 session,
                 'The pool config was stale; please re-enter config updates and try again',
@@ -612,11 +554,8 @@ async def pool_config_update(request, userdata):  # pylint: disable=unused-argum
             )
             raise ConfigError()
 
-        log.info("DB CONFIGS MATCH")
         await proposed_pool_config.update_database(db)
         pool.configure(proposed_pool_config)
-
-        log.info(f"UPDATING CURRENT POOL CONFIG: {proposed_pool_config}")
 
         set_message(session, f'Updated configuration for {pool}.', 'info')
     except ConfigError:
@@ -702,7 +641,6 @@ async def get_pool(request, userdata):
 
     ready_cores_mcpu = sum([record['ready_cores_mcpu'] for record in user_resources])
 
-    # TODO: define pool_config_json
     pool_config_json = json.dumps(pool.config())
 
     page_context = {
