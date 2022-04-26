@@ -22,6 +22,28 @@ Please note that **forward compatibility should not be expected, especially
 relating to file formats**: this means that it may not be possible to use
 an earlier version of Hail to read files written in a later version.
 
+---
+
+## Version 0.2.94
+
+Released 2022-04-26
+
+### Deprecation
+
+- (hail#11765) Deprecated and removed linear mixed model functionality.
+
+
+### Beta features
+
+- (hail#11782) `hl.import_table` is up to twice as fast for small tables.
+
+### New features
+
+- (hail#11776) `hailtop.aiotools.copy` will always show a progress bar when `--verbose` is passed.
+
+### Bug fixes
+
+ - (hail#11792) Resolved issue where corrupted tables could be created with whole-stage code generation enabled.
 
 ---
 
