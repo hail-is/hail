@@ -1,5 +1,6 @@
 from typing import Tuple, List
 import asyncio
+import subprocess
 
 from .utils import async_to_blocking
 
@@ -49,3 +50,12 @@ def sync_check_shell_output(script: str, echo=False) -> Tuple[bytes, bytes]:
 
 def sync_check_shell(script: str, echo=False) -> None:
     sync_check_shell_output(script, echo)
+
+
+def sync_check_exec(*command_args: str, echo: bool = False, capture_output: bool = False) -> None:
+    if echo:
+        print(command_args)
+    try:
+        subprocess.run(command_args, check=True, capture_output=capture_output)
+    except subprocess.CalledProcessError as e:
+        raise CalledProcessError(list(command_args), e.returncode, (e.stdout, e.stderr)) from e
