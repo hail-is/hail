@@ -129,7 +129,7 @@ dependencies {
     unbundled 'org.apache.spark:spark-sql_' + scalaMajorVersion + ':' + sparkVersion
     unbundled 'org.apache.spark:spark-mllib_' + scalaMajorVersion + ':' + sparkVersion
 
-    bundled('org.json4s:json4s-jackson_' + scalaMajorVersion + ':3.7.0-M5') {
+    bundled('org.json4s:json4s-jackson_' + scalaMajorVersion + ':3.7.0-M11') {
         exclude group: 'com.fasterxml.jackson.core'
     }
 
@@ -170,7 +170,9 @@ dependencies {
         throw new UnsupportedOperationException("Couldn't pick a valid elasticsearch.")
     }
 
-    bundled 'com.google.cloud:google-cloud-storage:1.106.0'
+    bundled(group: 'com.google.cloud', name: 'google-cloud-storage', version: '1.106.0') {
+        exclude group: 'com.fasterxml.jackson.core'
+    }
 
     bundled 'org.apache.httpcomponents:httpcore:4.4.14'
     bundled('org.apache.httpcomponents:httpclient:4.5.13') {
@@ -181,7 +183,7 @@ dependencies {
     bundled group: 'org.ow2.asm', name: 'asm-util', version: '7.3.1'
     bundled group: 'org.ow2.asm', name: 'asm-analysis', version: '7.3.1'
 
-    bundled 'net.java.dev.jna:jna:4.2.2'
+    bundled 'net.java.dev.jna:jna:5.6.0'
     bundled('net.sourceforge.jdistlib:jdistlib:0.4.5') {
         transitive = false
     }
