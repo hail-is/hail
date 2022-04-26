@@ -154,8 +154,6 @@ class GoogleStorageFS(val serviceAccountKey: Option[String] = None) extends FS {
     new WrappedPositionedDataOutputStream(os)
   }
 
-  def mkDir(dirname: String): Unit = ()
-
   def delete(filename: String, recursive: Boolean): Unit = retryTransientErrors {
     val (bucket, path) = getBucketPath(filename)
     if (recursive) {
@@ -178,11 +176,6 @@ class GoogleStorageFS(val serviceAccountKey: Option[String] = None) extends FS {
 
     globWithPrefix(prefix = s"gs://$bucket", path = path)
   }
-
-  def globAll(filenames: Iterable[String]): Array[String] =
-    globAllStatuses(filenames).map(_.getPath)
-
-  def globAllStatuses(filenames: Iterable[String]): Array[FileStatus] = filenames.flatMap(glob).toArray
 
   def listStatus(filename: String): Array[FileStatus] = retryTransientErrors {
     var (bucket, path) = getBucketPath(filename)
