@@ -27,8 +27,8 @@ from .exceptions import BatchException
 from .globals import DEFAULT_SHELL
 
 
-HAIL_GENETICS_HAIL_IMAGE = os.environ.get('HAIL_GENETICS_HAIL_IMAGE',
-                                          f'hailgenetics/hail:{pip_version()}')
+HAIL_GENETICS_HAILTOP_SLIM_IMAGE = os.environ.get('HAIL_GENETICS_HAILTOP_SLIM_IMAGE',
+                                                  f'hailgenetics/hail:{pip_version()}')
 
 
 RunningBatchType = TypeVar('RunningBatchType')
@@ -573,7 +573,7 @@ class ServiceBackend(Backend[bc.Batch]):
             if dry_run:
                 commands.append(' '.join(shq(x) for x in write_cmd))
             else:
-                j = bc_batch.create_job(image=HAIL_GENETICS_HAIL_IMAGE,
+                j = bc_batch.create_job(image=HAIL_GENETICS_HAILTOP_SLIM_IMAGE,
                                         command=write_cmd,
                                         attributes={'name': 'write_external_inputs'})
                 jobs_to_command[j] = ' '.join(shq(x) for x in write_cmd)
@@ -695,7 +695,7 @@ class ServiceBackend(Backend[bc.Batch]):
         if delete_scratch_on_exit and used_remote_tmpdir:
             parents = list(jobs_to_command.keys())
             j = bc_batch.create_job(
-                image=HAIL_GENETICS_HAIL_IMAGE,
+                image=HAIL_GENETICS_HAILTOP_SLIM_IMAGE,
                 command=['python3', '-m', 'hailtop.aiotools.delete', batch_remote_tmpdir],
                 parents=parents,
                 attributes={'name': 'remove_tmpdir'},
