@@ -2676,6 +2676,8 @@ steps:
     inputs:
       - from: /repo
         to: /io/repo
+      - from: /hail_version
+        to: /io/repo/hail_version
     dependsOn:
       - merge_code
       - hail_ubuntu_image
