@@ -2668,6 +2668,26 @@ steps:
       gsutil --version
     dependsOn:
       - hailgenetics_hail_image
+  - kind: buildImage2
+    name: hailgenetics_hailtop_slim_image
+    dockerFile: /io/repo/docker/hailtop/Dockerfile
+    contextPath: /io/repo
+    publishAs: hailgenetics/hailtop-slim
+    inputs:
+      - from: /repo
+        to: /io/repo
+    dependsOn:
+      - merge_code
+      - hail_ubuntu_image
+  - kind: runImage
+    name: test_hailgenetics_hailtop_slim_image
+    image:
+      valueFrom: hailgenetics_hailtop_slim_image.image
+    script: |
+      set -ex
+      python3 -c 'import hailtop'
+    dependsOn:
+      - hailgenetics_hailtop_slim_image
   - kind: runImage
     name: test_hailtop_batch
     numSplits: 5
@@ -2975,6 +2995,7 @@ steps:
                              /io/repo/hail/build/deploy/dist/hail-*-py3-none-any.whl \
                              /io/github-oauth \
                              docker://{{ hailgenetics_hail_image.image }} \
+                             docker://{{ hailgenetics_hailtop_slim_image.image }} \
                              /io/wheel-for-azure/hail-*-py3-none-any.whl \
                              /io/www.tar.gz
     inputs:

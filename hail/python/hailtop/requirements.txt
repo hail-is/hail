@@ -1,0 +1,12 @@
+aiohttp==3.8.1
+aiohttp-session==2.7.0
+azure-identity==1.8.0
+azure-storage-blob==12.8.1
+boto3==1.21.13
+google-api-core==1.31.5
+humanize==1.0.0
+janus==0.6.1
+orjson==3.6.4
+python-json-logger==2.0.2
+sortedcontainers==2.4.0
+uvloop==0.16.0
