@@ -32,14 +32,18 @@ Released 2022-04-26
 
 - (hail#11765) Deprecated and removed linear mixed model functionality.
 
-
 ### Beta features
 
 - (hail#11782) `hl.import_table` is up to twice as fast for small tables.
 
 ### New features
 
+- (hail#11428) `hailtop.batch.build_python_image` now accepts a `show_docker_output` argument to toggle printing docker's output to the terminal while building container images
+- (hail#11725) `hl.ggplot` now supports `facet_wrap`
 - (hail#11776) `hailtop.aiotools.copy` will always show a progress bar when `--verbose` is passed.
+
+### `hailctl dataproc`
+- (hail#11710) support pass-through arguments to `connect`
 
 ### Bug fixes
 
