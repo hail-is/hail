@@ -574,8 +574,7 @@ class Container:
         self.overlay_path = None
 
         self.container_scratch = scratch_dir
-        self.container_overlay_path = f'{self.container_scratch}/rootfs_overlay'
-        self.config_path = f'{self.container_scratch}/config'
+        self.container_bundle_path = f'{self.container_scratch}/rootfs_overlay'
         self.log_path = f'{self.container_scratch}/container.log'
 
         self.overlay_mounted = False
@@ -721,7 +720,7 @@ class Container:
         try:
             if self.overlay_mounted:
                 try:
-                    await check_shell(f'umount -l {self.container_overlay_path}/merged')
+                    await check_shell(f'umount -l {self.container_bundle_path}/merged')
                     self.overlay_mounted = False
                 except asyncio.CancelledError:
                     raise
@@ -760,9 +759,9 @@ class Container:
 
     async def _setup_overlay(self):
         lower_dir = self.image.rootfs_path
-        upper_dir = f'{self.container_overlay_path}/upper'
-        work_dir = f'{self.container_overlay_path}/work'
-        merged_dir = f'{self.container_overlay_path}/merged'
+        upper_dir = f'{self.container_bundle_path}/upper'
+        work_dir = f'{self.container_bundle_path}/work'
+        merged_dir = f'{self.container_bundle_path}/merged'
         for d in (upper_dir, work_dir, merged_dir):
             os.makedirs(d)
         await check_shell(
@@ -795,9 +794,7 @@ class Container:
                         'crun',
                         'run',
                         '--bundle',
-                        f'{self.container_overlay_path}/merged',
-                        '--config',
-                        f'{self.config_path}/config.json',
+                        self.container_bundle_path,
                         self.name,
                         stdin=stdin,
                         stdout=container_log,
@@ -817,8 +814,7 @@ class Container:
         return False
 
     async def _write_container_config(self):
-        os.makedirs(self.config_path)
-        with open(f'{self.config_path}/config.json', 'w', encoding='utf-8') as f:
+        with open(f'{self.container_bundle_path}/config.json', 'w', encoding='utf-8') as f:
             f.write(json.dumps(await self.container_config()))
 
     # https://github.com/opencontainers/runtime-spec/blob/master/config.md
@@ -847,7 +843,7 @@ class Container:
         config = {
             'ociVersion': '1.0.1',
             'root': {
-                'path': '.',
+                'path': 'merged',
                 'readonly': False,
             },
             'hostname': self.netns.hostname,
