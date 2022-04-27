@@ -9,7 +9,7 @@ ZONE=$(get_global_config_field gcp_zone)
 DOCKER_ROOT_IMAGE=$(get_global_config_field docker_root_image)
 DOCKER_PREFIX=$(get_global_config_field docker_prefix)
 
-WORKER_IMAGE_VERSION=3011
+WORKER_IMAGE_VERSION=3012
 BUILDER=build-batch-worker-image
 
 create_build_image_instance() {
