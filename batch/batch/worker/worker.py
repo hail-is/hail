@@ -390,11 +390,12 @@ class Image:
                     auth_str = f'{auth["username"]}:{auth["password"]}'
                 else:
                     auth_str = f'{self.credentials.username}:{self.credentials.password}'
-                with tempfile.NamedTemporaryFile() as authfile:
-                    creds = base64.b64encode(auth_str.encode())
-                    auth_json = {'auths': {'gcr.io': {'auth': creds.decode()}}}
-                    authfile.write(json.dumps(auth_json).encode('utf-8'))
-                    await check_exec_output('podman', 'pull', f'--authfile={authfile.name}', self.image_ref_str)
+                creds = base64.b64encode(auth_str.encode())
+                auth_json = {'auths': {'gcr.io': {'auth': creds.decode()}}}
+                authfile = tempfile.NamedTemporaryFile(delete=False)  # pylint: disable=consider-using-with
+                authfile.write(json.dumps(auth_json).encode('utf-8'))
+                authfile.close()
+                await check_exec_output('podman', 'pull', f'--authfile={authfile.name}', self.image_ref_str)
         except CalledProcessError as e:
             error = e.stderr.decode()
             if 'unauthorized' in error:
