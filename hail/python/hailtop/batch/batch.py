@@ -1,3 +1,4 @@
+import asyncio
 import os
 import warnings
 import re
@@ -591,7 +592,7 @@ class Batch:
         run_result = self._backend._run(self, dry_run, verbose, delete_scratch_on_exit, **backend_kwargs)  # pylint: disable=assignment-from-no-return
         if self._DEPRECATED_fs is not None:
             # best effort only because this is deprecated
-            self._DEPRECATED_fs.close()
+            asyncio.get_event_loop().run_until_complete(self._DEPRECATED_fs.close())
             self._DEPRECATED_fs = None
         return run_result
 
