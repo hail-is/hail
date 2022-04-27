@@ -386,15 +386,15 @@ class Image:
                 pass
             else:
                 if self.is_public_image:
-                    auth = await self._batch_worker_access_token()
+                    auth = await CLOUD_WORKER_API.worker_access_token(self.client_session)
+                    auth_str = f'{auth["username"]}:{auth["password"]}'
                 else:
-                    auth = self._current_user_access_token()
-                authfile_name = f'{self.credentials.file_name}/podman_auth.json'
-                with open(authfile_name, 'w') as authfile:
-                    creds = base64.b64encode(f'{auth["username"]}:{auth["password"]}'.encode())
+                    auth_str = f'{self.credentials.username}:{self.credentials.password}'
+                with tempfile.NamedTemporaryFile() as authfile:
+                    creds = base64.b64encode(auth_str.encode())
                     auth_json = {'auths': {'gcr.io': {'auth': creds.decode()}}}
-                    authfile.write(json.dumps(auth_json))
-                await check_exec_output('podman', 'pull', f'--authfile={authfile_name}', self.image_ref_str)
+                    authfile.write(json.dumps(auth_json).encode('utf-8'))
+                    await check_exec_output('podman', 'pull', f'--authfile={authfile.name}', self.image_ref_str)
         except CalledProcessError as e:
             error = e.stderr.decode()
             if 'unauthorized' in error:
@@ -407,13 +407,6 @@ class Image:
 
         image_config, _ = await check_exec_output('podman', 'inspect', self.image_ref_str)
         image_configs[self.image_ref_str] = json.loads(image_config)[0]
-
-    async def _batch_worker_access_token(self) -> Dict[str, str]:
-        return await CLOUD_WORKER_API.worker_access_token(self.client_session)
-
-    def _current_user_access_token(self) -> Dict[str, Union[str, None]]:
-        assert self.credentials
-        return {'username': self.credentials.username, 'password': self.credentials.password}
 
     async def _extract_rootfs(self):
         assert self.image_id
