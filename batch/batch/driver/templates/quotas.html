@@ -1,4 +1,13 @@
 {% extends "layout.html" %}
 {% block title %}Quotas{% endblock %}
 {% block content %}
+<h1>HELLO WORLD</h1>
+{% if plot_json is not none %}
+<script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+<div id="plotly-timeseries"></div>
+<script>
+    var graph = {{ plot_json | safe }};
+    Plotly.plot('plotly-timeseries', graph, {});
+</script>
+{% endif %}
 {% endblock %}

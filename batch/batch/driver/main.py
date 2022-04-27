@@ -7,6 +7,11 @@ from collections import defaultdict, namedtuple
 from functools import wraps
 from typing import Dict, List
 
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
+import pandas as pd
+import plotly
+
 import aiohttp_session
 import dictdiffer
 import googlecloudprofiler
@@ -399,7 +404,83 @@ FROM user_inst_coll_resources;
 @routes.get('/quotas')
 @web_authenticated_developers_only()
 async def get_quotas(request, userdata):
-    page_context ={}
+    df = pd.DataFrame([
+        {
+        'region':'us-east1',
+        'CPUS': {
+        'limit': 2400, 
+        'usage': 0,
+                },
+        'SSD_TOTAL_GB': {
+            'limit': 81920, 
+            'usage': 0,
+                },
+        'LOCAL_SSD_TOTAL_GB': {
+            'limit': 300000, 
+            'usage': 0,
+                }  
+        },
+                {
+        'region':'us-central1',
+        'CPUS': {
+            'limit': 2400, 
+            'usage': 221,
+                    },
+        'SSD_TOTAL_GB': {
+            'limit': 625000, 
+            'usage': 1450,
+                    },
+        'LOCAL_SSD_TOTAL_GB': {
+            'limit': 150000, 
+            'usage': 21375,
+                    }
+                }
+        ]
+
+    ).set_index("region")
+
+    regions = df.keys()
+    regions = list(regions)
+
+    fig = make_subplots(
+        rows=len(df),
+        cols=len(df.columns),
+        specs=[[{"type": "indicator"} for c in df.columns] for t in df.index],
+    )
+
+    for r, (region, row) in enumerate(df.iterrows()):
+        # print(region)
+        for c, measure in enumerate(row):
+            print(c)
+            print(measure)
+            fig.add_trace(
+                go.Indicator(
+                    mode="gauge+number", 
+                    value= measure['usage'], 
+                    title={"text":f"{region}- {df.columns[c]}"},
+                    gauge = {
+                        'axis': {'range': [None, measure['limit']+ 1], 'tickwidth': 1, 'tickcolor': "darkblue"},
+                        'bar': {'color': 'RebeccaPurple'},
+                        'bgcolor': "gray",
+                        'borderwidth': 2,
+                        'bordercolor': "lightgray",
+                        'threshold': {
+                            'line': {'color': "red", 'width': 4},
+                            'thickness': 0.75,
+                            'value':  measure['limit']}}),
+                row=r + 1,
+                col=c + 1,
+            )
+
+    fig.update_layout(margin={"l": 50, "r": 50, "t": 50, "b": 50},
+                    height = 600,
+                    width = 1000,
+                    autosize = False,
+                    title="Data by Region", 
+                    title_x=0.5)
+    plot_json = json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
+
+    page_context ={"plot_json": plot_json}
     return await render_template('batch-driver', request, userdata, 'quotas.html', page_context)
 
 class ConfigError(Exception):
