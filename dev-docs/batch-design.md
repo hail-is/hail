@@ -12,12 +12,15 @@ storing any additional image configuration like environment variables and users 
 process. These root filesystems are immutable and job containers cannot write to them. All directories and
 files relating to a user's job except for the underlying rootfs are stored under the job's scratch directory.
 The scratch directory contains directories for each container in the job (input, main, output) and an `io`
-directory that is mounted into each container. Each container directory contains
+directory that is mounted into each container. Each container directory holds
 - The upper, merged, and work directories for the overlay filesystem used in the container. For
     a great explanation of how overlayfs works, see
     [here](https://jvns.ca/blog/2019/11/18/how-containers-work--overlayfs/).
-- Any volumes specified in the user's image that are mounted into the container
 - The container's `config.json` that the worker creates and passes to `crun`.
+- Any volumes specified in the user's image that are mounted into the container. These volumes are empty
+  and are not accessible to any other containers. Volumes in this setting are not very useful, but we
+  provide them for containers that expect certain volume mounts to exist. For example, `buildkit` uses a
+  volume as its layer cache.
 
 Batch uses [xfs_quota](https://man7.org/linux/man-pages/man8/xfs_quota.8.html) to enforce storage
 limits for jobs. Each job receives its own XFS project rooted at the scratch directory. Any writes from
@@ -31,7 +34,7 @@ is not stored per-job, it does not contribute toward a job's storage quota.
 scratch/
 ├─ io/ (potentially mounted from an external disk)
 ├─ input/
-│  ├─ rootfs_overlay/
+│  ├─ bundle/
 │  │  ├─ upperdir/ (writeable layer)
 │  │  ├─ merged/ (what the container sees as its root)
 │  │  │  ├─ bin/ (from the overlay's lowerdir [the image's rootfs])
@@ -39,11 +42,10 @@ scratch/
 │  │  │  ├─ ...
 │  │  │  ├─ io/ (bind mount)
 │  │  ├─ workdir/
-│  ├─ volumes/
-│  ├─ config/
 │  │  ├─ config.json
+│  ├─ volumes/
 ├─ main/
-│  ├─ rootfs_overlay/
+│  ├─ bundle/
 │  │  ├─ upperdir/ (writeable layer)
 │  │  ├─ merged/ (what crun/the container sees as its root)
 │  │  │  ├─ bin/ (from the overlay's lowerdir [the image's rootfs])
@@ -52,10 +54,9 @@ scratch/
 │  │  │  ├─ io/ (bind mount)
 │  │  │  ├─ image/specified/volume/ (bind mount from volumes/)
 │  │  ├─ workdir/
+│  │  ├─ config.json
 │  ├─ volumes/
 │  │  ├─ image/specified/volume/
-│  ├─ config/
-│  │  ├─ config.json
 ├─ output/
 │  ├─ ...
 ```
