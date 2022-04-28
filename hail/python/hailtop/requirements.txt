@@ -9,4 +9,5 @@ janus==0.6.1
 orjson==3.6.4
 python-json-logger==2.0.2
 sortedcontainers==2.4.0
+tqdm==4.*
 uvloop==0.16.0
