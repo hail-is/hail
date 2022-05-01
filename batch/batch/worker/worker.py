@@ -2463,15 +2463,18 @@ class Worker:
         job_id = int(request.match_info['job_id'])
         id = (batch_id, job_id)
 
+        if id not in self.jobs:
+            raise web.HTTPNotFound()
+
         log.info(f'deleting job {id}, removing from jobs')
 
-        job = self.jobs.pop(id, None)
-        if job is None:
-            raise web.HTTPNotFound()
+        async def delete_then_remove_job():
+            await self.jobs[id].delete()
+            del self.jobs[id]
 
         self.last_updated = time_msecs()
 
-        self.task_manager.ensure_future(job.delete())
+        self.task_manager.ensure_future(delete_then_remove_job())
 
         return web.Response()
 

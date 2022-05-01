@@ -208,7 +208,7 @@ class TableStage(
         Let(name, GetField(glob, name), accum)
       }, Some(dependency))
 
-    LowerToCDA.substLets(TableStage.wrapInBindings(body(cda, globals), letBindings), relationalBindings)
+    LowerToCDA.substLets(TableStage.wrapInBindings(bindIR(cda) { cdaRef => body(cdaRef, globals) }, letBindings), relationalBindings)
   }
 
   def collectWithGlobals(relationalBindings: Map[String, IR]): IR =
@@ -1611,8 +1611,17 @@ object LowerTableIR {
         val keptSet = seq.toSet
         val lit = Literal(TSet(TInt32), keptSet)
         if (keep) {
+          def lookupRangeBound(idx: Int): Interval = {
+            try {
+              lc.partitioner.rangeBounds(idx)
+            } catch {
+              case exc: ArrayIndexOutOfBoundsException =>
+                fatal(s"_filter_partitions: no partition with index $idx", exc)
+            }
+          }
+
           lc.copy(
-            partitioner = lc.partitioner.copy(rangeBounds = arr.map(idx => lc.partitioner.rangeBounds(idx))),
+            partitioner = lc.partitioner.copy(rangeBounds = arr.map(lookupRangeBound)),
             contexts = mapIR(
               filterIR(
                 zipWithIndex(lc.contexts)) { t =>

@@ -25,6 +25,16 @@
   <li>Cost: {% if 'cost' in batch and batch['cost'] is not none %}{{ batch['cost'] }}{% endif %}</li>
 </ul>
 
+{% if not batch['complete'] and batch['state'] != 'Cancelled' %}
+<form action="{{ base_path }}/batches/{{ batch['id'] }}/cancel" method="post">
+  <input type="hidden" name="_csrf" value="{{ csrf_token }}"/>
+  {% if q is not none %}
+  <input type="hidden" name="q" value="{{ q }}"/>
+  {% endif %}
+  <button>Cancel</button>
+</form>
+{% endif %}
+
 <h2>Attributes</h2>
 {% if 'attributes' in batch %}
 {% for name, value in batch['attributes'].items() %}

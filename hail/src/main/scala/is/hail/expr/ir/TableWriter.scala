@@ -54,23 +54,23 @@ object TableNativeWriter {
     val rowWriter = PartitionNativeWriter(rowSpec, pKey.fieldNames, s"$path/rows/parts/", Some(s"$path/index/" -> pKey), if (stageLocally) Some(ctx.localTmpdir) else None)
     val globalWriter = PartitionNativeWriter(globalSpec, IndexedSeq(), s"$path/globals/parts/", None, None)
 
-    ts.mapContexts { oldCtx =>
-      val d = digitsNeeded(ts.numPartitions)
-      val partFiles = Literal(TArray(TString), Array.tabulate(ts.numPartitions)(i => s"${ partFile(d, i) }-").toFastIndexedSeq)
+    RelationalWriter.scoped(path, overwrite, Some(tt))(
+      ts.mapContexts { oldCtx =>
+        val d = digitsNeeded(ts.numPartitions)
+        val partFiles = Literal(TArray(TString), Array.tabulate(ts.numPartitions)(i => s"${ partFile(d, i) }-").toFastIndexedSeq)
 
-      zip2(oldCtx, ToStream(partFiles), ArrayZipBehavior.AssertSameLength) { (ctxElt, pf) =>
-        MakeStruct(FastSeq(
-          "oldCtx" -> ctxElt,
-          "writeCtx" -> pf))
-      }
-    }(GetField(_, "oldCtx")).mapCollectWithContextsAndGlobals(relationalLetsAbove) { (rows, ctxRef) =>
-      val file = GetField(ctxRef, "writeCtx")
-      WritePartition(rows, file + UUID4(), rowWriter)
-    } { (parts, globals) =>
-      val writeGlobals = WritePartition(MakeStream(FastSeq(globals), TStream(globals.typ)),
-        Str(partFile(1, 0)), globalWriter)
+        zip2(oldCtx, ToStream(partFiles), ArrayZipBehavior.AssertSameLength) { (ctxElt, pf) =>
+          MakeStruct(FastSeq(
+            "oldCtx" -> ctxElt,
+            "writeCtx" -> pf))
+        }
+      }(GetField(_, "oldCtx")).mapCollectWithContextsAndGlobals(relationalLetsAbove) { (rows, ctxRef) =>
+        val file = GetField(ctxRef, "writeCtx")
+        WritePartition(rows, file + UUID4(), rowWriter)
+      } { (parts, globals) =>
+        val writeGlobals = WritePartition(MakeStream(FastSeq(globals), TStream(globals.typ)),
+          Str(partFile(1, 0)), globalWriter)
 
-      RelationalWriter.scoped(path, overwrite, Some(tt))(
         bindIR(parts) { fileCountAndDistinct =>
           Begin(FastIndexedSeq(
             WriteMetadata(MakeArray(GetField(writeGlobals, "filePath")),
@@ -81,8 +81,9 @@ object TableNativeWriter {
               SelectFields(fc, Seq("partitionCounts", "distinctlyKeyed", "firstKey", "lastKey"))
             }),
               TableSpecWriter(path, tt, "rows", "globals", "references", log = true))))
-        })
-    }
+        }
+      }
+    )
   }
 }
 

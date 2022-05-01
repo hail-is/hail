@@ -65,6 +65,7 @@ WHERE removed = 0 AND inst_coll = %s;
         ):
             pool.add_instance(Instance.from_record(app, pool, record))
 
+        task_manager.ensure_future(pool.control_loop())
         return pool
 
     def __init__(
@@ -108,8 +109,6 @@ WHERE removed = 0 AND inst_coll = %s;
         self.data_disk_size_gb = config.data_disk_size_gb
         self.data_disk_size_standing_gb = config.data_disk_size_standing_gb
         self.preemptible = config.preemptible
-
-        task_manager.ensure_future(self.control_loop())
 
     @property
     def local_ssd_data_disk(self) -> bool:

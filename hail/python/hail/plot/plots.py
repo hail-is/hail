@@ -287,7 +287,7 @@ def _max_entropy_cdf(min_x, max_x, x, y, e):
     return new_y, keep
 
 
-def smoothed_pdf(data, k=350, smoothing=.5, legend=None, title=None, log=False, interactive=False):
+def smoothed_pdf(data, k=350, smoothing=.5, legend=None, title=None, log=False, interactive=False, figure=None):
     """Create a density plot.
 
     Parameters
@@ -306,6 +306,8 @@ def smoothed_pdf(data, k=350, smoothing=.5, legend=None, title=None, log=False, 
         Plot the log10 of the bin counts.
     interactive : bool
         If `True`, return a handle to pass to :func:`bokeh.io.show`.
+    figure : :class:`bokeh.plotting.figure.Figure`
+        If not None, add density plot to figure. Otherwise, create a new figure.
 
     Returns
     -------
@@ -325,16 +327,20 @@ def smoothed_pdf(data, k=350, smoothing=.5, legend=None, title=None, log=False, 
         y_axis_type = 'log'
     else:
         y_axis_type = 'linear'
-    p = figure(
-        title=title,
-        x_axis_label=legend,
-        y_axis_label=y_axis_label,
-        y_axis_type=y_axis_type,
-        plot_width=600,
-        plot_height=400,
-        tools='xpan,xwheel_zoom,reset,save',
-        active_scroll='xwheel_zoom',
-        background_fill_color='#EEEEEE')
+
+    if figure is None:
+        p = bokeh.plotting.figure(
+            title=title,
+            x_axis_label=legend,
+            y_axis_label=y_axis_label,
+            y_axis_type=y_axis_type,
+            plot_width=600,
+            plot_height=400,
+            tools='xpan,xwheel_zoom,reset,save',
+            active_scroll='xwheel_zoom',
+            background_fill_color='#EEEEEE')
+    else:
+        p = figure
 
     n = data['ranks'][-1]
     weights = np.diff(data['ranks'][1:-1])

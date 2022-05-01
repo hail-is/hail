@@ -39,7 +39,7 @@ async def gs_filesystem(request):
 
 @pytest.fixture
 def bucket_and_temporary_file():
-    bucket, prefix = GoogleStorageAsyncFS.get_bucket_name(os.environ['HAIL_TEST_STORAGE_URI'])
+    bucket, prefix = GoogleStorageAsyncFS.get_bucket_and_name(os.environ['HAIL_TEST_STORAGE_URI'])
     return bucket, prefix + '/' + secrets.token_hex(16)
 
 
@@ -128,3 +128,27 @@ async def test_multi_part_create_many_two_level_merge(gs_filesystem):
         assert expected == actual
     except (concurrent.futures._base.CancelledError, asyncio.CancelledError) as err:
         raise AssertionError('uncaught cancelled error') from err
+
+async def test_weird_urls(gs_filesystem):
+    _, fs, base = gs_filesystem
+
+    await fs.write(base + '?', b'contents of ?')
+    assert await fs.read(base + '?') == b'contents of ?'
+
+    await fs.write(base + '?a', b'contents of ?a')
+    assert await fs.read(base + '?') == b'contents of ?a'
+
+    await fs.write(base + '?a#b', b'contents of ?a#b')
+    assert await fs.read(base + '?a#b') == b'contents of ?a#b'
+
+    await fs.write(base + '#b?a', b'contents of #b?a')
+    assert await fs.read(base + '#b?a') == b'contents of #b?a'
+
+    await fs.write(base + '?a#b@c', b'contents of ?a#b@c')
+    assert await fs.read(base + '?a#b@c') == b'contents of ?a#b@c'
+
+    await fs.write(base + '#b', b'contents of #b')
+    assert await fs.read(base + '#b') == b'contents of #b'
+
+    await fs.write(base + '???', b'contents of ???')
+    assert await fs.read(base + '???') == b'contents of ???'
