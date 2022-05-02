@@ -77,7 +77,6 @@ from ..cloud.resource_utils import (
 from ..file_store import FileStore
 from ..globals import HTTP_CLIENT_MAX_SIZE, RESERVED_STORAGE_GB_PER_CORE, STATUS_FORMAT_VERSION
 from ..publicly_available_images import publicly_available_images
-from ..resource_usage import ResourceUsageMonitor
 from ..semaphore import FIFOWeightedSemaphore
 from ..utils import Box
 from ..worker.worker_api import CloudWorkerAPI
@@ -351,11 +350,13 @@ def docker_call_retry(timeout, name):
                 # DockerError(500, 'error creating overlay mount to /var/lib/docker/overlay2/545a1337742e0292d9ed197b06fe900146c85ab06e468843cd0461c3f34df50d/merged: device or resource busy'
                 # DockerError(500, 'Get https://gcr.io/v2/: dial tcp: lookup gcr.io: Temporary failure in name resolution')
                 # DockerError(500, 'Get \"https://mcr.microsoft.com/v2/azure-cli/manifests/sha256:068eaecb7abab2d5195a05a6c144c71e9ba1c532efc2912b3ea290d98fbeadb2\": dial tcp 131.253.33.219:443: i/o timeout')
+                # DockerError(500, 'received unexpected HTTP status: 503 Service Unavailable')
                 elif e.status == 500 and (
                     "request canceled while waiting for connection" in e.message
                     or re.match("error creating overlay mount.*device or resource busy", e.message)
                     or "Temporary failure in name resolution" in e.message
                     or 'i/o timeout' in e.message
+                    or 'received unexpected HTTP status: 503 Service Unavailable' in e.message
                 ):
                     log.warning(f'in docker call to {f.__name__} for {name}, retrying', stack_info=True, exc_info=True)
                 else:
@@ -608,6 +609,7 @@ class Container:
         unconfined: Optional[bool] = None,
         volume_mounts: Optional[List[dict]] = None,
         env: Optional[List[str]] = None,
+        stdin: Optional[str] = None,
     ):
         self.fs = fs
         assert self.fs
@@ -623,6 +625,7 @@ class Container:
         self.unconfined = unconfined
         self.volume_mounts = volume_mounts or []
         self.env = env or []
+        self.stdin = stdin
 
         self.deleted_event = asyncio.Event()
 
@@ -643,7 +646,6 @@ class Container:
         self.container_overlay_path = f'{self.container_scratch}/rootfs_overlay'
         self.config_path = f'{self.container_scratch}/config'
         self.log_path = f'{self.container_scratch}/container.log'
-        self.resource_usage_path = f'{self.container_scratch}/resource_usage'
 
         self.overlay_mounted = False
 
@@ -855,6 +857,9 @@ class Container:
             async with async_timeout.timeout(self.timeout):
                 with open(self.log_path, 'w', encoding='utf-8') as container_log:
                     log.info(f'Creating the crun run process for {self}')
+
+                    stdin = asyncio.subprocess.PIPE if self.stdin else None
+
                     self.process = await asyncio.create_subprocess_exec(
                         'crun',
                         'run',
@@ -863,12 +868,15 @@ class Container:
                         '--config',
                         f'{self.config_path}/config.json',
                         self.name,
+                        stdin=stdin,
                         stdout=container_log,
                         stderr=container_log,
                     )
 
-                    async with ResourceUsageMonitor(self.name, self.resource_usage_path):
-                        await self.process.wait()
+                    if self.stdin is not None:
+                        await self.process.communicate(self.stdin.encode('utf-8'))
+
+                    await self.process.wait()
                     log.info(f'crun process completed for {self}')
         except asyncio.TimeoutError:
             return True
@@ -1090,7 +1098,7 @@ class Container:
 
     # {
     #   name: str,
-    #   state: str, (pending, running, succeeded, error, failed)
+    #   state: str, (pending, pulling, creating, starting, running, uploading_log, deleting, succeeded, error, failed)
     #   timing: dict(str, float),
     #   error: str, (optional)
     #   short_error: str, (optional)
@@ -1143,11 +1151,7 @@ class Container:
             if offset is None:
                 return (await self.fs.read(self.log_path)).decode()
             return (await self.fs.read_from(self.log_path, offset)).decode()
-
-    async def get_resource_usage(self) -> bytes:
-        if os.path.exists(self.resource_usage_path):
-            return await self.fs.read(self.resource_usage_path)
-        return ResourceUsageMonitor.no_data()
+        return ''
 
     def __str__(self):
         return f'container {self.name}'
@@ -1180,7 +1184,7 @@ def copy_container(
         '-m',
         'hailtop.aiotools.copy',
         json.dumps(requester_pays_project),
-        json.dumps(files),
+        '-',
         '-v',
     ]
 
@@ -1194,6 +1198,7 @@ def copy_container(
         memory_in_bytes=memory_in_bytes,
         volume_mounts=volume_mounts,
         env=[f'{job.credentials.cloud_env_name}={job.credentials.mount_path}'],
+        stdin=json.dumps(files),
     )
 
 
@@ -1372,9 +1377,6 @@ class Job:
 
     async def get_log(self):
         pass
-
-    async def get_resource_usage(self) -> Dict[str, Optional[bytes]]:
-        raise NotImplementedError
 
     async def delete(self):
         log.info(f'deleting {self}')
@@ -1570,16 +1572,6 @@ class DockerJob(Job):
                     await container.get_log(),
                 )
 
-            with container._step('uploading_resource_usage'):
-                await self.worker.file_store.write_resource_usage_file(
-                    self.format_version,
-                    self.batch_id,
-                    self.job_id,
-                    self.attempt_id,
-                    task_name,
-                    await container.get_resource_usage(),
-                )
-
         try:
             await container.run(on_completion)
         except asyncio.CancelledError:
@@ -1739,9 +1731,6 @@ class DockerJob(Job):
 
     async def get_log(self):
         return {name: await c.get_log() for name, c in self.containers.items()}
-
-    async def get_resource_usage(self):
-        return {name: await c.get_resource_usage() for name, c in self.containers.items()}
 
     async def delete(self):
         await super().delete()
@@ -1919,9 +1908,6 @@ class JVMJob(Job):
 
     async def get_log(self):
         return {'main': await self._get_log()}
-
-    async def get_resource_usage(self):
-        return {'main': ResourceUsageMonitor.no_data()}
 
     async def delete(self):
         await super().delete()
@@ -2450,46 +2436,26 @@ class Worker:
             raise web.HTTPServiceUnavailable
         return await asyncio.shield(self.create_job_1(request))
 
-    def _job_from_request(self, request):
+    async def get_job_log(self, request):
+        if not self.active:
+            raise web.HTTPServiceUnavailable
         batch_id = int(request.match_info['batch_id'])
         job_id = int(request.match_info['job_id'])
         id = (batch_id, job_id)
         job = self.jobs.get(id)
         if not job:
             raise web.HTTPNotFound()
-        return job
-
-    async def get_job_log(self, request):
-        if not self.active:
-            raise web.HTTPServiceUnavailable
-        job = self._job_from_request(request)
         return web.json_response(await job.get_log())
-
-    async def get_job_resource_usage(self, request):
-        if not self.active:
-            raise web.HTTPServiceUnavailable
-        job = self._job_from_request(request)
-        resource_usage = await job.get_resource_usage()
-
-        boundary = '----WebKitFormBoundarywiBIWjWR7osAkgFI'
-
-        resp = web.StreamResponse(
-            status=200, reason='OK', headers={'Content-Type': f'multipart/mixed;boundary={boundary}'}
-        )
-        await resp.prepare(request)
-
-        with aiohttp.MultipartWriter('mixed', boundary=boundary) as mpwriter:
-            for task, data in resource_usage.items():
-                part = mpwriter.append(data)
-                part.set_content_disposition('attachment', filename=task)
-            await mpwriter.write(resp)
-
-        return resp
 
     async def get_job_status(self, request):
         if not self.active:
             raise web.HTTPServiceUnavailable
-        job = self._job_from_request(request)
+        batch_id = int(request.match_info['batch_id'])
+        job_id = int(request.match_info['job_id'])
+        id = (batch_id, job_id)
+        job = self.jobs.get(id)
+        if not job:
+            raise web.HTTPNotFound()
         return web.json_response(job.status())
 
     async def delete_job_1(self, request):
@@ -2497,15 +2463,18 @@ class Worker:
         job_id = int(request.match_info['job_id'])
         id = (batch_id, job_id)
 
+        if id not in self.jobs:
+            raise web.HTTPNotFound()
+
         log.info(f'deleting job {id}, removing from jobs')
 
-        job = self.jobs.pop(id, None)
-        if job is None:
-            raise web.HTTPNotFound()
+        async def delete_then_remove_job():
+            await self.jobs[id].delete()
+            del self.jobs[id]
 
         self.last_updated = time_msecs()
 
-        self.task_manager.ensure_future(job.delete())
+        self.task_manager.ensure_future(delete_then_remove_job())
 
         return web.Response()
 
@@ -2528,7 +2497,6 @@ class Worker:
                 web.post('/api/v1alpha/batches/jobs/create', self.create_job),
                 web.delete('/api/v1alpha/batches/{batch_id}/jobs/{job_id}/delete', self.delete_job),
                 web.get('/api/v1alpha/batches/{batch_id}/jobs/{job_id}/log', self.get_job_log),
-                web.get('/api/v1alpha/batches/{batch_id}/jobs/{job_id}/resource_usage', self.get_job_resource_usage),
                 web.get('/api/v1alpha/batches/{batch_id}/jobs/{job_id}/status', self.get_job_status),
                 web.get('/healthcheck', self.healthcheck),
             ]

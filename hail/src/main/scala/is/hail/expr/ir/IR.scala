@@ -369,6 +369,7 @@ object StreamJoin {
     l: String, r: String,
     joinF: IR,
     joinType: String,
+    requiresMemoryManagement: Boolean,
     rightKeyIsDistinct: Boolean = false
   ): IR = {
     val lType = coerce[TStream](left.typ)
@@ -401,8 +402,8 @@ object StreamJoin {
         flatMapIR(joined) { x =>
           Let(l, GetField(x, "left"), bindIR(GetField(GetField(x, "rightGroup"), groupField)) { rightElts =>
             joinType match {
-              case "left" | "outer" => StreamMap(ToStream(If(IsNA(rightElts), missingSingleton, rightElts)), r, joinF)
-              case "right" | "inner" => StreamMap(ToStream(rightElts), r, joinF)
+              case "left" | "outer" => StreamMap(ToStream(If(IsNA(rightElts), missingSingleton, rightElts), requiresMemoryManagement), r, joinF)
+              case "right" | "inner" => StreamMap(ToStream(rightElts, requiresMemoryManagement), r, joinF)
             }
           })
         }
@@ -748,6 +749,8 @@ object PartitionWriter {
       classOf[PartitionNativeWriter],
       classOf[TableTextPartitionWriter],
       classOf[VCFPartitionWriter],
+      classOf[GenSampleWriter],
+      classOf[GenVariantWriter],
       classOf[AbstractTypedCodecSpec],
       classOf[TypedCodecSpec]), typeHintFieldName = "name"
     ) + BufferSpec.shortTypeHints
@@ -767,6 +770,7 @@ object MetadataWriter {
       classOf[RelationalWriter],
       classOf[TableTextFinalizer],
       classOf[VCFExportFinalizer],
+      classOf[SimpleMetadataWriter],
       classOf[RVDSpecMaker],
       classOf[AbstractTypedCodecSpec],
       classOf[TypedCodecSpec]),
@@ -850,6 +854,11 @@ abstract class MetadataWriter {
     region: Value[Region]): Unit
 
   def toJValue: JValue = Extraction.decompose(this)(MetadataWriter.formats)
+}
+
+final case class SimpleMetadataWriter(val annotationType: Type) extends MetadataWriter {
+  def writeMetadata(writeAnnotations: => IEmitCode, cb: EmitCodeBuilder, region: Value[Region]): Unit =
+    writeAnnotations.consume(cb, {}, {_ => ()})
 }
 
 final case class ReadPartition(context: IR, rowType: Type, reader: PartitionReader) extends IR

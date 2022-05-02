@@ -44,7 +44,7 @@ def to_dense_mt(vds: 'VariantDataset') -> 'MatrixTable':
     refl = ref.localize_entries('_ref_entries')
     varl = var.localize_entries('_var_entries', '_var_cols')
     varl = varl.annotate(_variant_defined=True)
-    joined = refl.join(varl.key_by('locus'), how='outer')
+    joined = varl.key_by('locus').join(refl, how='outer')
     dr = joined.annotate(
         dense_ref=hl.or_missing(
             joined._variant_defined,
@@ -110,7 +110,7 @@ def to_merged_sparse_mt(vds: 'VariantDataset') -> 'MatrixTable':
         else:
             merged_schema[e] = vds.reference_data[e].dtype
 
-    ht = rht.join(vht, how='outer').drop('_ref_cols')
+    ht = vht.join(rht, how='outer').drop('_ref_cols')
 
     def merge_arrays(r_array, v_array):
 
@@ -358,14 +358,16 @@ def filter_samples(vds: 'VariantDataset', samples_table: 'Table', *,
 
 @typecheck(vds=VariantDataset,
            calling_intervals=oneof(Table, expr_array(expr_interval(expr_locus()))),
-           normalization_contig=str
+           normalization_contig=str,
+           use_variant_dataset=bool
            )
 def impute_sex_chromosome_ploidy(
         vds: VariantDataset,
         calling_intervals,
-        normalization_contig: str
+        normalization_contig: str,
+        use_variant_dataset: bool = False
 ) -> hl.Table:
-    """Impute sex chromosome ploidy from depth of reference data within calling intervals.
+    """Impute sex chromosome ploidy from depth of reference or variant data within calling intervals.
 
     Returns a :class:`.Table` with sample ID keys, with the following fields:
 
@@ -383,6 +385,8 @@ def impute_sex_chromosome_ploidy(
         Calling intervals with consistent read coverage (for exomes, trim the capture intervals).
     normalization_contig : str
         Autosomal contig for depth comparison.
+    use_variant_dataset : bool
+        Whether to use depth of variant data within calling intervals instead of reference data. Default will use reference data.
 
     Returns
     -------
@@ -437,16 +441,25 @@ def impute_sex_chromosome_ploidy(
     vds = VariantDataset(hl.filter_intervals(vds.reference_data, kept_contig_filter),
                          hl.filter_intervals(vds.variant_data, kept_contig_filter))
 
-    coverage = interval_coverage(vds, calling_intervals, gq_thresholds=()).drop('gq_thresholds')
+    if use_variant_dataset:
+        mt = vds.variant_data
+        mt = mt.filter_rows(hl.is_defined(calling_intervals[mt.locus]))
+        coverage = mt.select_cols(
+            __mean_dp=hl.agg.group_by(mt.locus.contig,
+                                      hl.agg.sum(mt.DP)
+                                      / hl.agg.filter(mt["LGT" if "LGT" in mt.entry else "GT"].is_non_ref(),
+                                                      hl.agg.count())))
+    else:
+        coverage = interval_coverage(vds, calling_intervals, gq_thresholds=()).drop('gq_thresholds')
 
-    coverage = coverage.annotate_rows(contig=coverage.interval.start.contig)
-    coverage = coverage.annotate_cols(
-        __mean_dp=hl.agg.group_by(coverage.contig, hl.agg.sum(coverage.sum_dp) / hl.agg.sum(coverage.interval_size)))
+        coverage = coverage.annotate_rows(contig=coverage.interval.start.contig)
+        coverage = coverage.annotate_cols(
+            __mean_dp=hl.agg.group_by(coverage.contig, hl.agg.sum(coverage.sum_dp) / hl.agg.sum(coverage.interval_size)))
 
     mean_dp_dict = coverage.__mean_dp
-    auto_dp = mean_dp_dict.get(normalization_contig)
-    x_dp = mean_dp_dict.get(chr_x)
-    y_dp = mean_dp_dict.get(chr_y)
+    auto_dp = mean_dp_dict.get(normalization_contig, 0.0)
+    x_dp = mean_dp_dict.get(chr_x, 0.0)
+    y_dp = mean_dp_dict.get(chr_y, 0.0)
     per_sample = coverage.transmute_cols(autosomal_mean_dp=auto_dp,
                                          x_mean_dp=x_dp,
                                          x_ploidy=2 * x_dp / auto_dp,

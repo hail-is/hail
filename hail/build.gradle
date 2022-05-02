@@ -133,7 +133,7 @@ dependencies {
     unbundled 'org.apache.spark:spark-sql_' + scalaMajorVersion + ':' + sparkVersion
     unbundled 'org.apache.spark:spark-mllib_' + scalaMajorVersion + ':' + sparkVersion
 
-    bundled('org.json4s:json4s-jackson_' + scalaMajorVersion + ':3.7.0-M5') {
+    bundled('org.json4s:json4s-jackson_' + scalaMajorVersion + ':3.7.0-M11') {
         exclude group: 'com.fasterxml.jackson.core'
     }
 
@@ -174,7 +174,9 @@ dependencies {
         throw new UnsupportedOperationException("Couldn't pick a valid elasticsearch.")
     }
 
-    bundled 'com.google.cloud:google-cloud-storage:1.106.0'
+    bundled(group: 'com.google.cloud', name: 'google-cloud-storage', version: '1.106.0') {
+        exclude group: 'com.fasterxml.jackson.core'
+    }
 
     bundled 'org.apache.httpcomponents:httpcore:4.4.14'
     bundled('org.apache.httpcomponents:httpclient:4.5.13') {
@@ -185,7 +187,7 @@ dependencies {
     bundled group: 'org.ow2.asm', name: 'asm-util', version: '7.3.1'
     bundled group: 'org.ow2.asm', name: 'asm-analysis', version: '7.3.1'
 
-    bundled 'net.java.dev.jna:jna:4.2.2'
+    bundled 'net.java.dev.jna:jna:5.6.0'
     bundled('net.sourceforge.jdistlib:jdistlib:0.4.5') {
         transitive = false
     }
@@ -200,9 +202,8 @@ dependencies {
         exclude group: 'com.fasterxml.jackson.core'
     }
 
-    bundled 'com.indeed:lsmtree-core:1.0.7'
-    bundled 'com.indeed:util-serialization:1.0.36'
-    bundled 'com.indeed:util-mmap:1.0.36'
+    bundled 'commons-io:commons-io:2.5'
+
     bundled group: 'org.freemarker', name: 'freemarker', version: '2.3.14'
 
     bundled 'com.kohlschutter.junixsocket:junixsocket-core:2.3.2'
@@ -324,8 +325,6 @@ tasks.withType(ShadowJar) {
     relocate 'org.codehaus.jackson', 'is.hail.relocated.org.codehaus.jackson'
     relocate 'org.apache.commons.lang3', 'is.hail.relocated.org.apache.commons.lang3'
     relocate 'org.apache.commons.io', 'is.hail.relocated.org.apache.commons.io'
-    // we should really shade indeed, but it has native libraries
-    // relocate 'com.indeed', 'is.hail.relocated.com.indeed'
     relocate 'com.google.cloud', 'is.hail.relocated.com.google.cloud'
     relocate 'com.github.samtools', 'is.hail.relocated.com.github.samtools'
     relocate 'org.lz4', 'is.hail.relocated.org.lz4'

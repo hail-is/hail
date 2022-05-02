@@ -41,7 +41,7 @@ if role == 'Master':
         'google-cloud-storage==1.25.*',
         'https://github.com/hail-is/jgscm/archive/v0.1.12+hail.zip',
         'ipykernel==4.10.*',
-        'ipywidgets==7.4.*',
+        'ipywidgets==7.5.*',
         'jupyter-console==6.0.*',
         'nbconvert==5.6.*',
         'notebook==5.7.*',

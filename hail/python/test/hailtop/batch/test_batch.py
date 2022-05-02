@@ -20,7 +20,7 @@ from ..utils import skip_in_azure
 
 DOCKER_ROOT_IMAGE = os.environ['DOCKER_ROOT_IMAGE']
 PYTHON_DILL_IMAGE = os.environ['PYTHON_DILL_IMAGE']
-
+HAIL_GENETICS_HAIL_IMAGE = os.environ['HAIL_GENETICS_HAIL_IMAGE']
 
 class LocalTests(unittest.TestCase):
     def batch(self, requester_pays_project=None):
@@ -896,8 +896,26 @@ class ServiceTests(unittest.TestCase):
         for i in range(8):
             j1 = b.new_job()
             long_str = secrets.token_urlsafe(256 * 1024)
-            j1.command(f'echo "{long_str}"')
+            j1.command(f'echo "{long_str}" > /dev/null')
         batch = b.run()
         assert not batch.submission_info.used_fast_create
         batch_status = batch.status()
         assert batch_status['state'] == 'success', str((batch.debug_info()))
+
+    def test_query_on_batch_in_batch(self):
+        sb = ServiceBackend(remote_tmpdir=f'{self.remote_tmpdir}/temporary-files')
+        bb = Batch(backend=sb, default_python_image=HAIL_GENETICS_HAIL_IMAGE)
+
+        tmp_ht_path = self.remote_tmpdir + '/' + secrets.token_urlsafe(32)
+
+        def qob_in_batch():
+            import hail as hl
+            hl.utils.range_table(10).write(tmp_ht_path, overwrite=True)
+
+        j = bb.new_python_job()
+        j.env('HAIL_QUERY_BACKEND', 'batch')
+        j.env('HAIL_BATCH_BILLING_PROJECT', get_user_config().get('batch', 'billing_project'))
+        j.env('HAIL_BATCH_REMOTE_TMPDIR', self.remote_tmpdir)
+        j.call(qob_in_batch)
+
+        bb.run()

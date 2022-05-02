@@ -208,7 +208,7 @@ class TableStage(
         Let(name, GetField(glob, name), accum)
       }, Some(dependency))
 
-    LowerToCDA.substLets(TableStage.wrapInBindings(body(cda, globals), letBindings), relationalBindings)
+    LowerToCDA.substLets(TableStage.wrapInBindings(bindIR(cda) { cdaRef => body(cdaRef, globals) }, letBindings), relationalBindings)
   }
 
   def collectWithGlobals(relationalBindings: Map[String, IR]): IR =
@@ -357,7 +357,8 @@ class TableStage(
       val lEltRef = Ref(genUID(), lEltType)
       val rEltRef = Ref(genUID(), rEltType)
 
-      StreamJoin(lPart, rPart, lKey, rKey, lEltRef.name, rEltRef.name, joiner(lEltRef, rEltRef), joinType, rightKeyIsDistinct)
+      StreamJoin(lPart, rPart, lKey, rKey, lEltRef.name, rEltRef.name, joiner(lEltRef, rEltRef), joinType,
+        requiresMemoryManagement = true, rightKeyIsDistinct = rightKeyIsDistinct)
     }
 
     val newKey = kType.fieldNames ++ right.kType.fieldNames.drop(joinKey)
@@ -1018,8 +1019,8 @@ object LowerTableIR {
         }
 
         val letBindNewCtx = TableStage.wrapInBindings(newCtxs, loweredChild.letBindings)
-        val bindRelationLetsNewCtx = LowerToCDA.substLets(letBindNewCtx, relationalLetsAbove)
-        val newCtxSeq = CompileAndEvaluate(ctx, ToArray(bindRelationLetsNewCtx)).asInstanceOf[IndexedSeq[Any]]
+        val bindRelationLetsNewCtx = ToArray(LowerToCDA.substLets(letBindNewCtx, relationalLetsAbove))
+        val newCtxSeq = CompileAndEvaluate(ctx, bindRelationLetsNewCtx).asInstanceOf[IndexedSeq[Any]]
         val numNewParts = newCtxSeq.length
         val newIntervals = loweredChild.partitioner.rangeBounds.slice(0,numNewParts)
         val newPartitioner = loweredChild.partitioner.copy(rangeBounds = newIntervals)
@@ -1030,7 +1031,7 @@ object LowerTableIR {
           loweredChild.globals,
           newPartitioner,
           loweredChild.dependency,
-          newCtxs,
+          ToStream(Literal(bindRelationLetsNewCtx.typ, newCtxSeq)),
           (ctxRef: Ref) => StreamTake(
             loweredChild.partition(GetField(ctxRef, "old")),
             GetField(ctxRef, "numberToTake")))
@@ -1120,8 +1121,8 @@ object LowerTableIR {
           }
         }
 
-        val letBindNewCtx = TableStage.wrapInBindings(newCtxs, loweredChild.letBindings)
-        val newCtxSeq = CompileAndEvaluate(ctx, ToArray(letBindNewCtx)).asInstanceOf[IndexedSeq[Any]]
+        val letBindNewCtx = ToArray(TableStage.wrapInBindings(newCtxs, loweredChild.letBindings))
+        val newCtxSeq = CompileAndEvaluate(ctx, letBindNewCtx).asInstanceOf[IndexedSeq[Any]]
         val numNewParts = newCtxSeq.length
         val oldParts = loweredChild.partitioner.rangeBounds
         val newIntervals = oldParts.slice(oldParts.length - numNewParts, oldParts.length)
@@ -1132,7 +1133,7 @@ object LowerTableIR {
           loweredChild.globals,
           newPartitioner,
           loweredChild.dependency,
-          newCtxs,
+          ToStream(Literal(letBindNewCtx.typ, newCtxSeq)),
           (ctxRef: Ref) => bindIR(GetField(ctxRef, "old")) { oldRef =>
             StreamDrop(loweredChild.partition(oldRef), GetField(ctxRef, "numberToDrop"))
           })
@@ -1569,7 +1570,7 @@ object LowerTableIR {
               i += 1
             }
             refs.tail.zip(roots).foldRight(
-              mapIR(ToStream(refs.last)) { elt =>
+              mapIR(ToStream(refs.last, true)) { elt =>
                 path.zip(refs.init).foldRight[IR](elt) { case ((p, ref), inserted) =>
                   InsertFields(ref, FastSeq(p -> inserted))
                 }
@@ -1610,8 +1611,17 @@ object LowerTableIR {
         val keptSet = seq.toSet
         val lit = Literal(TSet(TInt32), keptSet)
         if (keep) {
+          def lookupRangeBound(idx: Int): Interval = {
+            try {
+              lc.partitioner.rangeBounds(idx)
+            } catch {
+              case exc: ArrayIndexOutOfBoundsException =>
+                fatal(s"_filter_partitions: no partition with index $idx", exc)
+            }
+          }
+
           lc.copy(
-            partitioner = lc.partitioner.copy(rangeBounds = arr.map(idx => lc.partitioner.rangeBounds(idx))),
+            partitioner = lc.partitioner.copy(rangeBounds = arr.map(lookupRangeBound)),
             contexts = mapIR(
               filterIR(
                 zipWithIndex(lc.contexts)) { t =>

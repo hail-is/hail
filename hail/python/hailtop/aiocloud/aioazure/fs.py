@@ -15,9 +15,9 @@ import azure.core.exceptions
 
 from hailtop.utils import retry_transient_errors, flatten
 from hailtop.aiotools import WriteBuffer
-from hailtop.aiotools.fs import (AsyncFS, AsyncFSFactory, ReadableStream, WritableStream,
-                                 MultiPartCreate, FileListEntry, FileStatus, FileAndDirectoryError,
-                                 UnexpectedEOFError)
+from hailtop.aiotools.fs import (AsyncFS, AsyncFSURL, AsyncFSFactory, ReadableStream,
+                                 WritableStream, MultiPartCreate, FileListEntry, FileStatus,
+                                 FileAndDirectoryError, UnexpectedEOFError)
 
 from .credentials import AzureCredentials
 
@@ -99,7 +99,10 @@ class AzureMultiPartCreate(MultiPartCreate):
                         exc_val: Optional[BaseException],
                         exc_tb: Optional[TracebackType]) -> None:
         try:
-            await self._client.commit_block_list(flatten(self._block_ids))
+            # azure allows both BlockBlob and the string id here, despite
+            # only having BlockBlob annotations
+            await self._client.commit_block_list(flatten(self._block_ids)  # type: ignore
+                                                 )
         except:
             try:
                 await self._client.delete_blob()
@@ -126,7 +129,10 @@ class AzureCreateManager(AsyncContextManager[WritableStream]):
             await self._writable_stream.wait_closed()
 
             try:
-                await self._client.commit_block_list(self._block_ids)
+                # azure allows both BlockBlob and the string id here, despite
+                # only having BlockBlob annotations
+                await self._client.commit_block_list(self._block_ids  # type: ignore
+                                                     )
             except:
                 try:
                     await self._client.delete_blob()
@@ -247,6 +253,31 @@ class AzureFileStatus(FileStatus):
         return self.blob_props.__dict__[key]
 
 
+class AzureAsyncFSURL(AsyncFSURL):
+    def __init__(self, account: str, container: str, path: str):
+        self._account = account
+        self._container = container
+        self._path = path
+
+    @property
+    def bucket_parts(self) -> List[str]:
+        return [self._account, self._container]
+
+    @property
+    def path(self) -> str:
+        return self._path
+
+    @property
+    def scheme(self) -> str:
+        return 'hail-az'
+
+    def with_path(self, path) -> 'AzureAsyncFSURL':
+        return AzureAsyncFSURL(self._account, self._container, path)
+
+    def __str__(self) -> str:
+        return f'hail-az://{self._account}/{self._container}/{self._path}'
+
+
 class AzureAsyncFS(AsyncFS):
     schemes: Set[str] = {'hail-az'}
     PATH_REGEX = re.compile('/(?P<container>[^/]+)(?P<name>.*)')
@@ -265,8 +296,11 @@ class AzureAsyncFS(AsyncFS):
         self._credential = credentials.credential
         self._blob_service_clients: Dict[str, BlobServiceClient] = {}
 
+    def parse_url(self, url: str) -> AzureAsyncFSURL:
+        return AzureAsyncFSURL(*self.get_account_container_and_name(url))
+
     @staticmethod
-    def _get_account_container_name(url: str) -> Tuple[str, str, str]:
+    def get_account_container_and_name(url: str) -> Tuple[str, str, str]:
         parsed = urllib.parse.urlparse(url)
 
         if parsed.scheme != 'hail-az':
@@ -293,12 +327,12 @@ class AzureAsyncFS(AsyncFS):
         return self._blob_service_clients[account]
 
     def get_blob_client(self, url: str) -> BlobClient:
-        account, container, name = AzureAsyncFS._get_account_container_name(url)
+        account, container, name = AzureAsyncFS.get_account_container_and_name(url)
         blob_service_client = self.get_blob_service_client(account)
         return blob_service_client.get_blob_client(container, name)
 
     def get_container_client(self, url: str) -> ContainerClient:
-        account, container, _ = AzureAsyncFS._get_account_container_name(url)
+        account, container, _ = AzureAsyncFS.get_account_container_and_name(url)
         blob_service_client = self.get_blob_service_client(account)
         return blob_service_client.get_container_client(container)
 
@@ -325,7 +359,7 @@ class AzureAsyncFS(AsyncFS):
         return AzureMultiPartCreate(sema, client, num_parts)
 
     async def isfile(self, url: str) -> bool:
-        _, _, name = self._get_account_container_name(url)
+        _, _, name = self.get_account_container_and_name(url)
         # if name is empty, get_object_metadata behaves like list objects
         # the urls are the same modulo the object name
         if not name:
@@ -334,7 +368,7 @@ class AzureAsyncFS(AsyncFS):
         return await self.get_blob_client(url).exists()
 
     async def isdir(self, url: str) -> bool:
-        _, _, name = self._get_account_container_name(url)
+        _, _, name = self.get_account_container_and_name(url)
         assert not name or name.endswith('/'), name
         client = self.get_container_client(url)
         async for _ in client.walk_blobs(name_starts_with=name,
@@ -383,7 +417,7 @@ class AzureAsyncFS(AsyncFS):
                         recursive: bool = False,
                         exclude_trailing_slash_files: bool = True
                         ) -> AsyncIterator[FileListEntry]:
-        _, _, name = self._get_account_container_name(url)
+        _, _, name = self.get_account_container_and_name(url)
         if name and not name.endswith('/'):
             name = f'{name}/'
 

@@ -30,3 +30,4 @@ Hail Tutorials
         Table Joins Tutorial <tutorials/06-joins>
         MatrixTable Tutorial <tutorials/07-matrixtable.ipynb>
         Plotting Tutorial<tutorials/08-plotting.ipynb>
+        GGPlot Tutorial<tutorials/09-ggplot.ipynb>

@@ -109,7 +109,13 @@ object LowerDistributedSort {
 
     val oversamplingNum = 3
     val seed = 7L
-    val defaultBranchingFactor = ctx.getFlag("shuffle_max_branch_factor").toInt
+    val maxBranchingFactor = ctx.getFlag("shuffle_max_branch_factor").toInt
+    val defaultBranchingFactor = if (inputStage.numPartitions < maxBranchingFactor) {
+      Math.max(2, inputStage.numPartitions)
+    } else {
+      maxBranchingFactor
+    }
+
     val sizeCutoff = ctx.getFlag("shuffle_cutoff_to_local_sort").toInt
 
     val (keyToSortBy, _) = inputStage.rowType.select(sortFields.map(sf => sf.field))
@@ -119,6 +125,7 @@ object LowerDistributedSort {
     val initialTmpPath = ctx.createTmpPath("hail_shuffle_temp_initial")
     val writer = PartitionNativeWriter(spec, keyToSortBy.fieldNames, initialTmpPath, None, None)
 
+    log.info("DISTRIBUTED SORT: PHASE 1: WRITE DATA")
     val initialStageDataRow = CompileAndEvaluate[Annotation](ctx, inputStage.mapCollectWithGlobals(relationalLetsAbove) { part =>
       WritePartition(part, UUID4(), writer)
     }{ case (part, globals) =>
@@ -230,6 +237,7 @@ object LowerDistributedSort {
         }
       })
 
+      log.info(s"DISTRIBUTED SORT: PHASE ${i+1}: STAGE 1: SAMPLE VALUES FROM PARTITIONS")
       // Going to check now if it's fully sorted, as well as collect and sort all the samples.
       val pivotsWithEndpointsAndInfoGroupedBySegmentNumber = CompileAndEvaluate[Annotation](ctx, pivotsPerSegmentAndSortedCheck)
         .asInstanceOf[IndexedSeq[Row]].map(x => (x(0).asInstanceOf[IndexedSeq[Row]], x(1).asInstanceOf[Boolean], x(2).asInstanceOf[Row], x(3).asInstanceOf[IndexedSeq[Row]], x(4).asInstanceOf[IndexedSeq[Row]]))
@@ -278,6 +286,7 @@ object LowerDistributedSort {
           MakeTuple.ordered(IndexedSeq(segmentIdx, StreamDistribute(partitionStream, ArrayRef(pivotsWithEndpointsGroupedBySegmentIdx, indexIntoPivotsArray), path, StructCompare(keyToSortBy, keyToSortBy, sortFields.toArray), spec)))
         }
 
+        log.info(s"DISTRIBUTED SORT: PHASE ${i+1}: STAGE 2: DISTRIBUTE")
         val distributeResult = CompileAndEvaluate[Annotation](ctx, distribute)
           .asInstanceOf[IndexedSeq[Row]].map(row => (
           row(0).asInstanceOf[Int],
@@ -335,6 +344,7 @@ object LowerDistributedSort {
       WritePartition(sortedStream, UUID4(), writer)
     }
 
+    log.info(s"DISTRIBUTED SORT: PHASE ${i+1}: LOCALLY SORT FILES")
     val sortedFilenames = CompileAndEvaluate[Annotation](ctx, sortedFilenamesIR).asInstanceOf[IndexedSeq[Row]].map(_(0).asInstanceOf[String])
     val newlySortedSegments = loopState.smallSegments.zip(sortedFilenames).map { case (sr, newFilename) =>
       OutputPartition(sr.indices, sr.interval, IndexedSeq(initialTmpPath + newFilename))
@@ -464,7 +474,7 @@ object LowerDistributedSort {
 
     val joined = StreamJoin(dataWithIdx, structSampleIndices, IndexedSeq("idx"), IndexedSeq(samplingIndexName), leftName, rightName,
       MakeStruct(Seq(("elt", GetField(leftRef, "elt")), ("shouldKeep", ApplyUnaryPrimOp(Bang(), IsNA(rightRef))))),
-      "left")
+      "left", requiresMemoryManagement = true)
 
     // Step 2: Aggregate over joined, figure out how to collect only the rows that are marked "shouldKeep"
     val streamElementType = joined.typ.asInstanceOf[TStream].elementType.asInstanceOf[TStruct]

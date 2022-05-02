@@ -38,7 +38,7 @@ if os.path.exists("/zulip-config/.zuliprc"):
 
 TRACKED_PRS = pc.Gauge('ci_tracked_prs', 'PRs currently being monitored by CI', ['build_state', 'review_state'])
 
-MAX_CONCURRENT_PR_BATCHES = 5
+MAX_CONCURRENT_PR_BATCHES = 3
 
 
 class GithubStatus(Enum):
@@ -259,12 +259,20 @@ class PR(Code):
         row = await db.execute_and_fetchone('SELECT * from authorized_shas WHERE sha = %s;', self.source_sha)
         return row is not None
 
+    def build_succeeding_on_all_platforms(self):
+        return all(gh_status == GithubStatus.SUCCESS for gh_status in self.last_known_github_status.values())
+
+    def build_failed_on_at_least_one_platform(self):
+        return any(gh_status == GithubStatus.FAILURE for gh_status in self.last_known_github_status.values())
+
     def merge_priority(self):
         # passed > unknown > failed
-        if self.source_sha_failed is None:
-            source_sha_failed_prio = 1
+        if self.build_succeeding_on_all_platforms():
+            source_sha_failed_prio = 2
+        elif self.build_failed_on_at_least_one_platform():
+            source_sha_failed_prio = 0
         else:
-            source_sha_failed_prio = 0 if self.source_sha_failed else 2
+            source_sha_failed_prio = 1
 
         return (
             HIGH_PRIORITY in self.labels,
@@ -818,7 +826,7 @@ class WatchedBranch(Code):
         for pr in self.prs.values():
             # merge candidate if up-to-date build passing, or
             # pending but haven't failed
-            if pr.review_state == 'approved' and (pr.build_state == 'success' or not pr.source_sha_failed):
+            if pr.review_state == 'approved' and not pr.build_failed_on_at_least_one_platform():
                 pri = pr.merge_priority()
                 is_authorized = await pr.authorized(db)
                 if is_authorized and (not merge_candidate or pri > merge_candidate_pri):

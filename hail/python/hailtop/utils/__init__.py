@@ -1,6 +1,4 @@
-from .time import (
-    time_msecs, time_msecs_str, humanize_timedelta_msecs, parse_timestamp_msecs,
-    time_ns)
+from .time import time_msecs, time_msecs_str, humanize_timedelta_msecs, parse_timestamp_msecs
 from .utils import (
     unzip, async_to_blocking, blocking_to_async, AsyncWorkerPool,
     bounded_gather, grouped, sync_sleep_and_backoff, sleep_and_backoff, is_transient_error,
@@ -16,7 +14,7 @@ from .utils import (
     retry_all_errors_n_times, Timings)
 from .process import (
     CalledProcessError, check_shell, check_shell_output, check_exec_output,
-    sync_check_shell, sync_check_shell_output)
+    sync_check_shell, sync_check_shell_output, sync_check_exec)
 from .tqdm import tqdm, TqdmDisableOption
 from .rates import (
     rate_cpu_hour_to_mcpu_msec, rate_gib_hour_to_mib_msec, rate_gib_month_to_mib_msec,
@@ -41,6 +39,7 @@ __all__ = [
     'check_exec_output',
     'sync_check_shell',
     'sync_check_shell_output',
+    'sync_check_exec',
     'bounded_gather',
     'grouped',
     'is_transient_error',
@@ -91,5 +90,4 @@ __all__ = [
     'retry_all_errors_n_times',
     'parse_timestamp_msecs',
     'Timings',
-    'time_ns',
 ]

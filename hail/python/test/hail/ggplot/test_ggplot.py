@@ -100,3 +100,10 @@ def test_weighted_bar():
     for idx, y in enumerate(fig.to_plotly().data[0].y):
         assert(y == result[idx])
 
+
+def test_faceting():
+    ht = hl.utils.range_table(10)
+    ht = ht.annotate(x=hl.if_else(ht.idx < 4, "less", "more"))
+    pfig = (ggplot(ht) + geom_point(aes(x=ht.idx, y=ht.idx)) + facet_wrap(vars(ht.x))).to_plotly()
+
+    assert(len(pfig.layout.annotations) == 2)

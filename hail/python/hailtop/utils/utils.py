@@ -1,4 +1,5 @@
-from typing import Callable, TypeVar, Awaitable, Optional, Type, List, Dict, Iterable, Tuple
+from typing import (Callable, TypeVar, Awaitable, Optional, Type, List, Dict, Iterable, Tuple,
+                    Generic, cast)
 from typing_extensions import Literal
 from types import TracebackType
 import concurrent
@@ -159,24 +160,30 @@ async def blocking_to_async(thread_pool: concurrent.futures.Executor,
         thread_pool, lambda: fun(*args, **kwargs))
 
 
-async def bounded_gather(*pfs, parallelism=10, return_exceptions=False):
-    gatherer = AsyncThrottledGather(*pfs,
-                                    parallelism=parallelism,
-                                    return_exceptions=return_exceptions)
+async def bounded_gather(*pfs: Callable[[], Awaitable[T]],
+                         parallelism: int = 10,
+                         return_exceptions: bool = False
+                         ) -> List[T]:
+    gatherer = AsyncThrottledGather[T](*pfs,
+                                       parallelism=parallelism,
+                                       return_exceptions=return_exceptions)
     return await gatherer.wait()
 
 
-class AsyncThrottledGather:
-    def __init__(self, *pfs, parallelism=10, return_exceptions=False):
+class AsyncThrottledGather(Generic[T]):
+    def __init__(self,
+                 *pfs: Callable[[], Awaitable[T]],
+                 parallelism: int = 10,
+                 return_exceptions: bool = False):
         self.count = len(pfs)
         self.n_finished = 0
 
-        self._queue = asyncio.Queue()
+        self._queue: asyncio.Queue[Tuple[int, Callable[[], Awaitable[T]]]] = asyncio.Queue()
         self._done = asyncio.Event()
         self._return_exceptions = return_exceptions
 
-        self._results = [None] * len(pfs)
-        self._errors = []
+        self._results: List[Optional[T]] = [None] * len(pfs)
+        self._errors: List[BaseException] = []
 
         self._workers = []
         for _ in range(parallelism):
@@ -213,7 +220,7 @@ class AsyncThrottledGather:
             if self.n_finished == self.count:
                 self._done.set()
 
-    async def wait(self):
+    async def wait(self) -> List[T]:
         try:
             if self.count > 0:
                 await self._done.wait()
@@ -223,7 +230,7 @@ class AsyncThrottledGather:
         if self._errors:
             raise self._errors[0]
 
-        return self._results
+        return cast(List[T], self._results)
 
 
 class AsyncWorkerPool:
@@ -724,9 +731,9 @@ async def retry_transient_errors(f: Callable[..., Awaitable[T]], *args, **kwargs
             if not is_transient_error(e):
                 raise
             errors += 1
-            if errors % 10 == 0:
+            if errors == 2 or errors % 10 == 0:
                 st = ''.join(traceback.format_stack())
-                log.warning(f'Encountered {errors} errors. My stack trace is {st}. Most recent error was {e}', exc_info=True)
+                log.warning(f'Encountered {errors} errors (current delay: {delay}). My stack trace is {st}. Most recent error was {e}', exc_info=True)
         delay = await sleep_and_backoff(delay)
 
 
@@ -816,8 +823,8 @@ def dump_all_stacktraces():
 async def retry_long_running(name, f, *args, **kwargs):
     delay_secs = 0.1
     while True:
+        start_time = time_msecs()
         try:
-            start_time = time_msecs()
             return await f(*args, **kwargs)
         except asyncio.CancelledError:
             raise
