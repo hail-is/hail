@@ -839,6 +839,7 @@ abstract class SimplePartitionWriter extends PartitionWriter {
       }
       postConsume(cb, os)
 
+      cb += os.invoke[Unit]("flush")
       cb += os.invoke[Unit]("close")
 
       SJavaString.construct(cb, filename)
