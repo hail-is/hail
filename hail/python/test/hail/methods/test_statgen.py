@@ -1170,6 +1170,8 @@ class Tests(unittest.TestCase):
         self.assertTrue(is_constant(results[9]))
         self.assertTrue(is_constant(results[10]))
 
+    @fails_local_backend()
+    @fails_service_backend()
     def test_poisson_regression_max_iterations(self):
         import hail as hl
         mt = hl.utils.range_matrix_table(1, 3)
@@ -1750,6 +1752,8 @@ class Tests(unittest.TestCase):
         except FatalError as err:
             assert 'Failed to fit logistic regression null model (MLE with covariates only): exploded at Newton iteration 37' in err.args[0]
 
+    @fails_local_backend()
+    @fails_service_backend()
     def test_skat_max_iterations_fails_to_converge_in_fewer_than_36_steps(self):
         mt = hl.utils.range_matrix_table(3, 3)
         mt = mt.annotate_cols(y=hl.literal([1, 0, 1])[mt.col_idx])
