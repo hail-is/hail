@@ -279,4 +279,9 @@ class AzureStorageFS(val credentialsJSON: Option[String] = None) extends FS {
       throw new IllegalArgumentException(s"Invalid path, expected hail-az://accountName/containerName/blobPath: $filename")
     filename
   }
+
+  def asCacheable(): CacheableAzureStorageFS = new CacheableAzureStorageFS(credentialsJSON, null)
+}
+
+class CacheableAzureStorageFS(credentialsJSON: Option[String], @transient val sessionID: String) extends AzureStorageFS(credentialsJSON) with ServiceCacheableFS {
 }
