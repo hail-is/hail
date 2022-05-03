@@ -347,8 +347,9 @@ class BatchPoolExecutor:
         name = f'{name}-{secret_alnum_string(4)}'
 
         if asyncio.iscoroutinefunction(unapplied):
+            unapplied_copy = unapplied
             def run_async(*args, **kwargs):
-                return asyncio.run(unapplied(args, **kwargs))
+                return asyncio.run(unapplied_copy(args, **kwargs))
             unapplied = run_async
 
         batch = Batch(name=self.name + '-' + name,

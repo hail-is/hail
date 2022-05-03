@@ -990,8 +990,9 @@ class PythonJob(Job):
             raise BatchException(f'unapplied must be a callable function. Found {type(unapplied)}.')
 
         if asyncio.iscoroutinefunction(unapplied):
+            unapplied_copy = unapplied
             def run_async(*args, **kwargs):
-                return asyncio.run(unapplied(*args, **kwargs))
+                return asyncio.run(unapplied_copy(*args, **kwargs))
             unapplied = run_async
 
         for arg in args:
