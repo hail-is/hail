@@ -69,7 +69,7 @@ def to_dense_mt(vds: 'VariantDataset') -> 'MatrixTable':
 
     dr = dr.annotate(
         _dense=hl.zip(dr._var_entries, dr.dense_ref).map(
-            lambda tuple: coalesce_join(hl.or_missing(tuple[1].END > dr.locus.position, tuple[1]), tuple[0])
+            lambda tuple: coalesce_join(hl.or_missing(tuple[1].END >= dr.locus.position, tuple[1]), tuple[0])
         ),
     )
 
