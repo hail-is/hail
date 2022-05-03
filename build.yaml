@@ -2287,8 +2287,6 @@ steps:
       - upload_query_jar
       - upload_test_resources_to_blob_storage
       - build_hail_jar_and_wheel_only_spark_3_2
-    clouds:
-      - gcp
   - kind: buildImage2
     name: netcat_ubuntu_image
     dockerFile:
