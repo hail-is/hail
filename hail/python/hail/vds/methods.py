@@ -68,9 +68,12 @@ def to_dense_mt(vds: 'VariantDataset') -> 'MatrixTable':
                           .select(*shared_fields, **{f: hl.null(var[f].dtype) for f in var_fields}))
 
     dr = dr.annotate(
-        _dense=hl.zip(dr._var_entries, dr.dense_ref).map(
-            lambda tuple: coalesce_join(hl.or_missing(tuple[1].END >= dr.locus.position, tuple[1]), tuple[0])
-        ),
+        _dense=hl.rbind(dr._ref_entries,
+                        lambda refs_at_this_row: hl.zip_with_index(hl.zip(dr._var_entries, dr.dense_ref)).map(
+                            lambda tuple: coalesce_join(hl.coalesce(refs_at_this_row[tuple[0]],
+                                                                    hl.or_missing(tuple[1][1].END >= dr.locus.position,
+                                                                                  tuple[1][1])), tuple[1][0])
+                        )),
     )
 
     dr = dr._key_by_assert_sorted('locus', 'alleles')
