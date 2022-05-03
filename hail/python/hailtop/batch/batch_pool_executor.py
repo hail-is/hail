@@ -348,7 +348,6 @@ class BatchPoolExecutor:
 
         if asyncio.iscoroutinefunction(unapplied):
             def run_async(*args, **kwargs):
-                import asyncio
                 return asyncio.run(unapplied(args, **kwargs))
             unapplied = run_async
 
