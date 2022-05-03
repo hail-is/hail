@@ -66,6 +66,9 @@ class EmptyReadableStream(ReadableStream):
             return b''
         raise UnexpectedEOFError
 
+    async def _wait_closed(self) -> None:
+        return
+
 
 class WritableStream(abc.ABC):
     def __init__(self):
