@@ -1016,10 +1016,32 @@ steps:
       storage: 10Gi
       cpu: "2"
       memory: standard
+  - kind: buildImage2
+    name: hailgenetics_hailtop_slim_image
+    dockerFile: /io/repo/docker/hailtop/Dockerfile
+    contextPath: /io/repo
+    publishAs: hailgenetics/hailtop-slim
+    inputs:
+      - from: /repo
+        to: /io/repo
+      - from: /hail_version
+        to: /io/repo/hail_version
+    dependsOn:
+      - merge_code
+      - hail_ubuntu_image
+  - kind: runImage
+    name: test_hailgenetics_hailtop_slim_image
+    image:
+      valueFrom: hailgenetics_hailtop_slim_image.image
+    script: |
+      set -ex
+      python3 -c 'import hailtop'
+    dependsOn:
+      - hailgenetics_hailtop_slim_image
   - kind: runImage
     name: upload_test_resources_to_blob_storage
     image:
-      valueFrom: hail_pip_installed_image.image
+      valueFrom: hailgenetics_hailtop_slim_image.image
     script: |
       set -ex
       cd /io/repo/hail/
@@ -1043,7 +1065,7 @@ steps:
         to: /io/repo/hail/python/hail/docs/data
     dependsOn:
       - default_ns
-      - hail_pip_installed_image
+      - hailgenetics_hailtop_slim_image
       - merge_code
   - kind: runImage
     name: test_hail_java
@@ -2190,7 +2212,7 @@ steps:
   - kind: runImage
     name: upload_query_jar
     image:
-      valueFrom: hail_pip_installed_image.image
+      valueFrom: hailgenetics_hailtop_slim_image.image
     script: |
       set -ex
       export GOOGLE_APPLICATION_CREDENTIALS=/batch-gsa-key/key.json
@@ -2220,7 +2242,7 @@ steps:
     dependsOn:
       - default_ns
       - deploy_batch
-      - hail_pip_installed_image
+      - hailgenetics_hailtop_slim_image
       - build_hail_jar_and_wheel_only_spark_3_2
       - merge_code
       - create_test_gsa_keys
@@ -2668,28 +2690,6 @@ steps:
       gsutil --version
     dependsOn:
       - hailgenetics_hail_image
-  - kind: buildImage2
-    name: hailgenetics_hailtop_slim_image
-    dockerFile: /io/repo/docker/hailtop/Dockerfile
-    contextPath: /io/repo
-    publishAs: hailgenetics/hailtop-slim
-    inputs:
-      - from: /repo
-        to: /io/repo
-      - from: /hail_version
-        to: /io/repo/hail_version
-    dependsOn:
-      - merge_code
-      - hail_ubuntu_image
-  - kind: runImage
-    name: test_hailgenetics_hailtop_slim_image
-    image:
-      valueFrom: hailgenetics_hailtop_slim_image.image
-    script: |
-      set -ex
-      python3 -c 'import hailtop'
-    dependsOn:
-      - hailgenetics_hailtop_slim_image
   - kind: runImage
     name: test_hailtop_batch
     numSplits: 5
