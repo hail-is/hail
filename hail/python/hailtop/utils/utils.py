@@ -731,9 +731,15 @@ async def retry_transient_errors(f: Callable[..., Awaitable[T]], *args, **kwargs
             if not is_transient_error(e):
                 raise
             errors += 1
-            if errors == 2 or errors % 10 == 0:
+            if errors == 2:
+                log.warning(f'A transient error occured. We will automatically retry. Do not be alarmed. '
+                            f'We have thus far seen {errors} transient errors (current delay: '
+                            f'{delay}). The most recent error was {e}')
+            elif errors % 10 == 0:
                 st = ''.join(traceback.format_stack())
-                log.warning(f'Encountered {errors} errors (current delay: {delay}). My stack trace is {st}. Most recent error was {e}', exc_info=True)
+                log.warning(f'A transient error occured. We will automatically retry. '
+                            f'We have thus far seen {errors} transient errors (current delay: '
+                            f'{delay}). The stack trace for this call is {st}. The most recent error was {e}', exc_info=True)
         delay = await sleep_and_backoff(delay)
 
 
