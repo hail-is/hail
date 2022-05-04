@@ -200,11 +200,19 @@ dependencies {
 
     bundled 'commons-io:commons-io:2.5'
     bundled(group: 'com.azure', name: 'azure-storage-blob', version: '12.13.0') {
+        exclude group: 'com.fasterxml.jackson'
         exclude group: 'com.fasterxml.jackson.core'
+        exclude group: 'com.fasterxml.jackson.databind'
+        // exclude group: 'com.fasterxml.jackson.dataformat'
+        // exclude group: 'org.codehaus.woodstox'
     }
 
     bundled(group: 'com.azure', name: 'azure-identity', version:'1.2.1') {
+        exclude group: 'com.fasterxml.jackson'
         exclude group: 'com.fasterxml.jackson.core'
+        exclude group: 'com.fasterxml.jackson.databind'
+        // exclude group: 'com.fasterxml.jackson.dataformat'
+        // exclude group: 'org.codehaus.woodstox'
     }
 
     bundled group: 'org.freemarker', name: 'freemarker', version: '2.3.14'
@@ -326,6 +334,7 @@ tasks.withType(ShadowJar) {
     relocate 'com.google.common', 'is.hail.relocated.com.google.common'
     relocate 'org.objectweb', 'is.hail.relocated.org.objectweb'
     relocate 'org.codehaus.jackson', 'is.hail.relocated.org.codehaus.jackson'
+    relocate 'org.codehaus.stax2', 'org.apache.hadoop.shaded.org.codehaus.stax2'
     relocate 'org.apache.commons.lang3', 'is.hail.relocated.org.apache.commons.lang3'
     relocate 'org.apache.commons.io', 'is.hail.relocated.org.apache.commons.io'
     relocate 'com.google.cloud', 'is.hail.relocated.com.google.cloud'
