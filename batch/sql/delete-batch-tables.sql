@@ -4,6 +4,7 @@ DROP PROCEDURE IF EXISTS activate_instance;
 DROP PROCEDURE IF EXISTS deactivate_instance;
 DROP PROCEDURE IF EXISTS mark_instance_deleted;
 DROP PROCEDURE IF EXISTS close_batch;
+DROP PROCEDURE IF EXISTS commit_batch_update;
 DROP PROCEDURE IF EXISTS schedule_job;
 DROP PROCEDURE IF EXISTS unschedule_job;
 DROP PROCEDURE IF EXISTS mark_job_creating;
@@ -38,6 +39,7 @@ DROP TABLE IF EXISTS `aggregated_batch_resources_v2`;
 DROP TABLE IF EXISTS `aggregated_job_resources`;
 DROP TABLE IF EXISTS `aggregated_job_resources_v2`;
 DROP TABLE IF EXISTS `attempt_resources`;
+DROP TABLE IF EXISTS `batch_inst_coll_cancellable_resources_staging`;
 DROP TABLE IF EXISTS `batch_cancellable_resources`;  # deprecated
 DROP TABLE IF EXISTS `batch_inst_coll_cancellable_resources`;
 DROP TABLE IF EXISTS `globals`;
@@ -53,7 +55,9 @@ DROP TABLE IF EXISTS `jobs`;
 DROP TABLE IF EXISTS `batches_cancelled`;
 DROP TABLE IF EXISTS `batches_staging`;  # deprecated
 DROP TABLE IF EXISTS `batches_inst_coll_staging`;
+DROP TABLE IF EXISTS `batch_updates_inst_coll_staging`;
 DROP TABLE IF EXISTS `batches_n_jobs_in_complete_states`;
+DROP TABLE IF EXISTS `batch_updates`;
 DROP TABLE IF EXISTS `batches`;
 DROP TABLE IF EXISTS `user_resources`;  # deprecated
 DROP TABLE IF EXISTS `user_inst_coll_resources`;

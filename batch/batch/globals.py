@@ -19,7 +19,7 @@ memory_types = ('lowmem', 'standard', 'highmem')
 
 HTTP_CLIENT_MAX_SIZE = 8 * 1024 * 1024
 
-BATCH_FORMAT_VERSION = 6
+BATCH_FORMAT_VERSION = 7
 STATUS_FORMAT_VERSION = 5
 INSTANCE_VERSION = 22
 

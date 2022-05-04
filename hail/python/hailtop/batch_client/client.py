@@ -1,3 +1,4 @@
+import abc
 from typing import Optional, Dict, Any
 import asyncio
 
@@ -180,29 +181,8 @@ class Batch:
         async_to_blocking(self._async_batch.delete())
 
 
-class BatchBuilder:
-    @classmethod
-    def from_async_builder(cls, builder: aioclient.BatchBuilder) -> 'BatchBuilder':
-        b = object.__new__(cls)
-        b._async_builder = builder
-        return b
-
-    def __init__(self, client, attributes, callback, token: Optional[str] = None,
-                 cancel_after_n_failures: Optional[int] = None):
-        self._async_builder: aioclient.BatchBuilder = aioclient.BatchBuilder(client, attributes, callback, token,
-                                                                             cancel_after_n_failures)
-
-    @property
-    def attributes(self):
-        return self._async_builder.attributes
-
-    @property
-    def callback(self):
-        return self._async_builder.callback
-
-    @property
-    def token(self):
-        return self._async_builder.token
+class BatchBuilder(abc.ABC):
+    _async_builder: aioclient.BatchBuilder
 
     def create_job(self,
                    image,
@@ -238,12 +218,48 @@ class BatchBuilder:
 
         return Job.from_async_job(async_job)
 
-    def _open_batch(self) -> Batch:
-        async_batch = async_to_blocking(self._async_builder._open_batch())
+
+class CreateBatchBuilder(BatchBuilder):
+    @classmethod
+    def from_async_builder(cls, builder: aioclient.CreateBatchBuilder) -> 'CreateBatchBuilder':
+        b = object.__new__(cls)
+        b._async_builder = builder
+        return b
+
+    def __init__(self, client, attributes, callback, token: Optional[str] = None,
+                 cancel_after_n_failures: Optional[int] = None):
+        self._async_builder: aioclient.CreateBatchBuilder = aioclient.CreateBatchBuilder(client, attributes, callback, token, cancel_after_n_failures)
+
+    @property
+    def attributes(self):
+        return self._async_builder.attributes
+
+    @property
+    def callback(self):
+        return self._async_builder.callback
+
+    @property
+    def token(self):
+        return self._async_builder.token
+
+    def _create_batch(self) -> Batch:
+        async_batch = async_to_blocking(self._async_builder._create_batch())
         return Batch.from_async_batch(async_batch)
 
-    def _close_batch(self, id: int):
-        async_to_blocking(self._async_builder._close_batch(id))
+    def submit(self, *args, **kwargs) -> Batch:
+        async_batch = async_to_blocking(self._async_builder.submit(*args, **kwargs))
+        return Batch.from_async_batch(async_batch)
+
+
+class UpdateBatchBuilder(BatchBuilder):
+    @classmethod
+    def from_async_builder(cls, builder: aioclient.UpdateBatchBuilder) -> 'UpdateBatchBuilder':
+        b = object.__new__(cls)
+        b._async_builder = builder
+        return b
+
+    def __init__(self, client, batch_id: int, update_id=None):
+        self._async_builder: aioclient.UpdateBatchBuilder = aioclient.UpdateBatchBuilder(client, batch_id, update_id)
 
     def submit(self, *args, **kwargs) -> Batch:
         async_batch = async_to_blocking(self._async_builder.submit(*args, **kwargs))
@@ -295,10 +311,17 @@ class BatchClient:
                      callback=None,
                      token=None,
                      cancel_after_n_failures=None
-                     ) -> 'BatchBuilder':
+                     ) -> 'CreateBatchBuilder':
         builder = self._async_client.create_batch(attributes=attributes, callback=callback, token=token,
                                                   cancel_after_n_failures=cancel_after_n_failures)
-        return BatchBuilder.from_async_builder(builder)
+        return CreateBatchBuilder.from_async_builder(builder)
+
+    def update_batch(self,
+                     batch_id,
+                     update_id=None,
+                     ) -> 'UpdateBatchBuilder':
+        builder = self._async_client.update_batch(batch_id, update_id)
+        return UpdateBatchBuilder.from_async_builder(builder)
 
     def get_billing_project(self, billing_project):
         return async_to_blocking(self._async_client.get_billing_project(billing_project))

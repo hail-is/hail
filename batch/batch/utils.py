@@ -153,7 +153,7 @@ LEFT JOIN (
   GROUP BY base_t.billing_project, resource_id
 ) AS usage_t ON usage_t.billing_project = base_t.billing_project
 LEFT JOIN resources ON resources.resource_id = usage_t.resource_id
-GROUP BY base_t.billing_project;
+GROUP BY base_t.billing_project, base_t.status, base_t.users, base_t.`limit`;
 '''
 
     def record_to_dict(record):

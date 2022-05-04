@@ -2070,6 +2070,9 @@ steps:
       - name: populate-batch-updates
         script: /io/sql/populate_batch_updates.py
         online: true
+      - name: add-open-batches
+        script: /io/sql/add-open-batches.sql
+        online: true
     inputs:
       - from: /repo/batch/sql
         to: /io/sql

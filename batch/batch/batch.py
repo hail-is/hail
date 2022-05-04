@@ -12,6 +12,12 @@ log = logging.getLogger('batch')
 
 
 def batch_record_to_dict(record):
+    # backwards compatibility
+    if record['n_updates'] != 0:
+        n_jobs = record['n_committed_jobs']
+    else:
+        n_jobs = record['n_jobs']
+
     if record['state'] == 'open':
         state = 'open'
     elif record['n_failed'] > 0:
@@ -19,7 +25,7 @@ def batch_record_to_dict(record):
     elif record['cancelled'] or record['n_cancelled'] > 0:
         state = 'cancelled'
     elif record['state'] == 'complete':
-        assert record['n_succeeded'] == record['n_jobs']
+        assert record['n_succeeded'] == n_jobs, record
         state = 'success'
     else:
         state = 'running'
@@ -29,12 +35,20 @@ def batch_record_to_dict(record):
             return time_msecs_str(t)
         return None
 
+    if record['time_completed']:
+        time_updated = record['time_completed']
+    elif record['time_updated']:
+        time_updated = record['time_updated']
+    else:
+        time_updated = record['time_created']
+
     time_created = _time_msecs_str(record['time_created'])
     time_closed = _time_msecs_str(record['time_closed'])
+    time_updated_str = _time_msecs_str(time_updated)
     time_completed = _time_msecs_str(record['time_completed'])
 
-    if record['time_closed'] and record['time_completed']:
-        duration = humanize_timedelta_msecs(record['time_completed'] - record['time_closed'])
+    if record['time_created'] and record['time_completed']:
+        duration = humanize_timedelta_msecs(record['time_completed'] - record['time_created'])
     else:
         duration = None
 
@@ -45,14 +59,16 @@ def batch_record_to_dict(record):
         'token': record['token'],
         'state': state,
         'complete': record['state'] == 'complete',
-        'closed': record['state'] != 'open',
-        'n_jobs': record['n_jobs'],
+        'closed': record['state'] != 'open',  # deprecated
+        'n_updates_in_progress': record['n_updates_in_progress'],
+        'n_jobs': n_jobs,
         'n_completed': record['n_completed'],
         'n_succeeded': record['n_succeeded'],
         'n_failed': record['n_failed'],
         'n_cancelled': record['n_cancelled'],
         'time_created': time_created,
-        'time_closed': time_closed,
+        'time_closed': time_closed,  # deprecated
+        'time_updated': time_updated_str,
         'time_completed': time_completed,
         'duration': duration,
         'msec_mcpu': record['msec_mcpu'],

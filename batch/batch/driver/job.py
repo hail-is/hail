@@ -32,31 +32,55 @@ log = logging.getLogger('job')
 async def notify_batch_job_complete(db: Database, client_session: httpx.ClientSession, batch_id):
     record = await db.select_and_fetchone(
         '''
-SELECT batches.*, COALESCE(SUM(`usage` * rate), 0) AS cost, batches_cancelled.id IS NOT NULL AS cancelled, batches_n_jobs_in_complete_states.n_completed, batches_n_jobs_in_complete_states.n_succeeded, batches_n_jobs_in_complete_states.n_failed, batches_n_jobs_in_complete_states.n_cancelled
+WITH base_t AS (
+SELECT batches.*,
+  batches_cancelled.id IS NOT NULL AS cancelled,
+  batches_n_jobs_in_complete_states.n_completed,
+  batches_n_jobs_in_complete_states.n_succeeded,
+  batches_n_jobs_in_complete_states.n_failed,
+  batches_n_jobs_in_complete_states.n_cancelled,
 FROM batches
 LEFT JOIN batches_n_jobs_in_complete_states
   ON batches.id = batches_n_jobs_in_complete_states.id
-LEFT JOIN (
-  SELECT batch_id, resource_id, CAST(COALESCE(SUM(`usage`), 0) AS SIGNED) AS `usage`
-  FROM aggregated_batch_resources_v2
-  WHERE batch_id = %s
-  GROUP BY batch_id, resource_id
-) AS abr
-  ON batches.id = abr.batch_id
-LEFT JOIN resources
-  ON abr.resource_id = resources.resource_id
 LEFT JOIN batches_cancelled
   ON batches.id = batches_cancelled.id
-WHERE batches.id = %s AND NOT deleted AND callback IS NOT NULL AND
-   batches.`state` = 'complete'
-GROUP BY batches.id;
+WHERE batches.id = %s AND NOT deleted AND callback IS NOT NULL
+)
+SELECT base_t.*, cost_t.cost, updates_t.n_committed_jobs, updates_t.n_updates_in_progress
+FROM base_t
+LEFT JOIN (
+  SELECT batch_id, COALESCE(SUM(`usage` * rate), 0) AS cost
+  FROM (
+    SELECT aggregated_batch_resources_v2.batch_id, resource, COALESCE(SUM(`usage`), 0) AS usage
+    FROM base_t
+    LEFT JOIN aggregated_batch_resources_v2 ON base_t.id = aggregated_batch_resources_v2.batch_id
+    GROUP BY batch_id, resource
+  ) AS usage_t ON base_t.id = usage_t.batch_id
+  LEFT JOIN resources ON usage_t.resource_id = resources.resource_id
+  GROUP BY batch_id
+) AS cost_t ON base_t.id = cost_t.batch_id
+LEFT JOIN (
+  SELECT batch_updates.id,
+    CAST(COALESCE(SUM(1), 0) AS SIGNED) AS n_updates,
+    CAST(COALESCE(SUM(IF(batch_updates.committed, batch_updates.n_jobs, 0)), 0) AS SIGNED) AS n_committed_jobs,
+    CAST(COALESCE(SUM(NOT batch_updates.committed), 0) AS SIGNED) AS n_updates_in_progress
+  FROM base_t
+  LEFT JOIN batch_updates ON batches.id = batch_updates.id
+  GROUP BY batch_updates.id
+) AS updates_t ON base_t.id = updates_t.id;
 ''',
-        (batch_id, batch_id),
+        (batch_id,),
         'notify_batch_job_complete',
     )
 
     if not record:
         return
+
+    if record['state'] != 'complete' or (
+        record['n_updates_in_progress'] > 0 or record['n_completed'] != record['n_committed_jobs']
+    ):
+        return
+
     callback = record['callback']
 
     log.info(f'making callback for batch {batch_id}: {callback}')

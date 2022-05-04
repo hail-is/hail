@@ -105,7 +105,14 @@ batch_validator = keyed(
         'callback': nullable(str_type),
         required('n_jobs'): int_type,
         required('token'): str_type,
+        'update_id': str_type,
         'cancel_after_n_failures': nullable(numeric(**{"x > 0": lambda x: isinstance(x, int) and x > 0})),
+    }
+)
+
+batch_update_validator = keyed(
+    {
+        required('n_jobs'): int_type,
     }
 )
 
@@ -188,3 +195,7 @@ def handle_job_backwards_compatibility(job):
 
 def validate_batch(batch):
     batch_validator.validate('batch', batch)
+
+
+def validate_batch_update(update):
+    batch_update_validator.validate('batch_update', update)
