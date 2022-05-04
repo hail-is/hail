@@ -668,6 +668,8 @@ def is_transient_error(e):
         return e.status == 500 and 'Client.Timeout exceeded while awaiting headers' in e.message
     if isinstance(e, TransientError):
         return True
+    if isinstance(e, concurrent.futures._base.TimeoutError):
+        return True
     return False
 
 
