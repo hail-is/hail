@@ -33,6 +33,7 @@
 
         {% if userdata['is_developer'] == 1 %}
         <a class="header-dropdown-menu-link" href="{{ batch_driver_base_url }}/user_resources">User Resources</a>
+        <a class="header-dropdown-menu-link" href="{{ batch_driver_base_url }}/quotas">Quotas</a>
         {% endif %}
         <a class="header-dropdown-menu-link" href="{{ www_base_url }}/docs/batch/">Docs</a>
       </div>
@@ -75,7 +76,7 @@
         <a class="header-dropdown-menu-link" href="{{ grafana_base_url }}">Grafana</a>
         <a target="_blank" class="header-dropdown-menu-link" href="https://console.cloud.google.com/logs">
           Log Viewer<i class="material-icons text-icon">open_in_new</i>
-	      </a>
+        </a>
         <a class="header-dropdown-menu-link" href="{{ monitoring_base_url }}/billing">Billing</a>
       </div>
     </div>
@@ -103,7 +104,7 @@
   </a>
   |
   <form action="{{ auth_base_url }}/logout" method="POST">
-    <input type="hidden" name="_csrf" value="{{ csrf_token }}"/>
+    <input type="hidden" name="_csrf" value="{{ csrf_token }}" />
     <button class="button-header-link" type="submit">
       Log out
     </button>

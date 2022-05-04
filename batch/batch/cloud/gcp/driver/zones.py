@@ -74,6 +74,10 @@ class ZoneMonitor(CloudLocationMonitor):
 
         self.zone_success_rate = ZoneSuccessRate()
 
+    @property
+    def region_quotas(self):
+        return self._region_info    
+
     def default_location(self) -> str:
         return self._default_zone
 

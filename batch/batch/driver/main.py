@@ -7,10 +7,10 @@ from collections import defaultdict, namedtuple
 from functools import wraps
 from typing import Dict, List
 
+import plotly
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import pandas as pd
-import plotly
 
 import aiohttp_session
 import dictdiffer
@@ -401,87 +401,83 @@ FROM user_inst_coll_resources;
         'frozen': app['frozen'],
     }
     return await render_template('batch-driver', request, userdata, 'index.html', page_context)
+
+
 @routes.get('/quotas')
 @web_authenticated_developers_only()
 async def get_quotas(request, userdata):
-    df = pd.DataFrame([
-        {
-        'region':'us-east1',
-        'CPUS': {
-        'limit': 2400, 
-        'usage': 0,
-                },
-        'SSD_TOTAL_GB': {
-            'limit': 81920, 
-            'usage': 0,
-                },
-        'LOCAL_SSD_TOTAL_GB': {
-            'limit': 300000, 
-            'usage': 0,
-                }  
-        },
-                {
-        'region':'us-central1',
-        'CPUS': {
-            'limit': 2400, 
-            'usage': 221,
-                    },
-        'SSD_TOTAL_GB': {
-            'limit': 625000, 
-            'usage': 1450,
-                    },
-        'LOCAL_SSD_TOTAL_GB': {
-            'limit': 150000, 
-            'usage': 21375,
-                    }
-                }
-        ]
+    if CLOUD != 'gcp':
+        page_context = {"plot_json": None}
+        return await render_template('batch-driver', request, userdata, 'quotas.html', page_context)
 
-    ).set_index("region")
+    data = request.app['driver'].get_regions()
 
-    regions = df.keys()
-    regions = list(regions)
+    regions = list(data.keys())
+    new_data = []
+    for region in regions:
+        region_data = {'region': region}
+        quotas_region_data = data[region]['quotas']
+        for quota in quotas_region_data:
+            if quota['metric'] in ['CPUS', 'SSD_TOTAL_GB', 'LOCAL_SSD_TOTAL_GB']:
+                region_data.update({quota['metric']: {'limit': quota['limit'], 'usage': quota['usage']}})
+        new_data.append(region_data)
+
+    df = pd.DataFrame(new_data).set_index("region")
 
     fig = make_subplots(
         rows=len(df),
         cols=len(df.columns),
         specs=[[{"type": "indicator"} for c in df.columns] for t in df.index],
     )
-
     for r, (region, row) in enumerate(df.iterrows()):
-        # print(region)
         for c, measure in enumerate(row):
-            print(c)
-            print(measure)
             fig.add_trace(
                 go.Indicator(
-                    mode="gauge+number", 
-                    value= measure['usage'], 
-                    title={"text":f"{region}- {df.columns[c]}"},
-                    gauge = {
-                        'axis': {'range': [None, measure['limit']+ 1], 'tickwidth': 1, 'tickcolor': "darkblue"},
-                        'bar': {'color': 'RebeccaPurple'},
-                        'bgcolor': "gray",
+                    mode="gauge+number",
+                    value=measure['usage'],
+                    title={"text": f"{region}--{df.columns[c]}"},
+                    title_font_size=15,
+                    gauge={
+                        'axis': {
+                            'range': [None, measure['limit']],
+                            'tickwidth': 1,
+                            'tickcolor': "darkblue",
+                        },
+                        'bar': {
+                            'color': "darkblue"
+                        },
+                        'bgcolor': "white",
                         'borderwidth': 2,
-                        'bordercolor': "lightgray",
+                        'bordercolor': "gray",
                         'threshold': {
-                            'line': {'color': "red", 'width': 4},
+                            'line': {
+                                'color': "red",
+                                'width': 4
+                            },
                             'thickness': 0.75,
-                            'value':  measure['limit']}}),
+                            'value': measure['limit']
+                        }
+                    }),
                 row=r + 1,
                 col=c + 1,
             )
 
-    fig.update_layout(margin={"l": 50, "r": 50, "t": 50, "b": 50},
-                    height = 600,
-                    width = 1000,
-                    autosize = False,
-                    title="Data by Region", 
-                    title_x=0.5)
+    fig.update_layout(
+        paper_bgcolor="lavender",
+        font={'color': "darkblue", 'family': "Arial"},
+        margin={"l": 50, "r": 50, "t": 150, "b": 50},
+        height=650,
+        width=1000,
+        autosize=False,
+        title="Data by Region",
+        title_font_size=40,
+        title_x=0.5)
+
     plot_json = json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
 
-    page_context ={"plot_json": plot_json}
+    page_context = {"plot_json": plot_json}
     return await render_template('batch-driver', request, userdata, 'quotas.html', page_context)
+
 
 class ConfigError(Exception):
     pass
