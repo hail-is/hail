@@ -656,6 +656,7 @@ class Container:
         self._run_fut = asyncio.ensure_future(self._run_until_done_or_deleted(_run))
         if self.checkpointable:
             self.task_manager.ensure_future(periodically_call(10, self.checkpoint_jobs))
+            # self.task_manager.ensure_future(self.checkpoint_jobs())
 
     async def wait(self):
         assert self._run_fut
@@ -787,26 +788,28 @@ class Container:
             await self.netns.expose_port(self.port, self.host_port)
 
     async def checkpoint_jobs(self):
-        # try:
-        #     log.info(f'Starting crun checkpoint process for {self}')
-        #     checkpoint_process = await asyncio.create_subprocess_exec(
-        #         'crun', 'checkpoint', '--tcp-established', '--image-path=/root/checkpoint', self.name
-        #     )
-        # except:
-        #     log.exception("CREATING CHECKPOINT PROCESS FAILED")
+        try:
+            log.info(f'Starting crun checkpoint process for {self}')
+            checkpoint_process = await asyncio.create_subprocess_exec(
+                'crun', 'checkpoint', '--leave-running', f'--image-path={self.container_scratch}/checkpoint/', self.name
+            )
+            log.info("CREATING CHECKPOINT PROCESS SUCCEEDED")
+        except:
+            log.exception("CREATING CHECKPOINT PROCESS FAILED")
 
-        # try:
-        #     await checkpoint_process.wait()
-        # except:
-        #     log.exception("CHECKPOINTING FAILED")
+        try:
+            await checkpoint_process.wait()
+            log.info("CHECKPOINTING PROCESS EXECUTION SUCCEEDED")
+        except:
+            log.exception("CHECKPOINTING PROCESS EXECUTION FAILED")
 
-        # log.info(f'copying checkpoint into blob storage for {self}')
-        # await self.fs.copy('/root/checkpoint', f'{BATCH_LOGS_STORAGE_URI}/vedant/checkpoint')
+        log.info(f'copying checkpoint into blob storage for {self}')
+        # TODO: change BATCH_LOGS_STORAGE_URI to be the proper bucket for storing checkpoints
+        await self.fs.copy(f'{self.container_scratch}/checkpoint/', f'{BATCH_LOGS_STORAGE_URI}/vedant/{self.name}')
         # # await self.fs.copy('/root/checkpoint', 'gs://vrautela-test-data/tmp/checkpoint')
         # log.info('done copying checkpoint')
 
-        # log.info(f'crun checkpoint completed for {self}')
-        pass
+        log.info(f'crun checkpoint completed for {self}')
 
     async def _run_container(self) -> bool:
         self.started_at = time_msecs()
@@ -825,8 +828,10 @@ class Container:
                         self.container_bundle_path,
                         self.name,
                         stdin=stdin,
-                        stdout=container_log,
-                        stderr=container_log,
+                        stdout=None,
+                        stderr=None
+                        # stdout=container_log,
+                        # stderr=container_log,
                     )
 
                     if self.stdin is not None:
