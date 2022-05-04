@@ -54,7 +54,7 @@ object GoogleStorageFileStatus {
 class GoogleStorageFS(val serviceAccountKey: Option[String] = None) extends FS {
   import GoogleStorageFS._
 
-  @transient private lazy val storage: Storage = {
+  private lazy val storage: Storage = {
     val transportOptions = StorageOptions.getDefaultHttpTransportOptions().toBuilder()
       .setConnectTimeout(5000)
       .setReadTimeout(5000)
