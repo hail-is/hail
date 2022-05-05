@@ -26,7 +26,7 @@ class BackendUtils(mods: Array[(String, (HailClassLoader, FS, Int, Region) => Ba
 
     if (contexts.length == 0)
       Array.empty[Array[Byte]]
-    else if (contexts.length == 1) {
+    else if (contexts.length == 1 && backend.canExecuteParallelTasksOnDriver) {
       RegionPool.scoped { rp =>
         rp.scopedRegion { r =>
           Array(f(theDriverHailClassLoader, fs, 0, r)(r, contexts(0), globals))
