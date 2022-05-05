@@ -232,10 +232,9 @@ object LowerDistributedSort {
               bindIR(ArrayLen(sortedOversampling)) { numSamples =>
                 val sortedSampling = bindIR(
                   /* calculate a 'good' branch factor based on part sizes */
-                  UtilFunctions.intMax(
-                    I32(2),
+                  UtilFunctions.intMax(I32(2),
                     UtilFunctions.intMin(
-                      I32(defaultBranchingFactor),
+                      UtilFunctions.intMin(numSamples, I32(defaultBranchingFactor)),
                       (I64(2L) * (GetField(aggResults, "byteSize").floorDiv(I64(sizeCutoff)))).toI))
                 ) { branchingFactor =>
                   ToArray(mapIR(StreamRange(I32(1), branchingFactor, I32(1))) { idx =>
