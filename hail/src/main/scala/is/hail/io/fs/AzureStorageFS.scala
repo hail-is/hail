@@ -97,9 +97,9 @@ class AzureStorageFS(val credentialsJSON: Option[String] = None) extends FS {
         case json4s.JObject(values) => values.toMap
       }
 
-      val appId = kvs("appId").asInstanceOf[json4s.JString].s
-      val password = kvs("password").asInstanceOf[json4s.JString].s
-      val tenant = kvs("tenant").asInstanceOf[json4s.JString].s
+      val appId = (kvs \ "appId")
+      val password = (kvs \ "password")
+      val tenant = (kvs \ "tenant")
 
       val clientSecretCredential: ClientSecretCredential = new ClientSecretCredentialBuilder()
         .clientId(appId)
@@ -131,7 +131,7 @@ class AzureStorageFS(val credentialsJSON: Option[String] = None) extends FS {
     val is: SeekableInputStream = new FSSeekableInputStream {
       private[this] val client: BlobClient = blobClient
 
-      def fill(): Unit = {
+      override def fill(): Int = {
         bb.clear()
 
         val outputStreamToBuffer: OutputStream = (i: Int) => {
@@ -256,7 +256,9 @@ class AzureStorageFS(val credentialsJSON: Option[String] = None) extends FS {
     val isDir = prefixMatches.iterator().hasNext
 
     val filename = dropTrailingSlash(s"hail-az://$account/$container/$path")
-    if (!isDir && !blobClient.exists()) throw new FileNotFoundException(s"File not found: $filename")
+    if (!isDir && !blobClient.exists()) {
+      throw new FileNotFoundException(s"File not found: $filename")
+    }
 
     if (isDir) {
       new BlobStorageFileStatus(path = filename, null, 0, isDir = true)

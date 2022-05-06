@@ -93,7 +93,7 @@ class GoogleStorageFS(val serviceAccountKey: Option[String] = None) extends FS {
         }
       }
 
-      override def fill(): Unit = {
+      override def fill(): Int = {
         bb.clear()
 
         // read some bytes
@@ -101,13 +101,13 @@ class GoogleStorageFS(val serviceAccountKey: Option[String] = None) extends FS {
         while (n == 0) {
           n = reader.read(bb)
           if (n == -1) {
-            eof = true
-            return
+            return -1
           }
         }
         bb.flip()
 
         assert(bb.position() == 0 && bb.remaining() > 0)
+        return n
       }
 
       def seek(newPos: Long): Unit = {

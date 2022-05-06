@@ -214,6 +214,26 @@ trait FSSuite {
     assert(!fs.exists(f))
   }
 
+  @Test def testWritePreexisting(): Unit = {
+    val s1 = "first"
+    val s2 = "second"
+    val f = t()
+
+    using(fs.create(f)) { _.write(s1.getBytes) }
+    assert(fs.exists(f))
+    using(fs.open(f)) { is =>
+      val read = new String(IOUtils.toByteArray(is))
+      assert(read == s1)
+    }
+
+    using(fs.create(f)) { _.write(s2.getBytes) }
+    assert(fs.exists(f))
+    using(fs.open(f)) { is =>
+      val read = new String(IOUtils.toByteArray(is))
+      assert(read == s2)
+    }
+  }
+
   @Test def testGetCodecExtension(): Unit = {
     assert(fs.getCodecExtension("foo.vcf.bgz") == ".bgz")
   }

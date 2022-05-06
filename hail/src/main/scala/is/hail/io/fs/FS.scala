@@ -110,20 +110,21 @@ object FSUtil {
 abstract class FSSeekableInputStream extends InputStream with Seekable {
   protected[this] var closed: Boolean = false
   protected[this] var pos: Long = 0
-  protected[this] var eof: Boolean = false
+  private[this] var eof: Boolean = false
 
   protected[this] val bb: ByteBuffer = ByteBuffer.allocate(64 * 1024)
   bb.limit(0)
 
-  def fill(): Unit
+  def fill(): Int
 
   override def read(): Int = {
     if (eof)
       return -1
 
     if (bb.remaining() == 0) {
-      fill()
-      if (eof)
+      val nRead = fill()
+      if (nRead == -1)
+        eof = true
         return -1
     }
 
@@ -136,9 +137,11 @@ abstract class FSSeekableInputStream extends InputStream with Seekable {
       return -1
 
     if (bb.remaining() == 0) {
-      fill()
-      if (eof)
+      val nRead = fill()
+      if (nRead == -1) {
+        eof = true
         return -1
+      }
     }
 
     val toTransfer = math.min(len, bb.remaining())
