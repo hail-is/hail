@@ -655,7 +655,7 @@ class Container:
 
         self._run_fut = asyncio.ensure_future(self._run_until_done_or_deleted(_run))
         if self.checkpointable:
-            self.task_manager.ensure_future(periodically_call(10, self.checkpoint_jobs))
+            self.task_manager.ensure_future(periodically_call(10, self.checkpoint))
 
     async def wait(self):
         assert self._run_fut
@@ -786,25 +786,17 @@ class Container:
             self.host_port = await port_allocator.allocate()
             await self.netns.expose_port(self.port, self.host_port)
 
-    async def checkpoint_jobs(self):
-        try:
-            log.info(f'Starting crun checkpoint process for {self}')
-            checkpoint_process = await asyncio.create_subprocess_exec(
-                'crun', 'checkpoint', '--leave-running', f'--image-path={self.container_scratch}/checkpoint/', self.name
-            )
-            log.info("CREATING CHECKPOINT PROCESS SUCCEEDED")
-        except:
-            log.exception("CREATING CHECKPOINT PROCESS FAILED")
+    async def checkpoint(self):
+        log.info(f'Starting crun checkpoint process for {self}')
+        checkpoint_process = await asyncio.create_subprocess_exec(
+            'crun', 'checkpoint', '--leave-running', f'--image-path={self.container_scratch}/checkpoint/', self.name
+        )
 
-        try:
-            await checkpoint_process.wait()
-            log.info("CHECKPOINTING PROCESS EXECUTION SUCCEEDED")
-        except:
-            log.exception("CHECKPOINTING PROCESS EXECUTION FAILED")
-
-        log.info(f'copying checkpoint into blob storage for {self}')
+        await checkpoint_process.wait()
 
         # FIXME: make copy overwriting instead of deleting the path to the checkpoint if it exists
+        # currently if a job succeeds, there will be no checkpoint in cloud storage since checkpoint is
+        # run in a loop every 10 seconds and the container_scratch directory is deleted on job success
         await self.fs.rmtree(None, f'{BATCH_LOGS_STORAGE_URI}/vedant/{self.name}')
 
         # TODO: change BATCH_LOGS_STORAGE_URI to be the proper bucket for storing checkpoints
@@ -825,22 +817,29 @@ class Container:
 
                     stdin = asyncio.subprocess.PIPE if self.stdin else None
 
-                    try:
-                        restore_dir = f'{self.container_scratch}/restore'
-                        await self.fs.copy(self.get_remote_checkpoint_dir_url(), restore_dir)
-                        self.process = await asyncio.create_subprocess_exec(
-                            'crun',
-                            'restore',
-                            '--bundle',
-                            self.container_bundle_path,
-                            '--image-path',
-                            restore_dir,
-                            self.name,
-                            stdin=stdin,
-                            stdout=None,
-                            stderr=None,
-                        )
-                    except FileNotFoundError:
+                    assert self.process is None
+                    if self.checkpointable:
+                        try:
+                            restore_dir = f'{self.container_scratch}/restore'
+                            await self.fs.copy(self.get_remote_checkpoint_dir_url(), restore_dir)
+                            self.process = await asyncio.create_subprocess_exec(
+                                'crun',
+                                'restore',
+                                '--bundle',
+                                self.container_bundle_path,
+                                '--image-path',
+                                restore_dir,
+                                self.name,
+                                stdin=stdin,
+                                stdout=None,
+                                stderr=None,
+                            )
+                        except FileNotFoundError:
+                            pass
+                        except:
+                            log.exception("NOT WHAT I WAS EXPECTING")
+
+                    if self.process is None:
                         self.process = await asyncio.create_subprocess_exec(
                             'crun',
                             'run',
@@ -853,8 +852,6 @@ class Container:
                             # stdout=container_log,
                             # stderr=container_log,
                         )
-                    except:
-                        log.exception("NOT WHAT I WAS EXPECTING")
 
                     if self.stdin is not None:
                         await self.process.communicate(self.stdin.encode('utf-8'))
