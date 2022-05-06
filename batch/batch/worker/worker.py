@@ -656,7 +656,6 @@ class Container:
         self._run_fut = asyncio.ensure_future(self._run_until_done_or_deleted(_run))
         if self.checkpointable:
             self.task_manager.ensure_future(periodically_call(10, self.checkpoint_jobs))
-            # self.task_manager.ensure_future(self.checkpoint_jobs())
 
     async def wait(self):
         assert self._run_fut
@@ -804,10 +803,12 @@ class Container:
             log.exception("CHECKPOINTING PROCESS EXECUTION FAILED")
 
         log.info(f'copying checkpoint into blob storage for {self}')
+
+        # FIXME: make copy overwriting instead of deleting the path to the checkpoint if it exists
+        await self.fs.rmtree(None, f'{BATCH_LOGS_STORAGE_URI}/vedant/{self.name}')
+
         # TODO: change BATCH_LOGS_STORAGE_URI to be the proper bucket for storing checkpoints
         await self.fs.copy(f'{self.container_scratch}/checkpoint/', f'{BATCH_LOGS_STORAGE_URI}/vedant/{self.name}')
-        # # await self.fs.copy('/root/checkpoint', 'gs://vrautela-test-data/tmp/checkpoint')
-        # log.info('done copying checkpoint')
 
         log.info(f'crun checkpoint completed for {self}')
 
