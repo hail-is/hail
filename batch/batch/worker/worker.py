@@ -808,9 +808,12 @@ class Container:
         await self.fs.rmtree(None, f'{BATCH_LOGS_STORAGE_URI}/vedant/{self.name}')
 
         # TODO: change BATCH_LOGS_STORAGE_URI to be the proper bucket for storing checkpoints
-        await self.fs.copy(f'{self.container_scratch}/checkpoint/', f'{BATCH_LOGS_STORAGE_URI}/vedant/{self.name}')
+        await self.fs.copy(f'{self.container_scratch}/checkpoint/', self.get_remote_checkpoint_dir_url())
 
         log.info(f'crun checkpoint completed for {self}')
+
+    def get_remote_checkpoint_dir_url(self):
+        return f'{BATCH_LOGS_STORAGE_URI}/vedant/{self.name}'
 
     async def _run_container(self) -> bool:
         self.started_at = time_msecs()
@@ -822,18 +825,36 @@ class Container:
 
                     stdin = asyncio.subprocess.PIPE if self.stdin else None
 
-                    self.process = await asyncio.create_subprocess_exec(
-                        'crun',
-                        'run',
-                        '--bundle',
-                        self.container_bundle_path,
-                        self.name,
-                        stdin=stdin,
-                        stdout=None,
-                        stderr=None
-                        # stdout=container_log,
-                        # stderr=container_log,
-                    )
+                    try:
+                        restore_dir = f'{self.container_scratch}/restore'
+                        await self.fs.copy(self.get_remote_checkpoint_dir_url(), restore_dir)
+                        self.process = await asyncio.create_subprocess_exec(
+                            'crun',
+                            'restore',
+                            '--bundle',
+                            self.container_bundle_path,
+                            '--image-path',
+                            restore_dir,
+                            self.name,
+                            stdin=stdin,
+                            stdout=None,
+                            stderr=None,
+                        )
+                    except FileNotFoundError:
+                        self.process = await asyncio.create_subprocess_exec(
+                            'crun',
+                            'run',
+                            '--bundle',
+                            self.container_bundle_path,
+                            self.name,
+                            stdin=stdin,
+                            stdout=None,
+                            stderr=None
+                            # stdout=container_log,
+                            # stderr=container_log,
+                        )
+                    except:
+                        log.exception("NOT WHAT I WAS EXPECTING")
 
                     if self.stdin is not None:
                         await self.process.communicate(self.stdin.encode('utf-8'))
