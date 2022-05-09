@@ -2,7 +2,7 @@ from typing import Collection, List, Optional, Set
 
 import hail as hl
 from hail import MatrixTable, Table
-from hail.ir import Apply, TableMapRows, TopLevelReference
+from hail.ir import Apply, TableMapRows
 from hail.experimental.vcf_combiner.vcf_combiner import combine_gvcfs, localize, parse_as_fields, unlocalize
 from ..variant_dataset import VariantDataset
 
@@ -89,7 +89,7 @@ def make_variants_matrix_table(mt: MatrixTable,
             mt.row.dtype)
         _transform_variant_function_map[mt.row.dtype, info_key] = f
     transform_row = _transform_variant_function_map[mt.row.dtype, info_key]
-    return unlocalize(Table(TableMapRows(mt._tir, Apply(transform_row._name, transform_row._ret_type, TopLevelReference('row')))))
+    return unlocalize(Table(TableMapRows(mt._tir, Apply(transform_row._name, transform_row._ret_type, mt.row._ir))))
 
 
 def defined_entry_fields(mt: MatrixTable, sample=None) -> Set[str]:
@@ -137,7 +137,7 @@ def make_reference_matrix_table(mt: MatrixTable,
         _transform_reference_fuction_map[mt.row.dtype, entry_key] = f
 
     transform_row = _transform_reference_fuction_map[mt.row.dtype, entry_key]
-    return unlocalize(Table(TableMapRows(mt._tir, Apply(transform_row._name, transform_row._ret_type, TopLevelReference('row')))))
+    return unlocalize(Table(TableMapRows(mt._tir, Apply(transform_row._name, transform_row._ret_type, mt.row._ir))))
 
 
 def transform_gvcf(mt: MatrixTable,
@@ -208,8 +208,8 @@ def combine_r(ts):
     merge_function = _merge_function_map[(ts.row.dtype, ts.globals.dtype)]
     ts = Table(TableMapRows(ts._tir, Apply(merge_function._name,
                                            merge_function._ret_type,
-                                           TopLevelReference('row'),
-                                           TopLevelReference('global'))))
+                                           ts.row._ir,
+                                           ts.globals._ir)))
     return ts.transmute_globals(__cols=hl.flatten(ts.g.map(lambda g: g.__cols)))
 
 

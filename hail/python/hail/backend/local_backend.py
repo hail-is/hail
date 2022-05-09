@@ -13,6 +13,7 @@ from hail.expr.blockmatrix_type import tblockmatrix
 from hail.expr.matrix_type import tmatrix
 from hail.expr.table_type import ttable
 from hail.expr.types import dtype
+from hail.ir import Let, RNGStateLiteral, finalize_randomness
 from hail.ir.renderer import CSERenderer
 from hail.utils.java import scala_package_object, scala_object
 from .py4j_backend import Py4JBackend, handle_java_exception
@@ -206,7 +207,7 @@ class LocalBackend(Py4JBackend):
         if not hasattr(ir, '_jir'):
             r = CSERenderer(stop_at_jir=True)
             # FIXME parse should be static
-            ir._jir = parse(r(ir), ir_map=r.jirs)
+            ir._jir = parse(r(finalize_randomness(ir)), ir_map=r.jirs)
         return ir._jir
 
     def _to_java_value_ir(self, ir):

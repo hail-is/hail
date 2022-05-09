@@ -1,9 +1,22 @@
 from typing import Optional
 import hail as hl
-from hail.expr.types import dtype
+from hail.expr.types import dtype, tint64, trngstate
 from hail.ir.base_ir import BaseIR, TableIR
+import hail.ir.ir as ir
+from hail.ir.utils import modify_deep_field
+from hail.ir.ir import uid_field_name, rng_key, unify_uid_types, pad_uid, uid_size, concat_uids
 from hail.utils.java import Env
 from hail.utils.misc import escape_str, parsable_strings, dump_json, escape_id
+
+
+def unpack_uid(new_row_type, uid_field_name):
+    new_row = ir.Ref('row', new_row_type)
+    if uid_field_name in new_row_type.fields:
+        uid = ir.GetField(new_row, uid_field_name)
+    else:
+        uid = ir.NA(tint64)
+    return uid, \
+           ir.SelectFields(new_row, [field for field in new_row_type.fields if not field == uid_field_name])
 
 
 class MatrixRowsTable(TableIR):
@@ -11,10 +24,14 @@ class MatrixRowsTable(TableIR):
         super().__init__(child)
         self.child = child
 
-    def _compute_type(self):
-        self._type = hl.ttable(self.child.typ.global_type,
-                               self.child.typ.row_type,
-                               self.child.typ.row_key)
+    def _handle_randomness(self, uid_field_name):
+        return MatrixRowsTable(self.child.handle_randomness(uid_field_name, None))
+
+    def _compute_type(self, deep_typecheck):
+        self.child.compute_type(deep_typecheck)
+        return hl.ttable(self.child.typ.global_type,
+                         self.child.typ.row_type,
+                         self.child.typ.row_key)
 
 
 class TableJoin(TableIR):
@@ -25,6 +42,29 @@ class TableJoin(TableIR):
         self.join_type = join_type
         self.join_key = join_key
 
+    def _handle_randomness(self, uid_field_name):
+        if uid_field_name is None:
+            return TableJoin(self.left.handle_randomness(None),
+                             self.right.handle_randomness(None),
+                             self.join_type, self.join_key)
+
+        left = self.left.handle_randomness('__left_uid')
+        right = self.right.handle_randomness('__right_uid')
+
+        joined = TableJoin(left, right, self.join_type, self.join_key)
+        row = ir.Ref('row', joined.typ.row_type)
+        if '__left_uid' in joined.row_typ and '__right_uid' in joined.row_typ:
+            old_joined_row = ir.SelectFields(row, [field for field in self.typ.row_type])
+            left_uid = ir.GetField(row, '__left_uid')
+            right_uid = ir.GetField(row, '__right_uid')
+            handle_missing_left = self.join_type == 'right' or self.join_type == 'outer'
+            handle_missing_right = self.join_type == 'left' or self.join_type == 'outer'
+            uid = concat_uids(left_uid, right_uid, handle_missing_left, handle_missing_right)
+        else:
+            old_joined_row = ir.SelectFields(row, [field for field in self.typ.row_type])
+            uid = ir.NA(tint64)
+        TableMapRows(joined, ir.InsertFields(old_joined_row, [(uid_field_name, uid)]), None)
+
     def head_str(self):
         return f'{escape_id(self.join_type)} {self.join_key}'
 
@@ -32,12 +72,14 @@ class TableJoin(TableIR):
         return self.join_key == other.join_key and \
             self.join_type == other.join_type
 
-    def _compute_type(self):
+    def _compute_type(self, deep_typecheck):
+        self.left.compute_type(deep_typecheck)
+        self.right.compute_type(deep_typecheck)
         left_typ = self.left.typ
         right_typ = self.right.typ
-        self._type = hl.ttable(left_typ.global_type._concat(right_typ.global_type),
-                               left_typ.key_type._concat(left_typ.value_type)._concat(right_typ.value_type),
-                               left_typ.row_key + right_typ.row_key[self.join_key:])
+        return hl.ttable(left_typ.global_type._concat(right_typ.global_type),
+                         left_typ.key_type._concat(left_typ.value_type)._concat(right_typ.value_type),
+                         left_typ.row_key + right_typ.row_key[self.join_key:])
 
 
 class TableLeftJoinRightDistinct(TableIR):
@@ -47,16 +89,23 @@ class TableLeftJoinRightDistinct(TableIR):
         self.right = right
         self.root = root
 
+    def _handle_randomness(self, uid_field_name):
+        left = self.left.handle_randomness(uid_field_name)
+        right = self.right.handle_randomness(None)
+        return TableLeftJoinRightDistinct(left, right, self.root)
+
     def head_str(self):
         return escape_id(self.root)
 
     def _eq(self, other):
         return self.root == other.root
 
-    def _compute_type(self):
+    def _compute_type(self, deep_typecheck):
+        self.left.compute_type(deep_typecheck)
+        self.right.compute_type(deep_typecheck)
         left_typ = self.left.typ
         right_typ = self.right.typ
-        self._type = hl.ttable(
+        return hl.ttable(
             left_typ.global_type,
             left_typ.row_type._insert_field(self.root, right_typ.value_type),
             left_typ.row_key)
@@ -70,20 +119,27 @@ class TableIntervalJoin(TableIR):
         self.root = root
         self.product = product
 
+    def _handle_randomness(self, uid_field_name):
+        left = self.left.handle_randomness(uid_field_name)
+        right = self.right.handle_randomness(None)
+        return TableIntervalJoin(left, right, self.root)
+
     def head_str(self):
         return f'{escape_id(self.root)} {self.product}'
 
     def _eq(self, other):
         return self.root == other.root and self.product == other.product
 
-    def _compute_type(self):
+    def _compute_type(self, deep_typecheck):
+        self.left.compute_type(deep_typecheck)
+        self.right.compute_type(deep_typecheck)
         left_typ = self.left.typ
         right_typ = self.right.typ
         if self.product:
             right_val_typ = left_typ.row_type._insert_field(self.root, hl.tarray(right_typ.value_type))
         else:
             right_val_typ = left_typ.row_type._insert_field(self.root, right_typ.value_type)
-        self._type = hl.ttable(
+        return hl.ttable(
             left_typ.global_type,
             right_val_typ,
             left_typ.row_key)
@@ -94,10 +150,29 @@ class TableUnion(TableIR):
         super().__init__(*children)
         self.children = children
 
-    def _compute_type(self):
+    def _handle_randomness(self, uid_field_name):
+        if uid_field_name is None:
+            new_children = [child.handle_randomness(None) for child in self.children]
+            return TableUnion(new_children)
+
+        new_children = [child.handle_randomness(uid_field_name) for child in self.children]
+
+        if uid_field_name is None or not all(uid_field_name in child.typ.row_type for child in new_children):
+            new_children = [child.handle_randomness(None) for child in self.children]
+            return TableUnion(new_children)
+
+        uids, _ = unzip(unpack_uid(child.typ.row_type, uid_field_name) for child in new_children)
+        uid_type = unify_uid_types(uid.typ for uid in uids)
+        new_children = [TableMapRows(child,
+                                     ir.InsertFields(ir.Ref('row', child.typ.row_type),
+                                                     [(uid_field_name, pad_uid(uid, uid_type, i))], None))
+                        for i, (child, uid) in enumerate(zip(new_children, uids))]
+        return TableUnion(new_children)
+
+    def _compute_type(self, deep_typecheck):
         for c in self.children:
-            c.typ  # force
-        self._type = self.children[0].typ
+            c.compute_type(deep_typecheck)
+        return self.children[0].typ
 
 
 class TableRange(TableIR):
@@ -106,16 +181,21 @@ class TableRange(TableIR):
         self.n = n
         self.n_partitions = n_partitions
 
+    def _handle_randomness(self, uid_field_name):
+        assert(uid_field_name is not None)
+        new_row = ir.InsertFields(ir.Ref('row', self.typ.row_type), [(uid_field_name, ir.Cast(ir.GetField(ir.Ref('row', self.typ.row_type), 'idx'), tint64))], None)
+        return TableMapRows(self, new_row)
+
     def head_str(self):
         return f'{self.n} {self.n_partitions}'
 
     def _eq(self, other):
         return self.n == other.n and self.n_partitions == other.n_partitions
 
-    def _compute_type(self):
-        self._type = hl.ttable(hl.tstruct(),
-                               hl.tstruct(idx=hl.tint32),
-                               ['idx'])
+    def _compute_type(self, deep_typecheck):
+        return hl.ttable(hl.tstruct(),
+                         hl.tstruct(idx=hl.tint32),
+                         ['idx'])
 
 
 class TableMapGlobals(TableIR):
@@ -124,11 +204,15 @@ class TableMapGlobals(TableIR):
         self.child = child
         self.new_globals = new_globals
 
-    def _compute_type(self):
-        self.new_globals._compute_type(self.child.typ.global_env(), None)
-        self._type = hl.ttable(self.new_globals.typ,
-                               self.child.typ.row_type,
-                               self.child.typ.row_key)
+    def _handle_randomness(self, uid_field_name):
+        return TableMapGlobals(self.child.handle_randomness(uid_field_name),
+                               self.new_globals)
+
+    def _compute_type(self, deep_typecheck):
+        self.new_globals.compute_type(self.child.typ.global_env(), None, deep_typecheck)
+        return hl.ttable(self.new_globals.typ,
+                         self.child.typ.row_type,
+                         self.child.typ.row_key)
 
     def renderable_bindings(self, i, default_value=None):
         return self.child.typ.global_env(default_value) if i == 1 else {}
@@ -140,17 +224,38 @@ class TableExplode(TableIR):
         self.child = child
         self.path = path
 
+    def _handle_randomness(self, uid_field_name):
+        if uid_field_name is None:
+            TableExplode(self.child.handle_randomness(None), self.path)
+
+        child = self.child.handle_randomness(uid_field_name)
+
+        if uid_field_name not in child.typ.row_type.fields:
+            return TableExplode(child, self.path)
+
+        new_row = modify_deep_field(ir.Ref('row', child.typ.row_type), self.path, zip_with_index)
+        child = TableMapRows(child, new_row)
+
+        new_explode = TableExplode(child, self.path)
+        new_row = modify_deep_field(
+            ir.Ref('row', new_explode.typ.row_type),
+            self.path,
+            lambda tuple: ir.GetTupleElement(tuple, 0),
+            lambda row, tuple: ir.InsertFields(row, (uid_field_name, concat_uids(ir.GetField(row, uid_field_name), ir.GetTupleElement(tuple, 1))), None))
+        return TableMapRows(new_explode, new_row)
+
     def head_str(self):
         return parsable_strings(self.path)
 
     def _eq(self, other):
         return self.path == other.path
 
-    def _compute_type(self):
+    def _compute_type(self, deep_typecheck):
+        self.child.compute_type(deep_typecheck)
         atyp = self.child.typ.row_type._index_path(self.path)
-        self._type = hl.ttable(self.child.typ.global_type,
-                               self.child.typ.row_type._insert(self.path, atyp.element_type),
-                               self.child.typ.row_key)
+        return hl.ttable(self.child.typ.global_type,
+                         self.child.typ.row_type._insert(self.path, atyp.element_type),
+                         self.child.typ.row_key)
 
 
 class TableKeyBy(TableIR):
@@ -160,16 +265,20 @@ class TableKeyBy(TableIR):
         self.keys = keys
         self.is_sorted = is_sorted
 
+    def _handle_randomness(self, uid_field_name):
+        return TableKeyBy(self.child.handle_randomness(uid_field_name), self.keys, self.is_sorted)
+
     def head_str(self):
         return '({}) {}'.format(' '.join([escape_id(x) for x in self.keys]), self.is_sorted)
 
     def _eq(self, other):
         return self.keys == other.keys and self.is_sorter == other.is_sorted
 
-    def _compute_type(self):
-        self._type = hl.ttable(self.child.typ.global_type,
-                               self.child.typ.row_type,
-                               self.keys)
+    def _compute_type(self, deep_typecheck):
+        self.child.compute_type(deep_typecheck)
+        return hl.ttable(self.child.typ.global_type,
+                         self.child.typ.row_type,
+                         self.keys)
 
 
 class TableMapRows(TableIR):
@@ -178,10 +287,27 @@ class TableMapRows(TableIR):
         self.child = child
         self.new_row = new_row
 
-    def _compute_type(self):
+    def _handle_randomness(self, uid_field_name):
+        if not self.new_row.uses_randomness and uid_field_name is None:
+            child = self.child.handle_randomness(None)
+            return TableMapRows(child, self.new_row)
+
+        child = self.child.handle_randomness(ir.uid_field_name)
+        uid, old_row = unpack_uid(child.typ.row_type, ir.uid_field_name)
+        new_row = ir.Let('row', old_row, self.new_row)
+        if self.new_row.uses_value_randomness:
+            new_row = ir.Let('__rng_state', ir.RNGSplit(ir.RNGStateLiteral(rng_key), uid), new_row)
+        if self.new_row.uses_agg_randomness(is_scan=True):
+            new_row = ir.AggLet('__rng_state', ir.RNGSplit(ir.RNGStateLiteral(rng_key), uid), new_row, is_scan=True)
+        if uid_field_name is not None:
+            new_row = ir.InsertFields(new_row, [(uid_field_name, uid)], None)
+        return TableMapRows(child, new_row)
+
+    def _compute_type(self, deep_typecheck):
+        self.child.compute_type(deep_typecheck)
         # agg_env for scans
-        self.new_row._compute_type(self.child.typ.row_env(), self.child.typ.row_env())
-        self._type = hl.ttable(
+        self.new_row.compute_type(self.child.typ.row_env(), self.child.typ.row_env(), deep_typecheck)
+        return hl.ttable(
             self.child.typ.global_type,
             self.new_row.typ,
             self.child.typ.row_key)
@@ -206,17 +332,32 @@ class TableMapPartitions(TableIR):
         self.global_name = global_name
         self.partition_stream_name = partition_stream_name
 
-    def _compute_type(self):
-        self.body._compute_type({self.global_name: self.child.typ.global_type,
+    def _handle_randomness(self, uid_field_name):
+        # FIXME: This is tricky. Might need to disallow randomness in body
+        # outside of the partition stream. Or just document that randomness
+        # outside of the partition stream uses the same state in every partition
+        # (might still be more efficient then computing once and broadcasting)
+        child = self.child
+        body = self.body
+        if self.child.uses_randomness:
+            child = child.handle_randomness(None)
+        if body.uses_randomness:
+            body = ir.Let('__rng_state', ir.NA(trngstate), body)
+        return TableMapPartitions(child, self.global_name, self.partition_stream_name, body)
+
+    def _compute_type(self, deep_typecheck):
+        self.child.compute_type(deep_typecheck)
+        self.body.compute_type({self.global_name: self.child.typ.global_type,
                                  self.partition_stream_name: hl.tstream(self.child.typ.row_type)},
-                                {})
+                                {},
+                               deep_typecheck)
         assert isinstance(self.body.typ, hl.tstream) and isinstance(self.body.typ.element_type, hl.tstruct)
         new_row_type = self.body.typ.element_type
         for k in self.child.typ.row_key:
             assert k in new_row_type
-        self._type = hl.ttable(self.child.typ.global_type,
-                               new_row_type,
-                               self.child.typ.row_key)
+        return hl.ttable(self.child.typ.global_type,
+                         new_row_type,
+                         self.child.typ.row_key)
 
     def renderable_bindings(self, i, default_value=None):
         if i == 1:
@@ -244,15 +385,21 @@ class TableRead(TableIR):
         self.drop_rows = drop_rows
         self._type = _assert_type
 
+    def _handle_randomness(self, uid_field_name):
+        # FIXME: Add a param to TableRead to request uids.
+        return self
+
     def head_str(self):
         return f'None {self.drop_rows} "{self.reader.render()}"'
 
     def _eq(self, other):
         return self.reader == other.reader and self.drop_rows == other.drop_rows
 
-    def _compute_type(self):
-        if self._type is None:
-            self._type = Env.backend().table_type(self)
+    def _compute_type(self, deep_typecheck):
+        if self._type is not None:
+            return self._type
+        else:
+            return Env.backend().table_type(self)
 
 
 class MatrixEntriesTable(TableIR):
@@ -260,13 +407,26 @@ class MatrixEntriesTable(TableIR):
         super().__init__(child)
         self.child = child
 
-    def _compute_type(self):
+    def _handle_randomness(self, uid_field_name):
+        # FIXME: Finish once done with MatrixIR
+        if uid_field_name is None:
+            return MatrixEntriesTable(self.child.handle_randomness(None, None))
+
+        child = self.child.handle_randomness(default_row_uid, default_col_uid)
+        entry = ir.Ref('g', child.typ.entry_type)
+        row_uid = ir.GetField(ir.Ref('va', child.typ.row_type), default_row_uid)
+        col_uid = ir.GetField(ir.Ref('sa', child.typ.row_type), default_col_uid)
+        child = MatrixMapEntries(child, ir.InsertFields(entry, [(uid_field_name, ir.concat_uids(row_uid, col_uid))]))
+        return MatrixEntriesTable(child)
+
+    def _compute_type(self, deep_typecheck):
+        self.child.compute_type(deep_typecheck)
         child_typ = self.child.typ
-        self._type = hl.ttable(child_typ.global_type,
-                               child_typ.row_type
-                               ._concat(child_typ.col_type)
-                               ._concat(child_typ.entry_type),
-                               child_typ.row_key + child_typ.col_key)
+        return hl.ttable(child_typ.global_type,
+                         child_typ.row_type
+                                  ._concat(child_typ.col_type)
+                                  ._concat(child_typ.entry_type),
+                         child_typ.row_key + child_typ.col_key)
 
 
 class TableFilter(TableIR):
@@ -275,9 +435,28 @@ class TableFilter(TableIR):
         self.child = child
         self.pred = pred
 
-    def _compute_type(self):
-        self.pred._compute_type(self.child.typ.row_env(), None)
-        self._type = self.child.typ
+    def _handle_randomness(self, uid_field_name):
+        if not self.pred.uses_randomness and uid_field_name is None:
+            child = self.child.handle_randomness(None)
+            return TableFilter(child, self.pred)
+
+        drop_uid = uid_field_name is None
+        if uid_field_name is None:
+            uid_field_name = ir.uid_field_name
+        child = self.child.handle_randomness(uid_field_name)
+        uid, old_row = unpack_uid(child.typ.row_type, uid_field_name)
+        pred = ir.Let('row', old_row, self.pred)
+        if self.pred.uses_randomness:
+            pred = ir.Let('__rng_state', ir.RNGSplit(ir.RNGStateLiteral(rng_key), uid), pred)
+        result = TableFilter(child, pred)
+        if drop_uid:
+            result = TableMapRows(result, old_row)
+        return result
+
+    def _compute_type(self, deep_typecheck):
+        self.child.compute_type(deep_typecheck)
+        self.pred.compute_type(self.child.typ.row_env(), None, deep_typecheck)
+        return self.child.typ
 
     def renderable_bindings(self, i, default_value=None):
         return self.child.typ.row_env(default_value) if i == 1 else {}
@@ -292,18 +471,52 @@ class TableKeyByAndAggregate(TableIR):
         self.n_partitions = n_partitions
         self.buffer_size = buffer_size
 
+    def _handle_randomness(self, uid_field_name):
+        if not self.expr.uses_randomness and not self.new_key.uses_randomness and uid_field_name is None:
+            child = self.child.handle_randomness(None)
+            return TableKeyByAndAggregate(child, self.expr, self.new_key, self.n_partitions, self.buffer_size)
+
+        child = self.child.handle_randomness(ir.uid_field_name)
+        uid, old_row = unpack_uid(child.typ.row_type, ir.uid_field_name)
+
+        expr = self.expr
+        if expr.uses_randomness or uid_field_name is not None:
+            first_uid = Env.get_uid()
+            if expr.uses_randomness:
+                expr = ir.Let(
+                    '__rng_state',
+                    ir.RNGSplit(ir.RNGStateLiteral(rng_key), ir.Ref(first_uid, uid.typ)),
+                    expr)
+            if expr.uses_agg_randomness(is_scan=False):
+                expr = ir.AggLet(
+                    '__rng_state',
+                    ir.RNGSplit(ir.RNGStateLiteral(rng_key), uid),
+                    expr,
+                is_scan=False)
+            if uid_field_name is not None:
+                expr = ir.InsertFields(expr, [uid_field_name, uid], None)
+            expr = ir.Let(first_uid, ir.ApplyAggOp('Take', [1], [uid]), expr)
+        new_key = self.new_key
+        if new_key.uses_randomness:
+            expr = ir.Let(
+                '__rng_state',
+                ir.RNGSplit(ir.RNGStateLiteral(rng_key), uid),
+                new_key)
+        return TableKeyByAndAggregate(child, expr, new_key, self.n_partitions, self.buffer_size)
+
     def head_str(self):
         return f'{self.n_partitions} {self.buffer_size}'
 
     def _eq(self, other):
         return self.n_partitions == other.n_partitions and self.buffer_size == other.buffer_size
 
-    def _compute_type(self):
-        self.expr._compute_type(self.child.typ.global_env(), self.child.typ.row_env())
-        self.new_key._compute_type(self.child.typ.row_env(), None)
-        self._type = hl.ttable(self.child.typ.global_type,
-                               self.new_key.typ._concat(self.expr.typ),
-                               list(self.new_key.typ))
+    def _compute_type(self, deep_typecheck):
+        self.child.compute_type(deep_typecheck)
+        self.expr.compute_type(self.child.typ.global_env(), self.child.typ.row_env(), deep_typecheck)
+        self.new_key.compute_type(self.child.typ.row_env(), None, deep_typecheck)
+        return hl.ttable(self.child.typ.global_type,
+                         self.new_key.typ._concat(self.expr.typ),
+                         list(self.new_key.typ))
 
     def renderable_bindings(self, i, default_value=None):
         if i == 1:
@@ -325,12 +538,39 @@ class TableAggregateByKey(TableIR):
         self.child = child
         self.expr = expr
 
-    def _compute_type(self):
+    def _handle_randomness(self, uid_field_name):
+        if not self.expr.uses_randomness and uid_field_name is None:
+            child = self.child.handle_randomness(None)
+            return TableAggregateByKey(child, self.expr)
+
+        child = self.child.handle_randomness(ir.uid_field_name)
+        uid, old_row = unpack_uid(child.typ.row_type, ir.uid_field_name)
+
+        expr = ir.AggLet('va', old_row, self.expr, is_scan=False)
+        first_uid = Env.get_uid()
+        if expr.uses_value_randomness:
+            expr = ir.Let(
+                '__rng_state',
+                ir.RNGSplit(ir.RNGStateLiteral(rng_key), ir.Ref(first_uid, uid.typ)),
+                expr)
+        if expr.uses_agg_randomness(is_scan=False):
+            expr = ir.AggLet(
+                '__rng_state',
+                ir.RNGSplit(ir.RNGStateLiteral(rng_key), uid),
+                expr,
+                is_scan=False)
+        if uid_field_name is not None:
+            expr = ir.InsertFields(expr, [uid_field_name, first_uid], None)
+        expr = ir.Let(first_uid, ir.ApplyAggOp('Take', [1], [uid]), expr)
+        return TableAggregateByKey(child, expr)
+
+    def _compute_type(self, deep_typecheck):
+        self.child.compute_type(deep_typecheck)
         child_typ = self.child.typ
-        self.expr._compute_type(child_typ.global_env(), child_typ.row_env())
-        self._type = hl.ttable(child_typ.global_type,
-                               child_typ.key_type._concat(self.expr.typ),
-                               child_typ.row_key)
+        self.expr.compute_type(child_typ.global_env(), child_typ.row_env(), deep_typecheck)
+        return hl.ttable(child_typ.global_type,
+                         child_typ.key_type._concat(self.expr.typ),
+                         child_typ.row_key)
 
     def renderable_bindings(self, i, default_value=None):
         if i == 1:
@@ -349,10 +589,14 @@ class MatrixColsTable(TableIR):
         super().__init__(child)
         self.child = child
 
-    def _compute_type(self):
-        self._type = hl.ttable(self.child.typ.global_type,
-                               self.child.typ.col_type,
-                               self.child.typ.col_key)
+    def _handle_randomness(self, uid_field_name):
+        return MatrixColsTable(self.child.handle_randomness(None, uid_field_name))
+
+    def _compute_type(self, deep_typecheck):
+        self.child.compute_type(deep_typecheck)
+        return hl.ttable(self.child.typ.global_type,
+                         self.child.typ.col_type,
+                         self.child.typ.col_key)
 
 
 class TableParallelize(TableIR):
@@ -361,17 +605,38 @@ class TableParallelize(TableIR):
         self.rows_and_global = rows_and_global
         self.n_partitions = n_partitions
 
+    def _handle_randomness(self, uid_field_name):
+        rows_and_global = self.rows_and_global
+        if rows_and_global.uses_randomness:
+            rows_and_global = ir.Let(
+                '__rng_state',
+                ir.RNGStateLiteral(rng_key),
+                rows_and_global)
+        if uid_field_name is not None:
+            rows_and_global_ref = Env.get_uid()
+            row = Env.get_uid()
+            uid = Env.get_uid()
+            iota = ir.StreamIota(ir.I32(0), ir.I32(1))
+            new_rows = ir.StreamZip(
+                [ir.GetField(ir.Ref(rows_and_global_ref, rows_and_global.typ), 'rows'), iota],
+                [row, uid],
+                ir.InsertFields(ir.Ref(row, rows_and_global.typ.element_type), [(uid_field_name, ir.Cast(ir.Ref(uid, tint32), tint64))], None),
+                'TakeMinLength')
+            rows_and_global = ir.Let(rows_and_global_ref, rows_and_global,
+                                  ir.InsertFields(ir.Ref(rows_and_global_ref, rows_and_global.typ), [('rows', new_rows)], None))
+        return TableParallelize(rows_and_global, self.n_partitions)
+
     def head_str(self):
         return self.n_partitions
 
     def _eq(self, other):
         return self.n_partitions == other.n_partitions
 
-    def _compute_type(self):
-        self.rows_and_global._compute_type({}, None)
-        self._type = hl.ttable(self.rows_and_global.typ['global'],
-                               self.rows_and_global.typ['rows'].element_type,
-                               [])
+    def _compute_type(self, deep_typecheck):
+        self.rows_and_global.compute_type({}, None, deep_typecheck)
+        return hl.ttable(self.rows_and_global.typ['global'],
+                         self.rows_and_global.typ['rows'].element_type,
+                         [])
 
 
 class TableHead(TableIR):
@@ -380,14 +645,18 @@ class TableHead(TableIR):
         self.child = child
         self.n = n
 
+    def _handle_randomness(self, uid_field_name):
+        return TableHead(self.child.handle_randomness(uid_field_name), self.n)
+
     def head_str(self):
         return self.n
 
     def _eq(self, other):
         return self.n == other.n
 
-    def _compute_type(self):
-        self._type = self.child.typ
+    def _compute_type(self, deep_typecheck):
+        self.child.compute_type(deep_typecheck)
+        return self.child.typ
 
 
 class TableTail(TableIR):
@@ -396,14 +665,18 @@ class TableTail(TableIR):
         self.child = child
         self.n = n
 
+    def _handle_randomness(self, uid_field_name):
+        return TableTail(self.child.handle_randomness(uid_field_name), self.n)
+
     def head_str(self):
         return self.n
 
     def _eq(self, other):
         return self.n == other.n
 
-    def _compute_type(self):
-        self._type = self.child.typ
+    def _compute_type(self, deep_typecheck):
+        self.child.compute_type(deep_typecheck)
+        return self.child.typ
 
 
 class TableOrderBy(TableIR):
@@ -412,16 +685,20 @@ class TableOrderBy(TableIR):
         self.child = child
         self.sort_fields = sort_fields
 
+    def _handle_randomness(self, uid_field_name):
+        return TableOrderBy(self.child.handle_randomness(uid_field_name), self.sort_fields)
+
     def head_str(self):
         return f'({" ".join([escape_id(order + f) for (f, order) in self.sort_fields])})'
 
     def _eq(self, other):
         return self.sort_fields == other.sort_fields
 
-    def _compute_type(self):
-        self._type = hl.ttable(self.child.typ.global_type,
-                               self.child.typ.row_type,
-                               [])
+    def _compute_type(self, deep_typecheck):
+        self.child.compute_type(deep_typecheck)
+        return hl.ttable(self.child.typ.global_type,
+                         self.child.typ.row_type,
+                         [])
 
 
 class TableDistinct(TableIR):
@@ -429,8 +706,12 @@ class TableDistinct(TableIR):
         super().__init__(child)
         self.child = child
 
-    def _compute_type(self):
-        self._type = self.child.typ
+    def _handle_randomness(self, uid_field_name):
+        return TableDistinct(self.child.handle_randomness(uid_field_name))
+
+    def _compute_type(self, deep_typecheck):
+        self.child.compute_type(deep_typecheck)
+        return self.child.typ
 
 
 class RepartitionStrategy:
@@ -446,14 +727,18 @@ class TableRepartition(TableIR):
         self.n = n
         self.strategy = strategy
 
+    def _handle_randomness(self, uid_field_name):
+        return TableRepartition(self.child.handle_randomness(uid_field_name), self.n, self.strategy)
+
     def head_str(self):
         return f'{self.n} {self.strategy}'
 
     def _eq(self, other):
         return self.n == other.n and self.strategy == other.strategy
 
-    def _compute_type(self):
-        self._type = self.child.typ
+    def _compute_type(self, deep_typecheck):
+        self.child.compute_type(deep_typecheck)
+        return self.child.typ
 
 
 class CastMatrixToTable(TableIR):
@@ -463,18 +748,22 @@ class CastMatrixToTable(TableIR):
         self.entries_field_name = entries_field_name
         self.cols_field_name = cols_field_name
 
+    def _handle_randomness(self, uid_field_name):
+        return CastMatrixToTable(self.child.handle_randomness(uid_field_name, None), self.entries_field_name, self.cols_field_name)
+
     def head_str(self):
         return f'"{escape_str(self.entries_field_name)}" "{escape_str(self.cols_field_name)}"'
 
     def _eq(self, other):
         return self.entries_field_name == other.entries_field_name and self.cols_field_name == other.cols_field_name
 
-    def _compute_type(self):
+    def _compute_type(self, deep_typecheck):
+        self.child.compute_type(deep_typecheck)
         child_typ = self.child.typ
-        self._type = hl.ttable(child_typ.global_type._insert_field(self.cols_field_name, hl.tarray(child_typ.col_type)),
-                               child_typ.row_type._insert_field(self.entries_field_name,
-                                                                hl.tarray(child_typ.entry_type)),
-                               child_typ.row_key)
+        return hl.ttable(child_typ.global_type._insert_field(self.cols_field_name, hl.tarray(child_typ.col_type)),
+                         child_typ.row_type._insert_field(self.entries_field_name,
+                                                          hl.tarray(child_typ.entry_type)),
+                         child_typ.row_key)
 
 
 class TableRename(TableIR):
@@ -483,6 +772,9 @@ class TableRename(TableIR):
         self.child = child
         self.row_map = row_map
         self.global_map = global_map
+
+    def _handle_randomness(self, uid_field_name):
+        return TableRename(self.child.handle_randomness(uid_field_name), self.row_map, self.global_map)
 
     def head_str(self):
         return f'{parsable_strings(self.row_map.keys())} ' \
@@ -493,8 +785,9 @@ class TableRename(TableIR):
     def _eq(self, other):
         return self.row_map == other.row_map and self.global_map == other.global_map
 
-    def _compute_type(self):
-        self._type = self.child.typ._rename(self.global_map, self.row_map)
+    def _compute_type(self, deep_typecheck):
+        self.child.compute_type(deep_typecheck)
+        return self.child.typ._rename(self.global_map, self.row_map)
 
 
 class TableMultiWayZipJoin(TableIR):
@@ -504,17 +797,41 @@ class TableMultiWayZipJoin(TableIR):
         self.data_name = data_name
         self.global_name = global_name
 
+    def _handle_randomness(self, uid_field_name):
+        if uid_field_name is None:
+            new_children = [child.handle_randomness(None) for child in self.children]
+            return TableMultiWayZipJoin(new_children, self.data_name, self.global_name)
+
+        new_children = [child.handle_randomness(uid_field_name) for child in self.children]
+        uids, _ = unzip(unpack_uid(child.typ.row_type, uid_field_name) for child in new_children)
+        uid_type = unify_uid_types(uid.typ for uid in uids)
+        new_children = [TableMapRows(child,
+                                     ir.InsertFields(ir.Ref('row', child.typ.row_type),
+                                                     [(uid_field_name, pad_uid(uid, uid_type, i))], None))
+                        for i, (child, uid) in enumerate(zip(new_children, uids))]
+        joined = TableMultiWayZipJoin(new_children, self.data_name, self.global_name)
+        accum = Env.get_uid()
+        elt = Env.get_uid()
+        row = ir.Ref('row', joined.typ.row_type)
+        data = ir.GetField(row, self.data_name)
+        uid = ir.StreamFold(ir.ToStream(data),
+                         ir.NA(uid_type), accum, elt,
+                         ir.If(ir.IsNA(ir.Ref(accum, uid_type)),
+                            ir.GetField(ir.Ref(elt, data.typ.element_type), uid_field_name),
+                            accum))
+        return TableMapRows(joined, ir.InsertFields(row, [(uid_field_name, uid)], None))
+
     def head_str(self):
         return f'"{escape_str(self.data_name)}" "{escape_str(self.global_name)}"'
 
     def _eq(self, other):
         return self.data_name == other.data_name and self.global_name == other.global_name
 
-    def _compute_type(self):
+    def _compute_type(self, deep_typecheck):
         for c in self.children:
-            c.typ  # force
+            c.compute_type(deep_typecheck)
         child_typ = self.children[0].typ
-        self._type = hl.ttable(
+        return hl.ttable(
             hl.tstruct(**{self.global_name: hl.tarray(child_typ.global_type)}),
             child_typ.key_type._insert_field(self.data_name, hl.tarray(child_typ.value_type)),
             child_typ.row_key)
@@ -528,14 +845,18 @@ class TableFilterIntervals(TableIR):
         self.point_type = point_type
         self.keep = keep
 
+    def _handle_randomness(self, uid_field_name):
+        return TableFilterIntervals(self.child.handle_randomness(uid_field_name), self.intervals, self.point_type, self.keep)
+
     def head_str(self):
         return f'{dump_json(hl.tarray(hl.tinterval(self.point_type))._convert_to_json(self.intervals))} {self.keep}'
 
     def _eq(self, other):
         return self.intervals == other.intervals and self.point_type == other.point_type and self.keep == other.keep
 
-    def _compute_type(self):
-        self._type = self.child.typ
+    def _compute_type(self, deep_typecheck):
+        self.child.compute_type(deep_typecheck)
+        return self.child.typ
 
 
 class TableToTableApply(TableIR):
@@ -544,19 +865,27 @@ class TableToTableApply(TableIR):
         self.child = child
         self.config = config
 
+    def _handle_randomness(self, uid_field_name):
+        # FIXME: finish
+        return TableToTableApply(self.child.handle_randomness(None), self.config)
+
     def head_str(self):
         return dump_json(self.config)
 
     def _eq(self, other):
         return self.config == other.config
 
-    def _compute_type(self):
+    def _compute_type(self, deep_typecheck):
+        self.child.compute_type(deep_typecheck)
         name = self.config['name']
         if name == 'TableFilterPartitions':
-            self._type = self.child.typ
+            return self.child.typ
         else:
             assert name in ('VEP', 'Nirvana'), name
-            self._type = Env.backend().table_type(self)
+            if self._type is not None:
+                return self._type
+            else:
+                return Env.backend().table_type(self)
 
 
 def regression_test_type(test):
@@ -579,20 +908,25 @@ class MatrixToTableApply(TableIR):
         self.child = child
         self.config = config
 
+    def _handle_randomness(self, uid_field_name):
+        # FIXME: finish
+        return self
+
     def head_str(self):
         return dump_json(self.config)
 
     def _eq(self, other):
         return self.config == other.config
 
-    def _compute_type(self):
+    def _compute_type(self, deep_typecheck):
+        self.child.compute_type(deep_typecheck)
         name = self.config['name']
         child_typ = self.child.typ
         if name == 'LinearRegressionRowsChained':
             pass_through = self.config['passThrough']
             chained_schema = hl.dtype(
                 'struct{n:array<int32>,sum_x:array<float64>,y_transpose_x:array<array<float64>>,beta:array<array<float64>>,standard_error:array<array<float64>>,t_stat:array<array<float64>>,p_value:array<array<float64>>}')
-            self._type = hl.ttable(
+            return hl.ttable(
                 child_typ.global_type,
                 (child_typ.row_key_type
                  ._insert_fields(**{f: child_typ.row_type[f] for f in pass_through})
@@ -602,7 +936,7 @@ class MatrixToTableApply(TableIR):
             pass_through = self.config['passThrough']
             chained_schema = hl.dtype(
                 'struct{n:int32,sum_x:float64,y_transpose_x:array<float64>,beta:array<float64>,standard_error:array<float64>,t_stat:array<float64>,p_value:array<float64>}')
-            self._type = hl.ttable(
+            return hl.ttable(
                 child_typ.global_type,
                 (child_typ.row_key_type
                  ._insert_fields(**{f: child_typ.row_type[f] for f in pass_through})
@@ -611,7 +945,7 @@ class MatrixToTableApply(TableIR):
         elif name == 'LogisticRegression':
             pass_through = self.config['passThrough']
             logreg_type = hl.tstruct(logistic_regression=hl.tarray(regression_test_type(self.config['test'])))
-            self._type = hl.ttable(
+            return hl.ttable(
                 child_typ.global_type,
                 (child_typ.row_key_type
                  ._insert_fields(**{f: child_typ.row_type[f] for f in pass_through})
@@ -620,7 +954,7 @@ class MatrixToTableApply(TableIR):
         elif name == 'PoissonRegression':
             pass_through = self.config['passThrough']
             poisreg_type = regression_test_type(self.config['test'])
-            self._type = hl.ttable(
+            return hl.ttable(
                 child_typ.global_type,
                 (child_typ.row_key_type
                  ._insert_fields(**{f: child_typ.row_type[f] for f in pass_through})
@@ -630,12 +964,12 @@ class MatrixToTableApply(TableIR):
             key_field = self.config['keyField']
             key_type = child_typ.row_type[key_field]
             skat_type = hl.dtype(f'struct{{id:{key_type},size:int32,q_stat:float64,p_value:float64,fault:int32}}')
-            self._type = hl.ttable(
+            return hl.ttable(
                 hl.tstruct(),
                 skat_type,
                 ['id'])
         elif name == 'PCA':
-            self._type = hl.ttable(
+            return hl.ttable(
                 hl.tstruct(eigenvalues=hl.tarray(hl.tfloat64),
                            scores=hl.tarray(child_typ.col_key_type._insert_field('scores', hl.tarray(hl.tfloat64)))),
                 child_typ.row_key_type._insert_field('loadings', dtype('array<float64>')),
@@ -648,13 +982,13 @@ class MatrixToTableApply(TableIR):
                                   ibs0=hl.tint64,
                                   ibs1=hl.tint64,
                                   ibs2=hl.tint64)
-            self._type = hl.ttable(
+            return hl.ttable(
                 hl.tstruct(),
                 ibd_type,
                 ['i', 'j'])
         else:
             assert name == 'LocalLDPrune', name
-            self._type = hl.ttable(
+            return hl.ttable(
                 hl.tstruct(),
                 child_typ.row_key_type._insert_fields(mean=hl.tfloat64, centered_length_rec=hl.tfloat64),
                 list(child_typ.row_key))
@@ -667,16 +1001,22 @@ class BlockMatrixToTableApply(TableIR):
         self.aux = aux
         self.config = config
 
+    def _handle_randomness(self, uid_field_name):
+        # FIXME: finish
+        return self
+
     def head_str(self):
         return dump_json(self.config)
 
     def _eq(self, other):
         return self.config == other.config
 
-    def _compute_type(self):
+    def _compute_type(self, deep_typecheck):
+        self.bm.compute_type(deep_typecheck)
+        self.aux.compute_type({}, None, deep_typecheck)
         name = self.config['name']
         assert name == 'PCRelate', name
-        self._type = hl.ttable(
+        return hl.ttable(
             hl.tstruct(),
             hl.tstruct(i=hl.tint32, j=hl.tint32,
                        kin=hl.tfloat64,
@@ -691,8 +1031,15 @@ class BlockMatrixToTable(TableIR):
         super().__init__(child)
         self.child = child
 
-    def _compute_type(self):
-        self._type = hl.ttable(hl.tstruct(), hl.tstruct(**{'i': hl.tint64, 'j': hl.tint64, 'entry': hl.tfloat64}), [])
+    def _handle_randomness(self, uid_field_name):
+        if uid_field_name is not None:
+            row = ir.Ref('row', self.typ.row_type)
+            new_row = ir.InsertFields(row, [(uid_field_name, ir.MakeTuple(ir.GetField(row, 'i'), ir.GetField(row, 'j')))], None)
+        return TableMapRows(self, new_row)
+
+    def _compute_type(self, deep_typecheck):
+        self.child.compute_type(deep_typecheck)
+        return hl.ttable(hl.tstruct(), hl.tstruct(**{'i': hl.tint64, 'j': hl.tint64, 'entry': hl.tfloat64}), [])
 
 
 class JavaTable(TableIR):
@@ -700,8 +1047,12 @@ class JavaTable(TableIR):
         super().__init__()
         self._jir = jir
 
+    def _handle_randomness(self, uid_field_name):
+        # FIXME: what to do here?
+        return self
+
     def render_head(self, r):
         return f'(JavaTable {r.add_jir(self._jir)}'
 
-    def _compute_type(self):
-        self._type = hl.ttable._from_java(self._jir.typ())
+    def _compute_type(self, deep_typecheck):
+        return hl.ttable._from_java(self._jir.typ())

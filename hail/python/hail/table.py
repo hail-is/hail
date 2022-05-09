@@ -1764,7 +1764,7 @@ class Table(ExprContainer):
                 return rekey_f(left)
 
             all_uids.append(uid)
-            join_ir = ir.Join(ir.GetField(ir.TopLevelReference('row'), uid),
+            join_ir = ir.Join(ir.ProjectedTopLevelReference('row', uid, new_schema),
                               all_uids,
                               exprs,
                               joiner)
@@ -1800,19 +1800,20 @@ class Table(ExprContainer):
                                                             join_table[value_uid]])))})
 
                     def joiner(left: MatrixTable):
+                        mart = ir.MatrixAnnotateRowsTable(left._mir, join_table._tir, uid)
                         return MatrixTable(
                             ir.MatrixMapRows(
-                                ir.MatrixAnnotateRowsTable(left._mir, join_table._tir, uid),
+                                mart,
                                 ir.InsertFields(
-                                    ir.Ref('va'),
+                                    ir.Ref('va', mart.typ.row_type),
                                     [(uid, ir.Apply('get', join_table._row_type[uid].value_type,
-                                                    ir.GetField(ir.GetField(ir.Ref('va'), uid), uid),
+                                                    ir.GetField(ir.GetField(ir.Ref('va', mart.typ.row_type), uid), uid),
                                                     ir.MakeTuple([e._ir for e in exprs])))],
                                     None)))
                 else:
                     def joiner(left: MatrixTable):
                         return MatrixTable(ir.MatrixAnnotateRowsTable(left._mir, right._tir, uid, all_matches))
-                ast = ir.Join(ir.GetField(ir.TopLevelReference('va'), uid),
+                ast = ir.Join(ir.ProjectedTopLevelReference('va', uid, new_schema),
                               [uid],
                               exprs,
                               joiner)
@@ -1849,7 +1850,7 @@ class Table(ExprContainer):
                             joined._tir,
                             uid)).key_cols_by(*prev_key)
                         return result
-                join_ir = ir.Join(ir.GetField(ir.TopLevelReference('sa'), uid),
+                join_ir = ir.Join(ir.ProjectedTopLevelReference('sa', uid, new_schema),
                                   all_uids,
                                   exprs,
                                   joiner)
@@ -3641,13 +3642,13 @@ class Table(ExprContainer):
     def _map_partitions(self, f):
         rows_uid = 'tmp_rows_' + Env.get_uid()
         globals_uid = 'tmp_globals_' + Env.get_uid()
-        expr = construct_expr(ir.ToArray(ir.Ref(rows_uid)), hl.tarray(self.row.dtype), self._row_indices)
+        expr = construct_expr(ir.ToArray(ir.Ref(rows_uid, hl.tstream(self.row.dtype))), hl.tarray(self.row.dtype), self._row_indices)
         body = f(expr)
         result_t = body.dtype
         if any(k not in result_t.element_type for k in self.key):
             raise ValueError('Table._map_partitions must preserve key fields')
 
-        body_ir = ir.Let('global', ir.Ref(globals_uid), ir.ToStream(body._ir))
+        body_ir = ir.Let('global', ir.Ref(globals_uid, self._global_type), ir.ToStream(body._ir))
         return Table(ir.TableMapPartitions(self._tir, globals_uid, rows_uid, body_ir))
 
     def _calculate_new_partitions(self, n_partitions):

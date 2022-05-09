@@ -120,6 +120,8 @@ class PlainRenderer(Renderer):
                         builder.append(f'(JavaMatrix {jir_id})')
                     elif isinstance(x, ir.TableIR):
                         builder.append(f'(JavaTable {jir_id})')
+                    elif isinstance(x, ir.BlockMatrixIR):
+                        builder.append(f'(JavaBlockMatrix {jir_id})')
                     else:
                         assert isinstance(x, ir.IR)
                         builder.append(f'(JavaIR {jir_id})')
@@ -178,6 +180,8 @@ class CSERenderer(Renderer):
         self.memo[id(node)] = jref
 
     def __call__(self, root: 'ir.BaseIR') -> str:
+        print("starting CSERenderer")
+        print(PlainRenderer(stop_at_jir=self.stop_at_jir)(root))
         binding_sites = CSEAnalysisPass(self)(root)
         return CSEPrintPass(self)(root, binding_sites)
 

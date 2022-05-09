@@ -1995,9 +1995,10 @@ class MatrixTable(ExprContainer):
         """
         base, _ = self._process_joins(expr)
         analyze('MatrixTable.aggregate_rows', expr, self._global_indices, {self._row_axis})
-        subst_query = ir.subst(expr._ir, {}, {'va': ir.Ref('row')})
+        rows_table = ir.MatrixRowsTable(base._mir)
+        subst_query = ir.subst(expr._ir, {}, {'va': ir.Ref('row', rows_table.typ.row_type)})
 
-        agg_ir = ir.TableAggregate(ir.MatrixRowsTable(base._mir), subst_query)
+        agg_ir = ir.TableAggregate(rows_table, subst_query)
         if _localize:
             return Env.backend().execute(ir.MakeTuple([agg_ir]))[0]
         else:
@@ -2045,9 +2046,10 @@ class MatrixTable(ExprContainer):
         """
         base, _ = self._process_joins(expr)
         analyze('MatrixTable.aggregate_cols', expr, self._global_indices, {self._col_axis})
-        subst_query = ir.subst(expr._ir, {}, {'sa': ir.Ref('row')})
+        cols_table = ir.MatrixColsTable(base._mir)
+        subst_query = ir.subst(expr._ir, {}, {'sa': ir.Ref('row', cols_table.typ.row_type)})
 
-        agg_ir = ir.TableAggregate(ir.MatrixColsTable(base._mir), subst_query)
+        agg_ir = ir.TableAggregate(cols_table, subst_query)
         if _localize:
             return Env.backend().execute(ir.MakeTuple([agg_ir]))[0]
         else:
@@ -2984,7 +2986,7 @@ class MatrixTable(ExprContainer):
                                           col_exprs={col_uid: src_cols_indexed.index(*col_exprs)[col_uid]})
                 return left.annotate_entries(**{uid: left[row_uid][left[col_uid]]})
 
-            join_ir = ir.Join(ir.GetField(ir.TopLevelReference('g'), uid),
+            join_ir = ir.Join(ir.ProjectedTopLevelReference('g', uid, self.entry.dtype),
                               uids,
                               [*row_exprs, *col_exprs],
                               joiner)

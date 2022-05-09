@@ -308,7 +308,7 @@ class ServiceBackend(Backend):
     def render(self, ir):
         r = CSERenderer()
         assert len(r.jirs) == 0
-        return r(ir)
+        return r(finalize_randomness(ir))
 
     async def _rpc(self,
                    name: str,
