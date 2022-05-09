@@ -2834,7 +2834,7 @@ class IRSuite extends HailSuite {
       BlockMatrixWrite(blockMatrix, blockMatrixWriter),
       BlockMatrixMultiWrite(IndexedSeq(blockMatrix, blockMatrix), blockMatrixMultiWriter),
       BlockMatrixWrite(blockMatrix, BlockMatrixPersistWriter("x", "MEMORY_ONLY")),
-      CollectDistributedArray(StreamRange(0, 3, 1), 1, "x", "y", Ref("x", TInt32)),
+      CollectDistributedArray(StreamRange(0, 3, 1), 1, "x", "y", Ref("x", TInt32), NA(TString), "test"),
       ReadPartition(Str("foo"),
         TStruct("foo" -> TInt32),
         PartitionNativeReader(TypedCodecSpec(PCanonicalStruct("foo" -> PInt32(), "bar" -> PCanonicalString()), BufferSpec.default))),
@@ -3507,7 +3507,7 @@ class IRSuite extends HailSuite {
     val readArray = Let("files",
       CollectDistributedArray(StreamMap(StreamRange(0, 10, 1), "x", node), MakeStruct(FastSeq()),
         "ctx", "globals",
-        WriteValue(Ref("ctx", node.typ), Str(prefix) + UUID4(), spec)),
+        WriteValue(Ref("ctx", node.typ), Str(prefix) + UUID4(), spec), NA(TString), "test"),
       StreamMap(ToStream(Ref("files", TArray(TString))), "filename",
         ReadValue(Ref("filename", TString), spec, pt.virtualType)))
     for (v <- Array(value, null)) {
