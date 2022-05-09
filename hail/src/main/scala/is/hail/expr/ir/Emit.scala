@@ -2427,7 +2427,9 @@ class Emit[C](
           cb += baos.invoke[Unit]("reset")
           addGlobals(cb)
 
-          val stageName = cb.newLocal[String](staticID)
+          assert(staticID != null)
+          val stageName = cb.newLocal[String]("stagename")
+          cb.assign(stageName, staticID)
           emitI(dynamicID).consume(cb,
             (),
             { dynamicID =>
