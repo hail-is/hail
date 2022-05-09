@@ -830,7 +830,7 @@ class PruneSuite extends HailSuite {
       MakeTuple.ordered(FastSeq(Ref("ctx", ctxT), Ref("glob", globT))), NA(TString), "test")
 
     checkMemo(x, TArray(TTuple(ctxT.typeAfterSelectNames(Array("a")), globT.typeAfterSelectNames(Array("c")))),
-      Array(TStream(ctxT.typeAfterSelectNames(Array("a"))), globT.typeAfterSelectNames(Array("c")), null))
+      Array(TStream(ctxT.typeAfterSelectNames(Array("a"))), globT.typeAfterSelectNames(Array("c")), null, TString))
   }
 
   @Test def testTableCountMemo() {
