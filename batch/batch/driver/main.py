@@ -372,6 +372,35 @@ async def job_started(request, instance):
     return await asyncio.shield(job_started_1(request, instance))
 
 
+async def billing_update_1(request, instance):
+    db: Database = request.app['db']
+
+    body = await request.json()
+    args = []
+    for job in body:
+        args.append((job['batch_id'], job['job_id'], job['attempt_id'], job['start_time'], job['rollup_time']))
+
+    await db.execute_many(
+        '''
+INSERT INTO attempts (batch_id, job_id, attempt_id, start_time, rollup_time)
+VALUES (%s, %s, %s, %s, %s) AS new
+ON DUPLICATE KEY UPDATE
+  start_time = new.start_time, rollup_time = new.rollup_time;
+''',
+        args,
+    )
+
+    await instance.mark_healthy()
+
+    return web.Response()
+
+
+@routes.post('/api/v1alpha/billing_update')
+@active_instances_only
+async def billing_update(request, instance):
+    return await asyncio.shield(billing_update_1(request, instance))
+
+
 @routes.get('/')
 @routes.get('')
 @web_authenticated_developers_only()
@@ -953,14 +982,14 @@ async def check_resource_aggregation(app, db):
         attempt_resources = tx.execute_and_fetchall(
             '''
 SELECT attempt_resources.batch_id, attempt_resources.job_id, attempt_resources.attempt_id,
-  JSON_OBJECTAGG(resources.resource, quantity * GREATEST(COALESCE(end_time - start_time, 0), 0)) as resources
+  JSON_OBJECTAGG(resources.resource, quantity * GREATEST(COALESCE(rollup_time - start_time, 0), 0)) as resources
 FROM attempt_resources
 INNER JOIN attempts
 ON attempts.batch_id = attempt_resources.batch_id AND
   attempts.job_id = attempt_resources.job_id AND
   attempts.attempt_id = attempt_resources.attempt_id
 LEFT JOIN resources ON attempt_resources.resource_id = resources.resource_id
-WHERE GREATEST(COALESCE(end_time - start_time, 0), 0) != 0
+WHERE GREATEST(COALESCE(rollup_time - start_time, 0), 0) != 0
 GROUP BY batch_id, job_id, attempt_id
 LOCK IN SHARE MODE;
 '''
@@ -1235,6 +1264,7 @@ class BatchDriverAccessLogger(AccessLogger):
         self.exclude = [
             (endpoint[0], re.compile(deploy_config.base_path('batch-driver') + endpoint[1]))
             for endpoint in [
+                ('POST', '/api/v1alpha/instances/billing_update'),
                 ('POST', '/api/v1alpha/instances/job_complete'),
                 ('POST', '/api/v1alpha/instances/job_started'),
                 ('PATCH', '/api/v1alpha/batches/.*/.*/close'),

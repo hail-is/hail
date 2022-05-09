@@ -2501,6 +2501,8 @@ class Worker:
             log.exception(f'could not activate after trying for {MAX_IDLE_TIME_MSECS} ms, exiting')
             return
 
+        self.task_manager.ensure_future(periodically_call(60, self.send_billing_update))
+
         try:
             while True:
                 try:
@@ -2676,6 +2678,7 @@ class Worker:
         self.headers = {'X-Hail-Instance-Name': NAME, 'Authorization': f'Bearer {resp_json["token"]}'}
         self.active = True
         self.last_updated = time_msecs()
+
         log.info('activated')
 
     async def cleanup_old_images(self):
@@ -2696,6 +2699,38 @@ class Worker:
             raise
         except Exception as e:
             log.exception(f'Error while deleting unused image: {e}')
+
+    async def send_billing_update(self):
+        async def update():
+            now = time_msecs()
+            billing_update_data = []
+            for (batch_id, job_id), job in self.jobs.items():
+                if job.start_time is None:
+                    continue
+
+                if job.end_time is None:
+                    rollup_time = now
+                else:
+                    rollup_time = job.end_time
+
+                billing_update_data.append(
+                    {
+                        'batch_id': batch_id,
+                        'job_id': job_id,
+                        'attempt_id': job.attempt_id,
+                        'start_time': job.start_time,
+                        'rollup_time': rollup_time,
+                    }
+                )
+
+            await self.client_session.post(
+                deploy_config.url('batch-driver', '/api/v1alpha/billing_update'),
+                json=billing_update_data,
+                headers=self.headers,
+            )
+            log.info(f'sent billing update for {time_msecs_str(now)}')
+
+        await retry_transient_errors(update)
 
 
 async def async_main():

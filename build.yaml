@@ -2061,6 +2061,9 @@ steps:
       - name: rename-timestamp-to-date
         script: /io/sql/rename-timestamp-to-date.sql
         online: true
+      - name: add-real-time-billing
+        script: /io/sql/add-real-time-billing.sql
+        online: true
     inputs:
       - from: /repo/batch/sql
         to: /io/sql
