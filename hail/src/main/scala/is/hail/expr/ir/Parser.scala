@@ -1311,9 +1311,9 @@ object IRParser {
         val seed = int64_literal(it)
         val rt = type_expr(env.typEnv)(it)
         for {
-          rngState <- ir_value_expr(env)(it)
+//          rngState <- ir_value_expr(env)(it)
           args <- ir_value_children(env)(it)
-        } yield ApplySeeded(function, args, rngState, seed, rt)
+        } yield ApplySeeded(function, args, NA(TRNGState), seed, rt)
       case "ApplyIR" | "ApplySpecial" | "Apply" =>
         val errorID = int32_literal(it)
         val function = identifier(it)
