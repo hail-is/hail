@@ -625,7 +625,7 @@ object LowerTableIR {
                     combineGroup(distAggStatesRef),
                     WriteValue(MakeTuple.ordered(aggs.aggs.zipWithIndex.map { case (sig, i) => AggStateValue(i, sig.state) }), Str(tmpDir) + UUID4(), codecSpec),
                     aggs.states
-                  ), strConcat(Str("iteration="), invoke("toString", TString, iterNumber), Str(", n_states="), invoke("toString", TString, ArrayLen(currentAggStates))),
+                  ), strConcat(Str("iteration="), invoke("str", TString, iterNumber), Str(", n_states="), invoke("str", TString, ArrayLen(currentAggStates))),
                   "table_tree_aggregate"
                 ), iterNumber + 1), currentAggStates.typ)))
             ) { finalParts =>
@@ -998,7 +998,7 @@ object LowerTableIR {
                 FastIndexedSeq(howManyPartsToTryRef.name -> howManyPartsToTry, iteration.name -> 0),
                 bindIR(loweredChild.mapContexts(_ => StreamTake(ToStream(childContexts), howManyPartsToTryRef)){ ctx: IR => ctx }
                   .mapCollect(relationalLetsAbove, "table_head_recursive_count",
-                    strConcat(Str("iteration="), invoke("toString", TString, iteration), Str(", nParts="), invoke("toString", TString, howManyPartsToTry))
+                    strConcat(Str("iteration="), invoke("str", TString, iteration), Str(", nParts="), invoke("str", TString, howManyPartsToTry))
                   )(streamLenOrMax)) { counts =>
                   If((Cast(streamSumIR(ToStream(counts)), TInt64) >= targetNumRows) || (ArrayLen(childContexts) <= ArrayLen(counts)),
                     counts,
@@ -1095,7 +1095,7 @@ object LowerTableIR {
                   loweredChild
                     .mapContexts(_ => StreamDrop(ToStream(childContexts), maxIR(totalNumPartitions - howManyPartsToTryRef, 0))){ ctx: IR => ctx }
                     .mapCollect(relationalLetsAbove, "table_tail_recursive_count",
-                      strConcat(Str("iteration="), invoke("toString", TString, iteration), Str(", nParts="), invoke("toString", TString, howManyPartsToTryRef)))(StreamLen)
+                      strConcat(Str("iteration="), invoke("str", TString, iteration), Str(", nParts="), invoke("str", TString, howManyPartsToTryRef)))(StreamLen)
                 ) { counts =>
                   If((Cast(streamSumIR(ToStream(counts)), TInt64) >= targetNumRows) || (totalNumPartitions <= ArrayLen(counts)),
                     counts,
@@ -1261,7 +1261,7 @@ object LowerTableIR {
                             sliceArrayIR(states, outerIdxRef * branchFactor, (outerIdxRef + 1) * branchFactor)
                           }
                           val cdaResult = cdaIR(contexts, MakeStruct(Seq()), "table_scan_up_pass",
-                            strConcat(Str("iteration="), invoke("toString", TString, iteration), Str(", nStates="), invoke("toString", TString, statesLen))
+                            strConcat(Str("iteration="), invoke("str", TString, iteration), Str(", nStates="), invoke("str", TString, statesLen))
                           ) { case (contexts, _) =>
                             RunAgg(
                               combineGroup(contexts),
@@ -1305,7 +1305,7 @@ object LowerTableIR {
                         }
 
                         val results = cdaIR(groups, MakeTuple.ordered(Seq()), "table_scan_down_pass",
-                          strConcat(Str("iteration="), invoke("toString", TString, iteration), Str(", level="), invoke("toString", TString, level))
+                          strConcat(Str("iteration="), invoke("str", TString, iteration), Str(", level="), invoke("str", TString, level))
                         ) { case (context, _) =>
                           bindIR(GetField(context, "prev")) { prev =>
 
