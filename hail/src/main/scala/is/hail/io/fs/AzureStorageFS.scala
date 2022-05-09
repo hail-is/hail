@@ -10,9 +10,10 @@ import is.hail.io.fs.FSUtil.{containsWildcard, dropTrailingSlash}
 import org.apache.log4j.Logger
 
 import java.net.URI
-import is.hail.utils.fatal
+import is.hail.utils.{fatal, defaultJSONFormats}
 import org.json4s
 import org.json4s.jackson.JsonMethods
+import org.json4s.Formats
 
 import java.io.{ByteArrayInputStream, FileNotFoundException, OutputStream}
 import java.nio.file.FileSystems
@@ -93,13 +94,11 @@ class AzureStorageFS(val credentialsJSON: Option[String] = None) extends FS {
       val credential: DefaultAzureCredential = new DefaultAzureCredentialBuilder().build()
       new AzureBlobServiceClientCache(credential)
     case Some(keyData) =>
-      val kvs = JsonMethods.parse(keyData) match {
-        case json4s.JObject(values) => values.toMap
-      }
-
-      val appId = (kvs \ "appId")
-      val password = (kvs \ "password")
-      val tenant = (kvs \ "tenant")
+      implicit val formats: Formats = defaultJSONFormats
+      val kvs = JsonMethods.parse(keyData)
+      val appId = (kvs \ "appId").extract[String]
+      val password = (kvs \ "password").extract[String]
+      val tenant = (kvs \ "tenant").extract[String]
 
       val clientSecretCredential: ClientSecretCredential = new ClientSecretCredentialBuilder()
         .clientId(appId)
@@ -141,8 +140,7 @@ class AzureStorageFS(val credentialsJSON: Option[String] = None) extends FS {
         val numBytesRemainingInBlob = blobSize - pos
         val count = Math.min(numBytesRemainingInBlob, bb.remaining())
         if (count <= 0) {
-          eof = true
-          return
+          return -1
         }
 
         client.downloadStreamWithResponse(
@@ -152,6 +150,7 @@ class AzureStorageFS(val credentialsJSON: Option[String] = None) extends FS {
         bb.flip()
 
         assert(bb.position() == 0 && bb.remaining() > 0)
+        return count.toInt
       }
 
       override def seek(newPos: Long): Unit = {
