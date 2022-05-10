@@ -15,7 +15,7 @@ import traceback
 import uuid
 import warnings
 from collections import defaultdict
-from contextlib import ExitStack, contextmanager
+from contextlib import AsyncExitStack, ExitStack, contextmanager
 from typing import (
     Any,
     Awaitable,
@@ -2342,7 +2342,7 @@ class Worker:
     async def shutdown(self):
         log.info('Worker.shutdown')
         try:
-            with ExitStack() as cleanup:
+            async with AsyncExitStack() as cleanup:
                 for jvm in self._jvms:
                     cleanup.callback(jvm.kill)
         finally:
