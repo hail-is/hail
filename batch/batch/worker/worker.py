@@ -591,8 +591,6 @@ class Container:
         self._killed = False
         self._cleaned_up = False
 
-        self.task_manager = aiotools.BackgroundTaskManager()
-
     async def create(self):
         self.state = 'creating'
         try:
@@ -655,7 +653,8 @@ class Container:
 
         self._run_fut = asyncio.ensure_future(self._run_until_done_or_deleted(_run))
         if self.checkpointable:
-            self.task_manager.ensure_future(periodically_call(10, self.checkpoint))
+            # self._checkpoint_fut = asyncio.ensure_future(periodically_call(10, self.checkpoint))
+            self._checkpoint_fut = asyncio.ensure_future(self.checkpoint())
 
     async def wait(self):
         assert self._run_fut
@@ -663,6 +662,7 @@ class Container:
             await self._run_fut
         finally:
             self._run_fut = None
+            self._checkpoint_fut.cancel()
 
     async def run(self, on_completion: Callable[..., Awaitable[Any]], *args, **kwargs):
         async with self._cleanup_lock:
@@ -787,6 +787,7 @@ class Container:
             await self.netns.expose_port(self.port, self.host_port)
 
     async def checkpoint(self):
+        await asyncio.sleep(10)
         log.info(f'Starting crun checkpoint process for {self}')
         checkpoint_process = await asyncio.create_subprocess_exec(
             'crun', 'checkpoint', '--leave-running', f'--image-path={self.container_scratch}/checkpoint/', self.name
@@ -797,7 +798,7 @@ class Container:
         # FIXME: make copy overwriting instead of deleting the path to the checkpoint if it exists
         # currently if a job succeeds, there will be no checkpoint in cloud storage since checkpoint is
         # run in a loop every 10 seconds and the container_scratch directory is deleted on job success
-        await self.fs.rmtree(None, f'{BATCH_LOGS_STORAGE_URI}/vedant/{self.name}')
+        # await self.fs.rmtree(None, f'{BATCH_LOGS_STORAGE_URI}/vedant/{self.name}')
 
         # TODO: change BATCH_LOGS_STORAGE_URI to be the proper bucket for storing checkpoints
         await self.fs.copy(f'{self.container_scratch}/checkpoint/', self.get_remote_checkpoint_dir_url())
@@ -831,13 +832,24 @@ class Container:
                                 restore_dir,
                                 self.name,
                                 stdin=stdin,
-                                stdout=None,
-                                stderr=None,
+                                stdout=container_log,
+                                stderr=container_log,
                             )
+                            if self.stdin is not None:
+                                await self.process.communicate(self.stdin.encode('utf-8'))
+
+                            await self.process.wait()
                         except FileNotFoundError:
                             pass
-                        except:
-                            log.exception("NOT WHAT I WAS EXPECTING")
+                        except Exception as e:
+                            log.exception("ERROR: NOT WHAT I WAS EXPECTING")
+                            # raise e
+                        finally:
+                            restore_log_path = f'{restore_dir}/restore.log'
+                            if os.path.exists(restore_log_path):
+                                with open(restore_log_path, 'r') as f:
+                                    content = f.read()
+                                    log.info(content)
 
                     if self.process is None:
                         self.process = await asyncio.create_subprocess_exec(
@@ -852,11 +864,11 @@ class Container:
                             # stdout=container_log,
                             # stderr=container_log,
                         )
+                        if self.stdin is not None:
+                            await self.process.communicate(self.stdin.encode('utf-8'))
 
-                    if self.stdin is not None:
-                        await self.process.communicate(self.stdin.encode('utf-8'))
+                        await self.process.wait()
 
-                    await self.process.wait()
                     log.info(f'crun process completed for {self}')
         except asyncio.TimeoutError:
             return True
