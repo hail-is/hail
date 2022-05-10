@@ -2014,6 +2014,8 @@ steps:
         script: /io/sql/kill-mjc-deadlocks.sql
       - name: add-nonpreemptible-pools
         script: /io/sql/add-nonpreemptible-pools.sql
+      - name: update-local-ssd-pricing
+        script: /io/sql/update_local_ssd_pricing.py
     inputs:
       - from: /repo/batch/sql
         to: /io/sql

@@ -18,7 +18,11 @@ class GCPResource(Resource, abc.ABC):
     pass
 
 
-def gcp_disk_product(disk_type: str) -> str:
+def gcp_disk_product(disk_type: str, preemptible: bool) -> str:
+    if disk_type == 'local-ssd':
+        preemptible_str = 'preemptible' if preemptible else 'nonpreemptible'
+        return f'disk/{disk_type}/{preemptible_str}'
+    assert disk_type == 'pd-ssd'
     return f'disk/{disk_type}'
 
 
@@ -27,8 +31,8 @@ class GCPStaticSizedDiskResource(StaticSizedDiskResourceMixin, GCPResource):
     TYPE = 'gcp_static_sized_disk'
 
     @staticmethod
-    def product_name(disk_type: str) -> str:
-        return gcp_disk_product(disk_type)
+    def product_name(disk_type: str, preemptible: bool) -> str:
+        return gcp_disk_product(disk_type, preemptible)
 
     @staticmethod
     def from_dict(data: Dict[str, Any]) -> 'GCPStaticSizedDiskResource':
@@ -40,8 +44,9 @@ class GCPStaticSizedDiskResource(StaticSizedDiskResourceMixin, GCPResource):
         product_versions: ProductVersions,
         disk_type: str,
         storage_in_gib: int,
+        preemptible: bool,
     ) -> 'GCPStaticSizedDiskResource':
-        product = GCPStaticSizedDiskResource.product_name(disk_type)
+        product = GCPStaticSizedDiskResource.product_name(disk_type, preemptible)
         name = product_versions.resource_name(product)
         assert name, product
         return GCPStaticSizedDiskResource(name, storage_in_gib)
@@ -64,8 +69,8 @@ class GCPDynamicSizedDiskResource(DynamicSizedDiskResourceMixin, GCPResource):
     TYPE = 'gcp_dynamic_sized_disk'
 
     @staticmethod
-    def product_name(disk_type: str) -> str:
-        return gcp_disk_product(disk_type)
+    def product_name(disk_type: str, preemptible: bool) -> str:
+        return gcp_disk_product(disk_type, preemptible)
 
     @staticmethod
     def from_dict(data: Dict[str, Any]) -> 'GCPDynamicSizedDiskResource':
@@ -73,8 +78,8 @@ class GCPDynamicSizedDiskResource(DynamicSizedDiskResourceMixin, GCPResource):
         return GCPDynamicSizedDiskResource(data['name'])
 
     @staticmethod
-    def create(product_versions: ProductVersions, disk_type: str) -> 'GCPDynamicSizedDiskResource':
-        product = GCPDynamicSizedDiskResource.product_name(disk_type)
+    def create(product_versions: ProductVersions, disk_type: str, preemptible: bool) -> 'GCPDynamicSizedDiskResource':
+        product = GCPDynamicSizedDiskResource.product_name(disk_type, preemptible)
         name = product_versions.resource_name(product)
         assert name, product
         return GCPDynamicSizedDiskResource(name)
