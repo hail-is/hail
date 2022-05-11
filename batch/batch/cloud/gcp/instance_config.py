@@ -30,9 +30,13 @@ class GCPSlimInstanceConfig(InstanceConfig):
         location: str,
     ) -> 'GCPSlimInstanceConfig':  # pylint: disable=unused-argument
         if local_ssd_data_disk:
-            data_disk_resource = GCPStaticSizedDiskResource.create(product_versions, 'local-ssd', data_disk_size_gb, preemptible)
+            data_disk_resource = GCPStaticSizedDiskResource.create(
+                product_versions, 'local-ssd', data_disk_size_gb, preemptible
+            )
         else:
-            data_disk_resource = GCPStaticSizedDiskResource.create(product_versions, 'pd-ssd', data_disk_size_gb, preemptible)
+            data_disk_resource = GCPStaticSizedDiskResource.create(
+                product_versions, 'pd-ssd', data_disk_size_gb, preemptible
+            )
 
         machine_type_parts = gcp_machine_type_to_parts(machine_type)
         assert machine_type_parts is not None, machine_type
