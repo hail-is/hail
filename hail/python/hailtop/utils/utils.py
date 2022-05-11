@@ -762,7 +762,7 @@ def sync_retry_transient_errors(f, *args, **kwargs):
 
 
 async def request_retry_transient_errors(
-        session, # : Union[httpx.ClientSession, aiohttp.ClientSession]
+        session,  # : Union[httpx.ClientSession, aiohttp.ClientSession]
         method: str,
         url,
         **kwargs
@@ -771,7 +771,7 @@ async def request_retry_transient_errors(
 
 
 async def request_raise_transient_errors(
-        session, # : Union[httpx.ClientSession, aiohttp.ClientSession]
+        session,  # : Union[httpx.ClientSession, aiohttp.ClientSession]
         method: str,
         url,
         **kwargs
