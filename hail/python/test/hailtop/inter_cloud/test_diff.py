@@ -82,6 +82,9 @@ async def diff_test_context(request, router_filesystem: Tuple[asyncio.Semaphore,
     src_base = await fresh_dir(fs, bases, src_scheme)
     dest_base = await fresh_dir(fs, bases, dest_scheme)
 
+    await asyncio.gather(*[
+        fs.mkdir(x) for x in [f'{src_base}a/', f'{src_base}b/', f'{dest_base}a/', f'{dest_base}b/']])
+
     await asyncio.gather(
         fs.write(f'{src_base}same', b'123'),
         fs.write(f'{dest_base}same', b'123'),
@@ -121,11 +124,11 @@ async def test_diff(diff_test_context):
         {'from': f'{src_base}b/diff', 'to': f'{dest_base}b/diff', 'from_size': 3, 'to_size': 1},
         {'from': f'{src_base}b/src-only', 'to': f'{dest_base}b/src-only', 'from_size': 3, 'to_size': None},
     ]
-    actual = diff(source=src_base, target=dest_base)
+    actual = await diff(source=src_base, target=dest_base)
     assert actual == expected
 
     try:
-        result = diff(source=f'{src_base}doesnotexist', target=dest_base)
+        result = await diff(source=f'{src_base}doesnotexist', target=dest_base)
     except DiffException as exc:
         assert 'Source URL refers to no files or directories' in exc.args[0]
     else:
@@ -134,15 +137,15 @@ async def test_diff(diff_test_context):
     expected = [
         {'from': f'{src_base}src-only', 'to': f'{dest_base}', 'from_size': 3, 'to_size': None}
     ]
-    actual = diff(source=f'{src_base}src-only', target=f'{dest_base}')
+    actual = await diff(source=f'{src_base}src-only', target=f'{dest_base}')
     assert actual == expected
 
     expected = [
         {'from': f'{src_base}diff', 'to': f'{dest_base}diff', 'from_size': 3, 'to_size': 1}
     ]
-    actual = diff(source=f'{src_base}diff', target=f'{dest_base}diff')
+    actual = await diff(source=f'{src_base}diff', target=f'{dest_base}diff')
     assert actual == expected
 
     expected = []
-    actual = diff(source=f'{src_base}same', target=f'{dest_base}same')
+    actual = await diff(source=f'{src_base}same', target=f'{dest_base}same')
     assert actual == expected
