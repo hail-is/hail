@@ -1,6 +1,6 @@
 import os
 from typing import (Tuple, Any, Set, Optional, MutableMapping, Dict, AsyncIterator, cast, Type,
-                    List, Awaitable, Coroutine)
+                    List, Coroutine)
 from types import TracebackType
 from multidict import CIMultiDictProxy  # pylint: disable=unused-import
 import sys
@@ -71,7 +71,7 @@ class InsertObjectStream(WritableStream):
             await asyncio.wait([fut, self._request_task], return_when=asyncio.FIRST_COMPLETED)
             if fut.done():
                 return len(b)
-            raise ValueError(f'request task finished early')
+            raise ValueError('request task finished early')
         finally:
             fut.cancel()
 
