@@ -302,7 +302,7 @@ object PType {
     canonical(t, 0, 0)
   }
 
-  def canonicalize(t: PType, ctx: ExecuteContext, path: List[String]): Option[() => AsmFunction2RegionLongLong] = {
+  def canonicalize(t: PType, ctx: ExecuteContext, path: List[String]): Option[(HailClassLoader) => AsmFunction2RegionLongLong] = {
     def canonicalPath(pt: PType, path: List[String]): PType = {
       if (path.isEmpty) {
         PType.canonical(pt)
@@ -334,7 +334,7 @@ object PType {
         val srcAddr = fb.apply_method.getCodeParam[Long](2)
         cpt.store(cb, region, t.loadCheapSCode(cb, srcAddr), deepCopy = false)
       }
-      Some(fb.result())
+      Some(fb.result(ctx))
     }
   }
 }

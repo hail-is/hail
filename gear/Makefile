@@ -6,4 +6,5 @@ BLACK := $(PYTHON) -m black . --line-length=120 --skip-string-normalization
 check:
 	$(PYTHON) -m flake8 gear
 	$(PYTHON) -m pylint --rcfile ../pylintrc gear --score=n
+	$(PYTHON) -m isort . --check-only --diff
 	$(BLACK) --check --diff

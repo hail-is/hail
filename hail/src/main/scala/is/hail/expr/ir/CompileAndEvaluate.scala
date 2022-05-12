@@ -53,7 +53,7 @@ object CompileAndEvaluate {
         ir,
         print = None, optimize = optimize))
 
-      val fRunnable = ctx.timer.time("InitializeCompiledFunction")(f(ctx.fs, 0, ctx.r))
+      val fRunnable = ctx.timer.time("InitializeCompiledFunction")(f(ctx.theHailClassLoader, ctx.fs, 0, ctx.r))
       ctx.timer.time("RunCompiledVoidFunction")(fRunnable(ctx.r))
       return Left(())
     }
@@ -64,7 +64,7 @@ object CompileAndEvaluate {
       MakeTuple.ordered(FastSeq(ir)),
       print = None, optimize = optimize))
 
-    val fRunnable = ctx.timer.time("InitializeCompiledFunction")(f(ctx.fs, 0, ctx.r))
+    val fRunnable = ctx.timer.time("InitializeCompiledFunction")(f(ctx.theHailClassLoader, ctx.fs, 0, ctx.r))
     val resultAddress = ctx.timer.time("RunCompiledFunction")(fRunnable(ctx.r))
 
     Right((resType, resultAddress))

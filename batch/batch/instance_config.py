@@ -1,9 +1,9 @@
-from typing import Dict, List, Sequence
 import abc
+from typing import Dict, List, Sequence
 
+from .cloud.resource_utils import cores_mcpu_to_memory_bytes
 from .driver.billing_manager import ProductVersions
 from .resources import QuantifiedResource, Resource
-from .cloud.resource_utils import cores_mcpu_to_memory_bytes
 
 
 def is_power_two(n):

@@ -22,7 +22,7 @@ def is_discrete_type(dtype):
     return dtype in [hl.tstr]
 
 
-excluded_from_grouping = {"tooltip"}
+excluded_from_grouping = {"x", "tooltip", "label"}
 
 
 def should_use_for_grouping(name, type):
@@ -34,27 +34,29 @@ def should_use_scale_for_grouping(scale):
 
 
 # Map strings to numbers that will index into a color scale.
-def categorical_strings_to_colors(string_set, parent_plot):
+def categorical_strings_to_colors(string_set, color_values):
 
-    color_dict = parent_plot.discrete_color_dict
+    if isinstance(color_values, list):
+        if len(string_set) > len(color_values):
+            print(f"Not enough colors specified. Found {len(string_set)} distinct values of color aesthetic and only {len(color_values)} colors were provided.")
+        color_dict = {}
+        for idx, element in enumerate(string_set):
+            if element not in color_dict:
+                color_dict[element] = color_values[idx]
 
-    for element in string_set:
-        if element not in color_dict:
-            color_dict[element] = parent_plot.discrete_color_scale[parent_plot.discrete_color_idx % len(parent_plot.discrete_color_scale)]
-            parent_plot.discrete_color_idx += 1
+    else:
+        color_dict = color_values
 
-    return parent_plot.discrete_color_dict
+    return color_dict
 
 
-def continuous_nums_to_colors(input_color_nums, continuous_color_scale):
-    min_color = min(input_color_nums)
-    max_color = max(input_color_nums)
-
+def continuous_nums_to_colors(min_color, max_color, continuous_color_scale):
     def adjust_color(input_color):
         return (input_color - min_color) / max_color - min_color
 
-    color_mapping = plotly.colors.sample_colorscale(continuous_color_scale, [adjust_color(input_color) for input_color in input_color_nums])
-    return color_mapping
+    def transform_color(input_color):
+        return plotly.colors.sample_colorscale(continuous_color_scale, adjust_color(input_color))[0]
+    return transform_color
 
 
 def bar_position_plotly_to_gg(plotly_pos):

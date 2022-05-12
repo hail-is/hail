@@ -1,14 +1,16 @@
-import os
-import sys
-import base64
-import string
-import json
-import secrets
 import asyncio
+import base64
+import json
+import os
+import secrets
+import string
+import sys
 from shlex import quote as shq
-from hailtop.utils import check_shell, check_shell_output
-from hailtop.auth.sql_config import create_secret_data_from_config, SQLConfig
+from typing import Optional
+
 from gear import Database
+from hailtop.auth.sql_config import SQLConfig, create_secret_data_from_config
+from hailtop.utils import check_shell, check_shell_output
 
 assert len(sys.argv) == 1
 create_database_config = json.load(sys.stdin)
@@ -24,10 +26,16 @@ def generate_token(size=12):
 async def write_user_config(namespace: str, database_name: str, user: str, config: SQLConfig):
     with open('/sql-config/server-ca.pem', 'r') as f:
         server_ca = f.read()
-    with open('/sql-config/client-cert.pem', 'r') as f:
-        client_cert = f.read()
-    with open('/sql-config/client-key.pem', 'r') as f:
-        client_key = f.read()
+    client_cert: Optional[str]
+    client_key: Optional[str]
+    if config.using_mtls():
+        with open('/sql-config/client-cert.pem', 'r') as f:
+            client_cert = f.read()
+        with open('/sql-config/client-key.pem', 'r') as f:
+            client_key = f.read()
+    else:
+        client_cert = None
+        client_key = None
     secret = create_secret_data_from_config(config, server_ca, client_cert, client_key)
     files = secret.keys()
     for fname, data in secret.items():
@@ -52,7 +60,6 @@ async def create_database():
     with open('/sql-config/sql-config.json', 'r') as f:
         sql_config = SQLConfig.from_json(f.read())
 
-    cloud = create_database_config.get('cloud', 'gcp')
     namespace = create_database_config['namespace']
     database_name = create_database_config['database_name']
     cant_create_database = create_database_config['cant_create_database']
@@ -100,14 +107,6 @@ GRANT SELECT, INSERT, UPDATE, DELETE, EXECUTE ON `{_name}`.* TO '{user_username}
 '''
     )
 
-    # Azure MySQL requires that usernames follow username@servername format
-    if cloud == 'azure':
-        config_admin_username = admin_username + '@' + sql_config.instance
-        config_user_username = user_username + '@' + sql_config.instance
-    else:
-        assert cloud == 'gcp'
-        config_admin_username = admin_username
-        config_user_username = user_username
     await write_user_config(
         namespace,
         database_name,
@@ -117,7 +116,7 @@ GRANT SELECT, INSERT, UPDATE, DELETE, EXECUTE ON `{_name}`.* TO '{user_username}
             port=sql_config.port,
             instance=sql_config.instance,
             connection_name=sql_config.connection_name,
-            user=config_admin_username,
+            user=admin_username,
             password=admin_password,
             db=_name,
             ssl_ca=sql_config.ssl_ca,
@@ -136,7 +135,7 @@ GRANT SELECT, INSERT, UPDATE, DELETE, EXECUTE ON `{_name}`.* TO '{user_username}
             port=sql_config.port,
             instance=sql_config.instance,
             connection_name=sql_config.connection_name,
-            user=config_user_username,
+            user=user_username,
             password=user_password,
             db=_name,
             ssl_ca=sql_config.ssl_ca,
@@ -217,8 +216,8 @@ VALUES (%s, %s, %s);
             f'SELECT * FROM `{database_name}_migrations` WHERE version = %s;', (to_version,)
         )
         assert row is not None
-        assert name == row['name']
-        assert script_sha1 == row['script_sha1']
+        assert name == row['name'], row
+        assert script_sha1 == row['script_sha1'], row
 
 
 async def async_main():

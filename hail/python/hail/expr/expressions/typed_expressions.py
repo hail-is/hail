@@ -2916,6 +2916,14 @@ class StringExpression(Expression):
         else:
             return self._method("split", tarray(tstr), delim, n)
 
+    @typecheck_method(delim=expr_str, missing=expr_array(), quote=nullable(expr_str), regex=bool)
+    def _split_line(self, delim, missing, quote, regex):
+        regex_str = 'Regex' if regex else 'Char'
+        if quote is None:
+            return self._method(f"split{regex_str}", tarray(tstr), delim, missing)
+        else:
+            return self._method(f"splitQuoted{regex_str}", tarray(tstr), delim, missing, quote)
+
     def lower(self):
         """Returns a copy of the string, but with upper case letters converted
         to lower case.
@@ -3095,23 +3103,39 @@ class StringExpression(Expression):
         """
         return self._method('translate', tstr, mapping)
 
-    @typecheck_method(regex=expr_str)
-    def matches(self, regex):
-        """Returns ``True`` if the string contains any match for the given regex.
+    @typecheck_method(regex=expr_str, full_match=nullable(bool))
+    def matches(self, regex, full_match=False):
+        """Returns ``True`` if the string contains any match for the given regex if
+        `full_match` is false. Returns ``True`` if the whole string matches the
+        given regex if `full_match` is true.
 
         Examples
         --------
 
+        The `regex` parameter does not need to match the entire string if `full_match` is ``False``:
+
         >>> string = hl.literal('NA12878')
-
-        The `regex` parameter does not need to match the entire string:
-
         >>> hl.eval(string.matches('12'))
+        True
+
+        The `regex` parameter needs to match the entire string if `full_match` is ``True``:
+
+        >>> string = hl.literal('NA12878')
+        >>> hl.eval(string.matches('12', True))
+        False
+
+        >>> string = hl.literal('3412878')
+        >>> hl.eval(string.matches('^[0-9]*$'))
         True
 
         Regex motifs can be used to match sequences of characters:
 
+        >>> string = hl.literal('NA12878')
         >>> hl.eval(string.matches(r'NA\\d+'))
+        True
+
+        >>> string = hl.literal('3412878')
+        >>> hl.eval(string.matches('^[0-9]*$'))
         True
 
         Notes
@@ -3125,13 +3149,20 @@ class StringExpression(Expression):
         ----------
         regex: :class:`.StringExpression`
             Pattern to match.
+        full_match: :obj: `bool`
+            If ``True``, the function considers whether the whole string matches the regex.
+            If ``False``, the function considers whether the string has a partial match for that regex
 
         Returns
         -------
         :class:`.BooleanExpression`
-            ``True`` if the string contains any match for the regex, otherwise ``False``.
+            If `full_match` is ``False``,``True`` if the string contains any match for the regex, otherwise ``False``.
+            If `full_match` is ``True``,``True`` if the whole string matches the regex, otherwise ``False``.
         """
-        return regex._method("regexMatch", tbool, self)
+        if full_match is False:
+            return regex._method("regexMatch", tbool, self)
+        else:
+            return regex._method("regexFullMatch", tbool, self)
 
     def reverse(self):
         """Returns the reversed value.

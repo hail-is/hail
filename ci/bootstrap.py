@@ -1,21 +1,20 @@
-from typing import Dict, List, Optional, Tuple
-import os
-import json
-from shlex import quote as shq
-import base64
-import asyncio
 import argparse
+import asyncio
+import base64
+import json
+import os
+from shlex import quote as shq
+from typing import Dict, List, Optional, Tuple
 
-import kubernetes_asyncio as kube
-
-from hailtop.utils import check_shell_output
-
-from ci.build import BuildConfiguration, Code
-from ci.github import clone_or_fetch_script
-from ci.environment import KUBERNETES_SERVER_URL, STORAGE_URI
-from ci.utils import generate_token
+import kubernetes_asyncio.client
+import kubernetes_asyncio.config
 
 from batch.driver.k8s_cache import K8sCache
+from ci.build import BuildConfiguration, Code
+from ci.environment import KUBERNETES_SERVER_URL, STORAGE_URI
+from ci.github import clone_or_fetch_script
+from ci.utils import generate_token
+from hailtop.utils import check_shell_output
 
 BATCH_WORKER_IMAGE = os.environ['BATCH_WORKER_IMAGE']
 
@@ -173,7 +172,7 @@ class LocalBatchBuilder:
                 # Note, that is in the kubenetes-client repo, the
                 # kubernetes_asyncio.  I'm assuming it has the same
                 # issue.
-                k8s_client = kube.client.CoreV1Api()
+                k8s_client = kubernetes_asyncio.client.CoreV1Api()
                 try:
                     k8s_cache = K8sCache(k8s_client)
 
@@ -343,7 +342,7 @@ git checkout {shq(self._sha)}
 
 
 async def main():
-    await kube.config.load_kube_config()
+    await kubernetes_asyncio.config.load_kube_config()
 
     parser = argparse.ArgumentParser(description='Bootstrap a Hail as a service installation.')
 

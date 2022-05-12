@@ -1,7 +1,7 @@
-import hailtop.batch as hb
-import math
 import argparse
+import math
 
+import hailtop.batch as hb
 
 parser = argparse.ArgumentParser(description='Load test the Batch service using for a given max scheduling rate')
 parser.add_argument('msr', type=int, help='the maximum scheduling rate for the Batch Driver (in jobs/sec)')

@@ -194,7 +194,7 @@ object LoadBgen {
         val (intPType: PStruct, intDec) = internalNodeCodec.buildDecoder(ctx, internalNodeCodec.encodedVirtualType)
         IndexReaderBuilder.withDecoders(leafDec, intDec, BgenSettings.indexKeyType(rg), BgenSettings.indexAnnotationType, leafPType, intPType)
       }
-      using(indexReaderBuilder(fs, indexFile, 8, ctx.r.pool)) { index =>
+      using(indexReaderBuilder(ctx.theHailClassLoader, fs, indexFile, 8, ctx.r.pool)) { index =>
         val attributes = index.attributes
         val rg = Option(attributes("reference_genome")).map(name => ReferenceGenome.getReference(name.asInstanceOf[String]))
         val skipInvalidLoci = attributes("skip_invalid_loci").asInstanceOf[Boolean]
@@ -421,7 +421,11 @@ case class MatrixBGENReaderParameters(
       }.toList),
       "nPartitions" -> nPartitions.map(JInt(_)).getOrElse(JNull),
       "blockSizeInMB" -> blockSizeInMB.map(JInt(_)).getOrElse(JNull),
-      "includedVariants" -> includedVariants.map(t => JString(Pretty(t))).getOrElse(JNull)))
+      // FIXME: feels like a hack that Pretty needs execute context
+      // FIXME: feels like a hack that I use null here
+      // FIXME: feels like a hack that toJValue uses Pretty?
+      // Q: can we parse SSA'ed pretty table IR?
+      "includedVariants" -> includedVariants.map(t => JString(Pretty(null, t))).getOrElse(JNull)))
   }
 }
 

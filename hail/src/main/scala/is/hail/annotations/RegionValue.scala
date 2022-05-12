@@ -2,6 +2,7 @@ package is.hail.annotations
 
 import java.io._
 
+import is.hail.asm4s.HailClassLoader
 import is.hail.types.physical.PType
 import is.hail.utils.{using, RestartableByteArrayInputStream}
 import is.hail.io._
@@ -15,27 +16,33 @@ object RegionValue {
   def apply(region: Region, offset: Long) = new RegionValue(region, offset)
 
   def fromBytes(
-    makeDec: InputStream => Decoder,
+    theHailClassLoader: HailClassLoader,
+    makeDec: (InputStream, HailClassLoader) => Decoder,
     r: Region,
     byteses: Iterator[Array[Byte]]
   ): Iterator[Long] = {
-    val bad = new ByteArrayDecoder(makeDec)
+    val bad = new ByteArrayDecoder(theHailClassLoader, makeDec)
     byteses.map(bad.regionValueFromBytes(r, _))
   }
 
   def pointerFromBytes(
-    makeDec: InputStream => Decoder,
+    theHailClassLoader: HailClassLoader,
+    makeDec: (InputStream, HailClassLoader) => Decoder,
     r: Region,
     byteses: Iterator[Array[Byte]]
   ): Iterator[Long] = {
-    val bad = new ByteArrayDecoder(makeDec)
+    val bad = new ByteArrayDecoder(theHailClassLoader, makeDec)
     byteses.map { bytes =>
       bad.regionValueFromBytes(r, bytes)
     }
   }
 
-  def toBytes(makeEnc: OutputStream => Encoder, rvs: Iterator[Long]): Iterator[Array[Byte]] = {
-    val bae = new ByteArrayEncoder(makeEnc)
+  def toBytes(
+    theHailClassLoader: HailClassLoader,
+    makeEnc: (OutputStream, HailClassLoader) => Encoder,
+    rvs: Iterator[Long]
+  ): Iterator[Array[Byte]] = {
+    val bae = new ByteArrayEncoder(theHailClassLoader, makeEnc)
     rvs.map(bae.regionValueToBytes)
   }
 }

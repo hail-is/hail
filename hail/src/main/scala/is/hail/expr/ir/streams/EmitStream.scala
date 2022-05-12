@@ -4,6 +4,7 @@ import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.expr.ir._
 import is.hail.expr.ir.agg.{AggStateSig, DictState, PhysicalAggSig, StateTuple}
+import is.hail.expr.ir.functions.IntervalFunctions
 import is.hail.expr.ir.orderings.StructOrdering
 import is.hail.methods.LocalWhitening
 import is.hail.types.physical.stypes.EmitType
@@ -1342,19 +1343,41 @@ object EmitStream {
             val lEltType = leftProducer.element.emitType
             val rEltType = rightProducer.element.emitType
 
-            // these variables are used as inputs to the joinF
-
             def compare(cb: EmitCodeBuilder, lelt: EmitValue, relt: EmitValue): Code[Int] = {
               assert(lelt.emitType == lEltType)
               assert(relt.emitType == rEltType)
-
-              val lhs = lelt.map(cb)(_.asBaseStruct.subset(lKey: _*))
-              val rhs = relt.map(cb)(_.asBaseStruct.subset(rKey: _*))
-              StructOrdering.make(lhs.st.asInstanceOf[SBaseStruct], rhs.st.asInstanceOf[SBaseStruct],
-                cb.emb.ecb, missingFieldsEqual = false)
-                .compare(cb, lhs, rhs, missingEqual = false)
+              if (x.isIntervalJoin) {
+                val rhs = relt.toI(cb).flatMap(cb)(_.asBaseStruct.loadField(cb, rKey(0)))
+                val result = cb.newLocal[Int]("SJRD-interval-compare-result")
+                rhs.consume(cb, {
+                  cb.assign(result, -1)
+                }, { case interval: SIntervalValue =>
+                  val lhs = lelt.toI(cb).flatMap(cb)(_.asBaseStruct.loadField(cb, lKey(0)))
+                  lhs.consume(cb, {
+                    cb.assign(result, 1)
+                  }, { point =>
+                    val c = IntervalFunctions.pointIntervalCompare(cb, point, interval)
+                    c.consume(cb, {
+                      // One of the interval endpoints is missing. In this case,
+                      // consider the point greater, so that the join advances
+                      // past the bad interval, keeping the point.
+                      cb.assign(result, 1)
+                    }, { c =>
+                      cb.assign(result, c.asInt.value)
+                    })
+                  })
+                })
+                result
+              } else {
+                val lhs = lelt.map(cb)(_.asBaseStruct.subset(lKey: _*))
+                val rhs = relt.map(cb)(_.asBaseStruct.subset(rKey: _*))
+                StructOrdering.make(lhs.st.asInstanceOf[SBaseStruct], rhs.st.asInstanceOf[SBaseStruct],
+                  cb.emb.ecb, missingFieldsEqual = false)
+                  .compare(cb, lhs, rhs, missingEqual = false)
+              }
             }
 
+            // these variables are used as inputs to the joinF
             val lx = mb.newEmitField("streamjoin_lx", lEltType) // last value received from left
             val rx = mb.newEmitField("streamjoin_rx", rEltType) // last value received from right
 
@@ -1595,7 +1618,7 @@ object EmitStream {
                 val pulledRight = mb.genFieldThisRef[Boolean]("left_join_right_distinct_pulledRight]")
 
                 val producer = new StreamProducer {
-                  override val length: Option[EmitCodeBuilder => Code[Int]] = leftProducer.length
+                  override val length: Option[EmitCodeBuilder => Code[Int]] = None
 
                   override def initialize(cb: EmitCodeBuilder): Unit = {
                     cb.assign(pulledRight, false)

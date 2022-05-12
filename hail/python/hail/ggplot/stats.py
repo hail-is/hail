@@ -14,7 +14,7 @@ class Stat:
 
     @abc.abstractmethod
     def listify(self, agg_result):
-        # Turns the agg result into a data list to be plotted.
+        # Turns the agg result into a list of data frames to be plotted.
         return
 
     def get_precomputes(self, mapping):
@@ -22,18 +22,27 @@ class Stat:
 
 
 class StatIdentity(Stat):
+
     def make_agg(self, mapping, precomputed):
-        return hl.agg.collect(mapping)
+        grouping_variables = {aes_key: mapping[aes_key] for aes_key in mapping.keys()
+                              if should_use_for_grouping(aes_key, mapping[aes_key].dtype)}
+        non_grouping_variables = {aes_key: mapping[aes_key] for aes_key in mapping.keys() if aes_key not in grouping_variables}
+        return hl.agg.group_by(hl.struct(**grouping_variables), hl.agg.collect(hl.struct(**non_grouping_variables)))
 
     def listify(self, agg_result):
-        columns = list(agg_result[0].keys())
-        data_dict = {}
+        result = []
+        for grouped_struct, collected in agg_result.items():
+            columns = list(collected[0].keys())
+            data_dict = {}
 
-        for column in columns:
-            col_data = [row[column] for row in agg_result]
-            data_dict[column] = pd.Series(col_data)
+            for column in columns:
+                col_data = [row[column] for row in collected]
+                data_dict[column] = pd.Series(col_data)
 
-        return pd.DataFrame(data_dict)
+            df = pd.DataFrame(data_dict)
+            df.attrs.update(**grouped_struct)
+            result.append(df)
+        return result
 
 
 class StatFunction(StatIdentity):
@@ -41,14 +50,14 @@ class StatFunction(StatIdentity):
     def __init__(self, fun):
         self.fun = fun
 
-    def make_agg(self, combined, precomputed):
-        with_y_value = combined.annotate(y=self.fun(combined.x))
-        return hl.agg.collect(with_y_value)
+    def make_agg(self, mapping, precomputed):
+        with_y_value = mapping.annotate(y=self.fun(mapping.x))
+        return super().make_agg(with_y_value, precomputed)
 
 
 class StatNone(Stat):
     def make_agg(self, mapping, precomputed):
-        return hl.struct()
+        return hl.agg.take(hl.struct(), 0)
 
     def listify(self, agg_result):
         return pd.DataFrame({})
@@ -58,18 +67,23 @@ class StatCount(Stat):
     def make_agg(self, mapping, precomputed):
         grouping_variables = {aes_key: mapping[aes_key] for aes_key in mapping.keys()
                               if should_use_for_grouping(aes_key, mapping[aes_key].dtype)}
-        grouping_variables["x"] = mapping["x"]
-        return hl.agg.group_by(hl.struct(**grouping_variables), hl.agg.count())
+        if "weight" in mapping:
+            return hl.agg.group_by(hl.struct(**grouping_variables), hl.agg.counter(mapping["x"], weight=mapping["weight"]))
+        return hl.agg.group_by(hl.struct(**grouping_variables), hl.agg.group_by(mapping["x"], hl.agg.count()))
 
     def listify(self, agg_result):
-        unflattened_items = agg_result.items()
-        data = []
-        for grouping_variables, count in unflattened_items:
-            arg_dict = {key: value for key, value in grouping_variables.items()}
-            arg_dict["y"] = count
-            data.append(arg_dict)
+        result = []
+        for grouped_struct, count_by_x in agg_result.items():
+            data_dict = {}
+            xs, counts = zip(*count_by_x.items())
+            data_dict["x"] = pd.Series(xs)
+            data_dict["y"] = pd.Series(counts)
 
-        return pd.DataFrame.from_records(data)
+            df = pd.DataFrame(data_dict)
+            df.attrs.update(**grouped_struct)
+            result.append(df)
+
+        return result
 
 
 class StatBin(Stat):
@@ -106,10 +120,15 @@ class StatBin(Stat):
         items = list(agg_result.items())
         x_edges = items[0][1].bin_edges
         num_edges = len(x_edges)
-        data_rows = []
-        for key, hist in items:
+
+        result = []
+
+        for grouped_struct, hist in items:
+            data_rows = []
             y_values = hist.bin_freq
             for i, x in enumerate(x_edges[:num_edges - 1]):
-                x_value = x
-                data_rows.append({"x": x_value, "y": y_values[i], **key})
-        return pd.DataFrame.from_records(data_rows)
+                data_rows.append({"x": x, "y": y_values[i]})
+            df = pd.DataFrame.from_records(data_rows)
+            df.attrs.update(**grouped_struct)
+            result.append(df)
+        return result

@@ -32,7 +32,7 @@ class DeployConfig:
             '/deploy-config/deploy-config.json')
         if config_file is not None:
             log.info(f'deploy config file found at {config_file}')
-            with open(config_file, 'r') as f:
+            with open(config_file, 'r', encoding='utf-8') as f:
                 config = json.load(f)
             log.info(f'deploy config location: {config["location"]}')
         else:

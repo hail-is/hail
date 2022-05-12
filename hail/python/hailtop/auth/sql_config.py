@@ -12,8 +12,8 @@ class SQLConfig(NamedTuple):
     connection_name: str
     db: Optional[str]
     ssl_ca: str
-    ssl_cert: str
-    ssl_key: str
+    ssl_cert: Optional[str]
+    ssl_key: Optional[str]
     ssl_mode: str
 
     def to_json(self) -> str:
@@ -27,26 +27,28 @@ class SQLConfig(NamedTuple):
              'instance': self.instance,
              'connection_name': self.connection_name,
              'ssl-ca': self.ssl_ca,
-             'ssl-cert': self.ssl_cert,
-             'ssl-key': self.ssl_key,
              'ssl-mode': self.ssl_mode}
         if self.db is not None:
             d['db'] = self.db
+        if self.using_mtls():
+            d['ssl-cert'] = self.ssl_cert
+            d['ssl-key'] = self.ssl_key
         return d
 
     def to_cnf(self) -> str:
-        host_user_password = f'''[client]
+        cnf = f'''[client]
 host={self.host}
 user={self.user}
 password="{self.password}"
-'''
-        database_setting = f'database={self.db}\n' if self.db is not None else ''
-        ssl_settings = f'''ssl-ca={self.ssl_ca}
-ssl-cert={self.ssl_cert}
-ssl-key={self.ssl_key}
+ssl-ca={self.ssl_ca}
 ssl-mode={self.ssl_mode}
 '''
-        return host_user_password + database_setting + ssl_settings
+        if self.db is not None:
+            cnf += f'database={self.db}\n'
+        if self.using_mtls():
+            cnf += f'ssl-cert={self.ssl_cert}\n'
+            cnf += f'ssl-key={self.ssl_key}\n'
+        return cnf
 
     def check(self):
         assert self.host is not None
@@ -55,15 +57,24 @@ ssl-mode={self.ssl_mode}
         assert self.password is not None
         assert self.instance is not None
         assert self.connection_name is not None
+        if self.ssl_cert is not None:
+            assert self.ssl_key is not None
+            if not os.path.isfile(self.ssl_cert):
+                raise ValueError(f'specified ssl-cert, {self.ssl_cert}, does not exist')
+            if not os.path.isfile(self.ssl_key):
+                raise ValueError(f'specified ssl-key, {self.ssl_key}, does not exist')
+        else:
+            assert self.ssl_key is None
         assert self.ssl_ca is not None
-        assert self.ssl_cert is not None
-        assert self.ssl_key is not None
-        if not os.path.isfile(self.ssl_cert):
-            raise ValueError(f'specified ssl-cert, {self.ssl_cert}, does not exist')
-        if not os.path.isfile(self.ssl_key):
-            raise ValueError(f'specified ssl-key, {self.ssl_key}, does not exist')
         if not os.path.isfile(self.ssl_ca):
             raise ValueError(f'specified ssl-ca, {self.ssl_ca}, does not exist')
+
+    def using_mtls(self) -> bool:
+        if self.ssl_cert is not None:
+            assert self.ssl_key is not None
+            return True
+        assert self.ssl_key is None
+        return False
 
     @staticmethod
     def from_json(s: str) -> 'SQLConfig':
@@ -73,7 +84,7 @@ ssl-mode={self.ssl_mode}
     def from_dict(d: Dict[str, Any]) -> 'SQLConfig':
         for k in ('host', 'port', 'user', 'password',
                   'instance', 'connection_name',
-                  'ssl-ca', 'ssl-cert', 'ssl-key', 'ssl-mode'):
+                  'ssl-ca', 'ssl-mode'):
             assert k in d, f'{k} should be in {d}'
             assert d[k] is not None, f'{k} should not be None in {d}'
         return SQLConfig(host=d['host'],
@@ -84,20 +95,24 @@ ssl-mode={self.ssl_mode}
                          connection_name=d['connection_name'],
                          db=d.get('db'),
                          ssl_ca=d['ssl-ca'],
-                         ssl_cert=d['ssl-cert'],
-                         ssl_key=d['ssl-key'],
+                         ssl_cert=d.get('ssl-cert'),
+                         ssl_key=d.get('ssl-key'),
                          ssl_mode=d['ssl-mode'])
 
 
 def create_secret_data_from_config(config: SQLConfig,
                                    server_ca: str,
-                                   client_cert: str,
-                                   client_key: str
+                                   client_cert: Optional[str],
+                                   client_key: Optional[str]
                                    ) -> Dict[str, str]:
-    secret_data = dict()
+    secret_data = {}
     secret_data['sql-config.json'] = config.to_json()
     secret_data['sql-config.cnf'] = config.to_cnf()
     secret_data['server-ca.pem'] = server_ca
-    secret_data['client-cert.pem'] = client_cert
-    secret_data['client-key.pem'] = client_key
+    if client_cert is not None:
+        assert client_key is not None
+        secret_data['client-cert.pem'] = client_cert
+        secret_data['client-key.pem'] = client_key
+    else:
+        assert client_cert is None and client_key is None
     return secret_data

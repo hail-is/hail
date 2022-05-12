@@ -1,6 +1,7 @@
 import collections
 import itertools
 import pandas
+import numpy as np
 import pyspark
 from typing import Optional, Dict, Callable
 
@@ -430,8 +431,14 @@ class Table(ExprContainer):
         """
         return Env.backend().execute(ir.TableCount(self._tir))
 
+    async def _async_count(self):
+        return await Env.backend()._async_execute(ir.TableCount(self._tir))
+
     def _force_count(self):
         return Env.backend().execute(ir.TableToValueApply(self._tir, {'name': 'ForceCountTable'}))
+
+    async def _async_force_count(self):
+        return await Env.backend()._async_execute(ir.TableToValueApply(self._tir, {'name': 'ForceCountTable'}))
 
     @typecheck_method(caller=str,
                       row=expr_struct())
@@ -827,7 +834,7 @@ class Table(ExprContainer):
 
     @typecheck_method(expr=expr_bool,
                       keep=bool)
-    def filter(self, expr, keep=True) -> 'Table':
+    def filter(self, expr, keep: bool = True) -> 'Table':
         """Filter rows.
 
         Examples
@@ -1282,7 +1289,18 @@ class Table(ExprContainer):
 
         if not _read_if_exists or not hl.hadoop_exists(f'{output}/_SUCCESS'):
             self.write(output=output, overwrite=overwrite, stage_locally=stage_locally, _codec_spec=_codec_spec)
-        return hl.read_table(output, _intervals=_intervals, _filter_intervals=_filter_intervals)
+            _assert_type = self._type
+            _load_refs = False
+        else:
+            _assert_type = None
+            _load_refs = True
+        return hl.read_table(
+            output,
+            _intervals=_intervals,
+            _filter_intervals=_filter_intervals,
+            _assert_type=_assert_type,
+            _load_refs=_load_refs
+        )
 
     @typecheck_method(output=str,
                       overwrite=bool,
@@ -1738,6 +1756,8 @@ class Table(ExprContainer):
                         return t
 
                 if is_interval:
+                    if all_matches:
+                        hl.utils.no_service_backend('interval join with all_matches=True')
                     left = Table(ir.TableIntervalJoin(left._tir, self._tir, uid, all_matches))
                 else:
                     left = Table(ir.TableLeftJoinRightDistinct(left._tir, self._tir, uid))
@@ -1931,8 +1951,8 @@ class Table(ExprContainer):
         """
         return Env.backend().unpersist_table(self)
 
-    @typecheck_method(_localize=bool)
-    def collect(self, _localize=True):
+    @typecheck_method(_localize=bool, _timed=bool)
+    def collect(self, _localize=True, *, _timed=False):
         """Collect the rows of the table into a local list.
 
         Examples
@@ -1963,7 +1983,7 @@ class Table(ExprContainer):
         rows_ir = ir.GetField(ir.TableCollect(t._tir), 'rows')
         e = construct_expr(rows_ir, hl.tarray(t.row.dtype))
         if _localize:
-            return Env.backend().execute(e._ir)
+            return Env.backend().execute(e._ir, timed=_timed)
         else:
             return e
 
@@ -2308,6 +2328,20 @@ class Table(ExprContainer):
         :class:`.Table`
             Repartitioned table.
         """
+        if hl.current_backend().requires_lowering:
+            tmp = hl.utils.new_temp_file()
+
+            if len(self.key) == 0:
+                uid = Env.get_uid()
+                tmp2 = hl.utils.new_temp_file()
+                self.checkpoint(tmp2)
+                ht = hl.read_table(tmp2).add_index(uid).key_by(uid)
+                ht.checkpoint(tmp)
+                return hl.read_table(tmp, _n_partitions=n).key_by().drop(uid)
+            else:
+                # checkpoint rather than write to use fast codec
+                self.checkpoint(tmp)
+                return hl.read_table(tmp, _n_partitions=n)
 
         return Table(ir.TableRepartition(
             self._tir, n, ir.RepartitionStrategy.SHUFFLE if shuffle else ir.RepartitionStrategy.COALESCE))
@@ -2341,6 +2375,8 @@ class Table(ExprContainer):
         :class:`.Table`
             Table with at most `max_partitions` partitions.
         """
+        if hl.current_backend().requires_lowering:
+            return self.repartition(max_partitions)
 
         return Table(ir.TableRepartition(
             self._tir, max_partitions, ir.RepartitionStrategy.NAIVE_COALESCE))
@@ -3346,7 +3382,23 @@ class Table(ExprContainer):
 
         for data_idx in range(len(columns[fields[0]])):
             for field in fields:
-                data[data_idx][field] = columns[field][data_idx]
+                cur_val = columns[field][data_idx]
+
+                # Can't call isna on a collection or it will implicitly broadcast
+                if pandas.api.types.is_numeric_dtype(df[field].dtype) and pandas.isna(cur_val):
+                    if isinstance(cur_val, float):
+                        fixed_val = cur_val
+                    elif isinstance(cur_val, np.floating):
+                        fixed_val = cur_val.item()
+                    else:
+                        fixed_val = None
+                elif isinstance(df[field].dtype, pandas.StringDtype) and pandas.isna(cur_val):  # No NaN to worry about
+                    fixed_val = None
+                elif isinstance(cur_val, np.number):
+                    fixed_val = cur_val.item()
+                else:
+                    fixed_val = cur_val
+                data[data_idx][field] = fixed_val
 
         for data_idx, field in enumerate(fields):
             type_hint = dtypes_from_pandas(pd_dtypes[field])

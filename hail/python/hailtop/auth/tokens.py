@@ -33,7 +33,7 @@ class Tokens(collections.abc.MutableMapping):
     def default_tokens() -> 'Tokens':
         tokens_file = Tokens.get_tokens_file()
         if os.path.isfile(tokens_file):
-            with open(tokens_file, 'r') as f:
+            with open(tokens_file, 'r', encoding='utf-8') as f:
                 log.info(f'tokens loaded from {tokens_file}')
                 return Tokens(json.load(f))
         log.info(f'tokens file not found: {tokens_file}')
@@ -41,7 +41,7 @@ class Tokens(collections.abc.MutableMapping):
 
     @staticmethod
     def from_file(tokens_file: str) -> 'Tokens':
-        with open(tokens_file, 'r') as f:
+        with open(tokens_file, 'r', encoding='utf-8') as f:
             log.info(f'tokens loaded from {tokens_file}')
             return Tokens(json.load(f))
 
@@ -81,7 +81,15 @@ to obtain new credentials.
 
     def write(self) -> None:
         # restrict permissions to user
-        with os.fdopen(os.open(self.get_tokens_file(), os.O_CREAT | os.O_WRONLY | os.O_TRUNC, 0o600), 'w') as f:
+        with os.fdopen(
+                os.open(
+                    self.get_tokens_file(),
+                    os.O_CREAT | os.O_WRONLY | os.O_TRUNC,
+                    0o600
+                ),
+                'w',
+                encoding='utf-8'
+        ) as f:
             json.dump(self._tokens, f)
 
 
@@ -90,7 +98,6 @@ default_tokens: Optional[Tokens] = None
 
 
 def get_tokens(file: Optional[str] = None) -> Tokens:
-    global tokens
     global default_tokens
 
     if file is None:

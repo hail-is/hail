@@ -50,13 +50,9 @@ object HailContext {
 
   def backend: Backend = get.backend
 
-  def getFlag(flag: String): String = get.flags.get(flag)
-
-  def setFlag(flag: String, value: String): Unit = get.flags.set(flag, value)
-
   def sparkBackend(op: String): SparkBackend = get.sparkBackend(op)
 
-  def configureLogging(logFile: String, quiet: Boolean, append: Boolean, skipLoggingConfiguration: Boolean) {
+  def configureLogging(logFile: String, quiet: Boolean, append: Boolean, skipLoggingConfiguration: Boolean): Unit = {
     if (!skipLoggingConfiguration) {
       val logProps = new Properties()
 
@@ -67,12 +63,6 @@ object HailContext {
       logProps.put("log4j.appender.logfile.threshold", "INFO")
       logProps.put("log4j.appender.logfile.layout", "org.apache.log4j.PatternLayout")
       logProps.put("log4j.appender.logfile.layout.ConversionPattern", HailContext.logFormat)
-
-      logProps.put("log4j.logger.is.hail.services", "INFO, AlwaysOnConsoleAppender")
-      logProps.put("log4j.logger.is.hail.backend.service", "INFO, AlwaysOnConsoleAppender")
-      logProps.put("log4j.appender.AlwaysOnConsoleAppender", "org.apache.log4j.ConsoleAppender")
-      logProps.put("log4j.appender.AlwaysOnConsoleAppender.layout", "org.apache.log4j.PatternLayout")
-      logProps.put("log4j.appender.AlwaysOnConsoleAppender.layout.ConversionPattern", HailContext.logFormat)
 
       LogManager.resetConfiguration()
       PropertyConfigurator.configure(logProps)
@@ -161,8 +151,9 @@ object HailContext {
   }
 
   def readRowsPartition(
-    makeDec: (InputStream) => Decoder
-  )(r: Region,
+    makeDec: (InputStream, HailClassLoader) => Decoder
+  )(theHailClassLoader: HailClassLoader,
+    r: Region,
     in: InputStream,
     metrics: InputMetrics = null
   ): Iterator[Long] =
@@ -172,7 +163,7 @@ object HailContext {
       private val trackedIn = new ByteTrackingInputStream(in)
       private val dec =
         try {
-          makeDec(trackedIn)
+          makeDec(trackedIn, theHailClassLoader)
         } catch {
           case e: Exception =>
             in.close()
@@ -216,8 +207,9 @@ object HailContext {
     }
 
   def readRowsIndexedPartition(
-    makeDec: (InputStream) => Decoder
-  )(ctx: RVDContext,
+    makeDec: (InputStream, HailClassLoader) => Decoder
+  )(theHailClassLoader: HailClassLoader,
+    ctx: RVDContext,
     in: InputStream,
     idxr: IndexReader,
     offsetField: Option[String],
@@ -226,16 +218,18 @@ object HailContext {
   ): Iterator[Long] =
     bounds match {
       case Some(b) =>
-        new IndexReadIterator(makeDec, ctx.r, in, idxr, offsetField.orNull, b, metrics)
+        new IndexReadIterator(theHailClassLoader, makeDec, ctx.r, in, idxr, offsetField.orNull, b, metrics)
       case None =>
         idxr.close()
-        HailContext.readRowsPartition(makeDec)(ctx.r, in, metrics)
+        HailContext.readRowsPartition(makeDec)(theHailClassLoader, ctx.r, in, metrics)
     }
 
-  def readSplitRowsPartition(fs: BroadcastValue[FS],
-    mkRowsDec: (InputStream) => Decoder,
-    mkEntriesDec: (InputStream) => Decoder,
-    mkInserter: (FS, Int, Region) => AsmFunction3RegionLongLongLong
+  def readSplitRowsPartition(
+    theHailClassLoader: HailClassLoader,
+    fs: BroadcastValue[FS],
+    mkRowsDec: (InputStream, HailClassLoader) => Decoder,
+    mkEntriesDec: (InputStream, HailClassLoader) => Decoder,
+    mkInserter: (HailClassLoader, FS, Int, Region) => AsmFunction3RegionLongLongLong
   )(ctx: RVDContext,
     isRows: InputStream,
     isEntries: InputStream,
@@ -245,7 +239,10 @@ object HailContext {
     bounds: Option[Interval],
     partIdx: Int,
     metrics: InputMetrics = null
-  ): Iterator[Long] = new MaybeIndexedReadZippedIterator(mkRowsDec, mkEntriesDec, mkInserter(fs.value, partIdx, ctx.partitionRegion),
+  ): Iterator[Long] = new MaybeIndexedReadZippedIterator(
+    is => mkRowsDec(is, theHailClassLoaderForSparkWorkers),
+    is => mkEntriesDec(is, theHailClassLoaderForSparkWorkers),
+    mkInserter(theHailClassLoader, fs.value, partIdx, ctx.partitionRegion),
     ctx.r,
     isRows, isEntries,
     idxr.orNull, rowsOffsetField.orNull, entriesOffsetField.orNull, bounds.orNull, metrics)
@@ -293,7 +290,7 @@ object HailContext {
         assert(it.hasNext)
         val (is, m) = it.next
         assert(!it.hasNext)
-        HailContext.readRowsPartition(makeDec)(ctx.r, is, m)
+        HailContext.readRowsPartition(makeDec)(theHailClassLoaderForSparkWorkers, ctx.r, is, m)
       })
   }
 
@@ -312,7 +309,7 @@ object HailContext {
         assert(it.hasNext)
         val (is, idxr, bounds, m) = it.next
         assert(!it.hasNext)
-        readRowsIndexedPartition(makeDec)(ctx, is, idxr, indexSpec.offsetField, bounds, m)
+        readRowsIndexedPartition(makeDec)(theHailClassLoaderForSparkWorkers, ctx, is, idxr, indexSpec.offsetField, bounds, m)
       })
   }
 
@@ -338,7 +335,7 @@ object HailContext {
       val fs = fsBc.value
       val idxname = s"$path/$idxPath/${ p.file }.idx"
       val filename = s"$path/parts/${ p.file }"
-      val idxr = mkIndexReader(fs, idxname, 8, SparkTaskContext.get().getRegionPool()) // default cache capacity
+      val idxr = mkIndexReader(theHailClassLoaderForSparkWorkers, fs, idxname, 8, SparkTaskContext.get().getRegionPool()) // default cache capacity
       val in = fs.open(filename)
       (in, idxr, p.bounds, context.taskMetrics().inputMetrics)
     })
@@ -353,9 +350,9 @@ object HailContext {
     indexSpecEntries: Option[AbstractIndexSpec],
     partFiles: Array[String],
     bounds: Array[Interval],
-    makeRowsDec: InputStream => Decoder,
-    makeEntriesDec: InputStream => Decoder,
-    makeInserter: (FS, Int, Region) => AsmFunction3RegionLongLongLong
+    makeRowsDec: (InputStream, HailClassLoader) => Decoder,
+    makeEntriesDec: (InputStream, HailClassLoader) => Decoder,
+    makeInserter: (HailClassLoader, FS, Int, Region) => AsmFunction3RegionLongLongLong
   ): ContextRDD[Long] = {
     require(!(indexSpecRows.isEmpty ^ indexSpecEntries.isEmpty))
     val fsBc = ctx.fsBc
@@ -377,7 +374,7 @@ object HailContext {
       val fs = fsBc.value
       val idxr = mkIndexReader.map { mk =>
         val idxname = s"$pathRows/${ indexSpecRows.get.relPath }/${ p.file }.idx"
-        mk(fs, idxname, 8, SparkTaskContext.get().getRegionPool()) // default cache capacity
+        mk(theHailClassLoaderForSparkWorkers, fs, idxname, 8, SparkTaskContext.get().getRegionPool()) // default cache capacity
       }
       val inRows = fs.open(s"$pathRows/parts/${ p.file }")
       val inEntries = fs.open(s"$pathEntries/parts/${ p.file }")
@@ -390,7 +387,7 @@ object HailContext {
       assert(it.hasNext)
       val (isRows, isEntries, idxr, bounds, m) = it.next
       assert(!it.hasNext)
-      HailContext.readSplitRowsPartition(fsBc, makeRowsDec, makeEntriesDec, makeInserter)(
+      HailContext.readSplitRowsPartition(theHailClassLoaderForSparkWorkers, fsBc, makeRowsDec, makeEntriesDec, makeInserter)(
         ctx, isRows, isEntries, idxr, rowsOffsetField, entriesOffsetField, bounds, i, m)
     }
 
@@ -398,15 +395,13 @@ object HailContext {
 }
 
 class HailContext private(
-  val backend: Backend,
+  var backend: Backend,
   val logFile: String,
   val branchingFactor: Int,
   val optimizerIterations: Int) {
   def stop(): Unit = HailContext.stop()
 
   def sparkBackend(op: String): SparkBackend = backend.asSpark(op)
-
-  val flags: HailFeatureFlags = new HailFeatureFlags()
 
   var checkRVDKeys: Boolean = false
 
@@ -462,55 +457,4 @@ class HailContext private(
     implicit val formats = defaultJSONFormats
     JsonMethods.compact(Extraction.decompose(metadata))
   }
-}
-
-object HailFeatureFlags {
-  val defaults: Map[String, (String, String)] = Map[String, (String, String)](
-    ("no_whole_stage_codegen", ("HAIL_DEV_NO_WHOLE_STAGE_CODEGEN" -> null)),
-    ("no_ir_logging", ("HAIL_DEV_NO_IR_LOG" -> null)),
-    ("lower", ("HAIL_DEV_LOWER" -> null)),
-    ("lower_only", ("HAIL_DEV_LOWER_ONLY" -> null)),
-    ("lower_bm", ("HAIL_DEV_LOWER_BM" -> null)),
-    ("max_leader_scans", ("HAIL_DEV_MAX_LEADER_SCANS" -> "1000")),
-    ("distributed_scan_comb_op", ("HAIL_DEV_DISTRIBUTED_SCAN_COMB_OP" -> null)),
-    ("jvm_bytecode_dump", ("HAIL_DEV_JVM_BYTECODE_DUMP" -> null)),
-    ("use_packed_int_encoding", ("HAIL_DEV_USE_PACKED_INT_ENCODING" -> null)),
-    ("use_column_encoding", ("HAIL_DEV_USE_COLUMN_ENCODING" -> null)),
-    ("use_spicy_ptypes", ("HAIL_USE_SPICY_PTYPES" -> null)),
-    ("log_service_timing", ("HAIL_DEV_LOG_SERVICE_TIMING" -> null)),
-    ("cache_service_input", ("HAIL_DEV_CACHE_SERVICE_INPUT" -> null)),
-    ("write_ir_files", ("HAIL_WRITE_IR_FILES" -> null)),
-    ("method_split_ir_limit", ("HAIL_DEV_METHOD_SPLIT_LIMIT" -> "16")),
-    ("use_new_shuffle", ("HAIL_USE_NEW_SHUFFLE" -> null)),
-    ("shuffle_cutoff_to_local_sort", ("HAIL_SHUFFLE_CUTOFF" -> null)),
-    ("grouped_aggregate_buffer_size", ("HAIL_GROUPED_AGGREGATE_BUFFER_SIZE" -> "50")),
-    ("use_ssa_logs", "HAIL_USE_SSA_LOGS" -> null)
-  )
-}
-
-class HailFeatureFlags {
-  private[this] val flags: mutable.Map[String, String] =
-    mutable.Map[String, String](HailFeatureFlags.defaults.mapValues { case (env, default) =>
-      sys.env.getOrElse(env, default)
-    }.toFastSeq: _*)
-
-  val available: java.util.ArrayList[String] =
-    new java.util.ArrayList[String](java.util.Arrays.asList[String](flags.keys.toSeq: _*))
-
-  def set(flag: String, value: String): Unit = {
-    flags.update(flag, value)
-  }
-
-  def get(flag: String): String = flags(flag)
-
-  def exists(flag: String): Boolean = flags.contains(flag)
-
-  def toJSONEnv: JArray =
-    JArray(flags.filter { case (_, v) =>
-      v != null
-    }.map{ case (name, v) =>
-      JObject(
-        "name" -> JString(HailFeatureFlags.defaults(name)._1),
-        "value" -> JString(v))
-    }.toList)
 }

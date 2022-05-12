@@ -1,8 +1,25 @@
 import io
 import json
-from typing import Dict, List
+import time
+from typing import Dict, List, Union, Any
+
+import dateutil
 
 from .fs import FS
+from .stat_result import FileType, StatResult
+
+
+def _stat_dict_to_stat_result(stat: Dict[str, Any]) -> StatResult:
+    dt = dateutil.parser.isoparse(stat['modification_time'])
+    mtime = time.mktime(dt.timetuple())
+    if stat['is_dir']:
+        typ = FileType.DIRECTORY
+    elif stat['is_link']:
+        typ = FileType.SYMLINK
+    else:
+        typ = FileType.FILE
+    return StatResult(path=stat['path'], owner=stat['owner'], size=stat['size'],
+                      typ=typ, modification_time=mtime)
 
 
 class HadoopFS(FS):
@@ -18,6 +35,7 @@ class HadoopFS(FS):
         return self._open(path, mode, buffer_size, use_codec=True)
 
     def _open(self, path: str, mode: str = 'r', buffer_size: int = 8192, use_codec: bool = False):
+        handle: Union[io.BufferedReader, io.BufferedWriter]
         if 'r' in mode:
             handle = io.BufferedReader(HadoopReader(self, path, buffer_size, use_codec=use_codec), buffer_size=buffer_size)
         elif 'w' in mode:
@@ -42,11 +60,13 @@ class HadoopFS(FS):
     def is_dir(self, path: str) -> bool:
         return self._jfs.isDir(path)
 
-    def stat(self, path: str) -> Dict:
-        return json.loads(self._utils_package_object.stat(self._jfs, path))
+    def stat(self, path: str) -> StatResult:
+        stat_dict = json.loads(self._utils_package_object.stat(self._jfs, path))
+        return _stat_dict_to_stat_result(stat_dict)
 
-    def ls(self, path: str) -> List[Dict]:
-        return json.loads(self._utils_package_object.ls(self._jfs, path))
+    def ls(self, path: str) -> List[StatResult]:
+        return [_stat_dict_to_stat_result(st)
+                for st in json.loads(self._utils_package_object.ls(self._jfs, path))]
 
     def mkdir(self, path: str) -> None:
         return self._jfs.mkDir(path)
@@ -60,6 +80,9 @@ class HadoopFS(FS):
     def supports_scheme(self, scheme: str) -> bool:
         return self._jfs.supportsScheme(scheme)
 
+    def canonicalize_path(self, path: str) -> str:
+        return self._jfs.makeQualified(path)
+
 
 class HadoopReader(io.RawIOBase):
     def __init__(self, hfs, path, buffer_size, use_codec=False):
@@ -69,6 +92,7 @@ class HadoopReader(io.RawIOBase):
             self._jfile = hfs._utils_package_object.readFileCodec(hfs._jfs, path, buffer_size)
         else:
             self._jfile = hfs._utils_package_object.readFile(hfs._jfs, path, buffer_size)
+        self.mode = 'rb'
 
     def close(self):
         self._jfile.close()
@@ -101,6 +125,10 @@ class HadoopWriter(io.RawIOBase):
             self._jfile = hfs._utils_package_object.writeFileCodec(hfs._jfs, path, exclusive)
         else:
             self._jfile = hfs._utils_package_object.writeFile(hfs._jfs, path, exclusive)
+        if exclusive:
+            self.mode = 'xb'
+        else:
+            self.mode = 'wb'
 
     def writable(self):
         return True

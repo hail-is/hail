@@ -1,6 +1,6 @@
 package is.hail.backend.local
 
-import is.hail.HailContext
+import is.hail.{HailContext, HailFeatureFlags}
 import is.hail.annotations.{Region, SafeRow, UnsafeRow}
 import is.hail.asm4s._
 import is.hail.backend._
@@ -61,11 +61,20 @@ class LocalBackend(
       + "is.hail.io.compress.BGzipCodec,"
       + "is.hail.io.compress.BGzipCodecTbi,"
       + "org.apache.hadoop.io.compress.GzipCodec")
-  
+
+  private[this] val flags = HailFeatureFlags.fromEnv()
+  private[this] val theHailClassLoader = new HailClassLoader(getClass().getClassLoader())
+
+  def getFlag(name: String): String = flags.get(name)
+
+  def setFlag(name: String, value: String) = flags.set(name, value)
+
+  val availableFlags: java.util.ArrayList[String] = flags.available
+
   val fs: FS = new HadoopFS(new SerializableHadoopConfiguration(hadoopConf))
 
   def withExecuteContext[T](timer: ExecutionTimer)(f: ExecuteContext => T): T = {
-    ExecuteContext.scoped(tmpdir, tmpdir, this, fs, timer, null)(f)
+    ExecuteContext.scoped(tmpdir, tmpdir, this, fs, timer, null, theHailClassLoader, flags)(f)
   }
 
   def broadcast[T: ClassTag](value: T): BroadcastValue[T] = new LocalBroadcastValue[T](value)
@@ -78,11 +87,11 @@ class LocalBackend(
     current
   }
 
-  def parallelizeAndComputeWithIndex(backendContext: BackendContext, fs: FS, collection: Array[Array[Byte]], dependency: Option[TableStageDependency] = None)(f: (Array[Byte], HailTaskContext, FS) => Array[Byte]): Array[Array[Byte]] = {
+  def parallelizeAndComputeWithIndex(backendContext: BackendContext, fs: FS, collection: Array[Array[Byte]], dependency: Option[TableStageDependency] = None)(f: (Array[Byte], HailTaskContext, HailClassLoader, FS) => Array[Byte]): Array[Array[Byte]] = {
     val stageId = nextStageId()
     collection.zipWithIndex.map { case (c, i) =>
       val htc = new LocalTaskContext(i, stageId)
-      val bytes = f(c, htc, fs)
+      val bytes = f(c, htc, theHailClassLoader, fs)
       htc.finish()
       bytes
     }
@@ -96,7 +105,7 @@ class LocalBackend(
     val ir = LoweringPipeline.darrayLowerer(true)(DArrayLowering.All).apply(ctx, ir0).asInstanceOf[IR]
 
     if (!Compilable(ir))
-      throw new LowererUnsupportedOperation(s"lowered to uncompilable IR: ${ Pretty(ir) }")
+      throw new LowererUnsupportedOperation(s"lowered to uncompilable IR: ${ Pretty(ctx, ir) }")
 
     if (ir.typ == TVoid) {
       val (pt, f) = ctx.timer.time("Compile") {
@@ -108,7 +117,7 @@ class LocalBackend(
       }
 
       ctx.timer.time("Run") {
-        f(fs, 0, ctx.r).apply(ctx.r)
+        f(ctx.theHailClassLoader, fs, 0, ctx.r).apply(ctx.r)
         (pt, 0)
       }
     } else {
@@ -121,13 +130,13 @@ class LocalBackend(
       }
 
       ctx.timer.time("Run") {
-        (pt, f(fs, 0, ctx.r).apply(ctx.r))
+        (pt, f(ctx.theHailClassLoader, fs, 0, ctx.r).apply(ctx.r))
       }
     }
   }
 
   private[this] def _execute(ctx: ExecuteContext, ir: IR): (Option[SingleCodeType], Long) = {
-    TypeCheck(ir)
+    TypeCheck(ctx, ir)
     Validate(ir)
     val queryID = Backend.nextID()
     log.info(s"starting execution of query $queryID of initial size ${ IRSize(ir) }")
@@ -282,7 +291,7 @@ class LocalBackend(
     rowTypeRequiredness: RStruct
   ): TableStage = {
 
-    if (HailContext.getFlag("shuffle_cutoff_to_local_sort") != null) {
+    if (getFlag("use_new_shuffle") != null) {
       LowerDistributedSort.distributedSort(ctx, stage, sortFields, relationalLetsAbove, rowTypeRequiredness)
     } else {
       LowerDistributedSort.localSort(ctx, stage, sortFields, relationalLetsAbove)

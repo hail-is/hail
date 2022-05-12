@@ -199,7 +199,7 @@ class MatrixIRSuite extends HailSuite {
     val globalType = TStruct(("__cols", TArray(colSig)))
     var tv = TableValue(ctx, rowSig, keyNames, rowRdd)
     tv = tv.copy(typ = tv.typ.copy(globalType = globalType), globals = BroadcastRow(ctx, Row(cdata.toFastIndexedSeq), globalType))
-    TableLiteral(tv)
+    TableLiteral(tv, theHailClassLoader)
   }
 
   @Test def testCastTableToMatrix() {

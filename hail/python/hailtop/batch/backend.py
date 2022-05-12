@@ -375,7 +375,9 @@ class ServiceBackend(Backend[bc.Batch]):
         If specified, the project to use when authenticating with Google
         Storage. Google Storage is used to transfer serialized values between
         this computer and the cloud machines that execute Python jobs.
-
+    token:
+        The authorization token to pass to the batch client.
+        Should only be set for user delegation purposes.
     """
 
     def __init__(self,
@@ -383,7 +385,8 @@ class ServiceBackend(Backend[bc.Batch]):
                  billing_project: Optional[str] = None,
                  bucket: Optional[str] = None,
                  remote_tmpdir: Optional[str] = None,
-                 google_project: Optional[str] = None
+                 google_project: Optional[str] = None,
+                 token: Optional[str] = None
                  ):
         if len(args) > 2:
             raise TypeError(f'ServiceBackend() takes 2 positional arguments but {len(args)} were given')
@@ -405,7 +408,7 @@ class ServiceBackend(Backend[bc.Batch]):
                 'the billing_project parameter of ServiceBackend must be set '
                 'or run `hailctl config set batch/billing_project '
                 'MY_BILLING_PROJECT`')
-        self._batch_client = BatchClient(billing_project)
+        self._batch_client = BatchClient(billing_project, _token=token)
 
         user_config = get_user_config()
 
@@ -434,7 +437,7 @@ class ServiceBackend(Backend[bc.Batch]):
             remote_tmpdir = f'gs://{bucket}/batch'
         else:
             schemes = {'gs', 'hail-az'}
-            found_scheme = any([remote_tmpdir.startswith(f'{scheme}://') for scheme in schemes])
+            found_scheme = any(remote_tmpdir.startswith(f'{scheme}://') for scheme in schemes)
             if not found_scheme:
                 raise ValueError(
                     f'remote_tmpdir must be a storage uri path like gs://bucket/folder. Possible schemes include {schemes}')
@@ -641,7 +644,7 @@ class ServiceBackend(Backend[bc.Batch]):
 
             parents = [job_to_client_job_mapping[j] for j in job._dependencies]
 
-            attributes = copy.deepcopy(job.attributes) if job.attributes else dict()
+            attributes = copy.deepcopy(job.attributes) if job.attributes else {}
             if job.name:
                 attributes['name'] = job.name
 
@@ -715,7 +718,7 @@ class ServiceBackend(Backend[bc.Batch]):
             print('')
 
         deploy_config = get_deploy_config()
-        url = deploy_config.url('batch', f'/batches/{batch_handle.id}')
+        url = deploy_config.external_url('batch', f'/batches/{batch_handle.id}')
         print(f'Submitted batch {batch_handle.id}, see {url}')
 
         if open:

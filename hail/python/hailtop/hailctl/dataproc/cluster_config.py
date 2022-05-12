@@ -1,7 +1,7 @@
 class ClusterConfig:
     def __init__(self):
-        self.vars = dict()
-        self.flags = dict()
+        self.vars = {}
+        self.flags = {}
 
     def extend_flag(self, flag, values):
         if flag not in self.flags:

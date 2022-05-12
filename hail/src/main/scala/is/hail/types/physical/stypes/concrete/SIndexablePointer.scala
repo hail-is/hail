@@ -6,6 +6,7 @@ import is.hail.expr.ir.{EmitCodeBuilder, IEmitCode}
 import is.hail.types.physical.stypes._
 import is.hail.types.physical.stypes.interfaces.{SContainer, SIndexableValue}
 import is.hail.types.physical._
+import is.hail.types.physical.stypes.primitives.SInt64Value
 import is.hail.types.virtual.Type
 import is.hail.utils.FastIndexedSeq
 

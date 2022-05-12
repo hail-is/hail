@@ -1,8 +1,13 @@
-import os
+from typing import Optional
 import sys
 import re
 
 import hail
+from hailtop.config import configuration_of
+
+
+def choose_backend(backend: Optional[str] = None) -> str:
+    return configuration_of('query', 'backend', backend, 'spark')
 
 
 class FatalError(Exception):
@@ -45,20 +50,24 @@ class Env:
         if not Env._hc:
             sys.stderr.write("Initializing Hail with default parameters...\n")
             sys.stderr.flush()
+            from ..context import init
+            init()
 
-            backend_name = os.environ.get('HAIL_QUERY_BACKEND', 'spark')
+        assert Env._hc is not None
+        return Env._hc
+
+    @staticmethod
+    async def _async_hc() -> 'hail.context.HailContext':
+        if not Env._hc:
+            sys.stderr.write("Initializing Hail with default parameters...\n")
+            sys.stderr.flush()
+
+            backend_name = choose_backend()
             if backend_name == 'service':
-                from hail.context import init_service
-                init_service()
-            elif backend_name == 'spark':
-                from hail.context import init
-                init()
-            elif backend_name == 'local':
-                from hail.context import init_local
-                init_local()
+                from hail.context import init_batch
+                await init_batch()
             else:
-                raise ValueError(f'unknown Hail Query backend: {backend_name}')
-
+                return Env.hc()
         assert Env._hc is not None
         return Env._hc
 

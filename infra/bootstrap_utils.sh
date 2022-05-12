@@ -1,34 +1,13 @@
 #!/bin/bash
 
+set -e
+
 if [[ -z "$HAIL" ]]; then
     echo 1>&2 "Path to local clone of hail repository must be set."
     exit 1
 fi
 
 source $HAIL/devbin/functions.sh
-
-render_config_mk() {
-    DOCKER_PREFIX=$(get_global_config_field docker_prefix)
-    INTERNAL_IP=$(get_global_config_field internal_ip)
-    IP=$(get_global_config_field ip)
-    DOMAIN=$(get_global_config_field domain)
-    CLOUD=$(get_global_config_field cloud)
-    cat >$HAIL/config.mk <<EOF
-DOCKER_PREFIX := $DOCKER_PREFIX
-INTERNAL_IP := $INTERNAL_IP
-IP := $IP
-DOMAIN := $DOMAIN
-CLOUD := $CLOUD
-
-ifeq (\$(NAMESPACE),default)
-SCOPE = deploy
-DEPLOY = true
-else
-SCOPE = dev
-DEPLOY = false
-endif
-EOF
-}
 
 copy_images() {
     cd $HAIL/docker/third-party
@@ -72,7 +51,6 @@ generate_ssl_certs() {
 deploy_unmanaged() {
     make -C $HAIL/hail python/hailtop/hail_version
 
-    render_config_mk
     copy_images
     generate_ssl_certs
 

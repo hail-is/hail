@@ -43,11 +43,11 @@ from .blockmatrix_ir import BlockMatrixRead, BlockMatrixMap, BlockMatrixMap2, \
     BlockMatrixDot, BlockMatrixBroadcast, BlockMatrixAgg, BlockMatrixFilter, \
     BlockMatrixDensify, BlockMatrixSparsifier, BandSparsifier, \
     RowIntervalSparsifier, RectangleSparsifier, PerBlockSparsifier, BlockMatrixSparsify, \
-    BlockMatrixSlice, ValueToBlockMatrix, BlockMatrixRandom, JavaBlockMatrix, \
+    BlockMatrixSlice, ValueToBlockMatrix, BlockMatrixRandom, \
     tensor_shape_to_matrix_shape
 from .utils import filter_predicate_with_keep, make_filter_and_replace
 from .matrix_reader import MatrixReader, MatrixNativeReader, MatrixRangeReader, \
-    MatrixVCFReader, MatrixBGENReader, TextMatrixReader, MatrixPLINKReader
+    MatrixVCFReader, MatrixBGENReader, MatrixPLINKReader
 from .table_reader import AvroTableReader, TableReader, TableNativeReader, \
     TextTableReader, TableFromBlockMatrixNativeReader, StringTableReader
 from .blockmatrix_reader import BlockMatrixReader, BlockMatrixNativeReader, \
@@ -103,7 +103,6 @@ __all__ = [
     'BlockMatrixSlice',
     'ValueToBlockMatrix',
     'BlockMatrixRandom',
-    'JavaBlockMatrix',
     'tensor_shape_to_matrix_shape',
     'BlockMatrixReader',
     'BlockMatrixNativeReader',
@@ -256,7 +255,6 @@ __all__ = [
     'MatrixRangeReader',
     'MatrixVCFReader',
     'MatrixBGENReader',
-    'TextMatrixReader',
     'MatrixPLINKReader',
     'MatrixWriter',
     'MatrixNativeWriter',

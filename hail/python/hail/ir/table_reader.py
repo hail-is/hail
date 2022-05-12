@@ -9,6 +9,8 @@ from hail.ir.utils import make_filter_and_replace
 from hail.typecheck import typecheck_method, sequenceof, nullable, anytype, oneof
 from hail.utils.misc import escape_str
 
+from .utils import impute_type_of_partition_interval_array
+
 
 class TableReader(object):
     @abc.abstractmethod
@@ -25,25 +27,9 @@ class TableNativeReader(TableReader):
                       intervals=nullable(sequenceof(anytype)),
                       filter_intervals=bool)
     def __init__(self, path, intervals, filter_intervals):
-        if intervals is not None:
-            t = hl.expr.impute_type(intervals)
-            if not isinstance(t, hl.tarray) and not isinstance(t.element_type, hl.tinterval):
-                raise TypeError("'intervals' must be an array of tintervals")
-            pt = t.element_type.point_type
-            if isinstance(pt, hl.tstruct):
-                self._interval_type = t
-            else:
-                self._interval_type = hl.tarray(hl.tinterval(hl.tstruct(__point=pt)))
-
         self.path = path
         self.filter_intervals = filter_intervals
-        if intervals is not None and t != self._interval_type:
-            self.intervals = [hl.Interval(hl.Struct(__point=i.start),
-                                          hl.Struct(__point=i.end),
-                                          i.includes_start,
-                                          i.includes_end) for i in intervals]
-        else:
-            self.intervals = intervals
+        self.intervals, self._interval_type = impute_type_of_partition_interval_array(intervals)
 
     def render(self):
         reader = {'name': 'TableNativeReader',
@@ -97,21 +83,32 @@ class TextTableReader(TableReader):
 
 
 class StringTableReader(TableReader):
-    @typecheck_method(paths=oneof(str, sequenceof(str)), min_partitions=nullable(int))
-    def __init__(self, paths, min_partitions):
+    @typecheck_method(paths=oneof(str, sequenceof(str)), min_partitions=nullable(int), force_bgz=bool,
+                      force=bool, file_per_partition=bool)
+    def __init__(self, paths, min_partitions, force_bgz, force, file_per_partition):
         self.paths = paths
         self.min_partitions = min_partitions
+        self.force_bgz = force_bgz
+        self.force = force
+        self.file_per_partition = file_per_partition
 
     def render(self):
         reader = {'name': 'StringTableReader',
                   'files': self.paths,
-                  'minPartitions': self.min_partitions}
+                  'minPartitions': self.min_partitions,
+                  'forceBGZ': self.force_bgz,
+                  'forceGZ': self.force,
+                  'filePerPartition': self.file_per_partition}
+
         return escape_str(json.dumps(reader))
 
     def __eq__(self, other):
         return isinstance(other, StringTableReader) and \
             other.path == self.path and \
-            other.min_partitions == self.min_partitions
+            other.min_partitions == self.min_partitions and \
+            other.force_bgz == self.force_bgz and \
+            other.force == self.force and \
+            other.file_per_partition == self.file_per_partition
 
 
 class TableFromBlockMatrixNativeReader(TableReader):

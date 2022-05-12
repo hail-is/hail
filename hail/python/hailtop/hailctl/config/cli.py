@@ -1,3 +1,4 @@
+import os
 import sys
 import argparse
 import re
@@ -8,7 +9,7 @@ from hailtop.config import get_user_config, get_user_config_path
 validations = {
     ('batch', 'bucket'): (lambda x: re.fullmatch(r'[^:/\s]+', x) is not None,
                           'should be valid Google Bucket identifier, with no gs:// prefix'),
-    ('batch', 'remote_tmpdir'): (lambda x: any([re.fullmatch(fr'^{scheme}://.*', x) is not None for scheme in {'gs', 's3', 'hail-az'}]),
+    ('batch', 'remote_tmpdir'): (lambda x: any(re.fullmatch(fr'^{scheme}://.*', x) is not None for scheme in ('gs', 's3', 'hail-az')),
                                  'should be valid cloud storage URI such as gs://my-bucket/batch-tmp/'),
     ('email',): (lambda x: re.fullmatch(r'.+@.+', x) is not None, 'should be valid email address'),
 }
@@ -123,15 +124,20 @@ A parameter with more than one slash is invalid, for example:
         if path in deprecated_paths:
             warnings.warn(deprecated_paths[path])
         if section not in config:
-            config[section] = dict()
+            config[section] = {}
         config[section][key] = args.value
-        with open(config_file, 'w') as f:
+        try:
+            f = open(config_file, 'w', encoding='utf-8')
+        except FileNotFoundError:
+            os.makedirs(config_file.parent, exist_ok=True)
+            f = open(config_file, 'w', encoding='utf-8')
+        with f:
             config.write(f)
         sys.exit(0)
     if args.module == 'unset':
         if section in config and key in config[section]:
             del config[section][key]
-            with open(config_file, 'w') as f:
+            with open(config_file, 'w', encoding='utf-8') as f:
                 config.write(f)
         sys.exit(0)
     if args.module == 'get':

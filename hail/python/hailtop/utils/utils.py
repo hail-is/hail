@@ -1,7 +1,9 @@
-from typing import Callable, TypeVar, Awaitable, Optional, Type, List, Dict, Iterable, Tuple
+from typing import (Callable, TypeVar, Awaitable, Optional, Type, List, Dict, Iterable, Tuple,
+                    Generic, cast)
 from typing_extensions import Literal
 from types import TracebackType
 import concurrent
+import contextlib
 import subprocess
 import traceback
 import sys
@@ -45,6 +47,7 @@ RETRY_FUNCTION_SCRIPT = """function retry() {
 
 
 T = TypeVar('T')  # pylint: disable=invalid-name
+U = TypeVar('U')  # pylint: disable=invalid-name
 
 
 def unpack_comma_delimited_inputs(inputs):
@@ -59,7 +62,7 @@ def unpack_key_value_inputs(inputs):
     return {kv[0]: kv[1] for kv in key_values}
 
 
-def flatten(xxs):
+def flatten(xxs: Iterable[List[T]]) -> List[T]:
     return [x for xs in xxs for x in xs]
 
 
@@ -74,7 +77,7 @@ def first_extant_file(*files: Optional[str]) -> Optional[str]:
     return None
 
 
-def cost_str(cost):
+def cost_str(cost: Optional[int]) -> Optional[str]:
     if cost is None:
         return None
     return f'${cost:.4f}'
@@ -100,21 +103,23 @@ def secret_alnum_string(n=22, *, case=None):
     return ''.join([secrets.choice(alphabet) for _ in range(n)])
 
 
-def digits_needed(i: int):
+def digits_needed(i: int) -> int:
     assert i >= 0
     if i < 10:
         return 1
     return 1 + digits_needed(i // 10)
 
 
-def grouped(n, ls):
+def grouped(n: int, ls: List[T]) -> Iterable[List[T]]:
+    if n < 1:
+        raise ValueError('invalid value for n: found {n}')
     while len(ls) != 0:
         group = ls[:n]
         ls = ls[n:]
         yield group
 
 
-def partition(k, ls):
+def partition(k: int, ls: List[T]) -> Iterable[List[T]]:
     if k == 0:
         assert not ls
         return []
@@ -134,7 +139,7 @@ def partition(k, ls):
     return generator()
 
 
-def unzip(lst):
+def unzip(lst: Iterable[Tuple[T, U]]) -> Tuple[List[T], List[U]]:
     a = []
     b = []
     for x, y in lst:
@@ -155,24 +160,30 @@ async def blocking_to_async(thread_pool: concurrent.futures.Executor,
         thread_pool, lambda: fun(*args, **kwargs))
 
 
-async def bounded_gather(*pfs, parallelism=10, return_exceptions=False):
-    gatherer = AsyncThrottledGather(*pfs,
-                                    parallelism=parallelism,
-                                    return_exceptions=return_exceptions)
+async def bounded_gather(*pfs: Callable[[], Awaitable[T]],
+                         parallelism: int = 10,
+                         return_exceptions: bool = False
+                         ) -> List[T]:
+    gatherer = AsyncThrottledGather[T](*pfs,
+                                       parallelism=parallelism,
+                                       return_exceptions=return_exceptions)
     return await gatherer.wait()
 
 
-class AsyncThrottledGather:
-    def __init__(self, *pfs, parallelism=10, return_exceptions=False):
+class AsyncThrottledGather(Generic[T]):
+    def __init__(self,
+                 *pfs: Callable[[], Awaitable[T]],
+                 parallelism: int = 10,
+                 return_exceptions: bool = False):
         self.count = len(pfs)
         self.n_finished = 0
 
-        self._queue = asyncio.Queue()
+        self._queue: asyncio.Queue[Tuple[int, Callable[[], Awaitable[T]]]] = asyncio.Queue()
         self._done = asyncio.Event()
         self._return_exceptions = return_exceptions
 
-        self._results = [None] * len(pfs)
-        self._errors = []
+        self._results: List[Optional[T]] = [None] * len(pfs)
+        self._errors: List[BaseException] = []
 
         self._workers = []
         for _ in range(parallelism):
@@ -209,7 +220,7 @@ class AsyncThrottledGather:
             if self.n_finished == self.count:
                 self._done.set()
 
-    async def wait(self):
+    async def wait(self) -> List[T]:
         try:
             if self.count > 0:
                 await self._done.wait()
@@ -219,7 +230,7 @@ class AsyncThrottledGather:
         if self._errors:
             raise self._errors[0]
 
-        return self._results
+        return cast(List[T], self._results)
 
 
 class AsyncWorkerPool:
@@ -384,9 +395,10 @@ class OnlineBoundedGather2:
         self._counter += 1
 
         async def run_and_cleanup():
+            retval = None
             try:
                 async with self._sema:
-                    await f(*args, **kwargs)
+                    retval = await f(*args, **kwargs)
             except asyncio.CancelledError:
                 pass
             except:
@@ -398,10 +410,11 @@ class OnlineBoundedGather2:
                     log.info('discarding exception', exc_info=True)
 
             if self._pending is None:
-                return
+                return retval
             del self._pending[id]
             if not self._pending:
                 self._done_event.set()
+            return retval
 
         t = asyncio.create_task(run_and_cleanup())
         self._pending[id] = t
@@ -449,7 +462,10 @@ class OnlineBoundedGather2:
             raise self._exception
 
 
-async def bounded_gather2_return_exceptions(sema: asyncio.Semaphore, *pfs):
+async def bounded_gather2_return_exceptions(
+        sema: asyncio.Semaphore,
+        *pfs: Callable[[], Awaitable[T]]
+) -> List[T]:
     '''Run the partial functions `pfs` as tasks with parallelism bounded
     by `sema`, which should be `asyncio.Semaphore` whose initial value
     is the desired level of parallelism.
@@ -472,7 +488,11 @@ async def bounded_gather2_return_exceptions(sema: asyncio.Semaphore, *pfs):
         return await asyncio.gather(*tasks)
 
 
-async def bounded_gather2_raise_exceptions(sema: asyncio.Semaphore, *pfs, cancel_on_error: bool = False):
+async def bounded_gather2_raise_exceptions(
+        sema: asyncio.Semaphore,
+        *pfs: Callable[[], Awaitable[T]],
+        cancel_on_error: bool = False
+) -> List[T]:
     '''Run the partial functions `pfs` as tasks with parallelism bounded
     by `sema`, which should be `asyncio.Semaphore` whose initial value
     is the level of parallelism.
@@ -511,7 +531,12 @@ async def bounded_gather2_raise_exceptions(sema: asyncio.Semaphore, *pfs, cancel
                     await asyncio.wait(tasks)
 
 
-async def bounded_gather2(sema: asyncio.Semaphore, *pfs, return_exceptions: bool = False, cancel_on_error: bool = False):
+async def bounded_gather2(
+        sema: asyncio.Semaphore,
+        *pfs: Callable[[], Awaitable[T]],
+        return_exceptions: bool = False,
+        cancel_on_error: bool = False
+) -> List[T]:
     if return_exceptions:
         return await bounded_gather2_return_exceptions(sema, *pfs)
     return await bounded_gather2_raise_exceptions(sema, *pfs, cancel_on_error=cancel_on_error)
@@ -706,9 +731,15 @@ async def retry_transient_errors(f: Callable[..., Awaitable[T]], *args, **kwargs
             if not is_transient_error(e):
                 raise
             errors += 1
-            if errors % 10 == 0:
+            if errors == 2:
+                log.warning(f'A transient error occured. We will automatically retry. Do not be alarmed. '
+                            f'We have thus far seen {errors} transient errors (current delay: '
+                            f'{delay}). The most recent error was {e}')
+            elif errors % 10 == 0:
                 st = ''.join(traceback.format_stack())
-                log.warning(f'Encountered {errors} errors. My stack trace is {st}. Most recent error was {e}', exc_info=True)
+                log.warning(f'A transient error occured. We will automatically retry. '
+                            f'We have thus far seen {errors} transient errors (current delay: '
+                            f'{delay}). The stack trace for this call is {st}. The most recent error was {e}', exc_info=True)
         delay = await sleep_and_backoff(delay)
 
 
@@ -798,8 +829,8 @@ def dump_all_stacktraces():
 async def retry_long_running(name, f, *args, **kwargs):
     delay_secs = 0.1
     while True:
+        start_time = time_msecs()
         try:
-            start_time = time_msecs()
             return await f(*args, **kwargs)
         except asyncio.CancelledError:
             raise
@@ -821,6 +852,13 @@ async def run_if_changed(changed, f, *args, **kwargs):
     while True:
         changed.clear()
         should_wait = await f(*args, **kwargs)
+        # 0.5 is arbitrary, but should be short enough not to greatly
+        # increase latency and long enough to reduce the impact of
+        # wasteful spinning when `should_wait` is always true and the
+        # event is constantly being set. This was instated to
+        # avoid wasteful repetition of scheduling loops, but
+        # might not always be desirable, especially in very low-latency batches.
+        await asyncio.sleep(0.5)
         if should_wait:
             await changed.wait()
 
@@ -966,7 +1004,7 @@ class Notice:
             e.set()
 
 
-def find_spark_home():
+def find_spark_home() -> str:
     spark_home = os.environ.get('SPARK_HOME')
     if spark_home is None:
         find_spark_home = subprocess.run('find_spark_home.py',
@@ -975,8 +1013,26 @@ def find_spark_home():
         if find_spark_home.returncode != 0:
             raise ValueError(f'''SPARK_HOME is not set and find_spark_home.py returned non-zero exit code:
 STDOUT:
-{find_spark_home.stdout}
+{find_spark_home.stdout!r}
 STDERR:
-{find_spark_home.stderr}''')
+{find_spark_home.stderr!r}''')
         spark_home = find_spark_home.stdout.decode().strip()
     return spark_home
+
+
+class Timings:
+    def __init__(self):
+        self.timings: Dict[str, Dict[str, int]] = {}
+
+    @contextlib.contextmanager
+    def step(self, name: str):
+        assert name not in self.timings
+        d: Dict[str, int] = {}
+        self.timings[name] = d
+        d['start_time'] = time_msecs()
+        yield
+        d['finish_time'] = time_msecs()
+        d['duration'] = d['finish_time'] - d['start_time']
+
+    def to_dict(self):
+        return self.timings

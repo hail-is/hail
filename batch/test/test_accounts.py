@@ -1,10 +1,13 @@
-from typing import AsyncGenerator, Any, Callable, Awaitable, Optional
-import aiohttp
+import asyncio
 import os
-import pytest
 import secrets
+from typing import Any, AsyncGenerator, Awaitable, Callable, Optional
+
+import aiohttp
+import pytest
+
 from hailtop.auth import session_id_encode_to_str
-from hailtop.batch_client.aioclient import BatchClient, Batch
+from hailtop.batch_client.aioclient import Batch, BatchClient
 from hailtop.utils import secret_alnum_string
 
 from .billing_projects import get_billing_project_prefix
@@ -350,8 +353,13 @@ async def test_billing_project_accrued_costs(
     j2_2 = bb.create_job(DOCKER_ROOT_IMAGE, command=['echo', 'head'])
     b2 = await bb.submit()
 
-    b1_status = await b1.wait()
-    b2_status = await b2.wait()
+    await b1.wait()
+    await b2.wait()
+
+    # Mitigation for https://github.com/hail-is/hail-production-issues/issues/3
+    await asyncio.sleep(15)
+    b1_status = await b1.status()
+    b2_status = await b2.status()
 
     b1_expected_cost = (await j1_1.status())['cost'] + (await j1_2.status())['cost']
     assert approx_equal(b1_expected_cost, b1_status['cost']), str(
@@ -415,19 +423,19 @@ async def test_billing_limit_tiny(
     client = await make_client(project)
 
     batch = client.create_batch()
-    j1 = batch.create_job(DOCKER_ROOT_IMAGE, command=['sleep', '5'])
-    j2 = batch.create_job(DOCKER_ROOT_IMAGE, command=['sleep', '5'], parents=[j1])
-    j3 = batch.create_job(DOCKER_ROOT_IMAGE, command=['sleep', '5'], parents=[j2])
-    j4 = batch.create_job(DOCKER_ROOT_IMAGE, command=['sleep', '5'], parents=[j3])
-    j5 = batch.create_job(DOCKER_ROOT_IMAGE, command=['sleep', '5'], parents=[j4])
-    j6 = batch.create_job(DOCKER_ROOT_IMAGE, command=['sleep', '5'], parents=[j5])
-    j7 = batch.create_job(DOCKER_ROOT_IMAGE, command=['sleep', '5'], parents=[j6])
-    j8 = batch.create_job(DOCKER_ROOT_IMAGE, command=['sleep', '5'], parents=[j7])
-    j9 = batch.create_job(DOCKER_ROOT_IMAGE, command=['sleep', '5'], parents=[j8])
+    j1 = batch.create_job(DOCKER_ROOT_IMAGE, command=['sleep', '30'])
+    j2 = batch.create_job(DOCKER_ROOT_IMAGE, command=['sleep', '30'], parents=[j1])
+    j3 = batch.create_job(DOCKER_ROOT_IMAGE, command=['sleep', '30'], parents=[j2])
+    j4 = batch.create_job(DOCKER_ROOT_IMAGE, command=['sleep', '30'], parents=[j3])
+    j5 = batch.create_job(DOCKER_ROOT_IMAGE, command=['sleep', '30'], parents=[j4])
+    j6 = batch.create_job(DOCKER_ROOT_IMAGE, command=['sleep', '30'], parents=[j5])
+    j7 = batch.create_job(DOCKER_ROOT_IMAGE, command=['sleep', '30'], parents=[j6])
+    j8 = batch.create_job(DOCKER_ROOT_IMAGE, command=['sleep', '30'], parents=[j7])
+    j9 = batch.create_job(DOCKER_ROOT_IMAGE, command=['sleep', '30'], parents=[j8])
     batch.create_job(DOCKER_ROOT_IMAGE, command=['sleep', '5'], parents=[j9])
-    handle = await batch.submit()
-    status = await handle.wait()
-    assert status['state'] == 'cancelled', str(await handle.debug_info())
+    batch = await batch.submit()
+    batch_status = await batch.wait()
+    assert batch_status['state'] == 'cancelled', str(await batch.debug_info())
 
 
 async def search_batches(client, expected_batch_id, q):

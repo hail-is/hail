@@ -55,10 +55,20 @@ resource "azurerm_storage_account" "batch" {
   location                 = var.resource_group.location
   account_tier             = "Standard"
   account_replication_type = "LRS"
+
+  blob_properties {
+    last_access_time_enabled = true
+  }
 }
 
 resource "azurerm_storage_container" "batch_logs" {
   name                  = "logs"
+  storage_account_name  = azurerm_storage_account.batch.name
+  container_access_type = "private"
+}
+
+resource "azurerm_storage_container" "query" {
+  name                  = "query"
   storage_account_name  = azurerm_storage_account.batch.name
   container_access_type = "private"
 }
@@ -69,6 +79,10 @@ resource "azurerm_storage_account" "test" {
   location                 = var.resource_group.location
   account_tier             = "Standard"
   account_replication_type = "LRS"
+
+  blob_properties {
+    last_access_time_enabled = true
+  }
 }
 
 resource "azurerm_storage_container" "test" {
@@ -85,7 +99,7 @@ resource "azurerm_storage_management_policy" "test" {
     enabled = true
     filters {
       prefix_match = [azurerm_storage_container.test.name]
-      blob_types   = ["blockBlob", "appendBlob"]
+      blob_types   = ["blockBlob"]
     }
     actions {
       base_blob {
@@ -249,17 +263,6 @@ module "test_dev_sp" {
   name                  = "test-dev"
   application_id        = azuread_application.test_dev.application_id
   application_object_id = azuread_application.test_dev.object_id
-}
-
-resource "azuread_application" "query" {
-  display_name = "${var.resource_group.name}-query"
-}
-module "query_sp" {
-  source = "../service_principal"
-
-  name                  = "query"
-  application_id        = azuread_application.query.application_id
-  application_object_id = azuread_application.query.object_id
 }
 
 resource "azuread_application" "grafana" {

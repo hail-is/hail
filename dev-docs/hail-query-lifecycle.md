@@ -57,7 +57,7 @@ classes extending is.hail.backend.Backend.  These backends works by
 calling into the JVM backends via Py4J (soon to be replaced with a
 unix domain socket).
 
-The Python service backend connects to the Hail Query service REST API
+The Python service backend issues batches to Hail Batch
 to execute pipelines.  The query service is implemented in Python but
 again has a parallel JVM with a ServiceBackend that does the heavy
 lifting.

@@ -1,16 +1,16 @@
-from typing import Deque, Set, Tuple, Dict, Any
-import logging
 import json
+import logging
 import secrets
-from aiohttp import web
-from functools import wraps
 from collections import deque
+from functools import wraps
+from typing import Any, Deque, Dict, Set, Tuple
+
+from aiohttp import web
 
 from gear import maybe_parse_bearer_header
 from hailtop.utils import secret_alnum_string
 
 from .cloud.resource_utils import cost_from_msec_mcpu
-
 
 log = logging.getLogger('utils')
 

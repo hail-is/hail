@@ -1,24 +1,19 @@
 import abc
 import json
 import logging
-from collections import defaultdict, Counter
+from collections import Counter, defaultdict
 from shlex import quote as shq
-import yaml
-import jinja2
 from typing import Dict, List
-from hailtop.utils import flatten
-from .utils import generate_token
-from .environment import (
-    DOCKER_PREFIX,
-    DOMAIN,
-    CI_UTILS_IMAGE,
-    BUILDKIT_IMAGE,
-    DEFAULT_NAMESPACE,
-    STORAGE_URI,
-    CLOUD,
-)
-from .globals import is_test_deployment
+
+import jinja2
+import yaml
+
 from gear.cloud_config import get_global_config
+from hailtop.utils import RETRY_FUNCTION_SCRIPT, flatten
+
+from .environment import BUILDKIT_IMAGE, CI_UTILS_IMAGE, CLOUD, DEFAULT_NAMESPACE, DOCKER_PREFIX, DOMAIN, STORAGE_URI
+from .globals import is_test_deployment
+from .utils import generate_token
 
 log = logging.getLogger('ci')
 
@@ -316,9 +311,11 @@ set +x
 /bin/sh /home/user/convert-cloud-credentials-to-docker-auth-config
 set -x
 
+{RETRY_FUNCTION_SCRIPT}
+
 export BUILDKITD_FLAGS='--oci-worker-no-process-sandbox --oci-worker-snapshotter=overlayfs'
 export BUILDCTL_CONNECT_RETRIES_MAX=100 # https://github.com/moby/buildkit/issues/1423
-buildctl-daemonless.sh \
+retry buildctl-daemonless.sh \
      build \
      --frontend dockerfile.v0 \
      --local context={shq(context)} \
@@ -427,7 +424,19 @@ true
 
 class RunImageStep(Step):
     def __init__(
-        self, params, image, script, inputs, outputs, port, resources, service_account, secrets, always_run, timeout
+        self,
+        params,
+        image,
+        script,
+        inputs,
+        outputs,
+        port,
+        resources,
+        service_account,
+        secrets,
+        always_run,
+        timeout,
+        num_splits,
     ):  # pylint: disable=unused-argument
         super().__init__(params)
         self.image = expand_value_from(image, self.input_config(params.code, params.scope))
@@ -446,12 +455,11 @@ class RunImageStep(Step):
         self.secrets = secrets
         self.always_run = always_run
         self.timeout = timeout
-        self.job = None
+        self.jobs = []
+        self.num_splits = num_splits
 
     def wrapped_job(self):
-        if self.job:
-            return [self.job]
-        return []
+        return self.jobs
 
     @staticmethod
     def from_json(params):
@@ -468,16 +476,33 @@ class RunImageStep(Step):
             json.get('secrets'),
             json.get('alwaysRun', False),
             json.get('timeout', 3600),
+            json.get('numSplits', 1),
         )
 
     def config(self, scope):  # pylint: disable=unused-argument
         return {'token': self.token}
 
     def build(self, batch, code, scope):
+        if self.num_splits == 1:
+            self.jobs = [self._build_job(batch, code, scope, self.name, None, None)]
+        else:
+            self.jobs = [
+                self._build_job(
+                    batch,
+                    code,
+                    scope,
+                    f'{self.name}_{i}',
+                    {'HAIL_RUN_IMAGE_SPLITS': str(self.num_splits), 'HAIL_RUN_IMAGE_SPLIT_INDEX': str(i)},
+                    f'/{self.name}_{i}',
+                )
+                for i in range(self.num_splits)
+            ]
+
+    def _build_job(self, batch, code, scope, job_name, env, output_prefix):
         template = jinja2.Template(self.script, undefined=jinja2.StrictUndefined, trim_blocks=True, lstrip_blocks=True)
         rendered_script = template.render(**self.input_config(code, scope))
 
-        log.info(f'step {self.name}, rendered script:\n{rendered_script}')
+        log.info(f'step {job_name}, rendered script:\n{rendered_script}')
 
         if self.inputs:
             input_files = []
@@ -489,7 +514,8 @@ class RunImageStep(Step):
         if self.outputs:
             output_files = []
             for o in self.outputs:
-                output_files.append((o["from"], f'{STORAGE_URI}/build/{batch.attributes["token"]}{o["to"]}'))
+                prefixed_path = o["to"] if output_prefix is None else output_prefix + o["to"]
+                output_files.append((o["from"], f'{STORAGE_URI}/build/{batch.attributes["token"]}{prefixed_path}'))
         else:
             output_files = None
 
@@ -501,12 +527,12 @@ class RunImageStep(Step):
                 mount_path = secret['mountPath']
                 secrets.append({'namespace': namespace, 'name': name, 'mount_path': mount_path})
 
-        self.job = batch.create_job(
+        return batch.create_job(
             self.image,
             command=['bash', '-c', rendered_script],
             port=self.port,
             resources=self.resources,
-            attributes={'name': self.name},
+            attributes={'name': job_name},
             input_files=input_files,
             output_files=output_files,
             secrets=secrets,
@@ -515,6 +541,7 @@ class RunImageStep(Step):
             always_run=self.always_run,
             timeout=self.timeout,
             network='private',
+            env=env,
         )
 
     def cleanup(self, batch, scope, parents):
@@ -743,7 +770,7 @@ class DeployStep(Step):
         return {'token': self.token}
 
     def build(self, batch, code, scope):
-        with open(f'{code.repo_dir()}/{self.config_file}', 'r') as f:
+        with open(f'{code.repo_dir()}/{self.config_file}', 'r', encoding='utf-8') as f:
             template = jinja2.Template(f.read(), undefined=jinja2.StrictUndefined, trim_blocks=True, lstrip_blocks=True)
             rendered_config = template.render(**self.input_config(code, scope))
 

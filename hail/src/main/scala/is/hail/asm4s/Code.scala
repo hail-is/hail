@@ -204,6 +204,10 @@ object Code {
   )(implicit a1ct: ClassTag[A1], a2ct: ClassTag[A2], a3ct: ClassTag[A3], a4ct: ClassTag[A4], a5ct: ClassTag[A5], a6ct: ClassTag[A6], a7ct: ClassTag[A7], tct: ClassTag[T], tti: TypeInfo[T]): Code[T] =
     newInstance[T](Array[Class[_]](a1ct.runtimeClass, a2ct.runtimeClass, a3ct.runtimeClass, a4ct.runtimeClass, a5ct.runtimeClass, a6ct.runtimeClass, a7ct.runtimeClass), Array[Code[_]](a1, a2, a3, a4, a5, a6, a7))
 
+  def newInstance8[T <: AnyRef, A1, A2, A3, A4, A5, A6, A7, A8](a1: Code[A1], a2: Code[A2], a3: Code[A3], a4: Code[A4], a5: Code[A5], a6: Code[A6], a7: Code[A7], a8: Code[A8]
+  )(implicit a1ct: ClassTag[A1], a2ct: ClassTag[A2], a3ct: ClassTag[A3], a4ct: ClassTag[A4], a5ct: ClassTag[A5], a6ct: ClassTag[A6], a7ct: ClassTag[A7], a8ct: ClassTag[A8], tct: ClassTag[T], tti: TypeInfo[T]): Code[T] =
+    newInstance[T](Array[Class[_]](a1ct.runtimeClass, a2ct.runtimeClass, a3ct.runtimeClass, a4ct.runtimeClass, a5ct.runtimeClass, a6ct.runtimeClass, a7ct.runtimeClass, a8ct.runtimeClass), Array[Code[_]](a1, a2, a3, a4, a5, a6, a7, a8))
+
   def newInstance11[T <: AnyRef, A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11](a1: Code[A1], a2: Code[A2], a3: Code[A3], a4: Code[A4],
     a5: Code[A5], a6: Code[A6], a7: Code[A7], a8: Code[A8], a9: Code[A9], a10: Code[A10], a11: Code[A11]
   )(implicit a1ct: ClassTag[A1], a2ct: ClassTag[A2], a3ct: ClassTag[A3], a4ct: ClassTag[A4], a5ct: ClassTag[A5], a6ct: ClassTag[A6], a7ct: ClassTag[A7],
@@ -1069,9 +1073,9 @@ class CodeChar(val lhs: Code[Char]) extends AnyVal {
 
   def <=(rhs: Code[Int]): Code[Boolean] = lhs.toI <= rhs
 
-  def ceq(rhs: Code[Int]): Code[Boolean] = lhs.toI.ceq(rhs)
+  def ceq(rhs: Code[Char]): Code[Boolean] = lhs.toI.ceq(rhs.toI)
 
-  def cne(rhs: Code[Int]): Code[Boolean] = lhs.toI.cne(rhs)
+  def cne(rhs: Code[Char]): Code[Boolean] = lhs.toI.cne(rhs.toI)
 
   def toI: Code[Int] = lhs.asInstanceOf[Code[Int]]
 
@@ -1089,8 +1093,11 @@ class CodeString(val lhs: Code[String]) extends AnyVal {
 }
 
 class CodeArray[T](val lhs: Code[Array[T]])(implicit tti: TypeInfo[T]) {
-  def apply(i: Code[Int]): Code[T] =
-    Code(lhs, i, lir.insn2(tti.aloadOp))
+  assert(lhs.ti.asInstanceOf[ArrayInfo[_]].tti == tti)
+  def apply(i: Code[Int]): Code[T] = {
+    val f: (ValueX, ValueX) => ValueX = (v1: ValueX, v2: ValueX) => lir.insn(tti.aloadOp, tti, FastIndexedSeq(v1, v2))
+    Code(lhs, i, f)
+  }
 
   def update(i: Code[Int], x: Code[T]): Code[Unit] = {
     lhs.start.append(lir.goto(i.end))
@@ -1384,6 +1391,10 @@ class CodeObject[T <: AnyRef : ClassTag](val lhs: Code[T]) {
   def invoke[A1, A2, A3, A4, A5, A6, S](method: String, a1: Code[A1], a2: Code[A2], a3: Code[A3], a4: Code[A4], a5: Code[A5], a6: Code[A6])
     (implicit a1ct: ClassTag[A1], a2ct: ClassTag[A2], a3ct: ClassTag[A3], a4ct: ClassTag[A4], a5ct: ClassTag[A5], a6ct: ClassTag[A6], sct: ClassTag[S]): Code[S] =
     invoke[S](method, Array[Class[_]](a1ct.runtimeClass, a2ct.runtimeClass, a3ct.runtimeClass, a4ct.runtimeClass, a5ct.runtimeClass, a6ct.runtimeClass), Array[Code[_]](a1, a2, a3, a4, a5, a6))
+
+  def invoke[A1, A2, A3, A4, A5, A6, A7, S](method: String, a1: Code[A1], a2: Code[A2], a3: Code[A3], a4: Code[A4], a5: Code[A5], a6: Code[A6], a7: Code[A7])
+    (implicit a1ct: ClassTag[A1], a2ct: ClassTag[A2], a3ct: ClassTag[A3], a4ct: ClassTag[A4], a5ct: ClassTag[A5], a6ct: ClassTag[A6], a7ct: ClassTag[A7], sct: ClassTag[S]): Code[S] =
+    invoke[S](method, Array[Class[_]](a1ct.runtimeClass, a2ct.runtimeClass, a3ct.runtimeClass, a4ct.runtimeClass, a5ct.runtimeClass, a6ct.runtimeClass, a7ct.runtimeClass), Array[Code[_]](a1, a2, a3, a4, a5, a6, a7))
 
   def invoke[A1, A2, A3, A4, A5, A6, A7, A8, S](method: String, a1: Code[A1], a2: Code[A2], a3: Code[A3], a4: Code[A4],
     a5: Code[A5], a6: Code[A6], a7: Code[A7], a8: Code[A8])

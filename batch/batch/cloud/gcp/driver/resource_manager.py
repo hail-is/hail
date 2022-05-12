@@ -1,35 +1,33 @@
-from typing import Optional, List, Tuple
-
-import aiohttp
 import logging
 import uuid
+from typing import List, Optional, Tuple
+
+import aiohttp
 import dateutil.parser
 
 from hailtop.aiocloud import aiogoogle
 
-from ....file_store import FileStore
+from ....driver.instance import Instance
 from ....driver.resource_manager import (
     CloudResourceManager,
+    UnknownVMState,
     VMDoesNotExist,
     VMState,
-    UnknownVMState,
     VMStateCreating,
     VMStateRunning,
     VMStateTerminated,
 )
-from ....driver.instance import Instance
+from ....file_store import FileStore
 from ....instance_config import InstanceConfig, QuantifiedResource
-
 from ..instance_config import GCPSlimInstanceConfig
-from .create_instance import create_vm_config
 from ..resource_utils import (
+    GCP_MACHINE_FAMILY,
+    family_worker_type_cores_to_gcp_machine_type,
     gcp_machine_type_to_worker_type_and_cores,
     gcp_worker_memory_per_core_mib,
-    family_worker_type_cores_to_gcp_machine_type,
-    GCP_MACHINE_FAMILY,
 )
 from .billing_manager import GCPBillingManager
-
+from .create_instance import create_vm_config
 
 log = logging.getLogger('resource_manager')
 

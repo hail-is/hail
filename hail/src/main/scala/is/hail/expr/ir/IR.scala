@@ -15,11 +15,15 @@ import is.hail.types.{RIterable, TypeWithRequiredness}
 import is.hail.types.encoded._
 import is.hail.types.physical._
 import is.hail.types.physical.stypes.{BooleanSingleCodeType, Float32SingleCodeType, Float64SingleCodeType, Int32SingleCodeType, Int64SingleCodeType, PTypeReferenceSingleCodeType, SType}
+import is.hail.types.physical.stypes.concrete.SJavaString
+import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.virtual._
 import is.hail.utils.{FastIndexedSeq, _}
 import org.json4s.{DefaultFormats, Extraction, Formats, JValue, ShortTypeHints}
 
 import scala.language.existentials
+
+import java.io.OutputStream
 
 sealed trait IR extends BaseIR {
   private var _typ: Type = null
@@ -192,7 +196,7 @@ object MakeArray {
     MakeArray(args, TArray(args.head.typ))
   }
 
-  def unify(args: Seq[IR], requestedType: TArray = null): MakeArray = {
+  def unify(ctx: ExecuteContext, args: Seq[IR], requestedType: TArray = null): MakeArray = {
     assert(requestedType != null || args.nonEmpty)
 
     if(args.nonEmpty)
@@ -200,7 +204,7 @@ object MakeArray {
         return MakeArray(args, TArray(args.head.typ))
 
     MakeArray(args.map { arg =>
-      val upcast = PruneDeadFields.upcast(arg, requestedType.elementType)
+      val upcast = PruneDeadFields.upcast(ctx, arg, requestedType.elementType)
       assert(upcast.typ == requestedType.elementType)
       upcast
     }, requestedType)
@@ -210,7 +214,7 @@ object MakeArray {
 final case class MakeArray(args: Seq[IR], _typ: TArray) extends IR
 
 object MakeStream {
-  def unify(args: Seq[IR], requiresMemoryManagementPerElement: Boolean = false, requestedType: TStream = null): MakeStream = {
+  def unify(ctx: ExecuteContext, args: Seq[IR], requiresMemoryManagementPerElement: Boolean = false, requestedType: TStream = null): MakeStream = {
     assert(requestedType != null || args.nonEmpty)
 
     if (args.nonEmpty)
@@ -218,7 +222,7 @@ object MakeStream {
         return MakeStream(args, TStream(args.head.typ), requiresMemoryManagementPerElement)
 
     MakeStream(args.map { arg =>
-      val upcast = PruneDeadFields.upcast(arg, requestedType.elementType)
+      val upcast = PruneDeadFields.upcast(ctx, arg, requestedType.elementType)
       assert(upcast.typ == requestedType.elementType)
       upcast
     }, requestedType, requiresMemoryManagementPerElement)
@@ -368,46 +372,64 @@ object StreamJoin {
     lKey: IndexedSeq[String], rKey: IndexedSeq[String],
     l: String, r: String,
     joinF: IR,
-    joinType: String
+    joinType: String,
+    requiresMemoryManagement: Boolean,
+    rightKeyIsDistinct: Boolean = false
   ): IR = {
     val lType = coerce[TStream](left.typ)
     val rType = coerce[TStream](right.typ)
     val lEltType = coerce[TStruct](lType.elementType)
     val rEltType = coerce[TStruct](rType.elementType)
     assert(lEltType.typeAfterSelectNames(lKey) isIsomorphicTo rEltType.typeAfterSelectNames(rKey))
-    val rightGroupedStream = StreamGroupByKey(right, rKey)
 
-    val groupField = genUID()
+    if(!rightKeyIsDistinct) {
+      val rightGroupedStream = StreamGroupByKey(right, rKey)
+      val groupField = genUID()
 
-    // stream of {key, groupField}, where 'groupField' is an array of all rows
-    // in 'right' with key 'key'
-    val rightGrouped = mapIR(rightGroupedStream) { group =>
-      bindIR(ToArray(group)) { array =>
-        bindIR(ArrayRef(array, 0)) { head =>
-          MakeStruct(rKey.map { key => key -> GetField(head, key) } :+ groupField -> array)
+      // stream of {key, groupField}, where 'groupField' is an array of all rows
+      // in 'right' with key 'key'
+      val rightGrouped = mapIR(rightGroupedStream) { group =>
+        bindIR(ToArray(group)) { array =>
+          bindIR(ArrayRef(array, 0)) { head =>
+            MakeStruct(rKey.map { key => key -> GetField(head, key) } :+ groupField -> array)
+          }
+        }
+      }
+
+      val rElt = Ref(genUID(), coerce[TStream](rightGrouped.typ).elementType)
+      val lElt = Ref(genUID(), lEltType)
+      val makeTupleFromJoin = MakeStruct(FastSeq("left" -> lElt, "rightGroup" -> rElt))
+      val joined = StreamJoinRightDistinct(left, rightGrouped, lKey, rKey, lElt.name, rElt.name, makeTupleFromJoin, joinType)
+
+      // joined is a stream of {leftElement, rightGroup}
+      bindIR(MakeArray(NA(rEltType))) { missingSingleton =>
+        flatMapIR(joined) { x =>
+          Let(l, GetField(x, "left"), bindIR(GetField(GetField(x, "rightGroup"), groupField)) { rightElts =>
+            joinType match {
+              case "left" | "outer" => StreamMap(ToStream(If(IsNA(rightElts), missingSingleton, rightElts), requiresMemoryManagement), r, joinF)
+              case "right" | "inner" => StreamMap(ToStream(rightElts, requiresMemoryManagement), r, joinF)
+            }
+          })
         }
       }
     }
-    val rElt = Ref(genUID(), coerce[TStream](rightGrouped.typ).elementType)
-    val lElt = Ref(genUID(), lEltType)
-    val makeTupleFromJoin = MakeStruct(FastSeq("left" -> lElt, "rightGroup" -> rElt))
-    val joined = StreamJoinRightDistinct(left, rightGrouped, lKey, rKey, lElt.name, rElt.name, makeTupleFromJoin, joinType)
-
-    // joined is a stream of {leftElement, rightGroup}
-    bindIR(MakeArray(NA(rEltType))) { missingSingleton =>
-      flatMapIR(joined) { x =>
-        Let(l, GetField(x, "left"), bindIR(GetField(GetField(x, "rightGroup"), groupField)) { rightElts =>
-          joinType match {
-            case "left" | "outer" => StreamMap(ToStream(If(IsNA(rightElts), missingSingleton, rightElts)), r, joinF)
-            case "right" | "inner" => StreamMap(ToStream(rightElts), r, joinF)
-          }
-        })
-      }
+    else {
+      val rElt = Ref(r, rEltType)
+      val lElt = Ref(l, lEltType)
+      StreamJoinRightDistinct(left, right, lKey, rKey, lElt.name, rElt.name, joinF, joinType)
     }
   }
 }
 
-final case class StreamJoinRightDistinct(left: IR, right: IR, lKey: IndexedSeq[String], rKey: IndexedSeq[String], l: String, r: String, joinF: IR, joinType: String) extends IR
+final case class StreamJoinRightDistinct(left: IR, right: IR, lKey: IndexedSeq[String], rKey: IndexedSeq[String], l: String, r: String, joinF: IR, joinType: String) extends IR {
+  def isIntervalJoin: Boolean = {
+    if (rKey.size != 1) return false
+    val lKeyTyp = coerce[TStruct](coerce[TStream](left.typ).elementType).fieldType(lKey(0))
+    val rKeyTyp = coerce[TStruct](coerce[TStream](right.typ).elementType).fieldType(rKey(0))
+
+    rKeyTyp.isInstanceOf[TInterval] && lKeyTyp != rKeyTyp
+  }
+}
 
 sealed trait NDArrayIR extends TypedIR[TNDArray] {
   def elementTyp: Type = typ.elementType
@@ -729,6 +751,10 @@ object PartitionWriter {
   implicit val formats: Formats = new DefaultFormats() {
     override val typeHints = ShortTypeHints(List(
       classOf[PartitionNativeWriter],
+      classOf[TableTextPartitionWriter],
+      classOf[VCFPartitionWriter],
+      classOf[GenSampleWriter],
+      classOf[GenVariantWriter],
       classOf[AbstractTypedCodecSpec],
       classOf[TypedCodecSpec]), typeHintFieldName = "name"
     ) + BufferSpec.shortTypeHints
@@ -746,6 +772,9 @@ object MetadataWriter {
       classOf[RVDSpecWriter],
       classOf[TableSpecWriter],
       classOf[RelationalWriter],
+      classOf[TableTextFinalizer],
+      classOf[VCFExportFinalizer],
+      classOf[SimpleMetadataWriter],
       classOf[RVDSpecMaker],
       classOf[AbstractTypedCodecSpec],
       classOf[TypedCodecSpec]),
@@ -790,6 +819,38 @@ abstract class PartitionWriter {
   def toJValue: JValue = Extraction.decompose(this)(PartitionWriter.formats)
 }
 
+abstract class SimplePartitionWriter extends PartitionWriter {
+  def ctxType: Type = TString
+  def returnType: Type = TString
+  def unionTypeRequiredness(r: TypeWithRequiredness, ctxType: TypeWithRequiredness, streamType: RIterable): Unit = {
+    r.union(ctxType.required)
+    r.union(streamType.required)
+  }
+
+  def consumeElement(cb: EmitCodeBuilder, element: EmitCode, os: Value[OutputStream], region: Value[Region]): Unit
+  def preConsume(cb: EmitCodeBuilder, os: Value[OutputStream]): Unit = ()
+  def postConsume(cb: EmitCodeBuilder, os: Value[OutputStream]): Unit = ()
+
+  final def consumeStream(ctx: ExecuteContext, cb: EmitCodeBuilder, stream: StreamProducer,
+      context: EmitCode, region: Value[Region]): IEmitCode = {
+    context.toI(cb).map(cb) { case ctx: SStringValue =>
+      val filename = ctx.loadString(cb)
+      val os = cb.memoize(cb.emb.create(filename))
+
+      preConsume(cb, os)
+      stream.memoryManagedConsume(region, cb) { cb =>
+        consumeElement(cb, stream.element, os, stream.elementRegion)
+      }
+      postConsume(cb, os)
+
+      cb += os.invoke[Unit]("flush")
+      cb += os.invoke[Unit]("close")
+
+      SJavaString.construct(cb, filename)
+    }
+  }
+}
+
 abstract class MetadataWriter {
   def annotationType: Type
   def writeMetadata(
@@ -798,6 +859,11 @@ abstract class MetadataWriter {
     region: Value[Region]): Unit
 
   def toJValue: JValue = Extraction.decompose(this)(MetadataWriter.formats)
+}
+
+final case class SimpleMetadataWriter(val annotationType: Type) extends MetadataWriter {
+  def writeMetadata(writeAnnotations: => IEmitCode, cb: EmitCodeBuilder, region: Value[Region]): Unit =
+    writeAnnotations.consume(cb, {}, {_ => ()})
 }
 
 final case class ReadPartition(context: IR, rowType: Type, reader: PartitionReader) extends IR

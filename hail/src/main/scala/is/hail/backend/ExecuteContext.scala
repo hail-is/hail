@@ -1,6 +1,7 @@
 package is.hail.backend
 
-import is.hail.HailContext
+import is.hail.asm4s.HailClassLoader
+import is.hail.{HailContext, HailFeatureFlags}
 import is.hail.annotations.{Region, RegionPool}
 import is.hail.io.fs.FS
 import is.hail.utils.{ExecutionTimer, using}
@@ -42,9 +43,30 @@ object ExecuteContext {
     result
   }
 
-  def scoped[T](tmpdir: String, localTmpdir: String, backend: Backend, fs: FS, timer: ExecutionTimer, tempFileManager: TempFileManager)(f: ExecuteContext => T): T = {
+  def scoped[T](
+    tmpdir: String,
+    localTmpdir: String,
+    backend: Backend,
+    fs: FS,
+    timer: ExecutionTimer,
+    tempFileManager: TempFileManager,
+    theHailClassLoader: HailClassLoader,
+    flags: HailFeatureFlags,
+  )(
+    f: ExecuteContext => T
+  ): T = {
     RegionPool.scoped { pool =>
-      using(new ExecuteContext(tmpdir, localTmpdir, backend, fs, Region(pool = pool), timer, tempFileManager))(f(_))
+      using(new ExecuteContext(
+        tmpdir,
+        localTmpdir,
+        backend,
+        fs,
+        Region(pool = pool),
+        timer,
+        tempFileManager,
+        theHailClassLoader,
+        flags
+      ))(f(_))
     }
   }
 
@@ -78,11 +100,11 @@ class ExecuteContext(
   val fs: FS,
   var r: Region,
   val timer: ExecutionTimer,
-  _tempFileManager: TempFileManager
+  _tempFileManager: TempFileManager,
+  val theHailClassLoader: HailClassLoader,
+  private[this] val flags: HailFeatureFlags
 ) extends Closeable {
   var backendContext: BackendContext = _
-
-  val printIRs: Boolean = HailContext.getFlag("no_ir_logging") == null
 
   private val tempFileManager: TempFileManager = if (_tempFileManager != null)
     _tempFileManager
@@ -110,6 +132,14 @@ class ExecuteContext(
   def ownCleanup(cleanupFunction: () => Unit): Unit = {
     cleanupFunctions += cleanupFunction
   }
+
+  def getFlag(name: String): String = flags.get(name)
+
+  def shouldWriteIRFiles(): Boolean = getFlag("write_ir_files") != null
+
+  def shouldNotLogIR(): Boolean = flags.get("no_ir_logging") != null
+
+  def shouldLogIR(): Boolean = !shouldNotLogIR()
 
   def close(): Unit = {
     tempFileManager.cleanup()

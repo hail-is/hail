@@ -25,7 +25,16 @@ resource "azurerm_subnet" "db_subnet" {
   resource_group_name  = var.resource_group.name
   virtual_network_name = azurerm_virtual_network.default.name
 
-  enforce_private_link_endpoint_network_policies = true
+  service_endpoints = ["Microsoft.Storage"]
+  delegation {
+    name = "mysql-flexible-sever"
+    service_delegation {
+      name    = "Microsoft.DBforMySQL/flexibleServers"
+      actions = [
+        "Microsoft.Network/virtualNetworks/subnets/join/action",
+      ]
+    }
+  }
 }
 
 resource "azurerm_log_analytics_workspace" "logs" {
@@ -43,13 +52,13 @@ resource "azurerm_kubernetes_cluster" "vdc" {
 
   default_node_pool {
     name           = "nonpreempt"
-    vm_size        = var.k8s_machine_type
+    vm_size        = var.k8s_default_node_pool_machine_type
     vnet_subnet_id = azurerm_subnet.k8s_subnet.id
 
     enable_auto_scaling = true
 
     min_count = 1
-    max_count = 200
+    max_count = 5
 
     node_labels = {
       "preemptible" = "false"
@@ -73,10 +82,32 @@ resource "azurerm_kubernetes_cluster" "vdc" {
   }
 }
 
-resource "azurerm_kubernetes_cluster_node_pool" "vdc_preemptible_pool" {
-  name                  = "preempt"
+resource "azurerm_kubernetes_cluster_node_pool" "vdc_nonpreemptible_pool" {
+  name                  = var.k8s_nonpreemptible_node_pool_name
   kubernetes_cluster_id = azurerm_kubernetes_cluster.vdc.id
-  vm_size               = var.k8s_machine_type
+  vm_size               = var.k8s_user_pool_machine_type
+  vnet_subnet_id        = azurerm_subnet.k8s_subnet.id
+
+  enable_auto_scaling = true
+
+  min_count = 0
+  max_count = 200
+
+  node_labels = {
+    "preemptible" = "false"
+  }
+
+  lifecycle {
+    # Ignore if the node count has natually changed since last apply
+    # due to autoscaling
+    ignore_changes = [node_count]
+  }
+}
+
+resource "azurerm_kubernetes_cluster_node_pool" "vdc_preemptible_pool" {
+  name                  = var.k8s_preemptible_node_pool_name
+  kubernetes_cluster_id = azurerm_kubernetes_cluster.vdc.id
+  vm_size               = var.k8s_user_pool_machine_type
   vnet_subnet_id        = azurerm_subnet.k8s_subnet.id
 
   enable_auto_scaling = true

@@ -27,7 +27,7 @@ CREATE TABLE IF NOT EXISTS `inst_colls` (
   `cloud` VARCHAR(100) NOT NULL,
   PRIMARY KEY (`name`)
 ) ENGINE = InnoDB;
-CREATE INDEX `inst_colls_pool` ON `inst_colls` (`pool`);
+CREATE INDEX `inst_colls_is_pool` ON `inst_colls` (`is_pool`);
 
 INSERT INTO inst_colls (`name`, `is_pool`, `boot_disk_size_gb`, `max_instances`, `max_live_instances`) VALUES ('standard', 1, 10, 6250, 800);
 INSERT INTO inst_colls (`name`, `is_pool`, `boot_disk_size_gb`, `max_instances`, `max_live_instances`) VALUES ('highmem', 1, 10, 6250, 800);
@@ -42,6 +42,7 @@ CREATE TABLE IF NOT EXISTS `pools` (
   `worker_external_ssd_data_disk_size_gb` BIGINT NOT NULL DEFAULT 0,
   `enable_standing_worker` BOOLEAN NOT NULL DEFAULT FALSE,
   `standing_worker_cores` BIGINT NOT NULL DEFAULT 0,
+  `preemptible` BOOLEAN NOT NULL DEFAULT TRUE,
   PRIMARY KEY (`name`),
   FOREIGN KEY (`name`) REFERENCES inst_colls(name) ON DELETE CASCADE
 ) ENGINE = InnoDB;
@@ -150,10 +151,6 @@ CREATE TABLE IF NOT EXISTS `batches` (
   `state` VARCHAR(40) NOT NULL,
   `deleted` BOOLEAN NOT NULL DEFAULT FALSE,
   `n_jobs` INT NOT NULL,
-  `n_completed` INT NOT NULL DEFAULT 0,
-  `n_succeeded` INT NOT NULL DEFAULT 0,
-  `n_failed` INT NOT NULL DEFAULT 0,
-  `n_cancelled` INT NOT NULL DEFAULT 0,
   `time_created` BIGINT NOT NULL,
   `time_closed` BIGINT,
   `time_completed` BIGINT,
@@ -169,6 +166,16 @@ CREATE INDEX `batches_deleted` ON `batches` (`deleted`);
 CREATE INDEX `batches_token` ON `batches` (`token`);
 CREATE INDEX `batches_time_completed` ON `batches` (`time_completed`);
 CREATE INDEX `batches_billing_project_state` ON `batches` (`billing_project`, `state`);
+
+CREATE TABLE IF NOT EXISTS `batches_n_jobs_in_complete_states` (
+  `id` BIGINT NOT NULL,
+  `n_completed` INT NOT NULL DEFAULT 0,
+  `n_succeeded` INT NOT NULL DEFAULT 0,
+  `n_failed` INT NOT NULL DEFAULT 0,
+  `n_cancelled` INT NOT NULL DEFAULT 0,
+  PRIMARY KEY (`id`),
+  FOREIGN KEY (`id`) REFERENCES batches(id) ON DELETE CASCADE
+) ENGINE = InnoDB;
 
 CREATE TABLE IF NOT EXISTS `batches_cancelled` (
   `id` BIGINT NOT NULL,
@@ -1161,9 +1168,12 @@ BEGIN
   DECLARE cur_cores_mcpu INT;
   DECLARE cur_end_time BIGINT;
   DECLARE delta_cores_mcpu INT DEFAULT 0;
+  DECLARE total_jobs_in_batch INT;
   DECLARE expected_attempt_id VARCHAR(40);
 
   START TRANSACTION;
+
+  SELECT n_jobs INTO total_jobs_in_batch FROM batches WHERE id = in_batch_id;
 
   SELECT state, cores_mcpu
   INTO cur_job_state, cur_cores_mcpu
@@ -1205,18 +1215,20 @@ BEGIN
     SET state = new_state, status = new_status, attempt_id = in_attempt_id
     WHERE batch_id = in_batch_id AND job_id = in_job_id;
 
-    UPDATE batches SET n_completed = n_completed + 1 WHERE id = in_batch_id;
-    UPDATE batches
+    UPDATE batches_n_jobs_in_complete_states
+      SET n_completed = (@new_n_completed := n_completed + 1),
+          n_cancelled = n_cancelled + (new_state = 'Cancelled'),
+          n_failed    = n_failed + (new_state = 'Error' OR new_state = 'Failed'),
+          n_succeeded = n_succeeded + (new_state != 'Cancelled' AND new_state != 'Error' AND new_state != 'Failed')
+      WHERE id = in_batch_id;
+
+    # Grabbing an exclusive lock on batches here could deadlock,
+    # but this IF should only execute for the last job
+    IF @new_n_completed = total_jobs_in_batch THEN
+      UPDATE batches
       SET time_completed = new_timestamp,
           `state` = 'complete'
-      WHERE id = in_batch_id AND n_completed = batches.n_jobs;
-
-    IF new_state = 'Cancelled' THEN
-      UPDATE batches SET n_cancelled = n_cancelled + 1 WHERE id = in_batch_id;
-    ELSEIF new_state = 'Error' OR new_state = 'Failed' THEN
-      UPDATE batches SET n_failed = n_failed + 1 WHERE id = in_batch_id;
-    ELSE
-      UPDATE batches SET n_succeeded = n_succeeded + 1 WHERE id = in_batch_id;
+      WHERE id = in_batch_id;
     END IF;
 
     UPDATE jobs

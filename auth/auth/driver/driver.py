@@ -1,19 +1,25 @@
+import asyncio
+import base64
+import json
+import logging
 import os
 import random
-import json
-import base64
-import logging
 import secrets
-import asyncio
+from typing import Optional
+
 import aiohttp
-import kubernetes_asyncio as kube
-from hailtop.utils import time_msecs, secret_alnum_string
-from hailtop.auth.sql_config import create_secret_data_from_config, SQLConfig
-from hailtop import aiotools
-from hailtop import batch_client as bc, httpx
-from gear import create_session, Database
-from gear.cloud_config import get_gcp_config, get_global_config
+import kubernetes_asyncio.client
+import kubernetes_asyncio.client.rest
+import kubernetes_asyncio.config
+
+from gear import Database, create_session
 from gear.clients import get_identity_client
+from gear.cloud_config import get_gcp_config, get_global_config
+from hailtop import aiotools
+from hailtop import batch_client as bc
+from hailtop import httpx
+from hailtop.auth.sql_config import SQLConfig, create_secret_data_from_config
+from hailtop.utils import secret_alnum_string, time_msecs
 
 log = logging.getLogger('auth.driver')
 
@@ -111,8 +117,8 @@ class K8sSecretResource:
 
         await self.k8s_client.create_namespaced_secret(
             namespace,
-            kube.client.V1Secret(
-                metadata=kube.client.V1ObjectMeta(name=name),
+            kubernetes_asyncio.client.V1Secret(
+                metadata=kubernetes_asyncio.client.V1ObjectMeta(name=name),
                 data={k: base64.b64encode(v.encode('utf-8')).decode('utf-8') for k, v in data.items()},
             ),
         )
@@ -122,7 +128,7 @@ class K8sSecretResource:
     async def _delete(self, name, namespace):
         try:
             await self.k8s_client.delete_namespaced_secret(name, namespace)
-        except kube.client.rest.ApiException as e:
+        except kubernetes_asyncio.client.rest.ApiException as e:
             if e.status == 404:
                 pass
             else:
@@ -255,14 +261,20 @@ GRANT ALL ON `{name}`.* TO '{name}'@'%';
         self.name = name
 
     def secret_data(self):
-        with open('/database-server-config/sql-config.json', 'r') as f:
+        with open('/database-server-config/sql-config.json', 'r', encoding='utf-8') as f:
             server_config = SQLConfig.from_json(f.read())
-        with open('/database-server-config/server-ca.pem', 'r') as f:
+        with open('/database-server-config/server-ca.pem', 'r', encoding='utf-8') as f:
             server_ca = f.read()
-        with open('/database-server-config/client-cert.pem', 'r') as f:
-            client_cert = f.read()
-        with open('/database-server-config/client-key.pem', 'r') as f:
-            client_key = f.read()
+        client_cert: Optional[str]
+        client_key: Optional[str]
+        if server_config.using_mtls():
+            with open('/database-server-config/client-cert.pem', 'r', encoding='utf-8') as f:
+                client_cert = f.read()
+            with open('/database-server-config/client-key.pem', 'r', encoding='utf-8') as f:
+                client_key = f.read()
+        else:
+            client_cert = None
+            client_key = None
 
         if is_test_deployment:
             return create_secret_data_from_config(server_config, server_ca, client_cert, client_key)
@@ -273,14 +285,14 @@ GRANT ALL ON `{name}`.* TO '{name}'@'%';
         config = SQLConfig(
             host=server_config.host,
             port=server_config.port,
-            user=self.name if CLOUD != 'azure' else f'{self.name}@{server_config.instance}',
+            user=self.name,
             password=self.password,
             instance=server_config.instance,
             connection_name=server_config.connection_name,
             db=self.name,
             ssl_ca='/sql-config/server-ca.pem',
-            ssl_cert='/sql-config/client-cert.pem',
-            ssl_key='/sql-config/client-key.pem',
+            ssl_cert='/sql-config/client-cert.pem' if client_cert is not None else None,
+            ssl_key='/sql-config/client-key.pem' if client_key is not None else None,
             ssl_mode='VERIFY_CA',
         )
         return create_secret_data_from_config(config, server_ca, client_cert, client_key)
@@ -314,14 +326,16 @@ class K8sNamespaceResource:
 
         await self._delete(name)
 
-        await self.k8s_client.create_namespace(kube.client.V1Namespace(metadata=kube.client.V1ObjectMeta(name=name)))
+        await self.k8s_client.create_namespace(
+            kubernetes_asyncio.client.V1Namespace(metadata=kubernetes_asyncio.client.V1ObjectMeta(name=name))
+        )
         self.name = name
 
     async def _delete(self, name):
         assert name not in ('default', DEFAULT_NAMESPACE)
         try:
             await self.k8s_client.delete_namespace(name)
-        except kube.client.rest.ApiException as e:
+        except kubernetes_asyncio.client.rest.ApiException as e:
             if e.status == 404:
                 pass
             else:
@@ -373,7 +387,7 @@ class BillingProjectResource:
         try:
             bp = await self.batch_client.get_billing_project(billing_project)
         except aiohttp.ClientResponseError as e:
-            if e.status == 403 and 'unknown billing project':
+            if e.status == 403 and 'Unknown Hail Batch billing project' in e.message:
                 return
             raise
         else:
@@ -610,8 +624,8 @@ async def async_main():
         await db_instance.async_init(maxsize=50, config_file='/database-server-config/sql-config.json')
         app['db_instance'] = db_instance
 
-        kube.config.load_incluster_config()
-        app['k8s_client'] = kube.client.CoreV1Api()
+        kubernetes_asyncio.config.load_incluster_config()
+        app['k8s_client'] = kubernetes_asyncio.client.CoreV1Api()
 
         app['identity_client'] = get_identity_client()
 
@@ -647,5 +661,5 @@ async def async_main():
                         try:
                             await app['identity_client'].close()
                         finally:
-                            k8s_client: kube.client.CoreV1Api = app['k8s_client']
+                            k8s_client: kubernetes_asyncio.client.CoreV1Api = app['k8s_client']
                             await k8s_client.api_client.rest_client.pool_manager.close()

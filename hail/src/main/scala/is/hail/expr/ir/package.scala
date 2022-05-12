@@ -121,6 +121,11 @@ package object ir {
     If(a < b, a, b)
   }
 
+  def streamAggIR(stream: IR)(f: Ref => IR): IR = {
+    val ref = Ref(genUID(), coerce[TStream](stream.typ).elementType)
+    StreamAgg(stream, ref.name, f(ref))
+  }
+
   def forIR(stream: IR)(f: Ref => IR): IR = {
     val ref = Ref(genUID(), coerce[TStream](stream.typ).elementType)
     StreamFor(stream, ref.name, f(ref))
@@ -141,9 +146,9 @@ package object ir {
     StreamFlatMap(stream, ref.name, f(ref))
   }
 
-  def flatten(stream: IR): IR = flatMapIR(stream) { elt =>
-      if (elt.typ.isInstanceOf[TStream]) elt else ToStream(elt)
-    }
+  def flatten(stream: IR): IR = flatMapIR(if (stream.typ.isInstanceOf[TStream]) stream else ToStream(stream)) { elt =>
+    if (elt.typ.isInstanceOf[TStream]) elt else ToStream(elt)
+  }
 
   def foldIR(stream: IR, zero: IR)(f: (Ref, Ref) => IR): IR = {
     val elt = Ref(genUID(), coerce[TStream](stream.typ).elementType)
@@ -162,10 +167,10 @@ package object ir {
     ArraySlice(arrayIR, startIR, Some(stopIR))
   }
 
-  def joinIR(left: IR, right: IR, lkey: IndexedSeq[String], rkey: IndexedSeq[String], joinType: String)(f: (Ref, Ref) => IR): IR = {
+  def joinIR(left: IR, right: IR, lkey: IndexedSeq[String], rkey: IndexedSeq[String], joinType: String, requiresMemoryManagement: Boolean)(f: (Ref, Ref) => IR): IR = {
     val lRef = Ref(genUID(), left.typ.asInstanceOf[TStream].elementType)
     val rRef = Ref(genUID(), right.typ.asInstanceOf[TStream].elementType)
-    StreamJoin(left, right, lkey, rkey, lRef.name, rRef.name, f(lRef, rRef), joinType)
+    StreamJoin(left, right, lkey, rkey, lRef.name, rRef.name, f(lRef, rRef), joinType, requiresMemoryManagement)
   }
 
   def streamSumIR(stream: IR): IR = {

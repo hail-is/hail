@@ -1,11 +1,11 @@
-import logging
 import asyncio
+import logging
 
 from hailtop.aiotools.fs import AsyncFS
 
-from .spec_writer import SpecWriter
-from .globals import BATCH_FORMAT_VERSION
 from .batch_format_version import BatchFormatVersion
+from .globals import BATCH_FORMAT_VERSION
+from .spec_writer import SpecWriter
 
 log = logging.getLogger('logstore')
 

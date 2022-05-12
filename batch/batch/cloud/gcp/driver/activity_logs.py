@@ -1,12 +1,11 @@
-import re
 import json
 import logging
-from typing import Dict, Any
+import re
+from typing import Any, Dict
 
-from hailtop.utils import parse_timestamp_msecs
-from hailtop.aiocloud import aiogoogle
 from gear import Database
-
+from hailtop.aiocloud import aiogoogle
+from hailtop.utils import parse_timestamp_msecs
 
 from ....driver.instance_collection import InstanceCollectionManager
 from .zones import ZoneSuccessRate

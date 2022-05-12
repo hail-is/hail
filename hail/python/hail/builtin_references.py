@@ -1,0 +1,1 @@
+BUILTIN_REFERENCES = ('GRCh37', 'GRCh38', 'GRCm38', 'CanFam3')

@@ -5,21 +5,18 @@ import is.hail.types.{BlockMatrixSparsity, BlockMatrixType}
 import is.hail.types.virtual.{TArray, TBaseStruct, TFloat64, TInt32, TInt64, TNDArray, TString, TTuple, Type}
 import is.hail.linalg.{BlockMatrix, BlockMatrixMetadata}
 import is.hail.utils._
-import breeze.linalg
 import breeze.linalg.DenseMatrix
 import breeze.numerics
 import is.hail.annotations.{NDArray, Region}
 import is.hail.backend.{BackendContext, ExecuteContext}
-import is.hail.backend.spark.SparkBackend
 import is.hail.expr.Nat
 import is.hail.expr.ir.lowering.{BlockMatrixStage, LowererUnsupportedOperation}
-import is.hail.io.TypedCodecSpec
+import is.hail.io.{StreamBufferSpec, TypedCodecSpec}
 import is.hail.io.fs.FS
-import is.hail.types.encoded.{EBlockMatrixNDArray, EFloat64}
+import is.hail.types.encoded.{EBlockMatrixNDArray, EFloat64, ENumpyBinaryNDArray}
 
 import scala.collection.mutable.ArrayBuffer
 import is.hail.utils.richUtils.RichDenseMatrixDouble
-import org.apache.spark.sql.Row
 import org.json4s.{DefaultFormats, Extraction, Formats, JValue, ShortTypeHints}
 
 import scala.collection.immutable.NumericRange
@@ -67,7 +64,7 @@ abstract sealed class BlockMatrixIR extends BaseIR {
   def typ: BlockMatrixType
 
   protected[ir] def execute(ctx: ExecuteContext): BlockMatrix =
-    fatal("tried to execute unexecutable IR:\n" + Pretty(this))
+    fatal("tried to execute unexecutable IR:\n" + Pretty(ctx, this))
 
   def copy(newChildren: IndexedSeq[BaseIR]): BlockMatrixIR
 
@@ -168,7 +165,7 @@ class BlockMatrixNativeReader(
     val spec = TypedCodecSpec(EBlockMatrixNDArray(EFloat64(required = true), required = true), vType, BlockMatrix.bufferSpec)
 
 
-    new BlockMatrixStage(Array(), TString) {
+    new BlockMatrixStage(IndexedSeq(), Array(), TString) {
       def blockContext(idx: (Int, Int)): IR = {
         if (!fullType.hasBlock(idx))
           fatal(s"trying to read nonexistent block $idx from path ${ params.path }")
@@ -206,6 +203,24 @@ case class BlockMatrixBinaryReader(path: String, shape: IndexedSeq[Long], blockS
     val breezeMatrix = RichDenseMatrixDouble.importFromDoubles(ctx.fs, path, nRows.toInt, nCols.toInt, rowMajor = true)
     BlockMatrix.fromBreezeMatrix(breezeMatrix, blockSize)
   }
+
+  override def lower(ctx: ExecuteContext): BlockMatrixStage = {
+    val readFromNumpyEType = ENumpyBinaryNDArray(nRows, nCols, true)
+    val readFromNumpySpec = TypedCodecSpec(readFromNumpyEType, TNDArray(TFloat64, Nat(2)), new StreamBufferSpec())
+    val nd = ReadValue(Str(path), readFromNumpySpec, TNDArray(TFloat64, nDimsBase = Nat(2)))
+    val ndRef = Ref(genUID(), nd.typ)
+
+    new BlockMatrixStage(IndexedSeq(ndRef.name -> nd), Array(), nd.typ) {
+      def blockContext(idx: (Int, Int)): IR = {
+        val (r, c) = idx
+        NDArraySlice(ndRef, MakeTuple.ordered(FastSeq(
+          MakeTuple.ordered(FastSeq(I64(r.toLong * blockSize), I64(java.lang.Math.min((r.toLong + 1) * blockSize, nRows)), I64(1))),
+          MakeTuple.ordered(FastSeq(I64(c.toLong * blockSize), I64(java.lang.Math.min((c.toLong + 1) * blockSize, nCols)), I64(1))))))
+      }
+
+      def blockBody(ctxRef: Ref): IR = ctxRef
+    }
+  }
 }
 
 case class BlockMatrixNativePersistParameters(id: String)
@@ -224,22 +239,6 @@ case class BlockMatrixPersistReader(id: String, typ: BlockMatrixType) extends Bl
   def apply(ctx: ExecuteContext): BlockMatrix = {
     HailContext.backend.getPersistedBlockMatrix(ctx.backendContext, id)
   }
-}
-
-class BlockMatrixLiteral(value: BlockMatrix) extends BlockMatrixIR {
-  override lazy val typ: BlockMatrixType =
-    BlockMatrixType.fromBlockMatrix(value)
-
-  lazy val children: IndexedSeq[BaseIR] = Array.empty[BlockMatrixIR]
-
-  def copy(newChildren: IndexedSeq[BaseIR]): BlockMatrixLiteral = {
-    assert(newChildren.isEmpty)
-    new BlockMatrixLiteral(value)
-  }
-
-  override protected[ir] def execute(ctx: ExecuteContext): BlockMatrix = value
-
-  val blockCostIsLinear: Boolean = true // not guaranteed
 }
 
 case class BlockMatrixMap(child: BlockMatrixIR, eltName: String, f: IR, needsDense: Boolean) extends BlockMatrixIR {
@@ -311,7 +310,7 @@ case class BlockMatrixMap(child: BlockMatrixIR, eltName: String, f: IR, needsDen
         val i = evalIR(ctx, l)
         ("/", binaryOp(evalIR(ctx, l), BlockMatrix.reverseScalarDiv))
 
-      case _ => fatal(s"Unsupported operation on BlockMatrices: ${Pretty(f)}")
+      case _ => fatal(s"Unsupported operation on BlockMatrices: ${Pretty(ctx, f)}")
     }
 
     prev.blockMap(breezeF, name, reqDense = needsDense)

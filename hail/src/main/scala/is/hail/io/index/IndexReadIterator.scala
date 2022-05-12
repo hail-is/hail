@@ -2,6 +2,7 @@ package is.hail.io.index
 
 import java.io.InputStream
 
+import is.hail.asm4s.HailClassLoader
 import is.hail.annotations.Region
 import is.hail.io.Decoder
 import is.hail.types.virtual.TStruct
@@ -11,7 +12,8 @@ import org.apache.spark.executor.InputMetrics
 import org.apache.spark.sql.Row
 
 class IndexReadIterator(
-  makeDec: (InputStream) => Decoder,
+  theHailClassLoader: HailClassLoader,
+  makeDec: (InputStream, HailClassLoader) => Decoder,
   region: Region,
   in: InputStream,
   idxr: IndexReader,
@@ -30,7 +32,7 @@ class IndexReadIterator(
   private[this] val dec =
     try {
       if (n > 0) {
-        val dec = makeDec(trackedIn)
+        val dec = makeDec(trackedIn, theHailClassLoader)
         val i = idxr.queryByIndex(startIdx)
         val off = field.map { j =>
           i.annotation.asInstanceOf[Row].getAs[Long](j)

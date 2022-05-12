@@ -8,7 +8,7 @@ import is.hail.asm4s.{Code, Value}
 import is.hail.io.{InputBuffer, OutputBuffer, RichContextRDDRegionValue, RichContextRDDLong}
 import is.hail.rvd.RVDContext
 import is.hail.sparkextras._
-import is.hail.utils.{IntPacker, HailIterator, MultiArray2, Truncatable, WithContext}
+import is.hail.utils.{HailIterator, MultiArray2, Truncatable, WithContext}
 import org.apache.spark.SparkContext
 import org.apache.spark.mllib.linalg.distributed.IndexedRowMatrix
 import org.apache.spark.rdd.RDD
@@ -104,8 +104,6 @@ trait Implicits {
 
   implicit def toRichCodeRegion(r: Code[Region]): RichCodeRegion = new RichCodeRegion(r)
 
-  implicit def toRichCodeRegionValueBuilder(rvb: Code[RegionValueBuilder]): RichCodeRegionValueBuilder = new RichCodeRegionValueBuilder(rvb)
-
   implicit def toRichPartialKleisliOptionFunction[A, B](x: PartialFunction[A, Option[B]]): RichPartialKleisliOptionFunction[A, B] = new RichPartialKleisliOptionFunction(x)
 
   implicit def toContextPairRDDFunctions[K: ClassTag, V: ClassTag](x: ContextRDD[(K, V)]): ContextPairRDDFunctions[K, V] = new ContextPairRDDFunctions(x)
@@ -118,13 +116,7 @@ trait Implicits {
 
   implicit def valueToRichCodeOutputBuffer(out: Value[OutputBuffer]): RichCodeOutputBuffer = new RichCodeOutputBuffer(out)
 
-  implicit def toRichCodeArray[T](cs: IndexedSeq[Code[T]]): RichCodeIndexedSeq[T] = new RichCodeIndexedSeq[T](cs)
-
-  implicit def valueToRichCodeArray[T](cs: IndexedSeq[Value[T]]): RichCodeIndexedSeq[T] = new RichCodeIndexedSeq[T](cs.map(_.get))
-
   implicit def toRichCodeIterator[T](it: Code[Iterator[T]]): RichCodeIterator[T] = new RichCodeIterator[T](it)
 
   implicit def valueToRichCodeIterator[T](it: Value[Iterator[T]]): RichCodeIterator[T] = new RichCodeIterator[T](it)
-
-  implicit def toRichCodeIntPacker(p: Code[IntPacker]): RichCodeIntPacker = new RichCodeIntPacker(p)
 }

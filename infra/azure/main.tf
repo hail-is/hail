@@ -2,11 +2,15 @@ terraform {
   required_providers {
     azurerm = {
       source  = "hashicorp/azurerm"
-      version = "=2.74.0"
+      version = "=2.99.0"
     }
     azuread = {
       source  = "hashicorp/azuread"
       version = "=2.7.0"
+    }
+    kubernetes = {
+      source = "hashicorp/kubernetes"
+      version = "2.8.0"
     }
     http = {
       source = "hashicorp/http"
@@ -60,13 +64,18 @@ module "vdc" {
 
   resource_group        = data.azurerm_resource_group.rg
   container_registry_id = azurerm_container_registry.acr.id
-  k8s_machine_type      = var.k8s_machine_type
+
+  k8s_default_node_pool_machine_type = var.k8s_default_node_pool_machine_type
+  k8s_user_pool_machine_type         = var.k8s_user_pool_machine_type
+  k8s_preemptible_node_pool_name     = var.k8s_preemptible_node_pool_name
+  k8s_nonpreemptible_node_pool_name  = var.k8s_nonpreemptible_node_pool_name
 }
 
 module "db" {
   source = "./modules/db"
 
   resource_group = data.azurerm_resource_group.rg
+  vnet_id        = module.vdc.vnet_id
   subnet_id      = module.vdc.db_subnet_id
 }
 
@@ -97,6 +106,7 @@ module "global_config" {
   kubernetes_server      = module.vdc.kubernetes_server
   batch_logs_storage_uri = module.batch.batch_logs_storage_uri
   test_storage_uri       = module.batch.test_storage_uri
+  query_storage_uri      = module.batch.query_storage_uri
   organization_domain    = var.organization_domain
 
   extra_fields = {

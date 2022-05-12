@@ -1,5 +1,5 @@
-from typing import Optional, List
 import os
+from typing import List, Optional
 
 GITHUB_CLONE_URL = 'https://github.com/'
 GITHUB_STATUS_CONTEXT = os.environ["HAIL_CI_GITHUB_CONTEXT"]
@@ -25,7 +25,7 @@ AUTHORIZED_USERS = [
     User('lfrancioli'),
     User('tpoterba', 'tpoterba', [COMPILER_TEAM]),
     User('chrisvittal', 'cvittal', [COMPILER_TEAM]),
-    User('johnc1231', 'johnc', [COMPILER_TEAM]),
+    User('johnc1231', 'johnc'),
     User('nawatts'),
     User('mkveerapen'),
     User('bw2'),
@@ -35,5 +35,5 @@ AUTHORIZED_USERS = [
     User('daniel-goldstein', 'dgoldste', [SERVICES_TEAM]),
     User('ammekk', 'ammekk'),
     User('vrautela', 'vrautela', [SERVICES_TEAM]),
-    User('dependabot'),
+    User('dependabot[bot]'),
 ]

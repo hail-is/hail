@@ -2,20 +2,18 @@ import asyncio
 import logging
 import os
 
-from hailtop import aiotools
-from hailtop.utils import periodically_call
-from hailtop.aiocloud import aioazure
 from gear import Database
 from gear.cloud_config import get_azure_config
+from hailtop import aiotools
+from hailtop.aiocloud import aioazure
+from hailtop.utils import periodically_call
 
 from ....driver.driver import CloudDriver
-from ....driver.instance_collection import Pool, JobPrivateInstanceManager, InstanceCollectionManager
+from ....driver.instance_collection import InstanceCollectionManager, JobPrivateInstanceManager, Pool
 from ....inst_coll_config import InstanceCollectionConfigs
-
 from .billing_manager import AzureBillingManager
-from .resource_manager import AzureResourceManager
 from .regions import RegionMonitor
-
+from .resource_manager import AzureResourceManager
 
 log = logging.getLogger('driver')
 
@@ -37,7 +35,7 @@ class AzureDriver(CloudDriver):
         region = azure_config.region
         regions = [region]
 
-        with open(os.environ['HAIL_SSH_PUBLIC_KEY']) as f:
+        with open(os.environ['HAIL_SSH_PUBLIC_KEY'], encoding='utf-8') as f:
             ssh_public_key = f.read()
 
         arm_client = aioazure.AzureResourceManagerClient(
@@ -66,7 +64,7 @@ class AzureDriver(CloudDriver):
                 app['async_worker_pool'],
                 task_manager,
             )
-            for pool_name, config in inst_coll_configs.name_pool_config.items()
+            for config in inst_coll_configs.name_pool_config.values()
         ]
 
         jpim, *_ = await asyncio.gather(

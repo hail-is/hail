@@ -164,7 +164,7 @@ class ReferenceGenomeSuite extends HailSuite {
       val rgfield = fb.getReferenceGenome(grch38)
       fb.emit(rgfield.invoke[String, Boolean]("isValidContig", fb.getCodeParam[String](1)))
 
-      val f = fb.resultWithIndex()(ctx.fs, 0, ctx.r)
+      val f = fb.resultWithIndex()(theHailClassLoader, ctx.fs, 0, ctx.r)
       assert(f("X") == grch38.isValidContig("X"))
     }
   }
@@ -183,7 +183,7 @@ class ReferenceGenomeSuite extends HailSuite {
       val rgfield = fb.getReferenceGenome(rg)
       fb.emit(rgfield.invoke[String, Int, Int, Int, String]("getSequence", fb.getCodeParam[String](1), fb.getCodeParam[Int](2), fb.getCodeParam[Int](3), fb.getCodeParam[Int](4)))
 
-      val f = fb.resultWithIndex()(ctx.fs, 0, ctx.r)
+      val f = fb.resultWithIndex()(theHailClassLoader, ctx.fs, 0, ctx.r)
       assert(f("a", 25, 0, 5) == rg.getSequence("a", 25, 0, 5))
     }
   }
@@ -200,7 +200,7 @@ class ReferenceGenomeSuite extends HailSuite {
       val rgfield = fb.getReferenceGenome(grch37)
       fb.emit(rgfield.invoke[String, Locus, Double, (Locus, Boolean)]("liftoverLocus", fb.getCodeParam[String](1), fb.getCodeParam[Locus](2), fb.getCodeParam[Double](3)))
 
-      val f = fb.resultWithIndex()(ctx.fs, 0, ctx.r)
+      val f = fb.resultWithIndex()(theHailClassLoader, ctx.fs, 0, ctx.r)
       assert(f("GRCh38", Locus("20", 60001), 0.95) == grch37.liftoverLocus("GRCh38", Locus("20", 60001), 0.95))
       grch37.removeLiftover("GRCh38")
     }

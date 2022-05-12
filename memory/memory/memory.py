@@ -1,24 +1,26 @@
-import aioredis
 import asyncio
 import base64
-import logging
 import json
+import logging
 import os
-import uvloop
 import signal
-from aiohttp import web
-import kubernetes_asyncio as kube
-from prometheus_async.aio.web import server_stats  # type: ignore
 from collections import defaultdict
 
+import aioredis
+import kubernetes_asyncio.client
+import kubernetes_asyncio.config
+import uvloop
+from aiohttp import web
+from prometheus_async.aio.web import server_stats  # type: ignore
+
+from gear import monitor_endpoints_middleware, rest_authenticated_users_only, setup_aiohttp_session
+from gear.clients import get_cloud_async_fs_factory
+from hailtop import httpx
 from hailtop.aiotools import AsyncFS
 from hailtop.config import get_deploy_config
 from hailtop.hail_logging import AccessLogger
 from hailtop.tls import internal_server_ssl_context
-from hailtop.utils import retry_transient_errors, dump_all_stacktraces
-from hailtop import httpx
-from gear import setup_aiohttp_session, rest_authenticated_users_only, monitor_endpoints_middleware
-from gear.clients import get_cloud_async_fs_factory
+from hailtop.utils import dump_all_stacktraces, retry_transient_errors
 
 uvloop.install()
 
@@ -147,11 +149,11 @@ async def cache_file(redis: aioredis.ConnectionsPool, file_key: str, filepath: s
 
 async def on_startup(app):
     app['client_session'] = httpx.client_session()
-    app['files_in_progress'] = dict()
+    app['files_in_progress'] = {}
     app['users'] = {}
     app['userlocks'] = defaultdict(asyncio.Lock)
-    kube.config.load_incluster_config()
-    k8s_client = kube.client.CoreV1Api()
+    kubernetes_asyncio.config.load_incluster_config()
+    k8s_client = kubernetes_asyncio.client.CoreV1Api()
     app['k8s_client'] = k8s_client
     app['redis_pool']: aioredis.ConnectionsPool = await aioredis.create_pool(socket)
 

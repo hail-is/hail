@@ -10,7 +10,8 @@ tearDownModule = stopTestHailContext
 
 
 class Tests(unittest.TestCase):
-    @skip_unless_spark_backend()
+    @fails_service_backend()
+    @fails_local_backend
     def test_ld_score(self):
 
         ht = hl.import_table(doctest_resource('ldsc.annot'),
@@ -86,7 +87,6 @@ class Tests(unittest.TestCase):
         self.assertAlmostEqual(annotated.mean_stats.continuous, 176.528, places=3)
 
 
-    @skip_unless_spark_backend()
     def test_plot_roc_curve(self):
         x = hl.utils.range_table(100).annotate(score1=hl.rand_norm(), score2=hl.rand_norm())
         x = x.annotate(tp=hl.if_else(x.score1 > 0, hl.rand_bool(0.7), False), score3=x.score1 + hl.rand_norm())
@@ -118,7 +118,6 @@ class Tests(unittest.TestCase):
 
 
     @pytest.mark.unchecked_allocator
-    @fails_service_backend(reason='''fails this assertion in ShuffleWrite assert(keyPType == shuffleType.keyDecodedPType)''')
     def test_ld_score_regression(self):
 
         ht_scores = hl.import_table(
@@ -287,7 +286,7 @@ class Tests(unittest.TestCase):
             results[1]['snp_heritability_standard_error'],
             0.0416, places=4)
 
-    @fails_service_backend()
+    @skip_when_service_backend('very slow / nonterminating')
     def test_sparse(self):
         expected_split_mt = hl.import_vcf(resource('sparse_split_test_b.vcf'))
         unsplit_mt = hl.import_vcf(resource('sparse_split_test.vcf'), call_fields=['LGT', 'LPGT'])
@@ -295,7 +294,6 @@ class Tests(unittest.TestCase):
               .drop('a_index', 'was_split').select_entries(*expected_split_mt.entry.keys()))
         assert mt._same(expected_split_mt)
 
-    @fails_service_backend()
     def test_define_function(self):
         f1 = hl.experimental.define_function(
             lambda a, b: (a + 7) * b, hl.tint32, hl.tint32)
@@ -316,6 +314,7 @@ class Tests(unittest.TestCase):
         ht = hl.experimental.pc_project(mt_to_project.GT, loadings_ht.loadings, loadings_ht.af)
         assert ht._force_count() == 100
 
+    @skip_when_service_backend('slow >800s')
     def test_mt_full_outer_join(self):
         mt1 = hl.utils.range_matrix_table(10, 10)
         mt1 = mt1.annotate_cols(c1=hl.rand_unif(0, 1))
@@ -337,6 +336,7 @@ class Tests(unittest.TestCase):
 
         assert(mtj.count() == (15, 15))
 
+    @skip_when_service_backend('hangs')
     def test_mt_full_outer_join_self(self):
         mt = hl.import_vcf(resource('sample.vcf'))
         jmt = hl.experimental.full_outer_join_mt(mt, mt)

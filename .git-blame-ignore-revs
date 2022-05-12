@@ -1,3 +1,5 @@
+# introduce isort for sorting services python imports
+3c111185c300a9a23dff972b71db2d2c0e095216
 # black format / enforce for services code
 35a943d02d97284a7215f33ba82cbb8e74332364
 # YAML formatting

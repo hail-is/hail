@@ -1,5 +1,6 @@
 from typing import Tuple, Mapping
 import numpy as np
+import pandas as pd
 
 import hail
 import hail as hl
@@ -202,7 +203,7 @@ def _impute_type(x, partial_type):
         vts = {_impute_type(element, partial_type.value_type) for element in x.values()}
         unified_key_type = super_unify_types(*kts)
         unified_value_type = super_unify_types(*vts)
-        if not unified_key_type:
+        if unified_key_type is None:
             raise ExpressionException("Hail does not support heterogeneous dicts: "
                                       "found dict with keys {} of types {} ".format(list(x.keys()), list(kts)))
         if not unified_value_type:
@@ -217,7 +218,7 @@ def _impute_type(x, partial_type):
     elif isinstance(x, np.ndarray):
         element_type = from_numpy(x.dtype)
         return tndarray(element_type, x.ndim)
-    elif x is None:
+    elif x is None or pd.isna(x):
         return partial_type
     elif isinstance(x, (hl.expr.builders.CaseBuilder, hl.expr.builders.SwitchBuilder)):
         raise ExpressionException("'switch' and 'case' expressions must end with a call to either"
@@ -1218,5 +1219,6 @@ class Expression(object):
         src = self._indices.source
         if src is not None:
             raise ValueError("Can only persist a scalar (no Table/MatrixTable source)")
-        executed_jir = Env.backend().persist_ir(self._ir)
-        return expressions.construct_expr(executed_jir, self.dtype)
+        expr = Env.backend().persist_expression(self)
+        assert expr.dtype == self.dtype
+        return expr

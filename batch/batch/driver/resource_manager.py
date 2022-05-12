@@ -1,13 +1,12 @@
-from typing import List, Any, Tuple
 import abc
 import logging
+from typing import Any, List, Tuple
 
 from hailtop.utils import time_msecs
 
-from .instance import Instance
 from ..file_store import FileStore
 from ..instance_config import InstanceConfig, QuantifiedResource
-
+from .instance import Instance
 
 log = logging.getLogger('compute_manager')
 

@@ -8,7 +8,6 @@ import is.hail.expr.ir.IRBuilder._
 import is.hail.expr.ir.functions.MatrixToMatrixFunction
 import is.hail.types._
 import is.hail.types.virtual._
-import is.hail.io.TextMatrixReader
 import is.hail.io.bgen.MatrixBGENReader
 import is.hail.io.fs.FS
 import is.hail.io.plink.MatrixPLINKReader
@@ -61,7 +60,8 @@ object MatrixLiteral {
       TableLiteral(
         TableValue(ctx, tt,
           BroadcastRow(ctx, Row.fromSeq(globals.toSeq :+ colValues), typ.canonicalTableType.globalType),
-          rvd)))
+          rvd),
+        ctx.theHailClassLoader))
   }
 }
 
@@ -85,7 +85,6 @@ object MatrixReader {
       case "MatrixRangeReader" => MatrixRangeReader.fromJValue(env.ctx, jv)
       case "MatrixNativeReader" => MatrixNativeReader.fromJValue(env.ctx.fs, jv)
       case "MatrixBGENReader" => MatrixBGENReader.fromJValue(env, jv)
-      case "TextMatrixReader" => TextMatrixReader.fromJValue(env.ctx, jv)
       case "MatrixPLINKReader" => MatrixPLINKReader.fromJValue(env.ctx, jv)
       case "MatrixVCFReader" => MatrixVCFReader.fromJValue(env.ctx, jv)
     }

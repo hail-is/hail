@@ -114,6 +114,28 @@ class Struct(Mapping):
         -------
         :class:`.Struct`
             Struct with new or updated fields.
+
+        Examples
+        --------
+
+        Define a Struct `s`
+
+        >>> s = hl.Struct(food=8, fruit=5)
+
+        Add a new field to `s`
+
+        >>> s.annotate(bar=2)
+        Struct(food=8, fruit=5, bar=2)
+
+        Add multiple fields to `s`
+
+        >>> s.annotate(banana=2, apple=3)
+        Struct(food=8, fruit=5, banana=2, apple=3)
+
+        Recompute an existing field in `s`
+
+        >>> s.annotate(bar=4, fruit=2)
+        Struct(food=8, fruit=2, bar=4)
         """
         d = OrderedDict(self.items())
         for k, v in kwargs.items():
@@ -143,6 +165,28 @@ class Struct(Mapping):
         -------
         :class:`.Struct`
             Struct containing specified existing fields and computed fields.
+
+        Examples
+        --------
+        Define a Struct 's'
+
+        >>> s = hl.Struct(foo=5, apple=10)
+
+        Keep just one original field
+
+        >>> s.select('foo')
+        Struct(foo=5)
+
+        Add one new field and keeps one old field
+
+        >>> s.select('apple', bar=123)
+        Struct(apple=10, bar=123)
+
+        Adds two new fields and replaces old fields
+
+        >>> s.select(bar=123, banana=1)
+        Struct(bar=123, banana=1)
+
         """
         d = OrderedDict()
         for a in fields:
@@ -166,6 +210,23 @@ class Struct(Mapping):
         -------
         :class:`.Struct`
             Struct without certain fields.
+
+        Examples
+        --------
+
+        Define a Struct `s`
+
+        >>> s = hl.Struct(food=8, fruit=5, bar=2, apple=10)
+
+        Drop one field from `s`
+
+        >>> s.drop('bar')
+        Struct(food=8, fruit=5, apple=10)
+
+        Drop two fields from `s`
+
+        >>> s.drop('food', 'fruit')
+        Struct(bar=2, apple=10)
         """
         d = OrderedDict((k, v) for k, v in self.items() if k not in args)
         return Struct(**d)

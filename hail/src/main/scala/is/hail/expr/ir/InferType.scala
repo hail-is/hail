@@ -147,7 +147,7 @@ object InferType {
       case StreamFold2(_, _, _, _, result) => result.typ
       case StreamDistribute(child, pivots, pathPrefix, _, _) =>
         val keyType = pivots.typ.asInstanceOf[TContainer].elementType
-        TArray(TStruct(("interval", TInterval(keyType)), ("fileName", TString), ("numElements", TInt32)))
+        TArray(TStruct(("interval", TInterval(keyType)), ("fileName", TString), ("numElements", TInt32), ("numBytes", TInt64)))
       case StreamWhiten(stream, _, _, _, _, _, _, _) =>
         stream.typ
       case StreamScan(a, zero, accumName, valueName, body) =>
@@ -262,7 +262,7 @@ object InferType {
       case _: MatrixWrite => TVoid
       case _: MatrixMultiWrite => TVoid
       case _: BlockMatrixCollect => TNDArray(TFloat64, Nat(2))
-      case _: BlockMatrixWrite => TVoid
+      case BlockMatrixWrite(_, writer) => writer.loweredTyp
       case _: BlockMatrixMultiWrite => TVoid
       case TableGetGlobals(child) => child.typ.globalType
       case TableCollect(child) => TStruct("rows" -> TArray(child.typ.rowType), "global" -> child.typ.globalType)

@@ -3,6 +3,7 @@ package is.hail.io.index
 import java.io.InputStream
 import java.util
 import java.util.Map.Entry
+import is.hail.asm4s.HailClassLoader
 import is.hail.annotations._
 import is.hail.backend.ExecuteContext
 import is.hail.types.virtual.{TStruct, Type, TypeSerializer}
@@ -19,7 +20,7 @@ import org.json4s.{Formats, NoTypeHints}
 import org.json4s.jackson.{JsonMethods, Serialization}
 
 object IndexReaderBuilder {
-  def fromSpec(ctx: ExecuteContext, spec: AbstractIndexSpec): (FS, String, Int, RegionPool) => IndexReader = {
+  def fromSpec(ctx: ExecuteContext, spec: AbstractIndexSpec): (HailClassLoader, FS, String, Int, RegionPool) => IndexReader = {
     val (keyType, annotationType) = spec.types
     val (leafPType: PStruct, leafDec) = spec.leafCodec.buildDecoder(ctx, spec.leafCodec.encodedVirtualType)
     val (intPType: PStruct, intDec) = spec.internalNodeCodec.buildDecoder(ctx, spec.internalNodeCodec.encodedVirtualType)
@@ -28,12 +29,12 @@ object IndexReaderBuilder {
   }
 
   def withDecoders(
-    leafDec: (InputStream) => Decoder, intDec: (InputStream) => Decoder,
+    leafDec: (InputStream, HailClassLoader) => Decoder, intDec: (InputStream, HailClassLoader) => Decoder,
     keyType: Type, annotationType: Type,
     leafPType: PStruct, intPType: PStruct
-  ): (FS, String, Int, RegionPool) => IndexReader = {
-    (fs, path, cacheCapacity, pool) => new IndexReader(fs, path, cacheCapacity, leafDec,
-      intDec, keyType, annotationType, leafPType, intPType, pool)
+  ): (HailClassLoader, FS, String, Int, RegionPool) => IndexReader = {
+    (theHailClassLoader, fs, path, cacheCapacity, pool) => new IndexReader(
+      theHailClassLoader, fs, path, cacheCapacity, leafDec, intDec, keyType, annotationType, leafPType, intPType, pool)
   }
 }
 
@@ -61,11 +62,13 @@ object IndexReader {
 }
 
 
-class IndexReader(fs: FS,
+class IndexReader(
+  theHailClassLoader: HailClassLoader,
+  fs: FS,
   path: String,
   cacheCapacity: Int = 8,
-  leafDecoderBuilder: (InputStream) => Decoder,
-  internalDecoderBuilder: (InputStream) => Decoder,
+  leafDecoderBuilder: (InputStream, HailClassLoader) => Decoder,
+  internalDecoderBuilder: (InputStream, HailClassLoader) => Decoder,
   val keyType: Type,
   val annotationType: Type,
   val leafPType: PStruct,
@@ -84,8 +87,8 @@ class IndexReader(fs: FS,
   }
 
   private val is = fs.openNoCompression(path + "/" + indexRelativePath)
-  private val leafDecoder = leafDecoderBuilder(is)
-  private val internalDecoder = internalDecoderBuilder(is)
+  private val leafDecoder = leafDecoderBuilder(is, theHailClassLoader)
+  private val internalDecoder = internalDecoderBuilder(is, theHailClassLoader)
 
   private val region = Region(pool=pool)
   private val rv = RegionValue(region)

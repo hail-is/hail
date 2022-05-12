@@ -29,7 +29,7 @@ object LAPACK {
       } else {
         "lapack"
       }
-      val standard = Native.loadLibrary(libraryName, classOf[LAPACKLibrary]).asInstanceOf[LAPACKLibrary]
+      val standard = Native.load(libraryName, classOf[LAPACKLibrary]).asInstanceOf[LAPACKLibrary]
 
       versionTest(standard) match {
         case Success(version) =>
@@ -38,7 +38,7 @@ object LAPACK {
         case Failure(exception) =>
           val underscoreAfterMap = new java.util.HashMap[String, FunctionMapper]()
           underscoreAfterMap.put(Library.OPTION_FUNCTION_MAPPER, new UnderscoreFunctionMapper)
-          val underscoreAfter = Native.loadLibrary(libraryName, classOf[LAPACKLibrary], underscoreAfterMap).asInstanceOf[LAPACKLibrary]
+          val underscoreAfter = Native.load(libraryName, classOf[LAPACKLibrary], underscoreAfterMap).asInstanceOf[LAPACKLibrary]
           versionTest(underscoreAfter) match {
             case Success(version) =>
               log.info(s"Imported LAPACK library ${libraryName}, version ${version}, with underscore names")

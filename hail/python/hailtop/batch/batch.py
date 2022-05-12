@@ -3,7 +3,7 @@ import warnings
 import re
 from typing import Optional, Dict, Union, List, Any, Set
 
-from hailtop.utils import secret_alnum_string, url_scheme
+from hailtop.utils import secret_alnum_string, url_scheme, async_to_blocking
 from hailtop.aiotools import AsyncFS
 from hailtop.aiotools.router_fs import RouterAsyncFS
 
@@ -91,11 +91,11 @@ class Batch:
 
     _counter = 0
     _uid_prefix = "__BATCH__"
-    _regex_pattern = r"(?P<BATCH>{}\d+)".format(_uid_prefix)
+    _regex_pattern = r"(?P<BATCH>{}\d+)".format(_uid_prefix)  # pylint: disable=consider-using-f-string
 
     @classmethod
     def _get_uid(cls):
-        uid = "{}{}".format(cls._uid_prefix, cls._counter)
+        uid = cls._uid_prefix + str(cls._counter)
         cls._counter += 1
         return uid
 
@@ -591,7 +591,7 @@ class Batch:
         run_result = self._backend._run(self, dry_run, verbose, delete_scratch_on_exit, **backend_kwargs)  # pylint: disable=assignment-from-no-return
         if self._DEPRECATED_fs is not None:
             # best effort only because this is deprecated
-            self._DEPRECATED_fs.close()
+            async_to_blocking(self._DEPRECATED_fs.close())
             self._DEPRECATED_fs = None
         return run_result
 

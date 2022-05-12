@@ -1,20 +1,19 @@
 import asyncio
-from hailtop import aiotools
-from hailtop.aiocloud import aiogoogle
-from hailtop.utils import periodically_call, RateLimit
+
 from gear import Database
 from gear.cloud_config import get_gcp_config
+from hailtop import aiotools
+from hailtop.aiocloud import aiogoogle
+from hailtop.utils import RateLimit, periodically_call
 
 from ....driver.driver import CloudDriver, process_outstanding_events
-from ....driver.instance_collection import Pool, JobPrivateInstanceManager, InstanceCollectionManager
+from ....driver.instance_collection import InstanceCollectionManager, JobPrivateInstanceManager, Pool
 from ....inst_coll_config import InstanceCollectionConfigs
-
-
-from .disks import delete_orphaned_disks
 from .activity_logs import process_activity_log_events_since
 from .billing_manager import GCPBillingManager
-from .zones import ZoneMonitor
+from .disks import delete_orphaned_disks
 from .resource_manager import GCPResourceManager
+from .zones import ZoneMonitor
 
 
 class GCPDriver(CloudDriver):
@@ -63,7 +62,7 @@ class GCPDriver(CloudDriver):
                 app['async_worker_pool'],
                 task_manager,
             )
-            for pool_name, config in inst_coll_configs.name_pool_config.items()
+            for config in inst_coll_configs.name_pool_config.values()
         ]
 
         jpim, *_ = await asyncio.gather(

@@ -1,5 +1,6 @@
 package is.hail.io.plink
 
+import is.hail.asm4s.HailClassLoader
 import is.hail.annotations.{Region, RegionValueBuilder}
 import is.hail.backend.ExecuteContext
 import is.hail.expr.JSONAnnotationImpex
@@ -288,7 +289,8 @@ class PlinkVariant(
   val index: Int,
   val locusAlleles: Any,
   val cmPos: Double,
-  val rsid: String)
+  val rsid: String
+) extends Serializable
 
 class MatrixPLINKReader(
   val params: MatrixPLINKReaderParameters,
@@ -314,8 +316,6 @@ class MatrixPLINKReader(
   }
 
   def executeGeneric(ctx: ExecuteContext): GenericTableValue = {
-    val fsBc = ctx.fsBc
-
     val localA2Reference = params.a2Reference
     val variantsBc = ctx.backend.broadcast(variants)
     val localNSamples = nSamples
@@ -350,7 +350,7 @@ class MatrixPLINKReader(
 
       val requestedPType = bodyPType(requestedType)
 
-      { (region: Region, fs: FS, context: Any) =>
+      { (region: Region, theHailClassLoader: HailClassLoader, fs: FS, context: Any) =>
         val c = context.asInstanceOf[Row]
         val bed = c.getString(0)
         val start = c.getInt(1)
@@ -360,9 +360,12 @@ class MatrixPLINKReader(
 
         val rvb = new RegionValueBuilder(region)
 
-        val is = fsBc.value.open(bed)
-        TaskContext.get.addTaskCompletionListener[Unit] { (context: TaskContext) =>
-          is.close()
+        val is = fs.open(bed)
+        if (TaskContext.get != null) {
+          // FIXME: need to close InputStream for other backends too
+          TaskContext.get.addTaskCompletionListener[Unit] { (context: TaskContext) =>
+            is.close()
+          }
         }
         var offset: Long = 0
 
@@ -462,7 +465,8 @@ class MatrixPLINKReader(
     executeGeneric(ctx).toTableValue(ctx, tr.typ)
 
   override def lowerGlobals(ctx: ExecuteContext, requestedGlobalsType: TStruct): IR = {
-    val subset = fullMatrixType.globalType.valueSubsetter(requestedGlobalsType)
+    val tt = fullMatrixType.toTableType(LowerMatrixIR.entriesFieldName, LowerMatrixIR.colsFieldName)
+    val subset = tt.globalType.valueSubsetter(requestedGlobalsType)
     val globals = Row(sampleInfo)
     Literal(requestedGlobalsType, subset(globals).asInstanceOf[Row])
   }

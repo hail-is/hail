@@ -1,37 +1,41 @@
-import traceback
-import json
-import os
-import logging
 import asyncio
 import concurrent.futures
-from aiohttp import web
+import json
+import logging
+import os
+import traceback
+from typing import Callable, Dict, List, Optional, Set
+
 import aiohttp_session  # type: ignore
 import uvloop  # type: ignore
+from aiohttp import web
+from gidgethub import aiohttp as gh_aiohttp
+from gidgethub import routing as gh_routing
+from gidgethub import sansio as gh_sansio
 from prometheus_async.aio.web import server_stats  # type: ignore
-from gidgethub import aiohttp as gh_aiohttp, routing as gh_routing, sansio as gh_sansio
-from hailtop.utils import collect_agen, humanize_timedelta_msecs
-from hailtop.batch_client.aioclient import BatchClient, Batch
-from hailtop.config import get_deploy_config
-from hailtop.tls import internal_server_ssl_context
-from hailtop.hail_logging import AccessLogger
-from hailtop import aiotools, httpx
-from gear import (
-    setup_aiohttp_session,
-    rest_authenticated_developers_only,
-    web_authenticated_developers_only,
-    check_csrf_token,
-    create_database_pool,
-    monitor_endpoints_middleware,
-)
-from typing import Optional, List, Set, Callable
 from typing_extensions import TypedDict
-from web_common import setup_aiohttp_jinja2, setup_common_static_routes, render_template, set_message
 
-from .environment import STORAGE_URI
-from .github import Repo, FQBranch, WatchedBranch, UnwatchedBranch, MergeFailureBatch, PR, select_random_teammate, WIP
+from gear import (
+    Database,
+    check_csrf_token,
+    monitor_endpoints_middleware,
+    rest_authenticated_developers_only,
+    setup_aiohttp_session,
+    web_authenticated_developers_only,
+)
+from hailtop import aiotools, httpx
+from hailtop.batch_client.aioclient import Batch, BatchClient
+from hailtop.config import get_deploy_config
+from hailtop.hail_logging import AccessLogger
+from hailtop.tls import internal_server_ssl_context
+from hailtop.utils import collect_agen, humanize_timedelta_msecs
+from web_common import render_template, set_message, setup_aiohttp_jinja2, setup_common_static_routes
+
 from .constants import AUTHORIZED_USERS, TEAMS
+from .environment import STORAGE_URI
+from .github import PR, WIP, FQBranch, MergeFailureBatch, Repo, UnwatchedBranch, WatchedBranch, select_random_teammate
 
-with open(os.environ.get('HAIL_CI_OAUTH_TOKEN', 'oauth-token/oauth-token'), 'r') as f:
+with open(os.environ.get('HAIL_CI_OAUTH_TOKEN', 'oauth-token/oauth-token'), 'r', encoding='utf-8') as f:
     oauth_token = f.read().strip()
 
 log = logging.getLogger('ci')
@@ -53,6 +57,7 @@ class PRConfig(TypedDict):
     title: str
     batch_id: Optional[int]
     build_state: Optional[str]
+    gh_statuses: Dict[str, str]
     source_branch_name: str
     review_state: Optional[str]
     author: str
@@ -64,7 +69,7 @@ class PRConfig(TypedDict):
 
 async def pr_config(app, pr: PR) -> PRConfig:
     batch_id = pr.batch.id if pr.batch and isinstance(pr.batch, Batch) else None
-    build_state = pr.build_state if await pr.authorized(app['dbpool']) else 'unauthorized'
+    build_state = pr.build_state if await pr.authorized(app['db']) else 'unauthorized'
     if build_state is None and batch_id is not None:
         build_state = 'building'
     return {
@@ -73,6 +78,7 @@ async def pr_config(app, pr: PR) -> PRConfig:
         # FIXME generate links to the merge log
         'batch_id': batch_id,
         'build_state': build_state,
+        'gh_statuses': {k: v.value for k, v in pr.last_known_github_status.items()},
         'source_branch_name': pr.source_branch.name,
         'review_state': pr.review_state,
         'author': pr.author,
@@ -91,6 +97,7 @@ class WatchedBranchConfig(TypedDict):
     deploy_state: Optional[str]
     repo: str
     prs: List[PRConfig]
+    gh_status_names: Set[str]
 
 
 async def watched_branch_config(app, wb: WatchedBranch, index: int) -> WatchedBranchConfig:
@@ -99,6 +106,7 @@ async def watched_branch_config(app, wb: WatchedBranch, index: int) -> WatchedBr
     else:
         pr_configs = []
     # FIXME recent deploy history
+    gh_status_names = {k for pr in pr_configs for k in pr['gh_statuses'].keys()}
     return {
         'index': index,
         'branch': wb.branch.short_str(),
@@ -108,6 +116,7 @@ async def watched_branch_config(app, wb: WatchedBranch, index: int) -> WatchedBr
         'deploy_state': wb.deploy_state,
         'repo': wb.branch.repo.short_str(),
         'prs': pr_configs,
+        'gh_status_names': gh_status_names,
     }
 
 
@@ -187,10 +196,8 @@ async def retry_pr(wb, pr, request):
         return
 
     batch_id = pr.batch.id
-    dbpool = app['dbpool']
-    async with dbpool.acquire() as conn:
-        async with conn.cursor() as cursor:
-            await cursor.execute('INSERT INTO invalidated_batches (batch_id) VALUES (%s);', batch_id)
+    db: Database = app['db']
+    await db.execute_insertone('INSERT INTO invalidated_batches (batch_id) VALUES (%s);', batch_id)
     await wb.notify_batch_changed(app)
 
     log.info(f'retry requested for PR: {pr.number}')
@@ -321,12 +328,10 @@ async def get_user(request, userdata):
 @web_authenticated_developers_only(redirect=False)
 async def post_authorized_source_sha(request, userdata):  # pylint: disable=unused-argument
     app = request.app
-    dbpool = app['dbpool']
+    db: Database = app['db']
     post = await request.post()
     sha = post['sha'].strip()
-    async with dbpool.acquire() as conn:
-        async with conn.cursor() as cursor:
-            await cursor.execute('INSERT INTO authorized_shas (sha) VALUES (%s);', sha)
+    await db.execute_insertone('INSERT INTO authorized_shas (sha) VALUES (%s);', sha)
     log.info(f'authorized sha: {sha}')
     session = await aiohttp_session.get_session(request)
     set_message(session, f'SHA {sha} authorized.', 'info')
@@ -359,7 +364,7 @@ async def push_callback(event):
         branch_name = ref[len('refs/heads/') :]
         branch = FQBranch(Repo.from_gh_json(data['repository']), branch_name)
         for wb in watched_branches:
-            if wb.branch == branch or any(pr.branch == branch for pr in wb.prs.values()):
+            if wb.branch == branch:
                 await wb.notify_github_changed(event.app)
 
 
@@ -520,7 +525,9 @@ async def on_startup(app):
     app['client_session'] = httpx.client_session()
     app['github_client'] = gh_aiohttp.GitHubAPI(app['client_session'], 'ci', oauth_token=oauth_token)
     app['batch_client'] = await BatchClient.create('ci')
-    app['dbpool'] = await create_database_pool()
+
+    app['db'] = Database()
+    await app['db'].async_init()
 
     app['task_manager'] = aiotools.BackgroundTaskManager()
     app['task_manager'].ensure_future(update_loop(app))
@@ -528,9 +535,7 @@ async def on_startup(app):
 
 async def on_cleanup(app):
     try:
-        dbpool = app['dbpool']
-        dbpool.close()
-        await dbpool.wait_closed()
+        await app['db'].async_close()
         await app['client_session'].close()
         await app['batch_client'].close()
     finally:

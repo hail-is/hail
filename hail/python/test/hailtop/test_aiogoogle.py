@@ -24,8 +24,10 @@ async def gs_filesystem(request):
             assert request.param.endswith('gs')
             fs = GoogleStorageAsyncFS()
         async with fs:
-            bucket = os.environ['HAIL_TEST_GCS_BUCKET']
-            base = f'gs://{bucket}/tmp/{token}/'
+            test_storage_uri = os.environ['HAIL_TEST_STORAGE_URI']
+            protocol = 'gs://'
+            assert test_storage_uri[:len(protocol)] == protocol
+            base = f'{test_storage_uri}/tmp/{token}/'
 
             await fs.mkdir(base)
             sema = asyncio.Semaphore(50)
@@ -35,10 +37,15 @@ async def gs_filesystem(request):
             assert not await fs.isdir(base)
 
 
+@pytest.fixture
+def bucket_and_temporary_file():
+    bucket, prefix = GoogleStorageAsyncFS.get_bucket_and_name(os.environ['HAIL_TEST_STORAGE_URI'])
+    return bucket, prefix + '/' + secrets.token_hex(16)
+
+
 @pytest.mark.asyncio
-async def test_get_object_metadata():
-    bucket = os.environ['HAIL_TEST_GCS_BUCKET']
-    file = secrets.token_hex(16)
+async def test_get_object_metadata(bucket_and_temporary_file):
+    bucket, file = bucket_and_temporary_file
 
     async with GoogleStorageClient() as client:
         async def upload():
@@ -53,9 +60,8 @@ async def test_get_object_metadata():
 
 
 @pytest.mark.asyncio
-async def test_get_object_headers():
-    bucket = os.environ['HAIL_TEST_GCS_BUCKET']
-    file = secrets.token_hex(16)
+async def test_get_object_headers(bucket_and_temporary_file):
+    bucket, file = bucket_and_temporary_file
 
     async with GoogleStorageClient() as client:
         async def upload():
@@ -70,22 +76,21 @@ async def test_get_object_headers():
 
 
 @pytest.mark.asyncio
-async def test_compose():
-    bucket = os.environ['HAIL_TEST_GCS_BUCKET']
-    token = secret_alnum_string()
+async def test_compose(bucket_and_temporary_file):
+    bucket, file = bucket_and_temporary_file
 
     part_data = [b'a', b'bb', b'ccc']
 
     async with GoogleStorageClient() as client:
         async def upload(i, b):
-            async with await client.insert_object(bucket, f'{token}/{i}') as f:
+            async with await client.insert_object(bucket, f'{file}/{i}') as f:
                 await f.write(b)
         for i, b in enumerate(part_data):
             await retry_transient_errors(upload, i, b)
-        await client.compose(bucket, [f'{token}/{i}' for i in range(len(part_data))], f'{token}/combined')
+        await client.compose(bucket, [f'{file}/{i}' for i in range(len(part_data))], f'{file}/combined')
 
         expected = b''.join(part_data)
-        async with await client.get_object(bucket, f'{token}/combined') as f:
+        async with await client.get_object(bucket, f'{file}/combined') as f:
             actual = await f.read()
         assert actual == expected
 
@@ -116,10 +121,34 @@ async def test_multi_part_create_many_two_level_merge(gs_filesystem):
 
             # do in parallel
             await bounded_gather2(sema, *[
-                functools.partial(create_part, i) for i in range(len(part_data))])
+                functools.partial(retry_transient_errors, create_part, i) for i in range(len(part_data))])
 
         expected = b''.join(part_data)
         actual = await fs.read(path)
         assert expected == actual
     except (concurrent.futures._base.CancelledError, asyncio.CancelledError) as err:
         raise AssertionError('uncaught cancelled error') from err
+
+async def test_weird_urls(gs_filesystem):
+    _, fs, base = gs_filesystem
+
+    await fs.write(base + '?', b'contents of ?')
+    assert await fs.read(base + '?') == b'contents of ?'
+
+    await fs.write(base + '?a', b'contents of ?a')
+    assert await fs.read(base + '?') == b'contents of ?a'
+
+    await fs.write(base + '?a#b', b'contents of ?a#b')
+    assert await fs.read(base + '?a#b') == b'contents of ?a#b'
+
+    await fs.write(base + '#b?a', b'contents of #b?a')
+    assert await fs.read(base + '#b?a') == b'contents of #b?a'
+
+    await fs.write(base + '?a#b@c', b'contents of ?a#b@c')
+    assert await fs.read(base + '?a#b@c') == b'contents of ?a#b@c'
+
+    await fs.write(base + '#b', b'contents of #b')
+    assert await fs.read(base + '#b') == b'contents of #b'
+
+    await fs.write(base + '???', b'contents of ???')
+    assert await fs.read(base + '???') == b'contents of ???'

@@ -1,5 +1,6 @@
-import pytest
 import os
+
+import pytest
 
 
 def batch_status_job_counter(batch_status, job_state):

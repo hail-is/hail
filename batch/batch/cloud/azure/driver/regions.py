@@ -14,7 +14,7 @@ class RegionMonitor(CloudLocationMonitor):
 
     def choose_location(
         self,
-        worker_cores: int,  # pylint: disable=unused-argument
+        cores: int,  # pylint: disable=unused-argument
         local_ssd_data_disk: bool,  # pylint: disable=unused-argument
         data_disk_size_gb: int,  # pylint: disable=unused-argument
     ) -> str:

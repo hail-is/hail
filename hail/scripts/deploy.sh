@@ -105,10 +105,12 @@ gsutil cp $WEBSITE_TAR $website_url
 gsutil -m retention temp set $website_url
 
 # Create pull request to update Terra version
-curl -XPOST -H @$GITHUB_OAUTH_HEADER_FILE https://api.github.com/repos/hail-is/terra-docker/merge-upstream -d '{ "branch": "master" }'
 terra_docker_dir=$(mktemp -d)
-git clone https://github.com/hail-is/terra-docker $terra_docker_dir
+git clone https://github.com/DataBiosphere/terra-docker $terra_docker_dir
 pushd $terra_docker_dir
+git config user.name hail
+git config user.email hail@broadinstitute.org
+
 branch_name=update-to-hail-$HAIL_PIP_VERSION
 git checkout -B $branch_name
 
@@ -136,12 +138,11 @@ Image URL: \`us.gcr.io/broad-dsp-gcr-public/terra-jupyter-hail:$terra_jupyter_ha
 
 EOF
 mv $temp_changelog terra-jupyter-hail/CHANGELOG.md
-
-sed -i "/ENV HAIL_VERSION/s/\d\+\.\d\+\.\d\+/$HAIL_PIP_VERSION/" terra-jupyter-hail/Dockerfile
+sed -Ei "/ENV HAIL_VERSION/s/[0-9]+\.[0-9]+\.[0-9]+/${HAIL_PIP_VERSION}/" terra-jupyter-hail/Dockerfile
 git commit -m "Update hail to version $HAIL_PIP_VERSION" -- config/conf.json terra-jupyter-hail
 git push -f origin HEAD
 curl -XPOST -H @$GITHUB_OAUTH_HEADER_FILE https://api.github.com/repos/DataBiosphere/terra-docker/pulls -d "{
-  \"head\": \"hail-is:$branch_name\",
-  \"base\": \"master\"
+  \"head\": \"$branch_name\",
+  \"base\": \"master\",
+  \"title\": \"$(tr '-' ' ' <<<$branch_name)\"
 }"
-popd

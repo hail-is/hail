@@ -18,12 +18,8 @@ class ClientResponseError(aiohttp.ClientResponseError):
         self.body = body
 
     def __str__(self) -> str:
-        return "{}, message={!r}, url={!r} body={!r}".format(
-            self.status,
-            self.message,
-            self.request_info.real_url,
-            self.body
-        )
+        return (f"{self.status}, message={self.message!r}, "
+                f"url={self.request_info.real_url!r} body={self.body!r}")
 
     def __repr__(self) -> str:
         args = f"{self.request_info!r}, {self.history!r}"
@@ -35,7 +31,7 @@ class ClientResponseError(aiohttp.ClientResponseError):
             args += f", headers={self.headers!r}"
         if self.body is not None:
             args += f", body={self.body!r}"
-        return "{}({})".format(type(self).__name__, args)
+        return f"{type(self).__name__}({args})"
 
 
 class ClientResponse:
@@ -87,9 +83,34 @@ class ClientResponse:
 
 
 class ClientSession:
-    def __init__(self, *args, **kwargs):
-        self.raise_for_status = kwargs.pop('raise_for_status', False)
-        self.client_session = aiohttp.ClientSession(*args, raise_for_status=False, **kwargs)
+    def __init__(self,
+                 *args,
+                 raise_for_status: bool = True,
+                 timeout: Union[aiohttp.ClientTimeout, float] = None,
+                 **kwargs):
+        location = get_deploy_config().location()
+        if location == 'external':
+            tls = external_client_ssl_context()
+        elif location == 'k8s':
+            tls = internal_client_ssl_context()
+        else:
+            assert location in ('gce', 'azure')
+            # no encryption on the internal gateway
+            tls = external_client_ssl_context()
+
+        assert 'connector' not in kwargs
+
+        if timeout is None:
+            timeout = aiohttp.ClientTimeout(total=5)
+
+        self.raise_for_status = raise_for_status
+        self.client_session = aiohttp.ClientSession(
+            *args,
+            timeout=timeout,
+            raise_for_status=False,
+            connector=aiohttp.TCPConnector(ssl=tls),
+            **kwargs
+        )
 
     def request(
         self, method: str, url: aiohttp.client.StrOrURL, **kwargs: Any
@@ -130,7 +151,7 @@ class ClientSession:
 
     def ws_connect(
         self, *args, **kwargs
-    ) -> aiohttp.client_ws.ClientWebSocketResponse:
+    ) -> aiohttp.client._WSRequestContextManager:
         return self.client_session.ws_connect(*args, **kwargs)
 
     def get(
@@ -195,29 +216,7 @@ class ClientSession:
         await self.client_session.__aexit__(exc_type, exc_val, exc_tb)
 
 
-def client_session(*args,
-                   raise_for_status: bool = True,
-                   timeout: Union[aiohttp.ClientTimeout, float] = None,
-                   **kwargs) -> ClientSession:
-    location = get_deploy_config().location()
-    if location == 'external':
-        tls = external_client_ssl_context()
-    elif location == 'k8s':
-        tls = internal_client_ssl_context()
-    else:
-        assert location in ('gce', 'azure')
-        # no encryption on the internal gateway
-        tls = external_client_ssl_context()
-
-    assert 'connector' not in kwargs
-    kwargs['connector'] = aiohttp.TCPConnector(ssl=tls)
-
-    kwargs['raise_for_status'] = raise_for_status
-
-    if timeout is None:
-        timeout = aiohttp.ClientTimeout(total=5)
-    kwargs['timeout'] = timeout
-
+def client_session(*args, **kwargs) -> ClientSession:
     return ClientSession(*args, **kwargs)
 
 

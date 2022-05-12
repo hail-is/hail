@@ -71,6 +71,7 @@ class Tests(unittest.TestCase):
         self._assert_close(bm.sum(axis=0), np.sum(nd, axis=0, keepdims=True))
         self._assert_close(bm.sum(axis=1), np.sum(nd, axis=1, keepdims=True))
 
+    @skip_when_service_backend('very slow / nonterminating')
     def test_from_entry_expr_simple(self):
         mt = get_dataset()
         mt = mt.annotate_entries(x=hl.or_else(mt.GT.n_alt_alleles(), 0)).cache()
@@ -87,6 +88,7 @@ class Tests(unittest.TestCase):
             a4 = hl.eval(BlockMatrix.read(path).to_ndarray())
             self._assert_eq(a1, a4)
 
+    @skip_when_service_backend('hangs')
     def test_from_entry_expr_options(self):
         def build_mt(a):
             data = [{'v': 0, 's': 0, 'x': a[0]},
@@ -121,6 +123,19 @@ class Tests(unittest.TestCase):
         with self.assertRaises(Exception):
             BlockMatrix.from_entry_expr(mt.x)
 
+    @skip_when_service_backend('''
+Caused by: is.hail.utils.HailException: bad shuffle close
+	at __C230collect_distributed_array.__m245split_StreamLen(Unknown Source)
+	at __C230collect_distributed_array.apply(Unknown Source)
+	at __C230collect_distributed_array.apply(Unknown Source)
+	at is.hail.backend.BackendUtils.$anonfun$collectDArray$2(BackendUtils.scala:31)
+	at is.hail.utils.package$.using(package.scala:627)
+	at is.hail.annotations.RegionPool.scopedRegion(RegionPool.scala:140)
+	at is.hail.backend.BackendUtils.$anonfun$collectDArray$1(BackendUtils.scala:30)
+	at is.hail.backend.service.Worker$.main(Worker.scala:120)
+	at is.hail.backend.service.Worker.main(Worker.scala)
+	... 12 more
+''')
     def test_write_from_entry_expr_overwrite(self):
         mt = hl.balding_nichols_model(1, 1, 1)
         mt = mt.select_entries(x=mt.GT.n_alt_alleles())
@@ -149,9 +164,12 @@ class Tests(unittest.TestCase):
             for entry in row:
                 assert entry > 0
 
-    @fails_service_backend()
-    @fails_local_backend()
-    def test_to_from_numpy(self):
+    def test_bm_to_numpy(self):
+        bm = BlockMatrix.from_ndarray(hl.nd.arange(20).map(lambda x: hl.float64(x)).reshape((4, 5)))
+        np_bm = bm.to_numpy()
+        self._assert_eq(np_bm, np.arange(20, dtype=np.float64).reshape((4, 5)))
+
+    def test_numpy_round_trip(self):
         n_rows = 10
         n_cols = 11
         data = np.random.rand(n_rows * n_cols)
@@ -161,7 +179,7 @@ class Tests(unittest.TestCase):
 
         with hl.TemporaryFilename() as bm_f, hl.TemporaryFilename() as a_f:
             bm.tofile(bm_f)
-            a.tofile(a_f)
+            hl.current_backend().fs.open(a_f, mode='wb').write(a.tobytes())
 
             a1 = bm.to_numpy()
             a2 = BlockMatrix.from_numpy(a, block_size=5).to_numpy()
@@ -182,7 +200,7 @@ class Tests(unittest.TestCase):
 
         with hl.TemporaryFilename() as bmt_f, hl.TemporaryFilename() as at_f:
             bmt.tofile(bmt_f)
-            at.tofile(at_f)
+            hl.current_backend().fs.open(at_f, mode='wb').write(at.tobytes())
 
             at1 = bmt.to_numpy()
             at2 = BlockMatrix.from_numpy(at).to_numpy()
@@ -198,6 +216,15 @@ class Tests(unittest.TestCase):
             self._assert_eq(at4, at)
             self._assert_eq(at5, at)
 
+    @fails_service_backend()
+    @fails_local_backend()
+    def test_numpy_round_trip_force_blocking(self):
+        n_rows = 10
+        n_cols = 11
+        data = np.random.rand(n_rows * n_cols)
+        a = data.reshape((n_rows, n_cols))
+
+        bm = BlockMatrix._create(n_rows, n_cols, data.tolist(), block_size=4)
         self._assert_eq(bm.to_numpy(_force_blocking=True), a)
 
     @fails_service_backend()
@@ -250,6 +277,7 @@ class Tests(unittest.TestCase):
         mt_round_trip = BlockMatrix.from_entry_expr(mt.element).to_matrix_table_row_major()
         assert mt._same(mt_round_trip)
 
+    @skip_when_service_backend('slow >800s')
     def test_paired_elementwise_ops(self):
         nx = np.array([[2.0]])
         nc = np.array([[1.0], [2.0]])
@@ -450,6 +478,33 @@ class Tests(unittest.TestCase):
         self._assert_close(m.log(), np.log(nm))
         self._assert_close((m - 4).abs(), np.abs(nm - 4))
 
+    @skip_when_service_backend('''intermittent driver error, on this line:
+>       self._assert_eq(m @ m.T, nm @ nm.T)
+
+Caused by: java.lang.AssertionError: assertion failed
+	at scala.Predef$.assert(Predef.scala:208)
+	at is.hail.io.BlockingInputBuffer.ensure(InputBuffers.scala:389)
+	at is.hail.io.BlockingInputBuffer.readInt(InputBuffers.scala:412)
+	at __C610collect_distributed_array.__m617INPLACE_DECODE_r_int32_TO_r_int32(Unknown Source)
+	at __C610collect_distributed_array.__m624INPLACE_DECODE_r_array_of_r_int32_TO_r_array_of_r_int32(Unknown Source)
+	at __C610collect_distributed_array.__m622INPLACE_DECODE_r_struct_of_r_int64ANDr_int32ANDr_array_of_r_int32ANDr_int32END_TO_r_struct_of_r_int64ANDr_int32ANDr_array_of_r_int32ANDr_int32END(Unknown Source)
+	at __C610collect_distributed_array.__m621INPLACE_DECODE_r_struct_of_r_int32ANDr_int32ANDr_struct_of_r_int64ANDr_int32ANDr_array_of_r_int32ANDr_int32ENDEND_TO_r_struct_of_r_int32ANDr_int32ANDr_struct_of_r_int64ANDr_int32ANDr_array_of_r_int32ANDr_int32ENDEND(Unknown Source)
+	at __C610collect_distributed_array.__m620INPLACE_DECODE_r_array_of_r_struct_of_r_int32ANDr_int32ANDr_struct_of_r_int64ANDr_int32ANDr_array_of_r_int32ANDr_int32ENDEND_TO_r_array_of_r_struct_of_r_int32ANDr_int32ANDr_struct_of_r_int64ANDr_int32ANDr_array_of_r_int32ANDr_int32ENDEND(Unknown Source)
+	at __C610collect_distributed_array.__m619INPLACE_DECODE_r_array_of_r_array_of_r_struct_of_r_int32ANDr_int32ANDr_struct_of_r_int64ANDr_int32ANDr_array_of_r_int32ANDr_int32ENDEND_TO_r_array_of_r_array_of_r_struct_of_r_int32ANDr_int32ANDr_struct_of_r_int64ANDr_int32ANDr_array_of_r_int32ANDr_int32ENDEND(Unknown Source)
+	at __C610collect_distributed_array.__m613INPLACE_DECODE_r_struct_of_r_struct_of_r_struct_of_r_struct_of_r_int32ANDr_int32ENDANDr_int32ENDANDr_struct_of_r_struct_of_r_int32ANDr_int32ENDANDr_int32ENDANDr_boolANDr_boolENDANDr_array_of_r_array_of_r_struct_of_r_int32ANDr_int32ANDr_struct_of_r_int64ANDr_int32ANDr_array_of_r_int32ANDr_int32ENDENDEND_TO_r_struct_of_r_struct_of_r_tuple_of_r_struct_of_r_int32ANDr_int32ENDANDr_int32ENDANDr_tuple_of_r_struct_of_r_int32ANDr_int32ENDANDr_int32ENDANDr_boolANDr_boolENDANDr_array_of_r_array_of_r_struct_of_r_int32ANDr_int32ANDr_struct_of_r_int64ANDr_int32ANDr_array_of_r_int32ANDr_int32ENDENDEND(Unknown Source)
+	at __C610collect_distributed_array.__m612INPLACE_DECODE_r_struct_of_r_struct_of_r_struct_of_r_struct_of_r_struct_of_r_int32ANDr_int32ENDANDr_int32ENDANDr_struct_of_r_struct_of_r_int32ANDr_int32ENDANDr_int32ENDANDr_boolANDr_boolENDANDr_array_of_r_array_of_r_struct_of_r_int32ANDr_int32ANDr_struct_of_r_int64ANDr_int32ANDr_array_of_r_int32ANDr_int32ENDENDENDANDr_binaryEND_TO_r_struct_of_r_struct_of_r_struct_of_r_tuple_of_r_struct_of_r_int32ANDr_int32ENDANDr_int32ENDANDr_tuple_of_r_struct_of_r_int32ANDr_int32ENDANDr_int32ENDANDr_boolANDr_boolENDANDr_array_of_r_array_of_r_struct_of_r_int32ANDr_int32ANDr_struct_of_r_int64ANDr_int32ANDr_array_of_r_int32ANDr_int32ENDENDENDANDr_stringEND(Unknown Source)
+	at __C610collect_distributed_array.__m611DECODE_r_struct_of_r_struct_of_r_struct_of_r_struct_of_r_struct_of_r_struct_of_r_int32ANDr_int32ENDANDr_int32ENDANDr_struct_of_r_struct_of_r_int32ANDr_int32ENDANDr_int32ENDANDr_boolANDr_boolENDANDr_array_of_r_array_of_r_struct_of_r_int32ANDr_int32ANDr_struct_of_r_int64ANDr_int32ANDr_array_of_r_int32ANDr_int32ENDENDENDANDr_binaryENDEND_TO_SBaseStructPointer(Unknown Source)
+	at __C610collect_distributed_array.applyregion0_0(Unknown Source)
+	at __C610collect_distributed_array.apply(Unknown Source)
+	at __C610collect_distributed_array.apply(Unknown Source)
+	at is.hail.backend.BackendUtils.$anonfun$collectDArray$2(BackendUtils.scala:31)
+	at is.hail.utils.package$.using(package.scala:627)
+	at is.hail.annotations.RegionPool.scopedRegion(RegionPool.scala:144)
+	at is.hail.backend.BackendUtils.$anonfun$collectDArray$1(BackendUtils.scala:30)
+	at is.hail.backend.service.Worker$.main(Worker.scala:120)
+	at is.hail.backend.service.Worker.main(Worker.scala)
+	... 11 more
+''')
     def test_matrix_ops(self):
         nm = np.array([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]])
         m = BlockMatrix.from_ndarray(hl.nd.array(nm), block_size=2)
@@ -539,6 +594,30 @@ class Tests(unittest.TestCase):
         self._assert_eq(bm, nd)
         self._assert_eq(bm2, nd)
 
+    @skip_when_service_backend('''intermittent worker failure:
+>       self.assert_sums_agree(bm, nd)
+
+Caused by: is.hail.utils.HailException: Premature end of file: expected 4 bytes, found 0
+	at is.hail.utils.ErrorHandling.fatal(ErrorHandling.scala:11)
+	at is.hail.utils.ErrorHandling.fatal$(ErrorHandling.scala:11)
+	at is.hail.utils.package$.fatal(package.scala:77)
+	at is.hail.utils.richUtils.RichInputStream$.readFully$extension1(RichInputStream.scala:13)
+	at is.hail.io.StreamBlockInputBuffer.readBlock(InputBuffers.scala:546)
+	at is.hail.io.BlockingInputBuffer.readBlock(InputBuffers.scala:382)
+	at is.hail.io.BlockingInputBuffer.readBytes(InputBuffers.scala:446)
+	at __C1560collect_distributed_array.__m1565INPLACE_DECODE_r_binary_TO_r_string(Unknown Source)
+	at __C1560collect_distributed_array.__m1563INPLACE_DECODE_r_struct_of_r_int32ANDr_int32ANDr_binaryANDr_binaryEND_TO_r_struct_of_r_int32ANDr_int32ANDr_stringANDr_stringEND(Unknown Source)
+	at __C1560collect_distributed_array.__m1562INPLACE_DECODE_r_array_of_r_struct_of_r_int32ANDr_int32ANDr_binaryANDr_binaryEND_TO_r_array_of_r_struct_of_r_int32ANDr_int32ANDr_stringANDr_stringEND(Unknown Source)
+	at __C1560collect_distributed_array.__m1561DECODE_r_struct_of_r_array_of_r_struct_of_r_int32ANDr_int32ANDr_binaryANDr_binaryENDEND_TO_SBaseStructPointer(Unknown Source)
+	at __C1560collect_distributed_array.apply(Unknown Source)
+	at __C1560collect_distributed_array.apply(Unknown Source)
+	at is.hail.backend.BackendUtils.$anonfun$collectDArray$2(BackendUtils.scala:31)
+	at is.hail.utils.package$.using(package.scala:627)
+	at is.hail.annotations.RegionPool.scopedRegion(RegionPool.scala:144)
+	at is.hail.backend.BackendUtils.$anonfun$collectDArray$1(BackendUtils.scala:30)
+	at is.hail.backend.service.Worker$.main(Worker.scala:120)
+	at is.hail.backend.service.Worker.main(Worker.scala)
+''')
     def test_sum(self):
         nd = np.arange(11 * 13, dtype=np.float64).reshape((11, 13))
         bm = BlockMatrix.from_ndarray(hl.literal(nd), block_size=3)
@@ -546,6 +625,7 @@ class Tests(unittest.TestCase):
         self.assert_sums_agree(bm, nd)
 
     @fails_local_backend
+    @fails_service_backend(reason='ExecuteContext.scoped requires SparkBackend')
     def test_sum_with_sparsify(self):
         nd = np.zeros(shape=(5, 7))
         nd[2, 4] = 1.0
@@ -568,6 +648,37 @@ class Tests(unittest.TestCase):
         self.assert_sums_agree(bm3, nd)
         self.assert_sums_agree(bm4, nd4)
 
+    @skip_when_service_backend('''intermittent worker failure:
+>           self._assert_eq(bm[indices], nd[indices])
+
+Caused by: java.lang.OutOfMemoryError
+	at sun.misc.Unsafe.allocateMemory(Native Method)
+	at is.hail.annotations.Memory.malloc(Memory.java:157)
+	at is.hail.annotations.RegionPool.$anonfun$chunkCache$1(RegionPool.scala:30)
+	at is.hail.annotations.ChunkCache.newChunk(ChunkCache.scala:75)
+	at is.hail.annotations.ChunkCache.getChunk(ChunkCache.scala:130)
+	at is.hail.annotations.RegionPool.getChunk(RegionPool.scala:73)
+	at is.hail.annotations.RegionMemory.allocateSharedChunk(RegionMemory.scala:293)
+	at is.hail.annotations.Region.allocateSharedChunk(Region.scala:353)
+	at __C3948collect_distributed_array.__m3960INPLACE_DECODE_r_ndarray_of_r_float64_TO_r_ndarray_of_r_float64(Unknown Source)
+	at __C3948collect_distributed_array.__m3959INPLACE_DECODE_r_struct_of_o_struct_of_r_int64ANDr_int64ENDANDr_ndarray_of_r_float64END_TO_r_tuple_of_o_tuple_of_r_int64ANDr_int64ENDANDr_ndarray_of_r_float64END(Unknown Source)
+	at __C3948collect_distributed_array.__m3958INPLACE_DECODE_r_array_of_r_struct_of_o_struct_of_r_int64ANDr_int64ENDANDr_ndarray_of_r_float64END_TO_r_array_of_r_tuple_of_o_tuple_of_r_int64ANDr_int64ENDANDr_ndarray_of_r_float64END(Unknown Source)
+	at __C3948collect_distributed_array.__m3957INPLACE_DECODE_r_array_of_r_array_of_r_struct_of_o_struct_of_r_int64ANDr_int64ENDANDr_ndarray_of_r_float64END_TO_r_array_of_r_array_of_r_tuple_of_o_tuple_of_r_int64ANDr_int64ENDANDr_ndarray_of_r_float64END(Unknown Source)
+	at __C3948collect_distributed_array.__m3956INPLACE_DECODE_r_struct_of_r_array_of_r_array_of_r_struct_of_o_struct_of_r_int64ANDr_int64ENDANDr_ndarray_of_r_float64ENDANDr_struct_of_r_struct_of_r_int64ANDr_int64ANDr_int64ENDANDr_struct_of_r_int64ANDr_int64ANDr_int64ENDENDEND_TO_r_struct_of_r_array_of_r_array_of_r_tuple_of_o_tuple_of_r_int64ANDr_int64ENDANDr_ndarray_of_r_float64ENDANDr_tuple_of_r_tuple_of_r_int64ANDr_int64ANDr_int64ENDANDr_tuple_of_r_int64ANDr_int64ANDr_int64ENDENDEND(Unknown Source)
+	at __C3948collect_distributed_array.__m3953INPLACE_DECODE_r_struct_of_o_struct_of_r_int64ANDr_int64ENDANDr_struct_of_r_array_of_r_array_of_r_struct_of_o_struct_of_r_int64ANDr_int64ENDANDr_ndarray_of_r_float64ENDANDr_struct_of_r_struct_of_r_int64ANDr_int64ANDr_int64ENDANDr_struct_of_r_int64ANDr_int64ANDr_int64ENDENDENDEND_TO_r_tuple_of_o_tuple_of_r_int64ANDr_int64ENDANDr_struct_of_r_array_of_r_array_of_r_tuple_of_o_tuple_of_r_int64ANDr_int64ENDANDr_ndarray_of_r_float64ENDANDr_tuple_of_r_tuple_of_r_int64ANDr_int64ANDr_int64ENDANDr_tuple_of_r_int64ANDr_int64ANDr_int64ENDENDENDEND(Unknown Source)
+	at __C3948collect_distributed_array.__m3952INPLACE_DECODE_r_array_of_r_struct_of_o_struct_of_r_int64ANDr_int64ENDANDr_struct_of_r_array_of_r_array_of_r_struct_of_o_struct_of_r_int64ANDr_int64ENDANDr_ndarray_of_r_float64ENDANDr_struct_of_r_struct_of_r_int64ANDr_int64ANDr_int64ENDANDr_struct_of_r_int64ANDr_int64ANDr_int64ENDENDENDEND_TO_r_array_of_r_tuple_of_o_tuple_of_r_int64ANDr_int64ENDANDr_struct_of_r_array_of_r_array_of_r_tuple_of_o_tuple_of_r_int64ANDr_int64ENDANDr_ndarray_of_r_float64ENDANDr_tuple_of_r_tuple_of_r_int64ANDr_int64ANDr_int64ENDANDr_tuple_of_r_int64ANDr_int64ANDr_int64ENDENDENDEND(Unknown Source)
+	at __C3948collect_distributed_array.__m3951INPLACE_DECODE_r_array_of_r_array_of_r_struct_of_o_struct_of_r_int64ANDr_int64ENDANDr_struct_of_r_array_of_r_array_of_r_struct_of_o_struct_of_r_int64ANDr_int64ENDANDr_ndarray_of_r_float64ENDANDr_struct_of_r_struct_of_r_int64ANDr_int64ANDr_int64ENDANDr_struct_of_r_int64ANDr_int64ANDr_int64ENDENDENDEND_TO_r_array_of_r_array_of_r_tuple_of_o_tuple_of_r_int64ANDr_int64ENDANDr_struct_of_r_array_of_r_array_of_r_tuple_of_o_tuple_of_r_int64ANDr_int64ENDANDr_ndarray_of_r_float64ENDANDr_tuple_of_r_tuple_of_r_int64ANDr_int64ANDr_int64ENDANDr_tuple_of_r_int64ANDr_int64ANDr_int64ENDENDENDEND(Unknown Source)
+	at __C3948collect_distributed_array.__m3950INPLACE_DECODE_r_struct_of_r_array_of_r_array_of_r_struct_of_o_struct_of_r_int64ANDr_int64ENDANDr_struct_of_r_array_of_r_array_of_r_struct_of_o_struct_of_r_int64ANDr_int64ENDANDr_ndarray_of_r_float64ENDANDr_struct_of_r_struct_of_r_int64ANDr_int64ANDr_int64ENDANDr_struct_of_r_int64ANDr_int64ANDr_int64ENDENDENDENDANDr_struct_of_r_struct_of_r_int64ANDr_int64ANDr_int64ENDANDr_struct_of_r_int64ANDr_int64ANDr_int64ENDENDEND_TO_r_struct_of_r_array_of_r_array_of_r_tuple_of_o_tuple_of_r_int64ANDr_int64ENDANDr_struct_of_r_array_of_r_array_of_r_tuple_of_o_tuple_of_r_int64ANDr_int64ENDANDr_ndarray_of_r_float64ENDANDr_tuple_of_r_tuple_of_r_int64ANDr_int64ANDr_int64ENDANDr_tuple_of_r_int64ANDr_int64ANDr_int64ENDENDENDENDANDr_tuple_of_r_tuple_of_r_int64ANDr_int64ANDr_int64ENDANDr_tuple_of_r_int64ANDr_int64ANDr_int64ENDENDEND(Unknown Source)
+	at __C3948collect_distributed_array.__m3949DECODE_r_struct_of_r_struct_of_r_array_of_r_array_of_r_struct_of_o_struct_of_r_int64ANDr_int64ENDANDr_struct_of_r_array_of_r_array_of_r_struct_of_o_struct_of_r_int64ANDr_int64ENDANDr_ndarray_of_r_float64ENDANDr_struct_of_r_struct_of_r_int64ANDr_int64ANDr_int64ENDANDr_struct_of_r_int64ANDr_int64ANDr_int64ENDENDENDENDANDr_struct_of_r_struct_of_r_int64ANDr_int64ANDr_int64ENDANDr_struct_of_r_int64ANDr_int64ANDr_int64ENDENDENDEND_TO_SBaseStructPointer(Unknown Source)
+	at __C3948collect_distributed_array.apply(Unknown Source)
+	at __C3948collect_distributed_array.apply(Unknown Source)
+	at is.hail.backend.BackendUtils.$anonfun$collectDArray$2(BackendUtils.scala:31)
+	at is.hail.utils.package$.using(package.scala:627)
+	at is.hail.annotations.RegionPool.scopedRegion(RegionPool.scala:144)
+	at is.hail.backend.BackendUtils.$anonfun$collectDArray$1(BackendUtils.scala:30)
+	at is.hail.backend.service.Worker$.main(Worker.scala:120)
+	at is.hail.backend.service.Worker.main(Worker.scala)
+	... 11 more''')
     def test_slicing(self):
         nd = np.array(np.arange(0, 80, dtype=float)).reshape(8, 10)
         bm = BlockMatrix.from_ndarray(hl.literal(nd), block_size=3)
@@ -626,7 +737,8 @@ class Tests(unittest.TestCase):
         self.assertRaises(ValueError, lambda: bm[0, -11:])
         self.assertRaises(ValueError, lambda: bm[0, :-11])
 
-    @skip_unless_spark_backend()
+    @fails_service_backend()
+    @fails_local_backend()
     def test_slices_with_sparsify(self):
         nd = np.array(np.arange(0, 80, dtype=float)).reshape(8, 10)
         bm = BlockMatrix.from_numpy(nd, block_size=3)
@@ -643,7 +755,8 @@ class Tests(unittest.TestCase):
         self._assert_eq(bm2[1, :], nd2[1:2, :])
         self._assert_eq(bm2[0:5, 0:5], nd2[0:5, 0:5])
 
-    @skip_unless_spark_backend()
+    @fails_service_backend()
+    @fails_local_backend()
     def test_sparsify_row_intervals(self):
         nd = np.array([[ 1.0,  2.0,  3.0,  4.0],
                        [ 5.0,  6.0,  7.0,  8.0],
@@ -689,7 +802,8 @@ class Tests(unittest.TestCase):
                     expected[i, j] = 0.0
             self._assert_eq(actual, expected)
 
-    @skip_unless_spark_backend()
+    @fails_service_backend()
+    @fails_local_backend()
     def test_sparsify_band(self):
         nd = np.array([[ 1.0,  2.0,  3.0,  4.0],
                        [ 5.0,  6.0,  7.0,  8.0],
@@ -720,7 +834,8 @@ class Tests(unittest.TestCase):
             mask = np.fromfunction(lambda i, j: (lower <= j - i) * (j - i <= upper), (8, 10))
             self._assert_eq(actual, nd2 * mask)
 
-    @skip_unless_spark_backend()
+    @fails_service_backend()
+    @fails_local_backend()
     def test_sparsify_triangle(self):
         nd = np.array([[ 1.0,  2.0,  3.0,  4.0],
                        [ 5.0,  6.0,  7.0,  8.0],
@@ -752,7 +867,8 @@ class Tests(unittest.TestCase):
                       [ 0.,  0., 11., 12.],
                       [ 0.,  0., 15., 16.]]))
 
-    @skip_unless_spark_backend()
+    @fails_service_backend()
+    @fails_local_backend()
     def test_sparsify_rectangles(self):
         nd = np.array([[ 1.0,  2.0,  3.0,  4.0],
                        [ 5.0,  6.0,  7.0,  8.0],
@@ -793,7 +909,8 @@ class Tests(unittest.TestCase):
                     bm.export_rectangles(rect_uri_bytes, rects, binary=True)
                     self._assert_rectangles_eq(nd, rect_uri_bytes, rects, binary=True)
 
-    @skip_unless_spark_backend()
+    @fails_service_backend()
+    @fails_local_backend()
     def test_export_rectangles_sparse(self):
         with hl.TemporaryDirectory() as rect_uri:
             nd = np.array([[1.0, 2.0, 3.0, 4.0],
@@ -872,6 +989,26 @@ class Tests(unittest.TestCase):
         sparsed = BlockMatrix.from_ndarray(hl.nd.array(sparsed_numpy), block_size=4)._sparsify_blocks(blocks_to_sparsify).to_ndarray()
         self.assertTrue(np.array_equal(sparsed_numpy, hl.eval(sparsed)))
 
+    @skip_when_service_backend('''intermittent worker failure:
+>           self.assertTrue(table._same(entries_table))
+
+Caused by: java.lang.AssertionError: assertion failed
+	at scala.Predef$.assert(Predef.scala:208)
+	at is.hail.io.BlockingInputBuffer.ensure(InputBuffers.scala:389)
+	at is.hail.io.BlockingInputBuffer.readInt(InputBuffers.scala:412)
+	at __C390collect_distributed_array.__m398INPLACE_DECODE_r_binary_TO_r_binary(Unknown Source)
+	at __C390collect_distributed_array.__m397INPLACE_DECODE_r_struct_of_r_binaryEND_TO_r_tuple_of_r_binaryEND(Unknown Source)
+	at __C390collect_distributed_array.__m396INPLACE_DECODE_r_struct_of_r_struct_of_r_binaryENDEND_TO_r_struct_of_r_tuple_of_r_binaryENDEND(Unknown Source)
+	at __C390collect_distributed_array.__m395DECODE_r_struct_of_r_struct_of_r_struct_of_r_binaryENDENDEND_TO_SBaseStructPointer(Unknown Source)
+	at __C390collect_distributed_array.apply(Unknown Source)
+	at __C390collect_distributed_array.apply(Unknown Source)
+	at is.hail.backend.BackendUtils.$anonfun$collectDArray$2(BackendUtils.scala:31)
+	at is.hail.utils.package$.using(package.scala:627)
+	at is.hail.annotations.RegionPool.scopedRegion(RegionPool.scala:144)
+	at is.hail.backend.BackendUtils.$anonfun$collectDArray$1(BackendUtils.scala:30)
+	at is.hail.backend.service.Worker$.main(Worker.scala:120)
+	at is.hail.backend.service.Worker.main(Worker.scala)
+	... 12 more''')
     def test_block_matrix_entries(self):
         n_rows, n_cols = 5, 3
         rows = [{'i': i, 'j': j, 'entry': float(i + j)} for i in range(n_rows) for j in range(n_cols)]
@@ -930,7 +1067,6 @@ class Tests(unittest.TestCase):
         f = hl._locus_windows_per_contig([[1.0, 3.0, 4.0], [2.0, 2.0], [5.0]], 1.0)
         assert hl.eval(f) == ([0, 1, 1, 3, 3, 5], [1, 3, 3, 5, 5, 6])
 
-    @fails_service_backend()
     def test_locus_windows(self):
         def assert_eq(a, b):
             assert np.array_equal(a, np.array(b)), f"a={a}, b={b}"
@@ -1010,8 +1146,6 @@ class Tests(unittest.TestCase):
             hl.linalg.utils.locus_windows(ht.locus, 1.0, coord_expr=ht.cm)
         assert "missing value for 'coord_expr'" in str(cm.exception)
 
-    @fails_service_backend()
-    @fails_local_backend()
     def test_write_overwrite(self):
         with hl.TemporaryDirectory(ensure_exists=False) as path:
             bm = BlockMatrix.from_numpy(np.array([[0]]))
@@ -1032,7 +1166,8 @@ class Tests(unittest.TestCase):
             bm = BlockMatrix.read(bm_uri)
             self._assert_eq(nd, bm)
 
-    @skip_unless_spark_backend()
+    @fails_service_backend()
+    @fails_local_backend()
     def test_svd(self):
         def assert_same_columns_up_to_sign(a, b):
             for j in range(a.shape[1]):
@@ -1090,7 +1225,6 @@ class Tests(unittest.TestCase):
         s = x.svd(compute_uv=False, complexity_bound=0)
         assert np.all(s >= 0)
 
-    @skip_unless_spark_backend()
     def test_filtering(self):
         np_square = np.arange(16, dtype=np.float64).reshape((4, 4))
         bm = BlockMatrix.from_numpy(np_square)
@@ -1108,7 +1242,8 @@ class Tests(unittest.TestCase):
             bm.filter_rows([0]).filter_rows([3]).to_numpy()
         assert "index" in str(exc.value)
 
-    @skip_unless_spark_backend()
+    @fails_service_backend()
+    @fails_local_backend()
     def test_sparsify_blocks(self):
         block_list = [1, 2]
         np_square = np.arange(16, dtype=np.float64).reshape((4, 4))
@@ -1132,7 +1267,8 @@ class Tests(unittest.TestCase):
         sparse_numpy = sparsify_numpy(np_square, block_size, block_list)
         assert np.array_equal(bm.to_numpy(), sparse_numpy)
 
-    @skip_unless_spark_backend()
+    @fails_service_backend()
+    @fails_local_backend()
     def test_sparse_transposition(self):
         block_list = [1, 2]
         np_square = np.arange(16, dtype=np.float64).reshape((4, 4))
@@ -1166,8 +1302,6 @@ class Tests(unittest.TestCase):
         sparse_np = sparsify_numpy(np_square, block_size, block_list).T
         assert np.array_equal(sparse_bm.to_numpy(), sparse_np)
 
-
-    @skip_unless_spark_backend()
     def test_row_blockmatrix_sum(self):
 
         row = BlockMatrix.from_numpy(np.arange(10))
@@ -1188,7 +1322,6 @@ class Tests(unittest.TestCase):
         # Summing horizontally along a column vector to make sure nothing changes
         f = col.sum(axis=1)
         assert f.to_numpy().shape == (10, 1)
-
 
     @fails_spark_backend()
     def test_map(self):

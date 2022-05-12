@@ -1,10 +1,12 @@
 import abc
 import sys
 import os
-from typing import Dict, List
+from typing import List
 
 from hail.utils.java import Env, info
 from hail.utils import local_path_uri
+
+from .stat_result import StatResult
 
 
 class FS(abc.ABC):
@@ -29,11 +31,11 @@ class FS(abc.ABC):
         pass
 
     @abc.abstractmethod
-    def stat(self, path: str) -> Dict:
+    def stat(self, path: str) -> StatResult:
         pass
 
     @abc.abstractmethod
-    def ls(self, path: str) -> List[Dict]:
+    def ls(self, path: str) -> List[StatResult]:
         pass
 
     @abc.abstractmethod
@@ -71,3 +73,7 @@ class FS(abc.ABC):
             self.copy(local_path_uri(Env.hc()._log), path)
         except Exception as e:
             sys.stderr.write(f'Could not copy log: encountered error:\n  {e}')
+
+    @abc.abstractmethod
+    def canonicalize_path(self, path: str) -> str:
+        pass

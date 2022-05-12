@@ -78,7 +78,8 @@ async def main(args, pass_through_args):  # pylint: disable=unused-argument
            '--ssh-flag=-D {}'.format(args.port),
            '--ssh-flag=-N',
            '--ssh-flag=-f',
-           '--ssh-flag=-n']
+           '--ssh-flag=-n',
+           *pass_through_args]
 
     if args.project:
         cmd.append(f"--project={args.project}")
@@ -95,7 +96,7 @@ async def main(args, pass_through_args):  # pylint: disable=unused-argument
         chrome = os.environ.get('HAILCTL_CHROME') or get_chrome_path()
 
         # open Chrome with SOCKS proxy configuration
-        subprocess.Popen([
+        subprocess.Popen([  # pylint: disable=consider-using-with
             chrome,
             'http://localhost:{}'.format(connect_port_and_path),
             '--proxy-server=socks5://localhost:{}'.format(args.port),

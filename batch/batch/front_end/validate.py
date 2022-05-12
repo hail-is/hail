@@ -1,28 +1,27 @@
 from hailtop.batch_client.parse import (
-    MEMORY_REGEX,
-    MEMORY_REGEXPAT,
     CPU_REGEX,
     CPU_REGEXPAT,
+    MEMORY_REGEX,
+    MEMORY_REGEXPAT,
     STORAGE_REGEX,
     STORAGE_REGEXPAT,
 )
-
 from hailtop.utils.validate import (
+    ValidationError,
     anyof,
     bool_type,
     dictof,
+    int_type,
     keyed,
     listof,
-    int_type,
+    non_empty_str_type,
     nullable,
     numeric,
     oneof,
     regex,
     required,
     str_type,
-    non_empty_str_type,
     switch,
-    ValidationError,
 )
 
 from ..globals import memory_types
@@ -72,7 +71,12 @@ job_validator = keyed(
                     required('image'): image_str,
                     required('mount_docker_socket'): bool_type,
                 },
-                'jvm': {required('command'): listof(str_type)},
+                'jvm': {
+                    required('jar_spec'): keyed(
+                        {required('type'): oneof('git_revision', 'jar_url'), required('value'): str_type}
+                    ),
+                    required('command'): listof(str_type),
+                },
             },
         ),
         'requester_pays_project': str_type,

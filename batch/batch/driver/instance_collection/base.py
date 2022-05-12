@@ -1,21 +1,32 @@
-from typing import Dict, Optional, Tuple, List
 import asyncio
-import sortedcontainers
-import re
-import secrets
 import collections
 import logging
+import re
+import secrets
+from typing import Any, Dict, List, Optional, Tuple
+
+import sortedcontainers
 
 from gear import Database
+from gear.time_limited_max_size_cache import TimeLimitedMaxSizeCache
 from hailtop import aiotools
-from hailtop.utils import time_msecs, secret_alnum_string, periodically_call
+from hailtop.utils import periodically_call, secret_alnum_string, time_msecs
 
-from ...instance_config import QuantifiedResource
 from ...batch_configuration import WORKER_MAX_IDLE_TIME_MSECS
+from ...instance_config import QuantifiedResource
 from ..instance import Instance
 from ..location import CloudLocationMonitor
-from ..resource_manager import CloudResourceManager, VMStateCreating, VMStateRunning, VMStateTerminated, VMDoesNotExist
+from ..resource_manager import (
+    CloudResourceManager,
+    UnknownVMState,
+    VMDoesNotExist,
+    VMStateCreating,
+    VMStateRunning,
+    VMStateTerminated,
+)
 
+SIXTY_SECONDS_NS = 60 * 1000 * 1000 * 1000
+CACHE_CAPACITY = 1000
 
 log = logging.getLogger('inst_coll_manager')
 
@@ -33,6 +44,12 @@ class InstanceCollectionManager:
 
         self.inst_coll_regex = re.compile(f'{self.machine_name_prefix}(?P<inst_coll>.*)-.*')
         self.name_inst_coll: Dict[str, InstanceCollection] = {}
+        self.name_token_cache: TimeLimitedMaxSizeCache[str, str] = TimeLimitedMaxSizeCache(
+            self.get_token_from_instance_name,
+            SIXTY_SECONDS_NS,
+            CACHE_CAPACITY,
+            'batch-driver instance name-token cache',
+        )
 
     def register_instance_collection(self, inst_coll: 'InstanceCollection'):
         assert inst_coll.name not in self.name_inst_coll
@@ -86,6 +103,14 @@ class InstanceCollectionManager:
         if inst_coll:
             return inst_coll.name_instance.get(inst_name)
         return None
+
+    async def get_token_from_instance_name(self, name):
+        record: Dict[str, Any] = await self.db.select_and_fetchone(
+            'SELECT token FROM instances WHERE name = %s', (name), 'active_instances_only'
+        )
+
+        assert record
+        return record['token']
 
 
 class InstanceCollection:
@@ -174,7 +199,7 @@ class InstanceCollection:
             self.live_free_cores_mcpu_by_location[instance.location] += max(0, instance.free_cores_mcpu)
 
     def add_instance(self, instance: Instance):
-        assert instance.name not in self.name_instance
+        assert instance.name not in self.name_instance, instance.name
 
         self.name_instance[instance.name] = instance
         self.adjust_for_add_instance(instance)
@@ -277,19 +302,25 @@ class InstanceCollection:
 
         log.info(f'{instance} vm_state {vm_state}')
 
-        if (
-            instance.state == 'pending'
-            and isinstance(vm_state, (VMStateCreating, VMStateRunning))
-            and vm_state.time_since_last_state_change() > 5 * 60 * 1000
-        ):
-            log.exception(f'{instance} (state: {str(vm_state)}) has made no progress in last 5m, deleting')
-            await self.call_delete_instance(instance, 'activation_timeout')
-        elif isinstance(vm_state, VMStateTerminated):
+        # Cases are mutually exclusive and therefore order-independent
+        if instance.state == 'pending' and isinstance(vm_state, (VMStateCreating, VMStateRunning)):
+            if vm_state.time_since_last_state_change() > 5 * 60 * 1000:
+                log.exception(f'{instance} (state: {str(vm_state)}) has made no progress in last 5m, deleting')
+                await self.call_delete_instance(instance, 'activation_timeout')
+        elif instance.state in ('pending', 'active') and isinstance(vm_state, VMStateTerminated):
             log.info(f'{instance} live but stopping or terminated, deactivating')
             await instance.deactivate('terminated')
         elif instance.state == 'inactive':
             log.info(f'{instance} (vm_state: {vm_state}) is inactive, deleting')
             await self.call_delete_instance(instance, 'inactive')
+        elif instance.state == 'deleted' and not isinstance(vm_state, VMStateTerminated):
+            log.exception('Instance state is deleted when cloud state is not terminated')
+        else:
+            assert (
+                (instance.state == 'active' and isinstance(vm_state, (VMStateCreating, VMStateRunning)))
+                or (instance.state == 'deleted' and isinstance(vm_state, VMStateTerminated))
+                or isinstance(vm_state, UnknownVMState)
+            )
 
         await instance.update_timestamp()
 

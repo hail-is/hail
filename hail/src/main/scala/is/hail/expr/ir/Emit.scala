@@ -32,7 +32,7 @@ object EmitContext {
       val usesAndDefs = ComputeUsesAndDefs(ir, errorIfFreeVariables = false)
       val requiredness = Requiredness.apply(ir, usesAndDefs, null, pTypeEnv)
       val inLoopCriticalPath = ControlFlowPreventsSplit(ir, ParentPointers(ir), usesAndDefs)
-      val methodSplits = ComputeMethodSplits(ir,inLoopCriticalPath)
+      val methodSplits = ComputeMethodSplits(ctx, ir, inLoopCriticalPath)
       new EmitContext(ctx, requiredness, usesAndDefs, methodSplits, inLoopCriticalPath, Memo.empty[Unit])
     }
   }
@@ -55,7 +55,7 @@ case class EmitEnv(bindings: Env[EmitValue], inputValues: IndexedSeq[(EmitCodeBu
 
 object Emit {
   def apply[C](ctx: EmitContext, ir: IR, fb: EmitFunctionBuilder[C], rti: TypeInfo[_], nParams: Int, aggs: Option[Array[AggStateSig]] = None): Option[SingleCodeType] = {
-    TypeCheck(ir)
+    TypeCheck(ctx.executeContext, ir)
 
     val mb = fb.apply_method
     val container = aggs.map { a =>
@@ -244,12 +244,20 @@ object IEmitCode {
     IEmitCodeGen(Lmissing, CodeLabel(), defaultValue, false)
   }
 
-  def multiMapEmitCodes(cb: EmitCodeBuilder, seq: IndexedSeq[EmitCode])(f: IndexedSeq[SValue] => SValue): IEmitCode = {
+  def multiMapEmitCodes(cb: EmitCodeBuilder, seq: IndexedSeq[EmitCode])(f: IndexedSeq[SValue] => SValue): IEmitCode =
+    multiMap(cb, seq.map(ec => cb => ec.toI(cb)))(f)
+
+  def multiMap(cb: EmitCodeBuilder,
+    seq: IndexedSeq[EmitCodeBuilder => IEmitCode]
+  )(f: IndexedSeq[SValue] => SValue
+  ): IEmitCode = {
     val Lmissing = CodeLabel()
     val Lpresent = CodeLabel()
 
+    var required = true
     val pcs = seq.map { elem =>
-      val iec = elem.toI(cb)
+      val iec = elem(cb)
+      required = required & iec.required
 
       cb.define(iec.Lmissing)
       cb.goto(Lmissing)
@@ -260,8 +268,14 @@ object IEmitCode {
     val pc = f(pcs)
     cb.goto(Lpresent)
 
-    IEmitCodeGen(Lmissing, Lpresent, pc, seq.forall(_.required))
+    IEmitCodeGen(Lmissing, Lpresent, pc, required)
   }
+
+  def multiFlatMap(cb: EmitCodeBuilder,
+    seq: IndexedSeq[EmitCodeBuilder => IEmitCode]
+  )(f: IndexedSeq[SValue] => IEmitCode
+  ): IEmitCode =
+    multiFlatMap[EmitCodeBuilder => IEmitCode, SValue, SValue](seq, x => x(cb), cb)(f)
 
   def multiFlatMap[A, B, C](seq: IndexedSeq[A], toIec: A => IEmitCodeGen[B], cb: EmitCodeBuilder)
     (f: IndexedSeq[B] => IEmitCodeGen[C]): IEmitCodeGen[C] = {
@@ -600,6 +614,9 @@ class Emit[C](
       this.emitI(ir, cb, region, env, container, loopEnv)
 
     (ir: @unchecked) match {
+      case Literal(TVoid, ()) =>
+        Code._empty
+
       case Void() =>
         Code._empty
 
@@ -1074,7 +1091,7 @@ class Emit[C](
         emitI(orderedCollection).map(cb) { a =>
           val e = EmitCode.fromI(cb.emb)(cb => this.emitI(elem, cb, region, env, container, loopEnv))
           val bs = new BinarySearch[C](mb, a.st.asInstanceOf[SContainer], e.emitType, keyOnly = onKey)
-          primitive(bs.getClosestIndex(cb, a, e))
+          primitive(bs.lowerBound(cb, a, e))
         }
 
       case x@ArraySort(a, left, right, lessThan) =>
@@ -2176,7 +2193,9 @@ class Emit[C](
       case ReadValue(path, spec, requestedType) =>
         emitI(path).map(cb) { pv =>
           val ib = cb.memoize[InputBuffer](spec.buildCodeInputBuffer(mb.open(pv.asString.loadString(cb), checkCodec = true)))
-          spec.encodedType.buildDecoder(requestedType, mb.ecb)(cb, region, ib)
+          val decoded = spec.encodedType.buildDecoder(requestedType, mb.ecb)(cb, region, ib)
+          cb += ib.close()
+          decoded
         }
 
       case WriteValue(value, path, spec) =>
@@ -2367,9 +2386,10 @@ class Emit[C](
           addContexts(cb, ctxStream.producer)
           cb += baos.invoke[Unit]("reset")
           addGlobals(cb)
-          cb.assign(encRes, spark.invoke[BackendContext, FS, String, Array[Array[Byte]], Array[Byte], Option[TableStageDependency], Array[Array[Byte]]](
+          cb.assign(encRes, spark.invoke[BackendContext, HailClassLoader, FS, String, Array[Array[Byte]], Array[Byte], Option[TableStageDependency], Array[Array[Byte]]](
             "collectDArray",
             mb.getObject(ctx.executeContext.backendContext),
+            mb.getHailClassLoader,
             mb.getFS,
             functionID,
             ctxab.invoke[Array[Array[Byte]]]("result"),
@@ -2385,7 +2405,7 @@ class Emit[C](
     ctx.req.lookupOpt(ir) match {
       case Some(r) =>
         if (result.required != r.required) {
-          throw new RuntimeException(s"requiredness mismatch: EC=${ result.required } / Analysis=${ r.required }\n${ result.st }\n${ Pretty(ir) }")
+          throw new RuntimeException(s"requiredness mismatch: EC=${ result.required } / Analysis=${ r.required }\n${ result.st }\n${ Pretty(ctx.executeContext, ir) }")
         }
 
       case _ =>
@@ -2393,7 +2413,7 @@ class Emit[C](
     }
 
     if (result.st.virtualType != ir.typ)
-      throw new RuntimeException(s"type mismatch:\n  EC=${ result.st.virtualType }\n  IR=${ ir.typ }\n  node: ${ Pretty(ir).take(50) }")
+      throw new RuntimeException(s"type mismatch:\n  EC=${ result.st.virtualType }\n  IR=${ ir.typ }\n  node: ${ Pretty(ctx.executeContext, ir).take(50) }")
 
     result
   }
@@ -2548,7 +2568,7 @@ class Emit[C](
     ctx.req.lookupOpt(ir) match {
       case Some(r) =>
         if (result.required != r.required) {
-          throw new RuntimeException(s"requiredness mismatch: EC=${ result.required } / Analysis=${ r.required }\n${ result.emitType }\n${ Pretty(ir) }")
+          throw new RuntimeException(s"requiredness mismatch: EC=${ result.required } / Analysis=${ r.required }\n${ result.emitType }\n${ Pretty(ctx.executeContext, ir) }")
         }
 
       case _ =>

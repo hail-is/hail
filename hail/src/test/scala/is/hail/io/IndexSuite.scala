@@ -65,7 +65,7 @@ class IndexSuite extends HailSuite {
     assert(irt == intPType)
     IndexReaderBuilder.withDecoders(leafDec, intDec,
       keyPType.virtualType, annotationPType.virtualType,
-      leafPType, intPType).apply(fs, file, 8, pool)
+      leafPType, intPType).apply(theHailClassLoader, fs, file, 8, pool)
   }
 
   def writeIndex(file: String,

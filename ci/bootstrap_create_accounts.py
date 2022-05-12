@@ -1,13 +1,15 @@
-import os
 import base64
 import json
-import kubernetes_asyncio as kube
-from hailtop.utils import async_to_blocking
-from gear import Database, transaction
-from gear.cloud_config import get_global_config
-from gear.clients import get_identity_client
+import os
+
+import kubernetes_asyncio.client
+import kubernetes_asyncio.config
 
 from auth.driver.driver import create_user
+from gear import Database, transaction
+from gear.clients import get_identity_client
+from gear.cloud_config import get_global_config
+from hailtop.utils import async_to_blocking
 
 CLOUD = get_global_config()['cloud']
 SCOPE = os.environ['HAIL_SCOPE']
@@ -71,7 +73,6 @@ async def main():
         ('ci', None, 0, 1),
         ('test', None, 0, 0),
         ('test-dev', None, 1, 0),
-        ('query', None, 0, 1),
         ('grafana', None, 0, 1),
     ]
 
@@ -86,8 +87,8 @@ async def main():
     app['db_instance'] = db_instance
 
     # kube.config.load_incluster_config()
-    await kube.config.load_kube_config()
-    k8s_client = kube.client.CoreV1Api()
+    await kubernetes_asyncio.config.load_kube_config()
+    k8s_client = kubernetes_asyncio.client.CoreV1Api()
     try:
         app['k8s_client'] = k8s_client
 

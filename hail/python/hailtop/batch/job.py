@@ -50,11 +50,11 @@ class Job:
 
     _counter = 1
     _uid_prefix = "__JOB__"
-    _regex_pattern = r"(?P<JOB>{}\d+)".format(_uid_prefix)
+    _regex_pattern = r"(?P<JOB>{}\d+)".format(_uid_prefix)  # pylint: disable=consider-using-f-string
 
     @classmethod
     def _new_uid(cls):
-        uid = "{}{}".format(cls._uid_prefix, cls._counter)
+        uid = cls._uid_prefix + str(cls._counter)
         cls._counter += 1
         return uid
 
@@ -81,7 +81,7 @@ class Job:
         self._machine_type: Optional[str] = None
         self._timeout: Optional[Union[int, float]] = None
         self._cloudfuse: List[Tuple[str, str, bool]] = []
-        self._env: Dict[str, str] = dict()
+        self._env: Dict[str, str] = {}
         self._wrapper_code: List[str] = []
         self._user_code: List[str] = []
 
@@ -343,7 +343,7 @@ class Job:
 
     def timeout(self, timeout: Optional[Union[float, int]]) -> 'Job':
         """
-        Set the maximum amount of time this job can run for.
+        Set the maximum amount of time this job can run for in seconds.
 
         Notes
         -----
@@ -360,12 +360,12 @@ class Job:
         Parameters
         ----------
         timeout:
-            Maximum amount of time for a job to run before being killed.
+            Maximum amount of time in seconds for a job to run before being killed.
             If `None`, there is no timeout.
 
         Returns
         -------
-        Same job object set with a timeout.
+        Same job object set with a timeout in seconds.
         """
 
         if not isinstance(self._batch._backend, backend.ServiceBackend):
@@ -1026,34 +1026,34 @@ class PythonJob(Job):
         return result
 
     async def _compile(self, local_tmpdir, remote_tmpdir, *, dry_run=False):
-        for i, (result, unapplied, args, kwargs) in enumerate(self._functions):
-            def prepare_argument_for_serialization(arg):
-                if isinstance(arg, _resource.PythonResult):
-                    return ('py_path', arg._get_path(local_tmpdir))
-                if isinstance(arg, _resource.ResourceFile):
-                    return ('path', arg._get_path(local_tmpdir))
-                if isinstance(arg, _resource.ResourceGroup):
-                    return ('dict_path', {name: resource._get_path(local_tmpdir)
-                                          for name, resource in arg._resources.items()})
-                return ('value', arg)
+        def prepare_argument_for_serialization(arg):
+            if isinstance(arg, _resource.PythonResult):
+                return ('py_path', arg._get_path(local_tmpdir))
+            if isinstance(arg, _resource.ResourceFile):
+                return ('path', arg._get_path(local_tmpdir))
+            if isinstance(arg, _resource.ResourceGroup):
+                return ('dict_path', {name: resource._get_path(local_tmpdir)
+                                      for name, resource in arg._resources.items()})
+            return ('value', arg)
 
-            def deserialize_argument(arg):
-                typ, val = arg
-                if typ == 'py_path':
-                    return dill.load(open(val, 'rb'))
-                if typ in ('path', 'dict_path'):
-                    return val
-                assert typ == 'value'
+        def deserialize_argument(arg):
+            typ, val = arg
+            if typ == 'py_path':
+                return dill.load(open(val, 'rb'))
+            if typ in ('path', 'dict_path'):
                 return val
+            assert typ == 'value'
+            return val
 
-            def wrap(f):
-                @functools.wraps(f)
-                def wrapped(*args, **kwargs):
-                    args = [deserialize_argument(arg) for arg in args]
-                    kwargs = {kw: deserialize_argument(arg) for kw, arg in kwargs.items()}
-                    return f(*args, **kwargs)
-                return wrapped
+        def wrap(f):
+            @functools.wraps(f)
+            def wrapped(*args, **kwargs):
+                args = [deserialize_argument(arg) for arg in args]
+                kwargs = {kw: deserialize_argument(arg) for kw, arg in kwargs.items()}
+                return f(*args, **kwargs)
+            return wrapped
 
+        for i, (result, unapplied, args, kwargs) in enumerate(self._functions):
             args = [prepare_argument_for_serialization(arg) for arg in args]
             kwargs = {kw: prepare_argument_for_serialization(arg) for kw, arg in kwargs.items()}
 

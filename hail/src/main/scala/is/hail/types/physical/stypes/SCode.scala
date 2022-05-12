@@ -3,6 +3,7 @@ package is.hail.types.physical.stypes
 import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.expr.ir.EmitCodeBuilder
+import is.hail.types.physical.stypes.concrete.SRNGStateValue
 import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.physical.stypes.primitives._
 
@@ -89,6 +90,8 @@ trait SValue {
 
   def asStream: SStreamValue = asInstanceOf[SStreamValue]
 
+  def asRNGState: SRNGStateValue = asInstanceOf[SRNGStateValue]
+
   def castTo(cb: EmitCodeBuilder, region: Value[Region], destType: SType): SValue =
     castTo(cb, region, destType, false)
 
@@ -100,6 +103,8 @@ trait SValue {
     destType.coerceOrCopy(cb, region, this, deepCopy = true)
 
   def hash(cb: EmitCodeBuilder): SInt32Value = throw new UnsupportedOperationException(s"Stype ${st} has no hashcode")
+
+  def sizeToStoreInBytes(cb: EmitCodeBuilder): SInt64Value
 }
 
 
@@ -117,4 +122,7 @@ object SSettable {
   }
 }
 
-trait SUnrealizableValue extends SValue
+trait SUnrealizableValue extends SValue {
+  override def sizeToStoreInBytes(cb: EmitCodeBuilder): SInt64Value =
+    throw new UnsupportedOperationException(s"Unrealizable SValue has no size in bytes.")
+}

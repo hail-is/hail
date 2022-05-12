@@ -1,10 +1,9 @@
-import re
 import logging
+import re
 
 from hailtop.aiocloud import aiogoogle
 
 from .config import BENCHMARK_RESULTS_PATH
-
 
 log = logging.getLogger('benchmark')
 

@@ -5,10 +5,10 @@ batch
 batch-driver
 benchmark
 blog
+memory
 monitoring
 auth
 ukbb-rg
-query
 workshop
 grafana
 prometheus

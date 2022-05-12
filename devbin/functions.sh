@@ -182,7 +182,6 @@ gcpsetcluster() {
     fi
 
     gcloud config set project $1
-    gcloud auth application-default login
     gcloud container clusters get-credentials --zone us-central1-a vdc
 }
 
@@ -211,4 +210,21 @@ azsshworker() {
         | jq -jr '.[0].virtualMachine.network.publicIpAddresses[0].ipAddress')
 
     ssh -i ~/.ssh/batch_worker_ssh_rsa batch-worker@$worker_ip
+}
+
+get_global_config_field() {
+    kubectl get secret global-config --template={{.data.$1}} | base64 --decode
+}
+
+confirm() {
+    printf "$1\n"
+    read -r -p "Are you sure? [y/N] " response
+    case "$response" in
+        [yY][eE][sS]|[yY])
+            true
+            ;;
+        *)
+            false
+            ;;
+    esac
 }

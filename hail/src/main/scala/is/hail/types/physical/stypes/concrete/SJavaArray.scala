@@ -4,8 +4,8 @@ import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.expr.ir.{EmitCodeBuilder, IEmitCode}
 import is.hail.types.physical.stypes._
-import is.hail.types.physical.stypes.interfaces.{SContainer, SIndexableValue}
-import is.hail.types.physical.{PCanonicalArray, PCanonicalString, PType}
+import is.hail.types.physical.stypes.interfaces.{SContainer, SIndexableValue, SStringValue}
+import is.hail.types.physical.{PCanonicalArray, PCanonicalString, PString, PType}
 import is.hail.types.virtual.{TArray, TString, Type}
 import is.hail.utils.FastIndexedSeq
 
@@ -39,6 +39,14 @@ final case class SJavaArrayString(elementRequired: Boolean) extends SContainer {
   override def _coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SValue, deepCopy: Boolean): SValue = {
     value.st match {
       case SJavaArrayString(_) => new SJavaArrayStringValue(this, value.asInstanceOf[SJavaArrayStringValue].array)
+      case SIndexablePointer(pc) if pc.elementType.isInstanceOf[PString] && pc.elementType.required == elementRequired =>
+        val sv = value.asInstanceOf[SIndexableValue]
+        val len = sv.loadLength()
+        val array = cb.memoize[Array[String]](Code.newArray[String](len))
+        sv.forEachDefined(cb) { case (cb, i, v: SStringValue) =>
+          cb += (array(i) = v.loadString(cb))
+        }
+        new SJavaArrayStringValue(this, array)
     }
   }
 

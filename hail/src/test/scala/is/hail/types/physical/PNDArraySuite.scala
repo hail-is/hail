@@ -79,7 +79,7 @@ class PNDArraySuite extends PhysicalTestUtils {
         throw e
     }
 
-    val f = fb.resultWithIndex()(null, 0, region)
+    val f = fb.resultWithIndex()(theHailClassLoader, null, 0, region)
 
     assert(f(region) < 1e-14)
   }
@@ -138,7 +138,7 @@ class PNDArraySuite extends PhysicalTestUtils {
         throw e
     }
 
-    val f = fb.resultWithIndex()(null, 0, region)
+    val f = fb.resultWithIndex()(theHailClassLoader, null, 0, region)
 
     assert(f(region) < 1e-14)
   }
@@ -247,7 +247,7 @@ class PNDArraySuite extends PhysicalTestUtils {
         throw e
     }
 
-    val f = fb.resultWithIndex()(null, 0, region)
+    val f = fb.resultWithIndex()(theHailClassLoader, null, 0, region)
 
     f(region)
   }
@@ -308,7 +308,7 @@ class PNDArraySuite extends PhysicalTestUtils {
         throw e
     }
 
-    val f = fb.resultWithIndex()(null, 0, region)
+    val f = fb.resultWithIndex()(theHailClassLoader, null, 0, region)
 
     f(region)
   }
@@ -351,7 +351,7 @@ class PNDArraySuite extends PhysicalTestUtils {
         throw e
     }
 
-    val f = fb.result()()
+    val f = fb.result(ctx)(theHailClassLoader)
     val result1 = f(region1, region2, region3)
     val result1Data = nd.unstagedDataFirstElementPointer(result1)
 

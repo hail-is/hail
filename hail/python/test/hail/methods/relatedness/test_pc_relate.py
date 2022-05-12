@@ -1,13 +1,14 @@
 import hail as hl
 import hail.utils as utils
-from ...helpers import (startTestHailContext, stopTestHailContext, resource,
-                        skip_unless_spark_backend)
+from ...helpers import (startTestHailContext, stopTestHailContext, resource, fails_service_backend,
+                        fails_local_backend)
 
 setUpModule = startTestHailContext
 tearDownModule = stopTestHailContext
 
 
-@skip_unless_spark_backend()
+@fails_service_backend()
+@fails_local_backend()
 def test_pc_relate_against_R_truth():
     mt = hl.import_vcf(resource('pc_relate_bn_input.vcf.bgz'))
     hail_kin = hl.pc_relate(mt.GT, 0.00, k=2).checkpoint(utils.new_temp_file(extension='ht'))
@@ -26,7 +27,8 @@ def test_pc_relate_against_R_truth():
     assert r_kin.select("ibd2")._same(hail_kin.select("ibd2"), tolerance=1.3e-2, absolute=True)
 
 
-@skip_unless_spark_backend()
+@fails_service_backend()
+@fails_local_backend()
 def test_pc_relate_simple_example():
     gs = hl.literal(
         [[0, 0, 0, 0, 1, 1, 1, 1],
@@ -59,7 +61,8 @@ def test_pc_relate_simple_example():
     assert ht_expected._same(pcr)
 
 
-@skip_unless_spark_backend()
+@fails_service_backend()
+@fails_local_backend()
 def test_pcrelate_paths():
     mt = hl.balding_nichols_model(3, 50, 100)
     _, scores3, _ = hl.hwe_normalized_pca(mt.GT, k=3, compute_loadings=False)
@@ -80,7 +83,8 @@ def test_pcrelate_paths():
     assert kin3.count() > 0
     assert kin3.filter(kin3.kin < 0.1).count() == 0
 
-@skip_unless_spark_backend()
+@fails_service_backend()
+@fails_local_backend()
 def test_self_kinship():
     mt = hl.balding_nichols_model(3, 10, 50)
     with_self = hl.pc_relate(mt.GT, 0.10, k=2, statistics='kin20', block_size=16, include_self_kinship=True)
@@ -100,7 +104,8 @@ def test_self_kinship():
     assert without_self_self_kin_only.count() == 0, without_self_self_kin_only.collect()
 
 
-@skip_unless_spark_backend()
+@fails_service_backend()
+@fails_local_backend()
 def test_pcrelate_issue_5263():
     mt = hl.balding_nichols_model(3, 50, 100)
     expected = hl.pc_relate(mt.GT, 0.10, k=2, statistics='all')
