@@ -155,7 +155,9 @@ class GoogleStorageFS(val serviceAccountKey: Option[String] = None) extends FS {
         // read some bytes
         var n = 0
         while (n == 0) {
-          n = reader.read(bb)
+          n = retryTransientErrors {
+            reader.read(bb)
+          }
           if (n == -1) {
             eof = true
             return
