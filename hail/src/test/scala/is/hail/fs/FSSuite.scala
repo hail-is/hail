@@ -126,6 +126,14 @@ trait FSSuite {
     assert(!fs.exists(s"$d/subdir/z"))
   }
 
+  @Test def testDeleteFileDoesntExist(): Unit = {
+    val d = t()
+    fs.mkDir(d)
+    assert(fs.exists(s"$d"))
+    fs.delete(s"$d/foo", recursive = false)
+    fs.delete(s"$d/foo", recursive = true)
+  }
+
   @Test def testListStatusDir(): Unit = {
     val statuses = fs.listStatus(r(""))
     assert(pathsRelResourcesRoot(statuses) == Set("/a", "/adir", "/az", "/dir", "/zzz"))

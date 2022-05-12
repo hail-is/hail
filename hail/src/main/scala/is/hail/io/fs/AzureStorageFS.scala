@@ -196,8 +196,6 @@ class AzureStorageFS(val credentialsJSON: Option[String] = None) extends FS {
     val (account, container, path) = getAccountContainerPath(filename)
     val blobClient: BlobClient = getBlobClient(account, container, path)
 
-    val stat = fileStatus(filename)
-
     if (recursive) {
       val blobContainerClient = getContainerClient(account, container)
 
@@ -210,10 +208,14 @@ class AzureStorageFS(val credentialsJSON: Option[String] = None) extends FS {
         assert(!blobItem.isPrefix)
         getBlobClient(account, container, blobItem.getName).delete()
       })
-
-      if (stat.isFile) blobClient.delete()
     } else {
-        blobClient.delete()
+      try {
+        if (fileStatus(filename).isFile) {
+          blobClient.delete()
+        }
+      } catch {
+        case e: FileNotFoundException =>
+      }
     }
   }
 
