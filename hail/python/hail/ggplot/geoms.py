@@ -1,7 +1,9 @@
 import abc
 
+import numpy as np
+
 from .aes import aes
-from .stats import StatCount, StatIdentity, StatBin, StatNone, StatFunction
+from .stats import StatCount, StatIdentity, StatBin, StatNone, StatFunction, StatCDF
 from .utils import bar_position_plotly_to_gg, linetype_plotly_to_gg
 
 
@@ -280,7 +282,6 @@ def geom_col(mapping=aes(), *, fill=None, color=None, alpha=None, position="stac
 
 
 class GeomHistogram(Geom):
-
     aes_to_arg = {
         "fill": ("marker_color", "black"),
         "color": ("marker_line_color", None),
@@ -384,6 +385,67 @@ def geom_histogram(mapping=aes(), *, min_val=None, max_val=None, bins=None, fill
         The geom to be applied.
     """
     return GeomHistogram(mapping, min_val=min_val, max_val=max_val, bins=bins, fill=fill, color=color, alpha=alpha, position=position, size=size)
+
+
+class GeomDensity(Geom):
+    aes_to_arg = {
+        "fill": ("marker_color", "black"),
+        "color": ("marker_line_color", None),
+        "tooltip": ("hovertext", None),
+        "fill_legend": ("name", None),
+        "alpha": ("marker_opacity", None)
+    }
+
+    def __init__(self, aes, k=1000, smoothing=0.5, fill=None, color=None, alpha=None):
+        super().__init__(aes)
+        self.k = k
+        self.smoothing = smoothing
+        self.fill = fill
+        self.color = color
+        self.alpha = alpha
+
+    def apply_to_fig(self, parent, grouped_data, fig_so_far, precomputed, facet_row, facet_col, legend_cache):
+        def plot_group(df, idx):
+            slope = 1.0 / (df.attrs['max'] - df.attrs['min'])
+            n = df.attrs['n']
+            min = df.attrs['min']
+            max = df.attrs['max']
+            values = df.value.to_numpy()
+            weights = df.weight.to_numpy()
+
+            def f(x, prev):
+                inv_scale = (np.sqrt(n * slope) / self.smoothing) * np.sqrt(prev / weights)
+                diff = x[:, np.newaxis] - values
+                grid = (3 / (4 * n)) * weights * np.maximum(0, inv_scale - np.power(diff, 2) * np.power(inv_scale, 3))
+                return np.sum(grid, axis=1)
+
+            round1 = f(values, np.full(len(values), slope))
+            x_d = np.linspace(min, max, 1000)
+            final = f(x_d, round1)
+
+            trace_args = {
+                "x": x_d,
+                "y": final,
+                "mode": "lines",
+                "fill": "tozeroy",
+                "row": facet_row,
+                "col": facet_col
+            }
+
+            self._add_aesthetics_to_trace_args(trace_args, df)
+            self._update_legend_trace_args(trace_args, legend_cache)
+
+            fig_so_far.add_scatter(**trace_args)
+
+        for idx, group_df in enumerate(grouped_data):
+            plot_group(group_df, idx)
+
+    def get_stat(self):
+        return StatCDF(self.k)
+
+
+def geom_density(mapping=aes(), *, k=1000, smoothing=0.5, fill=None, color=None, alpha=None):
+    return GeomDensity(mapping, k, smoothing, fill, color, alpha)
 
 
 class GeomHLine(Geom):
