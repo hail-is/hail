@@ -410,7 +410,7 @@ async def get_quotas(request, userdata):
         page_context = {"plot_json": None}
         return await render_template('batch-driver', request, userdata, 'quotas.html', page_context)
 
-    data = request.app['driver'].get_regions()
+    data = request.app['driver'].get_quotas()
 
     regions = list(data.keys())
     new_data = []
@@ -465,11 +465,10 @@ async def get_quotas(request, userdata):
     fig.update_layout(
         paper_bgcolor="lavender",
         font={'color': "darkblue", 'family': "Arial"},
-        margin={"l": 50, "r": 50, "t": 150, "b": 50},
-        height=650,
-        width=1000,
-        autosize=False,
-        title="Data by Region",
+        margin={"l": 0, "r": 0, "t": 50, "b": 20},
+        height=1150,
+        width=2200,
+        autosize=True,
         title_font_size=40,
         title_x=0.5)
 
