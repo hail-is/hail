@@ -123,9 +123,10 @@ abstract class FSSeekableInputStream extends InputStream with Seekable {
 
     if (bb.remaining() == 0) {
       val nRead = fill()
-      if (nRead == -1)
+      if (nRead == -1) {
         eof = true
         return -1
+      }
     }
 
     pos += 1
