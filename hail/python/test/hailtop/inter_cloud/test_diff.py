@@ -6,6 +6,7 @@ import pytest
 import functools
 
 from hailtop.aiotools.fs import AsyncFS
+from hailtop.frozendict import frozendict
 from hailtop.aiotools.diff import diff, DiffException
 from hailtop.utils import bounded_gather2
 from hailtop.aiotools.router_fs import RouterAsyncFS
@@ -18,10 +19,6 @@ def event_loop():
     yield loop
     loop.close()
 
-
-@pytest.fixture(params=['gs', 's3', 'hail-az'])
-async def cloud_scheme(request):
-    yield request.param
 
 @pytest.fixture(scope='module')
 async def router_filesystem() -> AsyncIterator[Tuple[asyncio.Semaphore, AsyncFS, Dict[str, str]]]:
@@ -54,8 +51,9 @@ async def router_filesystem() -> AsyncIterator[Tuple[asyncio.Semaphore, AsyncFS,
             await bounded_gather2(sema,
                                   functools.partial(fs.rmtree, sema, file_base),
                                   functools.partial(fs.rmtree, sema, gs_base),
-                                  functools.partial(fs.rmtree, sema, s3_base),
-                                  functools.partial(fs.rmtree, sema, azure_base))
+                                  # functools.partial(fs.rmtree, sema, s3_base),
+                                  # functools.partial(fs.rmtree, sema, azure_base)
+                                  )
 
         assert not await fs.isdir(file_base)
         assert not await fs.isdir(gs_base)
@@ -116,16 +114,19 @@ async def diff_test_context(request, router_filesystem: Tuple[asyncio.Semaphore,
 async def test_diff(diff_test_context):
     sema, fs, src_base, dest_base = diff_test_context
 
-    expected = [
-        {'from': f'{src_base}diff', 'to': f'{dest_base}diff', 'from_size': 3, 'to_size': 1},
-        {'from': f'{src_base}src-only', 'to': f'{dest_base}src-only', 'from_size': 3, 'to_size': None},
-        {'from': f'{src_base}a/diff', 'to': f'{dest_base}a/diff', 'from_size': 3, 'to_size': 1},
-        {'from': f'{src_base}a/src-only', 'to': f'{dest_base}a/src-only', 'from_size': 3, 'to_size': None},
-        {'from': f'{src_base}b/diff', 'to': f'{dest_base}b/diff', 'from_size': 3, 'to_size': 1},
-        {'from': f'{src_base}b/src-only', 'to': f'{dest_base}b/src-only', 'from_size': 3, 'to_size': None},
-    ]
+    print((src_base, dest_base))
+
+    expected = {
+        frozendict({'from': f'{src_base}diff', 'to': f'{dest_base}diff', 'from_size': 3, 'to_size': 1}),
+        frozendict({'from': f'{src_base}src-only', 'to': f'{dest_base}src-only', 'from_size': 3, 'to_size': None}),
+        frozendict({'from': f'{src_base}a/diff', 'to': f'{dest_base}a/diff', 'from_size': 3, 'to_size': 1}),
+        frozendict({'from': f'{src_base}a/src-only', 'to': f'{dest_base}a/src-only', 'from_size': 3, 'to_size': None}),
+        frozendict({'from': f'{src_base}b/diff', 'to': f'{dest_base}b/diff', 'from_size': 3, 'to_size': 1}),
+        frozendict({'from': f'{src_base}b/src-only', 'to': f'{dest_base}b/src-only', 'from_size': 3, 'to_size': None}),
+    }
     actual = await diff(source=src_base, target=dest_base)
-    assert actual == expected
+    actual_set = set(frozendict(x) for x in actual)
+    assert actual_set == expected, str((actual, expected))
 
     try:
         result = await diff(source=f'{src_base}doesnotexist', target=dest_base)

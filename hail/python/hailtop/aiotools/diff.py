@@ -67,14 +67,16 @@ class DiffException(ValueError):
 
 
 async def do_diff(top_source: str, top_target: str, fs: AsyncFS, max_simultaneous: int, pbar) -> List[dict]:
-    if top_target.endswith('/'):
-        top_target = top_target[:-1]
-
     if await fs.isfile(top_source):
         result = await diff_one(top_source, top_target, fs)
         if result is None:
             return []
         return [result]
+
+    if not top_source.endswith('/'):
+        top_source += '/'
+    if not top_target.endswith('/'):
+        top_target += '/'
 
     # The concurrency limit is the number of worker corooutines, not the queue size. Queue size must
     # be large because a single driver process is trying to feed max_simultaneous workers.
