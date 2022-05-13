@@ -828,7 +828,7 @@ object LowerTableIR {
           ctx, partiallyAggregated , sortFields, relationalLetsAbove, withNewKeyRType)
         val repartitioned = shuffled.repartitionNoShuffle(shuffled.partitioner.strictify)
 
-        val takeVirtualSig = TakeStateSig(VirtualTypeWithReq(shuffledRowType ,TypeWithRequiredness(shuffledRowType)))
+        val takeVirtualSig = TakeStateSig(VirtualTypeWithReq(shuffledRowType, withNewKeyRType))
         val takeAggSig = PhysicalAggSig(Take(), takeVirtualSig)
         val aggStateSigsPlusTake = aggs.states ++ Array(takeVirtualSig)
 
