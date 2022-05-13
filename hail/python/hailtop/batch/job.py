@@ -991,6 +991,7 @@ class PythonJob(Job):
 
         if asyncio.iscoroutinefunction(unapplied):
             unapplied_copy = unapplied
+
             def run_async(*args, **kwargs):
                 return asyncio.run(unapplied_copy(*args, **kwargs))
             unapplied = run_async
