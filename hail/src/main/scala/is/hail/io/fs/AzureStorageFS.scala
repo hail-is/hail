@@ -124,8 +124,7 @@ class AzureStorageFS(val credentialsJSON: Option[String] = None) extends FS {
   def openNoCompression(filename: String): SeekableDataInputStream = {
     val (account, container, path) = getAccountContainerPath(filename)
     val blobClient: BlobClient = getBlobClient(account, container, path)
-    val blobProperties = blobClient.getProperties
-    val blobSize = blobProperties.getBlobSize
+    val blobSize = blobClient.getProperties.getBlobSize
 
     val is: SeekableInputStream = new FSSeekableInputStream {
       private[this] val client: BlobClient = blobClient
