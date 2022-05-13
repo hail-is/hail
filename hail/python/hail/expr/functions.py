@@ -2569,7 +2569,7 @@ def rand_pois(lamb, seed=None) -> Float64Expression:
 
 
 @typecheck(lower=expr_float64, upper=expr_float64, seed=nullable(int))
-def rand_unif(lower=0.0, upper=0.1, seed=None) -> Float64Expression:
+def rand_unif(lower=0.0, upper=1.0, seed=None) -> Float64Expression:
     """Samples from a uniform distribution within the interval
     [`lower`, `upper`].
 
