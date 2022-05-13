@@ -155,6 +155,8 @@ At any given moment as many as four cores of the cluster may come from a 4 core 
 is standard. If a job is scheduled on this machine, then the cost per core hour is **$0.02774** plus
 **$0.00023** per GB per hour storage of extra storage requested.
 
+For jobs that run on non-preemptible machines, the costs are **$0.060462** per core/hour for standard workers, **$0.072114** per core/hour
+for highmem workers, and **$0.048365** per core/hour for highcpu workers.
 
 .. note::
 

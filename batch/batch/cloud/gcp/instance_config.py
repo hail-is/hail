@@ -131,6 +131,7 @@ class GCPSlimInstanceConfig(InstanceConfig):
             else:
                 data_disk_resource = GCPStaticSizedDiskResource('disk/pd-ssd/1', data_disk_size_gb)
 
+            # hard coded product versions "/1" are for backwards compatibility
             resources = [
                 GCPComputeResource(f'compute/{instance_family}-{preemptible_str}/1'),
                 GCPMemoryResource(f'memory/{instance_family}-{preemptible_str}/1'),
