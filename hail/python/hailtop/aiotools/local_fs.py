@@ -187,6 +187,12 @@ class TruncatedReadableBinaryIO(BinaryIO):
     def writelines(self, lines) -> None:  # pylint: disable=unused-argument
         raise NotImplementedError
 
+    def __iter__(self) -> None:
+        raise NotImplementedError
+
+    def __next__(self) -> None:
+        raise NotImplementedError
+
 
 class LocalAsyncFS(AsyncFS):
     schemes: Set[str] = {'file'}
