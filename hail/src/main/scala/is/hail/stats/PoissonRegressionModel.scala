@@ -15,8 +15,14 @@ object PoissonScoreTest extends GLMTest {
     ("chi_sq_stat", TFloat64),
     ("p_value", TFloat64))
 
-  def test(X: DenseMatrix[Double], y: DenseVector[Double], nullFit: GLMFit, link: String):
-    GLMTestResult[ScoreStats] = {
+  def test(
+    X: DenseMatrix[Double],
+    y: DenseVector[Double],
+    nullFit: GLMFit,
+    link: String,
+    maxIter: Int,
+    tol: Double
+  ): GLMTestResult[ScoreStats] = {
     require(link == "poisson")
     require(nullFit.score.isDefined && nullFit.fisher.isDefined)
 
@@ -105,13 +111,14 @@ class PoissonRegressionModel(X: DenseMatrix[Double], y: DenseVector[Double]) ext
         fisher(r1, r1) := X1.t * (X1(::, *) *:* mu)
     }
 
-    var iter = 1
+    var iter = 0
     var converged = false
     var exploded = false
 
     val deltaB = DenseVector.zeros[Double](m)
 
-    while (!converged && !exploded && iter <= maxIter) {
+    while (!converged && !exploded && iter < maxIter) {
+      iter += 1
       try {
         deltaB := fisher \ score
 
@@ -120,7 +127,6 @@ class PoissonRegressionModel(X: DenseMatrix[Double], y: DenseVector[Double]) ext
         } else if (max(abs(deltaB)) < tol) {
           converged = true
         } else {
-          iter += 1
           b += deltaB
           mu := exp(X * b)
           score := X.t * (y - mu)
