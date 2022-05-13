@@ -818,12 +818,19 @@ object LowerTableIR {
 
         val sortFields = newKeyType.fieldNames.map(fieldName => SortField(fieldName, Ascending)).toIndexedSeq
         val withNewKeyRType = TypeWithRequiredness(shuffledRowType).asInstanceOf[RStruct]
+        analyses.requirednessAnalysis.lookup(newKey).asInstanceOf[RStruct]
+          .fields
+          .foreach { f =>
+            withNewKeyRType.field(f.name).unionFrom(f.typ)
+          }
+
         val shuffled = ctx.backend.lowerDistributedSort(
           ctx, partiallyAggregated , sortFields, relationalLetsAbove, withNewKeyRType)
         val repartitioned = shuffled.repartitionNoShuffle(shuffled.partitioner.strictify)
 
-        val takeAggSig = PhysicalAggSig(Take(), TakeStateSig(VirtualTypeWithReq(shuffledRowType ,TypeWithRequiredness(shuffledRowType))))
-        val aggStateSigsPlusTake = aggs.states ++ Array(TakeStateSig(VirtualTypeWithReq(shuffledRowType ,TypeWithRequiredness(shuffledRowType))))
+        val takeVirtualSig = TakeStateSig(VirtualTypeWithReq(shuffledRowType ,TypeWithRequiredness(shuffledRowType)))
+        val takeAggSig = PhysicalAggSig(Take(), takeVirtualSig)
+        val aggStateSigsPlusTake = aggs.states ++ Array(takeVirtualSig)
 
         val postAggUID = genUID()
         val resultFromTakeUID = genUID()
@@ -841,8 +848,8 @@ object LowerTableIR {
                     Begin((0 until aggSigs.length).map { aIdx =>
                       InitFromSerializedValue(aIdx, GetTupleElement(GetField(elem, "agg"), aIdx), aggSigsPlusTake(aIdx).state)
                     } ++ IndexedSeq(
-                      InitOp(aggSigs.length, IndexedSeq(I32(1)), PhysicalAggSig(Take(), TakeStateSig(VirtualTypeWithReq(shuffledRowType ,TypeWithRequiredness(shuffledRowType))))),
-                      SeqOp(aggSigs.length, IndexedSeq(elem), PhysicalAggSig(Take(), TakeStateSig(VirtualTypeWithReq(shuffledRowType ,TypeWithRequiredness(shuffledRowType)))))
+                      InitOp(aggSigs.length, IndexedSeq(I32(1)), PhysicalAggSig(Take(), takeVirtualSig)),
+                      SeqOp(aggSigs.length, IndexedSeq(elem), PhysicalAggSig(Take(), takeVirtualSig))
                     )),
                     Begin((0 until aggSigs.length).map { aIdx =>
                       CombOpValue(aIdx, GetTupleElement(GetField(elem, "agg"), aIdx), aggSigs(aIdx))
