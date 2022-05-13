@@ -7,6 +7,7 @@ import tempfile
 from shlex import quote as shq
 import uuid
 import re
+import pytest
 
 import hailtop.batch as hb
 from hailtop.batch import Batch, ServiceBackend, LocalBackend
