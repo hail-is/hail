@@ -265,8 +265,8 @@ class ResumableInsertObjectStream(WritableStream):
 class GetObjectStream(ReadableStream):
     def __init__(self, resp: aiohttp.ClientResponse):
         super().__init__()
-        self._resp = resp
-        self._content = resp.content
+        self._resp: Optional[aiohttp.ClientResponse] = resp
+        self._content: Optional[aiohttp.StreamReader] = resp.content
 
     # https://docs.aiohttp.org/en/stable/streams.html#aiohttp.StreamReader.read
     # Read up to n bytes. If n is not provided, or set to -1, read until EOF

@@ -91,12 +91,12 @@ async def async_copy_paste_login(copy_paste_token: str, namespace: Optional[str]
             raise_for_status=True,
             timeout=aiohttp.ClientTimeout(total=5),
             headers=headers) as session:
-        resp = await request_retry_transient_errors(
-            session, 'POST', deploy_config.url('auth', '/api/v1alpha/copy-paste-login'),
-            params={'copy_paste_token': copy_paste_token})
-        resp = await resp.json()
-    token = resp['token']
-    username = resp['username']
+        async with await request_retry_transient_errors(
+                session, 'POST', deploy_config.url('auth', '/api/v1alpha/copy-paste-login'),
+                params={'copy_paste_token': copy_paste_token}) as resp:
+            data = await resp.json()
+    token = data['token']
+    username = data['username']
 
     tokens = get_tokens()
     tokens[namespace] = token
@@ -119,10 +119,9 @@ async def async_get_user(username: str, namespace: Optional[str] = None) -> dict
             raise_for_status=True,
             timeout=aiohttp.ClientTimeout(total=30),
             headers=headers) as session:
-        resp = await request_retry_transient_errors(
-            session, 'GET', deploy_config.url('auth', f'/api/v1alpha/users/{username}')
-        )
-        return await resp.json()
+        async with await request_retry_transient_errors(
+                session, 'GET', deploy_config.url('auth', f'/api/v1alpha/users/{username}')) as resp:
+            return await resp.json()
 
 
 def create_user(username: str, login_id: str, is_developer: bool, is_service_account: bool, namespace: Optional[str] = None):
