@@ -1012,11 +1012,11 @@ import sys
 class PythonResultUnpickler(dill.Unpickler):
     def __init__(self, file, **kwargs):
         super().__init__(file, **kwargs)
-        self.dispatch = {
+        self.dispatch = {{
             **dill.Pickler.dispatch,
             **{k: ResourceToStringPickler.save_resource
            for k in _resource.ALL_RESOURCE_CLASSES}
-        }
+        }}
 
     def save_resource(self, obj: _resource.Resource):
         return self.save(obj.as_py())

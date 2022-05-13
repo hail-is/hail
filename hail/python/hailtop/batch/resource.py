@@ -414,7 +414,7 @@ class PythonResult(Resource):
 
     def local_location(self) -> str:
         if self._local_location is None:
-            self._local_location = self.local_prefix_from_uid()+ '/' + os.path.basename(self._remote_location)
+            self._local_location = self.local_prefix_from_uid() + '/' + os.path.basename(self._remote_location)
             if self._extension is not None:
                 self._local_location += self._extension
         return self._local_location
