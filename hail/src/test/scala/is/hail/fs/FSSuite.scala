@@ -129,7 +129,6 @@ trait FSSuite {
   @Test def testDeleteFileDoesntExist(): Unit = {
     val d = t()
     fs.mkDir(d)
-    assert(fs.exists(s"$d"))
     fs.delete(s"$d/foo", recursive = false)
     fs.delete(s"$d/foo", recursive = true)
   }
