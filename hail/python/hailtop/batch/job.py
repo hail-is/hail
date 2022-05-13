@@ -92,6 +92,9 @@ class Job(abc.ABC):
             return self.resource_is_defined(resource.defining_resource(), remote=True)
         self._defined_resource_remoteness[resource] = remote
 
+        for sub_resource in resource.members() or []:
+            self.resource_is_defined(sub_resource)
+
     def resource_is_needed(self, resource: _resource.Resource):
         if resource.is_remote():
             return self.resource_is_needed(resource.defining_resource())

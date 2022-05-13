@@ -199,7 +199,7 @@ class LocalBackend(Backend[None]):
                     "to": r.local_location()}])
                 transfers = transfers_bytes.decode('utf-8')
                 code.write(
-                    f'python3 -m hailtop.aiotools.copy {shq(requester_pays_project_json)} {shq(transfers)}')
+                    f'/Users/dking/miniconda3/bin/python3 -m hailtop.aiotools.copy {shq(requester_pays_project_json)} {shq(transfers)}\n')
             code.write(main_code)
             return code.getvalue()
 
@@ -252,7 +252,7 @@ class LocalBackend(Backend[None]):
                 await copy_from_dict(
                     max_simultaneous_transfers=300,
                     files=[
-                        {'from': resource.remote_location(), 'to': destination}
+                        {'from': resource.local_location(), 'to': destination}
                         for resource, destinations in batch._outputs.items()
                         for destination in destinations])
         finally:

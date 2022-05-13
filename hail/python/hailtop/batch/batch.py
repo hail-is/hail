@@ -331,6 +331,7 @@ class Batch:
 
         resource = _resource.ExternalResource(path, os.path.basename(path), self._local_location)
         self._input_resources.add(resource)
+        self._resource_by_uid[resource.uid()] = resource
         return resource
 
     def read_input_group(self, **kwargs: str) -> _resource.ResourceGroup:
@@ -394,6 +395,7 @@ class Batch:
 
         resource = _resource.ExternalResourceGroup(kwargs, f'<ExternalResourceGroup from {self}>', self._local_location)
         self._input_resources.add(resource)
+        self._resource_by_uid[resource.uid()] = resource
         return resource
 
     def write_output(self, resource: _resource.Resource, dest: str):  # pylint: disable=R0201

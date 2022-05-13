@@ -1,5 +1,6 @@
-from typing import Optional, Dict, Union
+from typing import Optional, Dict, Union, Iterable
 from typing_extensions import Literal
+from shlex import quote as shq
 import abc
 import dill
 import urllib
@@ -95,11 +96,15 @@ class Resource(abc.ABC):
     def group(self) -> Optional[Union['ResourceGroup', 'ExternalResourceGroup']]:
         pass
 
+    @abc.abstractmethod
+    def members(self) -> Optional[Iterable[Union['ResourceGroupMember', 'ExternalResourceGroupMember']]]:
+        pass
+
     def __str__(self) -> str:
-        return self.local_location()
+        return shq(self.local_location())
 
     def __repr__(self) -> str:
-        return repr(self.local_location())
+        return repr(shq(self.local_location()))
 
 
 class RemoteResource(Resource):
@@ -153,6 +158,9 @@ class RemoteResource(Resource):
     def group(self) -> Optional[Union['ResourceGroup', 'ExternalResourceGroup']]:
         return self.resource.group()
 
+    def members(self) -> Optional[Iterable[Union['ResourceGroupMember', 'ExternalResourceGroupMember']]]:
+        return None
+
 
 def remote(resource: Resource) -> RemoteResource:
     return RemoteResource(resource, resource._io_directory())
@@ -190,6 +198,9 @@ class ExternalResource(Resource):
     def group(self) -> Literal[None]:
         return None
 
+    def members(self) -> Optional[Iterable[Union['ResourceGroupMember', 'ExternalResourceGroupMember']]]:
+        return None
+
 
 class ExternalResourceGroupMember(Resource):
     def __init__(self, group: 'ExternalResourceGroup', remote_location: str, suffix: str, humane_name: str, io_directory: str):
@@ -222,6 +233,9 @@ class ExternalResourceGroupMember(Resource):
 
     def group(self) -> Optional['ExternalResourceGroup']:
         return self._group
+
+    def members(self) -> Optional[Iterable[Union['ResourceGroupMember', 'ExternalResourceGroupMember']]]:
+        return None
 
 
 class ExternalResourceGroup(Resource):
@@ -272,6 +286,9 @@ class ExternalResourceGroup(Resource):
     def group(self) -> Optional['ResourceGroup']:
         return None
 
+    def members(self) -> Optional[Iterable[Union['ResourceGroupMember', 'ExternalResourceGroupMember']]]:
+        return self.members_by_name.values()
+
 
 class JobResource(Resource):
     def __init__(self, remote_dir: str, j, humane_name: str, extension: Optional[str], io_directory: str):
@@ -309,6 +326,9 @@ class JobResource(Resource):
         return self._local_location
 
     def group(self) -> Literal[None]:
+        return None
+
+    def members(self) -> Optional[Iterable[Union['ResourceGroupMember', 'ExternalResourceGroupMember']]]:
         return None
 
     def set_extension(self, extension: str) -> 'JobResource':
@@ -372,12 +392,16 @@ class ResourceGroupMember(Resource):
     def group(self):
         return self._group
 
+    def members(self) -> Optional[Iterable[Union['ResourceGroupMember', 'ExternalResourceGroupMember']]]:
+        return None
+
 
 class ResourceGroup(Resource):
     def __init__(self, remote_prefix: str, named_format_strings: Dict[str, str], j, humane_name: str, io_directory: str):
         self.__io_directory = io_directory
         self._uid = generate_uid()
-        self._remote_location = remote_prefix + self.uid_remote_path_needle()
+        assert remote_prefix.endswith('/')
+        self._remote_location = remote_prefix[:-1] + self.uid_remote_path_needle()
         self._local_location = self.local_prefix_from_uid() + '/' + os.path.basename(self._remote_location)
         self._job = j
         self.members_by_name = {
@@ -419,6 +443,8 @@ class ResourceGroup(Resource):
     def group(self) -> Optional['ResourceGroup']:
         return None
 
+    def members(self) -> Optional[Iterable[Union['ResourceGroupMember', 'ExternalResourceGroupMember']]]:
+        return self.members_by_name.values()
 
 class PythonResult(Resource):
     def __init__(self, remote_dir: str, j, humane_name: str, io_directory: str):
@@ -472,6 +498,9 @@ class PythonResult(Resource):
         return self._local_location
 
     def group(self) -> Literal[None]:
+        return None
+
+    def members(self) -> Optional[Iterable[Union['ResourceGroupMember', 'ExternalResourceGroupMember']]]:
         return None
 
     def as_json(self) -> JobResource:
