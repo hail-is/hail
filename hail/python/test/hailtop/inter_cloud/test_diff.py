@@ -51,8 +51,8 @@ async def router_filesystem() -> AsyncIterator[Tuple[asyncio.Semaphore, AsyncFS,
             await bounded_gather2(sema,
                                   functools.partial(fs.rmtree, sema, file_base),
                                   functools.partial(fs.rmtree, sema, gs_base),
-                                  # functools.partial(fs.rmtree, sema, s3_base),
-                                  # functools.partial(fs.rmtree, sema, azure_base)
+                                  functools.partial(fs.rmtree, sema, s3_base),
+                                  functools.partial(fs.rmtree, sema, azure_base)
                                   )
 
         assert not await fs.isdir(file_base)
@@ -113,8 +113,6 @@ async def diff_test_context(request, router_filesystem: Tuple[asyncio.Semaphore,
 @pytest.mark.asyncio
 async def test_diff(diff_test_context):
     sema, fs, src_base, dest_base = diff_test_context
-
-    print((src_base, dest_base))
 
     expected = {
         frozendict({'from': f'{src_base}diff', 'to': f'{dest_base}diff', 'from_size': 3, 'to_size': 1}),
