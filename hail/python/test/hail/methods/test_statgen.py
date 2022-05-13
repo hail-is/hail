@@ -553,7 +553,7 @@ class Tests(unittest.TestCase):
                 max_iterations=106
             )
             result = ht.collect()[0]
-            fit = result
+            fit = result.fit
             actual_beta = result.beta
             expected_beta = 0.19699166375172233
             assert abs(actual_beta - expected_beta) < 1e-16
