@@ -541,27 +541,26 @@ class Tests(unittest.TestCase):
     @fails_local_backend()
     @fails_service_backend()
     def test_logistic_regression_rows_does_converge_with_106_iterations(self):
-        for logreg in self.logreg_functions:
-            import hail as hl
-            mt = hl.utils.range_matrix_table(1, 3)
-            mt = mt.annotate_entries(x=hl.literal([1, 3, 10]))
-            ht = logreg(
-                test='firth',
-                y=hl.literal([0, 1, 1])[mt.col_idx],
-                x=mt.x[mt.col_idx],
-                covariates=[1],
-                max_iterations=106
-            )
-            result = ht.collect()[0]
-            fit = result.fit
-            actual_beta = result.beta
-            expected_beta = 0.19699166375172233
-            assert abs(actual_beta - expected_beta) < 1e-16
-            assert abs(result.chi_sq_stat - 0.6464918007192411) < 1e-15
-            assert abs(result.p_value - 0.4213697518249182) < 1e-15
-            assert fit.n_iterations == 106
-            assert not fit.exploded
-            assert fit.converged
+        import hail as hl
+        mt = hl.utils.range_matrix_table(1, 3)
+        mt = mt.annotate_entries(x=hl.literal([1, 3, 10]))
+        ht = hl.logistic_regression_rows(
+            test='firth',
+            y=hl.literal([0, 1, 1])[mt.col_idx],
+            x=mt.x[mt.col_idx],
+            covariates=[1],
+            max_iterations=106
+        )
+        result = ht.collect()[0]
+        fit = result.fit
+        actual_beta = result.beta
+        expected_beta = 0.19699166375172233
+        assert abs(actual_beta - expected_beta) < 1e-16
+        assert abs(result.chi_sq_stat - 0.6464918007192411) < 1e-15
+        assert abs(result.p_value - 0.4213697518249182) < 1e-15
+        assert fit.n_iterations == 106
+        assert not fit.exploded
+        assert fit.converged
 
     def test_weighted_linear_regression(self):
         covariates = hl.import_table(resource('regressionLinear.cov'),
