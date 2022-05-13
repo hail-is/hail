@@ -18,21 +18,13 @@ class GCPResource(Resource, abc.ABC):
     pass
 
 
-def gcp_disk_product(disk_type: str, preemptible: bool) -> str:
-    if disk_type == 'local-ssd':
-        preemptible_str = 'preemptible' if preemptible else 'nonpreemptible'
-        return f'disk/{disk_type}/{preemptible_str}'
-    assert disk_type == 'pd-ssd'
-    return f'disk/{disk_type}'
-
-
 class GCPStaticSizedDiskResource(StaticSizedDiskResourceMixin, GCPResource):
     FORMAT_VERSION = 1
     TYPE = 'gcp_static_sized_disk'
 
     @staticmethod
-    def product_name(disk_type: str, preemptible: bool) -> str:
-        return gcp_disk_product(disk_type, preemptible)
+    def product_name(disk_type: str) -> str:
+        return f'disk/{disk_type}'
 
     @staticmethod
     def from_dict(data: Dict[str, Any]) -> 'GCPStaticSizedDiskResource':
@@ -44,9 +36,8 @@ class GCPStaticSizedDiskResource(StaticSizedDiskResourceMixin, GCPResource):
         product_versions: ProductVersions,
         disk_type: str,
         storage_in_gib: int,
-        preemptible: bool,
     ) -> 'GCPStaticSizedDiskResource':
-        product = GCPStaticSizedDiskResource.product_name(disk_type, preemptible)
+        product = GCPStaticSizedDiskResource.product_name(disk_type)
         name = product_versions.resource_name(product)
         assert name, product
         return GCPStaticSizedDiskResource(name, storage_in_gib)
@@ -69,8 +60,8 @@ class GCPDynamicSizedDiskResource(DynamicSizedDiskResourceMixin, GCPResource):
     TYPE = 'gcp_dynamic_sized_disk'
 
     @staticmethod
-    def product_name(disk_type: str, preemptible: bool) -> str:
-        return gcp_disk_product(disk_type, preemptible)
+    def product_name(disk_type: str) -> str:
+        return f'disk/{disk_type}'
 
     @staticmethod
     def from_dict(data: Dict[str, Any]) -> 'GCPDynamicSizedDiskResource':
@@ -78,8 +69,8 @@ class GCPDynamicSizedDiskResource(DynamicSizedDiskResourceMixin, GCPResource):
         return GCPDynamicSizedDiskResource(data['name'])
 
     @staticmethod
-    def create(product_versions: ProductVersions, disk_type: str, preemptible: bool) -> 'GCPDynamicSizedDiskResource':
-        product = GCPDynamicSizedDiskResource.product_name(disk_type, preemptible)
+    def create(product_versions: ProductVersions, disk_type: str) -> 'GCPDynamicSizedDiskResource':
+        product = GCPDynamicSizedDiskResource.product_name(disk_type)
         name = product_versions.resource_name(product)
         assert name, product
         return GCPDynamicSizedDiskResource(name)
@@ -97,6 +88,44 @@ class GCPDynamicSizedDiskResource(DynamicSizedDiskResourceMixin, GCPResource):
 
     def to_dict(self) -> dict:
         return {'type': self.TYPE, 'name': self.name, 'version': self.FORMAT_VERSION}
+
+
+class GCPLocalSSDStaticSizedDiskResource(StaticSizedDiskResourceMixin, GCPResource):
+    FORMAT_VERSION = 1
+    TYPE = 'gcp_local_ssd_static_sized_disk'
+
+    @staticmethod
+    def product_name(preemptible: bool) -> str:
+        preemptible_str = 'preemptible' if preemptible else 'nonpreemptible'
+        return f'disk/local-ssd/{preemptible_str}'
+
+    @staticmethod
+    def from_dict(data: Dict[str, Any]) -> 'GCPLocalSSDStaticSizedDiskResource':
+        assert data['type'] == GCPLocalSSDStaticSizedDiskResource.TYPE
+        return GCPLocalSSDStaticSizedDiskResource(data['name'], data['storage_in_gib'])
+
+    @staticmethod
+    def create(
+        product_versions: ProductVersions,
+        storage_in_gib: int,
+        preemptible: bool,
+    ) -> 'GCPLocalSSDStaticSizedDiskResource':
+        product = GCPLocalSSDStaticSizedDiskResource.product_name(preemptible)
+        name = product_versions.resource_name(product)
+        assert name, product
+        return GCPLocalSSDStaticSizedDiskResource(name, storage_in_gib)
+
+    def __init__(self, name: str, storage_in_gib: int):
+        self.name = name
+        self.storage_in_gib = storage_in_gib
+
+    def to_dict(self) -> dict:
+        return {
+            'type': self.TYPE,
+            'name': self.name,
+            'storage_in_gib': self.storage_in_gib,
+            'version': self.FORMAT_VERSION,
+        }
 
 
 class GCPComputeResource(ComputeResourceMixin, GCPResource):
@@ -223,6 +252,8 @@ def gcp_resource_from_dict(data: dict) -> GCPResource:
         return GCPStaticSizedDiskResource.from_dict(data)
     if typ == GCPDynamicSizedDiskResource.TYPE:
         return GCPDynamicSizedDiskResource.from_dict(data)
+    if typ == GCPLocalSSDStaticSizedDiskResource.TYPE:
+        return GCPLocalSSDStaticSizedDiskResource.from_dict(data)
     if typ == GCPComputeResource.TYPE:
         return GCPComputeResource.from_dict(data)
     if typ == GCPMemoryResource.TYPE:

@@ -14,7 +14,7 @@ async def main():
         ('disk/local-ssd/preemptible/1', rate_gib_month_to_mib_msec(0.048)),
         ('disk/local-ssd/nonpreemptible/1', rate_gib_month_to_mib_msec(0.08)),
     ]
-    
+
     await db.execute_many(
         '''
 INSERT INTO `resources` (resource, rate)
