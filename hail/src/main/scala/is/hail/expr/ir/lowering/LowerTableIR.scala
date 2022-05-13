@@ -801,7 +801,7 @@ object LowerTableIR {
               })
           }
 
-      // TODO: This ignores nPartitions and bufferSize
+      // This ignores nPartitions. The shuffler should handle repartitioning downstream
       case TableKeyByAndAggregate(child, expr, newKey, nPartitions, bufferSize) =>
         val loweredChild = lower(child)
         val newKeyType = newKey.typ.asInstanceOf[TStruct]
