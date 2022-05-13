@@ -552,13 +552,6 @@ class BashJob(Job):
         >>> j.command(f'plink --bfile {input} --make-bed --out {j.tmp1}')
         >>> b.run()  # doctest: +SKIP
 
-        Warning
-        -------
-        Be careful when specifying the expressions for each file as this is Python
-        code that is executed with `eval`!
-
-        # FIXME: !!!!! eval?
-
         Parameters
         ----------
         mappings:

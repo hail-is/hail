@@ -186,7 +186,7 @@ class LocalBackend(Backend[None]):
         requester_pays_project_json = orjson.dumps(batch.requester_pays_project).decode('utf-8')
 
         async def generate_job_code(job):
-            main_code, resources_to_download = await job.compile()
+            main_code, user_code, resources_to_download = await job.compile()
             code = StringIO()
             for r in resources_to_download:
                 transfers_bytes = orjson.dumps([{

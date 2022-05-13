@@ -103,6 +103,13 @@ class RemoteResource(Resource):
         if isinstance(self.resource, PythonResult):
             raise ValueError('cannot remote resource a PythonResult')
 
+    def __getitem__(self, name: str) -> Resource:
+        assert isinstance(self.resource, (ResourceGroup, ExternalResourceGroup))
+        return self.members_by_name[name]
+
+    def __getattr__(self, name: str) -> Resource:
+        return self.__getitem__(name)
+
     def uses_remote_tmpdir(self) -> bool:
         return False
 
@@ -110,7 +117,7 @@ class RemoteResource(Resource):
         return self.resource.uid()
 
     def as_py(self) -> Union[str, Dict[str, str]]:
-        if isinstance(self.resource, ResourceGroup):
+        if isinstance(self.resource, (ResourceGroup, ExternalResourceGroup)):
             return {name: m.remote_location() for name, m in self.resource.members_by_name.items()}
         assert not isinstance(self.resource, PythonResult)
         return self.resource.remote_location()
@@ -213,6 +220,12 @@ class ExternalResourceGroup(Resource):
         }
         self._humane_name = humane_name
 
+    def __getitem__(self, name: str) -> ExternalResourceGroupMember:
+        return self.members_by_name[name]
+
+    def __getattr__(self, name: str) -> ExternalResourceGroupMember:
+        return self.__getitem__(name)
+
     def as_py(self) -> Dict[str, str]:
         return {name: m.local_location() for name, m in self.members_by_name.items()}
 
@@ -272,7 +285,7 @@ class JobResource(Resource):
     def group(self) -> Literal[None]:
         return None
 
-    def add_extension(self, extension: str) -> 'JobResource':
+    def set_extension(self, extension: str) -> 'JobResource':
         """
         Specify the file extension to use.
 
@@ -282,13 +295,8 @@ class JobResource(Resource):
         >>> b = Batch()
         >>> j = b.new_job()
         >>> j.command(f'echo "hello" > {j.ofile}')
-        >>> j.ofile.add_extension('.txt')
+        >>> j.ofile.set_extension('.txt')
         >>> b.run()
-
-        Notes
-        -----
-        The default file name for a :class:`.JobResourceFile` is the name
-        of the identifier.
 
         Parameters
         ----------
@@ -346,6 +354,12 @@ class ResourceGroup(Resource):
             for name, format_string in named_format_strings.items()
         }
         self._humane_name = humane_name
+
+    def __getitem__(self, name: str) -> ResourceGroupMember:
+        return self.members_by_name[name]
+
+    def __getattr__(self, name: str) -> ResourceGroupMember:
+        return self.__getitem__(name)
 
     def as_py(self) -> Dict[str, str]:
         return {name: m.local_location() for name, m in self.members_by_name.items()}

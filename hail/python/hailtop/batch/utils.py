@@ -47,7 +47,7 @@ def concatenate(b: Batch, files: List[Resource], image: str = None, branching_fa
         j = b.new_job(name=name)
         if image:
             j.image(image)
-        j.command(f'cat {" ".join(xs)} > {j.ofile}')
+        j.command(f'cat {" ".join(map(str, xs))} > {j.ofile}')
         return j.ofile
 
     if len(files) == 0:

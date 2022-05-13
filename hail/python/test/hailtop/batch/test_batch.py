@@ -306,15 +306,15 @@ class LocalTests(unittest.TestCase):
     def test_add_extension_job_resource_file(self):
         b = self.batch()
         j = b.new_job()
+        j.ofile.set_extension('.txt.bgz')
         j.command(f'echo "hello" > {j.ofile}')
-        j.ofile.add_extension('.txt.bgz')
-        assert j.ofile._local_location.endswith('.txt.bgz')
+        assert j.ofile.local_location().endswith('.txt.bgz')
 
     def test_add_extension_input_resource_file(self):
         input_file1 = '/tmp/data/example1.txt.bgz.foo'
         b = self.batch()
         in1 = b.read_input(input_file1)
-        assert in1._local_location.endswith('.txt.bgz.foo')
+        assert in1.local_location().endswith('.txt.bgz.foo')
 
     def test_file_name_space(self):
         with tempfile.NamedTemporaryFile('w', prefix="some file name with (foo) spaces") as input_file, \
