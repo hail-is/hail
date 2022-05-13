@@ -78,7 +78,7 @@ async def do_diff(top_source: str, top_target: str, fs: AsyncFS, max_simultaneou
 
     # The concurrency limit is the number of worker corooutines, not the queue size. Queue size must
     # be large because a single driver process is trying to feed max_simultaneous workers.
-    active_tasks: asyncio.Queue[Tuple[str, str]] = asyncio.Queue(max_simultaneous * 10)
+    active_tasks: asyncio.Queue[Optional[Tuple[str, str]]] = asyncio.Queue(max_simultaneous * 10)
     different = []
 
     async def create_work():
