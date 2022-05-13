@@ -125,8 +125,9 @@ class Batch:
         self._backend = backend if backend else _backend.LocalBackend()
 
         # FIXME: iterate until a truly unique directory
-        uid = uuid.uuid4().hex[:6]
-        self._remote_location = f'{self._backend.remote_tmpdir()}{uid}'
+        uid = uuid.uuid4().hex[:6] + '/'
+        self._local_location = self._backend.local_tmpdir() + uid
+        self._remote_location = self._backend.remote_tmpdir() + uid
         self._resource_by_uid: Dict[int, _resource.Resource] = {}
 
         self.name = name
@@ -328,7 +329,7 @@ class Batch:
             File extension to use.
         """
 
-        resource = _resource.ExternalResource(path, os.path.basename(path))
+        resource = _resource.ExternalResource(path, os.path.basename(path), self._local_location)
         self._input_resources.add(resource)
         return resource
 
@@ -391,7 +392,7 @@ class Batch:
             is the file path.
         """
 
-        resource = _resource.ExternalResourceGroup(kwargs, f'<ExternalResourceGroup from {self}>')
+        resource = _resource.ExternalResourceGroup(kwargs, f'<ExternalResourceGroup from {self}>', self._local_location)
         self._input_resources.add(resource)
         return resource
 
@@ -457,7 +458,7 @@ class Batch:
             raise BatchException(
                 f"undefined resource '{resource.humane_name()}'\n"
                 f"Hint: resources must be defined within the job methods 'BashJob.command' or "
-                f"'BashJob.declare_resource_group' or PythonJob.call")
+                f"'BashJob.declare_resource_group' or PythonJob.call {source.defined_resources()}")
         self._outputs[resource].append(dest)
         source.resource_is_needed(resource)
 

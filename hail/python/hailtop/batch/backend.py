@@ -24,11 +24,11 @@ import hailtop.batch_client.aioclient as aiobc
 import hailtop.batch_client.client as bc
 from hailtop.aiotools import AsyncFS
 from hailtop.aiotools.router_fs import RouterAsyncFS
+from hailtop.aiotools.copy import copy_from_dict
 
 from . import resource, batch, job as _job  # pylint: disable=unused-import
 from .exceptions import BatchException
 from .globals import DEFAULT_SHELL
-
 
 HAIL_GENETICS_HAIL_IMAGE = os.environ.get('HAIL_GENETICS_HAIL_IMAGE',
                                           f'hailgenetics/hail:{pip_version()}')
@@ -50,9 +50,6 @@ class Backend(abc.ABC, Generic[RunningBatchType]):
 
     _closed = False
 
-    def remote_tmpdir(self) -> str:
-        raise NotImplementedError
-
     @abc.abstractmethod
     def _run(self, batch, dry_run, verbose, delete_scratch_on_exit, **backend_kwargs) -> RunningBatchType:
         """
@@ -68,6 +65,14 @@ class Backend(abc.ABC, Generic[RunningBatchType]):
     @abc.abstractmethod
     def _fs(self) -> AsyncFS:
         raise NotImplementedError()
+
+    @abc.abstractmethod
+    def local_tmpdir(self) -> str:
+        pass
+
+    @abc.abstractmethod
+    def remote_tmpdir(self) -> str:
+        pass
 
     def _close(self):  # pylint: disable=R0201
         return
@@ -185,7 +190,7 @@ class LocalBackend(Backend[None]):
 
         requester_pays_project_json = orjson.dumps(batch.requester_pays_project).decode('utf-8')
 
-        async def generate_job_code(job):
+        async def generate_job_code(job) -> str:
             main_code, user_code, resources_to_download = await job.compile()
             code = StringIO()
             for r in resources_to_download:
@@ -196,7 +201,7 @@ class LocalBackend(Backend[None]):
                 code.write(
                     f'python3 -m hailtop.aiotools.copy {shq(requester_pays_project_json)} {shq(transfers)}')
             code.write(main_code)
-            code.getvalue()
+            return code.getvalue()
 
         try:
             job_codes = await asyncio.gather(*[generate_job_code(job) for job in batch._jobs])
@@ -205,12 +210,15 @@ class LocalBackend(Backend[None]):
                     print(code)
                 elif job._image is None:
                     with tempfile.TemporaryDirectory() as workdir:
-                        sp.run(
-                            [job._shell, '-c', code],
-                            check=True,
-                            cwd=workdir,
-                            env=job._env  # FIXME: do I need BATCH_TMPDIR ?
-                        )
+                        try:
+                            sp.run(
+                                [job._shell or DEFAULT_SHELL, '-c', code],
+                                check=True,
+                                cwd=workdir,
+                                env=(job._env or {})  # FIXME: do I need BATCH_TMPDIR ?
+                            )
+                        except sp.CalledProcessError as err:
+                            raise ValueError((err.output, err.stderr)) from err
                 elif job._image:
                     memory = job._memory
                     if memory is not None:
@@ -228,7 +236,7 @@ class LocalBackend(Backend[None]):
                     command = [
                         'docker',
                         'run',
-                        '--entrypoint=' + job._shell,
+                        '--entrypoint=' + (job._shell or DEFAULT_SHELL),
                         *self._extra_docker_run_flags.split(' '),
                         '-v', batch._remote_location + ':' + batch._remote_location,
                     ]
@@ -241,11 +249,12 @@ class LocalBackend(Backend[None]):
                     with tempfile.TemporaryDirectory() as workdir:
                         sp.run(command, check=True, cwd=workdir, env=job._env)  # FIXME: do I need BATCH_TMPDIR ?
 
-                hailtop.aiotools.copy.copy_from_dict(
+                await copy_from_dict(
                     max_simultaneous_transfers=300,
                     files=[
                         {'from': resource.remote_location(), 'to': destination}
-                        for resource, destination in batch._outputs.items()])
+                        for resource, destinations in batch._outputs.items()
+                        for destination in destinations])
         finally:
             if delete_scratch_on_exit:
                 sp.run(['rm', '-rf', batch._remote_location], check=False)
@@ -260,7 +269,10 @@ class LocalBackend(Backend[None]):
             os.makedirs(dir, exist_ok=True)
             return dir
 
-        return _get_random_name()
+        return _get_random_name() + '/'
+
+    def local_tmpdir(self) -> str:
+        return self._get_scratch_dir()
 
     def _close(self):
         async_to_blocking(self._fs.close())
@@ -377,6 +389,9 @@ class ServiceBackend(Backend[bc.Batch]):
 
     def remote_tmpdir(self) -> str:
         return self._remote_tmpdir
+
+    def local_tmpdir(self) -> str:
+        return '/io/'
 
     @property
     def _fs(self):

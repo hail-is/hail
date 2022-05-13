@@ -56,6 +56,7 @@ class Job(abc.ABC):
         self._batch = batch
         self._shell = shell
         self._token = token
+        self._local_location = self._batch._local_location
 
         self.name = name
         self.attributes = attributes
@@ -84,7 +85,6 @@ class Job(abc.ABC):
         return self._defined_resource_remoteness.keys()
 
     def resource_defined_remotely(self, resource: _resource.Resource) -> bool:
-        print(resource, self._defined_resource_remoteness, self)
         return self._defined_resource_remoteness[resource]
 
     def resource_is_defined(self, resource: _resource.Resource, *, remote: bool = False):
@@ -102,7 +102,7 @@ class Job(abc.ABC):
     def __getitem__(self, name: str) -> '_resource.Resource':
         resource = self._produced_resource_by_name.get(name)
         if resource is None:
-            resource = _resource.JobResource(self._batch._remote_location, self, name, None)
+            resource = _resource.JobResource(self._batch._remote_location, self, name, None, self._local_location)
             self._produced_resource_by_name[name] = resource
             self._batch._resource_by_uid[resource.uid()] = resource
         return resource
@@ -157,7 +157,7 @@ class Job(abc.ABC):
         Same job object with dependencies set.
         """
 
-        self._dependencies.extend(jobs)
+        self._dependencies.update(jobs)
         return self
 
     def env(self, variable: str, value: str):
@@ -575,7 +575,8 @@ class BashJob(Job):
                 self._batch._remote_location,
                 named_format_strings,
                 self,
-                f'ResourceGroup({",".join(mappings.keys())})'
+                f'ResourceGroup({",".join(mappings.keys())})',
+                self._local_location
             )
             self._produced_resource_by_name[name] = rg
             self._batch._resource_by_uid[rg.uid()] = rg
@@ -922,7 +923,7 @@ class PythonJob(Job):
 
         self.n_results += 1
         result_name = f'result{self.n_results}'
-        result = _resource.PythonResult(self._batch._remote_location, self, result_name)
+        result = _resource.PythonResult(self._batch._remote_location, self, result_name, self._local_location)
         self._produced_resource_by_name[result_name] = result
         self._batch._resource_by_uid[result.uid()] = result
         self.resource_is_defined(result)
@@ -1007,8 +1008,8 @@ class PythonResultUnpickler(dill.Unpickler):
         super().__init__(file, **kwargs)
         self.dispatch = {{
             **dill.Pickler.dispatch,
-            **{k: ResourceToStringPickler.save_resource
-           for k in _resource.ALL_RESOURCE_CLASSES}
+            **{{k: ResourceToStringPickler.save_resource
+                for k in _resource.ALL_RESOURCE_CLASSES}}
         }}
 
     def save_resource(self, obj: _resource.Resource):

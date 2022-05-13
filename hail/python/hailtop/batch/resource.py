@@ -42,14 +42,20 @@ class Resource(abc.ABC):
     # FIXME: should use base63 (no /)
     REGEXP = re.compile('/__HAIL_1kh7ah_/([LR])([+/0-9A-Za-z]+=*)')
 
+    @abc.abstractmethod
+    def _io_directory(self) -> str:
+        pass
+
     def uid_remote_path_needle(self):
         return Resource.REMOTE_PREFIX + encode_uid(self.uid())
 
     def uid_local_path_needle(self):
         return Resource.LOCAL_PREFIX + encode_uid(self.uid())
 
-    def local_prefix_from_uid(self):
-        return '/io' + self.uid_local_path_needle()
+    def local_prefix_from_uid(self) -> str:
+        io = self._io_directory()
+        assert io.endswith('/')
+        return io[:-1] + self.uid_local_path_needle()
 
     # FIXME: do I need this
     @abc.abstractmethod
@@ -97,18 +103,22 @@ class Resource(abc.ABC):
 
 
 class RemoteResource(Resource):
-    def __init__(self, resource: Resource):
+    def __init__(self, resource: Resource, io_directory: str):
         self.resource = resource
         self._deserialized_remote_location: Optional[str] = None
+        self.__io_directory = io_directory
         if isinstance(self.resource, PythonResult):
             raise ValueError('cannot remote resource a PythonResult')
 
     def __getitem__(self, name: str) -> Resource:
         assert isinstance(self.resource, (ResourceGroup, ExternalResourceGroup))
-        return self.members_by_name[name]
+        return self.resource.members_by_name[name]
 
     def __getattr__(self, name: str) -> Resource:
         return self.__getitem__(name)
+
+    def _io_directory(self) -> str:
+        return self.__io_directory
 
     def uses_remote_tmpdir(self) -> bool:
         return False
@@ -145,15 +155,19 @@ class RemoteResource(Resource):
 
 
 def remote(resource: Resource) -> RemoteResource:
-    return RemoteResource(resource)
+    return RemoteResource(resource, resource._io_directory())
 
 
 class ExternalResource(Resource):
-    def __init__(self, remote_location: str, humane_name: str):
+    def __init__(self, remote_location: str, humane_name: str, io_directory: str):
+        self.__io_directory = io_directory
         self._uid = generate_uid()
         self._remote_location = remote_location
         self._local_location = self.local_prefix_from_uid() + '/' + os.path.basename(self._remote_location)
         self._humane_name = humane_name
+
+    def _io_directory(self) -> str:
+        return self.__io_directory
 
     def uid(self) -> int:
         return self._uid
@@ -178,11 +192,15 @@ class ExternalResource(Resource):
 
 
 class ExternalResourceGroupMember(Resource):
-    def __init__(self, group: 'ExternalResourceGroup', remote_location: str, suffix: str, humane_name: str):
+    def __init__(self, group: 'ExternalResourceGroup', remote_location: str, suffix: str, humane_name: str, io_directory: str):
+        self.__io_directory = io_directory
         self._group = group
         self._remote_location = remote_location
         self._suffix = suffix
         self._humane_name = humane_name
+
+    def _io_directory(self) -> str:
+        return self.__io_directory
 
     def uid(self) -> int:
         return self._group.uid()
@@ -207,7 +225,8 @@ class ExternalResourceGroupMember(Resource):
 
 
 class ExternalResourceGroup(Resource):
-    def __init__(self, named_members: Dict[str, str], humane_name: str):
+    def __init__(self, named_members: Dict[str, str], humane_name: str, io_directory: str):
+        self.__io_directory = io_directory
         self._uid = generate_uid()
         parsed = [urllib.parse.urlparse(url) for url in named_members.values()]
         common_path_prefix = os.path.commonpath([url.path for url in parsed])
@@ -215,10 +234,13 @@ class ExternalResourceGroup(Resource):
         suffices = [url.path[n:] for url in parsed]
         self._local_location = self.local_prefix_from_uid() + '/' + common_path_prefix
         self.members_by_name = {
-            name: ExternalResourceGroupMember(self, remote_location, suffix, name)
+            name: ExternalResourceGroupMember(self, remote_location, suffix, name, io_directory)
             for (name, remote_location), suffix in zip(named_members.items(), suffices)
         }
         self._humane_name = humane_name
+
+    def _io_directory(self) -> str:
+        return self.__io_directory
 
     def __getitem__(self, name: str) -> ExternalResourceGroupMember:
         return self.members_by_name[name]
@@ -252,13 +274,17 @@ class ExternalResourceGroup(Resource):
 
 
 class JobResource(Resource):
-    def __init__(self, remote_dir: str, j, humane_name: str, extension: Optional[str]):
+    def __init__(self, remote_dir: str, j, humane_name: str, extension: Optional[str], io_directory: str):
+        self.__io_directory = io_directory
         self._uid = generate_uid()
         self._remote_location = remote_dir + self.uid_remote_path_needle()
         self._extension: Optional[str] = extension
         self._local_location: Optional[str] = None
         self._job = j
         self._humane_name = humane_name
+
+    def _io_directory(self) -> str:
+        return self.__io_directory
 
     def uid(self) -> int:
         return self._uid
@@ -316,10 +342,14 @@ class JobResource(Resource):
 
 
 class ResourceGroupMember(Resource):
-    def __init__(self, group: 'ResourceGroup', suffix: str, humane_name: str):
+    def __init__(self, group: 'ResourceGroup', suffix: str, humane_name: str, io_directory: str):
+        self.__io_directory = io_directory
         self._group = group
         self._suffix = suffix
         self._humane_name = humane_name
+
+    def _io_directory(self) -> str:
+        return self.__io_directory
 
     def uid(self) -> int:
         return self._group.uid()
@@ -339,21 +369,25 @@ class ResourceGroupMember(Resource):
     def local_location(self) -> str:
         return self._group.local_location() + '/' + self._suffix
 
-    def group(self) -> Literal[None]:
+    def group(self):
         return self._group
 
 
 class ResourceGroup(Resource):
-    def __init__(self, remote_prefix: str, named_format_strings: Dict[str, str], j, humane_name: str):
+    def __init__(self, remote_prefix: str, named_format_strings: Dict[str, str], j, humane_name: str, io_directory: str):
+        self.__io_directory = io_directory
         self._uid = generate_uid()
         self._remote_location = remote_prefix + self.uid_remote_path_needle()
         self._local_location = self.local_prefix_from_uid() + '/' + os.path.basename(self._remote_location)
         self._job = j
         self.members_by_name = {
-            name: ResourceGroupMember(self, format_string.format(root='root'), name)
+            name: ResourceGroupMember(self, format_string.format(root='root'), name, io_directory)
             for name, format_string in named_format_strings.items()
         }
         self._humane_name = humane_name
+
+    def _io_directory(self) -> str:
+        return self.__io_directory
 
     def __getitem__(self, name: str) -> ResourceGroupMember:
         return self.members_by_name[name]
@@ -387,7 +421,8 @@ class ResourceGroup(Resource):
 
 
 class PythonResult(Resource):
-    def __init__(self, remote_dir: str, j, humane_name: str):
+    def __init__(self, remote_dir: str, j, humane_name: str, io_directory: str):
+        self.__io_directory = io_directory
         self._uid = generate_uid()
         self._remote_location = remote_dir + '/' + encode_uid(self._uid)
         self._extension: Optional[str] = None
@@ -405,6 +440,9 @@ class PythonResult(Resource):
 
     def __setstate__(self):
         raise ValueError('PythonResults should be deserialized by the special hail Unpickler')
+
+    def _io_directory(self) -> str:
+        return self.__io_directory
 
     def as_py(self) -> Dict[str, str]:
         raise ValueError('hmm')
@@ -462,7 +500,7 @@ class PythonResult(Resource):
             that has been converted to JSON.
         """
         if self._as_json is None:
-            self._as_json = JobResource(self._remote_dir, self._job, self._humane_name + '-json', '.json')
+            self._as_json = JobResource(self._remote_dir, self._job, self._humane_name + '-json', '.json', self.__io_directory)
         return self._as_json
 
     def as_str(self) -> Resource:
@@ -491,7 +529,7 @@ class PythonResult(Resource):
             of a Python object.
         """
         if self._as_str is None:
-            self._as_str = JobResource(self._remote_dir, self._job, self._humane_name + '-str', '.txt')
+            self._as_str = JobResource(self._remote_dir, self._job, self._humane_name + '-str', '.txt', self.__io_directory)
         return self._as_str
 
     def as_repr(self) -> Resource:
@@ -520,7 +558,7 @@ class PythonResult(Resource):
             of a Python object.
         """
         if self._as_repr is None:
-            self._as_repr = JobResource(self._remote_dir, self._job, self._humane_name + '-repr', '.repr')
+            self._as_repr = JobResource(self._remote_dir, self._job, self._humane_name + '-repr', '.repr', self.__io_directory)
         return self._as_repr
 
 
