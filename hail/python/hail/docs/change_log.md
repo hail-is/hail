@@ -24,6 +24,22 @@ an earlier version of Hail to read files written in a later version.
 
 ---
 
+## Version 0.2.95
+
+Released 2022-05-13
+
+### New features
+
+- (hail##11809) Export `dtypes_from_pandas` in `expr.types`
+- (hail#11807) Teach smoothed_pdf to add a plot to an existing figure.
+
+### Bug fixes
+
+- (hail#11815) Fix incorrectly missing entries in to_dense_mt at the position of ref block END.
+- (hail#11828) Fix `hl.init` to not ignore its `sc` argument. This bug was introduced in 0.2.94.
+
+---
+
 ## Version 0.2.94
 
 Released 2022-04-26
