@@ -363,6 +363,8 @@ class GoogleStorageClient(GoogleBaseClient):
         except aiohttp.ClientResponseError as e:
             if e.status == 404:
                 raise FileNotFoundError from e
+            if e.status == 416:
+                raise UnexpectedEOFError from e
             raise
 
     async def get_object_metadata(self, bucket: str, name: str, **kwargs) -> Dict[str, str]:

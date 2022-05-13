@@ -238,6 +238,21 @@ async def test_read_range_end_exclusive_empty_file(filesystem: Tuple[asyncio.Sem
 
     assert await fs.read_range(file, 0, 0, end_inclusive=False) == b''
 
+@pytest.mark.asyncio
+async def test_read_range_end_inclusive_empty_file_should_error(filesystem: Tuple[asyncio.Semaphore, AsyncFS, str]):
+    sema, fs, base = filesystem
+
+    file = f'{base}foo'
+
+    await fs.write(file, b'')
+
+    try:
+        assert await fs.read_range(file, 0, 0, end_inclusive=True) == b''
+    except UnexpectedEOFError:
+        pass
+    else:
+        assert False
+
 
 @pytest.mark.asyncio
 async def test_read_range_end_exclusive_nonempty_file(filesystem: Tuple[asyncio.Semaphore, AsyncFS, str]):
