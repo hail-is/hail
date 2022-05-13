@@ -156,7 +156,7 @@ class TruncatedReadableBinaryIO(BinaryIO):
             n = self.limit - self.offset
         else:
             n = min(self.limit - self.offset, n)
-        b = self.bio.read(self.limit - self.offset)
+        b = self.bio.read(n)
         self.offset += len(b)
         return b
 
