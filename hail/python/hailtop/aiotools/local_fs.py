@@ -113,7 +113,7 @@ class LocalAsyncFSURL(AsyncFSURL):
 class TruncatedReadableBinaryIO(BinaryIO):
     def __init__(self, bio: BinaryIO, limit: int):
         self.bio = bio
-        self.n = 0
+        self.offset = 0
         self.limit = limit
 
     def write(self, s) -> int:  # pylint: disable=unused-argument
@@ -150,14 +150,14 @@ class TruncatedReadableBinaryIO(BinaryIO):
         return self.bio.isatty()
 
     def read(self, n: int = -1):
-        assert self.n <= self.limit
+        assert self.offset <= self.limit
 
         if n == -1:
-            n = self.limit - self.n
+            n = self.limit - self.offset
         else:
-            n = min(self.limit - self.n, n)
-        b = self.bio.read(self.limit - self.n)
-        self.n += len(b)
+            n = min(self.limit - self.offset, n)
+        b = self.bio.read(self.limit - self.offset)
+        self.offset += len(b)
         return b
 
     def readable(self) -> bool:
