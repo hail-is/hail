@@ -187,10 +187,10 @@ class TruncatedReadableBinaryIO(BinaryIO):
     def writelines(self, lines) -> None:  # pylint: disable=unused-argument
         raise NotImplementedError
 
-    def __iter__(self) -> None:
+    def __iter__(self):
         raise NotImplementedError
 
-    def __next__(self) -> None:
+    def __next__(self):
         raise NotImplementedError
 
 
