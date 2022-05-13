@@ -101,7 +101,7 @@ class ClientSession:
         assert 'connector' not in kwargs
 
         if timeout is None:
-            timeout = aiohttp.ClientTimeout(total=20)
+            timeout = aiohttp.ClientTimeout(total=5)
 
         self.raise_for_status = raise_for_status
         self.client_session = aiohttp.ClientSession(

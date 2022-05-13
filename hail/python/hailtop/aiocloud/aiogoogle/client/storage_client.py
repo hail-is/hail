@@ -299,6 +299,9 @@ class GetObjectStream(ReadableStream):
 
 class GoogleStorageClient(GoogleBaseClient):
     def __init__(self, **kwargs):
+        if 'timeout' not in kwargs and 'http_session' not in kwargs:
+            # Around May 2022, GCS started timing out a lot with our default 5s timeout
+            kwargs['timeout'] = aiohttp.ClientTimeout(total=20)
         super().__init__('https://storage.googleapis.com/storage/v1', **kwargs)
 
     # docs:
