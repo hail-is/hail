@@ -1661,7 +1661,7 @@ async def ui_get_job(request, userdata, batch_id):
 @routes.get('/batches/{batch_id}/jobs/{job_id}/log/{container}')
 @web_billing_project_users_only()
 @catch_ui_error_in_dev
-async def ui_get_job(request, userdata, batch_id):  # pylint: disable=unused-argument
+async def ui_get_job_log(request, userdata, batch_id):  # pylint: disable=unused-argument
     app = request.app
     job_id = int(request.match_info['job_id'])
     container = request.match_info['container']
