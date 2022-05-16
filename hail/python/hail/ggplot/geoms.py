@@ -445,6 +445,38 @@ class GeomDensity(Geom):
 
 
 def geom_density(mapping=aes(), *, k=1000, smoothing=0.5, fill=None, color=None, alpha=None):
+    """Creates a smoothed density plot.
+
+    This method uses the `hl.agg.approx_cdf` aggregator to compute a sketch
+    of the distribution of the values of `x`. It then uses an ad hoc method to
+    estimate a smoothed pdf consistent with that cdf.
+
+    Note: this function currently does not support same interface as R's ggplot.
+
+    Supported aesthetics: ``x``, ``color``, ``fill``
+
+    Parameters
+    ----------
+    mapping: :class:`Aesthetic`
+        Any aesthetics specific to this geom.
+    k: `int`
+        Passed to the `approx_cdf` aggregator. The size of the aggregator scales
+        linearly with `k`. The default value of `1000` is likely sufficient for
+        most uses.
+    smoothing: `float`
+        Controls the amount of smoothing applied.
+    fill:
+        A single fill color for all density plots, overrides ``fill`` aesthetic.
+    color:
+        A single line color for all density plots, overrides ``color`` aesthetic.
+    alpha: `float`
+        A measure of transparency between 0 and 1.
+
+    Returns
+    -------
+    :class:`FigureAttribute`
+        The geom to be applied.
+    """
     return GeomDensity(mapping, k, smoothing, fill, color, alpha)
 
 
