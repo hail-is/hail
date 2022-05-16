@@ -787,26 +787,50 @@ class Container:
             await self.netns.expose_port(self.port, self.host_port)
 
     async def checkpoint(self):
-        await asyncio.sleep(10)
-        log.info(f'Starting crun checkpoint process for {self}')
-        checkpoint_process = await asyncio.create_subprocess_exec(
-            'crun', 'checkpoint', '--leave-running', f'--image-path={self.container_scratch}/checkpoint/', self.name
-        )
+        try:
+            await asyncio.sleep(10)
 
-        await checkpoint_process.wait()
+            pause_process = await asyncio.create_subprocess_exec('crun', 'pause', self.name)
+            await pause_process.wait()
 
-        # FIXME: make copy overwriting instead of deleting the path to the checkpoint if it exists
-        # currently if a job succeeds, there will be no checkpoint in cloud storage since checkpoint is
-        # run in a loop every 10 seconds and the container_scratch directory is deleted on job success
-        # await self.fs.rmtree(None, f'{BATCH_LOGS_STORAGE_URI}/vedant/{self.name}')
+            log.info(f'Starting crun checkpoint process for {self}')
+            # TODO: try removing --leave-running (and restoring after copying bundle over)
+            checkpoint_process = await asyncio.create_subprocess_exec(
+                'crun', 'checkpoint', '--leave-running', f'--image-path={self.container_scratch}/checkpoint/', self.name
+            )
+            await checkpoint_process.wait()
 
-        # TODO: change BATCH_LOGS_STORAGE_URI to be the proper bucket for storing checkpoints
-        await self.fs.copy(f'{self.container_scratch}/checkpoint/', self.get_remote_checkpoint_dir_url())
+            # FIXME: make copy overwriting instead of deleting the path to the checkpoint if it exists
+            # currently if a job succeeds, there will be no checkpoint in cloud storage since checkpoint is
+            # run in a loop every 10 seconds and the container_scratch directory is deleted on job success
+            # await self.fs.rmtree(None, f'{BATCH_LOGS_STORAGE_URI}/vedant/{self.name}')
 
-        log.info(f'crun checkpoint completed for {self}')
+            # log.info("crun checkpoint third copy")
+            # TODO: if this works, make a note of the bug in fs.copy method which isn't copying the config.json file or the work/ directory
+            await self.fs.copy(
+                f'{self.container_bundle_path}/config.json', f'{self.get_remote_bundle_url()}/config.json'
+            )
+
+            log.info("crun checkpoint first copy")
+            # TODO: change BATCH_LOGS_STORAGE_URI to be the proper bucket for storing checkpoints
+            await self.fs.copy(f'{self.container_scratch}/checkpoint/', self.get_remote_checkpoint_dir_url())
+
+            log.info("crun checkpoint second copy")
+            await self.fs.copy(self.container_bundle_path, self.get_remote_bundle_url())
+
+            # resume_process = await asyncio.create_subprocess_exec('crun', 'resume', self.name)
+            # await resume_process.wait()
+
+            log.info(f'crun checkpoint completed for {self}')
+        except:
+            log.exception('crun checkpointing failed')
+            raise
 
     def get_remote_checkpoint_dir_url(self):
-        return f'{BATCH_LOGS_STORAGE_URI}/vedant/{self.name}'
+        return f'{BATCH_LOGS_STORAGE_URI}/vedant/{self.name}/checkpoint'
+
+    def get_remote_bundle_url(self):
+        return f'{BATCH_LOGS_STORAGE_URI}/vedant/{self.name}/bundle'
 
     async def _run_container(self) -> bool:
         self.started_at = time_msecs()
@@ -821,13 +845,21 @@ class Container:
                     assert self.process is None
                     if self.checkpointable:
                         try:
-                            restore_dir = f'{self.container_scratch}/restore'
+                            # TODO: make sure that right layer of directory is being copied from cloud storage,
+                            # might be the same problem as copying to cloud storage when checkpointing
+                            restore_dir = f'{self.container_scratch}/restore/'
+                            # TODO: does bundle_dir need to be self.container_bundle_path
+                            bundle_dir = f'{self.container_scratch}/downloaded_bundle/'
                             await self.fs.copy(self.get_remote_checkpoint_dir_url(), restore_dir)
+
+                            # await self.fs.rmtree(None, self.container_bundle_path, None)
+                            await self.fs.copy(self.get_remote_bundle_url(), bundle_dir)
                             self.process = await asyncio.create_subprocess_exec(
                                 'crun',
                                 'restore',
                                 '--bundle',
-                                self.container_bundle_path,
+                                bundle_dir,
+                                # self.container_bundle_path,
                                 '--image-path',
                                 restore_dir,
                                 self.name,
