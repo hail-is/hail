@@ -1658,6 +1658,19 @@ async def ui_get_job(request, userdata, batch_id):
     return await render_template('batch', request, userdata, 'job.html', page_context)
 
 
+@routes.get('/batches/{batch_id}/jobs/{job_id}/log/{container}')
+@web_billing_project_users_only()
+@catch_ui_error_in_dev
+async def ui_get_job(request, userdata, batch_id):  # pylint: disable=unused-argument
+    app = request.app
+    job_id = int(request.match_info['job_id'])
+    container = request.match_info['container']
+    job_log = await _get_job_log(app, batch_id, job_id)
+    if container not in job_log:
+        raise web.HTTPBadRequest(reason=f'unknown container {container}')
+    return web.Response(text=job_log[container])
+
+
 @routes.get('/billing_limits')
 @web_authenticated_users_only()
 @catch_ui_error_in_dev
