@@ -30,13 +30,18 @@ Released 2022-05-13
 
 ### New features
 
-- (hail##11809) Export `dtypes_from_pandas` in `expr.types`
+- (hail#11809) Export `dtypes_from_pandas` in `expr.types`
 - (hail#11807) Teach smoothed_pdf to add a plot to an existing figure.
+- (hail#11746) The ServiceBackend, in interactive mode, will print a link to the currently executing driver batch.
+- (hail#11759) `hl.logistic_regression_rows`, `hl.poisson_regression_rows`, and `hl.skat` all now support configuration of the maximum number of iterations and the tolerance.
+- (hail#11835) Add `hl.ggplot.geom_density` which renders a plot of an approximation of the probability density function of its argument.
 
 ### Bug fixes
 
 - (hail#11815) Fix incorrectly missing entries in to_dense_mt at the position of ref block END.
 - (hail#11828) Fix `hl.init` to not ignore its `sc` argument. This bug was introduced in 0.2.94.
+- (hail#11830) Fix an error and relax a timeout which caused `hailtop.aiotools.copy` to hang.
+- (hail#11778) Fix a (different) error which could cause hangs in `hailtop.aiotools.copy`.
 
 ---
 
