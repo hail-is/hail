@@ -226,6 +226,7 @@ def _make_tsm(entry_expr, block_size, *, partition_size=None, whiten_window_size
         A = A.persist()
         return TallSkinnyMatrix(A, A.ndarray, ht, list(mt.col_key))
     else:
+        # FIXME: don't whiten across chromosome boundaries
         A, trailing_blocks_ht, ht = mt_to_table_of_ndarray(
             entry_expr, block_size,
             return_checkpointed_table_also=True,

@@ -56,7 +56,7 @@ class PNDArraySuite extends PhysicalTestUtils {
 
         SNDArray.geqrt_full(cb, Acopy, Q, R, T, work3, blocksize)
 
-        new LocalWhitening(cb, m, w, n, blocksize, region, false).whitenBase(cb, Q.slice(cb, ::, (null, w)), Q.slice(cb, ::, (w, null)), Qout, R, W, work1, work2, blocksize)
+        new LocalWhitening(cb, m, w, n, blocksize, region, false).whitenBlockPreOrthogonalized(cb, Q.slice(cb, ::, (null, w)), Q.slice(cb, ::, (w, null)), Qout, R, W, work1, work2, blocksize)
 
         SNDArray.trmm(cb, "R", "U", "N", "N", 1.0, R.slice(cb, (n, null), (n, null)), Qout)
 
@@ -197,7 +197,7 @@ class PNDArraySuite extends PhysicalTestUtils {
 
         SNDArray.geqrt_full(cb, state.Qtemp2, state.Q, state.R, state.T, state.work3, blocksize)
 
-        state.whitenNonrecur(cb, state.Q, state.R, A, state.Qtemp, state.Qtemp2, state.Rtemp, state.work1, state.work2, blocksize)
+        state.whitenBlockSmallWindow(cb, state.Q, state.R, A, state.Qtemp, state.Qtemp2, state.Rtemp, state.work1, state.work2, blocksize)
 
         // Q = Q*R
         SNDArray.trmm(cb, "R", "U", "N", "N", 1.0, state.R, state.Q)

@@ -41,7 +41,7 @@ class LocalWhitening(cb: EmitCodeBuilder, vecSize: SizeValue, _w: Value[Long], c
 
   // Pre: A1 is current window, A2 is next window, [Q1 Q2] R = [A1 A2] is qr fact
   // Post: W contains locally whitened A2, Qout R[-w:, -w:] = A2[:, -w:] is qr fact
-  def whitenBase(cb: EmitCodeBuilder,
+  def whitenBlockPreOrthogonalized(cb: EmitCodeBuilder,
     Q1: SNDArrayValue, Q2: SNDArrayValue, Qout: SNDArrayValue,
     R: SNDArrayValue, W: SNDArrayValue,
     work1: SNDArrayValue, work2: SNDArrayValue,
@@ -97,6 +97,8 @@ class LocalWhitening(cb: EmitCodeBuilder, vecSize: SizeValue, _w: Value[Long], c
     SNDArray.gemm(cb, "N", "N", 1.0, Q2, work1.slice(cb, (w, null), (n, null)), 1.0, Qout)
   }
 
+  // Cyclically permute the columns in a QR factorization.
+  //
   // Pre: Let Q1 = Q[:, 0:p0], Q2 = Q[:, p0:n], R11 = R[0:p0, 0:p0], R12 = R[0:p0, p0:n], etc.
   // * [Q2 Q1] [R22 R21; 0 R11] = [A2 A1] is a qr fact
   // Post: Same, with p1 substituted for p0
@@ -143,9 +145,13 @@ class LocalWhitening(cb: EmitCodeBuilder, vecSize: SizeValue, _w: Value[Long], c
     SNDArray.gemqrt("R", "N", R.slice(cb, r1, r1), T, Q.slice(cb, ::, r1), work3, b1, cb)
   }
 
+  // Whiten block A, where A is no smaller than the window, by orthogonalizing
+  // against *all* of the previous window, and then "undoing" as needed to get
+  // the correct windowed orthogonalization.
+  //
   // Pre: Q R = A0 is qr fact of current window, A contains next window
   // Post: A contains A_orig whitened, Q R = A_orig
-  def whitenNonrecur(cb: EmitCodeBuilder,
+  def whitenBlockSmallWindow(cb: EmitCodeBuilder,
     Q: SNDArrayValue, R: SNDArrayValue, A: SNDArrayValue,
     Qtemp: SNDArrayValue, Qtemp2: SNDArrayValue, Rtemp: SNDArrayValue,
     work1: SNDArrayValue, work2: SNDArrayValue,
@@ -185,7 +191,7 @@ class LocalWhitening(cb: EmitCodeBuilder, vecSize: SizeValue, _w: Value[Long], c
     // now Qtemp Rtemp[r1, r1] = A_orig - Q Rtemp[r0, r1]
     // so Q Rtemp[r0, r1] + Qtemp Rtemp[r1, r1] = A_orig
     // and [Q Qtemp] R = [A0 A_orig]
-    whitenBase(cb, Q, Qtemp, Qtemp2, Rtemp, A, work1, work2, blocksize)
+    whitenBlockPreOrthogonalized(cb, Q, Qtemp, Qtemp2, Rtemp, A, work1, work2, blocksize)
 
     // copy upper triangle of Rtemp[n:w+n, n:w+n] to R
     SNDArray.copyMatrix(cb, "U", Rtemp.slice(cb, (n, w+n), (n, w+n)), R)
@@ -194,12 +200,17 @@ class LocalWhitening(cb: EmitCodeBuilder, vecSize: SizeValue, _w: Value[Long], c
     // now Q R = A_orig[::, n-w:n]
   }
 
-  // Pre: Let b = A.shapes(A, 1), Q1 = Q[:, 0:p], Q2 = Q[:, p:p+b], Q3 = Q[:, p+b:w]
+  // Whiten block A, where A is no larger than the window, by orthogonalizing
+  // all of A against the "newest" cols of Q, those which are within the window
+  // of all cols of A. Then whiten A against the "oldest" cols of Q, with the
+  // smaller effective window size.
+  //
+  // Pre: Let b = A.shapes(1), Q1 = Q[:, 0:p], Q2 = Q[:, p:p+b], Q3 = Q[:, p+b:w]
   // * [Q2 Q3 Q1] [R22 R23 R21; 0 R33 R31; 0 0 R11] = [A2 A3 A1] is a qr fact
   // Post:
   // * [Q3 Q1 Q2] [R33 R31 R32; 0 R11 R12; 0 0 R22] = [A3 A1 A_orig] is a qr fact
   // * A contains whitened A_orig
-  def whitenStep(cb: EmitCodeBuilder,
+  def whitenBlockLargeWindow(cb: EmitCodeBuilder,
     Q: SNDArrayValue, R: SNDArrayValue, p: Value[Long], A: SNDArrayValue, Qtemp: SNDArrayValue,
     Qtemp2: SNDArrayValue, Rtemp: SNDArrayValue, work1: SNDArrayValue, work2: SNDArrayValue,
     blocksize: Value[Long]
@@ -241,7 +252,7 @@ class LocalWhitening(cb: EmitCodeBuilder, vecSize: SizeValue, _w: Value[Long], c
     SNDArray.gemm(cb, "N", "N", -1.0, Q1, R12, 1.0, A)
 
     // Now A = A_orig - Q3 R32 - Q1 R12
-    whitenNonrecur(cb, Q2, R22, A, Qtemp, Qtemp2, Rtemp, work1, work2, blocksize)
+    whitenBlockSmallWindow(cb, Q2, R22, A, Qtemp, Qtemp2, Rtemp, work1, work2, blocksize)
     // now A contains A_orig - Q3 R32 - Q1 R12 whitened against A2
     // and Q2 R22 = A = A_orig - Q3 R32 - Q1 R12
     // so A_orig = Q3 R32 + Q1 R12 + Q2 R22
@@ -280,7 +291,7 @@ class LocalWhitening(cb: EmitCodeBuilder, vecSize: SizeValue, _w: Value[Long], c
       cb.ifx(curSize.cne(w), cb._fatal("whitenBlock: initial blocks didn't evenly divide window size"))
 
       val bb = SizeValueDyn(cb.memoize(b*2))
-      whitenStep(cb,
+      whitenBlockLargeWindow(cb,
         Q, R, pivot, A,
         Qtemp.slice(cb, ::, (null, b)),
         Qtemp2.slice(cb, ::, (null, b)),
