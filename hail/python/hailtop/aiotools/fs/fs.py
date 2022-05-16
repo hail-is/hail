@@ -113,7 +113,7 @@ class AsyncFS(abc.ABC):
                 dir_url = url
             else:
                 file_url = url
-                dir_url = '/'
+                dir_url = url + '/'
             isfile, isdir = await asyncio.gather(self.isfile(file_url), self.isdir(dir_url))
             if isfile:
                 if isdir:
