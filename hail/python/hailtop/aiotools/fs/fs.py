@@ -108,8 +108,13 @@ class AsyncFS(abc.ABC):
 
     async def open_from(self, url: str, start: int, *, length: Optional[int] = None) -> ReadableStream:
         if length == 0:
-            assert not url.endswith('/')
-            isfile, isdir = await asyncio.gather(self.isfile(url), self.isdir(url + '/'))
+            if url.endswith('/'):
+                file_url = url.rstrip('/')
+                dir_url = url
+            else:
+                file_url = url
+                dir_url = '/'
+            isfile, isdir = await asyncio.gather(self.isfile(file_url), self.isdir(dir_url))
             if isfile:
                 if isdir:
                     raise FileAndDirectoryError
