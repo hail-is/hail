@@ -30,4 +30,5 @@ scipy>1.2,<1.8
 sortedcontainers==2.4.0
 tabulate==0.8.9
 tqdm==4.*
+traitlets==5.1.1
 uvloop==0.16.0; sys_platform != 'win32'

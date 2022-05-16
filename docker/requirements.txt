@@ -62,6 +62,7 @@ setuptools>=38.6.0
 sortedcontainers==2.4.0
 tabulate==0.8.9
 tqdm==4.42.1
+traitlets==5.1.1
 twine>=1.11.0
 urllib3==1.26.5
 uvloop==0.16.0
