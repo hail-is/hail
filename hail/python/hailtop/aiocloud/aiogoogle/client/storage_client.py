@@ -292,7 +292,6 @@ class GetObjectStream(ReadableStream):
         assert self._content is not None
 
         self._content = None
-        self._resp.release()
         self._resp.close()
         self._resp = None
 
@@ -364,6 +363,8 @@ class GoogleStorageClient(GoogleBaseClient):
         except aiohttp.ClientResponseError as e:
             if e.status == 404:
                 raise FileNotFoundError from e
+            if e.status == 416:
+                raise UnexpectedEOFError from e
             raise
 
     async def get_object_metadata(self, bucket: str, name: str, **kwargs) -> Dict[str, str]:
@@ -591,10 +592,14 @@ class GoogleStorageAsyncFS(AsyncFS):
         bucket, name = self.get_bucket_and_name(url)
         return await self._storage_client.get_object(bucket, name)
 
-    async def open_from(self, url: str, start: int) -> ReadableStream:
+    async def _open_from(self, url: str, start: int, *, length: Optional[int] = None) -> ReadableStream:
         bucket, name = self.get_bucket_and_name(url)
+        range_str = f'bytes={start}-'
+        if length is not None:
+            assert length >= 1
+            range_str += str(start + length - 1)
         return await self._storage_client.get_object(
-            bucket, name, headers={'Range': f'bytes={start}-'})
+            bucket, name, headers={'Range': range_str})
 
     async def create(self, url: str, *, retry_writes: bool = True) -> WritableStream:
         bucket, name = self.get_bucket_and_name(url)
