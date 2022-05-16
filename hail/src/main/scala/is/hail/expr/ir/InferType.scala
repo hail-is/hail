@@ -113,6 +113,10 @@ object InferType {
       case ToStream(a, _) =>
         val elt = coerce[TIterable](a.typ).elementType
         TStream(elt)
+      case RNGStateLiteral(_) =>
+        TRNGState
+      case RNGSplit(_, _) =>
+        TRNGState
       case StreamLen(a) => TInt32
       case GroupByKey(collection) =>
         val elt = coerce[TBaseStruct](coerce[TStream](collection.typ).elementType)

@@ -34,7 +34,8 @@ object FoldConstants {
            _: NDArrayWrite |
            _: NDArrayMatMul |
            _: Trap |
-           _: Die => None
+           _: Die |
+           _: RNGStateLiteral => None
       case ir: IR if ir.typ.isInstanceOf[TStream] => None
       case ir: IR if !IsConstant(ir) &&
         Interpretable(ir) &&
