@@ -750,6 +750,8 @@ class Container:
         try:
             if self._run_fut is not None:
                 await self._run_fut
+        except ContainerDeletedError:
+            pass
         finally:
             try:
                 if self.container_is_running():
