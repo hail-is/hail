@@ -7,7 +7,7 @@ RUN hail-apt-get-install \
     openjdk-8-jdk-headless \
     liblapack3
 
-COPY docker/requirements.txt .
+COPY docker/pinned-requirements.txt requirements.txt
 RUN hail-pip-install -r requirements.txt pyspark==3.1.1
 
 ENV SPARK_HOME /usr/local/lib/python3.7/dist-packages/pyspark
