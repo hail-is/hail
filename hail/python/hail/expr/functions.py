@@ -2569,12 +2569,15 @@ def rand_pois(lamb, seed=None) -> Float64Expression:
 
 
 @typecheck(lower=expr_float64, upper=expr_float64, seed=nullable(int))
-def rand_unif(lower, upper, seed=None) -> Float64Expression:
+def rand_unif(lower=0.0, upper=1.0, seed=None) -> Float64Expression:
     """Samples from a uniform distribution within the interval
     [`lower`, `upper`].
 
     Examples
     --------
+
+    >>> hl.eval(hl.rand_unif())  # doctest: +SKIP_OUTPUT_CHECK
+    0.4748146494885547
 
     >>> hl.eval(hl.rand_unif(0, 1))  # doctest: +SKIP_OUTPUT_CHECK
     0.7983073825816226
@@ -2585,9 +2588,9 @@ def rand_unif(lower, upper, seed=None) -> Float64Expression:
     Parameters
     ----------
     lower : :obj:`float` or :class:`.Float64Expression`
-        Left boundary of range.
+        Left boundary of range. Defaults to 0.0.
     upper : :obj:`float` or :class:`.Float64Expression`
-        Right boundary of range.
+        Right boundary of range. Defaults to 1.0.
     seed : :obj:`int`, optional
         Random seed.
 
