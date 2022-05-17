@@ -204,6 +204,7 @@ class EmitStreamSuite extends HailSuite {
     val seqIr = SeqSample(
         I32(N),
         I32(n),
+        RNGStateLiteral(),
         false
       )
 

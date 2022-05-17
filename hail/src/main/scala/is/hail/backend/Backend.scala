@@ -27,6 +27,8 @@ abstract class BackendContext
 abstract class Backend {
   def defaultParallelism: Int
 
+  def canExecuteParallelTasksOnDriver: Boolean = true
+
   def broadcast[T: ClassTag](value: T): BroadcastValue[T]
 
   def persist(backendContext: BackendContext, id: String, value: BlockMatrix, storageLevel: String): Unit

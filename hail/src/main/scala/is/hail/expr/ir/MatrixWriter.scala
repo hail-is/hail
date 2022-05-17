@@ -526,6 +526,7 @@ case class VCFPartitionWriter(typ: MatrixType, entriesFieldName: String, writeHe
         consumeElement(cb, stream.element, os, stream.elementRegion)
       }
 
+      cb += os.invoke[Unit]("flush")
       cb += os.invoke[Unit]("close")
 
       if (tabix) {
@@ -858,7 +859,6 @@ final case class GenVariantWriter(typ: MatrixType, entriesFieldName: String, pre
     def _writeB(cb: EmitCodeBuilder, code: Code[Array[Byte]]) = { cb += os.invoke[Array[Byte], Unit]("write", code) }
     def _writeS(cb: EmitCodeBuilder, code: Code[String]) = { _writeB(cb, code.invoke[Array[Byte]]("getBytes")) }
     def writeC(code: Code[Int]) = _writeC(cb, code)
-    def writeB(code: Code[Array[Byte]]) = _writeB(cb, code)
     def writeS(code: Code[String]) = _writeS(cb, code)
 
     val hasGPField = typ.entryType.hasField("GP")

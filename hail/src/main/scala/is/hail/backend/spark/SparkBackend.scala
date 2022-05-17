@@ -256,6 +256,8 @@ class SparkBackend(
   lazy val sparkSession: SparkSession = SparkSession.builder().config(sc.getConf).getOrCreate()
   private[this] val theHailClassLoader: HailClassLoader = new HailClassLoader(getClass().getClassLoader())
 
+  override def canExecuteParallelTasksOnDriver: Boolean = false
+
   val fs: HadoopFS = new HadoopFS(new SerializableHadoopConfiguration(sc.hadoopConfiguration))
   private[this] val longLifeTempFileManager: TempFileManager = new OwningTempFileManager(fs)
 

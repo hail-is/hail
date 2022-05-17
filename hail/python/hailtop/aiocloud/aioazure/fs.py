@@ -142,7 +142,7 @@ class AzureCreateManager(AsyncContextManager[WritableStream]):
 
 
 class AzureReadableStream(ReadableStream):
-    def __init__(self, client: BlobClient, url: str, offset: Optional[int] = None):
+    def __init__(self, client: BlobClient, url: str, offset: Optional[int] = None, length: Optional[int] = None):
         super().__init__()
         self._client = client
         self._buffer = bytearray()
@@ -151,6 +151,7 @@ class AzureReadableStream(ReadableStream):
         # cannot set the default to 0 because this will fail on an empty file
         # offset means to start at the first byte
         self._offset = offset
+        self._length = length
 
         self._eof = False
         self._downloader: Optional[StorageStreamDownloader] = None
@@ -162,7 +163,7 @@ class AzureReadableStream(ReadableStream):
 
         if n == -1:
             try:
-                downloader = await self._client.download_blob(offset=self._offset)
+                downloader = await self._client.download_blob(offset=self._offset, length=self._length)
             except azure.core.exceptions.ResourceNotFoundError as e:
                 raise FileNotFoundError(self._url) from e
             data = await downloader.readall()
@@ -174,6 +175,10 @@ class AzureReadableStream(ReadableStream):
                 self._downloader = await self._client.download_blob(offset=self._offset)
             except azure.core.exceptions.ResourceNotFoundError as e:
                 raise FileNotFoundError(self._url) from e
+            except azure.core.exceptions.HttpResponseError as e:
+                if e.status_code == 416:
+                    raise UnexpectedEOFError from e
+                raise
 
         if self._chunk_it is None:
             self._chunk_it = self._downloader.chunks()
@@ -341,9 +346,10 @@ class AzureAsyncFS(AsyncFS):
         stream = AzureReadableStream(client, url)
         return stream
 
-    async def open_from(self, url: str, start: int) -> ReadableStream:
+    async def _open_from(self, url: str, start: int, *, length: Optional[int] = None) -> ReadableStream:
+        assert length is None or length >= 1
         client = self.get_blob_client(url)
-        stream = AzureReadableStream(client, url, offset=start)
+        stream = AzureReadableStream(client, url, offset=start, length=length)
         return stream
 
     async def create(self, url: str, *, retry_writes: bool = True) -> AsyncContextManager[WritableStream]:  # pylint: disable=unused-argument

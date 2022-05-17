@@ -166,7 +166,12 @@ case class Skat(
   logistic: Boolean,
   maxSize: Int,
   accuracy: Double,
-  iterations: Int) extends MatrixToTableFunction {
+  iterations: Int,
+  logistic_max_iterations: Int,
+  logistic_tolerance: Double
+) extends MatrixToTableFunction {
+
+  assert(logistic || logistic_max_iterations == 0 && logistic_tolerance == 0.0)
 
   val hardMaxEntriesForSmallN = 64e6 // 8000 x 8000 => 512MB of doubles
 
@@ -215,7 +220,7 @@ case class Skat(
 
     val backend = HailContext.backend
 
-    def linearSkat(): RDD[Row] = { 
+    def linearSkat(): RDD[Row] = {
       // fit null model
       val (qt, res) =
         if (k == 0)
@@ -228,16 +233,16 @@ case class Skat(
           (Qt, y - cov * beta)
         }
       val sigmaSq = (res dot res) / d
-      
+
       val resBc = backend.broadcast(res)
       val QtBc = backend.broadcast(qt)
-      
+
       def linearTuple(x: BDV[Double], w: Double): SkatTuple = {
         val xw = x * math.sqrt(w)
         val sqrt_q = resBc.value dot xw
         SkatTuple(sqrt_q * sqrt_q, xw, QtBc.value * xw)
       }
-            
+
       keyGsWeightRdd
         .map { case (key, vs) =>
           val vsArray = vs.toArray
@@ -245,10 +250,10 @@ case class Skat(
           if (size <= maxSize) {
             val skatTuples = vsArray.map((linearTuple _).tupled)
             val (q, gramian) = Skat.computeGramian(skatTuples, size.toLong * n <= maxEntriesForSmallN)
-            
+
             // using q / sigmaSq since Z.t * Z = gramian / sigmaSq
             val (pval, fault) = Skat.computePval(q / sigmaSq, gramian, accuracy, iterations)
-            
+
             // returning qstat = q / (2 * sigmaSq) to agree with skat R table convention
             Row(key, size, q / (2 * sigmaSq), pval, fault)
           } else {
@@ -256,11 +261,11 @@ case class Skat(
           }
         }
     }
-        
-    def logisticSkat(): RDD[Row] = {  
+
+    def logisticSkat(): RDD[Row] = {
       val (sqrtV, res, cinvXtV) =
         if (k > 0) {
-          val logRegM = new LogisticRegressionModel(cov, y).fit()
+          val logRegM = new LogisticRegressionModel(cov, y).fit(maxIter=logistic_max_iterations, tol=logistic_tolerance)
           if (!logRegM.converged)
             fatal("Failed to fit logistic regression null model (MLE with covariates only): " + (
               if (logRegM.exploded)
@@ -284,17 +289,17 @@ case class Skat(
           (sqrt(V), y - mu, Cinv * VX.t)
         } else
           (BDV.fill(n)(0.5), y, new BDM[Double](0, n))
-      
+
       val sqrtVBc = backend.broadcast(sqrtV)
       val resBc = backend.broadcast(res)
       val CinvXtVBc = backend.broadcast(cinvXtV)
-  
+
       def logisticTuple(x: BDV[Double], w: Double): SkatTuple = {
         val xw = x * math.sqrt(w)
-        val sqrt_q = resBc.value dot xw      
+        val sqrt_q = resBc.value dot xw
         SkatTuple(sqrt_q * sqrt_q, xw *:* sqrtVBc.value , CinvXtVBc.value * xw)
       }
-  
+
       keyGsWeightRdd.map { case (key, vs) =>
         val vsArray = vs.toArray
         val size = vsArray.length
@@ -302,7 +307,7 @@ case class Skat(
           val skatTuples = vs.map((logisticTuple _).tupled).toArray
           val (q, gramian) = Skat.computeGramian(skatTuples, size.toLong * n <= maxEntriesForSmallN)
           val (pval, fault) = Skat.computePval(q, gramian, accuracy, iterations)
-  
+
           // returning qstat = q / 2 to agree with skat R table convention
           Row(key, size, q / 2, pval, fault)
         } else {
@@ -310,7 +315,7 @@ case class Skat(
         }
       }.persist()
     }
-    
+
     val skatRdd = if (logistic) logisticSkat() else linearSkat()
 
     val tableType = typ(mv.typ)
@@ -340,7 +345,7 @@ case class Skat(
     assert(fieldType.virtualType == TFloat64)
 
     val entryArrayIdx = mv.entriesIdx
-    val fieldIdx = entryType.fieldIdx(xField)    
+    val fieldIdx = entryType.fieldIdx(xField)
 
     val n = completeColIdx.length
     val completeColIdxBc = HailContext.backend.broadcast(completeColIdx)
@@ -366,4 +371,3 @@ case class Skat(
   }
 
 }
-

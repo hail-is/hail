@@ -54,6 +54,19 @@ class ReadableStream(abc.ABC):
         await self.wait_closed()
 
 
+class EmptyReadableStream(ReadableStream):
+    async def read(self, n: int = -1) -> bytes:
+        return b''
+
+    async def readexactly(self, n: int) -> bytes:
+        if n == 0:
+            return b''
+        raise UnexpectedEOFError
+
+    async def _wait_closed(self) -> None:
+        return
+
+
 class WritableStream(abc.ABC):
     def __init__(self):
         self._closed = False

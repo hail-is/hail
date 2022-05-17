@@ -28,10 +28,10 @@ cleanup_image:
 	rm -f image_sha
 	rm -f pushed_image
 
-PROJECT := hail-vdc
+BENCHMARK_PROJECT ?= hail-vdc
 BENCHMARK_DOCKER_TAG := benchmark_$(shell whoami)
-BENCHMARK_REPO_BASE = $(DOCKER_PREFIX)/$(BENCHMARK_DOCKER_TAG)
-DOCKER_ROOT_IMAGE := $(shell kubectl get secret global-config --template={{.data.docker_root_image}} | base64 --decode)
+BENCHMARK_REPO_BASE = gcr.io/$(BENCHMARK_PROJECT)/$(BENCHMARK_DOCKER_TAG)
+DOCKER_ROOT_IMAGE := ubuntu:20.04
 
 ifndef HAIL_WHEEL
 image_sha:
@@ -44,7 +44,7 @@ image_sha: wheel cleanup_image
 	# it's possible that the HAIL_WHEEL installs different dependencies, but this generally creates less work for docker
 	cp ../hail/python/requirements.txt .
 	python3 ../ci/jinja2_render.py '{"global":{"docker_root_image":"$(DOCKER_ROOT_IMAGE)"}}' Dockerfile Dockerfile.out
-	docker build -f Dockerfile.out -t $(BENCHMARK_DOCKER_TAG) . --build-arg HAIL_WHEEL=$(notdir $(HAIL_WHEEL)) --build-arg BENCHMARK_WHEEL=$(notdir $(BENCHMARK_WHEEL))
+	docker build --platform linux/amd64 -f Dockerfile.out -t $(BENCHMARK_DOCKER_TAG) . --build-arg HAIL_WHEEL=$(notdir $(HAIL_WHEEL)) --build-arg BENCHMARK_WHEEL=$(notdir $(BENCHMARK_WHEEL))
 	@printf $$(docker images -q --no-trunc $(BENCHMARK_DOCKER_TAG) | sed -e 's,[^:]*:,,') > image_sha
 	@echo Image sha is `cat image_sha`
 	rm $(notdir $(HAIL_WHEEL))

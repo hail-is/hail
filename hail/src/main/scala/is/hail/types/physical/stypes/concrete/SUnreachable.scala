@@ -16,6 +16,7 @@ object SUnreachable {
     require(t.isRealizable)
     t match {
       case t if t.isPrimitive => SType.canonical(t)
+      case TRNGState => SRNGState(Some(SRNGStateStaticInfo(0, false, 0)))
       case ts: TBaseStruct => SUnreachableStruct(ts)
       case tc: TContainer => SUnreachableContainer(tc)
       case tnd: TNDArray => SUnreachableNDArray(tnd)
