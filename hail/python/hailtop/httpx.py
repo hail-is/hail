@@ -38,8 +38,8 @@ class ClientResponse:
     def __init__(self, client_response: aiohttp.ClientResponse):
         self.client_response = client_response
 
-    def release(self) -> None:
-        return self.client_response.release()
+    async def release(self) -> None:
+        return await self.client_response.release()
 
     @property
     def closed(self) -> bool:
@@ -79,7 +79,7 @@ class ClientResponse:
         exc_val: Optional[BaseException],
         exc_tb: Optional[TracebackType],
     ) -> None:
-        self.release()
+        await self.release()
 
 
 class ClientSession:
@@ -137,7 +137,7 @@ class ClientSession:
                     # reason should always be not None for a started response
                     assert resp.reason is not None
                     body = (await resp.read()).decode()
-                    resp.release()
+                    await resp.release()
                     raise ClientResponseError(
                         resp.request_info,
                         resp.history,

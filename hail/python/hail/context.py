@@ -310,6 +310,7 @@ def init(sc=None, app_name=None, master=None, local='local[*]',
             ))
     if backend == 'spark':
         return init_spark(
+            sc=sc,
             app_name=app_name,
             master=master,
             local=local,

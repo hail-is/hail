@@ -4,7 +4,7 @@ from types import TracebackType
 import abc
 import asyncio
 from hailtop.utils import retry_transient_errors, OnlineBoundedGather2
-from .stream import ReadableStream, WritableStream
+from .stream import EmptyReadableStream, ReadableStream, WritableStream
 from .exceptions import FileAndDirectoryError
 
 
@@ -106,8 +106,26 @@ class AsyncFS(abc.ABC):
     async def open(self, url: str) -> ReadableStream:
         pass
 
+    async def open_from(self, url: str, start: int, *, length: Optional[int] = None) -> ReadableStream:
+        if length == 0:
+            if url.endswith('/'):
+                file_url = url.rstrip('/')
+                dir_url = url
+            else:
+                file_url = url
+                dir_url = url + '/'
+            isfile, isdir = await asyncio.gather(self.isfile(file_url), self.isdir(dir_url))
+            if isfile:
+                if isdir:
+                    raise FileAndDirectoryError
+                return EmptyReadableStream()
+            if isdir:
+                raise IsADirectoryError
+            raise FileNotFoundError
+        return await self._open_from(url, start, length=length)
+
     @abc.abstractmethod
-    async def open_from(self, url: str, start: int) -> ReadableStream:
+    async def _open_from(self, url: str, start: int, *, length: Optional[int] = None) -> ReadableStream:
         pass
 
     @abc.abstractmethod
@@ -227,9 +245,9 @@ class AsyncFS(abc.ABC):
         async with await self.open_from(url, start) as f:
             return await f.read()
 
-    async def read_range(self, url: str, start: int, end: int) -> bytes:
-        n = (end - start) + 1
-        async with await self.open_from(url, start) as f:
+    async def read_range(self, url: str, start: int, end: int, *, end_inclusive=True) -> bytes:
+        n = (end - start) + bool(end_inclusive)
+        async with await self.open_from(url, start, length=n) as f:
             return await f.readexactly(n)
 
     async def write(self, url: str, data: bytes) -> None:

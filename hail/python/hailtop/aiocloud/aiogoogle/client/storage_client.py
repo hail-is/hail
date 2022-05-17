@@ -265,8 +265,8 @@ class ResumableInsertObjectStream(WritableStream):
 class GetObjectStream(ReadableStream):
     def __init__(self, resp: aiohttp.ClientResponse):
         super().__init__()
-        self._resp = resp
-        self._content = resp.content
+        self._resp: Optional[aiohttp.ClientResponse] = resp
+        self._content: Optional[aiohttp.StreamReader] = resp.content
 
     # https://docs.aiohttp.org/en/stable/streams.html#aiohttp.StreamReader.read
     # Read up to n bytes. If n is not provided, or set to -1, read until EOF
@@ -292,13 +292,15 @@ class GetObjectStream(ReadableStream):
         assert self._content is not None
 
         self._content = None
-        self._resp.release()
         self._resp.close()
         self._resp = None
 
 
 class GoogleStorageClient(GoogleBaseClient):
     def __init__(self, **kwargs):
+        if 'timeout' not in kwargs and 'http_session' not in kwargs:
+            # Around May 2022, GCS started timing out a lot with our default 5s timeout
+            kwargs['timeout'] = aiohttp.ClientTimeout(total=20)
         super().__init__('https://storage.googleapis.com/storage/v1', **kwargs)
 
     # docs:
@@ -361,6 +363,8 @@ class GoogleStorageClient(GoogleBaseClient):
         except aiohttp.ClientResponseError as e:
             if e.status == 404:
                 raise FileNotFoundError from e
+            if e.status == 416:
+                raise UnexpectedEOFError from e
             raise
 
     async def get_object_metadata(self, bucket: str, name: str, **kwargs) -> Dict[str, str]:
@@ -588,10 +592,14 @@ class GoogleStorageAsyncFS(AsyncFS):
         bucket, name = self.get_bucket_and_name(url)
         return await self._storage_client.get_object(bucket, name)
 
-    async def open_from(self, url: str, start: int) -> ReadableStream:
+    async def _open_from(self, url: str, start: int, *, length: Optional[int] = None) -> ReadableStream:
         bucket, name = self.get_bucket_and_name(url)
+        range_str = f'bytes={start}-'
+        if length is not None:
+            assert length >= 1
+            range_str += str(start + length - 1)
         return await self._storage_client.get_object(
-            bucket, name, headers={'Range': f'bytes={start}-'})
+            bucket, name, headers={'Range': range_str})
 
     async def create(self, url: str, *, retry_writes: bool = True) -> WritableStream:
         bucket, name = self.get_bucket_and_name(url)
