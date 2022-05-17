@@ -271,24 +271,6 @@ trait FSSuite {
     assert(!fs.exists(f))
   }
 
-  @Test def testReadWriteManyBytes(): Unit = {
-    val f = t()
-
-    using(fs.create(f)) { os =>
-      Array.tabulate(1000000)(i => os.write(i))
-    }
-
-    assert(fs.exists(f))
-
-    using(fs.open(f)) { is =>
-      Array.tabulate(1000000)(i => assert(i == is.read()))
-    }
-
-    fs.delete(f, false)
-
-    assert(!fs.exists(f))
-  }
-
   @Test def testDropTrailingSlash(): Unit = {
     assert(dropTrailingSlash("") == "")
     assert(dropTrailingSlash("/foo/bar") == "/foo/bar")
