@@ -54,7 +54,8 @@ Getting Started
 
     hailctl config set query/backend batch
 
-6. Now you are ready to `try Hail <../install/try.rst>`__!
+6. Now you are ready to `try Hail <../install/try.rst>`__! If you want to switch back to
+   Query-on-Spark, run the previous command again with "spark" in place of "batch".
 
 .. _vep_query_on_batch:
 
