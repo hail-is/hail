@@ -16,7 +16,7 @@ class CustomJsonFormatter(jsonlogger.JsonFormatter):
 
 
 def configure_logging():
-    fmt = CustomJsonFormatter('(severity) (levelname) (asctime) (filename) (funcNameAndLine) (message)')
+    fmt = CustomJsonFormatter('%(severity)s %(levelname)s %(asctime)s %(filename)s %(funcNameAndLine)s %(message)s')
 
     stream_handler = logging.StreamHandler(stream=sys.stdout)
     stream_handler.setLevel(logging.INFO)
