@@ -272,7 +272,7 @@ object LowerBlockMatrixIR {
     bmir match {
       case BlockMatrixRead(reader) => reader.lower(ctx)
       case x@BlockMatrixRandom(seed, gaussian, shape, blockSize) =>
-        val generator = invokeSeeded(if (gaussian) "rand_norm" else "rand_unif", seed, TFloat64, F64(0.0), F64(1.0))
+        val generator = invokeSeeded(if (gaussian) "rand_norm" else "rand_unif", seed, TFloat64, NA(TRNGState), F64(0.0), F64(1.0))
         new BlockMatrixStage(IndexedSeq(), Array(), TTuple(TInt64, TInt64)) {
           def blockContext(idx: (Int, Int)): IR = {
             val (i, j) = x.typ.blockShape(idx._1, idx._2)

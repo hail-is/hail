@@ -183,11 +183,11 @@ object IRFunctionRegistry {
     }
   }
 
-  def lookupSeeded(name: String, seed: Long, returnType: Type, arguments: Seq[Type]): Option[(Seq[IR]) => IR] = {
+  def lookupSeeded(name: String, seed: Long, returnType: Type, arguments: Seq[Type]): Option[(Seq[IR], IR) => IR] = {
     lookupFunction(name, returnType, Array.empty[Type], arguments)
       .filter(_.isInstanceOf[SeededJVMFunction])
       .map { case f: SeededJVMFunction =>
-        (irArguments: Seq[IR]) => ApplySeeded(name, irArguments, seed, f.returnType.subst())
+        (irArguments: Seq[IR], rngState: IR) => ApplySeeded(name, irArguments, rngState, seed, f.returnType.subst())
       }
   }
 
@@ -746,6 +746,12 @@ abstract class UnseededMissingnessObliviousJVMFunction (
     EmitCode.fromI(r.mb)(cb => IEmitCode.multiMapEmitCodes(cb, args.toFastIndexedSeq) { args =>
       apply(r, cb, returnType, typeParameters, errorID, args: _*)
     })
+  }
+
+  def applyI(r: EmitRegion, cb: EmitCodeBuilder, returnType: SType, typeParameters: Seq[Type], errorID: Value[Int], args: EmitCode*): IEmitCode = {
+    IEmitCode.multiMapEmitCodes(cb, args.toFastIndexedSeq) { args =>
+      apply(r, cb, returnType, typeParameters, errorID, args: _*)
+    }
   }
 
   def getAsMethod[C](cb: EmitClassBuilder[C], rpt: SType, typeParameters: Seq[Type], args: SType*): EmitMethodBuilder[C] = {

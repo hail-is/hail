@@ -685,7 +685,7 @@ object EmitStream {
         }
 
 
-      case SeqSample(totalSize, numToSample, _requiresMemoryManagementPerElement) =>
+      case SeqSample(totalSize, numToSample, rngState, _requiresMemoryManagementPerElement) =>
         // Implemented based on http://www.ittc.ku.edu/~jsv/Papers/Vit84.sampling.pdf Algorithm A
         emit(totalSize, cb).flatMap(cb) { case totalSizeVal: SInt32Value =>
           emit(numToSample, cb).map(cb) { case numToSampleVal: SInt32Value =>

@@ -493,7 +493,7 @@ object LowerTableIR {
               MakeArray(
                 ApplyAggOp(
                   FastIndexedSeq(I32(samplesPerPartition)),
-                  FastIndexedSeq(SelectFields(elt, keyType.fieldNames), invokeSeeded("rand_unif", 1, TFloat64, F64(0.0), F64(1.0))),
+                  FastIndexedSeq(SelectFields(elt, keyType.fieldNames), invokeSeeded("rand_unif", 1, TFloat64, NA(TRNGState), F64(0.0), F64(1.0))),
                   samplekey),
                 ApplyAggOp(
                   FastIndexedSeq(I32(1)),

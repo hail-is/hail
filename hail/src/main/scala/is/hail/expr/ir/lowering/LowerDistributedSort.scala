@@ -188,7 +188,7 @@ object LowerDistributedSort {
         "byteSize" -> TInt64)), perPartStatsCDAContextData))
       val perPartStatsIR = cdaIR(perPartStatsCDAContexts, MakeStruct(Seq())){ (ctxRef, _) =>
         val filenames = GetField(ctxRef, "files")
-        val samples = SeqSample(GetField(ctxRef, "sizeOfPartition"), GetField(ctxRef, "numSamples"), false)
+        val samples = SeqSample(GetField(ctxRef, "sizeOfPartition"), GetField(ctxRef, "numSamples"), NA(TRNGState), false)
         val partitionStream = flatMapIR(ToStream(filenames)) { fileName =>
           mapIR(ReadPartition(fileName, spec._vType, reader)){ partitionElement =>
             SelectFields(partitionElement, keyToSortBy.fields.map(_.name))
