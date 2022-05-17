@@ -15,7 +15,7 @@ import traceback
 import uuid
 import warnings
 from collections import defaultdict
-from contextlib import ExitStack, contextmanager
+from contextlib import AsyncExitStack, ExitStack, contextmanager
 from typing import (
     Any,
     Awaitable,
@@ -1356,6 +1356,8 @@ class Job:
 
         self.project_id = Job.get_next_xfsquota_project_id()
 
+        self.mjs_fut: Optional[asyncio.Future] = None
+
     @property
     def job_id(self):
         return self.job_spec['job_id']
@@ -1381,6 +1383,9 @@ class Job:
     async def delete(self):
         log.info(f'deleting {self}')
         self.deleted_event.set()
+
+    def mark_started(self):
+        self.mjs_fut = self.task_manager.ensure_future(self.worker.post_job_started(self))
 
     async def mark_complete(self):
         self.end_time = time_msecs()
@@ -1434,6 +1439,9 @@ class Job:
         status['end_time'] = self.end_time
 
         return status
+
+    def done(self):
+        return self.state in ('succeeded', 'error', 'failed')
 
     def __str__(self):
         return f'job {self.id}'
@@ -1584,7 +1592,7 @@ class DockerJob(Job):
             self.start_time = time_msecs()
 
             try:
-                self.task_manager.ensure_future(self.worker.post_job_started(self))
+                self.mark_started()
 
                 log.info(f'{self}: initializing')
                 self.state = 'initializing'
@@ -1741,7 +1749,6 @@ class DockerJob(Job):
         cstatuses = {name: c.status() for name, c in self.containers.items()}
         status['container_statuses'] = cstatuses
         status['timing'] = self.timings.to_dict()
-
         return status
 
     def __str__(self):
@@ -1831,7 +1838,7 @@ class JVMJob(Job):
                     self.jvm = await self.worker.borrow_jvm(self.cpu_in_mcpu // 1000)
                     self.jvm_name = str(self.jvm)
 
-                self.task_manager.ensure_future(self.worker.post_job_started(self))
+                self.mark_started()
 
                 log.info(f'{self}: initializing')
                 self.state = 'initializing'
@@ -2335,7 +2342,7 @@ class Worker:
     async def shutdown(self):
         log.info('Worker.shutdown')
         try:
-            with ExitStack() as cleanup:
+            async with AsyncExitStack() as cleanup:
                 for jvm in self._jvms:
                     cleanup.callback(jvm.kill)
         finally:
@@ -2606,6 +2613,8 @@ class Worker:
             delay_secs = min(delay_secs * 2, 2 * 60.0)
 
     async def post_job_complete(self, job, full_status):
+        if job.mjs_fut is not None:
+            await job.mjs_fut
         try:
             await self.post_job_complete_1(job, full_status)
         except asyncio.CancelledError:
@@ -2632,13 +2641,13 @@ class Worker:
 
         body = {'status': status}
 
-        await request_retry_transient_errors(
-            self.client_session,
-            'POST',
-            deploy_config.url('batch-driver', '/api/v1alpha/instances/job_started'),
-            json=body,
-            headers=self.headers,
-        )
+        async def post_started_if_job_still_running():
+            # If the job is already complete, just send MJC. No need for MJS
+            if not job.done():
+                url = deploy_config.url('batch-driver', '/api/v1alpha/instances/job_started')
+                await self.client_session.post(url, json=body, headers=self.headers)
+
+        await retry_transient_errors(post_started_if_job_still_running)
 
     async def post_job_started(self, job):
         try:

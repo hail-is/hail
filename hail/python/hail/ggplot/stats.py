@@ -1,6 +1,7 @@
 import abc
 
 import pandas as pd
+import numpy as np
 
 import hail as hl
 from hail.utils.java import warning
@@ -22,7 +23,6 @@ class Stat:
 
 
 class StatIdentity(Stat):
-
     def make_agg(self, mapping, precomputed):
         grouping_variables = {aes_key: mapping[aes_key] for aes_key in mapping.keys()
                               if should_use_for_grouping(aes_key, mapping[aes_key].dtype)}
@@ -46,7 +46,6 @@ class StatIdentity(Stat):
 
 
 class StatFunction(StatIdentity):
-
     def __init__(self, fun):
         self.fun = fun
 
@@ -130,5 +129,31 @@ class StatBin(Stat):
                 data_rows.append({"x": x, "y": y_values[i]})
             df = pd.DataFrame.from_records(data_rows)
             df.attrs.update(**grouped_struct)
+            result.append(df)
+        return result
+
+
+class StatCDF(Stat):
+    def __init__(self, k):
+        self.k = k
+
+    def make_agg(self, mapping, precomputed):
+        grouping_variables = {aes_key: mapping[aes_key] for aes_key in mapping.keys()
+                              if should_use_for_grouping(aes_key, mapping[aes_key].dtype)}
+        return hl.agg.group_by(hl.struct(**grouping_variables), hl.agg.approx_cdf(mapping["x"], self.k))
+
+    def listify(self, agg_result):
+        result = []
+
+        for grouped_struct, data in agg_result.items():
+            n = data['ranks'][-1]
+            weights = np.diff(data['ranks'][1:-1])
+            min = data['values'][0]
+            max = data['values'][-1]
+            values = np.array(data['values'][1:-1])
+            df = pd.DataFrame({'value': values, 'weight': weights})
+            df.attrs.update(**grouped_struct)
+            df.attrs.update({'min': min, 'max': max, 'n': n})
+
             result.append(df)
         return result

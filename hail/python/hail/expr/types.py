@@ -21,6 +21,7 @@ from hail.utils.byte_reader import ByteReader
 
 __all__ = [
     'dtype',
+    'dtypes_from_pandas',
     'HailType',
     'hail_type',
     'is_container',
@@ -2057,7 +2058,6 @@ def from_numpy(np_dtype):
 
 
 def dtypes_from_pandas(pd_dtype):
-
     if type(pd_dtype) == pd.StringDtype:
         return hl.tstr
     elif pd.api.types.is_int64_dtype(pd_dtype):

@@ -17,7 +17,10 @@ case class LogisticRegression(
   yFields: Seq[String],
   xField: String,
   covFields: Seq[String],
-  passThrough: Seq[String]) extends MatrixToTableFunction {
+  passThrough: Seq[String],
+  maxIterations: Int,
+  tolerance: Double
+) extends MatrixToTableFunction {
 
   override def typ(childType: MatrixType): TableType = {
     val logRegTest = LogisticRegressionTest.tests(test)
@@ -57,7 +60,7 @@ case class LogisticRegression(
 
     val nullFits = (0 until yVecs.cols).map(col => {
       val nullModel = new LogisticRegressionModel(cov, yVecs(::, col))
-      var nullFit = nullModel.fit()
+      var nullFit = nullModel.fit(maxIter=maxIterations, tol=tolerance)
 
       if (!nullFit.converged)
         if (logRegTest == LogisticFirthTest)
@@ -103,7 +106,7 @@ case class LogisticRegression(
         RegressionUtils.setMeanImputedDoubles(X.data, n * k, completeColIdxBc.value, missingCompleteCols,
           ptr, fullRowType, entryArrayType, entryType, entryArrayIdx, fieldIdx)
         val logregAnnotations = (0 until _yVecs.cols).map(col => {
-          logRegTestBc.value.test(X, _yVecs(::,col), _nullFits(col), "logistic")
+          logRegTestBc.value.test(X, _yVecs(::,col), _nullFits(col), "logistic", maxIter=maxIterations, tol=tolerance)
         })
 
         rvb.start(newRVDType.rowType)

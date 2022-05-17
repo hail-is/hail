@@ -40,6 +40,7 @@ currently uses plotly to generate plots, as opposed to ``hl.plot``, which uses b
     geom_bar
     geom_col
     geom_histogram
+    geom_density
     geom_hline
     geom_vline
     geom_area
@@ -51,6 +52,7 @@ currently uses plotly to generate plots, as opposed to ``hl.plot``, which uses b
 .. autofunction:: geom_bar
 .. autofunction:: geom_col
 .. autofunction:: geom_histogram
+.. autofunction:: geom_density
 .. autofunction:: geom_hline
 .. autofunction:: geom_vline
 .. autofunction:: geom_area

@@ -14,6 +14,7 @@ import boto3
 from hailtop.utils import blocking_to_async
 from hailtop.aiotools.fs import (FileStatus, FileListEntry, ReadableStream, WritableStream, AsyncFS,
                                  AsyncFSURL, MultiPartCreate, FileAndDirectoryError)
+from hailtop.aiotools.fs.exceptions import UnexpectedEOFError
 from hailtop.aiotools.fs.stream import (
     AsyncQueueWritableStream,
     async_writable_blocking_readable_stream_pair,
@@ -307,16 +308,24 @@ class S3AsyncFS(AsyncFS):
         except self._s3.exceptions.NoSuchKey as e:
             raise FileNotFoundError(url) from e
 
-    async def open_from(self, url: str, start: int) -> ReadableStream:
+    async def _open_from(self, url: str, start: int, *, length: Optional[int] = None) -> ReadableStream:
         bucket, name = self.get_bucket_and_name(url)
+        range_str = f'bytes={start}-'
+        if length is not None:
+            assert length >= 1
+            range_str += str(start + length - 1)
         try:
             resp = await blocking_to_async(self._thread_pool, self._s3.get_object,
                                            Bucket=bucket,
                                            Key=name,
-                                           Range=f'bytes={start}-')
+                                           Range=range_str)
             return blocking_readable_stream_to_async(self._thread_pool, cast(BinaryIO, resp['Body']))
         except self._s3.exceptions.NoSuchKey as e:
             raise FileNotFoundError(url) from e
+        except botocore.exceptions.ClientError as e:
+            if e.response['Error']['Code'] == 'InvalidRange':
+                raise UnexpectedEOFError from e
+            raise
 
     async def create(self, url: str, *, retry_writes: bool = True) -> S3CreateManager:  # pylint: disable=unused-argument
         # It may be possible to write a more efficient version of this
