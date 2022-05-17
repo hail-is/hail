@@ -300,7 +300,6 @@ class IR(BaseIR):
             if self._type is not None:
                 assert self._type == computed
             self._type = computed
-            # assert self._type is not None
 
     def assign_type(self, typ):
         if self._type is None:
@@ -320,6 +319,14 @@ class IR(BaseIR):
         pass
 
     def handle_randomness(self, create_uids):
+        """Elaborate rng semantics in stream typed IR.
+
+        Recursive transformation of stream typed IRs. Ensures that all
+        contained seeded randomness gets a unique rng state on every stream
+        iteration. Optionally inserts a uid in the returned stream element type.
+        The uid may be an int64, or arbitrary tuple of int64s. The only
+        requirement is that all stream elements contain distinct uid values.
+        """
         assert(isinstance(self.typ, tstream))
         if not create_uids and not self.uses_randomness:
             return self
@@ -403,6 +410,14 @@ class TableIR(BaseIR):
         pass
 
     def handle_randomness(self, uid_field_name):
+        """Elaborate rng semantics
+
+        Recursively transform IR to ensure that all contained seeded randomness
+        gets a unique rng state on every table row. Optionally inserts a uid
+        field in the returned table. The uid may be an int64, or arbitrary
+        tuple of int64s. The only requirement is that all table rows contain
+        distinct uid values.
+        """
         if uid_field_name is None and not self.uses_randomness:
             return self
         return self._handle_randomness(uid_field_name)
@@ -424,6 +439,14 @@ class MatrixIR(BaseIR):
         return self._children_use_randomness
 
     def handle_randomness(self, row_uid_field_name, col_uid_field_name):
+        """Elaborate rng semantics
+
+        Recursively transform IR to ensure that all contained seeded randomness
+        gets a unique rng state on every evaluation. Optionally inserts a uid
+        row field and/or column field in the returned matrix table. The uids may
+        be an int64, or arbitrary tuple of int64s. The only requirement is that
+        all rows contain distinct uid values, and likewise for columns.
+        """
         if row_uid_field_name is None and col_uid_field_name and not self.uses_randomness:
             return self
         result = self._handle_randomness(row_uid_field_name, col_uid_field_name)

@@ -234,7 +234,6 @@ class SparkBackend(Py4JBackend):
         uninstall_exception_handler()
 
     def _parse_value_ir(self, code, ref_map={}, ir_map={}):
-        print(code)
         return self._jbackend.parse_value_ir(
             code,
             {k: t._parsable_string() for k, t in ref_map.items()},
