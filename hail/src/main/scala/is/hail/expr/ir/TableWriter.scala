@@ -17,10 +17,10 @@ import is.hail.rvd.{AbstractRVDSpec, IndexSpec, RVDPartitioner, RVDSpecMaker}
 import is.hail.types.encoded.EType
 import is.hail.types.physical.stypes.interfaces.{SBaseStruct, SContainer, SStringValue, SVoidValue}
 import is.hail.types.physical._
-import is.hail.types.physical.stypes.EmitType
+import is.hail.types.physical.stypes.{EmitType, SCode}
 import is.hail.types.physical.stypes.concrete.{SStackStruct, SJavaArrayString, SJavaArrayStringValue}
 import is.hail.types.physical.stypes.interfaces._
-import is.hail.types.physical.stypes.primitives.{SBooleanValue, SInt64Value}
+import is.hail.types.physical.stypes.primitives.{SBooleanValue, SInt64Value, SInt64}
 import is.hail.types.virtual._
 import is.hail.types.{RIterable, RStruct, RTable, TableType, TypeWithRequiredness}
 import is.hail.utils._
@@ -169,7 +169,9 @@ case class TableNativeWriter(
   }
 }
 
-case class PartitionNativeWriter(spec: AbstractTypedCodecSpec, keyFields: IndexedSeq[String], partPrefix: String, index: Option[(String, PStruct)], localDir: Option[String]) extends PartitionWriter {
+case class PartitionNativeWriter(spec: AbstractTypedCodecSpec, keyFields: IndexedSeq[String],
+    partPrefix: String, index: Option[(String, PStruct)] = None,
+    localDir: Option[String] = None, trackTotalBytes: Boolean = false) extends PartitionWriter {
   def stageLocally: Boolean = localDir.isDefined
   def hasIndex: Boolean = index.isDefined
   val filenameType = PCanonicalString(required = true)
@@ -178,7 +180,12 @@ case class PartitionNativeWriter(spec: AbstractTypedCodecSpec, keyFields: Indexe
   val keyType = spec.encodedVirtualType.asInstanceOf[TStruct].select(keyFields)._1
 
   def ctxType: Type = TString
-  def returnType: Type = TStruct("filePath" -> TString, "partitionCounts" -> TInt64, "distinctlyKeyed" -> TBoolean, "firstKey" -> keyType, "lastKey" -> keyType)
+  val returnType: Type = {
+    val types = Seq("filePath" -> TString, "partitionCounts" -> TInt64, "distinctlyKeyed" -> TBoolean,
+                    "firstKey" -> keyType, "lastKey" -> keyType
+                   ) ++ Some("partitionByteSize" -> TInt64).filter(_ => trackTotalBytes)
+    TStruct(types: _*)
+  }
   def unionTypeRequiredness(r: TypeWithRequiredness, ctxType: TypeWithRequiredness, streamType: RIterable): Unit = {
     val rs = r.asInstanceOf[RStruct]
     val rKeyType = streamType.elementType.asInstanceOf[RStruct].select(keyFields.toArray)
@@ -211,6 +218,7 @@ case class PartitionNativeWriter(spec: AbstractTypedCodecSpec, keyFields: Indexe
       val os = mb.newLocal[ByteTrackingOutputStream]("write_os")
       val ob = mb.newLocal[OutputBuffer]("write_ob")
       val n = mb.newLocal[Long]("partition_count")
+      val byteCount = if (trackTotalBytes) Some(mb.newPLocal("partition_byte_count", SInt64)) else None
       val distinctlyKeyed = mb.newLocal[Boolean]("distinctlyKeyed")
       cb.assign(distinctlyKeyed, !keyFields.isEmpty) // True until proven otherwise, if there's a key to care about at all.
 
@@ -266,6 +274,9 @@ case class PartitionNativeWriter(spec: AbstractTypedCodecSpec, keyFields: Indexe
           .apply(cb, row, ob)
 
         cb.assign(n, n + 1L)
+        byteCount.foreach { bc =>
+          cb.assign(bc, SCode.add(cb, bc, row.sizeToStoreInBytes(cb), true))
+        }
       }
 
       cb.assign(filename, ctx.loadString(cb))
@@ -289,13 +300,13 @@ case class PartitionNativeWriter(spec: AbstractTypedCodecSpec, keyFields: Indexe
       cb += ob.flush()
       cb += os.invoke[Unit]("close")
 
-      SStackStruct.constructFromArgs(cb, region, returnType.asInstanceOf[TBaseStruct],
+      val values = Seq[EmitCode](
         EmitCode.present(mb, ctx),
         EmitCode.present(mb, new SInt64Value(n)),
         EmitCode.present(mb, new SBooleanValue(distinctlyKeyed)),
         firstSeenSettable,
-        lastSeenSettable
-      )
+        lastSeenSettable) ++ byteCount.map(EmitCode.present(mb, _))
+      SStackStruct.constructFromArgs(cb, region, returnType.asInstanceOf[TBaseStruct], values: _*)
     }
   }
 }
