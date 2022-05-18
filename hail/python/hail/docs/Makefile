@@ -48,7 +48,7 @@ clean:
 	rm -rf $(BUILDDIR)
 
 .PHONY: html
-html: tutorials-tar
+html:
 	$(SPHINXBUILD) -b html $(ALLSPHINXOPTS) $(BUILDDIR)/html
 	rsync -avz tutorials/iframe_figures/ $(BUILDDIR)/html/tutorials/iframe_figures/ # https://github.com/plotly/plotly.py/blob/master/packages/python/plotly/plotly/io/_base_renderers.py#L522-L529
 	tar cvf $(BUILDDIR)/html/tutorials.tar.gz $(BUILDDIR)/html/tutorials
