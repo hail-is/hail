@@ -1,10 +1,8 @@
 from typing import Any, AsyncContextManager, AsyncIterator, Dict, List, Optional, Set, Tuple, Type
 from types import TracebackType
 
-import os
 import re
 import asyncio
-import urllib
 import secrets
 import logging
 
@@ -218,20 +216,21 @@ class AzureReadableStream(ReadableStream):
 
 
 class AzureFileListEntry(FileListEntry):
-    def __init__(self, url: str, blob_props: Optional[BlobProperties]):
-        self._url = url
+    def __init__(self, account: str, container: str, name: str, blob_props: Optional[BlobProperties]):
+        self._account = account
+        self._container = container
+        self._name = name
         self._blob_props = blob_props
         self._status: Optional[AzureFileStatus] = None
 
     def name(self) -> str:
-        parsed = urllib.parse.urlparse(self._url)
-        return os.path.basename(parsed.path)
+        return self._name
 
     async def url(self) -> str:
-        return self._url
+        return f'hail-az://{self._account}/{self._container}/{self._name}'
 
     def url_maybe_trailing_slash(self) -> str:
-        return self._url
+        return f'hail-az://{self._account}/{self._container}/{self._name}'
 
     async def is_file(self) -> bool:
         return self._blob_props is not None
@@ -242,7 +241,7 @@ class AzureFileListEntry(FileListEntry):
     async def status(self) -> FileStatus:
         if self._status is None:
             if self._blob_props is None:
-                raise IsADirectoryError(self._url)
+                raise IsADirectoryError(await self.url())
             self._status = AzureFileStatus(self._blob_props)
         return self._status
 
@@ -412,8 +411,7 @@ class AzureAsyncFS(AsyncFS):
         assert not name or name.endswith('/')
         async for blob_props in client.list_blobs(name_starts_with=name,
                                                   include=['metadata']):
-            url = f'hail-az://{client.account_name}/{client.container_name}/{blob_props.name}'
-            yield AzureFileListEntry(url, blob_props)
+            yield AzureFileListEntry(client.account_name, client.container_name, blob_props.name, blob_props)
 
     @staticmethod
     async def _listfiles_flat(client: ContainerClient, name: str) -> AsyncIterator[FileListEntry]:
@@ -422,12 +420,10 @@ class AzureAsyncFS(AsyncFS):
                                             include=['metadata'],
                                             delimiter='/'):
             if isinstance(item, BlobPrefix):
-                url = f'hail-az://{client.account_name}/{client.container_name}/{item.prefix}'
-                yield AzureFileListEntry(url, None)
+                yield AzureFileListEntry(client.account_name, client.container_name, item.prefix, None)
             else:
                 assert isinstance(item, BlobProperties)
-                url = f'hail-az://{client.account_name}/{client.container_name}/{item.name}'
-                yield AzureFileListEntry(url, item)
+                yield AzureFileListEntry(client.account_name, client.container_name, item.name, item)
 
     async def listfiles(self,
                         url: str,

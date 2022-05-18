@@ -4,7 +4,6 @@ from types import TracebackType
 import sys
 from concurrent.futures import ThreadPoolExecutor
 import os.path
-import urllib
 import threading
 import asyncio
 import logging
@@ -287,16 +286,23 @@ class S3AsyncFS(AsyncFS):
 
     @staticmethod
     def get_bucket_and_name(url: str) -> Tuple[str, str]:
-        parsed = urllib.parse.urlparse(url)
-        if parsed.scheme != 's3':
-            raise ValueError(f"invalid scheme, expected s3: {parsed.scheme}")
+        colon_index = url.find(':')
+        if colon_index == -1:
+            raise ValueError(f'invalid URL: {url}')
 
-        name = parsed.path
-        if name:
-            assert name[0] == '/'
-            name = name[1:]
+        scheme = url[:colon_index]
+        if scheme != 's3':
+            raise ValueError(f'invalid scheme, expected s3: {scheme}')
 
-        return (parsed.netloc, name)
+        rest = url[(colon_index + 1):]
+        if not rest.startswith('//'):
+            raise ValueError(f's3 URI must be of the form: s3://bucket/key, found: {url}')
+
+        end_of_bucket = rest.find('/', 2)
+        bucket = rest[2:end_of_bucket]
+        name = rest[(end_of_bucket + 1):]
+
+        return (bucket, name)
 
     async def open(self, url: str) -> ReadableStream:
         bucket, name = self.get_bucket_and_name(url)
