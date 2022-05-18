@@ -76,7 +76,7 @@ class ZoneMonitor(CloudLocationMonitor):
 
     @property
     def region_quotas(self):
-        return self._region_info    
+        return self._region_info
 
     def default_location(self) -> str:
         return self._default_zone
