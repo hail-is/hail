@@ -351,15 +351,15 @@ class AzureAsyncFS(AsyncFS):
         return blob_service_client.get_container_client(container)
 
     async def open(self, url: str) -> ReadableStream:
+        if not self.exists(url):
+            raise FileNotFoundError
         client = self.get_blob_client(url)
-        stream = AzureReadableStream(client, url)
-        return stream
+        return AzureReadableStream(client, url)
 
     async def _open_from(self, url: str, start: int, *, length: Optional[int] = None) -> ReadableStream:
         assert length is None or length >= 1
         client = self.get_blob_client(url)
-        stream = AzureReadableStream(client, url, offset=start, length=length)
-        return stream
+        return AzureReadableStream(client, url, offset=start, length=length)
 
     async def create(self, url: str, *, retry_writes: bool = True) -> AsyncContextManager[WritableStream]:  # pylint: disable=unused-argument
         client = self.get_blob_client(url)
