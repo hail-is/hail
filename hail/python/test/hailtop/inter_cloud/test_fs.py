@@ -170,14 +170,8 @@ async def test_open_nonexistent_file(filesystem: Tuple[asyncio.Semaphore, AsyncF
     sema, fs, base = filesystem
 
     file = f'{base}foo'
-
-    try:
-        async with await fs.open(file) as f:
-            await f.read()
-    except FileNotFoundError:
-        pass
-    else:
-        assert False
+    with pytest.raises(FileNotFoundError):
+        await fs.open(file)
 
 
 @pytest.mark.asyncio
@@ -185,14 +179,8 @@ async def test_open_from_nonexistent_file(filesystem: Tuple[asyncio.Semaphore, A
     sema, fs, base = filesystem
 
     file = f'{base}foo'
-
-    try:
-        async with await fs.open_from(file, 2) as f:
-            await f.read()
-    except FileNotFoundError:
-        pass
-    else:
-        assert False
+    with pytest.raises(FileNotFoundError):
+        await fs.open_from(file, 2)
 
 
 @pytest.mark.asyncio
