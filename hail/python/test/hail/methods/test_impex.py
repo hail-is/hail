@@ -385,15 +385,13 @@ class VCFTests(unittest.TestCase):
             ref_str = ref.read().decode('utf-8')
             self.assertEqual(ref_str, data)
 
-    @skip_when_service_backend('intermittent jvm crashes (either OOM or segfault)')
     def test_vcf_parser_golden_master__ex_GRCh37(self):
         self._test_vcf_parser_golden_master(resource('ex.vcf'), 'GRCh37')
 
-    @skip_when_service_backend('intermittent jvm crashes (either OOM or segfault)')
     def test_vcf_parser_golden_master__sample_GRCh37(self):
         self._test_vcf_parser_golden_master(resource('sample.vcf'), 'GRCh37')
 
-    @skip_when_service_backend('intermittent jvm crashes (either OOM or segfault)')
+    @skip_when_service_backend(reason='As of 2022-03-16 hangs')
     def test_vcf_parser_golden_master__gvcf_GRCh37(self):
         self._test_vcf_parser_golden_master(resource('gvcfs/HG00096.g.vcf.gz'), 'GRCh38')
 
@@ -2001,19 +1999,6 @@ class ImportTableTests(unittest.TestCase):
     def test_import_table_empty_with_header(self):
         assert [] == hl.import_table(resource('empty-with-header.tsv')).collect()
 
-    @skip_when_service_backend('''intermittent worker failure:
->       assert tables.count() == 346
-
-Caused by: java.lang.ClassCastException: __C2829collect_distributed_array cannot be cast to is.hail.expr.ir.FunctionWithObjects
-	at is.hail.expr.ir.EmitClassBuilder$$anon$1.apply(EmitClassBuilder.scala:689)
-	at is.hail.expr.ir.EmitClassBuilder$$anon$1.apply(EmitClassBuilder.scala:670)
-	at is.hail.backend.BackendUtils.$anonfun$collectDArray$2(BackendUtils.scala:31)
-	at is.hail.utils.package$.using(package.scala:627)
-	at is.hail.annotations.RegionPool.scopedRegion(RegionPool.scala:144)
-	at is.hail.backend.BackendUtils.$anonfun$collectDArray$1(BackendUtils.scala:30)
-	at is.hail.backend.service.Worker$.main(Worker.scala:120)
-	at is.hail.backend.service.Worker.main(Worker.scala)
-	... 11 more''')
     def test_glob(self):
         tables = hl.import_table(resource('variantAnnotations.split.*.tsv'))
         assert tables.count() == 346
@@ -2079,7 +2064,6 @@ Caused by: java.lang.ClassCastException: __C2829collect_distributed_array cannot
         ht.write(f)
         assert ht._same(hl.read_table(f))
 
-    @skip_when_service_backend('hangs')
     def test_read_write_identity_keyed(self):
         ht = self.small_dataset_1().key_by()
         f = new_temp_file(extension='ht')
@@ -2162,20 +2146,6 @@ E                   	at java.lang.Thread.run(Thread.java:748)
         self.assertEqual(expected, data)
 
 
-@skip_when_service_backend('''
-Caused by: java.lang.ClassCastException: __C2Compiled cannot be cast to is.hail.asm4s.AsmFunction3RegionLongLongLong
-	at is.hail.expr.ir.PartitionZippedNativeReader.$anonfun$emitStream$7(TableIR.scala:736)
-	at __C38collect_distributed_array.__m53split_StreamFold(Unknown Source)
-	at __C38collect_distributed_array.apply(Unknown Source)
-	at __C38collect_distributed_array.apply(Unknown Source)
-	at is.hail.backend.BackendUtils.$anonfun$collectDArray$2(BackendUtils.scala:31)
-	at is.hail.utils.package$.using(package.scala:627)
-	at is.hail.annotations.RegionPool.scopedRegion(RegionPool.scala:140)
-	at is.hail.backend.BackendUtils.$anonfun$collectDArray$1(BackendUtils.scala:30)
-	at is.hail.backend.service.Worker$.main(Worker.scala:120)
-	at is.hail.backend.service.Worker.main(Worker.scala)
-	... 11 more
-''')
 def test_matrix_and_table_read_intervals_with_hidden_key():
     f1 = new_temp_file()
     f2 = new_temp_file()
