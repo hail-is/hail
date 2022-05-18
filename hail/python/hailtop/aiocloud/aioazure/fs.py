@@ -351,7 +351,7 @@ class AzureAsyncFS(AsyncFS):
         return blob_service_client.get_container_client(container)
 
     async def open(self, url: str) -> ReadableStream:
-        if not self.exists(url):
+        if not await self.exists(url):
             raise FileNotFoundError
         client = self.get_blob_client(url)
         return AzureReadableStream(client, url)
