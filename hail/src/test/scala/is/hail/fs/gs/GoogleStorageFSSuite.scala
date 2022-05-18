@@ -47,4 +47,14 @@ class GoogleStorageFSSuite extends TestNGSuite with FSSuite {
     assert(dropTrailingSlash("/foo///") == "/foo")
     assert(dropTrailingSlash("///") == "")
   }
+
+  @Test def deleteManyFiles(): Unit = {
+    val prefix = s"$hail_test_storage_uri/google-storage-fs-suite/delete-many-files/${ java.util.UUID.randomUUID() }"
+    for (i <- 0 until 10000) {
+      fs.touch(s"$prefix/$i")
+    }
+    assert(fs.exists(prefix))
+    fs.delete(prefix, recursive = true)
+    assert(!fs.exists(prefix))
+  }
 }
