@@ -398,7 +398,7 @@ class MatrixFilterEntries(MatrixIR):
             result = MatrixMapRows(result, old_row)
         if drop_col_uid:
             _, old_col = unpack_col_uid(result.typ.col_type, col_uid_field_name)
-            result = MatrixMapRows(result, old_col)
+            result = MatrixMapCols(result, old_col, None)
         return result
 
     def _compute_type(self, deep_typecheck):
@@ -475,7 +475,7 @@ class MatrixMapRows(MatrixIR):
             new_row = ir.InsertFields(new_row, [(row_uid_field_name, row_uid)], None)
         result = MatrixMapRows(child, new_row)
         if drop_col_uid:
-            result = MatrixMapRows(result, old_col)
+            result = MatrixMapCols(result, old_col, None)
         return result
 
     def _compute_type(self, deep_typecheck):
@@ -1080,6 +1080,19 @@ class MatrixRename(MatrixIR):
         self.row_map = row_map
         self.entry_map = entry_map
 
+    def _handle_randomness(self, row_uid_field_name, col_uid_field_name):
+        assert row_uid_field_name not in self.global_map.keys()
+        assert row_uid_field_name not in self.col_map.keys()
+        assert row_uid_field_name not in self.row_map.keys()
+        assert row_uid_field_name not in self.entry_map.keys()
+        assert col_uid_field_name not in self.global_map.keys()
+        assert col_uid_field_name not in self.col_map.keys()
+        assert col_uid_field_name not in self.row_map.keys()
+        assert col_uid_field_name not in self.entry_map.keys()
+
+        child = self.child.handle_randomness(row_uid_field_name, col_uid_field_name)
+        return MatrixRename(child, self.global_map, self.col_map, self.row_map, self.entry_map)
+
     def head_str(self):
         return f'{parsable_strings(self.global_map.keys())} ' \
                f'{parsable_strings(self.global_map.values())} ' \
@@ -1150,6 +1163,16 @@ class JavaMatrixVectorRef(MatrixIR):
         super().__init__()
         self.vec_ref = vec_ref
         self.idx = idx
+
+    def _handle_randomness(self, row_uid_field_name, col_uid_field_name):
+        result = self
+        if row_uid_field_name is not None:
+            new_row = ir.InsertFields(ir.Ref('va', result.typ.row_type), [(row_uid_field_name, ir.NA(tint64))], None)
+            result = MatrixMapRows(result, new_row)
+        if col_uid_field_name is not None:
+            new_col = ir.InsertFields(ir.Ref('sa', result.typ.col_type), [(col_uid_field_name, ir.NA(tint64))], None)
+            result = MatrixMapCols(result, new_col, None)
+        return result
 
     def head_str(self):
         return f'{self.vec_ref.jid} {self.idx}'

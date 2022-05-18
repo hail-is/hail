@@ -2048,18 +2048,18 @@ class Emit[C](
         val impl = x.implementation
         val unified = impl.unify(Array.empty[Type], x.argTypes, rt)
         assert(unified)
-        if (fn == "rand_unif") {
-          val pureImpl = x.pureImplementation
-          assert(pureImpl.unify(Array.empty[Type], rngState.typ +: x.argTypes, rt))
-          val codeArgsMem = codeArgs.map(_.memoize(cb, "ApplySeeded_arg"))
-          emitI(rngState).consumeI(cb, {
-            impl.applySeededI(seed, cb, region, impl.computeReturnEmitType(x.typ, codeArgs.map(_.emitType)).st, codeArgsMem.map(_.load): _*)
-          }, { state =>
-            pureImpl.applyI(EmitRegion(cb.emb, region), cb, impl.computeReturnEmitType(x.typ, codeArgs.map(_.emitType)).st, Seq[Type](), const(0), EmitCode.present(mb, state) +: codeArgsMem.map(_.load): _*)
-          })
-        } else {
+//        if (fn == "rand_unif") {
+//          val pureImpl = x.pureImplementation
+//          assert(pureImpl.unify(Array.empty[Type], rngState.typ +: x.argTypes, rt))
+//          val codeArgsMem = codeArgs.map(_.memoize(cb, "ApplySeeded_arg"))
+//          emitI(rngState).consumeI(cb, {
+//            impl.applySeededI(seed, cb, region, impl.computeReturnEmitType(x.typ, codeArgs.map(_.emitType)).st, codeArgsMem.map(_.load): _*)
+//          }, { state =>
+//            pureImpl.applyI(EmitRegion(cb.emb, region), cb, impl.computeReturnEmitType(x.typ, codeArgs.map(_.emitType)).st, Seq[Type](), const(0), EmitCode.present(mb, state) +: codeArgsMem.map(_.load): _*)
+//          })
+//        } else {
           impl.applySeededI(seed, cb, region, impl.computeReturnEmitType(x.typ, codeArgs.map(_.emitType)).st, codeArgs: _*)
-        }
+//        }
 
       case AggStateValue(i, _) =>
         val AggContainer(_, sc, _) = container.get

@@ -876,8 +876,12 @@ class TableToTableApply(TableIR):
         self.config = config
 
     def _handle_randomness(self, uid_field_name):
-        # FIXME: finish
-        return TableToTableApply(self.child.handle_randomness(None), self.config)
+        child = self.child.handle_randomness(None)
+        result = TableToTableApply(child, self.config)
+        if uid_field_name is not None:
+            new_row = ir.InsertFields(ir.Ref('row', result.typ.row_type), [(uid_field_name, ir.NA(tint64))], None)
+            result = TableMapRows(result, new_row)
+        return result
 
     def head_str(self):
         return dump_json(self.config)
@@ -919,8 +923,12 @@ class MatrixToTableApply(TableIR):
         self.config = config
 
     def _handle_randomness(self, uid_field_name):
-        # FIXME: finish
-        return self
+        child = self.child.handle_randomness(None, None)
+        result = MatrixToTableApply(child, self.config)
+        if uid_field_name is not None:
+            new_row = ir.InsertFields(ir.Ref('row', result.typ.row_type), [(uid_field_name, ir.NA(tint64))], None)
+            result = TableMapRows(result, new_row)
+        return result
 
     def head_str(self):
         return dump_json(self.config)
@@ -1012,8 +1020,11 @@ class BlockMatrixToTableApply(TableIR):
         self.config = config
 
     def _handle_randomness(self, uid_field_name):
-        # FIXME: finish
-        return self
+        result = self
+        if uid_field_name is not None:
+            new_row = ir.InsertFields(ir.Ref('row', result.typ.row_type), [(uid_field_name, ir.NA(tint64))], None)
+            result = TableMapRows(result, new_row)
+        return result
 
     def head_str(self):
         return dump_json(self.config)
@@ -1042,10 +1053,11 @@ class BlockMatrixToTable(TableIR):
         self.child = child
 
     def _handle_randomness(self, uid_field_name):
+        result = self
         if uid_field_name is not None:
-            row = ir.Ref('row', self.typ.row_type)
-            new_row = ir.InsertFields(row, [(uid_field_name, ir.MakeTuple(ir.GetField(row, 'i'), ir.GetField(row, 'j')))], None)
-        return TableMapRows(self, new_row)
+            new_row = ir.InsertFields(ir.Ref('row', result.typ.row_type), [(uid_field_name, ir.NA(tint64))], None)
+            result = TableMapRows(result, new_row)
+        return result
 
     def _compute_type(self, deep_typecheck):
         self.child.compute_type(deep_typecheck)
@@ -1058,8 +1070,11 @@ class JavaTable(TableIR):
         self._jir = jir
 
     def _handle_randomness(self, uid_field_name):
-        # FIXME: what to do here?
-        return self
+        result = self
+        if uid_field_name is not None:
+            new_row = ir.InsertFields(ir.Ref('row', result.typ.row_type), [(uid_field_name, ir.NA(tint64))], None)
+            result = TableMapRows(result, new_row)
+        return result
 
     def render_head(self, r):
         return f'(JavaTable {r.add_jir(self._jir)}'

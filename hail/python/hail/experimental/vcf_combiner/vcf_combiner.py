@@ -265,7 +265,7 @@ def combine(ts):
     ts = Table(TableMapRows(ts._tir, Apply(merge_function._name,
                                            merge_function._ret_type,
                                            ts.row._ir,
-                                           ts.gloabls._ir)))
+                                           ts.globals._ir)))
     return ts.transmute_globals(__cols=hl.flatten(ts.g.map(lambda g: g.__cols)))
 
 

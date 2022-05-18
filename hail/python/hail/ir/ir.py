@@ -988,7 +988,7 @@ class NDArrayAgg(IR):
         return f'({" ".join([str(i) for i in self.axes])})'
 
     def _compute_type(self, env, agg_env, deep_typecheck):
-        self.nd.compute_type(env, agg_env), deep_typecheck
+        self.nd.compute_type(env, agg_env, deep_typecheck)
         assert len(set(self.axes)) == len(self.axes)
         assert all([axis < self.nd.typ.ndim for axis in self.axes])
 
@@ -1014,8 +1014,8 @@ class NDArrayMatMul(IR):
         return str(self._error_id)
 
     def _compute_type(self, env, agg_env, deep_typecheck):
-        self.left.compute_type(env, agg_env), deep_typecheck
-        self.right.compute_type(env, agg_env), deep_typecheck
+        self.left.compute_type(env, agg_env, deep_typecheck)
+        self.right.compute_type(env, agg_env, deep_typecheck)
 
         ndim = hail.linalg.utils.misc._ndarray_matmul_ndim(self.left.typ.ndim, self.right.typ.ndim)
         from hail.expr.expressions import unify_types
