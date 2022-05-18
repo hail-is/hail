@@ -306,16 +306,25 @@ class AzureAsyncFS(AsyncFS):
 
     @staticmethod
     def get_account_container_and_name(url: str) -> Tuple[str, str, str]:
-        parsed = urllib.parse.urlparse(url)
+        colon_index = url.find(':')
+        if colon_index == -1:
+            raise ValueError(f'invalid URL: {url}')
 
-        if parsed.scheme != 'hail-az':
-            raise ValueError(f'invalid scheme, expected hail-az: {parsed.scheme}')
+        scheme = url[:colon_index]
+        if scheme != 'hail-az':
+            raise ValueError(f'invalid scheme, expected hail-az: {scheme}')
 
-        account = parsed.netloc
+        rest = url[(colon_index + 1):]
+        if not rest.startswith('//'):
+            raise ValueError(f'invalid path name, expected hail-az://account/container/blob_name: {url}')
 
-        match = AzureAsyncFS.PATH_REGEX.fullmatch(parsed.path)
+        end_of_account = rest.find('/', 2)
+        account = rest[2:end_of_account]
+        container_and_name = rest[end_of_account:]
+
+        match = AzureAsyncFS.PATH_REGEX.fullmatch(container_and_name)
         if match is None:
-            raise ValueError(f'invalid path name, expected hail-az://account/container/blob_name: {parsed.path}')
+            raise ValueError(f'invalid path name, expected hail-az://account/container/blob_name: {container_and_name}')
 
         container = match.groupdict()['container']
 
