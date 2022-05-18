@@ -2,7 +2,7 @@ import hail as hl
 from hail.expr.blockmatrix_type import tblockmatrix
 from hail.expr.types import tarray
 from .blockmatrix_reader import BlockMatrixReader
-from .base_ir import BlockMatrixIR, IR, _env_bind
+from .base_ir import BlockMatrixIR, IR
 from hail.typecheck import typecheck_method, sequenceof, nullable
 from hail.utils.misc import escape_id
 

@@ -28,7 +28,7 @@ def unpack_row_uid(new_row_type, uid_field_name):
     else:
         uid = ir.NA(tint64)
     return uid, \
-           ir.SelectFields(new_row, [field for field in new_row_type.fields if not field == uid_field_name])
+        ir.SelectFields(new_row, [field for field in new_row_type.fields if not field == uid_field_name])
 
 
 def unpack_col_uid(new_col_type, uid_field_name):
@@ -39,14 +39,14 @@ def unpack_col_uid(new_col_type, uid_field_name):
     else:
         uid = ir.NA(tint64)
     return uid, \
-           ir.SelectFields(new_row, [field for field in new_col_type.fields if not field == uid_field_name])
+        ir.SelectFields(new_row, [field for field in new_col_type.fields if not field == uid_field_name])
 
 
 def modify_deep_field(struct, path, new_deep_field, new_struct=None):
     import hail.ir.ir as ir
     refs = [struct]
     for i in range(len(path)):
-        refs[i+1] = ir.Ref(Env.gen_uid(), refs[i].typ[path[i]])
+        refs[i + 1] = ir.Ref(Env.gen_uid(), refs[i].typ[path[i]])
 
     acc = new_deep_field(refs[-1])
     for parent_struct, field_name in reversed(zip(refs[:-1], path)):

@@ -17,6 +17,7 @@ from hail.expr.table_type import ttable
 from hail.expr.matrix_type import tmatrix
 from hail.expr.blockmatrix_type import tblockmatrix
 from hail.experimental import write_expression, read_expression
+from hail.ir import finalize_randomness
 from hail.ir.renderer import CSERenderer
 
 from hailtop.config import (configuration_of, get_user_local_cache_dir, get_remote_tmpdir, get_deploy_config)

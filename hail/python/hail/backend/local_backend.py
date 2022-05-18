@@ -13,7 +13,7 @@ from hail.expr.blockmatrix_type import tblockmatrix
 from hail.expr.matrix_type import tmatrix
 from hail.expr.table_type import ttable
 from hail.expr.types import dtype
-from hail.ir import Let, RNGStateLiteral, finalize_randomness
+from hail.ir import finalize_randomness
 from hail.ir.renderer import CSERenderer
 from hail.utils.java import scala_package_object, scala_object
 from .py4j_backend import Py4JBackend, handle_java_exception

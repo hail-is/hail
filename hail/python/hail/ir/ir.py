@@ -1,4 +1,3 @@
-import abc
 import copy
 from collections import defaultdict
 
@@ -946,7 +945,7 @@ class NDArraySlice(IR):
         self.slices.compute_type(env, agg_env, deep_typecheck)
 
         return tndarray(self.nd.typ.element_type,
-                              len([t for t in self.slices.typ.types if isinstance(t, ttuple)]))
+                        len([t for t in self.slices.typ.types if isinstance(t, ttuple)]))
 
 
 class NDArrayReindex(IR):
@@ -1021,7 +1020,7 @@ class NDArrayMatMul(IR):
         ndim = hail.linalg.utils.misc._ndarray_matmul_ndim(self.left.typ.ndim, self.right.typ.ndim)
         from hail.expr.expressions import unify_types
         return tndarray(unify_types(self.left.typ.element_type,
-                                          self.right.typ.element_type), ndim)
+                                    self.right.typ.element_type), ndim)
 
 
 class NDArrayQR(IR):
@@ -1309,9 +1308,9 @@ class GroupByKey(IR):
                      tarray(self.collection.typ.element_type.types[1]))
 
 
-rng_key = (0, 1, 2, 3)
 static_split_ctr = 0
 uid_field_name = '__uid'
+
 
 def get_static_split_uid():
     global static_split_ctr
@@ -1320,10 +1319,12 @@ def get_static_split_uid():
     static_split_ctr += 1
     return result
 
+
 def uid_size(type):
     if isinstance(type, ttuple):
         return len(type)
     return 1
+
 
 def unify_uid_types(types, tag=False):
     size = max(uid_size(type) for type in types)
@@ -1332,6 +1333,7 @@ def unify_uid_types(types, tag=False):
     if size == 1:
         return tint64
     return ttuple(tint64 for _ in range(size))
+
 
 def pad_uid(uid, type, tag=None):
     size = uid_size(uid.typ)
@@ -1349,6 +1351,7 @@ def pad_uid(uid, type, tag=None):
     else:
         tuple = MakeTuple([I64(tag), *(I64(0) for _ in range(padding)), *fields])
     return If(IsNA(uid), NA(tuple.typ), tuple)
+
 
 def concat_uids(uid1, uid2, handle_missing_left=False, handle_missing_right=False):
     size1 = uid_size(uid1)
@@ -1368,21 +1371,26 @@ def concat_uids(uid1, uid2, handle_missing_left=False, handle_missing_right=Fals
     tuple = MakeTuple([*fields1, *fields2])
     return If(Apply("lor", tbool, IsNA(uid1), IsNA(uid2)), NA(tuple.typ), tuple)
 
+
 def unpack_uid(stream_type):
     tuple_type = stream_type.element_type
     tuple = Ref(Env.get_uid(), tuple_type)
     if isinstance(tuple_type, tstruct):
-        return tuple.name,\
-               GetField(tuple, uid_field_name),\
-               SelectFields(tuple, [field for field in tuple_type.fields if not field == uid_field_name])
+        return \
+            tuple.name, \
+            GetField(tuple, uid_field_name), \
+            SelectFields(tuple, [field for field in tuple_type.fields if
+                                 not field == uid_field_name])
     else:
         return tuple.name, GetTupleElement(tuple, 0), GetTupleElement(tuple, 1)
+
 
 def pack_uid(uid, elt):
     if isinstance(elt.typ, tstruct):
         return InsertFields(elt, [uid_field_name, uid])
     else:
         return MakeTuple([uid, elt])
+
 
 def with_split_rng_state(ir, split, is_scan=None) -> 'BaseIR':
     ref = Ref('__rng_state', trngstate)
@@ -1475,7 +1483,7 @@ class StreamZip(IR):
 
         if self.behavior == 'ExtendNA':
             new_streams = [stream.handle_randomness(True) for stream in self.streams]
-            tuples, uids, elts = unzip(unpack_uid(stream.typ) for stream in new_streams)
+            tuples, uids, elts = zip(*(unpack_uid(stream.typ) for stream in new_streams))
             uid_type = unify_uid_types(uid.typ for uid in uids)
             uid = Coalesce(If(IsNA(uid), NA(uid_type), pad_uid(uid, uid_type, i)) for i, uid in enumerate(uids))
             new_body = self.body
@@ -1772,7 +1780,7 @@ class StreamJoinRightDistinct(IR):
         else:
             left = self.left.handle_randomness(True)
             right = self.right.handle_randomness(True)
-            [l_name, r_name], uids, elts = unzip(unpack_uid(left.typ), unpack_uid(right.typ))
+            [l_name, r_name], uids, elts = zip(*(unpack_uid(left.typ), unpack_uid(right.typ)))
             uid_type = unify_uid_types((uid.typ for uid in uids), tag=True)
             uid = If(IsNA(uids[0]), pad_uid(uids[1], uid_type, 1), pad_uid(uids[0], uid_type, 0))
             new_join = Let(self.l_name, elts[0], Let(self.r_name, elts[1], self.join))
@@ -2033,7 +2041,7 @@ class AggArrayPerElement(IR):
     def _compute_type(self, env, agg_env, deep_typecheck):
         self.array.compute_type(agg_env, None, deep_typecheck)
         self.agg_ir.compute_type(_env_bind(env, self.bindings(1)),
-                                  _env_bind(agg_env, self.agg_bindings(1)), deep_typecheck)
+                                 _env_bind(agg_env, self.agg_bindings(1)), deep_typecheck)
         return tarray(self.agg_ir.typ)
 
     @property

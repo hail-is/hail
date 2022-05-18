@@ -630,22 +630,24 @@ class MatrixAggregateColsByKey(MatrixIR):
             col_expr = ir.AggLet('sa', old_col, col_expr, is_scan=False)
         if self.entry_expr.uses_value_randomness:
             entry_expr = ir.Let('__rng_state',
-                               ir.RNGSplit(ir.RNGStateLiteral(rng_key), ir.concat_uids(row_uid, first_col_uid)),
-                               entry_expr)
+                                ir.RNGSplit(ir.RNGStateLiteral(rng_key),
+                                            ir.concat_uids(row_uid, first_col_uid)),
+                                entry_expr)
         if self.entry_expr.uses_agg_randomness(is_scan=False):
             entry_expr = ir.AggLet('__rng_state',
-                                  ir.RNGSplit(ir.RNGStateLiteral(rng_key), ir.concat_uids(row_uid, col_uid)),
-                                  entry_expr,
-                                  is_scan=False)
+                                   ir.RNGSplit(ir.RNGStateLiteral(rng_key),
+                                               ir.concat_uids(row_uid, col_uid)),
+                                   entry_expr,
+                                   is_scan=False)
         if self.col_expr.uses_value_randomness:
             col_expr = ir.Let('__rng_state',
-                                ir.RNGSplit(ir.RNGStateLiteral(rng_key), first_col_uid),
-                                col_expr)
+                              ir.RNGSplit(ir.RNGStateLiteral(rng_key), first_col_uid),
+                              col_expr)
         if self.col_expr.uses_agg_randomness(is_scan=False):
             col_expr = ir.AggLet('__rng_state',
-                                   ir.RNGSplit(ir.RNGStateLiteral(rng_key), col_uid),
-                                   col_expr,
-                                   is_scan=False)
+                                 ir.RNGSplit(ir.RNGStateLiteral(rng_key), col_uid),
+                                 col_expr,
+                                 is_scan=False)
 
         result = MatrixAggregateColsByKey(child, entry_expr, col_expr)
         if drop_row_uid:
@@ -767,7 +769,7 @@ class MatrixUnionRows(MatrixIR):
                     *[child.handle_randomness(row_uid_field_name, None) for child in self.children[1:]]]
 
         if row_uid_field_name is not None:
-            uids, _ = unzip(unpack_row_uid(child.typ.row_type, row_uid_field_name) for child in children)
+            uids = [uid for uid, _ in (unpack_row_uid(child.typ.row_type, row_uid_field_name) for child in children)]
             uid_type = ir.unify_uid_types(uid.typ for uid in uids)
             children = [MatrixMapRows(child,
                                       ir.InsertFields(ir.Ref('va', child.typ.row_type),
@@ -931,6 +933,7 @@ class CastTableToMatrix(MatrixIR):
         self.col_key = col_key
 
     def _handle_randomness(self, row_uid_field_name, col_uid_field_name):
+        from hail.ir.table_ir import TableMapGlobals
         child = self.child
         if col_uid_field_name is not None:
             new_globals = modify_deep_field(
