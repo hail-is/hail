@@ -208,7 +208,7 @@ class TableStage(
         Let(name, GetField(glob, name), accum)
       }, Some(dependency))
 
-    LowerToCDA.substLets(TableStage.wrapInBindings(body(cda, globals), letBindings), relationalBindings)
+    LowerToCDA.substLets(TableStage.wrapInBindings(bindIR(cda) { cdaRef => body(cdaRef, globals) }, letBindings), relationalBindings)
   }
 
   def collectWithGlobals(relationalBindings: Map[String, IR]): IR =
@@ -493,7 +493,7 @@ object LowerTableIR {
               MakeArray(
                 ApplyAggOp(
                   FastIndexedSeq(I32(samplesPerPartition)),
-                  FastIndexedSeq(SelectFields(elt, keyType.fieldNames), invokeSeeded("rand_unif", 1, TFloat64, F64(0.0), F64(1.0))),
+                  FastIndexedSeq(SelectFields(elt, keyType.fieldNames), invokeSeeded("rand_unif", 1, TFloat64, NA(TRNGState), F64(0.0), F64(1.0))),
                   samplekey),
                 ApplyAggOp(
                   FastIndexedSeq(I32(1)),

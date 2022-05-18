@@ -385,7 +385,7 @@ class Batch:
 
     async def wait(self, *, disable_progress_bar=TqdmDisableOption.default):
         i = 0
-        with tqdm(total=self.n_jobs, disable=disable_progress_bar, desc='completed jobs') as pbar:
+        with tqdm(total=self.n_jobs, disable=disable_progress_bar, desc=f'Batch {self.id}: completed jobs') as pbar:
             while True:
                 status = await self.status()
                 pbar.update(status['n_completed'] - pbar.n)

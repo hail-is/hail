@@ -116,6 +116,56 @@ async def test_open_from(filesystem: Tuple[asyncio.Semaphore, AsyncFS, str]):
 
 
 @pytest.mark.asyncio
+async def test_open_from_with_length(filesystem: Tuple[asyncio.Semaphore, AsyncFS, str]):
+    sema, fs, base = filesystem
+
+    file = f'{base}foo'
+
+    async with await fs.create(file) as f:
+        await f.write(b'abcde')
+
+    async with await fs.open_from(file, 2, length=2) as f:
+        r = await f.read()
+        assert r == b'cd'
+
+    async with await fs.open_from(file, 2, length=1) as f:
+        r = await f.read()
+        assert r == b'c'
+
+    async with await fs.open_from(file, 2, length=0) as f:
+        r = await f.read()
+        assert r == b''
+
+    try:
+        await fs.open_from(f'{file}doesnotexist', 2, length=0)
+    except FileNotFoundError:
+        pass
+    else:
+        assert False
+
+    try:
+        await fs.open_from(base, 2, length=0)
+    except IsADirectoryError:
+        pass
+    else:
+        assert False
+
+
+@pytest.mark.asyncio
+async def test_open_empty(filesystem: Tuple[asyncio.Semaphore, AsyncFS, str]):
+    sema, fs, base = filesystem
+
+    file = f'{base}foo'
+
+    async with await fs.create(file) as f:
+        await f.write(b'')
+
+    async with await fs.open_from(file, 0, length=0) as f:
+        r = await f.read()
+        assert r == b''
+
+
+@pytest.mark.asyncio
 async def test_open_nonexistent_file(filesystem: Tuple[asyncio.Semaphore, AsyncFS, str]):
     sema, fs, base = filesystem
 
@@ -175,7 +225,44 @@ async def test_read_range(filesystem: Tuple[asyncio.Semaphore, AsyncFS, str]):
     except UnexpectedEOFError:
         pass
     else:
+       assert False
+
+
+@pytest.mark.asyncio
+async def test_read_range_end_exclusive_empty_file(filesystem: Tuple[asyncio.Semaphore, AsyncFS, str]):
+    sema, fs, base = filesystem
+
+    file = f'{base}foo'
+
+    await fs.write(file, b'')
+
+    assert await fs.read_range(file, 0, 0, end_inclusive=False) == b''
+
+@pytest.mark.asyncio
+async def test_read_range_end_inclusive_empty_file_should_error(filesystem: Tuple[asyncio.Semaphore, AsyncFS, str]):
+    sema, fs, base = filesystem
+
+    file = f'{base}foo'
+
+    await fs.write(file, b'')
+
+    try:
+        assert await fs.read_range(file, 0, 0, end_inclusive=True) == b''
+    except UnexpectedEOFError:
+        pass
+    else:
         assert False
+
+
+@pytest.mark.asyncio
+async def test_read_range_end_exclusive_nonempty_file(filesystem: Tuple[asyncio.Semaphore, AsyncFS, str]):
+    sema, fs, base = filesystem
+
+    file = f'{base}foo'
+
+    await fs.write(file, b'abcde')
+
+    assert await fs.read_range(file, 2, 4, end_inclusive=False) == b'cd'
 
 
 @pytest.mark.asyncio

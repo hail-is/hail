@@ -5,26 +5,25 @@ import is.hail.TestUtils._
 import is.hail.annotations.{BroadcastRow, ExtendedOrdering, Region, SafeNDArray}
 import is.hail.asm4s.{Code, Value}
 import is.hail.backend.ExecuteContext
+import is.hail.expr.Nat
 import is.hail.expr.ir.ArrayZipBehavior.ArrayZipBehavior
 import is.hail.expr.ir.IRBuilder._
 import is.hail.expr.ir.IRSuite.TestFunctions
+import is.hail.expr.ir.agg._
 import is.hail.expr.ir.functions._
-import is.hail.types.{BlockMatrixType, TableType, VirtualTypeWithReq}
-import is.hail.types.physical._
-import is.hail.types.virtual._
-import is.hail.types.encoded._
-import is.hail.expr.Nat
-import is.hail.expr.ir.agg.{CallStatsStateSig, CollectStateSig, FoldStateSig, GroupedAggSig, PhysicalAggSig, TypedStateSig}
 import is.hail.io.bgen.{IndexBgen, MatrixBGENReader}
 import is.hail.io.{BufferSpec, TypedCodecSpec}
 import is.hail.linalg.BlockMatrix
 import is.hail.methods._
-import is.hail.rvd.{PartitionBoundOrdering, RVD, RVDPartitioner, RVDSpecMaker}
+import is.hail.rvd.{PartitionBoundOrdering, RVD}
+import is.hail.types.physical._
+import is.hail.types.physical.stypes._
 import is.hail.types.physical.stypes.primitives.SInt32
-import is.hail.types.physical.stypes.{EmitType, Float32SingleCodeType, Float64SingleCodeType, Int32SingleCodeType, Int64SingleCodeType, PTypeReferenceSingleCodeType, SType, SingleCodeType}
+import is.hail.types.virtual._
+import is.hail.types.{BlockMatrixType, TableType, VirtualTypeWithReq}
 import is.hail.utils.{FastIndexedSeq, _}
 import is.hail.variant.{Call2, Locus}
-import is.hail.{ExecStrategy, HailContext, HailSuite, utils}
+import is.hail.{ExecStrategy, HailSuite}
 import org.apache.spark.sql.Row
 import org.json4s.jackson.{JsonMethods, Serialization}
 import org.testng.annotations.{DataProvider, Test}
@@ -2712,6 +2711,7 @@ class IRSuite extends HailSuite {
     val nd = MakeNDArray(MakeArray(FastSeq(I32(-1), I32(1)), TArray(TInt32)),
       MakeTuple.ordered(FastSeq(I64(1), I64(2))),
       True(), ErrorIDs.NO_ERROR)
+    val rngState = RNGStateLiteral(Array(1L, 2L, 3L, 4L))
 
     val irs = Array(
       i, I64(5), F32(3.14f), F64(3.14), str, True(), False(), Void(),
@@ -2744,6 +2744,7 @@ class IRSuite extends HailSuite {
       NDArrayFilter(nd, FastIndexedSeq(NA(TArray(TInt64)), NA(TArray(TInt64)))),
       ArrayRef(a, i),
       ArrayLen(a),
+      RNGSplit(rngState, MakeTuple.ordered(FastSeq(I64(1), MakeTuple.ordered(FastSeq(I64(2), I64(3)))))),
       StreamLen(st),
       StreamRange(I32(0), I32(5), I32(1)),
       StreamRange(I32(0), I32(5), I32(1)),
@@ -3168,17 +3169,19 @@ class IRSuite extends HailSuite {
 
     def i = In(0, TBoolean)
 
-    def st = ApplySeeded("incr_s", FastSeq(True()), 0L, TBoolean)
+    def rngState = RNGStateLiteral()
 
-    def sf = ApplySeeded("incr_s", FastSeq(True()), 0L, TBoolean)
+    def st = ApplySeeded("incr_s", FastSeq(True()), rngState, 0L, TBoolean)
 
-    def sm = ApplySeeded("incr_s", FastSeq(NA(TBoolean)), 0L, TBoolean)
+    def sf = ApplySeeded("incr_s", FastSeq(True()), rngState, 0L, TBoolean)
 
-    def vt = ApplySeeded("incr_v", FastSeq(True()), 0L, TBoolean)
+    def sm = ApplySeeded("incr_s", FastSeq(NA(TBoolean)), rngState, 0L, TBoolean)
 
-    def vf = ApplySeeded("incr_v", FastSeq(True()), 0L, TBoolean)
+    def vt = ApplySeeded("incr_v", FastSeq(True()), rngState, 0L, TBoolean)
 
-    def vm = ApplySeeded("incr_v", FastSeq(NA(TBoolean)), 0L, TBoolean)
+    def vf = ApplySeeded("incr_v", FastSeq(True()), rngState, 0L, TBoolean)
+
+    def vm = ApplySeeded("incr_v", FastSeq(NA(TBoolean)), rngState, 0L, TBoolean)
 
     // baseline
     test(st, true, 1); test(sf, true, 1); test(sm, true, 1)
@@ -3300,9 +3303,9 @@ class IRSuite extends HailSuite {
     Array(WrappedMatrixToTableFunction(LinearRegressionRowsSingle(Array("foo"), "bar", Array("baz"), 1, Array("a", "b")), "foo", "bar", FastIndexedSeq("ck"))),
     Array(LinearRegressionRowsSingle(Array("foo"), "bar", Array("baz"), 1, Array("a", "b"))),
     Array(LinearRegressionRowsChained(FastIndexedSeq(FastIndexedSeq("foo")), "bar", Array("baz"), 1, Array("a", "b"))),
-    Array(LogisticRegression("firth", Array("a", "b"), "c", Array("d", "e"), Array("f", "g"))),
-    Array(PoissonRegression("firth", "a", "c", Array("d", "e"), Array("f", "g"))),
-    Array(Skat("a", "b", "c", "d", Array("e", "f"), false, 1, 0.1, 100)),
+    Array(LogisticRegression("firth", Array("a", "b"), "c", Array("d", "e"), Array("f", "g"), 25, 1e-6)),
+    Array(PoissonRegression("firth", "a", "c", Array("d", "e"), Array("f", "g"), 25, 1e-6)),
+    Array(Skat("a", "b", "c", "d", Array("e", "f"), false, 1, 0.1, 100, 0, 0.0)),
     Array(LocalLDPrune("x", 0.95, 123, 456)),
     Array(PCA("x", 1, false)),
     Array(PCRelate(0.00, 4096, Some(0.1), PCRelate.PhiK2K0K1)),

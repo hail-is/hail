@@ -116,36 +116,38 @@ case class MatrixNativeWriter(
       entrySpec, s"$path/entries/rows/parts/",
       pKey.virtualType.fieldNames, Some(s"$path/index/" -> pKey), if (stageLocally) Some(ctx.localTmpdir) else None)
 
-    lowered.mapContexts { oldCtx =>
-      val d = digitsNeeded(lowered.numPartitions)
-      val partFiles = Array.tabulate(lowered.numPartitions)(i => s"${ partFile(d, i) }-")
+    val globalTableWriter = TableSpecWriter(s"$path/globals", TableType(tm.globalType, FastIndexedSeq(), TStruct.empty), "rows", "globals", "../references", log = false)
+    val colTableWriter = TableSpecWriter(s"$path/cols", tm.colsTableType.copy(key = FastIndexedSeq[String]()), "rows", "../globals/rows", "../references", log = false)
+    val rowTableWriter = TableSpecWriter(s"$path/rows", tm.rowsTableType, "rows", "../globals/rows", "../references", log = false)
+    val entriesTableWriter = TableSpecWriter(s"$path/entries", TableType(tm.entriesRVType, FastIndexedSeq(), tm.globalType), "rows", "../globals/rows", "../references", log = false)
 
-      zip2(oldCtx, ToStream(Literal(TArray(TString), partFiles.toFastIndexedSeq)), ArrayZipBehavior.AssertSameLength) { (ctxElt, pf) =>
-        MakeStruct(FastSeq("oldCtx" -> ctxElt, "writeCtx" -> pf))
-      }
-    }(GetField(_, "oldCtx")).mapCollectWithContextsAndGlobals(relationalLetsAbove) { (rows, ctx) =>
-      WritePartition(rows, GetField(ctx, "writeCtx") + UUID4(), rowWriter)
-    } { (parts, globals) =>
-      val writeEmpty = WritePartition(MakeStream(FastSeq(makestruct()), TStream(TStruct.empty)), Str(partFile(1, 0)), emptyWriter)
-      val writeCols = WritePartition(ToStream(GetField(globals, colsFieldName)), Str(partFile(1, 0)), colWriter)
-      val writeGlobals = WritePartition(MakeStream(FastSeq(SelectFields(globals, tm.globalType.fieldNames)), TStream(tm.globalType)),
-        Str(partFile(1, 0)), globalWriter)
+    RelationalWriter.scoped(path, overwrite = overwrite, Some(t.typ))(
+      RelationalWriter.scoped(s"$path/globals", overwrite = false, None)(
+        RelationalWriter.scoped(s"$path/cols", overwrite = false, None)(
+          RelationalWriter.scoped(s"$path/rows", overwrite = false, None)(
+            RelationalWriter.scoped(s"$path/entries", overwrite = false, None)(
 
-      val globalTableWriter = TableSpecWriter(s"$path/globals", TableType(tm.globalType, FastIndexedSeq(), TStruct.empty), "rows", "globals", "../references", log = false)
-      val colTableWriter = TableSpecWriter(s"$path/cols", tm.colsTableType.copy(key = FastIndexedSeq[String]()), "rows", "../globals/rows", "../references", log = false)
-      val rowTableWriter = TableSpecWriter(s"$path/rows", tm.rowsTableType, "rows", "../globals/rows", "../references", log = false)
-      val entriesTableWriter = TableSpecWriter(s"$path/entries", TableType(tm.entriesRVType, FastIndexedSeq(), tm.globalType), "rows", "../globals/rows", "../references", log = false)
+              lowered.mapContexts { oldCtx =>
+                val d = digitsNeeded(lowered.numPartitions)
+                val partFiles = Array.tabulate(lowered.numPartitions)(i => s"${ partFile(d, i) }-")
 
-      val matrixWriter = MatrixSpecWriter(path, tm, "rows/rows", "globals/rows", "cols/rows", "entries/rows", "references", log = true)
+                zip2(oldCtx, ToStream(Literal(TArray(TString), partFiles.toFastIndexedSeq)), ArrayZipBehavior.AssertSameLength) { (ctxElt, pf) =>
+                  MakeStruct(FastSeq("oldCtx" -> ctxElt, "writeCtx" -> pf))
+                }
+              }(GetField(_, "oldCtx")).mapCollectWithContextsAndGlobals(relationalLetsAbove) { (rows, ctx) =>
+                WritePartition(rows, GetField(ctx, "writeCtx") + UUID4(), rowWriter)
+              } { (parts, globals) =>
+                val writeEmpty = WritePartition(MakeStream(FastSeq(makestruct()), TStream(TStruct.empty)), Str(partFile(1, 0)), emptyWriter)
+                val writeCols = WritePartition(ToStream(GetField(globals, colsFieldName)), Str(partFile(1, 0)), colWriter)
+                val writeGlobals = WritePartition(MakeStream(FastSeq(SelectFields(globals, tm.globalType.fieldNames)), TStream(tm.globalType)),
+                  Str(partFile(1, 0)), globalWriter)
 
-      val rowsIndexSpec = IndexSpec.defaultAnnotation("../../index", coerce[PStruct](pKey))
-      val entriesIndexSpec = IndexSpec.defaultAnnotation("../../index", coerce[PStruct](pKey), withOffsetField = true)
 
-      RelationalWriter.scoped(path, overwrite = overwrite, Some(t.typ))(
-        RelationalWriter.scoped(s"$path/globals", overwrite = false, None)(
-          RelationalWriter.scoped(s"$path/cols", overwrite = false, None)(
-            RelationalWriter.scoped(s"$path/rows", overwrite = false, None)(
-              RelationalWriter.scoped(s"$path/entries", overwrite = false, None)(
+                val matrixWriter = MatrixSpecWriter(path, tm, "rows/rows", "globals/rows", "cols/rows", "entries/rows", "references", log = true)
+
+                val rowsIndexSpec = IndexSpec.defaultAnnotation("../../index", coerce[PStruct](pKey))
+                val entriesIndexSpec = IndexSpec.defaultAnnotation("../../index", coerce[PStruct](pKey), withOffsetField = true)
+
                 bindIR(writeCols) { colInfo =>
                   bindIR(parts) { partInfo =>
                     Begin(FastIndexedSeq(
@@ -164,21 +166,21 @@ case class MatrixNativeWriter(
                       },
                       bindIR(ToArray(mapIR(ToStream(partInfo)) { fc => SelectFields(fc, Seq("partitionCounts", "distinctlyKeyed", "firstKey", "lastKey")) })) { countsAndKeyInfo =>
                         Begin(FastIndexedSeq(
-                            WriteMetadata(countsAndKeyInfo, rowTableWriter),
-                            WriteMetadata(
-                              ToArray(mapIR(ToStream(countsAndKeyInfo)){countAndKeyInfo =>
-                                InsertFields(SelectFields(countAndKeyInfo, IndexedSeq("partitionCounts", "distinctlyKeyed")), IndexedSeq("firstKey" -> MakeStruct(Seq()), "lastKey" -> MakeStruct(Seq())))
-                              }),
-                              entriesTableWriter),
-                            WriteMetadata(
-                              makestruct(
-                                "cols" -> GetField(colInfo, "partitionCounts"),
-                                "rows" -> ToArray(mapIR(ToStream(countsAndKeyInfo)) {countAndKey => GetField(countAndKey, "partitionCounts")})),
-                              matrixWriter)))
+                          WriteMetadata(countsAndKeyInfo, rowTableWriter),
+                          WriteMetadata(
+                            ToArray(mapIR(ToStream(countsAndKeyInfo)) { countAndKeyInfo =>
+                              InsertFields(SelectFields(countAndKeyInfo, IndexedSeq("partitionCounts", "distinctlyKeyed")), IndexedSeq("firstKey" -> MakeStruct(Seq()), "lastKey" -> MakeStruct(Seq())))
+                            }),
+                            entriesTableWriter),
+                          WriteMetadata(
+                            makestruct(
+                              "cols" -> GetField(colInfo, "partitionCounts"),
+                              "rows" -> ToArray(mapIR(ToStream(countsAndKeyInfo)) { countAndKey => GetField(countAndKey, "partitionCounts") })),
+                            matrixWriter)))
                       }))
                   }
-                })))))
-    }
+                }
+              })))))
   }
 }
 
@@ -524,6 +526,7 @@ case class VCFPartitionWriter(typ: MatrixType, entriesFieldName: String, writeHe
         consumeElement(cb, stream.element, os, stream.elementRegion)
       }
 
+      cb += os.invoke[Unit]("flush")
       cb += os.invoke[Unit]("close")
 
       if (tabix) {
@@ -856,7 +859,6 @@ final case class GenVariantWriter(typ: MatrixType, entriesFieldName: String, pre
     def _writeB(cb: EmitCodeBuilder, code: Code[Array[Byte]]) = { cb += os.invoke[Array[Byte], Unit]("write", code) }
     def _writeS(cb: EmitCodeBuilder, code: Code[String]) = { _writeB(cb, code.invoke[Array[Byte]]("getBytes")) }
     def writeC(code: Code[Int]) = _writeC(cb, code)
-    def writeB(code: Code[Array[Byte]]) = _writeB(cb, code)
     def writeS(code: Code[String]) = _writeS(cb, code)
 
     val hasGPField = typ.entryType.hasField("GP")
