@@ -464,7 +464,11 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
         requiredness.union(node.children.forall { case c: IR => lookup(c).required })
 
       // always required
-      case _: I32 | _: I64 | _: F32 | _: F64 | _: Str | True() | False() | _: IsNA | _: Die | _: UUID4 | _: Consume =>
+      case _: I32 | _: I64 | _: F32 | _: F64 | _: Str | True() | False() | _: IsNA | _: Die | _: UUID4 | _: Consume | _: RNGStateLiteral =>
+      // FIXME: once support for new rng is complete, make states required
+      case RNGSplit(state, dynBitstring) =>
+        requiredness.union(lookup(state).required)
+        requiredness.union(lookup(dynBitstring).required)
       case _: CombOpValue | _: AggStateValue =>
       case Trap(child) =>
         // error message field is missing if the child runs without error

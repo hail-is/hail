@@ -66,8 +66,8 @@ package object ir {
   def invoke(name: String, rt: Type, errorID: Int, args: IR*): IR =
     invoke(name, rt, Array.empty[Type], errorID, args:_*)
 
-  def invokeSeeded(name: String, seed: Long, rt: Type, args: IR*): IR = IRFunctionRegistry.lookupSeeded(name, seed, rt, args.map(_.typ)) match {
-    case Some(f) => f(args)
+  def invokeSeeded(name: String, seed: Long, rt: Type, rngState: IR, args: IR*): IR = IRFunctionRegistry.lookupSeeded(name, seed, rt, args.map(_.typ)) match {
+    case Some(f) => f(args, rngState)
     case None => fatal(s"no seeded function found for $name(${args.map(_.typ).mkString(", ")}) => $rt")
   }
 

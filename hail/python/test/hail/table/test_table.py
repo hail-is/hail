@@ -196,6 +196,13 @@ class Tests(unittest.TestCase):
         r = kt.aggregate(agg.filter(kt.idx % 2 != 0, agg.sum(kt.idx + 2)) + kt.g1)
         self.assertEqual(r, 40)
 
+    def test_java_array_string_encoding(self):
+        ht = hl.utils.range_table(10)
+        ht = ht.annotate(foo = hl.str(ht.idx).split(","))
+        path = new_temp_file(extension='ht')
+        ht.write(path)
+        hl.read_table(path)._force_count()
+
     def test_to_matrix_table(self):
         N, M = 50, 50
         mt = hl.utils.range_matrix_table(N, M)
