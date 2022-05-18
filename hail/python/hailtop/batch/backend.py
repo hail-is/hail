@@ -28,7 +28,7 @@ from .globals import DEFAULT_SHELL
 
 
 HAIL_GENETICS_HAILTOP_SLIM_IMAGE = os.environ.get('HAIL_GENETICS_HAILTOP_SLIM_IMAGE',
-                                                  f'hailgenetics/hail:{pip_version()}')
+                                                  f'hailgenetics/hailtop-slim:{pip_version()}')
 
 
 RunningBatchType = TypeVar('RunningBatchType')
