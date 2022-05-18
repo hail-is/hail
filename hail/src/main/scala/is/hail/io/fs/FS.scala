@@ -109,7 +109,7 @@ object FSUtil {
 
 abstract class FSSeekableInputStream extends InputStream with Seekable {
   protected[this] var closed: Boolean = false
-  protected[this] var pos: Long = 0
+  private[this] var pos: Long = 0
   private[this] var eof: Boolean = false
 
   protected[this] val bb: ByteBuffer = ByteBuffer.allocate(64 * 1024)
@@ -150,6 +150,15 @@ abstract class FSSeekableInputStream extends InputStream with Seekable {
     pos += toTransfer
     toTransfer
   }
+
+  def seek(newPos: Long): Unit = {
+    bb.clear()
+    bb.limit(0)
+    pos = newPos
+    adjustSeekInternalState(newPos)
+  }
+
+  def adjustSeekInternalState(newPos: Long): Unit
 
   def getPosition: Long = pos
 }

@@ -137,8 +137,9 @@ class AzureStorageFS(val credentialsJSON: Option[String] = None) extends FS {
           bb.put(i.toByte)
         }
 
+        val pos = getPosition
         val numBytesRemainingInBlob = blobSize - pos
-        val count = Math.min(numBytesRemainingInBlob, bb.remaining())
+        val count = Math.min(numBytesRemainingInBlob, bb.capacity())
         if (count <= 0) {
           return -1
         }
@@ -146,18 +147,13 @@ class AzureStorageFS(val credentialsJSON: Option[String] = None) extends FS {
         client.downloadStreamWithResponse(
           outputStreamToBuffer, new BlobRange(pos, count),
           null, null, false, timeout, null)
-        pos += count
         bb.flip()
 
         assert(bb.position() == 0 && bb.remaining() > 0)
         return count.toInt
       }
 
-      override def seek(newPos: Long): Unit = {
-        bb.clear()
-        bb.limit(0)
-        pos = newPos
-      }
+      override def adjustSeekInternalState(newPos: Long): Unit = {}
     }
 
     new WrappedSeekableDataInputStream(is)
