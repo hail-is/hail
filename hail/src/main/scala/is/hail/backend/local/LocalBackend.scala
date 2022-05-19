@@ -291,11 +291,7 @@ class LocalBackend(
     rowTypeRequiredness: RStruct
   ): TableStage = {
 
-    if (getFlag("use_new_shuffle") != null) {
-      LowerDistributedSort.distributedSort(ctx, stage, sortFields, relationalLetsAbove, rowTypeRequiredness)
-    } else {
-      LowerDistributedSort.localSort(ctx, stage, sortFields, relationalLetsAbove)
-    }
+    LowerDistributedSort.distributedSort(ctx, stage, sortFields, relationalLetsAbove, rowTypeRequiredness)
   }
 
   def pyLoadReferencesFromDataset(path: String): String =
