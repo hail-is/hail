@@ -1824,7 +1824,7 @@ class JVMJob(Job):
                     finally:
                         temporary_file.close()  # close is idempotent
                         try:
-                            os.remove(temporary_file.name)
+                            await blocking_to_async(worker.pool, os.remove, temporary_file.name)
                         except OSError as err:
                             if err.errno != errno.ENOENT:
                                 raise
