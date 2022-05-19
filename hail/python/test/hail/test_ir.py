@@ -451,16 +451,17 @@ class CSETests(unittest.TestCase):
         assert expected == CSERenderer()(cond)
 
     def test_shadowing(self):
-        x = ir.GetField(ir.Ref('row', tint32), 'idx')
+        x = ir.ApplyBinaryPrimOp('*', ir.Ref('row', tint32), ir.I32(2))
         sum = ir.ApplyBinaryPrimOp('+', x, x)
         inner = ir.Let('row', sum, sum)
         outer = ir.Let('row', ir.I32(5), inner)
         expected = (
-            '(Let row (I32 5)'
-            ' (Let __cse_1 (GetField idx (Ref row))'
+            '(Let __cse_2 (I32 2)'
+            ' (Let row (I32 5)'
+            ' (Let __cse_1 (ApplyBinaryPrimOp `*` (Ref row) (Ref __cse_2))'
             ' (Let row (ApplyBinaryPrimOp `+` (Ref __cse_1) (Ref __cse_1))'
-            ' (Let __cse_2 (GetField idx (Ref row))'
-            ' (ApplyBinaryPrimOp `+` (Ref __cse_2) (Ref __cse_2))))))')
+            ' (Let __cse_3 (ApplyBinaryPrimOp `*` (Ref row) (Ref __cse_2))'
+            ' (ApplyBinaryPrimOp `+` (Ref __cse_3) (Ref __cse_3)))))))')
         assert expected == CSERenderer()(outer)
 
     def test_agg_cse(self):

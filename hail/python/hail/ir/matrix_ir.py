@@ -58,7 +58,7 @@ class MatrixAggregateRowsByKey(MatrixIR):
                                  row_expr,
                                  is_scan=False)
 
-        result = MatrixAggregateColsByKey(child, entry_expr, row_expr)
+        result = MatrixAggregateRowsByKey(child, entry_expr, row_expr)
         if drop_row_uid:
             _, old_row = unpack_row_uid(result.typ.row_type, row_uid_field_name)
             result = MatrixMapRows(result, old_row)
@@ -1121,6 +1121,10 @@ class MatrixFilterIntervals(MatrixIR):
         self.intervals = intervals
         self.point_type = point_type
         self.keep = keep
+
+    def _handle_randomness(self, row_uid_field_name, col_uid_field_name):
+        child = self.child.handle_randomness(row_uid_field_name, col_uid_field_name)
+        return MatrixFilterIntervals(child, self.intervals, self.point_type, self.keep)
 
     def head_str(self):
         return f'{dump_json(hl.tarray(hl.tinterval(self.point_type))._convert_to_json(self.intervals))} {self.keep}'
