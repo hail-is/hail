@@ -449,7 +449,7 @@ async def get_quotas(request, userdata):
                         'threshold': {
                             'line': {'color': "red", 'width': 4},
                             'thickness': 0.75,
-                            'value': measure['limit']
+                            'value': measure['limit'],
                         },
                     },
                 ),
