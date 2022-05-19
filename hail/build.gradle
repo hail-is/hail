@@ -199,6 +199,13 @@ dependencies {
     }
 
     bundled 'commons-io:commons-io:2.5'
+    bundled(group: 'com.azure', name: 'azure-storage-blob', version: '12.13.0') {
+        exclude group: 'com.fasterxml.jackson.core'
+    }
+
+    bundled(group: 'com.azure', name: 'azure-identity', version:'1.2.1') {
+        exclude group: 'com.fasterxml.jackson.core'
+    }
 
     bundled group: 'org.freemarker', name: 'freemarker', version: '2.3.14'
 
