@@ -5,7 +5,6 @@ import java.nio.charset._
 import java.net._
 import java.nio.charset.StandardCharsets
 import java.util.concurrent._
-
 import is.hail.{HAIL_REVISION, HailContext, HailFeatureFlags}
 import is.hail.annotations._
 import is.hail.asm4s._
@@ -42,6 +41,7 @@ import scala.annotation.switch
 import scala.reflect.ClassTag
 import scala.{concurrent => scalaConcurrent}
 import scala.collection.mutable
+import scala.collection.parallel.ExecutionContextTaskSupport
 
 
 class ServiceBackendContext(
@@ -208,27 +208,26 @@ class ServiceBackend(
       }
     }
 
-    def readResult(i: Int): scalaConcurrent.Future[Unit] = scalaConcurrent.Future {
+
+    val parArray = Array.range(0, n).par
+    parArray.tasksupport = new ExecutionContextTaskSupport(ec)
+    parArray.map { i =>
       availableGCSConnections.acquire()
       try {
-        r(i) = retryTransientErrors {
+        val bytes = retryTransientErrors {
           using(open(s"$root/result.$i")) { is =>
             resultOrHailException(new DataInputStream(is))
           }
         }
-        log.info(s"result $i complete")
+        log.info(s"result $i complete - ${bytes.length} bytes")
+        bytes
       } finally {
         availableGCSConnections.release()
       }
     }
 
-    scalaConcurrent.Await.result(
-      scalaConcurrent.Future.sequence(
-        Array.tabulate(n)(readResult).toFastIndexedSeq),
-      scalaConcurrent.duration.Duration.Inf)
-
     log.info(s"all results complete")
-    r
+    parArray.seq.array.asInstanceOf[Array[Array[Byte]]]
   }
 
   def stop(): Unit = ()
