@@ -145,7 +145,7 @@ steps:
       valueFrom: base_image.image
     script: |
       set -ex
-      pip install pip-compile
+      pip install pip-tools
 
       check_pip_requirements() {
         local reqs=$1
