@@ -273,12 +273,16 @@ class GoogleStorageFS(val serviceAccountKey: Option[String] = None) extends FS {
   def delete(filename: String, recursive: Boolean): Unit = retryTransientErrors {
     val (bucket, path) = getBucketPath(filename)
     if (recursive) {
-      val it = retryTransientErrors {
+      var page = retryTransientErrors {
         storage.list(bucket, BlobListOption.prefix(path))
-          .getValues.iterator.asScala
       }
-      while (it.hasNext) {
-        storage.delete(it.next().getBlobId)
+      while (page != null) {
+        retryTransientErrors {
+          val blobs = page.getValues.asScala.map(_.getBlobId).asJava
+          if (blobs.iterator().hasNext)
+            storage.delete(blobs)
+        }
+        page = page.getNextPage()
       }
     } else {
       // Storage.delete is idempotent. it returns a Boolean which is false if the file did not exist
