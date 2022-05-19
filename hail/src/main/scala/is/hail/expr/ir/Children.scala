@@ -138,7 +138,7 @@ object Children {
       Array(a, query)
     case StreamAggScan(a, name, query) =>
       Array(a, query)
-    case StreamBufferedAggregate(streamChild, initAggs, newKey, seqOps, _, _) =>
+    case StreamBufferedAggregate(streamChild, initAggs, newKey, seqOps, _, _, _) =>
       Array(streamChild, initAggs, newKey, seqOps)
     case RunAggScan(array, _, init, seq, result, _) =>
       Array(array, init, seq, result)

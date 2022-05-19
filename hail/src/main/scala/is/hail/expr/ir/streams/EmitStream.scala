@@ -261,7 +261,7 @@ object EmitStream {
         }
         
       case x@StreamBufferedAggregate(streamChild, initAggs, newKey, seqOps, name,
-        aggSignatures: IndexedSeq[PhysicalAggSig]) =>
+        aggSignatures: IndexedSeq[PhysicalAggSig], bufferSize: Int) =>
         val region = mb.genFieldThisRef[Region]("stream_buff_agg_region")
         produce(streamChild, cb)
           .map(cb) { case childStream: SStreamValue =>
@@ -299,7 +299,7 @@ object EmitStream {
                 cb.assign(childStreamEnded, false)
                 cb.assign(produceElementMode, false)
                 cb.assign(idx, 0)
-                cb.assign(maxSize, 8)
+                cb.assign(maxSize, bufferSize)
                 cb.assign(nodeArray, Code.newArray[Long](maxSize))
                 cb.assign(numElemInArray, 0)
                 dictState.createState(cb)
@@ -335,7 +335,7 @@ object EmitStream {
                   emit(newKey,
                     cb = cb,
                     env = env.bind(name, eltField),
-                    region = childProducer.elementRegion)
+                    region = region)
                 }
                 val resultKeyValue = newKeyResultCode.memoize(cb, "buff_agg_stream_result_key")
                 val keyedContainer = AggContainer(aggSignatures.toArray.map(sig => sig.state), dictState.keyed.container, cleanup = () => ())
@@ -378,8 +378,12 @@ object EmitStream {
                 val nodeAddress = cb.memoize(nodeArray(idx))
                 cb.assign(idx, idx + 1)
                 dictState.loadNode(cb, nodeAddress)
+
+                val keyInWrongRegion = dictState.keyed.storageType.loadCheapSCode(cb, nodeAddress)
+                val addrOfKeyInRightRegion = dictState.keyed.storageType.store(cb, region, keyInWrongRegion, true)
+                val key = dictState.keyed.storageType.loadCheapSCode(cb, addrOfKeyInRightRegion).loadField(cb, "kt").memoize(cb, "stream_buff_agg_key_right_region")
+
                 val serializedAggValue = keyedContainer.container.states.states.map(state => state.serializeToRegion(cb, PCanonicalBinary(), region))
-                val key = dictState.keyed.storageType.loadCheapSCode(cb, nodeAddress).loadField(cb, "kt").memoize(cb, "steam_buff_agg_key")
                 val serializedAggEmitCodes = serializedAggValue.map(aggValue => EmitCode.present(mb, aggValue))
                 val serializedAggTupleSValue = SStackStruct.constructFromArgs(cb, region, serializedAggSType.virtualType, serializedAggEmitCodes: _*)
                 val keyValue = key.get(cb).asInstanceOf[SBaseStructValue]

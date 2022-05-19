@@ -4,7 +4,7 @@ import is.hail.asm4s
 import is.hail.asm4s._
 import is.hail.expr.ir.functions.IRFunctionRegistry
 import is.hail.types.physical._
-import is.hail.types.physical.stypes.{SCode, SValue}
+import is.hail.types.physical.stypes.SValue
 import is.hail.types.virtual._
 import is.hail.types.{coerce => tycoerce, _}
 import is.hail.utils._

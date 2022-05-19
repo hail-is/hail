@@ -4,19 +4,18 @@ import is.hail.TestUtils._
 import is.hail.annotations.{Region, SafeRow, ScalaToRegionValue}
 import is.hail.asm4s._
 import is.hail.backend.ExecuteContext
+import is.hail.expr.ir.agg.{CollectStateSig, PhysicalAggSig, TypedStateSig}
 import is.hail.expr.ir.lowering.LoweringPipeline
 import is.hail.expr.ir.streams.{EmitStream, StreamArgType, StreamUtils}
+import is.hail.types.VirtualTypeWithReq
 import is.hail.types.physical._
 import is.hail.types.physical.stypes.interfaces.SStreamValue
+import is.hail.types.physical.stypes.{PTypeReferenceSingleCodeType, SingleCodeSCode, StreamSingleCodeType}
 import is.hail.types.virtual._
 import is.hail.utils._
 import is.hail.variant.Call2
 import is.hail.{ExecStrategy, HailSuite}
 import org.apache.spark.sql.Row
-import is.hail.TestUtils._
-import is.hail.expr.ir.agg.{CollectStateSig, PhysicalAggSig, TypedStateSig}
-import is.hail.types.VirtualTypeWithReq
-import is.hail.types.physical.stypes.{PTypeReferenceSingleCodeType, SingleCodeSCode, StreamSingleCodeType}
 import org.testng.annotations.Test
 
 class EmitStreamSuite extends HailSuite {
@@ -335,7 +334,7 @@ class EmitStreamSuite extends HailSuite {
     val initOps = InitOp(0, FastIndexedSeq(), countAggSig)
     val seqOps = SeqOp(0, FastIndexedSeq(), countAggSig)
     val newKey = MakeStruct(Seq("count" -> SelectFields(Ref("foo", streamType.elementType), Seq("a", "b"))))
-    val streamBuffAggCount = StreamBufferedAggregate(countStructStream, initOps, newKey, seqOps, "foo",  IndexedSeq(countAggSig))
+    val streamBuffAggCount = StreamBufferedAggregate(countStructStream, initOps, newKey, seqOps, "foo",  IndexedSeq(countAggSig), 8)
     val result = mapIR(streamBuffAggCount) { elem =>
       MakeStruct(Seq(
         "key" -> GetField(elem, "count"),
@@ -355,7 +354,7 @@ class EmitStreamSuite extends HailSuite {
     val initOps = InitOp(0, FastIndexedSeq(), countAggSig)
     val seqOps = SeqOp(0, FastIndexedSeq(), countAggSig)
     val newKey = MakeStruct(Seq("count" -> SelectFields(Ref("foo", streamType.elementType), Seq("a"))))
-    val streamBuffAggCount = StreamBufferedAggregate(countStructStream, initOps, newKey, seqOps, "foo",  IndexedSeq(countAggSig))
+    val streamBuffAggCount = StreamBufferedAggregate(countStructStream, initOps, newKey, seqOps, "foo",  IndexedSeq(countAggSig), 8)
     val result = mapIR(streamBuffAggCount) { elem =>
       MakeStruct(Seq(
         "key" -> GetField(elem, "count"),
@@ -377,7 +376,7 @@ class EmitStreamSuite extends HailSuite {
     val initOps = InitOp(0, FastIndexedSeq(), collectAggSig)
     val seqOps = SeqOp(0, FastIndexedSeq(GetField(Ref("foo", streamType.elementType), "b")), collectAggSig)
     val newKey = MakeStruct(Seq("collect" -> SelectFields(Ref("foo", streamType.elementType), Seq("a"))))
-    val streamBuffAggCollect = StreamBufferedAggregate(collectStructStream, initOps, newKey, seqOps, "foo",  IndexedSeq(collectAggSig))
+    val streamBuffAggCollect = StreamBufferedAggregate(collectStructStream, initOps, newKey, seqOps, "foo",  IndexedSeq(collectAggSig), 8)
     val result = mapIR(streamBuffAggCollect) { elem =>
       MakeStruct(Seq(
         "key" -> GetField(elem, "collect"),
@@ -427,7 +426,7 @@ class EmitStreamSuite extends HailSuite {
     ))
     val newKey = MakeStruct(Seq("collect" -> SelectFields(Ref("foo", streamType.elementType), Seq("a"))))
     val streamBuffAggCollect = StreamBufferedAggregate(collectStructStream, initOps, newKey, seqOps, "foo",
-                                IndexedSeq(countAggSig, collectAggSig))
+                                IndexedSeq(countAggSig, collectAggSig), 8)
     val result = mapIR(streamBuffAggCollect) { elem =>
       MakeStruct(Seq(
         "key" -> GetField(elem, "collect"),

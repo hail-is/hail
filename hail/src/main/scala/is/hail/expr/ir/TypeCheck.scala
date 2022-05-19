@@ -373,7 +373,7 @@ object TypeCheck {
       case x@StreamAggScan(a, name, query) =>
         assert(a.typ.isInstanceOf[TStream])
         assert(x.typ.asInstanceOf[TStream].elementType == query.typ)
-      case x@StreamBufferedAggregate(streamChild, initAggs, newKey, seqOps, _, _) =>
+      case x@StreamBufferedAggregate(streamChild, initAggs, newKey, seqOps, _, _,_) =>
         assert(streamChild.typ.isInstanceOf[TStream])
         assert(initAggs.typ == TVoid)
         assert(seqOps.typ == TVoid)
