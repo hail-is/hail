@@ -142,6 +142,8 @@ python/README.md: ../README.md
 $(PYTHON_JAR): shadowJar
 	cp -f $(SHADOW_JAR) $@
 
+jar-and-version: $(PYTHON_JAR) python-version-info
+
 .PHONY: pytest
 pytest: PYTEST_TARGET ?= test/hail
 pytest: $(PYTHON_VERSION_INFO) $(SHADOW_JAR) $(INIT_SCRIPTS)
