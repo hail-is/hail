@@ -442,21 +442,17 @@ async def get_quotas(request, userdata):
                             'tickwidth': 1,
                             'tickcolor': "darkblue",
                         },
-                        'bar': {
-                            'color': "darkblue"
-                        },
+                        'bar': {'color': "darkblue"},
                         'bgcolor': "white",
                         'borderwidth': 2,
                         'bordercolor': "gray",
                         'threshold': {
-                            'line': {
-                                'color': "red",
-                                'width': 4
-                            },
+                            'line': {'color': "red", 'width': 4},
                             'thickness': 0.75,
                             'value': measure['limit']
-                        }
-                    }),
+                        },
+                    },
+                ),
                 row=r + 1,
                 col=c + 1,
             )
@@ -469,7 +465,8 @@ async def get_quotas(request, userdata):
         width=2200,
         autosize=True,
         title_font_size=40,
-        title_x=0.5)
+        title_x=0.5,
+    )
 
     plot_json = json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
 
