@@ -177,7 +177,6 @@ object LowerDistributedSort {
       val numSamplesPerPartition = numSamplesPerPartitionPerSegment.flatten
 
       val perPartStatsCDAContextData = partitionDataPerSegment.flatten.zip(numSamplesPerPartition).map { case (partData, numSamples) =>
-                                                                                         /* let's just call the missing byteSize 'infinity' */
         Row(partData.indices.last, partData.files, partData.currentPartSize, numSamples, partData.currentPartByteSize)
       }
       val perPartStatsCDAContexts = ToStream(Literal(TArray(TStruct(
