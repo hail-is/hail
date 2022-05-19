@@ -2220,7 +2220,7 @@ steps:
       - gcp
   - kind: runImage
     name: test_hail_python_service_backend
-    numSplits: 5
+    numSplits: 7
     image:
       valueFrom: hail_run_tests_image.image
     resources:
