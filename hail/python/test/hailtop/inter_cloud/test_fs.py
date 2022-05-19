@@ -491,7 +491,7 @@ async def test_file_can_contain_url_query_delimiter(filesystem: Tuple[asyncio.Se
     file = f'{base}bar?baz'
     await fs.write(file, secrets.token_bytes(10))
     assert await fs.exists(file)
-    async for f in fs.listfiles(base):
+    async for f in await fs.listfiles(base):
         if f.name() == 'bar?baz':
             break
     else:
