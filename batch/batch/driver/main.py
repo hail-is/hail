@@ -6,20 +6,18 @@ import signal
 from collections import defaultdict, namedtuple
 from functools import wraps
 from typing import Dict, List
-
-import plotly
-import plotly.graph_objects as go
-from plotly.subplots import make_subplots
-import pandas as pd
-
 import aiohttp_session
 import dictdiffer
 import googlecloudprofiler
 import kubernetes_asyncio.client
 import kubernetes_asyncio.config
+import pandas as pd
+import plotly
+import plotly.graph_objects as go
 import prometheus_client as pc  # type: ignore
 import uvloop
 from aiohttp import web
+from plotly.subplots import make_subplots
 from prometheus_async.aio.web import server_stats
 
 from gear import (
