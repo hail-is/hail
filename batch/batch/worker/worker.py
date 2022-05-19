@@ -1808,24 +1808,29 @@ class JVMJob(Job):
             local_jar_location = f'/hail-jars/{unique_key}.jar'
             if not os.path.isfile(local_jar_location):
                 assert self.jar_url.startswith(ACCEPTABLE_QUERY_JAR_URL_PREFIX)
-                temporary_file = tempfile.NamedTemporaryFile(delete=False)  # pylint: disable=consider-using-with
-                try:
-                    async with await self.worker.fs.open(self.jar_url) as jar_data:
-                        while True:
-                            b = await jar_data.read(256 * 1024)
-                            if not b:
-                                break
-                            written = await blocking_to_async(worker.pool, temporary_file.write, b)
-                            assert written == len(b)
-                    temporary_file.close()
-                    os.rename(temporary_file.name, local_jar_location)
-                finally:
-                    temporary_file.close()  # close is idempotent
+
+                async def download_jar():
+                    temporary_file = tempfile.NamedTemporaryFile(delete=False)  # pylint: disable=consider-using-with
                     try:
-                        os.remove(temporary_file.name)
-                    except OSError as err:
-                        if err.errno != errno.ENOENT:
-                            raise
+                        async with await self.worker.fs.open(self.jar_url) as jar_data:
+                            while True:
+                                b = await jar_data.read(256 * 1024)
+                                if not b:
+                                    break
+                                written = await blocking_to_async(worker.pool, temporary_file.write, b)
+                                assert written == len(b)
+                        temporary_file.close()
+                        os.rename(temporary_file.name, local_jar_location)
+                    finally:
+                        temporary_file.close()  # close is idempotent
+                        try:
+                            os.remove(temporary_file.name)
+                        except OSError as err:
+                            if err.errno != errno.ENOENT:
+                                raise
+
+                await retry_transient_errors(download_jar)
+
             return local_jar_location
 
     async def run(self):
