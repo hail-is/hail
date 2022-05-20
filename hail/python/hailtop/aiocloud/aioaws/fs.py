@@ -9,6 +9,7 @@ import threading
 import asyncio
 import logging
 
+import botocore.config
 import botocore.exceptions
 import boto3
 from hailtop.utils import blocking_to_async
@@ -276,11 +277,14 @@ class S3AsyncFSURL(AsyncFSURL):
 class S3AsyncFS(AsyncFS):
     schemes: Set[str] = {'s3'}
 
-    def __init__(self, thread_pool: Optional[ThreadPoolExecutor] = None, max_workers: Optional[int] = None):
+    def __init__(self, thread_pool: Optional[ThreadPoolExecutor] = None, max_workers: Optional[int] = None, *, max_pool_connections: int = 10):
         if not thread_pool:
             thread_pool = ThreadPoolExecutor(max_workers=max_workers)
         self._thread_pool = thread_pool
-        self._s3 = boto3.client('s3')
+        config = botocore.config.Config(
+            max_pool_connections=max_pool_connections,
+        )
+        self._s3 = boto3.client('s3', config=config)
 
     def parse_url(self, url: str) -> S3AsyncFSURL:
         return S3AsyncFSURL(*self.get_bucket_and_name(url))
@@ -495,7 +499,7 @@ class S3AsyncFS(AsyncFS):
             raise FileNotFoundError(url) from e
 
     async def close(self) -> None:
-        pass
+        del self._s3
 
     def copy_part_size(self, url: str) -> int:  # pylint: disable=unused-argument
         # Because the S3 upload_part API call requires the entire part
