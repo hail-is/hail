@@ -1,4 +1,17 @@
+FROM golang:1.18 AS skopeo-build
+
+WORKDIR /usr/src/skopeo
+
+ARG SKOPEO_VERSION="1.8.0"
+RUN curl -fsSL "https://github.com/containers/skopeo/archive/v${SKOPEO_VERSION}.tar.gz" \
+  | tar -xzf - --strip-components=1
+
+RUN CGO_ENABLED=0 DISABLE_DOCS=1 make BUILDTAGS=containers_image_openpgp GO_DYN_FLAGS=
+
 FROM {{ service_base_image.image }}
+
+COPY --from=skopeo-build /usr/src/skopeo/bin/skopeo /usr/local/bin/
+COPY --from=skopeo-build /usr/src/skopeo/default-policy.json /etc/containers/policy.json
 
 RUN hail-pip-install twine
 COPY jinja2_render.py .

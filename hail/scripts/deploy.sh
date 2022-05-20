@@ -29,7 +29,7 @@ HAIL_GENETICS_HAIL_IMAGE=$7
 WHEEL_FOR_AZURE=$8
 WEBSITE_TAR=$9
 
-# retry skopeo inspect $HAIL_GENETICS_HAIL_IMAGE || (echo "could not pull $HAIL_GENETICS_HAIL_IMAGE" ; exit 1)
+retry skopeo inspect $HAIL_GENETICS_HAIL_IMAGE || (echo "could not pull $HAIL_GENETICS_HAIL_IMAGE" ; exit 1)
 
 if git ls-remote --exit-code --tags $REMOTE $HAIL_PIP_VERSION
 then
@@ -78,8 +78,8 @@ curl -XPOST -H @$GITHUB_OAUTH_HEADER_FILE https://api.github.com/repos/hail-is/h
   "prerelease": false
 }'
 
-# retry skopeo copy $HAIL_GENETICS_HAIL_IMAGE docker://docker.io/hailgenetics/hail:$HAIL_PIP_VERSION
-# retry skopeo copy $HAIL_GENETICS_HAIL_IMAGE docker://gcr.io/hail-vdc/hailgenetics/hail:$HAIL_PIP_VERSION
+retry skopeo copy $HAIL_GENETICS_HAIL_IMAGE docker://docker.io/hailgenetics/hail:$HAIL_PIP_VERSION
+retry skopeo copy $HAIL_GENETICS_HAIL_IMAGE docker://gcr.io/hail-vdc/hailgenetics/hail:$HAIL_PIP_VERSION
 
 # deploy to PyPI
 twine upload $WHEEL
