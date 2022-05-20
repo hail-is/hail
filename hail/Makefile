@@ -139,10 +139,11 @@ python/hailtop/hail_version: python/hail/hail_version
 python/README.md: ../README.md
 	cp ../README.md python/
 
-$(PYTHON_JAR): shadowJar
+$(PYTHON_JAR): $(SHADOW_JAR)
 	cp -f $(SHADOW_JAR) $@
 
-jar-and-version: $(PYTHON_JAR) python-version-info
+.PHONY: python-jar
+python-jar: $(PYTHON_JAR)
 
 .PHONY: pytest
 pytest: PYTEST_TARGET ?= test/hail
