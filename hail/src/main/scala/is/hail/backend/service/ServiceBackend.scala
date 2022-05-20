@@ -207,9 +207,7 @@ class ServiceBackend(
     }
 
 
-    val parArray = Array.range(0, n).par
-    parArray.tasksupport = new ExecutionContextTaskSupport(ec)
-    parArray.map { i =>
+    val results = Array.range(0, n).par.map { i =>
       availableGCSConnections.acquire()
       try {
         val bytes = retryTransientErrors {
@@ -225,7 +223,7 @@ class ServiceBackend(
     }
 
     log.info(s"all results complete")
-    parArray.toArray[Array[Byte]]
+    results.toArray[Array[Byte]]
   }
 
   def stop(): Unit = ()
