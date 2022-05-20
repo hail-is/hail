@@ -194,8 +194,6 @@ class ServiceBackend(
 
     log.info(s"parallelizeAndComputeWithIndex: $token: reading results")
 
-    val r = new Array[Array[Byte]](n)
-
     def resultOrHailException(is: DataInputStream): Array[Byte] = {
       val success = is.readBoolean()
       if (success) {
