@@ -146,22 +146,8 @@ steps:
     script: |
       set -ex
       pip install pip-tools
-
-      check_pip_requirements() {
-        local reqs=$1
-        local pinned=$2
-        local new_pinned=new-pinned.txt
-        pip-compile --quiet $reqs $pinned --output-file=$new_pinned
-        # Get rid of comments that might differ despite requirements being the same
-        cat $pinned | sed '/#/d' > pinned-no-comments.txt
-        cat $new_pinned | sed '/#/d' > new-pinned-no-comments.txt
-        diff pinned-no-comments.txt new-pinned-no-comments.txt
-      }
-
       cd /io/repo
-      check_pip_requirements hail/python/requirements.txt hail/python/pinned-requirements.txt
-      check_pip_requirements hail/python/dev/requirements.txt hail/python/dev/pinned-requirements.txt
-      check_pip_requirements docker/requirements.txt docker/pinned-requirements.txt
+      make check-pip-dependencies
     inputs:
       - from: /repo
         to: /io/repo
