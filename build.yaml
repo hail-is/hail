@@ -709,6 +709,10 @@ steps:
     dockerFile: /io/ci/Dockerfile.ci-utils
     contextPath: /io/ci
     publishAs: ci-utils
+    resources:
+      storage: 20Gi
+      cpu: "2"
+      memory: standard
     inputs:
       - from: /repo/ci
         to: /io/ci
