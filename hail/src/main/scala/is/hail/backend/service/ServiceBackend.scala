@@ -225,7 +225,7 @@ class ServiceBackend(
     }
 
     log.info(s"all results complete")
-    parArray.seq.array.asInstanceOf[Array[Array[Byte]]]
+    parArray.toArray[Array[Byte]]
   }
 
   def stop(): Unit = ()
