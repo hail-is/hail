@@ -147,6 +147,7 @@ steps:
       set -ex
       pip install pip-tools
       cd /io/repo
+      chmod 755 ./check_pip_requirements.sh
       make check-pip-dependencies
     inputs:
       - from: /repo
