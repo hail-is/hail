@@ -56,4 +56,4 @@ check-website:
 check-pip-dependencies:
 	./check_pip_requirements.sh hail/python/requirements.txt hail/python/pinned-requirements.txt
 	./check_pip_requirements.sh hail/python/dev/requirements.txt hail/python/dev/pinned-requirements.txt
-	./check_pip_requirements.sh docker/requirements.txt docker/pinned-requirements.txt
+	./check_pip_requirements.sh docker/requirements.txt docker/linux-pinned-requirements.txt
