@@ -119,7 +119,7 @@ object LowerDistributedSort {
 
     val (keyToSortBy, _) = inputStage.rowType.select(sortFields.map(sf => sf.field))
 
-    val spec = TypedCodecSpec(rowTypeRequiredness.canonicalPType(inputStage.rowType), BufferSpec.default)
+    val spec = TypedCodecSpec(rowTypeRequiredness.canonicalPType(inputStage.rowType), BufferSpec.wireSpec)
     val reader = PartitionNativeReader(spec)
     val initialTmpPath = ctx.createTmpPath("hail_shuffle_temp_initial")
     val writer = PartitionNativeWriter(spec, keyToSortBy.fieldNames, initialTmpPath, None, None, trackTotalBytes = true)
@@ -258,6 +258,16 @@ object LowerDistributedSort {
       val pivotsWithEndpointsAndInfoGroupedBySegmentNumber = CompileAndEvaluate[Annotation](ctx, pivotsPerSegmentAndSortedCheck)
         .asInstanceOf[IndexedSeq[Row]].map(x => (x(0).asInstanceOf[IndexedSeq[Row]], x(1).asInstanceOf[Boolean], x(2).asInstanceOf[Row], x(3).asInstanceOf[IndexedSeq[Row]], x(4).asInstanceOf[IndexedSeq[Row]]))
 
+      val pivotCounts = pivotsWithEndpointsAndInfoGroupedBySegmentNumber
+        .map(_._1.length)
+        .groupBy(identity)
+        .toArray
+        .map { case (i, values) => (i, values.length) }
+        .sortBy(_._1)
+        .map { case (nPivots, nSegments) => s"$nPivots pivots: $nSegments" }
+
+      log.info(s"DISTRIBUTED SORT: PHASE ${i + 1}: pivot counts:\n  ${pivotCounts.mkString("\n  ")}")
+
       val (sortedSegmentsTuples, unsortedPivotsWithEndpointsAndInfoGroupedBySegmentNumber) = pivotsWithEndpointsAndInfoGroupedBySegmentNumber.zipWithIndex.partition { case ((_, isSorted, _, _, _), _) => isSorted}
 
       val outputPartitions = sortedSegmentsTuples.flatMap { case ((_, _, _, partMins, partMaxes), originalSegmentIdx) =>
@@ -337,6 +347,9 @@ object LowerDistributedSort {
           isBig && (sr.interval.left.point != sr.interval.right.point) && (sr.chunks.map(_.size).sum > 1)
         }
       } else { (IndexedSeq.empty[SegmentResult], IndexedSeq.empty[SegmentResult]) }
+
+      log.info(s"DISTRIBUTED SORT: PHASE ${i + 1}: ${newSmallSegments.length}/${newSmallSegments.length + newBigUnsortedSegments.length} segments can be locally sorted")
+
       loopState = LoopState(newBigUnsortedSegments, loopState.smallSegments ++ newSmallSegments, loopState.readyOutputParts ++ outputPartitions)
       i = i + 1
     }
