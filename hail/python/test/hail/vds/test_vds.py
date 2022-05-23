@@ -135,6 +135,18 @@ def test_sampleqc_gq_dp():
                                 bases_over_dp_threshold=(334822, 10484, 388, 111, 52))
 
 
+def test_sampleqc_singleton_r_ti_tv():
+    vds = hl.vds.read_vds(os.path.join(resource('vds'), '1kg_chr22_5_samples.vds'))
+    sqc = hl.vds.sample_qc(vds)
+
+    hg00320 = sqc.filter(sqc.s == 'HG00313').select('r_ti_tv_singleton', 'n_singleton_ti', 'n_singleton_tv').collect()[0]
+    assert hg00320 == hl.Struct(s='HG00313',
+                                r_ti_tv_singleton=4.0,
+                                n_singleton_ti=4,
+                                n_singleton_tv=1)
+
+
+
 def test_filter_samples_and_merge():
     vds = hl.vds.read_vds(os.path.join(resource('vds'), '1kg_chr22_5_samples.vds'))
 
