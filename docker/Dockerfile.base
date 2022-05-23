@@ -32,7 +32,7 @@ RUN hail-apt-get-install xz-utils libncurses5 && \
     tar -vx -C /opt -f mysql-8.0.26-linux-glibc2.17-x86_64-minimal-rebuild.tar.xz && \
     ln -s /opt/mysql-8.0.26-linux-glibc2.17-x86_64-minimal-rebuild/bin/* /usr/bin/
 
-COPY docker/pinned-requirements.txt requirements.txt
+COPY docker/linux-pinned-requirements.txt requirements.txt
 RUN hail-pip-install -r requirements.txt
 
 COPY pylintrc setup.cfg /
