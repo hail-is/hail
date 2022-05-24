@@ -152,8 +152,6 @@ class AzureStorageFS(val credentialsJSON: Option[String] = None) extends FS {
         assert(bb.position() == 0 && bb.remaining() > 0)
         return count.toInt
       }
-
-      override def adjustSeekInternalState(newPos: Long): Unit = {}
     }
 
     new WrappedSeekableDataInputStream(is)

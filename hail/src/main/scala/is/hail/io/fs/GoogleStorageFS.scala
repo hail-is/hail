@@ -110,7 +110,8 @@ class GoogleStorageFS(val serviceAccountKey: Option[String] = None) extends FS {
         return n
       }
 
-      override def adjustSeekInternalState(newPos: Long): Unit = {
+      override def seek(newPos: Long): Unit = {
+        super.seek(newPos)
         reader.seek(newPos)
       }
     }

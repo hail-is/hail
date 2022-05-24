@@ -281,7 +281,7 @@ trait FSSuite {
     assert(fs.exists(f))
 
     using(fs.open(f)) { is =>
-      Array.tabulate(1000000)(i => assert(i == is.read()))
+      Array.tabulate(1000000)(i => assert(i.toByte == is.read()))
     }
 
     fs.delete(f, false)
@@ -315,7 +315,7 @@ trait FSSuite {
 
       var i = 0
       while (i < byteBufferSize + 10) {
-        assert(is.read() == i)
+        assert(is.read() == i.toByte)
         i = i + 1
       }
     }

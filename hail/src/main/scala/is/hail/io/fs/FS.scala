@@ -155,10 +155,7 @@ abstract class FSSeekableInputStream extends InputStream with Seekable {
     bb.clear()
     bb.limit(0)
     pos = newPos
-    adjustSeekInternalState(newPos)
   }
-
-  def adjustSeekInternalState(newPos: Long): Unit
 
   def getPosition: Long = pos
 }
