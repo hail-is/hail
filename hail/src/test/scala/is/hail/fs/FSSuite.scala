@@ -275,13 +275,13 @@ trait FSSuite {
     val f = t()
 
     using(fs.create(f)) { os =>
-      Array.tabulate(1000000)(i => os.write(i))
+      Array.tabulate(1000000)(i => os.write(i % 1000))
     }
 
     assert(fs.exists(f))
 
     using(fs.open(f)) { is =>
-      Array.tabulate(1000000)(i => assert(i.toByte == is.read()))
+      Array.tabulate(1000000)(i => assert((i % 1000) == is.read()))
     }
 
     fs.delete(f, false)
@@ -301,7 +301,7 @@ trait FSSuite {
 
       var i = 0
       while (i < byteBufferSize + 10) {
-        os.write(i)
+        os.write(i % 1000)
         i = i + 1
       }
     }
@@ -315,7 +315,7 @@ trait FSSuite {
 
       var i = 0
       while (i < byteBufferSize + 10) {
-        assert(is.read() == i.toByte)
+        assert(is.read() == (i % 1000))
         i = i + 1
       }
     }
