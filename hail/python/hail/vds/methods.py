@@ -226,6 +226,16 @@ def sample_qc(vds: 'VariantDataset', *, gq_bins: 'Sequence[int]' = (0, 20, 60),
         hl.rbind(vmt['GT'], lambda gt: hl.sum(hl.range(0, gt.ploidy).map(
             lambda i: hl.rbind(gt[i], lambda gti: (gti != 0) & (vmt[variant_ac][gti] == 1)))))
     )
+    bound_exprs['n_singleton_ti'] = hl.agg.sum(
+        hl.rbind(vmt['GT'], lambda gt: hl.sum(hl.range(0, gt.ploidy).map(
+            lambda i: hl.rbind(gt[i], lambda gti: (gti != 0) & (vmt[variant_ac][gti] == 1) & (
+                vmt[variant_atypes][gti - 1] == allele_ints['Transition'])))))
+    )
+    bound_exprs['n_singleton_tv'] = hl.agg.sum(
+        hl.rbind(vmt['GT'], lambda gt: hl.sum(hl.range(0, gt.ploidy).map(
+            lambda i: hl.rbind(gt[i], lambda gti: (gti != 0) & (vmt[variant_ac][gti] == 1) & (
+                vmt[variant_atypes][gti - 1] == allele_ints['Transversion'])))))
+    )
 
     bound_exprs['allele_type_counts'] = hl.agg.explode(
         lambda allele_type: hl.tuple(
@@ -253,6 +263,8 @@ def sample_qc(vds: 'VariantDataset', *, gq_bins: 'Sequence[int]' = (0, 20, 60),
                 'n_hom_var': x.n_hom_var,
                 'n_non_ref': x.n_het + x.n_hom_var,
                 'n_singleton': x.n_singleton,
+                'n_singleton_ti': x.n_singleton_ti,
+                'n_singleton_tv': x.n_singleton_tv,
                 'n_snp': (x.allele_type_counts[allele_ints['Transition']]
                           + x.allele_type_counts[allele_ints['Transversion']]),
                 'n_insertion': x.allele_type_counts[allele_ints['Insertion']],
@@ -263,6 +275,7 @@ def sample_qc(vds: 'VariantDataset', *, gq_bins: 'Sequence[int]' = (0, 20, 60),
             }),
             lambda s: s.annotate(
                 r_ti_tv=divide_null(hl.float64(s.n_transition), s.n_transversion),
+                r_ti_tv_singleton=divide_null(hl.float64(s.n_singleton_ti), s.n_singleton_tv),
                 r_het_hom_var=divide_null(hl.float64(s.n_het), s.n_hom_var),
                 r_insertion_deletion=divide_null(hl.float64(s.n_insertion), s.n_deletion)
             )
