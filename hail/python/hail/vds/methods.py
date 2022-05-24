@@ -229,12 +229,12 @@ def sample_qc(vds: 'VariantDataset', *, gq_bins: 'Sequence[int]' = (0, 20, 60),
     bound_exprs['n_singleton_ti'] = hl.agg.sum(
         hl.rbind(vmt['GT'], lambda gt: hl.sum(hl.range(0, gt.ploidy).map(
             lambda i: hl.rbind(gt[i], lambda gti: (gti != 0) & (vmt[variant_ac][gti] == 1) & (
-                        vmt[variant_atypes][gti - 1] == allele_ints['Transition'])))))
+                vmt[variant_atypes][gti - 1] == allele_ints['Transition'])))))
     )
     bound_exprs['n_singleton_tv'] = hl.agg.sum(
         hl.rbind(vmt['GT'], lambda gt: hl.sum(hl.range(0, gt.ploidy).map(
             lambda i: hl.rbind(gt[i], lambda gti: (gti != 0) & (vmt[variant_ac][gti] == 1) & (
-                        vmt[variant_atypes][gti - 1] == allele_ints['Transversion'])))))
+                vmt[variant_atypes][gti - 1] == allele_ints['Transversion'])))))
     )
 
     bound_exprs['allele_type_counts'] = hl.agg.explode(
