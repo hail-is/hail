@@ -9,11 +9,10 @@ TEAMS = [SERVICES_TEAM, COMPILER_TEAM]
 
 
 class User:
-    # pylint: disable=dangerous-default-value
-    def __init__(self, gh_username: str, hail_username: Optional[str] = None, teams: List[str] = []):
+    def __init__(self, gh_username: str, hail_username: Optional[str] = None, teams: Optional[List[str]] = None):
         self.gh_username = gh_username
         self.hail_username = hail_username
-        self.teams = teams
+        self.teams = teams if teams is not None else []
 
 
 AUTHORIZED_USERS = [
