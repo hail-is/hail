@@ -573,8 +573,6 @@ class Container:
 
         self.timings = Timings()
 
-        self.overlay_path = None
-
         self.container_scratch = scratch_dir
         self.container_bundle_path = f'{self.container_scratch}/rootfs_overlay'
         self.log_path = f'{self.container_scratch}/container.log'
