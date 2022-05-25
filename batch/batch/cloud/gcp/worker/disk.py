@@ -1,5 +1,5 @@
 import logging
-import os.path
+import os
 from typing import Dict, Optional
 
 from hailtop.aiocloud import aiogoogle
@@ -114,9 +114,7 @@ class GCPDisk(CloudDisk):
     async def _delete(self):
         async with LoggingTimer(f'deleting disk {self.name}'):
             if self._created:
-                self.last_response = await self.compute_client.delete_disk(
-                    f'/zones/{self.zone}/disks/{self.name}'
-                )
+                self.last_response = await self.compute_client.delete_disk(f'/zones/{self.zone}/disks/{self.name}')
 
     def __str__(self):
         return self.name
