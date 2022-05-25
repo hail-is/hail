@@ -136,8 +136,9 @@ class AzureStorageFS(val credentialsJSON: Option[String] = None) extends FS {
           bb.put(i.toByte)
         }
 
+        val pos = getPosition
         val numBytesRemainingInBlob = blobSize - pos
-        val count = Math.min(numBytesRemainingInBlob, bb.remaining())
+        val count = Math.min(numBytesRemainingInBlob, bb.capacity())
         if (count <= 0) {
           return -1
         }
@@ -145,21 +146,13 @@ class AzureStorageFS(val credentialsJSON: Option[String] = None) extends FS {
         val response = client.downloadStreamWithResponse(
           outputStreamToBuffer, new BlobRange(pos, count),
           null, null, false, timeout, null)
-        AzureStorageFS.log.info(s"Tried to retrieve ${count} bytes from position ${pos}")
-        AzureStorageFS.log.info(s"Got status code ${response.getStatusCode}, and headers ${response.getHeaders}")
-        if (response.getStatusCode / 100 == 2) {
+        if (response.getStatusCode >= 200 && response.getStatusCode < 300) {
           bb.flip()
           assert(bb.position() == 0 && bb.remaining() > 0)
           return bb.remaining()
         }
 
-        return -1
-      }
-
-      override def seek(newPos: Long): Unit = {
-        bb.clear()
-        bb.limit(0)
-        pos = newPos
+        -1
       }
     }
 

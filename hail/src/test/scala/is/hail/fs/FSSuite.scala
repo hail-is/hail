@@ -271,36 +271,17 @@ trait FSSuite {
     assert(!fs.exists(f))
   }
 
-  @Test def testReadWriteManyBytes(): Unit = {
-    val f = t()
-
-    using(fs.create(f)) { os =>
-      Array.tabulate(1000000)(i => os.write(i))
-    }
-
-    assert(fs.exists(f))
-
-    using(fs.open(f)) { is =>
-      Array.tabulate(1000000)(i => assert(i == is.read()))
-    }
-
-    fs.delete(f, false)
-
-    assert(!fs.exists(f))
-  }
-
   @Test def testReadWriteBytesLargerThanBuffer(): Unit = {
     val f = t()
 
-    val byteBufferSize = 64 * 1024
-    // TODO: gotta add more than 64*1024 ints
+    val numWrites = 1000000
     using(fs.create(f)) { os =>
       os.write(1)
       os.write(127)
       os.write(255)
 
       var i = 0
-      while (i < byteBufferSize + 10) {
+      while (i < numWrites) {
         os.write(i)
         i = i + 1
       }
@@ -314,8 +295,9 @@ trait FSSuite {
       assert(is.read() == 255)
 
       var i = 0
-      while (i < byteBufferSize + 10) {
-        assert(is.read() == i)
+      while (i < numWrites) {
+        val readFromIs = is.read()
+        assert(readFromIs == (i & 0xff), s"${i} ${i & 0xff} ${readFromIs}")
         i = i + 1
       }
     }

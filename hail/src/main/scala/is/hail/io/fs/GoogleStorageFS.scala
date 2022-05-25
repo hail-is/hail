@@ -110,11 +110,9 @@ class GoogleStorageFS(val serviceAccountKey: Option[String] = None) extends FS {
         return n
       }
 
-      def seek(newPos: Long): Unit = {
-        bb.clear()
-        bb.limit(0)
+      override def seek(newPos: Long): Unit = {
+        super.seek(newPos)
         reader.seek(newPos)
-        pos = newPos
       }
     }
 

@@ -358,6 +358,8 @@ class AzureAsyncFS(AsyncFS):
 
     async def _open_from(self, url: str, start: int, *, length: Optional[int] = None) -> ReadableStream:
         assert length is None or length >= 1
+        if not await self.exists(url):
+            raise FileNotFoundError
         client = self.get_blob_client(url)
         return AzureReadableStream(client, url, offset=start, length=length)
 
