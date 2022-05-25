@@ -262,7 +262,6 @@ class RouterFS(FS):
             raise ValueError(f'glob pattern only allowed in path (e.g. not in bucket): {path}')
 
         blobpath = url.path
-        print(f'The blob path is {blobpath}')
         if isinstance(url, LocalAsyncFSURL) and blobpath[0] != '/':
             blobpath = './' + blobpath
 
