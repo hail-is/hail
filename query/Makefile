@@ -10,7 +10,7 @@ TOKEN = $(shell cat /dev/urandom | LC_ALL=C tr -dc 'a-z0-9' | head -c 12)
 
 .PHONY: jar
 jar:
-	$(MAKE) -C ../hail shadowJar
+	SPARK_VERSION=3.2.1 $(MAKE) -C ../hail shadowJar
 # janky
 	cp ../hail/build/libs/hail-all-spark.jar ./hail.jar
 
@@ -34,7 +34,7 @@ endif
 .PHONY: upload-query-jar
 upload-query-jar: jar
 	! [ -z $(NAMESPACE) ]  # call this like: make deploy NAMESPACE=default
-	gsutil cp ./hail.jar "$(JAR_LOCATION)"
+	python3 -m hailtop.aiotools.copy 'null' '[{"from":"./hail.jar","to":"$(JAR_LOCATION)"}]'
 	echo >last_uploaded_jar "$(JAR_LOCATION)"
 
 upload-resources-dir:

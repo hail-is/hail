@@ -123,12 +123,16 @@ class Tests(unittest.TestCase):
 
     @fails_local_backend()
     def test_hadoop_no_glob_in_bucket(self):
+        test_dir_url = os.environ['HAIL_TEST_STORAGE_URI']
+        scheme, rest = test_dir_url.split('://')
+        bucket, path = rest.split('/', maxsplit=1)
+        glob_in_bucket_url = f'{scheme}://glob*{bucket}/{path}'
         try:
-            hl.hadoop_ls('gs://glob*bucket')
+            hl.hadoop_ls(glob_in_bucket_url)
         except ValueError as err:
-            assert 'glob pattern only allowed in path (e.g. not in bucket): gs://glob*bucket' in err.args[0]
+            assert f'glob pattern only allowed in path (e.g. not in bucket): {glob_in_bucket_url}' in err.args[0]
         except FatalError as err:
-            assert "Invalid bucket name 'glob*bucket': bucket name must contain only 'a-z0-9_.-' characters." in err.args[0]
+            assert f"Invalid bucket name 'glob*{bucket}': bucket name must contain only 'a-z0-9_.-' characters." in err.args[0]
         else:
             assert False
 

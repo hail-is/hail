@@ -2220,8 +2220,6 @@ steps:
       - memory_image
       - deploy_memory_sa
       - create_certs
-    clouds:
-      - gcp
   - kind: runImage
     name: test_hail_python_service_backend
     numSplits: 5
@@ -2259,7 +2257,7 @@ steps:
               test
     timeout: 5400
     inputs:
-      - from: /just-wheel/wheel-container.tar
+      - from: /just-wheel/spark-32/wheel-container.tar
         to: /io/wheel-container.tar
       - from: /repo/hail/python/test
         to: /io/repo/hail/python/test
@@ -2290,9 +2288,7 @@ steps:
       - hail_run_tests_image
       - upload_query_jar
       - upload_test_resources_to_blob_storage
-      - build_hail_jar_and_wheel_only
-    clouds:
-      - gcp
+      - build_hail_jar_and_wheel_only_spark_3_2
   - kind: buildImage2
     name: netcat_ubuntu_image
     dockerFile:

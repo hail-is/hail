@@ -124,8 +124,7 @@ class AzureStorageFS(val credentialsJSON: Option[String] = None) extends FS {
   def openNoCompression(filename: String): SeekableDataInputStream = {
     val (account, container, path) = getAccountContainerPath(filename)
     val blobClient: BlobClient = getBlobClient(account, container, path)
-    val blobProperties = blobClient.getProperties
-    val blobSize = blobProperties.getBlobSize
+    val blobSize = blobClient.getProperties.getBlobSize
 
     val is: SeekableInputStream = new FSSeekableInputStream {
       private[this] val client: BlobClient = blobClient
@@ -137,26 +136,23 @@ class AzureStorageFS(val credentialsJSON: Option[String] = None) extends FS {
           bb.put(i.toByte)
         }
 
+        val pos = getPosition
         val numBytesRemainingInBlob = blobSize - pos
-        val count = Math.min(numBytesRemainingInBlob, bb.remaining())
+        val count = Math.min(numBytesRemainingInBlob, bb.capacity())
         if (count <= 0) {
           return -1
         }
 
-        client.downloadStreamWithResponse(
+        val response = client.downloadStreamWithResponse(
           outputStreamToBuffer, new BlobRange(pos, count),
           null, null, false, timeout, null)
-        pos += count
-        bb.flip()
+        if (response.getStatusCode >= 200 && response.getStatusCode < 300) {
+          bb.flip()
+          assert(bb.position() == 0 && bb.remaining() > 0)
+          return bb.remaining()
+        }
 
-        assert(bb.position() == 0 && bb.remaining() > 0)
-        return count.toInt
-      }
-
-      override def seek(newPos: Long): Unit = {
-        bb.clear()
-        bb.limit(0)
-        pos = newPos
+        -1
       }
     }
 
@@ -279,4 +275,9 @@ class AzureStorageFS(val credentialsJSON: Option[String] = None) extends FS {
       throw new IllegalArgumentException(s"Invalid path, expected hail-az://accountName/containerName/blobPath: $filename")
     filename
   }
+
+  def asCacheable(): CacheableAzureStorageFS = new CacheableAzureStorageFS(credentialsJSON, null)
+}
+
+class CacheableAzureStorageFS(credentialsJSON: Option[String], @transient val sessionID: String) extends AzureStorageFS(credentialsJSON) with ServiceCacheableFS {
 }

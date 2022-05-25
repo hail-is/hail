@@ -410,7 +410,12 @@ object ServiceBackendSocketAPI2 {
     }
     val fs = retryTransientErrors {
       using(new FileInputStream(s"$scratchDir/secrets/gsa-key/key.json")) { is =>
-        new GoogleStorageFS(Some(IOUtils.toString(is, Charset.defaultCharset().toString()))).asCacheable()
+        val credentialsStr = Some(IOUtils.toString(is, Charset.defaultCharset().toString()))
+        sys.env.get("HAIL_CLOUD").get match {
+          case "gcp" => new GoogleStorageFS(credentialsStr).asCacheable()
+          case "azure" => new AzureStorageFS(credentialsStr).asCacheable()
+          case _ => throw new IllegalArgumentException("Bad cloud")
+        }
       }
     }
     val deployConfig = DeployConfig.fromConfigFile(
@@ -530,7 +535,12 @@ class ServiceBackendSocketAPI2(
     def withExecuteContext(methodName: String, method: ExecuteContext => Array[Byte]): Array[Byte] = ExecutionTimer.logTime(methodName) { timer =>
       val fs = retryTransientErrors {
         using(new FileInputStream(s"${backend.scratchDir}/secrets/gsa-key/key.json")) { is =>
-          new GoogleStorageFS(Some(IOUtils.toString(is, Charset.defaultCharset().toString()))).asCacheable()
+          val credentialsStr = Some(IOUtils.toString(is, Charset.defaultCharset().toString()))
+          sys.env.get("HAIL_CLOUD").get match {
+            case "gcp" => new GoogleStorageFS(credentialsStr).asCacheable()
+            case "azure" => new AzureStorageFS(credentialsStr).asCacheable()
+            case _ => throw new IllegalArgumentException("bad cloud")
+          }
         }
       }
       ExecuteContext.scoped(

@@ -271,6 +271,42 @@ trait FSSuite {
     assert(!fs.exists(f))
   }
 
+  @Test def testReadWriteBytesLargerThanBuffer(): Unit = {
+    val f = t()
+
+    val numWrites = 1000000
+    using(fs.create(f)) { os =>
+      os.write(1)
+      os.write(127)
+      os.write(255)
+
+      var i = 0
+      while (i < numWrites) {
+        os.write(i)
+        i = i + 1
+      }
+    }
+
+    assert(fs.exists(f))
+
+    using(fs.open(f)) { is =>
+      assert(is.read() == 1)
+      assert(is.read() == 127)
+      assert(is.read() == 255)
+
+      var i = 0
+      while (i < numWrites) {
+        val readFromIs = is.read()
+        assert(readFromIs == (i & 0xff), s"${i} ${i & 0xff} ${readFromIs}")
+        i = i + 1
+      }
+    }
+
+    fs.delete(f, false)
+
+    assert(!fs.exists(f))
+  }
+
   @Test def testDropTrailingSlash(): Unit = {
     assert(dropTrailingSlash("") == "")
     assert(dropTrailingSlash("/foo/bar") == "/foo/bar")
