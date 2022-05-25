@@ -123,7 +123,7 @@ class Tests(unittest.TestCase):
 
     @fails_local_backend()
     def test_hadoop_no_glob_in_bucket(self):
-        test_dir_url = os.environ['HAIL_TEST_RESOURCES_DIR']
+        test_dir_url = os.environ['HAIL_TEST_STORAGE_URI']
         scheme, rest = test_dir_url.split('://')
         bucket, path = rest.split('/', maxsplit=1)
         glob_in_bucket_url = f'{scheme}://glob*{bucket}/{path}'
