@@ -607,6 +607,8 @@ async def pool_config_update(request, userdata):  # pylint: disable=unused-argum
             session, 'Max live instances', post['max_live_instances'], lambda v: v > 0, 'a positive integer'
         )
 
+        label = post['label']
+
         enable_standing_worker = 'enable_standing_worker' in post
 
         possible_worker_cores = []
@@ -659,6 +661,7 @@ async def pool_config_update(request, userdata):  # pylint: disable=unused-argum
             max_instances,
             max_live_instances,
             pool.preemptible,
+            label,
         )
 
         current_client_pool_config = json.loads(post['_pool_config_json'])
