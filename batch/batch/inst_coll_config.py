@@ -78,6 +78,7 @@ class PoolConfig(InstanceCollectionConfig):
             max_instances=record['max_instances'],
             max_live_instances=record['max_live_instances'],
             preemptible=bool(record['preemptible']),
+            label=record['label'],
         )
 
     async def update_database(self, db: Database):
@@ -93,7 +94,8 @@ SET worker_cores = %s,
     boot_disk_size_gb = %s,
     max_instances = %s,
     max_live_instances = %s,
-    preemptible = %s
+    preemptible = %s,
+    label = %s
 WHERE pools.name = %s;
 ''',
             (
@@ -106,6 +108,7 @@ WHERE pools.name = %s;
                 self.max_instances,
                 self.max_live_instances,
                 self.preemptible,
+                self.label,
                 self.name,
             ),
         )
@@ -124,6 +127,7 @@ WHERE pools.name = %s;
         max_instances: int,
         max_live_instances: int,
         preemptible: bool,
+        label: str,
     ):
         self.name = name
         self.cloud = cloud
@@ -137,6 +141,7 @@ WHERE pools.name = %s;
         self.max_instances = max_instances
         self.max_live_instances = max_live_instances
         self.preemptible = preemptible
+        self.label = None
 
     def instance_config(self, product_versions: ProductVersions, location: str) -> InstanceConfig:
         return instance_config_from_pool_config(self, product_versions, location)
@@ -273,16 +278,13 @@ LEFT JOIN pools ON inst_colls.name = pools.name;
         self.resource_rates = resource_rates
         self.product_versions.update(product_versions_data)
 
-    def select_pool_from_cost(self, cloud, pool_name_prefix, cores_mcpu, memory_bytes, storage_bytes, preemptible):
+    def select_pool_from_cost(self, cloud, pool_label, cores_mcpu, memory_bytes, storage_bytes, preemptible):
         assert self.resource_rates is not None
 
         optimal_result = None
         optimal_cost = None
         for pool in self.name_pool_config.values():
-            if pool_name_prefix and not pool.name.startswith(pool_name_prefix):
-                continue
-
-            if pool.cloud != cloud or pool.preemptible != preemptible:
+            if pool.cloud != cloud or pool.preemptible != preemptible or pool.label != pool_label:
                 continue
 
             result = pool.convert_requests_to_resources(cores_mcpu, memory_bytes, storage_bytes)
@@ -307,11 +309,9 @@ LEFT JOIN pools ON inst_colls.name = pools.name;
                     optimal_result = (pool.name, maybe_cores_mcpu, maybe_memory_bytes, maybe_storage_gib)
         return optimal_result
 
-    def select_pool_from_worker_type(self, cloud, pool_name_prefix, worker_type, cores_mcpu, memory_bytes, storage_bytes, preemptible):
+    def select_pool_from_worker_type(self, cloud, pool_label, worker_type, cores_mcpu, memory_bytes, storage_bytes, preemptible):
         for pool in self.name_pool_config.values():
-            if pool_name_prefix and not pool.name.startswith(pool_name_prefix):
-                continue
-            if pool.cloud == cloud and pool.worker_type == worker_type and pool.preemptible == preemptible:
+            if pool.cloud == cloud and pool.worker_type == worker_type and pool.preemptible == preemptible and pool.label == pool_label:
                 result = pool.convert_requests_to_resources(cores_mcpu, memory_bytes, storage_bytes)
                 if result:
                     actual_cores_mcpu, actual_memory_bytes, acutal_storage_gib = result
@@ -324,12 +324,12 @@ LEFT JOIN pools ON inst_colls.name = pools.name;
         return self.jpim_config.convert_requests_to_resources(machine_type, storage_bytes)
 
     def select_inst_coll(
-        self, cloud, machine_type, pool_name_prefix, preemptible, worker_type, req_cores_mcpu, req_memory_bytes, req_storage_bytes
+        self, cloud, machine_type, pool_label, preemptible, worker_type, req_cores_mcpu, req_memory_bytes, req_storage_bytes
     ):
         if worker_type is not None and machine_type is None:
             result = self.select_pool_from_worker_type(
                 cloud=cloud,
-                pool_name_prefix=pool_name_prefix,
+                pool_label=pool_label,
                 worker_type=worker_type,
                 cores_mcpu=req_cores_mcpu,
                 memory_bytes=req_memory_bytes,
@@ -339,7 +339,7 @@ LEFT JOIN pools ON inst_colls.name = pools.name;
         elif worker_type is None and machine_type is None:
             result = self.select_pool_from_cost(
                 cloud=cloud,
-                pool_name_prefix=pool_name_prefix,
+                pool_label=pool_label,
                 cores_mcpu=req_cores_mcpu,
                 memory_bytes=req_memory_bytes,
                 storage_bytes=req_storage_bytes,

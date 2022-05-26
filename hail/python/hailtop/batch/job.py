@@ -79,7 +79,7 @@ class Job:
         self._always_run: bool = False
         self._preemptible: Optional[bool] = None
         self._machine_type: Optional[str] = None
-        self._pool_name_prefix: Optional[str] = None
+        self._pool_label: Optional[str] = None
         self._timeout: Optional[Union[int, float]] = None
         self._cloudfuse: List[Tuple[str, str, bool]] = []
         self._env: Dict[str, str] = {}
