@@ -405,7 +405,6 @@ steps:
       kubectl -n {{ default_ns.name }} get -o json secret test-gsa-key | jq '{apiVersion, kind, type, data, metadata: {name: "batch-gsa-key"}}' | kubectl -n {{ default_ns.name }} apply -f -
       kubectl -n {{ default_ns.name }} get -o json secret test-gsa-key | jq '{apiVersion, kind, type, data, metadata: {name: "benchmark-gsa-key"}}' | kubectl -n {{ default_ns.name }} apply -f -
       kubectl -n {{ default_ns.name }} get -o json secret test-gsa-key | jq '{apiVersion, kind, type, data, metadata: {name: "ci-gsa-key"}}' | kubectl -n {{ default_ns.name }} apply -f -
-      kubectl -n {{ default_ns.name }} get -o json secret test-gsa-key | jq '{apiVersion, kind, type, data, metadata: {name: "query-gsa-key"}}' | kubectl -n {{ default_ns.name }} apply -f -
       kubectl -n {{ default_ns.name }} get -o json secret test-gsa-key | jq '{apiVersion, kind, type, data, metadata: {name: "test-dev-gsa-key"}}' | kubectl -n {{ default_ns.name }} apply -f -
       kubectl -n {{ default_ns.name }} get -o json secret test-gsa-key | jq '{apiVersion, kind, type, data, metadata: {name: "grafana-gsa-key"}}' | kubectl -n {{ default_ns.name }} apply -f -
     scopes:
@@ -2173,7 +2172,7 @@ steps:
       valueFrom: hail_pip_installed_image.image
     script: |
       set -ex
-      export GOOGLE_APPLICATION_CREDENTIALS=/query-gsa-key/key.json
+      export GOOGLE_APPLICATION_CREDENTIALS=/batch-gsa-key/key.json
       export HAIL_TEST_AZURE_ACCOUNT=hailtest
       export HAIL_TEST_AZURE_CONTAINER=hail-test-4nxei
       export AZURE_APPLICATION_CREDENTIALS=/test-azure-key/credentials.json
@@ -2190,10 +2189,10 @@ steps:
 
       python3 -m hailtop.aiotools.copy 'null' '[{"from": "/io/hail.jar", "to": "'${HAIL_QUERY_JAR_URL}'"}]'
     secrets:
-      - name: query-gsa-key
+      - name: batch-gsa-key
         namespace:
           valueFrom: default_ns.name
-        mountPath: /query-gsa-key
+        mountPath: /batch-gsa-key
     inputs:
       - from: /just-jar/spark-32/hail.jar
         to: /io/hail.jar
