@@ -59,6 +59,6 @@ class GoogleStorageFSSuite extends TestNGSuite with FSSuite {
     }
     assert(fs.exists(prefix))
     fs.delete(prefix, recursive = true)
-    assert(!fs.exists(prefix))
+    assert(!fs.exists(prefix), s"files not deleted:\n${ fs.listStatus(prefix).map(_.getPath).mkString("\n") }")
   }
 }
