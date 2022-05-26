@@ -141,7 +141,7 @@ WHERE pools.name = %s;
         self.max_instances = max_instances
         self.max_live_instances = max_live_instances
         self.preemptible = preemptible
-        self.label = None
+        self.label = label
 
     def instance_config(self, product_versions: ProductVersions, location: str) -> InstanceConfig:
         return instance_config_from_pool_config(self, product_versions, location)
