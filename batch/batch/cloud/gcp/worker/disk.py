@@ -68,8 +68,14 @@ class GCPDisk(CloudDisk):
                 await check_shell_output(f'mount -o discard,defaults {self.disk_path} {self.mount_path}')
                 await check_shell_output(f'chmod a+w {self.mount_path}')
             except CalledProcessError:
-                outerr = await check_shell_output(f'ls {os.path.dirname(self.disk_path)}')
-                log.info(f'debugging info while formatting disk for {self.name}: {outerr}\n{self.last_response}')
+                try:
+                    outerr = await check_shell_output(f'ls {os.path.dirname(self.disk_path)}')
+                    log.info(f'debugging info while formatting disk {self.name}: {outerr}\n{self.last_response}')
+                except CalledProcessError:
+                    log.exception(
+                        f'error while getting limited debugging info for formatting disk {self.name}:\n{self.last_response}'
+                    )
+
                 raise
 
         await retry_all_errors_n_times(
