@@ -2038,6 +2038,8 @@ steps:
       - name: set-test-and-dev-jpim-to-max-5
         script: /io/sql/set-test-and-dev-jpim-to-max-5.py
         online: true
+      - name: add-pool-label
+        script: /io/sql/add-pool-label.sql
     inputs:
       - from: /repo/batch/sql
         to: /io/sql
