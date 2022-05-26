@@ -109,6 +109,7 @@ WHERE removed = 0 AND inst_coll = %s;
         self.data_disk_size_gb = config.data_disk_size_gb
         self.data_disk_size_standing_gb = config.data_disk_size_standing_gb
         self.preemptible = config.preemptible
+        self.label = config.label
 
     @property
     def local_ssd_data_disk(self) -> bool:
@@ -130,6 +131,7 @@ WHERE removed = 0 AND inst_coll = %s;
             'max_instances': self.max_instances,
             'max_live_instances': self.max_live_instances,
             'preemptible': self.preemptible,
+            'label': self.label,
         }
 
     def configure(self, pool_config: PoolConfig):
@@ -148,6 +150,7 @@ WHERE removed = 0 AND inst_coll = %s;
         self.max_instances = pool_config.max_instances
         self.max_live_instances = pool_config.max_live_instances
         self.preemptible = pool_config.preemptible
+        self.label = pool_config.label
 
     def adjust_for_remove_instance(self, instance):
         super().adjust_for_remove_instance(instance)

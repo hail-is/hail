@@ -1,0 +1,1 @@
+ALTER TABLE `pools` ADD `label` VARCHAR(100) NOT NULL;
