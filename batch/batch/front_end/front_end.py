@@ -886,7 +886,7 @@ WHERE user = %s AND id = %s AND NOT deleted;
 
                 worker_type = None
                 machine_type = resources.get('machine_type')
-                pool_label = resources.get('pool_label')
+                pool_label = resources.get('pool_label') or ''
                 preemptible = resources.get('preemptible', BATCH_JOB_DEFAULT_PREEMPTIBLE)
 
                 if machine_type and machine_type not in valid_machine_types(cloud):
