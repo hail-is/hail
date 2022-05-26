@@ -86,7 +86,7 @@ job_validator = keyed(
                 'cpu': regex(CPU_REGEXPAT, CPU_REGEX),
                 'storage': regex(STORAGE_REGEXPAT, STORAGE_REGEX),
                 'machine_type': str_type,
-                'label': str_type,
+                'pool_label': str_type,
                 'preemptible': bool_type,
             }
         ),
