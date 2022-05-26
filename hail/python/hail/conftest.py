@@ -9,6 +9,11 @@ import hail as hl
 SKIP_OUTPUT_CHECK = doctest.register_optionflag('SKIP_OUTPUT_CHECK')
 
 
+def pytest_html_results_table_row(report, cells):
+    if report.skipped:
+        del cells[:]
+
+
 @pytest.fixture(autouse=True)
 def patch_doctest_check_output(monkeypatch):
     # FIXME: remove once test output matches docs

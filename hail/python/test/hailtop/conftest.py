@@ -4,6 +4,11 @@ import os
 import pytest
 
 
+def pytest_html_results_table_row(report, cells):
+    if report.skipped:
+        del cells[:]
+
+
 def pytest_collection_modifyitems(config, items):
     n_splits = int(os.environ.get('HAIL_RUN_IMAGE_SPLITS', '1'))
     split_index = int(os.environ.get('HAIL_RUN_IMAGE_SPLIT_INDEX', '-1'))

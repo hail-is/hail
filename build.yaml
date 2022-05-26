@@ -1309,12 +1309,17 @@ steps:
               -vv \
               --instafail \
               --durations=50 \
+              --html=/io/test_report.html \
+              --self-contained-html \
               test/hailtop/inter_cloud
     inputs:
       - from: /debug-wheel-container.tar
         to: /io/debug-wheel-container.tar
       - from: /test.tar.gz
         to: /io/test.tar.gz
+    outputs:
+      - from: /io/test_report.html
+        to: /test_report.html
     secrets:
       - name: test-gsa-key
         namespace:
@@ -1334,6 +1339,32 @@ steps:
       - build_hail
     clouds:
       - gcp
+  - kind: runImage
+    name: test_hail_python_fs_report
+    image:
+      valueFrom: hail_run_tests_image.image
+    script: |
+      set -ex
+      cd /io
+      pytest_html_merger -i ./ -o ./test_hail_python_fs.html
+    inputs:
+      - from: /test_hail_python_fs_0/test_report.html
+        to: /io/test_report_0.html
+      - from: /test_hail_python_fs_1/test_report.html
+        to: /io/test_report_1.html
+      - from: /test_hail_python_fs_2/test_report.html
+        to: /io/test_report_2.html
+      - from: /test_hail_python_fs_3/test_report.html
+        to: /io/test_report_3.html
+      - from: /test_hail_python_fs_4/test_report.html
+        to: /io/test_report_4.html
+    outputs:
+      - from: /io/test_hail_python_fs.html
+        to: /pytest_reports/test_hail_python_fs.html
+    alwaysRun: true
+    dependsOn:
+      - test_hail_python_fs
+      - hail_run_tests_image
   - kind: runImage
     name: test_hail_python_unchecked_allocator
     image:
@@ -1414,6 +1445,8 @@ steps:
       python3 -m pytest \
               --ignore=test/hailtop/ \
               --log-cli-level=INFO \
+              --html=/io/test_report.html \
+              --self-contained-html \
               -s \
               -vv \
               --instafail \
@@ -1428,6 +1461,9 @@ steps:
         to: /io/resources.tar.gz
       - from: /data.tar.gz
         to: /io/data.tar.gz
+    outputs:
+      - from: /io/test_report.html
+        to: /test_report.html
     secrets:
       - name: test-gsa-key
         namespace:
@@ -1437,6 +1473,36 @@ steps:
       - default_ns
       - hail_run_tests_image
       - build_hail
+  - kind: runImage
+    name: test_hail_python_local_backend_report
+    image:
+      valueFrom: hail_run_tests_image.image
+    script: |
+      set -ex
+      cd /io
+      pytest_html_merger -i ./ -o ./test_hail_python_local_backend.html
+    inputs:
+      - from: /test_hail_python_local_backend_0/test_report.html
+        to: /io/test_report_0.html
+      - from: /test_hail_python_local_backend_1/test_report.html
+        to: /io/test_report_1.html
+      - from: /test_hail_python_local_backend_2/test_report.html
+        to: /io/test_report_2.html
+      - from: /test_hail_python_local_backend_3/test_report.html
+        to: /io/test_report_3.html
+      - from: /test_hail_python_local_backend_4/test_report.html
+        to: /io/test_report_4.html
+      - from: /test_hail_python_local_backend_5/test_report.html
+        to: /io/test_report_5.html
+      - from: /test_hail_python_local_backend_6/test_report.html
+        to: /io/test_report_6.html
+    outputs:
+      - from: /io/test_hail_python_local_backend.html
+        to: /pytest_reports/test_hail_python_local_backend.html
+    alwaysRun: true
+    dependsOn:
+      - test_hail_python_local_backend
+      - hail_run_tests_image
   - kind: runImage
     name: test_python_docs
     image:
@@ -2267,6 +2333,8 @@ steps:
       python3 -m pytest \
               --ignore=test/hailtop/ \
               --log-cli-level=INFO \
+              --html=/io/test_report.html \
+              --self-contained-html \
               -s \
               -vv \
               --instafail \
@@ -2279,6 +2347,9 @@ steps:
         to: /io/wheel-container.tar
       - from: /repo/hail/python/test
         to: /io/repo/hail/python/test
+    outputs:
+      - from: /io/test_report.html
+        to: /test_report.html
     secrets:
       - name: test-gsa-key
         namespace:
@@ -2307,6 +2378,32 @@ steps:
       - upload_query_jar
       - upload_test_resources_to_blob_storage
       - build_hail_jar_and_wheel_only_spark_3_2
+  - kind: runImage
+    name: test_hail_python_service_backend_report
+    image:
+      valueFrom: hail_run_tests_image.image
+    script: |
+      set -ex
+      cd /io
+      pytest_html_merger -i ./ -o ./test_hail_python_service_backend.html
+    inputs:
+      - from: /test_hail_python_service_backend_0/test_report.html
+        to: /io/test_report_0.html
+      - from: /test_hail_python_service_backend_1/test_report.html
+        to: /io/test_report_1.html
+      - from: /test_hail_python_service_backend_2/test_report.html
+        to: /io/test_report_2.html
+      - from: /test_hail_python_service_backend_3/test_report.html
+        to: /io/test_report_3.html
+      - from: /test_hail_python_service_backend_4/test_report.html
+        to: /io/test_report_4.html
+    outputs:
+      - from: /io/test_hail_python_service_backend.html
+        to: /pytest_reports/test_hail_python_service_backend.html
+    alwaysRun: true
+    dependsOn:
+      - test_hail_python_service_backend
+      - hail_run_tests_image
   - kind: buildImage2
     name: netcat_ubuntu_image
     dockerFile:
@@ -2413,6 +2510,8 @@ steps:
               --log-date-format="%Y-%m-%dT%H:%M:%S" \
               --log-format="%(asctime)s %(levelname)s %(name)s %(filename)s:%(lineno)d:%(funcName)s %(message)s" \
               --log-cli-level=INFO \
+              --html=/io/test_report.html \
+              --self-contained-html \
               -s \
               -vv \
               --instafail \
@@ -2422,6 +2521,9 @@ steps:
     inputs:
       - from: /repo/batch/test
         to: /io/test
+    outputs:
+      - from: /io/test_report.html
+        to: /test_report.html
     port: 5000
     timeout: 1200
     secrets:
@@ -2459,6 +2561,32 @@ steps:
       - volume_image
       - workdir_image
       - curl_image
+  - kind: runImage
+    name: test_batch_report
+    image:
+      valueFrom: hail_run_tests_image.image
+    script: |
+      set -ex
+      cd /io
+      pytest_html_merger -i ./ -o ./test_batch.html
+    inputs:
+      - from: /test_batch_0/test_report.html
+        to: /io/test_report_0.html
+      - from: /test_batch_1/test_report.html
+        to: /io/test_report_1.html
+      - from: /test_batch_2/test_report.html
+        to: /io/test_report_2.html
+      - from: /test_batch_3/test_report.html
+        to: /io/test_report_3.html
+      - from: /test_batch_4/test_report.html
+        to: /io/test_report_4.html
+    outputs:
+      - from: /io/test_batch.html
+        to: /pytest_reports/test_batch.html
+    alwaysRun: true
+    dependsOn:
+      - test_batch
+      - hail_run_tests_image
   - kind: runImage
     name: delete_test_billing_projects
     image:
@@ -2687,6 +2815,8 @@ steps:
       python3 -m pytest \
               --durations=0 \
               --log-cli-level=INFO \
+              --html=/io/test_report.html \
+              --self-contained-html \
               -s \
               -vv \
               --instafail \
@@ -2696,6 +2826,9 @@ steps:
         to: /io/test
       - from: /repo/hail/python/hailtop
         to: /io/hailtop
+    outputs:
+      - from: /io/test_report.html
+        to: /test_report.html
     timeout: 1200
     secrets:
       - name: worker-deploy-config
@@ -2722,6 +2855,32 @@ steps:
       - merge_code
       - service_base_image
       - deploy_batch
+  - kind: runImage
+    name: test_hailtop_batch_report
+    image:
+      valueFrom: hail_run_tests_image.image
+    script: |
+      set -ex
+      cd /io
+      pytest_html_merger -i ./ -o ./test_hailtop_batch.html
+    inputs:
+      - from: /test_hailtop_batch_0/test_report.html
+        to: /io/test_report_0.html
+      - from: /test_hailtop_batch_1/test_report.html
+        to: /io/test_report_1.html
+      - from: /test_hailtop_batch_2/test_report.html
+        to: /io/test_report_2.html
+      - from: /test_hailtop_batch_3/test_report.html
+        to: /io/test_report_3.html
+      - from: /test_hailtop_batch_4/test_report.html
+        to: /io/test_report_4.html
+    outputs:
+      - from: /io/test_hailtop_batch.html
+        to: /pytest_reports/test_hailtop_batch.html
+    alwaysRun: true
+    dependsOn:
+      - test_hailtop_batch
+      - hail_run_tests_image
   - kind: runImage
     name: test_batch_docs
     image:

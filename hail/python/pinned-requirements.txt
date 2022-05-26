@@ -26,22 +26,23 @@ azure-core==1.24.1
     # via
     #   azure-identity
     #   azure-storage-blob
+    #   msrest
 azure-identity==1.6.0
     # via -r python/requirements.txt
 azure-storage-blob==12.11.0
     # via -r python/requirements.txt
 bokeh==1.4.0
     # via -r python/requirements.txt
-boto3==1.24.2
+boto3==1.24.14
     # via -r python/requirements.txt
-botocore==1.27.2
+botocore==1.27.14
     # via
     #   -r python/requirements.txt
     #   boto3
     #   s3transfer
 cachetools==4.2.4
     # via google-auth
-certifi==2022.5.18.1
+certifi==2022.6.15
     # via
     #   msrest
     #   requests
@@ -49,7 +50,7 @@ cffi==1.15.0
     # via cryptography
 chardet==4.0.0
     # via requests
-charset-normalizer==2.0.12
+charset-normalizer==2.1.0
     # via aiohttp
 cryptography==37.0.2
     # via
@@ -81,7 +82,7 @@ google-cloud-storage==1.25.0
     # via -r python/requirements.txt
 google-resumable-media==0.5.1
     # via google-cloud-storage
-googleapis-common-protos==1.56.2
+googleapis-common-protos==1.56.3
     # via google-api-core
 humanize==1.0.0
     # via -r python/requirements.txt
@@ -99,7 +100,7 @@ jinja2==3.0.3
     # via
     #   -r python/requirements.txt
     #   bokeh
-jmespath==1.0.0
+jmespath==1.0.1
     # via
     #   boto3
     #   botocore
@@ -111,7 +112,7 @@ msal==1.18.0
     #   msal-extensions
 msal-extensions==0.3.1
     # via azure-identity
-msrest==0.6.21
+msrest==0.7.1
     # via azure-storage-blob
 multidict==6.0.2
     # via
