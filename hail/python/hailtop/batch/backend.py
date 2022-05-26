@@ -657,8 +657,8 @@ class ServiceBackend(Backend[bc.Batch]):
                 resources['storage'] = job._storage
             if job._machine_type:
                 resources['machine_type'] = job._machine_type
-            if job._pool_name:
-                resources['pool_name'] = job._pool_name
+            if job._pool_name_prefix:
+                resources['pool_name_prefix'] = job._pool_name_prefix
             if job._preemptible is not None:
                 resources['preemptible'] = job._preemptible
 

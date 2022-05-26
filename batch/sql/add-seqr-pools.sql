@@ -18,7 +18,7 @@ INSERT INTO pools (`name`, `worker_type`, `worker_cores`, `worker_local_ssd_data
   `worker_external_ssd_data_disk_size_gb`, `enable_standing_worker`, `standing_worker_cores`,
   `preemptible`)
 SELECT 'seqr-standard', worker_type, worker_cores, worker_local_ssd_data_disk,
-  worker_external_ssd_data_disk_size_gb, enable_standing_worker, standing_worker_cores,
+  worker_external_ssd_data_disk_size_gb, FALSE, standing_worker_cores,
   TRUE
 FROM pools
 WHERE name = 'standard';
@@ -27,7 +27,7 @@ INSERT INTO pools (`name`, `worker_type`, `worker_cores`, `worker_local_ssd_data
   `worker_external_ssd_data_disk_size_gb`, `enable_standing_worker`, `standing_worker_cores`,
   `preemptible`)
 SELECT 'seqr-highmem', worker_type, worker_cores, worker_local_ssd_data_disk,
-  worker_external_ssd_data_disk_size_gb, enable_standing_worker, standing_worker_cores,
+  worker_external_ssd_data_disk_size_gb, FALSE, standing_worker_cores,
   TRUE
 FROM pools
 WHERE name = 'highmem';
@@ -36,7 +36,7 @@ INSERT INTO pools (`name`, `worker_type`, `worker_cores`, `worker_local_ssd_data
   `worker_external_ssd_data_disk_size_gb`, `enable_standing_worker`, `standing_worker_cores`,
   `preemptible`)
 SELECT 'seqr-highcpu', worker_type, worker_cores, worker_local_ssd_data_disk,
-  worker_external_ssd_data_disk_size_gb, enable_standing_worker, standing_worker_cores,
+  worker_external_ssd_data_disk_size_gb, FALSE, standing_worker_cores,
   TRUE
 FROM pools
 WHERE name = 'highcpu';

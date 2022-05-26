@@ -886,7 +886,7 @@ WHERE user = %s AND id = %s AND NOT deleted;
 
                 worker_type = None
                 machine_type = resources.get('machine_type')
-                pool_name = resources.get('pool_name')
+                pool_name_prefix = resources.get('pool_name_prefix')
                 preemptible = resources.get('preemptible', BATCH_JOB_DEFAULT_PREEMPTIBLE)
 
                 if machine_type and machine_type not in valid_machine_types(cloud):
@@ -895,7 +895,7 @@ WHERE user = %s AND id = %s AND NOT deleted;
                 if machine_type and ('cpu' in resources or 'memory' in resources):
                     raise web.HTTPBadRequest(reason='cannot specify cpu and memory with machine_type')
 
-                if machine_type and pool_name:
+                if machine_type and pool_name_prefix:
                     raise web.HTTPBadRequest(reason='cannot specify pool name with machine_type')
 
                 if spec['process']['type'] == 'jvm':
@@ -965,7 +965,7 @@ WHERE user = %s AND id = %s AND NOT deleted;
                 inst_coll_configs: InstanceCollectionConfigs = app['inst_coll_configs']
 
                 result, exc = inst_coll_configs.select_inst_coll(
-                    cloud, machine_type, pool_name, preemptible, worker_type, req_cores_mcpu, req_memory_bytes, req_storage_bytes
+                    cloud, machine_type, pool_name_prefix, preemptible, worker_type, req_cores_mcpu, req_memory_bytes, req_storage_bytes
                 )
 
                 if exc:
