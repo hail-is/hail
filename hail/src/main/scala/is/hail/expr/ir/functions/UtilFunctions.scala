@@ -223,12 +223,12 @@ object UtilFunctions extends RegistryFunctions {
           primitive(rt.virtualType, cb.memoizeAny(Code.invokeScalaObject2(thisClass, s"parse$name", s, err)(ctString, implicitly[ClassTag[Int]], ct), typeInfoFromClassTag(ct)))
       }
       registerIEmitCode1(s"to${name}OrMissing", TString, t, (_: Type, _: EmitType) => EmitType(rpt, false)) {
-        case (cb, r, rt, _, x) =>
+        case (cb, r, rt, err, x) =>
           x.toI(cb).flatMap(cb) { case sc: SStringValue =>
             val sv = cb.newLocal[String]("s", sc.loadString(cb))
             IEmitCode(cb,
               !Code.invokeScalaObject1[String, Boolean](thisClass, s"isValid$name", sv),
-              primitive(rt.virtualType, cb.memoizeAny(Code.invokeScalaObject1(thisClass, s"parse$name", sv)(ctString, ct), typeInfoFromClassTag(ct))))
+              primitive(rt.virtualType, cb.memoizeAny(Code.invokeScalaObject2(thisClass, s"parse$name", sv, err)(ctString, implicitly[ClassTag[Int]], ct), typeInfoFromClassTag(ct))))
           }
       }
     }
