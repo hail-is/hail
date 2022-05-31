@@ -27,3 +27,7 @@ fails_in_azure = pytest.mark.xfail(
 skip_in_azure = pytest.mark.skipif(
     os.environ.get('HAIL_CLOUD') == 'azure', reason="not applicable to azure", strict=True
 )
+
+fails_in_gcp_storage = pytest.mark.xfail(
+    os.environ.get('HAIL_CLOUD') == 'gcp', reason="Batch is temporarily rejecting jobs with extra storage requests", strict=True
+)

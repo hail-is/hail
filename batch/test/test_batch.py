@@ -13,7 +13,7 @@ from hailtop.config import get_deploy_config, get_user_config
 from hailtop.utils import external_requests_client_session, retry_response_returning_functions, sync_sleep_and_backoff
 
 from .failure_injecting_client_session import FailureInjectingClientSession
-from .utils import fails_in_azure, legacy_batch_status, skip_in_azure, smallest_machine_type
+from .utils import fails_in_gcp_storage, legacy_batch_status, skip_in_azure, smallest_machine_type
 
 deploy_config = get_deploy_config()
 
@@ -182,6 +182,7 @@ def test_quota_applies_to_volume(client: BatchClient):
     assert "fallocate failed: No space left on device" in job_log['main']
 
 
+@fails_in_gcp_storage()
 def test_quota_shared_by_io_and_rootfs(client: BatchClient):
     builder = client.create_batch()
     resources = {'cpu': '0.25', 'memory': '10M', 'storage': '10Gi'}
@@ -211,6 +212,7 @@ def test_quota_shared_by_io_and_rootfs(client: BatchClient):
     assert "fallocate failed: No space left on device" in job_log['main'], str((job_log, b.debug_info()))
 
 
+@fails_in_gcp_storage()
 def test_nonzero_storage(client: BatchClient):
     builder = client.create_batch()
     resources = {'cpu': '0.25', 'memory': '10M', 'storage': '20Gi'}
@@ -221,6 +223,7 @@ def test_nonzero_storage(client: BatchClient):
 
 
 @skip_in_azure()
+@fails_in_gcp_storage()
 def test_attached_disk(client: BatchClient):
     builder = client.create_batch()
     resources = {'cpu': '0.25', 'memory': '10M', 'storage': '400Gi'}

@@ -71,7 +71,7 @@ steps:
     contextPath: /io/echo
     publishAs: echo
     resources:
-      storage: 10Gi
+      storage: 5Gi
       cpu: "2"
       memory: standard
     inputs:
@@ -115,7 +115,7 @@ steps:
     contextPath: /io/repo
     publishAs: base
     resources:
-      storage: 10Gi
+      storage: 5Gi
       cpu: "2"
       memory: standard
     inputs:
@@ -130,7 +130,7 @@ steps:
     contextPath: /io/repo
     publishAs: base_spark_3_2
     resources:
-      storage: 10Gi
+      storage: 5Gi
       cpu: "2"
       memory: standard
     inputs:
@@ -159,7 +159,7 @@ steps:
     contextPath: /io/repo
     publishAs: service-base
     resources:
-      storage: 10Gi
+      storage: 5Gi
       cpu: "2"
       memory: standard
     dependsOn:
@@ -528,7 +528,7 @@ steps:
     contextPath: /io/repo
     publishAs: hail-run
     resources:
-      storage: 10Gi
+      storage: 5Gi
       cpu: "2"
       memory: standard
     inputs:
@@ -549,7 +549,7 @@ steps:
       - hail_run_image
       - merge_code
     resources:
-      storage: 10Gi
+      storage: 5Gi
       cpu: "2"
       memory: standard
   - kind: buildImage2
@@ -710,7 +710,7 @@ steps:
     contextPath: /io/ci
     publishAs: ci-utils
     resources:
-      storage: 20Gi
+      storage: 5Gi
       cpu: "2"
       memory: standard
     inputs:
@@ -998,7 +998,7 @@ steps:
       - build_hail_jar_and_wheel_only
       - merge_code
     resources:
-      storage: 10Gi
+      storage: 5Gi
       cpu: "2"
       memory: standard
   - kind: runImage
@@ -1071,7 +1071,7 @@ steps:
     contextPath: /io/repo
     publishAs: hail-base
     resources:
-      storage: 10Gi
+      storage: 5Gi
       cpu: "2"
       memory: standard
     inputs:
@@ -3020,7 +3020,7 @@ steps:
     clouds:
       - gcp
     resources:
-      storage: 20Gi
+      storage: 5Gi
       cpu: "2"
       memory: standard
   - kind: deploy
