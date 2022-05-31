@@ -72,7 +72,7 @@ from ..exceptions import (
     NonExistentBillingProjectError,
 )
 from ..file_store import FileStore
-from ..globals import BATCH_FORMAT_VERSION, HTTP_CLIENT_MAX_SIZE
+from ..globals import BATCH_FORMAT_VERSION, HTTP_CLIENT_MAX_SIZE, RESERVED_STORAGE_GB_PER_CORE
 from ..inst_coll_config import InstanceCollectionConfigs
 from ..spec_writer import SpecWriter
 from ..utils import accrued_cost_from_cost_and_msec_mcpu, coalesce, query_billing_projects
@@ -858,6 +858,11 @@ WHERE user = %s AND id = %s AND NOT deleted;
                 resources['memory_bytes'] = memory_bytes
                 resources['storage_gib'] = storage_gib
                 resources['preemptible'] = preemptible
+
+                # FIXME: This is to limit our financial liability until we understand why we are underbilling for pd-ssd
+                reserved_storage_gib = min(RESERVED_STORAGE_GB_PER_CORE, cores_mcpu / 1000 * RESERVED_STORAGE_GB_PER_CORE)
+                if CLOUD == 'gcp' and storage_gib > reserved_storage_gib:
+                    raise web.HTTPBadRequest(reason='Batch is temporarily rejecting jobs with extra storage requests')
 
                 secrets = spec.get('secrets')
                 if not secrets:
