@@ -1924,6 +1924,18 @@ object PruneDeadFields {
           env.bindEval(curKey -> selectKey(newEltType, key), curVals -> TArray(newEltType)),
           memo)
         StreamZipJoin(newAs, key, curKey, curVals, newJoinF)
+      case StreamMultiMerge(as, key) =>
+        val eltType = coerce[TStruct](coerce[TStream](as.head.typ).elementType)
+        val requestedEltType = coerce[TStream](requestedType).elementType
+        val reqEltWithKey = unify(eltType, requestedEltType, selectKey(eltType, key))
+
+        val newAs = as.map(a => rebuildIR(ctx, a, env, memo))
+        val newAs2 = if (newAs.forall(_.typ == newAs(0).typ))
+          newAs
+        else
+          newAs.map(a => upcast(ctx, a, TStream(reqEltWithKey)))
+
+        StreamMultiMerge(newAs2, key)
       case StreamFilter(a, name, cond) =>
         val a2 = rebuildIR(ctx, a, env, memo)
         StreamFilter(a2, name, rebuildIR(ctx, cond, env.bindEval(name, a2.typ.asInstanceOf[TStream].elementType), memo))
