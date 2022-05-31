@@ -2125,7 +2125,7 @@ class MatrixTable(ExprContainer):
 
         Returns
         -------
-        :class:MatrixTable`
+        :class:`.MatrixTable`
             Matrix table exploded row-wise for each element of `field_expr`.
         """
         if isinstance(field_expr, str):

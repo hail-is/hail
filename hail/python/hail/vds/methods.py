@@ -83,7 +83,7 @@ def to_dense_mt(vds: 'VariantDataset') -> 'MatrixTable':
 
 @typecheck(vds=VariantDataset)
 def to_merged_sparse_mt(vds: 'VariantDataset') -> 'MatrixTable':
-    """Creates a single, merged sparse :class:'.MatrixTable' from the split
+    """Creates a single, merged sparse :class:`.MatrixTable` from the split
     :class:`.VariantDataset` representation.
 
     Parameters
