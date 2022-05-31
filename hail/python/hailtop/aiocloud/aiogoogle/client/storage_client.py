@@ -337,7 +337,7 @@ class GoogleStorageClient(GoogleBaseClient):
         # Write using resumable uploads.  See:
         # https://cloud.google.com/storage/docs/performing-resumable-uploads
         assert upload_type == 'resumable'
-        chunk_size = kwargs.get('bufsize', 256 * 1024)
+        chunk_size = kwargs.get('bufsize', 8 * 1024 * 1024)
 
         async with await self._session.post(
             f'https://storage.googleapis.com/upload/storage/v1/b/{bucket}/o',
