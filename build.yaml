@@ -2003,6 +2003,8 @@ steps:
         script: /io/sql/kill-mjc-deadlocks.sql
       - name: add-nonpreemptible-pools
         script: /io/sql/add-nonpreemptible-pools.sql
+      - name: add-pool-label
+        script: /io/sql/add-pool-label.sql
     inputs:
       - from: /repo/batch/sql
         to: /io/sql
