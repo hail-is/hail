@@ -1,5 +1,6 @@
 import asyncio
 import base64
+import collections
 import json
 import logging
 import traceback
@@ -75,8 +76,12 @@ GROUP BY batches.id;
 async def add_attempt_resources(db, batch_id, job_id, attempt_id, resources):
     if attempt_id:
         try:
+            _resources = collections.defaultdict(lambda: 0)
+            for resource in resources:
+                _resources[resource['name']] += resource['quantity']
+
             resource_args = [
-                (batch_id, job_id, attempt_id, resource['name'], resource['quantity']) for resource in resources
+                (batch_id, job_id, attempt_id, name, quantity) for name, quantity in _resources.items()
             ]
 
             await db.execute_many(
