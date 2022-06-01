@@ -96,13 +96,7 @@ def create_vm_config(
                 'accessConfigs': [{'type': 'ONE_TO_ONE_NAT', 'name': 'external-nat'}],
             }
         ],
-        'scheduling': {
-            'automaticRestart': False,
-            'instanceTerminationAction': 'DELETE',
-            'onHostMaintenance': 'TERMINATE',
-            'preemptible': preemptible,
-            'provisioningModel': 'SPOT' if preemptible else 'STANDARD',
-        },
+        'scheduling': {'automaticRestart': False, 'onHostMaintenance': "TERMINATE", 'preemptible': preemptible},
         'serviceAccounts': [
             {
                 'email': f'batch2-agent@{project}.iam.gserviceaccount.com',
