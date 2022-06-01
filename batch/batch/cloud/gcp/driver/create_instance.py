@@ -98,10 +98,10 @@ def create_vm_config(
         ],
         'scheduling': {
             'automaticRestart': False,
-            'onHostMaintenance': 'TERMINATE',
-            'provisioningModel': 'SPOT' if preemptible else 'STANDARD',
             'instanceTerminationAction': 'DELETE',
-            'preemptible': preemptible
+            'onHostMaintenance': 'TERMINATE',
+            'preemptible': preemptible,
+            'provisioningModel': 'SPOT' if preemptible else 'STANDARD',
         },
         'serviceAccounts': [
             {
