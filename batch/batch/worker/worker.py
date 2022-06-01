@@ -2358,18 +2358,7 @@ class Worker:
             if not user_error(e):
                 log.exception(f'while running {job}, ignoring')
 
-    async def create_job_1(self, request):
-        body = await request.json()
-
-        batch_id = body['batch_id']
-        job_id = body['job_id']
-
-        format_version = BatchFormatVersion(body['format_version'])
-
-        token = body['token']
-        start_job_id = body['start_job_id']
-        addtl_spec = body['job_spec']
-
+    async def create_job_1(self, batch_id, token, start_job_id, job_id, addtl_spec, gsa_key, user, format_version):
         job_spec = await self.file_store.read_spec_file(batch_id, token, start_job_id, job_id)
         job_spec = json.loads(job_spec)
 
@@ -2385,21 +2374,11 @@ class Worker:
             env.extend(addtl_env)
 
         assert job_spec['job_id'] == job_id
-        id = (batch_id, job_id)
-
-        # already running
-        if id in self.jobs:
-            return web.HTTPForbidden()
-
-        # check worker hasn't started shutting down
-        if not self.active:
-            return web.HTTPServiceUnavailable()
-
-        credentials = CLOUD_WORKER_API.user_credentials(body['gsa_key'])
+        credentials = CLOUD_WORKER_API.user_credentials(gsa_key)
 
         job = Job.create(
             batch_id,
-            body['user'],
+            user,
             credentials,
             job_spec,
             format_version,
@@ -2413,14 +2392,32 @@ class Worker:
 
         self.jobs[job.id] = job
 
-        self.task_manager.ensure_future(self.run_job(job))
-
-        return web.Response()
+        await self.run_job(job)
 
     async def create_job(self, request):
         if not self.active:
             raise web.HTTPServiceUnavailable
-        return await asyncio.shield(self.create_job_1(request))
+
+        body = await request.json()
+
+        batch_id = body['batch_id']
+        job_id = body['job_id']
+
+        id = (batch_id, job_id)
+        if id in self.jobs:
+            return web.HTTPForbidden()
+
+        user = body['user']
+        gsa_key = body['gsa_key']
+
+        format_version = BatchFormatVersion(body['format_version'])
+
+        token = body['token']
+        start_job_id = body['start_job_id']
+        addtl_spec = body['job_spec']
+
+        self.task_manager.ensure_future(self.create_job_1(batch_id, token, start_job_id, job_id, addtl_spec, gsa_key, user, format_version))
+        return web.Response()
 
     async def get_job_log(self, request):
         if not self.active:
