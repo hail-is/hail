@@ -798,23 +798,12 @@ class Container:
             )
             await checkpoint_process.wait()
 
-            # FIXME: make copy overwriting instead of deleting the path to the checkpoint if it exists
-            # currently if a job succeeds, there will be no checkpoint in cloud storage since checkpoint is
-            # run in a loop every 10 seconds and the container_scratch directory is deleted on job success
-            # await self.fs.rmtree(None, f'{BATCH_LOGS_STORAGE_URI}/vedant/{self.name}')
+            # TODO: change BATCH_LOGS_STORAGE_URI to be the proper bucket for storing state from the original worker
+            await self.fs.copy(f'{self.container_scratch}/checkpoint', self.get_remote_checkpoint_dir_url())
+            await self.fs.copy(f'{self.container_bundle_path}/upper', f'{self.get_remote_bundle_url()}/upper')
 
-            # await self.fs.copy(
-            #     f'{self.container_bundle_path}/config.json', f'{self.get_remote_bundle_url()}/config.json'
-            # )
-
-            # TODO: change BATCH_LOGS_STORAGE_URI to be the proper bucket for storing checkpoints
-            await self.fs.copy(f'{self.container_scratch}/checkpoint/', self.get_remote_checkpoint_dir_url())
-
-            await self.fs.copy(f'{self.container_bundle_path}/merged/', f'{self.get_remote_bundle_url()}/merged/')
-            await self.fs.copy(f'{self.container_bundle_path}/upper/', f'{self.get_remote_bundle_url()}/upper/')
-
-            # resume_process = await asyncio.create_subprocess_exec('crun', 'resume', self.name)
-            # await resume_process.wait()
+            resume_process = await asyncio.create_subprocess_exec('crun', 'resume', self.name)
+            await resume_process.wait()
 
             log.info(f'crun checkpoint completed for {self}')
         except:
@@ -842,19 +831,11 @@ class Container:
                         try:
                             # TODO: make sure that right layer of directory is being copied from cloud storage,
                             # might be the same problem as copying to cloud storage when checkpointing
-                            restore_dir = f'{self.container_scratch}/restore/'
-                            # TODO: does bundle_dir need to be self.container_bundle_path
-                            # bundle_dir = f'{self.container_scratch}/downloaded_bundle/'
+                            restore_dir = f'{self.container_scratch}/restore'
                             await self.fs.copy(self.get_remote_checkpoint_dir_url(), restore_dir)
 
-                            await self.fs.copy(
-                                f'{self.get_remote_bundle_url()}/merged/', f'{self.container_bundle_path}/merged/'
-                            )
-                            await self.fs.copy(
-                                f'{self.get_remote_bundle_url()}/upper/', f'{self.container_bundle_path}/upper/'
-                            )
+                            await self.fs.copy(f'{self.get_remote_bundle_url()}/upper', self.container_bundle_path)
 
-                            await asyncio.sleep(3600)
                             self.process = await asyncio.create_subprocess_exec(
                                 'crun',
                                 'restore',
@@ -875,7 +856,7 @@ class Container:
                             pass
                         except Exception as e:
                             log.exception("ERROR: NOT WHAT I WAS EXPECTING")
-                            # raise e
+                            raise e
                         finally:
                             restore_log_path = f'{restore_dir}/restore.log'
                             if os.path.exists(restore_log_path):
