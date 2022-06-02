@@ -107,7 +107,10 @@ class AzureStorageFS(val credentialsJSON: Option[String] = None) extends FS {
         .build()
       new AzureBlobServiceClientCache(clientSecretCredential)
   }
-  private val timeout = Duration.ofSeconds(5)
+
+  // Set to max timeout for blob storage of 30 seconds
+  // https://docs.microsoft.com/en-us/rest/api/storageservices/setting-timeouts-for-blob-service-operations
+  private val timeout = Duration.ofSeconds(30)
 
   def getBlobServiceClient(account: String): BlobServiceClient = {
     serviceClientCache.getServiceClient(account)
