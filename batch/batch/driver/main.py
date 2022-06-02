@@ -417,7 +417,7 @@ async def get_quotas(request, userdata):
         region_data = {'region': region}
         quotas_region_data = data[region]['quotas']
         for quota in quotas_region_data:
-            if quota['metric'] in ['CPUS', 'SSD_TOTAL_GB', 'LOCAL_SSD_TOTAL_GB']:
+            if quota['metric'] in ['PREEMPTIBLE_CPUS', 'CPUS', 'SSD_TOTAL_GB', 'LOCAL_SSD_TOTAL_GB', 'DISKS_TOTAL_GB']:
                 region_data.update({quota['metric']: {'limit': quota['limit'], 'usage': quota['usage']}})
         new_data.append(region_data)
 
@@ -426,7 +426,7 @@ async def get_quotas(request, userdata):
     fig = make_subplots(
         rows=len(df),
         cols=len(df.columns),
-        specs=[[{"type": "indicator"} for c in df.columns] for t in df.index],
+        specs=[[{"type": "indicator"} for _ in df.columns] for _ in df.index],
     )
     for r, (region, row) in enumerate(df.iterrows()):
         for c, measure in enumerate(row):
