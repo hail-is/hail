@@ -80,9 +80,7 @@ async def add_attempt_resources(db, batch_id, job_id, attempt_id, resources):
             for resource in resources:
                 _resources[resource['name']] += resource['quantity']
 
-            resource_args = [
-                (batch_id, job_id, attempt_id, name, quantity) for name, quantity in _resources.items()
-            ]
+            resource_args = [(batch_id, job_id, attempt_id, name, quantity) for name, quantity in _resources.items()]
 
             await db.execute_many(
                 '''
