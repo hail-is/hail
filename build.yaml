@@ -2173,9 +2173,7 @@ steps:
     script: |
       set -ex
       export GOOGLE_APPLICATION_CREDENTIALS=/batch-gsa-key/key.json
-      export HAIL_TEST_AZURE_ACCOUNT=hailtest
-      export HAIL_TEST_AZURE_CONTAINER=hail-test-4nxei
-      export AZURE_APPLICATION_CREDENTIALS=/test-azure-key/credentials.json
+      export AZURE_APPLICATION_CREDENTIALS=/batch-gsa-key/key.json
 
       {% if scope == "deploy" %}
       HAIL_QUERY_JAR_URL={{ global.query_storage_uri }}
