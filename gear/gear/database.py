@@ -231,10 +231,13 @@ class Transaction:
             await cursor.execute(sql, args)
             return cursor.lastrowid
 
-    async def execute_update(self, sql, args=None):
+    async def execute_update(self, sql, args=None, query_name=None):
         assert self.conn
         async with self.conn.cursor() as cursor:
-            return await cursor.execute(sql, args)
+            if query_name is None:
+                return await cursor.execute(sql, args)
+            async with PrometheusSQLTimer(query_name):
+                return await cursor.execute(sql, args)
 
     async def execute_many(self, sql, args_array, query_name=None):
         assert self.conn
@@ -294,9 +297,9 @@ class Database:
             return await tx.execute_insertone(sql, args)
 
     @retry_transient_mysql_errors
-    async def execute_update(self, sql, args=None):
+    async def execute_update(self, sql, args=None, query_name=None):
         async with self.start() as tx:
-            return await tx.execute_update(sql, args)
+            return await tx.execute_update(sql, args, query_name)
 
     @retry_transient_mysql_errors
     async def execute_many(self, sql, args_array, query_name=None):

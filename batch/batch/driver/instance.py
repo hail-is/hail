@@ -274,6 +274,7 @@ SET last_updated = %s,
 WHERE name = %s;
 ''',
             (now, self.name),
+            'mark_healthy',
         )
 
     async def incr_failed_request_count(self):
