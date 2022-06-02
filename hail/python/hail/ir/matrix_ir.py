@@ -204,8 +204,9 @@ class MatrixMapCols(MatrixIR):
             child = self.child.handle_randomness(row_uid_field_name, None)
             return MatrixMapCols(child, self.new_col, self.new_key)
 
-        drop_row_uid = row_uid_field_name is None
+        drop_row_uid = False
         if self.new_col.uses_agg_randomness(is_scan=False) and row_uid_field_name is None:
+            drop_row_uid = True
             row_uid_field_name = default_row_uid
         keep_col_uid = col_uid_field_name is not None
         if col_uid_field_name is None:
