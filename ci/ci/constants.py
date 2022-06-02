@@ -16,17 +16,14 @@ class User:
 
 
 AUTHORIZED_USERS = [
-    User('ammekk', 'ammekk'),
     User('bw2'),
-    User('CDiaz96', 'carolin', [SERVICES_TEAM]),
     User('chrisvittal', 'cvittal', [COMPILER_TEAM]),
     User('cseed', 'cseed'),
     User('daniel-goldstein', 'dgoldste', [SERVICES_TEAM]),
-    User('danking', 'dking', [SERVICES_TEAM]),
+    User('danking', 'dking'),
     User('dependabot[bot]'),
     User('jigold', 'jigold', [SERVICES_TEAM]),
     User('jkgoodrich', 'jgoodric'),
-    User('johnc1231', 'johnc'),
     User('konradjk', 'konradk'),
     User('lfrancioli'),
     User('lgruen'),
@@ -35,5 +32,5 @@ AUTHORIZED_USERS = [
     User('patrick-schultz', 'pschultz', [COMPILER_TEAM]),
     User('pwc2', 'pcumming'),
     User('tpoterba', 'tpoterba', [COMPILER_TEAM]),
-    User('vrautela', 'vrautela', [SERVICES_TEAM]),
+    User('vrautela', 'vrautela'),
 ]
