@@ -4,7 +4,6 @@
 
 <h1>Data by Region</h1>
 {% if plot_json is not none %}
-
 <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
 <div id="plotly-timeseries">
     <script>
@@ -20,5 +19,7 @@
         z-index: 10000;
     }
 </style>
+{% else %}
+<div><p>Data is not available.</p></div>
 {% endif %}
 {% endblock %}
