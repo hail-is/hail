@@ -73,6 +73,21 @@ def create_vm_config(
 
     assert instance_config.is_valid_configuration(resource_rates.keys())
 
+    def scheduling() -> dict:
+        result = {
+            'automaticRestart': False,
+            'onHostMaintenance': 'TERMINATE',
+        }
+
+        if preemptible:
+            result.update({
+                'provisioningModel': 'SPOT',
+                'instanceTerminationAction': 'DELETE',
+                'preemptible': True,
+            })
+
+        return result
+
     return {
         'name': machine_name,
         'machineType': f'projects/{project}/zones/{zone}/machineTypes/{machine_type}',
@@ -96,13 +111,7 @@ def create_vm_config(
                 'accessConfigs': [{'type': 'ONE_TO_ONE_NAT', 'name': 'external-nat'}],
             }
         ],
-        'scheduling': {
-            'automaticRestart': False,
-            'instanceTerminationAction': 'DELETE',
-            'onHostMaintenance': 'TERMINATE',
-            'preemptible': preemptible,
-            'provisioningModel': 'SPOT' if preemptible else 'STANDARD',
-        },
+        'scheduling': scheduling(),
         'serviceAccounts': [
             {
                 'email': f'batch2-agent@{project}.iam.gserviceaccount.com',
@@ -288,9 +297,9 @@ docker run \
 -e INSTANCE_ID=$INSTANCE_ID \
 -e PROJECT=$PROJECT \
 -e ZONE=$ZONE \
--e DOCKER_PREFIX=$DOCKER_PREFIX \
 -e DOCKER_ROOT_IMAGE=$DOCKER_ROOT_IMAGE \
 -e INSTANCE_CONFIG=$INSTANCE_CONFIG \
+-e DOCKER_PREFIX=$DOCKER_PREFIX \
 -e MAX_IDLE_TIME_MSECS=$MAX_IDLE_TIME_MSECS \
 -e BATCH_WORKER_IMAGE=$BATCH_WORKER_IMAGE \
 -e BATCH_WORKER_IMAGE_ID=$BATCH_WORKER_IMAGE_ID \
