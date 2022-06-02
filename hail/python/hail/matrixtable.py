@@ -2500,8 +2500,20 @@ class MatrixTable(ExprContainer):
 }"""
         if not _read_if_exists or not hl.hadoop_exists(f'{output}/_SUCCESS'):
             self.write(output=output, overwrite=overwrite, stage_locally=stage_locally, _codec_spec=_codec_spec)
-        return hl.read_matrix_table(output, _intervals=_intervals, _filter_intervals=_filter_intervals,
-                                    _drop_cols=_drop_cols, _drop_rows=_drop_rows)
+            _assert_type = self._type
+            _load_refs = False
+        else:
+            _assert_type = None
+            _load_refs = True
+        return hl.read_matrix_table(
+            output,
+            _intervals=_intervals,
+            _filter_intervals=_filter_intervals,
+            _drop_cols=_drop_cols,
+            _drop_rows=_drop_rows,
+            _assert_type=_assert_type,
+            _load_refs=_load_refs
+        )
 
     @typecheck_method(output=str,
                       overwrite=bool,
@@ -3326,6 +3338,20 @@ class MatrixTable(ExprContainer):
         :class:`.MatrixTable`
             Repartitioned dataset.
         """
+        if hl.current_backend().requires_lowering:
+            tmp = hl.utils.new_temp_file()
+
+            if len(self.row_key) == 0:
+                uid = Env.get_uid()
+                tmp2 = hl.utils.new_temp_file()
+                self.checkpoint(tmp2)
+                ht = hl.read_matrix_table(tmp2).add_row_index(uid).key_rows_by(uid)
+                ht.checkpoint(tmp)
+                return hl.read_matrix_table(tmp, _n_partitions=n_partitions).drop(uid)
+            else:
+                # checkpoint rather than write to use fast codec
+                self.checkpoint(tmp)
+                return hl.read_matrix_table(tmp, _n_partitions=n_partitions)
 
         return MatrixTable(ir.MatrixRepartition(
             self._mir, n_partitions,
@@ -3360,6 +3386,9 @@ class MatrixTable(ExprContainer):
         :class:`.MatrixTable`
             Matrix table with at most `max_partitions` partitions.
         """
+
+        if hl.current_backend().requires_lowering:
+            return self.repartition(max_partitions)
 
         return MatrixTable(ir.MatrixRepartition(
             self._mir, max_partitions, ir.RepartitionStrategy.NAIVE_COALESCE))

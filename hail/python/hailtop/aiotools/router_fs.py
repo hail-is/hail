@@ -3,7 +3,8 @@ import asyncio
 import urllib.parse
 
 from ..aiocloud import aioaws, aioazure, aiogoogle
-from .fs import AsyncFS, MultiPartCreate, FileStatus, FileListEntry, ReadableStream, WritableStream
+from .fs import (AsyncFS, MultiPartCreate, FileStatus, FileListEntry, ReadableStream,
+                 WritableStream, AsyncFSURL)
 from .local_fs import LocalAsyncFS
 
 
@@ -33,6 +34,9 @@ class RouterAsyncFS(AsyncFS):
         self._gcs_kwargs = gcs_kwargs or {}
         self._azure_kwargs = azure_kwargs or {}
         self._s3_kwargs = s3_kwargs or {}
+
+    def parse_url(self, url: str) -> AsyncFSURL:
+        return self._get_fs(url).parse_url(url)
 
     @property
     def schemes(self) -> Set[str]:
@@ -75,9 +79,9 @@ class RouterAsyncFS(AsyncFS):
         fs = self._get_fs(url)
         return await fs.open(url)
 
-    async def open_from(self, url: str, start: int) -> ReadableStream:
+    async def _open_from(self, url: str, start: int, *, length: Optional[int] = None) -> ReadableStream:
         fs = self._get_fs(url)
-        return await fs.open_from(url, start)
+        return await fs.open_from(url, start, length=length)
 
     async def create(self, url: str, retry_writes: bool = True) -> AsyncContextManager[WritableStream]:
         fs = self._get_fs(url)

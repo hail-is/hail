@@ -199,7 +199,7 @@ class InstanceCollection:
             self.live_free_cores_mcpu_by_location[instance.location] += max(0, instance.free_cores_mcpu)
 
     def add_instance(self, instance: Instance):
-        assert instance.name not in self.name_instance
+        assert instance.name not in self.name_instance, instance.name
 
         self.name_instance[instance.name] = instance
         self.adjust_for_add_instance(instance)

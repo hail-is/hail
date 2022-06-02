@@ -22,15 +22,25 @@ class BackendUtils(mods: Array[(String, (HailClassLoader, FS, Int, Region) => Ba
     if (contexts.isEmpty)
       return Array()
     val backend = HailContext.backend
-    val globalsBC = backend.broadcast(globals)
     val f = getModule(modID)
 
-    backend.parallelizeAndComputeWithIndex(backendContext, fs, contexts, tsd)({ (ctx, htc, theHailClassLoader, fs) =>
-      val gs = globalsBC.value
-      htc.getRegionPool().scopedRegion { region =>
-        val res = f(theHailClassLoader, fs, htc.partitionId(), region)(region, ctx, gs)
-        res
+    if (contexts.length == 0)
+      Array.empty[Array[Byte]]
+    else if (contexts.length == 1 && backend.canExecuteParallelTasksOnDriver) {
+      RegionPool.scoped { rp =>
+        rp.scopedRegion { r =>
+          Array(f(theDriverHailClassLoader, fs, 0, r)(r, contexts(0), globals))
+        }
       }
-    })
+    } else {
+      val globalsBC = backend.broadcast(globals)
+      backend.parallelizeAndComputeWithIndex(backendContext, fs, contexts, tsd)({ (ctx, htc, theHailClassLoader, fs) =>
+        val gs = globalsBC.value
+        htc.getRegionPool().scopedRegion { region =>
+          val res = f(theHailClassLoader, fs, htc.partitionId(), region)(region, ctx, gs)
+          res
+        }
+      })
+    }
   }
 }

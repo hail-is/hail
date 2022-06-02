@@ -22,6 +22,86 @@ Please note that **forward compatibility should not be expected, especially
 relating to file formats**: this means that it may not be possible to use
 an earlier version of Hail to read files written in a later version.
 
+---
+
+## Version 0.2.95
+
+Released 2022-05-13
+
+### New features
+
+- (hail#11809) Export `dtypes_from_pandas` in `expr.types`
+- (hail#11807) Teach smoothed_pdf to add a plot to an existing figure.
+- (hail#11746) The ServiceBackend, in interactive mode, will print a link to the currently executing driver batch.
+- (hail#11759) `hl.logistic_regression_rows`, `hl.poisson_regression_rows`, and `hl.skat` all now support configuration of the maximum number of iterations and the tolerance.
+- (hail#11835) Add `hl.ggplot.geom_density` which renders a plot of an approximation of the probability density function of its argument.
+
+### Bug fixes
+
+- (hail#11815) Fix incorrectly missing entries in to_dense_mt at the position of ref block END.
+- (hail#11828) Fix `hl.init` to not ignore its `sc` argument. This bug was introduced in 0.2.94.
+- (hail#11830) Fix an error and relax a timeout which caused `hailtop.aiotools.copy` to hang.
+- (hail#11778) Fix a (different) error which could cause hangs in `hailtop.aiotools.copy`.
+
+---
+
+## Version 0.2.94
+
+Released 2022-04-26
+
+### Deprecation
+
+- (hail#11765) Deprecated and removed linear mixed model functionality.
+
+### Beta features
+
+- (hail#11782) `hl.import_table` is up to twice as fast for small tables.
+
+### New features
+
+- (hail#11428) `hailtop.batch.build_python_image` now accepts a `show_docker_output` argument to toggle printing docker's output to the terminal while building container images
+- (hail#11725) `hl.ggplot` now supports `facet_wrap`
+- (hail#11776) `hailtop.aiotools.copy` will always show a progress bar when `--verbose` is passed.
+
+### `hailctl dataproc`
+- (hail#11710) support pass-through arguments to `connect`
+
+### Bug fixes
+
+ - (hail#11792) Resolved issue where corrupted tables could be created with whole-stage code generation enabled.
+
+---
+
+## Version 0.2.93
+
+Release 2022-03-27
+
+### Beta features
+
+- Several issues with the beta version of Hail Query on Hail Batch are addressed in this release.
+
+---
+
+## Version 0.2.92
+
+Release 2022-03-25
+
+### New features
+
+- (hail#11613) Add `hl.ggplot` support for `scale_fill_hue`, `scale_color_hue`, and `scale_fill_manual`,
+  `scale_color_manual`. This allows for an infinite number of discrete colors.
+- (hail#11608) Add all remaining and all versions of extant public gnomAD datasets to the Hail
+  Annotation Database and Datasets API. Current as of March 23rd 2022.
+- (hail#11662) Add the `weight` aesthetic `geom_bar`.
+
+### Beta features
+
+- This version of Hail includes all the necessary client-side infrastructure to execute Hail Query
+  pipelines on a Hail Batch cluster. This effectively enables a "serverless" version of Hail Query
+  which is independent of Apache Spark. Broad affiliated users should contact the Hail team for help
+  using Hail Query on Hail Batch. Unaffiliated users should also contact the Hail team to discuss
+  the feasibility of running your own Hail Batch cluster. The Hail team is accessible at both
+  https://hail.zulipchat.com and https://discuss.hail.is .
 
 ---
 

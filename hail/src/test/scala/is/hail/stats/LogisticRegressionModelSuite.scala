@@ -34,13 +34,13 @@ class LogisticRegressionModelSuite extends HailSuite {
     val ones = DenseMatrix.fill[Double](6, 1)(1d)
 
     val nullModel = new LogisticRegressionModel(ones, y)
-    val nullFit = nullModel.fit()
+    val nullFit = nullModel.fit(None, 25, 1e-6)
 
     val X = DenseMatrix.horzcat(ones, C)
 
-    val waldStats = WaldTest.test(X, y, nullFit, "logistic").stats.get
-    val lrStats = LikelihoodRatioTest.test(X, y, nullFit, "logistic").stats.get
-    val scoreStats = LogisticScoreTest.test(X, y, nullFit, "logistic").stats.get
+    val waldStats = WaldTest.test(X, y, nullFit, "logistic", 25, 1e-5).stats.get
+    val lrStats = LikelihoodRatioTest.test(X, y, nullFit, "logistic", 25, 1e-5).stats.get
+    val scoreStats = LogisticScoreTest.test(X, y, nullFit, "logistic", 25, 1e-5).stats.get
 
     assert(D_==(waldStats.b(0), 0.7245034, tolerance = 1.0E-6))
     assert(D_==(waldStats.b(1), -0.3585773, tolerance = 1.0E-6))
@@ -91,13 +91,13 @@ class LogisticRegressionModelSuite extends HailSuite {
     val gts = DenseVector(0d, 1d, 2d, 0d, 0d, 1d)
 
     val nullModel = new LogisticRegressionModel(C, y)
-    val nullFit = nullModel.fit()
+    val nullFit = nullModel.fit(None, 25, 1e-6)
 
     val X = DenseMatrix.horzcat(C, gts.asDenseMatrix.t)
 
-    val waldStats = WaldTest.test(X, y, nullFit, "logistic").stats.get
-    val lrStats = LikelihoodRatioTest.test(X, y, nullFit, "logistic").stats.get
-    val scoreStats = LogisticScoreTest.test(X, y, nullFit, "logistic").stats.get
+    val waldStats = WaldTest.test(X, y, nullFit, "logistic", 25, 1e-5).stats.get
+    val lrStats = LikelihoodRatioTest.test(X, y, nullFit, "logistic", 25, 1e-5).stats.get
+    val scoreStats = LogisticScoreTest.test(X, y, nullFit, "logistic", 25, 1e-5).stats.get
 
     assert(D_==(waldStats.b(0), -0.4811418, tolerance = 1.0E-6))
     assert(D_==(waldStats.b(1), -0.4293547, tolerance = 1.0E-6))
@@ -145,11 +145,11 @@ class LogisticRegressionModelSuite extends HailSuite {
     val X = y.asDenseMatrix.t
 
     val nullModel = new LogisticRegressionModel(X, y) // separation => MLE does not exist
-    var nullFit = nullModel.fit()
+    var nullFit = nullModel.fit(None, 25, 1e-6)
     assert(!nullFit.converged)
 
     nullFit = GLMFit(nullModel.bInterceptOnly(),
           None, None, 0, nullFit.nIter, exploded = nullFit.exploded, converged = false)
-    assert(LogisticFirthTest.test(X, y, nullFit, "logistic").stats.isDefined) // firth penalized MLE still exists
+    assert(LogisticFirthTest.test(X, y, nullFit, "logistic", 25, 1e-5).stats.isDefined) // firth penalized MLE still exists
   }  
 }

@@ -196,7 +196,7 @@ object MakeArray {
     MakeArray(args, TArray(args.head.typ))
   }
 
-  def unify(args: Seq[IR], requestedType: TArray = null): MakeArray = {
+  def unify(ctx: ExecuteContext, args: Seq[IR], requestedType: TArray = null): MakeArray = {
     assert(requestedType != null || args.nonEmpty)
 
     if(args.nonEmpty)
@@ -204,7 +204,7 @@ object MakeArray {
         return MakeArray(args, TArray(args.head.typ))
 
     MakeArray(args.map { arg =>
-      val upcast = PruneDeadFields.upcast(arg, requestedType.elementType)
+      val upcast = PruneDeadFields.upcast(ctx, arg, requestedType.elementType)
       assert(upcast.typ == requestedType.elementType)
       upcast
     }, requestedType)
@@ -214,7 +214,7 @@ object MakeArray {
 final case class MakeArray(args: Seq[IR], _typ: TArray) extends IR
 
 object MakeStream {
-  def unify(args: Seq[IR], requiresMemoryManagementPerElement: Boolean = false, requestedType: TStream = null): MakeStream = {
+  def unify(ctx: ExecuteContext, args: Seq[IR], requiresMemoryManagementPerElement: Boolean = false, requestedType: TStream = null): MakeStream = {
     assert(requestedType != null || args.nonEmpty)
 
     if (args.nonEmpty)
@@ -222,7 +222,7 @@ object MakeStream {
         return MakeStream(args, TStream(args.head.typ), requiresMemoryManagementPerElement)
 
     MakeStream(args.map { arg =>
-      val upcast = PruneDeadFields.upcast(arg, requestedType.elementType)
+      val upcast = PruneDeadFields.upcast(ctx, arg, requestedType.elementType)
       assert(upcast.typ == requestedType.elementType)
       upcast
     }, requestedType, requiresMemoryManagementPerElement)
@@ -369,6 +369,7 @@ object StreamJoin {
     l: String, r: String,
     joinF: IR,
     joinType: String,
+    requiresMemoryManagement: Boolean,
     rightKeyIsDistinct: Boolean = false
   ): IR = {
     val lType = coerce[TStream](left.typ)
@@ -401,8 +402,8 @@ object StreamJoin {
         flatMapIR(joined) { x =>
           Let(l, GetField(x, "left"), bindIR(GetField(GetField(x, "rightGroup"), groupField)) { rightElts =>
             joinType match {
-              case "left" | "outer" => StreamMap(ToStream(If(IsNA(rightElts), missingSingleton, rightElts)), r, joinF)
-              case "right" | "inner" => StreamMap(ToStream(rightElts), r, joinF)
+              case "left" | "outer" => StreamMap(ToStream(If(IsNA(rightElts), missingSingleton, rightElts), requiresMemoryManagement), r, joinF)
+              case "right" | "inner" => StreamMap(ToStream(rightElts, requiresMemoryManagement), r, joinF)
             }
           })
         }
@@ -747,6 +748,9 @@ object PartitionWriter {
     override val typeHints = ShortTypeHints(List(
       classOf[PartitionNativeWriter],
       classOf[TableTextPartitionWriter],
+      classOf[VCFPartitionWriter],
+      classOf[GenSampleWriter],
+      classOf[GenVariantWriter],
       classOf[AbstractTypedCodecSpec],
       classOf[TypedCodecSpec]), typeHintFieldName = "name"
     ) + BufferSpec.shortTypeHints
@@ -765,6 +769,8 @@ object MetadataWriter {
       classOf[TableSpecWriter],
       classOf[RelationalWriter],
       classOf[TableTextFinalizer],
+      classOf[VCFExportFinalizer],
+      classOf[SimpleMetadataWriter],
       classOf[RVDSpecMaker],
       classOf[AbstractTypedCodecSpec],
       classOf[TypedCodecSpec]),
@@ -833,6 +839,7 @@ abstract class SimplePartitionWriter extends PartitionWriter {
       }
       postConsume(cb, os)
 
+      cb += os.invoke[Unit]("flush")
       cb += os.invoke[Unit]("close")
 
       SJavaString.construct(cb, filename)
@@ -848,6 +855,11 @@ abstract class MetadataWriter {
     region: Value[Region]): Unit
 
   def toJValue: JValue = Extraction.decompose(this)(MetadataWriter.formats)
+}
+
+final case class SimpleMetadataWriter(val annotationType: Type) extends MetadataWriter {
+  def writeMetadata(writeAnnotations: => IEmitCode, cb: EmitCodeBuilder, region: Value[Region]): Unit =
+    writeAnnotations.consume(cb, {}, {_ => ()})
 }
 
 final case class ReadPartition(context: IR, rowType: Type, reader: PartitionReader) extends IR

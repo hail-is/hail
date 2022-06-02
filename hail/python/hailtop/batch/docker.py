@@ -3,13 +3,15 @@ import sys
 import os
 from typing import Optional, List
 
-from ..utils import secret_alnum_string, sync_check_shell_output
+from ..utils import secret_alnum_string, sync_check_exec
 
 
 def build_python_image(fullname: str,
                        requirements: Optional[List[str]] = None,
                        python_version: Optional[str] = None,
-                       _tmp_dir: str = '/tmp') -> str:
+                       _tmp_dir: str = '/tmp',
+                       *,
+                       show_docker_output: bool = False) -> str:
     """
     Build a new Python image with dill and the specified pip packages installed.
 
@@ -36,6 +38,8 @@ def build_python_image(fullname: str,
         current version of Python that is running.
     _tmp_dir:
         Location to place local temporary files used while building the image.
+    show_docker_output:
+        Print the output from Docker when building / pushing the image.
 
     Returns
     -------
@@ -50,9 +54,9 @@ def build_python_image(fullname: str,
         major_version = int(version[0])
         minor_version = int(version[1])
 
-    if major_version != 3 or minor_version not in (6, 7, 8):
+    if major_version != 3 or minor_version < 7:
         raise ValueError(
-            f'Python versions other than 3.6, 3.7, or 3.8 (you are using {major_version}.{minor_version}) are not supported')
+            f'Python versions older than 3.7 (you are using {major_version}.{minor_version}) are not supported')
 
     base_image = f'hailgenetics/python-dill:{major_version}.{minor_version}-slim'
 
@@ -78,15 +82,15 @@ RUN pip install --upgrade --no-cache-dir -r requirements.txt && \
     python3 -m pip check
 ''')
 
-            sync_check_shell_output(f'docker build -t {fullname} {docker_path}')
+            sync_check_exec('docker', 'build', '-t', fullname, docker_path, capture_output=(not show_docker_output))
             print(f'finished building image {fullname}')
         else:
-            sync_check_shell_output(f'docker pull {base_image}')
-            sync_check_shell_output(f'docker tag {base_image} {fullname}')
+            sync_check_exec('docker', 'pull', base_image, capture_output=(not show_docker_output))
+            sync_check_exec('docker', 'tag', base_image, fullname, capture_output=(not show_docker_output))
             print(f'finished pulling image {fullname}')
 
         if '/' in fullname:
-            sync_check_shell_output(f'docker push {fullname}')
+            sync_check_exec('docker', 'push', fullname, capture_output=(not show_docker_output))
             print(f'finished pushing image {fullname}')
     finally:
         shutil.rmtree(docker_path, ignore_errors=True)

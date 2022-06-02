@@ -9,6 +9,7 @@ import hail.expr.aggregators as agg
 import hail.utils as utils
 from hail.linalg import BlockMatrix
 from hail.utils import FatalError
+from hail.utils.java import choose_backend
 from ..helpers import (startTestHailContext, stopTestHailContext, resource,
                        fails_local_backend, fails_service_backend,
                        skip_when_service_backend)
@@ -20,7 +21,6 @@ tearDownModule = stopTestHailContext
 class Tests(unittest.TestCase):
     @unittest.skipIf('HAIL_TEST_SKIP_PLINK' in os.environ, 'Skipping tests requiring plink')
     @fails_service_backend()
-    @fails_local_backend()
     def test_impute_sex_same_as_plink(self):
         ds = hl.import_vcf(resource('x-chromosome.vcf'))
 
@@ -56,8 +56,9 @@ class Tests(unittest.TestCase):
 
         self.assertTrue(hl.impute_sex(ds.GT)._same(hl.impute_sex(ds.GT, aaf='aaf')))
 
-    backend_name = os.environ.get('HAIL_QUERY_BACKEND', 'spark')
-    linreg_functions = [hl.linear_regression_rows, hl._linear_regression_rows_nd] if backend_name == "spark" else [hl._linear_regression_rows_nd]
+    backend_name = choose_backend()
+    # Outside of Spark backend, "linear_regression_rows" just defers to the underscore nd version.
+    linreg_functions = [hl.linear_regression_rows, hl._linear_regression_rows_nd] if backend_name == "spark" else [hl.linear_regression_rows]
 
     @skip_when_service_backend('Shuffler encoding/decoding is broken.')
     def test_linreg_basic(self):
@@ -373,7 +374,6 @@ class Tests(unittest.TestCase):
             results_t = ds_results_t.annotate(**gt_results_t[ds_results_t.locus, ds_results_t.alleles])
             self.assertTrue(all(hl.approx_equal(results_t.ds_p_value, results_t.gt_p_value, nan_same=True).collect()))
 
-    @fails_service_backend()
     def test_linear_regression_with_import_fam_boolean(self):
         covariates = hl.import_table(resource('regressionLinear.cov'),
                                      key='Sample',
@@ -404,7 +404,6 @@ class Tests(unittest.TestCase):
             self.assertTrue(np.isnan(results[9].standard_error))
             self.assertTrue(np.isnan(results[10].standard_error))
 
-    @fails_service_backend()
     def test_linear_regression_with_import_fam_quant(self):
         covariates = hl.import_table(resource('regressionLinear.cov'),
                                      key='Sample',
@@ -465,9 +464,104 @@ class Tests(unittest.TestCase):
                 eq(combined.p_value, combined.multi.p_value[0]) &
                 eq(combined.multi.p_value[0], combined.multi.p_value[1]))))
 
-    logreg_functions = [hl.logistic_regression_rows, hl._logistic_regression_rows_nd] if backend_name == "spark" else [hl._logistic_regression_rows_nd]
+    def test_logistic_regression_rows_max_iter_zero(self):
+        import hail as hl
+        mt = hl.utils.range_matrix_table(1, 3)
+        mt = mt.annotate_entries(x=hl.literal([1, 1, 10]))
+        try:
+            ht = hl.logistic_regression_rows(
+                test='wald',
+                y=hl.literal([0, 0, 1])[mt.col_idx],
+                x=mt.x[mt.col_idx],
+                covariates=[1],
+                max_iterations=0
+            )
+            ht.collect()[0].fit
+        except Exception as exc:
+            assert 'Failed to fit logistic regression null model (standard MLE with covariates only): Newton iteration failed to converge' in exc.args[0]
+        else:
+            assert False
 
-    @fails_service_backend(reason='not implemented error: register_ir_function')
+    # Outside the spark backend, "logistic_regression_rows" automatically defers to the _ version.
+    logreg_functions = [hl.logistic_regression_rows, hl._logistic_regression_rows_nd] if backend_name == "spark" else [hl.logistic_regression_rows]
+
+    def test_logistic_regression_rows_max_iter_explodes(self):
+        for logreg in self.logreg_functions:
+            import hail as hl
+            mt = hl.utils.range_matrix_table(1, 3)
+            mt = mt.annotate_entries(x=hl.literal([1, 1, 10]))
+            ht = logreg(
+                test='wald',
+                y=hl.literal([0, 0, 1])[mt.col_idx],
+                x=mt.x[mt.col_idx],
+                covariates=[1],
+                max_iterations=100
+            )
+            fit = ht.collect()[0].fit
+            assert fit.n_iterations < 100
+            assert fit.exploded
+            assert not fit.converged
+
+    @fails_local_backend()
+    @fails_service_backend()
+    def test_logistic_regression_rows_max_iter_explodes_in_12_steps_for_firth(self):
+        import hail as hl
+        mt = hl.utils.range_matrix_table(1, 3)
+        mt = mt.annotate_entries(x=hl.literal([1, 1, 10]))
+        ht = hl.logistic_regression_rows(
+            test='firth',
+            y=hl.literal([0, 1, 1, 0])[mt.col_idx],
+            x=mt.x[mt.col_idx],
+            covariates=[1],
+            max_iterations=100
+        )
+        fit = ht.collect()[0].fit
+        assert fit.n_iterations == 12
+        assert fit.exploded
+        assert not fit.converged
+
+    @fails_local_backend()
+    @fails_service_backend()
+    def test_logistic_regression_rows_does_not_converge_with_105_iterations(self):
+        import hail as hl
+        mt = hl.utils.range_matrix_table(1, 3)
+        mt = mt.annotate_entries(x=hl.literal([1, 3, 10]))
+        ht = hl.logistic_regression_rows(
+            test='firth',
+            y=hl.literal([0, 1, 1])[mt.col_idx],
+            x=mt.x[mt.col_idx],
+            covariates=[1],
+            max_iterations=105
+        )
+        fit = ht.collect()[0].fit
+        assert fit.n_iterations == 105
+        assert not fit.exploded
+        assert not fit.converged
+
+    @fails_local_backend()
+    @fails_service_backend()
+    def test_logistic_regression_rows_does_converge_with_106_iterations(self):
+        import hail as hl
+        mt = hl.utils.range_matrix_table(1, 3)
+        mt = mt.annotate_entries(x=hl.literal([1, 3, 10]))
+        ht = hl.logistic_regression_rows(
+            test='firth',
+            y=hl.literal([0, 1, 1])[mt.col_idx],
+            x=mt.x[mt.col_idx],
+            covariates=[1],
+            max_iterations=106
+        )
+        result = ht.collect()[0]
+        fit = result.fit
+        actual_beta = result.beta
+        expected_beta = 0.19699166375172233
+        assert abs(actual_beta - expected_beta) < 1e-16
+        assert abs(result.chi_sq_stat - 0.6464918007192411) < 1e-15
+        assert abs(result.p_value - 0.4213697518249182) < 1e-15
+        assert fit.n_iterations == 106
+        assert not fit.exploded
+        assert fit.converged
+
     def test_weighted_linear_regression(self):
         covariates = hl.import_table(resource('regressionLinear.cov'),
                                      key='Sample',
@@ -1025,7 +1119,6 @@ class Tests(unittest.TestCase):
 
         assert mt.aggregate_rows(hl.agg.all(mt.foo.bar == ht[mt.row_key].bar))
 
-
     # comparing to R:
     # x = c(0, 1, 0, 0, 0, 1, 0, 0, 0, 0)
     # y = c(0, 2, 5, 3, 6, 2, 1, 1, 0, 0)
@@ -1074,6 +1167,19 @@ class Tests(unittest.TestCase):
         self.assertTrue(is_constant(results[8]))
         self.assertTrue(is_constant(results[9]))
         self.assertTrue(is_constant(results[10]))
+
+    @fails_local_backend()
+    @fails_service_backend()
+    def test_poisson_regression_max_iterations(self):
+        import hail as hl
+        mt = hl.utils.range_matrix_table(1, 3)
+        mt = mt.annotate_entries(x=hl.literal([1, 3, 10, 5]))
+        ht = hl.poisson_regression_rows(
+            'wald', y=hl.literal([0, 1, 1, 0])[mt.col_idx], x=mt.x[mt.col_idx], covariates=[1], max_iterations=1)
+        fit = ht.collect()[0].fit
+        assert fit.n_iterations == 1
+        assert not fit.converged
+        assert not fit.exploded
 
     # comparing to R:
     # x = c(0, 1, 0, 0, 0, 1, 0, 0, 0, 0)
@@ -1242,7 +1348,6 @@ class Tests(unittest.TestCase):
         one_sample = hl.balding_nichols_model(1, 1, 10)
         self.assertRaises(FatalError, lambda: hl.realized_relationship_matrix(one_sample.GT))
 
-    @fails_service_backend()
     def test_row_correlation_vs_hardcode(self):
         data = [{'v': '1:1:A:C', 's': '1', 'GT': hl.Call([0, 0])},
                 {'v': '1:1:A:C', 's': '2', 'GT': hl.Call([0, 0])},
@@ -1265,6 +1370,7 @@ class Tests(unittest.TestCase):
         self.assertTrue(np.allclose(actual, expected))
 
     @fails_service_backend()
+    @fails_local_backend()
     def test_row_correlation_vs_numpy(self):
         n, m = 11, 10
         hl.set_global_seed(0)
@@ -1400,6 +1506,7 @@ class Tests(unittest.TestCase):
 
         self.assertEqual(entries.filter(bad_pair).count(), 0)
 
+    @fails_service_backend
     def test_ld_prune_inputs(self):
         ds = hl.balding_nichols_model(n_populations=1, n_samples=1, n_variants=1)
         self.assertRaises(ValueError, lambda: hl.ld_prune(ds.GT, memory_per_core=0))
@@ -1609,7 +1716,67 @@ class Tests(unittest.TestCase):
                 covariates=[1.0, ds.cov.Cov1, ds.cov.Cov2],
                 logistic=True)._force_count()
 
+        hl.skat(key_expr=ds.gene,
+                weight_expr=ds.weight,
+                y=ds.pheno,
+                x=hl.pl_dosage(ds.PL),
+                covariates=[1.0, ds.cov.Cov1, ds.cov.Cov2],
+                logistic=(25, 1e-6))._force_count()
+
+    @fails_local_backend()
     @fails_service_backend()
+    def test_skat_max_iteration_fails_explodes_in_37_steps(self):
+        mt = hl.utils.range_matrix_table(3, 3)
+        mt = mt.annotate_cols(y=hl.literal([1, 0, 1])[mt.col_idx])
+        mt = mt.annotate_entries(
+            x=hl.literal([
+                [1, 0, 0],
+                [10, 0, 0],
+                [10, 5, 1]
+            ])[mt.row_idx]
+        )
+        ht = hl.skat(
+            hl.literal(0),
+            mt.row_idx,
+            y=mt.y,
+            x=mt.x[mt.col_idx],
+            logistic=(37, 1e-10),
+            # The logistic settings are only used when fitting the null model, so we need to use a
+            # covariate that triggers nonconvergence
+            covariates=[mt.y]
+        )
+        try:
+            ht.collect()[0]
+        except FatalError as err:
+            assert 'Failed to fit logistic regression null model (MLE with covariates only): exploded at Newton iteration 37' in err.args[0]
+
+    @fails_local_backend()
+    @fails_service_backend()
+    def test_skat_max_iterations_fails_to_converge_in_fewer_than_36_steps(self):
+        mt = hl.utils.range_matrix_table(3, 3)
+        mt = mt.annotate_cols(y=hl.literal([1, 0, 1])[mt.col_idx])
+        mt = mt.annotate_entries(
+            x=hl.literal([
+                [1, 0, 0],
+                [10, 0, 0],
+                [10, 5, 1]
+            ])[mt.row_idx]
+        )
+        ht = hl.skat(
+            hl.literal(0),
+            mt.row_idx,
+            y=mt.y,
+            x=mt.x[mt.col_idx],
+            logistic=(36, 1e-10),
+            # The logistic settings are only used when fitting the null model, so we need to use a
+            # covariate that triggers nonconvergence
+            covariates=[mt.y]
+        )
+        try:
+            ht.collect()[0]
+        except FatalError as err:
+            assert 'Failed to fit logistic regression null model (MLE with covariates only): Newton iteration failed to converge' in err.args[0]
+
     def test_de_novo(self):
         mt = hl.import_vcf(resource('denovo.vcf'))
         mt = mt.filter_rows(mt.locus.in_y_par(), keep=False)  # de_novo_finder doesn't know about y PAR
@@ -1636,7 +1803,6 @@ class Tests(unittest.TestCase):
         j = r.join(truth, how='outer')
         self.assertTrue(j.all((j.confidence == j.confidence_1) & (hl.abs(j.p_de_novo - j.p_de_novo_1) < 1e-4)))
 
-    @fails_service_backend()
     def test_de_novo_error(self):
         mt = hl.import_vcf(resource('denovo.vcf'))
         ped = hl.Pedigree.read(resource('denovo.fam'))
@@ -1644,7 +1810,6 @@ class Tests(unittest.TestCase):
         with pytest.raises(Exception, match='pop_frequency_prior'):
             hl.de_novo(mt, ped, pop_frequency_prior=2.0).count()
 
-    @fails_service_backend()
     def test_de_novo_ignore_computed_af_runs(self):
         mt = hl.import_vcf(resource('denovo.vcf'))
         ped = hl.Pedigree.read(resource('denovo.fam'))

@@ -21,9 +21,7 @@ class BlockMatrixStageSuite extends HailSuite {
     val stage = if (ctxs.isEmpty)
       BlockMatrixStage.empty(TInt32)
     else {
-      new BlockMatrixStage(
-        globalVals,
-        ctxs.head._2.typ) {
+      new BlockMatrixStage(IndexedSeq(), globalVals, ctxs.head._2.typ) {
         private[this] val ctxMap = ctxs.toMap
         def blockContext(idx: (Int, Int)): IR = ctxMap(idx)
         def blockBody(ctxRef: Ref): IR = body(ctxRef)

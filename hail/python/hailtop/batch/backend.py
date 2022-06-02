@@ -657,6 +657,8 @@ class ServiceBackend(Backend[bc.Batch]):
                 resources['storage'] = job._storage
             if job._machine_type:
                 resources['machine_type'] = job._machine_type
+            if job._pool_label:
+                resources['pool_label'] = job._pool_label
             if job._preemptible is not None:
                 resources['preemptible'] = job._preemptible
 
@@ -718,7 +720,7 @@ class ServiceBackend(Backend[bc.Batch]):
             print('')
 
         deploy_config = get_deploy_config()
-        url = deploy_config.url('batch', f'/batches/{batch_handle.id}')
+        url = deploy_config.external_url('batch', f'/batches/{batch_handle.id}')
         print(f'Submitted batch {batch_handle.id}, see {url}')
 
         if open:

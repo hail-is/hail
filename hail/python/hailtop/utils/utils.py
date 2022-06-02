@@ -1,4 +1,5 @@
-from typing import Callable, TypeVar, Awaitable, Optional, Type, List, Dict, Iterable, Tuple
+from typing import (Callable, TypeVar, Awaitable, Optional, Type, List, Dict, Iterable, Tuple,
+                    Generic, cast)
 from typing_extensions import Literal
 from types import TracebackType
 import concurrent
@@ -159,24 +160,30 @@ async def blocking_to_async(thread_pool: concurrent.futures.Executor,
         thread_pool, lambda: fun(*args, **kwargs))
 
 
-async def bounded_gather(*pfs, parallelism=10, return_exceptions=False):
-    gatherer = AsyncThrottledGather(*pfs,
-                                    parallelism=parallelism,
-                                    return_exceptions=return_exceptions)
+async def bounded_gather(*pfs: Callable[[], Awaitable[T]],
+                         parallelism: int = 10,
+                         return_exceptions: bool = False
+                         ) -> List[T]:
+    gatherer = AsyncThrottledGather[T](*pfs,
+                                       parallelism=parallelism,
+                                       return_exceptions=return_exceptions)
     return await gatherer.wait()
 
 
-class AsyncThrottledGather:
-    def __init__(self, *pfs, parallelism=10, return_exceptions=False):
+class AsyncThrottledGather(Generic[T]):
+    def __init__(self,
+                 *pfs: Callable[[], Awaitable[T]],
+                 parallelism: int = 10,
+                 return_exceptions: bool = False):
         self.count = len(pfs)
         self.n_finished = 0
 
-        self._queue = asyncio.Queue()
+        self._queue: asyncio.Queue[Tuple[int, Callable[[], Awaitable[T]]]] = asyncio.Queue()
         self._done = asyncio.Event()
         self._return_exceptions = return_exceptions
 
-        self._results = [None] * len(pfs)
-        self._errors = []
+        self._results: List[Optional[T]] = [None] * len(pfs)
+        self._errors: List[BaseException] = []
 
         self._workers = []
         for _ in range(parallelism):
@@ -213,7 +220,7 @@ class AsyncThrottledGather:
             if self.n_finished == self.count:
                 self._done.set()
 
-    async def wait(self):
+    async def wait(self) -> List[T]:
         try:
             if self.count > 0:
                 await self._done.wait()
@@ -223,7 +230,7 @@ class AsyncThrottledGather:
         if self._errors:
             raise self._errors[0]
 
-        return self._results
+        return cast(List[T], self._results)
 
 
 class AsyncWorkerPool:
@@ -388,9 +395,10 @@ class OnlineBoundedGather2:
         self._counter += 1
 
         async def run_and_cleanup():
+            retval = None
             try:
                 async with self._sema:
-                    await f(*args, **kwargs)
+                    retval = await f(*args, **kwargs)
             except asyncio.CancelledError:
                 pass
             except:
@@ -402,10 +410,11 @@ class OnlineBoundedGather2:
                     log.info('discarding exception', exc_info=True)
 
             if self._pending is None:
-                return
+                return retval
             del self._pending[id]
             if not self._pending:
                 self._done_event.set()
+            return retval
 
         t = asyncio.create_task(run_and_cleanup())
         self._pending[id] = t
@@ -722,9 +731,15 @@ async def retry_transient_errors(f: Callable[..., Awaitable[T]], *args, **kwargs
             if not is_transient_error(e):
                 raise
             errors += 1
-            if errors % 10 == 0:
+            if errors == 2:
+                log.warning(f'A transient error occured. We will automatically retry. Do not be alarmed. '
+                            f'We have thus far seen {errors} transient errors (current delay: '
+                            f'{delay}). The most recent error was {type(e)} {e}')
+            elif errors % 10 == 0:
                 st = ''.join(traceback.format_stack())
-                log.warning(f'Encountered {errors} errors. My stack trace is {st}. Most recent error was {e}', exc_info=True)
+                log.warning(f'A transient error occured. We will automatically retry. '
+                            f'We have thus far seen {errors} transient errors (current delay: '
+                            f'{delay}). The stack trace for this call is {st}. The most recent error was {type(e)} {e}', exc_info=True)
         delay = await sleep_and_backoff(delay)
 
 
@@ -746,11 +761,21 @@ def sync_retry_transient_errors(f, *args, **kwargs):
         delay = sync_sleep_and_backoff(delay)
 
 
-async def request_retry_transient_errors(session, method, url, **kwargs):
+async def request_retry_transient_errors(
+        session,  # : Union[httpx.ClientSession, aiohttp.ClientSession]
+        method: str,
+        url,
+        **kwargs
+) -> aiohttp.ClientResponse:
     return await retry_transient_errors(session.request, method, url, **kwargs)
 
 
-async def request_raise_transient_errors(session, method, url, **kwargs):
+async def request_raise_transient_errors(
+        session,  # : Union[httpx.ClientSession, aiohttp.ClientSession]
+        method: str,
+        url,
+        **kwargs
+) -> aiohttp.ClientResponse:
     try:
         return await session.request(method, url, **kwargs)
     except Exception as e:
@@ -814,8 +839,8 @@ def dump_all_stacktraces():
 async def retry_long_running(name, f, *args, **kwargs):
     delay_secs = 0.1
     while True:
+        start_time = time_msecs()
         try:
-            start_time = time_msecs()
             return await f(*args, **kwargs)
         except asyncio.CancelledError:
             raise
@@ -837,6 +862,13 @@ async def run_if_changed(changed, f, *args, **kwargs):
     while True:
         changed.clear()
         should_wait = await f(*args, **kwargs)
+        # 0.5 is arbitrary, but should be short enough not to greatly
+        # increase latency and long enough to reduce the impact of
+        # wasteful spinning when `should_wait` is always true and the
+        # event is constantly being set. This was instated to
+        # avoid wasteful repetition of scheduling loops, but
+        # might not always be desirable, especially in very low-latency batches.
+        await asyncio.sleep(0.5)
         if should_wait:
             await changed.wait()
 

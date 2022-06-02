@@ -385,7 +385,7 @@ class Batch:
 
     async def wait(self, *, disable_progress_bar=TqdmDisableOption.default):
         i = 0
-        with tqdm(total=self.n_jobs, disable=disable_progress_bar, desc='completed jobs') as pbar:
+        with tqdm(total=self.n_jobs, disable=disable_progress_bar, desc=f'Batch {self.id}: completed jobs') as pbar:
             while True:
                 status = await self.status()
                 pbar.update(status['n_completed'] - pbar.n)
@@ -431,8 +431,8 @@ class BatchBuilder:
             {'command': command, 'image': image, 'mount_docker_socket': mount_docker_socket, 'type': 'docker'}, **kwargs
         )
 
-    def create_jvm_job(self, command: List[str], **kwargs):
-        return self._create_job({'command': command, 'type': 'jvm'}, **kwargs)
+    def create_jvm_job(self, jar_spec: Dict[str, str], argv: List[str], **kwargs):
+        return self._create_job({'type': 'jvm', 'jar_spec': jar_spec, 'command': argv}, **kwargs)
 
     def _create_job(self,
                     process: dict,

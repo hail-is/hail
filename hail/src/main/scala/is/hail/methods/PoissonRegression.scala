@@ -17,7 +17,10 @@ case class PoissonRegression(
   yField: String,
   xField: String,
   covFields: Seq[String],
-  passThrough: Seq[String]) extends MatrixToTableFunction {
+  passThrough: Seq[String],
+  maxIterations: Int,
+  tolerance: Double
+) extends MatrixToTableFunction {
 
   override def typ(childType: MatrixType): TableType = {
     val poisRegTest = PoissonRegressionTest.tests(test)
@@ -50,7 +53,7 @@ case class PoissonRegression(
       + s"    with input variable x, and ${ k } additional ${ plural(k, "covariate") }...")
 
     val nullModel = new PoissonRegressionModel(cov, y)
-    var nullFit = nullModel.fit()
+    var nullFit = nullModel.fit(None, maxIter=maxIterations, tol=tolerance)
 
     if (!nullFit.converged)
       fatal("Failed to fit poisson regression null model (standard MLE with covariates only): " + (
@@ -93,7 +96,7 @@ case class PoissonRegression(
         rvb.startStruct()
         rvb.addFields(fullRowType, ctx.r, ptr, copiedFieldIndices)
         poisRegTestBc.value
-          .test(X, yBc.value, nullFitBc.value, "poisson")
+          .test(X, yBc.value, nullFitBc.value, "poisson", maxIter=maxIterations, tol=tolerance)
           .addToRVB(rvb)
         rvb.endStruct()
         rvb.end()

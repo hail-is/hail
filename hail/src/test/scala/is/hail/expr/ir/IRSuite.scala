@@ -2002,7 +2002,7 @@ class IRSuite extends HailSuite {
     }
     ToArray(StreamJoin.apply(left, right, lKeys, rKeys, "_l", "_r",
                      joinF(Ref("_l", coerce[TStream](left.typ).elementType), Ref("_r", coerce[TStream](right.typ).elementType)),
-                     joinType, rightDistinct))
+                     joinType, requiresMemoryManagement = false, rightKeyIsDistinct = rightDistinct))
   }
 
   @Test def testStreamZipJoin() {
@@ -2135,8 +2135,8 @@ class IRSuite extends HailSuite {
 
     def joinRows(left: IndexedSeq[Integer], right: IndexedSeq[Integer], joinType: String): IR = {
       join(
-        MakeStream.unify(left.zipWithIndex.map { case (n, idx) => MakeStruct(FastIndexedSeq("lk1" -> (if (n == null) NA(TInt32) else I32(n)), "lk2" -> Str("x"), "a" -> I64(idx))) }),
-        MakeStream.unify(right.zipWithIndex.map { case (n, idx) => MakeStruct(FastIndexedSeq("b" -> I32(idx), "rk2" -> Str("x"), "rk1" -> (if (n == null) NA(TInt32) else I32(n)), "c" -> Str("foo"))) }),
+        MakeStream.unify(ctx, left.zipWithIndex.map { case (n, idx) => MakeStruct(FastIndexedSeq("lk1" -> (if (n == null) NA(TInt32) else I32(n)), "lk2" -> Str("x"), "a" -> I64(idx))) }),
+        MakeStream.unify(ctx, right.zipWithIndex.map { case (n, idx) => MakeStruct(FastIndexedSeq("b" -> I32(idx), "rk2" -> Str("x"), "rk1" -> (if (n == null) NA(TInt32) else I32(n)), "c" -> Str("foo"))) }),
         FastIndexedSeq("lk1", "lk2"),
         FastIndexedSeq("rk1", "rk2"),
         rightDistinct = true,
@@ -2150,7 +2150,7 @@ class IRSuite extends HailSuite {
     assertEvalsTo(
       join(
         NA(TStream(TStruct("k1" -> TInt32, "k2" -> TString, "a" -> TInt64))),
-        MakeStream.unify(Seq(MakeStruct(FastIndexedSeq("b" -> I32(0), "k2" -> Str("x"), "k1" -> I32(3), "c" -> Str("foo"))))),
+        MakeStream.unify(ctx, Seq(MakeStruct(FastIndexedSeq("b" -> I32(0), "k2" -> Str("x"), "k1" -> I32(3), "c" -> Str("foo"))))),
         FastIndexedSeq("k1", "k2"),
         FastIndexedSeq("k1", "k2"),
         true,
@@ -2159,7 +2159,7 @@ class IRSuite extends HailSuite {
 
     assertEvalsTo(
       join(
-        MakeStream.unify(Seq(MakeStruct(FastIndexedSeq("k1" -> I32(0), "k2" -> Str("x"), "a" -> I64(3))))),
+        MakeStream.unify(ctx, Seq(MakeStruct(FastIndexedSeq("k1" -> I32(0), "k2" -> Str("x"), "a" -> I64(3))))),
         NA(TStream(TStruct("b" -> TInt32, "k2" -> TString, "k1" -> TInt32, "c" -> TString))),
         FastIndexedSeq("k1", "k2"),
         FastIndexedSeq("k1", "k2"),
@@ -2199,8 +2199,8 @@ class IRSuite extends HailSuite {
 
     def joinRows(left: IndexedSeq[Integer], right: IndexedSeq[Integer], joinType: String): IR = {
       join(
-        MakeStream.unify(left.zipWithIndex.map { case (n, idx) => MakeStruct(FastIndexedSeq("lk" -> (if (n == null) NA(TInt32) else I32(n)), "l" -> I32(idx))) }),
-        MakeStream.unify(right.zipWithIndex.map { case (n, idx) => MakeStruct(FastIndexedSeq("rk" -> (if (n == null) NA(TInt32) else I32(n)), "r" -> I32(idx))) }),
+        MakeStream.unify(ctx, left.zipWithIndex.map { case (n, idx) => MakeStruct(FastIndexedSeq("lk" -> (if (n == null) NA(TInt32) else I32(n)), "l" -> I32(idx))) }),
+        MakeStream.unify(ctx, right.zipWithIndex.map { case (n, idx) => MakeStruct(FastIndexedSeq("rk" -> (if (n == null) NA(TInt32) else I32(n)), "r" -> I32(idx))) }),
         FastIndexedSeq("lk"),
         FastIndexedSeq("rk"),
         false,
@@ -3300,9 +3300,9 @@ class IRSuite extends HailSuite {
     Array(WrappedMatrixToTableFunction(LinearRegressionRowsSingle(Array("foo"), "bar", Array("baz"), 1, Array("a", "b")), "foo", "bar", FastIndexedSeq("ck"))),
     Array(LinearRegressionRowsSingle(Array("foo"), "bar", Array("baz"), 1, Array("a", "b"))),
     Array(LinearRegressionRowsChained(FastIndexedSeq(FastIndexedSeq("foo")), "bar", Array("baz"), 1, Array("a", "b"))),
-    Array(LogisticRegression("firth", Array("a", "b"), "c", Array("d", "e"), Array("f", "g"))),
-    Array(PoissonRegression("firth", "a", "c", Array("d", "e"), Array("f", "g"))),
-    Array(Skat("a", "b", "c", "d", Array("e", "f"), false, 1, 0.1, 100)),
+    Array(LogisticRegression("firth", Array("a", "b"), "c", Array("d", "e"), Array("f", "g"), 25, 1e-6)),
+    Array(PoissonRegression("firth", "a", "c", Array("d", "e"), Array("f", "g"), 25, 1e-6)),
+    Array(Skat("a", "b", "c", "d", Array("e", "f"), false, 1, 0.1, 100, 0, 0.0)),
     Array(LocalLDPrune("x", 0.95, 123, 456)),
     Array(PCA("x", 1, false)),
     Array(PCRelate(0.00, 4096, Some(0.1), PCRelate.PhiK2K0K1)),

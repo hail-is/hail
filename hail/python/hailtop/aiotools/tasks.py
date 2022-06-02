@@ -15,8 +15,10 @@ class BackgroundTaskManager:
         self.tasks: weakref.WeakSet = weakref.WeakSet()
         self.loop = loop
 
-    def ensure_future(self, coroutine):
-        self.tasks.add(asyncio.ensure_future(coroutine))
+    def ensure_future(self, coroutine) -> asyncio.Future:
+        t = asyncio.ensure_future(coroutine)
+        self.tasks.add(t)
+        return t
 
     def ensure_future_threadsafe(self, coroutine):
         self.tasks.add(asyncio.run_coroutine_threadsafe(coroutine, self.loop))

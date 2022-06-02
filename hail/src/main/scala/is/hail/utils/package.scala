@@ -82,6 +82,8 @@ package object utils extends Logging
   with Py4jUtils
   with ErrorHandling {
 
+  def utilsPackageClass = getClass
+
   def getStderrAndLogOutputStream[T](implicit tct: ClassTag[T]): OutputStream =
     new TeeOutputStream(new LoggerOutputStream(log, Level.ERROR), System.err)
 

@@ -140,7 +140,6 @@ class ManyStringsTable(ResourceGroup):
 
     def _create(self, resource_dir):
         download(resource_dir, 'many_strings_table.tsv.bgz')
-        logging.info('importing many_strings_table.tsv.bgz...')
         hl.import_table(os.path.join(resource_dir, 'many_strings_table.tsv.bgz')) \
             .write(os.path.join(resource_dir, 'many_strings_table.ht'), overwrite=True)
         logging.info('done importing many_strings_table.tsv.bgz.')
@@ -212,7 +211,6 @@ class RandomDoublesMatrixTable(ResourceGroup):
     def _create(self, resource_dir):
         tsv = 'random_doubles_mt.tsv.bgz'
         download(resource_dir, tsv)
-        logging.info(f"downloading {tsv}")
         local_tsv = os.path.join(resource_dir, tsv)
         hl.import_matrix_table(local_tsv, row_key="row_idx", row_fields={"row_idx": hl.tint32}, entry_type=hl.tfloat64) \
             .write(os.path.join(resource_dir, "random_doubles_mt.mt"))
@@ -235,7 +233,6 @@ class EmptyGVCF(ResourceGroup):
     def _create(self, resource_dir):
         for f in self.files:
             download(resource_dir, f)
-            logging.info(f'downloading {f}')
 
     def path(self, resource):
         if resource is not None:
@@ -252,7 +249,6 @@ class SingleGVCF(ResourceGroup):
     def _create(self, resource_dir):
         for f in self.files:
             download(resource_dir, f)
-            logging.info(f'downloading {f}')
 
     def path(self, resource):
         if resource is not None:

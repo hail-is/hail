@@ -11,6 +11,7 @@ tearDownModule = stopTestHailContext
 
 class Tests(unittest.TestCase):
     @fails_service_backend()
+    @fails_local_backend
     def test_ld_score(self):
 
         ht = hl.import_table(doctest_resource('ldsc.annot'),
@@ -117,7 +118,6 @@ class Tests(unittest.TestCase):
 
 
     @pytest.mark.unchecked_allocator
-    @skip_when_service_backend('hangs >5 minutes; last message is "all results compelte" in ServiceBackend.parallelizeAndComputeWithIndex')
     def test_ld_score_regression(self):
 
         ht_scores = hl.import_table(
@@ -294,7 +294,6 @@ class Tests(unittest.TestCase):
               .drop('a_index', 'was_split').select_entries(*expected_split_mt.entry.keys()))
         assert mt._same(expected_split_mt)
 
-    @fails_service_backend()
     def test_define_function(self):
         f1 = hl.experimental.define_function(
             lambda a, b: (a + 7) * b, hl.tint32, hl.tint32)

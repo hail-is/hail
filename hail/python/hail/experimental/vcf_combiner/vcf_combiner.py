@@ -607,6 +607,7 @@ def run_combiner(sample_paths: List[str],
     None
 
     """
+    hl.utils.no_service_backend('vcf_combiner')
     flagname = 'no_ir_logging'
     prev_flag_value = hl._get_flags(flagname).get(flagname)
     hl._set_flags(**{flagname: '1'})

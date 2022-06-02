@@ -60,6 +60,20 @@ WHERE removed = 0 AND inst_coll = %s;
         ):
             jpim.add_instance(Instance.from_record(app, jpim, record))
 
+        task_manager.ensure_future(
+            retry_long_running(
+                'create_instances_loop',
+                run_if_changed,
+                jpim.create_instances_state_changed,
+                jpim.create_instances_loop_body,
+            )
+        )
+        task_manager.ensure_future(
+            retry_long_running(
+                'schedule_jobs_loop', run_if_changed, jpim.scheduler_state_changed, jpim.schedule_jobs_loop_body
+            )
+        )
+        task_manager.ensure_future(periodically_call(15, jpim.bump_scheduler))
         return jpim
 
     def __init__(
@@ -93,21 +107,6 @@ WHERE removed = 0 AND inst_coll = %s;
         self.exceeded_shares_counter = ExceededSharesCounter()
 
         self.boot_disk_size_gb = config.boot_disk_size_gb
-
-        task_manager.ensure_future(
-            retry_long_running(
-                'create_instances_loop',
-                run_if_changed,
-                self.create_instances_state_changed,
-                self.create_instances_loop_body,
-            )
-        )
-        task_manager.ensure_future(
-            retry_long_running(
-                'schedule_jobs_loop', run_if_changed, self.scheduler_state_changed, self.schedule_jobs_loop_body
-            )
-        )
-        task_manager.ensure_future(periodically_call(15, self.bump_scheduler))
 
     def config(self):
         return {

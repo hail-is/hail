@@ -1,5 +1,6 @@
-from typing import Optional
+from typing import Optional, Union, TypeVar
 import os
+import re
 import configparser
 import warnings
 
@@ -31,17 +32,29 @@ def get_user_config() -> configparser.ConfigParser:
     if user_config is None:
         user_config = configparser.ConfigParser()
         config_file = get_user_config_path()
-        os.makedirs(config_file.parent, exist_ok=True)
         # in older versions, the config file was accidentally named
         # config.yaml, if the new config does not exist, and the old
         # one does, silently rename it
         old_path = config_file.with_name('config.yaml')
         if old_path.exists() and not config_file.exists():
             old_path.rename(config_file)
-        else:
-            config_file.touch(exist_ok=True)
         user_config.read(config_file)
     return user_config
+
+
+VALID_SECTION_AND_OPTION_RE = re.compile('[a-z0-9_]+')
+T = TypeVar('T')
+
+
+def configuration_of(section: str, option: str, explicit_argument: Optional[str], fallback: T) -> Union[str, T]:
+    assert VALID_SECTION_AND_OPTION_RE.fullmatch(section), (section, option)
+    assert VALID_SECTION_AND_OPTION_RE.fullmatch(option), (section, option)
+    return (
+        explicit_argument
+        or os.environ.get('HAIL_' + section.upper() + '_' + option.upper(), None)
+        or get_user_config().get(section, option, fallback=None)
+        or fallback
+    )
 
 
 def get_remote_tmpdir(caller_name: str,
@@ -62,7 +75,7 @@ def get_remote_tmpdir(caller_name: str,
         raise ValueError(f'Cannot specify both \'remote_tmpdir\' and \'bucket\' in {caller_name}(...). Specify \'remote_tmpdir\' as a keyword argument instead.')
 
     if bucket is None and remote_tmpdir is None:
-        remote_tmpdir = user_config.get('batch', 'remote_tmpdir', fallback=None)
+        remote_tmpdir = configuration_of('batch', 'remote_tmpdir', None, None)
 
     if remote_tmpdir is None:
         if bucket is None:

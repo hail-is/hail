@@ -79,6 +79,7 @@ class Job:
         self._always_run: bool = False
         self._preemptible: Optional[bool] = None
         self._machine_type: Optional[str] = None
+        self._pool_label: Optional[str] = None
         self._timeout: Optional[Union[int, float]] = None
         self._cloudfuse: List[Tuple[str, str, bool]] = []
         self._env: Dict[str, str] = {}
@@ -343,7 +344,7 @@ class Job:
 
     def timeout(self, timeout: Optional[Union[float, int]]) -> 'Job':
         """
-        Set the maximum amount of time this job can run for.
+        Set the maximum amount of time this job can run for in seconds.
 
         Notes
         -----
@@ -360,12 +361,12 @@ class Job:
         Parameters
         ----------
         timeout:
-            Maximum amount of time for a job to run before being killed.
+            Maximum amount of time in seconds for a job to run before being killed.
             If `None`, there is no timeout.
 
         Returns
         -------
-        Same job object set with a timeout.
+        Same job object set with a timeout in seconds.
         """
 
         if not isinstance(self._batch._backend, backend.ServiceBackend):

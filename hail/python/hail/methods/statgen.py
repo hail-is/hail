@@ -1,30 +1,29 @@
-import itertools
-import math
-import numpy as np
-from typing import Dict, Callable
 import builtins
+import itertools
+import functools
+import math
+from typing import Dict, Callable, Optional, Union, Tuple
 
 import hail
 import hail as hl
 import hail.expr.aggregators as agg
+from hail import ir
 from hail.expr import (Expression, ExpressionException, expr_float64, expr_call,
                        expr_any, expr_numeric, expr_locus, analyze, check_entry_indexed,
                        check_row_indexed, matrix_table_source, table_source)
 from hail.expr.types import tbool, tarray, tfloat64, tint32
-from hail import ir
 from hail.genetics.reference_genome import reference_genome_type
 from hail.linalg import BlockMatrix
 from hail.matrixtable import MatrixTable
 from hail.methods.misc import require_biallelic, require_row_key_variant
 from hail.stats import LinearMixedModel
 from hail.table import Table
-from hail.typecheck import (typecheck, nullable, numeric, oneof, sequenceof,
-                            enumeration, anytype)
+from hail.typecheck import (typecheck, nullable, numeric, oneof, sized_tupleof,
+                            sequenceof, enumeration, anytype)
 from hail.utils import wrap_to_list, new_temp_file, FatalError
 from hail.utils.java import Env, info, warning
-
-from . import relatedness
 from . import pca
+from . import relatedness
 from ..backend.spark_backend import SparkBackend
 
 pc_relate = relatedness.pc_relate
@@ -604,8 +603,17 @@ def _linear_regression_rows_nd(y, x, covariates, block_size=16, weights=None, pa
            y=oneof(expr_float64, sequenceof(expr_float64)),
            x=expr_float64,
            covariates=sequenceof(expr_float64),
-           pass_through=sequenceof(oneof(str, Expression)))
-def logistic_regression_rows(test, y, x, covariates, pass_through=()) -> hail.Table:
+           pass_through=sequenceof(oneof(str, Expression)),
+           max_iterations=nullable(int),
+           tolerance=float)
+def logistic_regression_rows(test,
+                             y,
+                             x,
+                             covariates,
+                             pass_through=(),
+                             *,
+                             max_iterations: Optional[int] = None,
+                             tolerance: float = 1e-6) -> hail.Table:
     r"""For each row, test an input variable for association with a
     binary response variable using logistic regression.
 
@@ -630,6 +638,16 @@ def logistic_regression_rows(test, y, x, covariates, pass_through=()) -> hail.Ta
     ...     y=[dataset.pheno.is_case, dataset.pheno.is_case],  # where pheno values are 0, 1, or missing
     ...     x=dataset.GT.n_alt_alleles(),
     ...     covariates=[1, dataset.pheno.age, dataset.pheno.is_female])
+
+    As above but with at most 100 Newton iterations and a stricter-than-default tolerance of 1e-8:
+
+    >>> result_ht = hl.logistic_regression_rows(
+    ...     test='wald',
+    ...     y=[dataset.pheno.is_case, dataset.pheno.is_case],  # where pheno values are 0, 1, or missing
+    ...     x=dataset.GT.n_alt_alleles(),
+    ...     covariates=[1, dataset.pheno.age, dataset.pheno.is_female],
+    ...     max_iterations=100,
+    ...     tolerance=1e-8)
 
     Warning
     -------
@@ -706,19 +724,19 @@ def logistic_regression_rows(test, y, x, covariates, pass_through=()) -> hail.Ta
     ================ =================== ======= ===============================
     Wald, LRT, Firth `fit.n_iterations`  int32   number of iterations until
                                                  convergence, explosion, or
-                                                 reaching the max (25 for
-                                                 Wald, LRT; 100 for Firth)
+                                                 reaching the max (by default,
+                                                 25 for Wald, LRT; 100 for Firth)
     Wald, LRT, Firth `fit.converged`      bool    ``True`` if iteration converged
     Wald, LRT, Firth `fit.exploded`       bool    ``True`` if iteration exploded
     ================ =================== ======= ===============================
 
     We consider iteration to have converged when every coordinate of
-    :math:`\beta` changes by less than :math:`10^{-6}`. For Wald and LRT,
-    up to 25 iterations are attempted; in testing we find 4 or 5 iterations
-    nearly always suffice. Convergence may also fail due to explosion,
-    which refers to low-level numerical linear algebra exceptions caused by
-    manipulating ill-conditioned matrices. Explosion may result from (nearly)
-    linearly dependent covariates or complete separation_.
+    :math:`\beta` changes by less than :math:`10^{-6}` by default. For Wald and
+    LRT, up to 25 iterations are attempted by default; in testing we find 4 or 5
+    iterations nearly always suffice. Convergence may also fail due to
+    explosion, which refers to low-level numerical linear algebra exceptions
+    caused by manipulating ill-conditioned matrices. Explosion may result from
+    (nearly) linearly dependent covariates or complete separation_.
 
     .. _separation: https://en.wikipedia.org/wiki/Separation_(statistics)
 
@@ -766,14 +784,14 @@ def logistic_regression_rows(test, y, x, covariates, pass_through=()) -> hail.Ta
 
     The Firth test reduces bias from small counts and resolves the issue of
     separation by penalizing maximum likelihood estimation by the `Jeffrey's
-    invariant prior <https://en.wikipedia.org/wiki/Jeffreys_prior>`__. This
-    test is slower, as both the null and full model must be fit per variant,
-    and convergence of the modified Newton method is linear rather than
-    quadratic. For Firth, 100 iterations are attempted for the null model
-    and, if that is successful, for the full model as well. In testing we
+    invariant prior <https://en.wikipedia.org/wiki/Jeffreys_prior>`__. This test
+    is slower, as both the null and full model must be fit per variant, and
+    convergence of the modified Newton method is linear rather than
+    quadratic. For Firth, 100 iterations are attempted by default for the null
+    model and, if that is successful, for the full model as well. In testing we
     find 20 iterations nearly always suffices. If the null model fails to
-    converge, then the `logreg.fit` fields reflect the null model;
-    otherwise, they reflect the full model.
+    converge, then the `logreg.fit` fields reflect the null model; otherwise,
+    they reflect the full model.
 
     See
     `Recommended joint and meta-analysis strategies for case-control association testing of single low-count variants <http://www.ncbi.nlm.nih.gov/pmc/articles/PMC4049324/>`__
@@ -816,11 +834,24 @@ def logistic_regression_rows(test, y, x, covariates, pass_through=()) -> hail.Ta
         Non-empty list of column-indexed covariate expressions.
     pass_through : :obj:`list` of :class:`str` or :class:`.Expression`
         Additional row fields to include in the resulting table.
+    max_iterations : :obj:`int`
+        The maximum number of iterations.
+    tolerance : :obj:`float`
+        Convergence is defined by a change in the beta vector of less than
+        `tolerance`.
 
     Returns
     -------
     :class:`.Table`
+
     """
+    if max_iterations is None:
+        max_iterations = 25 if test != 'firth' else 100
+
+    if not isinstance(Env.backend(), SparkBackend):
+        return _logistic_regression_rows_nd(
+            test, y, x, covariates, pass_through, max_iterations=max_iterations)
+
     if len(covariates) == 0:
         raise ValueError('logistic regression requires at least one covariate expression')
 
@@ -858,7 +889,9 @@ def logistic_regression_rows(test, y, x, covariates, pass_through=()) -> hail.Ta
         'yFields': y_field,
         'xField': x_field_name,
         'covFields': cov_field_names,
-        'passThrough': [x for x in row_fields if x not in mt.row_key]
+        'passThrough': [x for x in row_fields if x not in mt.row_key],
+        'maxIterations': max_iterations,
+        'tolerance': tolerance
     }
 
     result = Table(ir.MatrixToTableApply(mt._mir, config))
@@ -883,7 +916,7 @@ def nd_max(hl_nd):
     return hl.max(hl_nd.reshape(-1)._data_array())
 
 
-def logreg_fit(X, y, null_fit=None, max_iter=25, tol=1E-6):
+def logreg_fit(X, y, null_fit, max_iter: int, tol: float):
     assert(X.ndim == 2)
     assert(y.ndim == 1)
     # X is samples by covs.
@@ -948,18 +981,18 @@ def logreg_fit(X, y, null_fit=None, max_iter=25, tol=1E-6):
 
         return (hl.case()
                 .when(exploded | hl.is_nan(delta_b[0]), hl.struct(b=na('b'), score=na('score'), fisher=na('fisher'), num_iter=cur_iter, log_lkhd=log_lkhd, converged=False, exploded=True))
-                .when(cur_iter > max_iter, hl.struct(b=na('b'), score=na('score'), fisher=na('fisher'), num_iter=cur_iter, log_lkhd=log_lkhd, converged=False, exploded=False))
+                .when(cur_iter == max_iter, hl.struct(b=na('b'), score=na('score'), fisher=na('fisher'), num_iter=cur_iter, log_lkhd=log_lkhd, converged=False, exploded=False))
                 .when(max_delta_b < tol, hl.struct(b=b, score=score, fisher=fisher, num_iter=cur_iter, log_lkhd=log_lkhd, converged=True, exploded=False))
                 .default(compute_next_iter(cur_iter, b, mu, score, fisher)))
 
-    res_struct = hl.experimental.loop(search, search_return_type, 1, b, mu, score, fisher)
+    res_struct = hl.experimental.loop(search, search_return_type, 0, b, mu, score, fisher)
 
     return res_struct
 
 
-def wald_test(X, y, null_fit, link):
+def wald_test(X, y, null_fit, link, max_iter: int, tol: float):
     assert link == "logistic"
-    fit = logreg_fit(X, y, null_fit)
+    fit = logreg_fit(X, y, null_fit, max_iter=max_iter, tol=tol)
 
     se = hl.nd.diagonal(hl.nd.inv(fit.fisher)).map(lambda e: hl.sqrt(e))
     z = fit.b / se
@@ -972,9 +1005,9 @@ def wald_test(X, y, null_fit, link):
         fit=hl.struct(n_iterations=fit.num_iter, converged=fit.converged, exploded=fit.exploded))
 
 
-def lrt_test(X, y, null_fit, link):
+def lrt_test(X, y, null_fit, link, max_iter: int, tol: float):
     assert link == "logistic"
-    fit = logreg_fit(X, y, null_fit)
+    fit = logreg_fit(X, y, null_fit, max_iter=max_iter, tol=tol)
 
     chi_sq = hl.if_else(~fit.converged, hl.missing(hl.tfloat64), 2 * (fit.log_lkhd - null_fit.log_lkhd))
     p = hl.pchisqtail(chi_sq, X.shape[1] - null_fit.b.shape[0])
@@ -1022,7 +1055,7 @@ def logistic_score_test(X, y, null_fit, link):
     return hl.struct(chi_sq_stat=chi_sq, p_value=p)
 
 
-def firth_test(X, y, null_fit, link):
+def firth_test(X, y, null_fit, link, max_iter: int, tol: float):
     assert link == "logistic"
     raise ValueError("firth not yet supported on lowered backends")
 
@@ -1031,8 +1064,17 @@ def firth_test(X, y, null_fit, link):
            y=oneof(expr_float64, sequenceof(expr_float64)),
            x=expr_float64,
            covariates=sequenceof(expr_float64),
-           pass_through=sequenceof(oneof(str, Expression)))
-def _logistic_regression_rows_nd(test, y, x, covariates, pass_through=()) -> hail.Table:
+           pass_through=sequenceof(oneof(str, Expression)),
+           max_iterations=nullable(int),
+           tolerance=float)
+def _logistic_regression_rows_nd(test,
+                                 y,
+                                 x,
+                                 covariates,
+                                 pass_through=(),
+                                 *,
+                                 max_iterations: Optional[int] = None,
+                                 tolerance: float = 1e-6) -> hail.Table:
     r"""For each row, test an input variable for association with a
     binary response variable using logistic regression.
 
@@ -1248,6 +1290,9 @@ def _logistic_regression_rows_nd(test, y, x, covariates, pass_through=()) -> hai
     -------
     :class:`.Table`
     """
+    if max_iterations is None:
+        max_iterations = 25 if test != 'firth' else 100
+
     if len(covariates) == 0:
         raise ValueError('logistic regression requires at least one covariate expression')
 
@@ -1296,23 +1341,34 @@ def _logistic_regression_rows_nd(test, y, x, covariates, pass_through=()) -> hai
     ht = ht.annotate_globals(y_nd=hl.nd.array(ht[sample_field_name].map(lambda sample_struct: [sample_struct[y_name] for y_name in y_field_names])))
 
     # Fit null models, which means doing a logreg fit with just the covariates for each phenotype.
-    null_models = hl.range(num_y_fields).map(lambda idx: logreg_fit(ht.cov_nd, ht.y_nd[:, idx]))
+    null_models = hl.range(num_y_fields).map(
+        lambda idx: logreg_fit(ht.cov_nd, ht.y_nd[:, idx], None, max_iter=max_iterations, tol=tolerance))
     ht = ht.annotate_globals(nulls=null_models)
     ht = ht.transmute(x=hl.nd.array(mean_impute(ht.entries[x_field_name])))
 
     if test == "wald":
-        test_func = wald_test
+        test_func = functools.partial(wald_test, max_iter=max_iterations, tol=tolerance)
     elif test == "lrt":
-        test_func = lrt_test
+        test_func = functools.partial(lrt_test, max_iter=max_iterations, tol=tolerance)
     elif test == "score":
         test_func = logistic_score_test
     elif test == "firth":
-        test_func = firth_test
+        test_func = functools.partial(firth_test, max_iter=max_iterations, tol=tolerance)
     else:
         raise ValueError(f"Illegal test type {test}")
 
+    def test_against_null(covs_and_x, y_vec, null_fit, name):
+        return (hl.case()
+                .when(~null_fit.exploded,
+                      (hl.case()
+                       .when(null_fit.converged, test_func(covs_and_x, y_vec, null_fit, name))
+                       .or_error("Failed to fit logistic regression null model (standard MLE with covariates only): Newton iteration failed to converge")))
+                .or_error(hl.format("Failed to fit logistic regression null model (standard MLE with covariates only): exploded at Newton iteration %d", null_fit.num_iter)))
+
     covs_and_x = hl.nd.hstack([ht.cov_nd, ht.x.reshape((-1, 1))])
-    test_structs = hl.range(num_y_fields).map(lambda idx: test_func(covs_and_x, ht.y_nd[:, idx], ht.nulls[idx], "logistic"))
+    test_structs = hl.range(num_y_fields).map(
+        lambda idx: test_against_null(covs_and_x, ht.y_nd[:, idx], ht.nulls[idx], "logistic")
+    )
     ht = ht.annotate(logistic_regression=test_structs)
 
     if not y_is_list:
@@ -1327,8 +1383,17 @@ def _logistic_regression_rows_nd(test, y, x, covariates, pass_through=()) -> hai
            y=expr_float64,
            x=expr_float64,
            covariates=sequenceof(expr_float64),
-           pass_through=sequenceof(oneof(str, Expression)))
-def poisson_regression_rows(test, y, x, covariates, pass_through=()) -> Table:
+           pass_through=sequenceof(oneof(str, Expression)),
+           max_iterations=int,
+           tolerance=float)
+def poisson_regression_rows(test,
+                            y,
+                            x,
+                            covariates,
+                            pass_through=(),
+                            *,
+                            max_iterations: int = 25,
+                            tolerance: float = 1e-6) -> Table:
     r"""For each row, test an input variable for association with a
     count response variable using `Poisson regression <https://en.wikipedia.org/wiki/Poisson_regression>`__.
 
@@ -1392,20 +1457,14 @@ def poisson_regression_rows(test, y, x, covariates, pass_through=()) -> Table:
         'yField': y_field_name,
         'xField': x_field_name,
         'covFields': cov_field_names,
-        'passThrough': [x for x in row_fields if x not in mt.row_key]
+        'passThrough': [x for x in row_fields if x not in mt.row_key],
+        'maxIterations': max_iterations,
+        'tolerance': tolerance
     }
 
     return Table(ir.MatrixToTableApply(mt._mir, config)).persist()
 
 
-@typecheck(y=expr_float64,
-           x=sequenceof(expr_float64),
-           z_t=nullable(expr_float64),
-           k=nullable(np.ndarray),
-           p_path=nullable(str),
-           overwrite=bool,
-           standardize=bool,
-           mean_impute=bool)
 def linear_mixed_model(y,
                        x,
                        z_t=None,
@@ -1416,164 +1475,11 @@ def linear_mixed_model(y,
                        mean_impute=True):
     r"""Initialize a linear mixed model from a matrix table.
 
-    Examples
-    --------
-    Initialize a model using three fixed effects (including intercept) and
-    genetic marker random effects:
+    .. warning::
 
-    >>> marker_ds = dataset.filter_rows(dataset.use_as_marker) # doctest: +SKIP
-    >>> model, _ = hl.linear_mixed_model( # doctest: +SKIP
-    ...     y=marker_ds.pheno.height,
-    ...     x=[1, marker_ds.pheno.age, marker_ds.pheno.is_female],
-    ...     z_t=marker_ds.GT.n_alt_alleles(),
-    ...     p_path='output/p.bm')
-
-    Fit the model and examine :math:`h^2`:
-
-    >>> model.fit()  # doctest: +SKIP
-    >>> model.h_sq  # doctest: +SKIP
-
-    Sanity-check the normalized likelihood of :math:`h^2` over the percentile
-    grid:
-
-    >>> import matplotlib.pyplot as plt                     # doctest: +SKIP
-    >>> plt.plot(range(101), model.h_sq_normalized_lkhd())  # doctest: +SKIP
-
-    For this value of :math:`h^2`, test each variant for association:
-
-    >>> result_table = hl.linear_mixed_regression_rows(dataset.GT.n_alt_alleles(), model)  # doctest: +SKIP
-
-    Alternatively, one can define a full-rank model using a pre-computed kinship
-    matrix :math:`K` in ndarray form. When :math:`K` is the realized
-    relationship matrix defined by the genetic markers, we obtain the same model
-    as above with :math:`P` written as a block matrix but returned as an
-    ndarray:
-
-    >>> rrm = hl.realized_relationship_matrix(marker_ds.GT).to_numpy()  # doctest: +SKIP
-    >>> model, p = hl.linear_mixed_model(  # doctest: +SKIP
-    ...     y=dataset.pheno.height,
-    ...     x=[1, dataset.pheno.age, dataset.pheno.is_female],
-    ...     k=rrm,
-    ...     p_path='output/p.bm',
-    ...     overwrite=True)
-
-    Notes
-    -----
-    See :class:`.LinearMixedModel` for details on the model and notation.
-
-    Exactly one of `z_t` and `k` must be set.
-
-    If `z_t` is set, the model is low-rank if the number of samples :math:`n` exceeds
-    the number of random effects :math:`m`. At least one dimension must be less
-    than or equal to 46300. If `standardize` is true, each random effect is first
-    standardized to have mean 0 and variance :math:`\frac{1}{m}`, so that the
-    diagonal values of the kinship matrix :math:`K = ZZ^T` are 1.0 in
-    expectation. This kinship matrix corresponds to the
-    :meth:`realized_relationship_matrix` in genetics. See
-    :meth:`.LinearMixedModel.from_random_effects` and :meth:`.BlockMatrix.svd`
-    for more details.
-
-    If `k` is set, the model is full-rank. For correct results, the indices of
-    `k` **must be aligned** with columns of the source of `y`.
-    Set `p_path` if you plan to use the model in :func:`.linear_mixed_regression_rows`.
-    `k` must be positive semi-definite; symmetry is not checked as only the
-    lower triangle is used. See :meth:`.LinearMixedModel.from_kinship` for more
-    details.
-
-    Missing, nan, or infinite values in `y` or `x` will raise an error.
-    If set, `z_t` may only have missing values if `mean_impute` is true, in
-    which case missing values of are set to the row mean. We recommend setting
-    `mean_impute` to false if you expect no missing values, both for performance
-    and as a sanity check.
-
-    Warning
-    -------
-    If the rows of the matrix table have been filtered to a small fraction,
-    then :meth:`.MatrixTable.repartition` before this method to improve
-    performance.
-
-    Parameters
-    ----------
-    y: :class:`.Float64Expression`
-        Column-indexed expression for the observations (rows of :math:`y`).
-        Must have no missing values.
-    x: :obj:`list` of :class:`.Float64Expression`
-        Non-empty list of column-indexed expressions for the fixed effects (rows of :math:`X`).
-        Each expression must have the same source as `y` or no source
-        (e.g., the intercept ``1.0``).
-        Must have no missing values.
-    z_t: :class:`.Float64Expression`, optional
-        Entry-indexed expression for each mixed effect. These values are
-        row-standardized to variance :math:`1 / m` to form the entries of
-        :math:`Z^T`. If `mean_impute` is false, must have no missing values.
-        Exactly one of `z_t` and `k` must be set.
-    k: :class:`numpy.ndarray`, optional
-        Kinship matrix :math:`K`.
-        Exactly one of `z_t` and `k` must be set.
-    p_path: :class:`str`, optional
-        Path at which to write the projection :math:`P` as a block matrix.
-        Required if `z_t` is set.
-    overwrite: :obj:`bool`
-        If ``True``, overwrite an existing file at `p_path`.
-    standardize: :obj:`bool`
-        If ``True``, standardize `z_t` by row to mean 0 and variance
-        :math:`\frac{1}{m}`.
-    mean_impute: :obj:`bool`
-        If ``True``, mean-impute missing values of `z_t` by row.
-
-    Returns
-    -------
-    model: :class:`.LinearMixedModel`
-        Linear mixed model ready to be fit.
-    p: :class:`numpy.ndarray` or :class:`.BlockMatrix`
-        Matrix :math:`P` whose rows are the eigenvectors of :math:`K`.
-        The type is block matrix if the model is low rank (i.e., if `z_t` is set
-        and :math:`n > m`).
+        This functionality is no longer implemented/supported as of Hail 0.2.94.
     """
-    source = matrix_table_source('linear_mixed_model/y', y)
-
-    if ((z_t is None and k is None)
-            or (z_t is not None and k is not None)):
-        raise ValueError("linear_mixed_model: set exactly one of 'z_t' and 'k'")
-
-    if len(x) == 0:
-        raise ValueError("linear_mixed_model: 'x' must include at least one fixed effect")
-
-    _warn_if_no_intercept('linear_mixed_model', x)
-
-    # collect x and y in one pass
-    mt = source.select_cols(xy=hl.array(x + [y])).key_cols_by()
-    xy = np.array(mt.xy.collect(), dtype=np.float64)
-    xy = xy.reshape(xy.size // (len(x) + 1), len(x) + 1)
-    x_nd = np.copy(xy[:, :-1])
-    y_nd = np.copy(xy[:, -1])
-    n = y_nd.size
-    del xy
-
-    if not np.all(np.isfinite(y_nd)):
-        raise ValueError("linear_mixed_model: 'y' has missing, nan, or infinite values")
-    if not np.all(np.isfinite(x_nd)):
-        raise ValueError("linear_mixed_model: 'x' has missing, nan, or infinite values")
-
-    if z_t is None:
-        model, p = LinearMixedModel.from_kinship(y_nd, x_nd, k, p_path, overwrite)
-    else:
-        check_entry_indexed('from_matrix_table: z_t', z_t)
-        if matrix_table_source('linear_mixed_model/z_t', z_t) != source:
-            raise ValueError("linear_mixed_model: 'y' and 'z_t' must "
-                             "have the same source")
-        z_bm = BlockMatrix.from_entry_expr(z_t,
-                                           mean_impute=mean_impute,
-                                           center=standardize,
-                                           normalize=standardize).T  # variance is 1 / n
-        m = z_bm.shape[1]
-        model, p = LinearMixedModel.from_random_effects(y_nd, x_nd, z_bm, p_path, overwrite)
-        if standardize:
-            model.s = model.s * (n / m)  # now variance is 1 / m
-        if model.low_rank and isinstance(p, np.ndarray):
-            assert n > m
-            p = BlockMatrix.read(p_path)
-    return model, p
+    raise NotImplementedError("linear_mixed_model is no longer implemented/supported as of Hail 0.2.94")
 
 
 @typecheck(entry_expr=expr_float64,
@@ -1593,150 +1499,11 @@ def linear_mixed_regression_rows(entry_expr,
     """For each row, test an input variable for association using a linear
     mixed model.
 
-    Examples
-    --------
-    See the example in :meth:`linear_mixed_model` and section below on
-    efficiently testing multiple responses or sets of fixed effects.
+    .. warning::
 
-    Notes
-    -----
-    See :class:`.LinearMixedModel` for details on the model and notation.
-
-    This method packages up several steps for convenience:
-
-    1. Read the transformation :math:`P` from ``model.p_path``.
-
-    2. Write `entry_expr` at `a_t_path` as the block matrix :math:`A^T` with
-       block size that of :math:`P`. The parallelism is ``n_rows / block_size``.
-
-    3. Multiply and write :math:`A^T P^T` at `pa_t_path`. The parallelism is the
-       number of blocks in :math:`(PA)^T`, which equals
-       ``(n_rows / block_size) * (model.r / block_size)``.
-
-    4. Compute regression results per row with
-       :meth:`.LinearMixedModel.fit_alternatives`.
-       The parallelism is ``n_rows / partition_size``.
-
-    If `pa_t_path` and `a_t_path` are not set, temporary files are used.
-
-    `entry_expr` may only have missing values if `mean_impute` is true, in
-    which case missing values of are set to the row mean. We recommend setting
-    `mean_impute` to false if you expect no missing values, both for performance
-    and as a sanity check.
-
-    **Efficiently varying the response or set of fixed effects**
-
-    Computing :math:`K`, :math:`P`, :math:`S`, :math:`A^T`, and especially the
-    product :math:`(PA)^T` may require significant compute when :math:`n` and/or
-    :math:`m` is large. However these quantities are all independent of the
-    response :math:`y` or fixed effects :math:`X`! And with the model
-    diagonalized, Step 4 above is fast and scalable.
-
-    So having run linear mixed regression once, we can
-    compute :math:`h^2` and regression statistics for another response or set of
-    fixed effects on the **same samples** at the roughly the speed of
-    :func:`.linear_regression_rows`.
-
-    For example, having collected another `y` and `x` as ndarrays, one can
-    construct a new linear mixed model directly.
-
-    Supposing the model is full-rank and `p` is an ndarray:
-
-    >>> model = hl.stats.LinearMixedModel(p @ y, p @ x, s)      # doctest: +SKIP
-    >>> model.fit()                                    # doctest: +SKIP
-    >>> result_ht = model.fit_alternatives(pa_t_path)  # doctest: +SKIP
-
-    Supposing the model is low-rank and `p` is a block matrix:
-
-    >>> p = BlockMatrix.read(p_path)                             # doctest: +SKIP
-    >>> py, px = (p @ y).to_numpy(), (p @ x).to_numpy()          # doctest: +SKIP
-    >>> model = LinearMixedModel(py, px, s, y, x)                # doctest: +SKIP
-    >>> model.fit()                                              # doctest: +SKIP
-    >>> result_ht = model.fit_alternatives(pa_t_path, a_t_path)  # doctest: +SKIP
-
-    In either case, one can easily loop through many responses or conditional
-    analyses. To join results back to the matrix table:
-
-    >>> dataset = dataset.add_row_index()                                    # doctest: +SKIP
-    >>> dataset = dataset.annotate_rows(lmmreg=result_ht[dataset.row_idx]])  # doctest: +SKIP
-
-    Warning
-    -------
-    For correct results, the column-index of `entry_expr` must correspond to the
-    sample index of the model. This will be true, for example, if `model`
-    was created with :func:`.linear_mixed_model` using (a possibly row-filtered
-    version of) the source of `entry_expr`, or if `y` and `x` were collected to
-    arrays from this source. Hail will raise an error if the number of columns
-    does not match ``model.n``, but will not detect, for example, permuted
-    samples.
-
-    The warning on :meth:`.BlockMatrix.write_from_entry_expr` applies to this
-    method when the number of samples is large.
-
-    Note
-    ----
-    Use the `pass_through` parameter to include additional row fields from
-    matrix table underlying ``entry_expr``. For example, to include an "rsid"
-    field, set` pass_through=['rsid']`` or ``pass_through=[mt.rsid]``.
-
-    Parameters
-    ----------
-    entry_expr: :class:`.Float64Expression`
-        Entry-indexed expression for input variable.
-        If mean_impute is false, must have no missing values.
-    model: :class:`.LinearMixedModel`
-        Fit linear mixed model with ``path_p`` set.
-    pa_t_path: :class:`str`, optional
-        Path at which to store the transpose of :math:`PA`.
-        If not set, a temporary file is used.
-    a_t_path: :class:`str`, optional
-        Path at which to store the transpose of :math:`A`.
-        If not set, a temporary file is used.
-    mean_impute: :obj:`bool`
-        Mean-impute missing values of `entry_expr` by row.
-    partition_size: :obj:`int`
-        Number of rows to process per partition.
-        Default given by block size of :math:`P`.
-    pass_through : :obj:`list` of :class:`str` or :class:`.Expression`
-        Additional row fields to include in the resulting table.
-
-    Returns
-    -------
-    :class:`.Table`
+        This functionality is no longer implemented/supported as of Hail 0.2.94.
     """
-    mt = matrix_table_source('linear_mixed_regression_rows', entry_expr)
-    n = mt.count_cols()
-
-    check_entry_indexed('linear_mixed_regression_rows', entry_expr)
-    if not model._fitted:
-        raise ValueError("linear_mixed_regression_rows: 'model' has not been fit "
-                         "using 'fit()'")
-    if model.p_path is None:
-        raise ValueError("linear_mixed_regression_rows: 'model' property 'p_path' "
-                         "was not set at initialization")
-
-    if model.n != n:
-        raise ValueError(f"linear_mixed_regression_rows: linear mixed model expects {model.n} samples, "
-                         f"\n    but 'entry_expr' source has {n} columns.")
-
-    pa_t_path = new_temp_file() if pa_t_path is None else pa_t_path
-    a_t_path = new_temp_file() if a_t_path is None else a_t_path
-    p = BlockMatrix.read(model.p_path)
-
-    BlockMatrix.write_from_entry_expr(entry_expr,
-                                      a_t_path,
-                                      mean_impute=mean_impute,
-                                      block_size=p.block_size)
-    a_t = BlockMatrix.read(a_t_path)
-    (a_t @ p.T).write(pa_t_path, force_row_major=True)
-
-    ht = model.fit_alternatives(pa_t_path,
-                                a_t_path if model.low_rank else None,
-                                partition_size)
-    row_fields = _get_regression_row_fields(mt, pass_through, 'linear_mixed_regression_rows')
-
-    mt_keys = mt.select_rows(**row_fields).add_row_index('__row_idx').rows().add_index('__row_idx').key_by('__row_idx')
-    return mt_keys.annotate(**ht[mt_keys['__row_idx']]).key_by(*mt.row_key).drop('__row_idx')
+    raise NotImplementedError("linear_mixed_model is no longer implemented/supported as of Hail 0.2.94")
 
 
 @typecheck(key_expr=expr_any,
@@ -1744,12 +1511,19 @@ def linear_mixed_regression_rows(entry_expr,
            y=expr_float64,
            x=expr_float64,
            covariates=sequenceof(expr_float64),
-           logistic=bool,
+           logistic=oneof(bool, sized_tupleof(nullable(int), nullable(float))),
            max_size=int,
            accuracy=numeric,
            iterations=int)
-def skat(key_expr, weight_expr, y, x, covariates, logistic=False,
-         max_size=46340, accuracy=1e-6, iterations=10000) -> Table:
+def skat(key_expr,
+         weight_expr,
+         y,
+         x,
+         covariates,
+         logistic: Union[bool, Tuple[int, float]] = False,
+         max_size: int = 46340,
+         accuracy: float = 1e-6,
+         iterations: int = 10000) -> Table:
     r"""Test each keyed group of rows for association by linear or logistic
     SKAT test.
 
@@ -1871,8 +1645,11 @@ def skat(key_expr, weight_expr, y, x, covariates, logistic=False,
         Entry-indexed expression for input variable.
     covariates : :obj:`list` of :class:`.Float64Expression`
         List of column-indexed covariate expressions.
-    logistic : :obj:`bool`
-        If true, use the logistic test rather than the linear test.
+    logistic : :obj:`bool` or :obj:`tuple` of :obj:`int` and :obj:`float`
+        If false, use the linear test. If true, use the logistic test with no
+        more than 25 logistic iterations and a convergence tolerance of 1e-6. If
+        a tuple is given, use the logistic test with the tuple elements as the
+        maximum nubmer of iterations and convergence tolerance, respectively.
     max_size : :obj:`int`
         Maximum size of group on which to run the test.
     accuracy : :obj:`float`
@@ -1884,6 +1661,7 @@ def skat(key_expr, weight_expr, y, x, covariates, logistic=False,
     -------
     :class:`.Table`
         Table of SKAT results.
+
     """
     mt = matrix_table_source('skat/x', x)
     check_entry_indexed('skat/x', x)
@@ -1918,6 +1696,19 @@ def skat(key_expr, weight_expr, y, x, covariates, logistic=False,
                                    key_field_name: key_expr},
                         entry_exprs=entry_expr)
 
+    if logistic is True:
+        use_logistic = True
+        max_iterations = 25
+        tolerance = 1e-6
+    elif logistic is False:
+        use_logistic = False
+        max_iterations = 0
+        tolerance = 0.0
+    else:
+        assert isinstance(logistic, tuple) and len(logistic) == 2
+        use_logistic = True
+        max_iterations, tolerance = logistic
+
     config = {
         'name': 'Skat',
         'keyField': key_field_name,
@@ -1925,10 +1716,12 @@ def skat(key_expr, weight_expr, y, x, covariates, logistic=False,
         'xField': x_field_name,
         'yField': y_field_name,
         'covFields': cov_field_names,
-        'logistic': logistic,
+        'logistic': use_logistic,
         'maxSize': max_size,
         'accuracy': accuracy,
-        'iterations': iterations
+        'iterations': iterations,
+        'logistic_max_iterations': max_iterations,
+        'logistic_tolerance': tolerance
     }
 
     return Table(ir.MatrixToTableApply(mt._mir, config))
@@ -3492,6 +3285,7 @@ def ld_prune(call_expr, r2=0.2, bp_window_size=1000000, memory_per_core=256, kee
     :class:`.Table`
         Table of a maximal independent set of variants.
     """
+    hl.utils.no_service_backend('ld_prune')
     if block_size is None:
         block_size = BlockMatrix.default_block_size()
 

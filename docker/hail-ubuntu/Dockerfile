@@ -20,7 +20,7 @@ RUN chmod 755 /bin/retry && \
          >> /etc/apt/sources.list && \
     echo 'deb-src [signed-by=/usr/share/keyrings/deadsnakes-ppa-archive-keyring.gpg] http://ppa.launchpad.net/deadsnakes/ppa/ubuntu focal main' \
          >> /etc/apt/sources.list && \
-    hail-apt-get-install python3.7-minimal python3.7-dev python3-pip && \
+    hail-apt-get-install python3.7-minimal python3.7-dev python3-pip python3.7-distutils && \
     update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.7 1 && \
     python3 -m pip install 'pip>=21<22' && \
     python3 -m pip check && \

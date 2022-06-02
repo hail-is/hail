@@ -6,7 +6,11 @@ terraform {
     }
     kubernetes = {
       source = "hashicorp/kubernetes"
-      version = "1.13.3"
+      version = "2.8.0"
+    }
+    sops = {
+      source = "carlpett/sops"
+      version = "0.6.3"
     }
   }
   backend "gcs" {
@@ -14,6 +18,14 @@ terraform {
   }
 }
 
+variable "k8s_preemptible_node_pool_name" {
+  type    = string
+  default = "preemptible-pool"
+}
+variable "k8s_nonpreemptible_node_pool_name" {
+  type    = string
+  default = "nonpreemptible-pool"
+}
 variable "batch_gcp_regions" {}
 variable "gcp_project" {}
 variable "batch_logs_bucket_location" {}
@@ -32,19 +44,6 @@ variable "use_artifact_registry" {
   description = "pull the ubuntu image from Artifact Registry. Otherwise, GCR"
 }
 
-variable "ci_config" {
-  type = object({
-    github_oauth_token = string
-    github_user1_oauth_token = string
-    watched_branches = list(tuple([string, bool, bool]))
-    deploy_steps = list(string)
-    bucket_location = string
-    bucket_storage_class = string
-    github_context = string
-  })
-  default = null
-}
-
 variable deploy_ukbb {
   type = bool
   description = "Run the UKBB Genetic Correlation browser"
@@ -60,8 +59,12 @@ locals {
   docker_root_image = "${local.docker_prefix}/ubuntu:20.04"
 }
 
+data "sops_file" "terraform_sa_key_sops" {
+  source_file = "terraform_sa_key.enc.json"
+}
+
 provider "google" {
-  credentials = file("~/.hail/terraform_sa_key.json")
+  credentials = data.sops_file.terraform_sa_key_sops.raw
 
   project = var.gcp_project
   region = var.gcp_region
@@ -69,7 +72,7 @@ provider "google" {
 }
 
 provider "google-beta" {
-  credentials = file("~/.hail/terraform_sa_key.json")
+  credentials = data.sops_file.terraform_sa_key_sops.raw
 
   project = var.gcp_project
   region = var.gcp_region
@@ -118,9 +121,9 @@ resource "google_container_cluster" "vdc" {
 }
 
 resource "google_container_node_pool" "vdc_preemptible_pool" {
-  name = "preemptible-pool"
+  name     = var.k8s_preemptible_node_pool_name
   location = var.gcp_zone
-  cluster = google_container_cluster.vdc.name
+  cluster  = google_container_cluster.vdc.name
 
   # Allocate at least one node, so that autoscaling can take place.
   initial_node_count = 1
@@ -132,7 +135,7 @@ resource "google_container_node_pool" "vdc_preemptible_pool" {
 
   node_config {
     preemptible = true
-    machine_type = "n1-standard-2"
+    machine_type = "n1-standard-8"
 
     labels = {
       "preemptible" = "true"
@@ -155,9 +158,9 @@ resource "google_container_node_pool" "vdc_preemptible_pool" {
 }
 
 resource "google_container_node_pool" "vdc_nonpreemptible_pool" {
-  name = "nonpreemptible-pool"
+  name     = var.k8s_nonpreemptible_node_pool_name
   location = var.gcp_zone
-  cluster = google_container_cluster.vdc.name
+  cluster  = google_container_cluster.vdc.name
 
   # Allocate at least one node, so that autoscaling can take place.
   initial_node_count = 1
@@ -169,7 +172,7 @@ resource "google_container_node_pool" "vdc_nonpreemptible_pool" {
 
   node_config {
     preemptible = false
-    machine_type = "n1-standard-2"
+    machine_type = "n1-standard-8"
 
     labels = {
       preemptible = "false"
@@ -248,8 +251,6 @@ resource "google_compute_address" "internal_gateway" {
 }
 
 provider "kubernetes" {
-  load_config_file = false
-
   host = "https://${google_container_cluster.vdc.endpoint}"
   token = data.google_client_config.provider.access_token
   cluster_ca_certificate = base64decode(
@@ -464,6 +465,12 @@ module "test_gsa_secret" {
   ]
 }
 
+module "query_gsa_secret" {
+  source = "./gsa_k8s_secret"
+  name = "query"
+  iam_roles = ["storage.admin"]
+}
+
 resource "google_storage_bucket_iam_member" "test_bucket_admin" {
   bucket = module.hail_test_gcs_bucket.name
   role = "roles/storage.admin"
@@ -628,28 +635,41 @@ resource "kubernetes_cluster_role_binding" "batch" {
   }
 }
 
+data "sops_file" "auth_oauth2_client_secret_sops" {
+  source_file = "auth_oauth2_client_secret.enc.json"
+}
+
 resource "kubernetes_secret" "auth_oauth2_client_secret" {
   metadata {
     name = "auth-oauth2-client-secret"
   }
 
   data = {
-    "client_secret.json" = file("~/.hail/auth_oauth2_client_secret.json")
+    "client_secret.json" = data.sops_file.auth_oauth2_client_secret_sops.raw
   }
+}
+
+data "sops_file" "ci_config_sops" {
+  count = fileexists("ci_config.enc.json") ? 1 : 0
+  source_file = "ci_config.enc.json"
+}
+
+locals {
+    ci_config = length(data.sops_file.ci_config_sops) == 1 ? data.sops_file.ci_config_sops[0] : null
 }
 
 module "ci" {
   source = "./ci"
-  count = var.ci_config != null ? 1 : 0
-
-  github_oauth_token = var.ci_config.github_oauth_token
-  github_user1_oauth_token = var.ci_config.github_user1_oauth_token
-  watched_branches = var.ci_config.watched_branches
-  deploy_steps = var.ci_config.deploy_steps
-  bucket_location = var.ci_config.bucket_location
-  bucket_storage_class = var.ci_config.bucket_storage_class
+  count = local.ci_config != null ? 1 : 0
+  
+  github_oauth_token = local.ci_config.data["github_oauth_token"]
+  github_user1_oauth_token = local.ci_config.data["github_user1_oauth_token"]
+  watched_branches = jsondecode(local.ci_config.raw).watched_branches
+  deploy_steps = jsondecode(local.ci_config.raw).deploy_steps
+  bucket_location = local.ci_config.data["bucket_location"]
+  bucket_storage_class = local.ci_config.data["bucket_storage_class"]
 
   ci_email = module.ci_gsa_secret.email
   container_registry_id = google_container_registry.registry.id
-  github_context = var.ci_config.github_context
+  github_context = local.ci_config.data["github_context"]
 }

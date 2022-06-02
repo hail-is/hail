@@ -1,12 +1,17 @@
-from typing import List, AsyncContextManager, BinaryIO
+from typing import List, AsyncContextManager, BinaryIO, Optional
 import asyncio
-import gzip
 import io
+from hailtop.aiotools.local_fs import LocalAsyncFSURL
 import nest_asyncio
+import os
+import functools
+import glob
+import fnmatch
 
-from hailtop.aiotools.router_fs import RouterAsyncFS
 from hailtop.aiotools.fs import Copier, Transfer, FileListEntry, ReadableStream, WritableStream
-from hailtop.utils import async_to_blocking, OnlineBoundedGather2
+from hailtop.aiotools.local_fs import LocalAsyncFS
+from hailtop.aiotools.router_fs import RouterAsyncFS
+from hailtop.utils import bounded_gather, async_to_blocking
 
 from .fs import FS
 from .stat_result import FileType, StatResult
@@ -150,7 +155,7 @@ class SyncWritableStream(io.RawIOBase, BinaryIO):  # type: ignore # https://gith
 
 def _stat_result(is_dir: bool, size_bytes: int, path: str) -> StatResult:
     return StatResult(
-        path=path,
+        path=path.rstrip('/'),
         size=size_bytes,
         typ=FileType.DIRECTORY if is_dir else FileType.FILE,
         owner=None,
@@ -175,8 +180,6 @@ class RouterFS(FS):
             assert mode[0] == 'w'
             strm = SyncWritableStream(async_to_blocking(self.afs.create(path)), path)
 
-        if path[-3:] == '.gz' or path[-4:] == '.bgz':
-            strm = gzip.GzipFile(fileobj=strm, mode=mode)
         if 'b' not in mode:
             strm = io.TextIOWrapper(strm, encoding='utf-8')  # type: ignore # typeshed is wrong, this *is* an IOBase
         return strm
@@ -186,12 +189,18 @@ class RouterFS(FS):
 
         async def _copy():
             sema = asyncio.Semaphore(max_simultaneous_transfers)
-            async with sema:
-                await Copier.copy(self.afs, asyncio.Semaphore, transfer)
+            await Copier.copy(self.afs, sema, transfer)
         return async_to_blocking(_copy())
 
     def exists(self, path: str) -> bool:
-        return async_to_blocking(self.afs.exists(path))
+        async def _exists():
+            dir_path = path
+            if dir_path[-1] != '/':
+                dir_path = dir_path + '/'
+            return any(await asyncio.gather(
+                self.afs.isfile(path),
+                self.afs.isdir(dir_path)))
+        return async_to_blocking(_exists())
 
     def is_file(self, path: str) -> bool:
         return async_to_blocking(self.afs.isfile(path))
@@ -205,18 +214,19 @@ class RouterFS(FS):
         return async_to_blocking(self._async_is_dir(path))
 
     def stat(self, path: str) -> StatResult:
-        async def size_bytes_or_none():
-            try:
-                return await (await self.afs.statfile(path)).size()
-            except FileNotFoundError:
-                return None
         size_bytes, is_dir = async_to_blocking(asyncio.gather(
-            size_bytes_or_none(), self._async_is_dir(path)))
+            self._size_bytes_or_none(path), self._async_is_dir(path)))
         if size_bytes is None:
             if not is_dir:
                 raise FileNotFoundError(path)
             return _stat_result(True, 0, path)
         return _stat_result(is_dir, size_bytes, path)
+
+    async def _size_bytes_or_none(self, path: str):
+        try:
+            return await (await self.afs.statfile(path)).size()
+        except FileNotFoundError:
+            return None
 
     async def _fle_to_dict(self, fle: FileListEntry) -> StatResult:
         async def size():
@@ -227,22 +237,125 @@ class RouterFS(FS):
         return _stat_result(
             *await asyncio.gather(fle.is_dir(), size(), fle.url()))
 
-    def ls(self, path: str, _max_simultaneous_files: int = 50) -> List[StatResult]:
-        async def _ls():
-            async with OnlineBoundedGather2(asyncio.Semaphore(_max_simultaneous_files)) as pool:
-                tasks = [pool.call(self._fle_to_dict, fle)
-                         async for fle in await self.afs.listfiles(path)]
-                return [await t for t in tasks]
-        return async_to_blocking(_ls())
+    def ls(self,
+           path: str,
+           *,
+           error_when_file_and_directory: bool = True,
+           _max_simultaneous_files: int = 50) -> List[StatResult]:
+        return async_to_blocking(self._async_ls(
+            path,
+            error_when_file_and_directory=error_when_file_and_directory,
+            _max_simultaneous_files=_max_simultaneous_files))
+
+    async def _async_ls(self,
+                        path: str,
+                        *,
+                        error_when_file_and_directory: bool = True,
+                        _max_simultaneous_files: int = 50) -> List[StatResult]:
+        async def ls_no_glob(path) -> List[StatResult]:
+            return await self._ls_no_glob(path,
+                                          error_when_file_and_directory=error_when_file_and_directory,
+                                          _max_simultaneous_files=_max_simultaneous_files)
+        url = self.afs.parse_url(path)
+        if any(glob.escape(bucket_part) != bucket_part
+               for bucket_part in url.bucket_parts):
+            raise ValueError(f'glob pattern only allowed in path (e.g. not in bucket): {path}')
+
+        blobpath = url.path
+        if isinstance(url, LocalAsyncFSURL) and blobpath[0] != '/':
+            blobpath = './' + blobpath
+
+        components = blobpath.split('/')
+        assert len(components) > 0
+
+        glob_components = []
+        running_prefix = []
+
+        for component in components:
+            _raise_for_incomplete_glob_group(component, path)
+            if glob.escape(component) == component:
+                running_prefix.append(component)
+            else:
+                glob_components.append((running_prefix, component))
+                running_prefix = []
+
+        suffix_components: List[str] = running_prefix
+        if len(url.bucket_parts) > 0:
+            first_prefix = '/'.join([url.scheme + ':', '', *url.bucket_parts])
+        else:
+            first_prefix = url.scheme + ':'
+        cumulative_prefixes = [first_prefix]
+
+        for intervening_components, single_component_glob_pattern in glob_components:
+            cumulative_prefixes = [
+                stat.path
+                for cumulative_prefix in cumulative_prefixes
+                for stat in await ls_no_glob('/'.join([cumulative_prefix, *intervening_components]))
+                if fnmatch.fnmatch(stat.path,
+                                   '/'.join([cumulative_prefix, *intervening_components, single_component_glob_pattern]))
+            ]
+
+        return [stat
+                for cumulative_prefix in cumulative_prefixes
+                for stat in await ls_no_glob('/'.join([cumulative_prefix, *suffix_components]))]
+
+    async def _ls_no_glob(self,
+                          path: str,
+                          *,
+                          error_when_file_and_directory: bool = True,
+                          _max_simultaneous_files: int = 50) -> List[StatResult]:
+        async def ls_as_dir() -> Optional[List[StatResult]]:
+            try:
+                return await bounded_gather(
+                    *[functools.partial(self._fle_to_dict, fle)
+                      async for fle in await self.afs.listfiles(path)],
+                    parallelism=_max_simultaneous_files)
+            except (FileNotFoundError, NotADirectoryError):
+                return None
+        maybe_size, maybe_contents = await asyncio.gather(
+            self._size_bytes_or_none(path), ls_as_dir())
+
+        if maybe_size is not None:
+            file_stat = _stat_result(False, maybe_size, path)
+            if maybe_contents is not None:
+                if error_when_file_and_directory:
+                    raise ValueError(f'{path} is both a file and a directory')
+                return [file_stat, *maybe_contents]
+            return [file_stat]
+        if maybe_contents is None:
+            raise FileNotFoundError(path)
+        return maybe_contents
 
     def mkdir(self, path: str):
         return async_to_blocking(self.afs.mkdir(path))
 
     def remove(self, path: str):
-        return async_to_blocking(self.remove(path))
+        return async_to_blocking(self.afs.remove(path))
 
     def rmtree(self, path: str):
         return async_to_blocking(self.afs.rmtree(None, path))
 
     def supports_scheme(self, scheme: str) -> bool:
         return scheme in self.afs.schemes
+
+    def canonicalize_path(self, path: str) -> str:
+        if isinstance(self.afs._get_fs(path), LocalAsyncFS):
+            if path.startswith('file:'):
+                return 'file:' + os.path.realpath(path[5:])
+            return 'file:' + os.path.realpath(path)
+        return path
+
+
+def _raise_for_incomplete_glob_group(component: str, full_path: str):
+    i = 0
+    n = len(component)
+    open_group = False
+    while i < n:
+        c = component[i]
+        if c == '[':
+            open_group = True
+        if c == ']':
+            open_group = False
+        i += 1
+    if open_group:
+        raise ValueError(f'glob groups must not include forward slashes: {component} {full_path}')

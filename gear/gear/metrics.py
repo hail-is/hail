@@ -6,6 +6,7 @@ REQUEST_TIME = pc.Summary('http_request_latency_seconds', 'Endpoint latency in s
 REQUEST_COUNT = pc.Counter('http_request_count', 'Number of HTTP requests', ['endpoint', 'verb', 'status'])
 CONCURRENT_REQUESTS = pc.Gauge('http_concurrent_requests', 'Number of in progress HTTP requests', ['endpoint', 'verb'])
 
+SQL_TRANSACTIONS = pc.Counter('sql_transactions', 'Number of SQL transactions')
 SQL_QUERY_COUNT = pc.Counter('sql_query_count', 'Number of SQL Queries', ['query_name'])
 SQL_QUERY_LATENCY = pc.Summary('sql_query_latency_seconds', 'SQL Query latency in seconds', ['query_name'])
 DB_CONNECTION_QUEUE_SIZE = pc.Gauge('sql_connection_queue_size', 'Number of coroutines waiting for a connection')

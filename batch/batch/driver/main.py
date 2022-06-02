@@ -30,7 +30,6 @@ from gear.clients import get_cloud_async_fs
 from hailtop import aiotools, httpx
 from hailtop.config import get_deploy_config
 from hailtop.hail_logging import AccessLogger
-from hailtop.tls import internal_server_ssl_context
 from hailtop.utils import AsyncWorkerPool, Notice, dump_all_stacktraces, periodically_call, serialization, time_msecs
 from web_common import render_template, set_message, setup_aiohttp_jinja2, setup_common_static_routes
 
@@ -486,6 +485,8 @@ async def pool_config_update(request, userdata):  # pylint: disable=unused-argum
             session, 'Max live instances', post['max_live_instances'], lambda v: v > 0, 'a positive integer'
         )
 
+        label = post['label']
+
         enable_standing_worker = 'enable_standing_worker' in post
 
         possible_worker_cores = []
@@ -538,6 +539,7 @@ async def pool_config_update(request, userdata):  # pylint: disable=unused-argum
             max_instances,
             max_live_instances,
             pool.preemptible,
+            label,
         )
         await pool_config.update_database(db)
         pool.configure(pool_config)
@@ -1148,31 +1150,18 @@ async def on_startup(app):
 SELECT instance_id, internal_token, frozen FROM globals;
 '''
     )
-
     instance_id = row['instance_id']
     log.info(f'instance_id {instance_id}')
     app['instance_id'] = instance_id
-
     app['internal_token'] = row['internal_token']
-
     app['batch_headers'] = {'Authorization': f'Bearer {row["internal_token"]}'}
-
     app['frozen'] = row['frozen']
 
-    scheduler_state_changed = Notice()
-    app['scheduler_state_changed'] = scheduler_state_changed
-
-    cancel_ready_state_changed = asyncio.Event()
-    app['cancel_ready_state_changed'] = cancel_ready_state_changed
-
-    cancel_creating_state_changed = asyncio.Event()
-    app['cancel_creating_state_changed'] = cancel_creating_state_changed
-
-    cancel_running_state_changed = asyncio.Event()
-    app['cancel_running_state_changed'] = cancel_running_state_changed
-
-    async_worker_pool = AsyncWorkerPool(100, queue_size=100)
-    app['async_worker_pool'] = async_worker_pool
+    app['scheduler_state_changed'] = Notice()
+    app['cancel_ready_state_changed'] = asyncio.Event()
+    app['cancel_creating_state_changed'] = asyncio.Event()
+    app['cancel_running_state_changed'] = asyncio.Event()
+    app['async_worker_pool'] = AsyncWorkerPool(100, queue_size=100)
 
     credentials_file = '/gsa-key/key.json'
     fs = get_cloud_async_fs(credentials_file=credentials_file)
@@ -1184,8 +1173,7 @@ SELECT instance_id, internal_token, frozen FROM globals;
         app, db, MACHINE_NAME_PREFIX, DEFAULT_NAMESPACE, inst_coll_configs, credentials_file, task_manager
     )
 
-    canceller = await Canceller.create(app)
-    app['canceller'] = canceller
+    app['canceller'] = await Canceller.create(app)
 
     app['check_incremental_error'] = None
     app['check_resource_aggregation_error'] = None
@@ -1261,5 +1249,4 @@ def run():
         host='0.0.0.0',
         port=5000,
         access_log_class=AccessLogger,
-        ssl_context=internal_server_ssl_context(),
     )

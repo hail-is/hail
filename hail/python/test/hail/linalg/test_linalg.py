@@ -164,9 +164,12 @@ Caused by: is.hail.utils.HailException: bad shuffle close
             for entry in row:
                 assert entry > 0
 
-    @fails_service_backend()
-    @fails_local_backend()
-    def test_to_from_numpy(self):
+    def test_bm_to_numpy(self):
+        bm = BlockMatrix.from_ndarray(hl.nd.arange(20).map(lambda x: hl.float64(x)).reshape((4, 5)))
+        np_bm = bm.to_numpy()
+        self._assert_eq(np_bm, np.arange(20, dtype=np.float64).reshape((4, 5)))
+
+    def test_numpy_round_trip(self):
         n_rows = 10
         n_cols = 11
         data = np.random.rand(n_rows * n_cols)
@@ -176,7 +179,7 @@ Caused by: is.hail.utils.HailException: bad shuffle close
 
         with hl.TemporaryFilename() as bm_f, hl.TemporaryFilename() as a_f:
             bm.tofile(bm_f)
-            a.tofile(a_f)
+            hl.current_backend().fs.open(a_f, mode='wb').write(a.tobytes())
 
             a1 = bm.to_numpy()
             a2 = BlockMatrix.from_numpy(a, block_size=5).to_numpy()
@@ -197,7 +200,7 @@ Caused by: is.hail.utils.HailException: bad shuffle close
 
         with hl.TemporaryFilename() as bmt_f, hl.TemporaryFilename() as at_f:
             bmt.tofile(bmt_f)
-            at.tofile(at_f)
+            hl.current_backend().fs.open(at_f, mode='wb').write(at.tobytes())
 
             at1 = bmt.to_numpy()
             at2 = BlockMatrix.from_numpy(at).to_numpy()
@@ -213,6 +216,15 @@ Caused by: is.hail.utils.HailException: bad shuffle close
             self._assert_eq(at4, at)
             self._assert_eq(at5, at)
 
+    @fails_service_backend()
+    @fails_local_backend()
+    def test_numpy_round_trip_force_blocking(self):
+        n_rows = 10
+        n_cols = 11
+        data = np.random.rand(n_rows * n_cols)
+        a = data.reshape((n_rows, n_cols))
+
+        bm = BlockMatrix._create(n_rows, n_cols, data.tolist(), block_size=4)
         self._assert_eq(bm.to_numpy(_force_blocking=True), a)
 
     @fails_service_backend()
@@ -947,6 +959,7 @@ Caused by: java.lang.OutOfMemoryError
             self._assert_eq(nd, actual)
 
     @fails_service_backend()
+    @fails_local_backend()
     def test_rectangles_to_numpy(self):
         nd = np.array([[1.0, 2.0, 3.0],
                        [4.0, 5.0, 6.0],
@@ -1054,7 +1067,6 @@ Caused by: java.lang.AssertionError: assertion failed
         f = hl._locus_windows_per_contig([[1.0, 3.0, 4.0], [2.0, 2.0], [5.0]], 1.0)
         assert hl.eval(f) == ([0, 1, 1, 3, 3, 5], [1, 3, 3, 5, 5, 6])
 
-    @fails_service_backend()
     def test_locus_windows(self):
         def assert_eq(a, b):
             assert np.array_equal(a, np.array(b)), f"a={a}, b={b}"
@@ -1134,8 +1146,6 @@ Caused by: java.lang.AssertionError: assertion failed
             hl.linalg.utils.locus_windows(ht.locus, 1.0, coord_expr=ht.cm)
         assert "missing value for 'coord_expr'" in str(cm.exception)
 
-    @fails_service_backend()
-    @fails_local_backend()
     def test_write_overwrite(self):
         with hl.TemporaryDirectory(ensure_exists=False) as path:
             bm = BlockMatrix.from_numpy(np.array([[0]]))
@@ -1215,8 +1225,6 @@ Caused by: java.lang.AssertionError: assertion failed
         s = x.svd(compute_uv=False, complexity_bound=0)
         assert np.all(s >= 0)
 
-    @fails_service_backend()
-    @fails_local_backend()
     def test_filtering(self):
         np_square = np.arange(16, dtype=np.float64).reshape((4, 4))
         bm = BlockMatrix.from_numpy(np_square)
@@ -1294,8 +1302,6 @@ Caused by: java.lang.AssertionError: assertion failed
         sparse_np = sparsify_numpy(np_square, block_size, block_list).T
         assert np.array_equal(sparse_bm.to_numpy(), sparse_np)
 
-
-    @fails_service_backend()
     def test_row_blockmatrix_sum(self):
 
         row = BlockMatrix.from_numpy(np.arange(10))

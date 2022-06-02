@@ -5,6 +5,7 @@ import json
 import logging
 import os
 import random
+import re
 import signal
 import traceback
 from functools import wraps
@@ -62,6 +63,7 @@ from ..cloud.resource_utils import (
     memory_to_worker_type,
     valid_machine_types,
 )
+from ..cloud.utils import ACCEPTABLE_QUERY_JAR_URL_PREFIX
 from ..exceptions import (
     BatchOperationAlreadyCompletedError,
     BatchUserError,
@@ -208,6 +210,90 @@ async def _handle_api_error(f, *args, **kwargs):
         raise e.http_response()
 
 
+async def _query_batch_jobs_for_billing(request, batch_id):
+    db = request.app['db']
+
+    # batch has already been validated
+    where_conditions = ['(jobs.batch_id = %s)']
+    where_args = [batch_id]
+
+    last_job_id = request.query.get('last_job_id')
+    query_limit: str = request.query.get('limit')
+    limit = 300
+    if query_limit:
+        try:
+            limit = int(query_limit)
+        except ValueError as e:
+            raise web.HTTPBadRequest(reason=f'Bad value for "limit": {e}')
+    if not (0 < limit < 1e4):
+        raise web.HTTPBadRequest(reason=f'Limit must be between 1 and 10,000 (limit={limit})')
+
+    if last_job_id is not None:
+        last_job_id = int(last_job_id)
+        where_conditions.append('(jobs.job_id > %s)')
+        where_args.append(last_job_id)
+
+    sql = f'''
+    SELECT
+        jobs.batch_id as batch_id,
+        jobs.job_id as job_id,
+        jobs.state as state,
+        batches.user AS user
+    FROM jobs
+    INNER JOIN batches ON jobs.batch_id = batches.id
+    WHERE {' AND '.join(where_conditions)}
+    GROUP BY jobs.batch_id, jobs.job_id
+    ORDER BY jobs.batch_id, jobs.job_id ASC
+    LIMIT %s;
+    '''
+
+    jobs = [dict(record) async for record in db.select_and_fetchall(sql, (*where_args, limit))]
+    n_job_ids = len(jobs)
+    job_ids = [job['job_id'] for job in jobs]
+
+    if n_job_ids == 0:
+        return []
+    if n_job_ids == 1:
+        job_condition = 'job_id = %s'
+    else:
+        placeholders = ', '.join(['%s'] * n_job_ids)
+        job_condition = f'job_id IN ({placeholders})'
+
+    job_attributes_sql = f'''
+    SELECT job_id, `key`, `value`
+    FROM job_attributes
+    WHERE batch_id = %s AND {job_condition};
+    '''
+
+    job_resources_sql = f'''
+    SELECT job_id, resource, `usage`
+    FROM aggregated_job_resources
+    WHERE batch_id = %s AND {job_condition}
+    '''
+
+    attributes_by_job = collections.defaultdict(dict)
+    async for record in db.select_and_fetchall(job_attributes_sql, (batch_id, *job_ids)):
+        attributes_by_job[record['job_id']][record['key']] = record['value']
+
+    resources_by_job = collections.defaultdict(dict)
+    async for record in db.select_and_fetchall(job_resources_sql, (batch_id, *job_ids)):
+        resources_by_job[record['job_id']][record['resource']] = record['usage']
+
+    for j in jobs:
+        job_id = j['job_id']
+        j['resources'] = resources_by_job.get(job_id, [])
+        j['attributes'] = attributes_by_job.get(job_id, {})
+
+        if j.get('cost'):
+            del j['cost']
+
+    last_job_id = None
+    if len(jobs) == limit:
+        last_job_id = jobs[-1]['job_id']
+
+    return jobs, last_job_id
+
+
 async def _query_batch_jobs(request, batch_id):
     state_query_values = {
         'pending': ['Pending'],
@@ -325,6 +411,47 @@ WHERE id = %s AND NOT deleted;
     resp = {'jobs': jobs}
     if last_job_id is not None:
         resp['last_job_id'] = last_job_id
+    return web.json_response(resp)
+
+
+@routes.get('/api/v1alpha/batches/{batch_id}/jobs/resources')
+@rest_billing_project_users_only
+async def get_jobs_for_billing(request, userdata, batch_id):
+    """
+    Get jobs for batch to check the amount of resources used.
+    Takes a "last_job_id" and "limit" parameter that can be used to implement paging.
+
+    Returns
+    -------
+    Example response:
+    {
+        "jobs": [{
+            "batch_id": 1,
+            "job_id": 1,
+            "state": "Error",
+            "user": "<user>",
+            "resources": {
+                "compute/n1-preemptible/1": 0,
+                "disk/local-ssd/1": 0,
+                "disk/pd-ssd/1": 0,
+                "ip-fee/1024/1": 0,
+                "memory/n1-preemptible/1": 0,
+                "service-fee/1": 0
+            },
+            "attributes": {
+                "name": "<name of job>"
+            }
+        }]
+    }
+    """
+
+    # just noting the @rest_billing_project_users_only decorator
+    #   does the permission checks for us
+    jobs, last_job_id = await _query_batch_jobs_for_billing(request, batch_id)
+    resp = {'jobs': jobs}
+    if last_job_id:
+        resp['last_job_id'] = last_job_id
+
     return web.json_response(resp)
 
 
@@ -665,6 +792,14 @@ async def create_jobs(request: aiohttp.web.Request, userdata: dict):
     return await _create_jobs(userdata, job_specs, batch_id, app)
 
 
+NON_HEX_DIGIT = re.compile('[^A-Fa-f0-9]')
+
+
+def assert_is_sha_1_hex_string(revision: str):
+    if len(revision) != 40 or NON_HEX_DIGIT.search(revision):
+        raise web.HTTPBadRequest(reason=f'revision must be 40 character hexadecimal encoded SHA-1, got: {revision}')
+
+
 async def _create_jobs(userdata: dict, job_specs: dict, batch_id: int, app: aiohttp.web.Application):
     db: Database = app['db']
     file_store: FileStore = app['file_store']
@@ -751,6 +886,7 @@ WHERE user = %s AND id = %s AND NOT deleted;
 
                 worker_type = None
                 machine_type = resources.get('machine_type')
+                pool_label = resources.get('pool_label') or ''
                 preemptible = resources.get('preemptible', BATCH_JOB_DEFAULT_PREEMPTIBLE)
 
                 if machine_type and machine_type not in valid_machine_types(cloud):
@@ -759,15 +895,29 @@ WHERE user = %s AND id = %s AND NOT deleted;
                 if machine_type and ('cpu' in resources or 'memory' in resources):
                     raise web.HTTPBadRequest(reason='cannot specify cpu and memory with machine_type')
 
+                if machine_type and pool_label:
+                    raise web.HTTPBadRequest(reason='cannot specify pool label with machine_type')
+
                 if spec['process']['type'] == 'jvm':
-                    if 'cpu' in resources:
-                        raise web.HTTPBadRequest(reason='jvm jobs may not specify cpu')
-                    if 'memory' in resources and resources['memory'] != 'standard':
-                        raise web.HTTPBadRequest(reason='jvm jobs may not specify memory')
+                    jvm_requested_cpu = parse_cpu_in_mcpu(resources.get('cpu', BATCH_JOB_DEFAULT_CPU))
+                    if 'cpu' in resources and jvm_requested_cpu not in (1000, 8000):
+                        raise web.HTTPBadRequest(reason='invalid cpu for jvm jobs. must be 1 or 8')
+                    if 'memory' in resources and resources['memory'] == 'lowmem':
+                        raise web.HTTPBadRequest(reason='jvm jobs cannot be on lowmem machines')
                     if 'storage' in resources:
                         raise web.HTTPBadRequest(reason='jvm jobs may not specify storage')
                     if machine_type is not None:
                         raise web.HTTPBadRequest(reason='jvm jobs may not specify machine_type')
+                    if spec['process']['jar_spec']['type'] == 'git_revision':
+                        revision = spec['process']['jar_spec']['value']
+                        assert_is_sha_1_hex_string(revision)
+                        spec['process']['jar_spec']['type'] = 'jar_url'
+                        spec['process']['jar_spec']['value'] = ACCEPTABLE_QUERY_JAR_URL_PREFIX + '/' + revision + '.jar'
+                    else:
+                        assert spec['process']['jar_spec']['type'] == 'jar_url'
+                        jar_url = spec['process']['jar_spec']['value']
+                        if not jar_url.startswith(ACCEPTABLE_QUERY_JAR_URL_PREFIX):
+                            raise web.HTTPBadRequest(reason=f'unacceptable JAR url: {jar_url}')
 
                 req_memory_bytes: Optional[int]
                 if machine_type is None:
@@ -815,7 +965,7 @@ WHERE user = %s AND id = %s AND NOT deleted;
                 inst_coll_configs: InstanceCollectionConfigs = app['inst_coll_configs']
 
                 result, exc = inst_coll_configs.select_inst_coll(
-                    cloud, machine_type, preemptible, worker_type, req_cores_mcpu, req_memory_bytes, req_storage_bytes
+                    cloud, machine_type, pool_label, preemptible, worker_type, req_cores_mcpu, req_memory_bytes, req_storage_bytes
                 )
 
                 if exc:
@@ -1309,7 +1459,7 @@ async def _close_batch(app: aiohttp.web.Application, batch_id: int, user: str, d
     client_session: httpx.ClientSession = app['client_session']
     try:
         now = time_msecs()
-        await db.check_call_procedure('CALL close_batch(%s, %s);', (batch_id, now))
+        await db.check_call_procedure('CALL close_batch(%s, %s);', (batch_id, now), 'close_batch')
     except CallError as e:
         # 2: wrong number of jobs
         if e.rv['rc'] == 2:
@@ -1548,10 +1698,9 @@ async def ui_get_job(request, userdata, batch_id):
     }
     job_status = dictfix.dictfix(job_status, job_status_spec)
     container_statuses = job_status['container_statuses']
-    step_statuses = [container_statuses['input'], container_statuses['main'], container_statuses['output']]
     step_errors = {step: status['error'] for step, status in container_statuses.items() if status is not None}
 
-    for status in step_statuses:
+    for status in container_statuses.values():
         # backwards compatibility
         if status and status['short_error'] is None and status['container_status']['out_of_memory']:
             status['short_error'] = 'out of memory'
@@ -1573,7 +1722,7 @@ async def ui_get_job(request, userdata, batch_id):
         resources['actual_memory'] = humanize.naturalsize(resources['memory_bytes'], binary=True)
         del resources['memory_bytes']
     if 'storage_gib' in resources:
-        resources['actual_storage'] = humanize.naturalsize(resources['storage_gib'] * 1024**3, binary=True)
+        resources['actual_storage'] = humanize.naturalsize(resources['storage_gib'] * 1024 ** 3, binary=True)
         del resources['storage_gib']
     if 'cores_mcpu' in resources:
         resources['actual_cpu'] = resources['cores_mcpu'] / 1000
@@ -1610,7 +1759,7 @@ async def ui_get_job(request, userdata, batch_id):
             y='Step',
             color='Task',
             hover_data=['Step'],
-            color_discrete_sequence=px.colors.sequential.dense,
+            color_discrete_sequence=px.colors.qualitative.Prism,
             category_orders={
                 'Step': ['input', 'main', 'output'],
                 'Task': ['pulling', 'setting up overlay', 'setting up network', 'running', 'uploading_log'],
@@ -1627,7 +1776,7 @@ async def ui_get_job(request, userdata, batch_id):
         'job': job,
         'job_log': job_log,
         'attempts': attempts,
-        'step_statuses': step_statuses,
+        'container_statuses': container_statuses,
         'job_specification': job_specification,
         'job_status_str': json.dumps(job, indent=2),
         'step_errors': step_errors,

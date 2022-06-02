@@ -3,11 +3,6 @@ kind: ServiceAccount
 metadata:
   name: letsencrypt
 ---
-apiVersion: v1
-kind: Secret
-metadata:
-  name: letsencrypt-config
----
 kind: Role
 apiVersion: rbac.authorization.k8s.io/v1
 metadata:
