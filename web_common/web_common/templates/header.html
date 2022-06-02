@@ -75,8 +75,7 @@
         <div class="monitoring-caret header-dropdown-menu-caret"></div>
         <a class="header-dropdown-menu-link" href="{{ grafana_base_url }}">Grafana</a>
         <a target="_blank" class="header-dropdown-menu-link" href="https://console.cloud.google.com/logs">
-          Log Viewer<i class="material-icons text-icon">open_in_new</i>
-        </a>
+          Log Viewer<i class="material-icons text-icon">open_in_new</i></a>
         <a class="header-dropdown-menu-link" href="{{ monitoring_base_url }}/billing">Billing</a>
       </div>
     </div>
@@ -104,7 +103,7 @@
   </a>
   |
   <form action="{{ auth_base_url }}/logout" method="POST">
-    <input type="hidden" name="_csrf" value="{{ csrf_token }}" />
+    <input type="hidden" name="_csrf" value="{{ csrf_token }}"/>
     <button class="button-header-link" type="submit">
       Log out
     </button>
