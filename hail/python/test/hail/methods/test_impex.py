@@ -276,6 +276,24 @@ class VCFTests(unittest.TestCase):
             # are py4 JavaMaps, not dicts, so can't use assertDictEqual
             self.assertEqual(vcf_metadata, metadata_imported)
 
+    def test_export_vcf_quotes_and_backslash_in_description(self):
+        ds = hl.import_vcf(resource("sample.vcf"))
+        meta = hl.get_vcf_metadata(resource("sample.vcf"))
+        meta["info"]["AF"]["Description"] = 'foo "bar" \\'
+        with TemporaryFilename(suffix='.vcf') as test_vcf:
+             hl.export_vcf(ds, test_vcf, metadata=meta)
+             af_lines = [
+                 line for line in open(test_vcf).readlines()
+                 if line.startswith("##INFO=<ID=AF")
+             ]
+        assert len(af_lines) == 1, af_lines
+        line = af_lines[0]
+        assert line.startswith("##INFO=<") and line.endswith(">\n"), line
+        line = line[8:-2]
+        fields = dict([f.split("=") for f in line.split(",")])
+        description = fields["Description"]
+        assert description == '"foo \\"bar\\" \\\\"'
+
     def test_export_vcf_empty_format(self):
         mt = hl.import_vcf(resource('sample.vcf.bgz')).select_entries()
         tmp = new_temp_file(extension="vcf")

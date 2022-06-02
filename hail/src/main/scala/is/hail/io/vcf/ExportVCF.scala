@@ -114,7 +114,7 @@ object ExportVCF {
       sb.append(",Type=")
       sb.append(formatType(f.name, f.typ))
       sb.append(",Description=\"")
-      sb.append(attrs.getOrElse("Description", ""))
+      sb.append(attrs.getOrElse("Description", "").replace("\\", "\\\\").replace("\"", "\\\""))
       sb.append("\">\n")
     }
 
@@ -124,7 +124,7 @@ object ExportVCF {
       sb.append("##FILTER=<ID=")
       sb.append(id)
       sb.append(",Description=\"")
-      sb.append(attrs.getOrElse("Description", ""))
+      sb.append(attrs.getOrElse("Description", "").replace("\\", "\\\\").replace("\"", "\\\""))
       sb.append("\">\n")
     }
 
@@ -144,7 +144,7 @@ object ExportVCF {
       sb.append(",Type=")
       sb.append(infoType(f))
       sb.append(",Description=\"")
-      sb.append(attrs.getOrElse("Description", ""))
+      sb.append(attrs.getOrElse("Description", "").replace("\\", "\\\\").replace("\"", "\\\""))
       sb.append("\">\n")
     }
 
