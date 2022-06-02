@@ -20,7 +20,7 @@ AUTHORIZED_USERS = [
     User('chrisvittal', 'cvittal', [COMPILER_TEAM]),
     User('cseed', 'cseed'),
     User('daniel-goldstein', 'dgoldste', [SERVICES_TEAM]),
-    User('danking', 'dking', [SERVICES_TEAM]),
+    User('danking', 'dking'),
     User('dependabot[bot]'),
     User('jigold', 'jigold', [SERVICES_TEAM]),
     User('jkgoodrich', 'jgoodric'),
