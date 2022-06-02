@@ -43,6 +43,7 @@ image_str = str_type
 
 job_validator = keyed(
     {
+        'always_copy_output': bool_type,
         'always_run': bool_type,
         'attributes': dictof(str_type),
         'env': listof(keyed({'name': str_type, 'value': str_type})),
