@@ -19,10 +19,12 @@ object Optimize {
     }
 
     ctx.timer.time("Optimize") {
+      val normalizeNames = new NormalizeNames(_.toString, allowFreeVariables = true)
       while (iter < maxIter && ir != last) {
         last = ir
         runOpt(FoldConstants(ctx, _), iter, "FoldConstants")
         runOpt(ExtractIntervalFilters(ctx, _), iter, "ExtractIntervalFilters")
+        runOpt(normalizeNames(_), iter, "NormalizeNames")
         runOpt(Simplify(ctx, _), iter, "Simplify")
         runOpt(ForwardLets(_), iter, "ForwardLets")
         runOpt(ForwardRelationalLets(_), iter, "ForwardRelationalLets")
