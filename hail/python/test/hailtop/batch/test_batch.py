@@ -987,7 +987,7 @@ class ServiceTests(unittest.TestCase):
 
         b2 = self.batch()
         input = b2.read_input(output_path)
-        file_exists_j = b.new_job()
+        file_exists_j = b2.new_job()
         file_exists_j.command(f'cat {input}')
 
         res = b2.run()
@@ -1009,7 +1009,7 @@ class ServiceTests(unittest.TestCase):
 
         b2 = self.batch()
         input = b2.read_input(output_path)
-        file_exists_j = b.new_job()
+        file_exists_j = b2.new_job()
         file_exists_j.command(f'cat {input}')
 
         res = b2.run()
