@@ -829,8 +829,6 @@ class Container:
                     assert self.process is None
                     if self.checkpointable:
                         try:
-                            # TODO: make sure that right layer of directory is being copied from cloud storage,
-                            # might be the same problem as copying to cloud storage when checkpointing
                             restore_dir = f'{self.container_scratch}/restore'
                             await self.fs.copy(self.get_remote_checkpoint_dir_url(), restore_dir)
 
