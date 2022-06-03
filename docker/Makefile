@@ -53,7 +53,7 @@ generate-pip-lockfile:
 	docker run --rm -it \
 		-v $(shell pwd):/docker \
 		python:3.7-slim \
-		/bin/bash -c "pip install pip-tools && cd docker && pip-compile requirements.txt --output-file=linux-pinned-requirements.txt"
+		/bin/bash -c "pip install pip-tools && cd docker && pip-compile --upgrade requirements.txt --output-file=linux-pinned-requirements.txt"
 
 .PHONY: clean
 clean:
