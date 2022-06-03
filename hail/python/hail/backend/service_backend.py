@@ -151,7 +151,7 @@ class IRFunction:
         self._value_parameter_names = value_parameter_names
         self._value_parameter_types = value_parameter_types
         self._return_type = return_type
-        self._rendered_body = render(body._ir)
+        self._rendered_body = render(finalize_randomness(body._ir))
 
     async def serialize(self, writer: afs.WritableStream):
         await write_str(writer, self._name)
