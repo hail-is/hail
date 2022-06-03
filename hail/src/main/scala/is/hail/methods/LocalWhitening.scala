@@ -4,6 +4,7 @@ import is.hail.annotations.Region
 import is.hail.asm4s.{Value, _}
 import is.hail.expr.ir.EmitCodeBuilder
 import is.hail.types.physical.stypes.interfaces._
+import is.hail.types.physical.stypes.interfaces.{ColonIndex => Colon}
 import is.hail.types.physical.{PCanonicalNDArray, PFloat64Required}
 import is.hail.utils.FastIndexedSeq
 
@@ -76,8 +77,8 @@ class LocalWhitening(cb: EmitCodeBuilder, vecSize: SizeValue, _w: Value[Long], c
 
       // work2[:, i] = work1[:, w+i] * R[w+i, w+i]
       val wpi = cb.newLocal[Long]("w_plus_i", w+i)
-      val w1col = work1.slice(cb, ::, wpi)
-      val w2col = work2.slice(cb, ::, i)
+      val w1col = work1.slice(cb, Colon, wpi)
+      val w2col = work2.slice(cb, Colon, i)
       SNDArray.copyVector(cb, w1col, w2col)
       if (!normalizeAfterWhitening) {
         SNDArray.scale(cb, R.loadElement(FastIndexedSeq(wpi, wpi), cb), w2col)
@@ -85,12 +86,12 @@ class LocalWhitening(cb: EmitCodeBuilder, vecSize: SizeValue, _w: Value[Long], c
 
       // work3 > blocksize * (w+n - i+1) < blocksize * (w+n)
       SNDArray.tpqrt(R.slice(cb, (i+1, null), (i+1, null)), R.slice(cb, (i, i+1), (i+1, null)), T, work3, blocksize, cb)
-      SNDArray.tpmqrt("R", "N", R.slice(cb, (i, i+1), (i+1, null)), T, work1.slice(cb, ::, (i+1, null)), work1.slice(cb, ::, (i, i+1)), work3, blocksize, cb)
+      SNDArray.tpmqrt("R", "N", R.slice(cb, (i, i+1), (i+1, null)), T, work1.slice(cb, Colon, (i+1, null)), work1.slice(cb, ::, (i, i+1)), work3, blocksize, cb)
     })
 
     // W = [Q1 Q2] work2 is locally whitened A2
-    SNDArray.gemm(cb, "N", "N", 1.0, Q1, work2.slice(cb, (null, w), ::), 0.0, W)
-    SNDArray.gemm(cb, "N", "N", 1.0, Q2, work2.slice(cb, (w, null), ::), 1.0, W)
+    SNDArray.gemm(cb, "N", "N", 1.0, Q1, work2.slice(cb, (null, w), Colon), 0.0, W)
+    SNDArray.gemm(cb, "N", "N", 1.0, Q2, work2.slice(cb, (w, null), Colon), 1.0, W)
 
     // Qout = [Q1 Q2] work1, Qout R[n:w+n, n:w+n] = A2[:, n-w:n] is qr fact
     SNDArray.gemm(cb, "N", "N", 1.0, Q1, work1.slice(cb, (null, w), (n, null)), 0.0, Qout)
@@ -134,15 +135,15 @@ class LocalWhitening(cb: EmitCodeBuilder, vecSize: SizeValue, _w: Value[Long], c
     cb.ifx(p1 < w, {
       SNDArray.tpqrt(R.slice(cb, r2, r2), R.slice(cb, r1, r2), T, work3, b2, cb)
       SNDArray.tpmqrt("L", "T", R.slice(cb, r1, r2), T, R.slice(cb, r2, r01), R.slice(cb, r1, r01), work3, b2, cb)
-      SNDArray.tpmqrt("R", "N", R.slice(cb, r1, r2), T, Q.slice(cb, ::, r2), Q.slice(cb, ::, r1), work3, b2, cb)
+      SNDArray.tpmqrt("R", "N", R.slice(cb, r1, r2), T, Q.slice(cb, Colon, r2), Q.slice(cb, Colon, r1), work3, b2, cb)
     })
     cb.ifx(p0 > 0, {
       SNDArray.tpqrt(R.slice(cb, r0, r0), R.slice(cb, r1, r0), T, work3, b0, cb)
       SNDArray.tpmqrt("L", "T", R.slice(cb, r1, r0), T, R.slice(cb, r0, r1), R.slice(cb, r1, r1), work3, b0, cb)
-      SNDArray.tpmqrt("R", "N", R.slice(cb, r1, r0), T, Q.slice(cb, ::, r0), Q.slice(cb, ::, r1), work3, b0, cb)
+      SNDArray.tpmqrt("R", "N", R.slice(cb, r1, r0), T, Q.slice(cb, Colon, r0), Q.slice(cb, Colon, r1), work3, b0, cb)
     })
     SNDArray.geqrt(R.slice(cb, r1, r1), T, work3, b1, cb)
-    SNDArray.gemqrt("R", "N", R.slice(cb, r1, r1), T, Q.slice(cb, ::, r1), work3, b1, cb)
+    SNDArray.gemqrt("R", "N", R.slice(cb, r1, r1), T, Q.slice(cb, Colon, r1), work3, b1, cb)
   }
 
   // Whiten block A, where A is no smaller than the window, by orthogonalizing
@@ -240,9 +241,9 @@ class LocalWhitening(cb: EmitCodeBuilder, vecSize: SizeValue, _w: Value[Long], c
     val R12 = R.slice(cb, r1, r2)
     val R22 = R.slice(cb, r2, r2)
     val R32 = R.slice(cb, r3, r2)
-    val Q1 = Q.slice(cb, ::, r1)
-    val Q2 = Q.slice(cb, ::, r2)
-    val Q3 = Q.slice(cb, ::, r3)
+    val Q1 = Q.slice(cb, Colon, r1)
+    val Q2 = Q.slice(cb, Colon, r2)
+    val Q3 = Q.slice(cb, Colon, r3)
 
     // Orthogonalize against Q3
     SNDArray.gemm(cb, "T", "N", Q3, A, R32)
@@ -267,7 +268,7 @@ class LocalWhitening(cb: EmitCodeBuilder, vecSize: SizeValue, _w: Value[Long], c
     cb.ifx(curSize < w, {
       // Orthogonalize against existing Q
       val Rslice = R.slice(cb, (null, curSize), (curSize, curSize + b))
-      val Qslice = Q.slice(cb, ::, (null, curSize))
+      val Qslice = Q.slice(cb, Colon, (null, curSize))
       // Rslice = Q' A
       SNDArray.gemm(cb, "T", "N", Qslice, A, Rslice)
       // A = A - Q Rslice
@@ -275,14 +276,14 @@ class LocalWhitening(cb: EmitCodeBuilder, vecSize: SizeValue, _w: Value[Long], c
 
       // Compute QR fact of A; store R fact in Rtemp[r1, r1], Q fact in Qtemp
       val Rslice2 = R.slice(cb, (curSize, curSize + b), (curSize, curSize + b))
-      val Qslice2 = Q.slice(cb, ::, (curSize, curSize + b))
+      val Qslice2 = Q.slice(cb, Colon, (curSize, curSize + b))
       SNDArray.geqr_full(cb, A, Qslice2, Rslice2, T, work3)
 
       // Copy whitened A back to A
       val j = cb.newLocal[Long]("j")
       cb.forLoop(cb.assign(j, 0L), j < b, cb.assign(j, j+1), {
-        val Acol = A.slice(cb, ::, j)
-        SNDArray.copyVector(cb, Qslice2.slice(cb, ::, j), Acol)
+        val Acol = A.slice(cb, Colon, j)
+        SNDArray.copyVector(cb, Qslice2.slice(cb, Colon, j), Acol)
         SNDArray.scale(cb, Rslice2.loadElement(FastIndexedSeq(j, j), cb), Acol)
       })
 
@@ -293,8 +294,8 @@ class LocalWhitening(cb: EmitCodeBuilder, vecSize: SizeValue, _w: Value[Long], c
       val bb = SizeValueDyn(cb.memoize(b*2))
       whitenBlockLargeWindow(cb,
         Q, R, pivot, A,
-        Qtemp.slice(cb, ::, (null, b)),
-        Qtemp2.slice(cb, ::, (null, b)),
+        Qtemp.slice(cb, Colon, (null, b)),
+        Qtemp2.slice(cb, Colon, (null, b)),
         Rtemp.slice(cb, (null, bb), (null, bb)),
         work1.slice(cb, (null, bb), (null, bb)),
         work2.slice(cb, (null, bb), (null, b)),
@@ -316,7 +317,7 @@ class LocalWhitening(cb: EmitCodeBuilder, vecSize: SizeValue, _w: Value[Long], c
     cb.ifx(curSize.cne(0), cb._fatal("initializeWindow: can only be called on empty state"))
 
     val Rslice = R.slice(cb, (null, b), (null, b))
-    val Qslice = Q.slice(cb, ::, (null, b))
+    val Qslice = Q.slice(cb, Colon, (null, b))
     SNDArray.geqr_full(cb, A, Qslice, Rslice, T, work3)
     cb.assign(curSize, b)
   }

@@ -228,8 +228,6 @@ class SUnreachableNDArrayValue(override val st: SUnreachableNDArray) extends SUn
 
   override def firstDataAddress: Value[Long] = const(0L)
 
-  override def setToZero(cb: EmitCodeBuilder): Unit = {}
-
   override def coiterateMutate(cb: EmitCodeBuilder, region: Value[Region], deepCopy: Boolean, indexVars: IndexedSeq[String],
     destIndices: IndexedSeq[Int], arrays: (SNDArrayValue, IndexedSeq[Int], String)*)(body: IndexedSeq[SValue] => SValue): Unit = ()
 }

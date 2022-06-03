@@ -5,6 +5,7 @@ import is.hail.asm4s._
 import is.hail.expr.ir.{EmitCodeBuilder, EmitFunctionBuilder}
 import is.hail.methods.LocalWhitening
 import is.hail.types.physical.stypes.interfaces._
+import is.hail.types.physical.stypes.interfaces.{ColonIndex => Colon}
 import is.hail.utils._
 import org.apache.spark.sql.Row
 import org.testng.annotations.Test
@@ -24,7 +25,6 @@ class PNDArraySuite extends PhysicalTestUtils {
   }
 
   @Test def testWhitenBase(): Unit = {
-    val region = Region(pool=this.pool)
     val fb = EmitFunctionBuilder[Region, Double](ctx, "whiten_test")
     val matType = PCanonicalNDArray(PFloat64Required, 2)
     val vecType = PCanonicalNDArray(PFloat64Required, 1)
@@ -35,7 +35,7 @@ class PNDArraySuite extends PhysicalTestUtils {
     val blocksize = SizeValueStatic(5)
     val btwpn = SizeValueStatic(blocksize.v * wpn.v)
 
-    try {
+    this.pool.scopedRegion { region =>
       fb.emitWithBuilder { cb =>
         val region = fb.getCodeParam[Region](1)
         val A = matType.constructUnintialized(FastIndexedSeq(m, wpn), cb, region)
@@ -56,7 +56,7 @@ class PNDArraySuite extends PhysicalTestUtils {
 
         SNDArray.geqrt_full(cb, Acopy, Q, R, T, work3, blocksize)
 
-        new LocalWhitening(cb, m, w, n, blocksize, region, false).whitenBlockPreOrthogonalized(cb, Q.slice(cb, ::, (null, w)), Q.slice(cb, ::, (w, null)), Qout, R, W, work1, work2, blocksize)
+        new LocalWhitening(cb, m, w, n, blocksize, region, false).whitenBlockPreOrthogonalized(cb, Q.slice(cb, Colon, (null, w)), Q.slice(cb, Colon, (w, null)), Qout, R, W, work1, work2, blocksize)
 
         SNDArray.trmm(cb, "R", "U", "N", "N", 1.0, R.slice(cb, (n, null), (n, null)), Qout)
 
@@ -64,7 +64,7 @@ class PNDArraySuite extends PhysicalTestUtils {
         val normA = cb.newLocal[Double]("normA", 0.0)
         val diff = cb.newLocal[Double]("diff")
 
-        SNDArray.coiterate(cb, (A.slice(cb, ::, (n, null)), "A"), (Qout, "Qout")) {
+        SNDArray.coiterate(cb, (A.slice(cb, Colon, (n, null)), "A"), (Qout, "Qout")) {
           case Seq(l, r) =>
             def lCode = l.asDouble.value
             cb.assign(diff, lCode - r.asDouble.value)
@@ -73,19 +73,14 @@ class PNDArraySuite extends PhysicalTestUtils {
         }
         Code.invokeStatic1[java.lang.Math, Double, Double]("sqrt", normDiff / normA)
       }
-    } catch {
-      case e: Throwable =>
-        region.clear()
-        throw e
+
+      val f = fb.resultWithIndex()(theHailClassLoader, null, 0, region)
+
+      assert(f(region) < 1e-14)
     }
-
-    val f = fb.resultWithIndex()(theHailClassLoader, null, 0, region)
-
-    assert(f(region) < 1e-14)
   }
 
   @Test def testQrPivot(): Unit = {
-    val region = Region(pool=this.pool)
     val fb = EmitFunctionBuilder[Region, Double](ctx, "whiten_test")
     val matType = PCanonicalNDArray(PFloat64Required, 2)
     val vecType = PCanonicalNDArray(PFloat64Required, 1)
@@ -97,7 +92,7 @@ class PNDArraySuite extends PhysicalTestUtils {
     val btn = SizeValueStatic(blocksize.v * n.v)
     val btm = SizeValueStatic(blocksize.v * m.v)
 
-    try {
+    this.pool.scopedRegion { region =>
       fb.emitWithBuilder { cb =>
         val region = fb.getCodeParam[Region](1)
         val A = matType.constructUnintialized(FastIndexedSeq(m, n), FastIndexedSeq(8, 8*m.v), cb, region)
@@ -115,9 +110,9 @@ class PNDArraySuite extends PhysicalTestUtils {
 
         new LocalWhitening(cb, m, w, n, blocksize, region, false).qrPivot(cb, Q, R, 0, p)
 
-        SNDArray.trmm(cb, "R", "U", "N", "N", 1.0, R.slice(cb, (null, p), (null, p)), Q.slice(cb, ::, (null, p)))
-        SNDArray.gemm(cb, "N", "N", 1.0, Q.slice(cb, ::, (p, null)), R.slice(cb, (p, null), (null, p)), 1.0, Q.slice(cb, ::, (null, p)))
-        SNDArray.trmm(cb, "R", "U", "N", "N", 1.0, R.slice(cb, (p, null), (p, null)), Q.slice(cb, ::, (p, null)))
+        SNDArray.trmm(cb, "R", "U", "N", "N", 1.0, R.slice(cb, (null, p), (null, p)), Q.slice(cb, Colon, (null, p)))
+        SNDArray.gemm(cb, "N", "N", 1.0, Q.slice(cb, Colon, (p, null)), R.slice(cb, (p, null), (null, p)), 1.0, Q.slice(cb, Colon, (null, p)))
+        SNDArray.trmm(cb, "R", "U", "N", "N", 1.0, R.slice(cb, (p, null), (p, null)), Q.slice(cb, Colon, (p, null)))
 
         val normDiff = cb.newLocal[Double]("normDiff", 0.0)
         val normA = cb.newLocal[Double]("normA", 0.0)
@@ -132,15 +127,11 @@ class PNDArraySuite extends PhysicalTestUtils {
         }
         Code.invokeStatic1[java.lang.Math, Double, Double]("sqrt", normDiff / normA)
       }
-    } catch {
-      case e: Throwable =>
-        region.clear()
-        throw e
+
+      val f = fb.resultWithIndex()(theHailClassLoader, null, 0, region)
+
+      assert(f(region) < 1e-14)
     }
-
-    val f = fb.resultWithIndex()(theHailClassLoader, null, 0, region)
-
-    assert(f(region) < 1e-14)
   }
 
   def whitenNaive(cb: EmitCodeBuilder, X: SNDArrayValue, w: Int, blocksize: Int, region: Value[Region]): SNDArrayValue = {
@@ -159,11 +150,11 @@ class PNDArraySuite extends PhysicalTestUtils {
     cb.forLoop(cb.assign(j, 0L), j < n, cb.assign(j, j+1), {
       val windowStart = cb.memoize((j-w).max(0))
       val windowSize = cb.memoize(j - windowStart)
-      val window = curWindow.slice(cb, ::, (null, windowSize))
-      window.coiterateMutate(cb, region, (X.slice(cb, ::, (windowStart, j)), "X")) { case Seq(_, v) => v }
+      val window = curWindow.slice(cb, Colon, (null, windowSize))
+      window.coiterateMutate(cb, region, (X.slice(cb, Colon, (windowStart, j)), "X")) { case Seq(_, v) => v }
       val bs = cb.memoize(windowSize.min(blocksize).max(1))
       SNDArray.geqrt(window, T, work, bs, cb)
-      val curCol = Xw.slice(cb, ::, j)
+      val curCol = Xw.slice(cb, Colon, j)
       SNDArray.gemqrt("L", "T", window, T, curCol, work, bs, cb)
       curCol.slice(cb, (null, windowSize)).setToZero(cb)
       SNDArray.gemqrt("L", "N", window, T, curCol, work, bs, cb)
@@ -173,7 +164,6 @@ class PNDArraySuite extends PhysicalTestUtils {
   }
 
   @Test def testWhitenNonrecur(): Unit = {
-    val region = Region(pool=this.pool)
     val fb = EmitFunctionBuilder[Region, Unit](ctx, "whiten_test")
     val matType = PCanonicalNDArray(PFloat64Required, 2)
     val m = SizeValueStatic(2000)
@@ -182,7 +172,7 @@ class PNDArraySuite extends PhysicalTestUtils {
     val wpn = SizeValueStatic(w.v + n.v)
     val blocksize = SizeValueStatic(5)
 
-    try {
+    this.pool.scopedRegion { region =>
       fb.emitWithBuilder { cb =>
         val region = fb.getCodeParam[Region](1)
         val Aorig = matType.constructUnintialized(FastIndexedSeq(m, wpn), cb, region)
@@ -192,8 +182,8 @@ class PNDArraySuite extends PhysicalTestUtils {
         Aorig.coiterateMutate(cb, region) { case Seq(_) =>
           primitive(cb.memoize(cb.emb.newRNG(0L).invoke[Double]("rnorm")))
         }
-        A.coiterateMutate(cb, region, (Aorig.slice(cb, ::, (w, null)), "Aorig")) { case Seq(_, a) => a }
-        state.Qtemp2.coiterateMutate(cb, region, (Aorig.slice(cb, ::, (null, w)), "Aorig")) { case Seq(_, a) => a }
+        A.coiterateMutate(cb, region, (Aorig.slice(cb, Colon, (w, null)), "Aorig")) { case Seq(_, a) => a }
+        state.Qtemp2.coiterateMutate(cb, region, (Aorig.slice(cb, Colon, (null, w)), "Aorig")) { case Seq(_, a) => a }
 
         SNDArray.geqrt_full(cb, state.Qtemp2, state.Q, state.R, state.T, state.work3, blocksize)
 
@@ -206,7 +196,7 @@ class PNDArraySuite extends PhysicalTestUtils {
         val normA = cb.newLocal[Double]("normA", 0.0)
         val diff = cb.newLocal[Double]("diff")
 
-        SNDArray.coiterate(cb, (Aorig.slice(cb, ::, (n, null)), "A"), (state.Q, "Qout")) {
+        SNDArray.coiterate(cb, (Aorig.slice(cb, Colon, (n, null)), "A"), (state.Q, "Qout")) {
           case Seq(l, r) =>
             def lCode = l.asDouble.value
             cb.assign(diff, lCode - r.asDouble.value)
@@ -220,7 +210,7 @@ class PNDArraySuite extends PhysicalTestUtils {
         })
 
         val W2 = whitenNaive(cb, Aorig, w.v.toInt, blocksize.v.toInt, region)
-          .slice(cb, ::, (w, null))
+          .slice(cb, Colon, (w, null))
 
         cb.assign(normDiff, 0.0)
         val normW2 = cb.newLocal[Double]("normW2", 0.0)
@@ -241,19 +231,14 @@ class PNDArraySuite extends PhysicalTestUtils {
 
         Code._empty
       }
-    } catch {
-      case e: Throwable =>
-        region.clear()
-        throw e
+
+      val f = fb.resultWithIndex()(theHailClassLoader, null, 0, region)
+
+      f(region)
     }
-
-    val f = fb.resultWithIndex()(theHailClassLoader, null, 0, region)
-
-    f(region)
   }
 
   @Test def testWhiten(): Unit = {
-    val region = Region(pool=this.pool)
     val fb = EmitFunctionBuilder[Region, Unit](ctx, "whiten_test")
     val matType = PCanonicalNDArray(PFloat64Required, 2)
     val m = SizeValueStatic(2000)
@@ -262,7 +247,7 @@ class PNDArraySuite extends PhysicalTestUtils {
     val b = const(25L)
     val blocksize = SizeValueStatic(5)
 
-    try {
+    this.pool.scopedRegion { region =>
       fb.emitWithBuilder { cb =>
         val region = fb.getCodeParam[Region](1)
         val Aorig = matType.constructUnintialized(FastIndexedSeq(m, n), cb, region)
@@ -276,7 +261,7 @@ class PNDArraySuite extends PhysicalTestUtils {
         val state = new LocalWhitening(cb, m, w, b, blocksize, region, false)
         val i = cb.newLocal[Long]("i", 0)
         cb.whileLoop(i < n, {
-          state.whitenBlock(cb, A.slice(cb, ::, (i, (i+b).min(n))))
+          state.whitenBlock(cb, A.slice(cb, Colon, (i, (i+b).min(n))))
           cb.assign(i, i+b)
         })
 
@@ -302,15 +287,11 @@ class PNDArraySuite extends PhysicalTestUtils {
 
         Code._empty
       }
-    } catch {
-      case e: Throwable =>
-        region.clear()
-        throw e
+
+      val f = fb.resultWithIndex()(theHailClassLoader, null, 0, region)
+
+      f(region)
     }
-
-    val f = fb.resultWithIndex()(theHailClassLoader, null, 0, region)
-
-    f(region)
   }
 
   @Test def testRefCounted(): Unit = {

@@ -82,30 +82,6 @@ class SNDArraySliceValue(
     new SNDArraySliceValue(st, otherShape, strides, firstDataAddress)
   }
 
-  // FIXME: only optimized for column major
-  override def setToZero(cb: EmitCodeBuilder): Unit = {
-    val eltType = pt.elementType.asInstanceOf[PNumeric with PPrimitive]
-
-    val contiguousDims = contiguousDimensions(cb)
-
-    def recur(startPtr: Value[Long], dim: Int): Unit =
-      if (dim > 0) {
-        cb.ifx(contiguousDims.ceq(dim), {
-          cb += Region.setMemory(startPtr, shapes(dim-1) * strides(dim-1), 0: Byte)
-        }, {
-          val ptr = cb.mb.newLocal[Long](s"NDArray_setToZero_ptr_$dim")
-          val end = cb.mb.newLocal[Long](s"NDArray_setToZero_end_$dim")
-          cb.assign(ptr, startPtr)
-          cb.assign(end, ptr + strides(dim-1) * shapes(dim-1))
-          cb.forLoop({}, ptr < end, cb.assign(ptr, ptr + strides(dim-1)), recur(ptr, dim - 1))
-        })
-      } else {
-        eltType.storePrimitiveAtAddress(cb, startPtr, primitive(eltType.virtualType, eltType.zero))
-      }
-
-    recur(firstDataAddress, st.nDims)
-  }
-
   override def coiterateMutate(
     cb: EmitCodeBuilder,
     region: Value[Region],

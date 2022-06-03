@@ -1191,7 +1191,8 @@ object EmitStream {
               })
               val result = row.loadField(cb, newChunkName).get(cb, "StreamWhiten: missing chunk").asNDArray
               state.whitenBlock(cb, result)
-              // mutated newChunk field in place; could cause problems
+              // the 'newChunkName' field of 'row' is mutated in place and given
+              // to the consumer
               cb.assign(resultField, row)
               cb.goto(LproduceElementDone)
             }

@@ -7,7 +7,7 @@ import is.hail.linalg.{BLAS, LAPACK}
 import is.hail.types.physical.stypes.concrete.{SNDArraySlice, SNDArraySliceValue}
 import is.hail.types.physical.stypes.primitives.SInt64Value
 import is.hail.types.physical.stypes.{EmitType, SSettable, SType, SValue}
-import is.hail.types.physical.{PCanonicalNDArray, PNDArray, PPrimitive, PType}
+import is.hail.types.physical.{PCanonicalNDArray, PNDArray, PNumeric, PPrimitive, PType}
 import is.hail.types.{RNDArray, TypeWithRequiredness}
 import is.hail.utils.{FastIndexedSeq, toRichIterable, valueToRichCodeRegion}
 
@@ -417,7 +417,7 @@ object SNDArray {
     val Seq(m, n) = A.shapes
     SNDArray.geqrt(A, T, work, blocksize, cb)
     // copy upper triangle of A0 to R
-    SNDArray.copyMatrix(cb, "U", A.slice(cb, (null, n), ::), R)
+    SNDArray.copyMatrix(cb, "U", A.slice(cb, (null, n), ColonIndex, R)
 
     // Set Q to I
     Q.setToZero(cb)
@@ -500,7 +500,7 @@ object SNDArray {
     val Seq(m, n) = A.shapes
     SNDArray.geqr(cb, A, T, work)
     // copy upper triangle of A0 to R
-    SNDArray.copyMatrix(cb, "U", A.slice(cb, (null, n), ::), R)
+    SNDArray.copyMatrix(cb, "U", A.slice(cb, (null, n), ColonIndex), R)
 
     // Set Q to I
     Q.setToZero(cb)
@@ -693,6 +693,8 @@ final class SizeValueStatic(val v: Long) extends SizeValue {
 trait SNDArrayValue extends SValue {
   def st: SNDArray
 
+  def pt: PCanonicalNDArray
+
   def loadElement(indices: IndexedSeq[Value[Long]], cb: EmitCodeBuilder): SValue
 
   def loadElementAddress(indices: IndexedSeq[Value[Long]], cb: EmitCodeBuilder): Code[Long]
@@ -791,7 +793,37 @@ trait SNDArrayValue extends SValue {
     contiguousDims
   }
 
-  def setToZero(cb: EmitCodeBuilder): Unit
+  // FIXME: only optimized for column major
+  def setToZero(cb: EmitCodeBuilder): Unit = {
+    val eltType = pt.elementType.asInstanceOf[PNumeric with PPrimitive]
+
+    val contiguousDims = contiguousDimensions(cb)
+
+    def recur(startPtr: Value[Long], dim: Int, contiguousDims: Int): Unit =
+      if (dim > 0) {
+        if (contiguousDims == dim)
+          cb += Region.setMemory(startPtr, shapes(dim-1) * strides(dim-1), 0: Byte)
+        else {
+          val ptr = cb.mb.newLocal[Long](s"NDArray_setToZero_ptr_$dim")
+          val end = cb.mb.newLocal[Long](s"NDArray_setToZero_end_$dim")
+          cb.assign(ptr, startPtr)
+          cb.assign(end, ptr + strides(dim-1) * shapes(dim-1))
+          cb.forLoop({}, ptr < end, cb.assign(ptr, ptr + strides(dim-1)), recur(ptr, dim - 1))
+        }
+      } else {
+        eltType.storePrimitiveAtAddress(cb, startPtr, primitive(eltType.virtualType, eltType.zero))
+      }
+
+    cb.ifx(contiguousDims >= 2, {
+      recur(firstDataAddress, st.nDims, 2)
+    }, {
+      cb.ifx(contiguousDims.ceq(1), {
+        recur(firstDataAddress, st.nDims, 1)
+      }, {
+        recur(firstDataAddress, st.nDims, 0)
+      })
+    })
+  }
 
   def setElement(indices: IndexedSeq[Value[Long]], value: SValue, cb: EmitCodeBuilder): Unit = {
     val eltType = st.pType.elementType.asInstanceOf[PPrimitive]
@@ -887,7 +919,7 @@ trait SNDArrayValue extends SValue {
 
   def slice(cb: EmitCodeBuilder, indices: Any*): SNDArraySliceValue = {
     val parsedIndices: IndexedSeq[NDArrayIndex] = indices.map {
-      case _: ::.type => ColonIndex
+      case ColonIndex => ColonIndex
       case i: Value[_] => ScalarIndex(i.asInstanceOf[Value[Long]])
       case i: Code[_] => ScalarIndex(cb.memoize(coerce[Long](i)))
       case (_begin, _end) =>
