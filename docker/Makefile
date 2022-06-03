@@ -50,6 +50,9 @@ deploy: build
 
 .PHONY: generate-pip-lockfile
 generate-pip-lockfile:
+	# Some service dependencies are linux-specific and the lockfile
+	# would differ when generated on MacOS, so we generate the lockfile
+	# on a linux image.
 	docker run --rm -it \
 		-v $(shell pwd):/docker \
 		python:3.7-slim \

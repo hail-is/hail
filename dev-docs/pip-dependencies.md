@@ -14,4 +14,8 @@ make generate-pip-lockfile
 ```
 
 to regenerate the `pinnned-requirements.txt` file to one compatible with the
-new requirements.
+new requirements. Note that the full dependency tree for a pip package can
+differ on different operating systems. At the time of writing, the dependencies
+for the hail pip package should be identical on MacOS and Linux, but the services
+dependencies differ so are generated in a linux docker container as that's the
+platform on which the services modules will run.
