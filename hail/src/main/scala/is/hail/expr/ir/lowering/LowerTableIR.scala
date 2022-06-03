@@ -1661,7 +1661,7 @@ object LowerTableIR {
       case bmtt@BlockMatrixToTable(bmir) =>
         val ts = LowerBlockMatrixIR.lowerToTableStage(bmir, typesToLower, ctx, analyses, relationalLetsAbove)
         // I now have an unkeyed table of (blockRow, blockCol, block).
-        val entriesUnkeyed = ts.mapPartitionWithContext { (partition, ctxRef) =>
+        ts.mapPartitionWithContext { (partition, ctxRef) =>
           flatMapIR(partition)(singleRowRef =>
             bindIR(GetField(singleRowRef, "block")) { singleNDRef =>
               bindIR(NDArrayShape(singleNDRef)) { shapeTupleRef =>
@@ -1677,9 +1677,6 @@ object LowerTableIR {
             }
           )
         }
-
-        val rowR = analyses.requirednessAnalysis.lookup(bmtt).asInstanceOf[RTable].rowType
-        ctx.backend.lowerDistributedSort(ctx, entriesUnkeyed, IndexedSeq(SortField("i", Ascending), SortField("j", Ascending)), relationalLetsAbove, rowR)
 
       case node =>
         throw new LowererUnsupportedOperation(s"undefined: \n${ Pretty(ctx, node) }")
