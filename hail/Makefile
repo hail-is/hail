@@ -298,6 +298,13 @@ install-dev-deps:
 install-deps: install-dev-deps
 	sed "s/^pyspark.*/pyspark==$(SPARK_VERSION)/" python/requirements.txt | xargs $(PIP) install -U
 
+.PHONY: generate-pip-lockfile
+generate-pip-lockfile:
+	pip-compile --upgrade python/requirements.txt \
+		--output-file=python/pinned-requirements.txt
+	pip-compile --upgrade python/dev/requirements.txt \
+		--output-file=python/dev/pinned-requirements.txt
+
 .PHONY: benchmark
 benchmark: $(WHEEL)
 	HAIL_WHEEL=../hail/$(WHEEL) HAIL_PIP_VERSION=$(HAIL_PIP_VERSION) $(MAKE) -C ../benchmark benchmark
