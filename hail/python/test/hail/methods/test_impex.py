@@ -283,7 +283,7 @@ class VCFTests(unittest.TestCase):
         with TemporaryFilename(suffix='.vcf') as test_vcf:
              hl.export_vcf(ds, test_vcf, metadata=meta)
              af_lines = [
-                 line for line in hl.current_backend().fs.open(test_vcf).read().decode('utf-8').split('\n')
+                 line for line in hl.current_backend().fs.open(test_vcf).read().split('\n')
                  if line.startswith("##INFO=<ID=AF")
              ]
         assert len(af_lines) == 1, af_lines
