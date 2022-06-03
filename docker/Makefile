@@ -48,6 +48,16 @@ service-java-run-base-image-ref: hail-ubuntu-image-ref hail_version
 .PHONY: deploy
 deploy: build
 
+.PHONY: generate-pip-lockfile
+generate-pip-lockfile:
+	# Some service dependencies are linux-specific and the lockfile
+	# would differ when generated on MacOS, so we generate the lockfile
+	# on a linux image.
+	docker run --rm -it \
+		-v $(shell pwd):/docker \
+		python:3.7-slim \
+		/bin/bash -c "pip install pip-tools && cd docker && pip-compile --upgrade requirements.txt --output-file=linux-pinned-requirements.txt"
+
 .PHONY: clean
 clean:
 	rm -f base hail-ubuntu-image-ref base service-base service-java-run-base

@@ -140,6 +140,22 @@ steps:
       - base_image
       - merge_code
   - kind: runImage
+    name: check_pip_dependencies
+    image:
+      valueFrom: base_image.image
+    script: |
+      set -ex
+      pip install pip-tools
+      cd /io/repo
+      chmod 755 ./check_pip_requirements.sh
+      make check-pip-dependencies
+    inputs:
+      - from: /repo
+        to: /io/repo
+    dependsOn:
+      - base_image
+      - merge_code
+  - kind: runImage
     name: check_hail
     image:
       valueFrom: base_image.image
