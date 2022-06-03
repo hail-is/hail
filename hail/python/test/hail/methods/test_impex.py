@@ -283,12 +283,12 @@ class VCFTests(unittest.TestCase):
         with TemporaryFilename(suffix='.vcf') as test_vcf:
              hl.export_vcf(ds, test_vcf, metadata=meta)
              af_lines = [
-                 line for line in open(test_vcf).readlines()
+                 line for line in hl.current_backend().fs.open(test_vcf).read().decode('utf-8').split('\n')
                  if line.startswith("##INFO=<ID=AF")
              ]
         assert len(af_lines) == 1, af_lines
         line = af_lines[0]
-        assert line.startswith("##INFO=<") and line.endswith(">\n"), line
+        assert line.startswith("##INFO=<") and line.endswith(">"), line
         line = line[8:-2]
         fields = dict([f.split("=") for f in line.split(",")])
         description = fields["Description"]
