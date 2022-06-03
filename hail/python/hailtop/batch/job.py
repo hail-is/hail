@@ -180,7 +180,7 @@ class Job:
         Examples
         --------
 
-        Set the job's disk requirements to 1 Gi:
+        Set the job's disk requirements to 10 Gi:
 
         >>> b = Batch()
         >>> j = b.new_job()
