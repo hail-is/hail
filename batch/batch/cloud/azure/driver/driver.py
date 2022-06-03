@@ -190,3 +190,6 @@ class AzureDriver(CloudDriver):
                         raise
                     except Exception:
                         log.exception(f'while deleting completed deployment {deployment_name} {deployment}')
+
+    def get_quotas(self):
+        raise NotImplementedError

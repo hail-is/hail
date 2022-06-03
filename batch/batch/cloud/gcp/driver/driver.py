@@ -146,3 +146,6 @@ class GCPDriver(CloudDriver):
         await delete_orphaned_disks(
             self.compute_client, self.zone_monitor.zones, self.inst_coll_manager, self.namespace
         )
+
+    def get_quotas(self):
+        return self.zone_monitor.region_quotas

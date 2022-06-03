@@ -12,9 +12,13 @@ import dictdiffer
 import googlecloudprofiler
 import kubernetes_asyncio.client
 import kubernetes_asyncio.config
+import pandas as pd
+import plotly
+import plotly.graph_objects as go
 import prometheus_client as pc  # type: ignore
 import uvloop
 from aiohttp import web
+from plotly.subplots import make_subplots
 from prometheus_async.aio.web import server_stats
 
 from gear import (
@@ -396,6 +400,78 @@ FROM user_inst_coll_resources;
         'frozen': app['frozen'],
     }
     return await render_template('batch-driver', request, userdata, 'index.html', page_context)
+
+
+@routes.get('/quotas')
+@web_authenticated_developers_only()
+async def get_quotas(request, userdata):
+    if CLOUD != 'gcp':
+        page_context = {"plot_json": None}
+        return await render_template('batch-driver', request, userdata, 'quotas.html', page_context)
+
+    data = request.app['driver'].get_quotas()
+
+    regions = list(data.keys())
+    new_data = []
+    for region in regions:
+        region_data = {'region': region}
+        quotas_region_data = data[region]['quotas']
+        for quota in quotas_region_data:
+            if quota['metric'] in ['PREEMPTIBLE_CPUS', 'CPUS', 'SSD_TOTAL_GB', 'LOCAL_SSD_TOTAL_GB', 'DISKS_TOTAL_GB']:
+                region_data.update({quota['metric']: {'limit': quota['limit'], 'usage': quota['usage']}})
+        new_data.append(region_data)
+
+    df = pd.DataFrame(new_data).set_index("region")
+
+    fig = make_subplots(
+        rows=len(df),
+        cols=len(df.columns),
+        specs=[[{"type": "indicator"} for _ in df.columns] for _ in df.index],
+    )
+    for r, (region, row) in enumerate(df.iterrows()):
+        for c, measure in enumerate(row):
+            fig.add_trace(
+                go.Indicator(
+                    mode="gauge+number",
+                    value=measure['usage'],
+                    title={"text": f"{region}--{df.columns[c]}"},
+                    title_font_size=15,
+                    gauge={
+                        'axis': {
+                            'range': [None, measure['limit']],
+                            'tickwidth': 1,
+                            'tickcolor': "darkblue",
+                        },
+                        'bar': {'color': "darkblue"},
+                        'bgcolor': "white",
+                        'borderwidth': 2,
+                        'bordercolor': "gray",
+                        'threshold': {
+                            'line': {'color': "red", 'width': 4},
+                            'thickness': 0.75,
+                            'value': measure['limit'],
+                        },
+                    },
+                ),
+                row=r + 1,
+                col=c + 1,
+            )
+
+    fig.update_layout(
+        paper_bgcolor="lavender",
+        font={'color': "darkblue", 'family': "Arial"},
+        margin={"l": 0, "r": 0, "t": 50, "b": 20},
+        height=1150,
+        width=2200,
+        autosize=True,
+        title_font_size=40,
+        title_x=0.5,
+    )
+
+    plot_json = json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
+
+    page_context = {"plot_json": plot_json}
+    return await render_template('batch-driver', request, userdata, 'quotas.html', page_context)
 
 
 class ConfigError(Exception):
