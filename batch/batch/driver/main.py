@@ -524,7 +524,7 @@ async def pool_config_update(request, userdata):  # pylint: disable=unused-argum
                 set_message(session, f'External SSD must be at least {min_disk_storage} GB', 'error')
                 raise ConfigError()
 
-        pool_config = PoolConfig(
+        proposed_pool_config = PoolConfig(
             pool_name,
             pool.cloud,
             worker_type,
@@ -538,8 +538,24 @@ async def pool_config_update(request, userdata):  # pylint: disable=unused-argum
             max_live_instances,
             pool.preemptible,
         )
-        await pool_config.update_database(db)
-        pool.configure(pool_config)
+
+        current_client_pool_config = json.loads(post['_pool_config_json'])
+        current_server_pool_config = pool.config()
+
+        client_items = current_client_pool_config.items()
+        server_items = current_server_pool_config.items()
+
+        match = client_items == server_items
+        if not match:
+            set_message(
+                session,
+                'The pool config was stale; please re-enter config updates and try again',
+                'error',
+            )
+            raise ConfigError()
+
+        await proposed_pool_config.update_database(db)
+        pool.configure(proposed_pool_config)
 
         set_message(session, f'Updated configuration for {pool}.', 'info')
     except ConfigError:
@@ -625,8 +641,11 @@ async def get_pool(request, userdata):
 
     ready_cores_mcpu = sum([record['ready_cores_mcpu'] for record in user_resources])
 
+    pool_config_json = json.dumps(pool.config())
+
     page_context = {
         'pool': pool,
+        'pool_config_json': pool_config_json,
         'instances': pool.name_instance.values(),
         'user_resources': user_resources,
         'ready_cores_mcpu': ready_cores_mcpu,
