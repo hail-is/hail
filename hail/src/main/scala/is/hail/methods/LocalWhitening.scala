@@ -86,7 +86,7 @@ class LocalWhitening(cb: EmitCodeBuilder, vecSize: SizeValue, _w: Value[Long], c
 
       // work3 > blocksize * (w+n - i+1) < blocksize * (w+n)
       SNDArray.tpqrt(R.slice(cb, (i+1, null), (i+1, null)), R.slice(cb, (i, i+1), (i+1, null)), T, work3, blocksize, cb)
-      SNDArray.tpmqrt("R", "N", R.slice(cb, (i, i+1), (i+1, null)), T, work1.slice(cb, Colon, (i+1, null)), work1.slice(cb, ::, (i, i+1)), work3, blocksize, cb)
+      SNDArray.tpmqrt("R", "N", R.slice(cb, (i, i+1), (i+1, null)), T, work1.slice(cb, Colon, (i+1, null)), work1.slice(cb, Colon, (i, i+1)), work3, blocksize, cb)
     })
 
     // W = [Q1 Q2] work2 is locally whitened A2

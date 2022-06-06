@@ -417,7 +417,7 @@ object SNDArray {
     val Seq(m, n) = A.shapes
     SNDArray.geqrt(A, T, work, blocksize, cb)
     // copy upper triangle of A0 to R
-    SNDArray.copyMatrix(cb, "U", A.slice(cb, (null, n), ColonIndex, R)
+    SNDArray.copyMatrix(cb, "U", A.slice(cb, (null, n), ColonIndex), R)
 
     // Set Q to I
     Q.setToZero(cb)
@@ -693,7 +693,7 @@ final class SizeValueStatic(val v: Long) extends SizeValue {
 trait SNDArrayValue extends SValue {
   def st: SNDArray
 
-  def pt: PCanonicalNDArray
+  def pt: PNDArray
 
   def loadElement(indices: IndexedSeq[Value[Long]], cb: EmitCodeBuilder): SValue
 
@@ -808,7 +808,7 @@ trait SNDArrayValue extends SValue {
           val end = cb.mb.newLocal[Long](s"NDArray_setToZero_end_$dim")
           cb.assign(ptr, startPtr)
           cb.assign(end, ptr + strides(dim-1) * shapes(dim-1))
-          cb.forLoop({}, ptr < end, cb.assign(ptr, ptr + strides(dim-1)), recur(ptr, dim - 1))
+          cb.forLoop({}, ptr < end, cb.assign(ptr, ptr + strides(dim-1)), recur(ptr, dim - 1, contiguousDims))
         }
       } else {
         eltType.storePrimitiveAtAddress(cb, startPtr, primitive(eltType.virtualType, eltType.zero))

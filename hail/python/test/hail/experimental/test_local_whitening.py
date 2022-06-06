@@ -17,7 +17,7 @@ def naive_whiten(X, w):
     return Xw.T
 
 
-def run_local_whitening_test(self, vec_size, num_rows, chunk_size, window_size, partition_size, initial_num_partitions):
+def run_local_whitening_test(vec_size, num_rows, chunk_size, window_size, partition_size, initial_num_partitions):
     rng = default_rng()
     data = rng.normal(size=(num_rows, vec_size))
     mt = hl.utils.range_matrix_table(num_rows, vec_size, n_partitions=initial_num_partitions)
@@ -31,8 +31,8 @@ def run_local_whitening_test(self, vec_size, num_rows, chunk_size, window_size, 
     whitened_naive = naive_whiten(data.T, window_size)
     np.testing.assert_allclose(whitened_hail, whitened_naive, rtol=1e-05)
 
-def test_local_whitening(self):
-    self.run_local_whitening_test(
+def test_local_whitening():
+    run_local_whitening_test(
         vec_size=100,
         num_rows=10000,
         chunk_size=32,
@@ -40,8 +40,8 @@ def test_local_whitening(self):
         partition_size=32 * 40,
         initial_num_partitions=50)
 
-def test_local_whitening_singleton_final_partition(self):
-    self.run_local_whitening_test(
+def test_local_whitening_singleton_final_partition():
+    run_local_whitening_test(
         vec_size=100,
         num_rows=32 * 40 * 8 + 1,  # = 10241
         chunk_size=32,
