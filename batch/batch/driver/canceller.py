@@ -332,7 +332,6 @@ LIMIT %s;
         return should_wait
 
     async def cancel_orphaned_attempts_loop_body(self):
-        log.info('cancelling orphaned attempts')
         waitable_pool = WaitableSharedPool(self.async_worker_pool)
 
         n_unscheduled = 0
@@ -372,4 +371,5 @@ LIMIT 300;
 
         await waitable_pool.wait()
 
-        log.info(f'cancelled {n_unscheduled} orphaned attempts')
+        if n_unscheduled > 0:
+            log.info(f'cancelled {n_unscheduled} orphaned attempts')

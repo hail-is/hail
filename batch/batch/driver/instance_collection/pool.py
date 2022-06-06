@@ -377,7 +377,6 @@ HAVING n_ready_jobs + n_running_jobs > 0;
             log.info(f'not scheduling any jobs for {self.pool}; batch is frozen')
             return True
 
-        log.info(f'schedule {self.pool}: starting')
         start = time_msecs()
         SCHEDULING_LOOP_RUNS.labels(pool_name=self.pool.name).inc()
         n_scheduled = 0
@@ -386,7 +385,6 @@ HAVING n_ready_jobs + n_running_jobs > 0;
 
         total = sum(resources['allocated_cores_mcpu'] for resources in user_resources.values())
         if not total:
-            log.info(f'schedule {self.pool}: no allocated cores')
             should_wait = True
             return should_wait
         user_share = {
@@ -484,6 +482,8 @@ LIMIT %s;
         await waitable_pool.wait()
 
         end = time_msecs()
-        log.info(f'schedule: attempted to schedule {n_scheduled} jobs in {end - start}ms for {self.pool}')
+
+        if n_scheduled > 0:
+            log.info(f'schedule: attempted to schedule {n_scheduled} jobs in {end - start}ms for {self.pool}')
 
         return should_wait
