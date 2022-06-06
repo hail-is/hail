@@ -94,4 +94,4 @@ def test_pc_relate_issue_5263():
     mt = mt.select_entries(GT2=mt.GT,
                            GT=hl.call(hl.rand_bool(0.5), hl.rand_bool(0.5)))
     actual = hl.pc_relate(mt.GT2, 0.10, k=2, statistics='all')
-    assert expected._same(actual, tolerance=1e-4)
+    assert expected._same(actual, tolerance=1e-3)
