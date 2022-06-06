@@ -205,8 +205,12 @@ class TableMapGlobals(TableIR):
         self.new_globals = new_globals
 
     def _handle_randomness(self, uid_field_name):
+        new_globals = self.new_globals
+        if new_globals.uses_randomness:
+            new_globals = ir.Let('__rng_state', ir.RNGStateLiteral(rng_key), new_globals)
+
         return TableMapGlobals(self.child.handle_randomness(uid_field_name),
-                               self.new_globals)
+                               new_globals)
 
     def _compute_type(self, deep_typecheck):
         self.new_globals.compute_type(self.child.typ.global_env(), None, deep_typecheck)
