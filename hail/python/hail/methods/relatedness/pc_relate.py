@@ -452,8 +452,6 @@ def _replace_nan(M: BlockMatrix, value: float) -> BlockMatrix:
     -------
     :class:`.BlockMatrix`
     """
-    if M.is_sparse:
-        M = M.densify()
     return M._map_dense(lambda x: hl.if_else(hl.is_nan(x), value, x))
 
 
