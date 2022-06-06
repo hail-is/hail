@@ -346,8 +346,7 @@ def pc_relate(call_expr: CallExpression,
         'maf': min_individual_maf,
         'blockSize': block_size,
         'minKinship': min_kinship,
-        'statistics': {'kin': 0, 'kin2': 1, 'kin20': 2, 'all': 3}[statistics]
-        }))
+        'statistics': {'kin': 0, 'kin2': 1, 'kin20': 2, 'all': 3}[statistics]}))
 
     if statistics == 'kin':
         ht = ht.drop('ibd0', 'ibd1', 'ibd2')
@@ -394,7 +393,7 @@ def _gram(M: BlockMatrix) -> BlockMatrix:
     :class:`.BlockMatrix`
         `M.T @ M`
     """
-    return (M.T @ M).checkpoint(new_temp_file('pcrelate2/gram', 'bm'))
+    return (M.T @ M).checkpoint(new_temp_file('pc_relate_bm/gram', 'bm'))
 
 
 def _dominance_encoding(g: Float64Expression, mu: Float64Expression) -> Float64Expression:
@@ -594,8 +593,7 @@ def _pc_relate_bm(call_expr: CallExpression,
         fields_to_drop = {
             'kin': ['ibd0', 'ibd1', 'ibd2'],
             'kin2': ['ibd0', 'ibd1'],
-            'kin20': ['ibd1']
-            }
+            'kin20': ['ibd1']}
         ht = ht.drop(*fields_to_drop[statistics])
 
     if not include_self_kinship:
