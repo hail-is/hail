@@ -7,7 +7,11 @@ def test_tiny_driver_has_tiny_memory():
     try:
         hl.utils.range_table(100_000_000, 50).to_pandas()
     except Exception as exc:
-        assert 'java.lang.OutOfMemoryError: Java heap space' in exc.args[0]
+        # Sometimes the JVM properly OOMs, sometimes it just dies.
+        assert (
+            'java.lang.OutOfMemoryError: Java heap space' in exc.args[0] or
+            'batch.worker.jvm_entryway_protocol.EndOfStream' in exc.args[0]
+        )
     else:
         assert Fail
 
