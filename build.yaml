@@ -3285,6 +3285,7 @@ steps:
       set -ex
       gcloud -q auth activate-service-account --key-file=/test-gsa-key/key.json
       set +e
+      kubectl -n {{ default_ns.name }} scale deployment batch-driver --replicas=0
       gcloud -q compute instances list \
           --filter 'tags.items=batch2-agent AND labels.namespace={{ default_ns.name }}' \
           --format="table[no-heading](zone.basename(), name)" \
@@ -3303,6 +3304,10 @@ steps:
     scopes:
       - dev
       - test
+    serviceAccount:
+      name: admin
+      namespace:
+        valueFrom: default_ns.name
     clouds:
       - gcp
     dependsOn:
@@ -3327,6 +3332,7 @@ steps:
       set +e
       set -x
       export AZURE_RESOURCE_GROUP="{{ global.azure_resource_group }}"
+      kubectl -n {{ default_ns.name }} scale deployment batch-driver --replicas=0
       az vm list --resource-group $AZURE_RESOURCE_GROUP -o tsv \
           --query "[?tags.namespace == '{{ default_ns.name }}'].name" \
         | xargs -n1 -r sh -c 'az vm delete --resource-group $AZURE_RESOURCE_GROUP --name "$1" --yes || true' argv0
@@ -3347,6 +3353,10 @@ steps:
     scopes:
       - dev
       - test
+    serviceAccount:
+      name: admin
+      namespace:
+        valueFrom: default_ns.name
     clouds:
       - azure
     dependsOn:
