@@ -1130,7 +1130,8 @@ async def scheduling_cancelling_bump(app):
 
 
 class BatchDriverAccessLogger(AccessLogger):
-    def __init__(self):
+    def __init__(self, logger: logging.Logger, log_format: str):
+        super().__init__(logger, log_format)
         self.exclude = [
             ('POST', re.compile('/api/v1alpha/instances/job_complete')),
             ('POST', re.compile('/api/v1alpha/instances/job_started')),

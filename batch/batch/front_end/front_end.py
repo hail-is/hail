@@ -2299,10 +2299,11 @@ async def delete_batch_loop_body(app):
 
 
 class BatchFrontEndAccessLogger(AccessLogger):
-    def __init__(self):
+    def __init__(self, logger: logging.Logger, log_format: str):
+        super().__init__(logger, log_format)
         self.exclude = [
-            ('POST', re.compile('/api/v1alpha/batches/\d*/jobs/create')),
-            ('GET', re.compile('/api/v1alpha/batches/\d*')),
+            ('POST', re.compile('/api/v1alpha/batches/\\d*/jobs/create')),
+            ('GET', re.compile('/api/v1alpha/batches/\\d*')),
             ('GET', re.compile('/metrics')),
         ]
 
