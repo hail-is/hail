@@ -119,6 +119,7 @@ class BatchWorkerAccessLogger(AccessLogger):
 
         super().log(request, response, time)
 
+
 def compose_auth_header_urlsafe(orig_f):
     def compose(auth: Union[MutableMapping, str, bytes], registry_addr: str = None):
         orig_auth_header = orig_f(auth, registry_addr=registry_addr)
@@ -2619,7 +2620,9 @@ class Worker:
         except Exception:
             log.exception(f'error while marking {job} complete', stack_info=True)
         finally:
-            log.info(f'{job} attempt {job.attempt_id} marked complete after {time_msecs() - job.end_time}ms: {job.state}')
+            log.info(
+                f'{job} attempt {job.attempt_id} marked complete after {time_msecs() - job.end_time}ms: {job.state}'
+            )
             if job.id in self.jobs:
                 del self.jobs[job.id]
                 self.last_updated = time_msecs()
