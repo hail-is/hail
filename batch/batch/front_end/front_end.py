@@ -2303,6 +2303,7 @@ class BatchFrontEndAccessLogger(AccessLogger):
         self.exclude = [
             ('POST', re.compile('/api/v1alpha/batches/\d*/jobs/create')),
             ('GET', re.compile('/api/v1alpha/batches/\d*')),
+            ('GET', re.compile('/metrics')),
         ]
 
     def log(self, request, response, time):
