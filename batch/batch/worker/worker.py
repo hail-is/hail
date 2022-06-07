@@ -106,7 +106,9 @@ warnings.warn = deeper_stack_level_warn
 
 
 class BatchWorkerAccessLogger(AccessLogger):
-    def __init__(self):
+    def __init__(self, logger: logging.Logger, log_format: str):
+        super().__init__(logger, log_format)
+
         self.exclude = [
             ('GET', re.compile('/healthcheck')),
             ('POST', re.compile('/api/v1alpha/batches/jobs/create')),
@@ -2129,7 +2131,9 @@ class JVM:
             while True:
                 try:
                     if attempts % 8 == 0:
-                        log.info(f'JVM-{index}: trying to establish connection; elapsed time: {attempts * delay} seconds')
+                        log.info(
+                            f'JVM-{index}: trying to establish connection; elapsed time: {attempts * delay} seconds'
+                        )
 
                     reader, writer = await asyncio.open_unix_connection(socket_file)
                     try:
