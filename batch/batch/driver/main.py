@@ -2,6 +2,7 @@ import asyncio
 import copy
 import json
 import logging
+import re
 import signal
 from collections import defaultdict, namedtuple
 from functools import wraps
@@ -1128,6 +1129,24 @@ async def scheduling_cancelling_bump(app):
     app['cancel_running_state_changed'].set()
 
 
+class BatchDriverAccessLogger(AccessLogger):
+    def __init__(self):
+        self.exclude = [
+            ('POST', re.compile('/api/v1alpha/instances/job_complete')),
+            ('POST', re.compile('/api/v1alpha/instances/job_started')),
+            ('PATCH', re.compile('/api/v1alpha/batches/.*/.*/close')),
+            ('POST', re.compile('/api/v1alpha/batches/cancel')),
+            ('GET', re.compile('/metrics')),
+        ]
+
+    def log(self, request, response, time):
+        for scheme, path_expr in self.exclude:
+            if path_expr.fullmatch(request.path) and scheme == request.scheme:
+                return
+
+        super().log(request, response, time)
+
+
 async def on_startup(app):
     task_manager = aiotools.BackgroundTaskManager()
     app['task_manager'] = task_manager
@@ -1245,5 +1264,5 @@ def run():
         deploy_config.prefix_application(app, 'batch-driver', client_max_size=HTTP_CLIENT_MAX_SIZE),
         host='0.0.0.0',
         port=5000,
-        access_log_class=AccessLogger,
+        access_log_class=BatchDriverAccessLogger,
     )
