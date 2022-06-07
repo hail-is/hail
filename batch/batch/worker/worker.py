@@ -2128,10 +2128,11 @@ class JVM:
 
             while True:
                 try:
-                    log.info(f'JVM-{index}: trying to open socket')
+                    if attempts % 8 == 0:
+                        log.info(f'JVM-{index}: trying to establish connection; elapsed time: {attempts * delay} seconds')
+
                     reader, writer = await asyncio.open_unix_connection(socket_file)
                     try:
-                        log.info(f'JVM-{index}: establishing connection')
                         b = await read_bool(reader)
                         assert b, f'expected true, got {b}'
                         writer.write(b'\0x01')
@@ -2147,7 +2148,6 @@ class JVM:
                             'JVM output:\n\n' + jvm_output
                         ) from err
                     await asyncio.sleep(delay)
-                    delay = sleep_and_backoff(delay)
             return container
         except Exception as e:
             raise JVMCreationError from e
