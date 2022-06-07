@@ -46,7 +46,7 @@ from hailtop.aiotools import AsyncFS, LocalAsyncFS
 from hailtop.aiotools.router_fs import RouterAsyncFS
 from hailtop.batch.hail_genetics_images import HAIL_GENETICS_IMAGES
 from hailtop.config import DeployConfig
-from hailtop.hail_logging import configure_logging
+from hailtop.hail_logging import AccessLogger, configure_logging
 from hailtop.utils import (
     CalledProcessError,
     Timings,
@@ -104,6 +104,20 @@ def deeper_stack_level_warn(*args, **kwargs):
 
 warnings.warn = deeper_stack_level_warn
 
+
+class BatchWorkerAccessLogger(AccessLogger):
+    def __init__(self):
+        self.exclude = [
+            ('GET', re.compile('/healthcheck')),
+            ('POST', re.compile('/api/v1alpha/batches/jobs/create')),
+        ]
+
+    def log(self, request, response, time):
+        for scheme, path_expr in self.exclude:
+            if path_expr.fullmatch(request.path) and scheme == request.scheme:
+                return
+
+        super().log(request, response, time)
 
 def compose_auth_header_urlsafe(orig_f):
     def compose(auth: Union[MutableMapping, str, bytes], registry_addr: str = None):
@@ -2494,7 +2508,7 @@ class Worker:
 
         self.task_manager.ensure_future(periodically_call(60, self.cleanup_old_images))
 
-        app_runner = web.AppRunner(app)
+        app_runner = web.AppRunner(app, access_log_class=BatchWorkerAccessLogger)
         await app_runner.setup()
         site = web.TCPSite(app_runner, '0.0.0.0', 5000)
         await site.start()
