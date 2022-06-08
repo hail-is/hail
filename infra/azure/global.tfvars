@@ -1,6 +1,6 @@
 
 az_resource_group_name = "hail"
-domain = "azhail.populationgenomics.org.au"
+domain = "azhail.popgen.rocks"
 acr_name = "cpghailimages"
 organization_domain = "populationgenomics.org.au"
 oauth2_developer_redirect_uris = []
