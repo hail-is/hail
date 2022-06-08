@@ -1236,8 +1236,8 @@ class BatchDriverAccessLogger(AccessLogger):
         ]
 
     def log(self, request, response, time):
-        for scheme, path_expr in self.exclude:
-            if path_expr.fullmatch(request.path) and scheme == request.scheme:
+        for method, path_expr in self.exclude:
+            if path_expr.fullmatch(request.path) and method == request.method:
                 return
 
         super().log(request, response, time)
