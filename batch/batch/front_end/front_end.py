@@ -2298,6 +2298,23 @@ async def delete_batch_loop_body(app):
     return should_wait
 
 
+class BatchFrontEndAccessLogger(AccessLogger):
+    def __init__(self, logger: logging.Logger, log_format: str):
+        super().__init__(logger, log_format)
+        self.exclude = [
+            ('POST', re.compile('/api/v1alpha/batches/\\d*/jobs/create')),
+            ('GET', re.compile('/api/v1alpha/batches/\\d*')),
+            ('GET', re.compile('/metrics')),
+        ]
+
+    def log(self, request, response, time):
+        for scheme, path_expr in self.exclude:
+            if path_expr.fullmatch(request.path) and scheme == request.scheme:
+                return
+
+        super().log(request, response, time)
+
+
 async def on_startup(app):
     app['task_manager'] = aiotools.BackgroundTaskManager()
     app['client_session'] = httpx.client_session()
@@ -2377,6 +2394,6 @@ def run():
         deploy_config.prefix_application(app, 'batch', client_max_size=HTTP_CLIENT_MAX_SIZE),
         host='0.0.0.0',
         port=5000,
-        access_log_class=AccessLogger,
+        access_log_class=BatchFrontEndAccessLogger,
         ssl_context=internal_server_ssl_context(),
     )
