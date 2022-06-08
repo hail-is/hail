@@ -4,7 +4,7 @@ domain = "azhail.populationgenomics.org.au"
 acr_name = "cpghailimages"
 organization_domain = "populationgenomics.org.au"
 oauth2_developer_redirect_uris = []
-az_storage_account_name = "0768hail"
+az_storage_account_name = "1912hail"
 
 # acr_sku = "TODO"
 # "ci_config" = "TODO"

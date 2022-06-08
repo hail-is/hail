@@ -101,21 +101,45 @@ def create_trust(principal, trust_type):  # pylint: disable=unused-argument
         # FIXME: mTLS, only trust certain principals
         with open(root_cert_file, 'r') as root_cert:
             shutil.copyfileobj(root_cert, out)
-    echo_check_call(
-        [
-            'keytool',
-            '-noprompt',
-            '-import',
-            '-alias',
-            f'{trust_type}-cert',
-            '-file',
-            trust_file,
-            '-keystore',
-            trust_store_file,
-            '-storepass',
-            'dummypw',
-        ]
-    )
+
+    def create_alias():
+        echo_check_call(
+            [
+                'keytool',
+                '-noprompt',
+                '-import',
+                '-alias',
+                f'{trust_type}-cert',
+                '-file',
+                trust_file,
+                '-keystore',
+                trust_store_file,
+                '-storepass',
+                'dummypw',
+            ]
+        )
+
+    def delete_alias():
+        echo_check_call(
+            [
+                'keytool',
+                '-delete',
+                '-noprompt',
+                '-alias',
+                f'{trust_type}-cert',
+                '-keystore',
+                trust_store_file,
+                '-storepass',
+                'dummypw',
+            ]
+        )
+
+    try:
+        create_alias()
+    except Exception as err:
+        delete_alias()
+        create_alias()
+
     return {'trust': trust_file, 'trust_store': trust_store_file}
 
 

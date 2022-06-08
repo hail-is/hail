@@ -54,6 +54,8 @@ Once terraform has completed successfully, you must create an A record for the
 domain of your choosing pointing at the `gateway_ip` with a DNS provider. The
 `gateway_ip` may be retrieved by executing the following command.
 
+We recommend requesting a map like \*.<remaining-domain> to map to the gateway_ip
+
 ```
 terraform output -raw gateway_ip
 ```
@@ -76,7 +78,15 @@ We'll complete the rest of the process on a VM. To create one, run
 ./create_bootstrap_vm.sh <RESOURCE_GROUP> <SUBSCRIPTION_ID>
 ```
 
-SSH into the VM (ssh -i ~/.ssh/id_rsa <username>@<public_ip>).
+Find the public ip of the created bootstrap vm doing the following:
+
+```
+$ BOOTSTRAP_VM=$(az vm list -g hail | jq -r '.[].name')
+$ PUBLIC_IP=$(az vm show -d -n $BOOTSTRAP_VM -g hail --query "publicIps" -o tsv)
+
+```
+
+SSH into the VM (ssh -i ~/.ssh/id_rsa <username>@$PUBLIC_IP).
 
 Clone the hail repository:
 
@@ -105,6 +115,7 @@ container registry and kubernetes cluster, respectively.
 ```
 azsetcluster <RESOURCE_GROUP>
 ```
+
 The ACR authentication token only lasts three hours. If you pause the deployment
 process after this point, you may have to rerun `azsetcluster` before continuing.
 
