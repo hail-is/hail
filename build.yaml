@@ -2040,6 +2040,12 @@ steps:
       - name: rm-resource-names-agg-resources-pt-2
         script: /io/sql/rm-resource-names-agg-resources-pt-2.sql
         online: true
+      - name: add-att-resources-format-version-lt-3
+        script: /io/sql/add-att-resources-format-version-lt-3.sql
+        online: true
+      - name: insert-attempt-resources-format-version-lt-3
+        script: /io/sql/insert_attempt_resources_format_version_lt_3.py
+        online: true
     inputs:
       - from: /repo/batch/sql
         to: /io/sql

@@ -48,6 +48,7 @@ class InstanceConfig(abc.ABC):
         assert isinstance(extra_storage_in_gib, int), extra_storage_in_gib
         assert is_power_two(self.cores) and self.cores <= 256, self.cores
 
+        # FIXME: Only valid up to cores = 64
         worker_fraction_in_1024ths = 1024 * cpu_in_mcpu // (self.cores * 1000)
 
         _quantified_resources = []
