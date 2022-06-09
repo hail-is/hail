@@ -6,7 +6,7 @@ kubectl -n default apply -f service.yaml
 
 # stop existing letsencrypt pod
 kubectl -n default delete pod --ignore-not-found=true letsencrypt
-N=
+N=""
 while [[ $N != 0 ]]; do
     sleep 5
     N=$(kubectl -n default get pod --ignore-not-found=true --no-headers letsencrypt | wc -l | tr -d '[:space:]')
