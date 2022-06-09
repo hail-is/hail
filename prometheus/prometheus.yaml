@@ -195,11 +195,21 @@ spec:
             name: prometheus-storage
          resources:
            requests:
+{% if scope == "deploy" %}
              cpu: "1"
              memory: 4G
            limits:
              cpu: "1"
              memory: 10G
+{% elif scope == "test" or scope == "dev" %}
+             cpu: "20m"
+             memory: "0.75G"
+           limits:
+             cpu: "1"
+             memory: 10G
+{% else %}
+!!! unexpected scope {{ scope }} !!!
+{% endif %}
        - name: nginx
          image: {{ prom_nginx_image.image }}
          resources:
