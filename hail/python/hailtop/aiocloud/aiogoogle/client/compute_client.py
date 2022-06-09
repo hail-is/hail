@@ -121,4 +121,4 @@ class GoogleComputeClient(GoogleBaseClient):
 
                 delay = await sleep_and_backoff(delay, max_delay=15)
 
-        await retry_transient_errors(request_and_wait)
+        return await retry_transient_errors(request_and_wait)
