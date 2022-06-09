@@ -46,7 +46,7 @@ from hailtop.aiotools import AsyncFS, LocalAsyncFS
 from hailtop.aiotools.router_fs import RouterAsyncFS
 from hailtop.batch.hail_genetics_images import HAIL_GENETICS_IMAGES
 from hailtop.config import DeployConfig
-from hailtop.hail_logging import configure_logging
+from hailtop.hail_logging import AccessLogger, configure_logging
 from hailtop.utils import (
     CalledProcessError,
     Timings,
@@ -103,6 +103,23 @@ def deeper_stack_level_warn(*args, **kwargs):
 
 
 warnings.warn = deeper_stack_level_warn
+
+
+class BatchWorkerAccessLogger(AccessLogger):
+    def __init__(self, logger: logging.Logger, log_format: str):
+        super().__init__(logger, log_format)
+
+        self.exclude = [
+            ('GET', re.compile('/healthcheck')),
+            ('POST', re.compile('/api/v1alpha/batches/jobs/create')),
+        ]
+
+    def log(self, request, response, time):
+        for method, path_expr in self.exclude:
+            if path_expr.fullmatch(request.path) and method == request.method:
+                return
+
+        super().log(request, response, time)
 
 
 def compose_auth_header_urlsafe(orig_f):
@@ -858,8 +875,6 @@ class Container:
             await self._write_container_config()
             async with async_timeout.timeout(self.timeout):
                 with open(self.log_path, 'w', encoding='utf-8') as container_log:
-                    log.info(f'Creating the crun run process for {self}')
-
                     stdin = asyncio.subprocess.PIPE if self.stdin else None
 
                     self.process = await asyncio.create_subprocess_exec(
@@ -879,7 +894,6 @@ class Container:
                         await self.process.communicate(self.stdin.encode('utf-8'))
 
                     await self.process.wait()
-                    log.info(f'crun process completed for {self}')
         except asyncio.TimeoutError:
             return True
         finally:
@@ -1404,7 +1418,6 @@ class Job:
             )
 
         if not self.deleted:
-            log.info(f'{self}: marking complete')
             self.task_manager.ensure_future(self.worker.post_job_complete(self, full_status))
 
     # {
@@ -1596,7 +1609,6 @@ class DockerJob(Job):
             try:
                 self.mark_started()
 
-                log.info(f'{self}: initializing')
                 self.state = 'initializing'
 
                 os.makedirs(f'{self.scratch}/')
@@ -1655,23 +1667,15 @@ class DockerJob(Job):
 
                 input = self.containers.get('input')
                 if input:
-                    log.info(f'{self}: running input')
                     await self.run_container(input, 'input')
-                    log.info(f'{self} input: {input.state}')
 
                 if not input or input.state == 'succeeded':
-                    log.info(f'{self}: running main')
-
                     main = self.containers['main']
                     await self.run_container(main, 'main')
 
-                    log.info(f'{self} main: {main.state}')
-
                     output = self.containers.get('output')
                     if output:
-                        log.info(f'{self}: running output')
                         await self.run_container(output, 'output')
-                        log.info(f'{self} output: {output.state}')
 
                     if main.state != 'succeeded':
                         self.state = main.state
@@ -1699,8 +1703,6 @@ class DockerJob(Job):
                         await self.mark_complete()
 
     async def cleanup(self):
-        log.info(f'{self}: cleaning up')
-
         if self.disk:
             try:
                 await self.disk.delete()
@@ -1847,7 +1849,6 @@ class JVMJob(Job):
 
                 self.mark_started()
 
-                log.info(f'{self}: initializing')
                 self.state = 'initializing'
 
                 await check_shell_output(f'xfs_quota -x -c "project -s -p {self.scratch} {self.project_id}" /host/')
@@ -1861,16 +1862,13 @@ class JVMJob(Job):
 
                 self.state = 'running'
 
-                log.info(f'{self}: downloading JAR')
                 with self.step('downloading_jar'):
                     local_jar_location = await self.download_jar()
 
-                log.info(f'{self}: running jvm process')
                 with self.step('running'):
                     await self.jvm.execute(local_jar_location, self.scratch, self.log_file, self.jar_url, self.argv)
 
                 self.state = 'succeeded'
-                log.info(f'{self} main: {self.state}')
             except asyncio.CancelledError:
                 raise
             except JVMUserError:
@@ -1901,12 +1899,10 @@ class JVMJob(Job):
             self.jvm = None
 
         with self.step('uploading_log'):
-            log.info(f'{self}: uploading log')
             await self.worker.file_store.write_log_file(
                 self.format_version, self.batch_id, self.job_id, self.attempt_id, 'main', await self._get_log()
             )
 
-        log.info(f'{self}: cleaning up')
         try:
             await check_shell(f'xfs_quota -x -c "limit -p bsoft=0 bhard=0 {self.project_id}" /host')
             await blocking_to_async(self.pool, shutil.rmtree, self.scratch, ignore_errors=True)
@@ -2131,12 +2127,16 @@ class JVM:
 
             attempts = 0
             delay = 0.25
+
             while True:
                 try:
-                    log.info(f'JVM-{index}: trying to open socket')
+                    if attempts % 8 == 0:
+                        log.info(
+                            f'JVM-{index}: trying to establish connection; elapsed time: {attempts * delay} seconds'
+                        )
+
                     reader, writer = await asyncio.open_unix_connection(socket_file)
                     try:
-                        log.info(f'JVM-{index}: establishing connection')
                         b = await read_bool(reader)
                         assert b, f'expected true, got {b}'
                         writer.write(b'\0x01')
@@ -2234,14 +2234,11 @@ class JVM:
     async def execute(self, classpath: str, scratch_dir: str, log_file: str, jar_url: str, argv: List[str]):
         assert worker is not None
 
-        log.info(f'{self}: execute')
-
         with ExitStack() as stack:
             reader: asyncio.StreamReader
             writer: asyncio.StreamWriter
             reader, writer = await self.new_connection()
             stack.callback(writer.close)
-            log.info(f'{self}: connection acquired')
 
             command = [classpath, 'is.hail.backend.service.Main', scratch_dir, log_file, jar_url, *argv]
 
@@ -2278,17 +2275,15 @@ class JVM:
                 eos_exception = exc
 
             if message == JVM.FINISH_NORMAL:
-                log.info(f'{self}: finished normally (interrupted: {wait_for_interrupt.done()})')
+                pass
             elif message == JVM.FINISH_CANCELLED:
                 assert wait_for_interrupt.done()
-                log.info(f'{self}: was cancelled')
                 raise JobDeletedError
             elif message == JVM.FINISH_USER_EXCEPTION:
-                log.info(f'{self}: user exception encountered (interrupted: {wait_for_interrupt.done()})')
                 exception = await read_str(reader)
                 raise JVMUserError(exception)
             elif message == JVM.FINISH_ENTRYWAY_EXCEPTION:
-                log.info(f'{self}: entryway exception encountered (interrupted: {wait_for_interrupt.done()})')
+                log.warning(f'{self}: entryway exception encountered (interrupted: {wait_for_interrupt.done()})')
                 exception = await read_str(reader)
                 raise ValueError(exception)
             elif message == JVM.FINISH_JVM_EOS:
@@ -2437,7 +2432,7 @@ class Worker:
             self,
         )
 
-        log.info(f'created {job}, adding to jobs')
+        log.info(f'created {job} attempt {job.attempt_id}')
 
         self.jobs[job.id] = job
 
@@ -2518,7 +2513,7 @@ class Worker:
 
         self.task_manager.ensure_future(periodically_call(60, self.cleanup_old_images))
 
-        app_runner = web.AppRunner(app)
+        app_runner = web.AppRunner(app, access_log_class=BatchWorkerAccessLogger)
         await app_runner.setup()
         site = web.TCPSite(app_runner, '0.0.0.0', 5000)
         await site.start()
@@ -2629,7 +2624,9 @@ class Worker:
         except Exception:
             log.exception(f'error while marking {job} complete', stack_info=True)
         finally:
-            log.info(f'{job} marked complete, removing from jobs')
+            log.info(
+                f'{job} attempt {job.attempt_id} marked complete after {time_msecs() - job.end_time}ms: {job.state}'
+            )
             if job.id in self.jobs:
                 del self.jobs[job.id]
                 self.last_updated = time_msecs()
@@ -2707,7 +2704,6 @@ class Worker:
     async def cleanup_old_images(self):
         try:
             async with image_lock.writer_lock:
-                log.info(f"Obtained writer lock. The image ref counts are: {self.image_data}")
                 for image_id in list(self.image_data.keys()):
                     now = time_msecs()
                     image_data = self.image_data[image_id]
