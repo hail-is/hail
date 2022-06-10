@@ -24,6 +24,14 @@ certificate. Both have the same serial number so revoking one revokes the other.
 the command will fail if you specify an already revoked certificate, so you should only specify one
 of each precertificate and leaf certificate pair.
 
+To get list of ids run the following:
+```
+$ CERT_IDS_TO_REVOKE=$(curl https://crt.sh/?q=azhail.popgen.rocks | pup 'td.outer a json{}' | jq '.[].text' | egrep -o '[0-9]{10}')
+$ CERT_IDS_TO_REVOKE=$(echo \'$CERT_IDS_TO_REVOKE\')
+$ echo $CERT_IDS_TO_REVOKE
+'6897479633 6897282730 6902592463 6896990672 6902559404 6897282329 6902498160 6896945896'
+```
+
 ```
 make -C letsencrypt revoke CERT_IDS_TO_REVOKE='6503198927 6503193970 6128196502'
 ```

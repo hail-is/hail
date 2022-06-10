@@ -10,7 +10,7 @@ else
     KUBECTL_APPLY=cat
 fi
 
-certbot certonly --standalone $CERTBOT_FLAGS --cert-name $DOMAIN -n --agree-tos -m cseed@broadinstitute.org -d $DOMAINS
+certbot certonly -v --standalone $CERTBOT_FLAGS --cert-name $DOMAIN -n --agree-tos -m cseed@broadinstitute.org -d $DOMAINS
 
 # https://github.com/certbot/certbot/blob/master/certbot-nginx/certbot_nginx/_internal/tls_configs/options-ssl-nginx.conf
 cat >/options-ssl-nginx.conf <<EOF
