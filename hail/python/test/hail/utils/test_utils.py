@@ -167,6 +167,7 @@ class Tests(unittest.TestCase):
         ls3 = hl.hadoop_ls(path3)
         assert len(ls3) == 2, ls3
 
+    def test_hadoop_ls_file_that_does_not_exist(self):
         try:
             hl.hadoop_ls('a_file_that_does_not_exist')
         except FileNotFoundError:
@@ -175,6 +176,31 @@ class Tests(unittest.TestCase):
             assert 'FileNotFoundException: a_file_that_does_not_exist' in err.args[0]
         else:
             assert False
+
+    def test_hadoop_glob_heterogenous_structure(self):
+        with hl.TemporaryDirectory() as dirname:
+            dirname = normalize_path(dirname)
+            touch(dirname + '/abc/cat')
+            touch(dirname + '/abc/dog')
+            touch(dirname + '/def/cat')
+            touch(dirname + '/def/dog')
+            touch(dirname + '/ghi/cat')
+            touch(dirname + '/ghi/cat')
+
+            actual = [x['path'] for x in hl.hadoop_ls(dirname + '/*/cat')]
+            expected = [
+                dirname + '/abc/cat',
+                dirname + '/def/cat',
+                dirname + '/ghi/cat',
+            ]
+            assert actual == expected
+
+            actual = [x['path'] for x in hl.hadoop_ls(dirname + '/*/dog')]
+            expected = [
+                dirname + '/abc/dog',
+                dirname + '/def/dog',
+            ]
+            assert actual == expected
 
     @fails_local_backend()
     def test_hadoop_ls_glob_no_slash_in_group(self):
