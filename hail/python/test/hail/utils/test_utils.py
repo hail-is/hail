@@ -179,13 +179,13 @@ class Tests(unittest.TestCase):
 
     def test_hadoop_glob_heterogenous_structure(self):
         with hl.TemporaryDirectory() as dirname:
-            dirname = normalize_path(dirname)
             touch(dirname + '/abc/cat')
             touch(dirname + '/abc/dog')
             touch(dirname + '/def/cat')
             touch(dirname + '/def/dog')
             touch(dirname + '/ghi/cat')
             touch(dirname + '/ghi/cat')
+            dirname = normalize_path(dirname)
 
             actual = [x['path'] for x in hl.hadoop_ls(dirname + '/*/cat')]
             expected = [
