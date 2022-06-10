@@ -325,7 +325,7 @@ sphinx==3.5.4
     #   sphinx-autodoc-typehints
     #   sphinx-rtd-theme
     #   sphinxcontrib-katex
-sphinx-autodoc-typehints==1.11.1
+sphinx-autodoc-typehints==1.18.3
     # via -r python/dev/requirements.txt
 sphinx-rtd-theme==0.4.2
     # via -r python/dev/requirements.txt

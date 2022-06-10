@@ -13,7 +13,7 @@ pytest-html==1.20.0
 pytest-xdist==2.2.1
 pytest-instafail==0.4.2
 sphinx==3.5.4
-sphinx-autodoc-typehints==1.11.1
+sphinx-autodoc-typehints==1.18.3
 nbsphinx==0.8.8
 sphinx_rtd_theme==0.4.2
 jupyter==1.0.0
