@@ -38,6 +38,6 @@ def pytest_collection_modifyitems(config, items):
     this_split_upper_bound = (split_index + 1) * total_weight / n_splits
 
     for item, weight in weighted_items:
-        if not (this_split_lower_bound < cumsum < this_split_upper_bound):
+        if not (this_split_lower_bound <= cumsum < this_split_upper_bound):
             item.add_marker(skip_this)
         cumsum += weight
