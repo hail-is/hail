@@ -4,7 +4,7 @@ from gear import Database
 
 
 async def main():
-    if os.environ['HAIL_SCOPE'] == 'deploy':
+    if os.environ['HAIL_SCOPE'] in ('dev', 'deploy'):
         return
 
     worker_cores = 8
