@@ -149,6 +149,7 @@ def test_invalid_resource_requests(client: BatchClient):
         builder.submit()
 
 
+@pytest.mark.duration_relative_to_average(6.5)
 def test_out_of_memory(client: BatchClient):
     builder = client.create_batch()
     resources = {'cpu': '0.25', 'memory': '10M', 'storage': '10Gi'}
@@ -169,6 +170,7 @@ def test_out_of_storage(client: BatchClient):
     assert "fallocate failed: No space left on device" in job_log['main']
 
 
+@pytest.mark.duration_relative_to_average(6.75)
 def test_quota_applies_to_volume(client: BatchClient):
     builder = client.create_batch()
     resources = {'cpu': '0.25', 'memory': '10M', 'storage': '5Gi'}
@@ -182,6 +184,7 @@ def test_quota_applies_to_volume(client: BatchClient):
     assert "fallocate failed: No space left on device" in job_log['main']
 
 
+@pytest.mark.duration_relative_to_average(8.1)
 def test_quota_shared_by_io_and_rootfs(client: BatchClient):
     builder = client.create_batch()
     resources = {'cpu': '0.25', 'memory': '10M', 'storage': '10Gi'}
@@ -211,6 +214,7 @@ def test_quota_shared_by_io_and_rootfs(client: BatchClient):
     assert "fallocate failed: No space left on device" in job_log['main'], str((job_log, b.debug_info()))
 
 
+@pytest.mark.duration_relative_to_average(3.5)
 def test_nonzero_storage(client: BatchClient):
     builder = client.create_batch()
     resources = {'cpu': '0.25', 'memory': '10M', 'storage': '20Gi'}
@@ -221,6 +225,7 @@ def test_nonzero_storage(client: BatchClient):
 
 
 @skip_in_azure()
+@pytest.mark.duration_relative_to_average(3.1)
 def test_attached_disk(client: BatchClient):
     builder = client.create_batch()
     resources = {'cpu': '0.25', 'memory': '10M', 'storage': '400Gi'}
@@ -709,6 +714,7 @@ def test_duplicate_parents(client: BatchClient):
 
 
 @skip_in_azure()
+@pytest.mark.duration_relative_to_average(3)
 def test_verify_no_access_to_google_metadata_server(client: BatchClient):
     builder = client.create_batch()
     j = builder.create_job(
@@ -721,6 +727,7 @@ def test_verify_no_access_to_google_metadata_server(client: BatchClient):
     assert "Could not resolve host" in job_log['main'], str((job_log, b.debug_info()))
 
 
+@pytest.mark.duration_relative_to_average(2.9)
 def test_verify_no_access_to_metadata_server(client: BatchClient):
     builder = client.create_batch()
     j = builder.create_job(os.environ['HAIL_CURL_IMAGE'], ['curl', '-fsSL', '169.254.169.254', '--max-time', '10'])
@@ -731,6 +738,7 @@ def test_verify_no_access_to_metadata_server(client: BatchClient):
     assert "Connection timed out" in job_log['main'], str((job_log, b.debug_info()))
 
 
+@pytest.mark.duration_relative_to_average(2.5)
 def test_submit_batch_in_job(client: BatchClient):
     builder = client.create_batch()
     remote_tmpdir = get_user_config().get('batch', 'remote_tmpdir')
@@ -752,6 +760,7 @@ backend.close()
     assert status['state'] == 'Success', str((status, b.debug_info()))
 
 
+@pytest.mark.duration_relative_to_average(5.1)
 def test_cant_submit_to_default_with_other_ns_creds(client: BatchClient):
     remote_tmpdir = get_user_config().get('batch', 'remote_tmpdir')
     script = f'''import hailtop.batch as hb
@@ -807,6 +816,7 @@ python3 -c \'{script}\'''',
         assert "Please log in" in job_log['main'], str((job_log, b.debug_info()))
 
 
+@pytest.mark.duration_relative_to_average(3)
 def test_cannot_contact_other_internal_ips(client: BatchClient):
     internal_ips = [f'10.128.0.{i}' for i in (10, 11, 12)]
     builder = client.create_batch()
@@ -954,6 +964,7 @@ def test_verify_private_network_is_restricted(client: BatchClient):
         assert False
 
 
+@pytest.mark.duration_relative_to_average(8.25)
 def test_pool_highmem_instance(client: BatchClient):
     builder = client.create_batch()
     resources = {'cpu': '0.25', 'memory': 'highmem'}
@@ -964,6 +975,7 @@ def test_pool_highmem_instance(client: BatchClient):
     assert 'highmem' in status['status']['worker'], str((status, b.debug_info()))
 
 
+@pytest.mark.duration_relative_to_average(8.25)
 def test_pool_highmem_instance_cheapest(client: BatchClient):
     builder = client.create_batch()
     resources = {'cpu': '1', 'memory': '5Gi'}
@@ -1014,6 +1026,7 @@ def test_pool_standard_instance_cheapest(client: BatchClient):
     assert 'standard' in status['status']['worker'], str((status, b.debug_info()))
 
 
+@pytest.mark.duration_relative_to_average(9.3)
 def test_job_private_instance_preemptible(client: BatchClient):
     builder = client.create_batch()
     resources = {'machine_type': smallest_machine_type(CLOUD)}
@@ -1024,6 +1037,7 @@ def test_job_private_instance_preemptible(client: BatchClient):
     assert 'job-private' in status['status']['worker'], str((status, b.debug_info()))
 
 
+@pytest.mark.duration_relative_to_average(8.5)
 def test_job_private_instance_nonpreemptible(client: BatchClient):
     builder = client.create_batch()
     resources = {'machine_type': smallest_machine_type(CLOUD), 'preemptible': False}

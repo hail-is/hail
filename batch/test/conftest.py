@@ -1,4 +1,4 @@
-import hashlib
+import random
 import logging
 import os
 
@@ -23,9 +23,21 @@ def pytest_collection_modifyitems(config, items):
         raise RuntimeError(f"invalid split_index: index={split_index}, n_splits={n_splits}\n  env={os.environ}")
     skip_this = pytest.mark.skip(reason="skipped in this round")
 
-    def digest(s):
-        return int.from_bytes(hashlib.md5(str(s).encode('utf-8')).digest(), 'little')
+    weighted_items = [
+        (item, dict(item.user_properties).get('duration_relative_to_average', 1))
+        for item in items
+    ]
 
-    for item in items:
-        if not digest(item.name) % n_splits == split_index:
+    random.seed(0)
+    random.shuffle(weighted_items)
+
+    total_weight = sum(w for _, w in weighted_items)
+    cumsum = 0
+
+    this_split_lower_bound = split_index * total_weight / n_splits
+    this_split_upper_bound = (split_index + 1) * total_weight / n_splits
+
+    for item, weight in weighted_items:
+        if this_split_lower_bound < cumsum < this_split_upper_bound:
             item.add_marker(skip_this)
+        cumsum += weight

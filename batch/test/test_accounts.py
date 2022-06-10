@@ -405,6 +405,7 @@ async def test_billing_limit_zero(
         assert False, str(await batch.debug_info())
 
 
+@pytest.mark.duration_relative_to_average(2.9)
 async def test_billing_limit_tiny(
     make_client: Callable[[str], Awaitable[BatchClient]], dev_client: BatchClient, new_billing_project: str
 ):
