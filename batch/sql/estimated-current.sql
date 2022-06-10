@@ -249,6 +249,7 @@ CREATE TABLE IF NOT EXISTS `attempts` (
   `start_time` BIGINT,
   `end_time` BIGINT,
   `reason` VARCHAR(40),
+  `dummy_aggregated_by_date` INT DEFAULT 0,
   PRIMARY KEY (`batch_id`, `job_id`, `attempt_id`),
   FOREIGN KEY (`batch_id`) REFERENCES batches(id) ON DELETE CASCADE,
   FOREIGN KEY (`batch_id`, `job_id`) REFERENCES jobs(batch_id, job_id) ON DELETE CASCADE,
@@ -257,6 +258,15 @@ CREATE TABLE IF NOT EXISTS `attempts` (
 CREATE INDEX `attempts_instance_name` ON `attempts` (`instance_name`);
 CREATE INDEX `attempts_start_time` ON `attempts` (`start_time`);
 CREATE INDEX `attempts_end_time` ON `attempts` (`end_time`);
+
+DROP TABLE IF EXISTS `attempts_aggregated_by_date`;
+CREATE TABLE IF NOT EXISTS `attempts_aggregated_by_date` (
+  `batch_id` BIGINT NOT NULL,
+  `job_id` INT NOT NULL,
+  `attempt_id` VARCHAR(40) NOT NULL,
+  PRIMARY KEY (`batch_id`, `job_id`, `attempt_id`),
+  FOREIGN KEY (`batch_id`, `job_id`, `attempt_id`) REFERENCES attempts(`batch_id`, `job_id`, `attempt_id`) ON DELETE CASCADE
+) ENGINE = InnoDB;
 
 CREATE TABLE IF NOT EXISTS `gevents_mark` (
   mark VARCHAR(40)
@@ -294,6 +304,19 @@ CREATE TABLE IF NOT EXISTS `batch_attributes` (
 ) ENGINE = InnoDB;
 CREATE INDEX batch_attributes_key_value ON `batch_attributes` (`key`, `value`(256));
 
+DROP TABLE IF EXISTS `aggregated_billing_project_user_resources`;
+CREATE TABLE IF NOT EXISTS `aggregated_billing_project_user_resources` (
+  `billing_project` VARCHAR(100) NOT NULL,
+  `user` VARCHAR(100) NOT NULL,
+  `resource_id` INT NOT NULL,
+  `token` INT NOT NULL,
+  `usage` BIGINT NOT NULL DEFAULT 0,
+  PRIMARY KEY (`billing_project`, `user`, `resource_id`, `token`),
+  FOREIGN KEY (`billing_project`) REFERENCES billing_projects(name) ON DELETE CASCADE,
+  FOREIGN KEY (`resource_id`) REFERENCES resources(`resource_id`) ON DELETE CASCADE
+) ENGINE = InnoDB;
+CREATE INDEX aggregated_billing_project_user_resources ON `aggregated_billing_project_user_resources` (`user`);
+
 CREATE TABLE IF NOT EXISTS `aggregated_billing_project_resources` (
   `billing_project` VARCHAR(100) NOT NULL,
   `resource` VARCHAR(100) NOT NULL,
@@ -303,6 +326,20 @@ CREATE TABLE IF NOT EXISTS `aggregated_billing_project_resources` (
   FOREIGN KEY (`billing_project`) REFERENCES billing_projects(name) ON DELETE CASCADE,
   FOREIGN KEY (`resource`) REFERENCES resources(`resource`) ON DELETE CASCADE
 ) ENGINE = InnoDB;
+
+DROP TABLE IF EXISTS `aggregated_billing_project_user_resources_by_date`;
+CREATE TABLE IF NOT EXISTS `aggregated_billing_project_user_resources_by_date` (
+  `billing_timestamp` DATE NOT NULL,
+  `billing_project` VARCHAR(100) NOT NULL,
+  `user` VARCHAR(100) NOT NULL,
+  `resource_id` INT NOT NULL,
+  `token` INT NOT NULL,
+  `usage` BIGINT NOT NULL DEFAULT 0,
+  PRIMARY KEY (`billing_timestamp`, `billing_project`, `user`, `resource_id`, `token`),
+  FOREIGN KEY (`billing_project`) REFERENCES billing_projects(name) ON DELETE CASCADE,
+  FOREIGN KEY (`resource_id`) REFERENCES resources(`resource_id`) ON DELETE CASCADE
+) ENGINE = InnoDB;
+CREATE INDEX aggregated_billing_project_user_resources_by_date_ts_user ON `aggregated_billing_project_user_resources_by_date` (`billing_timestamp`, `user`);
 
 CREATE TABLE IF NOT EXISTS `aggregated_batch_resources` (
   `batch_id` BIGINT NOT NULL,
@@ -314,6 +351,18 @@ CREATE TABLE IF NOT EXISTS `aggregated_batch_resources` (
   FOREIGN KEY (`resource`) REFERENCES resources(`resource`) ON DELETE CASCADE
 ) ENGINE = InnoDB;
 
+DROP TABLE IF EXISTS `aggregated_batch_resources_by_date`;
+CREATE TABLE IF NOT EXISTS `aggregated_batch_resources_by_date` (
+  `batch_id` BIGINT NOT NULL,
+  `billing_timestamp` DATE NOT NULL,
+  `resource_id` INT NOT NULL,
+  `token` INT NOT NULL,
+  `usage` BIGINT NOT NULL DEFAULT 0,
+  PRIMARY KEY (`batch_id`, `billing_timestamp`, `resource_id`, `token`),
+  FOREIGN KEY (`batch_id`) REFERENCES batches(`id`) ON DELETE CASCADE,
+  FOREIGN KEY (`resource_id`) REFERENCES resources(`resource_id`) ON DELETE CASCADE
+) ENGINE = InnoDB;
+
 CREATE TABLE IF NOT EXISTS `aggregated_job_resources` (
   `batch_id` BIGINT NOT NULL,
   `job_id` INT NOT NULL,
@@ -323,6 +372,19 @@ CREATE TABLE IF NOT EXISTS `aggregated_job_resources` (
   FOREIGN KEY (`batch_id`) REFERENCES batches(`id`) ON DELETE CASCADE,
   FOREIGN KEY (`batch_id`, `job_id`) REFERENCES jobs(`batch_id`, `job_id`) ON DELETE CASCADE,
   FOREIGN KEY (`resource`) REFERENCES resources(`resource`) ON DELETE CASCADE
+) ENGINE = InnoDB;
+
+DROP TABLE IF EXISTS `aggregated_job_resources_by_date`;
+CREATE TABLE IF NOT EXISTS `aggregated_job_resources_by_date` (
+  `batch_id` BIGINT NOT NULL,
+  `job_id` INT NOT NULL,
+  `billing_timestamp` DATE NOT NULL,
+  `resource_id` INT NOT NULL,
+  `usage` BIGINT NOT NULL DEFAULT 0,
+  PRIMARY KEY (`batch_id`, `job_id`, `billing_timestamp`, `resource_id`),
+  FOREIGN KEY (`batch_id`) REFERENCES batches(`id`) ON DELETE CASCADE,
+  FOREIGN KEY (`batch_id`, `job_id`) REFERENCES jobs(`batch_id`, `job_id`) ON DELETE CASCADE,
+  FOREIGN KEY (`resource_id`) REFERENCES resources(`resource_id`) ON DELETE CASCADE
 ) ENGINE = InnoDB;
 
 CREATE TABLE IF NOT EXISTS `attempt_resources` (
@@ -375,8 +437,12 @@ BEGIN
   DECLARE job_cores_mcpu INT;
   DECLARE cur_billing_project VARCHAR(100);
   DECLARE msec_diff BIGINT;
+  DECLARE msec_diff_by_date BIGINT;
   DECLARE cur_n_tokens INT;
   DECLARE rand_token INT;
+  DECLARE rand_token_by_date INT;
+  DECLARE cur_prev_agg_by_date BOOLEAN;
+  DECLARE cur_billing_timestamp DATE;
 
   SELECT n_tokens INTO cur_n_tokens FROM globals LOCK IN SHARE MODE;
   SET rand_token = FLOOR(RAND() * cur_n_tokens);
@@ -389,27 +455,95 @@ BEGIN
   SET msec_diff = (GREATEST(COALESCE(NEW.end_time - NEW.start_time, 0), 0) -
                    GREATEST(COALESCE(OLD.end_time - OLD.start_time, 0), 0));
 
-  INSERT INTO aggregated_billing_project_resources (billing_project, resource, token, `usage`)
-  SELECT billing_project, resources.resource, rand_token, msec_diff * quantity
-  FROM attempt_resources
-  LEFT JOIN resources ON attempt_resources.resource_id = resources.resource_id
-  JOIN batches ON batches.id = attempt_resources.batch_id
-  WHERE batch_id = NEW.batch_id AND job_id = NEW.job_id AND attempt_id = NEW.attempt_id
-  ON DUPLICATE KEY UPDATE `usage` = `usage` + msec_diff * quantity;
+  SET cur_billing_timestamp = CAST(FROM_UNIXTIME(NEW.end_time / 1000) AS DATE);
 
-  INSERT INTO aggregated_batch_resources (batch_id, resource, token, `usage`)
-  SELECT batch_id, resources.resource, rand_token, msec_diff * quantity
-  FROM attempt_resources
-  LEFT JOIN resources ON attempt_resources.resource_id = resources.resource_id
-  WHERE batch_id = NEW.batch_id AND job_id = NEW.job_id AND attempt_id = NEW.attempt_id
-  ON DUPLICATE KEY UPDATE `usage` = `usage` + msec_diff * quantity;
+  # do not want to add to the original billing tables if we are forcing an update
+  IF OLD.dummy_aggregated_by_date = NEW.dummy_aggregated_by_date THEN
+    INSERT INTO aggregated_billing_project_resources (billing_project, resource, token, `usage`)
+    SELECT billing_project, resources.resource, rand_token, msec_diff * quantity
+    FROM attempt_resources
+    JOIN batches ON batches.id = attempt_resources.batch_id
+    LEFT JOIN resources ON attempt_resources.resource_id = resources.resource_id
+    WHERE batch_id = NEW.batch_id AND job_id = NEW.job_id AND attempt_id = NEW.attempt_id
+    ON DUPLICATE KEY UPDATE `usage` = `usage` + msec_diff * quantity;
 
-  INSERT INTO aggregated_job_resources (batch_id, job_id, resource, `usage`)
-  SELECT batch_id, job_id, resources.resource, msec_diff * quantity
-  FROM attempt_resources
-  LEFT JOIN resources ON attempt_resources.resource_id = resources.resource_id
-  WHERE batch_id = NEW.batch_id AND job_id = NEW.job_id AND attempt_id = NEW.attempt_id
-  ON DUPLICATE KEY UPDATE `usage` = `usage` + msec_diff * quantity;
+    INSERT INTO aggregated_batch_resources (batch_id, resource, token, `usage`)
+    SELECT batch_id, resources.resource, rand_token, msec_diff * quantity
+    FROM attempt_resources
+    LEFT JOIN resources ON attempt_resources.resource_id = resources.resource_id
+    WHERE batch_id = NEW.batch_id AND job_id = NEW.job_id AND attempt_id = NEW.attempt_id
+    ON DUPLICATE KEY UPDATE `usage` = `usage` + msec_diff * quantity;
+
+    INSERT INTO aggregated_job_resources (batch_id, job_id, resource, `usage`)
+    SELECT batch_id, job_id, resources.resource, msec_diff * quantity
+    FROM attempt_resources
+    LEFT JOIN resources ON attempt_resources.resource_id = resources.resource_id
+    WHERE batch_id = NEW.batch_id AND job_id = NEW.job_id AND attempt_id = NEW.attempt_id
+    ON DUPLICATE KEY UPDATE `usage` = `usage` + msec_diff * quantity;
+  END IF;
+
+  IF NEW.end_time IS NOT NULL THEN
+    SELECT attempts_aggregated_by_date.batch_id IS NOT NULL INTO cur_prev_agg_by_date
+    FROM attempts
+    LEFT JOIN attempts_aggregated_by_date
+      ON attempts.batch_id = attempts_aggregated_by_date.batch_id AND
+        attempts.job_id = attempts_aggregated_by_date.job_id AND
+        attempts.attempt_id = attempts_aggregated_by_date.attempt_id
+    WHERE attempts.batch_id = NEW.batch_id AND attempts.job_id = NEW.job_id AND attempts.attempt_id = NEW.attempt_id;
+
+    IF cur_prev_agg_by_date THEN
+      SET msec_diff_by_date = msec_diff;
+      SET rand_token_by_date = rand_token;
+    ELSE
+      SET msec_diff_by_date = GREATEST(COALESCE(NEW.end_time - NEW.start_time, 0), 0);
+      SET rand_token_by_date = 0;
+    END IF;
+
+    INSERT INTO aggregated_billing_project_user_resources (billing_project, user, resource_id, token, `usage`)
+    SELECT billing_project, `user`,
+      resource_id,
+      rand_token,
+      msec_diff_by_date * quantity
+    FROM attempt_resources
+    JOIN batches ON batches.id = attempt_resources.batch_id
+    WHERE batch_id = NEW.batch_id AND job_id = NEW.job_id AND attempt_id = NEW.attempt_id
+    ON DUPLICATE KEY UPDATE `usage` = `usage` + msec_diff_by_date * quantity;
+
+    INSERT INTO aggregated_billing_project_user_resources_by_date (billing_timestamp, billing_project, user, resource_id, token, `usage`)
+    SELECT cur_billing_timestamp,
+      billing_project,
+      `user`,
+      resource_id,
+      rand_token_by_date,
+      msec_diff_by_date * quantity
+    FROM attempt_resources
+    JOIN batches ON batches.id = attempt_resources.batch_id
+    WHERE batch_id = NEW.batch_id AND job_id = NEW.job_id AND attempt_id = NEW.attempt_id
+    ON DUPLICATE KEY UPDATE `usage` = `usage` + msec_diff_by_date * quantity;
+
+    INSERT INTO aggregated_batch_resources_by_date (batch_id, billing_timestamp, resource_id, token, `usage`)
+    SELECT attempt_resources.batch_id,
+      cur_billing_timestamp,
+      resource_id,
+      rand_token_by_date,
+      msec_diff_by_date * quantity
+    FROM attempt_resources
+    WHERE batch_id = NEW.batch_id AND job_id = NEW.job_id AND attempt_id = NEW.attempt_id
+    ON DUPLICATE KEY UPDATE `usage` = `usage` + msec_diff_by_date * quantity;
+
+    INSERT INTO aggregated_job_resources_by_date (batch_id, job_id, billing_timestamp, resource_id, `usage`)
+    SELECT attempt_resources.batch_id, attempt_resources.job_id,
+      cur_billing_timestamp,
+      resource_id,
+      msec_diff_by_date * quantity
+    FROM attempt_resources
+    WHERE batch_id = NEW.batch_id AND job_id = NEW.job_id AND attempt_id = NEW.attempt_id
+    ON DUPLICATE KEY UPDATE `usage` = `usage` + msec_diff_by_date * quantity;
+  END IF;
+
+  INSERT INTO attempts_aggregated_by_date (batch_id, job_id, attempt_id)
+  VALUES (NEW.batch_id, NEW.job_id, NEW.attempt_id)
+  ON DUPLICATE KEY UPDATE attempt_id = attempt_id;
 END $$
 
 DROP TRIGGER IF EXISTS jobs_after_update $$
@@ -588,18 +722,20 @@ BEGIN
   DECLARE cur_start_time BIGINT;
   DECLARE cur_end_time BIGINT;
   DECLARE cur_billing_project VARCHAR(100);
+  DECLARE cur_user VARCHAR(100);
   DECLARE msec_diff BIGINT;
   DECLARE cur_n_tokens INT;
   DECLARE rand_token INT;
   DECLARE cur_resource VARCHAR(100);
+  DECLARE cur_billing_timestamp DATE;
 
-  SELECT billing_project INTO cur_billing_project
+  SELECT billing_project, user INTO cur_billing_project, cur_user
   FROM batches WHERE id = NEW.batch_id;
+
+  SELECT resource INTO cur_resource FROM resources WHERE resource_id = NEW.resource_id;
 
   SELECT n_tokens INTO cur_n_tokens FROM globals LOCK IN SHARE MODE;
   SET rand_token = FLOOR(RAND() * cur_n_tokens);
-
-  SELECT resource INTO cur_resource FROM resources WHERE resource_id = NEW.resource_id;
 
   SELECT start_time, end_time INTO cur_start_time, cur_end_time
   FROM attempts
@@ -607,6 +743,8 @@ BEGIN
   LOCK IN SHARE MODE;
 
   SET msec_diff = GREATEST(COALESCE(cur_end_time - cur_start_time, 0), 0);
+
+  SET cur_billing_timestamp = CAST(FROM_UNIXTIME(cur_end_time / 1000) AS DATE);
 
   INSERT INTO aggregated_billing_project_resources (billing_project, resource, token, `usage`)
   VALUES (cur_billing_project, cur_resource, rand_token, NEW.quantity * msec_diff)
@@ -622,6 +760,32 @@ BEGIN
   VALUES (NEW.batch_id, NEW.job_id, cur_resource, NEW.quantity * msec_diff)
   ON DUPLICATE KEY UPDATE
     `usage` = `usage` + NEW.quantity * msec_diff;
+
+  INSERT INTO aggregated_billing_project_user_resources (billing_project, user, resource_id, token, `usage`)
+  VALUES (cur_billing_project, cur_user, NEW.resource_id, rand_token, NEW.quantity * msec_diff)
+  ON DUPLICATE KEY UPDATE
+    `usage` = `usage` + NEW.quantity * msec_diff;
+
+  IF cur_billing_timestamp IS NOT NULL THEN
+    INSERT INTO aggregated_billing_project_user_resources_by_date (billing_timestamp, billing_project, user, resource_id, token, `usage`)
+    VALUES (cur_billing_timestamp, cur_billing_project, cur_user, NEW.resource_id, rand_token, NEW.quantity * msec_diff)
+    ON DUPLICATE KEY UPDATE
+      `usage` = `usage` + NEW.quantity * msec_diff;
+
+    INSERT INTO aggregated_batch_resources_by_date (batch_id, billing_timestamp, resource_id, token, `usage`)
+    VALUES (NEW.batch_id, cur_billing_timestamp, NEW.resource_id, rand_token, NEW.quantity * msec_diff)
+    ON DUPLICATE KEY UPDATE
+      `usage` = `usage` + NEW.quantity * msec_diff;
+
+    INSERT INTO aggregated_job_resources_by_date (batch_id, job_id, billing_timestamp, resource_id, `usage`)
+    VALUES (NEW.batch_id, NEW.job_id, cur_billing_timestamp, NEW.resource_id, NEW.quantity * msec_diff)
+    ON DUPLICATE KEY UPDATE
+      `usage` = `usage` + NEW.quantity * msec_diff;
+  END IF;
+
+  INSERT INTO attempts_aggregated_by_date (batch_id, job_id, attempt_id)
+  VALUES (NEW.batch_id, NEW.job_id, NEW.attempt_id)
+  ON DUPLICATE KEY UPDATE attempt_id = attempt_id;
 END $$
 
 DROP PROCEDURE IF EXISTS recompute_incremental $$

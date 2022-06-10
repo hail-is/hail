@@ -2049,6 +2049,12 @@ steps:
       - name: revert-attempt-resources-trigger-back-compat
         script: /io/sql/revert-attempt-resources-trigger-back-compat.sql
         online: true
+      - name: add-agg-billing-by-date
+        script: /io/sql/add-agg-billing-by-date.sql
+        online: true
+      - name: populate-agg-billing-by-date
+        script: /io/sql/populate_agg_billing_by_date.py
+        online: true
     inputs:
       - from: /repo/batch/sql
         to: /io/sql
