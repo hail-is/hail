@@ -249,8 +249,10 @@ class BuildImage2Step(Step):
         self.image = f'{self.base_image}:{self.token}'
         if publish_as and not is_test_deployment:
             self.cache_repository = f'{DOCKER_PREFIX}/{self.publish_as}:cache'
-        else:
+        elif publish_as and is_test_deployment:
             self.cache_repository = f'{DOCKER_PREFIX}/ci-intermediate/{self.publish_as}:cache'
+        else:
+            self.cache_repository = f'{DOCKER_PREFIX}/ci-intermediate:cache'
         self.job = None
 
     def wrapped_job(self):
