@@ -289,7 +289,7 @@ class VCFTests(unittest.TestCase):
         assert len(af_lines) == 1, af_lines
         line = af_lines[0]
         assert line.startswith("##INFO=<") and line.endswith(">"), line
-        line = line[8:-2]
+        line = line[8:-1]
         fields = dict([f.split("=") for f in line.split(",")])
         description = fields["Description"]
         assert description == '"foo \\"bar\\" \\\\"'
