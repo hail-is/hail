@@ -59,6 +59,7 @@ deploy_unmanaged() {
     make -C $HAIL/batch build-worker
     make -C $HAIL/internal-gateway deploy
     make -C $HAIL/bootstrap-gateway deploy
+    make -C $HAIL/letsencrypt clean
     make -C $HAIL/letsencrypt run
 }
 
