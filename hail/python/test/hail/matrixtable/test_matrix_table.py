@@ -1670,7 +1670,6 @@ def test_read_write_all_types():
     assert hl.read_matrix_table(tmp_file)._same(mt)
 
 
-@fails_local_backend()
 def test_read_write_balding_nichols_model():
     mt = hl.balding_nichols_model(3, 10, 10)
     tmp_file = new_temp_file()
