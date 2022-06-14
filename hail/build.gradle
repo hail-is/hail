@@ -220,7 +220,7 @@ dependencies {
     }
 
 
-    bundled(group: 'com.azure', name: 'azure-identity', version:'1.2.1') {
+    bundled(group: 'com.azure', name: 'azure-identity', version:'1.5.2') {
         exclude group: 'com.fasterxml.jackson'
         exclude group: 'com.fasterxml.jackson.core'
         exclude group: 'com.fasterxml.jackson.databind'
