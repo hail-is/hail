@@ -3,6 +3,15 @@ set -ex
 
 # start service
 kubectl -n default apply -f service.yaml
+# https://hail.zulipchat.com/#narrow/stream/300487-Hail-Batch-Dev/topic/azure.20deploy.20error/near/286124602
+# You cannot mix the create verb with a resourceName. Therefore the only options are:
+#
+# 1. the letsencrypt pod has permission to create secrets with any name
+#
+# 2. the letsencrypt-config secret already exists
+#
+# We choose option two. We create an empty secret if it does not exist.
+k create secret generic letsencrypt-config || k get secret letsencrypt-config
 
 # stop existing letsencrypt pod
 kubectl -n default delete pod --ignore-not-found=true letsencrypt
