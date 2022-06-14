@@ -177,6 +177,7 @@ async def migrate(database_name, db, i, migration):
 
     name = migration['name']
     script = migration['script']
+    online = migration.get('online', False)
 
     out, _ = await check_shell_output(f'sha1sum {script} | cut -d " " -f1')
     script_sha1 = out.decode('utf-8').strip()
@@ -186,7 +187,8 @@ async def migrate(database_name, db, i, migration):
     current_version = row['version']
 
     if current_version + 1 == to_version:
-        await shutdown()
+        if not online:
+            await shutdown()
 
         # migrate
         if script.endswith('.py'):
