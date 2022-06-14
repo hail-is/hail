@@ -11,7 +11,7 @@ kubectl -n default apply -f service.yaml
 # 2. the letsencrypt-config secret already exists
 #
 # We choose option two. We create an empty secret if it does not exist.
-k create secret generic letsencrypt-config || k get secret letsencrypt-config
+kubectl create secret generic letsencrypt-config || k get secret letsencrypt-config
 
 # stop existing letsencrypt pod
 kubectl -n default delete pod --ignore-not-found=true letsencrypt
