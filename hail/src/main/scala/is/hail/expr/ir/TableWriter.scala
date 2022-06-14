@@ -465,7 +465,7 @@ case class TableTextWriter(
 
     ts.mapContexts { oldCtx =>
       val d = digitsNeeded(ts.numPartitions)
-      val partFiles = Literal(TArray(TString), Array.tabulate(ts.numPartitions)(i => s"$folder/${ partFile(d, i) }$ext").toFastIndexedSeq)
+      val partFiles = Literal(TArray(TString), Array.tabulate(ts.numPartitions)(i => s"$folder/${ partFile(d, i) }-").toFastIndexedSeq)
 
       zip2(oldCtx, ToStream(partFiles), ArrayZipBehavior.AssertSameLength) { (ctxElt, pf) =>
         MakeStruct(FastSeq(
@@ -473,7 +473,7 @@ case class TableTextWriter(
           "partFile" -> pf))
       }
     }(GetField(_, "oldCtx")).mapCollectWithContextsAndGlobals(relationalLetsAbove) { (rows, ctxRef) =>
-      val file = GetField(ctxRef, "partFile")
+      val file = GetField(ctxRef, "partFile") + UUID4() + Str(ext)
       WritePartition(rows, file, lineWriter)
     } { (parts, _) =>
       val commit = TableTextFinalizer(path, ts.rowType, delimiter, header, exportType)
