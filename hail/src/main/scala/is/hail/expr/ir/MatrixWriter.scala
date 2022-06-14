@@ -427,7 +427,7 @@ case class MatrixVCFWriter(
 
     ts.mapContexts { oldCtx =>
       val d = digitsNeeded(ts.numPartitions)
-      val partFiles = Literal(TArray(TString), Array.tabulate(ts.numPartitions)(i => s"$folder/${ partFile(d, i) }$ext").toFastIndexedSeq)
+      val partFiles = Literal(TArray(TString), Array.tabulate(ts.numPartitions)(i => s"$folder/${ partFile(d, i) }-").toFastIndexedSeq)
 
       zip2(oldCtx, ToStream(partFiles), ArrayZipBehavior.AssertSameLength) { (ctxElt, pf) =>
         MakeStruct(FastSeq(
@@ -435,9 +435,10 @@ case class MatrixVCFWriter(
           "partFile" -> pf))
       }
     }(GetField(_, "oldCtx")).mapCollectWithContextsAndGlobals(relationalLetsAbove) { (rows, ctxRef) =>
+      val partFile = GetField(ctxRef, "partFile") + UUID4() + Str(ext)
       val ctx = MakeStruct(FastSeq(
         "cols" -> GetField(ts.globals, colsFieldName),
-        "partFile" -> GetField(ctxRef, "partFile")))
+        "partFile" -> partFile))
       WritePartition(rows, ctx, lineWriter)
     }{ (parts, globals) =>
       val ctx = MakeStruct(FastSeq("cols" -> GetField(globals, colsFieldName), "partFiles" -> parts))
@@ -831,7 +832,7 @@ case class MatrixGENWriter(
 
     ts.mapContexts { oldCtx =>
       val d = digitsNeeded(ts.numPartitions)
-      val partFiles = Literal(TArray(TString), Array.tabulate(ts.numPartitions)(i => s"$folder/${ partFile(d, i) }").toFastIndexedSeq)
+      val partFiles = Literal(TArray(TString), Array.tabulate(ts.numPartitions)(i => s"$folder/${ partFile(d, i) }-").toFastIndexedSeq)
 
       zip2(oldCtx, ToStream(partFiles), ArrayZipBehavior.AssertSameLength) { (ctxElt, pf) =>
         MakeStruct(FastSeq(
@@ -839,7 +840,7 @@ case class MatrixGENWriter(
           "partFile" -> pf))
       }
     }(GetField(_, "oldCtx")).mapCollectWithContextsAndGlobals(relationalLetsAbove) { (rows, ctxRef) =>
-      val ctx = GetField(ctxRef, "partFile")
+      val ctx = GetField(ctxRef, "partFile") + UUID4()
       WritePartition(rows, ctx, lineWriter)
     }{ (parts, globals) =>
       val cols = ToStream(GetField(globals, colsFieldName))
