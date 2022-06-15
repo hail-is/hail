@@ -60,6 +60,7 @@ from hailtop.utils import (
     periodically_call,
     request_retry_transient_errors,
     retry_transient_errors,
+    is_retry_once_error,
     sleep_and_backoff,
     time_msecs,
     time_msecs_str,
@@ -442,7 +443,7 @@ class Image:
     async def _pull_image(self):
         assert docker
 
-        try:
+        async def do_pull():
             if not self.is_cloud_image:
                 await self._ensure_image_is_pulled()
             elif self.is_public_image:
@@ -459,7 +460,13 @@ class Image:
                 await docker_call_retry(MAX_DOCKER_IMAGE_PULL_SECS, f'{self}')(
                     docker.images.pull, self.image_ref_str, auth=auth
                 )
+
+        try:
+            await do_pull()
         except DockerError as e:
+            if is_retry_once_error(e):
+                await do_pull()
+                return
             if e.status == 404 and 'pull access denied' in e.message:
                 raise ImageCannotBePulled from e
             if 'not found: manifest unknown' in e.message:
