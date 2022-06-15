@@ -1597,6 +1597,23 @@ object LowerTableIR {
           }
         }
 
+      case TableRepartition(child, n, RepartitionStrategy.NAIVE_COALESCE) =>
+        val lc = lower(child)
+        val groupSize = (lc.numPartitions + n - 1) / n
+
+        TableStage(
+          letBindings = lc.letBindings,
+          broadcastVals = lc.broadcastVals,
+          globals = lc.globals,
+          partitioner = lc.partitioner.copy(rangeBounds = lc.partitioner
+            .rangeBounds
+            .grouped(groupSize)
+            .map(arr => Interval(arr.head.left, arr.last.right)).toArray),
+          dependency = lc.dependency,
+          contexts = StreamGrouped(lc.contexts, groupSize),
+          partition = (r: Ref) => flatMapIR(ToStream(r)) { prevCtx => lc.partition(prevCtx) }
+        )
+
       case TableRename(child, rowMap, globalMap) =>
         val loweredChild = lower(child)
         val newGlobals =
