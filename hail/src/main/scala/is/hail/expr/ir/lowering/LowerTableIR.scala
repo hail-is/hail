@@ -1612,7 +1612,7 @@ object LowerTableIR {
             .map(arr => Interval(arr.head.left, arr.last.right))),
           dependency = lc.dependency,
           contexts = StreamGrouped(lc.contexts, groupSize),
-          partition = (r: Ref) => flatMapIR(ToStream(r)) { prevCtx => lc.partition(prevCtx) }
+          partition = (r: Ref) => flatMapIR(ToStream(r)) { prevCtx => lc.partition(ToArray(prevCtx)) }
         )
 
       case TableRename(child, rowMap, globalMap) =>
