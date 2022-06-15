@@ -1608,7 +1608,8 @@ object LowerTableIR {
           partitioner = lc.partitioner.copy(rangeBounds = lc.partitioner
             .rangeBounds
             .grouped(groupSize)
-            .map(arr => Interval(arr.head.left, arr.last.right)).toArray),
+            .toArray
+            .map(arr => Interval(arr.head.left, arr.last.right))),
           dependency = lc.dependency,
           contexts = StreamGrouped(lc.contexts, groupSize),
           partition = (r: Ref) => flatMapIR(ToStream(r)) { prevCtx => lc.partition(prevCtx) }
