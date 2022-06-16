@@ -51,7 +51,7 @@ generate_ssl_certs() {
 deploy_unmanaged() {
     make -C $HAIL/hail python/hailtop/hail_version
 
-    copy_images
+    # copy_images
     generate_ssl_certs
 
     kubectl -n default apply -f $HAIL/ci/bootstrap.yaml
@@ -59,7 +59,6 @@ deploy_unmanaged() {
     make -C $HAIL/batch build-worker
     make -C $HAIL/internal-gateway deploy
     make -C $HAIL/bootstrap-gateway deploy
-    make -C $HAIL/letsencrypt clean
     make -C $HAIL/letsencrypt run
 }
 

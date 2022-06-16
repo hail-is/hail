@@ -22,6 +22,7 @@ while [[ $EC = "" ]]; do
     EC=$(kubectl -n default get pod -o "jsonpath={.status.containerStatuses[0].state.terminated.exitCode}" letsencrypt)
     echo EC=$EC
 done
+
 kubectl -n default logs letsencrypt
 if [[ $EC != 0 ]]; then
     exit $EC
