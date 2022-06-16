@@ -80,6 +80,11 @@ class TableStage(
   // useful for debugging, but should be disabled in production code due to N^2 complexity
   // typecheckPartition()
 
+  contexts.typ match {
+    case TStream(t) if t.isRealizable =>
+    case t => throw new IllegalArgumentException(s"TableStage constructed with illegal context type $t")
+  }
+
   def typecheckPartition(ctx: ExecuteContext): Unit = {
     TypeCheck(
       ctx,
