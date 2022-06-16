@@ -1,4 +1,3 @@
 batch
 batch-driver
-memory
 auth
