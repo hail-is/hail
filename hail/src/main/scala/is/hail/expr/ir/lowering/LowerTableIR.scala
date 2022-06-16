@@ -1245,7 +1245,7 @@ object LowerTableIR {
                   bindIR(ArrayRef(aggStack, (ArrayLen(aggStack) - 1))) { states =>
                     bindIR(ArrayLen(states)) { statesLen =>
                       If(statesLen > branchFactor,
-                        bindIR((statesLen + branchFactor) floorDiv branchFactor) { nCombines =>
+                        bindIR((statesLen + branchFactor - 1) floorDiv branchFactor) { nCombines =>
                           val contexts = mapIR(rangeIR(nCombines)) { outerIdxRef =>
                             sliceArrayIR(states, outerIdxRef * branchFactor, (outerIdxRef + 1) * branchFactor)
                           }
