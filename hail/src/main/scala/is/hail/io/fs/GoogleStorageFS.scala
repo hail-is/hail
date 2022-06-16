@@ -152,6 +152,17 @@ class GoogleStorageFS(val serviceAccountKey: Option[String] = None) extends FS {
     new WrappedPositionedDataOutputStream(os)
   }
 
+  override def copy(src: String, dst: String, deleteSource: Boolean = false): Unit = {
+    val (srcBucket, srcPath) = getBucketPath(src)
+    val (dstBucket, dstPath) = getBucketPath(dst)
+    val srcId = BlobId.of(srcBucket, srcPath)
+    val dstId = BlobId.of(dstBucket, dstPath)
+    val copyReq = Storage.CopyRequest.of(srcId, dstId)
+    storage.copy(copyReq).getResult() // getResult is necessary to cause this to go to completion
+    if (deleteSource)
+      storage.delete(srcId)
+  }
+
   def delete(filename: String, recursive: Boolean): Unit = retryTransientErrors {
     val (bucket, path) = getBucketPath(filename)
     if (recursive) {
