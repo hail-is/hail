@@ -509,6 +509,14 @@ case class TableTextPartitionWriter(rowType: TStruct, delimiter: String, writeHe
   }
 }
 
+object TableTextFinalizer {
+  def cleanup(fs: FS, outputPath: String, files: Array[String]): Unit = {
+    val outputFiles = fs.listStatus(fs.makeQualified(outputPath)).map(_.getPath).toSet
+    val fileSet = files.map(fs.makeQualified(_)).toSet
+    outputFiles.diff(fileSet).foreach(fs.delete(_, false))
+  }
+}
+
 case class TableTextFinalizer(outputPath: String, rowType: TStruct, delimiter: String,
     header: Boolean = true, exportType: String = ExportType.CONCATENATED) extends MetadataWriter {
   def annotationType: Type = TArray(TString)
@@ -516,9 +524,9 @@ case class TableTextFinalizer(outputPath: String, rowType: TStruct, delimiter: S
     val ctx: ExecuteContext = cb.emb.ctx
     val ext = ctx.fs.getCodecExtension(outputPath)
     val partPaths = writeAnnotations.get(cb, "write annotations cannot be missing!")
+    val files = partPaths.castTo(cb, region, SJavaArrayString(true), false).asInstanceOf[SJavaArrayStringValue].array
     exportType match {
       case ExportType.CONCATENATED =>
-        val files = partPaths.castTo(cb, region, SJavaArrayString(true), false)
         val jFiles = if (header) {
           val headerFilePath = ctx.createTmpPath("header", ext)
           val headerStr = rowType.fields.map(_.name).mkString(delimiter)
@@ -527,14 +535,13 @@ case class TableTextFinalizer(outputPath: String, rowType: TStruct, delimiter: S
           cb += os.invoke[Int, Unit]("write", '\n')
           cb += os.invoke[Unit]("close")
 
-          val jFiles = files.asInstanceOf[SJavaArrayStringValue].array
-          val allFiles = cb.memoize(Code.newArray[String](jFiles.length + 1))
+          val allFiles = cb.memoize(Code.newArray[String](files.length + 1))
           cb += (allFiles(0) = const(headerFilePath))
           cb += Code.invokeStatic5[System, Any, Int, Any, Int, Int, Unit](
-            "arraycopy", jFiles /*src*/, 0 /*srcPos*/, allFiles /*dest*/, 1 /*destPos*/, jFiles.length /*len*/)
+            "arraycopy", files /*src*/, 0 /*srcPos*/, allFiles /*dest*/, 1 /*destPos*/, files.length /*len*/)
           allFiles
         } else {
-          files.asInstanceOf[SJavaArrayStringValue].array
+          files
         }
 
         cb += cb.emb.getFS.invoke[Array[String], String, Unit]("concatenateFiles", jFiles, const(outputPath))
@@ -545,9 +552,11 @@ case class TableTextFinalizer(outputPath: String, rowType: TStruct, delimiter: S
         })
 
       case ExportType.PARALLEL_HEADER_IN_SHARD =>
+        cb += Code.invokeScalaObject3[FS, String, Array[String], Unit](TableTextFinalizer.getClass, "cleanup", cb.emb.getFS, outputPath, files)
         cb += cb.emb.getFS.invoke[String, Unit]("touch", const(outputPath).concat("/_SUCCESS"))
 
       case ExportType.PARALLEL_SEPARATE_HEADER =>
+        cb += Code.invokeScalaObject3[FS, String, Array[String], Unit](TableTextFinalizer.getClass, "cleanup", cb.emb.getFS, outputPath, files)
         if (header) {
           val headerFilePath = s"$outputPath/header$ext"
           val headerStr = rowType.fields.map(_.name).mkString(delimiter)
