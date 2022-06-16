@@ -557,12 +557,11 @@ def is_retry_once_error(e):
     # true error.
     import hailtop.httpx  # pylint: disable=import-outside-toplevel,cyclic-import
     if aiodocker is not None and isinstance(e, aiodocker.exceptions.DockerError):
-        return (e.status == 404 and
-                'azurecr.io' in e.message and
-                'not found: manifest unknown: ' in e.message)
+        return (e.status == 404
+                and 'azurecr.io' in e.message
+                and 'not found: manifest unknown: ' in e.message)
     if isinstance(e, hailtop.httpx.ClientResponseError):
-        return (e.status == 400 and
-                'User project specified in the request is invalid.' in e.body)
+        return (e.status == 400 and 'User project specified in the request is invalid.' in e.body)
 
 
 def is_transient_error(e):
