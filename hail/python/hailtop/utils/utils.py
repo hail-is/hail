@@ -561,7 +561,8 @@ def is_retry_once_error(e):
                 and 'azurecr.io' in e.message
                 and 'not found: manifest unknown: ' in e.message)
     if isinstance(e, hailtop.httpx.ClientResponseError):
-        return (e.status == 400 and 'User project specified in the request is invalid.' in e.body)
+        return e.status == 400 and 'User project specified in the request is invalid.' in e.body
+    return False
 
 
 def is_transient_error(e):
