@@ -31,6 +31,7 @@ class ClientResponseException(
 
 object Requester {
   private val log: Logger = LogManager.getLogger("Requester")
+  private[this] val TIMEOUT_MS = 5 * 1000
 
   val httpClient: CloseableHttpClient = {
     log.info("creating HttpClient")
@@ -39,12 +40,18 @@ object Requester {
         .setSSLContext(tls.getSSLContext)
         .setMaxConnPerRoute(20)
         .setMaxConnTotal(100)
+        .setConnectionRequestTimeout(TIMEOUT_MS)
+        .setConnectTimeout(TIMEOUT_MS)
+        .setSocketTimeout(TIMEOUT_MS)
         .build()
     } catch { case _: NoSSLConfigFound =>
       log.info("creating HttpClient with no SSL Context")
       HttpClients.custom()
         .setMaxConnPerRoute(20)
         .setMaxConnTotal(100)
+        .setConnectionRequestTimeout(TIMEOUT_MS)
+        .setConnectTimeout(TIMEOUT_MS)
+        .setSocketTimeout(TIMEOUT_MS)
         .build()
     }
   }
