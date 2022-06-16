@@ -3,6 +3,7 @@ package is.hail
 import javax.net.ssl.SSLException
 import java.net._
 import java.io.EOFException
+import java.util.concurrent.TimeoutException
 import is.hail.utils._
 
 import org.apache.http.NoHttpResponseException
@@ -10,6 +11,7 @@ import org.apache.http.ConnectionClosedException
 import org.apache.http.conn.HttpHostConnectException
 import org.apache.log4j.{LogManager, Logger}
 
+import reactor.core.Exceptions
 import scala.util.Random
 import java.io._
 import com.google.cloud.storage.StorageException
@@ -48,6 +50,10 @@ package object services {
       case e: NoRouteToHostException =>
         true
       case e: SocketTimeoutException =>
+        true
+      case e: reactor.core.Exceptions.ReactiveException =>
+        cause != null && isTransientError(e.getCause())
+      case e: java.util.concurrent.TimeoutException =>
         true
       case e: UnknownHostException =>
         true

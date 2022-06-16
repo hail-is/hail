@@ -112,19 +112,19 @@ class AzureStorageFS(val credentialsJSON: Option[String] = None) extends FS {
   // https://docs.microsoft.com/en-us/rest/api/storageservices/setting-timeouts-for-blob-service-operations
   private val timeout = Duration.ofSeconds(30)
 
-  def getBlobServiceClient(account: String): BlobServiceClient = {
+  def getBlobServiceClient(account: String): BlobServiceClient = retryTransientErrors {
     serviceClientCache.getServiceClient(account)
   }
 
-  def getBlobClient(account: String, container: String, path: String): BlobClient = {
+  def getBlobClient(account: String, container: String, path: String): BlobClient = retryTransientErrors {
     getBlobServiceClient(account).getBlobContainerClient(container).getBlobClient(path)
   }
 
-  def getContainerClient(account: String, container: String): BlobContainerClient = {
+  def getContainerClient(account: String, container: String): BlobContainerClient = retryTransientErrors {
     getBlobServiceClient(account).getBlobContainerClient(container)
   }
 
-  def openNoCompression(filename: String): SeekableDataInputStream = {
+  def openNoCompression(filename: String): SeekableDataInputStream = retryTransientErrors {
     val (account, container, path) = getAccountContainerPath(filename)
     val blobClient: BlobClient = getBlobClient(account, container, path)
     val blobSize = blobClient.getProperties.getBlobSize
@@ -162,7 +162,7 @@ class AzureStorageFS(val credentialsJSON: Option[String] = None) extends FS {
     new WrappedSeekableDataInputStream(is)
   }
 
-  def createNoCompression(filename: String): PositionedDataOutputStream = {
+  def createNoCompression(filename: String): PositionedDataOutputStream = retryTransientErrors {
     val (account, container, path) = getAccountContainerPath(filename)
     val appendClient = getBlobClient(account, container, path).getAppendBlobClient
     appendClient.create(true)
@@ -191,7 +191,7 @@ class AzureStorageFS(val credentialsJSON: Option[String] = None) extends FS {
     new WrappedPositionedDataOutputStream(os)
   }
 
-  def delete(filename: String, recursive: Boolean): Unit = {
+  def delete(filename: String, recursive: Boolean): Unit = retryTransientErrors {
     val (account, container, path) = getAccountContainerPath(filename)
     val blobClient: BlobClient = getBlobClient(account, container, path)
 
@@ -218,7 +218,7 @@ class AzureStorageFS(val credentialsJSON: Option[String] = None) extends FS {
     }
   }
 
-  def listStatus(filename: String): Array[FileStatus] = {
+  def listStatus(filename: String): Array[FileStatus] = retryTransientErrors {
     val (account, container, path) = getAccountContainerPath(filename)
 
     val blobContainerClient: BlobContainerClient = getContainerClient(account, container)
@@ -235,14 +235,14 @@ class AzureStorageFS(val credentialsJSON: Option[String] = None) extends FS {
     statList.toArray
   }
 
-  def glob(filename: String): Array[FileStatus] = {
+  def glob(filename: String): Array[FileStatus] = retryTransientErrors {
     var (account, container, path) = getAccountContainerPath(filename)
     path = dropTrailingSlash(path)
 
     globWithPrefix(prefix = s"hail-az://$account/$container", path = path)
   }
 
-  def fileStatus(account: String, container: String, path: String): FileStatus = {
+  def fileStatus(account: String, container: String, path: String): FileStatus = retryTransientErrors {
     if (path == "") {
       return new BlobStorageFileStatus(s"hail-az://$account/$container", null, 0, true)
     }
@@ -268,7 +268,7 @@ class AzureStorageFS(val credentialsJSON: Option[String] = None) extends FS {
     }
   }
 
-  def fileStatus(filename: String): FileStatus = {
+  def fileStatus(filename: String): FileStatus = retryTransientErrors {
     val (account, container, path) = getAccountContainerPath(filename)
     fileStatus(account, container, path)
   }
