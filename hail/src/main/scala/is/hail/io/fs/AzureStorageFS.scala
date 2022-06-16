@@ -5,6 +5,7 @@ import com.azure.identity.{ClientSecretCredential, ClientSecretCredentialBuilder
 import com.azure.storage.blob.models.{BlobProperties, BlobRange, ListBlobsOptions}
 import com.azure.storage.blob.specialized.AppendBlobClient
 import com.azure.storage.blob.{BlobClient, BlobContainerClient, BlobServiceClient, BlobServiceClientBuilder}
+import is.hail.services.retryTransientErrors
 import is.hail.io.fs.AzureStorageFS.getAccountContainerPath
 import is.hail.io.fs.FSUtil.{containsWildcard, dropTrailingSlash}
 import org.apache.log4j.Logger

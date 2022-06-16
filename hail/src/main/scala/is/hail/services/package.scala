@@ -11,7 +11,7 @@ import org.apache.http.ConnectionClosedException
 import org.apache.http.conn.HttpHostConnectException
 import org.apache.log4j.{LogManager, Logger}
 
-import reactor.core.Exceptions
+import reactor.core.Exceptions.ReactiveException
 import scala.util.Random
 import java.io._
 import com.google.cloud.storage.StorageException
@@ -51,8 +51,6 @@ package object services {
         true
       case e: SocketTimeoutException =>
         true
-      case e: reactor.core.Exceptions.ReactiveException =>
-        cause != null && isTransientError(e.getCause())
       case e: java.util.concurrent.TimeoutException =>
         true
       case e: UnknownHostException =>
@@ -71,6 +69,12 @@ package object services {
       case e @ (_: SSLException | _: StorageException | _: IOException) =>
         val cause = e.getCause
         cause != null && isTransientError(cause)
+      case e: RuntimeException =>
+        // ReactiveException is package private inside reactore.core.Exception so we cannot access
+        // it directly for an isInstance check. AFAICT, this is the only way to check if we received
+        // a ReactiveException.
+        val causeIfReactiveException = reactor.core.Exceptions.unwrap(e)
+        causeIfReactiveException != null && isTransientError(causeIfReactiveException)
       case _ =>
         false
     }
