@@ -987,16 +987,17 @@ object LowerTableIR {
               Literal(TArray(TInt32), finalParts)
             case None =>
               val partitionSizeArrayFunc = genUID()
-              val howManyPartsToTry = Ref(genUID(), TInt32)
+              val howManyPartsToTryRef = Ref(genUID(), TInt32)
+              val howManyPartsToTry = if (targetNumRows == 1L) 1 else 4
 
               TailLoop(
                 partitionSizeArrayFunc,
-                FastIndexedSeq(howManyPartsToTry.name -> 4),
-                bindIR(loweredChild.mapContexts(_ => StreamTake(ToStream(childContexts), howManyPartsToTry)){ ctx: IR => ctx }
+                FastIndexedSeq(howManyPartsToTryRef.name -> 4),
+                bindIR(loweredChild.mapContexts(_ => StreamTake(ToStream(childContexts), howManyPartsToTryRef)){ ctx: IR => ctx }
                   .mapCollect(relationalLetsAbove)(streamLenOrMax)) { counts =>
                   If((Cast(streamSumIR(ToStream(counts)), TInt64) >= targetNumRows) || (ArrayLen(childContexts) <= ArrayLen(counts)),
                     counts,
-                    Recur(partitionSizeArrayFunc, FastIndexedSeq(howManyPartsToTry * 4), TArray(TInt32)))
+                    Recur(partitionSizeArrayFunc, FastIndexedSeq(howManyPartsToTryRef * 4), TArray(TInt32)))
                 })
           }
         }
@@ -1077,19 +1078,20 @@ object LowerTableIR {
 
             case None =>
               val partitionSizeArrayFunc = genUID()
-              val howManyPartsToTry = Ref(genUID(), TInt32)
+              val howManyPartsToTryRef = Ref(genUID(), TInt32)
+              val howManyPartsToTry = if (targetNumRows == 1L) 1 else 4
 
               TailLoop(
                 partitionSizeArrayFunc,
-                FastIndexedSeq(howManyPartsToTry.name -> 4),
+                FastIndexedSeq(howManyPartsToTryRef.name -> 4),
                 bindIR(
                   loweredChild
-                    .mapContexts(_ => StreamDrop(ToStream(childContexts), maxIR(totalNumPartitions - howManyPartsToTry, 0))){ ctx: IR => ctx }
+                    .mapContexts(_ => StreamDrop(ToStream(childContexts), maxIR(totalNumPartitions - howManyPartsToTryRef, 0))){ ctx: IR => ctx }
                     .mapCollect(relationalLetsAbove)(StreamLen)
                 ) { counts =>
                   If((Cast(streamSumIR(ToStream(counts)), TInt64) >= targetNumRows) || (totalNumPartitions <= ArrayLen(counts)),
                     counts,
-                    Recur(partitionSizeArrayFunc, FastIndexedSeq(howManyPartsToTry * 4), TArray(TInt32)))
+                    Recur(partitionSizeArrayFunc, FastIndexedSeq(howManyPartsToTryRef * 4), TArray(TInt32)))
                 })
           }
         }
