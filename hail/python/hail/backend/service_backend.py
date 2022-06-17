@@ -680,12 +680,12 @@ class ServiceBackend(Backend):
 
     def persist_expression(self, expr):
         # FIXME: should use context manager to clean up persisted resources
-        fname = TemporaryFilename().name
+        fname = TemporaryFilename(prefix='persist_expression').name
         write_expression(expr, fname)
         return read_expression(fname, _assert_type=expr.dtype)
 
     def persist_table(self, t, storage_level):
-        tf = TemporaryFilename()
+        tf = TemporaryFilename(prefix='persist_table')
         self._persisted_locations[t] = tf
         return t.checkpoint(tf.__enter__())
 
@@ -696,7 +696,7 @@ class ServiceBackend(Backend):
             raise ValueError(f'{t} is not persisted') from err
 
     def persist_matrix_table(self, mt, storage_level):
-        tf = TemporaryFilename()
+        tf = TemporaryFilename(prefix='persist_matrix_table')
         self._persisted_locations[t] = tf
         return mt.checkpoint(tf.__enter__())
 
