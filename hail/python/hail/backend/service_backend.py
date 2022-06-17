@@ -10,7 +10,7 @@ import re
 import yaml
 from pathlib import Path
 
-from hail.context import TemporaryDirectory, tmp_dir, TemporaryFilename, revision
+from hail.context import TemporaryDirectory, tmp_dir, TemporaryFilename, revision, _TemporaryFilenameManager
 from hail.utils import FatalError
 from hail.expr.types import HailType, dtype, ttuple, tvoid
 from hail.expr.table_type import ttable
@@ -279,6 +279,7 @@ class ServiceBackend(Backend):
         self.driver_cores = driver_cores
         self.driver_memory = driver_memory
         self.name_prefix = name_prefix
+        self._persisted_locations: Dict[Any, _TemporaryFilenameManager] = dict()
 
     def debug_info(self) -> Dict[str, Any]:
         return {
@@ -682,6 +683,28 @@ class ServiceBackend(Backend):
         fname = TemporaryFilename().name
         write_expression(expr, fname)
         return read_expression(fname, _assert_type=expr.dtype)
+
+    def persist_table(self, t, storage_level):
+        tf = TemporaryFilename()
+        self._persisted_locations[t] = tf
+        return t.checkpoint(tf.__enter__())
+
+    def unpersist_table(self, t):
+        try:
+            self._persisted_locations[t].__exit__(None, None, None)
+        except KeyError as err:
+            raise ValueError(f'{t} is not persisted') from err
+
+    def persist_matrix_table(self, mt, storage_level):
+        tf = TemporaryFilename()
+        self._persisted_locations[t] = tf
+        return mt.checkpoint(tf.__enter__())
+
+    def unpersist_matrix_table(self, mt):
+        try:
+            self._persisted_locations[mt].__exit__(None, None, None)
+        except KeyError as err:
+            raise ValueError(f'{t} is not persisted') from err
 
     def set_flags(self, **flags: str):
         self.flags.update(flags)
