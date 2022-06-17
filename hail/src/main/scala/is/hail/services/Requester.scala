@@ -35,23 +35,24 @@ object Requester {
 
   val httpClient: CloseableHttpClient = {
     log.info("creating HttpClient")
+    val requestConfig = RequestConfig.custom()
+      .setConnectTimeout(TIMEOUT_MS)
+      .setConnectionRequestTimeout(TIMEOUT_MS)
+      .setSocketTimeout(TIMEOUT_MS)
+      .build()
     try {
       HttpClients.custom()
         .setSSLContext(tls.getSSLContext)
         .setMaxConnPerRoute(20)
         .setMaxConnTotal(100)
-        .setConnectionRequestTimeout(TIMEOUT_MS)
-        .setConnectTimeout(TIMEOUT_MS)
-        .setSocketTimeout(TIMEOUT_MS)
+        .setDefaultRequestConfig(config)
         .build()
     } catch { case _: NoSSLConfigFound =>
       log.info("creating HttpClient with no SSL Context")
       HttpClients.custom()
         .setMaxConnPerRoute(20)
         .setMaxConnTotal(100)
-        .setConnectionRequestTimeout(TIMEOUT_MS)
-        .setConnectTimeout(TIMEOUT_MS)
-        .setSocketTimeout(TIMEOUT_MS)
+        .setDefaultRequestConfig(config)
         .build()
     }
   }
