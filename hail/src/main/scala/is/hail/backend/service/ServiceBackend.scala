@@ -430,7 +430,7 @@ object ServiceBackendSocketAPI2 {
       using(fs.openNoCompression(input)) { in =>
         retryTransientErrors {
           using(fs.createNoCompression(output)) { out =>
-            new ServiceBackendSocketAPI2(backend, in, out, sessionId).executeOneCommand()
+            new ServiceBackendSocketAPI2(backend, in, out, sessionId, fs).executeOneCommand()
             out.flush()
           }
         }
@@ -443,7 +443,8 @@ class ServiceBackendSocketAPI2(
   private[this] val backend: ServiceBackend,
   private[this] val in: InputStream,
   private[this] val out: OutputStream,
-  private[this] val sessionId: String
+  private[this] val sessionId: String,
+  private[this] val fs: FS
 ) extends Thread {
   private[this] val LOAD_REFERENCES_FROM_DATASET = 1
   private[this] val VALUE_TYPE = 2
@@ -533,16 +534,6 @@ class ServiceBackendSocketAPI2(
     val remoteTmpDir = readString()
 
     def withExecuteContext(methodName: String, method: ExecuteContext => Array[Byte]): Array[Byte] = ExecutionTimer.logTime(methodName) { timer =>
-      val fs = retryTransientErrors {
-        using(new FileInputStream(s"${backend.scratchDir}/secrets/gsa-key/key.json")) { is =>
-          val credentialsStr = Some(IOUtils.toString(is, Charset.defaultCharset().toString()))
-          sys.env.get("HAIL_CLOUD").get match {
-            case "gcp" => new GoogleStorageFS(credentialsStr).asCacheable()
-            case "azure" => new AzureStorageFS(credentialsStr).asCacheable()
-            case _ => throw new IllegalArgumentException("bad cloud")
-          }
-        }
-      }
       ExecuteContext.scoped(
         tmpdir,
         "file:///tmp",
