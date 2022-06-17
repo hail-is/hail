@@ -466,6 +466,10 @@ object LowerTableIR {
     }
 
     val lowered = ir match {
+      case TableCount(TableRead(_, _, reader)) if reader.partitionCounts.isDefined =>
+        val partCounts = reader.partitionCounts.get
+        I64(partCounts.sum)
+
       case TableCount(tableIR) =>
         val stage = lower(tableIR)
         invoke("sum", TInt64,
