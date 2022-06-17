@@ -2037,6 +2037,7 @@ steps:
         script: /io/sql/set-test-and-dev-pools-to-8-core-max-2.py
       - name: set-test-and-dev-jpim-to-max-5
         script: /io/sql/set-test-and-dev-jpim-to-max-5.py
+        online: true
     inputs:
       - from: /repo/batch/sql
         to: /io/sql
