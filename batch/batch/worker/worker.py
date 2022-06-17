@@ -56,6 +56,7 @@ from hailtop.utils import (
     check_shell_output,
     dump_all_stacktraces,
     find_spark_home,
+    is_retry_once_error,
     parse_docker_image_reference,
     periodically_call,
     request_retry_transient_errors,
@@ -442,7 +443,7 @@ class Image:
     async def _pull_image(self):
         assert docker
 
-        try:
+        async def do_pull():
             if not self.is_cloud_image:
                 await self._ensure_image_is_pulled()
             elif self.is_public_image:
@@ -459,6 +460,15 @@ class Image:
                 await docker_call_retry(MAX_DOCKER_IMAGE_PULL_SECS, f'{self}')(
                     docker.images.pull, self.image_ref_str, auth=auth
                 )
+
+        try:
+            try:
+                await do_pull()
+            except DockerError as e:
+                if is_retry_once_error(e):
+                    await do_pull()
+                else:
+                    raise
         except DockerError as e:
             if e.status == 404 and 'pull access denied' in e.message:
                 raise ImageCannotBePulled from e

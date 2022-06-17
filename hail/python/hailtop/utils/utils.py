@@ -551,6 +551,20 @@ class TransientError(Exception):
     pass
 
 
+def is_retry_once_error(e):
+    # An exception is a "retry once error" if a rare, known bug in a dependency or in a cloud
+    # provider can manifest as this exception *and* that manifestation is indistinguishable from a
+    # true error.
+    import hailtop.httpx  # pylint: disable=import-outside-toplevel,cyclic-import
+    if aiodocker is not None and isinstance(e, aiodocker.exceptions.DockerError):
+        return (e.status == 404
+                and 'azurecr.io' in e.message
+                and 'not found: manifest unknown: ' in e.message)
+    if isinstance(e, hailtop.httpx.ClientResponseError):
+        return e.status == 400 and 'User project specified in the request is invalid.' in e.body
+    return False
+
+
 def is_transient_error(e):
     # observed exceptions:
     #
@@ -728,9 +742,11 @@ async def retry_transient_errors(f: Callable[..., Awaitable[T]], *args, **kwargs
         try:
             return await f(*args, **kwargs)
         except Exception as e:
+            errors += 1
+            if errors == 1 and is_retry_once_error(e):
+                continue
             if not is_transient_error(e):
                 raise
-            errors += 1
             if errors == 2:
                 log.warning(f'A transient error occured. We will automatically retry. Do not be alarmed. '
                             f'We have thus far seen {errors} transient errors (current delay: '
