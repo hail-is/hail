@@ -416,7 +416,7 @@ class Table(ExprContainer):
         """
         return Env.backend().execute(ir.TableToValueApply(self._tir, {'name': 'NPartitionsTable'}))
 
-    def count(self):
+    def count(self, *, _localize=True):
         """Count the number of rows in the table.
 
         Examples
@@ -429,7 +429,10 @@ class Table(ExprContainer):
         -------
         :obj:`int`
         """
-        return Env.backend().execute(ir.TableCount(self._tir))
+        _ir = ir.TableCount(self._tir)
+        if _localize:
+            return Env.backend().execute(_ir)
+        return construct_expr(ir.LiftMeOut(_ir), _ir.typ)
 
     async def _async_count(self):
         return await Env.backend()._async_execute(ir.TableCount(self._tir))
