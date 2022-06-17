@@ -364,7 +364,7 @@ def test_unknown_image(client: BatchClient):
             (status, b.debug_info())
         )
     except Exception as e:
-        raise AssertionError(str(status, b.debug_info()), e)
+        raise AssertionError(str((status, b.debug_info())), e)
 
 
 def test_running_job_log_and_status(client: BatchClient):
