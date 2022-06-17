@@ -462,11 +462,14 @@ class Image:
                 )
 
         try:
-            await do_pull()
-        except DockerError as e:
-            if is_retry_once_error(e):
+            try:
                 await do_pull()
-                return
+            except DockerError as e:
+                if is_retry_once_error(e):
+                    await do_pull()
+                else:
+                    raise
+        except DockerError as e:
             if e.status == 404 and 'pull access denied' in e.message:
                 raise ImageCannotBePulled from e
             if 'not found: manifest unknown' in e.message:
