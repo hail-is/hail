@@ -697,14 +697,14 @@ class ServiceBackend(Backend):
 
     def persist_matrix_table(self, mt, storage_level):
         tf = TemporaryFilename(prefix='persist_matrix_table')
-        self._persisted_locations[t] = tf
+        self._persisted_locations[mt] = tf
         return mt.checkpoint(tf.__enter__())
 
     def unpersist_matrix_table(self, mt):
         try:
             self._persisted_locations[mt].__exit__(None, None, None)
         except KeyError as err:
-            raise ValueError(f'{t} is not persisted') from err
+            raise ValueError(f'{mt} is not persisted') from err
 
     def set_flags(self, **flags: str):
         self.flags.update(flags)
