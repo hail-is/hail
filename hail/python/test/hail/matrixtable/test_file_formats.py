@@ -1,4 +1,4 @@
-import unittest
+import pytest
 
 import hail as hl
 from hail.utils.java import Env, scala_object
@@ -32,51 +32,53 @@ def create_backward_compatibility_files():
         i += 1
 
 
-class Tests(unittest.TestCase):
-    @unittest.skip  # comment this line to generate files for new versions
-    def test_write(self):
-        create_backward_compatibility_files()
+@pytest.mark.skip(reason='comment this line to generate files for new versions')
+def test_write():
+    create_backward_compatibility_files()
 
-    def test_backward_compatability(self):
-        import os
 
-        def backward_compatible_same(current, old):
-            if isinstance(current, hl.Table):
-                current = current.select_globals(*old.globals)
-                current = current.select(*old.row_value)
-            else:
-                current = current.select_globals(*old.globals)
-                current = current.select_rows(*old.row_value)
-                current = current.select_cols(*old.col_value)
-                current = current.select_entries(*old.entry)
-            return current._same(old)
+@pytest.fixture(scope="module")
+def all_values_matrix_table_fixture():
+    return create_all_values_matrix_table()
 
-        all_values_table, all_values_matrix_table = create_all_values_datasets()
 
-        resource_dir = resource('backward_compatability')
-        fs = hl.current_backend().fs
-        versions = [os.path.basename(x.path) for x in fs.ls(resource_dir)]
+@pytest.fixture(scope="module")
+def all_values_table_fixture():
+    return create_all_values_table()
 
-        n = 0
-        for v in versions:
-            table_dir = os.path.join(resource_dir, v, 'table')
-            i = 0
-            f = os.path.join(table_dir, '{}.ht'.format(i))
-            while fs.exists(f):
-                ds = hl.read_table(f)
-                assert backward_compatible_same(all_values_table, ds)
-                i += 1
-                f = os.path.join(table_dir, '{}.ht'.format(i))
-                n += 1
 
-            matrix_table_dir = os.path.join(resource_dir, v, 'matrix_table')
-            i = 0
-            f = os.path.join(matrix_table_dir, '{}.hmt'.format(i))
-            while fs.exists(f):
-                ds = hl.read_matrix_table(f)
-                assert backward_compatible_same(all_values_matrix_table, ds)
-                i += 1
-                f = os.path.join(matrix_table_dir, '{}.hmt'.format(i))
-                n += 1
+resource_dir = resource('backward_compatability')
+fs = hl.current_backend().fs
+try:
+    ht_paths = [x.path for x in fs.ls(resource_dir + '/*/table/')]
+    mt_paths = [x.path for x in fs.ls(resource_dir + '/*/matrix_table/')]
+finally:
+    hl.stop()
 
-        assert n == 88, f'{resource_dir!r} {versions!r}'
+
+@pytest.mark.parametrize("path", mt_paths)
+def test_backward_compatability_mt(path, all_values_matrix_table_fixture):
+    assert len(mt_paths) == 46, str((resource_dir, ht_paths))
+
+    old = hl.read_matrix_table(path)
+
+    current = all_values_matrix_table_fixture
+    current = current.select_globals(*old.globals)
+    current = current.select_rows(*old.row_value)
+    current = current.select_cols(*old.col_value)
+    current = current.select_entries(*old.entry)
+
+    assert current._same(old)
+
+
+@pytest.mark.parametrize("path", ht_paths)
+def test_backward_compatability_ht(path, all_values_table_fixture):
+    assert len(ht_paths) == 42, str((resource_dir, ht_paths))
+
+    old = hl.read_table(path)
+
+    current = all_values_table_fixture
+    current = current.select_globals(*old.globals)
+    current = current.select(*old.row_value)
+
+    assert current._same(old)
