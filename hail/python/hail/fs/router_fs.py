@@ -253,9 +253,13 @@ class RouterFS(FS):
                         error_when_file_and_directory: bool = True,
                         _max_simultaneous_files: int = 50) -> List[StatResult]:
         async def ls_no_glob(path) -> List[StatResult]:
-            return await self._ls_no_glob(path,
-                                          error_when_file_and_directory=error_when_file_and_directory,
-                                          _max_simultaneous_files=_max_simultaneous_files)
+            try:
+                return await self._ls_no_glob(path,
+                                              error_when_file_and_directory=error_when_file_and_directory,
+                                              _max_simultaneous_files=_max_simultaneous_files)
+            except FileNotFoundError:
+                return []
+
         url = self.afs.parse_url(path)
         if any(glob.escape(bucket_part) != bucket_part
                for bucket_part in url.bucket_parts):
@@ -295,9 +299,16 @@ class RouterFS(FS):
                                    '/'.join([cumulative_prefix, *intervening_components, single_component_glob_pattern]))
             ]
 
-        return [stat
-                for cumulative_prefix in cumulative_prefixes
-                for stat in await ls_no_glob('/'.join([cumulative_prefix, *suffix_components]))]
+        found_stats = [
+            stat
+            for cumulative_prefix in cumulative_prefixes
+            for stat in await ls_no_glob('/'.join([cumulative_prefix, *suffix_components]))
+        ]
+
+        if len(glob_components) == 0 and len(found_stats) == 0:
+            # Unless we are using a glob pattern, a path referring to no files should error
+            raise FileNotFoundError(path)
+        return found_stats
 
     async def _ls_no_glob(self,
                           path: str,
