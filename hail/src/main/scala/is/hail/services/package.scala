@@ -55,7 +55,8 @@ package object services {
         true
       case e: SocketException =>
         e.getMessage != null && (
-          e.getMessage.contains("Connection reset") ||
+          e.getMessage.contains("Connection timed out (Read failed)") ||
+            e.getMessage.contains("Connection reset") ||
             e.getMessage.contains("Broken pipe") ||
             e.getMessage.contains("Connection refused"))
       case e: EOFException =>

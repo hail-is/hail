@@ -116,12 +116,14 @@ class BatchClient(
       b ++= JsonMethods.compact(batchJson).getBytes(StandardCharsets.UTF_8)
       b += '}'
       val data = b.result()
-      val resp = post("/api/v1alpha/batches/create-fast",
-        new ByteArrayEntity(data, ContentType.create("application/json")))
+      val resp = retryTransientErrors{
+        post("/api/v1alpha/batches/create-fast",
+          new ByteArrayEntity(data, ContentType.create("application/json")))
+      }
       b.clear()
       (resp \ "id").extract[Long]
     } else {
-      val resp = post("/api/v1alpha/batches/create", json = batchJson)
+      val resp = retryTransientErrors { post("/api/v1alpha/batches/create", json = batchJson) }
       val batchID = (resp \ "id").extract[Long]
 
       val b = new ByteArrayBuilder()
@@ -139,16 +141,18 @@ class BatchClient(
         }
         b += ']'
         val data = b.result()
-        post(
-          s"/api/v1alpha/batches/$batchID/jobs/create",
-          new ByteArrayEntity(
-            data,
-            ContentType.create("application/json")))
+        retryTransientErrors {
+          post(
+            s"/api/v1alpha/batches/$batchID/jobs/create",
+            new ByteArrayEntity(
+              data,
+              ContentType.create("application/json")))
+        }
         b.clear()
         i += 1
       }
 
-      patch(s"/api/v1alpha/batches/$batchID/close")
+      retryTransientErrors { patch(s"/api/v1alpha/batches/$batchID/close") }
       batchID
     }
     log.info(s"run: created batch $batchID")
@@ -161,7 +165,7 @@ class BatchClient(
     val start = System.nanoTime()
 
     while (true) {
-      val batch = get(s"/api/v1alpha/batches/$batchID")
+      val batch = retryTransientErrors { get(s"/api/v1alpha/batches/$batchID") }
       if ((batch \ "complete").extract[Boolean])
         return batch
 
