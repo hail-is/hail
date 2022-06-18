@@ -320,11 +320,11 @@ object TableAnnotationImpex {
   def importAnnotation(a: String, t: Type): Annotation = {
     (t: @unchecked) match {
       case TString => a
-      case TInt32 => UtilFunctions.parseInt32(a)
-      case TInt64 => UtilFunctions.parseInt64(a)
-      case TFloat32 => UtilFunctions.parseFloat32(a)
-      case TFloat64 => UtilFunctions.parseFloat64(a)
-      case TBoolean => UtilFunctions.parseBoolean(a)
+      case TInt32 => UtilFunctions.parseInt32(a, -1)
+      case TInt64 => UtilFunctions.parseInt64(a, -1)
+      case TFloat32 => UtilFunctions.parseFloat32(a, -1)
+      case TFloat64 => UtilFunctions.parseFloat64(a, -1)
+      case TBoolean => UtilFunctions.parseBoolean(a, -1)
       case tl: TLocus => Locus.parse(a, tl.rg)
       // FIXME legacy
       case TInterval(l: TLocus) => Locus.parseInterval(a, l.rg, invalidMissing = false)

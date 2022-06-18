@@ -2095,7 +2095,7 @@ class ImportTableTests(unittest.TestCase):
         assert ht._same(ht2)
 
     def test_error_with_context(self):
-        with pytest.raises(FatalError, match='For input string:'):
+        with pytest.raises(HailUserError, match='cannot parse int32 from input string'):
             ht = hl.import_table(resource('tsv_errors.tsv'), types={'col1': 'int32'})
             ht._force_count()
 
