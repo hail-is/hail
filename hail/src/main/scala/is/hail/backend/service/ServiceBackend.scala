@@ -309,11 +309,11 @@ class ServiceBackend(
           optimize = true)
       }
       val retPType = pt.asInstanceOf[PBaseStruct]
-      ctx.timer.time("invoke compiled function") {
-        val off = f(ctx.theHailClassLoader, ctx.fs, 0, ctx.r)(ctx.r)
+      val off = ctx.timer.time("invoke compiled function") {
+        f(ctx.theHailClassLoader, ctx.fs, 0, ctx.r)(ctx.r)
       }
-      ctx.timer.time("construct codec") {
-        val codec = TypedCodecSpec(
+      val codec = ctx.timer.time("construct codec") {
+        TypedCodecSpec(
           EType.fromTypeAllOptional(retPType.virtualType),
           retPType.virtualType,
           BufferSpec.parseOrDefault(bufferSpecString)
@@ -571,7 +571,7 @@ class ServiceBackendSocketAPI2(
           }
         }
       } finally {
-        theRegionPool.closeAllRegions()
+        // theRegionPool.closeAllRegions()
         theRegionPool.checkTotalAllocatedBytezZero(isFatal=false)
       }
     }
