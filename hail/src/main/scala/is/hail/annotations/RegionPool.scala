@@ -192,10 +192,14 @@ final class RegionPool private(strictMemoryCheck: Boolean, threadName: String, t
       i += 1
     }
     chunkCache.freeAll(pool = this)
+    checkTotalAllocatedBytezZero(strictMemoryCheck)
+  }
+
+  def checkTotalAllocatedBytezZero(isFatal: Boolean): Unit = {
     if (totalAllocatedBytes != 0) {
       val msg = s"RegionPool: total allocated bytes not 0 after closing! total allocated: " +
         s"$totalAllocatedBytes (${ readableBytes(totalAllocatedBytes) })"
-      if (strictMemoryCheck)
+      if (isFatal)
         fatal(msg)
       else
         warn(msg)

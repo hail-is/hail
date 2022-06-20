@@ -389,6 +389,7 @@ class HailBatchFailure(message: String) extends RuntimeException(message)
 
 object ServiceBackendSocketAPI2 {
   private[this] val theHailClassLoader = new HailClassLoader(getClass().getClassLoader())
+  private[this] val theRegionPool = RegionPool()
 
   def main(argv: Array[String]): Unit = {
     assert(argv.length == 7, argv.toFastIndexedSeq)
@@ -432,7 +433,7 @@ object ServiceBackendSocketAPI2 {
       using(fs.openNoCompression(input)) { in =>
         retryTransientErrors {
           using(fs.createNoCompression(output)) { out =>
-            new ServiceBackendSocketAPI2(backend, in, out, sessionId, fs).executeOneCommand()
+            new ServiceBackendSocketAPI2(backend, in, out, sessionId, fs, theRegionPool).executeOneCommand()
             out.flush()
           }
         }
@@ -446,7 +447,8 @@ class ServiceBackendSocketAPI2(
   private[this] val in: InputStream,
   private[this] val out: OutputStream,
   private[this] val sessionId: String,
-  private[this] val fs: FS
+  private[this] val fs: FS,
+  private[this] val theRegionPool: RegionPool
 ) extends Thread {
   private[this] val LOAD_REFERENCES_FROM_DATASET = 1
   private[this] val VALUE_TYPE = 2
@@ -536,18 +538,23 @@ class ServiceBackendSocketAPI2(
     val remoteTmpDir = readString()
 
     def withExecuteContext(methodName: String, method: ExecuteContext => Array[Byte]): Array[Byte] = ExecutionTimer.logTime(methodName) { timer =>
-      ExecuteContext.scoped(
-        tmpdir,
-        "file:///tmp",
-        backend,
-        fs,
-        timer,
-        null,
-        backend.theHailClassLoader,
-        HailFeatureFlags.fromMap(flags)
-      ) { ctx =>
-        ctx.backendContext = new ServiceBackendContext(sessionId, billingProject, remoteTmpDir)
-        method(ctx)
+      try {
+        using(new ExecuteContext(
+          tmpdir,
+          "file:///tmp",
+          backend,
+          fs,
+          Region(pool = theRegionPool),
+          timer,
+          null,
+          backend.theHailClassLoader,
+          HailFeatureFlags.fromMap(flags)
+        )) { ctx =>
+          ctx.backendContext = new ServiceBackendContext(sessionId, billingProject, remoteTmpDir)
+          method(ctx)
+        }
+      } finally {
+        theRegionPool.checkTotalAllocatedBytezZero(isFatal=true)
       }
     }
 

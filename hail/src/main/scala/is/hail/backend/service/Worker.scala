@@ -5,6 +5,7 @@ import java.nio.charset._
 import java.util.{concurrent => javaConcurrent}
 
 import is.hail.asm4s._
+import is.hail.annotations._
 import is.hail.{HAIL_REVISION, HailContext}
 import is.hail.backend.HailTaskContext
 import is.hail.io.fs._
@@ -17,10 +18,15 @@ import scala.collection.mutable
 import scala.concurrent.duration.{Duration, MILLISECONDS}
 import scala.concurrent.{Future, Await, ExecutionContext}
 
-class ServiceTaskContext(val partitionId: Int) extends HailTaskContext {
+class ServiceTaskContext(
+  val partitionId: Int,
+  private[this] val theRegionPool: RegionPool
+) extends HailTaskContext {
   override def stageId(): Int = 0
 
   override def attemptNumber(): Int = 0
+
+  override def getRegionPool(): RegionPool = theRegionPool
 }
 
 object WorkerTimer {
@@ -47,6 +53,7 @@ class WorkerTimer() {
 
 object Worker {
   private[this] val theHailClassLoader = new HailClassLoader(getClass().getClassLoader())
+  private[this] val theRegionPool = RegionPool()
   private[this] val log = Logger.getLogger(getClass.getName())
   private[this] val myRevision = HAIL_REVISION
   private[this] implicit val ec = ExecutionContext.fromExecutorService(
@@ -140,7 +147,7 @@ object Worker {
         // FIXME: workers should not have backends, but some things do need hail contexts
         new ServiceBackend(null, null, new HailClassLoader(getClass().getClassLoader())), skipLoggingConfiguration = true, quiet = true)
     }
-    val htc = new ServiceTaskContext(i)
+    val htc = new ServiceTaskContext(i, theRegionPool)
     var result: Array[Byte] = null
     var userError: HailException = null
     try {
@@ -149,8 +156,10 @@ object Worker {
       }
     } catch {
       case err: HailException => userError = err
+    } finally {
+      htc.finish()
+      theRegionPool.checkTotalAllocatedBytezZero(isFatal=true)
     }
-    htc.finish()
 
     timer.end("executeFunction")
     timer.start("writeOutputs")
