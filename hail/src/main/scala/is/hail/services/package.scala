@@ -51,8 +51,6 @@ package object services {
         true
       case e: SocketTimeoutException =>
         true
-//      case e: java.util.concurrent.TimeoutException =>
-//        true
       case e: UnknownHostException =>
         true
       case e: ConnectionClosedException =>
@@ -66,15 +64,25 @@ package object services {
       case e: EOFException =>
         e.getMessage != null && (
           e.getMessage.contains("SSL peer shut down incorrectly"))
+      case e: IllegalStateException =>
+        // Caused by: java.lang.IllegalStateException: Timeout on blocking read for 30000000000 NANOSECONDS
+        // reactor.core.publisher.BlockingSingleSubscriber.blockingGet(BlockingSingleSubscriber.java:123)
+        // reactor.core.publisher.Mono.block(Mono.java:1727)
+        // com.azure.storage.common.implementation.StorageImplUtils.blockWithOptionalTimeout(StorageImplUtils.java:130)
+        // com.azure.storage.blob.specialized.BlobClientBase.downloadStreamWithResponse(BlobClientBase.java:731)
+        // is.hail.io.fs.AzureStorageFS$$anon$1.fill(AzureStorageFS.scala:152)
+        // is.hail.io.fs.FSSeekableInputStream.read(FS.scala:141)
+        // ...
+        e.getMessage.contains("Timeout on blocking read")
       case e @ (_: SSLException | _: StorageException | _: IOException) =>
         val cause = e.getCause
         cause != null && isTransientError(cause)
-//      case e: RuntimeException =>
-//        // ReactiveException is package private inside reactore.core.Exception so we cannot access
-//        // it directly for an isInstance check. AFAICT, this is the only way to check if we received
-//        // a ReactiveException.
-//        val causeIfReactiveException = reactor.core.Exceptions.unwrap(e)
-//        causeIfReactiveException != null && isTransientError(causeIfReactiveException)
+     case e: RuntimeException =>
+       // ReactiveException is package private inside reactore.core.Exception so we cannot access
+       // it directly for an isInstance check. AFAICT, this is the only way to check if we received
+       // a ReactiveException.
+       val causeIfReactiveException = reactor.core.Exceptions.unwrap(e)
+       causeIfReactiveException != null && isTransientError(causeIfReactiveException)
       case _ =>
         false
     }
