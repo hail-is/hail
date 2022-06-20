@@ -158,6 +158,7 @@ object Worker {
       case err: HailException => userError = err
     } finally {
       htc.finish()
+      theRegionPool.closeAllRegions()
       theRegionPool.checkTotalAllocatedBytezZero(isFatal=true)
     }
 
