@@ -288,28 +288,40 @@ class ServiceBackend(
     val x = LoweringPipeline.darrayLowerer(true)(DArrayLowering.All).apply(ctx, _x)
       .asInstanceOf[IR]
     if (x.typ == TVoid) {
-      val (_, f) = Compile[AsmFunction1RegionUnit](ctx,
-        FastIndexedSeq(),
-        FastIndexedSeq[TypeInfo[_]](classInfo[Region]), UnitInfo,
-        x,
-        optimize = true)
+      val (_, f) = ctx.timer.time("compile") {
+        Compile[AsmFunction1RegionUnit](ctx,
+          FastIndexedSeq(),
+          FastIndexedSeq[TypeInfo[_]](classInfo[Region]), UnitInfo,
+          x,
+          optimize = true)
+      }
 
-      f(ctx.theHailClassLoader, ctx.fs, 0, ctx.r)(ctx.r)
+      ctx.timer.time("invoke compiled function") {
+        f(ctx.theHailClassLoader, ctx.fs, 0, ctx.r)(ctx.r)
+      }
       Array()
     } else {
-      val (Some(PTypeReferenceSingleCodeType(pt)), f) = Compile[AsmFunction1RegionLong](ctx,
-        FastIndexedSeq(),
-        FastIndexedSeq[TypeInfo[_]](classInfo[Region]), LongInfo,
-        MakeTuple.ordered(FastIndexedSeq(x)),
-        optimize = true)
+      val (Some(PTypeReferenceSingleCodeType(pt)), f) = ctx.timer.time("compile") {
+        Compile[AsmFunction1RegionLong](ctx,
+          FastIndexedSeq(),
+          FastIndexedSeq[TypeInfo[_]](classInfo[Region]), LongInfo,
+          MakeTuple.ordered(FastIndexedSeq(x)),
+          optimize = true)
+      }
       val retPType = pt.asInstanceOf[PBaseStruct]
-      val off = f(ctx.theHailClassLoader, ctx.fs, 0, ctx.r)(ctx.r)
-      val codec = TypedCodecSpec(
-        EType.fromTypeAllOptional(retPType.virtualType),
-        retPType.virtualType,
-        BufferSpec.parseOrDefault(bufferSpecString)
-      )
-      codec.encode(ctx, retPType, off)
+      ctx.timer.time("invoke compiled function") {
+        val off = f(ctx.theHailClassLoader, ctx.fs, 0, ctx.r)(ctx.r)
+      }
+      ctx.timer.time("construct codec") {
+        val codec = TypedCodecSpec(
+          EType.fromTypeAllOptional(retPType.virtualType),
+          retPType.virtualType,
+          BufferSpec.parseOrDefault(bufferSpecString)
+        )
+      }
+      ctx.timer.time("encode result") {
+        codec.encode(ctx, retPType, off)
+      }
     }
   }
 
@@ -321,7 +333,10 @@ class ServiceBackend(
   ): Array[Byte] = {
     log.info(s"executing: ${token}")
 
-    execute(ctx, IRParser.parse_value_ir(ctx, code), bufferSpecString)
+    val parsedIr = ctx.timer.time("parse IR") {
+      IRParser.parse_value_ir(ctx, code)
+    }
+    execute(ctx, parsedIr, bufferSpecString)
   }
 
   def lowerDistributedSort(
