@@ -996,7 +996,7 @@ object LowerTableIR {
 
               TailLoop(
                 partitionSizeArrayFunc,
-                FastIndexedSeq(howManyPartsToTryRef.name -> 4),
+                FastIndexedSeq(howManyPartsToTryRef.name -> howManyPartsToTry),
                 bindIR(loweredChild.mapContexts(_ => StreamTake(ToStream(childContexts), howManyPartsToTryRef)){ ctx: IR => ctx }
                   .mapCollect(relationalLetsAbove)(streamLenOrMax)) { counts =>
                   If((Cast(streamSumIR(ToStream(counts)), TInt64) >= targetNumRows) || (ArrayLen(childContexts) <= ArrayLen(counts)),
@@ -1087,7 +1087,7 @@ object LowerTableIR {
 
               TailLoop(
                 partitionSizeArrayFunc,
-                FastIndexedSeq(howManyPartsToTryRef.name -> 4),
+                FastIndexedSeq(howManyPartsToTryRef.name -> howManyPartsToTry),
                 bindIR(
                   loweredChild
                     .mapContexts(_ => StreamDrop(ToStream(childContexts), maxIR(totalNumPartitions - howManyPartsToTryRef, 0))){ ctx: IR => ctx }
