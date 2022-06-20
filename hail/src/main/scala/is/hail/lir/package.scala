@@ -4,9 +4,11 @@ import is.hail.asm4s.{ArrayInfo, BooleanInfo, ClassInfo, DoubleInfo, FloatInfo, 
 import is.hail.utils.FastIndexedSeq
 import org.objectweb.asm.Opcodes._
 
+import java.util.UUID
+
 package object lir {
   private[this] var counter: Long = 0
-  private[this] val uuid = UUID.randomUUID().toString
+  private[this] val uuid = UUID.randomUUID().toString.replace("-","_")
 
   def genName(tag: String, baseName: String): String = synchronized {
     counter += 1
