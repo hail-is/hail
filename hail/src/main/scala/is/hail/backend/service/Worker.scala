@@ -46,6 +46,7 @@ class WorkerTimer() {
 }
 
 object Worker {
+  private[this] val theHailClassLoader = new HailClassLoader(getClass().getClassLoader())
   private[this] val log = Logger.getLogger(getClass.getName())
   private[this] val myRevision = HAIL_REVISION
   private[this] implicit val ec = ExecutionContext.fromExecutorService(
@@ -58,7 +59,7 @@ object Worker {
   }
 
   def main(argv: Array[String]): Unit = {
-    val theHailClassLoader = new HailClassLoader(getClass().getClassLoader())
+    // val theHailClassLoader = new HailClassLoader(getClass().getClassLoader())
 
     if (argv.length != 7) {
       throw new IllegalArgumentException(s"expected seven arguments, not: ${ argv.length }")

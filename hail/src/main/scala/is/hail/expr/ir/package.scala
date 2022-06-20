@@ -16,10 +16,11 @@ package object ir {
   type TokenIterator = BufferedIterator[Token]
   type IEmitCode = IEmitCodeGen[SValue]
 
+  private[this] val uuid = UUID.randomUUID().toString
   var uidCounter: Long = 0
 
   def genUID(): String = {
-    val uid = s"__iruid_$uidCounter"
+    val uid = s"__iruid_$uuid$uidCounter"
     uidCounter += 1
     uid
   }

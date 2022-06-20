@@ -6,15 +6,16 @@ import org.objectweb.asm.Opcodes._
 
 package object lir {
   private[this] var counter: Long = 0
+  private[this] val uuid = UUID.randomUUID().toString
 
   def genName(tag: String, baseName: String): String = synchronized {
     counter += 1
     if (baseName != null) {
       if (baseName.contains("."))
         throw new RuntimeException(s"genName has invalid character(s): $baseName")
-      s"__$tag$counter$baseName"
+      s"__$tag$uuid$counter$baseName"
     } else
-      s"__$tag${ counter }null"
+      s"__$tag$uuid${ counter }null"
   }
 
   def setChildren(x: X, cs: IndexedSeq[ValueX]): Unit = {

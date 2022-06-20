@@ -388,6 +388,8 @@ class EndOfInputException extends RuntimeException
 class HailBatchFailure(message: String) extends RuntimeException(message)
 
 object ServiceBackendSocketAPI2 {
+  private[this] val theHailClassLoader = new HailClassLoader(getClass().getClassLoader())
+
   def main(argv: Array[String]): Unit = {
     assert(argv.length == 7, argv.toFastIndexedSeq)
 
@@ -402,7 +404,7 @@ object ServiceBackendSocketAPI2 {
 
     // FIXME: when can the classloader be shared? (optimizer benefits!)
     val backend = new ServiceBackend(
-      jarLocation, name, new HailClassLoader(getClass().getClassLoader()), scratchDir)
+      jarLocation, name, theHailClassLoader, scratchDir)
     if (HailContext.isInitialized) {
       HailContext.get.backend = backend
     } else {
