@@ -539,19 +539,21 @@ class ServiceBackendSocketAPI2(
 
     def withExecuteContext(methodName: String, method: ExecuteContext => Array[Byte]): Array[Byte] = ExecutionTimer.logTime(methodName) { timer =>
       try {
-        using(new ExecuteContext(
-          tmpdir,
-          "file:///tmp",
-          backend,
-          fs,
-          Region(pool = theRegionPool),
-          timer,
-          null,
-          backend.theHailClassLoader,
-          HailFeatureFlags.fromMap(flags)
-        )) { ctx =>
-          ctx.backendContext = new ServiceBackendContext(sessionId, billingProject, remoteTmpDir)
-          method(ctx)
+        using(Region(pool = theRegionPool)) { region =>
+          using(new ExecuteContext(
+            tmpdir,
+            "file:///tmp",
+            backend,
+            fs,
+            region,
+            timer,
+            null,
+            backend.theHailClassLoader,
+            HailFeatureFlags.fromMap(flags)
+          )) { ctx =>
+            ctx.backendContext = new ServiceBackendContext(sessionId, billingProject, remoteTmpDir)
+            method(ctx)
+          }
         }
       } finally {
         theRegionPool.checkTotalAllocatedBytezZero(isFatal=true)
