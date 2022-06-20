@@ -35,7 +35,7 @@ def mt_to_table_of_ndarray(entry_expr, block_size=16, return_checkpointed_table_
     ht = ht.checkpoint(temp_file_name)
     num_rows = ht.count(_localize=False)
     new_partitioning = get_even_partitioning(ht, block_size, num_rows)
-    new_part_ht = hl.read_table(temp_file_name, _intervals=new_partitioning)
+    new_part_ht = hl.read_table(temp_file_name, _intervals=new_partitioning, _assert_type=ht._type, _load_refs=False)
 
     grouped = new_part_ht._group_within_partitions("groups", block_size)
     A = grouped.select(ndarray=hl.nd.array(grouped.groups.map(lambda group: group.xs)))
