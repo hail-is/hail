@@ -207,7 +207,7 @@ final class RegionPool private(strictMemoryCheck: Boolean, threadName: String, t
   }
 
   def closeAllRegions(): Unit = {
-    log.info(s"RegionPool: closing unclosed ${regions.size} regions")
+    log.info(s"RegionPool: closing ${regions.size} unclosed region memories")
     var i = 0
     while (i < regions.size) {
       regions(i).close()

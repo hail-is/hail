@@ -159,7 +159,7 @@ object Worker {
     } finally {
       htc.finish()
       theRegionPool.closeAllRegions()
-      theRegionPool.checkTotalAllocatedBytezZero(isFatal=true)
+      theRegionPool.checkTotalAllocatedBytezZero(isFatal=false)
     }
 
     timer.end("executeFunction")

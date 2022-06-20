@@ -557,7 +557,7 @@ class ServiceBackendSocketAPI2(
         }
       } finally {
         theRegionPool.closeAllRegions()
-        theRegionPool.checkTotalAllocatedBytezZero(isFatal=true)
+        theRegionPool.checkTotalAllocatedBytezZero(isFatal=false)
       }
     }
 
