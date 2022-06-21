@@ -1364,8 +1364,7 @@ class Job:
                     }
                 )
 
-        secrets = job_spec.get('secrets')
-        self.secrets = secrets
+        self.secrets = job_spec.get('secrets')
         self.env = job_spec.get('env', [])
 
         self.project_id = Job.get_next_xfsquota_project_id()
@@ -1494,7 +1493,7 @@ class DockerJob(Job):
                     'source': self.secret_host_path(secret),
                     'destination': secret["mount_path"],
                     'type': 'none',
-                    'options': ['rbind', 'rw'],
+                    'options': ['rbind', 'ro'],
                 }
                 self.main_volume_mounts.append(volume_mount)
                 # this will be the user credentials
