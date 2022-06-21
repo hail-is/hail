@@ -1304,16 +1304,13 @@ steps:
     name: test_hail_python_fs
     numSplits: 5
     image:
-      valueFrom: hail_run_image.image
+      valueFrom: hailgenetics_hailtop_slim_image.image
     resources:
       memory: standard
       cpu: '2'
     script: |
       set -ex
-      cd /io
-      tar xzf test.tar.gz
-      tar xvf debug-wheel-container.tar
-      python3 -m pip install --no-dependencies hail-*-py3-none-any.whl
+      cd /io/repo/hail/python
 
       export HAIL_TEST_GCS_BUCKET={{ global.hail_test_gcs_bucket }}
       export GOOGLE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
@@ -1333,10 +1330,8 @@ steps:
               --durations=50 \
               test/hailtop/inter_cloud
     inputs:
-      - from: /debug-wheel-container.tar
-        to: /io/debug-wheel-container.tar
-      - from: /test.tar.gz
-        to: /io/test.tar.gz
+      - from: /repo
+        to: /io/repo
     secrets:
       - name: test-gsa-key
         namespace:
@@ -1352,8 +1347,8 @@ steps:
         mountPath: /test-azure-key
     dependsOn:
       - default_ns
-      - hail_run_image
-      - build_hail
+      - hailgenetics_hailtop_slim_image
+      - merge_code
     clouds:
       - gcp
   - kind: runImage
