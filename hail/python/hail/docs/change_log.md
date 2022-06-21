@@ -23,6 +23,19 @@ relating to file formats**: this means that it may not be possible to use
 an earlier version of Hail to read files written in a later version.
 
 ---
+## Version 0.2.96
+
+Released 2022-06-21
+
+### New Features
+
+- (hail#11833) `hl.rand_unif` now has default arguments of 0.0 and 1.0
+
+### Bug fixes
+
+- (hail#11905) Fix erroneous FileNotFoundError in glob patterns
+- (hail#11921) and (hail#11910) Fix file clobbering during text export with speculative execution.
+- (hail#11937) Fixed correctness bug in scan order for `Table.annotate` and `MatrixTable.annotate_rows` in certain circumstances.
 
 ## Version 0.2.95
 
