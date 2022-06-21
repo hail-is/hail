@@ -1605,8 +1605,8 @@ object PruneDeadFields {
         val newRowType = newRow2.typ.asInstanceOf[TStruct]
         val child2Keyed = if (child2.typ.key.exists(k => !newRowType.hasField(k))) {
           val upcastKey = child2.typ.key.takeWhile(newRowType.hasField)
-          assert(requestedType.key.startsWith(upcastKey))
-          TableKeyBy(child2, child2.typ.key.takeWhile(newRowType.hasField))
+          assert(upcastKey.startsWith(requestedType.key))
+          TableKeyBy(child2, upcastKey)
         } else
           child2
         TableMapRows(child2Keyed, newRow2)
