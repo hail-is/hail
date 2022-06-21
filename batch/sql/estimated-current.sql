@@ -249,7 +249,6 @@ CREATE TABLE IF NOT EXISTS `attempts` (
   `end_time` BIGINT,
   `reason` VARCHAR(40),
   PRIMARY KEY (`batch_id`, `job_id`, `attempt_id`),
-  FOREIGN KEY (`batch_id`) REFERENCES batches(id) ON DELETE CASCADE,
   FOREIGN KEY (`batch_id`, `job_id`) REFERENCES jobs(batch_id, job_id) ON DELETE CASCADE,
   FOREIGN KEY (`instance_name`) REFERENCES instances(name) ON DELETE CASCADE
 ) ENGINE = InnoDB;
@@ -268,7 +267,6 @@ CREATE TABLE IF NOT EXISTS `job_parents` (
   `job_id` INT NOT NULL,
   `parent_id` INT NOT NULL,
   PRIMARY KEY (`batch_id`, `job_id`, `parent_id`),
-  FOREIGN KEY (`batch_id`) REFERENCES batches(id) ON DELETE CASCADE,
   FOREIGN KEY (`batch_id`, `job_id`) REFERENCES jobs(batch_id, job_id) ON DELETE CASCADE
 ) ENGINE = InnoDB;
 CREATE INDEX job_parents_parent_id ON `job_parents` (batch_id, parent_id);
@@ -279,7 +277,6 @@ CREATE TABLE IF NOT EXISTS `job_attributes` (
   `key` VARCHAR(100) NOT NULL,
   `value` TEXT,
   PRIMARY KEY (`batch_id`, `job_id`, `key`),
-  FOREIGN KEY (`batch_id`) REFERENCES batches(id) ON DELETE CASCADE,
   FOREIGN KEY (`batch_id`, `job_id`) REFERENCES jobs(batch_id, job_id) ON DELETE CASCADE
 ) ENGINE = InnoDB;
 CREATE INDEX job_attributes_key_value ON `job_attributes` (`key`, `value`(256));
@@ -318,7 +315,6 @@ CREATE TABLE IF NOT EXISTS `aggregated_job_resources` (
   `resource` VARCHAR(100) NOT NULL,
   `usage` BIGINT NOT NULL DEFAULT 0,
   PRIMARY KEY (`batch_id`, `job_id`, `resource`),
-  FOREIGN KEY (`batch_id`) REFERENCES batches(`id`) ON DELETE CASCADE,
   FOREIGN KEY (`batch_id`, `job_id`) REFERENCES jobs(`batch_id`, `job_id`) ON DELETE CASCADE,
   FOREIGN KEY (`resource`) REFERENCES resources(`resource`) ON DELETE CASCADE
 ) ENGINE = InnoDB;
@@ -330,8 +326,6 @@ CREATE TABLE IF NOT EXISTS `attempt_resources` (
   `resource` VARCHAR(100) NOT NULL,
   `quantity` BIGINT NOT NULL,
   PRIMARY KEY (`batch_id`, `job_id`, `attempt_id`, `resource`),
-  FOREIGN KEY (`batch_id`) REFERENCES batches(`id`) ON DELETE CASCADE,
-  FOREIGN KEY (`batch_id`, `job_id`) REFERENCES jobs(`batch_id`, `job_id`) ON DELETE CASCADE,
   FOREIGN KEY (`batch_id`, `job_id`, `attempt_id`) REFERENCES attempts(`batch_id`, `job_id`, `attempt_id`) ON DELETE CASCADE,
   FOREIGN KEY (`resource`) REFERENCES resources(`resource`) ON DELETE CASCADE
 ) ENGINE = InnoDB;
