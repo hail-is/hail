@@ -54,7 +54,7 @@ def test_big_worker_has_big_memory():
         t = t.annotate(nd_sum=t.nd.sum())
         # We only eval the small thing so that we trigger an OOM on the worker
         # but not the driver or client
-        hl.eval(t.aggregate(hl.agg.sum(t.nd_sum)))
+        t.aggregate(hl.agg.sum(t.nd_sum))
     finally:
         backend.driver_cores = old_driver_cores
         backend.driver_memory = old_driver_memory
