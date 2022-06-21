@@ -1,13 +1,13 @@
 aiohttp==3.8.1
-aiohttp-session==2.7.0
+aiohttp_session>=2.7,<2.8
 azure-identity==1.8.0
-azure-storage-blob==12.8.1
-boto3==1.21.13
+azure-storage-blob==12.11.0
+boto3>=1.17,<2.0
 google-api-core==1.31.5
 humanize==1.0.0
-janus==0.6.1
+janus>=0.6,<1.1
 orjson==3.6.4
 python-json-logger==2.0.2
 sortedcontainers==2.4.0
 tqdm==4.*
-uvloop==0.16.0
+uvloop==0.16.0; sys_platform != 'win32'
