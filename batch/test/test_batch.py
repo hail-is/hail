@@ -787,7 +787,8 @@ backend.close()
             '-c',
             f'''
 hailctl config set domain {DOMAIN}
-rm /deploy-config/deploy-config.json
+cat /deploy-config/deploy-config.json | jq '.default_namespace= "default"' > /default-deploy-config.json
+export HAIL_DEPLOY_CONFIG_FILE=/default-deploy-config.json
 python3 -c \'{script}\'''',
         ],
         mount_tokens=True,
