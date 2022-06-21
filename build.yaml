@@ -1311,6 +1311,7 @@ steps:
     script: |
       set -ex
       cd /io/repo/hail/python
+      pip install -r dev/pinned-requirements.txt
 
       export HAIL_TEST_GCS_BUCKET={{ global.hail_test_gcs_bucket }}
       export GOOGLE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
