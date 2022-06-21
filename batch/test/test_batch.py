@@ -884,6 +884,19 @@ hl.read_table(location).show()
     assert expected_log in log['main'], str((log, b.debug_info()))
 
 
+def test_credentials_are_readonly(client: BatchClient):
+    builder = client.create_batch()
+    script = '''
+set -e
+touch foo
+mv foo /gsa-key/key.json
+'''
+    j = builder.create_job(DOCKER_ROOT_IMAGE, command=['/bin/bash', '-c', script])
+    b = builder.submit()
+    status = j.wait()
+    assert status['state'] == 'Failed', str((status, b.debug_info()))
+
+
 def test_user_authentication_within_job(client: BatchClient):
     bb = client.create_batch()
     cmd = ['bash', '-c', 'hailctl auth user']
