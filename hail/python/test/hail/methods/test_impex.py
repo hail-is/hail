@@ -567,7 +567,6 @@ class VCFTests(unittest.TestCase):
                        if os.path.splitext(info.path)[-1] == '.bgz']
         assert shard_paths
         shard_paths.sort()
-        print(shard_paths)
         nf = new_temp_file(extension='vcf.bgz')
         concat_files(nf, shard_paths)
 
