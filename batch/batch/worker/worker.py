@@ -1808,9 +1808,6 @@ class JVMJob(Job):
         except StepInterruptedError as e:
             raise JobDeletedError from e
 
-    def secret_host_path(self, secret):
-        return f'{self.scratch}/secrets/{secret["mount_path"]}'
-
     async def download_jar(self):
         async with self.worker.jar_download_locks[self.jar_url]:
             unique_key = self.jar_url.replace('_', '__').replace('/', '_')
