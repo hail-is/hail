@@ -50,7 +50,7 @@ def test_big_worker_has_big_memory():
     try:
         backend.worker_cores = 8
         backend.worker_memory = 'highmem'
-        t = hl.utils.range_table(1).annotate(nd=hl.nd.ones((30_000, 30_000)))
+        t = hl.utils.range_table(1, n_partitions=2).annotate(nd=hl.nd.ones((30_000, 30_000)))
         t = t.annotate(nd_sum=t.nd.sum())
         # We only eval the small thing so that we trigger an OOM on the worker
         # but not the driver or client
