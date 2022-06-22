@@ -1126,9 +1126,8 @@ steps:
       tar xvf debug-wheel-container.tar
       python3 -m pip install --no-dependencies hail-*-py3-none-any.whl
 
-      # pyspark/conf/core-site.xml already points at /gsa-key/key.json
-      # mv /test-gsa-key/key.json /gsa-key/key.json
-      export GOOGLE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
+      # The test should use the test credentials, not CI's credentials
+      sed -i 's/gsa-key/test-gsa-key/g' ${SPARK_HOME}/conf/core-site.xml
       export HAIL_TEST_RESOURCES_DIR=./resources
       export HAIL_DOCTEST_DATA_DIR=./data
       export HAIL_TEST_STORAGE_URI={{ global.test_storage_uri }}/{{ token }}
