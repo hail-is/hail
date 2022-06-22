@@ -3,6 +3,7 @@ package is.hail
 import javax.net.ssl.SSLException
 import java.net._
 import java.io.EOFException
+import java.util.concurrent.TimeoutException
 import is.hail.utils._
 
 import org.apache.http.NoHttpResponseException
@@ -10,6 +11,7 @@ import org.apache.http.ConnectionClosedException
 import org.apache.http.conn.HttpHostConnectException
 import org.apache.log4j.{LogManager, Logger}
 
+import reactor.core.Exceptions.ReactiveException
 import scala.util.Random
 import java.io._
 import com.google.cloud.storage.StorageException
@@ -33,7 +35,14 @@ package object services {
     math.min(delay * 2, 60.0)
   }
 
-  def isTransientError(e: Throwable): Boolean = {
+  def isTransientError(_e: Throwable): Boolean = {
+    // ReactiveException is package private inside reactore.core.Exception so we cannot access
+    // it directly for an isInstance check. AFAICT, this is the only way to check if we received
+    // a ReactiveException.
+    //
+    // If the argument is a ReactiveException, it returns its cause. If the argument is not a
+    // ReactiveException it returns the exception unmodified.
+    val e = reactor.core.Exceptions.unwrap(_e)
     e match {
       case e: NoHttpResponseException =>
         true
@@ -49,6 +58,8 @@ package object services {
         true
       case e: SocketTimeoutException =>
         true
+      case e: java.util.concurrent.TimeoutException =>
+        true
       case e: UnknownHostException =>
         true
       case e: ConnectionClosedException =>
@@ -62,6 +73,16 @@ package object services {
       case e: EOFException =>
         e.getMessage != null && (
           e.getMessage.contains("SSL peer shut down incorrectly"))
+      case e: IllegalStateException =>
+        // Caused by: java.lang.IllegalStateException: Timeout on blocking read for 30000000000 NANOSECONDS
+        // reactor.core.publisher.BlockingSingleSubscriber.blockingGet(BlockingSingleSubscriber.java:123)
+        // reactor.core.publisher.Mono.block(Mono.java:1727)
+        // com.azure.storage.common.implementation.StorageImplUtils.blockWithOptionalTimeout(StorageImplUtils.java:130)
+        // com.azure.storage.blob.specialized.BlobClientBase.downloadStreamWithResponse(BlobClientBase.java:731)
+        // is.hail.io.fs.AzureStorageFS$$anon$1.fill(AzureStorageFS.scala:152)
+        // is.hail.io.fs.FSSeekableInputStream.read(FS.scala:141)
+        // ...
+        e.getMessage.contains("Timeout on blocking read")
       case e @ (_: SSLException | _: StorageException | _: IOException) =>
         val cause = e.getCause
         cause != null && isTransientError(cause)
