@@ -737,6 +737,7 @@ def retry_all_errors_n_times(max_errors=10, msg=None, error_logging_interval=10)
 async def retry_transient_errors(f: Callable[..., Awaitable[T]], *args, **kwargs) -> T:
     return await retry_transient_errors_with_debug_string('', f, *args, **kwargs)
 
+
 async def retry_transient_errors_with_debug_string(debug_string: str, f: Callable[..., Awaitable[T]], *args, **kwargs) -> T:
     delay = 0.1
     errors = 0

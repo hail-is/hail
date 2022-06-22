@@ -56,13 +56,11 @@ from hailtop.utils import (
     check_shell_output,
     dump_all_stacktraces,
     find_spark_home,
-    is_retry_once_error,
     parse_docker_image_reference,
     periodically_call,
     request_retry_transient_errors,
     retry_transient_errors,
     retry_transient_errors_with_debug_string,
-    sleep_and_backoff,
     time_msecs,
     time_msecs_str,
 )
@@ -355,10 +353,10 @@ class NetworkAllocator:
             self.public_networks.put_nowait(netns)
 
 
-def docker_call_retry(timeout, name, *args, **kwargs):
+def docker_call_retry(timeout, name, f, *args, **kwargs):
     debug_string = f'In docker call to {f.__name__} for {name}'
 
-    async def timed_out_f(f, *args, **kwargs):
+    async def timed_out_f(*args, **kwargs):
         return await asyncio.wait_for(f(*args, **kwargs), timeout)
     return retry_transient_errors_with_debug_string(debug_string, timed_out_f, *args, *kwargs)
 
