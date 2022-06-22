@@ -248,7 +248,7 @@ mypy-extensions==0.4.3
     #   mypy
 nest-asyncio==1.5.4
     # via -r requirements.txt
-numpy==1.21.6
+numpy==1.22.0
     # via pandas
 oauthlib==3.2.0
     # via requests-oauthlib
