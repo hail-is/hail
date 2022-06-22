@@ -944,7 +944,14 @@ WHERE batch_updates.batch_id = %s AND batch_updates.update_id = %s AND user = %s
         inst_coll_configs: InstanceCollectionConfigs = app['inst_coll_configs']
 
         result, exc = inst_coll_configs.select_inst_coll(
-            cloud, machine_type, pool_label, preemptible, worker_type, req_cores_mcpu, req_memory_bytes, req_storage_bytes
+            cloud,
+            machine_type,
+            pool_label,
+            preemptible,
+            worker_type,
+            req_cores_mcpu,
+            req_memory_bytes,
+            req_storage_bytes,
         )
 
         if exc:
