@@ -199,9 +199,9 @@ class ServiceBackend(Backend):
                      flags: Optional[Dict[str, str]] = None,
                      jar_url: Optional[str] = None,
                      driver_cores: Optional[Union[int, str]] = None,
-                     driver_memory: Optional[Union[int, str]] = None,
+                     driver_memory: Optional[str] = None,
                      worker_cores: Optional[Union[int, str]] = None,
-                     worker_memory: Optional[Union[int, str]] = None,
+                     worker_memory: Optional[str] = None,
                      name_prefix: Optional[str] = None,
                      token: Optional[str] = None):
         billing_project = configuration_of('batch', 'billing_project', billing_project, None)
@@ -264,9 +264,9 @@ class ServiceBackend(Backend):
                  flags: Dict[str, str],
                  jar_spec: JarSpec,
                  driver_cores: Optional[Union[int, str]],
-                 driver_memory: Optional[Union[int, str]],
+                 driver_memory: Optional[str],
                  worker_cores: Optional[Union[int, str]],
-                 worker_memory: Optional[Union[int, str]],
+                 worker_memory: Optional[str],
                  name_prefix: str):
         self.billing_project = billing_project
         self._sync_fs = sync_fs

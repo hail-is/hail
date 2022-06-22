@@ -35,7 +35,7 @@ def test_tiny_worker_has_tiny_memory():
     try:
         t = hl.utils.range_table(1).annotate(nd=hl.nd.ones((30_000, 30_000)))
         t = t.annotate(nd_sum=t.nd.sum())
-        hl.eval(t.aggregate(hl.agg.sum(t.nd_sum)))
+        t.aggregate(hl.agg.sum(t.nd_sum))
     except Exception as exc:
         assert 'HailException: Hail off-heap memory exceeded maximum threshold' in exc.args[0]
     else:
