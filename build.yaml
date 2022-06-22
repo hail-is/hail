@@ -1030,15 +1030,6 @@ steps:
       - merge_code
       - hail_ubuntu_image
   - kind: runImage
-    name: test_hailgenetics_hailtop_slim_image
-    image:
-      valueFrom: hailgenetics_hailtop_slim_image.image
-    script: |
-      set -ex
-      python3 -c 'import hailtop'
-    dependsOn:
-      - hailgenetics_hailtop_slim_image
-  - kind: runImage
     name: upload_test_resources_to_blob_storage
     image:
       valueFrom: hailgenetics_hailtop_slim_image.image
