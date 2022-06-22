@@ -19,6 +19,7 @@ def add_dependencies(fname):
             if stripped.startswith('-r'):
                 additional_requirements = stripped[len('-r'):].strip()
                 add_dependencies(additional_requirements)
+                continue
 
             pkg = stripped
 
