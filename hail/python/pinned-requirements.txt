@@ -35,9 +35,9 @@ azure-storage-blob==12.11.0
     # via -r python/hailtop/requirements.txt
 bokeh==1.4.0
     # via -r python/requirements.txt
-boto3==1.24.13
+boto3==1.24.14
     # via -r python/hailtop/requirements.txt
-botocore==1.27.13
+botocore==1.27.14
     # via
     #   -r python/requirements.txt
     #   boto3
@@ -54,7 +54,7 @@ chardet==4.0.0
     # via requests
 charset-normalizer==2.1.0
     # via aiohttp
-cryptography==37.0.2
+cryptography==37.0.3
     # via
     #   azure-identity
     #   azure-storage-blob
@@ -86,7 +86,7 @@ google-cloud-storage==1.25.0
     # via -r python/requirements.txt
 google-resumable-media==0.5.1
     # via google-cloud-storage
-googleapis-common-protos==1.56.2
+googleapis-common-protos==1.56.3
     # via google-api-core
 humanize==1.0.0
     # via -r python/hailtop/requirements.txt
@@ -148,7 +148,7 @@ plotly==5.5.0
     # via -r python/requirements.txt
 portalocker==2.4.0
     # via msal-extensions
-protobuf==3.20.1
+protobuf==4.21.1
     # via
     #   google-api-core
     #   googleapis-common-protos
