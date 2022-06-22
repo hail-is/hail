@@ -28,7 +28,7 @@ from hailtop.aiotools.router_fs import RouterAsyncFS
 import hailtop.aiotools.fs as afs
 
 from .backend import Backend, fatal_error_from_java_error_triplet
-from ..builtin_references import BUILTIN_REFERENCES
+from ..builtin_references import BUILTIN_REFERENCE_DOWNLOAD_LOCKS
 from ..fs.fs import FS
 from ..fs.router_fs import RouterFS
 from ..ir import BaseIR
@@ -535,23 +535,25 @@ class ServiceBackend(Backend):
         return async_to_blocking(self._async_get_reference(name))
 
     async def _async_get_reference(self, name):
-        if name in BUILTIN_REFERENCES:
-            try:
-                with open(Path(self.user_local_reference_cache_dir, name)) as f:
-                    return orjson.loads(f.read())
-            except FileNotFoundError:
-                pass
-
         async def inputs(infile, _):
             await write_int(infile, ServiceBackend.REFERENCE_GENOME)
             await write_str(infile, tmp_dir())
             await write_str(infile, self.billing_project)
             await write_str(infile, self.remote_tmpdir)
             await write_str(infile, name)
-        _, resp, _ = await self._rpc('get_reference(...)', inputs)
-        if name in BUILTIN_REFERENCES:
-            with open(Path(self.user_local_reference_cache_dir, name), 'wb') as f:
-                f.write(resp)
+
+        if name in BUILTIN_REFERENCE_DOWNLOAD_LOCKS:
+            with BUILTIN_REFERENCE_DOWNLOAD_LOCKS[name]:
+                try:
+                    with open(Path(self.user_local_reference_cache_dir, name)) as f:
+                        return orjson.loads(f.read())
+                except FileNotFoundError:
+                    _, resp, _ = await self._rpc('get_reference(...)', inputs)
+                    with open(Path(self.user_local_reference_cache_dir, name), 'wb') as f:
+                        f.write(resp)
+        else:
+            _, resp, _ = await self._rpc('get_reference(...)', inputs)
+
         return orjson.loads(resp)
 
     def get_references(self, names):
