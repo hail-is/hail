@@ -309,9 +309,16 @@ LEFT JOIN pools ON inst_colls.name = pools.name;
                     optimal_result = (pool.name, maybe_cores_mcpu, maybe_memory_bytes, maybe_storage_gib)
         return optimal_result
 
-    def select_pool_from_worker_type(self, cloud, pool_label, worker_type, cores_mcpu, memory_bytes, storage_bytes, preemptible):
+    def select_pool_from_worker_type(
+        self, cloud, pool_label, worker_type, cores_mcpu, memory_bytes, storage_bytes, preemptible
+    ):
         for pool in self.name_pool_config.values():
-            if pool.cloud == cloud and pool.worker_type == worker_type and pool.preemptible == preemptible and pool.label == pool_label:
+            if (
+                pool.cloud == cloud
+                and pool.worker_type == worker_type
+                and pool.preemptible == preemptible
+                and pool.label == pool_label
+            ):
                 result = pool.convert_requests_to_resources(cores_mcpu, memory_bytes, storage_bytes)
                 if result:
                     actual_cores_mcpu, actual_memory_bytes, acutal_storage_gib = result
@@ -324,7 +331,15 @@ LEFT JOIN pools ON inst_colls.name = pools.name;
         return self.jpim_config.convert_requests_to_resources(machine_type, storage_bytes)
 
     def select_inst_coll(
-        self, cloud, machine_type, pool_label, preemptible, worker_type, req_cores_mcpu, req_memory_bytes, req_storage_bytes
+        self,
+        cloud,
+        machine_type,
+        pool_label,
+        preemptible,
+        worker_type,
+        req_cores_mcpu,
+        req_memory_bytes,
+        req_storage_bytes,
     ):
         if worker_type is not None and machine_type is None:
             result = self.select_pool_from_worker_type(
