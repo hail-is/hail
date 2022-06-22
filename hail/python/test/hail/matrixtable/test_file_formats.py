@@ -51,7 +51,11 @@ def all_values_table_fixture():
 # pytest sometimes uses background threads, named "Dummy-1", to collect tests. asyncio will only
 # create an event loop when `asyncio.get_event_loop()` is called if the current thread is the main
 # thread. We therefore manually create an event loop which is used only for collecting the files.
-old_loop = asyncio.get_event_loop()
+try:
+    old_loop = asyncio.get_event_loop()
+except RuntimeError as err:
+    assert 'There is no current event loop in thread' in err
+    old_loop = None
 loop = asyncio.new_event_loop()
 asyncio.set_event_loop(loop)
 try:
