@@ -86,8 +86,6 @@ package object services {
       case e @ (_: SSLException | _: StorageException | _: IOException) =>
         val cause = e.getCause
         cause != null && isTransientError(cause)
-     case e: RuntimeException =>
-       e2 != e && isTransientError(e2)
       case _ =>
         false
     }
