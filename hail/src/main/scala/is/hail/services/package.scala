@@ -35,6 +35,17 @@ package object services {
     math.min(delay * 2, 60.0)
   }
 
+  def isRetryOnceError(_e: Throwable): Boolean = {
+    // An exception is a "retry once error" if a rare, known bug in a dependency or in a cloud
+    // provider can manifest as this exception *and* that manifestation is indistinguishable from a
+    // true error.
+    val e = reactor.core.Exceptions.unwrap(_e)
+    e match {
+      case e: HttpResponseException =>
+        e.getStatusCode() == 400 && e.getMessage.contains("Invalid grant: account not found")
+    }
+  }
+
   def isTransientError(_e: Throwable): Boolean = {
     // ReactiveException is package private inside reactore.core.Exception so we cannot access
     // it directly for an isInstance check. AFAICT, this is the only way to check if we received
@@ -99,9 +110,11 @@ package object services {
         return f
       } catch {
         case e: Exception =>
+          errors += 1
+          if (errors == 1 and isRetryOnceError(e))
+            return f
           if (!isTransientError(e))
             throw e
-          errors += 1
           if (errors % 10 == 0)
             log.warn(s"encountered $errors transient errors, most recent one was $e")
       }
