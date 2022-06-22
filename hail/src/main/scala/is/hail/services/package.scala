@@ -35,7 +35,14 @@ package object services {
     math.min(delay * 2, 60.0)
   }
 
-  def isTransientError(e: Throwable): Boolean = {
+  def isTransientError(_e: Throwable): Boolean = {
+    // ReactiveException is package private inside reactore.core.Exception so we cannot access
+    // it directly for an isInstance check. AFAICT, this is the only way to check if we received
+    // a ReactiveException.
+    //
+    // If the argument is a ReactiveException, it returns its cause. If the argument is not a
+    // ReactiveException it returns the exception unmodified.
+    val e = reactor.core.Exceptions.unwrap(_e)
     e match {
       case e: NoHttpResponseException =>
         true
@@ -50,6 +57,8 @@ package object services {
       case e: NoRouteToHostException =>
         true
       case e: SocketTimeoutException =>
+        true
+      case e: java.util.concurrent.TimeoutException =>
         true
       case e: UnknownHostException =>
         true
@@ -78,11 +87,7 @@ package object services {
         val cause = e.getCause
         cause != null && isTransientError(cause)
      case e: RuntimeException =>
-       // ReactiveException is package private inside reactore.core.Exception so we cannot access
-       // it directly for an isInstance check. AFAICT, this is the only way to check if we received
-       // a ReactiveException.
-       val causeIfReactiveException = reactor.core.Exceptions.unwrap(e)
-       causeIfReactiveException != null && isTransientError(causeIfReactiveException)
+       e2 != e && isTransientError(e2)
       case _ =>
         false
     }
