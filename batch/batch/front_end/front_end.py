@@ -40,7 +40,6 @@ from hailtop.config import get_deploy_config
 from hailtop.hail_logging import AccessLogger
 from hailtop.tls import internal_server_ssl_context
 from hailtop.utils import (
-    LoggingTimer,
     cost_str,
     dump_all_stacktraces,
     humanize_timedelta_msecs,
@@ -688,344 +687,334 @@ async def _create_jobs(userdata: dict, job_specs: dict, batch_id: int, app: aioh
         'tokens_secret_name': userdata['tokens_secret_name'],
     }
 
-    async with LoggingTimer(f'batch {batch_id} create jobs') as timer:
-        async with timer.step('fetch batch'):
-            record = await db.select_and_fetchone(
-                '''
+    record = await db.select_and_fetchone(
+        '''
 SELECT `state`, format_version FROM batches
 WHERE user = %s AND id = %s AND NOT deleted;
 ''',
-                (user, batch_id),
+        (user, batch_id),
+    )
+
+    if not record:
+        raise web.HTTPNotFound()
+    if record['state'] != 'open':
+        raise web.HTTPBadRequest(reason=f'batch {batch_id} is not open')
+    batch_format_version = BatchFormatVersion(record['format_version'])
+
+    try:
+        validate_and_clean_jobs(job_specs)
+    except ValidationError as e:
+        raise web.HTTPBadRequest(reason=e.reason)
+
+    spec_writer = SpecWriter(file_store, batch_id)
+
+    jobs_args = []
+    job_parents_args = []
+    job_attributes_args = []
+
+    inst_coll_resources: Dict[str, Dict[str, int]] = collections.defaultdict(
+        lambda: {
+            'n_jobs': 0,
+            'n_ready_jobs': 0,
+            'ready_cores_mcpu': 0,
+            'n_ready_cancellable_jobs': 0,
+            'ready_cancellable_cores_mcpu': 0,
+        }
+    )
+
+    prev_job_idx = None
+    start_job_id = None
+
+    for spec in job_specs:
+        job_id = spec['job_id']
+        parent_ids = spec.pop('parent_ids', [])
+        always_run = spec.pop('always_run', False)
+
+        cloud = spec.get('cloud', CLOUD)
+
+        if batch_format_version.has_full_spec_in_cloud():
+            attributes = spec.pop('attributes', None)
+        else:
+            attributes = spec.get('attributes')
+
+        id = (batch_id, job_id)
+
+        if start_job_id is None:
+            start_job_id = job_id
+
+        if batch_format_version.has_full_spec_in_cloud() and prev_job_idx:
+            if job_id != prev_job_idx + 1:
+                raise web.HTTPBadRequest(reason=f'noncontiguous job ids found in the spec: {prev_job_idx} -> {job_id}')
+        prev_job_idx = job_id
+
+        resources = spec.get('resources')
+        if not resources:
+            resources = {}
+            spec['resources'] = resources
+
+        worker_type = None
+        machine_type = resources.get('machine_type')
+        preemptible = resources.get('preemptible', BATCH_JOB_DEFAULT_PREEMPTIBLE)
+
+        if machine_type and machine_type not in valid_machine_types(cloud):
+            raise web.HTTPBadRequest(reason=f'unknown machine type {machine_type} for cloud {cloud}')
+
+        if machine_type and ('cpu' in resources or 'memory' in resources):
+            raise web.HTTPBadRequest(reason='cannot specify cpu and memory with machine_type')
+
+        if spec['process']['type'] == 'jvm':
+            jvm_requested_cpu = parse_cpu_in_mcpu(resources.get('cpu', BATCH_JOB_DEFAULT_CPU))
+            if 'cpu' in resources and jvm_requested_cpu not in (1000, 8000):
+                raise web.HTTPBadRequest(reason='invalid cpu for jvm jobs. must be 1 or 8')
+            if 'memory' in resources and resources['memory'] == 'lowmem':
+                raise web.HTTPBadRequest(reason='jvm jobs cannot be on lowmem machines')
+            if 'storage' in resources:
+                raise web.HTTPBadRequest(reason='jvm jobs may not specify storage')
+            if machine_type is not None:
+                raise web.HTTPBadRequest(reason='jvm jobs may not specify machine_type')
+            if spec['process']['jar_spec']['type'] == 'git_revision':
+                revision = spec['process']['jar_spec']['value']
+                assert_is_sha_1_hex_string(revision)
+                spec['process']['jar_spec']['type'] = 'jar_url'
+                spec['process']['jar_spec']['value'] = ACCEPTABLE_QUERY_JAR_URL_PREFIX + '/' + revision + '.jar'
+            else:
+                assert spec['process']['jar_spec']['type'] == 'jar_url'
+                jar_url = spec['process']['jar_spec']['value']
+                if not jar_url.startswith(ACCEPTABLE_QUERY_JAR_URL_PREFIX):
+                    raise web.HTTPBadRequest(reason=f'unacceptable JAR url: {jar_url}')
+
+        req_memory_bytes: Optional[int]
+        if machine_type is None:
+            if 'cpu' not in resources:
+                resources['cpu'] = BATCH_JOB_DEFAULT_CPU
+            resources['req_cpu'] = resources['cpu']
+            del resources['cpu']
+            req_cores_mcpu = parse_cpu_in_mcpu(resources['req_cpu'])
+
+            if req_cores_mcpu is None or not is_valid_cores_mcpu(req_cores_mcpu):
+                raise web.HTTPBadRequest(
+                    reason=f'bad resource request for job {id}: '
+                    f'cpu must be a power of two with a min of 0.25; '
+                    f'found {resources["req_cpu"]}.'
+                )
+
+            if 'memory' not in resources:
+                resources['memory'] = BATCH_JOB_DEFAULT_MEMORY
+            resources['req_memory'] = resources['memory']
+            del resources['memory']
+            req_memory = resources['req_memory']
+            memory_to_worker_types = memory_to_worker_type(cloud)
+            if req_memory in memory_to_worker_types:
+                worker_type = memory_to_worker_types[req_memory]
+                req_memory_bytes = cores_mcpu_to_memory_bytes(cloud, req_cores_mcpu, worker_type)
+            else:
+                req_memory_bytes = parse_memory_in_bytes(req_memory)
+        else:
+            req_cores_mcpu = None
+            req_memory_bytes = None
+
+        if 'storage' not in resources:
+            resources['storage'] = BATCH_JOB_DEFAULT_STORAGE
+        resources['req_storage'] = resources['storage']
+        del resources['storage']
+        req_storage_bytes = parse_storage_in_bytes(resources['req_storage'])
+
+        if req_storage_bytes is None:
+            raise web.HTTPBadRequest(
+                reason=f'bad resource request for job {id}: '
+                f'storage must be convertable to bytes; '
+                f'found {resources["req_storage"]}'
             )
 
-        if not record:
-            raise web.HTTPNotFound()
-        if record['state'] != 'open':
-            raise web.HTTPBadRequest(reason=f'batch {batch_id} is not open')
-        batch_format_version = BatchFormatVersion(record['format_version'])
+        inst_coll_configs: InstanceCollectionConfigs = app['inst_coll_configs']
 
-        async with timer.step('validate job_specs'):
-            try:
-                validate_and_clean_jobs(job_specs)
-            except ValidationError as e:
-                raise web.HTTPBadRequest(reason=e.reason)
+        result, exc = inst_coll_configs.select_inst_coll(
+            cloud, machine_type, preemptible, worker_type, req_cores_mcpu, req_memory_bytes, req_storage_bytes
+        )
 
-        async with timer.step('build db args'):
-            spec_writer = SpecWriter(file_store, batch_id)
+        if exc:
+            raise web.HTTPBadRequest(reason=exc.message)
 
-            jobs_args = []
-            job_parents_args = []
-            job_attributes_args = []
+        if result is None:
+            raise web.HTTPBadRequest(
+                reason=f'resource requests for job {id} are unsatisfiable: '
+                f'cloud={cloud}, '
+                f'cpu={resources.get("req_cpu")}, '
+                f'memory={resources.get("req_memory")}, '
+                f'storage={resources["req_storage"]}, '
+                f'preemptible={preemptible}, '
+                f'machine_type={machine_type}'
+            )
 
-            inst_coll_resources: Dict[str, Dict[str, int]] = collections.defaultdict(
-                lambda: {
-                    'n_jobs': 0,
-                    'n_ready_jobs': 0,
-                    'ready_cores_mcpu': 0,
-                    'n_ready_cancellable_jobs': 0,
-                    'ready_cancellable_cores_mcpu': 0,
+        inst_coll_name, cores_mcpu, memory_bytes, storage_gib = result
+        resources['cores_mcpu'] = cores_mcpu
+        resources['memory_bytes'] = memory_bytes
+        resources['storage_gib'] = storage_gib
+        resources['preemptible'] = preemptible
+
+        secrets = spec.get('secrets')
+        if not secrets:
+            secrets = []
+
+        if len(secrets) != 0 and user != 'ci':
+            secrets = [(secret["namespace"], secret["name"]) for secret in secrets]
+            raise web.HTTPBadRequest(reason=f'unauthorized secret {secrets} for user {user}')
+
+        for secret in secrets:
+            if user != 'ci':
+                raise web.HTTPBadRequest(reason=f'unauthorized secret {(secret["namespace"], secret["name"])}')
+
+        spec['secrets'] = secrets
+
+        secrets.append(
+            {
+                'namespace': DEFAULT_NAMESPACE,
+                'name': userdata['hail_credentials_secret_name'],
+                'mount_path': '/gsa-key',
+                'mount_in_copy': True,
+            }
+        )
+
+        env = spec.get('env')
+        if not env:
+            env = []
+            spec['env'] = env
+        assert isinstance(spec['env'], list)
+
+        if cloud == 'gcp' and all(envvar['name'] != 'GOOGLE_APPLICATION_CREDENTIALS' for envvar in spec['env']):
+            spec['env'].append({'name': 'GOOGLE_APPLICATION_CREDENTIALS', 'value': '/gsa-key/key.json'})
+
+        if cloud == 'azure' and all(envvar['name'] != 'AZURE_APPLICATION_CREDENTIALS' for envvar in spec['env']):
+            spec['env'].append({'name': 'AZURE_APPLICATION_CREDENTIALS', 'value': '/gsa-key/key.json'})
+
+        if spec.get('mount_tokens', False):
+            secrets.append(
+                {
+                    'namespace': DEFAULT_NAMESPACE,
+                    'name': userdata['tokens_secret_name'],
+                    'mount_path': '/user-tokens',
+                    'mount_in_copy': False,
+                }
+            )
+            secrets.append(
+                {
+                    'namespace': DEFAULT_NAMESPACE,
+                    'name': 'worker-deploy-config',
+                    'mount_path': '/deploy-config',
+                    'mount_in_copy': False,
+                }
+            )
+            secrets.append(
+                {
+                    'namespace': DEFAULT_NAMESPACE,
+                    'name': 'ssl-config-batch-user-code',
+                    'mount_path': '/ssl-config',
+                    'mount_in_copy': False,
                 }
             )
 
-            prev_job_idx = None
-            start_job_id = None
+        sa = spec.get('service_account')
+        check_service_account_permissions(user, sa)
 
-            for spec in job_specs:
-                job_id = spec['job_id']
-                parent_ids = spec.pop('parent_ids', [])
-                always_run = spec.pop('always_run', False)
+        icr = inst_coll_resources[inst_coll_name]
+        icr['n_jobs'] += 1
+        if len(parent_ids) == 0:
+            state = 'Ready'
+            icr['n_ready_jobs'] += 1
+            icr['ready_cores_mcpu'] += cores_mcpu
+            if not always_run:
+                icr['n_ready_cancellable_jobs'] += 1
+                icr['ready_cancellable_cores_mcpu'] += cores_mcpu
+        else:
+            state = 'Pending'
 
-                cloud = spec.get('cloud', CLOUD)
+        network = spec.get('network')
+        if user != 'ci' and not (network is None or network == 'public'):
+            raise web.HTTPBadRequest(reason=f'unauthorized network {network}')
 
-                if batch_format_version.has_full_spec_in_cloud():
-                    attributes = spec.pop('attributes', None)
-                else:
-                    attributes = spec.get('attributes')
+        unconfined = spec.get('unconfined')
+        if user != 'ci' and unconfined:
+            raise web.HTTPBadRequest(reason=f'unauthorized use of unconfined={unconfined}')
 
-                id = (batch_id, job_id)
+        spec_writer.add(json.dumps(spec))
+        db_spec = batch_format_version.db_spec(spec)
 
-                if start_job_id is None:
-                    start_job_id = job_id
+        jobs_args.append(
+            (
+                batch_id,
+                job_id,
+                state,
+                json.dumps(db_spec),
+                always_run,
+                cores_mcpu,
+                len(parent_ids),
+                inst_coll_name,
+            )
+        )
 
-                if batch_format_version.has_full_spec_in_cloud() and prev_job_idx:
-                    if job_id != prev_job_idx + 1:
-                        raise web.HTTPBadRequest(
-                            reason=f'noncontiguous job ids found in the spec: {prev_job_idx} -> {job_id}'
-                        )
-                prev_job_idx = job_id
+        for parent_id in parent_ids:
+            job_parents_args.append((batch_id, job_id, parent_id))
 
-                resources = spec.get('resources')
-                if not resources:
-                    resources = {}
-                    spec['resources'] = resources
+        if attributes:
+            for k, v in attributes.items():
+                job_attributes_args.append((batch_id, job_id, k, v))
 
-                worker_type = None
-                machine_type = resources.get('machine_type')
-                preemptible = resources.get('preemptible', BATCH_JOB_DEFAULT_PREEMPTIBLE)
+    rand_token = random.randint(0, app['n_tokens'] - 1)
 
-                if machine_type and machine_type not in valid_machine_types(cloud):
-                    raise web.HTTPBadRequest(reason=f'unknown machine type {machine_type} for cloud {cloud}')
+    async def write_spec_to_cloud():
+        if batch_format_version.has_full_spec_in_cloud():
+            await spec_writer.write()
 
-                if machine_type and ('cpu' in resources or 'memory' in resources):
-                    raise web.HTTPBadRequest(reason='cannot specify cpu and memory with machine_type')
-
-                if spec['process']['type'] == 'jvm':
-                    jvm_requested_cpu = parse_cpu_in_mcpu(resources.get('cpu', BATCH_JOB_DEFAULT_CPU))
-                    if 'cpu' in resources and jvm_requested_cpu not in (1000, 8000):
-                        raise web.HTTPBadRequest(reason='invalid cpu for jvm jobs. must be 1 or 8')
-                    if 'memory' in resources and resources['memory'] == 'lowmem':
-                        raise web.HTTPBadRequest(reason='jvm jobs cannot be on lowmem machines')
-                    if 'storage' in resources:
-                        raise web.HTTPBadRequest(reason='jvm jobs may not specify storage')
-                    if machine_type is not None:
-                        raise web.HTTPBadRequest(reason='jvm jobs may not specify machine_type')
-                    if spec['process']['jar_spec']['type'] == 'git_revision':
-                        revision = spec['process']['jar_spec']['value']
-                        assert_is_sha_1_hex_string(revision)
-                        spec['process']['jar_spec']['type'] = 'jar_url'
-                        spec['process']['jar_spec']['value'] = ACCEPTABLE_QUERY_JAR_URL_PREFIX + '/' + revision + '.jar'
-                    else:
-                        assert spec['process']['jar_spec']['type'] == 'jar_url'
-                        jar_url = spec['process']['jar_spec']['value']
-                        if not jar_url.startswith(ACCEPTABLE_QUERY_JAR_URL_PREFIX):
-                            raise web.HTTPBadRequest(reason=f'unacceptable JAR url: {jar_url}')
-
-                req_memory_bytes: Optional[int]
-                if machine_type is None:
-                    if 'cpu' not in resources:
-                        resources['cpu'] = BATCH_JOB_DEFAULT_CPU
-                    resources['req_cpu'] = resources['cpu']
-                    del resources['cpu']
-                    req_cores_mcpu = parse_cpu_in_mcpu(resources['req_cpu'])
-
-                    if req_cores_mcpu is None or not is_valid_cores_mcpu(req_cores_mcpu):
-                        raise web.HTTPBadRequest(
-                            reason=f'bad resource request for job {id}: '
-                            f'cpu must be a power of two with a min of 0.25; '
-                            f'found {resources["req_cpu"]}.'
-                        )
-
-                    if 'memory' not in resources:
-                        resources['memory'] = BATCH_JOB_DEFAULT_MEMORY
-                    resources['req_memory'] = resources['memory']
-                    del resources['memory']
-                    req_memory = resources['req_memory']
-                    memory_to_worker_types = memory_to_worker_type(cloud)
-                    if req_memory in memory_to_worker_types:
-                        worker_type = memory_to_worker_types[req_memory]
-                        req_memory_bytes = cores_mcpu_to_memory_bytes(cloud, req_cores_mcpu, worker_type)
-                    else:
-                        req_memory_bytes = parse_memory_in_bytes(req_memory)
-                else:
-                    req_cores_mcpu = None
-                    req_memory_bytes = None
-
-                if 'storage' not in resources:
-                    resources['storage'] = BATCH_JOB_DEFAULT_STORAGE
-                resources['req_storage'] = resources['storage']
-                del resources['storage']
-                req_storage_bytes = parse_storage_in_bytes(resources['req_storage'])
-
-                if req_storage_bytes is None:
-                    raise web.HTTPBadRequest(
-                        reason=f'bad resource request for job {id}: '
-                        f'storage must be convertable to bytes; '
-                        f'found {resources["req_storage"]}'
-                    )
-
-                inst_coll_configs: InstanceCollectionConfigs = app['inst_coll_configs']
-
-                result, exc = inst_coll_configs.select_inst_coll(
-                    cloud, machine_type, preemptible, worker_type, req_cores_mcpu, req_memory_bytes, req_storage_bytes
-                )
-
-                if exc:
-                    raise web.HTTPBadRequest(reason=exc.message)
-
-                if result is None:
-                    raise web.HTTPBadRequest(
-                        reason=f'resource requests for job {id} are unsatisfiable: '
-                        f'cloud={cloud}, '
-                        f'cpu={resources.get("req_cpu")}, '
-                        f'memory={resources.get("req_memory")}, '
-                        f'storage={resources["req_storage"]}, '
-                        f'preemptible={preemptible}, '
-                        f'machine_type={machine_type}'
-                    )
-
-                inst_coll_name, cores_mcpu, memory_bytes, storage_gib = result
-                resources['cores_mcpu'] = cores_mcpu
-                resources['memory_bytes'] = memory_bytes
-                resources['storage_gib'] = storage_gib
-                resources['preemptible'] = preemptible
-
-                secrets = spec.get('secrets')
-                if not secrets:
-                    secrets = []
-
-                if len(secrets) != 0 and user != 'ci':
-                    secrets = [(secret["namespace"], secret["name"]) for secret in secrets]
-                    raise web.HTTPBadRequest(reason=f'unauthorized secret {secrets} for user {user}')
-
-                for secret in secrets:
-                    if user != 'ci':
-                        raise web.HTTPBadRequest(reason=f'unauthorized secret {(secret["namespace"], secret["name"])}')
-
-                spec['secrets'] = secrets
-
-                secrets.append(
-                    {
-                        'namespace': DEFAULT_NAMESPACE,
-                        'name': userdata['hail_credentials_secret_name'],
-                        'mount_path': '/gsa-key',
-                        'mount_in_copy': True,
-                    }
-                )
-
-                env = spec.get('env')
-                if not env:
-                    env = []
-                    spec['env'] = env
-                assert isinstance(spec['env'], list)
-
-                if cloud == 'gcp' and all(envvar['name'] != 'GOOGLE_APPLICATION_CREDENTIALS' for envvar in spec['env']):
-                    spec['env'].append({'name': 'GOOGLE_APPLICATION_CREDENTIALS', 'value': '/gsa-key/key.json'})
-
-                if cloud == 'azure' and all(
-                    envvar['name'] != 'AZURE_APPLICATION_CREDENTIALS' for envvar in spec['env']
-                ):
-                    spec['env'].append({'name': 'AZURE_APPLICATION_CREDENTIALS', 'value': '/gsa-key/key.json'})
-
-                if spec.get('mount_tokens', False):
-                    secrets.append(
-                        {
-                            'namespace': DEFAULT_NAMESPACE,
-                            'name': userdata['tokens_secret_name'],
-                            'mount_path': '/user-tokens',
-                            'mount_in_copy': False,
-                        }
-                    )
-                    secrets.append(
-                        {
-                            'namespace': DEFAULT_NAMESPACE,
-                            'name': 'worker-deploy-config',
-                            'mount_path': '/deploy-config',
-                            'mount_in_copy': False,
-                        }
-                    )
-                    secrets.append(
-                        {
-                            'namespace': DEFAULT_NAMESPACE,
-                            'name': 'ssl-config-batch-user-code',
-                            'mount_path': '/ssl-config',
-                            'mount_in_copy': False,
-                        }
-                    )
-
-                sa = spec.get('service_account')
-                check_service_account_permissions(user, sa)
-
-                icr = inst_coll_resources[inst_coll_name]
-                icr['n_jobs'] += 1
-                if len(parent_ids) == 0:
-                    state = 'Ready'
-                    icr['n_ready_jobs'] += 1
-                    icr['ready_cores_mcpu'] += cores_mcpu
-                    if not always_run:
-                        icr['n_ready_cancellable_jobs'] += 1
-                        icr['ready_cancellable_cores_mcpu'] += cores_mcpu
-                else:
-                    state = 'Pending'
-
-                network = spec.get('network')
-                if user != 'ci' and not (network is None or network == 'public'):
-                    raise web.HTTPBadRequest(reason=f'unauthorized network {network}')
-
-                unconfined = spec.get('unconfined')
-                if user != 'ci' and unconfined:
-                    raise web.HTTPBadRequest(reason=f'unauthorized use of unconfined={unconfined}')
-
-                spec_writer.add(json.dumps(spec))
-                db_spec = batch_format_version.db_spec(spec)
-
-                jobs_args.append(
-                    (
-                        batch_id,
-                        job_id,
-                        state,
-                        json.dumps(db_spec),
-                        always_run,
-                        cores_mcpu,
-                        len(parent_ids),
-                        inst_coll_name,
-                    )
-                )
-
-                for parent_id in parent_ids:
-                    job_parents_args.append((batch_id, job_id, parent_id))
-
-                if attributes:
-                    for k, v in attributes.items():
-                        job_attributes_args.append((batch_id, job_id, k, v))
-
-        rand_token = random.randint(0, app['n_tokens'] - 1)
-
-        async def write_spec_to_cloud():
-            if batch_format_version.has_full_spec_in_cloud():
-                async with timer.step('write spec to cloud'):
-                    await spec_writer.write()
-
-        async def insert_jobs_into_db(tx):
-            async with timer.step('insert jobs'):
-                try:
-                    try:
-                        await tx.execute_many(
-                            '''
+    async def insert_jobs_into_db(tx):
+        try:
+            try:
+                await tx.execute_many(
+                    '''
 INSERT INTO jobs (batch_id, job_id, state, spec, always_run, cores_mcpu, n_pending_parents, inst_coll)
 VALUES (%s, %s, %s, %s, %s, %s, %s, %s);
 ''',
-                            jobs_args,
-                        )
-                    except pymysql.err.IntegrityError as err:
-                        # 1062 ER_DUP_ENTRY https://dev.mysql.com/doc/refman/5.7/en/server-error-reference.html#error_er_dup_entry
-                        if err.args[0] == 1062:
-                            log.info(f'bunch containing job {(batch_id, jobs_args[0][1])} already inserted ({err})')
-                            return
-                        raise
-                    try:
-                        await tx.execute_many(
-                            '''
+                    jobs_args,
+                )
+            except pymysql.err.IntegrityError as err:
+                # 1062 ER_DUP_ENTRY https://dev.mysql.com/doc/refman/5.7/en/server-error-reference.html#error_er_dup_entry
+                if err.args[0] == 1062:
+                    log.info(f'bunch containing job {(batch_id, jobs_args[0][1])} already inserted ({err})')
+                    return
+                raise
+            try:
+                await tx.execute_many(
+                    '''
 INSERT INTO `job_parents` (batch_id, job_id, parent_id)
 VALUES (%s, %s, %s);
 ''',
-                            job_parents_args,
-                        )
-                    except pymysql.err.IntegrityError as err:
-                        # 1062 ER_DUP_ENTRY https://dev.mysql.com/doc/refman/5.7/en/server-error-reference.html#error_er_dup_entry
-                        if err.args[0] == 1062:
-                            raise web.HTTPBadRequest(text=f'bunch contains job with duplicated parents ({err})')
-                        raise
-                    await tx.execute_many(
-                        '''
+                    job_parents_args,
+                )
+            except pymysql.err.IntegrityError as err:
+                # 1062 ER_DUP_ENTRY https://dev.mysql.com/doc/refman/5.7/en/server-error-reference.html#error_er_dup_entry
+                if err.args[0] == 1062:
+                    raise web.HTTPBadRequest(text=f'bunch contains job with duplicated parents ({err})')
+                raise
+            await tx.execute_many(
+                '''
 INSERT INTO `job_attributes` (batch_id, job_id, `key`, `value`)
 VALUES (%s, %s, %s, %s);
 ''',
-                        job_attributes_args,
-                    )
+                job_attributes_args,
+            )
 
-                    batches_inst_coll_staging_args = [
-                        (
-                            batch_id,
-                            inst_coll,
-                            rand_token,
-                            resources['n_jobs'],
-                            resources['n_ready_jobs'],
-                            resources['ready_cores_mcpu'],
-                        )
-                        for inst_coll, resources in inst_coll_resources.items()
-                    ]
-                    await tx.execute_many(
-                        '''
+            batches_inst_coll_staging_args = [
+                (
+                    batch_id,
+                    inst_coll,
+                    rand_token,
+                    resources['n_jobs'],
+                    resources['n_ready_jobs'],
+                    resources['ready_cores_mcpu'],
+                )
+                for inst_coll, resources in inst_coll_resources.items()
+            ]
+            await tx.execute_many(
+                '''
 INSERT INTO batches_inst_coll_staging (batch_id, inst_coll, token, n_jobs, n_ready_jobs, ready_cores_mcpu)
 VALUES (%s, %s, %s, %s, %s, %s)
 ON DUPLICATE KEY UPDATE
@@ -1033,56 +1022,57 @@ ON DUPLICATE KEY UPDATE
   n_ready_jobs = n_ready_jobs + VALUES(n_ready_jobs),
   ready_cores_mcpu = ready_cores_mcpu + VALUES(ready_cores_mcpu);
 ''',
-                        batches_inst_coll_staging_args,
-                    )
+                batches_inst_coll_staging_args,
+            )
 
-                    batch_inst_coll_cancellable_resources_args = [
-                        (
-                            batch_id,
-                            inst_coll,
-                            rand_token,
-                            resources['n_ready_cancellable_jobs'],
-                            resources['ready_cancellable_cores_mcpu'],
-                        )
-                        for inst_coll, resources in inst_coll_resources.items()
-                    ]
-                    await tx.execute_many(
-                        '''
+            batch_inst_coll_cancellable_resources_args = [
+                (
+                    batch_id,
+                    inst_coll,
+                    rand_token,
+                    resources['n_ready_cancellable_jobs'],
+                    resources['ready_cancellable_cores_mcpu'],
+                )
+                for inst_coll, resources in inst_coll_resources.items()
+            ]
+            await tx.execute_many(
+                '''
 INSERT INTO batch_inst_coll_cancellable_resources (batch_id, inst_coll, token, n_ready_cancellable_jobs, ready_cancellable_cores_mcpu)
 VALUES (%s, %s, %s, %s, %s)
 ON DUPLICATE KEY UPDATE
   n_ready_cancellable_jobs = n_ready_cancellable_jobs + VALUES(n_ready_cancellable_jobs),
   ready_cancellable_cores_mcpu = ready_cancellable_cores_mcpu + VALUES(ready_cancellable_cores_mcpu);
 ''',
-                        batch_inst_coll_cancellable_resources_args,
-                    )
+                batch_inst_coll_cancellable_resources_args,
+            )
 
-                    if batch_format_version.has_full_spec_in_cloud():
-                        await tx.execute_update(
-                            '''
+            if batch_format_version.has_full_spec_in_cloud():
+                await tx.execute_update(
+                    '''
 INSERT INTO batch_bunches (batch_id, token, start_job_id)
 VALUES (%s, %s, %s);
 ''',
-                            (batch_id, spec_writer.token, start_job_id),
-                        )
-                except asyncio.CancelledError:
-                    raise
-                except aiohttp.web.HTTPException:
-                    raise
-                except Exception as err:
-                    raise ValueError(
-                        f'encountered exception while inserting a bunch'
-                        f'jobs_args={json.dumps(jobs_args)}'
-                        f'job_parents_args={json.dumps(job_parents_args)}'
-                    ) from err
+                    (batch_id, spec_writer.token, start_job_id),
+                )
+        except asyncio.CancelledError:
+            raise
+        except aiohttp.web.HTTPException:
+            raise
+        except Exception as err:
+            raise ValueError(
+                f'encountered exception while inserting a bunch'
+                f'jobs_args={json.dumps(jobs_args)}'
+                f'job_parents_args={json.dumps(job_parents_args)}'
+            ) from err
 
-        @transaction(db)
-        async def write_and_insert(tx):
-            # IMPORTANT: If cancellation or an error prevents writing the spec to the cloud, then we
-            # must rollback. See https://github.com/hail-is/hail-production-issues/issues/9
-            await asyncio.gather(write_spec_to_cloud(), insert_jobs_into_db(tx))
+    @transaction(db)
+    async def write_and_insert(tx):
+        # IMPORTANT: If cancellation or an error prevents writing the spec to the cloud, then we
+        # must rollback. See https://github.com/hail-is/hail-production-issues/issues/9
+        await asyncio.gather(write_spec_to_cloud(), insert_jobs_into_db(tx))
 
-        await write_and_insert()  # pylint: disable=no-value-for-parameter
+    await write_and_insert()  # pylint: disable=no-value-for-parameter
+
     return web.Response()
 
 
