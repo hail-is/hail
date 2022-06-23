@@ -744,7 +744,7 @@ async def retry_transient_errors(f: Callable[..., Awaitable[T]], *args, **kwargs
         except Exception as e:
             errors += 1
             if errors == 1 and is_retry_once_error(e):
-                continue
+                return await f(*args, **kwargs)
             if not is_transient_error(e):
                 raise
             if errors == 2:
