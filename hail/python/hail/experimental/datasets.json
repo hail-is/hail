@@ -2900,6 +2900,19 @@
           }
         },
         "version": "v31"
+      },
+      {
+        "reference_genome": "GRCh38",
+        "url": {
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/GENCODE/v35/GRCh38/annotation.ht"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/GENCODE/v35/GRCh38/annotation.ht",
+            "us": "gs://hail-datasets-us/GENCODE/v35/GRCh38/annotation.ht"
+          }
+        },
+        "version": "v35"
       }
     ]
   },
