@@ -1663,6 +1663,17 @@ class Tests(unittest.TestCase):
             hl.utils.Struct(idx=0, locus=hl.genetics.Locus(contig='2', position=1, reference_genome='GRCh37'))]
 
 
+def test_keys_before_scans():
+    mt = hl.utils.range_matrix_table(6, 6)
+    mt = mt.annotate_rows(rev_idx = -mt.row_idx)
+    mt = mt.key_rows_by(mt.rev_idx)
+
+    mt = mt.annotate_rows(idx_scan = hl.scan.collect(mt.row_idx))
+
+    mt = mt.key_rows_by(mt.row_idx)
+    assert mt.rows().idx_scan.collect() == [[5, 4, 3, 2, 1], [5, 4, 3, 2], [5, 4, 3], [5, 4], [5], []]
+
+
 def test_read_write_all_types():
     mt = create_all_values_matrix_table()
     tmp_file = new_temp_file()

@@ -1679,6 +1679,15 @@ def test_map_partitions_indexed():
     ht = ht.key_by()._map_partitions(lambda partition: [hl.struct(foo=partition)])
     assert [inner.idx for outer in ht.foo.collect() for inner in outer] == list(range(11, 55))
 
+def test_keys_before_scans():
+    ht = hl.utils.range_table(6)
+    ht = ht.annotate(rev_idx = -ht.idx)
+    ht = ht.key_by(ht.rev_idx)
+
+    ht = ht.annotate(idx_scan = hl.scan.collect(ht.idx))
+
+    ht = ht.key_by(ht.idx)
+    assert ht.idx_scan.collect() == [[5, 4, 3, 2, 1], [5, 4, 3, 2], [5, 4, 3], [5, 4], [5], []]
 
 
 @lower_only()
