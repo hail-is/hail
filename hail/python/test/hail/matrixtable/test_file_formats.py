@@ -54,7 +54,7 @@ def all_values_table_fixture():
 try:
     old_loop = asyncio.get_event_loop()
 except RuntimeError as err:
-    assert 'There is no current event loop in thread' in err
+    assert 'There is no current event loop in thread' in err.args[0]
     old_loop = None
 loop = asyncio.new_event_loop()
 asyncio.set_event_loop(loop)
