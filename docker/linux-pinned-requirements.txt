@@ -196,6 +196,7 @@ itsdangerous==2.1.2
     # via flask
 janus==0.6.1
     # via -r requirements.txt
+jeepney==0.8.0
 jinja2==3.0.3
     # via
     #   -r requirements.txt
@@ -390,6 +391,7 @@ rsa==4.8
     # via google-auth
 s3transfer==0.5.2
     # via boto3
+secretstorage==3.3.2
 six==1.16.0
     # via
     #   azure-core
