@@ -2048,7 +2048,8 @@ class Emit[C](
         val impl = x.implementation
         val unified = impl.unify(Array.empty[Type], x.argTypes, rt)
         assert(unified)
-        if (fn == "rand_unif") {
+        val newRNGEnabled = Array[String]()
+        if (newRNGEnabled.contains(fn)) {
           val pureImpl = x.pureImplementation
           assert(pureImpl.unify(Array.empty[Type], rngState.typ +: x.argTypes, rt))
           val codeArgsMem = codeArgs.map(_.memoize(cb, "ApplySeeded_arg"))

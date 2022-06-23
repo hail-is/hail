@@ -694,7 +694,9 @@ class RVD(
     ac.result()
   }
 
-  def count(): Long =
+  def count(): Long = {
+    println(s"num partitions: $getNumPartitions")
+    println(crdd.rdd.partitions.length)
     crdd.boundary.cmapPartitions { (ctx, it) =>
       var count = 0L
       it.foreach { _ =>
@@ -702,6 +704,7 @@ class RVD(
       }
       Iterator.single(count)
     }.run.fold(0L)(_ + _)
+  }
 
   def countPerPartition(): Array[Long] =
     crdd.boundary.cmapPartitions { (ctx, it) =>

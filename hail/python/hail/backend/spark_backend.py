@@ -17,6 +17,7 @@ from hail.expr.table_type import ttable
 from hail.expr.matrix_type import tmatrix
 from hail.expr.blockmatrix_type import tblockmatrix
 from hail.ir.renderer import CSERenderer
+from hail.ir import finalize_randomness
 from hail.table import Table
 from hail.matrixtable import MatrixTable
 
@@ -264,7 +265,7 @@ class SparkBackend(Py4JBackend):
         if not hasattr(ir, '_jir'):
             r = CSERenderer(stop_at_jir=True)
             # FIXME parse should be static
-            ir._jir = parse(r(ir), ir_map=r.jirs)
+            ir._jir = parse(r(finalize_randomness(ir)), ir_map=r.jirs)
         return ir._jir
 
     def _to_java_value_ir(self, ir):
@@ -361,6 +362,7 @@ class SparkBackend(Py4JBackend):
     def register_ir_function(self, name, type_parameters, argument_names, argument_types, return_type, body):
 
         r = CSERenderer(stop_at_jir=True)
+        assert not body._ir.uses_randomness
         code = r(body._ir)
         jbody = (self._parse_value_ir(code, ref_map=dict(zip(argument_names, argument_types)), ir_map=r.jirs))
 

@@ -17,6 +17,7 @@ from hail.expr.table_type import ttable
 from hail.expr.matrix_type import tmatrix
 from hail.expr.blockmatrix_type import tblockmatrix
 from hail.experimental import write_expression, read_expression
+from hail.ir import finalize_randomness
 from hail.ir.renderer import CSERenderer
 
 from hailtop.config import (configuration_of, get_user_local_cache_dir, get_remote_tmpdir, get_deploy_config)
@@ -150,7 +151,7 @@ class IRFunction:
         self._value_parameter_names = value_parameter_names
         self._value_parameter_types = value_parameter_types
         self._return_type = return_type
-        self._rendered_body = render(body._ir)
+        self._rendered_body = render(finalize_randomness(body._ir))
 
     async def serialize(self, writer: afs.WritableStream):
         await write_str(writer, self._name)
@@ -308,7 +309,7 @@ class ServiceBackend(Backend):
     def render(self, ir):
         r = CSERenderer()
         assert len(r.jirs) == 0
-        return r(ir)
+        return r(finalize_randomness(ir))
 
     async def _rpc(self,
                    name: str,
