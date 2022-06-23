@@ -32,7 +32,7 @@ def gather(ht, key, value, *fields) -> Table:
         Table with original ``fields`` gathered into ``key`` and ``value`` fields."""
 
     ht = ht.annotate(_col_val=hl.array([
-        hl.array([field, ht[field]]) for field in fields]))
+        hl.struct(field_name=field, value=ht[field]) for field in fields]))
     ht = ht.drop(*fields)
     ht = ht.explode(ht['_col_val'])
     ht = ht.annotate(**{key: ht['_col_val'][0],
