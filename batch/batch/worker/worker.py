@@ -358,7 +358,8 @@ def docker_call_retry(timeout, name, f, *args, **kwargs):
 
     async def timed_out_f(*args, **kwargs):
         return await asyncio.wait_for(f(*args, **kwargs), timeout)
-    return retry_transient_errors_with_debug_string(debug_string, timed_out_f, *args, *kwargs)
+    return retry_transient_errors_with_debug_string(debug_string, timed_out_f, *args, **kwargs)
+
 
 class ImageCannotBePulled(Exception):
     pass
