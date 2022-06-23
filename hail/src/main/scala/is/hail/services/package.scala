@@ -111,7 +111,7 @@ package object services {
       } catch {
         case e: Exception =>
           errors += 1
-          if (errors == 1 and isRetryOnceError(e))
+          if (errors == 1 && isRetryOnceError(e))
             return f
           if (!isTransientError(e))
             throw e
