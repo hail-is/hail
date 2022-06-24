@@ -2040,6 +2040,7 @@ steps:
         online: true
       - name: add-pool-label
         script: /io/sql/add-pool-label.sql
+        online: true
     inputs:
       - from: /repo/batch/sql
         to: /io/sql
