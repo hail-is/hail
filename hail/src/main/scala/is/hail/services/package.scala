@@ -43,6 +43,8 @@ package object services {
     e match {
       case e: HttpResponseException =>
         e.getStatusCode() == 400 && e.getMessage.contains("Invalid grant: account not found")
+      case _ =>
+        false
     }
   }
 
