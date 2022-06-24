@@ -1029,6 +1029,17 @@ steps:
     dependsOn:
       - merge_code
       - hail_ubuntu_image
+  - kind: buildImage2
+    name: hailtop_test_runner_image
+    dockerFile:
+      inline: |
+        FROM {{ hailtop_test_runner_image.image }}
+        COPY hail/python/dev/pinned-requirements.txt test-requirements.txt
+        RUN hail-pip-install install -r test-requirements.txt
+    contextPath: /io/repo
+    inputs:
+      - from: /repo
+        to: /io/repo
   - kind: runImage
     name: upload_test_resources_to_blob_storage
     image:
@@ -1295,15 +1306,12 @@ steps:
     name: test_hail_python_fs
     numSplits: 5
     image:
-      valueFrom: hailgenetics_hailtop_slim_image.image
+      valueFrom: hailtop_test_runner_image.image
     resources:
       memory: standard
       cpu: '2'
     script: |
       set -ex
-      cd /io/repo/hail/python
-      pip install -r dev/pinned-requirements.txt
-
       export HAIL_TEST_GCS_BUCKET={{ global.hail_test_gcs_bucket }}
       export GOOGLE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
 
@@ -1320,10 +1328,10 @@ steps:
               -vv \
               --instafail \
               --durations=50 \
-              test/hailtop/inter_cloud
+              /io/test/hailtop/inter_cloud
     inputs:
-      - from: /repo
-        to: /io/repo
+      - from: /repo/hail/python/test
+        to: /io/test
     secrets:
       - name: test-gsa-key
         namespace:
@@ -2681,7 +2689,7 @@ steps:
     name: test_hailtop_batch
     numSplits: 5
     image:
-      valueFrom: service_base_image.image
+      valueFrom: hailtop_test_runner_image.image
     script: |
       cd /io/hailtop
       set -ex
@@ -2704,8 +2712,6 @@ steps:
     inputs:
       - from: /repo/hail/python/test
         to: /io/test
-      - from: /repo/hail/python/hailtop
-        to: /io/hailtop
     timeout: 1200
     secrets:
       - name: worker-deploy-config
@@ -2731,7 +2737,6 @@ steps:
       - create_accounts
       - default_ns
       - merge_code
-      - service_base_image
       - deploy_batch
   - kind: runImage
     name: test_batch_docs
