@@ -240,3 +240,18 @@ def test_call_result_after_timeout():
             assert False
         finally:
             future.cancel()
+
+
+def test_basic_async_fun():
+    with BatchPoolExecutor(project='hail-vdc', image=PYTHON_DILL_IMAGE) as bpe:
+        bpe.submit(asyncio.sleep, 1)
+
+
+def test_async_fun_returns_value():
+    async def foo(i, j):
+        await asyncio.sleep(1)
+        return i * j
+
+    with BatchPoolExecutor(project='hail-vdc', image=PYTHON_DILL_IMAGE) as bpe:
+        future = bpe.submit(foo, 2, 3)
+        assert future.result() == 6
