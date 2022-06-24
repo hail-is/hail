@@ -15,4 +15,5 @@ cat $new_pinned | sed '/#/d' > $new_pinned_no_comments
 diff $pinned_no_comments $new_pinned_no_comments || {
     echo '>>> up-to-date pinned requirements <<<'
     cat $new_pinned
+    exit 1
 }
