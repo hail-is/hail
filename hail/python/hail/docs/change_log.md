@@ -39,7 +39,7 @@ Released 2022-06-21
 - (hail#11937) Fixed correctness bug in scan order for `Table.annotate` and `MatrixTable.annotate_rows` in certain circumstances.
 - (hail#11887) Escape VCF description strings when exporting.
 - (hail#11886) Fix an error in an example in the docs for `hl.split_multi`.
-- 
+
 ## Version 0.2.95
 
 Released 2022-05-13
