@@ -1225,7 +1225,7 @@ object RVD {
       return Array()
 
     val rng = new java.util.Random(1)
-    val partitionSeed = Array.fill[Int](nPartitions)(rng.nextInt())
+    val partitionSeed = Array.fill[Long](nPartitions)(rng.nextLong())
 
     val sampleSize = math.min(nPartitions * 20, 1000000)
     val samplesPerPartition = sampleSize / nPartitions
