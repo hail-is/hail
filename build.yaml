@@ -1347,7 +1347,7 @@ steps:
         mountPath: /test-azure-key
     dependsOn:
       - default_ns
-      - hailgenetics_hailtop_slim_image
+      - hailtop_test_runner_image
       - merge_code
     clouds:
       - gcp
@@ -2733,6 +2733,7 @@ steps:
     dependsOn:
       - hailgenetics_hail_image
       - hailgenetics_hailtop_slim_image
+      - hailtop_test_runner_image
       - create_deploy_config
       - create_accounts
       - default_ns
