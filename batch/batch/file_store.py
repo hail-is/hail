@@ -1,10 +1,14 @@
 import asyncio
 import logging
+from typing import Optional
+
+import pandas as pd
 
 from hailtop.aiotools.fs import AsyncFS
 
 from .batch_format_version import BatchFormatVersion
 from .globals import BATCH_FORMAT_VERSION
+from .resource_usage import ResourceUsageMonitor
 from .spec_writer import SpecWriter
 
 log = logging.getLogger('logstore')
@@ -30,6 +34,11 @@ class FileStore:
             return f'{self.batch_log_dir(batch_id)}/{job_id}/{task}/log'
         return f'{self.batch_log_dir(batch_id)}/{job_id}/{attempt_id}/{task}/log'
 
+    def resource_usage_path(self, format_version, batch_id, job_id, attempt_id, task):
+        if not format_version.has_attempt_in_log_path():
+            return f'{self.batch_log_dir(batch_id)}/{job_id}/{task}/resource_usage'
+        return f'{self.batch_log_dir(batch_id)}/{job_id}/{attempt_id}/{task}/resource_usage'
+
     async def read_log_file(self, format_version, batch_id, job_id, attempt_id, task):
         url = self.log_path(format_version, batch_id, job_id, attempt_id, task)
         data = await self.fs.read(url)
@@ -38,6 +47,17 @@ class FileStore:
     async def write_log_file(self, format_version, batch_id, job_id, attempt_id, task, data):
         url = self.log_path(format_version, batch_id, job_id, attempt_id, task)
         await self.fs.write(url, data.encode('utf-8'))
+
+    async def read_resource_usage_file(
+        self, format_version, batch_id, job_id, attempt_id, task
+    ) -> Optional[pd.DataFrame]:
+        url = self.resource_usage_path(format_version, batch_id, job_id, attempt_id, task)
+        data = await self.fs.read(url)
+        return ResourceUsageMonitor.decode_to_df(data)
+
+    async def write_resource_usage_file(self, format_version, batch_id, job_id, attempt_id, task, data):
+        url = self.resource_usage_path(format_version, batch_id, job_id, attempt_id, task)
+        await self.fs.write(url, data)
 
     async def delete_batch_logs(self, batch_id):
         url = self.batch_log_dir(batch_id)
