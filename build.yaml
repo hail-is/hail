@@ -1033,13 +1033,16 @@ steps:
     name: hailtop_test_runner_image
     dockerFile:
       inline: |
-        FROM {{ hailtop_test_runner_image.image }}
+        FROM {{ hailgenetics_hailtop_slim_image.image }}
         COPY hail/python/dev/pinned-requirements.txt test-requirements.txt
         RUN hail-pip-install install -r test-requirements.txt
     contextPath: /io/repo
     inputs:
       - from: /repo
         to: /io/repo
+    dependsOn:
+      - merge_code
+      - hailgenetics_hailtop_slim_image
   - kind: runImage
     name: upload_test_resources_to_blob_storage
     image:
