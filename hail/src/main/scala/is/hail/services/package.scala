@@ -41,6 +41,9 @@ package object services {
     // true error.
     val e = reactor.core.Exceptions.unwrap(_e)
     e match {
+      case e @ (_: SSLException | _: StorageException | _: IOException) =>
+        val cause = e.getCause
+        cause != null && isRetryOnceError(cause)
       case e: HttpResponseException =>
         e.getStatusCode() == 400 && e.getMessage.contains("Invalid grant: account not found")
       case _ =>
