@@ -459,7 +459,10 @@ async def _get_job_resource_usage(app, batch_id, job_id):
                 f'http://{ip_address}:5000/api/v1alpha/batches/{batch_id}/jobs/{job_id}/resource_usage',
             )
             data = await resp.json()
-            return {task: ResourceUsageMonitor.decode_to_df(base64.b64decode(encoded_df)) for task, encoded_df in data.items()}
+            return {
+                task: ResourceUsageMonitor.decode_to_df(base64.b64decode(encoded_df))
+                for task, encoded_df in data.items()
+            }
         except aiohttp.ClientResponseError:
             log.exception(f'while getting resource usage for {(batch_id, job_id)}')
             return {task: None for task in tasks}
