@@ -713,7 +713,7 @@ def run_combiner(sample_paths: List[str],
 
             tmp = f'{tmp_path}_phase{phase_i}_job{job_i}/'
             hl.experimental.write_matrix_tables(merge_mts, tmp, overwrite=True)
-            pad = len(str(len(merge_mts)))
+            pad = len(str(len(merge_mts) - 1))
             new_files_to_merge.extend(tmp + str(n).zfill(pad) + '.mt' for n in range(len(merge_mts)))
             total_work_done += job.input_total_size
             info(
