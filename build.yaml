@@ -1459,6 +1459,7 @@ steps:
       valueFrom: hail_base_image.image
     script: |
       set -ex
+      set -o pipefail
       export HAIL_SHORT_VERSION='0.2'
       export SPHINXOPTS='-tgenerate_notebook_outputs'
 
@@ -1471,7 +1472,7 @@ steps:
 
       sed -E "s/\(hail\#([0-9]+)\)/(\[#\1](https:\/\/github.com\/hail-is\/hail\/pull\/\1))/g" \
         < python/hail/docs/change_log.md \
-        | pandoc -o python/hail/docs/change_log.rst
+        | pandoc -o python/hail/docs/change_log.rst --fail-if-warnings --verbose
 
       make -C python/hail/docs BUILDDIR=_build clean html
       make -C python/hailtop/batch/docs BUILDDIR=_build clean html
