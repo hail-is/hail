@@ -1993,6 +1993,10 @@ class ImportLinesTest(unittest.TestCase):
         lines_table = hl.import_lines(resource('*_half_example.gen'))
         assert lines_table._force_count() == 199
 
+    def test_import_lines_bgz(self):
+        lines_table = hl.import_lines(resource('sample.vcf.gz'), min_partitions=5, force_bgz=True)
+        assert lines_table.n_partitions() == 5
+
 
 class ImportTableTests(unittest.TestCase):
     def test_import_table_force_bgz(self):
