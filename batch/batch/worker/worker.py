@@ -78,7 +78,6 @@ from ..cloud.resource_utils import (
 from ..file_store import FileStore
 from ..globals import HTTP_CLIENT_MAX_SIZE, RESERVED_STORAGE_GB_PER_CORE, STATUS_FORMAT_VERSION
 from ..publicly_available_images import publicly_available_images
-from ..resource_usage import ResourceUsageMonitor
 from ..semaphore import FIFOWeightedSemaphore
 from ..utils import Box
 from ..worker.worker_api import CloudWorkerAPI
@@ -674,7 +673,6 @@ class Container:
         self.container_overlay_path = f'{self.container_scratch}/rootfs_overlay'
         self.config_path = f'{self.container_scratch}/config'
         self.log_path = f'{self.container_scratch}/container.log'
-        self.resource_usage_path = f'{self.container_scratch}/resource_usage'
 
         self.overlay_mounted = False
 
@@ -902,10 +900,10 @@ class Container:
                         stderr=container_log,
                     )
 
-                    async with ResourceUsageMonitor(self.name, self.resource_usage_path):
-                        if self.stdin is not None:
-                            await self.process.communicate(self.stdin.encode('utf-8'))
-                        await self.process.wait()
+                    if self.stdin is not None:
+                        await self.process.communicate(self.stdin.encode('utf-8'))
+
+                    await self.process.wait()
         except asyncio.TimeoutError:
             return True
         finally:
@@ -1126,7 +1124,7 @@ class Container:
 
     # {
     #   name: str,
-    #   state: str, (pending, running, succeeded, error, failed)
+    #   state: str, (pending, pulling, creating, starting, running, uploading_log, deleting, succeeded, error, failed)
     #   timing: dict(str, float),
     #   error: str, (optional)
     #   short_error: str, (optional)
@@ -1180,11 +1178,6 @@ class Container:
                 return (await self.fs.read(self.log_path)).decode()
             return (await self.fs.read_from(self.log_path, offset)).decode()
         return ''
-
-    async def get_resource_usage(self) -> bytes:
-        if os.path.exists(self.resource_usage_path):
-            return await self.fs.read(self.resource_usage_path)
-        return ResourceUsageMonitor.no_data()
 
     def __str__(self):
         return f'container {self.name}'
@@ -1413,9 +1406,6 @@ class Job:
     async def get_log(self):
         pass
 
-    async def get_resource_usage(self) -> Dict[str, Optional[bytes]]:
-        raise NotImplementedError
-
     async def delete(self):
         log.info(f'deleting {self}')
         self.deleted_event.set()
@@ -1615,16 +1605,6 @@ class DockerJob(Job):
                     await container.get_log(),
                 )
 
-            with container._step('uploading_resource_usage'):
-                await self.worker.file_store.write_resource_usage_file(
-                    self.format_version,
-                    self.batch_id,
-                    self.job_id,
-                    self.attempt_id,
-                    task_name,
-                    await container.get_resource_usage(),
-                )
-
         try:
             await container.run(on_completion)
         except asyncio.CancelledError:
@@ -1772,16 +1752,7 @@ class DockerJob(Job):
             log.exception('while deleting volumes')
 
     async def get_log(self):
-        logs = {}
-        for name, container in self.containers.items():
-            c_log = await container.get_log()
-            if c_log is None:
-                c_log = ''
-            logs[name] = c_log
-        return logs
-
-    async def get_resource_usage(self):
-        return {name: await c.get_resource_usage() for name, c in self.containers.items()}
+        return {name: await c.get_log() for name, c in self.containers.items()}
 
     async def delete(self):
         await super().delete()
@@ -1957,9 +1928,6 @@ class JVMJob(Job):
 
     async def get_log(self):
         return {'main': await self._get_log()}
-
-    async def get_resource_usage(self):
-        return {'main': ResourceUsageMonitor.no_data()}
 
     async def delete(self):
         await super().delete()
@@ -2487,34 +2455,26 @@ class Worker:
             raise web.HTTPServiceUnavailable
         return await asyncio.shield(self.create_job_1(request))
 
-    def _job_from_request(self, request):
+    async def get_job_log(self, request):
+        if not self.active:
+            raise web.HTTPServiceUnavailable
         batch_id = int(request.match_info['batch_id'])
         job_id = int(request.match_info['job_id'])
         id = (batch_id, job_id)
         job = self.jobs.get(id)
         if not job:
             raise web.HTTPNotFound()
-        return job
-
-    async def get_job_log(self, request):
-        if not self.active:
-            raise web.HTTPServiceUnavailable
-        job = self._job_from_request(request)
         return web.json_response(await job.get_log())
-
-    async def get_job_resource_usage(self, request):
-        if not self.active:
-            raise web.HTTPServiceUnavailable
-
-        job = self._job_from_request(request)
-        resource_usage = await job.get_resource_usage()
-        data = {task: base64.b64encode(df).decode('utf-8') for task, df in resource_usage.items()}
-        return web.json_response(data)
 
     async def get_job_status(self, request):
         if not self.active:
             raise web.HTTPServiceUnavailable
-        job = self._job_from_request(request)
+        batch_id = int(request.match_info['batch_id'])
+        job_id = int(request.match_info['job_id'])
+        id = (batch_id, job_id)
+        job = self.jobs.get(id)
+        if not job:
+            raise web.HTTPNotFound()
         return web.json_response(job.status())
 
     async def delete_job_1(self, request):
@@ -2556,7 +2516,6 @@ class Worker:
                 web.post('/api/v1alpha/batches/jobs/create', self.create_job),
                 web.delete('/api/v1alpha/batches/{batch_id}/jobs/{job_id}/delete', self.delete_job),
                 web.get('/api/v1alpha/batches/{batch_id}/jobs/{job_id}/log', self.get_job_log),
-                web.get('/api/v1alpha/batches/{batch_id}/jobs/{job_id}/resource_usage', self.get_job_resource_usage),
                 web.get('/api/v1alpha/batches/{batch_id}/jobs/{job_id}/status', self.get_job_status),
                 web.get('/healthcheck', self.healthcheck),
             ]
