@@ -1,4 +1,4 @@
-from .types import (dtype, HailType, hail_type, is_container, is_compound, is_numeric, is_primitive,
+from .types import (dtype, HailType, hail_type, is_container, is_compound, is_numeric, is_primitive, dtypes_from_pandas,
                     types_match, tint, tint32, tint64, tfloat, tfloat32, tfloat64, tstr, tbool, tarray, tstream,
                     tndarray, tset, tdict, tstruct, tunion, ttuple, tinterval, tlocus, tcall, tvoid, tvariable,
                     hts_entry_schema)
@@ -56,6 +56,7 @@ __all__ = ['HailType',
            'is_primitive',
            'types_match',
            'dtype',
+           'dtypes_from_pandas',
            'tint',
            'tint32',
            'tint64',

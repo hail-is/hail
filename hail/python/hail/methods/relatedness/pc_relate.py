@@ -3,7 +3,7 @@ from typing import Optional
 import hail as hl
 import hail.expr.aggregators as agg
 from hail import ir
-from hail.backend.spark_backend import SparkBackend
+from hail.backend import SparkBackend
 from hail.expr import (ArrayNumericExpression, BooleanExpression, CallExpression,
                        Float64Expression, analyze, expr_array, expr_call,
                        expr_float64, matrix_table_source)
