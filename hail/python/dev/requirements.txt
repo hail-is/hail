@@ -2,7 +2,7 @@
 
 flake8==4.0.1
 mypy==0.950
-pylint==2.13.5
+pylint==2.14.3
 pre-commit==2.18.1
 black==22.3.0
 curlylint==0.13.1
