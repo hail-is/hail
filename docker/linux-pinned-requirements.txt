@@ -134,7 +134,7 @@ gevent-websocket==0.10.1
     # via flask-sockets
 gidgethub==4.1.0
     # via -r requirements.txt
-google-api-core[grpc]==1.31.6
+google-api-core[grpc]==2.8.2
     # via
     #   google-cloud-core
     #   google-cloud-logging
