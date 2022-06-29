@@ -358,6 +358,7 @@ def docker_call_retry(timeout, name, f, *args, **kwargs):
 
     async def timed_out_f(*args, **kwargs):
         return await asyncio.wait_for(f(*args, **kwargs), timeout)
+
     return retry_transient_errors_with_debug_string(debug_string, timed_out_f, *args, **kwargs)
 
 
@@ -433,11 +434,7 @@ class Image:
                 # per-user image cache.
                 auth = self._current_user_access_token()
                 await docker_call_retry(
-                    MAX_DOCKER_IMAGE_PULL_SECS,
-                    str(self),
-                    docker.images.pull,
-                    self.image_ref_str,
-                    auth=auth
+                    MAX_DOCKER_IMAGE_PULL_SECS, str(self), docker.images.pull, self.image_ref_str, auth=auth
                 )
         except DockerError as e:
             if e.status == 404 and 'pull access denied' in e.message:
@@ -453,20 +450,11 @@ class Image:
         assert docker
 
         try:
-            await docker_call_retry(
-                MAX_DOCKER_OTHER_OPERATION_SECS,
-                str(self),
-                docker.images.get,
-                self.image_ref_str
-            )
+            await docker_call_retry(MAX_DOCKER_OTHER_OPERATION_SECS, str(self), docker.images.get, self.image_ref_str)
         except DockerError as e:
             if e.status == 404:
                 await docker_call_retry(
-                    MAX_DOCKER_IMAGE_PULL_SECS,
-                    str(self),
-                    docker.images.pull,
-                    self.image_ref_str,
-                    auth=auth
+                    MAX_DOCKER_IMAGE_PULL_SECS, str(self), docker.images.pull, self.image_ref_str, auth=auth
                 )
             else:
                 raise
