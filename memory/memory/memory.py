@@ -62,8 +62,8 @@ async def write_object(request, userdata):
 
     async def persist_and_cache():
         try:
-            await persist(userinfo['fs'], file_key, filepath, data)
-            await cache_file(request.app['redis_pool'], file_key, filepath, data)
+            await persist(userinfo['fs'], filepath, data)
+            await cache_file(request.app['redis_pool'], file_key, data)
             return data
         finally:
             del request.app['files_in_progress'][file_key]
@@ -110,8 +110,8 @@ async def get_file_or_none(app, username, fs: AsyncFS, filepath):
 
     async def load_and_cache():
         try:
-            data = await load_file(file_key, fs, filepath)
-            await cache_file(redis_pool, file_key, filepath, data)
+            data = await load_file(fs, filepath)
+            await cache_file(redis_pool, file_key, data)
             return data
         except FileNotFoundError:
             return None
@@ -123,16 +123,16 @@ async def get_file_or_none(app, username, fs: AsyncFS, filepath):
     return await fut
 
 
-async def load_file(file_key, fs: AsyncFS, filepath):
+async def load_file(fs: AsyncFS, filepath):
     data = await fs.read(filepath)
     return data
 
 
-async def persist(fs: AsyncFS, file_key: str, filepath: str, data: bytes):
+async def persist(fs: AsyncFS, filepath: str, data: bytes):
     await fs.write(filepath, data)
 
 
-async def cache_file(redis: aioredis.ConnectionsPool, file_key: str, filepath: str, data: bytes):
+async def cache_file(redis: aioredis.ConnectionsPool, file_key: str, data: bytes):
     await redis.execute('HMSET', file_key, 'body', data)
 
 
