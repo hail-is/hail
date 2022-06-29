@@ -71,7 +71,7 @@ class ServiceBackend(
   private[this] val MAX_AVAILABLE_GCS_CONNECTIONS = 100
   private[this] val availableGCSConnections = new Semaphore(MAX_AVAILABLE_GCS_CONNECTIONS, true)
 
-  def defaultParallelism: Int = 10
+  def defaultParallelism: Int = 4
 
   def broadcast[T: ClassTag](_value: T): BroadcastValue[T] = {
     using(new ObjectOutputStream(new ByteArrayOutputStream())) { os =>
