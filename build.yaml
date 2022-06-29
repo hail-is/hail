@@ -2023,6 +2023,8 @@ steps:
         script: /io/sql/kill-mjc-deadlocks.sql
       - name: add-nonpreemptible-pools
         script: /io/sql/add-nonpreemptible-pools.sql
+      - name: add-pool-label
+        script: /io/sql/add-pool-label.sql
       - name: set-test-and-dev-pools-to-8-core-max-2
         script: /io/sql/set-test-and-dev-pools-to-8-core-max-2.py
       - name: set-test-and-dev-jpim-to-max-5
@@ -2031,8 +2033,6 @@ steps:
       - name: minimize-deadlock-errors
         script: /io/sql/minimize-deadlock-errors.sql
         online: true
-      - name: add-pool-label
-        script: /io/sql/add-pool-label.sql
     inputs:
       - from: /repo/batch/sql
         to: /io/sql
