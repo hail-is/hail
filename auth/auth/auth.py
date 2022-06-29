@@ -760,9 +760,9 @@ class AuthAccessLogger(AccessLogger):
     def __init__(self, logger: logging.Logger, log_format: str):
         super().__init__(logger, log_format)
         self.exclude = [
-            (endpoint[0], deploy_config.base_path('auth') + endpoint[1])
+            (endpoint[0], re.compile(deploy_config.base_path('auth') + endpoint[1]))
             for endpoint in [
-                ('GET', re.compile('/api/v1alpha/userinfo')),
+                ('GET', '/api/v1alpha/userinfo'),
             ]
         ]
 
