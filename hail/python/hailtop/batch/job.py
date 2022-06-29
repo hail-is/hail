@@ -582,6 +582,11 @@ class Job:
                         raise BatchException(f"undefined resource '{name}'\n"
                                              f"Hint: resources must be defined within "
                                              f"the job methods 'command' or 'declare_resource_group'")
+
+                    if self._always_run:
+                        warnings.warn('A job marked as always run has a resource file dependency on another job. If the dependent job fails, '
+                                      f'the always run job with the following command will not run:\n{command}')
+
                     self._dependencies.add(r._source)
                     r._source._add_internal_outputs(r)
             else:
