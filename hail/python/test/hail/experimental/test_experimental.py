@@ -286,7 +286,6 @@ class Tests(unittest.TestCase):
             results[1]['snp_heritability_standard_error'],
             0.0416, places=4)
 
-    @skip_when_service_backend('very slow / nonterminating')
     def test_sparse(self):
         expected_split_mt = hl.import_vcf(resource('sparse_split_test_b.vcf'))
         unsplit_mt = hl.import_vcf(resource('sparse_split_test.vcf'), call_fields=['LGT', 'LPGT'])
@@ -314,7 +313,6 @@ class Tests(unittest.TestCase):
         ht = hl.experimental.pc_project(mt_to_project.GT, loadings_ht.loadings, loadings_ht.af)
         assert ht._force_count() == 100
 
-    @skip_when_service_backend('slow >800s')
     def test_mt_full_outer_join(self):
         mt1 = hl.utils.range_matrix_table(10, 10)
         mt1 = mt1.annotate_cols(c1=hl.rand_unif(0, 1))
@@ -336,7 +334,6 @@ class Tests(unittest.TestCase):
 
         assert(mtj.count() == (15, 15))
 
-    @skip_when_service_backend('hangs')
     def test_mt_full_outer_join_self(self):
         mt = hl.import_vcf(resource('sample.vcf'))
         jmt = hl.experimental.full_outer_join_mt(mt, mt)

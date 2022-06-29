@@ -117,35 +117,35 @@ def create_all_values_matrix_table():
 def create_all_values_datasets():
     return (create_all_values_table(), create_all_values_matrix_table())
 
-def skip_unless_spark_backend():
+def skip_unless_spark_backend(reason='requires Spark'):
     from hail.backend.spark_backend import SparkBackend
     @decorator
     def wrapper(func, *args, **kwargs):
         if isinstance(hl.utils.java.Env.backend(), SparkBackend):
             return func(*args, **kwargs)
         else:
-            raise unittest.SkipTest('requires Spark')
+            raise unittest.SkipTest(reason)
 
     return wrapper
 
-def skip_when_service_backend(message='does not work on ServiceBackend'):
+def skip_when_service_backend(reason='skipping for Service Backend'):
     from hail.backend.service_backend import ServiceBackend
     @decorator
     def wrapper(func, *args, **kwargs):
         if isinstance(hl.utils.java.Env.backend(), ServiceBackend):
-            raise unittest.SkipTest(message)
+            raise unittest.SkipTest(reason)
         else:
             return func(*args, **kwargs)
 
     return wrapper
 
 
-def skip_unless_service_backend(message='only relevant to service backend'):
+def skip_unless_service_backend(reason='only relevant to service backend'):
     from hail.backend.service_backend import ServiceBackend
     @decorator
     def wrapper(func, *args, **kwargs):
         if not isinstance(hl.utils.java.Env.backend(), ServiceBackend):
-            raise unittest.SkipTest(message)
+            raise unittest.SkipTest(reason)
         else:
             return func(*args, **kwargs)
 

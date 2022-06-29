@@ -11,19 +11,18 @@ import is.hail.expr.ir.streams.StreamProducer
 import is.hail.io.avro.{AvroPartitionReader, AvroSchemaSerializer}
 import is.hail.io.{AbstractTypedCodecSpec, BufferSpec, TypedCodecSpec}
 import is.hail.rvd.RVDSpecMaker
-import is.hail.types.{RIterable, TypeWithRequiredness}
 import is.hail.types.encoded._
 import is.hail.types.physical._
-import is.hail.types.physical.stypes.{BooleanSingleCodeType, Float32SingleCodeType, Float64SingleCodeType, Int32SingleCodeType, Int64SingleCodeType, PTypeReferenceSingleCodeType, SType}
 import is.hail.types.physical.stypes.concrete.SJavaString
 import is.hail.types.physical.stypes.interfaces._
+import is.hail.types.physical.stypes._
 import is.hail.types.virtual._
+import is.hail.types.{RIterable, TypeWithRequiredness}
 import is.hail.utils.{FastIndexedSeq, _}
 import org.json4s.{DefaultFormats, Extraction, Formats, JValue, ShortTypeHints}
 
-import scala.language.existentials
-
 import java.io.OutputStream
+import scala.language.existentials
 
 sealed trait IR extends BaseIR {
   private var _typ: Type = null
@@ -99,10 +98,19 @@ object EncodedLiteral {
   }
 
   def fromPTypeAndAddress(pt: PType, addr: Long, ctx: ExecuteContext): IR = {
-    val etype = EType.defaultFromPType(pt)
-    val codec = TypedCodecSpec(etype, pt.virtualType, BufferSpec.defaultUncompressed)
-    val bytes = codec.encodeArrays(ctx, pt, addr)
-    EncodedLiteral(codec, bytes)
+    pt match {
+      case _: PInt32 => I32(Region.loadInt(addr))
+      case _: PInt64 => I64(Region.loadLong(addr))
+      case _: PFloat32 => F32(Region.loadFloat(addr))
+      case _: PFloat64 => F64(Region.loadDouble(addr))
+      case _: PBoolean => if (Region.loadBoolean(addr)) True() else False()
+      case ts: PString => Str(ts.loadString(addr))
+      case _ =>
+        val etype = EType.defaultFromPType(pt)
+        val codec = TypedCodecSpec(etype, pt.virtualType, BufferSpec.defaultUncompressed)
+        val bytes = codec.encodeArrays(ctx, pt, addr)
+        EncodedLiteral(codec, bytes)
+    }
   }
 }
 
@@ -280,11 +288,20 @@ final case class ToArray(a: IR) extends IR
 final case class CastToArray(a: IR) extends IR
 final case class ToStream(a: IR, requiresMemoryManagementPerElement: Boolean = false) extends IR
 final case class StreamBufferedAggregate(streamChild: IR, initAggs: IR, newKey: IR, seqOps: IR, name: String,
-  aggSignatures: IndexedSeq[PhysicalAggSig]) extends IR
+  aggSignatures: IndexedSeq[PhysicalAggSig], bufferSize: Int) extends IR
 
 final case class LowerBoundOnOrderedCollection(orderedCollection: IR, elem: IR, onKey: Boolean) extends IR
 
 final case class GroupByKey(collection: IR) extends IR
+
+// FIXME: Revisit all uses after all infra is in place
+object RNGStateLiteral {
+  def apply(): RNGStateLiteral =
+    RNGStateLiteral(Array.fill(4)(util.Random.nextLong()))
+}
+final case class RNGStateLiteral(key: IndexedSeq[Long]) extends IR
+
+final case class RNGSplit(state: IR, dynBitstring: IR) extends IR
 
 final case class StreamLen(a: IR) extends IR
 
@@ -304,7 +321,7 @@ final case class StreamTake(a: IR, num: IR) extends IR
 final case class StreamDrop(a: IR, num: IR) extends IR
 
 // Generate, in ascending order, a uniform random sample, without replacement, of numToSample integers in the range [0, totalRange)
-final case class SeqSample(totalRange: IR, numToSample: IR, requiresMemoryManagementPerElement: Boolean) extends IR
+final case class SeqSample(totalRange: IR, numToSample: IR, rngState: IR, requiresMemoryManagementPerElement: Boolean) extends IR
 
 // Take the child stream and sort each element into buckets based on the provided pivots. The first and last elements of
 // pivots are the endpoints of the first and last interval respectively, should not be contained in the dataset.
@@ -682,8 +699,11 @@ sealed abstract class AbstractApplyNode[F <: JVMFunction] extends IR {
 
 final case class Apply(function: String, typeArgs: Seq[Type], args: Seq[IR], returnType: Type, errorID: Int) extends AbstractApplyNode[UnseededMissingnessObliviousJVMFunction]
 
-final case class ApplySeeded(function: String, args: Seq[IR], seed: Long, returnType: Type) extends AbstractApplyNode[SeededJVMFunction] {
+final case class ApplySeeded(function: String, args: Seq[IR], rngState: IR, seed: Long, returnType: Type) extends AbstractApplyNode[SeededJVMFunction] {
   val typeArgs: Seq[Type] = Seq.empty[Type]
+  lazy val pureImplementation: UnseededMissingnessObliviousJVMFunction =
+    IRFunctionRegistry.lookupFunctionOrFail(function + "_pure", returnType, typeArgs, TRNGState +: argTypes)
+      .asInstanceOf[UnseededMissingnessObliviousJVMFunction]
 }
 
 final case class ApplySpecial(function: String, typeArgs: Seq[Type], args: Seq[IR], returnType: Type, errorID: Int) extends AbstractApplyNode[UnseededMissingnessAwareJVMFunction]

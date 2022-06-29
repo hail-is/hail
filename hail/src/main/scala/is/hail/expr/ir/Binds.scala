@@ -37,7 +37,7 @@ object Bindings {
         Array((valueName, coerce[TStream](a.typ).elementType)) ++ accum.map { case (name, value) => (name, value.typ) }
       else
         accum.map { case (name, value) => (name, value.typ) }
-    case StreamBufferedAggregate(stream, _,  _, _, name, _) => if (i > 0) Array(name -> coerce[TStream](stream.typ).elementType) else empty
+    case StreamBufferedAggregate(stream, _,  _, _, name, _, _) => if (i > 0) Array(name -> coerce[TStream](stream.typ).elementType) else empty
     case RunAggScan(a, name, _, _, _, _) => if (i == 2 || i == 3) Array(name -> coerce[TStream](a.typ).elementType) else empty
     case StreamScan(a, zero, accumName, valueName, _) => if (i == 2) Array(accumName -> zero.typ, valueName -> coerce[TStream](a.typ).elementType) else empty
     case StreamAggScan(a, name, _) => if (i == 1) FastIndexedSeq(name -> a.typ.asInstanceOf[TStream].elementType) else empty
@@ -92,7 +92,7 @@ object AggBindings {
       case AggFilter(_, _, false) => if (i == 0) None else base
       case AggGroupBy(_, _, false) => if (i == 0) None else base
       case AggExplode(a, name, _, false) => if (i == 1) wrapped(FastIndexedSeq(name -> a.typ.asInstanceOf[TIterable].elementType)) else None
-      case AggArrayPerElement(a, elementName, _, _, _, false) => if (i == 1) wrapped(FastIndexedSeq(elementName -> a.typ.asInstanceOf[TIterable].elementType)) else if (i == 2) base else None
+      case AggArrayPerElement(a, elementName, indexName, _, _, false) => if (i == 1) wrapped(FastIndexedSeq(elementName -> a.typ.asInstanceOf[TIterable].elementType, indexName -> TInt32)) else if (i == 2) base else None
       case StreamAgg(a, name, _) => if (i == 1) Some(FastIndexedSeq(name -> a.typ.asInstanceOf[TIterable].elementType)) else base
       case TableAggregate(child, _) => if (i == 1) Some(child.typ.rowEnv.m) else None
       case MatrixAggregate(child, _) => if (i == 1) Some(child.typ.entryEnv.m) else None
@@ -133,7 +133,7 @@ object ScanBindings {
       case AggFilter(_, _, true) => if (i == 0) None else base
       case AggGroupBy(_, _, true) => if (i == 0) None else base
       case AggExplode(a, name, _, true) => if (i == 1) wrapped(FastIndexedSeq(name -> a.typ.asInstanceOf[TIterable].elementType)) else None
-      case AggArrayPerElement(a, elementName, _, _, _, true) => if (i == 1) wrapped(FastIndexedSeq(elementName -> a.typ.asInstanceOf[TIterable].elementType)) else if (i == 2) base else None
+      case AggArrayPerElement(a, elementName, indexName, _, _, true) => if (i == 1) wrapped(FastIndexedSeq(elementName -> a.typ.asInstanceOf[TIterable].elementType, indexName -> TInt32)) else if (i == 2) base else None
       case AggFold(_, _, _, _, _, true) =>  None
       case StreamAggScan(a, name, _) => if (i == 1) Some(FastIndexedSeq(name -> a.typ.asInstanceOf[TIterable].elementType)) else base
       case TableAggregate(_, _) => None

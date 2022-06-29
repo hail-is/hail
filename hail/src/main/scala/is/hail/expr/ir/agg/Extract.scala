@@ -479,7 +479,6 @@ object Extract {
         val eltSig = AggElementsAggSig(pAggSigs)
 
         val aRef = Ref(genUID(), a.typ)
-        val iRef = Ref(genUID(), TInt32)
 
         ab += InitOp(i, knownLength.map(FastSeq(_)).getOrElse(FastSeq[IR]()) :+ Begin(initOps), checkSig) -> checkSig
         seqBuilder +=
@@ -489,12 +488,12 @@ object Extract {
               SeqOp(i, FastIndexedSeq(ArrayLen(aRef)), checkSig),
               StreamFor(
                 StreamRange(I32(0), ArrayLen(aRef), I32(1)),
-                iRef.name,
+                indexName,
                 Let(
                   elementName,
-                  ArrayRef(aRef, iRef),
+                  ArrayRef(aRef, Ref(indexName, TInt32)),
                   addLets(SeqOp(i,
-                    FastIndexedSeq(iRef, Begin(newSeq.result().toFastIndexedSeq)),
+                    FastIndexedSeq(Ref(indexName, TInt32), Begin(newSeq.result().toFastIndexedSeq)),
                     eltSig), dependent))))))
 
         val rUID = Ref(genUID(), rt)

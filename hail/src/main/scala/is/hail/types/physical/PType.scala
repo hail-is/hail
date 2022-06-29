@@ -1,13 +1,12 @@
 package is.hail.types.physical
 
 import is.hail.annotations._
-import is.hail.asm4s
 import is.hail.asm4s._
 import is.hail.backend.ExecuteContext
 import is.hail.check.{Arbitrary, Gen}
-import is.hail.expr.ir
 import is.hail.expr.ir._
-import is.hail.types.physical.stypes.{SCode, SType, SValue}
+import is.hail.types.physical.stypes.concrete.SRNGState
+import is.hail.types.physical.stypes.{SType, SValue}
 import is.hail.types.virtual._
 import is.hail.types.{Requiredness, coerce}
 import is.hail.utils._
@@ -121,6 +120,7 @@ object PType {
       case TBinary => PCanonicalBinary(required)
       case TString => PCanonicalString(required)
       case TCall => PCanonicalCall(required)
+      case TRNGState => StoredSTypePType(SRNGState(None), required)
       case t: TLocus => PCanonicalLocus(t.rg, required)
       case t: TInterval => PCanonicalInterval(canonical(t.pointType, innerRequired, innerRequired), required)
       case t: TArray => PCanonicalArray(canonical(t.elementType, innerRequired, innerRequired), required)

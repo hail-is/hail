@@ -138,7 +138,6 @@ WHERE name = %s;
             log.info(f'not scheduling any jobs for {self}; batch is frozen')
             return True
 
-        log.info(f'starting scheduling jobs for {self}')
         waitable_pool = WaitableSharedPool(self.async_worker_pool)
 
         n_records_seen = 0
@@ -180,7 +179,8 @@ LIMIT %s;
 
         await waitable_pool.wait()
 
-        log.info(f'attempted to schedule {n_records_seen} jobs for {self}')
+        if n_records_seen > 0:
+            log.info(f'attempted to schedule {n_records_seen} jobs for {self}')
 
         should_wait = n_records_seen < max_records
         return should_wait
@@ -294,7 +294,6 @@ HAVING n_ready_jobs + n_creating_jobs + n_running_jobs > 0;
             log.info(f'not creating instances for {self}; batch is frozen')
             return True
 
-        log.info(f'create_instances for {self}: starting')
         start = time_msecs()
         n_instances_created = 0
 
@@ -302,7 +301,6 @@ HAVING n_ready_jobs + n_creating_jobs + n_running_jobs > 0;
 
         total = sum(resources['n_allocated_jobs'] for resources in user_resources.values())
         if not total:
-            log.info(f'create_instances {self}: no allocated jobs')
             should_wait = True
             return should_wait
         user_share = {

@@ -22,9 +22,11 @@ class BlockMatrixRead(BlockMatrixIR):
     def _eq(self, other):
         return self.reader == other.reader
 
-    def _compute_type(self):
+    def _compute_type(self, deep_typecheck):
         if self._type is None:
-            self._type = Env.backend().blockmatrix_type(self)
+            return Env.backend().blockmatrix_type(self)
+        else:
+            return self._type
 
 
 class BlockMatrixMap(BlockMatrixIR):
@@ -36,8 +38,14 @@ class BlockMatrixMap(BlockMatrixIR):
         self.f = f
         self.needs_dense = needs_dense
 
-    def _compute_type(self):
-        self._type = self.child.typ
+    def _compute_type(self, deep_typecheck):
+        self.child.compute_type(deep_typecheck)
+        self.f.compute_type(self.bindings(1), None, deep_typecheck)
+        child_type = self.child.typ
+        return tblockmatrix(self.f.typ,
+                            child_type.shape,
+                            child_type.is_row_vector,
+                            child_type.block_size)
 
     def head_str(self):
         return escape_id(self.name) + " " + str(self.needs_dense)
@@ -64,9 +72,15 @@ class BlockMatrixMap2(BlockMatrixIR):
         self.f = f
         self.sparsity_strategy = sparsity_strategy
 
-    def _compute_type(self):
-        self.right.typ  # Force
-        self._type = self.left.typ
+    def _compute_type(self, deep_typecheck):
+        self.left.compute_type(deep_typecheck)
+        self.right.compute_type(deep_typecheck)
+        self.f.compute_type(self.bindings(2), None, deep_typecheck)
+        left_type = self.left.typ
+        return tblockmatrix(self.f.typ,
+                            left_type.shape,
+                            left_type.is_row_vector,
+                            left_type.block_size)
 
     def head_str(self):
         return escape_id(self.left_name) + " " + escape_id(self.right_name) + " " + self.sparsity_strategy
@@ -93,16 +107,18 @@ class BlockMatrixDot(BlockMatrixIR):
         self.left = left
         self.right = right
 
-    def _compute_type(self):
+    def _compute_type(self, deep_typecheck):
+        self.left.compute_type(deep_typecheck)
+        self.right.compute_type(deep_typecheck)
         l_rows, l_cols = tensor_shape_to_matrix_shape(self.left)
         r_rows, r_cols = tensor_shape_to_matrix_shape(self.right)
         assert l_cols == r_rows
 
         tensor_shape, is_row_vector = _matrix_shape_to_tensor_shape(l_rows, r_cols)
-        self._type = tblockmatrix(self.left.typ.element_type,
-                                  tensor_shape,
-                                  is_row_vector,
-                                  self.left.typ.block_size)
+        return tblockmatrix(self.left.typ.element_type,
+                            tensor_shape,
+                            is_row_vector,
+                            self.left.typ.block_size)
 
 
 class BlockMatrixBroadcast(BlockMatrixIR):
@@ -127,13 +143,14 @@ class BlockMatrixBroadcast(BlockMatrixIR):
             self.shape == other.shape and \
             self.block_size == other.block_size
 
-    def _compute_type(self):
+    def _compute_type(self, deep_typecheck):
+        self.child.compute_type(deep_typecheck)
         assert len(self.shape) == 2
         tensor_shape, is_row_vector = _matrix_shape_to_tensor_shape(self.shape[0], self.shape[1])
-        self._type = tblockmatrix(self.child.typ.element_type,
-                                  tensor_shape,
-                                  is_row_vector,
-                                  self.block_size)
+        return tblockmatrix(self.child.typ.element_type,
+                            tensor_shape,
+                            is_row_vector,
+                            self.block_size)
 
 
 class BlockMatrixAgg(BlockMatrixIR):
@@ -150,7 +167,8 @@ class BlockMatrixAgg(BlockMatrixIR):
     def _eq(self, other):
         return self.out_index_expr == other.out_index_expr
 
-    def _compute_type(self):
+    def _compute_type(self, deep_typecheck):
+        self.child.compute_type(deep_typecheck)
         child_matrix_shape = tensor_shape_to_matrix_shape(self.child)
         if self.out_index_expr == [0, 1]:
             is_row_vector = False
@@ -164,10 +182,10 @@ class BlockMatrixAgg(BlockMatrixIR):
         else:
             raise ValueError("Invalid out_index_expr")
 
-        self._type = tblockmatrix(self.child.typ.element_type,
-                                  shape,
-                                  is_row_vector,
-                                  self.child.typ.block_size)
+        return tblockmatrix(self.child.typ.element_type,
+                            shape,
+                            is_row_vector,
+                            self.child.typ.block_size)
 
 
 class BlockMatrixFilter(BlockMatrixIR):
@@ -183,7 +201,8 @@ class BlockMatrixFilter(BlockMatrixIR):
     def _eq(self, other):
         return self.indices_to_keep == other.indices_to_keep
 
-    def _compute_type(self):
+    def _compute_type(self, deep_typecheck):
+        self.child.compute_type(deep_typecheck)
         assert len(self.indices_to_keep) == 2
 
         child_tensor_shape = self.child.typ.shape
@@ -200,10 +219,10 @@ class BlockMatrixFilter(BlockMatrixIR):
                         enumerate(self.indices_to_keep)]
 
         tensor_shape, is_row_vector = _matrix_shape_to_tensor_shape(matrix_shape[0], matrix_shape[1])
-        self._type = tblockmatrix(self.child.typ.element_type,
-                                  tensor_shape,
-                                  is_row_vector,
-                                  self.child.typ.block_size)
+        return tblockmatrix(self.child.typ.element_type,
+                            tensor_shape,
+                            is_row_vector,
+                            self.child.typ.block_size)
 
 
 class BlockMatrixDensify(BlockMatrixIR):
@@ -212,8 +231,9 @@ class BlockMatrixDensify(BlockMatrixIR):
         super().__init__(child)
         self.child = child
 
-    def _compute_type(self):
-        self._type = self.child.typ
+    def _compute_type(self, deep_typecheck):
+        self.child.compute_type(deep_typecheck)
+        return self.child.typ
 
 
 class BlockMatrixSparsifier(object):
@@ -290,8 +310,10 @@ class BlockMatrixSparsify(BlockMatrixIR):
     def _eq(self, other):
         return self.sparsifier == other.sparsifier
 
-    def _compute_type(self):
-        self._type = self.child.typ
+    def _compute_type(self, deep_typecheck):
+        self.child.compute_type(deep_typecheck)
+        self.value.compute_type({}, None, deep_typecheck)
+        return self.child.typ
 
 
 class BlockMatrixSlice(BlockMatrixIR):
@@ -307,14 +329,15 @@ class BlockMatrixSlice(BlockMatrixIR):
     def _eq(self, other):
         return self.slices == other.slices
 
-    def _compute_type(self):
+    def _compute_type(self, deep_typecheck):
+        self.child.compute_type(deep_typecheck)
         assert len(self.slices) == 2
         matrix_shape = [1 + (s.stop - s.start - 1) // s.step for s in self.slices]
         tensor_shape, is_row_vector = _matrix_shape_to_tensor_shape(matrix_shape[0], matrix_shape[1])
-        self._type = tblockmatrix(self.child.typ.element_type,
-                                  tensor_shape,
-                                  is_row_vector,
-                                  self.child.typ.block_size)
+        return tblockmatrix(self.child.typ.element_type,
+                            tensor_shape,
+                            is_row_vector,
+                            self.child.typ.block_size)
 
 
 class ValueToBlockMatrix(BlockMatrixIR):
@@ -335,7 +358,8 @@ class ValueToBlockMatrix(BlockMatrixIR):
         return self.shape == other.shape and \
             self.block_size == other.block_size
 
-    def _compute_type(self):
+    def _compute_type(self, deep_typecheck):
+        self.child.compute_type(deep_typecheck, {}, None)
         child_type = self.child.typ
         if isinstance(child_type, tarray):
             element_type = child_type._element_type
@@ -344,7 +368,7 @@ class ValueToBlockMatrix(BlockMatrixIR):
 
         assert len(self.shape) == 2
         tensor_shape, is_row_vector = _matrix_shape_to_tensor_shape(self.shape[0], self.shape[1])
-        self._type = tblockmatrix(element_type, tensor_shape, is_row_vector, self.block_size)
+        return tblockmatrix(element_type, tensor_shape, is_row_vector, self.block_size)
 
 
 class BlockMatrixRandom(BlockMatrixIR):
@@ -371,11 +395,26 @@ class BlockMatrixRandom(BlockMatrixIR):
             self.shape == other.shape and \
             self.block_size == other.block_size
 
-    def _compute_type(self):
+    def _compute_type(self, deep_typecheck):
         assert len(self.shape) == 2
         tensor_shape, is_row_vector = _matrix_shape_to_tensor_shape(self.shape[0], self.shape[1])
 
-        self._type = tblockmatrix(hl.tfloat64, tensor_shape, is_row_vector, self.block_size)
+        return tblockmatrix(hl.tfloat64, tensor_shape, is_row_vector, self.block_size)
+
+
+class JavaBlockMatrix(BlockMatrixIR):
+    def __init__(self, jir):
+        super().__init__()
+        self._jir = jir
+
+    def render_head(self, r):
+        return f'(JavaBlockMatrix {r.add_jir(self._jir)}'
+
+    def _compute_type(self, deep_typecheck):
+        if self._type is None:
+            return hl.tblockmatrix._from_java(self._jir.typ())
+        else:
+            return self._type
 
 
 def tensor_shape_to_matrix_shape(bmir):

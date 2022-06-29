@@ -1,12 +1,11 @@
 package is.hail.fs.gs
 
 import java.io.FileInputStream
-
 import is.hail.fs.FSSuite
 import is.hail.io.fs.GoogleStorageFS
 import org.apache.commons.io.IOUtils
 import org.scalatest.testng.TestNGSuite
-import org.testng.annotations.{Test, BeforeClass}
+import org.testng.annotations.{BeforeClass, Test}
 import org.testng.SkipException
 
 class GoogleStorageFSSuite extends TestNGSuite with FSSuite {
@@ -38,13 +37,28 @@ class GoogleStorageFSSuite extends TestNGSuite with FSSuite {
 
   lazy val tmpdir: String = hail_test_storage_uri
 
-  @Test def testDropTailingSlash(): Unit = {
-    import GoogleStorageFS._
+  @Test def testMakeQualified(): Unit = {
+    val qualifiedFileName = "gs://bucket/path"
+    assert(fs.makeQualified(qualifiedFileName) == qualifiedFileName)
 
-    assert(dropTrailingSlash("") == "")
-    assert(dropTrailingSlash("/foo/bar") == "/foo/bar")
-    assert(dropTrailingSlash("foo/bar/") == "foo/bar")
-    assert(dropTrailingSlash("/foo///") == "/foo")
-    assert(dropTrailingSlash("///") == "")
+    val unqualifiedFileName = "not-gs://bucket/path"
+    try {
+      fs.makeQualified(unqualifiedFileName)
+    }
+    catch {
+      case _: IllegalArgumentException =>
+        return
+    }
+    assert(false)
+  }
+
+  @Test def deleteManyFiles(): Unit = {
+    val prefix = s"$hail_test_storage_uri/google-storage-fs-suite/delete-many-files/${ java.util.UUID.randomUUID() }"
+    for (i <- 0 until 2000) {
+      fs.touch(s"$prefix/$i")
+    }
+    assert(fs.exists(prefix))
+    fs.delete(prefix, recursive = true)
+    assert(!fs.exists(prefix), s"files not deleted:\n${ fs.listStatus(prefix).map(_.getPath).mkString("\n") }")
   }
 }

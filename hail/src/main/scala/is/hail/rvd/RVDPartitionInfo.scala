@@ -1,12 +1,14 @@
 package is.hail.rvd
 
+import net.sourceforge.jdistlib.rng.MersenneTwister
+
 import is.hail.annotations.{Region, RegionValue, SafeRow, WritableRegionValue}
 import is.hail.types.virtual.Type
 import is.hail.utils._
 
 case class RVDPartitionInfo(
   partitionIndex: Int,
-  size: Int,
+  size: Long,
   min: Any,
   max: Any,
   // min, max: RegionValue[kType]
@@ -32,7 +34,7 @@ object RVDPartitionInfo {
     sampleSize: Int,
     partitionIndex: Int,
     it: Iterator[Long],
-    seed: Int,
+    seed: Long,
     producerContext: RVDContext
   ): RVDPartitionInfo = {
     using(RVDContext.default(producerContext.r.pool)) { localctx =>
@@ -52,10 +54,10 @@ object RVDPartitionInfo {
       var sortedness = KSORTED
       var contextStr = ""
 
-      val rng = new java.util.Random(seed)
+      val rng = new MersenneTwister(seed)
       val samples = new Array[WritableRegionValue](sampleSize)
 
-      var i = 0
+      var i: Long = 0
 
       if (sampleSize > 0) {
         samples(0) = WritableRegionValue(kPType, f0, localctx.freshRegion())
@@ -90,11 +92,11 @@ object RVDPartitionInfo {
         prevF.set(f, deepCopy = true)
 
         if (i < sampleSize)
-          samples(i) = WritableRegionValue(kPType, f, localctx.freshRegion())
+          samples(i.toInt) = WritableRegionValue(kPType, f, localctx.freshRegion())
         else {
-          val j = if (i > 0) rng.nextInt(i) else 0
+          val j: Long = if (i > 0) rng.nextLong(i) else 0
           if (j < sampleSize)
-            samples(j).set(f, deepCopy = true)
+            samples(j.toInt).set(f, deepCopy = true)
         }
 
         producerContext.region.clear()
@@ -105,7 +107,7 @@ object RVDPartitionInfo {
 
       RVDPartitionInfo(partitionIndex, i,
         safe(minF.value), safe(maxF.value),
-        Array.tabulate[Any](math.min(i, sampleSize))(i => safe(samples(i).value)),
+        Array.tabulate[Any](math.min(i, sampleSize).toInt)(i => safe(samples(i).value)),
         sortedness,
         contextStr)
     }

@@ -4,11 +4,10 @@ import is.hail.backend.ExecuteContext
 import is.hail.expr.ir.functions.GetElement
 import is.hail.methods.ForceCountTable
 import is.hail.types._
-import is.hail.types.physical.stypes.{EmitType, PTypeReferenceSingleCodeType, StreamSingleCodeType}
 import is.hail.types.physical.PType
+import is.hail.types.physical.stypes.{EmitType, PTypeReferenceSingleCodeType, StreamSingleCodeType}
 import is.hail.types.virtual._
 import is.hail.utils._
-import org.apache.spark.sql.catalyst.expressions.GenericRow
 
 import scala.collection.mutable
 
@@ -243,7 +242,7 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
         addElementBinding(name, a)
       case StreamAggScan(a, name, query) =>
         addElementBinding(name, a)
-      case StreamBufferedAggregate(stream, _, _, _, name, _) =>
+      case StreamBufferedAggregate(stream, _, _, _, name, _, _) =>
         addElementBinding(name, stream)
       case RunAggScan(a, name, init, seqs, result, signature) =>
         addElementBinding(name, a)
@@ -464,7 +463,11 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
         requiredness.union(node.children.forall { case c: IR => lookup(c).required })
 
       // always required
-      case _: I32 | _: I64 | _: F32 | _: F64 | _: Str | True() | False() | _: IsNA | _: Die | _: UUID4 | _: Consume =>
+      case _: I32 | _: I64 | _: F32 | _: F64 | _: Str | True() | False() | _: IsNA | _: Die | _: UUID4 | _: Consume | _: RNGStateLiteral =>
+      // FIXME: once support for new rng is complete, make states required
+      case RNGSplit(state, dynBitstring) =>
+        requiredness.union(lookup(state).required)
+        requiredness.union(lookup(dynBitstring).required)
       case _: CombOpValue | _: AggStateValue =>
       case Trap(child) =>
         // error message field is missing if the child runs without error
@@ -734,10 +737,14 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
         r.fromEmitType(sig.emitResultType)
       case RunAgg(_, result, _) =>
         requiredness.unionFrom(lookup(result))
-      case StreamBufferedAggregate(streamChild, initAggs, newKey, seqOps, _, _) =>
+      case StreamBufferedAggregate(streamChild, initAggs, newKey, seqOps, _, _, _) =>
         requiredness.union(lookup(streamChild).required)
-        val newKeyReq = lookupAs[RStruct](newKey)
-        requiredness.union(newKeyReq.required)
+        val rstruct = requiredness.asInstanceOf[RIterable].elementType.asInstanceOf[RStruct]
+        lookup(newKey).asInstanceOf[RStruct]
+          .fields
+          .foreach { f =>
+            rstruct.field(f.name).unionFrom(f.typ)
+          }
       case RunAggScan(array, name, init, seqs, result, signature) =>
         requiredness.union(lookup(array).required)
         coerce[RIterable](requiredness).elementType.unionFrom(lookup(result))

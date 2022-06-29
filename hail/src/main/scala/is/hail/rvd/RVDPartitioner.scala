@@ -296,9 +296,10 @@ object RVDPartitioner {
   }
 
   def unkeyed(numPartitions: Int): RVDPartitioner = {
+    val unkeyedInterval = Interval(Row(), Row(), true, true)
     new RVDPartitioner(
       TStruct.empty,
-      Array.fill(numPartitions)(Interval(Row(), Row(), true, true)),
+      Array.fill(numPartitions)(unkeyedInterval),
       0)
   }
 

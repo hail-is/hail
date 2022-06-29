@@ -300,8 +300,6 @@ class InstanceCollection:
             await self.remove_instance(instance, 'does_not_exist')
             return
 
-        log.info(f'{instance} vm_state {vm_state}')
-
         # Cases are mutually exclusive and therefore order-independent
         if instance.state == 'pending' and isinstance(vm_state, (VMStateCreating, VMStateRunning)):
             if vm_state.time_since_last_state_change() > 5 * 60 * 1000:
@@ -316,6 +314,7 @@ class InstanceCollection:
         elif instance.state == 'deleted' and not isinstance(vm_state, VMStateTerminated):
             log.exception('Instance state is deleted when cloud state is not terminated')
         else:
+            log.info(f'Other instance state for {instance} vm_state {vm_state}')
             assert (
                 (instance.state == 'active' and isinstance(vm_state, (VMStateCreating, VMStateRunning)))
                 or (instance.state == 'deleted' and isinstance(vm_state, VMStateTerminated))
@@ -332,7 +331,6 @@ class InstanceCollection:
             async def check(instance):
                 since_last_updated = time_msecs() - instance.last_updated
                 if since_last_updated > 60 * 1000:
-                    log.info(f'checking on {instance}, last updated {since_last_updated / 1000}s ago')
                     await self.check_on_instance(instance)
 
             await asyncio.gather(*[check(instance) for instance in instances])

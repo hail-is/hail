@@ -16,13 +16,25 @@ import scala.reflect.ClassTag
 
 object UtilFunctions extends RegistryFunctions {
 
-  def parseBoolean(s: String): Boolean = s.toBoolean
+  def parseBoolean(s: String, errID: Int): Boolean = try {
+    s.toBoolean
+  } catch {
+    case _: IllegalArgumentException => fatal(s"cannot parse boolean from input string '${StringEscapeUtils.escapeString(s)}'", errID)
+  }
 
-  def parseInt32(s: String): Int = s.toInt
+  def parseInt32(s: String, errID: Int): Int = try {
+    s.toInt
+  } catch {
+    case _: IllegalArgumentException => fatal(s"cannot parse int32 from input string '${StringEscapeUtils.escapeString(s)}'", errID)
+  }
 
-  def parseInt64(s: String): Long = s.toLong
+  def parseInt64(s: String, errID: Int): Long = try {
+    s.toLong
+  } catch {
+    case _: IllegalArgumentException => fatal(s"cannot parse int64 from input string '${StringEscapeUtils.escapeString(s)}'", errID)
+  }
 
-  def parseSpecialNum32(s: String): Float = {
+  def parseSpecialNum32(s: String, errID: Int): Float = {
     s.length match {
       case 3 =>
         if (s.equalsCaseInsensitive("nan")) return Float.NaN
@@ -38,10 +50,10 @@ object UtilFunctions extends RegistryFunctions {
         if (s.equalsCaseInsensitive("-infinity")) return Float.NegativeInfinity
       case _ =>
     }
-    throw new NumberFormatException(s"cannot parse float32 from $s")
+    fatal(s"cannot parse float32 from input string '${StringEscapeUtils.escapeString(s)}'", errID)
   }
 
-  def parseSpecialNum64(s: String): Double = {
+  def parseSpecialNum64(s: String, errID: Int): Double = {
     s.length match {
       case 3 =>
         if (s.equalsCaseInsensitive("nan")) return Double.NaN
@@ -57,24 +69,24 @@ object UtilFunctions extends RegistryFunctions {
         if (s.equalsCaseInsensitive("-infinity")) return Double.NegativeInfinity
       case _ =>
     }
-    throw new NumberFormatException(s"cannot parse float64 from $s")
+    fatal(s"cannot parse float64 from input string '${StringEscapeUtils.escapeString(s)}'", errID)
   }
 
-  def parseFloat32(s: String): Float = {
+  def parseFloat32(s: String, errID: Int): Float = {
     try {
       s.toFloat
     } catch {
       case _: NumberFormatException =>
-        parseSpecialNum32(s)
+        parseSpecialNum32(s, errID)
     }
   }
 
-  def parseFloat64(s: String): Double = {
+  def parseFloat64(s: String, errID: Int): Double = {
     try {
       s.toDouble
     } catch {
       case _: NumberFormatException =>
-        parseSpecialNum64(s)
+        parseSpecialNum64(s, errID)
     }
   }
 
@@ -96,17 +108,19 @@ object UtilFunctions extends RegistryFunctions {
     }
 
   def isValidFloat32(s: String): Boolean = try {
-    parseFloat32(s)
+    parseFloat32(s, -1)
     true
   } catch {
     case _: NumberFormatException => false
+    case _: HailException => false
   }
 
   def isValidFloat64(s: String): Boolean = try {
-    parseFloat64(s)
+    parseFloat64(s, -1)
     true
   } catch {
     case _: NumberFormatException => false
+    case _: HailException => false
   }
 
   def min_ignore_missing(l: Int, lMissing: Boolean, r: Int, rMissing: Boolean): Int =
@@ -204,17 +218,17 @@ object UtilFunctions extends RegistryFunctions {
     )) {
       val ctString: ClassTag[String] = implicitly[ClassTag[String]]
       registerSCode1(s"to$name", TString, t, (_: Type, _: SType) => rpt) {
-        case (r, cb, rt, x: SStringValue, _) =>
+        case (r, cb, rt, x: SStringValue, err) =>
           val s = x.loadString(cb)
-          primitive(rt.virtualType, cb.memoizeAny(Code.invokeScalaObject1(thisClass, s"parse$name", s)(ctString, ct), typeInfoFromClassTag(ct)))
+          primitive(rt.virtualType, cb.memoizeAny(Code.invokeScalaObject2(thisClass, s"parse$name", s, err)(ctString, implicitly[ClassTag[Int]], ct), typeInfoFromClassTag(ct)))
       }
       registerIEmitCode1(s"to${name}OrMissing", TString, t, (_: Type, _: EmitType) => EmitType(rpt, false)) {
-        case (cb, r, rt, _, x) =>
+        case (cb, r, rt, err, x) =>
           x.toI(cb).flatMap(cb) { case sc: SStringValue =>
             val sv = cb.newLocal[String]("s", sc.loadString(cb))
             IEmitCode(cb,
               !Code.invokeScalaObject1[String, Boolean](thisClass, s"isValid$name", sv),
-              primitive(rt.virtualType, cb.memoizeAny(Code.invokeScalaObject1(thisClass, s"parse$name", sv)(ctString, ct), typeInfoFromClassTag(ct))))
+              primitive(rt.virtualType, cb.memoizeAny(Code.invokeScalaObject2(thisClass, s"parse$name", sv, err)(ctString, implicitly[ClassTag[Int]], ct), typeInfoFromClassTag(ct))))
           }
       }
     }

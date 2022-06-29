@@ -77,14 +77,16 @@ def create_vm_config(
         result = {
             'automaticRestart': False,
             'onHostMaintenance': 'TERMINATE',
+            'preemptible': preemptible,
         }
 
         if preemptible:
-            result.update({
-                'provisioningModel': 'SPOT',
-                'instanceTerminationAction': 'DELETE',
-                'preemptible': True,
-            })
+            result.update(
+                {
+                    'provisioningModel': 'SPOT',
+                    'instanceTerminationAction': 'DELETE',
+                }
+            )
 
         return result
 
