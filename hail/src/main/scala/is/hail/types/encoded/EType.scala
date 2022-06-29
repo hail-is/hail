@@ -272,6 +272,7 @@ object EType {
         EField("position", EInt32(true), 1)),
         required = r.required)
     case TCall => EInt32(r.required)
+    case TRNGState => ERNGState(r.required, None)
     case t: TInterval =>
       val rinterval = r.asInstanceOf[RInterval]
       EBaseStruct(

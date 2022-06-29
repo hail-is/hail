@@ -227,7 +227,7 @@ sealed abstract class TypeWithRequiredness extends BaseTypeWithRequiredness {
 
 object RPrimitive {
   val children: Seq[TypeWithRequiredness] = FastSeq()
-  val supportedTypes: Set[Type] = Set(TBoolean, TInt32, TInt64, TFloat32, TFloat64, TBinary, TString, TCall, TVoid)
+  val supportedTypes: Set[Type] = Set(TBoolean, TInt32, TInt64, TFloat32, TFloat64, TBinary, TString, TCall, TVoid, TRNGState)
   def typeSupported(t: Type): Boolean = RPrimitive.supportedTypes.contains(t) ||
     t.isInstanceOf[TLocus]
 }

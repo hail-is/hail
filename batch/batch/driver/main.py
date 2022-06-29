@@ -2,6 +2,7 @@ import asyncio
 import copy
 import json
 import logging
+import re
 import signal
 from collections import defaultdict, namedtuple
 from functools import wraps
@@ -12,9 +13,13 @@ import dictdiffer
 import googlecloudprofiler
 import kubernetes_asyncio.client
 import kubernetes_asyncio.config
+import pandas as pd
+import plotly
+import plotly.graph_objects as go
 import prometheus_client as pc  # type: ignore
 import uvloop
 from aiohttp import web
+from plotly.subplots import make_subplots
 from prometheus_async.aio.web import server_stats
 
 from gear import (
@@ -398,6 +403,78 @@ FROM user_inst_coll_resources;
     return await render_template('batch-driver', request, userdata, 'index.html', page_context)
 
 
+@routes.get('/quotas')
+@web_authenticated_developers_only()
+async def get_quotas(request, userdata):
+    if CLOUD != 'gcp':
+        page_context = {"plot_json": None}
+        return await render_template('batch-driver', request, userdata, 'quotas.html', page_context)
+
+    data = request.app['driver'].get_quotas()
+
+    regions = list(data.keys())
+    new_data = []
+    for region in regions:
+        region_data = {'region': region}
+        quotas_region_data = data[region]['quotas']
+        for quota in quotas_region_data:
+            if quota['metric'] in ['PREEMPTIBLE_CPUS', 'CPUS', 'SSD_TOTAL_GB', 'LOCAL_SSD_TOTAL_GB', 'DISKS_TOTAL_GB']:
+                region_data.update({quota['metric']: {'limit': quota['limit'], 'usage': quota['usage']}})
+        new_data.append(region_data)
+
+    df = pd.DataFrame(new_data).set_index("region")
+
+    fig = make_subplots(
+        rows=len(df),
+        cols=len(df.columns),
+        specs=[[{"type": "indicator"} for _ in df.columns] for _ in df.index],
+    )
+    for r, (region, row) in enumerate(df.iterrows()):
+        for c, measure in enumerate(row):
+            fig.add_trace(
+                go.Indicator(
+                    mode="gauge+number",
+                    value=measure['usage'],
+                    title={"text": f"{region}--{df.columns[c]}"},
+                    title_font_size=15,
+                    gauge={
+                        'axis': {
+                            'range': [None, measure['limit']],
+                            'tickwidth': 1,
+                            'tickcolor': "darkblue",
+                        },
+                        'bar': {'color': "darkblue"},
+                        'bgcolor': "white",
+                        'borderwidth': 2,
+                        'bordercolor': "gray",
+                        'threshold': {
+                            'line': {'color': "red", 'width': 4},
+                            'thickness': 0.75,
+                            'value': measure['limit'],
+                        },
+                    },
+                ),
+                row=r + 1,
+                col=c + 1,
+            )
+
+    fig.update_layout(
+        paper_bgcolor="lavender",
+        font={'color': "darkblue", 'family': "Arial"},
+        margin={"l": 0, "r": 0, "t": 50, "b": 20},
+        height=1150,
+        width=2200,
+        autosize=True,
+        title_font_size=40,
+        title_x=0.5,
+    )
+
+    plot_json = json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
+
+    page_context = {"plot_json": plot_json}
+    return await render_template('batch-driver', request, userdata, 'quotas.html', page_context)
+
+
 class ConfigError(Exception):
     pass
 
@@ -526,7 +603,7 @@ async def pool_config_update(request, userdata):  # pylint: disable=unused-argum
                 set_message(session, f'External SSD must be at least {min_disk_storage} GB', 'error')
                 raise ConfigError()
 
-        pool_config = PoolConfig(
+        proposed_pool_config = PoolConfig(
             pool_name,
             pool.cloud,
             worker_type,
@@ -541,8 +618,24 @@ async def pool_config_update(request, userdata):  # pylint: disable=unused-argum
             pool.preemptible,
             label,
         )
-        await pool_config.update_database(db)
-        pool.configure(pool_config)
+
+        current_client_pool_config = json.loads(post['_pool_config_json'])
+        current_server_pool_config = pool.config()
+
+        client_items = current_client_pool_config.items()
+        server_items = current_server_pool_config.items()
+
+        match = client_items == server_items
+        if not match:
+            set_message(
+                session,
+                'The pool config was stale; please re-enter config updates and try again',
+                'error',
+            )
+            raise ConfigError()
+
+        await proposed_pool_config.update_database(db)
+        pool.configure(proposed_pool_config)
 
         set_message(session, f'Updated configuration for {pool}.', 'info')
     except ConfigError:
@@ -628,8 +721,11 @@ async def get_pool(request, userdata):
 
     ready_cores_mcpu = sum([record['ready_cores_mcpu'] for record in user_resources])
 
+    pool_config_json = json.dumps(pool.config())
+
     page_context = {
         'pool': pool,
+        'pool_config_json': pool_config_json,
         'instances': pool.name_instance.values(),
         'user_resources': user_resources,
         'ready_cores_mcpu': ready_cores_mcpu,
@@ -1131,6 +1227,25 @@ async def scheduling_cancelling_bump(app):
     app['cancel_running_state_changed'].set()
 
 
+class BatchDriverAccessLogger(AccessLogger):
+    def __init__(self, logger: logging.Logger, log_format: str):
+        super().__init__(logger, log_format)
+        self.exclude = [
+            ('POST', re.compile('/api/v1alpha/instances/job_complete')),
+            ('POST', re.compile('/api/v1alpha/instances/job_started')),
+            ('PATCH', re.compile('/api/v1alpha/batches/.*/.*/close')),
+            ('POST', re.compile('/api/v1alpha/batches/cancel')),
+            ('GET', re.compile('/metrics')),
+        ]
+
+    def log(self, request, response, time):
+        for method, path_expr in self.exclude:
+            if path_expr.fullmatch(request.path) and method == request.method:
+                return
+
+        super().log(request, response, time)
+
+
 async def on_startup(app):
     task_manager = aiotools.BackgroundTaskManager()
     app['task_manager'] = task_manager
@@ -1248,5 +1363,5 @@ def run():
         deploy_config.prefix_application(app, 'batch-driver', client_max_size=HTTP_CLIENT_MAX_SIZE),
         host='0.0.0.0',
         port=5000,
-        access_log_class=AccessLogger,
+        access_log_class=BatchDriverAccessLogger,
     )

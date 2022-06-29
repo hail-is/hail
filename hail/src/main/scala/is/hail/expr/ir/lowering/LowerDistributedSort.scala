@@ -119,10 +119,10 @@ object LowerDistributedSort {
 
     val (keyToSortBy, _) = inputStage.rowType.select(sortFields.map(sf => sf.field))
 
-    val spec = TypedCodecSpec(rowTypeRequiredness.canonicalPType(inputStage.rowType), BufferSpec.default)
+    val spec = TypedCodecSpec(rowTypeRequiredness.canonicalPType(inputStage.rowType), BufferSpec.wireSpec)
     val reader = PartitionNativeReader(spec)
     val initialTmpPath = ctx.createTmpPath("hail_shuffle_temp_initial")
-    val writer = PartitionNativeWriter(spec, keyToSortBy.fieldNames, initialTmpPath, None, None)
+    val writer = PartitionNativeWriter(spec, keyToSortBy.fieldNames, initialTmpPath, None, None, trackTotalBytes = true)
 
     log.info("DISTRIBUTED SORT: PHASE 1: WRITE DATA")
     val initialStageDataRow = CompileAndEvaluate[Annotation](ctx, inputStage.mapCollectWithGlobals(relationalLetsAbove) { part =>
@@ -134,11 +134,11 @@ object LowerDistributedSort {
           "min" -> AggFold.min(GetField(streamElement, "firstKey"), sortFields),
           "max" -> AggFold.max(GetField(streamElement, "lastKey"), sortFields)
         ))
-      )) { intervalRange =>   MakeTuple.ordered(Seq(part, globals, intervalRange)) }
+      )) { intervalRange => MakeTuple.ordered(Seq(part, globals, intervalRange)) }
     }).asInstanceOf[Row]
     val (initialPartInfo, initialGlobals, intervalRange) = (initialStageDataRow(0).asInstanceOf[IndexedSeq[Row]], initialStageDataRow(1).asInstanceOf[Row], initialStageDataRow(2).asInstanceOf[Row])
     val initialGlobalsLiteral = Literal(inputStage.globalType, initialGlobals)
-    val initialChunks = initialPartInfo.map(row => Chunk(initialTmpPath + row(0).asInstanceOf[String], row(1).asInstanceOf[Long].toInt, None))
+    val initialChunks = initialPartInfo.map(row => Chunk(initialTmpPath + row(0).asInstanceOf[String], row(1).asInstanceOf[Long].toInt, row.getLong(5)))
 
     val initialInterval = Interval(intervalRange(0), intervalRange(1), true, true)
     val initialSegment = SegmentResult(IndexedSeq(0), initialInterval, initialChunks)
@@ -177,8 +177,7 @@ object LowerDistributedSort {
       val numSamplesPerPartition = numSamplesPerPartitionPerSegment.flatten
 
       val perPartStatsCDAContextData = partitionDataPerSegment.flatten.zip(numSamplesPerPartition).map { case (partData, numSamples) =>
-                                                                                         /* let's just call the missing byteSize 'infinity' */
-        Row(partData.indices.last, partData.files, partData.currentPartSize, numSamples, partData.currentPartByteSize.getOrElse(Int.MaxValue.toLong * 65536L))
+        Row(partData.indices.last, partData.files, partData.currentPartSize, numSamples, partData.currentPartByteSize)
       }
       val perPartStatsCDAContexts = ToStream(Literal(TArray(TStruct(
         "segmentIdx" -> TInt32,
@@ -188,7 +187,7 @@ object LowerDistributedSort {
         "byteSize" -> TInt64)), perPartStatsCDAContextData))
       val perPartStatsIR = cdaIR(perPartStatsCDAContexts, MakeStruct(Seq())){ (ctxRef, _) =>
         val filenames = GetField(ctxRef, "files")
-        val samples = SeqSample(GetField(ctxRef, "sizeOfPartition"), GetField(ctxRef, "numSamples"), false)
+        val samples = SeqSample(GetField(ctxRef, "sizeOfPartition"), GetField(ctxRef, "numSamples"), NA(TRNGState), false)
         val partitionStream = flatMapIR(ToStream(filenames)) { fileName =>
           mapIR(ReadPartition(fileName, spec._vType, reader)){ partitionElement =>
             SelectFields(partitionElement, keyToSortBy.fields.map(_.name))
@@ -259,6 +258,16 @@ object LowerDistributedSort {
       val pivotsWithEndpointsAndInfoGroupedBySegmentNumber = CompileAndEvaluate[Annotation](ctx, pivotsPerSegmentAndSortedCheck)
         .asInstanceOf[IndexedSeq[Row]].map(x => (x(0).asInstanceOf[IndexedSeq[Row]], x(1).asInstanceOf[Boolean], x(2).asInstanceOf[Row], x(3).asInstanceOf[IndexedSeq[Row]], x(4).asInstanceOf[IndexedSeq[Row]]))
 
+      val pivotCounts = pivotsWithEndpointsAndInfoGroupedBySegmentNumber
+        .map(_._1.length)
+        .groupBy(identity)
+        .toArray
+        .map { case (i, values) => (i, values.length) }
+        .sortBy(_._1)
+        .map { case (nPivots, nSegments) => s"$nPivots pivots: $nSegments" }
+
+      log.info(s"DISTRIBUTED SORT: PHASE ${i + 1}: pivot counts:\n  ${pivotCounts.mkString("\n  ")}")
+
       val (sortedSegmentsTuples, unsortedPivotsWithEndpointsAndInfoGroupedBySegmentNumber) = pivotsWithEndpointsAndInfoGroupedBySegmentNumber.zipWithIndex.partition { case ((_, isSorted, _, _, _), _) => isSorted}
 
       val outputPartitions = sortedSegmentsTuples.flatMap { case ((_, _, _, partMins, partMaxes), originalSegmentIdx) =>
@@ -326,22 +335,21 @@ object LowerDistributedSort {
 
         val dataPerSegment = transposedIntoNewSegments.zipWithIndex.map { case ((chunksWithSameInterval, priorIndices), newIndex) =>
           val interval = chunksWithSameInterval.head._1
-          val chunks = chunksWithSameInterval.map{ case (_, filename, numRows, numBytes) => Chunk(filename, numRows, Some(numBytes))}
+          val chunks = chunksWithSameInterval.map{ case (_, filename, numRows, numBytes) => Chunk(filename, numRows, numBytes)}
           val newSegmentIndices = priorIndices :+ newIndex
           SegmentResult(newSegmentIndices, interval, chunks)
         }
 
         // Decide whether a segment is small enough to be removed from consideration.
         dataPerSegment.partition { sr =>
-          val isBig = if (sr.chunks.forall(_.byteSize.isDefined)) {
-            sr.chunks.map(_.byteSize.get).sum > sizeCutoff
-          } else {
-            true
-          }
+          val isBig = sr.chunks.map(_.byteSize).sum > sizeCutoff
           // Need to call it "small" if it can't be further subdivided.
           isBig && (sr.interval.left.point != sr.interval.right.point) && (sr.chunks.map(_.size).sum > 1)
         }
       } else { (IndexedSeq.empty[SegmentResult], IndexedSeq.empty[SegmentResult]) }
+
+      log.info(s"DISTRIBUTED SORT: PHASE ${i + 1}: ${newSmallSegments.length}/${newSmallSegments.length + newBigUnsortedSegments.length} segments can be locally sorted")
+
       loopState = LoopState(newBigUnsortedSegments, loopState.smallSegments ++ newSmallSegments, loopState.readyOutputParts ++ outputPartitions)
       i = i + 1
     }
@@ -431,7 +439,7 @@ object LowerDistributedSort {
     false
   }
 
-  case class PartitionInfo(indices: IndexedSeq[Int], files: IndexedSeq[String], currentPartSize: Int, currentPartByteSize: Option[Long])
+  case class PartitionInfo(indices: IndexedSeq[Int], files: IndexedSeq[String], currentPartSize: Int, currentPartByteSize: Long)
 
   def segmentsToPartitionData(segments: IndexedSeq[SegmentResult], idealNumberOfRowsPerPart: Int): IndexedSeq[IndexedSeq[PartitionInfo]] = {
     segments.map { sr =>
@@ -439,19 +447,19 @@ object LowerDistributedSort {
       val segmentSize = chunkDataSizes.sum
       val numParts = (segmentSize + idealNumberOfRowsPerPart - 1) / idealNumberOfRowsPerPart
       var currentPartSize = 0
-      var currentPartByteSize: Option[Long] = Some(0L)
+      var currentPartByteSize: Long = 0L
       val groupedIntoParts = new ArrayBuffer[PartitionInfo](numParts)
       val currentFiles = new ArrayBuffer[String]()
       sr.chunks.foreach { chunk =>
         if (chunk.size > 0) {
           currentFiles.append(chunk.filename)
           currentPartSize += chunk.size
-          currentPartByteSize = chunk.byteSize.flatMap(bs => currentPartByteSize.map(_ + bs))
+          currentPartByteSize += chunk.byteSize
           if (currentPartSize >= idealNumberOfRowsPerPart) {
             groupedIntoParts.append(PartitionInfo(sr.indices, currentFiles.result().toIndexedSeq, currentPartSize, currentPartByteSize))
             currentFiles.clear()
             currentPartSize = 0
-            currentPartByteSize = Some(0L)
+            currentPartByteSize = 0L
           }
         }
       }
@@ -548,10 +556,9 @@ object LowerDistributedSort {
 
 /**
   * a "Chunk" is a file resulting from any StreamDistribute. Chunks are internally unsorted but contain
-  * data between two pivots. The size refers to the number of records, and byteSize is in-memory footprint
-  * if known (currently, unknown for first iteration and known thereafter)
+  * data between two pivots.
   */
-case class Chunk(filename: String, size: Int, byteSize: Option[Long])
+case class Chunk(filename: String, size: Int, byteSize: Long)
 /**
   * A SegmentResult is the set of chunks from various StreamDistribute tasks working on the same segment
   * of a previous iteration.

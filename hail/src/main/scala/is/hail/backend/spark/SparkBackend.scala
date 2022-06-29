@@ -710,6 +710,9 @@ class SparkBackend(
     relationalLetsAbove: Map[String, IR],
     rowTypeRequiredness: RStruct
   ): TableStage = {
+    if (getFlag("use_new_shuffle") != null)
+      return LowerDistributedSort.distributedSort(ctx, stage, sortFields, relationalLetsAbove, rowTypeRequiredness)
+
     val (globals, rvd) = TableStageToRVD(ctx, stage, relationalLetsAbove)
 
     if (sortFields.forall(_.sortOrder == Ascending)) {

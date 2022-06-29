@@ -427,7 +427,7 @@ case class MatrixVCFWriter(
 
     ts.mapContexts { oldCtx =>
       val d = digitsNeeded(ts.numPartitions)
-      val partFiles = Literal(TArray(TString), Array.tabulate(ts.numPartitions)(i => s"$folder/${ partFile(d, i) }$ext").toFastIndexedSeq)
+      val partFiles = Literal(TArray(TString), Array.tabulate(ts.numPartitions)(i => s"$folder/${ partFile(d, i) }-").toFastIndexedSeq)
 
       zip2(oldCtx, ToStream(partFiles), ArrayZipBehavior.AssertSameLength) { (ctxElt, pf) =>
         MakeStruct(FastSeq(
@@ -435,9 +435,10 @@ case class MatrixVCFWriter(
           "partFile" -> pf))
       }
     }(GetField(_, "oldCtx")).mapCollectWithContextsAndGlobals(relationalLetsAbove) { (rows, ctxRef) =>
+      val partFile = GetField(ctxRef, "partFile") + UUID4() + Str(ext)
       val ctx = MakeStruct(FastSeq(
         "cols" -> GetField(ts.globals, colsFieldName),
-        "partFile" -> GetField(ctxRef, "partFile")))
+        "partFile" -> partFile))
       WritePartition(rows, ctx, lineWriter)
     }{ (parts, globals) =>
       val ctx = MakeStruct(FastSeq("cols" -> GetField(globals, colsFieldName), "partFiles" -> parts))
@@ -759,23 +760,22 @@ case class VCFExportFinalizer(typ: MatrixType, outputPath: String, append: Optio
 
     val annotations = writeAnnotations.get(cb).asBaseStruct
 
+    val partPaths = annotations.loadField(cb, "partFiles").get(cb)
+    val files = partPaths.castTo(cb, region, SJavaArrayString(true), false).asInstanceOf[SJavaArrayStringValue].array
     exportType match {
       case ExportType.CONCATENATED =>
         val headerStr = header(cb, annotations)
 
-        val partPaths = annotations.loadField(cb, "partFiles").get(cb)
-        val files = partPaths.castTo(cb, region, SJavaArrayString(true), false)
         val headerFilePath = ctx.createTmpPath("header", ext)
         val os = cb.memoize(cb.emb.create(const(headerFilePath)))
         cb += os.invoke[Array[Byte], Unit]("write", headerStr.invoke[Array[Byte]]("getBytes"))
         cb += os.invoke[Int, Unit]("write", '\n')
         cb += os.invoke[Unit]("close")
 
-        val partFiles = files.asInstanceOf[SJavaArrayStringValue].array
-        val jFiles = cb.memoize(Code.newArray[String](partFiles.length + 1))
+        val jFiles = cb.memoize(Code.newArray[String](files.length + 1))
         cb += (jFiles(0) = const(headerFilePath))
         cb += Code.invokeStatic5[System, Any, Int, Any, Int, Int, Unit](
-          "arraycopy", partFiles /*src*/, 0 /*srcPos*/, jFiles /*dest*/, 1 /*destPos*/, partFiles.length /*len*/)
+          "arraycopy", files /*src*/, 0 /*srcPos*/, jFiles /*dest*/, 1 /*destPos*/, files.length /*len*/)
 
         cb += cb.emb.getFS.invoke[Array[String], String, Unit]("concatenateFiles", jFiles, const(outputPath))
 
@@ -789,9 +789,11 @@ case class VCFExportFinalizer(typ: MatrixType, outputPath: String, append: Optio
         }
 
       case ExportType.PARALLEL_HEADER_IN_SHARD =>
+        cb += Code.invokeScalaObject3[FS, String, Array[String], Unit](TableTextFinalizer.getClass, "cleanup", cb.emb.getFS, outputPath, files)
         cb += cb.emb.getFS.invoke[String, Unit]("touch", const(outputPath).concat("/_SUCCESS"))
 
       case ExportType.PARALLEL_SEPARATE_HEADER =>
+        cb += Code.invokeScalaObject3[FS, String, Array[String], Unit](TableTextFinalizer.getClass, "cleanup", cb.emb.getFS, outputPath, files)
         val headerFilePath = s"$outputPath/header$ext"
         val headerStr = header(cb, annotations)
 
@@ -831,7 +833,7 @@ case class MatrixGENWriter(
 
     ts.mapContexts { oldCtx =>
       val d = digitsNeeded(ts.numPartitions)
-      val partFiles = Literal(TArray(TString), Array.tabulate(ts.numPartitions)(i => s"$folder/${ partFile(d, i) }").toFastIndexedSeq)
+      val partFiles = Literal(TArray(TString), Array.tabulate(ts.numPartitions)(i => s"$folder/${ partFile(d, i) }-").toFastIndexedSeq)
 
       zip2(oldCtx, ToStream(partFiles), ArrayZipBehavior.AssertSameLength) { (ctxElt, pf) =>
         MakeStruct(FastSeq(
@@ -839,7 +841,7 @@ case class MatrixGENWriter(
           "partFile" -> pf))
       }
     }(GetField(_, "oldCtx")).mapCollectWithContextsAndGlobals(relationalLetsAbove) { (rows, ctxRef) =>
-      val ctx = GetField(ctxRef, "partFile")
+      val ctx = GetField(ctxRef, "partFile") + UUID4()
       WritePartition(rows, ctx, lineWriter)
     }{ (parts, globals) =>
       val cols = ToStream(GetField(globals, colsFieldName))

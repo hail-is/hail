@@ -388,6 +388,20 @@ case class IEmitCodeGen[+A](Lmissing: CodeLabel, Lpresent: CodeLabel, value: A, 
     ret
   }
 
+  def consumeI(cb: EmitCodeBuilder, ifMissing: => IEmitCode, ifPresent: A => IEmitCode): IEmitCode = {
+    val Lmissing2 = CodeLabel()
+    val Lpresent2 = CodeLabel()
+    cb.define(Lmissing)
+    val missingI = ifMissing
+    val st = missingI.st
+    val ret = cb.emb.newPLocal(st)
+    missingI.consume(cb, cb.goto(Lmissing2), v => { cb.assign(ret, v); cb.goto(Lpresent2) })
+    cb.define(Lpresent)
+    val presentI = ifPresent(value)
+    presentI.consume(cb, cb.goto(Lmissing2), v => { cb.assign(ret, v); cb.goto(Lpresent2) })
+    IEmitCode(Lmissing2, Lpresent2, ret, required = missingI.required && presentI.required)
+  }
+
   def consumeCode[B: TypeInfo](cb: EmitCodeBuilder, ifMissing: => Value[B], ifPresent: (A) => Value[B]): Value[B] = {
     val ret = cb.emb.newLocal[B]("iec_consumeCode")
     consume(cb, cb.assign(ret, ifMissing), a => cb.assign(ret, ifPresent(a)))
@@ -1279,6 +1293,20 @@ class Emit[C](
           dictType.construct(finishOuter(cb))
         }
 
+      case RNGStateLiteral(key) =>
+        IEmitCode.present(cb, SRNGStateStaticSizeValue(cb, key))
+
+      case RNGSplit(state, dynBitstring) =>
+        // FIXME: When new rng support is complete, don't allow missing states
+        emitI(state).flatMap(cb) { stateValue =>
+          emitI(dynBitstring).map(cb) { tuple =>
+            val longs = tuple.valueTuple.asInstanceOf[IndexedSeq[Value[Long]]]
+            var result = stateValue.asRNGState
+            longs.foreach(l => result = result.splitDyn(cb, l))
+            result
+          }
+        }
+
       case x@StreamLen(a) =>
         emitStream(a, cb, region).map(cb) { case stream: SStreamValue =>
           val producer = stream.producer
@@ -2015,12 +2043,24 @@ class Emit[C](
         val rvAgg = agg.Extract.getAgg(sig)
         rvAgg.result(cb, sc.states(idx), region)
 
-      case x@ApplySeeded(fn, args, seed, rt) =>
+      case x@ApplySeeded(fn, args, rngState, seed, rt) =>
         val codeArgs = args.map(a => EmitCode.fromI(cb.emb)(emitInNewBuilder(_, a)))
         val impl = x.implementation
-        val unified = impl.unify(Array.empty[Type], args.map(_.typ), rt)
+        val unified = impl.unify(Array.empty[Type], x.argTypes, rt)
         assert(unified)
-        impl.applySeededI(seed, cb, region, impl.computeReturnEmitType(x.typ, codeArgs.map(_.emitType)).st, codeArgs: _*)
+        val newRNGEnabled = Array[String]()
+        if (newRNGEnabled.contains(fn)) {
+          val pureImpl = x.pureImplementation
+          assert(pureImpl.unify(Array.empty[Type], rngState.typ +: x.argTypes, rt))
+          val codeArgsMem = codeArgs.map(_.memoize(cb, "ApplySeeded_arg"))
+          emitI(rngState).consumeI(cb, {
+            impl.applySeededI(seed, cb, region, impl.computeReturnEmitType(x.typ, codeArgs.map(_.emitType)).st, codeArgsMem.map(_.load): _*)
+          }, { state =>
+            pureImpl.applyI(EmitRegion(cb.emb, region), cb, impl.computeReturnEmitType(x.typ, codeArgs.map(_.emitType)).st, Seq[Type](), const(0), EmitCode.present(mb, state) +: codeArgsMem.map(_.load): _*)
+          })
+        } else {
+          impl.applySeededI(seed, cb, region, impl.computeReturnEmitType(x.typ, codeArgs.map(_.emitType)).st, codeArgs: _*)
+        }
 
       case AggStateValue(i, _) =>
         val AggContainer(_, sc, _) = container.get

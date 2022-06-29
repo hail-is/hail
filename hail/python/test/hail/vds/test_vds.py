@@ -4,7 +4,7 @@ import pytest
 import hail as hl
 from hail.utils import new_temp_file
 from hail.vds.combiner.combine import defined_entry_fields
-from ..helpers import startTestHailContext, stopTestHailContext, resource, fails_local_backend, fails_service_backend, skip_when_service_backend
+from ..helpers import startTestHailContext, stopTestHailContext, resource, fails_local_backend, fails_service_backend
 
 setUpModule = startTestHailContext
 tearDownModule = stopTestHailContext
@@ -135,6 +135,18 @@ def test_sampleqc_gq_dp():
                                 bases_over_dp_threshold=(334822, 10484, 388, 111, 52))
 
 
+def test_sampleqc_singleton_r_ti_tv():
+    vds = hl.vds.read_vds(os.path.join(resource('vds'), '1kg_chr22_5_samples.vds'))
+    sqc = hl.vds.sample_qc(vds)
+
+    hg00313 = sqc.filter(sqc.s == 'HG00313').select('r_ti_tv_singleton', 'n_singleton_ti', 'n_singleton_tv').collect()[0]
+    assert hg00313 == hl.Struct(s='HG00313',
+                                r_ti_tv_singleton=4.0,
+                                n_singleton_ti=4,
+                                n_singleton_tv=1)
+
+
+
 def test_filter_samples_and_merge():
     vds = hl.vds.read_vds(os.path.join(resource('vds'), '1kg_chr22_5_samples.vds'))
 
@@ -245,10 +257,6 @@ def test_interval_coverage():
         pytest.approx(obs.mean_dp, exp.mean_dp)
 
 
-@skip_when_service_backend(message='''
-hangs >=9 minutes after "optimize optimize: darrayLowerer, initial IR ..."
-with no calls to parallelizeAndComputeWithIndex
-''')
 def test_impute_sex_chromosome_ploidy():
     x_par_end = 2699521
     y_par_end = 2649521
@@ -449,7 +457,6 @@ def test_filter_chromosomes():
     assert_contigs(vds_auto, autosomes)
 
 
-@skip_when_service_backend(message='hangs')
 def test_to_dense_mt():
     vds = hl.vds.read_vds(os.path.join(resource('vds'), '1kg_2samples_starts.vds'))
     vds = hl.vds.filter_chromosomes(vds, keep='chr22')

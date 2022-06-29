@@ -91,7 +91,7 @@ class Tests(unittest.TestCase):
 
         self.assertFalse(hl.hadoop_exists(resource('./some2')))
 
-    @skip_when_service_backend('service backend logs are not sent to a user-visible file')
+    @fails_service_backend(reason='service backend logs are not sent to a user-visible file')
     @fails_local_backend()
     def test_hadoop_copy_log(self):
         with with_local_temp_file('log') as r:
@@ -123,12 +123,16 @@ class Tests(unittest.TestCase):
 
     @fails_local_backend()
     def test_hadoop_no_glob_in_bucket(self):
+        test_dir_url = os.environ['HAIL_TEST_STORAGE_URI']
+        scheme, rest = test_dir_url.split('://')
+        bucket, path = rest.split('/', maxsplit=1)
+        glob_in_bucket_url = f'{scheme}://glob*{bucket}/{path}'
         try:
-            hl.hadoop_ls('gs://glob*bucket')
+            hl.hadoop_ls(glob_in_bucket_url)
         except ValueError as err:
-            assert 'glob pattern only allowed in path (e.g. not in bucket): gs://glob*bucket' in err.args[0]
+            assert f'glob pattern only allowed in path (e.g. not in bucket): {glob_in_bucket_url}' in err.args[0]
         except FatalError as err:
-            assert "Invalid bucket name 'glob*bucket': bucket name must contain only 'a-z0-9_.-' characters." in err.args[0]
+            assert f"Invalid bucket name 'glob*{bucket}': bucket name must contain only 'a-z0-9_.-' characters." in err.args[0]
         else:
             assert False
 
@@ -163,6 +167,7 @@ class Tests(unittest.TestCase):
         ls3 = hl.hadoop_ls(path3)
         assert len(ls3) == 2, ls3
 
+    def test_hadoop_ls_file_that_does_not_exist(self):
         try:
             hl.hadoop_ls('a_file_that_does_not_exist')
         except FileNotFoundError:
@@ -171,6 +176,31 @@ class Tests(unittest.TestCase):
             assert 'FileNotFoundException: a_file_that_does_not_exist' in err.args[0]
         else:
             assert False
+
+    def test_hadoop_glob_heterogenous_structure(self):
+        with hl.TemporaryDirectory() as dirname:
+            touch(dirname + '/abc/cat')
+            touch(dirname + '/abc/dog')
+            touch(dirname + '/def/cat')
+            touch(dirname + '/def/dog')
+            touch(dirname + '/ghi/cat')
+            touch(dirname + '/ghi/cat')
+            dirname = normalize_path(dirname)
+
+            actual = [x['path'] for x in hl.hadoop_ls(dirname + '/*/cat')]
+            expected = [
+                dirname + '/abc/cat',
+                dirname + '/def/cat',
+                dirname + '/ghi/cat',
+            ]
+            assert actual == expected
+
+            actual = [x['path'] for x in hl.hadoop_ls(dirname + '/*/dog')]
+            expected = [
+                dirname + '/abc/dog',
+                dirname + '/def/dog',
+            ]
+            assert actual == expected
 
     @fails_local_backend()
     def test_hadoop_ls_glob_no_slash_in_group(self):

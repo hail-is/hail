@@ -86,7 +86,7 @@ def file_data(request):
 
 @pytest.mark.asyncio
 async def test_write_read(filesystem: Tuple[asyncio.Semaphore, AsyncFS, str], file_data):
-    sema, fs, base = filesystem
+    _, fs, base = filesystem
 
     file = f'{base}foo'
 
@@ -103,7 +103,7 @@ async def test_write_read(filesystem: Tuple[asyncio.Semaphore, AsyncFS, str], fi
 
 @pytest.mark.asyncio
 async def test_open_from(filesystem: Tuple[asyncio.Semaphore, AsyncFS, str]):
-    sema, fs, base = filesystem
+    _, fs, base = filesystem
 
     file = f'{base}foo'
 
@@ -117,7 +117,7 @@ async def test_open_from(filesystem: Tuple[asyncio.Semaphore, AsyncFS, str]):
 
 @pytest.mark.asyncio
 async def test_open_from_with_length(filesystem: Tuple[asyncio.Semaphore, AsyncFS, str]):
-    sema, fs, base = filesystem
+    _, fs, base = filesystem
 
     file = f'{base}foo'
 
@@ -153,7 +153,7 @@ async def test_open_from_with_length(filesystem: Tuple[asyncio.Semaphore, AsyncF
 
 @pytest.mark.asyncio
 async def test_open_empty(filesystem: Tuple[asyncio.Semaphore, AsyncFS, str]):
-    sema, fs, base = filesystem
+    _, fs, base = filesystem
 
     file = f'{base}foo'
 
@@ -167,37 +167,25 @@ async def test_open_empty(filesystem: Tuple[asyncio.Semaphore, AsyncFS, str]):
 
 @pytest.mark.asyncio
 async def test_open_nonexistent_file(filesystem: Tuple[asyncio.Semaphore, AsyncFS, str]):
-    sema, fs, base = filesystem
+    _, fs, base = filesystem
 
     file = f'{base}foo'
-
-    try:
-        async with await fs.open(file) as f:
-            await f.read()
-    except FileNotFoundError:
-        pass
-    else:
-        assert False
+    with pytest.raises(FileNotFoundError):
+        await fs.open(file)
 
 
 @pytest.mark.asyncio
 async def test_open_from_nonexistent_file(filesystem: Tuple[asyncio.Semaphore, AsyncFS, str]):
-    sema, fs, base = filesystem
+    _, fs, base = filesystem
 
     file = f'{base}foo'
-
-    try:
-        async with await fs.open_from(file, 2) as f:
-            await f.read()
-    except FileNotFoundError:
-        pass
-    else:
-        assert False
+    with pytest.raises(FileNotFoundError):
+        await fs.open_from(file, 2)
 
 
 @pytest.mark.asyncio
 async def test_read_from(filesystem: Tuple[asyncio.Semaphore, AsyncFS, str]):
-    sema, fs, base = filesystem
+    _, fs, base = filesystem
 
     file = f'{base}foo'
 
@@ -208,7 +196,7 @@ async def test_read_from(filesystem: Tuple[asyncio.Semaphore, AsyncFS, str]):
 
 @pytest.mark.asyncio
 async def test_read_range(filesystem: Tuple[asyncio.Semaphore, AsyncFS, str]):
-    sema, fs, base = filesystem
+    _, fs, base = filesystem
 
     file = f'{base}foo'
 
@@ -230,7 +218,7 @@ async def test_read_range(filesystem: Tuple[asyncio.Semaphore, AsyncFS, str]):
 
 @pytest.mark.asyncio
 async def test_read_range_end_exclusive_empty_file(filesystem: Tuple[asyncio.Semaphore, AsyncFS, str]):
-    sema, fs, base = filesystem
+    _, fs, base = filesystem
 
     file = f'{base}foo'
 
@@ -240,7 +228,7 @@ async def test_read_range_end_exclusive_empty_file(filesystem: Tuple[asyncio.Sem
 
 @pytest.mark.asyncio
 async def test_read_range_end_inclusive_empty_file_should_error(filesystem: Tuple[asyncio.Semaphore, AsyncFS, str]):
-    sema, fs, base = filesystem
+    _, fs, base = filesystem
 
     file = f'{base}foo'
 
@@ -256,7 +244,7 @@ async def test_read_range_end_inclusive_empty_file_should_error(filesystem: Tupl
 
 @pytest.mark.asyncio
 async def test_read_range_end_exclusive_nonempty_file(filesystem: Tuple[asyncio.Semaphore, AsyncFS, str]):
-    sema, fs, base = filesystem
+    _, fs, base = filesystem
 
     file = f'{base}foo'
 
@@ -267,7 +255,7 @@ async def test_read_range_end_exclusive_nonempty_file(filesystem: Tuple[asyncio.
 
 @pytest.mark.asyncio
 async def test_write_read_range(filesystem: Tuple[asyncio.Semaphore, AsyncFS, str], file_data):
-    sema, fs, base = filesystem
+    _, fs, base = filesystem
 
     file = f'{base}foo'
 
@@ -288,7 +276,7 @@ async def test_write_read_range(filesystem: Tuple[asyncio.Semaphore, AsyncFS, st
 
 @pytest.mark.asyncio
 async def test_isfile(filesystem: Tuple[asyncio.Semaphore, AsyncFS, str]):
-    sema, fs, base = filesystem
+    _, fs, base = filesystem
 
     file = f'{base}foo'
 
@@ -302,7 +290,7 @@ async def test_isfile(filesystem: Tuple[asyncio.Semaphore, AsyncFS, str]):
 
 @pytest.mark.asyncio
 async def test_isdir(filesystem: Tuple[asyncio.Semaphore, AsyncFS, str]):
-    sema, fs, base = filesystem
+    _, fs, base = filesystem
 
     # mkdir with trailing slash
     dir = f'{base}dir/'
@@ -324,7 +312,7 @@ async def test_isdir(filesystem: Tuple[asyncio.Semaphore, AsyncFS, str]):
 
 @pytest.mark.asyncio
 async def test_isdir_subdir_only(filesystem: Tuple[asyncio.Semaphore, AsyncFS, str]):
-    sema, fs, base = filesystem
+    _, fs, base = filesystem
 
     dir = f'{base}dir/'
     await fs.mkdir(dir)
@@ -341,7 +329,7 @@ async def test_isdir_subdir_only(filesystem: Tuple[asyncio.Semaphore, AsyncFS, s
 
 @pytest.mark.asyncio
 async def test_remove(filesystem: Tuple[asyncio.Semaphore, AsyncFS, str]):
-    sema, fs, base = filesystem
+    _, fs, base = filesystem
 
     file = f'{base}foo'
 
@@ -455,7 +443,7 @@ async def test_cloud_rmtree_file_ending_in_slash(filesystem: Tuple[asyncio.Semap
 
 @pytest.mark.asyncio
 async def test_statfile_nonexistent_file(filesystem: Tuple[asyncio.Semaphore, AsyncFS, str]):
-    sema, fs, base = filesystem
+    _, fs, base = filesystem
 
     with pytest.raises(FileNotFoundError):
         await fs.statfile(f'{base}foo')
@@ -463,7 +451,7 @@ async def test_statfile_nonexistent_file(filesystem: Tuple[asyncio.Semaphore, As
 
 @pytest.mark.asyncio
 async def test_statfile_directory(filesystem: Tuple[asyncio.Semaphore, AsyncFS, str]):
-    sema, fs, base = filesystem
+    _, fs, base = filesystem
 
     await fs.mkdir(f'{base}dir/')
     await fs.touch(f'{base}dir/foo')
@@ -475,7 +463,7 @@ async def test_statfile_directory(filesystem: Tuple[asyncio.Semaphore, AsyncFS, 
 
 @pytest.mark.asyncio
 async def test_statfile(filesystem: Tuple[asyncio.Semaphore, AsyncFS, str]):
-    sema, fs, base = filesystem
+    _, fs, base = filesystem
 
     n = 37
     file = f'{base}bar'
@@ -483,9 +471,24 @@ async def test_statfile(filesystem: Tuple[asyncio.Semaphore, AsyncFS, str]):
     status = await fs.statfile(file)
     assert await status.size() == n
 
+
+@pytest.mark.asyncio
+async def test_file_can_contain_url_query_delimiter(filesystem: Tuple[asyncio.Semaphore, AsyncFS, str]):
+    _, fs, base = filesystem
+
+    file = f'{base}bar?baz'
+    await fs.write(file, secrets.token_bytes(10))
+    assert await fs.exists(file)
+    async for f in await fs.listfiles(base):
+        if 'bar?baz' in f.name():
+            break
+    else:
+        assert False, 'File bar?baz not found'
+
+
 @pytest.mark.asyncio
 async def test_listfiles(filesystem: Tuple[asyncio.Semaphore, AsyncFS, str]):
-    sema, fs, base = filesystem
+    _, fs, base = filesystem
 
     with pytest.raises(FileNotFoundError):
         await fs.listfiles(f'{base}does/not/exist')

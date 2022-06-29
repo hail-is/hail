@@ -14,7 +14,7 @@ BRANCH := $(shell git rev-parse --abbrev-ref HEAD)
 SCALA_VERSION ?= 2.12.13
 SPARK_VERSION ?= 3.1.2
 HAIL_MAJOR_MINOR_VERSION := 0.2
-HAIL_PATCH_VERSION := 95
+HAIL_PATCH_VERSION := 96
 HAIL_PIP_VERSION := $(HAIL_MAJOR_MINOR_VERSION).$(HAIL_PATCH_VERSION)
 HAIL_VERSION := $(HAIL_PIP_VERSION)-$(SHORT_REVISION)
 ELASTIC_MAJOR_VERSION ?= 8
@@ -139,8 +139,11 @@ python/hailtop/hail_version: python/hail/hail_version
 python/README.md: ../README.md
 	cp ../README.md python/
 
-$(PYTHON_JAR): shadowJar
+$(PYTHON_JAR): $(SHADOW_JAR)
 	cp -f $(SHADOW_JAR) $@
+
+.PHONY: python-jar
+python-jar: $(PYTHON_JAR)
 
 .PHONY: pytest
 pytest: PYTEST_TARGET ?= test/hail
@@ -303,6 +306,13 @@ install-dev-deps:
 .PHONY: install-deps
 install-deps: install-dev-deps
 	sed "s/^pyspark.*/pyspark==$(SPARK_VERSION)/" python/requirements.txt | xargs $(PIP) install -U
+
+.PHONY: generate-pip-lockfile
+generate-pip-lockfile:
+	pip-compile --upgrade python/requirements.txt \
+		--output-file=python/pinned-requirements.txt
+	pip-compile --upgrade python/dev/requirements.txt \
+		--output-file=python/dev/pinned-requirements.txt
 
 .PHONY: benchmark
 benchmark: $(WHEEL)

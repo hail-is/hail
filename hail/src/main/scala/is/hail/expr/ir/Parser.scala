@@ -4,22 +4,20 @@ import is.hail.HailContext
 import is.hail.backend.ExecuteContext
 import is.hail.expr.ir.agg._
 import is.hail.expr.ir.functions.RelationalFunctions
-import is.hail.types.physical._
-import is.hail.types.virtual._
-import is.hail.types.encoded._
-import is.hail.types.{MatrixType, TableType, TypeWithRequiredness, VirtualTypeWithReq}
 import is.hail.expr.{JSONAnnotationImpex, Nat, ParserUtils}
 import is.hail.io.{AbstractTypedCodecSpec, BufferSpec}
 import is.hail.rvd.{AbstractRVDSpec, RVDType}
+import is.hail.types.physical._
+import is.hail.types.virtual._
+import is.hail.types.{MatrixType, TableType, VirtualTypeWithReq}
 import is.hail.utils.StackSafe._
 import is.hail.utils.StringEscapeUtils._
 import is.hail.utils._
 import is.hail.variant.ReferenceGenome
 import org.apache.spark.sql.Row
-import org.json4s.{Formats, JObject}
 import org.json4s.jackson.{JsonMethods, Serialization}
+import org.json4s.{Formats, JObject}
 
-import scala.collection.JavaConverters._
 import scala.collection.mutable
 import scala.reflect.ClassTag
 import scala.util.parsing.combinator.JavaTokenParsers
@@ -885,19 +883,24 @@ object IRParser {
         } yield ArrayRef(a, i, errorID)
       case "ArraySlice" =>
         val errorID = int32_literal(it)
-        ir_value_children(env)(it).map { args =>
-          args match {
-            case Array(a, start, step) => ArraySlice(a, start, None, step, errorID)
-            case Array(a, start, stop, step) => ArraySlice(a, start, Some(stop), step, errorID)
-          }
+        ir_value_children(env)(it).map {
+          case Array(a, start, step) => ArraySlice(a, start, None, step, errorID)
+          case Array(a, start, stop, step) => ArraySlice(a, start, Some(stop), step, errorID)
         }
+      case "RNGStateLiteral" =>
+        done(RNGStateLiteral(int64_literals(it)))
+      case "RNGSplit" =>
+        for {
+          state <- ir_value_expr(env)(it)
+          dynBitstring <- ir_value_expr(env)(it)
+        } yield RNGSplit(state, dynBitstring)
       case "ArrayLen" => ir_value_expr(env)(it).map(ArrayLen)
       case "StreamLen" => ir_value_expr(env)(it).map(StreamLen)
       case "StreamIota" =>
         val requiresMemoryManagementPerElement = boolean_literal(it)
         for {
           start <- ir_value_expr(env)(it)
-            step <- ir_value_expr(env)(it)
+          step <- ir_value_expr(env)(it)
         } yield StreamIota(start, step, requiresMemoryManagementPerElement)
       case "StreamRange" =>
         val errorID = int32_literal(it)
@@ -1281,7 +1284,7 @@ object IRParser {
       case "MakeTuple" =>
         val indices = int32_literals(it)
         ir_value_children(env)(it).map { args =>
-          MakeTuple(indices.zip(args))
+          MakeTuple(indices.zip(args).toFastSeq)
         }
       case "GetTupleElement" =>
         val idx = int32_literal(it)
@@ -1307,9 +1310,10 @@ object IRParser {
         val function = identifier(it)
         val seed = int64_literal(it)
         val rt = type_expr(env.typEnv)(it)
-        ir_value_children(env)(it).map { args =>
-          ApplySeeded(function, args, seed, rt)
-        }
+        for {
+          rngState <- ir_value_expr(env)(it)
+          args <- ir_value_children(env)(it)
+        } yield ApplySeeded(function, args, rngState, seed, rt)
       case "ApplyIR" | "ApplySpecial" | "Apply" =>
         val errorID = int32_literal(it)
         val function = identifier(it)
@@ -1333,31 +1337,31 @@ object IRParser {
         } yield TableAggregate(child, query)
       case "TableToValueApply" =>
         val config = string_literal(it)
-        table_ir(env)(it).map { child =>
+        table_ir(env.withRefMap(Map.empty))(it).map { child =>
           TableToValueApply(child, RelationalFunctions.lookupTableToValue(env.ctx, config))
         }
       case "MatrixToValueApply" =>
         val config = string_literal(it)
-        matrix_ir(env)(it).map { child =>
+        matrix_ir(env.withRefMap(Map.empty))(it).map { child =>
           MatrixToValueApply(child, RelationalFunctions.lookupMatrixToValue(env.ctx, config))
         }
       case "BlockMatrixToValueApply" =>
         val config = string_literal(it)
-        blockmatrix_ir(env)(it).map { child =>
+        blockmatrix_ir(env.withRefMap(Map.empty))(it).map { child =>
           BlockMatrixToValueApply(child, RelationalFunctions.lookupBlockMatrixToValue(env.ctx, config))
         }
       case "BlockMatrixCollect" =>
-        blockmatrix_ir(env)(it).map(BlockMatrixCollect)
+        blockmatrix_ir(env.withRefMap(Map.empty))(it).map(BlockMatrixCollect)
       case "TableWrite" =>
         implicit val formats = TableWriter.formats
         val writerStr = string_literal(it)
-        table_ir(env)(it).map { child =>
+        table_ir(env.withRefMap(Map.empty))(it).map { child =>
           TableWrite(child, deserialize[TableWriter](writerStr))
         }
       case "TableMultiWrite" =>
         implicit val formats = WrappedMatrixNativeMultiWriter.formats
         val writerStr = string_literal(it)
-        table_ir_children(env)(it).map { children =>
+        table_ir_children(env.withRefMap(Map.empty))(it).map { children =>
           TableMultiWrite(children, deserialize[WrappedMatrixNativeMultiWriter](writerStr))
         }
       case "MatrixAggregate" =>
@@ -1376,21 +1380,21 @@ object IRParser {
         val writerStr = string_literal(it)
         implicit val formats = MatrixNativeMultiWriter.formats
         val writer = deserialize[MatrixNativeMultiWriter](writerStr)
-        matrix_ir_children(env)(it).map { children =>
+        matrix_ir_children(env.withRefMap(Map.empty))(it).map { children =>
           MatrixMultiWrite(children, writer)
         }
       case "BlockMatrixWrite" =>
         val writerStr = string_literal(it)
         implicit val formats: Formats = BlockMatrixWriter.formats
         val writer = deserialize[BlockMatrixWriter](writerStr)
-        blockmatrix_ir(env)(it).map { child =>
+        blockmatrix_ir(env.withRefMap(Map.empty))(it).map { child =>
           BlockMatrixWrite(child, writer)
         }
       case "BlockMatrixMultiWrite" =>
         val writerStr = string_literal(it)
         implicit val formats: Formats = BlockMatrixWriter.formats
         val writer = deserialize[BlockMatrixMultiWriter](writerStr)
-        repUntil(it, blockmatrix_ir(env), PunctuationToken(")")).map { blockMatrices =>
+        repUntil(it, blockmatrix_ir(env.withRefMap(Map.empty)), PunctuationToken(")")).map { blockMatrices =>
           BlockMatrixMultiWrite(blockMatrices.toFastIndexedSeq, writer)
         }
       case "CollectDistributedArray" =>
@@ -1973,7 +1977,9 @@ object IRParser {
     f(it)
   }
 
-  def parse_value_ir(s: String, env: IRParserEnvironment): IR = parse(s, ir_value_expr(env)(_).run())
+  def parse_value_ir(s: String, env: IRParserEnvironment): IR = {
+    parse(s, ir_value_expr(env)(_).run())
+  }
 
   def parse_value_ir(ctx: ExecuteContext, s: String): IR = {
     parse_value_ir(s, IRParserEnvironment(ctx))

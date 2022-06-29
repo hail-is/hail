@@ -87,9 +87,9 @@ object Copy {
         assert(newChildren.length == 3)
         StreamRange(newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR], newChildren(2).asInstanceOf[IR],
           requiresMemoryManagementPerElement, errorID)
-      case SeqSample(_, _, requiresMemoryManagementPerElement) =>
-        assert(newChildren.length == 2)
-        SeqSample(newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR], requiresMemoryManagementPerElement)
+      case SeqSample(_, _, _, requiresMemoryManagementPerElement) =>
+        assert(newChildren.length == 3)
+        SeqSample(newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR], newChildren(2).asInstanceOf[IR], requiresMemoryManagementPerElement)
       case StreamDistribute(_, _, _, op, spec) =>
         StreamDistribute(newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR], newChildren(2).asInstanceOf[IR], op, spec)
       case ArrayZeros(_) =>
@@ -165,6 +165,10 @@ object Copy {
       case GroupByKey(_) =>
         assert(newChildren.length == 1)
         GroupByKey(newChildren(0).asInstanceOf[IR])
+      case RNGStateLiteral(key) => RNGStateLiteral(key)
+      case RNGSplit(_, _) =>
+        assert(newChildren.nonEmpty)
+        RNGSplit(newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR])
       case StreamLen(_) =>
         StreamLen(newChildren(0).asInstanceOf[IR])
       case StreamTake(_, _) =>
@@ -234,9 +238,9 @@ object Copy {
       case RunAggScan(_, name, _, _, _, signatures) =>
         RunAggScan(newChildren(0).asInstanceOf[IR], name, newChildren(1).asInstanceOf[IR],
           newChildren(2).asInstanceOf[IR], newChildren(3).asInstanceOf[IR], signatures)
-      case StreamBufferedAggregate(_, _, _, _, name, aggSignatures) =>
+      case StreamBufferedAggregate(_, _, _, _, name, aggSignatures, bufferSize) =>
         StreamBufferedAggregate(newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR],
-          newChildren(2).asInstanceOf[IR], newChildren(3).asInstanceOf[IR], name, aggSignatures)
+          newChildren(2).asInstanceOf[IR], newChildren(3).asInstanceOf[IR], name, aggSignatures, bufferSize)
       case AggFilter(_, _, isScan) =>
         assert(newChildren.length == 2)
         AggFilter(newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR], isScan)
@@ -325,8 +329,8 @@ object Copy {
         r
       case Apply(fn, typeArgs, args, t, errorID) =>
         Apply(fn, typeArgs, newChildren.map(_.asInstanceOf[IR]), t, errorID)
-      case ApplySeeded(fn, args, seed, t) =>
-        ApplySeeded(fn, newChildren.map(_.asInstanceOf[IR]), seed, t)
+      case ApplySeeded(fn, args, rngState, seed, t) =>
+        ApplySeeded(fn, newChildren.init.map(_.asInstanceOf[IR]), newChildren.last.asInstanceOf[IR], seed, t)
       case ApplySpecial(fn, typeArgs, args, t, errorID) =>
         ApplySpecial(fn, typeArgs, newChildren.map(_.asInstanceOf[IR]), t, errorID)
       // from MatrixIR

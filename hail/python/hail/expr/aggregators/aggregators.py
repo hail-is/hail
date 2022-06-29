@@ -127,7 +127,7 @@ class AggFunc(object):
         comb_op_expr = to_expr(comb_op(accum_ref, other_accum_ref))
 
         return construct_expr(ir.AggFold(initial_value_casted._ir, seq_op_expr._ir, comb_op_expr._ir, accum_name, other_accum_name, self._as_scan),
-                              initial_value.dtype,
+                              unified_type,
                               indices,
                               aggregations)
 
@@ -142,7 +142,7 @@ class AggFunc(object):
             array_agg_expr = hl.array(array_agg_expr)
         elt = array_agg_expr.dtype.element_type
         var = Env.get_uid()
-        ref = construct_expr(ir.Ref(var), elt, array_agg_expr._indices)
+        ref = construct_expr(ir.Ref(var, elt), elt, array_agg_expr._indices)
         self._agg_bindings.add(var)
         aggregated = f(ref)
         _check_agg_bindings(aggregated, self._agg_bindings)
@@ -211,7 +211,7 @@ class AggFunc(object):
 
         elt = array.dtype.element_type
         var = Env.get_uid()
-        ref = construct_expr(ir.Ref(var), elt, array._indices)
+        ref = construct_expr(ir.Ref(var, elt), elt, array._indices)
         self._agg_bindings.add(var)
         aggregated = f(ref)
         _check_agg_bindings(aggregated, self._agg_bindings)
@@ -243,10 +243,11 @@ _agg_func = AggFunc()
 
 def _check_agg_bindings(expr, bindings):
     bound_references = {ref.name for ref in expr._ir.search(
-        lambda x: isinstance(x, ir.Ref)
-        and not isinstance(x, ir.TopLevelReference)
-        and not x.name.startswith('__uid_scan')
-        and not x.name.startswith('__uid_agg'))}
+        lambda x: (isinstance(x, ir.Ref)
+                   and not isinstance(x, ir.TopLevelReference)
+                   and not x.name.startswith('__uid_scan')
+                   and not x.name.startswith('__uid_agg')
+                   and not x.name == '__rng_state'))}
     free_variables = bound_references - expr._ir.bound_variables - bindings
     if free_variables:
         raise ExpressionException("dynamic variables created by 'hl.bind' or lambda methods like 'hl.map' may not be aggregated")

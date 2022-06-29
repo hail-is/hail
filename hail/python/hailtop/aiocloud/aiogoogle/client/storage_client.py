@@ -337,7 +337,7 @@ class GoogleStorageClient(GoogleBaseClient):
         # Write using resumable uploads.  See:
         # https://cloud.google.com/storage/docs/performing-resumable-uploads
         assert upload_type == 'resumable'
-        chunk_size = kwargs.get('bufsize', 256 * 1024)
+        chunk_size = kwargs.get('bufsize', 8 * 1024 * 1024)
 
         async with await self._session.post(
             f'https://storage.googleapis.com/upload/storage/v1/b/{bucket}/o',
@@ -407,20 +407,20 @@ class GetObjectFileStatus(FileStatus):
 
 
 class GoogleStorageFileListEntry(FileListEntry):
-    def __init__(self, url: str, items: Optional[Dict[str, Any]]):
-        self._url = url
+    def __init__(self, bucket: str, name: str, items: Optional[Dict[str, Any]]):
+        self._bucket = bucket
+        self._name = name
         self._items = items
         self._status: Optional[GetObjectFileStatus] = None
 
     def name(self) -> str:
-        parsed = urllib.parse.urlparse(self._url)
-        return os.path.basename(parsed.path)
+        return os.path.basename(self._name)
 
     async def url(self) -> str:
-        return self._url
+        return f'gs://{self._bucket}/{self._name}'
 
     def url_maybe_trailing_slash(self) -> str:
-        return self._url
+        return f'gs://{self._bucket}/{self._name}'
 
     async def is_file(self) -> bool:
         return self._items is not None
@@ -431,7 +431,7 @@ class GoogleStorageFileListEntry(FileListEntry):
     async def status(self) -> FileStatus:
         if self._status is None:
             if self._items is None:
-                raise IsADirectoryError(self._url)
+                raise IsADirectoryError(await self.url())
             self._status = GetObjectFileStatus(self._items)
         return self._status
 
@@ -645,7 +645,7 @@ class GoogleStorageAsyncFS(AsyncFS):
             items = page.get('items')
             if items is not None:
                 for item in page['items']:
-                    yield GoogleStorageFileListEntry(f'gs://{bucket}/{item["name"]}', item)
+                    yield GoogleStorageFileListEntry(bucket, item['name'], item)
 
     async def _listfiles_flat(self, bucket: str, name: str) -> AsyncIterator[FileListEntry]:
         assert not name or name.endswith('/')
@@ -659,12 +659,12 @@ class GoogleStorageAsyncFS(AsyncFS):
             if prefixes:
                 for prefix in prefixes:
                     assert prefix.endswith('/')
-                    yield GoogleStorageFileListEntry(f'gs://{bucket}/{prefix}', None)
+                    yield GoogleStorageFileListEntry(bucket, prefix, None)
 
             items = page.get('items')
             if items:
                 for item in page['items']:
-                    yield GoogleStorageFileListEntry(f'gs://{bucket}/{item["name"]}', item)
+                    yield GoogleStorageFileListEntry(bucket, item['name'], item)
 
     async def listfiles(self,
                         url: str,

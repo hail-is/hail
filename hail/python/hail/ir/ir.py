@@ -6,12 +6,13 @@ import decorator
 import hail
 from hail.expr.types import dtype, HailType, hail_type, tint32, tint64, \
     tfloat32, tfloat64, tstr, tbool, tarray, tstream, tndarray, tset, tdict, \
-    tstruct, ttuple, tinterval, tvoid
+    tstruct, ttuple, tinterval, tvoid, trngstate
 from hail.ir.blockmatrix_writer import BlockMatrixWriter, BlockMatrixMultiWriter
 from hail.typecheck import typecheck, typecheck_method, sequenceof, numeric, \
     sized_tupleof, nullable, tupleof, anytype, func_spec
 from hail.utils.java import Env, HailUserError, warning
 from hail.utils.misc import escape_str, dump_json, parsable_strings, escape_id
+from .utils import default_row_uid, default_col_uid, rng_key, unpack_row_uid, unpack_col_uid
 from .base_ir import BaseIR, IR, TableIR, MatrixIR, BlockMatrixIR, _env_bind
 from .matrix_writer import MatrixWriter, MatrixNativeMultiWriter
 from .renderer import Renderer, Renderable, ParensRenderer
@@ -33,8 +34,8 @@ class I32(IR):
     def head_str(self):
         return self.x
 
-    def _compute_type(self, env, agg_env):
-        self._type = tint32
+    def _compute_type(self, env, agg_env, deep_typecheck):
+        return tint32
 
 
 class I64(IR):
@@ -52,8 +53,8 @@ class I64(IR):
     def head_str(self):
         return self.x
 
-    def _compute_type(self, env, agg_env):
-        self._type = tint64
+    def _compute_type(self, env, agg_env, deep_typecheck):
+        return tint64
 
 
 class F32(IR):
@@ -71,8 +72,8 @@ class F32(IR):
     def head_str(self):
         return self.x
 
-    def _compute_type(self, env, agg_env):
-        self._type = tfloat32
+    def _compute_type(self, env, agg_env, deep_typecheck):
+        return tfloat32
 
 
 class F64(IR):
@@ -90,8 +91,8 @@ class F64(IR):
     def head_str(self):
         return self.x
 
-    def _compute_type(self, env, agg_env):
-        self._type = tfloat64
+    def _compute_type(self, env, agg_env, deep_typecheck):
+        return tfloat64
 
 
 class Str(IR):
@@ -109,8 +110,8 @@ class Str(IR):
     def head_str(self):
         return f'"{escape_str(self.x)}"'
 
-    def _compute_type(self, env, agg_env):
-        self._type = tstr
+    def _compute_type(self, env, agg_env, deep_typecheck):
+        return tstr
 
 
 class FalseIR(IR):
@@ -123,8 +124,8 @@ class FalseIR(IR):
     def _ir_name(self):
         return 'False'
 
-    def _compute_type(self, env, agg_env):
-        self._type = tbool
+    def _compute_type(self, env, agg_env, deep_typecheck):
+        return tbool
 
 
 class TrueIR(IR):
@@ -137,8 +138,8 @@ class TrueIR(IR):
     def _ir_name(self):
         return 'True'
 
-    def _compute_type(self, env, agg_env):
-        self._type = tbool
+    def _compute_type(self, env, agg_env, deep_typecheck):
+        return tbool
 
 
 class Void(IR):
@@ -148,8 +149,8 @@ class Void(IR):
     def copy(self):
         return Void()
 
-    def _compute_type(self, env, agg_env):
-        self._type = tvoid
+    def _compute_type(self, env, agg_env, deep_typecheck):
+        return tvoid
 
 
 class Cast(IR):
@@ -173,9 +174,9 @@ class Cast(IR):
     def head_str(self):
         return self._typ._parsable_string()
 
-    def _compute_type(self, env, agg_env):
-        self.v._compute_type(env, agg_env)
-        self._type = self._typ
+    def _compute_type(self, env, agg_env, deep_typecheck):
+        self.v.compute_type(env, agg_env, deep_typecheck)
+        return self._typ
 
 
 class NA(IR):
@@ -183,6 +184,14 @@ class NA(IR):
     def __init__(self, typ):
         super().__init__()
         self._typ = typ
+
+    def _handle_randomness(self, create_uids):
+        if create_uids:
+            if isinstance(self.typ.element_type, tstruct):
+                new_elt_typ = self.typ.element_type._insert_field(uid_field_name, tint64)
+            else:
+                new_elt_typ = ttuple(tint64, self.typ.element_type)
+            return NA(tstream(new_elt_typ))
 
     @property
     def typ(self):
@@ -197,8 +206,8 @@ class NA(IR):
     def head_str(self):
         return self._typ._parsable_string()
 
-    def _compute_type(self, env, agg_env):
-        self._type = self._typ
+    def _compute_type(self, env, agg_env, deep_typecheck):
+        return self._typ
 
 
 class IsNA(IR):
@@ -211,9 +220,9 @@ class IsNA(IR):
     def copy(self, value):
         return IsNA(value)
 
-    def _compute_type(self, env, agg_env):
-        self.value._compute_type(env, agg_env)
-        self._type = tbool
+    def _compute_type(self, env, agg_env, deep_typecheck):
+        self.value.compute_type(env, agg_env, deep_typecheck)
+        return tbool
 
 
 class If(IR):
@@ -224,16 +233,21 @@ class If(IR):
         self.cnsq = cnsq
         self.altr = altr
 
+    def _handle_randomness(self, create_uids):
+        return If(self.cond,
+                  self.cnsq.handle_randomness(create_uids),
+                  self.altr.handle_randomness(create_uids))
+
     @typecheck_method(cond=IR, cnsq=IR, altr=IR)
     def copy(self, cond, cnsq, altr):
         return If(cond, cnsq, altr)
 
-    def _compute_type(self, env, agg_env):
-        self.cond._compute_type(env, agg_env)
-        self.cnsq._compute_type(env, agg_env)
-        self.altr._compute_type(env, agg_env)
+    def _compute_type(self, env, agg_env, deep_typecheck):
+        self.cond.compute_type(env, agg_env, deep_typecheck)
+        self.cnsq.compute_type(env, agg_env, deep_typecheck)
+        self.altr.compute_type(env, agg_env, deep_typecheck)
         assert (self.cnsq.typ == self.altr.typ)
-        self._type = self.cnsq.typ
+        return self.cnsq.typ
 
     def renderable_new_block(self, i):
         return i == 1 or i == 2
@@ -249,18 +263,20 @@ class Coalesce(IR):
     def copy(self, *values):
         return Coalesce(*values)
 
-    def _compute_type(self, env, agg_env):
+    def _compute_type(self, env, agg_env, deep_typecheck):
         first, *rest = self.values
-        first._compute_type(env, agg_env)
+        first.compute_type(env, agg_env, deep_typecheck)
         for x in rest:
-            x._compute_type(env, agg_env)
+            x.compute_type(env, agg_env, deep_typecheck)
             assert x.typ == first.typ
-        self._type = first.typ
+        return first.typ
 
 
 class Let(IR):
     @typecheck_method(name=str, value=IR, body=IR)
     def __init__(self, name, value, body):
+        if isinstance(value.typ, tstream):
+            value = value.handle_randomness(False)
         super().__init__(value, body)
         self.name = name
         self.value = value
@@ -280,10 +296,10 @@ class Let(IR):
     def _eq(self, other):
         return other.name == self.name
 
-    def _compute_type(self, env, agg_env):
-        self.value._compute_type(env, agg_env)
-        self.body._compute_type(_env_bind(env, self.bindings(1)), agg_env)
-        self._type = self.body._type
+    def _compute_type(self, env, agg_env, deep_typecheck):
+        self.value.compute_type(env, agg_env, deep_typecheck)
+        self.body.compute_type(_env_bind(env, self.bindings(1)), agg_env, deep_typecheck)
+        return self.body.typ
 
     def renderable_bindings(self, i, default_value=None):
         if i == 1:
@@ -319,10 +335,10 @@ class AggLet(IR):
     def _eq(self, other):
         return other.name == self.name and other.is_scan == self.is_scan
 
-    def _compute_type(self, env, agg_env):
-        self.value._compute_type(agg_env, None)
-        self.body._compute_type(env, _env_bind(agg_env, {self.name: self.value._type}))
-        self._type = self.body._type
+    def _compute_type(self, env, agg_env, deep_typecheck):
+        self.value.compute_type(agg_env, None, deep_typecheck)
+        self.body.compute_type(env, _env_bind(agg_env, {self.name: self.value.typ}), deep_typecheck)
+        return self.body.typ
 
     def renderable_agg_bindings(self, i, default_value=None):
         if not self.is_scan and i == 1:
@@ -352,14 +368,24 @@ class AggLet(IR):
 
 
 class Ref(IR):
-    @typecheck_method(name=str)
-    def __init__(self, name):
+    @typecheck_method(name=str, type=nullable(HailType))
+    def __init__(self, name, type=None):
         super().__init__()
         self.name = name
         self._free_vars = {name}
+        self._typ = type
+
+    def _handle_randomness(self, create_uids):
+        if not create_uids:
+            return self
+        elt = Env.get_uid
+        uid = Env.get_uid
+        return StreamZip([self, StreamIota(I32(0), I32(1))],
+                         [elt, uid],
+                         pack_uid(Cast(Ref(uid, tint32), tint64), Ref(elt, tint32)))
 
     def copy(self):
-        return Ref(self.name)
+        return Ref(self.name, self._type)
 
     def head_str(self):
         return escape_id(self.name)
@@ -367,30 +393,33 @@ class Ref(IR):
     def _eq(self, other):
         return other.name == self.name
 
-    def _compute_type(self, env, agg_env):
-        self._type = env[self.name]
+    def _compute_type(self, env, agg_env, deep_typecheck):
+        if deep_typecheck:
+            assert self.name in env, f'{self.name} not found in {env}'
+            if self._typ is not None:
+                assert self._typ == env[self.name]
+            return env[self.name]
+        else:
+            return self._typ
 
 
 class TopLevelReference(Ref):
-    @typecheck_method(name=str)
-    def __init__(self, name):
-        super().__init__(name)
+    @typecheck_method(name=str, type=nullable(HailType))
+    def __init__(self, name, type=None):
+        super().__init__(name, type)
 
     @property
     def is_nested_field(self):
         return True
 
     def copy(self):
-        return TopLevelReference(self.name)
+        return TopLevelReference(self.name, self.type)
 
     def _ir_name(self):
         return 'Ref'
 
-    def _compute_type(self, env, agg_env):
-        assert self.name in env, f'{self.name} not found in {env}'
-        self._type = env[self.name]
 
-
+# FIXME: If body uses randomness, create a new uid induction variable
 class TailLoop(IR):
     @typecheck_method(name=str, body=IR, params=sequenceof(sized_tupleof(str, IR)))
     def __init__(self, name, body, params):
@@ -415,11 +444,11 @@ class TailLoop(IR):
     def bound_variables(self):
         return {n for n, _ in self.params} | {self.name} | super().bound_variables
 
-    def _compute_type(self, env, agg_env):
+    def _compute_type(self, env, agg_env, deep_typecheck):
         for _, b in self.params:
-            b._compute_type(env, agg_env)
-        self.body._compute_type(_env_bind(env, self.bindings(len(self.params))), agg_env)
-        self._type = self.body.typ
+            b.compute_type(env, agg_env, deep_typecheck)
+        self.body.compute_type(_env_bind(env, self.bindings(len(self.params))), agg_env, deep_typecheck)
+        return self.body.typ
 
     def renderable_bindings(self, i, default_value=None):
         if i == len(self.params):
@@ -450,9 +479,10 @@ class Recur(IR):
     def _eq(self, other):
         return other.name == self.name
 
-    def _compute_type(self, env, agg_env):
-        assert self.name in env
-        self._type = self.return_type
+    def _compute_type(self, env, agg_env, deep_typecheck):
+        if deep_typecheck:
+            assert self.name in env
+        return self.return_type
 
 
 class ApplyBinaryPrimOp(IR):
@@ -473,19 +503,19 @@ class ApplyBinaryPrimOp(IR):
     def _eq(self, other):
         return other.op == self.op
 
-    def _compute_type(self, env, agg_env):
-        self.left._compute_type(env, agg_env)
-        self.right._compute_type(env, agg_env)
+    def _compute_type(self, env, agg_env, deep_typecheck):
+        self.left.compute_type(env, agg_env, deep_typecheck)
+        self.right.compute_type(env, agg_env, deep_typecheck)
         if self.op == '/':
             int_types = [tint32, tint64]
             if self.left.typ in int_types and self.right.typ in int_types:
-                self._type = tfloat64
+                return tfloat64
             elif self.left.typ == tfloat64:
-                self._type = tfloat64
+                return tfloat64
             else:
-                self._type = tfloat32
+                return tfloat32
         else:
-            self._type = self.left.typ
+            return self.left.typ
 
 
 class ApplyUnaryPrimOp(IR):
@@ -505,9 +535,9 @@ class ApplyUnaryPrimOp(IR):
     def _eq(self, other):
         return other.op == self.op
 
-    def _compute_type(self, env, agg_env):
-        self.x._compute_type(env, agg_env)
-        self._type = self.x.typ
+    def _compute_type(self, env, agg_env, deep_typecheck):
+        self.x.compute_type(env, agg_env, deep_typecheck)
+        return self.x.typ
 
 
 class ApplyComparisonOp(IR):
@@ -528,10 +558,13 @@ class ApplyComparisonOp(IR):
     def _eq(self, other):
         return other.op == self.op
 
-    def _compute_type(self, env, agg_env):
-        self.left._compute_type(env, agg_env)
-        self.right._compute_type(env, agg_env)
-        self._type = tbool
+    def _compute_type(self, env, agg_env, deep_typecheck):
+        self.left.compute_type(env, agg_env, deep_typecheck)
+        self.right.compute_type(env, agg_env, deep_typecheck)
+        if self.op == 'Compare':
+            return tint32
+        else:
+            return tbool
 
 
 class MakeArray(IR):
@@ -550,11 +583,10 @@ class MakeArray(IR):
     def _eq(self, other):
         return other._type == self._type
 
-    def _compute_type(self, env, agg_env):
+    def _compute_type(self, env, agg_env, deep_typecheck):
         for a in self.args:
-            a._compute_type(env, agg_env)
-        if self._type is None:
-            self._type = tarray(self.args[0].typ)
+            a.compute_type(env, agg_env, deep_typecheck)
+        return tarray(self.args[0].typ)
 
 
 class ArrayRef(IR):
@@ -575,10 +607,10 @@ class ArrayRef(IR):
     def head_str(self):
         return str(self._error_id)
 
-    def _compute_type(self, env, agg_env):
-        self.a._compute_type(env, agg_env)
-        self.i._compute_type(env, agg_env)
-        self._type = self.a.typ.element_type
+    def _compute_type(self, env, agg_env, deep_typecheck):
+        self.a.compute_type(env, agg_env, deep_typecheck)
+        self.i.compute_type(env, agg_env, deep_typecheck)
+        return self.a.typ.element_type
 
 
 class ArraySlice(IR):
@@ -605,13 +637,13 @@ class ArraySlice(IR):
     def head_str(self):
         return str(self._error_id)
 
-    def _compute_type(self, env, agg_env):
-        self.a._compute_type(env, agg_env)
-        self.start._compute_type(env, agg_env)
+    def _compute_type(self, env, agg_env, deep_typecheck):
+        self.a.compute_type(env, agg_env, deep_typecheck)
+        self.start.compute_type(env, agg_env, deep_typecheck)
         if self.stop is not None:
-            self.stop._compute_type(env, agg_env)
-        self.step._compute_type(env, agg_env)
-        self._type = self.a.typ
+            self.stop.compute_type(env, agg_env, deep_typecheck)
+        self.step.compute_type(env, agg_env, deep_typecheck)
+        return self.a.typ
 
 
 class ArrayLen(IR):
@@ -624,9 +656,9 @@ class ArrayLen(IR):
     def copy(self, a):
         return ArrayLen(a)
 
-    def _compute_type(self, env, agg_env):
-        self.a._compute_type(env, agg_env)
-        self._type = tint32
+    def _compute_type(self, env, agg_env, deep_typecheck):
+        self.a.compute_type(env, agg_env, deep_typecheck)
+        return tint32
 
 
 class ArrayZeros(IR):
@@ -639,9 +671,9 @@ class ArrayZeros(IR):
     def copy(self, length):
         return ArrayZeros(length)
 
-    def _compute_type(self, env, agg_env):
-        self.length._compute_type(env, agg_env)
-        self._type = tarray(tint32)
+    def _compute_type(self, env, agg_env, deep_typecheck):
+        self.length.compute_type(env, agg_env, deep_typecheck)
+        return tarray(tint32)
 
 
 class StreamIota(IR):
@@ -652,6 +684,12 @@ class StreamIota(IR):
         self.step = step
         self.requires_memory_management_per_element = requires_memory_management_per_element
 
+    def _handle_randomness(self, create_uids):
+        if not create_uids:
+            return self
+        elt = Env.get_uid
+        return StreamMap(self, elt, MakeTuple([Cast(Ref(elt, tint32), tint64), Ref(elt, tint32)]))
+
     @typecheck_method(start=IR, step=IR)
     def copy(self, start, step):
         return StreamIota(start, step,
@@ -660,10 +698,10 @@ class StreamIota(IR):
     def head_str(self):
         return f'{self.requires_memory_management_per_element}'
 
-    def _compute_type(self, env, agg_env):
-        self.start._compute_type(env, agg_env)
-        self.step._compute_type(env, agg_env)
-        self._type = tstream(tint32)
+    def _compute_type(self, env, agg_env, deep_typecheck):
+        self.start.compute_type(env, agg_env, deep_typecheck)
+        self.step.compute_type(env, agg_env, deep_typecheck)
+        return tstream(tint32)
 
 
 class StreamRange(IR):
@@ -681,6 +719,12 @@ class StreamRange(IR):
         if error_id is None or stack_trace is None:
             self.save_error_info()
 
+    def _handle_randomness(self, create_uids):
+        if not create_uids:
+            return self
+        elt = Env.get_uid
+        return StreamMap(self, elt, MakeTuple([Cast(Ref(elt, tint32), tint64), Ref(elt, tint32)]))
+
     @typecheck_method(start=IR, stop=IR, step=IR)
     def copy(self, start, stop, step):
         return StreamRange(start, stop, step, error_id=self._error_id, stack_trace=self._stack_trace)
@@ -688,11 +732,11 @@ class StreamRange(IR):
     def head_str(self):
         return f'{self._error_id} {self.requires_memory_management_per_element}'
 
-    def _compute_type(self, env, agg_env):
-        self.start._compute_type(env, agg_env)
-        self.stop._compute_type(env, agg_env)
-        self.step._compute_type(env, agg_env)
-        self._type = tstream(tint32)
+    def _compute_type(self, env, agg_env, deep_typecheck):
+        self.start.compute_type(env, agg_env, deep_typecheck)
+        self.stop.compute_type(env, agg_env, deep_typecheck)
+        self.step.compute_type(env, agg_env, deep_typecheck)
+        return tstream(tint32)
 
 
 class StreamGrouped(IR):
@@ -702,13 +746,17 @@ class StreamGrouped(IR):
         self.stream = stream
         self.group_size = group_size
 
+    def _handle_randomness(self, create_uids):
+        assert(not create_uids)
+        self.stream.handle_randomness(False)
+
     @typecheck_method(stream=IR, group_size=IR)
     def copy(self, stream=IR, group_size=IR):
         return StreamGrouped(stream, group_size)
 
-    def _compute_type(self, env, agg_env):
-        self.stream._compute_type(env, agg_env)
-        self._type = tstream(self.stream._type)
+    def _compute_type(self, env, agg_env, deep_typecheck):
+        self.stream.compute_type(env, agg_env, deep_typecheck)
+        return tstream(self.stream.typ)
 
 
 class MakeNDArray(IR):
@@ -728,11 +776,11 @@ class MakeNDArray(IR):
     def copy(self, data, shape, row_major):
         return MakeNDArray(data, shape, row_major, self._error_id, self._stack_trace)
 
-    def _compute_type(self, env, agg_env):
-        self.data._compute_type(env, agg_env)
-        self.shape._compute_type(env, agg_env)
-        self.row_major._compute_type(env, agg_env)
-        self._type = tndarray(self.data.typ.element_type, len(self.shape.typ))
+    def _compute_type(self, env, agg_env, deep_typecheck):
+        self.data.compute_type(env, agg_env, deep_typecheck)
+        self.shape.compute_type(env, agg_env, deep_typecheck)
+        self.row_major.compute_type(env, agg_env, deep_typecheck)
+        return tndarray(self.data.typ.element_type, len(self.shape.typ))
 
     def head_str(self):
         return f'{self._error_id}'
@@ -748,9 +796,9 @@ class NDArrayShape(IR):
     def copy(self, nd):
         return NDArrayShape(nd)
 
-    def _compute_type(self, env, agg_env):
-        self.nd._compute_type(env, agg_env)
-        self._type = ttuple(*[tint64 for _ in range(self.nd.typ.ndim)])
+    def _compute_type(self, env, agg_env, deep_typecheck):
+        self.nd.compute_type(env, agg_env, deep_typecheck)
+        return ttuple(*[tint64 for _ in range(self.nd.typ.ndim)])
 
 
 class NDArrayReshape(IR):
@@ -770,10 +818,10 @@ class NDArrayReshape(IR):
     def head_str(self):
         return str(self._error_id)
 
-    def _compute_type(self, env, agg_env):
-        self.nd._compute_type(env, agg_env)
-        self.shape._compute_type(env, agg_env)
-        self._type = tndarray(self.nd.typ.element_type, len(self.shape.typ))
+    def _compute_type(self, env, agg_env, deep_typecheck):
+        self.nd.compute_type(env, agg_env, deep_typecheck)
+        self.shape.compute_type(env, agg_env, deep_typecheck)
+        return tndarray(self.nd.typ.element_type, len(self.shape.typ))
 
 
 class NDArrayMap(IR):
@@ -798,10 +846,10 @@ class NDArrayMap(IR):
     def bound_variables(self):
         return {self.name} | super().bound_variables
 
-    def _compute_type(self, env, agg_env):
-        self.nd._compute_type(env, agg_env)
-        self.body._compute_type(_env_bind(env, self.bindings(1)), agg_env)
-        self._type = tndarray(self.body.typ, self.nd.typ.ndim)
+    def _compute_type(self, env, agg_env, deep_typecheck):
+        self.nd.compute_type(env, agg_env, deep_typecheck)
+        self.body.compute_type(_env_bind(env, self.bindings(1)), agg_env, deep_typecheck)
+        return tndarray(self.body.typ, self.nd.typ.ndim)
 
     def renderable_bindings(self, i, default_value=None):
         if i == 1:
@@ -843,11 +891,11 @@ class NDArrayMap2(IR):
     def bound_variables(self):
         return {self.lname, self.rname} | super().bound_variables
 
-    def _compute_type(self, env, agg_env):
-        self.left._compute_type(env, agg_env)
-        self.right._compute_type(env, agg_env)
-        self.body._compute_type(_env_bind(env, self.bindings(2)), agg_env)
-        self._type = tndarray(self.body.typ, self.left.typ.ndim)
+    def _compute_type(self, env, agg_env, deep_typecheck):
+        self.left.compute_type(env, agg_env, deep_typecheck)
+        self.right.compute_type(env, agg_env, deep_typecheck)
+        self.body.compute_type(_env_bind(env, self.bindings(2)), agg_env, deep_typecheck)
+        return tndarray(self.body.typ, self.left.typ.ndim)
 
     def renderable_bindings(self, i, default_value=None):
         if i == 2:
@@ -876,10 +924,10 @@ class NDArrayRef(IR):
     def head_str(self):
         return str(self._error_id)
 
-    def _compute_type(self, env, agg_env):
-        self.nd._compute_type(env, agg_env)
-        [idx._compute_type(env, agg_env) for idx in self.idxs]
-        self._type = self.nd.typ.element_type
+    def _compute_type(self, env, agg_env, deep_typecheck):
+        self.nd.compute_type(env, agg_env, deep_typecheck)
+        [idx.compute_type(env, agg_env, deep_typecheck) for idx in self.idxs]
+        return self.nd.typ.element_type
 
 
 class NDArraySlice(IR):
@@ -892,12 +940,12 @@ class NDArraySlice(IR):
     def copy(self, nd, slices):
         return NDArraySlice(nd, slices)
 
-    def _compute_type(self, env, agg_env):
-        self.nd._compute_type(env, agg_env)
-        self.slices._compute_type(env, agg_env)
+    def _compute_type(self, env, agg_env, deep_typecheck):
+        self.nd.compute_type(env, agg_env, deep_typecheck)
+        self.slices.compute_type(env, agg_env, deep_typecheck)
 
-        self._type = tndarray(self.nd.typ.element_type,
-                              len([t for t in self.slices.typ.types if isinstance(t, ttuple)]))
+        return tndarray(self.nd.typ.element_type,
+                        len([t for t in self.slices.typ.types if isinstance(t, ttuple)]))
 
 
 class NDArrayReindex(IR):
@@ -914,15 +962,15 @@ class NDArrayReindex(IR):
     def head_str(self):
         return f'({" ".join([str(i) for i in self.idx_expr])})'
 
-    def _compute_type(self, env, agg_env):
-        self.nd._compute_type(env, agg_env)
+    def _compute_type(self, env, agg_env, deep_typecheck):
+        self.nd.compute_type(env, agg_env, deep_typecheck)
         n_input_dims = self.nd.typ.ndim
         n_output_dims = len(self.idx_expr)
         assert n_input_dims <= n_output_dims
         assert all([i < n_output_dims for i in self.idx_expr])
         assert all([i in self.idx_expr for i in range(n_output_dims)])
 
-        self._type = tndarray(self.nd.typ.element_type, n_output_dims)
+        return tndarray(self.nd.typ.element_type, n_output_dims)
 
 
 class NDArrayAgg(IR):
@@ -939,12 +987,12 @@ class NDArrayAgg(IR):
     def head_str(self):
         return f'({" ".join([str(i) for i in self.axes])})'
 
-    def _compute_type(self, env, agg_env):
-        self.nd._compute_type(env, agg_env)
+    def _compute_type(self, env, agg_env, deep_typecheck):
+        self.nd.compute_type(env, agg_env, deep_typecheck)
         assert len(set(self.axes)) == len(self.axes)
         assert all([axis < self.nd.typ.ndim for axis in self.axes])
 
-        self._type = tndarray(self.nd.typ.element_type, self.nd.typ.ndim - len(self.axes))
+        return tndarray(self.nd.typ.element_type, self.nd.typ.ndim - len(self.axes))
 
 
 class NDArrayMatMul(IR):
@@ -965,14 +1013,14 @@ class NDArrayMatMul(IR):
     def head_str(self):
         return str(self._error_id)
 
-    def _compute_type(self, env, agg_env):
-        self.left._compute_type(env, agg_env)
-        self.right._compute_type(env, agg_env)
+    def _compute_type(self, env, agg_env, deep_typecheck):
+        self.left.compute_type(env, agg_env, deep_typecheck)
+        self.right.compute_type(env, agg_env, deep_typecheck)
 
         ndim = hail.linalg.utils.misc._ndarray_matmul_ndim(self.left.typ.ndim, self.right.typ.ndim)
         from hail.expr.expressions import unify_types
-        self._type = tndarray(unify_types(self.left.typ.element_type,
-                                          self.right.typ.element_type), ndim)
+        return tndarray(unify_types(self.left.typ.element_type,
+                                    self.right.typ.element_type), ndim)
 
 
 class NDArrayQR(IR):
@@ -992,15 +1040,15 @@ class NDArrayQR(IR):
     def head_str(self):
         return f'{self._error_id} "{self.mode}"'
 
-    def _compute_type(self, env, agg_env):
-        self.nd._compute_type(env, agg_env)
+    def _compute_type(self, env, agg_env, deep_typecheck):
+        self.nd.compute_type(env, agg_env, deep_typecheck)
 
         if self.mode in ["complete", "reduced"]:
-            self._type = ttuple(tndarray(tfloat64, 2), tndarray(tfloat64, 2))
+            return ttuple(tndarray(tfloat64, 2), tndarray(tfloat64, 2))
         elif self.mode == "raw":
-            self._type = ttuple(tndarray(tfloat64, 2), tndarray(tfloat64, 1))
+            return ttuple(tndarray(tfloat64, 2), tndarray(tfloat64, 1))
         elif self.mode == "r":
-            self._type = tndarray(tfloat64, 2)
+            return tndarray(tfloat64, 2)
         else:
             raise ValueError("Cannot compute type for mode: " + self.mode)
 
@@ -1023,12 +1071,12 @@ class NDArraySVD(IR):
     def head_str(self):
         return f'{self._error_id} {self.full_matrices} {self.compute_uv}'
 
-    def _compute_type(self, env, agg_env):
-        self.nd._compute_type(env, agg_env)
+    def _compute_type(self, env, agg_env, deep_typecheck):
+        self.nd.compute_type(env, agg_env, deep_typecheck)
         if self.compute_uv:
-            self._type = ttuple(tndarray(tfloat64, 2), tndarray(tfloat64, 1), tndarray(tfloat64, 2))
+            return ttuple(tndarray(tfloat64, 2), tndarray(tfloat64, 1), tndarray(tfloat64, 2))
         else:
-            self._type = tndarray(tfloat64, 1)
+            return tndarray(tfloat64, 1)
 
 
 class NDArrayInv(IR):
@@ -1047,9 +1095,9 @@ class NDArrayInv(IR):
     def head_str(self):
         return str(self._error_id)
 
-    def _compute_type(self, env, agg_env):
-        self.nd._compute_type(env, agg_env)
-        self._type = tndarray(tfloat64, 2)
+    def _compute_type(self, env, agg_env, deep_typecheck):
+        self.nd.compute_type(env, agg_env, deep_typecheck)
+        return tndarray(tfloat64, 2)
 
 
 class NDArrayConcat(IR):
@@ -1069,10 +1117,10 @@ class NDArrayConcat(IR):
         return other.nds == self.nds and \
             other.axis == self.axis
 
-    def _compute_type(self, env, agg_env):
-        self.nds._compute_type(env, agg_env)
+    def _compute_type(self, env, agg_env, deep_typecheck):
+        self.nds.compute_type(env, agg_env, deep_typecheck)
 
-        self._type = self.nds.typ.element_type
+        return self.nds.typ.element_type
 
 
 class NDArrayWrite(IR):
@@ -1086,10 +1134,10 @@ class NDArrayWrite(IR):
     def copy(self, nd, path):
         return NDArrayWrite(nd, path)
 
-    def _compute_type(self, env, agg_env):
-        self.nd._compute_type(env, agg_env)
-        self.path._compute_type(env, agg_env)
-        self._type = tvoid
+    def _compute_type(self, env, agg_env, deep_typecheck):
+        self.nd.compute_type(env, agg_env, deep_typecheck)
+        self.path.compute_type(env, agg_env, deep_typecheck)
+        return tvoid
 
     @staticmethod
     def is_effectful() -> bool:
@@ -1119,9 +1167,9 @@ class ArraySort(IR):
     def _eq(self, other):
         return other.l_name == self.l_name and other.r_name == self.r_name
 
-    def _compute_type(self, env, agg_env):
-        self.a._compute_type(env, agg_env)
-        self._type = tarray(self.a.typ.element_type)
+    def _compute_type(self, env, agg_env, deep_typecheck):
+        self.a.compute_type(env, agg_env, deep_typecheck)
+        return tarray(self.a.typ.element_type)
 
     def renderable_bindings(self, i, default_value=None):
         if i == 1:
@@ -1144,9 +1192,9 @@ class ToSet(IR):
     def copy(self, a):
         return ToSet(a)
 
-    def _compute_type(self, env, agg_env):
-        self.a._compute_type(env, agg_env)
-        self._type = tset(self.a.typ.element_type)
+    def _compute_type(self, env, agg_env, deep_typecheck):
+        self.a.compute_type(env, agg_env, deep_typecheck)
+        return tset(self.a.typ.element_type)
 
 
 class ToDict(IR):
@@ -1159,14 +1207,16 @@ class ToDict(IR):
     def copy(self, a):
         return ToDict(a)
 
-    def _compute_type(self, env, agg_env):
-        self.a._compute_type(env, agg_env)
-        self._type = tdict(self.a.typ['key'], self.a.typ['value'])
+    def _compute_type(self, env, agg_env, deep_typecheck):
+        self.a.compute_type(env, agg_env, deep_typecheck)
+        return tdict(self.a.typ['key'], self.a.typ['value'])
 
 
 class ToArray(IR):
     @typecheck_method(a=IR)
     def __init__(self, a):
+        if a.uses_randomness:
+            a = a.handle_randomness(False)
         super().__init__(a)
         self.a = a
 
@@ -1174,9 +1224,9 @@ class ToArray(IR):
     def copy(self, a):
         return ToArray(a)
 
-    def _compute_type(self, env, agg_env):
-        self.a._compute_type(env, agg_env)
-        self._type = tarray(self.a.typ.element_type)
+    def _compute_type(self, env, agg_env, deep_typecheck):
+        self.a.compute_type(env, agg_env, deep_typecheck)
+        return tarray(self.a.typ.element_type)
 
 
 class CastToArray(IR):
@@ -1189,9 +1239,9 @@ class CastToArray(IR):
     def copy(self, a):
         return CastToArray(a)
 
-    def _compute_type(self, env, agg_env):
-        self.a._compute_type(env, agg_env)
-        self._type = tarray(self.a.typ.element_type)
+    def _compute_type(self, env, agg_env, deep_typecheck):
+        self.a.compute_type(env, agg_env, deep_typecheck)
+        return tarray(self.a.typ.element_type)
 
 
 class ToStream(IR):
@@ -1201,6 +1251,14 @@ class ToStream(IR):
         self.a = a
         self.requires_memory_management_per_element = requires_memory_management_per_element
 
+    def _handle_randomness(self, create_uids):
+        if not create_uids:
+            return self
+        uid = Env.get_uid()
+        elt = Env.get_uid()
+        iota = StreamIota(I32(0), I32(1))
+        return StreamZip([self, iota], [elt, uid], MakeTuple([Cast(Ref(uid, tint32), tint64), Ref(elt, self.typ.element_type)]), 'TakeMinLength')
+
     @typecheck_method(a=IR)
     def copy(self, a):
         return ToStream(a)
@@ -1208,9 +1266,9 @@ class ToStream(IR):
     def head_str(self):
         return self.requires_memory_management_per_element
 
-    def _compute_type(self, env, agg_env):
-        self.a._compute_type(env, agg_env)
-        self._type = tstream(self.a.typ.element_type)
+    def _compute_type(self, env, agg_env, deep_typecheck):
+        self.a.compute_type(env, agg_env, deep_typecheck)
+        return tstream(self.a.typ.element_type)
 
 
 class LowerBoundOnOrderedCollection(IR):
@@ -1228,10 +1286,10 @@ class LowerBoundOnOrderedCollection(IR):
     def head_str(self):
         return self.on_key
 
-    def _compute_type(self, env, agg_env):
-        self.ordered_collection._compute_type(env, agg_env)
-        self.elem._compute_type(env, agg_env)
-        self._type = tint32
+    def _compute_type(self, env, agg_env, deep_typecheck):
+        self.ordered_collection.compute_type(env, agg_env, deep_typecheck)
+        self.elem.compute_type(env, agg_env, deep_typecheck)
+        return tint32
 
 
 class GroupByKey(IR):
@@ -1244,10 +1302,103 @@ class GroupByKey(IR):
     def copy(self, collection):
         return GroupByKey(collection)
 
-    def _compute_type(self, env, agg_env):
-        self.collection._compute_type(env, agg_env)
-        self._type = tdict(self.collection.typ.element_type.types[0],
-                           tarray(self.collection.typ.element_type.types[1]))
+    def _compute_type(self, env, agg_env, deep_typecheck):
+        self.collection.compute_type(env, agg_env, deep_typecheck)
+        return tdict(self.collection.typ.element_type.types[0],
+                     tarray(self.collection.typ.element_type.types[1]))
+
+
+static_split_ctr = 0
+uid_field_name = '__uid'
+
+
+def get_static_split_uid():
+    global static_split_ctr
+    result = static_split_ctr
+    assert(result <= 0xFFFF_FFFF_FFFF_FFFF)
+    static_split_ctr += 1
+    return result
+
+
+def uid_size(type):
+    if isinstance(type, ttuple):
+        return len(type)
+    return 1
+
+
+def unify_uid_types(types, tag=False):
+    size = max(uid_size(type) for type in types)
+    if tag:
+        size += 1
+    if size == 1:
+        return tint64
+    return ttuple(tint64 for _ in range(size))
+
+
+def pad_uid(uid, type, tag=None):
+    size = uid_size(uid.typ)
+    padded = uid_size(type)
+    padding = padded - size
+    if tag is not None:
+        padding -= 1
+    assert(padding >= 0)
+    if size == 1:
+        fields = (uid,)
+    else:
+        fields = (GetTupleElement(uid, i) for i in range(size))
+    if tag is None:
+        tuple = MakeTuple([*(I64(0) for _ in range(padding)), *fields])
+    else:
+        tuple = MakeTuple([I64(tag), *(I64(0) for _ in range(padding)), *fields])
+    return If(IsNA(uid), NA(tuple.typ), tuple)
+
+
+def concat_uids(uid1, uid2, handle_missing_left=False, handle_missing_right=False):
+    size1 = uid_size(uid1)
+    if size1 == 1:
+        fields1 = (uid1,)
+    else:
+        fields1 = (GetTupleElement(uid1, i) for i in range(size1))
+    if handle_missing_left:
+        fields1 = (Coalesce(field, I64(0)) for field in fields1)
+    size2 = uid_size(uid2)
+    if size2 == 1:
+        fields2 = (uid2,)
+    else:
+        fields2 = (GetTupleElement(uid2, i) for i in range(size2))
+    if handle_missing_right:
+        fields2 = (Coalesce(field, I64(0)) for field in fields2)
+    tuple = MakeTuple([*fields1, *fields2])
+    return If(Apply("lor", tbool, IsNA(uid1), IsNA(uid2)), NA(tuple.typ), tuple)
+
+
+def unpack_uid(stream_type):
+    tuple_type = stream_type.element_type
+    tuple = Ref(Env.get_uid(), tuple_type)
+    if isinstance(tuple_type, tstruct):
+        return \
+            tuple.name, \
+            GetField(tuple, uid_field_name), \
+            SelectFields(tuple, [field for field in tuple_type.fields if
+                                 not field == uid_field_name])
+    else:
+        return tuple.name, GetTupleElement(tuple, 0), GetTupleElement(tuple, 1)
+
+
+def pack_uid(uid, elt):
+    if isinstance(elt.typ, tstruct):
+        return InsertFields(elt, [uid_field_name, uid])
+    else:
+        return MakeTuple([uid, elt])
+
+
+def with_split_rng_state(ir, split, is_scan=None) -> 'BaseIR':
+    ref = Ref('__rng_state', trngstate)
+    new_state = RNGSplit(ref, split)
+    if is_scan is None:
+        return Let('__rng_state', new_state, ir)
+    else:
+        return AggLet('__rng_state', new_state, ir, is_scan)
 
 
 class StreamMap(IR):
@@ -1257,6 +1408,29 @@ class StreamMap(IR):
         self.a = a
         self.name = name
         self.body = body
+
+    def _handle_randomness(self, create_uids):
+        if not self.body.uses_randomness and not create_uids:
+            a = self.a.handle_randomness(False)
+            return StreamMap(a, self.name, self.body)
+
+        if isinstance(self.typ.element_type, tstream):
+            assert(self.body.uses_randomness and not create_uids)
+            a = self.a.handle_randomness(False)
+            uid = Env.get_uid()
+            elt = Env.get_uid()
+            new_body = with_split_rng_state(Let(self.name, elt, self.body, uid))
+            return StreamZip([a, StreamIota(I32(0), I32(1))], [elt, uid], new_body, 'TakeMinLength')
+
+        a = self.a.handle_randomness(True)
+
+        tuple, uid, elt = unpack_uid(a.typ)
+        new_body = Let(self.name, elt, self.body)
+        if self.body.uses_randomness:
+            new_body = with_split_rng_state(new_body, uid)
+        if create_uids:
+            new_body = pack_uid(uid, new_body)
+        return StreamMap(a, tuple, new_body)
 
     @typecheck_method(a=IR, body=IR)
     def copy(self, a, body):
@@ -1272,10 +1446,10 @@ class StreamMap(IR):
     def bound_variables(self):
         return {self.name} | super().bound_variables
 
-    def _compute_type(self, env, agg_env):
-        self.a._compute_type(env, agg_env)
-        self.body._compute_type(_env_bind(env, self.bindings(1)), agg_env)
-        self._type = tstream(self.body.typ)
+    def _compute_type(self, env, agg_env, deep_typecheck):
+        self.a.compute_type(env, agg_env, deep_typecheck)
+        self.body.compute_type(_env_bind(env, self.bindings(1)), agg_env, deep_typecheck)
+        return tstream(self.body.typ)
 
     def renderable_bindings(self, i, default_value=None):
         if i == 1:
@@ -1302,6 +1476,34 @@ class StreamZip(IR):
         if error_id is None or stack_trace is None:
             self.save_error_info()
 
+    def _handle_randomness(self, create_uids):
+        if not self.body.uses_randomness and not create_uids:
+            new_streams = [stream.handle_randomness(False) for stream in self.streams]
+            return StreamZip(new_streams, self.names, self.body, self.behavior, self._error_id, self._stack_trace)
+
+        if self.behavior == 'ExtendNA':
+            new_streams = [stream.handle_randomness(True) for stream in self.streams]
+            tuples, uids, elts = zip(*(unpack_uid(stream.typ) for stream in new_streams))
+            uid_type = unify_uid_types(uid.typ for uid in uids)
+            uid = Coalesce(If(IsNA(uid), NA(uid_type), pad_uid(uid, uid_type, i)) for i, uid in enumerate(uids))
+            new_body = self.body
+            for elt, name in zip(elts, self.names):
+                new_body = Let(name, elt, new_body)
+            if self.body.uses_randomness:
+                new_body = with_split_rng_state(new_body, uid)
+            if create_uids:
+                pack_uid(uid, new_body)
+            return StreamZip(new_streams, tuples, new_body, self.behavior, self._error_id, self._stack_trace)
+
+        new_streams = [self.streams[0].handle_randomness(True), *(stream.handle_randomness(False) for stream in self.streams[1:])]
+        tuple, uid, elt = unpack_uid(self.streams[0].typ)
+        new_body = Let(self.names[0], elt, self.body)
+        if self.body.uses_randomness:
+            new_body = with_split_rng_state(new_body, uid)
+        if create_uids:
+            pack_uid(uid, new_body)
+        return StreamZip(new_streams, [tuple, *self.names[1:]], new_body, self.behavior, self._error_id, self._stack_trace)
+
     @typecheck_method(children=IR)
     def copy(self, *children):
         return StreamZip(children[:-1], self.names, children[-1], self.behavior, self._error_id, self._stack_trace)
@@ -1316,11 +1518,11 @@ class StreamZip(IR):
     def bound_variables(self):
         return set(self.names) | super().bound_variables
 
-    def _compute_type(self, env, agg_env):
+    def _compute_type(self, env, agg_env, deep_typecheck):
         for a in self.streams:
-            a._compute_type(env, agg_env)
-        self.body._compute_type(_env_bind(env, self.bindings(len(self.names))), agg_env)
-        self._type = tstream(self.body.typ)
+            a.compute_type(env, agg_env, deep_typecheck)
+        self.body.compute_type(_env_bind(env, self.bindings(len(self.names))), agg_env, deep_typecheck)
+        return tstream(self.body.typ)
 
     def renderable_bindings(self, i, default_value=None):
         if i == len(self.names):
@@ -1337,6 +1539,21 @@ class StreamFilter(IR):
         self.name = name
         self.body = body
 
+    def _handle_randomness(self, create_uids):
+        if not self.body.uses_randomness and not create_uids:
+            a = self.a.handle_randomness(False)
+            return StreamFilter(a, self.name, self.body)
+
+        a = self.a.handle_randomness(True)
+        tuple, uid, elt = unpack_uid(a.typ)
+        new_body = Let(self.name, elt, self.body)
+        if self.body.uses_randomness:
+            new_body = with_split_rng_state(new_body, uid)
+        result = StreamFilter(a, tuple, new_body)
+        if not create_uids:
+            result = StreamMap(result, tuple, elt)
+        return result
+
     @typecheck_method(a=IR, body=IR)
     def copy(self, a, body):
         return StreamFilter(a, self.name, body)
@@ -1351,10 +1568,10 @@ class StreamFilter(IR):
     def bound_variables(self):
         return {self.name} | super().bound_variables
 
-    def _compute_type(self, env, agg_env):
-        self.a._compute_type(env, agg_env)
-        self.body._compute_type(_env_bind(env, self.bindings(1)), agg_env)
-        self._type = self.a.typ
+    def _compute_type(self, env, agg_env, deep_typecheck):
+        self.a.compute_type(env, agg_env, deep_typecheck)
+        self.body.compute_type(_env_bind(env, self.bindings(1)), agg_env, deep_typecheck)
+        return self.a.typ
 
     def renderable_bindings(self, i, default_value=None):
         if i == 1:
@@ -1375,6 +1592,23 @@ class StreamFlatMap(IR):
         self.name = name
         self.body = body
 
+    def _handle_randomness(self, create_uids):
+        if not self.body.uses_randomness and not create_uids:
+            a = self.a.handle_randomness(False)
+            return StreamFlatMap(a, self.name, self.body)
+
+        a = self.a.handle_randomness(True)
+        tuple, uid, elt = unpack_uid(a.typ)
+        new_body = Let(self.name, elt, self.body)
+        new_body = new_body.handle_randomness(create_uids)
+        if create_uids:
+            tuple2, uid2, elt2 = unpack_uid(new_body.typ)
+            combined_uid = MakeTuple([uid, uid2])
+            new_body = StreamMap(new_body, tuple2, pack_uid(combined_uid, elt2))
+        if self.body.uses_randomness:
+            new_body = with_split_rng_state(new_body, uid)
+        return StreamFlatMap(a, tuple, new_body)
+
     @typecheck_method(a=IR, body=IR)
     def copy(self, a, body):
         return StreamFlatMap(a, self.name, body)
@@ -1389,10 +1623,10 @@ class StreamFlatMap(IR):
     def bound_variables(self):
         return {self.name} | super().bound_variables
 
-    def _compute_type(self, env, agg_env):
-        self.a._compute_type(env, agg_env)
-        self.body._compute_type(_env_bind(env, self.bindings(1)), agg_env)
-        self._type = tstream(self.body.typ.element_type)
+    def _compute_type(self, env, agg_env, deep_typecheck):
+        self.a.compute_type(env, agg_env, deep_typecheck)
+        self.body.compute_type(_env_bind(env, self.bindings(1)), agg_env, deep_typecheck)
+        return tstream(self.body.typ.element_type)
 
     def renderable_bindings(self, i, default_value=None):
         if i == 1:
@@ -1407,6 +1641,14 @@ class StreamFlatMap(IR):
 class StreamFold(IR):
     @typecheck_method(a=IR, zero=IR, accum_name=str, value_name=str, body=IR)
     def __init__(self, a, zero, accum_name, value_name, body):
+        if a.uses_randomness or body.uses_randomness:
+            a = a.handle_randomness(create_uids=body.uses_randomness)
+        if body.uses_randomness:
+            tuple, uid, elt = unpack_uid(a.typ)
+            body = Let(value_name, elt, body)
+            body = with_split_rng_state(body, uid)
+            value_name = tuple
+
         super().__init__(a, zero, body)
         self.a = a
         self.zero = zero
@@ -1429,11 +1671,11 @@ class StreamFold(IR):
     def bound_variables(self):
         return {self.accum_name, self.value_name} | super().bound_variables
 
-    def _compute_type(self, env, agg_env):
-        self.a._compute_type(env, agg_env)
-        self.zero._compute_type(env, agg_env)
-        self.body._compute_type(_env_bind(env, self.bindings(2)), agg_env)
-        self._type = self.zero.typ
+    def _compute_type(self, env, agg_env, deep_typecheck):
+        self.a.compute_type(env, agg_env, deep_typecheck)
+        self.zero.compute_type(env, agg_env, deep_typecheck)
+        self.body.compute_type(_env_bind(env, self.bindings(2)), agg_env, deep_typecheck)
+        return self.zero.typ
 
     def renderable_bindings(self, i, default_value=None):
         if i == 2:
@@ -1455,6 +1697,20 @@ class StreamScan(IR):
         self.value_name = value_name
         self.body = body
 
+    def _handle_randomness(self, create_uids):
+        if not self.body.uses_randomness and not create_uids:
+            a = self.a.handle_randomness(False)
+            return StreamScan(a, self.zero, self.accum_name, self.value_name, self.body)
+
+        a = self.a.handle_randomness(True)
+        tuple, uid, elt = unpack_uid(a.typ)
+        new_body = Let(self.name, elt, self.body)
+        if self.body.uses_randomness:
+            new_body = with_split_rng_state(new_body, uid)
+        if create_uids:
+            new_body = pack_uid(uid, new_body)
+        return StreamScan(a, self.zero, self.accum_name, tuple, new_body)
+
     @typecheck_method(a=IR, zero=IR, body=IR)
     def copy(self, a, zero, body):
         return StreamScan(a, zero, self.accum_name, self.value_name, body)
@@ -1470,11 +1726,11 @@ class StreamScan(IR):
     def bound_variables(self):
         return {self.accum_name, self.value_name} | super().bound_variables
 
-    def _compute_type(self, env, agg_env):
-        self.a._compute_type(env, agg_env)
-        self.zero._compute_type(env, agg_env)
-        self.body._compute_type(_env_bind(env, self.bindings(2)), agg_env)
-        self._type = tstream(self.body.typ)
+    def _compute_type(self, env, agg_env, deep_typecheck):
+        self.a.compute_type(env, agg_env, deep_typecheck)
+        self.zero.compute_type(env, agg_env, deep_typecheck)
+        self.body.compute_type(_env_bind(env, self.bindings(2)), agg_env, deep_typecheck)
+        return tstream(self.body.typ)
 
     def renderable_bindings(self, i, default_value=None):
         if i == 2:
@@ -1498,6 +1754,41 @@ class StreamJoinRightDistinct(IR):
         self.r_name = r_name
         self.join = join
         self.join_type = join_type
+
+    def _handle_randomness(self, create_uids):
+        if not self.join.uses_randomness and not create_uids:
+            if self.left.uses_randomness:
+                left = self.left.handle_randomness(False)
+            if self.right.uses_randomness:
+                right = self.right.handle_randomness(False)
+            return StreamJoinRightDistinct(left, right, self.l_key, self.r_key, self.l_name, self.r_name, self.join, self.join_type)
+
+        if self.join_type == 'left' or self.join_type == 'inner':
+            left = self.left.handle_randomness(True)
+            if self.right.uses_randomness:
+                right = self.right.handle_randomness(False)
+            r_name = self.r_name
+            l_name, uid, l_elt = unpack_uid(left.typ)
+            new_join = Let(self.l_name, l_elt, self.join)
+        elif self.join_type == 'right':
+            right = self.right.handle_randomness(True)
+            if self.left.uses_randomness:
+                left = self.left.handle_randomness(False)
+            l_name = self.l_name
+            r_name, uid, r_elt = unpack_uid(right.typ)
+            new_join = Let(self.r_name, r_elt, self.join)
+        else:
+            left = self.left.handle_randomness(True)
+            right = self.right.handle_randomness(True)
+            [l_name, r_name], uids, elts = zip(*(unpack_uid(left.typ), unpack_uid(right.typ)))
+            uid_type = unify_uid_types((uid.typ for uid in uids), tag=True)
+            uid = If(IsNA(uids[0]), pad_uid(uids[1], uid_type, 1), pad_uid(uids[0], uid_type, 0))
+            new_join = Let(self.l_name, elts[0], Let(self.r_name, elts[1], self.join))
+        if self.join.uses_randomness:
+            new_join = with_split_rng_state(new_join, uid)
+        if create_uids:
+            new_join = pack_uid(uid, new_join)
+        return StreamJoinRightDistinct(left, right, self.l_key, self.r_key, l_name, r_name, new_join, self.join_type)
 
     @typecheck_method(left=IR, right=IR, join=IR)
     def copy(self, left, right, join):
@@ -1535,6 +1826,15 @@ class StreamJoinRightDistinct(IR):
 class StreamFor(IR):
     @typecheck_method(a=IR, value_name=str, body=IR)
     def __init__(self, a, value_name, body):
+        if body.uses_randomness:
+            a = a.handle_randomness(True)
+            tuple, uid, elt = unpack_uid(a.typ)
+            body = Let(value_name, elt, body)
+            body = with_split_rng_state(body, uid)
+            value_name = tuple
+        elif a.uses_randomness:
+            a = a.handle_randomness(False)
+
         super().__init__(a, body)
         self.a = a
         self.value_name = value_name
@@ -1554,10 +1854,10 @@ class StreamFor(IR):
     def bound_variables(self):
         return {self.value_name} | super().bound_variables
 
-    def _compute_type(self, env, agg_env):
-        self.a._compute_type(env, agg_env)
-        self.body._compute_type(_env_bind(env, self.bindings(1)), agg_env)
-        self._type = tvoid
+    def _compute_type(self, env, agg_env, deep_typecheck):
+        self.a.compute_type(env, agg_env, deep_typecheck)
+        self.body.compute_type(_env_bind(env, self.bindings(1)), agg_env, deep_typecheck)
+        return tvoid
 
     def renderable_bindings(self, i, default_value=None):
         if i == 1:
@@ -1588,10 +1888,10 @@ class AggFilter(IR):
     def _eq(self, other):
         return self.is_scan == other.is_scan
 
-    def _compute_type(self, env, agg_env):
-        self.cond._compute_type(agg_env, None)
-        self.agg_ir._compute_type(env, agg_env)
-        self._type = self.agg_ir.typ
+    def _compute_type(self, env, agg_env, deep_typecheck):
+        self.cond.compute_type(agg_env, None, deep_typecheck)
+        self.agg_ir.compute_type(env, agg_env, deep_typecheck)
+        return self.agg_ir.typ
 
     def renderable_uses_agg_context(self, i: int):
         return i == 0 and not self.is_scan
@@ -1613,6 +1913,14 @@ class AggFilter(IR):
 class AggExplode(IR):
     @typecheck_method(s=IR, name=str, agg_body=IR, is_scan=bool)
     def __init__(self, s, name, agg_body, is_scan):
+        if s.uses_randomness or agg_body.uses_agg_randomness(is_scan):
+            if agg_body.uses_agg_randomness(is_scan):
+                s = s.handle_randomness(True)
+                tuple, uid, elt = unpack_uid(s.typ)
+                agg_body = Let(self.name, elt, agg_body)
+                agg_body = with_split_rng_state(agg_body, uid, is_scan)
+            else:
+                s = s.handle_randomness(False)
         super().__init__(s, agg_body)
         self.name = name
         self.s = s
@@ -1633,10 +1941,10 @@ class AggExplode(IR):
     def bound_variables(self):
         return {self.name} | super().bound_variables
 
-    def _compute_type(self, env, agg_env):
-        self.s._compute_type(agg_env, None)
-        self.agg_body._compute_type(env, _env_bind(agg_env, self.agg_bindings(1)))
-        self._type = self.agg_body.typ
+    def _compute_type(self, env, agg_env, deep_typecheck):
+        self.s.compute_type(agg_env, None, deep_typecheck)
+        self.agg_body.compute_type(env, _env_bind(agg_env, self.agg_bindings(1)), deep_typecheck)
+        return self.agg_body.typ
 
     def renderable_bindings(self, i, default_value=None):
         if i == 1:
@@ -1686,10 +1994,10 @@ class AggGroupBy(IR):
     def _eq(self, other):
         return self.is_scan == other.is_scan
 
-    def _compute_type(self, env, agg_env):
-        self.key._compute_type(agg_env, None)
-        self.agg_ir._compute_type(env, agg_env)
-        self._type = tdict(self.key.typ, self.agg_ir.typ)
+    def _compute_type(self, env, agg_env, deep_typecheck):
+        self.key.compute_type(agg_env, None, deep_typecheck)
+        self.agg_ir.compute_type(env, agg_env, deep_typecheck)
+        return tdict(self.key.typ, self.agg_ir.typ)
 
     def renderable_bindings(self, i, default_value=None):
         if i == 1:
@@ -1711,6 +2019,8 @@ class AggGroupBy(IR):
 class AggArrayPerElement(IR):
     @typecheck_method(array=IR, element_name=str, index_name=str, agg_ir=IR, is_scan=bool)
     def __init__(self, array, element_name, index_name, agg_ir, is_scan):
+        if agg_ir.uses_agg_randomness(is_scan):
+            agg_ir = with_split_rng_state(agg_ir, Cast(Ref(index_name, tint32), tint64), is_scan)
         super().__init__(array, agg_ir)
         self.array = array
         self.element_name = element_name
@@ -1728,11 +2038,11 @@ class AggArrayPerElement(IR):
     def _eq(self, other):
         return self.element_name == other.element_name and self.index_name == other.index_name and self.is_scan == other.is_scan
 
-    def _compute_type(self, env, agg_env):
-        self.array._compute_type(agg_env, None)
-        self.agg_ir._compute_type(_env_bind(env, self.bindings(1)),
-                                  _env_bind(agg_env, self.agg_bindings(1)))
-        self._type = tarray(self.agg_ir.typ)
+    def _compute_type(self, env, agg_env, deep_typecheck):
+        self.array.compute_type(agg_env, None, deep_typecheck)
+        self.agg_ir.compute_type(_env_bind(env, self.bindings(1)),
+                                 _env_bind(agg_env, self.agg_bindings(1)), deep_typecheck)
+        return tarray(self.agg_ir.typ)
 
     @property
     def bound_variables(self):
@@ -1841,13 +2151,13 @@ class BaseApplyAggOp(IR):
                            tuple(self.init_op_args),
                            tuple(self.seq_op_args)]))
 
-    def _compute_type(self, env, agg_env):
+    def _compute_type(self, env, agg_env, deep_typecheck):
         for a in self.init_op_args:
-            a._compute_type(env, agg_env)
+            a.compute_type(env, agg_env, deep_typecheck)
         for a in self.seq_op_args:
-            a._compute_type(agg_env, None)
+            a.compute_type(agg_env, None, deep_typecheck)
 
-        self._type = lookup_aggregator_return_type(
+        return lookup_aggregator_return_type(
             self.agg_op,
             [a.typ for a in self.init_op_args],
             [a.typ for a in self.seq_op_args])
@@ -1907,15 +2217,15 @@ class AggFold(IR):
     def head_str(self):
         return f"{self.accum_name} {self.other_accum_name} {self.is_scan}"
 
-    def _compute_type(self, env, agg_env):
-        self.zero._compute_type(env, agg_env)
-        self.seq_op._compute_type(_env_bind(agg_env, self.bindings(1)), None)
-        self.comb_op._compute_type(self.bindings(2), None)
+    def _compute_type(self, env, agg_env, deep_typecheck):
+        self.zero.compute_type(env, agg_env, deep_typecheck)
+        self.seq_op.compute_type(_env_bind(agg_env, self.bindings(1)), None, deep_typecheck)
+        self.comb_op.compute_type(self.bindings(2), None, deep_typecheck)
 
-        assert self.zero._type == self.seq_op._type
-        assert self.zero._type == self.comb_op._type
+        assert self.zero.typ == self.seq_op.typ
+        assert self.zero.typ == self.comb_op.typ
 
-        self._type = self.zero._type
+        return self.zero.typ
 
     def renderable_bindings(self, i: int, default_value=None):
         dict_so_far = {}
@@ -1946,10 +2256,10 @@ class Begin(IR):
     def copy(self, *xs):
         return Begin(xs)
 
-    def _compute_type(self, env, agg_env):
+    def _compute_type(self, env, agg_env, deep_typecheck):
         for x in self.xs:
-            x._compute_type(env, agg_env)
-        self._type = tvoid
+            x.compute_type(env, agg_env, deep_typecheck)
+        return tvoid
 
 
 class MakeStruct(IR):
@@ -1972,10 +2282,10 @@ class MakeStruct(IR):
     def __hash__(self):
         return hash(tuple(self.fields))
 
-    def _compute_type(self, env, agg_env):
+    def _compute_type(self, env, agg_env, deep_typecheck):
         for f, x in self.fields:
-            x._compute_type(env, agg_env)
-        self._type = tstruct(**{f: x.typ for f, x in self.fields})
+            x.compute_type(env, agg_env, deep_typecheck)
+        return tstruct(**{f: x.typ for f, x in self.fields})
 
 
 class SelectFields(IR):
@@ -1995,9 +2305,37 @@ class SelectFields(IR):
     def _eq(self, other):
         return self.fields == other.fields
 
-    def _compute_type(self, env, agg_env):
-        self.old._compute_type(env, agg_env)
-        self._type = self.old.typ._select_fields(self.fields)
+    def _compute_type(self, env, agg_env, deep_typecheck):
+        self.old.compute_type(env, agg_env, deep_typecheck)
+        return self.old.typ._select_fields(self.fields)
+
+
+class SelectedTopLevelReference(SelectFields):
+    @typecheck_method(name=str, type=tstruct)
+    def __init__(self, name, type=None):
+        ref = TopLevelReference(name)
+        super().__init__(ref, type.fields)
+        self.ref = ref
+        self._typ = type
+
+    @property
+    def is_nested_field(self):
+        return True
+
+    def copy(self, ref):
+        if isinstance(ref, TopLevelReference):
+            return SelectedTopLevelReference(ref.name, self.type)
+        else:
+            return SelectFields(ref, self.fields)
+
+    def _ir_name(self):
+        return 'SelectFields'
+
+    def _compute_type(self, env, agg_env, deep_typecheck):
+        if deep_typecheck:
+            self.ref.compute_type(env, agg_env, deep_typecheck)
+            assert(self.ref.typ._select_fields(self._typ.fields) == self._typ)
+        return self._typ
 
 
 class InsertFields(IR):
@@ -2030,12 +2368,13 @@ class InsertFields(IR):
             if v > 1:
                 uid = Env.get_uid()
                 lets.append((uid, k))
-                replacements[k] = uid
+                replacements[k] = (uid, k.typ)
 
         insert_irs = []
         for k, v in fields:
             if isinstance(v, GetField) and v.o in replacements:
-                insert_irs.append((k, GetField(Ref(replacements[v.o]), v.name)))
+                uid, type = replacements[v.o]
+                insert_irs.append((k, GetField(Ref(uid, type), v.name)))
             else:
                 insert_irs.append((k, v))
 
@@ -2072,13 +2411,14 @@ class InsertFields(IR):
     def __hash__(self):
         return hash((self.old, tuple(self.fields), tuple(self.field_order) if self.field_order else None))
 
-    def _compute_type(self, env, agg_env):
-        self.old._compute_type(env, agg_env)
+    def _compute_type(self, env, agg_env, deep_typecheck):
+        self.old.compute_type(env, agg_env, deep_typecheck)
         for f, x in self.fields:
-            x._compute_type(env, agg_env)
-        self._type = self.old.typ._insert_fields(**{f: x.typ for f, x in self.fields})
+            x.compute_type(env, agg_env, deep_typecheck)
+        type = self.old.typ._insert_fields(**{f: x.typ for f, x in self.fields})
         if self.field_order:
-            self._type = tstruct(**{f: self._type[f] for f in self.field_order})
+            type = tstruct(**{f: type[f] for f in self.field_order})
+        return type
 
 
 class GetField(IR):
@@ -2102,9 +2442,38 @@ class GetField(IR):
     def is_nested_field(self):
         return self.o.is_nested_field
 
-    def _compute_type(self, env, agg_env):
-        self.o._compute_type(env, agg_env)
-        self._type = self.o.typ[self.name]
+    def _compute_type(self, env, agg_env, deep_typecheck):
+        self.o.compute_type(env, agg_env, deep_typecheck)
+        return self.o.typ[self.name]
+
+
+class ProjectedTopLevelReference(GetField):
+    @typecheck_method(name=str, field=str, type=HailType)
+    def __init__(self, name, field, type=None):
+        ref = TopLevelReference(name)
+        super().__init__(ref, field)
+        self.ref = ref
+        self.field = field
+        self._typ = type
+
+    @property
+    def is_nested_field(self):
+        return True
+
+    def copy(self, ref):
+        if isinstance(ref, TopLevelReference):
+            return ProjectedTopLevelReference(ref.name, self.field, self._typ)
+        else:
+            return GetField(ref, self.field)
+
+    def _ir_name(self):
+        return 'GetField'
+
+    def _compute_type(self, env, agg_env, deep_typecheck):
+        if deep_typecheck:
+            self.ref.compute_type(env, agg_env, deep_typecheck)
+            assert(self.ref.typ[self.field] == self._typ)
+        return self._typ
 
 
 class MakeTuple(IR):
@@ -2119,10 +2488,10 @@ class MakeTuple(IR):
     def head_str(self):
         return f'({" ".join([str(i) for i in range(len(self.elements))])})'
 
-    def _compute_type(self, env, agg_env):
+    def _compute_type(self, env, agg_env, deep_typecheck):
         for x in self.elements:
-            x._compute_type(env, agg_env)
-        self._type = ttuple(*[x.typ for x in self.elements])
+            x.compute_type(env, agg_env, deep_typecheck)
+        return ttuple(*[x.typ for x in self.elements])
 
 
 class GetTupleElement(IR):
@@ -2142,9 +2511,9 @@ class GetTupleElement(IR):
     def _eq(self, other):
         return self.idx == other.idx
 
-    def _compute_type(self, env, agg_env):
-        self.o._compute_type(env, agg_env)
-        self._type = self.o.typ.types[self.idx]
+    def _compute_type(self, env, agg_env, deep_typecheck):
+        self.o.compute_type(env, agg_env, deep_typecheck)
+        return self.o.typ.types[self.idx]
 
 
 class Die(IR):
@@ -2159,10 +2528,6 @@ class Die(IR):
         if error_id is None or stack_trace is None:
             self.save_error_info()
 
-    @property
-    def typ(self):
-        return self._typ
-
     def copy(self, message):
         return Die(message, self._typ, self._error_id, self._stack_trace)
 
@@ -2172,8 +2537,8 @@ class Die(IR):
     def _eq(self, other):
         return other._typ == self._typ
 
-    def _compute_type(self, env, agg_env):
-        self._type = self._typ
+    def _compute_type(self, env, agg_env, deep_typecheck):
+        return self._typ
 
     @staticmethod
     def is_effectful() -> bool:
@@ -2187,10 +2552,10 @@ class ConsoleLog(IR):
         self.message = message
         self.result = result
 
-    def _compute_type(self, env, agg_env):
-        self.message._compute_type(env, agg_env)
-        self.result._compute_type(env, agg_env)
-        self._type = self.result._type
+    def _compute_type(self, env, agg_env, deep_typecheck):
+        self.message.compute_type(env, agg_env, deep_typecheck)
+        self.result.compute_type(env, agg_env, deep_typecheck)
+        return self.result.typ
 
     def copy(self, message, result):
         return ConsoleLog(message, result)
@@ -2274,27 +2639,28 @@ class Apply(IR):
             other.type_args == self.type_args and \
             other.return_type == self.return_type
 
-    def _compute_type(self, env, agg_env):
+    def _compute_type(self, env, agg_env, deep_typecheck):
         for arg in self.args:
-            arg._compute_type(env, agg_env)
+            arg.compute_type(env, agg_env, deep_typecheck)
 
-        self._type = self.return_type
+        return self.return_type
 
 
 class ApplySeeded(IR):
-    @typecheck_method(function=str, seed=int, return_type=hail_type, args=IR)
-    def __init__(self, function, seed, return_type, *args):
+    @typecheck_method(function=str, seed=int, rng_state=IR, return_type=hail_type, args=IR)
+    def __init__(self, function, seed, rng_state, return_type, *args):
         if hail.current_backend().requires_lowering:
             warning("Seeded randomness is currently unreliable on the service. "
                     "You may observe some unexpected behavior. Don't use for real work yet.")
-        super().__init__(*args)
+        super().__init__(rng_state, *args)
         self.function = function
         self.args = args
+        self.rng_state = rng_state
         self.seed = seed
         self.return_type = return_type
 
-    def copy(self, *args):
-        return ApplySeeded(self.function, self.seed, self.return_type, *args)
+    def copy(self, rng_state, *args):
+        return ApplySeeded(self.function, self.seed, rng_state, self.return_type, *args)
 
     def head_str(self):
         return f'{escape_id(self.function)} {self.seed} {self.return_type._parsable_string()}'
@@ -2304,20 +2670,54 @@ class ApplySeeded(IR):
             other.seed == self.seed and \
             other.return_type == self.return_type
 
-    def _compute_type(self, env, agg_env):
+    def _compute_type(self, env, agg_env, deep_typecheck):
         for arg in self.args:
-            arg._compute_type(env, agg_env)
+            arg.compute_type(env, agg_env, deep_typecheck)
 
-        self._type = self.return_type
+        return self.return_type
 
-    @staticmethod
-    def is_effectful() -> bool:
-        return True
+
+class RNGStateLiteral(IR):
+    @typecheck_method(key=sized_tupleof(int, int, int, int))
+    def __init__(self, key):
+        for k in key:
+            assert 0 <= k < 0xFFFFFFFF_FFFFFFFF
+        super().__init__()
+        self.key = key
+
+    def copy(self):
+        return RNGStateLiteral(self.key)
+
+    def head_str(self):
+        return f'({" ".join(map(str, self.key))})'
+
+    def _eq(self, other):
+        return other.key == self.key
+
+    def _compute_type(self, env, agg_env, deep_typecheck):
+        return trngstate
+
+
+class RNGSplit(IR):
+    @typecheck_method(parent_state=IR, dyn_bitstring=IR)
+    def __init__(self, parent_state, dyn_bitstring):
+        super().__init__(parent_state, dyn_bitstring)
+        self.parent_state = parent_state
+        self.dyn_bitstring = dyn_bitstring
+
+    def copy(self, parent_state, dyn_bitstring):
+        return RNGSplit(parent_state, dyn_bitstring)
+
+    def _compute_type(self, env, agg_env, deep_typecheck):
+        self.parent_state.compute_type(env, agg_env, deep_typecheck)
+        self.dyn_bitstring.compute_type(env, agg_env, deep_typecheck)
+        return trngstate
 
 
 class TableCount(IR):
     @typecheck_method(child=TableIR)
     def __init__(self, child):
+        child = child.handle_randomness(None)
         super().__init__(child)
         self.child = child
 
@@ -2325,14 +2725,15 @@ class TableCount(IR):
     def copy(self, child):
         return TableCount(child)
 
-    def _compute_type(self, env, agg_env):
-        self.child._compute_type()
-        self._type = tint64
+    def _compute_type(self, env, agg_env, deep_typecheck):
+        self.child.compute_type(deep_typecheck)
+        return tint64
 
 
 class TableGetGlobals(IR):
     @typecheck_method(child=TableIR)
     def __init__(self, child):
+        child = child.handle_randomness(None)
         super().__init__(child)
         self.child = child
 
@@ -2340,14 +2741,15 @@ class TableGetGlobals(IR):
     def copy(self, child):
         return TableGetGlobals(child)
 
-    def _compute_type(self, env, agg_env):
-        self.child._compute_type()
-        self._type = self.child.typ.global_type
+    def _compute_type(self, env, agg_env, deep_typecheck):
+        self.child.compute_type(deep_typecheck)
+        return self.child.typ.global_type
 
 
 class TableCollect(IR):
     @typecheck_method(child=TableIR)
     def __init__(self, child):
+        child = child.handle_randomness(None)
         super().__init__(child)
         self.child = child
 
@@ -2355,15 +2757,24 @@ class TableCollect(IR):
     def copy(self, child):
         return TableCollect(child)
 
-    def _compute_type(self, env, agg_env):
-        self.child._compute_type()
-        self._type = tstruct(**{'rows': tarray(self.child.typ.row_type),
-                                'global': self.child.typ.global_type})
+    def _compute_type(self, env, agg_env, deep_typecheck):
+        self.child.compute_type(deep_typecheck)
+        return tstruct(**{'rows': tarray(self.child.typ.row_type),
+                          'global': self.child.typ.global_type})
 
 
 class TableAggregate(IR):
     @typecheck_method(child=TableIR, query=IR)
     def __init__(self, child, query):
+        if query.uses_randomness:
+            child = child.handle_randomness(uid_field_name)
+            uid = GetField(Ref('row', child.typ.row_type), uid_field_name)
+            if query.uses_value_randomness:
+                query = Let('__rng_state', RNGStateLiteral(rng_key), query)
+            if query.uses_agg_randomness(is_scan=False):
+                query = AggLet('__rng_state', RNGSplit(RNGStateLiteral(rng_key), uid), query, is_scan=False)
+        else:
+            child = child.handle_randomness(None)
         super().__init__(child, query)
         self.child = child
         self.query = query
@@ -2372,9 +2783,10 @@ class TableAggregate(IR):
     def copy(self, child, query):
         return TableAggregate(child, query)
 
-    def _compute_type(self, env, agg_env):
-        self.query._compute_type(self.child.typ.global_env(), self.child.typ.row_env())
-        self._type = self.query.typ
+    def _compute_type(self, env, agg_env, deep_typecheck):
+        self.child.compute_type(deep_typecheck)
+        self.query.compute_type(self.child.typ.global_env(), self.child.typ.row_env(), deep_typecheck)
+        return self.query.typ
 
     def renderable_new_block(self, i: int):
         return i == 1
@@ -2394,6 +2806,7 @@ class TableAggregate(IR):
 class MatrixCount(IR):
     @typecheck_method(child=MatrixIR)
     def __init__(self, child):
+        child = child.handle_randomness(None, None)
         super().__init__(child)
         self.child = child
 
@@ -2401,14 +2814,26 @@ class MatrixCount(IR):
     def copy(self, child):
         return TableCount(child)
 
-    def _compute_type(self, env, agg_env):
-        self.child._compute_type()
-        self._type = ttuple(tint64, tint32)
+    def _compute_type(self, env, agg_env, deep_typecheck):
+        self.child.compute_type(deep_typecheck)
+        return ttuple(tint64, tint32)
 
 
 class MatrixAggregate(IR):
     @typecheck_method(child=MatrixIR, query=IR)
     def __init__(self, child, query):
+        if query.uses_value_randomness:
+            query = Let('__rng_state', RNGStateLiteral(rng_key), query)
+
+        if query.uses_agg_randomness(is_scan=False):
+            child = child.handle_randomness(default_row_uid, default_col_uid)
+            row_uid, old_row = unpack_row_uid(child.typ.row_type, default_row_uid)
+            col_uid, old_col = unpack_col_uid(child.typ.col_type, default_col_uid)
+            entry_uid = concat_uids(row_uid, col_uid)
+            query = AggLet('__rng_state', RNGSplit(RNGStateLiteral(rng_key), entry_uid), query, is_scan=False)
+        else:
+            child = child.handle_randomness(None, None)
+
         super().__init__(child, query)
         self.child = child
         self.query = query
@@ -2417,9 +2842,10 @@ class MatrixAggregate(IR):
     def copy(self, child, query):
         return MatrixAggregate(child, query)
 
-    def _compute_type(self, env, agg_env):
-        self.query._compute_type(self.child.typ.global_env(), self.child.typ.entry_env())
-        self._type = self.query.typ
+    def _compute_type(self, env, agg_env, deep_typecheck):
+        self.child.compute_type(deep_typecheck)
+        self.query.compute_type(self.child.typ.global_env(), self.child.typ.entry_env(), deep_typecheck)
+        return self.query.typ
 
     def renderable_new_block(self, i: int):
         return i == 1
@@ -2439,6 +2865,7 @@ class MatrixAggregate(IR):
 class TableWrite(IR):
     @typecheck_method(child=TableIR, writer=TableWriter)
     def __init__(self, child, writer):
+        child = child.handle_randomness(None)
         super().__init__(child)
         self.child = child
         self.writer = writer
@@ -2453,9 +2880,9 @@ class TableWrite(IR):
     def _eq(self, other):
         return other.writer == self.writer
 
-    def _compute_type(self, env, agg_env):
-        self.child._compute_type()
-        self._type = tvoid
+    def _compute_type(self, env, agg_env, deep_typecheck):
+        self.child.compute_type(deep_typecheck)
+        return tvoid
 
     @staticmethod
     def is_effectful() -> bool:
@@ -2465,6 +2892,7 @@ class TableWrite(IR):
 class MatrixWrite(IR):
     @typecheck_method(child=MatrixIR, matrix_writer=MatrixWriter)
     def __init__(self, child, matrix_writer):
+        child = child.handle_randomness(None, None)
         super().__init__(child)
         self.child = child
         self.matrix_writer = matrix_writer
@@ -2479,9 +2907,9 @@ class MatrixWrite(IR):
     def _eq(self, other):
         return other.matrix_writer == self.matrix_writer
 
-    def _compute_type(self, env, agg_env):
-        self.child._compute_type()
-        self._type = tvoid
+    def _compute_type(self, env, agg_env, deep_typecheck):
+        self.child.compute_type(deep_typecheck)
+        return tvoid
 
     @staticmethod
     def is_effectful() -> bool:
@@ -2491,6 +2919,7 @@ class MatrixWrite(IR):
 class MatrixMultiWrite(IR):
     @typecheck_method(children=sequenceof(MatrixIR), writer=MatrixNativeMultiWriter)
     def __init__(self, children, writer):
+        children = (child.handle_randomness(None, None) for child in children)
         super().__init__(*children)
         self.writer = writer
 
@@ -2503,10 +2932,10 @@ class MatrixMultiWrite(IR):
     def _eq(self, other):
         return other.writer == self.writer
 
-    def _compute_type(self, env, agg_env):
+    def _compute_type(self, env, agg_env, deep_typecheck):
         for x in self.children:
-            x._compute_type()
-        self._type = tvoid
+            x.compute_type(deep_typecheck)
+        return tvoid
 
     @staticmethod
     def is_effectful() -> bool:
@@ -2525,9 +2954,9 @@ class BlockMatrixCollect(IR):
     def _eq(self, other):
         return isinstance(other, BlockMatrixCollect) and self.child == other.child
 
-    def _compute_type(self, env, agg_env):
-        self.child._compute_type()
-        self._type = tndarray(tfloat64, 2)
+    def _compute_type(self, env, agg_env, deep_typecheck):
+        self.child.compute_type(deep_typecheck)
+        return tndarray(tfloat64, 2)
 
 
 class BlockMatrixWrite(IR):
@@ -2546,9 +2975,9 @@ class BlockMatrixWrite(IR):
     def _eq(self, other):
         return self.writer == other.writer
 
-    def _compute_type(self, env, agg_env):
-        self.child._compute_type()
-        self._type = self.writer._type()
+    def _compute_type(self, env, agg_env, deep_typecheck):
+        self.child.compute_type(deep_typecheck)
+        return self.writer._type()
 
     @staticmethod
     def is_effectful() -> bool:
@@ -2571,10 +3000,10 @@ class BlockMatrixMultiWrite(IR):
     def _eq(self, other):
         return self.writer == other.writer
 
-    def _compute_type(self, env, agg_env):
+    def _compute_type(self, env, agg_env, deep_typecheck):
         for x in self.block_matrices:
-            x._compute_type()
-        self._type = tvoid
+            x.compute_type(deep_typecheck)
+        return tvoid
 
     @staticmethod
     def is_effectful() -> bool:
@@ -2583,6 +3012,7 @@ class BlockMatrixMultiWrite(IR):
 
 class TableToValueApply(IR):
     def __init__(self, child, config):
+        child = child.handle_randomness(None)
         super().__init__(child)
         self.child = child
         self.config = config
@@ -2597,19 +3027,20 @@ class TableToValueApply(IR):
     def _eq(self, other):
         return other.config == self.config
 
-    def _compute_type(self, env, agg_env):
+    def _compute_type(self, env, agg_env, deep_typecheck):
         name = self.config['name']
         if name == 'ForceCountTable':
-            self._type = tint64
+            return tint64
         elif name == 'TableCalculateNewPartitions':
-            self._type = tarray(tinterval(self.child.typ.key_type))
+            return tarray(tinterval(self.child.typ.key_type))
         else:
             assert name == 'NPartitionsTable', name
-            self._type = tint32
+            return tint32
 
 
 class MatrixToValueApply(IR):
     def __init__(self, child, config):
+        child = child.handle_randomness(None, None)
         super().__init__(child)
         self.child = child
         self.config = config
@@ -2624,17 +3055,17 @@ class MatrixToValueApply(IR):
     def _eq(self, other):
         return other.config == self.config
 
-    def _compute_type(self, env, agg_env):
+    def _compute_type(self, env, agg_env, deep_typecheck):
         name = self.config['name']
         if name == 'ForceCountMatrixTable':
-            self._type = tint64
+            return tint64
         elif name == 'NPartitionsMatrixTable':
-            self._type = tint32
+            return tint32
         elif name == 'MatrixExportEntriesByCol':
-            self._type = tvoid
+            return tvoid
         else:
             assert name == 'MatrixWriteBlockMatrix', name
-            self._type = tvoid
+            return tvoid
 
 
 class BlockMatrixToValueApply(IR):
@@ -2654,9 +3085,10 @@ class BlockMatrixToValueApply(IR):
     def _eq(self, other):
         return other.config == self.config
 
-    def _compute_type(self, env, agg_env):
+    def _compute_type(self, env, agg_env, deep_typecheck):
         assert self.config['name'] == 'GetElement'
-        self._type = tfloat64
+        self.child.compute_type(deep_typecheck)
+        return tfloat64
 
 
 class Literal(IR):
@@ -2677,8 +3109,8 @@ class Literal(IR):
         return other._typ == self._typ and \
             other.value == self.value
 
-    def _compute_type(self, env, agg_env):
-        self._type = self._typ
+    def _compute_type(self, env, agg_env, deep_typecheck):
+        return self._typ
 
 
 class LiftMeOut(IR):
@@ -2690,9 +3122,9 @@ class LiftMeOut(IR):
     def copy(self, child):
         return LiftMeOut(child)
 
-    def _compute_type(self, env, agg_env):
-        self.child._compute_type(env, agg_env)
-        self._type = self.child.typ
+    def _compute_type(self, env, agg_env, deep_typecheck):
+        self.child.compute_type(env, agg_env, deep_typecheck)
+        return self.child.typ
 
 
 class Join(IR):
@@ -2737,9 +3169,9 @@ class Join(IR):
     def render_children(self, r):
         return self.virtual_ir.render_children(r)
 
-    def _compute_type(self, env, agg_env):
-        self.virtual_ir._compute_type(env, agg_env)
-        self._type = self.virtual_ir._type
+    def _compute_type(self, env, agg_env, deep_typecheck):
+        self.virtual_ir.compute_type(env, agg_env, deep_typecheck)
+        return self.virtual_ir.typ
 
 
 class JavaIR(IR):
@@ -2757,8 +3189,8 @@ class JavaIR(IR):
     def _eq(self, other):
         return self._jir == other._jir
 
-    def _compute_type(self, env, agg_env):
-        self._type = dtype(self._jir.typ().toString())
+    def _compute_type(self, env, agg_env, deep_typecheck):
+        return dtype(self._jir.typ().toString())
 
 
 def subst(ir, env, agg_env):

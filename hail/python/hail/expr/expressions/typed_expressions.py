@@ -11,8 +11,8 @@ from .expression_typecheck import coercer_from_dtype, \
     expr_int64, expr_str, expr_dict, expr_interval, expr_tuple, expr_oneof, \
     expr_ndarray
 from hail.expr.types import HailType, tint32, tint64, tfloat32, \
-    tfloat64, tbool, tcall, tset, tarray, tstruct, tdict, ttuple, tstr, \
-    tndarray, tlocus, tinterval, is_numeric
+    tfloat64, tbool, tcall, tset, tarray, tstream, tstruct, tdict, ttuple,\
+    tstr, tndarray, tlocus, tinterval, is_numeric
 import hail.ir as ir
 from hail.typecheck import typecheck, typecheck_method, func_spec, oneof, \
     identity, nullable, tupleof, sliceof, dictof, anyfunc
@@ -758,7 +758,7 @@ class ArrayExpression(CollectionExpression):
         indices, aggregations = unify_all(self, group_size)
         stream_ir = ir.StreamGrouped(ir.ToStream(self._ir), group_size._ir)
         mapping_identifier = Env.get_uid("stream_grouped_map_to_arrays")
-        mapped_to_arrays = ir.StreamMap(stream_ir, mapping_identifier, ir.ToArray(ir.Ref(mapping_identifier)))
+        mapped_to_arrays = ir.StreamMap(stream_ir, mapping_identifier, ir.ToArray(ir.Ref(mapping_identifier, tstream(self._type.element_type))))
         return construct_expr(ir.ToArray(mapped_to_arrays), tarray(self._type), indices, aggregations)
 
 
@@ -1797,13 +1797,24 @@ class StructExpression(Mapping[Union[str, int], Expression], Expression):
 
         for i, (f, t) in enumerate(self.dtype.items()):
             if isinstance(self._ir, ir.MakeStruct):
-                expr = construct_expr(self._ir.fields[i][1], t, self._indices,
+                expr = construct_expr(self._ir.fields[i][1],
+                                      t,
+                                      self._indices,
+                                      self._aggregations)
+            elif isinstance(self._ir, ir.SelectedTopLevelReference):
+                expr = construct_expr(ir.ProjectedTopLevelReference(self._ir.ref.name, f, t),
+                                      t,
+                                      self._indices,
                                       self._aggregations)
             elif isinstance(self._ir, ir.SelectFields):
-                expr = construct_expr(ir.GetField(self._ir.old, f), t, self._indices,
+                expr = construct_expr(ir.GetField(self._ir.old, f),
+                                      t,
+                                      self._indices,
                                       self._aggregations)
             else:
-                expr = construct_expr(ir.GetField(self._ir, f), t, self._indices,
+                expr = construct_expr(ir.GetField(self._ir, f),
+                                      t,
+                                      self._indices,
                                       self._aggregations)
             self._set_field(f, expr)
 
@@ -4559,7 +4570,8 @@ def construct_expr(x: ir.IR,
                    aggregations: LinkedList = LinkedList(Aggregation)):
     if type is None:
         return Expression(x, None, indices, aggregations)
-    elif isinstance(type, tarray) and is_numeric(type.element_type):
+    x.assign_type(type)
+    if isinstance(type, tarray) and is_numeric(type.element_type):
         return ArrayNumericExpression(x, type, indices, aggregations)
     elif isinstance(type, tarray):
         etype = type.element_type
@@ -4592,7 +4604,7 @@ def construct_expr(x: ir.IR,
 @typecheck(name=str, type=HailType, indices=Indices)
 def construct_reference(name, type, indices):
     assert isinstance(type, hl.tstruct)
-    x = ir.SelectFields(ir.TopLevelReference(name), list(type))
+    x = ir.SelectedTopLevelReference(name, type)
     return construct_expr(x, type, indices)
 
 
@@ -4600,4 +4612,4 @@ def construct_reference(name, type, indices):
 def construct_variable(name, type,
                        indices: Indices = Indices(),
                        aggregations: LinkedList = LinkedList(Aggregation)):
-    return construct_expr(ir.Ref(name), type, indices, aggregations)
+    return construct_expr(ir.Ref(name, type), type, indices, aggregations)

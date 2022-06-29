@@ -120,7 +120,6 @@ class Tests(unittest.TestCase):
         self.assertEqual(b.count_cols(), 6)
         self.assertTrue('group5' in b.col_key)
 
-    @skip_when_service_backend('slow >800s')
     def test_joins_work_correctly(self):
         mt, mt2 = self.get_groupable_matrix2()
 
@@ -164,7 +163,6 @@ class Tests(unittest.TestCase):
 
         self.assertTrue(row_result.entries()._same(row_expected))
 
-    @skip_when_service_backend('slow >800s')
     def test_group_rows_by_aggregate(self):
         mt, mt2 = self.get_groupable_matrix2()
 
@@ -194,7 +192,6 @@ class Tests(unittest.TestCase):
 
         self.assertTrue(row_result.entries()._same(row_expected))
 
-    @skip_when_service_backend('slow >800s')
     def test_group_cols_by_aggregate(self):
         mt, mt2 = self.get_groupable_matrix2()
 

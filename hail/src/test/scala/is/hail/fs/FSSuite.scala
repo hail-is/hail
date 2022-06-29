@@ -3,6 +3,7 @@ package is.hail.fs
 import java.io.FileNotFoundException
 import is.hail.HailSuite
 import is.hail.backend.ExecuteContext
+import is.hail.io.fs.FSUtil.dropTrailingSlash
 import is.hail.io.fs.{FS, FileStatus}
 import is.hail.utils._
 import org.apache.commons.io.IOUtils
@@ -111,6 +112,11 @@ trait FSSuite {
     fs.touch(s"$d/y")
     fs.mkDir(s"$d/subdir")
     fs.touch(s"$d/subdir/z")
+    fs.mkDir(s"$d/dir2")
+    fs.touch(s"$d/dir2/a")
+    fs.touch(s"$d/dir2/b")
+    fs.mkDir(s"$d/subdir/another_list")
+    fs.touch(s"$d/subdir/another_list/file1")
 
     assert(fs.exists(s"$d/subdir/z"))
 
@@ -118,6 +124,13 @@ trait FSSuite {
 
     assert(!fs.exists(s"$d"))
     assert(!fs.exists(s"$d/subdir/z"))
+  }
+
+  @Test def testDeleteFileDoesntExist(): Unit = {
+    val d = t()
+    fs.mkDir(d)
+    fs.delete(s"$d/foo", recursive = false)
+    fs.delete(s"$d/foo", recursive = true)
   }
 
   @Test def testListStatusDir(): Unit = {
@@ -208,6 +221,26 @@ trait FSSuite {
     assert(!fs.exists(f))
   }
 
+  @Test def testWritePreexisting(): Unit = {
+    val s1 = "first"
+    val s2 = "second"
+    val f = t()
+
+    using(fs.create(f)) { _.write(s1.getBytes) }
+    assert(fs.exists(f))
+    using(fs.open(f)) { is =>
+      val read = new String(IOUtils.toByteArray(is))
+      assert(read == s1)
+    }
+
+    using(fs.create(f)) { _.write(s2.getBytes) }
+    assert(fs.exists(f))
+    using(fs.open(f)) { is =>
+      val read = new String(IOUtils.toByteArray(is))
+      assert(read == s2)
+    }
+  }
+
   @Test def testGetCodecExtension(): Unit = {
     assert(fs.getCodecExtension("foo.vcf.bgz") == ".bgz")
   }
@@ -236,6 +269,50 @@ trait FSSuite {
     fs.delete(f, false)
 
     assert(!fs.exists(f))
+  }
+
+  @Test def testReadWriteBytesLargerThanBuffer(): Unit = {
+    val f = t()
+
+    val numWrites = 1000000
+    using(fs.create(f)) { os =>
+      os.write(1)
+      os.write(127)
+      os.write(255)
+
+      var i = 0
+      while (i < numWrites) {
+        os.write(i)
+        i = i + 1
+      }
+    }
+
+    assert(fs.exists(f))
+
+    using(fs.open(f)) { is =>
+      assert(is.read() == 1)
+      assert(is.read() == 127)
+      assert(is.read() == 255)
+
+      var i = 0
+      while (i < numWrites) {
+        val readFromIs = is.read()
+        assert(readFromIs == (i & 0xff), s"${i} ${i & 0xff} ${readFromIs}")
+        i = i + 1
+      }
+    }
+
+    fs.delete(f, false)
+
+    assert(!fs.exists(f))
+  }
+
+  @Test def testDropTrailingSlash(): Unit = {
+    assert(dropTrailingSlash("") == "")
+    assert(dropTrailingSlash("/foo/bar") == "/foo/bar")
+    assert(dropTrailingSlash("foo/bar/") == "foo/bar")
+    assert(dropTrailingSlash("/foo///") == "/foo")
+    assert(dropTrailingSlash("///") == "")
   }
 }
 

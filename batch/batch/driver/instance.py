@@ -261,6 +261,11 @@ VALUES (%s, %s);
         if not changed:
             return
 
+        self.inst_coll.adjust_for_remove_instance(self)
+        self._failed_request_count = 0
+        self._last_updated = now
+        self.inst_coll.adjust_for_add_instance(self)
+
         await self.db.execute_update(
             '''
 UPDATE instances
@@ -269,12 +274,8 @@ SET last_updated = %s,
 WHERE name = %s;
 ''',
             (now, self.name),
+            'mark_healthy',
         )
-
-        self.inst_coll.adjust_for_remove_instance(self)
-        self._failed_request_count = 0
-        self._last_updated = now
-        self.inst_coll.adjust_for_add_instance(self)
 
     async def incr_failed_request_count(self):
         await self.db.execute_update(

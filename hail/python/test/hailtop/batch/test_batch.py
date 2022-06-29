@@ -1,3 +1,4 @@
+import asyncio
 import secrets
 import unittest
 import os
@@ -919,3 +920,35 @@ class ServiceTests(unittest.TestCase):
         j.call(qob_in_batch)
 
         bb.run()
+
+    def test_basic_async_fun(self):
+        backend = ServiceBackend(remote_tmpdir=f'{self.remote_tmpdir}/temporary-files')
+        b = Batch(backend=backend)
+
+        j = b.new_python_job()
+        j.call(asyncio.sleep, 1)
+
+        batch = b.run()
+        batch_status = batch.status()
+        assert batch_status['state'] == 'success', str((batch.debug_info()))
+
+    def test_async_fun_returns_value(self):
+        backend = ServiceBackend(remote_tmpdir=f'{self.remote_tmpdir}/temporary-files')
+        b = Batch(backend=backend)
+
+        async def foo(i, j):
+            await asyncio.sleep(1)
+            return i * j
+
+        j = b.new_python_job()
+        result = j.call(foo, 2, 3)
+
+        j = b.new_job()
+        j.command(f'cat {result.as_str()}')
+
+        batch = b.run()
+        batch_status = batch.status()
+        assert batch_status['state'] == 'success', str((batch_status, batch.debug_info()))
+        job_log_2 = batch.get_job_log(2)
+        assert job_log_2['main'] == "6\n", str((job_log_2, batch.debug_info()))
+

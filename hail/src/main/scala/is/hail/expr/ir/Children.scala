@@ -65,8 +65,8 @@ object Children {
       Array(start, step)
     case StreamRange(start, stop, step, _, _) =>
       Array(start, stop, step)
-    case SeqSample(totalRange, numToSample, _) =>
-      Array(totalRange, numToSample)
+    case SeqSample(totalRange, numToSample, rngState, _) =>
+      Array(totalRange, numToSample, rngState)
     case StreamDistribute(child, pivots, path, _, _) =>
       Array(child, pivots, path)
     case ArrayZeros(length) =>
@@ -95,6 +95,9 @@ object Children {
       Array(orderedCollection, elem)
     case GroupByKey(collection) =>
       Array(collection)
+    case RNGStateLiteral(_) => none
+    case RNGSplit(state, split) =>
+      Array(state, split)
     case StreamLen(a) =>
       Array(a)
     case StreamTake(a, len) =>
@@ -135,7 +138,7 @@ object Children {
       Array(a, query)
     case StreamAggScan(a, name, query) =>
       Array(a, query)
-    case StreamBufferedAggregate(streamChild, initAggs, newKey, seqOps, _, _) =>
+    case StreamBufferedAggregate(streamChild, initAggs, newKey, seqOps, _, _, _) =>
       Array(streamChild, initAggs, newKey, seqOps)
     case RunAggScan(array, _, init, seq, result, _) =>
       Array(array, init, seq, result)
@@ -212,8 +215,8 @@ object Children {
       args.toFastIndexedSeq
     case Apply(_, _, args, _, _) =>
       args.toFastIndexedSeq
-    case ApplySeeded(_, args, seed, _) =>
-      args.toFastIndexedSeq
+    case ApplySeeded(_, args, rngState, seed, _) =>
+      args.toFastIndexedSeq :+ rngState
     case ApplySpecial(_, _, args, _, _) =>
       args.toFastIndexedSeq
     // from MatrixIR

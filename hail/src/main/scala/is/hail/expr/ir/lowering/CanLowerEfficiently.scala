@@ -38,6 +38,7 @@ object CanLowerEfficiently {
           fail(s"no lowering for TableFromBlockMatrixNativeReader")
 
         case t: TableLiteral =>
+        case TableRepartition(_, _, RepartitionStrategy.NAIVE_COALESCE) =>
         case t: TableRepartition => fail(s"TableRepartition has no lowered implementation")
         case t: TableParallelize =>
         case t: TableRange =>
@@ -58,7 +59,7 @@ object CanLowerEfficiently {
         case t: TableUnion =>
         case t: TableMultiWayZipJoin => fail(s"TableMultiWayZipJoin is not passing tests due to problems in ptype inference in StreamZipJoin")
         case t: TableDistinct =>
-        case t: TableKeyByAndAggregate => fail("TableKeyByAndAggregate has no map-side combine")
+        case t: TableKeyByAndAggregate =>
         case t: TableAggregateByKey =>
         case t: TableRename =>
         case t: TableFilterIntervals =>

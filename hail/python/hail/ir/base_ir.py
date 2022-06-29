@@ -1,5 +1,6 @@
 import abc
 
+from hail.expr.types import tstream
 from hail.utils.java import Env
 from .renderer import Renderer, PlainRenderer, Renderable
 
@@ -93,6 +94,9 @@ class BaseIR(Renderable):
     def __hash__(self):
         return 31 + hash(str(self))
 
+    def copy(self, *args):
+        raise NotImplementedError("IR has no copy method defined.")
+
     def new_block(self, i: int) -> bool:
         return self.renderable_new_block(self.renderable_idx_of_child(i))
 
@@ -103,6 +107,11 @@ class BaseIR(Renderable):
     @staticmethod
     def is_effectful() -> bool:
         return False
+
+    @property
+    @abc.abstractmethod
+    def uses_randomness(self) -> bool:
+        pass
 
     def bindings(self, i: int, default_value=None):
         """Compute variables bound in child 'i'.
@@ -248,9 +257,6 @@ class IR(BaseIR):
             return others + [self]
         return others
 
-    def copy(self, *args):
-        raise NotImplementedError("IR has no copy method defined.")
-
     def map_ir(self, f):
         new_children = []
         for child in self.children:
@@ -262,22 +268,69 @@ class IR(BaseIR):
         return self.copy(*new_children)
 
     @property
+    def uses_randomness(self) -> bool:
+        return '__rng_state' in self.free_vars or '__rng_state' in self.free_agg_vars or '__rng_state' in self.free_scan_vars
+
+    @property
+    def uses_value_randomness(self):
+        return '__rng_state' in self.free_vars
+
+    def uses_agg_randomness(self, is_scan) -> bool:
+        if is_scan:
+            return '__rng_state' in self.free_scan_vars
+        else:
+            return '__rng_state' in self.free_agg_vars
+
+    @property
     def bound_variables(self):
         return {v for child in self.children if isinstance(child, IR) for v in child.bound_variables}
 
     @property
     def typ(self):
         if self._type is None:
-            self._compute_type({}, None)
-            assert self._type is not None, self
+            self.compute_type({}, None, deep_typecheck=False)
         return self._type
 
     def renderable_new_block(self, i: int) -> bool:
         return False
 
+    def compute_type(self, env, agg_env, deep_typecheck):
+        if deep_typecheck or self._type is None:
+            computed = self._compute_type(env, agg_env, deep_typecheck)
+            if self._type is not None:
+                assert self._type == computed
+            self._type = computed
+
+    def assign_type(self, typ):
+        if self._type is None:
+            computed = self._compute_type({}, None, deep_typecheck=False)
+            if computed is not None:
+                assert computed == typ, (computed, typ)
+            self._type = typ
+        else:
+            assert self._type == typ
+
     @abc.abstractmethod
-    def _compute_type(self, env, agg_env):
+    def _compute_type(self, env, agg_env, deep_typecheck):
         raise NotImplementedError(self)
+
+    @abc.abstractmethod
+    def _handle_randomness(self, create_uids):
+        pass
+
+    def handle_randomness(self, create_uids):
+        """Elaborate rng semantics in stream typed IR.
+
+        Recursive transformation of stream typed IRs. Ensures that all
+        contained seeded randomness gets a unique rng state on every stream
+        iteration. Optionally inserts a uid in the returned stream element type.
+        The uid may be an int64, or arbitrary tuple of int64s. The only
+        requirement is that all stream elements contain distinct uid values.
+        """
+        assert(isinstance(self.typ, tstream))
+        if not create_uids and not self.uses_randomness:
+            return self
+        return self._handle_randomness(create_uids)
 
     @property
     def free_vars(self):
@@ -328,17 +381,46 @@ class IR(BaseIR):
 class TableIR(BaseIR):
     def __init__(self, *children):
         super().__init__(*children)
+        self._children_use_randomness = any(child.uses_randomness for child in children)
 
     @abc.abstractmethod
-    def _compute_type(self):
+    def _compute_type(self, deep_typecheck):
         ...
+
+    def compute_type(self, deep_typecheck):
+        if deep_typecheck or self._type is None:
+            computed = self._compute_type(deep_typecheck)
+            if self._type is not None:
+                assert self._type == computed
+            else:
+                self._type = computed
 
     @property
     def typ(self):
         if self._type is None:
-            self._compute_type()
-            assert self._type is not None, self
+            self.compute_type(deep_typecheck=False)
         return self._type
+
+    @property
+    def uses_randomness(self) -> bool:
+        return self._children_use_randomness
+
+    @abc.abstractmethod
+    def _handle_randomness(self, uid_field_name):
+        pass
+
+    def handle_randomness(self, uid_field_name):
+        """Elaborate rng semantics
+
+        Recursively transform IR to ensure that all contained seeded randomness
+        gets a unique rng state on every table row. Optionally inserts a uid
+        field in the returned table. The uid may be an int64, or arbitrary
+        tuple of int64s. The only requirement is that all table rows contain
+        distinct uid values.
+        """
+        if uid_field_name is None and not self.uses_randomness:
+            return self
+        return self._handle_randomness(uid_field_name)
 
     def renderable_new_block(self, i: int) -> bool:
         return True
@@ -350,16 +432,49 @@ class TableIR(BaseIR):
 class MatrixIR(BaseIR):
     def __init__(self, *children):
         super().__init__(*children)
+        self._children_use_randomness = any(child.uses_randomness for child in children)
+
+    @property
+    def uses_randomness(self) -> bool:
+        return self._children_use_randomness
+
+    def handle_randomness(self, row_uid_field_name, col_uid_field_name):
+        """Elaborate rng semantics
+
+        Recursively transform IR to ensure that all contained seeded randomness
+        gets a unique rng state on every evaluation. Optionally inserts a uid
+        row field and/or column field in the returned matrix table. The uids may
+        be an int64, or arbitrary tuple of int64s. The only requirement is that
+        all rows contain distinct uid values, and likewise for columns.
+        """
+        if row_uid_field_name is None and col_uid_field_name and not self.uses_randomness:
+            return self
+        result = self._handle_randomness(row_uid_field_name, col_uid_field_name)
+        assert result is not None
+        assert row_uid_field_name is None or row_uid_field_name in result.typ.row_type
+        assert col_uid_field_name is None or col_uid_field_name in result.typ.col_type
+        return result
 
     @abc.abstractmethod
-    def _compute_type(self):
+    def _handle_randomness(self, row_uid_field_name, col_uid_field_name):
+        pass
+
+    @abc.abstractmethod
+    def _compute_type(self, deep_typecheck):
         ...
+
+    def compute_type(self, deep_typecheck):
+        if deep_typecheck or self._type is None:
+            computed = self._compute_type(deep_typecheck)
+            if self._type is not None:
+                assert self._type == computed
+            else:
+                self._type = computed
 
     @property
     def typ(self):
         if self._type is None:
-            self._compute_type()
-            assert self._type is not None, self
+            self.compute_type(deep_typecheck=False)
         return self._type
 
     def renderable_new_block(self, i: int) -> bool:
@@ -374,16 +489,28 @@ class MatrixIR(BaseIR):
 class BlockMatrixIR(BaseIR):
     def __init__(self, *children):
         super().__init__(*children)
+        self._children_use_randomness = any(child.uses_randomness for child in children)
+
+    @property
+    def uses_randomness(self) -> bool:
+        return self._children_use_randomness
 
     @abc.abstractmethod
-    def _compute_type(self):
+    def _compute_type(self, deep_typecheck):
         ...
+
+    def compute_type(self, deep_typecheck):
+        if deep_typecheck or self._type is None:
+            computed = self._compute_type(deep_typecheck)
+            if self._type is not None:
+                assert self._type == computed
+            else:
+                self._type = computed
 
     @property
     def typ(self):
         if self._type is None:
-            self._compute_type()
-            assert self._type is not None, self
+            self.compute_type(deep_typecheck=False)
         return self._type
 
     def renderable_new_block(self, i: int) -> bool:

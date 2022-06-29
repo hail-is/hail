@@ -500,10 +500,15 @@ object PruneDeadFields {
           globalType = depGlobalType.asInstanceOf[TStruct])
         memoizeTableIR(ctx, child, dep, memo)
       case TableMapRows(child, newRow) =>
-        val rowDep = memoizeAndGetDep(ctx, newRow, requestedType.rowType, child.typ, memo)
+        val (reqKey, reqRowType) = if (ContainsScan(newRow))
+          (child.typ.key, unify(newRow.typ, requestedType.rowType, selectKey(newRow.typ.asInstanceOf[TStruct], child.typ.key)))
+        else
+          (requestedType.key, requestedType.rowType)
+        val rowDep = memoizeAndGetDep(ctx, newRow, reqRowType, child.typ, memo)
+
         val dep = TableType(
-          key = requestedType.key,
-          rowType = unify(child.typ.rowType, selectKey(requestedType.rowType, requestedType.key), rowDep.rowType),
+          key = reqKey,
+          rowType = unify(child.typ.rowType, selectKey(child.typ.rowType, reqKey), rowDep.rowType),
           globalType = unify(child.typ.globalType, requestedType.globalType, rowDep.globalType)
         )
         memoizeTableIR(ctx, child, dep, memo)
@@ -641,8 +646,13 @@ object PruneDeadFields {
           rowType = unify(child.typ.rowType, requestedType.rowType, selectKey(child.typ.rowType, childReqKey))),
           memo)
       case MatrixMapRows(child, newRow) =>
-        val irDep = memoizeAndGetDep(ctx, newRow, requestedType.rowType, child.typ, memo)
-        val depMod = requestedType.copy(rowType = selectKey(child.typ.rowType, child.typ.rowKey))
+        val (reqKey, reqRowType) = if (ContainsScan(newRow))
+          (child.typ.rowKey, unify(newRow.typ, requestedType.rowType, selectKey(newRow.typ.asInstanceOf[TStruct], child.typ.rowKey)))
+        else
+          (requestedType.rowKey, requestedType.rowType)
+
+        val irDep = memoizeAndGetDep(ctx, newRow, reqRowType, child.typ, memo)
+        val depMod = requestedType.copy(rowType = selectKey(child.typ.rowType, reqKey), rowKey = reqKey)
         memoizeMatrixIR(ctx, child, unify(child.typ, depMod, irDep), memo)
       case MatrixMapCols(child, newCol, newKey) =>
         val irDep = memoizeAndGetDep(ctx, newCol, requestedType.colType, child.typ, memo)
@@ -1593,9 +1603,11 @@ object PruneDeadFields {
         val child2 = rebuild(ctx, child, memo)
         val newRow2 = rebuildIR(ctx, newRow, BindingEnv(child2.typ.rowEnv, scan = Some(child2.typ.rowEnv)), memo)
         val newRowType = newRow2.typ.asInstanceOf[TStruct]
-        val child2Keyed = if (child2.typ.key.exists(k => !newRowType.hasField(k)))
-          TableKeyBy(child2, child2.typ.key.takeWhile(newRowType.hasField))
-        else
+        val child2Keyed = if (child2.typ.key.exists(k => !newRowType.hasField(k))) {
+          val upcastKey = child2.typ.key.takeWhile(newRowType.hasField)
+          assert(upcastKey.startsWith(requestedType.key))
+          TableKeyBy(child2, upcastKey)
+        } else
           child2
         TableMapRows(child2Keyed, newRow2)
       case TableMapGlobals(child, newGlobals) =>
@@ -1609,8 +1621,12 @@ object PruneDeadFields {
           child2 = upcastTable(ctx, child2, memo.requestedType.lookup(child).asInstanceOf[TableType], upcastGlobals = false)
         TableKeyBy(child2, keys2, isSorted)
       case TableOrderBy(child, sortFields) =>
-        // fully upcast before shuffle
-        val child2 = upcastTable(ctx, rebuild(ctx, child, memo), memo.requestedType.lookup(child).asInstanceOf[TableType], upcastGlobals = false)
+        val child2 = if (sortFields.forall(_.sortOrder == Ascending) && child.typ.key.startsWith(sortFields.map(_.field)))
+          rebuild(ctx, child, memo)
+        else {
+          // fully upcast before shuffle
+          upcastTable(ctx, rebuild(ctx, child, memo), memo.requestedType.lookup(child).asInstanceOf[TableType], upcastGlobals = false)
+        }
         TableOrderBy(child2, sortFields)
       case TableLeftJoinRightDistinct(left, right, root) =>
         if (requestedType.rowType.hasField(root))
@@ -1924,6 +1940,18 @@ object PruneDeadFields {
           env.bindEval(curKey -> selectKey(newEltType, key), curVals -> TArray(newEltType)),
           memo)
         StreamZipJoin(newAs, key, curKey, curVals, newJoinF)
+      case StreamMultiMerge(as, key) =>
+        val eltType = coerce[TStruct](coerce[TStream](as.head.typ).elementType)
+        val requestedEltType = coerce[TStream](requestedType).elementType
+        val reqEltWithKey = unify(eltType, requestedEltType, selectKey(eltType, key))
+
+        val newAs = as.map(a => rebuildIR(ctx, a, env, memo))
+        val newAs2 = if (newAs.forall(_.typ == newAs(0).typ))
+          newAs
+        else
+          newAs.map(a => upcast(ctx, a, TStream(reqEltWithKey)))
+
+        StreamMultiMerge(newAs2, key)
       case StreamFilter(a, name, cond) =>
         val a2 = rebuildIR(ctx, a, env, memo)
         StreamFilter(a2, name, rebuildIR(ctx, cond, env.bindEval(name, a2.typ.asInstanceOf[TStream].elementType), memo))

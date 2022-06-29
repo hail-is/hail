@@ -10,7 +10,7 @@ from hail import MatrixTable, Table
 from hail.expr import StructExpression
 from hail.expr.expressions import expr_bool, expr_str
 from hail.genetics.reference_genome import reference_genome_type
-from hail.ir import Apply, TableMapRows, MatrixKeyRowsBy, TopLevelReference
+from hail.ir import Apply, TableMapRows, MatrixKeyRowsBy
 from hail.typecheck import oneof, sequenceof, typecheck
 from hail.utils.java import info, warning, Env
 
@@ -193,7 +193,7 @@ def transform_gvcf(mt, info_to_keep=[]) -> Table:
             mt.row.dtype)
         _transform_rows_function_map[mt.row.dtype] = f
     transform_row = _transform_rows_function_map[mt.row.dtype]
-    return Table(TableMapRows(mt._tir, Apply(transform_row._name, transform_row._ret_type, TopLevelReference('row'))))
+    return Table(TableMapRows(mt._tir, Apply(transform_row._name, transform_row._ret_type, mt.row._ir)))
 
 
 def transform_one(mt, info_to_keep=[]) -> Table:
@@ -264,8 +264,8 @@ def combine(ts):
     merge_function = _merge_function_map[(ts.row.dtype, ts.globals.dtype)]
     ts = Table(TableMapRows(ts._tir, Apply(merge_function._name,
                                            merge_function._ret_type,
-                                           TopLevelReference('row'),
-                                           TopLevelReference('global'))))
+                                           ts.row._ir,
+                                           ts.globals._ir)))
     return ts.transmute_globals(__cols=hl.flatten(ts.g.map(lambda g: g.__cols)))
 
 
@@ -713,7 +713,7 @@ def run_combiner(sample_paths: List[str],
 
             tmp = f'{tmp_path}_phase{phase_i}_job{job_i}/'
             hl.experimental.write_matrix_tables(merge_mts, tmp, overwrite=True)
-            pad = len(str(len(merge_mts)))
+            pad = len(str(len(merge_mts) - 1))
             new_files_to_merge.extend(tmp + str(n).zfill(pad) + '.mt' for n in range(len(merge_mts)))
             total_work_done += job.input_total_size
             info(
