@@ -2292,9 +2292,12 @@ class BatchFrontEndAccessLogger(AccessLogger):
     def __init__(self, logger: logging.Logger, log_format: str):
         super().__init__(logger, log_format)
         self.exclude = [
-            ('POST', re.compile('/api/v1alpha/batches/\\d*/jobs/create')),
-            ('GET', re.compile('/api/v1alpha/batches/\\d*')),
-            ('GET', re.compile('/metrics')),
+            (endpoint[0], deploy_config.base_path('batch') + endpoint[1])
+            for endpoint in [
+                ('POST', re.compile('/api/v1alpha/batches/\\d*/jobs/create')),
+                ('GET', re.compile('/api/v1alpha/batches/\\d*')),
+                ('GET', re.compile('/metrics')),
+            ]
         ]
 
     def log(self, request, response, time):
