@@ -44,7 +44,6 @@ async def get_object(request, userdata):
     filepath = request.query.get('q')
     userinfo = await get_or_add_user(request.app, userdata)
     username = userdata['username']
-    log.info(f'memory: request for object {filepath} from user {username}')
     maybe_file = await get_file_or_none(request.app, username, userinfo['fs'], filepath)
     if maybe_file is None:
         raise web.HTTPNotFound()
@@ -58,7 +57,6 @@ async def write_object(request, userdata):
     userinfo = await get_or_add_user(request.app, userdata)
     username = userdata['username']
     data = await request.read()
-    log.info(f'memory: post for object {filepath} from user {username}')
 
     file_key = make_redis_key(username, filepath)
 
@@ -83,7 +81,6 @@ async def get_or_add_user(app, userdata):
     if username not in users:
         async with userlocks[username]:
             if username not in users:
-                log.info(f'get_or_add_user: cache miss: {username}')
                 k8s_client = app['k8s_client']
                 hail_credentials_secret = await retry_transient_errors(
                     k8s_client.read_namespaced_secret,
@@ -106,10 +103,7 @@ async def get_file_or_none(app, username, fs: AsyncFS, filepath):
 
     (body,) = await redis_pool.execute('HMGET', file_key, 'body')
     if body is not None:
-        log.info(f"memory: Retrieved file {filepath} for user {username}")
         return body
-
-    log.info(f"memory: Couldn't retrieve file {filepath} for user {username}: current version not in cache")
 
     if file_key in app['files_in_progress']:
         return await app['files_in_progress'][file_key]
@@ -130,21 +124,16 @@ async def get_file_or_none(app, username, fs: AsyncFS, filepath):
 
 
 async def load_file(file_key, fs: AsyncFS, filepath):
-    log.info(f"memory: {file_key}: reading.")
     data = await fs.read(filepath)
-    log.info(f"memory: {file_key}: read {filepath}")
     return data
 
 
 async def persist(fs: AsyncFS, file_key: str, filepath: str, data: bytes):
-    log.info(f"memory: {file_key}: persisting.")
     await fs.write(filepath, data)
-    log.info(f"memory: {file_key}: persisted {filepath}")
 
 
 async def cache_file(redis: aioredis.ConnectionsPool, file_key: str, filepath: str, data: bytes):
     await redis.execute('HMSET', file_key, 'body', data)
-    log.info(f"memory: {file_key}: stored {filepath}")
 
 
 async def on_startup(app):
