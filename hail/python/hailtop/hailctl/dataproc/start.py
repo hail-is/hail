@@ -135,7 +135,7 @@ REGION_TO_REPLICATE_MAPPING = {
 
 ANNOTATION_DB_BUCKETS = ["hail-datasets-us", "hail-datasets-eu"]
 
-IMAGE_VERSION = '2.0.29-debian10'
+IMAGE_VERSION = '2.0.44-debian10'
 
 
 def init_parser(parser):
