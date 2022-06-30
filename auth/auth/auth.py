@@ -2,6 +2,7 @@ import asyncio
 import json
 import logging
 import os
+import re
 from typing import List, Optional
 
 import aiohttp
@@ -755,6 +756,24 @@ async def on_cleanup(app):
         await app['client_session'].close()
 
 
+class AuthAccessLogger(AccessLogger):
+    def __init__(self, logger: logging.Logger, log_format: str):
+        super().__init__(logger, log_format)
+        self.exclude = [
+            (endpoint[0], re.compile(deploy_config.base_path('auth') + endpoint[1]))
+            for endpoint in [
+                ('GET', '/api/v1alpha/userinfo'),
+            ]
+        ]
+
+    def log(self, request, response, time):
+        for method, path_expr in self.exclude:
+            if path_expr.fullmatch(request.path) and method == request.method:
+                return
+
+        super().log(request, response, time)
+
+
 def run():
     app = web.Application(middlewares=[monitor_endpoints_middleware])
 
@@ -772,6 +791,6 @@ def run():
         deploy_config.prefix_application(app, 'auth'),
         host='0.0.0.0',
         port=5000,
-        access_log_class=AccessLogger,
+        access_log_class=AuthAccessLogger,
         ssl_context=internal_server_ssl_context(),
     )
