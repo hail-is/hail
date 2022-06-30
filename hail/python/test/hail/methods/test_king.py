@@ -1,7 +1,7 @@
 import pytest
 
 import hail as hl
-from ..helpers import resource, startTestHailContext, stopTestHailContext, fails_local_backend, fails_service_backend
+from ..helpers import resource, startTestHailContext, stopTestHailContext, fails_local_backend, skip_when_service_backend
 
 setUpModule = startTestHailContext
 tearDownModule = stopTestHailContext
