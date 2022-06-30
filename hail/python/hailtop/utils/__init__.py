@@ -1,17 +1,18 @@
 from .time import time_msecs, time_msecs_str, humanize_timedelta_msecs, parse_timestamp_msecs
-from .utils import (
-    unzip, async_to_blocking, blocking_to_async, AsyncWorkerPool,
-    bounded_gather, grouped, sync_sleep_and_backoff, sleep_and_backoff, is_transient_error,
-    request_retry_transient_errors, request_raise_transient_errors,
-    collect_agen, retry_all_errors, retry_transient_errors,
-    retry_long_running, run_if_changed, run_if_changed_idempotent, LoggingTimer,
-    WaitableSharedPool, RETRY_FUNCTION_SCRIPT, sync_retry_transient_errors,
-    retry_response_returning_functions, first_extant_file, secret_alnum_string,
-    flatten, filter_none, partition, cost_str, external_requests_client_session, url_basename,
-    url_join, parse_docker_image_reference, url_and_params,
-    url_scheme, Notice, periodically_call, dump_all_stacktraces, find_spark_home, TransientError,
-    bounded_gather2, OnlineBoundedGather2, unpack_comma_delimited_inputs, unpack_key_value_inputs,
-    retry_all_errors_n_times, Timings, is_retry_once_error)
+from .utils import (unzip, async_to_blocking, blocking_to_async, AsyncWorkerPool, bounded_gather,
+                    grouped, sync_sleep_and_backoff, sleep_and_backoff, is_transient_error,
+                    request_retry_transient_errors, request_raise_transient_errors, collect_agen,
+                    retry_all_errors, retry_transient_errors,
+                    retry_transient_errors_with_debug_string, retry_long_running, run_if_changed,
+                    run_if_changed_idempotent, LoggingTimer, WaitableSharedPool,
+                    RETRY_FUNCTION_SCRIPT, sync_retry_transient_errors,
+                    retry_response_returning_functions, first_extant_file, secret_alnum_string,
+                    flatten, filter_none, partition, cost_str, external_requests_client_session,
+                    url_basename, url_join, parse_docker_image_reference, url_and_params,
+                    url_scheme, Notice, periodically_call, dump_all_stacktraces, find_spark_home,
+                    TransientError, bounded_gather2, OnlineBoundedGather2,
+                    unpack_comma_delimited_inputs, unpack_key_value_inputs,
+                    retry_all_errors_n_times, Timings, is_retry_once_error)
 from .process import (
     CalledProcessError, check_shell, check_shell_output, check_exec_output,
     sync_check_shell, sync_check_shell_output, sync_check_exec)
@@ -47,6 +48,7 @@ __all__ = [
     'sleep_and_backoff',
     'retry_all_errors',
     'retry_transient_errors',
+    'retry_transient_errors_with_debug_string',
     'retry_long_running',
     'run_if_changed',
     'run_if_changed_idempotent',
