@@ -24,8 +24,8 @@ RUN hail-pip-install \
       scipy \
     && rm -rf hail-*-py3-none-any.whl
 RUN export SPARK_HOME=$(find_spark_home.py) && \
-    curl https://storage.googleapis.com/hadoop-lib/gcs/gcs-connector-hadoop2-2.0.1.jar \
-         >$SPARK_HOME/jars/gcs-connector-hadoop2-2.0.1.jar && \
+    curl https://storage.googleapis.com/hadoop-lib/gcs/gcs-connector-hadoop2-2.2.7.jar \
+         >$SPARK_HOME/jars/gcs-connector-hadoop2-2.2.7.jar && \
     mkdir -p $SPARK_HOME/conf && \
     touch $SPARK_HOME/conf/spark-defaults.conf && \
     sed -i $SPARK_HOME/conf/spark-defaults.conf \
