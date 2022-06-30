@@ -47,13 +47,14 @@ azure-core==1.24.1
     # via
     #   azure-identity
     #   azure-storage-blob
+    #   msrest
 azure-identity==1.9.0
     # via -r requirements.txt
 azure-storage-blob==12.8.1
     # via -r requirements.txt
 black==22.3.0
     # via -r requirements.txt
-bleach==5.0.0
+bleach==5.0.1
     # via readme-renderer
 boto3==1.21.13
     # via -r requirements.txt
@@ -62,9 +63,9 @@ botocore==1.24.13
     #   -r requirements.txt
     #   boto3
     #   s3transfer
-cachetools==4.2.4
+cachetools==5.2.0
     # via google-auth
-certifi==2022.5.18.1
+certifi==2022.6.15
     # via
     #   kubernetes-asyncio
     #   msrest
@@ -75,7 +76,7 @@ cffi==1.15.0
     #   pycares
 chardet==4.0.0
     # via requests
-charset-normalizer==2.0.12
+charset-normalizer==2.1.0
     # via aiohttp
 click==8.1.3
     # via
@@ -95,6 +96,7 @@ cryptography==37.0.2
     #   pymysql
     #   pyopenssl
     #   requests
+    #   secretstorage
 curlylint==0.13.1
     # via -r requirements.txt
 decorator==5.1.1
@@ -134,13 +136,15 @@ gevent-websocket==0.10.1
     # via flask-sockets
 gidgethub==4.1.0
     # via -r requirements.txt
-google-api-core[grpc]==1.31.6
+google-api-core[grpc]==2.8.2
     # via
+    #   google-api-python-client
+    #   google-cloud-appengine-logging
     #   google-cloud-core
     #   google-cloud-logging
-google-api-python-client==1.7.10
+google-api-python-client==2.52.0
     # via -r requirements.txt
-google-auth==1.35.0
+google-auth==2.9.0
     # via
     #   google-api-core
     #   google-api-python-client
@@ -149,17 +153,33 @@ google-auth==1.35.0
     #   google-cloud-core
 google-auth-httplib2==0.1.0
     # via google-api-python-client
-google-auth-oauthlib==0.4.6
+google-auth-oauthlib==0.5.2
     # via -r requirements.txt
-google-cloud-core==1.7.2
+google-cloud-appengine-logging==1.1.2
     # via google-cloud-logging
-google-cloud-logging==1.12.1
+google-cloud-audit-log==0.2.2
+    # via google-cloud-logging
+google-cloud-core==2.3.1
+    # via google-cloud-logging
+google-cloud-logging==3.1.2
     # via -r requirements.txt
-googleapis-common-protos==1.56.2
-    # via google-api-core
+googleapis-common-protos[grpc]==1.56.3
+    # via
+    #   google-api-core
+    #   google-cloud-audit-log
+    #   grpc-google-iam-v1
+    #   grpcio-status
 greenlet==1.1.2
     # via gevent
-grpcio==1.46.3
+grpc-google-iam-v1==0.12.4
+    # via google-cloud-logging
+grpcio==1.47.0
+    # via
+    #   google-api-core
+    #   googleapis-common-protos
+    #   grpc-google-iam-v1
+    #   grpcio-status
+grpcio-status==1.47.0
     # via google-api-core
 hiredis==2.0.0
     # via aioredis
@@ -197,6 +217,9 @@ itsdangerous==2.1.2
 janus==0.6.1
     # via -r requirements.txt
 jeepney==0.8.0
+    # via
+    #   keyring
+    #   secretstorage
 jinja2==3.0.3
     # via
     #   -r requirements.txt
@@ -206,7 +229,7 @@ jmespath==0.10.0
     # via
     #   boto3
     #   botocore
-keyring==23.5.1
+keyring==23.6.0
     # via twine
 keyrings-alt==4.1.0
     # via -r requirements.txt
@@ -230,7 +253,7 @@ msal==1.18.0
     #   msal-extensions
 msal-extensions==0.3.1
     # via azure-identity
-msrest==0.6.21
+msrest==0.7.1
     # via azure-storage-blob
 multidict==6.0.2
     # via
@@ -251,9 +274,7 @@ oauthlib==3.2.0
 orjson==3.6.4
     # via -r requirements.txt
 packaging==21.3
-    # via
-    #   google-api-core
-    #   pytest
+    # via pytest
 pandas==1.3.0
     # via -r requirements.txt
 parsimonious==0.8.1
@@ -264,7 +285,7 @@ pathspec==0.9.0
     # via
     #   black
     #   curlylint
-pkginfo==1.8.2
+pkginfo==1.8.3
     # via twine
 platformdirs==2.5.2
     # via
@@ -282,10 +303,19 @@ prometheus-client==0.11.0
     # via
     #   -r requirements.txt
     #   prometheus-async
+proto-plus==1.20.6
+    # via
+    #   google-cloud-appengine-logging
+    #   google-cloud-logging
 protobuf==3.20.1
     # via
     #   google-api-core
+    #   google-cloud-appengine-logging
+    #   google-cloud-audit-log
+    #   google-cloud-logging
     #   googleapis-common-protos
+    #   grpcio-status
+    #   proto-plus
 psutil==5.9.0
     # via -r requirements.txt
 py==1.11.0
@@ -298,7 +328,7 @@ pyasn1==0.4.8
     #   rsa
 pyasn1-modules==0.2.8
     # via google-auth
-pycares==4.1.2
+pycares==4.2.1
     # via aiodns
 pycodestyle==2.8.0
     # via flake8
@@ -357,9 +387,7 @@ python-dateutil==2.8.1
 python-json-logger==2.0.2
     # via -r requirements.txt
 pytz==2022.1
-    # via
-    #   google-api-core
-    #   pandas
+    # via pandas
 pyyaml==6.0
     # via kubernetes-asyncio
 readme-renderer==35.0
@@ -392,17 +420,15 @@ rsa==4.8
 s3transfer==0.5.2
     # via boto3
 secretstorage==3.3.2
+    # via keyring
 six==1.16.0
     # via
     #   azure-core
     #   azure-identity
     #   bleach
     #   flask-cors
-    #   google-api-core
-    #   google-api-python-client
     #   google-auth
     #   google-auth-httplib2
-    #   google-cloud-core
     #   grpcio
     #   isodate
     #   kubernetes-asyncio
@@ -435,25 +461,25 @@ typed-ast==1.5.4
     #   astroid
     #   black
     #   mypy
-types-chardet==4.0.4
+types-chardet==5.0.1
     # via -r requirements.txt
 types-decorator==5.1.7
     # via -r requirements.txt
-types-deprecated==1.2.8
+types-deprecated==1.2.9
     # via -r requirements.txt
 types-pymysql==1.0.19
     # via -r requirements.txt
-types-python-dateutil==2.8.17
+types-python-dateutil==2.8.18
     # via -r requirements.txt
-types-pyyaml==6.0.8
+types-pyyaml==6.0.9
     # via -r requirements.txt
-types-requests==2.27.30
+types-requests==2.28.0
     # via -r requirements.txt
-types-setuptools==57.4.17
+types-setuptools==57.4.18
     # via -r requirements.txt
-types-six==1.16.15
+types-six==1.16.16
     # via -r requirements.txt
-types-tabulate==0.8.9
+types-tabulate==0.8.11
     # via -r requirements.txt
 types-urllib3==1.26.15
     # via
@@ -471,7 +497,7 @@ typing-extensions==4.2.0
     #   pylint
     #   rich
     #   yarl
-uritemplate==3.0.1
+uritemplate==4.1.1
     # via
     #   gidgethub
     #   google-api-python-client
@@ -487,7 +513,7 @@ uvloop==0.16.0
     # via -r requirements.txt
 webencodings==0.5.1
     # via bleach
-websocket-client==1.3.2
+websocket-client==1.3.3
     # via docker
 werkzeug==2.1.2
     # via flask
