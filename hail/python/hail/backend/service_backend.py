@@ -331,8 +331,7 @@ class ServiceBackend(Backend):
                    ir: Optional[BaseIR] = None):
         timings = Timings()
         token = secret_alnum_string()
-        iodir = TemporaryDirectory(ensure_exists=False).name  # FIXME: actually cleanup
-        with TemporaryDirectory(ensure_exists=False) as _:
+        with TemporaryDirectory(ensure_exists=False) as iodir:
             with timings.step("write input"):
                 async with await self._async_fs.create(iodir + '/in') as infile:
                     nonnull_flag_count = sum(v is not None for v in self.flags.values())
