@@ -116,7 +116,7 @@ make_pr_for() {
     branch_name=update-$1-to-hail-$HAIL_PIP_VERSION
     git checkout -B $branch_name
     python3 $update_terra_image_py $HAIL_PIP_VERSION $1
-    git commit -m "Update hail to version $HAIL_PIP_VERSION" -- config/conf.json $1
+    git commit -m "Update $1 to Hail to version $HAIL_PIP_VERSION" -- config/conf.json $1
     git push -f origin HEAD
     echo "{
   \"head\": \"$branch_name\",
