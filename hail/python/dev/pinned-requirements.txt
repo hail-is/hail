@@ -14,14 +14,14 @@ argon2-cffi==21.3.0
     # via notebook
 argon2-cffi-bindings==21.2.0
     # via argon2-cffi
-astroid==2.11.5
+astroid==2.11.6
     # via pylint
 attrs==21.4.0
     # via
     #   curlylint
     #   jsonschema
     #   pytest
-babel==2.10.1
+babel==2.10.3
     # via sphinx
 backcall==0.2.0
     # via ipython
@@ -29,9 +29,9 @@ beautifulsoup4==4.11.1
     # via nbconvert
 black==22.3.0
     # via -r python/dev/requirements.txt
-bleach==5.0.0
+bleach==5.0.1
     # via nbconvert
-certifi==2022.5.18.1
+certifi==2022.6.15
     # via requests
 cffi==1.15.0
     # via argon2-cffi-bindings
@@ -94,11 +94,11 @@ importlib-metadata==3.10.1
     #   pre-commit
     #   pytest
     #   virtualenv
-importlib-resources==5.7.1
+importlib-resources==5.8.0
     # via jsonschema
 iniconfig==1.1.1
     # via pytest
-ipykernel==6.13.0
+ipykernel==6.15.0
     # via
     #   ipywidgets
     #   jupyter
@@ -115,7 +115,7 @@ ipython-genutils==0.2.0
     #   ipywidgets
     #   notebook
     #   qtconsole
-ipywidgets==7.7.0
+ipywidgets==7.7.1
     # via jupyter
 isort==5.10.1
     # via
@@ -130,18 +130,18 @@ jinja2==3.0.3
     #   nbsphinx
     #   notebook
     #   sphinx
-jsonschema==4.6.0
+jsonschema==4.6.1
     # via nbformat
 jupyter==1.0.0
     # via -r python/dev/requirements.txt
-jupyter-client==7.3.1
+jupyter-client==7.3.4
     # via
     #   ipykernel
     #   jupyter-console
     #   nbclient
     #   notebook
     #   qtconsole
-jupyter-console==6.4.3
+jupyter-console==6.4.4
     # via jupyter
 jupyter-core==4.10.0
     # via
@@ -152,7 +152,7 @@ jupyter-core==4.10.0
     #   qtconsole
 jupyterlab-pygments==0.2.2
     # via nbconvert
-jupyterlab-widgets==1.1.0
+jupyterlab-widgets==1.1.1
     # via ipywidgets
 lazy-object-proxy==1.7.1
     # via astroid
@@ -176,7 +176,7 @@ mypy-extensions==0.4.3
     # via
     #   black
     #   mypy
-nbclient==0.6.4
+nbclient==0.6.5
     # via nbconvert
 nbconvert==6.5.0
     # via
@@ -185,7 +185,6 @@ nbconvert==6.5.0
     #   notebook
 nbformat==5.4.0
     # via
-    #   ipywidgets
     #   nbclient
     #   nbconvert
     #   nbsphinx
@@ -199,7 +198,7 @@ nest-asyncio==1.5.4
     #   jupyter-client
     #   nbclient
     #   notebook
-nodeenv==1.6.0
+nodeenv==1.7.0
     # via pre-commit
 notebook==6.4.12
     # via
@@ -237,7 +236,7 @@ pre-commit==2.18.1
     # via -r python/dev/requirements.txt
 prometheus-client==0.14.1
     # via notebook
-prompt-toolkit==3.0.29
+prompt-toolkit==3.0.30
     # via
     #   ipython
     #   jupyter-console
@@ -294,12 +293,13 @@ pytz==2022.1
     # via babel
 pyyaml==6.0
     # via pre-commit
-pyzmq==23.1.0
+pyzmq==23.2.0
     # via
+    #   ipykernel
     #   jupyter-client
     #   notebook
     #   qtconsole
-qtconsole==5.3.0
+qtconsole==5.3.1
     # via jupyter
 qtpy==2.1.0
     # via qtconsole
@@ -357,13 +357,15 @@ tomli==2.0.1
     #   mypy
     #   pylint
     #   pytest
+tomlkit==0.11.0
+    # via pylint
 tornado==6.1
     # via
     #   ipykernel
     #   jupyter-client
     #   notebook
     #   terminado
-traitlets==5.2.2.post1
+traitlets==5.3.0
     # via
     #   ipykernel
     #   ipython
@@ -382,23 +384,23 @@ typed-ast==1.5.4
     #   astroid
     #   black
     #   mypy
-types-chardet==4.0.4
+types-chardet==5.0.1
     # via -r python/dev/requirements.txt
 types-decorator==5.1.7
     # via -r python/dev/requirements.txt
-types-deprecated==1.2.8
+types-deprecated==1.2.9
     # via -r python/dev/requirements.txt
-types-python-dateutil==2.8.17
+types-python-dateutil==2.8.18
     # via -r python/dev/requirements.txt
-types-pyyaml==6.0.8
+types-pyyaml==6.0.9
     # via -r python/dev/requirements.txt
-types-requests==2.27.30
+types-requests==2.28.0
     # via -r python/dev/requirements.txt
-types-setuptools==57.4.17
+types-setuptools==57.4.18
     # via -r python/dev/requirements.txt
-types-six==1.16.15
+types-six==1.16.16
     # via -r python/dev/requirements.txt
-types-tabulate==0.8.9
+types-tabulate==0.8.11
     # via -r python/dev/requirements.txt
 types-urllib3==1.26.15
     # via
@@ -415,7 +417,7 @@ typing-extensions==4.2.0
     #   pylint
 urllib3==1.26.9
     # via requests
-virtualenv==20.14.1
+virtualenv==20.15.1
     # via pre-commit
 wcwidth==0.2.5
     # via prompt-toolkit
@@ -423,7 +425,7 @@ webencodings==0.5.1
     # via
     #   bleach
     #   tinycss2
-widgetsnbextension==3.6.0
+widgetsnbextension==3.6.1
     # via ipywidgets
 wrapt==1.14.1
     # via astroid
