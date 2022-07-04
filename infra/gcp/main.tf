@@ -60,7 +60,7 @@ locals {
 }
 
 data "sops_file" "terraform_sa_key_sops" {
-  source_file = "terraform_sa_key.enc.json"
+  source_file = "${var.organization_domain}/terraform_sa_key.enc.json"
 }
 
 provider "google" {
@@ -636,7 +636,7 @@ resource "kubernetes_cluster_role_binding" "batch" {
 }
 
 data "sops_file" "auth_oauth2_client_secret_sops" {
-  source_file = "auth_oauth2_client_secret.enc.json"
+  source_file = "${var.organization_domain}/auth_oauth2_client_secret.enc.json"
 }
 
 resource "kubernetes_secret" "auth_oauth2_client_secret" {
@@ -650,8 +650,8 @@ resource "kubernetes_secret" "auth_oauth2_client_secret" {
 }
 
 data "sops_file" "ci_config_sops" {
-  count = fileexists("ci_config.enc.json") ? 1 : 0
-  source_file = "ci_config.enc.json"
+  count = fileexists("${var.organization_domain}/ci_config.enc.json") ? 1 : 0
+  source_file = "${var.organization_domain}/ci_config.enc.json"
 }
 
 locals {
