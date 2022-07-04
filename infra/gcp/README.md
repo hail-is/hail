@@ -42,11 +42,12 @@ Instructions:
 
   Download the client secret as `/tmp/auth_oauth2_client_secret.json`.
 
-- Create `infra/gcp/global.tfvars` that looks like this:
+- Create `infra/gcp/$ORGANIZATION_DOMAIN/global.tfvars` based on the template below, where `$ORGANIZATION_DOMAIN` corresponds to the `organization_domain` setting in the template (e.g. `hail.is`). This avoids collisions between configuration files from different Hail deployments.
+
 
    ```
    # organization_domain is a string that is the domain of the organization
-   # E.g. "broadinstitute.org"
+   # E.g. "hail.is"
    organization_domain = "<organization-domain>"
 
    # batch_gcp_regions is a JSON array of string, the names of the gcp
@@ -144,17 +145,17 @@ Instructions:
   ```
 
 
-- Encrypt the above files and add them to the repository:
+- Encrypt the above files and add them to the repository.
 
   ```sh
-  sops --encrypt --gcp-kms projects/<gcp-project-id>/locations/global/keyRings/sops/cryptoKeys/sops-key /tmp/auth_oauth2_client_secret.json > $HAIL/infra/gcp/auth_oauth2_client_secret.enc.json
+  sops --encrypt --gcp-kms projects/<gcp-project-id>/locations/global/keyRings/sops/cryptoKeys/sops-key /tmp/auth_oauth2_client_secret.json > $HAIL/infra/gcp/$ORGANIZATION_DOMAIN/auth_oauth2_client_secret.enc.json
 
   # Optional
-  sops --encrypt --gcp-kms projects/<gcp-project-id>/locations/global/keyRings/sops/cryptoKeys/sops-key /tmp/ci_config.json > $HAIL/infra/gcp/ci_config.enc.json
+  sops --encrypt --gcp-kms projects/<gcp-project-id>/locations/global/keyRings/sops/cryptoKeys/sops-key /tmp/ci_config.json > $HAIL/infra/gcp/$ORGANIZATION_DOMAIN/ci_config.enc.json
 
-  sops --encrypt --gcp-kms projects/<gcp-project-id>/locations/global/keyRings/sops/cryptoKeys/sops-key /tmp/terraform_sa_key.json > $HAIL/infra/gcp/terraform_sa_key.enc.json
+  sops --encrypt --gcp-kms projects/<gcp-project-id>/locations/global/keyRings/sops/cryptoKeys/sops-key /tmp/terraform_sa_key.json > $HAIL/infra/gcp/$ORGANIZATION_DOMAIN/terraform_sa_key.enc.json
 
-  git add $HAIL/infra/gcp/global.tfvars $HAIL/infra/gcp/auth_oauth2_client_secret.enc.json $HAIL/infra/gcp/ci_config.enc.json $HAIL/infra/gcp/terraform_sa_key.enc.json 
+  git add $HAIL/infra/gcp/$ORGANIZATION_DOMAIN/*
 
   # git commit and push as desired.
   ```
@@ -163,7 +164,7 @@ Instructions:
   
 - Run `terraform init`.
 
-- Run `terraform apply -var-file=global.tfvars`.  At the
+- Run `terraform apply -var-file=$ORGANIZATION_DOMAIN/global.tfvars`.  At the
   time of writing, this takes ~15m.
 
 - Terraform created a GKE cluster named `vdc`.  Configure `kubectl`
