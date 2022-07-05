@@ -239,18 +239,13 @@ class BuildImage2Step(Step):
         self.publish_as = publish_as
         self.inputs = inputs
         self.resources = resources
-        self.extra_cache_repository = None
-        if publish_as:
-            self.extra_cache_repository = f'{DOCKER_PREFIX}/{self.publish_as}'
-        if params.scope == 'deploy' and publish_as and not is_test_deployment:
+        if params.scope == 'deploy' and self.publish_as and not is_test_deployment:
             self.base_image = f'{DOCKER_PREFIX}/{self.publish_as}'
+        elif self.publish_as:
+            self.base_image = f'{DOCKER_PREFIX}/{DEFAULT_NAMESPACE}-{self.publish_as}'
         else:
             self.base_image = f'{DOCKER_PREFIX}/ci-intermediate'
         self.image = f'{self.base_image}:{self.token}'
-        if publish_as:
-            self.cache_repository = f'{DOCKER_PREFIX}/{self.publish_as}:cache'
-        else:
-            self.cache_repository = f'{DOCKER_PREFIX}/ci-intermediate:cache'
         self.job = None
 
     def wrapped_job(self):
@@ -282,6 +277,18 @@ class BuildImage2Step(Step):
             input_files = None
 
         config = self.input_config(code, scope)
+
+        main_branch_cache = f'{self.base_image}:cache'
+        if scope == 'test':
+            extra_cache_repository = f'{self.base_image}:cache-{config["code"]["number"]}'
+            cache_to_push_to = extra_cache_repository
+        elif scope == 'dev':
+            extra_cache_repository = f'{self.base_image}:cache-{config["code"]["user"]}'
+            cache_to_push_to = extra_cache_repository
+        else:
+            assert scope == 'deploy'
+            extra_cache_repository = None
+            cache_to_push_to = main_branch_cache
 
         context = self.context_path
         if not context:
@@ -320,9 +327,9 @@ retry buildctl-daemonless.sh \
      --frontend dockerfile.v0 \
      --local context={shq(context)} \
      --local dockerfile=/home/user \
-     --output 'type=image,"name={shq(self.image)},{shq(self.cache_repository)}",push=true' \
+     --output 'type=image,"name={shq(self.image)},{shq(cache_to_push_to)}",push=true' \
      --export-cache type=inline \
-     --import-cache type=registry,ref={shq(self.cache_repository)} \
+     { f"--import-cache type=registry,ref={shq(extra_cache_repository)}" if extra_cache_repository else "" } --import-cache type=registry,ref={shq(main_branch_cache)} \
      --trace=/home/user/trace
 cat /home/user/trace
 '''
