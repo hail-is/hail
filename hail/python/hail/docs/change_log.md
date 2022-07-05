@@ -24,6 +24,22 @@ an earlier version of Hail to read files written in a later version.
 
 ---
 
+## Version 0.2.97
+
+Released 2022-06-30
+
+### New Features
+
+- (hail#11756) `hb.BatchPoolExecutor` and Python jobs both now also support async functions.
+
+### Bug fixes
+
+- (hail#11962) Fix error (logged as (hail#11891)) in VCF combiner when exactly 10 or 100 files are combined.
+- (hail#11969) Fix `import_table` and `import_lines` to use multiple partitions when `force_bgz` is used.
+- (hail#11964) Fix erroneous "Bucket is a requester pays bucket but no user project provided." errors in Google Dataproc by updating to the latest Dataproc image version.
+
+---
+
 ## Version 0.2.96
 
 Released 2022-06-21
