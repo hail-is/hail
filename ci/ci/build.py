@@ -153,9 +153,9 @@ class Step(abc.ABC):
             duplicates = [name for name, count in Counter(json['dependsOn']).items() if count > 1]
             if duplicates:
                 raise BuildConfigurationError(f'found duplicate dependencies of {self.name}: {duplicates}')
-            self.deps = [params.name_step[d] for d in json['dependsOn'] if d in params.name_step]
+            self.deps: List[Step] = [params.name_step[d] for d in json['dependsOn'] if d in params.name_step]
         else:
-            self.deps = []
+            self.deps: List[Step] = []
         self.scopes = json.get('scopes')
         self.clouds = json.get('clouds')
         self.run_if_requested = json.get('runIfRequested', False)
@@ -221,7 +221,15 @@ class Step(abc.ABC):
         return hash(self.name)
 
     @abc.abstractmethod
+    def wrapped_job(self) -> list:
+        pass
+
+    @abc.abstractmethod
     def build(self, batch, code, scope):
+        pass
+
+    @abc.abstractmethod
+    def config(self, scope) -> dict:
         pass
 
     @abc.abstractmethod
