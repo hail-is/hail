@@ -198,7 +198,7 @@ class Step(abc.ABC):
         return self.scopes is None or scope in self.scopes
 
     @staticmethod
-    def from_json(params):
+    def from_json(params: StepParameters):
         kind = params.json['kind']
         if kind == 'buildImage':
             return BuildImage2Step.from_json(params)
@@ -239,7 +239,7 @@ class Step(abc.ABC):
 
 class BuildImage2Step(Step):
     def __init__(
-        self, params, dockerfile, context_path, publish_as, inputs, resources
+        self, params: StepParameters, dockerfile, context_path, publish_as, inputs, resources
     ):  # pylint: disable=unused-argument
         super().__init__(params)
         self.dockerfile = dockerfile
@@ -247,13 +247,27 @@ class BuildImage2Step(Step):
         self.publish_as = publish_as
         self.inputs = inputs
         self.resources = resources
-        if params.scope == 'deploy' and self.publish_as and not is_test_deployment:
-            self.base_image = f'{DOCKER_PREFIX}/{self.publish_as}'
-        elif self.publish_as:
-            self.base_image = f'{DOCKER_PREFIX}/{DEFAULT_NAMESPACE}-{self.publish_as}'
-        else:
-            self.base_image = f'{DOCKER_PREFIX}/ci-intermediate'
+
+        image_name = self.publish_as or 'ci-intermediate'
+        self.base_image = f'{DOCKER_PREFIX}/{image_name}'
         self.image = f'{self.base_image}:{self.token}'
+        self.main_branch_cache = f'{self.base_image}:cache'
+
+        if params.scope == 'deploy':
+            if is_test_deployment:
+                # CIs that don't live in default doing a deploy
+                # should not clobber the `cache` tag
+                self.cache_to_push_to = f'{self.base_image}:cache-{DEFAULT_NAMESPACE}-deploy'
+            else:
+                self.cache_to_push_to = self.main_branch_cache
+        elif params.scope == 'dev':
+            dev_user = params.code.config()['user']
+            self.cache_to_push_to = f'{self.base_image}:cache-{dev_user}'
+        else:
+            assert params.scope == 'test'
+            pr_number = params.code.config()['number']
+            self.cache_to_push_to = f'{self.base_image}:cache-pr-{pr_number}'
+
         self.job = None
 
     def wrapped_job(self):
@@ -262,7 +276,7 @@ class BuildImage2Step(Step):
         return []
 
     @staticmethod
-    def from_json(params):
+    def from_json(params: StepParameters):
         json = params.json
         return BuildImage2Step(
             params,
@@ -285,18 +299,6 @@ class BuildImage2Step(Step):
             input_files = None
 
         config = self.input_config(code, scope)
-
-        main_branch_cache = f'{self.base_image}:cache'
-        if scope == 'test':
-            extra_cache_repository = f'{self.base_image}:cache-{config["code"]["number"]}'
-            cache_to_push_to = extra_cache_repository
-        elif scope == 'dev':
-            extra_cache_repository = f'{self.base_image}:cache-{config["code"]["user"]}'
-            cache_to_push_to = extra_cache_repository
-        else:
-            assert scope == 'deploy'
-            extra_cache_repository = None
-            cache_to_push_to = main_branch_cache
 
         context = self.context_path
         if not context:
@@ -335,9 +337,10 @@ retry buildctl-daemonless.sh \
      --frontend dockerfile.v0 \
      --local context={shq(context)} \
      --local dockerfile=/home/user \
-     --output 'type=image,"name={shq(self.image)},{shq(cache_to_push_to)}",push=true' \
+     --output 'type=image,"name={shq(self.image)},{shq(self.cache_to_push_to)}",push=true' \
      --export-cache type=inline \
-     { f"--import-cache type=registry,ref={shq(extra_cache_repository)}" if extra_cache_repository else "" } --import-cache type=registry,ref={shq(main_branch_cache)} \
+     --import-cache type=registry,ref={shq(self.cache_to_push_to)} \
+     --import-cache type=registry,ref={shq(self.main_branch_cache)} \
      --trace=/home/user/trace
 cat /home/user/trace
 '''
@@ -477,7 +480,7 @@ class RunImageStep(Step):
         return self.jobs
 
     @staticmethod
-    def from_json(params):
+    def from_json(params: StepParameters):
         json = params.json
         return RunImageStep(
             params,
@@ -600,7 +603,7 @@ class CreateNamespaceStep(Step):
         return []
 
     @staticmethod
-    def from_json(params):
+    def from_json(params: StepParameters):
         json = params.json
         return CreateNamespaceStep(
             params,
@@ -770,7 +773,7 @@ class DeployStep(Step):
         return []
 
     @staticmethod
-    def from_json(params):
+    def from_json(params: StepParameters):
         json = params.json
         return DeployStep(
             params,
@@ -965,7 +968,7 @@ class CreateDatabaseStep(Step):
         return []
 
     @staticmethod
-    def from_json(params):
+    def from_json(params: StepParameters):
         json = params.json
         return CreateDatabaseStep(
             params,
