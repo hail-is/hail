@@ -251,22 +251,22 @@ class BuildImage2Step(Step):
         image_name = self.publish_as or 'ci-intermediate'
         self.base_image = f'{DOCKER_PREFIX}/{image_name}'
         self.image = f'{self.base_image}:{self.token}'
-        self.main_branch_cache = f'{self.base_image}:cache'
+        self.main_branch_cache_repository = f'{self.base_image}:cache'
 
         if params.scope == 'deploy':
             if is_test_deployment:
                 # CIs that don't live in default doing a deploy
-                # should not clobber the `cache` tag
-                self.cache_to_push_to = f'{self.base_image}:cache-{DEFAULT_NAMESPACE}-deploy'
+                # should not clobber the main `cache` tag
+                self.cache_repository = f'{self.base_image}:cache-{DEFAULT_NAMESPACE}-deploy'
             else:
-                self.cache_to_push_to = self.main_branch_cache
+                self.cache_repository = self.main_branch_cache_repository
         elif params.scope == 'dev':
             dev_user = params.code.config()['user']
-            self.cache_to_push_to = f'{self.base_image}:cache-{dev_user}'
+            self.cache_repository = f'{self.base_image}:cache-{dev_user}'
         else:
             assert params.scope == 'test'
             pr_number = params.code.config()['number']
-            self.cache_to_push_to = f'{self.base_image}:cache-pr-{pr_number}'
+            self.cache_repository = f'{self.base_image}:cache-pr-{pr_number}'
 
         self.job = None
 
@@ -337,10 +337,10 @@ retry buildctl-daemonless.sh \
      --frontend dockerfile.v0 \
      --local context={shq(context)} \
      --local dockerfile=/home/user \
-     --output 'type=image,"name={shq(self.image)},{shq(self.cache_to_push_to)}",push=true' \
+     --output 'type=image,"name={shq(self.image)},{shq(self.cache_repository)}",push=true' \
      --export-cache type=inline \
-     --import-cache type=registry,ref={shq(self.cache_to_push_to)} \
-     --import-cache type=registry,ref={shq(self.main_branch_cache)} \
+     --import-cache type=registry,ref={shq(self.cache_repository)} \
+     --import-cache type=registry,ref={shq(self.main_branch_cache_repository)} \
      --trace=/home/user/trace
 cat /home/user/trace
 '''
