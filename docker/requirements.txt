@@ -31,8 +31,8 @@ humanize==1.0.0
 hurry.filesize==0.9
 isort==5.10.1
 orjson==3.6.4
-# importlib-metadata<4: in dev/requirements, jupyter depends on (an unpinned) ipykernel which needs importlib-metadata<4
-importlib-metadata<4
+# importlib-metadata<5: in dev/requirements, jupyter depends on (an unpinned) ipykernel which needs importlib-metadata<5
+importlib-metadata<5
 janus==0.6.1
 Jinja2==3.0.3
 # keyrings.alt>3.1: https://bugs.launchpad.net/usd-importer/+bug/1794041/comments/6

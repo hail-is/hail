@@ -195,7 +195,7 @@ idna==2.10
     # via
     #   requests
     #   yarl
-importlib-metadata==3.10.1
+importlib-metadata==4.12.0
     # via
     #   -r requirements.txt
     #   click
