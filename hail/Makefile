@@ -301,8 +301,8 @@ install-dev-deps:
 install-deps: install-dev-deps
 	sed "s/^pyspark.*/pyspark==$(SPARK_VERSION)/" python/requirements.txt | xargs $(PIP) install -U
 
-.PHONY: generate-pip-lockfiles
-generate-pip-lockfiles:
+.PHONY: generate-pip-lockfile
+generate-pip-lockfile:
 	pip-compile --upgrade python/hailtop/requirements.txt \
 		--output-file=python/hailtop/pinned-requirements.txt
 	pip-compile --upgrade python/requirements.txt \
