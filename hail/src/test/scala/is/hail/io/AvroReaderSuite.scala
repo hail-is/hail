@@ -31,7 +31,7 @@ class AvroReaderSuite extends HailSuite {
     Row(Int.MinValue, null, Float.MinPositiveValue, Double.MinPositiveValue, "MINIMUM STRING")
   )
 
-  private val partitionReader = AvroPartitionReader(testSchema)
+  private val partitionReader = AvroPartitionReader(testSchema, "rowUID")
 
   def makeRecord(row: Row): GenericRecord = row match {
     case Row(int, long, float, double, string) => new GenericRecordBuilder(testSchema)

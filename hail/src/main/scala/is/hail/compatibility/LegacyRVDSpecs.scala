@@ -88,9 +88,10 @@ trait ShimRVDSpec extends AbstractRVDSpec {
     ctx: ExecuteContext,
     path: String,
     requestedType: TStruct,
+    uidFieldName: String,
     newPartitioner: Option[RVDPartitioner],
     filterIntervals: Boolean
-  ): RVD = shim.read(ctx, path, requestedType, newPartitioner, filterIntervals)
+  ): RVD = shim.read(ctx, path, requestedType, uidFieldName, newPartitioner, filterIntervals)
 
   override def typedCodecSpec: AbstractTypedCodecSpec = shim.typedCodecSpec
 

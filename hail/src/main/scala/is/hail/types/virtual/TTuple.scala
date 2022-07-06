@@ -8,6 +8,14 @@ object TTuple {
   val empty: TTuple = TTuple()
 
   def apply(args: Type*): TTuple = TTuple(args.iterator.zipWithIndex.map { case (t, i) => TupleField(i, t) }.toArray)
+
+  def flatten(args: Type*): TTuple = {
+    def _flatten(t: Type): Seq[Type] = t match {
+      case t: TBaseStruct => t.types.flatMap(_flatten)
+      case t => Seq(t)
+    }
+    TTuple(args.flatMap(_flatten): _*)
+  }
 }
 
 case class TupleField(index: Int, typ: Type)

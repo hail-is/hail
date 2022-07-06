@@ -1,13 +1,13 @@
 package is.hail.io.vcf
 
 import htsjdk.variant.vcf._
-import is.hail.asm4s.HailClassLoader
 import is.hail.annotations._
+import is.hail.asm4s.HailClassLoader
 import is.hail.backend.spark.SparkBackend
 import is.hail.backend.{BroadcastValue, ExecuteContext}
 import is.hail.expr.JSONAnnotationImpex
 import is.hail.expr.ir.lowering.TableStage
-import is.hail.expr.ir.{CloseableIterator, GenericLine, GenericLines, GenericTableValue, IR, IRParser, Literal, LowerMatrixIR, MatrixHybridReader, MatrixIR, MatrixLiteral, TableRead, TableValue}
+import is.hail.expr.ir.{CloseableIterator, GenericLine, GenericLines, GenericTableValue, IR, IRParser, Literal, LowerMatrixIR, MatrixHybridReader, MatrixIR, MatrixLiteral, TableValue}
 import is.hail.io.fs.{FS, FileStatus}
 import is.hail.io.tabix._
 import is.hail.io.vcf.LoadVCF.{getHeaderLines, parseHeader, parseLines}
@@ -1776,12 +1776,13 @@ class MatrixVCFReader(
 
     new GenericTableValue(
       tt,
+      rowUIDFieldName,
       None,
       { (requestedGlobalsType: Type) =>
         val subset = tt.globalType.valueSubsetter(requestedGlobalsType)
         subset(globals).asInstanceOf[Row]
       },
-      lines.contextType,
+      lines.contextType.asInstanceOf[TStruct],
       lines.contexts,
       bodyPType,
       body)
@@ -1797,8 +1798,8 @@ class MatrixVCFReader(
   override def lower(ctx: ExecuteContext, requestedType: TableType): TableStage =
     executeGeneric(ctx).toTableStage(ctx, requestedType)
 
-  def apply(tr: TableRead, ctx: ExecuteContext): TableValue =
-    executeGeneric(ctx, tr.dropRows).toTableValue(ctx ,tr.typ)
+  override def apply(ctx: ExecuteContext, requestedType: TableType, dropRows: Boolean): TableValue =
+    executeGeneric(ctx, dropRows).toTableValue(ctx, requestedType)
 
   override def toJValue: JValue = {
     implicit val formats: Formats = DefaultFormats

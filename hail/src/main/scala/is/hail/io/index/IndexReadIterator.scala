@@ -23,7 +23,7 @@ class IndexReadIterator(
 ) extends Iterator[Long] {
 
   private[this] val (startIdx, endIdx) = idxr.boundsByInterval(bounds)
-  private[this] var n = endIdx - startIdx
+  private[this] var curIdx = startIdx
 
   private[this] val trackedIn = new ByteTrackingInputStream(in)
   private[this] val field = Option(offsetField).map { f =>
@@ -31,7 +31,7 @@ class IndexReadIterator(
   }
   private[this] val dec =
     try {
-      if (n > 0) {
+      if (endIdx > startIdx) {
         val dec = makeDec(trackedIn, theHailClassLoader)
         val i = idxr.queryByIndex(startIdx)
         val off = field.map { j =>
@@ -58,7 +58,9 @@ class IndexReadIterator(
     if (dec != null) dec.close()
   }
 
-  def hasNext: Boolean = cont != 0 && n > 0
+  def hasNext: Boolean = cont != 0 && curIdx < endIdx
+
+  def getCurIdx: Long = curIdx - 1
 
   def next(): Long = _next()
 
@@ -66,7 +68,7 @@ class IndexReadIterator(
     if (!hasNext)
       throw new NoSuchElementException("next on empty iterator")
 
-    n -= 1
+    curIdx += 1
     try {
       val res = dec.readRegionValue(region)
       cont = dec.readByte()

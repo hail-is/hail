@@ -1,14 +1,13 @@
 package is.hail.io.avro
 
 import is.hail.backend.ExecuteContext
-import is.hail.expr.ir.lowering.{TableStage, TableStageDependency}
 import is.hail.expr.ir._
+import is.hail.expr.ir.lowering.{TableStage, TableStageDependency}
 import is.hail.rvd.RVDPartitioner
 import is.hail.types.TableType
 import is.hail.types.physical.{PCanonicalStruct, PStruct}
-import is.hail.types.virtual.{TArray, TString, TStruct}
+import is.hail.types.virtual._
 import is.hail.utils.plural
-import org.apache.spark.sql.Row
 import org.json4s.{Formats, JValue}
 
 class AvroTableReader(
@@ -38,14 +37,16 @@ class AvroTableReader(
 
   def renderShort(): String = defaultRender()
 
-  def apply(tr: TableRead, ctx: ExecuteContext): TableValue = {
-    val ts = lower(ctx, tr.typ)
+  override def apply(ctx: ExecuteContext, requestedType: TableType, dropRows: Boolean): TableValue = {
+    val ts = lower(ctx, requestedType)
     new TableStageIntermediate(ts).asTableValue(ctx)
   }
 
   override def lower(ctx: ExecuteContext, requestedType: TableType): TableStage = {
     val globals = MakeStruct(Seq())
-    val contexts = ToStream(Literal(TArray(TString), paths))
+    val contexts = zip2(ToStream(Literal(TArray(TString), paths)), StreamIota(I32(0), I32(1)), ArrayZipBehavior.TakeMinLength) { (path, idx) =>
+      MakeTuple.ordered(Array(path, idx))
+    }
     TableStage(
       globals,
       partitioner,

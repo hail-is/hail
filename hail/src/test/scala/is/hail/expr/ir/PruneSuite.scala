@@ -3,11 +3,11 @@ package is.hail.expr.ir
 import is.hail.HailSuite
 import is.hail.backend.ExecuteContext
 import is.hail.expr.Nat
+import is.hail.methods.{ForceCountMatrixTable, ForceCountTable}
+import is.hail.rvd.RVD
 import is.hail.types._
 import is.hail.types.physical.PStruct
 import is.hail.types.virtual._
-import is.hail.methods.{ForceCountMatrixTable, ForceCountTable}
-import is.hail.rvd.RVD
 import is.hail.utils._
 import org.apache.spark.sql.Row
 import org.json4s.JValue
@@ -114,7 +114,7 @@ class PruneSuite extends HailSuite {
 
     def pathsUsed: Seq[String] = FastSeq()
 
-    def apply(tr: TableRead, ctx: ExecuteContext): TableValue = ???
+    override def apply(ctx: ExecuteContext, requestedType: TableType, dropRows: Boolean): TableValue = ???
 
     def partitionCounts: Option[IndexedSeq[Long]] = ???
 

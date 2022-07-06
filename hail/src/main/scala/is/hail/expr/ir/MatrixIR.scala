@@ -109,6 +109,10 @@ trait MatrixReader {
   def defaultRender(): String = {
     StringEscapeUtils.escapeString(JsonMethods.compact(toJValue))
   }
+
+  final def rowUIDFieldName: String = "__rowUID"
+
+  final def colUIDFieldName: String = "__colUID"
 }
 
 abstract class MatrixHybridReader extends TableReader with MatrixReader {
@@ -247,14 +251,14 @@ class MatrixNativeReader(
       val partFiles = colsRVDSpec.absolutePartPaths(spec.colsSpec.rowsComponent.absolutePath(colsPath))
 
       val cols = if (partFiles.length == 1) {
-        ReadPartition(Str(partFiles.head), mr.typ.colType, PartitionNativeReader(colsRVDSpec.typedCodecSpec))
+        ReadPartition(Str(partFiles.head), mr.typ.colType, PartitionNativeReader(colsRVDSpec.typedCodecSpec, colUIDFieldName))
       } else {
         val partNames = MakeArray(partFiles.map(Str), TArray(TString))
         val elt = Ref(genUID(), TString)
         StreamFlatMap(
           partNames,
           elt.name,
-          ReadPartition(elt, mr.typ.colType, PartitionNativeReader(colsRVDSpec.typedCodecSpec)))
+          ReadPartition(elt, mr.typ.colType, PartitionNativeReader(colsRVDSpec.typedCodecSpec, colUIDFieldName)))
       }
 
       TableMapGlobals(tr, InsertFields(

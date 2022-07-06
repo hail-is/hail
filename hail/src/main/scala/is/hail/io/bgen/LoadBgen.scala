@@ -1,26 +1,24 @@
 package is.hail.io.bgen
 
-import is.hail.HailContext
-import is.hail.backend.{BroadcastValue, ExecuteContext}
-import is.hail.backend.spark.SparkBackend
+import is.hail.backend.ExecuteContext
 import is.hail.expr.ir
-import is.hail.expr.ir.{IRParser, IRParserEnvironment, Interpret, MatrixHybridReader, Pretty, TableIR, TableRead, TableValue}
-import is.hail.types._
-import is.hail.types.physical.{PCanonicalStruct, PStruct, PType}
-import is.hail.types.virtual._
+import is.hail.expr.ir.{IRParser, IRParserEnvironment, Interpret, MatrixHybridReader, Pretty, TableIR, TableValue}
 import is.hail.io._
 import is.hail.io.fs.{FS, FileStatus}
 import is.hail.io.index.{IndexReader, IndexReaderBuilder}
 import is.hail.io.vcf.LoadVCF
 import is.hail.rvd.{RVD, RVDPartitioner, RVDType}
 import is.hail.sparkextras.RepartitionedOrderedRDD2
+import is.hail.types._
+import is.hail.types.physical.{PStruct, PType}
+import is.hail.types.virtual._
 import is.hail.utils._
 import is.hail.variant._
 import org.apache.spark.Partition
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
 import org.json4s.JsonAST.{JArray, JInt, JNull, JString}
-import org.json4s.{CustomSerializer, DefaultFormats, Extraction, Formats, JObject, JValue}
+import org.json4s.{DefaultFormats, Formats, JObject, JValue}
 
 import scala.io.Source
 
@@ -467,9 +465,7 @@ class MatrixBGENReader(
     settings.rowPType -> PType.canonical(requestedType.globalType, required = true).asInstanceOf[PStruct]
   }
 
-  def apply(tr: TableRead, ctx: ExecuteContext): TableValue = {
-    val requestedType = tr.typ
-
+  override def apply(ctx: ExecuteContext, requestedType: TableType, dropRows: Boolean): TableValue = {
     assert(requestedType.keyType == indexKeyType)
 
     val settings = getSettings(requestedType)
@@ -477,7 +473,7 @@ class MatrixBGENReader(
     val rvdType = RVDType(coerce[PStruct](settings.rowPType.subsetTo(requestedType.rowType)),
       fullType.key.take(requestedType.key.length))
 
-    val rvd = if (tr.dropRows)
+    val rvd = if (dropRows)
       RVD.empty(rvdType)
     else
       new RVD(
@@ -487,7 +483,7 @@ class MatrixBGENReader(
 
     val globalValue = makeGlobalValue(ctx, requestedType.globalType, sampleIds.map(Row(_)))
 
-    TableValue(ctx, tr.typ, globalValue, rvd)
+    TableValue(ctx, requestedType, globalValue, rvd)
   }
 
   override def toJValue: JValue = params.toJValue

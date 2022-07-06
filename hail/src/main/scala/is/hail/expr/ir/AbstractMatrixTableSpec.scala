@@ -115,12 +115,13 @@ case class RVDComponentSpec(rel_path: String) extends ComponentSpec {
     ctx: ExecuteContext,
     path: String,
     requestedType: TStruct,
+    uidFieldName: String,
     newPartitioner: Option[RVDPartitioner] = None,
     filterIntervals: Boolean = false
   ): RVD = {
     val rvdPath = path + "/" + rel_path
     rvdSpec(ctx.fs, path)
-      .read(ctx, rvdPath, requestedType, newPartitioner, filterIntervals)
+      .read(ctx, rvdPath, requestedType, uidFieldName, newPartitioner, filterIntervals)
   }
 
   def readLocalSingleRow(ctx: ExecuteContext, path: String, requestedType: TStruct): (PStruct, Long) = {

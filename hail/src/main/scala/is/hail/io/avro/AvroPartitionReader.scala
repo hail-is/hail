@@ -1,12 +1,14 @@
 package is.hail.io.avro
 
 import is.hail.annotations.Region
-import is.hail.asm4s.{Code, CodeLabel, Settable, Value}
+import is.hail.asm4s._
 import is.hail.backend.ExecuteContext
 import is.hail.expr.ir.streams.StreamProducer
-import is.hail.expr.ir.{EmitCode, EmitCodeBuilder, IEmitCode, PartitionReader}
+import is.hail.expr.ir.{EmitCode, EmitCodeBuilder, EmitValue, IEmitCode, PartitionReader}
+import is.hail.types.physical.stypes.EmitType
 import is.hail.types.physical.stypes.concrete._
 import is.hail.types.physical.stypes.interfaces.{SBaseStructValue, SStreamValue, primitive}
+import is.hail.types.physical.stypes.primitives.{SInt64, SInt64Value}
 import is.hail.types.virtual._
 import is.hail.types.{RField, RStruct, TypeWithRequiredness}
 import org.apache.avro.Schema
@@ -18,10 +20,10 @@ import org.json4s.{Extraction, JValue}
 import java.io.InputStream
 import scala.collection.JavaConverters._
 
-case class AvroPartitionReader(schema: Schema) extends PartitionReader {
-  def contextType: Type = TString
+case class AvroPartitionReader(schema: Schema, uidFieldName: String) extends PartitionReader {
+  def contextType: Type = TStruct("filename" -> TString, "partitionIdx" -> TInt64)
 
-  val fullRowType: TStruct = AvroReader.schemaToType(schema)
+  val fullRowType: TStruct = AvroReader.schemaToType(schema).insertFields(Array(uidFieldName -> TTuple(TInt64, TInt64)))
 
   def rowRequiredness(requestedType: Type): TypeWithRequiredness = {
     val req = TypeWithRequiredness.apply(requestedType).asInstanceOf[RStruct]
@@ -32,13 +34,25 @@ case class AvroPartitionReader(schema: Schema) extends PartitionReader {
     req
   }
 
-  def emitStream(ctx: ExecuteContext, cb: EmitCodeBuilder, context: EmitCode, partitionRegion: Value[Region], requestedType: Type): IEmitCode = {
-    val structType = requestedType.asInstanceOf[TStruct]
-    context.toI(cb).map(cb) { path =>
+  def emitStream(
+    ctx: ExecuteContext,
+    cb: EmitCodeBuilder,
+    context: EmitCode,
+    partitionRegion: Value[Region],
+    requestedType: TStruct
+  ): IEmitCode = {
+    context.toI(cb).map(cb) { case ctxStruct: SBaseStructValue =>
+      val partIdx = ctxStruct.loadField(cb, "partitionIndex").get(cb)
+      val pathString = ctxStruct.loadField(cb, "partitionPath").get(cb).asString.loadString(cb)
+
       val mb = cb.emb
       val it = mb.genFieldThisRef[DataFileStream[GenericRecord]]("datafilestream")
       val record = mb.genFieldThisRef[GenericRecord]("record")
       val region = mb.genFieldThisRef[Region]("region")
+      val rowIdx = mb.genFieldThisRef[Long]("rowIdx")
+      val uidSType: SStackStruct = SStackStruct(
+        TTuple(TInt64, TInt64),
+        Array(EmitType(SInt64, true), EmitType(SInt64, true)))
 
       val producer = new StreamProducer {
         val length: Option[EmitCodeBuilder => Code[Int]] = None
@@ -47,11 +61,12 @@ case class AvroPartitionReader(schema: Schema) extends PartitionReader {
           val mb = cb.emb
           val codeSchema = cb.newLocal("schema", mb.getObject(schema))
           cb.assign(record, Code.newInstance[GenericData.Record, Schema](codeSchema))
-          val is = mb.open(path.asString.loadString(cb), false)
+          val is = mb.open(pathString, false)
           val datumReader = Code.newInstance[GenericDatumReader[GenericRecord], Schema](codeSchema)
           val dataFileStream = Code.newInstance[DataFileStream[GenericRecord], InputStream, DatumReader[GenericRecord]](is, datumReader)
 
           cb.assign(it, dataFileStream)
+          cb.assign(rowIdx, -1L)
         }
 
         val elementRegion: Settable[Region] = region
@@ -59,11 +74,21 @@ case class AvroPartitionReader(schema: Schema) extends PartitionReader {
         val LproduceElement: CodeLabel = mb.defineAndImplementLabel { cb =>
           cb.ifx(!it.invoke[Boolean]("hasNext"), cb.goto(LendOfStream))
           cb.assign(record, it.invoke[AnyRef, GenericRecord]("next", record))
+          cb.assign(rowIdx, rowIdx + 1L)
           cb.goto(LproduceElementDone)
         }
 
         val element: EmitCode = EmitCodeBuilder.scopedEmitCode(mb) { cb =>
-          EmitCode.present(mb, AvroReader.recordToHail(cb, region, record, structType))
+          val baseStruct = AvroReader.recordToHail(cb, region, record, requestedType)
+          if (requestedType.fieldNames.contains(uidFieldName)) {
+            val uid = EmitValue.present(
+              new SStackStructValue(uidSType, Array(
+                EmitValue.present(partIdx),
+                EmitValue.present(new SInt64Value(rowIdx)))))
+            EmitCode.present(mb, baseStruct._insert(requestedType, uidFieldName -> uid))
+          } else {
+            EmitCode.present(mb, baseStruct)
+          }
         }
 
         def close(cb: EmitCodeBuilder): Unit = cb += it.invoke[Unit]("close")

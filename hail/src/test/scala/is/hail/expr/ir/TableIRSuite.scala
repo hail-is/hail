@@ -820,7 +820,7 @@ class TableIRSuite extends HailSuite {
 
       def pathsUsed: Seq[String] = FastSeq()
 
-      override def apply(tr: TableRead, ctx: ExecuteContext): TableValue = ???
+      override def apply(ctx: ExecuteContext, requestedType: TableType, dropRows: Boolean): TableValue = ???
 
       override def partitionCounts: Option[IndexedSeq[Long]] = Some(FastIndexedSeq(1, 2, 3, 4))
 

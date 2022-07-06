@@ -225,7 +225,7 @@ object GenericLines {
     }
 
     val contextType = TStruct(
-      "index" -> TInt32,
+      "partitionIndex" -> TInt32,
       "file" -> TString,
       "start" -> TInt64,
       "end" -> TInt64,

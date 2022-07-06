@@ -166,6 +166,8 @@ object EmitValue {
       v)
 
   def present(v: SValue): EmitValue = EmitValue(None, v)
+
+  def missing(t: SType): EmitValue = EmitValue(Some(const(true)), t.defaultValue)
 }
 
 class EmitValue protected(missing: Option[Value[Boolean]], val v: SValue) {

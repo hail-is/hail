@@ -11,6 +11,27 @@ import is.hail.types.virtual.{TBaseStruct, TStruct, TTuple}
 import is.hail.types.{RField, RStruct, RTuple, TypeWithRequiredness}
 import is.hail.utils._
 
+object SBaseStruct {
+  def merge(cb: EmitCodeBuilder, s1: SBaseStructValue, s2: SBaseStructValue): SBaseStructValue = {
+    val lt = s1.st.virtualType.asInstanceOf[TStruct]
+    val rt = s2.st.virtualType.asInstanceOf[TStruct]
+    val resultVType = TStruct.concat(lt, rt)
+
+    val st1 = s1.st
+    val st2 = s2.st
+
+    (s1, s2) match {
+      case (s1, s2: SStackStructValue) =>
+        s1._insert(resultVType, rt.fieldNames.zip(s2.values): _*)
+      case (s1: SStackStructValue, s2) =>
+        s2._insert(resultVType, lt.fieldNames.zip(s1.values): _*)
+      case _ =>
+        val newVals = (0 until st2.size).map(i => cb.memoize(s2.loadField(cb, i), "InsertFieldsStruct_merge"))
+        s1._insert(resultVType, rt.fieldNames.zip(newVals): _*)
+    }
+  }
+}
+
 trait SBaseStruct extends SType {
   def virtualType: TBaseStruct
 
@@ -74,7 +95,7 @@ trait SBaseStructValue extends SValue {
     new SInt64Value(sizeSoFar)
   }
 
-  protected[stypes] def _insert(newType: TStruct, fields: (String, EmitValue)*): SBaseStructValue = {
+  def _insert(newType: TStruct, fields: (String, EmitValue)*): SBaseStructValue = {
     new SInsertFieldsStructValue(
       SInsertFieldsStruct(newType, st, fields.map { case (name, ec) => (name, ec.emitType) }.toFastIndexedSeq),
       this,

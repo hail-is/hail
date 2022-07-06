@@ -145,13 +145,14 @@ class RequirednessSuite extends HailSuite {
     )
 
     val spec = TypedCodecSpec(pDisc, BufferSpec.default)
-    val pr = PartitionNativeReader(spec)
+    val pr = PartitionNativeReader(spec, "rowUID")
     val rt1 = TStruct("a" -> TInt32, "b" -> TArray(TInt32))
     val rt2 = TStruct("a" -> TInt32, "c" -> TArray(TStruct("x" -> TInt32)))
     Array(Str("foo") -> pDisc,
       NA(TString) -> pDisc,
       Str("foo") -> pDisc.subsetTo(rt1),
-      Str("foo") -> pDisc.subsetTo(rt2)).foreach { case (path, pt) =>
+      Str("foo") -> pDisc.subsetTo(rt2)
+    ).foreach { case (path, pt: PStruct) =>
       nodes += Array(ReadPartition(path, pt.virtualType, pr), EmitType(SStream(EmitType(pt.sType, pt.required)), path.isInstanceOf[Str]))
       nodes += Array(ReadValue(path, spec, pt.virtualType), pt.setRequired(path.isInstanceOf[Str]))
     }

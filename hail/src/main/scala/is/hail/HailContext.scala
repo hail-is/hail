@@ -281,7 +281,8 @@ object HailContext {
     path: String,
     enc: AbstractTypedCodecSpec,
     partFiles: Array[String],
-    requestedType: TStruct
+    requestedType: TStruct,
+    uidFieldName: String
   ): (PStruct, ContextRDD[Long]) = {
     val fs = ctx.fs
     val (pType: PStruct, makeDec) = enc.buildDecoder(ctx, requestedType)

@@ -253,7 +253,7 @@ final case class ArrayZeros(length: IR) extends IR
   * `step` at each iteration. The name comes from APL:
   * [[https://stackoverflow.com/questions/9244879/what-does-iota-of-stdiota-stand-for]]
   */
-final case class StreamIota(start: IR, stop: IR, requiresMemoryManagementPerElement: Boolean = false) extends IR
+final case class StreamIota(start: IR, step: IR, requiresMemoryManagementPerElement: Boolean = false) extends IR
 
 final case class StreamRange(start: IR, stop: IR, step: IR, requiresMemoryManagementPerElement: Boolean = false,
                              errorID: Int = ErrorIDs.NO_ERROR) extends IR
@@ -806,7 +806,9 @@ object MetadataWriter {
 abstract class PartitionReader {
   def contextType: Type
 
-  def fullRowType: Type
+  def fullRowType: TStruct
+
+  def uidFieldName: String
 
   def rowRequiredness(requestedType: Type): TypeWithRequiredness
 
@@ -815,7 +817,8 @@ abstract class PartitionReader {
     cb: EmitCodeBuilder,
     context: EmitCode,
     partitionRegion: Value[Region],
-    requestedType: Type): IEmitCode
+    requestedType: TStruct
+  ): IEmitCode
 
   def toJValue: JValue
 }
@@ -882,7 +885,7 @@ final case class SimpleMetadataWriter(val annotationType: Type) extends Metadata
     writeAnnotations.consume(cb, {}, {_ => ()})
 }
 
-final case class ReadPartition(context: IR, rowType: Type, reader: PartitionReader) extends IR
+final case class ReadPartition(context: IR, rowType: TStruct, reader: PartitionReader) extends IR
 final case class WritePartition(value: IR, writeCtx: IR, writer: PartitionWriter) extends IR
 final case class WriteMetadata(writeAnnotations: IR, writer: MetadataWriter) extends IR
 
