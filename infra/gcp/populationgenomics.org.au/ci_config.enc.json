@@ -1,0 +1,37 @@
+{
+	"bucket_location": "ENC[AES256_GCM,data:o9635cNapb0Qg6rrPMDBJ+NjnDs=,iv:P3bODP0g0Kro5ydVULruxD9/wF/DqlC7S491bFIPoKw=,tag:aLhNbe85N/ACHjn6QgTxCQ==,type:str]",
+	"bucket_storage_class": "ENC[AES256_GCM,data:CYofNEahvhc=,iv:3w+H/5cxZ5cZ0S0An+t4Im0QUVW/Uz65MOZdZB2Z9lM=,tag:vZG5lEBg0ZF4jcxO+QM35g==,type:str]",
+	"deploy_steps": [
+		"ENC[AES256_GCM,data:jj0tCUHD2BZy+JF2,iv:xHQFCvG/HwtyQC9PBa9Dpj09nQ49k4RJr5VRan1wiXE=,tag:YmQaBeDC2CQun5N6XRa26Q==,type:str]",
+		"ENC[AES256_GCM,data:LCjynT8/oRagIlMm,iv:psJJhNNlzQC9VOg0m3u30FGJb0GGAD+QWPoADlldy9M=,tag:BhqVYONDecyfK/HnZ/y/tg==,type:str]",
+		"ENC[AES256_GCM,data:Hs1eLUo0fzJD,iv:HY/p+AL9m/RUkt9zx9O8CKm9UKHd8QoVHr/id1ejw+Y=,tag:9g0ddr6qjWHwHHrOx5gtDw==,type:str]"
+	],
+	"github_context": "ENC[AES256_GCM,data:Q1GTJQVZ,iv:DBRg4sEjxSJrx50jrp/8EgiOc72dmWt4aDWaih7+5VY=,tag:JNl0DwXD5sUDGEo7mr/pLw==,type:str]",
+	"github_oauth_token": "ENC[AES256_GCM,data:ynTh1VakYqpfQKpsrnxZCebqy9vrOueHzAhoV+wX6JlM6rgG6F0FOg==,iv:I9iD77AQbPNICVTunZXakB8EeIqi1AAKOi/HFdBR8E0=,tag:aCLHwqk19jAw1+V5Q3HDPQ==,type:str]",
+	"github_user1_oauth_token": "ENC[AES256_GCM,data:zWvr0f/9wa3t7FbRONu3SsqBSINCSOloI/fvgOxMwhF5VJNIbWnMHA==,iv:BEUNsLzBPFMb3VtxLcSxePkk3X6FFpM8f54e/Jrm3Qo=,tag:SFAtEu8TuDKpCQ/oFlQuHw==,type:str]",
+	"watched_branches": [
+		[
+			"ENC[AES256_GCM,data:QqccnarowD2dDaw9cwpYki6iIATkkq4uGDxjcQ==,iv:RAnQ2jvZgaId9yzuJcfYiZcrxBSJgWXeiwuqcmYOM5I=,tag:xWR30+PfkRI24uSnyYyf/w==,type:str]",
+			"ENC[AES256_GCM,data:C4GgIQ==,iv:Mfnx8+YPnHxHuMXRaxXsE9uLLZlPnG3zYg9VduP8f60=,tag:zX+gB+5d/QPoziEZWLKD/w==,type:bool]",
+			"ENC[AES256_GCM,data:Anl1ReQ=,iv:99FxkvU1Yvb91ePta8atxSakzDwh3FguRQoHiKj1LXM=,tag:iq6e8w0d6HprKoG6o4I5hg==,type:bool]"
+		]
+	],
+	"sops": {
+		"kms": null,
+		"gcp_kms": [
+			{
+				"resource_id": "projects/hail-295901/locations/global/keyRings/sops/cryptoKeys/sops-key",
+				"created_at": "2022-04-01T04:48:38Z",
+				"enc": "CiQAKYFiUShRXvolguAYickuKQn5LcEmZiUhX2+AzRbFAGmEilESSQAB+Y96DqCBZwh/Bq0qsC+rF2pkvXXBmCUTrV6d4VyYWcqXrkVtumkqsdNrNh+Unjnyo5zt+M/Ptz1das8Hk70ua2hul2DMI5w="
+			}
+		],
+		"azure_kv": null,
+		"hc_vault": null,
+		"age": null,
+		"lastmodified": "2022-04-01T05:22:36Z",
+		"mac": "ENC[AES256_GCM,data:P4s8C/D52hIbJ7yxNSrGrxSDUs+121QFbbgyNhDMXN6rWkZkhou421y+FoWbdszYOqOLbqjYEMcZyWTQ93B7Gk7Oi/9jC24NUafrjSNzLokTFj0YWd3nQI47to8RMf1zpwKxegk/KmLrYbtgknHA1dXUwJ9cJhQVfu8GtoYv/lc=,iv:qFDVRp6oZ1w+Hi0EGwzvuUTaUXOucB7HbEw7Rl/IeMw=,tag:zW3/IewflQl56jUvOZi/5g==,type:str]",
+		"pgp": null,
+		"unencrypted_suffix": "_unencrypted",
+		"version": "3.7.2"
+	}
+}

@@ -4,11 +4,11 @@ from types import TracebackType
 import sys
 from concurrent.futures import ThreadPoolExecutor
 import os.path
-import urllib
 import threading
 import asyncio
 import logging
 
+import botocore.config
 import botocore.exceptions
 import boto3
 from hailtop.utils import blocking_to_async
@@ -276,27 +276,37 @@ class S3AsyncFSURL(AsyncFSURL):
 class S3AsyncFS(AsyncFS):
     schemes: Set[str] = {'s3'}
 
-    def __init__(self, thread_pool: Optional[ThreadPoolExecutor] = None, max_workers: Optional[int] = None):
+    def __init__(self, thread_pool: Optional[ThreadPoolExecutor] = None, max_workers: Optional[int] = None, *, max_pool_connections: int = 10):
         if not thread_pool:
             thread_pool = ThreadPoolExecutor(max_workers=max_workers)
         self._thread_pool = thread_pool
-        self._s3 = boto3.client('s3')
+        config = botocore.config.Config(
+            max_pool_connections=max_pool_connections,
+        )
+        self._s3 = boto3.client('s3', config=config)
 
     def parse_url(self, url: str) -> S3AsyncFSURL:
         return S3AsyncFSURL(*self.get_bucket_and_name(url))
 
     @staticmethod
     def get_bucket_and_name(url: str) -> Tuple[str, str]:
-        parsed = urllib.parse.urlparse(url)
-        if parsed.scheme != 's3':
-            raise ValueError(f"invalid scheme, expected s3: {parsed.scheme}")
+        colon_index = url.find(':')
+        if colon_index == -1:
+            raise ValueError(f'invalid URL: {url}')
 
-        name = parsed.path
-        if name:
-            assert name[0] == '/'
-            name = name[1:]
+        scheme = url[:colon_index]
+        if scheme != 's3':
+            raise ValueError(f'invalid scheme, expected s3: {scheme}')
 
-        return (parsed.netloc, name)
+        rest = url[(colon_index + 1):]
+        if not rest.startswith('//'):
+            raise ValueError(f's3 URI must be of the form: s3://bucket/key, found: {url}')
+
+        end_of_bucket = rest.find('/', 2)
+        bucket = rest[2:end_of_bucket]
+        name = rest[(end_of_bucket + 1):]
+
+        return (bucket, name)
 
     async def open(self, url: str) -> ReadableStream:
         bucket, name = self.get_bucket_and_name(url)
@@ -495,7 +505,7 @@ class S3AsyncFS(AsyncFS):
             raise FileNotFoundError(url) from e
 
     async def close(self) -> None:
-        pass
+        del self._s3
 
     def copy_part_size(self, url: str) -> int:  # pylint: disable=unused-argument
         # Because the S3 upload_part API call requires the entire part

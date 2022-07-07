@@ -44,6 +44,8 @@ async def copy(*,
             s3_kwargs = {}
         if 'thread_pool' not in s3_kwargs:
             s3_kwargs['thread_pool'] = thread_pool
+        if 'max_pool_connections' not in s3_kwargs:
+            s3_kwargs['max_pool_connections'] = max_simultaneous_transfers * 2
 
         async with RouterAsyncFS(default_scheme='file',
                                  local_kwargs=local_kwargs,

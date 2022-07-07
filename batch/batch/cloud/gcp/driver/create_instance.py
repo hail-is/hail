@@ -73,6 +73,23 @@ def create_vm_config(
 
     assert instance_config.is_valid_configuration(resource_rates.keys())
 
+    def scheduling() -> dict:
+        result = {
+            'automaticRestart': False,
+            'onHostMaintenance': 'TERMINATE',
+            'preemptible': preemptible,
+        }
+
+        if preemptible:
+            result.update(
+                {
+                    'provisioningModel': 'SPOT',
+                    'instanceTerminationAction': 'DELETE',
+                }
+            )
+
+        return result
+
     return {
         'name': machine_name,
         'machineType': f'projects/{project}/zones/{zone}/machineTypes/{machine_type}',
@@ -96,7 +113,7 @@ def create_vm_config(
                 'accessConfigs': [{'type': 'ONE_TO_ONE_NAT', 'name': 'external-nat'}],
             }
         ],
-        'scheduling': {'automaticRestart': False, 'onHostMaintenance': "TERMINATE", 'preemptible': preemptible},
+        'scheduling': scheduling(),
         'serviceAccounts': [
             {
                 'email': f'batch2-agent@{project}.iam.gserviceaccount.com',

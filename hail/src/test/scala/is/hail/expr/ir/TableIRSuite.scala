@@ -11,7 +11,6 @@ import is.hail.methods.ForceCountTable
 import is.hail.types._
 import is.hail.types.physical.PStruct
 import is.hail.types.virtual._
-import is.hail.rvd.RVDPartitioner
 import is.hail.utils._
 import is.hail.{ExecStrategy, HailSuite}
 import org.apache.spark.sql.Row
@@ -975,7 +974,6 @@ class TableIRSuite extends HailSuite {
   }
 
   @Test def testTableKeyByAndAggregate(): Unit = {
-    implicit val execStrats = ExecStrategy.interpretOnly //FIXME: Lowering is implemented, will work when method splitting is fixed.
     val tir: TableIR = TableRead.native(fs, "src/test/resources/three_key.ht")
     val unkeyed = TableKeyBy(tir, IndexedSeq[String]())
     val rowRef = Ref("row", unkeyed.typ.rowType)

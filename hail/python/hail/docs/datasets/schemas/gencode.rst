@@ -3,11 +3,11 @@
 gencode
 =======
 
-*  **Versions:** v19, v31
+*  **Versions:** v19, v31, v35
 *  **Reference genome builds:** GRCh37, GRCh38
 *  **Type:** :class:`hail.Table`
 
-Schema (v19, GRCh37)
+Schema (v35, GRCh38)
 ~~~~~~~~~~~~~~~~~~~~
 
 .. code-block:: text
@@ -17,17 +17,29 @@ Schema (v19, GRCh37)
         None
     ----------------------------------------
     Row fields:
-        'interval': interval<locus<GRCh37>>
-        'ID': str
+        'interval': interval<locus<GRCh38>>
+        'source': str
+        'feature': str
+        'score': float64
+        'strand': str
+        'frame': int32
+        'tag': str
+        'level': int32
         'gene_id': str
-        'gene_name': str
         'gene_type': str
-        'level': str
-        'type': str
-        'gene_score': str
-        'gene_strand': str
-        'gene_phase': str
+        'ccdsid': str
+        'exon_id': str
+        'exon_number': int32
+        'havana_gene': str
+        'transcript_type': str
+        'protein_id': str
+        'gene_name': str
+        'transcript_name': str
+        'transcript_id': str
+        'transcript_support_level': str
+        'hgnc_id': str
+        'ont': str
+        'havana_transcript': str
     ----------------------------------------
     Key: ['interval']
     ----------------------------------------
-

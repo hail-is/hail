@@ -694,7 +694,9 @@ class RVD(
     ac.result()
   }
 
-  def count(): Long =
+  def count(): Long = {
+    println(s"num partitions: $getNumPartitions")
+    println(crdd.rdd.partitions.length)
     crdd.boundary.cmapPartitions { (ctx, it) =>
       var count = 0L
       it.foreach { _ =>
@@ -702,6 +704,7 @@ class RVD(
       }
       Iterator.single(count)
     }.run.fold(0L)(_ + _)
+  }
 
   def countPerPartition(): Array[Long] =
     crdd.boundary.cmapPartitions { (ctx, it) =>
@@ -1222,7 +1225,7 @@ object RVD {
       return Array()
 
     val rng = new java.util.Random(1)
-    val partitionSeed = Array.fill[Int](nPartitions)(rng.nextInt())
+    val partitionSeed = Array.fill[Long](nPartitions)(rng.nextLong())
 
     val sampleSize = math.min(nPartitions * 20, 1000000)
     val samplesPerPartition = sampleSize / nPartitions

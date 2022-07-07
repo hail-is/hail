@@ -1,0 +1,25 @@
+{% extends "layout.html" %}
+{% block title %}Quotas{% endblock %}
+{% block content %}
+
+<h1>Quotas by Region</h1>
+{% if plot_json is not none %}
+<script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+<div id="plotly-timeseries">
+    <script>
+        var graph = {{ plot_json | safe }};
+        Plotly.plot('plotly-timeseries', graph, {});
+    </script>
+</div>
+<style>
+    .header-dropdown {
+        display: block;
+        overflow: visible;
+        position: relative;
+        z-index: 10000;
+    }
+</style>
+{% else %}
+<div><p>Data is not available.</p></div>
+{% endif %}
+{% endblock %}

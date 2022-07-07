@@ -5,6 +5,8 @@ import is.hail.expr.ir.streams.StreamUtils
 import is.hail.types.virtual._
 import is.hail.utils._
 
+import scala.annotation.tailrec
+
 object TypeCheck {
   def apply(ctx: ExecuteContext, ir: BaseIR): Unit = {
     try {
@@ -161,9 +163,10 @@ object TypeCheck {
         assert(a.typ == TInt32)
         assert(b.typ == TInt32)
         assert(c.typ == TInt32)
-      case SeqSample(totalRange, numToSample, _) =>
+      case SeqSample(totalRange, numToSample, rngState, _) =>
         assert(totalRange.typ == TInt32)
         assert(numToSample.typ == TInt32)
+        assert(rngState.typ == TRNGState)
       case StreamDistribute(child, pivots, path, _, _) =>
         assert(path.typ == TString)
         assert(child.typ.isInstanceOf[TStream])
@@ -268,6 +271,16 @@ object TypeCheck {
         val td = coerce[TDict](x.typ)
         assert(td.keyType == telt.types(0))
         assert(td.valueType == TArray(telt.types(1)))
+      case RNGStateLiteral(key) =>
+        assert(key.length == 4)
+      case RNGSplit(state, dynBitstring) =>
+        assert(state.typ == TRNGState)
+        def isValid: Type => Boolean = {
+          case tuple: TTuple => tuple.types.forall(isValid)
+          case TInt64 => true
+          case _ => false
+        }
+        assert(isValid(dynBitstring.typ))
       case StreamLen(a) =>
         assert(a.typ.isInstanceOf[TStream])
       case x@StreamTake(a, num) =>
@@ -360,7 +373,7 @@ object TypeCheck {
       case x@StreamAggScan(a, name, query) =>
         assert(a.typ.isInstanceOf[TStream])
         assert(x.typ.asInstanceOf[TStream].elementType == query.typ)
-      case x@StreamBufferedAggregate(streamChild, initAggs, newKey, seqOps, _, _) =>
+      case x@StreamBufferedAggregate(streamChild, initAggs, newKey, seqOps, _, _,_) =>
         assert(streamChild.typ.isInstanceOf[TStream])
         assert(initAggs.typ == TVoid)
         assert(seqOps.typ == TVoid)

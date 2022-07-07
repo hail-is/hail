@@ -208,18 +208,17 @@ class LocalAsyncFS(AsyncFS):
     @staticmethod
     def _get_path(url):
         parsed = urllib.parse.urlparse(url)
-        if parsed.scheme and parsed.scheme != 'file':
-            raise ValueError(f"invalid file URL: {url}, invalid scheme: expected file, got {parsed.scheme}")
-        if parsed.netloc and parsed.netloc != 'localhost':
-            raise ValueError(
-                f"invalid file URL: {url}, invalid netloc: expected localhost or empty, got {parsed.netloc}")
-        if parsed.params:
-            raise ValueError(f"invalid file URL: params not allowed: {url}")
-        if parsed.query:
-            raise ValueError(f"invalid file URL: query not allowed: {url}")
-        if parsed.fragment:
-            raise ValueError(f"invalid file URL: fragment not allowed: {url}")
-        return parsed.path
+        prefix = ''
+        if parsed.scheme:
+            if parsed.scheme != 'file':
+                raise ValueError(f"invalid file URL: {url}, invalid scheme: expected file, got {parsed.scheme}")
+            prefix += f'{parsed.scheme}://'
+        if parsed.netloc:
+            if parsed.netloc != 'localhost':
+                raise ValueError(
+                    f"invalid file URL: {url}, invalid netloc: expected localhost or empty, got {parsed.netloc}")
+            prefix += parsed.netloc
+        return url[len(prefix):]
 
     async def open(self, url: str) -> ReadableStream:
         f = await blocking_to_async(self._thread_pool, open, self._get_path(url), 'rb')

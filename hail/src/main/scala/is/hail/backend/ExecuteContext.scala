@@ -3,6 +3,7 @@ package is.hail.backend
 import is.hail.asm4s.HailClassLoader
 import is.hail.{HailContext, HailFeatureFlags}
 import is.hail.annotations.{Region, RegionPool}
+import is.hail.expr.ir.Threefry
 import is.hail.io.fs.FS
 import is.hail.utils.{ExecutionTimer, using}
 
@@ -105,6 +106,8 @@ class ExecuteContext(
   private[this] val flags: HailFeatureFlags
 ) extends Closeable {
   var backendContext: BackendContext = _
+
+  val rngKey: IndexedSeq[Long] = Threefry.expandKey(Array(0L, 0L, 0L, 0L))
 
   private val tempFileManager: TempFileManager = if (_tempFileManager != null)
     _tempFileManager
