@@ -43,7 +43,7 @@ spec:
              mountPath: /redis
           resources:
             requests:
-              cpu: "50m"
+              cpu: "10m"
               memory: "2G"
             limits:
               cpu: "1"
