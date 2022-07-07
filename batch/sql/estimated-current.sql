@@ -249,7 +249,6 @@ CREATE TABLE IF NOT EXISTS `attempts` (
   `start_time` BIGINT,
   `end_time` BIGINT,
   `reason` VARCHAR(40),
-  `migrated` BOOLEAN DEFAULT FALSE,
   PRIMARY KEY (`batch_id`, `job_id`, `attempt_id`),
   FOREIGN KEY (`batch_id`) REFERENCES batches(id) ON DELETE CASCADE,
   FOREIGN KEY (`batch_id`, `job_id`) REFERENCES jobs(batch_id, job_id) ON DELETE CASCADE,
@@ -391,7 +390,7 @@ CREATE TABLE IF NOT EXISTS `attempt_resources` (
 
 DELIMITER $$
 
-DROP TRIGGER IF EXISTS instances_before_update;
+DROP TRIGGER IF EXISTS instances_before_update $$
 CREATE TRIGGER instances_before_update BEFORE UPDATE on instances
 FOR EACH ROW
 BEGIN
@@ -417,8 +416,6 @@ BEGIN
     SET NEW.end_time = OLD.end_time;
     SET NEW.reason = OLD.reason;
   END IF;
-
-  SET NEW.migrated = TRUE;
 END $$
 
 DROP TRIGGER IF EXISTS attempts_after_update $$
@@ -428,11 +425,8 @@ BEGIN
   DECLARE job_cores_mcpu INT;
   DECLARE cur_billing_project VARCHAR(100);
   DECLARE msec_diff BIGINT;
-  DECLARE msec_diff_migration BIGINT;
   DECLARE cur_n_tokens INT;
-  DECLARE cur_n_batch_jobs INT;
   DECLARE rand_token INT;
-  DECLARE rand_token_migration INT;
   DECLARE cur_billing_date DATE;
 
   SELECT n_tokens INTO cur_n_tokens FROM globals LOCK IN SHARE MODE;
@@ -441,7 +435,7 @@ BEGIN
   SELECT cores_mcpu INTO job_cores_mcpu FROM jobs
   WHERE batch_id = NEW.batch_id AND job_id = NEW.job_id;
 
-  SELECT billing_project, n_jobs INTO cur_billing_project, cur_n_batch_jobs FROM batches WHERE id = NEW.batch_id;
+  SELECT billing_project INTO cur_billing_project FROM batches WHERE id = NEW.batch_id;
 
   SET msec_diff = (GREATEST(COALESCE(NEW.end_time - NEW.start_time, 0), 0) -
                    GREATEST(COALESCE(OLD.end_time - OLD.start_time, 0), 0));
@@ -468,43 +462,33 @@ BEGIN
     LEFT JOIN resources ON attempt_resources.resource_id = resources.resource_id
     WHERE batch_id = NEW.batch_id AND job_id = NEW.job_id AND attempt_id = NEW.attempt_id
     ON DUPLICATE KEY UPDATE `usage` = `usage` + msec_diff * quantity;
-  END IF;
 
-  IF NOT OLD.migrated THEN
-    SET msec_diff_migration = GREATEST(COALESCE(NEW.end_time - NEW.start_time, 0), 0);
-    SET rand_token_migration = NEW.batch_id DIV 100000 + NEW.job_id DIV 100000;
-  ELSE
-    SET msec_diff_migration = msec_diff;
-    SET rand_token_migration = rand_token;
-  END IF;
-
-  IF msec_diff_migration != 0 THEN
     INSERT INTO aggregated_billing_project_user_resources_v2 (billing_project, user, resource_id, token, `usage`)
     SELECT billing_project, `user`,
       resource_id,
-      rand_token_migration,
-      msec_diff_migration * quantity
+      rand_token,
+      msec_diff * quantity
     FROM attempt_resources
     JOIN batches ON batches.id = attempt_resources.batch_id
     WHERE batch_id = NEW.batch_id AND job_id = NEW.job_id AND attempt_id = NEW.attempt_id
-    ON DUPLICATE KEY UPDATE `usage` = `usage` + msec_diff_migration * quantity;
+    ON DUPLICATE KEY UPDATE `usage` = `usage` + msec_diff * quantity;
 
     INSERT INTO aggregated_batch_resources_v2 (batch_id, resource_id, token, `usage`)
     SELECT attempt_resources.batch_id,
       resource_id,
-      rand_token_migration,
-      msec_diff_migration * quantity
+      rand_token,
+      msec_diff * quantity
     FROM attempt_resources
     WHERE batch_id = NEW.batch_id AND job_id = NEW.job_id AND attempt_id = NEW.attempt_id
-    ON DUPLICATE KEY UPDATE `usage` = `usage` + msec_diff_migration * quantity;
+    ON DUPLICATE KEY UPDATE `usage` = `usage` + msec_diff * quantity;
 
     INSERT INTO aggregated_job_resources_v2 (batch_id, job_id, resource_id, `usage`)
     SELECT attempt_resources.batch_id, attempt_resources.job_id,
       resource_id,
-      msec_diff_migration * quantity
+      msec_diff * quantity
     FROM attempt_resources
     WHERE batch_id = NEW.batch_id AND job_id = NEW.job_id AND attempt_id = NEW.attempt_id
-    ON DUPLICATE KEY UPDATE `usage` = `usage` + msec_diff_migration * quantity;
+    ON DUPLICATE KEY UPDATE `usage` = `usage` + msec_diff * quantity;
 
     IF NEW.end_time IS NOT NULL THEN
       SET cur_billing_date = CAST(FROM_UNIXTIME(NEW.end_time / 1000) AS DATE);
@@ -514,12 +498,12 @@ BEGIN
         billing_project,
         `user`,
         resource_id,
-        rand_token_migration,
-        msec_diff_migration * quantity
+        rand_token,
+        msec_diff * quantity
       FROM attempt_resources
       JOIN batches ON batches.id = attempt_resources.batch_id
       WHERE batch_id = NEW.batch_id AND job_id = NEW.job_id AND attempt_id = NEW.attempt_id
-      ON DUPLICATE KEY UPDATE `usage` = `usage` + msec_diff_migration * quantity;
+      ON DUPLICATE KEY UPDATE `usage` = `usage` + msec_diff * quantity;
     END IF;
   END IF;
 END $$
