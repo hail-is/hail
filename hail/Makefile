@@ -204,7 +204,8 @@ copy-py-files: $(PYTHON_VERSION_INFO) $(SHADOW_JAR) $(INIT_SCRIPTS) $(PY_FILES) 
 wheel: $(WHEEL)
 
 $(WHEEL): copy-py-files
-	cd build/deploy; $(HAIL_PYTHON3) setup.py -q sdist bdist_wheel
+	# Clear the bdist build cache before building the wheel
+	cd build/deploy; rm -rf build; $(HAIL_PYTHON3) setup.py -q sdist bdist_wheel
 
 .PHONY: egg
 egg: $(EGG)
