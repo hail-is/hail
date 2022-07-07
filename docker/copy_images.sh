@@ -35,6 +35,6 @@ done
 
 for image in ${first_party_images}
 do
-    dest="${DOCKER_PREFIX}/${image}:${hail_pip_version}"
+    dest="${DOCKER_PREFIX}/hailgenetics/${image}:${hail_pip_version}"
     copy_image hailgenetics/${image}:${hail_pip_version} $dest
 done
