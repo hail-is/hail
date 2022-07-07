@@ -50,6 +50,9 @@ Instructions:
    # E.g. "hail.is"
    organization_domain = "<domain>"
 
+   # The GitHub organization hosting your Hail Batch repository, e.g. "hail-is".
+   github_organization = "<github-organization>"
+
    # batch_gcp_regions is a JSON array of string, the names of the gcp
    # regions to schedule over in Batch. E.g. "[\"us-central1\"]"
    batch_gcp_regions = "<batch-gcp-regions>"
