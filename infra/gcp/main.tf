@@ -36,6 +36,7 @@ variable "gcp_zone" {}
 variable "gcp_location" {}
 variable "domain" {}
 variable "organization_domain" {}
+variable "github_organization" {}
 variable "use_artifact_registry" {
   type = bool
   description = "pull the ubuntu image from Artifact Registry. Otherwise, GCR"
@@ -57,7 +58,7 @@ locals {
 }
 
 data "sops_file" "terraform_sa_key_sops" {
-  source_file = "${var.organization_domain}/terraform_sa_key.enc.json"
+  source_file = "${var.github_organization}/terraform_sa_key.enc.json"
 }
 
 provider "google" {
@@ -616,7 +617,7 @@ resource "kubernetes_cluster_role_binding" "batch" {
 }
 
 data "sops_file" "auth_oauth2_client_secret_sops" {
-  source_file = "${var.organization_domain}/auth_oauth2_client_secret.enc.json"
+  source_file = "${var.github_organization}/auth_oauth2_client_secret.enc.json"
 }
 
 resource "kubernetes_secret" "auth_oauth2_client_secret" {
@@ -630,8 +631,8 @@ resource "kubernetes_secret" "auth_oauth2_client_secret" {
 }
 
 data "sops_file" "ci_config_sops" {
-  count = fileexists("${var.organization_domain}/ci_config.enc.json") ? 1 : 0
-  source_file = "${var.organization_domain}/ci_config.enc.json"
+  count = fileexists("${var.github_organization}/ci_config.enc.json") ? 1 : 0
+  source_file = "${var.github_organization}/ci_config.enc.json"
 }
 
 locals {
