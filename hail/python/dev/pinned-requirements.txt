@@ -33,7 +33,7 @@ bleach==5.0.0
     # via nbconvert
 certifi==2022.5.18.1
     # via requests
-cffi==1.15.0
+cffi==1.15.1
     # via argon2-cffi-bindings
 cfgv==3.3.1
     # via pre-commit
@@ -382,7 +382,7 @@ typed-ast==1.5.4
     #   astroid
     #   black
     #   mypy
-types-chardet==4.0.4
+types-chardet==5.0.1
     # via -r python/dev/requirements.txt
 types-decorator==5.1.7
     # via -r python/dev/requirements.txt
