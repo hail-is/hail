@@ -65,29 +65,6 @@ steps:
       - name: batch-worker-ssh-public-key
         clouds:
           - azure
-  - kind: buildImage2
-    name: echo_image
-    dockerFile: /io/echo/Dockerfile
-    contextPath: /io/echo
-    publishAs: echo
-    resources:
-      storage: 10Gi
-      cpu: "2"
-      memory: standard
-    inputs:
-      - from: /repo/echo
-        to: /io/echo
-    dependsOn:
-      - hail_ubuntu_image
-      - merge_code
-  - kind: deploy
-    name: deploy_echo
-    namespace:
-      valueFrom: default_ns.name
-    config: echo/deployment.yaml
-    dependsOn:
-      - default_ns
-      - echo_image
   - kind: deploy
     name: deploy_batch_sa
     namespace:
