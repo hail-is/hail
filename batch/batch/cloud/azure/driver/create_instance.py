@@ -149,7 +149,6 @@ kern.warning       @127.0.0.1:25224
 user.warning       @127.0.0.1:25224
 daemon.warning     @127.0.0.1:25224
 auth.warning       @127.0.0.1:25224
-syslog.warning     @127.0.0.1:25224
 uucp.warning       @127.0.0.1:25224
 authpriv.warning   @127.0.0.1:25224
 ftp.warning        @127.0.0.1:25224

@@ -10,13 +10,14 @@ import re
 import yaml
 from pathlib import Path
 
-from hail.context import TemporaryDirectory, tmp_dir, TemporaryFilename, revision
+from hail.context import TemporaryDirectory, tmp_dir, TemporaryFilename, revision, _TemporaryFilenameManager
 from hail.utils import FatalError
 from hail.expr.types import HailType, dtype, ttuple, tvoid
 from hail.expr.table_type import ttable
 from hail.expr.matrix_type import tmatrix
 from hail.expr.blockmatrix_type import tblockmatrix
 from hail.experimental import write_expression, read_expression
+from hail.ir import finalize_randomness
 from hail.ir.renderer import CSERenderer
 
 from hailtop.config import (configuration_of, get_user_local_cache_dir, get_remote_tmpdir, get_deploy_config)
@@ -28,7 +29,7 @@ from hailtop.aiotools.router_fs import RouterAsyncFS
 import hailtop.aiotools.fs as afs
 
 from .backend import Backend, fatal_error_from_java_error_triplet
-from ..builtin_references import BUILTIN_REFERENCES
+from ..builtin_references import BUILTIN_REFERENCE_DOWNLOAD_LOCKS
 from ..fs.fs import FS
 from ..fs.router_fs import RouterFS
 from ..ir import BaseIR
@@ -150,7 +151,7 @@ class IRFunction:
         self._value_parameter_names = value_parameter_names
         self._value_parameter_types = value_parameter_types
         self._return_type = return_type
-        self._rendered_body = render(body._ir)
+        self._rendered_body = render(finalize_randomness(body._ir))
 
     async def serialize(self, writer: afs.WritableStream):
         await write_str(writer, self._name)
@@ -199,7 +200,9 @@ class ServiceBackend(Backend):
                      flags: Optional[Dict[str, str]] = None,
                      jar_url: Optional[str] = None,
                      driver_cores: Optional[Union[int, str]] = None,
-                     driver_memory: Optional[Union[int, str]] = None,
+                     driver_memory: Optional[str] = None,
+                     worker_cores: Optional[Union[int, str]] = None,
+                     worker_memory: Optional[str] = None,
                      name_prefix: Optional[str] = None,
                      token: Optional[str] = None):
         billing_project = configuration_of('batch', 'billing_project', billing_project, None)
@@ -225,6 +228,8 @@ class ServiceBackend(Backend):
 
         driver_cores = configuration_of('query', 'batch_driver_cores', driver_cores, None)
         driver_memory = configuration_of('query', 'batch_driver_memory', driver_memory, None)
+        worker_cores = configuration_of('query', 'batch_worker_cores', worker_cores, None)
+        worker_memory = configuration_of('query', 'batch_worker_memory', worker_memory, None)
         name_prefix = configuration_of('query', 'name_prefix', name_prefix, '')
 
         if disable_progress_bar is None:
@@ -246,7 +251,9 @@ class ServiceBackend(Backend):
             jar_spec=jar_spec,
             driver_cores=driver_cores,
             driver_memory=driver_memory,
-            name_prefix=name_prefix
+            worker_cores=worker_cores,
+            worker_memory=worker_memory,
+            name_prefix=name_prefix or '',
         )
 
     def __init__(self,
@@ -262,7 +269,9 @@ class ServiceBackend(Backend):
                  flags: Dict[str, str],
                  jar_spec: JarSpec,
                  driver_cores: Optional[Union[int, str]],
-                 driver_memory: Optional[Union[int, str]],
+                 driver_memory: Optional[str],
+                 worker_cores: Optional[Union[int, str]],
+                 worker_memory: Optional[str],
                  name_prefix: str):
         self.billing_project = billing_project
         self._sync_fs = sync_fs
@@ -278,7 +287,10 @@ class ServiceBackend(Backend):
         self.functions: List[IRFunction] = []
         self.driver_cores = driver_cores
         self.driver_memory = driver_memory
+        self.worker_cores = worker_cores
+        self.worker_memory = worker_memory
         self.name_prefix = name_prefix
+        self._persisted_locations: Dict[Any, _TemporaryFilenameManager] = dict()
 
     def debug_info(self) -> Dict[str, Any]:
         return {
@@ -289,7 +301,9 @@ class ServiceBackend(Backend):
             'remote_tmpdir': self.remote_tmpdir,
             'flags': self.flags,
             'driver_cores': self.driver_cores,
-            'driver_memory': self.driver_memory
+            'driver_memory': self.driver_memory,
+            'worker_cores': self.worker_cores,
+            'worker_memory': self.worker_memory,
         }
 
     @property
@@ -308,7 +322,7 @@ class ServiceBackend(Backend):
     def render(self, ir):
         r = CSERenderer()
         assert len(r.jirs) == 0
-        return r(ir)
+        return r(finalize_randomness(ir))
 
     async def _rpc(self,
                    name: str,
@@ -317,8 +331,7 @@ class ServiceBackend(Backend):
                    ir: Optional[BaseIR] = None):
         timings = Timings()
         token = secret_alnum_string()
-        iodir = TemporaryDirectory(ensure_exists=False).name  # FIXME: actually cleanup
-        with TemporaryDirectory(ensure_exists=False) as _:
+        with TemporaryDirectory(ensure_exists=False) as iodir:
             with timings.step("write input"):
                 async with await self._async_fs.create(iodir + '/in') as infile:
                     nonnull_flag_count = sum(v is not None for v in self.flags.values())
@@ -327,6 +340,8 @@ class ServiceBackend(Backend):
                         if v is not None:
                             await write_str(infile, k)
                             await write_str(infile, v)
+                    await write_str(infile, str(self.worker_cores))
+                    await write_str(infile, str(self.worker_memory))
                     await inputs(infile, token)
 
             with timings.step("submit batch"):
@@ -347,10 +362,10 @@ class ServiceBackend(Backend):
                         ServiceBackend.DRIVER,
                         batch_attributes['name'],
                         iodir + '/in',
-                        iodir + '/out'
+                        iodir + '/out',
                     ],
                     mount_tokens=True,
-                    resources=resources
+                    resources=resources,
                 )
                 b = await bb.submit(disable_progress_bar=True)
 
@@ -535,23 +550,25 @@ class ServiceBackend(Backend):
         return async_to_blocking(self._async_get_reference(name))
 
     async def _async_get_reference(self, name):
-        if name in BUILTIN_REFERENCES:
-            try:
-                with open(Path(self.user_local_reference_cache_dir, name)) as f:
-                    return orjson.loads(f.read())
-            except FileNotFoundError:
-                pass
-
         async def inputs(infile, _):
             await write_int(infile, ServiceBackend.REFERENCE_GENOME)
             await write_str(infile, tmp_dir())
             await write_str(infile, self.billing_project)
             await write_str(infile, self.remote_tmpdir)
             await write_str(infile, name)
-        _, resp, _ = await self._rpc('get_reference(...)', inputs)
-        if name in BUILTIN_REFERENCES:
-            with open(Path(self.user_local_reference_cache_dir, name), 'wb') as f:
-                f.write(resp)
+
+        if name in BUILTIN_REFERENCE_DOWNLOAD_LOCKS:
+            with BUILTIN_REFERENCE_DOWNLOAD_LOCKS[name]:
+                try:
+                    with open(Path(self.user_local_reference_cache_dir, name)) as f:
+                        return orjson.loads(f.read())
+                except FileNotFoundError:
+                    _, resp, _ = await self._rpc('get_reference(...)', inputs)
+                    with open(Path(self.user_local_reference_cache_dir, name), 'wb') as f:
+                        f.write(resp)
+        else:
+            _, resp, _ = await self._rpc('get_reference(...)', inputs)
+
         return orjson.loads(resp)
 
     def get_references(self, names):
@@ -679,9 +696,31 @@ class ServiceBackend(Backend):
 
     def persist_expression(self, expr):
         # FIXME: should use context manager to clean up persisted resources
-        fname = TemporaryFilename().name
+        fname = TemporaryFilename(prefix='persist_expression').name
         write_expression(expr, fname)
         return read_expression(fname, _assert_type=expr.dtype)
+
+    def persist_table(self, t, storage_level):
+        tf = TemporaryFilename(prefix='persist_table')
+        self._persisted_locations[t] = tf
+        return t.checkpoint(tf.__enter__())
+
+    def unpersist_table(self, t):
+        try:
+            self._persisted_locations[t].__exit__(None, None, None)
+        except KeyError as err:
+            raise ValueError(f'{t} is not persisted') from err
+
+    def persist_matrix_table(self, mt, storage_level):
+        tf = TemporaryFilename(prefix='persist_matrix_table')
+        self._persisted_locations[mt] = tf
+        return mt.checkpoint(tf.__enter__())
+
+    def unpersist_matrix_table(self, mt):
+        try:
+            self._persisted_locations[mt].__exit__(None, None, None)
+        except KeyError as err:
+            raise ValueError(f'{mt} is not persisted') from err
 
     def set_flags(self, **flags: str):
         self.flags.update(flags)

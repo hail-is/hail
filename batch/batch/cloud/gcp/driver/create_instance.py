@@ -73,6 +73,23 @@ def create_vm_config(
 
     assert instance_config.is_valid_configuration(resource_rates.keys())
 
+    def scheduling() -> dict:
+        result = {
+            'automaticRestart': False,
+            'onHostMaintenance': 'TERMINATE',
+            'preemptible': preemptible,
+        }
+
+        if preemptible:
+            result.update(
+                {
+                    'provisioningModel': 'SPOT',
+                    'instanceTerminationAction': 'DELETE',
+                }
+            )
+
+        return result
+
     return {
         'name': machine_name,
         'machineType': f'projects/{project}/zones/{zone}/machineTypes/{machine_type}',
@@ -96,7 +113,7 @@ def create_vm_config(
                 'accessConfigs': [{'type': 'ONE_TO_ONE_NAT', 'name': 'external-nat'}],
             }
         ],
-        'scheduling': {'automaticRestart': False, 'onHostMaintenance': "TERMINATE", 'preemptible': preemptible},
+        'scheduling': scheduling(),
         'serviceAccounts': [
             {
                 'email': f'batch2-agent@{project}.iam.gserviceaccount.com',
@@ -206,17 +223,6 @@ touch /worker.log
 touch /run.log
 
 sudo rm /etc/google-fluentd/config.d/*  # remove unused config files
-
-sudo tee /etc/google-fluentd/config.d/syslog.conf <<EOF
-<source>
-@type tail
-format syslog
-path /var/log/syslog
-pos_file /var/lib/google-fluentd/pos/syslog.pos
-read_from_head true
-tag syslog
-</source>
-EOF
 
 sudo tee /etc/google-fluentd/config.d/worker-log.conf <<EOF
 <source>

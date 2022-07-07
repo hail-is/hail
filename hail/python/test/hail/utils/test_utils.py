@@ -132,7 +132,7 @@ class Tests(unittest.TestCase):
         except ValueError as err:
             assert f'glob pattern only allowed in path (e.g. not in bucket): {glob_in_bucket_url}' in err.args[0]
         except FatalError as err:
-            assert f"Invalid bucket name 'glob*{bucket}': bucket name must contain only 'a-z0-9_.-' characters." in err.args[0]
+            assert f"Invalid GCS bucket name 'glob*{bucket}': bucket name must contain only 'a-z0-9_.-' characters." in err.args[0]
         else:
             assert False
 

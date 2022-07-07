@@ -32,5 +32,7 @@ AUTHORIZED_USERS = [
     User('patrick-schultz', 'pschultz', [COMPILER_TEAM]),
     User('pwc2', 'pcumming'),
     User('tpoterba', 'tpoterba', [COMPILER_TEAM]),
-    User('vrautela', 'vrautela'),
+    User('lgruen', 'lgruensc', []),
+    User('vladsaveliev', 'vsavelye', []),
+    User('illusional', 'mfrankli', []),
 ]

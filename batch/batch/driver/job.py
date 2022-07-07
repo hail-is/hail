@@ -80,6 +80,9 @@ async def add_attempt_resources(db, batch_id, job_id, attempt_id, resources):
             for resource in resources:
                 _resources[resource['name']] += resource['quantity']
 
+            # This must be sorted in order to match the order of values in the actual SQL table!
+            _resources = dict(sorted(_resources.items()))
+
             resource_args = [(batch_id, job_id, attempt_id, name, quantity) for name, quantity in _resources.items()]
 
             await db.execute_many(
@@ -159,8 +162,6 @@ async def mark_job_complete(
         log.info(f'old_state {old_state} complete for job {id}, doing nothing')
         # already complete, do nothing
         return
-
-    log.info(f'job {id} changed state: {rv["old_state"]} => {new_state}')
 
     await notify_batch_job_complete(db, client_session, batch_id)
 
@@ -421,7 +422,7 @@ async def schedule_job(app, record, instance):
     try:
         body = await job_config(app, record, attempt_id)
     except Exception:
-        log.exception('while making job config')
+        log.exception(f'while making job config for job {id} with attempt id {attempt_id}')
         status = {
             'version': STATUS_FORMAT_VERSION,
             'worker': None,
@@ -445,8 +446,6 @@ async def schedule_job(app, record, instance):
         )
         raise
 
-    log.info(f'schedule job {id} on {instance}: made job config')
-
     try:
         await client_session.post(
             f'http://{instance.ip_address}:5000/api/v1alpha/batches/jobs/create',
@@ -457,35 +456,31 @@ async def schedule_job(app, record, instance):
     except aiohttp.ClientResponseError as e:
         await instance.mark_healthy()
         if e.status == 403:
-            log.info(f'attempt already exists for job {id} on {instance}, aborting')
+            log.info(f'attempt {attempt_id} already exists for job {id} on {instance}, aborting')
         if e.status == 503:
-            log.info(f'job {id} cannot be scheduled because {instance} is shutting down, aborting')
+            log.info(f'job {id} attempt {attempt_id} cannot be scheduled because {instance} is shutting down, aborting')
         raise e
     except Exception:
         await instance.incr_failed_request_count()
         raise
 
-    log.info(f'schedule job {id} on {instance}: called create job')
-
     try:
         rv = await db.execute_and_fetchone(
             '''
-    CALL schedule_job(%s, %s, %s, %s);
-    ''',
+CALL schedule_job(%s, %s, %s, %s);
+''',
             (batch_id, job_id, attempt_id, instance.name),
             'schedule_job',
         )
     except Exception:
-        log.exception(f'Error while running schedule_job procedure for job {id}')
+        log.exception(f'Error while running schedule_job procedure for job {id} attempt {attempt_id}')
         raise
 
     if rv['delta_cores_mcpu'] != 0 and instance.state == 'active':
         instance.adjust_free_cores_in_memory(rv['delta_cores_mcpu'])
 
-    log.info(f'schedule job {id} on {instance}: updated database')
-
     if rv['rc'] != 0:
-        log.info(f'could not schedule job {id}, attempt {attempt_id} on {instance}, {rv}')
+        log.info(f'could not schedule job {id}, attempt {attempt_id} on {instance} in the db, {rv}')
         return
 
     log.info(f'success scheduling job {id} on {instance}')

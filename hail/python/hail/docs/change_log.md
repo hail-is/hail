@@ -24,6 +24,41 @@ an earlier version of Hail to read files written in a later version.
 
 ---
 
+## Version 0.2.97
+
+Released 2022-06-30
+
+### New Features
+
+- (hail#11756) `hb.BatchPoolExecutor` and Python jobs both now also support async functions.
+
+### Bug fixes
+
+- (hail#11962) Fix error (logged as (hail#11891)) in VCF combiner when exactly 10 or 100 files are combined.
+- (hail#11969) Fix `import_table` and `import_lines` to use multiple partitions when `force_bgz` is used.
+- (hail#11964) Fix erroneous "Bucket is a requester pays bucket but no user project provided." errors in Google Dataproc by updating to the latest Dataproc image version.
+
+---
+
+## Version 0.2.96
+
+Released 2022-06-21
+
+### New Features
+
+- (hail#11833) `hl.rand_unif` now has default arguments of 0.0 and 1.0
+
+### Bug fixes
+
+- (hail#11905) Fix erroneous FileNotFoundError in glob patterns
+- (hail#11921) and (hail#11910) Fix file clobbering during text export with speculative execution.
+- (hail#11920) Fix array out of bounds error when tree aggregating a multiple of 50 partitions.
+- (hail#11937) Fixed correctness bug in scan order for `Table.annotate` and `MatrixTable.annotate_rows` in certain circumstances.
+- (hail#11887) Escape VCF description strings when exporting.
+- (hail#11886) Fix an error in an example in the docs for `hl.split_multi`.
+
+---
+
 ## Version 0.2.95
 
 Released 2022-05-13

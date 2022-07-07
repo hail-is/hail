@@ -42,7 +42,7 @@ echo "${SVC_ACCT_ENABLE} true" >> ${CONF_FILE}
 echo "${SVC_ACCT_KEY_FILE} ${KEY_FILE}" >> ${CONF_FILE}
 
 curl -v \
-     https://storage.googleapis.com/hadoop-lib/gcs/gcs-connector-hadoop2-2.0.1.jar \
-     > ${SPARK_HOME}/jars/gcs-connector-hadoop2-2.0.1.jar
+     https://storage.googleapis.com/hadoop-lib/gcs/gcs-connector-hadoop2-2.2.7.jar \
+     > ${SPARK_HOME}/jars/gcs-connector-hadoop2-2.2.7.jar
 
 echo "success"
