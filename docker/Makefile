@@ -58,6 +58,12 @@ generate-pip-lockfile:
 		python:3.7-slim \
 		/bin/bash -c "pip install pip-tools && cd docker && pip-compile --upgrade requirements.txt --output-file=linux-pinned-requirements.txt"
 
+
+.PHONY: copy
+copy-mirrored-images:
+	$(MAKE) -C ../hail python/hail/hail_pip_version
+	DOCKER_PREFIX=$(DOCKER_PREFIX) bash copy_images.sh
+
 .PHONY: clean
 clean:
 	rm -f base hail-ubuntu-image-ref base service-base service-java-run-base

@@ -10,11 +10,8 @@ fi
 source $HAIL/devbin/functions.sh
 
 copy_images() {
-    cd $HAIL/docker/third-party
     DOCKER_PREFIX=$(get_global_config_field docker_prefix)
-    DOCKER_PREFIX=$DOCKER_PREFIX ./copy_images.sh
-    cd -
-
+    make -C $HAIL/docker copy-mirrored-images DOCKER_PREFIX=$DOCKER_PREFIX
     make -C $HAIL/docker/python-dill push DOCKER_PREFIX=$DOCKER_PREFIX
 }
 
