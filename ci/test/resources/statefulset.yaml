@@ -27,8 +27,8 @@ spec:
           image: "{{ hello_image.image }}"
           resources:
             requests:
-              cpu: "20m"
-              memory: "20M"
+              cpu: "1m"
+              memory: "2M"
             limits:
               cpu: "1"
               memory: "1G"
