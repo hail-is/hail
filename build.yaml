@@ -2283,6 +2283,7 @@ steps:
       hailctl config set query/backend batch
       hailctl config set batch/billing_project test
       hailctl config set batch/remote_tmpdir {{ global.test_storage_uri }}
+      hailctl config set query/batch_worker_cores 0.5
 
       python3 -m pytest \
               --ignore=test/hailtop/ \

@@ -1981,7 +1981,7 @@ class JVMContainer:
     @staticmethod
     async def create_and_start(
         index: int,
-        n_cores: int,
+        n_cores: float,
         socket_file: str,
         root_dir: str,
         client_session: httpx.ClientSession,
@@ -1990,7 +1990,7 @@ class JVMContainer:
         assert os.path.commonpath([socket_file, root_dir]) == root_dir
         assert os.path.isdir(root_dir)
 
-        total_memory_bytes = n_cores * worker_memory_per_core_bytes(CLOUD, instance_config.worker_type())
+        total_memory_bytes = int(n_cores * worker_memory_per_core_bytes(CLOUD, instance_config.worker_type()))
 
         # We allocate 60% of memory per core to off heap memory
         memory_per_core_mib = worker_memory_per_core_mib(CLOUD, instance_config.worker_type())
@@ -2048,7 +2048,7 @@ class JVMContainer:
             image=Image(BATCH_WORKER_IMAGE, JVMUserCredentials(), client_session, pool),
             scratch_dir=f'{root_dir}/container',
             command=command,
-            cpu_in_mcpu=n_cores * 1000,
+            cpu_in_mcpu=int(n_cores * 1000),
             memory_in_bytes=total_memory_bytes,
             env=[f'HAIL_WORKER_OFF_HEAP_MEMORY_PER_CORE_MB={off_heap_memory_per_core_mib}', f'HAIL_CLOUD={CLOUD}'],
             volume_mounts=volume_mounts,
@@ -2093,7 +2093,7 @@ class JVM:
     async def create_container_and_connect(
         cls,
         index: int,
-        n_cores: int,
+        n_cores: float,
         socket_file: str,
         root_dir: str,
         client_session: httpx.ClientSession,
@@ -2134,7 +2134,7 @@ class JVM:
             raise JVMCreationError from e
 
     @classmethod
-    async def create(cls, index: int, n_cores: int, worker: 'Worker'):
+    async def create(cls, index: int, n_cores: float, worker: 'Worker'):
         token = uuid.uuid4().hex
         root_dir = f'/host/jvm-{token}'
         socket_file = root_dir + '/socket'
@@ -2173,7 +2173,7 @@ class JVM:
     def __init__(
         self,
         index: int,
-        n_cores: int,
+        n_cores: float,
         socket_file: str,
         root_dir: str,
         output_file: str,
@@ -2301,6 +2301,7 @@ class Worker:
             jvms = await asyncio.gather(
                 *[JVM.create(i, 1, self) for i in range(CORES)],
                 *[JVM.create(CORES + i, 8, self) for i in range(CORES // 8)],
+                *[JVM.create(CORES + CORES // 8 + i, 0.5, self) for i in range(2 * CORES)],
             )
             self._jvms.update(jvms)
         log.info(f'JVMs initialized {self._jvms}')
