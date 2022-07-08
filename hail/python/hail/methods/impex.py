@@ -3031,3 +3031,84 @@ def import_avro(paths, *, key=None, intervals=None):
         with DataFileReader(avro_file, DatumReader()) as data_file_reader:
             tr = ir.AvroTableReader(avro.schema.parse(data_file_reader.schema), paths, key, intervals)
     return Table(ir.TableRead(tr))
+
+
+def import_gvs(refs:'List[List[str]]', vets:'List[List[str]]', final_path: 'str', tmp_dir: 'str'):
+    vdses = []
+    assert len(refs) == len(vets)
+
+
+    def translate_locus(location):
+        factor = 1000000000000
+        chrom = hl.literal(hl.get_reference('GRCh38').contigs)[hl.int32(location / factor)]
+        pos = hl.int32(location % factor)
+        return hl.locus(chrom, pos, reference_genome='GRCh38')
+
+    def translate_state(state_var):
+
+        return hl.literal({'0': 0, '1': 10, '2': 20, '3': 30, '4': 40, '5': 50})[state_var]
+
+    def convert_array_with_id_keys_to_dense_array(arr, ids):
+        sdict = hl.dict(arr.map(lambda x: (x.sample_id, x.drop('sample_id'))))
+        return hl.rbind(sdict, lambda sdict: hl.literal(ids).map(lambda x: sdict[x]))
+
+    def add_reference_allele(mt):
+        rg = mt.locus.dtype.reference_genome
+        assert rg.name == 'GRCh38'
+        rg.add_sequence('gs://hail-common/references/Homo_sapiens_assembly38.fasta.gz')
+
+        mt = mt.annotate_rows(ref_allele = mt.locus.sequence_context())
+        return mt
+
+    idx = 1
+    for ref_group, var_group in zip(refs, vets):
+        print(f'scanning group {idx}/{len(refs)}...')
+        ht = hl.import_avro(ref_group)
+
+        samples = sorted(list(ht.aggregate(hl.agg.collect_as_set(ht.sample_id))))
+        new_loc = translate_locus(ht.location)
+        ht = ht.transmute(locus = new_loc, state = translate_state(ht.state), END = new_loc.position + hl.int32(ht.length) - 1)
+        ht = ht.key_by('locus')
+        ht = ht.group_by(ht.locus).aggregate(data_per_sample = hl.agg.collect(ht.row.drop('locus')))
+        ht = ht.transmute(entries = convert_array_with_id_keys_to_dense_array(ht.data_per_sample, samples))
+        ht = ht.annotate_globals(col_data = hl.literal(samples).map(lambda x: hl.struct(s=hl.str(x))))
+        ref_mt = ht._unlocalize_entries('entries', 'col_data', col_key=['s'])
+
+        # hack to maintain valid VDS schema, is added back from FASTA once at the end
+        ref_mt = ref_mt.annotate_rows(ref_allele = hl.missing(hl.tstr))
+
+        ht = hl.import_avro(var_group)
+        ht = ht.transmute(locus = translate_locus(ht.location),
+                          local_alleles=ht.alt.split(','),
+                          LGT=hl.parse_call(ht.GT),
+                          GQ=hl.int32(ht.GQ),
+                          RGQ=hl.int32(ht.RGQ))
+        ht = ht.key_by('locus')
+
+        ht = ht.group_by(ht.locus).aggregate(data_per_sample = hl.agg.collect(ht.row.drop('locus')))
+        ht = ht.transmute(entries = convert_array_with_id_keys_to_dense_array(ht.data_per_sample, samples))
+        ht = ht.annotate_globals(col_data = hl.literal(samples).map(lambda x: hl.struct(s=hl.str(x))))
+        var_mt = ht._unlocalize_entries('entries', 'col_data', col_key=['s'])
+        var_mt = var_mt.annotate_rows(alleles = hl.agg.take(var_mt.ref, 1).extend(hl.array(hl.agg.explode(lambda a: hl.agg.collect_as_set(a), var_mt.local_alleles))))
+        var_mt = var_mt.annotate_rows(allele_idx = hl.dict(hl.enumerate(var_mt.alleles, index_first=False)))
+        var_mt = var_mt.transmute_entries(LA = hl.literal([0]).extend(var_mt.local_alleles.map(lambda a: var_mt.allele_idx[a])))
+        var_mt = var_mt._key_rows_by_assert_sorted('locus', 'alleles')
+
+        var_mt = var_mt.annotate_rows(rsid=hl.missing(hl.tstr))
+
+        vdses.append(hl.vds.VariantDataset(ref_mt, var_mt))
+        idx += 1
+
+    combined = hl.vds.combiner.combine_variant_datasets(vdses)
+    checkpoint_path = os.path.join(tmp_dir, 'combined_tmp.vds')
+
+    print(f'checkpointing combined VDS to temporary directory before repartition')
+    combined = combined.checkpoint(checkpoint_path)
+
+    new_partitioner = combined.variant_data._calculate_new_partitions(combined.variant_data.n_partitions())
+
+    print('repartioning and writing final VDS')
+    hl.vds.VariantDataset(
+        reference_data=add_reference_allele(hl.read_matrix_table(os.path.join(checkpoint_path, 'reference_data'), _intervals=new_partitioner)),
+        variant_data=hl.read_matrix_table(os.path.join(checkpoint_path, 'variant_data'), _intervals=new_partitioner),
+    ).write(final_path)
