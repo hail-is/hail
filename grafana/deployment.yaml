@@ -5,6 +5,8 @@ metadata:
   name: grafana
   labels:
     app: grafana
+  annotations:
+    "cluster-autoscaler.kubernetes.io/safe-to-evict": "true"
 spec:
   selector:
     matchLabels:
