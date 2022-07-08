@@ -200,38 +200,37 @@ def transform_gvcf(mt, info_to_keep=[]) -> Table:
 def transform_one(mt, info_to_keep=[]) -> Table:
     return transform_gvcf(mt, info_to_keep)
 
+def merge_alleles(alleles):
+    from hail.expr.functions import _num_allele_type, _allele_ints
+    return hl.rbind(
+        alleles.map(lambda a: hl.or_else(a[0], ''))
+            .fold(lambda s, t: hl.if_else(hl.len(s) > hl.len(t), s, t), ''),
+        lambda ref:
+        hl.rbind(
+            alleles.map(
+                lambda al: hl.rbind(
+                    al[0],
+                    lambda r:
+                    hl.array([ref]).extend(
+                        al[1:].map(
+                            lambda a:
+                            hl.rbind(
+                                _num_allele_type(r, a),
+                                lambda at:
+                                hl.if_else(
+                                    (_allele_ints['SNP'] == at)
+                                    | (_allele_ints['Insertion'] == at)
+                                    | (_allele_ints['Deletion'] == at)
+                                    | (_allele_ints['MNP'] == at)
+                                    | (_allele_ints['Complex'] == at),
+                                    a + ref[hl.len(r):],
+                                    a)))))),
+            lambda lal:
+            hl.struct(
+                globl=hl.array([ref]).extend(hl.array(hl.set(hl.flatten(lal)).remove(ref))),
+                local=lal)))
 
 def combine(ts):
-    def merge_alleles(alleles):
-        from hail.expr.functions import _num_allele_type, _allele_ints
-        return hl.rbind(
-            alleles.map(lambda a: hl.or_else(a[0], ''))
-            .fold(lambda s, t: hl.if_else(hl.len(s) > hl.len(t), s, t), ''),
-            lambda ref:
-            hl.rbind(
-                alleles.map(
-                    lambda al: hl.rbind(
-                        al[0],
-                        lambda r:
-                        hl.array([ref]).extend(
-                            al[1:].map(
-                                lambda a:
-                                hl.rbind(
-                                    _num_allele_type(r, a),
-                                    lambda at:
-                                    hl.if_else(
-                                        (_allele_ints['SNP'] == at)
-                                        | (_allele_ints['Insertion'] == at)
-                                        | (_allele_ints['Deletion'] == at)
-                                        | (_allele_ints['MNP'] == at)
-                                        | (_allele_ints['Complex'] == at),
-                                        a + ref[hl.len(r):],
-                                        a)))))),
-                lambda lal:
-                hl.struct(
-                    globl=hl.array([ref]).extend(hl.array(hl.set(hl.flatten(lal)).remove(ref))),
-                    local=lal)))
-
     def renumber_entry(entry, old_to_new) -> StructExpression:
         # global index of alternate (non-ref) alleles
         return entry.annotate(LA=entry.LA.map(lambda lak: old_to_new[lak]))
@@ -246,7 +245,7 @@ def combine(ts):
                 hl.struct(
                     locus=row.locus,
                     alleles=alleles.globl,
-                    rsid=hl.find(hl.is_defined, row.data.map(lambda d: d.rsid)),
+                    **({'rsid': hl.find(hl.is_defined, row.data.map(lambda d: d.rsid))} if 'rsid' in row.data.dtype.element_type else {}),
                     __entries=hl.bind(
                         lambda combined_allele_index:
                         hl.range(0, hl.len(row.data)).flatmap(
