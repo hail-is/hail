@@ -39,7 +39,7 @@ spec:
           image: "{{ ci_image.image }}"
           resources:
             requests:
-              cpu: "100m"
+              cpu: "10m"
               memory: "200M"
             limits:
               cpu: "1"

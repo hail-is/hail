@@ -52,7 +52,7 @@ spec:
                 key: domain
          resources:
            requests:
-             cpu: "20m"
+             cpu: "5m"
              memory: "20M"
            limits:
              cpu: "1"
