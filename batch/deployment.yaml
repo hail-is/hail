@@ -38,8 +38,8 @@ spec:
         image: {{ batch_driver_nginx_image.image }}
         resources:
           requests:
-            cpu: "2"
-            memory: "1G"
+            cpu: "300m"
+            memory: "100M"
           limits:
             cpu: "2.5"
             memory: "2G"
@@ -65,8 +65,8 @@ spec:
          - batch.driver
         resources:
           requests:
-            cpu: "1"
-            memory: "2G"
+            cpu: "350m"
+            memory: "200M"
           limits:
             cpu: "1.5"
             memory: "2.5G"
