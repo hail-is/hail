@@ -3091,7 +3091,7 @@ def import_gvs(refs:'List[List[str]]', vets:'List[List[str]]', final_path: 'str'
         var_mt = ht._unlocalize_entries('entries', 'col_data', col_key=['s'])
         var_mt = var_mt.annotate_rows(alleles = hl.agg.take(var_mt.ref, 1).extend(hl.array(hl.agg.explode(lambda a: hl.agg.collect_as_set(a), var_mt.local_alleles))))
         var_mt = var_mt.annotate_rows(allele_idx = hl.dict(hl.enumerate(var_mt.alleles, index_first=False)))
-        var_mt = var_mt.transmute_entries(LA = hl.literal([0]).extend(var_mt.local_alleles.map(lambda a: var_mt.allele_idx[a])))
+        var_mt = var_mt.transmute_entries(LA = hl.literal([0]).extend(var_mt.local_alleles.map(lambda a: var_mt.allele_idx[a])), LGT=var_mt.GT)
         var_mt = var_mt._key_rows_by_assert_sorted('locus', 'alleles')
 
         var_mt = var_mt.annotate_rows(rsid=hl.missing(hl.tstr))
