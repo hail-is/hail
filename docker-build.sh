@@ -2,6 +2,11 @@
 
 set -ex
 
+if [ -z "${NAMESPACE}" ]; then
+    echo "Must specify a NAMESPACE environment variable"
+    exit 1;
+fi
+
 CONTEXT="$(cd $1 && pwd)"
 DOCKERFILE="$CONTEXT/$2"
 REMOTE_IMAGE_NAME=$3
@@ -10,7 +15,6 @@ EXTRA_CACHE=$4
 WITHOUT_TAG=$(echo $REMOTE_IMAGE_NAME | sed -E 's/(:[^:]+)(@[^@]+)?$//')
 MAIN_CACHE=${WITHOUT_TAG}:cache
 
-NAMESPACE=${NAMESPACE:-"default"}
 if [ "${NAMESPACE}" == "default" ]; then
     CACHE_IMAGE_NAME=${MAIN_CACHE}
 else
