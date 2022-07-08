@@ -585,7 +585,7 @@ class Job:
 
                     if self._always_run:
                         warnings.warn('A job marked as always run has a resource file dependency on another job. If the dependent job fails, '
-                                      f'the always run job with the following command will not run:\n{command}')
+                                      f'the always run job with the following command may not succeed:\n{command}')
 
                     self._dependencies.add(r._source)
                     r._source._add_internal_outputs(r)
