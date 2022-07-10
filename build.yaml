@@ -2042,6 +2042,12 @@ steps:
       - name: minimize-deadlock-errors
         script: /io/sql/minimize-deadlock-errors.sql
         online: true
+      - name: add-resource-ids-sql
+        script: /io/sql/add-resource-ids.sql
+        online: true
+      - name: add-resource-ids-python
+        script: /io/sql/add_resource_ids.py
+        online: true
     inputs:
       - from: /repo/batch/sql
         to: /io/sql
