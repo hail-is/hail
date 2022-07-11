@@ -1808,6 +1808,7 @@ class Tests(unittest.TestCase):
             self.assertTrue(hl.methods.statgen._warn_if_no_intercept('', covariates))
             self.assertFalse(hl.methods.statgen._warn_if_no_intercept('', [intercept] + covariates))
 
+    @fails_service_backend()
     def test_regression_field_dependence(self):
         mt = hl.utils.range_matrix_table(10, 10)
         mt = mt.annotate_cols(c1 = hl.literal([x % 2 == 0 for x in range(10)])[mt.col_idx], c2 = hl.rand_norm(0, 1))

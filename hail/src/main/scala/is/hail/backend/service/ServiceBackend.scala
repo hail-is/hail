@@ -47,7 +47,9 @@ import scala.collection.parallel.ExecutionContextTaskSupport
 class ServiceBackendContext(
   @transient val sessionID: String,
   val billingProject: String,
-  val remoteTmpDir: String
+  val remoteTmpDir: String,
+  val workerCores: String,
+  val workerMemory: String,
 ) extends BackendContext with Serializable {
   def tokens(): Tokens =
     new Tokens(Map((DeployConfig.get.defaultNamespace, sessionID)))
@@ -71,7 +73,7 @@ class ServiceBackend(
   private[this] val MAX_AVAILABLE_GCS_CONNECTIONS = 100
   private[this] val availableGCSConnections = new Semaphore(MAX_AVAILABLE_GCS_CONNECTIONS, true)
 
-  def defaultParallelism: Int = 10
+  def defaultParallelism: Int = 4
 
   def broadcast[T: ClassTag](_value: T): BroadcastValue[T] = {
     using(new ObjectOutputStream(new ByteArrayOutputStream())) { os =>
@@ -149,6 +151,13 @@ class ServiceBackend(
     val jobs = new Array[JObject](n)
     var i = 0
     while (i < n) {
+      var resources = JObject("preemptible" -> JBool(true))
+      if (backendContext.workerCores != "None") {
+        resources = resources.merge(JObject(("cpu" -> JString(backendContext.workerCores))))
+      }
+      if (backendContext.workerMemory != "None") {
+        resources = resources.merge(JObject(("memory" -> JString(backendContext.workerMemory))))
+      }
       jobs(i) = JObject(
         "always_run" -> JBool(false),
         "job_id" -> JInt(i + 1),
@@ -165,7 +174,7 @@ class ServiceBackend(
             JString(s"$n"))),
           "type" -> JString("jvm")),
         "mount_tokens" -> JBool(true),
-        "resources" -> JObject("preemptible" -> JBool(true))
+        "resources" -> resources,
       )
       i += 1
     }
@@ -522,6 +531,8 @@ class ServiceBackendSocketAPI2(
       flags.update(flagName, flagValue)
       nFlagsRemaining -= 1
     }
+    val workerCores = readString()
+    val workerMemory = readString()
 
     val cmd = readInt()
 
@@ -550,7 +561,7 @@ class ServiceBackendSocketAPI2(
         backend.theHailClassLoader,
         HailFeatureFlags.fromMap(flags)
       ) { ctx =>
-        ctx.backendContext = new ServiceBackendContext(sessionId, billingProject, remoteTmpDir)
+        ctx.backendContext = new ServiceBackendContext(sessionId, billingProject, remoteTmpDir, workerCores, workerMemory)
         method(ctx)
       }
     }

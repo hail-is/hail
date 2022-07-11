@@ -2803,49 +2803,6 @@ class Tests(unittest.TestCase):
 +---------+
 '''
 
-    def test_export(self):
-        for delimiter in ['\t', ',', '@']:
-            for missing in ['NA', 'null']:
-                for header in [True, False]:
-                    self._test_export_entry(delimiter, missing, header)
-
-    def _test_export_entry(self, delimiter, missing, header):
-        mt = hl.utils.range_matrix_table(3, 3)
-        mt = mt.key_cols_by(col_idx = mt.col_idx + 1)
-        mt = mt.annotate_entries(x = mt.row_idx * mt.col_idx)
-        mt = mt.annotate_entries(x = hl.or_missing(mt.x != 4, mt.x))
-        with hl.TemporaryFilename() as f:
-            mt.x.export(f,
-                        delimiter=delimiter,
-                        header=header,
-                        missing=missing)
-            if header:
-                actual = hl.import_matrix_table(f,
-                                                row_fields={'row_idx': hl.tint32},
-                                                row_key=['row_idx'],
-                                                sep=delimiter,
-                                                missing=missing)
-            else:
-                actual = hl.import_matrix_table(f,
-                                                row_fields={'f0': hl.tint32},
-                                                row_key=['f0'],
-                                                sep=delimiter,
-                                                no_header=True,
-                                                missing=missing)
-                actual = actual.rename({'f0': 'row_idx'})
-            actual = actual.key_cols_by(col_idx = hl.int(actual.col_id))
-            actual = actual.drop('col_id')
-            if not header:
-                actual = actual.key_cols_by(col_idx = actual.col_idx + 1)
-            mt.show()
-            actual.show()
-            assert mt._same(actual)
-
-            expected_collect = [0, 0, 0,
-                                1, 2, 3,
-                                2, None, 6]
-            assert expected_collect == actual.x.collect()
-
     @fails_service_backend()
     @fails_local_backend()
     def test_export_genetic_data(self):
@@ -3890,3 +3847,44 @@ class Tests(unittest.TestCase):
         assert hl.eval(hl.str(s3)._split_line(' ', ['1'], quote='"', regex=False)) == [None, '2']
         assert hl.eval(hl.str(s2)._split_line(' ', ['1', '2'], quote='"', regex=False)) == [None, None, '3 4', 'a b c d']
         assert hl.eval(hl.str(s2)._split_line(r'\s+', ['1', '2'], quote='"', regex=True)) == [None, None, '3 4', 'a b c d']
+
+
+@pytest.mark.parametrize("delimiter", ['\t', ',', '@'])
+@pytest.mark.parametrize("missing", ['NA', 'null'])
+@pytest.mark.parametrize("header", [True, False])
+def test_export_entry(delimiter, missing, header):
+    mt = hl.utils.range_matrix_table(3, 3)
+    mt = mt.key_cols_by(col_idx = mt.col_idx + 1)
+    mt = mt.annotate_entries(x = mt.row_idx * mt.col_idx)
+    mt = mt.annotate_entries(x = hl.or_missing(mt.x != 4, mt.x))
+    with hl.TemporaryFilename() as f:
+        mt.x.export(f,
+                    delimiter=delimiter,
+                    header=header,
+                    missing=missing)
+        if header:
+            actual = hl.import_matrix_table(f,
+                                            row_fields={'row_idx': hl.tint32},
+                                            row_key=['row_idx'],
+                                            sep=delimiter,
+                                            missing=missing)
+        else:
+            actual = hl.import_matrix_table(f,
+                                            row_fields={'f0': hl.tint32},
+                                            row_key=['f0'],
+                                            sep=delimiter,
+                                            no_header=True,
+                                            missing=missing)
+            actual = actual.rename({'f0': 'row_idx'})
+        actual = actual.key_cols_by(col_idx = hl.int(actual.col_id))
+        actual = actual.drop('col_id')
+        if not header:
+            actual = actual.key_cols_by(col_idx = actual.col_idx + 1)
+        mt.show()
+        actual.show()
+        assert mt._same(actual)
+
+        expected_collect = [0, 0, 0,
+                            1, 2, 3,
+                            2, None, 6]
+        assert expected_collect == actual.x.collect()

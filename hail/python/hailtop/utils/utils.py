@@ -678,8 +678,7 @@ def is_transient_error(e):
     if isinstance(e, botocore.exceptions.ConnectionClosedError):
         return True
     if aiodocker is not None and isinstance(e, aiodocker.exceptions.DockerError):
-        # aiodocker.exceptions.DockerError: DockerError(500, 'Get https://gcr.io/v2/: net/http: request canceled (Client.Timeout exceeded while awaiting headers)')
-        return e.status == 500 and 'Client.Timeout exceeded while awaiting headers' in e.message
+        return e.status in RETRYABLE_HTTP_STATUS_CODES
     if isinstance(e, TransientError):
         return True
     return False
@@ -736,6 +735,10 @@ def retry_all_errors_n_times(max_errors=10, msg=None, error_logging_interval=10)
 
 
 async def retry_transient_errors(f: Callable[..., Awaitable[T]], *args, **kwargs) -> T:
+    return await retry_transient_errors_with_debug_string('', f, *args, **kwargs)
+
+
+async def retry_transient_errors_with_debug_string(debug_string: str, f: Callable[..., Awaitable[T]], *args, **kwargs) -> T:
     delay = 0.1
     errors = 0
     while True:
@@ -750,12 +753,12 @@ async def retry_transient_errors(f: Callable[..., Awaitable[T]], *args, **kwargs
             if errors == 2:
                 log.warning(f'A transient error occured. We will automatically retry. Do not be alarmed. '
                             f'We have thus far seen {errors} transient errors (current delay: '
-                            f'{delay}). The most recent error was {type(e)} {e}')
+                            f'{delay}). The most recent error was {type(e)} {e}. {debug_string}')
             elif errors % 10 == 0:
                 st = ''.join(traceback.format_stack())
                 log.warning(f'A transient error occured. We will automatically retry. '
                             f'We have thus far seen {errors} transient errors (current delay: '
-                            f'{delay}). The stack trace for this call is {st}. The most recent error was {type(e)} {e}', exc_info=True)
+                            f'{delay}). The stack trace for this call is {st}. The most recent error was {type(e)} {e}. {debug_string}', exc_info=True)
         delay = await sleep_and_backoff(delay)
 
 

@@ -1231,11 +1231,14 @@ class BatchDriverAccessLogger(AccessLogger):
     def __init__(self, logger: logging.Logger, log_format: str):
         super().__init__(logger, log_format)
         self.exclude = [
-            ('POST', re.compile('/api/v1alpha/instances/job_complete')),
-            ('POST', re.compile('/api/v1alpha/instances/job_started')),
-            ('PATCH', re.compile('/api/v1alpha/batches/.*/.*/close')),
-            ('POST', re.compile('/api/v1alpha/batches/cancel')),
-            ('GET', re.compile('/metrics')),
+            (endpoint[0], re.compile(deploy_config.base_path('batch-driver') + endpoint[1]))
+            for endpoint in [
+                ('POST', '/api/v1alpha/instances/job_complete'),
+                ('POST', '/api/v1alpha/instances/job_started'),
+                ('PATCH', '/api/v1alpha/batches/.*/.*/close'),
+                ('POST', '/api/v1alpha/batches/cancel'),
+                ('GET', '/metrics'),
+            ]
         ]
 
     def log(self, request, response, time):
