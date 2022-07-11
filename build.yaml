@@ -2031,6 +2031,12 @@ steps:
       - name: modify-resource-id-trigger
         script: /io/sql/modify-resource-id-trigger.sql
         online: true
+      - name: rm-resource-names-agg-resources
+        script: /io/sql/rm-resource-names-agg-resources.sql
+        online: true
+      - name: rm-resource-foreign-keys
+        script: /io/sql/rm-resource-foreign-keys.py
+        online: true
     inputs:
       - from: /repo/batch/sql
         to: /io/sql

@@ -953,7 +953,7 @@ async def check_resource_aggregation(app, db):
         attempt_resources = tx.execute_and_fetchall(
             '''
 SELECT attempt_resources.batch_id, attempt_resources.job_id, attempt_resources.attempt_id,
-  JSON_OBJECTAGG(resources.resource, quantity * GREATEST(COALESCE(end_time - start_time, 0), 0)) as resources
+  JSON_OBJECTAGG(resource, quantity * GREATEST(COALESCE(end_time - start_time, 0), 0)) as resources
 FROM attempt_resources
 INNER JOIN attempts
 ON attempts.batch_id = attempt_resources.batch_id AND
