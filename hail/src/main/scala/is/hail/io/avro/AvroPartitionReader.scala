@@ -50,9 +50,6 @@ case class AvroPartitionReader(schema: Schema, uidFieldName: String) extends Par
       val record = mb.genFieldThisRef[GenericRecord]("record")
       val region = mb.genFieldThisRef[Region]("region")
       val rowIdx = mb.genFieldThisRef[Long]("rowIdx")
-      val uidSType: SStackStruct = SStackStruct(
-        TTuple(TInt64, TInt64),
-        Array(EmitType(SInt64, true), EmitType(SInt64, true)))
 
       val producer = new StreamProducer {
         val length: Option[EmitCodeBuilder => Code[Int]] = None
@@ -82,9 +79,9 @@ case class AvroPartitionReader(schema: Schema, uidFieldName: String) extends Par
           val baseStruct = AvroReader.recordToHail(cb, region, record, requestedType)
           if (requestedType.fieldNames.contains(uidFieldName)) {
             val uid = EmitValue.present(
-              new SStackStructValue(uidSType, Array(
-                EmitValue.present(partIdx),
-                EmitValue.present(new SInt64Value(rowIdx)))))
+              SStackStruct.constructFromArgs(cb, region, TTuple(TInt64, TInt64),
+                EmitCode.present(mb, partIdx),
+                EmitCode.present(mb, primitive(rowIdx))))
             EmitCode.present(mb, baseStruct._insert(requestedType, uidFieldName -> uid))
           } else {
             EmitCode.present(mb, baseStruct)

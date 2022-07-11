@@ -4,15 +4,15 @@ import is.hail.annotations._
 import is.hail.asm4s._
 import is.hail.backend.spark.{SparkBackend, SparkTaskContext}
 import is.hail.backend.{Backend, BroadcastValue, ExecuteContext}
-import is.hail.expr.ir.functions.IRFunctionRegistry
 import is.hail.expr.ir.BaseIR
+import is.hail.expr.ir.functions.IRFunctionRegistry
 import is.hail.io.fs.FS
 import is.hail.io.index._
 import is.hail.io.vcf._
 import is.hail.io.{AbstractTypedCodecSpec, Decoder}
 import is.hail.rvd.{AbstractIndexSpec, RVDContext}
 import is.hail.sparkextras.{ContextRDD, IndexReadRDD}
-import is.hail.types.physical.PStruct
+import is.hail.types.physical.{PBaseStruct, PCanonicalTuple, PInt64Required, PStruct}
 import is.hail.types.virtual._
 import is.hail.utils._
 import is.hail.variant.ReferenceGenome
@@ -21,7 +21,6 @@ import org.apache.spark._
 import org.apache.spark.executor.InputMetrics
 import org.apache.spark.rdd.RDD
 import org.json4s.Extraction
-import org.json4s.JsonAST.{JArray, JObject, JString}
 import org.json4s.jackson.JsonMethods
 
 import java.io.InputStream
@@ -155,7 +154,9 @@ object HailContext {
   )(theHailClassLoader: HailClassLoader,
     r: Region,
     in: InputStream,
-    metrics: InputMetrics = null
+    partitionIndex: Long,
+    metrics: InputMetrics = null,
+    uidFieldName: String = null
   ): Iterator[Long] =
     new Iterator[Long] {
       private val region = r
@@ -169,6 +170,16 @@ object HailContext {
             in.close()
             throw e
         }
+
+      private val basePType = dec.ptype.asInstanceOf[PStruct]
+      private val uidPType = PCanonicalTuple(true, PInt64Required, PInt64Required)
+      private val fullPType = if (uidFieldName != null) {
+        basePType.appendKey(uidFieldName, uidPType)
+      } else {
+        basePType
+      }
+
+      private var curIdx: Long = 0
 
       private var cont: Byte = dec.readByte()
       if (cont == 0)
@@ -193,7 +204,13 @@ object HailContext {
           if (cont == 0)
             dec.close()
 
-          res
+          if (uidFieldName != null) {
+            val newRes = appendUIDField(res, region, partitionIndex, curIdx, basePType, uidPType, fullPType)
+            curIdx += 1
+            newRes
+          } else {
+            res
+          }
         } catch {
           case e: Exception =>
             dec.close()
@@ -206,6 +223,59 @@ object HailContext {
       }
     }
 
+  def appendUIDField(addr: Long, region: Region, partitionIndex: Long, curIdx: Long, basePType: PStruct, uidPType: PBaseStruct, fullPType: PStruct): Long = {
+    // construct uid
+    val uid = uidPType.allocate(region)
+    uidPType.initialize(uid)
+    Region.storeLong(uidPType.fieldOffset(uid, 0), partitionIndex)
+    Region.storeLong(uidPType.fieldOffset(uid, 1), curIdx)
+
+    // construct new struct
+    val newAddr = fullPType.allocate(region)
+    fullPType.initialize(newAddr, setMissing = true)
+
+    // copy fields from res
+    var idx = 0
+    while (idx < basePType.types.length) {
+      if (fullPType.isFieldDefined(addr, idx)) {
+        fullPType.setFieldPresent(newAddr, idx)
+        fullPType.types(idx).unstagedStoreAtAddress(
+          fullPType.fieldOffset(newAddr, idx), region, basePType.types(idx), basePType.loadField(addr, idx), deepCopy = false)
+      } else {
+        assert(!fullPType.fieldRequired(idx))
+      }
+      idx += 1
+    }
+
+    // copy uid
+    fullPType.setFieldPresent(newAddr, idx)
+    fullPType.types(idx).unstagedStoreAtAddress(
+      fullPType.fieldOffset(newAddr, idx), region, uidPType, uid, deepCopy = false)
+
+    newAddr
+  }
+
+  def appendUIDIterator(
+    it: Iterator[Long],
+    basePType: PStruct,
+    uidFieldName: String,
+    partitionIndex: Long,
+    region: Region
+  ): Iterator[Long] = new Iterator[Long] {
+    val uidPType = PCanonicalTuple(true, PInt64Required, PInt64Required)
+    val fullPType = basePType.appendKey(uidFieldName, uidPType)
+
+    var curIdx: Long = 0
+
+    def hasNext: Boolean = it.hasNext
+    def next(): Long = {
+      val addr = appendUIDField(it.next(), region, partitionIndex, curIdx, basePType, uidPType, fullPType)
+      curIdx += 1
+      addr
+    }
+  }
+
+
   def readRowsIndexedPartition(
     makeDec: (InputStream, HailClassLoader) => Decoder
   )(theHailClassLoader: HailClassLoader,
@@ -214,14 +284,21 @@ object HailContext {
     idxr: IndexReader,
     offsetField: Option[String],
     bounds: Option[Interval],
-    metrics: InputMetrics = null
+    partitionIndex: Long,
+    metrics: InputMetrics = null,
+    uidFieldName: String = null
   ): Iterator[Long] =
     bounds match {
       case Some(b) =>
-        new IndexReadIterator(theHailClassLoader, makeDec, ctx.r, in, idxr, offsetField.orNull, b, metrics)
+        val it = new IndexReadIterator(theHailClassLoader, makeDec, ctx.r, in, idxr, offsetField.orNull, b, metrics)
+
+        if (uidFieldName == null)
+          it
+        else
+          appendUIDIterator(it, it.ptype.asInstanceOf[PStruct], uidFieldName, partitionIndex, ctx.r)
       case None =>
         idxr.close()
-        HailContext.readRowsPartition(makeDec)(theHailClassLoader, ctx.r, in, metrics)
+        HailContext.readRowsPartition(makeDec)(theHailClassLoader, ctx.r, in, partitionIndex, metrics, uidFieldName)
     }
 
   def readSplitRowsPartition(
@@ -229,7 +306,8 @@ object HailContext {
     fs: BroadcastValue[FS],
     mkRowsDec: (InputStream, HailClassLoader) => Decoder,
     mkEntriesDec: (InputStream, HailClassLoader) => Decoder,
-    mkInserter: (HailClassLoader, FS, Int, Region) => AsmFunction3RegionLongLongLong
+    mkInserter: (HailClassLoader, FS, Int, Region) => AsmFunction3RegionLongLongLong,
+    inserterPType: PStruct
   )(ctx: RVDContext,
     isRows: InputStream,
     isEntries: InputStream,
@@ -238,14 +316,23 @@ object HailContext {
     entriesOffsetField: Option[String],
     bounds: Option[Interval],
     partIdx: Int,
-    metrics: InputMetrics = null
-  ): Iterator[Long] = new MaybeIndexedReadZippedIterator(
-    is => mkRowsDec(is, theHailClassLoaderForSparkWorkers),
-    is => mkEntriesDec(is, theHailClassLoaderForSparkWorkers),
-    mkInserter(theHailClassLoader, fs.value, partIdx, ctx.partitionRegion),
-    ctx.r,
-    isRows, isEntries,
-    idxr.orNull, rowsOffsetField.orNull, entriesOffsetField.orNull, bounds.orNull, metrics)
+    metrics: InputMetrics = null,
+    uidFieldName: String = null
+  ): Iterator[Long] = {
+    val it = new MaybeIndexedReadZippedIterator(
+      is => mkRowsDec(is, theHailClassLoaderForSparkWorkers),
+      is => mkEntriesDec(is, theHailClassLoaderForSparkWorkers),
+      mkInserter(theHailClassLoader, fs.value, partIdx, ctx.partitionRegion),
+      ctx.r,
+      isRows, isEntries,
+      idxr.orNull, rowsOffsetField.orNull, entriesOffsetField.orNull, bounds.orNull, metrics)
+
+    if (uidFieldName == null)
+      it
+    else
+      appendUIDIterator(it, inserterPType, uidFieldName, partIdx, ctx.r)
+
+  }
 
   def pyRemoveIrVector(id: Int) {
     get.irVectors.remove(id)
@@ -287,11 +374,11 @@ object HailContext {
     val fs = ctx.fs
     val (pType: PStruct, makeDec) = enc.buildDecoder(ctx, requestedType)
     (pType, ContextRDD.weaken(HailContext.readPartitions(fs, path, partFiles, (_, is, m) => Iterator.single(is -> m)))
-      .cmapPartitions { (ctx, it) =>
+      .cmapPartitionsWithIndex { (partIdx, ctx, it) =>
         assert(it.hasNext)
         val (is, m) = it.next
         assert(!it.hasNext)
-        HailContext.readRowsPartition(makeDec)(theHailClassLoaderForSparkWorkers, ctx.r, is, m)
+        HailContext.readRowsPartition(makeDec)(theHailClassLoaderForSparkWorkers, ctx.r, is, partIdx.toLong, m, uidFieldName)
       })
   }
 
@@ -302,15 +389,16 @@ object HailContext {
     enc: AbstractTypedCodecSpec,
     partFiles: Array[String],
     bounds: Array[Interval],
-    requestedType: TStruct
+    requestedType: TStruct,
+    uidFieldName: String
   ): (PStruct, ContextRDD[Long]) = {
     val (pType: PStruct, makeDec) = enc.buildDecoder(ctx, requestedType)
     (pType, ContextRDD.weaken(readIndexedPartitions(ctx, path, indexSpec, partFiles, Some(bounds)))
-      .cmapPartitions { (ctx, it) =>
+      .cmapPartitionsWithIndex { (partIdx, ctx, it) =>
         assert(it.hasNext)
         val (is, idxr, bounds, m) = it.next
         assert(!it.hasNext)
-        readRowsIndexedPartition(makeDec)(theHailClassLoaderForSparkWorkers, ctx, is, idxr, indexSpec.offsetField, bounds, m)
+        readRowsIndexedPartition(makeDec)(theHailClassLoaderForSparkWorkers, ctx, is, idxr, indexSpec.offsetField, bounds, partIdx, m, uidFieldName)
       })
   }
 
@@ -353,7 +441,8 @@ object HailContext {
     bounds: Array[Interval],
     makeRowsDec: (InputStream, HailClassLoader) => Decoder,
     makeEntriesDec: (InputStream, HailClassLoader) => Decoder,
-    makeInserter: (HailClassLoader, FS, Int, Region) => AsmFunction3RegionLongLongLong
+    makeInserter: (HailClassLoader, FS, Int, Region) => AsmFunction3RegionLongLongLong,
+    inserterPType: PStruct
   ): ContextRDD[Long] = {
     require(!(indexSpecRows.isEmpty ^ indexSpecEntries.isEmpty))
     val fsBc = ctx.fsBc
@@ -388,7 +477,7 @@ object HailContext {
       assert(it.hasNext)
       val (isRows, isEntries, idxr, bounds, m) = it.next
       assert(!it.hasNext)
-      HailContext.readSplitRowsPartition(theHailClassLoaderForSparkWorkers, fsBc, makeRowsDec, makeEntriesDec, makeInserter)(
+      HailContext.readSplitRowsPartition(theHailClassLoaderForSparkWorkers, fsBc, makeRowsDec, makeEntriesDec, makeInserter, inserterPType)(
         ctx, isRows, isEntries, idxr, rowsOffsetField, entriesOffsetField, bounds, i, m)
     }
 

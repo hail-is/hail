@@ -66,7 +66,7 @@ object AbstractRVDSpec {
 
     val f = partPath(path, partFiles(0))
     using(fs.open(f)) { in =>
-      val Array(rv) = HailContext.readRowsPartition(dec)(ctx.theHailClassLoader, r, in).toArray
+      val Array(rv) = HailContext.readRowsPartition(dec)(ctx.theHailClassLoader, r, in, 0L).toArray
       (rType, rv)
     }
   }

@@ -1,10 +1,10 @@
 package is.hail.io.index
 
 import java.io.InputStream
-
 import is.hail.asm4s.HailClassLoader
 import is.hail.annotations.Region
 import is.hail.io.Decoder
+import is.hail.types.physical.PType
 import is.hail.types.virtual.TStruct
 import is.hail.utils.{ByteTrackingInputStream, Interval}
 import org.apache.spark.ExposedMetrics
@@ -57,6 +57,8 @@ class IndexReadIterator(
     idxr.close()
     if (dec != null) dec.close()
   }
+
+  def ptype: PType = dec.ptype
 
   def hasNext: Boolean = cont != 0 && curIdx < endIdx
 
