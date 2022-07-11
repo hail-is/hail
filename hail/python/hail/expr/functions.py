@@ -3737,7 +3737,7 @@ def _zip_func(*arrays, fill_missing=False, f):
     behavior = 'ExtendNA' if fill_missing else 'TakeMinLength'
     return construct_expr(
         ir.ToArray(ir.StreamZip([ir.ToStream(a._ir) for a in arrays], uids, body_result._ir, behavior)),
-        tarray(ttuple(*(a.dtype.element_type for a in arrays))),
+        tarray(body_result.dtype),
         indices,
         aggregations)
 
