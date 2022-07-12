@@ -10,7 +10,7 @@ tearDownModule = stopTestHailContext
 
 
 class Tests(unittest.TestCase):
-    @fails_service_backend()
+    @skip_when_service_backend(reason='import_plink triggers O(N_variants) reads')
     @fails_local_backend
     def test_ld_score(self):
 

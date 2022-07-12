@@ -106,7 +106,7 @@ gsutil -m retention temp set $website_url
 
 # Create pull request to update Terra and AoU Hail versions
 terra_docker_dir=$(mktemp -d)
-update_terra_image_py=$(dirname "$0")/update-terra-image.py
+update_terra_image_py=$(dirname "$0")/scripts/update-terra-image.py
 git clone https://github.com/DataBiosphere/terra-docker $terra_docker_dir
 pushd $terra_docker_dir
 git config user.name hail
@@ -116,7 +116,7 @@ make_pr_for() {
     branch_name=update-$1-to-hail-$HAIL_PIP_VERSION
     git checkout -B $branch_name
     python3 $update_terra_image_py $HAIL_PIP_VERSION $1
-    git commit -m "Update hail to version $HAIL_PIP_VERSION" -- config/conf.json $1
+    git commit -m "Update $1 to Hail version $HAIL_PIP_VERSION" -- config/conf.json $1
     git push -f origin HEAD
     echo "{
   \"head\": \"$branch_name\",

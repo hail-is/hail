@@ -56,12 +56,11 @@ from hailtop.utils import (
     check_shell_output,
     dump_all_stacktraces,
     find_spark_home,
-    is_retry_once_error,
     parse_docker_image_reference,
     periodically_call,
     request_retry_transient_errors,
     retry_transient_errors,
-    sleep_and_backoff,
+    retry_transient_errors_with_debug_string,
     time_msecs,
     time_msecs_str,
 )
@@ -354,36 +353,13 @@ class NetworkAllocator:
             self.public_networks.put_nowait(netns)
 
 
-def docker_call_retry(timeout, name):
-    async def wrapper(f, *args, **kwargs):
-        delay = 0.1
-        while True:
-            try:
-                return await asyncio.wait_for(f(*args, **kwargs), timeout)
-            except DockerError as e:
-                # 408 request timeout, 503 service unavailable
-                if e.status in (408, 503):
-                    log.warning(f'in docker call to {f.__name__} for {name}, retrying', stack_info=True, exc_info=True)
-                # DockerError(500, 'Head https://registry-1.docker.io/v2/: net/http: request canceled (Client.Timeout exceeded while awaiting headers)'
-                # DockerError(500, 'error creating overlay mount to /var/lib/docker/overlay2/545a1337742e0292d9ed197b06fe900146c85ab06e468843cd0461c3f34df50d/merged: device or resource busy'
-                # DockerError(500, 'Get https://gcr.io/v2/: dial tcp: lookup gcr.io: Temporary failure in name resolution')
-                # DockerError(500, 'Get \"https://mcr.microsoft.com/v2/azure-cli/manifests/sha256:068eaecb7abab2d5195a05a6c144c71e9ba1c532efc2912b3ea290d98fbeadb2\": dial tcp 131.253.33.219:443: i/o timeout')
-                # DockerError(500, 'received unexpected HTTP status: 503 Service Unavailable')
-                elif e.status == 500 and (
-                    "Client.Timeout exceeded while awaiting headers" in e.message
-                    or re.match("error creating overlay mount.*device or resource busy", e.message)
-                    or "Temporary failure in name resolution" in e.message
-                    or 'i/o timeout' in e.message
-                    or 'received unexpected HTTP status: 503 Service Unavailable' in e.message
-                ):
-                    log.warning(f'in docker call to {f.__name__} for {name}, retrying', stack_info=True, exc_info=True)
-                else:
-                    raise
-            except (aiohttp.client_exceptions.ServerDisconnectedError, asyncio.TimeoutError):
-                log.warning(f'in docker call to {f.__name__} for {name}, retrying', stack_info=True, exc_info=True)
-                delay = await sleep_and_backoff(delay)
+def docker_call_retry(timeout, name, f, *args, **kwargs):
+    debug_string = f'In docker call to {f.__name__} for {name}'
 
-    return wrapper
+    async def timed_out_f(*args, **kwargs):
+        return await asyncio.wait_for(f(*args, **kwargs), timeout)
+
+    return retry_transient_errors_with_debug_string(debug_string, timed_out_f, *args, **kwargs)
 
 
 class ImageCannotBePulled(Exception):
@@ -443,7 +419,7 @@ class Image:
     async def _pull_image(self):
         assert docker
 
-        async def do_pull():
+        try:
             if not self.is_cloud_image:
                 await self._ensure_image_is_pulled()
             elif self.is_public_image:
@@ -457,18 +433,9 @@ class Image:
                 # FIXME improve the performance of this with a
                 # per-user image cache.
                 auth = self._current_user_access_token()
-                await docker_call_retry(MAX_DOCKER_IMAGE_PULL_SECS, f'{self}')(
-                    docker.images.pull, self.image_ref_str, auth=auth
+                await docker_call_retry(
+                    MAX_DOCKER_IMAGE_PULL_SECS, str(self), docker.images.pull, self.image_ref_str, auth=auth
                 )
-
-        try:
-            try:
-                await do_pull()
-            except DockerError as e:
-                if is_retry_once_error(e):
-                    await do_pull()
-                else:
-                    raise
         except DockerError as e:
             if e.status == 404 and 'pull access denied' in e.message:
                 raise ImageCannotBePulled from e
@@ -483,11 +450,11 @@ class Image:
         assert docker
 
         try:
-            await docker_call_retry(MAX_DOCKER_OTHER_OPERATION_SECS, f'{self}')(docker.images.get, self.image_ref_str)
+            await docker_call_retry(MAX_DOCKER_OTHER_OPERATION_SECS, str(self), docker.images.get, self.image_ref_str)
         except DockerError as e:
             if e.status == 404:
-                await docker_call_retry(MAX_DOCKER_IMAGE_PULL_SECS, f'{self}')(
-                    docker.images.pull, self.image_ref_str, auth=auth
+                await docker_call_retry(
+                    MAX_DOCKER_IMAGE_PULL_SECS, str(self), docker.images.pull, self.image_ref_str, auth=auth
                 )
             else:
                 raise

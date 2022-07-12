@@ -10,7 +10,7 @@ import re
 import yaml
 from pathlib import Path
 
-from hail.context import TemporaryDirectory, tmp_dir, TemporaryFilename, revision
+from hail.context import TemporaryDirectory, tmp_dir, TemporaryFilename, revision, _TemporaryFilenameManager
 from hail.utils import FatalError
 from hail.expr.types import HailType, dtype, ttuple, tvoid
 from hail.expr.table_type import ttable
@@ -200,7 +200,9 @@ class ServiceBackend(Backend):
                      flags: Optional[Dict[str, str]] = None,
                      jar_url: Optional[str] = None,
                      driver_cores: Optional[Union[int, str]] = None,
-                     driver_memory: Optional[Union[int, str]] = None,
+                     driver_memory: Optional[str] = None,
+                     worker_cores: Optional[Union[int, str]] = None,
+                     worker_memory: Optional[str] = None,
                      name_prefix: Optional[str] = None,
                      token: Optional[str] = None):
         billing_project = configuration_of('batch', 'billing_project', billing_project, None)
@@ -226,6 +228,8 @@ class ServiceBackend(Backend):
 
         driver_cores = configuration_of('query', 'batch_driver_cores', driver_cores, None)
         driver_memory = configuration_of('query', 'batch_driver_memory', driver_memory, None)
+        worker_cores = configuration_of('query', 'batch_worker_cores', worker_cores, None)
+        worker_memory = configuration_of('query', 'batch_worker_memory', worker_memory, None)
         name_prefix = configuration_of('query', 'name_prefix', name_prefix, '')
 
         if disable_progress_bar is None:
@@ -247,7 +251,9 @@ class ServiceBackend(Backend):
             jar_spec=jar_spec,
             driver_cores=driver_cores,
             driver_memory=driver_memory,
-            name_prefix=name_prefix
+            worker_cores=worker_cores,
+            worker_memory=worker_memory,
+            name_prefix=name_prefix or '',
         )
 
     def __init__(self,
@@ -263,7 +269,9 @@ class ServiceBackend(Backend):
                  flags: Dict[str, str],
                  jar_spec: JarSpec,
                  driver_cores: Optional[Union[int, str]],
-                 driver_memory: Optional[Union[int, str]],
+                 driver_memory: Optional[str],
+                 worker_cores: Optional[Union[int, str]],
+                 worker_memory: Optional[str],
                  name_prefix: str):
         self.billing_project = billing_project
         self._sync_fs = sync_fs
@@ -279,7 +287,10 @@ class ServiceBackend(Backend):
         self.functions: List[IRFunction] = []
         self.driver_cores = driver_cores
         self.driver_memory = driver_memory
+        self.worker_cores = worker_cores
+        self.worker_memory = worker_memory
         self.name_prefix = name_prefix
+        self._persisted_locations: Dict[Any, _TemporaryFilenameManager] = dict()
 
     def debug_info(self) -> Dict[str, Any]:
         return {
@@ -290,7 +301,9 @@ class ServiceBackend(Backend):
             'remote_tmpdir': self.remote_tmpdir,
             'flags': self.flags,
             'driver_cores': self.driver_cores,
-            'driver_memory': self.driver_memory
+            'driver_memory': self.driver_memory,
+            'worker_cores': self.worker_cores,
+            'worker_memory': self.worker_memory,
         }
 
     @property
@@ -318,8 +331,7 @@ class ServiceBackend(Backend):
                    ir: Optional[BaseIR] = None):
         timings = Timings()
         token = secret_alnum_string()
-        iodir = TemporaryDirectory(ensure_exists=False).name  # FIXME: actually cleanup
-        with TemporaryDirectory(ensure_exists=False) as _:
+        with TemporaryDirectory(ensure_exists=False) as iodir:
             with timings.step("write input"):
                 async with await self._async_fs.create(iodir + '/in') as infile:
                     nonnull_flag_count = sum(v is not None for v in self.flags.values())
@@ -328,6 +340,8 @@ class ServiceBackend(Backend):
                         if v is not None:
                             await write_str(infile, k)
                             await write_str(infile, v)
+                    await write_str(infile, str(self.worker_cores))
+                    await write_str(infile, str(self.worker_memory))
                     await inputs(infile, token)
 
             with timings.step("submit batch"):
@@ -348,10 +362,10 @@ class ServiceBackend(Backend):
                         ServiceBackend.DRIVER,
                         batch_attributes['name'],
                         iodir + '/in',
-                        iodir + '/out'
+                        iodir + '/out',
                     ],
                     mount_tokens=True,
-                    resources=resources
+                    resources=resources,
                 )
                 b = await bb.submit(disable_progress_bar=True)
 
@@ -682,9 +696,31 @@ class ServiceBackend(Backend):
 
     def persist_expression(self, expr):
         # FIXME: should use context manager to clean up persisted resources
-        fname = TemporaryFilename().name
+        fname = TemporaryFilename(prefix='persist_expression').name
         write_expression(expr, fname)
         return read_expression(fname, _assert_type=expr.dtype)
+
+    def persist_table(self, t, storage_level):
+        tf = TemporaryFilename(prefix='persist_table')
+        self._persisted_locations[t] = tf
+        return t.checkpoint(tf.__enter__())
+
+    def unpersist_table(self, t):
+        try:
+            self._persisted_locations[t].__exit__(None, None, None)
+        except KeyError as err:
+            raise ValueError(f'{t} is not persisted') from err
+
+    def persist_matrix_table(self, mt, storage_level):
+        tf = TemporaryFilename(prefix='persist_matrix_table')
+        self._persisted_locations[mt] = tf
+        return mt.checkpoint(tf.__enter__())
+
+    def unpersist_matrix_table(self, mt):
+        try:
+            self._persisted_locations[mt].__exit__(None, None, None)
+        except KeyError as err:
+            raise ValueError(f'{mt} is not persisted') from err
 
     def set_flags(self, **flags: str):
         self.flags.update(flags)
