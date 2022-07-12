@@ -66,7 +66,7 @@ class SpecWriter:
 SELECT
 start_job_id,
 token,
-(SELECT start_job_id FROM batch_bunches WHERE batch_id = %s AND start_job_id > %s LIMIT 1) AS next_start_job_id
+(SELECT start_job_id FROM batch_bunches WHERE batch_id = %s AND start_job_id > %s ORDER BY start_job_id LIMIT 1) AS next_start_job_id
 FROM batch_bunches
 WHERE batch_id = %s AND start_job_id <= %s
 ORDER BY start_job_id DESC
