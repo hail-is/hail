@@ -554,7 +554,7 @@ class MatrixFilterCols(MatrixIR):
         col_uid, old_col = unpack_col_uid(child.typ.col_type, col_uid_field_name)
         pred = ir.Let('sa', old_col, self.pred)
         if self.pred.uses_randomness:
-            pred = ir.Let('__rng_state', ir.RNGSplit(ir.RNGStateLiteral(rng_key), col_uid))
+            pred = ir.Let('__rng_state', ir.RNGSplit(ir.RNGStateLiteral(rng_key), col_uid), pred)
         result = MatrixFilterCols(child, pred)
         if drop_col_uid:
             result = MatrixMapCols(result, old_col, new_key=None)
