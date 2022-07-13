@@ -121,6 +121,16 @@ resource "google_container_cluster" "vdc" {
   cluster_autoscaling {
     enabled = true
     autoscaling_profile = "OPTIMIZE_UTILIZATION"
+    resource_limits {
+      resource_type = "cpu"
+      minimum       = 4
+      maximum       = 100
+    }
+    resource_limits {
+      resource_type = "memory"
+      minimum       = 8
+      maximum       = 500
+    }
   }
 }
 
