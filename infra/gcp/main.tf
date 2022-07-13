@@ -98,6 +98,7 @@ data "google_compute_subnetwork" "default_region" {
 }
 
 resource "google_container_cluster" "vdc" {
+  provider = google-beta
   name = "vdc"
   location = var.gcp_zone
   network = google_compute_network.default.name
@@ -109,12 +110,18 @@ resource "google_container_cluster" "vdc" {
   initial_node_count = 1
 
   master_auth {
-    username = ""
-    password = ""
-
     client_certificate_config {
       issue_client_certificate = false
     }
+  }
+
+  release_channel {
+    channel = "STABLE"
+  }
+
+  cluster_autoscaling {
+    enabled = true
+    autoscaling_profile = "OPTIMIZE_UTILIZATION"
   }
 }
 
@@ -129,7 +136,6 @@ resource "google_container_node_pool" "vdc_preemptible_pool" {
   autoscaling {
     min_node_count = 0
     max_node_count = 200
-    autoscaling_profile = "OPTIMIZE_UTILIZATION"
   }
 
   node_config {
@@ -167,7 +173,6 @@ resource "google_container_node_pool" "vdc_nonpreemptible_pool" {
   autoscaling {
     min_node_count = 0
     max_node_count = 200
-    autoscaling_profile = "OPTIMIZE_UTILIZATION"
   }
 
   node_config {
@@ -220,7 +225,7 @@ resource "google_compute_network_peering_routes_config" "private_vpc_peering_con
 
 resource "google_sql_database_instance" "db" {
   name = "db-${random_id.db_name_suffix.hex}"
-  database_version = "MYSQL_5_7"
+  database_version = "MYSQL_8_0"
   region = var.gcp_region
 
   depends_on = [google_service_networking_connection.private_vpc_connection]
