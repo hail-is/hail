@@ -1,14 +1,16 @@
-import logging
 import collections
-import sortedcontainers
+import logging
+from typing import Dict, Tuple
 
-from typing import Tuple
+import sortedcontainers
 
 from hailtop.utils import secret_alnum_string
 
 log = logging.getLogger('batch.spec_writer')
 
-JOB_TOKEN_CACHE = collections.defaultdict(lambda: sortedcontainers.SortedSet(key=lambda t: t[1]))
+JOB_TOKEN_CACHE: Dict[int, sortedcontainers.SortedSet] = collections.defaultdict(
+    lambda: sortedcontainers.SortedSet(key=lambda t: t[1])
+)
 JOB_TOKEN_CACHE_MAX_BATCHES = 100
 JOB_TOKEN_CACHE_MAX_BUNCHES_PER_BATCH = 100
 
