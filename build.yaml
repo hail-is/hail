@@ -2028,6 +2028,9 @@ steps:
       - name: add-resource-ids-python
         script: /io/sql/add_resource_ids.py
         online: true
+      - name: modify-resource-id-trigger
+        script: /io/sql/modify-resource-id-trigger.sql
+        online: true
     inputs:
       - from: /repo/batch/sql
         to: /io/sql
