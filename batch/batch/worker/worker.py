@@ -2567,7 +2567,7 @@ class Worker:
         while True:
             try:
                 await self.client_session.post(
-                    deploy_config.url('batch-driver', '/api/v1alpha/instances/job_complete'),
+                    deploy_config.url('batch-db-proxy', '/api/v1alpha/instances/job_complete'),
                     json=body,
                     headers=self.headers,
                 )
