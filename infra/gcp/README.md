@@ -42,13 +42,16 @@ Instructions:
 
   Download the client secret as `/tmp/auth_oauth2_client_secret.json`.
 
-- Create `infra/gcp/$ORGANIZATION_DOMAIN/global.tfvars` based on the template below, where `$ORGANIZATION_DOMAIN` corresponds to the `organization_domain` setting in the template (e.g. `hail.is`). This avoids collisions between configuration files from different Hail deployments.
+- Create `infra/gcp/$GITHUB_ORGANIZATION/global.tfvars` based on the template below, where `$GITHUB_ORGANIZATION` corresponds to the GitHub organization used for your Hail Batch deployment (e.g. [`hail-is`](https://github.com/hail-is/hail)). This avoids collisions between configuration files from different Hail deployments.
 
 
    ```
    # organization_domain is a string that is the domain of the organization
    # E.g. "hail.is"
-   organization_domain = "<organization-domain>"
+   organization_domain = "<domain>"
+
+   # The GitHub organization hosting your Hail Batch repository, e.g. "hail-is".
+   github_organization = "<github-organization>"
 
    # batch_gcp_regions is a JSON array of string, the names of the gcp
    # regions to schedule over in Batch. E.g. "[\"us-central1\"]"
@@ -148,14 +151,14 @@ Instructions:
 - Encrypt the above files and add them to the repository.
 
   ```sh
-  sops --encrypt --gcp-kms projects/<gcp-project-id>/locations/global/keyRings/sops/cryptoKeys/sops-key /tmp/auth_oauth2_client_secret.json > $HAIL/infra/gcp/$ORGANIZATION_DOMAIN/auth_oauth2_client_secret.enc.json
+  sops --encrypt --gcp-kms projects/<gcp-project-id>/locations/global/keyRings/sops/cryptoKeys/sops-key /tmp/auth_oauth2_client_secret.json > $HAIL/infra/gcp/$GITHUB_ORGANIZATION/auth_oauth2_client_secret.enc.json
 
   # Optional
-  sops --encrypt --gcp-kms projects/<gcp-project-id>/locations/global/keyRings/sops/cryptoKeys/sops-key /tmp/ci_config.json > $HAIL/infra/gcp/$ORGANIZATION_DOMAIN/ci_config.enc.json
+  sops --encrypt --gcp-kms projects/<gcp-project-id>/locations/global/keyRings/sops/cryptoKeys/sops-key /tmp/ci_config.json > $HAIL/infra/gcp/$GITHUB_ORGANIZATION/ci_config.enc.json
 
-  sops --encrypt --gcp-kms projects/<gcp-project-id>/locations/global/keyRings/sops/cryptoKeys/sops-key /tmp/terraform_sa_key.json > $HAIL/infra/gcp/$ORGANIZATION_DOMAIN/terraform_sa_key.enc.json
+  sops --encrypt --gcp-kms projects/<gcp-project-id>/locations/global/keyRings/sops/cryptoKeys/sops-key /tmp/terraform_sa_key.json > $HAIL/infra/gcp/$GITHUB_ORGANIZATION/terraform_sa_key.enc.json
 
-  git add $HAIL/infra/gcp/$ORGANIZATION_DOMAIN/*
+  git add $HAIL/infra/gcp/$GITHUB_ORGANIZATION/*
 
   # git commit and push as desired.
   ```
@@ -164,7 +167,7 @@ Instructions:
   
 - Run `terraform init`.
 
-- Run `terraform apply -var-file=$ORGANIZATION_DOMAIN/global.tfvars`.  At the
+- Run `terraform apply -var-file=$GITHUB_ORGANIZATION/global.tfvars`.  At the
   time of writing, this takes ~15m.
 
 - Terraform created a GKE cluster named `vdc`.  Configure `kubectl`
@@ -233,7 +236,7 @@ You can now install Hail:
 - Bootstrap the cluster.
 
   ```
-  ./bootstrap.sh bootstrap <REPO>/hail:<BRANCH> deploy_batch
+  ./bootstrap.sh bootstrap $GITHUB_ORGANIZATION/hail:<BRANCH> deploy_batch
   ```
 
 - Deploy the gateway. First, edit `$HAIL/letsencrypt/subdomains.txt` to include
@@ -242,7 +245,7 @@ You can now install Hail:
 - Create the initial (developer) user.
 
   ```
-  ./bootstrap.sh bootstrap <REPO>/hail:<BRANCH> create_initial_user <USERNAME> <EMAIL>
+  ./bootstrap.sh bootstrap $GITHUB_ORGANIZATION/hail:<BRANCH> create_initial_user <USERNAME> <EMAIL>
   ```
 
   Additional users can be added by the initial user by going to auth.<domain>/users.
