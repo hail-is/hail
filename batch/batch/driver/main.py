@@ -325,6 +325,17 @@ async def job_started(request, instance):
     return await asyncio.shield(job_started_1(request, instance))
 
 
+@routes.post('/api/v1alpha/instances/adjust_cores/{instance_name}')
+async def adjust_cores(request):
+    instance_name = request.match_info['instance_name']
+    body = await request.json()
+    delta_cores_mcpu = int(body['delta_cores_mcpu'])
+    instance = request.app['driver'].inst_coll_manager.get_instance(instance_name)
+    if instance and instance.state == 'active':
+        instance.adjust_free_cores_in_memory(delta_cores_mcpu)
+    return web.Response()
+
+
 @routes.get('/')
 @routes.get('')
 @web_authenticated_developers_only()
