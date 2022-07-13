@@ -59,7 +59,7 @@ from ..utils import authorization_token, batch_only, query_billing_projects
 from .canceller import Canceller
 from .driver import CloudDriver
 from .instance_collection import InstanceCollectionManager, JobPrivateInstanceManager, Pool
-from .job import mark_job_complete, mark_job_started
+from .job import mark_job_started
 from .k8s_cache import K8sCache
 
 uvloop.install()
@@ -300,53 +300,6 @@ async def kill_instance(request, userdata):  # pylint: disable=unused-argument
     pool_name = instance.inst_coll.name
     pool_url_path = f'/inst_coll/pool/{pool_name}'
     return web.HTTPFound(deploy_config.external_url('batch-driver', pool_url_path))
-
-
-async def job_complete_1(request, instance):
-    body = await request.json()
-    job_status = body['status']
-
-    batch_id = job_status['batch_id']
-    job_id = job_status['job_id']
-    attempt_id = job_status['attempt_id']
-
-    state = job_status['state']
-    if state == 'succeeded':
-        new_state = 'Success'
-    elif state == 'error':
-        new_state = 'Error'
-    else:
-        assert state == 'failed', state
-        new_state = 'Failed'
-
-    start_time = job_status['start_time']
-    end_time = job_status['end_time']
-    status = job_status['status']
-    resources = job_status.get('resources')
-
-    await mark_job_complete(
-        request.app,
-        batch_id,
-        job_id,
-        attempt_id,
-        instance.name,
-        new_state,
-        status,
-        start_time,
-        end_time,
-        'completed',
-        resources,
-    )
-
-    await instance.mark_healthy()
-
-    return web.Response()
-
-
-@routes.post('/api/v1alpha/instances/job_complete')
-@active_instances_only
-async def job_complete(request, instance):
-    return await asyncio.shield(job_complete_1(request, instance))
 
 
 async def job_started_1(request, instance):
