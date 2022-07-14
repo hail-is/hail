@@ -8,7 +8,7 @@ from hailtop import httpx
 from hailtop.config import get_deploy_config
 from hailtop.hail_logging import AccessLogger
 from hailtop.tls import internal_server_ssl_context
-from hailtop.utils import Notice, time_msecs
+from hailtop.utils import time_msecs
 from gear import Database, setup_aiohttp_session
 
 from ..job import add_attempt_resources, notify_batch_job_complete
@@ -31,8 +31,6 @@ def instance_name_from_request(request) -> str:
 async def mark_job_complete(
     app, batch_id, job_id, attempt_id, instance_name, new_state, status, start_time, end_time, reason, resources
 ):
-    scheduler_state_changed: Notice = app['scheduler_state_changed']
-    cancel_ready_state_changed: asyncio.Event = app['cancel_ready_state_changed']
     db: Database = app['db']
     client_session: httpx.ClientSession = app['client_session']
 
@@ -62,9 +60,6 @@ async def mark_job_complete(
     except Exception:
         log.exception(f'error while marking job {id} complete on instance {instance_name}')
         raise
-
-    scheduler_state_changed.notify()
-    cancel_ready_state_changed.set()
 
     if instance_name:
         delta_cores_mcpu = rv['delta_cores_mcpu']
@@ -140,8 +135,6 @@ async def on_startup(app: web.Application):
     db = Database()
     await db.async_init(maxsize=50)
     app['db'] = db
-    app['scheduler_state_changed'] = Notice()
-    app['cancel_ready_state_changed'] = asyncio.Event()
     app['client_session'] = httpx.client_session()
 
 

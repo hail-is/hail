@@ -330,9 +330,12 @@ async def adjust_cores(request):
     instance_name = request.match_info['instance_name']
     body = await request.json()
     delta_cores_mcpu = int(body['delta_cores_mcpu'])
-    instance = request.app['driver'].inst_coll_manager.get_instance(instance_name)
+    app = request.app
+    instance = app['driver'].inst_coll_manager.get_instance(instance_name)
     if instance and instance.state == 'active':
         instance.adjust_free_cores_in_memory(delta_cores_mcpu)
+    app['scheduler_state_changed'].notify()
+    app['cancel_ready_state_changed'].set()
     return web.Response()
 
 

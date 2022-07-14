@@ -24,7 +24,7 @@ sleep_time = math.floor(max_concurrent_quarter_core_jobs / msr)
 # the number of jobs is the max scheduling rate times the scheduling duration
 n_jobs = msr * duration
 
-for idx in range(10_000):
+for idx in range(50_000):
     j = b.new_job(name=f'job_{idx}')
     j.cpu('250m')
     j.command(f'true')
