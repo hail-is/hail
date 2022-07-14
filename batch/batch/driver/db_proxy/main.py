@@ -1,18 +1,23 @@
 import asyncio
 from aiohttp import web
 import logging
+from typing import Dict
+
+import collections
 
 import json
 
-from hailtop import httpx
+from hailtop import aiotools, httpx
 from hailtop.config import get_deploy_config
 from hailtop.hail_logging import AccessLogger
 from hailtop.tls import internal_server_ssl_context
-from hailtop.utils import time_msecs
-from gear import Database, setup_aiohttp_session
+from hailtop.utils import time_msecs, periodically_call
+from gear import Database, setup_aiohttp_session, monitor_endpoints_middleware
+
+from prometheus_async.aio.web import server_stats
 
 from ..job import add_attempt_resources, notify_batch_job_complete
-from ...globals import complete_states
+from ...globals import complete_states, HTTP_CLIENT_MAX_SIZE
 
 log = logging.getLogger('db-proxy')
 
@@ -20,12 +25,26 @@ deploy_config = get_deploy_config()
 
 routes = web.RouteTableDef()
 
+OPEN_CORES: Dict[str, int] = collections.defaultdict(int)
+
 
 def instance_name_from_request(request) -> str:
     instance_name = request.headers.get('X-Hail-Instance-Name')
     if instance_name is None:
         raise ValueError(f'request is missing required header X-Hail-Instance-Name: {request}')
     return instance_name
+
+
+async def notify_driver_open_cores(app):
+    client_session: httpx.ClientSession = app['client_session']
+    if OPEN_CORES:
+        cores_to_post = OPEN_CORES.copy()
+        OPEN_CORES.clear()
+        async with client_session.post(
+            deploy_config.url('batch-driver', f'/api/v1alpha/instances/adjust_cores'),
+            json={'open_cores': cores_to_post},
+        ):
+            pass
 
 
 async def mark_job_complete(
@@ -64,11 +83,7 @@ async def mark_job_complete(
     if instance_name:
         delta_cores_mcpu = rv['delta_cores_mcpu']
         if delta_cores_mcpu != 0:
-            async with client_session.post(
-                deploy_config.url('batch-driver', f'/api/v1alpha/instances/{instance_name}/adjust_cores'),
-                json={'delta_cores_mcpu': delta_cores_mcpu},
-            ):
-                pass
+            OPEN_CORES[instance_name] += delta_cores_mcpu
 
     await add_attempt_resources(db, batch_id, job_id, attempt_id, resources)
 
@@ -137,13 +152,17 @@ async def on_startup(app: web.Application):
     app['db'] = db
     app['client_session'] = httpx.client_session()
 
+    app['task_manager'] = aiotools.BackgroundTaskManager()
+    app['task_manager'].ensure_future(periodically_call(0.1, notify_driver_open_cores, app))
+
 
 def run():
-    app = web.Application()
+    app = web.Application(client_max_size=HTTP_CLIENT_MAX_SIZE, middlewares=[monitor_endpoints_middleware])
     setup_aiohttp_session(app)
 
     app.add_routes(routes)
     app.on_startup.append(on_startup)
+    app.router.add_get("/metrics", server_stats)
 
     web.run_app(
         deploy_config.prefix_application(app, 'batch-db-proxy'),

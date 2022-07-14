@@ -402,7 +402,7 @@ spec:
   selector:
     matchLabels:
       app: batch-db-proxy
-  replicas: 1
+  replicas: 2
   strategy:
     type: Recreate
   template:
@@ -522,6 +522,8 @@ spec:
          - name: HAIL_SHOULD_CHECK_INVARIANTS
            value: "1"
 {% endif %}
+        ports:
+         - containerPort: 5000
         volumeMounts:
          - name: deploy-config
            mountPath: /deploy-config
