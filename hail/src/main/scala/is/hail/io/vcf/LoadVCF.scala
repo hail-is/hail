@@ -7,7 +7,7 @@ import is.hail.backend.spark.SparkBackend
 import is.hail.backend.{BroadcastValue, ExecuteContext}
 import is.hail.expr.JSONAnnotationImpex
 import is.hail.expr.ir.lowering.TableStage
-import is.hail.expr.ir.{CloseableIterator, GenericLine, GenericLines, GenericTableValue, IR, IRParser, Literal, LowerMatrixIR, MatrixHybridReader, MatrixIR, MatrixLiteral, TableValue}
+import is.hail.expr.ir.{CloseableIterator, GenericLine, GenericLines, GenericTableValue, IR, IRParser, Literal, LowerMatrixIR, MatrixHybridReader, MatrixIR, MatrixLiteral, MatrixReader, TableValue}
 import is.hail.io.fs.{FS, FileStatus}
 import is.hail.io.tabix._
 import is.hail.io.vcf.LoadVCF.{getHeaderLines, parseHeader, parseLines}
@@ -1308,6 +1308,7 @@ object LoadVCF {
     val hasAlleles = rowPType.hasField("alleles")
     val hasRSID = rowPType.hasField("rsid")
     val hasEntries = rowPType.hasField(LowerMatrixIR.entriesFieldName)
+    val hasRowUID = rowPType.hasField(MatrixReader.rowUIDFieldName)
 
     rvb.start(rowPType)
     rvb.startStruct()
@@ -1316,6 +1317,7 @@ object LoadVCF {
       return present
 
     parseLine(parseLineContext, vcfLine, rvb, !hasEntries)
+
     true
   }
 
@@ -1689,10 +1691,16 @@ class MatrixVCFReader(
   fileStatuses: IndexedSeq[FileStatus],
   infoFlagFieldNames: Set[String],
   referenceGenome: Option[ReferenceGenome],
-  val fullMatrixType: MatrixType,
+  matrixType: MatrixType,
   fullRVDType: RVDType,
   sampleIDs: Array[String]
 ) extends MatrixHybridReader {
+
+  val fullMatrixType = matrixType.copy(
+    rowType = matrixType.rowType.insertFields(Array(
+      rowUIDFieldName -> TInt64)),
+    colType = matrixType.colType.insertFields(Array(
+      colUIDFieldName -> TInt64)))
 
   def pathsUsed: Seq[String] = params.files
 

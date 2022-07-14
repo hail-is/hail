@@ -55,8 +55,8 @@ case class StringTablePartitionReader(lines: GenericLines, uidFieldName: String)
 
   override def fullRowType: TStruct = TStruct("file"-> TString, "text"-> TString, uidFieldName -> TTuple(TInt64, TInt64))
 
-  override def rowRequiredness(requestedType: Type): TypeWithRequiredness = {
-    val req = BaseTypeWithRequiredness.apply(requestedType).asInstanceOf[RStruct]
+  override def rowRequiredness(requestedType: TStruct): RStruct = {
+    val req = BaseTypeWithRequiredness(requestedType).asInstanceOf[RStruct]
     req.fields.foreach(field => field.typ.hardSetRequiredness(true))
     req.hardSetRequiredness(true)
     req

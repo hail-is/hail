@@ -295,12 +295,19 @@ class PlinkVariant(
 class MatrixPLINKReader(
   val params: MatrixPLINKReaderParameters,
   referenceGenome: Option[ReferenceGenome],
-  val fullMatrixType: MatrixType,
+  matrixType: MatrixType,
   sampleInfo: IndexedSeq[Row],
   variants: Array[PlinkVariant],
   contexts: Array[Any],
   partitioner: RVDPartitioner
 ) extends MatrixHybridReader {
+
+  val fullMatrixType = matrixType.copy(
+    rowType = matrixType.rowType.insertFields(Array(
+      rowUIDFieldName -> TInt64)),
+    colType = matrixType.colType.insertFields(Array(
+      colUIDFieldName -> TInt64)))
+
   def pathsUsed: Seq[String] = FastSeq(params.bed, params.bim, params.fam)
 
   def nSamples: Int = sampleInfo.length
@@ -310,6 +317,10 @@ class MatrixPLINKReader(
   val columnCount: Option[Int] = Some(nSamples)
 
   val partitionCounts: Option[IndexedSeq[Long]] = None
+
+  val globals = Row(sampleInfo.zipWithIndex.map { case (s, idx) =>
+    Row((0 until s.length).map(s.apply) :+ idx)
+  })
 
   def rowAndGlobalPTypes(context: ExecuteContext, requestedType: TableType): (PStruct, PStruct) = {
     requestedType.canonicalRowPType -> PType.canonical(requestedType.globalType).asInstanceOf[PStruct]
@@ -321,8 +332,6 @@ class MatrixPLINKReader(
     val localNSamples = nSamples
 
     val localLocusType = TLocus.schemaFromRG(referenceGenome)
-
-    val globals = Row(sampleInfo)
 
     val contextType = TStruct(
       "bed" -> TString,
@@ -339,7 +348,8 @@ class MatrixPLINKReader(
       "alleles" -> PCanonicalArray(PCanonicalString(true), true),
       "rsid" -> PCanonicalString(true),
       "cm_position" -> PFloat64(true),
-      LowerMatrixIR.entriesFieldName -> PCanonicalArray(PCanonicalStruct(true, "GT" -> PCanonicalCall()), true))
+      LowerMatrixIR.entriesFieldName -> PCanonicalArray(PCanonicalStruct(true, "GT" -> PCanonicalCall()), true),
+      rowUIDFieldName -> PInt64Required)
 
     val bodyPType = (requestedRowType: TStruct) => fullRowPType.subsetTo(requestedRowType).asInstanceOf[PStruct]
 
@@ -348,6 +358,7 @@ class MatrixPLINKReader(
       val hasAlleles = requestedType.hasField("alleles")
       val hasRsid = requestedType.hasField("rsid")
       val hasCmPos = requestedType.hasField("cm_position")
+      val hasRowUID = requestedType.hasField(rowUIDFieldName)
 
       val hasEntries = requestedType.hasField(LowerMatrixIR.entriesFieldName)
       val hasGT = hasEntries && (requestedType.fieldType(LowerMatrixIR.entriesFieldName).asInstanceOf[TArray]
@@ -444,6 +455,10 @@ class MatrixPLINKReader(
 
             rvb.endArray()
           }
+
+          if (hasRowUID)
+            rvb.addLong(i)
+
           rvb.endStruct()
 
           Some(rvb.end())
@@ -473,7 +488,6 @@ class MatrixPLINKReader(
   override def lowerGlobals(ctx: ExecuteContext, requestedGlobalsType: TStruct): IR = {
     val tt = fullMatrixType.toTableType(LowerMatrixIR.entriesFieldName, LowerMatrixIR.colsFieldName)
     val subset = tt.globalType.valueSubsetter(requestedGlobalsType)
-    val globals = Row(sampleInfo)
     Literal(requestedGlobalsType, subset(globals).asInstanceOf[Row])
   }
 

@@ -16,7 +16,7 @@ import is.hail.types.physical.stypes.interfaces.{SBaseStructValue, SStream, SStr
 import is.hail.types.physical.stypes.primitives.{SInt64, SInt64Value}
 import is.hail.types.physical.{PStruct, PType}
 import is.hail.types.virtual.{TArray, TInt64, TStruct, TTuple, Type}
-import is.hail.types.{TableType, TypeWithRequiredness}
+import is.hail.types.{RStruct, TableType, TypeWithRequiredness}
 import is.hail.utils._
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
@@ -34,13 +34,13 @@ class PartitionIteratorLongReader(
   assert(fullRowType.fieldNames.contains(uidFieldName))
   assert(contextType.fieldNames.contains("partitionIndex"))
 
-  def rowRequiredness(requestedType: Type): TypeWithRequiredness = {
-    val tr = TypeWithRequiredness.apply(requestedType)
-    tr.fromPType(bodyPType(requestedType.asInstanceOf[TStruct]))
+  override def rowRequiredness(requestedType: TStruct): RStruct = {
+    val tr = TypeWithRequiredness(requestedType).asInstanceOf[RStruct]
+    tr.fromPType(bodyPType(requestedType))
     tr
   }
 
-  def emitStream(
+  override def emitStream(
     ctx: ExecuteContext,
     cb: EmitCodeBuilder,
     context: EmitCode,

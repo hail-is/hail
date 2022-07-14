@@ -145,7 +145,7 @@ class PruneSuite extends HailSuite {
 
     def fullMatrixType: MatrixType = mat.typ
 
-    def lower(mr: MatrixRead): TableIR = ???
+    def lower(requestedType: MatrixType, dropCols: Boolean, dropRows: Boolean): TableIR = ???
 
     def toJValue: JValue = ???
 

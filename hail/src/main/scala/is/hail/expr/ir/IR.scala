@@ -17,7 +17,7 @@ import is.hail.types.physical.stypes.concrete.SJavaString
 import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.physical.stypes._
 import is.hail.types.virtual._
-import is.hail.types.{RIterable, TypeWithRequiredness}
+import is.hail.types.{RIterable, RStruct, TypeWithRequiredness}
 import is.hail.utils.{FastIndexedSeq, _}
 import org.json4s.{DefaultFormats, Extraction, Formats, JValue, ShortTypeHints}
 
@@ -810,7 +810,7 @@ abstract class PartitionReader {
 
   def uidFieldName: String
 
-  def rowRequiredness(requestedType: Type): TypeWithRequiredness
+  def rowRequiredness(requestedType: TStruct): RStruct
 
   def emitStream(
     ctx: ExecuteContext,

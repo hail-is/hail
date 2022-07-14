@@ -331,7 +331,6 @@ object HailContext {
       it
     else
       appendUIDIterator(it, inserterPType, uidFieldName, partIdx, ctx.r)
-
   }
 
   def pyRemoveIrVector(id: Int) {

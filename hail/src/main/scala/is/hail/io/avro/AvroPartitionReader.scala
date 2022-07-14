@@ -23,9 +23,10 @@ import scala.collection.JavaConverters._
 case class AvroPartitionReader(schema: Schema, uidFieldName: String) extends PartitionReader {
   def contextType: Type = TStruct("filename" -> TString, "partitionIdx" -> TInt64)
 
-  val fullRowType: TStruct = AvroReader.schemaToType(schema).insertFields(Array(uidFieldName -> TTuple(TInt64, TInt64)))
+  val fullRowType: TStruct = AvroReader.schemaToType(schema)
+    .insertFields(Array(uidFieldName -> TTuple(TInt64, TInt64)))
 
-  def rowRequiredness(requestedType: Type): TypeWithRequiredness = {
+  override def rowRequiredness(requestedType: TStruct): RStruct = {
     val req = TypeWithRequiredness.apply(requestedType).asInstanceOf[RStruct]
     req.fields.foreach { case RField(name, typ, _) =>
       AvroReader.setRequiredness(schema.getField(name).schema, typ)
@@ -34,7 +35,7 @@ case class AvroPartitionReader(schema: Schema, uidFieldName: String) extends Par
     req
   }
 
-  def emitStream(
+  override def emitStream(
     ctx: ExecuteContext,
     cb: EmitCodeBuilder,
     context: EmitCode,

@@ -3,20 +3,19 @@ package is.hail.expr.ir
 
 import is.hail.HailContext
 import is.hail.annotations._
-import is.hail.backend.{Backend, ExecuteContext}
+import is.hail.backend.ExecuteContext
 import is.hail.expr.ir.IRBuilder._
 import is.hail.expr.ir.functions.MatrixToMatrixFunction
-import is.hail.types._
-import is.hail.types.virtual._
 import is.hail.io.bgen.MatrixBGENReader
 import is.hail.io.fs.FS
 import is.hail.io.plink.MatrixPLINKReader
 import is.hail.io.vcf.MatrixVCFReader
 import is.hail.rvd._
+import is.hail.types._
+import is.hail.types.virtual._
 import is.hail.utils._
 import is.hail.variant._
 import org.apache.spark.sql.Row
-import org.apache.spark.storage.StorageLevel
 import org.json4s._
 import org.json4s.jackson.JsonMethods
 
@@ -89,6 +88,10 @@ object MatrixReader {
       case "MatrixVCFReader" => MatrixVCFReader.fromJValue(env.ctx, jv)
     }
   }
+
+  val rowUIDFieldName: String = TableReader.uidFieldName
+
+  val colUIDFieldName: String = "__colUID"
 }
 
 trait MatrixReader {
@@ -100,7 +103,7 @@ trait MatrixReader {
 
   def fullMatrixType: MatrixType
 
-  def lower(mr: MatrixRead): TableIR
+  def lower(requestedType: MatrixType, dropCols: Boolean, dropRows: Boolean): TableIR
 
   def toJValue: JValue
 
@@ -110,9 +113,9 @@ trait MatrixReader {
     StringEscapeUtils.escapeString(JsonMethods.compact(toJValue))
   }
 
-  final def rowUIDFieldName: String = "__rowUID"
+  final def rowUIDFieldName: String = MatrixReader.rowUIDFieldName
 
-  final def colUIDFieldName: String = "__colUID"
+  final def colUIDFieldName: String = MatrixReader.colUIDFieldName
 }
 
 abstract class MatrixHybridReader extends TableReader with MatrixReader {
@@ -120,20 +123,20 @@ abstract class MatrixHybridReader extends TableReader with MatrixReader {
 
   override def defaultRender(): String = super.defaultRender()
 
-  override def lower(mr: MatrixRead): TableIR = {
-    var tr: TableIR = TableRead(mr.typ.canonicalTableType, mr.dropRows, this)
-    if (mr.dropCols) {
+  override def lower(requestedType: MatrixType, dropCols: Boolean, dropRows: Boolean): TableIR = {
+    var tr: TableIR = TableRead(requestedType.canonicalTableType, dropRows, this)
+    if (dropCols) {
       // this lowering preserves dropCols using pruning
       tr = TableMapRows(
         tr,
         InsertFields(
           Ref("row", tr.typ.rowType),
-          FastIndexedSeq(LowerMatrixIR.entriesFieldName -> MakeArray(FastSeq(), TArray(mr.typ.entryType)))))
+          FastIndexedSeq(LowerMatrixIR.entriesFieldName -> MakeArray(FastSeq(), TArray(requestedType.entryType)))))
       tr = TableMapGlobals(
         tr,
         InsertFields(
           Ref("global", tr.typ.globalType),
-          FastIndexedSeq(LowerMatrixIR.colsFieldName -> MakeArray(FastSeq(), TArray(mr.typ.colType)))))
+          FastIndexedSeq(LowerMatrixIR.colsFieldName -> MakeArray(FastSeq(), TArray(requestedType.colType)))))
     }
     tr
   }
@@ -214,51 +217,55 @@ class MatrixNativeReader(
 
   def partitionCounts: Option[IndexedSeq[Long]] = if (params.options.isEmpty) Some(spec.partitionCounts) else None
 
-  def fullMatrixType: MatrixType = spec.matrix_type
+  def fullMatrixType: MatrixType = spec.matrix_type.copy(
+    rowType = spec.matrix_type.rowType.insertFields(
+      Array(rowUIDFieldName -> TTuple(TInt64, TInt64))),
+    colType = spec.matrix_type.colType.insertFields(
+      Array(colUIDFieldName -> TTuple(TInt64, TInt64))))
 
-  override def lower(mr: MatrixRead): TableIR = {
+  override def lower(requestedType: MatrixType, dropCols: Boolean, dropRows: Boolean): TableIR = {
     val rowsPath = params.path + "/rows"
     val entriesPath = params.path + "/entries"
     val colsPath = params.path + "/cols"
 
-    if (mr.dropCols) {
-      val tt = TableType(mr.typ.rowType, mr.typ.rowKey, mr.typ.globalType)
+    if (dropCols) {
+      val tt = TableType(requestedType.rowType, requestedType.rowKey, requestedType.globalType)
       val trdr: TableReader = new TableNativeReader(TableNativeReaderParameters(rowsPath, params.options), spec.rowsSpec)
-      var tr: TableIR = TableRead(tt, mr.dropRows, trdr)
+      var tr: TableIR = TableRead(tt, dropRows, trdr)
       tr = TableMapGlobals(
         tr,
         InsertFields(
           Ref("global", tr.typ.globalType),
-          FastSeq(LowerMatrixIR.colsFieldName -> MakeArray(FastSeq(), TArray(mr.typ.colType)))))
+          FastSeq(LowerMatrixIR.colsFieldName -> MakeArray(FastSeq(), TArray(requestedType.colType)))))
       TableMapRows(
         tr,
         InsertFields(
           Ref("row", tr.typ.rowType),
-        FastSeq(LowerMatrixIR.entriesFieldName -> MakeArray(FastSeq(), TArray(mr.typ.entryType)))))
+        FastSeq(LowerMatrixIR.entriesFieldName -> MakeArray(FastSeq(), TArray(requestedType.entryType)))))
     } else {
       val tt = TableType(
-        mr.typ.rowType.appendKey(LowerMatrixIR.entriesFieldName, TArray(mr.typ.entryType)),
-        mr.typ.rowKey,
-        mr.typ.globalType)
+        requestedType.rowType.appendKey(LowerMatrixIR.entriesFieldName, TArray(requestedType.entryType)),
+        requestedType.rowKey,
+        requestedType.globalType)
       val trdr = TableNativeZippedReader(
         rowsPath,
         entriesPath,
         params.options,
         spec.rowsSpec,
         spec.entriesSpec)
-      val tr: TableIR = TableRead(tt, mr.dropRows, trdr)
+      val tr: TableIR = TableRead(tt, dropRows, trdr)
       val colsRVDSpec = spec.colsSpec.rowsSpec
       val partFiles = colsRVDSpec.absolutePartPaths(spec.colsSpec.rowsComponent.absolutePath(colsPath))
 
       val cols = if (partFiles.length == 1) {
-        ReadPartition(Str(partFiles.head), mr.typ.colType, PartitionNativeReader(colsRVDSpec.typedCodecSpec, colUIDFieldName))
+        ReadPartition(Str(partFiles.head), requestedType.colType, PartitionNativeReader(colsRVDSpec.typedCodecSpec, colUIDFieldName))
       } else {
         val partNames = MakeArray(partFiles.map(Str), TArray(TString))
         val elt = Ref(genUID(), TString)
         StreamFlatMap(
           partNames,
           elt.name,
-          ReadPartition(elt, mr.typ.colType, PartitionNativeReader(colsRVDSpec.typedCodecSpec, colUIDFieldName)))
+          ReadPartition(elt, requestedType.colType, PartitionNativeReader(colsRVDSpec.typedCodecSpec, colUIDFieldName)))
       }
 
       TableMapGlobals(tr, InsertFields(
@@ -321,15 +328,27 @@ class MatrixRangeReader(
 
   lazy val partitionCounts: Option[IndexedSeq[Long]] = Some(partition(params.nRows, nPartitionsAdj).map(_.toLong))
 
-  override def lower(mr: MatrixRead): TableIR = {
-    val nRowsAdj = if (mr.dropRows) 0 else params.nRows
-    val nColsAdj = if (mr.dropCols) 0 else params.nCols
-    TableRange(nRowsAdj, params.nPartitions.getOrElse(HailContext.backend.defaultParallelism))
+  override def lower(requestedType: MatrixType, dropCols: Boolean, dropRows: Boolean): TableIR = {
+    val nRowsAdj = if (dropRows) 0 else params.nRows
+    val nColsAdj = if (dropCols) 0 else params.nCols
+    var ht = TableRange(nRowsAdj, params.nPartitions.getOrElse(HailContext.backend.defaultParallelism))
       .rename(Map("idx" -> "row_idx"))
-      .mapGlobals(makeStruct(LowerMatrixIR.colsField ->
+    if (requestedType.colType.fieldNames.contains(MatrixReader.colUIDFieldName))
+      ht = ht.mapGlobals(makeStruct(LowerMatrixIR.colsField ->
+        irRange(0, nColsAdj).map('i ~> makeStruct('col_idx -> 'i, Symbol(MatrixReader.colUIDFieldName) -> 'i))))
+    else
+      ht = ht.mapGlobals(makeStruct(LowerMatrixIR.colsField ->
         irRange(0, nColsAdj).map('i ~> makeStruct('col_idx -> 'i))))
-      .mapRows('row.insertFields(LowerMatrixIR.entriesField ->
-        irRange(0, nColsAdj).map('i ~> makeStruct())))
+    if (requestedType.rowType.fieldNames.contains(MatrixReader.rowUIDFieldName))
+      ht = ht.mapRows('row.insertFields(
+        LowerMatrixIR.entriesField -> irRange(0, nColsAdj).map('i ~> makeStruct()),
+        Symbol(MatrixReader.rowUIDFieldName) -> 'row('row_idx)))
+    else
+      ht = ht.mapRows('row.insertFields(
+        LowerMatrixIR.entriesField ->
+          irRange(0, nColsAdj).map('i ~> makeStruct())))
+
+    ht
   }
 
   def toJValue: JValue = {
@@ -380,7 +399,7 @@ case class MatrixRead(
       reader.columnCount
   }
 
-  final def lower(): TableIR = reader.lower(this)
+  final def lower(): TableIR = reader.lower(typ, dropCols, dropRows)
 }
 
 case class MatrixFilterCols(child: MatrixIR, pred: IR) extends MatrixIR {

@@ -486,8 +486,8 @@ case class PartitionRVDReader(rvd: RVD, uidFieldName: String) extends PartitionR
 
   override def fullRowType: TStruct = rvd.rowType.insertFields(Array(uidFieldName -> TTuple(TInt64, TInt64)))
 
-  override def rowRequiredness(requestedType: Type): TypeWithRequiredness = {
-    val tr = TypeWithRequiredness(requestedType)
+  override def rowRequiredness(requestedType: TStruct): RStruct = {
+    val tr = TypeWithRequiredness(requestedType).asInstanceOf[RStruct]
     tr.fromPType(rvd.rowPType)
     tr
   }
@@ -568,8 +568,8 @@ case class PartitionRVDReader(rvd: RVD, uidFieldName: String) extends PartitionR
 abstract class AbstractNativeReader(uidFieldName: String) extends PartitionReader {
   def spec: AbstractTypedCodecSpec
 
-  override def rowRequiredness(requestedType: Type): TypeWithRequiredness = {
-    val tr = TypeWithRequiredness(requestedType)
+  override def rowRequiredness(requestedType: TStruct): RStruct = {
+    val tr = TypeWithRequiredness(requestedType).asInstanceOf[RStruct]
     tr.fromPType(spec.decodedPType(requestedType))
     tr
   }
@@ -781,32 +781,39 @@ case class PartitionNativeReaderIndexed(
   def toJValue: JValue = Extraction.decompose(this)(PartitionReader.formats)
 }
 
-case class PartitionZippedNativeReader(left: PartitionReader, right: PartitionReader, uidFieldName: String)
+// Result uses the uid field name and values from the left input, and ignores
+// uids from the right.
+case class PartitionZippedNativeReader(left: PartitionReader, right: PartitionReader)
   extends PartitionReader {
 
-  def contextType: Type = TStruct("leftContext" -> left.contextType, "rightContext" -> right.contextType)
+  def uidFieldName = left.uidFieldName
 
-  override def rowRequiredness(requestedType: Type): TypeWithRequiredness = {
-    val rts = requestedType.asInstanceOf[TStruct]
+  def contextType: Type = TStruct(
+    "leftContext" -> left.contextType,
+    "rightContext" -> right.contextType)
 
+  def splitRequestedType(requestedType: TStruct): (TStruct, TStruct) = {
     val leftStruct = left.fullRowType
-    val rightStruct = right.fullRowType
+    val rightStruct = right.fullRowType.deleteKey(right.uidFieldName)
 
-    val lRequested = rts.select(rts.fieldNames.filter(leftStruct.hasField))._1
-    val rRequested = rts.select(rts.fieldNames.filter(rightStruct.hasField))._1
-    val lRequired = left.rowRequiredness(lRequested).asInstanceOf[RStruct]
-    val rRequired = right.rowRequiredness(rRequested).asInstanceOf[RStruct]
+    val lRequested = requestedType.select(requestedType.fieldNames.filter(leftStruct.hasField))._1
+    val rRequested = requestedType.select(requestedType.fieldNames.filter(rightStruct.hasField))._1
 
-    RStruct(rts.fieldNames.map(f => (f, lRequired.fieldType.getOrElse(f, rRequired.fieldType(f)))))
+    (lRequested, rRequested)
+  }
+
+  override def rowRequiredness(requestedType: TStruct): RStruct = {
+    val (lRequested, rRequested) = splitRequestedType(requestedType)
+    val lRequired = left.rowRequiredness(lRequested)
+    val rRequired = right.rowRequiredness(rRequested)
+
+    RStruct(requestedType.fieldNames.map(f => (f, lRequired.fieldType.getOrElse(f, rRequired.fieldType(f)))))
   }
 
   lazy val fullRowType: TStruct = {
     val leftStruct = left.fullRowType
-    val rightStruct = right.fullRowType
-    val uidType = TTuple.flatten(
-      left.fullRowType.fieldType(left.uidFieldName),
-      right.fullRowType.fieldType(right.uidFieldName))
-    TStruct.concat(leftStruct, rightStruct).insertFields(Array(uidFieldName -> uidType))
+    val rightStruct = right.fullRowType.deleteKey(right.uidFieldName)
+    TStruct.concat(leftStruct, rightStruct)
   }
 
   def toJValue: JValue = Extraction.decompose(this)(PartitionReader.formats)
@@ -817,29 +824,7 @@ case class PartitionZippedNativeReader(left: PartitionReader, right: PartitionRe
     partitionRegion: Value[Region],
     requestedType: TStruct
   ): IEmitCode = {
-
-    val rts = requestedType
-
-    val leftStruct = left.fullRowType
-    val rightStruct = right.fullRowType
-
-    val createUIDs: Boolean = requestedType.fieldNames.contains(uidFieldName)
-    val lRequested = {
-      val fields = rts.fieldNames.filter(leftStruct.hasField)
-      val fieldsWithUID = if (createUIDs)
-        fields :+ left.uidFieldName
-      else
-        fields
-      rts.select(fieldsWithUID)._1
-    }
-    val rRequested = {
-      val fields = rts.fieldNames.filter(rightStruct.hasField)
-      val fieldsWithUID = if (createUIDs)
-        fields :+ right.uidFieldName
-      else
-        fields
-      rts.select(fieldsWithUID)._1
-    }
+    val (lRequested, rRequested) = splitRequestedType(requestedType)
 
     context.toI(cb).flatMap(cb) { case zippedContext: SBaseStructValue =>
       val ctx1 = EmitCode.fromI(cb.emb)(zippedContext.loadField(_, "leftContext"))
@@ -885,17 +870,7 @@ case class PartitionZippedNativeReader(left: PartitionReader, right: PartitionRe
             override val element: EmitCode = EmitCode.fromI(cb.emb) { cb =>
               stream1.element.toI(cb).flatMap(cb) { case elt1: SBaseStructValue =>
                 stream2.element.toI(cb).map(cb) { case elt2: SBaseStructValue =>
-                  if (createUIDs) {
-                    val luid = elt1.loadField(cb, left.uidFieldName).get(cb).asBaseStruct
-                    val lval = elt1.subset(lRequested.fieldNames: _*)
-                    val ruid = elt2.loadField(cb, right.uidFieldName).get(cb).asBaseStruct
-                    val rval = elt2.subset(rRequested.fieldNames: _*)
-                    val combinedUID = SBaseStruct.merge(cb, luid, ruid)
-                    val merged = SBaseStruct.merge(cb, lval.asBaseStruct, rval.asBaseStruct)
-                    merged._insert(requestedType, uidFieldName -> EmitValue.present(combinedUID))
-                  } else {
-                    SBaseStruct.merge(cb, elt1.asBaseStruct, elt2.asBaseStruct)
-                  }
+                  SBaseStruct.merge(cb, elt1.asBaseStruct, elt2.asBaseStruct)
                 }
               }
             }
@@ -943,9 +918,9 @@ case class PartitionZippedIndexedNativeReader(
     (leftStruct, rightStruct)
   }
 
-  def rowRequiredness(requestedType: Type): TypeWithRequiredness = {
+  def rowRequiredness(requestedType: TStruct): RStruct = {
     val (leftStruct, rightStruct) = splitRequestedTypes(requestedType)
-    val rt = TypeWithRequiredness(requestedType)
+    val rt = TypeWithRequiredness(requestedType).asInstanceOf[RStruct]
     val pt = specLeft.decodedPType(leftStruct).asInstanceOf[PStruct].insertFields(specRight.decodedPType(rightStruct).asInstanceOf[PStruct].fields.map(f => (f.name, f.typ)))
     rt.fromPType(pt)
     rt
@@ -1145,7 +1120,11 @@ class TableNativeReader(
           s"\n  Read and write with version 0.2.70 or earlier")
       rvd
     }
-    TableValue(ctx, requestedType, BroadcastRow(ctx, RegionValue(ctx.r, globalsOffset), globalType.setRequired(true).asInstanceOf[PStruct]), rvd)
+    val globals = BroadcastRow(ctx,
+      RegionValue(ctx.r, globalsOffset),
+      globalType.setRequired(true).asInstanceOf[PStruct])
+
+    TableValue(ctx, requestedType, globals, rvd)
   }
 
   override def toJValue: JValue = {
@@ -1185,7 +1164,7 @@ class TableNativeReader(
     else
       params.options.map(opts => new RVDPartitioner(specPart.kType, opts.intervals))
 
-    spec.rowsSpec.readTableStage(ctx, spec.rowsComponent.absolutePath(params.path), requestedType, Some(uidFieldName), partitioner, filterIntervals).apply(globals)
+    spec.rowsSpec.readTableStage(ctx, spec.rowsComponent.absolutePath(params.path), requestedType, uidFieldName, partitioner, filterIntervals).apply(globals)
   }
 }
 
@@ -1213,10 +1192,9 @@ case class TableNativeZippedReader(
 
   override lazy val fullType: TableType =
     specLeft.table_type.copy(
-      rowType = (specLeft.table_type.rowType ++ specRight.table_type.rowType).insertFields(
-        Array((uidFieldName, TTuple(TInt64, TInt64)))))
+      rowType = specLeft.table_type.rowType ++ specRight.table_type.rowType.deleteKey(uidFieldName))
   private val leftFieldSet = specLeft.table_type.rowType.fieldNames.toSet
-  private val rightFieldSet = specRight.table_type.rowType.fieldNames.toSet
+  private val rightFieldSet = specRight.table_type.rowType.deleteKey(uidFieldName).fieldNames.toSet
 
   def leftRType(requestedType: TStruct): TStruct =
     requestedType.filter(f => leftFieldSet.contains(f.name))._1
@@ -1335,7 +1313,10 @@ object TableFromBlockMatrixNativeReader {
 
 case class TableFromBlockMatrixNativeReaderParameters(path: String, nPartitions: Option[Int], maximumCacheMemoryInBytes: Option[Int])
 
-case class TableFromBlockMatrixNativeReader(params: TableFromBlockMatrixNativeReaderParameters, metadata: BlockMatrixMetadata) extends TableReader {
+case class TableFromBlockMatrixNativeReader(
+  params: TableFromBlockMatrixNativeReaderParameters,
+  metadata: BlockMatrixMetadata
+) extends TableReader {
   def pathsUsed: Seq[String] = FastSeq(params.path)
 
   val getNumPartitions: Int = params.nPartitions.getOrElse(HailContext.backend.defaultParallelism)
@@ -1352,7 +1333,7 @@ case class TableFromBlockMatrixNativeReader(params: TableFromBlockMatrixNativeRe
   }
 
   override lazy val fullType: TableType = {
-    val rowType = TStruct("row_idx" -> TInt64, "entries" -> TArray(TFloat64))
+    val rowType = TStruct("row_idx" -> TInt64, "entries" -> TArray(TFloat64), uidFieldName -> TInt64)
     TableType(rowType, Array("row_idx"), TStruct.empty)
   }
 
@@ -1362,7 +1343,8 @@ case class TableFromBlockMatrixNativeReader(params: TableFromBlockMatrixNativeRe
   }
 
   override def apply(ctx: ExecuteContext, requestedType: TableType, dropRows: Boolean): TableValue = {
-    val rowsRDD = new BlockMatrixReadRowBlockedRDD(ctx.fsBc, params.path, partitionRanges, metadata,
+    val rowsRDD = new BlockMatrixReadRowBlockedRDD(
+      ctx.fsBc, params.path, partitionRanges, requestedType.rowType, metadata,
       maybeMaximumCacheMemoryInBytes = params.maximumCacheMemoryInBytes)
 
     val partitionBounds = partitionRanges.map { r => Interval(Row(r.start), Row(r.end), true, false) }
@@ -1370,7 +1352,7 @@ case class TableFromBlockMatrixNativeReader(params: TableFromBlockMatrixNativeRe
 
     val rowTyp = rowAndGlobalPTypes(ctx, requestedType)._1
     val rvd = RVD(RVDType(rowTyp, fullType.key.filter(rowTyp.hasField)), partitioner, ContextRDD(rowsRDD))
-    TableValue(ctx, fullType, BroadcastRow.empty(ctx), rvd)
+    TableValue(ctx, requestedType, BroadcastRow.empty(ctx), rvd)
   }
 
   override def toJValue: JValue = {
