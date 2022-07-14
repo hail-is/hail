@@ -325,7 +325,7 @@ async def job_started(request, instance):
     return await asyncio.shield(job_started_1(request, instance))
 
 
-@routes.post('/api/v1alpha/instances/adjust_cores/{instance_name}')
+@routes.post('/api/v1alpha/instances/{instance_name}/adjust_cores')
 async def adjust_cores(request):
     instance_name = request.match_info['instance_name']
     body = await request.json()

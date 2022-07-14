@@ -70,7 +70,7 @@ async def mark_job_complete(
         delta_cores_mcpu = rv['delta_cores_mcpu']
         if delta_cores_mcpu != 0:
             async with client_session.post(
-                f'https://batch-driver/api/v1alpha/instances/adjust_cores/{instance_name}',
+                deploy_config.url('batch-driver', f'/api/v1alpha/instances/{instance_name}/adjust_cores'),
                 json={'delta_cores_mcpu': delta_cores_mcpu},
             ):
                 pass
