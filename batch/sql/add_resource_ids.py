@@ -178,6 +178,8 @@ async def update_resource_ids(db, table_name, get_offsets_f, process_chunk_f, ch
     print(f'found {len(chunk_offsets)} chunks to process for {table_name}')
 
     if len(chunk_offsets) != 0:
+        random.shuffle(chunk_offsets)
+        
         burn_in_start = time.time()
         n_burn_in_chunks = 1000
 
