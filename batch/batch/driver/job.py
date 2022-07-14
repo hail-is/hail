@@ -83,7 +83,9 @@ async def add_attempt_resources(db, batch_id, job_id, attempt_id, resources):
             # This must be sorted in order to match the order of values in the actual SQL table!
             _resources = dict(sorted(_resources.items()))
 
-            resource_args = [(batch_id, job_id, attempt_id, name, quantity, name) for name, quantity in _resources.items()]
+            resource_args = [
+                (batch_id, job_id, attempt_id, name, quantity, name) for name, quantity in _resources.items()
+            ]
 
             await db.execute_many(
                 '''
