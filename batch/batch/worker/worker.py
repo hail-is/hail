@@ -2625,7 +2625,7 @@ class Worker:
         async def post_started_if_job_still_running():
             # If the job is already complete, just send MJC. No need for MJS
             if not job.done():
-                url = deploy_config.url('batch-driver', '/api/v1alpha/instances/job_started')
+                url = deploy_config.url('batch-db-proxy', '/api/v1alpha/instances/job_started')
                 await self.client_session.post(url, json=body, headers=self.headers)
 
         await retry_transient_errors(post_started_if_job_still_running)

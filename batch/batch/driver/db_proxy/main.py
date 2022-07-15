@@ -146,6 +146,51 @@ async def job_complete(request):
     return await asyncio.shield(job_complete_1(request))
 
 
+async def mark_job_started(app, batch_id, job_id, attempt_id, instance_name, start_time, resources):
+    db: Database = app['db']
+
+    id = (batch_id, job_id)
+
+    log.info(f'mark job {id} started')
+
+    try:
+        rv = await db.execute_and_fetchone(
+            '''
+CALL mark_job_started(%s, %s, %s, %s, %s);
+''',
+            (batch_id, job_id, attempt_id, instance_name, start_time),
+            'mark_job_started',
+        )
+    except Exception:
+        log.info(f'error while marking job {id} started on {instance_name}')
+        raise
+
+    if rv['delta_cores_mcpu'] != 0:
+        OPEN_CORES[instance_name] += rv['delta_cores_mcpu']
+
+    await add_attempt_resources(db, batch_id, job_id, attempt_id, resources)
+
+
+async def job_started_1(request):
+    body = await request.json()
+    job_status = body['status']
+
+    batch_id = job_status['batch_id']
+    job_id = job_status['job_id']
+    attempt_id = job_status['attempt_id']
+    start_time = job_status['start_time']
+    resources = job_status.get('resources')
+    instance_name = instance_name_from_request(request)
+
+    await mark_job_started(request.app, batch_id, job_id, attempt_id, instance_name, start_time, resources)
+    return web.Response()
+
+
+@routes.post('/api/v1alpha/instances/job_started')
+async def job_started(request):
+    return await asyncio.shield(job_started_1(request))
+
+
 async def on_startup(app: web.Application):
     db = Database()
     await db.async_init(maxsize=50)
