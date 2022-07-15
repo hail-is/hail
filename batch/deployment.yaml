@@ -402,7 +402,7 @@ spec:
   selector:
     matchLabels:
       app: batch-db-proxy
-  replicas: 3
+  replicas: 1
   strategy:
     type: Recreate
   template:

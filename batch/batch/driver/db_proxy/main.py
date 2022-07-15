@@ -97,7 +97,7 @@ async def mark_job_complete(
         # already complete, do nothing
         return
 
-    await notify_batch_job_complete(db, client_session, batch_id)
+    asyncio.ensure_future(notify_batch_job_complete(db, client_session, batch_id))
 
 
 async def job_complete_1(request):
