@@ -43,7 +43,7 @@ class SpecWriter:
         assert index < len(in_batch_cache)
         if index >= 0:
             token, start, end = in_batch_cache[index]
-            if (job_id > start and end is None) or job_id in range(start, end):
+            if (job_id >= start and end is None) or job_id in range(start, end):
                 return (token, start)
 
         token, start_job_id, next_start_job_id = await SpecWriter._get_token_start_id_and_next_start_id(
