@@ -508,6 +508,56 @@ async def batch_callback(request):
     return web.Response(status=200)
 
 
+@routes.post('/freeze')
+@check_csrf_token
+@web_authenticated_developers_only()
+async def freeze_batch(request, userdata):  # pylint: disable=unused-argument
+    app = request.app
+    db: Database = app['db']
+    session = await aiohttp_session.get_session(request)
+
+    if app['frozen']:
+        set_message(session, 'CI is already frozen.', 'info')
+        return web.HTTPFound(deploy_config.external_url('ci', '/'))
+
+    await db.execute_update(
+        '''
+UPDATE globals SET frozen = 1;
+'''
+    )
+
+    app['frozen'] = True
+
+    set_message(session, 'Froze all merges and deploys.', 'info')
+
+    return web.HTTPFound(deploy_config.external_url('ci', '/'))
+
+
+@routes.post('/unfreeze')
+@check_csrf_token
+@web_authenticated_developers_only()
+async def unfreeze_batch(request, userdata):  # pylint: disable=unused-argument
+    app = request.app
+    db: Database = app['db']
+    session = await aiohttp_session.get_session(request)
+
+    if not app['frozen']:
+        set_message(session, 'CI is already unfrozen.', 'info')
+        return web.HTTPFound(deploy_config.external_url('ci', '/'))
+
+    await db.execute_update(
+        '''
+UPDATE globals SET frozen = 0;
+'''
+    )
+
+    app['frozen'] = False
+
+    set_message(session, 'Unfroze all merges and deploys.', 'info')
+
+    return web.HTTPFound(deploy_config.external_url('ci', '/'))
+
+
 async def update_loop(app):
     while True:
         try:
@@ -528,6 +578,14 @@ async def on_startup(app):
 
     app['db'] = Database()
     await app['db'].async_init()
+
+    row = await app['db'].select_and_fetchone(
+        '''
+SELECT frozen FROM globals;
+'''
+    )
+
+    app['frozen'] = row['frozen']
 
     app['task_manager'] = aiotools.BackgroundTaskManager()
     app['task_manager'].ensure_future(update_loop(app))

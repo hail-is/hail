@@ -1914,6 +1914,9 @@ steps:
         script: /io/sql/initial.sql
       - name: invalidated-batches
         script: /io/sql/invalidated-batches.sql
+      - name: add-frozen-mode
+        script: /io/sql/add-frozen-mode.sql
+        online: true
     inputs:
       - from: /repo/ci/sql
         to: /io/sql
