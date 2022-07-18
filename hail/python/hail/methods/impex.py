@@ -3033,68 +3033,206 @@ def import_avro(paths, *, key=None, intervals=None):
     return Table(ir.TableRead(tr))
 
 
-def import_gvs(refs:'List[List[str]]', vets:'List[List[str]]', final_path: 'str', tmp_dir: 'str'):
+@typecheck(refs=sequenceof(sequenceof(str)),
+           vets=sequenceof(sequenceof(str)),
+           sample_mapping=sequenceof(str),
+           site_filtering_data=sequenceof(str),
+           vqsr_filtering_data=sequenceof(str),
+           vqsr_tranche_data=sequenceof(str),
+           final_path=str,
+           tmp_dir=str,
+           reference_genome=reference_genome_type)
+def import_gvs(refs: 'List[List[str]]',
+               vets: 'List[List[str]]',
+               sample_mapping: 'List[str]',
+               site_filtering_data: 'List[str]',
+               vqsr_filtering_data: 'List[str]',
+               vqsr_tranche_data: 'List[str]',
+               final_path: 'str',
+               tmp_dir: 'str',
+               reference_genome='GRCh38'):
+    """Import a collection of Avro files exported from GVS.
+
+    This function is used to import Avro files exported from BigQuery for
+    the GVS database used for the All of Us project. The resulting data type is
+    a :class:`.VariantDataset`, which is a modern representation of sparse cohort-level
+    data in Hail with reference blocks instead of a dense VCF-like representation.
+
+    This function accepts inputs where the reference and variant data is broken into
+    sample groups (with identical blocking for reference and variant data). Each sample
+    group table is represented by a group of Avro files. Data must be sorted by the
+    genomic coordinate (location) field both **within and between Avro files**. Order
+    of samples at a genomic coordinate is not required.
+
+    The ``tmp_dir`` argument should refer to a path in network visible storage
+    (Google Bucket, etc) preferably with a lifecycle policy to delete temporary
+    data after a short duration (e.g. 5 days).
+
+    **Data transformations**
+
+      - `refs` -- The `state` field is transformed to an int32 `GQ` field. The reference base
+        is added in from a FASTA file to ensure compatibility with Hail functionality that
+        requires an allele at every locus.
+      - `vets` -- The `GT` field is parsed as a Hail :class:`.tcall` and renamed to `LGT`
+        to denote its indexing by local alleles. The `alt` field is split by commas and recorded
+        from strings to integers that refer to an index (0 being ref) into the array of all
+        alleles discovered at a locus. The `GQ` and `RGQ` fields are converted to 32-bit integers.
+      - `site_filtering_data` -- The site filters are converted from a comma-delimited string
+        to a `set<str>` value in Hail. This set contains all unique filters applied, and is
+        an empty set for loci with no record in the input site filtering table.
+      - `vqsr_filtering_data` -- The VQSR data records information specific to a
+        (locus, alternate allele) pair. This data is read in as a dictionary in the row
+        scope of the resulting variant table, where ys keof the dictionary are an alternate
+        allele string, where the dictionary values are the full records from the input VQSR
+        filtering table, minus the `ref` and `alt` fields.
+      - `vqsr_tranche_data` -- The VQSR tranche data is recorded as an array of records in the
+        globals of the resulting variant data table.
+
+    Execution notes
+    ---------------
+    Currently this method executes a three queries per sample block -- one to collect sample IDs,
+    one to analyze sortedness of the reference table, and one to analyze sortedness of the variant
+    table. These three queries are in addition to:
+      - 3 queries executed to import the filtering/tranche data
+      - 1 query to merge and write a temporary reference table
+      - 1 query to merge and write a temporary variant table
+      - 1 query to repartition and write the final reference component of the VDS.
+      - 1 query to repartition and write the final variant component of the VDS.
+
+    The three extra queries per sample block can be eliminated with the right information.
+    The necessary information is (1) the sample IDs corresponding to each sample block,
+    and (2) the chromosomal coordinate start/end of each Avro file.
+
+    Note
+    ----
+    The reference genome must have a sequence file loaded. This can be added with
+    `:meth:`.ReferenceGenome.add_sequence`.
+
+    Parameters
+    ----------
+    refs
+        Paths to reference Avro files. The outer list has one entry for each sample group,
+        and the inner lists contain all files in a sample group.
+    vets : List[List[str]]
+        Paths to variant Avro files. The outer list has one entry for each sample group,
+        and the inner lists contain all files in a sample group.
+    sample_mapping : List[str]
+        Paths to sample mapping Avro files.
+    site_filtering_data : List[str]
+        Paths to site filtering files.
+    vqsr_filtering_data : List[str]
+        Paths to VQSR filtering files.
+    vqsr_tranche_data : List[str]
+        Paths to VQSR tranche files.
+    final_path : :class:`str`
+        Desired path to final VariantDataset on disk.
+    tmp_dir : :class:`str`
+        Path to network-visible temporary directory/bucket for intermediate file storage.
+    reference_genome : :class:`str` or :class:`.ReferenceGenome`
+        Name or object referring to reference genome.
+
+    Returns
+    -------
+    :class:`.VariantDataset`
+    """
+    from hail.utils.java import info
     vdses = []
     assert len(refs) == len(vets)
 
+    if not reference_genome.has_sequence():
+        raise ValueError(f"reference genome {reference_genome.name!r} has no sequence file."
+                         f"\n  Add the sequence with `<rg>.add_sequence(...)`")
 
     def translate_locus(location):
+        """Translates an int64-encoded locus into a locus object."""
         factor = 1000000000000
-        chrom = hl.literal(hl.get_reference('GRCh38').contigs)[hl.int32(location / factor)]
+        chrom = hl.literal(reference_genome.contigs[:26])[hl.int32(location / factor) - 1]
         pos = hl.int32(location % factor)
         return hl.locus(chrom, pos, reference_genome='GRCh38')
 
     def translate_state(state_var):
-
+        """Translates a char-encoded GQ to int32."""
         return hl.literal({'0': 0, '1': 10, '2': 20, '3': 30, '4': 40, '5': 50})[state_var]
 
-    def convert_array_with_id_keys_to_dense_array(arr, ids):
-        sdict = hl.dict(arr.map(lambda x: (x.sample_id, x.drop('sample_id'))))
-        return hl.rbind(sdict, lambda sdict: hl.literal(ids).map(lambda x: sdict[x]))
+    def convert_array_with_id_keys_to_dense_array(arr, ids, drop=[]):
+        """Converts a coordinate-represented sparse array into a dense array used in MatrixTables."""
+        sdict = hl.dict(arr.map(lambda x: (x.sample_id, x.drop('sample_id', *drop))))
+        return hl.rbind(sdict, lambda sdict: hl.literal(ids).map(lambda x: sdict.get(x)))
 
     def add_reference_allele(mt):
-        rg = mt.locus.dtype.reference_genome
-        assert rg.name == 'GRCh38'
-        rg.add_sequence('gs://hail-common/references/Homo_sapiens_assembly38.fasta.gz')
-
-        mt = mt.annotate_rows(ref_allele = mt.locus.sequence_context())
+        """Adds the reference allele from a FASTA file."""
+        mt = mt.annotate_rows(ref_allele=mt.locus.sequence_context())
         return mt
+
+    info('Importing and collecting sample mapping lookup table')
+
+    samp = hl.import_avro(sample_mapping)
+    sample_mapping_dict = samp.aggregate(hl.dict(hl.agg.collect((samp.sample_id, samp.sample_name))))
+
+    info('Importing and writing site filters to temporary storage')
+    site = hl.import_avro(site_filtering_data)
+    site = site.transmute(
+        locus=translate_locus(site.location),
+        filters=hl.set(site.filters.split(','))
+    )
+    site = site.key_by('locus')
+    site_path = os.path.join(tmp_dir, 'site_filters.ht')
+    site.write(site_path, overwrite=True)
+
+    info('Importing and writing VQSR filter data to temporary storage')
+    vqsr = hl.import_avro(vqsr_filtering_data)
+    vqsr = vqsr.transmute(
+        locus=translate_locus(vqsr.location)
+    )
+    vqsr = vqsr.key_by('locus')
+    vqsr_path = os.path.join(tmp_dir, 'vqsr.ht')
+    vqsr.write(vqsr_path, overwrite=True)
+
+    tranche = hl.import_avro(vqsr_tranche_data)
 
     idx = 1
     for ref_group, var_group in zip(refs, vets):
-        print(f'scanning group {idx}/{len(refs)}...')
-        ht = hl.import_avro(ref_group)
+        info(f'import_gvs: scanning group {idx}/{len(refs)}...')
+        ref_ht = hl.import_avro(ref_group)
 
-        samples = sorted(list(ht.aggregate(hl.agg.collect_as_set(ht.sample_id))))
-        new_loc = translate_locus(ht.location)
-        ht = ht.transmute(locus = new_loc, state = translate_state(ht.state), END = new_loc.position + hl.int32(ht.length) - 1)
-        ht = ht.key_by('locus')
-        ht = ht.group_by(ht.locus).aggregate(data_per_sample = hl.agg.collect(ht.row.drop('locus')))
-        ht = ht.transmute(entries = convert_array_with_id_keys_to_dense_array(ht.data_per_sample, samples))
-        ht = ht.annotate_globals(col_data = hl.literal(samples).map(lambda x: hl.struct(s=hl.str(x))))
-        ref_mt = ht._unlocalize_entries('entries', 'col_data', col_key=['s'])
+        # Note -- availability of sample IDs statically would make import more efficient
+        info(f'import_gvs: collecting sample IDs...')
+        sample_ids = sorted(list(ref_ht.aggregate(hl.agg.collect_as_set(ref_ht.sample_id))))
+        samples = [sample_mapping_dict[s] for s in sample_ids]
+        new_loc = translate_locus(ref_ht.location)
 
-        # hack to maintain valid VDS schema, is added back from FASTA once at the end
-        ref_mt = ref_mt.annotate_rows(ref_allele = hl.missing(hl.tstr))
+        # transform fields to Hail expectations (locus object, GQ int32, end as absolute instead of relative
+        ref_ht = ref_ht.transmute(locus=new_loc,
+                          GQ=translate_state(ref_ht.state),
+                          END=new_loc.position + hl.int32(ref_ht.length) - 1)
+        ref_ht = ref_ht.key_by('locus')
+        ref_ht = ref_ht.group_by(ref_ht.locus).aggregate(data_per_sample=hl.agg.collect(ref_ht.row.drop('locus')))
+        ref_ht = ref_ht.transmute(entries=convert_array_with_id_keys_to_dense_array(ref_ht.data_per_sample, sample_ids))
+        ref_ht = ref_ht.annotate_globals(col_data=hl.literal(samples).map(lambda s: hl.struct(s=s)))
+        ref_mt = ref_ht._unlocalize_entries('entries', 'col_data', col_key=['s'])
 
-        ht = hl.import_avro(var_group)
-        ht = ht.transmute(locus = translate_locus(ht.location),
-                          local_alleles=ht.alt.split(','),
-                          LGT=hl.parse_call(ht.GT),
-                          GQ=hl.int32(ht.GQ),
-                          RGQ=hl.int32(ht.RGQ))
-        ht = ht.key_by('locus')
+        # workaround to maintain valid VDS schema, is added from FASTA at the end
+        ref_mt = ref_mt.annotate_rows(ref_allele=hl.missing(hl.tstr))
 
-        ht = ht.group_by(ht.locus).aggregate(data_per_sample = hl.agg.collect(ht.row.drop('locus')))
-        ht = ht.transmute(entries = convert_array_with_id_keys_to_dense_array(ht.data_per_sample, samples))
-        ht = ht.annotate_globals(col_data = hl.literal(samples).map(lambda x: hl.struct(s=hl.str(x))))
-        var_mt = ht._unlocalize_entries('entries', 'col_data', col_key=['s'])
-        var_mt = var_mt.annotate_rows(alleles = hl.agg.take(var_mt.ref, 1).extend(hl.array(hl.agg.explode(lambda a: hl.agg.collect_as_set(a), var_mt.local_alleles))))
-        var_mt = var_mt.annotate_rows(allele_idx = hl.dict(hl.enumerate(var_mt.alleles, index_first=False)))
-        var_mt = var_mt.transmute_entries(LA = hl.literal([0]).extend(var_mt.local_alleles.map(lambda a: var_mt.allele_idx[a])), LGT=var_mt.GT)
+        var_ht = hl.import_avro(var_group)
+        var_ht = var_ht.transmute(locus=translate_locus(var_ht.location),
+                          local_alleles=var_ht.alt.split(','),
+                          LGT=hl.parse_call(var_ht.GT),
+                          GQ=hl.int32(var_ht.GQ),
+                          RGQ=hl.int32(var_ht.RGQ))
+        var_ht = var_ht.key_by('locus')
+        var_ht = var_ht.group_by(var_ht.locus).aggregate(data_per_sample=hl.agg.collect(var_ht.row.drop('locus')))
+        var_ht = var_ht.annotate(alleles = hl.array([var_ht.data_per_sample[0].ref]).extend(hl.array(hl.set(var_ht.data_per_sample.flatmap(lambda x: x.local_alleles)))))
+        var_ht = var_ht.transmute(entries=convert_array_with_id_keys_to_dense_array(var_ht.data_per_sample, sample_ids, drop=['ref']))
+        var_ht = var_ht.annotate_globals(col_data=hl.literal(samples).map(lambda s: hl.struct(s=hl.str(s))))
+        var_mt = var_ht._unlocalize_entries('entries', 'col_data', col_key=['s'])
+        var_mt = var_mt.annotate_rows(allele_idx=hl.dict(hl.enumerate(var_mt.alleles, index_first=False)))
+
+        # replace 'local_alleles' strings with indices into the row 'alleles' field
+        var_mt = var_mt.transmute_entries(
+            LA=hl.literal([0]).extend(var_mt.local_alleles.map(lambda a: var_mt.allele_idx[a])))
+        var_mt = var_mt.drop('allele_idx')
         var_mt = var_mt._key_rows_by_assert_sorted('locus', 'alleles')
-
-        var_mt = var_mt.annotate_rows(rsid=hl.missing(hl.tstr))
 
         vdses.append(hl.vds.VariantDataset(ref_mt, var_mt))
         idx += 1
@@ -3102,13 +3240,30 @@ def import_gvs(refs:'List[List[str]]', vets:'List[List[str]]', final_path: 'str'
     combined = hl.vds.combiner.combine_variant_datasets(vdses)
     checkpoint_path = os.path.join(tmp_dir, 'combined_tmp.vds')
 
-    print(f'checkpointing combined VDS to temporary directory before repartition')
-    combined = combined.checkpoint(checkpoint_path)
+    info(f'import_gvs: checkpointing combined VDS to temporary directory before repartition')
+    combined = combined.checkpoint(checkpoint_path, overwrite=True)
 
-    new_partitioner = combined.variant_data._calculate_new_partitions(combined.variant_data.n_partitions())
+    new_partitioner = combined.reference_data._calculate_new_partitions(combined.reference_data.n_partitions())
 
-    print('repartioning and writing final VDS')
+    info('import_gvs: repartitioning and writing final VDS')
+
+    # add reference base to reference data table as a Hail VDS requirement. Add from FASTA file.
+    rd = add_reference_allele(
+        hl.read_matrix_table(os.path.join(checkpoint_path, 'reference_data'),
+                             _intervals=new_partitioner))
+
+    vd = hl.read_matrix_table(os.path.join(checkpoint_path, 'variant_data'),
+                              _intervals=new_partitioner)
+
+    # read site and vqsr data with same intervals for efficient joins
+    site = hl.read_table(site_path, _intervals=new_partitioner)
+    vqsr = hl.read_table(vqsr_path, _intervals=new_partitioner)
+
+    vd = vd.annotate_rows(filters=hl.coalesce(site[vd.locus].filters, hl.empty_set(hl.tstr)))
+
+    vd = vd.annotate_rows(as_vqsr = hl.dict(vqsr.index(vd.locus, all_matches=True).map(lambda record: (record.alt, record.drop('ref', 'alt')))))
+    vd = vd.annotate_globals(tranche_data=tranche.collect(_localize=False))
     hl.vds.VariantDataset(
-        reference_data=add_reference_allele(hl.read_matrix_table(os.path.join(checkpoint_path, 'reference_data'), _intervals=new_partitioner)),
-        variant_data=hl.read_matrix_table(os.path.join(checkpoint_path, 'variant_data'), _intervals=new_partitioner),
-    ).write(final_path)
+        reference_data=rd,
+        variant_data=vd,
+    ).write(final_path, overwrite=True)

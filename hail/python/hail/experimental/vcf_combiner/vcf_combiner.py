@@ -244,7 +244,7 @@ def combine(ts):
                 hl.struct(
                     locus=row.locus,
                     alleles=alleles.globl,
-                    rsid=hl.find(hl.is_defined, row.data.map(lambda d: d.rsid)),
+                    **({'rsid': hl.find(hl.is_defined, row.data.map(lambda d: d.rsid))} if 'rsid' in row.data.dtype.element_type else {}),
                     __entries=hl.bind(
                         lambda combined_allele_index:
                         hl.range(0, hl.len(row.data)).flatmap(
