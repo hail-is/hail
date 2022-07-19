@@ -508,10 +508,10 @@ async def batch_callback(request):
     return web.Response(status=200)
 
 
-@routes.post('/freeze')
+@routes.post('/freeze_merge_deploy')
 @check_csrf_token
 @web_authenticated_developers_only()
-async def freeze_batch(request, userdata):  # pylint: disable=unused-argument
+async def freeze_deploys(request, userdata):  # pylint: disable=unused-argument
     app = request.app
     db: Database = app['db']
     session = await aiohttp_session.get_session(request)
@@ -533,10 +533,10 @@ UPDATE globals SET frozen = 1;
     return web.HTTPFound(deploy_config.external_url('ci', '/'))
 
 
-@routes.post('/unfreeze')
+@routes.post('/unfreeze_merge_deploy')
 @check_csrf_token
 @web_authenticated_developers_only()
-async def unfreeze_batch(request, userdata):  # pylint: disable=unused-argument
+async def unfreeze_deploys(request, userdata):  # pylint: disable=unused-argument
     app = request.app
     db: Database = app['db']
     session = await aiohttp_session.get_session(request)

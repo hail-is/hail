@@ -31,17 +31,17 @@
 
     <div>
       {% if not frozen %}
-      <form action="{{ base_path }}/freeze" method="POST">
+      <form action="{{ base_path }}/freeze_merge_deploy" method="POST">
         <input type="hidden" name="_csrf" value="{{ csrf_token }}">
         <button class="dangerous">
-          Freeze
+          Freeze Merges & Deploys
         </button>
       </form>
       {% else %}
-      <form action="{{ base_path }}/unfreeze" method="POST">
+      <form action="{{ base_path }}/unfreeze_merge_deploy" method="POST">
         <input type="hidden" name="_csrf" value="{{ csrf_token }}">
         <button class="dangerous">
-          Unfreeze
+          Unfreeze Merges & Deploys
         </button>
       </form>
       {% endif %}
