@@ -1,10 +1,4 @@
 ci
-notebook
 batch
 batch-driver
-benchmark
-blog
-memory
-monitoring
 auth
-prometheus
