@@ -207,6 +207,10 @@ dependencies {
     bundled 'com.github.luben:zstd-jni:1.5.5-2'
 
     bundled project(path: ':shadedazure', configuration: 'shadow')
+
+    bundled 'com.google.api-client:google-api-client:1.33.0'
+    bundled 'com.google.oauth-client:google-oauth-client-jetty:1.32.1'
+    bundled 'com.google.apis:google-api-services-sheets:v4-rev20210629-1.32.1'
 }
 
 task(checkSettings) doLast {

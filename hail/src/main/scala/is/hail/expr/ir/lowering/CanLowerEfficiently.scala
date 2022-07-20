@@ -29,6 +29,7 @@ object CanLowerEfficiently {
         case TableRead(_, _, _: TableNativeReader) =>
         case TableRead(_, _, _: TableNativeZippedReader) =>
         case TableRead(_, _, _: StringTableReader) =>
+        case TableRead(_, _, _: GoogleSheetReader) =>
         case TableRead(_, _, _: MatrixPLINKReader) =>
         case TableRead(_, _, _: MatrixVCFReader) =>
         case TableRead(_, _, _: AvroTableReader) =>

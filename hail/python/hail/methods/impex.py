@@ -3263,3 +3263,78 @@ def import_csv(paths,
                          delimiter=",",
                          quote=quote)
     return ht
+
+
+@typecheck(spreadsheet_id=oneof(str, sequenceof(str)), sheetname=str)
+def import_google_sheet(spreadsheet_id, sheetname) -> Table:
+    """Import sheet from a google sheets fle as a :class:`.Table` of strings.
+
+    Warning
+    -------
+
+    You must set the GOOGLE_APPLICATION_CREDENTIALS environment variable to point at the JSON key file
+    for a *service account*. This method *will not* work with a human user credentials. For example,
+    ``gcloud auth application-default login`` *will not work*.
+
+    Instead, you must create a service account, create a key for that service account, download that
+    key to your computer, and set GOOGLE_APPLICATION_CREDENTIALS to the path to that key file.
+
+    Examples
+    --------
+
+    Consider the Google Sheet file at the URL:
+    https://docs.google.com/spreadsheets/d/**1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms**/edit#gid=0
+
+    The spreadsheet_id for this file is '1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upm'
+
+    To import the data on the sheeet titled 'Class Data' the sheetname should be entered as 'Class Data'
+
+    >>> ht = hl.import_google_sheet('1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms', 'Class Data')
+    >>> ht.describe()
+    ----------------------------------------
+    Global fields:
+        None
+    ----------------------------------------
+    Row fields:
+        'index': int64
+        'Student Name': str
+        'Gender': str
+        'Class Level': str
+        'Home State': str
+        'Major': str
+        'Extracurricular Activity': str
+    ----------------------------------------
+    Key: ['index']
+    ----------------------------------------
+
+    Parameters
+    ----------
+    spreadsheet_id: :class:`str`
+        The ID of the spreadsheet. This is found in the URL after ``/spreadsheets/d/``.
+    sheetname: :class:`str`
+        The particular sheet (aka tab) of the spreadsheet to import.
+
+    Returns
+    -------
+    :class:`.Table`
+        A Table constructed from imported google sheet. The key is always `index` the 1-based index
+        of the row in the sheet.
+
+    """
+    st_reader = ir.GoogleSheetReader(spreadsheet_id, sheetname)
+    table_type = hl.ttable(
+        global_type=hl.tstruct(),
+        row_type=hl.tstruct(index=hl.tint64, cells=hl.tarray(hl.tstr)),
+        row_key=['index']
+    )
+    ht = Table(ir.TableRead(st_reader, _assert_type=table_type))
+    tp = ht.head(1)
+    column_names = tp.cells.collect()[0]
+    for col_index, column_name in enumerate(column_names):
+        ht = ht.annotate(
+            **{column_name: ht.cells[col_index]}
+        )
+    ht = ht.filter(ht['index'] != 0)
+    ht = ht.drop('cells')
+
+    return ht
