@@ -99,22 +99,6 @@ case class TableLiteral(typ: TableType, rvd: RVD, enc: AbstractTypedCodecSpec, e
   }
 }
 
-object TableReader {
-  implicit val formats: Formats = RelationalSpec.formats + ShortTypeHints(
-    List(classOf[TableNativeZippedReader])
-  ) + new NativeReaderOptionsSerializer()
-
-  def fromJValue(fs: FS, jv: JValue): TableReader = {
-    (jv \ "name").extract[String] match {
-      case "TableNativeReader" => TableNativeReader.fromJValue(fs, jv)
-      case "TableFromBlockMatrixNativeReader" => TableFromBlockMatrixNativeReader.fromJValue(fs, jv)
-      case "StringTableReader" => StringTableReader.fromJValue(fs, jv)
-      case "AvroTableReader" => AvroTableReader.fromJValue(jv)
-      case _ => jv.extract[TableReader]
-    }
-  }
-}
-
 object LoweredTableReader {
   def makeCoercer(
     ctx: ExecuteContext,
@@ -2997,5 +2981,23 @@ case class RelationalLetTable(name: String, value: IR, body: TableIR) extends Ta
   def copy(newChildren: IndexedSeq[BaseIR]): TableIR = {
     val IndexedSeq(newValue: IR, newBody: TableIR) = newChildren
     RelationalLetTable(name, newValue, newBody)
+  }
+}
+
+
+object TableReader {
+  implicit val formats: Formats = RelationalSpec.formats + ShortTypeHints(
+    List(classOf[TableNativeZippedReader])
+  ) + new NativeReaderOptionsSerializer()
+
+  def fromJValue(fs: FS, jv: JValue): TableReader = {
+    (jv \ "name").extract[String] match {
+      case "TableNativeReader" => TableNativeReader.fromJValue(fs, jv)
+      case "TableFromBlockMatrixNativeReader" => TableFromBlockMatrixNativeReader.fromJValue(fs, jv)
+      case "StringTableReader" => StringTableReader.fromJValue(fs, jv)
+      case "AvroTableReader" => AvroTableReader.fromJValue(jv)
+      case "GoogleSheetReader" => GoogleSheetReader.fromJValue(fs, jv)
+      case _ => jv.extract[TableReader]
+    }
   }
 }

@@ -157,3 +157,4 @@ class StringTableReader(
                                 PField("text", PCanonicalString(true), 1)), true).subsetTo(requestedType.rowType).asInstanceOf[PStruct],
      PCanonicalStruct.empty(required = true))
 }
+
