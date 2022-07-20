@@ -121,6 +121,8 @@ async def create_database_pool(config_file: str = None, autocommit: bool = True,
         ssl=ssl_context,
         cursorclass=aiomysql.cursors.DictCursor,
         autocommit=autocommit,
+        # Discard stale connections, see https://stackoverflow.com/questions/69373128/db-connection-issue-with-encode-databases-library.
+        pool_recycle=3600,
     )
 
 
