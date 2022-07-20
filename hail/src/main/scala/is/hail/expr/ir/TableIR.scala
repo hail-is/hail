@@ -102,6 +102,7 @@ case class TableLiteral(typ: TableType, rvd: RVD, enc: AbstractTypedCodecSpec, e
   }
 }
 
+
 object TableReader {
   implicit val formats: Formats = RelationalSpec.formats + ShortTypeHints(
     List(classOf[TableNativeZippedReader])
@@ -113,6 +114,7 @@ object TableReader {
       case "TableFromBlockMatrixNativeReader" => TableFromBlockMatrixNativeReader.fromJValue(fs, jv)
       case "StringTableReader" => StringTableReader.fromJValue(fs, jv)
       case "AvroTableReader" => AvroTableReader.fromJValue(jv)
+      case "GoogleSheetReader" => GoogleSheetReader.fromJValue(fs, jv)
       case _ => jv.extract[TableReader]
     }
   }

@@ -47,7 +47,7 @@ from .utils import filter_predicate_with_keep, make_filter_and_replace, finalize
 from .matrix_reader import MatrixReader, MatrixNativeReader, MatrixRangeReader, \
     MatrixVCFReader, MatrixBGENReader, MatrixPLINKReader
 from .table_reader import AvroTableReader, TableReader, TableNativeReader, \
-    TextTableReader, TableFromBlockMatrixNativeReader, StringTableReader
+    TextTableReader, TableFromBlockMatrixNativeReader, StringTableReader, GoogleSheetReader
 from .blockmatrix_reader import BlockMatrixReader, BlockMatrixNativeReader, \
     BlockMatrixBinaryReader, BlockMatrixPersistReader
 from .matrix_writer import MatrixWriter, MatrixNativeWriter, MatrixVCFWriter, \
@@ -319,5 +319,6 @@ __all__ = [
     'ReadPartition',
     'PartitionNativeIntervalReader',
     'TableGen',
-    'Partitioner'
+    'Partitioner',
+    'GoogleSheetReader'
 ]

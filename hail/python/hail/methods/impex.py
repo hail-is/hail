@@ -3118,3 +3118,49 @@ def import_avro(paths, *, key=None, intervals=None):
             DataFileReader.determine_file_length = original_determine_file_length
 
     return Table(ir.TableRead(tr))
+
+
+
+@typecheck(spreadsheetID=oneof(str, sequenceof(str)), sheetname=str)
+def import_gsheet(spreadsheetID, sheetname) -> Table:
+    """Import sheet from a google sheets fle as a :class:`.Table` of strings.
+
+    Examples
+    --------
+
+    To import a google sheet as a table of strings:
+
+    >>> ht = hl.import_gsheet('1dBgrxkifTcVwtd1jYLVjjyRlnpBtrikrK1sVDg28YQs', 'Sheet1')
+    >>> ht.describe()
+    ----------------------------------------
+    Global fields:
+        None
+    ----------------------------------------
+    Row fields:
+        'file': str
+        'text': str
+    ----------------------------------------
+    Key: []
+    ----------------------------------------
+
+    Parameters
+    ----------
+    spreadsheetID: :class:`str` or :obj:`list` of :obj:`str`
+        File containing sheet to import.
+    sheetname: :class:`str`
+        Sheet to import.
+
+    Returns
+    -------
+    :class:`.Table`
+        Table constructed from imported google sheet.
+    """
+    st_reader = ir.GoogleSheetReader(spreadsheetID, sheetname)
+    table_type = hl.ttable(
+        global_type=hl.tstruct(),
+        row_type=hl.tstruct(row=hl.tarray(hl.tstr)),
+        row_key=[]
+    )
+    string_table = Table(ir.TableRead(st_reader, _assert_type=table_type))
+    return string_table
+

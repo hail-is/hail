@@ -184,3 +184,22 @@ class AvroTableReader(TableReader):
             other.paths == self.paths and \
             other.key == self.key and \
             other.intervals == self.intervals
+
+class GoogleSheetReader(TableReader):
+    @typecheck_method(spreadsheetID=oneof(str, sequenceof(str)), sheetname=str)
+    def __init__(self, spreadsheetID, sheetname):
+        self.spreadsheetID = spreadsheetID
+        self.sheetname = sheetname
+
+    def render(self):
+        reader = {'name': 'GoogleSheetReader',
+                  'spreadsheetID': self.spreadsheetID,
+                  'sheetname': self.sheetname,}
+
+        return escape_str(json.dumps(reader))
+
+    def __eq__(self, other):
+        return isinstance(other, GoogleSheetReader) and \
+            other.spreadsheetID == self.spreadsheetID and \
+            other.sheetname == self.sheetname
+
