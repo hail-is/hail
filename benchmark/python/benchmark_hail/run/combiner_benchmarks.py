@@ -21,7 +21,7 @@ def chunks(seq, size):
 
 def setup(path):
     interval = [hl.eval(hl.parse_locus_interval('chr1:START-END', reference_genome='GRCh38'))]
-    return hl.import_vcfs([path], interval, reference_genome='GRCh38')[0]
+    return hl.import_gvcfs([path], interval, reference_genome='GRCh38')[0]
 
 
 @benchmark(args=empty_gvcf.handle())
