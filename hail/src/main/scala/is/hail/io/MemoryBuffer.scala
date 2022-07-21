@@ -11,6 +11,10 @@ final class MemoryBuffer extends Serializable {
 
   def capacity: Int = mem.length
 
+  def invalidate(): Unit = {
+    mem = null
+  }
+
   def clear() {
     pos = 0
     end = 0

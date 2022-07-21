@@ -9,6 +9,8 @@ final class MemoryBufferWrapper {
   def buffer: InputBuffer = ib
 
   def set(bytes: Array[Byte]): Unit = mb.set(bytes)
+
+  def invalidate(): Unit = mb.invalidate()
 }
 
 final class MemoryWriterWrapper {
