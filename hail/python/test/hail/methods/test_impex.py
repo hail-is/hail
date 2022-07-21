@@ -2182,3 +2182,14 @@ def test_matrix_and_table_read_intervals_with_hidden_key():
 
     hl.read_matrix_table(f2, _intervals=[hl.Interval(0, 3)])._force_count_rows()
     hl.read_table(f3, _intervals=[hl.Interval(0, 3)])._force_count()
+
+
+def test_import_csv_works():
+    ht = hl.import_csv(resource("aleisha_test.csv"))
+    rows = ht.collect()
+    assert rows ==[
+        hl.Struct(**{"name ":"aleisha"}, animal="alligator", place="arlington", thing="amp", **{"fruit/flower": "apple"}),
+        hl.Struct(**{"name ":"dan"}, animal="dog", place="deerfield", thing="dimple", **{"fruit/flower": "daisy"}),
+        hl.Struct(**{"name ":"jackie"}, animal="jellyfish", place="jamaica", thing="jump squat", **{"fruit/flower": "jackfruit"}),
+    ]
+
