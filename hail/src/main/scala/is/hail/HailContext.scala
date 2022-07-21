@@ -12,7 +12,7 @@ import is.hail.io.vcf._
 import is.hail.io.{AbstractTypedCodecSpec, Decoder}
 import is.hail.rvd.{AbstractIndexSpec, RVDContext}
 import is.hail.sparkextras.{ContextRDD, IndexReadRDD}
-import is.hail.types.physical.{PBaseStruct, PCanonicalTuple, PInt64Required, PStruct}
+import is.hail.types.physical.{PBaseStruct, PCanonicalTuple, PInt64Required, PStruct, PType}
 import is.hail.types.virtual._
 import is.hail.utils._
 import is.hail.variant.ReferenceGenome
@@ -371,7 +371,13 @@ object HailContext {
     uidFieldName: String
   ): (PStruct, ContextRDD[Long]) = {
     val fs = ctx.fs
-    val (pType: PStruct, makeDec) = enc.buildDecoder(ctx, requestedType)
+    val (concretePType: PStruct, makeDec) = enc.buildDecoder(ctx, requestedType)
+    val pType = if (uidFieldName != null) {
+      val uidPType = PCanonicalTuple(true, PInt64Required, PInt64Required)
+      concretePType.insertFields(Array(uidFieldName -> uidPType))
+    } else {
+      concretePType
+    }
     (pType, ContextRDD.weaken(HailContext.readPartitions(fs, path, partFiles, (_, is, m) => Iterator.single(is -> m)))
       .cmapPartitionsWithIndex { (partIdx, ctx, it) =>
         assert(it.hasNext)
@@ -441,7 +447,8 @@ object HailContext {
     makeRowsDec: (InputStream, HailClassLoader) => Decoder,
     makeEntriesDec: (InputStream, HailClassLoader) => Decoder,
     makeInserter: (HailClassLoader, FS, Int, Region) => AsmFunction3RegionLongLongLong,
-    inserterPType: PStruct
+    inserterPType: PStruct,
+    uidFieldName: String = null
   ): ContextRDD[Long] = {
     require(!(indexSpecRows.isEmpty ^ indexSpecEntries.isEmpty))
     val fsBc = ctx.fsBc
@@ -477,7 +484,7 @@ object HailContext {
       val (isRows, isEntries, idxr, bounds, m) = it.next
       assert(!it.hasNext)
       HailContext.readSplitRowsPartition(theHailClassLoaderForSparkWorkers, fsBc, makeRowsDec, makeEntriesDec, makeInserter, inserterPType)(
-        ctx, isRows, isEntries, idxr, rowsOffsetField, entriesOffsetField, bounds, i, m)
+        ctx, isRows, isEntries, idxr, rowsOffsetField, entriesOffsetField, bounds, i, m, uidFieldName)
     }
 
   }

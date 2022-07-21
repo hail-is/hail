@@ -430,8 +430,32 @@ abstract class TableReader {
 
   def fullType: TableType
 
-  // FIXME: add uid field in all subclasses
-  def rowAndGlobalPTypes(ctx: ExecuteContext, requestedType: TableType): (PStruct, PStruct)
+  protected def concreteRowRequiredness(ctx: ExecuteContext, requestedType: TableType): VirtualTypeWithReq
+
+  protected def uidRequiredness: VirtualTypeWithReq
+
+  protected def globalRequiredness(ctx: ExecuteContext, requestedType: TableType): VirtualTypeWithReq
+
+  def rowAndGlobalRequiredness(ctx: ExecuteContext, requestedType: TableType): (VirtualTypeWithReq, VirtualTypeWithReq) = {
+    val requestedUID = requestedType.rowType.hasField(uidFieldName)
+    val concreteRowType = if (requestedUID)
+      requestedType.rowType.deleteKey(uidFieldName)
+    else
+      requestedType.rowType
+    val concreteRowReq = concreteRowRequiredness(ctx, requestedType.copy(rowType = concreteRowType))
+    val rowReq = if (requestedUID) {
+      val concreteRFields = concreteRowReq.r.asInstanceOf[RStruct].fields
+      VirtualTypeWithReq(
+        requestedType.rowType,
+        RStruct(concreteRFields :+ RField(uidFieldName, uidRequiredness.r, concreteRFields.length)))
+    } else {
+      concreteRowReq
+    }
+
+    val globalReq = globalRequiredness(ctx, requestedType)
+
+    (rowReq, globalReq)
+  }
 
   def toJValue: JValue = {
     Extraction.decompose(this)(TableReader.formats)
@@ -570,7 +594,14 @@ abstract class AbstractNativeReader(uidFieldName: String) extends PartitionReade
 
   override def rowRequiredness(requestedType: TStruct): RStruct = {
     val tr = TypeWithRequiredness(requestedType).asInstanceOf[RStruct]
-    tr.fromPType(spec.decodedPType(requestedType))
+    val pType = if (requestedType.hasField(uidFieldName)) {
+      val basePType = spec.decodedPType(requestedType.deleteKey(uidFieldName)).asInstanceOf[PStruct]
+      val uidPType = PCanonicalTuple(true, PInt64Required, PInt64Required)
+      basePType.insertFields(Array(uidFieldName -> uidPType))
+    } else {
+      spec.decodedPType(requestedType)
+    }
+    tr.fromPType(pType)
     tr
   }
 
@@ -602,13 +633,18 @@ case class PartitionNativeReader(spec: AbstractTypedCodecSpec, uidFieldName: Str
     val uidSType: SStackStruct = SStackStruct(
       TTuple(TInt64, TInt64),
       Array(EmitType(SInt64, true), EmitType(SInt64, true)))
+    val elementSType = if (insertUID)
+      SInsertFieldsStruct(requestedType, concreteSType,
+        Array(uidFieldName -> EmitType(uidSType, true)))
+    else
+      concreteSType
 
     context.toI(cb).map(cb) { case ctxStruct: SBaseStructValue =>
       val partIdx = ctxStruct.loadField(cb, "partitionIndex").get(cb)
       val rowIdx = mb.genFieldThisRef[Long]("pnr_rowidx")
       val pathString = ctxStruct.loadField(cb, "partitionPath").get(cb).asString.loadString(cb)
       val xRowBuf = mb.genFieldThisRef[InputBuffer]("pnr_xrowbuf")
-      val next = mb.newPSettable(mb.fieldBuilder, concreteSType, "pnr_next")
+      val next = mb.newPSettable(mb.fieldBuilder, elementSType, "pnr_next")
       val region = mb.genFieldThisRef[Region]("pnr_region")
 
       val producer = new StreamProducer {
@@ -623,7 +659,7 @@ case class PartitionNativeReader(spec: AbstractTypedCodecSpec, uidFieldName: Str
         override val LproduceElement: CodeLabel = mb.defineAndImplementLabel { cb =>
           cb.ifx(!xRowBuf.readByte().toZ, cb.goto(LendOfStream))
 
-          val base = spec.encodedType.buildDecoder(requestedType, cb.emb.ecb).apply(cb, region, xRowBuf).asBaseStruct
+          val base = spec.encodedType.buildDecoder(concreteType, cb.emb.ecb).apply(cb, region, xRowBuf).asBaseStruct
           if (insertUID) {
             cb.assign(rowIdx, rowIdx + 1)
             val uid = EmitValue.present(
@@ -781,20 +817,20 @@ case class PartitionNativeReaderIndexed(
   def toJValue: JValue = Extraction.decompose(this)(PartitionReader.formats)
 }
 
-// Result uses the uid field name and values from the left input, and ignores
-// uids from the right.
+// Result uses the uid field name and values from the right input, and ignores
+// uids from the left.
 case class PartitionZippedNativeReader(left: PartitionReader, right: PartitionReader)
   extends PartitionReader {
 
-  def uidFieldName = left.uidFieldName
+  def uidFieldName = right.uidFieldName
 
   def contextType: Type = TStruct(
     "leftContext" -> left.contextType,
     "rightContext" -> right.contextType)
 
   def splitRequestedType(requestedType: TStruct): (TStruct, TStruct) = {
-    val leftStruct = left.fullRowType
-    val rightStruct = right.fullRowType.deleteKey(right.uidFieldName)
+    val leftStruct = left.fullRowType.deleteKey(left.uidFieldName)
+    val rightStruct = right.fullRowType
 
     val lRequested = requestedType.select(requestedType.fieldNames.filter(leftStruct.hasField))._1
     val rRequested = requestedType.select(requestedType.fieldNames.filter(rightStruct.hasField))._1
@@ -811,8 +847,8 @@ case class PartitionZippedNativeReader(left: PartitionReader, right: PartitionRe
   }
 
   lazy val fullRowType: TStruct = {
-    val leftStruct = left.fullRowType
-    val rightStruct = right.fullRowType.deleteKey(right.uidFieldName)
+    val leftStruct = left.fullRowType.deleteKey(left.uidFieldName)
+    val rightStruct = right.fullRowType
     TStruct.concat(leftStruct, rightStruct)
   }
 
@@ -1098,12 +1134,16 @@ class TableNativeReader(
     rowType = spec.table_type.rowType.insertFields(
       Array((uidFieldName, TTuple(TInt64, TInt64)))))
 
-  def rowAndGlobalPTypes(ctx: ExecuteContext, requestedType: TableType): (PStruct, PStruct) = {
-    coerce[PStruct](spec.rowsComponent.rvdSpec(ctx.fs, params.path)
-      .typedCodecSpec.encodedType.decodedPType(requestedType.rowType)) ->
-      coerce[PStruct](spec.globalsComponent.rvdSpec(ctx.fs, params.path)
-        .typedCodecSpec.encodedType.decodedPType(requestedType.globalType))
-  }
+  override def concreteRowRequiredness(ctx: ExecuteContext, requestedType: TableType): VirtualTypeWithReq =
+    VirtualTypeWithReq(coerce[PStruct](spec.rowsComponent.rvdSpec(ctx.fs, params.path)
+      .typedCodecSpec.encodedType.decodedPType(requestedType.rowType)))
+
+  protected def uidRequiredness: VirtualTypeWithReq =
+    VirtualTypeWithReq(PCanonicalTuple(true, PInt64Required, PInt64Required))
+
+  override def globalRequiredness(ctx: ExecuteContext, requestedType: TableType): VirtualTypeWithReq =
+    VirtualTypeWithReq(coerce[PStruct](spec.globalsComponent.rvdSpec(ctx.fs, params.path)
+      .typedCodecSpec.encodedType.decodedPType(requestedType.globalType)))
 
   override def apply(ctx: ExecuteContext, requestedType: TableType, dropRows: Boolean): TableValue = {
     val (globalType, globalsOffset) = spec.globalsComponent.readLocalSingleRow(ctx, params.path, requestedType.globalType)
@@ -1149,7 +1189,7 @@ class TableNativeReader(
     assert(!requestedGlobalsType.fieldNames.contains(uidFieldName))
     ArrayRef(
       ToArray(ReadPartition(
-        Str(globalsSpec.absolutePartPaths(globalsPath).head),
+        MakeStruct(Array("partitionIndex" -> I64(0), "partitionPath" -> Str(globalsSpec.absolutePartPaths(globalsPath).head))),
         requestedGlobalsType,
         PartitionNativeReader(globalsSpec.typedCodecSpec, uidFieldName))),
       0)
@@ -1192,9 +1232,10 @@ case class TableNativeZippedReader(
 
   override lazy val fullType: TableType =
     specLeft.table_type.copy(
-      rowType = specLeft.table_type.rowType ++ specRight.table_type.rowType.deleteKey(uidFieldName))
+      rowType = (specLeft.table_type.rowType ++ specRight.table_type.rowType)
+        .insertFields(Array(uidFieldName -> TTuple(TInt64, TInt64))))
   private val leftFieldSet = specLeft.table_type.rowType.fieldNames.toSet
-  private val rightFieldSet = specRight.table_type.rowType.deleteKey(uidFieldName).fieldNames.toSet
+  private val rightFieldSet = specRight.table_type.rowType.fieldNames.toSet
 
   def leftRType(requestedType: TStruct): TStruct =
     requestedType.filter(f => leftFieldSet.contains(f.name))._1
@@ -1210,12 +1251,16 @@ case class TableNativeZippedReader(
     coerce[PStruct](specRight.rowsComponent.rvdSpec(ctx.fs, pathRight)
       .typedCodecSpec.encodedType.decodedPType(rightRType))
 
-  def rowAndGlobalPTypes(ctx: ExecuteContext, requestedType: TableType): (PStruct, PStruct) = {
-    fieldInserter(ctx, leftPType(ctx, leftRType(requestedType.rowType)),
-      rightPType(ctx, rightRType(requestedType.rowType)))._1 ->
-      coerce[PStruct](specLeft.globalsComponent.rvdSpec(ctx.fs, pathLeft)
-        .typedCodecSpec.encodedType.decodedPType(requestedType.globalType))
-  }
+  override def concreteRowRequiredness(ctx: ExecuteContext, requestedType: TableType): VirtualTypeWithReq =
+    VirtualTypeWithReq(fieldInserter(ctx, leftPType(ctx, leftRType(requestedType.rowType)),
+      rightPType(ctx, rightRType(requestedType.rowType)))._1)
+
+  override def uidRequiredness: VirtualTypeWithReq =
+    VirtualTypeWithReq(PCanonicalTuple(true, PInt64Required, PInt64Required))
+
+  override def globalRequiredness(ctx: ExecuteContext, requestedType: TableType): VirtualTypeWithReq =
+    VirtualTypeWithReq(specLeft.globalsComponent.rvdSpec(ctx.fs, pathLeft)
+      .typedCodecSpec.encodedType.decodedPType(requestedType.globalType))
 
   def fieldInserter(ctx: ExecuteContext, pLeft: PStruct, pRight: PStruct): (PStruct, (HailClassLoader, FS, Int, Region) => AsmFunction3RegionLongLongLong) = {
     val (Some(PTypeReferenceSingleCodeType(t: PStruct)), mk) = ir.Compile[AsmFunction3RegionLongLongLong](ctx,
@@ -1257,6 +1302,7 @@ case class TableNativeZippedReader(
           requestedType.rowType,
           leftRType, rightRType,
           requestedType.key,
+          uidFieldName,
           fieldInserter)
       }
     }
@@ -1269,7 +1315,7 @@ case class TableNativeZippedReader(
     val globalsPath = specLeft.globalsComponent.absolutePath(pathLeft)
     ArrayRef(
       ToArray(ReadPartition(
-        Str(globalsSpec.absolutePartPaths(globalsPath).head),
+        MakeStruct(Array("partitionIndex" -> I64(0), "partitionPath" -> Str(globalsSpec.absolutePartPaths(globalsPath).head))),
         requestedGlobalsType,
         PartitionNativeReader(globalsSpec.typedCodecSpec, uidFieldName))),
       0)
@@ -1337,10 +1383,14 @@ case class TableFromBlockMatrixNativeReader(
     TableType(rowType, Array("row_idx"), TStruct.empty)
   }
 
-  def rowAndGlobalPTypes(context: ExecuteContext, tableType: TableType): (PStruct, PStruct) = {
-    PType.canonical(tableType.rowType, required = true).asInstanceOf[PStruct] ->
-      PCanonicalStruct.empty(required = true)
-  }
+  override def concreteRowRequiredness(ctx: ExecuteContext, requestedType: TableType): VirtualTypeWithReq =
+    VirtualTypeWithReq(PType.canonical(requestedType.rowType).setRequired(true))
+
+  override def uidRequiredness: VirtualTypeWithReq =
+    VirtualTypeWithReq(PInt64Required)
+
+  override def globalRequiredness(ctx: ExecuteContext, requestedType: TableType): VirtualTypeWithReq =
+    VirtualTypeWithReq(PCanonicalStruct.empty(required = true))
 
   override def apply(ctx: ExecuteContext, requestedType: TableType, dropRows: Boolean): TableValue = {
     val rowsRDD = new BlockMatrixReadRowBlockedRDD(
@@ -1350,7 +1400,7 @@ case class TableFromBlockMatrixNativeReader(
     val partitionBounds = partitionRanges.map { r => Interval(Row(r.start), Row(r.end), true, false) }
     val partitioner = new RVDPartitioner(fullType.keyType, partitionBounds)
 
-    val rowTyp = rowAndGlobalPTypes(ctx, requestedType)._1
+    val rowTyp = PType.canonical(requestedType.rowType, required = true).asInstanceOf[PStruct]
     val rvd = RVD(RVDType(rowTyp, fullType.key.filter(rowTyp.hasField)), partitioner, ContextRDD(rowsRDD))
     TableValue(ctx, requestedType, BroadcastRow.empty(ctx), rvd)
   }
@@ -1363,9 +1413,14 @@ case class TableFromBlockMatrixNativeReader(
 }
 
 object TableRead {
-  def native(fs: FS, path: String): TableRead = {
+  def native(fs: FS, path: String, uidField: Boolean = false): TableRead = {
     val tr = TableNativeReader(fs, TableNativeReaderParameters(path, None))
-    TableRead(tr.fullType, false, tr)
+    val requestedType = if (uidField)
+     tr.fullType
+    else
+      tr.fullType.copy(
+        rowType = tr.fullType.rowType.deleteKey(TableReader.uidFieldName))
+    TableRead(requestedType, false, tr)
   }
 }
 

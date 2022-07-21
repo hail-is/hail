@@ -2,7 +2,7 @@ package is.hail.io.bgen
 
 import is.hail.backend.ExecuteContext
 import is.hail.expr.ir
-import is.hail.expr.ir.{IRParser, IRParserEnvironment, Interpret, MatrixHybridReader, Pretty, TableIR, TableValue}
+import is.hail.expr.ir.{IRParser, IRParserEnvironment, Interpret, MatrixHybridReader, MatrixReader, Pretty, TableIR, TableValue}
 import is.hail.io._
 import is.hail.io.fs.{FS, FileStatus}
 import is.hail.io.index.{IndexReader, IndexReaderBuilder}
@@ -10,7 +10,7 @@ import is.hail.io.vcf.LoadVCF
 import is.hail.rvd.{RVD, RVDPartitioner, RVDType}
 import is.hail.sparkextras.RepartitionedOrderedRDD2
 import is.hail.types._
-import is.hail.types.physical.{PStruct, PType}
+import is.hail.types.physical.{PInt64Required, PStruct, PType}
 import is.hail.types.virtual._
 import is.hail.utils._
 import is.hail.variant._
@@ -281,7 +281,9 @@ object MatrixBGENReader {
   def fullMatrixType(rg: Option[ReferenceGenome]): MatrixType = {
     MatrixType(
       globalType = TStruct.empty,
-      colType = TStruct("s" -> TString),
+      colType = TStruct(
+        "s" -> TString,
+        MatrixReader.colUIDFieldName -> TInt64),
       colKey = Array("s"),
       rowType = TStruct(
         "locus" -> TLocus.schemaFromRG(rg),
@@ -289,7 +291,8 @@ object MatrixBGENReader {
         "rsid" -> TString,
         "varid" -> TString,
         "offset" -> TInt64,
-        "file_idx" -> TInt32),
+        "file_idx" -> TInt32,
+        MatrixReader.rowUIDFieldName -> TInt64),
       rowKey = Array("locus", "alleles"),
       entryType = TStruct(
         "GT" -> TCall,
@@ -460,10 +463,16 @@ class MatrixBGENReader(
     _settings
   }
 
-  def rowAndGlobalPTypes(context: ExecuteContext, requestedType: TableType): (PStruct, PStruct) = {
+  override def concreteRowRequiredness(ctx: ExecuteContext, requestedType: TableType): VirtualTypeWithReq = {
     val settings = getSettings(requestedType)
-    settings.rowPType -> PType.canonical(requestedType.globalType, required = true).asInstanceOf[PStruct]
+    VirtualTypeWithReq(settings.rowPType)
   }
+
+  override def uidRequiredness: VirtualTypeWithReq =
+    VirtualTypeWithReq(PInt64Required)
+
+  override def globalRequiredness(ctx: ExecuteContext, requestedType: TableType): VirtualTypeWithReq =
+    VirtualTypeWithReq(PType.canonical(requestedType.globalType, required = true))
 
   override def apply(ctx: ExecuteContext, requestedType: TableType, dropRows: Boolean): TableValue = {
     assert(requestedType.keyType == indexKeyType)

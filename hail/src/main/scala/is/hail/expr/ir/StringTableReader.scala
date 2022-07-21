@@ -13,7 +13,7 @@ import is.hail.types.physical.stypes.interfaces.{SBaseStructValue, SStreamValue}
 import is.hail.types.physical.stypes.primitives.{SInt64, SInt64Value}
 import is.hail.types.physical._
 import is.hail.types.virtual._
-import is.hail.types.{BaseTypeWithRequiredness, RStruct, TableType, TypeWithRequiredness}
+import is.hail.types.{BaseTypeWithRequiredness, RStruct, TableType, TypeWithRequiredness, VirtualTypeWithReq}
 import is.hail.utils.{FastIndexedSeq, FastSeq, checkGzippedFile, fatal}
 import org.json4s.{Extraction, Formats, JValue}
 
@@ -173,14 +173,16 @@ class StringTableReader(
 
   override def partitionCounts: Option[IndexedSeq[Long]] = None
 
-  override def rowAndGlobalPTypes(ctx: ExecuteContext, requestedType: TableType): (PStruct, PStruct) =
-    (
-      PCanonicalStruct(
-        IndexedSeq(PField("file", PCanonicalString(true), 0),
-                   PField("text", PCanonicalString(true), 1),
-                   PField(uidFieldName, PInt64Required, 2)),
-        true
-      ).subsetTo(requestedType.rowType).asInstanceOf[PStruct],
-      PCanonicalStruct.empty(required = true)
-    )
+  override def concreteRowRequiredness(ctx: ExecuteContext, requestedType: TableType): VirtualTypeWithReq =
+    VirtualTypeWithReq(PCanonicalStruct(
+      IndexedSeq(PField("file", PCanonicalString(true), 0),
+        PField("text", PCanonicalString(true), 1)),
+      true
+    ).subsetTo(requestedType.rowType))
+
+  override def uidRequiredness: VirtualTypeWithReq =
+    VirtualTypeWithReq(PInt64Required)
+
+  override def globalRequiredness(ctx: ExecuteContext, requestedType: TableType): VirtualTypeWithReq =
+    VirtualTypeWithReq(PCanonicalStruct.empty(required = true))
 }

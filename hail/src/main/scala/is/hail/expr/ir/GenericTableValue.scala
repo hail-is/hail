@@ -12,7 +12,7 @@ import is.hail.rvd._
 import is.hail.sparkextras.ContextRDD
 import is.hail.types.physical.stypes.EmitType
 import is.hail.types.physical.stypes.concrete.{SStackStruct, SStackStructValue}
-import is.hail.types.physical.stypes.interfaces.{SBaseStructValue, SStream, SStreamValue}
+import is.hail.types.physical.stypes.interfaces.{SBaseStructValue, SStream, SStreamValue, primitive}
 import is.hail.types.physical.stypes.primitives.{SInt64, SInt64Value}
 import is.hail.types.physical.{PStruct, PType}
 import is.hail.types.virtual.{TArray, TInt64, TStruct, TTuple, Type}
@@ -25,14 +25,16 @@ import org.json4s.JsonAST.{JObject, JString}
 import org.json4s.{Extraction, JValue}
 
 class PartitionIteratorLongReader(
-  val fullRowType: TStruct,
-  val uidFieldName: String,
-  val contextType: TStruct,
+  rowType: TStruct,
+  override val uidFieldName: String,
+  override val contextType: TStruct,
   bodyPType: TStruct => PStruct,
   body: TStruct => (Region, HailClassLoader, FS, Any) => Iterator[Long]
 ) extends PartitionReader {
-  assert(fullRowType.fieldNames.contains(uidFieldName))
   assert(contextType.fieldNames.contains("partitionIndex"))
+
+  override lazy val fullRowType: TStruct =
+    rowType.insertFields(Array(uidFieldName -> TTuple(TInt64, TInt64)))
 
   override def rowRequiredness(requestedType: TStruct): RStruct = {
     val tr = TypeWithRequiredness(requestedType).asInstanceOf[RStruct]
@@ -61,7 +63,7 @@ class PartitionIteratorLongReader(
     val mb = cb.emb
 
     context.toI(cb).map(cb) { case ctxStruct: SBaseStructValue =>
-      val partIdx = ctxStruct.loadField(cb, "partitionIndex").get(cb)
+      val partIdx = ctxStruct.loadField(cb, "partitionIndex").get(cb).asInt.value
       val rowIdx = mb.genFieldThisRef[Long]("pnr_rowidx")
       val ctxJavaValue = UtilFunctions.svalueToJavaValue(cb, partitionRegion, ctxStruct)
       val region = mb.genFieldThisRef[Region]("pilr_region")
@@ -92,8 +94,8 @@ class PartitionIteratorLongReader(
           if (insertUID) {
             val uid = EmitValue.present(
               new SStackStructValue(uidSType, Array(
-                EmitValue.present(partIdx),
-                EmitValue.present(new SInt64Value(rowIdx)))))
+                EmitValue.present(primitive(cb.memoize(partIdx.toL))),
+                EmitValue.present(primitive(rowIdx)))))
             eltPType.loadCheapSCode(cb, rv)._insert(requestedType, uidFieldName -> uid)
           } else {
             eltPType.loadCheapSCode(cb, rv)

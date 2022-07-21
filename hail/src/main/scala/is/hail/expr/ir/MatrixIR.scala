@@ -113,18 +113,28 @@ trait MatrixReader {
     StringEscapeUtils.escapeString(JsonMethods.compact(toJValue))
   }
 
+  final def matrixToTableType(mt: MatrixType): TableType =
+    if (mt.rowType.hasField(rowUIDFieldName)) {
+      val tt = mt.canonicalTableType
+      tt.copy(rowType = tt.rowType
+        .deleteKey(rowUIDFieldName)
+        .insertFields(Array(TableReader.uidFieldName -> tt.rowType.fieldType(rowUIDFieldName))))
+    } else {
+      mt.canonicalTableType
+    }
+
   final def rowUIDFieldName: String = MatrixReader.rowUIDFieldName
 
   final def colUIDFieldName: String = MatrixReader.colUIDFieldName
 }
 
 abstract class MatrixHybridReader extends TableReader with MatrixReader {
-  lazy val fullType: TableType = fullMatrixType.canonicalTableType
+  lazy val fullType: TableType = matrixToTableType(fullMatrixType)
 
   override def defaultRender(): String = super.defaultRender()
 
   override def lower(requestedType: MatrixType, dropCols: Boolean, dropRows: Boolean): TableIR = {
-    var tr: TableIR = TableRead(requestedType.canonicalTableType, dropRows, this)
+    var tr: TableIR = TableRead(matrixToTableType(requestedType), dropRows, this)
     if (dropCols) {
       // this lowering preserves dropCols using pruning
       tr = TableMapRows(
@@ -243,10 +253,18 @@ class MatrixNativeReader(
           Ref("row", tr.typ.rowType),
         FastSeq(LowerMatrixIR.entriesFieldName -> MakeArray(FastSeq(), TArray(requestedType.entryType)))))
     } else {
-      val tt = TableType(
-        requestedType.rowType.appendKey(LowerMatrixIR.entriesFieldName, TArray(requestedType.entryType)),
-        requestedType.rowKey,
-        requestedType.globalType)
+      val tt = matrixToTableType(requestedType)
+//      val tt = TableType(
+//        if (requestedType.rowType.hasField(rowUIDFieldName))
+//          requestedType.rowType
+//            .deleteKey(rowUIDFieldName)
+//            .appendKey(LowerMatrixIR.entriesFieldName, TArray(requestedType.entryType))
+//            .appendKey(rowUIDFieldName, TTuple(TInt64, TInt64))
+//        else
+//          requestedType.rowType
+//            .appendKey(LowerMatrixIR.entriesFieldName, TArray(requestedType.entryType)),
+//        requestedType.rowKey,
+//        requestedType.globalType)
       val trdr = TableNativeZippedReader(
         rowsPath,
         entriesPath,
@@ -258,10 +276,17 @@ class MatrixNativeReader(
       val partFiles = colsRVDSpec.absolutePartPaths(spec.colsSpec.rowsComponent.absolutePath(colsPath))
 
       val cols = if (partFiles.length == 1) {
-        ReadPartition(Str(partFiles.head), requestedType.colType, PartitionNativeReader(colsRVDSpec.typedCodecSpec, colUIDFieldName))
+        ReadPartition(
+          MakeStruct(Array("partitionIndex" -> I64(0), "partitionPath" -> Str(partFiles.head))),
+          requestedType.colType,
+          PartitionNativeReader(colsRVDSpec.typedCodecSpec, colUIDFieldName))
       } else {
-        val partNames = MakeArray(partFiles.map(Str), TArray(TString))
-        val elt = Ref(genUID(), TString)
+        val contextType = TStruct("partitionIndex" -> TInt64, "partitionPath" -> TString)
+        val partNames = MakeArray(
+          partFiles.zipWithIndex.map { case (path, idx) =>
+            MakeStruct(Array("partitionIndex" -> I64(idx), "partitionPath" -> Str(path)))
+          }, TArray(contextType))
+        val elt = Ref(genUID(), contextType)
         StreamFlatMap(
           partNames,
           elt.name,

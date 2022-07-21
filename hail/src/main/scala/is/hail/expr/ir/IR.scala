@@ -1,6 +1,6 @@
 package is.hail.expr.ir
 
-import is.hail.annotations.{Annotation, Region}
+import is.hail.annotations.{Annotation, Region, SafeRow}
 import is.hail.asm4s.Value
 import is.hail.backend.ExecuteContext
 import is.hail.expr.ir.ArrayZipBehavior.ArrayZipBehavior
@@ -88,8 +88,8 @@ final case class Literal(_typ: Type, value: Annotation) extends IR {
   require(!CanEmit(_typ))
   require(value != null)
   // expensive, for debugging
-  // require(SafeRow.isSafe(value))
-  // assert(_typ.typeCheck(value), s"literal invalid:\n  ${_typ}\n  $value")
+   require(SafeRow.isSafe(value))
+   assert(_typ.typeCheck(value), s"literal invalid:\n  ${_typ}\n  $value")
 }
 
 object EncodedLiteral {
@@ -804,6 +804,8 @@ object MetadataWriter {
 }
 
 abstract class PartitionReader {
+  assert(fullRowType.fieldNames.contains(uidFieldName))
+
   def contextType: Type
 
   def fullRowType: TStruct
@@ -885,7 +887,10 @@ final case class SimpleMetadataWriter(val annotationType: Type) extends Metadata
     writeAnnotations.consume(cb, {}, {_ => ()})
 }
 
-final case class ReadPartition(context: IR, rowType: TStruct, reader: PartitionReader) extends IR
+final case class ReadPartition(context: IR, rowType: TStruct, reader: PartitionReader) extends IR {
+  assert(context.typ == reader.contextType, s"context: ${context.typ}, expected: ${reader.contextType}")
+  assert(PruneDeadFields.isSupertype(rowType, reader.fullRowType), s"requested type: $rowType, full type: ${reader.fullRowType}")
+}
 final case class WritePartition(value: IR, writeCtx: IR, writer: PartitionWriter) extends IR
 final case class WriteMetadata(writeAnnotations: IR, writer: MetadataWriter) extends IR
 

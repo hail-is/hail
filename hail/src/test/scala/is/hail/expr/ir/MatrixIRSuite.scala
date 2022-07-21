@@ -35,12 +35,21 @@ class MatrixIRSuite extends HailSuite {
       val read = MatrixIR.read(fs, path, dropCols = false, dropRows = false, None)
       val droppedRows = MatrixIR.read(fs, path, dropCols = false, dropRows = true, None)
 
-      val expectedCols = Array.tabulate(10)(i => Row(i)).toFastIndexedSeq
-      val expectedRows = Array.tabulate(10)(i => Row(i, expectedCols.map { case Row(j) => Row(i, j) })).toFastIndexedSeq
+      val expectedCols = Array.tabulate(10)(i => Row(i, Row(0L, i.toLong))).toFastIndexedSeq
+      val expectedRows = if (writer eq writer1) {
+        val uids = for {
+          (partSize, partIndex) <- partition(10, 3).zipWithIndex
+          i <- 0 until partSize
+        } yield Row(partIndex.toLong, i.toLong)
+        (0 until 10, uids).zipped.map { (i, uid) => Row(i, uid, expectedCols.map { case Row(j, _) => Row(i, j) }) }
+      } else
+        Array.tabulate(10)(i => Row(i, Row(0L, i.toLong), expectedCols.map { case Row(j, _) => Row(i, j) })).toFastIndexedSeq
       val expectedGlobals = Row(0, expectedCols);
       {
         implicit val execStrats: Set[ExecStrategy] = Set(ExecStrategy.Interpret, ExecStrategy.InterpretUnoptimized)
-        assertEvalsTo(TableCollect(TableKeyBy(CastMatrixToTable(read, "entries", "cols"), FastIndexedSeq())), Row(expectedRows, expectedGlobals))
+        assertEvalsTo(
+          TableCollect(TableKeyBy(CastMatrixToTable(read, "entries", "cols"), FastIndexedSeq())),
+          Row(expectedRows, expectedGlobals))
         assertEvalsTo(TableCollect(TableKeyBy(CastMatrixToTable(droppedRows, "entries", "cols"), FastIndexedSeq())), Row(FastIndexedSeq(), expectedGlobals))
       }
     }

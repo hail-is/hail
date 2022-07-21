@@ -4,8 +4,8 @@ import is.hail.backend.ExecuteContext
 import is.hail.expr.ir._
 import is.hail.expr.ir.lowering.{TableStage, TableStageDependency}
 import is.hail.rvd.RVDPartitioner
-import is.hail.types.TableType
-import is.hail.types.physical.{PCanonicalStruct, PStruct}
+import is.hail.types.{TableType, VirtualTypeWithReq}
+import is.hail.types.physical.{PCanonicalStruct, PCanonicalTuple, PInt64Required, PStruct}
 import is.hail.types.virtual._
 import is.hail.utils.plural
 import org.json4s.{Formats, JValue}
@@ -31,9 +31,14 @@ class AvroTableReader(
   def fullType: TableType =
     TableType(partitionReader.fullRowType, unsafeOptions.map(_.key).getOrElse(IndexedSeq()), TStruct())
 
-  def rowAndGlobalPTypes(ctx: ExecuteContext, requestedType: TableType): (PStruct, PStruct) =
-  (partitionReader.rowRequiredness(requestedType.rowType).canonicalPType(requestedType.rowType).asInstanceOf[PStruct],
-  PCanonicalStruct(required = true))
+  override def concreteRowRequiredness(ctx: ExecuteContext, requestedType: TableType): VirtualTypeWithReq =
+    VirtualTypeWithReq(requestedType.rowType, partitionReader.rowRequiredness(requestedType.rowType))
+
+  override def uidRequiredness: VirtualTypeWithReq =
+    VirtualTypeWithReq(PCanonicalTuple(true, PInt64Required, PInt64Required))
+
+  override def globalRequiredness(ctx: ExecuteContext, requestedType: TableType): VirtualTypeWithReq =
+    VirtualTypeWithReq(PCanonicalStruct(required = true))
 
   def renderShort(): String = defaultRender()
 

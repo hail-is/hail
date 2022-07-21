@@ -322,9 +322,14 @@ class MatrixPLINKReader(
     Row((0 until s.length).map(s.apply) :+ idx)
   })
 
-  def rowAndGlobalPTypes(context: ExecuteContext, requestedType: TableType): (PStruct, PStruct) = {
-    requestedType.canonicalRowPType -> PType.canonical(requestedType.globalType).asInstanceOf[PStruct]
-  }
+  override def concreteRowRequiredness(ctx: ExecuteContext, requestedType: TableType): VirtualTypeWithReq =
+    VirtualTypeWithReq(PType.canonical(requestedType.rowType).setRequired(true))
+
+  override def uidRequiredness: VirtualTypeWithReq =
+    VirtualTypeWithReq(PInt64Required)
+
+  override def globalRequiredness(ctx: ExecuteContext, requestedType: TableType): VirtualTypeWithReq =
+    VirtualTypeWithReq(PType.canonical(requestedType.globalType))
 
   def executeGeneric(ctx: ExecuteContext): GenericTableValue = {
     val localA2Reference = params.a2Reference
