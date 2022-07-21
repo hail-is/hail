@@ -10,7 +10,7 @@ final class MemoryBufferWrapper {
 
   def set(bytes: Array[Byte]): Unit = mb.set(bytes)
 
-  def clear(): Unit = mb.clear()
+  def invalidate(): Unit = mb.invalidate()
 }
 
 final class MemoryWriterWrapper {
