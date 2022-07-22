@@ -184,14 +184,14 @@ class LocalBackend(
     }
   }
 
-  def executeEncode(ir: IR, bufferSpecString: String): (Array[Byte], String) = {
+  def executeEncode(ir: IR, bufferSpecString: String, timed: Boolean): (Array[Byte], String) = {
     val (bytes, timer) = ExecutionTimer.time("LocalBackend.encodeToBytes") { timer =>
       val bs = BufferSpec.parseOrDefault(bufferSpecString)
       withExecuteContext(timer) { ctx =>
         executeToEncoded(timer, ir, bs)
       }
     }
-    (bytes, Serialization.write(Map("timings" -> timer.toMap))(new DefaultFormats {}))
+    (bytes, if (timed) Serialization.write(Map("timings" -> timer.toMap))(new DefaultFormats {}) else "")
   }
 
   def decodeToJSON(ptypeString: String, b: Array[Byte], bufferSpecString: String): String = {
