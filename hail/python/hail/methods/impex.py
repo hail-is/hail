@@ -3118,3 +3118,38 @@ def import_avro(paths, *, key=None, intervals=None):
             DataFileReader.determine_file_length = original_determine_file_length
 
     return Table(ir.TableRead(tr))
+
+
+@typecheck(paths=oneof(str, sequenceof(str)),
+          key=table_key_type,
+          min_partitions=nullable(int),
+          impute=bool,
+          no_header=bool,
+          comment=oneof(str, sequenceof(str)),
+          missing=oneof(str, sequenceof(str)),
+          types=dictof(str, hail_type),
+          skip_blank_lines=bool,
+          force_bgz=bool,
+          filter=nullable(str),
+          find_replace=nullable(sized_tupleof(str, str)),
+          force=bool,
+          source_file_field=nullable(str))
+def import_csv(paths,
+                key=None,
+                min_partitions=None,
+                impute=False,
+                no_header=False,
+                comment=(),
+                missing="NA",
+                types={},
+                skip_blank_lines=False,
+                force_bgz=False,
+                filter=None,
+                find_replace=None,
+                force=False,
+                source_file_field=None) -> Table:
+   """Import csv file as :class:`.Table`."""
+   ht = hl.import_table(paths, key=None, min_partitions=None, impute=False, no_header=False, comment=(), missing="NA",
+                        types={}, skip_blank_lines=False, force_bgz=False, filter=None, find_replace=None,
+                        force=False, source_file_field=None, delimiter = ",", quote ='"')
+   return ht
