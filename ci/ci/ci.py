@@ -125,7 +125,7 @@ async def watched_branch_config(app, wb: WatchedBranch, index: int) -> WatchedBr
 @web_authenticated_developers_only()
 async def index(request, userdata):  # pylint: disable=unused-argument
     wb_configs = [await watched_branch_config(request.app, wb, i) for i, wb in enumerate(watched_branches)]
-    page_context = {'watched_branches': wb_configs}
+    page_context = {'watched_branches': wb_configs, 'frozen_merge_deploy': request.app['frozen_merge_deploy']}
     return await render_template('ci', request, userdata, 'index.html', page_context)
 
 
