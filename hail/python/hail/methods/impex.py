@@ -3162,7 +3162,18 @@ def import_gsheet(spreadsheetID, sheetname) -> Table:
         row_key=[]
     )
     ht = Table(ir.TableRead(st_reader, _assert_type=table_type))
-
+    tp = ht.head(1)
+    index = 0
+    column_names = tp.collect()[0]['cells']
+    for column_name in column_names:
+        ht = ht.annotate(
+            **{column_name: ht['cells'][index]}
+        )
+        index = index + 1
+    ht = ht.add_index('index')
+    ht = ht.filter(ht['index'] != 0)
+    ht = ht.drop('cells')
+    ht = ht.drop('index')
 
     return ht
 
