@@ -8,6 +8,7 @@ CREATE TABLE IF NOT EXISTS `globals` (
 CREATE TABLE IF NOT EXISTS `resources` (
   `resource` VARCHAR(100) NOT NULL,
   `rate` DOUBLE NOT NULL,
+  `resource_id` INT AUTO_INCREMENT UNIQUE NOT NULL,
   PRIMARY KEY (`resource`)
 ) ENGINE = InnoDB;
 
@@ -330,11 +331,13 @@ CREATE TABLE IF NOT EXISTS `attempt_resources` (
   `attempt_id` VARCHAR(40) NOT NULL,
   `resource` VARCHAR(100) NOT NULL,
   `quantity` BIGINT NOT NULL,
+  `resource_id` INT NOT NULL,
   PRIMARY KEY (`batch_id`, `job_id`, `attempt_id`, `resource`),
   FOREIGN KEY (`batch_id`) REFERENCES batches(`id`) ON DELETE CASCADE,
   FOREIGN KEY (`batch_id`, `job_id`) REFERENCES jobs(`batch_id`, `job_id`) ON DELETE CASCADE,
   FOREIGN KEY (`batch_id`, `job_id`, `attempt_id`) REFERENCES attempts(`batch_id`, `job_id`, `attempt_id`) ON DELETE CASCADE,
-  FOREIGN KEY (`resource`) REFERENCES resources(`resource`) ON DELETE CASCADE
+  FOREIGN KEY (`resource`) REFERENCES resources(`resource`) ON DELETE CASCADE,
+  FOREIGN KEY (`resource_id`) REFERENCES resources(`resource_id`) ON DELETE CASCADE
 ) ENGINE = InnoDB;
 
 DELIMITER $$
