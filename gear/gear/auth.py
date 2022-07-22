@@ -70,7 +70,7 @@ def rest_authenticated_users_only(fun):
     return wrapped
 
 
-def _web_unauthorized(request, redirect):
+def _web_unauthenticated(request, redirect):
     if not redirect:
         return web.HTTPUnauthorized()
 
@@ -97,7 +97,7 @@ def web_authenticated_users_only(redirect=True):
                 rest_userdata = await userdata_from_rest_request(request)
                 if rest_userdata:
                     return web.HTTPUnauthorized(reason="provided REST auth to web endpoint")
-                raise _web_unauthorized(request, redirect)
+                raise _web_unauthenticated(request, redirect)
             return await fun(request, userdata, *args, **kwargs)
 
         return wrapped
@@ -120,7 +120,7 @@ def web_authenticated_developers_only(redirect=True):
         async def wrapped(request, userdata, *args, **kwargs):
             if userdata['is_developer'] == 1:
                 return await fun(request, userdata, *args, **kwargs)
-            raise _web_unauthorized(request, redirect)
+            raise web.HTTPUnauthorized()
 
         return wrapped
 
