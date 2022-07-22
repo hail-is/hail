@@ -3158,7 +3158,7 @@ def import_gsheet(spreadsheetID, sheetname) -> Table:
     st_reader = ir.GoogleSheetReader(spreadsheetID, sheetname)
     table_type = hl.ttable(
         global_type=hl.tstruct(),
-        row_type=hl.tstruct(row=hl.tarray(hl.tstr)),
+        row_type=hl.tstruct(cells=hl.tarray(hl.tstr)),
         row_key=[]
     )
     ht = Table(ir.TableRead(st_reader, _assert_type=table_type))

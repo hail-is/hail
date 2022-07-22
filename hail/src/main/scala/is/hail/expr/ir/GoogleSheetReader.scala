@@ -67,12 +67,12 @@ class GoogleSheetPartitionReader(
 ) extends PartitionReader {
   override def contextType: TStruct = TStruct()
 
-  override def fullRowType: TStruct = TStruct("row" -> TArray(TString))
+  override def fullRowType: TStruct = TStruct("cells" -> TArray(TString))
 
   override def rowRequiredness(requestedType: Type): RStruct = {
     val req = BaseTypeWithRequiredness.apply(requestedType).asInstanceOf[RStruct]
-    req.field("row").hardSetRequiredness(true)
-    req.field("row").asInstanceOf[RIterable].elementType.hardSetRequiredness(true)
+    req.field("cells").hardSetRequiredness(true)
+    req.field("cells").asInstanceOf[RIterable].elementType.hardSetRequiredness(true)
     req.hardSetRequiredness(true)
     req
   }
@@ -118,7 +118,7 @@ class GoogleSheetPartitionReader(
         override val element: EmitCode = EmitCode.fromI(cb.emb) { cb =>
           val reqType: TStruct = requestedType.asInstanceOf[TStruct]
           val requestedFields = Array(
-            reqType.selfField("row").map { _ =>
+            reqType.selfField("cells").map { _ =>
               EmitCode.fromI(cb.emb) { cb =>
                 IEmitCode.present(cb, SJavaArrayString(true).construct(cb, rowField))
               }
@@ -165,7 +165,7 @@ class GoogleSheetReader(
                          val params: GoogleSheetReaderParameters ) extends TableReader {
 
   val fullType: TableType = TableType(
-    TStruct("row"-> TArray(TString)),
+    TStruct("cells"-> TArray(TString)),
     FastIndexedSeq.empty,
     TStruct())
   override def renderShort(): String = defaultRender()
@@ -195,7 +195,7 @@ class GoogleSheetReader(
       PCanonicalStruct(
         IndexedSeq(
           PField(
-            "row", PCanonicalArray(PCanonicalString(true)), 0)),
+            "cells", PCanonicalArray(PCanonicalString(true)), 0)),
         true).subsetTo(requestedType.rowType).asInstanceOf[PStruct],
       PCanonicalStruct.empty(required = true)
     )
