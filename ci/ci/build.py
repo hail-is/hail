@@ -1040,7 +1040,7 @@ EOF
             input_files=input_files,
             parents=[self.create_passwords_job] if self.create_passwords_job else self.deps_parents(),
             network='private',
-            resources={'preemptible': False, 'cpu': n_cores},
+            resources={'preemptible': False, 'cpu': str(n_cores)},
         )
 
     def cleanup(self, batch, scope, parents):
