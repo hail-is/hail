@@ -1023,7 +1023,7 @@ EOF
                 parents=self.deps_parents(),
             )
 
-        n_cores = 1 if is_test_deployment else 4
+        n_cores = 4 if scope == 'deploy' and not is_test_deployment else 1
 
         self.create_database_job = batch.create_job(
             CI_UTILS_IMAGE,
