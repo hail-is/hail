@@ -11,7 +11,7 @@ CREATE TABLE invalidated_batches (
 CREATE INDEX invalidated_batches_batch_id ON invalidated_batches (batch_id);
 
 CREATE TABLE IF NOT EXISTS `globals` (
-  `frozen` BOOLEAN NOT NULL DEFAULT FALSE
+  `frozen_merge_deploy` BOOLEAN NOT NULL DEFAULT FALSE
 ) ENGINE = InnoDB;
 
 INSERT INTO `globals` (frozen) VALUES (FALSE);

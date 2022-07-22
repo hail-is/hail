@@ -710,7 +710,7 @@ class WatchedBranch(Code):
                     await self._heal(app, batch_client, gh)
                     if (
                         (self.deploy_batch is None or self.deploy_state is not None)
-                        and not app['frozen']
+                        and not app['frozen_merge_deploy']
                         and self.mergeable
                     ):
                         await self.try_to_merge(gh)
@@ -815,7 +815,7 @@ url: {url}
         if not self.sha:
             return
 
-        if not app['frozen'] and (
+        if not app['frozen_merge_deploy'] and (
             self.deploy_batch is None or (self.deploy_state and self.deploy_batch.attributes['sha'] != self.sha)
         ):
             async with repos_lock:

@@ -516,17 +516,17 @@ async def freeze_deploys(request, userdata):  # pylint: disable=unused-argument
     db: Database = app['db']
     session = await aiohttp_session.get_session(request)
 
-    if app['frozen']:
+    if app['frozen_merge_deploy']:
         set_message(session, 'CI is already frozen.', 'info')
         return web.HTTPFound(deploy_config.external_url('ci', '/'))
 
     await db.execute_update(
         '''
-UPDATE globals SET frozen = 1;
+UPDATE globals SET frozen_merge_deploy = 1;
 '''
     )
 
-    app['frozen'] = True
+    app['frozen_merge_deploy'] = True
 
     set_message(session, 'Froze all merges and deploys.', 'info')
 
@@ -541,17 +541,17 @@ async def unfreeze_deploys(request, userdata):  # pylint: disable=unused-argumen
     db: Database = app['db']
     session = await aiohttp_session.get_session(request)
 
-    if not app['frozen']:
+    if not app['frozen_merge_deploy']:
         set_message(session, 'CI is already unfrozen.', 'info')
         return web.HTTPFound(deploy_config.external_url('ci', '/'))
 
     await db.execute_update(
         '''
-UPDATE globals SET frozen = 0;
+UPDATE globals SET frozen_merge_deploy = 0;
 '''
     )
 
-    app['frozen'] = False
+    app['frozen_merge_deploy'] = False
 
     set_message(session, 'Unfroze all merges and deploys.', 'info')
 
@@ -581,11 +581,11 @@ async def on_startup(app):
 
     row = await app['db'].select_and_fetchone(
         '''
-SELECT frozen FROM globals;
+SELECT frozen_merge_deploy FROM globals;
 '''
     )
 
-    app['frozen'] = row['frozen']
+    app['frozen_merge_deploy'] = row['frozen_merge_deploy']
 
     app['task_manager'] = aiotools.BackgroundTaskManager()
     app['task_manager'].ensure_future(update_loop(app))
