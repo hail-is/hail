@@ -3161,6 +3161,8 @@ def import_gsheet(spreadsheetID, sheetname) -> Table:
         row_type=hl.tstruct(row=hl.tarray(hl.tstr)),
         row_key=[]
     )
-    string_table = Table(ir.TableRead(st_reader, _assert_type=table_type))
-    return string_table
+    ht = Table(ir.TableRead(st_reader, _assert_type=table_type))
+
+
+    return ht
 
