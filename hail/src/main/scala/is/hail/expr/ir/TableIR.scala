@@ -102,7 +102,6 @@ case class TableLiteral(typ: TableType, rvd: RVD, enc: AbstractTypedCodecSpec, e
   }
 }
 
-
 object TableReader {
   implicit val formats: Formats = RelationalSpec.formats + ShortTypeHints(
     List(classOf[TableNativeZippedReader])

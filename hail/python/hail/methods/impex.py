@@ -3128,7 +3128,12 @@ def import_gsheet(spreadsheetID, sheetname) -> Table:
     Examples
     --------
 
-    To import a google sheet as a table of strings:
+    Consider the Google Sheet file at the URL:
+    https://docs.google.com/spreadsheets/d/**1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms**/edit#gid=0
+
+    The spreadsheetID for this file is '1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upm'
+
+    To import the data on the sheeet titled 'Class Data' the sheetname should be entered as 'Class Data'
 
     >>> ht = hl.import_gsheet('1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms', 'Class Data')
     >>> ht.describe()
@@ -3149,7 +3154,7 @@ def import_gsheet(spreadsheetID, sheetname) -> Table:
 
     Parameters
     ----------
-    spreadsheetID: :class:`str` or :obj:`list` of :obj:`str`
+    spreadsheetID: :class:`str`
         File containing sheet to import.
     sheetname: :class:`str`
         Sheet to import.
@@ -3180,4 +3185,3 @@ def import_gsheet(spreadsheetID, sheetname) -> Table:
     ht = ht.drop('index')
 
     return ht
-
