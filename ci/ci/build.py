@@ -1041,6 +1041,8 @@ EOF
                 parents=self.deps_parents(),
             )
 
+        n_cores = 4 if scope == 'deploy' and not is_test_deployment else 1
+
         self.create_database_job = batch.create_job(
             CI_UTILS_IMAGE,
             command=['bash', '-c', create_database_script],
@@ -1056,7 +1058,7 @@ EOF
             input_files=input_files,
             parents=[self.create_passwords_job] if self.create_passwords_job else self.deps_parents(),
             network='private',
-            resources={'preemptible': False},
+            resources={'preemptible': False, 'cpu': str(n_cores)},
         )
 
     def cleanup(self, batch, scope, parents):
