@@ -3130,15 +3130,19 @@ def import_gsheet(spreadsheetID, sheetname) -> Table:
 
     To import a google sheet as a table of strings:
 
-    >>> ht = hl.import_gsheet('1dBgrxkifTcVwtd1jYLVjjyRlnpBtrikrK1sVDg28YQs', 'Sheet1')
+    >>> ht = hl.import_gsheet('1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms', 'Class Data')
     >>> ht.describe()
     ----------------------------------------
     Global fields:
         None
     ----------------------------------------
     Row fields:
-        'file': str
-        'text': str
+        'Student Name': str
+        'Gender': str
+        'Class Level': str
+        'Home State': str
+        'Major': str
+        'Extracurricular Activity': str
     ----------------------------------------
     Key: []
     ----------------------------------------
