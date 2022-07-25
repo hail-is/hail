@@ -599,7 +599,7 @@ async def _query_batches(request, user, q):
 
     sql = f'''
 SELECT batches.*, batches_cancelled.id IS NOT NULL AS cancelled, COALESCE(SUM(`usage` * rate), 0) AS cost, batches_n_jobs_in_complete_states.n_completed, batches_n_jobs_in_complete_states.n_succeeded, batches_n_jobs_in_complete_states.n_failed, batches_n_jobs_in_complete_states.n_cancelled
-FROM batches
+FROM batches USE INDEX (batches_deleted)
 LEFT JOIN batches_n_jobs_in_complete_states
   ON batches.id = batches_n_jobs_in_complete_states.id
 LEFT JOIN batches_cancelled
