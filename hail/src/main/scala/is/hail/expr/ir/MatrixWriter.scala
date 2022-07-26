@@ -760,8 +760,19 @@ case class VCFExportFinalizer(typ: MatrixType, outputPath: String, append: Optio
 
     val annotations = writeAnnotations.get(cb).asBaseStruct
 
-    val partPaths = annotations.loadField(cb, "partFiles").get(cb)
-    val files = partPaths.castTo(cb, region, SJavaArrayString(true), false).asInstanceOf[SJavaArrayStringValue].array
+    val partPaths = annotations.loadField(cb, "partFiles").get(cb).asIndexable
+    val files = if (tabix && exportType != ExportType.CONCATENATED) {
+      val files = cb.memoize(Code.newArray[String](partPaths.loadLength() * 2))
+      partPaths.forEachDefined(cb) { case (cb, i, file: SStringValue) =>
+        val path = file.loadString(cb)
+        cb += (files(i * 2) = path)
+        // FIXME(chrisvittal): this will put the string ".tbi" in generated code, we should just access the htsjdk value
+        cb += (files(i * 2 + 1) = Code.invokeStatic2[htsjdk.tribble.util.ParsingUtils, String, String, String]("appendToPath", path, htsjdk.samtools.util.FileExtensions.TABIX_INDEX))
+      }
+      files
+    } else {
+      partPaths.castTo(cb, region, SJavaArrayString(true), false).asInstanceOf[SJavaArrayStringValue].array
+    }
     exportType match {
       case ExportType.CONCATENATED =>
         val headerStr = header(cb, annotations)
