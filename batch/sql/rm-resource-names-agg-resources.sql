@@ -27,7 +27,7 @@ BEGIN
   INSERT INTO aggregated_billing_project_resources (billing_project, resource, token, `usage`)
   SELECT billing_project, resources.resource, rand_token, msec_diff * quantity
   FROM attempt_resources
-  JOIN resources ON attempt_resources.resource_id = resources.resource_id
+  LEFT JOIN resources ON attempt_resources.resource_id = resources.resource_id
   JOIN batches ON batches.id = attempt_resources.batch_id
   WHERE batch_id = NEW.batch_id AND job_id = NEW.job_id AND attempt_id = NEW.attempt_id
   ON DUPLICATE KEY UPDATE `usage` = `usage` + msec_diff * quantity;
@@ -35,14 +35,14 @@ BEGIN
   INSERT INTO aggregated_batch_resources (batch_id, resource, token, `usage`)
   SELECT batch_id, resources.resource, rand_token, msec_diff * quantity
   FROM attempt_resources
-  JOIN resources ON attempt_resources.resource_id = resources.resource_id
+  LEFT JOIN resources ON attempt_resources.resource_id = resources.resource_id
   WHERE batch_id = NEW.batch_id AND job_id = NEW.job_id AND attempt_id = NEW.attempt_id
   ON DUPLICATE KEY UPDATE `usage` = `usage` + msec_diff * quantity;
 
   INSERT INTO aggregated_job_resources (batch_id, job_id, resource, `usage`)
   SELECT batch_id, job_id, resources.resource, msec_diff * quantity
   FROM attempt_resources
-  JOIN resources ON attempt_resources.resource_id = resources.resource_id
+  LEFT JOIN resources ON attempt_resources.resource_id = resources.resource_id
   WHERE batch_id = NEW.batch_id AND job_id = NEW.job_id AND attempt_id = NEW.attempt_id
   ON DUPLICATE KEY UPDATE `usage` = `usage` + msec_diff * quantity;
 END $$
