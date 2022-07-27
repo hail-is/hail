@@ -608,7 +608,7 @@ LEFT JOIN aggregated_batch_resources
   ON batches.id = aggregated_batch_resources.batch_id
 LEFT JOIN resources
   ON aggregated_batch_resources.resource = resources.resource
-LEFT JOIN billing_project_users ON batches.billing_project = billing_project_users.billing_project
+STRAIGHT_JOIN billing_project_users ON batches.billing_project = billing_project_users.billing_project
 WHERE {' AND '.join(where_conditions)}
 GROUP BY batches.id
 ORDER BY batches.id DESC
