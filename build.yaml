@@ -2037,6 +2037,9 @@ steps:
       - name: rm-resource-foreign-keys
         script: /io/sql/rm-resource-foreign-keys.py
         online: true
+      - name: rm-resource-names-agg-resources-pt-2
+        script: /io/sql/rm-resource-names-agg-resources-pt-2.sql
+        online: true
     inputs:
       - from: /repo/batch/sql
         to: /io/sql

@@ -329,7 +329,6 @@ CREATE TABLE IF NOT EXISTS `attempt_resources` (
   `batch_id` BIGINT NOT NULL,
   `job_id` INT NOT NULL,
   `attempt_id` VARCHAR(40) NOT NULL,
-  `resource` VARCHAR(100),
   `quantity` BIGINT NOT NULL,
   `resource_id` INT NOT NULL,
   PRIMARY KEY (`batch_id`, `job_id`, `attempt_id`, `resource_id`),
@@ -580,15 +579,6 @@ BEGIN
         n_creating_jobs = n_creating_jobs + 1;
     END IF;
   END IF;
-END $$
-
-DROP TRIGGER IF EXISTS attempt_resources_before_insert $$
-CREATE TRIGGER attempt_resources_before_insert BEFORE INSERT ON attempt_resources
-FOR EACH ROW
-BEGIN
-  DECLARE cur_resource VARCHAR(100);
-  SELECT resource INTO cur_resource FROM resources WHERE resource_id = NEW.resource_id;
-  SET NEW.resource = cur_resource;
 END $$
 
 DROP TRIGGER IF EXISTS attempt_resources_after_insert $$
