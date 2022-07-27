@@ -71,8 +71,8 @@ def identity_by_descent(dataset, maf=None, bounded=True, min=None, max=None) -> 
     maf : :class:`.Float64Expression`, optional
         Row-indexed expression for the minor allele frequency.
     bounded : :obj:`bool`
-        Forces the estimations for `Z0``, ``Z1``, ``Z2``, and ``PI_HAT`` to take
-        on biologically meaningful values (in the range [0,1]).
+        Forces the estimations for ``Z0``, ``Z1``, ``Z2``, and ``PI_HAT`` to take
+        on biologically meaningful values (in the range :math:`[0,1]`).
     min : :obj:`float` or :obj:`None`
         Sample pairs with a ``PI_HAT`` below this value will
         not be included in the output. Must be in :math:`[0,1]`.
