@@ -365,6 +365,13 @@ class VCFTests(unittest.TestCase):
         hl.export_vcf(mt, tmp, tabix=True)
         self.import_gvcfs_sample_vcf(tmp)
 
+    def test_tabix_export_file_exists(self):
+        mt = hl.import_vcf(resource('sample.vcf.bgz'))
+        tmp = new_temp_file(extension="bgz")
+        hl.export_vcf(mt, tmp, tabix=True, parallel='header_per_shard')
+        files = hl.current_backend().fs.ls(tmp)
+        self.assertTrue(any(f.path.endswith('.tbi') for f in files))
+
     @fails_service_backend()
     @fails_local_backend()
     def test_import_gvcfs(self):
