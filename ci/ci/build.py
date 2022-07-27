@@ -647,6 +647,9 @@ rules:
 - apiGroups: [""]
   resources: ["*"]
   verbs: ["*"]
+- apiGroups: ["apps"]
+  resources: ["deployments"]
+  verbs: ["*"]
 ---
 apiVersion: v1
 kind: ServiceAccount
