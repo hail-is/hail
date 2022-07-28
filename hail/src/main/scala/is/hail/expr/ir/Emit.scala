@@ -1299,8 +1299,18 @@ class Emit[C](
       case RNGSplit(state, dynBitstring) =>
         // FIXME: When new rng support is complete, don't allow missing states
         emitI(state).flatMap(cb) { stateValue =>
-          emitI(dynBitstring).map(cb) { tuple =>
-            val longs = tuple.valueTuple.asInstanceOf[IndexedSeq[Value[Long]]]
+          emitI(dynBitstring).map(cb) { tupleOrLong =>
+            val longs = if (tupleOrLong.isInstanceOf[SInt64Value]) {
+              Array(tupleOrLong.asInt64.value)
+            } else {
+              val tuple = tupleOrLong.asBaseStruct
+              Array.tabulate(tuple.st.size) { i =>
+                tuple.loadField(cb, i)
+                  .get(cb, "RNGSplit tuple components are required")
+                  .asInt64
+                  .value
+              }
+            }
             var result = stateValue.asRNGState
             longs.foreach(l => result = result.splitDyn(cb, l))
             result
