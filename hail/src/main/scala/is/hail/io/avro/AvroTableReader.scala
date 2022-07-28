@@ -28,7 +28,7 @@ class AvroTableReader(
 
   def partitionCounts: Option[IndexedSeq[Long]] = None
 
-  def fullType: TableType =
+  override lazy val fullType: TableType =
     TableType(partitionReader.fullRowType, unsafeOptions.map(_.key).getOrElse(IndexedSeq()), TStruct())
 
   override def concreteRowRequiredness(ctx: ExecuteContext, requestedType: TableType): VirtualTypeWithReq =

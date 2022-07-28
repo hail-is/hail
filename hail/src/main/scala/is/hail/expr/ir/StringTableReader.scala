@@ -89,7 +89,7 @@ case class StringTablePartitionReader(lines: GenericLines, uidFieldName: String)
           val contextAsJavaValue = coerce[Any](StringFunctions.svalueToJavaValue(cb, partitionRegion, partitionContext))
 
           cb.assign(fileName, partitionContext.loadField(cb, "file").get(cb).asString.loadString(cb))
-          cb.assign(partIdx, partitionContext.loadField(cb, "partitionIndex").get(cb).asLong.value)
+          cb.assign(partIdx, partitionContext.loadField(cb, "partitionIndex").get(cb).asInt.value.toL)
           cb.assign(rowIdx, -1L)
 
           cb.assign(iter,
@@ -143,8 +143,8 @@ class StringTableReader(
   fileStatuses: IndexedSeq[FileStatus]
 ) extends TableReader {
 
-  val fullType: TableType = TableType(
-    TStruct("file"-> TString, "text" -> TString, uidFieldName -> TInt64),
+  override lazy val fullType: TableType = TableType(
+    TStruct("file"-> TString, "text" -> TString, uidFieldName -> TTuple(TInt64, TInt64)),
     FastIndexedSeq.empty,
     TStruct())
 
@@ -181,7 +181,7 @@ class StringTableReader(
     ).subsetTo(requestedType.rowType))
 
   override def uidRequiredness: VirtualTypeWithReq =
-    VirtualTypeWithReq(PInt64Required)
+    VirtualTypeWithReq(PCanonicalTuple(true, PInt64Required, PInt64Required))
 
   override def globalRequiredness(ctx: ExecuteContext, requestedType: TableType): VirtualTypeWithReq =
     VirtualTypeWithReq(PCanonicalStruct.empty(required = true))

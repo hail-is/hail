@@ -1814,7 +1814,7 @@ class MatrixVCFReader(
   }
 
   override def lowerGlobals(ctx: ExecuteContext, requestedGlobalsType: TStruct): IR = {
-    val globals = Row(sampleIDs.map(Row(_)).toFastIndexedSeq)
+    val globals = Row(sampleIDs.zipWithIndex.map(t => Row(t._1, t._2.toLong)).toFastIndexedSeq)
     Literal.coerce(requestedGlobalsType,
       fullType.globalType.valueSubsetter(requestedGlobalsType)
         .apply(globals))

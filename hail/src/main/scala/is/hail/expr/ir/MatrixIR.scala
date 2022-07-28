@@ -95,6 +95,9 @@ object MatrixReader {
 }
 
 trait MatrixReader {
+  assert(fullMatrixType.rowType.fieldNames.contains(rowUIDFieldName))
+  assert(fullMatrixType.colType.fieldNames.contains(colUIDFieldName))
+
   def pathsUsed: Seq[String]
 
   def columnCount: Option[Int]
@@ -117,9 +120,8 @@ trait MatrixReader {
     TableType(
       rowType = if (mt.rowType.hasField(rowUIDFieldName))
         mt.rowType.deleteKey(rowUIDFieldName)
-          .insertFields(Array(
-            LowerMatrixIR.entriesFieldName -> TArray(mt.entryType),
-            TableReader.uidFieldName -> mt.rowType.fieldType(rowUIDFieldName)))
+          .appendKey(LowerMatrixIR.entriesFieldName, TArray(mt.entryType))
+          .appendKey(TableReader.uidFieldName, mt.rowType.fieldType(rowUIDFieldName))
       else
         mt.rowType.appendKey(LowerMatrixIR.entriesFieldName, TArray(mt.entryType)),
       key = mt.rowKey,
@@ -143,7 +145,7 @@ trait MatrixReader {
 }
 
 abstract class MatrixHybridReader extends TableReader with MatrixReader {
-  lazy val fullType: TableType = matrixToTableType(fullMatrixType)
+  override lazy val fullType: TableType = matrixToTableType(fullMatrixType)
 
   override def defaultRender(): String = super.defaultRender()
 
@@ -230,6 +232,7 @@ class MatrixNativeReader(
   val params: MatrixNativeReaderParameters,
   spec: AbstractMatrixTableSpec
 ) extends MatrixReader {
+  assert(!spec.matrix_type.rowType.hasField(rowUIDFieldName))
   def pathsUsed: Seq[String] = FastSeq(params.path)
 
   override def renderShort(): String = s"(MatrixNativeReader ${ params.path } ${ params.options.map(_.renderShort()).getOrElse("") })"
@@ -241,11 +244,11 @@ class MatrixNativeReader(
 
   def partitionCounts: Option[IndexedSeq[Long]] = if (params.options.isEmpty) Some(spec.partitionCounts) else None
 
-  def fullMatrixType: MatrixType = spec.matrix_type.copy(
-    rowType = spec.matrix_type.rowType.insertFields(
-      Array(rowUIDFieldName -> TTuple(TInt64, TInt64))),
-    colType = spec.matrix_type.colType.insertFields(
-      Array(colUIDFieldName -> TTuple(TInt64, TInt64))))
+  lazy val fullMatrixType: MatrixType = spec.matrix_type.copy(
+    rowType = spec.matrix_type.rowType.appendKey(
+      rowUIDFieldName, TTuple(TInt64, TInt64)),
+    colType = spec.matrix_type.colType.appendKey(
+      colUIDFieldName, TTuple(TInt64, TInt64)))
 
   override def lower(requestedType: MatrixType, dropCols: Boolean, dropRows: Boolean): TableIR = {
     val rowsPath = params.path + "/rows"
@@ -353,12 +356,12 @@ class MatrixRangeReader(
   nPartitionsAdj: Int
 ) extends MatrixReader {
   def pathsUsed: Seq[String] = FastSeq()
-  val fullMatrixType: MatrixType = MatrixType(
+  lazy val fullMatrixType: MatrixType = MatrixType(
     globalType = TStruct.empty,
     colKey = Array("col_idx"),
-    colType = TStruct("col_idx" -> TInt32),
+    colType = TStruct("col_idx" -> TInt32, colUIDFieldName -> TInt64),
     rowKey = Array("row_idx"),
-    rowType = TStruct("row_idx" -> TInt32),
+    rowType = TStruct("row_idx" -> TInt32, rowUIDFieldName -> TInt64),
     entryType = TStruct.empty)
 
   override def renderShort(): String = s"(MatrixRangeReader $params $nPartitionsAdj)"
@@ -372,16 +375,16 @@ class MatrixRangeReader(
     val nColsAdj = if (dropCols) 0 else params.nCols
     var ht = TableRange(nRowsAdj, params.nPartitions.getOrElse(HailContext.backend.defaultParallelism))
       .rename(Map("idx" -> "row_idx"))
-    if (requestedType.colType.fieldNames.contains(MatrixReader.colUIDFieldName))
+    if (requestedType.colType.fieldNames.contains(colUIDFieldName))
       ht = ht.mapGlobals(makeStruct(LowerMatrixIR.colsField ->
-        irRange(0, nColsAdj).map('i ~> makeStruct('col_idx -> 'i, Symbol(MatrixReader.colUIDFieldName) -> 'i))))
+        irRange(0, nColsAdj).map('i ~> makeStruct('col_idx -> 'i, Symbol(colUIDFieldName) -> 'i.toL))))
     else
       ht = ht.mapGlobals(makeStruct(LowerMatrixIR.colsField ->
         irRange(0, nColsAdj).map('i ~> makeStruct('col_idx -> 'i))))
-    if (requestedType.rowType.fieldNames.contains(MatrixReader.rowUIDFieldName))
+    if (requestedType.rowType.fieldNames.contains(rowUIDFieldName))
       ht = ht.mapRows('row.insertFields(
         LowerMatrixIR.entriesField -> irRange(0, nColsAdj).map('i ~> makeStruct()),
-        Symbol(MatrixReader.rowUIDFieldName) -> 'row('row_idx)))
+        Symbol(rowUIDFieldName) -> 'row('row_idx).toL))
     else
       ht = ht.mapRows('row.insertFields(
         LowerMatrixIR.entriesField ->

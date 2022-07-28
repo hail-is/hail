@@ -302,7 +302,7 @@ class MatrixPLINKReader(
   partitioner: RVDPartitioner
 ) extends MatrixHybridReader {
 
-  val fullMatrixType = matrixType.copy(
+  lazy val fullMatrixType = matrixType.copy(
     rowType = matrixType.rowType.insertFields(Array(
       rowUIDFieldName -> TInt64)),
     colType = matrixType.colType.insertFields(Array(

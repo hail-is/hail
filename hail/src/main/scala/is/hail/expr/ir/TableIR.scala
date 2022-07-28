@@ -589,7 +589,9 @@ case class PartitionRVDReader(rvd: RVD, uidFieldName: String) extends PartitionR
   def toJValue: JValue = JString("<PartitionRVDReader>") // cannot be parsed, but need a printout for Pretty
 }
 
-abstract class AbstractNativeReader(uidFieldName: String) extends PartitionReader {
+trait AbstractNativeReader extends PartitionReader {
+  def uidFieldName: String
+
   def spec: AbstractTypedCodecSpec
 
   override def rowRequiredness(requestedType: TStruct): RStruct = {
@@ -610,7 +612,7 @@ abstract class AbstractNativeReader(uidFieldName: String) extends PartitionReade
 }
 
 case class PartitionNativeReader(spec: AbstractTypedCodecSpec, uidFieldName: String)
-  extends AbstractNativeReader(uidFieldName) {
+  extends AbstractNativeReader {
 
   def contextType: Type = TStruct("partitionIndex" -> TInt64, "partitionPath" -> TString)
 
@@ -689,7 +691,7 @@ case class PartitionNativeReaderIndexed(
   indexSpec: AbstractIndexSpec,
   key: IndexedSeq[String],
   uidFieldName: String
-) extends AbstractNativeReader(uidFieldName) {
+) extends AbstractNativeReader {
   def contextType: Type = TStruct(
     "partitionIndex" -> TInt64,
     "partitionPath" -> TString,
@@ -712,7 +714,7 @@ case class PartitionNativeReaderIndexed(
       requestedType
 
     val (eltType: PBaseStruct, makeDec) = spec.buildDecoder(ctx, concreteType)
-    val concreteSType: SBaseStructPointer = SBaseStructPointer(eltType)
+    val concreteSType: SBaseStructPointer = SBaseStructPointer(eltType.setRequired(false).asInstanceOf[PBaseStruct])
     val uidSType: SStackStruct = SStackStruct(
       TTuple(TInt64, TInt64),
       Array(EmitType(SInt64, true), EmitType(SInt64, true)))
@@ -1051,8 +1053,8 @@ case class PartitionZippedIndexedNativeReader(
           val tuple = cb.memoize(indexReader.invoke[Interval, (Long, Long)](
             "boundsByInterval",
             getInterval(cb, partitionRegion, ctxStruct)))
-          cb.assign(curIdx, tuple.invoke[Long]("_1"))
-          cb.assign(endIdx, tuple.invoke[Long]("_2"))
+          cb.assign(curIdx, Code.checkcast[java.lang.Long](tuple.invoke[Object]("_1")).invoke[Long]("longValue"))
+          cb.assign(endIdx, Code.checkcast[java.lang.Long](tuple.invoke[Object]("_2")).invoke[Long]("longValue"))
 
           cb.ifx(endIdx > curIdx, {
             val lcHead = cb.newLocal[LeafChild]("lcHead", indexReader.invoke[Long, LeafChild]("queryByIndex", curIdx))
@@ -1130,7 +1132,7 @@ class TableNativeReader(
 
   override def isDistinctlyKeyed: Boolean = spec.isDistinctlyKeyed
 
-  def fullType: TableType = spec.table_type.copy(
+  override lazy val fullType: TableType = spec.table_type.copy(
     rowType = spec.table_type.rowType.insertFields(
       Array((uidFieldName, TTuple(TInt64, TInt64)))))
 
@@ -1154,7 +1156,16 @@ class TableNativeReader(
         params.options.map(opts => RVDPartitioner.union(requestedType.keyType, opts.intervals, requestedType.key.length - 1))
       else
         params.options.map(opts => new RVDPartitioner(requestedType.keyType, opts.intervals))
-      val rvd = spec.rowsComponent.read(ctx, params.path, requestedType.rowType, uidFieldName, partitioner, filterIntervals)
+
+      // If the data on disk already has a uidFieldName field, we should read it
+      // as is. Do this by passing a dummy uidFieldName to the rows component,
+      // which is not in the requestedType, so is ignored.
+      val requestedUIDFieldName = if (spec.table_type.rowType.hasField(uidFieldName))
+        "__dummy_uid"
+      else
+        uidFieldName
+
+      val rvd = spec.rowsComponent.read(ctx, params.path, requestedType.rowType, requestedUIDFieldName, partitioner, filterIntervals)
       if (!rvd.typ.key.startsWith(requestedType.key))
         fatal(s"Error while reading table ${params.path}: legacy table written without key." +
           s"\n  Read and write with version 0.2.70 or earlier")
@@ -1204,7 +1215,15 @@ class TableNativeReader(
     else
       params.options.map(opts => new RVDPartitioner(specPart.kType, opts.intervals))
 
-    spec.rowsSpec.readTableStage(ctx, spec.rowsComponent.absolutePath(params.path), requestedType, uidFieldName, partitioner, filterIntervals).apply(globals)
+    // If the data on disk already has a uidFieldName field, we should read it
+    // as is. Do this by passing a dummy uidFieldName to the rows component,
+    // which is not in the requestedType, so is ignored.
+    val requestedUIDFieldName = if (spec.table_type.rowType.hasField(uidFieldName))
+      "__dummy_uid"
+    else
+      uidFieldName
+
+    spec.rowsSpec.readTableStage(ctx, spec.rowsComponent.absolutePath(params.path), requestedType, requestedUIDFieldName, partitioner, filterIntervals).apply(globals)
   }
 }
 
@@ -1233,7 +1252,7 @@ case class TableNativeZippedReader(
   override lazy val fullType: TableType =
     specLeft.table_type.copy(
       rowType = (specLeft.table_type.rowType ++ specRight.table_type.rowType)
-        .insertFields(Array(uidFieldName -> TTuple(TInt64, TInt64))))
+        .appendKey(uidFieldName, TTuple(TInt64, TInt64)))
   private val leftFieldSet = specLeft.table_type.rowType.fieldNames.toSet
   private val rightFieldSet = specRight.table_type.rowType.fieldNames.toSet
 

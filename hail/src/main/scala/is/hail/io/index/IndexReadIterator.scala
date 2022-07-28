@@ -11,6 +11,10 @@ import org.apache.spark.ExposedMetrics
 import org.apache.spark.executor.InputMetrics
 import org.apache.spark.sql.Row
 
+trait CountedIterator[T] extends Iterator[T] {
+  def getCurIdx: Long
+}
+
 class IndexReadIterator(
   theHailClassLoader: HailClassLoader,
   makeDec: (InputStream, HailClassLoader) => Decoder,
@@ -20,7 +24,7 @@ class IndexReadIterator(
   offsetField: String, // can be null
   bounds: Interval,
   metrics: InputMetrics = null
-) extends Iterator[Long] {
+) extends CountedIterator[Long] {
 
   private[this] val (startIdx, endIdx) = idxr.boundsByInterval(bounds)
   private[this] var curIdx = startIdx

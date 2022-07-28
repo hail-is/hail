@@ -112,6 +112,7 @@ class PartitionIteratorLongReader(
     JObject(
       "category" -> JString("PartitionIteratorLongReader"),
       "fullRowType" -> Extraction.decompose(fullRowType)(PartitionReader.formats),
+      "uidFieldName" -> JString(uidFieldName),
       "contextType" -> Extraction.decompose(contextType)(PartitionReader.formats))
   }
 }

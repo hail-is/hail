@@ -256,7 +256,7 @@ object HailContext {
   }
 
   def appendUIDIterator(
-    it: Iterator[Long],
+    it: CountedIterator[Long],
     basePType: PStruct,
     uidFieldName: String,
     partitionIndex: Long,
@@ -265,12 +265,11 @@ object HailContext {
     val uidPType = PCanonicalTuple(true, PInt64Required, PInt64Required)
     val fullPType = basePType.appendKey(uidFieldName, uidPType)
 
-    var curIdx: Long = 0
-
     def hasNext: Boolean = it.hasNext
     def next(): Long = {
-      val addr = appendUIDField(it.next(), region, partitionIndex, curIdx, basePType, uidPType, fullPType)
-      curIdx += 1
+      val nextRaw = it.next()
+      val nextIdx = it.getCurIdx
+      val addr = appendUIDField(nextRaw, region, partitionIndex, nextIdx, basePType, uidPType, fullPType)
       addr
     }
   }
@@ -392,18 +391,19 @@ object HailContext {
     path: String,
     indexSpec: AbstractIndexSpec,
     enc: AbstractTypedCodecSpec,
-    partFiles: Array[String],
+    files: Array[String],
+    partToFile: Array[Int],
     bounds: Array[Interval],
     requestedType: TStruct,
     uidFieldName: String
   ): (PStruct, ContextRDD[Long]) = {
     val (pType: PStruct, makeDec) = enc.buildDecoder(ctx, requestedType)
-    (pType, ContextRDD.weaken(readIndexedPartitions(ctx, path, indexSpec, partFiles, Some(bounds)))
-      .cmapPartitionsWithIndex { (partIdx, ctx, it) =>
+    (pType, ContextRDD.weaken(readIndexedPartitions(ctx, path, indexSpec, files, partToFile, Some(bounds)))
+      .cmapPartitions { (ctx, it) =>
         assert(it.hasNext)
-        val (is, idxr, bounds, m) = it.next
+        val (is, idxr, bounds, m, fileNum) = it.next
         assert(!it.hasNext)
-        readRowsIndexedPartition(makeDec)(theHailClassLoaderForSparkWorkers, ctx, is, idxr, indexSpec.offsetField, bounds, partIdx, m, uidFieldName)
+        readRowsIndexedPartition(makeDec)(theHailClassLoaderForSparkWorkers, ctx, is, idxr, indexSpec.offsetField, bounds, fileNum, m, uidFieldName)
       })
   }
 
@@ -411,9 +411,10 @@ object HailContext {
     ctx: ExecuteContext,
     path: String,
     indexSpec: AbstractIndexSpec,
-    partFiles: Array[String],
+    files: Array[String],
+    partToFile: Array[Int],
     intervalBounds: Option[Array[Interval]] = None
-  ): RDD[(InputStream, IndexReader, Option[Interval], InputMetrics)] = {
+  ): RDD[(InputStream, IndexReader, Option[Interval], InputMetrics, Int)] = {
     val idxPath = indexSpec.relPath
     val fsBc = ctx.fsBc
     val (keyType, annotationType) = indexSpec.types
@@ -425,13 +426,16 @@ object HailContext {
     val (intPType: PStruct, intDec) = indexSpec.internalNodeCodec.buildDecoder(ctx, indexSpec.internalNodeCodec.encodedVirtualType)
     val mkIndexReader = IndexReaderBuilder.withDecoders(leafDec, intDec, keyType, annotationType, leafPType, intPType)
 
+    val partFiles = partToFile.map(files.apply)
+
     new IndexReadRDD(partFiles, intervalBounds, { (p, context) =>
       val fs = fsBc.value
       val idxname = s"$path/$idxPath/${ p.file }.idx"
       val filename = s"$path/parts/${ p.file }"
       val idxr = mkIndexReader(theHailClassLoaderForSparkWorkers, fs, idxname, 8, SparkTaskContext.get().getRegionPool()) // default cache capacity
       val in = fs.open(filename)
-      (in, idxr, p.bounds, context.taskMetrics().inputMetrics)
+      val fileNum = partToFile(p.index)
+      (in, idxr, p.bounds, context.taskMetrics().inputMetrics, fileNum)
     })
   }
 

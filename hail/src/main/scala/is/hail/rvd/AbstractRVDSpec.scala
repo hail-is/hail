@@ -183,7 +183,7 @@ object AbstractRVDSpec {
         val kSize = specLeft.key.size
         val contextsValues: IndexedSeq[Row] = partsAndIntervals.zipWithIndex.map { case ((partPath, interval), partIdx) =>
           Row(
-            partIdx,
+            partIdx.toLong,
             s"${ absPathLeft }/parts/${ partPath }",
             s"${ absPathRight }/parts/${ partPath }",
             s"${ absPathLeft }/${ indexSpecLeft.relPath }/${ partPath }.idx",
@@ -537,11 +537,11 @@ case class IndexedRVDSpec2(
         val tmpPartitioner = partitioner.intersect(extendedNP)
 
         assert(key.nonEmpty)
-        val parts = tmpPartitioner.rangeBounds.map { b => partFiles(partitioner.lowerBoundInterval(b)) }
+        val partToFile = tmpPartitioner.rangeBounds.map(partitioner.lowerBoundInterval)
 
         val (decPType: PStruct, crdd) = HailContext.readIndexedRows(
           ctx, path, _indexSpec, typedCodecSpec,
-          parts, tmpPartitioner.rangeBounds, requestedType, uidFieldName)
+          partFiles, partToFile, tmpPartitioner.rangeBounds, requestedType, uidFieldName)
         val rvdType = RVDType(decPType, requestedKey)
         val tmprvd = RVD(rvdType, tmpPartitioner.coarsen(requestedKey.length), crdd)
 
@@ -584,7 +584,7 @@ case class IndexedRVDSpec2(
         val partIdx = partitioner.lowerBoundInterval(interval)
         val partPath = partFiles(partIdx)
         Row(
-          partIdx,
+          partIdx.toLong,
           s"${ absPath }/parts/${ partPath }",
           s"${ absPath }/${ indexSpec.relPath }/${ partPath }.idx",
           RVDPartitioner.intervalToIRRepresentation(interval, kSize))

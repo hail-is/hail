@@ -1489,11 +1489,24 @@ object IRParser {
           pred <- ir_value_expr(env.withRefMap(child.typ.refMap))(it)
         } yield TableFilter(child, pred)
       case "TableRead" =>
-        val requestedType = opt(it, table_type_expr(env.typEnv))
+        val requestedTypeRaw = it.head match {
+          case x: IdentifierToken if x.value == "None" || x.value == "DropRowUIDs" =>
+            consumeToken(it)
+            Left(x.value)
+          case _ =>
+            Right(table_type_expr(env.typEnv)(it))
+        }
         val dropRows = boolean_literal(it)
         val readerStr = string_literal(it)
         val reader = TableReader.fromJValue(env.ctx.fs, JsonMethods.parse(readerStr).asInstanceOf[JObject])
-        done(TableRead(requestedType.getOrElse(reader.fullType), dropRows, reader))
+        val fullType = reader.fullType
+        val requestedType = requestedTypeRaw match {
+          case Left("None") => fullType
+          case Left("DropRowUIDs") => fullType.copy(
+            rowType = fullType.rowType.deleteKey(reader.uidFieldName))
+          case Right(t) => t
+        }
+        done(TableRead(requestedType, dropRows, reader))
       case "MatrixColsTable" => matrix_ir(env)(it).map(MatrixColsTable)
       case "MatrixRowsTable" => matrix_ir(env)(it).map(MatrixRowsTable)
       case "MatrixEntriesTable" => matrix_ir(env)(it).map(MatrixEntriesTable)
@@ -1719,12 +1732,30 @@ object IRParser {
           rowExpr <- ir_value_expr(newEnv)(it)
         } yield MatrixAggregateRowsByKey(child, entryExpr, rowExpr)
       case "MatrixRead" =>
-        val requestedType = opt(it, matrix_type_expr(env.typEnv))
+        val requestedTypeRaw = it.head match {
+          case x: IdentifierToken if x.value == "None" || x.value == "DropColUIDs" || x.value == "DropRowUIDs" || x.value == "DropRowColUIDs" =>
+            consumeToken(it)
+            Left(x.value)
+          case _ =>
+            Right(matrix_type_expr(env.typEnv)(it))
+        }
         val dropCols = boolean_literal(it)
         val dropRows = boolean_literal(it)
         val readerStr = string_literal(it)
         val reader = MatrixReader.fromJson(env, JsonMethods.parse(readerStr).asInstanceOf[JObject])
-        done(MatrixRead(requestedType.getOrElse(reader.fullMatrixType), dropCols, dropRows, reader))
+        val fullType = reader.fullMatrixType
+        val requestedType = requestedTypeRaw match {
+          case Left("None") => fullType
+          case Left("DropRowUIDs") => fullType.copy(
+            rowType = fullType.rowType.deleteKey(reader.rowUIDFieldName))
+          case Left("DropColUIDs") => fullType.copy(
+            colType = fullType.colType.deleteKey(reader.colUIDFieldName))
+          case Left("DropRowColUIDs") => fullType.copy(
+            rowType = fullType.rowType.deleteKey(reader.rowUIDFieldName),
+            colType = fullType.colType.deleteKey(reader.colUIDFieldName))
+          case Right(t) => t
+        }
+        done(MatrixRead(requestedType, dropCols, dropRows, reader))
       case "MatrixAnnotateRowsTable" =>
         val root = string_literal(it)
         val product = boolean_literal(it)

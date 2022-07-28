@@ -451,6 +451,9 @@ class MatrixIR(BaseIR):
             return self
         result = self._handle_randomness(row_uid_field_name, col_uid_field_name)
         assert result is not None
+        if not (row_uid_field_name is None or row_uid_field_name in result.typ.row_type):
+            print(self)
+            print(result)
         assert row_uid_field_name is None or row_uid_field_name in result.typ.row_type
         assert col_uid_field_name is None or col_uid_field_name in result.typ.col_type
         return result

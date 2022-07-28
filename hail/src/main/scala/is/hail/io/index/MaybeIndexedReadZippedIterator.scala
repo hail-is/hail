@@ -22,7 +22,7 @@ class MaybeIndexedReadZippedIterator(
   entriesOffsetField: String,
   bounds: Interval,
   metrics: InputMetrics = null
-) extends Iterator[Long] {
+) extends CountedIterator[Long] {
 
   private[this] var closed: Boolean = false
 
@@ -40,7 +40,9 @@ class MaybeIndexedReadZippedIterator(
       throw e
   }
 
-  private[this] var n = startAndEnd.map(x => x._2 - x._1)
+  private[this] val isIndexed: Boolean = idxr != null
+  private[this] val endIdx: Long = startAndEnd.map(_._2).getOrElse(0)
+  private[this] var curIdx: Long = startAndEnd.map(_._1).getOrElse(0)
 
   private[this] val trackedRowsIn = new ByteTrackingInputStream(isRows)
   private[this] val trackedEntriesIn = new ByteTrackingInputStream(isEntries)
@@ -49,7 +51,7 @@ class MaybeIndexedReadZippedIterator(
   private[this] val entriesIdxField = Option(entriesOffsetField).map { f => idxr.annotationType.asInstanceOf[TStruct].fieldIdx(f) }
 
   private[this] val rows = try {
-    if (n.forall(_ > 0)) {
+    if (!isIndexed || curIdx < endIdx) {
       val dec = mkRowsDec(trackedRowsIn)
       firstAnnotation.foreach { i =>
         val off = rowsIdxField.map { j => i.annotation.asInstanceOf[Row].getAs[Long](j) }.getOrElse(i.recordOffset)
@@ -100,7 +102,9 @@ class MaybeIndexedReadZippedIterator(
 
   private var cont: Byte = if (rows != null) nextCont() else 0
 
-  def hasNext: Boolean = cont != 0 && n.forall(_ > 0)
+  override def getCurIdx: Long = curIdx
+
+  def hasNext: Boolean = cont != 0 && (!isIndexed || curIdx < endIdx)
 
   def next(): Long = _next()
 
@@ -108,7 +112,7 @@ class MaybeIndexedReadZippedIterator(
     if (!hasNext)
       throw new NoSuchElementException("next on empty iterator")
 
-    n = n.map(_ - 1)
+    curIdx += 1
     try {
       val rowOff = rows.readRegionValue(region)
       val entOff = entries.readRegionValue(region)
