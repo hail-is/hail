@@ -152,8 +152,14 @@ abstract class FSSeekableInputStream extends InputStream with Seekable {
   }
 
   def seek(newPos: Long): Unit = {
-    bb.clear()
-    bb.limit(0)
+    val distance = (newPos - pos).toInt
+    val seekPosition = bb.position() + distance
+    if (seekPosition >= 0 && seekPosition < bb.limit()) {
+      bb.position(seekPosition)
+    } else {
+      bb.clear()
+      bb.limit(0)
+    }
     pos = newPos
   }
 
