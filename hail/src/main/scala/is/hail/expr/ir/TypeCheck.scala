@@ -276,9 +276,8 @@ object TypeCheck {
       case RNGSplit(state, dynBitstring) =>
         assert(state.typ == TRNGState)
         def isValid: Type => Boolean = {
-          case tuple: TTuple => tuple.types.forall(isValid)
-          case TInt64 => true
-          case _ => false
+          case tuple: TTuple => tuple.types.forall(_ == TInt64)
+          case t => t == TInt64
         }
         assert(isValid(dynBitstring.typ))
       case StreamLen(a) =>
