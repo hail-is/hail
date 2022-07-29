@@ -682,6 +682,7 @@ INNER JOIN sessions ON users.id = sessions.user_id
 WHERE users.state = 'active' AND (sessions.session_id = %s) AND (ISNULL(sessions.max_age_secs) OR (NOW() < TIMESTAMPADD(SECOND, sessions.max_age_secs, sessions.created)));
 ''',
             session_id,
+            'get_userinfo',
         )
     ]
 

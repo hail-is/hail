@@ -12,17 +12,32 @@ from hailtop import httpx
 from hailtop.auth import async_get_userinfo
 from hailtop.config import get_deploy_config
 
+from .time_limited_max_size_cache import TimeLimitedMaxSizeCache
+
 log = logging.getLogger('gear.auth')
 
 deploy_config = get_deploy_config()
 
 BEARER = 'Bearer '
 
+TEN_SECONDS_NANOSECONDS = int(1e10)
+
+USERDATA_CACHE = None
+
 
 def maybe_parse_bearer_header(value: str) -> Optional[str]:
     if value.startswith(BEARER):
         return value[len(BEARER) :]
     return None
+
+
+def _init_userdata_cache(client_session: httpx.ClientSession):
+    global USERDATA_CACHE
+
+    async def load(session_id):
+        return _userdata_from_session_id(session_id, client_session)
+
+    USERDATA_CACHE = TimeLimitedMaxSizeCache(load, TEN_SECONDS_NANOSECONDS, 100, 'session_userdata_cache')
 
 
 async def _userdata_from_session_id(session_id: str, client_session: httpx.ClientSession):
@@ -44,7 +59,10 @@ async def userdata_from_web_request(request):
     session = await aiohttp_session.get_session(request)
     if 'session_id' not in session:
         return None
-    return await _userdata_from_session_id(session['session_id'], request.app['client_session'])
+
+    if USERDATA_CACHE is None:
+        _init_userdata_cache(request.app['client_session'])
+    return await USERDATA_CACHE.lookup(session['session_id'])
 
 
 async def userdata_from_rest_request(request):
@@ -53,8 +71,11 @@ async def userdata_from_rest_request(request):
     auth_header = request.headers['Authorization']
     session_id = maybe_parse_bearer_header(auth_header)
     if not session_id:
-        return session_id
-    return await _userdata_from_session_id(auth_header[7:], request.app['client_session'])
+        return None
+
+    if USERDATA_CACHE is None:
+        _init_userdata_cache(request.app['client_session'])
+    return await USERDATA_CACHE.lookup(session_id)
 
 
 def rest_authenticated_users_only(fun):
