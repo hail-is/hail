@@ -3041,6 +3041,8 @@ def import_avro(paths, *, key=None, intervals=None):
            vqsr_tranche_data=sequenceof(str),
            final_path=str,
            tmp_dir=str,
+           truth_sensitivity_snp_threshold=float,
+           truth_sensitivity_indel_threshold=float,
            reference_genome=reference_genome_type)
 def import_gvs(refs: 'List[List[str]]',
                vets: 'List[List[str]]',
@@ -3050,6 +3052,8 @@ def import_gvs(refs: 'List[List[str]]',
                vqsr_tranche_data: 'List[str]',
                final_path: 'str',
                tmp_dir: 'str',
+               truth_sensitivity_snp_threshold: 'float' = 0.997,
+               truth_sensitivity_indel_threshold: 'float' = 0.990,
                reference_genome='GRCh38'):
     """Import a collection of Avro files exported from GVS.
 
@@ -3128,6 +3132,10 @@ def import_gvs(refs: 'List[List[str]]',
         Desired path to final VariantDataset on disk.
     tmp_dir : :class:`str`
         Path to network-visible temporary directory/bucket for intermediate file storage.
+    truth_sensitivity_snp_threshold : :class:`float`
+        VQSR sensitivity threshold for SNPs.
+    truth_sensitivity_indel_threshold : :class:`float`
+        VQSR sensitivity threshold for Indels.
     reference_genome : :class:`str` or :class:`.ReferenceGenome`
         Name or object referring to reference genome.
 
@@ -3203,11 +3211,13 @@ def import_gvs(refs: 'List[List[str]]',
 
         # transform fields to Hail expectations (locus object, GQ int32, end as absolute instead of relative
         ref_ht = ref_ht.transmute(locus=new_loc,
-                          GQ=translate_state(ref_ht.state),
-                          END=new_loc.position + hl.int32(ref_ht.length) - 1)
+                                  GQ=translate_state(ref_ht.state),
+                                  END=new_loc.position + hl.int32(ref_ht.length) - 1)
         ref_ht = ref_ht.key_by('locus')
         ref_ht = ref_ht.group_by(ref_ht.locus).aggregate(data_per_sample=hl.agg.collect(ref_ht.row.drop('locus')))
         ref_ht = ref_ht.transmute(entries=convert_array_with_id_keys_to_dense_array(ref_ht.data_per_sample, sample_ids))
+
+        # vds column keys assume string sample IDs
         ref_ht = ref_ht.annotate_globals(col_data=hl.literal(samples).map(lambda s: hl.struct(s=s)))
         ref_mt = ref_ht._unlocalize_entries('entries', 'col_data', col_key=['s'])
 
@@ -3216,13 +3226,15 @@ def import_gvs(refs: 'List[List[str]]',
 
         var_ht = hl.import_avro(var_group)
         var_ht = var_ht.transmute(locus=translate_locus(var_ht.location),
-                          local_alleles=var_ht.alt.split(','),
-                          LGT=hl.parse_call(var_ht.GT),
-                          GQ=hl.int32(var_ht.GQ),
-                          RGQ=hl.int32(var_ht.RGQ))
+                                  local_alleles=var_ht.alt.split(','),
+                                  LGT=hl.parse_call(var_ht.GT),
+                                  LAD=var_ht.AD.split(',').map(lambda x: hl.int32(x)),
+                                  GQ=hl.int32(var_ht.GQ),
+                                  RGQ=hl.int32(var_ht.RGQ))
         var_ht = var_ht.key_by('locus')
         var_ht = var_ht.group_by(var_ht.locus).aggregate(data_per_sample=hl.agg.collect(var_ht.row.drop('locus')))
-        var_ht = var_ht.annotate(alleles = hl.array([var_ht.data_per_sample[0].ref]).extend(hl.array(hl.set(var_ht.data_per_sample.flatmap(lambda x: x.local_alleles)))))
+        var_ht = var_ht.annotate(
+            alleles=hl.array([var_ht.data_per_sample[0].ref]).extend(hl.array(hl.set(var_ht.data_per_sample.flatmap(lambda x: x.local_alleles)))))
         var_ht = var_ht.transmute(entries=convert_array_with_id_keys_to_dense_array(var_ht.data_per_sample, sample_ids, drop=['ref']))
         var_ht = var_ht.annotate_globals(col_data=hl.literal(samples).map(lambda s: hl.struct(s=hl.str(s))))
         var_mt = var_ht._unlocalize_entries('entries', 'col_data', col_key=['s'])
@@ -3261,8 +3273,48 @@ def import_gvs(refs: 'List[List[str]]',
 
     vd = vd.annotate_rows(filters=hl.coalesce(site[vd.locus].filters, hl.empty_set(hl.tstr)))
 
-    vd = vd.annotate_rows(as_vqsr = hl.dict(vqsr.index(vd.locus, all_matches=True).map(lambda record: (record.alt, record.drop('ref', 'alt')))))
-    vd = vd.annotate_globals(tranche_data=tranche.collect(_localize=False))
+    vd = vd.annotate_rows(as_vqsr = hl.dict(vqsr.index(vd.locus, all_matches=True)
+                                            .map(lambda record: (record.alt, record.drop('ref', 'alt')))))
+    vd = vd.annotate_globals(tranche_data=tranche.collect(_localize=False),
+                             truth_sensitivity_snp_threshold=truth_sensitivity_snp_threshold,
+                             truth_sensitivity_indel_threshold=truth_sensitivity_indel_threshold)
+
+    sorted_tranche_data = hl.sorted(vd.tranche_data, key=lambda x: x.truth_sensitivity)
+    vd = vd.annotate_globals(snp_vqslod_threshold=
+                             sorted_tranche_data.filter(lambda x: (x.model == 'SNP') & (
+                                         x.truth_sensitivity >= truth_sensitivity_snp_threshold))
+                             .head()
+                             ,
+                             indel_vqslod_threshold=sorted_tranche_data.filter(lambda x: (x.model == 'INDEL') & (
+                                         x.truth_sensitivity >= truth_sensitivity_indel_threshold))
+                             .head()
+                             )
+
+    vd = vd.annotate_rows(
+        allele_NO=vd.alleles[1:].map(
+            lambda allele: hl.coalesce(vd.as_vqsr.get(allele).yng_status == 'N', False)),
+        allele_YES=vd.alleles[1:].map(
+            lambda allele: hl.coalesce(vd.as_vqsr.get(allele).yng_status == 'Y', True)),
+        allele_OK=vd.alleles[1:].map(
+            lambda alt: hl.coalesce(vd.as_vqsr.get(alt).vqslod > hl.if_else(hl.is_snp(vd.alleles[0], alt),
+                                                                            truth_sensitivity_snp_threshold,
+                                                                            truth_sensitivity_indel_threshold),
+                                    True)),
+    )
+
+    ft_criteria = (hl.range(vd.LGT.ploidy)
+                   .map(lambda idx: vd.LA[vd.LGT[idx]])
+                   .filter(lambda x: x != 0)
+                   .fold(lambda tuple, called_idx: hl.struct(
+        any_no=tuple[0] | vd.allele_NO[called_idx-1],
+        any_yes=tuple[1] | vd.allele_YES[called_idx-1],
+        all_ok_vqslod=tuple[2] & vd.allele_OK[called_idx-1])
+    , hl.struct(any_no=False, any_yes=False, all_ok_vqslod=False)))
+
+    vd = vd.annotate_entries(FT=~ft_criteria.any_no & (ft_criteria.any_yes | ft_criteria.all_ok_vqslod))
+
+    vd = vd.drop('allele_NO', 'allele_YES', 'allele_OK')
+
     hl.vds.VariantDataset(
         reference_data=rd,
         variant_data=vd,
