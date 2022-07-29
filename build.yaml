@@ -2046,6 +2046,9 @@ steps:
       - name: insert-attempt-resources-format-version-lt-3
         script: /io/sql/insert_attempt_resources_format_version_lt_3.py
         online: true
+      - name: revert-attempt-resources-trigger-back-compat
+        script: /io/sql/revert-attempt-resources-trigger-back-compat.sql
+        online: true
     inputs:
       - from: /repo/batch/sql
         to: /io/sql
