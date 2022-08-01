@@ -421,6 +421,26 @@ spec:
        - key: "kubernetes.azure.com/scalesetpriority"
          value: "spot"
       containers:
+      - name: nginx
+        image: {{ batch_driver_nginx_image.image }}
+        resources:
+          requests:
+            cpu: "100m"
+            memory: "100M"
+          limits:
+            cpu: "2.5"
+            memory: "2G"
+        ports:
+         - containerPort: 443
+        volumeMounts:
+         - name: ssl-config-batch-driver-nginx
+           mountPath: /ssl-config
+           readOnly: true
+        readinessProbe:
+          tcpSocket:
+            port: 443
+          initialDelaySeconds: 5
+          periodSeconds: 5
       - name: batch-db-proxy
         image: {{ batch_image.image }}
         command:
@@ -654,6 +674,6 @@ spec:
   ports:
   - port: 443
     protocol: TCP
-    targetPort: 5000
+    targetPort: 443
   selector:
     app: batch-db-proxy
