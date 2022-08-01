@@ -24,7 +24,7 @@ EOF
 
 set +x # do not leak the secrets into the stdout logs
 
-cat | $KUBECTL_APPLY <<EOF 
+cat | $KUBECTL_APPLY <<EOF
 apiVersion: v1
 kind: Secret
 metadata:

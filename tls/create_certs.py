@@ -101,7 +101,6 @@ def create_trust(principal, trust_type):  # pylint: disable=unused-argument
         # FIXME: mTLS, only trust certain principals
         with open(root_cert_file, 'r') as root_cert:
             shutil.copyfileobj(root_cert, out)
-
     echo_check_call(
         [
             'keytool',
@@ -117,7 +116,6 @@ def create_trust(principal, trust_type):  # pylint: disable=unused-argument
             'dummypw',
         ]
     )
-
     return {'trust': trust_file, 'trust_store': trust_store_file}
 
 

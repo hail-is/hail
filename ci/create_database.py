@@ -241,7 +241,7 @@ VALUES (%s, %s, %s);
 
         # verify checksum
         row = await db.execute_and_fetchone(
-            f'SELECT * FROM `{database_name}_migrations` WHERE version = %s;', (to_version,),
+            f'SELECT * FROM `{database_name}_migrations` WHERE version = %s;', (to_version,)
         )
         assert row is not None
         assert name == row['name'], row
