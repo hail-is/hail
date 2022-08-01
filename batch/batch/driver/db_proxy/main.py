@@ -14,6 +14,7 @@ from hailtop.tls import internal_server_ssl_context
 from hailtop.utils import time_msecs, periodically_call
 from gear import Database, setup_aiohttp_session, monitor_endpoints_middleware
 
+import googlecloudprofiler
 from prometheus_async.aio.web import server_stats
 
 from ..job import add_attempt_resources, notify_batch_job_complete
@@ -202,6 +203,13 @@ async def on_startup(app: web.Application):
 
 
 def run():
+    profiler_tag = 'dgoldste'
+    googlecloudprofiler.start(
+        service='batch-db-proxy',
+        service_version=profiler_tag,
+        # https://cloud.google.com/profiler/docs/profiling-python#agent_logging
+        verbose=3,
+    )
     app = web.Application(client_max_size=HTTP_CLIENT_MAX_SIZE, middlewares=[monitor_endpoints_middleware])
     setup_aiohttp_session(app)
 
