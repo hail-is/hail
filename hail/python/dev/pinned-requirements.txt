@@ -168,7 +168,7 @@ mccabe==0.6.1
     # via
     #   flake8
     #   pylint
-mistune==0.8.4
+mistune==2.0.4
     # via nbconvert
 mypy==0.950
     # via -r python/dev/requirements.txt
