@@ -28,6 +28,10 @@ class IRRandomness(seed: Long) {
 
   def runif(min: Double, max: Double): Double = min + (max - min) * random.nextDouble()
 
+  def rint32(n: Int): Int = random.nextInt(n)
+
+  def rint64(n: Long): Long = random.nextLong(n)
+
   def rcoin(p: Double): Boolean = random.nextDouble() < p
 
   def rpois(lambda: Double): Double = Poisson.random(lambda, random, poisState)
@@ -97,6 +101,18 @@ object RandomSeededFunctions extends RegistryFunctions {
       case (_: Type, _: SType, _: SType, _: SType) => SFloat64
     }) { case (_, cb, rt, rngState: SRNGStateStaticSizeValue, min: SFloat64Value, max: SFloat64Value, errorID) =>
       primitive(cb.memoize(rand_unif(cb, rngState.rand(cb)) * (max.value - min.value) + min.value))
+    }
+
+    registerSeeded1("rand_int32", TInt32, TInt32, {
+      case (_: Type, _: SType) => SInt32
+    }) { case (cb, r, rt, seed, n) =>
+      primitive(cb.memoize(cb.emb.newRNG(seed).invoke[Int, Int]("rint32", n.asInt.value)))
+    }
+
+    registerSeeded1("rand_int64", TInt64, TInt64, {
+      case (_: Type, _: SType) => SInt64
+    }) { case (cb, r, rt, seed, n) =>
+      primitive(cb.memoize(cb.emb.newRNG(seed).invoke[Long, Long]("rint64", n.asLong.value)))
     }
 
     registerSeeded2("rand_norm", TFloat64, TFloat64, TFloat64, {
