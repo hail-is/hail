@@ -542,8 +542,6 @@ spec:
          - name: HAIL_SHOULD_CHECK_INVARIANTS
            value: "1"
 {% endif %}
-        ports:
-         - containerPort: 5000
         volumeMounts:
          - name: deploy-config
            mountPath: /deploy-config
@@ -675,5 +673,10 @@ spec:
   - port: 443
     protocol: TCP
     targetPort: 443
+  # Instead of a single cluster IP that kube-proxy
+  # will load balance, we want a DNS query to return
+  # the pod endpoints, meanining internal-gateway can
+  # properly handle load balancing across persistent connections
+  # clusterIP: None
   selector:
     app: batch-db-proxy

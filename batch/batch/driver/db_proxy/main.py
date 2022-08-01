@@ -6,6 +6,7 @@ from typing import Dict
 import collections
 
 import json
+import uvloop
 
 from hailtop import aiotools, httpx
 from hailtop.config import get_deploy_config
@@ -18,6 +19,8 @@ from prometheus_async.aio.web import server_stats
 
 from ..job import add_attempt_resources, notify_batch_job_complete
 from ...globals import complete_states, HTTP_CLIENT_MAX_SIZE
+
+uvloop.install()
 
 log = logging.getLogger('db-proxy')
 
@@ -198,7 +201,7 @@ async def on_startup(app: web.Application):
     app['client_session'] = httpx.client_session()
 
     app['task_manager'] = aiotools.BackgroundTaskManager()
-    app['task_manager'].ensure_future(periodically_call(0.1, notify_driver_open_cores, app))
+    app['task_manager'].ensure_future(periodically_call(0.2, notify_driver_open_cores, app))
 
 
 def run():
