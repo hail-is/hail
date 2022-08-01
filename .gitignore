@@ -1,6 +1,5 @@
 *~
 *.o
-_/
 .*.crc
 .gradle/
 .idea/
