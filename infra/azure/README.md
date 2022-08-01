@@ -54,8 +54,6 @@ Once terraform has completed successfully, you must create an A record for the
 domain of your choosing pointing at the `gateway_ip` with a DNS provider. The
 `gateway_ip` may be retrieved by executing the following command.
 
-We recommend requesting a map like \*.<remaining-domain> to map to the gateway_ip
-
 ```
 terraform output -raw gateway_ip
 ```
@@ -126,7 +124,7 @@ Deploy unmanaged resources by running
 ```
 
 If the final letsencrypt step in deploy_unmangaed fails, copy the kubectl secret from
-stdout and apply it manually
+stdout and apply it manually.
 
 Build the batch worker image by running the following in $HAIL/batch:
 
@@ -146,7 +144,7 @@ cd ~/hail/infra/azure
 Create the initial (developer) user. The OBJECT_ID is the Azure Active
 Directory user's object ID.
 
-You can find the current object id locally if you're logged in ,musing:
+You can find the current object id locally if you're logged in using:
 
 ```
 az ad signed-in-user show | jq '.objectId'
