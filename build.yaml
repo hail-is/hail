@@ -12,7 +12,7 @@ steps:
     script: |
       set -ex
       cd /io
-      mkdir repo
+      mkdir -p repo
       cd repo
       {{ code.checkout_script }}
       make -C hail python-version-info
