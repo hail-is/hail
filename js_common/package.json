@@ -12,6 +12,6 @@
   },
   "devDependencies": {
     "@types/react": "^17.0.5",
-    "svelte": "^3.38.2"
+    "svelte": "^3.49.0"
   }
 }
