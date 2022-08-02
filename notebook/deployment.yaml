@@ -80,11 +80,11 @@ spec:
          image: "{{ notebook_image.image }}"
          resources:
            requests:
-             memory: 20M
-             cpu: 20m
+             cpu: "5m"
+             memory: "20M"
            limits:
-             memory: 200M
              cpu: "1"
+             memory: "200M"
          env:
           - name: HAIL_DEPLOY_CONFIG_FILE
             value: /deploy-config/deploy-config.json
@@ -116,7 +116,7 @@ spec:
          image: {{ notebook_nginx_image.image }}
          resources:
            requests:
-             cpu: "20m"
+             cpu: "5m"
              memory: "20M"
            limits:
              cpu: "1"

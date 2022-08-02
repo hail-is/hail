@@ -40,6 +40,7 @@ trait AggregatorState {
     cb += lazyBuffer.invoke[Array[Byte], Unit]("set", bytes.loadBytes(cb))
     val ib = cb.memoize(lazyBuffer.invoke[InputBuffer]("buffer"))
     deserialize(BufferSpec.defaultUncompressed)(cb, ib)
+    cb += lazyBuffer.invoke[Unit]("invalidate")
   }
 
   def serializeToRegion(cb: EmitCodeBuilder, t: PBinary, r: Value[Region]): SValue = {

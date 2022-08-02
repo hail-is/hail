@@ -429,7 +429,7 @@ class TableStage(
         }
 
         bindIR(invoke("partitionerFindIntervalRange", TTuple(TInt32, TInt32), irPartitioner, interval)) { range =>
-          val rangeStream = rangeIR(GetTupleElement(range, 0), GetTupleElement(range, 1))
+          val rangeStream = StreamRange(GetTupleElement(range, 0), GetTupleElement(range, 1), I32(1), requiresMemoryManagementPerElement = true)
           mapIR(rangeStream) { partNum =>
             InsertFields(row, FastIndexedSeq("__partNum" -> partNum))
           }

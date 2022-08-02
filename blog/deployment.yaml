@@ -27,6 +27,13 @@ spec:
       containers:
       - name: nginx
         image: {{ blog_nginx_image.image }}
+        resources:
+          requests:
+            cpu: "10m"
+            memory: "20M"
+          limits:
+            cpu: "1"
+            memory: "1G"
         ports:
         - containerPort: 443
         livenessProbe:
@@ -94,8 +101,8 @@ spec:
             name: blog-content
         resources:
           requests:
-            cpu: "100m"
-            memory: "200M"
+            cpu: "10m"
+            memory: "20M"
           limits:
             cpu: "1"
             memory: "1G"

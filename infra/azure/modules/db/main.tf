@@ -27,7 +27,7 @@ resource "azurerm_mysql_flexible_server" "db" {
   administrator_login          = "mysqladmin"
   administrator_password = random_password.db_root_password.result
 
-  version    = "5.7"
+  version    = "8.0.21"
   sku_name   = "MO_Standard_E4ds_v4" # 4 vCPU, 8192 Mb per vCPU
   storage {
     auto_grow_enabled = true
@@ -39,6 +39,8 @@ resource "azurerm_mysql_flexible_server" "db" {
   zone = 1
 
   delegated_subnet_id = var.subnet_id
+  private_dns_zone_id = azurerm_private_dns_zone.db.id
+
   depends_on = [azurerm_private_dns_zone_virtual_network_link.db]
 }
 

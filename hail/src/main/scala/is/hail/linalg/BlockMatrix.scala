@@ -2122,6 +2122,9 @@ class BlockMatrixReadRowBlockedRDD(
     val pi = split.index
     val rowsForPartition = partitionRanges(pi)
 
+    if (rowsForPartition.isEmpty) {
+      return Iterator.single(ctx => Iterator.empty)
+    }
     Iterator.single { ctx =>
       val region = ctx.region
       val rvb = new RegionValueBuilder(region)

@@ -2016,14 +2016,17 @@ def import_matrix_table(paths,
             return "/".join(file_name.split('/')[-3:]) if len(file_name) <= 4 else \
                 "/" + "/".join(file_name.split('/')[-3:])
 
+    file_start_array = None
+
     def get_file_start(row):
-        first_lines = first_lines_table.collect()
-        if first_lines:
-            file_start_array = hl.array(list(map(lambda line: (line.file, line.idx), first_lines)))
-            match_file_idx = file_start_array.index(lambda line_tuple: line_tuple[0] == row.file)
-            return file_start_array[match_file_idx][1]
-        else:
-            return 0
+        nonlocal file_start_array
+        if file_start_array is None:
+            collect_expr = first_lines_table.collect(_localize=False).map(lambda line: (line.file, line.idx))
+            file_start_array = hl.literal(hl.eval(collect_expr), dtype=collect_expr.dtype)
+        return hl.coalesce(
+            file_start_array.filter(lambda line_tuple: line_tuple[0] == row.file).map(
+                lambda line_tuple: line_tuple[1]).first(),
+            0)
 
     def validate_row_fields():
         unique_fields = {}
@@ -2811,8 +2814,6 @@ def import_gvcfs(path,
 
 def import_vcfs(path,
                 partitions,
-                force=False,
-                force_bgz=False,
                 call_fields=['PGT'],
                 entry_float_type=tfloat64,
                 reference_genome='default',
@@ -2826,8 +2827,6 @@ def import_vcfs(path,
     """This function is deprecated, use :func:`.import_gvcfs` instead"""
     return import_gvcfs(path,
                         partitions,
-                        force,
-                        force_bgz,
                         call_fields,
                         entry_float_type,
                         reference_genome,

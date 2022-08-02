@@ -54,6 +54,7 @@ deploy_unmanaged() {
     copy_images
     generate_ssl_certs
 
+    export NAMESPACE=default
     kubectl -n default apply -f $HAIL/ci/bootstrap.yaml
     make -C $HAIL/ci build-ci-utils build-hail-buildkit
     make -C $HAIL/batch build-worker
