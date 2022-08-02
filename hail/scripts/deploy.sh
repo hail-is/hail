@@ -106,7 +106,7 @@ gsutil -m retention temp set $website_url
 
 # Create pull request to update Terra and AoU Hail versions
 terra_docker_dir=$(mktemp -d)
-update_terra_image_py=$(dirname "$0")/scripts/update-terra-image.py
+update_terra_image_py="$(cd "$(dirname "$0")" && pwd)/update-terra-image.py"
 git clone https://github.com/DataBiosphere/terra-docker $terra_docker_dir
 pushd $terra_docker_dir
 git config user.name hail

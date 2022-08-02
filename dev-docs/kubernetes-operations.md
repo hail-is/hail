@@ -34,6 +34,10 @@ This will likely fail because the metrics-server uses some local disk to store m
 the *only* pod listed, then you can re-run the command with `--delete-emptydir-data`. You may lose a
 short period of k8s metrics. This will also impair the HorizontalPodAutoscaler.
 
+Other pods, such as grafana and memory may also be listed here. You can use `--delete-emptydir-data`
+to force them to be deleted as well. Deleting memory will cause a loss of cache for Hail Query on
+Batch jobs using memory. Neither of these are catastrophic to delete.
+
 ```
 kubectl drain --delete-emptydir-data --ignore-daemonsets --selector="cloud.google.com/gke-nodepool=$OLD_POOL_NAME"
 ```

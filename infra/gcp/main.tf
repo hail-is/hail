@@ -675,7 +675,7 @@ locals {
 module "ci" {
   source = "./ci"
   count = local.ci_config != null ? 1 : 0
-  
+
   github_oauth_token = local.ci_config.data["github_oauth_token"]
   github_user1_oauth_token = local.ci_config.data["github_user1_oauth_token"]
   watched_branches = jsondecode(local.ci_config.raw).watched_branches

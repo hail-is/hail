@@ -47,6 +47,16 @@ steps:
       - name: registry-push-credentials
       - name: test-gsa-key
       - name: benchmark-gsa-key
+      - name: billing-monitor-gsa-key
+        clouds:
+          - gcp
+      - name: hail-ci-0-1-service-account-key
+      - name: test-dataproc-service-account-key
+        clouds:
+          - gcp
+      - name: batch-worker-ssh-public-key
+        clouds:
+          - azure
   - kind: buildImage2
     name: echo_image
     dockerFile: /io/echo/Dockerfile

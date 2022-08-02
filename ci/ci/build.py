@@ -153,9 +153,9 @@ class Step(abc.ABC):
             duplicates = [name for name, count in Counter(json['dependsOn']).items() if count > 1]
             if duplicates:
                 raise BuildConfigurationError(f'found duplicate dependencies of {self.name}: {duplicates}')
-            self.deps = [params.name_step[d] for d in json['dependsOn'] if d in params.name_step]
+            self.deps: List[Step] = [params.name_step[d] for d in json['dependsOn'] if d in params.name_step]
         else:
-            self.deps = []
+            self.deps: List[Step] = []
         self.scopes = json.get('scopes')
         self.clouds = json.get('clouds')
         self.run_if_requested = json.get('runIfRequested', False)
@@ -198,7 +198,7 @@ class Step(abc.ABC):
         return self.scopes is None or scope in self.scopes
 
     @staticmethod
-    def from_json(params):
+    def from_json(params: StepParameters):
         kind = params.json['kind']
         if kind == 'buildImage':
             return BuildImage2Step.from_json(params)
@@ -221,7 +221,15 @@ class Step(abc.ABC):
         return hash(self.name)
 
     @abc.abstractmethod
+    def wrapped_job(self) -> list:
+        pass
+
+    @abc.abstractmethod
     def build(self, batch, code, scope):
+        pass
+
+    @abc.abstractmethod
+    def config(self, scope) -> dict:
         pass
 
     @abc.abstractmethod
@@ -231,7 +239,7 @@ class Step(abc.ABC):
 
 class BuildImage2Step(Step):
     def __init__(
-        self, params, dockerfile, context_path, publish_as, inputs, resources
+        self, params: StepParameters, dockerfile, context_path, publish_as, inputs, resources
     ):  # pylint: disable=unused-argument
         super().__init__(params)
         self.dockerfile = dockerfile
@@ -239,18 +247,27 @@ class BuildImage2Step(Step):
         self.publish_as = publish_as
         self.inputs = inputs
         self.resources = resources
-        self.extra_cache_repository = None
-        if publish_as:
-            self.extra_cache_repository = f'{DOCKER_PREFIX}/{self.publish_as}'
-        if params.scope == 'deploy' and publish_as and not is_test_deployment:
-            self.base_image = f'{DOCKER_PREFIX}/{self.publish_as}'
-        else:
-            self.base_image = f'{DOCKER_PREFIX}/ci-intermediate'
+
+        image_name = self.publish_as or 'ci-intermediate'
+        self.base_image = f'{DOCKER_PREFIX}/{image_name}'
         self.image = f'{self.base_image}:{self.token}'
-        if publish_as:
-            self.cache_repository = f'{DOCKER_PREFIX}/{self.publish_as}:cache'
+        self.main_branch_cache_repository = f'{self.base_image}:cache'
+
+        if params.scope == 'deploy':
+            if is_test_deployment:
+                # CIs that don't live in default doing a deploy
+                # should not clobber the main `cache` tag
+                self.cache_repository = f'{self.base_image}:cache-{DEFAULT_NAMESPACE}-deploy'
+            else:
+                self.cache_repository = self.main_branch_cache_repository
+        elif params.scope == 'dev':
+            dev_user = params.code.config()['user']
+            self.cache_repository = f'{self.base_image}:cache-{dev_user}'
         else:
-            self.cache_repository = f'{DOCKER_PREFIX}/ci-intermediate:cache'
+            assert params.scope == 'test'
+            pr_number = params.code.config()['number']
+            self.cache_repository = f'{self.base_image}:cache-pr-{pr_number}'
+
         self.job = None
 
     def wrapped_job(self):
@@ -259,7 +276,7 @@ class BuildImage2Step(Step):
         return []
 
     @staticmethod
-    def from_json(params):
+    def from_json(params: StepParameters):
         json = params.json
         return BuildImage2Step(
             params,
@@ -323,6 +340,7 @@ retry buildctl-daemonless.sh \
      --output 'type=image,"name={shq(self.image)},{shq(self.cache_repository)}",push=true' \
      --export-cache type=inline \
      --import-cache type=registry,ref={shq(self.cache_repository)} \
+     --import-cache type=registry,ref={shq(self.main_branch_cache_repository)} \
      --trace=/home/user/trace
 cat /home/user/trace
 '''
@@ -462,7 +480,7 @@ class RunImageStep(Step):
         return self.jobs
 
     @staticmethod
-    def from_json(params):
+    def from_json(params: StepParameters):
         json = params.json
         return RunImageStep(
             params,
@@ -585,7 +603,7 @@ class CreateNamespaceStep(Step):
         return []
 
     @staticmethod
-    def from_json(params):
+    def from_json(params: StepParameters):
         json = params.json
         return CreateNamespaceStep(
             params,
@@ -755,7 +773,7 @@ class DeployStep(Step):
         return []
 
     @staticmethod
-    def from_json(params):
+    def from_json(params: StepParameters):
         json = params.json
         return DeployStep(
             params,
@@ -950,7 +968,7 @@ class CreateDatabaseStep(Step):
         return []
 
     @staticmethod
-    def from_json(params):
+    def from_json(params: StepParameters):
         json = params.json
         return CreateDatabaseStep(
             params,
@@ -1023,6 +1041,8 @@ EOF
                 parents=self.deps_parents(),
             )
 
+        n_cores = 4 if scope == 'deploy' and not is_test_deployment else 1
+
         self.create_database_job = batch.create_job(
             CI_UTILS_IMAGE,
             command=['bash', '-c', create_database_script],
@@ -1038,7 +1058,7 @@ EOF
             input_files=input_files,
             parents=[self.create_passwords_job] if self.create_passwords_job else self.deps_parents(),
             network='private',
-            resources={'preemptible': False},
+            resources={'preemptible': False, 'cpu': str(n_cores)},
         )
 
     def cleanup(self, batch, scope, parents):

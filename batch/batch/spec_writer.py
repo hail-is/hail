@@ -1,8 +1,18 @@
+import collections
 import logging
+from typing import Dict, Tuple
+
+import sortedcontainers
 
 from hailtop.utils import secret_alnum_string
 
 log = logging.getLogger('batch.spec_writer')
+
+JOB_TOKEN_CACHE: Dict[int, sortedcontainers.SortedSet] = collections.defaultdict(
+    lambda: sortedcontainers.SortedSet(key=lambda t: t[1])
+)
+JOB_TOKEN_CACHE_MAX_BATCHES = 100
+JOB_TOKEN_CACHE_MAX_BUNCHES_PER_BATCH = 100
 
 
 class SpecWriter:
@@ -27,20 +37,50 @@ class SpecWriter:
         return (spec_start, next_spec_start - 1)  # `end` parameter in gcs is inclusive of last byte to return
 
     @staticmethod
-    async def get_token_start_id(db, batch_id, job_id):
+    async def get_token_start_id(db, batch_id, job_id) -> Tuple[str, int]:
+        in_batch_cache = JOB_TOKEN_CACHE[batch_id]
+        index = in_batch_cache.bisect_key_right(job_id) - 1
+        assert index < len(in_batch_cache)
+        if index >= 0:
+            token, start, end = in_batch_cache[index]
+            if (job_id >= start and end is None) or job_id in range(start, end):
+                return (token, start)
+
+        token, start_job_id, next_start_job_id = await SpecWriter._get_token_start_id_and_next_start_id(
+            db, batch_id, job_id
+        )
+
+        # It is least likely that old batches or early bunches in a given
+        # batch will be needed again
+        if len(JOB_TOKEN_CACHE) == JOB_TOKEN_CACHE_MAX_BATCHES:
+            JOB_TOKEN_CACHE.pop(min(JOB_TOKEN_CACHE.keys()))
+        elif len(JOB_TOKEN_CACHE[batch_id]) == JOB_TOKEN_CACHE_MAX_BUNCHES_PER_BATCH:
+            JOB_TOKEN_CACHE[batch_id].pop(0)
+
+        JOB_TOKEN_CACHE[batch_id].add((token, start_job_id, next_start_job_id))
+
+        return (token, start_job_id)
+
+    @staticmethod
+    async def _get_token_start_id_and_next_start_id(db, batch_id, job_id) -> Tuple[str, int, int]:
         bunch_record = await db.select_and_fetchone(
             '''
-SELECT start_job_id, token FROM batch_bunches
+SELECT
+start_job_id,
+token,
+(SELECT start_job_id FROM batch_bunches WHERE batch_id = %s AND start_job_id > %s ORDER BY start_job_id LIMIT 1) AS next_start_job_id
+FROM batch_bunches
 WHERE batch_id = %s AND start_job_id <= %s
 ORDER BY start_job_id DESC
 LIMIT 1;
 ''',
-            (batch_id, job_id),
+            (batch_id, job_id, batch_id, job_id),
             'get_token_start_id',
         )
         token = bunch_record['token']
         start_job_id = bunch_record['start_job_id']
-        return (token, start_job_id)
+        next_start_job_id = bunch_record['next_start_job_id']
+        return (token, start_job_id, next_start_job_id)
 
     def __init__(self, file_store, batch_id):
         self.file_store = file_store

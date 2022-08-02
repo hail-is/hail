@@ -7,6 +7,8 @@ TOKEN = $(shell cat /dev/urandom | LC_ALL=C tr -dc 'a-z0-9' | head -c 12)
 INTERNAL_GATEWAY_IMAGE := $(DOCKER_PREFIX)/internal-gateway:$(TOKEN)
 INTERNAL_IP := $(shell kubectl get secret global-config --template={{.data.internal_ip}} | base64 --decode)
 
+export NAMESPACE := default
+
 build:
 	$(MAKE) -C ../docker hail-ubuntu
 	python3 ../ci/jinja2_render.py '{"hail_ubuntu_image":{"image":"'$$(cat ../docker/hail-ubuntu-image-ref)'"}}' Dockerfile Dockerfile.out
