@@ -20,7 +20,7 @@ asynctest==0.13.0
     # via aiohttp
 attrs==21.4.0
     # via aiohttp
-avro==1.11.0
+avro==1.11.1
     # via -r python/requirements.txt
 azure-core==1.24.1
     # via
