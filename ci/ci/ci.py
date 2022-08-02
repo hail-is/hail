@@ -130,7 +130,7 @@ async def watched_branch_config(app, wb: WatchedBranch, index: int) -> WatchedBr
 @web_authenticated_developers_only()
 async def index(request, userdata):  # pylint: disable=unused-argument
     wb_configs = [await watched_branch_config(request.app, wb, i) for i, wb in enumerate(watched_branches)]
-    page_context = {'watched_branches': wb_configs}
+    page_context = {'watched_branches': wb_configs, 'frozen_merge_deploy': request.app['frozen_merge_deploy']}
     return await render_template('ci', request, userdata, 'index.html', page_context)
 
 
@@ -567,6 +567,56 @@ async def batch_callback(request):
     return web.Response(status=200)
 
 
+@routes.post('/freeze_merge_deploy')
+@check_csrf_token
+@web_authenticated_developers_only()
+async def freeze_deploys(request, userdata):  # pylint: disable=unused-argument
+    app = request.app
+    db: Database = app['db']
+    session = await aiohttp_session.get_session(request)
+
+    if app['frozen_merge_deploy']:
+        set_message(session, 'CI is already frozen.', 'info')
+        return web.HTTPFound(deploy_config.external_url('ci', '/'))
+
+    await db.execute_update(
+        '''
+UPDATE globals SET frozen_merge_deploy = 1;
+'''
+    )
+
+    app['frozen_merge_deploy'] = True
+
+    set_message(session, 'Froze all merges and deploys.', 'info')
+
+    return web.HTTPFound(deploy_config.external_url('ci', '/'))
+
+
+@routes.post('/unfreeze_merge_deploy')
+@check_csrf_token
+@web_authenticated_developers_only()
+async def unfreeze_deploys(request, userdata):  # pylint: disable=unused-argument
+    app = request.app
+    db: Database = app['db']
+    session = await aiohttp_session.get_session(request)
+
+    if not app['frozen_merge_deploy']:
+        set_message(session, 'CI is already unfrozen.', 'info')
+        return web.HTTPFound(deploy_config.external_url('ci', '/'))
+
+    await db.execute_update(
+        '''
+UPDATE globals SET frozen_merge_deploy = 0;
+'''
+    )
+
+    app['frozen_merge_deploy'] = False
+
+    set_message(session, 'Unfroze all merges and deploys.', 'info')
+
+    return web.HTTPFound(deploy_config.external_url('ci', '/'))
+
+
 async def update_loop(app):
     while True:
         try:
@@ -587,6 +637,14 @@ async def on_startup(app):
 
     app['db'] = Database()
     await app['db'].async_init()
+
+    row = await app['db'].select_and_fetchone(
+        '''
+SELECT frozen_merge_deploy FROM globals;
+'''
+    )
+
+    app['frozen_merge_deploy'] = row['frozen_merge_deploy']
 
     app['task_manager'] = aiotools.BackgroundTaskManager()
     app['task_manager'].ensure_future(update_loop(app))

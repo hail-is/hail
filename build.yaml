@@ -1913,6 +1913,9 @@ steps:
         script: /io/sql/initial.sql
       - name: invalidated-batches
         script: /io/sql/invalidated-batches.sql
+      - name: add-frozen-mode
+        script: /io/sql/add-frozen-mode.sql
+        online: true
     inputs:
       - from: /repo/ci/sql
         to: /io/sql
@@ -2042,6 +2045,12 @@ steps:
         online: true
       - name: minimize-deadlock-errors
         script: /io/sql/minimize-deadlock-errors.sql
+        online: true
+      - name: add-resource-ids-sql
+        script: /io/sql/add-resource-ids.sql
+        online: true
+      - name: add-resource-ids-python
+        script: /io/sql/add_resource_ids.py
         online: true
     inputs:
       - from: /repo/batch/sql

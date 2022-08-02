@@ -8,6 +8,7 @@ CREATE TABLE IF NOT EXISTS `globals` (
 CREATE TABLE IF NOT EXISTS `resources` (
   `resource` VARCHAR(100) NOT NULL,
   `rate` DOUBLE NOT NULL,
+  `resource_id` INT AUTO_INCREMENT UNIQUE NOT NULL,
   PRIMARY KEY (`resource`)
 ) ENGINE = InnoDB;
 
@@ -296,8 +297,9 @@ CREATE INDEX batch_attributes_key_value ON `batch_attributes` (`key`, `value`(25
 CREATE TABLE IF NOT EXISTS `aggregated_billing_project_resources` (
   `billing_project` VARCHAR(100) NOT NULL,
   `resource` VARCHAR(100) NOT NULL,
+  `token` INT NOT NULL,
   `usage` BIGINT NOT NULL DEFAULT 0,
-  PRIMARY KEY (`billing_project`, `resource`),
+  PRIMARY KEY (`billing_project`, `resource`, `token`),
   FOREIGN KEY (`billing_project`) REFERENCES billing_projects(name) ON DELETE CASCADE,
   FOREIGN KEY (`resource`) REFERENCES resources(`resource`) ON DELETE CASCADE
 ) ENGINE = InnoDB;
@@ -329,11 +331,13 @@ CREATE TABLE IF NOT EXISTS `attempt_resources` (
   `attempt_id` VARCHAR(40) NOT NULL,
   `resource` VARCHAR(100) NOT NULL,
   `quantity` BIGINT NOT NULL,
+  `resource_id` INT NOT NULL,
   PRIMARY KEY (`batch_id`, `job_id`, `attempt_id`, `resource`),
   FOREIGN KEY (`batch_id`) REFERENCES batches(`id`) ON DELETE CASCADE,
   FOREIGN KEY (`batch_id`, `job_id`) REFERENCES jobs(`batch_id`, `job_id`) ON DELETE CASCADE,
   FOREIGN KEY (`batch_id`, `job_id`, `attempt_id`) REFERENCES attempts(`batch_id`, `job_id`, `attempt_id`) ON DELETE CASCADE,
-  FOREIGN KEY (`resource`) REFERENCES resources(`resource`) ON DELETE CASCADE
+  FOREIGN KEY (`resource`) REFERENCES resources(`resource`) ON DELETE CASCADE,
+  FOREIGN KEY (`resource_id`) REFERENCES resources(`resource_id`) ON DELETE CASCADE
 ) ENGINE = InnoDB;
 
 DELIMITER $$
@@ -574,6 +578,15 @@ BEGIN
         n_creating_jobs = n_creating_jobs + 1;
     END IF;
   END IF;
+END $$
+
+DROP TRIGGER IF EXISTS attempt_resources_before_insert $$
+CREATE TRIGGER attempt_resources_before_insert BEFORE INSERT ON attempt_resources
+FOR EACH ROW
+BEGIN
+  DECLARE cur_resource_id INT;
+  SELECT resource_id INTO cur_resource_id FROM resources WHERE resource = NEW.resource;
+  SET NEW.resource_id = cur_resource_id;
 END $$
 
 DROP TRIGGER IF EXISTS attempt_resources_after_insert $$
