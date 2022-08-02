@@ -1541,7 +1541,7 @@ async def ui_delete_batch(request, userdata, batch_id):  # pylint: disable=unuse
 @catch_ui_error_in_dev
 async def ui_batches(request, userdata):
     user = userdata['username']
-    q = request.query.get('q', f'user:{user}')
+    q = request.query.get('q', '')
     batches, last_batch_id = await _query_batches(request, user, q)
     for batch in batches:
         batch['cost'] = cost_str(batch['cost'])
