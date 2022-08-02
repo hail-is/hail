@@ -88,7 +88,7 @@ async def mark_job_complete(
         if delta_cores_mcpu != 0:
             OPEN_CORES[instance_name] += delta_cores_mcpu
 
-    await add_attempt_resources(db, batch_id, job_id, attempt_id, resources)
+    await add_attempt_resources(db, batch_id, job_id, attempt_id, resources, app['resource_to_resource_id'])
 
     if rv['rc'] != 0:
         log.info(f'mark_job_complete returned {rv} for job {id}')
@@ -171,7 +171,7 @@ CALL mark_job_started(%s, %s, %s, %s, %s);
     if rv['delta_cores_mcpu'] != 0:
         OPEN_CORES[instance_name] += rv['delta_cores_mcpu']
 
-    await add_attempt_resources(db, batch_id, job_id, attempt_id, resources)
+    await add_attempt_resources(db, batch_id, job_id, attempt_id, resources, app['resource_to_resource_id'])
 
 
 async def job_started_1(request):
@@ -199,6 +199,10 @@ async def on_startup(app: web.Application):
     await db.async_init(maxsize=50)
     app['db'] = db
     app['client_session'] = httpx.client_session()
+
+    records = [r async for r in db.execute_and_fetchall('SELECT resource, resource_id FROM resources;')]
+    app['resource_to_resource_id'] = dict([(r['resource'], r['resource_id']) for r in records])
+    log.info(app['resource_to_resource_id'])
 
     app['task_manager'] = aiotools.BackgroundTaskManager()
     app['task_manager'].ensure_future(periodically_call(0.2, notify_driver_open_cores, app))
