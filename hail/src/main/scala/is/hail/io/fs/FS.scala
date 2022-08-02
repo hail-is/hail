@@ -112,7 +112,7 @@ abstract class FSSeekableInputStream extends InputStream with Seekable {
   private[this] var pos: Long = 0
   private[this] var eof: Boolean = false
 
-  protected[this] val bb: ByteBuffer = ByteBuffer.allocate(64 * 1024)
+  protected[this] val bb: ByteBuffer = ByteBuffer.allocate(8 * 1024 * 1024)
   bb.limit(0)
 
   def fill(): Int
