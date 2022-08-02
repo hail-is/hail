@@ -707,8 +707,12 @@ class WatchedBranch(Code):
 
                 if self.state_changed:
                     self.state_changed = False
-                    await self._heal(batch_client, db, gh)
-                    if self.mergeable:
+                    await self._heal(app, batch_client, gh)
+                    if (
+                        (self.deploy_batch is None or self.deploy_state is not None)
+                        and not app['frozen_merge_deploy']
+                        and self.mergeable
+                    ):
                         await self.try_to_merge(gh)
         finally:
             log.info(f'update done {self.short_str()}')
@@ -796,13 +800,15 @@ class WatchedBranch(Code):
 
                 self.state_changed = True
 
-    async def _heal_deploy(self, batch_client):
+    async def _heal_deploy(self, app, batch_client):
         assert self.deployable
 
         if not self.sha:
             return
 
-        if self.deploy_batch is None or (self.deploy_state and self.deploy_batch.attributes['sha'] != self.sha):
+        if not app['frozen_merge_deploy'] and (
+            self.deploy_batch is None or (self.deploy_state and self.deploy_batch.attributes['sha'] != self.sha)
+        ):
             async with repos_lock:
                 await self._start_deploy(batch_client)
 
@@ -815,11 +821,12 @@ class WatchedBranch(Code):
         for pr in self.prs.values():
             await pr._update_batch(batch_client, db)
 
-    async def _heal(self, batch_client, db: Database, gh):
+    async def _heal(self, app, batch_client, gh):
         log.info(f'heal {self.short_str()}')
+        db: Database = app['db']
 
         if self.deployable:
-            await self._heal_deploy(batch_client)
+            await self._heal_deploy(app, batch_client)
 
         merge_candidate = None
         merge_candidate_pri = None
