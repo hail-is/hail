@@ -195,14 +195,12 @@ spec:
             name: prometheus-storage
          resources:
            requests:
-{% if scope == "deploy" %}
+{% if deploy %}
              cpu: "50m"
              memory: 4G
-{% elif scope == "test" or scope == "dev" %}
+{% else %}
              cpu: "20m"
              memory: "0.75G"
-{% else %}
-!!! unexpected scope {{ scope }} !!!
 {% endif %}
            limits:
              cpu: "1"

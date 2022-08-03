@@ -3,6 +3,7 @@ notebook
 www
 batch
 batch-driver
+batch-db-proxy
 benchmark
 blog
 memory

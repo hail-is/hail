@@ -39,6 +39,14 @@ static_resources:
                     prefix: "/"
                   route:
                     cluster: batch-driver
+            - name: batch-db-proxy
+              domains:
+                - batch-db-proxy.hail
+              routes:
+                - match:
+                    prefix: "/"
+                  route:
+                    cluster: batch-db-proxy
           http_filters:
           - name: envoy.filters.http.router
             typed_config:
@@ -105,6 +113,31 @@ static_resources:
             address:
               socket_address:
                 address: batch-driver.default.svc.cluster.local
+                port_value: 443
+    transport_socket:
+      name: envoy.transport_sockets.tls
+      typed_config:
+        "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.UpstreamTlsContext
+        common_tls_context:
+          tls_certificates:
+          - certificate_chain:
+              filename: /ssl-config/internal-gateway-cert.pem
+            private_key:
+              filename: /ssl-config/internal-gateway-key.pem
+          validation_context:
+            trusted_ca:
+              filename: /ssl-config/internal-gateway-outgoing.pem
+  - name: batch-db-proxy
+    type: STRICT_DNS
+    lb_policy: ROUND_ROBIN
+    load_assignment:
+      cluster_name: batch-db-proxy
+      endpoints:
+      - lb_endpoints:
+        - endpoint:
+            address:
+              socket_address:
+                address: batch-db-proxy.default.svc.cluster.local
                 port_value: 443
     transport_socket:
       name: envoy.transport_sockets.tls

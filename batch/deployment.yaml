@@ -671,14 +671,10 @@ metadata:
   labels:
     app: batch-db-proxy
 spec:
+  clusterIP: None
   ports:
   - port: 443
     protocol: TCP
     targetPort: 443
-  # Instead of a single cluster IP that kube-proxy
-  # will load balance, we want a DNS query to return
-  # the pod endpoints, meanining internal-gateway can
-  # properly handle load balancing across persistent connections
-  # clusterIP: None
   selector:
     app: batch-db-proxy
