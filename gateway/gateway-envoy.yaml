@@ -38,6 +38,22 @@ static_resources:
                     prefix: "/"
                   route:
                     cluster: batch-driver
+            - name: grafana
+              domains:
+                - grafana.daniel.hail.is
+              routes:
+                - match:
+                    prefix: "/"
+                  route:
+                    cluster: grafana
+            - name: prometheus
+              domains:
+                - prometheus.daniel.hail.is
+              routes:
+                - match:
+                    prefix: "/"
+                  route:
+                    cluster: prometheus
           http_filters:
           - name: envoy.filters.http.router
             typed_config:
@@ -114,6 +130,56 @@ static_resources:
             address:
               socket_address:
                 address: batch-driver.default.svc.cluster.local
+                port_value: 443
+    transport_socket:
+      name: envoy.transport_sockets.tls
+      typed_config:
+        "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.UpstreamTlsContext
+        common_tls_context:
+          tls_certificates:
+          - certificate_chain:
+              filename: /ssl-config/gateway-cert.pem
+            private_key:
+              filename: /ssl-config/gateway-key.pem
+          validation_context:
+            trusted_ca:
+              filename: /ssl-config/gateway-outgoing.pem
+  - name: grafana
+    type: STRICT_DNS
+    lb_policy: ROUND_ROBIN
+    load_assignment:
+      cluster_name: grafana
+      endpoints:
+      - lb_endpoints:
+        - endpoint:
+            address:
+              socket_address:
+                address: grafana.default.svc.cluster.local
+                port_value: 443
+    transport_socket:
+      name: envoy.transport_sockets.tls
+      typed_config:
+        "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.UpstreamTlsContext
+        common_tls_context:
+          tls_certificates:
+          - certificate_chain:
+              filename: /ssl-config/gateway-cert.pem
+            private_key:
+              filename: /ssl-config/gateway-key.pem
+          validation_context:
+            trusted_ca:
+              filename: /ssl-config/gateway-outgoing.pem
+  - name: prometheus
+    type: STRICT_DNS
+    lb_policy: ROUND_ROBIN
+    load_assignment:
+      cluster_name: prometheus
+      endpoints:
+      - lb_endpoints:
+        - endpoint:
+            address:
+              socket_address:
+                address: prometheus.default.svc.cluster.local
                 port_value: 443
     transport_socket:
       name: envoy.transport_sockets.tls
