@@ -338,7 +338,7 @@ spec:
            value: "/{{ default_ns.name }}/jars"
 {% endif %}
         ports:
-         - containerPort: 5000
+         - containerPort: 443
         resources:
           requests:
             cpu: "20m"
@@ -367,7 +367,7 @@ spec:
            readOnly: true
         readinessProbe:
           tcpSocket:
-            port: 5000
+            port: 443
           initialDelaySeconds: 5
           periodSeconds: 5
       volumes:
@@ -641,10 +641,11 @@ metadata:
   labels:
     app: batch
 spec:
+  clusterIP: None
   ports:
   - port: 443
     protocol: TCP
-    targetPort: 5000
+    targetPort: 443
   selector:
     app: batch
 ---
@@ -655,6 +656,7 @@ metadata:
   labels:
     app: batch-driver
 spec:
+  clusterIP: None
   ports:
   - port: 443
     protocol: TCP

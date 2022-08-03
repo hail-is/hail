@@ -790,7 +790,7 @@ def run():
     web.run_app(
         deploy_config.prefix_application(app, 'auth'),
         host='0.0.0.0',
-        port=5000,
+        port=443,
         access_log_class=AuthAccessLogger,
         ssl_context=internal_server_ssl_context(),
     )

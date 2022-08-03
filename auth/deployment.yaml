@@ -80,7 +80,7 @@ spec:
             mountPath: /ssl-config
             readOnly: true
          ports:
-          - containerPort: 5000
+          - containerPort: 443
       volumes:
        - name: deploy-config
          secret:
@@ -201,10 +201,10 @@ spec:
             mountPath: /ssl-config
             readOnly: true
          ports:
-          - containerPort: 5000
+          - containerPort: 443
          readinessProbe:
            tcpSocket:
-             port: 5000
+             port: 443
            initialDelaySeconds: 5
            periodSeconds: 5
       volumes:
@@ -274,9 +274,10 @@ metadata:
   labels:
     app: auth
 spec:
+  clusterIP: None
   ports:
    - port: 443
      protocol: TCP
-     targetPort: 5000
+     targetPort: 443
   selector:
     app: auth

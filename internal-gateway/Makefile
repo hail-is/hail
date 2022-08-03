@@ -10,9 +10,8 @@ INTERNAL_IP := $(shell kubectl get secret global-config --template={{.data.inter
 export NAMESPACE := default
 
 build:
-	$(MAKE) -C ../docker hail-ubuntu
-	python3 ../ci/jinja2_render.py '{"hail_ubuntu_image":{"image":"'$$(cat ../docker/hail-ubuntu-image-ref)'"}}' Dockerfile Dockerfile.out
-	../docker-build.sh . Dockerfile.out $(INTERNAL_GATEWAY_IMAGE)
+	# python3 ../ci/jinja2_render.py '{"hail_ubuntu_image":{"image":"'$$(cat ../docker/hail-ubuntu-image-ref)'"}}' Dockerfile Dockerfile.out
+	../docker-build.sh . Dockerfile $(INTERNAL_GATEWAY_IMAGE)
 
 deploy: build
 	python3 ../ci/jinja2_render.py '{"code":{"sha":"$(shell git rev-parse --short=12 HEAD)"},"global":{"internal_ip":"$(INTERNAL_IP)"}}' service.yaml service.yaml.out

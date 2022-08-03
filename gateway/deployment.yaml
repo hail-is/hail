@@ -53,6 +53,9 @@ spec:
           - name: ssl-config-gateway
             mountPath: /ssl-config
             readOnly: true
+         env:
+         - name: ENVOY_UID
+           value: "0"
       volumes:
         - name: letsencrypt-config
           secret:

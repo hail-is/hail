@@ -44,6 +44,9 @@ spec:
            limits:
              cpu: "1"
              memory: "1G"
+         env:
+         - name: ENVOY_UID
+           value: "0"
          ports:
           - containerPort: 80
          volumeMounts:
