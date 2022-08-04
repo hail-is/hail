@@ -21,6 +21,7 @@ static_resources:
                 - match:
                     prefix: "/"
                   route:
+                    timeout: 0s
                     cluster: auth
             - name: batch
               domains:
@@ -29,6 +30,7 @@ static_resources:
                 - match:
                     prefix: "/"
                   route:
+                    timeout: 0s
                     cluster: batch
             - name: batch-driver
               domains:
@@ -37,6 +39,7 @@ static_resources:
                 - match:
                     prefix: "/"
                   route:
+                    timeout: 0s
                     cluster: batch-driver
             - name: grafana
               domains:
@@ -45,6 +48,7 @@ static_resources:
                 - match:
                     prefix: "/"
                   route:
+                    timeout: 0s
                     cluster: grafana
             - name: prometheus
               domains:
@@ -53,6 +57,7 @@ static_resources:
                 - match:
                     prefix: "/"
                   route:
+                    timeout: 0s
                     cluster: prometheus
           http_filters:
           - name: envoy.filters.http.router

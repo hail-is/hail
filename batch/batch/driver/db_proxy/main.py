@@ -10,7 +10,7 @@ import uvloop
 
 from hailtop import aiotools, httpx
 from hailtop.config import get_deploy_config
-from hailtop.hail_logging import AccessLogger
+from hailtop.hail_logging import BatchDriverAccessLogger
 from hailtop.utils import time_msecs, periodically_call
 from gear import Database, setup_aiohttp_session, monitor_endpoints_middleware
 
@@ -227,5 +227,5 @@ def run():
         deploy_config.prefix_application(app, 'batch-db-proxy'),
         host='0.0.0.0',
         port=5000,
-        access_log_class=AccessLogger,
+        access_log_class=BatchDriverAccessLogger,
     )

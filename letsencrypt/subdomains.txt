@@ -1,16 +1,6 @@
-ci
-notebook
-www
+auth
 batch
 batch-driver
 batch-db-proxy
-benchmark
-blog
-memory
-monitoring
-auth
-ukbb-rg
-workshop
 grafana
 prometheus
-hello
