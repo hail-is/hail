@@ -1,5 +1,6 @@
 import asyncio
 from aiohttp import web
+import re
 import logging
 from typing import Dict
 
@@ -10,7 +11,7 @@ import uvloop
 
 from hailtop import aiotools, httpx
 from hailtop.config import get_deploy_config
-from hailtop.hail_logging import BatchDriverAccessLogger
+from hailtop.hail_logging import AccessLogger
 from hailtop.utils import time_msecs, periodically_call
 from gear import Database, setup_aiohttp_session, monitor_endpoints_middleware
 
@@ -208,6 +209,28 @@ async def on_startup(app: web.Application):
     app['task_manager'].ensure_future(periodically_call(0.2, notify_driver_open_cores, app))
 
 
+class BatchDbProxyAccessLogger(AccessLogger):
+    def __init__(self, logger: logging.Logger, log_format: str):
+        super().__init__(logger, log_format)
+        self.exclude = [
+            (endpoint[0], re.compile(deploy_config.base_path('batch-driver') + endpoint[1]))
+            for endpoint in [
+                ('POST', '/api/v1alpha/instances/job_complete'),
+                ('POST', '/api/v1alpha/instances/job_started'),
+                ('PATCH', '/api/v1alpha/batches/.*/.*/close'),
+                ('POST', '/api/v1alpha/batches/cancel'),
+                ('GET', '/metrics'),
+            ]
+        ]
+
+    def log(self, request, response, time):
+        for method, path_expr in self.exclude:
+            if path_expr.fullmatch(request.path) and method == request.method:
+                return
+
+        super().log(request, response, time)
+
+
 def run():
     profiler_tag = 'dgoldste'
     googlecloudprofiler.start(
@@ -227,5 +250,5 @@ def run():
         deploy_config.prefix_application(app, 'batch-db-proxy'),
         host='0.0.0.0',
         port=5000,
-        access_log_class=BatchDriverAccessLogger,
+        access_log_class=BatchDbProxyAccessLogger,
     )
