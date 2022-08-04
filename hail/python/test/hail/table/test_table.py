@@ -887,26 +887,18 @@ class Tests(unittest.TestCase):
         f = new_temp_file(extension='ht')
         t.write(f)
         t1 = hl.read_table(f, _create_row_uids=True)
-        t1.filter(t1.idx >= 250).show()
         t2 = hl.read_table(f, _intervals=[
             hl.Interval(start=150, end=250, includes_start=True, includes_end=False),
             hl.Interval(start=250, end=500, includes_start=True, includes_end=False),
         ], _create_row_uids=True)
         self.assertEqual(t2.n_partitions(), 2)
         self.assertEqual(t2.count(), 350)
-        self.assertTrue(t1.all(t1['__row_uid'] == t2[t1.idx]['__row_uid']))
-        grouped1 = t1.group_by('idx').aggregate(**{'foo': hl.agg.collect(t1.row_value)})
-        grouped1.filter(grouped1.idx >= 250).show()
-        grouped2 = t2.group_by('idx').aggregate(**{'foo': hl.agg.collect(t2.row_value)})
-        grouped2.filter(grouped2.idx >= 250).show()
-        joined = grouped1.join(grouped2, how='outer')
-        joined.filter(joined.idx >= 250).show()
         self.assertTrue(t1.filter((t1.idx >= 150) & (t1.idx < 500))._same(t2))
 
         t2 = hl.read_table(f, _intervals=[
             hl.Interval(start=150, end=250, includes_start=True, includes_end=False),
             hl.Interval(start=250, end=500, includes_start=True, includes_end=False),
-        ], _filter_intervals=True)
+        ], _filter_intervals=True, _create_row_uids=True)
         self.assertEqual(t2.n_partitions(), 3)
         self.assertTrue(t1.filter((t1.idx >= 150) & (t1.idx < 500))._same(t2))
 

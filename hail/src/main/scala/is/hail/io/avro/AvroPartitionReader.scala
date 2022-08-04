@@ -53,7 +53,7 @@ case class AvroPartitionReader(schema: Schema, uidFieldName: String) extends Par
     requestedType: TStruct
   ): IEmitCode = {
     context.toI(cb).map(cb) { case ctxStruct: SBaseStructValue =>
-      val partIdx = ctxStruct.loadField(cb, "partitionIndex").get(cb)
+      val partIdx = cb.memoizeField(ctxStruct.loadField(cb, "partitionIndex").get(cb), "partIdx")
       val pathString = ctxStruct.loadField(cb, "partitionPath").get(cb).asString.loadString(cb)
 
       val makeUID = requestedType.hasField(uidFieldName)

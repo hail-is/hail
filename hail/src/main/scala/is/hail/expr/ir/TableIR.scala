@@ -642,7 +642,7 @@ case class PartitionNativeReader(spec: AbstractTypedCodecSpec, uidFieldName: Str
       concreteSType
 
     context.toI(cb).map(cb) { case ctxStruct: SBaseStructValue =>
-      val partIdx = ctxStruct.loadField(cb, "partitionIndex").get(cb)
+      val partIdx = cb.memoizeField(ctxStruct.loadField(cb, "partitionIndex").get(cb), "partIdx")
       val rowIdx = mb.genFieldThisRef[Long]("pnr_rowidx")
       val pathString = ctxStruct.loadField(cb, "partitionPath").get(cb).asString.loadString(cb)
       val xRowBuf = mb.genFieldThisRef[InputBuffer]("pnr_xrowbuf")
@@ -740,7 +740,9 @@ case class PartitionNativeReaderIndexed(
             "apply", mb.getHailClassLoader, mb.getFS, indexPath, Code.boxInt(8), mb.ecb.pool()))
       }
 
-      val next = mb.newPLocal("pnr_next", eltSType)
+      val partIdx = cb.memoizeField(ctxStruct.loadField(cb, "partitionIndex").get(cb), "partIdx")
+
+      val next = mb.newPField("pnr_next", eltSType)
       val idxr = mb.genFieldThisRef[IndexReader]("pnri_idx_reader")
       val it = mb.genFieldThisRef[IndexReadIterator]("pnri_idx_iterator")
 
@@ -801,7 +803,7 @@ case class PartitionNativeReaderIndexed(
               base,
               Array(EmitValue.present(
                 new SStackStructValue(uidSType, Array(
-                  cb.memoize(ctxStruct.loadField(cb, "partitionIndex")),
+                  EmitValue.present(partIdx),
                   EmitValue.present(new SInt64Value(cb.memoize(it.invoke[Long]("getCurIdx"))))))))))
           else
             cb.assign(next, base)
@@ -1017,7 +1019,7 @@ case class PartitionZippedIndexedNativeReader(
           StringFunctions.svalueToJavaValue(cb, region, ctxMemo.loadField(cb, "interval").get(cb)))
       }
 
-      val partIdx = mb.genFieldThisRef[Long]("curIdx")
+      val partIdx = mb.genFieldThisRef[Long]("partIdx")
       val curIdx = mb.genFieldThisRef[Long]("curIdx")
       val endIdx = mb.genFieldThisRef[Long]("endIdx")
       val leftDec = specLeft.encodedType.buildDecoder(leftRType, mb.ecb)

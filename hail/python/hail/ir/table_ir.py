@@ -405,7 +405,7 @@ class TableRead(TableIR):
             else:
                 row = ir.Ref('row', self.typ.row_type)
                 result = TableMapRows(result,
-                    ir.InsertFields(row, [uid_field_name, ir.GetField(row, default_row_uid)]))
+                    ir.InsertFields(row, [(uid_field_name, ir.GetField(row, default_row_uid))], None))
         return result
 
     def head_str(self):
@@ -442,7 +442,7 @@ class MatrixEntriesTable(TableIR):
         entry = ir.Ref('g', child.typ.entry_type)
         row_uid = ir.GetField(ir.Ref('va', child.typ.row_type), default_row_uid)
         col_uid = ir.GetField(ir.Ref('sa', child.typ.row_type), default_col_uid)
-        child = MatrixMapEntries(child, ir.InsertFields(entry, [(uid_field_name, ir.concat_uids(row_uid, col_uid))]))
+        child = MatrixMapEntries(child, ir.InsertFields(entry, [(uid_field_name, ir.concat_uids(row_uid, col_uid))], None))
         return MatrixEntriesTable(child)
 
     def _compute_type(self, deep_typecheck):

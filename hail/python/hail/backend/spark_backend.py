@@ -265,7 +265,6 @@ class SparkBackend(Py4JBackend):
         if not hasattr(ir, '_jir'):
             r = CSERenderer(stop_at_jir=True)
             # FIXME parse should be static
-            print("to java ir: ", r(finalize_randomness(ir)))
             ir._jir = parse(r(finalize_randomness(ir)), ir_map=r.jirs)
         return ir._jir
 
