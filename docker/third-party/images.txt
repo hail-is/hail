@@ -5,6 +5,7 @@ google/cloud-sdk:305.0.0-slim
 jupyter/scipy-notebook
 jupyter/scipy-notebook:c094bb7219f9
 moby/buildkit:v0.8.3-rootless
+envoyproxy/envoy:v1.22.3
 python:3.6
 python:3.6-slim
 python:3.7

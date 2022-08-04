@@ -14,51 +14,19 @@ static_resources:
           route_config:
             name: local_route
             virtual_hosts:
-            - name: auth
+{% for service in subdomains %}
+            - name: {{ service }}
               domains:
-                - auth.daniel.hail.is
+                - {{ service }}.{{ global.domain }}
               routes:
                 - match:
                     prefix: "/"
                   route:
+                    # Without this envoy will cut off streaming responses
+                    # that take more than the default timeout of 15s
                     timeout: 0s
-                    cluster: auth
-            - name: batch
-              domains:
-                - batch.daniel.hail.is
-              routes:
-                - match:
-                    prefix: "/"
-                  route:
-                    timeout: 0s
-                    cluster: batch
-            - name: batch-driver
-              domains:
-                - batch-driver.daniel.hail.is
-              routes:
-                - match:
-                    prefix: "/"
-                  route:
-                    timeout: 0s
-                    cluster: batch-driver
-            - name: grafana
-              domains:
-                - grafana.daniel.hail.is
-              routes:
-                - match:
-                    prefix: "/"
-                  route:
-                    timeout: 0s
-                    cluster: grafana
-            - name: prometheus
-              domains:
-                - prometheus.daniel.hail.is
-              routes:
-                - match:
-                    prefix: "/"
-                  route:
-                    timeout: 0s
-                    cluster: prometheus
+                    cluster: {{ service }}
+{% endfor %}
           http_filters:
           - name: envoy.filters.http.router
             typed_config:
@@ -74,17 +42,18 @@ static_resources:
               private_key:
                 filename: /etc/letsencrypt/privkey.pem
   clusters:
-  - name: auth
+{% for service in subdomains %}
+  - name: {{ service }}
     type: STRICT_DNS
     lb_policy: ROUND_ROBIN
     load_assignment:
-      cluster_name: auth
+      cluster_name: {{ service }}
       endpoints:
       - lb_endpoints:
         - endpoint:
             address:
               socket_address:
-                address: auth.default.svc.cluster.local
+                address: {{ service }}.default.svc.cluster.local
                 port_value: 443
     transport_socket:
       name: envoy.transport_sockets.tls
@@ -99,106 +68,7 @@ static_resources:
           validation_context:
             trusted_ca:
               filename: /ssl-config/gateway-outgoing.pem
-  - name: batch
-    type: STRICT_DNS
-    lb_policy: ROUND_ROBIN
-    load_assignment:
-      cluster_name: batch
-      endpoints:
-      - lb_endpoints:
-        - endpoint:
-            address:
-              socket_address:
-                address: batch.default.svc.cluster.local
-                port_value: 443
-    transport_socket:
-      name: envoy.transport_sockets.tls
-      typed_config:
-        "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.UpstreamTlsContext
-        common_tls_context:
-          tls_certificates:
-          - certificate_chain:
-              filename: /ssl-config/gateway-cert.pem
-            private_key:
-              filename: /ssl-config/gateway-key.pem
-          validation_context:
-            trusted_ca:
-              filename: /ssl-config/gateway-outgoing.pem
-  - name: batch-driver
-    type: STRICT_DNS
-    lb_policy: ROUND_ROBIN
-    load_assignment:
-      cluster_name: batch-driver
-      endpoints:
-      - lb_endpoints:
-        - endpoint:
-            address:
-              socket_address:
-                address: batch-driver.default.svc.cluster.local
-                port_value: 443
-    transport_socket:
-      name: envoy.transport_sockets.tls
-      typed_config:
-        "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.UpstreamTlsContext
-        common_tls_context:
-          tls_certificates:
-          - certificate_chain:
-              filename: /ssl-config/gateway-cert.pem
-            private_key:
-              filename: /ssl-config/gateway-key.pem
-          validation_context:
-            trusted_ca:
-              filename: /ssl-config/gateway-outgoing.pem
-  - name: grafana
-    type: STRICT_DNS
-    lb_policy: ROUND_ROBIN
-    load_assignment:
-      cluster_name: grafana
-      endpoints:
-      - lb_endpoints:
-        - endpoint:
-            address:
-              socket_address:
-                address: grafana.default.svc.cluster.local
-                port_value: 443
-    transport_socket:
-      name: envoy.transport_sockets.tls
-      typed_config:
-        "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.UpstreamTlsContext
-        common_tls_context:
-          tls_certificates:
-          - certificate_chain:
-              filename: /ssl-config/gateway-cert.pem
-            private_key:
-              filename: /ssl-config/gateway-key.pem
-          validation_context:
-            trusted_ca:
-              filename: /ssl-config/gateway-outgoing.pem
-  - name: prometheus
-    type: STRICT_DNS
-    lb_policy: ROUND_ROBIN
-    load_assignment:
-      cluster_name: prometheus
-      endpoints:
-      - lb_endpoints:
-        - endpoint:
-            address:
-              socket_address:
-                address: prometheus.default.svc.cluster.local
-                port_value: 443
-    transport_socket:
-      name: envoy.transport_sockets.tls
-      typed_config:
-        "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.UpstreamTlsContext
-        common_tls_context:
-          tls_certificates:
-          - certificate_chain:
-              filename: /ssl-config/gateway-cert.pem
-            private_key:
-              filename: /ssl-config/gateway-key.pem
-          validation_context:
-            trusted_ca:
-              filename: /ssl-config/gateway-outgoing.pem
+{% endfor %}
 admin:
   address:
     socket_address:
