@@ -63,7 +63,7 @@ async def process_chunk(counter, db, start_offset, end_offset, quiet=True):
     await db.just_execute(
         f'''
 UPDATE attempts
-SET dummy_aggregated_by_date = dummy_aggregated_by_date + 1
+SET added_to_per_day_rollups = TRUE
 {where_cond}
 ''',
         query_args)
