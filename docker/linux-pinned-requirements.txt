@@ -481,7 +481,7 @@ types-six==1.16.16
     # via -r requirements.txt
 types-tabulate==0.8.11
     # via -r requirements.txt
-types-urllib3==1.26.15
+types-urllib3==1.26.22
     # via
     #   -r requirements.txt
     #   types-requests
