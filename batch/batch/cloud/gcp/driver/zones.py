@@ -78,6 +78,9 @@ class ZoneMonitor(CloudLocationMonitor):
     def region_quotas(self):
         return self._region_info
 
+    def default_location(self) -> str:
+        return self._default_zone
+
     def choose_location(
         self, cores: int, local_ssd_data_disk: bool, data_disk_size_gb: int, preemptible: bool, region: Optional[str]
     ) -> str:

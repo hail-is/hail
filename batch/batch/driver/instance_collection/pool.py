@@ -98,6 +98,7 @@ WHERE removed = 0 AND inst_coll = %s;
         self.scheduler = PoolScheduler(self.app, self, async_worker_pool, task_manager)
 
         self.healthy_instances_by_free_cores = sortedcontainers.SortedSet(key=lambda instance: instance.free_cores_mcpu)
+
         self.worker_type = config.worker_type
         self.worker_cores = config.worker_cores
         self.worker_local_ssd_data_disk = config.worker_local_ssd_data_disk
