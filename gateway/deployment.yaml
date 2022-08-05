@@ -169,6 +169,12 @@ spec:
       containers:
        - name: gateway
          image: "{{ global.docker_prefix }}/envoy:v1.22.3"
+         command:
+           - /usr/local/bin/envoy
+           - --config-path
+           - /etc/envoy/envoy.yaml
+           - --concurrency
+           - "2"
          resources:
            requests:
              cpu: "20m"
