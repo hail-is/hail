@@ -35,8 +35,6 @@ SCHEDULING_LOOP_RUNS = pc.Counter(
     ['pool_name'],
 )
 
-CI_REGION = "TODO"
-
 
 class Pool(InstanceCollection):
     @staticmethod
@@ -111,6 +109,10 @@ WHERE removed = 0 AND inst_coll = %s;
         self.data_disk_size_standing_gb = config.data_disk_size_standing_gb
         self.preemptible = config.preemptible
 
+        # FIXME: CI needs to submit jobs to a specific region
+        # instead of batch making this decicion on behalf of CI
+        self._ci_region = self.inst_coll_manager._default_region
+
     @property
     def local_ssd_data_disk(self) -> bool:
         return self.worker_local_ssd_data_disk
@@ -162,7 +164,7 @@ WHERE removed = 0 AND inst_coll = %s;
         while i < len(self.healthy_instances_by_free_cores):
             instance = self.healthy_instances_by_free_cores[i]
             assert cores_mcpu <= instance.free_cores_mcpu
-            if user != 'ci' or (user == 'ci' and instance.region == CI_REGION):
+            if user != 'ci' or (user == 'ci' and instance.region == self._ci_region):
                 return instance
             i += 1
         return None
@@ -261,8 +263,8 @@ GROUP BY user;
             await self.create_instances_from_ready_cores(ready_cores_mcpu)
 
         ci_ready_cores_mcpu = ready_cores_mcpu_per_user.get('ci', 0)
-        if ci_ready_cores_mcpu > 0 and self.live_free_cores_mcpu_by_region[CI_REGION] == 0:
-            await self.create_instances_from_ready_cores(ci_ready_cores_mcpu, region=CI_REGION)
+        if ci_ready_cores_mcpu > 0 and self.live_free_cores_mcpu_by_region[self._ci_region] == 0:
+            await self.create_instances_from_ready_cores(ci_ready_cores_mcpu, region=self._ci_region)
 
         n_live_instances = self.n_instances_by_state['pending'] + self.n_instances_by_state['active']
         if self.enable_standing_worker and n_live_instances == 0 and self.max_instances > 0:
