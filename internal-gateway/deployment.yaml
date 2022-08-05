@@ -32,6 +32,15 @@ data:
                           timeout: 0s
                           cluster: {{ service }}
 {% endfor %}
+{% for namespace in internal_namespaces %}
+{% for service in subdomains %}
+                      - match:
+                          prefix: "/{{ namespace }}/{{ service }}"
+                        route:
+                          timeout: 0s
+                          cluster: {{ namespace }}-{{ service }}
+{% endfor %}
+{% endfor %}
               http_filters:
               - name: envoy.filters.http.router
                 typed_config:
@@ -63,6 +72,35 @@ data:
               validation_context:
                 trusted_ca:
                   filename: /ssl-config/internal-gateway-outgoing.pem
+{% endfor %}
+{% for namespace in internal_namespaces %}
+{% for service in subdomains %}
+      - name: {{ namespace }}-{{ service }}
+        type: STRICT_DNS
+        lb_policy: ROUND_ROBIN
+        load_assignment:
+          cluster_name: {{ namespace }}-{{ service }}
+          endpoints:
+          - lb_endpoints:
+            - endpoint:
+                address:
+                  socket_address:
+                    address: {{ service }}.{{ namespace }}.svc.cluster.local
+                    port_value: 443
+        transport_socket:
+          name: envoy.transport_sockets.tls
+          typed_config:
+            "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.UpstreamTlsContext
+            common_tls_context:
+              tls_certificates:
+              - certificate_chain:
+                  filename: /ssl-config/internal-gateway-cert.pem
+                private_key:
+                  filename: /ssl-config/internal-gateway-key.pem
+              validation_context:
+                trusted_ca:
+                  filename: /ssl-config/internal-gateway-outgoing.pem
+{% endfor %}
 {% endfor %}
     admin:
       address:
