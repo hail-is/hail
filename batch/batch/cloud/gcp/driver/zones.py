@@ -116,8 +116,8 @@ class ZoneMonitor(CloudLocationMonitor):
         region: Optional[str],
     ) -> List[ZoneWeight]:
         weights = []
-        for r in self._region_info.values():
-            if region is not None and r != region:
+        for region_name, r in self._region_info.items():
+            if region is not None and region_name != region:
                 continue
 
             quota_remaining = {q['metric']: q['limit'] - q['usage'] for q in r['quotas']}
