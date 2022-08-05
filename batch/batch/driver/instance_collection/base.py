@@ -37,10 +37,12 @@ class InstanceCollectionManager:
         db: Database,  # BORROWED
         machine_name_prefix: str,
         location_monitor: CloudLocationMonitor,
+        default_region: str,
     ):
         self.db: Database = db
         self.machine_name_prefix = machine_name_prefix
         self.location_monitor = location_monitor
+        self._default_region = default_region
 
         self.inst_coll_regex = re.compile(f'{self.machine_name_prefix}(?P<inst_coll>.*)-.*')
         self.name_inst_coll: Dict[str, InstanceCollection] = {}
@@ -55,14 +57,11 @@ class InstanceCollectionManager:
         assert inst_coll.name not in self.name_inst_coll
         self.name_inst_coll[inst_coll.name] = inst_coll
 
-    def region_from_location(self, location: str):
-        return self.location_monitor.region_from_location(location)
-
     def choose_location(
         self, cores: int, local_ssd_data_disk: bool, data_disk_size_gb: int, preemptible: bool, region: Optional[str]
     ) -> str:
         if region is None and self.global_live_total_cores_mcpu // 1000 < 1_000:
-            region = self.location_monitor.default_region()
+            region = self._default_region
         return self.location_monitor.choose_location(
             cores, local_ssd_data_disk, data_disk_size_gb, preemptible, region=region
         )
@@ -188,8 +187,7 @@ class InstanceCollection:
         if instance.state in ('pending', 'active'):
             self.live_free_cores_mcpu -= max(0, instance.free_cores_mcpu)
             self.live_total_cores_mcpu -= instance.cores_mcpu
-            region = self.inst_coll_manager.region_from_location(instance.location)
-            self.live_free_cores_mcpu_by_region[region] -= max(0, instance.free_cores_mcpu)
+            self.live_free_cores_mcpu_by_region[instance.region] -= max(0, instance.free_cores_mcpu)
 
     async def remove_instance(self, instance: Instance, reason: str, timestamp: Optional[int] = None):
         await instance.deactivate(reason, timestamp)
@@ -208,8 +206,7 @@ class InstanceCollection:
         if instance.state in ('pending', 'active'):
             self.live_free_cores_mcpu += max(0, instance.free_cores_mcpu)
             self.live_total_cores_mcpu += instance.cores_mcpu
-            region = self.inst_coll_manager.region_from_location(instance.location)
-            self.live_free_cores_mcpu_by_region[region] += max(0, instance.free_cores_mcpu)
+            self.live_free_cores_mcpu_by_region[instance.region] += max(0, instance.free_cores_mcpu)
 
     def add_instance(self, instance: Instance):
         assert instance.name not in self.name_instance, instance.name

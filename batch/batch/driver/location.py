@@ -4,18 +4,6 @@ from typing import Optional
 
 class CloudLocationMonitor(abc.ABC):
     @abc.abstractmethod
-    def default_location(self) -> str:
-        raise NotImplementedError
-
-    @abc.abstractmethod
-    def default_region(self) -> str:
-        raise NotImplementedError
-
-    @abc.abstractmethod
-    def region_from_location(self, location: str) -> str:
-        raise NotImplementedError
-
-    @abc.abstractmethod
     def choose_location(
         self,
         cores: int,

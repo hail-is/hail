@@ -308,5 +308,9 @@ SET failed_request_count = failed_request_count + 1 WHERE name = %s;
     def last_updated_str(self):
         return humanize.naturaldelta(datetime.timedelta(milliseconds=(time_msecs() - self.last_updated)))
 
+    @property
+    def region(self):
+        return self.instance_config.region
+
     def __str__(self):
         return f'instance {self.name}'

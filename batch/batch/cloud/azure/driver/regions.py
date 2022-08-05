@@ -5,20 +5,11 @@ from ....driver.location import CloudLocationMonitor
 
 class RegionMonitor(CloudLocationMonitor):
     @staticmethod
-    async def create(default_region: str) -> 'RegionMonitor':
-        return RegionMonitor(default_region)
+    async def create(region: str) -> 'RegionMonitor':
+        return RegionMonitor(region)
 
-    def __init__(self, default_region: str):
-        self._default_region = default_region
-
-    def default_location(self) -> str:
-        return self._default_region
-
-    def default_region(self) -> str:
-        return self._default_region
-
-    def region_from_location(self, location: str) -> str:
-        return location
+    def __init__(self, region: str):
+        self._region = region
 
     def choose_location(
         self,
@@ -28,4 +19,4 @@ class RegionMonitor(CloudLocationMonitor):
         preemptible: bool,  # pylint: disable=unused-argument
         region: Optional[str],  # pylint: disable=unused-argument
     ) -> str:
-        return self._default_region
+        return region or self._region

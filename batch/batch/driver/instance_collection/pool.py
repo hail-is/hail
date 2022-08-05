@@ -35,6 +35,8 @@ SCHEDULING_LOOP_RUNS = pc.Counter(
     ['pool_name'],
 )
 
+CI_REGION = "TODO"
+
 
 class Pool(InstanceCollection):
     @staticmethod
@@ -98,7 +100,6 @@ WHERE removed = 0 AND inst_coll = %s;
         self.scheduler = PoolScheduler(self.app, self, async_worker_pool, task_manager)
 
         self.healthy_instances_by_free_cores = sortedcontainers.SortedSet(key=lambda instance: instance.free_cores_mcpu)
-
         self.worker_type = config.worker_type
         self.worker_cores = config.worker_cores
         self.worker_local_ssd_data_disk = config.worker_local_ssd_data_disk
@@ -113,12 +114,6 @@ WHERE removed = 0 AND inst_coll = %s;
     @property
     def local_ssd_data_disk(self) -> bool:
         return self.worker_local_ssd_data_disk
-
-    def _default_region(self) -> str:
-        return self.inst_coll_manager.location_monitor.default_region()
-
-    def _region_from_location(self, location: str):
-        return self.inst_coll_manager.location_monitor.region_from_location(location)
 
     def config(self):
         return {
@@ -167,9 +162,7 @@ WHERE removed = 0 AND inst_coll = %s;
         while i < len(self.healthy_instances_by_free_cores):
             instance = self.healthy_instances_by_free_cores[i]
             assert cores_mcpu <= instance.free_cores_mcpu
-            if user != 'ci' or (
-                user == 'ci' and self._region_from_location(instance.location) == self._default_region()
-            ):
+            if user != 'ci' or (user == 'ci' and instance.region == CI_REGION):
                 return instance
             i += 1
         return None
@@ -267,10 +260,9 @@ GROUP BY user;
         if ready_cores_mcpu > 0 and free_cores < 500:
             await self.create_instances_from_ready_cores(ready_cores_mcpu)
 
-        default_region = self._default_region()
         ci_ready_cores_mcpu = ready_cores_mcpu_per_user.get('ci', 0)
-        if ci_ready_cores_mcpu > 0 and self.live_free_cores_mcpu_by_region[default_region] == 0:
-            await self.create_instances_from_ready_cores(ci_ready_cores_mcpu, region=default_region)
+        if ci_ready_cores_mcpu > 0 and self.live_free_cores_mcpu_by_region[CI_REGION] == 0:
+            await self.create_instances_from_ready_cores(ci_ready_cores_mcpu, region=CI_REGION)
 
         n_live_instances = self.n_instances_by_state['pending'] + self.n_instances_by_state['active']
         if self.enable_standing_worker and n_live_instances == 0 and self.max_instances > 0:

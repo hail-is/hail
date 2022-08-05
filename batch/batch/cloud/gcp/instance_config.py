@@ -56,6 +56,7 @@ class GCPSlimInstanceConfig(InstanceConfig):
             boot_disk_size_gb=boot_disk_size_gb,
             job_private=job_private,
             resources=resources,
+            zone=location,
         )
 
     def __init__(
@@ -67,6 +68,7 @@ class GCPSlimInstanceConfig(InstanceConfig):
         boot_disk_size_gb: int,
         job_private: bool,
         resources: List[GCPResource],
+        zone: str,
     ):
         self.cloud = 'gcp'
         self._machine_type = machine_type
@@ -83,8 +85,14 @@ class GCPSlimInstanceConfig(InstanceConfig):
         self.cores = machine_type_parts.cores
         self.resources = resources
 
+        self.zone = zone
+
     def worker_type(self) -> str:
         return self._worker_type
+
+    @property
+    def region(self) -> str:
+        return self.zone.rsplit('-', maxsplit=1)[0]
 
     @staticmethod
     def from_dict(data: dict) -> 'GCPSlimInstanceConfig':

@@ -38,6 +38,11 @@ class InstanceConfig(abc.ABC):
     def to_dict(self) -> dict:
         raise NotImplementedError
 
+    @property
+    @abc.abstractmethod
+    def region(self) -> str:
+        raise NotImplementedError
+
     def quantified_resources(
         self,
         cpu_in_mcpu: int,
