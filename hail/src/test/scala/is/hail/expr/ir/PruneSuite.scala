@@ -152,7 +152,11 @@ class PruneSuite extends HailSuite {
 
     def partitionCounts: Option[IndexedSeq[Long]] = None
 
-    def fullMatrixType: MatrixType = mat.typ
+    lazy val fullMatrixType: MatrixType = mat.typ.copy(
+      rowType = mat.typ.rowType.appendKey(
+        rowUIDFieldName, TTuple(TInt64, TInt64)),
+      colType = mat.typ.colType.appendKey(
+        colUIDFieldName, TTuple(TInt64, TInt64)))
 
     def lower(requestedType: MatrixType, dropCols: Boolean, dropRows: Boolean): TableIR = ???
 
