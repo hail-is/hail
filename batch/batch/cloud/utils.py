@@ -17,7 +17,7 @@ def instance_config_from_config_dict(config: Dict[str, Any]) -> InstanceConfig:
     return GCPSlimInstanceConfig.from_dict(config)
 
 
-def possible_cloud_regions(cloud: str) -> Set[str]:
+def possible_cloud_locations(cloud: str) -> Set[str]:
     if cloud == 'azure':
         azure_config = get_azure_config()
         return {azure_config.region}

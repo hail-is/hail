@@ -53,9 +53,10 @@ class ZoneMonitor(CloudLocationMonitor):
     async def create(
         compute_client: aiogoogle.GoogleComputeClient,  # BORROWED
         regions: Set[str],
+        default_zone: str,
     ) -> 'ZoneMonitor':
         region_info, zones = await fetch_region_quotas(compute_client, regions)
-        return ZoneMonitor(compute_client, region_info, zones, regions)
+        return ZoneMonitor(compute_client, region_info, zones, regions, default_zone)
 
     def __init__(
         self,
@@ -63,11 +64,13 @@ class ZoneMonitor(CloudLocationMonitor):
         initial_region_info: Dict[str, Dict[str, Any]],
         initial_zones: List[str],
         regions: Set[str],
+        default_zone: str,
     ):
         self._compute_client = compute_client
         self._region_info: Dict[str, Dict[str, Any]] = initial_region_info
         self._regions = regions
         self.zones: List[str] = initial_zones
+        self._default_zone = default_zone
 
         self.zone_success_rate = ZoneSuccessRate()
 

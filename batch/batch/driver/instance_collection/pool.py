@@ -117,6 +117,9 @@ WHERE removed = 0 AND inst_coll = %s;
     def local_ssd_data_disk(self) -> bool:
         return self.worker_local_ssd_data_disk
 
+    def _default_location(self) -> str:
+        return self.inst_coll_manager.location_monitor.default_location()
+
     def config(self):
         return {
             'name': self.name,

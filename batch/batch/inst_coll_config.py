@@ -17,7 +17,7 @@ from .cloud.resource_utils import (
     requested_storage_bytes_to_actual_storage_gib,
     valid_machine_types,
 )
-from .cloud.utils import possible_cloud_regions
+from .cloud.utils import possible_cloud_locations
 from .driver.billing_manager import ProductVersions
 from .instance_config import InstanceConfig
 
@@ -287,7 +287,7 @@ LEFT JOIN pools ON inst_colls.name = pools.name;
                 maybe_cores_mcpu, maybe_memory_bytes, maybe_storage_gib = result
 
                 max_regional_maybe_cost = None
-                for location in possible_cloud_regions(pool.cloud):
+                for location in possible_cloud_locations(pool.cloud):
                     maybe_cost = pool.cost_per_hour(
                         self.resource_rates,
                         self.product_versions,

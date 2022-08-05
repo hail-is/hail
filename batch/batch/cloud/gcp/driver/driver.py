@@ -47,7 +47,7 @@ class GCPDriver(CloudDriver):
             rate_limit=RateLimit(10, 60),
         )
 
-        zone_monitor = await ZoneMonitor.create(compute_client, regions)
+        zone_monitor = await ZoneMonitor.create(compute_client, regions, zone)
         billing_manager = await GCPBillingManager.create(db)
         inst_coll_manager = InstanceCollectionManager(db, machine_name_prefix, zone_monitor, region)
         resource_manager = GCPResourceManager(project, compute_client, billing_manager)
