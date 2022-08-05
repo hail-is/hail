@@ -30,6 +30,7 @@ class GCPDriver(CloudDriver):
         gcp_config = get_gcp_config()
         project = gcp_config.project
         zone = gcp_config.zone
+        region = gcp_config.region
         regions = gcp_config.regions
 
         compute_client = aiogoogle.GoogleComputeClient(project, credentials_file=credentials_file)
@@ -46,7 +47,7 @@ class GCPDriver(CloudDriver):
             rate_limit=RateLimit(10, 60),
         )
 
-        zone_monitor = await ZoneMonitor.create(compute_client, regions, zone)
+        zone_monitor = await ZoneMonitor.create(compute_client, regions, zone, region)
         billing_manager = await GCPBillingManager.create(db)
         inst_coll_manager = InstanceCollectionManager(db, machine_name_prefix, zone_monitor)
         resource_manager = GCPResourceManager(project, compute_client, billing_manager)

@@ -1,6 +1,6 @@
 import logging
 import random
-from typing import Any, Dict, List, Set, Tuple
+from typing import Any, Dict, List, Optional, Set, Tuple
 
 from hailtop.aiocloud import aiogoogle
 from hailtop.utils import url_basename
@@ -54,9 +54,10 @@ class ZoneMonitor(CloudLocationMonitor):
         compute_client: aiogoogle.GoogleComputeClient,  # BORROWED
         regions: Set[str],
         default_zone: str,
+        default_region: str,
     ) -> 'ZoneMonitor':
         region_info, zones = await fetch_region_quotas(compute_client, regions)
-        return ZoneMonitor(compute_client, region_info, zones, regions, default_zone)
+        return ZoneMonitor(compute_client, region_info, zones, regions, default_zone, default_region)
 
     def __init__(
         self,
@@ -65,12 +66,14 @@ class ZoneMonitor(CloudLocationMonitor):
         initial_zones: List[str],
         regions: Set[str],
         default_zone: str,
+        default_region: str,
     ):
         self._compute_client = compute_client
         self._region_info: Dict[str, Dict[str, Any]] = initial_region_info
         self._regions = regions
         self.zones: List[str] = initial_zones
         self._default_zone = default_zone
+        self._default_region = default_region
 
         self.zone_success_rate = ZoneSuccessRate()
 
@@ -81,8 +84,16 @@ class ZoneMonitor(CloudLocationMonitor):
     def default_location(self) -> str:
         return self._default_zone
 
-    def choose_location(self, cores: int, local_ssd_data_disk: bool, data_disk_size_gb: int) -> str:
-        zone_weights = self.compute_zone_weights(cores, local_ssd_data_disk, data_disk_size_gb)
+    def default_region(self) -> str:
+        return self._default_region
+
+    def region_from_location(self, location: str) -> str:
+        return location.rsplit('-', maxsplit=1)[0]
+
+    def choose_location(
+        self, cores: int, local_ssd_data_disk: bool, data_disk_size_gb: int, preemptible: bool, region: Optional[str]
+    ) -> str:
+        zone_weights = self.compute_zone_weights(cores, local_ssd_data_disk, data_disk_size_gb, preemptible, region)
 
         zones = [zw.zone for zw in zone_weights]
 
@@ -97,13 +108,23 @@ class ZoneMonitor(CloudLocationMonitor):
         return zone
 
     def compute_zone_weights(
-        self, worker_cores: int, local_ssd_data_disk: bool, data_disk_size_gb: int
+        self,
+        worker_cores: int,
+        local_ssd_data_disk: bool,
+        data_disk_size_gb: int,
+        preemptible: bool,
+        region: Optional[str],
     ) -> List[ZoneWeight]:
         weights = []
         for r in self._region_info.values():
+            if region is not None and r != region:
+                continue
+
             quota_remaining = {q['metric']: q['limit'] - q['usage'] for q in r['quotas']}
 
-            remaining = quota_remaining['PREEMPTIBLE_CPUS'] / worker_cores
+            cpu_label = 'PREEMPTIBLE_CPUS' if preemptible else 'CPUS'
+            remaining = quota_remaining[cpu_label] / worker_cores
+
             if local_ssd_data_disk:
                 specific_disk_type_quota = quota_remaining['LOCAL_SSD_TOTAL_GB']
             else:

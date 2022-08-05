@@ -1,4 +1,5 @@
 import abc
+from typing import Optional
 
 
 class CloudLocationMonitor(abc.ABC):
@@ -7,5 +8,20 @@ class CloudLocationMonitor(abc.ABC):
         raise NotImplementedError
 
     @abc.abstractmethod
-    def choose_location(self, cores: int, local_ssd_data_disk: bool, data_disk_size_gb: int) -> str:
+    def default_region(self) -> str:
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    def region_from_location(self, location: str) -> str:
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    def choose_location(
+        self,
+        cores: int,
+        local_ssd_data_disk: bool,
+        data_disk_size_gb: int,
+        preemptible: bool,
+        region: Optional[str],
+    ) -> str:
         raise NotImplementedError
