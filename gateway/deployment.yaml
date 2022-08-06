@@ -20,10 +20,18 @@ data:
               route_config:
                 name: local_route
                 virtual_hosts:
+                  # TODO ukbb-rg
 {% for service in subdomains %}
                   - name: {{ service }}
                     domains:
                       - {{ service }}.{{ global.domain }}
+{% if service == "www" %}
+                      - {{ global.domain }}
+{% endif %}
+                    typed_per_filter_config:
+                      envoy.filters.http.ext_authz:
+                        "@type": type.googleapis.com/envoy.extensions.filters.http.ext_authz.v3.ExtAuthzPerRoute
+                        disabled: true
                     routes:
                       - match:
                           prefix: "/"
@@ -45,9 +53,17 @@ data:
 {% endfor %}
 {% endfor %}
               http_filters:
-              - name: envoy.filters.http.router
-                typed_config:
-                  "@type": type.googleapis.com/envoy.extensions.filters.http.router.v3.Router
+                - name: envoy.filters.http.ext_authz
+                  typed_config:
+                    "@type": type.googleapis.com/envoy.extensions.filters.http.ext_authz.v3.ExtAuthz
+                    http_service:
+                      server_uri:
+                        uri: auth.default.svc.cluster.local:443/api/v1alpha/verify_dev_credentials
+                        cluster: auth
+                        timeout: 0.25s
+                - name: envoy.filters.http.router
+                  typed_config:
+                    "@type": type.googleapis.com/envoy.extensions.filters.http.router.v3.Router
           transport_socket:
             name: envoy.transport_sockets.tls
             typed_config:

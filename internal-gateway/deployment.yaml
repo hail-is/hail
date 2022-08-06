@@ -42,9 +42,9 @@ data:
 {% endfor %}
 {% endfor %}
               http_filters:
-              - name: envoy.filters.http.router
-                typed_config:
-                  "@type": type.googleapis.com/envoy.extensions.filters.http.router.v3.Router
+                - name: envoy.filters.http.router
+                  typed_config:
+                    "@type": type.googleapis.com/envoy.extensions.filters.http.router.v3.Router
       clusters:
 {% for service in subdomains %}
       - name: {{ service }}
