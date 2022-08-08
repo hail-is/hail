@@ -38,6 +38,12 @@ class InstanceConfig(abc.ABC):
     def to_dict(self) -> dict:
         raise NotImplementedError
 
+    # FIXME: This should just be a `region` property on the instance_config
+    # instead of accepting a "location"
+    @abc.abstractmethod
+    def region_for(self, location: str) -> str:
+        raise NotImplementedError
+
     def quantified_resources(
         self,
         cpu_in_mcpu: int,
