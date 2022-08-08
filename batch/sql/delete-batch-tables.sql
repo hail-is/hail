@@ -25,13 +25,13 @@ DROP TABLE IF EXISTS `batch_updates_inst_coll_staging`;
 DROP TABLE IF EXISTS `batch_inst_coll_cancellable_resources_staging`;
 DROP TABLE IF EXISTS `batch_updates`;
 
-DROP TABLE IF EXISTS `aggregated_billing_project_user_resources`;
 DROP TABLE IF EXISTS `aggregated_billing_project_resources`;
+DROP TABLE IF EXISTS `aggregated_billing_project_user_resources_v2`;
+DROP TABLE IF EXISTS `aggregated_billing_project_user_resources_by_date_v2`;
 DROP TABLE IF EXISTS `aggregated_batch_resources`;
+DROP TABLE IF EXISTS `aggregated_batch_resources_v2`;
 DROP TABLE IF EXISTS `aggregated_job_resources`;
-DROP TABLE IF EXISTS `aggregated_billing_project_user_resources_by_date`;
-DROP TABLE IF EXISTS `aggregated_batch_resources_by_date`;
-DROP TABLE IF EXISTS `aggregated_job_resources_by_date`;
+DROP TABLE IF EXISTS `aggregated_job_resources_v2`;
 DROP TABLE IF EXISTS `attempt_resources`;
 DROP TABLE IF EXISTS `batch_cancellable_resources`;  # deprecated
 DROP TABLE IF EXISTS `batch_inst_coll_cancellable_resources`;

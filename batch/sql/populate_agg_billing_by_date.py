@@ -63,7 +63,7 @@ async def process_chunk(counter, db, start_offset, end_offset, quiet=True):
     await db.just_execute(
         f'''
 UPDATE attempts
-SET added_to_per_day_rollups = TRUE
+SET migrated = TRUE
 {where_cond}
 ''',
         query_args)
@@ -93,8 +93,8 @@ FROM (
 ) AS old
 LEFT JOIN (
   SELECT batch_id, job_id, COALESCE(SUM(`usage` * rate), 0) AS cost
-  FROM aggregated_job_resources_by_date
-  LEFT JOIN resources ON aggregated_job_resources_by_date.resource_id = resources.resource_id
+  FROM aggregated_job_resources_v2
+  LEFT JOIN resources ON aggregated_job_resources_v2.resource_id = resources.resource_id
   GROUP BY batch_id, job_id
 ) AS new ON old.batch_id = new.batch_id AND old.job_id = new.job_id
 WHERE ABS(new.cost - old.cost) >= 0.00001
@@ -136,8 +136,8 @@ FROM (
 ) AS old
 LEFT JOIN (
   SELECT batch_id, COALESCE(SUM(`usage` * rate), 0) AS cost
-  FROM aggregated_batch_resources_by_date
-  LEFT JOIN resources ON aggregated_batch_resources_by_date.resource_id = resources.resource_id
+  FROM aggregated_batch_resources_v2
+  LEFT JOIN resources ON aggregated_batch_resources_v2.resource_id = resources.resource_id
   GROUP BY batch_id
 ) AS new ON old.batch_id = new.batch_id
 WHERE ABS(new.cost - old.cost) >= 0.00001
@@ -217,13 +217,13 @@ async def main(chunk_size=100):
             random.shuffle(chunk_offsets)
 
             burn_in_start = time.time()
-            n_burn_in_chunks = 1000
+            n_burn_in_chunks = 10000
 
             burn_in_chunk_offsets = chunk_offsets[:n_burn_in_chunks]
-            chunk_offsets = chunk_offsets[n_burn_in_chunks:]  # processing a chunk is not idempotent
+            chunk_offsets = chunk_offsets[n_burn_in_chunks:]
 
             for start_offset, end_offset in burn_in_chunk_offsets:
-                await process_chunk(chunk_counter, db, start_offset, end_offset)
+                await process_chunk(chunk_counter, db, start_offset, end_offset, quiet=False)
 
             print(f'finished burn-in in {time.time() - burn_in_start}s')
 
