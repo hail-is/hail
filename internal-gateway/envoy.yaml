@@ -1,7 +1,8 @@
-{% macro cluster(name, dns_name)  %}
+{% macro cluster(name, dns_name, dns_refresh_rate)  %}
         - name: {{ name }}
           type: STRICT_DNS
           lb_policy: ROUND_ROBIN
+          dns_refresh_rate: {{ dns_refresh_rate }}
           load_assignment:
             cluster_name: {{ name }}
             endpoints:
@@ -31,8 +32,8 @@
                             "@type": type.googleapis.com/envoy.extensions.filters.http.local_ratelimit.v3.LocalRateLimit
                             stat_prefix: http_local_rate_limiter
                             token_bucket:
-                              max_tokens: 150
-                              tokens_per_fill: 150
+                              max_tokens: 200
+                              tokens_per_fill: 200
                               fill_interval: 1s
                             filter_enabled:
                               runtime_key: local_rate_limit_enabled
@@ -105,11 +106,11 @@ data:
                     "@type": type.googleapis.com/envoy.extensions.filters.http.router.v3.Router
       clusters:
 {% for service in subdomains %}
-{{ cluster(service, service + '.default.svc.cluster.local') }}
+{{ cluster(service, service + '.default.svc.cluster.local', '5s') }}
 {% endfor %}
 {% for namespace in internal_namespaces %}
 {% for service in subdomains %}
-{{ cluster(namespace + '-' + service, service + '.' + namespace + '.svc.cluster.local') }}
+{{ cluster(namespace + '-' + service, service + '.' + namespace + '.svc.cluster.local', '1m') }}
 {% endfor %}
 {% endfor %}
     admin:

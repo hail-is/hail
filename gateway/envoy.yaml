@@ -1,7 +1,8 @@
-{% macro cluster(name, dns_name)  %}
+{% macro cluster(name, dns_name, dns_refresh_rate)  %}
         - name: {{ name }}
           type: STRICT_DNS
           lb_policy: ROUND_ROBIN
+          dns_refresh_rate: {{ dns_refresh_rate }}
           load_assignment:
             cluster_name: {{ name }}
             endpoints:
@@ -179,15 +180,15 @@ data:
                       port_value: 80
 {% for service in subdomains %}
 {% if service == 'ukbb-rg' %}
-{{ cluster('ukbb-rg-browser', 'ukbb-rg-browser.ukbb-rg.svc.cluster.local') }}
-{{ cluster('ukbb-rg-static', 'ukbb-rg-static.ukbb-rg.svc.cluster.local') }}
+{{ cluster('ukbb-rg-browser', 'ukbb-rg-browser.ukbb-rg.svc.cluster.local', '5s') }}
+{{ cluster('ukbb-rg-static', 'ukbb-rg-static.ukbb-rg.svc.cluster.local', '5s') }}
 {% else %}
-{{ cluster(service, service + '.default.svc.cluster.local') }}
+{{ cluster(service, service + '.default.svc.cluster.local', '5s') }}
 {% endif %}
 {% endfor %}
 {% for namespace in internal_namespaces %}
 {% for service in subdomains %}
-{{ cluster(namespace + '-' + service, service + '.' + namespace + '.svc.cluster.local') }}
+{{ cluster(namespace + '-' + service, service + '.' + namespace + '.svc.cluster.local', '1m') }}
 {% endfor %}
 {% endfor %}
     admin:
