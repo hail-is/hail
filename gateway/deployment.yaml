@@ -191,6 +191,8 @@ spec:
            - /etc/envoy/envoy.yaml
            - --concurrency
            - "2"
+           - --log-level
+           - debug
          resources:
            requests:
              cpu: "20m"

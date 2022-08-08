@@ -777,6 +777,8 @@ class AuthAccessLogger(AccessLogger):
 def run():
     app = web.Application(middlewares=[monitor_endpoints_middleware])
 
+    logging.basicConfig(level=logging.DEBUG)
+
     setup_aiohttp_jinja2(app, 'auth')
     setup_aiohttp_session(app)
 
