@@ -17,6 +17,8 @@ data:
               "@type": type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager
               codec_type: AUTO
               stat_prefix: ingress_http
+              upgrade_configs:
+                - upgrade_type: websocket
               route_config:
                 name: local_route
                 virtual_hosts:
@@ -27,7 +29,7 @@ data:
                           prefix: "/"
                         route:
                           timeout: 0s
-                          cluster: app
+                          cluster: grafana
               http_filters:
                 - name: envoy.filters.http.ext_authz
                   typed_config:
@@ -82,11 +84,11 @@ data:
               validation_context:
                 trusted_ca:
                   filename: /ssl-config/grafana-outgoing.pem
-      - name: app
+      - name: grafana
         type: STRICT_DNS
         lb_policy: ROUND_ROBIN
         load_assignment:
-          cluster_name: app
+          cluster_name: grafana
           endpoints:
           - lb_endpoints:
             - endpoint:
