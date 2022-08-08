@@ -58,9 +58,15 @@ data:
                     "@type": type.googleapis.com/envoy.extensions.filters.http.ext_authz.v3.ExtAuthz
                     http_service:
                       server_uri:
-                        uri: auth.default.svc.cluster.local:443/api/v1alpha/verify_dev_credentials
+                        uri: https://auth:443
                         cluster: auth
                         timeout: 0.25s
+                      path_prefix: /api/v1alpha/verify_dev_credentials?url=
+                      authorization_request:
+                        allowed_headers:
+                          patterns:
+                            exact: "Cookie"
+                            ignore_case: true
                 - name: envoy.filters.http.router
                   typed_config:
                     "@type": type.googleapis.com/envoy.extensions.filters.http.router.v3.Router
@@ -191,8 +197,6 @@ spec:
            - /etc/envoy/envoy.yaml
            - --concurrency
            - "2"
-           - --log-level
-           - debug
          resources:
            requests:
              cpu: "20m"

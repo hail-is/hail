@@ -37,7 +37,7 @@ data:
                         uri: https://auth:443
                         cluster: auth
                         timeout: 0.25s
-                      path_prefix: /api/v1alpha/verify_dev_credentials
+                      path_prefix: /api/v1alpha/verify_dev_credentials?url=
                       authorization_request:
                         allowed_headers:
                           patterns:
@@ -69,6 +69,19 @@ data:
                   socket_address:
                     address: auth
                     port_value: 443
+        transport_socket:
+          name: envoy.transport_sockets.tls
+          typed_config:
+            "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.UpstreamTlsContext
+            common_tls_context:
+              tls_certificates:
+              - certificate_chain:
+                  filename: /ssl-config/grafana-cert.pem
+                private_key:
+                  filename: /ssl-config/grafana-key.pem
+              validation_context:
+                trusted_ca:
+                  filename: /ssl-config/grafana-outgoing.pem
       - name: app
         type: STRICT_DNS
         lb_policy: ROUND_ROBIN

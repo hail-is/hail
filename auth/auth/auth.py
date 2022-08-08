@@ -717,7 +717,7 @@ async def get_session_id(request):
     return session.get('session_id')
 
 
-@routes.get('/api/v1alpha/verify_dev_credentials')
+@routes.route('*', '/api/v1alpha/verify_dev_credentials')
 async def verify_dev_credentials(request):
     session_id = await get_session_id(request)
     if not session_id:
@@ -729,7 +729,7 @@ async def verify_dev_credentials(request):
     return web.Response(status=200)
 
 
-@routes.get('/api/v1alpha/verify_dev_or_sa_credentials')
+@routes.route('*', '/api/v1alpha/verify_dev_or_sa_credentials')
 async def verify_dev_or_sa_credentials(request):
     session_id = await get_session_id(request)
     if not session_id:
