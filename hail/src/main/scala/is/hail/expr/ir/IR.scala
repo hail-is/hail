@@ -741,7 +741,7 @@ final case class BlockMatrixWrite(child: BlockMatrixIR, writer: BlockMatrixWrite
 
 final case class BlockMatrixMultiWrite(blockMatrices: IndexedSeq[BlockMatrixIR], writer: BlockMatrixMultiWriter) extends IR
 
-final case class CollectDistributedArray(contexts: IR, globals: IR, cname: String, gname: String, body: IR, tsd: Option[TableStageDependency] = None) extends IR
+final case class CollectDistributedArray(contexts: IR, globals: IR, cname: String, gname: String, body: IR, dynamicID: IR, staticID: String, tsd: Option[TableStageDependency] = None) extends IR
 
 object PartitionReader {
   implicit val formats: Formats = new DefaultFormats() {

@@ -19,7 +19,7 @@ import scala.collection.mutable.ArrayBuffer
 object LowerDistributedSort {
   def localSort(ctx: ExecuteContext, stage: TableStage, sortFields: IndexedSeq[SortField], relationalLetsAbove: Map[String, IR]): TableStage = {
     val numPartitions = stage.partitioner.numPartitions
-    val collected = stage.collectWithGlobals(relationalLetsAbove)
+    val collected = stage.collectWithGlobals(relationalLetsAbove, "shuffle_local_sort")
 
     val (Some(PTypeReferenceSingleCodeType(resultPType: PStruct)), f) = ctx.timer.time("LowerDistributedSort.localSort.compile")(Compile[AsmFunction1RegionLong](ctx,
       FastIndexedSeq(),
@@ -125,7 +125,7 @@ object LowerDistributedSort {
     val writer = PartitionNativeWriter(spec, keyToSortBy.fieldNames, initialTmpPath, None, None, trackTotalBytes = true)
 
     log.info("DISTRIBUTED SORT: PHASE 1: WRITE DATA")
-    val initialStageDataRow = CompileAndEvaluate[Annotation](ctx, inputStage.mapCollectWithGlobals(relationalLetsAbove) { part =>
+    val initialStageDataRow = CompileAndEvaluate[Annotation](ctx, inputStage.mapCollectWithGlobals(relationalLetsAbove, "shuffle_initial_write") { part =>
       WritePartition(part, UUID4(), writer)
     }{ case (part, globals) =>
       val streamElement = Ref(genUID(), part.typ.asInstanceOf[TArray].elementType)
@@ -185,7 +185,7 @@ object LowerDistributedSort {
         "sizeOfPartition" -> TInt32,
         "numSamples" -> TInt32,
         "byteSize" -> TInt64)), perPartStatsCDAContextData))
-      val perPartStatsIR = cdaIR(perPartStatsCDAContexts, MakeStruct(Seq())){ (ctxRef, _) =>
+      val perPartStatsIR = cdaIR(perPartStatsCDAContexts, MakeStruct(Seq()), s"shuffle_part_stats_iteration_$i"){ (ctxRef, _) =>
         val filenames = GetField(ctxRef, "files")
         val samples = SeqSample(GetField(ctxRef, "sizeOfPartition"), GetField(ctxRef, "numSamples"), NA(TRNGState), false)
         val partitionStream = flatMapIR(ToStream(filenames)) { fileName =>
@@ -300,7 +300,7 @@ object LowerDistributedSort {
         val distributeContexts = ToStream(Literal(TArray(TStruct("segmentIdx" -> TInt32, "files" -> TArray(TString), "partIdx" -> TInt32, "indexIntoPivotsArray" -> TInt32)), distributeContextsData))
         val distributeGlobals = MakeStruct(IndexedSeq("pivotsWithEndpointsGroupedBySegmentIdx" -> pivotsWithEndpointsGroupedBySegmentNumberLiteral))
 
-        val distribute = cdaIR(distributeContexts, distributeGlobals) { (ctxRef, globalsRef) =>
+        val distribute = cdaIR(distributeContexts, distributeGlobals, s"shuffle_distribute_iteration_$i") { (ctxRef, globalsRef) =>
           val segmentIdx = GetField(ctxRef, "segmentIdx")
           val indexIntoPivotsArray = GetField(ctxRef, "indexIntoPivotsArray")
           val pivotsWithEndpointsGroupedBySegmentIdx = GetField(globalsRef, "pivotsWithEndpointsGroupedBySegmentIdx")
@@ -357,7 +357,7 @@ object LowerDistributedSort {
     val needSortingFilenames = loopState.smallSegments.map(_.chunks.map(_.filename))
     val needSortingFilenamesContext = Literal(TArray(TArray(TString)), needSortingFilenames)
 
-    val sortedFilenamesIR = cdaIR(ToStream(needSortingFilenamesContext), MakeStruct(Seq())) { case (ctxRef, _) =>
+    val sortedFilenamesIR = cdaIR(ToStream(needSortingFilenamesContext), MakeStruct(Seq()), "shuffle_local_sort") { case (ctxRef, _) =>
       val filenames = ctxRef
       val partitionInputStream = flatMapIR(ToStream(filenames)) { fileName =>
         ReadPartition(fileName, spec._vType, reader)
@@ -370,6 +370,7 @@ object LowerDistributedSort {
     }
 
     log.info(s"DISTRIBUTED SORT: PHASE ${i+1}: LOCALLY SORT FILES")
+    log.info(s"DISTRIBUTED_SORT: ${needSortingFilenames.length} segments to sort")
     val sortedFilenames = CompileAndEvaluate[Annotation](ctx, sortedFilenamesIR).asInstanceOf[IndexedSeq[Row]].map(_(0).asInstanceOf[String])
     val newlySortedSegments = loopState.smallSegments.zip(sortedFilenames).map { case (sr, newFilename) =>
       OutputPartition(sr.indices, sr.interval, IndexedSeq(initialTmpPath + newFilename))

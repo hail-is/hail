@@ -489,8 +489,9 @@ object TypeCheck {
       case BlockMatrixMultiWrite(_, _) =>
       case ValueToBlockMatrix(child, _, _) =>
         assert(child.typ.isInstanceOf[TArray] || child.typ.isInstanceOf[TNDArray] ||  child.typ == TFloat64)
-      case CollectDistributedArray(ctxs, globals, cname, gname, body, _) =>
+      case CollectDistributedArray(ctxs, globals, cname, gname, body, dynamicID, _, _) =>
         assert(ctxs.typ.isInstanceOf[TStream])
+        assert(dynamicID.typ == TString)
       case x@ReadPartition(context, rowType, reader) =>
         assert(rowType.isRealizable)
         assert(context.typ == reader.contextType)

@@ -2323,7 +2323,7 @@ class Emit[C](
         val rt = loopRef.resultType
         IEmitCode(CodeLabel(), CodeLabel(), rt.st.defaultValue, rt.required)
 
-      case x@CollectDistributedArray(contexts, globals, cname, gname, body, tsd) =>
+      case x@CollectDistributedArray(contexts, globals, cname, gname, body, dynamicID, staticID, tsd) =>
         val parentCB = mb.ecb
         emitStream(contexts, cb, region).map(cb) { case ctxStream: SStreamValue =>
 
@@ -2342,7 +2342,7 @@ class Emit[C](
           val globalSpec: TypedCodecSpec = TypedCodecSpec(globalPTuple, bufferSpec)
 
           // emit body in new FB
-          val bodyFB = EmitFunctionBuilder[Region, Array[Byte], Array[Byte], Array[Byte]](ctx.executeContext, "collect_distributed_array")
+          val bodyFB = EmitFunctionBuilder[Region, Array[Byte], Array[Byte], Array[Byte]](ctx.executeContext, s"collect_distributed_array_$staticID")
 
           var bodySpec: TypedCodecSpec = null
           bodyFB.emitWithBuilder { cb =>
@@ -2436,7 +2436,17 @@ class Emit[C](
           addContexts(cb, ctxStream.producer)
           cb += baos.invoke[Unit]("reset")
           addGlobals(cb)
-          cb.assign(encRes, spark.invoke[BackendContext, HailClassLoader, FS, String, Array[Array[Byte]], Array[Byte], Option[TableStageDependency], Array[Array[Byte]]](
+
+          assert(staticID != null)
+          val stageName = cb.newLocal[String]("stagename")
+          cb.assign(stageName, staticID)
+          emitI(dynamicID).consume(cb,
+            (),
+            { dynamicID =>
+              cb.assign(stageName, stageName.concat(": ").concat(dynamicID.asString.loadString(cb)))
+            })
+
+          cb.assign(encRes, spark.invoke[BackendContext, HailClassLoader, FS, String, Array[Array[Byte]], Array[Byte], String, Option[TableStageDependency], Array[Array[Byte]]](
             "collectDArray",
             mb.getObject(ctx.executeContext.backendContext),
             mb.getHailClassLoader,
@@ -2444,6 +2454,7 @@ class Emit[C](
             functionID,
             ctxab.invoke[Array[Array[Byte]]]("result"),
             baos.invoke[Array[Byte]]("toByteArray"),
+            stageName,
             mb.getObject(tsd)))
           decodeResult(cb)
         }

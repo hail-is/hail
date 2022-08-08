@@ -231,7 +231,7 @@ object LoweredTableReader {
       MakeStruct(FastIndexedSeq()),
       "context",
       "globals",
-      scanBody(Ref("context", contextType)))
+      scanBody(Ref("context", contextType)), NA(TString), "table_coerce_sortedness")
 
     val sortedPartDataIR = sortIR(bindIR(scanResult) { scanResult =>
       mapIR(
