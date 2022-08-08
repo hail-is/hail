@@ -49,7 +49,6 @@ data:
               route_config:
                 name: local_route
                 virtual_hosts:
-                  # TODO ukbb-rg
 {% for service in subdomains %}
 {% if service == 'ukbb-rg' %}
                   - name: ukbb
