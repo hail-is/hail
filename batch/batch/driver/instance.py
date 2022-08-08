@@ -310,7 +310,7 @@ SET failed_request_count = failed_request_count + 1 WHERE name = %s;
 
     @property
     def region(self):
-        return self.instance_config.region
+        return self.instance_config.region_for(self.location)
 
     def __str__(self):
         return f'instance {self.name}'

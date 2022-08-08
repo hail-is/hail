@@ -54,7 +54,6 @@ class AzureSlimInstanceConfig(InstanceConfig):
             boot_disk_size_gb=boot_disk_size_gb,
             job_private=job_private,
             resources=resources,
-            location=location,
         )
 
     def __init__(
@@ -66,7 +65,6 @@ class AzureSlimInstanceConfig(InstanceConfig):
         boot_disk_size_gb: int,
         job_private: bool,
         resources: List[AzureResource],
-        location: str,
     ):
         self.cloud = 'azure'
         self._machine_type = machine_type
@@ -76,7 +74,6 @@ class AzureSlimInstanceConfig(InstanceConfig):
         self.job_private = job_private
         self.boot_disk_size_gb = boot_disk_size_gb
         self.resources = resources
-        self.location = location
 
         worker_type, cores = azure_machine_type_to_worker_type_and_cores(self._machine_type)
 
@@ -86,9 +83,8 @@ class AzureSlimInstanceConfig(InstanceConfig):
     def worker_type(self) -> str:
         return self._worker_type
 
-    @property
-    def region(self) -> str:
-        return self.location
+    def region_for(self, location: str) -> str:
+        return location
 
     @staticmethod
     def from_dict(data: dict) -> 'AzureSlimInstanceConfig':
