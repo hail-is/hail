@@ -39,7 +39,11 @@ data:
                         uri: https://auth:443
                         cluster: auth
                         timeout: 0.25s
+{% if deploy %}
                       path_prefix: /api/v1alpha/verify_dev_credentials?url=
+{% else %}
+                      path_prefix: /{{ default_ns.name }}/auth/api/v1alpha/verify_dev_credentials?url=
+{% endif %}
                       authorization_request:
                         allowed_headers:
                           patterns:
