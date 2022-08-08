@@ -1,3 +1,30 @@
+{% macro cluster(name, dns_name)  %}
+      - name: {{ name }}
+        type: STRICT_DNS
+        lb_policy: ROUND_ROBIN
+        load_assignment:
+          cluster_name: {{ name }}
+          endpoints:
+          - lb_endpoints:
+            - endpoint:
+                address:
+                  socket_address:
+                    address: {{ dns_name }}
+                    port_value: 443
+        transport_socket:
+          name: envoy.transport_sockets.tls
+          typed_config:
+            "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.UpstreamTlsContext
+            common_tls_context:
+              tls_certificates:
+              - certificate_chain:
+                  filename: /ssl-config/gateway-cert.pem
+                private_key:
+                  filename: /ssl-config/gateway-key.pem
+              validation_context:
+                trusted_ca:
+                  filename: /ssl-config/gateway-outgoing.pem
+{% endmacro %}
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -24,6 +51,26 @@ data:
                 virtual_hosts:
                   # TODO ukbb-rg
 {% for service in subdomains %}
+{% if service == 'ukbb-rg' %}
+                  - name: ukbb
+                    domains:
+                      - ukbb-rg.{{ global.domain }}
+                    typed_per_filter_config:
+                      envoy.filters.http.ext_authz:
+                        "@type": type.googleapis.com/envoy.extensions.filters.http.ext_authz.v3.ExtAuthzPerRoute
+                        disabled: true
+                    routes:
+                      - match:
+                          prefix: "/rg_browser"
+                        route:
+                          timeout: 0s
+                          cluster: ukbb-rg-browser
+                      - match:
+                          prefix: "/"
+                        route:
+                          timeout: 0s
+                          cluster: ukbb-rg-static
+{% else %}
                   - name: {{ service }}
                     domains:
                       - {{ service }}.{{ global.domain }}
@@ -40,6 +87,7 @@ data:
                         route:
                           timeout: 0s
                           cluster: {{ service }}
+{% endif %}
 {% endfor %}
                   - name: internal
                     domains:
@@ -84,59 +132,16 @@ data:
                     filename: /etc/letsencrypt/privkey.pem
       clusters:
 {% for service in subdomains %}
-      - name: {{ service }}
-        type: STRICT_DNS
-        lb_policy: ROUND_ROBIN
-        load_assignment:
-          cluster_name: {{ service }}
-          endpoints:
-          - lb_endpoints:
-            - endpoint:
-                address:
-                  socket_address:
-                    address: {{ service }}.default.svc.cluster.local
-                    port_value: 443
-        transport_socket:
-          name: envoy.transport_sockets.tls
-          typed_config:
-            "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.UpstreamTlsContext
-            common_tls_context:
-              tls_certificates:
-              - certificate_chain:
-                  filename: /ssl-config/gateway-cert.pem
-                private_key:
-                  filename: /ssl-config/gateway-key.pem
-              validation_context:
-                trusted_ca:
-                  filename: /ssl-config/gateway-outgoing.pem
+{% if service == 'ukbb-rg' %}
+{{ cluster('ukbb-rg-browser', 'ukbb-rg-browser.ukbb-rg.svc.cluster.local') }}
+{{ cluster('ukbb-rg-static', 'ukbb-rg-static.ukbb-rg.svc.cluster.local') }}
+{% else %}
+{{ cluster(service, service + '.default.svc.cluster.local') }}
+{% endif %}
 {% endfor %}
 {% for namespace in internal_namespaces %}
 {% for service in subdomains %}
-      - name: {{ namespace }}-{{ service }}
-        type: STRICT_DNS
-        lb_policy: ROUND_ROBIN
-        load_assignment:
-          cluster_name: {{ namespace }}-{{ service }}
-          endpoints:
-          - lb_endpoints:
-            - endpoint:
-                address:
-                  socket_address:
-                    address: {{ service }}.{{ namespace }}.svc.cluster.local
-                    port_value: 443
-        transport_socket:
-          name: envoy.transport_sockets.tls
-          typed_config:
-            "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.UpstreamTlsContext
-            common_tls_context:
-              tls_certificates:
-              - certificate_chain:
-                  filename: /ssl-config/gateway-cert.pem
-                private_key:
-                  filename: /ssl-config/gateway-key.pem
-              validation_context:
-                trusted_ca:
-                  filename: /ssl-config/gateway-outgoing.pem
+{{ cluster(namespace + '-' + service, service + '.' + namespace + '.svc.cluster.local') }}
 {% endfor %}
 {% endfor %}
     admin:

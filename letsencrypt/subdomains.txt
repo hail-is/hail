@@ -4,3 +4,4 @@ batch-driver
 batch-db-proxy
 grafana
 prometheus
+ukbb-rg
