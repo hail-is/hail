@@ -43,6 +43,10 @@ spec:
            - /etc/envoy/envoy.yaml
            - --concurrency
            - "2"
+           - --service-cluster
+           - gateway
+           - --service-node
+           - $(hostname)
          resources:
            requests:
              cpu: "20m"

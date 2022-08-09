@@ -23,7 +23,7 @@ from .build import BuildConfiguration, Code
 from .constants import AUTHORIZED_USERS, COMPILER_TEAM, GITHUB_CLONE_URL, GITHUB_STATUS_CONTEXT, SERVICES_TEAM
 from .environment import DEPLOY_STEPS, DEFAULT_NAMESPACE
 from .globals import is_test_deployment
-from .utils import allocate_namespace
+from .utils import reserve_namespace, generate_token
 
 repos_lock = asyncio.Lock()
 
@@ -480,9 +480,10 @@ mkdir -p {shq(repo_dir)}
             sha_out, _ = await check_shell_output(f'git -C {shq(repo_dir)} rev-parse HEAD')
             self.sha = sha_out.decode('utf-8').strip()
 
-            namespace = await allocate_namespace(db)
+            namespace_name = f'test-ns-{generate_token()}'
             with open(f'{repo_dir}/build.yaml', 'r', encoding='utf-8') as f:
-                config = BuildConfiguration(namespace, self, f.read(), scope='test')
+                config = BuildConfiguration(namespace_name, self, f.read(), scope='test')
+            await reserve_namespace(db, namespace_name, config.deployed_services())
 
             log.info(f'creating test batch for {self.number}')
             batch = batch_client.create_batch(

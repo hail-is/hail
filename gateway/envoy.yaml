@@ -186,3 +186,13 @@ data:
               listener:
                 example_listener_name:
                   connection_limit: 10000
+{% if 'ci' in subdomains %}
+    dynamic_resources:
+      cds_config:
+        resource_api_version: V3
+        api_config_source:
+          api_type: REST
+          transport_api_version: V3
+          refresh_delay: 10s
+          cluster_names: [ci]
+{% endif %}

@@ -1,6 +1,9 @@
 import secrets
 import string
-from datetime import datetime
+import json
+import datetime
+
+from typing import List
 
 from gear import Database
 
@@ -12,11 +15,10 @@ def generate_token(size=12):
     return secrets.choice(alpha) + ''.join([secrets.choice(alnum) for _ in range(size - 1)])
 
 
-async def allocate_namespace(db: Database) -> str:
-    namespace_name = f'test-ns-{generate_token()}'
-    expiration = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+async def reserve_namespace(db: Database, namespace_name: str, services: List[str]):
+    tomorrow = datetime.datetime.now() + datetime.timedelta(days=1)
+    expiration = tomorrow.strftime('%Y-%m-%d %H:%M:%S')
     await db.execute_insertone(
-        '''INSERT INTO internal_namespaces (`namespace_name`, `expiration_time`) VALUES (%s, %s)''',
-        (namespace_name, expiration),
+        '''INSERT INTO internal_namespaces (`namespace_name`, `expiration_time`, `services`) VALUES (%s, %s, %s)''',
+        (namespace_name, expiration, json.dumps(services)),
     )
-    return namespace_name
