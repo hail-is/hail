@@ -5,7 +5,7 @@ include ../config.mk
 INTERNAL_IP := $(shell kubectl get secret global-config --template={{.data.internal_ip}} | base64 --decode)
 
 envoy_config:
-	python3 ../ci/jinja2_render.py '{"global":{"domain":"$(DOMAIN)"},"subdomains":[$(shell sed -e 's/\(.*\)/"\1"/' ../letsencrypt/subdomains.txt | paste -s -d, -)],"internal_namespaces":[$(shell sed -e 's/\(.*\)/"\1"/' ../internal-namespaces.txt | paste -s -d, -)]}' envoy.yaml envoy.yaml.out
+	python3 ../ci/jinja2_render.py '{"global":{"domain":"$(DOMAIN)"},"subdomains":[$(shell sed -e 's/\(.*\)/"\1"/' ../letsencrypt/subdomains.txt | paste -s -d, -)]}' envoy.yaml envoy.yaml.out
 	kubectl delete configmap internal-gateway-envoy-config
 	kubectl -n default create -f envoy.yaml.out
 

@@ -1,8 +1,7 @@
-{% macro cluster(name, dns_name, dns_refresh_rate)  %}
+{% macro cluster(name, dns_name)  %}
         - name: {{ name }}
           type: STRICT_DNS
           lb_policy: ROUND_ROBIN
-          dns_refresh_rate: {{ dns_refresh_rate }}
           load_assignment:
             cluster_name: {{ name }}
             endpoints:
@@ -124,19 +123,6 @@ data:
                           cluster: {{ service }}
 {% endif %}
 {% endfor %}
-                  - name: internal
-                    domains:
-                      - internal.{{ global.domain }}
-                    routes:
-{% for namespace in internal_namespaces %}
-{% for service in subdomains %}
-                      - match:
-                          prefix: "/{{ namespace }}/{{ service }}"
-                        route:
-                          timeout: 0s
-                          cluster: {{ namespace }}-{{ service }}
-{% endfor %}
-{% endfor %}
               http_filters:
                 - name: envoy.filters.http.ext_authz
                   typed_config:
@@ -180,16 +166,11 @@ data:
                       port_value: 80
 {% for service in subdomains %}
 {% if service == 'ukbb-rg' %}
-{{ cluster('ukbb-rg-browser', 'ukbb-rg-browser.ukbb-rg.svc.cluster.local', '5s') }}
-{{ cluster('ukbb-rg-static', 'ukbb-rg-static.ukbb-rg.svc.cluster.local', '5s') }}
+{{ cluster('ukbb-rg-browser', 'ukbb-rg-browser.ukbb-rg.svc.cluster.local') }}
+{{ cluster('ukbb-rg-static', 'ukbb-rg-static.ukbb-rg.svc.cluster.local') }}
 {% else %}
-{{ cluster(service, service + '.default.svc.cluster.local', '5s') }}
+{{ cluster(service, service + '.default.svc.cluster.local') }}
 {% endif %}
-{% endfor %}
-{% for namespace in internal_namespaces %}
-{% for service in subdomains %}
-{{ cluster(namespace + '-' + service, service + '.' + namespace + '.svc.cluster.local', '60s') }}
-{% endfor %}
 {% endfor %}
     admin:
       address:
