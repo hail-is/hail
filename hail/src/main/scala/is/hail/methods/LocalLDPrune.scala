@@ -100,10 +100,35 @@ private class BitPackedVectorLoader(fullRowPType: PStruct, callField: String, nS
   }
 }
 
-case class BitPackedVector(locus: Locus, alleles: Array[String], bpv: Array[Long], nSamples: Int, mean: Double, centeredLengthRec: Double) {
-  def nPacks: Int = bpv.length
+case class BitPackedVector(locus: Locus, alleles: Array[String], gs: Array[Long], nSamples: Int, mean: Double, centeredLengthRec: Double) {
+  def nPacks: Int = gs.length
 
-  def getPack(idx: Int): Long = bpv(idx)
+  def getPack(idx: Int): Long = gs(idx)
+
+  // for testing
+  private[methods] def unpack(): Array[Int] = {
+    val gts = Array.ofDim[Int](nSamples)
+
+    var packIndex = 0
+    var i = 0
+    val shiftInit = GENOTYPES_PER_PACK * 2 - 2
+    while (packIndex < nPacks && i < nSamples) {
+      val l = gs(packIndex)
+      var shift = shiftInit
+      while (shift >= 0 && i < nSamples) {
+        val gt = (l >> shift) & 3
+        if (gt == 3)
+          gts(i) = -1
+        else
+          gts(i) = gt.toInt
+        shift -= 2
+        i += 1
+      }
+      packIndex += 1
+    }
+
+    gts
+  }
 }
 
 object LocalLDPrune {
