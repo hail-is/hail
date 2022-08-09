@@ -5,6 +5,7 @@ import is.hail.asm4s._
 import is.hail.backend.ExecuteContext
 import is.hail.expr.ir.streams.StreamProducer
 import is.hail.expr.ir.{EmitCode, EmitCodeBuilder, EmitValue, IEmitCode, PartitionReader}
+import is.hail.types.physical.{PCanonicalTuple, PInt64Required}
 import is.hail.types.physical.stypes.EmitType
 import is.hail.types.physical.stypes.concrete._
 import is.hail.types.physical.stypes.interfaces.{SBaseStructValue, SStreamValue, primitive}
@@ -21,16 +22,25 @@ import java.io.InputStream
 import scala.collection.JavaConverters._
 
 case class AvroPartitionReader(schema: Schema, uidFieldName: String) extends PartitionReader {
-  def contextType: Type = TStruct("filename" -> TString, "partitionIdx" -> TInt64)
+  def contextType: Type = TStruct("partitionPath" -> TString, "partitionIndex" -> TInt64)
 
-  val fullRowType: TStruct = AvroReader.schemaToType(schema)
-    .insertFields(Array(uidFieldName -> TTuple(TInt64, TInt64)))
+  lazy val fullRowType: TStruct = AvroReader.schemaToType(schema)
+    .appendKey(uidFieldName, TTuple(TInt64, TInt64))
 
   override def rowRequiredness(requestedType: TStruct): RStruct = {
     val req = TypeWithRequiredness.apply(requestedType).asInstanceOf[RStruct]
-    req.fields.foreach { case RField(name, typ, _) =>
+    val concreteFields = if (requestedType.hasField(uidFieldName))
+      req.fields.init
+    else
+      req.fields
+
+    concreteFields.foreach { case RField(name, typ, _) =>
       AvroReader.setRequiredness(schema.getField(name).schema, typ)
     }
+
+    if (requestedType.hasField(uidFieldName))
+      req.fields.last.typ.fromPType(PCanonicalTuple(true, PInt64Required, PInt64Required))
+
     req.hardSetRequiredness(true)
     req
   }
@@ -45,6 +55,12 @@ case class AvroPartitionReader(schema: Schema, uidFieldName: String) extends Par
     context.toI(cb).map(cb) { case ctxStruct: SBaseStructValue =>
       val partIdx = ctxStruct.loadField(cb, "partitionIndex").get(cb)
       val pathString = ctxStruct.loadField(cb, "partitionPath").get(cb).asString.loadString(cb)
+
+      val makeUID = requestedType.hasField(uidFieldName)
+      val concreteRequestedType = if (makeUID)
+        requestedType.deleteKey(uidFieldName)
+      else
+        requestedType
 
       val mb = cb.emb
       val it = mb.genFieldThisRef[DataFileStream[GenericRecord]]("datafilestream")
@@ -77,8 +93,8 @@ case class AvroPartitionReader(schema: Schema, uidFieldName: String) extends Par
         }
 
         val element: EmitCode = EmitCodeBuilder.scopedEmitCode(mb) { cb =>
-          val baseStruct = AvroReader.recordToHail(cb, region, record, requestedType)
-          if (requestedType.fieldNames.contains(uidFieldName)) {
+          val baseStruct = AvroReader.recordToHail(cb, region, record, concreteRequestedType)
+          if (makeUID) {
             val uid = EmitValue.present(
               SStackStruct.constructFromArgs(cb, region, TTuple(TInt64, TInt64),
                 EmitCode.present(mb, partIdx),

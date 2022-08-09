@@ -3,7 +3,7 @@ package is.hail.expr.ir
 import is.hail.HailSuite
 import is.hail.expr.Nat
 import is.hail.expr.ir.agg.CallStatsState
-import is.hail.types.{BaseTypeWithRequiredness, RTable, TableType, TypeWithRequiredness}
+import is.hail.types.{BaseTypeWithRequiredness, RTable, TableType, TypeWithRequiredness, VirtualTypeWithReq}
 import is.hail.types.physical._
 import is.hail.types.virtual._
 import is.hail.io.{BufferSpec, TypedCodecSpec}
@@ -153,7 +153,12 @@ class RequirednessSuite extends HailSuite {
       Str("foo") -> pDisc.subsetTo(rt1),
       Str("foo") -> pDisc.subsetTo(rt2)
     ).foreach { case (path, pt: PStruct) =>
-      nodes += Array(ReadPartition(path, pt.virtualType, pr), EmitType(SStream(EmitType(pt.sType, pt.required)), path.isInstanceOf[Str]))
+      nodes += Array(
+        ReadPartition(
+          MakeStruct(Array("partitionIndex" -> I64(0), "partitionPath" -> path)),
+          pt.virtualType,
+          pr),
+        EmitType(SStream(EmitType(pt.sType, pt.required)), path.isInstanceOf[Str]))
       nodes += Array(ReadValue(path, spec, pt.virtualType), pt.setRequired(path.isInstanceOf[Str]))
     }
 
@@ -513,8 +518,8 @@ class RequirednessSuite extends HailSuite {
       val node = TableRead(rType, dropRows = false, reader)
       val res = Requiredness.apply(node, ctx)
       val actual = res.r.lookup(node).asInstanceOf[RTable]
-      assert(actual.rowType.canonicalPType(node.typ.rowType) == row, s"\n\n${ Pretty(ctx, node) }: \n$actual\n\n${ dump(res.r) }")
-      assert(actual.globalType.canonicalPType(node.typ.globalType) == global, s"\n\n${ Pretty(ctx, node) }: \n$actual\n\n${ dump(res.r) }")
+      assert(VirtualTypeWithReq(rType.rowType, actual.rowType) == row, s"\n\n${ Pretty(ctx, node) }: \n$actual\n\n${ dump(res.r) }")
+      assert(VirtualTypeWithReq(rType.globalType, actual.globalType) == global, s"\n\n${ Pretty(ctx, node) }: \n$actual\n\n${ dump(res.r) }")
     }
   }
 

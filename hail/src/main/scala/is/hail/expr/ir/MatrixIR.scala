@@ -113,15 +113,29 @@ trait MatrixReader {
     StringEscapeUtils.escapeString(JsonMethods.compact(toJValue))
   }
 
-  final def matrixToTableType(mt: MatrixType): TableType =
-    if (mt.rowType.hasField(rowUIDFieldName)) {
-      val tt = mt.canonicalTableType
-      tt.copy(rowType = tt.rowType
-        .deleteKey(rowUIDFieldName)
-        .insertFields(Array(TableReader.uidFieldName -> tt.rowType.fieldType(rowUIDFieldName))))
-    } else {
-      mt.canonicalTableType
-    }
+  final def matrixToTableType(mt: MatrixType, includeColsArray: Boolean = true): TableType = {
+    TableType(
+      rowType = if (mt.rowType.hasField(rowUIDFieldName))
+        mt.rowType.deleteKey(rowUIDFieldName)
+          .insertFields(Array(
+            LowerMatrixIR.entriesFieldName -> TArray(mt.entryType),
+            TableReader.uidFieldName -> mt.rowType.fieldType(rowUIDFieldName)))
+      else
+        mt.rowType.appendKey(LowerMatrixIR.entriesFieldName, TArray(mt.entryType)),
+      key = mt.rowKey,
+      globalType = if (includeColsArray)
+        mt.globalType.appendKey(LowerMatrixIR.colsFieldName, TArray(mt.colType))
+      else
+        mt.globalType)
+  }
+  //    if (mt.rowType.hasField(rowUIDFieldName)) {
+//      val tt = mt.canonicalTableType
+//      tt.copy(rowType = tt.rowType
+//        .deleteKey(rowUIDFieldName)
+//        .insertFields(Array(TableReader.uidFieldName -> tt.rowType.fieldType(rowUIDFieldName))))
+//    } else {
+//      mt.canonicalTableType
+//    }
 
   final def rowUIDFieldName: String = MatrixReader.rowUIDFieldName
 
@@ -253,7 +267,7 @@ class MatrixNativeReader(
           Ref("row", tr.typ.rowType),
         FastSeq(LowerMatrixIR.entriesFieldName -> MakeArray(FastSeq(), TArray(requestedType.entryType)))))
     } else {
-      val tt = matrixToTableType(requestedType)
+      val tt = matrixToTableType(requestedType, includeColsArray = false)
 //      val tt = TableType(
 //        if (requestedType.rowType.hasField(rowUIDFieldName))
 //          requestedType.rowType
