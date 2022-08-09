@@ -9,6 +9,7 @@ import is.hail.expr.JSONAnnotationImpex
 import is.hail.expr.ir.lowering.TableStage
 import is.hail.expr.ir.{CloseableIterator, GenericLine, GenericLines, GenericTableValue, IR, IRParser, Literal, LowerMatrixIR, MatrixHybridReader, MatrixIR, MatrixLiteral, MatrixReader, TableValue}
 import is.hail.io.fs.{FS, FileStatus}
+import is.hail.io.index.CountedIterator
 import is.hail.io.tabix._
 import is.hail.io.vcf.LoadVCF.{getHeaderLines, parseHeader, parseLines}
 import is.hail.io.{VCFAttributes, VCFMetadata}
@@ -1497,13 +1498,13 @@ class PartitionedVCFRDD(
   file: String,
   @(transient@param) reverseContigMapping: Map[String, String],
   @(transient@param) _partitions: Array[Partition]
-) extends RDD[String](SparkBackend.sparkContext("PartitionedVCFRDD"), Seq()) {
+) extends RDD[WithContext[String]](SparkBackend.sparkContext("PartitionedVCFRDD"), Seq()) {
 
   val contigRemappingBc = if (reverseContigMapping.size != 0) sparkContext.broadcast(reverseContigMapping) else null
 
   protected def getPartitions: Array[Partition] = _partitions
 
-  def compute(split: Partition, context: TaskContext): Iterator[String] = {
+  def compute(split: Partition, context: TaskContext): Iterator[WithContext[String]] = {
     val p = split.asInstanceOf[PartitionedVCFPartition]
 
     val chromToQuery = if (contigRemappingBc != null) contigRemappingBc.value.getOrElse(p.chrom, p.chrom) else p.chrom
@@ -1524,27 +1525,29 @@ class PartitionedVCFRDD(
       lines.close()
     }
 
-    val it: Iterator[String] = new Iterator[String] {
+    val it: Iterator[WithContext[String]] = new Iterator[WithContext[String]] {
       private var l = lines.next()
+      private var curIdx: Long = lines.getCurIdx()
 
       def hasNext: Boolean = l != null
 
-      def next(): String = {
+      def next(): WithContext[String] = {
         assert(l != null)
         val n = l
         l = lines.next()
+        curIdx = lines.getCurIdx()
         if (l == null)
           lines.close()
-        n
+        WithContext(n, Context(n, file, Some(curIdx.toInt)))
       }
     }
 
     it.filter { l =>
-      val t1 = l.indexOf('\t')
-      val t2 = l.indexOf('\t', t1 + 1)
+      val t1 = l.value.indexOf('\t')
+      val t2 = l.value.indexOf('\t', t1 + 1)
 
-      val chrom = l.substring(0, t1)
-      val pos = l.substring(t1 + 1, t2).toInt
+      val chrom = l.value.substring(0, t1)
+      val pos = l.value.substring(t1 + 1, t2).toInt
 
       if (chrom != chromToQuery) {
         throw new RuntimeException(s"bad chromosome! ${chromToQuery}, $l")
@@ -1969,9 +1972,7 @@ class VCFsReader(
     val rvdType = fullRVDType
 
     val lines = ContextRDD.weaken(
-      new PartitionedVCFRDD(ctx.fsBc, file, reverseContigMapping, partitions)
-        .map(l =>
-          WithContext(l, Context(l, file, None))))
+      new PartitionedVCFRDD(ctx.fsBc, file, reverseContigMapping, partitions))
 
     val parsedLines = parseLines { () =>
       new ParseLineContext(tt.rowType,

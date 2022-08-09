@@ -11,7 +11,7 @@ import org.apache.spark.ExposedMetrics
 import org.apache.spark.executor.InputMetrics
 import org.apache.spark.sql.Row
 
-trait CountedIterator[T] extends Iterator[T] {
+trait CountedIterator[+T] extends Iterator[T] { self =>
   def getCurIdx: Long
 }
 

@@ -91,7 +91,7 @@ object MatrixReader {
 
   val rowUIDFieldName: String = TableReader.uidFieldName
 
-  val colUIDFieldName: String = "__colUID"
+  val colUIDFieldName: String = "__col_uid"
 }
 
 trait MatrixReader {
@@ -411,6 +411,8 @@ case class MatrixRead(
   dropCols: Boolean,
   dropRows: Boolean,
   reader: MatrixReader) extends MatrixIR {
+  assert(PruneDeadFields.isSupertype(typ, reader.fullMatrixType),
+    s"\n  original:  ${ reader.fullMatrixType }\n  requested: $typ")
 
   lazy val children: IndexedSeq[BaseIR] = Array.empty[BaseIR]
 

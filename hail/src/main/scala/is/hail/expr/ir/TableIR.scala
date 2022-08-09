@@ -133,6 +133,7 @@ object LoweredTableReader {
     assert(key.nonEmpty)
     assert(contexts.nonEmpty)
     assert(contextType.fieldNames.contains("partitionIndex"))
+    assert(contextType.fieldType("partitionIndex") == TInt32)
 
     val nPartitions = contexts.length
     val sampleSize = math.min(nPartitions * 20, 1000000)

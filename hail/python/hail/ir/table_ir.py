@@ -404,7 +404,8 @@ class TableRead(TableIR):
                 result = TableRename(result, {default_row_uid: uid_field_name}, {})
             else:
                 row = ir.Ref('row', self.typ.row_type)
-                result = TableMapRows(result,
+                result = TableMapRows(
+                    result,
                     ir.InsertFields(row, [(uid_field_name, ir.GetField(row, default_row_uid))], None))
         return result
 
@@ -416,9 +417,9 @@ class TableRead(TableIR):
         return f'{reqType} {self.drop_rows} "{self.reader.render()}"'
 
     def _eq(self, other):
-        return (self.reader == other.reader and
-                self.drop_rows == other.drop_rows and
-                self.drop_row_uids == other.drop_row_uids)
+        return (self.reader == other.reader
+                and self.drop_rows == other.drop_rows
+                and self.drop_row_uids == other.drop_row_uids)
 
     def _compute_type(self, deep_typecheck):
         if self._type is not None:

@@ -319,7 +319,7 @@ class MatrixPLINKReader(
   val partitionCounts: Option[IndexedSeq[Long]] = None
 
   val globals = Row(sampleInfo.zipWithIndex.map { case (s, idx) =>
-    Row((0 until s.length).map(s.apply) :+ idx)
+    Row((0 until s.length).map(s.apply) :+ idx :_*)
   })
 
   override def concreteRowRequiredness(ctx: ExecuteContext, requestedType: TableType): VirtualTypeWithReq =
@@ -342,7 +342,7 @@ class MatrixPLINKReader(
       "bed" -> TString,
       "start" -> TInt32,
       "end" -> TInt32,
-      "partitionIndex" -> TInt64)
+      "partitionIndex" -> TInt32)
 
     val contextsWithPartIdx = contexts.zipWithIndex.map { case (row: Row, partIdx: Int) =>
       Row(row(0), row(1), row(2), partIdx)

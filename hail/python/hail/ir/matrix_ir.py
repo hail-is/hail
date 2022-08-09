@@ -156,11 +156,11 @@ class MatrixRead(MatrixIR):
         return f'(MatrixRead {reqType} {self.drop_cols} {self.drop_rows} "{self.reader.render(r)}"'
 
     def _eq(self, other):
-        return (self.reader == other.reader and
-                self.drop_cols == other.drop_cols and
-                self.drop_rows == other.drop_rows and
-                self.drop_row_uids == other.drop_row_uids and
-                self.drop_col_uids == other.drop_col_uids)
+        return (self.reader == other.reader
+                and self.drop_cols == other.drop_cols
+                and self.drop_rows == other.drop_rows
+                and self.drop_row_uids == other.drop_row_uids
+                and self.drop_col_uids == other.drop_col_uids)
 
     def _compute_type(self, deep_typecheck):
         if self._type is None:

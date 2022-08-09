@@ -15,7 +15,7 @@ import is.hail.types.physical.stypes.concrete.{SStackStruct, SStackStructValue}
 import is.hail.types.physical.stypes.interfaces.{SBaseStructValue, SStream, SStreamValue, primitive}
 import is.hail.types.physical.stypes.primitives.{SInt64, SInt64Value}
 import is.hail.types.physical.{PStruct, PType}
-import is.hail.types.virtual.{TArray, TInt64, TStruct, TTuple, Type}
+import is.hail.types.virtual.{TArray, TInt32, TInt64, TStruct, TTuple, Type}
 import is.hail.types.{RStruct, TableType, TypeWithRequiredness}
 import is.hail.utils._
 import org.apache.spark.rdd.RDD
@@ -32,6 +32,7 @@ class PartitionIteratorLongReader(
   body: TStruct => (Region, HailClassLoader, FS, Any) => Iterator[Long]
 ) extends PartitionReader {
   assert(contextType.fieldNames.contains("partitionIndex"))
+  assert(contextType.fieldType("partitionIndex") == TInt32)
 
   override lazy val fullRowType: TStruct =
     rowType.insertFields(Array(uidFieldName -> TTuple(TInt64, TInt64)))
@@ -156,6 +157,7 @@ class GenericTableValue(
 
   assert(fullTableType.rowType.fieldNames.contains(uidFieldName))
   assert(contextType.fieldNames.contains("partitionIndex"))
+  assert(contextType.fieldType("partitionIndex") == TInt32)
 
   var ltrCoercer: LoweredTableReaderCoercer = _
   def getLTVCoercer(ctx: ExecuteContext): LoweredTableReaderCoercer = {
