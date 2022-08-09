@@ -264,7 +264,10 @@ object AbstractRVDSpec {
       makeLeftDec, makeRightDec, makeInserter, t,
       if (requestedType.hasField(uidFieldName)) uidFieldName else null)
     val uidPType = PCanonicalTuple(true, PInt64Required, PInt64Required)
-    val fullPType = t.appendKey(uidFieldName, uidPType)
+    val fullPType = if (requestedType.hasField(uidFieldName))
+      t.appendKey(uidFieldName, uidPType)
+    else
+      t
     val tmprvd = RVD(RVDType(fullPType, requestedKey), tmpPartitioner.coarsen(requestedKey.length), crdd)
     extendedNewPartitioner match {
       case Some(part) if !filterIntervals => tmprvd.repartition(ctx, part.coarsen(requestedKey.length))

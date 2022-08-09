@@ -57,7 +57,10 @@ class MatrixIRSuite extends HailSuite {
 
   def rangeMatrix(nRows: Int = 20, nCols: Int = 20, nPartitions: Option[Int] = Some(4)): MatrixIR = {
     val reader = MatrixRangeReader(nRows, nCols, nPartitions)
-    MatrixRead(reader.fullMatrixType, false, false, reader)
+    val requestedType = reader.fullMatrixType.copy(
+      rowType = reader.fullMatrixType.rowType.deleteKey(reader.rowUIDFieldName),
+      colType = reader.fullMatrixType.colType.deleteKey(reader.colUIDFieldName))
+    MatrixRead(requestedType, false, false, reader)
   }
 
   def getRows(mir: MatrixIR): Array[Row] =
@@ -135,6 +138,7 @@ class MatrixIRSuite extends HailSuite {
   def rangeRowMatrix(start: Int, end: Int): MatrixIR = {
     val i = end - start
     val baseRange = rangeMatrix(i, 5, Some(math.max(1, math.min(4, i))))
+    println(baseRange.typ)
     val row = Ref("va", baseRange.typ.rowType)
     MatrixKeyRowsBy(
       MatrixMapRows(
