@@ -188,7 +188,7 @@ data:
 {% endfor %}
 {% for namespace in internal_namespaces %}
 {% for service in subdomains %}
-{{ cluster(namespace + '-' + service, service + '.' + namespace + '.svc.cluster.local', '1m') }}
+{{ cluster(namespace + '-' + service, service + '.' + namespace + '.svc.cluster.local', '60s') }}
 {% endfor %}
 {% endfor %}
     admin:
