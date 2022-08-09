@@ -170,6 +170,12 @@ resource "google_container_node_pool" "vdc_preemptible_pool" {
       "https://www.googleapis.com/auth/cloud-platform"
     ]
   }
+
+  lifecycle {
+    ignore_changes = [
+      initial_node_count
+    ]
+  }
 }
 
 resource "google_container_node_pool" "vdc_nonpreemptible_pool" {

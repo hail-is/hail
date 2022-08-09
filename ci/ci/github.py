@@ -21,8 +21,9 @@ from hailtop.utils import RETRY_FUNCTION_SCRIPT, check_shell, check_shell_output
 
 from .build import BuildConfiguration, Code
 from .constants import AUTHORIZED_USERS, COMPILER_TEAM, GITHUB_CLONE_URL, GITHUB_STATUS_CONTEXT, SERVICES_TEAM
-from .environment import DEPLOY_STEPS
+from .environment import DEPLOY_STEPS, DEFAULT_NAMESPACE
 from .globals import is_test_deployment
+from .utils import allocate_namespace
 
 repos_lock = asyncio.Lock()
 
@@ -479,8 +480,9 @@ mkdir -p {shq(repo_dir)}
             sha_out, _ = await check_shell_output(f'git -C {shq(repo_dir)} rev-parse HEAD')
             self.sha = sha_out.decode('utf-8').strip()
 
+            namespace = await allocate_namespace(db)
             with open(f'{repo_dir}/build.yaml', 'r', encoding='utf-8') as f:
-                config = BuildConfiguration(self, f.read(), scope='test')
+                config = BuildConfiguration(namespace, self, f.read(), scope='test')
 
             log.info(f'creating test batch for {self.number}')
             batch = batch_client.create_batch(
@@ -884,7 +886,9 @@ mkdir -p {shq(repo_dir)}
 '''
             )
             with open(f'{repo_dir}/build.yaml', 'r', encoding='utf-8') as f:
-                config = BuildConfiguration(self, f.read(), requested_step_names=DEPLOY_STEPS, scope='deploy')
+                config = BuildConfiguration(
+                    DEFAULT_NAMESPACE, self, f.read(), requested_step_names=DEPLOY_STEPS, scope='deploy'
+                )
 
             log.info(f'creating deploy batch for {self.branch.short_str()}')
             deploy_batch = batch_client.create_batch(
@@ -976,7 +980,12 @@ mkdir -p {shq(repo_dir)}
             log.info(f'User {self.user} requested these steps for dev deploy: {steps}')
             with open(f'{repo_dir}/build.yaml', 'r', encoding='utf-8') as f:
                 config = BuildConfiguration(
-                    self, f.read(), scope='dev', requested_step_names=steps, excluded_step_names=excluded_steps
+                    self.namespace,
+                    self,
+                    f.read(),
+                    scope='dev',
+                    requested_step_names=steps,
+                    excluded_step_names=excluded_steps,
                 )
 
             log.info(f'creating dev deploy batch for {self.branch.short_str()} and user {self.user}')
