@@ -1,5 +1,6 @@
 auth
 batch
+ci
 batch-driver
 batch-db-proxy
 grafana
