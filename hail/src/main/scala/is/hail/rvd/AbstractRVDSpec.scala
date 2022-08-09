@@ -11,7 +11,7 @@ import is.hail.io.fs.FS
 import is.hail.io.index.{InternalNodeBuilder, LeafNodeBuilder}
 import is.hail.types.TableType
 import is.hail.types.encoded.ETypeSerializer
-import is.hail.types.physical.{PCanonicalStruct, PInt64Optional, PStruct, PType, PTypeSerializer}
+import is.hail.types.physical.{PCanonicalStruct, PCanonicalTuple, PInt64Optional, PInt64Required, PStruct, PType, PTypeSerializer}
 import is.hail.types.virtual.{TStructSerializer, _}
 import is.hail.utils._
 import is.hail.{HailContext, compatibility}
@@ -253,13 +253,19 @@ object AbstractRVDSpec {
     val (rightPType: PStruct, makeRightDec) = specRight.typedCodecSpec.buildDecoder(ctx, rightRType)
 
     val (t: PStruct, makeInserter) = fieldInserter(ctx, leftPType, rightPType)
-    assert(t.virtualType == requestedType)
+    val concreteRequestedType = if (requestedType.hasField(uidFieldName))
+      requestedType.deleteKey(uidFieldName)
+    else
+      requestedType
+    assert(t.virtualType == concreteRequestedType)
     val crdd = HailContext.readRowsSplit(ctx,
       pathLeft, pathRight, isl, isr,
       parts, tmpPartitioner.rangeBounds,
       makeLeftDec, makeRightDec, makeInserter, t,
       if (requestedType.hasField(uidFieldName)) uidFieldName else null)
-    val tmprvd = RVD(RVDType(t, requestedKey), tmpPartitioner.coarsen(requestedKey.length), crdd)
+    val uidPType = PCanonicalTuple(true, PInt64Required, PInt64Required)
+    val fullPType = t.appendKey(uidFieldName, uidPType)
+    val tmprvd = RVD(RVDType(fullPType, requestedKey), tmpPartitioner.coarsen(requestedKey.length), crdd)
     extendedNewPartitioner match {
       case Some(part) if !filterIntervals => tmprvd.repartition(ctx, part.coarsen(requestedKey.length))
       case _ => tmprvd

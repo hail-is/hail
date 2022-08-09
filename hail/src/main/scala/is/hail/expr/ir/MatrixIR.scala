@@ -232,7 +232,6 @@ class MatrixNativeReader(
   val params: MatrixNativeReaderParameters,
   spec: AbstractMatrixTableSpec
 ) extends MatrixReader {
-  assert(!spec.matrix_type.rowType.hasField(rowUIDFieldName))
   def pathsUsed: Seq[String] = FastSeq(params.path)
 
   override def renderShort(): String = s"(MatrixNativeReader ${ params.path } ${ params.options.map(_.renderShort()).getOrElse("") })"
@@ -244,11 +243,20 @@ class MatrixNativeReader(
 
   def partitionCounts: Option[IndexedSeq[Long]] = if (params.options.isEmpty) Some(spec.partitionCounts) else None
 
-  lazy val fullMatrixType: MatrixType = spec.matrix_type.copy(
-    rowType = spec.matrix_type.rowType.appendKey(
-      rowUIDFieldName, TTuple(TInt64, TInt64)),
-    colType = spec.matrix_type.colType.appendKey(
-      colUIDFieldName, TTuple(TInt64, TInt64)))
+  lazy val fullMatrixType: MatrixType = {
+    val rowType = spec.matrix_type.rowType
+    val newRowType = if (rowType.hasField(rowUIDFieldName))
+      rowType
+    else
+      rowType.appendKey(rowUIDFieldName, TTuple(TInt64, TInt64))
+    val colType = spec.matrix_type.colType
+    val newColType = if (colType.hasField(colUIDFieldName))
+      colType
+    else
+      colType.appendKey(colUIDFieldName, TTuple(TInt64, TInt64))
+
+    spec.matrix_type.copy(rowType = newRowType, colType = newColType)
+  }
 
   override def lower(requestedType: MatrixType, dropCols: Boolean, dropRows: Boolean): TableIR = {
     val rowsPath = params.path + "/rows"

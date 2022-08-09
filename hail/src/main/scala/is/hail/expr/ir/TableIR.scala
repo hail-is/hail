@@ -626,7 +626,7 @@ case class PartitionNativeReader(spec: AbstractTypedCodecSpec, uidFieldName: Str
 
     val mb = cb.emb
 
-    val insertUID: Boolean = requestedType.hasField(uidFieldName)
+    val insertUID: Boolean = requestedType.hasField(uidFieldName) && !spec.encodedVirtualType.asInstanceOf[TStruct].hasField(uidFieldName)
     val concreteType: TStruct = if (insertUID)
       requestedType.deleteKey(uidFieldName)
     else

@@ -50,7 +50,7 @@ class AvroTableReader(
   override def lower(ctx: ExecuteContext, requestedType: TableType): TableStage = {
     val globals = MakeStruct(Seq())
     val contexts = zip2(ToStream(Literal(TArray(TString), paths)), StreamIota(I32(0), I32(1)), ArrayZipBehavior.TakeMinLength) { (path, idx) =>
-      MakeTuple.ordered(Array(path, idx))
+      MakeStruct(Array("partitionPath" -> path, "partitionIndex" -> Cast(idx, TInt64)))
     }
     TableStage(
       globals,

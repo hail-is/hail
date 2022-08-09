@@ -5,7 +5,7 @@ import avro.schema
 
 import hail as hl
 
-from hail.ir.utils import make_filter_and_replace
+from hail.ir.utils import make_filter_and_replace, default_row_uid
 from hail.typecheck import typecheck_method, sequenceof, nullable, anytype, oneof
 from hail.utils.misc import escape_str
 
@@ -164,7 +164,8 @@ class AvroTableReader(TableReader):
     def render(self):
         reader = {'name': 'AvroTableReader',
                   'partitionReader': {'name': 'AvroPartitionReader',
-                                      'schema': self.schema.to_json()},
+                                      'schema': self.schema.to_json(),
+                                      'uidFieldName': default_row_uid},
                   'paths': self.paths}
         if self.key is not None:
             assert self.intervals is not None
