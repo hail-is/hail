@@ -1,8 +1,9 @@
 from typing import Dict, List
+import os
 import sys
 import yaml
 
-DOMAIN = 'daniel.hail.is'
+DOMAIN = os.environ['DOMAIN']
 
 
 def create_rds_response(services_per_namespace: Dict[str, List[str]]) -> dict:
@@ -38,6 +39,7 @@ def create_cds_response(services_per_namespace: Dict[str, List[str]], requester:
     }
 
 
+# TODO ukbb-rg needs some tinkering
 def default_hosts(services: List[str]) -> List[dict]:
     hosts = []
     for service in services:
