@@ -14,7 +14,7 @@ def create_rds_response(services_per_namespace: Dict[str, List[str]], requester:
         internal = internal_host({k: v for k, v in services_per_namespace.items() if k != 'default'}, domain_suffix)
         hosts.append(internal)
     return {
-        'version_info': '2',
+        'version_info': 'dummy',
         'type_url': 'type.googleapis.com/envoy.config.route.v3.RouteConfiguration',
         'resources': [
             {
@@ -31,7 +31,7 @@ def create_rds_response(services_per_namespace: Dict[str, List[str]], requester:
 
 def create_cds_response(services_per_namespace: Dict[str, List[str]], requester: str) -> dict:
     return {
-        'version_info': '2',
+        'version_info': 'dummy',
         'type_url': 'type.googleapis.com/envoy.config.cluster.v3.Cluster',
         'resources': clusters(services_per_namespace, requester),
         'control_plane': {
