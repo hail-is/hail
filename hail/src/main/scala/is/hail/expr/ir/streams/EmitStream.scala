@@ -1805,7 +1805,7 @@ object EmitStream {
           }
         }
 
-      case StreamGroupByKey(a, key) =>
+      case StreamGroupByKey(a, key, missingEqual) =>
         produce(a, cb).map(cb) { case childStream: SStreamValue =>
 
           val childProducer = childStream.producer
@@ -1834,7 +1834,7 @@ object EmitStream {
           val outerElementRegion = mb.genFieldThisRef[Region]("streamgroupbykey_outer_elt_region")
 
           def equiv(cb: EmitCodeBuilder, l: SBaseStructValue, r: SBaseStructValue): Value[Boolean] =
-            StructOrdering.make(l.st, r.st, cb.emb.ecb, missingFieldsEqual = false).equivNonnull(cb, l, r)
+            StructOrdering.make(l.st, r.st, cb.emb.ecb, missingFieldsEqual = missingEqual).equivNonnull(cb, l, r)
 
           val LchildProduceDoneInner = CodeLabel()
           val LchildProduceDoneOuter = CodeLabel()

@@ -306,7 +306,7 @@ final case class RNGSplit(state: IR, dynBitstring: IR) extends IR
 final case class StreamLen(a: IR) extends IR
 
 final case class StreamGrouped(a: IR, groupSize: IR) extends IR
-final case class StreamGroupByKey(a: IR, key: IndexedSeq[String]) extends IR
+final case class StreamGroupByKey(a: IR, key: IndexedSeq[String], missingEqual: Boolean) extends IR
 
 final case class StreamMap(a: IR, name: String, body: IR) extends IR {
   override def typ: TStream = coerce[TStream](super.typ)
@@ -396,7 +396,7 @@ object StreamJoin {
     assert(lEltType.typeAfterSelectNames(lKey) isIsomorphicTo rEltType.typeAfterSelectNames(rKey))
 
     if(!rightKeyIsDistinct) {
-      val rightGroupedStream = StreamGroupByKey(right, rKey)
+      val rightGroupedStream = StreamGroupByKey(right, rKey, missingEqual = false)
       val groupField = genUID()
 
       // stream of {key, groupField}, where 'groupField' is an array of all rows
