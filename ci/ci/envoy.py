@@ -6,11 +6,12 @@ import yaml
 DOMAIN = os.environ['DOMAIN']
 
 
-def create_rds_response(services_per_namespace: Dict[str, List[str]]) -> dict:
+def create_rds_response(services_per_namespace: Dict[str, List[str]], requester: str) -> dict:
     assert 'default' in services_per_namespace
-    hosts = default_hosts(services_per_namespace['default'])
+    domain_suffix = DOMAIN if requester == 'gateway' else 'hail'
+    hosts = default_hosts(services_per_namespace['default'], domain_suffix)
     if len(services_per_namespace) > 1:
-        internal = internal_host({k: v for k, v in services_per_namespace.items() if k != 'default'})
+        internal = internal_host({k: v for k, v in services_per_namespace.items() if k != 'default'}, domain_suffix)
         hosts.append(internal)
     return {
         'version_info': '2',
@@ -40,10 +41,10 @@ def create_cds_response(services_per_namespace: Dict[str, List[str]], requester:
 
 
 # TODO ukbb-rg needs some tinkering
-def default_hosts(services: List[str]) -> List[dict]:
+def default_hosts(services: List[str], domain_suffix: str) -> List[dict]:
     hosts = []
     for service in services:
-        domains = [f'{service}.{DOMAIN}']
+        domains = [f'{service}.{domain_suffix}']
         if service == 'www':
             domains.append(DOMAIN)
         routes = [
@@ -63,11 +64,11 @@ def default_hosts(services: List[str]) -> List[dict]:
     return hosts
 
 
-def internal_host(services_per_namespace: Dict[str, List[str]]) -> dict:
+def internal_host(services_per_namespace: Dict[str, List[str]], domain_suffix: str) -> dict:
     return {
         '@type': 'type.googleapis.com/envoy.config.route.v3.VirtualHost',
         'name': 'internal',
-        'domains': [f'internal.{DOMAIN}'],
+        'domains': [f'internal.{domain_suffix}'],
         'routes': [
             {
                 'match': {'prefix': f'/{namespace}/{service}'},
@@ -132,11 +133,13 @@ def clusters(services_per_namespace: Dict[str, List[str]], requester: str) -> Li
 
 
 if __name__ == '__main__':
-    with open(sys.argv[1], 'r') as services_file:
+    requester = sys.argv[1]
+    with open(sys.argv[2], 'r') as services_file:
         services = [service.rstrip() for service in services_file.readlines()]
 
     services_per_namespace = {'default': services}
-    with open(sys.argv[2], 'w') as cds_file:
-        cds_file.write(yaml.dump(create_cds_response(services_per_namespace, 'gateway')))
-    with open(sys.argv[3], 'w') as rds_file:
-        rds_file.write(yaml.dump(create_rds_response(services_per_namespace)))
+
+    with open(sys.argv[3], 'w') as cds_file:
+        cds_file.write(yaml.dump(create_cds_response(services_per_namespace, requester)))
+    with open(sys.argv[4], 'w') as rds_file:
+        rds_file.write(yaml.dump(create_rds_response(services_per_namespace, requester)))
