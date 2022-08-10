@@ -85,7 +85,7 @@ BEGIN
   DECLARE cur_n_batch_jobs INT;
   DECLARE rand_token INT;
   DECLARE rand_token_migration INT;
-  DECLARE cur_billing_timestamp DATE;
+  DECLARE cur_billing_date DATE;
 
   SELECT n_tokens INTO cur_n_tokens FROM globals LOCK IN SHARE MODE;
   SET rand_token = FLOOR(RAND() * cur_n_tokens);
@@ -159,10 +159,10 @@ BEGIN
     ON DUPLICATE KEY UPDATE `usage` = `usage` + msec_diff_migration * quantity;
 
     IF NEW.end_time IS NOT NULL THEN
-      SET cur_billing_timestamp = CAST(FROM_UNIXTIME(NEW.end_time / 1000) AS DATE);
+      SET cur_billing_date = CAST(FROM_UNIXTIME(NEW.end_time / 1000) AS DATE);
 
       INSERT INTO aggregated_billing_project_user_resources_by_date_v2 (billing_timestamp, billing_project, user, resource_id, token, `usage`)
-      SELECT cur_billing_timestamp,
+      SELECT cur_billing_date,
         billing_project,
         `user`,
         resource_id,
@@ -188,7 +188,7 @@ BEGIN
   DECLARE cur_n_tokens INT;
   DECLARE rand_token INT;
   DECLARE cur_resource VARCHAR(100);
-  DECLARE cur_billing_timestamp DATE;
+  DECLARE cur_billing_date DATE;
 
   SELECT billing_project, user INTO cur_billing_project, cur_user
   FROM batches WHERE id = NEW.batch_id;
@@ -205,7 +205,7 @@ BEGIN
 
   SET msec_diff = GREATEST(COALESCE(cur_end_time - cur_start_time, 0), 0);
 
-  SET cur_billing_timestamp = CAST(FROM_UNIXTIME(cur_end_time / 1000) AS DATE);
+  SET cur_billing_date = CAST(FROM_UNIXTIME(cur_end_time / 1000) AS DATE);
 
   IF msec_diff != 0 THEN
     INSERT INTO aggregated_billing_project_resources (billing_project, resource, token, `usage`)
@@ -238,9 +238,9 @@ BEGIN
     ON DUPLICATE KEY UPDATE
       `usage` = `usage` + NEW.quantity * msec_diff;
 
-    IF cur_billing_timestamp IS NOT NULL THEN
+    IF cur_billing_date IS NOT NULL THEN
       INSERT INTO aggregated_billing_project_user_resources_by_date_v2 (billing_timestamp, billing_project, user, resource_id, token, `usage`)
-      VALUES (cur_billing_timestamp, cur_billing_project, cur_user, NEW.resource_id, rand_token, NEW.quantity * msec_diff)
+      VALUES (cur_billing_date, cur_billing_project, cur_user, NEW.resource_id, rand_token, NEW.quantity * msec_diff)
       ON DUPLICATE KEY UPDATE
         `usage` = `usage` + NEW.quantity * msec_diff;
     END IF;
