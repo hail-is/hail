@@ -83,6 +83,21 @@ data:
                 - name: envoy.filters.http.router
                   typed_config:
                     "@type": type.googleapis.com/envoy.extensions.filters.http.router.v3.Router
+              local_reply_config:
+                mappers:
+                - filter:
+                    status_code_filter:
+                      comparison:
+                       op: EQ
+                       value:
+                         default_value: 401
+                         runtime_key: key_b
+                  headers_to_add:
+                    - header:
+                        key: "Location"
+                        value: "https://auth.{{ domain }}/login?https://:authority:path"
+                      append: false
+                  status_code: 302
           transport_socket:
             name: envoy.transport_sockets.tls
             typed_config:
