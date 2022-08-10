@@ -565,7 +565,7 @@ mkdir -p {shq(repo_dir)}
                 self.source_sha_failed = True
             self.target_branch.state_changed = True
 
-    async def _heal(self, batch_client, db: Database, on_deck, gh):
+    async def _heal(self, batch_client, db: Database, on_deck, gh, deploy_event: asyncio.Event):
         # can't merge target if we don't know what it is
         if self.target_branch.sha is None:
             return
@@ -586,6 +586,7 @@ mkdir -p {shq(repo_dir)}
                 self.target_branch.n_running_batches += 1
                 async with repos_lock:
                     await self._start_build(db, batch_client)
+                    deploy_event.set()
 
     def is_up_to_date(self):
         return self.batch is not None and self.target_branch.sha == self.batch.attributes['target_sha']
@@ -823,6 +824,7 @@ url: {url}
         ):
             async with repos_lock:
                 await self._start_deploy(batch_client)
+                app['deploy_event'].set()
 
     async def _update_batch(self, batch_client, db: Database):
         log.info(f'update batch {self.short_str()}')
@@ -857,7 +859,7 @@ url: {url}
         self.n_running_batches = sum(1 for pr in self.prs.values() if pr.batch and not pr.build_state)
 
         for pr in self.prs.values():
-            await pr._heal(batch_client, db, pr == merge_candidate, gh)
+            await pr._heal(batch_client, db, pr == merge_candidate, gh, app['deploy_event'])
 
         # cancel orphan builds
         running_batches = batch_client.list_batches(

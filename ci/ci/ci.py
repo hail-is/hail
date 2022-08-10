@@ -15,6 +15,10 @@ from gidgethub import sansio as gh_sansio
 from prometheus_async.aio.web import server_stats  # type: ignore
 from typing_extensions import TypedDict
 
+import yaml
+
+import kubernetes_asyncio
+
 from gear import (
     Database,
     check_csrf_token,
@@ -32,10 +36,9 @@ from hailtop.utils import collect_agen, humanize_timedelta_msecs
 from web_common import render_template, set_message, setup_aiohttp_jinja2, setup_common_static_routes
 
 from .constants import AUTHORIZED_USERS, TEAMS
-from .environment import STORAGE_URI
+from .environment import STORAGE_URI, DEFAULT_NAMESPACE
 from .github import PR, WIP, FQBranch, MergeFailureBatch, Repo, UnwatchedBranch, WatchedBranch, select_random_teammate
-
-DOMAIN = 'daniel.hail.is'
+from .envoy import create_cds_response, create_rds_response
 
 with open(os.environ.get('HAIL_CI_OAUTH_TOKEN', 'oauth-token/oauth-token'), 'r', encoding='utf-8') as f:
     oauth_token = f.read().strip()
@@ -496,6 +499,7 @@ async def dev_deploy_branch(request, userdata):
 
     try:
         batch_id = await unwatched_branch.deploy(batch_client, steps, excluded_steps=excluded_steps)
+        app['deploy_event'].set()
     except asyncio.CancelledError:
         raise
     except Exception as e:  # pylint: disable=broad-except
@@ -667,6 +671,33 @@ async def envoy_cluster_discovery(request):
     return web.json_response(discovery_response)
 
 
+async def control_plane_loop(deploy_event: asyncio.Event, db: Database, k8s_client):
+    while True:
+        await deploy_event.wait()
+        deploy_event.clear()
+
+        services_per_namespace = {
+            r['namespace_name']: json.loads(r['services'])
+            async for r in db.execute_and_fetchall('''SELECT namespace_name, services FROM internal_namespaces''')
+        }
+        assert 'default' in services_per_namespace
+        assert set(['batch', 'auth', 'batch-driver', 'ci']).issubset(set(services_per_namespace['default']))
+
+        for deployment in ('gateway', 'internal-gateway'):
+            cds = create_cds_response(services_per_namespace, deployment)
+            rds = create_rds_response(services_per_namespace, deployment)
+            await k8s_client.create_namespaced_config_map(
+                DEFAULT_NAMESPACE,
+                kubernetes_asyncio.client.V1ConfigMap(
+                    metadata=kubernetes_asyncio.client.V1ObjectMeta(name=f'{deployment}-xds-config'),
+                    data={
+                        'cds.yaml': yaml.dump(cds),
+                        'rds.yaml': yaml.dump(rds),
+                    },
+                ),
+            )
+
+
 async def update_loop(app):
     while True:
         try:
@@ -698,6 +729,13 @@ SELECT frozen_merge_deploy FROM globals;
 
     app['task_manager'] = aiotools.BackgroundTaskManager()
     app['task_manager'].ensure_future(update_loop(app))
+
+    app['deploy_event'] = asyncio.Event()
+
+    if DEFAULT_NAMESPACE == 'default':
+        await kubernetes_asyncio.config.load_kube_config()
+        k8s_client = kubernetes_asyncio.client.CoreV1Api()
+        app['task_manager'].ensure_future(control_plane_loop(app['deploy_event'], app['db'], k8s_client))
 
 
 async def on_cleanup(app):

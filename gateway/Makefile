@@ -5,7 +5,7 @@ include ../config.mk
 IP := $(shell kubectl get secret global-config --template={{.data.ip}} | base64 --decode)
 
 envoy_config:
-	DOMAIN=$(DOMAIN) python3 ../ci/ci/envoy.py gateway ${HAIL}/letsencrypt/subdomains.txt ${HAIL}/gateway/cds.yaml ${HAIL}/gateway/rds.yaml
+	HAIL_DOMAIN=$(DOMAIN) python3 ../ci/ci/envoy.py gateway ${HAIL}/letsencrypt/subdomains.txt ${HAIL}/gateway/cds.yaml ${HAIL}/gateway/rds.yaml
 	python3 ../ci/jinja2_render.py '{"domain":"$(DOMAIN)"}' envoy.yaml envoy.yaml.out
 	kubectl -n default apply -f envoy.yaml.out
 	kubectl -n default create configmap gateway-xds-config \

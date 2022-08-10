@@ -3,7 +3,7 @@ import os
 import sys
 import yaml
 
-DOMAIN = os.environ['DOMAIN']
+DOMAIN = os.environ['HAIL_DOMAIN']
 
 
 def create_rds_response(services_per_namespace: Dict[str, List[str]], requester: str) -> dict:
