@@ -1532,7 +1532,7 @@ class IRSuite extends HailSuite {
         MakeStruct(Seq("a" -> I32(4), "b" -> NA(TInt32)))),
       TStream(structType))
 
-    def group(a: IR): IR = StreamGroupByKey(a, FastIndexedSeq("a"))
+    def group(a: IR): IR = StreamGroupByKey(a, FastIndexedSeq("a"), false)
     assertEvalsTo(toNestedArray(group(naa)), null)
     assertEvalsTo(toNestedArray(group(a)),
                   FastIndexedSeq(FastIndexedSeq(Row(3, 1), Row(3, 3)),
