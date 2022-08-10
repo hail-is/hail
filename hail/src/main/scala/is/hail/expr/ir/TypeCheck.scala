@@ -279,7 +279,6 @@ object TypeCheck {
           case tuple: TTuple => tuple.types.forall(_ == TInt64)
           case t => t == TInt64
         }
-        if (!isValid(dynBitstring.typ)) println(dynBitstring.typ)
         assert(isValid(dynBitstring.typ))
       case StreamLen(a) =>
         assert(a.typ.isInstanceOf[TStream])

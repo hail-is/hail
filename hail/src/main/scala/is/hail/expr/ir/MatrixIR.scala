@@ -133,14 +133,6 @@ trait MatrixReader {
       else
         mt.globalType)
   }
-  //    if (mt.rowType.hasField(rowUIDFieldName)) {
-//      val tt = mt.canonicalTableType
-//      tt.copy(rowType = tt.rowType
-//        .deleteKey(rowUIDFieldName)
-//        .insertFields(Array(TableReader.uidFieldName -> tt.rowType.fieldType(rowUIDFieldName))))
-//    } else {
-//      mt.canonicalTableType
-//    }
 
   final def rowUIDFieldName: String = MatrixReader.rowUIDFieldName
 
@@ -282,17 +274,6 @@ class MatrixNativeReader(
         FastSeq(LowerMatrixIR.entriesFieldName -> MakeArray(FastSeq(), TArray(requestedType.entryType)))))
     } else {
       val tt = matrixToTableType(requestedType, includeColsArray = false)
-//      val tt = TableType(
-//        if (requestedType.rowType.hasField(rowUIDFieldName))
-//          requestedType.rowType
-//            .deleteKey(rowUIDFieldName)
-//            .appendKey(LowerMatrixIR.entriesFieldName, TArray(requestedType.entryType))
-//            .appendKey(rowUIDFieldName, TTuple(TInt64, TInt64))
-//        else
-//          requestedType.rowType
-//            .appendKey(LowerMatrixIR.entriesFieldName, TArray(requestedType.entryType)),
-//        requestedType.rowKey,
-//        requestedType.globalType)
       val trdr = TableNativeZippedReader(
         rowsPath,
         entriesPath,

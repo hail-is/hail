@@ -2446,11 +2446,14 @@ def import_plink(bed, bim, fam,
            _filter_intervals=bool,
            _drop_cols=bool,
            _drop_rows=bool,
+           _create_row_uids=bool,
+           _create_col_uids=bool,
            _n_partitions=nullable(int),
            _assert_type=nullable(hl.tmatrix),
            _load_refs=bool)
 def read_matrix_table(path, *, _intervals=None, _filter_intervals=False, _drop_cols=False,
-                      _drop_rows=False, _n_partitions=None, _assert_type=None, _load_refs=True) -> MatrixTable:
+                      _drop_rows=False, _create_row_uids=False, _create_col_uids=False,
+                      _n_partitions=None, _assert_type=None, _load_refs=True) -> MatrixTable:
     """Read in a :class:`.MatrixTable` written with :meth:`.MatrixTable.write`.
 
     Parameters
@@ -2472,6 +2475,8 @@ def read_matrix_table(path, *, _intervals=None, _filter_intervals=False, _drop_c
     mt = MatrixTable(ir.MatrixRead(ir.MatrixNativeReader(path, _intervals, _filter_intervals),
                                    _drop_cols,
                                    _drop_rows,
+                                   _drop_row_uids=not _create_row_uids,
+                                   _drop_col_uids=not _create_col_uids,
                                    _assert_type=_assert_type))
     if _n_partitions:
         intervals = mt._calculate_new_partitions(_n_partitions)

@@ -138,7 +138,6 @@ class MatrixIRSuite extends HailSuite {
   def rangeRowMatrix(start: Int, end: Int): MatrixIR = {
     val i = end - start
     val baseRange = rangeMatrix(i, 5, Some(math.max(1, math.min(4, i))))
-    println(baseRange.typ)
     val row = Ref("va", baseRange.typ.rowType)
     MatrixKeyRowsBy(
       MatrixMapRows(
