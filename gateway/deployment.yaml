@@ -66,6 +66,9 @@ spec:
           - mountPath: /etc/envoy
             name: gateway-envoy-config
             readOnly: true
+          - mountPath: /config_map/xds
+            name: gateway-xds-config
+            readOnly: true
          env:
          - name: ENVOY_UID
            value: "0"
@@ -80,6 +83,9 @@ spec:
         - name: gateway-envoy-config
           configMap:
             name: gateway-envoy-config
+        - name: gateway-xds-config
+          configMap:
+            name: gateway-xds-config
 ---
 apiVersion: autoscaling/v2beta1
 kind: HorizontalPodAutoscaler

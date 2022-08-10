@@ -1,31 +1,3 @@
-{% macro cluster(name, dns_name)  %}
-        - name: {{ name }}
-          type: STRICT_DNS
-          lb_policy: ROUND_ROBIN
-          load_assignment:
-            cluster_name: {{ name }}
-            endpoints:
-            - lb_endpoints:
-              - endpoint:
-                  address:
-                    socket_address:
-                      address: {{ dns_name }}
-                      port_value: 443
-          transport_socket:
-            name: envoy.transport_sockets.tls
-            typed_config:
-              "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.UpstreamTlsContext
-              common_tls_context:
-                tls_certificates:
-                - certificate_chain:
-                    filename: /ssl-config/gateway-cert.pem
-                  private_key:
-                    filename: /ssl-config/gateway-key.pem
-                validation_context:
-                  trusted_ca:
-                    filename: /ssl-config/gateway-outgoing.pem
-{% endmacro %}
-
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -46,7 +18,7 @@ data:
               codec_type: AUTO
               stat_prefix: ingress_http
               route_config:
-                name: local_route
+                name: http_routes
                 virtual_hosts:
                   - name: revoke
                     domains:
@@ -81,58 +53,14 @@ data:
               stat_prefix: ingress_http
               upgrade_configs:
                 - upgrade_type: websocket
-              route_config:
-                name: local_route
-                virtual_hosts:
-{% for service in subdomains %}
-{% if service == 'ukbb-rg' %}
-                  - name: ukbb
-                    domains:
-                      - ukbb-rg.{{ global.domain }}
-                    typed_per_filter_config:
-                      envoy.filters.http.ext_authz:
-                        "@type": type.googleapis.com/envoy.extensions.filters.http.ext_authz.v3.ExtAuthzPerRoute
-                        disabled: true
-                    routes:
-                      - match:
-                          prefix: "/rg_browser"
-                        route:
-                          timeout: 0s
-                          cluster: ukbb-rg-browser
-                      - match:
-                          prefix: "/"
-                        route:
-                          timeout: 0s
-                          cluster: ukbb-rg-static
-{% else %}
-                  - name: {{ service }}
-                    domains:
-                      - {{ service }}.{{ global.domain }}
-{% if service == "www" %}
-                      - {{ global.domain }}
-{% endif %}
-                    typed_per_filter_config:
-                      envoy.filters.http.ext_authz:
-                        "@type": type.googleapis.com/envoy.extensions.filters.http.ext_authz.v3.ExtAuthzPerRoute
-                        disabled: true
-                    routes:
-                      - match:
-                          prefix: "/"
-                        route:
-                          timeout: 0s
-                          cluster: {{ service }}
-{% endif %}
-{% endfor %}
-{% if 'ci' in subdomains %}
-                vhds:
-                  config_source:
-                    resource_api_version: V3
-                    api_config_source:
-                      api_type: REST
-                      transport_api_version: V3
-                      refresh_delay: 10s
-                      cluster_names: [ci]
-{% endif %}
+              rds:
+                route_config_name: https_routes
+                config_source:
+                  resource_api_version: V3
+                  path_config_source:
+                    path: /config_map/xds/rds.yaml
+                    watched_directory:
+                      path: /config_map/xds
               http_filters:
                 - name: envoy.filters.http.ext_authz
                   typed_config:
@@ -174,14 +102,6 @@ data:
                     socket_address:
                       address: letsencrypt.default.svc.cluster.local
                       port_value: 80
-{% for service in subdomains %}
-{% if service == 'ukbb-rg' %}
-{{ cluster('ukbb-rg-browser', 'ukbb-rg-browser.ukbb-rg.svc.cluster.local') }}
-{{ cluster('ukbb-rg-static', 'ukbb-rg-static.ukbb-rg.svc.cluster.local') }}
-{% else %}
-{{ cluster(service, service + '.default.svc.cluster.local') }}
-{% endif %}
-{% endfor %}
     admin:
       address:
         socket_address:
@@ -196,13 +116,10 @@ data:
               listener:
                 example_listener_name:
                   connection_limit: 10000
-{% if 'ci' in subdomains %}
     dynamic_resources:
       cds_config:
         resource_api_version: V3
-        api_config_source:
-          api_type: REST
-          transport_api_version: V3
-          refresh_delay: 10s
-          cluster_names: [ci]
-{% endif %}
+        path_config_source:
+          path: /config_map/xds/cds.yaml
+          watched_directory:
+            path: /config_map/xds
