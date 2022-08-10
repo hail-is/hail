@@ -35,6 +35,8 @@ from .constants import AUTHORIZED_USERS, TEAMS
 from .environment import STORAGE_URI
 from .github import PR, WIP, FQBranch, MergeFailureBatch, Repo, UnwatchedBranch, WatchedBranch, select_random_teammate
 
+DOMAIN = 'daniel.hail.is'
+
 with open(os.environ.get('HAIL_CI_OAUTH_TOKEN', 'oauth-token/oauth-token'), 'r', encoding='utf-8') as f:
     oauth_token = f.read().strip()
 
@@ -556,6 +558,43 @@ UPDATE globals SET frozen_merge_deploy = 0;
     set_message(session, 'Unfroze all merges and deploys.', 'info')
 
     return web.HTTPFound(deploy_config.external_url('ci', '/'))
+
+
+@routes.post('/v3/discovery:routes')
+async def envoy_virtual_host_discovery(request):
+    app = request.app
+
+    db: Database = app['db']
+    records = [
+        (r['namespace_name'], json.loads(r['services']))
+        async for r in db.execute_and_fetchall('''SELECT namespace_name, services FROM internal_namespaces''')
+    ]
+
+    vhost_resources = [
+        {
+            '@type': 'type.googleapis.com/envoy.config.route.v3.VirtualHost',
+            'name': 'internal',
+            'domains': [f'internal.{DOMAIN}'],
+            'routes': [
+                {
+                    'match': {'prefix': f'/{namespace}/{service}'},
+                    'route': {'timeout': '0s', 'cluster': f'{namespace}-{service}'},
+                }
+                for namespace, services in records
+                for service in services
+            ],
+        }
+    ]
+
+    discovery_response = {
+        'version_info': '2',
+        'type_url': 'type.googleapis.com/envoy.config.route.v3.VirtualHost',
+        'resources': vhost_resources,
+        'control_plane': {
+            'identifier': 'ci',
+        },
+    }
+    return web.json_response(discovery_response)
 
 
 @routes.post('/v3/discovery:clusters')

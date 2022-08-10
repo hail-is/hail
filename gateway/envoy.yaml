@@ -123,6 +123,16 @@ data:
                           cluster: {{ service }}
 {% endif %}
 {% endfor %}
+{% if 'ci' in subdomains %}
+                vhds:
+                  config_source:
+                    resource_api_version: V3
+                    api_config_source:
+                      api_type: REST
+                      transport_api_version: V3
+                      refresh_delay: 10s
+                      cluster_names: [ci]
+{% endif %}
               http_filters:
                 - name: envoy.filters.http.ext_authz
                   typed_config:
