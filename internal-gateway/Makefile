@@ -5,9 +5,13 @@ include ../config.mk
 INTERNAL_IP := $(shell kubectl get secret global-config --template={{.data.internal_ip}} | base64 --decode)
 
 envoy_config:
-	python3 ../ci/jinja2_render.py '{"global":{"domain":"$(DOMAIN)"},"subdomains":[$(shell sed -e 's/\(.*\)/"\1"/' ../letsencrypt/subdomains.txt | paste -s -d, -)]}' envoy.yaml envoy.yaml.out
-	kubectl delete configmap internal-gateway-envoy-config
-	kubectl -n default create -f envoy.yaml.out
+	DOMAIN=$(DOMAIN) python3 ../ci/ci/envoy.py internal-gateway ${HAIL}/letsencrypt/subdomains.txt ${HAIL}/internal-gateway/cds.yaml ${HAIL}/internal-gateway/rds.yaml
+	kubectl -n default apply -f envoy.yaml
+	kubectl -n default create configmap internal-gateway-xds-config \
+		--from-file=cds.yaml \
+		--from-file=rds.yaml \
+		--dry-run=client -o yaml \
+		| kubectl apply -f -
 
 deploy: envoy_config
 	python3 ../ci/jinja2_render.py '{"code":{"sha":"$(shell git rev-parse --short=12 HEAD)"},"global":{"internal_ip":"$(INTERNAL_IP)"}}' service.yaml service.yaml.out

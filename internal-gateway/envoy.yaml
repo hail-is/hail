@@ -18,42 +18,16 @@ data:
               "@type": type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager
               codec_type: AUTO
               stat_prefix: ingress_http
-              route_config:
-                name: local_route
-                virtual_hosts:
-{% for service in subdomains %}
-                  - name: {{ service }}
-                    domains:
-                      - {{ service }}.hail
-                    routes:
-                      - match:
-                          prefix: "/"
-                        route:
-                          timeout: 0s
-                          cluster: {{ service }}
-                        typed_per_filter_config:
-                          envoy.filters.http.local_ratelimit:
-                            "@type": type.googleapis.com/envoy.extensions.filters.http.local_ratelimit.v3.LocalRateLimit
-                            stat_prefix: http_local_rate_limiter
-                            token_bucket:
-                              max_tokens: 150
-                              tokens_per_fill: 150
-                              fill_interval: 1s
-                            filter_enabled:
-                              runtime_key: local_rate_limit_enabled
-                              default_value:
-                                numerator: 100
-                                denominator: HUNDRED
-                            filter_enforced:
-                              runtime_key: local_rate_limit_enforced
-                              default_value:
-                                numerator: 100
-                                denominator: HUNDRED
-{% endfor %}
-                  - name: internal
-                    domains:
-                      - "internal.hail"
-                    routes:
+              upgrade_configs:
+                - upgrade_type: websocket
+              rds:
+                route_config_name: https_routes
+                config_source:
+                  resource_api_version: V3
+                  path_config_source:
+                    path: /config_map/xds/rds.yaml
+                    watched_directory:
+                      path: /config_map/xds
               http_filters:
                 - name: envoy.filters.http.local_ratelimit
                   typed_config:
@@ -62,34 +36,6 @@ data:
                 - name: envoy.filters.http.router
                   typed_config:
                     "@type": type.googleapis.com/envoy.extensions.filters.http.router.v3.Router
-      clusters:
-{% for service in subdomains %}
-        - name: {{ service }}
-          type: STRICT_DNS
-          lb_policy: ROUND_ROBIN
-          load_assignment:
-            cluster_name: {{ service }}
-            endpoints:
-            - lb_endpoints:
-              - endpoint:
-                  address:
-                    socket_address:
-                      address: {{ service }}.default.svc.cluster.local
-                      port_value: 443
-          transport_socket:
-            name: envoy.transport_sockets.tls
-            typed_config:
-              "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.UpstreamTlsContext
-              common_tls_context:
-                tls_certificates:
-                - certificate_chain:
-                    filename: /ssl-config/internal-gateway-cert.pem
-                  private_key:
-                    filename: /ssl-config/internal-gateway-key.pem
-                validation_context:
-                  trusted_ca:
-                    filename: /ssl-config/internal-gateway-outgoing.pem
-{% endfor %}
     admin:
       address:
         socket_address:
@@ -104,3 +50,10 @@ data:
               listener:
                 example_listener_name:
                   connection_limit: 10000
+    dynamic_resources:
+      cds_config:
+        resource_api_version: V3
+        path_config_source:
+          path: /config_map/xds/cds.yaml
+          watched_directory:
+            path: /config_map/xds

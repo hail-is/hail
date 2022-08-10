@@ -8,11 +8,19 @@ DOMAIN = os.environ['DOMAIN']
 
 def create_rds_response(services_per_namespace: Dict[str, List[str]], requester: str) -> dict:
     assert 'default' in services_per_namespace
-    domain_suffix = DOMAIN if requester == 'gateway' else 'hail'
-    hosts = default_hosts(services_per_namespace['default'], domain_suffix)
-    if len(services_per_namespace) > 1:
-        internal = internal_host({k: v for k, v in services_per_namespace.items() if k != 'default'}, domain_suffix)
-        hosts.append(internal)
+    default_services = services_per_namespace['default']
+    internal_services_per_namespace = {k: v for k, v in services_per_namespace.items() if k != 'default'}
+    if requester == 'gateway':
+        default_host = gateway_default_host
+        internal_host = gateway_internal_host
+    else:
+        assert requester == 'internal-gateway'
+        default_host = internal_gateway_default_host
+        internal_host = internal_gateway_internal_host
+
+    hosts = [default_host(service) for service in default_services]
+    if len(internal_services_per_namespace) > 0:
+        hosts.append(internal_host(internal_services_per_namespace))
     return {
         'version_info': 'dummy',
         'type_url': 'type.googleapis.com/envoy.config.route.v3.RouteConfiguration',
@@ -41,42 +49,112 @@ def create_cds_response(services_per_namespace: Dict[str, List[str]], requester:
 
 
 # TODO ukbb-rg needs some tinkering
-def default_hosts(services: List[str], domain_suffix: str) -> List[dict]:
-    hosts = []
-    for service in services:
-        domains = [f'{service}.{domain_suffix}']
-        if service == 'www':
-            domains.append(DOMAIN)
-        routes = [
+def gateway_default_host(service: str) -> dict:
+    domains = [f'{service}.{DOMAIN}']
+    if service == 'www':
+        domains.append(DOMAIN)
+    return {
+        '@type': 'type.googleapis.com/envoy.config.route.v3.VirtualHost',
+        'name': service,
+        'domains': domains,
+        'routes': [
             {
                 'match': {'prefix': '/'},
                 'route': {'timeout': '0s', 'cluster': service},
+                'typed_per_filter_config': {
+                    'envoy.filters.http.ext_authz': auth_check_exemption(),
+                },
             }
-        ]
-        hosts.append(
-            {
-                '@type': 'type.googleapis.com/envoy.config.route.v3.VirtualHost',
-                'name': service,
-                'domains': domains,
-                'routes': routes,
-            }
-        )
-    return hosts
+        ],
+    }
 
 
-def internal_host(services_per_namespace: Dict[str, List[str]], domain_suffix: str) -> dict:
+def gateway_internal_host(services_per_namespace: Dict[str, List[str]]) -> dict:
     return {
         '@type': 'type.googleapis.com/envoy.config.route.v3.VirtualHost',
         'name': 'internal',
-        'domains': [f'internal.{domain_suffix}'],
+        'domains': [f'internal.{DOMAIN}'],
         'routes': [
             {
                 'match': {'prefix': f'/{namespace}/{service}'},
                 'route': {'timeout': '0s', 'cluster': f'{namespace}-{service}'},
+                'typed_per_filter_config': {
+                    'envoy.filters.http.local_ratelimit': rate_limit_config(),
+                    'envoy.filters.http.ext_authz': auth_check_exemption(),
+                },
             }
             for namespace, services in services_per_namespace
             for service in services
         ],
+    }
+
+
+def internal_gateway_default_host(service: str) -> dict:
+    return {
+        '@type': 'type.googleapis.com/envoy.config.route.v3.VirtualHost',
+        'name': service,
+        'domains': [f'{service}.hail'],
+        'routes': [
+            {
+                'match': {'prefix': '/'},
+                'route': {'timeout': '0s', 'cluster': service},
+                'typed_per_filter_config': {
+                    'envoy.filters.http.local_ratelimit': rate_limit_config(),
+                },
+            }
+        ],
+    }
+
+
+def internal_gateway_internal_host(services_per_namespace: Dict[str, List[str]]) -> dict:
+    return {
+        '@type': 'type.googleapis.com/envoy.config.route.v3.VirtualHost',
+        'name': 'internal',
+        'domains': [f'internal.hail'],
+        'routes': [
+            {
+                'match': {'prefix': f'/{namespace}/{service}'},
+                'route': {'timeout': '0s', 'cluster': f'{namespace}-{service}'},
+                'typed_per_filter_config': {
+                    'envoy.filters.http.local_ratelimit': rate_limit_config(),
+                },
+            }
+            for namespace, services in services_per_namespace
+            for service in services
+        ],
+    }
+
+
+def auth_check_exemption() -> dict:
+    return {
+        '@type': 'type.googleapis.com/envoy.extensions.filters.http.ext_authz.v3.ExtAuthzPerRoute',
+        'disabled': True,
+    }
+
+
+def rate_limit_config() -> dict:
+    return {
+        '@type': 'type.googleapis.com/envoy.extensions.filters.http.local_ratelimit.v3.LocalRateLimit',
+        'stat_prefix': 'http_local_rate_limiter',
+        'token_bucket': {
+            'max_bucket': 150,
+            'tokens_per_fill': 150,
+            'fill_interval': '1s',
+        },
+        'filter_enabled': {
+            'runtime_key': 'local_rate_limit_enabled',
+            'default_value': {
+                'numerator': 100,
+                'denominator': 'HUNDRED',
+            },
+        },
+        'filter_enforced': {
+            'runtime_key': 'local_rate_limit_enabled',
+            'default_value': {
+                'numerator': 100,
+                'denominator': 'HUNDRED',
+            },
+        },
     }
 
 

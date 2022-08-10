@@ -43,6 +43,10 @@ spec:
            - /etc/envoy/envoy.yaml
            - --concurrency
            - "2"
+           - --service-cluster
+           - gateway
+           - --service-node
+           - $(hostname)
          resources:
            requests:
              cpu: "20m"
@@ -62,6 +66,9 @@ spec:
           - name: internal-gateway-envoy-config
             mountPath: /etc/envoy
             readOnly: true
+          - mountPath: /config_map/xds
+            name: internal-gateway-xds-config
+            readOnly: true
       volumes:
         - name: ssl-config-internal-gateway
           secret:
@@ -70,6 +77,9 @@ spec:
         - name: internal-gateway-envoy-config
           configMap:
             name: internal-gateway-envoy-config
+        - name: internal-gateway-xds-config
+          configMap:
+            name: internal-gateway-xds-config
 ---
 apiVersion: policy/v1
 kind: PodDisruptionBudget
