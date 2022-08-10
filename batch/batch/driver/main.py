@@ -960,6 +960,7 @@ ON attempts.batch_id = attempt_resources.batch_id AND
   attempts.job_id = attempt_resources.job_id AND
   attempts.attempt_id = attempt_resources.attempt_id
 LEFT JOIN resources ON attempt_resources.resource_id = resources.resource_id
+WHERE GREATEST(COALESCE(end_time - start_time, 0), 0) != 0
 GROUP BY batch_id, job_id, attempt_id
 LOCK IN SHARE MODE;
 '''
