@@ -22,7 +22,7 @@ object BitPackedVector {
   final val BITS_PER_PACK: Int = 2 * GENOTYPES_PER_PACK
 }
 
-private class BitPackedVectorLoader(fullRowPType: PStruct, callField: String, nSamples: Int) {
+private case class BitPackedVectorLoader(fullRowPType: PStruct, callField: String, nSamples: Int) {
   require(nSamples >= 0)
   val PField(_, locusType: PLocus, locusIdx) = fullRowPType.fieldByName("locus")
   val PField(_, allelesType: PArray, allelesIdx) = fullRowPType.fieldByName("alleles")
@@ -282,15 +282,14 @@ case class LocalLDPrune(
 
   def execute(ctx: ExecuteContext, mv: MatrixValue): TableValue = {
     val nSamples = mv.nCols
-
     val fullRowPType = mv.rvRowPType
+    val localCallField = callField
 
-    val bpvLoader = new BitPackedVectorLoader(fullRowPType, callField, nSamples)
     val tableType = typ(mv.typ)
 
     val standardizedRDD = mv.rvd
       .mapPartitions{ (ctx, prevPartition) =>
-
+        val bpvLoader = BitPackedVectorLoader(fullRowPType, localCallField, nSamples)
         prevPartition.flatMap { ptr =>
           bpvLoader.load(ptr)
         }
