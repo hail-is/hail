@@ -204,7 +204,7 @@ object LowerDistributedSort {
       Also get the min and max of each individual partition. That way if it's sorted already, we know the partitioning to use.
        */
       val pivotsPerSegmentAndSortedCheck = ToArray(bindIR(perPartStatsIR) { perPartStats =>
-        mapIR(StreamGroupByKey(ToStream(perPartStats), IndexedSeq("segmentIdx"))) { oneGroup =>
+        mapIR(StreamGroupByKey(ToStream(perPartStats), IndexedSeq("segmentIdx"), missingEqual = true)) { oneGroup =>
           val streamElementRef = Ref(genUID(), oneGroup.typ.asInstanceOf[TIterable].elementType)
           val dataRef = Ref(genUID(), streamElementRef.typ.asInstanceOf[TStruct].fieldType("partData"))
           val sizeRef = Ref(genUID(), streamElementRef.typ.asInstanceOf[TStruct].fieldType("byteSize"))

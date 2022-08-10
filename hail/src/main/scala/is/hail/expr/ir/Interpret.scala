@@ -412,7 +412,7 @@ object Interpret {
           if (size <= 0) fatal("stream grouped: non-positive size")
           aValue.asInstanceOf[IndexedSeq[Any]].grouped(size).toFastIndexedSeq
         }
-      case StreamGroupByKey(a, key) =>
+      case StreamGroupByKey(a, key, missingEqual) =>
         val aValue = interpret(a, env, args)
         if (aValue == null)
           null
@@ -425,7 +425,7 @@ object Interpret {
             val outer = new BoxedArrayBuilder[IndexedSeq[Row]]()
             val inner = new BoxedArrayBuilder[Row]()
             val (kType, getKey) = structType.select(key)
-            val keyOrd = TBaseStruct.getJoinOrdering(kType.types)
+            val keyOrd = TBaseStruct.getJoinOrdering(kType.types, missingEqual)
             var curKey: Row = getKey(seq.head)
 
             seq.foreach { elt =>

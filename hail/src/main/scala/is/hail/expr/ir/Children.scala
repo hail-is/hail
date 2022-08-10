@@ -106,7 +106,7 @@ object Children {
       Array(a, len)
     case StreamGrouped(a, size) =>
       Array(a, size)
-    case StreamGroupByKey(a, _) =>
+    case StreamGroupByKey(a, _, _) =>
       Array(a)
     case StreamMap(a, name, body) =>
       Array(a, body)

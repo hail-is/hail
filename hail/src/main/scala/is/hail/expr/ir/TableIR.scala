@@ -375,7 +375,7 @@ object LoweredTableReader {
           pkPartitioned
             .extendKeyPreservesPartitioning(key)
             .mapPartition(None) { part =>
-              flatMapIR(StreamGroupByKey(part, pkType.fieldNames)) { inner =>
+              flatMapIR(StreamGroupByKey(part, pkType.fieldNames, missingEqual = true)) { inner =>
                 ToStream(sortIR(inner) { case (l, r) => ApplyComparisonOp(LT(l.typ), l, r) })
               }
             }
