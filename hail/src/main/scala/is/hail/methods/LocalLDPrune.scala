@@ -100,7 +100,7 @@ private case class BitPackedVectorLoader(fullRowPType: PStruct, callField: Strin
   }
 }
 
-case class BitPackedVector(locus: Locus, alleles: Array[String], gs: Array[Long], nSamples: Int, mean: Double, centeredLengthRec: Double) {
+case class BitPackedVector(locus: Locus, alleles: IndexedSeq[String], gs: Array[Long], nSamples: Int, mean: Double, centeredLengthRec: Double) {
   def nPacks: Int = gs.length
 
   def getPack(idx: Int): Long = gs(idx)
