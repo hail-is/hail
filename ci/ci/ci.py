@@ -673,8 +673,7 @@ async def envoy_cluster_discovery(request):
 
 async def control_plane_loop(deploy_event: asyncio.Event, db: Database, k8s_client):
     while True:
-        await deploy_event.wait()
-        deploy_event.clear()
+        await asyncio.sleep(60)
 
         services_per_namespace = {
             r['namespace_name']: json.loads(r['services'])
@@ -733,7 +732,7 @@ SELECT frozen_merge_deploy FROM globals;
     app['deploy_event'] = asyncio.Event()
 
     if DEFAULT_NAMESPACE == 'default':
-        await kubernetes_asyncio.config.load_kube_config()
+        kubernetes_asyncio.config.load_incluster_config()
         k8s_client = kubernetes_asyncio.client.CoreV1Api()
         app['task_manager'].ensure_future(control_plane_loop(app['deploy_event'], app['db'], k8s_client))
 
