@@ -160,6 +160,31 @@ download-secret() {
 	  done
 }
 
+download-configmap() {
+    # download-secret secret-name namespace
+    #
+    # Download a secret, base64 unencode the contents, and write into files on your computer. Use
+    # `popd` to return to your previous working directory.
+    #
+    # Example:
+    #
+    #     # download-secret ssl-config-batch dking
+    #     /var/folders/cq/p_l4jm3x72j7wkxqxswccs180000gq/T/tmp.NTb5sZMX ~/projects/hail
+    #     (base) # ls contents
+    #     batch-cert.pem			batch-incoming-store.jks	batch-incoming.pem		batch-key-store.p12		batch-key.pem			batch-outgoing-store.jks	batch-outgoing.pem		ssl-config.json
+    #     (base) # ls
+    #     contents	secret.json
+	  name=$1
+	  namespace=${2:-default}
+	  pushd $(mktemp -d)
+	  kubectl get configmap $name --namespace $namespace -o json > configmap.json
+	  mkdir contents
+	  for field in $(jq -r  '.data | keys[]' configmap.json)
+	  do
+		    jq -r '.data["'$field'"]' configmap.json > contents/$field
+	  done
+}
+
 upload-secret() {
     # upload-secret
     #

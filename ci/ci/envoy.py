@@ -207,6 +207,10 @@ def clusters(services_per_namespace: Dict[str, List[str]], requester: str) -> Li
                     },
                 }
             )
+            # We don't verify namespacd services
+            if namespace != 'default':
+                del clusters[-1]['transport_socket']['typed_config']['validation_context']
+
     return clusters
 
 
