@@ -137,7 +137,7 @@ def rate_limit_config() -> dict:
         '@type': 'type.googleapis.com/envoy.extensions.filters.http.local_ratelimit.v3.LocalRateLimit',
         'stat_prefix': 'http_local_rate_limiter',
         'token_bucket': {
-            'max_bucket': 150,
+            'max_tokens': 150,
             'tokens_per_fill': 150,
             'fill_interval': '1s',
         },
