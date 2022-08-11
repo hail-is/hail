@@ -107,6 +107,52 @@ object LocalLDPruneSuite {
     val maxQueueSize = math.max(1, math.ceil(memoryAvailPerCore / bytesPerVariant).toInt)
     maxQueueSize
   }
+
+  def normalizedHardCalls(calls: Array[BoxedCall]): Option[Array[Double]] = {
+    val nSamples = calls.length
+    val vals = Array.ofDim[Double](nSamples)
+    var nMissing = 0
+    var sum = 0
+    var sumSq = 0
+
+    for ((call, i) <- calls.zipWithIndex) {
+      if (call != null) {
+        val gt = Call.unphasedDiploidGtIndex(call)
+        vals(i) = gt
+        (gt: @unchecked) match {
+          case 0 =>
+          case 1 =>
+            sum += 1
+            sumSq += 1
+          case 2 =>
+            sum += 2
+            sumSq += 4
+        }
+      } else {
+        vals(i) = -1
+        nMissing += 1
+      }
+    }
+
+    val nPresent = nSamples - nMissing
+    val nonConstant = !(sum == 0 || sum == 2 * nPresent || sum == nPresent && sumSq == nPresent)
+
+    if (nonConstant) {
+      val mean = sum.toDouble / nPresent
+      val meanSq = (sumSq + nMissing * mean * mean) / nSamples
+      val stdDev = math.sqrt(meanSq - mean * mean)
+
+      val gtDict = Array(0, -mean / stdDev, (1 - mean) / stdDev, (2 - mean) / stdDev)
+      var i = 0
+      while (i < nSamples) {
+        vals(i) = gtDict(vals(i).toInt + 1)
+        i += 1
+      }
+
+      Some(vals)
+    } else
+      None
+  }
 }
 
 class LocalLDPruneSuite extends HailSuite {
@@ -266,39 +312,28 @@ class LocalLDPruneSuite extends HailSuite {
         }
       }
 
-      // FIXME fix from RV version to vector
-    //property("R2 bitPacked same as BVector") =
-    //  forAll(vectorGen) { case (nSamples: Int, v1: Array[BoxedCall], v2: Array[BoxedCall]) =>
-    //    val v1Ann = LocalLDPruneSuite.convertCallsToGs(v1)
-    //    val v2Ann = LocalLDPruneSuite.convertCallsToGs(v2)
+    property("R2 bitPacked same as BVector") =
+      forAll(vectorGen) { case (nSamples: Int, v1: Array[BoxedCall], v2: Array[BoxedCall]) =>
+        val bv1 = LocalLDPruneSuite.fromCalls(v1)
+        val bv2 = LocalLDPruneSuite.fromCalls(v2)
 
-    //    val bv1 = LocalLDPruneSuite.toBitPackedVectorView(v1Ann, nSamples, pool)
-    //    val bv2 = LocalLDPruneSuite.toBitPackedVectorView(v2Ann, nSamples, pool)
+        val sgs1 = LocalLDPruneSuite.normalizedHardCalls(v1).map(math.sqrt(1d / nSamples) * BVector(_))
+        val sgs2 = LocalLDPruneSuite.normalizedHardCalls(v2).map(math.sqrt(1d / nSamples) * BVector(_))
 
-    //    val view = HardCallView(PType.canonical(LocalLDPruneSuite.rvRowType).asInstanceOf[PStruct])
+        (bv1, bv2, sgs1, sgs2) match {
+          case (Some(a), Some(b), Some(c: BVector[Double]), Some(d: BVector[Double])) =>
+            val rBreeze = c.dot(d): Double
+            val r2Breeze = rBreeze * rBreeze
+            val r2BitPacked = LocalLDPrune.computeR2(a, b)
 
-    //    val rv1 = LocalLDPruneSuite.makeRV(v1Ann, pool)
-    //    view.set(rv1.offset)
-    //    val sgs1 = TestUtils.normalizedHardCalls(view, nSamples).map(math.sqrt(1d / nSamples) * BVector(_))
-
-    //    val rv2 = LocalLDPruneSuite.makeRV(v2Ann, pool)
-    //    view.set(rv2.offset)
-    //    val sgs2 = TestUtils.normalizedHardCalls(view, nSamples).map(math.sqrt(1d / nSamples) * BVector(_))
-
-    //    (bv1, bv2, sgs1, sgs2) match {
-    //      case (Some(a), Some(b), Some(c: BVector[Double]), Some(d: BVector[Double])) =>
-    //        val rBreeze = c.dot(d): Double
-    //        val r2Breeze = rBreeze * rBreeze
-    //        val r2BitPacked = LocalLDPrune.computeR2(a, b)
-
-    //        val isSame = D_==(r2BitPacked, r2Breeze) && D_>=(r2BitPacked, 0d) && D_<=(r2BitPacked, 1d)
-    //        if (!isSame) {
-    //          println(s"breeze=$r2Breeze bitPacked=$r2BitPacked nSamples=$nSamples")
-    //        }
-    //        isSame
-    //      case _ => true
-    //    }
-    //  }
+            val isSame = D_==(r2BitPacked, r2Breeze) && D_>=(r2BitPacked, 0d) && D_<=(r2BitPacked, 1d)
+            if (!isSame) {
+              println(s"breeze=$r2Breeze bitPacked=$r2BitPacked nSamples=$nSamples")
+            }
+            isSame
+          case _ => true
+        }
+      }
   }
 
   @Test def testRandom() {
