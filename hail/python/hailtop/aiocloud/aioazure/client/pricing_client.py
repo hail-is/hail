@@ -10,7 +10,7 @@ from .base_client import AzureBaseClient
 class AzurePricingClient(AzureBaseClient):
     def __init__(self):
         session = AzureSession(credentials=AnonymousCloudCredentials())
-        super().__init__('https://prices.azure.com/api/retail', session=session)
+        super().__init__('http://prices.azure.com/api/retail', session=session)
 
     async def _paged_get(self, path, **kwargs) -> AsyncGenerator[Any, None]:
         page = await self.get(path, **kwargs)
