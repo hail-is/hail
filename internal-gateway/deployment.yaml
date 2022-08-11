@@ -66,8 +66,8 @@ spec:
           - name: internal-gateway-envoy-config
             mountPath: /etc/envoy
             readOnly: true
-          - mountPath: /config_map/xds
-            name: internal-gateway-xds-config
+          - name: internal-gateway-xds-config
+            mountPath: /config_map/xds
             readOnly: true
       volumes:
         - name: ssl-config-internal-gateway
