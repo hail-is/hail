@@ -2475,8 +2475,8 @@ def read_matrix_table(path, *, _intervals=None, _filter_intervals=False, _drop_c
     mt = MatrixTable(ir.MatrixRead(ir.MatrixNativeReader(path, _intervals, _filter_intervals),
                                    _drop_cols,
                                    _drop_rows,
-                                   _drop_row_uids=not _create_row_uids,
-                                   _drop_col_uids=not _create_col_uids,
+                                   drop_row_uids=not _create_row_uids,
+                                   drop_col_uids=not _create_col_uids,
                                    _assert_type=_assert_type))
     if _n_partitions:
         intervals = mt._calculate_new_partitions(_n_partitions)
