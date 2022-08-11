@@ -499,7 +499,6 @@ async def dev_deploy_branch(request, userdata):
 
     try:
         batch_id = await unwatched_branch.deploy(batch_client, steps, excluded_steps=excluded_steps)
-        app['deploy_event'].set()
     except asyncio.CancelledError:
         raise
     except Exception as e:  # pylint: disable=broad-except
@@ -564,7 +563,15 @@ UPDATE globals SET frozen_merge_deploy = 0;
     return web.HTTPFound(deploy_config.external_url('ci', '/'))
 
 
-async def control_plane_loop(deploy_event: asyncio.Event, db: Database, k8s_client):
+@routes.get('/namespaces')
+@web_authenticated_developers_only()
+async def get_active_namespaces(request, userdata):
+    db: Database = request.app['db']
+    records = [r async for r in db.execute_and_fetchall('''SELECT namespace_name, services FROM internal_namespaces''')]
+    return await render_template('ci', request, userdata, 'namespaces.html', {'namespaces': records})
+
+
+async def control_plane_loop(db: Database, k8s_client):
     while True:
         services_per_namespace = {
             r['namespace_name']: json.loads(r['services'])
@@ -588,7 +595,7 @@ async def control_plane_loop(deploy_event: asyncio.Event, db: Database, k8s_clie
                 namespace=DEFAULT_NAMESPACE,
                 body=configmap,
             )
-        await asyncio.sleep(60)
+        await asyncio.sleep(10)
 
 
 async def update_loop(app):
@@ -623,12 +630,10 @@ SELECT frozen_merge_deploy FROM globals;
     app['task_manager'] = aiotools.BackgroundTaskManager()
     app['task_manager'].ensure_future(update_loop(app))
 
-    app['deploy_event'] = asyncio.Event()
-
     if DEFAULT_NAMESPACE == 'default':
         kubernetes_asyncio.config.load_incluster_config()
         k8s_client = kubernetes_asyncio.client.CoreV1Api()
-        app['task_manager'].ensure_future(control_plane_loop(app['deploy_event'], app['db'], k8s_client))
+        app['task_manager'].ensure_future(control_plane_loop(app['db'], k8s_client))
 
 
 async def on_cleanup(app):
