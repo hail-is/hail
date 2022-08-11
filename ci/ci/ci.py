@@ -673,8 +673,6 @@ async def envoy_cluster_discovery(request):
 
 async def control_plane_loop(deploy_event: asyncio.Event, db: Database, k8s_client):
     while True:
-        await asyncio.sleep(60)
-
         services_per_namespace = {
             r['namespace_name']: json.loads(r['services'])
             async for r in db.execute_and_fetchall('''SELECT namespace_name, services FROM internal_namespaces''')
@@ -683,18 +681,21 @@ async def control_plane_loop(deploy_event: asyncio.Event, db: Database, k8s_clie
         assert set(['batch', 'auth', 'batch-driver', 'ci']).issubset(set(services_per_namespace['default']))
 
         for deployment in ('gateway', 'internal-gateway'):
+            configmap_name = f'{deployment}-xds-config'
+            configmap = await k8s_client.read_namespaced_config_map(
+                name=configmap_name,
+                namespace=DEFAULT_NAMESPACE,
+            )
             cds = create_cds_response(services_per_namespace, deployment)
             rds = create_rds_response(services_per_namespace, deployment)
-            await k8s_client.create_namespaced_config_map(
-                DEFAULT_NAMESPACE,
-                kubernetes_asyncio.client.V1ConfigMap(
-                    metadata=kubernetes_asyncio.client.V1ObjectMeta(name=f'{deployment}-xds-config'),
-                    data={
-                        'cds.yaml': yaml.dump(cds),
-                        'rds.yaml': yaml.dump(rds),
-                    },
-                ),
+            configmap.data['cds.yaml'] = yaml.dump(cds)
+            configmap.data['rds.yaml'] = yaml.dump(rds)
+            await k8s_client.patch_namespaced_config_map(
+                name=configmap_name,
+                namespace=DEFAULT_NAMESPACE,
+                body=configmap,
             )
+        await asyncio.sleep(60)
 
 
 async def update_loop(app):

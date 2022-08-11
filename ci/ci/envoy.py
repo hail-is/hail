@@ -83,7 +83,7 @@ def gateway_internal_host(services_per_namespace: Dict[str, List[str]]) -> dict:
                     'envoy.filters.http.ext_authz': auth_check_exemption(),
                 },
             }
-            for namespace, services in services_per_namespace
+            for namespace, services in services_per_namespace.items()
             for service in services
         ],
     }
@@ -119,7 +119,7 @@ def internal_gateway_internal_host(services_per_namespace: Dict[str, List[str]])
                     'envoy.filters.http.local_ratelimit': rate_limit_config(),
                 },
             }
-            for namespace, services in services_per_namespace
+            for namespace, services in services_per_namespace.items()
             for service in services
         ],
     }
