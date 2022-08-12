@@ -251,7 +251,7 @@ async def _query_batch_jobs_for_billing(request, batch_id):
     job_ids = [job['job_id'] for job in jobs]
 
     if n_job_ids == 0:
-        return []
+        return [], None
     if n_job_ids == 1:
         job_condition = 'job_id = %s'
     else:
