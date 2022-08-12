@@ -2055,6 +2055,9 @@ steps:
       - name: populate-agg-billing-by-date
         script: /io/sql/populate_agg_billing_by_date.py
         online: true
+      - name: revert-temp-agg-by-date-infra
+        script: /io/sql/revert-temp-agg-by-date-infra.sql
+        online: true
     inputs:
       - from: /repo/batch/sql
         to: /io/sql
