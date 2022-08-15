@@ -1,5 +1,39 @@
 {% extends "layout.html" %}
 {% block title %}Active namespaces{% endblock %}
 {% block content %}
-Hello world!!!
+<h1>Active namespaces</h1>
+
+<table id="namespace-table" class="grouped-data-table">
+  <thead>
+    <tr>
+      <th colspan="1">Namespace</th>
+      <th colspan="2">Services</th>
+    </tr>
+  </thead>
+  {% for namespace, services in services_per_namespace.items() %}
+  <tbody>
+    <tr>
+      <td rowspan="{{ services|length + 2 }}">
+        {{ namespace }}
+      </td>
+    </tr>
+    {% for service in services %}
+    <tr>
+      <td>
+        {{ service }}
+      </td>
+    </tr>
+    {% endfor %}
+    <tr>
+      <form action="{{ base_path }}/namespaces/{{ namespace }}/services/add" method="POST">
+        <input type="hidden" name="_csrf" value="{{ csrf_token }}">
+        <td><input type="text" name="service"></td>
+        <td>
+          <button>Add</button>
+        </td>
+      </form>
+    </tr>
+  </tbody>
+  {% endfor %}
+</table>
 {% endblock %}

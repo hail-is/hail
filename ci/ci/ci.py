@@ -4,6 +4,7 @@ import json
 import logging
 import os
 import traceback
+import collections
 from typing import Callable, Dict, List, Optional, Set
 
 import aiohttp_session  # type: ignore
@@ -563,20 +564,49 @@ UPDATE globals SET frozen_merge_deploy = 0;
     return web.HTTPFound(deploy_config.external_url('ci', '/'))
 
 
+async def get_deployed_services(db: Database) -> Dict[str, List[str]]:
+    services_per_namespace = collections.defaultdict(list)
+    async for r in db.execute_and_fetchall(
+        '''SELECT active_namespaces.namespace, service
+FROM active_namespaces
+INNER JOIN deployed_services
+ON active_namespaces.namespace = deployed_services.namespace'''
+    ):
+        services_per_namespace[r['namespace']].append(r['service'])
+
+    return services_per_namespace
+
+
 @routes.get('/namespaces')
 @web_authenticated_developers_only()
 async def get_active_namespaces(request, userdata):
     db: Database = request.app['db']
-    records = [r async for r in db.execute_and_fetchall('''SELECT namespace_name, services FROM active_namespaces''')]
-    return await render_template('ci', request, userdata, 'namespaces.html', {'namespaces': records})
+    context = {
+        'services_per_namespace': await get_deployed_services(db),
+    }
+    return await render_template('ci', request, userdata, 'namespaces.html', context)
+
+
+@routes.post('/namespaces/{namespace}/services/add')
+@web_authenticated_developers_only()
+async def add_namespaced_service(request, userdata):
+    db: Database = request.app['db']
+    post = await request.post()
+    service = post['service']
+    namespace = request.match_info['namespace']
+
+    await db.execute_insertone(
+        '''INSERT INTO deployed_services VALUES (%s, %s)''',
+        (namespace, service),
+    )
+
+    return web.HTTPFound(deploy_config.external_url('ci', '/namespaces'))
 
 
 async def control_plane_loop(db: Database, k8s_client):
     while True:
-        services_per_namespace = {
-            r['namespace_name']: json.loads(r['services'])
-            async for r in db.execute_and_fetchall('''SELECT namespace_name, services FROM active_namespaces''')
-        }
+        services_per_namespace = collections.defaultdict()
+        services_per_namespace = await get_deployed_services(db)
         assert 'default' in services_per_namespace
         assert set(['batch', 'auth', 'batch-driver', 'ci']).issubset(set(services_per_namespace['default']))
 

@@ -31,9 +31,7 @@ spec:
       containers:
         - name: ci
           command:
-{% if not deploy %}
            - /controller.sh
-{% endif %}
            - "python3"
            - "-m"
            - "ci"

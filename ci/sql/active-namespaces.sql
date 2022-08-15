@@ -1,12 +1,17 @@
 CREATE TABLE IF NOT EXISTS `active_namespaces` (
-  `namespace_name` VARCHAR(100) NOT NULL,
+  `namespace` VARCHAR(100) NOT NULL,
   `creation_time` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   `expiration_time` TIMESTAMP,
-  `services` VARCHAR(10000) NOT NULL,
-  PRIMARY KEY (`namespace_name`)
+  PRIMARY KEY (`namespace`)
 ) ENGINE = InnoDB;
 
-INSERT INTO `active_namespaces`
-(`namespace_name`, `services`)
-VALUES
-('default', '["auth", "batch", "batch-driver", "ci"]');
+CREATE TABLE IF NOT EXISTS `deployed_services` (
+  `namespace` VARCHAR(100) NOT NULL,
+  `service` VARCHAR(100) NOT NULL,
+  PRIMARY KEY (`namespace`, `service`),
+  FOREIGN KEY (`namespace`) REFERENCES active_namespaces(namespace) ON DELETE CASCADE
+) ENGINE = InnoDB;
+
+INSERT INTO `active_namespaces` (`namespace`) VALUES ('default');
+INSERT INTO `deployed_services` (`namespace`, `service`) VALUES
+('default', 'auth'), ('default', 'batch'), ('default', 'batch-driver'), ('default', 'ci');
