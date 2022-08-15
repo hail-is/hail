@@ -648,7 +648,7 @@ rules:
   resources: ["*"]
   verbs: ["*"]
 - apiGroups: ["apps"]
-  resources: ["deployments"]
+  resources: ["*"]
   verbs: ["*"]
 ---
 apiVersion: v1
