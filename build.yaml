@@ -1894,6 +1894,9 @@ steps:
       - name: add-frozen-mode
         script: /io/sql/add-frozen-mode.sql
         online: true
+      - name: active-namespaces
+        script: /io/sql/active-namespaces.sql
+        online: true
     inputs:
       - from: /repo/ci/sql
         to: /io/sql

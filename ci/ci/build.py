@@ -143,6 +143,13 @@ class BuildConfiguration:
             if step.can_run_in_scope(scope):
                 step.cleanup(batch, scope, parent_jobs)
 
+    def deployed_services(self) -> Dict[str, List[str]]:
+        services = defaultdict(list)
+        for s in self.steps:
+            if isinstance(s, DeployStep):
+                services[s.namespace].extend(s.services())
+        return services
+
 
 class Step(abc.ABC):
     def __init__(self, params):
@@ -786,6 +793,11 @@ class DeployStep(Step):
             json.get('link'),
             json.get('wait'),
         )
+
+    def services(self):
+        if self.wait:
+            return [w['name'] for w in self.wait]
+        return []
 
     def config(self, scope):  # pylint: disable=unused-argument
         return {'token': self.token}
