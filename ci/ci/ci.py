@@ -499,7 +499,7 @@ async def dev_deploy_branch(request, userdata):
     batch_client = app['batch_client']
 
     try:
-        batch_id = await unwatched_branch.deploy(batch_client, steps, excluded_steps=excluded_steps)
+        batch_id = await unwatched_branch.deploy(app['db'], batch_client, steps, excluded_steps=excluded_steps)
     except asyncio.CancelledError:
         raise
     except Exception as e:  # pylint: disable=broad-except
@@ -589,7 +589,7 @@ async def get_active_namespaces(request, userdata):
 
 @routes.post('/namespaces/{namespace}/services/add')
 @web_authenticated_developers_only()
-async def add_namespaced_service(request, userdata):
+async def add_namespaced_service(request, userdata):  # pylint: disable=unused-argument
     db: Database = request.app['db']
     post = await request.post()
     service = post['service']
@@ -605,7 +605,6 @@ async def add_namespaced_service(request, userdata):
 
 async def control_plane_loop(db: Database, k8s_client):
     while True:
-        services_per_namespace = collections.defaultdict()
         services_per_namespace = await get_deployed_services(db)
         assert 'default' in services_per_namespace
         assert set(['batch', 'auth', 'batch-driver', 'ci']).issubset(set(services_per_namespace['default']))

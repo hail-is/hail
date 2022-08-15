@@ -110,7 +110,7 @@ def internal_gateway_internal_host(services_per_namespace: Dict[str, List[str]])
     return {
         '@type': 'type.googleapis.com/envoy.config.route.v3.VirtualHost',
         'name': 'internal',
-        'domains': [f'internal.hail'],
+        'domains': ['internal.hail'],
         'routes': [
             {
                 'match': {'prefix': f'/{namespace}/{service}'},
@@ -163,65 +163,64 @@ def clusters(services_per_namespace: Dict[str, List[str]], requester: str) -> Li
     for namespace, services in services_per_namespace.items():
         for service in services:
             name = service if namespace == 'default' else f'{namespace}-{service}'
-            clusters.append(
-                {
-                    '@type': 'type.googleapis.com/envoy.config.cluster.v3.Cluster',
-                    'name': name,
-                    'type': 'STRICT_DNS',
-                    'lb_policy': 'ROUND_ROBIN',
-                    'load_assignment': {
-                        'cluster_name': name,
-                        'endpoints': [
-                            {
-                                'lb_endpoints': [
-                                    {
-                                        'endpoint': {
-                                            'address': {
-                                                'socket_address': {
-                                                    'address': f'{service}.{namespace}',
-                                                    'port_value': 443,
-                                                }
+            cluster = {
+                '@type': 'type.googleapis.com/envoy.config.cluster.v3.Cluster',
+                'name': name,
+                'type': 'STRICT_DNS',
+                'lb_policy': 'ROUND_ROBIN',
+                'load_assignment': {
+                    'cluster_name': name,
+                    'endpoints': [
+                        {
+                            'lb_endpoints': [
+                                {
+                                    'endpoint': {
+                                        'address': {
+                                            'socket_address': {
+                                                'address': f'{service}.{namespace}',
+                                                'port_value': 443,
                                             }
                                         }
                                     }
-                                ]
-                            }
-                        ],
-                    },
-                    'transport_socket': {
-                        'name': 'envoy.transport_sockets.tls',
-                        'typed_config': {
-                            '@type': 'type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.UpstreamTlsContext',
-                            'common_tls_context': {
-                                'tls_certificates': [
-                                    {
-                                        'certificate_chain': {'filename': f'/ssl-config/{requester}-cert.pem'},
-                                        'private_key': {'filename': f'/ssl-config/{requester}-key.pem'},
-                                    }
-                                ]
-                            },
-                            'validation_context': {
-                                'trusted_ca': {'filename': f'/ssl-config/{requester}-outgoing.pem'},
-                            },
+                                }
+                            ]
+                        }
+                    ],
+                },
+                'transport_socket': {
+                    'name': 'envoy.transport_sockets.tls',
+                    'typed_config': {
+                        '@type': 'type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.UpstreamTlsContext',
+                        'common_tls_context': {
+                            'tls_certificates': [
+                                {
+                                    'certificate_chain': {'filename': f'/ssl-config/{requester}-cert.pem'},
+                                    'private_key': {'filename': f'/ssl-config/{requester}-key.pem'},
+                                }
+                            ]
+                        },
+                        'validation_context': {
+                            'trusted_ca': {'filename': f'/ssl-config/{requester}-outgoing.pem'},
                         },
                     },
-                }
-            )
+                },
+            }
             # We don't verify namespacd services
             if namespace != 'default':
-                del clusters[-1]['transport_socket']['typed_config']['validation_context']
+                del cluster['transport_socket']['typed_config']['validation_context']
+            clusters.append(cluster)
 
     return clusters
 
 
 if __name__ == '__main__':
     requester = sys.argv[1]
-    with open(sys.argv[2], 'r') as services_file:
+    with open(sys.argv[2], 'r', encoding='utf-8') as services_file:
         services = [service.rstrip() for service in services_file.readlines()]
 
     services_per_namespace = {'default': services}
 
-    with open(sys.argv[3], 'w') as cds_file:
+    with open(sys.argv[3], 'w', encoding='utf-8') as cds_file:
         cds_file.write(yaml.dump(create_cds_response(services_per_namespace, requester)))
-    with open(sys.argv[4], 'w') as rds_file:
+    with open(sys.argv[4], 'w', encoding='utf-8') as rds_file:
         rds_file.write(yaml.dump(create_rds_response(services_per_namespace, requester)))

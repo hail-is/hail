@@ -21,9 +21,9 @@ from hailtop.utils import RETRY_FUNCTION_SCRIPT, check_shell, check_shell_output
 
 from .build import BuildConfiguration, Code
 from .constants import AUTHORIZED_USERS, COMPILER_TEAM, GITHUB_CLONE_URL, GITHUB_STATUS_CONTEXT, SERVICES_TEAM
-from .environment import DEPLOY_STEPS, DEFAULT_NAMESPACE
+from .environment import DEPLOY_STEPS
 from .globals import is_test_deployment
-from .utils import reserve_namespace, generate_token
+from .utils import add_deployed_services
 
 repos_lock = asyncio.Lock()
 
@@ -480,10 +480,9 @@ mkdir -p {shq(repo_dir)}
             sha_out, _ = await check_shell_output(f'git -C {shq(repo_dir)} rev-parse HEAD')
             self.sha = sha_out.decode('utf-8').strip()
 
-            namespace_name = f'test-ns-{generate_token()}'
             with open(f'{repo_dir}/build.yaml', 'r', encoding='utf-8') as f:
-                config = BuildConfiguration(namespace_name, self, f.read(), scope='test')
-            await reserve_namespace(db, namespace_name, config.deployed_services())
+                config = BuildConfiguration(self, f.read(), scope='test')
+            await add_deployed_services(db, config.deployed_services())
 
             log.info(f'creating test batch for {self.number}')
             batch = batch_client.create_batch(
@@ -822,7 +821,7 @@ url: {url}
             self.deploy_batch is None or (self.deploy_state and self.deploy_batch.attributes['sha'] != self.sha)
         ):
             async with repos_lock:
-                await self._start_deploy(batch_client)
+                await self._start_deploy(app['db'], batch_client)
 
     async def _update_batch(self, batch_client, db: Database):
         log.info(f'update batch {self.short_str()}')
@@ -870,7 +869,7 @@ url: {url}
                 log.info(f'cancel batch {batch.id} for {attrs["pr"]} {attrs["source_sha"]} => {attrs["target_sha"]}')
                 await batch.cancel()
 
-    async def _start_deploy(self, batch_client):
+    async def _start_deploy(self, db: Database, batch_client):
         # not deploying
         assert not self.deploy_batch or self.deploy_state
 
@@ -887,9 +886,8 @@ mkdir -p {shq(repo_dir)}
 '''
             )
             with open(f'{repo_dir}/build.yaml', 'r', encoding='utf-8') as f:
-                config = BuildConfiguration(
-                    DEFAULT_NAMESPACE, self, f.read(), requested_step_names=DEPLOY_STEPS, scope='deploy'
-                )
+                config = BuildConfiguration(self, f.read(), requested_step_names=DEPLOY_STEPS, scope='deploy')
+            await add_deployed_services(db, config.deployed_services())
 
             log.info(f'creating deploy batch for {self.branch.short_str()}')
             deploy_batch = batch_client.create_batch(
@@ -966,7 +964,7 @@ class UnwatchedBranch(Code):
             config.update(self.extra_config)
         return config
 
-    async def deploy(self, batch_client, steps, excluded_steps=()):
+    async def deploy(self, db: Database, batch_client, steps, excluded_steps=()):
         assert not self.deploy_batch
 
         deploy_batch = None
@@ -981,13 +979,13 @@ mkdir -p {shq(repo_dir)}
             log.info(f'User {self.user} requested these steps for dev deploy: {steps}')
             with open(f'{repo_dir}/build.yaml', 'r', encoding='utf-8') as f:
                 config = BuildConfiguration(
-                    self.namespace,
                     self,
                     f.read(),
                     scope='dev',
                     requested_step_names=steps,
                     excluded_step_names=excluded_steps,
                 )
+            await add_deployed_services(db, config.deployed_services())
 
             log.info(f'creating dev deploy batch for {self.branch.short_str()} and user {self.user}')
 
