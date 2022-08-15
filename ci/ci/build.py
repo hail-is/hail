@@ -745,7 +745,7 @@ done
 commands=$(mktemp)
 
 cat >$commands <<EOF
-DELETE FROM internal_namespaces WHERE namespace_name = '{self._name}';
+DELETE FROM active_namespaces WHERE namespace_name = '{self._name}';
 EOF
 
 until mysql --defaults-extra-file=/sql-config/sql-config.cnf <$commands

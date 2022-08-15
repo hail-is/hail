@@ -19,6 +19,6 @@ async def reserve_namespace(db: Database, namespace_name: str, services: List[st
     tomorrow = datetime.datetime.now() + datetime.timedelta(days=1)
     expiration = tomorrow.strftime('%Y-%m-%d %H:%M:%S')
     await db.execute_insertone(
-        '''INSERT INTO internal_namespaces (`namespace_name`, `expiration_time`, `services`) VALUES (%s, %s, %s)''',
+        '''INSERT INTO active_namespaces (`namespace_name`, `expiration_time`, `services`) VALUES (%s, %s, %s)''',
         (namespace_name, expiration, json.dumps(services)),
     )
