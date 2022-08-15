@@ -37,10 +37,6 @@ data:
                         redirect:
                           https_redirect: true
               http_filters:
-                - name: envoy.filters.http.local_ratelimit
-                  typed_config:
-                    "@type": type.googleapis.com/envoy.extensions.filters.http.local_ratelimit.v3.LocalRateLimit
-                    stat_prefix: http_local_rate_limiter
                 - name: envoy.filters.http.router
                   typed_config:
                     "@type": type.googleapis.com/envoy.extensions.filters.http.router.v3.Router
@@ -80,6 +76,10 @@ data:
                           patterns:
                             exact: "Cookie"
                             ignore_case: true
+                - name: envoy.filters.http.local_ratelimit
+                  typed_config:
+                    "@type": type.googleapis.com/envoy.extensions.filters.http.local_ratelimit.v3.LocalRateLimit
+                    stat_prefix: http_local_rate_limiter
                 - name: envoy.filters.http.router
                   typed_config:
                     "@type": type.googleapis.com/envoy.extensions.filters.http.router.v3.Router
