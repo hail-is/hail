@@ -123,25 +123,39 @@ class MatrixRead(MatrixIR):
         rename_col_uid = False
         drop_row_uids = False
         drop_col_uids = False
-        if row_uid_field_name is None:
+        if row_uid_field_name is None and self.drop_row_uids:
             drop_row_uids = True
         elif row_uid_field_name != default_row_uid:
             rename_row_uid = True
-        if col_uid_field_name is None:
+        if col_uid_field_name is None and self.drop_col_uids:
             drop_col_uids = True
         elif col_uid_field_name != default_col_uid:
             rename_col_uid = True
         result = MatrixRead(self.reader, self.drop_cols, self.drop_rows, drop_row_uids, drop_col_uids)
         if rename_row_uid or rename_col_uid:
+            rename = False
+            row_map = {}
+            col_map = {}
             if rename_row_uid:
-                row_map = {default_row_uid: row_uid_field_name}
-            else:
-                row_map = {}
+                if self.drop_row_uids:
+                    rename = True
+                    row_map = {default_row_uid: row_uid_field_name}
+                else:
+                    row = ir.Ref('va', self.typ.row_type)
+                    result = MatrixMapRows(
+                        result,
+                        ir.InsertFields(row, [(row_uid_field_name, ir.GetField(row, default_row_uid))], None))
             if rename_col_uid:
-                col_map = {default_col_uid: col_uid_field_name}
-            else:
-                col_map = {}
-            result = MatrixRename(result, {}, col_map, row_map, {})
+                if self.drop_col_uids:
+                    rename = True
+                    col_map = {default_col_uid: col_uid_field_name}
+                else:
+                    col = ir.Ref('sa', self.typ.col_type)
+                    result = MatrixMapCols(
+                        result,
+                        ir.InsertFields(col, [(col_uid_field_name, ir.GetField(row, default_col_uid))], None))
+            if rename:
+                result = MatrixRename(result, {}, col_map, row_map, {})
         return result
 
     def render_head(self, r):

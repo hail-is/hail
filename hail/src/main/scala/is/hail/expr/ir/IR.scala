@@ -804,7 +804,7 @@ object MetadataWriter {
 }
 
 abstract class PartitionReader {
-  assert(fullRowType.fieldNames.contains(uidFieldName))
+  assert(fullRowType.hasField(uidFieldName))
 
   def contextType: Type
 

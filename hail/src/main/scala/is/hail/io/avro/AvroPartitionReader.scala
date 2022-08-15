@@ -24,7 +24,9 @@ import scala.collection.JavaConverters._
 case class AvroPartitionReader(schema: Schema, uidFieldName: String) extends PartitionReader {
   def contextType: Type = TStruct("partitionPath" -> TString, "partitionIndex" -> TInt64)
 
-  lazy val fullRowType: TStruct = AvroReader.schemaToType(schema)
+  def fullRowTypeWithoutUIDs: TStruct = AvroReader.schemaToType(schema)
+
+  lazy val fullRowType: TStruct = fullRowTypeWithoutUIDs
     .appendKey(uidFieldName, TTuple(TInt64, TInt64))
 
   override def rowRequiredness(requestedType: TStruct): RStruct = {

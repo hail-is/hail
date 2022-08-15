@@ -143,8 +143,10 @@ class StringTableReader(
   fileStatuses: IndexedSeq[FileStatus]
 ) extends TableReader {
 
-  override lazy val fullType: TableType = TableType(
-    TStruct("file"-> TString, "text" -> TString, uidFieldName -> TTuple(TInt64, TInt64)),
+  override def uidType = TTuple(TInt64, TInt64)
+
+  override def fullTypeWithoutUIDs: TableType = TableType(
+    TStruct("file"-> TString, "text" -> TString),
     FastIndexedSeq.empty,
     TStruct())
 

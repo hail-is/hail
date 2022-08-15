@@ -834,7 +834,9 @@ class TableIRSuite extends HailSuite {
 
       override def globalRequiredness(ctx: ExecuteContext, requestedType: TableType): VirtualTypeWithReq = ???
 
-      override def fullType: TableType = TableType(TStruct(uidFieldName -> TInt64), FastIndexedSeq(), TStruct.empty)
+      override def uidType = TInt64
+
+      override def fullTypeWithoutUIDs: TableType = TableType(TStruct(), FastIndexedSeq(), TStruct.empty)
     }
     val tir = TableRead(tr.fullType, true, tr)
     assert(tir.partitionCounts.forall(_.sum == 0))

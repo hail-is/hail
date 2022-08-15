@@ -295,18 +295,15 @@ class PlinkVariant(
 class MatrixPLINKReader(
   val params: MatrixPLINKReaderParameters,
   referenceGenome: Option[ReferenceGenome],
-  matrixType: MatrixType,
+  val fullMatrixTypeWithoutUIDs: MatrixType,
   sampleInfo: IndexedSeq[Row],
   variants: Array[PlinkVariant],
   contexts: Array[Any],
   partitioner: RVDPartitioner
 ) extends MatrixHybridReader {
 
-  lazy val fullMatrixType = matrixType.copy(
-    rowType = matrixType.rowType.insertFields(Array(
-      rowUIDFieldName -> TInt64)),
-    colType = matrixType.colType.insertFields(Array(
-      colUIDFieldName -> TInt64)))
+  def rowUIDType = TInt64
+  def colUIDType = TInt64
 
   def pathsUsed: Seq[String] = FastSeq(params.bed, params.bim, params.fam)
 

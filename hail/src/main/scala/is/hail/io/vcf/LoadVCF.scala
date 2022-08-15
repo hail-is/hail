@@ -1694,16 +1694,18 @@ class MatrixVCFReader(
   sampleIDs: Array[String]
 ) extends MatrixHybridReader {
 
-  lazy val fullMatrixType: MatrixType = MatrixType(
+  def rowUIDType = TTuple(TInt64, TInt64)
+  def colUIDType = TInt64
+
+  def fullMatrixTypeWithoutUIDs: MatrixType = MatrixType(
     globalType = TStruct.empty,
-    colType = TStruct("s" -> TString, colUIDFieldName -> TInt64),
+    colType = TStruct("s" -> TString),
     colKey = Array("s"),
     rowType = TStruct(
       Array(
         "locus" -> TLocus.schemaFromRG(referenceGenome),
         "alleles" -> TArray(TString))
-      ++ vaSignature.fields.map(f => f.name -> f.typ.virtualType)
-      :+ rowUIDFieldName -> TTuple(TInt64, TInt64): _*),
+      ++ vaSignature.fields.map(f => f.name -> f.typ.virtualType): _*),
     rowKey = Array("locus", "alleles"),
     // rowKey = Array.empty[String],
     entryType = genotypeSignature.virtualType)

@@ -278,12 +278,11 @@ object LoadBgen {
 }
 
 object MatrixBGENReader {
-  def fullMatrixType(rg: Option[ReferenceGenome]): MatrixType = {
+  def fullMatrixTypeWithoutUIDs(rg: Option[ReferenceGenome]): MatrixType = {
     MatrixType(
       globalType = TStruct.empty,
       colType = TStruct(
-        "s" -> TString,
-        MatrixReader.colUIDFieldName -> TInt64),
+        "s" -> TString),
       colKey = Array("s"),
       rowType = TStruct(
         "locus" -> TLocus.schemaFromRG(rg),
@@ -291,13 +290,20 @@ object MatrixBGENReader {
         "rsid" -> TString,
         "varid" -> TString,
         "offset" -> TInt64,
-        "file_idx" -> TInt32,
-        MatrixReader.rowUIDFieldName -> TInt64),
+        "file_idx" -> TInt32),
       rowKey = Array("locus", "alleles"),
       entryType = TStruct(
         "GT" -> TCall,
         "GP" -> TArray(TFloat64),
         "dosage" -> TFloat64))
+  }
+
+  def fullMatrixType(rg: Option[ReferenceGenome]): MatrixType = {
+    val mt = fullMatrixTypeWithoutUIDs(rg)
+    val newRowType = mt.rowType.appendKey(MatrixReader.rowUIDFieldName, TInt64)
+    val newColType = mt.colType.appendKey(MatrixReader.colUIDFieldName, TInt64)
+
+    mt.copy(rowType = newRowType, colType = newColType)
   }
 
   def fromJValue(env: IRParserEnvironment, jv: JValue): MatrixBGENReader = {
@@ -355,7 +361,7 @@ object MatrixBGENReader {
 
     val referenceGenome = LoadBgen.getReferenceGenome(fileMetadata)
 
-    val fullMatrixType: MatrixType = MatrixBGENReader.fullMatrixType(referenceGenome)
+    val fullMatrixType: MatrixType = MatrixBGENReader.fullMatrixTypeWithoutUIDs(referenceGenome)
 
     val (indexKeyType, indexAnnotationType) = LoadBgen.getIndexTypes(fileMetadata)
 
@@ -434,7 +440,7 @@ class MatrixBGENReader(
   val params: MatrixBGENReaderParameters,
   allFiles: Array[String],
   referenceGenome: Option[ReferenceGenome],
-  val fullMatrixType: MatrixType,
+  val fullMatrixTypeWithoutUIDs: MatrixType,
   indexKeyType: Type,
   indexAnnotationType: Type,
   sampleIds: Array[String],
@@ -442,6 +448,10 @@ class MatrixBGENReader(
   partitions: Array[Partition],
   partitioner: RVDPartitioner,
   variants: RDD[Row]) extends MatrixHybridReader {
+
+  def rowUIDType = TInt64
+  def colUIDType = TInt64
+
   def pathsUsed: Seq[String] = allFiles
 
   private val nSamples = sampleIds.length

@@ -132,7 +132,7 @@ object LoweredTableReader {
   ): LoweredTableReaderCoercer = {
     assert(key.nonEmpty)
     assert(contexts.nonEmpty)
-    assert(contextType.fieldNames.contains("partitionIndex"))
+    assert(contextType.hasField("partitionIndex"))
     assert(contextType.fieldType("partitionIndex") == TInt32)
 
     val nPartitions = contexts.length
@@ -419,8 +419,6 @@ object LoweredTableReader {
 }
 
 abstract class TableReader {
-  assert(fullType.rowType.fieldNames.contains(uidFieldName))
-
   def pathsUsed: Seq[String]
 
   def apply(ctx: ExecuteContext, requestedType: TableType, dropRows: Boolean): TableValue
@@ -429,7 +427,16 @@ abstract class TableReader {
 
   def isDistinctlyKeyed: Boolean = false // FIXME: No default value
 
-  def fullType: TableType
+  def uidType: Type
+
+  def fullTypeWithoutUIDs: TableType
+
+  val fullType: TableType = if (fullTypeWithoutUIDs.rowType.hasField(uidFieldName))
+    fullTypeWithoutUIDs
+  else
+    fullTypeWithoutUIDs.copy(
+      rowType = fullTypeWithoutUIDs.rowType.insertFields(
+        Array((uidFieldName, uidType))))
 
   protected def concreteRowRequiredness(ctx: ExecuteContext, requestedType: TableType): VirtualTypeWithReq
 
@@ -536,7 +543,7 @@ case class PartitionRVDReader(rvd: RVD, uidFieldName: String) extends PartitionR
 
     val rowPType = rvd.rowPType.subsetTo(requestedType)
 
-    val createUID = requestedType.fieldNames.contains(uidFieldName)
+    val createUID = requestedType.hasField(uidFieldName)
 
     assert(upcastPType == rowPType,
       s"ptype mismatch:\n  upcast: $upcastPType\n  computed: ${rowPType}")
@@ -1135,9 +1142,9 @@ class TableNativeReader(
 
   override def isDistinctlyKeyed: Boolean = spec.isDistinctlyKeyed
 
-  override lazy val fullType: TableType = spec.table_type.copy(
-    rowType = spec.table_type.rowType.insertFields(
-      Array((uidFieldName, TTuple(TInt64, TInt64)))))
+  def uidType = TTuple(TInt64, TInt64)
+
+  def fullTypeWithoutUIDs = spec.table_type
 
   override def concreteRowRequiredness(ctx: ExecuteContext, requestedType: TableType): VirtualTypeWithReq =
     VirtualTypeWithReq(coerce[PStruct](spec.rowsComponent.rvdSpec(ctx.fs, params.path)
@@ -1200,7 +1207,7 @@ class TableNativeReader(
   override def lowerGlobals(ctx: ExecuteContext, requestedGlobalsType: TStruct): IR = {
     val globalsSpec = spec.globalsSpec
     val globalsPath = spec.globalsComponent.absolutePath(params.path)
-    assert(!requestedGlobalsType.fieldNames.contains(uidFieldName))
+    assert(!requestedGlobalsType.hasField(uidFieldName))
     ArrayRef(
       ToArray(ReadPartition(
         MakeStruct(Array("partitionIndex" -> I64(0), "partitionPath" -> Str(globalsSpec.absolutePartPaths(globalsPath).head))),
@@ -1252,10 +1259,10 @@ case class TableNativeZippedReader(
 
   def partitionCounts: Option[IndexedSeq[Long]] = if (intervals.isEmpty) Some(specLeft.partitionCounts) else None
 
-  override lazy val fullType: TableType =
-    specLeft.table_type.copy(
-      rowType = (specLeft.table_type.rowType ++ specRight.table_type.rowType)
-        .appendKey(uidFieldName, TTuple(TInt64, TInt64)))
+  override def uidType = TTuple(TInt64, TInt64)
+
+  override def fullTypeWithoutUIDs: TableType = specLeft.table_type.copy(
+    rowType = specLeft.table_type.rowType ++ specRight.table_type.rowType)
   private val leftFieldSet = specLeft.table_type.rowType.fieldNames.toSet
   private val rightFieldSet = specRight.table_type.rowType.fieldNames.toSet
 
@@ -1400,10 +1407,12 @@ case class TableFromBlockMatrixNativeReader(
     Some(partitionRanges.map(r => r.end - r.start))
   }
 
-  override lazy val fullType: TableType = {
-    val rowType = TStruct("row_idx" -> TInt64, "entries" -> TArray(TFloat64), uidFieldName -> TInt64)
-    TableType(rowType, Array("row_idx"), TStruct.empty)
-  }
+  override def uidType = TInt64
+
+  override def fullTypeWithoutUIDs: TableType = TableType(
+    TStruct("row_idx" -> TInt64, "entries" -> TArray(TFloat64)),
+    Array("row_idx"),
+    TStruct.empty)
 
   override def concreteRowRequiredness(ctx: ExecuteContext, requestedType: TableType): VirtualTypeWithReq =
     VirtualTypeWithReq(PType.canonical(requestedType.rowType).setRequired(true))

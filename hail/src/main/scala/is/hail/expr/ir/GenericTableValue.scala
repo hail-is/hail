@@ -31,7 +31,7 @@ class PartitionIteratorLongReader(
   bodyPType: TStruct => PStruct,
   body: TStruct => (Region, HailClassLoader, FS, Any) => Iterator[Long]
 ) extends PartitionReader {
-  assert(contextType.fieldNames.contains("partitionIndex"))
+  assert(contextType.hasField("partitionIndex"))
   assert(contextType.fieldType("partitionIndex") == TInt32)
 
   override lazy val fullRowType: TStruct =
@@ -155,8 +155,8 @@ class GenericTableValue(
   val bodyPType: TStruct => PStruct,
   val body: TStruct => (Region, HailClassLoader, FS, Any) => Iterator[Long]) {
 
-  assert(fullTableType.rowType.fieldNames.contains(uidFieldName))
-  assert(contextType.fieldNames.contains("partitionIndex"))
+  assert(fullTableType.rowType.hasField(uidFieldName))
+  assert(contextType.hasField("partitionIndex"))
   assert(contextType.fieldType("partitionIndex") == TInt32)
 
   var ltrCoercer: LoweredTableReaderCoercer = _
