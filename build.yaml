@@ -576,43 +576,6 @@ steps:
     dependsOn:
       - service_base_image
       - merge_code
-  - kind: runImage
-    name: render_grafana_nginx_conf
-    image:
-      valueFrom: service_base_image.image
-    script: |
-      set -ex
-      cd /io/repo/grafana
-      {% if deploy %}
-      DEPLOY=true
-      {% else %}
-      DEPLOY=false
-      {% endif %}
-      python3 ../ci/jinja2_render.py '{"deploy": '${DEPLOY}', "global": {"domain": "{{ global.domain }}"}, "default_ns": {"name": "{{ default_ns.name }}"}}' nginx.conf nginx.conf.out
-    inputs:
-      - from: /repo
-        to: /io/repo
-    outputs:
-      - from: /io/repo/grafana/nginx.conf.out
-        to: /grafana/nginx.conf.out
-    dependsOn:
-      - default_ns
-      - service_base_image
-      - merge_code
-  - kind: buildImage2
-    name: grafana_nginx_image
-    dockerFile: /io/grafana/Dockerfile.nginx
-    contextPath: /io/grafana
-    publishAs: grafana
-    inputs:
-      - from: /repo/grafana
-        to: /io/grafana
-      - from: /grafana/nginx.conf.out
-        to: /io/grafana/nginx.conf.out
-    dependsOn:
-      - hail_ubuntu_image
-      - render_grafana_nginx_conf
-      - merge_code
   - kind: buildImage2
     name: test_ci_image
     dockerFile: /io/repo/ci/Dockerfile.test
@@ -1514,7 +1477,6 @@ steps:
     dependsOn:
       - default_ns
       - base_image
-      - grafana_nginx_image
       - create_certs
   - kind: runImage
     name: render_prom_nginx_conf
