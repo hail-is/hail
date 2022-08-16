@@ -15,6 +15,9 @@ from gidgethub import sansio as gh_sansio
 from prometheus_async.aio.web import server_stats  # type: ignore
 from typing_extensions import TypedDict
 
+import yaml
+import kubernetes_asyncio
+
 from gear import (
     Database,
     check_csrf_token,
@@ -34,6 +37,7 @@ from web_common import render_template, set_message, setup_aiohttp_jinja2, setup
 from .constants import AUTHORIZED_USERS, TEAMS
 from .environment import DEFAULT_NAMESPACE, STORAGE_URI
 from .github import PR, WIP, FQBranch, MergeFailureBatch, Repo, UnwatchedBranch, WatchedBranch, select_random_teammate
+from .envoy import create_cds_response, create_rds_response
 
 with open(os.environ.get('HAIL_CI_OAUTH_TOKEN', 'oauth-token/oauth-token'), 'r', encoding='utf-8') as f:
     oauth_token = f.read().strip()
@@ -638,6 +642,37 @@ async def cleanup_expired_namespaces(db: Database):
         await db.execute_update('DELETE FROM active_namespaces WHERE namespace = %s', (namespace,))
 
 
+async def update_envoy_configs(db: Database, k8s_client):
+    services_per_namespace = {
+        r['namespace']: [s for s in r['services'] if s is not None]
+        async for r in db.execute_and_fetchall(
+            '''SELECT active_namespaces.namespace, JSON_ARRAYAGG(service) as services
+FROM active_namespaces
+LEFT JOIN deployed_services
+ON active_namespaces.namespace = deployed_services.namespace
+GROUP BY active_namespaces.namespace'''
+        )
+    }
+    assert 'default' in services_per_namespace
+    assert set(['batch', 'auth', 'batch-driver', 'ci']).issubset(set(services_per_namespace['default']))
+
+    for deployment in ('gateway', 'internal-gateway'):
+        configmap_name = f'{deployment}-xds-config'
+        configmap = await k8s_client.read_namespaced_config_map(
+            name=configmap_name,
+            namespace=DEFAULT_NAMESPACE,
+        )
+        cds = create_cds_response(services_per_namespace, deployment)
+        rds = create_rds_response(services_per_namespace, deployment)
+        configmap.data['cds.yaml'] = yaml.dump(cds)
+        configmap.data['rds.yaml'] = yaml.dump(rds)
+        await k8s_client.patch_namespaced_config_map(
+            name=configmap_name,
+            namespace=DEFAULT_NAMESPACE,
+            body=configmap,
+        )
+
+
 async def update_loop(app):
     while True:
         try:
@@ -671,6 +706,9 @@ SELECT frozen_merge_deploy FROM globals;
     app['task_manager'].ensure_future(update_loop(app))
 
     if DEFAULT_NAMESPACE == 'default':
+        kubernetes_asyncio.config.load_incluster_config()
+        k8s_client = kubernetes_asyncio.client.CoreV1Api()
+        app['task_manager'].ensure_future(periodically_call(10, update_envoy_configs, app['db'], k8s_client))
         app['task_manager'].ensure_future(periodically_call(300, cleanup_expired_namespaces, app['db']))
 
 
