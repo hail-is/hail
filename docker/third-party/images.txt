@@ -1,5 +1,6 @@
 alpine:3.8
 debian:9.5
+envoyproxy/envoy:v1.22.3
 ghost:3.0-alpine
 google/cloud-sdk:305.0.0-slim
 jupyter/scipy-notebook
