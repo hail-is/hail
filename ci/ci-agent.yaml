@@ -9,7 +9,7 @@ metadata:
   name: ci-agent
 rules:
 - apiGroups: [""]
-  resources: ["services", "pods", "pods/log", "secrets"]
+  resources: ["services", "pods", "pods/log", "secrets", "configmaps"]
   verbs: ["*"]
 - apiGroups: ["extensions", "apps"]
   resources: ["deployments", "statefulsets"]
