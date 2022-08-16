@@ -1478,43 +1478,6 @@ steps:
       - default_ns
       - base_image
       - create_certs
-  - kind: runImage
-    name: render_prom_nginx_conf
-    image:
-      valueFrom: service_base_image.image
-    script: |
-      set -ex
-      cd /io/repo/prometheus
-      {% if deploy %}
-      DEPLOY=true
-      {% else %}
-      DEPLOY=false
-      {% endif %}
-      python3 ../ci/jinja2_render.py '{"deploy": '${DEPLOY}', "default_ns": {"name": "{{ default_ns.name }}"}}' nginx.conf nginx.conf.out
-    inputs:
-      - from: /repo
-        to: /io/repo
-    outputs:
-      - from: /io/repo/prometheus/nginx.conf.out
-        to: /prometheus/nginx.conf.out
-    dependsOn:
-      - default_ns
-      - service_base_image
-      - merge_code
-  - kind: buildImage2
-    name: prom_nginx_image
-    dockerFile: /io/prometheus/Dockerfile.nginx
-    contextPath: /io/prometheus
-    publishAs: prometheus
-    inputs:
-      - from: /repo/prometheus
-        to: /io/prometheus
-      - from: /prometheus/nginx.conf.out
-        to: /io/prometheus/nginx.conf.out
-    dependsOn:
-      - hail_ubuntu_image
-      - render_prom_nginx_conf
-      - merge_code
   - kind: deploy
     name: deploy_prometheus
     namespace:
@@ -1525,7 +1488,6 @@ steps:
       - dev
     dependsOn:
       - default_ns
-      - prom_nginx_image
       - create_certs
   - kind: runImage
     name: create_dummy_oauth2_client_secret
