@@ -100,7 +100,9 @@ azsetcluster <RESOURCE_GROUP>
 The ACR authentication token only lasts three hours. If you pause the deployment
 process after this point, you may have to rerun `azsetcluster` before continuing.
 
-Deploy unmanaged resources by running
+Edit `$HAIL/letsencrypt/subdomains.txt` to specify which services
+you will be running in the cluster. For most, this will be auth and services
+starting with batch. Deploy unmanaged resources by running
 
 ```
 ./bootstrap.sh deploy_unmanaged
@@ -126,11 +128,4 @@ Directory user's object ID.
 
 ```
 ./bootstrap.sh bootstrap <REPO>/hail:<BRANCH> create_initial_user <USERNAME> <OBJECT_ID>
-```
-
-Deploy the gateway service. First trim down `$HAIL/letsencrypt/subdomains.txt`
-to only the services that are deployed and then run
-
-```
-make -C $HAIL/gateway deploy
 ```

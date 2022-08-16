@@ -140,7 +140,9 @@ You can now install Hail:
   ./bootstrap.sh configure_gcloud <ZONE>
   ```
 
-- Deploy unmanaged resources by running
+- First, edit `$HAIL/letsencrypt/subdomains.txt` to specify which services
+  you will be running in the cluster. For most, this will be auth and services
+  starting with batch. Deploy unmanaged resources by running
 
   ```
   ./bootstrap.sh deploy_unmanaged
@@ -164,9 +166,6 @@ You can now install Hail:
   ```
   ./bootstrap.sh bootstrap <REPO>/hail:<BRANCH> deploy_batch
   ```
-
-- Deploy the gateway. First, edit `$HAIL/letsencrypt/subdomains.txt` to include
-  just the deployed services. Then run `make -C $HAIL/gateway deploy`.
 
 - Create the initial (developer) user.
 
