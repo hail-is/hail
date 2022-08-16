@@ -348,7 +348,7 @@ class VariantDatasetCombiner:  # pylint: disable=too-many-instance-attributes
         fs = hl.current_backend().fs
         with fs.open(path) as stream:
             combiner = json.load(stream, cls=Decoder)
-            if combiner.save_path != path:
+            if combiner._save_path != path:
                 warning('path/save_path mismatch in loaded VariantDatasetCombiner, using '
                         f'{path} as the new save_path for this combiner')
                 combiner.save_path = path
