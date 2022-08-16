@@ -2,7 +2,6 @@ include ../config.mk
 
 .PHONY: envoy-config deploy
 
-GATEWAY_IMAGE := $(DOCKER_PREFIX)/gateway:$(TOKEN)
 IP := $(shell kubectl get secret global-config --template={{.data.ip}} | base64 --decode)
 
 envoy-config:

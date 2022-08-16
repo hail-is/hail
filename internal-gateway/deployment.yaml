@@ -36,7 +36,17 @@ spec:
               topologyKey: "kubernetes.io/hostname"
       containers:
        - name: internal-gateway
-         image: "{{ internal_gateway_image.image }}"
+         image: "{{ global.docker_prefix }}/envoy:v1.22.3"
+         command:
+           - /usr/local/bin/envoy
+           - --config-path
+           - /etc/envoy/envoy.yaml
+           - --concurrency
+           - "2"
+           - --service-cluster
+           - gateway
+           - --service-node
+           - $(hostname)
          resources:
            requests:
              cpu: "20m"
@@ -44,17 +54,32 @@ spec:
            limits:
              cpu: "1"
              memory: "1G"
+         env:
+         - name: ENVOY_UID
+           value: "0"
          ports:
           - containerPort: 80
          volumeMounts:
           - name: ssl-config-internal-gateway
             mountPath: /ssl-config
             readOnly: true
+          - name: internal-gateway-envoy-config
+            mountPath: /etc/envoy
+            readOnly: true
+          - name: internal-gateway-xds-config
+            mountPath: /config_map/xds
+            readOnly: true
       volumes:
        - name: ssl-config-internal-gateway
          secret:
            optional: false
            secretName: ssl-config-internal-gateway
+       - name: internal-gateway-envoy-config
+         configMap:
+           name: internal-gateway-envoy-config
+       - name: internal-gateway-xds-config
+         configMap:
+           name: internal-gateway-xds-config
 ---
 apiVersion: policy/v1
 kind: PodDisruptionBudget
