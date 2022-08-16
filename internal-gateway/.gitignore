@@ -1,2 +1,4 @@
 /deployment.yaml.out
 /service.yaml.out
+/rds.yaml
+/cds.yaml

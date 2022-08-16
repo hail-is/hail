@@ -1,21 +1,20 @@
 include ../config.mk
 
-.PHONY: build push deploy
+.PHONY: envoy-config deploy
 
-TOKEN = $(shell cat /dev/urandom | LC_ALL=C tr -dc 'a-z0-9' | head -c 12)
-
-INTERNAL_GATEWAY_IMAGE := $(DOCKER_PREFIX)/internal-gateway:$(TOKEN)
 INTERNAL_IP := $(shell kubectl get secret global-config --template={{.data.internal_ip}} | base64 --decode)
 
-export NAMESPACE := default
+envoy-config:
+	HAIL_DOMAIN=$(DOMAIN) python3 ../ci/ci/envoy.py internal-gateway ${HAIL}/letsencrypt/subdomains.txt ${HAIL}/internal-gateway/cds.yaml ${HAIL}/internal-gateway/rds.yaml
+	kubectl -n default apply -f envoy.yaml
+	kubectl -n default create configmap internal-gateway-xds-config \
+		--from-file=cds.yaml \
+		--from-file=rds.yaml \
+		--dry-run=client -o yaml \
+		| kubectl apply -f -
 
-build:
-	$(MAKE) -C ../docker hail-ubuntu
-	python3 ../ci/jinja2_render.py '{"hail_ubuntu_image":{"image":"'$$(cat ../docker/hail-ubuntu-image-ref)'"}}' Dockerfile Dockerfile.out
-	../docker-build.sh . Dockerfile.out $(INTERNAL_GATEWAY_IMAGE)
-
-deploy: build
+deploy: envoy-config
 	python3 ../ci/jinja2_render.py '{"code":{"sha":"$(shell git rev-parse --short=12 HEAD)"},"global":{"internal_ip":"$(INTERNAL_IP)"}}' service.yaml service.yaml.out
 	kubectl -n default apply -f service.yaml.out
-	python3 ../ci/jinja2_render.py '{"code":{"sha":"$(shell git rev-parse --short=12 HEAD)"},"internal_gateway_image":{"image":"$(INTERNAL_GATEWAY_IMAGE)"}}' deployment.yaml deployment.yaml.out
+	python3 ../ci/jinja2_render.py '{"code":{"sha":"$(shell git rev-parse --short=12 HEAD)"},"global":{"docker_prefix":"$(DOCKER_PREFIX)"}}' deployment.yaml deployment.yaml.out
 	kubectl -n default apply -f deployment.yaml.out
