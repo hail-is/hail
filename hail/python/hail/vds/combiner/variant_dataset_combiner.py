@@ -7,7 +7,7 @@ import sys
 import uuid
 
 from math import floor, log
-from typing import Collection, Dict, List, Optional, Union
+from typing import Collection, Dict, List, Optional, Union, Tuple
 
 import hail as hl
 
@@ -34,6 +34,9 @@ class VDSMetadata:
     def __init__(self, path: str, n_samples: int):
         self.path = path
         self.n_samples = n_samples
+
+    def to_tuple(self) -> Tuple[str, int]:
+        return (self.path, self.n_samples)
 
 
 FAST_CODEC_SPEC = """{
@@ -672,6 +675,8 @@ class Encoder(json.JSONEncoder):
     def default(self, o):
         if isinstance(o, VariantDatasetCombiner):
             return o.to_dict()
+        if isinstance(o, VDSMetadata):
+            return o.to_tuple()
         return json.JSONEncoder.default(self, o)
 
 
