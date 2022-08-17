@@ -4474,8 +4474,8 @@ def set(collection) -> SetExpression:
     --------
 
     >>> s = hl.set(['Bob', 'Charlie', 'Alice', 'Bob', 'Bob'])
-    >>> hl.eval(s)
-    frozenset({'Alice', 'Charlie', 'Bob'})
+    >>> hl.eval(s) # doctest: +SKIP
+    frozenset({'Alice', 'Bob', 'Charlie'})
 
     Returns
     -------
