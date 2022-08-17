@@ -101,7 +101,9 @@ class GGPlot:
         return GGPlot(self.ht, self.aes, self.geoms[:], self.labels, self.coord_cartesian, self.scales, self.facet)
 
     def verify_scales(self):
-        for geom_idx, geom in enumerate(self.geoms):
+        for aes_key in self.aes.keys():
+            check_scale_continuity(self.scales[aes_key], self.aes[aes_key].dtype, aes_key)
+        for geom in self.geoms:
             aesthetic_dict = geom.aes.properties
             for aes_key in aesthetic_dict.keys():
                 check_scale_continuity(self.scales[aes_key], aesthetic_dict[aes_key].dtype, aes_key)
@@ -162,7 +164,7 @@ class GGPlot:
                 if use_faceting:
                     agg = hl.agg.group_by(selected.facet, stat.make_agg(combined_mapping, precomputed[geom_label]))
                 else:
-                    agg = stat.make_agg(combined_mapping, precomputed[geom_label])
+                    agg = stat.make_agg(combined_mapping, precomputed[geom_label], self.scales)
                 aggregators[geom_label] = agg
                 labels_to_stats[geom_label] = stat
 
