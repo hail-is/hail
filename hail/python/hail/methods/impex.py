@@ -3175,7 +3175,7 @@ def import_gvs(refs: 'List[List[str]]',
         factor = 1000000000000
         chrom = hl.literal(reference_genome.contigs[:26])[hl.int32(location / factor) - 1]
         pos = hl.int32(location % factor)
-        return hl.locus(chrom, pos, reference_genome='GRCh38')
+        return hl.locus(chrom, pos, reference_genome=reference_genome)
 
     def translate_state(state_var):
         """Translates a char-encoded GQ to int32."""
@@ -3245,24 +3245,35 @@ def import_gvs(refs: 'List[List[str]]',
 
         var_ht = hl.import_avro(var_group)
         var_ht = var_ht.transmute(locus=translate_locus(var_ht.location),
-                                  local_alleles=var_ht.alt.split(','),
+                                  local_alleles=hl.array([var_ht.ref]).extend(var_ht.alt.split(',')),
                                   LGT=hl.parse_call(var_ht.GT),
                                   LAD=var_ht.AD.split(',').map(lambda x: hl.int32(x)),
                                   GQ=hl.int32(var_ht.GQ),
                                   RGQ=hl.int32(var_ht.RGQ))
         var_ht = var_ht.key_by('locus')
         var_ht = var_ht.group_by(var_ht.locus).aggregate(data_per_sample=hl.agg.collect(var_ht.row.drop('locus')))
+
+        alleles_list = hl.array(hl.set(var_ht.data_per_sample.map(lambda x:x.local_alleles)))
+
+        from hail.experimental.vcf_combiner.vcf_combiner import merge_alleles
+        alleles_and_translation = merge_alleles(alleles_list)
+        alleles = alleles_and_translation[0]
+        allele_to_index = hl.dict(hl.enumerate(alleles, index_first=False))
+        local_allele_lookup = hl.dict(hl.zip(alleles_list, hl.rbind(allele_to_index,
+                 lambda ai: alleles_and_translation[1].map(
+                     lambda norm_alleles: norm_alleles.map(
+                         lambda a: allele_to_index[a])))))
         var_ht = var_ht.annotate(
-            alleles=hl.array([var_ht.data_per_sample[0].ref]).extend(hl.array(hl.set(var_ht.data_per_sample.flatmap(lambda x: x.local_alleles)))))
-        var_ht = var_ht.transmute(entries=convert_array_with_id_keys_to_dense_array(var_ht.data_per_sample, sample_ids, drop=['ref']))
+            alleles=alleles,
+            local_allele_lookup=local_allele_lookup)
+
+        var_ht = var_ht.transmute(entries=convert_array_with_id_keys_to_dense_array(var_ht.data_per_sample, sample_ids))
         var_ht = var_ht.annotate_globals(col_data=hl.literal(samples).map(lambda s: hl.struct(s=hl.str(s))))
         var_mt = var_ht._unlocalize_entries('entries', 'col_data', col_key=['s'])
-        var_mt = var_mt.annotate_rows(allele_idx=hl.dict(hl.enumerate(var_mt.alleles, index_first=False)))
 
-        # replace 'local_alleles' strings with indices into the row 'alleles' field
-        var_mt = var_mt.transmute_entries(
-            LA=hl.literal([0]).extend(var_mt.local_alleles.map(lambda a: var_mt.allele_idx[a])))
-        var_mt = var_mt.drop('allele_idx')
+        # replace 'local_alleles' strings with indices using our global lookup table
+        var_mt = var_mt.transmute_entries(LA=var_mt.local_allele_lookup[var_mt.local_alleles])
+        var_mt = var_mt.drop('local_allele_lookup')
         var_mt = var_mt._key_rows_by_assert_sorted('locus', 'alleles')
 
         vdses.append(hl.vds.VariantDataset(ref_mt, var_mt))
@@ -3292,8 +3303,9 @@ def import_gvs(refs: 'List[List[str]]',
 
     vd = vd.annotate_rows(filters=hl.coalesce(site[vd.locus].filters, hl.empty_set(hl.tstr)))
 
+    # vqsr ref/alt come in normalized individually, so need to renormalize to the dataset ref allele
     vd = vd.annotate_rows(as_vqsr = hl.dict(vqsr.index(vd.locus, all_matches=True)
-                                            .map(lambda record: (record.alt, record.drop('ref', 'alt')))))
+                                            .map(lambda record: (record.alt + vd.alleles[0][hl.len(record.ref):], record.drop('ref', 'alt')))))
     vd = vd.annotate_globals(tranche_data=tranche.collect(_localize=False),
                              truth_sensitivity_snp_threshold=truth_sensitivity_snp_threshold,
                              truth_sensitivity_indel_threshold=truth_sensitivity_indel_threshold)
