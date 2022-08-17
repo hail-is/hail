@@ -162,7 +162,7 @@ class GGPlot:
                 stat = self.geoms[geom_idx].get_stat()
                 geom_label = make_geom_label(geom_idx)
                 if use_faceting:
-                    agg = hl.agg.group_by(selected.facet, stat.make_agg(combined_mapping, precomputed[geom_label]))
+                    agg = hl.agg.group_by(selected.facet, stat.make_agg(combined_mapping, precomputed[geom_label], self.scales))
                 else:
                     agg = stat.make_agg(combined_mapping, precomputed[geom_label], self.scales)
                 aggregators[geom_label] = agg
