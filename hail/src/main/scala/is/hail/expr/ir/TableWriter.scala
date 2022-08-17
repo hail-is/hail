@@ -664,7 +664,7 @@ case class TableNativeFanoutWriter(
       }
     }(
       GetField(_, "oldCtx")
-    ).mapCollectWithContextsAndGlobals(relationalLetsAbove) { (rows, ctxRef) =>
+    ).mapCollectWithContextsAndGlobals(relationalLetsAbove, "table_native_fanout_writer") { (rows, ctxRef) =>
       val file = GetField(ctxRef, "writeCtx")
       WritePartition(rows, file + UUID4(), new PartitionNativeFanoutWriter(targets))
     } { (parts, globals) =>
