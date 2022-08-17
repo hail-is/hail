@@ -6,9 +6,8 @@ Variant Dataset
 The :class:`.VariantDataset` is an extra layer of abstraction of the Hail Matrix Table for working
 with large sequencing datasets. It was initially developed in response to the gnomAD project's need
 to combine, represent, and analyze 150,000 whole genomes. It has since been used on datasets as
-large as 995,000 whole exomes. The :class:`.VariantDatasetCombiner` produces a
-:class:`.VariantDataset` by combining one or more gVCF files with zero or more
-:class:`.VariantDataset` files.
+large as 955,000 whole exomes. The :class:`.VariantDatasetCombiner` produces a
+:class:`.VariantDataset` by combining any number of GVCF and/or :class:`.VariantDataset` files.
 
 .. warning::
 

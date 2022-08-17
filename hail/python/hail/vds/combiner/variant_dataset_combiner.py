@@ -65,16 +65,16 @@ def read_variant_datasets(inputs: List[str], intervals: List[Interval], interval
 
 
 class VariantDatasetCombiner:  # pylint: disable=too-many-instance-attributes
-    """A restartable and failure-tolerant method for combining one or more gVCFs and Variant Datasets.
+    """A restartable and failure-tolerant method for combining one or more GVCFs and Variant Datasets.
 
     Examples
     --------
 
     A Variant Dataset comprises one or more sequences. A new Variant Dataset is constructed from
-    gVCF files and/or extant Variant Datasets. For example, the following produces a new Variant
-    Dataset from four gVCF files containing whole genome sequences ::
+    GVCF files and/or extant Variant Datasets. For example, the following produces a new Variant
+    Dataset from four GVCF files containing whole genome sequences ::
 
-        :class:`.gVCFs` = [
+        gvcfs = [
             'gs://bucket/sample_10123.g.vcf.bgz',
             'gs://bucket/sample_10124.g.vcf.bgz',
             'gs://bucket/sample_10125.g.vcf.bgz',
@@ -84,7 +84,7 @@ class VariantDatasetCombiner:  # pylint: disable=too-many-instance-attributes
         combiner = hl.vds.new_combiner(
             output_path='gs://bucket/dataset.vds',
             temp_path='gs://1-day-temp-bucket/',
-            gvcf_paths=gVCFs,
+            gvcf_paths=gvcfs,
             use_genome_default_intervals=True,
         )
 
@@ -92,9 +92,9 @@ class VariantDatasetCombiner:  # pylint: disable=too-many-instance-attributes
 
         vds = hl.read_vds('gs://bucket/dataset.vds')
 
-    The following combines four new samples from gVCFs with multiple extant Variant Datasets::
+    The following combines four new samples from GVCFs with multiple extant Variant Datasets::
 
-        gVCFs = [
+        gvcfs = [
             'gs://bucket/sample_10123.g.vcf.bgz',
             'gs://bucket/sample_10124.g.vcf.bgz',
             'gs://bucket/sample_10125.g.vcf.bgz',
@@ -110,7 +110,7 @@ class VariantDatasetCombiner:  # pylint: disable=too-many-instance-attributes
             output_path='gs://bucket/dataset.vds',
             temp_path='gs://1-day-temp-bucket/',
             save_path='gs://1-day-temp-bucket/',
-            gvcf_paths=gVCFs,
+            gvcf_paths=gvcfs,
             vds_paths=vdses,
             use_genome_default_intervals=True,
         )
@@ -139,34 +139,34 @@ class VariantDatasetCombiner:  # pylint: disable=too-many-instance-attributes
         The location to store temporary intermediates. We recommend using a bucket with an automatic
         deletion or lifecycle policy.
     reference_genome : :class:`.ReferenceGenome`
-        The reference genome to which all inputs (gVCFs and Variant Datasets) are aligned.
+        The reference genome to which all inputs (GVCFs and Variant Datasets) are aligned.
     branch_factor : :class:`int`
         The number of Variant Datasets to combine at once.
     target_records : :class:`int`
         The target number of variants per partition.
     gvcf_batch_size : :class:`int`
-        The number of gVCFs to combine into a Variant Dataset at once.
+        The number of GVCFs to combine into a Variant Dataset at once.
     contig_recoding : :class:`dict` mapping :class:`str` to :class:`str` or :obj:`None`
-        This mapping is applied to gVCF contigs before importing them into Hail. This is used to
-        handle gVCFs containing invalid contig names. For example, GRCh38 gVCFs which contain the
+        This mapping is applied to GVCF contigs before importing them into Hail. This is used to
+        handle GVCFs containing invalid contig names. For example, GRCh38 GVCFs which contain the
         contig "1" instead of the correct "chr1".
     vdses : :class:`list` of :class:`.VDSMetadata`
         A list of Variant Datasets to combine. Each dataset is identified by a
         :class:`.VDSMetadata`, which is a pair of a path and the number of samples in said Variant
         Dataset.
     gvcfs : :class:`list` of :class:`.str`
-        A list of paths of gVCF files to combine.
+        A list of paths of GVCF files to combine.
     gvcf_sample_names : :class:`list` of :class:`str` or :obj:`None`
-        List of names to use for the samples from the gVCF files. Must be the same length as
+        List of names to use for the samples from the GVCF files. Must be the same length as
         `gvcfs`. Must be specified if `gvcf_external_header` is specified.
     gvcf_external_header : :class:`str` or :obj:`None`
-        A path to a file containing a VCF header which is applied to all gVCFs. Must be specified if
+        A path to a file containing a VCF header which is applied to all GVCFs. Must be specified if
         `gvcf_sample_names` is specified.
     gvcf_import_intervals : :class:`list` of :class:`.Interval`
-        A list of intervals defining how to partition the gVCF files. The same partitioning is used
-        for all gVCF files. Finer partitioning yields more parallelism but less work per task.
+        A list of intervals defining how to partition the GVCF files. The same partitioning is used
+        for all GVCF files. Finer partitioning yields more parallelism but less work per task.
     gvcf_info_to_keep : :class:`list` of :class:`str` or :obj:`None`
-        gVCF ``INFO`` fields to keep in the ``gvcf_info`` entry field. By default, all fields are
+        GVCF ``INFO`` fields to keep in the ``gvcf_info`` entry field. By default, all fields are
         kept except ``END`` and ``DP`` are kept.
     gvcf_reference_entry_fields_to_keep : :class:`list` of :class:`str` or :obj:`None`
         Genotype fields to keep in the reference table. If empty, the first 10,000 reference block
@@ -274,7 +274,7 @@ class VariantDatasetCombiner:  # pylint: disable=too-many-instance-attributes
 
     @property
     def gvcf_batch_size(self):
-        """The number of gVCFs to combine into a Variant Dataset at once."""
+        """The number of GVCFs to combine into a Variant Dataset at once."""
         return self._gvcf_batch_size
 
     @gvcf_batch_size.setter
@@ -296,7 +296,7 @@ class VariantDatasetCombiner:  # pylint: disable=too-many-instance-attributes
 
     @property
     def finished(self) -> bool:
-        """Have all gVCFs and input Variant Datasets been combined?"""
+        """Have all GVCFs and input Variant Datasets been combined?"""
         return not self._gvcfs and not self._vdses
 
     def save(self):
@@ -324,7 +324,7 @@ class VariantDatasetCombiner:  # pylint: disable=too-many-instance-attributes
             raise e
 
     def run(self):
-        """Combine the specified gVCFs and Variant Datasets."""
+        """Combine the specified GVCFs and Variant Datasets."""
         flagname = 'no_ir_logging'
         prev_flag_value = hl._get_flags(flagname).get(flagname)
         hl._set_flags(**{flagname: '1'})
@@ -385,7 +385,7 @@ class VariantDatasetCombiner:  # pylint: disable=too-many-instance-attributes
     def step(self):
         """Run one layer of combinations.
 
-        :meth:`.run` effectively runs :meth:`.step` until all gVCFs and Variant Datasets have been
+        :meth:`.run` effectively runs :meth:`.step` until all GVCFs and Variant Datasets have been
         combined.
 
         """
