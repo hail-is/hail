@@ -16,28 +16,28 @@ object ExportPlink {
   val gtMap = Array(3, 2, 0)
   val spaceRegex = """\s+""".r
 
-  def writeBimRow(v: RegionValueVariant, a: BimAnnotationView, osw: OutputStreamWriter): Unit = {
-    val contig = v.contig()
-    val position = v.position()
-    val alleles = v.alleles()
-    val a0 = alleles(0)
-    val a1 = alleles(1)
-    val varid = a.varid()
+  def checkVariant(contig: String, varid: String, position: Int, a0: String, a1: String): Unit = {
+    def locus: Locus = Locus(contig, position)
+    def alleles: Array[String] = Array(a0, a1)
 
     if (spaceRegex.findFirstIn(contig).isDefined)
-      fatal(s"Invalid contig found at '${ VariantMethods.locusAllelesToString(v.locus(), v.alleles()) }' -- no white space allowed: '$contig'")
+      fatal(s"Invalid contig found at '${ VariantMethods.locusAllelesToString(locus, alleles) }' -- no white space allowed: '$contig'")
     if (spaceRegex.findFirstIn(a0).isDefined)
-      fatal(s"Invalid allele found at '${ VariantMethods.locusAllelesToString(v.locus(), v.alleles()) }' -- no white space allowed: '$a0'")
+      fatal(s"Invalid allele found at '${ VariantMethods.locusAllelesToString(locus, alleles) }' -- no white space allowed: '$a0'")
     if (spaceRegex.findFirstIn(a1).isDefined)
-      fatal(s"Invalid allele found at '${ VariantMethods.locusAllelesToString(v.locus(), v.alleles()) }' -- no white space allowed: '$a1'")
+      fatal(s"Invalid allele found at '${ VariantMethods.locusAllelesToString(locus, alleles) }' -- no white space allowed: '$a1'")
     if (spaceRegex.findFirstIn(varid).isDefined)
-      fatal(s"Invalid 'varid' found at '${ VariantMethods.locusAllelesToString(v.locus(), v.alleles()) }' -- no white space allowed: '$varid'")
+      fatal(s"Invalid 'varid' found at '${ VariantMethods.locusAllelesToString(locus, alleles) }' -- no white space allowed: '$varid'")
+  }
+
+  def writeBimRow(contig: String, varid: String, position: Int, cmPosition: Double, a0: String, a1: String, osw: OutputStreamWriter): Unit = {
+    checkVariant(contig, varid, position, a0, a1)
 
     osw.write(contig)
     osw.write('\t')
     osw.write(varid)
     osw.write('\t')
-    osw.write(a.cmPosition().toString)
+    osw.write(cmPosition.toString)
     osw.write('\t')
     osw.write(position.toString)
     osw.write('\t')
@@ -45,6 +45,11 @@ object ExportPlink {
     osw.write('\t')
     osw.write(a0)
     osw.write('\n')
+  }
+
+  def writeBimRow(v: RegionValueVariant, a: BimAnnotationView, osw: OutputStreamWriter): Unit = {
+    val Array(a0, a1) = v.alleles()
+    writeBimRow(v.contig(), a.varid(), v.position(), a.cmPosition(), a0, a1, osw)
   }
 
   def writeBedRow(hcv: HardCallView, bp: BitPacker, nSamples: Int): Unit = {
@@ -158,11 +163,13 @@ class BitPacker(nBitsPerItem: Int, os: OutputStream) extends Serializable {
   private var data = 0L
   private var nBitsStaged = 0
 
-  def +=(i: Int) {
+  def add(i: Int) = {
     data |= ((i & 0xffffffffL & bitMask) << nBitsStaged)
     nBitsStaged += nBitsPerItem
     write()
   }
+
+  def +=(i: Int) = add(i)
 
   private def write() {
     while (nBitsStaged >= 8) {
