@@ -1662,6 +1662,14 @@ class Tests(unittest.TestCase):
         assert t.filter(t.locus.position >= 1).collect() == [
             hl.utils.Struct(idx=0, locus=hl.genetics.Locus(contig='2', position=1, reference_genome='GRCh37'))]
 
+    def test_lower_row_agg_init_arg(self):
+        mt = hl.balding_nichols_model(5, 200, 200)
+        mt2 = hl.variant_qc(mt)
+        mt2 = mt2.filter_rows((mt2.variant_qc.AF[0] > 0.05) & (mt2.variant_qc.AF[0] < 0.95))
+        mt2 = mt2.sample_rows(.99)
+        rows = mt2.rows()
+        mt = mt.semi_join_rows(rows)
+        hl.hwe_normalized_pca(mt.GT)
 
 def test_keys_before_scans():
     mt = hl.utils.range_matrix_table(6, 6)

@@ -814,7 +814,11 @@ object LowerTableIR {
         val newKeyType = newKey.typ.asInstanceOf[TStruct]
         val resultUID = genUID()
 
-        val aggs@Aggs(postAggIR, init, seq, aggSigs) = Extract(expr, resultUID, analyses.requirednessAnalysis)
+        val aggs = Extract(expr, resultUID, analyses.requirednessAnalysis)
+        val postAggIR = aggs.postAggIR
+        val init = aggs.init
+        val seq = aggs.seqPerElt
+        val aggSigs = aggs.aggs
 
         val partiallyAggregated = loweredChild.mapPartition(Some(FastIndexedSeq())) { partition =>
           Let("global", loweredChild.globals,
