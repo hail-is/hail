@@ -4475,7 +4475,7 @@ def set(collection) -> SetExpression:
 
     >>> s = hl.set(['Bob', 'Charlie', 'Alice', 'Bob', 'Bob'])
     >>> hl.eval(s)
-    frozenset({'Alice', 'Bob', 'Charlie'})
+    frozenset({'Alice', 'Charlie', 'Bob'})
 
     Returns
     -------
@@ -4984,7 +4984,7 @@ def float32(x) -> Float32Expression:
     --------
 
     >>> hl.eval(hl.float32('1.1'))
-    1.1
+    1.100000023841858
 
     >>> hl.eval(hl.float32(1))
     1.0
@@ -5014,7 +5014,7 @@ def parse_float32(x) -> Float32Expression:
     --------
 
     >>> hl.eval(hl.parse_float32('1.1'))
-    1.1
+    1.100000023841858
 
     >>> hl.eval(hl.parse_float32('asdf'))
     None
