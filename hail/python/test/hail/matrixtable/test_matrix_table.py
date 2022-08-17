@@ -2282,3 +2282,65 @@ def test_upcast_tuples():
     t = t.annotate_cols(x=t.foo[1])
     t = t.drop('foo')
     t.cols().collect()
+
+
+def test_write_table_per_column():
+    mt = hl.utils.range_matrix_table(10, 1024, n_partitions=4)
+    mt = mt.annotate_entries(
+        sum = mt.row_idx + mt.col_idx,
+        prod = mt.row_idx * mt.col_idx
+    )
+    with hl.TemporaryDirectory(ensure_exists=True) as outdir:
+        # fanout=32: 32 intermediates each with 32 samples, a full 32-ary tree of height two.
+        mt.write_table_per_column(outdir, fanout=32)
+
+    ht = hl.read_table(outdir + '/0.ht')
+    assert list(ht.row) == ['0.ht.sum', '0.ht.prod', 'row_idx']
+    assert ht.aggregate(
+        sum=hl.agg.collect(ht.sum),
+        prod=hl.agg.collect(ht.prod)
+    ) == hl.Struct(
+        sum=list(range(10)),
+        prod=[0 for _ in range(10)]
+    )
+
+    ht = hl.read_table(outdir + '/30.ht')
+    assert list(ht.row) == ['0.ht.sum', '0.ht.prod', 'row_idx']
+    assert ht.aggregate(
+        sum=hl.agg.collect(ht.sum),
+        prod=hl.agg.collect(ht.prod)
+    ) == hl.Struct(
+        sum=list(range(30, 40)),
+        prod=[i * 30 for i in range(0, 10)]
+    )
+
+
+def test_write_table_per_column_with_incomplete_fanout_tree():
+    mt = hl.utils.range_matrix_table(10, 1024, n_partitions=4)
+    mt = mt.annotate_entries(
+        sum = mt.row_idx + mt.col_idx,
+        prod = mt.row_idx * mt.col_idx
+    )
+    with hl.TemporaryDirectory(ensure_exists=True) as outdir:
+        # fanout=50, 50 intermediates with 20 or 21 samples.
+        mt.write_table_per_column(outdir, fanout=50)
+
+    ht = hl.read_table(outdir + '/0.ht')
+    assert list(ht.row) == ['0.ht.sum', '0.ht.prod', 'row_idx']
+    assert ht.aggregate(
+        sum=hl.agg.collect(ht.sum),
+        prod=hl.agg.collect(ht.prod)
+    ) == hl.Struct(
+        sum=list(range(10)),
+        prod=[0 for _ in range(10)]
+    )
+
+    ht = hl.read_table(outdir + '/30.ht')
+    assert list(ht.row) == ['0.ht.sum', '0.ht.prod', 'row_idx']
+    assert ht.aggregate(
+        sum=hl.agg.collect(ht.sum),
+        prod=hl.agg.collect(ht.prod)
+    ) == hl.Struct(
+        sum=list(range(30, 40)),
+        prod=[i * 30 for i in range(0, 10)]
+    )

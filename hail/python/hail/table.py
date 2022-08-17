@@ -1390,8 +1390,13 @@ class Table(ExprContainer):
                    _codec_spec: Optional[str] = None):
         """Write fields to distinct tables.
 
+        Each field is written to a Hail Table inside the `output` directory. The field name is also
+        used as the filename. Each table is keyed and partitioned the same way this table is.
+
         Examples
         --------
+
+        Split a table into three tables:
 
         >>> t = hl.utils.range_table(10)
         >>> t = t.annotate(a = t.idx, b = t.idx * t.idx, c = hl.str(t.idx))
@@ -1424,34 +1429,6 @@ class Table(ExprContainer):
         |     8 |     8 |
         |     9 |     9 |
         +-------+-------+
-        >>> hl.read_table('output/b').describe()
-        ----------------------------------------
-        Global fields:
-            None
-        ----------------------------------------
-        Row fields:
-            'b': int32
-            'idx': int32
-        ----------------------------------------
-        Key: ['idx']
-        ----------------------------------------
-        >>> hl.read_table('output/b').show()
-        +-------+-------+
-        |     b |   idx |
-        +-------+-------+
-        | int32 | int32 |
-        +-------+-------+
-        |     0 |     0 |
-        |     1 |     1 |
-        |     4 |     2 |
-        |     9 |     3 |
-        |    16 |     4 |
-        |    25 |     5 |
-        |    36 |     6 |
-        |    49 |     7 |
-        |    64 |     8 |
-        |    81 |     9 |
-        +-------+-------+
         >>> hl.read_table('output/c').describe()
         ----------------------------------------
         Global fields:
@@ -1481,6 +1458,30 @@ class Table(ExprContainer):
         | "9" |     9 |
         +-----+-------+
 
+        Split a table after renaming the fields to include the usual ".ht" extension:
+
+        >>> t = hl.utils.range_table(10)
+        >>> t = t.annotate(a = t.idx, b = t.idx * t.idx, c = hl.str(t.idx))
+        >>> t = t.rename({'a': 'a.ht', 'b': 'b.ht', 'c': 'c.ht'})
+        >>> t.write_many('output2', fields=('a.ht', 'b.ht', 'c.ht'))
+        >>> hl.read_table('output2/a.ht').show()
+        +-------+-------+
+        |     a |   idx |
+        +-------+-------+
+        | int32 | int32 |
+        +-------+-------+
+        |     0 |     0 |
+        |     1 |     1 |
+        |     2 |     2 |
+        |     3 |     3 |
+        |     4 |     4 |
+        |     5 |     5 |
+        |     6 |     6 |
+        |     7 |     7 |
+        |     8 |     8 |
+        |     9 |     9 |
+        +-------+-------+
+
         .. include:: _templates/write_warning.rst
 
         See Also
@@ -1490,14 +1491,15 @@ class Table(ExprContainer):
         Parameters
         ----------
         output : str
-            Path at which to write.
+            Directory into which to write the individual tables.
         fields : list of str
             The fields to write.
+        overwrite : bool
+            For every output table, replace it if it already exists.
         stage_locally: bool
             If ``True``, major output will be written to temporary local storage
             before being copied to ``output``.
-        overwrite : bool
-            If ``True``, overwrite an existing file at the destination.
+
         """
 
         hl.current_backend().validate_file_scheme(output)
