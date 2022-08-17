@@ -3163,6 +3163,10 @@ def import_gsheet(spreadsheetID, sheetname) -> Table:
     -------
     :class:`.Table`
         Table constructed from imported google sheet.
+
+    Notes:
+    ---------
+    To use this function, you must have a google service account downloaded or files cannot be accessed
     """
     st_reader = ir.GoogleSheetReader(spreadsheetID, sheetname)
     table_type = hl.ttable(
