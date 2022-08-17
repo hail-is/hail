@@ -980,7 +980,7 @@ case class MatrixPLINKWriter(
     }{ (parts, globals) =>
       val commit = PLINKExportFinalizer(tm, path, tmpBedDir + "/header")
       val famWriter = TableTextPartitionWriter(tm.colsTableType.rowType, "\t", writeHeader = false)
-      val famPath = Literal(TString, path + ".fam")
+      val famPath = Str(path + ".fam")
       val cols = ToStream(GetField(globals, colsFieldName))
       val writeFam = WritePartition(cols, famPath, famWriter)
       bindIR(writeFam) { fpath =>
