@@ -810,7 +810,6 @@ class PLINKTests(unittest.TestCase):
         assert mt3._same(mt)
 
     @fails_service_backend()
-    @fails_local_backend()
     def test_import_plink_partitions(self):
         mt = hl.balding_nichols_model(n_populations=2, n_samples=10, n_variants=100)
         mt = mt.select_rows()
@@ -919,7 +918,6 @@ class PLINKTests(unittest.TestCase):
         self.assertTrue(same)
 
     @fails_service_backend()
-    @fails_local_backend()
     def test_export_plink_exprs(self):
         ds = get_dataset()
         fam_mapping = {'f0': 'fam_id', 'f1': 'ind_id', 'f2': 'pat_id', 'f3': 'mat_id',
@@ -1006,8 +1004,6 @@ class PLINKTests(unittest.TestCase):
                         resource('sex_mt_contigs.fam'),
                         reference_genome='random')
 
-    @fails_service_backend()
-    @fails_local_backend()
     def test_export_plink_struct_locus(self):
         mt = hl.utils.range_matrix_table(10, 10)
         mt = mt.key_rows_by(locus=hl.struct(contig=hl.str(mt.row_idx), position=mt.row_idx), alleles=['A', 'T']).select_rows()
