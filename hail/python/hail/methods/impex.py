@@ -3264,5 +3264,5 @@ def import_csv(paths,
 
    ht = hl.import_table(paths, key=None, min_partitions=None, impute=False, no_header=False, comment=(), missing="NA",
                         types={}, skip_blank_lines=False, force_bgz=False, filter=None, find_replace=None,
-                        force=False, source_file_field=None, delimiter = ",", quote ='"')
+                        force=False, source_file_field=None, delimiter=",", quote='"')
    return ht
