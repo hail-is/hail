@@ -2623,7 +2623,7 @@ def rand_int32(a, b=None, *, seed=None) -> Int32Expression:
     0
 
     >>> hl.eval(hl.rand_int32(10, 15))
-    10
+    11
 
     >>> hl.eval(hl.rand_int32(10, 15))
     12
@@ -2659,7 +2659,7 @@ def rand_int64(a, b=None, *, seed=None) -> Int64Expression:
 
     >>> hl.set_global_seed(0)
     >>> hl.eval(hl.rand_int64(10))
-    6
+    2
 
     >>> hl.eval(hl.rand_int64(1 << 33, 1 << 35))
     23592867963
@@ -2671,7 +2671,7 @@ def rand_int64(a, b=None, *, seed=None) -> Int64Expression:
     ----------
     a : :obj:`int` or :class:`.Int64Expression`
         If b is `None`, the right boundary of the range; otherwise, the left boundary of range.
-    b : :obj:`int` or :class:`.Int64xpression`
+    b : :obj:`int` or :class:`.Int64Expression`
         If specified, the right boundary of the range.
     seed : :obj:`int`, optional
         Random seed.
