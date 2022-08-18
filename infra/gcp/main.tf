@@ -8,6 +8,10 @@ terraform {
       source = "hashicorp/kubernetes"
       version = "2.8.0"
     }
+    sops = {
+      source = "carlpett/sops"
+      version = "0.6.3"
+    }
   }
 }
 
@@ -32,22 +36,10 @@ variable "gcp_zone" {}
 variable "gcp_location" {}
 variable "domain" {}
 variable "organization_domain" {}
+variable "github_organization" {}
 variable "use_artifact_registry" {
   type = bool
   description = "pull the ubuntu image from Artifact Registry. Otherwise, GCR"
-}
-
-variable "ci_config" {
-  type = object({
-    github_oauth_token = string
-    github_user1_oauth_token = string
-    watched_branches = list(tuple([string, bool, bool]))
-    deploy_steps = list(string)
-    bucket_location = string
-    bucket_storage_class = string
-    github_context = string
-  })
-  default = null
 }
 
 variable deploy_ukbb {
@@ -65,8 +57,12 @@ locals {
   docker_root_image = "${local.docker_prefix}/ubuntu:20.04"
 }
 
+data "sops_file" "terraform_sa_key_sops" {
+  source_file = "${var.github_organization}/terraform_sa_key.enc.json"
+}
+
 provider "google" {
-  credentials = file("~/.hail/terraform_sa_key.json")
+  credentials = data.sops_file.terraform_sa_key_sops.raw
 
   project = var.gcp_project
   region = var.gcp_region
@@ -74,7 +70,7 @@ provider "google" {
 }
 
 provider "google-beta" {
-  credentials = file("~/.hail/terraform_sa_key.json")
+  credentials = data.sops_file.terraform_sa_key_sops.raw
 
   project = var.gcp_project
   region = var.gcp_region
@@ -635,28 +631,41 @@ resource "kubernetes_cluster_role_binding" "batch" {
   }
 }
 
+data "sops_file" "auth_oauth2_client_secret_sops" {
+  source_file = "${var.github_organization}/auth_oauth2_client_secret.enc.json"
+}
+
 resource "kubernetes_secret" "auth_oauth2_client_secret" {
   metadata {
     name = "auth-oauth2-client-secret"
   }
 
   data = {
-    "client_secret.json" = file("~/.hail/auth_oauth2_client_secret.json")
+    "client_secret.json" = data.sops_file.auth_oauth2_client_secret_sops.raw
   }
+}
+
+data "sops_file" "ci_config_sops" {
+  count = fileexists("${var.github_organization}/ci_config.enc.json") ? 1 : 0
+  source_file = "${var.github_organization}/ci_config.enc.json"
+}
+
+locals {
+    ci_config = length(data.sops_file.ci_config_sops) == 1 ? data.sops_file.ci_config_sops[0] : null
 }
 
 module "ci" {
   source = "./ci"
-  count = var.ci_config != null ? 1 : 0
-
-  github_oauth_token = var.ci_config.github_oauth_token
-  github_user1_oauth_token = var.ci_config.github_user1_oauth_token
-  watched_branches = var.ci_config.watched_branches
-  deploy_steps = var.ci_config.deploy_steps
-  bucket_location = var.ci_config.bucket_location
-  bucket_storage_class = var.ci_config.bucket_storage_class
+  count = local.ci_config != null ? 1 : 0
+  
+  github_oauth_token = local.ci_config.data["github_oauth_token"]
+  github_user1_oauth_token = local.ci_config.data["github_user1_oauth_token"]
+  watched_branches = jsondecode(local.ci_config.raw).watched_branches
+  deploy_steps = jsondecode(local.ci_config.raw).deploy_steps
+  bucket_location = local.ci_config.data["bucket_location"]
+  bucket_storage_class = local.ci_config.data["bucket_storage_class"]
 
   ci_email = module.ci_gsa_secret.email
   container_registry_id = google_container_registry.registry.id
-  github_context = var.ci_config.github_context
+  github_context = local.ci_config.data["github_context"]
 }
