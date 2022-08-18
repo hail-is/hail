@@ -36,6 +36,7 @@ class VDSMetadata:
         self.n_samples = n_samples
 
     def to_tuple(self) -> Tuple[str, int]:
+        """Convert to a serializable representation."""
         return (self.path, self.n_samples)
 
 
