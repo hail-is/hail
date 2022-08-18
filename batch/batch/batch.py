@@ -12,11 +12,7 @@ log = logging.getLogger('batch')
 
 
 def batch_record_to_dict(record):
-    # backwards compatibility
-    if record['n_updates'] != 0:
-        n_jobs = record['n_committed_jobs']
-    else:
-        n_jobs = record['n_jobs']
+    n_jobs = record['n_committed_jobs']
 
     if record['state'] == 'open':
         state = 'open'
@@ -35,16 +31,9 @@ def batch_record_to_dict(record):
             return time_msecs_str(t)
         return None
 
-    if record['time_completed']:
-        time_updated = record['time_completed']
-    elif record['time_updated']:
-        time_updated = record['time_updated']
-    else:
-        time_updated = record['time_created']
-
     time_created = _time_msecs_str(record['time_created'])
     time_closed = _time_msecs_str(record['time_closed'])
-    time_updated_str = _time_msecs_str(time_updated)
+    time_updated_str = _time_msecs_str(record['time_updated'])
     time_completed = _time_msecs_str(record['time_completed'])
 
     if record['time_created'] and record['time_completed']:

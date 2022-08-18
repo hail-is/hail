@@ -190,6 +190,9 @@ class Batch:
                    timeout=None, cloudfuse=None, requester_pays_project=None,
                    mount_tokens=False, network: Optional[str] = None,
                    unconfined: bool = False, user_code: Optional[str] = None) -> Job:
+        if parents:
+            parents = [parent._async_job for parent in parents]
+
         async_job = self._async_batch.create_job(
             image, command, env=env, mount_docker_socket=mount_docker_socket,
             port=port, resources=resources, secrets=secrets,
@@ -197,6 +200,7 @@ class Batch:
             input_files=input_files, output_files=output_files, always_run=always_run,
             timeout=timeout, cloudfuse=cloudfuse, requester_pays_project=requester_pays_project,
             mount_tokens=mount_tokens, network=network, unconfined=unconfined, user_code=user_code)
+
         return Job.from_async_job(async_job)
 
     def create_jvm_job(self, command, *, parents=None, **kwargs) -> Job:

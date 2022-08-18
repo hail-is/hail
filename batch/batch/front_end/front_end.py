@@ -289,9 +289,9 @@ WITH base_t AS
       jobs.job_id = job_attributes.job_id AND
       job_attributes.`key` = 'name'
   LEFT JOIN batch_updates
-    ON jobs.batch_id = batch_updates.id AND
+    ON jobs.batch_id = batch_updates.batch_id AND
       jobs.job_id >= batch_updates.start_job_id AND
-      jobs.job_id <= batch_updates.end_job_id
+      jobs.job_id < batch_updates.start_job_id + batch_updates.n_jobs
   WHERE {' AND '.join(where_conditions)}
   LIMIT 50
 )
@@ -617,32 +617,42 @@ WITH base_t AS (
     batches_n_jobs_in_complete_states.n_completed,
     batches_n_jobs_in_complete_states.n_succeeded,
     batches_n_jobs_in_complete_states.n_failed,
-    batches_n_jobs_in_complete_states.n_cancelled,
-    CAST(COALESCE(SUM(1), 0) AS SIGNED) AS n_updates,
-    CAST(COALESCE(SUM(IF(batch_updates.committed, batch_updates.n_jobs, 0)), 0) AS SIGNED) AS n_committed_jobs,
-    CAST(COALESCE(SUM(NOT batch_updates.committed), 0) AS SIGNED) AS n_updates_in_progress
+    batches_n_jobs_in_complete_states.n_cancelled
   FROM batches
   LEFT JOIN batches_n_jobs_in_complete_states
     ON batches.id = batches_n_jobs_in_complete_states.id
   LEFT JOIN batches_cancelled
     ON batches.id = batches_cancelled.id
   STRAIGHT_JOIN billing_project_users ON batches.billing_project = billing_project_users.billing_project
-  LEFT JOIN batch_updates ON batches.id = batch_updates.id
   WHERE {' AND '.join(where_conditions)}
   GROUP BY batches.id
   ORDER BY batches.id DESC
   LIMIT 51
 )
-SELECT base_t.*, COALESCE(SUM(`usage` * rate), 0) AS cost
+SELECT base_t.*, cost_t.cost, updates_t.n_updates, updates_t.n_committed_jobs,
+  updates_t.n_updates_in_progress, updates_t.time_updated
 FROM base_t
 LEFT JOIN (
-  SELECT batch_id, resource_id, CAST(COALESCE(SUM(`usage`), 0) AS SIGNED) AS `usage`
+  SELECT batch_id, COALESCE(SUM(`usage` * rate), 0) AS cost
+  FROM (
+    SELECT batch_id, resource_id, CAST(COALESCE(SUM(`usage`), 0) AS SIGNED) AS `usage`
+    FROM base_t
+    LEFT JOIN aggregated_batch_resources_v2 ON base_t.id = aggregated_batch_resources_v2.batch_id
+    GROUP BY batch_id, resource_id
+  ) AS usage_t
+  LEFT JOIN resources ON usage_t.resource_id = resources.resource_id
+  GROUP BY batch_id
+) AS cost_t ON base_t.id = cost_t.batch_id
+LEFT JOIN (
+  SELECT batch_updates.batch_id,
+    CAST(COALESCE(SUM(1), 0) AS SIGNED) AS n_updates,
+    CAST(COALESCE(SUM(IF(batch_updates.committed, batch_updates.n_jobs, 0)), 0) AS SIGNED) AS n_committed_jobs,
+    CAST(COALESCE(SUM(NOT batch_updates.committed), 0) AS SIGNED) AS n_updates_in_progress,
+    MAX(batch_updates.time_committed) AS time_updated
   FROM base_t
-  LEFT JOIN aggregated_batch_resources_v2 ON base_t.id = aggregated_batch_resources_v2.batch_id
-  GROUP BY batch_id, resource_id
-) AS usage_t ON base_t.id = usage_t.batch_id
-LEFT JOIN resources ON usage_t.resource_id = resources.resource_id
-GROUP BY base_t.id
+  LEFT JOIN batch_updates ON base_t.id = batch_updates.batch_id
+  GROUP BY batch_updates.batch_id
+) AS updates_t ON base_t.id = updates_t.batch_id
 ORDER BY base_t.id DESC;
 '''
     sql_args = where_args
@@ -684,6 +694,8 @@ def check_service_account_permissions(user, sa):
     raise web.HTTPBadRequest(reason=f'unauthorized service account {(sa["namespace"], sa["name"])} for user {user}')
 
 
+# this route is deprecated
+# use "/api/v1alpha/batches/{batch_id}/update/{update_id}/jobs/create" instead
 @routes.post('/api/v1alpha/batches/{batch_id}/jobs/create')
 @rest_authenticated_users_only
 async def create_jobs(request: aiohttp.web.Request, userdata: dict):
@@ -819,12 +831,14 @@ WHERE user = %s AND id = %s AND NOT deleted;
 
         absolute_parent_ids = spec.pop('absolute_parent_ids', [])
         relative_parent_ids = spec.pop('relative_parent_ids', [])
-        relative_parent_ids = [update_start_job_id + pid - 1 for pid in relative_parent_ids]
+        relative_parent_ids = [update_start_job_id + parent_id - 1 for parent_id in relative_parent_ids]
         parent_ids = absolute_parent_ids + relative_parent_ids
 
-        for pid in parent_ids:
-            if not 0 < pid < job_id:
-                raise web.HTTPBadRequest(reason=f'invalid parent ids found in the spec: parent {pid}, job {job_id}')
+        for parent_id in parent_ids:
+            if not 0 < parent_id < job_id:
+                raise web.HTTPBadRequest(
+                    reason=f'invalid parent ids found in the spec: parent {parent_id}, job {job_id}'
+                )
 
         always_run = spec.pop('always_run', False)
 
@@ -1100,7 +1114,7 @@ VALUES (%s, %s, %s, %s);
                 job_attributes_args,
             )
 
-            batch_updates_inst_coll_staging_args = [
+            batches_inst_coll_staging_args = [
                 (
                     batch_id,
                     update_id,
@@ -1121,7 +1135,7 @@ ON DUPLICATE KEY UPDATE
   n_ready_jobs = n_ready_jobs + VALUES(n_ready_jobs),
   ready_cores_mcpu = ready_cores_mcpu + VALUES(ready_cores_mcpu);
 ''',
-                batch_updates_inst_coll_staging_args,
+                batches_inst_coll_staging_args,
             )
 
             batch_inst_coll_cancellable_resources_args = [
@@ -1193,17 +1207,14 @@ async def create_batch_fast(request, userdata):
 
     batch_id = await _create_batch(batch_spec, userdata, db)
 
-    update_id = batch_spec.get('update_id') or batch_spec['token'][:8]
-    start_job_id, _, _, _ = await _create_batch_update(batch_id, update_id, user, batch_spec['n_jobs'], db)
+    update_id = batch_spec.get('update_id') or secret_alnum_string(8)
+    start_job_id = await _create_batch_update(batch_id, update_id, user, batch_spec['n_jobs'], db)
 
-    try:
-        await _create_jobs(userdata, bunch, batch_id, update_id, app, update_start_job_id=start_job_id)
-    except web.HTTPBadRequest as e:
-        if f'batch {batch_id} is not open' == e.reason:
-            return web.json_response({'id': batch_id})
-        raise
-    await _commit_update(app, batch_id, update_id, user, db)
-    return web.json_response({'id': batch_id, 'update_id': update_id, 'start_job_id': start_job_id})
+    await _create_jobs(userdata, bunch, batch_id, update_id, app, update_start_job_id=start_job_id)
+
+    batch_commit_result = await _commit_update(app, batch_id, update_id, user, db)
+
+    return web.json_response(batch_commit_result)
 
 
 @routes.post('/api/v1alpha/batches/create')
@@ -1219,10 +1230,10 @@ async def create_batch(request, userdata):
     batch_spec = await request.json()
     id = await _create_batch(batch_spec, userdata, db)
 
-    update_id = batch_spec.get('update_id') or batch_spec['token'][:8]
+    update_id = batch_spec.get('update_id') or secret_alnum_string(8)
     user = userdata['username']
 
-    start_job_id, _, _, _ = await _create_batch_update(id, update_id, user, batch_spec['n_jobs'], db)
+    start_job_id = await _create_batch_update(id, update_id, user, batch_spec['n_jobs'], db)
 
     return web.json_response({'id': id, 'update_id': update_id, 'start_job_id': start_job_id})
 
@@ -1250,10 +1261,10 @@ async def update_batch_fast(request, userdata, batch_id):
 
     n_update_jobs = update_spec['n_jobs']
 
-    start_job_id, n_jobs, token, attributes = await _create_batch_update(batch_id, update_id, user, n_update_jobs, db)
+    start_job_id = await _create_batch_update(batch_id, update_id, user, n_update_jobs, db)
     await _create_jobs(userdata, bunch, batch_id, update_id, app, update_start_job_id=start_job_id)
-    await _commit_update(app, batch_id, update_id, user, db)
-    return web.json_response({'start_job_id': start_job_id, 'n_jobs': n_jobs, 'token': token, 'attributes': attributes})
+    batch_commit_result = await _commit_update(app, batch_id, update_id, user, db)
+    return web.json_response(batch_commit_result)
 
 
 @routes.post('/api/v1alpha/batches/{batch_id}/update/{update_id}')
@@ -1277,14 +1288,9 @@ async def update_batch(request, userdata, batch_id):
         raise web.HTTPBadRequest(reason=e.reason)
 
     n_update_jobs = update_spec['n_jobs']
-    start_job_id, _, _, _ = await _create_batch_update(batch_id, update_id, user, n_update_jobs, db)
+    start_job_id = await _create_batch_update(batch_id, update_id, user, n_update_jobs, db)
 
-    return web.json_response(
-        {
-            'update_id': update_id,
-            'start_job_id': start_job_id,
-        }
-    )
+    return web.json_response({'start_job_id': start_job_id})
 
 
 @routes.patch('/api/v1alpha/batches/{batch_id}/update/{update_id}/commit', name='commit-batch-update')
@@ -1300,7 +1306,8 @@ async def commit_update(request: web.Request, userdata, batch_id):
         log.info('ignoring batch commit update request; batch is frozen')
         raise web.HTTPServiceUnavailable()
 
-    return await _commit_update(app, batch_id, update_id, user, db)
+    batch_commit_result = await _commit_update(app, batch_id, update_id, user, db)
+    return web.json_response(batch_commit_result)
 
 
 async def _commit_update(app: aiohttp.web.Application, batch_id: int, update_id: str, user: str, db: Database):
@@ -1310,66 +1317,71 @@ async def _commit_update(app: aiohttp.web.Application, batch_id: int, update_id:
     async def commit(tx):
         record = await tx.execute_and_fetchone(
             '''
-SELECT batches_cancelled.id IS NOT NULL AS cancelled, committed, start_job_id
+SELECT batch_id, batches_cancelled.id IS NOT NULL AS cancelled, committed, start_job_id,
+  batches_cancelled.id IS NOT NULL AS cancelled, token, (
+  SELECT JSON_OBJECTAGG(`key`, `value`)
+  FROM batch_attributes
+  WHERE batch_id = %s
+  GROUP BY batch_id
+) AS attributes, (
+  SELECT CAST(COALESCE(SUM(n_jobs), 0) AS SIGNED)
+  FROM batch_updates
+  WHERE batch_id = %s AND (`committed` OR update_id = %s)
+  GROUP BY batch_id
+) AS n_committed_jobs
 FROM batch_updates
-LEFT JOIN batches ON batches.id = batch_updates.id
+LEFT JOIN batches ON batch_updates.batch_id = batches.id
 LEFT JOIN batches_cancelled
-  ON batches.id = batches_cancelled.id
-WHERE user = %s AND batch_updates.id = %s AND batch_updates.update_id = %s AND NOT batches.deleted;
+  ON batch_updates.batch_id = batches_cancelled.id
+WHERE user = %s AND batch_updates.batch_id = %s AND batch_updates.update_id = %s AND NOT batches.deleted;            
 ''',
-            (user, batch_id, update_id),
+            (batch_id, batch_id, update_id, user, batch_id, update_id),
         )
+
         if not record:
+            log.info(f'could not find update {batch_id} {update_id}')
             raise web.HTTPNotFound()
 
-        try:
-            now = time_msecs()
-            await tx.just_execute(
-                'CALL commit_batch_update(%s, %s, %s);',
-                (batch_id, update_id, now),
-            )
-        except CallError as e:
-            # 1: wrong number of jobs
-            if e.rv['rc'] == 1:
-                expected_n_jobs = e.rv['expected_n_jobs']
-                actual_n_jobs = e.rv['actual_n_jobs']
-                raise web.HTTPBadRequest(
-                    reason=f'wrong number of jobs: expected {expected_n_jobs}, actual {actual_n_jobs}'
+        if not record['committed']:
+            log.info(f'batch update {batch_id} {update_id} has not been committed; committing')
+            try:
+                now = time_msecs()
+                await tx.just_execute(
+                    'CALL commit_batch_update(%s, %s, %s);',
+                    (batch_id, update_id, now),
                 )
-            raise
-
-        batch_record = await tx.select_and_fetchone(
-            '''
-SELECT `state`, format_version, batches_cancelled.id IS NOT NULL AS cancelled, token,
-  JSON_OBJECTAGG(batch_attributes.`key`, batch_attributes.`value`) as attributes, n_jobs
-FROM batches
-LEFT JOIN batches_cancelled
-  ON batches.id = batches_cancelled.id
-LEFT JOIN batch_attributes
-  ON batches.id = batch_attributes.batch_id
-WHERE user = %s AND batches.id = %s AND NOT deleted
-GROUP BY batches.id;
-''',
-            (user, batch_id),
-        )
+            except CallError as e:
+                # 1: wrong number of jobs
+                if e.rv['rc'] == 1:
+                    expected_n_jobs = e.rv['expected_n_jobs']
+                    actual_n_jobs = e.rv['actual_n_jobs']
+                    raise web.HTTPBadRequest(
+                        reason=f'wrong number of jobs: expected {expected_n_jobs}, actual {actual_n_jobs}'
+                    )
+                raise
 
         return {
+            'id': record['batch_id'],
+            'update_id': update_id,
             'start_job_id': record['start_job_id'],
-            'n_jobs': batch_record['n_jobs'],
-            'token': batch_record['token'],
-            'attributes': batch_record['attributes'],
+            'n_jobs': record['n_committed_jobs'],
+            'token': record['token'],
+            'attributes': record['attributes'],
         }
 
     result = await commit()  # pylint: disable=no-value-for-parameter
 
-    await request_retry_transient_errors(
-        client_session,
-        'PATCH',
-        deploy_config.url('batch-driver', f'/api/v1alpha/batches/{user}/{batch_id}/update'),
-        headers=app['batch_headers'],
-    )
+    async def _update_driver():
+        await request_retry_transient_errors(
+            client_session,
+            'PATCH',
+            deploy_config.url('batch-driver', f'/api/v1alpha/batches/{user}/{batch_id}/update'),
+            headers=app['batch_headers'],
+        )
 
-    return web.json_response(result)
+    app['task_manager'].ensure_future(_update_driver())
+
+    return result
 
 
 async def _create_batch_update(
@@ -1379,17 +1391,13 @@ async def _create_batch_update(
     async def update(tx):
         now = time_msecs()
 
-        batch_record = await db.select_and_fetchone(
+        batch_record = await tx.execute_and_fetchone(
             '''
-SELECT `state`, format_version, batches_cancelled.id IS NOT NULL AS cancelled, token,
-  JSON_OBJECTAGG(batch_attributes.`key`, batch_attributes.`value`) as attributes
+SELECT batches_cancelled.id IS NOT NULL AS cancelled
 FROM batches
 LEFT JOIN batches_cancelled
   ON batches.id = batches_cancelled.id
-LEFT JOIN batch_attributes
-  ON batches.id = batch_attributes.batch_id
-WHERE user = %s AND batches.id = %s AND NOT deleted
-GROUP BY batches.id;
+WHERE user = %s AND batches.id = %s AND NOT deleted;
 ''',
             (user, batch_id),
         )
@@ -1403,7 +1411,7 @@ GROUP BY batches.id;
         record = await tx.execute_and_fetchone(
             '''
 SELECT * FROM batch_updates
-WHERE id = %s AND update_id = %s;
+WHERE batch_id = %s AND update_id = %s;
 ''',
             (batch_id, update_id),
         )
@@ -1437,21 +1445,19 @@ WHERE id = %s AND n_jobs = %s;
             assert n_rows_updated == 1
 
             update_start_job_id = cur_n_jobs + 1
-            update_end_job_id = update_start_job_id + n_update_jobs - 1
         else:
             update_start_job_id = None
-            update_end_job_id = None
 
         await tx.execute_insertone(
             '''
 INSERT INTO batch_updates
-(`id`, update_id, start_job_id, end_job_id, n_jobs, committed, time_created)
-VALUES (%s, %s, %s, %s, %s, %s, %s);
+(batch_id, update_id, start_job_id, n_jobs, committed, time_created)
+VALUES (%s, %s, %s, %s, %s, %s);
 ''',
-            (batch_id, update_id, update_start_job_id, update_end_job_id, n_update_jobs, False, now),
+            (batch_id, update_id, update_start_job_id, n_update_jobs, False, now),
         )
 
-        return (update_start_job_id, cur_n_jobs + n_update_jobs, batch_record['token'], batch_record['attributes'])
+        return update_start_job_id
 
     return await update()  # pylint: disable=no-value-for-parameter
 
@@ -1529,8 +1535,8 @@ WHERE token = %s AND user = %s FOR UPDATE;
         now = time_msecs()
         id = await tx.execute_insertone(
             '''
-INSERT INTO batches (userdata, user, billing_project, attributes, callback, n_jobs, time_created, time_completed, time_updated, token, state, format_version, cancel_after_n_failures)
-VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
+INSERT INTO batches (userdata, user, billing_project, attributes, callback, n_jobs, time_created, time_completed, token, state, format_version, cancel_after_n_failures)
+VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
 ''',
             (
                 json.dumps(userdata),
@@ -1541,28 +1547,10 @@ VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
                 0,
                 now,
                 now,
-                now,
                 token,
                 'complete',
                 BATCH_FORMAT_VERSION,
                 batch_spec.get('cancel_after_n_failures'),
-            ),
-        )
-
-        update_id = secret_alnum_string(8)
-
-        await tx.execute_insertone(
-            '''
-INSERT INTO batch_updates (batch_id, update_id, start_job_id, n_jobs, time_created)
-VALUES (%s, %s, %s, %s, %s)
-ON DUPLICATE KEY UPDATE n_jobs = n_jobs;
-''',
-            (
-                id,
-                update_id,
-                1,
-                batch_spec['n_jobs'],
-                now,
             ),
         )
 
@@ -1606,7 +1594,7 @@ LEFT JOIN batches_cancelled
        ON batches.id = batches_cancelled.id
 WHERE batches.id = %s AND NOT deleted
 )
-SELECT base_t.*, cost_t.cost, updates_t.n_committed_jobs, updates_t.n_updates_in_progress, updates_t.n_updates
+SELECT base_t.*, cost_t.cost, updates_t.n_committed_jobs, updates_t.n_updates_in_progress, updates_t.n_updates, updates_t.time_updated
 FROM base_t
 LEFT JOIN (
   SELECT batch_id, COALESCE(SUM(`usage` * rate), 0) AS cost
@@ -1614,20 +1602,21 @@ LEFT JOIN (
     SELECT aggregated_batch_resources_v2.batch_id, resource_id, CAST(COALESCE(SUM(`usage`), 0) AS SIGNED) AS `usage`
     FROM base_t
     LEFT JOIN aggregated_batch_resources_v2 ON base_t.id = aggregated_batch_resources_v2.batch_id
-    GROUP BY aggregated_batch_resources_v2.batch_id, aggregated_batch_resources_v2.resource
-  ) AS usage_t ON base_t.id = usage_t.batch_id
+    GROUP BY aggregated_batch_resources_v2.batch_id, aggregated_batch_resources_v2.resource_id
+  ) AS usage_t
   LEFT JOIN resources ON usage_t.resource_id = resources.resource_id
   GROUP BY usage_t.batch_id
 ) AS cost_t ON base_t.id = cost_t.batch_id
 LEFT JOIN (
-  SELECT batch_updates.id,
+  SELECT batch_updates.batch_id,
     CAST(COALESCE(SUM(1), 0) AS SIGNED) AS n_updates,
     CAST(COALESCE(SUM(IF(batch_updates.committed, batch_updates.n_jobs, 0)), 0) AS SIGNED) AS n_committed_jobs,
-    CAST(COALESCE(SUM(NOT batch_updates.committed), 0) AS SIGNED) AS n_updates_in_progress
+    CAST(COALESCE(SUM(NOT batch_updates.committed), 0) AS SIGNED) AS n_updates_in_progress,
+    MAX(batch_updates.time_committed) AS time_updated
   FROM base_t
-  LEFT JOIN batch_updates ON base_t.id = batch_updates.id
-  GROUP BY batch_updates.id
-) AS updates_t ON base_t.id = updates_t.id;
+  LEFT JOIN batch_updates ON base_t.id = batch_updates.batch_id
+  GROUP BY batch_updates.batch_id
+) AS updates_t ON base_t.id = updates_t.batch_id;
 ''',
         (batch_id,),
     )
@@ -1645,7 +1634,7 @@ async def _get_batch_updates(app, batch_id):
         '''
 SELECT *
 FROM batch_updates
-WHERE id = %s
+WHERE batch_id = %s
 ORDER BY start_job_id ASC;
 ''',
         (batch_id,),
@@ -1657,6 +1646,10 @@ ORDER BY start_job_id ASC;
         if record['time_committed'] is not None:
             record['time_committed'] = time_msecs_str(record['time_committed'])
         record['committed'] = bool(record['committed'])
+        if record['start_job_id'] is not None:
+            record['end_job_id'] = record['start_job_id'] + record['n_jobs'] - 1
+        else:
+            record['end_job_id'] = None
     return records
 
 
@@ -1709,7 +1702,8 @@ async def close_batch(request, userdata):
 
     record = await db.select_and_fetchone(
         '''
-SELECT token FROM batches
+SELECT token, update_id FROM batches
+LEFT JOIN batch_updates ON batches.id = batch_updates.batch_id
 WHERE user = %s AND id = %s AND NOT deleted;
 ''',
         (user, batch_id),
@@ -1717,7 +1711,7 @@ WHERE user = %s AND id = %s AND NOT deleted;
     if not record:
         raise web.HTTPNotFound()
 
-    update_id = record['token'][:8]
+    update_id = record['update_id']
 
     next_url = request.app.router['commit-batch-update'].url_for(batch_id=batch_id, update_id=update_id)
     raise web.HTTPFound(location=next_url)

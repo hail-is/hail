@@ -38,7 +38,7 @@ SELECT batches.*,
   batches_n_jobs_in_complete_states.n_completed,
   batches_n_jobs_in_complete_states.n_succeeded,
   batches_n_jobs_in_complete_states.n_failed,
-  batches_n_jobs_in_complete_states.n_cancelled,
+  batches_n_jobs_in_complete_states.n_cancelled
 FROM batches
 LEFT JOIN batches_n_jobs_in_complete_states
   ON batches.id = batches_n_jobs_in_complete_states.id
@@ -60,13 +60,14 @@ LEFT JOIN (
   GROUP BY batch_id
 ) AS cost_t ON base_t.id = cost_t.batch_id
 LEFT JOIN (
-  SELECT batch_updates.id,
+  SELECT batch_updates.batch_id,
     CAST(COALESCE(SUM(1), 0) AS SIGNED) AS n_updates,
     CAST(COALESCE(SUM(IF(batch_updates.committed, batch_updates.n_jobs, 0)), 0) AS SIGNED) AS n_committed_jobs,
-    CAST(COALESCE(SUM(NOT batch_updates.committed), 0) AS SIGNED) AS n_updates_in_progress
+    CAST(COALESCE(SUM(NOT batch_updates.committed), 0) AS SIGNED) AS n_updates_in_progress,
+    MAX(batch_updates.time_committed) AS time_updated
   FROM base_t
-  LEFT JOIN batch_updates ON batches.id = batch_updates.id
-  GROUP BY batch_updates.id
+  LEFT JOIN batch_updates ON batches.id = batch_updates.batch_id
+  GROUP BY batch_updates.batch_id
 ) AS updates_t ON base_t.id = updates_t.id;
 ''',
         (batch_id,),

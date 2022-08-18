@@ -1,4 +1,3 @@
-import abc
 from typing import Optional, Dict, Any, List, Tuple, Union
 import math
 import random
@@ -7,11 +6,10 @@ import json
 import functools
 import asyncio
 import aiohttp
-import secrets
 
 from hailtop.config import get_deploy_config, DeployConfig
 from hailtop.auth import service_auth_headers
-from hailtop.utils import bounded_gather, request_retry_transient_errors, tqdm, TqdmDisableOption
+from hailtop.utils import bounded_gather, request_retry_transient_errors, secret_alnum_string, tqdm, TqdmDisableOption
 from hailtop import httpx
 
 from .globals import tasks, complete_states
@@ -163,9 +161,9 @@ class Job:
         return Job(_job)
 
     @staticmethod
-    def submitted_job(batch, job_id, _status=None):
+    def submitted_job(batch, job_id, _status=None, _spec=None):
         assert isinstance(batch, Batch)
-        _job = SubmittedJob(batch, job_id, _status)
+        _job = SubmittedJob(batch, job_id, _status, _spec)
         return Job(_job)
 
     def __init__(self, job):
@@ -182,6 +180,10 @@ class Job:
     @property
     def id(self):
         return self._job.id
+
+    @property
+    def _spec(self):
+        return self._job._spec
 
     async def attributes(self):
         return await self._job.attributes()
@@ -220,7 +222,7 @@ class Job:
 
 class UnsubmittedJob:
     def _submit(self, batch, update_job_offset: int):
-        return SubmittedJob(batch, update_job_offset + self._rel_job_id - 1)
+        return SubmittedJob(batch, update_job_offset + self._rel_job_id - 1, _spec=self._spec)
 
     def __init__(self, batch_builder: 'BatchBuilder', spec: 'JobSpec'):
         self._batch_builder = batch_builder
@@ -263,12 +265,13 @@ class UnsubmittedJob:
 
 
 class SubmittedJob:
-    def __init__(self, batch, job_id, _status=None):
+    def __init__(self, batch, job_id, _status=None, _spec=None):
         self._batch = batch
         self.batch_id = batch.id
         self.job_id = job_id
         self.id = (self.batch_id, self.job_id)
         self._status = _status
+        self._spec = _spec
 
     async def attributes(self):
         if not self._status:
@@ -401,8 +404,8 @@ class JobSpec:
             job_spec['port'] = self.port
         if self.resources:
             job_spec['resources'] = self.resources
-        if secrets:
-            job_spec['secrets'] = secrets
+        if self.secrets:
+            job_spec['secrets'] = self.secrets
         if self.service_account:
             job_spec['service_account'] = self.service_account
         if self.timeout:
@@ -583,10 +586,10 @@ class BatchBuilder:
         self._batch = batch
 
         if token is None:
-            token = secrets.token_urlsafe(32)
+            token = secret_alnum_string(32)
         self.token = token
 
-        self._update_id = update_id or secrets.token_urlsafe(8)
+        self._update_id = update_id or secret_alnum_string(8)
 
         self._cancel_after_n_failures = cancel_after_n_failures
 
@@ -633,7 +636,7 @@ class BatchBuilder:
         return j
 
     def _build_job_spec_bunches(self, max_bunch_size: int, max_bunch_bytesize: int):
-        byte_job_specs = [json.dumps(job._spec).encode('utf-8') for job in self._jobs]
+        byte_job_specs = [json.dumps(job._spec.to_json(self._batch_id)).encode('utf-8') for job in self._jobs]
         byte_job_specs_bunches: List[List[bytes]] = []
         bunch_sizes = []
         bunch: List[bytes] = []
@@ -842,9 +845,12 @@ class BatchBuilder:
         for j in self._jobs:
             j._job = j._job._submit(batch, start_job_id)
 
+        self._batch = batch
+
         self._jobs = []
         self._rel_job_idx = 0
-        return self._batch
+
+        return batch
 
 
 class BatchClient:
