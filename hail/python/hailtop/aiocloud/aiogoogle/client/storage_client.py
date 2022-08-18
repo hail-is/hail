@@ -10,7 +10,7 @@ import urllib.parse
 import aiohttp
 from hailtop.utils import (
     secret_alnum_string, OnlineBoundedGather2,
-    TransientError, retry_transient_errors)
+    TransientError, retry_transient_errors_wrapper)
 from hailtop.aiotools.fs import (FileStatus, FileListEntry, ReadableStream, WritableStream, AsyncFS,
                                  AsyncFSURL, AsyncFSFactory, FileAndDirectoryError, MultiPartCreate,
                                  UnexpectedEOFError)
@@ -139,7 +139,8 @@ class ResumableInsertObjectStream(WritableStream):
         assert len(split_range) == 2
         return int(split_range[1])
 
-    async def _write_chunk_1(self):
+    @retry_transient_errors_wrapper
+    async def _write_chunk(self):
         assert not self._done
         assert self._closed or self._write_buffer.size() >= self._chunk_size
 
@@ -242,9 +243,6 @@ class ResumableInsertObjectStream(WritableStream):
             resp.raise_for_status()
             assert False
 
-    async def _write_chunk(self):
-        await retry_transient_errors(self._write_chunk_1)
-
     async def write(self, b):
         assert not self._closed
         assert self._write_buffer.size() < self._chunk_size
@@ -271,10 +269,12 @@ class GetObjectStream(ReadableStream):
     # https://docs.aiohttp.org/en/stable/streams.html#aiohttp.StreamReader.read
     # Read up to n bytes. If n is not provided, or set to -1, read until EOF
     # and return all read bytes.
+    @retry_transient_errors_wrapper
     async def read(self, n: int = -1) -> bytes:
         assert not self._closed and self._content is not None
         return await self._content.read(n)
 
+    @retry_transient_errors_wrapper
     async def readexactly(self, n: int) -> bytes:
         assert not self._closed and n >= 0 and self._content is not None
         try:
