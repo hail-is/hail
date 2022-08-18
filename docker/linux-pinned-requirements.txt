@@ -519,7 +519,7 @@ werkzeug==2.1.2
     # via flask
 wheel==0.37.1
     # via -r requirements.txt
-wrapt==1.13.3
+wrapt==1.14.1
     # via
     #   astroid
     #   prometheus-async
