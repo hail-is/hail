@@ -333,14 +333,14 @@ object LoweredTableReader {
         val sortedPartData = s.getAs[IndexedSeq[Row]](2)
 
         val coercer = if (ksorted) {
-          info(s"Coerced sorted ${context} - no additional import work to do")
+          info(s"Coerced sorted ${ context } - no additional import work to do")
 
           new LoweredTableReaderCoercer {
             def coerce(ctx: ExecuteContext,
-                       globals: IR,
-                       contextType: Type,
-                       contexts: IndexedSeq[Any],
-                       body: IR => IR): TableStage = {
+              globals: IR,
+              contextType: Type,
+              contexts: IndexedSeq[Any],
+              body: IR => IR): TableStage = {
               val partOrigIndex = sortedPartData.map(_.getInt(6))
 
               val partitioner = new RVDPartitioner(keyType,
@@ -369,10 +369,10 @@ object LoweredTableReader {
             }
 
             def coerce(ctx: ExecuteContext,
-                       globals: IR,
-                       contextType: Type,
-                       contexts: IndexedSeq[Any],
-                       body: IR => IR): TableStage = {
+              globals: IR,
+              contextType: Type,
+              contexts: IndexedSeq[Any],
+              body: IR => IR): TableStage = {
               val partOrigIndex = sortedPartData.map(_.getInt(6))
 
               val partitioner = new RVDPartitioner(pkType,
@@ -399,10 +399,10 @@ object LoweredTableReader {
 
           new LoweredTableReaderCoercer {
             def coerce(ctx: ExecuteContext,
-                       globals: IR,
-                       contextType: Type,
-                       contexts: IndexedSeq[Any],
-                       body: IR => IR): TableStage = {
+              globals: IR,
+              contextType: Type,
+              contexts: IndexedSeq[Any],
+              body: IR => IR): TableStage = {
               val partOrigIndex = sortedPartData.map(_.getInt(6))
 
               val partitioner = RVDPartitioner.unkeyed(sortedPartData.length)
