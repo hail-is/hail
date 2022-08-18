@@ -3120,7 +3120,6 @@ def import_avro(paths, *, key=None, intervals=None):
     return Table(ir.TableRead(tr))
 
 
-
 @typecheck(spreadsheetID=oneof(str, sequenceof(str)), sheetname=str)
 def import_gsheet(spreadsheetID, sheetname) -> Table:
     """Import sheet from a google sheets fle as a :class:`.Table` of strings.
