@@ -179,6 +179,37 @@ class Batch:
     def delete(self):
         async_to_blocking(self._async_batch.delete())
 
+    def create_job(self,
+                   image,
+                   command,
+                   *,
+                   env=None, mount_docker_socket=False,
+                   port=None, resources=None, secrets=None,
+                   service_account=None, attributes=None, parents=None,
+                   input_files=None, output_files=None, always_run=False,
+                   timeout=None, cloudfuse=None, requester_pays_project=None,
+                   mount_tokens=False, network: Optional[str] = None,
+                   unconfined: bool = False, user_code: Optional[str] = None) -> Job:
+        async_job = self._async_batch.create_job(
+            image, command, env=env, mount_docker_socket=mount_docker_socket,
+            port=port, resources=resources, secrets=secrets,
+            service_account=service_account, attributes=attributes, parents=parents,
+            input_files=input_files, output_files=output_files, always_run=always_run,
+            timeout=timeout, cloudfuse=cloudfuse, requester_pays_project=requester_pays_project,
+            mount_tokens=mount_tokens, network=network, unconfined=unconfined, user_code=user_code)
+        return Job.from_async_job(async_job)
+
+    def create_jvm_job(self, command, *, parents=None, **kwargs) -> Job:
+        if parents:
+            parents = [parent._async_job for parent in parents]
+
+        async_job = self._async_batch.create_jvm_job(command, parents=parents, **kwargs)
+        return Job.from_async_job(async_job)
+
+    def submit(self, *args, **kwargs) -> 'Batch':
+        async_batch = async_to_blocking(self._async_batch.submit(*args, **kwargs))
+        return Batch.from_async_batch(async_batch)
+
 
 class BatchBuilder:
     @classmethod
@@ -251,12 +282,12 @@ class BatchBuilder:
 
         return Job.from_async_job(async_job)
 
-    def _open_batch(self) -> Batch:
-        async_batch = async_to_blocking(self._async_builder._open_batch())
+    def _create_batch(self) -> Batch:
+        async_batch = async_to_blocking(self._async_builder._create_batch())
         return Batch.from_async_batch(async_batch)
 
-    def _close_batch(self, id: int):
-        async_to_blocking(self._async_builder._close_batch(id))
+    def _commit_update(self):
+        async_to_blocking(self._async_builder._commit_update())
 
     def submit(self, *args, **kwargs) -> Batch:
         async_batch = async_to_blocking(self._async_builder.submit(*args, **kwargs))

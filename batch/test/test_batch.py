@@ -1062,10 +1062,8 @@ def test_update_batch_no_deps(client: BatchClient):
     b = client.create_batch()
     b.create_job(DOCKER_ROOT_IMAGE, ['false'])
     b = b.submit()
-
-    u = client.update_batch(b.id)
-    j = u.create_job(DOCKER_ROOT_IMAGE, ['true'])
-    b = u.submit()
+    j = b.create_job(DOCKER_ROOT_IMAGE, ['true'])
+    b = b.submit()
     status = j.wait()
 
     assert status['state'] == 'Success', str((status, b.debug_info()))
@@ -1075,9 +1073,7 @@ def test_empty_update(client: BatchClient):
     b = client.create_batch()
     b.create_job(DOCKER_ROOT_IMAGE, ['false'])
     b = b.submit()
-
-    u = client.update_batch(b.id)
-    b = u.submit()
+    b = b.submit()
     status = b.wait()
 
     assert status['state'] == 'success', str((status, b.debug_info()))
@@ -1088,10 +1084,8 @@ def test_update_batch_w_submitted_job_deps(client: BatchClient):
     j1 = b.create_job(DOCKER_ROOT_IMAGE, ['true'])
     b = b.submit()
     j1.wait()
-
-    u = client.update_batch(b.id)
-    j2 = u.create_job(DOCKER_ROOT_IMAGE, ['true'], parents=[j1])
-    b = u.submit()
+    j2 = b.create_job(DOCKER_ROOT_IMAGE, ['true'], parents=[j1])
+    b = b.submit()
     status = j2.wait()
 
     assert status['state'] == 'Success', str((status, b.debug_info()))
@@ -1102,9 +1096,8 @@ def test_update_batch_w_failing_submitted_job_deps(client: BatchClient):
     j1 = b.create_job(DOCKER_ROOT_IMAGE, ['false'])
     b = b.submit()
 
-    u = client.update_batch(b.id)
-    j2 = u.create_job(DOCKER_ROOT_IMAGE, ['true'], parents=[j1])
-    b = u.submit()
+    j2 = b.create_job(DOCKER_ROOT_IMAGE, ['true'], parents=[j1])
+    b = b.submit()
     status = j2.wait()
 
     assert status['state'] == 'Cancelled', str((status, b.debug_info()))
@@ -1115,10 +1108,9 @@ def test_update_batch_w_deps_in_update(client: BatchClient):
     j = b.create_job(DOCKER_ROOT_IMAGE, ['true'])
     b = b.submit()
 
-    u = client.update_batch(b.id)
-    j1 = u.create_job(DOCKER_ROOT_IMAGE, ['true'])
-    j2 = u.create_job(DOCKER_ROOT_IMAGE, ['true'], parents=[j, j1])
-    b = u.submit()
+    j1 = b.create_job(DOCKER_ROOT_IMAGE, ['true'])
+    j2 = b.create_job(DOCKER_ROOT_IMAGE, ['true'], parents=[j, j1])
+    b = b.submit()
     status = j2.wait()
 
     assert status['state'] == 'Success', str((status, b.debug_info()))
@@ -1148,7 +1140,8 @@ def test_update_batch_w_multiple_empty_updates(client: BatchClient):
 
     u = client.update_batch(b.id)
     j1 = u.create_job(DOCKER_ROOT_IMAGE, ['true'])
-    status = u.submit()
+    b = u.submit()
+    status = b.wait()
 
     assert status['state'] == 'Success', str((status, b.debug_info()))
     assert j1.job_id == 1, str(b.debug_info())

@@ -61,7 +61,9 @@ job_validator = keyed(
         'network': oneof('public', 'private'),
         'unconfined': bool_type,
         'output_files': listof(keyed({required('from'): str_type, required('to'): str_type})),
-        required('parent_ids'): listof(int_type),
+        'parent_ids': listof(int_type),
+        'absolute_parent_ids': listof(int_type),
+        'relative_parent_ids': listof(int_type),
         'port': int_type,
         required('process'): switch(
             'type',
@@ -191,6 +193,8 @@ def handle_deprecated_job_keys(i, job):
 def handle_job_backwards_compatibility(job):
     if 'cloudfuse' in job:
         job['gcsfuse'] = job.pop('cloudfuse')
+    if 'parent_ids' in job:
+        job['absolute_parent_ids'] = job.pop('parent_ids')
 
 
 def validate_batch(batch):
