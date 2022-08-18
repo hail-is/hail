@@ -94,8 +94,9 @@ case object LowerArrayAggsToRunAggsPass extends LoweringPass {
   val context: String = "LowerArrayAggsToRunAggs"
 
   def transform(ctx: ExecuteContext, ir: BaseIR): BaseIR = {
-    val r = Requiredness(ir, ctx)
-    RewriteBottomUp(ir.noSharing, {
+    val x = ir.noSharing
+    val r = Requiredness(x, ctx)
+    RewriteBottomUp(x, {
       case x@StreamAgg(a, name, query) =>
         val res = genUID()
         val aggs = Extract(query, res, r)

@@ -400,7 +400,7 @@ object Extract {
 
     val bindingNodesReferenced = Memo.empty[Unit]
     val rewriteMap = Memo.empty[IR]
-    val postAgg = extract(ir, Env.empty, bindingNodesReferenced, rewriteMap, ab, seq, let, memo, ref, r, isScan)
+    extract(ir, Env.empty, bindingNodesReferenced, rewriteMap, ab, seq, let, memo, ref, r, isScan)
     val (initOps, pAggSigs) = ab.result().unzip
     val rt = TTuple(initOps.map(_.aggSig.resultType): _*)
     ref._typ = rt
