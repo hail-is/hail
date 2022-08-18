@@ -2058,6 +2058,9 @@ steps:
       - name: revert-temp-agg-by-date-infra
         script: /io/sql/revert-temp-agg-by-date-infra.sql
         online: true
+      - name: rename-timestamp-to-date
+        script: /io/sql/rename-timestamp-to-date.sql
+        online: true
     inputs:
       - from: /repo/batch/sql
         to: /io/sql
