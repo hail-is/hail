@@ -413,7 +413,7 @@ typing-extensions==4.2.0
     #   jsonschema
     #   mypy
     #   pylint
-urllib3==1.26.9
+urllib3==1.26.11
     # via requests
 virtualenv==20.14.1
     # via pre-commit
