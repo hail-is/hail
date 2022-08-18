@@ -1176,22 +1176,16 @@ LOCK IN SHARE MODE''',
 
         bp_cost_record = await tx.execute_and_fetchone(
             '''
-SELECT billing_project, COALESCE(SUM(`usage` * rate), 0) AS cost
-FROM billing_projects
-LEFT JOIN (
-  SELECT billing_project, resource_id, CAST(COALESCE(SUM(`usage`), 0) AS SIGNED) AS `usage`
-  FROM billing_projects
-  LEFT JOIN aggregated_billing_project_user_resources_v2
-    ON billing_projects.name = aggregated_billing_project_user_resources_v2.billing_project
-  WHERE billing_projects.name = %s
-  GROUP BY aggregated_billing_project_user_resources_v2.billing_project, aggregated_billing_project_user_resources_v2.resource_id
-) AS usage_t ON usage_t.billing_project = billing_projects.name
-LEFT JOIN resources
-  ON resources.resource_id = usage_t.resource_id
-WHERE billing_projects.name = %s
-GROUP BY usage_t.billing_project;
+SELECT COALESCE(SUM(`usage` * rate), 0) AS cost
+FROM (
+  SELECT resource_id, CAST(COALESCE(SUM(`usage`), 0) AS SIGNED) AS `usage`
+  FROM aggregated_billing_project_user_resources_v2
+  LEFT JOIN resources on resources.resource_id = aggregated_billing_project_user_resources_v2.resource_id
+  WHERE billing_project = %s
+  GROUP BY resource_id
+)
 ''',
-            (billing_project, billing_project),
+            (billing_project,),
         )
         limit = bp['limit']
         accrued_cost = bp_cost_record['cost']
@@ -1832,12 +1826,12 @@ async def _query_billing(request, user=None):
 
     where_conditions = [
         "billing_projects.`status` != 'deleted'",
-        "billing_timestamp >= %s",
+        "billing_date >= %s",
     ]
     where_args = [start]
 
     if end is not None:
-        where_conditions.append("billing_timestamp <= %s")
+        where_conditions.append("billing_date <= %s")
         where_args.append(end)
 
     if user is not None:
