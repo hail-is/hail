@@ -46,7 +46,7 @@ click==8.1.2
     #   curlylint
 curlylint==0.13.1
     # via -r python/dev/requirements.txt
-debugpy==1.6.0
+debugpy==1.6.3
     # via ipykernel
 decorator==4.4.2
     # via
