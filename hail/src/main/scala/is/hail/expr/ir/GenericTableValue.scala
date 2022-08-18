@@ -105,7 +105,8 @@ class GenericTableValueRDD(
 }
 
 abstract class LoweredTableReaderCoercer {
-  def coerce(globals: IR,
+  def coerce(ctx: ExecuteContext,
+    globals: IR,
     contextType: Type,
     contexts: IndexedSeq[Any],
     body: IR => IR): TableStage
@@ -159,6 +160,7 @@ class GenericTableValue(
       TableStage(globalsIR, p, TableStageDependency.none, contextsIR, requestedBody)
     } else {
       getLTVCoercer(ctx, context, cacheKey).coerce(
+        ctx,
         globalsIR,
         contextType, contexts,
         requestedBody)

@@ -328,101 +328,103 @@ object LoweredTableReader {
         val a = f(ctx.theHailClassLoader, ctx.fs, 0, ctx.r)(ctx.r)
         val s = SafeRow(resultPType, a)
 
+        val ksorted = s.getBoolean(0)
+        val pksorted = s.getBoolean(1)
+        val sortedPartData = s.getAs[IndexedSeq[Row]](2)
 
-    val ksorted = s.getBoolean(0)
-    val pksorted = s.getBoolean(1)
-    val sortedPartData = s.getAs[IndexedSeq[Row]](2)
+        val coercer = if (ksorted) {
+          info(s"Coerced sorted ${context} - no additional import work to do")
 
-    val coercer = if (ksorted) {
-      info(s"Coerced sorted ${context} - no additional import work to do")
+          new LoweredTableReaderCoercer {
+            def coerce(ctx: ExecuteContext,
+                       globals: IR,
+                       contextType: Type,
+                       contexts: IndexedSeq[Any],
+                       body: IR => IR): TableStage = {
+              val partOrigIndex = sortedPartData.map(_.getInt(6))
 
-      new LoweredTableReaderCoercer {
-        def coerce(globals: IR,
-          contextType: Type,
-          contexts: IndexedSeq[Any],
-          body: IR => IR): TableStage = {
-          val partOrigIndex = sortedPartData.map(_.getInt(6))
+              val partitioner = new RVDPartitioner(keyType,
+                sortedPartData.map { partData =>
+                  Interval(partData.get(1), partData.get(2), includesStart = true, includesEnd = true)
+                },
+                key.length)
 
-          val partitioner = new RVDPartitioner(keyType,
-            sortedPartData.map { partData =>
-              Interval(partData.get(1), partData.get(2), includesStart = true, includesEnd = true)
-            },
-            key.length)
-
-          TableStage(globals, partitioner, TableStageDependency.none,
-            ToStream(Literal(TArray(contextType), partOrigIndex.map(i => contexts(i)))),
-            body)
-        }
-      }
-    } else if (pksorted) {
-      info(s"Coerced prefix-sorted $context, requiring additional sorting within data partitions on each query.")
-
-      new LoweredTableReaderCoercer {
-        private[this] def selectPK(r: Row): Row = {
-          val a = new Array[Any](partitionKey)
-          var i = 0
-          while (i < partitionKey) {
-            a(i) = r.get(i)
-            i += 1
-          }
-          Row.fromSeq(a)
-        }
-
-        def coerce(globals: IR,
-          contextType: Type,
-          contexts: IndexedSeq[Any],
-          body: IR => IR): TableStage = {
-          val partOrigIndex = sortedPartData.map(_.getInt(6))
-
-          val partitioner = new RVDPartitioner(pkType,
-            sortedPartData.map { partData =>
-              Interval(selectPK(partData.getAs[Row](1)), selectPK(partData.getAs[Row](2)), includesStart = true, includesEnd = true)
-            }, pkType.size)
-
-          val pkPartitioned = TableStage(globals, partitioner, TableStageDependency.none,
-            ToStream(Literal(TArray(contextType), partOrigIndex.map(i => contexts(i)))),
-            body)
-
-          pkPartitioned
-            .extendKeyPreservesPartitioning(key)
-            .mapPartition(None) { part =>
-              flatMapIR(StreamGroupByKey(part, pkType.fieldNames, missingEqual = true)) { inner =>
-                ToStream(sortIR(inner) { case (l, r) => ApplyComparisonOp(LT(l.typ), l, r) })
-              }
+              TableStage(globals, partitioner, TableStageDependency.none,
+                ToStream(Literal(TArray(contextType), partOrigIndex.map(i => contexts(i)))),
+                body)
             }
+          }
+        } else if (pksorted) {
+          info(s"Coerced prefix-sorted $context, requiring additional sorting within data partitions on each query.")
+
+          new LoweredTableReaderCoercer {
+            private[this] def selectPK(r: Row): Row = {
+              val a = new Array[Any](partitionKey)
+              var i = 0
+              while (i < partitionKey) {
+                a(i) = r.get(i)
+                i += 1
+              }
+              Row.fromSeq(a)
+            }
+
+            def coerce(ctx: ExecuteContext,
+                       globals: IR,
+                       contextType: Type,
+                       contexts: IndexedSeq[Any],
+                       body: IR => IR): TableStage = {
+              val partOrigIndex = sortedPartData.map(_.getInt(6))
+
+              val partitioner = new RVDPartitioner(pkType,
+                sortedPartData.map { partData =>
+                  Interval(selectPK(partData.getAs[Row](1)), selectPK(partData.getAs[Row](2)), includesStart = true, includesEnd = true)
+                }, pkType.size)
+
+              val pkPartitioned = TableStage(globals, partitioner, TableStageDependency.none,
+                ToStream(Literal(TArray(contextType), partOrigIndex.map(i => contexts(i)))),
+                body)
+
+              pkPartitioned
+                .extendKeyPreservesPartitioning(key)
+                .mapPartition(None) { part =>
+                  flatMapIR(StreamGroupByKey(part, pkType.fieldNames, missingEqual = true)) { inner =>
+                    ToStream(sortIR(inner) { case (l, r) => ApplyComparisonOp(LT(l.typ), l, r) })
+                  }
+                }
+            }
+          }
+        } else {
+          info(s"$context is out of order..." +
+            s"\n  Write the dataset to disk before running multiple queries to avoid multiple costly data shuffles.")
+
+          new LoweredTableReaderCoercer {
+            def coerce(ctx: ExecuteContext,
+                       globals: IR,
+                       contextType: Type,
+                       contexts: IndexedSeq[Any],
+                       body: IR => IR): TableStage = {
+              val partOrigIndex = sortedPartData.map(_.getInt(6))
+
+              val partitioner = RVDPartitioner.unkeyed(sortedPartData.length)
+
+              val tableStage = TableStage(globals, partitioner, TableStageDependency.none,
+                ToStream(Literal(TArray(contextType), partOrigIndex.map(i => contexts(i)))),
+                body)
+
+              val rowRType = VirtualTypeWithReq(bodyPType(tableStage.rowType)).r.asInstanceOf[RStruct]
+
+              ctx.backend.lowerDistributedSort(ctx,
+                tableStage,
+                keyType.fieldNames.map(f => SortField(f, Ascending)),
+                Map.empty,
+                rowRType
+              )
+            }
+          }
         }
-      }
-    } else {
-      info(s"$context is out of order..." +
-        s"\n  Write the dataset to disk before running multiple queries to avoid multiple costly data shuffles.")
-
-      new LoweredTableReaderCoercer {
-        def coerce(globals: IR,
-          contextType: Type,
-          contexts: IndexedSeq[Any],
-          body: IR => IR): TableStage = {
-          val partOrigIndex = sortedPartData.map(_.getInt(6))
-
-          val partitioner = RVDPartitioner.unkeyed(sortedPartData.length)
-
-          val tableStage = TableStage(globals, partitioner, TableStageDependency.none,
-            ToStream(Literal(TArray(contextType), partOrigIndex.map(i => contexts(i)))),
-            body)
-
-          val rowRType = VirtualTypeWithReq(bodyPType(tableStage.rowType)).r.asInstanceOf[RStruct]
-
-          ctx.backend.lowerDistributedSort(ctx,
-            tableStage,
-            keyType.fieldNames.map(f => SortField(f, Ascending)),
-            Map.empty,
-            rowRType
-          )
-        }
-      }
-    }
         if (ctx.backend.shouldCacheQueryInfo)
           coercerCache += (cacheKeyWithInfo -> coercer)
-coercer
+        coercer
     }
   }
 }
