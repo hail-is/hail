@@ -2,7 +2,7 @@ import builtins
 import itertools
 import functools
 import math
-from typing import Dict, Callable, Optional, Union, Tuple
+from typing import Dict, Callable, Optional, Union, Tuple, List
 
 import hail
 import hail as hl
@@ -2584,10 +2584,20 @@ def ld_matrix(entry_expr, locus_expr, radius, coord_expr=None, block_size=None) 
            fst=nullable(sequenceof(numeric)),
            af_dist=nullable(expr_any),
            reference_genome=reference_genome_type,
-           mixture=bool)
-def balding_nichols_model(n_populations, n_samples, n_variants, n_partitions=None,
-                          pop_dist=None, fst=None, af_dist=None,
-                          reference_genome='default', mixture=False) -> MatrixTable:
+           mixture=bool,
+           phased=bool)
+def balding_nichols_model(n_populations: int,
+                          n_samples: int,
+                          n_variants: int,
+                          n_partitions: Optional[int] = None,
+                          pop_dist: Optional[List[int]] = None,
+                          fst: Optional[List[int]] = None,
+                          af_dist: Optional[hl.Expression] = None,
+                          reference_genome: str = 'default',
+                          mixture: bool = False,
+                          *,
+                          phased: bool = False
+                          ) -> MatrixTable:
     r"""Generate a matrix table of variants, samples, and genotypes using the
     Balding-Nichols or Pritchard-Stephens-Donnelly model.
 
@@ -2596,7 +2606,41 @@ def balding_nichols_model(n_populations, n_samples, n_variants, n_partitions=Non
     Generate a matrix table of genotypes with 1000 variants and 100 samples
     across 3 populations:
 
-    >>> bn_ds = hl.balding_nichols_model(3, 100, 1000, reference_genome='GRCh37')
+    >>> hl.set_global_seed(1)
+    >>> bn_ds = hl.balding_nichols_model(3, 100, 1000)
+    >>> bn_ds.show(n_rows=5, n_cols=5)
+    +---------------+------------+------+------+------+------+------+
+    | locus         | alleles    | 0.GT | 1.GT | 2.GT | 3.GT | 4.GT |
+    +---------------+------------+------+------+------+------+------+
+    | locus<GRCh37> | array<str> | call | call | call | call | call |
+    +---------------+------------+------+------+------+------+------+
+    | 1:1           | ["A","C"]  | 1/1  | 0/1  | 0/1  | 1/1  | 0/1  |
+    | 1:2           | ["A","C"]  | 1/1  | 0/0  | 0/1  | 0/0  | 0/1  |
+    | 1:3           | ["A","C"]  | 0/1  | 1/1  | 1/1  | 0/1  | 0/1  |
+    | 1:4           | ["A","C"]  | 0/1  | 1/1  | 1/1  | 1/1  | 0/1  |
+    | 1:5           | ["A","C"]  | 0/1  | 0/0  | 0/1  | 0/0  | 0/1  |
+    +---------------+------------+------+------+------+------+------+
+    showing top 5 rows
+    showing the first 5 of 100 columns
+
+    Generate a dataset as above but with phased genotypes:
+
+    >>> hl.set_global_seed(1)
+    >>> bn_ds = hl.balding_nichols_model(3, 100, 1000, phased=True)
+    >>> bn_ds.show(n_rows=5, n_cols=5)
+    +---------------+------------+------+------+------+------+------+
+    | locus         | alleles    | 0.GT | 1.GT | 2.GT | 3.GT | 4.GT |
+    +---------------+------------+------+------+------+------+------+
+    | locus<GRCh37> | array<str> | call | call | call | call | call |
+    +---------------+------------+------+------+------+------+------+
+    | 1:1           | ["A","C"]  | 0|1  | 0|0  | 0|1  | 0|0  | 0|0  |
+    | 1:2           | ["A","C"]  | 0|1  | 1|1  | 0|0  | 1|1  | 0|0  |
+    | 1:3           | ["A","C"]  | 1|1  | 0|0  | 0|0  | 0|0  | 1|0  |
+    | 1:4           | ["A","C"]  | 1|1  | 0|0  | 0|1  | 0|0  | 1|1  |
+    | 1:5           | ["A","C"]  | 1|0  | 1|0  | 0|0  | 1|0  | 0|1  |
+    +---------------+------------+------+------+------+------+------+
+    showing top 5 rows
+    showing the first 5 of 100 columns
 
     Generate a matrix table using 4 populations, 40 samples, 150 variants, 3
     partitions, population distribution ``[0.1, 0.2, 0.3, 0.4]``,
@@ -2730,6 +2774,8 @@ def balding_nichols_model(n_populations, n_samples, n_variants, n_partitions=Non
     mixture : :obj:`bool`
         Treat `pop_dist` as the parameters of a Dirichlet distribution,
         as in the Prichard-Stevens-Donnelly model.
+    phased : :obj:`bool`
+        Generate phased genotypes.
 
     Returns
     -------
@@ -2811,7 +2857,17 @@ def balding_nichols_model(n_populations, n_samples, n_variants, n_partitions=Non
                                    af_dist))
     # entry info
     p = hl.sum(bn.pop * bn.af) if mixture else bn.af[bn.pop]
-    idx = hl.rand_cat([(1 - p) ** 2, 2 * p * (1 - p), p ** 2])
+    q = 1 - p
+
+    if phased:
+        mom = hl.rand_bool(p)
+        dad = hl.rand_bool(p)
+        return bn.select_entries(GT=hl.call(mom, dad, phased=True))
+    idx = hl.rand_cat([
+        q ** 2,
+        2 * p * q,
+        p ** 2
+    ])
     return bn.select_entries(GT=hl.unphased_diploid_gt_index_call(idx))
 
 
