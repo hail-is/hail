@@ -1828,9 +1828,10 @@ class JVMJob(Job):
 
                 self.state = 'initializing'
 
+                data_disk_storage_in_bytes = storage_gib_to_bytes(self.data_disk_storage_in_gib)
                 await check_shell_output(f'xfs_quota -x -c "project -s -p {self.scratch} {self.project_id}" /host/')
                 await check_shell_output(
-                    f'xfs_quota -x -c "limit -p bsoft={self.data_disk_storage_in_gib} bhard={self.data_disk_storage_in_gib} {self.project_id}" /host/'
+                    f'xfs_quota -x -c "limit -p bsoft={data_disk_storage_in_bytes} bhard={data_disk_storage_in_bytes} {self.project_id}" /host/'
                 )
 
                 if self.secrets:
