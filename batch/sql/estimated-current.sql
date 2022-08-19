@@ -159,7 +159,6 @@ CREATE TABLE IF NOT EXISTS `batches` (
   `token` VARCHAR(100) DEFAULT NULL,
   `format_version` INT NOT NULL,
   `cancel_after_n_failures` INT DEFAULT NULL,
-  `update_added` BOOLEAN DEFAULT FALSE,
   PRIMARY KEY (`id`),
   FOREIGN KEY (`billing_project`) REFERENCES billing_projects(name)
 ) ENGINE = InnoDB;
@@ -203,21 +202,22 @@ CREATE TABLE IF NOT EXISTS `batches_cancelled` (
 
 CREATE TABLE IF NOT EXISTS `batches_inst_coll_staging` (
   `batch_id` BIGINT NOT NULL,
-  `update_id` INT NOT NULL DEFAULT 1,
+  `update_id` INT NOT NULL,
   `inst_coll` VARCHAR(255),
   `token` INT NOT NULL,
   `n_jobs` INT NOT NULL DEFAULT 0,
   `n_ready_jobs` INT NOT NULL DEFAULT 0,
   `ready_cores_mcpu` BIGINT NOT NULL DEFAULT 0,
-  PRIMARY KEY (`batch_id`, `inst_coll`, `token`),
+  PRIMARY KEY (`batch_id`, `update_id`, `inst_coll`, `token`),
   FOREIGN KEY (`batch_id`) REFERENCES batches(`id`) ON DELETE CASCADE,
+  FOREIGN KEY (`batch_id`, `update_id`) REFERENCES batch_updates (`batch_id`, `update_id`) ON DELETE CASCADE,
   FOREIGN KEY (`inst_coll`) REFERENCES inst_colls(name) ON DELETE CASCADE
 ) ENGINE = InnoDB;
 CREATE INDEX `batches_inst_coll_staging_inst_coll` ON `batches_inst_coll_staging` (`inst_coll`);
 
 CREATE TABLE `batch_inst_coll_cancellable_resources` (
   `batch_id` BIGINT NOT NULL,
-  `update_id` INT NOT NULL DEFAULT 1,
+  `update_id` INT NOT NULL,
   `inst_coll` VARCHAR(255),
   `token` INT NOT NULL,
   # neither run_always nor cancelled
@@ -226,8 +226,9 @@ CREATE TABLE `batch_inst_coll_cancellable_resources` (
   `n_creating_cancellable_jobs` INT NOT NULL DEFAULT 0,
   `n_running_cancellable_jobs` INT NOT NULL DEFAULT 0,
   `running_cancellable_cores_mcpu` BIGINT NOT NULL DEFAULT 0,
-  PRIMARY KEY (`batch_id`, `inst_coll`, `token`),
+  PRIMARY KEY (`batch_id`, `update_id`, `inst_coll`, `token`),
   FOREIGN KEY (`batch_id`) REFERENCES batches(id) ON DELETE CASCADE,
+  FOREIGN KEY (`batch_id`, `update_id`) REFERENCES batch_updates (`batch_id`, `update_id`) ON DELETE CASCADE,
   FOREIGN KEY (`inst_coll`) REFERENCES inst_colls(name) ON DELETE CASCADE
 ) ENGINE = InnoDB;
 CREATE INDEX `batch_inst_coll_cancellable_resources_inst_coll` ON `batch_inst_coll_cancellable_resources` (`inst_coll`);
@@ -235,7 +236,7 @@ CREATE INDEX `batch_inst_coll_cancellable_resources_inst_coll` ON `batch_inst_co
 CREATE TABLE IF NOT EXISTS `jobs` (
   `batch_id` BIGINT NOT NULL,
   `job_id` INT NOT NULL,
-  `update_id` INT NOT NULL DEFAULT 1,
+  `update_id` INT NOT NULL,
   `state` VARCHAR(40) NOT NULL,
   `spec` MEDIUMTEXT NOT NULL,
   `always_run` BOOLEAN NOT NULL,
@@ -410,42 +411,6 @@ CREATE TABLE IF NOT EXISTS `attempt_resources` (
 ) ENGINE = InnoDB;
 
 DELIMITER $$
-
-DROP TRIGGER IF EXISTS batches_before_insert $$
-CREATE TRIGGER batches_before_insert BEFORE INSERT ON batches
-FOR EACH ROW
-BEGIN
-  SET NEW.update_added = TRUE;
-END $$
-
-DROP TRIGGER IF EXISTS batches_after_insert $$
-CREATE TRIGGER batches_after_insert AFTER INSERT ON batches
-FOR EACH ROW
-BEGIN
-  IF NEW.n_jobs > 0 THEN
-    INSERT INTO `batch_updates` (`batch_id`, `update_id`, `token`, start_job_id, n_jobs, `committed`, time_created)
-    VALUES (NEW.id, 1, NEW.token, 1, NEW.n_jobs, FALSE, NEW.time_created);
-  END IF;
-END $$
-
-DROP TRIGGER IF EXISTS batches_before_update $$
-CREATE TRIGGER batches_before_update BEFORE UPDATE ON batches
-FOR EACH ROW
-BEGIN
-  SET NEW.update_added = TRUE;
-END $$
-
-DROP TRIGGER IF EXISTS batches_after_update $$
-CREATE TRIGGER batches_after_update AFTER UPDATE ON batches
-FOR EACH ROW
-BEGIN
-  # We want to change the update to committed when the batch is closed
-  IF NEW.n_jobs > 0 THEN
-    INSERT INTO `batch_updates` (`batch_id`, `update_id`, `token`, start_job_id, n_jobs, `committed`, time_created, time_committed)
-    VALUES (NEW.id, 1, NEW.token, 1, NEW.n_jobs, NEW.state != 'open', NEW.time_created, NEW.time_closed)
-    ON DUPLICATE KEY UPDATE committed = NEW.state != 'open';
-  END IF;
-END $$
 
 DROP TRIGGER IF EXISTS instances_before_update $$
 CREATE TRIGGER instances_before_update BEFORE UPDATE on instances
