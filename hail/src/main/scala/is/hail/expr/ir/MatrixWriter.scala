@@ -1012,7 +1012,7 @@ case class PLINKPartitionWriter(typ: MatrixType, entriesFieldName: String) exten
 
       val bedOs = cb.memoize(cb.emb.create(bedFile))
       val bimOs = cb.memoize(cb.emb.create(bimFile))
-      val bp = cb.memoize(Code.newInstance[BitPacker, Int, OutputStream](2, bimOs))
+      val bp = cb.memoize(Code.newInstance[BitPacker, Int, OutputStream](2, bedOs))
 
       stream.memoryManagedConsume(region, cb) { cb =>
         consumeElement(cb, stream.element, bimOs, bp, region)
@@ -1028,9 +1028,9 @@ case class PLINKPartitionWriter(typ: MatrixType, entriesFieldName: String) exten
     }
   }
 
-  private def consumeElement(cb: EmitCodeBuilder, element: EmitCode, bedOs: Value[OutputStream], bp: Value[BitPacker], region: Value[Region]): Unit = {
-    def _writeC(cb: EmitCodeBuilder, code: Code[Int]) = { cb += bedOs.invoke[Int, Unit]("write", code) }
-    def _writeB(cb: EmitCodeBuilder, code: Code[Array[Byte]]) = { cb += bedOs.invoke[Array[Byte], Unit]("write", code) }
+  private def consumeElement(cb: EmitCodeBuilder, element: EmitCode, bimOs: Value[OutputStream], bp: Value[BitPacker], region: Value[Region]): Unit = {
+    def _writeC(cb: EmitCodeBuilder, code: Code[Int]) = { cb += bimOs.invoke[Int, Unit]("write", code) }
+    def _writeB(cb: EmitCodeBuilder, code: Code[Array[Byte]]) = { cb += bimOs.invoke[Array[Byte], Unit]("write", code) }
     def _writeS(cb: EmitCodeBuilder, code: Code[String]) = { _writeB(cb, code.invoke[Array[Byte]]("getBytes")) }
     def writeC(code: Code[Int]) = _writeC(cb, code)
     def writeS(code: Code[String]) = _writeS(cb, code)
@@ -1094,7 +1094,7 @@ case class PLINKExportFinalizer(typ: MatrixType, path: String, headerPath: Strin
     paths.forEachDefined(cb) { case (cb, i, elt: SBaseStructValue) =>
       val bed = elt.loadField(cb, "bedFile").get(cb).asString.loadString(cb)
       val bim = elt.loadField(cb, "bimFile").get(cb).asString.loadString(cb)
-      cb += (bedFiles(i + 1) = bed)
+      cb += (bedFiles(cb.memoize(i + 1)) = bed)
       cb += (bimFiles(i) = bim)
     }
     cb += Code.invokeScalaObject5[FS, String, String, Array[String], Array[String], Unit](PLINKExportFinalizer.getClass, "finalize", cb.emb.getFS, path, headerPath, bedFiles, bimFiles)
