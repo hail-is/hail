@@ -2070,6 +2070,9 @@ steps:
       - name: populate-batch-updates
         script: /io/sql/populate_batch_updates.py
         online: true
+      - name: cleanup-add-batch-updates
+        script: /io/sql/cleanup-add-batch-updates.sql
+        online: true
     inputs:
       - from: /repo/batch/sql
         to: /io/sql
