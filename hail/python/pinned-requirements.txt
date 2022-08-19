@@ -143,7 +143,7 @@ plotly==5.5.0
     # via -r python/requirements.txt
 portalocker==2.4.0
     # via msal-extensions
-protobuf==3.20.1
+protobuf==4.21.5
     # via
     #   google-api-core
     #   googleapis-common-protos
