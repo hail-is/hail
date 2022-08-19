@@ -113,7 +113,7 @@ docutils==0.18.1
     # via readme-renderer
 execnet==1.9.0
     # via pytest-xdist
-flake8==4.0.1
+flake8==5.0.4
     # via -r requirements.txt
 flask==2.0.3
     # via

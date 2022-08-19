@@ -19,7 +19,7 @@ decorator==5.1.1
 dictdiffer==0.8.1
 dill>=0.3.1.1,<0.4
 docker==5.0.3
-flake8==4.0.1
+flake8==5.0.4
 Flask-Cors==3.0.10
 Flask-Sockets==0.2.1
 Flask==2.0.3
