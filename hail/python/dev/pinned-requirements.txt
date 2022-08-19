@@ -427,7 +427,7 @@ widgetsnbextension==3.6.0
     # via ipywidgets
 wrapt==1.14.1
     # via astroid
-zipp==3.8.0
+zipp==3.8.1
     # via
     #   importlib-metadata
     #   importlib-resources
