@@ -2058,6 +2058,9 @@ steps:
       - name: revert-temp-agg-by-date-infra
         script: /io/sql/revert-temp-agg-by-date-infra.sql
         online: true
+      - name: rename-timestamp-to-date
+        script: /io/sql/rename-timestamp-to-date.sql
+        online: true
     inputs:
       - from: /repo/batch/sql
         to: /io/sql
@@ -3251,6 +3254,7 @@ steps:
           valueFrom: default_ns.name
         mountPath: /ssl-config
     alwaysRun: true
+    timeout: 300
     dependsOn:
       - create_deploy_config
       - create_accounts
@@ -3357,10 +3361,11 @@ steps:
       set +e
       set -x
       export AZURE_RESOURCE_GROUP="{{ global.azure_resource_group }}"
+      az aks install-cli
       kubectl -n {{ default_ns.name }} scale deployment batch-driver --replicas=0
       az vm list --resource-group $AZURE_RESOURCE_GROUP -o tsv \
           --query "[?tags.namespace == '{{ default_ns.name }}'].name" \
-        | xargs -n1 -r sh -c 'az vm delete --resource-group $AZURE_RESOURCE_GROUP --name "$1" --yes || true' argv0
+        | xargs -n1 -r sh -c 'az vm delete --force-deletion true --resource-group $AZURE_RESOURCE_GROUP --name "$1" --yes || true' argv0
       az network nic list --resource-group $AZURE_RESOURCE_GROUP -o tsv \
           --query "[?tags.namespace == '{{ default_ns.name }}'].name" \
         | xargs -n1 -r sh -c 'az network nic delete --resource-group $AZURE_RESOURCE_GROUP --name "$1" || true' argv0

@@ -53,7 +53,7 @@ class HailContext(object):
                            tmpdir: str,
                            local_tmpdir: str,
                            default_reference: str,
-                           global_seed: Optional[str],
+                           global_seed: Optional[int],
                            backend: Backend):
         hc = HailContext(log=log,
                          quiet=quiet,
@@ -73,7 +73,7 @@ class HailContext(object):
                tmpdir: str,
                local_tmpdir: str,
                default_reference: str,
-               global_seed: Optional[str],
+               global_seed: Optional[int],
                backend: Backend):
         hc = HailContext(log=log,
                          quiet=quiet,
@@ -124,8 +124,13 @@ class HailContext(object):
             sys.stderr.write(f'LOGGING: writing to {log}\n')
 
         if global_seed is None:
-            global_seed = 6348563392232659379
-        Env.set_seed(global_seed)
+            if Env._seed_generator is None:
+                Env.set_seed(6348563392232659379)
+        else:  # global_seed is not None
+            if Env._seed_generator is not None:
+                raise ValueError(
+                    'Do not call hl.init with a non-None global seed *after* calling hl.set_global_seed')
+            Env.set_seed(global_seed)
         Env._hc = self
 
     def initialize_references(self, references, default_reference):
@@ -178,7 +183,7 @@ def init(sc=None, app_name=None, master=None, local='local[*]',
          log=None, quiet=False, append=False,
          min_block_size=0, branching_factor=50, tmp_dir=None,
          default_reference='GRCh37', idempotent=False,
-         global_seed=6348563392232659379,
+         global_seed=None,
          spark_conf=None,
          skip_logging_configuration=False,
          local_tmpdir=None,
@@ -380,7 +385,7 @@ def init_spark(sc=None,
                tmp_dir=None,
                default_reference='GRCh37',
                idempotent=False,
-               global_seed=6348563392232659379,
+               global_seed=None,
                spark_conf=None,
                skip_logging_configuration=False,
                local_tmpdir=None,
@@ -435,7 +440,7 @@ async def init_batch(
         tmpdir: Optional[str] = None,
         local_tmpdir: Optional[str] = None,
         default_reference: str = 'GRCh37',
-        global_seed: int = 6348563392232659379,
+        global_seed: Optional[int] = None,
         disable_progress_bar: bool = True,
         driver_cores: Optional[Union[str, int]] = None,
         driver_memory: Optional[str] = None,
@@ -484,7 +489,7 @@ def init_local(
         branching_factor=50,
         tmpdir=None,
         default_reference='GRCh37',
-        global_seed=6348563392232659379,
+        global_seed=None,
         skip_logging_configuration=False,
         _optimizer_iterations=None):
     from hail.backend.local_backend import LocalBackend

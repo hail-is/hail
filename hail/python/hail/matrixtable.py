@@ -2994,6 +2994,8 @@ class MatrixTable(ExprContainer):
 
     @typecheck_method(entries_field_name=str, cols_field_name=str)
     def _localize_entries(self, entries_field_name, cols_field_name) -> 'Table':
+        assert entries_field_name not in self.row
+        assert cols_field_name not in self.globals
         return Table(ir.CastMatrixToTable(
             self._mir, entries_field_name, cols_field_name))
 
@@ -3070,6 +3072,13 @@ class MatrixTable(ExprContainer):
         """
         entries = entries_array_field_name or Env.get_uid()
         cols = columns_array_field_name or Env.get_uid()
+        if entries in self.row:
+            raise ValueError(
+                f"'localize_entries': cannot localize entries to field {entries!r}, which is already a row field")
+        if cols in self.globals:
+            raise ValueError(
+                f"'localize_entries': cannot localize columns to field {cols!r}, which is already a global field")
+
         t = self._localize_entries(entries, cols)
         if entries_array_field_name is None:
             t = t.drop(entries)

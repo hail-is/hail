@@ -73,6 +73,8 @@ class ServiceBackend(
   private[this] val MAX_AVAILABLE_GCS_CONNECTIONS = 100
   private[this] val availableGCSConnections = new Semaphore(MAX_AVAILABLE_GCS_CONNECTIONS, true)
 
+  override def shouldCacheQueryInfo: Boolean = false
+
   def defaultParallelism: Int = 4
 
   def broadcast[T: ClassTag](_value: T): BroadcastValue[T] = {

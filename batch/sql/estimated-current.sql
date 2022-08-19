@@ -340,17 +340,17 @@ CREATE INDEX aggregated_billing_project_user_resources_v2 ON `aggregated_billing
 
 DROP TABLE IF EXISTS `aggregated_billing_project_user_resources_by_date_v2`;
 CREATE TABLE IF NOT EXISTS `aggregated_billing_project_user_resources_by_date_v2` (
-  `billing_timestamp` DATE NOT NULL,
+  `billing_date` DATE NOT NULL,
   `billing_project` VARCHAR(100) NOT NULL,
   `user` VARCHAR(100) NOT NULL,
   `resource_id` INT NOT NULL,
   `token` INT NOT NULL,
   `usage` BIGINT NOT NULL DEFAULT 0,
-  PRIMARY KEY (`billing_timestamp`, `billing_project`, `user`, `resource_id`, `token`),
+  PRIMARY KEY (`billing_date`, `billing_project`, `user`, `resource_id`, `token`),
   FOREIGN KEY (`billing_project`) REFERENCES billing_projects(name) ON DELETE CASCADE,
   FOREIGN KEY (`resource_id`) REFERENCES resources(`resource_id`) ON DELETE CASCADE
 ) ENGINE = InnoDB;
-CREATE INDEX aggregated_billing_project_user_resources_by_date_v2_user ON `aggregated_billing_project_user_resources_by_date_v2` (`billing_timestamp`, `user`);
+CREATE INDEX aggregated_billing_project_user_resources_by_date_v2_user ON `aggregated_billing_project_user_resources_by_date_v2` (`billing_date`, `user`);
 
 DROP TABLE IF EXISTS `aggregated_batch_resources_v2`;
 CREATE TABLE IF NOT EXISTS `aggregated_batch_resources_v2` (
@@ -493,7 +493,7 @@ BEGIN
     IF NEW.end_time IS NOT NULL THEN
       SET cur_billing_date = CAST(FROM_UNIXTIME(NEW.end_time / 1000) AS DATE);
 
-      INSERT INTO aggregated_billing_project_user_resources_by_date_v2 (billing_timestamp, billing_project, user, resource_id, token, `usage`)
+      INSERT INTO aggregated_billing_project_user_resources_by_date_v2 (billing_date, billing_project, user, resource_id, token, `usage`)
       SELECT cur_billing_date,
         billing_project,
         `user`,
@@ -740,7 +740,7 @@ BEGIN
       `usage` = `usage` + NEW.quantity * msec_diff;
 
     IF cur_billing_date IS NOT NULL THEN
-      INSERT INTO aggregated_billing_project_user_resources_by_date_v2 (billing_timestamp, billing_project, user, resource_id, token, `usage`)
+      INSERT INTO aggregated_billing_project_user_resources_by_date_v2 (billing_date, billing_project, user, resource_id, token, `usage`)
       VALUES (cur_billing_date, cur_billing_project, cur_user, NEW.resource_id, rand_token, NEW.quantity * msec_diff)
       ON DUPLICATE KEY UPDATE
         `usage` = `usage` + NEW.quantity * msec_diff;
