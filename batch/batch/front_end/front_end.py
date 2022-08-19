@@ -1233,15 +1233,7 @@ VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
             ),
         )
 
-        update_id = await tx.execute_and_fetchone(
-            '''
-SELECT update_id FROM batch_updates WHERE batch_id = %s;
-''',
-            (id,),
-        )
-
-        if update_id is None:
-            update_id = secret_alnum_string(8)
+        update_id = secret_alnum_string(8)
 
         await tx.execute_insertone(
             '''
