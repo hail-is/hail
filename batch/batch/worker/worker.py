@@ -2301,7 +2301,7 @@ class Worker:
             jvms = await asyncio.gather(
                 *[JVM.create(i, 1, self) for i in range(CORES)],
                 *[JVM.create(CORES + i, 8, self) for i in range(CORES // 8)],
-                *[JVM.create(CORES + CORES // 8 + i, 0.5, self) for i in range(2 * CORES)],
+                *[JVM.create(CORES + CORES // 8 + i, 0.5, self) for i in range(2 * CORES) if NAMESPACE != 'default'],
             )
             self._jvms.update(jvms)
         log.info(f'JVMs initialized {self._jvms}')
