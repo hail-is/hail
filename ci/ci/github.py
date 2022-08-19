@@ -33,8 +33,8 @@ deploy_config = get_deploy_config()
 CALLBACK_URL = deploy_config.url('ci', '/api/v1alpha/batch_callback')
 
 zulip_client: Optional[zulip.Client] = None
-if os.path.exists("/zulip-config/.zuliprc"):
-    zulip_client = zulip.Client(config_file="/zulip-config/.zuliprc")
+# if os.path.exists("/zulip-config/.zuliprc"):
+#     zulip_client = zulip.Client(config_file="/zulip-config/.zuliprc")
 
 TRACKED_PRS = pc.Gauge('ci_tracked_prs', 'PRs currently being monitored by CI', ['build_state', 'review_state'])
 

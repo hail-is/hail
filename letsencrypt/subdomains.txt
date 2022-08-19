@@ -1,15 +1,4 @@
 ci
-notebook
-www
 batch
 batch-driver
-benchmark
-blog
-memory
-monitoring
 auth
-ukbb-rg
-workshop
-grafana
-prometheus
-hello
