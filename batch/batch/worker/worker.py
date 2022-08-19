@@ -2307,6 +2307,8 @@ class Worker:
         log.info(f'JVMs initialized {self._jvms}')
 
     async def borrow_jvm(self, n_cores: int) -> JVM:
+        if n_cores == 0:
+            n_cores = 0.5
         if instance_config.worker_type() not in ('standard', 'D', 'highmem', 'E'):
             raise ValueError(f'no JVMs available on {instance_config.worker_type()}')
         await self._jvm_initializer_task

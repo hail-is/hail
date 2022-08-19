@@ -766,8 +766,10 @@ WHERE user = %s AND id = %s AND NOT deleted;
         if spec['process']['type'] == 'jvm':
             jvm_requested_cpu = parse_cpu_in_mcpu(resources.get('cpu', BATCH_JOB_DEFAULT_CPU))
             if 'cpu' in resources and jvm_requested_cpu not in (1000, 8000):
-                if DEFAULT_NAMESPACE == 'default' or 'cpu' not in (500,):
-                    raise web.HTTPBadRequest(reason='invalid cpu for jvm jobs. must be 1 or 8')
+                # TODO
+                # if DEFAULT_NAMESPACE == 'default' or 'cpu' not in (500,):
+                #     raise web.HTTPBadRequest(reason=f'invalid cpu for jvm jobs. must be 1 or 8, got {cpu}')
+                pass
             if 'memory' in resources and resources['memory'] == 'lowmem':
                 raise web.HTTPBadRequest(reason='jvm jobs cannot be on lowmem machines')
             if 'storage' in resources:
