@@ -159,7 +159,6 @@ CREATE TABLE IF NOT EXISTS `batches` (
   `token` VARCHAR(100) DEFAULT NULL,
   `format_version` INT NOT NULL,
   `cancel_after_n_failures` INT DEFAULT NULL,
-  `update_added` BOOLEAN DEFAULT FALSE,
   PRIMARY KEY (`id`),
   FOREIGN KEY (`billing_project`) REFERENCES billing_projects(name)
 ) ENGINE = InnoDB;
@@ -177,7 +176,8 @@ CREATE TABLE IF NOT EXISTS `batch_updates` (
   `committed` BOOLEAN NOT NULL DEFAULT FALSE,
   `time_created` BIGINT,
   `time_committed` BIGINT,
-  PRIMARY KEY (`batch_id`, `update_id`)
+  PRIMARY KEY (`batch_id`, `update_id`),
+  FOREIGN KEY (`batch_id`) REFERENCES batches(`id`)
 ) ENGINE = InnoDB;
 CREATE INDEX `batch_updates_committed` ON `batch_updates` (`batch_id`, `committed`);
 CREATE INDEX `batch_updates_start_job_id` ON `batch_updates` (`batch_id`, `start_job_id`);
@@ -408,97 +408,6 @@ CREATE TABLE IF NOT EXISTS `attempt_resources` (
 ) ENGINE = InnoDB;
 
 DELIMITER $$
-
-DROP TRIGGER IF EXISTS batches_before_insert $$
-CREATE TRIGGER batches_before_insert BEFORE INSERT ON batches
-FOR EACH ROW
-BEGIN
-  DECLARE cur_update_id VARCHAR(40);
-  DECLARE new_update_id VARCHAR(40);
-
-  SELECT update_id INTO cur_update_id FROM batch_updates WHERE batch_id = NEW.id;
-
-  IF cur_update_id IS NULL THEN
-    SET new_update_id = LEFT(MD5(RAND()), 8);
-
-    INSERT INTO `batch_updates` (`batch_id`, `update_id`, start_job_id, n_jobs, `committed`, time_created, time_committed)
-      VALUES (NEW.id, new_update_id, 1, NEW.n_jobs, NEW.state != 'open', NEW.time_created, NEW.time_closed)
-    ON DUPLICATE KEY UPDATE n_jobs = n_jobs;
-  END IF;
-
-  SET NEW.update_added = TRUE;
-END $$
-
-DROP TRIGGER IF EXISTS batches_after_update $$
-CREATE TRIGGER batches_after_update AFTER UPDATE ON batches
-FOR EACH ROW
-BEGIN
-  DECLARE new_update_id VARCHAR(40);
-
-  IF NOT OLD.update_added THEN
-    SET new_update_id = LEFT(MD5(RAND()), 8);
-
-    INSERT INTO `batch_updates` (`batch_id`, `update_id`, start_job_id, n_jobs, `committed`, time_created, time_committed)
-      VALUES (NEW.id, new_update_id, 1, NEW.n_jobs, NEW.state != 'open', NEW.time_created, NEW.time_closed)
-    ON DUPLICATE KEY UPDATE n_jobs = n_jobs;
-
-    UPDATE batches_inst_coll_staging
-    SET update_id = new_update_id
-    WHERE batch_id = NEW.id;
-
-    UPDATE batch_inst_coll_cancellable_resources
-    SET update_id = new_update_id
-    WHERE batch_id = NEW.id;
-  END IF;
-END $$
-
-DROP TRIGGER IF EXISTS batches_inst_coll_staging_before_insert $$
-CREATE TRIGGER batches_inst_coll_staging_before_insert BEFORE INSERT ON batches_inst_coll_staging
-FOR EACH ROW
-BEGIN
-  DECLARE cur_update_id VARCHAR(40);
-
-  IF NEW.update_id IS NULL THEN
-    SELECT update_id INTO cur_update_id FROM batch_updates WHERE batch_id = NEW.batch_id;
-    SET NEW.update_id = cur_update_id;
-  END IF;
-END $$
-
-DROP TRIGGER IF EXISTS batches_inst_coll_staging_before_update $$
-CREATE TRIGGER batches_inst_coll_staging_before_update BEFORE UPDATE ON batches_inst_coll_staging
-FOR EACH ROW
-BEGIN
-  DECLARE cur_update_id VARCHAR(40);
-
-  IF OLD.update_id IS NULL THEN
-    SELECT update_id INTO cur_update_id FROM batch_updates WHERE batch_id = NEW.batch_id;
-    SET NEW.update_id = cur_update_id;
-  END IF;
-END $$
-
-DROP TRIGGER IF EXISTS batch_inst_coll_cancellable_resources_before_insert $$
-CREATE TRIGGER batch_inst_coll_cancellable_resources_before_insert BEFORE INSERT ON batch_inst_coll_cancellable_resources
-FOR EACH ROW
-BEGIN
-  DECLARE cur_update_id VARCHAR(40);
-
-  IF NEW.update_id IS NULL THEN
-    SELECT update_id INTO cur_update_id FROM batch_updates WHERE batch_id = NEW.batch_id;
-    SET NEW.update_id = cur_update_id;
-  END IF;
-END $$
-
-DROP TRIGGER IF EXISTS batch_inst_coll_cancellable_resources_before_update $$
-CREATE TRIGGER batch_inst_coll_cancellable_resources_before_update BEFORE UPDATE ON batch_inst_coll_cancellable_resources
-FOR EACH ROW
-BEGIN
-  DECLARE cur_update_id VARCHAR(40);
-
-  IF OLD.update_id IS NULL THEN
-    SELECT update_id INTO cur_update_id FROM batch_updates WHERE batch_id = NEW.batch_id;
-    SET NEW.update_id = cur_update_id;
-  END IF;
-END $$
 
 DROP TRIGGER IF EXISTS instances_before_update $$
 CREATE TRIGGER instances_before_update BEFORE UPDATE on instances
