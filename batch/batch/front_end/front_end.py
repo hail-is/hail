@@ -47,6 +47,7 @@ from hailtop.utils import (
     request_retry_transient_errors,
     retry_long_running,
     run_if_changed,
+    secret_alnum_string,
     time_msecs,
     time_msecs_str,
 )
@@ -708,7 +709,9 @@ async def _create_jobs(userdata: dict, job_specs: dict, batch_id: int, app: aioh
 
     record = await db.select_and_fetchone(
         '''
-SELECT `state`, format_version FROM batches
+SELECT `state`, format_version, update_id
+FROM batches
+LEFT JOIN batch_updates ON batches.id = batch_updates.batch_id
 WHERE user = %s AND id = %s AND NOT deleted;
 ''',
         (user, batch_id),
@@ -718,7 +721,9 @@ WHERE user = %s AND id = %s AND NOT deleted;
         raise web.HTTPNotFound()
     if record['state'] != 'open':
         raise web.HTTPBadRequest(reason=f'batch {batch_id} is not open')
+
     batch_format_version = BatchFormatVersion(record['format_version'])
+    update_id = record['update_id']
 
     try:
         validate_and_clean_jobs(job_specs)
@@ -1024,6 +1029,7 @@ VALUES (%s, %s, %s, %s);
             batches_inst_coll_staging_args = [
                 (
                     batch_id,
+                    update_id,
                     inst_coll,
                     rand_token,
                     resources['n_jobs'],
@@ -1034,8 +1040,8 @@ VALUES (%s, %s, %s, %s);
             ]
             await tx.execute_many(
                 '''
-INSERT INTO batches_inst_coll_staging (batch_id, inst_coll, token, n_jobs, n_ready_jobs, ready_cores_mcpu)
-VALUES (%s, %s, %s, %s, %s, %s)
+INSERT INTO batches_inst_coll_staging (batch_id, update_id, inst_coll, token, n_jobs, n_ready_jobs, ready_cores_mcpu)
+VALUES (%s, %s, %s, %s, %s, %s, %s)
 ON DUPLICATE KEY UPDATE
   n_jobs = n_jobs + VALUES(n_jobs),
   n_ready_jobs = n_ready_jobs + VALUES(n_ready_jobs),
@@ -1047,6 +1053,7 @@ ON DUPLICATE KEY UPDATE
             batch_inst_coll_cancellable_resources_args = [
                 (
                     batch_id,
+                    update_id,
                     inst_coll,
                     rand_token,
                     resources['n_ready_cancellable_jobs'],
@@ -1056,8 +1063,8 @@ ON DUPLICATE KEY UPDATE
             ]
             await tx.execute_many(
                 '''
-INSERT INTO batch_inst_coll_cancellable_resources (batch_id, inst_coll, token, n_ready_cancellable_jobs, ready_cancellable_cores_mcpu)
-VALUES (%s, %s, %s, %s, %s)
+INSERT INTO batch_inst_coll_cancellable_resources (batch_id, update_id, inst_coll, token, n_ready_cancellable_jobs, ready_cancellable_cores_mcpu)
+VALUES (%s, %s, %s, %s, %s, %s)
 ON DUPLICATE KEY UPDATE
   n_ready_cancellable_jobs = n_ready_cancellable_jobs + VALUES(n_ready_cancellable_jobs),
   ready_cancellable_cores_mcpu = ready_cancellable_cores_mcpu + VALUES(ready_cancellable_cores_mcpu);
@@ -1225,6 +1232,32 @@ VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
                 batch_spec.get('cancel_after_n_failures'),
             ),
         )
+
+        update_id = await tx.execute_and_fetchone(
+            '''
+SELECT update_id FROM batch_updates WHERE batch_id = %s;
+''',
+            (id,),
+        )
+
+        if update_id is None:
+            update_id = secret_alnum_string(8)
+
+        await tx.execute_insertone(
+            '''
+INSERT INTO batch_updates (batch_id, update_id, start_job_id, n_jobs, time_created)
+VALUES (%s, %s, %s, %s, %s)
+ON DUPLICATE KEY UPDATE n_jobs = n_jobs;
+''',
+            (
+                id,
+                update_id,
+                1,
+                batch_spec['n_jobs'],
+                now,
+            ),
+        )
+
         await tx.execute_insertone(
             '''
 INSERT INTO batches_n_jobs_in_complete_states (id) VALUES (%s);

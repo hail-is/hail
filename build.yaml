@@ -2064,6 +2064,12 @@ steps:
       - name: add-real-time-billing
         script: /io/sql/add-real-time-billing.sql
         online: true
+      - name: add-batch-updates
+        script: /io/sql/add-batch-updates.sql
+        online: true
+      - name: populate-batch-updates
+        script: /io/sql/populate_batch_updates.py
+        online: true
     inputs:
       - from: /repo/batch/sql
         to: /io/sql
