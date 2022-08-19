@@ -1995,7 +1995,7 @@ class JVMContainer:
 
         # We allocate 60% of memory per core to off heap memory
         memory_per_core_mib = worker_memory_per_core_mib(CLOUD, instance_config.worker_type())
-        memory_mib = n_cores * memory_per_core_mib
+        memory_mib = int(n_cores * memory_per_core_mib)
         heap_memory_mib = int(0.4 * memory_mib)
         off_heap_memory_per_core_mib = memory_mib - heap_memory_mib
 
