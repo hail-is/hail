@@ -2544,7 +2544,7 @@ steps:
       # destination on successful clone
       set +x
       clone() {
-        tmp_dir=$(mktemp -d) && git clone https://$1@github.com/hail-ci-test/$REPO_NAME.git $tmp_dir && mv $tmp_dir $2
+        tmp_dir=$(mktemp -d) && git clone https://$1@github.com/hail-ci-test/$2.git $tmp_dir && mv $tmp_dir $2
       }
       typeset -fx clone
       retry clone $TOKEN $REPO_NAME
