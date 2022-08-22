@@ -2542,11 +2542,13 @@ steps:
       # checkout new ci repo
       # Repeated clones should happen in fresh directories so we mv to the final
       # destination on successful clone
+      set +x
       clone() {
         tmp_dir=$(mktemp -d) && git clone https://$1@github.com/hail-ci-test/$REPO_NAME.git $tmp_dir && mv $tmp_dir $2
       }
       typeset -fx clone
       retry clone $TOKEN $REPO_NAME
+      set -x
       cd $REPO_NAME
 
       mkdir -p ./ci/test ./hail/
