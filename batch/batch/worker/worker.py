@@ -2718,14 +2718,15 @@ class Worker:
                     }
                 )
 
-            billing_update_data = {'timestamp': update_timestamp, 'attempts': running_attempts}
+            if running_attempts:
+                billing_update_data = {'timestamp': update_timestamp, 'attempts': running_attempts}
 
-            await self.client_session.post(
-                deploy_config.url('batch-driver', '/api/v1alpha/billing_update'),
-                json=billing_update_data,
-                headers=self.headers,
-            )
-            log.info(f'sent billing update for {time_msecs_str(update_timestamp)}')
+                await self.client_session.post(
+                    deploy_config.url('batch-driver', '/api/v1alpha/billing_update'),
+                    json=billing_update_data,
+                    headers=self.headers,
+                )
+                log.info(f'sent billing update for {time_msecs_str(update_timestamp)}')
 
         await retry_transient_errors(update)
 

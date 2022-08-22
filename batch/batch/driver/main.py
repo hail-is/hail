@@ -387,23 +387,24 @@ async def billing_update_1(request, instance):
     update_timestamp = body['timestamp']
     running_attempts = body['attempts']
 
-    where_attempt_query = []
-    where_attempt_args = []
-    for attempt in running_attempts:
-        where_attempt_query.append('(batch_id = %s AND job_id = %s AND attempt_id = %s)')
-        where_attempt_args.append([attempt['batch_id'], attempt['job_id'], attempt['attempt_id']])
+    if running_attempts:
+        where_attempt_query = []
+        where_attempt_args = []
+        for attempt in running_attempts:
+            where_attempt_query.append('(batch_id = %s AND job_id = %s AND attempt_id = %s)')
+            where_attempt_args.append([attempt['batch_id'], attempt['job_id'], attempt['attempt_id']])
 
-    where_query = f'WHERE {" OR ".join(where_attempt_query)}'
-    where_args = [update_timestamp] + flatten(where_attempt_args)
+        where_query = f'WHERE {" OR ".join(where_attempt_query)}'
+        where_args = [update_timestamp] + flatten(where_attempt_args)
 
-    await db.execute_many(
-        f'''
+        await db.execute_many(
+            f'''
 UPDATE attempts
 SET rollup_time = %s
 {where_query};
 ''',
-        where_args,
-    )
+            where_args,
+        )
 
     await instance.mark_healthy()
 
