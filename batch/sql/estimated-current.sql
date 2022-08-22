@@ -723,7 +723,6 @@ BEGIN
   SELECT resource INTO cur_resource FROM resources WHERE resource_id = NEW.resource_id;
 
   SELECT start_time, end_time, rollup_time INTO cur_start_time, cur_end_time, cur_rollup_time
-
   FROM attempts
   WHERE batch_id = NEW.batch_id AND job_id = NEW.job_id AND attempt_id = NEW.attempt_id
   LOCK IN SHARE MODE;
