@@ -1178,11 +1178,11 @@ LOCK IN SHARE MODE''',
             '''
 SELECT COALESCE(SUM(t.`usage` * t.rate), 0) AS cost
 FROM (
-  SELECT resource_id, CAST(COALESCE(SUM(`usage`), 0) AS SIGNED) AS `usage`
+  SELECT aggregated_billing_project_user_resources_v2.resource_id, CAST(COALESCE(SUM(`usage`), 0) AS SIGNED) AS `usage`
   FROM aggregated_billing_project_user_resources_v2
   LEFT JOIN resources on resources.resource_id = aggregated_billing_project_user_resources_v2.resource_id
   WHERE billing_project = %s
-  GROUP BY resource_id
+  GROUP BY aggregated_billing_project_user_resources_v2.resource_id
 ) AS t;
 ''',
             (billing_project,),
