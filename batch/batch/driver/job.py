@@ -36,17 +36,22 @@ SELECT batches.*, COALESCE(SUM(`usage` * rate), 0) AS cost, batches_cancelled.id
 FROM batches
 LEFT JOIN batches_n_jobs_in_complete_states
   ON batches.id = batches_n_jobs_in_complete_states.id
-LEFT JOIN aggregated_batch_resources
-  ON batches.id = aggregated_batch_resources.batch_id
+LEFT JOIN (
+  SELECT batch_id, resource_id, CAST(COALESCE(SUM(`usage`), 0) AS SIGNED) AS `usage`
+  FROM aggregated_batch_resources_v2
+  WHERE batch_id = %s
+  GROUP BY batch_id, resource_id
+) AS abr
+  ON batches.id = abr.batch_id
 LEFT JOIN resources
-  ON aggregated_batch_resources.resource = resources.resource
+  ON abr.resource_id = resources.resource_id
 LEFT JOIN batches_cancelled
   ON batches.id = batches_cancelled.id
 WHERE batches.id = %s AND NOT deleted AND callback IS NOT NULL AND
    batches.`state` = 'complete'
 GROUP BY batches.id;
 ''',
-        (batch_id,),
+        (batch_id, batch_id),
         'notify_batch_job_complete',
     )
 
