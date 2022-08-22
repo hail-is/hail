@@ -2545,6 +2545,7 @@ steps:
       clone() {
         tmp_dir=$(mktemp -d) && git clone https://$TOKEN@github.com/hail-ci-test/$REPO_NAME.git $tmp_dir && mv $tmp_dir $REPO_NAME
       }
+      typeset -fx clone
       retry clone
       cd $REPO_NAME
 
