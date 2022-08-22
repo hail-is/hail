@@ -2543,10 +2543,10 @@ steps:
       # Repeated clones should happen in fresh directories so we mv to the final
       # destination on successful clone
       clone() {
-        tmp_dir=$(mktemp -d) && git clone https://$TOKEN@github.com/hail-ci-test/$REPO_NAME.git $tmp_dir && mv $tmp_dir $REPO_NAME
+        tmp_dir=$(mktemp -d) && git clone https://$1@github.com/hail-ci-test/$REPO_NAME.git $tmp_dir && mv $tmp_dir $2
       }
       typeset -fx clone
-      retry clone
+      retry clone $TOKEN $REPO_NAME
       cd $REPO_NAME
 
       mkdir -p ./ci/test ./hail/
