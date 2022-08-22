@@ -35,7 +35,15 @@ from gear.clients import get_cloud_async_fs
 from hailtop import aiotools, httpx
 from hailtop.config import get_deploy_config
 from hailtop.hail_logging import AccessLogger
-from hailtop.utils import AsyncWorkerPool, Notice, dump_all_stacktraces, periodically_call, serialization, time_msecs
+from hailtop.utils import (
+    AsyncWorkerPool,
+    Notice,
+    dump_all_stacktraces,
+    flatten,
+    periodically_call,
+    serialization,
+    time_msecs,
+)
 from web_common import render_template, set_message, setup_aiohttp_jinja2, setup_common_static_routes
 
 from ..batch import cancel_batch_in_db
@@ -376,18 +384,25 @@ async def billing_update_1(request, instance):
     db: Database = request.app['db']
 
     body = await request.json()
-    args = []
-    for job in body:
-        args.append((job['batch_id'], job['job_id'], job['attempt_id'], job['start_time'], job['rollup_time']))
+    update_timestamp = body['timestamp']
+    running_attempts = body['attempts']
+
+    where_attempt_query = []
+    where_attempt_args = []
+    for attempt in running_attempts:
+        where_attempt_query.append('(batch_id = %s AND job_id = %s AND attempt_id = %s)')
+        where_attempt_args.append([attempt['batch_id'], attempt['job_id'], attempt['attempt_id']])
+
+    where_query = f'WHERE {" OR ".join(where_attempt_query)}'
+    where_args = [update_timestamp] + flatten(where_attempt_args)
 
     await db.execute_many(
-        '''
-INSERT INTO attempts (batch_id, job_id, attempt_id, start_time, rollup_time)
-VALUES (%s, %s, %s, %s, %s) AS new
-ON DUPLICATE KEY UPDATE
-  start_time = new.start_time, rollup_time = new.rollup_time;
+        f'''
+UPDATE attempts
+SET rollup_time = %s
+{where_query};
 ''',
-        args,
+        where_args,
     )
 
     await instance.mark_healthy()
