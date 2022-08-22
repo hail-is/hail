@@ -24,7 +24,7 @@ an earlier version of Hail to read files written in a later version.
 
 ---
 
-## Version 0.2.99
+## Version 0.2.98
 
 Released 2022-08-22
 
