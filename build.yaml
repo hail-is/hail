@@ -2540,11 +2540,9 @@ steps:
         -d "{ \"name\" : \"$REPO_NAME\" }"
 
       # checkout new ci repo
-      cd /io
-      for i in {1..12}; do
-          git clone https://$TOKEN@github.com/hail-ci-test/$REPO_NAME.git && break
-          sleep 5;
-      done
+      # Repeated clones should happen in fresh directories so we mv to the final
+      # destination on successful clone
+      retry tmp_dir=$(mktemp -d) && git clone https://$TOKEN@github.com/hail-ci-test/$REPO_NAME.git $tmp_dir && mv $tmp_dir $REPO_NAME
       cd $REPO_NAME
 
       mkdir -p ./ci/test ./hail/
