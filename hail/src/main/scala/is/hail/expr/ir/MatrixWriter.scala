@@ -1037,10 +1037,13 @@ case class PLINKPartitionWriter(typ: MatrixType, entriesFieldName: String) exten
 
     val elt = element.toI(cb).get(cb).asBaseStruct
 
-    val locus = elt.loadField(cb, locusIdx).get(cb).asLocus
-    val contig = locus.contig(cb).loadString(cb)
+    val (contig, position) = elt.loadField(cb, locusIdx).get(cb) match {
+      case locus: SLocusValue =>
+        locus.contig(cb).loadString(cb) -> locus.position(cb)
+      case locus: SBaseStructValue =>
+        locus.loadField(cb, 0).get(cb).asString.loadString(cb) -> locus.loadField(cb, 1).get(cb).asInt.value
+    }
     val cmPosition = elt.loadField(cb, cmPosIdx).get(cb).asDouble
-    val position = locus.position(cb)
     val varid = elt.loadField(cb, varidIdx).get(cb).asString.loadString(cb)
     val alleles = elt.loadField(cb, allelesIdx).get(cb).asIndexable
     val a0 = alleles.loadElement(cb, 0).get(cb).asString.loadString(cb)
@@ -1068,7 +1071,7 @@ case class PLINKPartitionWriter(typ: MatrixType, entriesFieldName: String) exten
       }, { case call: SCallValue =>
         val gtIx = cb.memoize(Code.invokeScalaObject1[Call, Int](Call.getClass, "unphasedDiploidGtIndex", call.canonicalCall(cb)))
         val gt = cb.ifx(gtIx.ceq(0), 3, cb.ifx(gtIx.ceq(1), 2, 0))
-        cb += bp.invoke[Int, Unit]("add", 1)
+        cb += bp.invoke[Int, Unit]("add", gt)
       })
     })
     cb += bp.invoke[Unit]("flush")
