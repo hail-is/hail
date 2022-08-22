@@ -93,6 +93,12 @@ package object utils extends Logging
     }
   }
 
+  def coerceToInt(l: Long): Int = {
+    if (l > Int.MaxValue || l < Int.MinValue)
+      fatal(s"int overflow: $l")
+    l.toInt
+  }
+
   def checkGzippedFile(fs: FS,
     input: String,
     forceGZ: Boolean,
