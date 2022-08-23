@@ -178,7 +178,7 @@ mypy-extensions==0.4.3
     #   mypy
 nbclient==0.6.4
     # via nbconvert
-nbconvert==6.5.0
+nbconvert==7.0.0
     # via
     #   jupyter
     #   nbsphinx
