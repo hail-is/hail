@@ -1,6 +1,10 @@
 VCF Combiner
 ============
 
+.. warning::
+
+    The Hail GVCF combiner is deprecated in favor of the :class:`.VariantDatasetCombiner`.
+
 Hail has functionality for combining single-sample GVCFs into a multi-sample
 matrix table. This process is sometimes called "joint calling", although the
 implementation in Hail does not use cohort-level information to reassign individual
