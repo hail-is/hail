@@ -35,7 +35,15 @@ from gear.clients import get_cloud_async_fs
 from hailtop import aiotools, httpx
 from hailtop.config import get_deploy_config
 from hailtop.hail_logging import AccessLogger
-from hailtop.utils import AsyncWorkerPool, Notice, dump_all_stacktraces, periodically_call, serialization, time_msecs
+from hailtop.utils import (
+    AsyncWorkerPool,
+    Notice,
+    dump_all_stacktraces,
+    flatten,
+    periodically_call,
+    serialization,
+    time_msecs,
+)
 from web_common import render_template, set_message, setup_aiohttp_jinja2, setup_common_static_routes
 
 from ..batch import cancel_batch_in_db
@@ -370,6 +378,43 @@ async def job_started_1(request, instance):
 @active_instances_only
 async def job_started(request, instance):
     return await asyncio.shield(job_started_1(request, instance))
+
+
+async def billing_update_1(request, instance):
+    db: Database = request.app['db']
+
+    body = await request.json()
+    update_timestamp = body['timestamp']
+    running_attempts = body['attempts']
+
+    if running_attempts:
+        where_attempt_query = []
+        where_attempt_args = []
+        for attempt in running_attempts:
+            where_attempt_query.append('(batch_id = %s AND job_id = %s AND attempt_id = %s)')
+            where_attempt_args.append([attempt['batch_id'], attempt['job_id'], attempt['attempt_id']])
+
+        where_query = f'WHERE {" OR ".join(where_attempt_query)}'
+        where_args = [update_timestamp] + flatten(where_attempt_args)
+
+        await db.execute_many(
+            f'''
+UPDATE attempts
+SET rollup_time = %s
+{where_query};
+''',
+            where_args,
+        )
+
+    await instance.mark_healthy()
+
+    return web.Response()
+
+
+@routes.post('/api/v1alpha/billing_update')
+@active_instances_only
+async def billing_update(request, instance):
+    return await asyncio.shield(billing_update_1(request, instance))
 
 
 @routes.get('/')
@@ -953,14 +998,14 @@ async def check_resource_aggregation(app, db):
         attempt_resources = tx.execute_and_fetchall(
             '''
 SELECT attempt_resources.batch_id, attempt_resources.job_id, attempt_resources.attempt_id,
-  JSON_OBJECTAGG(resources.resource, quantity * GREATEST(COALESCE(end_time - start_time, 0), 0)) as resources
+  JSON_OBJECTAGG(resources.resource, quantity * GREATEST(COALESCE(rollup_time - start_time, 0), 0)) as resources
 FROM attempt_resources
 INNER JOIN attempts
 ON attempts.batch_id = attempt_resources.batch_id AND
   attempts.job_id = attempt_resources.job_id AND
   attempts.attempt_id = attempt_resources.attempt_id
 LEFT JOIN resources ON attempt_resources.resource_id = resources.resource_id
-WHERE GREATEST(COALESCE(end_time - start_time, 0), 0) != 0
+WHERE GREATEST(COALESCE(rollup_time - start_time, 0), 0) != 0
 GROUP BY batch_id, job_id, attempt_id
 LOCK IN SHARE MODE;
 '''
@@ -1235,6 +1280,7 @@ class BatchDriverAccessLogger(AccessLogger):
         self.exclude = [
             (endpoint[0], re.compile(deploy_config.base_path('batch-driver') + endpoint[1]))
             for endpoint in [
+                ('POST', '/api/v1alpha/instances/billing_update'),
                 ('POST', '/api/v1alpha/instances/job_complete'),
                 ('POST', '/api/v1alpha/instances/job_started'),
                 ('PATCH', '/api/v1alpha/batches/.*/.*/close'),
