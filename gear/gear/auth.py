@@ -35,7 +35,7 @@ def _init_userdata_cache(client_session: httpx.ClientSession):
     global USERDATA_CACHE
 
     async def load(session_id):
-        return _userdata_from_session_id(session_id, client_session)
+        return await _userdata_from_session_id(session_id, client_session)
 
     USERDATA_CACHE = TimeLimitedMaxSizeCache(load, TEN_SECONDS_NANOSECONDS, 100, 'session_userdata_cache')
 
