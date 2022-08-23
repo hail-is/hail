@@ -75,6 +75,7 @@ spec:
       volumes:
         - name: letsencrypt-config
           secret:
+            optional: true
             secretName: letsencrypt-config
         - name: ssl-config-gateway
           secret:
