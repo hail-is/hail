@@ -8,7 +8,7 @@ import is.hail.expr.ir.lowering._
 import is.hail.expr.ir.{IRParser, _}
 import is.hail.expr.{JSONAnnotationImpex, Validate}
 import is.hail.io.bgen.IndexBgen
-import is.hail.io.fs.{FS, HadoopFS}
+import is.hail.io.fs._
 import is.hail.io.plink.LoadPlink
 import is.hail.io.{BufferSpec, TypedCodecSpec}
 import is.hail.linalg.BlockMatrix
@@ -87,7 +87,14 @@ class LocalBackend(
     current
   }
 
-  def parallelizeAndComputeWithIndex(backendContext: BackendContext, fs: FS, collection: Array[Array[Byte]], dependency: Option[TableStageDependency] = None)(f: (Array[Byte], HailTaskContext, HailClassLoader, FS) => Array[Byte]): Array[Array[Byte]] = {
+  def parallelizeAndComputeWithIndex(
+    backendContext: BackendContext,
+    fs: FS,
+    collection: Array[Array[Byte]],
+    dependency: Option[TableStageDependency] = None
+  )(
+    f: (Array[Byte], HailTaskContext, HailClassLoader, FS) => Array[Byte]
+  ): Array[Array[Byte]] = {
     val stageId = nextStageId()
     collection.zipWithIndex.map { case (c, i) =>
       val htc = new LocalTaskContext(i, stageId)

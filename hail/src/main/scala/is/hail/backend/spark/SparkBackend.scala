@@ -13,7 +13,7 @@ import is.hail.types.physical.{PStruct, PTuple, PType}
 import is.hail.types.virtual.{TArray, TInterval, TStruct, TVoid, Type}
 import is.hail.backend._
 import is.hail.expr.ir.IRParser.parseType
-import is.hail.io.fs.{FS, HadoopFS}
+import is.hail.io.fs._
 import is.hail.utils._
 import is.hail.io.bgen.IndexBgen
 import org.json4s.DefaultFormats
@@ -258,7 +258,7 @@ class SparkBackend(
 
   override def canExecuteParallelTasksOnDriver: Boolean = false
 
-  val fs: HadoopFS = new HadoopFS(new SerializableHadoopConfiguration(sc.hadoopConfiguration))
+  private[this] val fs: HadoopFS = new HadoopFS(new SerializableHadoopConfiguration(sc.hadoopConfiguration))
   private[this] val longLifeTempFileManager: TempFileManager = new OwningTempFileManager(fs)
 
   val bmCache: SparkBlockMatrixCache = SparkBlockMatrixCache()
@@ -312,13 +312,18 @@ class SparkBackend(
 
   def broadcast[T : ClassTag](value: T): BroadcastValue[T] = new SparkBroadcastValue[T](sc.broadcast(value))
 
-  def parallelizeAndComputeWithIndex(backendContext: BackendContext, fs: FS, collection: Array[Array[Byte]], dependency: Option[TableStageDependency] = None)(f: (Array[Byte], HailTaskContext, HailClassLoader, FS) => Array[Byte]): Array[Array[Byte]] = {
-    val fsBc = fs.broadcast
-
+  def parallelizeAndComputeWithIndex(
+    backendContext: BackendContext,
+    fs: FS,
+    collection: Array[Array[Byte]],
+    dependency: Option[TableStageDependency] = None
+  )(
+    f: (Array[Byte], HailTaskContext, HailClassLoader, FS) => Array[Byte]
+  ): Array[Array[Byte]] = {
     val sparkDeps = dependency.toIndexedSeq
       .flatMap(dep => dep.deps.map(rvdDep => new AnonymousDependency(rvdDep.asInstanceOf[RVDDependency].rvd.crdd.rdd)))
 
-    new SparkBackendComputeRDD(fsBc, sc, collection, f, sparkDeps).collect()
+    new SparkBackendComputeRDD(sc, collection, f, sparkDeps).collect()
   }
 
   def defaultParallelism: Int = sc.defaultParallelism
@@ -749,12 +754,11 @@ class SparkBackend(
 case class SparkBackendComputeRDDPartition(data: Array[Byte], index: Int) extends Partition
 
 class SparkBackendComputeRDD(
-  fsBc: BroadcastValue[FS],
   sc: SparkContext,
   @transient private val collection: Array[Array[Byte]],
   f: (Array[Byte], HailTaskContext, HailClassLoader, FS) => Array[Byte],
-  deps: Seq[Dependency[_]])
-  extends RDD[Array[Byte]](sc, deps) {
+  deps: Seq[Dependency[_]]
+) extends RDD[Array[Byte]](sc, deps) {
 
   override def getPartitions: Array[Partition] = {
     Array.tabulate(collection.length)(i => SparkBackendComputeRDDPartition(collection(i), i))
@@ -762,6 +766,7 @@ class SparkBackendComputeRDD(
 
   override def compute(partition: Partition, context: TaskContext): Iterator[Array[Byte]] = {
     val sp = partition.asInstanceOf[SparkBackendComputeRDDPartition]
-    Iterator.single(f(sp.data, SparkTaskContext.get(), theHailClassLoaderForSparkWorkers, fsBc.value))
+    val fs = new HadoopFS(null)
+    Iterator.single(f(sp.data, SparkTaskContext.get(), theHailClassLoaderForSparkWorkers, fs))
   }
 }
