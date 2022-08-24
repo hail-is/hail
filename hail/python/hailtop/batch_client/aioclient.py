@@ -435,8 +435,9 @@ class JobSpec:
 
 
 class BatchSubmissionInfo:
-    def __init__(self, used_fast_create):
+    def __init__(self, used_fast_create: Optional[bool] = None, used_fast_update: Optional[bool] = None):
         self.used_fast_create = used_fast_create
+        self.used_fast_update = used_fast_update
 
 
 class Batch:
@@ -709,7 +710,7 @@ class BatchBuilder:
                       self.attributes,
                       n_jobs,
                       self.token,
-                      submission_info=BatchSubmissionInfo(True))
+                      submission_info=BatchSubmissionInfo(used_fast_create=True))
         start_job_id = batch_json['start_job_id']
         return (batch, start_job_id)
 
@@ -746,7 +747,8 @@ class BatchBuilder:
                           self._batch_id,
                           self.attributes,
                           update_json['n_jobs'],
-                          self.token)
+                          self.token,
+                          submission_info=BatchSubmissionInfo(used_fast_update=True))
 
         start_job_id = update_json['start_job_id']
         if start_job_id is None:
@@ -777,7 +779,7 @@ class BatchBuilder:
                      self.attributes,
                      batch_spec['n_jobs'],
                      self.token,
-                     submission_info=BatchSubmissionInfo(False))
+                     submission_info=BatchSubmissionInfo(used_fast_create=False))
 
     async def _create_update(self):
         assert self._batch_id and self._update_id
@@ -794,7 +796,8 @@ class BatchBuilder:
         if self._batch:
             self._batch.n_jobs = new_n_jobs
         else:
-            self._batch = Batch(self._client, self._batch_id, commit_json['attributes'], new_n_jobs, commit_json['token'])
+            self._batch = Batch(self._client, self._batch_id, commit_json['attributes'], new_n_jobs, commit_json['token'],
+                                submission_info=BatchSubmissionInfo(used_fast_update=False))
         return (self._batch, commit_json['start_job_id'])
 
     MAX_BUNCH_BYTESIZE = 1024 * 1024

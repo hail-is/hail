@@ -1333,7 +1333,7 @@ FROM batch_updates
 LEFT JOIN batches ON batch_updates.batch_id = batches.id
 LEFT JOIN batches_cancelled
   ON batch_updates.batch_id = batches_cancelled.id
-WHERE user = %s AND batch_updates.batch_id = %s AND batch_updates.update_id = %s AND NOT batches.deleted;            
+WHERE user = %s AND batch_updates.batch_id = %s AND batch_updates.update_id = %s AND NOT batches.deleted;
 ''',
             (batch_id, batch_id, update_id, user, batch_id, update_id),
         )

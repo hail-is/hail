@@ -1145,3 +1145,17 @@ def test_update_batch_w_multiple_empty_updates(client: BatchClient):
 
     assert status['state'] == 'Success', str((status, b.debug_info()))
     assert j1.job_id == 1, str(b.debug_info())
+
+
+def test_update_batch_wout_fast_path(client: BatchClient):
+    b = client.create_batch()
+    b = b.submit()
+
+    # 8 * 256 * 1024 = 2 MiB > 1 MiB max bunch size
+    for i in range(8):
+        long_str = secrets.token_urlsafe(256 * 1024)
+        _ = b.create_job('ubuntu:18.04', ['echo', f'"{long_str}"', '>', '/dev/null'])
+    b = b.submit()
+    assert not b.submission_info.used_fast_update
+    batch_status = b.wait()
+    assert batch_status['state'] == 'success', str(b.debug_info())

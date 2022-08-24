@@ -191,13 +191,9 @@ def handle_deprecated_job_keys(i, job):
         job['cloudfuse'] = job.pop('gcsfuse')
 
     if 'job_id' in job and 'relative_job_id' in job:
-        raise ValidationError(
-            f"jobs[{i}] has both the job_id and relative_job_id defined. Only one can be given."
-        )
+        raise ValidationError(f"jobs[{i}] has both the job_id and relative_job_id defined. Only one can be given.")
     if 'job_id' not in job and 'relative_job_id' not in job:
-        raise ValidationError(
-            f"jobs[{i}] does not have either a job_id or relative_job_id defined."
-        )
+        raise ValidationError(f"jobs[{i}] does not have either a job_id or relative_job_id defined.")
 
     if 'job_id' in job:
         job['relative_job_id'] = job.pop('job_id')
