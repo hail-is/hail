@@ -10,6 +10,7 @@ import com.google.cloud.storage.Storage.{BlobListOption, BlobWriteOption, BlobSo
 import com.google.cloud.storage.{Option => StorageOption, _}
 import is.hail.io.fs.FSUtil.{containsWildcard, dropTrailingSlash}
 import is.hail.services.retryTransientErrors
+import is.hail.utils.fatal
 
 import scala.collection.JavaConverters._
 import scala.collection.mutable
@@ -64,7 +65,7 @@ object RequesterPaysConfiguration {
       val buckets = if (requesterPaysBuckets == null) {
         None
       } else {
-        Some(buckets.split(",").toSet)
+        Some(requesterPaysBuckets.split(",").toSet)
       }
       Some(RequesterPaysConfiguration(requesterPaysProject, buckets))
     }
