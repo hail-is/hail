@@ -1713,7 +1713,7 @@ WHERE user = %s AND id = %s AND NOT deleted;
 
     update_id = record['update_id']
 
-    next_url = request.app.router['commit-batch-update'].url_for(batch_id=batch_id, update_id=update_id)
+    next_url = request.app.router['commit-batch-update'].url_for(batch_id=str(batch_id), update_id=update_id)
     raise web.HTTPFound(location=next_url)
 
 

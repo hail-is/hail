@@ -68,7 +68,7 @@ LEFT JOIN (
   FROM base_t
   LEFT JOIN batch_updates ON batches.id = batch_updates.batch_id
   GROUP BY batch_updates.batch_id
-) AS updates_t ON base_t.id = updates_t.id;
+) AS updates_t ON base_t.id = updates_t.batch_id;
 ''',
         (batch_id,),
         'notify_batch_job_complete',
