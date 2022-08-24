@@ -170,14 +170,16 @@ CREATE INDEX `batches_billing_project_state` ON `batches` (`billing_project`, `s
 
 CREATE TABLE IF NOT EXISTS `batch_updates` (
   `batch_id` BIGINT NOT NULL,
-  `update_id` VARCHAR(40) NOT NULL,
-  `start_job_id` INT,
+  `update_id` INT NOT NULL,
+  `token` VARCHAR(100) DEFAULT NULL,
+  `start_job_id` INT NOT NULL,
   `n_jobs` INT NOT NULL,
   `committed` BOOLEAN NOT NULL DEFAULT FALSE,
   `time_created` BIGINT,
   `time_committed` BIGINT,
   PRIMARY KEY (`batch_id`, `update_id`),
-  FOREIGN KEY (`batch_id`) REFERENCES batches(`id`)
+  FOREIGN KEY (`batch_id`) REFERENCES batches(`id`),
+  UNIQUE KEY (`batch_id`, `start_job_id`)
 ) ENGINE = InnoDB;
 CREATE INDEX `batch_updates_committed` ON `batch_updates` (`batch_id`, `committed`);
 CREATE INDEX `batch_updates_start_job_id` ON `batch_updates` (`batch_id`, `start_job_id`);
@@ -200,7 +202,7 @@ CREATE TABLE IF NOT EXISTS `batches_cancelled` (
 
 CREATE TABLE IF NOT EXISTS `batches_inst_coll_staging` (
   `batch_id` BIGINT NOT NULL,
-  `update_id` VARCHAR(40) NOT NULL,
+  `update_id` INT NOT NULL,
   `inst_coll` VARCHAR(255),
   `token` INT NOT NULL,
   `n_jobs` INT NOT NULL DEFAULT 0,
@@ -215,7 +217,7 @@ CREATE INDEX `batches_inst_coll_staging_inst_coll` ON `batches_inst_coll_staging
 
 CREATE TABLE `batch_inst_coll_cancellable_resources` (
   `batch_id` BIGINT NOT NULL,
-  `update_id` VARCHAR(40) NOT NULL,
+  `update_id` INT NOT NULL,
   `inst_coll` VARCHAR(255),
   `token` INT NOT NULL,
   # neither run_always nor cancelled
@@ -554,7 +556,7 @@ BEGIN
   DECLARE cur_user VARCHAR(100);
   DECLARE cur_batch_cancelled BOOLEAN;
   DECLARE cur_n_tokens INT;
-  DECLARE cur_update_id VARCHAR(40);
+  DECLARE cur_update_id INT;
   DECLARE rand_token INT;
 
   SELECT user INTO cur_user FROM batches WHERE id = NEW.batch_id;
@@ -976,7 +978,7 @@ END $$
 DROP PROCEDURE IF EXISTS commit_batch_update $$
 CREATE PROCEDURE commit_batch_update(
   IN in_batch_id BIGINT,
-  IN in_update_id VARCHAR(40),
+  IN in_update_id INT,
   IN in_timestamp BIGINT
 )
 BEGIN
@@ -1001,6 +1003,7 @@ BEGIN
     COMMIT;
     SELECT 0 as rc;
   ELSE
+    # TODO Can I delete this?
     SELECT SUM(NOT committed) INTO cur_other_updates_in_progress
     FROM batch_updates
     WHERE batch_id = in_batch_id AND update_id != in_update_id
@@ -1013,6 +1016,8 @@ BEGIN
     WHERE batch_id = in_batch_id AND update_id = in_update_id
     FOR UPDATE;
 
+    # TODO We need to take the batch FOR UPDATE early on, or this will deadlock with
+    # concurrent updates that try to upgrade this S lock to an X lock
     SELECT user INTO cur_user FROM batches WHERE id = in_batch_id;
 
     UPDATE batch_updates
@@ -1020,8 +1025,10 @@ BEGIN
     WHERE batch_id = in_batch_id AND update_id = in_update_id;
 
     IF staging_n_jobs = expected_n_jobs THEN
-      UPDATE batches SET `state` = IF(expected_n_jobs != 0, 'running', state),
-        time_completed = IF(expected_n_jobs != 0, NULL, time_completed)
+      UPDATE batches SET
+        `state` = 'running',
+        time_completed = NULL,
+        n_jobs = n_jobs + expected_n_jobs
       WHERE id = in_batch_id;
 
       INSERT INTO user_inst_coll_resources (user, inst_coll, token, n_ready_jobs, ready_cores_mcpu)
@@ -1176,9 +1183,9 @@ BEGIN
       COALESCE(SUM(n_creating_cancellable_jobs), 0)
     FROM batch_inst_coll_cancellable_resources
     JOIN batches ON batches.id = batch_inst_coll_cancellable_resources.batch_id
-    LEFT JOIN batch_updates ON batch_inst_coll_cancellable_resources.batch_id = batch_updates.batch_id AND
+    INNER JOIN batch_updates ON batch_inst_coll_cancellable_resources.batch_id = batch_updates.batch_id AND
       batch_inst_coll_cancellable_resources.update_id = batch_updates.update_id
-    WHERE batch_updates.batch_id = in_batch_id AND `committed`
+    WHERE batch_inst_coll_cancellable_resources.batch_id = in_batch_id AND batch_updates.committed
     GROUP BY user, inst_coll
     ON DUPLICATE KEY UPDATE
       n_ready_jobs = n_ready_jobs - @n_ready_cancellable_jobs,

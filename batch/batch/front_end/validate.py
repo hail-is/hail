@@ -108,14 +108,14 @@ batch_validator = keyed(
         'callback': nullable(str_type),
         required('n_jobs'): int_type,
         required('token'): str_type,
-        'update_id': str_type,
         'cancel_after_n_failures': nullable(numeric(**{"x > 0": lambda x: isinstance(x, int) and x > 0})),
     }
 )
 
 batch_update_validator = keyed(
     {
-        required('n_jobs'): int_type,
+        required('token'): str_type,
+        required('n_jobs'): numeric(**{"x > 0": lambda x: isinstance(x, int) and x > 0}),
     }
 )
 

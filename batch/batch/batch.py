@@ -12,8 +12,6 @@ log = logging.getLogger('batch')
 
 
 def batch_record_to_dict(record):
-    n_jobs = record['n_committed_jobs']
-
     if record['state'] == 'open':
         state = 'open'
     elif record['n_failed'] > 0:
@@ -21,7 +19,7 @@ def batch_record_to_dict(record):
     elif record['cancelled'] or record['n_cancelled'] > 0:
         state = 'cancelled'
     elif record['state'] == 'complete':
-        assert record['n_succeeded'] == n_jobs, record
+        assert record['n_succeeded'] == record['n_jobs']
         state = 'success'
     else:
         state = 'running'
@@ -33,7 +31,7 @@ def batch_record_to_dict(record):
 
     time_created = _time_msecs_str(record['time_created'])
     time_closed = _time_msecs_str(record['time_closed'])
-    time_updated_str = _time_msecs_str(record['time_updated'])
+    time_updated = _time_msecs_str(record['time_updated'] or record['time_created'])
     time_completed = _time_msecs_str(record['time_completed'])
 
     if record['time_created'] and record['time_completed']:
@@ -49,15 +47,15 @@ def batch_record_to_dict(record):
         'state': state,
         'complete': record['state'] == 'complete',
         'closed': record['state'] != 'open',  # deprecated
-        'n_updates_in_progress': record['n_updates_in_progress'],
-        'n_jobs': n_jobs,
+        'n_updates_in_progress': record['n_updates_in_progress'] or 0,
+        'n_jobs': record['n_jobs'],
         'n_completed': record['n_completed'],
         'n_succeeded': record['n_succeeded'],
         'n_failed': record['n_failed'],
         'n_cancelled': record['n_cancelled'],
         'time_created': time_created,
         'time_closed': time_closed,  # deprecated
-        'time_updated': time_updated_str,
+        'time_updated': time_updated,
         'time_completed': time_completed,
         'duration': duration,
         'msec_mcpu': record['msec_mcpu'],

@@ -75,12 +75,12 @@ async def test_bad_token():
     token = session_id_encode_to_str(secrets.token_bytes(32))
     bc = await BatchClient.create('test', _token=token)
     try:
-        b = bc.create_batch()
-        j = b.create_job(DOCKER_ROOT_IMAGE, ['false'])
-        await b.submit()
+        builder = bc.create_batch()
+        builder.create_job(DOCKER_ROOT_IMAGE, ['false'])
+        b = await builder.submit()
         assert False, str(await b.debug_info())
     except aiohttp.ClientResponseError as e:
-        assert e.status == 401, str((e, await b.debug_info()))
+        assert e.status == 401
     finally:
         await bc.close()
 
@@ -170,23 +170,6 @@ async def test_close_reopen_billing_project(dev_client: BatchClient, new_billing
     assert [bp['billing_project'] for bp in r if bp['billing_project'] == project and bp['status'] == 'open'] == [
         project
     ], r
-
-
-async def test_close_billing_project_with_open_batch_errors(
-    make_client: Callable[[str], Awaitable[BatchClient]], dev_client: BatchClient, new_billing_project: str
-):
-    project = new_billing_project
-    await dev_client.add_user("test", project)
-    client = await make_client(project)
-    b = await client.create_batch()._create_batch()
-
-    try:
-        await dev_client.close_billing_project(project)
-    except aiohttp.ClientResponseError as e:
-        assert e.status == 403, str((e, await b.debug_info()))
-    else:
-        assert False, str(await b.debug_info())
-    await client._patch(f'/api/v1alpha/batches/{b.id}/close')
 
 
 async def test_close_nonexistent_billing_projet(dev_client: BatchClient):
@@ -400,7 +383,7 @@ async def test_billing_limit_zero(
         bb = client.create_batch()
         batch = await bb.submit()
     except aiohttp.ClientResponseError as e:
-        assert e.status == 403 and 'has exceeded the budget' in e.message, str(await batch.debug_info())
+        assert e.status == 403 and 'has exceeded the budget' in e.message
     else:
         assert False, str(await batch.debug_info())
 
@@ -544,7 +527,7 @@ async def test_batch_cannot_be_accessed_by_users_outside_the_billing_project(
         except aiohttp.ClientResponseError as e:
             assert e.status == 404, str((e, await b_handle.debug_info()))
         else:
-            assert False, str(await b_handle.debug_info)
+            assert False, str(await b_handle.debug_info())
 
         try:
             await user2_client.get_job(j.batch_id, j.job_id)
@@ -606,18 +589,3 @@ async def test_batch_cannot_be_accessed_by_users_outside_the_billing_project(
 
     finally:
         await b_handle.delete()
-
-
-async def test_deleted_open_batches_do_not_prevent_billing_project_closure(
-    make_client: Callable[[str], Awaitable[BatchClient]],
-    dev_client: BatchClient,
-    random_billing_project_name: Callable[[], str],
-):
-    try:
-        project = await dev_client.create_billing_project(random_billing_project_name)
-        await dev_client.add_user('test', project)
-        client = await make_client(project)
-        open_batch = await client.create_batch()._create_batch()
-        await open_batch.delete()
-    finally:
-        await dev_client.close_billing_project(project)

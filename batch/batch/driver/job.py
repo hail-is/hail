@@ -41,32 +41,30 @@ SELECT batches.*,
   batches_n_jobs_in_complete_states.n_cancelled
 FROM batches
 LEFT JOIN batches_n_jobs_in_complete_states
-  ON batches.id = batches_n_jobs_in_complete_states.id
+       ON batches.id = batches_n_jobs_in_complete_states.id
 LEFT JOIN batches_cancelled
-  ON batches.id = batches_cancelled.id
+       ON batches.id = batches_cancelled.id
 WHERE batches.id = %s AND NOT deleted AND callback IS NOT NULL
 )
-SELECT base_t.*, cost_t.cost, updates_t.n_committed_jobs, updates_t.n_updates_in_progress
+SELECT base_t.*, cost_t.cost, updates_t.n_updates_in_progress, updates_t.time_updated
 FROM base_t
 LEFT JOIN (
   SELECT batch_id, COALESCE(SUM(`usage` * rate), 0) AS cost
   FROM (
-    SELECT aggregated_batch_resources_v2.batch_id, resource, COALESCE(SUM(`usage`), 0) AS usage
+    SELECT aggregated_batch_resources_v2.batch_id, resource_id, CAST(COALESCE(SUM(`usage`), 0) AS SIGNED) AS `usage`
     FROM base_t
     LEFT JOIN aggregated_batch_resources_v2 ON base_t.id = aggregated_batch_resources_v2.batch_id
-    GROUP BY batch_id, resource
-  ) AS usage_t ON base_t.id = usage_t.batch_id
+    GROUP BY aggregated_batch_resources_v2.batch_id, aggregated_batch_resources_v2.resource_id
+  ) AS usage_t
   LEFT JOIN resources ON usage_t.resource_id = resources.resource_id
-  GROUP BY batch_id
+  GROUP BY usage_t.batch_id
 ) AS cost_t ON base_t.id = cost_t.batch_id
 LEFT JOIN (
   SELECT batch_updates.batch_id,
-    CAST(COALESCE(SUM(1), 0) AS SIGNED) AS n_updates,
-    CAST(COALESCE(SUM(IF(batch_updates.committed, batch_updates.n_jobs, 0)), 0) AS SIGNED) AS n_committed_jobs,
     CAST(COALESCE(SUM(NOT batch_updates.committed), 0) AS SIGNED) AS n_updates_in_progress,
     MAX(batch_updates.time_committed) AS time_updated
   FROM base_t
-  LEFT JOIN batch_updates ON batches.id = batch_updates.batch_id
+  LEFT JOIN batch_updates ON base_t.id = batch_updates.batch_id
   GROUP BY batch_updates.batch_id
 ) AS updates_t ON base_t.id = updates_t.batch_id;
 ''',
@@ -77,9 +75,8 @@ LEFT JOIN (
     if not record:
         return
 
-    if record['state'] != 'complete' or (
-        record['n_updates_in_progress'] > 0 or record['n_completed'] != record['n_committed_jobs']
-    ):
+    updates_in_progress = record['n_updates_in_progress'] or 0
+    if record['state'] != 'complete' or updates_in_progress > 0:
         return
 
     callback = record['callback']

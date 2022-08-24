@@ -1,6 +1,6 @@
 import collections
 import logging
-from typing import Dict, Tuple
+from typing import Dict, Tuple, Optional
 
 import sortedcontainers
 
@@ -43,26 +43,26 @@ class SpecWriter:
         assert index < len(in_batch_cache)
         if index >= 0:
             token, start, end = in_batch_cache[index]
-            if (job_id >= start and end is None) or job_id in range(start, end):
+            if job_id in range(start, end):
                 return (token, start)
 
         token, start_job_id, next_start_job_id = await SpecWriter._get_token_start_id_and_next_start_id(
             db, batch_id, job_id
         )
 
-        # It is least likely that old batches or early bunches in a given
-        # batch will be needed again
-        if len(JOB_TOKEN_CACHE) == JOB_TOKEN_CACHE_MAX_BATCHES:
-            JOB_TOKEN_CACHE.pop(min(JOB_TOKEN_CACHE.keys()))
-        elif len(JOB_TOKEN_CACHE[batch_id]) == JOB_TOKEN_CACHE_MAX_BUNCHES_PER_BATCH:
-            JOB_TOKEN_CACHE[batch_id].pop(0)
-
-        JOB_TOKEN_CACHE[batch_id].add((token, start_job_id, next_start_job_id))
+        if next_start_job_id is not None:
+            # It is least likely that old batches or early bunches in a given
+            # batch will be needed again
+            if len(JOB_TOKEN_CACHE) == JOB_TOKEN_CACHE_MAX_BATCHES:
+                JOB_TOKEN_CACHE.pop(min(JOB_TOKEN_CACHE.keys()))
+            elif len(JOB_TOKEN_CACHE[batch_id]) == JOB_TOKEN_CACHE_MAX_BUNCHES_PER_BATCH:
+                JOB_TOKEN_CACHE[batch_id].pop(0)
+            JOB_TOKEN_CACHE[batch_id].add((token, start_job_id, next_start_job_id))
 
         return (token, start_job_id)
 
     @staticmethod
-    async def _get_token_start_id_and_next_start_id(db, batch_id, job_id) -> Tuple[str, int, int]:
+    async def _get_token_start_id_and_next_start_id(db, batch_id, job_id) -> Tuple[str, int, Optional[int]]:
         bunch_record = await db.select_and_fetchone(
             '''
 SELECT

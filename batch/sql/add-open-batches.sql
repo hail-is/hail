@@ -3,7 +3,7 @@ DELIMITER $$
 DROP PROCEDURE IF EXISTS commit_batch_update $$
 CREATE PROCEDURE commit_batch_update(
   IN in_batch_id BIGINT,
-  IN in_update_id VARCHAR(40),
+  IN in_update_id INT,
   IN in_timestamp BIGINT
 )
 BEGIN
@@ -47,8 +47,10 @@ BEGIN
     WHERE batch_id = in_batch_id AND update_id = in_update_id;
 
     IF staging_n_jobs = expected_n_jobs THEN
-      UPDATE batches SET `state` = IF(expected_n_jobs != 0, 'running', state),
-        time_completed = IF(expected_n_jobs != 0, NULL, time_completed)
+      UPDATE batches SET
+        `state` = 'running',
+        time_completed = NULL,
+        n_jobs = n_jobs + expected_n_jobs
       WHERE id = in_batch_id;
 
       INSERT INTO user_inst_coll_resources (user, inst_coll, token, n_ready_jobs, ready_cores_mcpu)
@@ -139,9 +141,9 @@ BEGIN
       COALESCE(SUM(n_creating_cancellable_jobs), 0)
     FROM batch_inst_coll_cancellable_resources
     JOIN batches ON batches.id = batch_inst_coll_cancellable_resources.batch_id
-    LEFT JOIN batch_updates ON batch_inst_coll_cancellable_resources.batch_id = batch_updates.batch_id AND
+    INNER JOIN batch_updates ON batch_inst_coll_cancellable_resources.batch_id = batch_updates.batch_id AND
       batch_inst_coll_cancellable_resources.update_id = batch_updates.update_id
-    WHERE batch_updates.batch_id = in_batch_id AND `committed`
+    WHERE batch_inst_coll_cancellable_resources.batch_id = in_batch_id AND batch_updates.committed
     GROUP BY user, inst_coll
     ON DUPLICATE KEY UPDATE
       n_ready_jobs = n_ready_jobs - @n_ready_cancellable_jobs,

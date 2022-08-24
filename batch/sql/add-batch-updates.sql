@@ -3,20 +3,22 @@ START TRANSACTION;
 # Foreign key constraint for batch_id needs to be added in a subsequent PR in order for the migration to work
 CREATE TABLE IF NOT EXISTS `batch_updates` (
   `batch_id` BIGINT NOT NULL,
-  `update_id` VARCHAR(40) NOT NULL,
-  `start_job_id` INT,
+  `update_id` INT NOT NULL,
+  `token` VARCHAR(100) DEFAULT NULL,
+  `start_job_id` INT NOT NULL,
   `n_jobs` INT NOT NULL,
   `committed` BOOLEAN NOT NULL DEFAULT FALSE,
   `time_created` BIGINT,
   `time_committed` BIGINT,
-  PRIMARY KEY (`batch_id`, `update_id`)
+  PRIMARY KEY (`batch_id`, `update_id`),
+  UNIQUE KEY (`batch_id`, `start_job_id`)
 ) ENGINE = InnoDB;
 CREATE INDEX `batch_updates_committed` ON `batch_updates` (`batch_id`, `committed`);
 CREATE INDEX `batch_updates_start_job_id` ON `batch_updates` (`batch_id`, `start_job_id`);
 
 ALTER TABLE batches ADD COLUMN update_added BOOLEAN DEFAULT FALSE, ALGORITHM=INSTANT;
-ALTER TABLE batches_inst_coll_staging ADD COLUMN update_id VARCHAR(40), ALGORITHM=INSTANT;
-ALTER TABLE batch_inst_coll_cancellable_resources ADD COLUMN update_id VARCHAR(40), ALGORITHM=INSTANT;
+ALTER TABLE batches_inst_coll_staging ADD COLUMN update_id INT, ALGORITHM=INSTANT;
+ALTER TABLE batch_inst_coll_cancellable_resources ADD COLUMN update_id INT, ALGORITHM=INSTANT;
 
 DELIMITER $$
 
@@ -24,13 +26,13 @@ DROP TRIGGER IF EXISTS batches_before_insert $$
 CREATE TRIGGER batches_before_insert BEFORE INSERT ON batches
 FOR EACH ROW
 BEGIN
-  DECLARE cur_update_id VARCHAR(40);
-  DECLARE new_update_id VARCHAR(40);
+  DECLARE cur_update_id INT;
+  DECLARE new_update_id INT;
 
   SELECT update_id INTO cur_update_id FROM batch_updates WHERE batch_id = NEW.id;
 
   IF cur_update_id IS NULL THEN
-    SET new_update_id = LEFT(MD5(RAND()), 8);
+    SET new_update_id = 1;
 
     INSERT INTO `batch_updates` (`batch_id`, `update_id`, start_job_id, n_jobs, `committed`, time_created, time_committed)
       VALUES (NEW.id, new_update_id, 1, NEW.n_jobs, NEW.state != 'open', NEW.time_created, NEW.time_closed)
@@ -51,10 +53,10 @@ DROP TRIGGER IF EXISTS batches_after_update $$
 CREATE TRIGGER batches_after_update AFTER UPDATE ON batches
 FOR EACH ROW
 BEGIN
-  DECLARE new_update_id VARCHAR(40);
+  DECLARE new_update_id INT;
 
   IF NOT OLD.update_added THEN
-    SET new_update_id = LEFT(MD5(RAND()), 8);
+    SET new_update_id = 1;
 
     INSERT INTO `batch_updates` (`batch_id`, `update_id`, start_job_id, n_jobs, `committed`, time_created, time_committed)
       VALUES (NEW.id, new_update_id, 1, NEW.n_jobs, NEW.state != 'open', NEW.time_created, NEW.time_closed)
@@ -74,7 +76,7 @@ DROP TRIGGER IF EXISTS batches_inst_coll_staging_before_insert $$
 CREATE TRIGGER batches_inst_coll_staging_before_insert BEFORE INSERT ON batches_inst_coll_staging
 FOR EACH ROW
 BEGIN
-  DECLARE cur_update_id VARCHAR(40);
+  DECLARE cur_update_id INT;
 
   IF NEW.update_id IS NULL THEN
     SELECT update_id INTO cur_update_id FROM batch_updates WHERE batch_id = NEW.batch_id;
@@ -86,7 +88,7 @@ DROP TRIGGER IF EXISTS batches_inst_coll_staging_before_update $$
 CREATE TRIGGER batches_inst_coll_staging_before_update BEFORE UPDATE ON batches_inst_coll_staging
 FOR EACH ROW
 BEGIN
-  DECLARE cur_update_id VARCHAR(40);
+  DECLARE cur_update_id INT;
 
   IF OLD.update_id IS NULL THEN
     SELECT update_id INTO cur_update_id FROM batch_updates WHERE batch_id = NEW.batch_id;
@@ -98,7 +100,7 @@ DROP TRIGGER IF EXISTS batch_inst_coll_cancellable_resources_before_insert $$
 CREATE TRIGGER batch_inst_coll_cancellable_resources_before_insert BEFORE INSERT ON batch_inst_coll_cancellable_resources
 FOR EACH ROW
 BEGIN
-  DECLARE cur_update_id VARCHAR(40);
+  DECLARE cur_update_id INT;
 
   IF NEW.update_id IS NULL THEN
     SELECT update_id INTO cur_update_id FROM batch_updates WHERE batch_id = NEW.batch_id;
@@ -110,7 +112,7 @@ DROP TRIGGER IF EXISTS batch_inst_coll_cancellable_resources_before_update $$
 CREATE TRIGGER batch_inst_coll_cancellable_resources_before_update BEFORE UPDATE ON batch_inst_coll_cancellable_resources
 FOR EACH ROW
 BEGIN
-  DECLARE cur_update_id VARCHAR(40);
+  DECLARE cur_update_id INT;
 
   IF OLD.update_id IS NULL THEN
     SELECT update_id INTO cur_update_id FROM batch_updates WHERE batch_id = NEW.batch_id;
@@ -189,7 +191,7 @@ BEGIN
   DECLARE cur_user VARCHAR(100);
   DECLARE cur_batch_cancelled BOOLEAN;
   DECLARE cur_n_tokens INT;
-  DECLARE cur_update_id VARCHAR(40);
+  DECLARE cur_update_id INT;
   DECLARE rand_token INT;
 
   SELECT user INTO cur_user FROM batches WHERE id = NEW.batch_id;
