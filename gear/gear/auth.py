@@ -20,7 +20,7 @@ deploy_config = get_deploy_config()
 
 BEARER = 'Bearer '
 
-TEN_SECONDS_NANOSECONDS = int(1e10)
+TEN_SECONDS_IN_NANOSECONDS = int(1e10)
 
 USERDATA_CACHE = None
 
@@ -37,7 +37,7 @@ def _init_userdata_cache(client_session: httpx.ClientSession):
     async def load(session_id):
         return await _userdata_from_session_id(session_id, client_session)
 
-    USERDATA_CACHE = TimeLimitedMaxSizeCache(load, TEN_SECONDS_NANOSECONDS, 100, 'session_userdata_cache')
+    USERDATA_CACHE = TimeLimitedMaxSizeCache(load, TEN_SECONDS_IN_NANOSECONDS, 100, 'session_userdata_cache')
 
 
 async def _userdata_from_session_id(session_id: str, client_session: httpx.ClientSession):
