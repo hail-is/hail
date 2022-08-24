@@ -2448,6 +2448,7 @@ class Emit[C](
 
           cb.assign(encRes, spark.invoke[BackendContext, HailClassLoader, FS, String, Array[Array[Byte]], Array[Byte], String, Option[TableStageDependency], Array[Array[Byte]]](
             "collectDArray",
+            mb.getObject(ctx.flags),
             mb.getObject(ctx.executeContext.backendContext),
             mb.getHailClassLoader,
             mb.getFS,

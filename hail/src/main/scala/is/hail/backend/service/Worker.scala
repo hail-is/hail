@@ -5,7 +5,7 @@ import java.nio.charset._
 import java.util.{concurrent => javaConcurrent}
 
 import is.hail.asm4s._
-import is.hail.{HAIL_REVISION, HailContext}
+import is.hail.{HAIL_REVISION, HailContext, HailFeatureFlags}
 import is.hail.backend.HailTaskContext
 import is.hail.io.fs._
 import is.hail.services._
@@ -71,6 +71,7 @@ object Worker {
     val root = argv(4)
     val i = argv(5).toInt
     val n = argv(6).toInt
+    val flags = HailFeatureFlags.fromJSONString(argv(7).toString)
     val timer = new WorkerTimer()
 
     val deployConfig = DeployConfig.fromConfigFile(
@@ -86,16 +87,7 @@ object Worker {
     timer.start(s"Job $i/$n")
 
     timer.start("readInputs")
-    val fs = retryTransientErrors {
-      using(new FileInputStream(s"$scratchDir/secrets/gsa-key/key.json")) { is =>
-        val credentialsStr = Some(IOUtils.toString(is, Charset.defaultCharset().toString()))
-        sys.env.get("HAIL_CLOUD").get match {
-          case "gcp" => new GoogleStorageFS(credentialsStr).asCacheable()
-          case "azure" => new AzureStorageFS(credentialsStr).asCacheable()
-          case _ => throw new IllegalArgumentException("Bad cloud")
-        }
-      }
-    }
+    val fs = FS.cloudSpecificCacheableFS(s"$scratchDir/secrets/gsa-key/key.json", Some(flags))
 
     // FIXME: HACK
     val (open, create) = if (n <= 50) {

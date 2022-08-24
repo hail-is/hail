@@ -2,6 +2,7 @@ package is.hail
 
 import is.hail.utils._
 import org.json4s.JsonAST.{JArray, JObject, JString}
+import org.json4s.jackson.JsonMethods
 
 import scala.collection.mutable
 
@@ -46,11 +47,21 @@ object HailFeatureFlags {
         }.toFastSeq: _*
       )
     )
+
+  def fromJSONString(s: String): HailFeatureFlags = {
+    val arr = JsonMethods.parse(s).asInstanceOf[JArray].values
+    new HailFeatureFlags(mutable.Map(
+      arr.map { v =>
+        val o = v.asInstanceOf[JObject]
+        ((o \\ "name").asInstanceOf[JString].s, (o \\ "value").asInstanceOf[JString].s)
+      }.toFastSeq:_*
+    ))
+  }
 }
 
 class HailFeatureFlags(
   private[this] val flags: mutable.Map[String, String]
-) {
+) extends Serializable {
   val available: java.util.ArrayList[String] =
     new java.util.ArrayList[String](java.util.Arrays.asList[String](flags.keys.toSeq: _*))
 
@@ -70,4 +81,6 @@ class HailFeatureFlags(
         "name" -> JString(HailFeatureFlags.defaults(name)._1),
         "value" -> JString(v))
     }.toList)
+
+  def toJSONString: String = JsonMethods.compact(JsonMethods.render(toJSONEnv))
 }

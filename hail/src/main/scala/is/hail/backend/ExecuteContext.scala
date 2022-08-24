@@ -103,7 +103,7 @@ class ExecuteContext(
   val timer: ExecutionTimer,
   _tempFileManager: TempFileManager,
   val theHailClassLoader: HailClassLoader,
-  private[this] val flags: HailFeatureFlags
+  val flags: HailFeatureFlags
 ) extends Closeable {
   var backendContext: BackendContext = _
 

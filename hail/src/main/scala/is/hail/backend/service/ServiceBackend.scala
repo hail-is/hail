@@ -99,6 +99,7 @@ class ServiceBackend(
   }
 
   def parallelizeAndComputeWithIndex(
+    flags: HailFeatureFlags,
     _backendContext: BackendContext,
     _fs: FS,
     collection: Array[Array[Byte]],
@@ -176,7 +177,8 @@ class ServiceBackend(
             JString(Main.WORKER),
             JString(root),
             JString(s"$i"),
-            JString(s"$n"))),
+            JString(s"$n"),
+            JString(flags.toJSONString))),
           "type" -> JString("jvm")),
         "mount_tokens" -> JBool(true),
         "resources" -> resources,
@@ -419,16 +421,7 @@ object ServiceBackendSocketAPI2 {
     } else {
       HailContext(backend, "hail.log", false, false, 50, skipLoggingConfiguration = true, 3)
     }
-    val fs = retryTransientErrors {
-      using(new FileInputStream(s"$scratchDir/secrets/gsa-key/key.json")) { is =>
-        val credentialsStr = Some(IOUtils.toString(is, Charset.defaultCharset().toString()))
-        sys.env.get("HAIL_CLOUD").get match {
-          case "gcp" => new GoogleStorageFS(credentialsStr).asCacheable()
-          case "azure" => new AzureStorageFS(credentialsStr).asCacheable()
-          case _ => throw new IllegalArgumentException("Bad cloud")
-        }
-      }
-    }
+    val fs = FS.cloudSpecificCacheableFS(s"$scratchDir/secrets/gsa-key/key.json", None)
     val deployConfig = DeployConfig.fromConfigFile(
       s"$scratchDir/secrets/deploy-config/deploy-config.json")
     DeployConfig.set(deployConfig)
@@ -529,11 +522,11 @@ class ServiceBackendSocketAPI2(
 
   def executeOneCommand(): Unit = {
     var nFlagsRemaining = readInt()
-    val flags = mutable.Map[String, String]()
+    val flagsMap = mutable.Map[String, String]()
     while (nFlagsRemaining > 0) {
       val flagName = readString()
       val flagValue = readString()
-      flags.update(flagName, flagValue)
+      flagsMap.update(flagName, flagValue)
       nFlagsRemaining -= 1
     }
     val workerCores = readString()
@@ -546,16 +539,8 @@ class ServiceBackendSocketAPI2(
     val remoteTmpDir = readString()
 
     def withExecuteContext(methodName: String, method: ExecuteContext => Array[Byte]): Array[Byte] = ExecutionTimer.logTime(methodName) { timer =>
-      val fs = retryTransientErrors {
-        using(new FileInputStream(s"${backend.scratchDir}/secrets/gsa-key/key.json")) { is =>
-          val credentialsStr = Some(IOUtils.toString(is, Charset.defaultCharset().toString()))
-          sys.env.get("HAIL_CLOUD").get match {
-            case "gcp" => new GoogleStorageFS(credentialsStr).asCacheable()
-            case "azure" => new AzureStorageFS(credentialsStr).asCacheable()
-            case _ => throw new IllegalArgumentException("bad cloud")
-          }
-        }
-      }
+      val flags = HailFeatureFlags.fromMap(flagsMap)
+      val fs = FS.cloudSpecificCacheableFS(s"${backend.scratchDir}/secrets/gsa-key/key.json", Some(flags))
       ExecuteContext.scoped(
         tmpdir,
         "file:///tmp",
@@ -564,7 +549,7 @@ class ServiceBackendSocketAPI2(
         timer,
         null,
         backend.theHailClassLoader,
-        HailFeatureFlags.fromMap(flags)
+        flags
       ) { ctx =>
         ctx.backendContext = new ServiceBackendContext(sessionId, billingProject, remoteTmpDir, workerCores, workerMemory)
         method(ctx)

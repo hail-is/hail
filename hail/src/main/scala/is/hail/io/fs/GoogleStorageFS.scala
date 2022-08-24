@@ -52,6 +52,25 @@ object GoogleStorageFileStatus {
   }
 }
 
+object RequesterPaysConfiguration {
+  def fromFlags(requesterPaysProject: String, requesterPaysBuckets: String): Option[RequesterPaysConfiguration] = {
+    if (requesterPaysProject == null) {
+      if (requesterPaysBuckets == null) {
+        None
+      } else {
+        fatal(s"Expected requester_pays_buckets flag to be unset when requester_pays_project is unset, but instead found: $requesterPaysBuckets")
+      }
+    } else {
+      val buckets = if (requesterPaysBuckets == null) {
+        None
+      } else {
+        Some(buckets.split(",").toSet)
+      }
+      Some(RequesterPaysConfiguration(requesterPaysProject, buckets))
+    }
+  }
+}
+
 case class RequesterPaysConfiguration(
   val project: String,
   val buckets: Option[Set[String]] = None

@@ -10,7 +10,14 @@ def test_requester_pays_no_settings():
     try:
         hl.import_table('gs://hail-services-requester-pays/hello')
     except:
-        pass
+        assert "bucket is requester pays but no user project provided" in exc.args[0]
+    else:
+        assert False
+
+    try:
+        hl.utils.range_table(4, n_partitions=4).write(random_filename, overwrite=True)
+    except:
+        assert "bucket is requester pays but no user project provided" in exc.args[0]
     else:
         assert False
 
@@ -31,7 +38,7 @@ def test_requester_pays_with_project():
         try:
             hl.import_table('gs://hail-services-requester-pays/hello')
         except:
-            pass
+            assert "bucket is requester pays but no user project provided" in exc.args[0]
         else:
             assert False
 
@@ -46,27 +53,27 @@ def test_requester_pays_write():
     random_filename = 'gs://hail-services-requester-pays/test_requester_pays_on_worker_driver_' + secret_alnum_string(10)
     try:
         hl._set_flags(requester_pays_project='broad-ctsa')
-        hl.utils.range_table(1).write(random_filename)
+        hl.utils.range_table(4, n_partitions=4).write(random_filename)
         assert hl.read_table(random_filename).collect() == [hl.Struct(idx=0)]
 
         hl._set_flags(requester_pays_buckets='hail-services-requester-pays')
-        hl.utils.range_table(1).write(random_filename, overwrite=True)
+        hl.utils.range_table(4, n_partitions=4).write(random_filename, overwrite=True)
         assert hl.read_table(random_filename).collect() == [hl.Struct(idx=0)]
 
         hl._set_flags(requester_pays_buckets='hail-services-requester-pays,other-bucket')
-        hl.utils.range_table(1).write(random_filename, overwrite=True)
+        hl.utils.range_table(4, n_partitions=4).write(random_filename, overwrite=True)
         assert hl.read_table(random_filename).collect() == [hl.Struct(idx=0)]
 
         hl._set_flags(requester_pays_buckets='other-bucket')
         try:
-            hl.utils.range_table(1).write(random_filename, overwrite=True)
+            hl.utils.range_table(4, n_partitions=4).write(random_filename, overwrite=True)
         except:
-            pass
+            assert "bucket is requester pays but no user project provided" in exc.args[0]
         else:
             assert False
 
         hl._set_flags(requester_pays_buckets=None)
-        hl.utils.range_table(1).write(random_filename, overwrite=True)
+        hl.utils.range_table(4, n_partitions=4).write(random_filename, overwrite=True)
         assert hl.read_table(random_filename).collect() == [hl.Struct(idx=0)]
     finally:
         hl.current_backend().fs.rmtree(random_filename)
