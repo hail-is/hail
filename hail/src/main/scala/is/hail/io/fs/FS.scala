@@ -545,6 +545,4 @@ trait FS extends Serializable {
   }
 
   lazy val broadcast: BroadcastValue[FS] = HailContext.backend.broadcast(this)
-
-  def asCacheable(): ServiceCacheableFS
 }
