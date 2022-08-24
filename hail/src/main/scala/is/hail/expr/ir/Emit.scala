@@ -1,6 +1,6 @@
 package is.hail.expr.ir
 
-import is.hail.HailContext
+import is.hail.{HailContext, HailFeatureFlags}
 import is.hail.annotations._
 import is.hail.asm4s._
 import is.hail.backend.{BackendContext, ExecuteContext}
@@ -2446,9 +2446,9 @@ class Emit[C](
               cb.assign(stageName, stageName.concat(": ").concat(dynamicID.asString.loadString(cb)))
             })
 
-          cb.assign(encRes, spark.invoke[BackendContext, HailClassLoader, FS, String, Array[Array[Byte]], Array[Byte], String, Option[TableStageDependency], Array[Array[Byte]]](
+          cb.assign(encRes, spark.invoke[HailFeatureFlags, BackendContext, HailClassLoader, FS, String, Array[Array[Byte]], Array[Byte], String, Option[TableStageDependency], Array[Array[Byte]]](
             "collectDArray",
-            mb.getObject(ctx.flags),
+            mb.getObject(ctx.executeContext.flags),
             mb.getObject(ctx.executeContext.backendContext),
             mb.getHailClassLoader,
             mb.getFS,
