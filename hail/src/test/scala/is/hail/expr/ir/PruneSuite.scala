@@ -630,7 +630,7 @@ class PruneSuite extends HailSuite {
   }
 
   @Test def testStreamGroupByKeyMemo() {
-    checkMemo(StreamGroupByKey(st, FastIndexedSeq("a")),
+    checkMemo(StreamGroupByKey(st, FastIndexedSeq("a"), false),
               TStream(TStream(justB)), Array(TStream(TStruct("a" -> TInt32, "b" -> TInt32)), null))
   }
 
@@ -827,10 +827,10 @@ class PruneSuite extends HailSuite {
       NA(globT),
       "ctx",
       "glob",
-      MakeTuple.ordered(FastSeq(Ref("ctx", ctxT), Ref("glob", globT))))
+      MakeTuple.ordered(FastSeq(Ref("ctx", ctxT), Ref("glob", globT))), NA(TString), "test")
 
     checkMemo(x, TArray(TTuple(ctxT.typeAfterSelectNames(Array("a")), globT.typeAfterSelectNames(Array("c")))),
-      Array(TStream(ctxT.typeAfterSelectNames(Array("a"))), globT.typeAfterSelectNames(Array("c")), null))
+      Array(TStream(ctxT.typeAfterSelectNames(Array("a"))), globT.typeAfterSelectNames(Array("c")), null, TString))
   }
 
   @Test def testTableCountMemo() {
@@ -1222,7 +1222,7 @@ class PruneSuite extends HailSuite {
   }
 
   @Test def testStreamGroupByKeyRebuild() {
-    checkRebuild(StreamGroupByKey(MakeStream(Seq(NA(ts)), TStream(ts)), FastIndexedSeq("a")), TStream(TStream(subsetTS("b"))),
+    checkRebuild(StreamGroupByKey(MakeStream(Seq(NA(ts)), TStream(ts)), FastIndexedSeq("a"), false), TStream(TStream(subsetTS("b"))),
                  (_: BaseIR, r: BaseIR) => {
                    val ir = r.asInstanceOf[StreamGroupByKey]
                    ir.a.typ == TStream(subsetTS("a", "b"))
@@ -1355,7 +1355,7 @@ class PruneSuite extends HailSuite {
       NA(globT),
       "ctx",
       "glob",
-      MakeTuple.ordered(FastSeq(Ref("ctx", ctxT), Ref("glob", globT))))
+      MakeTuple.ordered(FastSeq(Ref("ctx", ctxT), Ref("glob", globT))), NA(TString), "test")
 
     val selectedCtxT = ctxT.typeAfterSelectNames(Array("a"))
     val selectedGlobT = globT.typeAfterSelectNames(Array("c"))
@@ -1365,7 +1365,7 @@ class PruneSuite extends HailSuite {
         NA(selectedGlobT),
         "ctx",
         "glob",
-        MakeTuple.ordered(FastSeq(Ref("ctx", selectedCtxT), Ref("glob", selectedGlobT))))
+        MakeTuple.ordered(FastSeq(Ref("ctx", selectedCtxT), Ref("glob", selectedGlobT))), NA(TString), "test")
     })
   }
 

@@ -2052,6 +2052,42 @@ steps:
       - name: add-resource-ids-python
         script: /io/sql/add_resource_ids.py
         online: true
+      - name: modify-resource-id-trigger
+        script: /io/sql/modify-resource-id-trigger.sql
+        online: true
+      - name: rm-resource-names-agg-resources
+        script: /io/sql/rm-resource-names-agg-resources.sql
+        online: true
+      - name: rm-resource-foreign-keys
+        script: /io/sql/rm-resource-foreign-keys.py
+        online: true
+      - name: rm-resource-names-agg-resources-pt-2
+        script: /io/sql/rm-resource-names-agg-resources-pt-2.sql
+        online: true
+      - name: add-att-resources-format-version-lt-3
+        script: /io/sql/add-att-resources-format-version-lt-3.sql
+        online: true
+      - name: insert-attempt-resources-format-version-lt-3
+        script: /io/sql/insert_attempt_resources_format_version_lt_3.py
+        online: true
+      - name: revert-attempt-resources-trigger-back-compat
+        script: /io/sql/revert-attempt-resources-trigger-back-compat.sql
+        online: true
+      - name: add-agg-billing-by-date
+        script: /io/sql/add-agg-billing-by-date.sql
+        online: true
+      - name: populate-agg-billing-by-date
+        script: /io/sql/populate_agg_billing_by_date.py
+        online: true
+      - name: revert-temp-agg-by-date-infra
+        script: /io/sql/revert-temp-agg-by-date-infra.sql
+        online: true
+      - name: rename-timestamp-to-date
+        script: /io/sql/rename-timestamp-to-date.sql
+        online: true
+      - name: add-real-time-billing
+        script: /io/sql/add-real-time-billing.sql
+        online: true
     inputs:
       - from: /repo/batch/sql
         to: /io/sql
@@ -2531,11 +2567,15 @@ steps:
         -d "{ \"name\" : \"$REPO_NAME\" }"
 
       # checkout new ci repo
-      cd /io
-      for i in {1..12}; do
-          git clone https://$TOKEN@github.com/hail-ci-test/$REPO_NAME.git && break
-          sleep 5;
-      done
+      # Repeated clones should happen in fresh directories so we mv to the final
+      # destination on successful clone
+      set +x
+      clone() {
+        tmp_dir=$(mktemp -d) && git clone https://$1@github.com/hail-ci-test/$2.git $tmp_dir && mv $tmp_dir $2
+      }
+      typeset -fx clone
+      retry clone $TOKEN $REPO_NAME
+      set -x
       cd $REPO_NAME
 
       mkdir -p ./ci/test ./hail/
@@ -3293,6 +3333,7 @@ steps:
           valueFrom: default_ns.name
         mountPath: /ssl-config
     alwaysRun: true
+    timeout: 300
     dependsOn:
       - create_deploy_config
       - create_accounts
@@ -3399,10 +3440,11 @@ steps:
       set +e
       set -x
       export AZURE_RESOURCE_GROUP="{{ global.azure_resource_group }}"
+      az aks install-cli
       kubectl -n {{ default_ns.name }} scale deployment batch-driver --replicas=0
       az vm list --resource-group $AZURE_RESOURCE_GROUP -o tsv \
           --query "[?tags.namespace == '{{ default_ns.name }}'].name" \
-        | xargs -n1 -r sh -c 'az vm delete --resource-group $AZURE_RESOURCE_GROUP --name "$1" --yes || true' argv0
+        | xargs -n1 -r sh -c 'az vm delete --force-deletion true --resource-group $AZURE_RESOURCE_GROUP --name "$1" --yes || true' argv0
       az network nic list --resource-group $AZURE_RESOURCE_GROUP -o tsv \
           --query "[?tags.namespace == '{{ default_ns.name }}'].name" \
         | xargs -n1 -r sh -c 'az network nic delete --resource-group $AZURE_RESOURCE_GROUP --name "$1" || true' argv0

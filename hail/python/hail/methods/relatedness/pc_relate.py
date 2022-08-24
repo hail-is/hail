@@ -79,7 +79,7 @@ def pc_relate(call_expr: CallExpression,
     .. math::
 
       \widehat{\psi}_{ij} \coloneqq
-        frac{1}{\left|\mathcal{S}_{ij}\right|}
+        \frac{1}{\left|\mathcal{S}_{ij}\right|}
         \sum_{s \in \mathcal{S}_{ij}}
           \frac{\left(g_{is} - 2\hat{p}_{s}\right)\left(g_{js} - 2\widehat{p}_{s}\right)}
                 {4 \widehat{p}_{s}\left(1-\widehat{p}_{s}\right)}

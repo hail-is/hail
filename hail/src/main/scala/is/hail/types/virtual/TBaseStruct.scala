@@ -18,8 +18,8 @@ object TBaseStruct {
   def getOrdering(types: Array[Type], missingEqual: Boolean = true): ExtendedOrdering =
     ExtendedOrdering.rowOrdering(types.map(_.ordering), missingEqual)
 
-  def getJoinOrdering(types: Array[Type]): ExtendedOrdering =
-    ExtendedOrdering.rowOrdering(types.map(_.mkOrdering(missingEqual = false)), _missingEqual = false)
+  def getJoinOrdering(types: Array[Type], missingEqual: Boolean = false): ExtendedOrdering =
+    ExtendedOrdering.rowOrdering(types.map(_.mkOrdering(missingEqual = missingEqual)), _missingEqual = missingEqual)
 }
 
 abstract class TBaseStruct extends Type {

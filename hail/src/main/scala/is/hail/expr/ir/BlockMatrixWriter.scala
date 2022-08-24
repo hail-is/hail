@@ -57,7 +57,7 @@ case class BlockMatrixNativeWriter(
     val blockMap = blocks.zipWithIndex.toMap
     val paths = s.addContext(TString) { idx =>
       Str(s"$path/parts/part-${ blockMap(idx) }-")
-    }.collectBlocks(relationalBindings)({ (ctx, block) =>
+    }.collectBlocks(relationalBindings, "block_matrix_native_writer")({ (ctx, block) =>
       WriteValue(block, GetField(ctx, "new") + UUID4(), spec)
     }, blocks.toArray)
     RelationalWriter.scoped(path, overwrite, None)(WriteMetadata(paths, BlockMatrixNativeMetadataWriter(path, stageLocally, bm.typ)))
@@ -123,7 +123,7 @@ case class BlockMatrixBinaryWriter(path: String) extends BlockMatrixWriter {
   def loweredTyp: Type = TString
 
   override def lower(ctx: ExecuteContext, s: BlockMatrixStage, bm: BlockMatrixIR, relationalBindings: Map[String, IR], eltR: TypeWithRequiredness): IR = {
-    val nd = s.collectLocal(relationalBindings, bm.typ)
+    val nd = s.collectLocal(relationalBindings, bm.typ, "block_matrix_binary_writer")
 
     val etype = ENumpyBinaryNDArray(bm.typ.nRows, bm.typ.nCols, true)
     val spec = TypedCodecSpec(etype, TNDArray(bm.typ.elementType, Nat(2)), new StreamBufferSpec())

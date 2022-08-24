@@ -64,7 +64,7 @@ object TableNativeWriter {
             "oldCtx" -> ctxElt,
             "writeCtx" -> pf))
         }
-      }(GetField(_, "oldCtx")).mapCollectWithContextsAndGlobals(relationalLetsAbove) { (rows, ctxRef) =>
+      }(GetField(_, "oldCtx")).mapCollectWithContextsAndGlobals(relationalLetsAbove, "table_native_writer") { (rows, ctxRef) =>
         val file = GetField(ctxRef, "writeCtx")
         WritePartition(rows, file + UUID4(), rowWriter)
       } { (parts, globals) =>
@@ -472,7 +472,7 @@ case class TableTextWriter(
           "oldCtx" -> ctxElt,
           "partFile" -> pf))
       }
-    }(GetField(_, "oldCtx")).mapCollectWithContextsAndGlobals(relationalLetsAbove) { (rows, ctxRef) =>
+    }(GetField(_, "oldCtx")).mapCollectWithContextsAndGlobals(relationalLetsAbove, "table_text_writer") { (rows, ctxRef) =>
       val file = GetField(ctxRef, "partFile") + UUID4() + Str(ext)
       WritePartition(rows, file, lineWriter)
     } { (parts, _) =>

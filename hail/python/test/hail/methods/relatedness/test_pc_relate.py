@@ -1,7 +1,7 @@
 import hail as hl
 import hail.utils as utils
 
-from ...helpers import (resource, startTestHailContext, stopTestHailContext)
+from ...helpers import (resource, startTestHailContext, stopTestHailContext, skip_when_service_backend)
 
 setUpModule = startTestHailContext
 tearDownModule = stopTestHailContext
@@ -88,6 +88,7 @@ def test_self_kinship():
     assert without_self_self_kin_only.count() == 0, without_self_self_kin_only.collect()
 
 
+@skip_when_service_backend(reason='intermittent tolerance failures')
 def test_pc_relate_issue_5263():
     mt = hl.balding_nichols_model(3, 50, 100)
     expected = hl.pc_relate(mt.GT, 0.10, k=2, statistics='all')

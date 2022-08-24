@@ -19,7 +19,7 @@ import scala.collection.mutable.ArrayBuffer
 object LowerDistributedSort {
   def localSort(ctx: ExecuteContext, stage: TableStage, sortFields: IndexedSeq[SortField], relationalLetsAbove: Map[String, IR]): TableStage = {
     val numPartitions = stage.partitioner.numPartitions
-    val collected = stage.collectWithGlobals(relationalLetsAbove)
+    val collected = stage.collectWithGlobals(relationalLetsAbove, "shuffle_local_sort")
 
     val (Some(PTypeReferenceSingleCodeType(resultPType: PStruct)), f) = ctx.timer.time("LowerDistributedSort.localSort.compile")(Compile[AsmFunction1RegionLong](ctx,
       FastIndexedSeq(),
@@ -125,7 +125,7 @@ object LowerDistributedSort {
     val writer = PartitionNativeWriter(spec, keyToSortBy.fieldNames, initialTmpPath, None, None, trackTotalBytes = true)
 
     log.info("DISTRIBUTED SORT: PHASE 1: WRITE DATA")
-    val initialStageDataRow = CompileAndEvaluate[Annotation](ctx, inputStage.mapCollectWithGlobals(relationalLetsAbove) { part =>
+    val initialStageDataRow = CompileAndEvaluate[Annotation](ctx, inputStage.mapCollectWithGlobals(relationalLetsAbove, "shuffle_initial_write") { part =>
       WritePartition(part, UUID4(), writer)
     }{ case (part, globals) =>
       val streamElement = Ref(genUID(), part.typ.asInstanceOf[TArray].elementType)
@@ -138,7 +138,7 @@ object LowerDistributedSort {
     }).asInstanceOf[Row]
     val (initialPartInfo, initialGlobals, intervalRange) = (initialStageDataRow(0).asInstanceOf[IndexedSeq[Row]], initialStageDataRow(1).asInstanceOf[Row], initialStageDataRow(2).asInstanceOf[Row])
     val initialGlobalsLiteral = Literal(inputStage.globalType, initialGlobals)
-    val initialChunks = initialPartInfo.map(row => Chunk(initialTmpPath + row(0).asInstanceOf[String], row(1).asInstanceOf[Long].toInt, row.getLong(5)))
+    val initialChunks = initialPartInfo.map(row => Chunk(initialTmpPath + row(0).asInstanceOf[String], row(1).asInstanceOf[Long], row.getLong(5)))
 
     val initialInterval = Interval(intervalRange(0), intervalRange(1), true, true)
     val initialSegment = SegmentResult(IndexedSeq(0), initialInterval, initialChunks)
@@ -147,8 +147,8 @@ object LowerDistributedSort {
     optTargetNumPartitions.foreach(i => assert(i >= 1, s"Must request positive number of partitions. Requested ${i}"))
     val targetNumPartitions = optTargetNumPartitions.getOrElse(inputStage.numPartitions)
 
-    val idealNumberOfRowsPerPart = if (targetNumPartitions == 0) 1 else {
-      Math.max(1, totalNumberOfRows / targetNumPartitions)
+    val idealNumberOfRowsPerPart: Long = if (targetNumPartitions == 0) 1 else {
+      Math.max(1L, totalNumberOfRows / targetNumPartitions)
     }
 
     var loopState = LoopState(IndexedSeq(initialSegment), IndexedSeq.empty[SegmentResult], IndexedSeq.empty[OutputPartition])
@@ -171,13 +171,13 @@ object LowerDistributedSort {
         val partitionCountsForOneSegment = partData.map(_.currentPartSize)
         val recordsInSegment = partitionCountsForOneSegment.sum
         val branchingFactor = math.min(recordsInSegment, defaultBranchingFactor)
-        howManySamplesPerPartition(rand, recordsInSegment, Math.min(recordsInSegment, (branchingFactor * oversamplingNum) - 1), partitionCountsForOneSegment)
+        howManySamplesPerPartition(rand, recordsInSegment, Math.min(recordsInSegment, (branchingFactor * oversamplingNum) - 1).toInt, partitionCountsForOneSegment)
       }
 
       val numSamplesPerPartition = numSamplesPerPartitionPerSegment.flatten
 
       val perPartStatsCDAContextData = partitionDataPerSegment.flatten.zip(numSamplesPerPartition).map { case (partData, numSamples) =>
-        Row(partData.indices.last, partData.files, partData.currentPartSize, numSamples, partData.currentPartByteSize)
+        Row(partData.indices.last, partData.files, coerceToInt(partData.currentPartSize), numSamples, partData.currentPartByteSize)
       }
       val perPartStatsCDAContexts = ToStream(Literal(TArray(TStruct(
         "segmentIdx" -> TInt32,
@@ -185,7 +185,7 @@ object LowerDistributedSort {
         "sizeOfPartition" -> TInt32,
         "numSamples" -> TInt32,
         "byteSize" -> TInt64)), perPartStatsCDAContextData))
-      val perPartStatsIR = cdaIR(perPartStatsCDAContexts, MakeStruct(Seq())){ (ctxRef, _) =>
+      val perPartStatsIR = cdaIR(perPartStatsCDAContexts, MakeStruct(Seq()), s"shuffle_part_stats_iteration_$i"){ (ctxRef, _) =>
         val filenames = GetField(ctxRef, "files")
         val samples = SeqSample(GetField(ctxRef, "sizeOfPartition"), GetField(ctxRef, "numSamples"), NA(TRNGState), false)
         val partitionStream = flatMapIR(ToStream(filenames)) { fileName =>
@@ -204,7 +204,7 @@ object LowerDistributedSort {
       Also get the min and max of each individual partition. That way if it's sorted already, we know the partitioning to use.
        */
       val pivotsPerSegmentAndSortedCheck = ToArray(bindIR(perPartStatsIR) { perPartStats =>
-        mapIR(StreamGroupByKey(ToStream(perPartStats), IndexedSeq("segmentIdx"))) { oneGroup =>
+        mapIR(StreamGroupByKey(ToStream(perPartStats), IndexedSeq("segmentIdx"), missingEqual = true)) { oneGroup =>
           val streamElementRef = Ref(genUID(), oneGroup.typ.asInstanceOf[TIterable].elementType)
           val dataRef = Ref(genUID(), streamElementRef.typ.asInstanceOf[TStruct].fieldType("partData"))
           val sizeRef = Ref(genUID(), streamElementRef.typ.asInstanceOf[TStruct].fieldType("byteSize"))
@@ -237,7 +237,10 @@ object LowerDistributedSort {
                       (I64(2L) * (GetField(aggResults, "byteSize").floorDiv(I64(sizeCutoff)))).toI))
                 ) { branchingFactor =>
                   ToArray(mapIR(StreamRange(I32(1), branchingFactor, I32(1))) { idx =>
-                    ArrayRef(sortedOversampling, Apply("floor", Seq(), IndexedSeq(idx.toD * ((numSamples + 1) / branchingFactor)), TFloat64, ErrorIDs.NO_ERROR).toI - 1)
+                    If(ArrayLen(sortedOversampling) ceq 0,
+                      Die(strConcat("aggresults=", aggResults, ", idx=", idx, ", sortedOversampling=", sortedOversampling, ", numSamples=", numSamples, ", branchingFactor=", branchingFactor), sortedOversampling.typ.asInstanceOf[TArray].elementType, -1),
+                      ArrayRef(sortedOversampling, Apply("floor", Seq(), IndexedSeq(idx.toD * ((numSamples + 1) / branchingFactor)), TFloat64, ErrorIDs.NO_ERROR).toI - 1))
+
                   })
                 }
                 MakeStruct(Seq(
@@ -300,7 +303,7 @@ object LowerDistributedSort {
         val distributeContexts = ToStream(Literal(TArray(TStruct("segmentIdx" -> TInt32, "files" -> TArray(TString), "partIdx" -> TInt32, "indexIntoPivotsArray" -> TInt32)), distributeContextsData))
         val distributeGlobals = MakeStruct(IndexedSeq("pivotsWithEndpointsGroupedBySegmentIdx" -> pivotsWithEndpointsGroupedBySegmentNumberLiteral))
 
-        val distribute = cdaIR(distributeContexts, distributeGlobals) { (ctxRef, globalsRef) =>
+        val distribute = cdaIR(distributeContexts, distributeGlobals, s"shuffle_distribute_iteration_$i") { (ctxRef, globalsRef) =>
           val segmentIdx = GetField(ctxRef, "segmentIdx")
           val indexIntoPivotsArray = GetField(ctxRef, "indexIntoPivotsArray")
           val pivotsWithEndpointsGroupedBySegmentIdx = GetField(globalsRef, "pivotsWithEndpointsGroupedBySegmentIdx")
@@ -357,7 +360,7 @@ object LowerDistributedSort {
     val needSortingFilenames = loopState.smallSegments.map(_.chunks.map(_.filename))
     val needSortingFilenamesContext = Literal(TArray(TArray(TString)), needSortingFilenames)
 
-    val sortedFilenamesIR = cdaIR(ToStream(needSortingFilenamesContext), MakeStruct(Seq())) { case (ctxRef, _) =>
+    val sortedFilenamesIR = cdaIR(ToStream(needSortingFilenamesContext), MakeStruct(Seq()), "shuffle_local_sort") { case (ctxRef, _) =>
       val filenames = ctxRef
       val partitionInputStream = flatMapIR(ToStream(filenames)) { fileName =>
         ReadPartition(fileName, spec._vType, reader)
@@ -370,6 +373,7 @@ object LowerDistributedSort {
     }
 
     log.info(s"DISTRIBUTED SORT: PHASE ${i+1}: LOCALLY SORT FILES")
+    log.info(s"DISTRIBUTED_SORT: ${needSortingFilenames.length} segments to sort")
     val sortedFilenames = CompileAndEvaluate[Annotation](ctx, sortedFilenamesIR).asInstanceOf[IndexedSeq[Row]].map(_(0).asInstanceOf[String])
     val newlySortedSegments = loopState.smallSegments.zip(sortedFilenames).map { case (sr, newFilename) =>
       OutputPartition(sr.indices, sr.interval, IndexedSeq(initialTmpPath + newFilename))
@@ -439,15 +443,15 @@ object LowerDistributedSort {
     false
   }
 
-  case class PartitionInfo(indices: IndexedSeq[Int], files: IndexedSeq[String], currentPartSize: Int, currentPartByteSize: Long)
+  case class PartitionInfo(indices: IndexedSeq[Int], files: IndexedSeq[String], currentPartSize: Long, currentPartByteSize: Long)
 
-  def segmentsToPartitionData(segments: IndexedSeq[SegmentResult], idealNumberOfRowsPerPart: Int): IndexedSeq[IndexedSeq[PartitionInfo]] = {
+  def segmentsToPartitionData(segments: IndexedSeq[SegmentResult], idealNumberOfRowsPerPart: Long): IndexedSeq[IndexedSeq[PartitionInfo]] = {
     segments.map { sr =>
       val chunkDataSizes = sr.chunks.map(_.size)
       val segmentSize = chunkDataSizes.sum
-      val numParts = (segmentSize + idealNumberOfRowsPerPart - 1) / idealNumberOfRowsPerPart
-      var currentPartSize = 0
-      var currentPartByteSize: Long = 0L
+      val numParts = coerceToInt((segmentSize + idealNumberOfRowsPerPart - 1) / idealNumberOfRowsPerPart)
+      var currentPartSize = 0L
+      var currentPartByteSize = 0L
       val groupedIntoParts = new ArrayBuffer[PartitionInfo](numParts)
       val currentFiles = new ArrayBuffer[String]()
       sr.chunks.foreach { chunk =>
@@ -470,7 +474,7 @@ object LowerDistributedSort {
     }
   }
 
-  def howManySamplesPerPartition(rand: IRRandomness, totalNumberOfRecords: Int, initialNumSamplesToSelect: Int, partitionCounts: IndexedSeq[Int]): IndexedSeq[Int] = {
+  def howManySamplesPerPartition(rand: IRRandomness, totalNumberOfRecords: Long, initialNumSamplesToSelect: Int, partitionCounts: IndexedSeq[Long]): IndexedSeq[Int] = {
     var successStatesRemaining = initialNumSamplesToSelect
     var failureStatesRemaining = totalNumberOfRecords - successStatesRemaining
 
@@ -558,7 +562,7 @@ object LowerDistributedSort {
   * a "Chunk" is a file resulting from any StreamDistribute. Chunks are internally unsorted but contain
   * data between two pivots.
   */
-case class Chunk(filename: String, size: Int, byteSize: Long)
+case class Chunk(filename: String, size: Long, byteSize: Long)
 /**
   * A SegmentResult is the set of chunks from various StreamDistribute tasks working on the same segment
   * of a previous iteration.

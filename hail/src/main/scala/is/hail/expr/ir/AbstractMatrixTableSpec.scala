@@ -13,6 +13,7 @@ import org.json4s.jackson.JsonMethods
 import org.json4s.jackson.JsonMethods.parse
 
 import java.io.OutputStreamWriter
+import scala.collection.mutable
 import scala.language.{existentials, implicitConversions}
 
 abstract class ComponentSpec
@@ -106,8 +107,10 @@ abstract class RelationalSpec {
 case class RVDComponentSpec(rel_path: String) extends ComponentSpec {
   def absolutePath(path: String): String = path + "/" + rel_path
 
-  def rvdSpec(fs: FS, path: String): AbstractRVDSpec =
-    AbstractRVDSpec.read(fs, absolutePath(path))
+  private[this] val specCache = mutable.Map.empty[String, AbstractRVDSpec]
+  def rvdSpec(fs: FS, path: String): AbstractRVDSpec = {
+    specCache.getOrElseUpdate(path, AbstractRVDSpec.read(fs, absolutePath(path)))
+  }
 
   def indexed(fs: FS, path: String): Boolean = rvdSpec(fs, path).indexed
 

@@ -111,6 +111,10 @@ WHERE removed = 0 AND inst_coll = %s;
         self.preemptible = config.preemptible
         self.label = config.label
 
+        # FIXME: CI needs to submit jobs to a specific region
+        # instead of batch making this decicion on behalf of CI
+        self._ci_region = self.inst_coll_manager._default_region
+
     @property
     def local_ssd_data_disk(self) -> bool:
         return self.worker_local_ssd_data_disk
@@ -167,7 +171,7 @@ WHERE removed = 0 AND inst_coll = %s;
         while i < len(self.healthy_instances_by_free_cores):
             instance = self.healthy_instances_by_free_cores[i]
             assert cores_mcpu <= instance.free_cores_mcpu
-            if user != 'ci' or (user == 'ci' and instance.location == self._default_location()):
+            if user != 'ci' or (user == 'ci' and instance.region == self._ci_region):
                 return instance
             i += 1
         return None
@@ -178,6 +182,7 @@ WHERE removed = 0 AND inst_coll = %s;
         data_disk_size_gb: int,
         max_idle_time_msecs: Optional[int] = None,
         location: Optional[str] = None,
+        region: Optional[str] = None,
     ):
         machine_type = self.resource_manager.machine_type(cores, self.worker_type, self.worker_local_ssd_data_disk)
         _, _ = await self._create_instance(
@@ -186,6 +191,7 @@ WHERE removed = 0 AND inst_coll = %s;
             machine_type=machine_type,
             job_private=False,
             location=location,
+            region=region,
             preemptible=self.preemptible,
             max_idle_time_msecs=max_idle_time_msecs,
             local_ssd_data_disk=self.worker_local_ssd_data_disk,
@@ -193,13 +199,13 @@ WHERE removed = 0 AND inst_coll = %s;
             boot_disk_size_gb=self.boot_disk_size_gb,
         )
 
-    async def create_instances_from_ready_cores(self, ready_cores_mcpu, location=None):
+    async def create_instances_from_ready_cores(self, ready_cores_mcpu, region=None):
         n_live_instances = self.n_instances_by_state['pending'] + self.n_instances_by_state['active']
 
-        if location is None:
+        if region is None:
             live_free_cores_mcpu = self.live_free_cores_mcpu
         else:
-            live_free_cores_mcpu = self.live_free_cores_mcpu_by_location[location]
+            live_free_cores_mcpu = self.live_free_cores_mcpu_by_region[region]
 
         instances_needed = (ready_cores_mcpu - live_free_cores_mcpu + (self.worker_cores * 1000) - 1) // (
             self.worker_cores * 1000
@@ -220,7 +226,9 @@ WHERE removed = 0 AND inst_coll = %s;
             await asyncio.gather(
                 *[
                     self.create_instance(
-                        cores=self.worker_cores, data_disk_size_gb=self.data_disk_size_gb, location=location
+                        cores=self.worker_cores,
+                        data_disk_size_gb=self.data_disk_size_gb,
+                        region=region,
                     )
                     for _ in range(instances_needed)
                 ]
@@ -261,10 +269,9 @@ GROUP BY user;
         if ready_cores_mcpu > 0 and free_cores < 500:
             await self.create_instances_from_ready_cores(ready_cores_mcpu)
 
-        default_location = self._default_location()
         ci_ready_cores_mcpu = ready_cores_mcpu_per_user.get('ci', 0)
-        if ci_ready_cores_mcpu > 0 and self.live_free_cores_mcpu_by_location[default_location] == 0:
-            await self.create_instances_from_ready_cores(ci_ready_cores_mcpu, location=default_location)
+        if ci_ready_cores_mcpu > 0 and self.live_free_cores_mcpu_by_region[self._ci_region] == 0:
+            await self.create_instances_from_ready_cores(ci_ready_cores_mcpu, region=self._ci_region)
 
         n_live_instances = self.n_instances_by_state['pending'] + self.n_instances_by_state['active']
         if self.enable_standing_worker and n_live_instances == 0 and self.max_instances > 0:

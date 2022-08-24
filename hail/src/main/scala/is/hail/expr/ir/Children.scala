@@ -106,7 +106,7 @@ object Children {
       Array(a, len)
     case StreamGrouped(a, size) =>
       Array(a, size)
-    case StreamGroupByKey(a, _) =>
+    case StreamGroupByKey(a, _, _) =>
       Array(a)
     case StreamMap(a, name, body) =>
       Array(a, body)
@@ -238,7 +238,7 @@ object Children {
     case BlockMatrixCollect(child) => Array(child)
     case BlockMatrixWrite(child, _) => Array(child)
     case BlockMatrixMultiWrite(blockMatrices, _) => blockMatrices
-    case CollectDistributedArray(ctxs, globals, _, _, body, _) => Array(ctxs, globals, body)
+    case CollectDistributedArray(ctxs, globals, _, _, body, dynamicID, _, _) => Array(ctxs, globals, body, dynamicID)
     case ReadPartition(path, _, _) => Array(path)
     case WritePartition(stream, ctx, _) => Array(stream, ctx)
     case WriteMetadata(writeAnnotations, _) => Array(writeAnnotations)

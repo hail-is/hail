@@ -7,7 +7,7 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 USER jovyan
 
-RUN pip install --use-feature=2020-resolver --upgrade --no-cache-dir \
+RUN pip install --upgrade --no-cache-dir \
   'jupyter-spark<0.5' \
   hail==0.2.4 \
   jupyter_contrib_nbextensions \

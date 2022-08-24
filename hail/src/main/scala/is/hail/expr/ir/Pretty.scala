@@ -3,6 +3,7 @@ package is.hail.expr.ir
 import is.hail.HailContext
 import is.hail.backend.ExecuteContext
 import is.hail.expr.JSONAnnotationImpex
+import is.hail.expr.ir.Pretty.prettyBooleanLiteral
 import is.hail.expr.ir.agg._
 import is.hail.expr.ir.functions.RelationalFunctions
 import is.hail.types.TableType
@@ -237,7 +238,7 @@ class Pretty(width: Int, ribbonWidth: Int, elideLiterals: Boolean, maxLen: Int, 
     case StreamFor(_, valueName, _) if !elideBindings => single(prettyIdentifier(valueName))
     case StreamAgg(a, name, query) if !elideBindings => single(prettyIdentifier(name))
     case StreamAggScan(a, name, query) if !elideBindings => single(prettyIdentifier(name))
-    case StreamGroupByKey(a, key) => single(prettyIdentifiers(key))
+    case StreamGroupByKey(a, key, missingEqual) => FastSeq(prettyIdentifiers(key), prettyBooleanLiteral(missingEqual))
     case AggFold(_, _, _, accumName, otherAccumName, isScan) => if (elideBindings)
       single(Pretty.prettyBooleanLiteral(isScan))
     else
@@ -276,8 +277,8 @@ class Pretty(width: Int, ribbonWidth: Int, elideLiterals: Boolean, maxLen: Int, 
     case LowerBoundOnOrderedCollection(_, _, onKey) => single(Pretty.prettyBooleanLiteral(onKey))
     case In(i, typ) => FastSeq(typ.toString, i.toString)
     case Die(message, typ, errorID) => FastSeq(typ.parsableString(), errorID.toString)
-    case CollectDistributedArray(_, _, cname, gname, _, _) if !elideBindings =>
-      FastSeq(prettyIdentifier(cname), prettyIdentifier(gname))
+    case CollectDistributedArray(_, _, cname, gname, _, _, staticID, _) if !elideBindings =>
+      FastSeq(staticID, prettyIdentifier(cname), prettyIdentifier(gname))
     case MatrixRead(typ, dropCols, dropRows, reader) =>
       FastSeq(if (typ == reader.fullMatrixType) "None" else typ.parsableString(),
         Pretty.prettyBooleanLiteral(dropCols),
@@ -525,7 +526,7 @@ class Pretty(width: Int, ribbonWidth: Int, elideLiterals: Boolean, maxLen: Int, 
         Some(Array(lName -> "l_elt", rName -> "r_elt"))
       else
         None
-      case CollectDistributedArray(contexts, globals, cname, gname, _, _) =>
+      case CollectDistributedArray(contexts, globals, cname, gname, _, _, _, _) =>
         if (i == 2) Some(Array(cname -> "ctx", gname -> "g")) else None
       case TableAggregate(child, _) =>
         if (i == 1) Some(Array("global" -> "g", "row" -> "row")) else None
