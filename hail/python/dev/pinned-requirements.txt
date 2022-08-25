@@ -396,7 +396,7 @@ types-requests==2.27.30
     # via -r python/dev/requirements.txt
 types-setuptools==57.4.17
     # via -r python/dev/requirements.txt
-types-six==1.16.15
+types-six==1.16.19
     # via -r python/dev/requirements.txt
 types-tabulate==0.8.9
     # via -r python/dev/requirements.txt
