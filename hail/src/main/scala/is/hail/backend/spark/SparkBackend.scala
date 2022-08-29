@@ -37,6 +37,7 @@ import is.hail.variant.ReferenceGenome
 import org.apache.spark.rdd.RDD
 import org.apache.spark.storage.StorageLevel
 import org.apache.spark.util.TaskCompletionListener
+import org.apache.hadoop.conf.Configuration
 import org.json4s
 import org.json4s.JsonAST.{JInt, JObject}
 
@@ -214,7 +215,10 @@ object SparkBackend {
     quiet: Boolean = false,
     minBlockSize: Long = 1L,
     tmpdir: String,
-    localTmpdir: String): SparkBackend = synchronized {
+    localTmpdir: String,
+    gcsRequesterPaysProject: String,
+    gcsRequesterPaysBuckets: String
+  ): SparkBackend = synchronized {
     require(theSparkBackend == null)
 
     var sc1 = sc
@@ -230,7 +234,7 @@ object SparkBackend {
 
     sc1.uiWebUrl.foreach(ui => info(s"SparkUI: $ui"))
 
-    theSparkBackend = new SparkBackend(tmpdir, localTmpdir, sc1)
+    theSparkBackend = new SparkBackend(tmpdir, localTmpdir, sc1, gcsRequesterPaysProject, gcsRequesterPaysBuckets)
     theSparkBackend
   }
 
@@ -251,14 +255,30 @@ class AnonymousDependency[T](val _rdd: RDD[T]) extends NarrowDependency[T](_rdd)
 class SparkBackend(
   val tmpdir: String,
   val localTmpdir: String,
-  val sc: SparkContext
+  val sc: SparkContext,
+  private[this] val gcsRequesterPaysProject: String,
+  private[this] val gcsRequesterPaysBuckets: String
 ) extends Backend with Closeable {
+  assert(gcsRequesterPaysProject != null || gcsRequesterPaysBuckets == null)
   lazy val sparkSession: SparkSession = SparkSession.builder().config(sc.getConf).getOrCreate()
   private[this] val theHailClassLoader: HailClassLoader = new HailClassLoader(getClass().getClassLoader())
 
   override def canExecuteParallelTasksOnDriver: Boolean = false
 
-  private[this] val fs: HadoopFS = new HadoopFS(new SerializableHadoopConfiguration(sc.hadoopConfiguration))
+  private[this] val fs: HadoopFS = {
+    val conf = new Configuration(sc.hadoopConfiguration)
+    if (gcsRequesterPaysProject) {
+      if (gcsRequesterPaysBuckets == null) {
+        conf.set("fs.gs.requester.pays.mode", "AUTO")
+        conf.set("fs.gs.requester.pays.project.id", gcsRequesterPaysProject)
+      } else {
+        conf.set("fs.gs.requester.pays.mode", "CUSTOM")
+        conf.set("fs.gs.requester.pays.project.id", gcsRequesterPaysProject)
+        conf.set("fs.gs.requester.pays.buckets", gcsRequesterPaysBuckets)
+      }
+    }
+    new HadoopFS(new SerializableHadoopConfiguration(conf))
+  }
   private[this] val longLifeTempFileManager: TempFileManager = new OwningTempFileManager(fs)
 
   val bmCache: SparkBlockMatrixCache = SparkBlockMatrixCache()
