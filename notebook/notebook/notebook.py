@@ -14,13 +14,7 @@ import pymysql
 from aiohttp import web
 from prometheus_async.aio.web import server_stats  # type: ignore
 
-from gear import (
-    AuthClient,
-    check_csrf_token,
-    create_database_pool,
-    monitor_endpoints_middleware,
-    setup_aiohttp_session,
-)
+from gear import AuthClient, check_csrf_token, create_database_pool, monitor_endpoints_middleware, setup_aiohttp_session
 from hailtop import httpx
 from hailtop.config import get_deploy_config
 from hailtop.hail_logging import AccessLogger
