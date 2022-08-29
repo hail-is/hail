@@ -187,9 +187,12 @@ object SparkBackend {
     quiet: Boolean = false,
     minBlockSize: Long = 1L,
     tmpdir: String = "/tmp",
-    localTmpdir: String = "file:///tmp"): SparkBackend = synchronized {
+    localTmpdir: String = "file:///tmp",
+    gcsRequesterPaysProject: String = null,
+    gcsRequesterPaysBuckets: String = null
+  ): SparkBackend = synchronized {
     if (theSparkBackend == null)
-      return SparkBackend(sc, appName, master, local, quiet, minBlockSize, tmpdir, localTmpdir)
+      return SparkBackend(sc, appName, master, local, quiet, minBlockSize, tmpdir, localTmpdir, gcsRequesterPaysProject, gcsRequesterPaysBuckets)
 
     // there should be only one SparkContext
     assert(sc == null || (sc eq theSparkBackend.sc))
