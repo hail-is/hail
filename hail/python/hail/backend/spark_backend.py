@@ -8,7 +8,7 @@ from threading import Thread
 import py4j
 import pyspark
 
-from typing import List, Optional, Tuple, Union
+from typing import List, Optional
 
 import hail as hl
 from hail.utils.java import Env, scala_package_object, scala_object

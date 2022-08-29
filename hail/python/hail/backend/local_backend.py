@@ -1,3 +1,4 @@
+from typing import Optional
 import json
 import os
 import socket
