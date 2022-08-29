@@ -255,7 +255,7 @@ def init(sc=None,
     `bucket_of_fish` and `bucket_of_eels`:
 
     >>> hl.init(
-    ...     gcs_requester_pays_configuration=('my-project', ['bucket_of_fish', 'bucket_of_eels']
+    ...     gcs_requester_pays_configuration=('my-project', ['bucket_of_fish', 'bucket_of_eels'])
     ... )  # doctest: +SKIP
 
     See Also

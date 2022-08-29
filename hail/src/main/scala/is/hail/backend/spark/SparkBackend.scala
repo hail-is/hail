@@ -256,8 +256,8 @@ class SparkBackend(
   val tmpdir: String,
   val localTmpdir: String,
   val sc: SparkContext,
-  private[this] val gcsRequesterPaysProject: String,
-  private[this] val gcsRequesterPaysBuckets: String
+  gcsRequesterPaysProject: String,
+  gcsRequesterPaysBuckets: String
 ) extends Backend with Closeable {
   assert(gcsRequesterPaysProject != null || gcsRequesterPaysBuckets == null)
   lazy val sparkSession: SparkSession = SparkSession.builder().config(sc.getConf).getOrCreate()
@@ -267,7 +267,7 @@ class SparkBackend(
 
   private[this] val fs: HadoopFS = {
     val conf = new Configuration(sc.hadoopConfiguration)
-    if (gcsRequesterPaysProject) {
+    if (gcsRequesterPaysProject != null) {
       if (gcsRequesterPaysBuckets == null) {
         conf.set("fs.gs.requester.pays.mode", "AUTO")
         conf.set("fs.gs.requester.pays.project.id", gcsRequesterPaysProject)
