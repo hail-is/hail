@@ -2662,10 +2662,10 @@ def rand_int64(a, b=None, *, seed=None) -> Int64Expression:
     2
 
     >>> hl.eval(hl.rand_int64(1 << 33, 1 << 35))
-    23592867963
+    13313179445
 
     >>> hl.eval(hl.rand_int64(1 << 33, 1 << 35))
-    30607113212
+    18981019040
 
     Parameters
     ----------
