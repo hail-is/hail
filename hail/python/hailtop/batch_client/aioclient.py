@@ -161,9 +161,9 @@ class Job:
         return Job(_job)
 
     @staticmethod
-    def submitted_job(batch, job_id, _status=None, _spec=None):
+    def submitted_job(batch, job_id, _status=None):
         assert isinstance(batch, Batch)
-        _job = SubmittedJob(batch, job_id, _status, _spec)
+        _job = SubmittedJob(batch, job_id, _status)
         return Job(_job)
 
     def __init__(self, job):
@@ -222,11 +222,11 @@ class Job:
 
 class UnsubmittedJob:
     def _submit(self, batch, update_start_job_id: int):
-        return SubmittedJob(batch, update_start_job_id + self._rel_job_id - 1, _spec=self._spec)
+        return SubmittedJob(batch, update_start_job_id + self._rel_job_id - 1)
 
     def __init__(self, batch_builder: 'BatchBuilder', spec: 'JobSpec'):
         self._batch_builder = batch_builder
-        self._rel_job_id = spec.rel_job_id
+        self._rel_job_id: int = spec.rel_job_id
         self._spec = spec
 
     @property
@@ -265,13 +265,12 @@ class UnsubmittedJob:
 
 
 class SubmittedJob:
-    def __init__(self, batch, job_id, _status=None, _spec=None):
+    def __init__(self, batch, job_id, _status=None):
         self._batch = batch
         self.batch_id = batch.id
         self.job_id = job_id
         self.id = (self.batch_id, self.job_id)
         self._status = _status
-        self._spec = _spec
 
     async def attributes(self):
         if not self._status:
@@ -570,31 +569,32 @@ class BatchBuilder:
                     user_code: Optional[str] = None) -> Job:
         rel_job_id = len(self._jobs) + 1
 
-        foreign_batches = []
+        foreign_jobs = []
         invalid_job_ids = []
+        parents = parents or []
         for parent in parents:
             job = parent._job
             if isinstance(job, UnsubmittedJob):
                 if job._batch_builder != self:
-                    foreign_batches.append(job)
+                    foreign_jobs.append(parent)
                 elif not 0 < job._spec.rel_job_id <= len(self._jobs):
-                    invalid_job_ids.append(job)
+                    invalid_job_ids.append(parent)
             else:
                 assert isinstance(job, SubmittedJob)
                 if self._batch is None or job._batch != self._batch:
-                    foreign_batches.append(job)
+                    foreign_jobs.append(parent)
 
         error_msg = []
-        if len(foreign_batches) != 0:
+        if len(foreign_jobs) != 0:
             error_msg.append(
                 'Found {} parents from another batch:\n{}'.format(
-                    str(len(foreign_batches)), "\n".join([str(j) for j in foreign_batches])
+                    str(len(foreign_jobs)), "\n".join([str(j._job) for j in foreign_jobs])
                 )
             )
         if len(invalid_job_ids) != 0:
             error_msg.append(
                 'Found {} parents with invalid job ids:\n{}'.format(
-                    str(len(invalid_job_ids)), "\n".join([str(j) for j in invalid_job_ids])
+                    str(len(invalid_job_ids)), "\n".join([str(j._job) for j in invalid_job_ids])
                 )
             )
         if error_msg:
@@ -770,7 +770,7 @@ class BatchBuilder:
                 if n_bunches == 0:
                     self._batch = await self._create_batch()
                     return self._batch
-                elif n_bunches == 1:
+                if n_bunches == 1:
                     self._batch = await self._create_fast(byte_job_specs_bunches[0], pbar)
                     start_job_id = 1
                 else:
