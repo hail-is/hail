@@ -268,7 +268,7 @@ class SparkBackend(
 
   override def canExecuteParallelTasksOnDriver: Boolean = false
 
-  private[this] val fs: HadoopFS = {
+  val fs: HadoopFS = {
     val conf = new Configuration(sc.hadoopConfiguration)
     if (gcsRequesterPaysProject != null) {
       if (gcsRequesterPaysBuckets == null) {
