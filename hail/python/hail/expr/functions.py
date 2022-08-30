@@ -2608,6 +2608,83 @@ def rand_unif(lower=0.0, upper=1.0, seed=None) -> Float64Expression:
     return _seeded_func("rand_unif", tfloat64, seed, lower, upper)
 
 
+@typecheck(a=expr_int32, b=nullable(expr_int32), seed=nullable(int))
+def rand_int32(a, b=None, *, seed=None) -> Int32Expression:
+    """Samples from a uniform distribution of 32-bit integers.
+
+    If b is `None`, samples from the uniform distribution over [0, a). Otherwise, sample from the
+    uniform distribution over [a, b).
+
+    Examples
+    --------
+
+    >>> hl.set_global_seed(0)
+    >>> hl.eval(hl.rand_int32(10))
+    0
+
+    >>> hl.eval(hl.rand_int32(10, 15))
+    11
+
+    >>> hl.eval(hl.rand_int32(10, 15))
+    12
+
+    Parameters
+    ----------
+    a : :obj:`int` or :class:`.Int32Expression`
+        If b is `None`, the right boundary of the range; otherwise, the left boundary of range.
+    b : :obj:`int` or :class:`.Int32Expression`
+        If specified, the right boundary of the range.
+    seed : :obj:`int`, optional
+        Random seed.
+
+    Returns
+    -------
+    :class:`.Int32Expression`
+
+    """
+    if b is None:
+        return _seeded_func("rand_int32", tint32, seed, a)
+    return _seeded_func("rand_int32", tint32, seed, b - a) + a
+
+
+@typecheck(a=expr_int64, b=nullable(expr_int64), seed=nullable(int))
+def rand_int64(a, b=None, *, seed=None) -> Int64Expression:
+    """Samples from a uniform distribution of 64-bit integers.
+
+    If b is `None`, samples from the uniform distribution over [0, a). Otherwise, sample from the
+    uniform distribution over [a, b).
+
+    Examples
+    --------
+
+    >>> hl.set_global_seed(0)
+    >>> hl.eval(hl.rand_int64(10))
+    2
+
+    >>> hl.eval(hl.rand_int64(1 << 33, 1 << 35))
+    13313179445
+
+    >>> hl.eval(hl.rand_int64(1 << 33, 1 << 35))
+    18981019040
+
+    Parameters
+    ----------
+    a : :obj:`int` or :class:`.Int64Expression`
+        If b is `None`, the right boundary of the range; otherwise, the left boundary of range.
+    b : :obj:`int` or :class:`.Int64Expression`
+        If specified, the right boundary of the range.
+    seed : :obj:`int`, optional
+        Random seed.
+
+    Returns
+    -------
+    :class:`.Int64Expression`
+    """
+    if b is None:
+        return _seeded_func("rand_int64", tint64, seed, a)
+    return _seeded_func("rand_int64", tint64, seed, b - a) + a
+
+
 @typecheck(a=expr_float64,
            b=expr_float64,
            lower=nullable(expr_float64),
