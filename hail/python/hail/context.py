@@ -518,7 +518,7 @@ async def init_batch(
         else:
             assert isinstance(gcs_requester_pays_configuration, tuple)
             backend.set_flags(
-                gcs_requester_pays_project=gcs_requester_pays_configuration[0]
+                gcs_requester_pays_project=gcs_requester_pays_configuration[0],
                 gcs_requester_pays_buckets=",".join(gcs_requester_pays_configuration[1])
             )
 
