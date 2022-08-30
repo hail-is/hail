@@ -219,8 +219,8 @@ object SparkBackend {
     minBlockSize: Long = 1L,
     tmpdir: String,
     localTmpdir: String,
-    gcsRequesterPaysProject: String,
-    gcsRequesterPaysBuckets: String
+    gcsRequesterPaysProject: String = null,
+    gcsRequesterPaysBuckets: String = null
   ): SparkBackend = synchronized {
     require(theSparkBackend == null)
 
