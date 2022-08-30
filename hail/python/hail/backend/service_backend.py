@@ -366,6 +366,7 @@ class ServiceBackend(Backend):
                     ],
                     mount_tokens=True,
                     resources=resources,
+                    attributes={'name': 'driver'},
                 )
                 b = await bb.submit(disable_progress_bar=True)
 
@@ -382,7 +383,7 @@ class ServiceBackend(Backend):
                     raise
 
             with timings.step("parse status"):
-                if status['n_succeeded'] != 1:
+                if status['n_succeeded'] != status['n_jobs']:
                     job_status = await j.status()
                     if 'status' in job_status:
                         if 'error' in job_status['status']:
