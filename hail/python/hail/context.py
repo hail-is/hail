@@ -361,7 +361,8 @@ def init(sc=None,
                 driver_memory=driver_memory,
                 worker_cores=worker_cores,
                 worker_memory=worker_memory,
-                name_prefix=app_name
+                name_prefix=app_name,
+                gcs_requester_pays_configuration=gcs_requester_pays_configuration
             ))
     if backend == 'spark':
         return init_spark(
@@ -380,7 +381,8 @@ def init(sc=None,
             local_tmpdir=local_tmpdir,
             default_reference=default_reference,
             global_seed=global_seed,
-            skip_logging_configuration=skip_logging_configuration
+            skip_logging_configuration=skip_logging_configuration,
+            gcs_requester_pays_configuration=gcs_requester_pays_configuration
         )
     if backend == 'local':
         return init_local(
@@ -390,7 +392,8 @@ def init(sc=None,
             tmpdir=tmp_dir,
             default_reference=default_reference,
             global_seed=global_seed,
-            skip_logging_configuration=skip_logging_configuration
+            skip_logging_configuration=skip_logging_configuration,
+            gcs_requester_pays_configuration=gcs_requester_pays_configuration
         )
     raise ValueError(f'unknown Hail Query backend: {backend}')
 

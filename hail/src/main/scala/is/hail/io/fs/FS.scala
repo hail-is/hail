@@ -211,7 +211,7 @@ object FS {
         case "gcp" =>
           val requesterPaysConfiguration = flags.flatMap { flags =>
             RequesterPaysConfiguration.fromFlags(
-              flags.get("requester_pays_project"), flags.get("requester_pays_buckets")
+              flags.get("gcs_requester_pays_project"), flags.get("gcs_requester_pays_buckets")
             )
           }
           new GoogleStorageFS(credentialsStr, requesterPaysConfiguration).asCacheable()

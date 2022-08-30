@@ -60,7 +60,7 @@ object RequesterPaysConfiguration {
       if (requesterPaysBuckets == null) {
         None
       } else {
-        fatal(s"Expected requester_pays_buckets flag to be unset when requester_pays_project is unset, but instead found: $requesterPaysBuckets")
+        fatal(s"Expected gcs_requester_pays_buckets flag to be unset when gcs_requester_pays_project is unset, but instead found: $requesterPaysBuckets")
       }
     } else {
       val buckets = if (requesterPaysBuckets == null) {

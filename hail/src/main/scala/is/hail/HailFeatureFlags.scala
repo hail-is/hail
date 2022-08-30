@@ -27,8 +27,8 @@ object HailFeatureFlags {
     ("shuffle_cutoff_to_local_sort", ("HAIL_SHUFFLE_CUTOFF" -> "512000000")), // This is in bytes
     ("grouped_aggregate_buffer_size", ("HAIL_GROUPED_AGGREGATE_BUFFER_SIZE" -> "50")),
     ("use_ssa_logs", "HAIL_USE_SSA_LOGS" -> null),
-    ("requester_pays_project", "HAIL_REQUESTER_PAYS_PROJECT" -> null),
-    ("requester_pays_buckets", "HAIL_REQUESTER_PAYS_BUCKETS" -> null)
+    ("gcs_requester_pays_project", "HAIL_GCS_REQUESTER_PAYS_PROJECT" -> null),
+    ("gcs_requester_pays_buckets", "HAIL_GCS_REQUESTER_PAYS_BUCKETS" -> null)
   )
 
   def fromEnv(): HailFeatureFlags =
