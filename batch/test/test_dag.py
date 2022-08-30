@@ -26,7 +26,7 @@ def client():
 def test_simple(client):
     batch = client.create_batch()
     head = batch.create_job(DOCKER_ROOT_IMAGE, command=['echo', 'head'])
-    tail = batch.create_job(DOCKER_ROOT_IMAGE, command=['echo', 'tail'], parents=[head])
+    batch.create_job(DOCKER_ROOT_IMAGE, command=['echo', 'tail'], parents=[head])
     batch = batch.submit()
     batch.wait()
     status = legacy_batch_status(batch)
@@ -37,7 +37,7 @@ def test_simple(client):
 def test_missing_parent_is_400(client):
     try:
         batch = client.create_batch()
-        fake_job = aioclient.Job.unsubmitted_job(batch._async_builder, 10000)
+        fake_job = aioclient.Job.unsubmitted_job(batch._async_builder, aioclient.JobSpec(1000, {}))
         fake_job = Job.from_async_job(fake_job)
         batch.create_job(DOCKER_ROOT_IMAGE, command=['echo', 'head'], parents=[fake_job])
         batch = batch.submit()
@@ -128,13 +128,14 @@ def test_callback(client):
         callback_body.append(body)
         return Response(status=200)
 
+    server = None
     try:
         server = ServerThread(app)
         server.start()
         token = secrets.token_urlsafe(32)
         b = client.create_batch(callback=server.url_for('/test'), attributes={'foo': 'bar'}, token=token)
         head = b.create_job('alpine:3.8', command=['echo', 'head'])
-        tail = b.create_job('alpine:3.8', command=['echo', 'tail'], parents=[head])
+        b.create_job('alpine:3.8', command=['echo', 'tail'], parents=[head])
         b = b.submit()
         b.wait()
 
@@ -151,6 +152,7 @@ def test_callback(client):
         callback_body.pop('msec_mcpu')
         callback_body.pop('time_created')
         callback_body.pop('time_closed')
+        callback_body.pop('time_updated')
         callback_body.pop('time_completed')
         callback_body.pop('duration')
         assert callback_body == {
@@ -166,6 +168,7 @@ def test_callback(client):
             'n_succeeded': 2,
             'n_failed': 0,
             'n_cancelled': 0,
+            'n_updates_in_progress': 0,
             'attributes': {'foo': 'bar'},
         }, callback_body
     finally:

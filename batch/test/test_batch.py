@@ -258,8 +258,8 @@ def test_unsubmitted_state(client: BatchClient):
         j.wait()
 
     builder.submit()
-    with pytest.raises(ValueError):
-        builder.create_job(DOCKER_ROOT_IMAGE, ['echo', 'test'])
+    builder.create_job(DOCKER_ROOT_IMAGE, ['echo', 'test'])
+    assert j.id == 1
 
 
 def test_list_batches(client: BatchClient):

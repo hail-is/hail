@@ -1368,17 +1368,13 @@ async def _create_batch_update(batch_id: int, update_token: str, n_update_jobs: 
         assert n_update_jobs > 0
         record = await tx.execute_and_fetchone(
             '''
-SELECT update_id, committed, start_job_id FROM batch_updates
+SELECT update_id, start_job_id FROM batch_updates
 WHERE batch_id = %s AND token = %s;
 ''',
             (batch_id, update_token),
         )
 
         if record:
-            if record['committed']:
-                raise web.HTTPBadRequest(
-                    reason=f'update {record["update_id"]} for batch {batch_id} has already been committed'
-                )
             return record['update_id'], record['start_job_id']
 
         now = time_msecs()

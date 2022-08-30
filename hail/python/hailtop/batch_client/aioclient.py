@@ -155,7 +155,7 @@ class Job:
         return sum(durations)
 
     @staticmethod
-    def unsubmitted_job(batch_builder, spec):
+    def unsubmitted_job(batch_builder: 'BatchBuilder', spec: 'JobSpec'):
         assert isinstance(batch_builder, BatchBuilder)
         _job = UnsubmittedJob(batch_builder, spec)
         return Job(_job)
@@ -262,7 +262,6 @@ class UnsubmittedJob:
 
     async def attempts(self):  # pylint: disable=no-self-use
         raise ValueError("cannot get the attempts of an unsubmitted job")
-
 
 
 class SubmittedJob:
@@ -430,7 +429,7 @@ class Batch:
                  submission_info: Optional[BatchSubmissionInfo] = None):
         self._client = client
         self.id: int = id
-        self.attributes = attributes
+        self.attributes: Dict[str, str] = attributes or {}
         self.token = token
         self._current_update_id = current_update_id
         self._n_jobs_in_current_update = n_jobs_in_current_update
@@ -570,6 +569,36 @@ class BatchBuilder:
                     unconfined: bool = False,
                     user_code: Optional[str] = None) -> Job:
         rel_job_id = len(self._jobs) + 1
+
+        foreign_batches = []
+        invalid_job_ids = []
+        for parent in parents:
+            job = parent._job
+            if isinstance(job, UnsubmittedJob):
+                if job._batch_builder != self:
+                    foreign_batches.append(job)
+                elif not 0 < job._spec.rel_job_id <= len(self._jobs):
+                    invalid_job_ids.append(job)
+            else:
+                assert isinstance(job, SubmittedJob)
+                if self._batch is None or job._batch != self._batch:
+                    foreign_batches.append(job)
+
+        error_msg = []
+        if len(foreign_batches) != 0:
+            error_msg.append(
+                'Found {} parents from another batch:\n{}'.format(
+                    str(len(foreign_batches)), "\n".join([str(j) for j in foreign_batches])
+                )
+            )
+        if len(invalid_job_ids) != 0:
+            error_msg.append(
+                'Found {} parents with invalid job ids:\n{}'.format(
+                    str(len(invalid_job_ids)), "\n".join([str(j) for j in invalid_job_ids])
+                )
+            )
+        if error_msg:
+            raise ValueError("\n".join(error_msg))
 
         job_spec = JobSpec(
             rel_job_id, process, env=env, port=port, resources=resources, secrets=secrets, service_account=service_account,
