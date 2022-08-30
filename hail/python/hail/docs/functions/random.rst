@@ -125,6 +125,8 @@ guaranteed to have the same results if the global seed is set right beforehand:
     rand_norm
     rand_pois
     rand_unif
+    rand_int32
+    rand_int64
     shuffle
 
 
@@ -136,4 +138,6 @@ guaranteed to have the same results if the global seed is set right beforehand:
 .. autofunction:: rand_norm
 .. autofunction:: rand_pois
 .. autofunction:: rand_unif
+.. autofunction:: rand_int32
+.. autofunction:: rand_int64
 .. autofunction:: shuffle

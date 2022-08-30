@@ -139,7 +139,8 @@ class GenericTableValueRDD(
 }
 
 abstract class LoweredTableReaderCoercer {
-  def coerce(globals: IR,
+  def coerce(ctx: ExecuteContext,
+    globals: IR,
     contextType: Type,
     contexts: IndexedSeq[Any],
     body: IR => IR): TableStage
@@ -160,7 +161,7 @@ class GenericTableValue(
   assert(contextType.fieldType("partitionIndex") == TInt32)
 
   var ltrCoercer: LoweredTableReaderCoercer = _
-  def getLTVCoercer(ctx: ExecuteContext): LoweredTableReaderCoercer = {
+  def getLTVCoercer(ctx: ExecuteContext, context: String, cacheKey: Any): LoweredTableReaderCoercer = {
     if (ltrCoercer == null) {
       ltrCoercer = LoweredTableReader.makeCoercer(
         ctx,
@@ -171,12 +172,14 @@ class GenericTableValue(
         contexts,
         fullTableType.keyType,
         bodyPType,
-        body)
+        body,
+        context,
+        cacheKey)
     }
     ltrCoercer
   }
 
-  def toTableStage(ctx: ExecuteContext, requestedType: TableType): TableStage = {
+  def toTableStage(ctx: ExecuteContext, requestedType: TableType, context: String, cacheKey: Any): TableStage = {
     val globalsIR = Literal(requestedType.globalType, globals(requestedType.globalType))
     val requestedBody: (IR) => (IR) = (ctx: IR) => ReadPartition(ctx,
       requestedType.rowType,
@@ -196,7 +199,8 @@ class GenericTableValue(
       val contextsIR = ToStream(Literal(TArray(contextType), contexts))
       TableStage(globalsIR, p, TableStageDependency.none, contextsIR, requestedBody)
     } else {
-      getLTVCoercer(ctx).coerce(
+      getLTVCoercer(ctx, context, cacheKey).coerce(
+        ctx,
         globalsIR,
         contextType, contexts,
         requestedBody)

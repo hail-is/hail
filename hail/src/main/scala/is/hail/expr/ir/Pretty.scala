@@ -3,6 +3,7 @@ package is.hail.expr.ir
 import is.hail.HailContext
 import is.hail.backend.ExecuteContext
 import is.hail.expr.JSONAnnotationImpex
+import is.hail.expr.ir.Pretty.prettyBooleanLiteral
 import is.hail.expr.ir.agg._
 import is.hail.expr.ir.functions.RelationalFunctions
 import is.hail.types.TableType
@@ -237,7 +238,7 @@ class Pretty(width: Int, ribbonWidth: Int, elideLiterals: Boolean, maxLen: Int, 
     case StreamFor(_, valueName, _) if !elideBindings => single(prettyIdentifier(valueName))
     case StreamAgg(a, name, query) if !elideBindings => single(prettyIdentifier(name))
     case StreamAggScan(a, name, query) if !elideBindings => single(prettyIdentifier(name))
-    case StreamGroupByKey(a, key) => single(prettyIdentifiers(key))
+    case StreamGroupByKey(a, key, missingEqual) => FastSeq(prettyIdentifiers(key), prettyBooleanLiteral(missingEqual))
     case AggFold(_, _, _, accumName, otherAccumName, isScan) => if (elideBindings)
       single(Pretty.prettyBooleanLiteral(isScan))
     else

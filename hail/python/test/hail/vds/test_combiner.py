@@ -156,7 +156,7 @@ def test_combiner_manual_filtration():
                         gvcf_info_to_keep=['ExcessHet'],
                         force=True)
 
-    assert plan.gvcf_info_to_keep == {'ExcessHet'}
+    assert plan._gvcf_info_to_keep == {'ExcessHet'}
 
     plan.run()
     vds = hl.vds.read_vds(out_file)

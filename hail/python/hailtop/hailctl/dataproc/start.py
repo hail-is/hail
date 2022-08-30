@@ -183,6 +183,8 @@ def init_parser(parser):
     max_age_group.add_argument('--max-age', type=str, help='If specified, maximum age before shutdown (e.g. 60m).')
     parser.add_argument('--bucket', type=str,
                         help='The Google Cloud Storage bucket to use for cluster staging (just the bucket name, no gs:// prefix).')
+    parser.add_argument('--temp-bucket', type=str,
+                        help='The Google Cloud Storage bucket to use for cluster temporary storage (just the bucket name, no gs:// prefix).')
     parser.add_argument('--network', type=str, help='the network for all nodes in this cluster')
     parser.add_argument('--service-account', type=str, help='The Google Service Account to use for cluster creation (default to the Compute Engine service account).')
     parser.add_argument('--master-tags', type=str, help='comma-separated list of instance tags to apply to the mastern node')
@@ -393,6 +395,8 @@ async def main(args, pass_through_args):
         conf.flags['project'] = args.project
     if args.bucket:
         conf.flags['bucket'] = args.bucket
+    if args.temp_bucket:
+        conf.flags['temp-bucket'] = args.bucket
     if args.scopes:
         conf.flags['scopes'] = args.scopes
 

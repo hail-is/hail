@@ -143,7 +143,7 @@ def make_reference_matrix_table(mt: MatrixTable,
 def transform_gvcf(mt: MatrixTable,
                    reference_entry_fields_to_keep: Collection[str],
                    info_to_keep: Optional[Collection[str]] = None) -> VariantDataset:
-    """Transforms a gvcf into a sparse matrix table
+    """Transforms a GVCF into a sparse matrix table
 
     The input to this should be some result of either :func:`.import_vcf` or
     :func:`.import_gvcfs` with ``array_elements_required=False``.
@@ -154,14 +154,14 @@ def transform_gvcf(mt: MatrixTable,
     Parameters
     ----------
     mt : :class:`.MatrixTable`
-        The gvcf being transformed.
+        The GVCF being transformed.
     reference_entry_fields_to_keep : :class:`list` of :class:`str`
         Genotype fields to keep in the reference table. If empty, the first
         10,000 reference block rows of ``mt`` will be sampled and all fields
         found to be defined other than ``GT``, ``AD``, and ``PL`` will be entry
         fields in the resulting reference matrix in the dataset.
     info_to_keep : :class:`list` of :class:`str`
-        Any ``INFO`` fields in the gvcf that are to be kept and put in the ``gvcf_info`` entry
+        Any ``INFO`` fields in the GVCF that are to be kept and put in the ``gvcf_info`` entry
         field. By default, all ``INFO`` fields except ``END`` and ``DP`` are kept.
 
     Returns

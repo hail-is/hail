@@ -57,7 +57,6 @@ from ..batch_configuration import BATCH_STORAGE_URI, CLOUD, DEFAULT_NAMESPACE, S
 from ..batch_format_version import BatchFormatVersion
 from ..cloud.resource_utils import (
     cores_mcpu_to_memory_bytes,
-    cost_from_msec_mcpu,
     is_valid_cores_mcpu,
     memory_to_worker_type,
     valid_machine_types,
@@ -74,7 +73,7 @@ from ..file_store import FileStore
 from ..globals import BATCH_FORMAT_VERSION, HTTP_CLIENT_MAX_SIZE
 from ..inst_coll_config import InstanceCollectionConfigs
 from ..spec_writer import SpecWriter
-from ..utils import accrued_cost_from_cost_and_msec_mcpu, coalesce, query_billing_projects
+from ..utils import query_billing_projects
 from .validate import ValidationError, validate_and_clean_jobs, validate_batch
 
 # import uvloop
@@ -278,23 +277,29 @@ async def _query_batch_jobs(request, batch_id):
         where_args.extend(args)
 
     sql = f'''
-SELECT jobs.*, batches.user, batches.billing_project,  batches.format_version,
-  job_attributes.value AS name, COALESCE(SUM(`usage` * rate), 0) AS cost
-FROM jobs
-INNER JOIN batches ON jobs.batch_id = batches.id
-LEFT JOIN job_attributes
+WITH base_t AS
+(
+  SELECT jobs.*, batches.user, batches.billing_project, batches.format_version,
+    job_attributes.value AS name
+  FROM jobs
+  INNER JOIN batches ON jobs.batch_id = batches.id
+  LEFT JOIN job_attributes
   ON jobs.batch_id = job_attributes.batch_id AND
-     jobs.job_id = job_attributes.job_id AND
-     job_attributes.`key` = 'name'
-LEFT JOIN aggregated_job_resources
-  ON jobs.batch_id = aggregated_job_resources.batch_id AND
-     jobs.job_id = aggregated_job_resources.job_id
-LEFT JOIN resources
-  ON aggregated_job_resources.resource = resources.resource
-WHERE {' AND '.join(where_conditions)}
-GROUP BY jobs.batch_id, jobs.job_id
-ORDER BY jobs.batch_id, jobs.job_id ASC
-LIMIT 50;
+    jobs.job_id = job_attributes.job_id AND
+    job_attributes.`key` = 'name'
+  WHERE {' AND '.join(where_conditions)}
+  LIMIT 50
+)
+SELECT base_t.*, COALESCE(SUM(`usage` * rate), 0) AS cost
+FROM base_t
+LEFT JOIN (
+  SELECT aggregated_job_resources_v2.batch_id, aggregated_job_resources_v2.job_id, resource_id, CAST(COALESCE(SUM(`usage`), 0) AS SIGNED) AS `usage`
+  FROM base_t
+  LEFT JOIN aggregated_job_resources_v2 ON base_t.batch_id = aggregated_job_resources_v2.batch_id AND base_t.job_id = aggregated_job_resources_v2.job_id
+  GROUP BY aggregated_job_resources_v2.batch_id, aggregated_job_resources_v2.job_id, aggregated_job_resources_v2.resource_id
+) AS usage_t ON base_t.batch_id = usage_t.batch_id AND base_t.job_id = usage_t.job_id
+LEFT JOIN resources ON usage_t.resource_id = resources.resource_id
+GROUP BY base_t.batch_id, base_t.job_id;
 '''
     sql_args = where_args
 
@@ -598,21 +603,34 @@ async def _query_batches(request, user, q):
         where_args.extend(args)
 
     sql = f'''
-SELECT batches.*, batches_cancelled.id IS NOT NULL AS cancelled, COALESCE(SUM(`usage` * rate), 0) AS cost, batches_n_jobs_in_complete_states.n_completed, batches_n_jobs_in_complete_states.n_succeeded, batches_n_jobs_in_complete_states.n_failed, batches_n_jobs_in_complete_states.n_cancelled
-FROM batches
-LEFT JOIN batches_n_jobs_in_complete_states
-  ON batches.id = batches_n_jobs_in_complete_states.id
-LEFT JOIN batches_cancelled
-  ON batches.id = batches_cancelled.id
-LEFT JOIN aggregated_batch_resources
-  ON batches.id = aggregated_batch_resources.batch_id
-LEFT JOIN resources
-  ON aggregated_batch_resources.resource = resources.resource
-STRAIGHT_JOIN billing_project_users ON batches.billing_project = billing_project_users.billing_project
-WHERE {' AND '.join(where_conditions)}
-GROUP BY batches.id
-ORDER BY batches.id DESC
-LIMIT 51;
+WITH base_t AS (
+  SELECT batches.*,
+    batches_cancelled.id IS NOT NULL AS cancelled,
+    batches_n_jobs_in_complete_states.n_completed,
+    batches_n_jobs_in_complete_states.n_succeeded,
+    batches_n_jobs_in_complete_states.n_failed,
+    batches_n_jobs_in_complete_states.n_cancelled
+  FROM batches
+  LEFT JOIN batches_n_jobs_in_complete_states
+    ON batches.id = batches_n_jobs_in_complete_states.id
+  LEFT JOIN batches_cancelled
+    ON batches.id = batches_cancelled.id
+  STRAIGHT_JOIN billing_project_users ON batches.billing_project = billing_project_users.billing_project
+  WHERE {' AND '.join(where_conditions)}
+  ORDER BY id DESC
+  LIMIT 51
+)
+SELECT base_t.*, COALESCE(SUM(`usage` * rate), 0) AS cost
+FROM base_t
+LEFT JOIN (
+  SELECT batch_id, resource_id, CAST(COALESCE(SUM(`usage`), 0) AS SIGNED) AS `usage`
+  FROM base_t
+  LEFT JOIN aggregated_batch_resources_v2 ON base_t.id = aggregated_batch_resources_v2.batch_id
+  GROUP BY batch_id, resource_id
+) AS usage_t ON base_t.id = usage_t.batch_id
+LEFT JOIN resources ON usage_t.resource_id = resources.resource_id
+GROUP BY id
+ORDER BY id DESC;
 '''
     sql_args = where_args
 
@@ -1158,18 +1176,19 @@ LOCK IN SHARE MODE''',
 
         bp_cost_record = await tx.execute_and_fetchone(
             '''
-SELECT billing_projects.msec_mcpu, COALESCE(SUM(`usage` * rate), 0) AS cost
-FROM billing_projects
-INNER JOIN aggregated_billing_project_resources
-  ON billing_projects.name = aggregated_billing_project_resources.billing_project
-INNER JOIN resources
-  ON resources.resource = aggregated_billing_project_resources.resource
-WHERE billing_projects.name = %s
+SELECT COALESCE(SUM(t.`usage` * rate), 0) AS cost
+FROM (
+  SELECT resource_id, CAST(COALESCE(SUM(`usage`), 0) AS SIGNED) AS `usage`
+  FROM aggregated_billing_project_user_resources_v2
+  WHERE billing_project = %s
+  GROUP BY resource_id
+) AS t
+LEFT JOIN resources on resources.resource_id = t.resource_id;
 ''',
             (billing_project,),
         )
         limit = bp['limit']
-        accrued_cost = accrued_cost_from_cost_and_msec_mcpu(bp_cost_record)
+        accrued_cost = bp_cost_record['cost']
         if limit is not None and accrued_cost >= limit:
             raise web.HTTPForbidden(
                 reason=f'billing project {billing_project} has exceeded the budget; accrued={cost_str(accrued_cost)} limit={cost_str(limit)}'
@@ -1231,20 +1250,32 @@ async def _get_batch(app, batch_id):
 
     record = await db.select_and_fetchone(
         '''
-SELECT batches.*, batches_cancelled.id IS NOT NULL AS cancelled, COALESCE(SUM(`usage` * rate), 0) AS cost, batches_n_jobs_in_complete_states.n_completed, batches_n_jobs_in_complete_states.n_succeeded, batches_n_jobs_in_complete_states.n_failed, batches_n_jobs_in_complete_states.n_cancelled
+WITH base_t AS (
+SELECT batches.*,
+  batches_cancelled.id IS NOT NULL AS cancelled,
+  batches_n_jobs_in_complete_states.n_completed,
+  batches_n_jobs_in_complete_states.n_succeeded,
+  batches_n_jobs_in_complete_states.n_failed,
+  batches_n_jobs_in_complete_states.n_cancelled
 FROM batches
 LEFT JOIN batches_n_jobs_in_complete_states
        ON batches.id = batches_n_jobs_in_complete_states.id
 LEFT JOIN batches_cancelled
        ON batches.id = batches_cancelled.id
-LEFT JOIN aggregated_batch_resources
-       ON batches.id = aggregated_batch_resources.batch_id
-LEFT JOIN resources
-       ON aggregated_batch_resources.resource = resources.resource
 WHERE batches.id = %s AND NOT deleted
-GROUP BY batches.id, batches_cancelled.id;
+)
+SELECT base_t.*, COALESCE(SUM(`usage` * rate), 0) AS cost
+FROM base_t
+LEFT JOIN (
+  SELECT aggregated_batch_resources_v2.batch_id, resource_id, CAST(COALESCE(SUM(`usage`), 0) AS SIGNED) AS `usage`
+  FROM base_t
+  LEFT JOIN aggregated_batch_resources_v2 ON base_t.id = aggregated_batch_resources_v2.batch_id
+  GROUP BY aggregated_batch_resources_v2.batch_id, aggregated_batch_resources_v2.resource_id
+) AS usage_t ON base_t.id = usage_t.batch_id
+LEFT JOIN resources ON usage_t.resource_id = resources.resource_id
+GROUP BY base_t.id;
 ''',
-        (batch_id),
+        (batch_id,),
     )
     if not record:
         raise web.HTTPNotFound()
@@ -1419,8 +1450,8 @@ async def _get_job(app, batch_id, job_id):
 
     record = await db.select_and_fetchone(
         '''
-SELECT jobs.*, user, billing_project, ip_address, format_version, COALESCE(SUM(`usage` * rate), 0) AS cost,
-  t.attempt_id AS last_cancelled_attempt_id
+WITH base_t AS (
+SELECT jobs.*, user, billing_project, ip_address, format_version, t.attempt_id AS last_cancelled_attempt_id
 FROM jobs
 INNER JOIN batches
   ON jobs.batch_id = batches.id
@@ -1428,21 +1459,30 @@ LEFT JOIN attempts
   ON jobs.batch_id = attempts.batch_id AND jobs.job_id = attempts.job_id AND jobs.attempt_id = attempts.attempt_id
 LEFT JOIN instances
   ON attempts.instance_name = instances.name
-LEFT JOIN aggregated_job_resources
-  ON jobs.batch_id = aggregated_job_resources.batch_id AND
-     jobs.job_id = aggregated_job_resources.job_id
-LEFT JOIN resources
-  ON aggregated_job_resources.resource = resources.resource
 LEFT JOIN (
   SELECT batch_id, job_id, attempt_id
   FROM attempts
   WHERE reason = "cancelled" AND batch_id = %s AND job_id = %s
   ORDER BY end_time DESC
   LIMIT 1
-) AS t
-  ON jobs.batch_id = t.batch_id AND jobs.job_id = t.job_id
+) AS t ON jobs.batch_id = t.batch_id AND jobs.job_id = t.job_id
 WHERE jobs.batch_id = %s AND NOT deleted AND jobs.job_id = %s
-GROUP BY jobs.batch_id, jobs.job_id, t.attempt_id;
+)
+SELECT base_t.*, COALESCE(SUM(`usage` * rate), 0) AS cost
+FROM base_t
+LEFT JOIN (
+  SELECT aggregated_job_resources_v2.batch_id,
+    aggregated_job_resources_v2.job_id,
+    aggregated_job_resources_v2.resource_id,
+    CAST(COALESCE(SUM(`usage`), 0) AS SIGNED) AS `usage`
+  FROM base_t
+  LEFT JOIN aggregated_job_resources_v2
+    ON aggregated_job_resources_v2.batch_id = base_t.batch_id AND
+       aggregated_job_resources_v2.job_id = base_t.job_id
+  GROUP BY aggregated_job_resources_v2.batch_id, aggregated_job_resources_v2.job_id, aggregated_job_resources_v2.resource_id
+) AS usage_t ON usage_t.batch_id = base_t.batch_id AND usage_t.job_id = base_t.job_id
+LEFT JOIN resources ON usage_t.resource_id = resources.resource_id
+GROUP BY base_t.batch_id, base_t.job_id, base_t.last_cancelled_attempt_id;
 ''',
         (batch_id, job_id, batch_id, job_id),
     )
@@ -1769,7 +1809,6 @@ async def _query_billing(request, user=None):
     start_query = request.query.get('start', default_start)
     try:
         start = datetime.datetime.strptime(start_query, date_format)
-        start = start.timestamp() * 1000
     except ValueError:
         return await parse_error(f"Invalid value for start '{start_query}'; must be in the format of MM/DD/YYYY.")
 
@@ -1777,7 +1816,6 @@ async def _query_billing(request, user=None):
     try:
         if end_query is not None and end_query != '':
             end = datetime.datetime.strptime(end_query, date_format)
-            end = (end + datetime.timedelta(days=1)).timestamp() * 1000
         else:
             end = None
     except ValueError:
@@ -1786,21 +1824,15 @@ async def _query_billing(request, user=None):
     if end is not None and start > end:
         return await parse_error('Invalid search; start must be earlier than end.')
 
-    where_conditions = ["billing_projects.`status` != 'deleted'"]
-    where_args = []
+    where_conditions = [
+        "billing_projects.`status` != 'deleted'",
+        "billing_date >= %s",
+    ]
+    where_args = [start]
 
     if end is not None:
-        where_conditions.append("`time_completed` IS NOT NULL")
-        where_conditions.append("`time_completed` >= %s")
-        where_args.append(start)
-        where_conditions.append("`time_completed` <= %s")
+        where_conditions.append("billing_date <= %s")
         where_args.append(end)
-    else:
-        where_conditions.append(
-            "((`time_completed` IS NOT NULL AND `time_completed` >= %s) OR "
-            "(`time_closed` IS NOT NULL AND `time_completed` IS NULL))"
-        )
-        where_args.append(start)
 
     if user is not None:
         where_conditions.append("`user` = %s")
@@ -1810,29 +1842,21 @@ async def _query_billing(request, user=None):
 SELECT
   billing_project,
   `user`,
-  CAST(SUM(IF(format_version < 3, batches.msec_mcpu, 0)) AS SIGNED) as msec_mcpu,
-  SUM(IF(format_version >= 3, `usage` * rate, NULL)) as cost
-FROM batches
-LEFT JOIN aggregated_batch_resources
-  ON aggregated_batch_resources.batch_id = batches.id
-LEFT JOIN resources
-  ON resources.resource = aggregated_batch_resources.resource
-LEFT JOIN billing_projects
-  ON billing_projects.name = batches.billing_project
-WHERE {' AND '.join(where_conditions)}
+  COALESCE(SUM(`usage` * rate), 0) AS cost
+FROM (
+  SELECT billing_project, `user`, resource_id, CAST(COALESCE(SUM(`usage`), 0) AS SIGNED) AS `usage`
+  FROM aggregated_billing_project_user_resources_by_date_v2
+  LEFT JOIN billing_projects ON billing_projects.name = aggregated_billing_project_user_resources_by_date_v2.billing_project
+  WHERE {' AND '.join(where_conditions)}
+  GROUP BY billing_project, `user`, resource_id
+) AS t
+LEFT JOIN resources ON resources.resource_id = t.resource_id
 GROUP BY billing_project, `user`;
 '''
 
     sql_args = where_args
 
-    def billing_record_to_dict(record):
-        cost_msec_mcpu = cost_from_msec_mcpu(record['msec_mcpu'])
-        cost_resources = record['cost']
-        record['cost'] = coalesce(cost_msec_mcpu, 0) + coalesce(cost_resources, 0)
-        del record['msec_mcpu']
-        return record
-
-    billing = [billing_record_to_dict(record) async for record in db.select_and_fetchall(sql, sql_args)]
+    billing = [record async for record in db.select_and_fetchall(sql, sql_args)]
 
     return (billing, start_query, end_query)
 

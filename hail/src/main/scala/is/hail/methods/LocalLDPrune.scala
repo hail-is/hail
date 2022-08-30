@@ -4,7 +4,8 @@ import java.util
 import is.hail.annotations._
 import is.hail.backend.ExecuteContext
 import is.hail.expr.ir.functions.MatrixToTableFunction
-import is.hail.expr.ir.{MatrixValue, TableValue}
+import is.hail.expr.ir.{LongArrayBuilder, MatrixValue, TableValue}
+import is.hail.sparkextras.ContextRDD
 import is.hail.types._
 import is.hail.types.physical._
 import is.hail.types.virtual._
@@ -12,64 +13,125 @@ import is.hail.rvd.RVD
 import is.hail.utils._
 import is.hail.variant._
 
-object BitPackedVectorView {
-  val bpvElementSize: Long = PInt64Required.byteSize
+import org.apache.spark.rdd.RDD
 
-  def rvRowPType(locusType: PType, allelesType: PType): PStruct =
-    PCanonicalStruct(true,
-      "locus" -> locusType,
-      "alleles" -> allelesType,
-      "bpv" -> PCanonicalArray(PInt64Required),
-      "nSamples" -> PInt32Required,
-      "mean" -> PFloat64(),
-      "centered_length_rec" -> PFloat64())
+import BitPackedVector._
+
+object BitPackedVector {
+  final val GENOTYPES_PER_PACK: Int = 32
+  final val BITS_PER_PACK: Int = 2 * GENOTYPES_PER_PACK
 }
 
-class BitPackedVectorView(rvRowType: PStruct) {
-  val vView = new RegionValueVariant(rvRowType)
+private case class BitPackedVectorLoader(fullRowPType: PStruct, callField: String, nSamples: Int) {
+  require(nSamples >= 0)
+  val PField(_, locusType: PLocus, locusIdx) = fullRowPType.fieldByName("locus")
+  val PField(_, allelesType: PArray, allelesIdx) = fullRowPType.fieldByName("alleles")
+  val alleleType = allelesType.elementType.asInstanceOf[PString]
+  val hcView = new HardCallView(fullRowPType, callField)
 
-  // All types are required!
-  private var bpvOffset: Long = _
-  private var bpvLength: Int = _
-  private var bpvElementOffset: Long = _
-  private var nSamplesOffset: Long = _
-  private var meanOffset: Long = _
-  private var centeredLengthRecOffset: Long = _
-  private val bpvPType = PCanonicalArray(PInt64Required)
+  def load(ptr: Long): Option[BitPackedVector] = {
+    require(nSamples >= 0)
+    hcView.set(ptr)
 
-  def set(offset: Long) {
-    bpvOffset = rvRowType.loadField(offset, rvRowType.fieldIdx("bpv"))
-    bpvLength = bpvPType.loadLength(bpvOffset)
-    bpvElementOffset = bpvPType.elementOffset(bpvOffset, bpvLength, 0)
-    nSamplesOffset = rvRowType.loadField(offset, rvRowType.fieldIdx("nSamples"))
-    meanOffset = rvRowType.loadField(offset, rvRowType.fieldIdx("mean"))
-    centeredLengthRecOffset = rvRowType.loadField(offset, rvRowType.fieldIdx("centered_length_rec"))
+    val lptr = fullRowPType.loadField(ptr, locusIdx)
+    val locus = Locus(locusType.contig(lptr), locusType.position(lptr))
 
-    vView.set(offset)
+    val aptr = fullRowPType.loadField(ptr, allelesIdx)
+    val alen = allelesType.loadLength(aptr)
+    val aiter = allelesType.elementIterator(aptr, alen)
+    val alleles = new Array[String](alen)
+    var i = 0
+    while (i < alen) {
+      alleles(i) = alleleType.loadString(allelesType.loadElement(aptr, alen, i))
+      i += 1
+    }
+
+    var nMissing = 0
+    var gtSum = 0
+    var gtSumSq = 0
+
+    val nPacks = (nSamples - 1) / GENOTYPES_PER_PACK + 1
+    val packs = new LongArrayBuilder(nPacks)
+    var pack = 0L
+    var packOffset = BITS_PER_PACK - 2
+    i = 0
+    while (i < nSamples) {
+      hcView.setGenotype(i)
+      val gt = if (hcView.hasGT) Call.nNonRefAlleles(hcView.getGT) else -1
+      pack = pack | ((gt & 3).toLong << packOffset)
+
+      if (packOffset == 0) {
+        packs.add(pack)
+        pack = 0L
+        packOffset = BITS_PER_PACK
+      }
+
+      packOffset -= 2
+
+      gt match {
+        case 1 => gtSum += 1; gtSumSq += 1
+        case 2 => gtSum += 2; gtSumSq += 4
+        case -1 => nMissing += 1
+        case _ =>
+      }
+
+      i += 1
+    }
+
+    if (packs.size < nPacks) {
+      packs.add(pack)
+    }
+
+    val nPresent = nSamples - nMissing
+    val allHomRef = gtSum == 0
+    val allHet = gtSum == nPresent && gtSumSq == nPresent
+    val allHomVar = gtSum == 2 * nPresent
+
+    if (allHomRef || allHet || allHomVar || nMissing == nSamples) {
+      None
+    } else {
+      val gtMean = gtSum.toDouble / nPresent
+      val gtSumAll = gtSum + nMissing * gtMean
+      val gtSumSqAll = gtSumSq + nMissing * gtMean * gtMean
+      val gtCenteredLengthRec = 1d / math.sqrt(gtSumSqAll - (gtSumAll * gtSumAll / nSamples))
+
+      Some(BitPackedVector(locus, alleles, packs.result(), nSamples, gtMean, gtCenteredLengthRec))
+    }
   }
+}
 
-  def getContig: String = vView.contig()
+case class BitPackedVector(locus: Locus, alleles: IndexedSeq[String], gs: Array[Long], nSamples: Int, mean: Double, centeredLengthRec: Double) {
+  def nPacks: Int = gs.length
 
-  def getStart: Int = vView.position()
+  def getPack(idx: Int): Long = gs(idx)
 
-  def getPack(idx: Int): Long = {
-    if (idx < 0 || idx >= bpvLength)
-      throw new ArrayIndexOutOfBoundsException(idx)
-    val packOffset = bpvElementOffset + idx * BitPackedVectorView.bpvElementSize
-    Region.loadLong(packOffset)
+  // for testing
+  private[methods] def unpack(): Array[Int] = {
+    val gts = Array.ofDim[Int](nSamples)
+
+    var packIndex = 0
+    var i = 0
+    val shiftInit = GENOTYPES_PER_PACK * 2 - 2
+    while (packIndex < nPacks && i < nSamples) {
+      val l = gs(packIndex)
+      var shift = shiftInit
+      while (shift >= 0 && i < nSamples) {
+        val gt = (l >> shift) & 3
+        if (gt == 3)
+          gts(i) = -1
+        else
+          gts(i) = gt.toInt
+        shift -= 2
+        i += 1
+      }
+      packIndex += 1
+    }
+
+    gts
   }
-
-  def getNPacks: Int = bpvLength
-
-  def getNSamples: Int = Region.loadInt(nSamplesOffset)
-
-  def getMean: Double = Region.loadDouble(meanOffset)
-
-  def getCenteredLengthRec: Double = Region.loadDouble(centeredLengthRecOffset)
 }
 
 object LocalLDPrune {
-  val genotypesPerPack = 32
 
   val lookupTable: Array[Byte] = {
     val table = Array.ofDim[Byte](256 * 4)
@@ -119,87 +181,22 @@ object LocalLDPrune {
     (xySum, XbarCount, YbarCount, XbarYbarCount)
   }
 
-  def addBitPackedVector(rvb: RegionValueBuilder, hcView: HardCallView, nSamples: Int): Boolean = {
-    require(nSamples >= 0)
-    val nBitsPerPack = 2 * genotypesPerPack
-    val nPacks = (nSamples - 1) / genotypesPerPack + 1
+  def computeR(x: BitPackedVector, y: BitPackedVector): Double = {
+    require(x.nSamples == y.nSamples && x.nPacks == y.nPacks)
 
-    rvb.startArray(nPacks)
-
-    var nMissing = 0
-    var gtSum = 0
-    var gtSumSq = 0
-
-    var pack = 0L
-    var packOffset = nBitsPerPack - 2
-    var packIndex = 0
-    var i = 0
-    while (i < nSamples) {
-      hcView.setGenotype(i)
-      val gt = if (hcView.hasGT) Call.nNonRefAlleles(hcView.getGT) else -1
-
-      pack = pack | ((gt & 3).toLong << packOffset)
-
-      if (packOffset == 0) {
-        rvb.addLong(pack)
-        packIndex += 1
-        pack = 0L
-        packOffset = nBitsPerPack
-      }
-      packOffset -= 2
-
-      gt match {
-        case 1 => gtSum += 1; gtSumSq += 1
-        case 2 => gtSum += 2; gtSumSq += 4
-        case -1 => nMissing += 1
-        case _ =>
-      }
-
-      i += 1
-    }
-
-    if (packIndex < nPacks)
-      rvb.addLong(pack)
-
-    rvb.endArray()
-
-    val nPresent = nSamples - nMissing
-    val allHomRef = gtSum == 0
-    val allHet = gtSum == nPresent && gtSumSq == nPresent
-    val allHomVar = gtSum == 2 * nPresent
-
-    if (allHomRef || allHet || allHomVar || nMissing == nSamples) {
-      rvb.clear()
-      false
-    } else {
-      val gtMean = gtSum.toDouble / nPresent
-      val gtSumAll = gtSum + nMissing * gtMean
-      val gtSumSqAll = gtSumSq + nMissing * gtMean * gtMean
-      val gtCenteredLengthRec = 1d / math.sqrt(gtSumSqAll - (gtSumAll * gtSumAll / nSamples))
-
-      rvb.addInt(nSamples)
-      rvb.addDouble(gtMean)
-      rvb.addDouble(gtCenteredLengthRec)
-      true
-    }
-  }
-
-  def computeR(x: BitPackedVectorView, y: BitPackedVectorView): Double = {
-    require(x.getNSamples == y.getNSamples && x.getNPacks == y.getNPacks)
-
-    val N = x.getNSamples
-    val meanX = x.getMean
-    val meanY = y.getMean
-    val centeredLengthRecX = x.getCenteredLengthRec
-    val centeredLengthRecY = y.getCenteredLengthRec
+    val N = x.nSamples
+    val meanX = x.mean
+    val meanY = y.mean
+    val centeredLengthRecX = x.centeredLengthRec
+    val centeredLengthRecY = y.centeredLengthRec
 
     var XbarYbarCount = 0
     var XbarCount = 0
     var YbarCount = 0
     var xySum = 0
 
-    val nPacks = x.getNPacks
-    val shiftInit = 2 * (genotypesPerPack - 2)
+    val nPacks = x.nPacks
+    val shiftInit = 2 * (GENOTYPES_PER_PACK - 2)
     var pack = 0
     while (pack < nPacks) {
       val lX = x.getPack(pack)
@@ -221,37 +218,26 @@ object LocalLDPrune {
       ((xySum + XbarCount * meanX + YbarCount * meanY + XbarYbarCount * meanX * meanY) - N * meanX * meanY)
   }
 
-  def computeR2(x: BitPackedVectorView, y: BitPackedVectorView): Double = {
+  def computeR2(x: BitPackedVector, y: BitPackedVector): Double = {
     val r = computeR(x, y)
     val r2 = r * r
     assert(D_>=(r2, 0d) && D_<=(r2, 1d), s"R2 must lie in [0,1]. Found $r2.")
     r2
   }
 
-  private def pruneLocal(inputRDD: RVD, r2Threshold: Double, windowSize: Int, queueSize: Option[Int]): RVD = {
-    val localRowType = inputRDD.typ.rowType
-
-    inputRDD.mapPartitionsWithContext(inputRDD.typ) { (ctx, prevPartition) =>
-      val queue = new util.ArrayDeque[RegionValue](queueSize.getOrElse(16))
-
-      val producerContext = ctx.freshContext()
-
-      val bpvv = new BitPackedVectorView(localRowType)
-      val bpvvPrev = new BitPackedVectorView(localRowType)
-      val rvb = new RegionValueBuilder()
-
-      prevPartition(producerContext).filter { ptr =>
-        bpvv.set(ptr)
-
+  private def pruneLocal(inputRDD: RDD[BitPackedVector], r2Threshold: Double, windowSize: Int, queueSize: Int): RDD[BitPackedVector] = {
+    inputRDD.mapPartitions({ it =>
+      val queue = new util.ArrayDeque[BitPackedVector](queueSize)
+      it.filter { bpvv =>
         var keepVariant = true
         var done = false
         val qit = queue.descendingIterator()
 
         while (!done && qit.hasNext) {
-          bpvvPrev.set(qit.next().offset)
-          if (bpvv.getContig != bpvvPrev.getContig || bpvv.getStart - bpvvPrev.getStart > windowSize)
+          val bpvvPrev = qit.next()
+          if (bpvv.locus.contig != bpvvPrev.locus.contig || bpvv.locus.position - bpvvPrev.locus.position > windowSize) {
             done = true
-          else {
+          } else {
             val r2 = computeR2(bpvv, bpvvPrev)
             if (r2 >= r2Threshold) {
               keepVariant = false
@@ -261,24 +247,15 @@ object LocalLDPrune {
         }
 
         if (keepVariant) {
-          val r = ctx.freshRegion()
-          rvb.set(r)
-          rvb.start(localRowType)
-          rvb.addRegionValue(localRowType, producerContext.region, ptr)
-          queue.addLast(RegionValue(rvb.region, rvb.end()))
-          queueSize.foreach { qs =>
-            if (queue.size() > qs) {
-              queue.pop().region.invalidate()
-            }
+          queue.addLast(bpvv)
+          if (queue.size() > queueSize) {
+            queue.pop()
           }
-          ctx.r.addReferenceTo(r)
         }
-
-        producerContext.region.clear()
 
         keepVariant
       }
-    }
+    }, preservesPartitioning = true)
   }
 
   def apply(ctx: ExecuteContext,
@@ -293,6 +270,7 @@ object LocalLDPrune {
 case class LocalLDPrune(
   callField: String, r2Threshold: Double, windowSize: Int, maxQueueSize: Int
 ) extends MatrixToTableFunction {
+  require(maxQueueSize > 0, s"Maximum queue size must be positive. Found '$maxQueueSize'.")
 
   override def typ(childType: MatrixType): TableType = {
     TableType(
@@ -303,72 +281,37 @@ case class LocalLDPrune(
   def preservesPartitionCounts: Boolean = false
 
   def execute(ctx: ExecuteContext, mv: MatrixValue): TableValue = {
-    if (maxQueueSize < 1)
-      fatal(s"Maximum queue size must be positive. Found '$maxQueueSize'.")
-
     val nSamples = mv.nCols
-
     val fullRowPType = mv.rvRowPType
-
-    val locusIndex = fullRowPType.fieldIdx("locus")
-    val allelesIndex = fullRowPType.fieldIdx("alleles")
-
-    val bpvType = BitPackedVectorView.rvRowPType(fullRowPType.types(locusIndex), fullRowPType.types(allelesIndex))
+    val localCallField = callField
 
     val tableType = typ(mv.typ)
 
     val standardizedRDD = mv.rvd
-      .mapPartitionsWithContext(mv.rvd.typ.copy(rowType = bpvType)){ (ctx, prevPartition) =>
-
-        val producerContext = ctx.freshContext()
-
-        val hcView = new HardCallView(fullRowPType, callField)
-        val region = producerContext.region
-        val rvb = new RegionValueBuilder(region)
-
-        prevPartition(producerContext).flatMap { ptr =>
-          hcView.set(ptr)
-          rvb.start(bpvType)
-          rvb.startStruct()
-          rvb.addFields(fullRowPType, ctx.r, ptr, Array(locusIndex, allelesIndex))
-
-          val keep = LocalLDPrune.addBitPackedVector(rvb, hcView, nSamples)
-
-          if (keep) {
-            rvb.endStruct()
-
-            ctx.region.addReferenceTo(region)
-            region.clear()
-
-            Some(rvb.end())
-          }
-          else {
-            region.clear()
-            None
-          }
+      .mapPartitions{ (ctx, prevPartition) =>
+        val bpvLoader = BitPackedVectorLoader(fullRowPType, localCallField, nSamples)
+        prevPartition.flatMap { ptr =>
+          bpvLoader.load(ptr)
         }
       }
 
-    val rvdLP = LocalLDPrune.pruneLocal(standardizedRDD, r2Threshold, windowSize, Some(maxQueueSize))
+    val rddLP = LocalLDPrune.pruneLocal(standardizedRDD, r2Threshold, windowSize, maxQueueSize)
 
-    val fieldIndicesToAdd = Array("locus", "alleles", "mean", "centered_length_rec")
-      .map(field => bpvType.fieldIdx(field))
-    val sitesOnly = rvdLP.mapPartitions(
-      tableType.canonicalRVDType
-    )({ (ctx, it) =>
+    val sitesOnly = RVD(tableType.canonicalRVDType, mv.rvd.partitioner, ContextRDD.weaken(rddLP).cmapPartitions({ (ctx, it) =>
       val rvb = new RegionValueBuilder(ctx.r)
-
-      it.map { ptr =>
+      it.map { bpvv =>
         rvb.set(ctx.r)
         rvb.start(tableType.canonicalRowPType)
         rvb.startStruct()
-        rvb.addFields(bpvType, ctx.r, ptr, fieldIndicesToAdd)
+        rvb.addLocus(bpvv.locus.contig, bpvv.locus.position)
+        rvb.addAnnotation(TArray(TString), bpvv.alleles)
+        rvb.addDouble(bpvv.mean)
+        rvb.addDouble(bpvv.centeredLengthRec)
         rvb.endStruct()
         rvb.end()
       }
-    })
+    }, true))
 
     TableValue(ctx, tableType, BroadcastRow.empty(ctx), sitesOnly)
   }
 }
-

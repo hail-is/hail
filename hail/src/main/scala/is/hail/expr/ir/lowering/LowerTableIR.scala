@@ -516,7 +516,7 @@ object LowerTableIR {
         })) { partData =>
 
           val sorted = sortIR(partData) { (l, r) => ApplyComparisonOp(LT(keyType, keyType), l, r) }
-          bindIR(ToArray(flatMapIR(StreamGroupByKey(ToStream(sorted), keyType.fieldNames)) { groupRef =>
+          bindIR(ToArray(flatMapIR(StreamGroupByKey(ToStream(sorted), keyType.fieldNames, missingEqual = true)) { groupRef =>
             StreamTake(groupRef, 1)
           })) { boundsArray =>
 
@@ -793,7 +793,7 @@ object LowerTableIR {
           .mapPartition(Some(child.typ.key)) { partition =>
 
             Let("global", loweredChild.globals,
-              mapIR(StreamGroupByKey(partition, child.typ.key)) { groupRef =>
+              mapIR(StreamGroupByKey(partition, child.typ.key, missingEqual = true)) { groupRef =>
                 StreamAgg(
                   groupRef,
                   "row",
@@ -846,7 +846,7 @@ object LowerTableIR {
         val aggSigsPlusTake = aggSigs ++ IndexedSeq(takeAggSig)
         repartitioned.mapPartition(None) { partition =>
           Let("global", repartitioned.globals,
-            mapIR(StreamGroupByKey(partition, newKeyType.fieldNames.toIndexedSeq)) { groupRef =>
+            mapIR(StreamGroupByKey(partition, newKeyType.fieldNames.toIndexedSeq, missingEqual = true)) { groupRef =>
               RunAgg(
                 forIR(zipWithIndex(groupRef)) { elemWithID =>
                   val idx = GetField(elemWithID, "idx")
@@ -881,7 +881,7 @@ object LowerTableIR {
 
         loweredChild.repartitionNoShuffle(loweredChild.partitioner.coarsen(child.typ.key.length).strictify)
           .mapPartition(None) { partition =>
-            flatMapIR(StreamGroupByKey(partition, child.typ.key)) { groupRef =>
+            flatMapIR(StreamGroupByKey(partition, child.typ.key, missingEqual = true)) { groupRef =>
               StreamTake(groupRef, 1)
             }
           }

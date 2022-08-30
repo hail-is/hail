@@ -235,13 +235,24 @@ package object ir {
     CollectDistributedArray(contexts, globals, contextRef.name, globalRef.name, body(contextRef, globalRef), dynamicID, staticID, None)
   }
 
-  def strConcat(irs: IR*): IR = {
+  def strConcat(irs: AnyRef*): IR = {
     assert(irs.nonEmpty)
     var s: IR = null
-    irs.foreach { x =>
+    irs.foreach { xAny =>
+      val x = xAny match {
+        case x: IR => x
+        case x: String => Str(x)
+      }
+
       if (s == null)
         s = x
-      s = invoke("concat", TString, s, x)
+      else {
+        val xstr = if (x.typ == TString)
+          x
+        else
+          invoke("str", TString, x)
+        s = invoke("concat", TString, s, xstr)
+      }
     }
     s
   }

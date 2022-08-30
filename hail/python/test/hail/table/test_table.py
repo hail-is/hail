@@ -267,6 +267,23 @@ class Tests(unittest.TestCase):
             set(ht1.group_by('k').aggregate(mean_b = hl.agg.mean(ht1.b)).collect()),
             {hl.Struct(k='foo', mean_b=1.0), hl.Struct(k='bar', mean_b=2.0)})
 
+    def test_group_aggregate_na(self):
+        ht = hl.utils.range_table(100, 8)
+        ht = ht.key_by(k=hl.or_missing(ht.idx % 10 == 0, ht.idx % 4))
+
+        expected = [
+            hl.utils.Struct(k=0, n=5),
+            hl.utils.Struct(k=2, n=5),
+            hl.utils.Struct(k=None, n=90)
+        ]
+        # test map side combine and shuffle aggregation
+        assert ht.group_by(ht.k).aggregate(n=hl.agg.count()).collect() == expected
+
+
+        ht = ht.checkpoint(new_temp_file())
+        # test sorted aggregation
+        assert ht.group_by(ht.k).aggregate(n=hl.agg.count()).collect() == expected
+
     def test_filter(self):
         schema = hl.tstruct(a=hl.tint32, b=hl.tint32, c=hl.tint32, d=hl.tint32, e=hl.tstr, f=hl.tarray(hl.tint32))
 

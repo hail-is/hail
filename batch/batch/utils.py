@@ -3,14 +3,12 @@ import logging
 import secrets
 from collections import deque
 from functools import wraps
-from typing import Any, Deque, Dict, Set, Tuple
+from typing import Deque, Set, Tuple
 
 from aiohttp import web
 
 from gear import maybe_parse_bearer_header
 from hailtop.utils import secret_alnum_string
-
-from .cloud.resource_utils import cost_from_msec_mcpu
 
 log = logging.getLogger('utils')
 
@@ -110,12 +108,6 @@ class ExceededSharesCounter:
         return f'global {self._global_counter}'
 
 
-def accrued_cost_from_cost_and_msec_mcpu(record: Dict[str, Any]) -> float:
-    cost_msec_mcpu = cost_from_msec_mcpu(record['msec_mcpu'])
-    cost_resources = record['cost']
-    return coalesce(cost_msec_mcpu, 0) + coalesce(cost_resources, 0)
-
-
 async def query_billing_projects(db, user=None, billing_project=None):
     args = []
 
@@ -135,9 +127,10 @@ async def query_billing_projects(db, user=None, billing_project=None):
         where_condition = ''
 
     sql = f'''
+WITH base_t AS (
 SELECT billing_projects.name as billing_project,
   billing_projects.`status` as `status`,
-  users, msec_mcpu, `limit`, SUM(`usage` * rate) as cost
+  users, `limit`
 FROM (
   SELECT billing_project, JSON_ARRAYAGG(`user`) as users
   FROM billing_project_users
@@ -146,20 +139,24 @@ FROM (
 ) AS t
 RIGHT JOIN billing_projects
   ON t.billing_project = billing_projects.name
-LEFT JOIN aggregated_billing_project_resources
-  ON aggregated_billing_project_resources.billing_project = billing_projects.name
-LEFT JOIN resources
-  ON resources.resource = aggregated_billing_project_resources.resource
 {where_condition}
-GROUP BY billing_projects.name, billing_projects.status, msec_mcpu, `limit`
-LOCK IN SHARE MODE;
+GROUP BY billing_projects.name, billing_projects.status, `limit`
+LOCK IN SHARE MODE
+)
+SELECT base_t.*, COALESCE(SUM(`usage` * rate), 0) as accrued_cost
+FROM base_t
+LEFT JOIN (
+  SELECT base_t.billing_project, resource_id, CAST(COALESCE(SUM(`usage`), 0) AS SIGNED) AS `usage`
+  FROM base_t
+  LEFT JOIN aggregated_billing_project_user_resources_v2
+    ON base_t.billing_project = aggregated_billing_project_user_resources_v2.billing_project
+  GROUP BY base_t.billing_project, resource_id
+) AS usage_t ON usage_t.billing_project = base_t.billing_project
+LEFT JOIN resources ON resources.resource_id = usage_t.resource_id
+GROUP BY base_t.billing_project;
 '''
 
     def record_to_dict(record):
-        record['accrued_cost'] = accrued_cost_from_cost_and_msec_mcpu(record)
-        del record['msec_mcpu']
-        del record['cost']
-
         if record['users'] is None:
             record['users'] = []
         else:

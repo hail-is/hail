@@ -55,6 +55,11 @@ class Tests(unittest.TestCase):
             self.assertTrue(ht.aggregate(hl.agg.all((ht.x == ht.y)) & ~hl.agg.all((ht.x == ht.z))))
 
         test_random_function(lambda: hl.rand_unif(0, 1))
+        test_random_function(lambda: hl.rand_int32(10))
+        test_random_function(lambda: hl.rand_int32(5, 15))
+        test_random_function(lambda: hl.rand_int64(23))
+        test_random_function(lambda: hl.rand_int64(5, 15))
+        test_random_function(lambda: hl.rand_int64(1 << 33, 1 << 35))
         test_random_function(lambda: hl.rand_bool(0.5))
         test_random_function(lambda: hl.rand_norm(0, 1))
         test_random_function(lambda: hl.rand_pois(1))

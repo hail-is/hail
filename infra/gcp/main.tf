@@ -2,11 +2,15 @@ terraform {
   required_providers {
     google = {
       source = "hashicorp/google"
-      version = "3.48.0"
+      version = "4.32.0"
     }
     kubernetes = {
       source = "hashicorp/kubernetes"
       version = "2.8.0"
+    }
+    sops = {
+      source = "carlpett/sops"
+      version = "0.6.3"
     }
   }
 }
@@ -32,22 +36,10 @@ variable "gcp_zone" {}
 variable "gcp_location" {}
 variable "domain" {}
 variable "organization_domain" {}
+variable "github_organization" {}
 variable "use_artifact_registry" {
   type = bool
   description = "pull the ubuntu image from Artifact Registry. Otherwise, GCR"
-}
-
-variable "ci_config" {
-  type = object({
-    github_oauth_token = string
-    github_user1_oauth_token = string
-    watched_branches = list(tuple([string, bool, bool]))
-    deploy_steps = list(string)
-    bucket_location = string
-    bucket_storage_class = string
-    github_context = string
-  })
-  default = null
 }
 
 variable deploy_ukbb {
@@ -65,8 +57,12 @@ locals {
   docker_root_image = "${local.docker_prefix}/ubuntu:20.04"
 }
 
+data "sops_file" "terraform_sa_key_sops" {
+  source_file = "${var.github_organization}/terraform_sa_key.enc.json"
+}
+
 provider "google" {
-  credentials = file("~/.hail/terraform_sa_key.json")
+  credentials = data.sops_file.terraform_sa_key_sops.raw
 
   project = var.gcp_project
   region = var.gcp_region
@@ -74,7 +70,7 @@ provider "google" {
 }
 
 provider "google-beta" {
-  credentials = file("~/.hail/terraform_sa_key.json")
+  credentials = data.sops_file.terraform_sa_key_sops.raw
 
   project = var.gcp_project
   region = var.gcp_region
@@ -120,18 +116,9 @@ resource "google_container_cluster" "vdc" {
   }
 
   cluster_autoscaling {
-    enabled = true
+    # Don't use node auto-provisioning since we manage node pools ourselves
+    enabled = false
     autoscaling_profile = "OPTIMIZE_UTILIZATION"
-    resource_limits {
-      resource_type = "cpu"
-      minimum       = 4
-      maximum       = 100
-    }
-    resource_limits {
-      resource_type = "memory"
-      minimum       = 8
-      maximum       = 500
-    }
   }
 }
 
@@ -149,7 +136,7 @@ resource "google_container_node_pool" "vdc_preemptible_pool" {
   }
 
   node_config {
-    preemptible = true
+    spot = true
     machine_type = "n1-standard-4"
 
     labels = {
@@ -374,6 +361,7 @@ resource "google_service_account_key" "gcr_push_key" {
 
 resource "google_artifact_registry_repository_iam_member" "artifact_registry_batch_agent_viewer" {
   provider = google-beta
+  project = var.gcp_project
   repository = google_artifact_registry_repository.repository.name
   location = var.gcp_location
   role = "roles/artifactregistry.reader"
@@ -382,6 +370,7 @@ resource "google_artifact_registry_repository_iam_member" "artifact_registry_bat
 
 resource "google_artifact_registry_repository_iam_member" "artifact_registry_ci_viewer" {
   provider = google-beta
+  project = var.gcp_project
   repository = google_artifact_registry_repository.repository.name
   location = var.gcp_location
   role = "roles/artifactregistry.reader"
@@ -396,6 +385,7 @@ resource "google_storage_bucket_iam_member" "gcr_push_admin" {
 
 resource "google_artifact_registry_repository_iam_member" "artifact_registry_push_admin" {
   provider = google-beta
+  project = var.gcp_project
   repository = google_artifact_registry_repository.repository.name
   location = var.gcp_location
   role = "roles/artifactregistry.admin"
@@ -423,6 +413,7 @@ module "ukbb" {
 module "auth_gsa_secret" {
   source = "./gsa_k8s_secret"
   name = "auth"
+  project = var.gcp_project
   iam_roles = [
     "iam.serviceAccountAdmin",
     "iam.serviceAccountKeyAdmin",
@@ -432,6 +423,7 @@ module "auth_gsa_secret" {
 module "batch_gsa_secret" {
   source = "./gsa_k8s_secret"
   name = "batch"
+  project = var.gcp_project
   iam_roles = [
     "compute.instanceAdmin.v1",
     "iam.serviceAccountUser",
@@ -449,15 +441,18 @@ resource "google_storage_bucket_iam_member" "batch_hail_query_bucket_storage_vie
 module "benchmark_gsa_secret" {
   source = "./gsa_k8s_secret"
   name = "benchmark"
+  project = var.gcp_project
 }
 
 module "ci_gsa_secret" {
   source = "./gsa_k8s_secret"
   name = "ci"
+  project = var.gcp_project
 }
 
 resource "google_artifact_registry_repository_iam_member" "artifact_registry_viewer" {
   provider = google-beta
+  project = var.gcp_project
   repository = google_artifact_registry_repository.repository.name
   location = var.gcp_location
   role = "roles/artifactregistry.reader"
@@ -467,16 +462,19 @@ resource "google_artifact_registry_repository_iam_member" "artifact_registry_vie
 module "monitoring_gsa_secret" {
   source = "./gsa_k8s_secret"
   name = "monitoring"
+  project = var.gcp_project
 }
 
 module "grafana_gsa_secret" {
   source = "./gsa_k8s_secret"
   name = "grafana"
+  project = var.gcp_project
 }
 
 module "test_gsa_secret" {
   source = "./gsa_k8s_secret"
   name = "test"
+  project = var.gcp_project
   iam_roles = [
     "compute.instanceAdmin.v1",
     "iam.serviceAccountUser",
@@ -500,6 +498,7 @@ resource "google_storage_bucket_iam_member" "test_gcr_viewer" {
 module "test_dev_gsa_secret" {
   source = "./gsa_k8s_secret"
   name = "test-dev"
+  project = var.gcp_project
 }
 
 resource "google_service_account" "batch_agent" {
@@ -515,6 +514,7 @@ resource "google_project_iam_member" "batch_agent_iam_member" {
     "storage.objectViewer",
   ])
 
+  project = var.gcp_project
   role = "roles/${each.key}"
   member = "serviceAccount:${google_service_account.batch_agent.email}"
 }
@@ -635,28 +635,41 @@ resource "kubernetes_cluster_role_binding" "batch" {
   }
 }
 
+data "sops_file" "auth_oauth2_client_secret_sops" {
+  source_file = "${var.github_organization}/auth_oauth2_client_secret.enc.json"
+}
+
 resource "kubernetes_secret" "auth_oauth2_client_secret" {
   metadata {
     name = "auth-oauth2-client-secret"
   }
 
   data = {
-    "client_secret.json" = file("~/.hail/auth_oauth2_client_secret.json")
+    "client_secret.json" = data.sops_file.auth_oauth2_client_secret_sops.raw
   }
+}
+
+data "sops_file" "ci_config_sops" {
+  count = fileexists("${var.github_organization}/ci_config.enc.json") ? 1 : 0
+  source_file = "${var.github_organization}/ci_config.enc.json"
+}
+
+locals {
+    ci_config = length(data.sops_file.ci_config_sops) == 1 ? data.sops_file.ci_config_sops[0] : null
 }
 
 module "ci" {
   source = "./ci"
-  count = var.ci_config != null ? 1 : 0
-
-  github_oauth_token = var.ci_config.github_oauth_token
-  github_user1_oauth_token = var.ci_config.github_user1_oauth_token
-  watched_branches = var.ci_config.watched_branches
-  deploy_steps = var.ci_config.deploy_steps
-  bucket_location = var.ci_config.bucket_location
-  bucket_storage_class = var.ci_config.bucket_storage_class
+  count = local.ci_config != null ? 1 : 0
+  
+  github_oauth_token = local.ci_config.data["github_oauth_token"]
+  github_user1_oauth_token = local.ci_config.data["github_user1_oauth_token"]
+  watched_branches = jsondecode(local.ci_config.raw).watched_branches
+  deploy_steps = jsondecode(local.ci_config.raw).deploy_steps
+  bucket_location = local.ci_config.data["bucket_location"]
+  bucket_storage_class = local.ci_config.data["bucket_storage_class"]
 
   ci_email = module.ci_gsa_secret.email
   container_registry_id = google_container_registry.registry.id
-  github_context = var.ci_config.github_context
+  github_context = local.ci_config.data["github_context"]
 }

@@ -1826,7 +1826,7 @@ class MatrixVCFReader(
   }
 
   override def lower(ctx: ExecuteContext, requestedType: TableType): TableStage =
-    executeGeneric(ctx).toTableStage(ctx, requestedType)
+    executeGeneric(ctx).toTableStage(ctx, requestedType, "VCF", params)
 
   override def apply(ctx: ExecuteContext, requestedType: TableType, dropRows: Boolean): TableValue =
     executeGeneric(ctx, dropRows).toTableValue(ctx, requestedType)
