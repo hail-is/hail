@@ -224,7 +224,7 @@ object FS {
   }
 }
 
-trait FS {
+trait FS extends Serializable {
   def getCodecFromExtension(extension: String, gzAsBGZ: Boolean = false): CompressionCodec = {
     extension match {
       case ".gz" =>
