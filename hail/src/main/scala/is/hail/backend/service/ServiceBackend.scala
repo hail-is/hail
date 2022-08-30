@@ -149,8 +149,8 @@ class ServiceBackend(
       }
     }
 
-    scalaConcurrent.Await.result(uploadFunction, scalaConcurrent.duration.Duration.Inf)
-    scalaConcurrent.Await.result(uploadContexts, scalaConcurrent.duration.Duration.Inf)
+    val uploadFunctionAndContexts = scalaConcurrent.Future.sequence(uploadFunction, uploadContexts)
+    scalaConcurrent.Await.result(uploadFunctionAndContexts, scalaConcurrent.duration.Duration.Inf)
 
     val batchClient = BatchClient.fromSessionID(backendContext.sessionID)
     val jobs = new Array[JObject](n)
