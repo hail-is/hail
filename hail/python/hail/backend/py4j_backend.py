@@ -95,7 +95,7 @@ class Py4JBackend(Backend):
         stream_codec = '{"name":"StreamBufferSpec"}'
         # print(self._hail_package.expr.ir.Pretty.apply(jir, True, -1))
         try:
-            result_tuple = self._jbackend.executeEncode(jir, stream_codec)
+            result_tuple = self._jbackend.executeEncode(jir, stream_codec, timed)
             (result, timings) = (result_tuple._1(), result_tuple._2())
             value = ir.typ._from_encoding(result)
 

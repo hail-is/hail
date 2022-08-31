@@ -16,19 +16,22 @@ DROP TRIGGER IF EXISTS attempts_before_update;
 DROP TRIGGER IF EXISTS attempts_after_update;
 DROP TRIGGER IF EXISTS jobs_after_update;
 DROP TRIGGER IF EXISTS attempt_resources_after_insert;
-DROP TRIGGER IF EXISTS attempt_resources_before_insert;
+DROP TRIGGER IF EXISTS attempt_resources_before_insert;  # deprecated
 
 DROP TABLE IF EXISTS `aggregated_job_resources_by_date`;
 DROP TABLE IF EXISTS `aggregated_batch_resources_by_date`;
 DROP TABLE IF EXISTS `aggregated_billing_project_user_resources_by_date`;
 DROP TABLE IF EXISTS `batch_updates_inst_coll_staging`;
 DROP TABLE IF EXISTS `batch_inst_coll_cancellable_resources_staging`;
-DROP TABLE IF EXISTS `attempts_aggregated_by_date`;
 DROP TABLE IF EXISTS `batch_updates`;
 
 DROP TABLE IF EXISTS `aggregated_billing_project_resources`;
+DROP TABLE IF EXISTS `aggregated_billing_project_user_resources_v2`;
+DROP TABLE IF EXISTS `aggregated_billing_project_user_resources_by_date_v2`;
 DROP TABLE IF EXISTS `aggregated_batch_resources`;
+DROP TABLE IF EXISTS `aggregated_batch_resources_v2`;
 DROP TABLE IF EXISTS `aggregated_job_resources`;
+DROP TABLE IF EXISTS `aggregated_job_resources_v2`;
 DROP TABLE IF EXISTS `attempt_resources`;
 DROP TABLE IF EXISTS `batch_cancellable_resources`;  # deprecated
 DROP TABLE IF EXISTS `batch_inst_coll_cancellable_resources`;

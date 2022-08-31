@@ -222,7 +222,7 @@ class RequirednessSuite extends HailSuite {
       stream(optional, required),
       int(optional),
       s1.name, s2.name,
-      s1 + s2), parray(optional, optional))
+      s1 + s2, NA(TString), "test"), parray(optional, optional))
 
     // ApplyIR
     nodes += Array(

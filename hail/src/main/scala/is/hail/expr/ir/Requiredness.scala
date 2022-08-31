@@ -261,7 +261,7 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
       case NDArrayMap2(left, right, l, r, body, _) =>
         addElementBinding(l, left)
         addElementBinding(r, right)
-      case CollectDistributedArray(ctxs, globs, c, g, body, _) =>
+      case CollectDistributedArray(ctxs, globs, c, g, body, _, _, _) =>
         addElementBinding(c, ctxs)
         addBinding(g, globs)
       case BlockMatrixMap(child, eltName, f, _) => addBlockMatrixElementBinding(eltName, child)
@@ -544,7 +544,7 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
         coerce[RIterable](coerce[RIterable](requiredness).elementType).elementType
           .unionFrom(aReq.elementType)
         requiredness.union(aReq.required && lookup(size).required)
-      case StreamGroupByKey(a, key) =>
+      case StreamGroupByKey(a, key, _) =>
         val aReq = lookupAs[RIterable](a)
         val elt = coerce[RIterable](coerce[RIterable](requiredness).elementType).elementType
         elt.union(true)
@@ -708,7 +708,7 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
           EmitType(pt.sType, pt.required)
         }
         requiredness.unionFrom(x.implementation.computeReturnEmitType(x.returnType, argP).typeWithRequiredness.r)
-      case CollectDistributedArray(ctxs, globs, _, _, body, _) =>
+      case CollectDistributedArray(ctxs, globs, _, _, body, _, _, _) =>
         requiredness.union(lookup(ctxs).required)
         coerce[RIterable](requiredness).elementType.unionFrom(lookup(body))
       case ReadPartition(context, rowType, reader) =>

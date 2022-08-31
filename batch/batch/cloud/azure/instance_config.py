@@ -83,6 +83,9 @@ class AzureSlimInstanceConfig(InstanceConfig):
     def worker_type(self) -> str:
         return self._worker_type
 
+    def region_for(self, location: str) -> str:
+        return location
+
     @staticmethod
     def from_dict(data: dict) -> 'AzureSlimInstanceConfig':
         resources = data.get('resources')

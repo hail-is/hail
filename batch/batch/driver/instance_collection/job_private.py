@@ -280,6 +280,7 @@ HAVING n_ready_jobs + n_creating_jobs + n_running_jobs > 0;
             machine_type=machine_type,
             job_private=True,
             location=None,
+            region=None,
             preemptible=preemptible,
             max_idle_time_msecs=None,
             local_ssd_data_disk=False,

@@ -48,7 +48,7 @@ class AzureDriver(CloudDriver):
 
         region_monitor = await RegionMonitor.create(region)
         billing_manager = await AzureBillingManager.create(db, pricing_client, regions)
-        inst_coll_manager = InstanceCollectionManager(db, machine_name_prefix, region_monitor)
+        inst_coll_manager = InstanceCollectionManager(db, machine_name_prefix, region_monitor, region)
         resource_manager = AzureResourceManager(
             subscription_id, resource_group, ssh_public_key, arm_client, compute_client, billing_manager
         )

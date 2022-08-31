@@ -124,7 +124,7 @@ object InferType {
         a.typ
       case StreamGrouped(a, _) =>
         TStream(a.typ)
-      case StreamGroupByKey(a, _) =>
+      case StreamGroupByKey(a, _, _) =>
         TStream(a.typ)
       case StreamMap(a, name, body) =>
         TStream(body.typ)
@@ -268,7 +268,7 @@ object InferType {
       case TableToValueApply(child, function) => function.typ(child.typ)
       case MatrixToValueApply(child, function) => function.typ(child.typ)
       case BlockMatrixToValueApply(child, function) => function.typ(child.typ)
-      case CollectDistributedArray(_, _, _, _, body, _) => TArray(body.typ)
+      case CollectDistributedArray(_, _, _, _, body, _, _, _) => TArray(body.typ)
       case ReadPartition(_, rowType, _) => TStream(rowType)
       case WritePartition(value, writeCtx, writer) => writer.returnType
       case _: WriteMetadata => TVoid

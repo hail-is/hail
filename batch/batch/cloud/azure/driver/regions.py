@@ -1,3 +1,5 @@
+from typing import Optional
+
 from ....driver.location import CloudLocationMonitor
 
 
@@ -17,5 +19,7 @@ class RegionMonitor(CloudLocationMonitor):
         cores: int,  # pylint: disable=unused-argument
         local_ssd_data_disk: bool,  # pylint: disable=unused-argument
         data_disk_size_gb: int,  # pylint: disable=unused-argument
+        preemptible: bool,  # pylint: disable=unused-argument
+        region: Optional[str],  # pylint: disable=unused-argument
     ) -> str:
-        return self._default_region
+        return region or self._default_region
