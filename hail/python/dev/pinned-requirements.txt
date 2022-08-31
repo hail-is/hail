@@ -94,7 +94,7 @@ importlib-metadata==3.10.1
     #   pre-commit
     #   pytest
     #   virtualenv
-importlib-resources==5.7.1
+importlib-resources==5.9.0
     # via jsonschema
 iniconfig==1.1.1
     # via pytest
