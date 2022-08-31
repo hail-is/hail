@@ -699,7 +699,7 @@ def check_service_account_permissions(user, sa):
 # use "/api/v1alpha/batches/{batch_id}/updates/{update_id}/jobs/create" instead
 @routes.post('/api/v1alpha/batches/{batch_id}/jobs/create')
 @rest_authenticated_users_only
-async def create_jobs(request: web.Request, userdata: dict):
+async def create_jobs(request: aiohttp.web.Request, userdata: dict):
     app = request.app
 
     batch_id = int(request.match_info['batch_id'])
@@ -723,7 +723,9 @@ WHERE batches.user = %s AND batches.id = %s;
         raise web.HTTPNotFound()
 
     if len(records) > 1:
-        raise web.HTTPBadRequest(reason='Use /api/v1alpha/batches/{batch_id}/updates/{update_id}/jobs/create instead')
+        raise web.HTTPBadRequest(
+            reason='Updating a batch can only be done through the updates endpoint, not this endpoint'
+        )
     update_id = records[0]['update_id']
     job_specs = await request.json()
     await _create_jobs(userdata, job_specs, batch_id, update_id, app)
@@ -733,16 +735,9 @@ WHERE batches.user = %s AND batches.id = %s;
 @routes.post('/api/v1alpha/batches/{batch_id}/updates/{update_id}/jobs/create')
 @rest_billing_project_users_only
 async def update_create_jobs(request: web.Request, userdata: dict, batch_id: int):
-    app = request.app
-    db: Database = app['db']
-
-    if app['frozen']:
-        log.info('ignoring batch create request; batch is frozen')
-        raise web.HTTPServiceUnavailable()
-
     update_id = int(request.match_info['update_id'])
     job_specs = await request.json()
-    await _create_jobs(userdata, job_specs, batch_id, update_id, app)
+    await _create_jobs(userdata, job_specs, batch_id, update_id, request.app)
     return web.Response()
 
 
@@ -1226,10 +1221,6 @@ async def update_batch_fast(request, userdata, batch_id):
     app = request.app
     db: Database = app['db']
 
-    if app['frozen']:
-        log.info('ignoring batch update request; batch is frozen')
-        raise web.HTTPServiceUnavailable()
-
     user = userdata['username']
     update_and_bunch = await request.json()
     update_spec = update_and_bunch['update']
@@ -1254,10 +1245,6 @@ async def create_update(request, userdata):
     db: Database = app['db']
 
     batch_id = int(request.match_info['batch_id'])
-
-    if app['frozen']:
-        log.info('ignoring batch update request; batch is frozen')
-        raise web.HTTPServiceUnavailable()
 
     update_spec = await request.json()
 
@@ -1295,10 +1282,6 @@ async def commit_update(request: web.Request, userdata):
     user = userdata['username']
     app = request.app
     db: Database = app['db']
-
-    if app['frozen']:
-        log.info('ignoring batch commit update request; batch is frozen')
-        raise web.HTTPServiceUnavailable()
 
     record = await db.select_and_fetchone(
         '''
@@ -1577,29 +1560,6 @@ LEFT JOIN (
     return batch_record_to_dict(record)
 
 
-# TODO Delete me. This is just for testing
-async def _get_batch_updates(app, batch_id):
-    db: Database = app['db']
-
-    records = db.select_and_fetchall(
-        '''
-SELECT *
-FROM batch_updates
-WHERE batch_id = %s
-ORDER BY start_job_id ASC;
-''',
-        (batch_id,),
-    )
-    records = [record async for record in records]
-    for record in records:
-        record['time_created'] = time_msecs_str(record['time_created'])
-        if record['time_committed'] is not None:
-            record['time_committed'] = time_msecs_str(record['time_committed'])
-        record['committed'] = bool(record['committed'])
-        record['end_job_id'] = record['start_job_id'] + record['n_jobs'] - 1
-    return records
-
-
 async def _cancel_batch(app, batch_id):
     await cancel_batch_in_db(app['db'], batch_id)
     app['cancel_batch_state_changed'].set()
@@ -1626,7 +1586,7 @@ WHERE id = %s AND NOT deleted;
         app['delete_batch_state_changed'].set()
 
 
-@routes.get('/api/v1alpha/batches/{batch_id}', name='batch')
+@routes.get('/api/v1alpha/batches/{batch_id}')
 @rest_billing_project_users_only
 async def get_batch(request, userdata, batch_id):  # pylint: disable=unused-argument
     return web.json_response(await _get_batch(request.app, batch_id))
@@ -1645,9 +1605,9 @@ async def cancel_batch(request, userdata, batch_id):  # pylint: disable=unused-a
 @rest_authenticated_users_only
 async def close_batch(request, userdata):
     batch_id = int(request.match_info['batch_id'])
+    user = userdata['username']
 
     app = request.app
-    user = userdata['username']
     db: Database = app['db']
 
     record = await db.select_and_fetchone(
@@ -1690,7 +1650,7 @@ async def delete_batch(request, userdata, batch_id):  # pylint: disable=unused-a
     return web.Response()
 
 
-@routes.get('/batches/{batch_id}', name='batch_ui')
+@routes.get('/batches/{batch_id}')
 @web_billing_project_users_only()
 @catch_ui_error_in_dev
 async def ui_batch(request, userdata, batch_id):
@@ -1705,9 +1665,7 @@ async def ui_batch(request, userdata, batch_id):
 
     batch['cost'] = cost_str(batch['cost'])
 
-    updates = await _get_batch_updates(app, batch_id)
-
-    page_context = {'batch': batch, 'q': request.query.get('q'), 'last_job_id': last_job_id, 'updates': updates}
+    page_context = {'batch': batch, 'q': request.query.get('q'), 'last_job_id': last_job_id}
     return await render_template('batch', request, userdata, 'batch.html', page_context)
 
 

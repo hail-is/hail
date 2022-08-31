@@ -26,7 +26,7 @@ def client():
 def test_simple(client):
     batch = client.create_batch()
     head = batch.create_job(DOCKER_ROOT_IMAGE, command=['echo', 'head'])
-    batch.create_job(DOCKER_ROOT_IMAGE, command=['echo', 'tail'], parents=[head])
+    tail = batch.create_job(DOCKER_ROOT_IMAGE, command=['echo', 'tail'], parents=[head])
     batch = batch.submit()
     batch.wait()
     status = legacy_batch_status(batch)
@@ -128,7 +128,6 @@ def test_callback(client):
         callback_body.append(body)
         return Response(status=200)
 
-    server = None
     try:
         server = ServerThread(app)
         server.start()

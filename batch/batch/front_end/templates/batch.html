@@ -12,7 +12,6 @@
   <li>User: {{ batch['user'] }}</li>
   <li>Billing Project: {{ batch['billing_project'] }}</li>
   <li>Time Created: {% if 'time_created' in batch and batch['time_created'] is not none %}{{ batch['time_created'] }}{% endif %}</li>
-  <li>Time Updated: {% if 'time_updated' in batch and batch['time_updated'] is not none %}{{ batch['time_updated'] }}{% endif %}</li>
   <li>Time Completed: {% if 'time_completed' in batch and batch['time_completed'] is not none %}{{ batch['time_completed'] }}{% endif %}</li>
   <li>Total Jobs: {{ batch['n_jobs'] }}</li>
   <ul>
@@ -41,34 +40,6 @@
 <p>{{ name }}: {{ value }}</p>
 {% endfor %}
 {% endif %}
-
-<h2>Updates</h2>
-  <div class='flex-col' style="overflow: auto;">
-    <table class="data-table" id="updates" style="width: 100%">
-      <thead>
-        <tr>
-          <th>ID</th>
-          <th>Number of Jobs</th>
-          <th>Start Job ID</th>
-          <th>End Job ID</th>
-          <th>Time Created</th>
-          <th>Committed</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for update in updates %}
-        <tr>
-          <td>{{ update['update_id'] }}</td>
-          <td>{{ update['n_jobs'] }}</td>
-          <td>{{ update['start_job_id'] }}</td>
-          <td>{{ update['end_job_id'] }}</td>
-          <td>{{ update['time_created'] }}</td>
-          <td>{{ update['committed'] }}</td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
-  </div>
 
 <h2>Jobs</h2>
 <div class="flex-col">

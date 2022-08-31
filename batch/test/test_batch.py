@@ -1053,58 +1053,58 @@ def test_job_private_instance_cancel(client: BatchClient):
 
 
 def test_update_batch_no_deps(client: BatchClient):
-    builder = client.create_batch()
-    builder.create_job(DOCKER_ROOT_IMAGE, ['false'])
-    builder.submit()
-    j = builder.create_job(DOCKER_ROOT_IMAGE, ['true'])
-    b = builder.submit()
+    bb = client.create_batch()
+    bb.create_job(DOCKER_ROOT_IMAGE, ['false'])
+    bb.submit()
+    j = bb.create_job(DOCKER_ROOT_IMAGE, ['true'])
+    b = bb.submit()
     status = j.wait()
 
     assert status['state'] == 'Success', str((status, b.debug_info()))
 
 
 def test_empty_update(client: BatchClient):
-    builder = client.create_batch()
-    builder.create_job(DOCKER_ROOT_IMAGE, ['true'])
-    b = builder.submit()
-    b = builder.submit()
+    bb = client.create_batch()
+    bb.create_job(DOCKER_ROOT_IMAGE, ['true'])
+    b = bb.submit()
+    b = bb.submit()
     status = b.wait()
 
     assert status['state'] == 'success', str((status, b.debug_info()))
 
 
 def test_update_batch_w_submitted_job_deps(client: BatchClient):
-    builder = client.create_batch()
-    j1 = builder.create_job(DOCKER_ROOT_IMAGE, ['true'])
-    b = builder.submit()
+    bb = client.create_batch()
+    j1 = bb.create_job(DOCKER_ROOT_IMAGE, ['true'])
+    b = bb.submit()
     j1.wait()
-    j2 = builder.create_job(DOCKER_ROOT_IMAGE, ['true'], parents=[j1])
-    b = builder.submit()
+    j2 = bb.create_job(DOCKER_ROOT_IMAGE, ['true'], parents=[j1])
+    b = bb.submit()
     status = j2.wait()
 
     assert status['state'] == 'Success', str((status, b.debug_info()))
 
 
 def test_update_batch_w_failing_submitted_job_deps(client: BatchClient):
-    builder = client.create_batch()
-    j1 = builder.create_job(DOCKER_ROOT_IMAGE, ['false'])
-    builder.submit()
+    bb = client.create_batch()
+    j1 = bb.create_job(DOCKER_ROOT_IMAGE, ['false'])
+    bb.submit()
 
-    j2 = builder.create_job(DOCKER_ROOT_IMAGE, ['true'], parents=[j1])
-    b = builder.submit()
+    j2 = bb.create_job(DOCKER_ROOT_IMAGE, ['true'], parents=[j1])
+    b = bb.submit()
     status = j2.wait()
 
     assert status['state'] == 'Cancelled', str((status, b.debug_info()))
 
 
 def test_update_batch_w_deps_in_update(client: BatchClient):
-    builder = client.create_batch()
-    j = builder.create_job(DOCKER_ROOT_IMAGE, ['true'])
-    builder.submit()
+    bb = client.create_batch()
+    j = bb.create_job(DOCKER_ROOT_IMAGE, ['true'])
+    bb.submit()
 
-    j1 = builder.create_job(DOCKER_ROOT_IMAGE, ['true'])
-    j2 = builder.create_job(DOCKER_ROOT_IMAGE, ['true'], parents=[j, j1])
-    b = builder.submit()
+    j1 = bb.create_job(DOCKER_ROOT_IMAGE, ['true'])
+    j2 = bb.create_job(DOCKER_ROOT_IMAGE, ['true'], parents=[j, j1])
+    b = bb.submit()
     status = j2.wait()
 
     assert status['state'] == 'Success', str((status, b.debug_info()))
@@ -1113,12 +1113,12 @@ def test_update_batch_w_deps_in_update(client: BatchClient):
 
 
 def test_update_batch_w_empty_initial_batch(client: BatchClient):
-    builder = client.create_batch()
-    b = builder.submit()
+    bb = client.create_batch()
+    b = bb.submit()
 
-    u = client.update_batch(b.id)
-    j1 = u.create_job(DOCKER_ROOT_IMAGE, ['true'])
-    b = u.submit()
+    bb = client.update_batch(b.id)
+    j1 = bb.create_job(DOCKER_ROOT_IMAGE, ['true'])
+    b = bb.submit()
     status = j1.wait()
 
     assert status['state'] == 'Success', str((status, b.debug_info()))
@@ -1126,15 +1126,15 @@ def test_update_batch_w_empty_initial_batch(client: BatchClient):
 
 
 def test_update_batch_w_multiple_empty_updates(client: BatchClient):
-    builder = client.create_batch()
-    b = builder.submit()
+    bb = client.create_batch()
+    b = bb.submit()
 
-    u = client.update_batch(b.id)
-    b = u.submit()
+    bb = client.update_batch(b.id)
+    b = bb.submit()
 
-    u = client.update_batch(b.id)
-    j1 = u.create_job(DOCKER_ROOT_IMAGE, ['true'])
-    b = u.submit()
+    bb = client.update_batch(b.id)
+    j1 = bb.create_job(DOCKER_ROOT_IMAGE, ['true'])
+    b = bb.submit()
     status = b.wait()
 
     assert status['state'] == 'success', str((status, b.debug_info()))
@@ -1142,18 +1142,9 @@ def test_update_batch_w_multiple_empty_updates(client: BatchClient):
 
 
 def test_update_batch_wout_fast_path(client: BatchClient):
-    builder = client.create_batch()
-    b = builder.submit()
-
-    # 8 * 256 * 1024 = 2 MiB > 1 MiB max bunch size
-    for _ in range(256):
-        long_str = secrets.token_urlsafe(8 * 1024)
-        builder.create_job(
-            UBUNTU_IMAGE,
-            ['true'],
-            env={'BIG_STRING': long_str},
-        )
-    b = builder.submit()
+    bb = client.create_batch()
+    bb.submit()
+    for _ in range(4):
+        bb.create_job(DOCKER_ROOT_IMAGE, ['echo', 'a' * (900 * 1024)])
+    b = bb.submit()
     assert not next(iter(b.submission_info.used_fast_update.values()))
-    batch_status = b.wait()
-    assert batch_status['state'] == 'success', str(b.debug_info())
