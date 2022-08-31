@@ -184,7 +184,9 @@ class GoogleStorageFS(
 
       override def close(): Unit = {
         if (!closed) {
-          reader.close()
+          if (reader != null) {
+            reader.close()
+          }
           closed = true
         }
       }

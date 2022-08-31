@@ -16,33 +16,31 @@ def test_requester_pays_no_settings():
 
 
 def test_requester_pays_write_no_settings():
+    random_filename = 'gs://hail-services-requester-pays/test_requester_pays_on_worker_driver_' + secret_alnum_string(10)
     try:
-        random_filename = 'gs://hail-services-requester-pays/test_requester_pays_on_worker_driver_' + secret_alnum_string(10)
-        try:
-            hl.utils.range_table(4, n_partitions=4).write(random_filename, overwrite=True)
-        except Exception as exc:
-            assert "Bucket is a requester pays bucket but no user project provided" in exc.args[0]
-        else:
-            assert False
-    finally:
+        hl.utils.range_table(4, n_partitions=4).write(random_filename, overwrite=True)
+    except Exception as exc:
+        assert "Bucket is a requester pays bucket but no user project provided" in exc.args[0]
+    else:
         hl.current_backend().fs.rmtree(random_filename)
+        assert False
 
 
 def test_requester_pays_with_project():
     hl.stop()
-    hl.init(gcs_requester_pays_configuration='broad-ctsa')
+    hl.init(gcs_requester_pays_configuration='hail-vdc')
     assert hl.import_table('gs://hail-services-requester-pays/hello', no_header=True).collect() == [hl.Struct(f0='hello')]
 
     hl.stop()
-    hl.init(gcs_requester_pays_configuration=('broad-ctsa', ['hail-services-requester-pays']))
+    hl.init(gcs_requester_pays_configuration=('hail-vdc', ['hail-services-requester-pays']))
     assert hl.import_table('gs://hail-services-requester-pays/hello', no_header=True).collect() == [hl.Struct(f0='hello')]
 
     hl.stop()
-    hl.init(gcs_requester_pays_configuration=('broad-ctsa', ['hail-services-requester-pays', 'other-bucket']))
+    hl.init(gcs_requester_pays_configuration=('hail-vdc', ['hail-services-requester-pays', 'other-bucket']))
     assert hl.import_table('gs://hail-services-requester-pays/hello', no_header=True).collect() == [hl.Struct(f0='hello')]
 
     hl.stop()
-    hl.init(gcs_requester_pays_configuration=('broad-ctsa', ['other-bucket']))
+    hl.init(gcs_requester_pays_configuration=('hail-vdc', ['other-bucket']))
     try:
         hl.import_table('gs://hail-services-requester-pays/hello')
     except Exception as exc:
@@ -51,40 +49,32 @@ def test_requester_pays_with_project():
         assert False
 
     hl.stop()
-    hl.init(gcs_requester_pays_configuration='broad-ctsa')
+    hl.init(gcs_requester_pays_configuration='hail-vdc')
     assert hl.import_table('gs://hail-services-requester-pays/hello', no_header=True).collect() == [hl.Struct(f0='hello')]
 
 
-def test_requester_pays_write():
-    random_filename = 'gs://hail-services-requester-pays/test_requester_pays_on_worker_driver_' + secret_alnum_string(10)
+def test_requester_pays_with_project_more_than_one_partition():
+    hl.stop()
+    hl.init(gcs_requester_pays_configuration='hail-vdc')
+    assert hl.import_table('gs://hail-services-requester-pays/hello', no_header=True, min_partitions=8).collect() == [hl.Struct(f0='hello')]
+
+    hl.stop()
+    hl.init(gcs_requester_pays_configuration=('hail-vdc', ['hail-services-requester-pays']))
+    assert hl.import_table('gs://hail-services-requester-pays/hello', no_header=True, min_partitions=8).collect() == [hl.Struct(f0='hello')]
+
+    hl.stop()
+    hl.init(gcs_requester_pays_configuration=('hail-vdc', ['hail-services-requester-pays', 'other-bucket']))
+    assert hl.import_table('gs://hail-services-requester-pays/hello', no_header=True, min_partitions=8).collect() == [hl.Struct(f0='hello')]
+
+    hl.stop()
+    hl.init(gcs_requester_pays_configuration=('hail-vdc', ['other-bucket']))
     try:
-        hl.stop()
-        hl.init(gcs_requester_pays_configuration='broad-ctsa')
-        hl.utils.range_table(4, n_partitions=4).write(random_filename)
-        assert hl.read_table(random_filename).collect() == [hl.Struct(idx=0), hl.Struct(idx=1), hl.Struct(idx=2), hl.Struct(idx=3)]
+        hl.import_table('gs://hail-services-requester-pays/hello', min_partitions=8)
+    except Exception as exc:
+        assert "Bucket is a requester pays bucket but no user project provided" in exc.args[0]
+    else:
+        assert False
 
-        hl.stop()
-        hl.init(gcs_requester_pays_configuration=('broad-ctsa', 'hail-services-requester-pays'))
-        hl.utils.range_table(4, n_partitions=4).write(random_filename, overwrite=True)
-        assert hl.read_table(random_filename).collect() == [hl.Struct(idx=0), hl.Struct(idx=1), hl.Struct(idx=2), hl.Struct(idx=3)]
-
-        hl.stop()
-        hl.init(gcs_requester_pays_configuration=('broad-ctsa', ['hail-services-requester-pays', 'other-bucket']))
-        hl.utils.range_table(4, n_partitions=4).write(random_filename, overwrite=True)
-        assert hl.read_table(random_filename).collect() == [hl.Struct(idx=0), hl.Struct(idx=1), hl.Struct(idx=2), hl.Struct(idx=3)]
-
-        hl.stop()
-        hl.init(gcs_requester_pays_configuration=('broad-ctsa', ['other-bucket']))
-        try:
-            hl.utils.range_table(4, n_partitions=4).write(random_filename, overwrite=True)
-        except Exception as exc:
-            assert "Bucket is a requester pays bucket but no user project provided" in exc.args[0]
-        else:
-            assert False
-
-        hl.stop()
-        hl.init(gcs_requester_pays_configuration='broad-ctsa')
-        hl.utils.range_table(4, n_partitions=4).write(random_filename, overwrite=True)
-        assert hl.read_table(random_filename).collect() == [hl.Struct(idx=0), hl.Struct(idx=1), hl.Struct(idx=2), hl.Struct(idx=3)]
-    finally:
-        hl.current_backend().fs.rmtree(random_filename)
+    hl.stop()
+    hl.init(gcs_requester_pays_configuration='hail-vdc')
+    assert hl.import_table('gs://hail-services-requester-pays/hello', no_header=True, min_partitions=8).collect() == [hl.Struct(f0='hello')]

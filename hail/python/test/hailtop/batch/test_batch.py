@@ -656,7 +656,7 @@ class ServiceTests(unittest.TestCase):
 
     @skip_in_azure
     def test_requester_pays(self):
-        b = self.batch(requester_pays_project='broad-ctsa')
+        b = self.batch(requester_pays_project='hail-vdc')
         input = b.read_input('gs://hail-services-requester-pays/hello')
         j = b.new_job()
         j.command(f'cat {input}')
