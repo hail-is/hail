@@ -6,10 +6,11 @@ import json
 import functools
 import asyncio
 import aiohttp
+import secrets
 
 from hailtop.config import get_deploy_config, DeployConfig
 from hailtop.auth import service_auth_headers
-from hailtop.utils import bounded_gather, request_retry_transient_errors, secret_alnum_string, tqdm, TqdmDisableOption
+from hailtop.utils import bounded_gather, request_retry_transient_errors, tqdm, TqdmDisableOption
 from hailtop import httpx
 
 from .globals import tasks, complete_states
@@ -178,10 +179,6 @@ class Job:
     @property
     def id(self):
         return self._job.id
-
-    @property
-    def _spec(self):
-        return self._job._spec
 
     async def attributes(self):
         return await self._job.attributes()
@@ -523,15 +520,13 @@ class BatchBuilder:
     def __init__(self, client, *, attributes=None, callback=None, token=None, cancel_after_n_failures=None,
                  batch=None, update_token=None):
         self._client = client
-        self._job_idx = 0
         self._unsubmitted_jobs: List[Job] = []
-        self._submitted = False
         self.attributes = attributes
         self.callback = callback
         self._batch = batch
 
         if token is None:
-            token = secret_alnum_string(32)
+            token = secrets.token_urlsafe(32)
         self.token = token
 
         self._update_token = update_token
@@ -579,7 +574,7 @@ class BatchBuilder:
                 if job._batch_builder != self:
                     foreign_jobs.append(job)
                 elif not 0 < job._spec.relative_job_id <= len(self._unsubmitted_jobs):
-                    invalid_jobs.append(job._spec.relative_job_id)
+                    invalid_job_ids.append(job._spec.relative_job_id)
             else:
                 if self._batch is None or job._batch != self._batch:
                     foreign_jobs.append(job)
@@ -629,14 +624,13 @@ class BatchBuilder:
         )
         batch_json = await resp.json()
         pbar.update(n_jobs)
-        batch = Batch(self._client,
+        return Batch(self._client,
                       batch_json['id'],
                       self.attributes,
                       self.token,
                       current_update_id=1,
                       n_jobs_in_current_update=n_jobs,
                       submission_info=BatchSubmissionInfo(used_fast_create=True))
-        return batch
 
     async def _submit_jobs(self, batch_id: int, update_id: int, byte_job_specs: List[bytes], n_jobs: int, pbar):
         assert len(byte_job_specs) > 0, byte_job_specs
@@ -699,7 +693,7 @@ class BatchBuilder:
     async def _create_batch(self) -> Batch:
         batch_spec = self._create_batch_spec()
         batch_json = await (await self._client._post('/api/v1alpha/batches/create', json=batch_spec)).json()
-        b = Batch(
+        return Batch(
             self._client,
             batch_json['id'],
             self.attributes,
@@ -708,7 +702,6 @@ class BatchBuilder:
             n_jobs_in_current_update=batch_spec['n_jobs'],
             submission_info=BatchSubmissionInfo(used_fast_create=False)
         )
-        return b
 
     async def _create_update(self, batch_id: int) -> int:
         update_spec = self._update_batch_spec()
@@ -721,9 +714,6 @@ class BatchBuilder:
         commit_json = await resp.json()
         return commit_json['start_job_id']
 
-    MAX_BUNCH_BYTESIZE = 1024 * 1024
-    MAX_BUNCH_SIZE = 1024
-
     async def submit(self,
                      max_bunch_bytesize: int = MAX_BUNCH_BYTESIZE,
                      max_bunch_size: int = MAX_BUNCH_SIZE,
@@ -731,8 +721,6 @@ class BatchBuilder:
                      ) -> Batch:
         assert max_bunch_bytesize > 0
         assert max_bunch_size > 0
-        if self._submitted:
-            raise ValueError("cannot submit an already submitted batch")
         byte_job_specs = [json.dumps(j._job._spec.to_json()).encode('utf-8')
                           for j in self._unsubmitted_jobs]
         byte_job_specs_bunches: List[List[bytes]] = []
@@ -790,7 +778,7 @@ class BatchBuilder:
                     log.warning('Tried to submit an update with 0 jobs. Doing nothing.')
                     return self._batch
                 if self._update_token is None:
-                    self._update_token = secret_alnum_string(32)
+                    self._update_token = secrets.token_urlsafe(32)
                 if n_bunches == 1:
                     start_job_id = await self._update_fast(byte_job_specs_bunches[0], pbar)
                 else:
@@ -807,12 +795,9 @@ class BatchBuilder:
                 self._update_token = None
 
         for j in self._unsubmitted_jobs:
-            j._job = j._job._submit(self._batch, j._spec.relative_job_id + start_job_id - 1)
+            j._job = j._job._submit(self._batch, j._job._spec.relative_job_id + start_job_id - 1)
 
         self._unsubmitted_jobs = []
-        self._job_idx = 0
-
-        self._submitted = True
         return self._batch
 
 
