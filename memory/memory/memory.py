@@ -13,7 +13,7 @@ import uvloop
 from aiohttp import web
 from prometheus_async.aio.web import server_stats  # type: ignore
 
-from gear import AuthClient, monitor_endpoints_middleware, setup_aiohttp_session
+from gear import monitor_endpoints_middleware, rest_authenticated_users_only, setup_aiohttp_session
 from gear.clients import get_cloud_async_fs_factory
 from hailtop import httpx
 from hailtop.aiotools import AsyncFS
@@ -32,8 +32,6 @@ socket = '/redis/redis.sock'
 
 ASYNC_FS_FACTORY = get_cloud_async_fs_factory()
 
-auth = AuthClient()
-
 
 @routes.get('/healthcheck')
 async def healthcheck(request):  # pylint: disable=unused-argument
@@ -41,7 +39,7 @@ async def healthcheck(request):  # pylint: disable=unused-argument
 
 
 @routes.get('/api/v1alpha/objects')
-@auth.rest_authenticated_users_only
+@rest_authenticated_users_only
 async def get_object(request, userdata):
     filepath = request.query.get('q')
     userinfo = await get_or_add_user(request.app, userdata)
@@ -53,7 +51,7 @@ async def get_object(request, userdata):
 
 
 @routes.post('/api/v1alpha/objects')
-@auth.rest_authenticated_users_only
+@rest_authenticated_users_only
 async def write_object(request, userdata):
     filepath = request.query.get('q')
     userinfo = await get_or_add_user(request.app, userdata)
