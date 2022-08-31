@@ -4880,6 +4880,9 @@
         "url": {
           "aws": {
             "us": "s3://pan-ukb-us-east-1/ld_release/UKBB.AFR.ldadj.bm"
+          },
+          "gcp": {
+            "us": "gs://ukb-diverse-pops-public/ld/AFR/UKBB.AFR.ldadj.bm"
           }
         },
         "version": "0.2"
@@ -4895,6 +4898,9 @@
         "url": {
           "aws": {
             "us": "s3://pan-ukb-us-east-1/ld_release/UKBB.AMR.ldadj.bm"
+          },
+          "gcp": {
+            "us": "gs://ukb-diverse-pops-public/ld/AMR/UKBB.AMR.ldadj.bm"
           }
         },
         "version": "0.2"
@@ -4910,6 +4916,9 @@
         "url": {
           "aws": {
             "us": "s3://pan-ukb-us-east-1/ld_release/UKBB.CSA.ldadj.bm"
+          },
+          "gcp": {
+            "us": "gs://ukb-diverse-pops-public/ld/CSA/UKBB.CSA.ldadj.bm"
           }
         },
         "version": "0.2"
@@ -4925,6 +4934,9 @@
         "url": {
           "aws": {
             "us": "s3://pan-ukb-us-east-1/ld_release/UKBB.EAS.ldadj.bm"
+          },
+          "gcp": {
+            "us": "gs://ukb-diverse-pops-public/ld/EAS/UKBB.EAS.ldadj.bm"
           }
         },
         "version": "0.2"
@@ -4940,6 +4952,9 @@
         "url": {
           "aws": {
             "us": "s3://pan-ukb-us-east-1/ld_release/UKBB.EUR.ldadj.bm"
+          },
+          "gcp": {
+            "us": "gs://ukb-diverse-pops-public/ld/EUR/UKBB.EUR.ldadj.bm"
           }
         },
         "version": "0.2"
@@ -4955,6 +4970,9 @@
         "url": {
           "aws": {
             "us": "s3://pan-ukb-us-east-1/ld_release/UKBB.MID.ldadj.bm"
+          },
+          "gcp": {
+            "us": "gs://ukb-diverse-pops-public/ld/MID/UKBB.MID.ldadj.bm"
           }
         },
         "version": "0.2"
@@ -4975,6 +4993,9 @@
         "url": {
           "aws": {
             "us": "s3://pan-ukb-us-east-1/ld_release/UKBB.AFR.ldscore.ht"
+          },
+          "gcp": {
+            "us": "gs://ukb-diverse-pops-public/ld_release/UKBB.AFR.ldscore.ht"
           }
         },
         "version": "0.2"
@@ -4995,6 +5016,9 @@
         "url": {
           "aws": {
             "us": "s3://pan-ukb-us-east-1/ld_release/UKBB.AMR.ldscore.ht"
+          },
+          "gcp": {
+            "us": "gs://ukb-diverse-pops-public/ld_release/UKBB.AMR.ldscore.ht"
           }
         },
         "version": "0.2"
@@ -5015,6 +5039,9 @@
         "url": {
           "aws": {
             "us": "s3://pan-ukb-us-east-1/ld_release/UKBB.CSA.ldscore.ht"
+          },
+          "gcp": {
+            "us": "gs://ukb-diverse-pops-public/ld_release/UKBB.CSA.ldscore.ht"
           }
         },
         "version": "0.2"
@@ -5035,6 +5062,9 @@
         "url": {
           "aws": {
             "us": "s3://pan-ukb-us-east-1/ld_release/UKBB.EAS.ldscore.ht"
+          },
+          "gcp": {
+            "us": "gs://ukb-diverse-pops-public/ld_release/UKBB.EAS.ldscore.ht"
           }
         },
         "version": "0.2"
@@ -5055,6 +5085,9 @@
         "url": {
           "aws": {
             "us": "s3://pan-ukb-us-east-1/ld_release/UKBB.EUR.ldscore.ht"
+          },
+          "gcp": {
+            "us": "gs://ukb-diverse-pops-public/ld_release/UKBB.EUR.ldscore.ht"
           }
         },
         "version": "0.2"
@@ -5075,6 +5108,9 @@
         "url": {
           "aws": {
             "us": "s3://pan-ukb-us-east-1/ld_release/UKBB.MID.ldscore.ht"
+          },
+          "gcp": {
+            "us": "gs://ukb-diverse-pops-public/ld_release/UKBB.MID.ldscore.ht"
           }
         },
         "version": "0.2"
@@ -5095,6 +5131,9 @@
         "url": {
           "aws": {
             "us": "s3://pan-ukb-us-east-1/ld_release/UKBB.AFR.ldadj.variant.ht"
+          },
+          "gcp": {
+            "us": "gs://ukb-diverse-pops-public/ld/AFR/UKBB.AFR.ldadj.variant.ht"
           }
         },
         "version": "0.2"
@@ -5115,6 +5154,9 @@
         "url": {
           "aws": {
             "us": "s3://pan-ukb-us-east-1/ld_release/UKBB.AMR.ldadj.variant.ht"
+          },
+          "gcp": {
+            "us": "gs://ukb-diverse-pops-public/ld/AMR/UKBB.AMR.ldadj.variant.ht"
           }
         },
         "version": "0.2"
@@ -5135,6 +5177,9 @@
         "url": {
           "aws": {
             "us": "s3://pan-ukb-us-east-1/ld_release/UKBB.CSA.ldadj.variant.ht"
+          },
+          "gcp": {
+            "us": "gs://ukb-diverse-pops-public/ld/CSA/UKBB.CSA.ldadj.variant.ht"
           }
         },
         "version": "0.2"
@@ -5155,6 +5200,9 @@
         "url": {
           "aws": {
             "us": "s3://pan-ukb-us-east-1/ld_release/UKBB.EAS.ldadj.variant.ht"
+          },
+          "gcp": {
+            "us": "gs://ukb-diverse-pops-public/ld/EAS/UKBB.EAS.ldadj.variant.ht"
           }
         },
         "version": "0.2"
@@ -5175,6 +5223,9 @@
         "url": {
           "aws": {
             "us": "s3://pan-ukb-us-east-1/ld_release/UKBB.EUR.ldadj.variant.ht"
+          },
+          "gcp": {
+            "us": "gs://ukb-diverse-pops-public/ld/EUR/UKBB.EUR.ldadj.variant.ht"
           }
         },
         "version": "0.2"
@@ -5195,27 +5246,48 @@
         "url": {
           "aws": {
             "us": "s3://pan-ukb-us-east-1/ld_release/UKBB.MID.ldadj.variant.ht"
+          },
+          "gcp": {
+            "us": "gs://ukb-diverse-pops-public/ld/MID/UKBB.MID.ldadj.variant.ht"
           }
         },
         "version": "0.2"
       }
     ]
   },
-  "panukb_meta_analysis": {
-    "description": "Pan-UKB: pan-ancestry GWAS of UK Biobank, full meta-analysis Hail MatrixTable.",
+  "panukb_meta_analysis_high_quality": {
+    "description": "Pan-UKB: pan-ancestry GWAS of UK Biobank, full \"high-quality\" meta-analysis Hail MatrixTable (meta-analyses of only ancestry groups passing all QC filters).",
     "url": "https://pan.ukbb.broadinstitute.org/docs/technical-overview/index.html",
     "versions": [
       {
         "reference_genome": "GRCh37",
         "url": {
           "aws": {
-            "us": "s3://pan-ukb-us-east-1/sumstats_release/meta_analysis.mt"
+            "us": "s3://pan-ukb-us-east-1/sumstats_release/meta_analysis.h2_qc.mt"
           },
           "gcp": {
-            "us": "gs://ukb-diverse-pops-public/sumstats_release/meta_analysis.mt"
+            "us": "gs://ukb-diverse-pops-public/sumstats_release/meta_analysis.h2_qc.mt"
           }
         },
-        "version": "0.1"
+        "version": "0.3"
+      }
+    ]
+  },
+  "panukb_meta_analysis_all_ancestries": {
+    "description": "Pan-UKB: pan-ancestry GWAS of UK Biobank, full \"raw\" meta-analysis Hail MatrixTable (meta-analyses for all ancestries (no QC)).",
+    "url": "https://pan.ukbb.broadinstitute.org/docs/technical-overview/index.html",
+    "versions": [
+      {
+        "reference_genome": "GRCh37",
+        "url": {
+          "aws": {
+            "us": "s3://pan-ukb-us-east-1/sumstats_release/meta_analysis.raw.mt"
+          },
+          "gcp": {
+            "us": "gs://ukb-diverse-pops-public/sumstats_release/meta_analysis.raw.mt"
+          }
+        },
+        "version": "0.3"
       }
     ]
   },
@@ -5233,7 +5305,7 @@
             "us": "gs://ukb-diverse-pops-public/sumstats_release/results_full.mt"
           }
         },
-        "version": "0.1"
+        "version": "0.3"
       }
     ]
   }

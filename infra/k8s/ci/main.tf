@@ -41,3 +41,32 @@ resource "kubernetes_secret" "ci_test_repo_creator_github_oauth_token" {
     "user1" = var.ci_test_repo_creator_github_oauth_token
   }
 }
+
+# Necessary for batch to access secrets/SAs in test namespaces
+resource "kubernetes_cluster_role" "batch" {
+  metadata {
+    name = "batch"
+  }
+
+  rule {
+    api_groups = [""]
+    resources  = ["secrets", "serviceaccounts"]
+    verbs      = ["get", "list"]
+  }
+}
+
+resource "kubernetes_cluster_role_binding" "batch" {
+  metadata {
+    name = "batch"
+  }
+  role_ref {
+    kind      = "ClusterRole"
+    name      = "batch"
+    api_group = "rbac.authorization.k8s.io"
+  }
+  subject {
+    kind      = "ServiceAccount"
+    name      = "batch"
+    namespace = "default"
+  }
+}

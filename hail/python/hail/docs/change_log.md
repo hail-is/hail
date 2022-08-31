@@ -24,6 +24,29 @@ an earlier version of Hail to read files written in a later version.
 
 ---
 
+## Version 0.2.98
+
+Released 2022-08-22
+
+### New Features
+
+- (hail#12062) `hl.balding_nichols_model` now supports an optional boolean parameter, `phased`, to control the phasedness of the generated genotypes.
+
+### Performance improvements
+
+- (hail#12099) Make repeated VCF/PLINK queries much faster by caching compiler data structures.
+- (hail#12038) Speed up `hl.import_matrix_table` by caching header line computation.
+
+### Bug fixes
+
+- (hail#12115) When using `use_new_shuffle=True`, fix a bug when there are more than 2^31 rows
+- (hail#12074) Fix bug where `hl.init` could silently overwrite the global random seed.
+- (hail#12079) Fix bug in handling of missing (aka NA) fields in grouped aggregation and distinct by key.
+- (hail#12056) Fix `hl.export_vcf` to actually create tabix files when requested.
+- (hail#12020) Fix bug in `hl.experimental.densify` which manifested as an `AssertionError` about dtypes.
+
+---
+
 ## Version 0.2.97
 
 Released 2022-06-30
