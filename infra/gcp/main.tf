@@ -122,6 +122,16 @@ resource "google_container_cluster" "vdc" {
     # Don't use node auto-provisioning since we manage node pools ourselves
     enabled = false
     autoscaling_profile = "OPTIMIZE_UTILIZATION"
+    resource_limits {
+      resource_type = "cpu"
+      minimum       = 4
+      maximum       = 100
+    }
+    resource_limits {
+      resource_type = "memory"
+      minimum       = 8
+      maximum       = 500
+    }
   }
 }
 

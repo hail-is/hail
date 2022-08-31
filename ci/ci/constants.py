@@ -35,4 +35,5 @@ AUTHORIZED_USERS = [
     User('lgruen', 'lgruensc', []),
     User('vladsaveliev', 'vsavelye', []),
     User('illusional', 'mfrankli', []),
+    User('Aleisha02', 'aleisha'),
 ]

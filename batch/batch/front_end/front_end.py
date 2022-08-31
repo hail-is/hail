@@ -642,7 +642,7 @@ async def _query_batches(request, user, q):
     db = request.app['db']
 
     where_conditions = [
-        'EXISTS (SELECT * FROM billing_project_users WHERE billing_project_users.`user` = %s AND billing_project_users.billing_project = batches.billing_project)',
+        '(billing_project_users.`user` = %s AND billing_project_users.billing_project = batches.billing_project)',
         'NOT deleted',
     ]
     where_args = [user]
@@ -724,7 +724,7 @@ async def _query_batches(request, user, q):
 
     sql = f'''
 SELECT batches.*, batches_cancelled.id IS NOT NULL AS cancelled, COALESCE(SUM(`usage` * rate), 0) AS cost, batches_n_jobs_in_complete_states.n_completed, batches_n_jobs_in_complete_states.n_succeeded, batches_n_jobs_in_complete_states.n_failed, batches_n_jobs_in_complete_states.n_cancelled
-FROM batches USE INDEX (batches_deleted)
+FROM batches
 LEFT JOIN batches_n_jobs_in_complete_states
   ON batches.id = batches_n_jobs_in_complete_states.id
 LEFT JOIN batches_cancelled
@@ -733,6 +733,7 @@ LEFT JOIN aggregated_batch_resources
   ON batches.id = aggregated_batch_resources.batch_id
 LEFT JOIN resources
   ON aggregated_batch_resources.resource = resources.resource
+STRAIGHT_JOIN billing_project_users ON batches.billing_project = billing_project_users.billing_project
 WHERE {' AND '.join(where_conditions)}
 GROUP BY batches.id
 ORDER BY batches.id DESC

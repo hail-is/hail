@@ -228,11 +228,22 @@ package object ir {
     AggFold(zero, seqOp(accum1, element), combOp(accum1, accum2), accum1.name, accum2.name, false)
   }
 
-  def cdaIR(contexts: IR, globals: IR)(body: (Ref, Ref) => IR): CollectDistributedArray = {
+  def cdaIR(contexts: IR, globals: IR, staticID: String, dynamicID: IR = NA(TString))(body: (Ref, Ref) => IR): CollectDistributedArray = {
     val contextRef = Ref(genUID(), contexts.typ.asInstanceOf[TStream].elementType)
     val globalRef = Ref(genUID(), globals.typ)
 
-    CollectDistributedArray(contexts, globals, contextRef.name, globalRef.name, body(contextRef, globalRef), None)
+    CollectDistributedArray(contexts, globals, contextRef.name, globalRef.name, body(contextRef, globalRef), dynamicID, staticID, None)
+  }
+
+  def strConcat(irs: IR*): IR = {
+    assert(irs.nonEmpty)
+    var s: IR = null
+    irs.foreach { x =>
+      if (s == null)
+        s = x
+      s = invoke("concat", TString, s, x)
+    }
+    s
   }
 
   implicit def toRichIndexedSeqEmitSettable(s: IndexedSeq[EmitSettable]): RichIndexedSeqEmitSettable = new RichIndexedSeqEmitSettable(s)

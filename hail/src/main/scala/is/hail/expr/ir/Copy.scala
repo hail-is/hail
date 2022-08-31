@@ -180,9 +180,9 @@ object Copy {
       case StreamGrouped(_, _) =>
         assert(newChildren.length == 2)
         StreamGrouped(newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR])
-      case StreamGroupByKey(_, key) =>
+      case StreamGroupByKey(_, key, missingEqual) =>
         assert(newChildren.length == 1)
-        StreamGroupByKey(newChildren(0).asInstanceOf[IR], key)
+        StreamGroupByKey(newChildren(0).asInstanceOf[IR], key, missingEqual)
       case StreamMap(_, name, _) =>
         assert(newChildren.length == 2)
         StreamMap(newChildren(0).asInstanceOf[IR], name, newChildren(1).asInstanceOf[IR])
@@ -380,9 +380,9 @@ object Copy {
         BlockMatrixWrite(newChildren(0).asInstanceOf[BlockMatrixIR], writer)
       case BlockMatrixMultiWrite(_, writer) =>
         BlockMatrixMultiWrite(newChildren.map(_.asInstanceOf[BlockMatrixIR]), writer)
-      case CollectDistributedArray(_, _, cname, gname, _, tsd) =>
-        assert(newChildren.length == 3)
-        CollectDistributedArray(newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR], cname, gname, newChildren(2).asInstanceOf[IR], tsd)
+      case CollectDistributedArray(_, _, cname, gname, _, _, id, tsd) =>
+        assert(newChildren.length == 4)
+        CollectDistributedArray(newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR], cname, gname, newChildren(2).asInstanceOf[IR], newChildren(3).asInstanceOf[IR], id, tsd)
       case ReadPartition(context, rowType, reader) =>
         assert(newChildren.length == 1)
         ReadPartition(newChildren(0).asInstanceOf[IR], rowType, reader)

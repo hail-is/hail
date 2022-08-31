@@ -37,10 +37,12 @@ class InstanceCollectionManager:
         db: Database,  # BORROWED
         machine_name_prefix: str,
         location_monitor: CloudLocationMonitor,
+        default_region: str,
     ):
         self.db: Database = db
         self.machine_name_prefix = machine_name_prefix
         self.location_monitor = location_monitor
+        self._default_region = default_region
 
         self.inst_coll_regex = re.compile(f'{self.machine_name_prefix}(?P<inst_coll>.*)-.*')
         self.name_inst_coll: Dict[str, InstanceCollection] = {}
@@ -55,10 +57,14 @@ class InstanceCollectionManager:
         assert inst_coll.name not in self.name_inst_coll
         self.name_inst_coll[inst_coll.name] = inst_coll
 
-    def choose_location(self, cores: int, local_ssd_data_disk: bool, data_disk_size_gb: int) -> str:
-        if self.global_live_total_cores_mcpu // 1000 < 1_000:
-            return self.location_monitor.default_location()
-        return self.location_monitor.choose_location(cores, local_ssd_data_disk, data_disk_size_gb)
+    def choose_location(
+        self, cores: int, local_ssd_data_disk: bool, data_disk_size_gb: int, preemptible: bool, region: Optional[str]
+    ) -> str:
+        if region is None and self.global_live_total_cores_mcpu // 1000 < 1_000:
+            region = self._default_region
+        return self.location_monitor.choose_location(
+            cores, local_ssd_data_disk, data_disk_size_gb, preemptible, region=region
+        )
 
     @property
     def pools(self) -> Dict[str, 'InstanceCollection']:
@@ -138,7 +144,7 @@ class InstanceCollection:
         self.max_live_instances = max_live_instances
 
         self.name_instance: Dict[str, Instance] = {}
-        self.live_free_cores_mcpu_by_location: Dict[str, int] = collections.defaultdict(int)
+        self.live_free_cores_mcpu_by_region: Dict[str, int] = collections.defaultdict(int)
 
         self.instances_by_last_updated = sortedcontainers.SortedSet(key=lambda instance: instance.last_updated)
 
@@ -155,8 +161,12 @@ class InstanceCollection:
     def n_instances(self) -> int:
         return len(self.name_instance)
 
-    def choose_location(self, cores: int, local_ssd_data_disk: bool, data_disk_size_gb: int) -> str:
-        return self.inst_coll_manager.choose_location(cores, local_ssd_data_disk, data_disk_size_gb)
+    def choose_location(
+        self, cores: int, local_ssd_data_disk: bool, data_disk_size_gb: int, preemptible: bool, region: Optional[str]
+    ) -> str:
+        return self.inst_coll_manager.choose_location(
+            cores, local_ssd_data_disk, data_disk_size_gb, preemptible, region
+        )
 
     def generate_machine_name(self) -> str:
         while True:
@@ -177,7 +187,7 @@ class InstanceCollection:
         if instance.state in ('pending', 'active'):
             self.live_free_cores_mcpu -= max(0, instance.free_cores_mcpu)
             self.live_total_cores_mcpu -= instance.cores_mcpu
-            self.live_free_cores_mcpu_by_location[instance.location] -= max(0, instance.free_cores_mcpu)
+            self.live_free_cores_mcpu_by_region[instance.region] -= max(0, instance.free_cores_mcpu)
 
     async def remove_instance(self, instance: Instance, reason: str, timestamp: Optional[int] = None):
         await instance.deactivate(reason, timestamp)
@@ -196,7 +206,7 @@ class InstanceCollection:
         if instance.state in ('pending', 'active'):
             self.live_free_cores_mcpu += max(0, instance.free_cores_mcpu)
             self.live_total_cores_mcpu += instance.cores_mcpu
-            self.live_free_cores_mcpu_by_location[instance.location] += max(0, instance.free_cores_mcpu)
+            self.live_free_cores_mcpu_by_region[instance.region] += max(0, instance.free_cores_mcpu)
 
     def add_instance(self, instance: Instance):
         assert instance.name not in self.name_instance, instance.name
@@ -211,14 +221,16 @@ class InstanceCollection:
         machine_type: str,
         job_private: bool,
         location: Optional[str],
+        region: Optional[str],
         preemptible: bool,
         max_idle_time_msecs: Optional[int],
         local_ssd_data_disk,
         data_disk_size_gb,
         boot_disk_size_gb,
     ) -> Tuple[Instance, List[QuantifiedResource]]:
+        assert not (location and region)
         if location is None:
-            location = self.choose_location(cores, local_ssd_data_disk, data_disk_size_gb)
+            location = self.choose_location(cores, local_ssd_data_disk, data_disk_size_gb, preemptible, region)
 
         if max_idle_time_msecs is None:
             max_idle_time_msecs = WORKER_MAX_IDLE_TIME_MSECS

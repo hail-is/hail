@@ -1075,7 +1075,7 @@ object PruneDeadFields {
         unifyEnvs(
           memoizeValueIR(ctx, a, requestedType.asInstanceOf[TStream].elementType, memo),
           memoizeValueIR(ctx, size, size.typ, memo))
-      case StreamGroupByKey(a, key) =>
+      case StreamGroupByKey(a, key, _) =>
         val reqStructT = coerce[TStruct](coerce[TStream](coerce[TStream](requestedType).elementType).elementType)
         val origStructT = coerce[TStruct](coerce[TStream](a.typ).elementType)
         memoizeValueIR(ctx, a, TStream(unify(origStructT, reqStructT, selectKey(origStructT, key))), memo)
@@ -1528,7 +1528,7 @@ object PruneDeadFields {
             memoizeValueIR(ctx, paramIR, paramType, memo)
           }
         )
-      case CollectDistributedArray(contexts, globals, cname, gname, body, tsd) =>
+      case CollectDistributedArray(contexts, globals, cname, gname, body, dynamicID, _, tsd) =>
         val rArray = requestedType.asInstanceOf[TArray]
         val bodyEnv = memoizeValueIR(ctx, body, rArray.elementType, memo)
         assert(bodyEnv.scan.isEmpty)
@@ -1546,7 +1546,8 @@ object PruneDeadFields {
 
         unifyEnvs(
           memoizeValueIR(ctx, contexts, cDep, memo),
-          memoizeValueIR(ctx, globals, gDep, memo)
+          memoizeValueIR(ctx, globals, gDep, memo),
+          memoizeValueIR(ctx, dynamicID, TString, memo),
         )
       case _: IR =>
         val envs = ir.children.flatMap {
@@ -2162,11 +2163,12 @@ object PruneDeadFields {
         val seqOp2 = rebuildIR(ctx, seqOp, if (isScan) env.promoteScan else env.promoteAgg, memo)
         val combOp2 = rebuildIR(ctx, combOp, env, memo)
         AggFold(zero2, seqOp2, combOp2, accumName, otherAccumName, isScan)
-      case CollectDistributedArray(contexts, globals, cname, gname, body, tsd) =>
+      case CollectDistributedArray(contexts, globals, cname, gname, body, dynamicID, staticID, tsd) =>
         val contexts2 = upcast(ctx, rebuildIR(ctx, contexts, env, memo), memo.requestedType.lookup(contexts).asInstanceOf[Type])
         val globals2 = upcast(ctx, rebuildIR(ctx, globals, env, memo), memo.requestedType.lookup(globals).asInstanceOf[Type])
         val body2 = rebuildIR(ctx, body, BindingEnv(Env(cname -> contexts2.typ.asInstanceOf[TStream].elementType, gname -> globals2.typ)), memo)
-        CollectDistributedArray(contexts2, globals2, cname, gname, body2, tsd)
+        val dynamicID2 = rebuildIR(ctx, dynamicID, env, memo)
+        CollectDistributedArray(contexts2, globals2, cname, gname, body2, dynamicID2, staticID, tsd)
       case _ =>
         ir.copy(ir.children.map {
           case valueIR: IR => rebuildIR(ctx, valueIR, env, memo) // FIXME: assert IR does not bind or change env
