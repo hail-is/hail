@@ -156,9 +156,7 @@ class Job:
 
     @staticmethod
     def unsubmitted_job(batch_builder: 'BatchBuilder', spec: 'JobSpec'):
-        assert isinstance(batch_builder, BatchBuilder)
-        _job = UnsubmittedJob(batch_builder, spec)
-        return Job(_job)
+        return Job(UnsubmittedJob(batch_builder, spec))
 
     @staticmethod
     def submitted_job(batch, job_id, _status=None):
@@ -220,13 +218,108 @@ class Job:
         return await self._job.attempts()
 
 
-class UnsubmittedJob:
-    def _submit(self, batch, update_start_job_id: int):
-        return SubmittedJob(batch, update_start_job_id + self._rel_job_id - 1)
+class JobSpec:
+    def __init__(self,
+                 job_id: int,
+                 process: dict,
+                 *,
+                 env: Optional[Dict[str, str]] = None,
+                 port: Optional[int] = None,
+                 resources: Optional[dict] = None,
+                 secrets: Optional[dict] = None,
+                 service_account: Optional[str] = None,
+                 attributes: Optional[Dict[str, str]] = None,
+                 parents: Optional[List[Job]] = None,
+                 input_files: Optional[List[Tuple[str, str]]] = None,
+                 output_files: Optional[List[Tuple[str, str]]] = None,
+                 always_run: bool = False,
+                 timeout: Optional[Union[int, float]] = None,
+                 cloudfuse: Optional[List[Tuple[str, str, bool]]] = None,
+                 requester_pays_project: Optional[str] = None,
+                 mount_tokens: bool = False,
+                 network: Optional[str] = None,
+                 unconfined: bool = False,
+                 user_code: Optional[str] = None
+                 ):
+        self.job_id = job_id
+        self.process = process
+        self.env = env
+        self.port = port
+        self.resources = resources
+        self.secrets = secrets
+        self.service_account = service_account
+        self.attributes = attributes
+        self.parents = parents or []
+        self.input_files = input_files
+        self.output_files = output_files
+        self.always_run = always_run
+        self.timeout = timeout
+        self.cloudfuse = cloudfuse
+        self.requester_pays_project = requester_pays_project
+        self.mount_tokens = mount_tokens
+        self.network = network
+        self.unconfined = unconfined
+        self.user_code = user_code
 
-    def __init__(self, batch_builder: 'BatchBuilder', spec: 'JobSpec'):
+    def to_json(self):
+        parent_ids = []
+        for parent in self.parents:
+            job = parent._job
+            if isinstance(job, UnsubmittedJob):
+                parent_ids.append(job._spec.job_id)
+            else:
+                assert isinstance(job, SubmittedJob)
+                parent_ids.append(job.job_id)
+
+        job_spec = {
+            'always_run': self.always_run,
+            'job_id': self.job_id,
+            'parent_ids': parent_ids,
+            'process': self.process,
+        }
+
+        if self.env:
+            job_spec['env'] = [{'name': k, 'value': v} for (k, v) in self.env.items()]
+        if self.port is not None:
+            job_spec['port'] = self.port
+        if self.resources:
+            job_spec['resources'] = self.resources
+        if self.secrets:
+            job_spec['secrets'] = self.secrets
+        if self.service_account:
+            job_spec['service_account'] = self.service_account
+        if self.timeout:
+            job_spec['timeout'] = self.timeout
+
+        if self.attributes:
+            job_spec['attributes'] = self.attributes
+        if self.input_files:
+            job_spec['input_files'] = [{"from": src, "to": dst} for (src, dst) in self.input_files]
+        if self.output_files:
+            job_spec['output_files'] = [{"from": src, "to": dst} for (src, dst) in self.output_files]
+        if self.cloudfuse:
+            job_spec['cloudfuse'] = [{"bucket": bucket, "mount_path": mount_path, "read_only": read_only}
+                                     for (bucket, mount_path, read_only) in self.cloudfuse]
+        if self.requester_pays_project:
+            job_spec['requester_pays_project'] = self.requester_pays_project
+        if self.mount_tokens:
+            job_spec['mount_tokens'] = self.mount_tokens
+        if self.network:
+            job_spec['network'] = self.network
+        if self.unconfined:
+            job_spec['unconfined'] = self.unconfined
+        if self.user_code:
+            job_spec['user_code'] = self.user_code
+
+        return job_spec
+
+
+class UnsubmittedJob:
+    def _submit(self, batch):
+        return SubmittedJob(batch, self._spec.job_id)
+
+    def __init__(self, batch_builder: 'BatchBuilder', spec: JobSpec):
         self._batch_builder = batch_builder
-        self._rel_job_id: int = spec.rel_job_id
         self._spec = spec
 
     @property
@@ -526,7 +619,9 @@ class BatchBuilder:
     def __init__(self, client, *, attributes=None, callback=None, token=None, cancel_after_n_failures=None,
                  batch=None, update_token=None):
         self._client = client
-        self._jobs = []
+        self._job_idx = 0
+        self._unsubmitted_jobs: List[Job] = []
+        self._submitted = False
         self.attributes = attributes
         self.callback = callback
         self._batch = batch
@@ -569,6 +664,10 @@ class BatchBuilder:
                     user_code: Optional[str] = None) -> Job:
         rel_job_id = len(self._jobs) + 1
 
+        self._job_idx += 1
+
+        parents = parents or []
+
         foreign_jobs = []
         invalid_job_ids = []
         parents = parents or []
@@ -576,19 +675,17 @@ class BatchBuilder:
             job = parent._job
             if isinstance(job, UnsubmittedJob):
                 if job._batch_builder != self:
-                    foreign_jobs.append(parent)
-                elif not 0 < job._spec.rel_job_id <= len(self._jobs):
-                    invalid_job_ids.append(parent)
+                    foreign_jobs.append(job)
+                elif not 0 < job._spec.job_id < self._job_idx:
+                    invalid_job_ids.append(job)
             else:
-                assert isinstance(job, SubmittedJob)
-                if self._batch is None or job._batch != self._batch:
-                    foreign_jobs.append(parent)
+                foreign_jobs.append(job)
 
         error_msg = []
         if len(foreign_jobs) != 0:
             error_msg.append(
                 'Found {} parents from another batch:\n{}'.format(
-                    str(len(foreign_jobs)), "\n".join([str(j._job) for j in foreign_jobs])
+                    str(len(foreign_jobs)), "\n".join([str(j) for j in foreign_jobs])
                 )
             )
         if len(invalid_job_ids) != 0:
@@ -600,69 +697,18 @@ class BatchBuilder:
         if error_msg:
             raise ValueError("\n".join(error_msg))
 
-        job_spec = JobSpec(
-            rel_job_id, process, env=env, port=port, resources=resources, secrets=secrets, service_account=service_account,
+        spec = JobSpec(
+            self._job_idx, process, env=env, port=port, resources=resources, secrets=secrets, service_account=service_account,
             attributes=attributes, parents=parents, input_files=input_files, output_files=output_files,
             always_run=always_run, timeout=timeout, cloudfuse=cloudfuse, requester_pays_project=requester_pays_project,
             mount_tokens=mount_tokens, network=network, unconfined=unconfined, user_code=user_code
         )
-
-        j = Job.unsubmitted_job(self, job_spec)
-        self._jobs.append(j)
+        j = Job.unsubmitted_job(self, spec)
+        self._unsubmitted_jobs.append(j)
         return j
 
-    def _build_job_spec_bunches(self, max_bunch_size: int, max_bunch_bytesize: int):
-        byte_job_specs = [json.dumps(job._spec.to_json()).encode('utf-8') for job in self._jobs]
-        byte_job_specs_bunches: List[List[bytes]] = []
-        bunch_sizes = []
-        bunch: List[bytes] = []
-        bunch_n_bytes = 0
-        bunch_n_jobs = 0
-        for spec in byte_job_specs:
-            n_bytes = len(spec)
-            assert n_bytes < max_bunch_bytesize, (
-                'every job spec must be less than max_bunch_bytesize,'
-                f' { max_bunch_bytesize }B, but {spec.decode()} is larger')
-            if bunch_n_bytes + n_bytes < max_bunch_bytesize and len(bunch) < max_bunch_size:
-                bunch.append(spec)
-                bunch_n_bytes += n_bytes
-                bunch_n_jobs += 1
-            else:
-                byte_job_specs_bunches.append(bunch)
-                bunch_sizes.append(bunch_n_jobs)
-                bunch = [spec]
-                bunch_n_bytes = n_bytes
-                bunch_n_jobs = 1
-        if bunch:
-            byte_job_specs_bunches.append(bunch)
-            bunch_sizes.append(bunch_n_jobs)
-
-        return (byte_job_specs_bunches, bunch_sizes)
-
-    async def _submit_jobs(self, batch_id: int, update_id: int, byte_job_specs: List[bytes], n_jobs: int, pbar):
-        assert len(byte_job_specs) > 0, byte_job_specs
-
-        b = bytearray()
-        b.append(ord('['))
-
-        i = 0
-        while i < len(byte_job_specs):
-            spec = byte_job_specs[i]
-            if i > 0:
-                b.append(ord(','))
-            b.extend(spec)
-            i += 1
-
-        b.append(ord(']'))
-
-        await self._client._post(
-            f'/api/v1alpha/batches/{batch_id}/updates/{update_id}/jobs/create',
-            data=aiohttp.BytesPayload(b, content_type='application/json', encoding='utf-8'),
-        )
-        pbar.update(n_jobs)
-
-    async def _create_fast(self, byte_job_specs: List[bytes], pbar) -> Batch:
-        n_jobs = len(byte_job_specs)
+    async def _open_submit_close(self, byte_job_specs: List[bytes], n_jobs: int, pbar) -> Batch:
+        assert n_jobs == len(self._unsubmitted_jobs)
         b = bytearray()
         b.extend(b'{"bunch":')
         b.append(ord('['))
@@ -709,11 +755,8 @@ class BatchBuilder:
         update_json = await resp.json()
         pbar.update(len(byte_job_specs))
 
-        self._batch.submission_info.used_fast_update[update_json['update_id']] = True
-        return update_json['start_job_id']
-
-    def _create_batch_spec(self):
-        n_jobs = len(self._jobs)
+    def _batch_spec(self):
+        n_jobs = len(self._unsubmitted_jobs)
         batch_spec = {'billing_project': self._client.billing_project, 'n_jobs': n_jobs, 'token': self.token}
         if self.attributes:
             batch_spec['attributes'] = self.attributes
@@ -760,7 +803,37 @@ class BatchBuilder:
                      max_bunch_size: int = MAX_BUNCH_SIZE,
                      disable_progress_bar: Union[bool, None, TqdmDisableOption] = TqdmDisableOption.default
                      ) -> Batch:
-        with tqdm(total=len(self._jobs),
+        assert max_bunch_bytesize > 0
+        assert max_bunch_size > 0
+        if self._submitted:
+            raise ValueError("cannot submit an already submitted batch")
+        byte_job_specs = [json.dumps(j._job._spec.to_json()).encode('utf-8')
+                          for j in self._unsubmitted_jobs]
+        byte_job_specs_bunches: List[List[bytes]] = []
+        bunch_sizes = []
+        bunch: List[bytes] = []
+        bunch_n_bytes = 0
+        bunch_n_jobs = 0
+        for spec in byte_job_specs:
+            n_bytes = len(spec)
+            assert n_bytes < max_bunch_bytesize, (
+                'every job spec must be less than max_bunch_bytesize,'
+                f' { max_bunch_bytesize }B, but {spec.decode()} is larger')
+            if bunch_n_bytes + n_bytes < max_bunch_bytesize and len(bunch) < max_bunch_size:
+                bunch.append(spec)
+                bunch_n_bytes += n_bytes
+                bunch_n_jobs += 1
+            else:
+                byte_job_specs_bunches.append(bunch)
+                bunch_sizes.append(bunch_n_jobs)
+                bunch = [spec]
+                bunch_n_bytes = n_bytes
+                bunch_n_jobs = 1
+        if bunch:
+            byte_job_specs_bunches.append(bunch)
+            bunch_sizes.append(bunch_n_jobs)
+
+        with tqdm(total=len(self._unsubmitted_jobs),
                   disable=disable_progress_bar,
                   desc='jobs submitted to queue') as pbar:
             byte_job_specs_bunches, bunch_sizes = self._build_job_spec_bunches(max_bunch_size, max_bunch_bytesize)
@@ -808,12 +881,14 @@ class BatchBuilder:
                     self._batch.submission_info.used_fast_update[update_id] = False
                 self._update_token = None
 
-        for j in self._jobs:
-            j._job = j._job._submit(self._batch, start_job_id)
+        for j in self._unsubmitted_jobs:
+            j._job = j._job._submit(batch)
 
-        self._batch._n_jobs_in_current_update = len(self._jobs)
-        self._jobs = []
-        return self._batch
+        self._unsubmitted_jobs = []
+        self._job_idx = 0
+
+        self._submitted = True
+        return batch
 
 
 class BatchClient:

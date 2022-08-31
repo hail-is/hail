@@ -37,7 +37,7 @@ def test_simple(client):
 def test_missing_parent_is_400(client):
     try:
         batch = client.create_batch()
-        fake_job = aioclient.Job.unsubmitted_job(batch._async_builder, aioclient.JobSpec(1000, {}))
+        fake_job = aioclient.Job.unsubmitted_job(batch._async_builder, aioclient.JobSpec(10000, {}))
         fake_job = Job.from_async_job(fake_job)
         batch.create_job(DOCKER_ROOT_IMAGE, command=['echo', 'head'], parents=[fake_job])
         batch = batch.submit()
