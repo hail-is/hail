@@ -23,12 +23,14 @@ from aiohttp import web
 from prometheus_async.aio.web import server_stats  # type: ignore
 
 from gear import (
-    AuthClient,
     Database,
     check_csrf_token,
     monitor_endpoints_middleware,
+    rest_authenticated_users_only,
     setup_aiohttp_session,
     transaction,
+    web_authenticated_developers_only,
+    web_authenticated_users_only,
 )
 from gear.clients import get_cloud_async_fs
 from gear.database import CallError
@@ -85,8 +87,6 @@ routes = web.RouteTableDef()
 
 deploy_config = get_deploy_config()
 
-auth = AuthClient()
-
 BATCH_JOB_DEFAULT_CPU = os.environ.get('HAIL_BATCH_JOB_DEFAULT_CPU', '1')
 BATCH_JOB_DEFAULT_MEMORY = os.environ.get('HAIL_BATCH_JOB_DEFAULT_MEMORY', 'standard')
 BATCH_JOB_DEFAULT_STORAGE = os.environ.get('HAIL_BATCH_JOB_DEFAULT_STORAGE', '0Gi')
@@ -94,7 +94,7 @@ BATCH_JOB_DEFAULT_PREEMPTIBLE = True
 
 
 def rest_authenticated_developers_or_auth_only(fun):
-    @auth.rest_authenticated_users_only
+    @rest_authenticated_users_only
     @wraps(fun)
     async def wrapped(request, userdata, *args, **kwargs):
         if userdata['is_developer'] == 1 or userdata['username'] == 'auth':
@@ -137,7 +137,7 @@ WHERE id = %s AND billing_project_users.`user` = %s;
 
 
 def rest_billing_project_users_only(fun):
-    @auth.rest_authenticated_users_only
+    @rest_authenticated_users_only
     @wraps(fun)
     async def wrapped(request, userdata, *args, **kwargs):
         db = request.app['db']
@@ -153,7 +153,7 @@ def rest_billing_project_users_only(fun):
 
 def web_billing_project_users_only(redirect=True):
     def wrap(fun):
-        @auth.web_authenticated_users_only(redirect)
+        @web_authenticated_users_only(redirect)
         @wraps(fun)
         async def wrapped(request, userdata, *args, **kwargs):
             db = request.app['db']
@@ -648,7 +648,7 @@ ORDER BY id DESC;
 
 
 @routes.get('/api/v1alpha/batches')
-@auth.rest_authenticated_users_only
+@rest_authenticated_users_only
 async def get_batches(request, userdata):  # pylint: disable=unused-argument
     user = userdata['username']
     q = request.query.get('q', f'user:{user}')
@@ -672,7 +672,7 @@ def check_service_account_permissions(user, sa):
 
 
 @routes.post('/api/v1alpha/batches/{batch_id}/jobs/create')
-@auth.rest_authenticated_users_only
+@rest_authenticated_users_only
 async def create_jobs(request: aiohttp.web.Request, userdata: dict):
     app = request.app
 
@@ -1096,7 +1096,7 @@ VALUES (%s, %s, %s);
 
 
 @routes.post('/api/v1alpha/batches/create-fast')
-@auth.rest_authenticated_users_only
+@rest_authenticated_users_only
 async def create_batch_fast(request, userdata):
     app = request.app
     db: Database = app['db']
@@ -1121,7 +1121,7 @@ async def create_batch_fast(request, userdata):
 
 
 @routes.post('/api/v1alpha/batches/create')
-@auth.rest_authenticated_users_only
+@rest_authenticated_users_only
 async def create_batch(request, userdata):
     app = request.app
     db: Database = app['db']
@@ -1323,7 +1323,7 @@ async def cancel_batch(request, userdata, batch_id):  # pylint: disable=unused-a
 
 
 @routes.patch('/api/v1alpha/batches/{batch_id}/close')
-@auth.rest_authenticated_users_only
+@rest_authenticated_users_only
 async def close_batch(request, userdata):
     batch_id = int(request.match_info['batch_id'])
     user = userdata['username']
@@ -1433,7 +1433,7 @@ async def ui_delete_batch(request, userdata, batch_id):  # pylint: disable=unuse
 
 
 @routes.get('/batches', name='batches')
-@auth.web_authenticated_users_only()
+@web_authenticated_users_only()
 @catch_ui_error_in_dev
 async def ui_batches(request, userdata):
     user = userdata['username']
@@ -1703,7 +1703,7 @@ async def ui_get_job_log(request, userdata, batch_id):  # pylint: disable=unused
 
 
 @routes.get('/billing_limits')
-@auth.web_authenticated_users_only()
+@web_authenticated_users_only()
 @catch_ui_error_in_dev
 async def ui_get_billing_limits(request, userdata):
     app = request.app
@@ -1777,7 +1777,7 @@ async def post_edit_billing_limits(request, userdata):  # pylint: disable=unused
 
 @routes.post('/billing_limits/{billing_project}/edit')
 @check_csrf_token
-@auth.web_authenticated_developers_only(redirect=False)
+@web_authenticated_developers_only(redirect=False)
 @catch_ui_error_in_dev
 async def post_edit_billing_limits_ui(request, userdata):  # pylint: disable=unused-argument
     db: Database = request.app['db']
@@ -1862,7 +1862,7 @@ GROUP BY billing_project, `user`;
 
 
 @routes.get('/billing')
-@auth.web_authenticated_users_only()
+@web_authenticated_users_only()
 @catch_ui_error_in_dev
 async def ui_get_billing(request, userdata):
     is_developer = userdata['is_developer'] == 1
@@ -1906,7 +1906,7 @@ async def ui_get_billing(request, userdata):
 
 
 @routes.get('/billing_projects')
-@auth.web_authenticated_developers_only()
+@web_authenticated_developers_only()
 @catch_ui_error_in_dev
 async def ui_get_billing_projects(request, userdata):
     db: Database = request.app['db']
@@ -1919,7 +1919,7 @@ async def ui_get_billing_projects(request, userdata):
 
 
 @routes.get('/api/v1alpha/billing_projects')
-@auth.rest_authenticated_users_only
+@rest_authenticated_users_only
 async def get_billing_projects(request, userdata):
     db: Database = request.app['db']
 
@@ -1934,7 +1934,7 @@ async def get_billing_projects(request, userdata):
 
 
 @routes.get('/api/v1alpha/billing_projects/{billing_project}')
-@auth.rest_authenticated_users_only
+@rest_authenticated_users_only
 async def get_billing_project(request, userdata):
     db: Database = request.app['db']
     billing_project = request.match_info['billing_project']
@@ -1995,7 +1995,7 @@ WHERE billing_project = %s AND user = %s;
 
 @routes.post('/billing_projects/{billing_project}/users/{user}/remove')
 @check_csrf_token
-@auth.web_authenticated_developers_only(redirect=False)
+@web_authenticated_developers_only(redirect=False)
 @catch_ui_error_in_dev
 async def post_billing_projects_remove_user(request, userdata):  # pylint: disable=unused-argument
     db: Database = request.app['db']
@@ -2058,7 +2058,7 @@ VALUES (%s, %s);
 
 @routes.post('/billing_projects/{billing_project}/users/add')
 @check_csrf_token
-@auth.web_authenticated_developers_only(redirect=False)
+@web_authenticated_developers_only(redirect=False)
 @catch_ui_error_in_dev
 async def post_billing_projects_add_user(request, userdata):  # pylint: disable=unused-argument
     db: Database = request.app['db']
@@ -2112,7 +2112,7 @@ VALUES (%s);
 
 @routes.post('/billing_projects/create')
 @check_csrf_token
-@auth.web_authenticated_developers_only(redirect=False)
+@web_authenticated_developers_only(redirect=False)
 @catch_ui_error_in_dev
 async def post_create_billing_projects(request, userdata):  # pylint: disable=unused-argument
     db: Database = request.app['db']
@@ -2171,7 +2171,7 @@ FOR UPDATE;
 
 @routes.post('/billing_projects/{billing_project}/close')
 @check_csrf_token
-@auth.web_authenticated_developers_only(redirect=False)
+@web_authenticated_developers_only(redirect=False)
 @catch_ui_error_in_dev
 async def post_close_billing_projects(request, userdata):  # pylint: disable=unused-argument
     db: Database = request.app['db']
@@ -2215,7 +2215,7 @@ async def _reopen_billing_project(db, billing_project):
 
 @routes.post('/billing_projects/{billing_project}/reopen')
 @check_csrf_token
-@auth.web_authenticated_developers_only(redirect=False)
+@web_authenticated_developers_only(redirect=False)
 @catch_ui_error_in_dev
 async def post_reopen_billing_projects(request, userdata):  # pylint: disable=unused-argument
     db: Database = request.app['db']
@@ -2280,7 +2280,7 @@ SELECT frozen FROM globals;
 
 @routes.get('')
 @routes.get('/')
-@auth.web_authenticated_users_only()
+@web_authenticated_users_only()
 @catch_ui_error_in_dev
 async def index(request, userdata):  # pylint: disable=unused-argument
     location = request.app.router['batches'].url_for()
