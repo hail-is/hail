@@ -370,6 +370,10 @@ class ImageNotFound(Exception):
     pass
 
 
+class InvalidImageRepository(Exception):
+    pass
+
+
 class Image:
     def __init__(
         self,
@@ -441,6 +445,8 @@ class Image:
                 raise ImageCannotBePulled from e
             if 'not found: manifest unknown' in e.message:
                 raise ImageNotFound from e
+            if 'Invalid repository name' in e.message:
+                raise InvalidImageRepository from e
             raise
 
         image_config, _ = await check_exec_output('docker', 'inspect', self.image_ref_str)
@@ -580,7 +586,7 @@ def user_error(e):
         # bucket name and your credentials.\n')
         if b'Bad credentials for bucket' in e.stderr:
             return True
-    if isinstance(e, (ImageNotFound, ImageCannotBePulled)):
+    if isinstance(e, (ImageNotFound, ImageCannotBePulled, InvalidImageRepository)):
         return True
     if isinstance(e, (ContainerTimeoutError, ContainerDeletedError)):
         return True
@@ -671,6 +677,8 @@ class Container:
                 self.short_error = 'image not found'
             elif isinstance(e, ImageCannotBePulled):
                 self.short_error = 'image cannot be pulled'
+            elif isinstance(e, InvalidImageRepository):
+                self.short_error = 'image repository is invalid'
 
             self.state = 'error'
             self.error = traceback.format_exc()

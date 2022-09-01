@@ -367,6 +367,22 @@ def test_unknown_image(client: BatchClient):
         raise AssertionError(str((status, b.debug_info())), e)
 
 
+@skip_in_azure
+def test_invalid_gcr(client: BatchClient):
+    b = client.create_batch()
+    # GCP projects can't be strictly numeric
+    j = b.create_job(f'gcr.io/1/does-not-exist', ['echo', 'test'])
+    b = b.submit()
+    status = j.wait()
+    try:
+        assert j._get_exit_code(status, 'main') is None
+        assert status['status']['container_statuses']['main']['short_error'] == 'image repository is invalid', str(
+            (status, b.debug_info())
+        )
+    except Exception as e:
+        raise AssertionError(str((status, b.debug_info())), e)
+
+
 def test_running_job_log_and_status(client: BatchClient):
     b = client.create_batch()
     j = b.create_job(DOCKER_ROOT_IMAGE, ['sleep', '300'])
