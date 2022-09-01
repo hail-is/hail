@@ -679,6 +679,8 @@ def is_transient_error(e):
     if isinstance(e, botocore.exceptions.ConnectionClosedError):
         return True
     if aiodocker is not None and isinstance(e, aiodocker.exceptions.DockerError):
+        if e.status == 500 and 'Invalid repository name' in e.message:
+            return False
         return e.status in RETRYABLE_HTTP_STATUS_CODES
     if isinstance(e, TransientError):
         return True
