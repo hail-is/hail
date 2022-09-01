@@ -12,7 +12,7 @@ import is.hail.io._
 import is.hail.io.fs.FS
 import is.hail.io.gen.{ExportBGEN, ExportGen}
 import is.hail.io.index.StagedIndexWriter
-import is.hail.io.plink.ExportPlink
+import is.hail.io.plink.{ExportPlink, BitPacker}
 import is.hail.io.vcf.{ExportVCF, TabixVCF}
 import is.hail.linalg.BlockMatrix
 import is.hail.rvd.{IndexSpec, RVDPartitioner, RVDSpecMaker}
@@ -919,8 +919,6 @@ final case class GenVariantWriter(typ: MatrixType, entriesFieldName: String, pre
   }
 }
 
-
-
 final class GenSampleWriter extends SimplePartitionWriter {
   def consumeElement(cb: EmitCodeBuilder, element: EmitCode, os: Value[OutputStream], region: Value[Region]): Unit = {
     element.toI(cb).consume(cb, cb._fatal("stream element cannot be missing!"), { case sv: SBaseStructValue =>
@@ -953,7 +951,164 @@ case class MatrixBGENWriter(
 case class MatrixPLINKWriter(
   path: String
 ) extends MatrixWriter {
-  def apply(ctx: ExecuteContext, mv: MatrixValue): Unit = ExportPlink(ctx, mv, path)
+  def apply(ctx: ExecuteContext, mv: MatrixValue): Unit = {
+    val tv = mv.toTableValue
+    val ts = RVDToTableStage(tv.rvd, tv.globals.toEncodedLiteral(ctx.theHailClassLoader))
+    val tl = TableLiteral(tv, ctx.theHailClassLoader)
+    CompileAndEvaluate(ctx,
+      lower(LowerMatrixIR.colsFieldName, MatrixType.entriesIdentifier, mv.typ.colKey,
+        ctx, ts, tl, BaseTypeWithRequiredness(tv.typ).asInstanceOf[RTable], Map()))
+  }
+
+  override def canLowerEfficiently: Boolean = true
+  override def lower(colsFieldName: String, entriesFieldName: String, colKey: IndexedSeq[String],
+      ctx: ExecuteContext, ts: TableStage, t: TableIR, r: RTable, relationalLetsAbove: Map[String, IR]): IR = {
+    val tm = MatrixType.fromTableType(t.typ, colsFieldName, entriesFieldName, colKey)
+    val tmpBedDir = ctx.createTmpPath("export-plink", "bed")
+    val tmpBimDir = ctx.createTmpPath("export-plink", "bim")
+
+    val lineWriter = PLINKPartitionWriter(tm, entriesFieldName)
+    ts.mapContexts { oldCtx =>
+      val d = digitsNeeded(ts.numPartitions)
+      val files = Literal(TArray(TTuple(TString, TString)),
+                          Array.tabulate(ts.numPartitions)(i => Row(s"$tmpBedDir/${ partFile(d, i) }-", s"$tmpBimDir/${ partFile(d, i) }-")).toFastIndexedSeq)
+
+      zip2(oldCtx, ToStream(files), ArrayZipBehavior.AssertSameLength) { (ctxElt, pf) =>
+        MakeStruct(FastSeq(
+          "oldCtx" -> ctxElt,
+          "file" -> pf))
+      }
+    }(GetField(_, "oldCtx")).mapCollectWithContextsAndGlobals(relationalLetsAbove, "matrix_plink_writer") { (rows, ctxRef) =>
+      val id = UUID4()
+      val bedFile = GetTupleElement(GetField(ctxRef, "file"), 0) + id
+      val bimFile = GetTupleElement(GetField(ctxRef, "file"), 1) + id
+      val ctx = MakeStruct(FastSeq("bedFile" -> bedFile, "bimFile" -> bimFile))
+      WritePartition(rows, ctx, lineWriter)
+    }{ (parts, globals) =>
+      val commit = PLINKExportFinalizer(tm, path, tmpBedDir + "/header")
+      val famWriter = TableTextPartitionWriter(tm.colsTableType.rowType, "\t", writeHeader = false)
+      val famPath = Str(path + ".fam")
+      val cols = ToStream(GetField(globals, colsFieldName))
+      val writeFam = WritePartition(cols, famPath, famWriter)
+      bindIR(writeFam) { fpath =>
+        Begin(FastIndexedSeq(WriteMetadata(parts, commit), WriteMetadata(fpath, SimpleMetadataWriter(fpath.typ))))
+      }
+    }
+  }
+}
+
+case class PLINKPartitionWriter(typ: MatrixType, entriesFieldName: String) extends PartitionWriter {
+  val ctxType = TStruct("bedFile" -> TString, "bimFile" -> TString)
+  def returnType = TStruct("bedFile" -> TString, "bimFile" -> TString)
+
+  val locusIdx = typ.rowType.fieldIdx("locus")
+  val allelesIdx = typ.rowType.fieldIdx("alleles")
+  val varidIdx = typ.rowType.fieldIdx("varid")
+  val cmPosIdx = typ.rowType.fieldIdx("cm_position")
+
+  def unionTypeRequiredness(r: TypeWithRequiredness, ctxType: TypeWithRequiredness, streamType: RIterable): Unit = {
+    r.union(ctxType.required)
+    r.union(streamType.required)
+  }
+
+  final def consumeStream(ctx: ExecuteContext, cb: EmitCodeBuilder, stream: StreamProducer,
+      context: EmitCode, region: Value[Region]): IEmitCode = {
+    context.toI(cb).map(cb) { case context: SBaseStructValue =>
+      val bedFile = context.loadField(cb, "bedFile").get(cb).asString.loadString(cb)
+      val bimFile = context.loadField(cb, "bimFile").get(cb).asString.loadString(cb)
+
+      val bedOs = cb.memoize(cb.emb.create(bedFile))
+      val bimOs = cb.memoize(cb.emb.create(bimFile))
+      val bp = cb.memoize(Code.newInstance[BitPacker, Int, OutputStream](2, bedOs))
+
+      stream.memoryManagedConsume(region, cb) { cb =>
+        consumeElement(cb, stream.element, bimOs, bp, region)
+      }
+
+      cb += bedOs.invoke[Unit]("flush")
+      cb += bedOs.invoke[Unit]("close")
+
+      cb += bimOs.invoke[Unit]("flush")
+      cb += bimOs.invoke[Unit]("close")
+
+      context
+    }
+  }
+
+  private def consumeElement(cb: EmitCodeBuilder, element: EmitCode, bimOs: Value[OutputStream], bp: Value[BitPacker], region: Value[Region]): Unit = {
+    def _writeC(cb: EmitCodeBuilder, code: Code[Int]) = { cb += bimOs.invoke[Int, Unit]("write", code) }
+    def _writeB(cb: EmitCodeBuilder, code: Code[Array[Byte]]) = { cb += bimOs.invoke[Array[Byte], Unit]("write", code) }
+    def _writeS(cb: EmitCodeBuilder, code: Code[String]) = { _writeB(cb, code.invoke[Array[Byte]]("getBytes")) }
+    def writeC(code: Code[Int]) = _writeC(cb, code)
+    def writeS(code: Code[String]) = _writeS(cb, code)
+
+    val elt = element.toI(cb).get(cb).asBaseStruct
+
+    val (contig, position) = elt.loadField(cb, locusIdx).get(cb) match {
+      case locus: SLocusValue =>
+        locus.contig(cb).loadString(cb) -> locus.position(cb)
+      case locus: SBaseStructValue =>
+        locus.loadField(cb, 0).get(cb).asString.loadString(cb) -> locus.loadField(cb, 1).get(cb).asInt.value
+    }
+    val cmPosition = elt.loadField(cb, cmPosIdx).get(cb).asDouble
+    val varid = elt.loadField(cb, varidIdx).get(cb).asString.loadString(cb)
+    val alleles = elt.loadField(cb, allelesIdx).get(cb).asIndexable
+    val a0 = alleles.loadElement(cb, 0).get(cb).asString.loadString(cb)
+    val a1 = alleles.loadElement(cb, 1).get(cb).asString.loadString(cb)
+
+    cb += Code.invokeScalaObject5[String, String, Int, String, String, Unit](ExportPlink.getClass, "checkVariant", contig, varid, position, a0, a1)
+    writeS(contig)
+    writeC('\t')
+    writeS(varid)
+    writeC('\t')
+    writeS(cmPosition.value.toS)
+    writeC('\t')
+    writeS(position.toS)
+    writeC('\t')
+    writeS(a1)
+    writeC('\t')
+    writeS(a0)
+    writeC('\n')
+
+    elt.loadField(cb, entriesFieldName).get(cb).asIndexable.forEachDefinedOrMissing(cb)({ (cb, i) =>
+      cb += bp.invoke[Int, Unit]("add", 1)
+    }, { (cb, i, va) =>
+      va.asBaseStruct.loadField(cb, "GT").consume(cb, {
+        cb += bp.invoke[Int, Unit]("add", 1)
+      }, { case call: SCallValue =>
+        val gtIx = cb.memoize(Code.invokeScalaObject1[Call, Int](Call.getClass, "unphasedDiploidGtIndex", call.canonicalCall(cb)))
+        val gt = cb.ifx(gtIx.ceq(0), 3, cb.ifx(gtIx.ceq(1), 2, 0))
+        cb += bp.invoke[Int, Unit]("add", gt)
+      })
+    })
+    cb += bp.invoke[Unit]("flush")
+  }
+}
+
+object PLINKExportFinalizer {
+  def finalize(fs: FS, path: String, headerPath: String, bedFiles: Array[String], bimFiles: Array[String]): Unit = {
+    using(fs.create(headerPath))(out => out.write(ExportPlink.bedHeader))
+    bedFiles(0) = headerPath
+    fs.concatenateFiles(bedFiles, path + ".bed")
+    fs.concatenateFiles(bimFiles, path + ".bim")
+  }
+}
+
+case class PLINKExportFinalizer(typ: MatrixType, path: String, headerPath: String) extends MetadataWriter {
+  def annotationType: Type = TArray(TStruct("bedFile" -> TString, "bimFile" -> TString))
+
+  def writeMetadata(writeAnnotations: => IEmitCode, cb: EmitCodeBuilder, region: Value[Region]): Unit = {
+    val paths = writeAnnotations.get(cb).asIndexable
+    val bedFiles = cb.memoize(Code.newArray[String](paths.loadLength() + 1)) // room for header
+    val bimFiles = cb.memoize(Code.newArray[String](paths.loadLength()))
+    paths.forEachDefined(cb) { case (cb, i, elt: SBaseStructValue) =>
+      val bed = elt.loadField(cb, "bedFile").get(cb).asString.loadString(cb)
+      val bim = elt.loadField(cb, "bimFile").get(cb).asString.loadString(cb)
+      cb += (bedFiles(cb.memoize(i + 1)) = bed)
+      cb += (bimFiles(i) = bim)
+    }
+    cb += Code.invokeScalaObject5[FS, String, String, Array[String], Array[String], Unit](PLINKExportFinalizer.getClass, "finalize", cb.emb.getFS, path, headerPath, bedFiles, bimFiles)
+  }
 }
 
 case class MatrixBlockMatrixWriter(

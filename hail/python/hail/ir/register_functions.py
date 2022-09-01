@@ -156,6 +156,8 @@ def register_functions():
     register_function("includesEnd", (dtype("interval<?T>"),), dtype("bool"))
     register_function("position", (dtype("?T:locus"),), dtype("int32"))
     register_seeded_function("rand_unif", (dtype("float64"), dtype("float64"),), dtype("float64"))
+    register_seeded_function("rand_int32", (dtype("int32")), dtype("int32"))
+    register_seeded_function("rand_int64", (dtype("int64"),), dtype("int64"))
     register_function("showStr", (dtype("?T"), dtype("int32")), dtype("str"))
     register_function("str", (dtype("?T"),), dtype("str"))
     register_function("valuesSimilar", (dtype("?T"), dtype("?T"), dtype('float64'), dtype('bool'),), dtype("bool"))

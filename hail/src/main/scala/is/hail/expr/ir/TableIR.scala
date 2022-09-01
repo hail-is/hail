@@ -116,6 +116,9 @@ object TableReader {
 }
 
 object LoweredTableReader {
+
+  private[this] val coercerCache: Cache[Any, LoweredTableReaderCoercer] = new Cache(32)
+
   def makeCoercer(
     ctx: ExecuteContext,
     key: IndexedSeq[String],
@@ -124,7 +127,9 @@ object LoweredTableReader {
     contexts: IndexedSeq[Any],
     keyType: TStruct,
     bodyPType: (TStruct) => PStruct,
-    keys: (TStruct) => (Region, HailClassLoader, FS, Any) => Iterator[Long]
+    keys: (TStruct) => (Region, HailClassLoader, FS, Any) => Iterator[Long],
+    context: String,
+    cacheKey: Any
   ): LoweredTableReaderCoercer = {
     assert(key.nonEmpty)
     assert(contexts.nonEmpty)
@@ -138,275 +143,288 @@ object LoweredTableReader {
     def selectPK(k: IR): IR =
       SelectFields(k, key.take(partitionKey))
 
-    val prevkey = AggSignature(PrevNonnull(),
-      FastIndexedSeq(),
-      FastIndexedSeq(keyType))
+    val cacheKeyWithInfo = (partitionKey, keyType, key, cacheKey)
+    coercerCache.get(cacheKeyWithInfo) match {
+      case Some(r) => r
+      case None =>
+        info(s"scanning $context for sortedness...")
+        val prevkey = AggSignature(PrevNonnull(),
+          FastIndexedSeq(),
+          FastIndexedSeq(keyType))
 
-    val count = AggSignature(Count(),
-      FastIndexedSeq(),
-      FastIndexedSeq())
+        val count = AggSignature(Count(),
+          FastIndexedSeq(),
+          FastIndexedSeq())
 
-    val xType = TStruct(
-      "key" -> keyType,
-      "token" -> TFloat64,
-      "prevkey" -> keyType)
+        val xType = TStruct(
+          "key" -> keyType,
+          "token" -> TFloat64,
+          "prevkey" -> keyType)
 
-    val samplekey = AggSignature(TakeBy(),
-      FastIndexedSeq(TInt32),
-      FastIndexedSeq(keyType, TFloat64))
+        val samplekey = AggSignature(TakeBy(),
+          FastIndexedSeq(TInt32),
+          FastIndexedSeq(keyType, TFloat64))
 
-    val sum = AggSignature(Sum(),
-      FastIndexedSeq(),
-      FastIndexedSeq(TInt64))
+        val sum = AggSignature(Sum(),
+          FastIndexedSeq(),
+          FastIndexedSeq(TInt64))
 
-    val minkey = AggSignature(TakeBy(),
-      FastIndexedSeq(TInt32),
-      FastIndexedSeq(keyType, keyType))
+        val minkey = AggSignature(TakeBy(),
+          FastIndexedSeq(TInt32),
+          FastIndexedSeq(keyType, keyType))
 
-    val maxkey = AggSignature(TakeBy(Descending),
-      FastIndexedSeq(TInt32),
-      FastIndexedSeq(keyType, keyType))
+        val maxkey = AggSignature(TakeBy(Descending),
+          FastIndexedSeq(TInt32),
+          FastIndexedSeq(keyType, keyType))
 
-    val scanBody = (ctx: IR) => StreamAgg(
-      StreamAggScan(
-        ReadPartition(ctx, keyType, new PartitionIteratorLongReader(
-          keyType,
-          contextType,
-          (requestedType: Type) => bodyPType(requestedType.asInstanceOf[TStruct]),
-          (requestedType: Type) => keys(requestedType.asInstanceOf[TStruct]))),
-        "key",
-        MakeStruct(FastIndexedSeq(
-          "key" -> Ref("key", keyType),
-          "token" -> invokeSeeded("rand_unif", 1, TFloat64, NA(TRNGState), F64(0.0), F64(1.0)),
-          "prevkey" -> ApplyScanOp(FastIndexedSeq(), FastIndexedSeq(Ref("key", keyType)), prevkey)))),
-      "x",
-      Let("n", ApplyAggOp(FastIndexedSeq(), FastIndexedSeq(), count),
-        AggLet("key", GetField(Ref("x", xType), "key"),
-          MakeStruct(FastIndexedSeq(
-            "n" -> Ref("n", TInt64),
-            "minkey" ->
-              ApplyAggOp(
-                FastIndexedSeq(I32(1)),
-                FastIndexedSeq(Ref("key", keyType), Ref("key", keyType)),
-                minkey),
-            "maxkey" ->
-              ApplyAggOp(
-                FastIndexedSeq(I32(1)),
-                FastIndexedSeq(Ref("key", keyType), Ref("key", keyType)),
-                maxkey),
-            "ksorted" ->
-              ApplyComparisonOp(EQ(TInt64),
-                ApplyAggOp(
-                  FastIndexedSeq(),
-                  FastIndexedSeq(
-                    invoke("toInt64", TInt64,
-                      invoke("lor", TBoolean,
-                        IsNA(GetField(Ref("x", xType), "prevkey")),
-                        ApplyComparisonOp(LTEQ(keyType),
-                          GetField(Ref("x", xType), "prevkey"),
-                          GetField(Ref("x", xType), "key"))))),
-                  sum),
-                Ref("n", TInt64)),
-            "pksorted" ->
-              ApplyComparisonOp(EQ(TInt64),
-                ApplyAggOp(
-                  FastIndexedSeq(),
-                  FastIndexedSeq(
-                    invoke("toInt64", TInt64,
-                      invoke("lor", TBoolean,
-                        IsNA(selectPK(GetField(Ref("x", xType), "prevkey"))),
-                        ApplyComparisonOp(LTEQ(pkType),
-                          selectPK(GetField(Ref("x", xType), "prevkey")),
-                          selectPK(GetField(Ref("x", xType), "key")))))),
-                  sum),
-                Ref("n", TInt64)),
-            "sample" -> ApplyAggOp(
-              FastIndexedSeq(I32(samplesPerPartition)),
-              FastIndexedSeq(GetField(Ref("x", xType), "key"), GetField(Ref("x", xType), "token")),
-              samplekey))),
-          isScan = false)))
+        val scanBody = (ctx: IR) => StreamAgg(
+          StreamAggScan(
+            ReadPartition(ctx, keyType, new PartitionIteratorLongReader(
+              keyType,
+              contextType,
+              (requestedType: Type) => bodyPType(requestedType.asInstanceOf[TStruct]),
+              (requestedType: Type) => keys(requestedType.asInstanceOf[TStruct]))),
+            "key",
+            MakeStruct(FastIndexedSeq(
+              "key" -> Ref("key", keyType),
+              "token" -> invokeSeeded("rand_unif", 1, TFloat64, NA(TRNGState), F64(0.0), F64(1.0)),
+              "prevkey" -> ApplyScanOp(FastIndexedSeq(), FastIndexedSeq(Ref("key", keyType)), prevkey)))),
+          "x",
+          Let("n", ApplyAggOp(FastIndexedSeq(), FastIndexedSeq(), count),
+            AggLet("key", GetField(Ref("x", xType), "key"),
+              MakeStruct(FastIndexedSeq(
+                "n" -> Ref("n", TInt64),
+                "minkey" ->
+                  ApplyAggOp(
+                    FastIndexedSeq(I32(1)),
+                    FastIndexedSeq(Ref("key", keyType), Ref("key", keyType)),
+                    minkey),
+                "maxkey" ->
+                  ApplyAggOp(
+                    FastIndexedSeq(I32(1)),
+                    FastIndexedSeq(Ref("key", keyType), Ref("key", keyType)),
+                    maxkey),
+                "ksorted" ->
+                  ApplyComparisonOp(EQ(TInt64),
+                    ApplyAggOp(
+                      FastIndexedSeq(),
+                      FastIndexedSeq(
+                        invoke("toInt64", TInt64,
+                          invoke("lor", TBoolean,
+                            IsNA(GetField(Ref("x", xType), "prevkey")),
+                            ApplyComparisonOp(LTEQ(keyType),
+                              GetField(Ref("x", xType), "prevkey"),
+                              GetField(Ref("x", xType), "key"))))),
+                      sum),
+                    Ref("n", TInt64)),
+                "pksorted" ->
+                  ApplyComparisonOp(EQ(TInt64),
+                    ApplyAggOp(
+                      FastIndexedSeq(),
+                      FastIndexedSeq(
+                        invoke("toInt64", TInt64,
+                          invoke("lor", TBoolean,
+                            IsNA(selectPK(GetField(Ref("x", xType), "prevkey"))),
+                            ApplyComparisonOp(LTEQ(pkType),
+                              selectPK(GetField(Ref("x", xType), "prevkey")),
+                              selectPK(GetField(Ref("x", xType), "key")))))),
+                      sum),
+                    Ref("n", TInt64)),
+                "sample" -> ApplyAggOp(
+                  FastIndexedSeq(I32(samplesPerPartition)),
+                  FastIndexedSeq(GetField(Ref("x", xType), "key"), GetField(Ref("x", xType), "token")),
+                  samplekey))),
+              isScan = false)))
 
-    val scanResult = CollectDistributedArray(
-      ToStream(Literal(TArray(contextType), contexts)),
-      MakeStruct(FastIndexedSeq()),
-      "context",
-      "globals",
-      scanBody(Ref("context", contextType)), NA(TString), "table_coerce_sortedness")
+        val scanResult = CollectDistributedArray(
+          ToStream(Literal(TArray(contextType), contexts)),
+          MakeStruct(FastIndexedSeq()),
+          "context",
+          "globals",
+          scanBody(Ref("context", contextType)), NA(TString), "table_coerce_sortedness")
 
-    val sortedPartDataIR = sortIR(bindIR(scanResult) { scanResult =>
-      mapIR(
-        filterIR(
+        val sortedPartDataIR = sortIR(bindIR(scanResult) { scanResult =>
           mapIR(
-            rangeIR(I32(0), ArrayLen(scanResult))) { i =>
-            InsertFields(
-              ArrayRef(scanResult, i),
-              FastIndexedSeq("i" -> i))
-          }) { row => ArrayLen(GetField(row, "minkey")) > 0 }
-      ) { row =>
-        InsertFields(row, FastSeq(
-          ("minkey", ArrayRef(GetField(row, "minkey"), I32(0))),
-          ("maxkey", ArrayRef(GetField(row, "maxkey"), I32(0)))))
-      }
-    }) { (l, r) =>
-      ApplyComparisonOp(LT(TStruct("minkey" -> keyType, "maxkey" -> keyType)),
-        SelectFields(l, FastSeq("minkey", "maxkey")),
-        SelectFields(r, FastSeq("minkey", "maxkey")))
-    }
-    val partDataElt = coerce[TArray](sortedPartDataIR.typ).elementType
-
-    val summary =
-      Let("sortedPartData", sortedPartDataIR,
-        MakeStruct(FastIndexedSeq(
-          "ksorted" ->
-            invoke("land", TBoolean,
-              StreamFold(ToStream(Ref("sortedPartData", sortedPartDataIR.typ)),
-                True(),
-                "acc",
-                "partDataWithIndex",
-                invoke("land", TBoolean,
-                  Ref("acc", TBoolean),
-                  GetField(Ref("partDataWithIndex", partDataElt), "ksorted"))),
-              StreamFold(
-                StreamRange(
-                  I32(0),
-                  ArrayLen(Ref("sortedPartData", sortedPartDataIR.typ)) - I32(1),
-                  I32(1)),
-                True(),
-                "acc", "i",
-                invoke("land", TBoolean,
-                  Ref("acc", TBoolean),
-                  ApplyComparisonOp(LTEQ(keyType),
-                    GetField(
-                      ArrayRef(Ref("sortedPartData", sortedPartDataIR.typ), Ref("i", TInt32)),
-                      "maxkey"),
-                    GetField(
-                      ArrayRef(Ref("sortedPartData", sortedPartDataIR.typ), Ref("i", TInt32) + I32(1)),
-                      "minkey"))))),
-          "pksorted" ->
-            invoke("land", TBoolean,
-              StreamFold(ToStream(Ref("sortedPartData", sortedPartDataIR.typ)),
-                True(),
-                "acc",
-                "partDataWithIndex",
-                invoke("land", TBoolean,
-                  Ref("acc", TBoolean),
-                  GetField(Ref("partDataWithIndex", partDataElt), "pksorted"))),
-              StreamFold(
-                StreamRange(
-                  I32(0),
-                  ArrayLen(Ref("sortedPartData", sortedPartDataIR.typ)) - I32(1),
-                  I32(1)),
-                True(),
-                "acc", "i",
-                invoke("land", TBoolean,
-                  Ref("acc", TBoolean),
-                  ApplyComparisonOp(LTEQ(pkType),
-                    selectPK(GetField(
-                      ArrayRef(Ref("sortedPartData", sortedPartDataIR.typ), Ref("i", TInt32)),
-                      "maxkey")),
-                    selectPK(GetField(
-                      ArrayRef(Ref("sortedPartData", sortedPartDataIR.typ), Ref("i", TInt32) + I32(1)),
-                      "minkey")))))),
-          "sortedPartData" -> Ref("sortedPartData", sortedPartDataIR.typ))))
-
-    val (Some(PTypeReferenceSingleCodeType(resultPType: PStruct)), f) = Compile[AsmFunction1RegionLong](ctx,
-      FastIndexedSeq(),
-      FastIndexedSeq[TypeInfo[_]](classInfo[Region]), LongInfo,
-      summary,
-      optimize = true)
-
-    val a = f(ctx.theHailClassLoader, ctx.fs, 0, ctx.r)(ctx.r)
-    val s = SafeRow(resultPType, a)
-
-    val ksorted = s.getBoolean(0)
-    val pksorted = s.getBoolean(1)
-    val sortedPartData = s.getAs[IndexedSeq[Row]](2)
-
-    if (ksorted) {
-      info("Coerced sorted dataset")
-
-      new LoweredTableReaderCoercer {
-        def coerce(globals: IR,
-          contextType: Type,
-          contexts: IndexedSeq[Any],
-          body: IR => IR): TableStage = {
-          val partOrigIndex = sortedPartData.map(_.getInt(6))
-
-          val partitioner = new RVDPartitioner(keyType,
-            sortedPartData.map { partData =>
-              Interval(partData.get(1), partData.get(2), includesStart = true, includesEnd = true)
-            },
-            key.length)
-
-          TableStage(globals, partitioner, TableStageDependency.none,
-            ToStream(Literal(TArray(contextType), partOrigIndex.map(i => contexts(i)))),
-            body)
-        }
-      }
-    } else if (pksorted) {
-      info("Coerced prefix-sorted dataset")
-
-      new LoweredTableReaderCoercer {
-        private[this] def selectPK(r: Row): Row = {
-          val a = new Array[Any](partitionKey)
-          var i = 0
-          while (i < partitionKey) {
-            a(i) = r.get(i)
-            i += 1
+            filterIR(
+              mapIR(
+                rangeIR(I32(0), ArrayLen(scanResult))) { i =>
+                InsertFields(
+                  ArrayRef(scanResult, i),
+                  FastIndexedSeq("i" -> i))
+              }) { row => ArrayLen(GetField(row, "minkey")) > 0 }
+          ) { row =>
+            InsertFields(row, FastSeq(
+              ("minkey", ArrayRef(GetField(row, "minkey"), I32(0))),
+              ("maxkey", ArrayRef(GetField(row, "maxkey"), I32(0)))))
           }
-          Row.fromSeq(a)
+        }) { (l, r) =>
+          ApplyComparisonOp(LT(TStruct("minkey" -> keyType, "maxkey" -> keyType)),
+            SelectFields(l, FastSeq("minkey", "maxkey")),
+            SelectFields(r, FastSeq("minkey", "maxkey")))
         }
+        val partDataElt = coerce[TArray](sortedPartDataIR.typ).elementType
 
-        def coerce(globals: IR,
-          contextType: Type,
-          contexts: IndexedSeq[Any],
-          body: IR => IR): TableStage = {
-          val partOrigIndex = sortedPartData.map(_.getInt(6))
+        val summary =
+          Let("sortedPartData", sortedPartDataIR,
+            MakeStruct(FastIndexedSeq(
+              "ksorted" ->
+                invoke("land", TBoolean,
+                  StreamFold(ToStream(Ref("sortedPartData", sortedPartDataIR.typ)),
+                    True(),
+                    "acc",
+                    "partDataWithIndex",
+                    invoke("land", TBoolean,
+                      Ref("acc", TBoolean),
+                      GetField(Ref("partDataWithIndex", partDataElt), "ksorted"))),
+                  StreamFold(
+                    StreamRange(
+                      I32(0),
+                      ArrayLen(Ref("sortedPartData", sortedPartDataIR.typ)) - I32(1),
+                      I32(1)),
+                    True(),
+                    "acc", "i",
+                    invoke("land", TBoolean,
+                      Ref("acc", TBoolean),
+                      ApplyComparisonOp(LTEQ(keyType),
+                        GetField(
+                          ArrayRef(Ref("sortedPartData", sortedPartDataIR.typ), Ref("i", TInt32)),
+                          "maxkey"),
+                        GetField(
+                          ArrayRef(Ref("sortedPartData", sortedPartDataIR.typ), Ref("i", TInt32) + I32(1)),
+                          "minkey"))))),
+              "pksorted" ->
+                invoke("land", TBoolean,
+                  StreamFold(ToStream(Ref("sortedPartData", sortedPartDataIR.typ)),
+                    True(),
+                    "acc",
+                    "partDataWithIndex",
+                    invoke("land", TBoolean,
+                      Ref("acc", TBoolean),
+                      GetField(Ref("partDataWithIndex", partDataElt), "pksorted"))),
+                  StreamFold(
+                    StreamRange(
+                      I32(0),
+                      ArrayLen(Ref("sortedPartData", sortedPartDataIR.typ)) - I32(1),
+                      I32(1)),
+                    True(),
+                    "acc", "i",
+                    invoke("land", TBoolean,
+                      Ref("acc", TBoolean),
+                      ApplyComparisonOp(LTEQ(pkType),
+                        selectPK(GetField(
+                          ArrayRef(Ref("sortedPartData", sortedPartDataIR.typ), Ref("i", TInt32)),
+                          "maxkey")),
+                        selectPK(GetField(
+                          ArrayRef(Ref("sortedPartData", sortedPartDataIR.typ), Ref("i", TInt32) + I32(1)),
+                          "minkey")))))),
+              "sortedPartData" -> Ref("sortedPartData", sortedPartDataIR.typ))))
 
-          val partitioner = new RVDPartitioner(pkType,
-            sortedPartData.map { partData =>
-              Interval(selectPK(partData.getAs[Row](1)), selectPK(partData.getAs[Row](2)), includesStart = true, includesEnd = true)
-            }, pkType.size)
+        val (Some(PTypeReferenceSingleCodeType(resultPType: PStruct)), f) = Compile[AsmFunction1RegionLong](ctx,
+          FastIndexedSeq(),
+          FastIndexedSeq[TypeInfo[_]](classInfo[Region]), LongInfo,
+          summary,
+          optimize = true)
 
-          val pkPartitioned = TableStage(globals, partitioner, TableStageDependency.none,
-            ToStream(Literal(TArray(contextType), partOrigIndex.map(i => contexts(i)))),
-            body)
+        val a = f(ctx.theHailClassLoader, ctx.fs, 0, ctx.r)(ctx.r)
+        val s = SafeRow(resultPType, a)
 
-          pkPartitioned
-            .extendKeyPreservesPartitioning(key)
-            .mapPartition(None) { part =>
-              flatMapIR(StreamGroupByKey(part, pkType.fieldNames, missingEqual = true)) { inner =>
-                ToStream(sortIR(inner) { case (l, r) => ApplyComparisonOp(LT(l.typ), l, r) })
-              }
+        val ksorted = s.getBoolean(0)
+        val pksorted = s.getBoolean(1)
+        val sortedPartData = s.getAs[IndexedSeq[Row]](2)
+
+        val coercer = if (ksorted) {
+          info(s"Coerced sorted ${ context } - no additional import work to do")
+
+          new LoweredTableReaderCoercer {
+            def coerce(ctx: ExecuteContext,
+              globals: IR,
+              contextType: Type,
+              contexts: IndexedSeq[Any],
+              body: IR => IR): TableStage = {
+              val partOrigIndex = sortedPartData.map(_.getInt(6))
+
+              val partitioner = new RVDPartitioner(keyType,
+                sortedPartData.map { partData =>
+                  Interval(partData.get(1), partData.get(2), includesStart = true, includesEnd = true)
+                },
+                key.length)
+
+              TableStage(globals, partitioner, TableStageDependency.none,
+                ToStream(Literal(TArray(contextType), partOrigIndex.map(i => contexts(i)))),
+                body)
             }
+          }
+        } else if (pksorted) {
+          info(s"Coerced prefix-sorted $context, requiring additional sorting within data partitions on each query.")
+
+          new LoweredTableReaderCoercer {
+            private[this] def selectPK(r: Row): Row = {
+              val a = new Array[Any](partitionKey)
+              var i = 0
+              while (i < partitionKey) {
+                a(i) = r.get(i)
+                i += 1
+              }
+              Row.fromSeq(a)
+            }
+
+            def coerce(ctx: ExecuteContext,
+              globals: IR,
+              contextType: Type,
+              contexts: IndexedSeq[Any],
+              body: IR => IR): TableStage = {
+              val partOrigIndex = sortedPartData.map(_.getInt(6))
+
+              val partitioner = new RVDPartitioner(pkType,
+                sortedPartData.map { partData =>
+                  Interval(selectPK(partData.getAs[Row](1)), selectPK(partData.getAs[Row](2)), includesStart = true, includesEnd = true)
+                }, pkType.size)
+
+              val pkPartitioned = TableStage(globals, partitioner, TableStageDependency.none,
+                ToStream(Literal(TArray(contextType), partOrigIndex.map(i => contexts(i)))),
+                body)
+
+              pkPartitioned
+                .extendKeyPreservesPartitioning(key)
+                .mapPartition(None) { part =>
+                  flatMapIR(StreamGroupByKey(part, pkType.fieldNames, missingEqual = true)) { inner =>
+                    ToStream(sortIR(inner) { case (l, r) => ApplyComparisonOp(LT(l.typ), l, r) })
+                  }
+                }
+            }
+          }
+        } else {
+          info(s"$context is out of order..." +
+            s"\n  Write the dataset to disk before running multiple queries to avoid multiple costly data shuffles.")
+
+          new LoweredTableReaderCoercer {
+            def coerce(ctx: ExecuteContext,
+              globals: IR,
+              contextType: Type,
+              contexts: IndexedSeq[Any],
+              body: IR => IR): TableStage = {
+              val partOrigIndex = sortedPartData.map(_.getInt(6))
+
+              val partitioner = RVDPartitioner.unkeyed(sortedPartData.length)
+
+              val tableStage = TableStage(globals, partitioner, TableStageDependency.none,
+                ToStream(Literal(TArray(contextType), partOrigIndex.map(i => contexts(i)))),
+                body)
+
+              val rowRType = VirtualTypeWithReq(bodyPType(tableStage.rowType)).r.asInstanceOf[RStruct]
+
+              ctx.backend.lowerDistributedSort(ctx,
+                tableStage,
+                keyType.fieldNames.map(f => SortField(f, Ascending)),
+                Map.empty,
+                rowRType
+              )
+            }
+          }
         }
-      }
-    } else {
-      info(s"Ordering unsorted dataset with shuffle")
-
-      new LoweredTableReaderCoercer {
-        def coerce(globals: IR,
-          contextType: Type,
-          contexts: IndexedSeq[Any],
-          body: IR => IR): TableStage = {
-          val partOrigIndex = sortedPartData.map(_.getInt(6))
-
-          val partitioner = RVDPartitioner.unkeyed(sortedPartData.length)
-
-          val tableStage = TableStage(globals, partitioner, TableStageDependency.none,
-            ToStream(Literal(TArray(contextType), partOrigIndex.map(i => contexts(i)))),
-            body)
-
-          val rowRType = VirtualTypeWithReq(bodyPType(tableStage.rowType)).r.asInstanceOf[RStruct]
-
-          ctx.backend.lowerDistributedSort(ctx,
-            tableStage,
-            keyType.fieldNames.map(f => SortField(f, Ascending)),
-            Map.empty,
-            rowRType
-          )
-        }
-      }
+        if (ctx.backend.shouldCacheQueryInfo)
+          coercerCache += (cacheKeyWithInfo -> coercer)
+        coercer
     }
   }
 }

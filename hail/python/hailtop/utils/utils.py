@@ -4,6 +4,7 @@ from typing_extensions import Literal
 from types import TracebackType
 import concurrent
 import contextlib
+import functools
 import subprocess
 import traceback
 import sys
@@ -760,6 +761,15 @@ async def retry_transient_errors_with_debug_string(debug_string: str, f: Callabl
                             f'We have thus far seen {errors} transient errors (current delay: '
                             f'{delay}). The stack trace for this call is {st}. The most recent error was {type(e)} {e}. {debug_string}', exc_info=True)
         delay = await sleep_and_backoff(delay)
+
+
+def retry_transient_errors_wrapper(f):
+    """Decorator for `retry_transient_errors`."""
+    @functools.wraps(f)
+    async def wrapper(*args, **kwargs):
+        return await retry_transient_errors(f, *args, **kwargs)
+
+    return wrapper
 
 
 def sync_retry_transient_errors(f, *args, **kwargs):

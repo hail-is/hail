@@ -82,7 +82,7 @@ identify==2.5.1
     # via pre-commit
 idna==2.10
     # via requests
-imagesize==1.3.0
+imagesize==1.4.1
     # via sphinx
 importlib-metadata==3.10.1
     # via
@@ -134,7 +134,7 @@ jsonschema==4.6.0
     # via nbformat
 jupyter==1.0.0
     # via -r python/dev/requirements.txt
-jupyter-client==7.3.1
+jupyter-client==7.3.4
     # via
     #   ipykernel
     #   jupyter-console
@@ -396,7 +396,7 @@ types-requests==2.27.30
     # via -r python/dev/requirements.txt
 types-setuptools==57.4.17
     # via -r python/dev/requirements.txt
-types-six==1.16.15
+types-six==1.16.19
     # via -r python/dev/requirements.txt
 types-tabulate==0.8.9
     # via -r python/dev/requirements.txt

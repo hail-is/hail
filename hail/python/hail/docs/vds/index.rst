@@ -3,16 +3,22 @@
 Variant Dataset
 ===============
 
-The Variant Dataset is a set of Python classes and functions for efficiently working with large
-sequencing datasets.
+The :class:`.VariantDataset` is an extra layer of abstraction of the Hail Matrix Table for working
+with large sequencing datasets. It was initially developed in response to the gnomAD project's need
+to combine, represent, and analyze 150,000 whole genomes. It has since been used on datasets as
+large as 955,000 whole exomes. The :class:`.VariantDatasetCombiner` produces a
+:class:`.VariantDataset` by combining any number of GVCF and/or :class:`.VariantDataset` files.
 
 .. warning::
 
     The :class:`.VariantDataset` API is new and subject to change. While this is functionality tested
     and used in production applications, it is still considered experimental.
 
+.. warning::
+
     Hail 0.1 also had a Variant Dataset class. Although pieces of the interfaces are similar, they should not
     be considered interchangeable and do not represent the same data.
+
 
 .. currentmodule:: hail.vds
 
@@ -21,11 +27,9 @@ sequencing datasets.
 .. autosummary::
     :nosignatures:
     :toctree: ./
-    :template: class.rst
+    :template: class2.rst
 
     VariantDataset
-
-.. rubric:: Utility methods
 
 .. autosummary::
     :toctree: ./
@@ -41,29 +45,26 @@ sequencing datasets.
     impute_sex_chromosome_ploidy
     to_dense_mt
     to_merged_sparse_mt
-
-.. rubric:: Utility functions
-
-.. autosummary::
-    :toctree: ./
-
     lgt_to_gt
+
+.. currentmodule:: hail.vds.combiner
 
 .. rubric:: Variant Dataset Combiner
 
-For a high level overview of the VDS combiner, see the overview at the bottom of this page.
+.. autosummary::
+    :nosignatures:
+    :toctree: ./
+    :template: class2.rst
 
-.. currentmodule:: hail.vds.combiner
+    VDSMetadata
+    VariantDatasetCombiner
+
 
 .. autosummary::
     :toctree: ./
 
     new_combiner
     load_combiner
-
-.. toctree::
-
-.. _sec-vds-overview:
 
 The data model of :class:`.VariantDataset`
 ------------------------------------------
@@ -173,12 +174,3 @@ by functionality used.
     blocks) or dense (reference information is filled in at each variant site)
     representations. For more information, see the documentation for
     :func:`.vds.to_dense_mt` and :func:`.vds.to_merged_sparse_mt`.
-
-
-
-The :class:`.VariantDataset` Combiner
--------------------------------------
-
-.. _sec-vds-combiner:
-
-Placeholder.
