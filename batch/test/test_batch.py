@@ -370,8 +370,8 @@ def test_unknown_image(client: BatchClient):
 @skip_in_azure
 def test_invalid_gcr(client: BatchClient):
     b = client.create_batch()
-    token = secrets.token_urlsafe(32)
-    j = b.create_job(f'gcr.io/invalid-repository-{token}/does-not-exist', ['echo', 'test'])
+    # GCP projects can't be strictly numeric
+    j = b.create_job(f'gcr.io/1/does-not-exist', ['echo', 'test'])
     b = b.submit()
     status = j.wait()
     try:
