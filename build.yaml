@@ -2073,6 +2073,9 @@ steps:
       - name: cleanup-add-batch-updates
         script: /io/sql/cleanup-add-batch-updates.sql
         online: true
+      - name: add-commit-updates
+        script: /io/sql/add-commit-updates.sql
+        online: true
     inputs:
       - from: /repo/batch/sql
         to: /io/sql
