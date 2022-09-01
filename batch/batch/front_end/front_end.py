@@ -24,6 +24,7 @@ from prometheus_async.aio.web import server_stats  # type: ignore
 
 from gear import (
     Database,
+    Transaction,
     check_csrf_token,
     monitor_endpoints_middleware,
     rest_authenticated_users_only,
@@ -47,7 +48,6 @@ from hailtop.utils import (
     request_retry_transient_errors,
     retry_long_running,
     run_if_changed,
-    secret_alnum_string,
     time_msecs,
     time_msecs_str,
 )
@@ -683,7 +683,7 @@ async def create_jobs(request: aiohttp.web.Request, userdata: dict):
 
     batch_id = int(request.match_info['batch_id'])
     job_specs = await request.json()
-    return await _create_jobs(userdata, job_specs, batch_id, app)
+    return await _create_jobs(userdata, job_specs, batch_id, 1, app)
 
 
 NON_HEX_DIGIT = re.compile('[^A-Fa-f0-9]')
@@ -694,7 +694,7 @@ def assert_is_sha_1_hex_string(revision: str):
         raise web.HTTPBadRequest(reason=f'revision must be 40 character hexadecimal encoded SHA-1, got: {revision}')
 
 
-async def _create_jobs(userdata: dict, job_specs: dict, batch_id: int, app: aiohttp.web.Application):
+async def _create_jobs(userdata: dict, job_specs: dict, batch_id: int, update_id: int, app: aiohttp.web.Application):
     db: Database = app['db']
     file_store: FileStore = app['file_store']
     user = userdata['username']
@@ -709,9 +709,7 @@ async def _create_jobs(userdata: dict, job_specs: dict, batch_id: int, app: aioh
 
     record = await db.select_and_fetchone(
         '''
-SELECT `state`, format_version, update_id
-FROM batches
-LEFT JOIN batch_updates ON batches.id = batch_updates.batch_id
+SELECT `state`, format_version FROM batches
 WHERE user = %s AND id = %s AND NOT deleted;
 ''',
         (user, batch_id),
@@ -721,9 +719,7 @@ WHERE user = %s AND id = %s AND NOT deleted;
         raise web.HTTPNotFound()
     if record['state'] != 'open':
         raise web.HTTPBadRequest(reason=f'batch {batch_id} is not open')
-
     batch_format_version = BatchFormatVersion(record['format_version'])
-    update_id = record['update_id']
 
     try:
         validate_and_clean_jobs(job_specs)
@@ -967,6 +963,7 @@ WHERE user = %s AND id = %s AND NOT deleted;
             (
                 batch_id,
                 job_id,
+                update_id,
                 state,
                 json.dumps(db_spec),
                 always_run,
@@ -994,8 +991,8 @@ WHERE user = %s AND id = %s AND NOT deleted;
             try:
                 await tx.execute_many(
                     '''
-INSERT INTO jobs (batch_id, job_id, state, spec, always_run, cores_mcpu, n_pending_parents, inst_coll)
-VALUES (%s, %s, %s, %s, %s, %s, %s, %s);
+INSERT INTO jobs (batch_id, job_id, update_id, state, spec, always_run, cores_mcpu, n_pending_parents, inst_coll)
+VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s);
 ''',
                     jobs_args,
                 )
@@ -1117,12 +1114,14 @@ async def create_batch_fast(request, userdata):
     batch_spec = batch_and_bunch['batch']
     bunch = batch_and_bunch['bunch']
     batch_id = await _create_batch(batch_spec, userdata, db)
+    update_id = await _create_batch_update(batch_id, batch_spec['token'], batch_spec['n_jobs'], db)
     try:
-        await _create_jobs(userdata, bunch, batch_id, app)
+        await _create_jobs(userdata, bunch, batch_id, update_id, app)
     except web.HTTPBadRequest as e:
         if f'batch {batch_id} is not open' == e.reason:
             return web.json_response({'id': batch_id})
         raise
+    await _commit_update(batch_id, update_id, db)
     await _close_batch(app, batch_id, user, db)
     return web.json_response({'id': batch_id})
 
@@ -1139,7 +1138,12 @@ async def create_batch(request, userdata):
 
     batch_spec = await request.json()
     id = await _create_batch(batch_spec, userdata, db)
-    return web.json_response({'id': id})
+    n_jobs = batch_spec['n_jobs']
+    if n_jobs > 0:
+        update_id = await _create_batch_update(id, batch_spec['token'], batch_spec['n_jobs'], db)
+    else:
+        update_id = None
+    return web.json_response({'id': id, 'update_id': update_id})
 
 
 async def _create_batch(batch_spec: dict, userdata: dict, db: Database):
@@ -1232,32 +1236,6 @@ VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
                 batch_spec.get('cancel_after_n_failures'),
             ),
         )
-
-        update_id = await tx.execute_and_fetchone(
-            '''
-SELECT update_id FROM batch_updates WHERE batch_id = %s;
-''',
-            (id,),
-        )
-
-        if update_id is None:
-            update_id = secret_alnum_string(8)
-
-        await tx.execute_insertone(
-            '''
-INSERT INTO batch_updates (batch_id, update_id, start_job_id, n_jobs, time_created)
-VALUES (%s, %s, %s, %s, %s)
-ON DUPLICATE KEY UPDATE n_jobs = n_jobs;
-''',
-            (
-                id,
-                update_id,
-                1,
-                batch_spec['n_jobs'],
-                now,
-            ),
-        )
-
         await tx.execute_insertone(
             '''
 INSERT INTO batches_n_jobs_in_complete_states (id) VALUES (%s);
@@ -1276,6 +1254,36 @@ VALUES (%s, %s, %s)
         return id
 
     return await insert()  # pylint: disable=no-value-for-parameter
+
+
+async def _create_batch_update(batch_id: int, update_token: str, n_jobs: int, db: Database) -> int:
+    @transaction(db)
+    async def update(tx: Transaction):
+        assert n_jobs > 0
+        record = await tx.execute_and_fetchone(
+            '''
+SELECT update_id, start_job_id FROM batch_updates
+WHERE batch_id = %s AND token = %s;
+''',
+            (batch_id, update_token),
+        )
+
+        if record:
+            return record['update_id']
+
+        now = time_msecs()
+        await tx.execute_insertone(
+            '''
+INSERT INTO batch_updates
+(batch_id, update_id, token, start_job_id, n_jobs, committed, time_created)
+VALUES (%s, %s, %s, %s, %s, %s, %s);
+''',
+            (batch_id, 1, update_token, 1, n_jobs, False, now),
+        )
+
+        return 1
+
+    return await update()  # pylint: disable=no-value-for-parameter
 
 
 async def _get_batch(app, batch_id):
@@ -1378,7 +1386,27 @@ WHERE user = %s AND id = %s AND NOT deleted;
     if not record:
         raise web.HTTPNotFound()
 
+    record = await db.select_and_fetchone(
+        '''
+SELECT 1 FROM batch_updates
+WHERE batch_id = %s AND update_id = 1;
+''',
+        (batch_id,),
+    )
+    if record:
+        await _commit_update(batch_id, 1, db)
     return await _close_batch(app, batch_id, user, db)
+
+
+async def _commit_update(batch_id: int, update_id: int, db: Database):
+    await db.execute_and_fetchone(
+        '''
+UPDATE batch_updates
+SET `committed` = TRUE
+WHERE batch_id = %s AND update_id = %s
+''',
+        (batch_id, update_id),
+    )
 
 
 async def _close_batch(app: aiohttp.web.Application, batch_id: int, user: str, db: Database):
