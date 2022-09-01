@@ -184,9 +184,9 @@ async def get_check_invariants(request, userdata):  # pylint: disable=unused-arg
     return web.json_response(data=data)
 
 
-@routes.patch('/api/v1alpha/batches/{user}/{batch_id}/close')
+@routes.patch('/api/v1alpha/batches/{user}/{batch_id}/update')
 @batch_only
-async def close_batch(request):
+async def update_batch(request):
     db = request.app['db']
 
     user = request.match_info['user']

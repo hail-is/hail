@@ -1,4 +1,5 @@
 import asyncio
+import orjson
 import os
 import secrets
 from typing import Any, AsyncGenerator, Awaitable, Callable, Optional
@@ -8,7 +9,7 @@ import pytest
 
 from hailtop.auth import session_id_encode_to_str
 from hailtop.batch_client.aioclient import Batch, BatchClient
-from hailtop.utils import secret_alnum_string
+from hailtop.utils import secret_alnum_string, tqdm
 
 from .billing_projects import get_billing_project_prefix
 
@@ -172,14 +173,24 @@ async def test_close_reopen_billing_project(dev_client: BatchClient, new_billing
     ], r
 
 
-async def test_close_billing_project_with_open_batch_errors(
+async def test_close_billing_project_with_pending_batch_update_errors(
     make_client: Callable[[str], Awaitable[BatchClient]], dev_client: BatchClient, new_billing_project: str
 ):
     project = new_billing_project
     await dev_client.add_user("test", project)
     client = await make_client(project)
-    b = await client.create_batch()._open_batch()
-
+    bb = client.create_batch()
+    bb.create_job(DOCKER_ROOT_IMAGE, command=['sleep', '30'])
+    b = await bb._open_batch()
+    with tqdm(total=1) as pbar:
+        process = {
+            'type': 'docker',
+            'command': ['sleep', '30'],
+            'image': DOCKER_ROOT_IMAGE,
+            'mount_docker_socket': False,
+        }
+        spec = {'always_run': False, 'job_id': 1, 'parent_ids': [], 'process': process}
+        await bb._submit_jobs(b.id, [orjson.dumps(spec)], 1, pbar)
     try:
         await dev_client.close_billing_project(project)
     except aiohttp.ClientResponseError as e:

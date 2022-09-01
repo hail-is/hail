@@ -227,7 +227,7 @@ async def _query_batch_jobs(request, batch_id):
     db = request.app['db']
 
     # batch has already been validated
-    where_conditions = ['(jobs.batch_id = %s)']
+    where_conditions = ['(jobs.batch_id = %s AND batch_updates.committed)']
     where_args = [batch_id]
 
     last_job_id = request.query.get('last_job_id')
@@ -284,6 +284,7 @@ WITH base_t AS
     job_attributes.value AS name
   FROM jobs
   INNER JOIN batches ON jobs.batch_id = batches.id
+  INNER JOIN batch_updates ON jobs.batch_id = batch_updates.batch_id AND jobs.update_id = batch_updates.update_id
   LEFT JOIN job_attributes
   ON jobs.batch_id = job_attributes.batch_id AND
     jobs.job_id = job_attributes.job_id AND
@@ -709,16 +710,18 @@ async def _create_jobs(userdata: dict, job_specs: dict, batch_id: int, update_id
 
     record = await db.select_and_fetchone(
         '''
-SELECT `state`, format_version FROM batches
-WHERE user = %s AND id = %s AND NOT deleted;
+SELECT `state`, format_version, `committed`
+FROM batch_updates
+INNER JOIN batches ON batch_updates.batch_id = batches.id
+WHERE batch_updates.batch_id = %s AND batch_updates.update_id = %s AND user = %s AND NOT deleted;
 ''',
-        (user, batch_id),
+        (user, batch_id, update_id),
     )
 
     if not record:
         raise web.HTTPNotFound()
-    if record['state'] != 'open':
-        raise web.HTTPBadRequest(reason=f'batch {batch_id} is not open')
+    if record['committed']:
+        raise web.HTTPBadRequest(reason=f'update {update_id} is already committed')
     batch_format_version = BatchFormatVersion(record['format_version'])
 
     try:
@@ -938,7 +941,12 @@ WHERE user = %s AND id = %s AND NOT deleted;
 
         icr = inst_coll_resources[inst_coll_name]
         icr['n_jobs'] += 1
-        if len(parent_ids) == 0:
+
+        # jobs in non-initial updates of a batch always start out as pending
+        # because they may have currently running parents in previous updates
+        # and we dont take those into account here when calculating the number
+        # of pending parents
+        if update_id == 1 and len(parent_ids) == 0:
             state = 'Ready'
             icr['n_ready_jobs'] += 1
             icr['ready_cores_mcpu'] += cores_mcpu
@@ -1118,11 +1126,10 @@ async def create_batch_fast(request, userdata):
     try:
         await _create_jobs(userdata, bunch, batch_id, update_id, app)
     except web.HTTPBadRequest as e:
-        if f'batch {batch_id} is not open' == e.reason:
+        if f'update {update_id} is already committed' == e.reason:
             return web.json_response({'id': batch_id})
         raise
-    await _commit_update(batch_id, update_id, db)
-    await _close_batch(app, batch_id, user, db)
+    await _commit_update(app, batch_id, update_id, user, db)
     return web.json_response({'id': batch_id})
 
 
@@ -1228,10 +1235,10 @@ VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
                 billing_project,
                 json.dumps(attributes),
                 batch_spec.get('callback'),
-                batch_spec['n_jobs'],
+                0,
                 now,
                 token,
-                'open',
+                'complete',
                 BATCH_FORMAT_VERSION,
                 batch_spec.get('cancel_after_n_failures'),
             ),
@@ -1394,26 +1401,17 @@ WHERE batch_id = %s AND update_id = 1;
         (batch_id,),
     )
     if record:
-        await _commit_update(batch_id, 1, db)
-    return await _close_batch(app, batch_id, user, db)
+        await _commit_update(app, batch_id, 1, user, db)
+    return web.Response()
 
 
-async def _commit_update(batch_id: int, update_id: int, db: Database):
-    await db.execute_and_fetchone(
-        '''
-UPDATE batch_updates
-SET `committed` = TRUE
-WHERE batch_id = %s AND update_id = %s
-''',
-        (batch_id, update_id),
-    )
-
-
-async def _close_batch(app: aiohttp.web.Application, batch_id: int, user: str, db: Database):
+async def _commit_update(app: web.Application, batch_id: int, update_id: int, user: str, db: Database):
     client_session: httpx.ClientSession = app['client_session']
     try:
         now = time_msecs()
-        await db.check_call_procedure('CALL close_batch(%s, %s);', (batch_id, now), 'close_batch')
+        await db.check_call_procedure(
+            'CALL commit_batch_update(%s, %s, %s);', (batch_id, update_id, now), 'commit_batch_update'
+        )
     except CallError as e:
         # 2: wrong number of jobs
         if e.rv['rc'] == 2:
@@ -1425,11 +1423,9 @@ async def _close_batch(app: aiohttp.web.Application, batch_id: int, user: str, d
     await request_retry_transient_errors(
         client_session,
         'PATCH',
-        deploy_config.url('batch-driver', f'/api/v1alpha/batches/{user}/{batch_id}/close'),
+        deploy_config.url('batch-driver', f'/api/v1alpha/batches/{user}/{batch_id}/update'),
         headers=app['batch_headers'],
     )
-
-    return web.Response()
 
 
 @routes.delete('/api/v1alpha/batches/{batch_id}')
@@ -2207,9 +2203,11 @@ FROM billing_projects
 LEFT JOIN batches
 ON billing_projects.name = batches.billing_project
 AND billing_projects.`status` != 'deleted'
-AND batches.time_completed IS NULL
 AND NOT batches.deleted
+LEFT JOIN batch_updates
+ON batches.id = batch_updates.batch_id
 WHERE name = %s
+AND (batches.time_completed IS NULL OR NOT batch_updates.committed)
 LIMIT 1
 FOR UPDATE;
     ''',
