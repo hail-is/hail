@@ -2572,7 +2572,7 @@ steps:
       git config user.name ci
       git config user.email ci@hail.is
       git add * && git commit -m "setup repo"
-      git push
+      retry git push
     secrets:
       - name: hail-ci-0-1-service-account-key
         namespace:
