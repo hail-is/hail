@@ -98,7 +98,7 @@ class AuthClient:
         if 'session_id' not in session:
             return None
 
-        return await self._userdata_cache.lookup(session['session_id'])
+        return await self._userdata_cache.lookup((session['session_id'], request.app['client_session']))
 
     async def _userdata_from_rest_request(self, request):
         if 'Authorization' not in request.headers:
