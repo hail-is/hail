@@ -14,7 +14,7 @@ argon2-cffi==21.3.0
     # via notebook
 argon2-cffi-bindings==21.2.0
     # via argon2-cffi
-astroid==2.11.5
+astroid==2.12.6
     # via pylint
 attrs==21.4.0
     # via
