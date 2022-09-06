@@ -976,21 +976,7 @@ class TableNativeReader(
   }
 
   def apply(tr: TableRead, ctx: ExecuteContext): TableValue = {
-    val (globalType, globalsOffset) = spec.globalsComponent.readLocalSingleRow(ctx, params.path, tr.typ.globalType)
-    val rvd = if (tr.dropRows) {
-      RVD.empty(tr.typ.canonicalRVDType)
-    } else {
-      val partitioner = if (filterIntervals)
-        params.options.map(opts => RVDPartitioner.union(tr.typ.keyType, opts.intervals, tr.typ.key.length - 1))
-      else
-        params.options.map(opts => new RVDPartitioner(tr.typ.keyType, opts.intervals))
-      val rvd = spec.rowsComponent.read(ctx, params.path, tr.typ.rowType, partitioner, filterIntervals)
-      if (!rvd.typ.key.startsWith(tr.typ.key))
-        fatal(s"Error while reading table ${params.path}: legacy table written without key." +
-          s"\n  Read and write with version 0.2.70 or earlier")
-      rvd
-    }
-    TableValue(ctx, tr.typ, BroadcastRow(ctx, RegionValue(ctx.r, globalsOffset), globalType.setRequired(true).asInstanceOf[PStruct]), rvd)
+    TableExecuteIntermediate(lower(ctx, tr.typ)).asTableValue(ctx)
   }
 
   override def toJValue: JValue = {
@@ -1086,40 +1072,7 @@ case class TableNativeZippedReader(
   }
 
   def apply(tr: TableRead, ctx: ExecuteContext): TableValue = {
-    val fs = ctx.fs
-    val (globalPType: PStruct, globalsOffset) = specLeft.globalsComponent.readLocalSingleRow(ctx, pathLeft, tr.typ.globalType)
-    val rvd = if (tr.dropRows) {
-      RVD.empty(tr.typ.canonicalRVDType)
-    } else {
-      val partitioner = if (filterIntervals)
-        intervals.map(i => RVDPartitioner.union(tr.typ.keyType, i, tr.typ.key.length - 1))
-      else
-        intervals.map(i => new RVDPartitioner(tr.typ.keyType, i))
-      if (tr.typ.rowType.fieldNames.forall(f => !rightFieldSet.contains(f))) {
-        specLeft.rowsComponent.read(ctx, pathLeft, tr.typ.rowType, partitioner, filterIntervals)
-      } else if (tr.typ.rowType.fieldNames.forall(f => !leftFieldSet.contains(f))) {
-        specRight.rowsComponent.read(ctx, pathRight, tr.typ.rowType, partitioner, filterIntervals)
-      } else {
-        val rvdSpecLeft = specLeft.rowsComponent.rvdSpec(fs, pathLeft)
-        val rvdSpecRight = specRight.rowsComponent.rvdSpec(fs, pathRight)
-        val rvdPathLeft = specLeft.rowsComponent.absolutePath(pathLeft)
-        val rvdPathRight = specRight.rowsComponent.absolutePath(pathRight)
-
-        val leftRType = tr.typ.rowType.filter(f => leftFieldSet.contains(f.name))._1
-        val rightRType = tr.typ.rowType.filter(f => rightFieldSet.contains(f.name))._1
-
-        AbstractRVDSpec.readZipped(ctx,
-          rvdSpecLeft, rvdSpecRight,
-          rvdPathLeft, rvdPathRight,
-          partitioner, filterIntervals,
-          tr.typ.rowType,
-          leftRType, rightRType,
-          tr.typ.key,
-          fieldInserter)
-      }
-    }
-
-    TableValue(ctx, tr.typ, BroadcastRow(ctx, RegionValue(ctx.r, globalsOffset), globalPType.setRequired(true).asInstanceOf[PStruct]), rvd)
+    TableExecuteIntermediate(lower(ctx, tr.typ)).asTableValue(ctx)
   }
 
   override def lowerGlobals(ctx: ExecuteContext, requestedGlobalsType: TStruct): IR = {
