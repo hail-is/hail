@@ -619,6 +619,8 @@ case class PartitionNativeReaderIndexed(spec: AbstractTypedCodecSpec, indexSpec:
 
       val region = mb.genFieldThisRef[Region]("pnr_region")
 
+      val decodedRow = cb.emb.newPField("rowsValue", spec.encodedType.decodedSType(requestedType))
+
       val producer = new StreamProducer {
         override val length: Option[EmitCodeBuilder => Code[Int]] = Some(_ => nToRead.toI)
 
@@ -665,12 +667,12 @@ case class PartitionNativeReaderIndexed(spec: AbstractTypedCodecSpec, indexSpec:
           val next = ib.readByte()
           cb.ifx(next cne 1, cb._fatal(s"bad buffer state!"))
           cb.assign(nToRead, nToRead - 1L)
+          cb.assign(decodedRow, spec.encodedType.buildDecoder(requestedType, cb.emb.ecb)(cb, region, ib))
           cb.goto(LproduceElementDone)
 
         }
         override val element: EmitCode = EmitCode.fromI(mb) { cb =>
-          val decoded = spec.encodedType.buildDecoder(requestedType, cb.emb.ecb)(cb, region, ib)
-          IEmitCode.present(cb, decoded)
+          IEmitCode.present(cb, decodedRow)
         }
 
         override def close(cb: EmitCodeBuilder): Unit = cb += ib.close()
@@ -778,7 +780,6 @@ case class PartitionZippedNativeReader(left: PartitionReader, right: PartitionRe
   }
 }
 
-
 case class PartitionZippedIndexedNativeReader(specLeft: AbstractTypedCodecSpec, specRight: AbstractTypedCodecSpec,
   indexSpecLeft: AbstractIndexSpec, indexSpecRight: AbstractIndexSpec,
   key: IndexedSeq[String]) extends PartitionReader {
@@ -828,114 +829,116 @@ case class PartitionZippedIndexedNativeReader(specLeft: AbstractTypedCodecSpec, 
 
     val (leftRType, rightRType) = splitRequestedTypes(requestedType)
 
-    val makeIndexCode = {
-      val (keyType, annotationType) = indexSpecLeft.types
-      val (leafPType: PStruct, leafDec) = indexSpecLeft.leafCodec.buildDecoder(ctx, indexSpecLeft.leafCodec.encodedVirtualType)
-      val (intPType: PStruct, intDec) = indexSpecLeft.internalNodeCodec.buildDecoder(ctx, indexSpecLeft.internalNodeCodec.encodedVirtualType)
-      val mkIndexReader = IndexReaderBuilder.withDecoders(leafDec, intDec, keyType, annotationType, leafPType, intPType)
+    val rowsDec = specLeft.encodedType.buildDecoder(leftRType, cb.emb.ecb)
+    val entriesDec = specRight.encodedType.buildDecoder(rightRType, cb.emb.ecb)
 
-      mb.getObject[Function5[HailClassLoader, FS, String, Int, RegionPool, IndexReader]](mkIndexReader)
-    }
+    val rowsValue = cb.emb.newPField("rowsValue", specLeft.encodedType.decodedSType(leftRType))
+    val entriesValue = cb.emb.newPField("entriesValue", specRight.encodedType.decodedSType(rightRType))
 
     val leftOffsetFieldIndex = indexSpecLeft.offsetFieldIndex
     val rightOffsetFieldIndex = indexSpecRight.offsetFieldIndex
 
+    val rowsBuffer = cb.emb.genFieldThisRef[InputBuffer]("rows_inputbuffer")
+    val entriesBuffer = cb.emb.genFieldThisRef[InputBuffer]("entries_inputbuffer")
+
+    val index = new StagedIndexReader(cb.emb, indexSpecLeft)
+
     context.toI(cb).map(cb) { case ctxStruct: SBaseStructValue =>
 
-      def getIndexReader(cb: EmitCodeBuilder, ctxMemo: SBaseStructValue): Code[IndexReader] = {
-        val indexPath = ctxMemo
-          .loadField(cb, "indexPath")
-          .handle(cb, cb._fatal(""))
-          .asString
-          .loadString(cb)
-        Code.checkcast[IndexReader](
-          makeIndexCode.invoke[AnyRef, AnyRef, AnyRef, AnyRef, AnyRef, AnyRef](
-            "apply", mb.getHailClassLoader, mb.getFS, indexPath, Code.boxInt(8), cb.emb.ecb.pool()))
-      }
+      val nToRead = mb.genFieldThisRef[Long]("n_to_read")
 
-      def getInterval(cb: EmitCodeBuilder, region: Value[Region], ctxMemo: SBaseStructValue): Code[Interval] = {
-        Code.invokeScalaObject1[AnyRef, Interval](
-          RVDPartitioner.getClass,
-          "irRepresentationToInterval",
-          StringFunctions.svalueToJavaValue(cb, region, ctxMemo.loadField(cb, "interval").get(cb)))
-      }
-
-      val indexReader = cb.emb.genFieldThisRef[IndexReader]("idx_reader")
-      val idx = cb.emb.genFieldThisRef[BufferedIterator[LeafChild]]("idx")
-      val rowsDec = specLeft.encodedType.buildDecoder(leftRType, cb.emb.ecb)
-      val entriesDec = specRight.encodedType.buildDecoder(rightRType, cb.emb.ecb)
-
-      val rowsValue = cb.emb.newPField("rowsValue", specLeft.encodedType.decodedSType(leftRType))
-      val entriesValue = cb.emb.newPField("entriesValue", specRight.encodedType.decodedSType(rightRType))
-
-      val rowsBuffer = cb.emb.genFieldThisRef[InputBuffer]("rows_inputbuffer")
-      val entriesBuffer = cb.emb.genFieldThisRef[InputBuffer]("entries_inputbuffer")
-
-      val region = cb.emb.genFieldThisRef[Region]("zipped_indexed_reader_region")
+      val region = mb.genFieldThisRef[Region]("pnr_region")
 
       val producer = new StreamProducer {
-        override val length: Option[EmitCodeBuilder => Code[Int]] = None
+        override val length: Option[EmitCodeBuilder => Code[Int]] = Some(_ => nToRead.toI)
 
         override def initialize(cb: EmitCodeBuilder): Unit = {
+          val indexPath = ctxStruct
+            .loadField(cb, "indexPath")
+            .get(cb)
+            .asString
+            .loadString(cb)
+          val interval = ctxStruct
+            .loadField(cb, "interval")
+            .get(cb)
+            .asInterval
+          index.initialize(cb, indexPath)
+
+          val indexResult = index.queryInterval(cb, partitionRegion, interval)
+          val n = indexResult.loadField(cb, 0)
+            .get(cb)
+            .asInt64
+            .value
+          cb.assign(nToRead, n)
+
+          val leafNode = indexResult.loadField(cb, 1)
+            .get(cb)
+            .asBaseStruct
+
           cb.assign(rowsBuffer, specLeft.buildCodeInputBuffer(
             Code.newInstance[ByteTrackingInputStream, InputStream](
               mb.open(ctxStruct.loadField(cb, "leftPartitionPath")
-                .handle(cb, cb._fatal(""))
+                .get(cb)
                 .asString
                 .loadString(cb), true))))
           cb.assign(entriesBuffer, specRight.buildCodeInputBuffer(
             Code.newInstance[ByteTrackingInputStream, InputStream](
               mb.open(ctxStruct.loadField(cb, "rightPartitionPath")
-                .handle(cb, cb._fatal(""))
+                .get(cb)
                 .asString
                 .loadString(cb), true))))
 
-          cb.assign(indexReader, getIndexReader(cb, ctxStruct))
-          cb.assign(idx,
-            indexReader
-              .invoke[Interval, Iterator[LeafChild]]("queryByInterval", getInterval(cb, partitionRegion, ctxStruct))
-              .invoke[BufferedIterator[LeafChild]]("buffered"))
+          val leftSeekAddr = leftOffsetFieldIndex match {
+            case Some(offsetIdx) =>
+              leafNode
+                .loadField(cb, "annotation")
+                .get(cb)
+                .asBaseStruct
+                .loadField(cb, offsetIdx)
+                .get(cb)
+            case None =>
+              leafNode
+                .loadField(cb, "offset")
+                .get(cb)
+          }
+          cb += rowsBuffer.seek(leftSeekAddr.asInt64.value)
 
-          cb.ifx(idx.invoke[Boolean]("hasNext"), {
-            val lcHead = cb.newLocal[LeafChild]("lcHead", idx.invoke[LeafChild]("head"))
+          val rightSeekAddr = rightOffsetFieldIndex match {
+            case Some(offsetIdx) =>
+              leafNode
+                .loadField(cb, "annotation")
+                .get(cb)
+                .asBaseStruct
+                .loadField(cb, offsetIdx)
+                .get(cb)
+            case None =>
+              leafNode
+                .loadField(cb, "offset")
+                .get(cb)
+          }
+          cb += entriesBuffer.seek(rightSeekAddr.asInt64.value)
 
-            leftOffsetFieldIndex match {
-              case Some(rowOffsetIdx) =>
-                cb += rowsBuffer.invoke[Long, Unit]("seek", lcHead.invoke[Int, Long]("longChild", const(rowOffsetIdx)))
-              case None =>
-                cb += rowsBuffer.invoke[Long, Unit]("seek", lcHead.invoke[Long]("recordOffset"))
-            }
-
-            rightOffsetFieldIndex match {
-              case Some(rowOffsetIdx) =>
-                cb += entriesBuffer.invoke[Long, Unit]("seek", lcHead.invoke[Int, Long]("longChild", const(rowOffsetIdx)))
-              case None =>
-                cb += entriesBuffer.invoke[Long, Unit]("seek", lcHead.invoke[Long]("recordOffset"))
-            }
-          })
+          index.close(cb)
         }
 
         override val elementRegion: Settable[Region] = region
         override val requiresMemoryManagementPerElement: Boolean = true
         override val LproduceElement: CodeLabel = mb.defineAndImplementLabel { cb =>
-          val cr = cb.newLocal[Int]("cr", rowsBuffer.invoke[Byte]("readByte").toI)
-          val ce = cb.newLocal[Int]("ce", entriesBuffer.invoke[Byte]("readByte").toI)
-          cb.ifx(ce.cne(cr), cb._fatal(s"mismatch between streams in zipped indexed reader"))
-
-          cb.ifx(cr.ceq(0) || !idx.invoke[Boolean]("hasNext"), cb.goto(LendOfStream))
-
-          cb += Code.toUnit(idx.invoke[LeafChild]("next"))
-
+          cb.ifx(nToRead <= 0L, cb.goto(LendOfStream))
+          val nextRow = rowsBuffer.readByte()
+          cb.ifx(nextRow cne 1, cb._fatal(s"bad rows buffer state!"))
+          val nextEntries = entriesBuffer.readByte()
+          cb.ifx(nextEntries cne 1, cb._fatal(s"bad entries buffer state!"))
+          cb.assign(nToRead, nToRead - 1L)
           cb.assign(rowsValue, rowsDec(cb, region, rowsBuffer))
           cb.assign(entriesValue, entriesDec(cb, region, entriesBuffer))
-
           cb.goto(LproduceElementDone)
         }
+
         override val element: EmitCode = EmitCode.fromI(mb)(cb =>
           IEmitCode.present(cb, SInsertFieldsStruct.merge(cb, rowsValue.asBaseStruct, entriesValue.asBaseStruct)))
 
         override def close(cb: EmitCodeBuilder): Unit = {
-          indexReader.invoke[Unit]("close")
           rowsBuffer.invoke[Unit]("close")
           entriesBuffer.invoke[Unit]("close")
         }
