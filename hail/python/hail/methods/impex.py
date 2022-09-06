@@ -3328,8 +3328,8 @@ def import_gvs(refs: 'List[List[str]]',
             lambda allele: hl.coalesce(vd.as_vqsr.get(allele).yng_status == 'Y', True)),
         allele_OK=vd.alleles[1:].map(
             lambda alt: hl.coalesce(vd.as_vqsr.get(alt).vqslod > hl.if_else(hl.is_snp(vd.alleles[0], alt),
-                                                                            truth_sensitivity_snp_threshold,
-                                                                            truth_sensitivity_indel_threshold),
+                                                                            vd.snp_vqslod_threshold,
+                                                                            vd.indel_vqslod_threshold),
                                     True)),
     )
 
@@ -3340,7 +3340,7 @@ def import_gvs(refs: 'List[List[str]]',
         any_no=tuple[0] | vd.allele_NO[called_idx-1],
         any_yes=tuple[1] | vd.allele_YES[called_idx-1],
         all_ok_vqslod=tuple[2] & vd.allele_OK[called_idx-1])
-    , hl.struct(any_no=False, any_yes=False, all_ok_vqslod=False)))
+    , hl.struct(any_no=False, any_yes=False, all_ok_vqslod=True)))
 
     vd = vd.annotate_entries(FT=~ft_criteria.any_no & (ft_criteria.any_yes | ft_criteria.all_ok_vqslod))
 
