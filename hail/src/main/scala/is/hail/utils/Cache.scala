@@ -29,12 +29,10 @@ class LongToRegionValueCache(capacity: Int) {
     }
   }
 
+  // the cache takes ownership of the region passed in
   def put(key: Long, region: Region, addr: Long): Unit = {
     val rm = region.getMemory()
     m.put(key, (rm, addr))
-
-    // the cache has taken ownership of the region memory, and the region needs to reset its mem store
-//    region.unsafeResetMemory()
   }
 
   // returns -1 if not in cache
