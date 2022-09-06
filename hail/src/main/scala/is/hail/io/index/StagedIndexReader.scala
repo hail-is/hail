@@ -48,7 +48,7 @@ class StagedIndexReader(emb: EmitMethodBuilder[_], spec: AbstractIndexSpec) {
       IndexReader.getClass, "readUntyped", fs, indexPath
     ).invoke[VariableMetadata]("toFileMetadata"))
 
-    // FIXME: hardcoded. Will break if we change spec.
+    // FIXME: hardcoded. Will break if we change spec -- assumption not introduced with this code, but propagated.
     cb.assign(is, Code.newInstance[ByteTrackingInputStream, InputStream](cb.emb.open(indexPath.concat("/index"), false)))
 
   }
@@ -62,7 +62,7 @@ class StagedIndexReader(emb: EmitMethodBuilder[_], spec: AbstractIndexSpec) {
   }
 
   // returns tuple of (count, starting leaf)
-  // partitionInterval is
+  // memory of starting leaf is not owned by `region`, consumers should deep copy if necessary
   def queryInterval(cb: EmitCodeBuilder,
     region: Value[Region],
     interval: SIntervalValue): SBaseStructValue = {
@@ -97,9 +97,11 @@ class StagedIndexReader(emb: EmitMethodBuilder[_], spec: AbstractIndexSpec) {
 
   // internal node is an array of children
   private[io] def readInternalNode(cb: EmitCodeBuilder, offset: Value[Long]): SBaseStructValue = {
-//    val cached = cb.memoize(-1L)
-    val cached = cb.memoize(cache.invoke[Long, Long]("get", offset))
     val ret = cb.newSLocal(internalPType.sType, "internalNode")
+
+    // returns an address if cached, or -1L if not found
+    val cached = cb.memoize(cache.invoke[Long, Long]("get", offset))
+
     cb.ifx(cached cne -1L, {
       cb.assign(ret, internalPType.loadCheapSCode(cb, cached))
     }, {
@@ -123,9 +125,11 @@ class StagedIndexReader(emb: EmitMethodBuilder[_], spec: AbstractIndexSpec) {
 
   // leaf node is a struct
   private[io] def readLeafNode(cb: EmitCodeBuilder, offset: Value[Long]): SBaseStructValue = {
-//    val cached = cb.memoize(-1L)
-    val cached = cb.memoize(cache.invoke[Long, Long]("get", offset))
     val ret = cb.newSLocal(leafPType.sType, "leafNode")
+
+    // returns an address if cached, or -1L if not found
+    val cached = cb.memoize(cache.invoke[Long, Long]("get", offset))
+
     cb.ifx(cached cne -1L, {
       cb.assign(ret, leafPType.loadCheapSCode(cb, cached))
     }, {
