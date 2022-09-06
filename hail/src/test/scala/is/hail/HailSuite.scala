@@ -28,7 +28,7 @@ object HailSuite {
         SparkBackend.createSparkConf(
           appName = "Hail.TestNG",
           master = System.getProperty("hail.master"),
-          local = "local[2]",
+          local = "local[1]",
           blockSize = 0)
           .set("spark.unsafe.exceptionOnMemoryLeak", "true")),
       tmpdir = "/tmp",

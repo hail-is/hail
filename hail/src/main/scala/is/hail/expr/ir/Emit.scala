@@ -1104,8 +1104,18 @@ class Emit[C](
       case x@LowerBoundOnOrderedCollection(orderedCollection, elem, onKey) =>
         emitI(orderedCollection).map(cb) { a =>
           val e = EmitCode.fromI(cb.emb)(cb => this.emitI(elem, cb, region, env, container, loopEnv))
-          val bs = new BinarySearch[C](mb, a.st.asInstanceOf[SContainer], e.emitType, keyOnly = onKey)
-          primitive(bs.lowerBound(cb, a, e))
+          val bs = new BinarySearch[C](mb, a.st.asInstanceOf[SContainer], e.emitType, { (cb, elt) =>
+
+            if (onKey) {
+              cb.memoize(elt.toI(cb).flatMap(cb) {
+                case x: SBaseStructValue =>
+                  x.loadField(cb, 0)
+                case x: SIntervalValue =>
+                  x.loadStart(cb)
+              })
+            } else elt
+          })
+          primitive(bs.search(cb, a, e))
         }
 
       case x@ArraySort(a, left, right, lessThan) =>

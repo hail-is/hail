@@ -106,6 +106,7 @@ class IndexReader(
       cache.get(offset).asInstanceOf[InternalNode]
     } else {
       cacheMisses += 1
+      println(s"seeking to $offset for internal node")
       is.seek(offset)
       assert(internalDecoder.readByte() == 1)
       rv.setOffset(internalDecoder.readRegionValue(region))

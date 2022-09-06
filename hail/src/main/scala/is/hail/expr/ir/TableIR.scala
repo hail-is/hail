@@ -12,7 +12,7 @@ import is.hail.expr.ir.streams.{StreamArgType, StreamProducer}
 import is.hail.io._
 import is.hail.io.avro.AvroTableReader
 import is.hail.io.fs.FS
-import is.hail.io.index.{IndexReadIterator, IndexReader, IndexReaderBuilder, LeafChild}
+import is.hail.io.index.{IndexReader, IndexReaderBuilder, LeafChild, StagedIndexReader}
 import is.hail.linalg.{BlockMatrix, BlockMatrixMetadata, BlockMatrixReadRowBlockedRDD}
 import is.hail.rvd._
 import is.hail.sparkextras.ContextRDD
@@ -610,85 +610,70 @@ case class PartitionNativeReaderIndexed(spec: AbstractTypedCodecSpec, indexSpec:
 
     val mb = cb.emb
 
-    val (eltType, makeDec) = spec.buildDecoder(ctx, requestedType)
-
-    val (keyType, annotationType) = indexSpec.types
-    val (leafPType: PStruct, leafDec) = indexSpec.leafCodec.buildDecoder(ctx, indexSpec.leafCodec.encodedVirtualType)
-    val (intPType: PStruct, intDec) = indexSpec.internalNodeCodec.buildDecoder(ctx, indexSpec.internalNodeCodec.encodedVirtualType)
-    val mkIndexReader = IndexReaderBuilder.withDecoders(leafDec, intDec, keyType, annotationType, leafPType, intPType)
-
-    val makeIndexCode = mb.getObject[Function5[HailClassLoader, FS, String, Int, RegionPool, IndexReader]](mkIndexReader)
-    val makeDecCode = mb.getObject[(InputStream, HailClassLoader) => Decoder](makeDec)
+    val index = new StagedIndexReader(cb.emb, indexSpec)
 
     context.toI(cb).map(cb) { case ctxStruct: SBaseStructValue =>
 
-      val getIndexReader: Code[String] => Code[IndexReader] = { (indexPath: Code[String]) =>
-        Code.checkcast[IndexReader](
-          makeIndexCode.invoke[AnyRef, AnyRef, AnyRef, AnyRef, AnyRef, AnyRef](
-            "apply", mb.getHailClassLoader, mb.getFS, indexPath, Code.boxInt(8), mb.ecb.pool()))
-      }
-
-      val next = mb.newLocal[Long]("pnr_next")
-      val idxr = mb.genFieldThisRef[IndexReader]("pnri_idx_reader")
-      val it = mb.genFieldThisRef[IndexReadIterator]("pnri_idx_iterator")
+      val nToRead = mb.genFieldThisRef[Long]("n_to_read")
+      val ib = mb.genFieldThisRef[InputBuffer]("buffer")
 
       val region = mb.genFieldThisRef[Region]("pnr_region")
 
       val producer = new StreamProducer {
-        override val length: Option[EmitCodeBuilder => Code[Int]] = None
+        override val length: Option[EmitCodeBuilder => Code[Int]] = Some(_ => nToRead.toI)
 
         override def initialize(cb: EmitCodeBuilder): Unit = {
-          cb.assign(idxr, getIndexReader(ctxStruct
+          val indexPath = ctxStruct
             .loadField(cb, "indexPath")
             .get(cb)
             .asString
-            .loadString(cb)))
-          cb.assign(it,
-            Code.newInstance8[IndexReadIterator,
-              HailClassLoader,
-              (InputStream, HailClassLoader) => Decoder,
-              Region,
-              InputStream,
-              IndexReader,
-              String,
-              Interval,
-              InputMetrics](
-              mb.ecb.getHailClassLoader,
-              makeDecCode,
-              region,
-              mb.open(ctxStruct.loadField(cb, "partitionPath")
-                .get(cb)
-                .asString
-                .loadString(cb), true),
-              idxr,
-              Code._null[String],
-              ctxStruct.loadField(cb, "interval")
-                .consumeCode[Interval](cb,
-                  cb.memoize(Code._fatal[Interval]("")),
-                  { pc =>
-                    val pt = PType.canonical(pc.st.storageType()).asInstanceOf[PInterval]
-                    val copied = pc.copyToRegion(cb, region, SIntervalPointer(pt)).asInterval
-                    val javaInterval = coerce[Interval](StringFunctions.svalueToJavaValue(cb, region, copied))
-                    cb.memoize(Code.invokeScalaObject1[AnyRef, Interval](
-                      RVDPartitioner.getClass,
-                      "irRepresentationToInterval",
-                      javaInterval))
-                  }
-                ),
-              Code._null[InputMetrics]
-            ))
+            .loadString(cb)
+          val partitionPath = ctxStruct
+            .loadField(cb, "partitionPath")
+            .get(cb)
+            .asString
+            .loadString(cb)
+          val interval = ctxStruct
+            .loadField(cb, "interval")
+            .get(cb)
+            .asInterval
+          index.initialize(cb, indexPath)
+
+          val indexResult = index.queryInterval(cb, partitionRegion, interval)
+          val n = indexResult.loadField(cb, 0)
+            .get(cb)
+            .asInt64
+            .value
+          cb.assign(nToRead, n)
+
+          val firstOffset = indexResult.loadField(cb, 1)
+            .get(cb)
+            .asBaseStruct
+            .loadField(cb, "offset")
+            .get(cb)
+            .asInt64
+            .value
+
+          cb.assign(ib, spec.buildCodeInputBuffer(Code.newInstance[ByteTrackingInputStream, InputStream](cb.emb.open(partitionPath, false))))
+          cb += ib.seek(firstOffset)
+          index.close(cb)
         }
         override val elementRegion: Settable[Region] = region
         override val requiresMemoryManagementPerElement: Boolean = true
         override val LproduceElement: CodeLabel = mb.defineAndImplementLabel { cb =>
-          cb.ifx(!it.invoke[Boolean]("hasNext"), cb.goto(LendOfStream))
-          cb.assign(next, it.invoke[Long]("_next"))
+          cb.ifx(nToRead <= 0L, cb.goto(LendOfStream))
+          val next = ib.readByte()
+          cb.ifx(next cne 1, cb._fatal(s"bad buffer state!"))
+          cb.assign(nToRead, nToRead - 1L)
           cb.goto(LproduceElementDone)
 
         }
-        override val element: EmitCode = EmitCode.fromI(mb)(cb => IEmitCode.present(cb, eltType.loadCheapSCode(cb, next)))
+        override val element: EmitCode = EmitCode.fromI(mb) { cb =>
+          val decoded = spec.encodedType.buildDecoder(requestedType, cb.emb.ecb)(cb, region, ib)
+          IEmitCode.present(cb, decoded)
+        }
 
-        override def close(cb: EmitCodeBuilder): Unit = cb += it.invoke[Unit]("close")
+        override def close(cb: EmitCodeBuilder): Unit = cb += ib.close()
       }
       SStreamValue(producer)
     }
