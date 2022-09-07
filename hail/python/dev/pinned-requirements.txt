@@ -14,7 +14,7 @@ argon2-cffi==21.3.0
     # via notebook
 argon2-cffi-bindings==21.2.0
     # via argon2-cffi
-astroid==2.11.5
+astroid==2.12.9
     # via pylint
 attrs==21.4.0
     # via
@@ -72,7 +72,7 @@ execnet==1.9.0
     # via pytest-xdist
 fastjsonschema==2.15.3
     # via nbformat
-filelock==3.7.1
+filelock==3.8.0
     # via virtualenv
 flake8==4.0.1
     # via -r python/dev/requirements.txt
