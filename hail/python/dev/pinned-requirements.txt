@@ -130,7 +130,7 @@ jinja2==3.0.3
     #   nbsphinx
     #   notebook
     #   sphinx
-jsonschema==4.6.0
+jsonschema==4.15.0
     # via nbformat
 jupyter==1.0.0
     # via -r python/dev/requirements.txt
