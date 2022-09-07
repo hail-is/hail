@@ -218,8 +218,9 @@ class StagedIndexReader(emb: EmitMethodBuilder[_], spec: AbstractIndexSpec) {
           val partBound = partBoundEV.get(cb).asBaseStruct
           val endpoint = partBound.loadField(cb, 0).get(cb).asBaseStruct
           val leansRight = partBound.loadField(cb, 1).get(cb).asBoolean.value
-          val comp = cb.memoize(compareStructWithPartitionIntervalEndpoint(cb, containerElt, endpoint, leansRight) < 0)
-          comp
+          val comp = compareStructWithPartitionIntervalEndpoint(cb, containerElt, endpoint, leansRight)
+          val ltOrGt = cb.memoize(if (boundType == "lower") comp < 0 else comp > 0)
+          ltOrGt
         }
       )
         .search(cb, children, EmitCode.present(cb.emb, boundAndSignTuple))
@@ -227,7 +228,8 @@ class StagedIndexReader(emb: EmitMethodBuilder[_], spec: AbstractIndexSpec) {
       val firstIndex = node.asBaseStruct.loadField(cb, "first_idx").get(cb).asInt64.value.get
       val updatedIndex = firstIndex + idx.toL
       cb.assign(rInd, updatedIndex)
-      val leafChild = children.loadElement(cb, idx).get(cb).asBaseStruct
+      val idxWithModification = cb.memoize((if (boundType == "lower") idx else cb.memoize(idx-1)) min children.loadLength())
+      val leafChild = children.loadElement(cb, idxWithModification).get(cb).asBaseStruct
       rLeafChild = cb.newSLocal(leafChild.st, "leafChild")
       cb.assign(rLeafChild, leafChild)
     }, {
@@ -242,7 +244,9 @@ class StagedIndexReader(emb: EmitMethodBuilder[_], spec: AbstractIndexSpec) {
           val partBound = partBoundEV.get(cb).asBaseStruct
           val endpoint = partBound.loadField(cb, 0).get(cb).asBaseStruct
           val leansRight = partBound.loadField(cb, 1).get(cb).asBoolean.value
-          cb.memoize(compareStructWithPartitionIntervalEndpoint(cb, containerElt, endpoint, leansRight) < 0)
+          val comp = compareStructWithPartitionIntervalEndpoint(cb, containerElt, endpoint, leansRight)
+          val ltOrGt = cb.memoize(if (boundType == "lower") comp < 0 else comp > 0)
+          ltOrGt
         }
       )
         .search(cb, children, EmitCode.present(cb.emb, boundAndSignTuple))
