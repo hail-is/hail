@@ -2,8 +2,9 @@ import abc
 from .geoms import FigureAttribute
 
 from hail.context import get_reference
+from hail import tstr
 
-from .utils import categorical_strings_to_colors, continuous_nums_to_colors
+from .utils import categorical_strings_to_colors, continuous_nums_to_colors, is_continuous_type, is_discrete_type
 
 import plotly.express as px
 import plotly
@@ -26,6 +27,9 @@ class Scale(FigureAttribute):
 
     @abc.abstractmethod
     def is_continuous(self):
+        pass
+
+    def valid_dtype(self, dtype):
         pass
 
 
@@ -52,6 +56,9 @@ class PositionScale(Scale):
 
         if self.labels is not None:
             self.update_axis(fig_so_far)(ticktext=self.labels)
+
+    def valid_dtype(self, dtype):
+        return True
 
 
 class PositionScaleGenomic(PositionScale):
@@ -135,6 +142,9 @@ class ScaleContinuous(Scale):
     def is_continuous(self):
         return True
 
+    def valid_dtype(self, dtype):
+        return is_continuous_type(dtype)
+
 
 class ScaleDiscrete(Scale):
     def __init__(self, aesthetic_name):
@@ -148,6 +158,9 @@ class ScaleDiscrete(Scale):
 
     def is_continuous(self):
         return False
+
+    def valid_dtype(self, dtype):
+        return is_discrete_type(dtype)
 
 
 class ScaleColorManual(ScaleDiscrete):
@@ -226,9 +239,9 @@ class ScaleColorHue(ScaleDiscrete):
         return transform
 
 
-# Legend names messed up for scale color identity
-class ScaleColorDiscreteIdentity(ScaleDiscrete):
-    pass
+class ScaleColorContinuousIdentity(ScaleContinuous):
+    def valid_dtype(self, dtype):
+        return dtype == tstr
 
 
 def scale_x_log10(name=None):
@@ -439,7 +452,7 @@ def scale_color_identity():
     :class:`.FigureAttribute`
         The scale to be applied.
     """
-    return ScaleColorDiscreteIdentity("color")
+    return ScaleColorContinuousIdentity("color")
 
 
 def scale_color_manual(*, values):
@@ -471,7 +484,7 @@ def scale_fill_discrete():
 
 
 def scale_fill_continuous():
-    """The default discrete fill scale. This linearly interpolates colors between the min and max observed values.
+    """The default continuous fill scale. This linearly interpolates colors between the min and max observed values.
 
     Returns
     -------
@@ -489,7 +502,7 @@ def scale_fill_identity():
     :class:`.FigureAttribute`
         The scale to be applied.
     """
-    return ScaleColorDiscreteIdentity("fill")
+    return ScaleColorContinuousIdentity("fill")
 
 
 def scale_fill_hue():
