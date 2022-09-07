@@ -1662,6 +1662,8 @@ class Tests(unittest.TestCase):
         assert t.filter(t.locus.position >= 1).collect() == [
             hl.utils.Struct(idx=0, locus=hl.genetics.Locus(contig='2', position=1, reference_genome='GRCh37'))]
 
+    @fails_service_backend()
+    @fails_local_backend()
     def test_lower_row_agg_init_arg(self):
         mt = hl.balding_nichols_model(5, 200, 200)
         mt2 = hl.variant_qc(mt)
