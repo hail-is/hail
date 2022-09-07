@@ -3314,11 +3314,11 @@ def import_gvs(refs: 'List[List[str]]',
     vd = vd.annotate_globals(snp_vqslod_threshold=
                              sorted_tranche_data.filter(lambda x: (x.model == 'SNP') & (
                                          x.truth_sensitivity >= truth_sensitivity_snp_threshold))
-                             .head()
+                             .head().min_vqslod
                              ,
                              indel_vqslod_threshold=sorted_tranche_data.filter(lambda x: (x.model == 'INDEL') & (
                                          x.truth_sensitivity >= truth_sensitivity_indel_threshold))
-                             .head()
+                             .head().min_vqslod
                              )
 
     vd = vd.annotate_rows(
