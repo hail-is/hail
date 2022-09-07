@@ -95,15 +95,11 @@ class StagedIndexReader(emb: EmitMethodBuilder[_], spec: AbstractIndexSpec) {
       endQuerySettable.asBaseStruct.loadField(cb, 0).get(cb).asInt64.value -
         startQuerySettable.asBaseStruct.loadField(cb, 0).get(cb).asInt64.value
     )
+    cb.assign(startLeaf, cb.memoize(startQuerySettable.asBaseStruct.loadField(cb, 1)))
 
     cb.ifx(n < 0L, cb._fatal("n less than 0: ", n.toS, ", startQuery=",  cb.strValue(startQuerySettable), ", endQuery=", cb.strValue(endQuerySettable)))
 
-    cb.assign(startLeaf, cb.memoize(startQuerySettable.asBaseStruct.loadField(cb, 1)))
-//    cb.ifx(metadata.invoke[Long]("nKeys") ceq 0L, {
-//      cb.assign(n, 0L)
-//      cb.assign(startLeaf, EmitCode.missing(cb.emb, leafChildType))
-//    }, {
-//    })
+
     SStackStruct.constructFromArgs(cb, region, TTuple(TInt64, startLeaf.st.virtualType), EmitCode.present(cb.emb, primitive(n)), startLeaf)
   }
 
