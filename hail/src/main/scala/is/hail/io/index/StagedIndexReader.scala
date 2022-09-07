@@ -3,7 +3,7 @@ package is.hail.io.index
 import is.hail.annotations._
 import is.hail.asm4s._
 import is.hail.expr.ir.functions.IntervalFunctions.compareStructWithPartitionIntervalEndpoint
-import is.hail.expr.ir.{BinarySearch, EmitCode, EmitCodeBuilder, EmitMethodBuilder}
+import is.hail.expr.ir.{BinarySearch, EmitCode, EmitCodeBuilder, EmitMethodBuilder, EmitSettable}
 import is.hail.io.fs.FS
 import is.hail.rvd.AbstractIndexSpec
 import is.hail.types.physical.stypes.concrete.SStackStruct
@@ -37,7 +37,8 @@ class StagedIndexReader(emb: EmitMethodBuilder[_], spec: AbstractIndexSpec) {
   private[this]val internalDec = spec.internalNodeCodec.encodedType.buildDecoder(spec.internalNodeCodec.encodedVirtualType, emb.ecb)
 
   private[this] val leafChildType = leafPType.asInstanceOf[PCanonicalBaseStruct].types(1).asInstanceOf[PCanonicalArray].elementType.sType
-  private[this] val queryType = SStackStruct(TTuple(TInt64, leafChildType.virtualType), FastIndexedSeq(EmitType(SInt64, true), EmitType(leafChildType, true)))
+  val leafChildEmitType = EmitType(leafChildType, false)
+  private[this] val queryType = SStackStruct(TTuple(TInt64, leafChildType.virtualType), FastIndexedSeq(EmitType(SInt64, true), leafChildEmitType))
 
   def initialize(cb: EmitCodeBuilder,
     indexPath: Value[String]
@@ -61,11 +62,17 @@ class StagedIndexReader(emb: EmitMethodBuilder[_], spec: AbstractIndexSpec) {
     cb.assign(metadata, Code._null)
   }
 
-  // returns tuple of (count, starting leaf)
-  // memory of starting leaf is not owned by `region`, consumers should deep copy if necessary
+  /**
+   * returns tuple of (count, starting leaf)
+   * memory of starting leaf is not owned by `region`, consumers should deep copy if necessary
+   * starting leaf may be missing if the index is empty
+   */
   def queryInterval(cb: EmitCodeBuilder,
     region: Value[Region],
     interval: SIntervalValue): SBaseStructValue = {
+
+    val n = cb.newLocal[Long]("n")
+    val startLeaf = cb.emb.newEmitLocal(leafChildEmitType)
 
     val start = interval.loadStart(cb).get(cb).asBaseStruct
     val end = interval.loadEnd(cb).get(cb).asBaseStruct
@@ -84,15 +91,20 @@ class StagedIndexReader(emb: EmitMethodBuilder[_], spec: AbstractIndexSpec) {
       cb.assign(endQuerySettable, queryBound(cb, region, end, primitive(false), "lower"))
     )
 
-    val n = cb.memoize(
+    cb.assign(n,
       endQuerySettable.asBaseStruct.loadField(cb, 0).get(cb).asInt64.value -
         startQuerySettable.asBaseStruct.loadField(cb, 0).get(cb).asInt64.value
     )
 
     cb.ifx(n < 0L, cb._fatal("n less than 0: ", n.toS, ", startQuery=",  cb.strValue(startQuerySettable), ", endQuery=", cb.strValue(endQuerySettable)))
 
-    val startLeaf = startQuerySettable.asBaseStruct.loadField(cb, 1).get(cb)
-    SStackStruct.constructFromArgs(cb, region, TTuple(TInt64, startLeaf.st.virtualType), EmitCode.present(cb.emb, primitive(n)), EmitCode.present(cb.emb, startLeaf))
+    cb.assign(startLeaf, cb.memoize(startQuerySettable.asBaseStruct.loadField(cb, 1)))
+//    cb.ifx(metadata.invoke[Long]("nKeys") ceq 0L, {
+//      cb.assign(n, 0L)
+//      cb.assign(startLeaf, EmitCode.missing(cb.emb, leafChildType))
+//    }, {
+//    })
+    SStackStruct.constructFromArgs(cb, region, TTuple(TInt64, startLeaf.st.virtualType), EmitCode.present(cb.emb, primitive(n)), startLeaf)
   }
 
   // internal node is an array of children
@@ -176,7 +188,7 @@ class StagedIndexReader(emb: EmitMethodBuilder[_], spec: AbstractIndexSpec) {
     boundType: String): SBaseStructValue = {
 
     val rInd: Settable[Long] = cb.newLocal[Long]("lowerBoundIndex")
-    var rLeafChild: SSettable = null // filled in at use
+    val rLeafChild: EmitSettable = cb.emb.newEmitLocal(leafChildEmitType)
 
     val levelSettable = cb.newLocal[Int]("lowerBound_level")
     val offsetSettable = cb.newLocal[Long]("lowerBound_offset")
@@ -230,34 +242,38 @@ class StagedIndexReader(emb: EmitMethodBuilder[_], spec: AbstractIndexSpec) {
       cb.assign(rInd, updatedIndex)
       val idxWithModification = cb.memoize((if (boundType == "lower") idx else cb.memoize(idx-1)) min children.loadLength())
       val leafChild = children.loadElement(cb, idxWithModification).get(cb).asBaseStruct
-      rLeafChild = cb.newSLocal(leafChild.st, "leafChild")
-      cb.assign(rLeafChild, leafChild)
+      cb.assign(rLeafChild, EmitCode.present(cb.emb, leafChild))
     }, {
       val children = readInternalNode(cb, offsetSettable).loadField(cb, "children").get(cb).asIndexable
-      val idx = new BinarySearch(cb.emb,
-        children.st,
-        EmitType(boundAndSignTuple.st, true),
-        ((cb, elt) => cb.memoize(elt.get(cb).asBaseStruct.loadField(cb, "first_key"))),
-        bound=boundType,
-        ltF = { (cb, containerEltEV, partBoundEV) =>
-          val containerElt = containerEltEV.get(cb).asBaseStruct
-          val partBound = partBoundEV.get(cb).asBaseStruct
-          val endpoint = partBound.loadField(cb, 0).get(cb).asBaseStruct
-          val leansRight = partBound.loadField(cb, 1).get(cb).asBoolean.value
-          val comp = compareStructWithPartitionIntervalEndpoint(cb, containerElt, endpoint, leansRight)
-          val ltOrGt = cb.memoize(if (boundType == "lower") comp < 0 else comp > 0)
-          ltOrGt
-        }
-      )
-        .search(cb, children, EmitCode.present(cb.emb, boundAndSignTuple))
-      cb.assign(levelSettable, levelSettable-1)
-      cb.assign(offsetSettable, children.loadElement(cb, (idx-1).max(0)).get(cb).asBaseStruct.loadField(cb, "index_file_offset").get(cb).asLong.value)
-      cb.goto(Lstart)
+      cb.ifx(children.loadLength() ceq 0, {
+        // empty interal node occurs if the indexed file contains no keys
+        cb.assign(rInd, 0L)
+        cb.assign(rLeafChild, EmitCode.missing(cb.emb, leafChildType))
+      }, {
+        val idx = new BinarySearch(cb.emb,
+          children.st,
+          EmitType(boundAndSignTuple.st, true),
+          ((cb, elt) => cb.memoize(elt.get(cb).asBaseStruct.loadField(cb, "first_key"))),
+          bound=boundType,
+          ltF = { (cb, containerEltEV, partBoundEV) =>
+            val containerElt = containerEltEV.get(cb).asBaseStruct
+            val partBound = partBoundEV.get(cb).asBaseStruct
+            val endpoint = partBound.loadField(cb, 0).get(cb).asBaseStruct
+            val leansRight = partBound.loadField(cb, 1).get(cb).asBoolean.value
+            val comp = compareStructWithPartitionIntervalEndpoint(cb, containerElt, endpoint, leansRight)
+            val ltOrGt = cb.memoize(if (boundType == "lower") comp < 0 else comp > 0)
+            ltOrGt
+          }
+        )
+          .search(cb, children, EmitCode.present(cb.emb, boundAndSignTuple))
+        cb.assign(levelSettable, levelSettable-1)
+        cb.assign(offsetSettable, children.loadElement(cb, (idx-1).max(0)).get(cb).asBaseStruct.loadField(cb, "index_file_offset").get(cb).asLong.value)
+        cb.goto(Lstart)
+      })
     })
-
 
     SStackStruct.constructFromArgs(cb, region, queryType.virtualType,
       EmitCode.present(cb.emb, primitive(rInd)),
-      EmitCode.present(cb.emb, rLeafChild))
+      rLeafChild)
   }
 }

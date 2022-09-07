@@ -648,16 +648,18 @@ case class PartitionNativeReaderIndexed(spec: AbstractTypedCodecSpec, indexSpec:
             .value
           cb.assign(nToRead, n)
 
-          val firstOffset = indexResult.loadField(cb, 1)
-            .get(cb)
-            .asBaseStruct
-            .loadField(cb, "offset")
-            .get(cb)
-            .asInt64
-            .value
-
           cb.assign(ib, spec.buildCodeInputBuffer(Code.newInstance[ByteTrackingInputStream, InputStream](cb.emb.open(partitionPath, false))))
-          cb += ib.seek(firstOffset)
+          cb.ifx(n > 0, {
+            val firstOffset = indexResult.loadField(cb, 1)
+              .get(cb)
+              .asBaseStruct
+              .loadField(cb, "offset")
+              .get(cb)
+              .asInt64
+              .value
+
+            cb += ib.seek(firstOffset)
+          })
           index.close(cb)
         }
         override val elementRegion: Settable[Region] = region
@@ -871,10 +873,6 @@ case class PartitionZippedIndexedNativeReader(specLeft: AbstractTypedCodecSpec, 
             .value
           cb.assign(nToRead, n)
 
-          val leafNode = indexResult.loadField(cb, 1)
-            .get(cb)
-            .asBaseStruct
-
           cb.assign(rowsBuffer, specLeft.buildCodeInputBuffer(
             Code.newInstance[ByteTrackingInputStream, InputStream](
               mb.open(ctxStruct.loadField(cb, "leftPartitionPath")
@@ -888,35 +886,41 @@ case class PartitionZippedIndexedNativeReader(specLeft: AbstractTypedCodecSpec, 
                 .asString
                 .loadString(cb), true))))
 
-          val leftSeekAddr = leftOffsetFieldIndex match {
-            case Some(offsetIdx) =>
-              leafNode
-                .loadField(cb, "annotation")
-                .get(cb)
-                .asBaseStruct
-                .loadField(cb, offsetIdx)
-                .get(cb)
-            case None =>
-              leafNode
-                .loadField(cb, "offset")
-                .get(cb)
-          }
-          cb += rowsBuffer.seek(leftSeekAddr.asInt64.value)
+          cb.ifx(n > 0, {
+            val leafNode = indexResult.loadField(cb, 1)
+              .get(cb)
+              .asBaseStruct
 
-          val rightSeekAddr = rightOffsetFieldIndex match {
-            case Some(offsetIdx) =>
-              leafNode
-                .loadField(cb, "annotation")
-                .get(cb)
-                .asBaseStruct
-                .loadField(cb, offsetIdx)
-                .get(cb)
-            case None =>
-              leafNode
-                .loadField(cb, "offset")
-                .get(cb)
-          }
-          cb += entriesBuffer.seek(rightSeekAddr.asInt64.value)
+            val leftSeekAddr = leftOffsetFieldIndex match {
+              case Some(offsetIdx) =>
+                leafNode
+                  .loadField(cb, "annotation")
+                  .get(cb)
+                  .asBaseStruct
+                  .loadField(cb, offsetIdx)
+                  .get(cb)
+              case None =>
+                leafNode
+                  .loadField(cb, "offset")
+                  .get(cb)
+            }
+            cb += rowsBuffer.seek(leftSeekAddr.asInt64.value)
+
+            val rightSeekAddr = rightOffsetFieldIndex match {
+              case Some(offsetIdx) =>
+                leafNode
+                  .loadField(cb, "annotation")
+                  .get(cb)
+                  .asBaseStruct
+                  .loadField(cb, offsetIdx)
+                  .get(cb)
+              case None =>
+                leafNode
+                  .loadField(cb, "offset")
+                  .get(cb)
+            }
+            cb += entriesBuffer.seek(rightSeekAddr.asInt64.value)
+          })
 
           index.close(cb)
         }
