@@ -209,6 +209,17 @@ class IRSuite extends HailSuite {
     )
   }
 
+  @Test def testApplyUnaryPrimOpBitCount() {
+    assertAllEvalTo(
+      (ApplyUnaryPrimOp(BitCount(), I32(0xdeadbeef)), 0xdeadbeef.bitCount()),
+      (ApplyUnaryPrimOp(BitCount(), I32(-0xdeadbeef)), (-0xdeadbeef).bitCount()),
+      (ApplyUnaryPrimOp(BitCount(), i32na), null),
+      (ApplyUnaryPrimOp(BitCount(), I64(0xdeadbeef12345678L)), ~0xdeadbeef12345678L.bitCount()),
+      (ApplyUnaryPrimOp(BitCount(), I64(-0xdeadbeef12345678L)), ~(-0xdeadbeef12345678L.bitCount())),
+      (ApplyUnaryPrimOp(BitCount(), i64na), null)
+    )
+  }
+
   @Test def testApplyBinaryPrimOpAdd() {
     def assertSumsTo(t: Type, x: Any, y: Any, sum: Any) {
       assertEvalsTo(ApplyBinaryPrimOp(Add(), In(0, t), In(1, t)), FastIndexedSeq(x -> t, y -> t), sum)

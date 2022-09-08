@@ -930,6 +930,8 @@ class CodeInt(val lhs: Code[Int]) extends AnyVal {
   def toZ: Code[Boolean] = lhs.cne(0)
 
   def toS: Code[String] = Code.invokeStatic1[java.lang.Integer, Int, String]("toString", lhs)
+
+  def bitCount: Code[Int] = Code.invokeStatic1[java.lang.Integer, Int, Int]("bitCount", lhs)
 }
 
 class CodeLong(val lhs: Code[Long]) extends AnyVal {
@@ -994,6 +996,8 @@ class CodeLong(val lhs: Code[Long]) extends AnyVal {
   def numberOfLeadingZeros: Code[Int] = Code.invokeStatic1[java.lang.Long, Long, Int]("numberOfLeadingZeros", lhs)
 
   def numberOfTrailingZeros: Code[Int] = Code.invokeStatic1[java.lang.Long, Long, Int]("numberOfTrailingZeros", lhs)
+
+  def bitCount: Code[Int] = Code.invokeStatic1[java.lang.Long, Long, Int]("bitCount", lhs)
 }
 
 class CodeFloat(val lhs: Code[Float]) extends AnyVal {
