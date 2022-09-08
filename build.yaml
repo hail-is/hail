@@ -1382,6 +1382,9 @@ steps:
       python3 -m pip install --no-dependencies hail-*-py3-none-any.whl
       mkdir -p /io/tmp
 
+      # pyspark/conf/core-site.xml already points at /gsa-key/key.json
+      mv /test-gsa-key/key.json /gsa-key/key.json
+
       export HAIL_TEST_STORAGE_URI=/io/tmp/
       export HAIL_TEST_RESOURCES_DIR=./resources
       export HAIL_DOCTEST_DATA_DIR=./data
