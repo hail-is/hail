@@ -54,6 +54,11 @@ object LocalBackend {
   def stop(): Unit = synchronized {
     if (theLocalBackend != null) {
       theLocalBackend = null
+      // Hadoop does not honor the hadoop configuration as a component of the cache key for file
+      // systems, so we blow away the cache so that a new configuration can successfully take
+      // effect.
+      // https://github.com/hail-is/hail/pull/12133#issuecomment-1241322443
+      hadoop.fs.FileSystem.closeAll()
     }
   }
 }

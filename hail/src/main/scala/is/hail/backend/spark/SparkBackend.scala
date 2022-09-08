@@ -37,6 +37,7 @@ import is.hail.variant.ReferenceGenome
 import org.apache.spark.rdd.RDD
 import org.apache.spark.storage.StorageLevel
 import org.apache.spark.util.TaskCompletionListener
+import org.apache.hadoop
 import org.apache.hadoop.conf.Configuration
 import org.json4s
 import org.json4s.JsonAST.{JInt, JObject}
@@ -245,6 +246,11 @@ object SparkBackend {
     if (theSparkBackend != null) {
       theSparkBackend.sc.stop()
       theSparkBackend = null
+      // Hadoop does not honor the hadoop configuration as a component of the cache key for file
+      // systems, so we blow away the cache so that a new configuration can successfully take
+      // effect.
+      // https://github.com/hail-is/hail/pull/12133#issuecomment-1241322443
+      hadoop.fs.FileSystem.closeAll()
     }
   }
 }
