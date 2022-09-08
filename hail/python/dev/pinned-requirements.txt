@@ -423,7 +423,7 @@ webencodings==0.5.1
     # via
     #   bleach
     #   tinycss2
-widgetsnbextension==3.6.0
+widgetsnbextension==4.0.3
     # via ipywidgets
 wrapt==1.14.1
     # via astroid
