@@ -314,6 +314,33 @@ trait FSSuite {
     assert(dropTrailingSlash("/foo///") == "/foo")
     assert(dropTrailingSlash("///") == "")
   }
+
+  @Test def testSeekMoreThanMaxInt(): Unit = {
+    val f = t()
+    using (fs.create(f)) { os =>
+      val eight_mib = Array.fill(8 * 1024 * 1024){0.toByte}
+      val i = 0
+      // 256 * 8MiB = 2GiB
+      while (i < 256) {
+        os.write(eight_mib, 0, Int.MaxValue)
+        i += 1
+      }
+      os.write(100)
+      os.write(200)
+      os.write(300)
+    }
+
+    assert(fs.exists(f))
+
+    using(fs.open(f)) { is =>
+      is.seek(Int.MaxValue + 1.toLong)
+      assert(is.read() == 200)
+      assert(is.read() == 300)
+    }
+
+    fs.delete(f, false)
+    assert(!fs.exists(f))
+  }
 }
 
 class HadoopFSSuite extends HailSuite with FSSuite {
