@@ -3321,30 +3321,40 @@ def import_gvs(refs: 'List[List[str]]',
                              .head().min_vqslod
                              )
 
+    is_snp = vd.alleles[1:].map(lambda alt: hl.is_snp(vd.alleles[0], alt))
     vd = vd.annotate_rows(
         allele_NO=vd.alleles[1:].map(
             lambda allele: hl.coalesce(vd.as_vqsr.get(allele).yng_status == 'N', False)),
         allele_YES=vd.alleles[1:].map(
             lambda allele: hl.coalesce(vd.as_vqsr.get(allele).yng_status == 'Y', True)),
-        allele_OK=vd.alleles[1:].map(
-            lambda alt: hl.coalesce(vd.as_vqsr.get(alt).vqslod > hl.if_else(hl.is_snp(vd.alleles[0], alt),
-                                                                            vd.snp_vqslod_threshold,
-                                                                            vd.indel_vqslod_threshold),
-                                    True)),
+        allele_is_snp=is_snp,
+        allele_OK=hl._zip_func(is_snp, vd.alleles[1:],
+                               f=lambda is_snp, alt:
+                               hl.coalesce(vd.as_vqsr.get(alt).vqslod >
+                                           hl.if_else(is_snp, vd.snp_vqslod_threshold, vd.indel_vqslod_threshold),
+                                           True))
     )
 
-    ft_criteria = (hl.range(vd.LGT.ploidy)
-                   .map(lambda idx: vd.LA[vd.LGT[idx]])
+    lgt = vd.LGT
+    allele_NO = vd.allele_NO
+    allele_YES = vd.allele_YES
+    allele_OK = vd.allele_OK
+    allele_is_snp=vd.allele_is_snp
+    ft = (hl.range(lgt.LGT.ploidy)
+                   .map(lambda idx: vd.LA[lgt[idx]])
                    .filter(lambda x: x != 0)
                    .fold(lambda tuple, called_idx: hl.struct(
-        any_no=tuple[0] | vd.allele_NO[called_idx-1],
-        any_yes=tuple[1] | vd.allele_YES[called_idx-1],
-        all_ok_vqslod=tuple[2] & vd.allele_OK[called_idx-1])
-    , hl.struct(any_no=False, any_yes=False, all_ok_vqslod=True)))
+        any_no=tuple[0] | allele_NO[called_idx - 1],
+        any_yes=tuple[1] | allele_YES[called_idx - 1],
+        any_snp=tuple[1] | allele_is_snp[called_idx - 1],
+        any_indel=tuple[1] | ~allele_is_snp[called_idx - 1],
+        any_snp_ok=tuple[2] | (allele_is_snp[called_idx-1] & allele_OK[called_idx-1]),
+        any_indel_ok=tuple[2] | (~allele_is_snp[called_idx-1] & allele_OK[called_idx-1]),
+    ), hl.struct(any_no=False, any_yes=False, any_snp=False, any_indel=False, any_snp_ok=False, any_indel_ok=False)))
 
-    vd = vd.annotate_entries(FT=~ft_criteria.any_no & (ft_criteria.any_yes | ft_criteria.all_ok_vqslod))
+    vd = vd.annotate_entries(FT=~ft.any_no & (ft.any_yes | ((~ft.any_snp | ft.any_snp_ok) & (~ft.any_indel | ft.any_indel_ok))))
 
-    vd = vd.drop('allele_NO', 'allele_YES', 'allele_OK')
+    vd = vd.drop('allele_NO', 'allele_YES', 'allele_is_snp', 'allele_OK')
 
     hl.vds.VariantDataset(
         reference_data=rd,
