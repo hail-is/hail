@@ -323,7 +323,7 @@ trait FSSuite {
       // 256 * 8MiB = 2GiB
       while (i < 256) {
         os.write(eight_mib, 0, Int.MaxValue)
-        i += 1
+        i = i + 1
       }
       os.write(100)
       os.write(200)
