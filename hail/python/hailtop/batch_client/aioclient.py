@@ -215,8 +215,8 @@ class Job:
 
 
 class UnsubmittedJob:
-    def _submit(self, batch):
-        return SubmittedJob(batch, self._job_id)
+    def _submit(self, batch, update_start_job_id):
+        return SubmittedJob(batch, self._job_id + update_start_job_id - 1)
 
     def __init__(self, batch_builder, job_id):
         self._batch_builder = batch_builder
@@ -305,8 +305,9 @@ class SubmittedJob:
 
 
 class BatchSubmissionInfo:
-    def __init__(self, used_fast_create):
+    def __init__(self, used_fast_create: Optional[bool] = None, used_fast_update: Dict[int, bool] = None):
         self.used_fast_create = used_fast_create
+        self.used_fast_update = used_fast_update or {}
 
 
 class Batch:
@@ -314,7 +315,6 @@ class Batch:
                  client: 'BatchClient',
                  id: int,
                  attributes: Dict[str, str],
-                 n_jobs: int,
                  token: str,
                  *,
                  last_known_status: bool = None,
@@ -322,7 +322,6 @@ class Batch:
         self._client = client
         self.id: int = id
         self.attributes = attributes
-        self.n_jobs = n_jobs
         self.token = token
         self._last_known_status = last_known_status
         self.submission_info = submission_info
@@ -383,11 +382,14 @@ class Batch:
             return await self.status()  # updates _last_known_status
         return self._last_known_status
 
+    # FIXME Error if this is called while within a job of the same Batch
     async def wait(self, *, disable_progress_bar=TqdmDisableOption.default):
         i = 0
-        with tqdm(total=self.n_jobs, disable=disable_progress_bar, desc=f'Batch {self.id}: completed jobs') as pbar:
+        n_jobs = (await self.status())['n_jobs']
+        with tqdm(total=n_jobs, disable=disable_progress_bar, desc=f'Batch {self.id}: completed jobs') as pbar:
             while True:
                 status = await self.status()
+                pbar.total = status['n_jobs']
                 pbar.update(status['n_completed'] - pbar.n)
                 if status['complete']:
                     return status
@@ -411,18 +413,21 @@ class Batch:
 
 
 class BatchBuilder:
-    def __init__(self, client, attributes, callback, token=None, cancel_after_n_failures=None):
+    def __init__(self, client, *, attributes=None, callback=None, token=None, cancel_after_n_failures=None, batch=None):
         self._client = client
         self._job_idx = 0
         self._job_specs = []
         self._jobs = []
-        self._submitted = False
+        self._batch: Optional[Batch] = batch
         self.attributes = attributes
         self.callback = callback
 
         if token is None:
             token = secrets.token_urlsafe(32)
         self.token = token
+
+        self._update_token = None
+        self._update_id = None
 
         self._cancel_after_n_failures = cancel_after_n_failures
 
@@ -454,15 +459,13 @@ class BatchBuilder:
                     network: Optional[str] = None,
                     unconfined: bool = False,
                     user_code: Optional[str] = None):
-        if self._submitted:
-            raise ValueError("cannot create a job in an already submitted batch")
-
         self._job_idx += 1
 
         if parents is None:
             parents = []
 
-        parent_ids = []
+        absolute_parent_ids = []
+        in_update_parent_ids = []
         foreign_batches = []
         invalid_job_ids = []
         for parent in parents:
@@ -473,9 +476,13 @@ class BatchBuilder:
                 elif not 0 < job._job_id < self._job_idx:
                     invalid_job_ids.append(job)
                 else:
-                    parent_ids.append(job._job_id)
+                    in_update_parent_ids.append(job._job_id)
             else:
-                foreign_batches.append(job)
+                assert isinstance(job, SubmittedJob)
+                if self._batch is None or job._batch != self._batch:
+                    foreign_batches.append(job)
+                else:
+                    absolute_parent_ids.append(job.job_id)
 
         error_msg = []
         if len(foreign_batches) != 0:
@@ -493,7 +500,13 @@ class BatchBuilder:
         if error_msg:
             raise ValueError("\n".join(error_msg))
 
-        job_spec = {'always_run': always_run, 'job_id': self._job_idx, 'parent_ids': parent_ids, 'process': process}
+        job_spec = {
+            'always_run': always_run,
+            'job_id': self._job_idx,
+            'absolute_parent_ids': absolute_parent_ids,
+            'in_update_parent_ids': in_update_parent_ids,
+            'process': process,
+        }
 
         if env:
             job_spec['env'] = [{'name': k, 'value': v} for (k, v) in env.items()]
@@ -534,7 +547,7 @@ class BatchBuilder:
         self._jobs.append(j)
         return j
 
-    async def _open_submit_close(self, byte_job_specs: List[bytes], n_jobs: int, pbar) -> Batch:
+    async def _create_fast(self, byte_job_specs: List[bytes], n_jobs: int, pbar) -> Batch:
         assert n_jobs == len(self._job_specs)
         b = bytearray()
         b.extend(b'{"bunch":')
@@ -556,11 +569,32 @@ class BatchBuilder:
         return Batch(self._client,
                      batch_json['id'],
                      self.attributes,
-                     n_jobs,
                      self.token,
                      submission_info=BatchSubmissionInfo(True))
 
-    async def _submit_jobs(self, batch_id: Optional[int], byte_job_specs: List[bytes], n_jobs: int, pbar):
+    async def _update_fast(self, byte_job_specs: List[bytes], pbar) -> int:
+        assert self._batch
+        b = bytearray()
+        b.extend(b'{"bunch":')
+        b.append(ord('['))
+        for i, spec in enumerate(byte_job_specs):
+            if i > 0:
+                b.append(ord(','))
+            b.extend(spec)
+        b.append(ord(']'))
+        b.extend(b',"update":')
+        b.extend(json.dumps(self._update_spec()).encode('utf-8'))
+        b.append(ord('}'))
+        resp = await self._client._post(
+            f'/api/v1alpha/batches/{self._batch.id}/update-fast',
+            data=aiohttp.BytesPayload(b, content_type='application/json', encoding='utf-8'),
+        )
+        update_json = await resp.json()
+        pbar.update(len(byte_job_specs))
+        return int(update_json['start_job_id'])
+
+
+    async def _submit_jobs(self, batch_id: int, update_id: int, byte_job_specs: List[bytes], n_jobs: int, pbar):
         assert len(byte_job_specs) > 0, byte_job_specs
 
         b = bytearray()
@@ -577,7 +611,7 @@ class BatchBuilder:
         b.append(ord(']'))
 
         await self._client._post(
-            f'/api/v1alpha/batches/{batch_id}/jobs/create',
+            f'/api/v1alpha/batches/{batch_id}/updates/{update_id}/jobs/create',
             data=aiohttp.BytesPayload(b, content_type='application/json', encoding='utf-8'),
         )
         pbar.update(n_jobs)
@@ -596,12 +630,24 @@ class BatchBuilder:
     async def _open_batch(self) -> Batch:
         batch_spec = self._batch_spec()
         batch_json = await (await self._client._post('/api/v1alpha/batches/create', json=batch_spec)).json()
+        self._update_id = batch_json['update_id']
         return Batch(self._client,
                      batch_json['id'],
                      self.attributes,
-                     batch_spec['n_jobs'],
                      self.token,
                      submission_info=BatchSubmissionInfo(False))
+
+    async def _update_spec(self) -> dict:
+        return {'n_jobs': len(self._jobs), 'update_token': self._update_token}
+
+    async def _create_update(self, batch_id: int) -> int:
+        update_spec = self._update_spec()
+        update_json = await (await self._client._post(f'/api/v1alpha/batches/{batch_id}/updates/create', json=update_spec)).json()
+        return int(update_json['update_id'])
+
+    async def _commit_update(self, batch_id: int, update_id: int) -> int:
+        commit_json = await (await self._client._patch(f'/api/v1alpha/batches/{batch_id}/updates/{update_id}/commit')).json()
+        return int(commit_json['start_job_id'])
 
     async def _close_batch(self, id: int):
         await self._client._patch(f'/api/v1alpha/batches/{id}/close')
@@ -616,8 +662,6 @@ class BatchBuilder:
                      ) -> Batch:
         assert max_bunch_bytesize > 0
         assert max_bunch_size > 0
-        if self._submitted:
-            raise ValueError("cannot submit an already submitted batch")
         byte_job_specs = [json.dumps(job_spec).encode('utf-8')
                           for job_spec in self._job_specs]
         byte_job_specs_bunches: List[List[bytes]] = []
@@ -647,31 +691,57 @@ class BatchBuilder:
         with tqdm(total=len(self._job_specs),
                   disable=disable_progress_bar,
                   desc='jobs submitted to queue') as pbar:
-            if len(byte_job_specs_bunches) == 1:
-                batch = await self._open_submit_close(byte_job_specs_bunches[0], bunch_sizes[0], pbar)
-                id = batch.id
+            n_bunches = len(byte_job_specs)
+            if self._batch is None:
+                if n_bunches == 0:
+                    self._batch = await self._open_batch()
+                    log.info(f'created batch {self._batch.id}')
+                    return self._batch
+                if n_bunches == 1:
+                    self._batch = await self._create_fast(byte_job_specs_bunches[0], bunch_sizes[0], pbar)
+                    start_job_id = 1
+                else:
+                    self._batch = await self._open_batch()
+                    assert self._update_id is not None
+                    await bounded_gather(
+                        *[functools.partial(self._submit_jobs, self._batch.id, self._update_id, bunch, size, pbar)
+                          for bunch, size in zip(byte_job_specs_bunches, bunch_sizes)
+                          ],
+                        parallelism=6,
+                    )
+                    start_job_id = await self._commit_update(self._batch.id, self._update_id)
+                    self._batch.submission_info.used_fast_update[self._update_id] = False
+                    assert start_job_id == 1
+                log.info(f'created batch {self._batch.id}')
             else:
-                batch = await self._open_batch()
-                id = batch.id
-                await bounded_gather(
-                    *[functools.partial(self._submit_jobs, id, bunch, size, pbar)
-                      for bunch, size in zip(byte_job_specs_bunches, bunch_sizes)
-                      ],
-                    parallelism=6,
-                )
-                await self._close_batch(id)
-
-        log.info(f'created batch {id}')
+                if n_bunches == 0:
+                    log.warning('Tried to submit an update with 0 jobs. Doing nothing.')
+                    return self._batch
+                if self._update_token is None:
+                    self._update_token = secrets.token_urlsafe(32)
+                if n_bunches == 1:
+                    start_job_id = await self._update_fast(byte_job_specs_bunches[0], pbar)
+                else:
+                    self._update_id = await self._create_update(self._batch.id)
+                    await bounded_gather(
+                        *[functools.partial(self._submit_jobs, self._batch.id, self._update_id, bunch, size, pbar)
+                          for bunch, size in zip(byte_job_specs_bunches, bunch_sizes)
+                          ],
+                        parallelism=6,
+                    )
+                    start_job_id = await self._commit_update(self._batch.id, self._update_id)
+                    self._batch.submission_info.used_fast_update[self._update_id] = False
+                log.info(f'updated batch {self._batch.id}')
+                self._update_token = None
 
         for j in self._jobs:
-            j._job = j._job._submit(batch)
+            j._job = j._job._submit(self._batch, start_job_id)
 
         self._job_specs = []
         self._jobs = []
         self._job_idx = 0
 
-        self._submitted = True
-        return batch
+        return self._batch
 
 
 class BatchClient:
@@ -745,7 +815,6 @@ class BatchClient:
                     self,
                     batch['id'],
                     attributes=batch.get('attributes'),
-                    n_jobs=int(batch['n_jobs']),
                     token=batch['token'],
                     last_known_status=batch,
                 )
@@ -767,18 +836,21 @@ class BatchClient:
         resp = await self._get(f'/api/v1alpha/batches/{batch_id}/jobs/{job_id}/attempts')
         return await resp.json()
 
-    async def get_batch(self, id):
+    async def get_batch(self, id) -> Batch:
         b_resp = await self._get(f'/api/v1alpha/batches/{id}')
         b = await b_resp.json()
         return Batch(self,
                      b['id'],
                      attributes=b.get('attributes'),
-                     n_jobs=int(b['n_jobs']),
                      token=b['token'],
                      last_known_status=b)
 
     def create_batch(self, attributes=None, callback=None, token=None, cancel_after_n_failures=None) -> BatchBuilder:
-        return BatchBuilder(self, attributes, callback, token, cancel_after_n_failures)
+        return BatchBuilder(self, attributes=attributes, callback=callback, token=token, cancel_after_n_failures=cancel_after_n_failures)
+
+    async def update_batch(self, batch_id: int) -> BatchBuilder:
+        batch = await self.get_batch(batch_id)
+        return BatchBuilder(self, batch=batch)
 
     async def get_billing_project(self, billing_project):
         bp_resp = await self._get(f'/api/v1alpha/billing_projects/{billing_project}')
