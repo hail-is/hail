@@ -211,11 +211,11 @@ class IRSuite extends HailSuite {
 
   @Test def testApplyUnaryPrimOpBitCount() {
     assertAllEvalTo(
-      (ApplyUnaryPrimOp(BitCount(), I32(0xdeadbeef)), 0xdeadbeef.bitCount()),
-      (ApplyUnaryPrimOp(BitCount(), I32(-0xdeadbeef)), (-0xdeadbeef).bitCount()),
+      (ApplyUnaryPrimOp(BitCount(), I32(0xdeadbeef)), Integer.bitCount(0xdeadbeef)),
+      (ApplyUnaryPrimOp(BitCount(), I32(-0xdeadbeef)), Integer.bitCount(-0xdeadbeef)),
       (ApplyUnaryPrimOp(BitCount(), i32na), null),
-      (ApplyUnaryPrimOp(BitCount(), I64(0xdeadbeef12345678L)), ~0xdeadbeef12345678L.bitCount()),
-      (ApplyUnaryPrimOp(BitCount(), I64(-0xdeadbeef12345678L)), ~(-0xdeadbeef12345678L.bitCount())),
+      (ApplyUnaryPrimOp(BitCount(), I64(0xdeadbeef12345678L)), java.lang.Long.bitCount(0xdeadbeef12345678L)),
+      (ApplyUnaryPrimOp(BitCount(), I64(-0xdeadbeef12345678L)), java.lang.Long.bitCount(-0xdeadbeef12345678L)),
       (ApplyUnaryPrimOp(BitCount(), i64na), null)
     )
   }
