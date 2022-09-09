@@ -15,7 +15,7 @@ google-cloud-storage==1.25.*
 humanize==1.0.0
 hurry.filesize==0.9
 janus>=0.6,<1.1
-Jinja2==3.0.3
+Jinja2==3.1.2
 nest_asyncio==1.5.4
 numpy<2
 orjson==3.6.4
