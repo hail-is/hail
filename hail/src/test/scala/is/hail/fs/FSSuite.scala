@@ -4,7 +4,7 @@ import java.io.FileNotFoundException
 import is.hail.HailSuite
 import is.hail.backend.ExecuteContext
 import is.hail.io.fs.FSUtil.dropTrailingSlash
-import is.hail.io.fs.{FS, FileStatus}
+import is.hail.io.fs.{FS, FileStatus, Seekable}
 import is.hail.utils._
 import org.apache.commons.io.IOUtils
 import org.testng.annotations.Test
@@ -333,7 +333,9 @@ trait FSSuite {
     assert(fs.exists(f))
 
     using(fs.open(f)) { is =>
-      is.seek(Int.MaxValue + 1.toLong)
+      is match {
+        case base: Seekable => base.seek(Int.MaxValue + 1.toLong)
+      }
       assert(is.read() == 200)
       assert(is.read() == 300)
     }
