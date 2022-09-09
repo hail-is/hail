@@ -3336,12 +3336,13 @@ def import_gvs(refs: 'List[List[str]]',
     )
 
     lgt = vd.LGT
+    la = vd.LA
     allele_NO = vd.allele_NO
     allele_YES = vd.allele_YES
     allele_OK = vd.allele_OK
     allele_is_snp=vd.allele_is_snp
-    ft = (hl.range(lgt.LGT.ploidy)
-                   .map(lambda idx: vd.LA[lgt[idx]])
+    ft = (hl.range(lgt.ploidy)
+                   .map(lambda idx: la[lgt[idx]])
                    .filter(lambda x: x != 0)
                    .fold(lambda tuple, called_idx: hl.struct(
         any_no=tuple[0] | allele_NO[called_idx - 1],
