@@ -79,7 +79,7 @@ LIMIT 1;
         )
         token = bunch_record['token']
         start_job_id = bunch_record['start_job_id']
-        end_job_id = bunch_record['next_start_job_id'] or bunch_record['n_jobs']
+        end_job_id = bunch_record['next_start_job_id'] or (bunch_record['n_jobs'] + 1)
         return (token, start_job_id, end_job_id)
 
     def __init__(self, file_store, batch_id):
