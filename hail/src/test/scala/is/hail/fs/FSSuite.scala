@@ -319,7 +319,7 @@ trait FSSuite {
     val f = t()
     using (fs.create(f)) { os =>
       val eight_mib = Array.fill(8 * 1024 * 1024){0.toByte}
-      val i = 0
+      var i = 0
       // 256 * 8MiB = 2GiB
       while (i < 256) {
         os.write(eight_mib, 0, Int.MaxValue)
