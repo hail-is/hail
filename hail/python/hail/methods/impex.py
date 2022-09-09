@@ -3344,13 +3344,13 @@ def import_gvs(refs: 'List[List[str]]',
     ft = (hl.range(lgt.ploidy)
                    .map(lambda idx: la[lgt[idx]])
                    .filter(lambda x: x != 0)
-                   .fold(lambda tuple, called_idx: hl.struct(
-        any_no=tuple[0] | allele_NO[called_idx - 1],
-        any_yes=tuple[1] | allele_YES[called_idx - 1],
-        any_snp=tuple[1] | allele_is_snp[called_idx - 1],
-        any_indel=tuple[1] | ~allele_is_snp[called_idx - 1],
-        any_snp_ok=tuple[2] | (allele_is_snp[called_idx-1] & allele_OK[called_idx-1]),
-        any_indel_ok=tuple[2] | (~allele_is_snp[called_idx-1] & allele_OK[called_idx-1]),
+                   .fold(lambda acc, called_idx: hl.struct(
+        any_no=acc.any_no | allele_NO[called_idx - 1],
+        any_yes=acc.any_yes | allele_YES[called_idx - 1],
+        any_snp=acc.any_snp | allele_is_snp[called_idx - 1],
+        any_indel=acc.any_indel | ~allele_is_snp[called_idx - 1],
+        any_snp_ok=acc.any_snp_ok | (allele_is_snp[called_idx - 1] & allele_OK[called_idx - 1]),
+        any_indel_ok=acc.any_indel_ok | (~allele_is_snp[called_idx - 1] & allele_OK[called_idx - 1]),
     ), hl.struct(any_no=False, any_yes=False, any_snp=False, any_indel=False, any_snp_ok=False, any_indel_ok=False)))
 
     vd = vd.annotate_entries(FT=~ft.any_no & (ft.any_yes | ((~ft.any_snp | ft.any_snp_ok) & (~ft.any_indel | ft.any_indel_ok))))
