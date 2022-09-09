@@ -552,6 +552,12 @@ class TransientError(Exception):
     pass
 
 
+RETRY_ONCE_BAD_REQUEST_ERROR_MESSAGES = {
+    'User project specified in the request is invalid.',
+    'Invalid grant: account not found',
+}
+
+
 def is_retry_once_error(e):
     # An exception is a "retry once error" if a rare, known bug in a dependency or in a cloud
     # provider can manifest as this exception *and* that manifestation is indistinguishable from a
@@ -562,7 +568,7 @@ def is_retry_once_error(e):
                 and 'azurecr.io' in e.message
                 and 'not found: manifest unknown: ' in e.message)
     if isinstance(e, hailtop.httpx.ClientResponseError):
-        return e.status == 400 and 'User project specified in the request is invalid.' in e.body
+        return e.status == 400 and any(msg in e.body for msg in RETRY_ONCE_BAD_REQUEST_ERROR_MESSAGES)
     return False
 
 
