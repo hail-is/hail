@@ -318,11 +318,12 @@ trait FSSuite {
   @Test def testSeekMoreThanMaxInt(): Unit = {
     val f = t()
     using (fs.create(f)) { os =>
-      val eight_mib = Array.fill(8 * 1024 * 1024){0.toByte}
+      val eight_mib = 8 * 1024 * 1024
+      val arr = Array.fill(){0.toByte}
       var i = 0
       // 256 * 8MiB = 2GiB
       while (i < 256) {
-        os.write(eight_mib, 0, Int.MaxValue)
+        os.write(arr, 0, eight_mib)
         i = i + 1
       }
       os.write(100)
