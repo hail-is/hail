@@ -326,19 +326,20 @@ trait FSSuite {
         os.write(arr, 0, eight_mib)
         i = i + 1
       }
-      os.write(100)
-      os.write(200)
-      os.write(300)
+      os.write(10)
+      os.write(20)
+      os.write(30)
     }
 
     assert(fs.exists(f))
 
     using(fs.open(f)) { is =>
       is match {
-        case base: Seekable => base.seek(Int.MaxValue + 1.toLong)
+        case base: Seekable => base.seek(Int.MaxValue + 2.toLong)
+        case base: org.apache.hadoop.fs.Seekable => base.seek(Int.MaxValue + 2.toLong)
       }
-      assert(is.read() == 200)
-      assert(is.read() == 300)
+      assert(is.read() == 20)
+      assert(is.read() == 30)
     }
 
     fs.delete(f, false)
