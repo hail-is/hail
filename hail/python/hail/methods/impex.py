@@ -3179,7 +3179,7 @@ def import_gvs(refs: 'List[List[str]]',
 
     def translate_state(state_var):
         """Translates a char-encoded GQ to int32."""
-        return hl.literal({'0': 0, '1': 10, '2': 20, '3': 30, '4': 40, '5': 50})[state_var]
+        return hl.literal({'m': 0, '0': 0, '1': 10, '2': 20, '3': 30, '4': 40, '5': 50, '6': 60})[state_var]
 
     def convert_array_with_id_keys_to_dense_array(arr, ids, drop=[]):
         """Converts a coordinate-represented sparse array into a dense array used in MatrixTables."""
