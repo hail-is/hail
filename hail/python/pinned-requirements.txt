@@ -75,7 +75,7 @@ google-auth==1.27.0
     #   google-api-core
     #   google-cloud-core
     #   google-cloud-storage
-google-cloud-core==1.7.2
+google-cloud-core==2.3.2
     # via google-cloud-storage
 google-cloud-storage==1.25.0
     # via -r python/requirements.txt
