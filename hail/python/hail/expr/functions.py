@@ -6209,7 +6209,7 @@ def bit_count(x):
     x : :class:`.Int32Expression` or :class:`.Int64Expression`
 
     Returns
-    ------hl.-
+    ----------
     :class:`.Int32Expression`
     """
     return construct_expr(ir.ApplyUnaryPrimOp('BitCount', x._ir), tint32, x._indices, x._aggregations)
