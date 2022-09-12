@@ -575,7 +575,7 @@ class MatrixCollectColsByKey(MatrixIR):
         self.child = child
 
     def _handle_randomness(self, row_uid_field_name, col_uid_field_name):
-        child = self.child(row_uid_field_name, col_uid_field_name)
+        child = self.child.handle_randomness(row_uid_field_name, col_uid_field_name)
         result = MatrixCollectColsByKey(child)
         if col_uid_field_name is not None:
             col = ir.Ref('sa', result.typ.col_type)
