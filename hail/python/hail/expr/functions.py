@@ -6195,7 +6195,7 @@ def bit_not(x):
 
 @typecheck(x=expr_oneof(expr_int32, expr_int64))
 def bit_count(x):
-    """Count the number of 1s in the binary representation of `x`.
+    """Count the number of 1s in the in the `two's complement <https://en.wikipedia.org/wiki/Two%27s_complement>`__ binary representation of `x`.
 
     Examples
     --------
@@ -6209,10 +6209,10 @@ def bit_count(x):
     x : :class:`.Int32Expression` or :class:`.Int64Expression`
 
     Returns
-    -------
+    ------hl.-
     :class:`.Int32Expression`
     """
-    return construct_expr(ir.ApplyUnaryPrimOp('BitCount', x._ir), x.dtype, x._indices, x._aggregations)
+    return construct_expr(ir.ApplyUnaryPrimOp('BitCount', x._ir), tint32, x._indices, x._aggregations)
 
 
 @typecheck(array=expr_array(expr_numeric), elem=expr_numeric)
