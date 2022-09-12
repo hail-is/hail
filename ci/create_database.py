@@ -106,30 +106,27 @@ async def create_database():
     )
     user_exists = user_exists.get('user') == user_username
 
-    create_admin = (
-        f"CREATE USER IF NOT EXISTS '{admin_username}'@'%' IDENTIFIED BY '{admin_password}';"
+    create_admin_or_alter_password = (
+        f"CREATE USER '{admin_username}'@'%' IDENTIFIED BY '{admin_password}';"
         if not admin_exists
-        else ""
+        else "ALTER USER '{admin_username}'@'%' IDENTIFIED BY '{admin_password}';"
     )
 
-    create_user = (
-        f"CREATE USER IF NOT EXISTS '{user_username}'@'%' IDENTIFIED BY '{user_password}';"
+    create_user_or_alter_password = (
+        f"CREATE USER '{user_username}'@'%' IDENTIFIED BY '{user_password}';"
         if not user_exists
-        else ""
+        else "ALTER USER '{user_username}'@'%' IDENTIFIED BY '{user_password}';"
     )
 
     await db.just_execute(
         f'''
         CREATE DATABASE IF NOT EXISTS `{_name}`;
 
-        {create_admin}
+        {create_admin_or_alter_password}
         GRANT ALL ON `{_name}`.* TO '{admin_username}'@'%';
 
-        {create_user}
+        {create_user_or_alter_password}
         GRANT SELECT, INSERT, UPDATE, DELETE, EXECUTE ON `{_name}`.* TO '{user_username}'@'%';
-
-        ALTER USER '{admin_username}'@'%' IDENTIFIED BY '{admin_password}';
-        ALTER USER '{user_username}'@'%' IDENTIFIED BY '{user_password}';
         '''
     )
 

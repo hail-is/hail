@@ -40,7 +40,7 @@ variable organization_domain {
   type = string
 }
 
-variable az_storage_account_name {
+variable batch_test_user_storage_account_name {
   type = string
 }
 

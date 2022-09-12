@@ -37,7 +37,6 @@ terraform state. The following command creates these and stores their names in
 Initialize terraform:
 
 ```
-export STORAGE_ACCOUNT_NAME="<insert from remote_storage.tfvars>"
 ./bootstrap.sh init_terraform <RESOURCE_GROUP>
 ```
 
