@@ -225,7 +225,7 @@ typing-extensions==4.2.0
     #   azure-core
     #   janus
     #   yarl
-urllib3==1.26.9
+urllib3==1.26.12
     # via
     #   botocore
     #   requests

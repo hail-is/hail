@@ -14,6 +14,7 @@ Numeric functions
     bit_lshift
     bit_rshift
     bit_not
+    bit_count
     exp
     expit
     is_nan
@@ -60,6 +61,7 @@ Numeric functions
 .. autofunction:: bit_lshift
 .. autofunction:: bit_rshift
 .. autofunction:: bit_not
+.. autofunction:: bit_count
 .. autofunction:: exp
 .. autofunction:: expit
 .. autofunction:: is_nan

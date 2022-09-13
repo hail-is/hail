@@ -113,24 +113,6 @@ case class RVDComponentSpec(rel_path: String) extends ComponentSpec {
   }
 
   def indexed(fs: FS, path: String): Boolean = rvdSpec(fs, path).indexed
-
-  def read(
-    ctx: ExecuteContext,
-    path: String,
-    requestedType: TStruct,
-    newPartitioner: Option[RVDPartitioner] = None,
-    filterIntervals: Boolean = false
-  ): RVD = {
-    val rvdPath = path + "/" + rel_path
-    rvdSpec(ctx.fs, path)
-      .read(ctx, rvdPath, requestedType, newPartitioner, filterIntervals)
-  }
-
-  def readLocalSingleRow(ctx: ExecuteContext, path: String, requestedType: TStruct): (PStruct, Long) = {
-    val rvdPath = path + "/" + rel_path
-    rvdSpec(ctx.fs, path)
-      .readLocalSingleRow(ctx, rvdPath, requestedType)
-  }
 }
 
 case class PartitionCountsComponentSpec(counts: Seq[Long]) extends ComponentSpec

@@ -37,7 +37,7 @@ sourceSets {
 }
 
 compileJava {
-    options.compilerArgs << "-Xlint:all" << "-Werror" << "-XDenableSunApiLintControl" << "-Xlint:-sunapi"
+    options.compilerArgs << "-Xlint:all" << "-Werror" << "-XDenableSunApiLintControl" << "-XDignore.symbol.file"
 }
 tasks.withType(JavaCompile) {
     options.fork = true // necessary to make -XDenableSunApiLintControl work
@@ -61,7 +61,7 @@ compileScala {
         "-Xlint:all" <<
         "-Werror" <<
         "-XDenableSunApiLintControl" <<
-        "-Xlint:-sunapi" <<
+        "-XDignore.symbol.file" <<
         "-Xlint:-path" // Apparently we try to find some libraries that aren't always installed
 
     scalaCompileOptions.additionalParameters = [
