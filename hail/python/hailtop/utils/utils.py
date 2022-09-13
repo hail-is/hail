@@ -4,7 +4,6 @@ from typing_extensions import Literal
 from types import TracebackType
 import concurrent
 import contextlib
-import functools
 import subprocess
 import traceback
 import sys
@@ -552,6 +551,12 @@ class TransientError(Exception):
     pass
 
 
+RETRY_ONCE_BAD_REQUEST_ERROR_MESSAGES = {
+    'User project specified in the request is invalid.',
+    'Invalid grant: account not found',
+}
+
+
 def is_retry_once_error(e):
     # An exception is a "retry once error" if a rare, known bug in a dependency or in a cloud
     # provider can manifest as this exception *and* that manifestation is indistinguishable from a
@@ -562,7 +567,7 @@ def is_retry_once_error(e):
                 and 'azurecr.io' in e.message
                 and 'not found: manifest unknown: ' in e.message)
     if isinstance(e, hailtop.httpx.ClientResponseError):
-        return e.status == 400 and 'User project specified in the request is invalid.' in e.body
+        return e.status == 400 and any(msg in e.body for msg in RETRY_ONCE_BAD_REQUEST_ERROR_MESSAGES)
     return False
 
 
@@ -763,15 +768,6 @@ async def retry_transient_errors_with_debug_string(debug_string: str, f: Callabl
                             f'We have thus far seen {errors} transient errors (current delay: '
                             f'{delay}). The stack trace for this call is {st}. The most recent error was {type(e)} {e}. {debug_string}', exc_info=True)
         delay = await sleep_and_backoff(delay)
-
-
-def retry_transient_errors_wrapper(f):
-    """Decorator for `retry_transient_errors`."""
-    @functools.wraps(f)
-    async def wrapper(*args, **kwargs):
-        return await retry_transient_errors(f, *args, **kwargs)
-
-    return wrapper
 
 
 def sync_retry_transient_errors(f, *args, **kwargs):
