@@ -904,12 +904,14 @@ class Tests(unittest.TestCase):
         f = new_temp_file(extension='ht')
         t.write(f)
         t1 = hl.read_table(f, _create_row_uids=True)
+
         t2 = hl.read_table(f, _intervals=[
             hl.Interval(start=150, end=250, includes_start=True, includes_end=False),
             hl.Interval(start=250, end=500, includes_start=True, includes_end=False),
         ], _create_row_uids=True)
         self.assertEqual(t2.n_partitions(), 2)
         self.assertEqual(t2.count(), 350)
+        self.assertEqual(t2._force_count(), 350)
         self.assertTrue(t1.filter((t1.idx >= 150) & (t1.idx < 500))._same(t2))
 
         t2 = hl.read_table(f, _intervals=[
@@ -1828,3 +1830,34 @@ def test_to_pandas_nd_array():
 
     df_from_python = pd.DataFrame(python_data)
     pd.testing.assert_frame_equal(df_from_hail, df_from_python)
+
+
+def test_write_many():
+    t = hl.utils.range_table(5)
+    t = t.annotate(a = t.idx, b = t.idx * t.idx, c = hl.str(t.idx))
+    with hl.TemporaryDirectory(ensure_exists=False) as f:
+        t.write_many(f, fields=('a', 'b', 'c'))
+
+        assert hl.read_table(f + '/a').collect() == [
+            hl.Struct(idx=0, a=0),
+            hl.Struct(idx=1, a=1),
+            hl.Struct(idx=2, a=2),
+            hl.Struct(idx=3, a=3),
+            hl.Struct(idx=4, a=4)
+        ]
+
+        assert hl.read_table(f + '/b').collect() == [
+            hl.Struct(idx=0, b=0),
+            hl.Struct(idx=1, b=1),
+            hl.Struct(idx=2, b=4),
+            hl.Struct(idx=3, b=9),
+            hl.Struct(idx=4, b=16)
+        ]
+
+        assert hl.read_table(f + '/c').collect() == [
+            hl.Struct(idx=0, c='0'),
+            hl.Struct(idx=1, c='1'),
+            hl.Struct(idx=2, c='2'),
+            hl.Struct(idx=3, c='3'),
+            hl.Struct(idx=4, c='4')
+        ]

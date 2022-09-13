@@ -385,6 +385,13 @@ class Tests(unittest.TestCase):
              hl.Struct(row_idx=2, col_idx=1, bar=[4, 6]),
              hl.Struct(row_idx=2, col_idx=2, bar=[8, 10, 12])])
 
+    def test_collect_cols_by_key_with_rand(self):
+        mt = hl.utils.range_matrix_table(3, 3)
+        mt = mt.annotate_cols(x = hl.rand_norm())
+        mt = mt.collect_cols_by_key()
+        mt = mt.annotate_cols(x = hl.rand_norm())
+        mt.cols().collect()
+
     def test_weird_names(self):
         ds = self.get_mt()
         exprs = {'a': 5, '   a    ': 5, r'\%!^!@#&#&$%#$%': [5], '$': 5, 'ß': 5}

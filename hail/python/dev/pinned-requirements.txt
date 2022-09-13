@@ -72,7 +72,7 @@ execnet==1.9.0
     # via pytest-xdist
 fastjsonschema==2.15.3
     # via nbformat
-filelock==3.7.1
+filelock==3.8.0
     # via virtualenv
 flake8==4.0.1
     # via -r python/dev/requirements.txt
@@ -94,7 +94,7 @@ importlib-metadata==3.10.1
     #   pre-commit
     #   pytest
     #   virtualenv
-importlib-resources==5.7.1
+importlib-resources==5.9.0
     # via jsonschema
 iniconfig==1.1.1
     # via pytest
@@ -388,7 +388,7 @@ types-decorator==5.1.7
     # via -r python/dev/requirements.txt
 types-deprecated==1.2.8
     # via -r python/dev/requirements.txt
-types-python-dateutil==2.8.17
+types-python-dateutil==2.8.19
     # via -r python/dev/requirements.txt
 types-pyyaml==6.0.8
     # via -r python/dev/requirements.txt
@@ -413,7 +413,7 @@ typing-extensions==4.2.0
     #   jsonschema
     #   mypy
     #   pylint
-urllib3==1.26.9
+urllib3==1.26.12
     # via requests
 virtualenv==20.14.1
     # via pre-commit

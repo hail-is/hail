@@ -3,7 +3,7 @@ import itertools
 import pandas
 import numpy as np
 import pyspark
-from typing import Optional, Dict, Callable
+from typing import Optional, Dict, Callable, Sequence
 
 from hail.expr.expressions import Expression, StructExpression, \
     BooleanExpression, expr_struct, expr_any, expr_bool, analyze, Indices, \
@@ -1333,6 +1333,137 @@ class Table(ExprContainer):
         """
 
         Env.backend().execute(ir.TableWrite(self._tir, ir.TableNativeWriter(output, overwrite, stage_locally, _codec_spec)))
+
+    @typecheck_method(output=str,
+                      fields=sequenceof(str),
+                      overwrite=bool,
+                      stage_locally=bool,
+                      _codec_spec=nullable(str))
+    def write_many(self,
+                   output: str,
+                   fields: Sequence[str],
+                   *,
+                   overwrite: bool = False,
+                   stage_locally: bool = False,
+                   _codec_spec: Optional[str] = None):
+        """Write fields to distinct tables.
+
+        Examples
+        --------
+
+        >>> t = hl.utils.range_table(10)
+        >>> t = t.annotate(a = t.idx, b = t.idx * t.idx, c = hl.str(t.idx))
+        >>> t.write_many('output', fields=('a', 'b', 'c'))
+        >>> hl.read_table('output/a').describe()
+        ----------------------------------------
+        Global fields:
+            None
+        ----------------------------------------
+        Row fields:
+            'a': int32
+            'idx': int32
+        ----------------------------------------
+        Key: ['idx']
+        ----------------------------------------
+        >>> hl.read_table('output/a').show()
+        +-------+-------+
+        |     a |   idx |
+        +-------+-------+
+        | int32 | int32 |
+        +-------+-------+
+        |     0 |     0 |
+        |     1 |     1 |
+        |     2 |     2 |
+        |     3 |     3 |
+        |     4 |     4 |
+        |     5 |     5 |
+        |     6 |     6 |
+        |     7 |     7 |
+        |     8 |     8 |
+        |     9 |     9 |
+        +-------+-------+
+        >>> hl.read_table('output/b').describe()
+        ----------------------------------------
+        Global fields:
+            None
+        ----------------------------------------
+        Row fields:
+            'b': int32
+            'idx': int32
+        ----------------------------------------
+        Key: ['idx']
+        ----------------------------------------
+        >>> hl.read_table('output/b').show()
+        +-------+-------+
+        |     b |   idx |
+        +-------+-------+
+        | int32 | int32 |
+        +-------+-------+
+        |     0 |     0 |
+        |     1 |     1 |
+        |     4 |     2 |
+        |     9 |     3 |
+        |    16 |     4 |
+        |    25 |     5 |
+        |    36 |     6 |
+        |    49 |     7 |
+        |    64 |     8 |
+        |    81 |     9 |
+        +-------+-------+
+        >>> hl.read_table('output/c').describe()
+        ----------------------------------------
+        Global fields:
+            None
+        ----------------------------------------
+        Row fields:
+            'c': str
+            'idx': int32
+        ----------------------------------------
+        Key: ['idx']
+        ----------------------------------------
+        >>> hl.read_table('output/c').show()
+        +-----+-------+
+        | c   |   idx |
+        +-----+-------+
+        | str | int32 |
+        +-----+-------+
+        | "0" |     0 |
+        | "1" |     1 |
+        | "2" |     2 |
+        | "3" |     3 |
+        | "4" |     4 |
+        | "5" |     5 |
+        | "6" |     6 |
+        | "7" |     7 |
+        | "8" |     8 |
+        | "9" |     9 |
+        +-----+-------+
+
+        .. include:: _templates/write_warning.rst
+
+        See Also
+        --------
+        :func:`.read_table`
+
+        Parameters
+        ----------
+        output : str
+            Path at which to write.
+        fields : list of str
+            The fields to write.
+        stage_locally: bool
+            If ``True``, major output will be written to temporary local storage
+            before being copied to ``output``.
+        overwrite : bool
+            If ``True``, overwrite an existing file at the destination.
+        """
+
+        Env.backend().execute(
+            ir.TableWrite(
+                self._tir,
+                ir.TableNativeFanoutWriter(output, fields, overwrite, stage_locally, _codec_spec)
+            )
+        )
 
     def _show(self, n, width, truncate, types):
         return Table._Show(self, n, width, truncate, types)
