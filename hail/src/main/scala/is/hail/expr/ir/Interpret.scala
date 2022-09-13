@@ -23,7 +23,7 @@ object Interpret {
     apply(tir, ctx, optimize = true)
 
   def apply(tir: TableIR, ctx: ExecuteContext, optimize: Boolean): TableValue = {
-    val lowered = LoweringPipeline.legacyRelationalLowerer(optimize)(ctx, tir).asInstanceOf[TableIR]
+    val lowered = LoweringPipeline.legacyRelationalLowerer(optimize)(ctx, tir).asInstanceOf[TableIR].noSharing
     lowered.analyzeAndExecute(ctx).asTableValue(ctx)
   }
 
