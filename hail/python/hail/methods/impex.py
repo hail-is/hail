@@ -3226,6 +3226,7 @@ def import_gvs(refs: 'List[List[str]]',
         info(f'import_gvs: collecting sample IDs...')
         sample_ids = sorted(list(ref_ht.aggregate(hl.agg.collect_as_set(ref_ht.sample_id))))
         samples = [sample_mapping_dict[s] for s in sample_ids]
+        assert len(sample_ids) == len(samples), (len(sample_ids), len(samples))
         new_loc = translate_locus(ref_ht.location)
 
         # transform fields to Hail expectations (locus object, GQ int32, end as absolute instead of relative
