@@ -47,6 +47,11 @@ class Backend(abc.ABC, Generic[RunningBatchType]):
 
     _closed = False
 
+    @staticmethod
+    @abc.abstractmethod
+    def validate_scheme(path: str) -> void:
+        pass
+
     @abc.abstractmethod
     def _run(self, batch, dry_run, verbose, delete_scratch_on_exit, **backend_kwargs) -> RunningBatchType:
         """
@@ -447,6 +452,16 @@ class ServiceBackend(Backend[bc.Batch]):
 
         gcs_kwargs = {'project': google_project}
         self.__fs: AsyncFS = RouterAsyncFS(default_scheme='file', gcs_kwargs=gcs_kwargs)
+
+    @staticmethod
+    def validate_scheme(path: str) -> void:
+        path_parts = path.split("://")
+        if len(path_parts) == 1 or path_parts[0] == "file":
+            raise ValueError(
+                f"local filepath detected: '{path}'. "
+                "ServiceBackend does not support the use of local filepaths. "
+                "please specify a remote URI instead (e.g. gs://bucket/folder)."
+            )
 
     @property
     def _fs(self):
