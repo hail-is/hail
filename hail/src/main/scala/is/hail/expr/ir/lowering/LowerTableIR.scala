@@ -225,6 +225,8 @@ class TableStage(
         "global" -> globals))
     }
 
+  def countPerPartition(relationalBindings: Map[String, IR]): IR = mapCollect(relationalBindings, "count_per_partition")(part => Cast(StreamLen(part), TInt64))
+
   def getGlobals(): IR = TableStage.wrapInBindings(globals, letBindings)
 
   def getNumPartitions(): IR = TableStage.wrapInBindings(StreamLen(contexts), letBindings)
@@ -469,7 +471,7 @@ object LowerTableIR {
       case TableCount(tableIR) =>
         val stage = lower(tableIR)
         invoke("sum", TInt64,
-          stage.mapCollect(relationalLetsAbove, "table_count")(rows => Cast(StreamLen(rows), TInt64)))
+          stage.countPerPartition(relationalLetsAbove))
 
       case TableToValueApply(child, ForceCountTable()) =>
         val stage = lower(child)
