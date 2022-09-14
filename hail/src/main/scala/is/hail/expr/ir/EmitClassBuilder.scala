@@ -719,7 +719,7 @@ class EmitClassBuilder[C](
             }
           }
         }
-        val f = theClass.newInstance().asInstanceOf[C]
+        val f = theClass.getDeclaredConstructor().newInstance().asInstanceOf[C]
         f.asInstanceOf[FunctionWithHailClassLoader].addHailClassLoader(hcl)
         f.asInstanceOf[FunctionWithFS].addFS(fs)
         f.asInstanceOf[FunctionWithPartitionRegion].addPartitionRegion(region)

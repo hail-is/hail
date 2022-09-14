@@ -146,7 +146,7 @@ async def managed_disk_prices_by_region(
     prices: List[AzureDiskPrice] = []
     seen_disk_names: Dict[str, str] = {}
 
-    filter = f'serviceName eq \'Storage\' and armRegionName eq \'{region}\' and endswith(meterName,\'Disks\')'
+    filter = f'serviceName eq \'Storage\' and armRegionName eq \'{region}\' and ( endswith(meterName,\'Disk\') or endswith(meterName,\'Disks\') )'
     async for data in pricing_client.list_prices(filter=filter):
         if data['type'] != 'Consumption' or data['productName'] == 'Premium Page Blob':
             continue

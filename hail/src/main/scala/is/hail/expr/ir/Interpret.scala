@@ -23,7 +23,7 @@ object Interpret {
     apply(tir, ctx, optimize = true)
 
   def apply(tir: TableIR, ctx: ExecuteContext, optimize: Boolean): TableValue = {
-    val lowered = LoweringPipeline.legacyRelationalLowerer(optimize)(ctx, tir).asInstanceOf[TableIR]
+    val lowered = LoweringPipeline.legacyRelationalLowerer(optimize)(ctx, tir).asInstanceOf[TableIR].noSharing
     lowered.analyzeAndExecute(ctx).asTableValue(ctx)
   }
 
@@ -209,9 +209,16 @@ object Interpret {
               case TFloat64 => -xValue.asInstanceOf[Double]
             }
           case BitNot() =>
+            assert(x.typ.isInstanceOf[TIntegral])
             x.typ match {
               case TInt32 => ~xValue.asInstanceOf[Int]
               case TInt64 => ~xValue.asInstanceOf[Long]
+            }
+          case BitCount() =>
+            assert(x.typ.isInstanceOf[TIntegral])
+            x.typ match {
+              case TInt32 => Integer.bitCount(xValue.asInstanceOf[Int])
+              case TInt64 => java.lang.Long.bitCount(xValue.asInstanceOf[Long])
             }
         }
       case ApplyComparisonOp(op, l, r) =>

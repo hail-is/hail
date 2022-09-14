@@ -51,6 +51,10 @@ case class IndexMetadataUntypedJSON(
     fileVersion, branchingFactor,
     height, keyType, annotationType,
     nKeys, indexPath, rootOffset, attributes)
+
+  def toFileMetadata: VariableMetadata = VariableMetadata(
+    branchingFactor, height, nKeys, rootOffset, attributes
+  )
 }
 
 case class IndexMetadata(

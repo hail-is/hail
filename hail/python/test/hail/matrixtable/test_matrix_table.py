@@ -385,6 +385,13 @@ class Tests(unittest.TestCase):
              hl.Struct(row_idx=2, col_idx=1, bar=[4, 6]),
              hl.Struct(row_idx=2, col_idx=2, bar=[8, 10, 12])])
 
+    def test_collect_cols_by_key_with_rand(self):
+        mt = hl.utils.range_matrix_table(3, 3)
+        mt = mt.annotate_cols(x = hl.rand_norm())
+        mt = mt.collect_cols_by_key()
+        mt = mt.annotate_cols(x = hl.rand_norm())
+        mt.cols().collect()
+
     def test_weird_names(self):
         ds = self.get_mt()
         exprs = {'a': 5, '   a    ': 5, r'\%!^!@#&#&$%#$%': [5], '$': 5, 'ß': 5}
@@ -1662,6 +1669,16 @@ class Tests(unittest.TestCase):
         assert t.filter(t.locus.position >= 1).collect() == [
             hl.utils.Struct(idx=0, locus=hl.genetics.Locus(contig='2', position=1, reference_genome='GRCh37'))]
 
+    @fails_service_backend()
+    @fails_local_backend()
+    def test_lower_row_agg_init_arg(self):
+        mt = hl.balding_nichols_model(5, 200, 200)
+        mt2 = hl.variant_qc(mt)
+        mt2 = mt2.filter_rows((mt2.variant_qc.AF[0] > 0.05) & (mt2.variant_qc.AF[0] < 0.95))
+        mt2 = mt2.sample_rows(.99)
+        rows = mt2.rows()
+        mt = mt.semi_join_rows(rows)
+        hl.hwe_normalized_pca(mt.GT)
 
 def test_keys_before_scans():
     mt = hl.utils.range_matrix_table(6, 6)

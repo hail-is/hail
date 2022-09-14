@@ -5,12 +5,12 @@ import numpy as np
 
 import hail as hl
 from hail.utils.java import warning
-from .utils import should_use_for_grouping
+from .utils import should_use_scale_for_grouping
 
 
 class Stat:
     @abc.abstractmethod
-    def make_agg(self, mapping, precomputed):
+    def make_agg(self, mapping, precomputed, scales):
         return
 
     @abc.abstractmethod
@@ -23,9 +23,9 @@ class Stat:
 
 
 class StatIdentity(Stat):
-    def make_agg(self, mapping, precomputed):
+    def make_agg(self, mapping, precomputed, scales):
         grouping_variables = {aes_key: mapping[aes_key] for aes_key in mapping.keys()
-                              if should_use_for_grouping(aes_key, mapping[aes_key].dtype)}
+                              if should_use_scale_for_grouping(scales[aes_key])}
         non_grouping_variables = {aes_key: mapping[aes_key] for aes_key in mapping.keys() if aes_key not in grouping_variables}
         return hl.agg.group_by(hl.struct(**grouping_variables), hl.agg.collect(hl.struct(**non_grouping_variables)))
 
@@ -49,13 +49,13 @@ class StatFunction(StatIdentity):
     def __init__(self, fun):
         self.fun = fun
 
-    def make_agg(self, mapping, precomputed):
+    def make_agg(self, mapping, precomputed, scales):
         with_y_value = mapping.annotate(y=self.fun(mapping.x))
-        return super().make_agg(with_y_value, precomputed)
+        return super().make_agg(with_y_value, precomputed, scales)
 
 
 class StatNone(Stat):
-    def make_agg(self, mapping, precomputed):
+    def make_agg(self, mapping, precomputed, scales):
         return hl.agg.take(hl.struct(), 0)
 
     def listify(self, agg_result):
@@ -63,9 +63,9 @@ class StatNone(Stat):
 
 
 class StatCount(Stat):
-    def make_agg(self, mapping, precomputed):
+    def make_agg(self, mapping, precomputed, scales):
         grouping_variables = {aes_key: mapping[aes_key] for aes_key in mapping.keys()
-                              if should_use_for_grouping(aes_key, mapping[aes_key].dtype)}
+                              if should_use_scale_for_grouping(scales[aes_key])}
         if "weight" in mapping:
             return hl.agg.group_by(hl.struct(**grouping_variables), hl.agg.counter(mapping["x"], weight=mapping["weight"]))
         return hl.agg.group_by(hl.struct(**grouping_variables), hl.agg.group_by(mapping["x"], hl.agg.count()))
@@ -102,9 +102,9 @@ class StatBin(Stat):
             precomputes["max_val"] = hl.agg.max(mapping.x)
         return hl.struct(**precomputes)
 
-    def make_agg(self, mapping, precomputed):
+    def make_agg(self, mapping, precomputed, scales):
         grouping_variables = {aes_key: mapping[aes_key] for aes_key in mapping.keys()
-                              if should_use_for_grouping(aes_key, mapping[aes_key].dtype)}
+                              if should_use_scale_for_grouping(scales[aes_key])}
 
         start = self.min_val if self.min_val is not None else precomputed.min_val
         end = self.max_val if self.max_val is not None else precomputed.max_val
@@ -137,9 +137,9 @@ class StatCDF(Stat):
     def __init__(self, k):
         self.k = k
 
-    def make_agg(self, mapping, precomputed):
+    def make_agg(self, mapping, precomputed, scales):
         grouping_variables = {aes_key: mapping[aes_key] for aes_key in mapping.keys()
-                              if should_use_for_grouping(aes_key, mapping[aes_key].dtype)}
+                              if should_use_scale_for_grouping(scales[aes_key])}
         return hl.agg.group_by(hl.struct(**grouping_variables), hl.agg.approx_cdf(mapping["x"], self.k))
 
     def listify(self, agg_result):

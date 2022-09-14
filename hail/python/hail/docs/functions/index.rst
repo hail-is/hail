@@ -98,6 +98,7 @@ These functions are exposed at the top level of the module, e.g. ``hl.case``.
     bit_lshift
     bit_rshift
     bit_not
+    bit_count
     exp
     expit
     is_nan

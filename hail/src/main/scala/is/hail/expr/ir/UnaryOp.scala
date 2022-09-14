@@ -15,6 +15,7 @@ object UnaryOp {
     case (Negate(), t@(TInt32 | TInt64 | TFloat32 | TFloat64)) => t
     case (Bang(), TBoolean) => TBoolean
     case (BitNot(), t@(TInt32 | TInt64)) => t
+    case (BitCount(), TInt32 | TInt64) => TInt32
   }
 
   def returnTypeOption(op: UnaryOp, t: Type): Option[Type] =
@@ -44,6 +45,7 @@ object UnaryOp {
       op match {
         case Negate() => -xx
         case BitNot() => ~xx
+        case BitCount() => xx.bitCount
         case _ => incompatible(t, op)
       }
     case TInt64 =>
@@ -51,6 +53,7 @@ object UnaryOp {
       op match {
         case Negate() => -xx
         case BitNot() => ~xx
+        case BitCount() => xx.bitCount
         case _ => incompatible(t, op)
       }
     case TFloat32 =>
@@ -72,6 +75,7 @@ object UnaryOp {
     case "-" | "Negate" => Negate()
     case "!" | "Bang" => Bang()
     case "~" | "BitNot" => BitNot()
+    case "BitCount" => BitCount()
   }
 }
 
@@ -79,3 +83,4 @@ sealed trait UnaryOp { }
 case class Negate() extends UnaryOp { }
 case class Bang() extends UnaryOp { }
 case class BitNot() extends UnaryOp
+case class BitCount() extends UnaryOp
