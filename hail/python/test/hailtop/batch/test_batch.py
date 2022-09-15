@@ -579,6 +579,18 @@ class ServiceTests(unittest.TestCase):
         res_status = res.status()
         assert res_status['state'] == 'success', str((res_status, res.debug_info()))
 
+    def test_local_paths_error(self):
+        b = self.batch()
+        j = b.new_job()
+        for input in ["hi.txt", "~/hello.csv", "./hey.tsv", "/sup.json", "file://yo.yaml"]:
+            with pytest.raises(ValueError) as e:
+                b.read_input(input)
+                assert str(e.value).startsWith("local filepath detected")
+        for resource_group in [{'r5': '{root}.r5', 'r3': '{root}.r3'}, {'r5': 'file://{root}.r5', 'r3': 'file://{root}.r3'}]:
+            with pytest.raises(ValueError) as e:
+                j.declare_resource_group(foo=resource_group)
+                assert str(e.value).startsWith("local filepath detected")
+
     def test_dry_run(self):
         b = self.batch()
         j = b.new_job()
