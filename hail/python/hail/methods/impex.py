@@ -3062,7 +3062,8 @@ def import_avro(paths, *, key=None, intervals=None):
            tmp_dir=str,
            truth_sensitivity_snp_threshold=float,
            truth_sensitivity_indel_threshold=float,
-           reference_genome=reference_genome_type)
+           reference_genome=reference_genome_type,
+           partitions_per_sample=numeric)
 def import_gvs(refs: 'List[List[str]]',
                vets: 'List[List[str]]',
                sample_mapping: 'List[str]',
@@ -3073,7 +3074,8 @@ def import_gvs(refs: 'List[List[str]]',
                tmp_dir: 'str',
                truth_sensitivity_snp_threshold: 'float' = 0.997,
                truth_sensitivity_indel_threshold: 'float' = 0.990,
-               reference_genome='GRCh38'):
+               reference_genome='GRCh38',
+               partitions_per_sample=1.2):
     """Import a collection of Avro files exported from GVS.
 
     This function is used to import Avro files exported from BigQuery for
@@ -3163,7 +3165,7 @@ def import_gvs(refs: 'List[List[str]]',
     :class:`.VariantDataset`
     """
     from hail.utils.java import info
-    vdses = []
+    vds_paths = []
     assert len(refs) == len(vets)
 
     if not reference_genome.has_sequence():
@@ -3191,12 +3193,12 @@ def import_gvs(refs: 'List[List[str]]',
         mt = mt.annotate_rows(ref_allele=mt.locus.sequence_context())
         return mt
 
-    info('Importing and collecting sample mapping lookup table')
+    info('import_gvs: Importing and collecting sample mapping lookup table')
 
     samp = hl.import_avro(sample_mapping)
     sample_mapping_dict = samp.aggregate(hl.dict(hl.agg.collect((samp.sample_id, samp.sample_name))))
 
-    info('Importing and writing site filters to temporary storage')
+    info('import_gvs: Importing and writing site filters to temporary storage')
     site = hl.import_avro(site_filtering_data)
     site = site.transmute(
         locus=translate_locus(site.location),
@@ -3206,7 +3208,7 @@ def import_gvs(refs: 'List[List[str]]',
     site_path = os.path.join(tmp_dir, 'site_filters.ht')
     site.write(site_path, overwrite=True)
 
-    info('Importing and writing VQSR filter data to temporary storage')
+    info('import_gvs: Importing and writing VQSR filter data to temporary storage')
     vqsr = hl.import_avro(vqsr_filtering_data)
     vqsr = vqsr.transmute(
         locus=translate_locus(vqsr.location)
@@ -3217,6 +3219,8 @@ def import_gvs(refs: 'List[List[str]]',
 
     tranche = hl.import_avro(vqsr_tranche_data)
 
+    n_samples = 0
+
     idx = 1
     for ref_group, var_group in zip(refs, vets):
         info(f'import_gvs: scanning group {idx}/{len(refs)}...')
@@ -3226,7 +3230,10 @@ def import_gvs(refs: 'List[List[str]]',
         info(f'import_gvs: collecting sample IDs...')
         sample_ids = sorted(list(ref_ht.aggregate(hl.agg.collect_as_set(ref_ht.sample_id))))
         samples = [sample_mapping_dict[s] for s in sample_ids]
-        assert len(sample_ids) == len(samples), (len(sample_ids), len(samples))
+        n_new_samples = len(sample_ids)
+        n_samples += n_new_samples
+        assert n_new_samples == len(samples), (n_new_samples, len(samples))
+
         new_loc = translate_locus(ref_ht.location)
 
         # transform fields to Hail expectations (locus object, GQ int32, end as absolute instead of relative
@@ -3277,30 +3284,33 @@ def import_gvs(refs: 'List[List[str]]',
         var_mt = var_mt.drop('local_allele_lookup')
         var_mt = var_mt._key_rows_by_assert_sorted('locus', 'alleles')
 
-        vdses.append(hl.vds.VariantDataset(ref_mt, var_mt))
+        info(f'import_gvs: writing intermediate VDS for sample group {idx} with {n_new_samples} samples...')
+        vds = hl.vds.VariantDataset(ref_mt, var_mt)
+        path = os.path.join(tmp_dir, f'sample_group_{idx}.vds')
+        vds.write(path)
+        vds_paths.append(path)
         idx += 1
 
+    total_partitions = int(partitions_per_sample * n_samples)
+    first_ref_mt = hl.read_matrix_table(hl.vds.VariantDataset._reference_path(vds_paths[0]))
+    info(f'import_gvs: computing partition intervals for final partitioning ({total_partitions} partitions)')
+    partition_intervals = first_ref_mt._calculate_new_partitions(n_partitions=total_partitions)
+
+    vdses = [hl.vds.read_vds(path, intervals=partition_intervals) for path in vds_paths]
+
     combined = hl.vds.combiner.combine_variant_datasets(vdses)
-    checkpoint_path = os.path.join(tmp_dir, 'combined_tmp.vds')
 
-    info(f'import_gvs: checkpointing combined VDS to temporary directory before repartition')
-    combined = combined.checkpoint(checkpoint_path, overwrite=True)
+    info(f'import_gvs: merging {len(vdses)} intermediates and writing final VDS')
 
-    new_partitioner = combined.reference_data._calculate_new_partitions(combined.reference_data.n_partitions())
-
-    info('import_gvs: repartitioning and writing final VDS')
+    rd = combined.reference_data
+    vd = combined.variant_data
 
     # add reference base to reference data table as a Hail VDS requirement. Add from FASTA file.
-    rd = add_reference_allele(
-        hl.read_matrix_table(os.path.join(checkpoint_path, 'reference_data'),
-                             _intervals=new_partitioner))
-
-    vd = hl.read_matrix_table(os.path.join(checkpoint_path, 'variant_data'),
-                              _intervals=new_partitioner)
+    rd = add_reference_allele(rd)
 
     # read site and vqsr data with same intervals for efficient joins
-    site = hl.read_table(site_path, _intervals=new_partitioner)
-    vqsr = hl.read_table(vqsr_path, _intervals=new_partitioner)
+    site = hl.read_table(site_path, _intervals=partition_intervals)
+    vqsr = hl.read_table(vqsr_path, _intervals=partition_intervals)
 
     vd = vd.annotate_rows(filters=hl.coalesce(site[vd.locus].filters, hl.empty_set(hl.tstr)))
 
