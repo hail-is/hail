@@ -413,6 +413,28 @@ class MatrixRangeReader(
   }
 }
 
+object MatrixRead {
+  def apply(
+    typ: MatrixType,
+    dropCols: Boolean,
+    dropRows: Boolean,
+    reader: MatrixReader
+  ): MatrixRead = {
+    assert(!reader.fullMatrixTypeWithoutUIDs.rowType.hasField(MatrixReader.rowUIDFieldName) &&
+      !reader.fullMatrixTypeWithoutUIDs.colType.hasField(MatrixReader.colUIDFieldName))
+    new MatrixRead(typ, dropCols, dropRows, reader)
+  }
+
+  def preserveExistingUIDs(
+    typ: MatrixType,
+    dropCols: Boolean,
+    dropRows: Boolean,
+    reader: MatrixReader
+  ): MatrixRead = {
+    new MatrixRead(typ, dropCols, dropRows, reader)
+  }
+}
+
 case class MatrixRead(
   typ: MatrixType,
   dropCols: Boolean,

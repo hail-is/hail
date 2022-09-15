@@ -1403,6 +1403,23 @@ object TableRead {
         rowType = tr.fullType.rowType.deleteKey(TableReader.uidFieldName))
     TableRead(requestedType, false, tr)
   }
+
+  def apply(
+    typ: TableType,
+    dropRows: Boolean,
+    tr: TableReader
+  ): TableRead = {
+    assert(!tr.fullTypeWithoutUIDs.rowType.hasField(TableReader.uidFieldName))
+    new TableRead(typ, dropRows, tr)
+  }
+
+  def preserveExistingUIDs(
+    typ: TableType,
+    dropRows: Boolean,
+    tr: TableReader
+  ): TableRead = {
+    new TableRead(typ, dropRows, tr)
+  }
 }
 
 case class TableRead(typ: TableType, dropRows: Boolean, tr: TableReader) extends TableIR {
