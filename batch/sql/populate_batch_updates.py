@@ -123,7 +123,7 @@ async def main(chunk_size=100):
             await bounded_gather(
                 *[functools.partial(process_chunk, chunk_counter, db, start_offset, end_offset, quiet=False)
                   for start_offset, end_offset in chunk_offsets],
-                parallelism=10
+                parallelism=6
             )
             print(f'took {time.time() - parallel_update_start}s to update the remaining records in parallel ({(chunk_size * len(chunk_offsets)) / (time.time() - parallel_update_start)}) attempts / sec')
 

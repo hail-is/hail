@@ -17,9 +17,9 @@ CREATE INDEX `batch_updates_committed` ON `batch_updates` (`batch_id`, `committe
 CREATE INDEX `batch_updates_start_job_id` ON `batch_updates` (`batch_id`, `start_job_id`);
 
 ALTER TABLE batches ADD COLUMN update_added BOOLEAN DEFAULT FALSE, ALGORITHM=INSTANT;
-ALTER TABLE jobs ADD COLUMN update_id INT DEFAULT 1, ALGORITHM=INSTANT;
-ALTER TABLE batches_inst_coll_staging ADD COLUMN update_id INT DEFAULT 1, ALGORITHM=INSTANT;
-ALTER TABLE batch_inst_coll_cancellable_resources ADD COLUMN update_id INT DEFAULT 1, ALGORITHM=INSTANT;
+ALTER TABLE jobs ADD COLUMN update_id INT NOT NULL DEFAULT 1, ALGORITHM=INSTANT;
+ALTER TABLE batches_inst_coll_staging ADD COLUMN update_id INT NOT NULL DEFAULT 1, ALGORITHM=INSTANT;
+ALTER TABLE batch_inst_coll_cancellable_resources ADD COLUMN update_id INT NOT NULL DEFAULT 1, ALGORITHM=INSTANT;
 
 DELIMITER $$
 
@@ -35,8 +35,8 @@ CREATE TRIGGER batches_after_insert AFTER INSERT ON batches
 FOR EACH ROW
 BEGIN
   IF NEW.n_jobs > 0 THEN
-    INSERT INTO `batch_updates` (`batch_id`, `update_id`, `token`, start_job_id, n_jobs, `committed`, time_created)
-    VALUES (NEW.id, 1, NEW.token, 1, NEW.n_jobs, FALSE, NEW.time_created);
+    INSERT INTO `batch_updates` (`batch_id`, `update_id`, `token`, start_job_id, n_jobs, `committed`, time_created, time_committed)
+    VALUES (NEW.id, 1, NEW.token, 1, NEW.n_jobs, FALSE, NEW.time_created, NEW.time_closed);
   END IF;
 END $$
 
@@ -55,7 +55,7 @@ BEGIN
   IF NEW.n_jobs > 0 THEN
     INSERT INTO `batch_updates` (`batch_id`, `update_id`, `token`, start_job_id, n_jobs, `committed`, time_created, time_committed)
     VALUES (NEW.id, 1, NEW.token, 1, NEW.n_jobs, NEW.state != 'open', NEW.time_created, NEW.time_closed)
-    ON DUPLICATE KEY UPDATE committed = NEW.state != 'open';
+    ON DUPLICATE KEY UPDATE committed = NEW.state != 'open', time_committed = NEW.time_closed;
   END IF;
 END $$
 
