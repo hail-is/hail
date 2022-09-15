@@ -24,6 +24,26 @@ an earlier version of Hail to read files written in a later version.
 
 ---
 
+## Version 0.2.99
+
+Released 2022-09-13
+
+### New Features
+
+- (hail#12091) Teach `Table` to `write_many`, which writes one table per provided field.
+- (hail#12067) Add `rand_int32` and `rand_int64` for generating random 32-bit and 64-bit integers, respectively.
+
+### Performance Improvements
+
+- (hail#12159) Improve performance of MatrixTable reads when using `_intervals` argument
+
+### Bug fixes
+
+- (hail#12179) Fix incorrect composition of interval filters with unordered interval lists that could lead to over- or under-filtering.
+- (hail#12162) Fixed crash in `collect_cols_by_key` with preceding random functions.
+
+---
+
 ## Version 0.2.98
 
 Released 2022-08-22

@@ -23,13 +23,12 @@ from plotly.subplots import make_subplots
 from prometheus_async.aio.web import server_stats
 
 from gear import (
+    AuthClient,
     Database,
     check_csrf_token,
     monitor_endpoints_middleware,
-    rest_authenticated_developers_only,
     setup_aiohttp_session,
     transaction,
-    web_authenticated_developers_only,
 )
 from gear.clients import get_cloud_async_fs
 from hailtop import aiotools, httpx
@@ -79,6 +78,8 @@ log.info(f'REFRESH_INTERVAL_IN_SECONDS {REFRESH_INTERVAL_IN_SECONDS}')
 routes = web.RouteTableDef()
 
 deploy_config = get_deploy_config()
+
+auth = AuthClient()
 
 
 def ignore_failed_to_collect_and_upload_profile(record):
@@ -174,7 +175,7 @@ async def get_healthcheck(request):  # pylint: disable=W0613
 
 
 @routes.get('/check_invariants')
-@rest_authenticated_developers_only
+@auth.rest_authenticated_developers_only
 async def get_check_invariants(request, userdata):  # pylint: disable=unused-argument
     app = request.app
     data = {
@@ -288,7 +289,7 @@ async def deactivate_instance(request, instance):  # pylint: disable=unused-argu
 
 @routes.post('/instances/{instance_name}/kill')
 @check_csrf_token
-@web_authenticated_developers_only()
+@auth.web_authenticated_developers_only()
 async def kill_instance(request, userdata):  # pylint: disable=unused-argument
     instance_name = request.match_info['instance_name']
 
@@ -419,7 +420,7 @@ async def billing_update(request, instance):
 
 @routes.get('/')
 @routes.get('')
-@web_authenticated_developers_only()
+@auth.web_authenticated_developers_only()
 async def get_index(request, userdata):
     app = request.app
     db: Database = app['db']
@@ -449,7 +450,7 @@ FROM user_inst_coll_resources;
 
 
 @routes.get('/quotas')
-@web_authenticated_developers_only()
+@auth.web_authenticated_developers_only()
 async def get_quotas(request, userdata):
     if CLOUD != 'gcp':
         page_context = {"plot_json": None}
@@ -542,7 +543,7 @@ def validate_int(session, name, value, predicate, description):
 
 @routes.post('/config-update/pool/{pool}')
 @check_csrf_token
-@web_authenticated_developers_only()
+@auth.web_authenticated_developers_only()
 async def pool_config_update(request, userdata):  # pylint: disable=unused-argument
     app = request.app
     db: Database = app['db']
@@ -693,7 +694,7 @@ async def pool_config_update(request, userdata):  # pylint: disable=unused-argum
 
 @routes.post('/config-update/jpim')
 @check_csrf_token
-@web_authenticated_developers_only()
+@auth.web_authenticated_developers_only()
 async def job_private_config_update(request, userdata):  # pylint: disable=unused-argument
     app = request.app
     jpim: JobPrivateInstanceManager = app['driver'].job_private_inst_manager
@@ -740,7 +741,7 @@ async def job_private_config_update(request, userdata):  # pylint: disable=unuse
 
 
 @routes.get('/inst_coll/pool/{pool}')
-@web_authenticated_developers_only()
+@auth.web_authenticated_developers_only()
 async def get_pool(request, userdata):
     app = request.app
     inst_coll_manager: InstanceCollectionManager = app['driver'].inst_coll_manager
@@ -777,7 +778,7 @@ async def get_pool(request, userdata):
 
 
 @routes.get('/inst_coll/jpim')
-@web_authenticated_developers_only()
+@auth.web_authenticated_developers_only()
 async def get_job_private_inst_manager(request, userdata):
     app = request.app
     jpim: JobPrivateInstanceManager = app['driver'].job_private_inst_manager
@@ -807,7 +808,7 @@ async def get_job_private_inst_manager(request, userdata):
 
 @routes.post('/freeze')
 @check_csrf_token
-@web_authenticated_developers_only()
+@auth.web_authenticated_developers_only()
 async def freeze_batch(request, userdata):  # pylint: disable=unused-argument
     app = request.app
     db: Database = app['db']
@@ -832,7 +833,7 @@ UPDATE globals SET frozen = 1;
 
 @routes.post('/unfreeze')
 @check_csrf_token
-@web_authenticated_developers_only()
+@auth.web_authenticated_developers_only()
 async def unfreeze_batch(request, userdata):  # pylint: disable=unused-argument
     app = request.app
     db: Database = app['db']
@@ -856,7 +857,7 @@ UPDATE globals SET frozen = 0;
 
 
 @routes.get('/user_resources')
-@web_authenticated_developers_only()
+@auth.web_authenticated_developers_only()
 async def get_user_resources(request, userdata):
     app = request.app
     db: Database = app['db']
