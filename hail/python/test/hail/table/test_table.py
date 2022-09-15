@@ -439,6 +439,37 @@ class Tests(unittest.TestCase):
                                  .when(left.idx % 10 < 5, left.interval_matches.idx == left.idx // 10)
                                  .default(hl.is_missing(left.interval_matches))))
 
+    def test_interval_filter_unordered(self):
+        ht = hl.utils.range_table(100)
+        ht1 = hl.filter_intervals(ht,
+                                  [
+                                      hl.utils.Interval(hl.utils.Struct(idx=10), hl.utils.Struct(idx=30)),
+                                      hl.utils.Interval(hl.utils.Struct(idx=50), hl.utils.Struct(idx=60)),
+                                  ]
+                                  )
+        assert ht1.count() == 30
+        ht2 = hl.filter_intervals(ht1,
+                                  [
+                                      hl.utils.Interval(hl.utils.Struct(idx=25), hl.utils.Struct(idx=35)),
+                                      hl.utils.Interval(hl.utils.Struct(idx=70), hl.utils.Struct(idx=80)),
+                                  ]
+                                  )
+        assert ht2.count() == 5
+
+        ht3 = hl.filter_intervals(ht,
+                                  [
+                                      hl.utils.Interval(hl.utils.Struct(idx=50), hl.utils.Struct(idx=60)),
+                                      hl.utils.Interval(hl.utils.Struct(idx=10), hl.utils.Struct(idx=30)),
+                                  ]
+                                  )
+        assert ht3.count() == 30
+        ht4 = hl.filter_intervals(ht3,
+                                  [
+                                      hl.utils.Interval(hl.utils.Struct(idx=25), hl.utils.Struct(idx=35)),
+                                  ]
+                                  )
+        assert ht4.count() == 5
+
     @fails_service_backend()
     @fails_local_backend()
     def test_interval_product_join(self):

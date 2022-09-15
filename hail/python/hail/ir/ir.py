@@ -537,7 +537,10 @@ class ApplyUnaryPrimOp(IR):
 
     def _compute_type(self, env, agg_env, deep_typecheck):
         self.x.compute_type(env, agg_env, deep_typecheck)
-        return self.x.typ
+        if self.op == 'BitCount':
+            return tint32
+        else:
+            return self.x.typ
 
 
 class ApplyComparisonOp(IR):

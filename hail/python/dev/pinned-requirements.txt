@@ -27,7 +27,7 @@ backcall==0.2.0
     # via ipython
 beautifulsoup4==4.11.1
     # via nbconvert
-black==22.3.0
+black==22.8.0
     # via -r python/dev/requirements.txt
 bleach==5.0.0
     # via nbconvert

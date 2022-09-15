@@ -833,14 +833,16 @@ object Simplify {
       TableExplode(TableFilterIntervals(child, intervals, keep), path)
     case TableFilterIntervals(TableAggregateByKey(child, expr), intervals, keep) =>
       TableAggregateByKey(TableFilterIntervals(child, intervals, keep), expr)
-    case TableFilterIntervals(TableFilterIntervals(child, i1, keep1), i2, keep2) if keep1 == keep2 =>
+    case TableFilterIntervals(TableFilterIntervals(child, _i1, keep1), _i2, keep2) if keep1 == keep2 =>
       val ord = PartitionBoundOrdering(child.typ.keyType).intervalEndpointOrdering
+      val i1 = Interval.union(_i1.toArray[Interval], ord)
+      val i2 = Interval.union(_i2.toArray[Interval], ord)
       val intervals = if (keep1)
       // keep means intersect intervals
-        Interval.intersection(i1.toArray[Interval], i2.toArray[Interval], ord)
+        Interval.intersection(i1, i2, ord)
       else
       // remove means union intervals
-        Interval.union(i1.toArray[Interval] ++ i2.toArray[Interval], ord)
+        Interval.union(i1 ++ i2, ord)
       TableFilterIntervals(child, intervals.toFastIndexedSeq, keep1)
 
       // FIXME: Can try to serialize intervals shorter than the key

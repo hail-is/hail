@@ -3616,6 +3616,9 @@ class Tests(unittest.TestCase):
         assert hl.bit_not(1).dtype == hl.tint32
         assert hl.bit_not(hl.int64(1)).dtype == hl.tint64
 
+        assert hl.bit_count(1).dtype == hl.tint32
+        assert hl.bit_count(hl.int64(1)).dtype == hl.tint32
+
     def test_bit_shifts(self):
         assert hl.eval(hl.bit_lshift(hl.int(8), 2)) == 32
         assert hl.eval(hl.bit_rshift(hl.int(8), 2)) == 2

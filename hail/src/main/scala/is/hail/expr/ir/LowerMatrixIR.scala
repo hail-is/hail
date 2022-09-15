@@ -4,7 +4,7 @@ import is.hail.backend.ExecuteContext
 import is.hail.expr.ir.functions.{WrappedMatrixToTableFunction, WrappedMatrixToValueFunction}
 import is.hail.expr.ir._
 import is.hail.types._
-import is.hail.types.virtual.{TArray, TBaseStruct, TDict, TInt32, TInterval, TStruct}
+import is.hail.types.virtual.{TArray, TBaseStruct, TDict, TInt32, TInterval, TString, TStruct}
 import is.hail.utils._
 
 object LowerMatrixIR {
@@ -102,15 +102,28 @@ object LowerMatrixIR {
 
       case CastTableToMatrix(child, entries, cols, colKey) =>
         val lc = lower(ctx, child, ab)
-        lc.mapRows(
-          irIf('row (Symbol(entries)).isNA) {
-            irDie("missing entry array unsupported in 'to_matrix_table_row_major'", lc.typ.rowType)
-          } {
-            irIf('row (Symbol(entries)).len.cne('global (Symbol(cols)).len)) {
-              irDie("length mismatch between entry array and column array in 'to_matrix_table_row_major'", lc.typ.rowType)
-            } {
-              'row
-            }
+        val row = Ref("row", lc.typ.rowType)
+        val glob = Ref("global", lc.typ.globalType)
+        TableMapRows(
+          lc,
+          bindIR(GetField(row, entries)) { entries =>
+            If(IsNA(entries),
+              Die("missing entry array unsupported in 'to_matrix_table_row_major'", row.typ),
+              bindIRs(ArrayLen(entries), ArrayLen(GetField(glob, cols))) { case Seq(entriesLen, colsLen) =>
+                If(entriesLen cne colsLen,
+                  Die(
+                    strConcat(
+                      Str("length mismatch between entry array and column array in 'to_matrix_table_row_major': "),
+                      invoke("str", TString, entriesLen),
+                      Str(" entries, "),
+                      invoke("str", TString, colsLen),
+                      Str(" cols, at "),
+                      invoke("str", TString, SelectFields(row, child.typ.key))
+                    ), row.typ, -1),
+                  row
+                )
+              }
+            )
           }
         ).rename(Map(entries -> entriesFieldName), Map(cols -> colsFieldName))
 
