@@ -3341,7 +3341,7 @@ def import_gvs(refs: 'List[List[str]]',
         allele_is_snp=is_snp,
         allele_OK=hl._zip_func(is_snp, vd.alleles[1:],
                                f=lambda is_snp, alt:
-                               hl.coalesce(vd.as_vqsr.get(alt).vqslod >
+                               hl.coalesce(vd.as_vqsr.get(alt).vqslod >=
                                            hl.if_else(is_snp, vd.snp_vqslod_threshold, vd.indel_vqslod_threshold),
                                            True))
     )
