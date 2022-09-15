@@ -394,7 +394,7 @@ types-pyyaml==6.0.8
     # via -r python/dev/requirements.txt
 types-requests==2.27.30
     # via -r python/dev/requirements.txt
-types-setuptools==57.4.17
+types-setuptools==65.3.0
     # via -r python/dev/requirements.txt
 types-six==1.16.19
     # via -r python/dev/requirements.txt
