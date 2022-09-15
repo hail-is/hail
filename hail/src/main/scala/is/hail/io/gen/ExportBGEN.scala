@@ -53,7 +53,7 @@ object BgenWriter {
     bb(pos + 3) = ((i >>> 24) & 0xff).toByte
   }
 
-  def headerBlock(sampleIds: IndexedSeq[String], nVariants: Long): Array[Byte] = {
+  def headerBlock(sampleIds: Array[String], nVariants: Long): Array[Byte] = {
     val bb = new ByteArrayBuilder()
     val nSamples = sampleIds.length
     assert(nVariants < (1L << 32))
@@ -85,9 +85,92 @@ object BgenWriter {
     bb.result()
   }
 
-  def writeSampleFile(fs: FS, path: String, sampleIds: IndexedSeq[String]) {
+  def writeSampleFile(fs: FS, path: String, sampleIds: Array[String]) {
     fs.writeTable(path + ".sample",
       "ID_1 ID_2 missing" :: "0 0 0" :: sampleIds.map(s => s"$s $s 0").toList)
+  }
+
+  def roundWithConstantSum(input: Array[Double], fractional: Array[Double], index: Array[Int],
+    indexInverse: Array[Int], output: ByteArrayBuilder, expectedSize: Long) {
+    val n = input.length
+    assert(fractional.length == n && index.length == n && indexInverse.length == n)
+
+    var totalFractional = 0d
+    var i = 0
+    while (i < n) {
+      val x = input(i)
+      val f = x - x.floor
+      fractional(i) = f
+      totalFractional += f
+      i += 1
+    }
+
+    val F = (totalFractional + 0.5).toInt
+    assert(F >= 0 && F <= n)
+
+    resetIndex(index)
+    quickSortWithIndex(fractional, index, 0, fractional.length)
+
+    i = 0
+    while (i < n) {
+      indexInverse(index(i)) = i
+      i += 1
+    }
+
+    i = 0
+    var newSize = 0d
+    while (i < n) {
+      val r = if (indexInverse(i) < F) input(i).ceil.toInt else input(i).floor.toInt
+      assert(r >= 0 && r < 256)
+      if (i != n - 1)
+        output += r.toByte
+      newSize += r
+      i += 1
+    }
+    assert(newSize == expectedSize)
+  }
+
+  private def resetIndex(index: Array[Int]) {
+    var i = 0
+    while (i < index.length) {
+      index(i) = i
+      i += 1
+    }
+  }
+
+  private def quickSortWithIndex(a: Array[Double], idx: Array[Int], start: Int, n: Int) {
+    def swap(i: Int, j: Int) {
+      val tmp = idx(i)
+      idx(i) = idx(j)
+      idx(j) = tmp
+    }
+
+    if (n <= 1)
+      return
+
+    val pivotIdx = start + n / 2
+    val pivot = a(idx(pivotIdx))
+    swap(pivotIdx, start + n - 1)
+
+    var left = start
+    var right = start + n - 1
+
+    while (left < right) {
+      if (a(idx(left)) >= pivot)
+        left += 1
+      else if (a(idx(right - 1)) < pivot)
+        right -= 1
+      else {
+        swap(left, right - 1)
+        left += 1
+        right -= 1
+      }
+    }
+
+    swap(left, start + n - 1)
+
+    quickSortWithIndex(a, idx, start, left - start)
+    quickSortWithIndex(a, idx, left + 1, n - (left - start + 1))
   }
 }
 
@@ -140,96 +223,6 @@ class BgenPartitionWriter(rowPType: PStruct, nSamples: Int) {
 
     (bb.result(), dropped)
   }
-
-  private def resetIndex(index: Array[Int]) {
-    var i = 0
-    while (i < index.length) {
-      index(i) = i
-      i += 1
-    }
-  }
-
-  private def quickSortWithIndex(a: Array[Double], idx: Array[Int], start: Int, n: Int) {
-    def swap(i: Int, j: Int) {
-      val tmp = idx(i)
-      idx(i) = idx(j)
-      idx(j) = tmp
-    }
-
-    if (n <= 1)
-      return
-
-    val pivotIdx = start + n / 2
-    val pivot = a(idx(pivotIdx))
-    swap(pivotIdx, start + n - 1)
-
-    var left = start
-    var right = start + n - 1
-
-    while (left < right) {
-      if (a(idx(left)) >= pivot)
-        left += 1
-      else if (a(idx(right - 1)) < pivot)
-        right -= 1
-      else {
-        swap(left, right - 1)
-        left += 1
-        right -= 1
-      }
-    }
-
-    swap(left, start + n - 1)
-
-    quickSortWithIndex(a, idx, start, left - start)
-    quickSortWithIndex(a, idx, left + 1, n - (left - start + 1))
-  }
-
-  def sortedIndex(a: Array[Double], idx: Array[Int]) {
-    val n = a.length
-    assert(idx.length == n)
-    resetIndex(idx)
-    quickSortWithIndex(a, idx, 0, n)
-  }
-
-  def roundWithConstantSum(input: Array[Double], fractional: Array[Double], index: Array[Int],
-    indexInverse: Array[Int], output: ByteArrayBuilder, expectedSize: Long) {
-    val n = input.length
-    assert(fractional.length == n && index.length == n && indexInverse.length == n)
-
-    var totalFractional = 0d
-    var i = 0
-    while (i < n) {
-      val x = input(i)
-      val f = x - x.floor
-      fractional(i) = f
-      totalFractional += f
-      i += 1
-    }
-
-    val F = (totalFractional + 0.5).toInt
-    assert(F >= 0 && F <= n)
-
-    sortedIndex(fractional, index)
-
-    i = 0
-    while (i < n) {
-      indexInverse(index(i)) = i
-      i += 1
-    }
-
-    i = 0
-    var newSize = 0d
-    while (i < n) {
-      val r = if (indexInverse(i) < F) input(i).ceil.toInt else input(i).floor.toInt
-      assert(r >= 0 && r < 256)
-      if (i != n - 1)
-        output += r.toByte
-      newSize += r
-      i += 1
-    }
-    assert(newSize == expectedSize)
-  }
-
 
   private def emitGPData(chr: String, pos: Int, alleles: Array[String]): Long = {
     val nAlleles = alleles.length
@@ -304,7 +297,7 @@ object ExportBGEN {
   def apply(ctx: ExecuteContext, mv: MatrixValue, path: String, exportType: String): Unit = {
     val colValues = mv.colValues.javaValue
 
-    val sampleIds = colValues.map(_.asInstanceOf[Row].getString(0))
+    val sampleIds: Array[String] = colValues.map(_.asInstanceOf[Row].getString(0)).toArray
     val partitionSizes = mv.rvd.countPerPartition()
     val nVariants = partitionSizes.sum
     val nSamples = colValues.length
