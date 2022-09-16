@@ -295,7 +295,6 @@ class Batch:
     def _new_job_resource_file(self, source, value=None):
         if value is None:
             value = secret_alnum_string(5)
-        self._backend.validate_scheme(value)
         jrf = _resource.JobResourceFile(value, source)
         self._resource_map[jrf._uid] = jrf  # pylint: disable=no-member
         return jrf
@@ -303,7 +302,7 @@ class Batch:
     def _new_input_resource_file(self, input_path, value=None):
         if value is None:
             value = f'{secret_alnum_string(5)}/{os.path.basename(input_path.rstrip("/"))}'
-        self._backend.validate_scheme(value)
+        self._backend.validate_file_scheme(value)
         irf = _resource.InputResourceFile(value)
         irf._add_input_path(input_path)
         self._resource_map[irf._uid] = irf  # pylint: disable=no-member

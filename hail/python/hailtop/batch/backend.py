@@ -452,12 +452,11 @@ class ServiceBackend(Backend[bc.Batch]):
         gcs_kwargs = {'project': google_project}
         self.__fs: AsyncFS = RouterAsyncFS(default_scheme='file', gcs_kwargs=gcs_kwargs)
 
-    @staticmethod
-    def validate_scheme(path: str) -> None:
-        path_parts = path.split("://")
-        if len(path_parts) == 1 or path_parts[0] == "file":
+    def validate_file_scheme(uri: str) -> None:
+        scheme = self.__fs.get_scheme(uri)
+        if (scheme == "file"):
             raise ValueError(
-                f"Local filepath detected: '{path}'. "
+                f"Local filepath detected: '{uri}'. "
                 "ServiceBackend does not support the use of local filepaths. "
                 "Please specify a remote URI instead (e.g. gs://bucket/folder)."
             )

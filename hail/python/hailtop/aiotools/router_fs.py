@@ -35,6 +35,10 @@ class RouterAsyncFS(AsyncFS):
         self._azure_kwargs = azure_kwargs or {}
         self._s3_kwargs = s3_kwargs or {}
 
+    @staticmethod
+    def get_scheme(uri: str) -> str:
+        return urllib.parse.urlparse(url).scheme or self._default_scheme
+
     def parse_url(self, url: str) -> AsyncFSURL:
         return self._get_fs(url).parse_url(url)
 
@@ -59,19 +63,13 @@ class RouterAsyncFS(AsyncFS):
         self._scheme_fs[scheme] = fs
         self._filesystems.append(fs)
 
-    def _get_fs(self, url: str) -> AsyncFS:
-        parsed = urllib.parse.urlparse(url)
-        if not parsed.scheme:
-            if self._default_scheme:
-                parsed = parsed._replace(scheme=self._default_scheme)
-            else:
-                raise ValueError(f"no default scheme and URL has no scheme: {url}")
-
-        scheme = parsed.scheme
+    def _get_fs(self, uri: str) -> AsyncFS:
+        scheme = self.get_scheme(uri)
+        if not scheme:
+            raise ValueError(f"no default scheme and URL has no scheme: {url}")
         if scheme not in self._scheme_fs:
             self._load_fs(scheme)
-
-        fs = self._scheme_fs.get(parsed.scheme)
+        fs = self._scheme_fs.get(scheme)
         assert fs is not None
         return fs
 
