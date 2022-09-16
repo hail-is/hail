@@ -48,7 +48,6 @@ class Backend(abc.ABC, Generic[RunningBatchType]):
     _closed = False
 
     @staticmethod
-    @abc.abstractmethod
     def validate_scheme(path: str) -> None:
         pass
 
