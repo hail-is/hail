@@ -457,9 +457,9 @@ class ServiceBackend(Backend[bc.Batch]):
         path_parts = path.split("://")
         if len(path_parts) == 1 or path_parts[0] == "file":
             raise ValueError(
-                f"local filepath detected: '{path}'. "
+                f"Local filepath detected: '{path}'. "
                 "ServiceBackend does not support the use of local filepaths. "
-                "please specify a remote URI instead (e.g. gs://bucket/folder)."
+                "Please specify a remote URI instead (e.g. gs://bucket/folder)."
             )
 
     @property
