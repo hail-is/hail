@@ -131,10 +131,11 @@ data:
     root_url = %(protocol)s://%(domain)/{{ default_ns.name }}/grafana/
     serve_from_sub_path = true
 {% endif %}
-    [users]
-    allow_sign_up = false
-    [auth.proxy]
-    enabled = true
+    [auth]
+    disable_login_form = true
+    disable_signout_menu = true
+    [auth.basic]
+    enabled = false
 ---
 apiVersion: v1
 kind: ConfigMap
