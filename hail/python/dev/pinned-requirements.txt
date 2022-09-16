@@ -284,7 +284,7 @@ pytest-html==1.20.0
     # via -r python/dev/requirements.txt
 pytest-instafail==0.4.2
     # via -r python/dev/requirements.txt
-pytest-metadata==2.0.1
+pytest-metadata==2.0.2
     # via pytest-html
 pytest-xdist==2.2.1
     # via -r python/dev/requirements.txt
