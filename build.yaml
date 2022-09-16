@@ -2684,12 +2684,12 @@ steps:
       - create_ci_test_repo
   - kind: buildImage2
     name: hailgenetics_hail_image
-    dockerFile: /io/docker/hail/Dockerfile
-    contextPath: /io/docker/hail/
+    dockerFile: /io/docker/hailgenetics/hail/Dockerfile
+    contextPath: /io/docker/hailgenetics/hail
     publishAs: hailgenetics/hail
     inputs:
-      - from: /repo/docker/hail
-        to: /io/docker/hail
+      - from: /repo/docker/hailgenetics/hail
+        to: /io/docker/hailgenetics/hail
       - from: /just-wheel/wheel-container.tar
         to: /io/docker/hail/wheel-container.tar
     dependsOn:
