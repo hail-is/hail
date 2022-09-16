@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import random
+from collections import namedtuple
 from typing import Optional
 
 import prometheus_client as pc
@@ -21,7 +22,7 @@ from hailtop.utils import (
 
 from ...batch_configuration import STANDING_WORKER_MAX_IDLE_TIME_MSECS
 from ...inst_coll_config import PoolConfig
-from ...utils import Box, ExceededSharesCounter
+from ...utils import Box, ExceededSharesCounter, set_gauge_value
 from ..instance import Instance
 from ..job import schedule_job
 from ..resource_manager import CloudResourceManager
@@ -34,6 +35,46 @@ SCHEDULING_LOOP_RUNS = pc.Counter(
     'Number of scheduling loop executions per pool',
     ['pool_name'],
 )
+SCHEDULING_LOOP_RUNS_UNUSED_FREE_CORES = pc.Counter(
+    'scheduling_loop_runs_unused_free_cores',
+    'Number of scheduling loop executions per pool that did not use all of the available free cores',
+    ['pool_name'],
+)
+
+CONTROL_LOOP_RUNS = pc.Counter(
+    'control_loop_runs',
+    'Number of control loop executions per pool',
+    ['pool_name'],
+)
+
+TOTAL_CORES_SCHEDULED = pc.Gauge(
+    'total_cores_scheduled', 'Number of cores scheduled in one scheduling execution loop', ['pool_name']
+)
+TOTAL_CORES_ATTEMPTED_TO_SCHEDULE = pc.Gauge(
+    'total_cores_attempted_to_schedule',
+    'Number of cores attempted to schedule in one scheduling execution loop',
+    ['pool_name'],
+)
+
+NO_QUEUE_READY_CORES = pc.Gauge(
+    'control_loop_ready_cores_no_queue', 'Number of ready cores per control loop run without a job queue', ['pool_name']
+)
+JOB_QUEUE_READY_CORES = pc.Gauge(
+    'control_loop_ready_cores_job_queue', 'Number of ready cores per control loop run with a job queue', ['pool_name']
+)
+
+N_INSTANCES_NO_QUEUE = pc.Gauge(
+    'control_loop_n_instances_no_queue',
+    'Number of instances needed per control loop run without a job queue',
+    ['pool_name'],
+)
+N_INSTANCES_WITH_JOB_QUEUE = pc.Gauge(
+    'control_loop_n_instances_with_job_queue',
+    'Number of instances needed per control loop run with a job queue',
+    ['pool_name'],
+)
+
+PoolLabels = namedtuple('PoolLabels', ['pool_name'])
 
 
 class Pool(InstanceCollection):
@@ -196,8 +237,8 @@ WHERE removed = 0 AND inst_coll = %s;
             boot_disk_size_gb=self.boot_disk_size_gb,
         )
 
-    async def create_instances_from_ready_cores(self, ready_cores_mcpu, region=None):
-        n_live_instances = self.n_instances_by_state['pending'] + self.n_instances_by_state['active']
+    def compute_n_instances_needed(self, ready_cores_mcpu, n_instances_by_state, region=None):
+        n_live_instances = n_instances_by_state['pending'] + n_instances_by_state['active']
 
         if region is None:
             live_free_cores_mcpu = self.live_free_cores_mcpu
@@ -216,9 +257,11 @@ WHERE removed = 0 AND inst_coll = %s;
             # n * 16 cores / 15s = excess_scheduling_rate/s = 10/s => n ~= 10
             10,
         )
+        return max(0, instances_needed)
 
-        if instances_needed > 0:
-            log.info(f'creating {instances_needed} new instances')
+    async def _create_instances(self, n_instances, region=None):
+        if n_instances > 0:
+            log.info(f'creating {n_instances} new instances')
             # parallelism will be bounded by thread pool
             await asyncio.gather(
                 *[
@@ -227,15 +270,66 @@ WHERE removed = 0 AND inst_coll = %s;
                         data_disk_size_gb=self.data_disk_size_gb,
                         region=region,
                     )
-                    for _ in range(instances_needed)
+                    for _ in range(n_instances)
                 ]
             )
 
-    async def create_instances(self):
-        if self.app['frozen']:
-            log.info(f'not creating instances for {self}; batch is frozen')
-            return
+    async def create_instances_from_ready_cores(self, ready_cores_mcpu, region=None):
+        instances_needed = self.compute_n_instances_needed(
+            ready_cores_mcpu,
+            self.n_instances_by_state,
+            region,
+        )
+        await self._create_instances(instances_needed, region)
+        return instances_needed
 
+    async def ready_cores_mcpu_from_estimated_job_queue(self):
+        n_free_cores = int(
+            10 * 20 * self.worker_cores
+        )  # maximum number of new cores in 5 minutes estimated from 10 instances being the max instances created every 15 seconds
+        user_resources = await self.scheduler._compute_fair_share(n_free_cores)
+
+        total = sum(resources['allocated_cores_mcpu'] for resources in user_resources.values())
+
+        if total == 0:
+            return 0
+
+        # estimate of number of jobs scheduled per scheduling loop approximately every second
+        user_share = {
+            user: max(int(300 * resources['allocated_cores_mcpu'] / total + 0.5), 20)
+            for user, resources in user_resources.items()
+        }
+
+        jobs_query = []
+        jobs_query_args = []
+
+        for user, share in user_share.items():
+            user_job_query = f'''
+SELECT user, batch_id, job_id, cores_mcpu, always_run, ROW_NUMBER() OVER() DIV {share} AS approx_scheduling_iteration
+FROM jobs FORCE INDEX(jobs_batch_id_state_always_run_cancelled)
+LEFT JOIN batches ON jobs.batch_id = batches.id
+LEFT JOIN batches_cancelled ON batches.id = batches_cancelled.id
+WHERE user = %s AND batches.`state` = 'running' AND jobs.state = 'Ready' AND (always_run = 1 OR (always_run = 0 AND batches_cancelled.id IS NULL)) AND inst_coll = %s
+ORDER BY batch_id ASC, always_run DESC, job_id ASC
+LIMIT {share * 300}
+'''
+            jobs_query.append(user_job_query)
+            jobs_query_args += [user, self.name]
+
+        result = await self.db.select_and_fetchone(
+            f'''
+SELECT SUM(cores_mcpu) AS ready_cores_mcpu
+FROM (
+{" UNION ".join(jobs_query)}
+) AS ready_jobs
+ORDER BY approx_scheduling_iteration, user, batch_id, always_run DESC, job_id;
+''',
+            jobs_query_args,
+        )
+
+        return result['ready_cores_mcpu']
+
+    async def ready_cores_mcpu_per_user(self):
         ready_cores_mcpu_per_user = self.db.select_and_fetchall(
             '''
 SELECT user,
@@ -252,7 +346,30 @@ GROUP BY user;
         else:
             ready_cores_mcpu_per_user = {r['user']: r['ready_cores_mcpu'] async for r in ready_cores_mcpu_per_user}
 
+        return ready_cores_mcpu_per_user
+
+    async def create_instances(self):
+        if self.app['frozen']:
+            log.info(f'not creating instances for {self}; batch is frozen')
+            return
+
+        CONTROL_LOOP_RUNS.labels(pool_name=self.name).inc()
+
+        ready_cores_mcpu_per_user = await self.ready_cores_mcpu_per_user()
+
         ready_cores_mcpu = sum(ready_cores_mcpu_per_user.values())
+        n_instances_no_queue = self.compute_n_instances_needed(ready_cores_mcpu, self.n_instances_by_state)
+
+        estimated_ready_cores_mcpu_from_job_queue = await self.ready_cores_mcpu_from_estimated_job_queue()
+        n_instances_with_job_queue = self.compute_n_instances_needed(
+            estimated_ready_cores_mcpu_from_job_queue, self.n_instances_by_state
+        )
+
+        pool_label = PoolLabels(self.name)
+        set_gauge_value(NO_QUEUE_READY_CORES, {pool_label: ready_cores_mcpu / 1000})
+        set_gauge_value(JOB_QUEUE_READY_CORES, {pool_label: estimated_ready_cores_mcpu_from_job_queue / 1000})
+        set_gauge_value(N_INSTANCES_NO_QUEUE, {pool_label: n_instances_no_queue})
+        set_gauge_value(N_INSTANCES_WITH_JOB_QUEUE, {pool_label: n_instances_with_job_queue})
 
         free_cores_mcpu = sum([worker.free_cores_mcpu for worker in self.healthy_instances_by_free_cores])
         free_cores = free_cores_mcpu / 1000
@@ -261,10 +378,13 @@ GROUP BY user;
             f'{self} n_instances {self.n_instances} {self.n_instances_by_state}'
             f' free_cores {free_cores} live_free_cores {self.live_free_cores_mcpu / 1000}'
             f' ready_cores {ready_cores_mcpu / 1000}'
+            f' estimated_ready_cores_from_job_queue {estimated_ready_cores_mcpu_from_job_queue / 1000}'
+            f' n_instances_created_without_queue {n_instances_no_queue}'
+            f' n_instances created_with_job_queue {n_instances_with_job_queue}'
         )
 
         if ready_cores_mcpu > 0 and free_cores < 500:
-            await self.create_instances_from_ready_cores(ready_cores_mcpu)
+            await self.create_instances_from_ready_cores(estimated_ready_cores_mcpu_from_job_queue)
 
         ci_ready_cores_mcpu = ready_cores_mcpu_per_user.get('ci', 0)
         if ci_ready_cores_mcpu > 0 and self.live_free_cores_mcpu_by_region[self._ci_region] == 0:
@@ -305,7 +425,9 @@ class PoolScheduler:
 
     async def compute_fair_share(self):
         free_cores_mcpu = sum([worker.free_cores_mcpu for worker in self.pool.healthy_instances_by_free_cores])
+        return await self._compute_fair_share(free_cores_mcpu)
 
+    async def _compute_fair_share(self, free_cores_mcpu):
         user_running_cores_mcpu = {}
         user_total_cores_mcpu = {}
         result = {}
@@ -386,7 +508,12 @@ HAVING n_ready_jobs + n_running_jobs > 0;
 
         start = time_msecs()
         SCHEDULING_LOOP_RUNS.labels(pool_name=self.pool.name).inc()
+
         n_scheduled = 0
+        n_attempted_to_schedule = 0
+
+        n_cores_mcpu_attempted_to_schedule = 0
+        n_cores_mcpu_scheduled = 0
 
         user_resources = await self.compute_fair_share()
 
@@ -456,8 +583,11 @@ LIMIT %s;
 
             remaining = Box(share)
             async for record in user_runnable_jobs(user, remaining):
+                n_attempted_to_schedule += 1
                 attempt_id = secret_alnum_string(6)
                 record['attempt_id'] = attempt_id
+
+                n_cores_mcpu_attempted_to_schedule += record['cores_mcpu']
 
                 if scheduled_cores_mcpu + record['cores_mcpu'] > allocated_cores_mcpu:
                     if random.random() > self.exceeded_shares_counter.rate():
@@ -470,6 +600,7 @@ LIMIT %s;
                 if instance:
                     instance.adjust_free_cores_in_memory(-record['cores_mcpu'])
                     scheduled_cores_mcpu += record['cores_mcpu']
+                    n_cores_mcpu_scheduled += record['cores_mcpu']
                     n_scheduled += 1
 
                     async def schedule_with_error_handling(app, record, instance):
@@ -492,5 +623,12 @@ LIMIT %s;
 
         if n_scheduled > 0:
             log.info(f'schedule: attempted to schedule {n_scheduled} jobs in {end - start}ms for {self.pool}')
+
+        if n_scheduled != n_attempted_to_schedule:
+            SCHEDULING_LOOP_RUNS_UNUSED_FREE_CORES.labels(pool_name=self.pool.name).inc()
+
+        pool_labels = PoolLabels(self.pool.name)
+        set_gauge_value(TOTAL_CORES_SCHEDULED, {pool_labels: n_cores_mcpu_scheduled / 1000})
+        set_gauge_value(TOTAL_CORES_ATTEMPTED_TO_SCHEDULE, {pool_labels: n_cores_mcpu_attempted_to_schedule / 1000})
 
         return should_wait
