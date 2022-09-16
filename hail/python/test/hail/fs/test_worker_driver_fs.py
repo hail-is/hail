@@ -54,22 +54,29 @@ def test_requester_pays_with_project():
 
 
 def test_requester_pays_with_project_more_than_one_partition():
+    # NB: this test uses a file with more rows than partitions because Hadoop's Seekable input
+    # streams do not permit seeking past the end of the input (ref:
+    # https://hadoop.apache.org/docs/stable/api/org/apache/hadoop/fs/Seekable.html#seek-long-).
+    #
+    # Hail assumes that seeking past the end of the input does not raise an EOFException (see, for
+    # example `skip` in java.io.FileInputStream:
+    # https://docs.oracle.com/javase/7/docs/api/java/io/FileInputStream.html)
     hl.stop()
     hl.init(gcs_requester_pays_configuration='hail-vdc')
-    assert hl.import_table('gs://hail-services-requester-pays/hello', no_header=True, min_partitions=8).collect() == [hl.Struct(f0='hello')]
+    assert hl.import_table('gs://hail-services-requester-pays/zero-to-nine', no_header=True, min_partitions=8).collect() == [hl.Struct(f0='hello')]
 
     hl.stop()
     hl.init(gcs_requester_pays_configuration=('hail-vdc', ['hail-services-requester-pays']))
-    assert hl.import_table('gs://hail-services-requester-pays/hello', no_header=True, min_partitions=8).collect() == [hl.Struct(f0='hello')]
+    assert hl.import_table('gs://hail-services-requester-pays/zero-to-nine', no_header=True, min_partitions=8).collect() == [hl.Struct(f0='hello')]
 
     hl.stop()
     hl.init(gcs_requester_pays_configuration=('hail-vdc', ['hail-services-requester-pays', 'other-bucket']))
-    assert hl.import_table('gs://hail-services-requester-pays/hello', no_header=True, min_partitions=8).collect() == [hl.Struct(f0='hello')]
+    assert hl.import_table('gs://hail-services-requester-pays/zero-to-nine', no_header=True, min_partitions=8).collect() == [hl.Struct(f0='hello')]
 
     hl.stop()
     hl.init(gcs_requester_pays_configuration=('hail-vdc', ['other-bucket']))
     try:
-        hl.import_table('gs://hail-services-requester-pays/hello', min_partitions=8)
+        hl.import_table('gs://hail-services-requester-pays/zero-to-nine', min_partitions=8)
     except Exception as exc:
         assert "Bucket is a requester pays bucket but no user project provided" in exc.args[0]
     else:
@@ -77,4 +84,4 @@ def test_requester_pays_with_project_more_than_one_partition():
 
     hl.stop()
     hl.init(gcs_requester_pays_configuration='hail-vdc')
-    assert hl.import_table('gs://hail-services-requester-pays/hello', no_header=True, min_partitions=8).collect() == [hl.Struct(f0='hello')]
+    assert hl.import_table('gs://hail-services-requester-pays/zero-to-nine', no_header=True, min_partitions=8).collect() == [hl.Struct(f0='hello')]
