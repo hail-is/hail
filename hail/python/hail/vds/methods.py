@@ -526,7 +526,8 @@ def impute_sex_chromosome_ploidy(
 
     if use_variant_dataset:
         mt = vds.variant_data
-        mt = mt.annotate_rows(interval=calling_intervals[mt.locus].interval)
+        calling_intervals = calling_intervals.annotate(interval_dup=interval)
+        mt = mt.annotate_rows(interval=calling_intervals[mt.locus].interval_dup)
         mt = mt.filter_rows(hl.is_defined(mt.interval))
         coverage = mt.select_entries(sum_dp=mt.DP, interval_size=hl.is_defined(mt.DP))
     else:
