@@ -131,8 +131,10 @@ data:
     root_url = %(protocol)s://%(domain)/{{ default_ns.name }}/grafana/
     serve_from_sub_path = true
 {% endif %}
-    [auth]
-    oauth_automatic_login = true
+    [auth.anonymous]
+    enabled = true
+    org_name = Hail
+    org_role = Admin
 ---
 apiVersion: v1
 kind: ConfigMap
