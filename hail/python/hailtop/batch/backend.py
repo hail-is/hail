@@ -452,7 +452,7 @@ class ServiceBackend(Backend[bc.Batch]):
         gcs_kwargs = {'project': google_project}
         self.__fs: AsyncFS = RouterAsyncFS(default_scheme='file', gcs_kwargs=gcs_kwargs)
 
-    def validate_file_scheme(uri: str) -> None:
+    def validate_file_scheme(self, uri: str) -> None:
         scheme = self.__fs.get_scheme(uri)
         if (scheme == "file"):
             raise ValueError(
