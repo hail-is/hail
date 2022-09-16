@@ -437,11 +437,8 @@ def impute_sex_chr_ploidy_from_interval_coverage(
                                    x_ploidy=2 * x_dp / auto_dp,
                                    y_mean_dp=y_dp,
                                    y_ploidy=2 * y_dp / auto_dp)
-    logger.info(
-        "'impute_sex_chr_ploidy_from_interval_coverage': computing and checkpointing coverage and karyotype metrics")
-    return per_sample.cols().checkpoint(
-        new_temp_file("impute_sex_karyotype", extension="ht")
-    )
+    info("'impute_sex_chromosome_ploidy': computing and checkpointing coverage and karyotype metrics")
+    return per_sample.cols().checkpoint(new_temp_file('impute_sex_karyotype', extension='ht'))
 
 
 @typecheck(vds=VariantDataset,
