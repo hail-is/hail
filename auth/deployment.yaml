@@ -125,6 +125,7 @@ spec:
       labels:
         app: auth
         hail.is/sha: "{{ code.sha }}"
+        grafanak8sapp: "true"
     spec:
 {% if deploy %}
       priorityClassName: production
