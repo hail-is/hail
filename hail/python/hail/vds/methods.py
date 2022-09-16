@@ -374,9 +374,9 @@ def filter_samples(vds: 'VariantDataset', samples_table: 'Table', *,
 
 @typecheck(mt=MatrixTable, normalization_contig=str)
 def impute_sex_chr_ploidy_from_interval_coverage(
-        mt: MatrixTable,
+        mt: 'MatrixTable',
         normalization_contig: str,
-) -> hl.Table:
+) -> 'Table':
     """Impute sex chromosome ploidy from a precomputed interval coverage MatrixTable.
 
     The input MatrixTable must have the following row fields:
