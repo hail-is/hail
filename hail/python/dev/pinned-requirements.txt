@@ -284,7 +284,7 @@ pytest-html==1.20.0
     # via -r python/dev/requirements.txt
 pytest-instafail==0.4.2
     # via -r python/dev/requirements.txt
-pytest-metadata==2.0.1
+pytest-metadata==2.0.2
     # via pytest-html
 pytest-xdist==2.2.1
     # via -r python/dev/requirements.txt
@@ -394,7 +394,7 @@ types-pyyaml==6.0.8
     # via -r python/dev/requirements.txt
 types-requests==2.27.30
     # via -r python/dev/requirements.txt
-types-setuptools==57.4.17
+types-setuptools==65.3.0
     # via -r python/dev/requirements.txt
 types-six==1.16.19
     # via -r python/dev/requirements.txt
