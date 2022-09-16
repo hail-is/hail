@@ -7,7 +7,7 @@ CREATE TABLE IF NOT EXISTS `batch_updates` (
   `start_job_id` INT NOT NULL,
   `n_jobs` INT NOT NULL,
   `committed` BOOLEAN NOT NULL DEFAULT FALSE,
-  `time_created` BIGINT,
+  `time_created` BIGINT NOT NULL,
   `time_committed` BIGINT,
   PRIMARY KEY (`batch_id`, `update_id`),
   FOREIGN KEY (`batch_id`) REFERENCES batches(`id`),

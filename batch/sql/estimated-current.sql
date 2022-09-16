@@ -171,12 +171,12 @@ CREATE INDEX `batches_billing_project_state` ON `batches` (`billing_project`, `s
 
 CREATE TABLE IF NOT EXISTS `batch_updates` (
   `batch_id` BIGINT NOT NULL,
-  `update_id` INT NOT NULL DEFAULT 1,
+  `update_id` INT NOT NULL,
   `token` VARCHAR(100) DEFAULT NULL,
   `start_job_id` INT NOT NULL,
   `n_jobs` INT NOT NULL,
   `committed` BOOLEAN NOT NULL DEFAULT FALSE,
-  `time_created` BIGINT,
+  `time_created` BIGINT NOT NULL,
   `time_committed` BIGINT,
   PRIMARY KEY (`batch_id`, `update_id`),
   FOREIGN KEY (`batch_id`) REFERENCES batches(`id`),
