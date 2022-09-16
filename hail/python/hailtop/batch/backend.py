@@ -49,7 +49,7 @@ class Backend(abc.ABC, Generic[RunningBatchType]):
 
     @staticmethod
     @abc.abstractmethod
-    def validate_scheme(path: str) -> void:
+    def validate_scheme(path: str) -> None:
         pass
 
     @abc.abstractmethod
@@ -454,7 +454,7 @@ class ServiceBackend(Backend[bc.Batch]):
         self.__fs: AsyncFS = RouterAsyncFS(default_scheme='file', gcs_kwargs=gcs_kwargs)
 
     @staticmethod
-    def validate_scheme(path: str) -> void:
+    def validate_scheme(path: str) -> None:
         path_parts = path.split("://")
         if len(path_parts) == 1 or path_parts[0] == "file":
             raise ValueError(
