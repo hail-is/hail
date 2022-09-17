@@ -301,7 +301,7 @@ pyzmq==23.1.0
     #   qtconsole
 qtconsole==5.3.0
     # via jupyter
-qtpy==2.1.0
+qtpy==2.2.0
     # via qtconsole
 requests==2.25.1
     # via
