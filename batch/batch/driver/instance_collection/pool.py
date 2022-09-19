@@ -411,16 +411,8 @@ WHERE user = %s AND `state` = 'running';
                 (user,),
                 "user_runnable_jobs__select_running_batches",
             ):
-                # TODO Probably need to index jobs.update_id
                 async for record in self.db.select_and_fetchall(
                     '''
-SELECT job_id, spec, cores_mcpu
-FROM batch_updates
-STRAIGHT_JOIN jobs FORCE INDEX(jobs_batch_id_state_always_run_inst_coll_cancelled)
-ON batch_updates.batch_id = jobs.batch_id AND batch_updates.update_id = jobs.update_id
-WHERE batch_updates.batch_id = %s AND batch_updates.committed AND jobs.batch_id = %s AND state = 'Ready' AND always_run = 1 AND inst_coll = %s
-LIMIT %s;
-
 SELECT job_id, spec, cores_mcpu
 FROM jobs FORCE INDEX(jobs_batch_id_state_always_run_inst_coll_cancelled)
 INNER JOIN batch_updates
