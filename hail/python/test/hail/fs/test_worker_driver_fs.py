@@ -61,17 +61,32 @@ def test_requester_pays_with_project_more_than_one_partition():
     # Hail assumes that seeking past the end of the input does not raise an EOFException (see, for
     # example `skip` in java.io.FileInputStream:
     # https://docs.oracle.com/javase/7/docs/api/java/io/FileInputStream.html)
+
+    expected_file_contents = [
+        hl.Struct(f0='idx'),
+        hl.Struct(f0='0'),
+        hl.Struct(f0='1'),
+        hl.Struct(f0='2'),
+        hl.Struct(f0='3'),
+        hl.Struct(f0='4'),
+        hl.Struct(f0='5'),
+        hl.Struct(f0='6'),
+        hl.Struct(f0='7'),
+        hl.Struct(f0='8'),
+        hl.Struct(f0='9'),
+    ]
+
     hl.stop()
     hl.init(gcs_requester_pays_configuration='hail-vdc')
-    assert hl.import_table('gs://hail-services-requester-pays/zero-to-nine', no_header=True, min_partitions=8).collect() == [hl.Struct(f0='hello')]
+    assert hl.import_table('gs://hail-services-requester-pays/zero-to-nine', no_header=True, min_partitions=8).collect() == expected_file_contents
 
     hl.stop()
     hl.init(gcs_requester_pays_configuration=('hail-vdc', ['hail-services-requester-pays']))
-    assert hl.import_table('gs://hail-services-requester-pays/zero-to-nine', no_header=True, min_partitions=8).collect() == [hl.Struct(f0='hello')]
+    assert hl.import_table('gs://hail-services-requester-pays/zero-to-nine', no_header=True, min_partitions=8).collect() == expected_file_contents
 
     hl.stop()
     hl.init(gcs_requester_pays_configuration=('hail-vdc', ['hail-services-requester-pays', 'other-bucket']))
-    assert hl.import_table('gs://hail-services-requester-pays/zero-to-nine', no_header=True, min_partitions=8).collect() == [hl.Struct(f0='hello')]
+    assert hl.import_table('gs://hail-services-requester-pays/zero-to-nine', no_header=True, min_partitions=8).collect() == expected_file_contents
 
     hl.stop()
     hl.init(gcs_requester_pays_configuration=('hail-vdc', ['other-bucket']))
@@ -84,4 +99,4 @@ def test_requester_pays_with_project_more_than_one_partition():
 
     hl.stop()
     hl.init(gcs_requester_pays_configuration='hail-vdc')
-    assert hl.import_table('gs://hail-services-requester-pays/zero-to-nine', no_header=True, min_partitions=8).collect() == [hl.Struct(f0='hello')]
+    assert hl.import_table('gs://hail-services-requester-pays/zero-to-nine', no_header=True, min_partitions=8).collect() == expected_file_contents
