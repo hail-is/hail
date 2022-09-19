@@ -449,7 +449,7 @@ class ServiceBackend(Backend[bc.Batch]):
         self.remote_tmpdir = remote_tmpdir
 
         gcs_kwargs = {'project': google_project}
-        self.__fs: AsyncFS = RouterAsyncFS(default_scheme='file', gcs_kwargs=gcs_kwargs)
+        self.__fs: RouterAsyncFS = RouterAsyncFS(default_scheme='file', gcs_kwargs=gcs_kwargs)
 
     @property
     def _fs(self):
