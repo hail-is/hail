@@ -47,9 +47,6 @@ class Backend(abc.ABC, Generic[RunningBatchType]):
 
     _closed = False
 
-    def validate_file_scheme(path: str) -> None:
-        pass
-
     @abc.abstractmethod
     def _run(self, batch, dry_run, verbose, delete_scratch_on_exit, **backend_kwargs) -> RunningBatchType:
         """
@@ -81,6 +78,9 @@ class Backend(abc.ABC, Generic[RunningBatchType]):
         if not self._closed:
             self._close()
             self._closed = True
+
+    def validate_file_scheme(path: str) -> None:
+        pass
 
     def __del__(self):
         self.close()
@@ -451,15 +451,6 @@ class ServiceBackend(Backend[bc.Batch]):
         gcs_kwargs = {'project': google_project}
         self.__fs: AsyncFS = RouterAsyncFS(default_scheme='file', gcs_kwargs=gcs_kwargs)
 
-    def validate_file_scheme(self, uri: str) -> None:
-        scheme = self.__fs.get_scheme(uri)
-        if (scheme == "file"):
-            raise ValueError(
-                f"Local filepath detected: '{uri}'. "
-                "ServiceBackend does not support the use of local filepaths. "
-                "Please specify a remote URI instead (e.g. gs://bucket/folder)."
-            )
-
     @property
     def _fs(self):
         return self.__fs
@@ -740,3 +731,12 @@ class ServiceBackend(Backend[bc.Batch]):
             status = batch_handle.wait()
             print(f'batch {batch_handle.id} complete: {status["state"]}')
         return batch_handle
+
+    def validate_file_scheme(self, uri: str) -> None:
+        scheme = self.__fs.get_scheme(uri)
+        if (scheme == "file"):
+            raise ValueError(
+                f"Local filepath detected: '{uri}'. "
+                "ServiceBackend does not support the use of local filepaths. "
+                "Please specify a remote URI instead (e.g. gs://bucket/folder)."
+            )

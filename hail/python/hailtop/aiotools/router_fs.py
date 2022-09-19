@@ -36,7 +36,10 @@ class RouterAsyncFS(AsyncFS):
         self._s3_kwargs = s3_kwargs or {}
 
     def get_scheme(self, uri: str) -> str:
-        return urllib.parse.urlparse(uri).scheme or self._default_scheme
+        scheme = urllib.parse.urlparse(uri).scheme or self._default_scheme
+        if not scheme:
+            raise ValueError(f"no default scheme and URL has no scheme: {uri}")
+        return scheme
 
     def parse_url(self, url: str) -> AsyncFSURL:
         return self._get_fs(url).parse_url(url)
@@ -64,8 +67,6 @@ class RouterAsyncFS(AsyncFS):
 
     def _get_fs(self, uri: str) -> AsyncFS:
         scheme = self.get_scheme(uri)
-        if not scheme:
-            raise ValueError(f"no default scheme and URL has no scheme: {uri}")
         if scheme not in self._scheme_fs:
             self._load_fs(scheme)
         fs = self._scheme_fs.get(scheme)
