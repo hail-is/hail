@@ -173,7 +173,7 @@ greenlet==1.1.2
     # via gevent
 grpc-google-iam-v1==0.12.4
     # via google-cloud-logging
-grpcio==1.47.0
+grpcio==1.48.1
     # via
     #   google-api-core
     #   googleapis-common-protos
