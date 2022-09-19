@@ -300,9 +300,9 @@ class Batch:
         return jrf
 
     def _new_input_resource_file(self, input_path, value=None):
+        self._backend.validate_file_scheme(value)
         if value is None:
             value = f'{secret_alnum_string(5)}/{os.path.basename(input_path.rstrip("/"))}'
-        self._backend.validate_file_scheme(value)
         irf = _resource.InputResourceFile(value)
         irf._add_input_path(input_path)
         self._resource_map[irf._uid] = irf  # pylint: disable=no-member
