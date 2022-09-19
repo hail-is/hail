@@ -587,10 +587,6 @@ class ServiceTests(unittest.TestCase):
             with pytest.raises(ValueError) as e:
                 b.read_input(input)
             assert str(e.value).startswith("Local filepath detected")
-        for resource_group in [{'r5': '{root}.r5', 'r3': '{root}.r3'}, {'r5': 'file://{root}.r5', 'r3': 'file://{root}.r3'}]:
-            with pytest.raises(ValueError) as e:
-                j.declare_resource_group(foo=resource_group)
-            assert str(e.value).startswith("Local filepath detected")
 
     def test_dry_run(self):
         b = self.batch()
