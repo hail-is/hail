@@ -2076,6 +2076,9 @@ steps:
       - name: add-jobs-update-id-index
         script: /io/sql/add-jobs-update-id-index.sql
         online: true
+      - name: no-dev-standing-workers-by-default
+        script: /io/sql/no_dev_standing_workers_by_default.py
+        online: true
     inputs:
       - from: /repo/batch/sql
         to: /io/sql

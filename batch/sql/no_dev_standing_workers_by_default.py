@@ -13,8 +13,9 @@ async def main():
     await db.execute_update(
         '''
 UPDATE pools
-SET enable_standing_worker = %s
-''', (False,))
+SET enable_standing_worker = 0
+'''
+    )
 
 
 loop = asyncio.get_event_loop()
