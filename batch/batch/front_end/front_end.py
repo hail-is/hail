@@ -711,7 +711,7 @@ FROM batch_updates
 INNER JOIN batches ON batch_updates.batch_id = batches.id
 WHERE batch_updates.batch_id = %s AND batch_updates.update_id = %s AND user = %s AND NOT deleted;
 ''',
-        (user, batch_id, update_id),
+        (batch_id, update_id, user),
     )
 
     if not record:

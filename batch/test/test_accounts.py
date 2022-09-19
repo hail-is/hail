@@ -1,10 +1,10 @@
 import asyncio
-import orjson
 import os
 import secrets
 from typing import Any, AsyncGenerator, Awaitable, Callable, Optional
 
 import aiohttp
+import orjson
 import pytest
 
 from hailtop.auth import session_id_encode_to_str

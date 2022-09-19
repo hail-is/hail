@@ -1027,9 +1027,7 @@ BEGIN
               COALESCE(SUM(state = 'Success'), 0) AS n_succeeded
             FROM `job_parents`
             LEFT JOIN `jobs` ON jobs.batch_id = `job_parents`.batch_id AND jobs.job_id = `job_parents`.parent_id
-            WHERE `job_parents`.batch_id = in_batch_id AND
-              `job_parents`.job_id >= cur_update_start_job_id AND
-              `job_parents`.job_id < cur_update_start_job_id + staging_n_jobs
+            WHERE job_parents.batch_id = in_batch_id AND jobs.update_id = in_update_id
             GROUP BY `job_parents`.batch_id, `job_parents`.job_id
             FOR UPDATE
           ) AS t
@@ -1038,8 +1036,7 @@ BEGIN
           SET jobs.state = IF(COALESCE(t.n_pending_parents, 0) = 0, 'Ready', 'Pending'),
               jobs.n_pending_parents = COALESCE(t.n_pending_parents, 0),
               jobs.cancelled = IF(COALESCE(t.n_succeeded, 0) = COALESCE(t.n_parents - t.n_pending_parents, 0), jobs.cancelled, 1)
-          WHERE jobs.batch_id = in_batch_id AND jobs.job_id >= cur_update_start_job_id AND
-              jobs.job_id < cur_update_start_job_id + staging_n_jobs;
+          WHERE jobs.batch_id = in_batch_id AND jobs.update_id = in_update_id;
       END IF;
 
       COMMIT;
