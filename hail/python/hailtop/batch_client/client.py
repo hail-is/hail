@@ -300,8 +300,8 @@ class BatchClient:
                                                   cancel_after_n_failures=cancel_after_n_failures)
         return BatchBuilder.from_async_builder(builder)
 
-    async def update_batch(self, batch_id: int) -> 'BatchBuilder':
-        builder = await self._async_client.update_batch(batch_id)
+    def update_batch(self, batch_id: int) -> 'BatchBuilder':
+        builder = async_to_blocking(self._async_client.update_batch(batch_id))
         return BatchBuilder.from_async_builder(builder)
 
     def get_billing_project(self, billing_project):
