@@ -734,7 +734,7 @@ class ServiceBackend(Backend[bc.Batch]):
 
     def validate_file_scheme(self, uri: str) -> None:
         scheme = self.__fs.get_scheme(uri)
-        if (scheme == "file"):
+        if scheme == "file":
             raise ValueError(
                 f"Local filepath detected: '{uri}'. "
                 "ServiceBackend does not support the use of local filepaths. "
