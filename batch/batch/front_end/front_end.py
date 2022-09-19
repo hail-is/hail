@@ -2187,14 +2187,8 @@ async def _close_billing_project(db, billing_project):
             '''
 SELECT name, `status`, batches.id as batch_id
 FROM billing_projects
-LEFT JOIN batches
-ON billing_projects.name = batches.billing_project
-AND billing_projects.`status` != 'deleted'
-AND NOT batches.deleted
-LEFT JOIN batch_updates
-ON batches.id = batch_updates.batch_id
-WHERE name = %s
-AND (batches.time_completed IS NULL OR NOT batch_updates.committed)
+LEFT JOIN batches ON billing_projects.name = batches.billing_project
+WHERE name = %s AND batches.state = 'running' AND billing_projects.`status` != 'deleted' AND NOT batches.deleted 
 LIMIT 1
 FOR UPDATE;
     ''',
@@ -2208,7 +2202,7 @@ FOR UPDATE;
                 f'Billing project {billing_project} is already closed or deleted.', 'info'
             )
         if row['batch_id'] is not None:
-            raise BatchUserError(f'Billing project {billing_project} has open or running batches.', 'error')
+            raise BatchUserError(f'Billing project {billing_project} has running batches.', 'error')
 
         await tx.execute_update("UPDATE billing_projects SET `status` = 'closed' WHERE name = %s;", (billing_project,))
 

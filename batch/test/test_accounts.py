@@ -173,7 +173,7 @@ async def test_close_reopen_billing_project(dev_client: BatchClient, new_billing
     ], r
 
 
-async def test_close_billing_project_with_pending_batch_update_errors(
+async def test_close_billing_project_with_pending_batch_update_does_not_error(
     make_client: Callable[[str], Awaitable[BatchClient]], dev_client: BatchClient, new_billing_project: str
 ):
     project = new_billing_project
@@ -194,13 +194,10 @@ async def test_close_billing_project_with_pending_batch_update_errors(
     try:
         await dev_client.close_billing_project(project)
     except aiohttp.ClientResponseError as e:
-        assert e.status == 403, str((e, await b.debug_info()))
-    else:
-        assert False, str(await b.debug_info())
-    await client._patch(f'/api/v1alpha/batches/{b.id}/close')
+        assert False, str((e, await b.debug_info()))
 
 
-async def test_close_nonexistent_billing_projet(dev_client: BatchClient):
+async def test_close_nonexistent_billing_project(dev_client: BatchClient):
     try:
         await dev_client.close_billing_project("nonexistent_project")
     except aiohttp.ClientResponseError as e:
