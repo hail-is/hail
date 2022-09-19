@@ -1017,7 +1017,7 @@ BEGIN
 
       DELETE FROM batches_inst_coll_staging WHERE batch_id = in_batch_id AND update_id = in_update_id;
 
-      IF cur_update_start_job_id != 1 THEN
+      IF in_update_id != 1 THEN
         # FIXME see if an exists query is faster
         UPDATE jobs
           LEFT JOIN (
