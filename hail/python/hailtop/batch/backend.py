@@ -79,7 +79,7 @@ class Backend(abc.ABC, Generic[RunningBatchType]):
             self._close()
             self._closed = True
 
-    def validate_file_scheme(path: str) -> None:
+    def validate_file_scheme(self, uri: str) -> None:
         pass
 
     def __del__(self):
