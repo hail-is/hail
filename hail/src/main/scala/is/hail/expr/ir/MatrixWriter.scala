@@ -1168,6 +1168,15 @@ case class BGENExportFinalizer(typ: MatrixType, path: String, exportType: String
       }
     }
 
+    if (exportType == ExportType.PARALLEL_SEPARATE_HEADER || exportType == ExportType.PARALLEL_HEADER_IN_SHARD) {
+      val files = cb.memoize(Code.newArray[String](results.loadLength()))
+      results.forEachDefined(cb) { (cb, i, res) =>
+        cb += files.update(i, res.asBaseStruct.loadField(cb, "partFile").get(cb).asString.loadString(cb))
+      }
+
+      cb += Code.invokeScalaObject3[FS, String, Array[String], Unit](TableTextFinalizer.getClass, "cleanup", cb.emb.getFS, path + ".bgen", files)
+    }
+
     if (exportType == ExportType.PARALLEL_SEPARATE_HEADER) {
       val os = cb.memoize(cb.emb.create(const(path + ".bgen").concat("/header")))
       val header = Code.invokeScalaObject2[Array[String], Long, Array[Byte]](BgenWriter.getClass, "headerBlock", sampleIds, numVariants)
