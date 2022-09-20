@@ -56,6 +56,7 @@
 	    <th>Billing Project</th>
 	    <th>Name</th>
 	    <th>Submitted</th>
+	    <th>Updated</th>
 	    <th>Completed</th>
 	    <th>State</th>
 	    <th>Jobs</th>
@@ -83,6 +84,11 @@
 	    <td>
 	      {% if 'time_created' in batch and batch['time_created'] is not none %}
 	      {{ batch['time_created'] }}
+	      {% endif %}
+	    </td>
+	    <td>
+	      {% if 'time_updated' in batch and batch['time_updated'] is not none %}
+	      {{ batch['time_updated'] }}
 	      {% endif %}
 	    </td>
 	    <td>

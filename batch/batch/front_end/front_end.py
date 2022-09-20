@@ -611,12 +611,15 @@ WITH base_t AS (
     batches_n_jobs_in_complete_states.n_completed,
     batches_n_jobs_in_complete_states.n_succeeded,
     batches_n_jobs_in_complete_states.n_failed,
-    batches_n_jobs_in_complete_states.n_cancelled
+    batches_n_jobs_in_complete_states.n_cancelled,
+    MAX(batch_updates.time_committed) AS time_updated
   FROM batches
   LEFT JOIN batches_n_jobs_in_complete_states
     ON batches.id = batches_n_jobs_in_complete_states.id
   LEFT JOIN batches_cancelled
     ON batches.id = batches_cancelled.id
+  LEFT JOIN batch_updates
+    ON batches.id = batch_updates.batch_id
   STRAIGHT_JOIN billing_project_users ON batches.billing_project = billing_project_users.billing_project
   WHERE {' AND '.join(where_conditions)}
   ORDER BY id DESC
@@ -1401,12 +1404,15 @@ SELECT batches.*,
   batches_n_jobs_in_complete_states.n_completed,
   batches_n_jobs_in_complete_states.n_succeeded,
   batches_n_jobs_in_complete_states.n_failed,
-  batches_n_jobs_in_complete_states.n_cancelled
+  batches_n_jobs_in_complete_states.n_cancelled,
+  MAX(batch_updates.time_committed) AS time_updated
 FROM batches
 LEFT JOIN batches_n_jobs_in_complete_states
        ON batches.id = batches_n_jobs_in_complete_states.id
 LEFT JOIN batches_cancelled
        ON batches.id = batches_cancelled.id
+LEFT JOIN batch_updates
+       ON batches.id = batch_updates.batch_id
 WHERE batches.id = %s AND NOT deleted
 )
 SELECT base_t.*, COALESCE(SUM(`usage` * rate), 0) AS cost
