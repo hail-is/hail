@@ -199,8 +199,9 @@ class BatchBuilder:
 
     def __init__(self, client, attributes, callback, token: Optional[str] = None,
                  cancel_after_n_failures: Optional[int] = None):
-        self._async_builder: aioclient.BatchBuilder = aioclient.BatchBuilder(client, attributes, callback, token,
-                                                                             cancel_after_n_failures)
+        self._async_builder: aioclient.BatchBuilder = aioclient.BatchBuilder(
+            client, attributes=attributes, callback=callback, token=token, cancel_after_n_failures=cancel_after_n_failures
+        )
 
     @property
     def attributes(self):

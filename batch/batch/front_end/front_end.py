@@ -1363,6 +1363,8 @@ FOR UPDATE;
         if record['cancelled']:
             raise web.HTTPBadRequest(reason='Cannot submit new jobs to a cancelled batch')
 
+        now = time_msecs()
+
         record = await tx.execute_and_fetchone(
             '''
 SELECT update_id, start_job_id, n_jobs FROM batch_updates

@@ -350,7 +350,7 @@ class Batch:
         self.attributes = attributes
         self.token = token
         self._last_known_status = last_known_status
-        self.submission_info = submission_info
+        self.submission_info = submission_info or BatchSubmissionInfo()
 
     async def cancel(self):
         await self._client._patch(f'/api/v1alpha/batches/{self.id}/cancel')
@@ -493,7 +493,7 @@ class BatchBuilder:
 
         absolute_parent_ids = []
         in_update_parent_ids = []
-        foreign_batches = []
+        foreign_batches: List[Union[SubmittedJob, UnsubmittedJob]] = []
         invalid_job_ids = []
         for parent in parents:
             job = parent._job
