@@ -243,23 +243,8 @@ a {
     }
 
     tr {
-        &:nth-of-type(7n+1) {
-            background-color: #fff4f4;
-        }
-        &:nth-of-type(7n+2) {
-            background-color: #fff9f1;
-        }
-        &:nth-of-type(7n+3) {
-            background-color: #fdfdf1;
-        }
-        &:nth-of-type(7n+4) {
-            background-color: #f4fff4;
-        }
-        &:nth-of-type(7n+5) {
-            background-color: #f2f4ff;
-        }
-        &:nth-of-type(7n+6) {
-            background-color: #fff6ff;
+        &:nth-of-type(even) {
+            background-color: #f0f0f0;
         }
 
         td.data-table-bad {
