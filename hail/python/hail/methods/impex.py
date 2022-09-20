@@ -3233,7 +3233,7 @@ def import_gvs(refs: 'List[List[str]]',
         path = os.path.join(tmp_dir, f'sample_group_{idx+1}.vds')
         vds_paths.append(path)
 
-        if idx <= intermediate_resume_point:
+        if idx < intermediate_resume_point:
             info(f'import_gvs: skipping group {idx+1}/{len(refs)}...')
             continue
 
