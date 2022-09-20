@@ -1,11 +1,13 @@
 import hail as hl
 from ..helpers import startTestHailContext, stopTestHailContext
 from hailtop.utils import secret_alnum_string
+from hailtop.test_utils import skip_in_azure
 
 setUpModule = startTestHailContext
 tearDownModule = stopTestHailContext
 
 
+@skip_in_azure
 def test_requester_pays_no_settings():
     try:
         hl.import_table('gs://hail-services-requester-pays/hello')
@@ -15,6 +17,7 @@ def test_requester_pays_no_settings():
         assert False
 
 
+@skip_in_azure
 def test_requester_pays_write_no_settings():
     random_filename = 'gs://hail-services-requester-pays/test_requester_pays_on_worker_driver_' + secret_alnum_string(10)
     try:
@@ -26,6 +29,7 @@ def test_requester_pays_write_no_settings():
         assert False
 
 
+@skip_in_azure
 def test_requester_pays_with_project():
     hl.stop()
     hl.init(gcs_requester_pays_configuration='hail-vdc')
@@ -53,6 +57,7 @@ def test_requester_pays_with_project():
     assert hl.import_table('gs://hail-services-requester-pays/hello', no_header=True).collect() == [hl.Struct(f0='hello')]
 
 
+@skip_in_azure
 def test_requester_pays_with_project_more_than_one_partition():
     # NB: this test uses a file with more rows than partitions because Hadoop's Seekable input
     # streams do not permit seeking past the end of the input (ref:
