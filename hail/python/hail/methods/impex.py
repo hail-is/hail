@@ -3063,7 +3063,8 @@ def import_avro(paths, *, key=None, intervals=None):
            truth_sensitivity_snp_threshold=float,
            truth_sensitivity_indel_threshold=float,
            reference_genome=reference_genome_type,
-           partitions_per_sample=numeric)
+           partitions_per_sample=numeric,
+           intermediate_resume_point=int)
 def import_gvs(refs: 'List[List[str]]',
                vets: 'List[List[str]]',
                sample_mapping: 'List[str]',
@@ -3075,7 +3076,8 @@ def import_gvs(refs: 'List[List[str]]',
                truth_sensitivity_snp_threshold: 'float' = 0.997,
                truth_sensitivity_indel_threshold: 'float' = 0.990,
                reference_genome='GRCh38',
-               partitions_per_sample=1.2):
+               partitions_per_sample=1.2,
+               intermediate_resume_point=0):
     """Import a collection of Avro files exported from GVS.
 
     This function is used to import Avro files exported from BigQuery for
@@ -3159,6 +3161,10 @@ def import_gvs(refs: 'List[List[str]]',
         VQSR sensitivity threshold for Indels.
     reference_genome : :class:`str` or :class:`.ReferenceGenome`
         Name or object referring to reference genome.
+    partitions_per_sample : :class:`int` or :class:`float`
+        Number of partitions per sample in the final VDS. Can be fractional (total rounds down).
+    intermediate_resume_point : :class:`int`
+        Index at which to resume sample-group imports. Default 0 (entire import)
 
     Returns
     -------
@@ -3186,7 +3192,7 @@ def import_gvs(refs: 'List[List[str]]',
     def convert_array_with_id_keys_to_dense_array(arr, ids, drop=[]):
         """Converts a coordinate-represented sparse array into a dense array used in MatrixTables."""
         sdict = hl.dict(arr.map(lambda x: (x.sample_id, x.drop('sample_id', *drop))))
-        return hl.rbind(sdict, lambda sdict: hl.literal(ids).map(lambda x: sdict.get(x)))
+        return hl.rbind(sdict, lambda sdict: ids.map(lambda x: sdict.get(x)))
 
     def add_reference_allele(mt):
         """Adds the reference allele from a FASTA file."""
@@ -3221,15 +3227,25 @@ def import_gvs(refs: 'List[List[str]]',
 
     n_samples = 0
 
-    idx = 1
-    for ref_group, var_group in zip(refs, vets):
-        info(f'import_gvs: scanning group {idx}/{len(refs)}...')
+    for idx in range(len(refs)):
+        ref_group = refs[idx]
+        var_group = vets[idx]
+        path = os.path.join(tmp_dir, f'sample_group_{idx+1}.vds')
+        vds_paths.append(path)
+
+        if idx <= intermediate_resume_point:
+            info(f'import_gvs: skipping group {idx+1}/{len(refs)}...')
+            continue
+
+        info(f'import_gvs: scanning group {idx+1}/{len(refs)}...')
         ref_ht = hl.import_avro(ref_group)
 
         # Note -- availability of sample IDs statically would make import more efficient
         info(f'import_gvs: collecting sample IDs...')
         sample_ids = sorted(list(ref_ht.aggregate(hl.agg.collect_as_set(ref_ht.sample_id))))
         samples = [sample_mapping_dict[s] for s in sample_ids]
+        samples_lit = hl.literal(samples, hl.tarray(hl.tstr))
+        sample_ids_lit = hl.literal(sample_ids, hl.tarray(hl.tint32))
         n_new_samples = len(sample_ids)
         n_samples += n_new_samples
         assert n_new_samples == len(samples), (n_new_samples, len(samples))
@@ -3242,10 +3258,10 @@ def import_gvs(refs: 'List[List[str]]',
                                   END=new_loc.position + hl.int32(ref_ht.length) - 1)
         ref_ht = ref_ht.key_by('locus')
         ref_ht = ref_ht.group_by(ref_ht.locus).aggregate(data_per_sample=hl.agg.collect(ref_ht.row.drop('locus')))
-        ref_ht = ref_ht.transmute(entries=convert_array_with_id_keys_to_dense_array(ref_ht.data_per_sample, sample_ids))
+        ref_ht = ref_ht.transmute(entries=convert_array_with_id_keys_to_dense_array(ref_ht.data_per_sample, sample_ids_lit))
 
         # vds column keys assume string sample IDs
-        ref_ht = ref_ht.annotate_globals(col_data=hl.literal(samples).map(lambda s: hl.struct(s=s)))
+        ref_ht = ref_ht.annotate_globals(col_data=samples_lit.map(lambda s: hl.struct(s=s)))
         ref_mt = ref_ht._unlocalize_entries('entries', 'col_data', col_key=['s'])
 
         # workaround to maintain valid VDS schema, is added from FASTA at the end
@@ -3275,8 +3291,8 @@ def import_gvs(refs: 'List[List[str]]',
             alleles=alleles,
             local_allele_lookup=local_allele_lookup)
 
-        var_ht = var_ht.transmute(entries=convert_array_with_id_keys_to_dense_array(var_ht.data_per_sample, sample_ids))
-        var_ht = var_ht.annotate_globals(col_data=hl.literal(samples).map(lambda s: hl.struct(s=hl.str(s))))
+        var_ht = var_ht.transmute(entries=convert_array_with_id_keys_to_dense_array(var_ht.data_per_sample, sample_ids_lit))
+        var_ht = var_ht.annotate_globals(col_data=samples_lit.map(lambda s: hl.struct(s=hl.str(s))))
         var_mt = var_ht._unlocalize_entries('entries', 'col_data', col_key=['s'])
 
         # replace 'local_alleles' strings with indices using our global lookup table
@@ -3284,12 +3300,9 @@ def import_gvs(refs: 'List[List[str]]',
         var_mt = var_mt.drop('local_allele_lookup')
         var_mt = var_mt._key_rows_by_assert_sorted('locus', 'alleles')
 
-        info(f'import_gvs: writing intermediate VDS for sample group {idx} with {n_new_samples} samples...')
+        info(f'import_gvs: writing intermediate VDS for sample group {idx+1} with {n_new_samples} samples...')
         vds = hl.vds.VariantDataset(ref_mt, var_mt)
-        path = os.path.join(tmp_dir, f'sample_group_{idx}.vds')
-        vds.write(path)
-        vds_paths.append(path)
-        idx += 1
+        vds.write(path, overwrite=True)
 
     total_partitions = int(partitions_per_sample * n_samples)
     first_ref_mt = hl.read_matrix_table(hl.vds.VariantDataset._reference_path(vds_paths[0]))
