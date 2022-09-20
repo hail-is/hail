@@ -675,9 +675,6 @@ class BatchBuilder:
         commit_json = await (await self._client._patch(f'/api/v1alpha/batches/{batch_id}/updates/{update_id}/commit')).json()
         return int(commit_json['start_job_id'])
 
-    async def _close_batch(self, id: int):
-        await self._client._patch(f'/api/v1alpha/batches/{id}/close')
-
     MAX_BUNCH_BYTESIZE = 1024 * 1024
     MAX_BUNCH_SIZE = 1024
 

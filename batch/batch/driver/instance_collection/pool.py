@@ -415,7 +415,7 @@ WHERE user = %s AND `state` = 'running';
                     '''
 SELECT job_id, spec, cores_mcpu
 FROM jobs FORCE INDEX(jobs_batch_id_state_always_run_inst_coll_cancelled)
-WHERE jobs.batch_id = %s AND state = 'Ready' AND always_run = 1 AND inst_coll = %s
+WHERE batch_id = %s AND state = 'Ready' AND always_run = 1 AND inst_coll = %s
 LIMIT %s;
 ''',
                     (batch['id'], self.pool.name, remaining.value),
@@ -431,7 +431,7 @@ LIMIT %s;
                         '''
 SELECT job_id, spec, cores_mcpu
 FROM jobs FORCE INDEX(jobs_batch_id_state_always_run_cancelled)
-WHERE jobs.batch_id = %s AND state = 'Ready' AND always_run = 0 AND inst_coll = %s AND cancelled = 0
+WHERE batch_id = %s AND state = 'Ready' AND always_run = 0 AND inst_coll = %s AND cancelled = 0
 LIMIT %s;
 ''',
                         (batch['id'], self.pool.name, remaining.value),

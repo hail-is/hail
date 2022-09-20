@@ -1,4 +1,5 @@
 import collections
+import functools
 import os
 import secrets
 import time
@@ -10,7 +11,10 @@ import pytest
 from hailtop.auth import service_auth_headers
 from hailtop.batch_client.client import BatchClient
 from hailtop.config import get_deploy_config, get_user_config
-from hailtop.utils import external_requests_client_session, retry_response_returning_functions, sync_sleep_and_backoff
+from hailtop.utils import (
+    async_to_blocking, bounded_gather, external_requests_client_session,
+    retry_response_returning_functions, sync_sleep_and_backoff
+)
 
 from .failure_injecting_client_session import FailureInjectingClientSession
 from .utils import legacy_batch_status, skip_in_azure, smallest_machine_type
@@ -1135,19 +1139,20 @@ def test_update_batch_w_deps_in_update_always_run(client: BatchClient):
     j1 = bb.create_job(DOCKER_ROOT_IMAGE, ['true'], always_run=True)
     j2 = bb.create_job(DOCKER_ROOT_IMAGE, ['true'], parents=[j, j1])
     b = bb.submit()
-    status = j2.wait()
+    j2.wait()
 
-    assert status['state'] == 'Success', str((status, b.debug_info()))
+    assert j1.status()['state'] == 'Success', str((j1.status(), b.debug_info()))
+    assert j2.status()['state'] == 'Cancelled', str((j2.status(), b.debug_info()))
     assert b.status()['state'] == 'failure', str((b.status(), b.debug_info()))
 
 
-def test_update_batch_w_failing_deps_in_update(client: BatchClient):
+def test_update_batch_w_failing_deps_in_same_update_and_deps_across_updates(client: BatchClient):
     bb = client.create_batch()
     j = bb.create_job(DOCKER_ROOT_IMAGE, ['true'])
     bb.submit()
 
-    j1 = bb.create_job(DOCKER_ROOT_IMAGE, ['false'])
-    j2 = bb.create_job(DOCKER_ROOT_IMAGE, ['true'], parents=[j, j1])
+    j1 = bb.create_job(DOCKER_ROOT_IMAGE, ['false'], parents=[j])
+    j2 = bb.create_job(DOCKER_ROOT_IMAGE, ['true'], parents=[j1])
     b = bb.submit()
     j2_status = j2.wait()
 
@@ -1158,7 +1163,7 @@ def test_update_batch_w_failing_deps_in_update(client: BatchClient):
 
 def test_update_with_always_run(client: BatchClient):
     bb = client.create_batch()
-    j1 = bb.create_job(DOCKER_ROOT_IMAGE, ['sleep 3600'])
+    j1 = bb.create_job(DOCKER_ROOT_IMAGE, ['sleep', '3600'])
     b = bb.submit()
 
     j2 = bb.create_job(DOCKER_ROOT_IMAGE, ['true'], always_run=True, parents=[j1])
@@ -1183,7 +1188,7 @@ def test_update_with_always_run(client: BatchClient):
 
 def test_update_jobs_are_not_serialized(client: BatchClient):
     bb = client.create_batch()
-    j1 = bb.create_job(DOCKER_ROOT_IMAGE, ['sleep 3600'])
+    j1 = bb.create_job(DOCKER_ROOT_IMAGE, ['sleep', '3600'])
     b = bb.submit()
 
     j2 = bb.create_job(DOCKER_ROOT_IMAGE, ['true'])

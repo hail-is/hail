@@ -1535,6 +1535,22 @@ WHERE user = %s AND batches.id = %s AND batch_updates.update_id = %s AND NOT del
 
 async def _commit_update(app: web.Application, batch_id: int, update_id: int, user: str, db: Database):
     client_session: httpx.ClientSession = app['client_session']
+
+    # We don't allow updates to batches that have been cancelled to be committed
+    record = await db.execute_and_fetchone(
+        '''
+SELECT cancelled
+FROM batches
+WHERE id = %s AND user = %s AND NOT deleted
+FOR UPDATE;
+''',
+        (batch_id, user),
+    )
+    if not record:
+        raise web.HTTPNotFound()
+    if record['cancelled']:
+        raise web.HTTPBadRequest(reason='Cannot commit and update to a cancelled batch')
+
     try:
         now = time_msecs()
         await db.check_call_procedure(
@@ -1651,7 +1667,9 @@ LEFT JOIN (
   ORDER BY end_time DESC
   LIMIT 1
 ) AS t ON jobs.batch_id = t.batch_id AND jobs.job_id = t.job_id
-WHERE jobs.batch_id = %s AND NOT deleted AND jobs.job_id = %s
+LEFT JOIN batch_updates
+  ON jobs.batch_id = batch_updates.batch_id AND jobs.update_id = batch_updates.update_id
+WHERE jobs.batch_id = %s AND NOT deleted AND jobs.job_id = %s AND batch_updates.committed
 )
 SELECT base_t.*, COALESCE(SUM(`usage` * rate), 0) AS cost
 FROM base_t
