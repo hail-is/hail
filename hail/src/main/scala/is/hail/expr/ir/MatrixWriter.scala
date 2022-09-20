@@ -10,7 +10,7 @@ import is.hail.expr.ir.streams.StreamProducer
 import is.hail.expr.{JSONAnnotationImpex, Nat}
 import is.hail.io._
 import is.hail.io.fs.FS
-import is.hail.io.gen.{BgenWriter, ExportBGEN, ExportGen}
+import is.hail.io.gen.{BgenWriter, ExportGen}
 import is.hail.io.index.StagedIndexWriter
 import is.hail.io.plink.{ExportPlink, BitPacker}
 import is.hail.io.vcf.{ExportVCF, TabixVCF}
@@ -945,7 +945,15 @@ case class MatrixBGENWriter(
   path: String,
   exportType: String
 ) extends MatrixWriter {
-  def apply(ctx: ExecuteContext, mv: MatrixValue): Unit = ExportBGEN(ctx, mv, path, exportType)
+  def apply(ctx: ExecuteContext, mv: MatrixValue): Unit = {
+    val tv = mv.toTableValue
+    val ts = RVDToTableStage(tv.rvd, tv.globals.toEncodedLiteral(ctx.theHailClassLoader))
+    val tl = TableLiteral(tv, ctx.theHailClassLoader)
+    CompileAndEvaluate(ctx,
+      lower(LowerMatrixIR.colsFieldName, MatrixType.entriesIdentifier, mv.typ.colKey,
+        ctx, ts, tl, BaseTypeWithRequiredness(tv.typ).asInstanceOf[RTable], Map()))
+  }
+
   override def canLowerEfficiently: Boolean = true
   override def lower(colsFieldName: String, entriesFieldName: String, colKey: IndexedSeq[String],
       ctx: ExecuteContext, ts: TableStage, t: TableIR, r: RTable, relationalLetsAbove: Map[String, IR]): IR = {
