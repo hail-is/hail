@@ -152,11 +152,11 @@ abstract class FSSeekableInputStream extends InputStream with Seekable {
   }
 
   def seek(newPos: Long): Unit = {
-    assert((newPos - pos) <= Int.MaxValue)
-    val distance = (newPos - pos).toInt
-    val seekPosition = bb.position() + distance
-    if (seekPosition >= 0 && seekPosition < bb.limit()) {
-      bb.position(seekPosition)
+    val distance = newPos - pos
+    val bufferSeekPosition = bb.position() + distance
+    if (bufferSeekPosition >= 0 && bufferSeekPosition < bb.limit()) {
+      assert(bufferSeekPosition <= Int.MaxValue)
+      bb.position(bufferSeekPosition.toInt)
     } else {
       bb.clear()
       bb.limit(0)
