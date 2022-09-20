@@ -88,14 +88,16 @@ class GeomPoint(Geom):
         "size": ("marker_size", None),
         "tooltip": ("hovertext", None),
         "color_legend": ("name", None),
-        "alpha": ("marker_opacity", None)
+        "alpha": ("marker_opacity", None),
+        "shape": ("marker_symbol", None),
     }
 
-    def __init__(self, aes, color=None, size=None, alpha=None):
+    def __init__(self, aes, color=None, size=None, alpha=None, shape=None):
         super().__init__(aes)
         self.color = color
         self.size = size
         self.alpha = alpha
+        self.shape = shape
 
     def apply_to_fig(self, parent, grouped_data, fig_so_far, precomputed, facet_row, facet_col, legend_cache):
         def plot_group(df):
@@ -119,7 +121,7 @@ class GeomPoint(Geom):
         return StatIdentity()
 
 
-def geom_point(mapping=aes(), *, color=None, size=None, alpha=None):
+def geom_point(mapping=aes(), *, color=None, size=None, alpha=None, shape=None):
     """Create a scatter plot.
 
     Supported aesthetics: ``x``, ``y``, ``color``, ``alpha``, ``tooltip``
@@ -129,7 +131,7 @@ def geom_point(mapping=aes(), *, color=None, size=None, alpha=None):
     :class:`FigureAttribute`
         The geom to be applied.
     """
-    return GeomPoint(mapping, color=color, size=size, alpha=alpha)
+    return GeomPoint(mapping, color=color, size=size, alpha=alpha, shape=shape)
 
 
 class GeomLine(GeomLineBasic):
