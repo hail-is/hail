@@ -2691,7 +2691,7 @@ steps:
       - from: /repo/docker/hailgenetics/hail
         to: /io/docker/hailgenetics/hail
       - from: /just-wheel/wheel-container.tar
-        to: /io/docker/hail/wheel-container.tar
+        to: /io/docker/hailgenetics/hail/wheel-container.tar
     dependsOn:
       - merge_code
       - build_hail_jar_and_wheel_only
