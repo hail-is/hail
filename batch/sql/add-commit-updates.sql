@@ -10,6 +10,7 @@ BEGIN
   DECLARE cur_update_committed BOOLEAN;
   DECLARE expected_n_jobs INT;
   DECLARE staging_n_jobs INT;
+  DECLARE cur_update_start_job_id INT;
 
   START TRANSACTION;
 
@@ -51,7 +52,8 @@ BEGIN
       DELETE FROM batches_inst_coll_staging WHERE batch_id = in_batch_id AND update_id = in_update_id;
 
       IF in_update_id != 1 THEN
-        # FIXME see if an exists query is faster
+        SELECT start_job_id INTO cur_update_start_job_id FROM batch_updates WHERE batch_id = in_batch_id AND update_id = in_update_id;
+
         UPDATE jobs
           LEFT JOIN (
             SELECT `job_parents`.batch_id, `job_parents`.job_id,
@@ -60,7 +62,9 @@ BEGIN
               COALESCE(SUM(state = 'Success'), 0) AS n_succeeded
             FROM `job_parents`
             LEFT JOIN `jobs` ON jobs.batch_id = `job_parents`.batch_id AND jobs.job_id = `job_parents`.parent_id
-            WHERE job_parents.batch_id = in_batch_id AND jobs.update_id = in_update_id
+            WHERE job_parents.batch_id = in_batch_id AND
+              `job_parents`.job_id >= cur_update_start_job_id AND
+              `job_parents`.job_id < cur_update_start_job_id + staging_n_jobs
             GROUP BY `job_parents`.batch_id, `job_parents`.job_id
             FOR UPDATE
           ) AS t
@@ -69,7 +73,8 @@ BEGIN
           SET jobs.state = IF(COALESCE(t.n_pending_parents, 0) = 0, 'Ready', 'Pending'),
               jobs.n_pending_parents = COALESCE(t.n_pending_parents, 0),
               jobs.cancelled = IF(COALESCE(t.n_succeeded, 0) = COALESCE(t.n_parents - t.n_pending_parents, 0), jobs.cancelled, 1)
-          WHERE jobs.batch_id = in_batch_id AND jobs.update_id = in_update_id;
+          WHERE jobs.batch_id = in_batch_id AND jobs.job_id >= cur_update_start_job_id AND
+              jobs.job_id < cur_update_start_job_id + staging_n_jobs;
       END IF;
 
       COMMIT;

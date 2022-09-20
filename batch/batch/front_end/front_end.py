@@ -685,7 +685,7 @@ async def create_jobs(request: aiohttp.web.Request, userdata: dict):
 
 
 @routes.post('/api/v1alpha/batches/{batch_id}/updates/{update_id}/jobs/create')
-@rest_authenticated_users_only
+@auth.rest_authenticated_users_only
 async def create_jobs_for_update(request: aiohttp.web.Request, userdata: dict):
     app = request.app
 
@@ -1234,8 +1234,8 @@ WHERE token = %s AND user = %s FOR UPDATE;
         now = time_msecs()
         id = await tx.execute_insertone(
             '''
-INSERT INTO batches (userdata, user, billing_project, attributes, callback, n_jobs, time_created, token, state, format_version, cancel_after_n_failures)
-VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
+INSERT INTO batches (userdata, user, billing_project, attributes, callback, n_jobs, time_created, time_completed, token, state, format_version, cancel_after_n_failures)
+VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
 ''',
             (
                 json.dumps(userdata),
@@ -1244,6 +1244,7 @@ VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
                 json.dumps(attributes),
                 batch_spec.get('callback'),
                 0,
+                now,
                 now,
                 token,
                 'complete',
@@ -1272,7 +1273,7 @@ VALUES (%s, %s, %s)
 
 
 @routes.post('/api/v1alpha/batches/{batch_id}/update-fast')
-@rest_authenticated_users_only
+@auth.rest_authenticated_users_only
 async def update_batch_fast(request, userdata):
     app = request.app
     db: Database = app['db']
@@ -1304,7 +1305,7 @@ async def update_batch_fast(request, userdata):
 
 
 @routes.post('/api/v1alpha/batches/{batch_id}/updates/create')
-@rest_authenticated_users_only
+@auth.rest_authenticated_users_only
 async def create_update(request, userdata):
     app = request.app
     db: Database = app['db']
@@ -1341,12 +1342,13 @@ WHERE batch_id = %s AND token = %s;
         if record:
             return record['update_id']
 
-        now = time_msecs()
         # We use FOR UPDATE so that we serialize batch update insertions
-        # This is necessary to reserve job id ranges
+        # This is necessary to reserve job id ranges.
+        # We don't allow updates to batches that have been cancelled
+        # but do allow updates to batches with jobs that have been cancelled.
         record = await tx.execute_and_fetchone(
             '''
-SELECT 1
+SELECT cancelled
 FROM batches
 WHERE id = %s AND user = %s AND NOT deleted
 FOR UPDATE;
@@ -1355,6 +1357,8 @@ FOR UPDATE;
         )
         if not record:
             raise web.HTTPNotFound()
+        if record['cancelled']:
+            raise web.HTTPBadRequest(reason='Cannot submit new jobs to a cancelled batch')
 
         record = await tx.execute_and_fetchone(
             '''
@@ -1496,7 +1500,7 @@ WHERE batch_id = %s AND update_id = 1;
 
 
 @routes.patch('/api/v1alpha/batches/{batch_id}/updates/{update_id}/commit')
-@rest_authenticated_users_only
+@auth.rest_authenticated_users_only
 async def commit_update(request: web.Request, userdata):
     app = request.app
     db: Database = app['db']

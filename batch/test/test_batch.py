@@ -1081,16 +1081,7 @@ def test_update_batch_no_deps(client: BatchClient):
     status = j.wait()
 
     assert status['state'] == 'Success', str((status, b.debug_info()))
-
-
-def test_empty_update(client: BatchClient):
-    bb = client.create_batch()
-    bb.create_job(DOCKER_ROOT_IMAGE, ['true'])
-    b = bb.submit()
-    b = bb.submit()
-    status = b.wait()
-
-    assert status['state'] == 'success', str((status, b.debug_info()))
+    assert b.status()['state'] == 'failure', str((b.status(), b.debug_info()))
 
 
 def test_update_batch_w_submitted_job_deps(client: BatchClient):
@@ -1103,6 +1094,7 @@ def test_update_batch_w_submitted_job_deps(client: BatchClient):
     status = j2.wait()
 
     assert status['state'] == 'Success', str((status, b.debug_info()))
+    assert b.status()['state'] == 'success', str((b.status(), b.debug_info()))
 
 
 def test_update_batch_w_failing_submitted_job_deps(client: BatchClient):
@@ -1115,6 +1107,7 @@ def test_update_batch_w_failing_submitted_job_deps(client: BatchClient):
     status = j2.wait()
 
     assert status['state'] == 'Cancelled', str((status, b.debug_info()))
+    assert b.status()['state'] == 'failure', str((b.status(), b.debug_info()))
 
 
 def test_update_batch_w_deps_in_update(client: BatchClient):
@@ -1128,8 +1121,88 @@ def test_update_batch_w_deps_in_update(client: BatchClient):
     status = j2.wait()
 
     assert status['state'] == 'Success', str((status, b.debug_info()))
-    assert j1.job_id == 2, str(b.debug_info())
-    assert j2.job_id == 3, str(b.debug_info())
+    assert b.status()['state'] == 'success', str((b.status(), b.debug_info()))
+    assert b.status()['n_jobs'] == 3, str(b.debug_info())
+
+
+def test_update_batch_w_deps_in_update_always_run(client: BatchClient):
+    bb = client.create_batch()
+    j = bb.create_job(DOCKER_ROOT_IMAGE, ['false'])
+    bb.submit()
+
+    j.wait()
+
+    j1 = bb.create_job(DOCKER_ROOT_IMAGE, ['true'], always_run=True)
+    j2 = bb.create_job(DOCKER_ROOT_IMAGE, ['true'], parents=[j, j1])
+    b = bb.submit()
+    status = j2.wait()
+
+    assert status['state'] == 'Success', str((status, b.debug_info()))
+    assert b.status()['state'] == 'failure', str((b.status(), b.debug_info()))
+
+
+def test_update_batch_w_failing_deps_in_update(client: BatchClient):
+    bb = client.create_batch()
+    j = bb.create_job(DOCKER_ROOT_IMAGE, ['true'])
+    bb.submit()
+
+    j1 = bb.create_job(DOCKER_ROOT_IMAGE, ['false'])
+    j2 = bb.create_job(DOCKER_ROOT_IMAGE, ['true'], parents=[j, j1])
+    b = bb.submit()
+    j2_status = j2.wait()
+
+    assert j.status()['state'] == 'Success', str((j.status(), b.debug_info()))
+    assert j2_status['state'] == 'Cancelled', str((j2_status, b.debug_info()))
+    assert b.status()['state'] == 'failure', str((b.status(), b.debug_info()))
+
+
+def test_update_with_always_run(client: BatchClient):
+    bb = client.create_batch()
+    j1 = bb.create_job(DOCKER_ROOT_IMAGE, ['sleep 3600'])
+    b = bb.submit()
+
+    j2 = bb.create_job(DOCKER_ROOT_IMAGE, ['true'], always_run=True, parents=[j1])
+    b = bb.submit()
+
+    delay = 0.1
+    while True:
+        if j1.is_complete():
+            assert False, str(j1.status(), b.debug_info())
+        if j1.is_running():
+            break
+        delay = await sync_sleep_and_backoff(delay)
+
+    assert j2.is_pending(), str(j2.status(), b.debug_info())
+
+    b.cancel()
+    j2.wait()
+
+    assert j2.status()['state'] == 'Success', str((j2.status(), b.debug_info()))
+    assert b.status()['state'] == 'cancelled', str((b.status(), b.debug_info()))
+
+
+def test_update_jobs_are_not_serialized(client: BatchClient):
+    bb = client.create_batch()
+    j1 = bb.create_job(DOCKER_ROOT_IMAGE, ['sleep 3600'])
+    b = bb.submit()
+
+    j2 = bb.create_job(DOCKER_ROOT_IMAGE, ['true'])
+    b = bb.submit()
+
+    j2.wait()
+
+    delay = 0.1
+    while True:
+        if j1.is_complete():
+            assert False, str(j1.status(), b.debug_info())
+        if j1.is_running():
+            break
+        delay = await sync_sleep_and_backoff(delay)
+
+    b.cancel()
+
+    assert j2.status()['state'] == 'Success', str((j2.status(), b.debug_info()))
+    assert b.status()['state'] == 'cancelled', str((b.status(), b.debug_info()))
 
 
 def test_update_batch_w_empty_initial_batch(client: BatchClient):
@@ -1142,23 +1215,28 @@ def test_update_batch_w_empty_initial_batch(client: BatchClient):
     status = j1.wait()
 
     assert status['state'] == 'Success', str((status, b.debug_info()))
-    assert j1.job_id == 1, str(b.debug_info())
 
 
 def test_update_batch_w_multiple_empty_updates(client: BatchClient):
     bb = client.create_batch()
     b = bb.submit()
-
-    bb = client.update_batch(b.id)
     b = bb.submit()
-
-    bb = client.update_batch(b.id)
-    j1 = bb.create_job(DOCKER_ROOT_IMAGE, ['true'])
+    j = bb.create_job(DOCKER_ROOT_IMAGE, ['true'])
     b = bb.submit()
     status = b.wait()
 
     assert status['state'] == 'success', str((status, b.debug_info()))
-    assert j1.job_id == 1, str(b.debug_info())
+
+
+def test_update_batch_w_new_batch_builder(client: BatchClient):
+    bb = client.create_batch()
+    b = bb.submit()
+    bb = client.update_batch(b.id)
+    j = bb.create_job(DOCKER_ROOT_IMAGE, ['true'])
+    b = bb.submit()
+    status = b.wait()
+
+    assert status['state'] == 'success', str((status, b.debug_info()))
 
 
 def test_update_batch_wout_fast_path(client: BatchClient):
@@ -1168,3 +1246,33 @@ def test_update_batch_wout_fast_path(client: BatchClient):
         bb.create_job(DOCKER_ROOT_IMAGE, ['echo', 'a' * (900 * 1024)])
     b = bb.submit()
     assert not next(iter(b.submission_info.used_fast_update.values()))
+
+
+def test_submit_update_to_cancelled_batch(client: BatchClient):
+    bb = client.create_batch()
+    b = bb.submit()
+    b.cancel()
+
+    try:
+        bb.create_job(DOCKER_ROOT_IMAGE, ['true'])
+        b = bb.submit()
+    except aiohttp.ClientResponseError as err:
+        assert err.status == 400
+        assert 'Cannot submit new jobs to a cancelled batch' in err.message
+    else:
+        assert False
+
+
+def test_submit_update_to_deleted_batch(client: BatchClient):
+    bb = client.create_batch()
+    b = bb.submit()
+    b.cancel()
+    b.delete()
+
+    try:
+        bb.create_job(DOCKER_ROOT_IMAGE, ['true'])
+        b = bb.submit()
+    except aiohttp.ClientResponseError as err:
+        assert err.status == 404
+    else:
+        assert False

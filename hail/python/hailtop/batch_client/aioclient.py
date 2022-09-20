@@ -185,6 +185,15 @@ class Job:
     async def is_complete(self):
         return await self._job.is_complete()
 
+    async def is_running(self):
+        return await self._job.is_running()
+
+    async def is_pending(self):
+        return await self._job.is_pending()
+
+    async def is_ready(self):
+        return await self._job.is_ready()
+
     # {
     #   batch_id: int
     #   job_id: int
@@ -240,6 +249,15 @@ class UnsubmittedJob:
     async def is_complete(self):  # pylint: disable=no-self-use
         raise ValueError("cannot determine if an unsubmitted job is complete")
 
+    async def is_running(self):  # pylint: disable=no-self-use
+        raise ValueError("cannot determine if an unsubmitted job is running")
+
+    async def is_pending(self):  # pylint: disable=no-self-use
+        raise ValueError("cannot determine if an unsubmitted job is pending")
+
+    async def is_ready(self):  # pylint: disable=no-self-use
+        raise ValueError("cannot determine if an unsubmitted job is ready")
+
     async def status(self):  # pylint: disable=no-self-use
         raise ValueError("cannot get the status of an unsubmitted job")
 
@@ -270,14 +288,22 @@ class SubmittedJob:
             await self.status()
         return self._status['attributes']
 
-    async def is_complete(self):
-        if self._status:
-            state = self._status['state']
-            if state in complete_states:
-                return True
+    async def _is_job_in_state(self, states):
         await self.status()
         state = self._status['state']
-        return state in complete_states
+        return state in states
+
+    async def is_complete(self):
+        return await self._is_job_in_state(complete_states)
+
+    async def is_running(self):
+        return await self._is_job_in_state(['Running'])
+
+    async def is_pending(self):
+        return await self._is_job_in_state(['Pending'])
+
+    async def is_ready(self):
+        return await self._is_job_in_state(['Ready'])
 
     async def status(self):
         resp = await self._batch._client._get(f'/api/v1alpha/batches/{self.batch_id}/jobs/{self.job_id}')
@@ -592,7 +618,6 @@ class BatchBuilder:
         update_json = await resp.json()
         pbar.update(len(byte_job_specs))
         return int(update_json['start_job_id'])
-
 
     async def _submit_jobs(self, batch_id: int, update_id: int, byte_job_specs: List[bytes], n_jobs: int, pbar):
         assert len(byte_job_specs) > 0, byte_job_specs

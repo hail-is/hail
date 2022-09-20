@@ -79,6 +79,15 @@ class Job:
     def is_complete(self):
         return async_to_blocking(self._async_job.is_complete())
 
+    def is_running(self):
+        return async_to_blocking(self._async_job.is_running())
+
+    def is_pending(self):
+        return async_to_blocking(self._async_job.is_pending())
+
+    def is_ready(self):
+        return async_to_blocking(self._async_job.is_ready())
+
     # {
     #   batch_id: int
     #   job_id: int
