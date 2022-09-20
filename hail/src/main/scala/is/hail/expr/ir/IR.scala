@@ -728,6 +728,8 @@ final case class MatrixWrite(child: MatrixIR, writer: MatrixWriter) extends IR
 
 final case class MatrixMultiWrite(_children: IndexedSeq[MatrixIR], writer: MatrixNativeMultiWriter) extends IR {
   private val t = _children.head.typ
+  assert(!t.rowType.hasField(MatrixReader.rowUIDFieldName) &&
+    !t.colType.hasField(MatrixReader.colUIDFieldName), t)
   require(_children.forall(_.typ == t))
 }
 

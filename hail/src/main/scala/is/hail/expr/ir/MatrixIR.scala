@@ -27,9 +27,7 @@ object MatrixIR {
 
   def range(nRows: Int, nCols: Int, nPartitions: Option[Int], dropCols: Boolean = false, dropRows: Boolean = false): MatrixIR = {
     val reader = MatrixRangeReader(nRows, nCols, nPartitions)
-    val requestedType = reader.fullMatrixType.copy(
-      rowType = reader.fullMatrixType.rowType.deleteKey(reader.rowUIDFieldName),
-      colType = reader.fullMatrixType.colType.deleteKey(reader.colUIDFieldName))
+    val requestedType = reader.fullMatrixTypeWithoutUIDs
     MatrixRead(requestedType, dropCols = dropCols, dropRows = dropRows, reader = reader)
   }
 }

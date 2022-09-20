@@ -299,7 +299,8 @@ class SparkBackend(Py4JBackend):
         return Table._from_java(self._to_java_table_ir(t._tir).pyUnpersist())
 
     def persist_matrix_table(self, mt, storage_level):
-        return MatrixTable._from_java(self._jbackend.pyPersistMatrix(storage_level, self._to_java_matrix_ir(mt._mir)))
+        ir = mt._mir.handle_randomness(None, None)
+        return MatrixTable._from_java(self._jbackend.pyPersistMatrix(storage_level, self._to_java_matrix_ir(ir)))
 
     def unpersist_matrix_table(self, mt):
         return MatrixTable._from_java(self._to_java_matrix_ir(mt._mir).pyUnpersist())
