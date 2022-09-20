@@ -182,6 +182,7 @@ async def test_close_billing_project_with_pending_batch_update_does_not_error(
     bb = client.create_batch()
     bb.create_job(DOCKER_ROOT_IMAGE, command=['sleep', '30'])
     b = await bb._open_batch()
+    update_id = await bb._create_update(b.id)
     with tqdm(total=1) as pbar:
         process = {
             'type': 'docker',
@@ -190,7 +191,7 @@ async def test_close_billing_project_with_pending_batch_update_does_not_error(
             'mount_docker_socket': False,
         }
         spec = {'always_run': False, 'job_id': 1, 'parent_ids': [], 'process': process}
-        await bb._submit_jobs(b.id, [orjson.dumps(spec)], 1, pbar)
+        await bb._submit_jobs(b.id, update_id, [orjson.dumps(spec)], 1, pbar)
     try:
         await dev_client.close_billing_project(project)
     except aiohttp.ClientResponseError as e:
