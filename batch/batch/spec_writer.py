@@ -43,12 +43,10 @@ class SpecWriter:
         assert index < len(in_batch_cache)
         if index >= 0:
             token, start, end = in_batch_cache[index]
-            if (job_id >= start and end is None) or job_id in range(start, end):
+            if job_id in range(start, end):
                 return (token, start)
 
-        token, start_job_id, next_start_job_id = await SpecWriter._get_token_start_id_and_next_start_id(
-            db, batch_id, job_id
-        )
+        token, start_job_id, end_job_id = await SpecWriter._get_token_start_id_and_end_id(db, batch_id, job_id)
 
         # It is least likely that old batches or early bunches in a given
         # batch will be needed again
@@ -57,21 +55,23 @@ class SpecWriter:
         elif len(JOB_TOKEN_CACHE[batch_id]) == JOB_TOKEN_CACHE_MAX_BUNCHES_PER_BATCH:
             JOB_TOKEN_CACHE[batch_id].pop(0)
 
-        JOB_TOKEN_CACHE[batch_id].add((token, start_job_id, next_start_job_id))
+        JOB_TOKEN_CACHE[batch_id].add((token, start_job_id, end_job_id))
 
         return (token, start_job_id)
 
     @staticmethod
-    async def _get_token_start_id_and_next_start_id(db, batch_id, job_id) -> Tuple[str, int, int]:
+    async def _get_token_start_id_and_end_id(db, batch_id, job_id) -> Tuple[str, int, int]:
         bunch_record = await db.select_and_fetchone(
             '''
 SELECT
-start_job_id,
-token,
-(SELECT start_job_id FROM batch_bunches WHERE batch_id = %s AND start_job_id > %s ORDER BY start_job_id LIMIT 1) AS next_start_job_id
+batch_bunches.start_job_id,
+batch_bunches.token,
+(SELECT start_job_id FROM batch_bunches WHERE batch_id = %s AND start_job_id > %s ORDER BY start_job_id LIMIT 1) AS next_start_job_id,
+batches.n_jobs
 FROM batch_bunches
-WHERE batch_id = %s AND start_job_id <= %s
-ORDER BY start_job_id DESC
+JOIN batches ON batches.id = batch_bunches.batch_id
+WHERE batch_bunches.batch_id = %s AND batch_bunches.start_job_id <= %s
+ORDER BY batch_bunches.start_job_id DESC
 LIMIT 1;
 ''',
             (batch_id, job_id, batch_id, job_id),
@@ -79,8 +79,8 @@ LIMIT 1;
         )
         token = bunch_record['token']
         start_job_id = bunch_record['start_job_id']
-        next_start_job_id = bunch_record['next_start_job_id']
-        return (token, start_job_id, next_start_job_id)
+        end_job_id = bunch_record['next_start_job_id'] or (bunch_record['n_jobs'] + 1)
+        return (token, start_job_id, end_job_id)
 
     def __init__(self, file_store, batch_id):
         self.file_store = file_store
