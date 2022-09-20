@@ -949,8 +949,6 @@ case class MatrixBGENWriter(
   override def canLowerEfficiently: Boolean = true
   override def lower(colsFieldName: String, entriesFieldName: String, colKey: IndexedSeq[String],
       ctx: ExecuteContext, ts: TableStage, t: TableIR, r: RTable, relationalLetsAbove: Map[String, IR]): IR = {
-    if (exportType == ExportType.PARALLEL_HEADER_IN_SHARD)
-      throw new LowererUnsupportedOperation(s"BGEN header in shard export not lowered")
 
     val tm = MatrixType.fromTableType(t.typ, colsFieldName, entriesFieldName, colKey)
     val folder = if (exportType == ExportType.CONCATENATED)
@@ -1152,9 +1150,18 @@ case class BGENExportFinalizer(typ: MatrixType, path: String, exportType: String
       cb += (sampleIds(i) = s.loadString(cb))
     }
 
+    val results = annotations.loadField(cb, "results").get(cb).asIndexable
+    val dropped = cb.newLocal[Long]("dropped", 0L)
+    results.forEachDefined(cb) { (cb, i, res) =>
+      res.asBaseStruct.loadField(cb, "dropped").consume(cb, {/* do nothing */}, { d =>
+        cb.assign(dropped, dropped + d.asInt64.value)
+      })
+    }
+    cb.ifx(dropped.cne(0L), cb.warning("Set ", dropped.toS, " genotypes to missing: total GP probability did not lie in [0.999, 1.001]."))
+
     val numVariants = cb.newLocal[Long]("num_variants", 0L)
     if (exportType != ExportType.PARALLEL_HEADER_IN_SHARD) {
-      annotations.loadField(cb, "results").get(cb).asIndexable.forEachDefined(cb) { (cb, i, res) =>
+      results.forEachDefined(cb) { (cb, i, res) =>
         res.asBaseStruct.loadField(cb, "numVariants").consume(cb, {/* do nothing */}, { nv =>
           cb.assign(numVariants, numVariants + nv.asInt64.value)
         })
@@ -1181,6 +1188,7 @@ case class BGENExportFinalizer(typ: MatrixType, path: String, exportType: String
         })
       }
 
+      cb += os.invoke[Unit]("flush")
       cb += os.invoke[Unit]("close")
     }
 
