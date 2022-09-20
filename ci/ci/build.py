@@ -268,6 +268,12 @@ class BuildImage2Step(Step):
             pr_number = params.code.config()['number']
             self.cache_repository = f'{self.base_image}:cache-pr-{pr_number}'
 
+        self.push_targets = [self.image, self.cache_repository]
+
+        self.new_docker_prefix = get_global_config().get('new_docker_prefix', None)
+        if self.new_docker_prefix is not None:
+            self.push_targets.append(f'{self.new_docker_prefix}{self.image[len(DOCKER_PREFIX):]}')
+
         self.job = None
 
     def wrapped_job(self):
@@ -337,7 +343,7 @@ retry buildctl-daemonless.sh \
      --frontend dockerfile.v0 \
      --local context={shq(context)} \
      --local dockerfile=/home/user \
-     --output 'type=image,"name={shq(self.image)},{shq(self.cache_repository)}",push=true' \
+     --output 'type=image,"name={",".join(shq(target) for target in self.push_targets)}",push=true' \
      --export-cache type=inline \
      --import-cache type=registry,ref={shq(self.cache_repository)} \
      --import-cache type=registry,ref={shq(self.main_branch_cache_repository)} \
@@ -347,8 +353,10 @@ cat /home/user/trace
 
         log.info(f'step {self.name}, script:\n{script}')
 
-        docker_registry = DOCKER_PREFIX.split('/')[0]
-        job_env = {'REGISTRY': docker_registry}
+        registries = [DOCKER_PREFIX.split('/')[0]]
+        if self.new_docker_prefix is not None:
+            registries.append(self.new_docker_prefix)
+        job_env = {'REGISTRIES': ' '.join(registries)}
         if CLOUD == 'gcp':
             credentials_name = 'GOOGLE_APPLICATION_CREDENTIALS'
         else:
