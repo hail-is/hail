@@ -1,5 +1,4 @@
 import collections
-import functools
 import os
 import secrets
 import time
@@ -11,10 +10,7 @@ import pytest
 from hailtop.auth import service_auth_headers
 from hailtop.batch_client.client import BatchClient
 from hailtop.config import get_deploy_config, get_user_config
-from hailtop.utils import (
-    async_to_blocking, bounded_gather, external_requests_client_session,
-    retry_response_returning_functions, sync_sleep_and_backoff
-)
+from hailtop.utils import external_requests_client_session, retry_response_returning_functions, sync_sleep_and_backoff
 
 from .failure_injecting_client_session import FailureInjectingClientSession
 from .utils import legacy_batch_status, skip_in_azure, smallest_machine_type

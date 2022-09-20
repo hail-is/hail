@@ -156,7 +156,6 @@ class Batch:
     #   n_failed: int
     #   n_cancelled: int
     #   time_created: optional(str), (date)
-    #   time_updated: optional(str), (date)
     #   time_closed: optional(str), (date)
     #   time_completed: optional(str), (date)
     #   duration: optional(str)
