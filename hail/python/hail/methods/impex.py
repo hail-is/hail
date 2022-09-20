@@ -3234,6 +3234,7 @@ def import_gvs(refs: 'List[List[str]]',
         vds_paths.append(path)
 
         if idx < intermediate_resume_point:
+            n_samples += hl.vds.read_vds(idx).n_samples()
             info(f'import_gvs: skipping group {idx+1}/{len(refs)}...')
             continue
 
