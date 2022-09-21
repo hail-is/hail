@@ -285,8 +285,8 @@ WHERE removed = 0 AND inst_coll = %s;
 
     async def ready_cores_mcpu_from_estimated_job_queue(self):
         n_free_cores = int(
-            10 * 20 * self.worker_cores
-        )  # maximum number of new cores in 5 minutes estimated from 10 instances being the max instances created every 15 seconds
+            10 * 8 * self.worker_cores
+        )  # maximum number of new cores in 2.5 minutes estimated from 10 instances being the max instances created every 15 seconds
         user_resources = await self.scheduler._compute_fair_share(n_free_cores)
 
         total = sum(resources['allocated_cores_mcpu'] for resources in user_resources.values())
@@ -318,7 +318,7 @@ LIMIT {share * 150}
 
         result = await self.db.select_and_fetchone(
             f'''
-SELECT SUM(cores_mcpu) AS ready_cores_mcpu
+SELECT CAST(COALESCE(SUM(cores_mcpu), 0) AS SIGNED) AS ready_cores_mcpu
 FROM (
 {" UNION ".join(jobs_query)}
 ) AS ready_jobs
