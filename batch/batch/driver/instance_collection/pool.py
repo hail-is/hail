@@ -311,7 +311,7 @@ LEFT JOIN batches ON jobs.batch_id = batches.id
 LEFT JOIN batches_cancelled ON batches.id = batches_cancelled.id
 WHERE user = %s AND batches.`state` = 'running' AND jobs.state = 'Ready' AND (always_run = 1 OR (always_run = 0 AND batches_cancelled.id IS NULL)) AND inst_coll = %s
 ORDER BY batch_id ASC, always_run DESC, job_id ASC
-LIMIT {share * 300}
+LIMIT {share * 150}
 '''
             jobs_query.append(user_job_query)
             jobs_query_args += [user, self.name]
