@@ -305,7 +305,7 @@ WHERE removed = 0 AND inst_coll = %s;
 
         for user, share in user_share.items():
             user_job_query = f'''
-SELECT user, batch_id, job_id, cores_mcpu, always_run, ROW_NUMBER() OVER() DIV {share} AS approx_scheduling_iteration
+SELECT user, batch_id, job_id, cores_mcpu, always_run
 FROM jobs FORCE INDEX(jobs_batch_id_state_always_run_cancelled)
 LEFT JOIN batches ON jobs.batch_id = batches.id
 LEFT JOIN batches_cancelled ON batches.id = batches_cancelled.id
@@ -322,7 +322,6 @@ SELECT SUM(cores_mcpu) AS ready_cores_mcpu
 FROM (
 {" UNION ".join(jobs_query)}
 ) AS ready_jobs
-ORDER BY approx_scheduling_iteration, user, batch_id, always_run DESC, job_id;
 ''',
             jobs_query_args,
         )
