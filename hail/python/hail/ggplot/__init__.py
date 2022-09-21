@@ -50,6 +50,8 @@ __all__ = [
     "scale_fill_discrete",
     "scale_fill_hue",
     "scale_fill_manual",
+    "scale_shape_manual",
+    "scale_shape_auto",
     "facet_wrap",
     "vars"
 ]
