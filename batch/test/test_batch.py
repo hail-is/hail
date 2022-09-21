@@ -1171,7 +1171,7 @@ def test_update_with_always_run(client: BatchClient):
             assert False, str(j1.status(), b.debug_info())
         if j1.is_running():
             break
-        delay = await sync_sleep_and_backoff(delay)
+        delay = sync_sleep_and_backoff(delay)
 
     assert j2.is_pending(), str(j2.status(), b.debug_info())
 
@@ -1198,7 +1198,7 @@ def test_update_jobs_are_not_serialized(client: BatchClient):
             assert False, str(j1.status(), b.debug_info())
         if j1.is_running():
             break
-        delay = await sync_sleep_and_backoff(delay)
+        delay = sync_sleep_and_backoff(delay)
 
     b.cancel()
 
