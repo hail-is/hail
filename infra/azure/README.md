@@ -122,8 +122,20 @@ Deploy unmanaged resources by running
 ./bootstrap.sh deploy_unmanaged
 ```
 
-If the final letsencrypt step in deploy_unmangaed fails, copy the kubectl secret from
-stdout and apply it manually.
+During the deploy while running into issues you may have to run the
+above command multiple times. Each time it will try to create certificates
+using letsencrypt. You may reach a limit on the number of attempts possible
+withing a 24hr period, or it may fail if the specified certs already exist.
+If this happens it will retrieve the exiting certs, but the deploy_unmanaged step will fail.
+
+If the final letsencrypt step in deploy_unmanaged fails, you will have to
+comment out the "set +x" line in letsencrypt.sh. Then set the environment 
+variable `DRY_RUN=1`. Re-run the deploy_unmanaged step again and copy the
+kubectl secret from stdout.
+
+Apply the secret manually using `kubectl apply` and revert the changes.
+You can then move on from this step.
+
 
 Build the batch worker image by running the following in $HAIL/batch:
 
