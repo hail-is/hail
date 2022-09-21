@@ -404,7 +404,7 @@ types-urllib3==1.26.15
     # via
     #   -r python/dev/requirements.txt
     #   types-requests
-typing-extensions==4.2.0
+typing-extensions==4.3.0
     # via
     #   argon2-cffi
     #   astroid
