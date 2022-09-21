@@ -192,7 +192,7 @@ nbformat==5.4.0
     #   notebook
 nbsphinx==0.8.8
     # via -r python/dev/requirements.txt
-nest-asyncio==1.5.4
+nest-asyncio==1.5.5
     # via
     #   -c python/dev/../requirements.txt
     #   ipykernel
@@ -404,7 +404,7 @@ types-urllib3==1.26.15
     # via
     #   -r python/dev/requirements.txt
     #   types-requests
-typing-extensions==4.2.0
+typing-extensions==4.3.0
     # via
     #   argon2-cffi
     #   astroid
