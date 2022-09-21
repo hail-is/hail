@@ -1348,8 +1348,9 @@ WHERE batch_id = %s AND token = %s;
         # but do allow updates to batches with jobs that have been cancelled.
         record = await tx.execute_and_fetchone(
             '''
-SELECT cancelled
+SELECT batches_cancelled.id IS NOT NULL AS cancelled
 FROM batches
+LEFT JOIN batches_cancelled ON batches.id = batches_cancelled.id
 WHERE id = %s AND user = %s AND NOT deleted
 FOR UPDATE;
 ''',
@@ -1481,7 +1482,9 @@ async def close_batch(request, userdata):
 
     record = await db.select_and_fetchone(
         '''
-SELECT cancelled FROM batches
+SELECT batches_cancelled.id IS NOT NULL AS cancelled
+FROM batches
+LEFT JOIN batches_cancelled ON batches.id = batches_cancelled.id
 WHERE user = %s AND id = %s AND NOT deleted;
 ''',
         (user, batch_id),
@@ -1515,9 +1518,10 @@ async def commit_update(request: web.Request, userdata):
 
     record = await db.select_and_fetchone(
         '''
-SELECT start_job_id, cancelled
+SELECT start_job_id, batches_cancelled.id IS NOT NULL AS cancelled
 FROM batches
 LEFT JOIN batch_updates ON batches.id = batch_updates.batch_id
+LEFT JOIN batches_cancelled ON batches.id = batches_cancelled.id
 WHERE user = %s AND batches.id = %s AND batch_updates.update_id = %s AND NOT deleted;
 ''',
         (user, batch_id, update_id),
