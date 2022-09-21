@@ -4,7 +4,7 @@ import java.io.FileNotFoundException
 import is.hail.HailSuite
 import is.hail.backend.ExecuteContext
 import is.hail.io.fs.FSUtil.dropTrailingSlash
-import is.hail.io.fs.{FS, FileStatus}
+import is.hail.io.fs.{FS, FileStatus, Seekable}
 import is.hail.utils._
 import org.apache.commons.io.IOUtils
 import org.testng.annotations.Test
@@ -313,6 +313,37 @@ trait FSSuite {
     assert(dropTrailingSlash("foo/bar/") == "foo/bar")
     assert(dropTrailingSlash("/foo///") == "/foo")
     assert(dropTrailingSlash("///") == "")
+  }
+
+  @Test def testSeekMoreThanMaxInt(): Unit = {
+    val f = t()
+    using (fs.create(f)) { os =>
+      val eight_mib = 8 * 1024 * 1024
+      val arr = Array.fill(eight_mib){0.toByte}
+      var i = 0
+      // 256 * 8MiB = 2GiB
+      while (i < 256) {
+        os.write(arr, 0, eight_mib)
+        i = i + 1
+      }
+      os.write(10)
+      os.write(20)
+      os.write(30)
+    }
+
+    assert(fs.exists(f))
+
+    using(fs.open(f)) { is =>
+      is match {
+        case base: Seekable => base.seek(Int.MaxValue + 2.toLong)
+        case base: org.apache.hadoop.fs.Seekable => base.seek(Int.MaxValue + 2.toLong)
+      }
+      assert(is.read() == 20)
+      assert(is.read() == 30)
+    }
+
+    fs.delete(f, false)
+    assert(!fs.exists(f))
   }
 }
 

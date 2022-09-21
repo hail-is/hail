@@ -14,15 +14,7 @@ import pymysql
 from aiohttp import web
 from prometheus_async.aio.web import server_stats  # type: ignore
 
-from gear import (
-    check_csrf_token,
-    create_database_pool,
-    monitor_endpoints_middleware,
-    setup_aiohttp_session,
-    web_authenticated_developers_only,
-    web_authenticated_users_only,
-    web_maybe_authenticated_user,
-)
+from gear import AuthClient, check_csrf_token, create_database_pool, monitor_endpoints_middleware, setup_aiohttp_session
 from hailtop import httpx
 from hailtop.config import get_deploy_config
 from hailtop.hail_logging import AccessLogger
@@ -36,6 +28,8 @@ NOTEBOOK_NAMESPACE = os.environ['HAIL_NOTEBOOK_NAMESPACE']
 deploy_config = get_deploy_config()
 
 routes = web.RouteTableDef()
+
+auth = AuthClient()
 
 # Must be int for Kubernetes V1 api timeout_seconds property
 KUBERNETES_TIMEOUT_IN_SECONDS = float(os.environ.get('KUBERNETES_TIMEOUT_IN_SECONDS', 5))
@@ -293,7 +287,7 @@ async def healthcheck(request):  # pylint: disable=unused-argument
 
 @routes.get('')
 @routes.get('/')
-@web_maybe_authenticated_user
+@auth.web_maybe_authenticated_user
 async def index(request, userdata):  # pylint: disable=unused-argument
     return await render_template('notebook', request, userdata, 'index.html', {})
 
@@ -444,27 +438,27 @@ async def _get_auth(request, userdata):
 
 
 @routes.get('/notebook')
-@web_authenticated_users_only()
+@auth.web_authenticated_users_only()
 async def get_notebook(request, userdata):
     return await _get_notebook('notebook', request, userdata)
 
 
 @routes.post('/notebook/delete')
 @check_csrf_token
-@web_authenticated_users_only(redirect=False)
+@auth.web_authenticated_users_only(redirect=False)
 async def delete_notebook(request, userdata):  # pylint: disable=unused-argument
     return await _delete_notebook('notebook', request, userdata)
 
 
 @routes.post('/notebook')
 @check_csrf_token
-@web_authenticated_users_only(redirect=False)
+@auth.web_authenticated_users_only(redirect=False)
 async def post_notebook(request, userdata):
     return await _post_notebook('notebook', request, userdata)
 
 
 @routes.get('/auth/{requested_notebook_token}')
-@web_authenticated_users_only(redirect=False)
+@auth.web_authenticated_users_only(redirect=False)
 async def get_auth(request, userdata):
     return await _get_auth(request, userdata)
 
@@ -486,19 +480,19 @@ async def get_images(request):
 
 
 @routes.get('/notebook/wait')
-@web_authenticated_users_only(redirect=False)
+@auth.web_authenticated_users_only(redirect=False)
 async def wait_websocket(request, userdata):
     return await _wait_websocket('notebook', request, userdata)
 
 
 @routes.get('/error')
-@web_maybe_authenticated_user
+@auth.web_maybe_authenticated_user
 async def get_error(request, userdata):
     return await _get_error('notebook', request, userdata)
 
 
 @routes.get('/workshop-admin')
-@web_authenticated_developers_only()
+@auth.web_authenticated_developers_only()
 async def workshop_admin(request, userdata):
     dbpool = request.app['dbpool']
     async with dbpool.acquire() as conn:
@@ -512,7 +506,7 @@ async def workshop_admin(request, userdata):
 
 @routes.post('/workshop-admin-create')
 @check_csrf_token
-@web_authenticated_developers_only()
+@auth.web_authenticated_developers_only()
 async def create_workshop(request, userdata):  # pylint: disable=unused-argument
     dbpool = request.app['dbpool']
     session = await aiohttp_session.get_session(request)
@@ -545,7 +539,7 @@ INSERT INTO workshops (name, image, cpu, memory, password, active, token) VALUES
 
 @routes.post('/workshop-admin-update')
 @check_csrf_token
-@web_authenticated_developers_only()
+@auth.web_authenticated_developers_only()
 async def update_workshop(request, userdata):  # pylint: disable=unused-argument
     app = request.app
     dbpool = app['dbpool']
@@ -578,7 +572,7 @@ UPDATE workshops SET name = %s, image = %s, cpu = %s, memory = %s, password = %s
 
 @routes.post('/workshop-admin-delete')
 @check_csrf_token
-@web_authenticated_developers_only()
+@auth.web_authenticated_developers_only()
 async def delete_workshop(request, userdata):  # pylint: disable=unused-argument
     app = request.app
     dbpool = app['dbpool']
@@ -724,7 +718,7 @@ async def workshop_wait_websocket(request, userdata):
 
 
 @workshop_routes.get('/error')
-@web_maybe_authenticated_user
+@auth.web_maybe_authenticated_user
 async def workshop_get_error(request, userdata):
     return await _get_error('workshop', request, userdata)
 

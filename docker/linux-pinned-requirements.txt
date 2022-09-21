@@ -173,7 +173,7 @@ greenlet==1.1.2
     # via gevent
 grpc-google-iam-v1==0.12.4
     # via google-cloud-logging
-grpcio==1.47.0
+grpcio==1.48.1
     # via
     #   google-api-core
     #   googleapis-common-protos
@@ -515,7 +515,7 @@ webencodings==0.5.1
     # via bleach
 websocket-client==1.3.3
     # via docker
-werkzeug==2.1.2
+werkzeug==2.2.2
     # via flask
 wheel==0.37.1
     # via -r requirements.txt
