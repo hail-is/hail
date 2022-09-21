@@ -3076,7 +3076,7 @@ def import_gvs(refs: 'List[List[str]]',
                truth_sensitivity_snp_threshold: 'float' = 0.997,
                truth_sensitivity_indel_threshold: 'float' = 0.990,
                reference_genome='GRCh38',
-               partitions_per_sample=1.2,
+               partitions_per_sample=1.0,
                intermediate_resume_point=0):
     """Import a collection of Avro files exported from GVS.
 
@@ -3310,7 +3310,16 @@ def import_gvs(refs: 'List[List[str]]',
     info(f'import_gvs: computing partition intervals for final partitioning ({total_partitions} partitions)')
     partition_intervals = first_ref_mt._calculate_new_partitions(n_partitions=total_partitions)
 
-    vdses = [hl.vds.read_vds(path, intervals=partition_intervals) for path in vds_paths]
+    from hail.utils.java import Env
+    refs = Env.spark_backend("import_gvs")\
+        .read_multiple_matrix_tables([hl.vds.VariantDataset._reference_path(path) for path in vds_paths],
+                                     partition_intervals,
+                                     hl.tarray(hl.tinterval(hl.tstruct(locus=hl.tlocus(reference_genome)))))
+    vars = Env.spark_backend("import_gvs") \
+        .read_multiple_matrix_tables([hl.vds.VariantDataset._variants_path(path) for path in vds_paths],
+                                     partition_intervals,
+                                     hl.tarray(hl.tinterval(hl.tstruct(locus=hl.tlocus(reference_genome)))))
+    vdses = [hl.vds.VariantDataset(ref, var) for ref, var in zip(refs, vars)]
 
     combined = hl.vds.combiner.combine_variant_datasets(vdses)
 
