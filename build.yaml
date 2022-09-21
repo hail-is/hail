@@ -2073,8 +2073,8 @@ steps:
       - name: cleanup-add-batch-updates
         script: /io/sql/cleanup-add-batch-updates.sql
         online: true
-      - name: add-jobs-id-update-id-index
-        script: /io/sql/add-jobs-id-update-id-index.sql
+      - name: add-jobs-update-id-index
+        script: /io/sql/add-jobs-update-id-index.sql
         online: true
     inputs:
       - from: /repo/batch/sql
