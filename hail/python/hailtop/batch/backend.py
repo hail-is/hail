@@ -313,9 +313,10 @@ class LocalBackend(Backend[None]):
                     transfer_dict
                     for output_resource in job._external_outputs
                     for transfer_dict in transfer_dicts_for_resource_file(output_resource)]
-                output_transfers = orjson.dumps(output_transfer_dicts).decode('utf-8')
 
-                code += [f'python3 -m hailtop.aiotools.copy {shq(requester_pays_project_json)} {shq(output_transfers)}']
+                if output_transfer_dicts:
+                    output_transfers = orjson.dumps(output_transfer_dicts).decode('utf-8')
+                    code += [f'python3 -m hailtop.aiotools.copy {shq(requester_pays_project_json)} {shq(output_transfers)}']
                 code += ['\n']
 
                 run_code(code)
