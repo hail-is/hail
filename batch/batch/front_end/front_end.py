@@ -1481,13 +1481,15 @@ async def close_batch(request, userdata):
 
     record = await db.select_and_fetchone(
         '''
-SELECT 1 FROM batches
+SELECT cancelled FROM batches
 WHERE user = %s AND id = %s AND NOT deleted;
 ''',
         (user, batch_id),
     )
     if not record:
         raise web.HTTPNotFound()
+    if record['cancelled']:
+        raise web.HTTPBadRequest(reason='Cannot close a previously cancelled batch.')
 
     record = await db.select_and_fetchone(
         '''
@@ -1513,7 +1515,7 @@ async def commit_update(request: web.Request, userdata):
 
     record = await db.select_and_fetchone(
         '''
-SELECT start_job_id
+SELECT start_job_id, cancelled
 FROM batches
 LEFT JOIN batch_updates ON batches.id = batch_updates.batch_id
 WHERE user = %s AND batches.id = %s AND batch_updates.update_id = %s AND NOT deleted;
@@ -1522,6 +1524,8 @@ WHERE user = %s AND batches.id = %s AND batch_updates.update_id = %s AND NOT del
     )
     if not record:
         raise web.HTTPNotFound()
+    if record['cancelled']:
+        raise web.HTTPBadRequest(reason='Cannot commit an update to a cancelled batch')
 
     await _commit_update(app, batch_id, update_id, user, db)
     return web.json_response({'start_job_id': record['start_job_id']})
@@ -1529,21 +1533,6 @@ WHERE user = %s AND batches.id = %s AND batch_updates.update_id = %s AND NOT del
 
 async def _commit_update(app: web.Application, batch_id: int, update_id: int, user: str, db: Database):
     client_session: httpx.ClientSession = app['client_session']
-
-    # We don't allow updates to batches that have been cancelled to be committed
-    record = await db.execute_and_fetchone(
-        '''
-SELECT cancelled
-FROM batches
-WHERE id = %s AND user = %s AND NOT deleted
-FOR UPDATE;
-''',
-        (batch_id, user),
-    )
-    if not record:
-        raise web.HTTPNotFound()
-    if record['cancelled']:
-        raise web.HTTPBadRequest(reason='Cannot commit and update to a cancelled batch')
 
     try:
         now = time_msecs()

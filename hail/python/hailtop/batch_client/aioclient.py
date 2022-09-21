@@ -600,6 +600,8 @@ class BatchBuilder:
 
     async def _update_fast(self, byte_job_specs: List[bytes], pbar) -> int:
         assert self._batch
+        if self._update_token is None:
+            self._update_token = secrets.token_urlsafe(32)
         b = bytearray()
         b.extend(b'{"bunch":')
         b.append(ord('['))
@@ -666,6 +668,8 @@ class BatchBuilder:
         return {'n_jobs': len(self._jobs), 'update_token': self._update_token}
 
     async def _create_update(self, batch_id: int) -> int:
+        if self._update_token is None:
+            self._update_token = secrets.token_urlsafe(32)
         update_spec = self._update_spec()
         update_json = await (await self._client._post(f'/api/v1alpha/batches/{batch_id}/updates/create', json=update_spec)).json()
         return int(update_json['update_id'])
@@ -739,8 +743,6 @@ class BatchBuilder:
                 if n_bunches == 0:
                     log.warning('Tried to submit an update with 0 jobs. Doing nothing.')
                     return self._batch
-                if self._update_token is None:
-                    self._update_token = secrets.token_urlsafe(32)
                 if n_bunches == 1:
                     start_job_id = await self._update_fast(byte_job_specs_bunches[0], pbar)
                 else:
