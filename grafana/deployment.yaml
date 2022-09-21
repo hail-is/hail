@@ -131,6 +131,14 @@ data:
     root_url = %(protocol)s://%(domain)/{{ default_ns.name }}/grafana/
     serve_from_sub_path = true
 {% endif %}
+    [auth]
+    disable_signout_menu = true
+    [auth.anonymous]
+    enabled = true
+    org_name = Main Org.
+    org_role = Admin
+    [auth.basic]
+    enabled = false
 ---
 apiVersion: v1
 kind: ConfigMap

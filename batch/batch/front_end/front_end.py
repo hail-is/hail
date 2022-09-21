@@ -23,14 +23,13 @@ from aiohttp import web
 from prometheus_async.aio.web import server_stats  # type: ignore
 
 from gear import (
+    AuthClient,
     Database,
+    Transaction,
     check_csrf_token,
     monitor_endpoints_middleware,
-    rest_authenticated_users_only,
     setup_aiohttp_session,
     transaction,
-    web_authenticated_developers_only,
-    web_authenticated_users_only,
 )
 from gear.clients import get_cloud_async_fs
 from gear.database import CallError
@@ -87,6 +86,8 @@ routes = web.RouteTableDef()
 
 deploy_config = get_deploy_config()
 
+auth = AuthClient()
+
 BATCH_JOB_DEFAULT_CPU = os.environ.get('HAIL_BATCH_JOB_DEFAULT_CPU', '1')
 BATCH_JOB_DEFAULT_MEMORY = os.environ.get('HAIL_BATCH_JOB_DEFAULT_MEMORY', 'standard')
 BATCH_JOB_DEFAULT_STORAGE = os.environ.get('HAIL_BATCH_JOB_DEFAULT_STORAGE', '0Gi')
@@ -94,7 +95,7 @@ BATCH_JOB_DEFAULT_PREEMPTIBLE = True
 
 
 def rest_authenticated_developers_or_auth_only(fun):
-    @rest_authenticated_users_only
+    @auth.rest_authenticated_users_only
     @wraps(fun)
     async def wrapped(request, userdata, *args, **kwargs):
         if userdata['is_developer'] == 1 or userdata['username'] == 'auth':
@@ -137,7 +138,7 @@ WHERE id = %s AND billing_project_users.`user` = %s;
 
 
 def rest_billing_project_users_only(fun):
-    @rest_authenticated_users_only
+    @auth.rest_authenticated_users_only
     @wraps(fun)
     async def wrapped(request, userdata, *args, **kwargs):
         db = request.app['db']
@@ -153,7 +154,7 @@ def rest_billing_project_users_only(fun):
 
 def web_billing_project_users_only(redirect=True):
     def wrap(fun):
-        @web_authenticated_users_only(redirect)
+        @auth.web_authenticated_users_only(redirect)
         @wraps(fun)
         async def wrapped(request, userdata, *args, **kwargs):
             db = request.app['db']
@@ -773,7 +774,7 @@ ORDER BY id DESC;
 
 
 @routes.get('/api/v1alpha/batches')
-@rest_authenticated_users_only
+@auth.rest_authenticated_users_only
 async def get_batches(request, userdata):  # pylint: disable=unused-argument
     user = userdata['username']
     q = request.query.get('q', f'user:{user}')
@@ -797,7 +798,7 @@ def check_service_account_permissions(user, sa):
 
 
 @routes.post('/api/v1alpha/batches/{batch_id}/jobs/create')
-@rest_authenticated_users_only
+@auth.rest_authenticated_users_only
 async def create_jobs(request: aiohttp.web.Request, userdata: dict):
     app = request.app
 
@@ -807,7 +808,7 @@ async def create_jobs(request: aiohttp.web.Request, userdata: dict):
 
     batch_id = int(request.match_info['batch_id'])
     job_specs = await request.json()
-    return await _create_jobs(userdata, job_specs, batch_id, app)
+    return await _create_jobs(userdata, job_specs, batch_id, 1, app)
 
 
 NON_HEX_DIGIT = re.compile('[^A-Fa-f0-9]')
@@ -818,7 +819,7 @@ def assert_is_sha_1_hex_string(revision: str):
         raise web.HTTPBadRequest(reason=f'revision must be 40 character hexadecimal encoded SHA-1, got: {revision}')
 
 
-async def _create_jobs(userdata: dict, job_specs: dict, batch_id: int, app: aiohttp.web.Application):
+async def _create_jobs(userdata: dict, job_specs: dict, batch_id: int, update_id: int, app: aiohttp.web.Application):
     db: Database = app['db']
     file_store: FileStore = app['file_store']
     user = userdata['username']
@@ -1098,6 +1099,7 @@ WHERE user = %s AND id = %s AND NOT deleted;
             (
                 batch_id,
                 job_id,
+                update_id,
                 state,
                 json.dumps(db_spec),
                 always_run,
@@ -1125,8 +1127,8 @@ WHERE user = %s AND id = %s AND NOT deleted;
             try:
                 await tx.execute_many(
                     '''
-INSERT INTO jobs (batch_id, job_id, state, spec, always_run, cores_mcpu, n_pending_parents, inst_coll)
-VALUES (%s, %s, %s, %s, %s, %s, %s, %s);
+INSERT INTO jobs (batch_id, job_id, update_id, state, spec, always_run, cores_mcpu, n_pending_parents, inst_coll)
+VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s);
 ''',
                     jobs_args,
                 )
@@ -1160,6 +1162,7 @@ VALUES (%s, %s, %s, %s);
             batches_inst_coll_staging_args = [
                 (
                     batch_id,
+                    update_id,
                     inst_coll,
                     rand_token,
                     resources['n_jobs'],
@@ -1170,8 +1173,8 @@ VALUES (%s, %s, %s, %s);
             ]
             await tx.execute_many(
                 '''
-INSERT INTO batches_inst_coll_staging (batch_id, inst_coll, token, n_jobs, n_ready_jobs, ready_cores_mcpu)
-VALUES (%s, %s, %s, %s, %s, %s)
+INSERT INTO batches_inst_coll_staging (batch_id, update_id, inst_coll, token, n_jobs, n_ready_jobs, ready_cores_mcpu)
+VALUES (%s, %s, %s, %s, %s, %s, %s)
 ON DUPLICATE KEY UPDATE
   n_jobs = n_jobs + VALUES(n_jobs),
   n_ready_jobs = n_ready_jobs + VALUES(n_ready_jobs),
@@ -1183,6 +1186,7 @@ ON DUPLICATE KEY UPDATE
             batch_inst_coll_cancellable_resources_args = [
                 (
                     batch_id,
+                    update_id,
                     inst_coll,
                     rand_token,
                     resources['n_ready_cancellable_jobs'],
@@ -1192,8 +1196,8 @@ ON DUPLICATE KEY UPDATE
             ]
             await tx.execute_many(
                 '''
-INSERT INTO batch_inst_coll_cancellable_resources (batch_id, inst_coll, token, n_ready_cancellable_jobs, ready_cancellable_cores_mcpu)
-VALUES (%s, %s, %s, %s, %s)
+INSERT INTO batch_inst_coll_cancellable_resources (batch_id, update_id, inst_coll, token, n_ready_cancellable_jobs, ready_cancellable_cores_mcpu)
+VALUES (%s, %s, %s, %s, %s, %s)
 ON DUPLICATE KEY UPDATE
   n_ready_cancellable_jobs = n_ready_cancellable_jobs + VALUES(n_ready_cancellable_jobs),
   ready_cancellable_cores_mcpu = ready_cancellable_cores_mcpu + VALUES(ready_cancellable_cores_mcpu);
@@ -1232,7 +1236,7 @@ VALUES (%s, %s, %s);
 
 
 @routes.post('/api/v1alpha/batches/create-fast')
-@rest_authenticated_users_only
+@auth.rest_authenticated_users_only
 async def create_batch_fast(request, userdata):
     app = request.app
     db: Database = app['db']
@@ -1246,18 +1250,20 @@ async def create_batch_fast(request, userdata):
     batch_spec = batch_and_bunch['batch']
     bunch = batch_and_bunch['bunch']
     batch_id = await _create_batch(batch_spec, userdata, db)
+    update_id = await _create_batch_update(batch_id, batch_spec['token'], batch_spec['n_jobs'], db)
     try:
-        await _create_jobs(userdata, bunch, batch_id, app)
+        await _create_jobs(userdata, bunch, batch_id, update_id, app)
     except web.HTTPBadRequest as e:
         if f'batch {batch_id} is not open' == e.reason:
             return web.json_response({'id': batch_id})
         raise
+    await _commit_update(batch_id, update_id, db)
     await _close_batch(app, batch_id, user, db)
     return web.json_response({'id': batch_id})
 
 
 @routes.post('/api/v1alpha/batches/create')
-@rest_authenticated_users_only
+@auth.rest_authenticated_users_only
 async def create_batch(request, userdata):
     app = request.app
     db: Database = app['db']
@@ -1268,7 +1274,12 @@ async def create_batch(request, userdata):
 
     batch_spec = await request.json()
     id = await _create_batch(batch_spec, userdata, db)
-    return web.json_response({'id': id})
+    n_jobs = batch_spec['n_jobs']
+    if n_jobs > 0:
+        update_id = await _create_batch_update(id, batch_spec['token'], batch_spec['n_jobs'], db)
+    else:
+        update_id = None
+    return web.json_response({'id': id, 'update_id': update_id})
 
 
 async def _create_batch(batch_spec: dict, userdata: dict, db: Database):
@@ -1381,6 +1392,36 @@ VALUES (%s, %s, %s)
     return await insert()  # pylint: disable=no-value-for-parameter
 
 
+async def _create_batch_update(batch_id: int, update_token: str, n_jobs: int, db: Database) -> int:
+    @transaction(db)
+    async def update(tx: Transaction):
+        assert n_jobs > 0
+        record = await tx.execute_and_fetchone(
+            '''
+SELECT update_id, start_job_id FROM batch_updates
+WHERE batch_id = %s AND token = %s;
+''',
+            (batch_id, update_token),
+        )
+
+        if record:
+            return record['update_id']
+
+        now = time_msecs()
+        await tx.execute_insertone(
+            '''
+INSERT INTO batch_updates
+(batch_id, update_id, token, start_job_id, n_jobs, committed, time_created)
+VALUES (%s, %s, %s, %s, %s, %s, %s);
+''',
+            (batch_id, 1, update_token, 1, n_jobs, False, now),
+        )
+
+        return 1
+
+    return await update()  # pylint: disable=no-value-for-parameter
+
+
 async def _get_batch(app, batch_id):
     db: Database = app['db']
 
@@ -1459,7 +1500,7 @@ async def cancel_batch(request, userdata, batch_id):  # pylint: disable=unused-a
 
 
 @routes.patch('/api/v1alpha/batches/{batch_id}/close')
-@rest_authenticated_users_only
+@auth.rest_authenticated_users_only
 async def close_batch(request, userdata):
     batch_id = int(request.match_info['batch_id'])
     user = userdata['username']
@@ -1481,7 +1522,27 @@ WHERE user = %s AND id = %s AND NOT deleted;
     if not record:
         raise web.HTTPNotFound()
 
+    record = await db.select_and_fetchone(
+        '''
+SELECT 1 FROM batch_updates
+WHERE batch_id = %s AND update_id = 1;
+''',
+        (batch_id,),
+    )
+    if record:
+        await _commit_update(batch_id, 1, db)
     return await _close_batch(app, batch_id, user, db)
+
+
+async def _commit_update(batch_id: int, update_id: int, db: Database):
+    await db.execute_and_fetchone(
+        '''
+UPDATE batch_updates
+SET `committed` = TRUE
+WHERE batch_id = %s AND update_id = %s
+''',
+        (batch_id, update_id),
+    )
 
 
 async def _close_batch(app: aiohttp.web.Application, batch_id: int, user: str, db: Database):
@@ -1569,7 +1630,7 @@ async def ui_delete_batch(request, userdata, batch_id):  # pylint: disable=unuse
 
 
 @routes.get('/batches', name='batches')
-@web_authenticated_users_only()
+@auth.web_authenticated_users_only()
 @catch_ui_error_in_dev
 async def ui_batches(request, userdata):
     user = userdata['username']
@@ -1839,7 +1900,7 @@ async def ui_get_job_log(request, userdata, batch_id):  # pylint: disable=unused
 
 
 @routes.get('/billing_limits')
-@web_authenticated_users_only()
+@auth.web_authenticated_users_only()
 @catch_ui_error_in_dev
 async def ui_get_billing_limits(request, userdata):
     app = request.app
@@ -1913,7 +1974,7 @@ async def post_edit_billing_limits(request, userdata):  # pylint: disable=unused
 
 @routes.post('/billing_limits/{billing_project}/edit')
 @check_csrf_token
-@web_authenticated_developers_only(redirect=False)
+@auth.web_authenticated_developers_only(redirect=False)
 @catch_ui_error_in_dev
 async def post_edit_billing_limits_ui(request, userdata):  # pylint: disable=unused-argument
     db: Database = request.app['db']
@@ -1998,7 +2059,7 @@ GROUP BY billing_project, `user`;
 
 
 @routes.get('/billing')
-@web_authenticated_users_only()
+@auth.web_authenticated_users_only()
 @catch_ui_error_in_dev
 async def ui_get_billing(request, userdata):
     is_developer = userdata['is_developer'] == 1
@@ -2029,6 +2090,8 @@ async def ui_get_billing(request, userdata):
     ]
     billing_by_project_user.sort(key=lambda record: (record['billing_project'], record['user']))
 
+    total_cost = cost_str(sum([record['cost'] for record in billing]))
+
     page_context = {
         'billing_by_project': billing_by_project,
         'billing_by_user': billing_by_user,
@@ -2037,12 +2100,13 @@ async def ui_get_billing(request, userdata):
         'end': end,
         'is_developer': is_developer,
         'user': userdata['username'],
+        'total_cost': total_cost,
     }
     return await render_template('batch', request, userdata, 'billing.html', page_context)
 
 
 @routes.get('/billing_projects')
-@web_authenticated_developers_only()
+@auth.web_authenticated_developers_only()
 @catch_ui_error_in_dev
 async def ui_get_billing_projects(request, userdata):
     db: Database = request.app['db']
@@ -2055,7 +2119,7 @@ async def ui_get_billing_projects(request, userdata):
 
 
 @routes.get('/api/v1alpha/billing_projects')
-@rest_authenticated_users_only
+@auth.rest_authenticated_users_only
 async def get_billing_projects(request, userdata):
     db: Database = request.app['db']
 
@@ -2070,7 +2134,7 @@ async def get_billing_projects(request, userdata):
 
 
 @routes.get('/api/v1alpha/billing_projects/{billing_project}')
-@rest_authenticated_users_only
+@auth.rest_authenticated_users_only
 async def get_billing_project(request, userdata):
     db: Database = request.app['db']
     billing_project = request.match_info['billing_project']
@@ -2131,7 +2195,7 @@ WHERE billing_project = %s AND user = %s;
 
 @routes.post('/billing_projects/{billing_project}/users/{user}/remove')
 @check_csrf_token
-@web_authenticated_developers_only(redirect=False)
+@auth.web_authenticated_developers_only(redirect=False)
 @catch_ui_error_in_dev
 async def post_billing_projects_remove_user(request, userdata):  # pylint: disable=unused-argument
     db: Database = request.app['db']
@@ -2194,7 +2258,7 @@ VALUES (%s, %s);
 
 @routes.post('/billing_projects/{billing_project}/users/add')
 @check_csrf_token
-@web_authenticated_developers_only(redirect=False)
+@auth.web_authenticated_developers_only(redirect=False)
 @catch_ui_error_in_dev
 async def post_billing_projects_add_user(request, userdata):  # pylint: disable=unused-argument
     db: Database = request.app['db']
@@ -2248,7 +2312,7 @@ VALUES (%s);
 
 @routes.post('/billing_projects/create')
 @check_csrf_token
-@web_authenticated_developers_only(redirect=False)
+@auth.web_authenticated_developers_only(redirect=False)
 @catch_ui_error_in_dev
 async def post_create_billing_projects(request, userdata):  # pylint: disable=unused-argument
     db: Database = request.app['db']
@@ -2307,7 +2371,7 @@ FOR UPDATE;
 
 @routes.post('/billing_projects/{billing_project}/close')
 @check_csrf_token
-@web_authenticated_developers_only(redirect=False)
+@auth.web_authenticated_developers_only(redirect=False)
 @catch_ui_error_in_dev
 async def post_close_billing_projects(request, userdata):  # pylint: disable=unused-argument
     db: Database = request.app['db']
@@ -2351,7 +2415,7 @@ async def _reopen_billing_project(db, billing_project):
 
 @routes.post('/billing_projects/{billing_project}/reopen')
 @check_csrf_token
-@web_authenticated_developers_only(redirect=False)
+@auth.web_authenticated_developers_only(redirect=False)
 @catch_ui_error_in_dev
 async def post_reopen_billing_projects(request, userdata):  # pylint: disable=unused-argument
     db: Database = request.app['db']
@@ -2416,7 +2480,7 @@ SELECT frozen FROM globals;
 
 @routes.get('')
 @routes.get('/')
-@web_authenticated_users_only()
+@auth.web_authenticated_users_only()
 @catch_ui_error_in_dev
 async def index(request, userdata):  # pylint: disable=unused-argument
     location = request.app.router['batches'].url_for()

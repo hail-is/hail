@@ -248,7 +248,8 @@ VALUES (%s, %s);
                 await self.mark_healthy()
                 return True
             except Exception:
-                log.exception(f'while requesting {self} /healthcheck')
+                if (time_msecs() - self.last_updated) / 1000 > 300:
+                    log.exception(f'while requesting {self} /healthcheck')
                 await self.incr_failed_request_count()
         return False
 
