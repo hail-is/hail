@@ -722,7 +722,7 @@ async def _create_jobs(userdata: dict, job_specs: dict, batch_id: int, update_id
 
     record = await db.select_and_fetchone(
         '''
-SELECT `state`, format_version, `committed`
+SELECT `state`, format_version, `committed`, start_job_id
 FROM batch_updates
 INNER JOIN batches ON batch_updates.batch_id = batches.id
 WHERE batch_updates.batch_id = %s AND batch_updates.update_id = %s AND user = %s AND NOT deleted;
@@ -1351,7 +1351,7 @@ WHERE batch_id = %s AND token = %s;
 SELECT batches_cancelled.id IS NOT NULL AS cancelled
 FROM batches
 LEFT JOIN batches_cancelled ON batches.id = batches_cancelled.id
-WHERE id = %s AND user = %s AND NOT deleted
+WHERE batches.id = %s AND user = %s AND NOT deleted
 FOR UPDATE;
 ''',
             (batch_id, user),
@@ -1485,7 +1485,7 @@ async def close_batch(request, userdata):
 SELECT batches_cancelled.id IS NOT NULL AS cancelled
 FROM batches
 LEFT JOIN batches_cancelled ON batches.id = batches_cancelled.id
-WHERE user = %s AND id = %s AND NOT deleted;
+WHERE user = %s AND batches.id = %s AND NOT deleted;
 ''',
         (user, batch_id),
     )
