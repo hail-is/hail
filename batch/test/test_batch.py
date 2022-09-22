@@ -257,10 +257,6 @@ def test_unsubmitted_state(client: BatchClient):
     with pytest.raises(ValueError):
         j.wait()
 
-    bb.submit()
-    with pytest.raises(ValueError):
-        bb.create_job(DOCKER_ROOT_IMAGE, ['echo', 'test'])
-
 
 def test_list_batches(client: BatchClient):
     tag = secrets.token_urlsafe(64)

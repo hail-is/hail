@@ -664,7 +664,7 @@ class BatchBuilder:
                      self.token,
                      submission_info=BatchSubmissionInfo(False))
 
-    async def _update_spec(self) -> dict:
+    def _update_spec(self) -> dict:
         return {'n_jobs': len(self._jobs), 'update_token': self._update_token}
 
     async def _create_update(self, batch_id: int) -> int:
