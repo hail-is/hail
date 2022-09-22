@@ -452,7 +452,6 @@ class BatchBuilder:
             token = secrets.token_urlsafe(32)
         self.token = token
 
-        self._update_token = None
         self._update_id = None
 
         self._cancel_after_n_failures = cancel_after_n_failures

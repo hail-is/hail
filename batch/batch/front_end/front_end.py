@@ -10,7 +10,7 @@ import signal
 import traceback
 from functools import wraps
 from numbers import Number
-from typing import Dict, Optional, Union
+from typing import Dict, Optional, Tuple, Union
 
 import aiohttp
 import aiohttp_session
@@ -1293,15 +1293,17 @@ async def update_batch_fast(request, userdata):
     except ValidationError as e:
         raise web.HTTPBadRequest(reason=e.reason)
 
-    update_id = await _create_batch_update(batch_id, update_spec['token'], update_spec['n_jobs'], user, db)
+    update_id, start_job_id = await _create_batch_update(
+        batch_id, update_spec['token'], update_spec['n_jobs'], user, db
+    )
     try:
         await _create_jobs(userdata, bunch, batch_id, update_id, app)
     except web.HTTPBadRequest as e:
         if f'update {update_id} is already committed' == e.reason:
-            return web.json_response({'id': batch_id})
+            return web.json_response({'id': batch_id, 'start_job_id': start_job_id})
         raise
     await _commit_update(app, batch_id, update_id, user, db)
-    return web.json_response({'id': batch_id})
+    return web.json_response({'id': batch_id, 'start_job_id': start_job_id})
 
 
 @routes.post('/api/v1alpha/batches/{batch_id}/updates/create')
@@ -1323,11 +1325,15 @@ async def create_update(request, userdata):
     except ValidationError as e:
         raise web.HTTPBadRequest(reason=e.reason)
 
-    update_id = await _create_batch_update(batch_id, update_spec['token'], update_spec['n_jobs'], user, db)
+    update_id, _ = await _create_batch_update(
+        batch_id, update_spec['token'], update_spec['n_jobs'], user, db
+    )
     return web.json_response({'update_id': update_id})
 
 
-async def _create_batch_update(batch_id: int, update_token: str, n_jobs: int, user: str, db: Database) -> int:
+async def _create_batch_update(
+    batch_id: int, update_token: str, n_jobs: int, user: str, db: Database
+) -> Tuple[int, int]:
     @transaction(db)
     async def update(tx: Transaction):
         assert n_jobs > 0
@@ -1388,7 +1394,7 @@ VALUES (%s, %s, %s, %s, %s, %s, %s);
             (batch_id, update_id, update_token, update_start_job_id, n_jobs, False, now),
         )
 
-        return update_id
+        return (update_id, update_start_job_id)
 
     return await update()  # pylint: disable=no-value-for-parameter
 
@@ -2434,7 +2440,7 @@ async def _delete_billing_project(db, billing_project):
         )
         if not row:
             raise NonExistentBillingProjectError(billing_project)
-        assert row['name'] == billing_project
+        assert row['name'] == billing_project, row
         if row['status'] == 'deleted':
             raise BatchOperationAlreadyCompletedError(f'Billing project {billing_project} is already deleted.', 'info')
         if row['status'] == 'open':
