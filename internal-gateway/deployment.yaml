@@ -54,11 +54,8 @@ spec:
            limits:
              cpu: "1"
              memory: "1G"
-         env:
-         - name: ENVOY_UID
-           value: "0"
          ports:
-          - containerPort: 80
+          - containerPort: 8080
          volumeMounts:
           - name: ssl-config-internal-gateway
             mountPath: /ssl-config
