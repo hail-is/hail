@@ -1373,7 +1373,7 @@ LIMIT 1;
             (batch_id,),
         )
         if record:
-            update_id = int(record['update_id'])
+            update_id = int(record['update_id']) + 1
             update_start_job_id = int(record['start_job_id']) + int(record['n_jobs'])
         else:
             update_id = 1
