@@ -42,17 +42,25 @@ CONTROL_LOOP_RUNS = pc.Counter(
 )
 
 SCHEDULING_LOOP_CORES = pc.Gauge(
-    'scheduling_loop_cores', 'Number of cores scheduled or unscheduled in one scheduling execution loop', ['pool_name', 'scheduled']
+    'scheduling_loop_cores',
+    'Number of cores scheduled or unscheduled in one scheduling execution loop',
+    ['pool_name', 'scheduled'],
 )
 SCHEDULING_LOOP_JOBS = pc.Gauge(
-    'scheduling_loop_jobs', 'Number of jobs scheduled or unscheduled in one scheduling execution loop', ['pool_name', 'scheduled']
+    'scheduling_loop_jobs',
+    'Number of jobs scheduled or unscheduled in one scheduling execution loop',
+    ['pool_name', 'scheduled'],
 )
 
 FULL_JOB_QUEUE_READY_CORES = pc.Gauge(
-    'autoscaler_full_job_queue_ready_cores', 'Number of ready cores per control loop execution calculated from the full job queue', ['pool_name']
+    'autoscaler_full_job_queue_ready_cores',
+    'Number of ready cores per control loop execution calculated from the full job queue',
+    ['pool_name'],
 )
 HEAD_JOB_QUEUE_READY_CORES = pc.Gauge(
-    'autoscaler_head_job_queue_ready_cores', 'Number of ready cores per control loop execution calculated from the head of the job queue', ['pool_name']
+    'autoscaler_head_job_queue_ready_cores',
+    'Number of ready cores per control loop execution calculated from the head of the job queue',
+    ['pool_name'],
 )
 
 FULL_JOB_QUEUE_N_INSTANCES = pc.Gauge(
@@ -231,7 +239,9 @@ WHERE removed = 0 AND inst_coll = %s;
             boot_disk_size_gb=self.boot_disk_size_gb,
         )
 
-    def compute_n_instances_needed(self, ready_cores_mcpu: int, n_instances_by_state: Dict[str, int], region: Optional[str] = None):
+    def compute_n_instances_needed(
+        self, ready_cores_mcpu: int, n_instances_by_state: Dict[str, int], region: Optional[str] = None
+    ):
         n_live_instances = n_instances_by_state['pending'] + n_instances_by_state['active']
 
         if region is None:
@@ -278,7 +288,9 @@ WHERE removed = 0 AND inst_coll = %s;
 
     async def ready_cores_mcpu_from_estimated_job_queue(self):
         autoscaler_runs_per_minute = 60 / AUTOSCALER_LOOP_PERIOD_SECONDS
-        max_new_instances_in_two_and_a_half_minutes = int(2.5 * MAX_INSTANCES_PER_AUTOSCALER_LOOP * autoscaler_runs_per_minute)
+        max_new_instances_in_two_and_a_half_minutes = int(
+            2.5 * MAX_INSTANCES_PER_AUTOSCALER_LOOP * autoscaler_runs_per_minute
+        )
         max_possible_future_cores = self.worker_cores * max_new_instances_in_two_and_a_half_minutes
 
         user_resources = await self.scheduler._compute_fair_share(max_possible_future_cores)
@@ -318,7 +330,7 @@ FROM (
 ) AS ready_jobs
 ''',
             jobs_query_args,
-            query_name='get_job_queue_head'
+            query_name='get_job_queue_head',
         )
 
         return result['ready_cores_mcpu']
@@ -352,7 +364,9 @@ GROUP BY user;
         ready_cores_mcpu_per_user = await self.ready_cores_mcpu_per_user()
 
         full_job_queue_ready_cores_mcpu = sum(ready_cores_mcpu_per_user.values())
-        full_job_queue_n_instances = self.compute_n_instances_needed(full_job_queue_ready_cores_mcpu, self.n_instances_by_state)
+        full_job_queue_n_instances = self.compute_n_instances_needed(
+            full_job_queue_ready_cores_mcpu, self.n_instances_by_state
+        )
 
         head_job_queue_ready_cores_mcpu = await self.ready_cores_mcpu_from_estimated_job_queue()
         head_job_queue_n_instances = self.compute_n_instances_needed(
@@ -618,8 +632,12 @@ LIMIT %s;
             log.info(f'schedule: attempted to schedule {n_scheduled} jobs in {end - start}ms for {self.pool}')
 
         SCHEDULING_LOOP_CORES.labels(pool_name=self.pool.name, scheduled=True).set(n_cores_mcpu_scheduled / 1000)
-        SCHEDULING_LOOP_CORES.labels(pool_name=self.pool.name, scheduled=False).set((n_cores_mcpu_attempted_to_schedule - n_cores_mcpu_scheduled) / 1000)
+        SCHEDULING_LOOP_CORES.labels(pool_name=self.pool.name, scheduled=False).set(
+            (n_cores_mcpu_attempted_to_schedule - n_cores_mcpu_scheduled) / 1000
+        )
         SCHEDULING_LOOP_JOBS.labels(pool_name=self.pool.name, scheduled=True).set(n_scheduled)
-        SCHEDULING_LOOP_JOBS.labels(pool_name=self.pool.name, scheduled=False).set(n_attempted_to_schedule - n_scheduled)
+        SCHEDULING_LOOP_JOBS.labels(pool_name=self.pool.name, scheduled=False).set(
+            n_attempted_to_schedule - n_scheduled
+        )
 
         return should_wait
