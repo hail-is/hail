@@ -1134,7 +1134,7 @@ async def create_batch_fast(request, userdata):
     batch_spec = batch_and_bunch['batch']
     bunch = batch_and_bunch['bunch']
     batch_id = await _create_batch(batch_spec, userdata, db)
-    update_id = await _create_batch_update(batch_id, batch_spec['token'], batch_spec['n_jobs'], user, db)
+    update_id, _ = await _create_batch_update(batch_id, batch_spec['token'], batch_spec['n_jobs'], user, db)
     try:
         await _create_jobs(userdata, bunch, batch_id, update_id, app)
     except web.HTTPBadRequest as e:
@@ -1155,7 +1155,9 @@ async def create_batch(request, userdata):
     id = await _create_batch(batch_spec, userdata, db)
     n_jobs = batch_spec['n_jobs']
     if n_jobs > 0:
-        update_id = await _create_batch_update(id, batch_spec['token'], batch_spec['n_jobs'], userdata['username'], db)
+        update_id, _ = await _create_batch_update(
+            id, batch_spec['token'], batch_spec['n_jobs'], userdata['username'], db
+        )
     else:
         update_id = None
     return web.json_response({'id': id, 'update_id': update_id})
@@ -1296,6 +1298,7 @@ async def update_batch_fast(request, userdata):
     update_id, start_job_id = await _create_batch_update(
         batch_id, update_spec['token'], update_spec['n_jobs'], user, db
     )
+
     try:
         await _create_jobs(userdata, bunch, batch_id, update_id, app)
     except web.HTTPBadRequest as e:
@@ -1325,9 +1328,7 @@ async def create_update(request, userdata):
     except ValidationError as e:
         raise web.HTTPBadRequest(reason=e.reason)
 
-    update_id, _ = await _create_batch_update(
-        batch_id, update_spec['token'], update_spec['n_jobs'], user, db
-    )
+    update_id, _ = await _create_batch_update(batch_id, update_spec['token'], update_spec['n_jobs'], user, db)
     return web.json_response({'update_id': update_id})
 
 
