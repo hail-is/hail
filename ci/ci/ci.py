@@ -7,6 +7,7 @@ import traceback
 from typing import Callable, Dict, List, Optional, Set
 
 import aiohttp_session  # type: ignore
+import pymysql
 import uvloop  # type: ignore
 from aiohttp import web
 from gidgethub import aiohttp as gh_aiohttp
@@ -398,6 +399,7 @@ async def batch_callback_handler(request):
 
                     if 'test' in params and params['complete']:
                         assert 'deploy' not in params
+                        assert 'dev' not in params
                         db: Database = app['db']
                         namespaces = json.loads(params['namespaces'])
                         await db.execute_update(
@@ -596,10 +598,15 @@ async def add_namespaced_service(request, userdata):  # pylint: disable=unused-a
     service = post['service']
     namespace = request.match_info['namespace']
 
-    await db.execute_insertone(
-        'INSERT INTO deployed_services VALUES (%s, %s)',
-        (namespace, service),
-    )
+    try:
+        await db.execute_insertone(
+            'INSERT INTO deployed_services VALUES (%s, %s)',
+            (namespace, service),
+        )
+    except pymysql.err.IntegrityError as err:
+        # 1062 ER_DUP_ENTRY https://dev.mysql.com/doc/refman/5.7/en/server-error-reference.html#error_er_dup_entry
+        if err.args[0] != 1062:
+            raise
 
     return web.HTTPFound(deploy_config.external_url('ci', '/namespaces'))
 
@@ -612,10 +619,15 @@ async def add_namespace(request, userdata):  # pylint: disable=unused-argument
     post = await request.post()
     namespace = post['namespace']
 
-    await db.execute_insertone(
-        'INSERT INTO active_namespaces (`namespace`) VALUES (%s)',
-        (namespace,),
-    )
+    try:
+        await db.execute_insertone(
+            'INSERT INTO active_namespaces (`namespace`) VALUES (%s)',
+            (namespace,),
+        )
+    except pymysql.err.IntegrityError as err:
+        # 1062 ER_DUP_ENTRY https://dev.mysql.com/doc/refman/5.7/en/server-error-reference.html#error_er_dup_entry
+        if err.args[0] != 1062:
+            raise
 
     return web.HTTPFound(deploy_config.external_url('ci', '/namespaces'))
 
