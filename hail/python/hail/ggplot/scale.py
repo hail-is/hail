@@ -152,9 +152,8 @@ class ScaleDiscrete(Scale):
     def __init__(self, aesthetic_name):
         super().__init__(aesthetic_name)
 
-    @abc.abstractmethod
     def get_values(self, categories):
-        pass
+        return None
 
     def transform_data(self, field_expr):
         return field_expr
@@ -177,7 +176,9 @@ class ScaleDiscrete(Scale):
 
         values = self.get_values(categories)
 
-        if isinstance(values, Mapping):
+        if values is None:
+            return super().create_local_transformer(aesthetic_name)
+        elif isinstance(values, Mapping):
             mapping = values
         elif isinstance(values, list):
             if len(categories) > len(values):
@@ -188,14 +189,17 @@ class ScaleDiscrete(Scale):
                 )
             mapping = dict(zip(categories, values))
         else:
-            raise ValueError(
+            raise TypeError(
                 "Expected scale values to be a Mapping or list, but received a(n) "
                 f"{type(values)}: {values}."
             )
 
         def transform(df):
+            print(df.attrs)
             df.attrs[f"{self.aesthetic_name}_legend"] = df.attrs[self.aesthetic_name]
+            print(df.attrs)
             df.attrs[self.aesthetic_name] = mapping[df.attrs[self.aesthetic_name]]
+            print(df.attrs)
             return df
 
         return transform

@@ -93,6 +93,11 @@ class GGPlot:
                     self.scales["fill"] = scale_fill_continuous()
                 elif aesthetic_str == "shape" and not is_continuous:
                     self.scales["shape"] = scale_shape_auto()
+                elif aesthetic_str == "shape" and is_continuous:
+                    raise ValueError(
+                        "The 'shape' aesthetic does not support continuous "
+                        "types. Specify values of a discrete type instead."
+                    )
                 else:
                     if is_continuous:
                         self.scales[aesthetic_str] = ScaleContinuous(aesthetic_str)
@@ -232,7 +237,10 @@ class GGPlot:
 
                 facet_row = facet_idx // n_facet_cols + 1
                 facet_col = facet_idx % n_facet_cols + 1
+                print(geom)
+                print(legend_cache)
                 geom.apply_to_fig(self, scaled_grouped_dfs, fig, precomputed[geom_label], facet_row, facet_col, legend_cache)
+                print(legend_cache)
 
         # Important to update axes after labels, axes names take precedence.
         self.labels.apply_to_fig(fig)

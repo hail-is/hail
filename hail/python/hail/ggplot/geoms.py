@@ -27,13 +27,19 @@ class Geom(FigureAttribute):
     def _add_aesthetics_to_trace_args(self, trace_args, df):
         for aes_name, (plotly_name, default) in self.aes_to_arg.items():
             if hasattr(self, aes_name) and getattr(self, aes_name) is not None:
-                trace_args[plotly_name] = getattr(self, aes_name)
+                value = getattr(self, aes_name)
             elif aes_name in df.attrs:
-                trace_args[plotly_name] = df.attrs[aes_name]
+                value = df.attrs[aes_name]
             elif aes_name in df.columns:
-                trace_args[plotly_name] = df[aes_name]
+                value = df[aes_name]
             elif default is not None:
-                trace_args[plotly_name] = default
+                value = default
+
+            if plotly_name == "name":
+                if trace_args.get(plotly_name, None) is None:
+                    trace_args[plotly_name] = value
+                else:
+                    trace_args[plotly_name] += f"; {value}"
 
     def _update_legend_trace_args(self, trace_args, legend_cache):
         if "name" in trace_args:
@@ -90,6 +96,7 @@ class GeomPoint(Geom):
         "color_legend": ("name", None),
         "alpha": ("marker_opacity", None),
         "shape": ("marker_symbol", None),
+        "shape_legend": ("name", None),
     }
 
     def __init__(self, aes, color=None, size=None, alpha=None, shape=None):
@@ -124,7 +131,7 @@ class GeomPoint(Geom):
 def geom_point(mapping=aes(), *, color=None, size=None, alpha=None, shape=None):
     """Create a scatter plot.
 
-    Supported aesthetics: ``x``, ``y``, ``color``, ``alpha``, ``tooltip``
+    Supported aesthetics: ``x``, ``y``, ``color``, ``alpha``, ``tooltip``, ``shape``
 
     Returns
     -------
