@@ -2334,7 +2334,7 @@ async def _close_billing_project(db, billing_project):
     async def close_project(tx):
         row = await tx.execute_and_fetchone(
             '''
-SELECT name, `status`, CAST(COALESCE(SUM(batches.state = 'running'), 0) AS SIGNED) AS 'n_running'
+SELECT name, `status`, CAST(COALESCE(SUM(batches.state = 'running'), 0) AS SIGNED) AS n_running
 FROM billing_projects
 LEFT JOIN batches ON billing_projects.name = batches.billing_project
 WHERE name = %s AND billing_projects.`status` != 'deleted'
@@ -2345,7 +2345,7 @@ FOR UPDATE;
         )
         if not row:
             raise NonExistentBillingProjectError(billing_project)
-        assert row['name'] == billing_project
+        assert row['name'] == billing_project, row
         if row['status'] == 'closed':
             raise BatchOperationAlreadyCompletedError(
                 f'Billing project {billing_project} is already closed or deleted.', 'info'
