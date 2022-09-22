@@ -1,8 +1,7 @@
 import asyncio
 import logging
 import random
-from collections import namedtuple
-from typing import Optional
+from typing import Dict, Optional
 
 import prometheus_client as pc
 import sortedcontainers
@@ -22,7 +21,7 @@ from hailtop.utils import (
 
 from ...batch_configuration import STANDING_WORKER_MAX_IDLE_TIME_MSECS
 from ...inst_coll_config import PoolConfig
-from ...utils import Box, ExceededSharesCounter, set_gauge_value
+from ...utils import Box, ExceededSharesCounter
 from ..instance import Instance
 from ..job import schedule_job
 from ..resource_manager import CloudResourceManager
@@ -35,46 +34,41 @@ SCHEDULING_LOOP_RUNS = pc.Counter(
     'Number of scheduling loop executions per pool',
     ['pool_name'],
 )
-SCHEDULING_LOOP_RUNS_UNUSED_FREE_CORES = pc.Counter(
-    'scheduling_loop_runs_unused_free_cores',
-    'Number of scheduling loop executions per pool that did not use all of the available free cores',
-    ['pool_name'],
-)
 
 CONTROL_LOOP_RUNS = pc.Counter(
-    'control_loop_runs',
+    'autoscaler_loop_runs',
     'Number of control loop executions per pool',
     ['pool_name'],
 )
 
-TOTAL_CORES_SCHEDULED = pc.Gauge(
-    'total_cores_scheduled', 'Number of cores scheduled in one scheduling execution loop', ['pool_name']
+SCHEDULING_LOOP_CORES = pc.Gauge(
+    'scheduling_loop_cores', 'Number of cores scheduled or unscheduled in one scheduling execution loop', ['pool_name', 'scheduled']
 )
-TOTAL_CORES_ATTEMPTED_TO_SCHEDULE = pc.Gauge(
-    'total_cores_attempted_to_schedule',
-    'Number of cores attempted to schedule in one scheduling execution loop',
+SCHEDULING_LOOP_JOBS = pc.Gauge(
+    'scheduling_loop_jobs', 'Number of jobs scheduled or unscheduled in one scheduling execution loop', ['pool_name', 'scheduled']
+)
+
+FULL_JOB_QUEUE_READY_CORES = pc.Gauge(
+    'autoscaler_full_job_queue_ready_cores', 'Number of ready cores per control loop execution calculated from the full job queue', ['pool_name']
+)
+HEAD_JOB_QUEUE_READY_CORES = pc.Gauge(
+    'autoscaler_head_job_queue_ready_cores', 'Number of ready cores per control loop execution calculated from the head of the job queue', ['pool_name']
+)
+
+FULL_JOB_QUEUE_N_INSTANCES = pc.Gauge(
+    'autoscaler_full_job_queue_n_instances',
+    'Number of instances estimated per control loop calculated from the full job queue',
+    ['pool_name'],
+)
+HEAD_JOB_QUEUE_N_INSTANCES = pc.Gauge(
+    'autoscaler_head_job_queue_n_instances',
+    'Number of instances estimated per control loop calculated from the head of the job queue',
     ['pool_name'],
 )
 
-NO_QUEUE_READY_CORES = pc.Gauge(
-    'control_loop_ready_cores_no_queue', 'Number of ready cores per control loop run without a job queue', ['pool_name']
-)
-JOB_QUEUE_READY_CORES = pc.Gauge(
-    'control_loop_ready_cores_job_queue', 'Number of ready cores per control loop run with a job queue', ['pool_name']
-)
 
-N_INSTANCES_NO_QUEUE = pc.Gauge(
-    'control_loop_n_instances_no_queue',
-    'Number of instances needed per control loop run without a job queue',
-    ['pool_name'],
-)
-N_INSTANCES_WITH_JOB_QUEUE = pc.Gauge(
-    'control_loop_n_instances_with_job_queue',
-    'Number of instances needed per control loop run with a job queue',
-    ['pool_name'],
-)
-
-PoolLabels = namedtuple('PoolLabels', ['pool_name'])
+AUTOSCALER_LOOP_PERIOD_SECONDS = 15
+MAX_INSTANCES_PER_AUTOSCALER_LOOP = 10  # n * 16 cores / 15s = excess_scheduling_rate/s = 10/s => n ~= 10
 
 
 class Pool(InstanceCollection):
@@ -237,7 +231,7 @@ WHERE removed = 0 AND inst_coll = %s;
             boot_disk_size_gb=self.boot_disk_size_gb,
         )
 
-    def compute_n_instances_needed(self, ready_cores_mcpu, n_instances_by_state, region=None):
+    def compute_n_instances_needed(self, ready_cores_mcpu: int, n_instances_by_state: Dict[str, int], region: Optional[str] = None):
         n_live_instances = n_instances_by_state['pending'] + n_instances_by_state['active']
 
         if region is None:
@@ -254,8 +248,7 @@ WHERE removed = 0 AND inst_coll = %s;
             self.max_instances - self.n_instances,
             # 20 queries/s; our GCE long-run quota
             300,
-            # n * 16 cores / 15s = excess_scheduling_rate/s = 10/s => n ~= 10
-            10,
+            MAX_INSTANCES_PER_AUTOSCALER_LOOP,
         )
         return max(0, instances_needed)
 
@@ -284,10 +277,11 @@ WHERE removed = 0 AND inst_coll = %s;
         return instances_needed
 
     async def ready_cores_mcpu_from_estimated_job_queue(self):
-        n_free_cores = int(
-            10 * 8 * self.worker_cores
-        )  # maximum number of new cores in 2.5 minutes estimated from 10 instances being the max instances created every 15 seconds
-        user_resources = await self.scheduler._compute_fair_share(n_free_cores)
+        autoscaler_runs_per_minute = 60 / AUTOSCALER_LOOP_PERIOD_SECONDS
+        max_new_instances_in_two_and_a_half_minutes = int(2.5 * MAX_INSTANCES_PER_AUTOSCALER_LOOP * autoscaler_runs_per_minute)
+        max_possible_future_cores = self.worker_cores * max_new_instances_in_two_and_a_half_minutes
+
+        user_resources = await self.scheduler._compute_fair_share(max_possible_future_cores)
 
         total = sum(resources['allocated_cores_mcpu'] for resources in user_resources.values())
 
@@ -324,6 +318,7 @@ FROM (
 ) AS ready_jobs
 ''',
             jobs_query_args,
+            query_name='get_job_queue_head'
         )
 
         return result['ready_cores_mcpu']
@@ -356,19 +351,18 @@ GROUP BY user;
 
         ready_cores_mcpu_per_user = await self.ready_cores_mcpu_per_user()
 
-        ready_cores_mcpu = sum(ready_cores_mcpu_per_user.values())
-        n_instances_no_queue = self.compute_n_instances_needed(ready_cores_mcpu, self.n_instances_by_state)
+        full_job_queue_ready_cores_mcpu = sum(ready_cores_mcpu_per_user.values())
+        full_job_queue_n_instances = self.compute_n_instances_needed(full_job_queue_ready_cores_mcpu, self.n_instances_by_state)
 
-        estimated_ready_cores_mcpu_from_job_queue = await self.ready_cores_mcpu_from_estimated_job_queue()
-        n_instances_with_job_queue = self.compute_n_instances_needed(
-            estimated_ready_cores_mcpu_from_job_queue, self.n_instances_by_state
+        head_job_queue_ready_cores_mcpu = await self.ready_cores_mcpu_from_estimated_job_queue()
+        head_job_queue_n_instances = self.compute_n_instances_needed(
+            head_job_queue_ready_cores_mcpu, self.n_instances_by_state
         )
 
-        pool_label = PoolLabels(self.name)
-        set_gauge_value(NO_QUEUE_READY_CORES, {pool_label: ready_cores_mcpu / 1000})
-        set_gauge_value(JOB_QUEUE_READY_CORES, {pool_label: estimated_ready_cores_mcpu_from_job_queue / 1000})
-        set_gauge_value(N_INSTANCES_NO_QUEUE, {pool_label: n_instances_no_queue})
-        set_gauge_value(N_INSTANCES_WITH_JOB_QUEUE, {pool_label: n_instances_with_job_queue})
+        FULL_JOB_QUEUE_READY_CORES.labels(pool_name=self.name).set(full_job_queue_ready_cores_mcpu / 1000)
+        HEAD_JOB_QUEUE_READY_CORES.labels(pool_name=self.name).set(head_job_queue_ready_cores_mcpu / 1000)
+        FULL_JOB_QUEUE_N_INSTANCES.labels(pool_name=self.name).set(full_job_queue_n_instances)
+        HEAD_JOB_QUEUE_N_INSTANCES.labels(pool_name=self.name).set(head_job_queue_n_instances)
 
         free_cores_mcpu = sum([worker.free_cores_mcpu for worker in self.healthy_instances_by_free_cores])
         free_cores = free_cores_mcpu / 1000
@@ -376,14 +370,14 @@ GROUP BY user;
         log.info(
             f'{self} n_instances {self.n_instances} {self.n_instances_by_state}'
             f' free_cores {free_cores} live_free_cores {self.live_free_cores_mcpu / 1000}'
-            f' ready_cores {ready_cores_mcpu / 1000}'
-            f' estimated_ready_cores_from_job_queue {estimated_ready_cores_mcpu_from_job_queue / 1000}'
-            f' n_instances_created_without_queue {n_instances_no_queue}'
-            f' n_instances created_with_job_queue {n_instances_with_job_queue}'
+            f' full_job_queue_ready_cores {full_job_queue_ready_cores_mcpu / 1000}'
+            f' head_job_queue_ready_cores {head_job_queue_ready_cores_mcpu / 1000}'
+            f' full_job_queue_n_instances {full_job_queue_n_instances}'
+            f' head_job_queue_n_instances {head_job_queue_n_instances}'
         )
 
-        if ready_cores_mcpu > 0 and free_cores < 500:
-            await self.create_instances_from_ready_cores(estimated_ready_cores_mcpu_from_job_queue)
+        if full_job_queue_ready_cores_mcpu > 0 and free_cores < 500:
+            await self.create_instances_from_ready_cores(full_job_queue_ready_cores_mcpu)
 
         ci_ready_cores_mcpu = ready_cores_mcpu_per_user.get('ci', 0)
         if ci_ready_cores_mcpu > 0 and self.live_free_cores_mcpu_by_region[self._ci_region] == 0:
@@ -398,7 +392,7 @@ GROUP BY user;
             )
 
     async def control_loop(self):
-        await periodically_call(15, self.create_instances)
+        await periodically_call(AUTOSCALER_LOOP_PERIOD_SECONDS, self.create_instances)
 
     def __str__(self):
         return f'pool {self.name}'
@@ -623,11 +617,9 @@ LIMIT %s;
         if n_scheduled > 0:
             log.info(f'schedule: attempted to schedule {n_scheduled} jobs in {end - start}ms for {self.pool}')
 
-        if n_scheduled != n_attempted_to_schedule:
-            SCHEDULING_LOOP_RUNS_UNUSED_FREE_CORES.labels(pool_name=self.pool.name).inc()
-
-        pool_labels = PoolLabels(self.pool.name)
-        set_gauge_value(TOTAL_CORES_SCHEDULED, {pool_labels: n_cores_mcpu_scheduled / 1000})
-        set_gauge_value(TOTAL_CORES_ATTEMPTED_TO_SCHEDULE, {pool_labels: n_cores_mcpu_attempted_to_schedule / 1000})
+        SCHEDULING_LOOP_CORES.labels(pool_name=self.pool.name, scheduled=True).set(n_cores_mcpu_scheduled / 1000)
+        SCHEDULING_LOOP_CORES.labels(pool_name=self.pool.name, scheduled=False).set((n_cores_mcpu_attempted_to_schedule - n_cores_mcpu_scheduled) / 1000)
+        SCHEDULING_LOOP_JOBS.labels(pool_name=self.pool.name, scheduled=True).set(n_scheduled)
+        SCHEDULING_LOOP_JOBS.labels(pool_name=self.pool.name, scheduled=False).set(n_attempted_to_schedule - n_scheduled)
 
         return should_wait

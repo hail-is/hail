@@ -62,7 +62,7 @@ from ..exceptions import BatchUserError
 from ..file_store import FileStore
 from ..globals import HTTP_CLIENT_MAX_SIZE
 from ..inst_coll_config import InstanceCollectionConfigs, PoolConfig
-from ..utils import authorization_token, batch_only, query_billing_projects, set_gauge_value
+from ..utils import authorization_token, batch_only, query_billing_projects
 from .canceller import Canceller
 from .driver import CloudDriver
 from .instance_collection import InstanceCollectionManager, JobPrivateInstanceManager, Pool
@@ -1205,8 +1205,14 @@ GROUP BY user, inst_coll;
         )
         user_jobs[creating_jobs_labels] += record['n_creating_jobs']
 
-    set_gauge_value(USER_CORES, user_cores)
-    set_gauge_value(USER_JOBS, user_jobs)
+    def set_value(gauge, data):
+        gauge.clear()
+        for labels, count in data.items():
+            if count > 0:
+                gauge.labels(**labels._asdict()).set(count)
+
+    set_value(USER_CORES, user_cores)
+    set_value(USER_JOBS, user_jobs)
 
 
 def monitor_instances(app) -> None:

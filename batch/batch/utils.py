@@ -51,13 +51,6 @@ def coalesce(x, default):
     return default
 
 
-def set_gauge_value(gauge, data):
-    gauge.clear()
-    for labels, count in data.items():
-        if count > 0:
-            gauge.labels(**labels._asdict()).set(count)
-
-
 class Box:
     def __init__(self, value):
         self.value = value
