@@ -665,7 +665,7 @@ class BatchBuilder:
                      submission_info=BatchSubmissionInfo(False))
 
     def _update_spec(self) -> dict:
-        return {'n_jobs': len(self._jobs), 'update_token': self._update_token}
+        return {'n_jobs': len(self._jobs), 'token': self._update_token}
 
     async def _create_update(self, batch_id: int) -> int:
         if self._update_token is None:
