@@ -602,6 +602,7 @@ def scale_fill_manual(*, values):
     """
     return ScaleDiscreteManual("fill", values=values)
 
+
 def scale_shape_manual(*, values):
     """A scale that assigns shapes to discrete aesthetics. See `the plotly documentation <https://plotly.com/python-api-reference/generated/plotly.graph_objects.scatter.html#plotly.graph_objects.scatter.Marker.symbol>`__ for a list of supported shapes.
 
@@ -616,6 +617,7 @@ def scale_shape_manual(*, values):
         The scale to be applied.
     """
     return ScaleDiscreteManual("shape", values=values)
+
 
 def scale_shape_auto():
     """A scale that automatically assigns shapes to discrete aesthetics.
