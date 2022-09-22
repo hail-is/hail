@@ -2337,8 +2337,8 @@ async def _close_billing_project(db, billing_project):
 SELECT name, `status`, CAST(COALESCE(SUM(batches.state = 'running'), 0) AS SIGNED) AS 'n_running'
 FROM billing_projects
 LEFT JOIN batches ON billing_projects.name = batches.billing_project
-WHERE name = %s AND billing_projects.`status` != 'deleted' AND NOT batches.deleted
-LIMIT 1
+WHERE name = %s AND billing_projects.`status` != 'deleted'
+GROUP BY name, `status`
 FOR UPDATE;
     ''',
             (billing_project,),
