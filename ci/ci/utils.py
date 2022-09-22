@@ -24,7 +24,7 @@ async def add_deployed_services(
             '''
 INSERT INTO active_namespaces (`namespace`, `expiration_time`)
 VALUES (%s, %s) new
-ON DUPLICATE KEY UPDATE expiration_time = new.expiration_time
+ON DUPLICATE KEY UPDATE expiration_time = NEW.expiration_time
             ''',
             (namespace, expiration),
         )

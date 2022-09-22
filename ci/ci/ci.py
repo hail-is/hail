@@ -567,7 +567,7 @@ UPDATE globals SET frozen_merge_deploy = 0;
 
 
 @routes.get('/namespaces')
-@web_authenticated_developers_only()
+@auth.web_authenticated_developers_only()
 async def get_active_namespaces(request, userdata):
     db: Database = request.app['db']
     namespaces = [
@@ -591,7 +591,7 @@ GROUP BY active_namespaces.namespace'''
 
 @routes.post('/namespaces/{namespace}/services/add')
 @check_csrf_token
-@web_authenticated_developers_only()
+@auth.web_authenticated_developers_only()
 async def add_namespaced_service(request, userdata):  # pylint: disable=unused-argument
     db: Database = request.app['db']
     post = await request.post()
@@ -613,7 +613,7 @@ async def add_namespaced_service(request, userdata):  # pylint: disable=unused-a
 
 @routes.post('/namespaces/add')
 @check_csrf_token
-@web_authenticated_developers_only()
+@auth.web_authenticated_developers_only()
 async def add_namespace(request, userdata):  # pylint: disable=unused-argument
     db: Database = request.app['db']
     post = await request.post()
