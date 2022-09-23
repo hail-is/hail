@@ -58,12 +58,17 @@ class InstanceCollectionManager:
         self.name_inst_coll[inst_coll.name] = inst_coll
 
     def choose_location(
-        self, cores: int, local_ssd_data_disk: bool, data_disk_size_gb: int, preemptible: bool, region: Optional[str]
+        self,
+        cores: int,
+        local_ssd_data_disk: bool,
+        data_disk_size_gb: int,
+        preemptible: bool,
+        regions: Optional[List[str]],
     ) -> str:
-        if region is None and self.global_live_total_cores_mcpu // 1000 < 1_000:
-            region = self._default_region
+        if regions is None and self.global_live_total_cores_mcpu // 1000 < 1_000:
+            regions = [self._default_region]
         return self.location_monitor.choose_location(
-            cores, local_ssd_data_disk, data_disk_size_gb, preemptible, region=region
+            cores, local_ssd_data_disk, data_disk_size_gb, preemptible, regions=regions
         )
 
     @property
@@ -162,10 +167,15 @@ class InstanceCollection:
         return len(self.name_instance)
 
     def choose_location(
-        self, cores: int, local_ssd_data_disk: bool, data_disk_size_gb: int, preemptible: bool, region: Optional[str]
+        self,
+        cores: int,
+        local_ssd_data_disk: bool,
+        data_disk_size_gb: int,
+        preemptible: bool,
+        regions: Optional[List[str]],
     ) -> str:
         return self.inst_coll_manager.choose_location(
-            cores, local_ssd_data_disk, data_disk_size_gb, preemptible, region
+            cores, local_ssd_data_disk, data_disk_size_gb, preemptible, regions
         )
 
     def generate_machine_name(self) -> str:
@@ -221,16 +231,16 @@ class InstanceCollection:
         machine_type: str,
         job_private: bool,
         location: Optional[str],
-        region: Optional[str],
+        regions: Optional[List[str]],
         preemptible: bool,
         max_idle_time_msecs: Optional[int],
         local_ssd_data_disk,
         data_disk_size_gb,
         boot_disk_size_gb,
     ) -> Tuple[Instance, List[QuantifiedResource]]:
-        assert not (location and region)
+        assert not (location and regions)
         if location is None:
-            location = self.choose_location(cores, local_ssd_data_disk, data_disk_size_gb, preemptible, region)
+            location = self.choose_location(cores, local_ssd_data_disk, data_disk_size_gb, preemptible, regions)
 
         if max_idle_time_msecs is None:
             max_idle_time_msecs = WORKER_MAX_IDLE_TIME_MSECS

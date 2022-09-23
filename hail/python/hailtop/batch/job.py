@@ -82,6 +82,7 @@ class Job:
         self._env: Dict[str, str] = {}
         self._wrapper_code: List[str] = []
         self._user_code: List[str] = []
+        self._regions: Optional[List[str]] = None
 
         self._resources: Dict[str, _resource.Resource] = {}
         self._resources_inverse: Dict[_resource.Resource, str] = {}
@@ -337,6 +338,50 @@ class Job:
             raise NotImplementedError("A ServiceBackend is required to use the 'always_run' option")
 
         self._always_run = always_run
+        return self
+
+    def regions(self, regions: Optional[Union[str, List[str]]]) -> 'Job':
+        """
+        Set the cloud regions a job can run in.
+
+        Notes
+        -----
+        Can only be used with the :class:`.backend.ServiceBackend`.
+
+        Warning
+        -------
+        Not setting this option or setting it to None may result in additional egress
+        fees on GCP if a job is run in a region that is different from where the data and
+        image reside.
+
+        Examples
+        --------
+
+        >>> b = Batch(backend=backend.ServiceBackend('test'))
+        >>> j = b.new_job()
+        >>> (j.regions(['us-central1'])
+        ...   .command(f'echo "hello"'))
+
+        Parameters
+        ----------
+        regions:
+            The cloud region(s) to run this job in. Not specifying a set of regions means a job can be run
+            in any available region. On GCP, not specifying this parameter may result in additional egress fees
+            when transferring data and images for a job running in a different region from the one where the data
+            resides in. When using the Hail maintained Batch Service on GCP, the available regions are "us-central1",
+            "us-east1", "us-east4", "us-west1", "us-west2", "us-west3", and "us-west4".
+
+        Returns
+        -------
+        Same job object with the cloud regions the job can run in set.
+        """
+
+        if not isinstance(self._batch._backend, backend.ServiceBackend):
+            raise NotImplementedError("A ServiceBackend is required to use the 'always_run' option")
+
+        if isinstance(regions, str):
+            regions = [regions]
+        self._regions = regions
         return self
 
     def timeout(self, timeout: Optional[Union[float, int]]) -> 'Job':

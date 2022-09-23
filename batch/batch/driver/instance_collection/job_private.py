@@ -2,7 +2,7 @@ import asyncio
 import json
 import logging
 import random
-from typing import List, Tuple
+from typing import List, Optional, Tuple
 
 import sortedcontainers
 
@@ -22,7 +22,7 @@ from hailtop.utils import (
 from ...batch_format_version import BatchFormatVersion
 from ...inst_coll_config import JobPrivateInstanceManagerConfig
 from ...instance_config import QuantifiedResource
-from ...utils import Box, ExceededSharesCounter
+from ...utils import Box, ExceededSharesCounter, regions_str_to_py
 from ..instance import Instance
 from ..job import mark_job_creating, schedule_job
 from ..resource_manager import CloudResourceManager
@@ -269,7 +269,9 @@ HAVING n_ready_jobs + n_creating_jobs + n_running_jobs > 0;
 
         return result
 
-    async def create_instance(self, machine_spec: dict) -> Tuple[Instance, List[QuantifiedResource]]:
+    async def create_instance(
+        self, machine_spec: dict, regions: Optional[List[str]]
+    ) -> Tuple[Instance, List[QuantifiedResource]]:
         machine_type = machine_spec['machine_type']
         preemptible = machine_spec['preemptible']
         storage_gb = machine_spec['storage_gib']
@@ -280,7 +282,7 @@ HAVING n_ready_jobs + n_creating_jobs + n_running_jobs > 0;
             machine_type=machine_type,
             job_private=True,
             location=None,
-            region=None,
+            regions=regions,
             preemptible=preemptible,
             max_idle_time_msecs=None,
             local_ssd_data_disk=False,
@@ -323,9 +325,12 @@ WHERE user = %s AND `state` = 'running';
                 async for record in self.db.select_and_fetchall(
                     '''
 SELECT jobs.job_id, jobs.spec, jobs.cores_mcpu, COALESCE(SUM(instances.state IS NOT NULL AND
-  (instances.state = 'pending' OR instances.state = 'active')), 0) as live_attempts
+  (instances.state = 'pending' OR instances.state = 'active')), 0) as live_attempts,
+  JSON_ARRAYAGG(region) AS regions
 FROM jobs FORCE INDEX(jobs_batch_id_state_always_run_inst_coll_cancelled)
 LEFT JOIN attempts ON jobs.batch_id = attempts.batch_id AND jobs.job_id = attempts.job_id
+LEFT JOIN job_regions ON jobs.batch_id = job_regions.batch_id AND jobs.job_id = job_regions.job_id
+LEFT JOIN region_ids ON job_regions.region_id = region_ids.region_id
 LEFT JOIN instances ON attempts.instance_name = instances.name
 WHERE jobs.batch_id = %s AND jobs.state = 'Ready' AND always_run = 1 AND jobs.inst_coll = %s
 GROUP BY jobs.job_id, jobs.spec, jobs.cores_mcpu
@@ -343,10 +348,13 @@ LIMIT %s;
                     async for record in self.db.select_and_fetchall(
                         '''
 SELECT jobs.job_id, jobs.spec, jobs.cores_mcpu, COALESCE(SUM(instances.state IS NOT NULL AND
-  (instances.state = 'pending' OR instances.state = 'active')), 0) as live_attempts
+  (instances.state = 'pending' OR instances.state = 'active')), 0) as live_attempts,
+  JSON_ARRAYAGG(region) AS regions
 FROM jobs FORCE INDEX(jobs_batch_id_state_always_run_cancelled)
 LEFT JOIN attempts ON jobs.batch_id = attempts.batch_id AND jobs.job_id = attempts.job_id
 LEFT JOIN instances ON attempts.instance_name = instances.name
+LEFT JOIN job_regions ON jobs.batch_id = job_regions.batch_id AND jobs.job_id = job_regions.job_id
+LEFT JOIN region_ids ON job_regions.region_id = region_ids.region_id
 WHERE jobs.batch_id = %s AND jobs.state = 'Ready' AND always_run = 0 AND jobs.inst_coll = %s AND cancelled = 0
 GROUP BY jobs.job_id, jobs.spec, jobs.cores_mcpu
 HAVING live_attempts = 0
@@ -402,7 +410,8 @@ LIMIT %s;
                         batch_format_version = BatchFormatVersion(record['format_version'])
                         spec = json.loads(record['spec'])
                         machine_spec = batch_format_version.get_spec_machine_spec(spec)
-                        instance, total_resources_on_instance = await self.create_instance(machine_spec)
+                        regions = regions_str_to_py(record['regions'])
+                        instance, total_resources_on_instance = await self.create_instance(machine_spec, regions)
                         log.info(f'created {instance} for {(batch_id, job_id)}')
                         await mark_job_creating(
                             self.app, batch_id, job_id, attempt_id, instance, time_msecs(), total_resources_on_instance

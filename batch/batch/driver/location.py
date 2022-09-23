@@ -1,5 +1,5 @@
 import abc
-from typing import Optional
+from typing import List, Optional
 
 
 class CloudLocationMonitor(abc.ABC):
@@ -14,6 +14,6 @@ class CloudLocationMonitor(abc.ABC):
         local_ssd_data_disk: bool,
         data_disk_size_gb: int,
         preemptible: bool,
-        region: Optional[str],
+        regions: Optional[List[str]],
     ) -> str:
         raise NotImplementedError

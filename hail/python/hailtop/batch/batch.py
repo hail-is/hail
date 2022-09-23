@@ -88,7 +88,6 @@ class Batch:
         Automatically cancel the batch after N failures have occurred. The default
         behavior is there is no limit on the number of failures. Only
         applicable for the :class:`.ServiceBackend`. Must be greater than 0.
-
     """
 
     _counter = 0
@@ -255,6 +254,9 @@ class Batch:
             j.storage(self._default_storage)
         if self._default_timeout is not None:
             j.timeout(self._default_timeout)
+
+        if isinstance(self._backend, _backend.ServiceBackend):
+            j.regions(self._backend.regions)
 
         self._jobs.append(j)
         return j

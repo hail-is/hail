@@ -33,6 +33,15 @@ class GCPDriver(CloudDriver):
         region = gcp_config.region
         regions = gcp_config.regions
 
+        region_args = [(region,) for region in regions]
+        await db.execute_many(
+            '''
+INSERT INTO region_ids (region) VALUES (%s)
+ON DUPLICATE KEY UPDATE region = region;
+''',
+            region_args,
+        )
+
         compute_client = aiogoogle.GoogleComputeClient(project, credentials_file=credentials_file)
 
         activity_logs_client = aiogoogle.GoogleLoggingClient(
