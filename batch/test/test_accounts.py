@@ -613,7 +613,6 @@ async def test_batch_cannot_be_accessed_by_users_outside_the_billing_project(
         found, batches = await search_batches(user2_client, b.id, q='user:test-dev')
         assert not found, str((b.id, batches, await b.debug_info()))
     finally:
-        await b.cancel()
         await b.delete()
 
 
