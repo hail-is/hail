@@ -3,7 +3,7 @@ import logging
 import secrets
 from collections import deque
 from functools import wraps
-from typing import Deque, Set, Tuple
+from typing import Deque, List, Optional, Set, Tuple
 
 from aiohttp import web
 
@@ -173,3 +173,11 @@ GROUP BY base_t.billing_project;
     billing_projects = [record_to_dict(record) async for record in db.execute_and_fetchall(sql, tuple(args))]
 
     return billing_projects
+
+
+def regions_str_to_py(region_str: Optional[str]) -> Optional[List[str]]:
+    if region_str is None:
+        return None
+    regions = json.loads(region_str)
+    assert len(regions) > 0, region_str
+    return regions

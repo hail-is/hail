@@ -82,9 +82,14 @@ class ZoneMonitor(CloudLocationMonitor):
         return self._default_zone
 
     def choose_location(
-        self, cores: int, local_ssd_data_disk: bool, data_disk_size_gb: int, preemptible: bool, region: Optional[str]
+        self,
+        cores: int,
+        local_ssd_data_disk: bool,
+        data_disk_size_gb: int,
+        preemptible: bool,
+        regions: Optional[List[str]],
     ) -> str:
-        zone_weights = self.compute_zone_weights(cores, local_ssd_data_disk, data_disk_size_gb, preemptible, region)
+        zone_weights = self.compute_zone_weights(cores, local_ssd_data_disk, data_disk_size_gb, preemptible, regions)
 
         zones = [zw.zone for zw in zone_weights]
 
@@ -104,11 +109,11 @@ class ZoneMonitor(CloudLocationMonitor):
         local_ssd_data_disk: bool,
         data_disk_size_gb: int,
         preemptible: bool,
-        region: Optional[str],
+        regions: Optional[List[str]],
     ) -> List[ZoneWeight]:
         weights = []
         for region_name, r in self._region_info.items():
-            if region is not None and region_name != region:
+            if regions is not None and region_name not in regions:
                 continue
 
             quota_remaining = {q['metric']: q['limit'] - q['usage'] for q in r['quotas']}

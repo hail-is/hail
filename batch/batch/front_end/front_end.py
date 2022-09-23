@@ -747,6 +747,7 @@ WHERE batch_updates.batch_id = %s AND batch_updates.update_id = %s AND user = %s
     jobs_args = []
     job_parents_args = []
     job_attributes_args = []
+    job_region_args = []
 
     inst_coll_resources: Dict[str, Dict[str, int]] = collections.defaultdict(
         lambda: {
@@ -892,6 +893,16 @@ WHERE batch_updates.batch_id = %s AND batch_updates.update_id = %s AND user = %s
         resources['memory_bytes'] = memory_bytes
         resources['storage_gib'] = storage_gib
         resources['preemptible'] = preemptible
+
+        regions = spec.get('regions')
+        if regions is not None:
+            valid_regions = set(app['regions'].keys())
+            invalid_user_regions = set(regions).difference(valid_regions)
+            if invalid_user_regions:
+                raise web.HTTPBadRequest(
+                    reason=f'invalid regions specified: {invalid_user_regions}. Choose from {valid_regions}'
+                )
+            job_region_args += [(batch_id, job_id, app['regions'][region]) for region in regions]
 
         secrets = spec.get('secrets')
         if not secrets:
@@ -1102,6 +1113,15 @@ INSERT INTO batch_bunches (batch_id, token, start_job_id)
 VALUES (%s, %s, %s);
 ''',
                     (batch_id, spec_writer.token, bunch_start_job_id),
+                )
+
+            if job_region_args:
+                await tx.execute_many(
+                    '''
+INSERT INTO job_regions (batch_id, job_id, region_id)
+VALUES (%s, %s, %s);
+''',
+                    job_region_args,
                 )
         except asyncio.CancelledError:
             raise
@@ -2474,6 +2494,12 @@ SELECT frozen FROM globals;
 '''
     )
     app['frozen'] = row['frozen']
+
+    regions = {
+        record['region']: record['region_id']
+        async for record in db.select_and_fetchall('SELECT region_id, region from region_ids')
+    }
+    app['regions'] = regions
 
 
 @routes.get('')

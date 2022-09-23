@@ -35,6 +35,15 @@ class AzureDriver(CloudDriver):
         region = azure_config.region
         regions = [region]
 
+        region_args = [(r,) for r in regions]
+        await db.execute_many(
+            '''
+INSERT INTO region_ids (region) VALUES (%s)
+ON DUPLICATE KEY UPDATE region = region;
+''',
+            region_args,
+        )
+
         with open(os.environ['HAIL_SSH_PUBLIC_KEY'], encoding='utf-8') as f:
             ssh_public_key = f.read()
 

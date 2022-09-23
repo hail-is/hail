@@ -382,6 +382,12 @@ class ServiceBackend(Backend[bc.Batch]):
     token:
         The authorization token to pass to the batch client.
         Should only be set for user delegation purposes.
+    regions:
+        Cloud region(s) to run jobs in. Not specifying a default region means a job can be run
+        in any available region. On GCP, not specifying this parameter may result in additional egress fees
+        when transferring data and images for a job running in a different region from the one where the data
+        resides in. When using the Hail maintained Batch Service on GCP, the available regions are "us-central1",
+        "us-east1", "us-east4", "us-west1", "us-west2", "us-west3", and "us-west4".
     """
 
     def __init__(self,
@@ -390,7 +396,8 @@ class ServiceBackend(Backend[bc.Batch]):
                  bucket: Optional[str] = None,
                  remote_tmpdir: Optional[str] = None,
                  google_project: Optional[str] = None,
-                 token: Optional[str] = None
+                 token: Optional[str] = None,
+                 regions: Optional[Union[str, List[str]]] = None,
                  ):
         if len(args) > 2:
             raise TypeError(f'ServiceBackend() takes 2 positional arguments but {len(args)} were given')
@@ -451,6 +458,26 @@ class ServiceBackend(Backend[bc.Batch]):
 
         gcs_kwargs = {'project': google_project}
         self.__fs: RouterAsyncFS = RouterAsyncFS(default_scheme='file', gcs_kwargs=gcs_kwargs)
+
+        self.regions: Optional[List[str]]
+        if isinstance(regions, str):
+            self.regions = [regions]
+        elif regions is None:
+            _regions = get_user_config().get('batch', 'regions', fallback=None)
+            if _regions is not None:
+                self.regions = orjson.loads(_regions)
+            else:
+                self.regions = None
+                warnings.warn('No default cloud regions have been specified.\n'
+                              'This may result in additional egress fees when using a Hail Batch service hosted on the '
+                              'Google Cloud Platform if the data and image do not reside in the same region in which the '
+                              'job is executed in. The default behavior is to run jobs in any available region. You can '
+                              'set the default value like `hailctl config set batch/regions "[\\"us-central1\\",\\"us-east1\\"]"` '
+                              'or use the method Job.regions() to specify which regions a job can run in.')
+        else:
+            self.regions = regions
+
+        print(f'set default cloud region to {self.regions}')
 
     @property
     def _fs(self):
@@ -685,7 +712,8 @@ class ServiceBackend(Backend[bc.Batch]):
                                     env=env,
                                     requester_pays_project=batch.requester_pays_project,
                                     mount_tokens=True,
-                                    user_code=user_code)
+                                    user_code=user_code,
+                                    regions=job._regions)
 
             n_jobs_submitted += 1
 
