@@ -1247,6 +1247,7 @@ def test_update_batch_wout_fast_path(client: BatchClient):
 
 def test_update_cancelled_batch_wout_fast_path(client: BatchClient):
     bb = client.create_batch()
+    bb.create_job(DOCKER_ROOT_IMAGE, ['sleep', '3600'])
     b = bb.submit()
     b.cancel()
 
@@ -1263,6 +1264,7 @@ def test_update_cancelled_batch_wout_fast_path(client: BatchClient):
 
 def test_submit_update_to_cancelled_batch(client: BatchClient):
     bb = client.create_batch()
+    bb.create_job(DOCKER_ROOT_IMAGE, ['sleep', '3600'])
     b = bb.submit()
     b.cancel()
 
