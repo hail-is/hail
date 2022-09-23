@@ -256,7 +256,7 @@ install: $(WHEEL)
 
 .PHONY: install-on-cluster
 install-on-cluster: $(WHEEL)
-	sed '/^pyspark/d' python/requirements.txt | grep -v '^#' | xargs $(PIP) install -U
+	sed '/^pyspark/d' python/requirements.txt | grep -v '^#' | tr '\n' '\0' | xargs -0 $(PIP) install -U
 	-$(PIP) uninstall -y hail
 	$(PIP) install $(WHEEL) --no-deps
 

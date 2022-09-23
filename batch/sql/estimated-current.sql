@@ -254,6 +254,7 @@ CREATE TABLE IF NOT EXISTS `jobs` (
 ) ENGINE = InnoDB;
 CREATE INDEX `jobs_batch_id_state_always_run_inst_coll_cancelled` ON `jobs` (`batch_id`, `state`, `always_run`, `inst_coll`, `cancelled`);
 CREATE INDEX `jobs_batch_id_state_always_run_cancelled` ON `jobs` (`batch_id`, `state`, `always_run`, `cancelled`);
+CREATE INDEX `jobs_batch_id_update_id` ON `jobs` (`batch_id`, `update_id`);
 
 CREATE TABLE IF NOT EXISTS `batch_bunches` (
   `batch_id` BIGINT NOT NULL,

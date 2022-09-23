@@ -13,7 +13,7 @@
                    placeholder="MM/DD/YYYY"
                    {% endif %}
             ><br>
-            <label for="end">End:</label>
+            <label for="end">End (inclusive):</label>
             <input style="vertical-align:text-bottom;" name="end" size=30 type="text"
                    {% if end is not none %}
                    value = "{{ end }}"
@@ -33,6 +33,11 @@
                 completed within that time interval (inclusive).</p>
         </div>
     </div>
+
+    <h2>Total Cost</h2>
+    <ul>
+        <li>{{ total_cost }}</li>
+    </ul>
 
     {% if is_developer %}
     <h2>Cost by Billing Project</h2>
