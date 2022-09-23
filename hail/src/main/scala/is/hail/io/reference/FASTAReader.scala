@@ -38,6 +38,7 @@ object FASTAReader {
 
   def setup(tmpdir: String, fs: FS, fastaFile: String, indexFile: String): String = {
     val localFastaFile = ExecuteContext.createTmpPathNoCleanup(tmpdir, "fasta-reader", "fasta")
+    log.info(s"copying FASTA file at $fastaFile to $localFastaFile")
     fs.copyRecode(fastaFile, localFastaFile)
 
     val localIndexFile = localFastaFile + ".fai"
