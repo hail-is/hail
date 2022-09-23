@@ -3476,6 +3476,16 @@ class Table(ExprContainer):
             hl_dtype = dtypes_struct[column]
             if hl_dtype == hl.tstr:
                 pd_dtype = 'string'
+            elif hl_dtype == hl.tint32:
+                pd_dtype = 'Int32'
+            elif hl_dtype == hl.tint64:
+                pd_dtype = 'Int64'
+            elif hl_dtype == hl.tfloat32:
+                pd_dtype = 'Float32'
+            elif hl_dtype == hl.tfloat64:
+                pd_dtype = 'Float64'
+            elif hl_dtype == hl.tbool:
+                pd_dtype = 'boolean'
             else:
                 pd_dtype = hl_dtype.to_numpy()
             data_dict[column] = pandas.Series(column_struct_array[column], dtype=pd_dtype)

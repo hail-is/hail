@@ -1847,6 +1847,30 @@ def test_to_pandas_flatten():
     pd.testing.assert_frame_equal(df_from_hail, df_from_python)
 
 
+def test_to_pandas_null_ints():
+    ht = hl.utils.range_table(3)
+    ht = ht.annotate(missing_int32 = hl.or_missing(ht.idx == 0, ht.idx),
+                     missing_int64 = hl.or_missing(ht.idx == 0, hl.int64(ht.idx)),
+                     missing_float32 = hl.or_missing(ht.idx == 0, hl.float32(ht.idx)),
+                     missing_float64 = hl.or_missing(ht.idx == 0, hl.float64(ht.idx)),
+                     missing_bool = hl.or_missing(ht.idx == 0, True),
+                     missing_str = hl.or_missing(ht.idx == 0, 'foo'))
+    df_from_hail = ht.to_pandas()
+
+    python_data = {
+        "idx": pd.Series([0, 1, 2], dtype='Int32'),
+        "missing_int32": pd.Series([0, None, None], dtype='Int32'),
+        "missing_int64": pd.Series([0, None, None], dtype='Int64'),
+        "missing_float32": pd.Series([0, None, None], dtype='Float32'),
+        "missing_float64": pd.Series([0, None, None], dtype='Float64'),
+        "missing_bool": pd.Series([True, None, None], dtype='boolean'),
+        "missing_str": pd.Series(['foo', None, None], dtype='string'),
+    }
+
+    df_from_python = pd.DataFrame(python_data)
+    pd.testing.assert_frame_equal(df_from_hail, df_from_python)
+
+
 def test_to_pandas_nd_array():
     import numpy as np
     ht = hl.utils.range_table(3)
