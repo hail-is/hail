@@ -195,11 +195,8 @@ class ScaleDiscrete(Scale):
             )
 
         def transform(df):
-            print(df.attrs)
             df.attrs[f"{self.aesthetic_name}_legend"] = df.attrs[self.aesthetic_name]
-            print(df.attrs)
             df.attrs[self.aesthetic_name] = mapping[df.attrs[self.aesthetic_name]]
-            print(df.attrs)
             return df
 
         return transform

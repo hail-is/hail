@@ -237,10 +237,7 @@ class GGPlot:
 
                 facet_row = facet_idx // n_facet_cols + 1
                 facet_col = facet_idx % n_facet_cols + 1
-                print(geom)
-                print(legend_cache)
                 geom.apply_to_fig(self, scaled_grouped_dfs, fig, precomputed[geom_label], facet_row, facet_col, legend_cache)
-                print(legend_cache)
 
         # Important to update axes after labels, axes names take precedence.
         self.labels.apply_to_fig(fig)

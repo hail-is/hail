@@ -26,6 +26,8 @@ class Geom(FigureAttribute):
 
     def _add_aesthetics_to_trace_args(self, trace_args, df):
         for aes_name, (plotly_name, default) in self.aes_to_arg.items():
+            value = None
+
             if hasattr(self, aes_name) and getattr(self, aes_name) is not None:
                 value = getattr(self, aes_name)
             elif aes_name in df.attrs:
@@ -35,11 +37,10 @@ class Geom(FigureAttribute):
             elif default is not None:
                 value = default
 
-            if plotly_name == "name":
-                if trace_args.get(plotly_name, None) is None:
-                    trace_args[plotly_name] = value
-                else:
-                    trace_args[plotly_name] += f"; {value}"
+            if plotly_name == "name" and trace_args.get(plotly_name, None) is not None:
+                trace_args[plotly_name] += f" & {value}"
+            elif value is not None:
+                trace_args[plotly_name] = value
 
     def _update_legend_trace_args(self, trace_args, legend_cache):
         if "name" in trace_args:
