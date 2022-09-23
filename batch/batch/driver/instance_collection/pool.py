@@ -77,6 +77,7 @@ HEAD_JOB_QUEUE_N_INSTANCES = pc.Gauge(
 
 AUTOSCALER_LOOP_PERIOD_SECONDS = 15
 MAX_INSTANCES_PER_AUTOSCALER_LOOP = 10  # n * 16 cores / 15s = excess_scheduling_rate/s = 10/s => n ~= 10
+JOB_QUEUE_SCHEDULING_WINDOW_SECONDS = 150  # 2.5 minutes is approximately worker start up time
 
 
 class Pool(InstanceCollection):
@@ -317,7 +318,7 @@ LEFT JOIN batches ON jobs.batch_id = batches.id
 LEFT JOIN batches_cancelled ON batches.id = batches_cancelled.id
 WHERE user = %s AND batches.`state` = 'running' AND jobs.state = 'Ready' AND (always_run = 1 OR (always_run = 0 AND batches_cancelled.id IS NULL)) AND inst_coll = %s
 ORDER BY batch_id ASC, always_run DESC, job_id ASC
-LIMIT {share * 150}
+LIMIT {share * JOB_QUEUE_SCHEDULING_WINDOW_SECONDS}
 '''
             jobs_query.append(user_job_query)
             jobs_query_args += [user, self.name]
