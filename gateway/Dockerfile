@@ -2,7 +2,8 @@ FROM {{ hail_ubuntu_image.image }}
 
 RUN hail-apt-get-install nginx
 
-RUN rm -f /etc/nginx/sites-enabled/default
+RUN rm -f /etc/nginx/sites-enabled/default && \
+    curl https://ssl-config.mozilla.org/ffdhe2048.txt > /opt/ffdhe2048.txt
 ADD nginx.conf /etc/nginx/
 ADD gateway.nginx.conf.out /etc/nginx/conf.d/gateway.conf
 ADD gzip.conf /etc/nginx/conf.d/gzip.conf
