@@ -1245,6 +1245,22 @@ def test_update_batch_wout_fast_path(client: BatchClient):
     assert not next(iter(b.submission_info.used_fast_update.values()))
 
 
+def test_update_cancelled_batch_wout_fast_path(client: BatchClient):
+    bb = client.create_batch()
+    b = bb.submit()
+    b.cancel()
+
+    try:
+        for _ in range(4):
+            bb.create_job(DOCKER_ROOT_IMAGE, ['echo', 'a' * (900 * 1024)])
+        b = bb.submit()
+    except aiohttp.ClientResponseError as err:
+        assert err.status == 400
+        assert 'Cannot submit new jobs to a cancelled batch' in err.message
+    else:
+        assert False
+
+
 def test_submit_update_to_cancelled_batch(client: BatchClient):
     bb = client.create_batch()
     b = bb.submit()

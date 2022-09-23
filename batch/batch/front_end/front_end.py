@@ -1282,10 +1282,6 @@ async def update_batch_fast(request, userdata):
     app = request.app
     db: Database = app['db']
 
-    if app['frozen']:
-        log.info('ignoring batch create request; batch is frozen')
-        raise web.HTTPServiceUnavailable()
-
     batch_id = int(request.match_info['batch_id'])
     user = userdata['username']
     update_and_bunch = await request.json()
