@@ -763,6 +763,8 @@ WHERE batch_updates.batch_id = %s AND batch_updates.update_id = %s AND user = %s
 
     for spec in job_specs:
         job_id = spec['job_id'] + update_start_job_id - 1
+        spec['job_id'] = job_id
+
         absolute_parent_ids = spec.pop('absolute_parent_ids', [])
         in_update_parent_ids = spec.pop('in_update_parent_ids', [])
         parent_ids = absolute_parent_ids + [update_start_job_id + parent_id - 1 for parent_id in in_update_parent_ids]
