@@ -177,7 +177,7 @@ class ScaleDiscrete(Scale):
         values = self.get_values(categories)
 
         if values is None:
-            return super().create_local_transformer(aesthetic_name)
+            return super().create_local_transformer(groups_of_dfs)
         elif isinstance(values, Mapping):
             mapping = values
         elif isinstance(values, list):
