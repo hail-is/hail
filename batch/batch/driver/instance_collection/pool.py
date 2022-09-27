@@ -318,7 +318,7 @@ FROM (
    SELECT user, jobs.batch_id, jobs.job_id, cores_mcpu, always_run
    FROM jobs FORCE INDEX(jobs_batch_id_state_always_run_cancelled)
    LEFT JOIN batches ON jobs.batch_id = batches.id
-   WHERE user = %s AND batches.`state` = 'running' AND jobs.state = 'Ready' AND always_run = 1 OR (always_run = 0 AND batches_cancelled.id IS NULL)) AND inst_coll = %s
+   WHERE user = %s AND batches.`state` = 'running' AND jobs.state = 'Ready' AND always_run = 1 AND inst_coll = %s
    GROUP BY jobs.batch_id, jobs.job_id
    ORDER BY jobs.batch_id ASC, jobs.job_id ASC
    LIMIT {share * JOB_QUEUE_SCHEDULING_WINDOW_SECONDS}
