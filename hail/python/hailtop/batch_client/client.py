@@ -79,6 +79,15 @@ class Job:
     def is_complete(self):
         return async_to_blocking(self._async_job.is_complete())
 
+    def is_running(self):
+        return async_to_blocking(self._async_job.is_running())
+
+    def is_pending(self):
+        return async_to_blocking(self._async_job.is_pending())
+
+    def is_ready(self):
+        return async_to_blocking(self._async_job.is_ready())
+
     # {
     #   batch_id: int
     #   job_id: int
@@ -189,8 +198,9 @@ class BatchBuilder:
 
     def __init__(self, client, attributes, callback, token: Optional[str] = None,
                  cancel_after_n_failures: Optional[int] = None):
-        self._async_builder: aioclient.BatchBuilder = aioclient.BatchBuilder(client, attributes, callback, token,
-                                                                             cancel_after_n_failures)
+        self._async_builder: aioclient.BatchBuilder = aioclient.BatchBuilder(
+            client, attributes=attributes, callback=callback, token=token, cancel_after_n_failures=cancel_after_n_failures
+        )
 
     @property
     def attributes(self):
@@ -241,9 +251,6 @@ class BatchBuilder:
     def _open_batch(self) -> Batch:
         async_batch = async_to_blocking(self._async_builder._open_batch())
         return Batch.from_async_batch(async_batch)
-
-    def _close_batch(self, id: int):
-        async_to_blocking(self._async_builder._close_batch(id))
 
     def submit(self, *args, **kwargs) -> Batch:
         async_batch = async_to_blocking(self._async_builder.submit(*args, **kwargs))
@@ -298,6 +305,10 @@ class BatchClient:
                      ) -> 'BatchBuilder':
         builder = self._async_client.create_batch(attributes=attributes, callback=callback, token=token,
                                                   cancel_after_n_failures=cancel_after_n_failures)
+        return BatchBuilder.from_async_builder(builder)
+
+    def update_batch(self, batch_id: int) -> 'BatchBuilder':
+        builder = async_to_blocking(self._async_client.update_batch(batch_id))
         return BatchBuilder.from_async_builder(builder)
 
     def get_billing_project(self, billing_project):

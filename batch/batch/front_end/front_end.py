@@ -10,7 +10,7 @@ import signal
 import traceback
 from functools import wraps
 from numbers import Number
-from typing import Dict, Optional, Union
+from typing import Dict, Optional, Tuple, Union
 
 import aiohttp
 import aiohttp_session
@@ -73,7 +73,7 @@ from ..globals import BATCH_FORMAT_VERSION, HTTP_CLIENT_MAX_SIZE
 from ..inst_coll_config import InstanceCollectionConfigs
 from ..spec_writer import SpecWriter
 from ..utils import query_billing_projects, unavailable_if_frozen
-from .validate import ValidationError, validate_and_clean_jobs, validate_batch
+from .validate import ValidationError, validate_and_clean_jobs, validate_batch, validate_batch_update
 
 # import uvloop
 
@@ -227,7 +227,7 @@ async def _query_batch_jobs(request, batch_id):
     db = request.app['db']
 
     # batch has already been validated
-    where_conditions = ['(jobs.batch_id = %s)']
+    where_conditions = ['(jobs.batch_id = %s AND batch_updates.committed)']
     where_args = [batch_id]
 
     last_job_id = request.query.get('last_job_id')
@@ -284,6 +284,7 @@ WITH base_t AS
     job_attributes.value AS name
   FROM jobs
   INNER JOIN batches ON jobs.batch_id = batches.id
+  INNER JOIN batch_updates ON jobs.batch_id = batch_updates.batch_id AND jobs.update_id = batch_updates.update_id
   LEFT JOIN job_attributes
   ON jobs.batch_id = job_attributes.batch_id AND
     jobs.job_id = job_attributes.job_id AND
@@ -672,6 +673,7 @@ def check_service_account_permissions(user, sa):
     raise web.HTTPBadRequest(reason=f'unauthorized service account {(sa["namespace"], sa["name"])} for user {user}')
 
 
+# Deprecated. Use create_jobs_for_update instead
 @routes.post('/api/v1alpha/batches/{batch_id}/jobs/create')
 @auth.rest_authenticated_users_only
 async def create_jobs(request: aiohttp.web.Request, userdata: dict):
@@ -680,6 +682,21 @@ async def create_jobs(request: aiohttp.web.Request, userdata: dict):
     batch_id = int(request.match_info['batch_id'])
     job_specs = await request.json()
     return await _create_jobs(userdata, job_specs, batch_id, 1, app)
+
+
+@routes.post('/api/v1alpha/batches/{batch_id}/updates/{update_id}/jobs/create')
+@auth.rest_authenticated_users_only
+async def create_jobs_for_update(request: aiohttp.web.Request, userdata: dict):
+    app = request.app
+
+    if app['frozen']:
+        log.info('ignoring batch create request; batch is frozen')
+        raise web.HTTPServiceUnavailable()
+
+    batch_id = int(request.match_info['batch_id'])
+    update_id = int(request.match_info['update_id'])
+    job_specs = await request.json()
+    return await _create_jobs(userdata, job_specs, batch_id, update_id, app)
 
 
 NON_HEX_DIGIT = re.compile('[^A-Fa-f0-9]')
@@ -705,17 +722,20 @@ async def _create_jobs(userdata: dict, job_specs: dict, batch_id: int, update_id
 
     record = await db.select_and_fetchone(
         '''
-SELECT `state`, format_version FROM batches
-WHERE user = %s AND id = %s AND NOT deleted;
+SELECT `state`, format_version, `committed`, start_job_id
+FROM batch_updates
+INNER JOIN batches ON batch_updates.batch_id = batches.id
+WHERE batch_updates.batch_id = %s AND batch_updates.update_id = %s AND user = %s AND NOT deleted;
 ''',
-        (user, batch_id),
+        (batch_id, update_id, user),
     )
 
     if not record:
         raise web.HTTPNotFound()
-    if record['state'] != 'open':
-        raise web.HTTPBadRequest(reason=f'batch {batch_id} is not open')
+    if record['committed']:
+        raise web.HTTPBadRequest(reason=f'update {update_id} is already committed')
     batch_format_version = BatchFormatVersion(record['format_version'])
+    update_start_job_id = int(record['start_job_id'])
 
     try:
         validate_and_clean_jobs(job_specs)
@@ -739,11 +759,16 @@ WHERE user = %s AND id = %s AND NOT deleted;
     )
 
     prev_job_idx = None
-    start_job_id = None
+    bunch_start_job_id = None
 
     for spec in job_specs:
-        job_id = spec['job_id']
-        parent_ids = spec.pop('parent_ids', [])
+        job_id = spec['job_id'] + update_start_job_id - 1
+        spec['job_id'] = job_id
+
+        absolute_parent_ids = spec.pop('absolute_parent_ids', [])
+        in_update_parent_ids = spec.pop('in_update_parent_ids', [])
+        parent_ids = absolute_parent_ids + [update_start_job_id + parent_id - 1 for parent_id in in_update_parent_ids]
+
         always_run = spec.pop('always_run', False)
 
         cloud = spec.get('cloud', CLOUD)
@@ -755,8 +780,8 @@ WHERE user = %s AND id = %s AND NOT deleted;
 
         id = (batch_id, job_id)
 
-        if start_job_id is None:
-            start_job_id = job_id
+        if bunch_start_job_id is None:
+            bunch_start_job_id = job_id
 
         if batch_format_version.has_full_spec_in_cloud() and prev_job_idx:
             if job_id != prev_job_idx + 1:
@@ -934,7 +959,12 @@ WHERE user = %s AND id = %s AND NOT deleted;
 
         icr = inst_coll_resources[inst_coll_name]
         icr['n_jobs'] += 1
-        if len(parent_ids) == 0:
+
+        # jobs in non-initial updates of a batch always start out as pending
+        # because they may have currently running parents in previous updates
+        # and we dont take those into account here when calculating the number
+        # of pending parents
+        if update_id == 1 and len(parent_ids) == 0:
             state = 'Ready'
             icr['n_ready_jobs'] += 1
             icr['ready_cores_mcpu'] += cores_mcpu
@@ -1071,7 +1101,7 @@ ON DUPLICATE KEY UPDATE
 INSERT INTO batch_bunches (batch_id, token, start_job_id)
 VALUES (%s, %s, %s);
 ''',
-                    (batch_id, spec_writer.token, start_job_id),
+                    (batch_id, spec_writer.token, bunch_start_job_id),
                 )
         except asyncio.CancelledError:
             raise
@@ -1106,15 +1136,14 @@ async def create_batch_fast(request, userdata):
     batch_spec = batch_and_bunch['batch']
     bunch = batch_and_bunch['bunch']
     batch_id = await _create_batch(batch_spec, userdata, db)
-    update_id = await _create_batch_update(batch_id, batch_spec['token'], batch_spec['n_jobs'], db)
+    update_id, _ = await _create_batch_update(batch_id, batch_spec['token'], batch_spec['n_jobs'], user, db)
     try:
         await _create_jobs(userdata, bunch, batch_id, update_id, app)
     except web.HTTPBadRequest as e:
-        if f'batch {batch_id} is not open' == e.reason:
+        if f'update {update_id} is already committed' == e.reason:
             return web.json_response({'id': batch_id})
         raise
-    await _commit_update(batch_id, update_id, db)
-    await _close_batch(app, batch_id, user, db)
+    await _commit_update(app, batch_id, update_id, user, db)
     return web.json_response({'id': batch_id})
 
 
@@ -1128,7 +1157,9 @@ async def create_batch(request, userdata):
     id = await _create_batch(batch_spec, userdata, db)
     n_jobs = batch_spec['n_jobs']
     if n_jobs > 0:
-        update_id = await _create_batch_update(id, batch_spec['token'], batch_spec['n_jobs'], db)
+        update_id, _ = await _create_batch_update(
+            id, batch_spec['token'], batch_spec['n_jobs'], userdata['username'], db
+        )
     else:
         update_id = None
     return web.json_response({'id': id, 'update_id': update_id})
@@ -1207,8 +1238,8 @@ WHERE token = %s AND user = %s FOR UPDATE;
         now = time_msecs()
         id = await tx.execute_insertone(
             '''
-INSERT INTO batches (userdata, user, billing_project, attributes, callback, n_jobs, time_created, token, state, format_version, cancel_after_n_failures)
-VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
+INSERT INTO batches (userdata, user, billing_project, attributes, callback, n_jobs, time_created, time_completed, token, state, format_version, cancel_after_n_failures)
+VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
 ''',
             (
                 json.dumps(userdata),
@@ -1216,10 +1247,11 @@ VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
                 billing_project,
                 json.dumps(attributes),
                 batch_spec.get('callback'),
-                batch_spec['n_jobs'],
+                0,
+                now,
                 now,
                 token,
-                'open',
+                'complete',
                 BATCH_FORMAT_VERSION,
                 batch_spec.get('cancel_after_n_failures'),
             ),
@@ -1244,13 +1276,69 @@ VALUES (%s, %s, %s)
     return await insert()  # pylint: disable=no-value-for-parameter
 
 
-async def _create_batch_update(batch_id: int, update_token: str, n_jobs: int, db: Database) -> int:
+@routes.post('/api/v1alpha/batches/{batch_id}/update-fast')
+@auth.rest_authenticated_users_only
+async def update_batch_fast(request, userdata):
+    app = request.app
+    db: Database = app['db']
+
+    batch_id = int(request.match_info['batch_id'])
+    user = userdata['username']
+    update_and_bunch = await request.json()
+    update_spec = update_and_bunch['update']
+    bunch = update_and_bunch['bunch']
+
+    try:
+        validate_batch_update(update_spec)
+    except ValidationError as e:
+        raise web.HTTPBadRequest(reason=e.reason)
+
+    update_id, start_job_id = await _create_batch_update(
+        batch_id, update_spec['token'], update_spec['n_jobs'], user, db
+    )
+
+    try:
+        await _create_jobs(userdata, bunch, batch_id, update_id, app)
+    except web.HTTPBadRequest as e:
+        if f'update {update_id} is already committed' == e.reason:
+            return web.json_response({'id': batch_id, 'start_job_id': start_job_id})
+        raise
+    await _commit_update(app, batch_id, update_id, user, db)
+    return web.json_response({'id': batch_id, 'start_job_id': start_job_id})
+
+
+@routes.post('/api/v1alpha/batches/{batch_id}/updates/create')
+@auth.rest_authenticated_users_only
+async def create_update(request, userdata):
+    app = request.app
+    db: Database = app['db']
+
+    if app['frozen']:
+        log.info('ignoring batch create request; batch is frozen')
+        raise web.HTTPServiceUnavailable()
+
+    batch_id = int(request.match_info['batch_id'])
+    user = userdata['username']
+    update_spec = await request.json()
+
+    try:
+        validate_batch_update(update_spec)
+    except ValidationError as e:
+        raise web.HTTPBadRequest(reason=e.reason)
+
+    update_id, _ = await _create_batch_update(batch_id, update_spec['token'], update_spec['n_jobs'], user, db)
+    return web.json_response({'update_id': update_id})
+
+
+async def _create_batch_update(
+    batch_id: int, update_token: str, n_jobs: int, user: str, db: Database
+) -> Tuple[int, int]:
     @transaction(db)
     async def update(tx: Transaction):
         assert n_jobs > 0
         record = await tx.execute_and_fetchone(
             '''
-SELECT update_id, start_job_id FROM batch_updates
+SELECT update_id FROM batch_updates
 WHERE batch_id = %s AND token = %s;
 ''',
             (batch_id, update_token),
@@ -1259,17 +1347,53 @@ WHERE batch_id = %s AND token = %s;
         if record:
             return record['update_id']
 
+        # We use FOR UPDATE so that we serialize batch update insertions
+        # This is necessary to reserve job id ranges.
+        # We don't allow updates to batches that have been cancelled
+        # but do allow updates to batches with jobs that have been cancelled.
+        record = await tx.execute_and_fetchone(
+            '''
+SELECT batches_cancelled.id IS NOT NULL AS cancelled
+FROM batches
+LEFT JOIN batches_cancelled ON batches.id = batches_cancelled.id
+WHERE batches.id = %s AND user = %s AND NOT deleted
+FOR UPDATE;
+''',
+            (batch_id, user),
+        )
+        if not record:
+            raise web.HTTPNotFound()
+        if record['cancelled']:
+            raise web.HTTPBadRequest(reason='Cannot submit new jobs to a cancelled batch')
+
         now = time_msecs()
+
+        record = await tx.execute_and_fetchone(
+            '''
+SELECT update_id, start_job_id, n_jobs FROM batch_updates
+WHERE batch_id = %s
+ORDER BY update_id DESC
+LIMIT 1;
+''',
+            (batch_id,),
+        )
+        if record:
+            update_id = int(record['update_id']) + 1
+            update_start_job_id = int(record['start_job_id']) + int(record['n_jobs'])
+        else:
+            update_id = 1
+            update_start_job_id = 1
+
         await tx.execute_insertone(
             '''
 INSERT INTO batch_updates
 (batch_id, update_id, token, start_job_id, n_jobs, committed, time_created)
 VALUES (%s, %s, %s, %s, %s, %s, %s);
 ''',
-            (batch_id, 1, update_token, 1, n_jobs, False, now),
+            (batch_id, update_id, update_token, update_start_job_id, n_jobs, False, now),
         )
 
-        return 1
+        return (update_id, update_start_job_id)
 
     return await update()  # pylint: disable=no-value-for-parameter
 
@@ -1351,6 +1475,7 @@ async def cancel_batch(request, userdata, batch_id):  # pylint: disable=unused-a
     return web.Response()
 
 
+# deprecated
 @routes.patch('/api/v1alpha/batches/{batch_id}/close')
 @auth.rest_authenticated_users_only
 async def close_batch(request, userdata):
@@ -1362,13 +1487,17 @@ async def close_batch(request, userdata):
 
     record = await db.select_and_fetchone(
         '''
-SELECT 1 FROM batches
-WHERE user = %s AND id = %s AND NOT deleted;
+SELECT batches_cancelled.id IS NOT NULL AS cancelled
+FROM batches
+LEFT JOIN batches_cancelled ON batches.id = batches_cancelled.id
+WHERE user = %s AND batches.id = %s AND NOT deleted;
 ''',
         (user, batch_id),
     )
     if not record:
         raise web.HTTPNotFound()
+    if record['cancelled']:
+        raise web.HTTPBadRequest(reason='Cannot close a previously cancelled batch.')
 
     record = await db.select_and_fetchone(
         '''
@@ -1378,26 +1507,47 @@ WHERE batch_id = %s AND update_id = 1;
         (batch_id,),
     )
     if record:
-        await _commit_update(batch_id, 1, db)
-    return await _close_batch(app, batch_id, user, db)
+        await _commit_update(app, batch_id, 1, user, db)
+    return web.Response()
 
 
-async def _commit_update(batch_id: int, update_id: int, db: Database):
-    await db.execute_and_fetchone(
+@routes.patch('/api/v1alpha/batches/{batch_id}/updates/{update_id}/commit')
+@auth.rest_authenticated_users_only
+async def commit_update(request: web.Request, userdata):
+    app = request.app
+    db: Database = app['db']
+    user = userdata['username']
+
+    batch_id = int(request.match_info['batch_id'])
+    update_id = int(request.match_info['update_id'])
+
+    record = await db.select_and_fetchone(
         '''
-UPDATE batch_updates
-SET `committed` = TRUE
-WHERE batch_id = %s AND update_id = %s
+SELECT start_job_id, batches_cancelled.id IS NOT NULL AS cancelled
+FROM batches
+LEFT JOIN batch_updates ON batches.id = batch_updates.batch_id
+LEFT JOIN batches_cancelled ON batches.id = batches_cancelled.id
+WHERE user = %s AND batches.id = %s AND batch_updates.update_id = %s AND NOT deleted;
 ''',
-        (batch_id, update_id),
+        (user, batch_id, update_id),
     )
+    if not record:
+        raise web.HTTPNotFound()
+    if record['cancelled']:
+        raise web.HTTPBadRequest(reason='Cannot commit an update to a cancelled batch')
+
+    await _commit_update(app, batch_id, update_id, user, db)
+    return web.json_response({'start_job_id': record['start_job_id']})
 
 
-async def _close_batch(app: aiohttp.web.Application, batch_id: int, user: str, db: Database):
+async def _commit_update(app: web.Application, batch_id: int, update_id: int, user: str, db: Database):
     client_session: httpx.ClientSession = app['client_session']
+
     try:
         now = time_msecs()
-        await db.check_call_procedure('CALL close_batch(%s, %s);', (batch_id, now), 'close_batch')
+        await db.check_call_procedure(
+            'CALL commit_batch_update(%s, %s, %s);', (batch_id, update_id, now), 'commit_batch_update'
+        )
     except CallError as e:
         # 2: wrong number of jobs
         if e.rv['rc'] == 2:
@@ -1409,11 +1559,9 @@ async def _close_batch(app: aiohttp.web.Application, batch_id: int, user: str, d
     await request_retry_transient_errors(
         client_session,
         'PATCH',
-        deploy_config.url('batch-driver', f'/api/v1alpha/batches/{user}/{batch_id}/close'),
+        deploy_config.url('batch-driver', f'/api/v1alpha/batches/{user}/{batch_id}/update'),
         headers=app['batch_headers'],
     )
-
-    return web.Response()
 
 
 @routes.delete('/api/v1alpha/batches/{batch_id}')
@@ -1511,7 +1659,9 @@ LEFT JOIN (
   ORDER BY end_time DESC
   LIMIT 1
 ) AS t ON jobs.batch_id = t.batch_id AND jobs.job_id = t.job_id
-WHERE jobs.batch_id = %s AND NOT deleted AND jobs.job_id = %s
+LEFT JOIN batch_updates
+  ON jobs.batch_id = batch_updates.batch_id AND jobs.update_id = batch_updates.update_id
+WHERE jobs.batch_id = %s AND NOT deleted AND jobs.job_id = %s AND batch_updates.committed
 )
 SELECT base_t.*, COALESCE(SUM(`usage` * rate), 0) AS cost
 FROM base_t
@@ -2210,7 +2360,7 @@ FOR UPDATE;
                 f'Billing project {billing_project} is already closed or deleted.', 'info'
             )
         if row['batch_id'] is not None:
-            raise BatchUserError(f'Billing project {billing_project} has open or running batches.', 'error')
+            raise BatchUserError(f'Billing project {billing_project} has running batches.', 'error')
 
         await tx.execute_update("UPDATE billing_projects SET `status` = 'closed' WHERE name = %s;", (billing_project,))
 
@@ -2293,7 +2443,7 @@ async def _delete_billing_project(db, billing_project):
         )
         if not row:
             raise NonExistentBillingProjectError(billing_project)
-        assert row['name'] == billing_project
+        assert row['name'] == billing_project, row
         if row['status'] == 'deleted':
             raise BatchOperationAlreadyCompletedError(f'Billing project {billing_project} is already deleted.', 'info')
         if row['status'] == 'open':
