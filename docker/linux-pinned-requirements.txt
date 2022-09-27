@@ -65,7 +65,7 @@ botocore==1.24.13
     #   s3transfer
 cachetools==5.2.0
     # via google-auth
-certifi==2022.9.14
+certifi==2022.9.24
     # via
     #   kubernetes-asyncio
     #   msrest
@@ -189,7 +189,7 @@ itsdangerous==2.1.2
     # via flask
 janus==0.6.1
     # via -r requirements.txt
-jaraco-classes==3.2.2
+jaraco-classes==3.2.3
     # via
     #   keyring
     #   keyrings-alt
@@ -284,8 +284,9 @@ prometheus-client==0.11.0
     # via
     #   -r requirements.txt
     #   prometheus-async
-protobuf==4.21.6
+protobuf==3.20.1
     # via
+    #   -r requirements.txt
     #   google-api-core
     #   googleapis-common-protos
 psutil==5.9.0
@@ -323,7 +324,7 @@ pymysql==0.9.2
     # via
     #   -r requirements.txt
     #   aiomysql
-pyopenssl==22.0.0
+pyopenssl==22.1.0
     # via requests
 pyparsing==3.0.9
     # via
@@ -362,7 +363,7 @@ pytz==2022.2.1
     # via pandas
 pyyaml==6.0
     # via kubernetes-asyncio
-readme-renderer==37.1
+readme-renderer==37.2
     # via twine
 requests[security]==2.25.1
     # via
@@ -442,17 +443,17 @@ types-pymysql==1.0.19
     # via -r requirements.txt
 types-python-dateutil==2.8.19
     # via -r requirements.txt
-types-pyyaml==6.0.11
+types-pyyaml==6.0.12
     # via -r requirements.txt
-types-requests==2.28.10
+types-requests==2.28.11
     # via -r requirements.txt
 types-setuptools==65.3.0
     # via -r requirements.txt
-types-six==1.16.19
+types-six==1.16.21
     # via -r requirements.txt
 types-tabulate==0.8.11
     # via -r requirements.txt
-types-urllib3==1.26.24
+types-urllib3==1.26.25
     # via
     #   -r requirements.txt
     #   types-requests

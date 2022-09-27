@@ -31,7 +31,7 @@ black==22.8.0
     # via -r python/dev/requirements.txt
 bleach==5.0.1
     # via nbconvert
-certifi==2022.9.14
+certifi==2022.9.24
     # via requests
 cffi==1.15.1
     # via argon2-cffi-bindings
@@ -82,13 +82,14 @@ importlib-metadata==3.10.1
     #   flake8
     #   jsonschema
     #   nbconvert
+    #   nbformat
     #   pluggy
     #   pytest
 importlib-resources==5.9.0
     # via jsonschema
 iniconfig==1.1.1
     # via pytest
-ipykernel==6.15.3
+ipykernel==6.16.0
     # via
     #   ipywidgets
     #   jupyter
@@ -174,7 +175,7 @@ nbconvert==7.0.0
     #   jupyter
     #   nbsphinx
     #   notebook
-nbformat==5.4.0
+nbformat==5.6.1
     # via
     #   nbclient
     #   nbconvert
@@ -371,17 +372,17 @@ types-deprecated==1.2.9
     # via -r python/dev/requirements.txt
 types-python-dateutil==2.8.19
     # via -r python/dev/requirements.txt
-types-pyyaml==6.0.11
+types-pyyaml==6.0.12
     # via -r python/dev/requirements.txt
-types-requests==2.28.10
+types-requests==2.28.11
     # via -r python/dev/requirements.txt
 types-setuptools==65.3.0
     # via -r python/dev/requirements.txt
-types-six==1.16.19
+types-six==1.16.21
     # via -r python/dev/requirements.txt
 types-tabulate==0.8.11
     # via -r python/dev/requirements.txt
-types-urllib3==1.26.24
+types-urllib3==1.26.25
     # via
     #   -r python/dev/requirements.txt
     #   types-requests
