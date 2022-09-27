@@ -3076,7 +3076,7 @@ def import_gvs(refs: 'List[List[str]]',
                truth_sensitivity_snp_threshold: 'float' = 0.997,
                truth_sensitivity_indel_threshold: 'float' = 0.990,
                reference_genome='GRCh38',
-               partitions_per_sample=1.0,
+               partitions_per_sample=0.35,
                intermediate_resume_point=0):
     """Import a collection of Avro files exported from GVS.
 
