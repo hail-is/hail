@@ -1,5 +1,3 @@
-CREATE INDEX `jobs_batch_id_always_run_job_id` ON `jobs` (`batch_id`, `always_run`, `job_id`);
-
 CREATE TABLE IF NOT EXISTS `region_ids` (
   `region_id` INT NOT NULL AUTO_INCREMENT,
   `region` VARCHAR(40) NOT NULL,
