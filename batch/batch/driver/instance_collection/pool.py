@@ -313,19 +313,32 @@ WHERE removed = 0 AND inst_coll = %s;
         for user, share in user_share.items():
             user_job_query = f'''
 (
+SELECT *
+FROM (
+   SELECT user, jobs.batch_id, jobs.job_id, cores_mcpu, always_run
+   FROM jobs FORCE INDEX(jobs_batch_id_state_always_run_cancelled)
+   LEFT JOIN batches ON jobs.batch_id = batches.id
+   WHERE user = %s AND batches.`state` = 'running' AND jobs.state = 'Ready' AND always_run = 1 OR (always_run = 0 AND batches_cancelled.id IS NULL)) AND inst_coll = %s
+   GROUP BY jobs.batch_id, jobs.job_id
+   ORDER BY jobs.batch_id ASC, jobs.job_id ASC
+   LIMIT {share * JOB_QUEUE_SCHEDULING_WINDOW_SECONDS}
+ ) AS always_run
+UNION (
    SELECT user, jobs.batch_id, jobs.job_id, cores_mcpu, always_run
    FROM jobs FORCE INDEX(jobs_batch_id_state_always_run_cancelled)
    LEFT JOIN batches ON jobs.batch_id = batches.id
    LEFT JOIN batches_cancelled ON batches.id = batches_cancelled.id
-   WHERE user = %s AND batches.`state` = 'running' AND jobs.state = 'Ready' AND (always_run = 1 OR (always_run = 0 AND batches_cancelled.id IS NULL)) AND inst_coll = %s
-   GROUP BY user, jobs.batch_id, jobs.job_id
-   ORDER BY jobs.batch_id ASC, always_run DESC, jobs.job_id ASC
+   WHERE user = %s AND batches.`state` = 'running' AND jobs.state = 'Ready' AND always_run = 0 AND batches_cancelled.id IS NULL AND inst_coll = %s
+   GROUP BY jobs.batch_id, jobs.job_id
+   ORDER BY jobs.batch_id ASC, jobs.job_id ASC
    LIMIT {share * JOB_QUEUE_SCHEDULING_WINDOW_SECONDS}
- )
+) AS not_cancelled
+LIMIT {share * JOB_QUEUE_SCHEDULING_WINDOW_SECONDS}
+)
 '''
 
             jobs_query.append(user_job_query)
-            jobs_query_args += [user, self.name]
+            jobs_query_args += [user, self.name, user, self.name]
 
         result = await self.db.select_and_fetchone(
             f'''
