@@ -1304,7 +1304,7 @@ async def update_batch_fast(request, userdata):
             return web.json_response({'id': batch_id, 'start_job_id': start_job_id})
         raise
     await _commit_update(app, batch_id, update_id, user, db)
-    return web.json_response({'id': batch_id, 'start_job_id': start_job_id})
+    return web.json_response({'update_id': update_id, 'start_job_id': start_job_id})
 
 
 @routes.post('/api/v1alpha/batches/{batch_id}/updates/create')
