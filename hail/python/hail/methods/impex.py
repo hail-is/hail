@@ -3204,194 +3204,200 @@ def import_gvs(refs: 'List[List[str]]',
     samp = hl.import_avro(sample_mapping)
     sample_mapping_dict = samp.aggregate(hl.dict(hl.agg.collect((samp.sample_id, samp.sample_name))))
 
-    info('import_gvs: Importing and writing site filters to temporary storage')
-    site = hl.import_avro(site_filtering_data)
-    site = site.transmute(
-        locus=translate_locus(site.location),
-        filters=hl.set(site.filters.split(','))
-    )
-    site = site.key_by('locus')
     site_path = os.path.join(tmp_dir, 'site_filters.ht')
-    site.write(site_path, overwrite=True)
-
-    info('import_gvs: Importing and writing VQSR filter data to temporary storage')
-    vqsr = hl.import_avro(vqsr_filtering_data)
-    vqsr = vqsr.transmute(
-        locus=translate_locus(vqsr.location)
-    )
-    vqsr = vqsr.key_by('locus')
     vqsr_path = os.path.join(tmp_dir, 'vqsr.ht')
-    vqsr.write(vqsr_path, overwrite=True)
+
+    if intermediate_resume_point > 0:
+        info('import_gvs: skipping site and VQSR filter import')
+    else:
+        info('import_gvs: Importing and writing site filters to temporary storage')
+        site = hl.import_avro(site_filtering_data)
+        site = site.transmute(
+            locus=translate_locus(site.location),
+            filters=hl.set(site.filters.split(','))
+        )
+        site = site.key_by('locus')
+        site.write(site_path, overwrite=True)
+
+        info('import_gvs: Importing and writing VQSR filter data to temporary storage')
+        vqsr = hl.import_avro(vqsr_filtering_data)
+        vqsr = vqsr.transmute(
+            locus=translate_locus(vqsr.location)
+        )
+        vqsr = vqsr.key_by('locus')
+        vqsr.write(vqsr_path, overwrite=True)
 
     tranche = hl.import_avro(vqsr_tranche_data)
 
     n_samples = 0
 
-    for idx in range(len(refs)):
-        ref_group = refs[idx]
-        var_group = vets[idx]
-        path = os.path.join(tmp_dir, f'sample_group_{idx+1}.vds')
-        vds_paths.append(path)
+    with hl._with_flags(use_new_shuffle='1'):
+        for idx in range(len(refs)):
+            ref_group = refs[idx]
+            var_group = vets[idx]
+            path = os.path.join(tmp_dir, f'sample_group_{idx+1}.vds')
+            vds_paths.append(path)
 
-        if idx < intermediate_resume_point:
-            n_samples += hl.vds.read_vds(path).n_samples()
-            info(f'import_gvs: skipping group {idx+1}/{len(refs)}...')
-            continue
+            if idx < intermediate_resume_point:
+                n_samples += hl.vds.read_vds(path).n_samples()
+                info(f'import_gvs: skipping group {idx+1}/{len(refs)}...')
+                continue
 
-        info(f'import_gvs: scanning group {idx+1}/{len(refs)}...')
-        ref_ht = hl.import_avro(ref_group)
+            info(f'import_gvs: scanning group {idx+1}/{len(refs)}...')
+            ref_ht = hl.import_avro(ref_group)
 
-        # Note -- availability of sample IDs statically would make import more efficient
-        info(f'import_gvs: collecting sample IDs...')
-        sample_ids = sorted(list(ref_ht.aggregate(hl.agg.collect_as_set(ref_ht.sample_id))))
-        samples = [sample_mapping_dict[s] for s in sample_ids]
-        samples_lit = hl.literal(samples, hl.tarray(hl.tstr))
-        sample_ids_lit = hl.literal(sample_ids, hl.tarray(hl.tint32))
-        n_new_samples = len(sample_ids)
-        n_samples += n_new_samples
-        assert n_new_samples == len(samples), (n_new_samples, len(samples))
+            # Note -- availability of sample IDs statically would make import more efficient
+            info(f'import_gvs: collecting sample IDs...')
+            sample_ids = sorted(list(ref_ht.aggregate(hl.agg.collect_as_set(ref_ht.sample_id))))
+            samples = [sample_mapping_dict[s] for s in sample_ids]
+            samples_lit = hl.literal(samples, hl.tarray(hl.tstr))
+            sample_ids_lit = hl.literal(sample_ids, hl.tarray(hl.tint32))
+            n_new_samples = len(sample_ids)
+            n_samples += n_new_samples
+            assert n_new_samples == len(samples), (n_new_samples, len(samples))
 
-        new_loc = translate_locus(ref_ht.location)
+            new_loc = translate_locus(ref_ht.location)
 
-        # transform fields to Hail expectations (locus object, GQ int32, end as absolute instead of relative
-        ref_ht = ref_ht.transmute(locus=new_loc,
-                                  GQ=translate_state(ref_ht.state),
-                                  END=new_loc.position + hl.int32(ref_ht.length) - 1)
-        ref_ht = ref_ht.key_by('locus')
-        ref_ht = ref_ht.group_by(ref_ht.locus).aggregate(data_per_sample=hl.agg.collect(ref_ht.row.drop('locus')))
-        ref_ht = ref_ht.transmute(entries=convert_array_with_id_keys_to_dense_array(ref_ht.data_per_sample, sample_ids_lit))
+            # transform fields to Hail expectations (locus object, GQ int32, end as absolute instead of relative
+            ref_ht = ref_ht.transmute(locus=new_loc,
+                                      GQ=translate_state(ref_ht.state),
+                                      END=new_loc.position + hl.int32(ref_ht.length) - 1)
+            ref_ht = ref_ht.key_by('locus')
+            ref_ht = ref_ht.group_by(ref_ht.locus).aggregate(data_per_sample=hl.agg.collect(ref_ht.row.drop('locus')))
+            ref_ht = ref_ht.transmute(entries=convert_array_with_id_keys_to_dense_array(ref_ht.data_per_sample, sample_ids_lit))
 
-        # vds column keys assume string sample IDs
-        ref_ht = ref_ht.annotate_globals(col_data=samples_lit.map(lambda s: hl.struct(s=s)))
-        ref_mt = ref_ht._unlocalize_entries('entries', 'col_data', col_key=['s'])
+            # vds column keys assume string sample IDs
+            ref_ht = ref_ht.annotate_globals(col_data=samples_lit.map(lambda s: hl.struct(s=s)))
+            ref_mt = ref_ht._unlocalize_entries('entries', 'col_data', col_key=['s'])
 
-        # workaround to maintain valid VDS schema, is added from FASTA at the end
-        ref_mt = ref_mt.annotate_rows(ref_allele=hl.missing(hl.tstr))
+            # workaround to maintain valid VDS schema, is added from FASTA at the end
+            ref_mt = ref_mt.annotate_rows(ref_allele=hl.missing(hl.tstr))
 
-        var_ht = hl.import_avro(var_group)
-        var_ht = var_ht.transmute(locus=translate_locus(var_ht.location),
-                                  local_alleles=hl.array([var_ht.ref]).extend(var_ht.alt.split(',')),
-                                  LGT=hl.parse_call(var_ht.GT),
-                                  LAD=var_ht.AD.split(',').map(lambda x: hl.int32(x)),
-                                  GQ=hl.int32(var_ht.GQ),
-                                  RGQ=hl.int32(var_ht.RGQ))
-        var_ht = var_ht.key_by('locus')
-        var_ht = var_ht.group_by(var_ht.locus).aggregate(data_per_sample=hl.agg.collect(var_ht.row.drop('locus')))
+            var_ht = hl.import_avro(var_group)
+            var_ht = var_ht.transmute(locus=translate_locus(var_ht.location),
+                                      local_alleles=hl.array([var_ht.ref]).extend(var_ht.alt.split(',')),
+                                      LGT=hl.parse_call(var_ht.GT),
+                                      LAD=var_ht.AD.split(',').map(lambda x: hl.int32(x)),
+                                      GQ=hl.int32(var_ht.GQ),
+                                      RGQ=hl.int32(var_ht.RGQ))
+            var_ht = var_ht.key_by('locus')
+            var_ht = var_ht.group_by(var_ht.locus).aggregate(data_per_sample=hl.agg.collect(var_ht.row.drop('locus')))
 
-        alleles_list = hl.array(hl.set(var_ht.data_per_sample.map(lambda x:x.local_alleles)))
+            alleles_list = hl.array(hl.set(var_ht.data_per_sample.map(lambda x:x.local_alleles)))
 
-        from hail.experimental.vcf_combiner.vcf_combiner import merge_alleles
-        alleles_and_translation = merge_alleles(alleles_list)
-        alleles = alleles_and_translation[0]
-        allele_to_index = hl.dict(hl.enumerate(alleles, index_first=False))
-        local_allele_lookup = hl.dict(hl.zip(alleles_list, hl.rbind(allele_to_index,
-                 lambda ai: alleles_and_translation[1].map(
-                     lambda norm_alleles: norm_alleles.map(
-                         lambda a: allele_to_index[a])))))
-        var_ht = var_ht.annotate(
-            alleles=alleles,
-            local_allele_lookup=local_allele_lookup)
+            from hail.experimental.vcf_combiner.vcf_combiner import merge_alleles
+            alleles_and_translation = merge_alleles(alleles_list)
+            alleles = alleles_and_translation[0]
+            allele_to_index = hl.dict(hl.enumerate(alleles, index_first=False))
+            local_allele_lookup = hl.dict(hl.zip(alleles_list, hl.rbind(allele_to_index,
+                     lambda ai: alleles_and_translation[1].map(
+                         lambda norm_alleles: norm_alleles.map(
+                             lambda a: allele_to_index[a])))))
+            var_ht = var_ht.annotate(
+                alleles=alleles,
+                local_allele_lookup=local_allele_lookup)
 
-        var_ht = var_ht.transmute(entries=convert_array_with_id_keys_to_dense_array(var_ht.data_per_sample, sample_ids_lit))
-        var_ht = var_ht.annotate_globals(col_data=samples_lit.map(lambda s: hl.struct(s=hl.str(s))))
-        var_mt = var_ht._unlocalize_entries('entries', 'col_data', col_key=['s'])
+            var_ht = var_ht.transmute(entries=convert_array_with_id_keys_to_dense_array(var_ht.data_per_sample, sample_ids_lit))
+            var_ht = var_ht.annotate_globals(col_data=samples_lit.map(lambda s: hl.struct(s=hl.str(s))))
+            var_mt = var_ht._unlocalize_entries('entries', 'col_data', col_key=['s'])
 
-        # replace 'local_alleles' strings with indices using our global lookup table
-        var_mt = var_mt.transmute_entries(LA=var_mt.local_allele_lookup[var_mt.local_alleles])
-        var_mt = var_mt.drop('local_allele_lookup')
-        var_mt = var_mt._key_rows_by_assert_sorted('locus', 'alleles')
+            # replace 'local_alleles' strings with indices using our global lookup table
+            var_mt = var_mt.transmute_entries(LA=var_mt.local_allele_lookup[var_mt.local_alleles])
+            var_mt = var_mt.drop('local_allele_lookup')
+            var_mt = var_mt._key_rows_by_assert_sorted('locus', 'alleles')
 
-        info(f'import_gvs: writing intermediate VDS for sample group {idx+1} with {n_new_samples} samples...')
-        vds = hl.vds.VariantDataset(ref_mt, var_mt)
-        vds.write(path, overwrite=True)
+            info(f'import_gvs: writing intermediate VDS for sample group {idx+1} with {n_new_samples} samples...')
+            vds = hl.vds.VariantDataset(ref_mt, var_mt)
+            vds.write(path, overwrite=True)
 
     total_partitions = int(partitions_per_sample * n_samples)
     first_ref_mt = hl.read_matrix_table(hl.vds.VariantDataset._reference_path(vds_paths[0]))
     info(f'import_gvs: computing partition intervals for final partitioning ({total_partitions} partitions)')
     partition_intervals = first_ref_mt._calculate_new_partitions(n_partitions=total_partitions)
 
-    from hail.utils.java import Env
-    refs = Env.spark_backend("import_gvs")\
-        .read_multiple_matrix_tables([hl.vds.VariantDataset._reference_path(path) for path in vds_paths],
-                                     partition_intervals,
-                                     hl.tarray(hl.tinterval(hl.tstruct(locus=hl.tlocus(reference_genome)))))
-    vars = Env.spark_backend("import_gvs") \
-        .read_multiple_matrix_tables([hl.vds.VariantDataset._variants_path(path) for path in vds_paths],
-                                     partition_intervals,
-                                     hl.tarray(hl.tinterval(hl.tstruct(locus=hl.tlocus(reference_genome)))))
-    vdses = [hl.vds.VariantDataset(ref, var) for ref, var in zip(refs, vars)]
+    with hl._with_flags(no_whole_stage_codegen='1'):
+        from hail.utils.java import Env
+        refs = Env.spark_backend("import_gvs")\
+            .read_multiple_matrix_tables([hl.vds.VariantDataset._reference_path(path) for path in vds_paths],
+                                         partition_intervals,
+                                         hl.tarray(hl.tinterval(hl.tstruct(locus=hl.tlocus(reference_genome)))))
+        vars = Env.spark_backend("import_gvs") \
+            .read_multiple_matrix_tables([hl.vds.VariantDataset._variants_path(path) for path in vds_paths],
+                                         partition_intervals,
+                                         hl.tarray(hl.tinterval(hl.tstruct(locus=hl.tlocus(reference_genome)))))
+        vdses = [hl.vds.VariantDataset(ref, var) for ref, var in zip(refs, vars)]
 
-    combined = hl.vds.combiner.combine_variant_datasets(vdses)
+        combined = hl.vds.combiner.combine_variant_datasets(vdses)
 
-    info(f'import_gvs: merging {len(vdses)} intermediates and writing final VDS')
+        info(f'import_gvs: merging {len(vdses)} intermediates and writing final VDS')
 
-    rd = combined.reference_data
-    vd = combined.variant_data
+        rd = combined.reference_data
+        vd = combined.variant_data
 
-    # add reference base to reference data table as a Hail VDS requirement. Add from FASTA file.
-    rd = add_reference_allele(rd)
+        # add reference base to reference data table as a Hail VDS requirement. Add from FASTA file.
+        rd = add_reference_allele(rd)
 
-    # read site and vqsr data with same intervals for efficient joins
-    site = hl.read_table(site_path, _intervals=partition_intervals)
-    vqsr = hl.read_table(vqsr_path, _intervals=partition_intervals)
+        # read site and vqsr data with same intervals for efficient joins
+        site = hl.read_table(site_path, _intervals=partition_intervals)
+        vqsr = hl.read_table(vqsr_path, _intervals=partition_intervals)
 
-    vd = vd.annotate_rows(filters=hl.coalesce(site[vd.locus].filters, hl.empty_set(hl.tstr)))
+        vd = vd.annotate_rows(filters=hl.coalesce(site[vd.locus].filters, hl.empty_set(hl.tstr)))
 
-    # vqsr ref/alt come in normalized individually, so need to renormalize to the dataset ref allele
-    vd = vd.annotate_rows(as_vqsr = hl.dict(vqsr.index(vd.locus, all_matches=True)
-                                            .map(lambda record: (record.alt + vd.alleles[0][hl.len(record.ref):], record.drop('ref', 'alt')))))
-    vd = vd.annotate_globals(tranche_data=tranche.collect(_localize=False),
-                             truth_sensitivity_snp_threshold=truth_sensitivity_snp_threshold,
-                             truth_sensitivity_indel_threshold=truth_sensitivity_indel_threshold)
+        # vqsr ref/alt come in normalized individually, so need to renormalize to the dataset ref allele
+        vd = vd.annotate_rows(as_vqsr = hl.dict(vqsr.index(vd.locus, all_matches=True)
+                                                .map(lambda record: (record.alt + vd.alleles[0][hl.len(record.ref):], record.drop('ref', 'alt')))))
+        vd = vd.annotate_globals(tranche_data=tranche.collect(_localize=False),
+                                 truth_sensitivity_snp_threshold=truth_sensitivity_snp_threshold,
+                                 truth_sensitivity_indel_threshold=truth_sensitivity_indel_threshold)
 
-    sorted_tranche_data = hl.sorted(vd.tranche_data, key=lambda x: x.truth_sensitivity)
-    vd = vd.annotate_globals(snp_vqslod_threshold=
-                             sorted_tranche_data.filter(lambda x: (x.model == 'SNP') & (
-                                         x.truth_sensitivity >= truth_sensitivity_snp_threshold))
-                             .head().min_vqslod
-                             ,
-                             indel_vqslod_threshold=sorted_tranche_data.filter(lambda x: (x.model == 'INDEL') & (
-                                         x.truth_sensitivity >= truth_sensitivity_indel_threshold))
-                             .head().min_vqslod
-                             )
+        sorted_tranche_data = hl.sorted(vd.tranche_data, key=lambda x: x.truth_sensitivity)
+        vd = vd.annotate_globals(snp_vqslod_threshold=
+                                 sorted_tranche_data.filter(lambda x: (x.model == 'SNP') & (
+                                             x.truth_sensitivity >= truth_sensitivity_snp_threshold))
+                                 .head().min_vqslod
+                                 ,
+                                 indel_vqslod_threshold=sorted_tranche_data.filter(lambda x: (x.model == 'INDEL') & (
+                                             x.truth_sensitivity >= truth_sensitivity_indel_threshold))
+                                 .head().min_vqslod
+                                 )
 
-    is_snp = vd.alleles[1:].map(lambda alt: hl.is_snp(vd.alleles[0], alt))
-    vd = vd.annotate_rows(
-        allele_NO=vd.alleles[1:].map(
-            lambda allele: hl.coalesce(vd.as_vqsr.get(allele).yng_status == 'N', False)),
-        allele_YES=vd.alleles[1:].map(
-            lambda allele: hl.coalesce(vd.as_vqsr.get(allele).yng_status == 'Y', True)),
-        allele_is_snp=is_snp,
-        allele_OK=hl._zip_func(is_snp, vd.alleles[1:],
-                               f=lambda is_snp, alt:
-                               hl.coalesce(vd.as_vqsr.get(alt).vqslod >=
-                                           hl.if_else(is_snp, vd.snp_vqslod_threshold, vd.indel_vqslod_threshold),
-                                           True))
-    )
+        is_snp = vd.alleles[1:].map(lambda alt: hl.is_snp(vd.alleles[0], alt))
+        vd = vd.annotate_rows(
+            allele_NO=vd.alleles[1:].map(
+                lambda allele: hl.coalesce(vd.as_vqsr.get(allele).yng_status == 'N', False)),
+            allele_YES=vd.alleles[1:].map(
+                lambda allele: hl.coalesce(vd.as_vqsr.get(allele).yng_status == 'Y', True)),
+            allele_is_snp=is_snp,
+            allele_OK=hl._zip_func(is_snp, vd.alleles[1:],
+                                   f=lambda is_snp, alt:
+                                   hl.coalesce(vd.as_vqsr.get(alt).vqslod >=
+                                               hl.if_else(is_snp, vd.snp_vqslod_threshold, vd.indel_vqslod_threshold),
+                                               True))
+        )
 
-    lgt = vd.LGT
-    la = vd.LA
-    allele_NO = vd.allele_NO
-    allele_YES = vd.allele_YES
-    allele_OK = vd.allele_OK
-    allele_is_snp=vd.allele_is_snp
-    ft = (hl.range(lgt.ploidy)
-                   .map(lambda idx: la[lgt[idx]])
-                   .filter(lambda x: x != 0)
-                   .fold(lambda acc, called_idx: hl.struct(
-        any_no=acc.any_no | allele_NO[called_idx - 1],
-        any_yes=acc.any_yes | allele_YES[called_idx - 1],
-        any_snp=acc.any_snp | allele_is_snp[called_idx - 1],
-        any_indel=acc.any_indel | ~allele_is_snp[called_idx - 1],
-        any_snp_ok=acc.any_snp_ok | (allele_is_snp[called_idx - 1] & allele_OK[called_idx - 1]),
-        any_indel_ok=acc.any_indel_ok | (~allele_is_snp[called_idx - 1] & allele_OK[called_idx - 1]),
-    ), hl.struct(any_no=False, any_yes=False, any_snp=False, any_indel=False, any_snp_ok=False, any_indel_ok=False)))
+        lgt = vd.LGT
+        la = vd.LA
+        allele_NO = vd.allele_NO
+        allele_YES = vd.allele_YES
+        allele_OK = vd.allele_OK
+        allele_is_snp=vd.allele_is_snp
+        ft = (hl.range(lgt.ploidy)
+                       .map(lambda idx: la[lgt[idx]])
+                       .filter(lambda x: x != 0)
+                       .fold(lambda acc, called_idx: hl.struct(
+            any_no=acc.any_no | allele_NO[called_idx - 1],
+            any_yes=acc.any_yes | allele_YES[called_idx - 1],
+            any_snp=acc.any_snp | allele_is_snp[called_idx - 1],
+            any_indel=acc.any_indel | ~allele_is_snp[called_idx - 1],
+            any_snp_ok=acc.any_snp_ok | (allele_is_snp[called_idx - 1] & allele_OK[called_idx - 1]),
+            any_indel_ok=acc.any_indel_ok | (~allele_is_snp[called_idx - 1] & allele_OK[called_idx - 1]),
+        ), hl.struct(any_no=False, any_yes=False, any_snp=False, any_indel=False, any_snp_ok=False, any_indel_ok=False)))
 
-    vd = vd.annotate_entries(FT=~ft.any_no & (ft.any_yes | ((~ft.any_snp | ft.any_snp_ok) & (~ft.any_indel | ft.any_indel_ok))))
+        vd = vd.annotate_entries(FT=~ft.any_no & (ft.any_yes | ((~ft.any_snp | ft.any_snp_ok) & (~ft.any_indel | ft.any_indel_ok))))
 
-    vd = vd.drop('allele_NO', 'allele_YES', 'allele_is_snp', 'allele_OK')
+        vd = vd.drop('allele_NO', 'allele_YES', 'allele_is_snp', 'allele_OK')
 
-    hl.vds.VariantDataset(
-        reference_data=rd,
-        variant_data=vd,
-    ).write(final_path, overwrite=True)
+        hl.vds.VariantDataset(
+            reference_data=rd,
+            variant_data=vd,
+        ).write(final_path, overwrite=True)

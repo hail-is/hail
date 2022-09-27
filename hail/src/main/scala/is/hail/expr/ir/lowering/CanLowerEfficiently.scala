@@ -61,7 +61,7 @@ object CanLowerEfficiently {
         case t: TableExplode =>
         case t: TableUnion if t.children.length > 16 => fail(s"TableUnion lowering generates deeply nested IR if it has many children")
         case t: TableUnion =>
-        case t: TableMultiWayZipJoin =>
+        case t: TableMultiWayZipJoin => fail(s"TableMultiWayZipJoin is not passing tests due to problems in ptype inference in StreamZipJoin")
         case t: TableDistinct =>
         case t: TableKeyByAndAggregate =>
         case t: TableAggregateByKey =>
