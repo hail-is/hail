@@ -377,8 +377,8 @@ case class RInterval(startType: TypeWithRequiredness, endType: TypeWithRequiredn
   def _toString: String = s"RInterval[${ startType.toString }, ${ endType.toString }]"
 }
 
-
 case class RField(name: String, typ: TypeWithRequiredness, index: Int)
+
 sealed abstract class RBaseStruct extends TypeWithRequiredness {
   def fields: IndexedSeq[RField]
   def size: Int = fields.length
@@ -414,6 +414,7 @@ object RStruct {
   def apply(fields: Seq[(String, TypeWithRequiredness)]): RStruct =
     RStruct(Array.tabulate(fields.length)(i => RField(fields(i)._1, fields(i)._2, i)))
 }
+
 case class RStruct(fields: IndexedSeq[RField]) extends RBaseStruct {
   val fieldType: collection.Map[String, TypeWithRequiredness] = toMapFast(fields)(_.name, _.typ)
   def field(name: String): TypeWithRequiredness = fieldType(name)
@@ -425,6 +426,11 @@ case class RStruct(fields: IndexedSeq[RField]) extends RBaseStruct {
   def select(newFields: Array[String]): RStruct =
     RStruct(Array.tabulate(newFields.length)(i => RField(newFields(i), field(newFields(i)), i)))
   def _toString: String = s"RStruct[${ fields.map(f => s"${ f.name }: ${ f.typ.toString }").mkString(",") }]"
+}
+
+object RTuple {
+  def apply(fields: Seq[TypeWithRequiredness]): RTuple =
+    RTuple(Array.tabulate(fields.length)(i => RField(i.toString, fields(i), i)))
 }
 
 case class RTuple(fields: IndexedSeq[RField]) extends RBaseStruct {

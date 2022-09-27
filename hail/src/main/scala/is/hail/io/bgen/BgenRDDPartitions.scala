@@ -3,7 +3,7 @@ package is.hail.io.bgen
 import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.backend.{BroadcastValue, ExecuteContext}
-import is.hail.expr.ir.{EmitCode, EmitFunctionBuilder, IEmitCode, ParamType}
+import is.hail.expr.ir.{EmitCode, EmitFunctionBuilder, IEmitCode, ParamType, TableReader}
 import is.hail.io.fs.FS
 import is.hail.io.index.IndexReaderBuilder
 import is.hail.io.{ByteArrayReader, HadoopFSDataBinaryReader}
@@ -529,6 +529,9 @@ object CompileDecoder {
 
           structFieldCodes += EmitCode.fromI(cb.emb)(cb => IEmitCode.present(cb, pc))
       }
+
+      if (settings.hasField(TableReader.uidFieldName))
+        structFieldCodes += EmitCode.present(cb.emb, primitive(offset))
 
       rowType.constructFromFields(cb, region, structFieldCodes.result(), deepCopy = false).a
     }

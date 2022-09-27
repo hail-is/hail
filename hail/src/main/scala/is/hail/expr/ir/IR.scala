@@ -1,6 +1,6 @@
 package is.hail.expr.ir
 
-import is.hail.annotations.{Annotation, Region}
+import is.hail.annotations.{Annotation, Region, SafeRow}
 import is.hail.asm4s.Value
 import is.hail.backend.ExecuteContext
 import is.hail.expr.ir.ArrayZipBehavior.ArrayZipBehavior
@@ -17,7 +17,7 @@ import is.hail.types.physical.stypes.concrete.SJavaString
 import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.physical.stypes._
 import is.hail.types.virtual._
-import is.hail.types.{RIterable, TypeWithRequiredness}
+import is.hail.types.{RIterable, RStruct, TypeWithRequiredness}
 import is.hail.utils.{FastIndexedSeq, _}
 import org.json4s.{DefaultFormats, Extraction, Formats, JValue, ShortTypeHints}
 
@@ -88,8 +88,8 @@ final case class Literal(_typ: Type, value: Annotation) extends IR {
   require(!CanEmit(_typ))
   require(value != null)
   // expensive, for debugging
-  // require(SafeRow.isSafe(value))
-  // assert(_typ.typeCheck(value), s"literal invalid:\n  ${_typ}\n  $value")
+//   require(SafeRow.isSafe(value))
+//   assert(_typ.typeCheck(value), s"literal invalid:\n  ${_typ}\n  $value")
 }
 
 object EncodedLiteral {
@@ -253,7 +253,7 @@ final case class ArrayZeros(length: IR) extends IR
   * `step` at each iteration. The name comes from APL:
   * [[https://stackoverflow.com/questions/9244879/what-does-iota-of-stdiota-stand-for]]
   */
-final case class StreamIota(start: IR, stop: IR, requiresMemoryManagementPerElement: Boolean = false) extends IR
+final case class StreamIota(start: IR, step: IR, requiresMemoryManagementPerElement: Boolean = false) extends IR
 
 final case class StreamRange(start: IR, stop: IR, step: IR, requiresMemoryManagementPerElement: Boolean = false,
                              errorID: Int = ErrorIDs.NO_ERROR) extends IR
@@ -728,6 +728,8 @@ final case class MatrixWrite(child: MatrixIR, writer: MatrixWriter) extends IR
 
 final case class MatrixMultiWrite(_children: IndexedSeq[MatrixIR], writer: MatrixNativeMultiWriter) extends IR {
   private val t = _children.head.typ
+  assert(!t.rowType.hasField(MatrixReader.rowUIDFieldName) &&
+    !t.colType.hasField(MatrixReader.colUIDFieldName), t)
   require(_children.forall(_.typ == t))
 }
 
@@ -804,18 +806,23 @@ object MetadataWriter {
 }
 
 abstract class PartitionReader {
+  assert(fullRowType.hasField(uidFieldName))
+
   def contextType: Type
 
-  def fullRowType: Type
+  def fullRowType: TStruct
 
-  def rowRequiredness(requestedType: Type): TypeWithRequiredness
+  def uidFieldName: String
+
+  def rowRequiredness(requestedType: TStruct): RStruct
 
   def emitStream(
     ctx: ExecuteContext,
     cb: EmitCodeBuilder,
     context: EmitCode,
     partitionRegion: Value[Region],
-    requestedType: Type): IEmitCode
+    requestedType: TStruct
+  ): IEmitCode
 
   def toJValue: JValue
 }
@@ -882,7 +889,10 @@ final case class SimpleMetadataWriter(val annotationType: Type) extends Metadata
     writeAnnotations.consume(cb, {}, {_ => ()})
 }
 
-final case class ReadPartition(context: IR, rowType: Type, reader: PartitionReader) extends IR
+final case class ReadPartition(context: IR, rowType: TStruct, reader: PartitionReader) extends IR {
+  assert(context.typ == reader.contextType, s"context: ${context.typ}, expected: ${reader.contextType}")
+  assert(PruneDeadFields.isSupertype(rowType, reader.fullRowType), s"requested type: $rowType, full type: ${reader.fullRowType}")
+}
 final case class WritePartition(value: IR, writeCtx: IR, writer: PartitionWriter) extends IR
 final case class WriteMetadata(writeAnnotations: IR, writer: MetadataWriter) extends IR
 

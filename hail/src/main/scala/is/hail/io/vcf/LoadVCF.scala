@@ -1,13 +1,13 @@
 package is.hail.io.vcf
 
 import htsjdk.variant.vcf._
-import is.hail.asm4s.HailClassLoader
 import is.hail.annotations._
+import is.hail.asm4s.HailClassLoader
 import is.hail.backend.spark.SparkBackend
 import is.hail.backend.{BroadcastValue, ExecuteContext}
 import is.hail.expr.JSONAnnotationImpex
 import is.hail.expr.ir.lowering.TableStage
-import is.hail.expr.ir.{CloseableIterator, GenericLine, GenericLines, GenericTableValue, IR, IRParser, Literal, LowerMatrixIR, MatrixHybridReader, MatrixIR, MatrixLiteral, TableRead, TableValue}
+import is.hail.expr.ir.{CloseableIterator, GenericLine, GenericLines, GenericTableValue, IR, IRParser, Literal, LowerMatrixIR, MatrixHybridReader, MatrixIR, MatrixLiteral, MatrixReader, TableValue}
 import is.hail.io.fs.{FS, FileStatus}
 import is.hail.io.tabix._
 import is.hail.io.vcf.LoadVCF.{getHeaderLines, parseHeader, parseLines}
@@ -48,7 +48,11 @@ case class VCFHeaderInfo(sampleIds: Array[String], infoSignature: PStruct, vaSig
 class VCFParseError(val msg: String, val pos: Int) extends RuntimeException(msg)
 
 
-final class VCFLine(val line: String, arrayElementsRequired: Boolean,
+final class VCFLine(
+  val line: String,
+  val fileNum: Long,
+  val fileOffset: Long,
+  arrayElementsRequired: Boolean,
   val abs: MissingArrayBuilder[String],
   val abi: MissingArrayBuilder[Int],
   val abf: MissingArrayBuilder[Float],
@@ -1089,7 +1093,12 @@ final class FormatParser(
   }
 }
 
-class ParseLineContext(val rowType: TStruct, val infoFlagFieldNames: java.util.HashSet[String], val nSamples: Int) {
+class ParseLineContext(
+  val rowType: TStruct,
+  val infoFlagFieldNames: java.util.HashSet[String],
+  val nSamples: Int,
+  val fileNum: Int
+) {
   val entryType: TStruct = rowType.fieldOption(LowerMatrixIR.entriesFieldName) match {
     case Some(entriesArray) => entriesArray.typ.asInstanceOf[TArray].elementType.asInstanceOf[TStruct]
     case None => TStruct.empty
@@ -1308,6 +1317,7 @@ object LoadVCF {
     val hasAlleles = rowPType.hasField("alleles")
     val hasRSID = rowPType.hasField("rsid")
     val hasEntries = rowPType.hasField(LowerMatrixIR.entriesFieldName)
+    val hasRowUID = rowPType.hasField(MatrixReader.rowUIDFieldName)
 
     rvb.start(rowPType)
     rvb.startStruct()
@@ -1316,13 +1326,21 @@ object LoadVCF {
       return present
 
     parseLine(parseLineContext, vcfLine, rvb, !hasEntries)
+
+    if (hasRowUID) {
+      rvb.startTuple()
+      rvb.addLong(vcfLine.fileNum)
+      rvb.addLong(vcfLine.fileOffset)
+      rvb.endTuple()
+    }
+
     true
   }
 
   // parses the Variant (key), and ID if necessary, leaves the rest to f
-  def parseLines[C](
-    makeContext: () => C
-  )(f: (C, VCFLine, RegionValueBuilder) => Unit
+  def parseLines(
+    makeContext: () => ParseLineContext
+  )(f: (ParseLineContext, VCFLine, RegionValueBuilder) => Unit
   )(lines: ContextRDD[WithContext[String]],
     rowPType: PStruct,
     rgBc: Option[BroadcastValue[ReferenceGenome]],
@@ -1336,7 +1354,7 @@ object LoadVCF {
         val rvb = ctx.rvb
         var ptr: Long = 0
 
-        val context: C = makeContext()
+        val context: ParseLineContext = makeContext()
 
         var present: Boolean = false
 
@@ -1350,7 +1368,7 @@ object LoadVCF {
             val lwc = it.next()
             val line = lwc.value
             try {
-              val vcfLine = new VCFLine(line, arrayElementsRequired, abs, abi, abf, abd)
+              val vcfLine = new VCFLine(line, context.fileNum, lwc.source.position.get, arrayElementsRequired, abs, abi, abf, abd)
               rvb.start(rowPType)
               rvb.startStruct()
               present = vcfLine.parseAddVariant(rvb, rgBc.map(_.value), contigRecoding, hasRSID, true, true, skipInvalidLoci)
@@ -1479,13 +1497,13 @@ class PartitionedVCFRDD(
   file: String,
   @(transient@param) reverseContigMapping: Map[String, String],
   @(transient@param) _partitions: Array[Partition]
-) extends RDD[String](SparkBackend.sparkContext("PartitionedVCFRDD"), Seq()) {
+) extends RDD[WithContext[String]](SparkBackend.sparkContext("PartitionedVCFRDD"), Seq()) {
 
   val contigRemappingBc = if (reverseContigMapping.size != 0) sparkContext.broadcast(reverseContigMapping) else null
 
   protected def getPartitions: Array[Partition] = _partitions
 
-  def compute(split: Partition, context: TaskContext): Iterator[String] = {
+  def compute(split: Partition, context: TaskContext): Iterator[WithContext[String]] = {
     val p = split.asInstanceOf[PartitionedVCFPartition]
 
     val chromToQuery = if (contigRemappingBc != null) contigRemappingBc.value.getOrElse(p.chrom, p.chrom) else p.chrom
@@ -1506,27 +1524,29 @@ class PartitionedVCFRDD(
       lines.close()
     }
 
-    val it: Iterator[String] = new Iterator[String] {
+    val it: Iterator[WithContext[String]] = new Iterator[WithContext[String]] {
       private var l = lines.next()
+      private var curIdx: Long = lines.getCurIdx()
 
       def hasNext: Boolean = l != null
 
-      def next(): String = {
+      def next(): WithContext[String] = {
         assert(l != null)
         val n = l
         l = lines.next()
+        curIdx = lines.getCurIdx()
         if (l == null)
           lines.close()
-        n
+        WithContext(n, Context(n, file, Some(curIdx.toInt)))
       }
     }
 
     it.filter { l =>
-      val t1 = l.indexOf('\t')
-      val t2 = l.indexOf('\t', t1 + 1)
+      val t1 = l.value.indexOf('\t')
+      val t2 = l.value.indexOf('\t', t1 + 1)
 
-      val chrom = l.substring(0, t1)
-      val pos = l.substring(t1 + 1, t2).toInt
+      val chrom = l.value.substring(0, t1)
+      val pos = l.value.substring(t1 + 1, t2).toInt
 
       if (chrom != chromToQuery) {
         throw new RuntimeException(s"bad chromosome! ${chromToQuery}, $l")
@@ -1631,32 +1651,11 @@ object MatrixVCFReader {
       }
     }
 
-    val VCFHeaderInfo(sampleIDs, infoSignature, vaSignature, genotypeSignature, _, _, _, infoFlagFieldNames) = header1
+    val VCFHeaderInfo(sampleIDs, _, vaSignature, genotypeSignature, _, _, _, infoFlagFieldNames) = header1
 
     LoadVCF.warnDuplicates(sampleIDs)
 
-    val locusType = TLocus.schemaFromRG(referenceGenome)
-    val kType = TStruct("locus" -> locusType, "alleles" -> TArray(TString))
-
-    val fullMatrixType: MatrixType = MatrixType(
-      TStruct.empty,
-      colType = TStruct("s" -> TString),
-      colKey = Array("s"),
-      rowType = kType ++ vaSignature.virtualType,
-      rowKey = Array("locus", "alleles"),
-      // rowKey = Array.empty[String],
-      entryType = genotypeSignature.virtualType)
-
-    val fullType: TableType = fullMatrixType.canonicalTableType
-
-    val fullRVDType = RVDType(PCanonicalStruct(true,
-      FastIndexedSeq(("locus", PCanonicalLocus.schemaFromRG(referenceGenome, true)),
-        ("alleles", PCanonicalArray(PCanonicalString(true), true))) ++
-        header1.vaSignature.fields.map { f => (f.name, f.typ) } ++
-        Array(LowerMatrixIR.entriesFieldName -> PCanonicalArray(header1.genotypeSignature, true)): _*),
-      fullType.key)
-
-    new MatrixVCFReader(params, fileStatuses, infoFlagFieldNames, referenceGenome, fullMatrixType, fullRVDType, sampleIDs)
+    new MatrixVCFReader(params, fileStatuses, infoFlagFieldNames, referenceGenome, vaSignature, genotypeSignature, sampleIDs)
   }
 
   def fromJValue(ctx: ExecuteContext, jv: JValue): MatrixVCFReader = {
@@ -1689,10 +1688,37 @@ class MatrixVCFReader(
   fileStatuses: IndexedSeq[FileStatus],
   infoFlagFieldNames: Set[String],
   referenceGenome: Option[ReferenceGenome],
-  val fullMatrixType: MatrixType,
-  fullRVDType: RVDType,
+  vaSignature: PStruct,
+  genotypeSignature: PStruct,
   sampleIDs: Array[String]
 ) extends MatrixHybridReader {
+
+  def rowUIDType = TTuple(TInt64, TInt64)
+  def colUIDType = TInt64
+
+  def fullMatrixTypeWithoutUIDs: MatrixType = MatrixType(
+    globalType = TStruct.empty,
+    colType = TStruct("s" -> TString),
+    colKey = Array("s"),
+    rowType = TStruct(
+      Array(
+        "locus" -> TLocus.schemaFromRG(referenceGenome),
+        "alleles" -> TArray(TString))
+      ++ vaSignature.fields.map(f => f.name -> f.typ.virtualType): _*),
+    rowKey = Array("locus", "alleles"),
+    // rowKey = Array.empty[String],
+    entryType = genotypeSignature.virtualType)
+
+  val fullRVDType = RVDType(
+    PCanonicalStruct(true,
+      FastIndexedSeq(
+        "locus" -> PCanonicalLocus.schemaFromRG(referenceGenome, true),
+        "alleles" -> PCanonicalArray(PCanonicalString(true), true))
+      ++ vaSignature.fields.map { f => f.name -> f.typ }
+      ++ FastIndexedSeq(
+        LowerMatrixIR.entriesFieldName -> PCanonicalArray(genotypeSignature, true),
+        rowUIDFieldName -> PCanonicalTuple(true, PInt64Required, PInt64Required)): _*),
+    fullType.key)
 
   def pathsUsed: Seq[String] = params.files
 
@@ -1702,10 +1728,14 @@ class MatrixVCFReader(
 
   val partitionCounts: Option[IndexedSeq[Long]] = None
 
-  def rowAndGlobalPTypes(context: ExecuteContext, requestedType: TableType): (PStruct, PStruct) = {
-    coerce[PStruct](fullRVDType.rowType.subsetTo(requestedType.rowType)) ->
-      PType.canonical(requestedType.globalType).asInstanceOf[PStruct]
-  }
+  override def concreteRowRequiredness(ctx: ExecuteContext, requestedType: TableType): VirtualTypeWithReq =
+    VirtualTypeWithReq(coerce[PStruct](fullRVDType.rowType.subsetTo(requestedType.rowType)))
+
+  override def uidRequiredness: VirtualTypeWithReq =
+    VirtualTypeWithReq(PCanonicalTuple(true, PInt64Required, PInt64Required))
+
+  override def globalRequiredness(ctx: ExecuteContext, requestedType: TableType): VirtualTypeWithReq =
+    VirtualTypeWithReq(PType.canonical(requestedType.globalType))
 
   def executeGeneric(ctx: ExecuteContext, dropRows: Boolean = false): GenericTableValue = {
     val fs = ctx.fs
@@ -1718,11 +1748,9 @@ class MatrixVCFReader(
     val localNSamples = nCols
     val localFilterAndReplace = params.filterAndReplace
 
-    val tt = fullMatrixType.toTableType(LowerMatrixIR.entriesFieldName, LowerMatrixIR.colsFieldName)
-
     val lines = GenericLines.read(fs, fileStatuses, params.nPartitions, params.blockSizeInMB, params.minPartitions, params.gzAsBGZ, params.forceGZ)
 
-    val globals = Row(sampleIDs.map(Row(_)).toFastIndexedSeq)
+    val globals = Row(sampleIDs.zipWithIndex.map { case (s, i) => Row(s, i.toLong) }.toFastIndexedSeq)
 
     val fullRowPType: PType = fullRVDType.rowType
 
@@ -1740,7 +1768,8 @@ class MatrixVCFReader(
       val requestedPType = bodyPType(requestedType)
 
       { (region: Region, theHailClassLoader: HailClassLoader, fs: FS, context: Any) =>
-        val parseLineContext = new ParseLineContext(requestedType, makeJavaSet(localInfoFlagFieldNames), localNSamples)
+        val fileNum = context.asInstanceOf[Row].getInt(1)
+        val parseLineContext = new ParseLineContext(requestedType, makeJavaSet(localInfoFlagFieldNames), localNSamples, fileNum)
 
         val rvb = new RegionValueBuilder(region)
 
@@ -1758,7 +1787,7 @@ class MatrixVCFReader(
             if (newText != null) {
               rvb.clear()
               try {
-                val vcfLine = new VCFLine(newText, localArrayElementsRequired, abs, abi, abf, abd)
+                val vcfLine = new VCFLine(newText, line.fileNum, line.offset, localArrayElementsRequired, abs, abi, abf, abd)
                 LoadVCF.parseLine(rgBc, localContigRecording, localSkipInvalidLoci,
                   requestedPType, rvb, parseLineContext, vcfLine)
               } catch {
@@ -1769,26 +1798,27 @@ class MatrixVCFReader(
             } else
               false
           }.map { _ =>
-          rvb.result().offset
-        }
+            rvb.result().offset
+          }
       }
     }
 
     new GenericTableValue(
-      tt,
+      fullType,
+      rowUIDFieldName,
       None,
       { (requestedGlobalsType: Type) =>
-        val subset = tt.globalType.valueSubsetter(requestedGlobalsType)
+        val subset = fullType.globalType.valueSubsetter(requestedGlobalsType)
         subset(globals).asInstanceOf[Row]
       },
-      lines.contextType,
+      lines.contextType.asInstanceOf[TStruct],
       lines.contexts,
       bodyPType,
       body)
   }
 
   override def lowerGlobals(ctx: ExecuteContext, requestedGlobalsType: TStruct): IR = {
-    val globals = Row(sampleIDs.map(Row(_)).toFastIndexedSeq)
+    val globals = Row(sampleIDs.zipWithIndex.map(t => Row(t._1, t._2.toLong)).toFastIndexedSeq)
     Literal.coerce(requestedGlobalsType,
       fullType.globalType.valueSubsetter(requestedGlobalsType)
         .apply(globals))
@@ -1797,8 +1827,8 @@ class MatrixVCFReader(
   override def lower(ctx: ExecuteContext, requestedType: TableType): TableStage =
     executeGeneric(ctx).toTableStage(ctx, requestedType, "VCF", params)
 
-  def apply(tr: TableRead, ctx: ExecuteContext): TableValue =
-    executeGeneric(ctx, tr.dropRows).toTableValue(ctx ,tr.typ)
+  override def apply(ctx: ExecuteContext, requestedType: TableType, dropRows: Boolean): TableValue =
+    executeGeneric(ctx, dropRows).toTableValue(ctx, requestedType)
 
   override def toJValue: JValue = {
     implicit val formats: Formats = DefaultFormats
@@ -1943,14 +1973,13 @@ class VCFsReader(
     val rvdType = fullRVDType
 
     val lines = ContextRDD.weaken(
-      new PartitionedVCFRDD(ctx.fsBc, file, reverseContigMapping, partitions)
-        .map(l =>
-          WithContext(l, Context(l, file, None))))
+      new PartitionedVCFRDD(ctx.fsBc, file, reverseContigMapping, partitions))
 
     val parsedLines = parseLines { () =>
       new ParseLineContext(tt.rowType,
         makeJavaSet(localInfoFlagFieldNames),
-        sampleIDs.length)
+        sampleIDs.length,
+        i)
     } { (c, l, rvb) =>
       LoadVCF.parseLine(c, l, rvb)
     }(lines, rvdType.rowType, referenceGenome.map(_.broadcast), contigRecoding, arrayElementsRequired, skipInvalidLoci)

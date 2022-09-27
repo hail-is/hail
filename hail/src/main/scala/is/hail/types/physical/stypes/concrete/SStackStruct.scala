@@ -117,6 +117,9 @@ final case class SStackStruct(virtualType: TBaseStruct, fieldEmitTypes: IndexedS
 }
 
 class SStackStructValue(val st: SStackStruct, val values: IndexedSeq[EmitValue]) extends SBaseStructValue {
+  assert((st.fieldTypes, values).zipped.forall { (st, v) => v.st == st },
+    s"type mismatch!\n  struct type: $st\n  value types:  ${values.map(_.st).mkString("[", ", ", "]")}")
+
   override lazy val valueTuple: IndexedSeq[Value[_]] = values.flatMap(_.valueTuple)
 
   override def loadField(cb: EmitCodeBuilder, fieldIdx: Int): IEmitCode = {
@@ -141,6 +144,7 @@ final class SStackStructSettable(
   override def settableTuple(): IndexedSeq[Settable[_]] = settables.flatMap(_.settableTuple())
 
   override def store(cb: EmitCodeBuilder, v: SValue): Unit = {
+    assert(v.st == st)
     (settables, v.asInstanceOf[SStackStructValue].values).zipped.foreach { (s, c) =>
       s.store(cb, c)
     }

@@ -11,7 +11,7 @@ import is.hail.backend.{BroadcastValue, ExecuteContext, HailTaskContext}
 import is.hail.backend.spark.{SparkBackend, SparkTaskContext}
 import is.hail.utils._
 import is.hail.expr.Parser
-import is.hail.expr.ir.{CompileAndEvaluate, IR, IntArrayBuilder, TableValue}
+import is.hail.expr.ir.{CompileAndEvaluate, IR, IntArrayBuilder, TableReader, TableValue}
 import is.hail.types._
 import is.hail.types.physical.{PArray, PCanonicalArray, PCanonicalStruct, PFloat64, PFloat64Optional, PFloat64Required, PInt64, PInt64Optional, PInt64Required, PStruct}
 import is.hail.types.virtual._
@@ -2106,6 +2106,7 @@ class BlockMatrixReadRowBlockedRDD(
   fsBc: BroadcastValue[FS],
   path: String,
   partitionRanges: IndexedSeq[NumericRange.Exclusive[Long]],
+  requestedType: TStruct,
   metadata: BlockMatrixMetadata,
   maybeMaximumCacheMemoryInBytes: Option[Int]
 ) extends RDD[RVDContext => Iterator[Long]](SparkBackend.sparkContext("BlockMatrixReadRowBlockedRDD"), Nil) {
@@ -2121,6 +2122,15 @@ class BlockMatrixReadRowBlockedRDD(
   override def compute(split: Partition, context: TaskContext): Iterator[RVDContext => Iterator[Long]] = {
     val pi = split.index
     val rowsForPartition = partitionRanges(pi)
+    val createRowIdx = requestedType.fieldNames.contains("row_idx")
+    val createRowUID = requestedType.fieldNames.contains(TableReader.uidFieldName)
+    assert(requestedType.fieldNames.contains("entries"))
+    val rowPType = PCanonicalStruct(
+      Array(
+        if (createRowIdx) Some("row_idx" -> PInt64()) else None,
+        Some("entries" -> PCanonicalArray(PFloat64())),
+        if (createRowUID) Some(TableReader.uidFieldName -> PInt64()) else None
+      ).flatten: _*)
 
     if (rowsForPartition.isEmpty) {
       return Iterator.single(ctx => Iterator.empty)
@@ -2156,9 +2166,9 @@ class BlockMatrixReadRowBlockedRDD(
           }
         }
 
-        rvb.start(PCanonicalStruct(("row_idx", PInt64()), ("entries", PCanonicalArray(PFloat64()))))
+        rvb.start(rowPType)
         rvb.startStruct()
-        rvb.addLong(row)
+        if (createRowIdx) rvb.addLong(row)
         assert(nCols < Int.MaxValue)
         rvb.startArray(nCols.toInt)
         var colsRemaining = nCols.toInt
@@ -2168,6 +2178,7 @@ class BlockMatrixReadRowBlockedRDD(
         }
         assert(colsRemaining == 0)
         rvb.endArray()
+        if (createRowUID) rvb.addLong(row)
         rvb.endStruct()
         rvb.end()
       }

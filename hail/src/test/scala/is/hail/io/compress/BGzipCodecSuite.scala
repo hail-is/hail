@@ -140,7 +140,7 @@ class BGzipCodecSuite extends HailSuite {
       val contexts = (0 until (splits.length - 1))
         .map { i =>
           val end = makeVirtualOffset(splits(i + 1), 0)
-          Row(i, compPath, splits(i), end, true)
+          Row(i, 0, compPath, splits(i), end, true)
         }
       val lines2 = GenericLines.collect(fs, GenericLines.read(fs, contexts, false, false))
       compareLines(lines2, lines)

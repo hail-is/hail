@@ -1,14 +1,13 @@
 package is.hail.io.avro
 
 import is.hail.backend.ExecuteContext
-import is.hail.expr.ir.lowering.{TableStage, TableStageDependency}
 import is.hail.expr.ir._
+import is.hail.expr.ir.lowering.{TableStage, TableStageDependency}
 import is.hail.rvd.RVDPartitioner
-import is.hail.types.TableType
-import is.hail.types.physical.{PCanonicalStruct, PStruct}
-import is.hail.types.virtual.{TArray, TString, TStruct}
+import is.hail.types.{TableType, VirtualTypeWithReq}
+import is.hail.types.physical.{PCanonicalStruct, PCanonicalTuple, PInt64Required, PStruct}
+import is.hail.types.virtual._
 import is.hail.utils.plural
-import org.apache.spark.sql.Row
 import org.json4s.{Formats, JValue}
 
 class AvroTableReader(
@@ -29,23 +28,32 @@ class AvroTableReader(
 
   def partitionCounts: Option[IndexedSeq[Long]] = None
 
-  def fullType: TableType =
-    TableType(partitionReader.fullRowType, unsafeOptions.map(_.key).getOrElse(IndexedSeq()), TStruct())
+  override def uidType = TTuple(TInt64, TInt64)
 
-  def rowAndGlobalPTypes(ctx: ExecuteContext, requestedType: TableType): (PStruct, PStruct) =
-  (partitionReader.rowRequiredness(requestedType.rowType).canonicalPType(requestedType.rowType).asInstanceOf[PStruct],
-  PCanonicalStruct(required = true))
+  override def fullTypeWithoutUIDs: TableType =
+    TableType(partitionReader.fullRowTypeWithoutUIDs, unsafeOptions.map(_.key).getOrElse(IndexedSeq()), TStruct())
+
+  override def concreteRowRequiredness(ctx: ExecuteContext, requestedType: TableType): VirtualTypeWithReq =
+    VirtualTypeWithReq(requestedType.rowType, partitionReader.rowRequiredness(requestedType.rowType))
+
+  override def uidRequiredness: VirtualTypeWithReq =
+    VirtualTypeWithReq(PCanonicalTuple(true, PInt64Required, PInt64Required))
+
+  override def globalRequiredness(ctx: ExecuteContext, requestedType: TableType): VirtualTypeWithReq =
+    VirtualTypeWithReq(PCanonicalStruct(required = true))
 
   def renderShort(): String = defaultRender()
 
-  def apply(tr: TableRead, ctx: ExecuteContext): TableValue = {
-    val ts = lower(ctx, tr.typ)
+  override def apply(ctx: ExecuteContext, requestedType: TableType, dropRows: Boolean): TableValue = {
+    val ts = lower(ctx, requestedType)
     new TableStageIntermediate(ts).asTableValue(ctx)
   }
 
   override def lower(ctx: ExecuteContext, requestedType: TableType): TableStage = {
     val globals = MakeStruct(Seq())
-    val contexts = ToStream(Literal(TArray(TString), paths))
+    val contexts = zip2(ToStream(Literal(TArray(TString), paths)), StreamIota(I32(0), I32(1)), ArrayZipBehavior.TakeMinLength) { (path, idx) =>
+      MakeStruct(Array("partitionPath" -> path, "partitionIndex" -> Cast(idx, TInt64)))
+    }
     TableStage(
       globals,
       partitioner,

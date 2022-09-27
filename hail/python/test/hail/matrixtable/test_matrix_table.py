@@ -849,19 +849,20 @@ class Tests(unittest.TestCase):
         mt = hl.utils.range_matrix_table(2000, 100, 10)
         f = new_temp_file(extension='mt')
         mt.write(f)
+        mt1 = hl.read_matrix_table(f)
         mt2 = hl.read_matrix_table(f, _intervals=[
             hl.Interval(start=150, end=250, includes_start=True, includes_end=False),
             hl.Interval(start=250, end=500, includes_start=True, includes_end=False),
         ])
         self.assertEqual(mt2.n_partitions(), 2)
-        self.assertTrue(mt.filter_rows((mt.row_idx >= 150) & (mt.row_idx < 500))._same(mt2))
+        self.assertTrue(mt1.filter_rows((mt1.row_idx >= 150) & (mt1.row_idx < 500))._same(mt2))
 
         mt2 = hl.read_matrix_table(f, _intervals=[
             hl.Interval(start=150, end=250, includes_start=True, includes_end=False),
             hl.Interval(start=250, end=500, includes_start=True, includes_end=False),
         ], _filter_intervals=True)
         self.assertEqual(mt2.n_partitions(), 3)
-        self.assertTrue(mt.filter_rows((mt.row_idx >= 150) & (mt.row_idx < 500))._same(mt2))
+        self.assertTrue(mt1.filter_rows((mt1.row_idx >= 150) & (mt1.row_idx < 500))._same(mt2))
 
     def test_indexed_read_vcf(self):
         vcf = self.get_mt(10)
