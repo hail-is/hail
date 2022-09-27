@@ -33,8 +33,8 @@ def batch_record_to_dict(record):
     time_closed = _time_msecs_str(record['time_closed'])
     time_completed = _time_msecs_str(record['time_completed'])
 
-    if record['time_closed'] and record['time_completed']:
-        duration = humanize_timedelta_msecs(record['time_completed'] - record['time_closed'])
+    if record['time_created'] and record['time_completed']:
+        duration = humanize_timedelta_msecs(record['time_completed'] - record['time_created'])
     else:
         duration = None
 
