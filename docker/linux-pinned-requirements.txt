@@ -115,7 +115,7 @@ execnet==1.9.0
     # via pytest-xdist
 flake8==4.0.1
     # via -r requirements.txt
-flask==2.0.3
+flask==2.2.2
     # via
     #   -r requirements.txt
     #   flask-cors
