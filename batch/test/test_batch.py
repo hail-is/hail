@@ -1294,9 +1294,7 @@ def test_submit_update_to_deleted_batch(client: BatchClient):
 
 
 def test_batch_submitted_by_second_user():
-    dev_client = BatchClient(
-        'test', token_file=os.environ['HAIL_TEST_DEV_TOKEN_FILE']
-    )
+    dev_client = BatchClient('test', token_file=os.environ['HAIL_TEST_DEV_TOKEN_FILE'])
 
     try:
         bb = dev_client.create_batch()
