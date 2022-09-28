@@ -24,6 +24,25 @@ an earlier version of Hail to read files written in a later version.
 
 ---
 
+## Version 0.2.100
+
+Released 2022-09-23
+
+### New Features
+
+- (hail#12207) Add support for the `shape` aesthetic to `hail.ggplot.geom_point`.
+
+### Deprecations
+
+- (hail#12213) The `batch_size` parameter of `vds.new_combiner` is deprecated in favor of `gvcf_batch_size`.
+
+### Bug fixes
+
+- (hail#12216) Fix bug that caused `make install-on-cluster` to fail with a message about `sys_platform`.
+- (hail#12164) Fix bug that caused Query on Batch pipelines to fail on datasets with indexes greater than 2GiB.
+
+---
+
 ## Version 0.2.99
 
 Released 2022-09-13

@@ -72,7 +72,7 @@ from ..file_store import FileStore
 from ..globals import BATCH_FORMAT_VERSION, HTTP_CLIENT_MAX_SIZE
 from ..inst_coll_config import InstanceCollectionConfigs
 from ..spec_writer import SpecWriter
-from ..utils import query_billing_projects
+from ..utils import query_billing_projects, unavailable_if_frozen
 from .validate import ValidationError, validate_and_clean_jobs, validate_batch
 
 # import uvloop
@@ -802,10 +802,6 @@ def check_service_account_permissions(user, sa):
 async def create_jobs(request: aiohttp.web.Request, userdata: dict):
     app = request.app
 
-    if app['frozen']:
-        log.info('ignoring batch create request; batch is frozen')
-        raise web.HTTPServiceUnavailable()
-
     batch_id = int(request.match_info['batch_id'])
     job_specs = await request.json()
     return await _create_jobs(userdata, job_specs, batch_id, 1, app)
@@ -1241,10 +1237,6 @@ async def create_batch_fast(request, userdata):
     app = request.app
     db: Database = app['db']
 
-    if app['frozen']:
-        log.info('ignoring batch create request; batch is frozen')
-        raise web.HTTPServiceUnavailable()
-
     user = userdata['username']
     batch_and_bunch = await request.json()
     batch_spec = batch_and_bunch['batch']
@@ -1267,10 +1259,6 @@ async def create_batch_fast(request, userdata):
 async def create_batch(request, userdata):
     app = request.app
     db: Database = app['db']
-
-    if app['frozen']:
-        log.info('ignoring batch create jobs request; batch is frozen')
-        raise web.HTTPServiceUnavailable()
 
     batch_spec = await request.json()
     id = await _create_batch(batch_spec, userdata, db)
@@ -1507,10 +1495,6 @@ async def close_batch(request, userdata):
 
     app = request.app
     db: Database = app['db']
-
-    if app['frozen']:
-        log.info('ignoring batch close request; batch is frozen')
-        raise web.HTTPServiceUnavailable()
 
     record = await db.select_and_fetchone(
         '''
@@ -2595,7 +2579,9 @@ async def on_cleanup(app):
 
 
 def run():
-    app = web.Application(client_max_size=HTTP_CLIENT_MAX_SIZE, middlewares=[monitor_endpoints_middleware])
+    app = web.Application(
+        client_max_size=HTTP_CLIENT_MAX_SIZE, middlewares=[unavailable_if_frozen, monitor_endpoints_middleware]
+    )
     setup_aiohttp_session(app)
 
     setup_aiohttp_jinja2(app, 'batch.front_end')

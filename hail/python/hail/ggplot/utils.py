@@ -30,23 +30,6 @@ def should_use_scale_for_grouping(scale):
     return (scale.aesthetic_name not in excluded_from_grouping) and scale.is_discrete()
 
 
-# Map strings to numbers that will index into a color scale.
-def categorical_strings_to_colors(string_set, color_values):
-
-    if isinstance(color_values, list):
-        if len(string_set) > len(color_values):
-            print(f"Not enough colors specified. Found {len(string_set)} distinct values of color aesthetic and only {len(color_values)} colors were provided.")
-        color_dict = {}
-        for idx, element in enumerate(string_set):
-            if element not in color_dict:
-                color_dict[element] = color_values[idx]
-
-    else:
-        color_dict = color_values
-
-    return color_dict
-
-
 def continuous_nums_to_colors(min_color, max_color, continuous_color_scale):
     def adjust_color(input_color):
         return (input_color - min_color) / max_color - min_color
