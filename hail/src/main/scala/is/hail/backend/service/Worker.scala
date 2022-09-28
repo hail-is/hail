@@ -60,7 +60,7 @@ object Worker {
   def main(argv: Array[String]): Unit = {
     val theHailClassLoader = new HailClassLoader(getClass().getClassLoader())
 
-    if (argv.length != 7) {
+    if (argv.length < 7) {
       throw new IllegalArgumentException(s"expected seven arguments, not: ${ argv.length }")
     }
     val scratchDir = argv(0)
