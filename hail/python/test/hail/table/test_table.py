@@ -1810,7 +1810,6 @@ def test_table_head_and_tail(test):
 
 
 def test_to_pandas():
-    import numpy as np
     ht = hl.utils.range_table(3)
     strs = ["foo", "bar", "baz"]
     ht = ht.annotate(s = hl.array(strs)[ht.idx], nested=hl.struct(foo = ht.idx, bar=hl.range(ht.idx)))
@@ -1819,7 +1818,7 @@ def test_to_pandas():
     print(df_from_hail.dtypes)
 
     python_data = {
-        "idx": pd.Series([0, 1, 2], dtype=np.int32),
+        "idx": pd.Series([0, 1, 2], dtype='Int32'),
         "s": pd.Series(["foo", "bar", "baz"], dtype='string'),
         "nested": pd.Series([hl.Struct(foo=0, bar=[]), hl.Struct(foo=1, bar=[0]),
                              hl.Struct(foo=2, bar=[0, 1])], dtype=object)
@@ -1830,16 +1829,15 @@ def test_to_pandas():
 
 
 def test_to_pandas_flatten():
-    import numpy as np
     ht = hl.utils.range_table(3)
     strs = ["foo", "bar", "baz"]
     ht = ht.annotate(s = hl.array(strs)[ht.idx], nested = hl.struct(foo = ht.idx, bar=hl.range(ht.idx)))
     df_from_hail = ht.to_pandas(flatten=True)
 
     python_data = {
-        "idx": pd.Series([0, 1, 2], dtype=np.int32),
+        "idx": pd.Series([0, 1, 2], dtype='Int32'),
         "s": pd.Series(["foo", "bar", "baz"], dtype='string'),
-        "nested.foo": pd.Series([0, 1, 2], dtype=np.int32),
+        "nested.foo": pd.Series([0, 1, 2], dtype='Int32'),
         "nested.bar": pd.Series([[], [0], [0, 1]], dtype=object)
     }
 
@@ -1878,7 +1876,7 @@ def test_to_pandas_nd_array():
     df_from_hail = ht.to_pandas()
 
     python_data = {
-        "idx": pd.Series([0, 1, 2], dtype=np.int32),
+        "idx": pd.Series([0, 1, 2], dtype='Int32'),
         "nd": pd.Series([np.arange(3), np.arange(3), np.arange(3)])
     }
 
