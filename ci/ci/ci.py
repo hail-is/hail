@@ -511,7 +511,7 @@ async def dev_deploy_branch(request, userdata):
 
 # This is CPG-specific, as the Hail team redeploys by watching the main branch.
 @routes.post('/api/v1alpha/prod_deploy')
-@rest_authenticated_users_only
+@auth.rest_authenticated_users_only
 async def prod_deploy(request, userdata):
     """Deploys the main branch to the production namespace ("default")."""
     # Only allow access by "ci" or dev accounts.
