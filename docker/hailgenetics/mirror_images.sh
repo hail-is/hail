@@ -16,7 +16,7 @@ then
     exit 1
 fi
 
-python_dill_images=(
+images=(
     "python-dill:3.7"
     "python-dill:3.7-slim"
     "python-dill:3.8"
@@ -25,18 +25,10 @@ python_dill_images=(
     "python-dill:3.9-slim"
     "python-dill:3.10"
     "python-dill:3.10-slim"
-)
-
-for image in "${python_dill_images[@]}"
-do
-    copy_image "hailgenetics/${image}" "${DOCKER_PREFIX}/hailgenetics/${image}"
-done
-
-pip_release_images=(
     "hail:${HAIL_PIP_VERSION}"
     "genetics:${HAIL_PIP_VERSION}"
 )
-for image in "${pip_release_images[@]}"
+for image in "${images[@]}"
 do
     copy_image "hailgenetics/${image}" "${DOCKER_PREFIX}/hailgenetics/${image}"
 done
