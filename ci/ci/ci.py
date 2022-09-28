@@ -20,9 +20,7 @@ from gear import (
     Database,
     check_csrf_token,
     monitor_endpoints_middleware,
-    rest_authenticated_developers_only,
     setup_aiohttp_session,
-    web_authenticated_developers_only,
 )
 from hailtop import aiotools, httpx
 from hailtop.batch_client.aioclient import Batch, BatchClient
