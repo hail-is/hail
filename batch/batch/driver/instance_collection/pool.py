@@ -35,7 +35,7 @@ SCHEDULING_LOOP_RUNS = pc.Counter(
     ['pool_name'],
 )
 
-CONTROL_LOOP_RUNS = pc.Counter(
+AUTOSCALER_LOOP_RUNS = pc.Counter(
     'autoscaler_loop_runs',
     'Number of control loop executions per pool',
     ['pool_name'],
@@ -52,23 +52,23 @@ SCHEDULING_LOOP_JOBS = pc.Gauge(
     ['pool_name', 'scheduled'],
 )
 
-FULL_JOB_QUEUE_READY_CORES = pc.Gauge(
+AUTOSCALER_FULL_JOB_QUEUE_READY_CORES = pc.Gauge(
     'autoscaler_full_job_queue_ready_cores',
     'Number of ready cores per control loop execution calculated from the full job queue',
     ['pool_name'],
 )
-HEAD_JOB_QUEUE_READY_CORES = pc.Gauge(
+AUTOSCALER_HEAD_JOB_QUEUE_READY_CORES = pc.Gauge(
     'autoscaler_head_job_queue_ready_cores',
     'Number of ready cores per control loop execution calculated from the head of the job queue',
     ['pool_name'],
 )
 
-FULL_JOB_QUEUE_N_INSTANCES = pc.Gauge(
+AUTOSCALER_FULL_JOB_QUEUE_N_INSTANCES = pc.Gauge(
     'autoscaler_full_job_queue_n_instances',
     'Number of instances estimated per control loop calculated from the full job queue',
     ['pool_name'],
 )
-HEAD_JOB_QUEUE_N_INSTANCES = pc.Gauge(
+AUTOSCALER_HEAD_JOB_QUEUE_N_INSTANCES = pc.Gauge(
     'autoscaler_head_job_queue_n_instances',
     'Number of instances estimated per control loop calculated from the head of the job queue',
     ['pool_name'],
@@ -285,7 +285,6 @@ WHERE removed = 0 AND inst_coll = %s;
             region,
         )
         await self._create_instances(instances_needed, region)
-        return instances_needed
 
     async def ready_cores_mcpu_from_estimated_job_queue(self):
         autoscaler_runs_per_minute = 60 / AUTOSCALER_LOOP_PERIOD_SECONDS
@@ -379,7 +378,7 @@ GROUP BY user;
             log.info(f'not creating instances for {self}; batch is frozen')
             return
 
-        CONTROL_LOOP_RUNS.labels(pool_name=self.name).inc()
+        AUTOSCALER_LOOP_RUNS.labels(pool_name=self.name).inc()
 
         ready_cores_mcpu_per_user = await self.ready_cores_mcpu_per_user()
 
@@ -393,10 +392,10 @@ GROUP BY user;
             head_job_queue_ready_cores_mcpu, self.n_instances_by_state
         )
 
-        FULL_JOB_QUEUE_READY_CORES.labels(pool_name=self.name).set(full_job_queue_ready_cores_mcpu / 1000)
-        HEAD_JOB_QUEUE_READY_CORES.labels(pool_name=self.name).set(head_job_queue_ready_cores_mcpu / 1000)
-        FULL_JOB_QUEUE_N_INSTANCES.labels(pool_name=self.name).set(full_job_queue_n_instances)
-        HEAD_JOB_QUEUE_N_INSTANCES.labels(pool_name=self.name).set(head_job_queue_n_instances)
+        AUTOSCALER_FULL_JOB_QUEUE_READY_CORES.labels(pool_name=self.name).set(full_job_queue_ready_cores_mcpu / 1000)
+        AUTOSCALER_HEAD_JOB_QUEUE_READY_CORES.labels(pool_name=self.name).set(head_job_queue_ready_cores_mcpu / 1000)
+        AUTOSCALER_FULL_JOB_QUEUE_N_INSTANCES.labels(pool_name=self.name).set(full_job_queue_n_instances)
+        AUTOSCALER_HEAD_JOB_QUEUE_N_INSTANCES.labels(pool_name=self.name).set(head_job_queue_n_instances)
 
         free_cores_mcpu = sum([worker.free_cores_mcpu for worker in self.healthy_instances_by_free_cores])
         free_cores = free_cores_mcpu / 1000
