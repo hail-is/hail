@@ -1,6 +1,7 @@
 import asyncio
 import secrets
 import unittest
+import pytest
 import os
 import subprocess as sp
 import tempfile
@@ -578,6 +579,14 @@ class ServiceTests(unittest.TestCase):
         res = b.run()
         res_status = res.status()
         assert res_status['state'] == 'success', str((res_status, res.debug_info()))
+
+    def test_local_paths_error(self):
+        b = self.batch()
+        j = b.new_job()
+        for input in ["hi.txt", "~/hello.csv", "./hey.tsv", "/sup.json", "file://yo.yaml"]:
+            with pytest.raises(ValueError) as e:
+                b.read_input(input)
+            assert str(e.value).startswith("Local filepath detected")
 
     def test_dry_run(self):
         b = self.batch()

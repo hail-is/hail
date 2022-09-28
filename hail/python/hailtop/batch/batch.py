@@ -300,6 +300,7 @@ class Batch:
         return jrf
 
     def _new_input_resource_file(self, input_path, value=None):
+        self._backend.validate_file_scheme(input_path)
         if value is None:
             value = f'{secret_alnum_string(5)}/{os.path.basename(input_path.rstrip("/"))}'
         irf = _resource.InputResourceFile(value)

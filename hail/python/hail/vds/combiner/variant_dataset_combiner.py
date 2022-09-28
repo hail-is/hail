@@ -519,7 +519,8 @@ def new_combiner(*,
                  gvcf_reference_entry_fields_to_keep: Optional[Collection[str]] = None,
                  branch_factor: int = VariantDatasetCombiner._default_branch_factor,
                  target_records: int = VariantDatasetCombiner._default_target_records,
-                 batch_size: int = VariantDatasetCombiner._default_gvcf_batch_size,
+                 gvcf_batch_size: Optional[int] = None,
+                 batch_size: Optional[int] = None,
                  reference_genome: Union[str, hl.ReferenceGenome] = 'default',
                  contig_recoding: Optional[Dict[str, str]] = None,
                  force: bool = False,
@@ -539,6 +540,22 @@ def new_combiner(*,
     if gvcf_sample_names is not None and len(gvcf_sample_names) != len(gvcf_paths):
         raise ValueError("'gvcf_sample_names' and 'gvcf_paths' must have the same length "
                          f'{len(gvcf_sample_names)} != {len(gvcf_paths)}')
+
+    if batch_size is None:
+        if gvcf_batch_size is None:
+            gvcf_batch_size = VariantDatasetCombiner._default_gvcf_batch_size
+        else:
+            pass
+    else:
+        if gvcf_batch_size is None:
+            warning('The batch_size parameter is deprecated. '
+                    'The batch_size parameter will be removed in a future version of Hail. '
+                    'Please use gvcf_batch_size instead.')
+            gvcf_batch_size = batch_size
+        else:
+            raise ValueError('Specify only one of batch_size and gvcf_batch_size. '
+                             f'Received {batch_size} and {gvcf_batch_size}.')
+    del batch_size
 
     n_partition_args = (int(intervals is not None)
                         + int(import_interval_size is not None)
@@ -563,7 +580,7 @@ def new_combiner(*,
                 # is a failure due to branch factor being too large)
                 combiner.branch_factor = branch_factor
                 combiner.target_records = target_records
-                combiner.gvcf_batch_size = batch_size
+                combiner.gvcf_batch_size = gvcf_batch_size
                 return combiner
             except (ValueError, TypeError, OSError, KeyError):
                 warning(f'file exists at {save_path}, but it is not a valid combiner plan, overwriting')
@@ -656,7 +673,7 @@ def new_combiner(*,
                                   reference_genome=reference_genome,
                                   branch_factor=branch_factor,
                                   target_records=target_records,
-                                  gvcf_batch_size=batch_size,
+                                  gvcf_batch_size=gvcf_batch_size,
                                   contig_recoding=contig_recoding,
                                   vdses=vdses,
                                   gvcfs=gvcf_paths,

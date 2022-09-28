@@ -10,7 +10,7 @@ from .geoms import Geom, FigureAttribute
 from .labels import Labels
 from .scale import Scale, ScaleContinuous, ScaleDiscrete, scale_x_continuous, scale_x_genomic, scale_y_continuous, \
     scale_x_discrete, scale_y_discrete, scale_color_discrete, scale_color_continuous, scale_fill_discrete, \
-    scale_fill_continuous
+    scale_fill_continuous, scale_shape_auto
 from .aes import Aesthetic, aes
 from .facets import Faceter
 from .utils import is_continuous_type, is_genomic_type, check_scale_continuity
@@ -91,6 +91,13 @@ class GGPlot:
                     self.scales["fill"] = scale_fill_discrete()
                 elif aesthetic_str == "fill" and is_continuous:
                     self.scales["fill"] = scale_fill_continuous()
+                elif aesthetic_str == "shape" and not is_continuous:
+                    self.scales["shape"] = scale_shape_auto()
+                elif aesthetic_str == "shape" and is_continuous:
+                    raise ValueError(
+                        "The 'shape' aesthetic does not support continuous "
+                        "types. Specify values of a discrete type instead."
+                    )
                 else:
                     if is_continuous:
                         self.scales[aesthetic_str] = ScaleContinuous(aesthetic_str)
