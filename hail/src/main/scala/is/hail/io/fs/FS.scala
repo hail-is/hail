@@ -112,7 +112,7 @@ abstract class FSSeekableInputStream extends InputStream with Seekable {
   private[this] var pos: Long = 0
   private[this] var eof: Boolean = false
 
-  protected[this] val bb: ByteBuffer = ByteBuffer.allocate(64 * 1024)
+  protected[this] val bb: ByteBuffer = ByteBuffer.allocate(8 * 1024 * 1024)
   bb.limit(0)
 
   def fill(): Int
@@ -152,8 +152,15 @@ abstract class FSSeekableInputStream extends InputStream with Seekable {
   }
 
   def seek(newPos: Long): Unit = {
-    bb.clear()
-    bb.limit(0)
+    val distance = newPos - pos
+    val bufferSeekPosition = bb.position() + distance
+    if (bufferSeekPosition >= 0 && bufferSeekPosition < bb.limit()) {
+      assert(bufferSeekPosition <= Int.MaxValue)
+      bb.position(bufferSeekPosition.toInt)
+    } else {
+      bb.clear()
+      bb.limit(0)
+    }
     pos = newPos
   }
 

@@ -23,19 +23,26 @@ from plotly.subplots import make_subplots
 from prometheus_async.aio.web import server_stats
 
 from gear import (
+    AuthClient,
     Database,
     check_csrf_token,
     monitor_endpoints_middleware,
-    rest_authenticated_developers_only,
     setup_aiohttp_session,
     transaction,
-    web_authenticated_developers_only,
 )
 from gear.clients import get_cloud_async_fs
 from hailtop import aiotools, httpx
 from hailtop.config import get_deploy_config
 from hailtop.hail_logging import AccessLogger
-from hailtop.utils import AsyncWorkerPool, Notice, dump_all_stacktraces, periodically_call, serialization, time_msecs
+from hailtop.utils import (
+    AsyncWorkerPool,
+    Notice,
+    dump_all_stacktraces,
+    flatten,
+    periodically_call,
+    serialization,
+    time_msecs,
+)
 from web_common import render_template, set_message, setup_aiohttp_jinja2, setup_common_static_routes
 
 from ..batch import cancel_batch_in_db
@@ -71,6 +78,8 @@ log.info(f'REFRESH_INTERVAL_IN_SECONDS {REFRESH_INTERVAL_IN_SECONDS}')
 routes = web.RouteTableDef()
 
 deploy_config = get_deploy_config()
+
+auth = AuthClient()
 
 
 def ignore_failed_to_collect_and_upload_profile(record):
@@ -166,7 +175,7 @@ async def get_healthcheck(request):  # pylint: disable=W0613
 
 
 @routes.get('/check_invariants')
-@rest_authenticated_developers_only
+@auth.rest_authenticated_developers_only
 async def get_check_invariants(request, userdata):  # pylint: disable=unused-argument
     app = request.app
     data = {
@@ -280,7 +289,7 @@ async def deactivate_instance(request, instance):  # pylint: disable=unused-argu
 
 @routes.post('/instances/{instance_name}/kill')
 @check_csrf_token
-@web_authenticated_developers_only()
+@auth.web_authenticated_developers_only()
 async def kill_instance(request, userdata):  # pylint: disable=unused-argument
     instance_name = request.match_info['instance_name']
 
@@ -372,9 +381,46 @@ async def job_started(request, instance):
     return await asyncio.shield(job_started_1(request, instance))
 
 
+async def billing_update_1(request, instance):
+    db: Database = request.app['db']
+
+    body = await request.json()
+    update_timestamp = body['timestamp']
+    running_attempts = body['attempts']
+
+    if running_attempts:
+        where_attempt_query = []
+        where_attempt_args = []
+        for attempt in running_attempts:
+            where_attempt_query.append('(batch_id = %s AND job_id = %s AND attempt_id = %s)')
+            where_attempt_args.append([attempt['batch_id'], attempt['job_id'], attempt['attempt_id']])
+
+        where_query = f'WHERE {" OR ".join(where_attempt_query)}'
+        where_args = [update_timestamp] + flatten(where_attempt_args)
+
+        await db.execute_update(
+            f'''
+UPDATE attempts
+SET rollup_time = %s
+{where_query};
+''',
+            where_args,
+        )
+
+    await instance.mark_healthy()
+
+    return web.Response()
+
+
+@routes.post('/api/v1alpha/billing_update')
+@active_instances_only
+async def billing_update(request, instance):
+    return await asyncio.shield(billing_update_1(request, instance))
+
+
 @routes.get('/')
 @routes.get('')
-@web_authenticated_developers_only()
+@auth.web_authenticated_developers_only()
 async def get_index(request, userdata):
     app = request.app
     db: Database = app['db']
@@ -404,7 +450,7 @@ FROM user_inst_coll_resources;
 
 
 @routes.get('/quotas')
-@web_authenticated_developers_only()
+@auth.web_authenticated_developers_only()
 async def get_quotas(request, userdata):
     if CLOUD != 'gcp':
         page_context = {"plot_json": None}
@@ -497,7 +543,7 @@ def validate_int(session, name, value, predicate, description):
 
 @routes.post('/config-update/pool/{pool}')
 @check_csrf_token
-@web_authenticated_developers_only()
+@auth.web_authenticated_developers_only()
 async def pool_config_update(request, userdata):  # pylint: disable=unused-argument
     app = request.app
     db: Database = app['db']
@@ -651,7 +697,7 @@ async def pool_config_update(request, userdata):  # pylint: disable=unused-argum
 
 @routes.post('/config-update/jpim')
 @check_csrf_token
-@web_authenticated_developers_only()
+@auth.web_authenticated_developers_only()
 async def job_private_config_update(request, userdata):  # pylint: disable=unused-argument
     app = request.app
     jpim: JobPrivateInstanceManager = app['driver'].job_private_inst_manager
@@ -698,7 +744,7 @@ async def job_private_config_update(request, userdata):  # pylint: disable=unuse
 
 
 @routes.get('/inst_coll/pool/{pool}')
-@web_authenticated_developers_only()
+@auth.web_authenticated_developers_only()
 async def get_pool(request, userdata):
     app = request.app
     inst_coll_manager: InstanceCollectionManager = app['driver'].inst_coll_manager
@@ -735,7 +781,7 @@ async def get_pool(request, userdata):
 
 
 @routes.get('/inst_coll/jpim')
-@web_authenticated_developers_only()
+@auth.web_authenticated_developers_only()
 async def get_job_private_inst_manager(request, userdata):
     app = request.app
     jpim: JobPrivateInstanceManager = app['driver'].job_private_inst_manager
@@ -765,7 +811,7 @@ async def get_job_private_inst_manager(request, userdata):
 
 @routes.post('/freeze')
 @check_csrf_token
-@web_authenticated_developers_only()
+@auth.web_authenticated_developers_only()
 async def freeze_batch(request, userdata):  # pylint: disable=unused-argument
     app = request.app
     db: Database = app['db']
@@ -790,7 +836,7 @@ UPDATE globals SET frozen = 1;
 
 @routes.post('/unfreeze')
 @check_csrf_token
-@web_authenticated_developers_only()
+@auth.web_authenticated_developers_only()
 async def unfreeze_batch(request, userdata):  # pylint: disable=unused-argument
     app = request.app
     db: Database = app['db']
@@ -814,7 +860,7 @@ UPDATE globals SET frozen = 0;
 
 
 @routes.get('/user_resources')
-@web_authenticated_developers_only()
+@auth.web_authenticated_developers_only()
 async def get_user_resources(request, userdata):
     app = request.app
     db: Database = app['db']
@@ -956,13 +1002,14 @@ async def check_resource_aggregation(app, db):
         attempt_resources = tx.execute_and_fetchall(
             '''
 SELECT attempt_resources.batch_id, attempt_resources.job_id, attempt_resources.attempt_id,
-  JSON_OBJECTAGG(resources.resource, quantity * GREATEST(COALESCE(end_time - start_time, 0), 0)) as resources
+  JSON_OBJECTAGG(resources.resource, quantity * GREATEST(COALESCE(rollup_time - start_time, 0), 0)) as resources
 FROM attempt_resources
 INNER JOIN attempts
 ON attempts.batch_id = attempt_resources.batch_id AND
   attempts.job_id = attempt_resources.job_id AND
   attempts.attempt_id = attempt_resources.attempt_id
 LEFT JOIN resources ON attempt_resources.resource_id = resources.resource_id
+WHERE GREATEST(COALESCE(rollup_time - start_time, 0), 0) != 0
 GROUP BY batch_id, job_id, attempt_id
 LOCK IN SHARE MODE;
 '''
@@ -971,7 +1018,8 @@ LOCK IN SHARE MODE;
         agg_job_resources = tx.execute_and_fetchall(
             '''
 SELECT batch_id, job_id, JSON_OBJECTAGG(resource, `usage`) as resources
-FROM aggregated_job_resources
+FROM aggregated_job_resources_v2
+LEFT JOIN resources ON aggregated_job_resources_v2.resource_id = resources.resource_id
 GROUP BY batch_id, job_id
 LOCK IN SHARE MODE;
 '''
@@ -981,9 +1029,10 @@ LOCK IN SHARE MODE;
             '''
 SELECT batch_id, billing_project, JSON_OBJECTAGG(resource, `usage`) as resources
 FROM (
-  SELECT batch_id, resource, SUM(`usage`) AS `usage`
-  FROM aggregated_batch_resources
-  GROUP BY batch_id, resource) AS t
+  SELECT batch_id, resource_id, CAST(COALESCE(SUM(`usage`), 0) AS SIGNED) AS `usage`
+  FROM aggregated_batch_resources_v2
+  GROUP BY batch_id, resource_id) AS t
+LEFT JOIN resources ON t.resource_id = resources.resource_id
 JOIN batches ON batches.id = t.batch_id
 GROUP BY t.batch_id, billing_project
 LOCK IN SHARE MODE;
@@ -994,9 +1043,10 @@ LOCK IN SHARE MODE;
             '''
 SELECT billing_project, JSON_OBJECTAGG(resource, `usage`) as resources
 FROM (
-  SELECT billing_project, resource, SUM(`usage`) AS `usage`
-  FROM aggregated_billing_project_resources
-  GROUP BY billing_project, resource) AS t
+  SELECT billing_project, resource_id, CAST(COALESCE(SUM(`usage`), 0) AS SIGNED) AS `usage`
+  FROM aggregated_billing_project_user_resources_v2
+  GROUP BY billing_project, resource_id) AS t
+LEFT JOIN resources ON t.resource_id = resources.resource_id
 GROUP BY t.billing_project
 LOCK IN SHARE MODE;
 '''
@@ -1234,6 +1284,7 @@ class BatchDriverAccessLogger(AccessLogger):
         self.exclude = [
             (endpoint[0], re.compile(deploy_config.base_path('batch-driver') + endpoint[1]))
             for endpoint in [
+                ('POST', '/api/v1alpha/instances/billing_update'),
                 ('POST', '/api/v1alpha/instances/job_complete'),
                 ('POST', '/api/v1alpha/instances/job_started'),
                 ('PATCH', '/api/v1alpha/batches/.*/.*/close'),

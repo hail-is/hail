@@ -86,6 +86,10 @@ class GCPSlimInstanceConfig(InstanceConfig):
     def worker_type(self) -> str:
         return self._worker_type
 
+    def region_for(self, location: str) -> str:
+        # location = zone
+        return location.rsplit('-', maxsplit=1)[0]
+
     @staticmethod
     def from_dict(data: dict) -> 'GCPSlimInstanceConfig':
         if data['version'] < 4:

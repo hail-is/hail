@@ -159,6 +159,7 @@ CREATE TABLE IF NOT EXISTS `batches` (
   `token` VARCHAR(100) DEFAULT NULL,
   `format_version` INT NOT NULL,
   `cancel_after_n_failures` INT DEFAULT NULL,
+  `update_added` BOOLEAN DEFAULT FALSE,
   PRIMARY KEY (`id`),
   FOREIGN KEY (`billing_project`) REFERENCES billing_projects(name)
 ) ENGINE = InnoDB;
@@ -167,6 +168,22 @@ CREATE INDEX `batches_deleted` ON `batches` (`deleted`);
 CREATE INDEX `batches_token` ON `batches` (`token`);
 CREATE INDEX `batches_time_completed` ON `batches` (`time_completed`);
 CREATE INDEX `batches_billing_project_state` ON `batches` (`billing_project`, `state`);
+
+CREATE TABLE IF NOT EXISTS `batch_updates` (
+  `batch_id` BIGINT NOT NULL,
+  `update_id` INT NOT NULL,
+  `token` VARCHAR(100) DEFAULT NULL,
+  `start_job_id` INT NOT NULL,
+  `n_jobs` INT NOT NULL,
+  `committed` BOOLEAN NOT NULL DEFAULT FALSE,
+  `time_created` BIGINT NOT NULL,
+  `time_committed` BIGINT,
+  PRIMARY KEY (`batch_id`, `update_id`),
+  FOREIGN KEY (`batch_id`) REFERENCES batches(`id`),
+  UNIQUE KEY (`batch_id`, `start_job_id`)
+) ENGINE = InnoDB;
+CREATE INDEX `batch_updates_committed` ON `batch_updates` (`batch_id`, `committed`);
+CREATE INDEX `batch_updates_start_job_id` ON `batch_updates` (`batch_id`, `start_job_id`);
 
 CREATE TABLE IF NOT EXISTS `batches_n_jobs_in_complete_states` (
   `id` BIGINT NOT NULL,
@@ -186,6 +203,7 @@ CREATE TABLE IF NOT EXISTS `batches_cancelled` (
 
 CREATE TABLE IF NOT EXISTS `batches_inst_coll_staging` (
   `batch_id` BIGINT NOT NULL,
+  `update_id` INT NOT NULL DEFAULT 1,
   `inst_coll` VARCHAR(255),
   `token` INT NOT NULL,
   `n_jobs` INT NOT NULL DEFAULT 0,
@@ -199,6 +217,7 @@ CREATE INDEX `batches_inst_coll_staging_inst_coll` ON `batches_inst_coll_staging
 
 CREATE TABLE `batch_inst_coll_cancellable_resources` (
   `batch_id` BIGINT NOT NULL,
+  `update_id` INT NOT NULL DEFAULT 1,
   `inst_coll` VARCHAR(255),
   `token` INT NOT NULL,
   # neither run_always nor cancelled
@@ -216,6 +235,7 @@ CREATE INDEX `batch_inst_coll_cancellable_resources_inst_coll` ON `batch_inst_co
 CREATE TABLE IF NOT EXISTS `jobs` (
   `batch_id` BIGINT NOT NULL,
   `job_id` INT NOT NULL,
+  `update_id` INT NOT NULL DEFAULT 1,
   `state` VARCHAR(40) NOT NULL,
   `spec` MEDIUMTEXT NOT NULL,
   `always_run` BOOLEAN NOT NULL,
@@ -247,6 +267,7 @@ CREATE TABLE IF NOT EXISTS `attempts` (
   `attempt_id` VARCHAR(40) NOT NULL,
   `instance_name` VARCHAR(100),
   `start_time` BIGINT,
+  `rollup_time` BIGINT,
   `end_time` BIGINT,
   `reason` VARCHAR(40),
   PRIMARY KEY (`batch_id`, `job_id`, `attempt_id`),
@@ -325,24 +346,108 @@ CREATE TABLE IF NOT EXISTS `aggregated_job_resources` (
   FOREIGN KEY (`resource`) REFERENCES resources(`resource`) ON DELETE CASCADE
 ) ENGINE = InnoDB;
 
+DROP TABLE IF EXISTS `aggregated_billing_project_user_resources_v2`;
+CREATE TABLE IF NOT EXISTS `aggregated_billing_project_user_resources_v2` (
+  `billing_project` VARCHAR(100) NOT NULL,
+  `user` VARCHAR(100) NOT NULL,
+  `resource_id` INT NOT NULL,
+  `token` INT NOT NULL,
+  `usage` BIGINT NOT NULL DEFAULT 0,
+  PRIMARY KEY (`billing_project`, `user`, `resource_id`, `token`),
+  FOREIGN KEY (`billing_project`) REFERENCES billing_projects(name) ON DELETE CASCADE,
+  FOREIGN KEY (`resource_id`) REFERENCES resources(`resource_id`) ON DELETE CASCADE
+) ENGINE = InnoDB;
+CREATE INDEX aggregated_billing_project_user_resources_v2 ON `aggregated_billing_project_user_resources_v2` (`user`);
+
+DROP TABLE IF EXISTS `aggregated_billing_project_user_resources_by_date_v2`;
+CREATE TABLE IF NOT EXISTS `aggregated_billing_project_user_resources_by_date_v2` (
+  `billing_date` DATE NOT NULL,
+  `billing_project` VARCHAR(100) NOT NULL,
+  `user` VARCHAR(100) NOT NULL,
+  `resource_id` INT NOT NULL,
+  `token` INT NOT NULL,
+  `usage` BIGINT NOT NULL DEFAULT 0,
+  PRIMARY KEY (`billing_date`, `billing_project`, `user`, `resource_id`, `token`),
+  FOREIGN KEY (`billing_project`) REFERENCES billing_projects(name) ON DELETE CASCADE,
+  FOREIGN KEY (`resource_id`) REFERENCES resources(`resource_id`) ON DELETE CASCADE
+) ENGINE = InnoDB;
+CREATE INDEX aggregated_billing_project_user_resources_by_date_v2_user ON `aggregated_billing_project_user_resources_by_date_v2` (`billing_date`, `user`);
+
+DROP TABLE IF EXISTS `aggregated_batch_resources_v2`;
+CREATE TABLE IF NOT EXISTS `aggregated_batch_resources_v2` (
+  `batch_id` BIGINT NOT NULL,
+  `resource_id` INT NOT NULL,
+  `token` INT NOT NULL,
+  `usage` BIGINT NOT NULL DEFAULT 0,
+  PRIMARY KEY (`batch_id`, `resource_id`, `token`),
+  FOREIGN KEY (`batch_id`) REFERENCES batches(`id`) ON DELETE CASCADE,
+  FOREIGN KEY (`resource_id`) REFERENCES resources(`resource_id`) ON DELETE CASCADE
+) ENGINE = InnoDB;
+
+DROP TABLE IF EXISTS `aggregated_job_resources_v2`;
+CREATE TABLE IF NOT EXISTS `aggregated_job_resources_v2` (
+  `batch_id` BIGINT NOT NULL,
+  `job_id` INT NOT NULL,
+  `resource_id` INT NOT NULL,
+  `usage` BIGINT NOT NULL DEFAULT 0,
+  PRIMARY KEY (`batch_id`, `job_id`, `resource_id`),
+  FOREIGN KEY (`batch_id`) REFERENCES batches(`id`) ON DELETE CASCADE,
+  FOREIGN KEY (`batch_id`, `job_id`) REFERENCES jobs(`batch_id`, `job_id`) ON DELETE CASCADE,
+  FOREIGN KEY (`resource_id`) REFERENCES resources(`resource_id`) ON DELETE CASCADE
+) ENGINE = InnoDB;
+
 CREATE TABLE IF NOT EXISTS `attempt_resources` (
   `batch_id` BIGINT NOT NULL,
   `job_id` INT NOT NULL,
   `attempt_id` VARCHAR(40) NOT NULL,
-  `resource` VARCHAR(100) NOT NULL,
   `quantity` BIGINT NOT NULL,
   `resource_id` INT NOT NULL,
-  PRIMARY KEY (`batch_id`, `job_id`, `attempt_id`, `resource`),
+  PRIMARY KEY (`batch_id`, `job_id`, `attempt_id`, `resource_id`),
   FOREIGN KEY (`batch_id`) REFERENCES batches(`id`) ON DELETE CASCADE,
   FOREIGN KEY (`batch_id`, `job_id`) REFERENCES jobs(`batch_id`, `job_id`) ON DELETE CASCADE,
   FOREIGN KEY (`batch_id`, `job_id`, `attempt_id`) REFERENCES attempts(`batch_id`, `job_id`, `attempt_id`) ON DELETE CASCADE,
-  FOREIGN KEY (`resource`) REFERENCES resources(`resource`) ON DELETE CASCADE,
   FOREIGN KEY (`resource_id`) REFERENCES resources(`resource_id`) ON DELETE CASCADE
 ) ENGINE = InnoDB;
 
 DELIMITER $$
 
-DROP TRIGGER IF EXISTS instances_before_update;
+DROP TRIGGER IF EXISTS batches_before_insert $$
+CREATE TRIGGER batches_before_insert BEFORE INSERT ON batches
+FOR EACH ROW
+BEGIN
+  SET NEW.update_added = TRUE;
+END $$
+
+DROP TRIGGER IF EXISTS batches_after_insert $$
+CREATE TRIGGER batches_after_insert AFTER INSERT ON batches
+FOR EACH ROW
+BEGIN
+  IF NEW.n_jobs > 0 THEN
+    INSERT INTO `batch_updates` (`batch_id`, `update_id`, `token`, start_job_id, n_jobs, `committed`, time_created, time_committed)
+    VALUES (NEW.id, 1, NEW.token, 1, NEW.n_jobs, FALSE, NEW.time_created, NEW.time_closed);
+  END IF;
+END $$
+
+DROP TRIGGER IF EXISTS batches_before_update $$
+CREATE TRIGGER batches_before_update BEFORE UPDATE ON batches
+FOR EACH ROW
+BEGIN
+  SET NEW.update_added = TRUE;
+END $$
+
+DROP TRIGGER IF EXISTS batches_after_update $$
+CREATE TRIGGER batches_after_update AFTER UPDATE ON batches
+FOR EACH ROW
+BEGIN
+  # We want to change the update to committed when the batch is closed
+  IF NEW.n_jobs > 0 THEN
+    INSERT INTO `batch_updates` (`batch_id`, `update_id`, `token`, start_job_id, n_jobs, `committed`, time_created, time_committed)
+    VALUES (NEW.id, 1, NEW.token, 1, NEW.n_jobs, NEW.state != 'open', NEW.time_created, NEW.time_closed)
+    ON DUPLICATE KEY UPDATE committed = NEW.state != 'open', time_committed = NEW.time_closed;
+  END IF;
+END $$
+
+DROP TRIGGER IF EXISTS instances_before_update $$
 CREATE TRIGGER instances_before_update BEFORE UPDATE on instances
 FOR EACH ROW
 BEGIN
@@ -351,7 +456,7 @@ BEGIN
   END IF;
 END $$
 
-DROP TRIGGER IF EXISTS attempts_before_update;
+DROP TRIGGER IF EXISTS attempts_before_update $$
 CREATE TRIGGER attempts_before_update BEFORE UPDATE ON attempts
 FOR EACH ROW
 BEGIN
@@ -368,6 +473,22 @@ BEGIN
     SET NEW.end_time = OLD.end_time;
     SET NEW.reason = OLD.reason;
   END IF;
+
+  # rollup_time should not go backward in time
+  # this could happen if MJS happens after the billing update is received
+  IF NEW.rollup_time IS NOT NULL AND OLD.rollup_time IS NOT NULL AND NEW.rollup_time < OLD.rollup_time THEN
+    SET NEW.rollup_time = OLD.rollup_time;
+  END IF;
+
+  # rollup_time should never be less than the start time
+  IF NEW.rollup_time IS NOT NULL AND NEW.start_time IS NOT NULL AND NEW.rollup_time < NEW.start_time THEN
+    SET NEW.rollup_time = OLD.rollup_time;
+  END IF;
+
+  # rollup_time should never be greater than the end time
+  IF NEW.rollup_time IS NOT NULL AND NEW.end_time IS NOT NULL AND NEW.rollup_time > NEW.end_time THEN
+    SET NEW.rollup_time = NEW.end_time;
+  END IF;
 END $$
 
 DROP TRIGGER IF EXISTS attempts_after_update $$
@@ -377,8 +498,10 @@ BEGIN
   DECLARE job_cores_mcpu INT;
   DECLARE cur_billing_project VARCHAR(100);
   DECLARE msec_diff BIGINT;
+  DECLARE msec_diff_rollup BIGINT;
   DECLARE cur_n_tokens INT;
   DECLARE rand_token INT;
+  DECLARE cur_billing_date DATE;
 
   SELECT n_tokens INTO cur_n_tokens FROM globals LOCK IN SHARE MODE;
   SET rand_token = FLOOR(RAND() * cur_n_tokens);
@@ -391,24 +514,75 @@ BEGIN
   SET msec_diff = (GREATEST(COALESCE(NEW.end_time - NEW.start_time, 0), 0) -
                    GREATEST(COALESCE(OLD.end_time - OLD.start_time, 0), 0));
 
-  INSERT INTO aggregated_billing_project_resources (billing_project, resource, token, `usage`)
-  SELECT billing_project, resource, rand_token, msec_diff * quantity
-  FROM attempt_resources
-  JOIN batches ON batches.id = attempt_resources.batch_id
-  WHERE batch_id = NEW.batch_id AND job_id = NEW.job_id AND attempt_id = NEW.attempt_id
-  ON DUPLICATE KEY UPDATE `usage` = `usage` + msec_diff * quantity;
+  SET msec_diff_rollup = (GREATEST(COALESCE(NEW.rollup_time - NEW.start_time, 0), 0) -
+                          GREATEST(COALESCE(OLD.rollup_time - OLD.start_time, 0), 0));
 
-  INSERT INTO aggregated_batch_resources (batch_id, resource, token, `usage`)
-  SELECT batch_id, resource, rand_token, msec_diff * quantity
-  FROM attempt_resources
-  WHERE batch_id = NEW.batch_id AND job_id = NEW.job_id AND attempt_id = NEW.attempt_id
-  ON DUPLICATE KEY UPDATE `usage` = `usage` + msec_diff * quantity;
+  SET cur_billing_date = CAST(UTC_DATE() AS DATE);
 
-  INSERT INTO aggregated_job_resources (batch_id, job_id, resource, `usage`)
-  SELECT batch_id, job_id, resource, msec_diff * quantity
-  FROM attempt_resources
-  WHERE batch_id = NEW.batch_id AND job_id = NEW.job_id AND attempt_id = NEW.attempt_id
-  ON DUPLICATE KEY UPDATE `usage` = `usage` + msec_diff * quantity;
+  IF msec_diff != 0 THEN
+    INSERT INTO aggregated_billing_project_resources (billing_project, resource, token, `usage`)
+    SELECT billing_project, resources.resource, rand_token, msec_diff * quantity
+    FROM attempt_resources
+    JOIN batches ON batches.id = attempt_resources.batch_id
+    LEFT JOIN resources ON attempt_resources.resource_id = resources.resource_id
+    WHERE batch_id = NEW.batch_id AND job_id = NEW.job_id AND attempt_id = NEW.attempt_id
+    ON DUPLICATE KEY UPDATE `usage` = `usage` + msec_diff * quantity;
+
+    INSERT INTO aggregated_batch_resources (batch_id, resource, token, `usage`)
+    SELECT batch_id, resources.resource, rand_token, msec_diff * quantity
+    FROM attempt_resources
+    LEFT JOIN resources ON attempt_resources.resource_id = resources.resource_id
+    WHERE batch_id = NEW.batch_id AND job_id = NEW.job_id AND attempt_id = NEW.attempt_id
+    ON DUPLICATE KEY UPDATE `usage` = `usage` + msec_diff * quantity;
+
+    INSERT INTO aggregated_job_resources (batch_id, job_id, resource, `usage`)
+    SELECT batch_id, job_id, resources.resource, msec_diff * quantity
+    FROM attempt_resources
+    LEFT JOIN resources ON attempt_resources.resource_id = resources.resource_id
+    WHERE batch_id = NEW.batch_id AND job_id = NEW.job_id AND attempt_id = NEW.attempt_id
+    ON DUPLICATE KEY UPDATE `usage` = `usage` + msec_diff * quantity;
+  END IF;
+
+  IF msec_diff_rollup != 0 THEN
+    INSERT INTO aggregated_billing_project_user_resources_v2 (billing_project, user, resource_id, token, `usage`)
+    SELECT billing_project, `user`,
+      resource_id,
+      rand_token,
+      msec_diff_rollup * quantity
+    FROM attempt_resources
+    JOIN batches ON batches.id = attempt_resources.batch_id
+    WHERE batch_id = NEW.batch_id AND job_id = NEW.job_id AND attempt_id = NEW.attempt_id
+    ON DUPLICATE KEY UPDATE `usage` = `usage` + msec_diff_rollup * quantity;
+
+    INSERT INTO aggregated_batch_resources_v2 (batch_id, resource_id, token, `usage`)
+    SELECT attempt_resources.batch_id,
+      resource_id,
+      rand_token,
+      msec_diff_rollup * quantity
+    FROM attempt_resources
+    WHERE batch_id = NEW.batch_id AND job_id = NEW.job_id AND attempt_id = NEW.attempt_id
+    ON DUPLICATE KEY UPDATE `usage` = `usage` + msec_diff_rollup * quantity;
+
+    INSERT INTO aggregated_job_resources_v2 (batch_id, job_id, resource_id, `usage`)
+    SELECT attempt_resources.batch_id, attempt_resources.job_id,
+      resource_id,
+      msec_diff_rollup * quantity
+    FROM attempt_resources
+    WHERE batch_id = NEW.batch_id AND job_id = NEW.job_id AND attempt_id = NEW.attempt_id
+    ON DUPLICATE KEY UPDATE `usage` = `usage` + msec_diff_rollup * quantity;
+
+    INSERT INTO aggregated_billing_project_user_resources_by_date_v2 (billing_date, billing_project, user, resource_id, token, `usage`)
+    SELECT cur_billing_date,
+      billing_project,
+      `user`,
+      resource_id,
+      rand_token,
+      msec_diff_rollup * quantity
+    FROM attempt_resources
+    JOIN batches ON batches.id = attempt_resources.batch_id
+    WHERE batch_id = NEW.batch_id AND job_id = NEW.job_id AND attempt_id = NEW.attempt_id
+    ON DUPLICATE KEY UPDATE `usage` = `usage` + msec_diff_rollup * quantity;
+  END IF;
 END $$
 
 DROP TRIGGER IF EXISTS jobs_after_update $$
@@ -433,8 +607,8 @@ BEGIN
   IF OLD.state = 'Ready' THEN
     IF NOT (OLD.always_run OR OLD.cancelled OR cur_batch_cancelled) THEN
       # cancellable
-      INSERT INTO batch_inst_coll_cancellable_resources (batch_id, inst_coll, token, n_ready_cancellable_jobs, ready_cancellable_cores_mcpu)
-      VALUES (OLD.batch_id, OLD.inst_coll, rand_token, -1, -OLD.cores_mcpu)
+      INSERT INTO batch_inst_coll_cancellable_resources (batch_id, update_id, inst_coll, token, n_ready_cancellable_jobs, ready_cancellable_cores_mcpu)
+      VALUES (OLD.batch_id, NEW.update_id, OLD.inst_coll, rand_token, -1, -OLD.cores_mcpu)
       ON DUPLICATE KEY UPDATE
         n_ready_cancellable_jobs = n_ready_cancellable_jobs - 1,
         ready_cancellable_cores_mcpu = ready_cancellable_cores_mcpu - OLD.cores_mcpu;
@@ -457,8 +631,8 @@ BEGIN
   ELSEIF OLD.state = 'Running' THEN
     IF NOT (OLD.always_run OR cur_batch_cancelled) THEN
       # cancellable
-      INSERT INTO batch_inst_coll_cancellable_resources (batch_id, inst_coll, token, n_running_cancellable_jobs, running_cancellable_cores_mcpu)
-      VALUES (OLD.batch_id, OLD.inst_coll, rand_token, -1, -OLD.cores_mcpu)
+      INSERT INTO batch_inst_coll_cancellable_resources (batch_id, update_id, inst_coll, token, n_running_cancellable_jobs, running_cancellable_cores_mcpu)
+      VALUES (OLD.batch_id, NEW.update_id, OLD.inst_coll, rand_token, -1, -OLD.cores_mcpu)
       ON DUPLICATE KEY UPDATE
         n_running_cancellable_jobs = n_running_cancellable_jobs - 1,
         running_cancellable_cores_mcpu = running_cancellable_cores_mcpu - OLD.cores_mcpu;
@@ -482,8 +656,8 @@ BEGIN
   ELSEIF OLD.state = 'Creating' THEN
     IF NOT (OLD.always_run OR cur_batch_cancelled) THEN
       # cancellable
-      INSERT INTO batch_inst_coll_cancellable_resources (batch_id, inst_coll, token, n_creating_cancellable_jobs)
-      VALUES (OLD.batch_id, OLD.inst_coll, rand_token, -1)
+      INSERT INTO batch_inst_coll_cancellable_resources (batch_id, update_id, inst_coll, token, n_creating_cancellable_jobs)
+      VALUES (OLD.batch_id, NEW.update_id, OLD.inst_coll, rand_token, -1)
       ON DUPLICATE KEY UPDATE
         n_creating_cancellable_jobs = n_creating_cancellable_jobs - 1;
     END IF;
@@ -508,8 +682,8 @@ BEGIN
   IF NEW.state = 'Ready' THEN
     IF NOT (NEW.always_run OR NEW.cancelled OR cur_batch_cancelled) THEN
       # cancellable
-      INSERT INTO batch_inst_coll_cancellable_resources (batch_id, inst_coll, token, n_ready_cancellable_jobs, ready_cancellable_cores_mcpu)
-      VALUES (NEW.batch_id, NEW.inst_coll, rand_token, 1, NEW.cores_mcpu)
+      INSERT INTO batch_inst_coll_cancellable_resources (batch_id, update_id, inst_coll, token, n_ready_cancellable_jobs, ready_cancellable_cores_mcpu)
+      VALUES (NEW.batch_id, NEW.update_id, NEW.inst_coll, rand_token, 1, NEW.cores_mcpu)
       ON DUPLICATE KEY UPDATE
         n_ready_cancellable_jobs = n_ready_cancellable_jobs + 1,
         ready_cancellable_cores_mcpu = ready_cancellable_cores_mcpu + NEW.cores_mcpu;
@@ -532,8 +706,8 @@ BEGIN
   ELSEIF NEW.state = 'Running' THEN
     IF NOT (NEW.always_run OR cur_batch_cancelled) THEN
       # cancellable
-      INSERT INTO batch_inst_coll_cancellable_resources (batch_id, inst_coll, token, n_running_cancellable_jobs, running_cancellable_cores_mcpu)
-      VALUES (NEW.batch_id, NEW.inst_coll, rand_token, 1, NEW.cores_mcpu)
+      INSERT INTO batch_inst_coll_cancellable_resources (batch_id, update_id, inst_coll, token, n_running_cancellable_jobs, running_cancellable_cores_mcpu)
+      VALUES (NEW.batch_id, NEW.update_id, NEW.inst_coll, rand_token, 1, NEW.cores_mcpu)
       ON DUPLICATE KEY UPDATE
         n_running_cancellable_jobs = n_running_cancellable_jobs + 1,
         running_cancellable_cores_mcpu = running_cancellable_cores_mcpu + NEW.cores_mcpu;
@@ -557,8 +731,8 @@ BEGIN
   ELSEIF NEW.state = 'Creating' THEN
     IF NOT (NEW.always_run OR cur_batch_cancelled) THEN
       # cancellable
-      INSERT INTO batch_inst_coll_cancellable_resources (batch_id, inst_coll, token, n_creating_cancellable_jobs)
-      VALUES (NEW.batch_id, NEW.inst_coll, rand_token, 1)
+      INSERT INTO batch_inst_coll_cancellable_resources (batch_id, update_id, inst_coll, token, n_creating_cancellable_jobs)
+      VALUES (NEW.batch_id, NEW.update_id, NEW.inst_coll, rand_token, 1)
       ON DUPLICATE KEY UPDATE
         n_creating_cancellable_jobs = n_creating_cancellable_jobs + 1;
     END IF;
@@ -580,52 +754,80 @@ BEGIN
   END IF;
 END $$
 
-DROP TRIGGER IF EXISTS attempt_resources_before_insert $$
-CREATE TRIGGER attempt_resources_before_insert BEFORE INSERT ON attempt_resources
-FOR EACH ROW
-BEGIN
-  DECLARE cur_resource_id INT;
-  SELECT resource_id INTO cur_resource_id FROM resources WHERE resource = NEW.resource;
-  SET NEW.resource_id = cur_resource_id;
-END $$
-
 DROP TRIGGER IF EXISTS attempt_resources_after_insert $$
 CREATE TRIGGER attempt_resources_after_insert AFTER INSERT ON attempt_resources
 FOR EACH ROW
 BEGIN
   DECLARE cur_start_time BIGINT;
+  DECLARE cur_rollup_time BIGINT;
   DECLARE cur_end_time BIGINT;
   DECLARE cur_billing_project VARCHAR(100);
+  DECLARE cur_user VARCHAR(100);
   DECLARE msec_diff BIGINT;
+  DECLARE msec_diff_rollup BIGINT;
   DECLARE cur_n_tokens INT;
   DECLARE rand_token INT;
+  DECLARE cur_resource VARCHAR(100);
+  DECLARE cur_billing_date DATE;
+
+  SELECT billing_project, user INTO cur_billing_project, cur_user
+  FROM batches WHERE id = NEW.batch_id;
 
   SELECT n_tokens INTO cur_n_tokens FROM globals LOCK IN SHARE MODE;
   SET rand_token = FLOOR(RAND() * cur_n_tokens);
 
-  SELECT billing_project INTO cur_billing_project FROM batches WHERE id = NEW.batch_id;
+  SELECT resource INTO cur_resource FROM resources WHERE resource_id = NEW.resource_id;
 
-  SELECT start_time, end_time INTO cur_start_time, cur_end_time
+  SELECT start_time, end_time, rollup_time INTO cur_start_time, cur_end_time, cur_rollup_time
   FROM attempts
   WHERE batch_id = NEW.batch_id AND job_id = NEW.job_id AND attempt_id = NEW.attempt_id
   LOCK IN SHARE MODE;
 
   SET msec_diff = GREATEST(COALESCE(cur_end_time - cur_start_time, 0), 0);
+  SET msec_diff_rollup = GREATEST(COALESCE(cur_rollup_time - cur_start_time, 0), 0);
 
-  INSERT INTO aggregated_billing_project_resources (billing_project, resource, token, `usage`)
-  VALUES (cur_billing_project, NEW.resource, rand_token, NEW.quantity * msec_diff)
-  ON DUPLICATE KEY UPDATE
-    `usage` = `usage` + NEW.quantity * msec_diff;
+  SET cur_billing_date = CAST(UTC_DATE() AS DATE);
 
-  INSERT INTO aggregated_batch_resources (batch_id, resource, token, `usage`)
-  VALUES (NEW.batch_id, NEW.resource, rand_token, NEW.quantity * msec_diff)
-  ON DUPLICATE KEY UPDATE
-    `usage` = `usage` + NEW.quantity * msec_diff;
+  IF msec_diff != 0 THEN
+    INSERT INTO aggregated_billing_project_resources (billing_project, resource, token, `usage`)
+    VALUES (cur_billing_project, cur_resource, rand_token, NEW.quantity * msec_diff)
+    ON DUPLICATE KEY UPDATE
+      `usage` = `usage` + NEW.quantity * msec_diff;
 
-  INSERT INTO aggregated_job_resources (batch_id, job_id, resource, `usage`)
-  VALUES (NEW.batch_id, NEW.job_id, NEW.resource, NEW.quantity * msec_diff)
-  ON DUPLICATE KEY UPDATE
-    `usage` = `usage` + NEW.quantity * msec_diff;
+    INSERT INTO aggregated_batch_resources (batch_id, resource, token, `usage`)
+    VALUES (NEW.batch_id, cur_resource, rand_token, NEW.quantity * msec_diff)
+    ON DUPLICATE KEY UPDATE
+      `usage` = `usage` + NEW.quantity * msec_diff;
+
+    INSERT INTO aggregated_job_resources (batch_id, job_id, resource, `usage`)
+    VALUES (NEW.batch_id, NEW.job_id, cur_resource, NEW.quantity * msec_diff)
+    ON DUPLICATE KEY UPDATE
+      `usage` = `usage` + NEW.quantity * msec_diff;
+  END IF;
+
+  IF msec_diff_rollup != 0 THEN
+    INSERT INTO aggregated_billing_project_user_resources_v2 (billing_project, user, resource_id, token, `usage`)
+    VALUES (cur_billing_project, cur_user, NEW.resource_id, rand_token, NEW.quantity * msec_diff_rollup)
+    ON DUPLICATE KEY UPDATE
+      `usage` = `usage` + NEW.quantity * msec_diff_rollup;
+
+    INSERT INTO aggregated_batch_resources_v2 (batch_id, resource_id, token, `usage`)
+    VALUES (NEW.batch_id, NEW.resource_id, rand_token, NEW.quantity * msec_diff_rollup)
+    ON DUPLICATE KEY UPDATE
+      `usage` = `usage` + NEW.quantity * msec_diff_rollup;
+
+    INSERT INTO aggregated_job_resources_v2 (batch_id, job_id, resource_id, `usage`)
+    VALUES (NEW.batch_id, NEW.job_id, NEW.resource_id, NEW.quantity * msec_diff_rollup)
+    ON DUPLICATE KEY UPDATE
+      `usage` = `usage` + NEW.quantity * msec_diff_rollup;
+
+    IF cur_billing_date IS NOT NULL THEN
+      INSERT INTO aggregated_billing_project_user_resources_by_date_v2 (billing_date, billing_project, user, resource_id, token, `usage`)
+      VALUES (cur_billing_date, cur_billing_project, cur_user, NEW.resource_id, rand_token, NEW.quantity * msec_diff_rollup)
+      ON DUPLICATE KEY UPDATE
+        `usage` = `usage` + NEW.quantity * msec_diff_rollup;
+    END IF;
+  END IF;
 END $$
 
 DROP PROCEDURE IF EXISTS recompute_incremental $$
@@ -754,7 +956,7 @@ BEGIN
   WHERE name = in_instance_name;
 
   UPDATE attempts
-  SET end_time = in_timestamp, reason = in_reason
+  SET rollup_time = in_timestamp, end_time = in_timestamp, reason = in_reason
   WHERE instance_name = in_instance_name;
 
   IF cur_state = 'pending' or cur_state = 'active' THEN
@@ -1060,7 +1262,7 @@ BEGIN
   FOR UPDATE;
 
   UPDATE attempts
-  SET end_time = new_end_time, reason = new_reason
+  SET rollup_time = new_end_time, end_time = new_end_time, reason = new_reason
   WHERE batch_id = in_batch_id AND job_id = in_job_id AND attempt_id = in_attempt_id;
 
   SELECT state INTO cur_instance_state FROM instances WHERE name = in_instance_name LOCK IN SHARE MODE;
@@ -1116,7 +1318,7 @@ BEGIN
 
   CALL add_attempt(in_batch_id, in_job_id, in_attempt_id, in_instance_name, cur_cores_mcpu, delta_cores_mcpu);
 
-  UPDATE attempts SET start_time = new_start_time
+  UPDATE attempts SET start_time = new_start_time, rollup_time = new_start_time
   WHERE batch_id = in_batch_id AND job_id = in_job_id AND attempt_id = in_attempt_id;
 
   SELECT state INTO cur_instance_state FROM instances WHERE name = in_instance_name LOCK IN SHARE MODE;
@@ -1161,7 +1363,7 @@ BEGIN
 
   CALL add_attempt(in_batch_id, in_job_id, in_attempt_id, in_instance_name, cur_cores_mcpu, delta_cores_mcpu);
 
-  UPDATE attempts SET start_time = new_start_time
+  UPDATE attempts SET start_time = new_start_time, rollup_time = new_start_time
   WHERE batch_id = in_batch_id AND job_id = in_job_id AND attempt_id = in_attempt_id;
 
   SELECT state INTO cur_instance_state FROM instances WHERE name = in_instance_name LOCK IN SHARE MODE;
@@ -1213,7 +1415,7 @@ BEGIN
   FOR UPDATE;
 
   UPDATE attempts
-  SET start_time = new_start_time, end_time = new_end_time, reason = new_reason
+  SET start_time = new_start_time, rollup_time = new_end_time, end_time = new_end_time, reason = new_reason
   WHERE batch_id = in_batch_id AND job_id = in_job_id AND attempt_id = in_attempt_id;
 
   SELECT state INTO cur_instance_state FROM instances WHERE name = in_instance_name LOCK IN SHARE MODE;

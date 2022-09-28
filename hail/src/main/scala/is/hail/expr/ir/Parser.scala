@@ -1398,13 +1398,15 @@ object IRParser {
           BlockMatrixMultiWrite(blockMatrices.toFastIndexedSeq, writer)
         }
       case "CollectDistributedArray" =>
+        val staticID = identifier(it)
         val cname = identifier(it)
         val gname = identifier(it)
         for {
           ctxs <- ir_value_expr(env)(it)
           globals <- ir_value_expr(env)(it)
           body <- ir_value_expr(env + (cname -> coerce[TStream](ctxs.typ).elementType) + (gname -> globals.typ))(it)
-        } yield CollectDistributedArray(ctxs, globals, cname, gname, body)
+          dynamicID <- ir_value_expr(env)(it)
+        } yield CollectDistributedArray(ctxs, globals, cname, gname, body, dynamicID, staticID)
       case "JavaIR" =>
         val name = identifier(it)
         done(env.irMap(name).asInstanceOf[IR])

@@ -472,7 +472,7 @@ class MatrixPLINKReader(
   }
 
   override def lower(ctx: ExecuteContext, requestedType: TableType): TableStage =
-    executeGeneric(ctx).toTableStage(ctx, requestedType)
+    executeGeneric(ctx).toTableStage(ctx, requestedType, "PLINK file", params)
 
   override def toJValue: JValue = {
     implicit val formats: Formats = DefaultFormats

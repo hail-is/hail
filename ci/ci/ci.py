@@ -16,13 +16,13 @@ from prometheus_async.aio.web import server_stats  # type: ignore
 from typing_extensions import TypedDict
 
 from gear import (
+    AuthClient,
     Database,
     check_csrf_token,
     monitor_endpoints_middleware,
     rest_authenticated_developers_only,
     setup_aiohttp_session,
     web_authenticated_developers_only,
-    rest_authenticated_users_only,
 )
 from hailtop import aiotools, httpx
 from hailtop.batch_client.aioclient import Batch, BatchClient
@@ -55,6 +55,8 @@ watched_branches: List[WatchedBranch] = [
 ]
 
 routes = web.RouteTableDef()
+
+auth = AuthClient()
 
 
 class PRConfig(TypedDict):
@@ -127,7 +129,7 @@ async def watched_branch_config(app, wb: WatchedBranch, index: int) -> WatchedBr
 
 @routes.get('')
 @routes.get('/')
-@web_authenticated_developers_only()
+@auth.web_authenticated_developers_only()
 async def index(request, userdata):  # pylint: disable=unused-argument
     wb_configs = [await watched_branch_config(request.app, wb, i) for i, wb in enumerate(watched_branches)]
     page_context = {'watched_branches': wb_configs, 'frozen_merge_deploy': request.app['frozen_merge_deploy']}
@@ -148,7 +150,7 @@ def wb_and_pr_from_request(request):
 
 
 @routes.get('/watched_branches/{watched_branch_index}/pr/{pr_number}')
-@web_authenticated_developers_only()
+@auth.web_authenticated_developers_only()
 async def get_pr(request, userdata):  # pylint: disable=unused-argument
     wb, pr = wb_and_pr_from_request(request)
 
@@ -211,7 +213,7 @@ async def retry_pr(wb, pr, request):
 
 @routes.post('/watched_branches/{watched_branch_index}/pr/{pr_number}/retry')
 @check_csrf_token
-@web_authenticated_developers_only(redirect=False)
+@auth.web_authenticated_developers_only(redirect=False)
 async def post_retry_pr(request, userdata):  # pylint: disable=unused-argument
     wb, pr = wb_and_pr_from_request(request)
 
@@ -220,7 +222,7 @@ async def post_retry_pr(request, userdata):  # pylint: disable=unused-argument
 
 
 @routes.get('/batches')
-@web_authenticated_developers_only()
+@auth.web_authenticated_developers_only()
 async def get_batches(request, userdata):
     batch_client = request.app['batch_client']
     batches = [b async for b in batch_client.list_batches()]
@@ -230,7 +232,7 @@ async def get_batches(request, userdata):
 
 
 @routes.get('/batches/{batch_id}')
-@web_authenticated_developers_only()
+@auth.web_authenticated_developers_only()
 async def get_batch(request, userdata):
     batch_id = int(request.match_info['batch_id'])
     batch_client = request.app['batch_client']
@@ -258,7 +260,7 @@ def get_maybe_wb_for_batch(b: Batch):
 
 
 @routes.get('/batches/{batch_id}/jobs/{job_id}')
-@web_authenticated_developers_only()
+@auth.web_authenticated_developers_only()
 async def get_job(request, userdata):
     batch_id = int(request.match_info['batch_id'])
     job_id = int(request.match_info['job_id'])
@@ -296,7 +298,7 @@ def pr_requires_action(gh_username: str, pr_config: PRConfig) -> bool:
 
 
 @routes.get('/me')
-@web_authenticated_developers_only()
+@auth.web_authenticated_developers_only()
 async def get_user(request, userdata):
     for authorized_user in AUTHORIZED_USERS:
         if authorized_user.hail_username == userdata['username']:
@@ -330,7 +332,7 @@ async def get_user(request, userdata):
 
 @routes.post('/authorize_source_sha')
 @check_csrf_token
-@web_authenticated_developers_only(redirect=False)
+@auth.web_authenticated_developers_only(redirect=False)
 async def post_authorized_source_sha(request, userdata):  # pylint: disable=unused-argument
     app = request.app
     db: Database = app['db']
@@ -409,7 +411,7 @@ async def batch_callback_handler(request):
 
 
 @routes.get('/api/v1alpha/deploy_status')
-@rest_authenticated_developers_only
+@auth.rest_authenticated_developers_only
 async def deploy_status(request, userdata):  # pylint: disable=unused-argument
     batch_client = request.app['batch_client']
 
@@ -443,7 +445,7 @@ async def deploy_status(request, userdata):  # pylint: disable=unused-argument
 
 
 @routes.post('/api/v1alpha/update')
-@rest_authenticated_developers_only
+@auth.rest_authenticated_developers_only
 async def post_update(request, userdata):  # pylint: disable=unused-argument
     log.info('developer triggered update')
 
@@ -456,7 +458,7 @@ async def post_update(request, userdata):  # pylint: disable=unused-argument
 
 
 @routes.post('/api/v1alpha/dev_deploy_branch')
-@rest_authenticated_developers_only
+@auth.rest_authenticated_developers_only
 async def dev_deploy_branch(request, userdata):
     app = request.app
     try:
@@ -543,8 +545,8 @@ async def prod_deploy(request, userdata):
         raise web.HTTPBadRequest(text=message)
 
     watched_branch = WatchedBranch(
-        index=0, 
-        branch=FQBranch.from_short_str('populationgenomics/hail:main'), 
+        index=0,
+        branch=FQBranch.from_short_str('populationgenomics/hail:main'),
         deployable=True,
         mergeable=False,
     )
@@ -569,7 +571,7 @@ async def batch_callback(request):
 
 @routes.post('/freeze_merge_deploy')
 @check_csrf_token
-@web_authenticated_developers_only()
+@auth.web_authenticated_developers_only()
 async def freeze_deploys(request, userdata):  # pylint: disable=unused-argument
     app = request.app
     db: Database = app['db']
@@ -594,7 +596,7 @@ UPDATE globals SET frozen_merge_deploy = 1;
 
 @routes.post('/unfreeze_merge_deploy')
 @check_csrf_token
-@web_authenticated_developers_only()
+@auth.web_authenticated_developers_only()
 async def unfreeze_deploys(request, userdata):  # pylint: disable=unused-argument
     app = request.app
     db: Database = app['db']

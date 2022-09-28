@@ -27,7 +27,6 @@ AUTHORIZED_USERS = [
     User('konradjk', 'konradk'),
     User('lfrancioli'),
     User('lgruen'),
-    User('mkveerapen'),
     User('nawatts'),
     User('patrick-schultz', 'pschultz', [COMPILER_TEAM]),
     User('pwc2', 'pcumming'),
@@ -35,4 +34,5 @@ AUTHORIZED_USERS = [
     User('lgruen', 'lgruensc', []),
     User('vladsaveliev', 'vsavelye', []),
     User('illusional', 'mfrankli', []),
+    User('iris-garden', 'irademac'),
 ]

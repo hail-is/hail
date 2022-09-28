@@ -370,6 +370,10 @@ class ImageNotFound(Exception):
     pass
 
 
+class InvalidImageRepository(Exception):
+    pass
+
+
 class Image:
     def __init__(
         self,
@@ -441,6 +445,8 @@ class Image:
                 raise ImageCannotBePulled from e
             if 'not found: manifest unknown' in e.message:
                 raise ImageNotFound from e
+            if 'Invalid repository name' in e.message:
+                raise InvalidImageRepository from e
             raise
 
         image_config, _ = await check_exec_output('docker', 'inspect', self.image_ref_str)
@@ -580,7 +586,7 @@ def user_error(e):
         # bucket name and your credentials.\n')
         if b'Bad credentials for bucket' in e.stderr:
             return True
-    if isinstance(e, (ImageNotFound, ImageCannotBePulled)):
+    if isinstance(e, (ImageNotFound, ImageCannotBePulled, InvalidImageRepository)):
         return True
     if isinstance(e, (ContainerTimeoutError, ContainerDeletedError)):
         return True
@@ -671,6 +677,8 @@ class Container:
                 self.short_error = 'image not found'
             elif isinstance(e, ImageCannotBePulled):
                 self.short_error = 'image cannot be pulled'
+            elif isinstance(e, InvalidImageRepository):
+                self.short_error = 'image repository is invalid'
 
             self.state = 'error'
             self.error = traceback.format_exc()
@@ -1290,6 +1298,8 @@ class Job:
 
         self.start_time = None
         self.end_time = None
+
+        self.marked_job_started = False
 
         self.cpu_in_mcpu = job_spec['resources']['cores_mcpu']
         self.memory_in_bytes = job_spec['resources']['memory_bytes']
@@ -2501,6 +2511,8 @@ class Worker:
             log.exception(f'could not activate after trying for {MAX_IDLE_TIME_MSECS} ms, exiting')
             return
 
+        self.task_manager.ensure_future(periodically_call(60, self.send_billing_update))
+
         try:
             while True:
                 try:
@@ -2633,6 +2645,7 @@ class Worker:
     async def post_job_started(self, job):
         try:
             await self.post_job_started_1(job)
+            job.marked_job_started = True
         except asyncio.CancelledError:
             raise
         except Exception:
@@ -2676,6 +2689,7 @@ class Worker:
         self.headers = {'X-Hail-Instance-Name': NAME, 'Authorization': f'Bearer {resp_json["token"]}'}
         self.active = True
         self.last_updated = time_msecs()
+
         log.info('activated')
 
     async def cleanup_old_images(self):
@@ -2696,6 +2710,33 @@ class Worker:
             raise
         except Exception as e:
             log.exception(f'Error while deleting unused image: {e}')
+
+    async def send_billing_update(self):
+        async def update():
+            update_timestamp = time_msecs()
+            running_attempts = []
+            for (batch_id, job_id), job in self.jobs.items():
+                if not job.marked_job_started or job.end_time is not None:
+                    continue
+                running_attempts.append(
+                    {
+                        'batch_id': batch_id,
+                        'job_id': job_id,
+                        'attempt_id': job.attempt_id,
+                    }
+                )
+
+            if running_attempts:
+                billing_update_data = {'timestamp': update_timestamp, 'attempts': running_attempts}
+
+                await self.client_session.post(
+                    deploy_config.url('batch-driver', '/api/v1alpha/billing_update'),
+                    json=billing_update_data,
+                    headers=self.headers,
+                )
+                log.info(f'sent billing update for {time_msecs_str(update_timestamp)}')
+
+        await retry_transient_errors(update)
 
 
 async def async_main():

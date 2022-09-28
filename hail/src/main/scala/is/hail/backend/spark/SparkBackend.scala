@@ -444,7 +444,7 @@ class SparkBackend(
     Serialization.write(Map("value" -> jsonValue, "timings" -> timer.toMap))(new DefaultFormats {})
   }
 
-  def executeEncode(ir: IR, bufferSpecString: String): (Array[Byte], String) = {
+  def executeEncode(ir: IR, bufferSpecString: String, timed: Boolean): (Array[Byte], String) = {
     val (encodedValue, timer) = ExecutionTimer.time("SparkBackend.executeEncode") { timer =>
       withExecuteContext(timer) { ctx =>
         val queryID = Backend.nextID()
@@ -453,11 +453,12 @@ class SparkBackend(
           case Left(_) => Array[Byte]()
           case Right((t, off)) => encodeToBytes(ctx, t, off, bufferSpecString)
         }
-        log.info(s"finished execution of query $queryID")
+        log.info(s"finished execution of query $queryID, result size is ${formatSpace(res.length)}")
         res
       }
     }
-    (encodedValue, Serialization.write(Map("timings" -> timer.toMap))(new DefaultFormats {}))
+    val serializedTimer = if (timed) Serialization.write(Map("timings" -> timer.toMap))(new DefaultFormats {}) else ""
+    (encodedValue, serializedTimer)
   }
 
   def encodeToBytes(ctx: ExecuteContext, t: PTuple, off: Long, bufferSpecString: String): Array[Byte] = {

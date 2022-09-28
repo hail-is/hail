@@ -27,7 +27,7 @@ class BlockMatrixStageSuite extends HailSuite {
         def blockBody(ctxRef: Ref): IR = body(ctxRef)
       }
     }
-    stage.collectBlocks(Map())((_, b) => b, order.getOrElse(ctxs.map(_._1)))
+    stage.collectBlocks(Map(), "test")((_, b) => b, order.getOrElse(ctxs.map(_._1)))
   }
 
   @Test def testBlockMatrixCollectOrdering(): Unit = {

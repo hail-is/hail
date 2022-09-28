@@ -6,7 +6,7 @@ import is.hail.backend.HailTaskContext
 import is.hail.backend.spark.SparkTaskContext
 import is.hail.check.Prop._
 import is.hail.check.{Gen, Properties}
-import is.hail.expr.ir.{Interpret, MatrixValue, TableValue}
+import is.hail.expr.ir.{Interpret, LongArrayBuilder, MatrixValue, TableValue}
 import is.hail.types._
 import is.hail.types.physical.{PStruct, PType}
 import is.hail.types.virtual.{TArray, TString, TStruct}
@@ -16,37 +16,11 @@ import is.hail.{HailSuite, TestUtils}
 import org.apache.spark.rdd.RDD
 import org.testng.annotations.Test
 
-case class BitPackedVector(gs: Array[Long], nSamples: Int, mean: Double, stdDevRec: Double) {
-  def unpack(): Array[Int] = {
-    val gts = Array.ofDim[Int](nSamples)
-    val nPacks = gs.length
-
-    var packIndex = 0
-    var i = 0
-    val shiftInit = LocalLDPrune.genotypesPerPack * 2 - 2
-    while (packIndex < nPacks && i < nSamples) {
-      val l = gs(packIndex)
-      var shift = shiftInit
-      while (shift >= 0 && i < nSamples) {
-        val gt = (l >> shift) & 3
-        if (gt == 3)
-          gts(i) = -1
-        else
-          gts(i) = gt.toInt
-        shift -= 2
-        i += 1
-      }
-      packIndex += 1
-    }
-
-    gts
-  }
-}
+import BitPackedVector._
 
 object LocalLDPruneSuite {
   val variantByteOverhead = 50
   val fractionMemoryToUse = 0.25
-  val genotypesPerPack = LocalLDPrune.genotypesPerPack
 
   val rvRowType = TStruct(
     "locus" -> ReferenceGenome.GRCh37.locusType,
@@ -54,69 +28,67 @@ object LocalLDPruneSuite {
     MatrixType.entriesIdentifier -> TArray(Genotype.htsGenotypeType)
   )
 
-  val bitPackedVectorViewType = BitPackedVectorView.rvRowPType(PType.canonical(rvRowType.field("locus").typ),
-    PType.canonical(rvRowType.field("alleles").typ))
-
-  def makeRV(gs: Iterable[Annotation], pool: RegionPool): RegionValue = {
-    val gArr = gs.toFastIndexedSeq
-    val rvb = new RegionValueBuilder(Region(pool=pool))
-    rvb.start(PType.canonical(rvRowType))
-    rvb.startStruct()
-    rvb.addAnnotation(rvRowType.types(0), Locus("1", 1))
-    rvb.addAnnotation(rvRowType.types(1), FastIndexedSeq("A", "T"))
-    rvb.addAnnotation(TArray(Genotype.htsGenotypeType), gArr)
-    rvb.endStruct()
-    rvb.end()
-    rvb.result()
-  }
-
-  def convertCallsToGs(calls: Array[BoxedCall]): Iterable[Annotation] = calls.map(Genotype(_)).toIterable
-
-  // expecting iterable of Genotype with htsjdk schema
-  def toBitPackedVectorView(gs: Iterable[Annotation], nSamples: Int, pool: RegionPool): Option[BitPackedVectorView] = {
-    val bpvv = new BitPackedVectorView(bitPackedVectorViewType)
-    toBitPackedVectorRegionValue(gs, nSamples, pool) match {
-      case Some(rv) =>
-        bpvv.set(rv.offset)
-        Some(bpvv)
-      case None => None
-    }
-  }
-
-  // expecting iterable of Genotype with htsjdk schema
-  def toBitPackedVectorRegionValue(gs: Iterable[Annotation], nSamples: Int, pool: RegionPool): Option[RegionValue] = {
-    toBitPackedVectorRegionValue(makeRV(gs, pool), nSamples, pool)
-  }
-
-  def toBitPackedVectorRegionValue(rv: RegionValue, nSamples: Int, pool: RegionPool): Option[RegionValue] = {
-    val rvb = new RegionValueBuilder(Region(pool = pool))
-    val hcView = HardCallView(PType.canonical(rvRowType).asInstanceOf[PStruct])
-    hcView.set(rv.offset)
-
-    rvb.start(bitPackedVectorViewType)
-    rvb.startStruct()
-    rvb.addAnnotation(rvRowType.types(0), Locus("1", 1))
-    rvb.addAnnotation(rvRowType.types(1), FastIndexedSeq("A", "T"))
-    val keep = LocalLDPrune.addBitPackedVector(rvb, hcView, nSamples)
-
-    if (keep) {
-      rvb.endStruct()
-      rvb.end()
-      Some(rvb.result())
-    }
-    else
-      None
-  }
-
-  def toBitPackedVector(calls: Array[BoxedCall], pool: RegionPool): Option[BitPackedVector] = {
+  def fromCalls(calls: IndexedSeq[BoxedCall]): Option[BitPackedVector] = {
+    val locus = Locus("1", 1)
+    val alleles = Array("A", "T")
     val nSamples = calls.length
-    toBitPackedVectorView(convertCallsToGs(calls), nSamples, pool).map { bpvv =>
-      BitPackedVector((0 until bpvv.getNPacks).map(bpvv.getPack).toArray, bpvv.getNSamples, bpvv.getMean, bpvv.getCenteredLengthRec)
+
+    var nMissing = 0
+    var gtSum = 0
+    var gtSumSq = 0
+
+    val nPacks = (nSamples - 1) / GENOTYPES_PER_PACK + 1
+    val packs = new LongArrayBuilder(nPacks)
+    var pack = 0L
+    var packOffset = BITS_PER_PACK - 2
+    var i = 0
+    for (call <- calls) {
+      val gt = if (call == null) -1 else Call.nNonRefAlleles(call)
+      pack = pack | ((gt & 3).toLong << packOffset)
+
+      if (packOffset == 0) {
+        packs.add(pack)
+        pack = 0L
+        packOffset = BITS_PER_PACK
+      }
+
+      packOffset -= 2
+
+      gt match {
+        case 1 => gtSum += 1; gtSumSq += 1
+        case 2 => gtSum += 2; gtSumSq += 4
+        case -1 => nMissing += 1
+        case _ =>
+      }
+    }
+
+    if (packs.size < nPacks) {
+      packs.add(pack)
+    }
+
+    val nPresent = nSamples - nMissing
+    val allHomRef = gtSum == 0
+    val allHet = gtSum == nPresent && gtSumSq == nPresent
+    val allHomVar = gtSum == 2 * nPresent
+
+    if (allHomRef || allHet || allHomVar || nMissing == nSamples) {
+      None
+    } else {
+      val gtMean = gtSum.toDouble / nPresent
+      val gtSumAll = gtSum + nMissing * gtMean
+      val gtSumSqAll = gtSumSq + nMissing * gtMean * gtMean
+      val gtCenteredLengthRec = 1d / math.sqrt(gtSumSqAll - (gtSumAll * gtSumAll / nSamples))
+
+      Some(BitPackedVector(locus, alleles, packs.result(), nSamples, gtMean, gtCenteredLengthRec))
     }
   }
 
-  def correlationMatrix(gts: Array[Iterable[Annotation]], nSamples: Int, pool: RegionPool) = {
-    val bvi = gts.map { gs => LocalLDPruneSuite.toBitPackedVectorView(gs, nSamples, pool) }
+  def correlationMatrixGT(gts: Array[Iterable[Annotation]]) = correlationMatrix(gts.map { gts =>
+    gts.map { gt => Genotype.call(gt).map(c => c: BoxedCall).orNull }.toArray
+  })
+
+  def correlationMatrix(gts: Array[Array[BoxedCall]]) = {
+    val bvi = gts.map { gs => LocalLDPruneSuite.fromCalls(gs.toIndexedSeq) }
     val r2 = for (i <- bvi.indices; j <- bvi.indices) yield {
       (bvi(i), bvi(j)) match {
         case (Some(x), Some(y)) =>
@@ -129,11 +101,57 @@ object LocalLDPruneSuite {
   }
 
   def estimateMemoryRequirements(nVariants: Long, nSamples: Int, memoryPerCore: Long): Int = {
-    val bytesPerVariant = math.ceil(8 * nSamples.toDouble / genotypesPerPack).toLong + variantByteOverhead
+    val bytesPerVariant = math.ceil(8 * nSamples.toDouble / GENOTYPES_PER_PACK).toLong + variantByteOverhead
     val memoryAvailPerCore = memoryPerCore * fractionMemoryToUse
 
     val maxQueueSize = math.max(1, math.ceil(memoryAvailPerCore / bytesPerVariant).toInt)
     maxQueueSize
+  }
+
+  def normalizedHardCalls(calls: Array[BoxedCall]): Option[Array[Double]] = {
+    val nSamples = calls.length
+    val vals = Array.ofDim[Double](nSamples)
+    var nMissing = 0
+    var sum = 0
+    var sumSq = 0
+
+    for ((call, i) <- calls.zipWithIndex) {
+      if (call != null) {
+        val gt = Call.unphasedDiploidGtIndex(call)
+        vals(i) = gt
+        (gt: @unchecked) match {
+          case 0 =>
+          case 1 =>
+            sum += 1
+            sumSq += 1
+          case 2 =>
+            sum += 2
+            sumSq += 4
+        }
+      } else {
+        vals(i) = -1
+        nMissing += 1
+      }
+    }
+
+    val nPresent = nSamples - nMissing
+    val nonConstant = !(sum == 0 || sum == 2 * nPresent || sum == nPresent && sumSq == nPresent)
+
+    if (nonConstant) {
+      val mean = sum.toDouble / nPresent
+      val meanSq = (sumSq + nMissing * mean * mean) / nSamples
+      val stdDev = math.sqrt(meanSq - mean * mean)
+
+      val gtDict = Array(0, -mean / stdDev, (1 - mean) / stdDev, (2 - mean) / stdDev)
+      var i = 0
+      while (i < nSamples) {
+        vals(i) = gtDict(vals(i).toInt + 1)
+        i += 1
+      }
+
+      Some(vals)
+    } else
+      None
   }
 }
 
@@ -174,7 +192,7 @@ class LocalLDPruneSuite extends HailSuite {
     val locallyPrunedRDD = getLocallyPrunedRDDWithGT(unprunedMatrixTable, locallyPrunedTable)
     val nSamples = unprunedMatrixTable.nCols
 
-    val r2Matrix = LocalLDPruneSuite.correlationMatrix(locallyPrunedRDD.map { case (locus, alleles, gs) => gs }.collect(), nSamples, pool)
+    val r2Matrix = LocalLDPruneSuite.correlationMatrixGT(locallyPrunedRDD.map { case (locus, alleles, gs) => gs }.collect())
     val variantMap = locallyPrunedRDD.zipWithIndex.map { case ((locus, alleles, gs), i) => (i.toInt, locus) }.collectAsMap()
 
     r2Matrix.indices.forall { case (i, j) =>
@@ -198,11 +216,11 @@ class LocalLDPruneSuite extends HailSuite {
     val locallyUncorrelated = {
       locallyPrunedRDD.mapPartitions(it => {
         // bind function for serialization
-        val computeCorrelationMatrix = (gts: Array[Iterable[Annotation]], nSamps: Int) =>
-          LocalLDPruneSuite.correlationMatrix(gts, nSamps, SparkTaskContext.get().getRegionPool())
+        val computeCorrelationMatrix = (gts: Array[Iterable[Annotation]]) =>
+          LocalLDPruneSuite.correlationMatrixGT(gts)
 
         val (it1, it2) = it.duplicate
-        val localR2Matrix = computeCorrelationMatrix(it1.map { case (locus, alleles, gs) => gs }.toArray, nSamples)
+        val localR2Matrix = computeCorrelationMatrix(it1.map { case (locus, alleles, gs) => gs }.toArray)
         val localVariantMap = it2.zipWithIndex.map { case ((locus, alleles, gs), i) => (i, locus) }.toMap
 
         val uncorrelated = localR2Matrix.indices.forall { case (i, j) =>
@@ -229,8 +247,8 @@ class LocalLDPruneSuite extends HailSuite {
     val calls3 = calls1 ++ Array.ofDim[Int](32 - calls1.length).map(toC2) ++ calls2
 
     for (calls <- Array(calls1, calls2, calls3)) {
-      assert(LocalLDPruneSuite.toBitPackedVector(calls, pool).forall { bpv =>
-        bpv.unpack().map(toC2) sameElements calls
+      assert(LocalLDPruneSuite.fromCalls(calls).forall { bpv =>
+        bpv.unpack().map(toC2(_)) sameElements calls
       })
     }
   }
@@ -250,7 +268,7 @@ class LocalLDPruneSuite extends HailSuite {
       line.trim.split("\t").map(r2 => if (r2 == "NA") None else Some(r2.toDouble))
     }.value).toArray))
 
-    val computedR2 = LocalLDPruneSuite.correlationMatrix(calls.map(LocalLDPruneSuite.convertCallsToGs), 8, pool)
+    val computedR2 = LocalLDPruneSuite.correlationMatrix(calls)
 
     val isSame = actualR2.indices.forall { case (i, j) =>
       val expected = actualR2(i, j)
@@ -272,8 +290,8 @@ class LocalLDPruneSuite extends HailSuite {
     assert(isSame)
 
     val input = Array(0, 1, 2, 2, 2, 0, -1, -1).map(toC2)
-    val bvi1 = LocalLDPruneSuite.toBitPackedVectorView(LocalLDPruneSuite.convertCallsToGs(input), input.length, pool).get
-    val bvi2 = LocalLDPruneSuite.toBitPackedVectorView(LocalLDPruneSuite.convertCallsToGs(input), input.length, pool).get
+    val bvi1 = LocalLDPruneSuite.fromCalls(input).get
+    val bvi2 = LocalLDPruneSuite.fromCalls(input).get
 
     assert(D_==(LocalLDPrune.computeR2(bvi1, bvi2), 1d))
   }
@@ -286,31 +304,21 @@ class LocalLDPruneSuite extends HailSuite {
 
     property("bitPacked pack and unpack give same as orig") =
       forAll(vectorGen) { case (nSamples: Int, v1: Array[BoxedCall], _) =>
-        val bpv = LocalLDPruneSuite.toBitPackedVector(v1, pool)
+        val bpv = LocalLDPruneSuite.fromCalls(v1)
 
         bpv match {
-          case Some(x) => LocalLDPruneSuite.toBitPackedVector(x.unpack().map(toC2), pool).get.gs sameElements x.gs
+          case Some(x) => LocalLDPruneSuite.fromCalls(x.unpack().map(toC2)).get.gs sameElements x.gs
           case None => true
         }
       }
 
     property("R2 bitPacked same as BVector") =
       forAll(vectorGen) { case (nSamples: Int, v1: Array[BoxedCall], v2: Array[BoxedCall]) =>
-        val v1Ann = LocalLDPruneSuite.convertCallsToGs(v1)
-        val v2Ann = LocalLDPruneSuite.convertCallsToGs(v2)
+        val bv1 = LocalLDPruneSuite.fromCalls(v1)
+        val bv2 = LocalLDPruneSuite.fromCalls(v2)
 
-        val bv1 = LocalLDPruneSuite.toBitPackedVectorView(v1Ann, nSamples, pool)
-        val bv2 = LocalLDPruneSuite.toBitPackedVectorView(v2Ann, nSamples, pool)
-
-        val view = HardCallView(PType.canonical(LocalLDPruneSuite.rvRowType).asInstanceOf[PStruct])
-
-        val rv1 = LocalLDPruneSuite.makeRV(v1Ann, pool)
-        view.set(rv1.offset)
-        val sgs1 = TestUtils.normalizedHardCalls(view, nSamples).map(math.sqrt(1d / nSamples) * BVector(_))
-
-        val rv2 = LocalLDPruneSuite.makeRV(v2Ann, pool)
-        view.set(rv2.offset)
-        val sgs2 = TestUtils.normalizedHardCalls(view, nSamples).map(math.sqrt(1d / nSamples) * BVector(_))
+        val sgs1 = LocalLDPruneSuite.normalizedHardCalls(v1).map(math.sqrt(1d / nSamples) * BVector(_))
+        val sgs2 = LocalLDPruneSuite.normalizedHardCalls(v2).map(math.sqrt(1d / nSamples) * BVector(_))
 
         (bv1, bv2, sgs1, sgs2) match {
           case (Some(a), Some(b), Some(c: BVector[Double]), Some(d: BVector[Double])) =>

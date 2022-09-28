@@ -75,12 +75,12 @@ async def test_bad_token():
     token = session_id_encode_to_str(secrets.token_bytes(32))
     bc = await BatchClient.create('test', _token=token)
     try:
-        b = bc.create_batch()
-        j = b.create_job(DOCKER_ROOT_IMAGE, ['false'])
-        await b.submit()
+        bb = bc.create_batch()
+        bb.create_job(DOCKER_ROOT_IMAGE, ['false'])
+        b = await bb.submit()
         assert False, str(await b.debug_info())
     except aiohttp.ClientResponseError as e:
-        assert e.status == 401, str((e, await b.debug_info()))
+        assert e.status == 401
     finally:
         await bc.close()
 
@@ -398,11 +398,11 @@ async def test_billing_limit_zero(
 
     try:
         bb = client.create_batch()
-        batch = await bb.submit()
+        b = await bb.submit()
     except aiohttp.ClientResponseError as e:
-        assert e.status == 403 and 'has exceeded the budget' in e.message, str(await batch.debug_info())
+        assert e.status == 403 and 'has exceeded the budget' in e.message
     else:
-        assert False, str(await batch.debug_info())
+        assert False, str(await b.debug_info())
 
 
 async def test_billing_limit_tiny(
@@ -531,81 +531,81 @@ async def test_batch_cannot_be_accessed_by_users_outside_the_billing_project(
     assert r['billing_project'] == project
 
     user1_client = await make_client(project)
-    b = user1_client.create_batch()
-    j = b.create_job(DOCKER_ROOT_IMAGE, command=['sleep', '30'])
-    b_handle = await b.submit()
+    bb = user1_client.create_batch()
+    j = bb.create_job(DOCKER_ROOT_IMAGE, command=['sleep', '30'])
+    b = await bb.submit()
 
     user2_client = dev_client
-    user2_batch = Batch(user2_client, b_handle.id, b_handle.attributes, b_handle.n_jobs, b_handle.token)
+    user2_batch = Batch(user2_client, b.id, b.attributes, b.n_jobs, b.token)
 
     try:
         try:
-            await user2_client.get_batch(b_handle.id)
+            await user2_client.get_batch(b.id)
         except aiohttp.ClientResponseError as e:
-            assert e.status == 404, str((e, await b_handle.debug_info()))
+            assert e.status == 404, str((e, await b.debug_info()))
         else:
-            assert False, str(await b_handle.debug_info)
+            assert False, str(await b.debug_info())
 
         try:
             await user2_client.get_job(j.batch_id, j.job_id)
         except aiohttp.ClientResponseError as e:
-            assert e.status == 404, str((e, await b_handle.debug_info()))
+            assert e.status == 404, str((e, await b.debug_info()))
         else:
-            assert False, str(await b_handle.debug_info())
+            assert False, str(await b.debug_info())
 
         try:
             await user2_client.get_job_log(j.batch_id, j.job_id)
         except aiohttp.ClientResponseError as e:
-            assert e.status == 404, str((e, await b_handle.debug_info()))
+            assert e.status == 404, str((e, await b.debug_info()))
         else:
-            assert False, str(await b_handle.debug_info())
+            assert False, str(await b.debug_info())
 
         try:
             await user2_client.get_job_attempts(j.batch_id, j.job_id)
         except aiohttp.ClientResponseError as e:
-            assert e.status == 404, str((e, await b_handle.debug_info()))
+            assert e.status == 404, str((e, await b.debug_info()))
         else:
-            assert False, str(await b_handle.debug_info())
+            assert False, str(await b.debug_info())
 
         try:
             await user2_batch.status()
         except aiohttp.ClientResponseError as e:
-            assert e.status == 404, str((e, await b_handle.debug_info()))
+            assert e.status == 404, str((e, await b.debug_info()))
         else:
-            assert False, str(await b_handle.debug_info())
+            assert False, str(await b.debug_info())
 
         try:
             await user2_batch.cancel()
         except aiohttp.ClientResponseError as e:
-            assert e.status == 404, str((e, await b_handle.debug_info()))
+            assert e.status == 404, str((e, await b.debug_info()))
         else:
-            assert False, str(await b_handle.debug_info())
+            assert False, str(await b.debug_info())
 
         try:
             await user2_batch.delete()
         except aiohttp.ClientResponseError as e:
-            assert e.status == 404, str((e, await b_handle.debug_info()))
+            assert e.status == 404, str((e, await b.debug_info()))
         else:
-            assert False, str(await b_handle.debug_info())
+            assert False, str(await b.debug_info())
 
         # list batches results for user2
-        found, batches = await search_batches(user2_client, b_handle.id, q='')
-        assert not found, str((b_handle.id, batches, await b_handle.debug_info()))
+        found, batches = await search_batches(user2_client, b.id, q='')
+        assert not found, str((b.id, batches, await b.debug_info()))
 
-        found, batches = await search_batches(user2_client, b_handle.id, q=f'billing_project:{project}')
-        assert not found, str((b_handle.id, batches, await b_handle.debug_info()))
+        found, batches = await search_batches(user2_client, b.id, q=f'billing_project:{project}')
+        assert not found, str((b.id, batches, await b.debug_info()))
 
-        found, batches = await search_batches(user2_client, b_handle.id, q='user:test')
-        assert not found, str((b_handle.id, batches, await b_handle.debug_info()))
+        found, batches = await search_batches(user2_client, b.id, q='user:test')
+        assert not found, str((b.id, batches, await b.debug_info()))
 
-        found, batches = await search_batches(user2_client, b_handle.id, q=None)
-        assert not found, str((b_handle.id, batches, await b_handle.debug_info()))
+        found, batches = await search_batches(user2_client, b.id, q=None)
+        assert not found, str((b.id, batches, await b.debug_info()))
 
-        found, batches = await search_batches(user2_client, b_handle.id, q='user:test-dev')
-        assert not found, str((b_handle.id, batches, await b_handle.debug_info()))
+        found, batches = await search_batches(user2_client, b.id, q='user:test-dev')
+        assert not found, str((b.id, batches, await b.debug_info()))
 
     finally:
-        await b_handle.delete()
+        await b.delete()
 
 
 async def test_deleted_open_batches_do_not_prevent_billing_project_closure(
@@ -613,8 +613,8 @@ async def test_deleted_open_batches_do_not_prevent_billing_project_closure(
     dev_client: BatchClient,
     random_billing_project_name: Callable[[], str],
 ):
+    project = await dev_client.create_billing_project(random_billing_project_name)
     try:
-        project = await dev_client.create_billing_project(random_billing_project_name)
         await dev_client.add_user('test', project)
         client = await make_client(project)
         open_batch = await client.create_batch()._open_batch()

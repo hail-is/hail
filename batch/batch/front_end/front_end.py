@@ -23,14 +23,13 @@ from aiohttp import web
 from prometheus_async.aio.web import server_stats  # type: ignore
 
 from gear import (
+    AuthClient,
     Database,
+    Transaction,
     check_csrf_token,
     monitor_endpoints_middleware,
-    rest_authenticated_users_only,
     setup_aiohttp_session,
     transaction,
-    web_authenticated_developers_only,
-    web_authenticated_users_only,
 )
 from gear.clients import get_cloud_async_fs
 from gear.database import CallError
@@ -57,7 +56,6 @@ from ..batch_configuration import BATCH_STORAGE_URI, CLOUD, DEFAULT_NAMESPACE, S
 from ..batch_format_version import BatchFormatVersion
 from ..cloud.resource_utils import (
     cores_mcpu_to_memory_bytes,
-    cost_from_msec_mcpu,
     is_valid_cores_mcpu,
     memory_to_worker_type,
     valid_machine_types,
@@ -74,7 +72,7 @@ from ..file_store import FileStore
 from ..globals import BATCH_FORMAT_VERSION, HTTP_CLIENT_MAX_SIZE
 from ..inst_coll_config import InstanceCollectionConfigs
 from ..spec_writer import SpecWriter
-from ..utils import accrued_cost_from_cost_and_msec_mcpu, coalesce, query_billing_projects
+from ..utils import query_billing_projects
 from .validate import ValidationError, validate_and_clean_jobs, validate_batch
 
 # import uvloop
@@ -88,6 +86,8 @@ routes = web.RouteTableDef()
 
 deploy_config = get_deploy_config()
 
+auth = AuthClient()
+
 BATCH_JOB_DEFAULT_CPU = os.environ.get('HAIL_BATCH_JOB_DEFAULT_CPU', '1')
 BATCH_JOB_DEFAULT_MEMORY = os.environ.get('HAIL_BATCH_JOB_DEFAULT_MEMORY', 'standard')
 BATCH_JOB_DEFAULT_STORAGE = os.environ.get('HAIL_BATCH_JOB_DEFAULT_STORAGE', '0Gi')
@@ -95,7 +95,7 @@ BATCH_JOB_DEFAULT_PREEMPTIBLE = True
 
 
 def rest_authenticated_developers_or_auth_only(fun):
-    @rest_authenticated_users_only
+    @auth.rest_authenticated_users_only
     @wraps(fun)
     async def wrapped(request, userdata, *args, **kwargs):
         if userdata['is_developer'] == 1 or userdata['username'] == 'auth':
@@ -138,7 +138,7 @@ WHERE id = %s AND billing_project_users.`user` = %s;
 
 
 def rest_billing_project_users_only(fun):
-    @rest_authenticated_users_only
+    @auth.rest_authenticated_users_only
     @wraps(fun)
     async def wrapped(request, userdata, *args, **kwargs):
         db = request.app['db']
@@ -154,7 +154,7 @@ def rest_billing_project_users_only(fun):
 
 def web_billing_project_users_only(redirect=True):
     def wrap(fun):
-        @web_authenticated_users_only(redirect)
+        @auth.web_authenticated_users_only(redirect)
         @wraps(fun)
         async def wrapped(request, userdata, *args, **kwargs):
             db = request.app['db']
@@ -362,23 +362,29 @@ async def _query_batch_jobs(request, batch_id):
         where_args.extend(args)
 
     sql = f'''
-SELECT jobs.*, batches.user, batches.billing_project,  batches.format_version,
-  job_attributes.value AS name, COALESCE(SUM(`usage` * rate), 0) AS cost
-FROM jobs
-INNER JOIN batches ON jobs.batch_id = batches.id
-LEFT JOIN job_attributes
+WITH base_t AS
+(
+  SELECT jobs.*, batches.user, batches.billing_project, batches.format_version,
+    job_attributes.value AS name
+  FROM jobs
+  INNER JOIN batches ON jobs.batch_id = batches.id
+  LEFT JOIN job_attributes
   ON jobs.batch_id = job_attributes.batch_id AND
-     jobs.job_id = job_attributes.job_id AND
-     job_attributes.`key` = 'name'
-LEFT JOIN aggregated_job_resources
-  ON jobs.batch_id = aggregated_job_resources.batch_id AND
-     jobs.job_id = aggregated_job_resources.job_id
-LEFT JOIN resources
-  ON aggregated_job_resources.resource = resources.resource
-WHERE {' AND '.join(where_conditions)}
-GROUP BY jobs.batch_id, jobs.job_id
-ORDER BY jobs.batch_id, jobs.job_id ASC
-LIMIT 50;
+    jobs.job_id = job_attributes.job_id AND
+    job_attributes.`key` = 'name'
+  WHERE {' AND '.join(where_conditions)}
+  LIMIT 50
+)
+SELECT base_t.*, COALESCE(SUM(`usage` * rate), 0) AS cost
+FROM base_t
+LEFT JOIN (
+  SELECT aggregated_job_resources_v2.batch_id, aggregated_job_resources_v2.job_id, resource_id, CAST(COALESCE(SUM(`usage`), 0) AS SIGNED) AS `usage`
+  FROM base_t
+  LEFT JOIN aggregated_job_resources_v2 ON base_t.batch_id = aggregated_job_resources_v2.batch_id AND base_t.job_id = aggregated_job_resources_v2.job_id
+  GROUP BY aggregated_job_resources_v2.batch_id, aggregated_job_resources_v2.job_id, aggregated_job_resources_v2.resource_id
+) AS usage_t ON base_t.batch_id = usage_t.batch_id AND base_t.job_id = usage_t.job_id
+LEFT JOIN resources ON usage_t.resource_id = resources.resource_id
+GROUP BY base_t.batch_id, base_t.job_id;
 '''
     sql_args = where_args
 
@@ -642,7 +648,7 @@ async def _query_batches(request, user, q):
     db = request.app['db']
 
     where_conditions = [
-        'EXISTS (SELECT * FROM billing_project_users WHERE billing_project_users.`user` = %s AND billing_project_users.billing_project = batches.billing_project)',
+        '(billing_project_users.`user` = %s AND billing_project_users.billing_project = batches.billing_project)',
         'NOT deleted',
     ]
     where_args = [user]
@@ -723,20 +729,34 @@ async def _query_batches(request, user, q):
         where_args.extend(args)
 
     sql = f'''
-SELECT batches.*, batches_cancelled.id IS NOT NULL AS cancelled, COALESCE(SUM(`usage` * rate), 0) AS cost, batches_n_jobs_in_complete_states.n_completed, batches_n_jobs_in_complete_states.n_succeeded, batches_n_jobs_in_complete_states.n_failed, batches_n_jobs_in_complete_states.n_cancelled
-FROM batches USE INDEX (batches_deleted)
-LEFT JOIN batches_n_jobs_in_complete_states
-  ON batches.id = batches_n_jobs_in_complete_states.id
-LEFT JOIN batches_cancelled
-  ON batches.id = batches_cancelled.id
-LEFT JOIN aggregated_batch_resources
-  ON batches.id = aggregated_batch_resources.batch_id
-LEFT JOIN resources
-  ON aggregated_batch_resources.resource = resources.resource
-WHERE {' AND '.join(where_conditions)}
-GROUP BY batches.id
-ORDER BY batches.id DESC
-LIMIT 51;
+WITH base_t AS (
+  SELECT batches.*,
+    batches_cancelled.id IS NOT NULL AS cancelled,
+    batches_n_jobs_in_complete_states.n_completed,
+    batches_n_jobs_in_complete_states.n_succeeded,
+    batches_n_jobs_in_complete_states.n_failed,
+    batches_n_jobs_in_complete_states.n_cancelled
+  FROM batches
+  LEFT JOIN batches_n_jobs_in_complete_states
+    ON batches.id = batches_n_jobs_in_complete_states.id
+  LEFT JOIN batches_cancelled
+    ON batches.id = batches_cancelled.id
+  STRAIGHT_JOIN billing_project_users ON batches.billing_project = billing_project_users.billing_project
+  WHERE {' AND '.join(where_conditions)}
+  ORDER BY id DESC
+  LIMIT 51
+)
+SELECT base_t.*, COALESCE(SUM(`usage` * rate), 0) AS cost
+FROM base_t
+LEFT JOIN (
+  SELECT batch_id, resource_id, CAST(COALESCE(SUM(`usage`), 0) AS SIGNED) AS `usage`
+  FROM base_t
+  LEFT JOIN aggregated_batch_resources_v2 ON base_t.id = aggregated_batch_resources_v2.batch_id
+  GROUP BY batch_id, resource_id
+) AS usage_t ON base_t.id = usage_t.batch_id
+LEFT JOIN resources ON usage_t.resource_id = resources.resource_id
+GROUP BY id
+ORDER BY id DESC;
 '''
     sql_args = where_args
 
@@ -754,7 +774,7 @@ LIMIT 51;
 
 
 @routes.get('/api/v1alpha/batches')
-@rest_authenticated_users_only
+@auth.rest_authenticated_users_only
 async def get_batches(request, userdata):  # pylint: disable=unused-argument
     user = userdata['username']
     q = request.query.get('q', f'user:{user}')
@@ -778,7 +798,7 @@ def check_service_account_permissions(user, sa):
 
 
 @routes.post('/api/v1alpha/batches/{batch_id}/jobs/create')
-@rest_authenticated_users_only
+@auth.rest_authenticated_users_only
 async def create_jobs(request: aiohttp.web.Request, userdata: dict):
     app = request.app
 
@@ -788,7 +808,7 @@ async def create_jobs(request: aiohttp.web.Request, userdata: dict):
 
     batch_id = int(request.match_info['batch_id'])
     job_specs = await request.json()
-    return await _create_jobs(userdata, job_specs, batch_id, app)
+    return await _create_jobs(userdata, job_specs, batch_id, 1, app)
 
 
 NON_HEX_DIGIT = re.compile('[^A-Fa-f0-9]')
@@ -799,7 +819,7 @@ def assert_is_sha_1_hex_string(revision: str):
         raise web.HTTPBadRequest(reason=f'revision must be 40 character hexadecimal encoded SHA-1, got: {revision}')
 
 
-async def _create_jobs(userdata: dict, job_specs: dict, batch_id: int, app: aiohttp.web.Application):
+async def _create_jobs(userdata: dict, job_specs: dict, batch_id: int, update_id: int, app: aiohttp.web.Application):
     db: Database = app['db']
     file_store: FileStore = app['file_store']
     user = userdata['username']
@@ -1079,6 +1099,7 @@ WHERE user = %s AND id = %s AND NOT deleted;
             (
                 batch_id,
                 job_id,
+                update_id,
                 state,
                 json.dumps(db_spec),
                 always_run,
@@ -1106,8 +1127,8 @@ WHERE user = %s AND id = %s AND NOT deleted;
             try:
                 await tx.execute_many(
                     '''
-INSERT INTO jobs (batch_id, job_id, state, spec, always_run, cores_mcpu, n_pending_parents, inst_coll)
-VALUES (%s, %s, %s, %s, %s, %s, %s, %s);
+INSERT INTO jobs (batch_id, job_id, update_id, state, spec, always_run, cores_mcpu, n_pending_parents, inst_coll)
+VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s);
 ''',
                     jobs_args,
                 )
@@ -1141,6 +1162,7 @@ VALUES (%s, %s, %s, %s);
             batches_inst_coll_staging_args = [
                 (
                     batch_id,
+                    update_id,
                     inst_coll,
                     rand_token,
                     resources['n_jobs'],
@@ -1151,8 +1173,8 @@ VALUES (%s, %s, %s, %s);
             ]
             await tx.execute_many(
                 '''
-INSERT INTO batches_inst_coll_staging (batch_id, inst_coll, token, n_jobs, n_ready_jobs, ready_cores_mcpu)
-VALUES (%s, %s, %s, %s, %s, %s)
+INSERT INTO batches_inst_coll_staging (batch_id, update_id, inst_coll, token, n_jobs, n_ready_jobs, ready_cores_mcpu)
+VALUES (%s, %s, %s, %s, %s, %s, %s)
 ON DUPLICATE KEY UPDATE
   n_jobs = n_jobs + VALUES(n_jobs),
   n_ready_jobs = n_ready_jobs + VALUES(n_ready_jobs),
@@ -1164,6 +1186,7 @@ ON DUPLICATE KEY UPDATE
             batch_inst_coll_cancellable_resources_args = [
                 (
                     batch_id,
+                    update_id,
                     inst_coll,
                     rand_token,
                     resources['n_ready_cancellable_jobs'],
@@ -1173,8 +1196,8 @@ ON DUPLICATE KEY UPDATE
             ]
             await tx.execute_many(
                 '''
-INSERT INTO batch_inst_coll_cancellable_resources (batch_id, inst_coll, token, n_ready_cancellable_jobs, ready_cancellable_cores_mcpu)
-VALUES (%s, %s, %s, %s, %s)
+INSERT INTO batch_inst_coll_cancellable_resources (batch_id, update_id, inst_coll, token, n_ready_cancellable_jobs, ready_cancellable_cores_mcpu)
+VALUES (%s, %s, %s, %s, %s, %s)
 ON DUPLICATE KEY UPDATE
   n_ready_cancellable_jobs = n_ready_cancellable_jobs + VALUES(n_ready_cancellable_jobs),
   ready_cancellable_cores_mcpu = ready_cancellable_cores_mcpu + VALUES(ready_cancellable_cores_mcpu);
@@ -1213,7 +1236,7 @@ VALUES (%s, %s, %s);
 
 
 @routes.post('/api/v1alpha/batches/create-fast')
-@rest_authenticated_users_only
+@auth.rest_authenticated_users_only
 async def create_batch_fast(request, userdata):
     app = request.app
     db: Database = app['db']
@@ -1227,18 +1250,20 @@ async def create_batch_fast(request, userdata):
     batch_spec = batch_and_bunch['batch']
     bunch = batch_and_bunch['bunch']
     batch_id = await _create_batch(batch_spec, userdata, db)
+    update_id = await _create_batch_update(batch_id, batch_spec['token'], batch_spec['n_jobs'], db)
     try:
-        await _create_jobs(userdata, bunch, batch_id, app)
+        await _create_jobs(userdata, bunch, batch_id, update_id, app)
     except web.HTTPBadRequest as e:
         if f'batch {batch_id} is not open' == e.reason:
             return web.json_response({'id': batch_id})
         raise
+    await _commit_update(batch_id, update_id, db)
     await _close_batch(app, batch_id, user, db)
     return web.json_response({'id': batch_id})
 
 
 @routes.post('/api/v1alpha/batches/create')
-@rest_authenticated_users_only
+@auth.rest_authenticated_users_only
 async def create_batch(request, userdata):
     app = request.app
     db: Database = app['db']
@@ -1249,7 +1274,12 @@ async def create_batch(request, userdata):
 
     batch_spec = await request.json()
     id = await _create_batch(batch_spec, userdata, db)
-    return web.json_response({'id': id})
+    n_jobs = batch_spec['n_jobs']
+    if n_jobs > 0:
+        update_id = await _create_batch_update(id, batch_spec['token'], batch_spec['n_jobs'], db)
+    else:
+        update_id = None
+    return web.json_response({'id': id, 'update_id': update_id})
 
 
 async def _create_batch(batch_spec: dict, userdata: dict, db: Database):
@@ -1293,18 +1323,19 @@ LOCK IN SHARE MODE''',
 
         bp_cost_record = await tx.execute_and_fetchone(
             '''
-SELECT billing_projects.msec_mcpu, COALESCE(SUM(`usage` * rate), 0) AS cost
-FROM billing_projects
-INNER JOIN aggregated_billing_project_resources
-  ON billing_projects.name = aggregated_billing_project_resources.billing_project
-INNER JOIN resources
-  ON resources.resource = aggregated_billing_project_resources.resource
-WHERE billing_projects.name = %s
+SELECT COALESCE(SUM(t.`usage` * rate), 0) AS cost
+FROM (
+  SELECT resource_id, CAST(COALESCE(SUM(`usage`), 0) AS SIGNED) AS `usage`
+  FROM aggregated_billing_project_user_resources_v2
+  WHERE billing_project = %s
+  GROUP BY resource_id
+) AS t
+LEFT JOIN resources on resources.resource_id = t.resource_id;
 ''',
             (billing_project,),
         )
         limit = bp['limit']
-        accrued_cost = accrued_cost_from_cost_and_msec_mcpu(bp_cost_record)
+        accrued_cost = bp_cost_record['cost']
         if limit is not None and accrued_cost >= limit:
             raise web.HTTPForbidden(
                 reason=f'billing project {billing_project} has exceeded the budget; accrued={cost_str(accrued_cost)} limit={cost_str(limit)}'
@@ -1361,25 +1392,67 @@ VALUES (%s, %s, %s)
     return await insert()  # pylint: disable=no-value-for-parameter
 
 
+async def _create_batch_update(batch_id: int, update_token: str, n_jobs: int, db: Database) -> int:
+    @transaction(db)
+    async def update(tx: Transaction):
+        assert n_jobs > 0
+        record = await tx.execute_and_fetchone(
+            '''
+SELECT update_id, start_job_id FROM batch_updates
+WHERE batch_id = %s AND token = %s;
+''',
+            (batch_id, update_token),
+        )
+
+        if record:
+            return record['update_id']
+
+        now = time_msecs()
+        await tx.execute_insertone(
+            '''
+INSERT INTO batch_updates
+(batch_id, update_id, token, start_job_id, n_jobs, committed, time_created)
+VALUES (%s, %s, %s, %s, %s, %s, %s);
+''',
+            (batch_id, 1, update_token, 1, n_jobs, False, now),
+        )
+
+        return 1
+
+    return await update()  # pylint: disable=no-value-for-parameter
+
+
 async def _get_batch(app, batch_id):
     db: Database = app['db']
 
     record = await db.select_and_fetchone(
         '''
-SELECT batches.*, batches_cancelled.id IS NOT NULL AS cancelled, COALESCE(SUM(`usage` * rate), 0) AS cost, batches_n_jobs_in_complete_states.n_completed, batches_n_jobs_in_complete_states.n_succeeded, batches_n_jobs_in_complete_states.n_failed, batches_n_jobs_in_complete_states.n_cancelled
+WITH base_t AS (
+SELECT batches.*,
+  batches_cancelled.id IS NOT NULL AS cancelled,
+  batches_n_jobs_in_complete_states.n_completed,
+  batches_n_jobs_in_complete_states.n_succeeded,
+  batches_n_jobs_in_complete_states.n_failed,
+  batches_n_jobs_in_complete_states.n_cancelled
 FROM batches
 LEFT JOIN batches_n_jobs_in_complete_states
        ON batches.id = batches_n_jobs_in_complete_states.id
 LEFT JOIN batches_cancelled
        ON batches.id = batches_cancelled.id
-LEFT JOIN aggregated_batch_resources
-       ON batches.id = aggregated_batch_resources.batch_id
-LEFT JOIN resources
-       ON aggregated_batch_resources.resource = resources.resource
 WHERE batches.id = %s AND NOT deleted
-GROUP BY batches.id, batches_cancelled.id;
+)
+SELECT base_t.*, COALESCE(SUM(`usage` * rate), 0) AS cost
+FROM base_t
+LEFT JOIN (
+  SELECT aggregated_batch_resources_v2.batch_id, resource_id, CAST(COALESCE(SUM(`usage`), 0) AS SIGNED) AS `usage`
+  FROM base_t
+  LEFT JOIN aggregated_batch_resources_v2 ON base_t.id = aggregated_batch_resources_v2.batch_id
+  GROUP BY aggregated_batch_resources_v2.batch_id, aggregated_batch_resources_v2.resource_id
+) AS usage_t ON base_t.id = usage_t.batch_id
+LEFT JOIN resources ON usage_t.resource_id = resources.resource_id
+GROUP BY base_t.id;
 ''',
-        (batch_id),
+        (batch_id,),
     )
     if not record:
         raise web.HTTPNotFound()
@@ -1427,7 +1500,7 @@ async def cancel_batch(request, userdata, batch_id):  # pylint: disable=unused-a
 
 
 @routes.patch('/api/v1alpha/batches/{batch_id}/close')
-@rest_authenticated_users_only
+@auth.rest_authenticated_users_only
 async def close_batch(request, userdata):
     batch_id = int(request.match_info['batch_id'])
     user = userdata['username']
@@ -1449,7 +1522,27 @@ WHERE user = %s AND id = %s AND NOT deleted;
     if not record:
         raise web.HTTPNotFound()
 
+    record = await db.select_and_fetchone(
+        '''
+SELECT 1 FROM batch_updates
+WHERE batch_id = %s AND update_id = 1;
+''',
+        (batch_id,),
+    )
+    if record:
+        await _commit_update(batch_id, 1, db)
     return await _close_batch(app, batch_id, user, db)
+
+
+async def _commit_update(batch_id: int, update_id: int, db: Database):
+    await db.execute_and_fetchone(
+        '''
+UPDATE batch_updates
+SET `committed` = TRUE
+WHERE batch_id = %s AND update_id = %s
+''',
+        (batch_id, update_id),
+    )
 
 
 async def _close_batch(app: aiohttp.web.Application, batch_id: int, user: str, db: Database):
@@ -1537,7 +1630,7 @@ async def ui_delete_batch(request, userdata, batch_id):  # pylint: disable=unuse
 
 
 @routes.get('/batches', name='batches')
-@web_authenticated_users_only()
+@auth.web_authenticated_users_only()
 @catch_ui_error_in_dev
 async def ui_batches(request, userdata):
     user = userdata['username']
@@ -1554,8 +1647,8 @@ async def _get_job(app, batch_id, job_id):
 
     record = await db.select_and_fetchone(
         '''
-SELECT jobs.*, user, billing_project, ip_address, format_version, COALESCE(SUM(`usage` * rate), 0) AS cost,
-  t.attempt_id AS last_cancelled_attempt_id
+WITH base_t AS (
+SELECT jobs.*, user, billing_project, ip_address, format_version, t.attempt_id AS last_cancelled_attempt_id
 FROM jobs
 INNER JOIN batches
   ON jobs.batch_id = batches.id
@@ -1563,21 +1656,30 @@ LEFT JOIN attempts
   ON jobs.batch_id = attempts.batch_id AND jobs.job_id = attempts.job_id AND jobs.attempt_id = attempts.attempt_id
 LEFT JOIN instances
   ON attempts.instance_name = instances.name
-LEFT JOIN aggregated_job_resources
-  ON jobs.batch_id = aggregated_job_resources.batch_id AND
-     jobs.job_id = aggregated_job_resources.job_id
-LEFT JOIN resources
-  ON aggregated_job_resources.resource = resources.resource
 LEFT JOIN (
   SELECT batch_id, job_id, attempt_id
   FROM attempts
   WHERE reason = "cancelled" AND batch_id = %s AND job_id = %s
   ORDER BY end_time DESC
   LIMIT 1
-) AS t
-  ON jobs.batch_id = t.batch_id AND jobs.job_id = t.job_id
+) AS t ON jobs.batch_id = t.batch_id AND jobs.job_id = t.job_id
 WHERE jobs.batch_id = %s AND NOT deleted AND jobs.job_id = %s
-GROUP BY jobs.batch_id, jobs.job_id, t.attempt_id;
+)
+SELECT base_t.*, COALESCE(SUM(`usage` * rate), 0) AS cost
+FROM base_t
+LEFT JOIN (
+  SELECT aggregated_job_resources_v2.batch_id,
+    aggregated_job_resources_v2.job_id,
+    aggregated_job_resources_v2.resource_id,
+    CAST(COALESCE(SUM(`usage`), 0) AS SIGNED) AS `usage`
+  FROM base_t
+  LEFT JOIN aggregated_job_resources_v2
+    ON aggregated_job_resources_v2.batch_id = base_t.batch_id AND
+       aggregated_job_resources_v2.job_id = base_t.job_id
+  GROUP BY aggregated_job_resources_v2.batch_id, aggregated_job_resources_v2.job_id, aggregated_job_resources_v2.resource_id
+) AS usage_t ON usage_t.batch_id = base_t.batch_id AND usage_t.job_id = base_t.job_id
+LEFT JOIN resources ON usage_t.resource_id = resources.resource_id
+GROUP BY base_t.batch_id, base_t.job_id, base_t.last_cancelled_attempt_id;
 ''',
         (batch_id, job_id, batch_id, job_id),
     )
@@ -1798,7 +1900,7 @@ async def ui_get_job_log(request, userdata, batch_id):  # pylint: disable=unused
 
 
 @routes.get('/billing_limits')
-@web_authenticated_users_only()
+@auth.web_authenticated_users_only()
 @catch_ui_error_in_dev
 async def ui_get_billing_limits(request, userdata):
     app = request.app
@@ -1872,7 +1974,7 @@ async def post_edit_billing_limits(request, userdata):  # pylint: disable=unused
 
 @routes.post('/billing_limits/{billing_project}/edit')
 @check_csrf_token
-@web_authenticated_developers_only(redirect=False)
+@auth.web_authenticated_developers_only(redirect=False)
 @catch_ui_error_in_dev
 async def post_edit_billing_limits_ui(request, userdata):  # pylint: disable=unused-argument
     db: Database = request.app['db']
@@ -1904,7 +2006,6 @@ async def _query_billing(request, user=None):
     start_query = request.query.get('start', default_start)
     try:
         start = datetime.datetime.strptime(start_query, date_format)
-        start = start.timestamp() * 1000
     except ValueError:
         return await parse_error(f"Invalid value for start '{start_query}'; must be in the format of MM/DD/YYYY.")
 
@@ -1912,7 +2013,6 @@ async def _query_billing(request, user=None):
     try:
         if end_query is not None and end_query != '':
             end = datetime.datetime.strptime(end_query, date_format)
-            end = (end + datetime.timedelta(days=1)).timestamp() * 1000
         else:
             end = None
     except ValueError:
@@ -1921,21 +2021,15 @@ async def _query_billing(request, user=None):
     if end is not None and start > end:
         return await parse_error('Invalid search; start must be earlier than end.')
 
-    where_conditions = ["billing_projects.`status` != 'deleted'"]
-    where_args = []
+    where_conditions = [
+        "billing_projects.`status` != 'deleted'",
+        "billing_date >= %s",
+    ]
+    where_args = [start]
 
     if end is not None:
-        where_conditions.append("`time_completed` IS NOT NULL")
-        where_conditions.append("`time_completed` >= %s")
-        where_args.append(start)
-        where_conditions.append("`time_completed` <= %s")
+        where_conditions.append("billing_date <= %s")
         where_args.append(end)
-    else:
-        where_conditions.append(
-            "((`time_completed` IS NOT NULL AND `time_completed` >= %s) OR "
-            "(`time_closed` IS NOT NULL AND `time_completed` IS NULL))"
-        )
-        where_args.append(start)
 
     if user is not None:
         where_conditions.append("`user` = %s")
@@ -1945,35 +2039,27 @@ async def _query_billing(request, user=None):
 SELECT
   billing_project,
   `user`,
-  CAST(SUM(IF(format_version < 3, batches.msec_mcpu, 0)) AS SIGNED) as msec_mcpu,
-  SUM(IF(format_version >= 3, `usage` * rate, NULL)) as cost
-FROM batches
-LEFT JOIN aggregated_batch_resources
-  ON aggregated_batch_resources.batch_id = batches.id
-LEFT JOIN resources
-  ON resources.resource = aggregated_batch_resources.resource
-LEFT JOIN billing_projects
-  ON billing_projects.name = batches.billing_project
-WHERE {' AND '.join(where_conditions)}
+  COALESCE(SUM(`usage` * rate), 0) AS cost
+FROM (
+  SELECT billing_project, `user`, resource_id, CAST(COALESCE(SUM(`usage`), 0) AS SIGNED) AS `usage`
+  FROM aggregated_billing_project_user_resources_by_date_v2
+  LEFT JOIN billing_projects ON billing_projects.name = aggregated_billing_project_user_resources_by_date_v2.billing_project
+  WHERE {' AND '.join(where_conditions)}
+  GROUP BY billing_project, `user`, resource_id
+) AS t
+LEFT JOIN resources ON resources.resource_id = t.resource_id
 GROUP BY billing_project, `user`;
 '''
 
     sql_args = where_args
 
-    def billing_record_to_dict(record):
-        cost_msec_mcpu = cost_from_msec_mcpu(record['msec_mcpu'])
-        cost_resources = record['cost']
-        record['cost'] = coalesce(cost_msec_mcpu, 0) + coalesce(cost_resources, 0)
-        del record['msec_mcpu']
-        return record
-
-    billing = [billing_record_to_dict(record) async for record in db.select_and_fetchall(sql, sql_args)]
+    billing = [record async for record in db.select_and_fetchall(sql, sql_args)]
 
     return (billing, start_query, end_query)
 
 
 @routes.get('/billing')
-@web_authenticated_users_only()
+@auth.web_authenticated_users_only()
 @catch_ui_error_in_dev
 async def ui_get_billing(request, userdata):
     is_developer = userdata['is_developer'] == 1
@@ -2017,7 +2103,7 @@ async def ui_get_billing(request, userdata):
 
 
 @routes.get('/billing_projects')
-@web_authenticated_developers_only()
+@auth.web_authenticated_developers_only()
 @catch_ui_error_in_dev
 async def ui_get_billing_projects(request, userdata):
     db: Database = request.app['db']
@@ -2030,7 +2116,7 @@ async def ui_get_billing_projects(request, userdata):
 
 
 @routes.get('/api/v1alpha/billing_projects')
-@rest_authenticated_users_only
+@auth.rest_authenticated_users_only
 async def get_billing_projects(request, userdata):
     db: Database = request.app['db']
 
@@ -2045,7 +2131,7 @@ async def get_billing_projects(request, userdata):
 
 
 @routes.get('/api/v1alpha/billing_projects/{billing_project}')
-@rest_authenticated_users_only
+@auth.rest_authenticated_users_only
 async def get_billing_project(request, userdata):
     db: Database = request.app['db']
     billing_project = request.match_info['billing_project']
@@ -2106,7 +2192,7 @@ WHERE billing_project = %s AND user = %s;
 
 @routes.post('/billing_projects/{billing_project}/users/{user}/remove')
 @check_csrf_token
-@web_authenticated_developers_only(redirect=False)
+@auth.web_authenticated_developers_only(redirect=False)
 @catch_ui_error_in_dev
 async def post_billing_projects_remove_user(request, userdata):  # pylint: disable=unused-argument
     db: Database = request.app['db']
@@ -2169,7 +2255,7 @@ VALUES (%s, %s);
 
 @routes.post('/billing_projects/{billing_project}/users/add')
 @check_csrf_token
-@web_authenticated_developers_only(redirect=False)
+@auth.web_authenticated_developers_only(redirect=False)
 @catch_ui_error_in_dev
 async def post_billing_projects_add_user(request, userdata):  # pylint: disable=unused-argument
     db: Database = request.app['db']
@@ -2223,7 +2309,7 @@ VALUES (%s);
 
 @routes.post('/billing_projects/create')
 @check_csrf_token
-@web_authenticated_developers_only(redirect=False)
+@auth.web_authenticated_developers_only(redirect=False)
 @catch_ui_error_in_dev
 async def post_create_billing_projects(request, userdata):  # pylint: disable=unused-argument
     db: Database = request.app['db']
@@ -2282,7 +2368,7 @@ FOR UPDATE;
 
 @routes.post('/billing_projects/{billing_project}/close')
 @check_csrf_token
-@web_authenticated_developers_only(redirect=False)
+@auth.web_authenticated_developers_only(redirect=False)
 @catch_ui_error_in_dev
 async def post_close_billing_projects(request, userdata):  # pylint: disable=unused-argument
     db: Database = request.app['db']
@@ -2326,7 +2412,7 @@ async def _reopen_billing_project(db, billing_project):
 
 @routes.post('/billing_projects/{billing_project}/reopen')
 @check_csrf_token
-@web_authenticated_developers_only(redirect=False)
+@auth.web_authenticated_developers_only(redirect=False)
 @catch_ui_error_in_dev
 async def post_reopen_billing_projects(request, userdata):  # pylint: disable=unused-argument
     db: Database = request.app['db']
@@ -2391,7 +2477,7 @@ SELECT frozen FROM globals;
 
 @routes.get('')
 @routes.get('/')
-@web_authenticated_users_only()
+@auth.web_authenticated_users_only()
 @catch_ui_error_in_dev
 async def index(request, userdata):  # pylint: disable=unused-argument
     location = request.app.router['batches'].url_for()

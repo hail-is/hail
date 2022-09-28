@@ -22,7 +22,7 @@ from benchmark.utils import (
 from scipy.stats.mstats import gmean, hmean
 
 import hailtop.batch_client.aioclient as bc
-from gear import setup_aiohttp_session, web_authenticated_developers_only
+from gear import AuthClient, setup_aiohttp_session
 from hailtop import aiotools, httpx
 from hailtop.aiocloud import aiogoogle
 from hailtop.config import get_deploy_config
@@ -38,6 +38,8 @@ router = web.RouteTableDef()
 logging.basicConfig(level=logging.DEBUG)
 deploy_config = get_deploy_config()
 log = logging.getLogger('benchmark')
+
+auth = AuthClient()
 
 BENCHMARK_FILE_REGEX = re.compile(
     r'gs://((?P<bucket>[^/]+)/)((?P<user>[^/]+)/)((?P<instanceId>[^/]*)/)((?P<version>[^-]+)-)((?P<sha>[^-]+))(-(?P<tag>[^\.]+))?\.json'
@@ -165,7 +167,7 @@ async def healthcheck(request: web.Request) -> web.Response:  # pylint: disable=
 
 
 @router.get('/name/{name}')
-@web_authenticated_developers_only(redirect=False)
+@auth.web_authenticated_developers_only(redirect=False)
 async def show_name(request: web.Request, userdata) -> web.Response:  # pylint: disable=unused-argument
     file_path = request.query.get('file')
     benchmarks = await get_benchmarks(request.app, file_path)
@@ -210,7 +212,7 @@ async def index(request):
 
 
 @router.get('/lookup')
-@web_authenticated_developers_only(redirect=False)
+@auth.web_authenticated_developers_only(redirect=False)
 async def lookup(request, userdata):  # pylint: disable=unused-argument
     app = request.app
     file = request.query.get('file')
@@ -227,7 +229,7 @@ async def lookup(request, userdata):  # pylint: disable=unused-argument
 
 
 @router.get('/compare')
-@web_authenticated_developers_only(redirect=False)
+@auth.web_authenticated_developers_only(redirect=False)
 async def compare(request, userdata):  # pylint: disable=unused-argument
     app = request.app
     file1 = request.query.get('file1')
@@ -254,7 +256,7 @@ async def compare(request, userdata):  # pylint: disable=unused-argument
 
 
 @router.get('/batches/{batch_id}')
-@web_authenticated_developers_only()
+@auth.web_authenticated_developers_only()
 async def get_batch(request, userdata):
     batch_id = int(request.match_info['batch_id'])
     batch_client = request.app['batch_client']
@@ -268,7 +270,7 @@ async def get_batch(request, userdata):
 
 
 @router.get('/batches/{batch_id}/jobs/{job_id}')
-@web_authenticated_developers_only()
+@auth.web_authenticated_developers_only()
 async def get_job(request, userdata):
     batch_id = int(request.match_info['batch_id'])
     job_id = int(request.match_info['job_id'])

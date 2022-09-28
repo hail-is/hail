@@ -1104,8 +1104,18 @@ class Emit[C](
       case x@LowerBoundOnOrderedCollection(orderedCollection, elem, onKey) =>
         emitI(orderedCollection).map(cb) { a =>
           val e = EmitCode.fromI(cb.emb)(cb => this.emitI(elem, cb, region, env, container, loopEnv))
-          val bs = new BinarySearch[C](mb, a.st.asInstanceOf[SContainer], e.emitType, keyOnly = onKey)
-          primitive(bs.lowerBound(cb, a, e))
+          val bs = new BinarySearch[C](mb, a.st.asInstanceOf[SContainer], e.emitType, { (cb, elt) =>
+
+            if (onKey) {
+              cb.memoize(elt.toI(cb).flatMap(cb) {
+                case x: SBaseStructValue =>
+                  x.loadField(cb, 0)
+                case x: SIntervalValue =>
+                  x.loadStart(cb)
+              })
+            } else elt
+          })
+          primitive(bs.search(cb, a, e))
         }
 
       case x@ArraySort(a, left, right, lessThan) =>
@@ -1299,8 +1309,18 @@ class Emit[C](
       case RNGSplit(state, dynBitstring) =>
         // FIXME: When new rng support is complete, don't allow missing states
         emitI(state).flatMap(cb) { stateValue =>
-          emitI(dynBitstring).map(cb) { tuple =>
-            val longs = tuple.valueTuple.asInstanceOf[IndexedSeq[Value[Long]]]
+          emitI(dynBitstring).map(cb) { tupleOrLong =>
+            val longs = if (tupleOrLong.isInstanceOf[SInt64Value]) {
+              Array(tupleOrLong.asInt64.value)
+            } else {
+              val tuple = tupleOrLong.asBaseStruct
+              Array.tabulate(tuple.st.size) { i =>
+                tuple.loadField(cb, i)
+                  .get(cb, "RNGSplit tuple components are required")
+                  .asInt64
+                  .value
+              }
+            }
             var result = stateValue.asRNGState
             longs.foreach(l => result = result.splitDyn(cb, l))
             result
@@ -2313,7 +2333,7 @@ class Emit[C](
         val rt = loopRef.resultType
         IEmitCode(CodeLabel(), CodeLabel(), rt.st.defaultValue, rt.required)
 
-      case x@CollectDistributedArray(contexts, globals, cname, gname, body, tsd) =>
+      case x@CollectDistributedArray(contexts, globals, cname, gname, body, dynamicID, staticID, tsd) =>
         val parentCB = mb.ecb
         emitStream(contexts, cb, region).map(cb) { case ctxStream: SStreamValue =>
 
@@ -2332,7 +2352,7 @@ class Emit[C](
           val globalSpec: TypedCodecSpec = TypedCodecSpec(globalPTuple, bufferSpec)
 
           // emit body in new FB
-          val bodyFB = EmitFunctionBuilder[Region, Array[Byte], Array[Byte], Array[Byte]](ctx.executeContext, "collect_distributed_array")
+          val bodyFB = EmitFunctionBuilder[Region, Array[Byte], Array[Byte], Array[Byte]](ctx.executeContext, s"collect_distributed_array_$staticID")
 
           var bodySpec: TypedCodecSpec = null
           bodyFB.emitWithBuilder { cb =>
@@ -2426,7 +2446,17 @@ class Emit[C](
           addContexts(cb, ctxStream.producer)
           cb += baos.invoke[Unit]("reset")
           addGlobals(cb)
-          cb.assign(encRes, spark.invoke[BackendContext, HailClassLoader, FS, String, Array[Array[Byte]], Array[Byte], Option[TableStageDependency], Array[Array[Byte]]](
+
+          assert(staticID != null)
+          val stageName = cb.newLocal[String]("stagename")
+          cb.assign(stageName, staticID)
+          emitI(dynamicID).consume(cb,
+            (),
+            { dynamicID =>
+              cb.assign(stageName, stageName.concat(": ").concat(dynamicID.asString.loadString(cb)))
+            })
+
+          cb.assign(encRes, spark.invoke[BackendContext, HailClassLoader, FS, String, Array[Array[Byte]], Array[Byte], String, Option[TableStageDependency], Array[Array[Byte]]](
             "collectDArray",
             mb.getObject(ctx.executeContext.backendContext),
             mb.getHailClassLoader,
@@ -2434,6 +2464,7 @@ class Emit[C](
             functionID,
             ctxab.invoke[Array[Array[Byte]]]("result"),
             baos.invoke[Array[Byte]]("toByteArray"),
+            stageName,
             mb.getObject(tsd)))
           decodeResult(cb)
         }

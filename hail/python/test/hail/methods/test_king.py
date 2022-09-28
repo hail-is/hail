@@ -1,7 +1,7 @@
 import pytest
 
 import hail as hl
-from ..helpers import resource, startTestHailContext, stopTestHailContext, fails_local_backend, skip_when_service_backend
+from ..helpers import resource, startTestHailContext, stopTestHailContext, fails_local_backend, fails_service_backend
 
 setUpModule = startTestHailContext
 tearDownModule = stopTestHailContext
@@ -30,7 +30,7 @@ def assert_c_king_same_as_hail_king(c_king_path, hail_king_mt):
     assert expected.count() == 0, expected.collect()
 
 
-@skip_when_service_backend(reason='import_plink triggers O(N_variants) reads')
+@fails_service_backend()
 @fails_local_backend()
 def test_king_small():
     plink_path = resource('balding-nichols-1024-variants-4-samples-3-populations')
@@ -43,7 +43,7 @@ def test_king_small():
         kinship)
 
 @pytest.mark.unchecked_allocator
-@skip_when_service_backend(reason='import_plink triggers O(N_variants) reads')
+@fails_service_backend()
 @fails_local_backend()
 def test_king_large():
     plink_path = resource('fastlmmTest')
@@ -55,7 +55,7 @@ def test_king_large():
     assert_c_king_same_as_hail_king(resource('fastlmmTest.kin0.bgz'), kinship)
 
 
-@skip_when_service_backend(reason='import_plink triggers O(N_variants) reads')
+@fails_service_backend()
 @fails_local_backend()
 def test_king_filtered_entries_no_error():
     plink_path = resource('balding-nichols-1024-variants-4-samples-3-populations')

@@ -365,6 +365,13 @@ class VCFTests(unittest.TestCase):
         hl.export_vcf(mt, tmp, tabix=True)
         self.import_gvcfs_sample_vcf(tmp)
 
+    def test_tabix_export_file_exists(self):
+        mt = hl.import_vcf(resource('sample.vcf.bgz'))
+        tmp = new_temp_file(extension="bgz")
+        hl.export_vcf(mt, tmp, tabix=True, parallel='header_per_shard')
+        files = hl.current_backend().fs.ls(tmp)
+        self.assertTrue(any(f.path.endswith('.tbi') for f in files))
+
     @fails_service_backend()
     @fails_local_backend()
     def test_import_gvcfs(self):
@@ -713,19 +720,16 @@ class VCFTests(unittest.TestCase):
 
 
 class PLINKTests(unittest.TestCase):
-    @fails_service_backend()
     def test_import_fam(self):
         fam_file = resource('sample.fam')
         nfam = hl.import_fam(fam_file).count()
         i = 0
-        with open(fam_file) as f:
+        with hl.current_backend().fs.open(fam_file) as f:
             for line in f:
                 if len(line.strip()) != 0:
                     i += 1
         self.assertEqual(nfam, i)
 
-    @skip_when_service_backend(reason='import_plink triggers O(N_variants) reads')
-    @fails_local_backend()
     def test_export_import_plink_same(self):
         mt = get_dataset()
         mt = mt.select_rows(rsid=hl.delimit([mt.locus.contig, hl.str(mt.locus.position), mt.alleles[0], mt.alleles[1]], ':'),
@@ -734,7 +738,7 @@ class PLINKTests(unittest.TestCase):
                             is_female=hl.missing(hl.tbool), is_case=hl.missing(hl.tbool))
         mt = mt.select_entries('GT')
 
-        bfile = '/tmp/test_import_export_plink'
+        bfile = new_temp_file(prefix='test_import_export_plink')
         hl.export_plink(mt, bfile, ind_id=mt.s, cm_position=mt.cm_position)
 
         mt_imported = hl.import_plink(bfile + '.bed', bfile + '.bim', bfile + '.fam',
@@ -742,29 +746,23 @@ class PLINKTests(unittest.TestCase):
         self.assertTrue(mt._same(mt_imported))
         self.assertTrue(mt.aggregate_rows(hl.agg.all(mt.cm_position == 15.0)))
 
-    @skip_when_service_backend(reason='import_plink triggers O(N_variants) reads')
-    @fails_local_backend()
     def test_import_plink_empty_fam(self):
         mt = get_dataset().filter_cols(False)
-        bfile = '/tmp/test_empty_fam'
+        bfile = new_temp_file(prefix='test_empty_fam')
         hl.export_plink(mt, bfile, ind_id=mt.s)
         with self.assertRaisesRegex(FatalError, "Empty FAM file"):
             hl.import_plink(bfile + '.bed', bfile + '.bim', bfile + '.fam')
 
-    @fails_service_backend()
-    @fails_local_backend()
     def test_import_plink_empty_bim(self):
         mt = get_dataset().filter_rows(False)
-        bfile = '/tmp/test_empty_bim'
+        bfile = new_temp_file(prefix='test_empty_bim')
         hl.export_plink(mt, bfile, ind_id=mt.s)
         with self.assertRaisesRegex(FatalError, "BIM file does not contain any variants"):
             hl.import_plink(bfile + '.bed', bfile + '.bim', bfile + '.fam')
 
-    @skip_when_service_backend(reason='import_plink triggers O(N_variants) reads')
-    @fails_local_backend()
     def test_import_plink_a1_major(self):
         mt = get_dataset()
-        bfile = '/tmp/sample_plink'
+        bfile = new_temp_file(prefix='sample_plink')
         hl.export_plink(mt, bfile, ind_id=mt.s)
 
         def get_data(a2_reference):
@@ -787,8 +785,6 @@ class PLINKTests(unittest.TestCase):
                               (j.a1_vqc.homozygote_count[0] == j.a2_vqc.homozygote_count[1]) &
                               (j.a1_vqc.homozygote_count[1] == j.a2_vqc.homozygote_count[0])))
 
-    @skip_when_service_backend(reason='import_plink triggers O(N_variants) reads')
-    @fails_local_backend()
     def test_import_plink_same_locus(self):
         mt = hl.balding_nichols_model(n_populations=2, n_samples=10, n_variants=100)
         mt = mt.key_rows_by(locus=hl.locus('1', 100, reference_genome='GRCh37'), alleles=mt.alleles).select_rows()
@@ -802,8 +798,6 @@ class PLINKTests(unittest.TestCase):
         mt3 = hl.import_plink(f'{out}.bed', f'{out}.bim', f'{out}.fam', min_partitions=10).select_cols().select_rows()
         assert mt3._same(mt)
 
-    @skip_when_service_backend(reason='import_plink triggers O(N_variants) reads')
-    @fails_local_backend()
     def test_import_plink_partitions(self):
         mt = hl.balding_nichols_model(n_populations=2, n_samples=10, n_variants=100)
         mt = mt.select_rows()
@@ -815,17 +809,15 @@ class PLINKTests(unittest.TestCase):
         assert mt2.n_partitions() == 10
         assert mt2._same(mt)
 
-    @skip_when_service_backend(reason='import_plink triggers O(N_variants) reads')
-    @fails_local_backend()
     def test_import_plink_contig_recoding_w_reference(self):
         vcf = hl.split_multi_hts(
             hl.import_vcf(resource('sample2.vcf'),
                           reference_genome=hl.get_reference('GRCh38'),
                           contig_recoding={"22": "chr22"}))
 
-        hl.export_plink(vcf, '/tmp/sample_plink')
+        bfile = new_temp_file(prefix='sample_plink')
+        hl.export_plink(vcf, bfile)
 
-        bfile = '/tmp/sample_plink'
         plink = hl.import_plink(
             bfile + '.bed', bfile + '.bim', bfile + '.fam',
             a2_reference=True,
@@ -864,7 +856,6 @@ class PLINKTests(unittest.TestCase):
 
     @unittest.skipIf('HAIL_TEST_SKIP_PLINK' in os.environ, 'Skipping tests requiring plink')
     @fails_service_backend()
-    @fails_local_backend()
     def test_export_plink(self):
         vcf_file = resource('sample.vcf')
         mt = hl.split_multi_hts(hl.import_vcf(vcf_file, min_partitions=10))
@@ -911,8 +902,6 @@ class PLINKTests(unittest.TestCase):
 
         self.assertTrue(same)
 
-    @skip_when_service_backend(reason='import_plink triggers O(N_variants) reads')
-    @fails_local_backend()
     def test_export_plink_exprs(self):
         ds = get_dataset()
         fam_mapping = {'f0': 'fam_id', 'f1': 'ind_id', 'f2': 'pat_id', 'f3': 'mat_id',
@@ -979,7 +968,7 @@ class PLINKTests(unittest.TestCase):
         with self.assertRaisesRegex(FatalError, "no white space allowed:"):
             hl.export_plink(ds, new_temp_file(), varid="hello world")
 
-    @skip_when_service_backend(reason='import_plink triggers O(N_variants) reads')
+    @fails_service_backend()
     def test_contig_recoding_defaults(self):
         hl.import_plink(resource('sex_mt_contigs.bed'),
                         resource('sex_mt_contigs.bim'),
@@ -999,8 +988,6 @@ class PLINKTests(unittest.TestCase):
                         resource('sex_mt_contigs.fam'),
                         reference_genome='random')
 
-    @skip_when_service_backend(reason='import_plink triggers O(N_variants) reads')
-    @fails_local_backend()
     def test_export_plink_struct_locus(self):
         mt = hl.utils.range_matrix_table(10, 10)
         mt = mt.key_rows_by(locus=hl.struct(contig=hl.str(mt.row_idx), position=mt.row_idx), alleles=['A', 'T']).select_rows()

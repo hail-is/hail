@@ -12,11 +12,10 @@ from aiohttp import web
 from prometheus_async.aio.web import server_stats  # type: ignore
 
 from gear import (
+    AuthClient,
     Database,
-    rest_authenticated_developers_only,
     setup_aiohttp_session,
     transaction,
-    web_authenticated_developers_only,
 )
 from hailtop import aiotools, httpx
 from hailtop.aiocloud import aiogoogle
@@ -41,6 +40,8 @@ log = logging.getLogger('monitoring')
 routes = web.RouteTableDef()
 
 deploy_config = get_deploy_config()
+
+auth = AuthClient()
 
 GCP_REGION = os.environ['HAIL_GCP_REGION']
 BATCH_GCP_REGIONS = set(json.loads(os.environ['HAIL_BATCH_GCP_REGIONS']))
@@ -131,7 +132,7 @@ async def _billing(request):
 
 
 @routes.get('/api/v1alpha/billing')
-@rest_authenticated_developers_only
+@auth.rest_authenticated_developers_only
 async def get_billing(request: web.Request, userdata) -> web.Response:  # pylint: disable=unused-argument
     cost_by_service, compute_cost_breakdown, cost_by_sku_label, time_period_query = await _billing(request)
     resp = {
@@ -144,7 +145,7 @@ async def get_billing(request: web.Request, userdata) -> web.Response:  # pylint
 
 
 @routes.get('/billing')
-@web_authenticated_developers_only()
+@auth.web_authenticated_developers_only()
 async def billing(request: web.Request, userdata) -> web.Response:  # pylint: disable=unused-argument
     cost_by_service, compute_cost_breakdown, cost_by_sku_label, time_period_query = await _billing(request)
     context = {

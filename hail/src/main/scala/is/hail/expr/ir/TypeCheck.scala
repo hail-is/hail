@@ -276,9 +276,8 @@ object TypeCheck {
       case RNGSplit(state, dynBitstring) =>
         assert(state.typ == TRNGState)
         def isValid: Type => Boolean = {
-          case tuple: TTuple => tuple.types.forall(isValid)
-          case TInt64 => true
-          case _ => false
+          case tuple: TTuple => tuple.types.forall(_ == TInt64)
+          case t => t == TInt64
         }
         assert(isValid(dynBitstring.typ))
       case StreamLen(a) =>
@@ -296,7 +295,7 @@ object TypeCheck {
         assert(a.typ.isInstanceOf[TStream])
         assert(ts.elementType == a.typ)
         assert(size.typ == TInt32)
-      case x@StreamGroupByKey(a, key) =>
+      case x@StreamGroupByKey(a, key, _) =>
         val ts = coerce[TStream](x.typ)
         assert(ts.elementType == a.typ)
         val structType = coerce[TStruct](coerce[TStream](a.typ).elementType)
@@ -490,8 +489,9 @@ object TypeCheck {
       case BlockMatrixMultiWrite(_, _) =>
       case ValueToBlockMatrix(child, _, _) =>
         assert(child.typ.isInstanceOf[TArray] || child.typ.isInstanceOf[TNDArray] ||  child.typ == TFloat64)
-      case CollectDistributedArray(ctxs, globals, cname, gname, body, _) =>
+      case CollectDistributedArray(ctxs, globals, cname, gname, body, dynamicID, _, _) =>
         assert(ctxs.typ.isInstanceOf[TStream])
+        assert(dynamicID.typ == TString)
       case x@ReadPartition(context, rowType, reader) =>
         assert(rowType.isRealizable)
         assert(context.typ == reader.contextType)

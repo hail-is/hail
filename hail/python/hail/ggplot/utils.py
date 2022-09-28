@@ -3,11 +3,8 @@ import hail as hl
 
 
 def check_scale_continuity(scale, dtype, aes_key):
-
-    if scale.is_discrete() and not is_discrete_type(dtype):
-        raise ValueError(f"Aesthetic {aes_key} has discrete scale but not a discrete type.")
-    if scale.is_continuous() and not is_continuous_type(dtype):
-        raise ValueError(f"Aesthetic {aes_key} has continuous scale but not a continuous type.")
+    if not scale.valid_dtype(dtype):
+        raise ValueError(f"Invalid scale for aesthetic {aes_key} of type {dtype}")
 
 
 def is_genomic_type(dtype):
@@ -25,7 +22,7 @@ def is_discrete_type(dtype):
 excluded_from_grouping = {"x", "tooltip", "label"}
 
 
-def should_use_for_grouping(name, type):
+def should_use_for_grouping(name, type, scale):
     return (name not in excluded_from_grouping) and is_discrete_type(type)
 
 

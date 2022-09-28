@@ -209,6 +209,17 @@ class IRSuite extends HailSuite {
     )
   }
 
+  @Test def testApplyUnaryPrimOpBitCount() {
+    assertAllEvalTo(
+      (ApplyUnaryPrimOp(BitCount(), I32(0xdeadbeef)), Integer.bitCount(0xdeadbeef)),
+      (ApplyUnaryPrimOp(BitCount(), I32(-0xdeadbeef)), Integer.bitCount(-0xdeadbeef)),
+      (ApplyUnaryPrimOp(BitCount(), i32na), null),
+      (ApplyUnaryPrimOp(BitCount(), I64(0xdeadbeef12345678L)), java.lang.Long.bitCount(0xdeadbeef12345678L)),
+      (ApplyUnaryPrimOp(BitCount(), I64(-0xdeadbeef12345678L)), java.lang.Long.bitCount(-0xdeadbeef12345678L)),
+      (ApplyUnaryPrimOp(BitCount(), i64na), null)
+    )
+  }
+
   @Test def testApplyBinaryPrimOpAdd() {
     def assertSumsTo(t: Type, x: Any, y: Any, sum: Any) {
       assertEvalsTo(ApplyBinaryPrimOp(Add(), In(0, t), In(1, t)), FastIndexedSeq(x -> t, y -> t), sum)
@@ -1532,7 +1543,7 @@ class IRSuite extends HailSuite {
         MakeStruct(Seq("a" -> I32(4), "b" -> NA(TInt32)))),
       TStream(structType))
 
-    def group(a: IR): IR = StreamGroupByKey(a, FastIndexedSeq("a"))
+    def group(a: IR): IR = StreamGroupByKey(a, FastIndexedSeq("a"), false)
     assertEvalsTo(toNestedArray(group(naa)), null)
     assertEvalsTo(toNestedArray(group(a)),
                   FastIndexedSeq(FastIndexedSeq(Row(3, 1), Row(3, 3)),
@@ -2834,7 +2845,7 @@ class IRSuite extends HailSuite {
       BlockMatrixWrite(blockMatrix, blockMatrixWriter),
       BlockMatrixMultiWrite(IndexedSeq(blockMatrix, blockMatrix), blockMatrixMultiWriter),
       BlockMatrixWrite(blockMatrix, BlockMatrixPersistWriter("x", "MEMORY_ONLY")),
-      CollectDistributedArray(StreamRange(0, 3, 1), 1, "x", "y", Ref("x", TInt32)),
+      CollectDistributedArray(StreamRange(0, 3, 1), 1, "x", "y", Ref("x", TInt32), NA(TString), "test"),
       ReadPartition(Str("foo"),
         TStruct("foo" -> TInt32),
         PartitionNativeReader(TypedCodecSpec(PCanonicalStruct("foo" -> PInt32(), "bar" -> PCanonicalString()), BufferSpec.default))),
@@ -3507,7 +3518,7 @@ class IRSuite extends HailSuite {
     val readArray = Let("files",
       CollectDistributedArray(StreamMap(StreamRange(0, 10, 1), "x", node), MakeStruct(FastSeq()),
         "ctx", "globals",
-        WriteValue(Ref("ctx", node.typ), Str(prefix) + UUID4(), spec)),
+        WriteValue(Ref("ctx", node.typ), Str(prefix) + UUID4(), spec), NA(TString), "test"),
       StreamMap(ToStream(Ref("files", TArray(TString))), "filename",
         ReadValue(Ref("filename", TString), spec, pt.virtualType)))
     for (v <- Array(value, null)) {
