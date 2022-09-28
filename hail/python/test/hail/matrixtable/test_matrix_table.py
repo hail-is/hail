@@ -1623,6 +1623,7 @@ class Tests(unittest.TestCase):
         mt.write(tmp, _partitions=parts)
 
         mt2 = hl.read_matrix_table(tmp)
+        assert mt2.aggregate_rows(hl.agg.all(hl.literal(hl.Interval(hl.Locus('20', 10277621), hl.Locus('20', 11898992))).contains(mt2.locus)))
         assert mt2.n_partitions() == len(parts)
         assert hl.filter_intervals(mt, parts)._same(mt2)
 

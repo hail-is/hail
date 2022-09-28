@@ -252,8 +252,11 @@ class TableStage(
     require(newPartitioner.kType.isPrefixOf(kType))
 
     val startAndEnd = partitioner.rangeBounds.map(newPartitioner.intervalRange)
-    if (startAndEnd.forall { case (start, end) => start + 1 == end }) {
-      val newToOld = startAndEnd.zipWithIndex
+      .zipWithIndex
+    val ord = PartitionBoundOrdering.apply(newPartitioner.kType)
+    if (startAndEnd.forall { case ((start, end), index) =>
+      start + 1 == end && newPartitioner.rangeBounds(start).includes(ord, partitioner.rangeBounds(index)) }) {
+      val newToOld = startAndEnd
         .groupBy(_._1._1)
         .map { case (newIdx, values) => (newIdx, values.map(_._2).sorted.toFastIndexedSeq) }
 
