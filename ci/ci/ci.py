@@ -15,7 +15,15 @@ from gidgethub import sansio as gh_sansio
 from prometheus_async.aio.web import server_stats  # type: ignore
 from typing_extensions import TypedDict
 
-from gear import AuthClient, Database, check_csrf_token, monitor_endpoints_middleware, setup_aiohttp_session
+from gear import (
+    AuthClient,
+    Database,
+    check_csrf_token,
+    monitor_endpoints_middleware,
+    rest_authenticated_developers_only,
+    setup_aiohttp_session,
+    web_authenticated_developers_only,
+)
 from hailtop import aiotools, httpx
 from hailtop.batch_client.aioclient import Batch, BatchClient
 from hailtop.config import get_deploy_config
@@ -537,8 +545,8 @@ async def prod_deploy(request, userdata):
         raise web.HTTPBadRequest(text=message)
 
     watched_branch = WatchedBranch(
-        index=0, 
-        branch=FQBranch.from_short_str('populationgenomics/hail:main'), 
+        index=0,
+        branch=FQBranch.from_short_str('populationgenomics/hail:main'),
         deployable=True,
         mergeable=False,
     )
