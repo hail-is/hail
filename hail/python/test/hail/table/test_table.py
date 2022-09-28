@@ -1769,6 +1769,36 @@ def test_read_partitions_with_missing_key():
     assert hl.read_table(path, _n_partitions=10).n_partitions() == 1  # one key => one partition
 
 
+def test_interval_filter_partitions():
+    ht = hl.utils.range_table(100, 3)
+    path = new_temp_file()
+    ht.write(path)
+    intervals = [
+        hl.Interval(hl.Struct(idx=5), hl.Struct(idx=10)),
+        hl.Interval(hl.Struct(idx=12), hl.Struct(idx=13)),
+        hl.Interval(hl.Struct(idx=15), hl.Struct(idx=17)),
+        hl.Interval(hl.Struct(idx=19), hl.Struct(idx=20))
+    ]
+    assert hl.read_table(path, _intervals=intervals, _filter_intervals = True).n_partitions() == 1
+
+    intervals = [
+        hl.Interval(hl.Struct(idx=5), hl.Struct(idx=10)),
+        hl.Interval(hl.Struct(idx=12), hl.Struct(idx=13)),
+        hl.Interval(hl.Struct(idx=15), hl.Struct(idx=17)),
+
+        hl.Interval(hl.Struct(idx=45), hl.Struct(idx=50)),
+        hl.Interval(hl.Struct(idx=52), hl.Struct(idx=53)),
+        hl.Interval(hl.Struct(idx=55), hl.Struct(idx=57)),
+
+        hl.Interval(hl.Struct(idx=75), hl.Struct(idx=80)),
+        hl.Interval(hl.Struct(idx=82), hl.Struct(idx=83)),
+        hl.Interval(hl.Struct(idx=85), hl.Struct(idx=87)),
+    ]
+
+    assert hl.read_table(path, _intervals=intervals, _filter_intervals = True).n_partitions() == 3
+
+
+
 def test_grouped_flatmap_streams():
     ht = hl.import_vcf(resource('sample.vcf')).rows()
     ht = ht.annotate(x=hl.str(ht.locus))  # add a map node
