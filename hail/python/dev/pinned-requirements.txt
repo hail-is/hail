@@ -321,7 +321,7 @@ sphinxcontrib-htmlhelp==2.0.0
     # via sphinx
 sphinxcontrib-jsmath==1.0.1
     # via sphinx
-sphinxcontrib-katex==0.5.1
+sphinxcontrib-katex==0.9.0
     # via -r python/dev/requirements.txt
 sphinxcontrib-qthelp==1.0.3
     # via sphinx
