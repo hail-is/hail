@@ -378,7 +378,7 @@ class Image:
     def __init__(
         self,
         name: str,
-        credentials: Union[CloudUserCredentials, 'JVMUserCredentials'],
+        credentials: Union[CloudUserCredentials, 'JVMUserCredentials', 'CopyStepCredentials'],
         client_session: httpx.ClientSession,
         pool: concurrent.futures.ThreadPoolExecutor,
     ):
@@ -429,7 +429,7 @@ class Image:
             elif self.is_public_image:
                 auth = await self._batch_worker_access_token()
                 await self._ensure_image_is_pulled(auth=auth)
-            elif self.image_ref_str == BATCH_WORKER_IMAGE and isinstance(self.credentials, JVMUserCredentials):
+            elif self.image_ref_str == BATCH_WORKER_IMAGE and isinstance(self.credentials, (JVMUserCredentials, CopyStepCredentials)):
                 pass
             else:
                 # Pull to verify this user has access to this
@@ -1192,7 +1192,7 @@ def copy_container(
     return Container(
         fs=job.worker.fs,
         name=job.container_name(task_name),
-        image=Image(BATCH_WORKER_IMAGE, job.credentials, client_session, job.pool),
+        image=Image(BATCH_WORKER_IMAGE, CopyStepCredentials(), client_session, job.pool),
         scratch_dir=f'{scratch}/{task_name}',
         command=command,
         cpu_in_mcpu=cpu_in_mcpu,
@@ -1982,6 +1982,12 @@ class JVMCreationError(Exception):
 
 
 class JVMUserCredentials:
+    def __init__(self):
+        self.username = None
+        self.password = None
+
+
+class CopyStepCredentials:
     def __init__(self):
         self.username = None
         self.password = None
