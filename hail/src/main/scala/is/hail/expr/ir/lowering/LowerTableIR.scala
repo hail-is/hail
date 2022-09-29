@@ -241,7 +241,7 @@ class TableStage(
       repartitionNoShuffle(partitioner.strictify)
   }
 
-  def repartitionNoShuffle(newPartitioner: RVDPartitioner, allowDuplication: Boolean = false, allowPartitionFilter: Boolean = false): TableStage = {
+  def repartitionNoShuffle(newPartitioner: RVDPartitioner, allowDuplication: Boolean = false, dropEmptyPartitions: Boolean = false): TableStage = {
     if (newPartitioner == this.partitioner) {
       return this
     }
@@ -261,7 +261,7 @@ class TableStage(
         .map { case (newIdx, values) => (newIdx, values.map(_._2).sorted.toFastIndexedSeq) }
 
 
-      val (oldPartIndices, newPartitionerFilt) = if (allowPartitionFilter) {
+      val (oldPartIndices, newPartitionerFilt) = if (dropEmptyPartitions) {
         val indices = (0 until newPartitioner.numPartitions).filter(newToOld.contains)
         (indices.map(i => newToOld(i)), newPartitioner.copy(rangeBounds = indices.toArray.map(i => newPartitioner.rangeBounds(i))))
       } else
