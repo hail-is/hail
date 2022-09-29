@@ -429,7 +429,9 @@ class Image:
             elif self.is_public_image:
                 auth = await self._batch_worker_access_token()
                 await self._ensure_image_is_pulled(auth=auth)
-            elif self.image_ref_str == BATCH_WORKER_IMAGE and isinstance(self.credentials, (JVMUserCredentials, CopyStepCredentials)):
+            elif self.image_ref_str == BATCH_WORKER_IMAGE and isinstance(
+                self.credentials, (JVMUserCredentials, CopyStepCredentials)
+            ):
                 pass
             else:
                 # Pull to verify this user has access to this
