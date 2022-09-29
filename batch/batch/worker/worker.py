@@ -2309,8 +2309,7 @@ class Worker:
     async def _initialize_jvms(self):
         if instance_config.worker_type() in ('standard', 'D', 'highmem', 'E'):
             jvms = await asyncio.gather(
-                *[JVM.create(i, 1, self) for i in range(CORES)],
-                *[JVM.create(CORES + i, 8, self) for i in range(CORES // 8)],
+                *[JVM.create(i, jvm_cores, self) for jvm_cores in (1, 2, 4, 8) for i in range(CORES // jvm_cores)],
             )
             self._jvms.update(jvms)
         log.info(f'JVMs initialized {self._jvms}')
