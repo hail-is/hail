@@ -318,7 +318,7 @@ WHERE removed = 0 AND inst_coll = %s;
 SELECT *, ROW_NUMBER() OVER (ORDER BY batch_id ASC, always_run DESC, job_id ASC) DIV {share} AS scheduling_iteration
 FROM (
   (
-    SELECT jobs.batch_id, jobs.job_id, always_run, cores_mcpu
+    SELECT user, jobs.batch_id, jobs.job_id, always_run, cores_mcpu
     FROM jobs FORCE INDEX(jobs_batch_id_state_always_run_cancelled)
     LEFT JOIN batches ON jobs.batch_id = batches.id
     WHERE user = %s AND batches.`state` = 'running' AND jobs.state = 'Ready' AND always_run = 1 AND inst_coll = %s
@@ -327,7 +327,7 @@ FROM (
     LIMIT {share * JOB_QUEUE_SCHEDULING_WINDOW_SECONDS}
   )
   UNION (
-    SELECT jobs.batch_id, jobs.job_id, always_run, cores_mcpu
+    SELECT user, jobs.batch_id, jobs.job_id, always_run, cores_mcpu
     FROM jobs FORCE INDEX(jobs_batch_id_state_always_run_cancelled)
     LEFT JOIN batches ON jobs.batch_id = batches.id
     LEFT JOIN batches_cancelled ON batches.id = batches_cancelled.id
