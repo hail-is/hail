@@ -269,9 +269,10 @@ class BatchClient:
                  deploy_config: Optional[DeployConfig] = None,
                  session: Optional[httpx.ClientSession] = None,
                  headers: Optional[Dict[str, str]] = None,
-                 _token: Optional[str] = None):
+                 _token: Optional[str] = None,
+                 token_file: Optional[str] = None):
         self._async_client = async_to_blocking(aioclient.BatchClient.create(
-            billing_project, deploy_config, session, headers=headers, _token=_token))
+            billing_project, deploy_config, session, headers=headers, _token=_token, token_file=token_file))
 
     @property
     def billing_project(self):
