@@ -469,7 +469,7 @@ class Image:
         return await CLOUD_WORKER_API.worker_access_token(self.client_session)
 
     def _current_user_access_token(self) -> Dict[str, str]:
-        assert self.credentials
+        assert self.credentials and isinstance(self.credentials, CloudUserCredentials)
         return {'username': self.credentials.username, 'password': self.credentials.password}
 
     async def _extract_rootfs(self):
@@ -1982,15 +1982,11 @@ class JVMCreationError(Exception):
 
 
 class JVMUserCredentials:
-    def __init__(self):
-        self.username = None
-        self.password = None
+    pass
 
 
 class CopyStepCredentials:
-    def __init__(self):
-        self.username = None
-        self.password = None
+    pass
 
 
 class JVMContainer:
