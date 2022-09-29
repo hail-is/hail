@@ -42,6 +42,7 @@ DROP TABLE IF EXISTS `batch_inst_coll_cancellable_resources`;
 DROP TABLE IF EXISTS `globals`;
 DROP TABLE IF EXISTS `attempts`;
 DROP TABLE IF EXISTS `batch_attributes`;
+DROP TABLE IF EXISTS `job_regions`;
 DROP TABLE IF EXISTS `job_attributes`;
 DROP TABLE IF EXISTS `job_parents`;
 DROP TABLE IF EXISTS `batch_bunches`;
@@ -67,3 +68,4 @@ DROP TABLE IF EXISTS `pools`;
 DROP TABLE IF EXISTS `inst_colls`;
 DROP TABLE IF EXISTS `latest_product_versions`;
 DROP TABLE IF EXISTS `resources`;
+DROP TABLE IF EXISTS `region_ids`
