@@ -1365,7 +1365,7 @@ class Job:
     def write_batch_config(self):
         os.makedirs(f'{self.scratch}/batch-config')
         with open(f'{self.scratch}/batch-config/batch-config.json', 'wb') as config:
-            config.write(orjson.dumps({'batch_id': self.batch_id}))
+            config.write(orjson.dumps({'version': 1, 'batch_id': self.batch_id}))
 
     @property
     def job_id(self):
