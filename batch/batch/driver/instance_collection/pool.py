@@ -312,10 +312,10 @@ WHERE removed = 0 AND inst_coll = %s;
         for user, share in user_share.items():
             user_job_query = f'''
 (
-SELECT *
+SELECT CAST(COALESCE(SUM(cores_mcpu), 0) AS SIGNED) AS ready_cores_mcpu
 FROM (
   (
-    SELECT user, jobs.batch_id, jobs.job_id, cores_mcpu, always_run
+    SELECT cores_mcpu
     FROM jobs FORCE INDEX(jobs_batch_id_state_always_run_cancelled)
     LEFT JOIN batches ON jobs.batch_id = batches.id
     WHERE user = %s AND batches.`state` = 'running' AND jobs.state = 'Ready' AND always_run = 1 AND inst_coll = %s
@@ -324,7 +324,7 @@ FROM (
     LIMIT {share * JOB_QUEUE_SCHEDULING_WINDOW_SECONDS}
   )
   UNION (
-    SELECT user, jobs.batch_id, jobs.job_id, cores_mcpu, always_run
+    SELECT cores_mcpu
     FROM jobs FORCE INDEX(jobs_batch_id_state_always_run_cancelled)
     LEFT JOIN batches ON jobs.batch_id = batches.id
     LEFT JOIN batches_cancelled ON batches.id = batches_cancelled.id
@@ -343,7 +343,7 @@ LIMIT {share * JOB_QUEUE_SCHEDULING_WINDOW_SECONDS}
 
         result = await self.db.select_and_fetchone(
             f'''
-SELECT CAST(COALESCE(SUM(cores_mcpu), 0) AS SIGNED) AS ready_cores_mcpu
+SELECT CAST(COALESCE(SUM(ready_cores_mcpu), 0) AS SIGNED) AS ready_cores_mcpu
 FROM (
 {" UNION ".join(jobs_query)}
 ) AS ready_jobs

@@ -1291,21 +1291,3 @@ def test_submit_update_to_deleted_batch(client: BatchClient):
         assert err.status == 404
     else:
         assert False
-
-
-def test_batch_submitted_by_second_user(client: BatchClient):
-    dev_client = BatchClient('test', token_file=os.environ['HAIL_TEST_DEV_TOKEN_FILE'])
-
-    try:
-        bb1 = dev_client.create_batch()
-        bb1.create_job(DOCKER_ROOT_IMAGE, ['echo', 'test'])
-        b1 = bb1.submit()
-        bb2 = client.create_batch()
-        bb2.create_job(DOCKER_ROOT_IMAGE, ['echo', 'test'])
-        b2 = bb2.submit()
-        status1 = b1.wait()
-        status2 = b2.wait()
-        assert status1['state'] == 'success', str((status1, b1.debug_info()))
-        assert status2['state'] == 'success', str((status2, b1.debug_info()))
-    finally:
-        dev_client.close()
