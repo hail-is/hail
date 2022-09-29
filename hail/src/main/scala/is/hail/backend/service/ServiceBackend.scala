@@ -63,11 +63,14 @@ class ServiceBackend(
   val jarLocation: String,
   var name: String,
   val theHailClassLoader: HailClassLoader,
-  val scratchDir: String = sys.env.get("HAIL_WORKER_SCRATCH_DIR").getOrElse("")
+  val batchClient: BatchClient,
+  val curBatchId: Option[Long],
+  val scratchDir: String = sys.env.get("HAIL_WORKER_SCRATCH_DIR").getOrElse(""),
 ) extends Backend {
   import ServiceBackend.log
 
-  private[this] var batchCount = 0
+  private[this] var stageCount = 0
+  private[this] var totalNumWorkerJobs: Int = 0
   private[this] implicit val ec = scalaConcurrent.ExecutionContext.fromExecutorService(
     Executors.newCachedThreadPool())
   private[this] val MAX_AVAILABLE_GCS_CONNECTIONS = 100
@@ -152,7 +155,6 @@ class ServiceBackend(
     scalaConcurrent.Await.result(uploadFunction, scalaConcurrent.duration.Duration.Inf)
     scalaConcurrent.Await.result(uploadContexts, scalaConcurrent.duration.Duration.Inf)
 
-    val batchClient = BatchClient.fromSessionID(backendContext.sessionID)
     val jobs = new Array[JObject](n)
     var i = 0
     while (i < n) {
@@ -166,7 +168,7 @@ class ServiceBackend(
       jobs(i) = JObject(
         "always_run" -> JBool(false),
         "job_id" -> JInt(i + 1),
-        "parent_ids" -> JArray(List()),
+        "in_update_parent_ids" -> JArray(List()),
         "process" -> JObject(
           "jar_spec" -> JObject(
             "type" -> JString("jar_url"),
@@ -178,6 +180,9 @@ class ServiceBackend(
             JString(s"$i"),
             JString(s"$n"))),
           "type" -> JString("jvm")),
+        "attributes" -> JObject(
+          "name" -> JString(name + "_" + stageCount + "_" + i),
+        ),
         "mount_tokens" -> JBool(true),
         "resources" -> resources,
       )
@@ -186,21 +191,34 @@ class ServiceBackend(
 
     log.info(s"parallelizeAndComputeWithIndex: $token: running job")
 
-    val batchId = batchClient.create(
-      JObject(
-        "billing_project" -> JString(backendContext.billingProject),
-        "n_jobs" -> JInt(n),
-        "token" -> JString(token),
-        "attributes" -> JObject("name" -> JString(name + "_" + batchCount))),
-      jobs)
+    val (batchId, updateId, nJobsToWaitOn) = curBatchId match {
+      case Some(id) => {
+        val updateId = batchClient.update(id, token, jobs)
+        // Only wait for the number of worker jobs that have run instead of
+        // all the jobs to account for the fact that this driver is an extra
+        // job in the batch
+        totalNumWorkerJobs += n
+        (id, updateId, totalNumWorkerJobs)
+      }
+      case None => {
+        val batchId = batchClient.create(
+          JObject(
+            "billing_project" -> JString(backendContext.billingProject),
+            "n_jobs" -> JInt(n),
+            "token" -> JString(token),
+            "attributes" -> JObject("name" -> JString(name + "_" + stageCount))),
+          jobs)
+        (batchId, 1L, n)
+      }
+    }
 
-    val batch = batchClient.waitForBatch(batchId)
-    batchCount += 1
+    val batch = batchClient.waitForBatch(batchId, nJobsToWaitOn)
+
+    stageCount += 1
     implicit val formats: Formats = DefaultFormats
-    val batchID = (batch \ "id").extract[Int]
     val batchState = (batch \ "state").extract[String]
-    if (batchState != "success") {
-      throw new HailBatchFailure(s"$batchID")
+    if (batchState == "failed") {
+      throw new HailBatchFailure(s"Update $updateId for batch $batchId failed")
     }
 
     log.info(s"parallelizeAndComputeWithIndex: $token: reading results")
@@ -411,14 +429,6 @@ object ServiceBackendSocketAPI2 {
     val input = argv(5)
     val output = argv(6)
 
-    // FIXME: when can the classloader be shared? (optimizer benefits!)
-    val backend = new ServiceBackend(
-      jarLocation, name, new HailClassLoader(getClass().getClassLoader()), scratchDir)
-    if (HailContext.isInitialized) {
-      HailContext.get.backend = backend
-    } else {
-      HailContext(backend, "hail.log", false, false, 50, skipLoggingConfiguration = true, 3)
-    }
     val fs = retryTransientErrors {
       using(new FileInputStream(s"$scratchDir/secrets/gsa-key/key.json")) { is =>
         val credentialsStr = Some(IOUtils.toString(is, Charset.defaultCharset().toString()))
@@ -437,6 +447,18 @@ object ServiceBackendSocketAPI2 {
     tls.setSSLConfigFromDir(s"$scratchDir/secrets/ssl-config")
 
     val sessionId = userTokens.namespaceToken(deployConfig.defaultNamespace)
+    val batchClient = BatchClient.fromSessionID(sessionId)
+
+    var batchId = BatchConfig.fromConfigFile(s"$scratchDir/batch-config/batch-config.json").map(_.batchId)
+
+    // FIXME: when can the classloader be shared? (optimizer benefits!)
+    val backend = new ServiceBackend(
+      jarLocation, name, new HailClassLoader(getClass().getClassLoader()), batchClient, batchId, scratchDir)
+    if (HailContext.isInitialized) {
+      HailContext.get.backend = backend
+    } else {
+      HailContext(backend, "hail.log", false, false, 50, skipLoggingConfiguration = true, 3)
+    }
     retryTransientErrors {
       using(fs.openNoCompression(input)) { in =>
         retryTransientErrors {
