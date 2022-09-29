@@ -3064,7 +3064,8 @@ def import_avro(paths, *, key=None, intervals=None):
            truth_sensitivity_indel_threshold=float,
            reference_genome=reference_genome_type,
            partitions_per_sample=numeric,
-           intermediate_resume_point=int)
+           intermediate_resume_point=int,
+           skip_final_merge=bool)
 def import_gvs(refs: 'List[List[str]]',
                vets: 'List[List[str]]',
                sample_mapping: 'List[str]',
@@ -3077,7 +3078,8 @@ def import_gvs(refs: 'List[List[str]]',
                truth_sensitivity_indel_threshold: 'float' = 0.990,
                reference_genome='GRCh38',
                partitions_per_sample=0.35,
-               intermediate_resume_point=0):
+               intermediate_resume_point=0,
+               skip_final_merge=False):
     """Import a collection of Avro files exported from GVS.
 
     This function is used to import Avro files exported from BigQuery for
@@ -3165,6 +3167,8 @@ def import_gvs(refs: 'List[List[str]]',
         Number of partitions per sample in the final VDS. Can be fractional (total rounds down).
     intermediate_resume_point : :class:`int`
         Index at which to resume sample-group imports. Default 0 (entire import)
+    skip_final_merge : :class:`bool`
+        Skip final merge if true.
 
     Returns
     -------
@@ -3309,6 +3313,10 @@ def import_gvs(refs: 'List[List[str]]',
             info(f'import_gvs: writing intermediate VDS for sample group {idx+1} with {n_new_samples} samples...')
             vds = hl.vds.VariantDataset(ref_mt, var_mt)
             vds.write(path, overwrite=True)
+
+    if skip_final_merge:
+        info("import_gvs: skipping final merge")
+        return
 
     total_partitions = int(partitions_per_sample * n_samples)
     first_ref_mt = hl.read_matrix_table(hl.vds.VariantDataset._reference_path(vds_paths[0]))
