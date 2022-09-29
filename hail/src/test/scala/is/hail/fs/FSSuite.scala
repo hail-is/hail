@@ -7,9 +7,10 @@ import is.hail.io.fs.FSUtil.dropTrailingSlash
 import is.hail.io.fs.{FS, FileStatus, Seekable}
 import is.hail.utils._
 import org.apache.commons.io.IOUtils
+import org.scalatest.testng.TestNGSuite
 import org.testng.annotations.Test
 
-trait FSSuite {
+trait FSSuite extends TestNGSuite {
   def root: String
 
   def fsResourcesRoot: String
