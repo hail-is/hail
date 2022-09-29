@@ -420,7 +420,9 @@ GROUP BY user;
             n_instances_by_state['pending'] += n_instances
 
         for region_str, ready_cores_mcpu in head_job_queue_region_str_ready_cores_mcpu.items():
-            AUTOSCALER_HEAD_JOB_QUEUE_READY_CORES.labels(pool_name=self.name, region=region_str).set(ready_cores_mcpu / 1000)
+            AUTOSCALER_HEAD_JOB_QUEUE_READY_CORES.labels(pool_name=self.name, region=region_str).set(
+                ready_cores_mcpu / 1000
+            )
 
         for region_str, n_instances in head_job_queue_n_instances.items():
             AUTOSCALER_HEAD_JOB_QUEUE_N_INSTANCES.labels(pool_name=self.name, region=region_str).set(n_instances)
