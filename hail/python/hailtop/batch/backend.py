@@ -587,9 +587,9 @@ class ServiceBackend(Backend[bc.Batch]):
         for job in pyjobs:
             if job._image is None:
                 version = sys.version_info
-                if version.major != 3 or version.minor not in (6, 7, 8):
+                if version.major != 3 or version.minor not in (7, 8, 9, 10):
                     raise BatchException(
-                        f"You must specify 'image' for Python jobs if you are using a Python version other than 3.6, 3.7, or 3.8 (you are using {version})")
+                        f"You must specify 'image' for Python jobs if you are using a Python version other than 3.7, 3.8, 3.9 or 3.10 (you are using {version})")
                 job._image = f'hailgenetics/python-dill:{version.major}.{version.minor}-slim'
 
         with tqdm(total=len(batch._jobs), desc='upload code', disable=disable_progress_bar) as pbar:
