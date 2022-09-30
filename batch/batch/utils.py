@@ -179,5 +179,10 @@ def regions_str_to_py(region_str: Optional[str]) -> Optional[List[str]]:
     if region_str is None:
         return None
     regions = json.loads(region_str)
+
+    # Left join with no matches with JSON_ARRAYAGG results in [null]
+    if regions == [None]:
+        return None
+
     assert len(regions) > 0, region_str
     return regions

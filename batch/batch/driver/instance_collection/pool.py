@@ -227,7 +227,7 @@ WHERE removed = 0 AND inst_coll = %s;
             assert cores_mcpu <= instance.free_cores_mcpu
             if user == 'ci' and instance.region == self._ci_region:
                 return instance
-            elif user != 'ci' and (regions is None or (regions and instance.region in regions)):
+            if user != 'ci' and (regions is None or (regions and instance.region in regions)):
                 return instance
             i += 1
         return None
@@ -413,6 +413,11 @@ GROUP BY user;
 
         AUTOSCALER_LOOP_RUNS.labels(pool_name=self.name).inc()
 
+        for metric in AUTOSCALER_HEAD_JOB_QUEUE_READY_CORES._metrics.values():
+            metric.set(0)
+        for metric in AUTOSCALER_HEAD_JOB_QUEUE_N_INSTANCES._metrics.values():
+            metric.set(0)
+
         ready_cores_mcpu_per_user = await self.ready_cores_mcpu_per_user()
 
         full_job_queue_ready_cores_mcpu = sum(ready_cores_mcpu_per_user.values())
@@ -582,10 +587,10 @@ HAVING n_ready_jobs + n_running_jobs > 0;
         start = time_msecs()
         SCHEDULING_LOOP_RUNS.labels(pool_name=self.pool.name).inc()
 
-        SCHEDULING_LOOP_CORES.clear()
-        SCHEDULING_LOOP_JOBS.clear()
-        SCHEDULING_LOOP_UNSCHEDULED_JOBS_REGIONS.clear()
-        SCHEDULING_LOOP_UNSCHEDULED_CORES_REGIONS.clear()
+        for metric in SCHEDULING_LOOP_UNSCHEDULED_JOBS_REGIONS._metrics.values():
+            metric.set(0)
+        for metric in SCHEDULING_LOOP_UNSCHEDULED_CORES_REGIONS._metrics.values():
+            metric.set(0)
 
         n_scheduled = 0
         n_attempted_to_schedule = 0
