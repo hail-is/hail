@@ -54,6 +54,17 @@ SCHEDULING_LOOP_JOBS = pc.Gauge(
     ['pool_name', 'scheduled'],
 )
 
+SCHEDULING_LOOP_UNSCHEDULED_JOBS_REGIONS = pc.Gauge(
+    'scheduling_loop_unscheduled_jobs_regions',
+    'Number of jobs that were unable to be scheduled per region requirement',
+    ['pool_name', 'region'],
+)
+SCHEDULING_LOOP_UNSCHEDULED_CORES_REGIONS = pc.Gauge(
+    'scheduling_loop_unscheduled_cores_regions',
+    'Number of jobs that were unable to be scheduled per region requirement',
+    ['pool_name', 'region'],
+)
+
 AUTOSCALER_FULL_JOB_QUEUE_READY_CORES = pc.Gauge(
     'autoscaler_full_job_queue_ready_cores',
     'Number of ready cores per control loop execution calculated from the full job queue',
@@ -209,12 +220,14 @@ WHERE removed = 0 AND inst_coll = %s;
         if instance.state == 'active' and instance.failed_request_count <= 1:
             self.healthy_instances_by_free_cores.add(instance)
 
-    def get_instance(self, user, cores_mcpu):
+    def get_instance(self, user: str, cores_mcpu: int, regions: List[str]):
         i = self.healthy_instances_by_free_cores.bisect_key_left(cores_mcpu)
         while i < len(self.healthy_instances_by_free_cores):
             instance = self.healthy_instances_by_free_cores[i]
             assert cores_mcpu <= instance.free_cores_mcpu
-            if user != 'ci' or (user == 'ci' and instance.region == self._ci_region):
+            if user == 'ci' and instance.region == self._ci_region:
+                return instance
+            elif user != 'ci' and (regions is None or (regions and instance.region in regions)):
                 return instance
             i += 1
         return None
@@ -569,21 +582,25 @@ HAVING n_ready_jobs + n_running_jobs > 0;
         start = time_msecs()
         SCHEDULING_LOOP_RUNS.labels(pool_name=self.pool.name).inc()
 
+        SCHEDULING_LOOP_CORES.clear()
+        SCHEDULING_LOOP_JOBS.clear()
+        SCHEDULING_LOOP_UNSCHEDULED_JOBS_REGIONS.clear()
+        SCHEDULING_LOOP_UNSCHEDULED_CORES_REGIONS.clear()
+
         n_scheduled = 0
         n_attempted_to_schedule = 0
 
         n_cores_mcpu_attempted_to_schedule = 0
         n_cores_mcpu_scheduled = 0
 
+        unscheduled_jobs_per_region = defaultdict(int)
+        unscheduled_cores_per_region = defaultdict(int)
+
         user_resources = await self.compute_fair_share()
 
         total = sum(resources['allocated_cores_mcpu'] for resources in user_resources.values())
         if not total:
             should_wait = True
-            SCHEDULING_LOOP_CORES.labels(pool_name=self.pool.name, scheduled=True).set(0)
-            SCHEDULING_LOOP_CORES.labels(pool_name=self.pool.name, scheduled=False).set(0)
-            SCHEDULING_LOOP_JOBS.labels(pool_name=self.pool.name, scheduled=True).set(0)
-            SCHEDULING_LOOP_JOBS.labels(pool_name=self.pool.name, scheduled=False).set(0)
             return should_wait
         user_share = {
             user: max(int(300 * resources['allocated_cores_mcpu'] / total + 0.5), 20)
@@ -663,6 +680,8 @@ ORDER BY -n_regions DESC, JSON_UNQUOTE(regions), job_id;
                 attempt_id = secret_alnum_string(6)
                 record['attempt_id'] = attempt_id
 
+                regions = regions_str_to_py(record['regions'])
+
                 n_cores_mcpu_attempted_to_schedule += record['cores_mcpu']
 
                 if scheduled_cores_mcpu + record['cores_mcpu'] > allocated_cores_mcpu:
@@ -672,7 +691,7 @@ ORDER BY -n_regions DESC, JSON_UNQUOTE(regions), job_id;
                         break
                     self.exceeded_shares_counter.push(False)
 
-                instance = self.pool.get_instance(user, record['cores_mcpu'])
+                instance = self.pool.get_instance(user, record['cores_mcpu'], regions)
                 if instance:
                     instance.adjust_free_cores_in_memory(-record['cores_mcpu'])
                     scheduled_cores_mcpu += record['cores_mcpu']
@@ -687,6 +706,15 @@ ORDER BY -n_regions DESC, JSON_UNQUOTE(regions), job_id;
                                 instance.adjust_free_cores_in_memory(record['cores_mcpu'])
 
                     await waitable_pool.call(schedule_with_error_handling, self.app, record, instance)
+                else:
+                    if regions is not None:
+                        for region in regions:
+                            unscheduled_jobs_per_region[region] += 1
+                            unscheduled_cores_per_region[region] += record['cores_mcpu']
+                    else:
+                        region = 'none'
+                        unscheduled_jobs_per_region[region] += 1
+                        unscheduled_cores_per_region[region] += record['cores_mcpu']
 
                 remaining.value -= 1
                 if remaining.value <= 0:
@@ -708,5 +736,9 @@ ORDER BY -n_regions DESC, JSON_UNQUOTE(regions), job_id;
         SCHEDULING_LOOP_JOBS.labels(pool_name=self.pool.name, scheduled=False).set(
             n_attempted_to_schedule - n_scheduled
         )
+        for region, count in unscheduled_jobs_per_region.items():
+            SCHEDULING_LOOP_UNSCHEDULED_JOBS_REGIONS.labels(pool_name=self.pool.name, region=region).set(count)
+        for region, cores in unscheduled_cores_per_region.items():
+            SCHEDULING_LOOP_UNSCHEDULED_CORES_REGIONS.labels(pool_name=self.pool.name, region=region).set(cores / 1000)
 
         return should_wait
