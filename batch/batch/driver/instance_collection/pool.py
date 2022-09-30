@@ -46,12 +46,12 @@ AUTOSCALER_LOOP_RUNS = pc.Counter(
 SCHEDULING_LOOP_CORES = pc.Gauge(
     'scheduling_loop_cores',
     'Number of cores scheduled or unscheduled in one scheduling execution loop',
-    ['pool_name', 'region', 'scheduled'],
+    ['pool_name', 'scheduled'],
 )
 SCHEDULING_LOOP_JOBS = pc.Gauge(
     'scheduling_loop_jobs',
     'Number of jobs scheduled or unscheduled in one scheduling execution loop',
-    ['pool_name', 'region', 'scheduled'],
+    ['pool_name', 'scheduled'],
 )
 
 AUTOSCALER_FULL_JOB_QUEUE_READY_CORES = pc.Gauge(
