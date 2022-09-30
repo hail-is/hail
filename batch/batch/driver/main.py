@@ -62,7 +62,7 @@ from ..exceptions import BatchUserError
 from ..file_store import FileStore
 from ..globals import HTTP_CLIENT_MAX_SIZE
 from ..inst_coll_config import InstanceCollectionConfigs, PoolConfig
-from ..utils import authorization_token, batch_only, query_billing_projects
+from ..utils import authorization_token, batch_only, json_to_value, query_billing_projects
 from .canceller import Canceller
 from .driver import CloudDriver
 from .instance_collection import InstanceCollectionManager, JobPrivateInstanceManager, Pool
@@ -955,11 +955,6 @@ LOCK IN SHARE MODE;
 
 
 async def check_resource_aggregation(app, db):
-    def json_to_value(x):
-        if x is None:
-            return x
-        return json.loads(x)
-
     def merge(r1, r2):
         if r1 is None:
             r1 = {}

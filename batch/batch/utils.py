@@ -3,7 +3,7 @@ import logging
 import secrets
 from collections import deque
 from functools import wraps
-from typing import Deque, List, Optional, Set, Tuple
+from typing import Deque, Set, Tuple
 
 from aiohttp import web
 
@@ -175,14 +175,7 @@ GROUP BY base_t.billing_project;
     return billing_projects
 
 
-def mysql_json_arrayagg_unquote_to_list(arrayagg_unquoted: Optional[str]) -> Optional[List[str]]:
-    if arrayagg_unquoted is None:
-        return None
-    arrayagg = json.loads(arrayagg_unquoted)
-
-    # Left join with no matches with JSON_ARRAYAGG results in [null]
-    if arrayagg == [None]:
-        return None
-
-    assert len(arrayagg) > 0, arrayagg_unquoted
-    return arrayagg
+def json_to_value(x):
+    if x is None:
+        return x
+    return json.loads(x)

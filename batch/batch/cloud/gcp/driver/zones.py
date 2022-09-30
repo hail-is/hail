@@ -1,6 +1,6 @@
 import logging
 import random
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import Any, Dict, List, Set, Tuple
 
 from hailtop.aiocloud import aiogoogle
 from hailtop.utils import url_basename
@@ -87,7 +87,7 @@ class ZoneMonitor(CloudLocationMonitor):
         local_ssd_data_disk: bool,
         data_disk_size_gb: int,
         preemptible: bool,
-        regions: Optional[List[str]],
+        regions: List[str],
     ) -> str:
         zone_weights = self.compute_zone_weights(cores, local_ssd_data_disk, data_disk_size_gb, preemptible, regions)
 
@@ -109,11 +109,11 @@ class ZoneMonitor(CloudLocationMonitor):
         local_ssd_data_disk: bool,
         data_disk_size_gb: int,
         preemptible: bool,
-        regions: Optional[List[str]],
+        regions: List[str],
     ) -> List[ZoneWeight]:
         weights = []
         for region_name, r in self._region_info.items():
-            if regions is not None and region_name not in regions:
+            if region_name not in regions:
                 continue
 
             quota_remaining = {q['metric']: q['limit'] - q['usage'] for q in r['quotas']}
