@@ -56,7 +56,7 @@ abstract class StreamProducer {
     * This block cannot jump away, e.g. to `LendOfStream`.
     *
     */
-  def initialize(cb: EmitCodeBuilder): Unit
+  def initialize(cb: EmitCodeBuilder, outerRegion: Value[Region]): Unit
 
   /**
     * Stream element region, into which the `element` is emitted. The assignment, clearing,
@@ -108,9 +108,9 @@ abstract class StreamProducer {
     */
   def close(cb: EmitCodeBuilder): Unit
 
-  final def unmanagedConsume(cb: EmitCodeBuilder, setup: EmitCodeBuilder => Unit = _ => ())(perElement: EmitCodeBuilder => Unit): Unit = {
+  final def unmanagedConsume(cb: EmitCodeBuilder, outerRegion: Value[Region], setup: EmitCodeBuilder => Unit = _ => ())(perElement: EmitCodeBuilder => Unit): Unit = {
 
-    this.initialize(cb)
+    this.initialize(cb, outerRegion)
     setup(cb)
     cb.goto(this.LproduceElement)
     cb.define(this.LproduceElementDone)
@@ -126,14 +126,14 @@ abstract class StreamProducer {
     if (requiresMemoryManagementPerElement) {
       cb.assign(elementRegion, Region.stagedCreate(Region.REGULAR, outerRegion.getPool()))
 
-      unmanagedConsume(cb, setup) { cb =>
+      unmanagedConsume(cb, outerRegion, setup) { cb =>
         perElement(cb)
         cb += elementRegion.clearRegion()
       }
       cb += elementRegion.invalidate()
     } else {
       cb.assign(elementRegion, outerRegion)
-      unmanagedConsume(cb, setup)(perElement)
+      unmanagedConsume(cb, outerRegion, setup)(perElement)
     }
   }
 }
@@ -173,7 +173,7 @@ object EmitStream {
         val st = SStream(EmitType(SUnreachable.fromVirtualType(_typ.elementType), true))
         val region = mb.genFieldThisRef[Region]("na_region")
         val producer = new StreamProducer {
-          override def initialize(cb: EmitCodeBuilder): Unit = {}
+          override def initialize(cb: EmitCodeBuilder, outerRegion: Value[Region]): Unit = {}
 
           override val length: Option[EmitCodeBuilder => Code[Int]] = Some(_ => Code._fatal[Int]("tried to get NA stream length"))
           override val elementRegion: Settable[Region] = region
@@ -193,7 +193,7 @@ object EmitStream {
           .map(cb) { case stream: SStreamValue =>
             val childProducer = stream.producer
             val producer = new StreamProducer {
-              override def initialize(cb: EmitCodeBuilder): Unit = childProducer.initialize(cb)
+              override def initialize(cb: EmitCodeBuilder, outerRegion: Value[Region]): Unit = childProducer.initialize(cb, outerRegion)
 
               override val length: Option[EmitCodeBuilder => Code[Int]] = childProducer.length
               override val elementRegion: Settable[Region] = childProducer.elementRegion
@@ -220,7 +220,7 @@ object EmitStream {
 
       case In(n, _) =>
         // this, Code[Region], ...
-        val param = env.inputValues(n).apply(cb, outerRegion)
+        val param = env.inputValues(n).apply(cb)
         if (!param.st.isInstanceOf[SStream])
           throw new RuntimeException(s"parameter ${ 2 + n } is not a stream! t=${ param.st } }, params=${ mb.emitParamTypes }")
         param
@@ -235,7 +235,7 @@ object EmitStream {
 
           SStreamValue(
             new StreamProducer {
-              override def initialize(cb: EmitCodeBuilder): Unit = {
+              override def initialize(cb: EmitCodeBuilder, outerRegion: Value[Region]): Unit = {
                 cb.assign(containerField, ind)
                 cb.assign(idx, -1)
               }
@@ -259,7 +259,7 @@ object EmitStream {
             })
 
         }
-        
+
       case x@StreamBufferedAggregate(streamChild, initAggs, newKey, seqOps, name,
         aggSignatures: IndexedSeq[PhysicalAggSig], bufferSize: Int) =>
         val region = mb.genFieldThisRef[Region]("stream_buff_agg_region")
@@ -289,13 +289,13 @@ object EmitStream {
             val producer: StreamProducer = new StreamProducer {
               override val length: Option[EmitCodeBuilder => Code[Int]] = None
 
-              override def initialize(cb: EmitCodeBuilder): Unit = {
+              override def initialize(cb: EmitCodeBuilder, outerRegion: Value[Region]): Unit = {
                 if (childProducer.requiresMemoryManagementPerElement)
                   cb.assign(childProducer.elementRegion, Region.stagedCreate(Region.REGULAR, outerRegion.getPool()))
                 else
                   cb.assign(childProducer.elementRegion, region)
 
-                childProducer.initialize(cb)
+                childProducer.initialize(cb, outerRegion)
                 cb.assign(childStreamEnded, false)
                 cb.assign(produceElementMode, false)
                 cb.assign(idx, 0)
@@ -422,7 +422,7 @@ object EmitStream {
         IEmitCode.present(cb, SStreamValue(
           st,
           new StreamProducer {
-            override def initialize(cb: EmitCodeBuilder): Unit = {
+            override def initialize(cb: EmitCodeBuilder, outerRegion: Value[Region]): Unit = {
               cb.assign(current, 0) // switches on 1..N
             }
 
@@ -489,13 +489,13 @@ object EmitStream {
               }
             }
 
-            override def initialize(cb: EmitCodeBuilder): Unit = {
+            override def initialize(cb: EmitCodeBuilder, outerRegion: Value[Region]): Unit = {
               cb.ifx(xCond, {
                 cb.assign(leftProducer.elementRegion, region)
-                leftProducer.initialize(cb)
+                leftProducer.initialize(cb, outerRegion)
               }, {
                 cb.assign(rightProducer.elementRegion, region)
-                rightProducer.initialize(cb)
+                rightProducer.initialize(cb, outerRegion)
               })
             }
 
@@ -540,7 +540,7 @@ object EmitStream {
             val producer: StreamProducer = new StreamProducer {
               override val length: Option[EmitCodeBuilder => Code[Int]] = None
 
-              override def initialize(cb: EmitCodeBuilder): Unit = {
+              override def initialize(cb: EmitCodeBuilder, outerRegion: Value[Region]): Unit = {
                 val startVar = startCode.asInt.value
                 cb.assign(stepVar, stepCode.asInt.value)
                 cb.assign(curr, startVar - stepVar)
@@ -584,7 +584,7 @@ object EmitStream {
                 len
               })
 
-              override def initialize(cb: EmitCodeBuilder): Unit = {
+              override def initialize(cb: EmitCodeBuilder, outerRegion: Value[Region]): Unit = {
                 cb.assign(startVar, startCode.asInt.value)
                 cb.assign(stopVar, stopCode.asInt.value)
                 start match {
@@ -637,7 +637,7 @@ object EmitStream {
               val producer: StreamProducer = new StreamProducer {
                 override val length: Option[EmitCodeBuilder => Code[Int]] = Some(_ => len)
 
-                override def initialize(cb: EmitCodeBuilder): Unit = {
+                override def initialize(cb: EmitCodeBuilder, outerRegion: Value[Region]): Unit = {
                   val llen = cb.newLocal[Long]("streamrange_llen")
 
                   cb.assign(start, startc.asInt.value)
@@ -703,7 +703,7 @@ object EmitStream {
             val producer = new StreamProducer {
               override val length: Option[EmitCodeBuilder => Code[Int]] = Some(_ => len)
 
-              override def initialize(cb: EmitCodeBuilder): Unit = {
+              override def initialize(cb: EmitCodeBuilder, outerRegion: Value[Region]): Unit = {
                 cb.assign(len, numToSampleVal.asInt.value)
                 cb.assign(nRemaining, numToSampleVal.value)
                 cb.assign(candidate, 0)
@@ -750,12 +750,12 @@ object EmitStream {
             val producer = new StreamProducer {
               override val length: Option[EmitCodeBuilder => Code[Int]] = None
 
-              override def initialize(cb: EmitCodeBuilder): Unit = {
+              override def initialize(cb: EmitCodeBuilder, outerRegion: Value[Region]): Unit = {
                 if (childProducer.requiresMemoryManagementPerElement)
                   cb.assign(childProducer.elementRegion, Region.stagedCreate(Region.REGULAR, outerRegion.getPool()))
                 else
                   cb.assign(childProducer.elementRegion, outerRegion)
-                childProducer.initialize(cb)
+                childProducer.initialize(cb, outerRegion)
               }
 
               override val elementRegion: Settable[Region] = filterEltRegion
@@ -814,11 +814,11 @@ object EmitStream {
                 override val length: Option[EmitCodeBuilder => Code[Int]] =
                   childProducer.length.map(compLen => (cb: EmitCodeBuilder) => compLen(cb).min(n))
 
-                override def initialize(cb: EmitCodeBuilder): Unit = {
+                override def initialize(cb: EmitCodeBuilder, outerRegion: Value[Region]): Unit = {
                   cb.assign(n, num.value)
                   cb.ifx(n < 0, cb._fatal(s"stream take: negative number of elements to take: ", n.toS))
                   cb.assign(idx, 0)
-                  childProducer.initialize(cb)
+                  childProducer.initialize(cb, outerRegion)
                 }
 
                 override val elementRegion: Settable[Region] = childProducer.elementRegion
@@ -858,11 +858,11 @@ object EmitStream {
                   (cb: EmitCodeBuilder) => (computeL(cb) - n).max(0)
                 }
 
-                override def initialize(cb: EmitCodeBuilder): Unit = {
+                override def initialize(cb: EmitCodeBuilder, outerRegion: Value[Region]): Unit = {
                   cb.assign(n, num.value)
                   cb.ifx(n < 0, cb._fatal(s"stream drop: negative number of elements to drop: ", n.toS))
                   cb.assign(idx, 0)
-                  childProducer.initialize(cb)
+                  childProducer.initialize(cb, outerRegion)
                 }
 
                 override val elementRegion: Settable[Region] = childProducer.elementRegion
@@ -902,8 +902,8 @@ object EmitStream {
             val producer = new StreamProducer {
               override val length: Option[EmitCodeBuilder => Code[Int]] = None
 
-              override def initialize(cb: EmitCodeBuilder): Unit = {
-                childProducer.initialize(cb)
+              override def initialize(cb: EmitCodeBuilder, outerRegion: Value[Region]): Unit = {
+                childProducer.initialize(cb, outerRegion)
               }
 
               override val elementRegion: Settable[Region] = childProducer.elementRegion
@@ -944,8 +944,8 @@ object EmitStream {
             val producer = new StreamProducer {
               override val length: Option[EmitCodeBuilder => Code[Int]] = None
 
-              override def initialize(cb: EmitCodeBuilder): Unit = {
-                childProducer.initialize(cb)
+              override def initialize(cb: EmitCodeBuilder, outerRegion: Value[Region]): Unit = {
+                childProducer.initialize(cb, outerRegion)
                 cb.assign(doneComparisons, false)
               }
 
@@ -1007,8 +1007,8 @@ object EmitStream {
             val producer: StreamProducer = new StreamProducer {
               override val length: Option[EmitCodeBuilder => Code[Int]] = childProducer.length
 
-              override def initialize(cb: EmitCodeBuilder): Unit = {
-                childProducer.initialize(cb)
+              override def initialize(cb: EmitCodeBuilder, outerRegion: Value[Region]): Unit = {
+                childProducer.initialize(cb, outerRegion)
               }
 
               override val elementRegion: Settable[Region] = childProducer.elementRegion
@@ -1050,13 +1050,13 @@ object EmitStream {
             override val length: Option[EmitCodeBuilder => Code[Int]] =
               childProducer.length.map(compL => (cb: EmitCodeBuilder) => compL(cb) + const(1))
 
-            override def initialize(cb: EmitCodeBuilder): Unit = {
+            override def initialize(cb: EmitCodeBuilder, outerRegion: Value[Region]): Unit = {
 
               if (childProducer.requiresMemoryManagementPerElement) {
                 cb.assign(accRegion, Region.stagedCreate(Region.REGULAR, outerRegion.getPool()))
               }
               cb.assign(first, true)
-              childProducer.initialize(cb)
+              childProducer.initialize(cb, outerRegion)
             }
 
             override val elementRegion: Settable[Region] = childProducer.elementRegion
@@ -1132,10 +1132,10 @@ object EmitStream {
           val producer = new StreamProducer {
             override val length: Option[EmitCodeBuilder => Code[Int]] = childProducer.length
 
-            override def initialize(cb: EmitCodeBuilder): Unit = {
+            override def initialize(cb: EmitCodeBuilder, outerRegion: Value[Region]): Unit = {
               aggSetup(cb)
               emitVoid(init, cb = cb, region = outerRegion, container = Some(newContainer))
-              childProducer.initialize(cb)
+              childProducer.initialize(cb, outerRegion)
             }
 
             override val elementRegion: Settable[Region] = childProducer.elementRegion
@@ -1187,7 +1187,7 @@ object EmitStream {
           val producer = new StreamProducer {
             override val length: Option[EmitCodeBuilder => Code[Int]] = None
 
-            override def initialize(cb: EmitCodeBuilder): Unit = {
+            override def initialize(cb: EmitCodeBuilder, outerRegion: Value[Region]): Unit = {
               cb.assign(first, true)
               cb.assign(innerUnclosed, false)
 
@@ -1196,7 +1196,7 @@ object EmitStream {
               else
                 cb.assign(outerProducer.elementRegion, outerRegion)
 
-              outerProducer.initialize(cb)
+              outerProducer.initialize(cb, outerRegion)
             }
 
             override val elementRegion: Settable[Region] = resultElementRegion
@@ -1239,7 +1239,7 @@ object EmitStream {
                       else
                         cb.assign(innerProducer.elementRegion, outerProducer.elementRegion)
 
-                      innerProducer.initialize(cb)
+                      innerProducer.initialize(cb, outerRegion)
                       cb.goto(LnextInner)
                   }
                 )
@@ -1360,8 +1360,8 @@ object EmitStream {
               else
                 cb.assign(leftProducer.elementRegion, outerRegion)
 
-              leftProducer.initialize(cb)
-              rightProducer.initialize(cb)
+              leftProducer.initialize(cb, outerRegion)
+              rightProducer.initialize(cb, outerRegion)
             }
 
             def sharedClose(cb: EmitCodeBuilder): Unit = {
@@ -1382,7 +1382,7 @@ object EmitStream {
                 val producer = new StreamProducer {
                   override val length: Option[EmitCodeBuilder => Code[Int]] = leftProducer.length
 
-                  override def initialize(cb: EmitCodeBuilder): Unit = {
+                  override def initialize(cb: EmitCodeBuilder, outerRegion: Value[Region]): Unit = {
                     cb.assign(rightEOS, false)
                     cb.assign(pulledRight, false)
 
@@ -1471,7 +1471,7 @@ object EmitStream {
                 val producer = new StreamProducer {
                   override val length: Option[EmitCodeBuilder => Code[Int]] = None
 
-                  override def initialize(cb: EmitCodeBuilder): Unit = {
+                  override def initialize(cb: EmitCodeBuilder, outerRegion: Value[Region]): Unit = {
                     cb.assign(leftEOS, false)
                     cb.assign(pulledRight, false)
                     cb.assign(pushedRight, false)
@@ -1573,7 +1573,7 @@ object EmitStream {
                 val producer = new StreamProducer {
                   override val length: Option[EmitCodeBuilder => Code[Int]] = None
 
-                  override def initialize(cb: EmitCodeBuilder): Unit = {
+                  override def initialize(cb: EmitCodeBuilder, outerRegion: Value[Region]): Unit = {
                     cb.assign(pulledRight, false)
                     sharedInit(cb)
                   }
@@ -1643,7 +1643,7 @@ object EmitStream {
                 val producer = new StreamProducer {
                   override val length: Option[EmitCodeBuilder => Code[Int]] = None
 
-                  override def initialize(cb: EmitCodeBuilder): Unit = {
+                  override def initialize(cb: EmitCodeBuilder, outerRegion: Value[Region]): Unit = {
                     cb.assign(pulledRight, false)
                     cb.assign(leftEOS, false)
                     cb.assign(rightEOS, false)
@@ -1841,7 +1841,7 @@ object EmitStream {
           val innerProducer = new StreamProducer {
             override val length: Option[EmitCodeBuilder => Code[Int]] = None
 
-            override def initialize(cb: EmitCodeBuilder): Unit = {}
+            override def initialize(cb: EmitCodeBuilder, outerRegion: Value[Region]): Unit = {}
 
             override val elementRegion: Settable[Region] = innerResultRegion
             override val requiresMemoryManagementPerElement: Boolean = childProducer.requiresMemoryManagementPerElement
@@ -1887,7 +1887,7 @@ object EmitStream {
           val outerProducer = new StreamProducer {
             override val length: Option[EmitCodeBuilder => Code[Int]] = None
 
-            override def initialize(cb: EmitCodeBuilder): Unit = {
+            override def initialize(cb: EmitCodeBuilder, outerRegion: Value[Region]): Unit = {
               cb.assign(nextGroupReady, false)
               cb.assign(eos, false)
               cb.assign(inOuter, true)
@@ -1901,7 +1901,7 @@ object EmitStream {
                 cb.assign(childProducer.elementRegion, outerRegion)
               }
 
-              childProducer.initialize(cb)
+              childProducer.initialize(cb, outerRegion)
             }
 
             override val elementRegion: Settable[Region] = outerElementRegion
@@ -2002,7 +2002,7 @@ object EmitStream {
             val innerProducer = new StreamProducer {
               override val length: Option[EmitCodeBuilder => Code[Int]] = None
 
-              override def initialize(cb: EmitCodeBuilder): Unit = {}
+              override def initialize(cb: EmitCodeBuilder, outerRegion: Value[Region]): Unit = {}
 
               override val elementRegion: Settable[Region] = innerResultRegion
               override val requiresMemoryManagementPerElement: Boolean = childProducer.requiresMemoryManagementPerElement
@@ -2037,7 +2037,7 @@ object EmitStream {
               override val length: Option[EmitCodeBuilder => Code[Int]] =
                 childProducer.length.map(compL => (cb: EmitCodeBuilder) => ((compL(cb).toL + n.toL - 1L) / n.toL).toI)
 
-              override def initialize(cb: EmitCodeBuilder): Unit = {
+              override def initialize(cb: EmitCodeBuilder, outerRegion: Value[Region]): Unit = {
                 cb.assign(n, groupSize.value)
                 cb.ifx(n <= 0, cb._fatal(s"stream grouped: non-positive size: ", n.toS))
                 cb.assign(eos, false)
@@ -2049,7 +2049,7 @@ object EmitStream {
                   cb.assign(childProducer.elementRegion, outerRegion)
                 }
 
-                childProducer.initialize(cb)
+                childProducer.initialize(cb, outerRegion)
               }
 
               override val elementRegion: Settable[Region] = outerElementRegion
@@ -2131,13 +2131,13 @@ object EmitStream {
                   }
                 }
 
-                override def initialize(cb: EmitCodeBuilder): Unit = {
+                override def initialize(cb: EmitCodeBuilder, outerRegion: Value[Region]): Unit = {
                   producers.foreach { p =>
                     if (p.requiresMemoryManagementPerElement)
                       cb.assign(p.elementRegion, eltRegion)
                     else
                       cb.assign(p.elementRegion, outerRegion)
-                    p.initialize(cb)
+                    p.initialize(cb, outerRegion)
                   }
                 }
 
@@ -2196,7 +2196,7 @@ object EmitStream {
                     })
                 }
 
-                override def initialize(cb: EmitCodeBuilder): Unit = {
+                override def initialize(cb: EmitCodeBuilder, outerRegion: Value[Region]): Unit = {
                   cb.assign(anyEOS, false)
 
                   producers.foreach { p =>
@@ -2204,7 +2204,7 @@ object EmitStream {
                       cb.assign(p.elementRegion, eltRegion)
                     else
                       cb.assign(p.elementRegion, outerRegion)
-                    p.initialize(cb)
+                    p.initialize(cb, outerRegion)
                   }
                 }
 
@@ -2267,13 +2267,13 @@ object EmitStream {
                       }
                     }
 
-                override def initialize(cb: EmitCodeBuilder): Unit = {
+                override def initialize(cb: EmitCodeBuilder, outerRegion: Value[Region]): Unit = {
                   producers.foreach { p =>
                     if (p.requiresMemoryManagementPerElement)
                       cb.assign(p.elementRegion, eltRegion)
                     else
                       cb.assign(p.elementRegion, outerRegion)
-                    p.initialize(cb)
+                    p.initialize(cb, outerRegion)
                   }
 
                   eosPerStream.foreach { eos =>
@@ -2405,7 +2405,7 @@ object EmitStream {
           val producer = new StreamProducer {
             override val length: Option[EmitCodeBuilder => Code[Int]] = None
 
-            override def initialize(cb: EmitCodeBuilder): Unit = {
+            override def initialize(cb: EmitCodeBuilder, outerRegion: Value[Region]): Unit = {
               cb.assign(regionArray, Code.newArray[Region](k))
               producers.zipWithIndex.foreach { case (p, idx) =>
                 if (p.requiresMemoryManagementPerElement) {
@@ -2413,7 +2413,7 @@ object EmitStream {
                 } else
                   cb.assign(p.elementRegion, outerRegion)
                 cb += (regionArray(idx) = p.elementRegion)
-                p.initialize(cb)
+                p.initialize(cb, outerRegion)
               }
               initMemoryManagementPerElementArray(cb)
               cb.assign(bracket, Code.newArray[Int](k))
@@ -2656,7 +2656,7 @@ object EmitStream {
                   }
                 }
 
-            override def initialize(cb: EmitCodeBuilder): Unit = {
+            override def initialize(cb: EmitCodeBuilder, outerRegion: Value[Region]): Unit = {
               cb.assign(regionArray, Code.newArray[Region](k))
               producers.zipWithIndex.foreach { case (p, i) =>
                 if (p.requiresMemoryManagementPerElement) {
@@ -2664,7 +2664,7 @@ object EmitStream {
                 } else
                   cb.assign(p.elementRegion, outerRegion)
                 cb += (regionArray(i) = p.elementRegion)
-                p.initialize(cb)
+                p.initialize(cb, outerRegion)
               }
               initMemoryManagementPerElementArray(cb)
               cb.assign(bracket, Code.newArray[Int](k))
@@ -2763,7 +2763,7 @@ object EmitStream {
 
       case ReadPartition(context, rowType, reader) =>
         val ctxCode = EmitCode.fromI(mb)(cb => emit(context, cb))
-        reader.emitStream(emitter.ctx.executeContext, cb, ctxCode, outerRegion, rowType)
+        reader.emitStream(emitter.ctx.executeContext, cb, ctxCode, rowType)
     }
   }
 }

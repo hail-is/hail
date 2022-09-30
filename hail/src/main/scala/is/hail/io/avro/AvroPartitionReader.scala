@@ -51,7 +51,6 @@ case class AvroPartitionReader(schema: Schema, uidFieldName: String) extends Par
     ctx: ExecuteContext,
     cb: EmitCodeBuilder,
     context: EmitCode,
-    partitionRegion: Value[Region],
     requestedType: TStruct
   ): IEmitCode = {
     context.toI(cb).map(cb) { case ctxStruct: SBaseStructValue =>
@@ -73,7 +72,7 @@ case class AvroPartitionReader(schema: Schema, uidFieldName: String) extends Par
       val producer = new StreamProducer {
         val length: Option[EmitCodeBuilder => Code[Int]] = None
 
-        def initialize(cb: EmitCodeBuilder): Unit = {
+        def initialize(cb: EmitCodeBuilder, outerRegion: Value[Region]): Unit = {
           val mb = cb.emb
           val codeSchema = cb.newLocal("schema", mb.getObject(schema))
           cb.assign(record, Code.newInstance[GenericData.Record, Schema](codeSchema))

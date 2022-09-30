@@ -107,7 +107,7 @@ class AppendOnlyBTree(kb: EmitClassBuilder[_], val key: BTreeKey, region: Value[
       FastIndexedSeq[ParamType](typeInfo[Long], typeInfo[Int], castKCode.emitParamType, typeInfo[Long]), typeInfo[Long]) { insertAt =>
       val node: Value[Long] = insertAt.getCodeParam[Long](1)
       val insertIdx: Value[Int] = insertAt.getCodeParam[Int](2)
-      val k: EmitValue = insertAt.getEmitParam(cb, 3, region)
+      val k: EmitValue = insertAt.getEmitParam(cb, 3)
       val child: Value[Long] = insertAt.getCodeParam[Long](4)
 
       def parent(cb: EmitCodeBuilder): Value[Long] = getParent(cb, node)
@@ -241,7 +241,7 @@ class AppendOnlyBTree(kb: EmitClassBuilder[_], val key: BTreeKey, region: Value[
     val get = kb.genEmitMethod("btree_get", FastIndexedSeq[ParamType](typeInfo[Long], kc.emitParamType), typeInfo[Long])
     get.emitWithBuilder { cb =>
       val node = get.getCodeParam[Long](1)
-      val k = get.getEmitParam(cb, 2, region)
+      val k = get.getEmitParam(cb, 2)
 
       val cmp = cb.newLocal("btree_get_cmp", -1)
       val keyV = cb.newLocal("btree_get_keyV", 0L)
