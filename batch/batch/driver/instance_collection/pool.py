@@ -46,12 +46,12 @@ AUTOSCALER_LOOP_RUNS = pc.Counter(
 SCHEDULING_LOOP_CORES = pc.Gauge(
     'scheduling_loop_cores',
     'Number of cores scheduled or unscheduled in one scheduling execution loop',
-    ['pool_name', 'scheduled'],
+    ['pool_name', 'region', 'scheduled'],
 )
 SCHEDULING_LOOP_JOBS = pc.Gauge(
     'scheduling_loop_jobs',
     'Number of jobs scheduled or unscheduled in one scheduling execution loop',
-    ['pool_name', 'scheduled'],
+    ['pool_name', 'region', 'scheduled'],
 )
 
 AUTOSCALER_FULL_JOB_QUEUE_READY_CORES = pc.Gauge(
@@ -580,6 +580,10 @@ HAVING n_ready_jobs + n_running_jobs > 0;
         total = sum(resources['allocated_cores_mcpu'] for resources in user_resources.values())
         if not total:
             should_wait = True
+            SCHEDULING_LOOP_CORES.labels(pool_name=self.pool.name, scheduled=True).set(0)
+            SCHEDULING_LOOP_CORES.labels(pool_name=self.pool.name, scheduled=False).set(0)
+            SCHEDULING_LOOP_JOBS.labels(pool_name=self.pool.name, scheduled=True).set(0)
+            SCHEDULING_LOOP_JOBS.labels(pool_name=self.pool.name, scheduled=False).set(0)
             return should_wait
         user_share = {
             user: max(int(300 * resources['allocated_cores_mcpu'] / total + 0.5), 20)
