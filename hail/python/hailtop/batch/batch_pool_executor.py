@@ -138,9 +138,9 @@ class BatchPoolExecutor:
         self._shutdown = False
         version = sys.version_info
         if image is None:
-            if version.major != 3 or version.minor not in (6, 7, 8):
+            if version.major != 3 or version.minor not in (7, 8, 9, 10):
                 raise ValueError(
-                    f'You must specify an image if you are using a Python version other than 3.6, 3.7, or 3.8 (you are using {version})')
+                    f'You must specify an image if you are using a Python version other than 3.7, 3.8, 3.9 or 3.10 (you are using {version})')
             self.image = f'hailgenetics/python-dill:{version.major}.{version.minor}-slim'
         else:
             self.image = image
