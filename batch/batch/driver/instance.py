@@ -239,7 +239,7 @@ VALUES (%s, %s);
 
         free_cores_mcpu can be negatively temporarily if the worker is oversubscribed.
         """
-        return max(0, instance.free_cores_mcpu)
+        return max(0, self.free_cores_mcpu)
 
     def adjust_free_cores_in_memory(self, delta_mcpu):
         self.inst_coll.adjust_for_remove_instance(self)
