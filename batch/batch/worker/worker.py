@@ -36,6 +36,7 @@ import aiohttp
 import aiohttp.client_exceptions
 import aiorwlock
 import async_timeout
+import orjson
 from aiodocker.exceptions import DockerError  # type: ignore
 from aiohttp import web
 from sortedcontainers import SortedSet
@@ -1361,6 +1362,11 @@ class Job:
 
         self.mjs_fut: Optional[asyncio.Future] = None
 
+    def write_batch_config(self):
+        os.makedirs(f'{self.scratch}/batch-config')
+        with open(f'{self.scratch}/batch-config/batch-config.json', 'wb') as config:
+            config.write(orjson.dumps({'version': 1, 'batch_id': self.batch_id}))
+
     @property
     def job_id(self):
         return self.job_spec['job_id']
@@ -1599,6 +1605,7 @@ class DockerJob(Job):
                 self.state = 'initializing'
 
                 os.makedirs(f'{self.scratch}/')
+                self.write_batch_config()
 
                 with self.step('setup_io'):
                     await self.setup_io()
@@ -1828,6 +1835,7 @@ class JVMJob(Job):
         async with self.worker.cpu_sem(self.cpu_in_mcpu):
             self.start_time = time_msecs()
             os.makedirs(f'{self.scratch}/')
+            self.write_batch_config()
 
             try:
                 with self.step('connecting_to_jvm'):
