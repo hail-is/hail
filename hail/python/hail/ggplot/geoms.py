@@ -13,8 +13,9 @@ class FigureAttribute(abc.ABC):
 
 class Geom(FigureAttribute):
 
-    def __init__(self, aes):
+    def __init__(self, aes, legend_format=None):
         self.aes = aes
+        self.legend_format = legend_format
 
     @abc.abstractmethod
     def apply_to_fig(self, parent, agg_result, fig_so_far, precomputed, facet_row, facet_col, legend_cache):
@@ -25,6 +26,8 @@ class Geom(FigureAttribute):
         pass
 
     def _add_aesthetics_to_trace_args(self, trace_args, df):
+        legend_labels = {}
+
         for aes_name, (plotly_name, default) in self.aes_to_arg.items():
             value = None
 
@@ -37,10 +40,17 @@ class Geom(FigureAttribute):
             elif default is not None:
                 value = default
 
-            if plotly_name == "name" and trace_args.get(plotly_name, None) is not None:
-                trace_args[plotly_name] += f" & {value}"
-            elif value is not None:
-                trace_args[plotly_name] = value
+            if value is not None:
+                if plotly_name == "name":
+                    aes_short_name, _, _ = aes_name.partition("_legend")
+                    legend_labels[aes_short_name] = value
+                else:
+                    trace_args[plotly_name] = value
+
+        if self.legend_format is not None:
+            trace_args["name"] = self.legend_format.format(**legend_labels)
+        else:
+            trace_args["name"] = " × ".join(legend_labels.values())
 
     def _update_legend_trace_args(self, trace_args, legend_cache):
         if "name" in trace_args:
@@ -100,8 +110,8 @@ class GeomPoint(Geom):
         "shape_legend": ("name", None),
     }
 
-    def __init__(self, aes, color=None, size=None, alpha=None, shape=None):
-        super().__init__(aes)
+    def __init__(self, aes, color=None, size=None, alpha=None, shape=None, legend_format=None):
+        super().__init__(aes, legend_format)
         self.color = color
         self.size = size
         self.alpha = alpha
@@ -129,17 +139,17 @@ class GeomPoint(Geom):
         return StatIdentity()
 
 
-def geom_point(mapping=aes(), *, color=None, size=None, alpha=None, shape=None):
+def geom_point(mapping=aes(), *, color=None, size=None, alpha=None, shape=None, legend_format=None):
     """Create a scatter plot.
 
-    Supported aesthetics: ``x``, ``y``, ``color``, ``alpha``, ``tooltip``, ``shape``
+    Supported aesthetics: ``x``, ``y``, ``color``, ``alpha``, ``tooltip``, ``shape``, ``legend_format``
 
     Returns
     -------
     :class:`FigureAttribute`
         The geom to be applied.
     """
-    return GeomPoint(mapping, color=color, size=size, alpha=alpha, shape=shape)
+    return GeomPoint(mapping, color=color, size=size, alpha=alpha, shape=shape, legend_format=legend_format)
 
 
 class GeomLine(GeomLineBasic):
