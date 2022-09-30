@@ -175,14 +175,14 @@ GROUP BY base_t.billing_project;
     return billing_projects
 
 
-def regions_str_to_py(region_str: Optional[str]) -> Optional[List[str]]:
-    if region_str is None:
+def mysql_json_arrayagg_unquote_to_list(arrayagg_unquoted: Optional[str]) -> Optional[List[str]]:
+    if arrayagg_unquoted is None:
         return None
-    regions = json.loads(region_str)
+    arrayagg = json.loads(arrayagg_unquoted)
 
     # Left join with no matches with JSON_ARRAYAGG results in [null]
-    if regions == [None]:
+    if arrayagg == [None]:
         return None
 
-    assert len(regions) > 0, region_str
-    return regions
+    assert len(arrayagg) > 0, arrayagg_unquoted
+    return arrayagg

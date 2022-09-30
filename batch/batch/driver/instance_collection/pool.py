@@ -3,7 +3,7 @@ import copy
 import logging
 import random
 from collections import defaultdict
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 
 import prometheus_client as pc
 import sortedcontainers
@@ -23,7 +23,7 @@ from hailtop.utils import (
 
 from ...batch_configuration import STANDING_WORKER_MAX_IDLE_TIME_MSECS
 from ...inst_coll_config import PoolConfig
-from ...utils import Box, ExceededSharesCounter, regions_str_to_py
+from ...utils import Box, ExceededSharesCounter, mysql_json_arrayagg_unquote_to_list
 from ..instance import Instance
 from ..job import schedule_job
 from ..resource_manager import CloudResourceManager
@@ -263,7 +263,7 @@ WHERE removed = 0 AND inst_coll = %s;
         if regions is None:
             live_free_cores_mcpu = self.live_free_cores_mcpu
         else:
-            live_free_cores_mcpu = sum([self.live_free_cores_mcpu_by_region[region] for region in regions])
+            live_free_cores_mcpu = sum(self.live_free_cores_mcpu_by_region[region] for region in regions)
 
         instances_needed = (ready_cores_mcpu - live_free_cores_mcpu + (self.worker_cores * 1000) - 1) // (
             self.worker_cores * 1000
@@ -302,7 +302,7 @@ WHERE removed = 0 AND inst_coll = %s;
 
         await self._create_instances(instances_needed, regions)
 
-    async def ready_cores_mcpu_from_estimated_job_queue(self):
+    async def ready_cores_mcpu_from_estimated_job_queue(self) -> List[Tuple[str, int]]:
         autoscaler_runs_per_minute = 60 / AUTOSCALER_LOOP_PERIOD_SECONDS
         max_new_instances_in_two_and_a_half_minutes = int(
             2.5 * MAX_INSTANCES_PER_AUTOSCALER_LOOP * autoscaler_runs_per_minute
@@ -367,8 +367,8 @@ WITH ready_jobs AS (
 SELECT regions, CAST(COALESCE(SUM(cores_mcpu), 0) AS SIGNED) AS ready_cores_mcpu
 FROM (
   SELECT regions, cores_mcpu,
-    CAST(ROW_NUMBER() OVER (ORDER BY scheduling_iteration, user, ready_jobs.batch_id, always_run DESC, -n_regions DESC, JSON_UNQUOTE(regions), ready_jobs.job_id) AS SIGNED) AS rn1,
-    CAST(ROW_NUMBER() OVER (PARTITION BY JSON_UNQUOTE(regions) ORDER BY scheduling_iteration, user, ready_jobs.batch_id, always_run DESC, -regions.n_regions DESC, JSON_UNQUOTE(regions.regions), ready_jobs.job_id) AS SIGNED) AS rn2
+    CAST(ROW_NUMBER() OVER (ORDER BY scheduling_iteration, user, ready_jobs.batch_id, always_run DESC, -n_regions DESC, JSON_UNQUOTE(regions), ready_jobs.job_id) AS SIGNED) AS row_num_overall,
+    CAST(ROW_NUMBER() OVER (PARTITION BY JSON_UNQUOTE(regions) ORDER BY scheduling_iteration, user, ready_jobs.batch_id, always_run DESC, -regions.n_regions DESC, JSON_UNQUOTE(regions.regions), ready_jobs.job_id) AS SIGNED) AS row_num_by_regions
   FROM ready_jobs
   LEFT JOIN (
     SELECT ready_jobs.batch_id, ready_jobs.job_id, JSON_ARRAYAGG(region) AS regions, COUNT(region) AS n_regions
@@ -378,8 +378,10 @@ FROM (
     GROUP BY ready_jobs.batch_id, ready_jobs.job_id
   ) AS regions ON ready_jobs.batch_id = regions.batch_id AND ready_jobs.job_id = regions.job_id
 ) AS ordered_jobs
-GROUP BY regions, rn1 - rn2
-ORDER BY rn1;
+GROUP BY regions, row_num_overall - row_num_by_regions
+ORDER BY row_num_overall
+HAVING ready_cores_mcpu > 0
+LIMIT {MAX_INSTANCES_PER_AUTOSCALER_LOOP * self.worker_cores};
 ''',
             jobs_query_args,
             query_name='get_job_queue_head',
@@ -426,12 +428,12 @@ GROUP BY user;
         )
 
         head_job_queue_region_str_ready_cores_mcpu_ordered = await self.ready_cores_mcpu_from_estimated_job_queue()
-        head_job_queue_n_instances = defaultdict(lambda: 0)
-        head_job_queue_region_str_ready_cores_mcpu = defaultdict(lambda: 0)
+        head_job_queue_n_instances = defaultdict(int)
+        head_job_queue_region_str_ready_cores_mcpu = defaultdict(int)
         n_instances_by_state = copy.deepcopy(self.n_instances_by_state)
         for region_str, ready_cores_mcpu in head_job_queue_region_str_ready_cores_mcpu_ordered:
             n_instances = self.compute_n_instances_needed(
-                ready_cores_mcpu, n_instances_by_state, regions=regions_str_to_py(region_str)
+                ready_cores_mcpu, n_instances_by_state, regions=mysql_json_arrayagg_unquote_to_list(region_str)
             )
             head_job_queue_n_instances[region_str] += n_instances
             head_job_queue_region_str_ready_cores_mcpu[region_str] += ready_cores_mcpu
@@ -462,7 +464,7 @@ GROUP BY user;
 
         if head_job_queue_region_str_ready_cores_mcpu_ordered and free_cores < 500:
             for region_str, ready_cores_mcpu in head_job_queue_region_str_ready_cores_mcpu_ordered:
-                await self.create_instances_from_ready_cores(ready_cores_mcpu, regions=regions_str_to_py(region_str))
+                await self.create_instances_from_ready_cores(ready_cores_mcpu, regions=mysql_json_arrayagg_unquote_to_list(region_str))
 
         ci_ready_cores_mcpu = ready_cores_mcpu_per_user.get('ci', 0)
         if ci_ready_cores_mcpu > 0 and self.live_free_cores_mcpu_by_region[self._ci_region] == 0:
@@ -599,7 +601,7 @@ HAVING n_ready_jobs + n_running_jobs > 0;
         n_cores_mcpu_scheduled = 0
 
         unscheduled_jobs_per_region = defaultdict(int)
-        unscheduled_cores_per_region = defaultdict(int)
+        unscheduled_cores_mcpu_per_region = defaultdict(int)
 
         user_resources = await self.compute_fair_share()
 
@@ -685,7 +687,7 @@ ORDER BY -n_regions DESC, JSON_UNQUOTE(regions), job_id;
                 attempt_id = secret_alnum_string(6)
                 record['attempt_id'] = attempt_id
 
-                regions = regions_str_to_py(record['regions'])
+                regions = mysql_json_arrayagg_unquote_to_list(record['regions'])
 
                 n_cores_mcpu_attempted_to_schedule += record['cores_mcpu']
 
@@ -715,11 +717,11 @@ ORDER BY -n_regions DESC, JSON_UNQUOTE(regions), job_id;
                     if regions is not None:
                         for region in regions:
                             unscheduled_jobs_per_region[region] += 1
-                            unscheduled_cores_per_region[region] += record['cores_mcpu']
+                            unscheduled_cores_mcpu_per_region[region] += record['cores_mcpu']
                     else:
                         region = 'none'
                         unscheduled_jobs_per_region[region] += 1
-                        unscheduled_cores_per_region[region] += record['cores_mcpu']
+                        unscheduled_cores_mcpu_per_region[region] += record['cores_mcpu']
 
                 remaining.value -= 1
                 if remaining.value <= 0:
@@ -743,7 +745,7 @@ ORDER BY -n_regions DESC, JSON_UNQUOTE(regions), job_id;
         )
         for region, count in unscheduled_jobs_per_region.items():
             SCHEDULING_LOOP_UNSCHEDULED_JOBS_REGIONS.labels(pool_name=self.pool.name, region=region).set(count)
-        for region, cores in unscheduled_cores_per_region.items():
-            SCHEDULING_LOOP_UNSCHEDULED_CORES_REGIONS.labels(pool_name=self.pool.name, region=region).set(cores / 1000)
+        for region, cores_mcpu in unscheduled_cores_mcpu_per_region.items():
+            SCHEDULING_LOOP_UNSCHEDULED_CORES_REGIONS.labels(pool_name=self.pool.name, region=region).set(cores_mcpu / 1000)
 
         return should_wait
