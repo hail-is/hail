@@ -13,7 +13,7 @@ import webbrowser
 import warnings
 
 from hailtop import pip_version
-from hailtop.config import get_deploy_config, get_user_config
+from hailtop.config import configuration_of, get_deploy_config
 from hailtop.utils import parse_docker_image_reference, async_to_blocking, bounded_gather, tqdm, url_scheme
 from hailtop.batch.hail_genetics_images import HAIL_GENETICS_IMAGES
 from hailtop.batch_client.parse import parse_cpu_in_mcpu
@@ -387,11 +387,7 @@ class ServiceBackend(Backend[bc.Batch]):
         The authorization token to pass to the batch client.
         Should only be set for user delegation purposes.
     regions:
-        Cloud region(s) to run jobs in. Not specifying a default region means a job can be run
-        in any available region. On GCP, not specifying this parameter may result in additional egress fees
-        when transferring data and images for a job running in a different region from the one where the data
-        resides in. When using the Hail maintained Batch Service on GCP, the available regions are "us-central1",
-        "us-east1", "us-east4", "us-west1", "us-west2", "us-west3", and "us-west4".
+        Cloud region(s) to run jobs in.
     """
 
     def __init__(self,
@@ -416,16 +412,13 @@ class ServiceBackend(Backend[bc.Batch]):
             warnings.warn('Use of deprecated positional argument \'bucket\' in ServiceBackend(). Specify \'bucket\' as a keyword argument instead.')
             bucket = args[1]
 
-        if billing_project is None:
-            billing_project = get_user_config().get('batch', 'billing_project', fallback=None)
+        billing_project = configuration_of('batch', 'billing_project', billing_project, None)
         if billing_project is None:
             raise ValueError(
                 'the billing_project parameter of ServiceBackend must be set '
                 'or run `hailctl config set batch/billing_project '
                 'MY_BILLING_PROJECT`')
         self._batch_client = BatchClient(billing_project, _token=token)
-
-        user_config = get_user_config()
 
         if bucket is not None:
             warnings.warn('Use of deprecated argument \'bucket\' in ServiceBackend(). Specify \'remote_tmpdir\' as a keyword argument instead.')
@@ -434,11 +427,11 @@ class ServiceBackend(Backend[bc.Batch]):
             raise ValueError('Cannot specify both \'remote_tmpdir\' and \'bucket\' in ServiceBackend(). Specify \'remote_tmpdir\' as a keyword argument instead.')
 
         if bucket is None and remote_tmpdir is None:
-            remote_tmpdir = user_config.get('batch', 'remote_tmpdir', fallback=None)
+            remote_tmpdir = configuration_of('batch', 'remote_tmpdir', remote_tmpdir, None)
 
         if remote_tmpdir is None:
             if bucket is None:
-                bucket = user_config.get('batch', 'bucket', fallback=None)
+                bucket = configuration_of('batch', 'bucket', bucket, None)
                 warnings.warn('Using deprecated configuration setting \'batch/bucket\'. Run `hailctl config set batch/remote_tmpdir` '
                               'to set the default for \'remote_tmpdir\' instead.')
             if bucket is None:
@@ -467,16 +460,16 @@ class ServiceBackend(Backend[bc.Batch]):
         if isinstance(regions, str):
             self.regions = [regions]
         elif regions is None:
-            _regions = get_user_config().get('batch', 'regions', fallback=None)
+            _regions = configuration_of('batch', 'regions', regions, None)
             if _regions is not None:
-                self.regions = orjson.loads(_regions)
+                self.regions = _regions.split()
             else:
                 self.regions = None
                 warnings.warn('No default cloud regions have been specified.\n'
                               'This may result in additional egress fees when using a Hail Batch service hosted on the '
                               'Google Cloud Platform if the data and image do not reside in the same region in which the '
-                              'job is executed in. The default behavior is to run jobs in any available region. You can '
-                              'set the default value like `hailctl config set batch/regions "[\\"us-central1\\",\\"us-east1\\"]"` '
+                              'job is executed. The default behavior is to run jobs in any available region. You can '
+                              'set the default value like `hailctl config set batch/regions us-central1 us-east1` '
                               'or use the method Job.regions() to specify which regions a job can run in.')
         else:
             self.regions = regions

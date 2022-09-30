@@ -22,7 +22,7 @@ from hailtop.utils import (
 from ...batch_format_version import BatchFormatVersion
 from ...inst_coll_config import JobPrivateInstanceManagerConfig
 from ...instance_config import QuantifiedResource
-from ...utils import Box, ExceededSharesCounter, regions_str_to_py
+from ...utils import Box, ExceededSharesCounter, mysql_json_arrayagg_unquote_to_list
 from ..instance import Instance
 from ..job import mark_job_creating, schedule_job
 from ..resource_manager import CloudResourceManager
@@ -410,7 +410,7 @@ LIMIT %s;
                         batch_format_version = BatchFormatVersion(record['format_version'])
                         spec = json.loads(record['spec'])
                         machine_spec = batch_format_version.get_spec_machine_spec(spec)
-                        regions = regions_str_to_py(record['regions'])
+                        regions = mysql_json_arrayagg_unquote_to_list(record['regions'])
                         instance, total_resources_on_instance = await self.create_instance(machine_spec, regions)
                         log.info(f'created {instance} for {(batch_id, job_id)}')
                         await mark_job_creating(
