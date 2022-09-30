@@ -1152,7 +1152,7 @@ WHERE state = 'running' AND cancel_after_n_failures IS NOT NULL AND n_failed >= 
 USER_CORES = pc.Gauge('batch_user_cores', 'Batch user cores', ['state', 'user', 'inst_coll'])
 USER_JOBS = pc.Gauge('batch_user_jobs', 'Batch user jobs', ['state', 'user', 'inst_coll'])
 FREE_CORES = pc.Summary('batch_free_cores', 'Batch instance free cores', ['inst_coll'])
-UTILIZATION = pc.Summary('batch_utilization', 'Batch utilization rates', ['inst_coll'])
+TOTAL_CORES = pc.Summary('batch_total_cores', 'Batch instance free cores', ['inst_coll'])
 COST_PER_HOUR = pc.Summary('batch_cost_per_hour', 'Batch cost ($/hr)', ['measure', 'inst_coll'])
 INSTANCES = pc.Gauge('batch_instances', 'Batch instances', ['inst_coll', 'state'])
 
@@ -1182,28 +1182,16 @@ GROUP BY user, inst_coll;
     )
 
     async for record in records:
-        ready_user_cores_labels = StateUserInstCollLabels(
-            state='ready', user=record['user'], inst_coll=record['inst_coll']
-        )
-        user_cores[ready_user_cores_labels] += record['ready_cores_mcpu'] / 1000
+        def labels(state):
+            return StateUserInstCollLabels(
+                state=state, user=record['user'], inst_coll=record['inst_coll']
+            )
 
-        running_user_cores_labels = StateUserInstCollLabels(
-            state='running', user=record['user'], inst_coll=record['inst_coll']
-        )
-        user_cores[running_user_cores_labels] += record['running_cores_mcpu'] / 1000
-
-        ready_jobs_labels = StateUserInstCollLabels(state='ready', user=record['user'], inst_coll=record['inst_coll'])
-        user_jobs[ready_jobs_labels] += record['n_ready_jobs']
-
-        running_jobs_labels = StateUserInstCollLabels(
-            state='running', user=record['user'], inst_coll=record['inst_coll']
-        )
-        user_jobs[running_jobs_labels] += record['n_running_jobs']
-
-        creating_jobs_labels = StateUserInstCollLabels(
-            state='creating', user=record['user'], inst_coll=record['inst_coll']
-        )
-        user_jobs[creating_jobs_labels] += record['n_creating_jobs']
+        user_cores[labels('ready')] += record['ready_cores_mcpu'] / 1000
+        user_cores[labels('running')] += record['running_cores_mcpu'] / 1000
+        user_jobs[labels('ready')] += record['n_ready_jobs']
+        user_jobs[labels('running')] += record['n_running_jobs']
+        user_jobs[labels('creating')] += record['n_creating_jobs']
 
     def set_value(gauge, data):
         gauge.clear()
@@ -1218,33 +1206,26 @@ GROUP BY user, inst_coll;
 def monitor_instances(app) -> None:
     driver: CloudDriver = app['driver']
     inst_coll_manager = driver.inst_coll_manager
+    resource_rates = driver.billing_manager.resource_rates
 
     cost_per_hour: Dict[CostPerHourLabels, List[float]] = defaultdict(list)
     free_cores: Dict[InstCollLabels, List[float]] = defaultdict(list)
-    utilization: Dict[InstCollLabels, List[float]] = defaultdict(list)
+    total_cores: Dict[InstCollLabels, List[float]] = defaultdict(list)
     instances: Dict[InstanceLabels, int] = defaultdict(int)
 
     for inst_coll in inst_coll_manager.name_inst_coll.values():
+        inst_coll_labels = InstCollLabels(inst_coll=inst_coll.name)
+        cost_per_hour_labels = CostPerHourLabels(measure='actual', inst_coll=inst_coll.name)
+        revenue_per_hour_labels = CostPerHourLabels(measure='billed', inst_coll=inst_coll.name)
+
         for instance in inst_coll.name_instance.values():
-            # free cores mcpu can be negatively temporarily if the worker is oversubscribed
-            utilized_cores_mcpu = instance.cores_mcpu - instance.free_cores_mcpu_nonnegative
-
             if instance.state != 'deleted':
-                actual_cost_per_hour_labels = CostPerHourLabels(measure='actual', inst_coll=instance.inst_coll.name)
-                actual_rate = instance.instance_config.actual_cost_per_hour(driver.billing_manager.resource_rates)
-                cost_per_hour[actual_cost_per_hour_labels].append(actual_rate)
+                free_cores[inst_coll_labels].append(instance.free_cores_mcpu_nonnegative / 1000)
+                total_cores[inst_coll_labels].append(instance.cores_mcpu)
+                cost_per_hour[cost_per_hour_labels].append(instance.cost_per_hour(resource_rates))
+                cost_per_hour[revenue_per_hour_labels].append(instance.revenue_per_hour(resource_rates))
 
-                billed_cost_per_hour_labels = CostPerHourLabels(measure='billed', inst_coll=instance.inst_coll.name)
-                billed_rate = instance.instance_config.cost_per_hour_from_cores(
-                    driver.billing_manager.resource_rates, utilized_cores_mcpu
-                )
-                cost_per_hour[billed_cost_per_hour_labels].append(billed_rate)
-
-                inst_coll_labels = InstCollLabels(inst_coll=instance.inst_coll.name)
-                free_cores[inst_coll_labels].append(instance.free_cores_mcpu / 1000)
-                utilization[inst_coll_labels].append(utilized_cores_mcpu / instance.cores_mcpu)
-
-            inst_labels = InstanceLabels(inst_coll=instance.inst_coll.name, state=instance.state)
+            inst_labels = InstanceLabels(inst_coll=inst_coll.name, state=instance.state)
             instances[inst_labels] += 1
 
     def observe(summary, data):
@@ -1255,7 +1236,7 @@ def monitor_instances(app) -> None:
 
     observe(COST_PER_HOUR, cost_per_hour)
     observe(FREE_CORES, free_cores)
-    observe(UTILIZATION, utilization)
+    observe(TOTAL_CORES, total_cores)
 
     INSTANCES.clear()
     for labels, count in instances.items():
