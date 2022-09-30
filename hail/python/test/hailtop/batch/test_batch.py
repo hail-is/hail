@@ -967,10 +967,10 @@ class ServiceTests(unittest.TestCase):
         b = self.batch(cancel_after_n_failures=1)
         j = b.new_job('region')
         if CLOUD == 'azure':
-            region = 'eastus'
+            regions = ['eastus']
         else:
-            region = 'us-east1'
-        j.regions([region])
+            regions = ['us-east1', 'us-west1']
+        j.regions(regions)
         j.command('true')
         res = b.run()
         res_status = res.status()

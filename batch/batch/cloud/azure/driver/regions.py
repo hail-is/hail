@@ -1,5 +1,5 @@
 import random
-from typing import List, Optional
+from typing import List
 
 from ....driver.location import CloudLocationMonitor
 
@@ -21,7 +21,7 @@ class RegionMonitor(CloudLocationMonitor):
         local_ssd_data_disk: bool,  # pylint: disable=unused-argument
         data_disk_size_gb: int,  # pylint: disable=unused-argument
         preemptible: bool,  # pylint: disable=unused-argument
-        regions: Optional[List[str]],  # pylint: disable=unused-argument
+        regions: List[str],
     ) -> str:
         if regions is None:
             return self._default_region

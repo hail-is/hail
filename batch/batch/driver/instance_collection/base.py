@@ -38,11 +38,13 @@ class InstanceCollectionManager:
         machine_name_prefix: str,
         location_monitor: CloudLocationMonitor,
         default_region: str,
+        regions: List[str],
     ):
         self.db: Database = db
         self.machine_name_prefix = machine_name_prefix
         self.location_monitor = location_monitor
         self._default_region = default_region
+        self.regions = regions
 
         self.inst_coll_regex = re.compile(f'{self.machine_name_prefix}(?P<inst_coll>.*)-.*')
         self.name_inst_coll: Dict[str, InstanceCollection] = {}
@@ -63,12 +65,12 @@ class InstanceCollectionManager:
         local_ssd_data_disk: bool,
         data_disk_size_gb: int,
         preemptible: bool,
-        regions: Optional[List[str]],
+        regions: List[str],
     ) -> str:
         if regions is None and self.global_live_total_cores_mcpu // 1000 < 1_000:
             regions = [self._default_region]
         return self.location_monitor.choose_location(
-            cores, local_ssd_data_disk, data_disk_size_gb, preemptible, regions=regions
+            cores, local_ssd_data_disk, data_disk_size_gb, preemptible, regions
         )
 
     @property
@@ -172,7 +174,7 @@ class InstanceCollection:
         local_ssd_data_disk: bool,
         data_disk_size_gb: int,
         preemptible: bool,
-        regions: Optional[List[str]],
+        regions: List[str],
     ) -> str:
         return self.inst_coll_manager.choose_location(
             cores, local_ssd_data_disk, data_disk_size_gb, preemptible, regions
@@ -240,6 +242,7 @@ class InstanceCollection:
     ) -> Tuple[Instance, List[QuantifiedResource]]:
         assert not (location and regions)
         if location is None:
+            assert regions is not None
             location = self.choose_location(cores, local_ssd_data_disk, data_disk_size_gb, preemptible, regions)
 
         if max_idle_time_msecs is None:
