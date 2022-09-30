@@ -1227,7 +1227,7 @@ def monitor_instances(app) -> None:
     for inst_coll in inst_coll_manager.name_inst_coll.values():
         for instance in inst_coll.name_instance.values():
             # free cores mcpu can be negatively temporarily if the worker is oversubscribed
-            utilized_cores_mcpu = instance.cores_mcpu - max(0, instance.free_cores_mcpu)
+            utilized_cores_mcpu = instance.cores_mcpu - instance.free_cores_mcpu_nonnegative
 
             if instance.state != 'deleted':
                 actual_cost_per_hour_labels = CostPerHourLabels(measure='actual', inst_coll=instance.inst_coll.name)
