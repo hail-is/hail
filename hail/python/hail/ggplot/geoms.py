@@ -13,9 +13,8 @@ class FigureAttribute(abc.ABC):
 
 class Geom(FigureAttribute):
 
-    def __init__(self, aes, legend_format=None):
+    def __init__(self, aes):
         self.aes = aes
-        self.legend_format = legend_format
 
     @abc.abstractmethod
     def apply_to_fig(self, parent, agg_result, fig_so_far, precomputed, facet_row, facet_col, legend_cache):
@@ -26,31 +25,15 @@ class Geom(FigureAttribute):
         pass
 
     def _add_aesthetics_to_trace_args(self, trace_args, df):
-        legend_labels = {}
-
         for aes_name, (plotly_name, default) in self.aes_to_arg.items():
-            value = None
-
             if hasattr(self, aes_name) and getattr(self, aes_name) is not None:
-                value = getattr(self, aes_name)
+                trace_args[plotly_name] = getattr(self, aes_name)
             elif aes_name in df.attrs:
-                value = df.attrs[aes_name]
+                trace_args[plotly_name] = df.attrs[aes_name]
             elif aes_name in df.columns:
-                value = df[aes_name]
+                trace_args[plotly_name] = df[aes_name]
             elif default is not None:
-                value = default
-
-            if value is not None:
-                if plotly_name == "name":
-                    aes_short_name, _, _ = aes_name.partition("_legend")
-                    legend_labels[aes_short_name] = value
-                else:
-                    trace_args[plotly_name] = value
-
-        if self.legend_format is not None:
-            trace_args["name"] = self.legend_format.format(**legend_labels)
-        else:
-            trace_args["name"] = " × ".join(legend_labels.values())
+                trace_args[plotly_name] = default
 
     def _update_legend_trace_args(self, trace_args, legend_cache):
         if "name" in trace_args:
@@ -100,56 +83,115 @@ class GeomLineBasic(Geom):
 
 class GeomPoint(Geom):
 
-    aes_to_arg = {
-        "color": ("marker_color", "black"),
-        "size": ("marker_size", None),
-        "tooltip": ("hovertext", None),
-        "color_legend": ("name", None),
-        "alpha": ("marker_opacity", None),
-        "shape": ("marker_symbol", None),
-        "shape_legend": ("name", None),
+    aes_to_plotly = {
+        "color": "marker_color",
+        "size": "marker_size",
+        "tooltip": "hovertext",
+        "alpha": "marker_opacity",
+        "shape": "marker_symbol",
     }
 
-    def __init__(self, aes, color=None, size=None, alpha=None, shape=None, legend_format=None):
-        super().__init__(aes, legend_format)
+    aes_defaults = {
+        "color": "black",
+        "shape": "circle",
+    }
+
+    aes_legend_groups = {
+        "color",
+        "shape",
+    }
+
+    def __init__(self, aes, color=None, size=None, alpha=None, shape=None):
+        super().__init__(aes)
         self.color = color
         self.size = size
         self.alpha = alpha
         self.shape = shape
 
-    def apply_to_fig(self, parent, grouped_data, fig_so_far, precomputed, facet_row, facet_col, legend_cache):
-        def plot_group(df):
-            trace_args = {
-                "x": df.x,
-                "y": df.y,
-                "mode": "markers",
-                "row": facet_row,
-                "col": facet_col
+    def _map_to_plotly(self, mapping):
+        return {self.aes_to_plotly[k]: v for k, v in mapping.items()}
+
+    def _get_aes_value(self, df, aes_name):
+        return (
+            getattr(self, aes_name, None)
+            or (aes_name in df.attrs and df.attrs[aes_name])
+            or (aes_name in df.columns and df.columns[aes_name])
+            or self.aes_defaults.get(aes_name, None)
+        )
+
+    def _get_aes_values(self, df):
+        values = {}
+        for aes_name in self.aes_to_plotly:
+            value = self._get_aes_value(df, aes_name)
+            if value is not None:
+                values[aes_name] = value
+        return values
+
+    def _add_trace(self, fig_so_far, df, facet_row, facet_col, values):
+        fig_so_far.add_scatter(
+            **{
+                **{
+                    "x": df.x,
+                    "y": df.y,
+                    "mode": "markers",
+                    "row": facet_row,
+                    "col": facet_col,
+                    "showlegend": False
+                },
+                **self._map_to_plotly(values)
             }
+        )
 
-            self._add_aesthetics_to_trace_args(trace_args, df)
-            self._update_legend_trace_args(trace_args, legend_cache)
+    def _add_legend(self, fig_so_far, aes_name, category, value):
+        fig_so_far.add_scatter(
+            **{
+                **{
+                    "x": [None],
+                    "y": [None],
+                    "mode": "markers",
+                    "name": category,
+                    "showlegend": True,
+                    "legendgroup": aes_name,
+                    "legendgrouptitle_text": aes_name,
+                },
+                **self._map_to_plotly({**self.aes_defaults, aes_name: value})
+            }
+        )
 
-            fig_so_far.add_scatter(**trace_args)
+    def _add_legends(self, fig_so_far, legends):
+        for aes_name, legend_group in legends.items():
+            if len(legend_group) > 1:
+                for category, value in legend_group.items():
+                    self._add_legend(fig_so_far, aes_name, category, value)
 
-        for group_df in grouped_data:
-            plot_group(group_df)
+    def apply_to_fig(self, parent, grouped_data, fig_so_far, precomputed, facet_row, facet_col, legend_cache):
+        parent.is_static = True
+        legends = {}
+        for df in grouped_data:
+            values = self._get_aes_values(df)
+            self._add_trace(fig_so_far, df, facet_row, facet_col, values)
+            for aes_name in self.aes_legend_groups:
+                legends[aes_name] = ({
+                    **legends.get(aes_name, {}),
+                    self._get_aes_value(df, f"{aes_name}_legend"): values[aes_name]
+                })
+        self._add_legends(fig_so_far, legends)
 
     def get_stat(self):
         return StatIdentity()
 
 
-def geom_point(mapping=aes(), *, color=None, size=None, alpha=None, shape=None, legend_format=None):
+def geom_point(mapping=aes(), *, color=None, size=None, alpha=None, shape=None):
     """Create a scatter plot.
 
-    Supported aesthetics: ``x``, ``y``, ``color``, ``alpha``, ``tooltip``, ``shape``, ``legend_format``
+    Supported aesthetics: ``x``, ``y``, ``color``, ``alpha``, ``tooltip``, ``shape``
 
     Returns
     -------
     :class:`FigureAttribute`
         The geom to be applied.
     """
-    return GeomPoint(mapping, color=color, size=size, alpha=alpha, shape=shape, legend_format=legend_format)
+    return GeomPoint(mapping, color=color, size=size, alpha=alpha, shape=shape)
 
 
 class GeomLine(GeomLineBasic):

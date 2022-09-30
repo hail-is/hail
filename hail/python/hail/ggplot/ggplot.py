@@ -27,6 +27,8 @@ class GGPlot:
     """
 
     def __init__(self, ht, aes, geoms=[], labels=Labels(), coord_cartesian=None, scales=None, facet=None):
+        self.is_static = False
+
         if scales is None:
             scales = {}
 
@@ -263,7 +265,7 @@ class GGPlot:
     def show(self):
         """Render and show the plot, either in a browser or notebook.
         """
-        self.to_plotly().show()
+        self.to_plotly().show(config={"staticPlot": self.is_static})
 
     def write_image(self, path):
         """Write out this plot as an image.
