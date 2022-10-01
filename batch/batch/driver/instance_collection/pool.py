@@ -23,7 +23,7 @@ from hailtop.utils import (
 
 from ...batch_configuration import STANDING_WORKER_MAX_IDLE_TIME_MSECS
 from ...inst_coll_config import PoolConfig
-from ...utils import Box, ExceededSharesCounter, json_to_value
+from ...utils import ExceededSharesCounter, json_to_value
 from ..instance import Instance
 from ..job import schedule_job
 from ..resource_manager import CloudResourceManager
@@ -160,6 +160,8 @@ WHERE removed = 0 AND inst_coll = %s;
         # instead of batch making this decicion on behalf of CI
         self._ci_region = self.inst_coll_manager._default_region
 
+        self.all_supported_regions = self.inst_coll_manager.regions
+
     @property
     def local_ssd_data_disk(self) -> bool:
         return self.worker_local_ssd_data_disk
@@ -225,9 +227,8 @@ WHERE removed = 0 AND inst_coll = %s;
         self,
         cores: int,
         data_disk_size_gb: int,
+        regions: List[str],
         max_idle_time_msecs: Optional[int] = None,
-        location: Optional[str] = None,
-        regions: Optional[List[str]] = None,
     ):
         machine_type = self.resource_manager.machine_type(cores, self.worker_type, self.worker_local_ssd_data_disk)
         _, _ = await self._create_instance(
@@ -235,7 +236,6 @@ WHERE removed = 0 AND inst_coll = %s;
             cores=cores,
             machine_type=machine_type,
             job_private=False,
-            location=location,
             regions=regions,
             preemptible=self.preemptible,
             max_idle_time_msecs=max_idle_time_msecs,
@@ -245,14 +245,16 @@ WHERE removed = 0 AND inst_coll = %s;
         )
 
     def compute_n_instances_needed(
-        self, ready_cores_mcpu: int, n_instances_by_state: Dict[str, int], regions: Optional[List[str]] = None
+        self,
+        ready_cores_mcpu: int,
+        n_instances_by_state: Dict[str, int],
+        live_free_cores_mcpu_by_region: Dict[str, int],
+        regions: List[str],
     ):
         n_live_instances = n_instances_by_state['pending'] + n_instances_by_state['active']
+        n_instances = sum(count for count in n_instances_by_state.values())
 
-        if regions is None:
-            live_free_cores_mcpu = self.live_free_cores_mcpu
-        else:
-            live_free_cores_mcpu = sum(self.live_free_cores_mcpu_by_region[region] for region in regions)
+        live_free_cores_mcpu = sum(live_free_cores_mcpu_by_region[region] for region in regions)
 
         instances_needed = (ready_cores_mcpu - live_free_cores_mcpu + (self.worker_cores * 1000) - 1) // (
             self.worker_cores * 1000
@@ -260,14 +262,14 @@ WHERE removed = 0 AND inst_coll = %s;
         instances_needed = min(
             instances_needed,
             self.max_live_instances - n_live_instances,
-            self.max_instances - self.n_instances,
+            self.max_instances - n_instances,
             # 20 queries/s; our GCE long-run quota
             300,
             MAX_INSTANCES_PER_AUTOSCALER_LOOP,
         )
         return max(0, instances_needed)
 
-    async def _create_instances(self, n_instances: int, regions: Optional[List[str]] = None):
+    async def _create_instances(self, n_instances: int, regions: List[str]):
         if n_instances > 0:
             log.info(f'creating {n_instances} new instances')
             # parallelism will be bounded by thread pool
@@ -282,10 +284,11 @@ WHERE removed = 0 AND inst_coll = %s;
                 ]
             )
 
-    async def create_instances_from_ready_cores(self, ready_cores_mcpu: int, regions: Optional[List[str]] = None):
+    async def create_instances_from_ready_cores(self, ready_cores_mcpu: int, regions: List[str]):
         instances_needed = self.compute_n_instances_needed(
             ready_cores_mcpu,
             self.n_instances_by_state,
+            self.live_free_cores_mcpu_by_region,
             regions,
         )
 
@@ -379,7 +382,7 @@ LIMIT {MAX_INSTANCES_PER_AUTOSCALER_LOOP * self.worker_cores};
 
         def extract_regions(regions_str):
             if regions_str is None:
-                return self.inst_coll_manager.regions
+                return self.all_supported_regions
             return json_to_value(regions_str)
 
         return [(extract_regions(record['regions']), record['ready_cores_mcpu']) async for record in result]
@@ -414,7 +417,10 @@ GROUP BY user;
 
         full_job_queue_ready_cores_mcpu = sum(ready_cores_mcpu_per_user.values())
         full_job_queue_n_instances = self.compute_n_instances_needed(
-            full_job_queue_ready_cores_mcpu, self.n_instances_by_state
+            full_job_queue_ready_cores_mcpu,
+            self.n_instances_by_state,
+            self.live_free_cores_mcpu_by_region,
+            self.all_supported_regions,
         )
 
         head_job_queue_regions_ready_cores_mcpu_ordered = await self.ready_cores_mcpu_from_estimated_job_queue()
@@ -422,10 +428,13 @@ GROUP BY user;
         head_job_queue_ready_cores_mcpu = defaultdict(int)
 
         n_instances_by_state = copy.deepcopy(self.n_instances_by_state)
+        live_free_cores_mcpu_by_region = copy.deepcopy(self.live_free_cores_mcpu_by_region)
         for regions, ready_cores_mcpu in head_job_queue_regions_ready_cores_mcpu_ordered:
             n_regions = len(regions)
 
-            n_instances = self.compute_n_instances_needed(ready_cores_mcpu, n_instances_by_state, regions=regions)
+            n_instances = self.compute_n_instances_needed(
+                ready_cores_mcpu, n_instances_by_state, live_free_cores_mcpu_by_region, regions=regions
+            )
 
             for region in regions:
                 head_job_queue_ready_cores_mcpu[region] += ready_cores_mcpu / n_regions
@@ -433,7 +442,7 @@ GROUP BY user;
 
             n_instances_by_state['pending'] += n_instances
 
-        for region in self.inst_coll_manager.regions:
+        for region in self.all_supported_regions:
             ready_cores_mcpu = head_job_queue_ready_cores_mcpu.get(region, 0)
             n_instances = head_job_queue_n_instances.get(region, 0)
             AUTOSCALER_HEAD_JOB_QUEUE_READY_CORES.labels(pool_name=self.name, region=region).set(
@@ -469,6 +478,7 @@ GROUP BY user;
             await self.create_instance(
                 cores=self.standing_worker_cores,
                 data_disk_size_gb=self.data_disk_size_standing_gb,
+                regions=self.all_supported_regions,
                 max_idle_time_msecs=STANDING_WORKER_MAX_IDLE_TIME_MSECS,
             )
 
@@ -595,7 +605,7 @@ HAVING n_ready_jobs + n_running_jobs > 0;
         total = sum(resources['allocated_cores_mcpu'] for resources in user_resources.values())
         if not total:
             should_wait = True
-            for region in self.pool.inst_coll_manager.regions:
+            for region in self.pool.all_supported_regions:
                 SCHEDULING_LOOP_CORES.labels(pool_name=self.pool.name, region=region, scheduled=True).set(0)
                 SCHEDULING_LOOP_CORES.labels(pool_name=self.pool.name, region=region, scheduled=False).set(0)
                 SCHEDULING_LOOP_JOBS.labels(pool_name=self.pool.name, region=region, scheduled=True).set(0)
@@ -645,10 +655,10 @@ LEFT JOIN (
   GROUP BY ready_jobs.batch_id, ready_jobs.job_id
   ORDER BY region ASC
 ) AS t ON ready_jobs.batch_id = t.batch_id AND ready_jobs.job_id = t.job_id
-ORDER BY scheduling_iteration, -n_regions DESC, JSON_UNQUOTE(regions), ready_jobs.job_id;
+ORDER BY scheduling_iteration, ready_jobs.batch_id, always_run DESC, -n_regions DESC, JSON_UNQUOTE(regions), ready_jobs.job_id;
 ''',
-                    (user, self.pool.name, user, self.pool.name),
-                'select_user_ready_jobs'
+                (user, self.pool.name, user, self.pool.name),
+                'select_user_ready_jobs',
             ):
                 yield record
 
@@ -669,7 +679,7 @@ ORDER BY scheduling_iteration, -n_regions DESC, JSON_UNQUOTE(regions), ready_job
 
                 regions = json_to_value(record['regions'])
                 if regions is None:
-                    regions = self.pool.inst_coll_manager.regions
+                    regions = self.pool.all_supported_regions
 
                 if scheduled_cores_mcpu + record['cores_mcpu'] > allocated_cores_mcpu:
                     if random.random() > self.exceeded_shares_counter.rate():
@@ -729,6 +739,8 @@ ORDER BY scheduling_iteration, -n_regions DESC, JSON_UNQUOTE(regions), ready_job
             )
 
             SCHEDULING_LOOP_JOBS.labels(pool_name=self.pool.name, region=region, scheduled=True).set(n_jobs_scheduled)
-            SCHEDULING_LOOP_JOBS.labels(pool_name=self.pool.name, region=region, scheduled=False).set(n_jobs_unscheduled)
+            SCHEDULING_LOOP_JOBS.labels(pool_name=self.pool.name, region=region, scheduled=False).set(
+                n_jobs_unscheduled
+            )
 
         return should_wait
