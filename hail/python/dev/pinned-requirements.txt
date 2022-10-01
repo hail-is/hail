@@ -250,7 +250,7 @@ pygments==2.13.0
     #   nbconvert
     #   qtconsole
     #   sphinx
-pylint==2.13.5
+pylint==2.15.3
     # via -r python/dev/requirements.txt
 pyparsing==3.0.9
     # via packaging
