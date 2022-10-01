@@ -67,7 +67,7 @@ class InstanceCollectionManager:
         preemptible: bool,
         regions: List[str],
     ) -> str:
-        if regions is None and self.global_live_total_cores_mcpu // 1000 < 1_000:
+        if self._default_region in regions and self.global_live_total_cores_mcpu // 1000 < 1_000:
             regions = [self._default_region]
         return self.location_monitor.choose_location(
             cores, local_ssd_data_disk, data_disk_size_gb, preemptible, regions
@@ -232,18 +232,14 @@ class InstanceCollection:
         cores: int,
         machine_type: str,
         job_private: bool,
-        location: Optional[str],
-        regions: Optional[List[str]],
+        regions: List[str],
         preemptible: bool,
         max_idle_time_msecs: Optional[int],
         local_ssd_data_disk,
         data_disk_size_gb,
         boot_disk_size_gb,
     ) -> Tuple[Instance, List[QuantifiedResource]]:
-        assert not (location and regions)
-        if location is None:
-            assert regions is not None
-            location = self.choose_location(cores, local_ssd_data_disk, data_disk_size_gb, preemptible, regions)
+        location = self.choose_location(cores, local_ssd_data_disk, data_disk_size_gb, preemptible, regions)
 
         if max_idle_time_msecs is None:
             max_idle_time_msecs = WORKER_MAX_IDLE_TIME_MSECS

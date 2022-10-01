@@ -281,7 +281,6 @@ HAVING n_ready_jobs + n_creating_jobs + n_running_jobs > 0;
             cores=cores,
             machine_type=machine_type,
             job_private=True,
-            location=None,
             regions=regions,
             preemptible=preemptible,
             max_idle_time_msecs=None,
