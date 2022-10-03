@@ -1301,7 +1301,7 @@ async def update_batch_fast(request, userdata):
         await _create_jobs(userdata, bunch, batch_id, update_id, app)
     except web.HTTPBadRequest as e:
         if f'update {update_id} is already committed' == e.reason:
-            return web.json_response({'update_id': batch_id, 'start_job_id': start_job_id})
+            return web.json_response({'update_id': update_id, 'start_job_id': start_job_id})
         raise
     await _commit_update(app, batch_id, update_id, user, db)
     return web.json_response({'update_id': update_id, 'start_job_id': start_job_id})
