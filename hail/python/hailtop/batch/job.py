@@ -369,11 +369,9 @@ class Job:
         Parameters
         ----------
         regions:
-            The cloud region(s) to run this job in. Not specifying a set of regions means a job can be run
-            in any available region. On GCP, not specifying this parameter may result in additional egress fees
-            when transferring data and images for a job running in a different region from the one where the data
-            resides in. When using the Hail maintained Batch Service on GCP, the available regions are "us-central1",
-            "us-east1", "us-east4", "us-west1", "us-west2", "us-west3", and "us-west4".
+            The cloud region(s) to run this job in. When using the Hail maintained Batch Service on GCP,
+            the available regions are "us-central1", "us-east1", "us-east4", "us-west1", "us-west2",
+            "us-west3", and "us-west4".
 
         Returns
         -------
