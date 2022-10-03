@@ -242,7 +242,7 @@ VALUES (%s, %s);
         return max(0, self.free_cores_mcpu)
 
     @property
-    def used_cores_mcpu_nonnegative(self);
+    def used_cores_mcpu_nonnegative(self):
         """A nonnegative measure of the used cores in millicpu.
 
         The free_cores_mcpu can be negative temporarily if the worker is oversubscribed, so this
