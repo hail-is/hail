@@ -237,7 +237,7 @@ class Batch:
 
         .. code-block:: python
 
-            b = Batch(default_python_image='gcr.io/hail-vdc/python-dill:3.7-slim')
+            b = Batch(default_python_image='hailgenetics/python-dill:3.7-slim')
 
             def hello(name):
                 return f'hello {name}'
