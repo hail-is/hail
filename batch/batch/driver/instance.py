@@ -3,7 +3,7 @@ import datetime
 import json
 import logging
 import secrets
-from typing import Optional, Dict
+from typing import Dict, Optional
 
 import aiohttp
 import humanize
