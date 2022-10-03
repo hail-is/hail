@@ -3173,6 +3173,22 @@ def import_csv(paths,
     - Pass the non-default missing value ``.``
 
     >>> table = hl.import_csv('data/samples2.csv', missing='.')
+    ... table.show()
+    +----------+-----------+
+    | Batch    | PT-ID     |
+    +----------+-----------+
+    | str      | str       |
+    +----------+-----------+
+    | "1kg"    | "PT-0001" |
+    | "1kg"    | "PT-0002" |
+    | "study1" | "PT-0003" |
+    | "study3" | "PT-0003" |
+    | NA       | "PT-0004" |
+    | "1kg"    | "PT-0005" |
+    | NA       | "PT-0006" |
+    | "1kg"    | "PT-0007" |
+    +----------+-----------+
+    <BLANKLINE>
 
     Notes
     -----
