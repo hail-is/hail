@@ -381,10 +381,10 @@ LIMIT {MAX_INSTANCES_PER_AUTOSCALER_LOOP * self.worker_cores};
         )
 
         def extract_regions(regions_str):
-            val = json_to_value(regions_str)
-            if val is None:
+            regions = json_to_value(regions_str)
+            if regions is None:
                 return self.all_supported_regions
-            return val
+            return regions
 
         return [(extract_regions(record['regions']), record['ready_cores_mcpu']) async for record in result]
 
