@@ -1151,8 +1151,8 @@ WHERE state = 'running' AND cancel_after_n_failures IS NOT NULL AND n_failed >= 
 
 USER_CORES = pc.Gauge('batch_user_cores', 'Batch user cores', ['state', 'user', 'inst_coll'])
 USER_JOBS = pc.Gauge('batch_user_jobs', 'Batch user jobs', ['state', 'user', 'inst_coll'])
-FREE_CORES = pc.Summary('batch_free_cores', 'Batch instance free cores', ['inst_coll'])
-TOTAL_CORES = pc.Summary('batch_total_cores', 'Batch instance free cores', ['inst_coll'])
+FREE_CORES = pc.Summary('batch_free_cores', 'Batch free cores', ['inst_coll'])
+TOTAL_CORES = pc.Summary('batch_total_cores', 'Batch total cores', ['inst_coll'])
 COST_PER_HOUR = pc.Summary('batch_cost_per_hour', 'Batch cost ($/hr)', ['measure', 'inst_coll'])
 INSTANCES = pc.Gauge('batch_instances', 'Batch instances', ['inst_coll', 'state'])
 
@@ -1219,7 +1219,7 @@ def monitor_instances(app) -> None:
         for instance in inst_coll.name_instance.values():
             if instance.state != 'deleted':
                 free_cores[inst_coll_labels].append(instance.free_cores_mcpu_nonnegative / 1000)
-                total_cores[inst_coll_labels].append(instance.cores_mcpu)
+                total_cores[inst_coll_labels].append(instance.cores_mcpu / 1000)
                 cost_per_hour[cost_per_hour_labels].append(instance.cost_per_hour(resource_rates))
                 cost_per_hour[revenue_per_hour_labels].append(instance.revenue_per_hour(resource_rates))
 
