@@ -342,7 +342,6 @@ LEFT JOIN (
   INNER JOIN job_regions ON ready_jobs.batch_id = job_regions.batch_id AND ready_jobs.job_id = job_regions.job_id
   LEFT JOIN region_ids ON job_regions.region_id = region_ids.region_id
   GROUP BY ready_jobs.batch_id, ready_jobs.job_id
-  ORDER BY region ASC
 ) AS regions ON ready_jobs.batch_id = regions.batch_id AND ready_jobs.job_id = regions.job_id;
 ''',
                     (batch['id'], self.name, remaining.value),
@@ -374,7 +373,6 @@ LEFT JOIN (
   INNER JOIN job_regions ON ready_jobs.batch_id = job_regions.batch_id AND ready_jobs.job_id = job_regions.job_id
   LEFT JOIN region_ids ON job_regions.region_id = region_ids.region_id
   GROUP BY ready_jobs.batch_id, ready_jobs.job_id
-  ORDER BY region ASC
 ) AS regions ON ready_jobs.batch_id = regions.batch_id AND ready_jobs.job_id = regions.job_id;
 ''',
                         (batch['id'], self.name, remaining.value),
