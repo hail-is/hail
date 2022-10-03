@@ -21,7 +21,7 @@ from ..utils import skip_in_azure
 
 
 DOCKER_ROOT_IMAGE = os.environ['DOCKER_ROOT_IMAGE']
-PYTHON_DILL_IMAGE = 'hailgenetics/python-dill:3.7'
+PYTHON_DILL_IMAGE = 'hailgenetics/python-dill:3.7-slim'
 HAIL_GENETICS_HAIL_IMAGE = os.environ['HAIL_GENETICS_HAIL_IMAGE']
 
 class LocalTests(unittest.TestCase):
