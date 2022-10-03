@@ -11,7 +11,7 @@ from hailtop.config import get_user_config
 from hailtop.utils import sync_sleep_and_backoff
 from hailtop.batch_client.client import BatchClient
 
-PYTHON_DILL_IMAGE = os.environ['PYTHON_DILL_IMAGE']
+PYTHON_DILL_IMAGE = 'hailgenetics/python-dill:3.7'
 
 
 submitted_batch_ids = []

@@ -446,6 +446,11 @@ class Image:
         except DockerError as e:
             if e.status == 404 and 'pull access denied' in e.message:
                 raise ImageCannotBePulled from e
+            if (
+                e.status == 500
+                and 'Permission "artifactregistry.repositories.downloadArtifacts" denied on resource' in e.message
+            ):
+                raise ImageCannotBePulled from e
             if 'not found: manifest unknown' in e.message:
                 raise ImageNotFound from e
             if 'Invalid repository name' in e.message:
