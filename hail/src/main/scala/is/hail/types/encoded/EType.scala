@@ -35,7 +35,9 @@ abstract class EType extends BaseType with Serializable with Requiredness {
 
   final def buildDecoder(ctx: ExecuteContext, requestedType: Type): (PType, (InputBuffer, HailClassLoader) => Decoder) = {
     val (rt, f) = EType.buildDecoderToRegionValue(ctx, this, requestedType)
-    (rt, (in: InputBuffer, theHailClassLoader: HailClassLoader) => new CompiledDecoder(in, theHailClassLoader, f))
+    val makeDec = (in: InputBuffer, theHailClassLoader: HailClassLoader) =>
+      new CompiledDecoder(in, rt, theHailClassLoader, f)
+    (rt, makeDec)
   }
 
   final def buildStructDecoder(ctx: ExecuteContext, requestedType: TStruct): (PStruct, (InputBuffer, HailClassLoader) => Decoder) = {

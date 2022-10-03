@@ -13,6 +13,13 @@ from hailtop.utils import secret_alnum_string
 log = logging.getLogger('utils')
 
 
+@web.middleware
+async def unavailable_if_frozen(request: web.Request, handler):
+    if request.method in ("POST", "PATCH") and request.app['frozen']:
+        raise web.HTTPServiceUnavailable()
+    return await handler(request)
+
+
 def authorization_token(request):
     auth_header = request.headers.get('Authorization')
     if not auth_header:

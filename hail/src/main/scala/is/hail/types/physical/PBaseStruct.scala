@@ -4,6 +4,7 @@ import is.hail.annotations._
 import is.hail.asm4s.{Code, _}
 import is.hail.check.Gen
 import is.hail.expr.ir.EmitCodeBuilder
+import is.hail.types.physical.stypes.interfaces.SBaseStructValue
 import is.hail.utils._
 
 object PBaseStruct {
@@ -141,6 +142,8 @@ abstract class PBaseStruct extends PType {
   def loadField(offset: Long, fieldIdx: Int): Long
 
   def loadField(offset: Code[Long], fieldIdx: Int): Code[Long]
+
+  override def loadCheapSCode(cb: EmitCodeBuilder, addr: Code[Long]): SBaseStructValue
 
   override lazy val containsPointers: Boolean = types.exists(_.containsPointers)
 

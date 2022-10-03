@@ -63,16 +63,13 @@ class StagedIndexReader(emb: EmitMethodBuilder[_], spec: AbstractIndexSpec) {
   }
 
   /**
-   * returns tuple of (count, starting leaf)
+   * returns tuple of (start index, end index, starting leaf)
    * memory of starting leaf is not owned by `region`, consumers should deep copy if necessary
    * starting leaf may be missing if the index is empty
    */
   def queryInterval(cb: EmitCodeBuilder,
     region: Value[Region],
     interval: SIntervalValue): SBaseStructValue = {
-
-    val n = cb.newLocal[Long]("n")
-    val startLeaf = cb.emb.newEmitLocal(leafChildEmitType)
 
     val start = interval.loadStart(cb).get(cb).asBaseStruct
     val end = interval.loadEnd(cb).get(cb).asBaseStruct
@@ -91,16 +88,15 @@ class StagedIndexReader(emb: EmitMethodBuilder[_], spec: AbstractIndexSpec) {
       cb.assign(endQuerySettable, queryBound(cb, region, end, primitive(false), "lower"))
     )
 
-    cb.assign(n,
-      endQuerySettable.asBaseStruct.loadField(cb, 0).get(cb).asInt64.value -
-        startQuerySettable.asBaseStruct.loadField(cb, 0).get(cb).asInt64.value
-    )
-    cb.assign(startLeaf, startQuerySettable.asBaseStruct.loadField(cb, 1))
+    val startIdx = cb.memoize(startQuerySettable.asBaseStruct.loadField(cb, 0).get(cb).asInt64.value)
+    val endIdx = cb.memoize(endQuerySettable.asBaseStruct.loadField(cb, 0).get(cb).asInt64.value)
+    val n = cb.memoize(endIdx - startIdx)
+    val startLeaf = cb.memoize(startQuerySettable.asBaseStruct.loadField(cb, 1))
 
-    cb.ifx(n < 0L, cb._fatal("n less than 0: ", n.toS, ", startQuery=",  cb.strValue(startQuerySettable), ", endQuery=", cb.strValue(endQuerySettable)))
+    cb.ifx(n < 0L, cb._fatal("n less than 0: ", n.toS, ", startQuery=", cb.strValue(startQuerySettable), ", endQuery=", cb.strValue(endQuerySettable)))
 
 
-    SStackStruct.constructFromArgs(cb, region, TTuple(TInt64, startLeaf.st.virtualType), EmitCode.present(cb.emb, primitive(n)), startLeaf)
+    SStackStruct.constructFromArgs(cb, region, TTuple(TInt64, TInt64, startLeaf.st.virtualType), EmitCode.present(cb.emb, primitive(startIdx)), EmitCode.present(cb.emb, primitive(endIdx)), startLeaf)
   }
 
   // internal node is an array of children

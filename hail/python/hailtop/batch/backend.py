@@ -79,6 +79,9 @@ class Backend(abc.ABC, Generic[RunningBatchType]):
             self._close()
             self._closed = True
 
+    def validate_file_scheme(self, uri: str) -> None:
+        pass
+
     def __del__(self):
         self.close()
 
@@ -313,9 +316,10 @@ class LocalBackend(Backend[None]):
                     transfer_dict
                     for output_resource in job._external_outputs
                     for transfer_dict in transfer_dicts_for_resource_file(output_resource)]
-                output_transfers = orjson.dumps(output_transfer_dicts).decode('utf-8')
 
-                code += [f'python3 -m hailtop.aiotools.copy {shq(requester_pays_project_json)} {shq(output_transfers)}']
+                if output_transfer_dicts:
+                    output_transfers = orjson.dumps(output_transfer_dicts).decode('utf-8')
+                    code += [f'python3 -m hailtop.aiotools.copy {shq(requester_pays_project_json)} {shq(output_transfers)}']
                 code += ['\n']
 
                 run_code(code)
@@ -446,7 +450,7 @@ class ServiceBackend(Backend[bc.Batch]):
         self.remote_tmpdir = remote_tmpdir
 
         gcs_kwargs = {'project': google_project}
-        self.__fs: AsyncFS = RouterAsyncFS(default_scheme='file', gcs_kwargs=gcs_kwargs)
+        self.__fs: RouterAsyncFS = RouterAsyncFS(default_scheme='file', gcs_kwargs=gcs_kwargs)
 
     @property
     def _fs(self):
@@ -583,9 +587,9 @@ class ServiceBackend(Backend[bc.Batch]):
         for job in pyjobs:
             if job._image is None:
                 version = sys.version_info
-                if version.major != 3 or version.minor not in (6, 7, 8):
+                if version.major != 3 or version.minor not in (7, 8, 9, 10):
                     raise BatchException(
-                        f"You must specify 'image' for Python jobs if you are using a Python version other than 3.6, 3.7, or 3.8 (you are using {version})")
+                        f"You must specify 'image' for Python jobs if you are using a Python version other than 3.7, 3.8, 3.9 or 3.10 (you are using {version})")
                 job._image = f'hailgenetics/python-dill:{version.major}.{version.minor}-slim'
 
         with tqdm(total=len(batch._jobs), desc='upload code', disable=disable_progress_bar) as pbar:
@@ -728,3 +732,12 @@ class ServiceBackend(Backend[bc.Batch]):
             status = batch_handle.wait()
             print(f'batch {batch_handle.id} complete: {status["state"]}')
         return batch_handle
+
+    def validate_file_scheme(self, uri: str) -> None:
+        scheme = self.__fs.get_scheme(uri)
+        if scheme == "file":
+            raise ValueError(
+                f"Local filepath detected: '{uri}'. "
+                "ServiceBackend does not support the use of local filepaths. "
+                "Please specify a remote URI instead (e.g. gs://bucket/folder)."
+            )

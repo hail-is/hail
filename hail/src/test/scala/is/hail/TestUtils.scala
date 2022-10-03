@@ -325,6 +325,6 @@ object TestUtils {
       force,
       TextInputFilterAndReplace(),
       partitionsJSON)
-    MatrixRead(reader.fullMatrixType, dropSamples, false, reader)
+    MatrixRead(reader.fullMatrixTypeWithoutUIDs, dropSamples, false, reader)
   }
 }

@@ -2,30 +2,12 @@ package is.hail.types.physical.stypes.concrete
 
 import is.hail.annotations.Region
 import is.hail.asm4s.{Settable, TypeInfo, Value}
-import is.hail.expr.ir.{EmitCode, EmitCodeBuilder, EmitSettable, EmitValue, IEmitCode}
+import is.hail.expr.ir.{EmitCodeBuilder, EmitSettable, EmitValue, IEmitCode}
 import is.hail.types.physical.stypes.interfaces.{SBaseStruct, SBaseStructSettable, SBaseStructValue}
-import is.hail.types.physical.stypes.{EmitType, SCode, SType, SValue}
+import is.hail.types.physical.stypes.{EmitType, SType, SValue}
 import is.hail.types.physical.{PCanonicalStruct, PType}
 import is.hail.types.virtual.{TStruct, Type}
 import is.hail.utils._
-
-object SInsertFieldsStruct {
-  def merge(cb: EmitCodeBuilder, s1: SBaseStructValue, s2: SBaseStructValue): SInsertFieldsStructValue = {
-    val lt = s1.st.virtualType.asInstanceOf[TStruct]
-    val rt = s2.st.virtualType.asInstanceOf[TStruct]
-    val resultVType = TStruct.concat(lt, rt)
-
-    val st1 = s1.st
-    val st2 = s2.st
-    val st = SInsertFieldsStruct(resultVType, st1, rt.fieldNames.zip(st2.fieldEmitTypes))
-
-    if (st2.size == 1) {
-      new SInsertFieldsStructValue(st, s1, FastIndexedSeq(cb.memoize(s2.loadField(cb, 0), "InsertFieldsStruct_merge")))
-    } else {
-      new SInsertFieldsStructValue(st, s1, (0 until st2.size).map(i => cb.memoize(s2.loadField(cb, i), "InsertFieldsStruct_merge")))
-    }
-  }
-}
 
 final case class SInsertFieldsStruct(virtualType: TStruct, parent: SBaseStruct, insertedFields: IndexedSeq[(String, EmitType)]) extends SBaseStruct {
   override def size: Int = virtualType.size

@@ -2076,6 +2076,15 @@ steps:
       - name: cleanup-add-batch-updates
         script: /io/sql/cleanup-add-batch-updates.sql
         online: true
+      - name: add-jobs-update-id-index
+        script: /io/sql/add-jobs-update-id-index.sql
+        online: true
+      - name: no-dev-standing-workers-by-default
+        script: /io/sql/no_dev_standing_workers_by_default.py
+        online: true
+      - name: add-commit-updates
+        script: /io/sql/add-commit-updates.sql
+        online: true
     inputs:
       - from: /repo/batch/sql
         to: /io/sql
@@ -2687,14 +2696,14 @@ steps:
       - create_ci_test_repo
   - kind: buildImage2
     name: hailgenetics_hail_image
-    dockerFile: /io/docker/hail/Dockerfile
-    contextPath: /io/docker/hail/
+    dockerFile: /io/docker/hailgenetics/hail/Dockerfile
+    contextPath: /io/docker/hailgenetics/hail
     publishAs: hailgenetics/hail
     inputs:
-      - from: /repo/docker/hail
-        to: /io/docker/hail
+      - from: /repo/docker/hailgenetics/hail
+        to: /io/docker/hailgenetics/hail
       - from: /just-wheel/wheel-container.tar
-        to: /io/docker/hail/wheel-container.tar
+        to: /io/docker/hailgenetics/hail/wheel-container.tar
     dependsOn:
       - merge_code
       - build_hail_jar_and_wheel_only
@@ -2722,7 +2731,6 @@ steps:
       export GOOGLE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
       export DOCKER_PREFIX="{{ global.docker_prefix }}"
       export DOCKER_ROOT_IMAGE="{{ global.docker_root_image }}"
-      export PYTHON_DILL_IMAGE="{{ global.docker_prefix }}/python-dill:3.7-slim"
       export HAIL_GENETICS_HAIL_IMAGE="{{ hailgenetics_hail_image.image }}"
       hailctl config set batch/billing_project test
       hailctl config set batch/remote_tmpdir {{ global.test_storage_uri }}/batch/

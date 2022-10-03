@@ -1357,14 +1357,14 @@ def pad_uid(uid, type, tag=None):
 
 
 def concat_uids(uid1, uid2, handle_missing_left=False, handle_missing_right=False):
-    size1 = uid_size(uid1)
+    size1 = uid_size(uid1.typ)
     if size1 == 1:
         fields1 = (uid1,)
     else:
         fields1 = (GetTupleElement(uid1, i) for i in range(size1))
     if handle_missing_left:
         fields1 = (Coalesce(field, I64(0)) for field in fields1)
-    size2 = uid_size(uid2)
+    size2 = uid_size(uid2.typ)
     if size2 == 1:
         fields2 = (uid2,)
     else:

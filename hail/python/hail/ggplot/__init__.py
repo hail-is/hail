@@ -8,7 +8,7 @@ from .labels import ggtitle, xlab, ylab
 from .scale import scale_x_continuous, scale_y_continuous, scale_x_discrete, scale_y_discrete, scale_x_genomic, \
     scale_x_log10, scale_y_log10, scale_x_reverse, scale_y_reverse, scale_color_discrete, scale_color_hue, scale_color_identity,\
     scale_color_manual, scale_color_continuous, scale_fill_discrete, scale_fill_hue, scale_fill_identity, scale_fill_continuous,\
-    scale_fill_manual
+    scale_fill_manual, scale_shape_manual, scale_shape_auto
 from .facets import vars, facet_wrap
 
 __all__ = [
@@ -50,6 +50,8 @@ __all__ = [
     "scale_fill_discrete",
     "scale_fill_hue",
     "scale_fill_manual",
+    "scale_shape_manual",
+    "scale_shape_auto",
     "facet_wrap",
     "vars"
 ]

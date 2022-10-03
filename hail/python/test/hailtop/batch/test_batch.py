@@ -1,6 +1,7 @@
 import asyncio
 import secrets
 import unittest
+import pytest
 import os
 import subprocess as sp
 import tempfile
@@ -19,7 +20,7 @@ from hailtop.test_utils import skip_in_azure
 
 
 DOCKER_ROOT_IMAGE = os.environ['DOCKER_ROOT_IMAGE']
-PYTHON_DILL_IMAGE = os.environ['PYTHON_DILL_IMAGE']
+PYTHON_DILL_IMAGE = 'hailgenetics/python-dill:3.7-slim'
 HAIL_GENETICS_HAIL_IMAGE = os.environ['HAIL_GENETICS_HAIL_IMAGE']
 
 class LocalTests(unittest.TestCase):
@@ -578,6 +579,14 @@ class ServiceTests(unittest.TestCase):
         res_status = res.status()
         assert res_status['state'] == 'success', str((res_status, res.debug_info()))
 
+    def test_local_paths_error(self):
+        b = self.batch()
+        j = b.new_job()
+        for input in ["hi.txt", "~/hello.csv", "./hey.tsv", "/sup.json", "file://yo.yaml"]:
+            with pytest.raises(ValueError) as e:
+                b.read_input(input)
+            assert str(e.value).startswith("Local filepath detected")
+
     def test_dry_run(self):
         b = self.batch()
         j = b.new_job()
@@ -950,4 +959,3 @@ class ServiceTests(unittest.TestCase):
         assert batch_status['state'] == 'success', str((batch_status, batch.debug_info()))
         job_log_2 = batch.get_job_log(2)
         assert job_log_2['main'] == "6\n", str((job_log_2, batch.debug_info()))
-
