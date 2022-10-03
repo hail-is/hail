@@ -1182,10 +1182,9 @@ GROUP BY user, inst_coll;
     )
 
     async for record in records:
-        def labels(state):
-            return StateUserInstCollLabels(
-                state=state, user=record['user'], inst_coll=record['inst_coll']
-            )
+        labels = lambda state: StateUserInstCollLabels(
+            state=state, user=record['user'], inst_coll=record['inst_coll']
+        )
 
         user_cores[labels('ready')] += record['ready_cores_mcpu'] / 1000
         user_cores[labels('running')] += record['running_cores_mcpu'] / 1000
