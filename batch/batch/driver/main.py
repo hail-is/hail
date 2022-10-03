@@ -1181,16 +1181,17 @@ GROUP BY user, inst_coll;
 '''
     )
 
-    async for record in records:
-        labels = lambda state: StateUserInstCollLabels(
+    def labels(state: str, record: dict) -> StateUserInstCollLabels:
+        return StateUserInstCollLabels(
             state=state, user=record['user'], inst_coll=record['inst_coll']
         )
 
-        user_cores[labels('ready')] += record['ready_cores_mcpu'] / 1000
-        user_cores[labels('running')] += record['running_cores_mcpu'] / 1000
-        user_jobs[labels('ready')] += record['n_ready_jobs']
-        user_jobs[labels('running')] += record['n_running_jobs']
-        user_jobs[labels('creating')] += record['n_creating_jobs']
+    async for record in records:
+        user_cores[labels('ready', record)] += record['ready_cores_mcpu'] / 1000
+        user_cores[labels('running', record)] += record['running_cores_mcpu'] / 1000
+        user_jobs[labels('ready', record)] += record['n_ready_jobs']
+        user_jobs[labels('running', record)] += record['n_running_jobs']
+        user_jobs[labels('creating', record)] += record['n_creating_jobs']
 
     def set_value(gauge, data):
         gauge.clear()
