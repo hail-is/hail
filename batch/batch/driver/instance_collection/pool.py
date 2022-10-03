@@ -368,7 +368,6 @@ FROM (
     INNER JOIN job_regions ON ready_jobs.batch_id = job_regions.batch_id AND ready_jobs.job_id = job_regions.job_id
     LEFT JOIN region_ids ON job_regions.region_id = region_ids.region_id
     GROUP BY ready_jobs.batch_id, ready_jobs.job_id
-    ORDER BY region ASC
   ) AS regions ON ready_jobs.batch_id = regions.batch_id AND ready_jobs.job_id = regions.job_id
 ) AS ordered_jobs
 GROUP BY regions, row_num_overall - row_num_by_regions
@@ -654,7 +653,6 @@ LEFT JOIN (
   INNER JOIN job_regions ON ready_jobs.batch_id = job_regions.batch_id AND ready_jobs.job_id = job_regions.job_id
   LEFT JOIN region_ids ON job_regions.region_id = region_ids.region_id
   GROUP BY ready_jobs.batch_id, ready_jobs.job_id
-  ORDER BY region ASC
 ) AS t ON ready_jobs.batch_id = t.batch_id AND ready_jobs.job_id = t.job_id
 ORDER BY scheduling_iteration, ready_jobs.batch_id, always_run DESC, -n_regions DESC, JSON_UNQUOTE(regions), ready_jobs.job_id;
 ''',
