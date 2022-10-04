@@ -2990,7 +2990,7 @@ steps:
 
       gcloud auth activate-service-account --key-file=/ci-deploy-0-1--hail-is-hail/ci-deploy-0-1--hail-is-hail.json
 
-      gcloud auth -q configure-docker gcr.io
+      gcloud auth -q configure-docker {{ global.docker_prefix.split('/')[0] }}
       cat /docker-hub-hailgenetics/password | skopeo login --username hailgenetics --password-stdin docker.io
 
       cp /pypi-credentials/pypirc $HOME/.pypirc
