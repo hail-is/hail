@@ -34,6 +34,8 @@ Released 2022-10-04
 - (hail#12195) Add a `impute_sex_chr_ploidy_from_interval_coverage` to impute sex ploidy directly from a coverage MT.
 - (hail#12222) Query-on-Batch pipelines now add worker jobs to the same batch as the driver
 job instead of producing a new batch per stage.
+- (hail#12244) Added support for custom labels for per-group legends to `hail.ggplot.geom_point` via the
+`legend_format` keyword argument
 
 ### Deprecations
 
