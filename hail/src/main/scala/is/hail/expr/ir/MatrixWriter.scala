@@ -947,7 +947,7 @@ case class MatrixBGENWriter(
 ) extends MatrixWriter {
   def apply(ctx: ExecuteContext, mv: MatrixValue): Unit = {
     val tv = mv.toTableValue
-    val ts = RVDToTableStage(tv.rvd, tv.globals.toEncodedLiteral(ctx.theHailClassLoader))
+    val ts = TableExecuteIntermediate(tv).asTableStage(ctx)
     val tl = TableLiteral(tv, ctx.theHailClassLoader)
     CompileAndEvaluate(ctx,
       lower(LowerMatrixIR.colsFieldName, MatrixType.entriesIdentifier, mv.typ.colKey,
