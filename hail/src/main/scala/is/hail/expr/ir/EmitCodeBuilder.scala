@@ -294,6 +294,10 @@ class EmitCodeBuilder(val emb: EmitMethodBuilder[_], var code: Code[Unit]) exten
     this += Code.invokeScalaObject1[String, Unit](LogHelper.getClass, "logInfo", cs.reduce[Code[String]] { case (l, r) => (l.concat(r)) })
   }
 
+  def warning(cs: Code[String]*): Unit = {
+    this += Code.invokeScalaObject1[String, Unit](LogHelper.getClass, "warning", cs.reduce[Code[String]] { case (l, r) => (l.concat(r)) })
+  }
+
   def consoleInfo(cs: Code[String]*): Unit = {
     this += Code.invokeScalaObject1[String, Unit](LogHelper.getClass, "consoleInfo", cs.reduce[Code[String]] { case (l, r) => (l.concat(r)) })
   }
