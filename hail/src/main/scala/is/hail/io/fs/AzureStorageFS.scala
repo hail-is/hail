@@ -134,12 +134,6 @@ class AzureStorageFS(val credentialsJSON: Option[String] = None) extends FS {
       private[this] val client: BlobClient = blobClient
 
       override def fill(): Int = {
-        bb.clear()
-
-        val outputStreamToBuffer: OutputStream = (i: Int) => {
-          bb.put(i.toByte)
-        }
-
         val pos = getPosition
         val numBytesRemainingInBlob = blobSize - pos
         val count = Math.min(numBytesRemainingInBlob, bb.capacity())
@@ -147,9 +141,16 @@ class AzureStorageFS(val credentialsJSON: Option[String] = None) extends FS {
           return -1
         }
 
-        val response = client.downloadStreamWithResponse(
-          outputStreamToBuffer, new BlobRange(pos, count),
-          null, null, false, timeout, null)
+        val outputStreamToBuffer: OutputStream = (i: Int) => {
+          bb.put(i.toByte)
+        }
+        val response = retryTransientErrors {
+          bb.clear()
+          client.downloadStreamWithResponse(
+            outputStreamToBuffer, new BlobRange(pos, count),
+            null, null, false, timeout, null)
+        }
+
         if (response.getStatusCode >= 200 && response.getStatusCode < 300) {
           bb.flip()
           assert(bb.position() == 0 && bb.remaining() > 0)
