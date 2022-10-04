@@ -324,7 +324,7 @@ WHERE user = %s AND `state` = 'running';
                 async for record in self.db.select_and_fetchall(
                     '''
 WITH ready_jobs AS (
-  SELECT jobs.job_id, jobs.spec, jobs.cores_mcpu, COALESCE(SUM(instances.state IS NOT NULL AND
+  SELECT jobs.batch_id, jobs.job_id, jobs.spec, jobs.cores_mcpu, COALESCE(SUM(instances.state IS NOT NULL AND
     (instances.state = 'pending' OR instances.state = 'active')), 0) as live_attempts
   FROM jobs FORCE INDEX(jobs_batch_id_state_always_run_inst_coll_cancelled)
   LEFT JOIN attempts ON jobs.batch_id = attempts.batch_id AND jobs.job_id = attempts.job_id
