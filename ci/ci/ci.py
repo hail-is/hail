@@ -7,7 +7,6 @@ import traceback
 from typing import Callable, Dict, List, Optional, Set
 
 import aiohttp_session  # type: ignore
-import pymysql
 import uvloop  # type: ignore
 from aiohttp import web
 from gidgethub import aiohttp as gh_aiohttp
@@ -387,6 +386,7 @@ async def github_callback(request):
 
 async def batch_callback_handler(request):
     app = request.app
+    db: Database = app['db']
     params = await request.json()
     log.info(f'batch callback {params}')
     attrs = params.get('attributes')
@@ -397,15 +397,14 @@ async def batch_callback_handler(request):
                 if wb.branch.short_str() == target_branch:
                     log.info(f'watched_branch {wb.branch.short_str()} notify batch changed')
 
-                    if 'test' in params and params['complete']:
-                        assert 'deploy' not in params
-                        assert 'dev' not in params
-                        db: Database = app['db']
-                        namespaces = json.loads(params['namespaces'])
+                    if 'test' in attrs and params['complete']:
+                        assert 'deploy' not in attrs
+                        assert 'dev' not in attrs
+                        namespace = json.loads(attrs['namespace'])
+                        assert namespace != 'default'
                         await db.execute_update(
-                            f'''
-DELETE FROM active_namespaces
-WHERE {" OR ".join("namespace=" + ns for ns in namespaces)}'''
+                            'DELETE FROM active_namespaces WHERE namespace = %s',
+                            (namespace,),
                         )
 
                     await wb.notify_batch_changed(app)
@@ -598,15 +597,22 @@ async def add_namespaced_service(request, userdata):  # pylint: disable=unused-a
     service = post['service']
     namespace = request.match_info['namespace']
 
-    try:
+    record = await db.select_and_fetchone(
+        '''
+SELECT 1 FROM deployed_services
+WHERE namespace = %s AND service = %s
+''',
+        (namespace, service),
+    )
+
+    if record:
+        session = await aiohttp_session.get_session(request)
+        set_message(session, 'Service already registered', 'info')
+    else:
         await db.execute_insertone(
             'INSERT INTO deployed_services VALUES (%s, %s)',
             (namespace, service),
         )
-    except pymysql.err.IntegrityError as err:
-        # 1062 ER_DUP_ENTRY https://dev.mysql.com/doc/refman/5.7/en/server-error-reference.html#error_er_dup_entry
-        if err.args[0] != 1062:
-            raise
 
     return web.HTTPFound(deploy_config.external_url('ci', '/namespaces'))
 
@@ -619,15 +625,19 @@ async def add_namespace(request, userdata):  # pylint: disable=unused-argument
     post = await request.post()
     namespace = post['namespace']
 
-    try:
+    record = await db.execute_and_fetchone(
+        'SELECT 1 FROM active_namespaces where namespace = %s',
+        (namespace,),
+    )
+
+    if record:
+        session = await aiohttp_session.get_session(request)
+        set_message(session, 'Namespace already registered', 'info')
+    else:
         await db.execute_insertone(
             'INSERT INTO active_namespaces (`namespace`) VALUES (%s)',
             (namespace,),
         )
-    except pymysql.err.IntegrityError as err:
-        # 1062 ER_DUP_ENTRY https://dev.mysql.com/doc/refman/5.7/en/server-error-reference.html#error_er_dup_entry
-        if err.args[0] != 1062:
-            raise
 
     return web.HTTPFound(deploy_config.external_url('ci', '/namespaces'))
 

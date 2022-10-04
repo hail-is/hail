@@ -3,7 +3,7 @@ import json
 import logging
 from collections import Counter, defaultdict
 from shlex import quote as shq
-from typing import Dict, List
+from typing import Dict, List, Tuple
 
 import jinja2
 import yaml
@@ -143,12 +143,18 @@ class BuildConfiguration:
             if step.can_run_in_scope(scope):
                 step.cleanup(batch, scope, parent_jobs)
 
-    def deployed_services(self) -> Dict[str, List[str]]:
+    def deployed_services(self) -> Tuple[str, List[str]]:
         services = defaultdict(list)
         for s in self.steps:
             if isinstance(s, DeployStep):
                 services[s.namespace].extend(s.services())
-        return services
+        # build.yaml allows for multiple namespaces, but
+        # in actuality we only ever use 1 and make many assumptions
+        # around there being a 1:1 correspondence between builds and namespaces
+        namespaces = list(services.keys())
+        assert len(namespaces) == 1
+        ns = namespaces[0]
+        return ns, services[ns]
 
 
 class Step(abc.ABC):

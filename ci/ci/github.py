@@ -484,7 +484,8 @@ mkdir -p {shq(repo_dir)}
             with open(f'{repo_dir}/build.yaml', 'r', encoding='utf-8') as f:
                 config = BuildConfiguration(self, f.read(), scope='test')
             tomorrow = datetime.datetime.utcnow() + datetime.timedelta(days=1)
-            await add_deployed_services(db, config.deployed_services(), tomorrow)
+            namespace, services = config.deployed_services()
+            await add_deployed_services(db, namespace, services, tomorrow)
 
             log.info(f'creating test batch for {self.number}')
             batch = batch_client.create_batch(
@@ -494,6 +495,7 @@ mkdir -p {shq(repo_dir)}
                     'source_branch': self.source_branch.short_str(),
                     'target_branch': self.target_branch.branch.short_str(),
                     'pr': str(self.number),
+                    'namespace': namespace,
                     'source_sha': self.source_sha,
                     'target_sha': self.target_branch.sha,
                 },
@@ -889,15 +891,14 @@ mkdir -p {shq(repo_dir)}
             )
             with open(f'{repo_dir}/build.yaml', 'r', encoding='utf-8') as f:
                 config = BuildConfiguration(self, f.read(), requested_step_names=DEPLOY_STEPS, scope='deploy')
-            services_per_namespace = config.deployed_services()
-            await add_deployed_services(db, services_per_namespace, None)
+            namespace, services = config.deployed_services()
+            await add_deployed_services(db, namespace, services, None)
 
             log.info(f'creating deploy batch for {self.branch.short_str()}')
             deploy_batch = batch_client.create_batch(
                 attributes={
                     'token': secrets.token_hex(16),
                     'deploy': '1',
-                    'namespaces': json.dumps(list(services_per_namespace.keys())),
                     'target_branch': self.branch.short_str(),
                     'sha': self.sha,
                 },
@@ -985,7 +986,8 @@ mkdir -p {shq(repo_dir)}
                 config = BuildConfiguration(
                     self, f.read(), scope='dev', requested_step_names=steps, excluded_step_names=excluded_steps
                 )
-            await add_deployed_services(db, config.deployed_services(), None)
+            namespace, services = config.deployed_services()
+            await add_deployed_services(db, namespace, services, None)
 
             log.info(f'creating dev deploy batch for {self.branch.short_str()} and user {self.user}')
 
