@@ -185,9 +185,9 @@ class InstanceCollection:
         self.n_instances_by_state[instance.state] -= 1
 
         if instance.state in ('pending', 'active'):
-            self.live_free_cores_mcpu -= max(0, instance.free_cores_mcpu)
+            self.live_free_cores_mcpu -= instance.free_cores_mcpu_nonnegative
             self.live_total_cores_mcpu -= instance.cores_mcpu
-            self.live_free_cores_mcpu_by_region[instance.region] -= max(0, instance.free_cores_mcpu)
+            self.live_free_cores_mcpu_by_region[instance.region] -= instance.free_cores_mcpu_nonnegative
 
     async def remove_instance(self, instance: Instance, reason: str, timestamp: Optional[int] = None):
         await instance.deactivate(reason, timestamp)
@@ -204,9 +204,9 @@ class InstanceCollection:
 
         self.instances_by_last_updated.add(instance)
         if instance.state in ('pending', 'active'):
-            self.live_free_cores_mcpu += max(0, instance.free_cores_mcpu)
+            self.live_free_cores_mcpu += instance.free_cores_mcpu_nonnegative
             self.live_total_cores_mcpu += instance.cores_mcpu
-            self.live_free_cores_mcpu_by_region[instance.region] += max(0, instance.free_cores_mcpu)
+            self.live_free_cores_mcpu_by_region[instance.region] += instance.free_cores_mcpu_nonnegative
 
     def add_instance(self, instance: Instance):
         assert instance.name not in self.name_instance, instance.name
