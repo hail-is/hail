@@ -115,7 +115,7 @@ execnet==1.9.0
     # via pytest-xdist
 flake8==4.0.1
     # via -r requirements.txt
-flask==2.0.3
+flask==2.2.2
     # via
     #   -r requirements.txt
     #   flask-cors
@@ -140,7 +140,7 @@ google-api-core==2.10.1
     # via google-api-python-client
 google-api-python-client==2.52.0
     # via -r requirements.txt
-google-auth==2.11.1
+google-auth==2.12.0
     # via
     #   google-api-core
     #   google-api-python-client
@@ -173,6 +173,7 @@ importlib-metadata==3.10.1
     #   -r requirements.txt
     #   click
     #   flake8
+    #   flask
     #   keyring
     #   pluggy
     #   pytest
@@ -359,7 +360,7 @@ python-dateutil==2.8.1
     #   pandas
 python-json-logger==2.0.2
     # via -r requirements.txt
-pytz==2022.2.1
+pytz==2022.4
     # via pandas
 pyyaml==6.0
     # via kubernetes-asyncio
@@ -386,7 +387,7 @@ requests-toolbelt==0.9.1
     # via twine
 rfc3986==2.0.0
     # via twine
-rich==12.5.1
+rich==12.6.0
     # via twine
 rsa==4.9
     # via google-auth
@@ -424,7 +425,7 @@ tomli==2.0.1
     # via
     #   black
     #   mypy
-tqdm==4.42.1
+tqdm==4.64.1
     # via -r requirements.txt
 twine==4.0.1
     # via -r requirements.txt
@@ -447,7 +448,7 @@ types-pyyaml==6.0.12
     # via -r requirements.txt
 types-requests==2.28.11
     # via -r requirements.txt
-types-setuptools==65.3.0
+types-setuptools==65.4.0.0
     # via -r requirements.txt
 types-six==1.16.21
     # via -r requirements.txt

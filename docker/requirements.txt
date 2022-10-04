@@ -22,7 +22,7 @@ docker==5.0.3
 flake8==4.0.1
 Flask-Cors==3.0.10
 Flask-Sockets==0.2.1
-Flask==2.0.3
+Flask==2.2.2
 gidgethub==4.1.0
 google-api-python-client==2.52.0
 google-auth-oauthlib==0.5.2
@@ -61,7 +61,7 @@ requests==2.25.1
 setuptools>=38.6.0
 sortedcontainers==2.4.0
 tabulate==0.8.9
-tqdm==4.42.1
+tqdm==4.64.1
 twine>=1.11.0
 urllib3==1.26.5
 uvloop==0.16.0
