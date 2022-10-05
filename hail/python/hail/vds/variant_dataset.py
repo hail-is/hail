@@ -240,3 +240,20 @@ class VariantDataset:
 
     def _same(self, other: 'VariantDataset'):
         return self.reference_data._same(other.reference_data) and self.variant_data._same(other.variant_data)
+
+    def union_rows(*vdses):
+        '''Combine many VDSes with the sample samples but disjoint variants.
+
+        **Examples**
+
+        If a dataset is imported as VDS in chromosome-chunks, the following will combine them into
+        one VDS:
+
+        >>> vds_paths = ['chr1.vds', 'chr2.vds']  # doctest: +SKIP
+        ... vds_per_chrom = [hl.vds.read_vds(path) for path in vds_paths)  # doctest: +SKIP
+        ... hl.vds.VariantDataset.union_rows(*vds_per_chrom)  # doctest: +SKIP
+
+        '''
+        new_ref_mt = hl.MatrixTable.union_rows(*(vds.reference_data for vds in vdses))
+        new_var_mt = hl.MatrixTable.union_rows(*(vds.variant_data for vds in vdses))
+        return hl.vds.VariantDataset(new_ref_mt, new_var_mt)
