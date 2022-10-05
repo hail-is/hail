@@ -293,7 +293,7 @@
           const content = hit._highlightResult.content ? hit._highlightResult.content.value : hit.content
           linearRes.push(
             `<Div class='search-result'>
-                                    <a href="${hit.url}" target="_blank">
+                                    <a rel="noopener" href="${hit.url}" target="_blank">
                                         <div class='url smaller'>${hit.url}</div>
                                         <div class='search-hits'>${headerRes}</div>
                                         ${content ? "<p class='small'>" + content + "</p>" : ""}
