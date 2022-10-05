@@ -39,7 +39,7 @@
 
     function handleSearchKeyUp(query, ev) {
       if(ev.keyCode == 13 && !isHighlighted) {
-        location.href = `{{ base_path }}/search.html?query=${query}`;
+        location.href = `{{ base_path }}/search.html?query=${encodeURIComponent(query)}`;
       }
     }
 
