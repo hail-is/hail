@@ -1,6 +1,7 @@
 from typing import Any
 import json
 import numpy as np
+import pandas as pd
 
 
 from .frozendict import frozendict
@@ -36,6 +37,8 @@ class JSONEncoder(json.JSONEncoder):
             return int(o)
         if isinstance(o, np.floating):
             return float(o)
+        if o is pd.NA:
+            return None
         return super().default(o)
 
 
