@@ -48,7 +48,7 @@ jobs:
     #   modify them (or add more) to build your code if your project, please refer to the EXAMPLE below for guidance.
 
     - run: |
-        make -C hail compileScala compileJava HAIL_COMPILE_NATIVES=1
+        make -C hail shadowJar HAIL_COMPILE_NATIVES=1
 
     - name: Perform CodeQL Analysis
       uses: github/codeql-action/analyze@v2
