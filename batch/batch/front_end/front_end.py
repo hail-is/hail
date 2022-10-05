@@ -568,7 +568,7 @@ async def _query_batches(request, user, q):
         elif t.startswith('billing_project:'):
             k = t[16:]
             condition = '''
-(batches.`billing_project` = %s)
+(batches.`billing_project` = BINARY %s)
 '''
             args = [k]
         elif t == 'open':
@@ -1194,7 +1194,7 @@ SELECT billing_projects.status, billing_projects.limit
 FROM billing_project_users
 INNER JOIN billing_projects
   ON billing_projects.name = billing_project_users.billing_project
-WHERE billing_project = %s AND user = %s
+WHERE billing_project = BINARY %s AND user = BINARY %s
 LOCK IN SHARE MODE''',
             (billing_project, user),
         )
@@ -1210,7 +1210,7 @@ SELECT COALESCE(SUM(t.`usage` * rate), 0) AS cost
 FROM (
   SELECT resource_id, CAST(COALESCE(SUM(`usage`), 0) AS SIGNED) AS `usage`
   FROM aggregated_billing_project_user_resources_v2
-  WHERE billing_project = %s
+  WHERE billing_project = BINARY %s
   GROUP BY resource_id
 ) AS t
 LEFT JOIN resources on resources.resource_id = t.resource_id;
@@ -1938,7 +1938,7 @@ async def _edit_billing_limit(db, billing_project, limit):
 SELECT billing_projects.name as billing_project,
     billing_projects.`status` as `status`
 FROM billing_projects
-WHERE billing_projects.name = %s AND billing_projects.`status` != 'deleted'
+WHERE billing_projects.name = BINARY %s AND billing_projects.`status` != 'deleted'
 FOR UPDATE;
         ''',
             (billing_project,),
@@ -1951,7 +1951,7 @@ FOR UPDATE;
 
         await tx.execute_update(
             '''
-UPDATE billing_projects SET `limit` = %s WHERE name = %s;
+UPDATE billing_projects SET `limit` = %s WHERE name = BINARY %s;
 ''',
             (limit, billing_project),
         )
@@ -2162,7 +2162,7 @@ user FROM billing_projects
 LEFT JOIN (SELECT * FROM billing_project_users
     WHERE billing_project = %s AND user = %s FOR UPDATE) AS t
   ON billing_projects.name = t.billing_project
-WHERE billing_projects.name = %s;
+WHERE billing_projects.name = BINARY %s;
 ''',
             (billing_project, user, billing_project),
         )
@@ -2183,7 +2183,7 @@ WHERE billing_projects.name = %s;
         await tx.just_execute(
             '''
 DELETE FROM billing_project_users
-WHERE billing_project = %s AND user = %s;
+WHERE billing_project = BINARY %s AND user = BINARY %s;
 ''',
             (billing_project, user),
         )
@@ -2229,7 +2229,7 @@ FROM billing_projects
 LEFT JOIN (SELECT * FROM billing_project_users
 WHERE billing_project = %s AND user = %s FOR UPDATE) AS t
 ON billing_projects.name = t.billing_project
-WHERE billing_projects.name = %s AND billing_projects.`status` != 'deleted' LOCK IN SHARE MODE;
+WHERE billing_projects.name = BINARY %s AND billing_projects.`status` != 'deleted' LOCK IN SHARE MODE;
         ''',
             (billing_project, user, billing_project),
         )
@@ -2289,7 +2289,7 @@ async def _create_billing_project(db, billing_project):
         row = await tx.execute_and_fetchone(
             '''
 SELECT `status` FROM billing_projects
-WHERE name = %s
+WHERE name = BINARY %s
 FOR UPDATE;
 ''',
             (billing_project),
@@ -2346,7 +2346,7 @@ ON billing_projects.name = batches.billing_project
 AND billing_projects.`status` != 'deleted'
 AND batches.time_completed IS NULL
 AND NOT batches.deleted
-WHERE name = %s
+WHERE name = BINARY %s
 LIMIT 1
 FOR UPDATE;
     ''',
@@ -2362,7 +2362,7 @@ FOR UPDATE;
         if row['batch_id'] is not None:
             raise BatchUserError(f'Billing project {billing_project} has running batches.', 'error')
 
-        await tx.execute_update("UPDATE billing_projects SET `status` = 'closed' WHERE name = %s;", (billing_project,))
+        await tx.execute_update("UPDATE billing_projects SET `status` = 'closed' WHERE name = BINARY %s;", (billing_project,))
 
     await close_project()  # pylint: disable=no-value-for-parameter
 
@@ -2396,7 +2396,7 @@ async def _reopen_billing_project(db, billing_project):
     @transaction(db)
     async def open_project(tx):
         row = await tx.execute_and_fetchone(
-            "SELECT name, `status` FROM billing_projects WHERE name = %s FOR UPDATE;", (billing_project,)
+            "SELECT name, `status` FROM billing_projects WHERE name = BINARY %s FOR UPDATE;", (billing_project,)
         )
         if not row:
             raise NonExistentBillingProjectError(billing_project)
@@ -2406,7 +2406,7 @@ async def _reopen_billing_project(db, billing_project):
         if row['status'] == 'open':
             raise BatchOperationAlreadyCompletedError(f'Billing project {billing_project} is already open.', 'info')
 
-        await tx.execute_update("UPDATE billing_projects SET `status` = 'open' WHERE name = %s;", (billing_project,))
+        await tx.execute_update("UPDATE billing_projects SET `status` = 'open' WHERE name = BINARY %s;", (billing_project,))
 
     await open_project()  # pylint: disable=no-value-for-parameter
 
@@ -2439,7 +2439,7 @@ async def _delete_billing_project(db, billing_project):
     @transaction(db)
     async def delete_project(tx):
         row = await tx.execute_and_fetchone(
-            'SELECT name, `status` FROM billing_projects WHERE name = %s FOR UPDATE;', (billing_project,)
+            'SELECT name, `status` FROM billing_projects WHERE name = BINARY %s FOR UPDATE;', (billing_project,)
         )
         if not row:
             raise NonExistentBillingProjectError(billing_project)
@@ -2449,7 +2449,7 @@ async def _delete_billing_project(db, billing_project):
         if row['status'] == 'open':
             raise BatchUserError(f'Billing project {billing_project} is open and cannot be deleted.', 'error')
 
-        await tx.execute_update("UPDATE billing_projects SET `status` = 'deleted' WHERE name = %s;", (billing_project,))
+        await tx.execute_update("UPDATE billing_projects SET `status` = 'deleted' WHERE name = BINARY %s;", (billing_project,))
 
     await delete_project()  # pylint: disable=no-value-for-parameter
 

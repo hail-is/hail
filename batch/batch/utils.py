@@ -125,7 +125,7 @@ async def query_billing_projects(db, user=None, billing_project=None):
         args.append(user)
 
     if billing_project:
-        where_conditions.append('billing_projects.name = %s')
+        where_conditions.append('billing_projects.name = BINARY %s')
         args.append(billing_project)
 
     if where_conditions:
