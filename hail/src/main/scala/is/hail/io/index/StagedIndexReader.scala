@@ -232,7 +232,7 @@ class StagedIndexReader(emb: EmitMethodBuilder[_], spec: AbstractIndexSpec) {
       val firstIndex = node.asBaseStruct.loadField(cb, "first_idx").get(cb).asInt64.value.get
       val updatedIndex = firstIndex + idx.toL
       cb.assign(rInd, updatedIndex)
-      val idxWithModification = cb.memoize((if (boundType == "lower") idx else cb.memoize(idx-1)) min children.loadLength())
+      val idxWithModification = cb.memoize((if (boundType == "lower") idx else cb.memoize((idx-1) max 0)) min (children.loadLength()-1))
       val leafChild = children.loadElement(cb, idxWithModification).get(cb).asBaseStruct
       cb.assign(rLeafChild, EmitCode.present(cb.emb, leafChild))
     }, {
