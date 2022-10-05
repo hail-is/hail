@@ -2846,9 +2846,11 @@ class IRSuite extends HailSuite {
       BlockMatrixMultiWrite(IndexedSeq(blockMatrix, blockMatrix), blockMatrixMultiWriter),
       BlockMatrixWrite(blockMatrix, BlockMatrixPersistWriter("x", "MEMORY_ONLY")),
       CollectDistributedArray(StreamRange(0, 3, 1), 1, "x", "y", Ref("x", TInt32), NA(TString), "test"),
-      ReadPartition(Str("foo"),
+      ReadPartition(MakeStruct(Array("partitionIndex" -> I64(0), "partitionPath" -> Str("foo"))),
         TStruct("foo" -> TInt32),
-        PartitionNativeReader(TypedCodecSpec(PCanonicalStruct("foo" -> PInt32(), "bar" -> PCanonicalString()), BufferSpec.default))),
+        PartitionNativeReader(
+          TypedCodecSpec(PCanonicalStruct("foo" -> PInt32(), "bar" -> PCanonicalString()), BufferSpec.default),
+          "rowUID")),
       WritePartition(
         MakeStream(FastSeq(), TStream(TStruct())), NA(TString),
         PartitionNativeWriter(TypedCodecSpec(PType.canonical(TStruct()), BufferSpec.default), IndexedSeq(), "path", None, None)),
@@ -3601,8 +3603,11 @@ class IRSuite extends HailSuite {
     var dataIdx = 0
 
     result.foreach { case (interval, path, elementCount, numBytes) =>
-      val reader = PartitionNativeReader(spec)
-      val read = ToArray(ReadPartition(Str(path), spec._vType, reader))
+      val reader = PartitionNativeReader(spec, "rowUID")
+      val read = ToArray(ReadPartition(
+        MakeStruct(Array("partitionIndex" -> I64(0), "partitionPath" -> Str(path))),
+        coerce[TStruct](spec._vType),
+        reader))
       val rowsFromDisk = eval(read).asInstanceOf[IndexedSeq[Row]]
       assert(rowsFromDisk.size == elementCount)
       assert(rowsFromDisk.forall(interval.contains(kord, _)))

@@ -3,11 +3,11 @@ package is.hail.expr.ir
 import is.hail.HailSuite
 import is.hail.backend.ExecuteContext
 import is.hail.expr.Nat
+import is.hail.methods.{ForceCountMatrixTable, ForceCountTable}
+import is.hail.rvd.RVD
 import is.hail.types._
 import is.hail.types.physical.PStruct
 import is.hail.types.virtual._
-import is.hail.methods.{ForceCountMatrixTable, ForceCountTable}
-import is.hail.rvd.RVD
 import is.hail.utils._
 import org.apache.spark.sql.Row
 import org.json4s.JValue
@@ -114,13 +114,22 @@ class PruneSuite extends HailSuite {
 
     def pathsUsed: Seq[String] = FastSeq()
 
-    def apply(tr: TableRead, ctx: ExecuteContext): TableValue = ???
+    override def apply(ctx: ExecuteContext, requestedType: TableType, dropRows: Boolean): TableValue = ???
 
     def partitionCounts: Option[IndexedSeq[Long]] = ???
 
-    def rowAndGlobalPTypes(ctx: ExecuteContext, requestedType: TableType): (PStruct, PStruct) = ???
+    override def concreteRowRequiredness(ctx: ExecuteContext, requestedType: TableType): VirtualTypeWithReq =
+      ???
 
-    def fullType: TableType = tab.typ
+    override def uidRequiredness: VirtualTypeWithReq =
+      ???
+
+    override def globalRequiredness(ctx: ExecuteContext, requestedType: TableType): VirtualTypeWithReq =
+      ???
+
+    def uidType = TInt64
+
+    def fullTypeWithoutUIDs: TableType = tab.typ
   })
 
   lazy val mType = MatrixType(
@@ -143,9 +152,12 @@ class PruneSuite extends HailSuite {
 
     def partitionCounts: Option[IndexedSeq[Long]] = None
 
-    def fullMatrixType: MatrixType = mat.typ
+    def rowUIDType = TTuple(TInt64, TInt64)
+    def colUIDType = TTuple(TInt64, TInt64)
 
-    def lower(mr: MatrixRead): TableIR = ???
+    def fullMatrixTypeWithoutUIDs: MatrixType = mat.typ
+
+    def lower(requestedType: MatrixType, dropCols: Boolean, dropRows: Boolean): TableIR = ???
 
     def toJValue: JValue = ???
 

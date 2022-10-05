@@ -106,30 +106,75 @@ class MatrixRead(MatrixIR):
                  reader,
                  drop_cols: bool = False,
                  drop_rows: bool = False,
+                 drop_row_uids: bool = True,
+                 drop_col_uids: bool = True,
                  *,
                  _assert_type: Optional[HailType] = None):
         super().__init__()
         self.reader = reader
         self.drop_cols = drop_cols
         self.drop_rows = drop_rows
+        self.drop_row_uids = drop_row_uids
+        self.drop_col_uids = drop_col_uids
         self._type: Optional[HailType] = _assert_type
 
     def _handle_randomness(self, row_uid_field_name, col_uid_field_name):
-        # FIXME
-        result = self
-        if row_uid_field_name is not None:
-            new_row = ir.InsertFields(ir.Ref('va', result.typ.row_type), [(row_uid_field_name, ir.NA(tint64))], None)
-            result = MatrixMapRows(result, new_row)
-        if col_uid_field_name is not None:
-            new_col = ir.InsertFields(ir.Ref('sa', result.typ.col_type), [(col_uid_field_name, ir.NA(tint64))], None)
-            result = MatrixMapCols(result, new_col, None)
+        rename_row_uid = False
+        rename_col_uid = False
+        drop_row_uids = False
+        drop_col_uids = False
+        if row_uid_field_name is None and self.drop_row_uids:
+            drop_row_uids = True
+        elif row_uid_field_name != default_row_uid:
+            rename_row_uid = True
+        if col_uid_field_name is None and self.drop_col_uids:
+            drop_col_uids = True
+        elif col_uid_field_name != default_col_uid:
+            rename_col_uid = True
+        result = MatrixRead(self.reader, self.drop_cols, self.drop_rows, drop_row_uids, drop_col_uids)
+        if rename_row_uid or rename_col_uid:
+            rename = False
+            row_map = {}
+            col_map = {}
+            if rename_row_uid:
+                if self.drop_row_uids:
+                    rename = True
+                    row_map = {default_row_uid: row_uid_field_name}
+                else:
+                    row = ir.Ref('va', self.typ.row_type)
+                    result = MatrixMapRows(
+                        result,
+                        ir.InsertFields(row, [(row_uid_field_name, ir.GetField(row, default_row_uid))], None))
+            if rename_col_uid:
+                if self.drop_col_uids:
+                    rename = True
+                    col_map = {default_col_uid: col_uid_field_name}
+                else:
+                    col = ir.Ref('sa', self.typ.col_type)
+                    result = MatrixMapCols(
+                        result,
+                        ir.InsertFields(col, [(col_uid_field_name, ir.GetField(row, default_col_uid))], None))
+            if rename:
+                result = MatrixRename(result, {}, col_map, row_map, {})
         return result
 
     def render_head(self, r):
-        return f'(MatrixRead None {self.drop_cols} {self.drop_rows} "{self.reader.render(r)}"'
+        if self.drop_row_uids and self.drop_col_uids:
+            reqType = "DropRowColUIDs"
+        elif self.drop_row_uids:
+            reqType = "DropRowUIDs"
+        elif self.drop_col_uids:
+            reqType = "DropColUIDs"
+        else:
+            reqType = "None"
+        return f'(MatrixRead {reqType} {self.drop_cols} {self.drop_rows} "{self.reader.render(r)}"'
 
     def _eq(self, other):
-        return self.reader == other.reader and self.drop_cols == other.drop_cols and self.drop_rows == other.drop_rows
+        return (self.reader == other.reader
+                and self.drop_cols == other.drop_cols
+                and self.drop_rows == other.drop_rows
+                and self.drop_row_uids == other.drop_row_uids
+                and self.drop_col_uids == other.drop_col_uids)
 
     def _compute_type(self, deep_typecheck):
         if self._type is None:

@@ -24,7 +24,7 @@ object RVDToTableStage {
       partitioner = rvd.partitioner,
       dependency = TableStageDependency.fromRVD(rvd),
       contexts = StreamRange(0, rvd.getNumPartitions, 1),
-      body = ReadPartition(_, rvd.rowType, PartitionRVDReader(rvd))
+      body = ReadPartition(_, rvd.rowType, PartitionRVDReader(rvd, "__dummy_uid"))
     )
   }
 }

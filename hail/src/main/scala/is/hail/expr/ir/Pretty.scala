@@ -666,6 +666,8 @@ class Pretty(width: Int, ribbonWidth: Int, elideLiterals: Boolean, maxLen: Int, 
           child match {
             case Ref(name, _) =>
               bindings.lookupOption(name).getOrElse(uniqueify("%undefined_ref"))
+            case RelationalRef(name, _) =>
+              bindings.lookupOption(name).getOrElse(uniqueify("%undefined_relational_ref"))
             case _ =>
               val (body, ident) = prettyWithIdent(ir.children(i), bindings, "!")
               strictChildBodies += body

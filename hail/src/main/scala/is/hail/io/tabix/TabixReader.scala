@@ -302,6 +302,7 @@ final class TabixLineIterator(
   private var i: Int = -1
   private var isEof = false
   private var lines = new BGzipLineReader(fs, filePath)
+  private var offsetOfPreviousLine: Long = 0
 
   def next(): String = {
     var s: String = null
@@ -317,6 +318,7 @@ final class TabixLineIterator(
         }
         i += 1
       }
+      offsetOfPreviousLine = curOff
       s = lines.readLine()
       if (s != null) {
         if (s.isEmpty || s.charAt(0) == '#')
@@ -326,6 +328,8 @@ final class TabixLineIterator(
     }
     s
   }
+
+  def getCurIdx(): Long = offsetOfPreviousLine
 
   override def close() {
     if (lines != null) {

@@ -21,10 +21,11 @@ object GenericLines {
     val body: (FS, Any) => CloseableIterator[GenericLine] = { (fs: FS, context: Any) =>
       val contextRow = context.asInstanceOf[Row]
       val index = contextRow.getAs[Int](0)
-      val file = contextRow.getAs[String](1)
-      val start = contextRow.getAs[Long](2)
-      val end = contextRow.getAs[Long](3)
-      val split = contextRow.getAs[Boolean](4)
+      val fileNum = contextRow.getAs[Int](1)
+      val file = contextRow.getAs[String](2)
+      val start = contextRow.getAs[Long](3)
+      val end = contextRow.getAs[Long](4)
+      val split = contextRow.getAs[Boolean](5)
 
       new CloseableIterator[GenericLine] {
         private var splitCompressed = false
@@ -89,7 +90,7 @@ object GenericLines {
 
         private var lineData = new Array[Byte](1024)
 
-        private var line = new GenericLine(file)
+        private var line = new GenericLine(file, fileNum)
         line.data = lineData
 
         private def readLine(): Unit = {
@@ -225,7 +226,8 @@ object GenericLines {
     }
 
     val contextType = TStruct(
-      "index" -> TInt32,
+      "partitionIndex" -> TInt32,
+      "fileNum" -> TInt32,
       "file" -> TString,
       "start" -> TInt64,
       "end" -> TInt64,
@@ -247,8 +249,8 @@ object GenericLines {
     allowSerialRead: Boolean,
     filePerPartition: Boolean = false
   ): GenericLines = {
-    val fileStatuses = fileStatuses0.filter(_.getLen > 0)
-    val totalSize = fileStatuses.map(_.getLen).sum
+    val fileStatuses = fileStatuses0.zipWithIndex.filter(_._1.getLen > 0)
+    val totalSize = fileStatuses.map(_._1.getLen).sum
 
     var totalPartitions = nPartitions match {
       case Some(nPartitions) => nPartitions
@@ -263,7 +265,7 @@ object GenericLines {
       case None =>
     }
 
-    val contexts = fileStatuses.flatMap { status =>
+    val contexts = fileStatuses.flatMap { case (status, fileNum) =>
       val size = status.getLen
       val codec = fs.getCodecFromPath(status.getPath, gzAsBGZ)
 
@@ -281,14 +283,14 @@ object GenericLines {
             var end = partScan(i + 1)
             if (codec != null)
               end = makeVirtualOffset(end, 0)
-            Row(i, status.getPath, start, end, true)
+            Row(i, fileNum, status.getPath, start, end, true)
           }
       } else {
         if (!allowSerialRead && !filePerPartition)
           fatal(s"Cowardly refusing to read file serially: ${ status.getPath }.")
 
         Iterator.single {
-          Row(0, status.getPath, 0L, size, false)
+          Row(0, fileNum, status.getPath, 0L, size, false)
         }
       }
     }
@@ -307,11 +309,12 @@ object GenericLines {
 
 class GenericLine(
   val file: String,
+  val fileNum: Int,
   // possibly virtual
   private var _offset: Long,
   var data: Array[Byte],
   private var _lineLength: Int) {
-  def this(file: String) = this(file, 0, null, 0)
+  def this(file: String, fileNum: Int) = this(file, fileNum, 0, null, 0)
 
   private var _str: String = null
 

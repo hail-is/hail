@@ -382,22 +382,44 @@ class TableRead(TableIR):
     def __init__(self,
                  reader,
                  drop_rows: bool = False,
+                 drop_row_uids: bool = True,
                  *,
                  _assert_type: Optional['hl.ttable'] = None):
         super().__init__()
         self.reader = reader
         self.drop_rows = drop_rows
+        self.drop_row_uids = drop_row_uids
         self._type = _assert_type
 
     def _handle_randomness(self, uid_field_name):
-        # FIXME: Add a param to TableRead to request uids.
-        return self
+        rename_row_uid = False
+        drop_row_uids = False
+        if uid_field_name is None and self.drop_row_uids:
+            drop_row_uids = True
+        elif uid_field_name != default_row_uid:
+            rename_row_uid = True
+        result = TableRead(self.reader, self.drop_rows, drop_row_uids)
+        if rename_row_uid:
+            if self.drop_row_uids:
+                result = TableRename(result, {default_row_uid: uid_field_name}, {})
+            else:
+                row = ir.Ref('row', self.typ.row_type)
+                result = TableMapRows(
+                    result,
+                    ir.InsertFields(row, [(uid_field_name, ir.GetField(row, default_row_uid))], None))
+        return result
 
     def head_str(self):
-        return f'None {self.drop_rows} "{self.reader.render()}"'
+        if self.drop_row_uids:
+            reqType = "DropRowUIDs"
+        else:
+            reqType = "None"
+        return f'{reqType} {self.drop_rows} "{self.reader.render()}"'
 
     def _eq(self, other):
-        return self.reader == other.reader and self.drop_rows == other.drop_rows
+        return (self.reader == other.reader
+                and self.drop_rows == other.drop_rows
+                and self.drop_row_uids == other.drop_row_uids)
 
     def _compute_type(self, deep_typecheck):
         if self._type is not None:
@@ -421,7 +443,7 @@ class MatrixEntriesTable(TableIR):
         entry = ir.Ref('g', child.typ.entry_type)
         row_uid = ir.GetField(ir.Ref('va', child.typ.row_type), default_row_uid)
         col_uid = ir.GetField(ir.Ref('sa', child.typ.row_type), default_col_uid)
-        child = MatrixMapEntries(child, ir.InsertFields(entry, [(uid_field_name, ir.concat_uids(row_uid, col_uid))]))
+        child = MatrixMapEntries(child, ir.InsertFields(entry, [(uid_field_name, ir.concat_uids(row_uid, col_uid))], None))
         return MatrixEntriesTable(child)
 
     def _compute_type(self, deep_typecheck):

@@ -2103,6 +2103,9 @@ steps:
       - name: no-dev-standing-workers-by-default
         script: /io/sql/no_dev_standing_workers_by_default.py
         online: true
+      - name: add-commit-updates
+        script: /io/sql/add-commit-updates.sql
+        online: true
     inputs:
       - from: /repo/batch/sql
         to: /io/sql
