@@ -8,10 +8,6 @@ import is.hail.types.physical.stypes.SingleCodeType
 import is.hail.types.physical.stypes.interfaces.SIndexableValue
 import is.hail.utils.HailException
 
-trait StreamArgType {
-  def apply(outerRegion: Region, eltRegion: Region): Iterator[java.lang.Long]
-}
-
 object StreamUtils {
 
   def storeNDArrayElementsAtAddress(

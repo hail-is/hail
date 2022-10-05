@@ -5,11 +5,11 @@ import is.hail.asm4s._
 import is.hail.backend.ExecuteContext
 import is.hail.expr.ir.agg.AggStateSig
 import is.hail.expr.ir.lowering.LoweringPipeline
-import is.hail.expr.ir.streams.{EmitStream, StreamArgType}
+import is.hail.expr.ir.streams.EmitStream
 import is.hail.io.fs.FS
 import is.hail.rvd.RVDContext
 import is.hail.types.physical.stypes.{PTypeReferenceSingleCodeType, SingleCodeType, StreamSingleCodeType}
-import is.hail.types.physical.stypes.interfaces.SStream
+import is.hail.types.physical.stypes.interfaces.{NoBoxLongIterator, SStream}
 import is.hail.types.physical.{PStruct, PType}
 import is.hail.types.virtual.Type
 import is.hail.utils._
@@ -152,7 +152,7 @@ object CompileIterator {
   }
 
   private trait TMPStepFunction extends StepFunctionBase {
-    def apply(o: Object, a: Long, b: StreamArgType): Boolean
+    def apply(o: Object, a: Long, b: NoBoxLongIterator): Boolean
 
     def setRegions(outerRegion: Region, eltRegion: Region): Unit
   }
@@ -209,7 +209,7 @@ object CompileIterator {
       val emitContext = EmitContext.analyze(ctx, ir)
       val emitter = new Emit(emitContext, stepFECB)
 
-      val env = EmitEnv(Env.empty, argTypeInfo.indices.filter(i => argTypeInfo(i).isInstanceOf[EmitParamType]).map(i => stepF.storeEmitParam(i + 1, cb)))
+      val env = EmitEnv(Env.empty, argTypeInfo.indices.filter(i => argTypeInfo(i).isInstanceOf[EmitParamType]).map(i => stepF.getEmitParam(cb, i + 1)))
       val optStream = EmitCode.fromI(stepF)(cb => EmitStream.produce(emitter, ir, cb, outerRegion, env, None))
       returnType = optStream.st.asInstanceOf[SStream].elementEmitType.storageType.setRequired(true)
 
@@ -220,7 +220,7 @@ object CompileIterator {
 
       val eosField = stepF.genFieldThisRef[Boolean]("eos")
 
-      val producer = optStream.pv.asStream.producer
+      val producer = optStream.pv.asStream.getProducer(cb.emb)
 
       val ret = cb.newLocal[Boolean]("stepf_ret")
       val Lreturn = CodeLabel()
@@ -270,7 +270,7 @@ object CompileIterator {
     ctx: ExecuteContext,
     typ0: PStruct, streamElementType: PType,
     ir: IR
-  ): (PType, (HailClassLoader, FS, Int, RVDContext, Long, streams.StreamArgType) => Iterator[java.lang.Long]) = {
+  ): (PType, (HailClassLoader, FS, Int, RVDContext, Long, NoBoxLongIterator) => Iterator[java.lang.Long]) = {
     assert(typ0.required)
     assert(streamElementType.required)
     val (eltPType, makeStepper) = compileStepper[TMPStepFunction](
@@ -278,7 +278,7 @@ object CompileIterator {
       Array[ParamType](
         CodeParamType(typeInfo[Object]),
         SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(typ0)),
-        SingleCodeEmitParamType(true, StreamSingleCodeType(true, streamElementType))),
+        SingleCodeEmitParamType(true, StreamSingleCodeType(true, streamElementType, true))),
       false,
       None)
     (eltPType, (theHailClassLoader, fs, idx, consumerCtx, v0, part) => {

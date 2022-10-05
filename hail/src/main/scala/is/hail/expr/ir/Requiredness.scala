@@ -723,8 +723,8 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
         requiredness.fromPType(spec.encodedType.decodedPType(rt))
       case In(_, t) => t match {
         case SCodeEmitParamType(et) => requiredness.unionFrom(et.typeWithRequiredness.r)
-        case SingleCodeEmitParamType(required, StreamSingleCodeType(_, eltType)) =>
-          requiredness.asInstanceOf[RIterable].elementType.fromPType(eltType)
+        case SingleCodeEmitParamType(required, StreamSingleCodeType(_, eltType, eltRequired)) =>
+          requiredness.asInstanceOf[RIterable].elementType.fromPType(eltType.setRequired(eltRequired))
           requiredness.union(required)
         case SingleCodeEmitParamType(required, PTypeReferenceSingleCodeType(pt)) =>
           requiredness.fromPType(pt.setRequired(required))

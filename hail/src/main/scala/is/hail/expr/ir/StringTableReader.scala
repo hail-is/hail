@@ -82,6 +82,7 @@ case class StringTablePartitionReader(lines: GenericLines, uidFieldName: String)
       val rowIdx = cb.emb.genFieldThisRef[Long]("rowIdx")
 
       SStreamValue(new StreamProducer {
+        override def method: EmitMethodBuilder[_] = cb.emb
         override val length: Option[EmitCodeBuilder => Code[Int]] = None
 
         override def initialize(cb: EmitCodeBuilder, partitionRegion: Value[Region]): Unit = {
