@@ -524,7 +524,7 @@ async def _query_batches(request, user, q):
     db = request.app['db']
 
     where_conditions = [
-        '(billing_project_users.`user` = %s AND billing_project_users.billing_project = batches.billing_project)',
+        '(billing_project_users.`user` = BINARY %s AND billing_project_users.billing_project = batches.billing_project)',
         'NOT deleted',
     ]
     where_args = [user]
@@ -562,7 +562,7 @@ async def _query_batches(request, user, q):
         elif t.startswith('user:'):
             k = t[5:]
             condition = '''
-(batches.`user` = %s)
+(batches.`user` = BINARY %s)
 '''
             args = [k]
         elif t.startswith('billing_project:'):
