@@ -48,7 +48,7 @@ jobs:
     #   modify them (or add more) to build your code if your project, please refer to the EXAMPLE below for guidance.
 
     - run: |
-        apt-get update && apt-get install liblz4-dev
+        sudo apt-get update && apt-get install liblz4-dev
         make -C hail shadowJar HAIL_COMPILE_NATIVES=1
 
     - name: Perform CodeQL Analysis
