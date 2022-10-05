@@ -43,6 +43,8 @@ class InstanceCollectionManager:
         self.db: Database = db
         self.machine_name_prefix = machine_name_prefix
         self.location_monitor = location_monitor
+
+        assert default_region in regions, (default_region, regions)
         self._default_region = default_region
         self.regions = regions
 

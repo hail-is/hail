@@ -23,8 +23,9 @@ from ...batch_format_version import BatchFormatVersion
 from ...inst_coll_config import JobPrivateInstanceManagerConfig
 from ...instance_config import QuantifiedResource
 from ...utils import Box, ExceededSharesCounter, json_to_value
+from ..exceptions import RegionsNotSupportedError
 from ..instance import Instance
-from ..job import mark_job_creating, schedule_job
+from ..job import mark_job_creating, mark_job_errored, schedule_job
 from ..resource_manager import CloudResourceManager
 from .base import InstanceCollection, InstanceCollectionManager
 
@@ -434,6 +435,10 @@ LEFT JOIN (
                         log.info(f'created {instance} for {(batch_id, job_id)}')
                         await mark_job_creating(
                             self.app, batch_id, job_id, attempt_id, instance, time_msecs(), total_resources_on_instance
+                        )
+                    except RegionsNotSupportedError:
+                        await mark_job_errored(
+                            self.app, batch_id, job_id, attempt_id, record['user'], record['format_version']
                         )
                     except Exception:
                         log.exception(f'while creating job private instance for job {id}', exc_info=True)

@@ -1,6 +1,6 @@
-import random
 from typing import List
 
+from ....driver.exceptions import RegionsNotSupportedError
 from ....driver.location import CloudLocationMonitor
 
 
@@ -23,6 +23,6 @@ class RegionMonitor(CloudLocationMonitor):
         preemptible: bool,  # pylint: disable=unused-argument
         regions: List[str],
     ) -> str:
-        if regions is None:
-            return self._default_region
-        return random.choice(regions)
+        if self._default_region not in regions:
+            raise RegionsNotSupportedError(regions, [self._default_region])
+        return self._default_region

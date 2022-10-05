@@ -5,6 +5,7 @@ from typing import Any, Dict, List, Set, Tuple
 from hailtop.aiocloud import aiogoogle
 from hailtop.utils import url_basename
 
+from ....driver.exceptions import RegionsNotSupportedError
 from ....driver.location import CloudLocationMonitor
 from ....utils import WindowFractionCounter
 
@@ -92,6 +93,9 @@ class ZoneMonitor(CloudLocationMonitor):
         zone_weights = self.compute_zone_weights(cores, local_ssd_data_disk, data_disk_size_gb, preemptible, regions)
 
         zones = [zw.zone for zw in zone_weights]
+
+        if len(zones) == 0:
+            raise RegionsNotSupportedError(regions, self._regions)
 
         zone_prob_weights = [
             min(zw.weight, 10) * self.zone_success_rate.zone_success_rate(zw.zone) for zw in zone_weights

@@ -2585,6 +2585,12 @@ SELECT instance_id, internal_token, n_tokens, frozen FROM globals;
 
     app['frozen'] = row['frozen']
 
+    regions = {
+        record['region']: record['region_id']
+        async for record in db.select_and_fetchall('SELECT region_id, region from region_ids')
+    }
+    app['regions'] = regions
+
     fs = get_cloud_async_fs(credentials_file='/gsa-key/key.json')
     app['file_store'] = FileStore(fs, BATCH_STORAGE_URI, instance_id)
 

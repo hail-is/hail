@@ -22,10 +22,11 @@ from hailtop.utils import (
 )
 
 from ...batch_configuration import STANDING_WORKER_MAX_IDLE_TIME_MSECS
+from ...batch_format_version import BatchFormatVersion
 from ...inst_coll_config import PoolConfig
 from ...utils import ExceededSharesCounter, json_to_value
 from ..instance import Instance
-from ..job import schedule_job
+from ..job import mark_job_errored, schedule_job
 from ..resource_manager import CloudResourceManager
 from .base import InstanceCollection, InstanceCollectionManager
 
@@ -294,7 +295,7 @@ WHERE removed = 0 AND inst_coll = %s;
 
         await self._create_instances(instances_needed, regions)
 
-    async def ready_cores_mcpu_from_estimated_job_queue(self) -> List[Tuple[List[str], int]]:
+    async def regions_to_ready_cores_mcpu_from_estimated_job_queue(self) -> List[Tuple[List[str], int]]:
         autoscaler_runs_per_minute = 60 / AUTOSCALER_LOOP_PERIOD_SECONDS
         max_new_instances_in_two_and_a_half_minutes = int(
             2.5 * MAX_INSTANCES_PER_AUTOSCALER_LOOP * autoscaler_runs_per_minute
@@ -423,7 +424,9 @@ GROUP BY user;
             self.all_supported_regions,
         )
 
-        head_job_queue_regions_ready_cores_mcpu_ordered = await self.ready_cores_mcpu_from_estimated_job_queue()
+        head_job_queue_regions_ready_cores_mcpu_ordered = (
+            await self.regions_to_ready_cores_mcpu_from_estimated_job_queue()
+        )
         head_job_queue_n_instances = defaultdict(int)
         head_job_queue_ready_cores_mcpu = defaultdict(int)
 
@@ -677,8 +680,20 @@ ORDER BY scheduling_iteration, ready_jobs.batch_id, always_run DESC, -n_regions 
                 record['attempt_id'] = attempt_id
 
                 regions = json_to_value(record['regions'])
+                supported_regions = self.pool.all_supported_regions
                 if regions is None:
-                    regions = self.pool.all_supported_regions
+                    regions = supported_regions
+                if len(set(regions).intersection(supported_regions)) == 0:
+                    await mark_job_errored(
+                        self.app,
+                        record['batch_id'],
+                        record['job_id'],
+                        attempt_id,
+                        record['user'],
+                        BatchFormatVersion(record['format_version']),
+                        f'no regions given in {regions} are supported. choose from a region in {supported_regions}'
+                    )
+                    continue
 
                 if scheduled_cores_mcpu + record['cores_mcpu'] > allocated_cores_mcpu:
                     if random.random() > self.exceeded_shares_counter.rate():
