@@ -820,7 +820,6 @@ abstract class PartitionReader {
     ctx: ExecuteContext,
     cb: EmitCodeBuilder,
     context: EmitCode,
-    partitionRegion: Value[Region],
     requestedType: TStruct
   ): IEmitCode
 

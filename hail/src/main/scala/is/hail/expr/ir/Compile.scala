@@ -229,7 +229,7 @@ object CompileIterator {
         optStream.toI(cb).get(cb) // handle missing, but bound stream producer above
 
         cb.assign(producer.elementRegion, eltRegionField)
-        producer.initialize(cb)
+        producer.initialize(cb, outerRegion)
         cb.assign(didSetup, true)
         cb.assign(eosField, false)
       })

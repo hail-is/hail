@@ -35,7 +35,7 @@ object SingleCodeType {
 sealed trait SingleCodeType {
   def ti: TypeInfo[_]
 
-  def loadToSValue(cb: EmitCodeBuilder, r: Value[Region], c: Value[_]): SValue
+  def loadToSValue(cb: EmitCodeBuilder, c: Value[_]): SValue
 
   def virtualType: Type
 
@@ -49,7 +49,7 @@ case object Int32SingleCodeType extends SingleCodeType {
 
   override def loadedSType: SType = SInt32
 
-  def loadToSValue(cb: EmitCodeBuilder, r: Value[Region], c: Value[_]): SValue = new SInt32Value(coerce[Int](c))
+  def loadToSValue(cb: EmitCodeBuilder, c: Value[_]): SValue = new SInt32Value(coerce[Int](c))
 
   def virtualType: Type = TInt32
 
@@ -62,7 +62,7 @@ case object Int64SingleCodeType extends SingleCodeType {
 
   override def loadedSType: SType = SInt64
 
-  def loadToSValue(cb: EmitCodeBuilder, r: Value[Region], c: Value[_]): SValue = new SInt64Value(coerce[Long](c))
+  def loadToSValue(cb: EmitCodeBuilder, c: Value[_]): SValue = new SInt64Value(coerce[Long](c))
 
   def virtualType: Type = TInt64
 
@@ -75,7 +75,7 @@ case object Float32SingleCodeType extends SingleCodeType {
 
   override def loadedSType: SType = SFloat32
 
-  def loadToSValue(cb: EmitCodeBuilder, r: Value[Region], c: Value[_]): SValue = new SFloat32Value(coerce[Float](c))
+  def loadToSValue(cb: EmitCodeBuilder, c: Value[_]): SValue = new SFloat32Value(coerce[Float](c))
 
   def virtualType: Type = TFloat32
 
@@ -88,7 +88,7 @@ case object Float64SingleCodeType extends SingleCodeType {
 
   override def loadedSType: SType = SFloat64
 
-  def loadToSValue(cb: EmitCodeBuilder, r: Value[Region], c: Value[_]): SValue = new SFloat64Value(coerce[Double](c))
+  def loadToSValue(cb: EmitCodeBuilder, c: Value[_]): SValue = new SFloat64Value(coerce[Double](c))
 
   def virtualType: Type = TFloat64
 
@@ -101,7 +101,7 @@ case object BooleanSingleCodeType extends SingleCodeType {
 
   override def loadedSType: SType = SBoolean
 
-  def loadToSValue(cb: EmitCodeBuilder, r: Value[Region], c: Value[_]): SValue = new SBooleanValue(coerce[Boolean](c))
+  def loadToSValue(cb: EmitCodeBuilder, c: Value[_]): SValue = new SBooleanValue(coerce[Boolean](c))
 
   def virtualType: Type = TBoolean
 
@@ -118,7 +118,7 @@ case class StreamSingleCodeType(requiresMemoryManagementPerElement: Boolean, elt
 
   def ti: TypeInfo[_] = classInfo[StreamArgType]
 
-  def loadToSValue(cb: EmitCodeBuilder, r: Value[Region], c: Value[_]): SValue = {
+  def loadToSValue(cb: EmitCodeBuilder, c: Value[_]): SValue = {
     val mb = cb.emb
     val xIter = mb.genFieldThisRef[Iterator[java.lang.Long]]("streamInIterator")
 
@@ -130,8 +130,8 @@ case class StreamSingleCodeType(requiresMemoryManagementPerElement: Boolean, elt
     val producer = new StreamProducer {
       override val length: Option[EmitCodeBuilder => Code[Int]] = None
 
-      override def initialize(cb: EmitCodeBuilder): Unit = {
-        cb.assign(xIter, mkIter.invoke[Region, Region, Iterator[java.lang.Long]]("apply", r, eltRegion))
+      override def initialize(cb: EmitCodeBuilder, outerRegion: Value[Region]): Unit = {
+        cb.assign(xIter, mkIter.invoke[Region, Region, Iterator[java.lang.Long]]("apply", outerRegion, eltRegion))
       }
 
       override val elementRegion: Settable[Region] = eltRegion
@@ -162,7 +162,7 @@ case class PTypeReferenceSingleCodeType(pt: PType) extends SingleCodeType {
 
   override def loadedSType: SType = pt.sType
 
-  def loadToSValue(cb: EmitCodeBuilder, r: Value[Region], c: Value[_]): SValue =
+  def loadToSValue(cb: EmitCodeBuilder, c: Value[_]): SValue =
     cb.memoizeField(pt.loadCheapSCode(cb, coerce[Long](c)), "PTypeReferenceSingleCodeType")
 
   def virtualType: Type = pt.virtualType
