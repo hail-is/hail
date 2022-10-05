@@ -3,7 +3,7 @@ package is.hail.expr.ir
 import is.hail.HailSuite
 import is.hail.expr.Nat
 import is.hail.expr.ir.agg.CallStatsState
-import is.hail.types.{BaseTypeWithRequiredness, RTable, TableType, TypeWithRequiredness}
+import is.hail.types.{BaseTypeWithRequiredness, RTable, TableType, TypeWithRequiredness, VirtualTypeWithReq}
 import is.hail.types.physical._
 import is.hail.types.virtual._
 import is.hail.io.{BufferSpec, TypedCodecSpec}
@@ -145,14 +145,24 @@ class RequirednessSuite extends HailSuite {
     )
 
     val spec = TypedCodecSpec(pDisc, BufferSpec.default)
-    val pr = PartitionNativeReader(spec)
+    val pr = PartitionNativeReader(spec, "rowUID")
+    val contextType = pr.contextType
     val rt1 = TStruct("a" -> TInt32, "b" -> TArray(TInt32))
     val rt2 = TStruct("a" -> TInt32, "c" -> TArray(TStruct("x" -> TInt32)))
     Array(Str("foo") -> pDisc,
       NA(TString) -> pDisc,
       Str("foo") -> pDisc.subsetTo(rt1),
-      Str("foo") -> pDisc.subsetTo(rt2)).foreach { case (path, pt) =>
-      nodes += Array(ReadPartition(path, pt.virtualType, pr), EmitType(SStream(EmitType(pt.sType, pt.required)), path.isInstanceOf[Str]))
+      Str("foo") -> pDisc.subsetTo(rt2)
+    ).foreach { case (path, pt: PStruct) =>
+      nodes += Array(
+        ReadPartition(
+          if (path.isInstanceOf[Str])
+            MakeStruct(Array("partitionIndex" -> I64(0), "partitionPath" -> path))
+          else
+            NA(contextType),
+          pt.virtualType,
+          pr),
+        EmitType(SStream(EmitType(pt.sType, pt.required)), path.isInstanceOf[Str]))
       nodes += Array(ReadValue(path, spec, pt.virtualType), pt.setRequired(path.isInstanceOf[Str]))
     }
 
@@ -508,12 +518,12 @@ class RequirednessSuite extends HailSuite {
     for (rType <- Array(table.typ,
       TableType(TStruct("a" -> tnestedarray), FastIndexedSeq(), TStruct("z" -> tstruct))
     )) {
-      val (row, global) = reader.rowAndGlobalPTypes(ctx, rType)
+      val (row, global) = reader.rowAndGlobalRequiredness(ctx, rType)
       val node = TableRead(rType, dropRows = false, reader)
       val res = Requiredness.apply(node, ctx)
       val actual = res.r.lookup(node).asInstanceOf[RTable]
-      assert(actual.rowType.canonicalPType(node.typ.rowType) == row, s"\n\n${ Pretty(ctx, node) }: \n$actual\n\n${ dump(res.r) }")
-      assert(actual.globalType.canonicalPType(node.typ.globalType) == global, s"\n\n${ Pretty(ctx, node) }: \n$actual\n\n${ dump(res.r) }")
+      assert(VirtualTypeWithReq(rType.rowType, actual.rowType) == row, s"\n\n${ Pretty(ctx, node) }: \n$actual\n\n${ dump(res.r) }")
+      assert(VirtualTypeWithReq(rType.globalType, actual.globalType) == global, s"\n\n${ Pretty(ctx, node) }: \n$actual\n\n${ dump(res.r) }")
     }
   }
 

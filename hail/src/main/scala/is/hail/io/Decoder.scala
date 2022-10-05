@@ -1,14 +1,16 @@
 package is.hail.io
 
 import java.io._
-
 import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.utils.RestartableByteArrayInputStream
 import is.hail.types.encoded.DecoderAsmFunction
+import is.hail.types.physical.PType
 
 trait Decoder extends Closeable {
   def close()
+
+  def ptype: PType
 
   def readRegionValue(region: Region): Long
 
@@ -17,7 +19,7 @@ trait Decoder extends Closeable {
   def seek(offset: Long): Unit
 }
 
-final class CompiledDecoder(in: InputBuffer, theHailClassLoader: HailClassLoader, f: (HailClassLoader) => DecoderAsmFunction) extends Decoder {
+final class CompiledDecoder(in: InputBuffer, val ptype: PType, theHailClassLoader: HailClassLoader, f: (HailClassLoader) => DecoderAsmFunction) extends Decoder {
   def close() {
     in.close()
   }

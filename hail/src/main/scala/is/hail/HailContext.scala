@@ -4,15 +4,15 @@ import is.hail.annotations._
 import is.hail.asm4s._
 import is.hail.backend.spark.{SparkBackend, SparkTaskContext}
 import is.hail.backend.{Backend, BroadcastValue, ExecuteContext}
-import is.hail.expr.ir.functions.IRFunctionRegistry
 import is.hail.expr.ir.BaseIR
+import is.hail.expr.ir.functions.IRFunctionRegistry
 import is.hail.io.fs.FS
 import is.hail.io.index._
 import is.hail.io.vcf._
 import is.hail.io.{AbstractTypedCodecSpec, Decoder}
 import is.hail.rvd.{AbstractIndexSpec, RVDContext}
 import is.hail.sparkextras.{ContextRDD, IndexReadRDD}
-import is.hail.types.physical.PStruct
+import is.hail.types.physical.{PBaseStruct, PCanonicalTuple, PInt64Required, PStruct, PType}
 import is.hail.types.virtual._
 import is.hail.utils._
 import is.hail.variant.ReferenceGenome
@@ -21,7 +21,6 @@ import org.apache.spark._
 import org.apache.spark.executor.InputMetrics
 import org.apache.spark.rdd.RDD
 import org.json4s.Extraction
-import org.json4s.JsonAST.{JArray, JObject, JString}
 import org.json4s.jackson.JsonMethods
 
 import java.io.InputStream

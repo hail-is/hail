@@ -607,7 +607,7 @@ class SparkBackend(
     val matrixReaders: IndexedSeq[MatrixIR] = paths.map { p =>
       log.info(s"creating MatrixRead node for $p")
       val mnr = MatrixNativeReader(fs, p, Some(opts))
-      MatrixRead(mnr.fullMatrixType, false, false, mnr): MatrixIR
+      MatrixRead(mnr.fullMatrixTypeWithoutUIDs, false, false, mnr): MatrixIR
     }
     log.info("pyReadMultipleMatrixTables: returning N matrix tables")
     matrixReaders.asJava

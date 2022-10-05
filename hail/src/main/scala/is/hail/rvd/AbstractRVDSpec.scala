@@ -1,17 +1,17 @@
 package is.hail.rvd
 
 import is.hail.annotations._
-import is.hail.asm4s.{HailClassLoader, AsmFunction3RegionLongLongLong}
+import is.hail.asm4s.{AsmFunction3RegionLongLongLong, HailClassLoader}
 import is.hail.backend.ExecuteContext
 import is.hail.expr.{JSONAnnotationImpex, ir}
 import is.hail.expr.ir.lowering.{TableStage, TableStageDependency}
-import is.hail.expr.ir.{IR, Literal, PartitionNativeReader, PartitionZippedIndexedNativeReader, PartitionZippedNativeReader, ReadPartition, Ref, ToStream}
+import is.hail.expr.ir.{ArrayZipBehavior, IR, Literal, PartitionNativeReader, PartitionZippedIndexedNativeReader, PartitionZippedNativeReader, ReadPartition, Ref, ToStream}
 import is.hail.io._
 import is.hail.io.fs.FS
 import is.hail.io.index.{InternalNodeBuilder, LeafNodeBuilder}
 import is.hail.types.TableType
 import is.hail.types.encoded.ETypeSerializer
-import is.hail.types.physical.{PCanonicalStruct, PInt64Optional, PStruct, PType, PTypeSerializer}
+import is.hail.types.physical.{PCanonicalStruct, PCanonicalTuple, PInt64Optional, PInt64Required, PStruct, PType, PTypeSerializer}
 import is.hail.types.virtual.{TStructSerializer, _}
 import is.hail.utils._
 import is.hail.{HailContext, compatibility}
@@ -97,8 +97,9 @@ object AbstractRVDSpec {
     pathRight: String,
     newPartitioner: Option[RVDPartitioner],
     filterIntervals: Boolean,
-    requestedType: Type,
-    requestedKey: IndexedSeq[String]
+    requestedType: TStruct,
+    requestedKey: IndexedSeq[String],
+    uidFieldName: String
   ): IR => TableStage = {
     require(specRight.key.isEmpty)
     val partitioner = specLeft.partitioner
@@ -107,13 +108,15 @@ object AbstractRVDSpec {
       case None =>
 
         val reader = PartitionZippedNativeReader(
-          PartitionNativeReader(specLeft.typedCodecSpec),
-          PartitionNativeReader(specRight.typedCodecSpec)
-        )
+          PartitionNativeReader(specLeft.typedCodecSpec, uidFieldName),
+          PartitionNativeReader(specRight.typedCodecSpec, uidFieldName))
 
-        val contextsValue: IndexedSeq[Any] = (specLeft.absolutePartPaths(pathLeft), specRight.absolutePartPaths(pathRight))
+        val leftParts = specLeft.absolutePartPaths(pathLeft)
+        val rightParts = specRight.absolutePartPaths(pathRight)
+        assert(leftParts.length == rightParts.length)
+        val contextsValue: IndexedSeq[Any] = (leftParts, rightParts, leftParts.indices)
           .zipped
-          .map { case (path1, path2) => Row(path1, path2) }
+          .map { (path1, path2, partIdx) => Row(Row(partIdx.toLong, path1), Row(partIdx.toLong, path2)) }
 
         val ctxIR = ToStream(Literal(TArray(reader.contextType), contextsValue))
 
@@ -144,7 +147,10 @@ object AbstractRVDSpec {
         val partKeyPrefix = tmpPartitioner.kType.fieldNames.slice(0, requestedKey.length).toIndexedSeq
         assert(requestedKey == partKeyPrefix, s"$requestedKey != $partKeyPrefix")
 
-        val reader = PartitionZippedIndexedNativeReader(specLeft.typedCodecSpec, specRight.typedCodecSpec, indexSpecLeft, indexSpecRight, specLeft.key)
+        val reader = PartitionZippedIndexedNativeReader(
+          specLeft.typedCodecSpec, specRight.typedCodecSpec,
+          indexSpecLeft, indexSpecRight,
+          specLeft.key, uidFieldName)
 
         val absPathLeft = removeFileProtocol(pathLeft)
         val absPathRight = removeFileProtocol(pathRight)
@@ -156,8 +162,9 @@ object AbstractRVDSpec {
         }
 
         val kSize = specLeft.key.size
-        val contextsValues: IndexedSeq[Row] = partsAndIntervals.map { case (partPath, interval) =>
+        val contextsValues: IndexedSeq[Row] = partsAndIntervals.zipWithIndex.map { case ((partPath, interval), partIdx) =>
           Row(
+            partIdx.toLong,
             s"${ absPathLeft }/parts/${ partPath }",
             s"${ absPathRight }/parts/${ partPath }",
             s"${ absPathLeft }/${ indexSpecLeft.relPath }/${ partPath }.idx",
@@ -209,6 +216,7 @@ abstract class AbstractRVDSpec {
     ctx: ExecuteContext,
     path: String,
     requestedType: TableType,
+    uidFieldName: String,
     newPartitioner: Option[RVDPartitioner] = None,
     filterIntervals: Boolean = false
   ): IR => TableStage = newPartitioner match {
@@ -220,10 +228,15 @@ abstract class AbstractRVDSpec {
 
       val rSpec = typedCodecSpec
 
-      val ctxType = TStruct("path" -> TString)
-      val contexts = ir.ToStream(ir.Literal(TArray(ctxType), absolutePartPaths(path).map(x => Row(x)).toFastIndexedSeq))
+      val ctxType = TStruct("partitionIndex" -> TInt64, "partitionPath" -> TString)
+      val contexts = ir.ToStream(ir.Literal(
+        TArray(ctxType),
+        absolutePartPaths(path).zipWithIndex.map {
+          case (x, i) => Row(i.toLong, x)
+        }.toFastIndexedSeq))
 
-      val body = (ctx: IR) => ir.ReadPartition(ir.GetField(ctx, "path"), requestedType.rowType, ir.PartitionNativeReader(rSpec))
+      val body = (ctx: IR) =>
+        ir.ReadPartition(ctx, requestedType.rowType, ir.PartitionNativeReader(rSpec, uidFieldName))
 
       (globals: IR) =>
         TableStage(
@@ -372,12 +385,14 @@ object IndexedRVDSpec2 {
   }
 }
 
-case class IndexedRVDSpec2(_key: IndexedSeq[String],
+case class IndexedRVDSpec2(
+  _key: IndexedSeq[String],
   _codecSpec: AbstractTypedCodecSpec,
   _indexSpec: AbstractIndexSpec,
   _partFiles: Array[String],
   _jRangeBounds: JValue,
-  _attrs: Map[String, String]) extends AbstractRVDSpec with Indexed {
+  _attrs: Map[String, String]
+) extends AbstractRVDSpec with Indexed {
 
   // some lagacy OrderedRVDSpec2 were written out without the toplevel encoder required
   private val codecSpec2 = _codecSpec match {
@@ -408,6 +423,7 @@ case class IndexedRVDSpec2(_key: IndexedSeq[String],
     ctx: ExecuteContext,
     path: String,
     requestedType: TableType,
+    uidFieldName: String,
     newPartitioner: Option[RVDPartitioner] = None,
     filterIntervals: Boolean = false
   ): IR => TableStage = newPartitioner match {
@@ -419,7 +435,7 @@ case class IndexedRVDSpec2(_key: IndexedSeq[String],
       assert(key.nonEmpty)
 
       val rSpec = typedCodecSpec
-      val reader = ir.PartitionNativeReaderIndexed(rSpec, indexSpec, partitioner.kType.fieldNames)
+      val reader = ir.PartitionNativeReaderIndexed(rSpec, indexSpec, partitioner.kType.fieldNames, uidFieldName)
 
       val absPath = removeFileProtocol(path)
       val partPaths = tmpPartitioner.rangeBounds.map { b => partFiles(partitioner.lowerBoundInterval(b)) }
@@ -428,8 +444,11 @@ case class IndexedRVDSpec2(_key: IndexedSeq[String],
       val kSize = partitioner.kType.size
       absolutePartPaths(path)
       assert(tmpPartitioner.rangeBounds.size == partPaths.length)
-      val contextsValues: IndexedSeq[Row] = tmpPartitioner.rangeBounds.zip(partPaths).map { case (interval, partPath) =>
+      val contextsValues: IndexedSeq[Row] = tmpPartitioner.rangeBounds.map { interval =>
+        val partIdx = partitioner.lowerBoundInterval(interval)
+        val partPath = partFiles(partIdx)
         Row(
+          partIdx.toLong,
           s"${ absPath }/parts/${ partPath }",
           s"${ absPath }/${ indexSpec.relPath }/${ partPath }.idx",
           RVDPartitioner.intervalToIRRepresentation(interval, kSize))
@@ -452,15 +471,17 @@ case class IndexedRVDSpec2(_key: IndexedSeq[String],
       }
 
     case None =>
-      super.readTableStage(ctx, path, requestedType, newPartitioner, filterIntervals)
+      super.readTableStage(ctx, path, requestedType, uidFieldName, newPartitioner, filterIntervals)
   }
 }
 
-case class OrderedRVDSpec2(_key: IndexedSeq[String],
+case class OrderedRVDSpec2(
+  _key: IndexedSeq[String],
   _codecSpec: AbstractTypedCodecSpec,
   _partFiles: Array[String],
   _jRangeBounds: JValue,
-  _attrs: Map[String, String]) extends AbstractRVDSpec {
+  _attrs: Map[String, String]
+) extends AbstractRVDSpec {
 
   // some legacy OrderedRVDSpec2 were written out without the toplevel encoder required
   private val codecSpec2 = _codecSpec match {
@@ -481,7 +502,7 @@ case class OrderedRVDSpec2(_key: IndexedSeq[String],
 
   def key: IndexedSeq[String] = _key
 
-  val attrs: Map[String, String] = _attrs
+  def attrs: Map[String, String] = _attrs
 
   def typedCodecSpec: AbstractTypedCodecSpec = codecSpec2
 }

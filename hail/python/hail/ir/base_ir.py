@@ -447,7 +447,7 @@ class MatrixIR(BaseIR):
         be an int64, or arbitrary tuple of int64s. The only requirement is that
         all rows contain distinct uid values, and likewise for columns.
         """
-        if row_uid_field_name is None and col_uid_field_name and not self.uses_randomness:
+        if row_uid_field_name is None and col_uid_field_name is None and not self.uses_randomness:
             return self
         result = self._handle_randomness(row_uid_field_name, col_uid_field_name)
         assert result is not None

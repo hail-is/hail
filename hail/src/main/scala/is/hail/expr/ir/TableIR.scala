@@ -18,9 +18,10 @@ import is.hail.rvd._
 import is.hail.sparkextras.ContextRDD
 import is.hail.types._
 import is.hail.types.physical._
-import is.hail.types.physical.stypes.concrete.{SInsertFieldsStruct, SIntervalPointer}
-import is.hail.types.physical.stypes.interfaces.{SBaseStructValue, SStreamValue}
-import is.hail.types.physical.stypes.{BooleanSingleCodeType, Int32SingleCodeType, PTypeReferenceSingleCodeType, StreamSingleCodeType}
+import is.hail.types.physical.stypes.concrete._
+import is.hail.types.physical.stypes.interfaces.{SBaseStruct, SBaseStructValue, SStreamValue, primitive}
+import is.hail.types.physical.stypes.primitives.{SInt64, SInt64Value}
+import is.hail.types.physical.stypes._
 import is.hail.types.virtual._
 import is.hail.utils._
 import is.hail.utils.prettyPrint.ArrayOfByteArrayInputStream
@@ -113,6 +114,8 @@ object TableReader {
       case _ => jv.extract[TableReader]
     }
   }
+
+  val uidFieldName = "__row_uid"
 }
 
 object LoweredTableReader {
@@ -123,7 +126,8 @@ object LoweredTableReader {
     ctx: ExecuteContext,
     key: IndexedSeq[String],
     partitionKey: Int,
-    contextType: Type,
+    uidFieldName: String,
+    contextType: TStruct,
     contexts: IndexedSeq[Any],
     keyType: TStruct,
     bodyPType: (TStruct) => PStruct,
@@ -133,6 +137,8 @@ object LoweredTableReader {
   ): LoweredTableReaderCoercer = {
     assert(key.nonEmpty)
     assert(contexts.nonEmpty)
+    assert(contextType.hasField("partitionIndex"))
+    assert(contextType.fieldType("partitionIndex") == TInt32)
 
     val nPartitions = contexts.length
     val sampleSize = math.min(nPartitions * 20, 1000000)
@@ -181,6 +187,7 @@ object LoweredTableReader {
           StreamAggScan(
             ReadPartition(ctx, keyType, new PartitionIteratorLongReader(
               keyType,
+              uidFieldName,
               contextType,
               (requestedType: Type) => bodyPType(requestedType.asInstanceOf[TStruct]),
               (requestedType: Type) => keys(requestedType.asInstanceOf[TStruct]))),
@@ -432,15 +439,49 @@ object LoweredTableReader {
 abstract class TableReader {
   def pathsUsed: Seq[String]
 
-  def apply(tr: TableRead, ctx: ExecuteContext): TableValue
+  def apply(ctx: ExecuteContext, requestedType: TableType, dropRows: Boolean): TableValue
 
   def partitionCounts: Option[IndexedSeq[Long]]
 
   def isDistinctlyKeyed: Boolean = false // FIXME: No default value
 
-  def fullType: TableType
+  def uidType: Type
 
-  def rowAndGlobalPTypes(ctx: ExecuteContext, requestedType: TableType): (PStruct, PStruct)
+  def fullTypeWithoutUIDs: TableType
+
+  val fullType: TableType = if (fullTypeWithoutUIDs.rowType.hasField(uidFieldName))
+    fullTypeWithoutUIDs
+  else
+    fullTypeWithoutUIDs.copy(
+      rowType = fullTypeWithoutUIDs.rowType.insertFields(
+        Array((uidFieldName, uidType))))
+
+  protected def concreteRowRequiredness(ctx: ExecuteContext, requestedType: TableType): VirtualTypeWithReq
+
+  protected def uidRequiredness: VirtualTypeWithReq
+
+  protected def globalRequiredness(ctx: ExecuteContext, requestedType: TableType): VirtualTypeWithReq
+
+  def rowAndGlobalRequiredness(ctx: ExecuteContext, requestedType: TableType): (VirtualTypeWithReq, VirtualTypeWithReq) = {
+    val requestedUID = requestedType.rowType.hasField(uidFieldName)
+    val concreteRowType = if (requestedUID)
+      requestedType.rowType.deleteKey(uidFieldName)
+    else
+      requestedType.rowType
+    val concreteRowReq = concreteRowRequiredness(ctx, requestedType.copy(rowType = concreteRowType))
+    val rowReq = if (requestedUID) {
+      val concreteRFields = concreteRowReq.r.asInstanceOf[RStruct].fields
+      VirtualTypeWithReq(
+        requestedType.rowType,
+        RStruct(concreteRFields :+ RField(uidFieldName, uidRequiredness.r, concreteRFields.length)))
+    } else {
+      concreteRowReq
+    }
+
+    val globalReq = globalRequiredness(ctx, requestedType)
+
+    (rowReq, globalReq)
+  }
 
   def toJValue: JValue = {
     Extraction.decompose(this)(TableReader.formats)
@@ -457,6 +498,8 @@ abstract class TableReader {
 
   def lower(ctx: ExecuteContext, requestedType: TableType): TableStage =
     throw new LowererUnsupportedOperation(s"${ getClass.getSimpleName }.lower not implemented")
+
+  final def uidFieldName = TableReader.uidFieldName
 }
 
 object TableNativeReader {
@@ -488,13 +531,13 @@ object TableNativeReader {
 }
 
 
-case class PartitionRVDReader(rvd: RVD) extends PartitionReader {
+case class PartitionRVDReader(rvd: RVD, uidFieldName: String) extends PartitionReader {
   override def contextType: Type = TInt32
 
-  override def fullRowType: Type = rvd.rowType
+  override def fullRowType: TStruct = rvd.rowType.insertFields(Array(uidFieldName -> TTuple(TInt64, TInt64)))
 
-  override def rowRequiredness(requestedType: Type): TypeWithRequiredness = {
-    val tr = TypeWithRequiredness(requestedType)
+  override def rowRequiredness(requestedType: TStruct): RStruct = {
+    val tr = TypeWithRequiredness(requestedType).asInstanceOf[RStruct]
     tr.fromPType(rvd.rowPType)
     tr
   }
@@ -504,11 +547,11 @@ case class PartitionRVDReader(rvd: RVD) extends PartitionReader {
     cb: EmitCodeBuilder,
     context: EmitCode,
     partitionRegion: Value[Region],
-    requestedType: Type): IEmitCode = {
+    requestedType: TStruct): IEmitCode = {
 
     val mb = cb.emb
 
-    val (Some(PTypeReferenceSingleCodeType(upcastPType)), upcast) = Compile[AsmFunction2RegionLongLong](ctx,
+    val (Some(PTypeReferenceSingleCodeType(upcastPType: PBaseStruct)), upcast) = Compile[AsmFunction2RegionLongLong](ctx,
       FastIndexedSeq(("elt", SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(rvd.rowPType)))),
       FastIndexedSeq(classInfo[Region], LongInfo),
       LongInfo,
@@ -518,12 +561,15 @@ case class PartitionRVDReader(rvd: RVD) extends PartitionReader {
 
     val rowPType = rvd.rowPType.subsetTo(requestedType)
 
+    val createUID = requestedType.hasField(uidFieldName)
+
     assert(upcastPType == rowPType,
       s"ptype mismatch:\n  upcast: $upcastPType\n  computed: ${rowPType}")
 
-    context.toI(cb).map(cb) { idx =>
+    context.toI(cb).map(cb) { partIdx =>
       val iterator = mb.genFieldThisRef[Iterator[Long]]("rvdreader_iterator")
       val next = mb.genFieldThisRef[Long]("rvdreader_next")
+      val curIdx = mb.genFieldThisRef[Long]("rvdreader_curIdx")
 
       val region = mb.genFieldThisRef[Region]("rvdreader_region")
       val upcastF = mb.genFieldThisRef[AsmFunction2RegionLongLong]("rvdreader_upcast")
@@ -534,8 +580,9 @@ case class PartitionRVDReader(rvd: RVD) extends PartitionReader {
         override val length: Option[EmitCodeBuilder => Code[Int]] = None
 
         override def initialize(cb: EmitCodeBuilder): Unit = {
+          cb.assign(curIdx, 0L)
           cb.assign(iterator, broadcastRVD.invoke[Int, Region, Region, Iterator[Long]](
-            "computePartition", EmitCodeBuilder.scopedCode[Int](mb)((cb: EmitCodeBuilder) => idx.asInt.value), region, partitionRegion))
+            "computePartition", partIdx.asInt.value, region, partitionRegion))
           cb.assign(upcastF, Code.checkcast[AsmFunction2RegionLongLong](upcastCode.invoke[AnyRef, AnyRef, AnyRef, AnyRef, AnyRef](
             "apply", cb.emb.ecb.emodb.getHailClassLoader, cb.emb.ecb.emodb.getFS, Code.boxInt(0), partitionRegion)))
         }
@@ -543,10 +590,20 @@ case class PartitionRVDReader(rvd: RVD) extends PartitionReader {
         override val requiresMemoryManagementPerElement: Boolean = true
         override val LproduceElement: CodeLabel = mb.defineAndImplementLabel { cb =>
           cb.ifx(!iterator.invoke[Boolean]("hasNext"), cb.goto(LendOfStream))
+          cb.assign(curIdx, curIdx + 1)
           cb.assign(next, upcastF.invoke[Region, Long, Long]("apply", region, Code.longValue(iterator.invoke[java.lang.Long]("next"))))
           cb.goto(LproduceElementDone)
         }
-        override val element: EmitCode = EmitCode.fromI(mb)(cb => IEmitCode.present(cb, upcastPType.loadCheapSCode(cb, next)))
+        override val element: EmitCode = EmitCode.fromI(mb) { cb =>
+          if (createUID) {
+            val uid = SStackStruct.constructFromArgs(cb, region, TTuple(TInt64, TInt64),
+              EmitCode.present(mb, partIdx), EmitCode.present(mb, primitive(cb.memoize(curIdx - 1))))
+            IEmitCode.present(cb, upcastPType.loadCheapSCode(cb, next)
+              ._insert(requestedType, uidFieldName -> EmitValue.present(uid)))
+          } else {
+            IEmitCode.present(cb, upcastPType.loadCheapSCode(cb, next))
+          }
+        }
 
         override def close(cb: EmitCodeBuilder): Unit = {}
       }
@@ -559,33 +616,63 @@ case class PartitionRVDReader(rvd: RVD) extends PartitionReader {
 }
 
 trait AbstractNativeReader extends PartitionReader {
+  def uidFieldName: String
+
   def spec: AbstractTypedCodecSpec
 
-  override def rowRequiredness(requestedType: Type): TypeWithRequiredness = {
-    val tr = TypeWithRequiredness(requestedType)
-    tr.fromPType(spec.decodedPType(requestedType))
+  override def rowRequiredness(requestedType: TStruct): RStruct = {
+    val tr = TypeWithRequiredness(requestedType).asInstanceOf[RStruct]
+    val pType = if (requestedType.hasField(uidFieldName)) {
+      val basePType = spec.decodedPType(requestedType.deleteKey(uidFieldName)).asInstanceOf[PStruct]
+      val uidPType = PCanonicalTuple(true, PInt64Required, PInt64Required)
+      basePType.insertFields(Array(uidFieldName -> uidPType))
+    } else {
+      spec.decodedPType(requestedType)
+    }
+    tr.fromPType(pType)
     tr
   }
 
-  def fullRowType: Type = spec.encodedVirtualType
+  def fullRowType: TStruct = spec.encodedVirtualType.asInstanceOf[TStruct]
+    .insertFields(Array(uidFieldName -> TTuple(TInt64, TInt64)))
 }
 
-case class PartitionNativeReader(spec: AbstractTypedCodecSpec) extends AbstractNativeReader {
-  def contextType: Type = TString
+case class PartitionNativeReader(spec: AbstractTypedCodecSpec, uidFieldName: String)
+  extends AbstractNativeReader {
+
+  def contextType: Type = TStruct("partitionIndex" -> TInt64, "partitionPath" -> TString)
 
   def emitStream(
     ctx: ExecuteContext,
     cb: EmitCodeBuilder,
     context: EmitCode,
     partitionRegion: Value[Region],
-    requestedType: Type): IEmitCode = {
+    requestedType: TStruct): IEmitCode = {
 
     val mb = cb.emb
 
-    context.toI(cb).map(cb) { path =>
-      val pathString = path.asString.loadString(cb)
+    val insertUID: Boolean = requestedType.hasField(uidFieldName) && !spec.encodedVirtualType.asInstanceOf[TStruct].hasField(uidFieldName)
+    val concreteType: TStruct = if (insertUID)
+      requestedType.deleteKey(uidFieldName)
+    else
+      requestedType
+
+    val concreteSType = spec.encodedType.decodedSType(concreteType).asInstanceOf[SBaseStruct]
+    val uidSType: SStackStruct = SStackStruct(
+      TTuple(TInt64, TInt64),
+      Array(EmitType(SInt64, true), EmitType(SInt64, true)))
+    val elementSType = if (insertUID)
+      SInsertFieldsStruct(requestedType, concreteSType,
+        Array(uidFieldName -> EmitType(uidSType, true)))
+    else
+      concreteSType
+
+    context.toI(cb).map(cb) { case ctxStruct: SBaseStructValue =>
+      val partIdx = cb.memoizeField(ctxStruct.loadField(cb, "partitionIndex").get(cb), "partIdx")
+      val rowIdx = mb.genFieldThisRef[Long]("pnr_rowidx")
+      val pathString = ctxStruct.loadField(cb, "partitionPath").get(cb).asString.loadString(cb)
       val xRowBuf = mb.genFieldThisRef[InputBuffer]("pnr_xrowbuf")
-      val next = mb.newPSettable(mb.fieldBuilder, spec.encodedType.decodedSType(requestedType), "pnr_next")
+      val next = mb.newPSettable(mb.fieldBuilder, elementSType, "pnr_next")
       val region = mb.genFieldThisRef[Region]("pnr_region")
 
       val producer = new StreamProducer {
@@ -593,12 +680,24 @@ case class PartitionNativeReader(spec: AbstractTypedCodecSpec) extends AbstractN
 
         override def initialize(cb: EmitCodeBuilder): Unit = {
           cb.assign(xRowBuf, spec.buildCodeInputBuffer(mb.open(pathString, checkCodec = true)))
+          cb.assign(rowIdx, -1L)
         }
         override val elementRegion: Settable[Region] = region
         override val requiresMemoryManagementPerElement: Boolean = true
         override val LproduceElement: CodeLabel = mb.defineAndImplementLabel { cb =>
           cb.ifx(!xRowBuf.readByte().toZ, cb.goto(LendOfStream))
-          cb.assign(next, spec.encodedType.buildDecoder(requestedType, cb.emb.ecb).apply(cb, region, xRowBuf))
+
+          val base = spec.encodedType.buildDecoder(concreteType, cb.emb.ecb).apply(cb, region, xRowBuf).asBaseStruct
+          if (insertUID) {
+            cb.assign(rowIdx, rowIdx + 1)
+            val uid = EmitValue.present(
+              new SStackStructValue(uidSType, Array(
+                EmitValue.present(partIdx),
+                EmitValue.present(new SInt64Value(rowIdx)))))
+            cb.assign(next, base._insert(requestedType, uidFieldName -> uid))
+          } else
+            cb.assign(next, base)
+
           cb.goto(LproduceElementDone)
         }
 
@@ -613,8 +712,14 @@ case class PartitionNativeReader(spec: AbstractTypedCodecSpec) extends AbstractN
   def toJValue: JValue = Extraction.decompose(this)(PartitionReader.formats)
 }
 
-case class PartitionNativeReaderIndexed(spec: AbstractTypedCodecSpec, indexSpec: AbstractIndexSpec, key: IndexedSeq[String]) extends AbstractNativeReader {
+case class PartitionNativeReaderIndexed(
+  spec: AbstractTypedCodecSpec,
+  indexSpec: AbstractIndexSpec,
+  key: IndexedSeq[String],
+  uidFieldName: String
+) extends AbstractNativeReader {
   def contextType: Type = TStruct(
+    "partitionIndex" -> TInt64,
     "partitionPath" -> TString,
     "indexPath" -> TString,
     "interval" -> RVDPartitioner.intervalIRRepresentation(spec.encodedVirtualType.asInstanceOf[TStruct].select(key)._1))
@@ -624,23 +729,38 @@ case class PartitionNativeReaderIndexed(spec: AbstractTypedCodecSpec, indexSpec:
     cb: EmitCodeBuilder,
     context: EmitCode,
     partitionRegion: Value[Region],
-    requestedType: Type): IEmitCode = {
+    requestedType: TStruct): IEmitCode = {
 
     val mb = cb.emb
 
+    val insertUID: Boolean = requestedType.hasField(uidFieldName)
+    val concreteType: TStruct = if (insertUID)
+      requestedType.deleteKey(uidFieldName)
+    else
+      requestedType
+    val concreteSType: SBaseStructPointer = spec.encodedType.decodedSType(concreteType).asInstanceOf[SBaseStructPointer]
+    val uidSType: SStackStruct = SStackStruct(
+      TTuple(TInt64, TInt64),
+      Array(EmitType(SInt64, true), EmitType(SInt64, true)))
+    val eltSType: SBaseStruct = if (insertUID)
+      SInsertFieldsStruct(requestedType, concreteSType,
+        Array(uidFieldName -> EmitType(uidSType, true)))
+    else
+      concreteSType
     val index = new StagedIndexReader(cb.emb, indexSpec)
 
     context.toI(cb).map(cb) { case ctxStruct: SBaseStructValue =>
-
-      val nToRead = mb.genFieldThisRef[Long]("n_to_read")
+      val partIdx = cb.memoizeField(ctxStruct.loadField(cb, "partitionIndex").get(cb), "partIdx")
+      val curIdx = mb.genFieldThisRef[Long]("cur_index")
+      val endIdx = mb.genFieldThisRef[Long]("end_index")
       val ib = mb.genFieldThisRef[InputBuffer]("buffer")
 
       val region = mb.genFieldThisRef[Region]("pnr_region")
 
-      val decodedRow = cb.emb.newPField("rowsValue", spec.encodedType.decodedSType(requestedType))
+      val decodedRow = cb.emb.newPField("rowsValue", eltSType)
 
       val producer = new StreamProducer {
-        override val length: Option[EmitCodeBuilder => Code[Int]] = Some(_ => nToRead.toI)
+        override val length: Option[EmitCodeBuilder => Code[Int]] = Some(_ => (endIdx - curIdx).toI)
 
         override def initialize(cb: EmitCodeBuilder): Unit = {
           val indexPath = ctxStruct
@@ -660,15 +780,20 @@ case class PartitionNativeReaderIndexed(spec: AbstractTypedCodecSpec, indexSpec:
           index.initialize(cb, indexPath)
 
           val indexResult = index.queryInterval(cb, partitionRegion, interval)
-          val n = indexResult.loadField(cb, 0)
+          val startIndex = indexResult.loadField(cb, 0)
             .get(cb)
             .asInt64
             .value
-          cb.assign(nToRead, n)
+          val endIndex = indexResult.loadField(cb, 1)
+            .get(cb)
+            .asInt64
+            .value
+          cb.assign(curIdx, startIndex)
+          cb.assign(endIdx, endIndex)
 
           cb.assign(ib, spec.buildCodeInputBuffer(Code.newInstance[ByteTrackingInputStream, InputStream](cb.emb.open(partitionPath, false))))
-          cb.ifx(n > 0, {
-            val firstOffset = indexResult.loadField(cb, 1)
+          cb.ifx(endIndex > startIndex, {
+            val firstOffset = indexResult.loadField(cb, 2)
               .get(cb)
               .asBaseStruct
               .loadField(cb, "offset")
@@ -683,17 +808,25 @@ case class PartitionNativeReaderIndexed(spec: AbstractTypedCodecSpec, indexSpec:
         override val elementRegion: Settable[Region] = region
         override val requiresMemoryManagementPerElement: Boolean = true
         override val LproduceElement: CodeLabel = mb.defineAndImplementLabel { cb =>
-          cb.ifx(nToRead <= 0L, cb.goto(LendOfStream))
+          cb.ifx(curIdx >= endIdx, cb.goto(LendOfStream))
           val next = ib.readByte()
           cb.ifx(next cne 1, cb._fatal(s"bad buffer state!"))
-          cb.assign(nToRead, nToRead - 1L)
-          cb.assign(decodedRow, spec.encodedType.buildDecoder(requestedType, cb.emb.ecb)(cb, region, ib))
+          val base = spec.encodedType.buildDecoder(concreteType, cb.emb.ecb)(cb, region, ib).asBaseStruct
+          if (insertUID)
+            cb.assign(decodedRow, new SInsertFieldsStructValue(
+              eltSType.asInstanceOf[SInsertFieldsStruct],
+              base,
+              Array(EmitValue.present(
+                new SStackStructValue(uidSType, Array(
+                  EmitValue.present(partIdx),
+                  EmitValue.present(primitive(curIdx))))))))
+          else
+            cb.assign(decodedRow, base)
+          cb.assign(curIdx, curIdx + 1L)
           cb.goto(LproduceElementDone)
 
         }
-        override val element: EmitCode = EmitCode.fromI(mb) { cb =>
-          IEmitCode.present(cb, decodedRow)
-        }
+        override val element: EmitCode = EmitCode.present(mb, decodedRow)
 
         override def close(cb: EmitCodeBuilder): Unit = cb += ib.close()
       }
@@ -704,26 +837,38 @@ case class PartitionNativeReaderIndexed(spec: AbstractTypedCodecSpec, indexSpec:
   def toJValue: JValue = Extraction.decompose(this)(PartitionReader.formats)
 }
 
-case class PartitionZippedNativeReader(left: PartitionReader, right: PartitionReader) extends PartitionReader {
-  def contextType: Type = TStruct("leftContext" -> left.contextType, "rightContext" -> right.contextType)
+// Result uses the uid field name and values from the right input, and ignores
+// uids from the left.
+case class PartitionZippedNativeReader(left: PartitionReader, right: PartitionReader)
+  extends PartitionReader {
 
-  override def rowRequiredness(requestedType: Type): TypeWithRequiredness = {
-    val rts = requestedType.asInstanceOf[TStruct]
+  def uidFieldName = right.uidFieldName
 
-    val leftStruct = left.fullRowType.asInstanceOf[TStruct]
-    val rightStruct = right.fullRowType.asInstanceOf[TStruct]
+  def contextType: Type = TStruct(
+    "leftContext" -> left.contextType,
+    "rightContext" -> right.contextType)
 
-    val lRequested = rts.select(rts.fieldNames.filter(leftStruct.hasField))._1
-    val rRequested = rts.select(rts.fieldNames.filter(rightStruct.hasField))._1
-    val lRequired = left.rowRequiredness(lRequested).asInstanceOf[RStruct]
-    val rRequired = right.rowRequiredness(rRequested).asInstanceOf[RStruct]
+  def splitRequestedType(requestedType: TStruct): (TStruct, TStruct) = {
+    val leftStruct = left.fullRowType.deleteKey(left.uidFieldName)
+    val rightStruct = right.fullRowType
 
-    RStruct(rts.fieldNames.map(f => (f, lRequired.fieldType.getOrElse(f, rRequired.fieldType(f)))))
+    val lRequested = requestedType.select(requestedType.fieldNames.filter(leftStruct.hasField))._1
+    val rRequested = requestedType.select(requestedType.fieldNames.filter(rightStruct.hasField))._1
+
+    (lRequested, rRequested)
+  }
+
+  override def rowRequiredness(requestedType: TStruct): RStruct = {
+    val (lRequested, rRequested) = splitRequestedType(requestedType)
+    val lRequired = left.rowRequiredness(lRequested)
+    val rRequired = right.rowRequiredness(rRequested)
+
+    RStruct(requestedType.fieldNames.map(f => (f, lRequired.fieldType.getOrElse(f, rRequired.fieldType(f)))))
   }
 
   lazy val fullRowType: TStruct = {
-    val leftStruct = left.fullRowType.asInstanceOf[TStruct]
-    val rightStruct = right.fullRowType.asInstanceOf[TStruct]
+    val leftStruct = left.fullRowType.deleteKey(left.uidFieldName)
+    val rightStruct = right.fullRowType
     TStruct.concat(leftStruct, rightStruct)
   }
 
@@ -733,15 +878,9 @@ case class PartitionZippedNativeReader(left: PartitionReader, right: PartitionRe
     cb: EmitCodeBuilder,
     context: EmitCode,
     partitionRegion: Value[Region],
-    requestedType: Type): IEmitCode = {
-
-    val rts = requestedType.asInstanceOf[TStruct]
-
-    val leftStruct = left.fullRowType.asInstanceOf[TStruct]
-    val rightStruct = right.fullRowType.asInstanceOf[TStruct]
-
-    val lRequested = rts.select(rts.fieldNames.filter(leftStruct.hasField))._1
-    val rRequested = rts.select(rts.fieldNames.filter(rightStruct.hasField))._1
+    requestedType: TStruct
+  ): IEmitCode = {
+    val (lRequested, rRequested) = splitRequestedType(requestedType)
 
     context.toI(cb).flatMap(cb) { case zippedContext: SBaseStructValue =>
       val ctx1 = EmitCode.fromI(cb.emb)(zippedContext.loadField(_, "leftContext"))
@@ -765,7 +904,9 @@ case class PartitionZippedNativeReader(left: PartitionReader, right: PartitionRe
             }
 
             override val elementRegion: Settable[Region] = region
-            override val requiresMemoryManagementPerElement: Boolean = stream1.requiresMemoryManagementPerElement || stream2.requiresMemoryManagementPerElement
+            override val requiresMemoryManagementPerElement: Boolean =
+              stream1.requiresMemoryManagementPerElement || stream2.requiresMemoryManagementPerElement
+
             override val LproduceElement: CodeLabel = cb.emb.defineAndImplementLabel { cb =>
               cb.goto(stream1.LproduceElement)
 
@@ -781,12 +922,13 @@ case class PartitionZippedNativeReader(left: PartitionReader, right: PartitionRe
               cb.define(stream2.LendOfStream)
               cb._fatal("unexpected end of stream from right of zipped stream")
             }
+
             override val element: EmitCode = EmitCode.fromI(cb.emb) { cb =>
-              stream1.element.toI(cb).flatMap(cb)(elt1 =>
-                stream2.element.toI(cb).map(cb) { elt2 =>
-                  SInsertFieldsStruct.merge(cb, elt1.asBaseStruct, elt2.asBaseStruct)
+              stream1.element.toI(cb).flatMap(cb) { case elt1: SBaseStructValue =>
+                stream2.element.toI(cb).map(cb) { case elt2: SBaseStructValue =>
+                  SBaseStruct.merge(cb, elt1.asBaseStruct, elt2.asBaseStruct)
                 }
-              )
+              }
             }
 
             override def close(cb: EmitCodeBuilder): Unit = {
@@ -802,10 +944,12 @@ case class PartitionZippedNativeReader(left: PartitionReader, right: PartitionRe
 
 case class PartitionZippedIndexedNativeReader(specLeft: AbstractTypedCodecSpec, specRight: AbstractTypedCodecSpec,
   indexSpecLeft: AbstractIndexSpec, indexSpecRight: AbstractIndexSpec,
-  key: IndexedSeq[String]) extends PartitionReader {
+  key: IndexedSeq[String], uidFieldName: String
+) extends PartitionReader {
 
   def contextType: Type = {
     TStruct(
+      "partitionIndex" -> TInt64,
       "leftPartitionPath" -> TString,
       "rightPartitionPath" -> TString,
       "indexPath" -> TString,
@@ -828,49 +972,58 @@ case class PartitionZippedIndexedNativeReader(specLeft: AbstractTypedCodecSpec, 
     (leftStruct, rightStruct)
   }
 
-  def rowRequiredness(requestedType: Type): TypeWithRequiredness = {
+  def rowRequiredness(requestedType: TStruct): RStruct = {
     val (leftStruct, rightStruct) = splitRequestedTypes(requestedType)
-    val rt = TypeWithRequiredness(requestedType)
+    val rt = TypeWithRequiredness(requestedType).asInstanceOf[RStruct]
     val pt = specLeft.decodedPType(leftStruct).asInstanceOf[PStruct].insertFields(specRight.decodedPType(rightStruct).asInstanceOf[PStruct].fields.map(f => (f.name, f.typ)))
     rt.fromPType(pt)
     rt
   }
 
-  def fullRowType: TStruct = specLeft.encodedVirtualType.asInstanceOf[TStruct] ++ specRight.encodedVirtualType.asInstanceOf[TStruct]
+  val uidSType: SStackStruct = SStackStruct(
+    TTuple(TInt64, TInt64, TInt64, TInt64),
+    Array(EmitType(SInt64, true), EmitType(SInt64, true), EmitType(SInt64, true), EmitType(SInt64, true)))
+
+  def fullRowType: TStruct =
+    (specLeft.encodedVirtualType.asInstanceOf[TStruct] ++ specRight.encodedVirtualType.asInstanceOf[TStruct])
+      .insertFields(Array(uidFieldName -> TTuple(TInt64, TInt64, TInt64, TInt64)))
 
   def emitStream(
     ctx: ExecuteContext,
     cb: EmitCodeBuilder,
     context: EmitCode,
     partitionRegion: Value[Region],
-    requestedType: Type): IEmitCode = {
+    requestedType: TStruct): IEmitCode = {
 
     val mb = cb.emb
 
     val (leftRType, rightRType) = splitRequestedTypes(requestedType)
 
-    val rowsDec = specLeft.encodedType.buildDecoder(leftRType, cb.emb.ecb)
-    val entriesDec = specRight.encodedType.buildDecoder(rightRType, cb.emb.ecb)
-
-    val rowsValue = cb.emb.newPField("rowsValue", specLeft.encodedType.decodedSType(leftRType))
-    val entriesValue = cb.emb.newPField("entriesValue", specRight.encodedType.decodedSType(rightRType))
+    val insertUID: Boolean = requestedType.hasField(uidFieldName)
 
     val leftOffsetFieldIndex = indexSpecLeft.offsetFieldIndex
     val rightOffsetFieldIndex = indexSpecRight.offsetFieldIndex
-
-    val rowsBuffer = cb.emb.genFieldThisRef[InputBuffer]("rows_inputbuffer")
-    val entriesBuffer = cb.emb.genFieldThisRef[InputBuffer]("entries_inputbuffer")
 
     val index = new StagedIndexReader(cb.emb, indexSpecLeft)
 
     context.toI(cb).map(cb) { case ctxStruct: SBaseStructValue =>
 
-      val nToRead = mb.genFieldThisRef[Long]("n_to_read")
-
       val region = mb.genFieldThisRef[Region]("pnr_region")
+      val partIdx = mb.genFieldThisRef[Long]("partIdx")
+      val curIdx = mb.genFieldThisRef[Long]("curIdx")
+      val endIdx = mb.genFieldThisRef[Long]("endIdx")
+
+      val leftDec = specLeft.encodedType.buildDecoder(leftRType, mb.ecb)
+      val rightDec = specRight.encodedType.buildDecoder(rightRType, mb.ecb)
+
+      val leftBuffer = mb.genFieldThisRef[InputBuffer]("left_inputbuffer")
+      val rightBuffer = mb.genFieldThisRef[InputBuffer]("right_inputbuffer")
+
+      val leftValue = mb.newPField("leftValue", specLeft.encodedType.decodedSType(leftRType))
+      val rightValue = mb.newPField("rightValue", specRight.encodedType.decodedSType(rightRType))
 
       val producer = new StreamProducer {
-        override val length: Option[EmitCodeBuilder => Code[Int]] = Some(_ => nToRead.toI)
+        override val length: Option[EmitCodeBuilder => Code[Int]] = Some(_ => (endIdx - curIdx).toI)
 
         override def initialize(cb: EmitCodeBuilder): Unit = {
           val indexPath = ctxStruct
@@ -885,27 +1038,33 @@ case class PartitionZippedIndexedNativeReader(specLeft: AbstractTypedCodecSpec, 
           index.initialize(cb, indexPath)
 
           val indexResult = index.queryInterval(cb, partitionRegion, interval)
-          val n = indexResult.loadField(cb, 0)
+          val startIndex = indexResult.loadField(cb, 0)
             .get(cb)
             .asInt64
             .value
-          cb.assign(nToRead, n)
+          val endIndex = indexResult.loadField(cb, 1)
+            .get(cb)
+            .asInt64
+            .value
+          cb.assign(curIdx, startIndex)
+          cb.assign(endIdx, endIndex)
 
-          cb.assign(rowsBuffer, specLeft.buildCodeInputBuffer(
+          cb.assign(partIdx, ctxStruct.loadField(cb, "partitionIndex").get(cb).asInt64.value)
+          cb.assign(leftBuffer, specLeft.buildCodeInputBuffer(
             Code.newInstance[ByteTrackingInputStream, InputStream](
               mb.open(ctxStruct.loadField(cb, "leftPartitionPath")
                 .get(cb)
                 .asString
                 .loadString(cb), true))))
-          cb.assign(entriesBuffer, specRight.buildCodeInputBuffer(
+          cb.assign(rightBuffer, specRight.buildCodeInputBuffer(
             Code.newInstance[ByteTrackingInputStream, InputStream](
               mb.open(ctxStruct.loadField(cb, "rightPartitionPath")
                 .get(cb)
                 .asString
                 .loadString(cb), true))))
 
-          cb.ifx(n > 0, {
-            val leafNode = indexResult.loadField(cb, 1)
+          cb.ifx(endIndex > startIndex, {
+            val leafNode = indexResult.loadField(cb, 2)
               .get(cb)
               .asBaseStruct
 
@@ -922,7 +1081,7 @@ case class PartitionZippedIndexedNativeReader(specLeft: AbstractTypedCodecSpec, 
                   .loadField(cb, "offset")
                   .get(cb)
             }
-            cb += rowsBuffer.seek(leftSeekAddr.asInt64.value)
+            cb += leftBuffer.seek(leftSeekAddr.asInt64.value)
 
             val rightSeekAddr = rightOffsetFieldIndex match {
               case Some(offsetIdx) =>
@@ -937,7 +1096,7 @@ case class PartitionZippedIndexedNativeReader(specLeft: AbstractTypedCodecSpec, 
                   .loadField(cb, "offset")
                   .get(cb)
             }
-            cb += entriesBuffer.seek(rightSeekAddr.asInt64.value)
+            cb += rightBuffer.seek(rightSeekAddr.asInt64.value)
           })
 
           index.close(cb)
@@ -946,23 +1105,31 @@ case class PartitionZippedIndexedNativeReader(specLeft: AbstractTypedCodecSpec, 
         override val elementRegion: Settable[Region] = region
         override val requiresMemoryManagementPerElement: Boolean = true
         override val LproduceElement: CodeLabel = mb.defineAndImplementLabel { cb =>
-          cb.ifx(nToRead <= 0L, cb.goto(LendOfStream))
-          val nextRow = rowsBuffer.readByte()
-          cb.ifx(nextRow cne 1, cb._fatal(s"bad rows buffer state!"))
-          val nextEntries = entriesBuffer.readByte()
-          cb.ifx(nextEntries cne 1, cb._fatal(s"bad entries buffer state!"))
-          cb.assign(nToRead, nToRead - 1L)
-          cb.assign(rowsValue, rowsDec(cb, region, rowsBuffer))
-          cb.assign(entriesValue, entriesDec(cb, region, entriesBuffer))
+          cb.ifx(curIdx >= endIdx, cb.goto(LendOfStream))
+          val nextLeft = leftBuffer.readByte()
+          cb.ifx(nextLeft cne 1, cb._fatal(s"bad rows buffer state!"))
+          val nextRight = rightBuffer.readByte()
+          cb.ifx(nextRight cne 1, cb._fatal(s"bad entries buffer state!"))
+          cb.assign(curIdx, curIdx + 1L)
+          cb.assign(leftValue, leftDec(cb, region, leftBuffer))
+          cb.assign(rightValue, rightDec(cb, region, rightBuffer))
           cb.goto(LproduceElementDone)
         }
-
-        override val element: EmitCode = EmitCode.fromI(mb)(cb =>
-          IEmitCode.present(cb, SInsertFieldsStruct.merge(cb, rowsValue.asBaseStruct, entriesValue.asBaseStruct)))
+        override val element: EmitCode = EmitCode.fromI(mb) { cb =>
+          if (insertUID) {
+            val uid = SStackStruct.constructFromArgs(cb, region, TTuple(TInt64, TInt64),
+              EmitCode.present(mb, primitive(partIdx)),
+              EmitCode.present(mb, primitive(cb.memoize(curIdx.get - 1L))))
+            val merged = SBaseStruct.merge(cb, leftValue.asBaseStruct, rightValue.asBaseStruct)
+            IEmitCode.present(cb, merged._insert(requestedType, uidFieldName -> EmitValue.present(uid)))
+          } else {
+            IEmitCode.present(cb, SBaseStruct.merge(cb, leftValue.asBaseStruct, rightValue.asBaseStruct))
+          }
+        }
 
         override def close(cb: EmitCodeBuilder): Unit = {
-          rowsBuffer.invoke[Unit]("close")
-          entriesBuffer.invoke[Unit]("close")
+          leftBuffer.invoke[Unit]("close")
+          rightBuffer.invoke[Unit]("close")
         }
       }
       SStreamValue(producer)
@@ -988,18 +1155,23 @@ class TableNativeReader(
 
   override def isDistinctlyKeyed: Boolean = spec.isDistinctlyKeyed
 
-  def fullType: TableType = spec.table_type
+  def uidType = TTuple(TInt64, TInt64)
 
-  def rowAndGlobalPTypes(ctx: ExecuteContext, requestedType: TableType): (PStruct, PStruct) = {
-    coerce[PStruct](spec.rowsComponent.rvdSpec(ctx.fs, params.path)
-      .typedCodecSpec.encodedType.decodedPType(requestedType.rowType)) ->
-      coerce[PStruct](spec.globalsComponent.rvdSpec(ctx.fs, params.path)
-        .typedCodecSpec.encodedType.decodedPType(requestedType.globalType))
-  }
+  def fullTypeWithoutUIDs = spec.table_type
 
-  def apply(tr: TableRead, ctx: ExecuteContext): TableValue = {
-    TableExecuteIntermediate(lower(ctx, tr.typ)).asTableValue(ctx)
-  }
+  override def concreteRowRequiredness(ctx: ExecuteContext, requestedType: TableType): VirtualTypeWithReq =
+    VirtualTypeWithReq(coerce[PStruct](spec.rowsComponent.rvdSpec(ctx.fs, params.path)
+      .typedCodecSpec.encodedType.decodedPType(requestedType.rowType)))
+
+  protected def uidRequiredness: VirtualTypeWithReq =
+    VirtualTypeWithReq(PCanonicalTuple(true, PInt64Required, PInt64Required))
+
+  override def globalRequiredness(ctx: ExecuteContext, requestedType: TableType): VirtualTypeWithReq =
+    VirtualTypeWithReq(coerce[PStruct](spec.globalsComponent.rvdSpec(ctx.fs, params.path)
+      .typedCodecSpec.encodedType.decodedPType(requestedType.globalType)))
+
+  def apply(ctx: ExecuteContext, requestedType: TableType, dropRows: Boolean): TableValue =
+    TableExecuteIntermediate(lower(ctx, requestedType)).asTableValue(ctx)
 
   override def toJValue: JValue = {
     implicit val formats: Formats = DefaultFormats
@@ -1020,7 +1192,13 @@ class TableNativeReader(
   override def lowerGlobals(ctx: ExecuteContext, requestedGlobalsType: TStruct): IR = {
     val globalsSpec = spec.globalsSpec
     val globalsPath = spec.globalsComponent.absolutePath(params.path)
-    ArrayRef(ToArray(ReadPartition(Str(globalsSpec.absolutePartPaths(globalsPath).head), requestedGlobalsType, PartitionNativeReader(globalsSpec.typedCodecSpec))), 0)
+    assert(!requestedGlobalsType.hasField(uidFieldName))
+    ArrayRef(
+      ToArray(ReadPartition(
+        MakeStruct(Array("partitionIndex" -> I64(0), "partitionPath" -> Str(globalsSpec.absolutePartPaths(globalsPath).head))),
+        requestedGlobalsType,
+        PartitionNativeReader(globalsSpec.typedCodecSpec, uidFieldName))),
+      0)
   }
 
   override def lower(ctx: ExecuteContext, requestedType: TableType): TableStage = {
@@ -1032,7 +1210,15 @@ class TableNativeReader(
     else
       params.options.map(opts => new RVDPartitioner(specPart.kType, opts.intervals))
 
-    spec.rowsSpec.readTableStage(ctx, spec.rowsComponent.absolutePath(params.path), requestedType, partitioner, filterIntervals).apply(globals)
+    // If the data on disk already has a uidFieldName field, we should read it
+    // as is. Do this by passing a dummy uidFieldName to the rows component,
+    // which is not in the requestedType, so is ignored.
+    val requestedUIDFieldName = if (spec.table_type.rowType.hasField(uidFieldName))
+      "__dummy_uid"
+    else
+      uidFieldName
+
+    spec.rowsSpec.readTableStage(ctx, spec.rowsComponent.absolutePath(params.path), requestedType, requestedUIDFieldName, partitioner, filterIntervals).apply(globals)
   }
 }
 
@@ -1058,7 +1244,10 @@ case class TableNativeZippedReader(
 
   def partitionCounts: Option[IndexedSeq[Long]] = if (intervals.isEmpty) Some(specLeft.partitionCounts) else None
 
-  override lazy val fullType: TableType = specLeft.table_type.copy(rowType = specLeft.table_type.rowType ++ specRight.table_type.rowType)
+  override def uidType = TTuple(TInt64, TInt64)
+
+  override def fullTypeWithoutUIDs: TableType = specLeft.table_type.copy(
+    rowType = specLeft.table_type.rowType ++ specRight.table_type.rowType)
   private val leftFieldSet = specLeft.table_type.rowType.fieldNames.toSet
   private val rightFieldSet = specRight.table_type.rowType.fieldNames.toSet
 
@@ -1076,12 +1265,16 @@ case class TableNativeZippedReader(
     coerce[PStruct](specRight.rowsComponent.rvdSpec(ctx.fs, pathRight)
       .typedCodecSpec.encodedType.decodedPType(rightRType))
 
-  def rowAndGlobalPTypes(ctx: ExecuteContext, requestedType: TableType): (PStruct, PStruct) = {
-    fieldInserter(ctx, leftPType(ctx, leftRType(requestedType.rowType)),
-      rightPType(ctx, rightRType(requestedType.rowType)))._1 ->
-      coerce[PStruct](specLeft.globalsComponent.rvdSpec(ctx.fs, pathLeft)
-        .typedCodecSpec.encodedType.decodedPType(requestedType.globalType))
-  }
+  override def concreteRowRequiredness(ctx: ExecuteContext, requestedType: TableType): VirtualTypeWithReq =
+    VirtualTypeWithReq(fieldInserter(ctx, leftPType(ctx, leftRType(requestedType.rowType)),
+      rightPType(ctx, rightRType(requestedType.rowType)))._1)
+
+  override def uidRequiredness: VirtualTypeWithReq =
+    VirtualTypeWithReq(PCanonicalTuple(true, PInt64Required, PInt64Required))
+
+  override def globalRequiredness(ctx: ExecuteContext, requestedType: TableType): VirtualTypeWithReq =
+    VirtualTypeWithReq(specLeft.globalsComponent.rvdSpec(ctx.fs, pathLeft)
+      .typedCodecSpec.encodedType.decodedPType(requestedType.globalType))
 
   def fieldInserter(ctx: ExecuteContext, pLeft: PStruct, pRight: PStruct): (PStruct, (HailClassLoader, FS, Int, Region) => AsmFunction3RegionLongLongLong) = {
     val (Some(PTypeReferenceSingleCodeType(t: PStruct)), mk) = ir.Compile[AsmFunction3RegionLongLongLong](ctx,
@@ -1093,14 +1286,18 @@ case class TableNativeZippedReader(
     (t, mk)
   }
 
-  def apply(tr: TableRead, ctx: ExecuteContext): TableValue = {
-    TableExecuteIntermediate(lower(ctx, tr.typ)).asTableValue(ctx)
-  }
+  override def apply(ctx: ExecuteContext, requestedType: TableType, dropRows: Boolean): TableValue =
+    TableExecuteIntermediate(lower(ctx, requestedType)).asTableValue(ctx)
 
   override def lowerGlobals(ctx: ExecuteContext, requestedGlobalsType: TStruct): IR = {
     val globalsSpec = specLeft.globalsSpec
     val globalsPath = specLeft.globalsComponent.absolutePath(pathLeft)
-    ArrayRef(ToArray(ReadPartition(Str(globalsSpec.absolutePartPaths(globalsPath).head), requestedGlobalsType, PartitionNativeReader(globalsSpec.typedCodecSpec))), 0)
+    ArrayRef(
+      ToArray(ReadPartition(
+        MakeStruct(Array("partitionIndex" -> I64(0), "partitionPath" -> Str(globalsSpec.absolutePartPaths(globalsPath).head))),
+        requestedGlobalsType,
+        PartitionNativeReader(globalsSpec.typedCodecSpec, uidFieldName))),
+      0)
   }
 
   override def lower(ctx: ExecuteContext, requestedType: TableType): TableStage = {
@@ -1116,7 +1313,8 @@ case class TableNativeZippedReader(
       specLeft.rowsSpec, specRight.rowsSpec,
       pathLeft + "/rows", pathRight + "/rows",
       partitioner, filterIntervals,
-      requestedType.rowType, requestedType.key).apply(globals)
+      requestedType.rowType, requestedType.key, uidFieldName
+    ).apply(globals)
   }
 
 }
@@ -1140,7 +1338,10 @@ object TableFromBlockMatrixNativeReader {
 
 case class TableFromBlockMatrixNativeReaderParameters(path: String, nPartitions: Option[Int], maximumCacheMemoryInBytes: Option[Int])
 
-case class TableFromBlockMatrixNativeReader(params: TableFromBlockMatrixNativeReaderParameters, metadata: BlockMatrixMetadata) extends TableReader {
+case class TableFromBlockMatrixNativeReader(
+  params: TableFromBlockMatrixNativeReaderParameters,
+  metadata: BlockMatrixMetadata
+) extends TableReader {
   def pathsUsed: Seq[String] = FastSeq(params.path)
 
   val getNumPartitions: Int = params.nPartitions.getOrElse(HailContext.backend.defaultParallelism)
@@ -1156,26 +1357,33 @@ case class TableFromBlockMatrixNativeReader(params: TableFromBlockMatrixNativeRe
     Some(partitionRanges.map(r => r.end - r.start))
   }
 
-  override lazy val fullType: TableType = {
-    val rowType = TStruct("row_idx" -> TInt64, "entries" -> TArray(TFloat64))
-    TableType(rowType, Array("row_idx"), TStruct.empty)
-  }
+  override def uidType = TInt64
 
-  def rowAndGlobalPTypes(context: ExecuteContext, tableType: TableType): (PStruct, PStruct) = {
-    PType.canonical(tableType.rowType, required = true).asInstanceOf[PStruct] ->
-      PCanonicalStruct.empty(required = true)
-  }
+  override def fullTypeWithoutUIDs: TableType = TableType(
+    TStruct("row_idx" -> TInt64, "entries" -> TArray(TFloat64)),
+    Array("row_idx"),
+    TStruct.empty)
 
-  def apply(tr: TableRead, ctx: ExecuteContext): TableValue = {
-    val rowsRDD = new BlockMatrixReadRowBlockedRDD(ctx.fsBc, params.path, partitionRanges, metadata,
+  override def concreteRowRequiredness(ctx: ExecuteContext, requestedType: TableType): VirtualTypeWithReq =
+    VirtualTypeWithReq(PType.canonical(requestedType.rowType).setRequired(true))
+
+  override def uidRequiredness: VirtualTypeWithReq =
+    VirtualTypeWithReq(PInt64Required)
+
+  override def globalRequiredness(ctx: ExecuteContext, requestedType: TableType): VirtualTypeWithReq =
+    VirtualTypeWithReq(PCanonicalStruct.empty(required = true))
+
+  override def apply(ctx: ExecuteContext, requestedType: TableType, dropRows: Boolean): TableValue = {
+    val rowsRDD = new BlockMatrixReadRowBlockedRDD(
+      ctx.fsBc, params.path, partitionRanges, requestedType.rowType, metadata,
       maybeMaximumCacheMemoryInBytes = params.maximumCacheMemoryInBytes)
 
     val partitionBounds = partitionRanges.map { r => Interval(Row(r.start), Row(r.end), true, false) }
     val partitioner = new RVDPartitioner(fullType.keyType, partitionBounds)
 
-    val rowTyp = rowAndGlobalPTypes(ctx, tr.typ)._1
+    val rowTyp = PType.canonical(requestedType.rowType, required = true).asInstanceOf[PStruct]
     val rvd = RVD(RVDType(rowTyp, fullType.key.filter(rowTyp.hasField)), partitioner, ContextRDD(rowsRDD))
-    TableValue(ctx, fullType, BroadcastRow.empty(ctx), rvd)
+    TableValue(ctx, requestedType, BroadcastRow.empty(ctx), rvd)
   }
 
   override def toJValue: JValue = {
@@ -1186,9 +1394,31 @@ case class TableFromBlockMatrixNativeReader(params: TableFromBlockMatrixNativeRe
 }
 
 object TableRead {
-  def native(fs: FS, path: String): TableRead = {
+  def native(fs: FS, path: String, uidField: Boolean = false): TableRead = {
     val tr = TableNativeReader(fs, TableNativeReaderParameters(path, None))
-    TableRead(tr.fullType, false, tr)
+    val requestedType = if (uidField)
+     tr.fullType
+    else
+      tr.fullType.copy(
+        rowType = tr.fullType.rowType.deleteKey(TableReader.uidFieldName))
+    TableRead(requestedType, false, tr)
+  }
+
+  def apply(
+    typ: TableType,
+    dropRows: Boolean,
+    tr: TableReader
+  ): TableRead = {
+    assert(!tr.fullTypeWithoutUIDs.rowType.hasField(TableReader.uidFieldName))
+    new TableRead(typ, dropRows, tr)
+  }
+
+  def preserveExistingUIDs(
+    typ: TableType,
+    dropRows: Boolean,
+    tr: TableReader
+  ): TableRead = {
+    new TableRead(typ, dropRows, tr)
   }
 }
 
@@ -1209,7 +1439,8 @@ case class TableRead(typ: TableType, dropRows: Boolean, tr: TableReader) extends
     TableRead(typ, dropRows, tr)
   }
 
-  protected[ir] override def execute(ctx: ExecuteContext, r: TableRunContext): TableExecuteIntermediate = new TableValueIntermediate(tr.apply(this, ctx))
+  protected[ir] override def execute(ctx: ExecuteContext, r: TableRunContext): TableExecuteIntermediate =
+    new TableValueIntermediate(tr.apply(ctx, typ, dropRows))
 }
 
 case class TableParallelize(rowsAndGlobal: IR, nPartitions: Option[Int] = None) extends TableIR {
