@@ -6,7 +6,8 @@ import hail.ir.ir as ir
 from hail.ir.utils import modify_deep_field, zip_with_index, default_row_uid, default_col_uid
 from hail.ir.ir import rng_key, unify_uid_types, pad_uid, concat_uids
 from hail.utils.java import Env
-from hail.utils.misc import escape_str, parsable_strings, dump_json, escape_id
+from hail.utils.misc import escape_str, parsable_strings, escape_id
+from hail.utils.jsonx import dump_json
 
 
 def unpack_uid(new_row_type, uid_field_name):

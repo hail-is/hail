@@ -2,6 +2,7 @@ import operator
 import builtins
 import functools
 from typing import Union, Optional, Any, Callable, Iterable, TypeVar
+import pandas as pd
 
 from deprecated import deprecated
 
@@ -259,7 +260,7 @@ def literal(x: Any, dtype: Optional[Union[HailType, str]] = None):
     if wrapper['has_expr']:
         return literal(hl.eval(to_expr(x, dtype)), dtype)
 
-    if x is None:
+    if x is None or x is pd.NA:
         return hl.missing(dtype)
     elif is_primitive(dtype):
         if dtype == tint32:
