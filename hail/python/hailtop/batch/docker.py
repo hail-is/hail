@@ -23,7 +23,7 @@ def build_python_image(fullname: str,
     Examples
     --------
 
-    >>> image = build_python_image('gcr.io/hail-vdc/batch-python',
+    >>> image = build_python_image('us-docker.pkg.dev/<MY_GCP_PROJECT>/hail/batch-python',
     ...                            requirements=['pandas']) # doctest: +SKIP
 
     Parameters

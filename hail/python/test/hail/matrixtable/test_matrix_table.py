@@ -878,6 +878,34 @@ class Tests(unittest.TestCase):
         q = (vcf.locus >= l3) & (vcf.locus < l4)
         self.assertTrue(vcf.filter_rows(p | q)._same(mt))
 
+    def test_interval_filter_partitions(self):
+        mt = hl.utils.range_matrix_table(100, 3, 3)
+        path = new_temp_file()
+        mt.write(path)
+        intervals = [
+            hl.Interval(hl.Struct(idx=5), hl.Struct(idx=10)),
+            hl.Interval(hl.Struct(idx=12), hl.Struct(idx=13)),
+            hl.Interval(hl.Struct(idx=15), hl.Struct(idx=17)),
+            hl.Interval(hl.Struct(idx=19), hl.Struct(idx=20))
+        ]
+        assert hl.read_matrix_table(path, _intervals=intervals, _filter_intervals = True).n_partitions() == 1
+
+        intervals = [
+            hl.Interval(hl.Struct(idx=5), hl.Struct(idx=10)),
+            hl.Interval(hl.Struct(idx=12), hl.Struct(idx=13)),
+            hl.Interval(hl.Struct(idx=15), hl.Struct(idx=17)),
+
+            hl.Interval(hl.Struct(idx=45), hl.Struct(idx=50)),
+            hl.Interval(hl.Struct(idx=52), hl.Struct(idx=53)),
+            hl.Interval(hl.Struct(idx=55), hl.Struct(idx=57)),
+
+            hl.Interval(hl.Struct(idx=75), hl.Struct(idx=80)),
+            hl.Interval(hl.Struct(idx=82), hl.Struct(idx=83)),
+            hl.Interval(hl.Struct(idx=85), hl.Struct(idx=87)),
+        ]
+
+        assert hl.read_matrix_table(path, _intervals=intervals, _filter_intervals = True).n_partitions() == 3
+
     @fails_service_backend()
     def test_codecs_matrix(self):
         from hail.utils.java import scala_object
@@ -1595,6 +1623,7 @@ class Tests(unittest.TestCase):
         mt.write(tmp, _partitions=parts)
 
         mt2 = hl.read_matrix_table(tmp)
+        assert mt2.aggregate_rows(hl.agg.all(hl.literal(hl.Interval(hl.Locus('20', 10277621), hl.Locus('20', 11898992))).contains(mt2.locus)))
         assert mt2.n_partitions() == len(parts)
         assert hl.filter_intervals(mt, parts)._same(mt2)
 

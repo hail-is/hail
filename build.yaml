@@ -2751,7 +2751,6 @@ steps:
       export GOOGLE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
       export DOCKER_PREFIX="{{ global.docker_prefix }}"
       export DOCKER_ROOT_IMAGE="{{ global.docker_root_image }}"
-      export PYTHON_DILL_IMAGE="{{ global.docker_prefix }}/python-dill:3.7-slim"
       export HAIL_GENETICS_HAIL_IMAGE="{{ hailgenetics_hail_image.image }}"
       hailctl config set batch/billing_project test
       hailctl config set batch/remote_tmpdir {{ global.test_storage_uri }}/batch/
@@ -3014,7 +3013,7 @@ steps:
 
       gcloud auth activate-service-account --key-file=/ci-deploy-0-1--hail-is-hail/ci-deploy-0-1--hail-is-hail.json
 
-      gcloud auth -q configure-docker gcr.io
+      gcloud auth -q configure-docker {{ global.docker_prefix.split('/')[0] }}
       cat /docker-hub-hailgenetics/password | skopeo login --username hailgenetics --password-stdin docker.io
 
       cp /pypi-credentials/pypirc $HOME/.pypirc

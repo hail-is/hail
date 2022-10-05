@@ -36,6 +36,7 @@ import aiohttp
 import aiohttp.client_exceptions
 import aiorwlock
 import async_timeout
+import orjson
 from aiodocker.exceptions import DockerError  # type: ignore
 from aiohttp import web
 from sortedcontainers import SortedSet
@@ -378,7 +379,7 @@ class Image:
     def __init__(
         self,
         name: str,
-        credentials: Union[CloudUserCredentials, 'JVMUserCredentials'],
+        credentials: Union[CloudUserCredentials, 'JVMUserCredentials', 'CopyStepCredentials'],
         client_session: httpx.ClientSession,
         pool: concurrent.futures.ThreadPoolExecutor,
     ):
@@ -429,7 +430,9 @@ class Image:
             elif self.is_public_image:
                 auth = await self._batch_worker_access_token()
                 await self._ensure_image_is_pulled(auth=auth)
-            elif self.image_ref_str == BATCH_WORKER_IMAGE and isinstance(self.credentials, JVMUserCredentials):
+            elif self.image_ref_str == BATCH_WORKER_IMAGE and isinstance(
+                self.credentials, (JVMUserCredentials, CopyStepCredentials)
+            ):
                 pass
             else:
                 # Pull to verify this user has access to this
@@ -442,6 +445,11 @@ class Image:
                 )
         except DockerError as e:
             if e.status == 404 and 'pull access denied' in e.message:
+                raise ImageCannotBePulled from e
+            if (
+                e.status == 500
+                and 'Permission "artifactregistry.repositories.downloadArtifacts" denied on resource' in e.message
+            ):
                 raise ImageCannotBePulled from e
             if 'not found: manifest unknown' in e.message:
                 raise ImageNotFound from e
@@ -469,7 +477,7 @@ class Image:
         return await CLOUD_WORKER_API.worker_access_token(self.client_session)
 
     def _current_user_access_token(self) -> Dict[str, str]:
-        assert self.credentials
+        assert self.credentials and isinstance(self.credentials, CloudUserCredentials)
         return {'username': self.credentials.username, 'password': self.credentials.password}
 
     async def _extract_rootfs(self):
@@ -1192,7 +1200,7 @@ def copy_container(
     return Container(
         fs=job.worker.fs,
         name=job.container_name(task_name),
-        image=Image(BATCH_WORKER_IMAGE, job.credentials, client_session, job.pool),
+        image=Image(BATCH_WORKER_IMAGE, CopyStepCredentials(), client_session, job.pool),
         scratch_dir=f'{scratch}/{task_name}',
         command=command,
         cpu_in_mcpu=cpu_in_mcpu,
@@ -1360,6 +1368,11 @@ class Job:
         self.project_id = Job.get_next_xfsquota_project_id()
 
         self.mjs_fut: Optional[asyncio.Future] = None
+
+    def write_batch_config(self):
+        os.makedirs(f'{self.scratch}/batch-config')
+        with open(f'{self.scratch}/batch-config/batch-config.json', 'wb') as config:
+            config.write(orjson.dumps({'version': 1, 'batch_id': self.batch_id}))
 
     @property
     def job_id(self):
@@ -1599,6 +1612,7 @@ class DockerJob(Job):
                 self.state = 'initializing'
 
                 os.makedirs(f'{self.scratch}/')
+                self.write_batch_config()
 
                 with self.step('setup_io'):
                     await self.setup_io()
@@ -1828,6 +1842,7 @@ class JVMJob(Job):
         async with self.worker.cpu_sem(self.cpu_in_mcpu):
             self.start_time = time_msecs()
             os.makedirs(f'{self.scratch}/')
+            self.write_batch_config()
 
             try:
                 with self.step('connecting_to_jvm'):
@@ -1982,9 +1997,11 @@ class JVMCreationError(Exception):
 
 
 class JVMUserCredentials:
-    def __init__(self):
-        self.username = None
-        self.password = None
+    pass
+
+
+class CopyStepCredentials:
+    pass
 
 
 class JVMContainer:

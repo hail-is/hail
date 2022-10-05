@@ -5,13 +5,15 @@ google/cloud-sdk:305.0.0-slim
 jupyter/scipy-notebook
 jupyter/scipy-notebook:c094bb7219f9
 moby/buildkit:v0.8.3-rootless
-python:3.6
-python:3.6-slim
 python:3.7
 python:3.7-slim
 python:3.7-slim-stretch
 python:3.8
 python:3.8-slim
+python:3.9
+python:3.9-slim
+python:3.10
+python:3.10-slim
 redis:6.0.6-alpine
 ubuntu:18.04
 ubuntu:19.04

@@ -18,40 +18,41 @@ asyncinit==0.2.4
     # via -r python/requirements.txt
 asynctest==0.13.0
     # via aiohttp
-attrs==21.4.0
+attrs==22.1.0
     # via aiohttp
-avro==1.11.0
+avro==1.11.1
     # via -r python/requirements.txt
-azure-core==1.24.1
+azure-core==1.25.1
     # via
     #   azure-identity
     #   azure-storage-blob
+    #   msrest
 azure-identity==1.6.0
     # via -r python/requirements.txt
 azure-storage-blob==12.11.0
     # via -r python/requirements.txt
 bokeh==1.4.0
     # via -r python/requirements.txt
-boto3==1.24.2
+boto3==1.24.81
     # via -r python/requirements.txt
-botocore==1.27.2
+botocore==1.27.81
     # via
     #   -r python/requirements.txt
     #   boto3
     #   s3transfer
 cachetools==4.2.4
     # via google-auth
-certifi==2022.5.18.1
+certifi==2022.9.24
     # via
     #   msrest
     #   requests
-cffi==1.15.0
+cffi==1.15.1
     # via cryptography
 chardet==4.0.0
     # via requests
-charset-normalizer==2.0.12
+charset-normalizer==2.1.1
     # via aiohttp
-cryptography==37.0.2
+cryptography==38.0.1
     # via
     #   azure-identity
     #   azure-storage-blob
@@ -63,11 +64,11 @@ deprecated==1.2.13
     # via -r python/requirements.txt
 dill==0.3.5.1
     # via -r python/requirements.txt
-frozenlist==1.3.0
+frozenlist==1.3.1
     # via
     #   aiohttp
     #   aiosignal
-google-api-core==1.31.6
+google-api-core==2.10.1
     # via google-cloud-core
 google-auth==1.27.0
     # via
@@ -75,13 +76,13 @@ google-auth==1.27.0
     #   google-api-core
     #   google-cloud-core
     #   google-cloud-storage
-google-cloud-core==1.7.2
+google-cloud-core==1.7.3
     # via google-cloud-storage
 google-cloud-storage==1.25.0
     # via -r python/requirements.txt
 google-resumable-media==0.5.1
     # via google-cloud-storage
-googleapis-common-protos==1.56.2
+googleapis-common-protos==1.56.4
     # via google-api-core
 humanize==1.0.0
     # via -r python/requirements.txt
@@ -99,19 +100,19 @@ jinja2==3.0.3
     # via
     #   -r python/requirements.txt
     #   bokeh
-jmespath==1.0.0
+jmespath==1.0.1
     # via
     #   boto3
     #   botocore
 markupsafe==2.1.1
     # via jinja2
-msal==1.18.0
+msal==1.19.0
     # via
     #   azure-identity
     #   msal-extensions
 msal-extensions==0.3.1
     # via azure-identity
-msrest==0.6.21
+msrest==0.7.1
     # via azure-storage-blob
 multidict==6.0.2
     # via
@@ -125,26 +126,25 @@ numpy==1.21.6
     #   bokeh
     #   pandas
     #   scipy
-oauthlib==3.2.0
+oauthlib==3.2.1
     # via requests-oauthlib
 orjson==3.6.4
     # via -r python/requirements.txt
 packaging==21.3
-    # via
-    #   bokeh
-    #   google-api-core
+    # via bokeh
 pandas==1.3.5
     # via -r python/requirements.txt
 parsimonious==0.8.1
     # via -r python/requirements.txt
-pillow==9.1.1
+pillow==9.2.0
     # via bokeh
-plotly==5.5.0
+plotly==5.10.0
     # via -r python/requirements.txt
-portalocker==2.4.0
+portalocker==2.5.1
     # via msal-extensions
 protobuf==3.20.1
     # via
+    #   -r python/requirements.txt
     #   google-api-core
     #   googleapis-common-protos
 py4j==0.10.9
@@ -157,7 +157,7 @@ pyasn1-modules==0.2.8
     # via google-auth
 pycparser==2.21
     # via cffi
-pyjwt[crypto]==2.4.0
+pyjwt[crypto]==2.5.0
     # via
     #   -r python/requirements.txt
     #   msal
@@ -172,10 +172,8 @@ python-dateutil==2.8.2
     #   pandas
 python-json-logger==2.0.2
     # via -r python/requirements.txt
-pytz==2022.1
-    # via
-    #   google-api-core
-    #   pandas
+pytz==2022.2.1
+    # via pandas
 pyyaml==6.0
     # via bokeh
 requests==2.25.1
@@ -188,7 +186,7 @@ requests==2.25.1
     #   requests-oauthlib
 requests-oauthlib==1.3.1
     # via msrest
-rsa==4.8
+rsa==4.9
     # via google-auth
 s3transfer==0.6.0
     # via boto3
@@ -199,24 +197,24 @@ six==1.16.0
     #   azure-core
     #   azure-identity
     #   bokeh
-    #   google-api-core
     #   google-auth
     #   google-cloud-core
     #   google-resumable-media
     #   isodate
     #   parsimonious
-    #   plotly
     #   python-dateutil
 sortedcontainers==2.4.0
     # via -r python/requirements.txt
 tabulate==0.8.9
     # via -r python/requirements.txt
-tenacity==8.0.1
+tenacity==8.1.0
     # via plotly
-tornado==6.1
+tornado==6.2
     # via bokeh
-tqdm==4.64.0
+tqdm==4.64.1
     # via -r python/requirements.txt
+types-cryptography==3.3.23
+    # via pyjwt
 typing-extensions==4.3.0
     # via
     #   aiohttp
@@ -233,7 +231,7 @@ uvloop==0.16.0 ; sys_platform != "win32"
     # via -r python/requirements.txt
 wrapt==1.14.1
     # via deprecated
-yarl==1.7.2
+yarl==1.8.1
     # via aiohttp
 
 # The following packages are considered to be unsafe in a requirements file:

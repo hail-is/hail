@@ -159,7 +159,7 @@ object LoadBgen {
 
         if (fs.isDir(file))
           fs.listStatus(file)
-            .filter(status => ".*part-[0-9]+".r.matches(status.getPath.toString))
+            .filter(status => ".*part-[0-9]+(-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})?".r.matches(status.getPath.toString))
         else
           Array(status)
       }
