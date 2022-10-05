@@ -635,6 +635,11 @@ async def test_billing_project_case_sensitive(dev_client: BatchClient, new_billi
     project = new_billing_project
     upper_case_project = project.upper()
 
+    # create one batch with the correct billing project
+    bb = dev_client.create_batch()
+    j = bb.create_job(DOCKER_ROOT_IMAGE, command=['sleep', '30'])
+    b = await bb.submit()
+
     dev_client.billing_project = upper_case_project
 
     # create batch
@@ -695,3 +700,15 @@ async def test_billing_project_case_sensitive(dev_client: BatchClient, new_billi
         assert e.status == 404, e
     else:
         assert False
+
+    # list batches for a billing project
+    batches = [batch async for batch in dev_client.list_batches(f'billing_project:{upper_case_project}')]
+    assert len(batches) == 0
+
+    # list batches for a user
+    batches = [batch async for batch in dev_client.list_batches(f'user:DEV-TEST')]
+    assert len(batches) == 0
+
+    # list batches for a user that submitted the batch
+    batches = [batch async for batch in dev_client.list_batches(f'user=DEV-TEST')]
+    assert len(batches) == 0
