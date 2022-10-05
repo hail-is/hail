@@ -1070,13 +1070,15 @@ def test_job_private_instance_cancel(client: BatchClient):
 
 def test_update_batch_no_deps(client: BatchClient):
     bb = client.create_batch()
-    bb.create_job(DOCKER_ROOT_IMAGE, ['false'])
+    j1 = bb.create_job(DOCKER_ROOT_IMAGE, ['false'])
     bb.submit()
-    j = bb.create_job(DOCKER_ROOT_IMAGE, ['true'])
-    b = bb.submit()
-    status = j.wait()
+    j1.wait()
 
-    assert status['state'] == 'Success', str((status, b.debug_info()))
+    j2 = bb.create_job(DOCKER_ROOT_IMAGE, ['true'])
+    b = bb.submit()
+    j2_status = j2.wait()
+
+    assert j2_status['state'] == 'Success', str((j2_status, b.debug_info()))
     assert b.status()['state'] == 'failure', str((b.status(), b.debug_info()))
 
 

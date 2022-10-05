@@ -227,7 +227,19 @@ VALUES (%s, %s);
 
     @property
     def free_cores_mcpu(self):
+        """A possibly negative measure of the free cores in millicpu.
+
+        See free_cores_mcpu_nonnegative for a more useful property.
+        """
         return self._free_cores_mcpu
+
+    @property
+    def free_cores_mcpu_nonnegative(self):
+        """A nonnegative measure of the free cores in millicpu.
+
+        free_cores_mcpu can be negatively temporarily if the worker is oversubscribed.
+        """
+        return max(0, self.free_cores_mcpu)
 
     def adjust_free_cores_in_memory(self, delta_mcpu):
         self.inst_coll.adjust_for_remove_instance(self)

@@ -1769,6 +1769,36 @@ def test_read_partitions_with_missing_key():
     assert hl.read_table(path, _n_partitions=10).n_partitions() == 1  # one key => one partition
 
 
+def test_interval_filter_partitions():
+    ht = hl.utils.range_table(100, 3)
+    path = new_temp_file()
+    ht.write(path)
+    intervals = [
+        hl.Interval(hl.Struct(idx=5), hl.Struct(idx=10)),
+        hl.Interval(hl.Struct(idx=12), hl.Struct(idx=13)),
+        hl.Interval(hl.Struct(idx=15), hl.Struct(idx=17)),
+        hl.Interval(hl.Struct(idx=19), hl.Struct(idx=20))
+    ]
+    assert hl.read_table(path, _intervals=intervals, _filter_intervals = True).n_partitions() == 1
+
+    intervals = [
+        hl.Interval(hl.Struct(idx=5), hl.Struct(idx=10)),
+        hl.Interval(hl.Struct(idx=12), hl.Struct(idx=13)),
+        hl.Interval(hl.Struct(idx=15), hl.Struct(idx=17)),
+
+        hl.Interval(hl.Struct(idx=45), hl.Struct(idx=50)),
+        hl.Interval(hl.Struct(idx=52), hl.Struct(idx=53)),
+        hl.Interval(hl.Struct(idx=55), hl.Struct(idx=57)),
+
+        hl.Interval(hl.Struct(idx=75), hl.Struct(idx=80)),
+        hl.Interval(hl.Struct(idx=82), hl.Struct(idx=83)),
+        hl.Interval(hl.Struct(idx=85), hl.Struct(idx=87)),
+    ]
+
+    assert hl.read_table(path, _intervals=intervals, _filter_intervals = True).n_partitions() == 3
+
+
+
 def test_grouped_flatmap_streams():
     ht = hl.import_vcf(resource('sample.vcf')).rows()
     ht = ht.annotate(x=hl.str(ht.locus))  # add a map node
@@ -1811,7 +1841,6 @@ def test_table_head_and_tail(test):
 
 
 def test_to_pandas():
-    import numpy as np
     ht = hl.utils.range_table(3)
     strs = ["foo", "bar", "baz"]
     ht = ht.annotate(s = hl.array(strs)[ht.idx], nested=hl.struct(foo = ht.idx, bar=hl.range(ht.idx)))
@@ -1820,7 +1849,7 @@ def test_to_pandas():
     print(df_from_hail.dtypes)
 
     python_data = {
-        "idx": pd.Series([0, 1, 2], dtype=np.int32),
+        "idx": pd.Series([0, 1, 2], dtype='Int32'),
         "s": pd.Series(["foo", "bar", "baz"], dtype='string'),
         "nested": pd.Series([hl.Struct(foo=0, bar=[]), hl.Struct(foo=1, bar=[0]),
                              hl.Struct(foo=2, bar=[0, 1])], dtype=object)
@@ -1831,17 +1860,40 @@ def test_to_pandas():
 
 
 def test_to_pandas_flatten():
-    import numpy as np
     ht = hl.utils.range_table(3)
     strs = ["foo", "bar", "baz"]
     ht = ht.annotate(s = hl.array(strs)[ht.idx], nested = hl.struct(foo = ht.idx, bar=hl.range(ht.idx)))
     df_from_hail = ht.to_pandas(flatten=True)
 
     python_data = {
-        "idx": pd.Series([0, 1, 2], dtype=np.int32),
+        "idx": pd.Series([0, 1, 2], dtype='Int32'),
         "s": pd.Series(["foo", "bar", "baz"], dtype='string'),
-        "nested.foo": pd.Series([0, 1, 2], dtype=np.int32),
+        "nested.foo": pd.Series([0, 1, 2], dtype='Int32'),
         "nested.bar": pd.Series([[], [0], [0, 1]], dtype=object)
+    }
+
+    df_from_python = pd.DataFrame(python_data)
+    pd.testing.assert_frame_equal(df_from_hail, df_from_python)
+
+
+def test_to_pandas_null_ints():
+    ht = hl.utils.range_table(3)
+    ht = ht.annotate(missing_int32 = hl.or_missing(ht.idx == 0, ht.idx),
+                     missing_int64 = hl.or_missing(ht.idx == 0, hl.int64(ht.idx)),
+                     missing_float32 = hl.or_missing(ht.idx == 0, hl.float32(ht.idx)),
+                     missing_float64 = hl.or_missing(ht.idx == 0, hl.float64(ht.idx)),
+                     missing_bool = hl.or_missing(ht.idx == 0, True),
+                     missing_str = hl.or_missing(ht.idx == 0, 'foo'))
+    df_from_hail = ht.to_pandas()
+
+    python_data = {
+        "idx": pd.Series([0, 1, 2], dtype='Int32'),
+        "missing_int32": pd.Series([0, None, None], dtype='Int32'),
+        "missing_int64": pd.Series([0, None, None], dtype='Int64'),
+        "missing_float32": pd.Series([0, None, None], dtype='Float32'),
+        "missing_float64": pd.Series([0, None, None], dtype='Float64'),
+        "missing_bool": pd.Series([True, None, None], dtype='boolean'),
+        "missing_str": pd.Series(['foo', None, None], dtype='string'),
     }
 
     df_from_python = pd.DataFrame(python_data)
@@ -1855,7 +1907,7 @@ def test_to_pandas_nd_array():
     df_from_hail = ht.to_pandas()
 
     python_data = {
-        "idx": pd.Series([0, 1, 2], dtype=np.int32),
+        "idx": pd.Series([0, 1, 2], dtype='Int32'),
         "nd": pd.Series([np.arange(3), np.arange(3), np.arange(3)])
     }
 

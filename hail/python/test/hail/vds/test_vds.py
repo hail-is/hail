@@ -257,6 +257,47 @@ def test_interval_coverage():
         pytest.approx(obs.mean_dp, exp.mean_dp)
 
 
+def test_impute_sex_chr_ploidy_from_interval_coverage():
+    norm_interval_1 = hl.parse_locus_interval('20:10-30', reference_genome='GRCh37')
+    norm_interval_2 = hl.parse_locus_interval('20:40-45', reference_genome='GRCh37')
+    x_interval_1 = hl.parse_locus_interval('X:10-20', reference_genome='GRCh37')
+    x_interval_2 = hl.parse_locus_interval('X:25-35', reference_genome='GRCh37')
+    y_interval_1 = hl.parse_locus_interval('Y:10-20', reference_genome='GRCh37')
+    y_interval_2 = hl.parse_locus_interval('Y:25-30', reference_genome='GRCh37')
+
+    mt = hl.Table.parallelize([hl.Struct(s='sample_xx', interval=norm_interval_1, sum_dp=195),
+                               hl.Struct(s='sample_xx', interval=norm_interval_2, sum_dp=55),
+                               hl.Struct(s='sample_xx', interval=x_interval_1, sum_dp=95),
+                               hl.Struct(s='sample_xx', interval=x_interval_2, sum_dp=85),
+                               hl.Struct(s='sample_xy', interval=norm_interval_1, sum_dp=190),
+                               hl.Struct(s='sample_xy', interval=norm_interval_2, sum_dp=85),
+                               hl.Struct(s='sample_xy', interval=x_interval_1, sum_dp=61),
+                               hl.Struct(s='sample_xy', interval=x_interval_2, sum_dp=49),
+                               hl.Struct(s='sample_xy', interval=y_interval_1, sum_dp=54),
+                               hl.Struct(s='sample_xy', interval=y_interval_2, sum_dp=45)],
+                              schema=hl.dtype(
+                                  'struct{s:str,interval:interval<locus<GRCh37>>,sum_dp:int32}')).to_matrix_table(
+        row_key=['interval'], col_key=['s'])
+
+    mt = mt.annotate_rows(interval_size=mt.interval.end.position - mt.interval.start.position)
+    r = hl.vds.impute_sex_chr_ploidy_from_interval_coverage(mt, normalization_contig='20')
+
+    assert r.collect() == [
+        hl.Struct(s='sample_xx',
+                  autosomal_mean_dp=10.0,
+                  x_mean_dp=9.0,
+                  x_ploidy=1.8,
+                  y_mean_dp=0.0,
+                  y_ploidy=0.0),
+        hl.Struct(s='sample_xy',
+                  autosomal_mean_dp=11.0,
+                  x_mean_dp=5.5,
+                  x_ploidy=1.0,
+                  y_mean_dp=6.6,
+                  y_ploidy=1.2)
+    ]
+
+
 def test_impute_sex_chromosome_ploidy():
     x_par_end = 2699521
     y_par_end = 2649521

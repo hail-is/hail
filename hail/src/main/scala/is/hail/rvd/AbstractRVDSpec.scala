@@ -183,7 +183,7 @@ object AbstractRVDSpec {
             contexts,
             body)
           if (filterIntervals)
-            ts
+            ts.repartitionNoShuffle(partitioner, dropEmptyPartitions = true)
           else
             ts.repartitionNoShuffle(extendedNewPartitioner.coarsen(requestedKey.length))
         }
@@ -467,7 +467,7 @@ case class IndexedRVDSpec2(
           TableStageDependency.none,
           contexts,
           body)
-        if (filterIntervals) ts else ts.repartitionNoShuffle(extendedNP)
+        if (filterIntervals) ts.repartitionNoShuffle(partitioner, dropEmptyPartitions = true) else ts.repartitionNoShuffle(extendedNP)
       }
 
     case None =>

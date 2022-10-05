@@ -10,7 +10,7 @@ import is.hail.expr.ir.streams.StreamProducer
 import is.hail.expr.{JSONAnnotationImpex, Nat}
 import is.hail.io._
 import is.hail.io.fs.FS
-import is.hail.io.gen.{ExportBGEN, ExportGen}
+import is.hail.io.gen.{BgenWriter, ExportGen}
 import is.hail.io.index.StagedIndexWriter
 import is.hail.io.plink.{ExportPlink, BitPacker}
 import is.hail.io.vcf.{ExportVCF, TabixVCF}
@@ -24,7 +24,7 @@ import is.hail.types.physical.{PBooleanRequired, PCanonicalBaseStruct, PCanonica
 import is.hail.types.virtual._
 import is.hail.types._
 import is.hail.types.physical.stypes.concrete.{SJavaString, SJavaArrayString, SJavaArrayStringValue, SStackStruct}
-import is.hail.types.physical.stypes.interfaces.{SIndexableValue, SBaseStructValue}
+import is.hail.types.physical.stypes.interfaces.{SIndexableValue, SBaseStructValue, SStringValue}
 import is.hail.types.physical.stypes.primitives.{SBooleanValue, SInt64Value}
 import is.hail.utils._
 import is.hail.utils.richUtils.ByteTrackingOutputStream
@@ -33,7 +33,7 @@ import org.apache.spark.sql.Row
 import org.json4s.jackson.JsonMethods
 import org.json4s.{DefaultFormats, Formats, ShortTypeHints}
 
-import java.io.OutputStream
+import java.io.{InputStream, OutputStream}
 
 object MatrixWriter {
   implicit val formats: Formats = new DefaultFormats() {
@@ -945,7 +945,272 @@ case class MatrixBGENWriter(
   path: String,
   exportType: String
 ) extends MatrixWriter {
-  def apply(ctx: ExecuteContext, mv: MatrixValue): Unit = ExportBGEN(ctx, mv, path, exportType)
+  def apply(ctx: ExecuteContext, mv: MatrixValue): Unit = {
+    val tv = mv.toTableValue
+    val ts = TableExecuteIntermediate(tv).asTableStage(ctx)
+    val tl = TableLiteral(tv, ctx.theHailClassLoader)
+    CompileAndEvaluate(ctx,
+      lower(LowerMatrixIR.colsFieldName, MatrixType.entriesIdentifier, mv.typ.colKey,
+        ctx, ts, tl, BaseTypeWithRequiredness(tv.typ).asInstanceOf[RTable], Map()))
+  }
+
+  override def canLowerEfficiently: Boolean = true
+  override def lower(colsFieldName: String, entriesFieldName: String, colKey: IndexedSeq[String],
+      ctx: ExecuteContext, ts: TableStage, t: TableIR, r: RTable, relationalLetsAbove: Map[String, IR]): IR = {
+
+    val tm = MatrixType.fromTableType(t.typ, colsFieldName, entriesFieldName, colKey)
+    val folder = if (exportType == ExportType.CONCATENATED)
+      ctx.createTmpPath("export-bgen-concatenated")
+    else
+      path + ".bgen"
+
+    val writeHeader = exportType == ExportType.PARALLEL_HEADER_IN_SHARD
+    val partWriter = BGENPartitionWriter(tm, entriesFieldName, writeHeader)
+
+    ts.mapContexts { oldCtx =>
+      val d = digitsNeeded(ts.numPartitions)
+      val partFiles = ToStream(Literal(TArray(TString), Array.tabulate(ts.numPartitions)(i => s"$folder/${ partFile(d, i) }-").toFastIndexedSeq))
+      val numVariants = if (writeHeader) ToStream(ts.countPerPartition(relationalLetsAbove)) else ToStream(MakeArray(Array.tabulate(ts.numPartitions)(_ => NA(TInt64)): _*))
+
+      val ctxElt = Ref(genUID(), coerce[TStream](oldCtx.typ).elementType)
+      val pf = Ref(genUID(), coerce[TStream](partFiles.typ).elementType)
+      val nv = Ref(genUID(), coerce[TStream](numVariants.typ).elementType)
+
+      StreamZip(FastSeq(oldCtx, partFiles, numVariants), FastSeq(ctxElt.name, pf.name, nv.name),
+        MakeStruct(FastSeq("oldCtx" -> ctxElt, "numVariants" -> nv, "partFile" -> pf)),
+        ArrayZipBehavior.AssertSameLength)
+    }(GetField(_, "oldCtx")).mapCollectWithContextsAndGlobals(relationalLetsAbove, "matrix_vcf_writer") { (rows, ctxRef) =>
+      val partFile = GetField(ctxRef, "partFile") + UUID4()
+      val ctx = MakeStruct(FastSeq(
+        "cols" -> GetField(ts.globals, colsFieldName),
+        "numVariants" -> GetField(ctxRef, "numVariants"),
+        "partFile" -> partFile))
+      WritePartition(rows, ctx, partWriter)
+    }{ (results, globals) =>
+      val ctx = MakeStruct(FastSeq("cols" -> GetField(globals, colsFieldName), "results" -> results))
+      val commit = BGENExportFinalizer(tm, path, exportType)
+      Begin(FastIndexedSeq(WriteMetadata(ctx, commit)))
+    }
+  }
+}
+
+case class BGENPartitionWriter(typ: MatrixType, entriesFieldName: String, writeHeader: Boolean) extends PartitionWriter {
+  val ctxType: Type = TStruct("cols" -> TArray(typ.colType), "numVariants" -> TInt64, "partFile" -> TString)
+  override def returnType: TStruct = TStruct("partFile" -> TString, "numVariants" -> TInt64, "dropped" -> TInt64)
+  def unionTypeRequiredness(r: TypeWithRequiredness, ctxType: TypeWithRequiredness, streamType: RIterable): Unit = {
+    r.union(ctxType.required)
+    r.union(streamType.required)
+  }
+
+  final def consumeStream(ctx: ExecuteContext, cb: EmitCodeBuilder, stream: StreamProducer,
+      context: EmitCode, region: Value[Region]): IEmitCode = {
+
+    context.toI(cb).map(cb) { case ctx: SBaseStructValue =>
+      val filename = ctx.loadField(cb, "partFile").get(cb, "partFile can't be missing").asString.loadString(cb)
+
+      val os = cb.memoize(cb.emb.create(filename))
+      val colValues = ctx.loadField(cb, "cols").get(cb).asIndexable
+      val nSamples = colValues.loadLength()
+
+      if (writeHeader) {
+        val sampleIds = cb.memoize(Code.newArray[String](colValues.loadLength()))
+        colValues.forEachDefined(cb) { case (cb, i, colv: SBaseStructValue) =>
+          val s = colv.subset(typ.colKey: _*).loadField(cb, 0).get(cb).asString
+          cb += (sampleIds(i) = s.loadString(cb))
+        }
+        val numVariants = ctx.loadField(cb, "numVariants").get(cb).asInt64.value
+        val header = Code.invokeScalaObject2[Array[String], Long, Array[Byte]](BgenWriter.getClass, "headerBlock", sampleIds, numVariants)
+        cb += os.invoke[Array[Byte], Unit]("write", header)
+      }
+
+      val dropped = cb.newLocal[Long]("dropped", 0L)
+      val buf = cb.memoize(Code.newInstance[ByteArrayBuilder, Int](16))
+      val uncompBuf = cb.memoize(Code.newInstance[ByteArrayBuilder, Int](16))
+
+      val slowCount = if (writeHeader || stream.length.isDefined) None else Some(cb.newLocal[Long]("num_variants", 0))
+      val fastCount = if (writeHeader) Some(ctx.loadField(cb, "numVariants").get(cb).asInt64.value) else stream.length.map(len => cb.memoize(len(cb).toL))
+      stream.memoryManagedConsume(region, cb) { cb =>
+        slowCount.foreach(nv => cb.assign(nv, nv + 1L))
+        consumeElement(cb, stream.element, buf, uncompBuf, os, stream.elementRegion, dropped, nSamples)
+      }
+
+      cb += os.invoke[Unit]("flush")
+      cb += os.invoke[Unit]("close")
+
+      val numVariants = fastCount.getOrElse(slowCount.get)
+      SStackStruct.constructFromArgs(cb, region, returnType,
+        EmitCode.present(cb.emb, SJavaString.construct(cb, filename)),
+        EmitCode.present(cb.emb, new SInt64Value(numVariants)),
+        EmitCode.present(cb.emb, new SInt64Value(dropped)))
+    }
+  }
+
+  private def consumeElement(cb: EmitCodeBuilder, element: EmitCode, buf: Value[ByteArrayBuilder], uncompBuf: Value[ByteArrayBuilder],
+      os: Value[OutputStream], region: Value[Region], dropped: Settable[Long], nSamples: Value[Int]): Unit = {
+
+    def stringToBytesWithShortLength(cb: EmitCodeBuilder, bb: Value[ByteArrayBuilder], str: Value[String]) =
+      cb += Code.toUnit(Code.invokeScalaObject2[ByteArrayBuilder, String, Int](BgenWriter.getClass, "stringToBytesWithShortLength", bb, str))
+    def stringToBytesWithIntLength(cb: EmitCodeBuilder, bb: Value[ByteArrayBuilder], str: Value[String]) =
+      cb += Code.toUnit(Code.invokeScalaObject2[ByteArrayBuilder, String, Int](BgenWriter.getClass, "stringToBytesWithIntLength", bb, str))
+    def intToBytesLE(cb: EmitCodeBuilder, bb: Value[ByteArrayBuilder], i: Value[Int]) = cb += Code.invokeScalaObject2[ByteArrayBuilder, Int, Unit](BgenWriter.getClass, "intToBytesLE", bb, i)
+    def shortToBytesLE(cb: EmitCodeBuilder, bb: Value[ByteArrayBuilder], i: Value[Int]) = cb += Code.invokeScalaObject2[ByteArrayBuilder, Int, Unit](BgenWriter.getClass, "shortToBytesLE", bb, i)
+    def updateIntToBytesLE(cb: EmitCodeBuilder, bb: Value[ByteArrayBuilder], i: Value[Int], pos: Value[Int]) =
+      cb += Code.invokeScalaObject3[ByteArrayBuilder, Int, Int, Unit](BgenWriter.getClass, "updateIntToBytesLE", bb, i, pos)
+
+    def add(cb: EmitCodeBuilder, bb: Value[ByteArrayBuilder], i: Value[Int]) = cb += bb.invoke[Byte, Unit]("add", i.toB)
+
+    val elt = element.toI(cb).get(cb).asBaseStruct
+    val locus = elt.loadField(cb, "locus").get(cb).asLocus
+    val chr = locus.contig(cb).loadString(cb)
+    val pos = locus.position(cb)
+    val varid = elt.loadField(cb, "varid").get(cb).asString.loadString(cb)
+    val rsid = elt.loadField(cb, "rsid").get(cb).asString.loadString(cb)
+    val alleles = elt.loadField(cb, "alleles").get(cb).asIndexable
+
+    cb.ifx(alleles.loadLength() >= 0xffff, cb._fatal("Maximum number of alleles per variant is 65536. Found ", alleles.loadLength().toS))
+
+    cb += buf.invoke[Unit]("clear")
+    cb += uncompBuf.invoke[Unit]("clear")
+    stringToBytesWithShortLength(cb, buf, varid)
+    stringToBytesWithShortLength(cb, buf, rsid)
+    stringToBytesWithShortLength(cb, buf, chr)
+    intToBytesLE(cb, buf, pos)
+    shortToBytesLE(cb, buf, alleles.loadLength())
+    alleles.forEachDefined(cb) { (cb, i, allele) =>
+      stringToBytesWithIntLength(cb, buf, allele.asString.loadString(cb))
+    }
+
+    val gtDataBlockStart = cb.memoize(buf.invoke[Int]("size"))
+    intToBytesLE(cb, buf, 0) // placeholder for length of compressed data
+    intToBytesLE(cb, buf, 0) // placeholder for length of uncompressed data
+
+    // begin emitGPData
+    val nGenotypes = cb.memoize(((alleles.loadLength() + 1) * alleles.loadLength()) / 2)
+    intToBytesLE(cb, uncompBuf, nSamples)
+    shortToBytesLE(cb, uncompBuf, alleles.loadLength())
+    add(cb, uncompBuf, BgenWriter.ploidy)
+    add(cb, uncompBuf, BgenWriter.ploidy)
+
+    val gpResized = cb.memoize(Code.newArray[Double](nGenotypes))
+    val index = cb.memoize(Code.newArray[Int](nGenotypes))
+    val indexInverse = cb.memoize(Code.newArray[Int](nGenotypes))
+    val fractional = cb.memoize(Code.newArray[Double](nGenotypes))
+
+    val samplePloidyStart = cb.memoize(uncompBuf.invoke[Int]("size"))
+    val i = cb.newLocal[Int]("i")
+    cb.forLoop(cb.assign(i, 0), i < nSamples, cb.assign(i, i + 1), {
+      add(cb, uncompBuf, 0x82) // placeholder for sample ploidy - default is missing
+    })
+
+    add(cb, uncompBuf, BgenWriter.phased)
+    add(cb, uncompBuf, 8)
+
+    def emitNullGP(cb: EmitCodeBuilder): Unit = cb.forLoop(cb.assign(i, 0), i < nGenotypes - 1, cb.assign(i, i + 1), add(cb, uncompBuf, 0))
+
+    val entries = elt.loadField(cb, entriesFieldName).get(cb).asIndexable
+    entries.forEachDefinedOrMissing(cb)({ (cb, j) =>
+      emitNullGP(cb)
+    }, { case (cb, j, entry: SBaseStructValue) =>
+      if (entry.st.virtualType.fieldIdx.get("GP").isDefined) {
+        entry.loadField(cb, "GP").consume(cb, emitNullGP(cb), { gp =>
+          val gpSum = cb.newLocal[Double]("gpSum", 0d)
+          gp.asIndexable.forEachDefined(cb) { (cb, idx, x) =>
+            val gpv = x.asDouble.value
+            cb.ifx(gpv < 0d,
+              cb._fatal("found GP value less than 0: ", gpv.toS, ", at sample ", j.toS, " of variant", chr, ":", pos.toS))
+            cb.assign(gpSum, gpSum + gpv)
+            cb += (gpResized(idx) = gpv * BgenWriter.totalProb.toDouble)
+          }
+          cb.ifx(gpSum >= 0.999 && gpSum <= 1.001, {
+            cb += uncompBuf.invoke[Int, Byte, Unit]("update", samplePloidyStart + j, BgenWriter.ploidy)
+            cb += Code.invokeScalaObject6[Array[Double], Array[Double], Array[Int], Array[Int], ByteArrayBuilder, Long, Unit](BgenWriter.getClass, "roundWithConstantSum",
+              gpResized, fractional, index, indexInverse, uncompBuf, BgenWriter.totalProb.toLong)
+          }, {
+            cb.assign(dropped, dropped + 1l)
+            emitNullGP(cb)
+          })
+        })
+      } else {
+        emitNullGP(cb)
+      }
+    })
+    // end emitGPData
+
+    val uncompLen = cb.memoize(uncompBuf.invoke[Int]("size"))
+    val compLen = cb.memoize(Code.invokeScalaObject2[ByteArrayBuilder, Array[Byte], Int](CompressionUtils.getClass, "compress", buf, uncompBuf.invoke[Array[Byte]]("result")))
+
+    updateIntToBytesLE(cb, buf, cb.memoize(compLen + 4), gtDataBlockStart)
+    updateIntToBytesLE(cb, buf, uncompLen, cb.memoize(gtDataBlockStart + 4))
+
+    cb += os.invoke[Array[Byte], Unit]("write", buf.invoke[Array[Byte]]("result"))
+  }
+}
+
+case class BGENExportFinalizer(typ: MatrixType, path: String, exportType: String) extends MetadataWriter {
+  def annotationType: Type = TStruct("cols" -> TArray(typ.colType), "results" -> TArray(TStruct("partFile" -> TString, "numVariants" -> TInt64, "dropped" -> TInt64)))
+
+  def writeMetadata(writeAnnotations: => IEmitCode, cb: EmitCodeBuilder, region: Value[Region]): Unit = {
+    val annotations = writeAnnotations.get(cb).asBaseStruct
+    val colValues = annotations.loadField(cb, "cols").get(cb).asIndexable
+    val sampleIds = cb.memoize(Code.newArray[String](colValues.loadLength()))
+    colValues.forEachDefined(cb) { case (cb, i, colv: SBaseStructValue) =>
+      val s = colv.subset(typ.colKey: _*).loadField(cb, 0).get(cb).asString
+      cb += (sampleIds(i) = s.loadString(cb))
+    }
+
+    val results = annotations.loadField(cb, "results").get(cb).asIndexable
+    val dropped = cb.newLocal[Long]("dropped", 0L)
+    results.forEachDefined(cb) { (cb, i, res) =>
+      res.asBaseStruct.loadField(cb, "dropped").consume(cb, {/* do nothing */}, { d =>
+        cb.assign(dropped, dropped + d.asInt64.value)
+      })
+    }
+    cb.ifx(dropped.cne(0L), cb.warning("Set ", dropped.toS, " genotypes to missing: total GP probability did not lie in [0.999, 1.001]."))
+
+    val numVariants = cb.newLocal[Long]("num_variants", 0L)
+    if (exportType != ExportType.PARALLEL_HEADER_IN_SHARD) {
+      results.forEachDefined(cb) { (cb, i, res) =>
+        res.asBaseStruct.loadField(cb, "numVariants").consume(cb, {/* do nothing */}, { nv =>
+          cb.assign(numVariants, numVariants + nv.asInt64.value)
+        })
+      }
+    }
+
+    if (exportType == ExportType.PARALLEL_SEPARATE_HEADER || exportType == ExportType.PARALLEL_HEADER_IN_SHARD) {
+      val files = cb.memoize(Code.newArray[String](results.loadLength()))
+      results.forEachDefined(cb) { (cb, i, res) =>
+        cb += files.update(i, res.asBaseStruct.loadField(cb, "partFile").get(cb).asString.loadString(cb))
+      }
+
+      cb += Code.invokeScalaObject3[FS, String, Array[String], Unit](TableTextFinalizer.getClass, "cleanup", cb.emb.getFS, path + ".bgen", files)
+    }
+
+    if (exportType == ExportType.PARALLEL_SEPARATE_HEADER) {
+      val os = cb.memoize(cb.emb.create(const(path + ".bgen").concat("/header")))
+      val header = Code.invokeScalaObject2[Array[String], Long, Array[Byte]](BgenWriter.getClass, "headerBlock", sampleIds, numVariants)
+      cb += os.invoke[Array[Byte], Unit]("write", header)
+      cb += os.invoke[Unit]("close")
+    }
+
+    if (exportType == ExportType.CONCATENATED) {
+      val os = cb.memoize(cb.emb.create(const(path + ".bgen")))
+      val header = Code.invokeScalaObject2[Array[String], Long, Array[Byte]](BgenWriter.getClass, "headerBlock", sampleIds, numVariants)
+      cb += os.invoke[Array[Byte], Unit]("write", header)
+
+      annotations.loadField(cb, "results").get(cb).asIndexable.forEachDefined(cb) { (cb, i, res) =>
+        res.asBaseStruct.loadField(cb, "partFile").consume(cb, {/* do nothing */}, { case pf: SStringValue =>
+          val f = cb.memoize(cb.emb.open(pf.loadString(cb), false))
+          cb += Code.invokeStatic3[org.apache.hadoop.io.IOUtils, InputStream, OutputStream, Int, Unit]("copyBytes", f, os, 4096)
+          cb += f.invoke[Unit]("close")
+        })
+      }
+
+      cb += os.invoke[Unit]("flush")
+      cb += os.invoke[Unit]("close")
+    }
+
+    cb += Code.invokeScalaObject3[FS, String, Array[String], Unit](BgenWriter.getClass, "writeSampleFile", cb.emb.getFS, path, sampleIds)
+  }
 }
 
 case class MatrixPLINKWriter(

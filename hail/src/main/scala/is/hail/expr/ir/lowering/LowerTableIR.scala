@@ -241,7 +241,7 @@ class TableStage(
       repartitionNoShuffle(partitioner.strictify)
   }
 
-  def repartitionNoShuffle(newPartitioner: RVDPartitioner, allowDuplication: Boolean = false): TableStage = {
+  def repartitionNoShuffle(newPartitioner: RVDPartitioner, allowDuplication: Boolean = false, dropEmptyPartitions: Boolean = false): TableStage = {
     if (newPartitioner == this.partitioner) {
       return this
     }
@@ -250,6 +250,33 @@ class TableStage(
       require(newPartitioner.satisfiesAllowedOverlap(newPartitioner.kType.size - 1))
     }
     require(newPartitioner.kType.isPrefixOf(kType))
+
+    val startAndEnd = partitioner.rangeBounds.map(newPartitioner.intervalRange)
+      .zipWithIndex
+    val ord = PartitionBoundOrdering.apply(newPartitioner.kType)
+    if (startAndEnd.forall { case ((start, end), index) =>
+      start + 1 == end && newPartitioner.rangeBounds(start).includes(ord, partitioner.rangeBounds(index)) }) {
+      val newToOld = startAndEnd
+        .groupBy(_._1._1)
+        .map { case (newIdx, values) => (newIdx, values.map(_._2).sorted.toFastIndexedSeq) }
+
+
+      val (oldPartIndices, newPartitionerFilt) = if (dropEmptyPartitions) {
+        val indices = (0 until newPartitioner.numPartitions).filter(newToOld.contains)
+        (indices.map(i => newToOld(i)), newPartitioner.copy(rangeBounds = indices.toArray.map(i => newPartitioner.rangeBounds(i))))
+      } else
+        ((0 until newPartitioner.numPartitions).map(i => newToOld.getOrElse(i, FastIndexedSeq())), newPartitioner)
+      log.info(s"repartitionNoShuffle - fast path, generated ${oldPartIndices.length} partitions from ${partitioner.numPartitions}" +
+        s" (dropped ${newPartitioner.numPartitions - oldPartIndices.length} empty output parts)")
+
+      val newContexts = bindIR(ToArray(contexts)) { oldCtxs =>
+        mapIR(ToStream(Literal(TArray(TArray(TInt32)), oldPartIndices))) { inds =>
+          ToArray(mapIR(ToStream(inds)) { i => ArrayRef(oldCtxs, i) })
+        }
+      }
+      return TableStage(letBindings, broadcastVals, globals, newPartitionerFilt, dependency, newContexts,
+        (ctx: Ref) => flatMapIR(ToStream(ctx, true)) { oldCtx => partition(oldCtx) })
+    }
 
     val boundType = RVDPartitioner.intervalIRRepresentation(newPartitioner.kType)
     val partitionMapping: IndexedSeq[Row] = newPartitioner.rangeBounds.map { i =>

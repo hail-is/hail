@@ -372,6 +372,75 @@ def filter_samples(vds: 'VariantDataset', samples_table: 'Table', *,
     return VariantDataset(reference_data, variant_data)
 
 
+@typecheck(mt=MatrixTable, normalization_contig=str)
+def impute_sex_chr_ploidy_from_interval_coverage(
+        mt: 'MatrixTable',
+        normalization_contig: str,
+) -> 'Table':
+    """Impute sex chromosome ploidy from a precomputed interval coverage MatrixTable.
+
+    The input MatrixTable must have the following row fields:
+
+     - ``interval`` (*interval*): Genomic interval of interest.
+     - ``interval_size`` (*int32*): Size of interval, in bases.
+
+    And the following entry fields:
+
+     -  ``sum_dp`` (*int64*): Sum of depth values by base across the interval.
+
+    Returns a :class:`.Table` with sample ID keys, with the following fields:
+
+     -  ``autosomal_mean_dp`` (*float64*): Mean depth on calling intervals on normalization contig.
+     -  ``x_mean_dp`` (*float64*): Mean depth on calling intervals on X chromosome.
+     -  ``x_ploidy`` (*float64*): Estimated ploidy on X chromosome. Equal to ``2 * x_mean_dp / autosomal_mean_dp``.
+     -  ``y_mean_dp`` (*float64*): Mean depth on calling intervals on  chromosome.
+     -  ``y_ploidy`` (*float64*): Estimated ploidy on Y chromosome. Equal to ``2 * y_mean_db / autosomal_mean_dp``.
+
+    Parameters
+    ----------
+    mt : :class:`.MatrixTable`
+        Interval-by-sample MatrixTable with sum of depth values across the interval.
+    normalization_contig : str
+        Autosomal contig for depth comparison.
+
+    Returns
+    -------
+    :class:`.Table`
+    """
+
+    rg = mt.interval.start.dtype.reference_genome
+
+    if len(rg.x_contigs) != 1:
+        raise NotImplementedError(
+            f"reference genome {rg.name!r} has multiple X contigs, this is not supported in 'impute_sex_chr_ploidy_from_interval_coverage'"
+        )
+    chr_x = rg.x_contigs[0]
+    if len(rg.y_contigs) != 1:
+        raise NotImplementedError(
+            f"reference genome {rg.name!r} has multiple Y contigs, this is not supported in 'impute_sex_chr_ploidy_from_interval_coverage'"
+        )
+    chr_y = rg.y_contigs[0]
+
+    mt = mt.annotate_rows(contig=mt.interval.start.contig)
+    mt = mt.annotate_cols(
+        __mean_dp=hl.agg.group_by(
+            mt.contig, hl.agg.sum(mt.sum_dp) / hl.agg.sum(mt.interval_size)
+        )
+    )
+
+    mean_dp_dict = mt.__mean_dp
+    auto_dp = mean_dp_dict.get(normalization_contig, 0.0)
+    x_dp = mean_dp_dict.get(chr_x, 0.0)
+    y_dp = mean_dp_dict.get(chr_y, 0.0)
+    per_sample = mt.transmute_cols(autosomal_mean_dp=auto_dp,
+                                   x_mean_dp=x_dp,
+                                   x_ploidy=2 * x_dp / auto_dp,
+                                   y_mean_dp=y_dp,
+                                   y_ploidy=2 * y_dp / auto_dp)
+    info("'impute_sex_chromosome_ploidy': computing and checkpointing coverage and karyotype metrics")
+    return per_sample.cols().checkpoint(new_temp_file('impute_sex_karyotype', extension='ht'))
+
+
 @typecheck(vds=VariantDataset,
            calling_intervals=oneof(Table, expr_array(expr_interval(expr_locus()))),
            normalization_contig=str,
@@ -446,12 +515,10 @@ def impute_sex_chromosome_ploidy(
         raise NotImplementedError(
             f"reference genome {rg.name!r} has multiple X contigs, this is not supported in 'impute_sex_chromosome_ploidy'"
         )
-    chr_x = rg.x_contigs[0]
     if len(rg.y_contigs) != 1:
         raise NotImplementedError(
             f"reference genome {rg.name!r} has multiple Y contigs, this is not supported in 'impute_sex_chromosome_ploidy'"
         )
-    chr_y = rg.y_contigs[0]
 
     kept_contig_filter = hl.array(chrs_represented).map(lambda x: hl.parse_locus_interval(x, reference_genome=rg))
     vds = VariantDataset(hl.filter_intervals(vds.reference_data, kept_contig_filter),
@@ -459,30 +526,14 @@ def impute_sex_chromosome_ploidy(
 
     if use_variant_dataset:
         mt = vds.variant_data
-        mt = mt.filter_rows(hl.is_defined(calling_intervals[mt.locus]))
-        coverage = mt.select_cols(
-            __mean_dp=hl.agg.group_by(mt.locus.contig,
-                                      hl.agg.sum(mt.DP)
-                                      / hl.agg.filter(mt["LGT" if "LGT" in mt.entry else "GT"].is_non_ref(),
-                                                      hl.agg.count())))
+        calling_intervals = calling_intervals.annotate(interval_dup=interval)
+        mt = mt.annotate_rows(interval=calling_intervals[mt.locus].interval_dup)
+        mt = mt.filter_rows(hl.is_defined(mt.interval))
+        coverage = mt.select_entries(sum_dp=mt.DP, interval_size=hl.is_defined(mt.DP))
     else:
         coverage = interval_coverage(vds, calling_intervals, gq_thresholds=()).drop('gq_thresholds')
 
-        coverage = coverage.annotate_rows(contig=coverage.interval.start.contig)
-        coverage = coverage.annotate_cols(
-            __mean_dp=hl.agg.group_by(coverage.contig, hl.agg.sum(coverage.sum_dp) / hl.agg.sum(coverage.interval_size)))
-
-    mean_dp_dict = coverage.__mean_dp
-    auto_dp = mean_dp_dict.get(normalization_contig, 0.0)
-    x_dp = mean_dp_dict.get(chr_x, 0.0)
-    y_dp = mean_dp_dict.get(chr_y, 0.0)
-    per_sample = coverage.transmute_cols(autosomal_mean_dp=auto_dp,
-                                         x_mean_dp=x_dp,
-                                         x_ploidy=2 * x_dp / auto_dp,
-                                         y_mean_dp=y_dp,
-                                         y_ploidy=2 * y_dp / auto_dp)
-    info("'impute_sex_chromosome_ploidy': computing and checkpointing coverage and karyotype metrics")
-    return per_sample.cols().checkpoint(new_temp_file('impute_sex_karyotype', extension='ht'))
+    return impute_sex_chr_ploidy_from_interval_coverage(coverage, normalization_contig)
 
 
 @typecheck(vds=VariantDataset, variants_table=Table, keep=bool)
