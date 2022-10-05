@@ -438,12 +438,6 @@ resource "google_storage_bucket_iam_member" "batch_hail_query_bucket_storage_vie
   member = "serviceAccount:${module.batch_gsa_secret.email}"
 }
 
-module "benchmark_gsa_secret" {
-  source = "./gsa_k8s_secret"
-  name = "benchmark"
-  project = var.gcp_project
-}
-
 module "ci_gsa_secret" {
   source = "./gsa_k8s_secret"
   name = "ci"

@@ -3,7 +3,6 @@ notebook
 www
 batch
 batch-driver
-benchmark
 blog
 memory
 monitoring
