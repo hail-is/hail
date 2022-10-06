@@ -1337,16 +1337,7 @@ SELECT instance_id, internal_token, frozen FROM globals;
     app['batch_headers'] = {'Authorization': f'Bearer {row["internal_token"]}'}
     app['frozen'] = row['frozen']
 
-    resource_ids = {
-        record['resource']: record['resource_id']
-        async for record in db.select_and_fetchall(
-            '''
-SELECT resource, resource_id FROM resources;
-'''
-        )
-    }
-
-    app['resource_name_to_id'] = resource_ids
+    await refresh_globals_from_db(app, db)
 
     app['scheduler_state_changed'] = Notice()
     app['cancel_ready_state_changed'] = asyncio.Event()
