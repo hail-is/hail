@@ -11,6 +11,7 @@ from hailtop.aiotools.router_fs import RouterAsyncFS
 
 from . import backend as _backend, job, resource as _resource  # pylint: disable=cyclic-import
 from .exceptions import BatchException
+from .globals import REGION_SPECIFICATION
 
 
 class Batch:
@@ -88,6 +89,8 @@ class Batch:
         Automatically cancel the batch after N failures have occurred. The default
         behavior is there is no limit on the number of failures. Only
         applicable for the :class:`.ServiceBackend`. Must be greater than 0.
+    default_regions:
+        Default regions to run jobs in when using the :class:`.ServiceBackend`.
     """
 
     _counter = 0
@@ -113,7 +116,8 @@ class Batch:
                  default_shell: Optional[str] = None,
                  default_python_image: Optional[str] = None,
                  project: Optional[str] = None,
-                 cancel_after_n_failures: Optional[int] = None):
+                 cancel_after_n_failures: Optional[int] = None,
+                 default_regions: Optional[REGION_SPECIFICATION] = None):
         self._jobs: List[job.Job] = []
         self._resource_map: Dict[str, _resource.Resource] = {}
         self._allocated_files: Set[str] = set()
@@ -149,6 +153,11 @@ class Batch:
         self._DEPRECATED_fs: Optional[RouterAsyncFS] = None
 
         self._cancel_after_n_failures = cancel_after_n_failures
+
+        if isinstance(self._backend, _backend.ServiceBackend):
+            self._default_regions = default_regions or self._backend.regions
+        else:
+            self._default_regions = None
 
         self._python_function_defs: Dict[int, Callable] = {}
         self._python_function_files: Dict[int, _resource.InputResourceFile] = {}
@@ -256,7 +265,7 @@ class Batch:
             j.timeout(self._default_timeout)
 
         if isinstance(self._backend, _backend.ServiceBackend):
-            j.regions(self._backend.regions)
+            j.regions(self._default_regions)
 
         self._jobs.append(j)
         return j

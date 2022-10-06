@@ -354,15 +354,25 @@ class Job:
         Examples
         --------
 
+        Require the job to run in 'us-central1':
+
         >>> b = Batch(backend=backend.ServiceBackend('test'))
         >>> j = b.new_job()
         >>> (j.regions(['us-central1'])
         ...   .command(f'echo "hello"'))
 
+        Specify the job can run in any region:
+
+        >>> b = Batch(backend=backend.ServiceBackend('test'))
+        >>> j = b.new_job()
+        >>> (j.regions(hb.ANY_REGION)
+        ...   .command(f'echo "hello"'))
+
         Parameters
         ----------
         regions:
-            The cloud region(s) to run this job in.
+            The cloud region(s) to run this job in. Use `hb.ANY_REGION` to signify
+            the job can run in any available region.
 
         Returns
         -------
