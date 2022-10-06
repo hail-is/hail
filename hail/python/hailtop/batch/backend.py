@@ -387,12 +387,23 @@ class ServiceBackend(Backend[bc.Batch]):
         The authorization token to pass to the batch client.
         Should only be set for user delegation purposes.
     regions:
-        Cloud region(s) to run jobs in. Use :func:`.ServiceBackend.supported_regions` to list the
+        Cloud region(s) to run jobs in. Use :meth:`.ServiceBackend.supported_regions` to list the
         available regions to choose from.
     """
 
     @staticmethod
     def supported_regions():
+        """
+        Get the supported cloud regions
+
+        Examples
+        --------
+        >>> regions = ServiceBackend.supported_regions()
+
+        Returns
+        -------
+        A list of the supported cloud regions
+        """
         with BatchClient('dummy') as dummy_client:
             return dummy_client.supported_regions()
 

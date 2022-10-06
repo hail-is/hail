@@ -17,6 +17,9 @@ DEFAULT_SHELL = '/bin/bash'
 
 
 class _ANY_REGION(Enum):
+    """
+    Object that signifies that a job can run in any supported region
+    """
     ANY_REGION = 1
 
 
