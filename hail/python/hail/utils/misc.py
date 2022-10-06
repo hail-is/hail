@@ -598,10 +598,6 @@ def escape_id(s):
         return "`{}`".format(escape_str(s, backticked=True))
 
 
-def dump_json(obj):
-    return f'"{escape_str(json.dumps(obj))}"'
-
-
 def parsable_strings(strs):
     strs = ' '.join(f'"{escape_str(s)}"' for s in strs)
     return f"({strs})"
