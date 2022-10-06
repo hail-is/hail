@@ -180,6 +180,12 @@ async def rest_get_version(request):  # pylint: disable=W0613
     return web.Response(text=version())
 
 
+@routes.get('/api/v1alpha/supported_regions')
+@auth.rest_authenticated_users_only
+async def rest_get_supported_regions(request):  # pylint: disable=W0613
+    return web.json_response(request.app['regions'])
+
+
 async def _handle_ui_error(session, f, *args, **kwargs):
     try:
         await f(*args, **kwargs)

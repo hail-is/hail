@@ -321,30 +321,19 @@ WHERE removed = 0 AND inst_coll = %s;
         for user, share in user_share.items():
             user_job_query = f'''
 (
-SELECT *, ROW_NUMBER() OVER (ORDER BY batch_id ASC, always_run DESC, job_id ASC) DIV {share} AS scheduling_iteration
-FROM (
-  (
-    SELECT user, jobs.batch_id, jobs.job_id, always_run, cores_mcpu
-    FROM jobs FORCE INDEX(jobs_batch_id_state_always_run_cancelled)
-    LEFT JOIN batches ON jobs.batch_id = batches.id
-    WHERE user = %s AND batches.`state` = 'running' AND jobs.state = 'Ready' AND always_run = 1 AND inst_coll = %s
-    GROUP BY jobs.batch_id, jobs.job_id
-    ORDER BY jobs.batch_id ASC, jobs.job_id ASC
-    LIMIT {share * JOB_QUEUE_SCHEDULING_WINDOW_SECONDS}
-  )
-  UNION (
-    SELECT user, jobs.batch_id, jobs.job_id, always_run, cores_mcpu
-    FROM jobs FORCE INDEX(jobs_batch_id_state_always_run_cancelled)
-    LEFT JOIN batches ON jobs.batch_id = batches.id
-    LEFT JOIN batches_cancelled ON batches.id = batches_cancelled.id
-    WHERE user = %s AND batches.`state` = 'running' AND jobs.state = 'Ready' AND always_run = 0 AND batches_cancelled.id IS NULL AND inst_coll = %s
-    GROUP BY jobs.batch_id, jobs.job_id
-    ORDER BY jobs.batch_id ASC, jobs.job_id ASC
-    LIMIT {share * JOB_QUEUE_SCHEDULING_WINDOW_SECONDS}
-  )
-) AS t
-ORDER BY batch_id ASC, always_run DESC, job_id ASC
-LIMIT {share * JOB_QUEUE_SCHEDULING_WINDOW_SECONDS}
+  SELECT user, jobs.batch_id, jobs.job_id, cores_mcpu,
+    IF(region IS NULL, NULL, JSON_ARRAYAGG(region)) AS regions,
+    COUNT(region) AS n_regions,
+    ROW_NUMBER() OVER (ORDER BY batch_id ASC, job_id ASC) DIV {share} AS scheduling_iteration
+  FROM jobs FORCE INDEX(jobs_batch_id_state_always_run_cancelled)
+  LEFT JOIN batches ON jobs.batch_id = batches.id
+  LEFT JOIN batches_cancelled ON batches.id = batches_cancelled.id
+  LEFT JOIN job_regions ON jobs.batch_id = job_regions.batch_id AND jobs.job_id = job_regions.job_id
+  LEFT JOIN region_ids ON job_regions.region_id = region_ids.region_id
+  WHERE user = %s AND batches.`state` = 'running' AND jobs.state = 'Ready' AND (always_run = 1 OR always_run = 0 AND batches_cancelled.id IS NULL) AND inst_coll = %s
+  GROUP BY jobs.batch_id, jobs.job_id
+  ORDER BY jobs.batch_id ASC, jobs.job_id ASC
+  LIMIT {share * JOB_QUEUE_SCHEDULING_WINDOW_SECONDS}
 )
 '''
 
@@ -360,16 +349,9 @@ WITH ready_jobs AS (
 SELECT regions, CAST(COALESCE(SUM(cores_mcpu), 0) AS SIGNED) AS ready_cores_mcpu
 FROM (
   SELECT regions, cores_mcpu,
-    CAST(ROW_NUMBER() OVER (ORDER BY scheduling_iteration, user, ready_jobs.batch_id, always_run DESC, -n_regions DESC, JSON_UNQUOTE(regions), ready_jobs.job_id) AS SIGNED) AS row_num_overall,
-    CAST(ROW_NUMBER() OVER (PARTITION BY JSON_UNQUOTE(regions) ORDER BY scheduling_iteration, user, ready_jobs.batch_id, always_run DESC, -n_regions DESC, JSON_UNQUOTE(regions), ready_jobs.job_id) AS SIGNED) AS row_num_by_regions
+    CAST(ROW_NUMBER() OVER (ORDER BY scheduling_iteration, user, -n_regions DESC, JSON_UNQUOTE(regions), ready_jobs.batch_id, ready_jobs.job_id) AS SIGNED) AS row_num_overall,
+    CAST(ROW_NUMBER() OVER (PARTITION BY JSON_UNQUOTE(regions) ORDER BY scheduling_iteration, user, -n_regions DESC, JSON_UNQUOTE(regions), ready_jobs.batch_id, ready_jobs.job_id) AS SIGNED) AS row_num_by_regions
   FROM ready_jobs
-  LEFT JOIN (
-    SELECT ready_jobs.batch_id, ready_jobs.job_id, JSON_ARRAYAGG(region) AS regions, COUNT(region) AS n_regions
-    FROM ready_jobs
-    INNER JOIN job_regions ON ready_jobs.batch_id = job_regions.batch_id AND ready_jobs.job_id = job_regions.job_id
-    LEFT JOIN region_ids ON job_regions.region_id = region_ids.region_id
-    GROUP BY ready_jobs.batch_id, ready_jobs.job_id
-  ) AS regions ON ready_jobs.batch_id = regions.batch_id AND ready_jobs.job_id = regions.job_id
 ) AS ordered_jobs
 GROUP BY regions, row_num_overall - row_num_by_regions
 HAVING ready_cores_mcpu > 0
@@ -622,44 +604,21 @@ HAVING n_ready_jobs + n_running_jobs > 0;
         async def user_runnable_jobs(user, share):
             async for record in self.db.select_and_fetchall(
                 f'''
-WITH ready_jobs AS (
-SELECT *, ROW_NUMBER() OVER (ORDER BY batch_id ASC, always_run DESC, job_id ASC) DIV {share} AS scheduling_iteration
-FROM (
-  (
-    SELECT user, jobs.batch_id, jobs.job_id, always_run, cores_mcpu, spec, userdata, format_version
-    FROM jobs FORCE INDEX(jobs_batch_id_state_always_run_cancelled)
-    LEFT JOIN batches ON jobs.batch_id = batches.id
-    WHERE user = %s AND batches.`state` = 'running' AND jobs.state = 'Ready' AND always_run = 1 AND inst_coll = %s
-    GROUP BY jobs.batch_id, jobs.job_id
-    ORDER BY jobs.batch_id ASC, jobs.job_id ASC
-    LIMIT {share * JOB_QUEUE_SCHEDULING_WINDOW_SECONDS}
-  )
-  UNION (
-    SELECT user, jobs.batch_id, jobs.job_id, always_run, cores_mcpu, spec, userdata, format_version
-    FROM jobs FORCE INDEX(jobs_batch_id_state_always_run_cancelled)
-    LEFT JOIN batches ON jobs.batch_id = batches.id
-    LEFT JOIN batches_cancelled ON batches.id = batches_cancelled.id
-    WHERE user = %s AND batches.`state` = 'running' AND jobs.state = 'Ready' AND always_run = 0 AND batches_cancelled.id IS NULL AND inst_coll = %s
-    GROUP BY jobs.batch_id, jobs.job_id
-    ORDER BY jobs.batch_id ASC, jobs.job_id ASC
-    LIMIT {share * JOB_QUEUE_SCHEDULING_WINDOW_SECONDS}
-  )
-) AS t
-ORDER BY batch_id ASC, always_run DESC, job_id ASC
-LIMIT {share * JOB_QUEUE_SCHEDULING_WINDOW_SECONDS}
-)
-SELECT ready_jobs.*, regions, n_regions
-FROM ready_jobs
-LEFT JOIN (
-  SELECT ready_jobs.batch_id, ready_jobs.job_id, JSON_ARRAYAGG(region) AS regions, COUNT(region) AS n_regions
-  FROM ready_jobs
-  INNER JOIN job_regions ON ready_jobs.batch_id = job_regions.batch_id AND ready_jobs.job_id = job_regions.job_id
-  LEFT JOIN region_ids ON job_regions.region_id = region_ids.region_id
-  GROUP BY ready_jobs.batch_id, ready_jobs.job_id
-) AS t ON ready_jobs.batch_id = t.batch_id AND ready_jobs.job_id = t.job_id
-ORDER BY scheduling_iteration, ready_jobs.batch_id, always_run DESC, -n_regions DESC, JSON_UNQUOTE(regions), ready_jobs.job_id;
+SELECT user, jobs.batch_id, jobs.job_id, cores_mcpu, spec, userdata, format_version,
+  IF(region IS NULL, NULL, JSON_ARRAYAGG(region)) AS regions,
+  COUNT(region) AS n_regions,
+  ROW_NUMBER() OVER (ORDER BY batch_id ASC, job_id ASC) DIV {share} AS scheduling_iteration
+FROM jobs FORCE INDEX(jobs_batch_id_state_always_run_cancelled)
+LEFT JOIN batches ON jobs.batch_id = batches.id
+LEFT JOIN batches_cancelled ON batches.id = batches_cancelled.id
+LEFT JOIN job_regions ON jobs.batch_id = job_regions.batch_id AND jobs.job_id = job_regions.job_id
+LEFT JOIN region_ids ON job_regions.region_id = region_ids.region_id
+WHERE user = %s AND batches.`state` = 'running' AND jobs.state = 'Ready' AND (always_run = 1 OR always_run = 0 AND batches_cancelled.id IS NULL) AND inst_coll = %s
+GROUP BY jobs.batch_id, jobs.job_id
+ORDER BY scheduling_iteration, user, -n_regions DESC, JSON_UNQUOTE(regions), ready_jobs.batch_id, ready_jobs.job_id
+LIMIT {share * JOB_QUEUE_SCHEDULING_WINDOW_SECONDS};
 ''',
-                (user, self.pool.name, user, self.pool.name),
+                (user, self.pool.name),
                 'select_user_ready_jobs',
             ):
                 yield record

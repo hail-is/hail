@@ -10,7 +10,7 @@ from typing import Any, Callable, Dict, List, Optional, Set, Tuple, Union, cast
 from . import backend, batch  # pylint: disable=cyclic-import
 from . import resource as _resource  # pylint: disable=cyclic-import
 from .exceptions import BatchException
-from .globals import DEFAULT_SHELL
+from .globals import REGION_SPECIFICATION, DEFAULT_SHELL
 
 
 def _add_resource_to_set(resource_set, resource, include_rg=True):
@@ -340,19 +340,13 @@ class Job:
         self._always_run = always_run
         return self
 
-    def regions(self, regions: Optional[Union[str, List[str]]]) -> 'Job':
+    def regions(self, regions: REGION_SPECIFICATION) -> 'Job':
         """
         Set the cloud regions a job can run in.
 
         Notes
         -----
         Can only be used with the :class:`.backend.ServiceBackend`.
-
-        Warning
-        -------
-        Not setting this option or setting it to None may result in additional egress
-        fees on GCP if a job is run in a region that is different from where the data and
-        image reside.
 
         Examples
         --------
@@ -365,9 +359,7 @@ class Job:
         Parameters
         ----------
         regions:
-            The cloud region(s) to run this job in. When using the Hail maintained Batch Service on GCP,
-            the available regions are "us-central1", "us-east1", "us-east4", "us-west1", "us-west2",
-            "us-west3", and "us-west4".
+            The cloud region(s) to run this job in.
 
         Returns
         -------
@@ -375,10 +367,8 @@ class Job:
         """
 
         if not isinstance(self._batch._backend, backend.ServiceBackend):
-            raise NotImplementedError("A ServiceBackend is required to use the 'always_run' option")
+            raise NotImplementedError("A ServiceBackend is required to use the 'regions' option")
 
-        if isinstance(regions, str):
-            regions = [regions]
         self._regions = regions
         return self
 

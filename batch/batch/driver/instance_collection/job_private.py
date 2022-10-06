@@ -336,15 +336,11 @@ WITH ready_jobs AS (
   HAVING live_attempts = 0
   LIMIT %s
 )
-SELECT ready_jobs.*, regions
+SELECT ready_jobs.*, IF(region IS NULL, NULL, JSON_ARRAYAGG(region)) AS regions
 FROM ready_jobs
-LEFT JOIN (
-  SELECT ready_jobs.batch_id, ready_jobs.job_id, JSON_ARRAYAGG(region) AS regions
-  FROM ready_jobs
-  INNER JOIN job_regions ON ready_jobs.batch_id = job_regions.batch_id AND ready_jobs.job_id = job_regions.job_id
-  LEFT JOIN region_ids ON job_regions.region_id = region_ids.region_id
-  GROUP BY ready_jobs.batch_id, ready_jobs.job_id
-) AS regions ON ready_jobs.batch_id = regions.batch_id AND ready_jobs.job_id = regions.job_id;
+LEFT JOIN job_regions ON ready_jobs.batch_id = job_regions.batch_id AND ready_jobs.job_id = job_regions.job_id
+LEFT JOIN region_ids ON job_regions.region_id = region_ids.region_id
+GROUP BY ready_jobs.batch_id, ready_jobs.job_id;
 ''',
                     (batch['id'], self.name, remaining.value),
                 ):
@@ -367,15 +363,11 @@ WITH ready_jobs AS (
   HAVING live_attempts = 0
   LIMIT %s
 )
-SELECT ready_jobs.*, regions
+SELECT ready_jobs.*, IF(region IS NULL, NULL, JSON_ARRAYAGG(region)) AS regions
 FROM ready_jobs
-LEFT JOIN (
-  SELECT ready_jobs.batch_id, ready_jobs.job_id, JSON_ARRAYAGG(region) AS regions
-  FROM ready_jobs
-  INNER JOIN job_regions ON ready_jobs.batch_id = job_regions.batch_id AND ready_jobs.job_id = job_regions.job_id
-  LEFT JOIN region_ids ON job_regions.region_id = region_ids.region_id
-  GROUP BY ready_jobs.batch_id, ready_jobs.job_id
-) AS regions ON ready_jobs.batch_id = regions.batch_id AND ready_jobs.job_id = regions.job_id;
+LEFT JOIN job_regions ON ready_jobs.batch_id = job_regions.batch_id AND ready_jobs.job_id = job_regions.job_id
+LEFT JOIN region_ids ON job_regions.region_id = region_ids.region_id
+GROUP BY ready_jobs.batch_id, ready_jobs.job_id;
 ''',
                         (batch['id'], self.name, remaining.value),
                     ):

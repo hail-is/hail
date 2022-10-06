@@ -13,7 +13,7 @@ import webbrowser
 import warnings
 
 from hailtop import pip_version
-from hailtop.config import configuration_of, get_deploy_config
+from hailtop.config import get_deploy_config, get_user_config
 from hailtop.utils import parse_docker_image_reference, async_to_blocking, bounded_gather, tqdm, url_scheme
 from hailtop.batch.hail_genetics_images import HAIL_GENETICS_IMAGES
 from hailtop.batch_client.parse import parse_cpu_in_mcpu
@@ -24,7 +24,7 @@ from hailtop.aiotools.router_fs import RouterAsyncFS
 
 from . import resource, batch, job as _job  # pylint: disable=unused-import
 from .exceptions import BatchException
-from .globals import DEFAULT_SHELL
+from .globals import ANY_REGION, DEFAULT_SHELL, REGION_SPECIFICATION
 
 
 HAIL_GENETICS_HAIL_IMAGE = os.environ.get('HAIL_GENETICS_HAIL_IMAGE',
@@ -387,8 +387,14 @@ class ServiceBackend(Backend[bc.Batch]):
         The authorization token to pass to the batch client.
         Should only be set for user delegation purposes.
     regions:
-        Cloud region(s) to run jobs in.
+        Cloud region(s) to run jobs in. Use :func:`.BatchClient.supported_regions` to list the
+        available regions to choose from.
     """
+
+    @staticmethod
+    def supported_regions():
+        with BatchClient('dummy') as dummy_client:
+            return dummy_client.supported_regions()
 
     def __init__(self,
                  *args,
@@ -397,7 +403,7 @@ class ServiceBackend(Backend[bc.Batch]):
                  remote_tmpdir: Optional[str] = None,
                  google_project: Optional[str] = None,
                  token: Optional[str] = None,
-                 regions: Optional[Union[str, List[str]]] = None,
+                 regions: Optional[REGION_SPECIFICATION] = None,
                  ):
         if len(args) > 2:
             raise TypeError(f'ServiceBackend() takes 2 positional arguments but {len(args)} were given')
@@ -412,13 +418,16 @@ class ServiceBackend(Backend[bc.Batch]):
             warnings.warn('Use of deprecated positional argument \'bucket\' in ServiceBackend(). Specify \'bucket\' as a keyword argument instead.')
             bucket = args[1]
 
-        billing_project = configuration_of('batch', 'billing_project', billing_project, None)
+        if billing_project is None:
+            billing_project = get_user_config().get('batch', 'billing_project', fallback=None)
         if billing_project is None:
             raise ValueError(
                 'the billing_project parameter of ServiceBackend must be set '
                 'or run `hailctl config set batch/billing_project '
                 'MY_BILLING_PROJECT`')
         self._batch_client = BatchClient(billing_project, _token=token)
+
+        user_config = get_user_config()
 
         if bucket is not None:
             warnings.warn('Use of deprecated argument \'bucket\' in ServiceBackend(). Specify \'remote_tmpdir\' as a keyword argument instead.')
@@ -427,11 +436,11 @@ class ServiceBackend(Backend[bc.Batch]):
             raise ValueError('Cannot specify both \'remote_tmpdir\' and \'bucket\' in ServiceBackend(). Specify \'remote_tmpdir\' as a keyword argument instead.')
 
         if bucket is None and remote_tmpdir is None:
-            remote_tmpdir = configuration_of('batch', 'remote_tmpdir', remote_tmpdir, None)
+            remote_tmpdir = user_config.get('batch', 'remote_tmpdir', fallback=None)
 
         if remote_tmpdir is None:
             if bucket is None:
-                bucket = configuration_of('batch', 'bucket', bucket, None)
+                bucket = user_config.get('batch', 'bucket', fallback=None)
                 warnings.warn('Using deprecated configuration setting \'batch/bucket\'. Run `hailctl config set batch/remote_tmpdir` '
                               'to set the default for \'remote_tmpdir\' instead.')
             if bucket is None:
@@ -456,25 +465,13 @@ class ServiceBackend(Backend[bc.Batch]):
         gcs_kwargs = {'project': google_project}
         self.__fs: RouterAsyncFS = RouterAsyncFS(default_scheme='file', gcs_kwargs=gcs_kwargs)
 
-        self.regions: Optional[List[str]]
-        if isinstance(regions, str):
-            self.regions = [regions]
-        elif regions is None:
-            _regions = configuration_of('batch', 'regions', regions, None)
-            if _regions is not None:
-                self.regions = _regions.split()
-            else:
-                self.regions = None
-                warnings.warn('No default cloud regions have been specified.\n'
-                              'This may result in additional egress fees when using a Hail Batch service hosted on the '
-                              'Google Cloud Platform if the data and image do not reside in the same region in which the '
-                              'job is executed. The default behavior is to run jobs in any available region. You can '
-                              'set the default value like `hailctl config set batch/regions us-central1 us-east1` '
-                              'or use the method Job.regions() to specify which regions a job can run in.')
+        if regions is None:
+            regions = user_config.get('batch', 'regions', fallback=None)
+            if regions is not None:
+                regions = regions.split(',')
         else:
-            self.regions = regions
-
-        print(f'set default cloud region to {self.regions}')
+            regions = ANY_REGION
+        self.regions = regions
 
     @property
     def _fs(self):
@@ -700,6 +697,10 @@ class ServiceBackend(Backend[bc.Batch]):
 
             env = {**job._env, 'BATCH_TMPDIR': local_tmpdir}
 
+            regions = job._regions
+            if regions == ANY_REGION:
+                regions = None
+
             j = bc_batch.create_job(image=image,
                                     command=[job._shell if job._shell else DEFAULT_SHELL, '-c', cmd],
                                     parents=parents,
@@ -714,7 +715,7 @@ class ServiceBackend(Backend[bc.Batch]):
                                     requester_pays_project=batch.requester_pays_project,
                                     mount_tokens=True,
                                     user_code=user_code,
-                                    regions=job._regions)
+                                    regions=regions)
 
             n_jobs_submitted += 1
 

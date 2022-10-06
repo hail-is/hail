@@ -1,4 +1,6 @@
+from enum import Enum
 import subprocess as sp
+from typing import Union, List
 
 
 __ARG_MAX = None
@@ -12,3 +14,12 @@ def arg_max():
 
 
 DEFAULT_SHELL = '/bin/bash'
+
+
+class _ANY_REGION(Enum):
+    ANY_REGION = 1
+
+
+ANY_REGION = _ANY_REGION.ANY_REGION
+
+REGION_SPECIFICATION = Union[_ANY_REGION, List[str]]
