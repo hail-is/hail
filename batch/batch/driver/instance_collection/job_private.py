@@ -2,6 +2,7 @@ import asyncio
 import json
 import logging
 import random
+import traceback
 from typing import List, Tuple
 
 import sortedcontainers
@@ -438,7 +439,13 @@ LEFT JOIN (
                         )
                     except RegionsNotSupportedError:
                         await mark_job_errored(
-                            self.app, batch_id, job_id, attempt_id, record['user'], record['format_version']
+                            self.app,
+                            batch_id,
+                            job_id,
+                            attempt_id,
+                            record['user'],
+                            record['format_version'],
+                            traceback.format_exc(),
                         )
                     except Exception:
                         log.exception(f'while creating job private instance for job {id}', exc_info=True)
