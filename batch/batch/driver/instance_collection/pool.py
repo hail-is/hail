@@ -1,9 +1,8 @@
 import asyncio
-import copy
 import logging
 import random
 from collections import defaultdict
-from typing import Dict, List, Optional, Tuple
+from typing import List, Optional, Tuple
 
 import prometheus_client as pc
 import sortedcontainers
@@ -275,8 +274,6 @@ WHERE removed = 0 AND inst_coll = %s;
     async def create_instances_from_ready_cores(self, ready_cores_mcpu: int, regions: List[str]):
         instances_needed = self.compute_n_instances_needed(
             ready_cores_mcpu,
-            self.n_instances_by_state,
-            self.live_free_cores_mcpu_by_region,
             regions,
         )
 
@@ -399,9 +396,7 @@ GROUP BY user;
             for regions, ready_cores_mcpu in head_job_queue_regions_ready_cores_mcpu_ordered:
                 n_regions = len(regions)
                 for region in regions:
-                    n_instances = self.compute_n_instances_needed(
-                        ready_cores_mcpu, regions
-                    )
+                    n_instances = self.compute_n_instances_needed(ready_cores_mcpu, regions)
                     head_job_queue_ready_cores_mcpu[region] += ready_cores_mcpu / n_regions
                     head_job_queue_n_instances[region] += n_instances / n_regions
 
@@ -611,7 +606,7 @@ LIMIT {share * JOB_QUEUE_SCHEDULING_WINDOW_SECONDS};
                         attempt_id,
                         record['user'],
                         BatchFormatVersion(record['format_version']),
-                        f'no regions given in {regions} are supported. choose from a region in {supported_regions}'
+                        f'no regions given in {regions} are supported. choose from a region in {supported_regions}',
                     )
                     continue
 
