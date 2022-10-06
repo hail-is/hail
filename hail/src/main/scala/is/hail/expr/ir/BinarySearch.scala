@@ -292,7 +292,7 @@ class BinarySearch[C](mb: EmitMethodBuilder[C],
   // for j in [i, n)
   findElt.emitWithBuilder[Int] { cb =>
     val haystack = findElt.getSCodeParam(1).asIndexable
-    val needle = findElt.getEmitParam(cb, 2, null) // no streams
+    val needle = findElt.getEmitParam(cb, 2)
 
     val f: (
       EmitCodeBuilder,

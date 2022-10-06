@@ -1915,6 +1915,32 @@ def test_to_pandas_nd_array():
     pd.testing.assert_frame_equal(df_from_hail, df_from_python)
 
 
+def test_literal_of_numpy_int64():
+    t = hl.utils.range_table(10)
+    x = t.key_by(idx=hl.int64(t.idx)).to_pandas().idx.tolist()
+    hl.eval(hl.literal(x))
+
+
+def test_literal_of_numpy_int32():
+    t = hl.utils.range_table(10)
+    x = t.key_by(idx=t.idx).to_pandas().idx.tolist()
+    hl.eval(hl.literal(x))
+
+
+def test_literal_of_pandas_NA_and_numpy_int64():
+    import hail as hl
+    t = hl.utils.range_table(10)
+    x = t.key_by(idx=hl.or_missing(t.idx == 5, hl.int64(t.idx))).to_pandas().idx.tolist()
+    hl.eval(hl.literal(x))
+
+
+def test_literal_of_pandas_NA_and_numpy_int32():
+    import hail as hl
+    t = hl.utils.range_table(10)
+    x = t.key_by(idx=hl.or_missing(t.idx == 5, t.idx)).to_pandas().idx.tolist()
+    hl.eval(hl.literal(x))
+
+
 def test_write_many():
     t = hl.utils.range_table(5)
     t = t.annotate(a = t.idx, b = t.idx * t.idx, c = hl.str(t.idx))

@@ -254,8 +254,12 @@ class LocalBackend(Backend[None]):
                 code += ['\n']
                 run_code(code)
 
+            async_to_blocking(
+                batch._serialize_python_functions_to_input_files(tmpdir, dry_run=dry_run)
+            )
+
             for job in batch._jobs:
-                async_to_blocking(job._compile(tmpdir, tmpdir))
+                async_to_blocking(job._compile(tmpdir, tmpdir, dry_run=dry_run))
 
                 os.makedirs(f'{tmpdir}/{job._dirname}/', exist_ok=True)
 
@@ -591,6 +595,10 @@ class ServiceBackend(Backend[bc.Batch]):
                     raise BatchException(
                         f"You must specify 'image' for Python jobs if you are using a Python version other than 3.7, 3.8, 3.9 or 3.10 (you are using {version})")
                 job._image = f'hailgenetics/python-dill:{version.major}.{version.minor}-slim'
+
+        await batch._serialize_python_functions_to_input_files(
+            batch_remote_tmpdir, dry_run=dry_run
+        )
 
         with tqdm(total=len(batch._jobs), desc='upload code', disable=disable_progress_bar) as pbar:
             async def compile_job(job):

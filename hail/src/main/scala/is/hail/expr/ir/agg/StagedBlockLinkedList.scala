@@ -168,7 +168,7 @@ class StagedBlockLinkedList(val elemType: PType, val kb: EmitClassBuilder[_]) {
     pushF.voidWithBuilder { cb =>
       pushImpl(cb,
         pushF.getCodeParam[Region](1),
-        pushF.getEmitParam(cb, 2, null)) // don't need region
+        pushF.getEmitParam(cb, 2))
     }
     cb.invokeVoid(pushF, region, elt)
   }

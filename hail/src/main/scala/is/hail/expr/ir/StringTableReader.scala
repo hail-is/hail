@@ -66,7 +66,6 @@ case class StringTablePartitionReader(lines: GenericLines, uidFieldName: String)
     ctx: ExecuteContext,
     cb: EmitCodeBuilder,
     context: EmitCode,
-    partitionRegion: Value[Region],
     requestedType: TStruct
   ): IEmitCode = {
 
@@ -85,7 +84,7 @@ case class StringTablePartitionReader(lines: GenericLines, uidFieldName: String)
       SStreamValue(new StreamProducer {
         override val length: Option[EmitCodeBuilder => Code[Int]] = None
 
-        override def initialize(cb: EmitCodeBuilder): Unit = {
+        override def initialize(cb: EmitCodeBuilder, partitionRegion: Value[Region]): Unit = {
           val contextAsJavaValue = coerce[Any](StringFunctions.svalueToJavaValue(cb, partitionRegion, partitionContext))
 
           cb.assign(fileName, partitionContext.loadField(cb, "file").get(cb).asString.loadString(cb))

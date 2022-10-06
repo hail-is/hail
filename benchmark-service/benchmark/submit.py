@@ -11,7 +11,7 @@ from typing import Set
 from hailtop import batch as hb
 from hailtop.utils import sync_check_shell
 
-BENCHMARK_IMAGE = 'gcr.io/hail-vdc/base:latest'
+BENCHMARK_IMAGE = 'us-docker.pkg.dev/hail-vdc/hail/base:latest'
 
 log = logging.getLogger('submit')
 

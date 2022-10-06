@@ -47,7 +47,6 @@ class PartitionIteratorLongReader(
     ctx: ExecuteContext,
     cb: EmitCodeBuilder,
     context: EmitCode,
-    partitionRegion: Value[Region],
     requestedType: TStruct): IEmitCode = {
 
     val insertUID: Boolean = requestedType.hasField(uidFieldName)
@@ -66,7 +65,6 @@ class PartitionIteratorLongReader(
     context.toI(cb).map(cb) { case ctxStruct: SBaseStructValue =>
       val partIdx = ctxStruct.loadField(cb, "partitionIndex").get(cb).asInt.value
       val rowIdx = mb.genFieldThisRef[Long]("pnr_rowidx")
-      val ctxJavaValue = UtilFunctions.svalueToJavaValue(cb, partitionRegion, ctxStruct)
       val region = mb.genFieldThisRef[Region]("pilr_region")
       val it = mb.genFieldThisRef[Iterator[java.lang.Long]]("pilr_it")
       val rv = mb.genFieldThisRef[Long]("pilr_rv")
@@ -74,7 +72,8 @@ class PartitionIteratorLongReader(
       val producer = new StreamProducer {
         override val length: Option[EmitCodeBuilder => Code[Int]] = None
 
-        override def initialize(cb: EmitCodeBuilder): Unit = {
+        override def initialize(cb: EmitCodeBuilder, partitionRegion: Value[Region]): Unit = {
+          val ctxJavaValue = UtilFunctions.svalueToJavaValue(cb, partitionRegion, ctxStruct)
           cb.assign(it, cb.emb.getObject(body(requestedType))
             .invoke[java.lang.Object, java.lang.Object, java.lang.Object, java.lang.Object, Iterator[java.lang.Long]](
               "apply", region, cb.emb.getHailClassLoader, cb.emb.getFS, ctxJavaValue))
