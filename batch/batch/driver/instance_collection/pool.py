@@ -306,7 +306,7 @@ WHERE removed = 0 AND inst_coll = %s;
             user_job_query = f'''
 (
   SELECT user, jobs.batch_id, jobs.job_id, cores_mcpu,
-    IF(region IS NULL, NULL, JSON_ARRAYAGG(region)) AS regions,
+    JSON_ARRAYAGG(region) AS regions,
     COUNT(region) AS n_regions,
     ROW_NUMBER() OVER (ORDER BY batch_id ASC, job_id ASC) DIV {share} AS scheduling_iteration
   FROM jobs FORCE INDEX(jobs_batch_id_state_always_run_cancelled)
@@ -348,7 +348,8 @@ LIMIT {MAX_INSTANCES_PER_AUTOSCALER_LOOP * self.worker_cores};
 
         def extract_regions(regions_str):
             regions = json_to_value(regions_str)
-            if regions is None:
+            # Left join with JSON_ARRAYAGG returns [null]; treat this case as no regions selected
+            if regions == [None]:
                 return self.all_supported_regions
             return regions
 
@@ -561,7 +562,7 @@ HAVING n_ready_jobs + n_running_jobs > 0;
             async for record in self.db.select_and_fetchall(
                 f'''
 SELECT user, jobs.batch_id, jobs.job_id, cores_mcpu, spec, userdata, format_version,
-  IF(region IS NULL, NULL, JSON_ARRAYAGG(region)) AS regions,
+  JSON_ARRAYAGG(region) AS regions,
   COUNT(region) AS n_regions,
   ROW_NUMBER() OVER (ORDER BY batch_id ASC, job_id ASC) DIV {share} AS scheduling_iteration
 FROM jobs FORCE INDEX(jobs_batch_id_state_always_run_cancelled)
@@ -596,7 +597,8 @@ LIMIT {share * JOB_QUEUE_SCHEDULING_WINDOW_SECONDS};
 
                 regions = json_to_value(record['regions'])
                 supported_regions = self.pool.all_supported_regions
-                if regions is None:
+                # Left join with JSON_ARRAYAGG returns [null]; treat this case as no regions selected
+                if regions == [None]:
                     regions = supported_regions
                 if len(set(regions).intersection(supported_regions)) == 0:
                     await mark_job_errored(

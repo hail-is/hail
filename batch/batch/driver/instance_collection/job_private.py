@@ -336,7 +336,7 @@ WITH ready_jobs AS (
   HAVING live_attempts = 0
   LIMIT %s
 )
-SELECT ready_jobs.*, IF(region IS NULL, NULL, JSON_ARRAYAGG(region)) AS regions
+SELECT ready_jobs.*, JSON_ARRAYAGG(region) AS regions
 FROM ready_jobs
 LEFT JOIN job_regions ON ready_jobs.batch_id = job_regions.batch_id AND ready_jobs.job_id = job_regions.job_id
 LEFT JOIN region_ids ON job_regions.region_id = region_ids.region_id
@@ -363,7 +363,7 @@ WITH ready_jobs AS (
   HAVING live_attempts = 0
   LIMIT %s
 )
-SELECT ready_jobs.*, IF(region IS NULL, NULL, JSON_ARRAYAGG(region)) AS regions
+SELECT ready_jobs.*, JSON_ARRAYAGG(region) AS regions
 FROM ready_jobs
 LEFT JOIN job_regions ON ready_jobs.batch_id = job_regions.batch_id AND ready_jobs.job_id = job_regions.job_id
 LEFT JOIN region_ids ON job_regions.region_id = region_ids.region_id
@@ -421,7 +421,8 @@ GROUP BY ready_jobs.batch_id, ready_jobs.job_id;
                         machine_spec = batch_format_version.get_spec_machine_spec(spec)
 
                         regions = json_to_value(record['regions'])
-                        if regions is None:
+                        # Left join with JSON_ARRAYAGG returns [null]; treat this case as no regions selected
+                        if regions == [None]:
                             regions = self.inst_coll_manager.regions
 
                         instance, total_resources_on_instance = await self.create_instance(machine_spec, regions)
