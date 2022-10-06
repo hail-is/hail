@@ -952,6 +952,22 @@ class Tests(unittest.TestCase):
         self.assertEqual(t2.n_partitions(), 3)
         self.assertTrue(t1.filter((t1.idx >= 150) & (t1.idx < 500))._same(t2))
 
+        t2 = hl.read_table(f, _intervals=[
+            hl.Interval(start=150, end=250, includes_start=False, includes_end=True),
+            hl.Interval(start=250, end=500, includes_start=False, includes_end=True),
+        ], _create_row_uids=True)
+        self.assertEqual(t2.n_partitions(), 2)
+        self.assertEqual(t2.count(), 350)
+        self.assertEqual(t2._force_count(), 350)
+        self.assertTrue(t1.filter((t1.idx > 150) & (t1.idx <= 500))._same(t2))
+
+        t2 = hl.read_table(f, _intervals=[
+            hl.Interval(start=150, end=250, includes_start=False, includes_end=True),
+            hl.Interval(start=250, end=500, includes_start=False, includes_end=True),
+        ], _filter_intervals=True, _create_row_uids=True)
+        self.assertEqual(t2.n_partitions(), 3)
+        self.assertTrue(t1.filter((t1.idx > 150) & (t1.idx <= 500))._same(t2))
+
     def test_order_by_parsing(self):
         hl.utils.range_table(1).annotate(**{'a b c' : 5}).order_by('a b c')._force_count()
 
