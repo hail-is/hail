@@ -946,7 +946,7 @@ class EmitMethodBuilder[C](
     })
   }
 
-  def storeEmitParam(emitIndex: Int, cb: EmitCodeBuilder): (EmitCodeBuilder, Value[Region]) => IEmitCode = {
+  def storeEmitParam(emitIndex: Int, cb: EmitCodeBuilder): (EmitCodeBuilder) => IEmitCode = {
     assert(mb.isStatic || emitIndex != 0)
     val static = (!mb.isStatic).toInt
     val et = emitParamTypes(emitIndex - static) match {
@@ -966,32 +966,32 @@ class EmitMethodBuilder[C](
         else
           cb.memoizeField(mb.getArg[Boolean](codeIndex + 1), s"storeEmitParam_${emitIndex}_m")
 
-        { (cb2: EmitCodeBuilder, region: Value[Region]) =>
-          IEmitCode(cb2, missing, sct.loadToSValue(cb2, region, field))
+        { (cb2: EmitCodeBuilder) =>
+          IEmitCode(cb2, missing, sct.loadToSValue(cb2, field))
         }
 
       case SingleCodeEmitParamType(required, sct) =>
         val v = cb.memoizeField(
-          sct.loadToSValue(cb, null, mb.getArg(codeIndex)(sct.ti)),
+          sct.loadToSValue(cb, mb.getArg(codeIndex)(sct.ti)),
           s"storeEmitParam_$emitIndex")
         val missing: Value[Boolean] = if (required)
           const(false)
         else
           cb.memoizeField(mb.getArg[Boolean](codeIndex + 1), s"storeEmitParam_${emitIndex}_m")
 
-        { (cb2: EmitCodeBuilder, _) =>
+        { (cb2: EmitCodeBuilder) =>
           IEmitCode(cb2, missing, v)
         }
 
       case SCodeEmitParamType(et) =>
-        val fd = cb.memoizeField(getEmitParam(cb, emitIndex, null), s"storeEmitParam_$emitIndex")
-        (cb2: EmitCodeBuilder, _) => fd.loadI(cb2)
+        val fd = cb.memoizeField(getEmitParam(cb, emitIndex), s"storeEmitParam_$emitIndex")
+        (cb2: EmitCodeBuilder) => fd.loadI(cb2)
     }
 
   }
 
   // needs region to support stream arguments
-  def getEmitParam(cb: EmitCodeBuilder, emitIndex: Int, r: Value[Region]): EmitValue = {
+  def getEmitParam(cb: EmitCodeBuilder, emitIndex: Int): EmitValue = {
     assert(mb.isStatic || emitIndex != 0)
     val static = (!mb.isStatic).toInt
     val et = emitParamTypes(emitIndex - static) match {
@@ -1003,7 +1003,7 @@ class EmitMethodBuilder[C](
     et match {
       case SingleCodeEmitParamType(required, sct) =>
         val m = if (required) None else Some(mb.getArg[Boolean](codeIndex + 1))
-        val v = sct.loadToSValue(cb, r, mb.getArg(codeIndex)(sct.ti))
+        val v = sct.loadToSValue(cb, mb.getArg(codeIndex)(sct.ti))
 
         EmitValue(m, v)
 
@@ -1101,7 +1101,7 @@ trait WrappedEmitMethodBuilder[C] extends WrappedEmitClassBuilder[C] {
   // EmitMethodBuilder methods
   def getCodeParam[T: TypeInfo](emitIndex: Int): Settable[T] = emb.getCodeParam[T](emitIndex)
 
-  def getEmitParam(cb: EmitCodeBuilder, emitIndex: Int, r: Value[Region]): EmitValue = emb.getEmitParam(cb, emitIndex, r)
+  def getEmitParam(cb: EmitCodeBuilder, emitIndex: Int): EmitValue = emb.getEmitParam(cb, emitIndex)
 
   def newPLocal(st: SType): SSettable = emb.newPLocal(st)
 

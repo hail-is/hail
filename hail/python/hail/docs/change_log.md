@@ -24,6 +24,23 @@ an earlier version of Hail to read files written in a later version.
 
 ---
 
+## Version 0.2.102
+
+Released 2022-10-06
+
+### New Features
+
+- (hail#12218) Missing values are now supported in primitive columns in `Table.to_pandas`.
+- (hail#12254) Cross-product-style legends for data groups have been replaced with factored ones (consistent with `ggplot2`'s implementation) for `hail.ggplot.geom_point`, and support has been added for custom legend group labels.
+- (hail#12268) `VariantDataset` now implements `union_rows` for combining datasets with the same samples but disjoint variants.
+
+### Bug Fixes
+
+- (hail#12278) Fixed bug made more likely by 0.2.101 in which Hail errors when interacting with a NumPy integer or floating point type.
+- (hail#12277) Fixed bug in reading tables/matrixtables with partition intervals that led to error or segfault.
+
+---
+
 ## Version 0.2.101
 
 Released 2022-10-04

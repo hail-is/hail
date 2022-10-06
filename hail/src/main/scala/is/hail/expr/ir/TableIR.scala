@@ -546,7 +546,6 @@ case class PartitionRVDReader(rvd: RVD, uidFieldName: String) extends PartitionR
     ctx: ExecuteContext,
     cb: EmitCodeBuilder,
     context: EmitCode,
-    partitionRegion: Value[Region],
     requestedType: TStruct): IEmitCode = {
 
     val mb = cb.emb
@@ -579,7 +578,7 @@ case class PartitionRVDReader(rvd: RVD, uidFieldName: String) extends PartitionR
       val producer = new StreamProducer {
         override val length: Option[EmitCodeBuilder => Code[Int]] = None
 
-        override def initialize(cb: EmitCodeBuilder): Unit = {
+        override def initialize(cb: EmitCodeBuilder, partitionRegion: Value[Region]): Unit = {
           cb.assign(curIdx, 0L)
           cb.assign(iterator, broadcastRVD.invoke[Int, Region, Region, Iterator[Long]](
             "computePartition", partIdx.asInt.value, region, partitionRegion))
@@ -646,7 +645,6 @@ case class PartitionNativeReader(spec: AbstractTypedCodecSpec, uidFieldName: Str
     ctx: ExecuteContext,
     cb: EmitCodeBuilder,
     context: EmitCode,
-    partitionRegion: Value[Region],
     requestedType: TStruct): IEmitCode = {
 
     val mb = cb.emb
@@ -678,7 +676,7 @@ case class PartitionNativeReader(spec: AbstractTypedCodecSpec, uidFieldName: Str
       val producer = new StreamProducer {
         override val length: Option[EmitCodeBuilder => Code[Int]] = None
 
-        override def initialize(cb: EmitCodeBuilder): Unit = {
+        override def initialize(cb: EmitCodeBuilder, partitionRegion: Value[Region]): Unit = {
           cb.assign(xRowBuf, spec.buildCodeInputBuffer(mb.open(pathString, checkCodec = true)))
           cb.assign(rowIdx, -1L)
         }
@@ -728,7 +726,6 @@ case class PartitionNativeReaderIndexed(
     ctx: ExecuteContext,
     cb: EmitCodeBuilder,
     context: EmitCode,
-    partitionRegion: Value[Region],
     requestedType: TStruct): IEmitCode = {
 
     val mb = cb.emb
@@ -762,7 +759,7 @@ case class PartitionNativeReaderIndexed(
       val producer = new StreamProducer {
         override val length: Option[EmitCodeBuilder => Code[Int]] = Some(_ => (endIdx - curIdx).toI)
 
-        override def initialize(cb: EmitCodeBuilder): Unit = {
+        override def initialize(cb: EmitCodeBuilder, outerRegion: Value[Region]): Unit = {
           val indexPath = ctxStruct
             .loadField(cb, "indexPath")
             .get(cb)
@@ -779,7 +776,7 @@ case class PartitionNativeReaderIndexed(
             .asInterval
           index.initialize(cb, indexPath)
 
-          val indexResult = index.queryInterval(cb, partitionRegion, interval)
+          val indexResult = index.queryInterval(cb, outerRegion, interval)
           val startIndex = indexResult.loadField(cb, 0)
             .get(cb)
             .asInt64
@@ -877,7 +874,6 @@ case class PartitionZippedNativeReader(left: PartitionReader, right: PartitionRe
   override def emitStream(ctx: ExecuteContext,
     cb: EmitCodeBuilder,
     context: EmitCode,
-    partitionRegion: Value[Region],
     requestedType: TStruct
   ): IEmitCode = {
     val (lRequested, rRequested) = splitRequestedType(requestedType)
@@ -885,8 +881,8 @@ case class PartitionZippedNativeReader(left: PartitionReader, right: PartitionRe
     context.toI(cb).flatMap(cb) { case zippedContext: SBaseStructValue =>
       val ctx1 = EmitCode.fromI(cb.emb)(zippedContext.loadField(_, "leftContext"))
       val ctx2 = EmitCode.fromI(cb.emb)(zippedContext.loadField(_, "rightContext"))
-      left.emitStream(ctx, cb, ctx1, partitionRegion, lRequested).flatMap(cb) { sstream1 =>
-        right.emitStream(ctx, cb, ctx2, partitionRegion, rRequested).map(cb) { sstream2 =>
+      left.emitStream(ctx, cb, ctx1, lRequested).flatMap(cb) { sstream1 =>
+        right.emitStream(ctx, cb, ctx2, rRequested).map(cb) { sstream2 =>
 
           val stream1 = sstream1.asStream.producer
           val stream2 = sstream2.asStream.producer
@@ -896,11 +892,11 @@ case class PartitionZippedNativeReader(left: PartitionReader, right: PartitionRe
           SStreamValue(new StreamProducer {
             override val length: Option[EmitCodeBuilder => Code[Int]] = None
 
-            override def initialize(cb: EmitCodeBuilder): Unit = {
+            override def initialize(cb: EmitCodeBuilder, outerRegion: Value[Region]): Unit = {
               cb.assign(stream1.elementRegion, elementRegion)
-              stream1.initialize(cb)
+              stream1.initialize(cb, outerRegion)
               cb.assign(stream2.elementRegion, elementRegion)
-              stream2.initialize(cb)
+              stream2.initialize(cb, outerRegion)
             }
 
             override val elementRegion: Settable[Region] = region
@@ -992,7 +988,6 @@ case class PartitionZippedIndexedNativeReader(specLeft: AbstractTypedCodecSpec, 
     ctx: ExecuteContext,
     cb: EmitCodeBuilder,
     context: EmitCode,
-    partitionRegion: Value[Region],
     requestedType: TStruct): IEmitCode = {
 
     val mb = cb.emb
@@ -1025,7 +1020,7 @@ case class PartitionZippedIndexedNativeReader(specLeft: AbstractTypedCodecSpec, 
       val producer = new StreamProducer {
         override val length: Option[EmitCodeBuilder => Code[Int]] = Some(_ => (endIdx - curIdx).toI)
 
-        override def initialize(cb: EmitCodeBuilder): Unit = {
+        override def initialize(cb: EmitCodeBuilder, outerRegion: Value[Region]): Unit = {
           val indexPath = ctxStruct
             .loadField(cb, "indexPath")
             .get(cb)
@@ -1037,7 +1032,7 @@ case class PartitionZippedIndexedNativeReader(specLeft: AbstractTypedCodecSpec, 
             .asInterval
           index.initialize(cb, indexPath)
 
-          val indexResult = index.queryInterval(cb, partitionRegion, interval)
+          val indexResult = index.queryInterval(cb, outerRegion, interval)
           val startIndex = indexResult.loadField(cb, 0)
             .get(cb)
             .asInt64
