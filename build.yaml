@@ -1,6 +1,7 @@
 steps:
   - kind: buildImage2
     name: git_make_bash_image
+    publishAs: git-make-bash
     dockerFile:
       inline: |
         FROM {{ global.docker_root_image }}
@@ -2353,6 +2354,7 @@ steps:
       - build_hail_jar_and_wheel_only_spark_3_2
   - kind: buildImage2
     name: netcat_ubuntu_image
+    publishAs: netcat
     dockerFile:
       inline: |
         FROM {{ hail_ubuntu_image.image }}
@@ -2361,6 +2363,7 @@ steps:
       - hail_ubuntu_image
   - kind: buildImage2
     name: volume_image
+    publishAs: volume
     dockerFile:
       inline: |
         FROM {{ hail_ubuntu_image.image }}
@@ -2369,6 +2372,7 @@ steps:
       - hail_ubuntu_image
   - kind: buildImage2
     name: workdir_image
+    publishAs: workdir
     dockerFile:
       inline: |
         FROM {{ hail_ubuntu_image.image }}
@@ -2377,6 +2381,7 @@ steps:
       - hail_ubuntu_image
   - kind: buildImage2
     name: curl_image
+    publishAs: curl
     dockerFile:
       inline: |
         FROM {{ hail_ubuntu_image.image }}
